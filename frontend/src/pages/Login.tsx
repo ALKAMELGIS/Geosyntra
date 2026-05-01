@@ -218,6 +218,27 @@ export default function Login() {
     return Array.from(byEmail.values())
   }
 
+  const enforceMandatoryAccounts = (list: any[]): any[] => {
+    const filtered = Array.isArray(list) ? [...list] : []
+    for (const seed of mandatoryLoginSeeds) {
+      const key = normalizeEmail(seed.email)
+      for (let i = filtered.length - 1; i >= 0; i -= 1) {
+        if (normalizeEmail((filtered[i] as any)?.email) === key) filtered.splice(i, 1)
+      }
+      filtered.push({
+        id: Date.now() + Math.floor(Math.random() * 10000),
+        name: seed.name,
+        email: seed.email,
+        role: normalizeRole(seed.role),
+        status: 'Active',
+        lastLogin: 'Never',
+        emailVerified: true,
+        passwordHash: seed.passwordHash,
+      })
+    }
+    return filtered
+  }
+
   const logLoginAttempt = (outcome: 'success' | 'failure', reason: string, userEmail?: string) => {
     appendAuditLog({
       entity: 'auth',
@@ -270,7 +291,7 @@ export default function Login() {
           }
           nextUsers.push(clean)
         }
-        const dedup = consolidateUsersByEmail(nextUsers)
+        const dedup = enforceMandatoryAccounts(consolidateUsersByEmail(nextUsers))
         if (dedup.length !== nextUsers.length) changed = true
         if (!cancelled && changed) {
           localStorage.setItem('adminUsers', JSON.stringify(dedup))
@@ -320,19 +341,18 @@ export default function Login() {
             name: String(existing?.name || seed.name),
             email: String(existing?.email || seed.email).trim(),
             role: normalizeRole(existing?.role || seed.role),
-            status: String(existing?.status || 'Active'),
-            emailVerified: typeof existing?.emailVerified === 'boolean' ? existing.emailVerified : true,
-            passwordHash:
-              typeof existing?.passwordHash === 'string' && existing.passwordHash.trim()
-                ? existing.passwordHash
-                : seed.passwordHash,
+            // Mandatory accounts must always remain sign-in capable.
+            status: 'Active',
+            emailVerified: true,
+            passwordHash: seed.passwordHash,
           }
           if (JSON.stringify(upgraded) !== JSON.stringify(existing)) {
             next[idx] = upgraded
             changed = true
           }
         }
-        if (changed) localStorage.setItem('adminUsers', JSON.stringify(next))
+        const healed = enforceMandatoryAccounts(consolidateUsersByEmail(next))
+        if (changed || healed.length !== next.length) localStorage.setItem('adminUsers', JSON.stringify(healed))
       } catch {
       }
     }
@@ -402,9 +422,12 @@ export default function Login() {
         })
         .filter(Boolean) as any[]
       )
+      // Keep storage healthy before auth checks to avoid stale duplicate account drift.
+      const normalizedDedupedUsers = enforceMandatoryAccounts(consolidateUsersByEmail(normalizedUsers))
+      localStorage.setItem('adminUsers', JSON.stringify(normalizedDedupedUsers))
 
       if (mode === 'signup') {
-        const matches = normalizedUsers.filter(u => normalizeEmail(u.email) === normalizeEmail(emailTrimmed))
+        const matches = normalizedDedupedUsers.filter(u => normalizeEmail(u.email) === normalizeEmail(emailTrimmed))
         const anyHasPassword = matches.some(m => typeof m.passwordHash === 'string' && m.passwordHash.length > 0)
         if (matches.length && anyHasPassword) {
           logLoginAttempt('failure', 'signup_email_exists', emailTrimmed)
@@ -459,7 +482,7 @@ export default function Login() {
               emailVerified: false,
               verificationToken,
             }
-        const nextUsers = normalizedUsers.filter(u => normalizeEmail(u.email) !== normalizeEmail(emailTrimmed))
+        const nextUsers = normalizedDedupedUsers.filter(u => normalizeEmail(u.email) !== normalizeEmail(emailTrimmed))
         nextUsers.push(newUser)
         localStorage.setItem('adminUsers', JSON.stringify(nextUsers))
         const { verifyLink, delivered } = await sendVerificationEmail(emailTrimmed, verificationToken)
@@ -482,7 +505,7 @@ export default function Login() {
           setIsSubmitting(false)
           return
         }
-        const matches = normalizedUsers.filter(u => normalizeEmail(u.email) === normalizeEmail(emailTrimmed))
+        const matches = normalizedDedupedUsers.filter(u => normalizeEmail(u.email) === normalizeEmail(emailTrimmed))
         if (!matches.length) {
           logLoginAttempt('failure', 'email_not_found', emailTrimmed)
           setError('Invalid email or password.')
@@ -521,7 +544,7 @@ export default function Login() {
         // Backward-compatible migration for users still stored with plain-text password fields.
         if (passwordMatches.length && matchedViaLegacyPlain) {
           const matchedEmails = new Set(passwordMatches.map(m => normalizeEmail(m.email)))
-          const migratedUsers = normalizedUsers.map(u => {
+          const migratedUsers = normalizedDedupedUsers.map(u => {
             if (!matchedEmails.has(normalizeEmail(u.email))) return u
             const next = { ...(u as any), passwordHash: hashed }
             delete (next as any).password
@@ -536,6 +559,18 @@ export default function Login() {
         }
 
         if (!passwordMatches.length) {
+          if (matches.some(m => String(m.status || '').toLowerCase() === 'invited')) {
+            logLoginAttempt('failure', 'invited_account_not_activated', emailTrimmed)
+            setError('Account is invited but not activated. Ask your administrator to send a new invitation link.')
+            setIsSubmitting(false)
+            return
+          }
+          if (matches.some(m => readPasswordCandidates(m).length === 0)) {
+            logLoginAttempt('failure', 'account_missing_password_credentials', emailTrimmed)
+            setError('Account exists but has no active password. Ask your administrator to reset your password.')
+            setIsSubmitting(false)
+            return
+          }
           logLoginAttempt('failure', 'password_mismatch', emailTrimmed)
           setError('Invalid email or password.')
           setIsSubmitting(false)
@@ -555,7 +590,7 @@ export default function Login() {
         if (!base.emailVerified) {
           const currentToken = String(base.verificationToken || createVerificationToken())
           const { verifyLink, delivered } = await sendVerificationEmail(emailTrimmed, currentToken)
-          const nextUsers = normalizedUsers.map(u =>
+          const nextUsers = normalizedDedupedUsers.map(u =>
             normalizeEmail(u.email) === normalizeEmail(emailTrimmed)
               ? { ...u, verificationToken: currentToken, status: 'Pending Verification', emailVerified: false }
               : u
@@ -586,7 +621,7 @@ export default function Login() {
           passwordHash: typeof base.passwordHash === 'string' ? base.passwordHash : hashed,
         }
 
-        const nextUsers = normalizedUsers.filter(u => normalizeEmail(u.email) !== normalizeEmail(emailTrimmed))
+        const nextUsers = normalizedDedupedUsers.filter(u => normalizeEmail(u.email) !== normalizeEmail(emailTrimmed))
         nextUsers.push(mergedUser)
         const dedupedAfterSuccess = consolidateUsersByEmail(nextUsers)
         localStorage.setItem('adminUsers', JSON.stringify(dedupedAfterSuccess))
