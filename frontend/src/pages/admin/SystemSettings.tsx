@@ -9,6 +9,14 @@ import { applyThemeToDocument, useSystemSettings } from '../../store/SystemSetti
 import type { CustomPageRecord, SystemSettingsPersistedV1 } from '../../types/systemSettings'
 import './system-settings.css'
 import { NavGroupEditor } from './system-settings/NavGroupEditor'
+import {
+  getArcgisPortalTokenBrowserOverride,
+  persistArcgisPortalTokenInBrowser,
+} from '../../lib/arcgisPortalToken'
+import {
+  getMapboxAccessTokenBrowserOverride,
+  persistMapboxAccessTokenInBrowser,
+} from '../../lib/mapboxAccessToken'
 
 const PAGE_ICON_PRESETS = [
   'fa-solid fa-file',
@@ -28,6 +36,7 @@ const SETTINGS_TABS = [
   { id: 'logos' as const, label: 'Logos', icon: 'fa-solid fa-image' },
   { id: 'nav' as const, label: 'Navigation', icon: 'fa-solid fa-bars-staggered' },
   { id: 'pages' as const, label: 'Pages', icon: 'fa-solid fa-layer-group' },
+  { id: 'api-tokens' as const, label: 'API Tokens', icon: 'fa-solid fa-key' },
 ]
 
 const themeSchema = yup.object({
@@ -38,7 +47,9 @@ const themeSchema = yup.object({
 export default function SystemSettings() {
   const { draft, setDraft, settings, saveDraft, cancelDraft, resetToDefaults, pushToast } = useSystemSettings()
   const { language } = useLanguage()
-  const [tab, setTab] = useState<'theme' | 'home' | 'logos' | 'nav' | 'pages'>('theme')
+  const [tab, setTab] = useState<'theme' | 'home' | 'logos' | 'nav' | 'pages' | 'api-tokens'>('theme')
+  const [mapboxTokenDraft, setMapboxTokenDraft] = useState('')
+  const [arcgisTokenDraft, setArcgisTokenDraft] = useState('')
   const [confirmReset, setConfirmReset] = useState(false)
   const [homeEditorSection, setHomeEditorSection] = useState<'page' | 'header' | 'blocks' | 'footer' | 'colors' | 'typography'>('page')
   const [pageQuery, setPageQuery] = useState('')
@@ -65,6 +76,22 @@ export default function SystemSettings() {
       applyThemeToDocument(loadSystemSettings())
     }
   }, [])
+
+  const mapboxTokenFromEnv = useMemo(() => {
+    const raw = import.meta.env.VITE_MAPBOX_TOKEN
+    return typeof raw === 'string' && raw.trim().length > 0
+  }, [])
+
+  const arcgisTokenFromEnv = useMemo(() => {
+    const raw = import.meta.env.VITE_ARCGIS_PORTAL_TOKEN
+    return typeof raw === 'string' && raw.trim().length > 0
+  }, [])
+
+  useEffect(() => {
+    if (tab !== 'api-tokens') return
+    setMapboxTokenDraft(getMapboxAccessTokenBrowserOverride())
+    setArcgisTokenDraft(getArcgisPortalTokenBrowserOverride())
+  }, [tab])
 
   const pageSchema = useMemo(
     () =>
@@ -303,7 +330,7 @@ export default function SystemSettings() {
               <span className="sys-settings-tab__icon" aria-hidden>
                 <i className={icon} />
               </span>
-              {label}
+              {id === 'api-tokens' && language === 'ar' ? 'رموز API' : label}
             </button>
           ))}
         </div>
@@ -991,6 +1018,130 @@ export default function SystemSettings() {
               ))}
             </div>
           )}
+        </section>
+      ) : null}
+
+      {tab === 'api-tokens' ? (
+        <section className="sys-settings-panel">
+          <div className="sys-settings-panel__head">
+            <h2 className="sys-settings-panel__title">
+              <i className="fa-solid fa-key" aria-hidden />
+              {language === 'ar' ? 'رموز API' : 'API Tokens'}
+            </h2>
+            <p className="sys-settings-panel__desc">
+              {language === 'ar'
+                ? 'حفظ مفاتيح Mapbox وArcGIS في هذا المتصفح فقط (أو عبر متغيرات البيئة عند البناء). لا تُرفع إلى Git.'
+                : 'Store Mapbox and ArcGIS tokens in this browser only (or use build-time env vars). Never commit secrets to Git.'}
+            </p>
+          </div>
+
+          <h3 className="sys-settings-panel__title" style={{ fontSize: '1.05rem', marginTop: 8, marginBottom: 4 }}>
+            <i className="fa-solid fa-map" aria-hidden style={{ marginInlineEnd: 8 }} />
+            Mapbox
+          </h3>
+          {mapboxTokenFromEnv ? (
+            <p className="sys-settings-panel__desc" style={{ marginTop: 0 }}>
+              <strong>{language === 'ar' ? 'نشط من البناء:' : 'Active from build:'}</strong>{' '}
+              {language === 'ar' ? 'VITE_MAPBOX_TOKEN يتقدم على الحقل أدناه.' : 'VITE_MAPBOX_TOKEN overrides the field below.'}
+            </p>
+          ) : null}
+          <label className="sys-field-label" htmlFor="sys-mapbox-token">
+            {language === 'ar' ? 'مفتاح Mapbox (المتصفح)' : 'Mapbox token (browser)'}
+          </label>
+          <input
+            id="sys-mapbox-token"
+            className="gis-input"
+            type="password"
+            autoComplete="off"
+            spellCheck={false}
+            placeholder={language === 'ar' ? 'pk.eyJ1I…' : 'pk.eyJ1I…'}
+            value={mapboxTokenDraft}
+            onChange={e => setMapboxTokenDraft(e.target.value)}
+            style={{ maxWidth: 560 }}
+          />
+          <p className="sys-settings-panel__desc" style={{ marginTop: 6 }}>
+            {language === 'ar'
+              ? 'مطلوب لـ Mapbox GL (خرائط الاستخبارات والـ Globe). بعد الحفظ تُحدَّث الخرائط فوراً.'
+              : 'Required for Mapbox GL (Satellite intelligence & globe). Maps refresh after save.'}
+          </p>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, marginTop: 10 }}>
+            <button
+              type="button"
+              className="gis-btn gis-btn-primary"
+              onClick={() => {
+                persistMapboxAccessTokenInBrowser(mapboxTokenDraft)
+                pushToast('success', language === 'ar' ? 'تم حفظ مفتاح Mapbox.' : 'Mapbox token saved.')
+              }}
+            >
+              {language === 'ar' ? 'حفظ Mapbox' : 'Save Mapbox'}
+            </button>
+            <button
+              type="button"
+              className="gis-btn gis-btn-outline"
+              onClick={() => {
+                persistMapboxAccessTokenInBrowser('')
+                setMapboxTokenDraft('')
+                pushToast('success', language === 'ar' ? 'أُزيل مفتاح Mapbox من المتصفح.' : 'Mapbox browser token cleared.')
+              }}
+            >
+              {language === 'ar' ? 'مسح Mapbox' : 'Clear Mapbox'}
+            </button>
+          </div>
+
+          <hr style={{ margin: '28px 0', border: 'none', borderTop: '1px solid var(--ds-color-border, #e2e8f0)' }} />
+
+          <h3 className="sys-settings-panel__title" style={{ fontSize: '1.05rem', marginBottom: 4 }}>
+            <i className="fa-solid fa-globe" aria-hidden style={{ marginInlineEnd: 8 }} />
+            ArcGIS API
+          </h3>
+          {arcgisTokenFromEnv ? (
+            <p className="sys-settings-panel__desc" style={{ marginTop: 0 }}>
+              <strong>{language === 'ar' ? 'نشط من البناء:' : 'Active from build:'}</strong>{' '}
+              {language === 'ar' ? 'VITE_ARCGIS_PORTAL_TOKEN يتقدم على الحقل أدناه.' : 'VITE_ARCGIS_PORTAL_TOKEN overrides the field below.'}
+            </p>
+          ) : null}
+          <label className="sys-field-label" htmlFor="sys-arcgis-token">
+            {language === 'ar' ? 'رمز ArcGIS / Portal (المتصفح)' : 'ArcGIS / Portal token (browser)'}
+          </label>
+          <input
+            id="sys-arcgis-token"
+            className="gis-input"
+            type="password"
+            autoComplete="off"
+            spellCheck={false}
+            placeholder={language === 'ar' ? 'رمز REST أو OAuth…' : 'REST or OAuth token…'}
+            value={arcgisTokenDraft}
+            onChange={e => setArcgisTokenDraft(e.target.value)}
+            style={{ maxWidth: 560 }}
+          />
+          <p className="sys-settings-panel__desc" style={{ marginTop: 6 }}>
+            {language === 'ar'
+              ? 'يُستخدم كقيمة افتراضية عند إضافة طبقات ArcGIS Feature Service في الخرائط. يمكن تركه فارغاً للخدمات العامة.'
+              : 'Default value when adding ArcGIS Feature Service layers. Leave empty for public services.'}
+          </p>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, marginTop: 10 }}>
+            <button
+              type="button"
+              className="gis-btn gis-btn-primary"
+              onClick={() => {
+                persistArcgisPortalTokenInBrowser(arcgisTokenDraft)
+                pushToast('success', language === 'ar' ? 'تم حفظ رمز ArcGIS.' : 'ArcGIS token saved.')
+              }}
+            >
+              {language === 'ar' ? 'حفظ ArcGIS' : 'Save ArcGIS'}
+            </button>
+            <button
+              type="button"
+              className="gis-btn gis-btn-outline"
+              onClick={() => {
+                persistArcgisPortalTokenInBrowser('')
+                setArcgisTokenDraft('')
+                pushToast('success', language === 'ar' ? 'أُزيل رمز ArcGIS من المتصفح.' : 'ArcGIS browser token cleared.')
+              }}
+            >
+              {language === 'ar' ? 'مسح ArcGIS' : 'Clear ArcGIS'}
+            </button>
+          </div>
         </section>
       ) : null}
 

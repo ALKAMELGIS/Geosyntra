@@ -1,8 +1,60 @@
 /**
- * Mapbox token from build-time env only. Never embed real tokens in source
- * (GitHub push protection / secret scanning).
+ * Mapbox public token: build-time env and/or browser override.
+ * Never commit real tokens — use VITE_MAPBOX_TOKEN or Admin → Maps (stored locally).
  */
-export function getMapboxAccessToken(): string {
+
+export const MAPBOX_TOKEN_LS_KEY = 'agri_mapbox_access_token_v1'
+
+const MAPBOX_TOKEN_EVENT = 'agri-mapbox-token-changed'
+
+function envToken(): string {
   const raw = import.meta.env.VITE_MAPBOX_TOKEN
   return typeof raw === 'string' ? raw.trim() : ''
+}
+
+/** Token saved only in this browser (System Settings → Maps). */
+export function getMapboxAccessTokenBrowserOverride(): string {
+  if (typeof window === 'undefined') return ''
+  try {
+    const raw = window.localStorage.getItem(MAPBOX_TOKEN_LS_KEY)
+    return typeof raw === 'string' ? raw.trim() : ''
+  } catch {
+    return ''
+  }
+}
+
+/**
+ * Effective token: environment first, then localStorage override.
+ * Use for Mapbox GL `mapboxAccessToken` so deploy keeps control, while devs can paste a token without rebuild.
+ */
+export function getMapboxAccessToken(): string {
+  const fromEnv = envToken()
+  if (fromEnv) return fromEnv
+  return getMapboxAccessTokenBrowserOverride()
+}
+
+export function persistMapboxAccessTokenInBrowser(token: string): void {
+  if (typeof window === 'undefined' || !window.localStorage) return
+  const t = token.trim()
+  try {
+    if (!t) window.localStorage.removeItem(MAPBOX_TOKEN_LS_KEY)
+    else window.localStorage.setItem(MAPBOX_TOKEN_LS_KEY, t)
+  } catch {
+    console.warn('[mapbox] Could not persist token in localStorage')
+  }
+  window.dispatchEvent(new Event(MAPBOX_TOKEN_EVENT))
+}
+
+export function subscribeMapboxAccessToken(listener: () => void): () => void {
+  if (typeof window === 'undefined') return () => {}
+  const onStorage = (e: StorageEvent) => {
+    if (e.key === MAPBOX_TOKEN_LS_KEY || e.key === null) listener()
+  }
+  const onCustom = () => listener()
+  window.addEventListener('storage', onStorage)
+  window.addEventListener(MAPBOX_TOKEN_EVENT, onCustom)
+  return () => {
+    window.removeEventListener('storage', onStorage)
+    window.removeEventListener(MAPBOX_TOKEN_EVENT, onCustom)
+  }
 }

@@ -10,6 +10,8 @@ import { FieldVisibilityControl } from './components/FieldVisibilityControl'
 import { MapPopup } from './components/MapPopup'
 import { DrawToolsController } from './components/DrawTools'
 import { BasemapGallery, BasemapLayer, type BasemapType } from './components/BasemapGallery'
+import { useMapboxAccessToken } from '../../hooks/useMapboxAccessToken'
+import { getArcgisPortalToken } from '../../lib/arcgisPortalToken'
 import { getMapboxAccessToken } from '../../lib/mapboxAccessToken'
 
 type AddLayerTab = 'arcgis' | 'database' | 'upload'
@@ -23,7 +25,6 @@ type TableDomainDisplayMode = 'description' | 'code'
 type TableSearchMode = 'description' | 'code' | 'both'
 type TableFilterOperator = 'contains' | 'equals' | 'not_equals' | 'empty' | 'not_empty'
 
-const MAPBOX_ACCESS_TOKEN = getMapboxAccessToken()
 const MAPBOX_GLOBE_STYLE = 'mapbox://styles/mapbox/satellite-streets-v12'
 const GIS_BASEMAP_STORAGE_KEY = 'gis-map-default-basemap'
 const DEFAULT_GIS_BASEMAP: BasemapType = 'satellite'
@@ -246,6 +247,13 @@ const readStoredBasemap = (): BasemapType => {
     : DEFAULT_GIS_BASEMAP
 }
 
+/** Mapbox GL requires a token even for raster fallbacks; avoid Mapbox-only basemap when token is missing. */
+const readInitialGlobeBasemap = (): BasemapType => {
+  const stored = readStoredBasemap()
+  if (!getMapboxAccessToken() && (stored === 'satellite' || stored === 'hybrid' || stored === 'google')) return 'street'
+  return stored
+}
+
 const DB_NAME = 'GisMapStore'
 const STORE_NAME = 'layers'
 
@@ -340,6 +348,7 @@ export const buildArcGisLegendEntries = (renderer: any, limit = 16): ArcGisLegen
 }
 
 export default function GisMap() {
+  const mapboxAccessToken = useMapboxAccessToken()
   const getIsMobileDrawerViewport = () => (typeof window !== 'undefined' ? window.innerWidth <= 767 : false)
   const mapRef = useRef<LeafletMap | null>(null)
   const selectionOverlayRef = useRef<L.LayerGroup | null>(null)
@@ -355,7 +364,7 @@ export default function GisMap() {
   const [isAddOpen, setIsAddOpen] = useState(false)
   const [activeMapTool, setActiveMapTool] = useState<GisMapToolPanel>(null)
   const [mapToolbarCollapsed, setMapToolbarCollapsed] = useState(false)
-  const [selectedBasemap, setSelectedBasemap] = useState<BasemapType>(readStoredBasemap)
+  const [selectedBasemap, setSelectedBasemap] = useState<BasemapType>(readInitialGlobeBasemap)
   const [mapProjectionMode, setMapProjectionMode] = useState<MapProjectionMode>('2d')
   const [projectionToast, setProjectionToast] = useState('')
   const [globeViewState, setGlobeViewState] = useState({
@@ -377,7 +386,7 @@ export default function GisMap() {
   const [measurementVerticalError, setMeasurementVerticalError] = useState<string | null>(null)
   const [tab, setTab] = useState<AddLayerTab>('arcgis')
   const [serviceUrl, setServiceUrl] = useState('')
-  const [token, setToken] = useState('')
+  const [token, setToken] = useState(() => (typeof window !== 'undefined' ? getArcgisPortalToken() : ''))
   const [layerName, setLayerName] = useState('')
   const [dbPlatform, setDbPlatform] = useState<(typeof DB_PLATFORM_OPTIONS)[number]>('SQL Server')
   const [dbInstance, setDbInstance] = useState('')
@@ -476,6 +485,13 @@ export default function GisMap() {
       window.localStorage.setItem(GIS_BASEMAP_STORAGE_KEY, selectedBasemap)
     } catch {}
   }, [selectedBasemap])
+
+  useEffect(() => {
+    if (mapboxAccessToken) return
+    setSelectedBasemap(prev =>
+      prev === 'satellite' || prev === 'hybrid' || prev === 'google' ? 'street' : prev,
+    )
+  }, [mapboxAccessToken])
 
   const geoJsonIndexSignature = useMemo(() => {
     const ids: string[] = []
@@ -3233,7 +3249,7 @@ export default function GisMap() {
             onMove={(evt) => setGlobeViewState(evt.viewState)}
             style={{ width: '100%', height: '100%' }}
             mapStyle={globeMapStyle}
-            mapboxAccessToken={MAPBOX_ACCESS_TOKEN || undefined}
+            mapboxAccessToken={mapboxAccessToken || undefined}
             projection={{ name: 'globe' }}
             renderWorldCopies={false}
             dragRotate

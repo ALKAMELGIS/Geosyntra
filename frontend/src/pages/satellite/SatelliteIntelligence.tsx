@@ -25,9 +25,11 @@ import {
   translateFeatureCoordinates,
   vertexHitThresholdPx,
 } from './drawingUtils';
+import { useMapboxAccessToken } from '../../hooks/useMapboxAccessToken';
+import { getArcgisPortalToken } from '../../lib/arcgisPortalToken';
 import { getMapboxAccessToken } from '../../lib/mapboxAccessToken';
 
-const MAPBOX_TOKEN = getMapboxAccessToken();
+const MAPBOX_STANDARD_SATELLITE = 'mapbox://styles/mapbox/standard-satellite';
 const MAPBOX_ALKAMELGIS_STYLE = 'mapbox://styles/mapbox/satellite-v9';
 const EMPTY_MAP_STYLE: any = {
   version: 8,
@@ -693,7 +695,8 @@ interface BasemapOption {
 }
 
 const BASEMAPS: BasemapOption[] = [
-  { id: 'mapbox-alkamelgis', label: 'Satellite (Mapbox)', style: MAPBOX_ALKAMELGIS_STYLE },
+  { id: 'mapbox-standard-satellite', label: 'Satellite (Mapbox Standard)', style: MAPBOX_STANDARD_SATELLITE },
+  { id: 'mapbox-alkamelgis', label: 'Satellite (Mapbox v9)', style: MAPBOX_ALKAMELGIS_STYLE },
   { id: 'google-earth', label: 'Google Earth', style: GOOGLE_EARTH_STYLE },
   { id: 'mapbox-hybrid', label: 'Hybrid', style: 'mapbox://styles/mapbox/satellite-streets-v12' },
   { id: 'terrain-opentopo', label: 'Terrain (OpenTopo)', style: OPENTOPO_TERRAIN_STYLE },
@@ -905,6 +908,7 @@ const COLOR_RAMPS: Record<LayerSymbologyDraft['colorRamp'], string[]> = {
 type ExploreDateSourceMode = 'manual' | 'environmental_parameter' | 'sentinel2_views';
 
 export default function SatelliteIntelligence() {
+  const mapboxToken = useMapboxAccessToken();
   const [viewState, setViewState] = useState({
     longitude: 20,
     latitude: 10,
@@ -929,8 +933,18 @@ export default function SatelliteIntelligence() {
   const [wmsLayers, setWmsLayers] = useState<WmsLayerInfo[]>([]);
   const [isLoadingLayers, setIsLoadingLayers] = useState(false);
   const [isLayerDropdownOpen, setIsLayerDropdownOpen] = useState(false);
-  const [basemapId, setBasemapId] = useState(() => (MAPBOX_TOKEN ? 'mapbox-alkamelgis' : 'esri'));
+  const [basemapId, setBasemapId] = useState(() => (getMapboxAccessToken() ? 'mapbox-standard-satellite' : 'esri'));
   const [isBasemapOpen, setIsBasemapOpen] = useState(false);
+
+  useEffect(() => {
+    if (mapboxToken) return;
+    setBasemapId(prev => {
+      const opt = BASEMAPS.find(b => b.id === prev);
+      const st = opt?.style;
+      if (typeof st === 'string' && st.startsWith('mapbox://')) return 'esri';
+      return prev;
+    });
+  }, [mapboxToken]);
   const [is3DView, setIs3DView] = useState(true);
   const [cloudCoverage, setCloudCoverage] = useState(20);
   const [isTimelinePlaying, setIsTimelinePlaying] = useState(false);
@@ -979,7 +993,7 @@ export default function SatelliteIntelligence() {
   const [isAddLayerModalOpen, setIsAddLayerModalOpen] = useState(false);
   const [addLayerTab, setAddLayerTab] = useState<AddLayerTab>('arcgis');
   const [addLayerUrl, setAddLayerUrl] = useState('');
-  const [addLayerToken, setAddLayerToken] = useState('');
+  const [addLayerToken, setAddLayerToken] = useState(() => (typeof window !== 'undefined' ? getArcgisPortalToken() : ''));
   const [addLayerName, setAddLayerName] = useState('');
   const [addLayerStatus, setAddLayerStatus] = useState('');
   const [isConnectingLayer, setIsConnectingLayer] = useState(false);
@@ -1532,9 +1546,9 @@ export default function SatelliteIntelligence() {
     if (!q) return;
     setIsSearching(true);
     try {
-      const response = MAPBOX_TOKEN
+      const response = mapboxToken
         ? await fetch(
-            `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(q)}.json?access_token=${MAPBOX_TOKEN}&limit=5`
+            `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(q)}.json?access_token=${mapboxToken}&limit=5`
           )
         : await fetch(
             `https://nominatim.openstreetmap.org/search?format=geojson&limit=5&q=${encodeURIComponent(q)}`,
@@ -2998,7 +3012,7 @@ export default function SatelliteIntelligence() {
   const currentBasemap = BASEMAPS.find(b => b.id === basemapId) || BASEMAPS[0];
   const requestedStyle = currentBasemap.style || EMPTY_MAP_STYLE;
   const isMapboxStyle = typeof requestedStyle === 'string' && requestedStyle.startsWith('mapbox://');
-  const mapStyle = isMapboxStyle ? (MAPBOX_TOKEN ? requestedStyle : ESRI_SATELLITE_STYLE) : requestedStyle;
+  const mapStyle = isMapboxStyle ? (mapboxToken ? requestedStyle : ESRI_SATELLITE_STYLE) : requestedStyle;
   const toggleWmsOverlayVisibility = () => setIsWmsOverlayVisible(v => !v);
   const toggleStacThumbVisibility = () => setIsStacThumbVisible(v => !v);
   const currentBasemapLabel = currentBasemap.label || currentBasemap.id || 'Default basemap';
@@ -4124,7 +4138,7 @@ export default function SatelliteIntelligence() {
                   : 'grab',
             }}
             mapStyle={mapStyle}
-            mapboxAccessToken={MAPBOX_TOKEN || undefined}
+            mapboxAccessToken={mapboxToken || undefined}
             projection={is3DView ? { name: 'globe' } : { name: 'mercator' }}
             renderWorldCopies={!is3DView}
             dragRotate={is3DView}
