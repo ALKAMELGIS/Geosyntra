@@ -129,48 +129,54 @@ export default function Settings() {
         <div className="ec-header" role="region" aria-labelledby="ec-hero-title">
           <div className="ec-hero">
             <div className="ec-hero-content">
-              <div className="ec-hero-eyebrow"><i className="fa-solid fa-gear"></i> {text.settings}</div>
-              <h1 className="ec-hero-title" id="ec-hero-title">{text.workflowDataSources}</h1>
-              <p className="ec-hero-subtitle">{text.workflowDescription}</p>
-              <div className="ec-hero-ctas">
-                <button
-                  type="button"
-                  className="ec-btn ec-btn-primary"
-                  aria-label={text.configureFields}
-                  onClick={() => {
-                    const section = document.getElementById('data-source-settings')
-                    section?.scrollIntoView({ behavior: 'smooth', block: 'start' })
-                    setTimeout(() => {
-                      const btn = document.getElementById('open-fields-btn') as HTMLButtonElement | null
-                      btn?.click()
-                    }, 350)
-                  }}
-                >
-                  <i className="fa-solid fa-sliders"></i> {text.configureFields}
-                </button>
-                <a href="#data-source-settings" className="ec-btn ec-btn-ghost" aria-label={text.jumpToSection}>
-                  {text.jumpToSection}
-                </a>
+              <div className="settings-hero-main">
+                <div className="ec-hero-eyebrow"><i className="fa-solid fa-gear"></i> {text.settings}</div>
+                <h1 className="ec-hero-title" id="ec-hero-title">{text.workflowDataSources}</h1>
+                <div className="ec-hero-ctas settings-hero-ctas">
+                  <button
+                    type="button"
+                    className="ec-btn ec-btn-primary settings-hero-icon-btn"
+                    aria-label={text.configureFields}
+                    title={text.configureFields}
+                    onClick={() => {
+                      const section = document.getElementById('data-source-settings')
+                      section?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+                      setTimeout(() => {
+                        const btn = document.getElementById('open-fields-btn') as HTMLButtonElement | null
+                        btn?.click()
+                      }, 350)
+                    }}
+                  >
+                    <i className="fa-solid fa-sliders" aria-hidden />
+                  </button>
+                  <a
+                    href="#data-source-settings"
+                    className="ec-btn ec-btn-ghost settings-hero-icon-btn"
+                    aria-label={text.jumpToSection}
+                    title={text.jumpToSection}
+                  >
+                    <i className="fa-solid fa-arrow-down-long" aria-hidden />
+                  </a>
+                </div>
+              </div>
+              <div className="settings-hero-metrics" aria-label="Workflow settings summary">
+                <div className="settings-hero-metric-card">
+                  <span className="settings-hero-metric-icon" aria-hidden><i className="fa-solid fa-diagram-project"></i></span>
+                  <span className="settings-hero-metric-label">{text.activeWorkflow}</span>
+                  <strong className="settings-hero-metric-value">{activeForm}</strong>
+                </div>
+                <div className="settings-hero-metric-card">
+                  <span className="settings-hero-metric-icon" aria-hidden><i className="fa-solid fa-layer-group"></i></span>
+                  <span className="settings-hero-metric-label">{text.connectedLayers}</span>
+                  <strong className="settings-hero-metric-value">{enabledInfo.sourceIds.length}</strong>
+                </div>
+                <div className="settings-hero-metric-card">
+                  <span className="settings-hero-metric-icon" aria-hidden><i className="fa-solid fa-list-check"></i></span>
+                  <span className="settings-hero-metric-label">{text.enabledFields}</span>
+                  <strong className="settings-hero-metric-value">{enabledTotal}</strong>
+                </div>
               </div>
             </div>
-          </div>
-        </div>
-
-        <div className="ec-feature-grid settings-summary-grid" aria-label="Workflow settings summary">
-          <div className="ec-feature-card">
-            <div className="ec-feature-card-icon"><i className="fa-solid fa-diagram-project" aria-hidden="true"></i></div>
-            <div className="ec-feature-card-title">{text.activeWorkflow}</div>
-            <div className="ec-feature-card-value">{activeForm}</div>
-          </div>
-          <div className="ec-feature-card">
-            <div className="ec-feature-card-icon"><i className="fa-solid fa-layer-group" aria-hidden="true"></i></div>
-            <div className="ec-feature-card-title">{text.connectedLayers}</div>
-            <div className="ec-feature-card-value">{enabledInfo.sourceIds.length}</div>
-          </div>
-          <div className="ec-feature-card">
-            <div className="ec-feature-card-icon"><i className="fa-solid fa-list-check" aria-hidden="true"></i></div>
-            <div className="ec-feature-card-title">{text.enabledFields}</div>
-            <div className="ec-feature-card-value">{enabledTotal}</div>
           </div>
         </div>
 
@@ -189,7 +195,6 @@ export default function Settings() {
                     <i className="fa-solid fa-database" style={{ color: 'var(--secondary)' }}></i>
                     {text.dataSource}
                   </div>
-                  <div className="ec-card-subtitle-small">{text.workflowDescription}</div>
                 </div>
                 <div className="ec-card-header-actions">
                   <button type="button" className="ec-btn ec-btn-secondary ec-btn-sm" onClick={goBackPage} aria-label={text.backPage}>

@@ -826,10 +826,13 @@
 
 .settings-page .ec-hero-content {
   min-height: inherit;
-  justify-content: center;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  justify-content: space-between;
   gap: var(--settings-space-3);
   padding: clamp(18px, 2.4vw, 28px) clamp(22px, 3vw, 36px);
-  max-width: 820px;
+  max-width: 100%;
 }
 
 .settings-page .ec-hero-content::after {
@@ -842,6 +845,68 @@
     radial-gradient(circle, rgba(4, 120, 87, 0.14), transparent 60%),
     radial-gradient(circle at 32% 30%, rgba(255, 255, 255, 0.82), transparent 32%);
   filter: blur(2px);
+}
+
+.settings-page .settings-hero-main {
+  min-width: 0;
+  max-width: 820px;
+}
+
+.settings-page .settings-hero-metrics {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(140px, 1fr));
+  gap: 10px;
+  width: min(540px, 100%);
+  justify-content: end;
+  align-items: stretch;
+  position: relative;
+  z-index: 2;
+}
+
+.settings-page .settings-hero-metric-card {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  grid-template-areas:
+    "icon label"
+    "icon value";
+  gap: 2px 10px;
+  align-items: center;
+  min-height: 66px;
+  padding: 10px 12px;
+  border-radius: 14px;
+  border: 1px solid rgba(255, 255, 255, 0.84);
+  background: linear-gradient(145deg, rgba(255, 255, 255, 0.96), rgba(248, 250, 252, 0.88));
+  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.08);
+}
+
+.settings-page .settings-hero-metric-icon {
+  grid-area: icon;
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid rgba(4, 120, 87, 0.14);
+  background: rgba(236, 253, 245, 0.96);
+  color: var(--settings-green);
+  font-size: 14px;
+}
+
+.settings-page .settings-hero-metric-label {
+  grid-area: label;
+  font-size: 11px;
+  font-weight: 800;
+  line-height: 1.2;
+  color: var(--settings-subtle);
+}
+
+.settings-page .settings-hero-metric-value {
+  grid-area: value;
+  font-size: 16px;
+  font-weight: 900;
+  line-height: 1.1;
+  color: var(--settings-ink);
 }
 
 .settings-page .ec-hero-eyebrow {
@@ -872,7 +937,42 @@
 
 .settings-page .ec-hero-ctas {
   gap: var(--settings-space-3);
-  margin-top: 4px;
+  margin-top: 12px;
+}
+
+.settings-page .settings-hero-ctas {
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.settings-page .settings-hero-icon-btn {
+  width: 44px;
+  min-width: 44px;
+  height: 44px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  font-size: 0;
+  line-height: 0;
+}
+
+.settings-page .settings-hero-icon-btn i {
+  font-size: 16px;
+  line-height: 1;
+}
+
+.settings-page .settings-hero-icon-btn.ec-btn-ghost {
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  box-shadow: 0 6px 20px rgba(15, 23, 42, 0.06);
+}
+
+.settings-page .settings-hero-icon-btn:focus-visible {
+  outline: 2px solid rgba(4, 120, 87, 0.45);
+  outline-offset: 2px;
 }
 
 .settings-page .ec-btn {
@@ -1241,6 +1341,8 @@
   }
 
   .settings-page .ec-hero-content {
+    grid-template-columns: 1fr;
+    align-items: stretch;
     padding: var(--settings-space-5);
   }
 
@@ -1253,6 +1355,12 @@
   .settings-summary-grid {
     grid-template-columns: 1fr;
     gap: var(--settings-space-3);
+  }
+
+  .settings-page .settings-hero-metrics {
+    width: 100%;
+    grid-template-columns: 1fr;
+    gap: 8px;
   }
 
   .settings-page .ec-card-header {
@@ -1286,10 +1394,14 @@
     font-size: 24px;
   }
 
-  .settings-page .ec-hero-ctas,
   .settings-page .ec-card-header-actions,
   .settings-page .dsf-settings-panel > div:first-child > div:last-child {
     width: 100%;
+  }
+
+  .settings-page .settings-hero-main .ec-hero-ctas {
+    width: auto;
+    justify-content: flex-start;
   }
 
   .settings-page .ec-btn,
@@ -1299,8 +1411,17 @@
     justify-content: center;
   }
 
+  .settings-page .settings-hero-main .settings-hero-icon-btn {
+    width: 44px;
+    min-width: 44px;
+  }
+
   .settings-page .ec-feature-card {
     grid-template-columns: 44px 1fr;
+  }
+
+  .settings-page .settings-hero-metric-card {
+    min-height: 62px;
   }
 }
 
