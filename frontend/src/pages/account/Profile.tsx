@@ -308,6 +308,8 @@ export default function Profile() {
     city: '',
     postalCode: '',
   })
+  const [saveState, setSaveState] = useState<'idle' | 'saved'>('idle')
+  const saveResetRef = useRef<number | null>(null)
 
   useEffect(() => {
     const refresh = () => setMe(readCurrentUser())
@@ -445,6 +447,22 @@ export default function Profile() {
     setExtra(readProfileExtra(me.email))
     setCoverDraft(undefined)
   }
+
+  const applyAllChanges = () => {
+    if (!me?.email) return
+    if (editingPersonal) savePersonal()
+    if (editingAddress) saveAddress()
+    if (coverDraft !== undefined) applyCoverPhoto()
+    setSaveState('saved')
+    if (saveResetRef.current) window.clearTimeout(saveResetRef.current)
+    saveResetRef.current = window.setTimeout(() => setSaveState('idle'), 1600)
+  }
+
+  useEffect(() => {
+    return () => {
+      if (saveResetRef.current) window.clearTimeout(saveResetRef.current)
+    }
+  }, [])
 
   const coverSrc = (coverDraft === undefined ? extra.coverDataUrl : coverDraft)?.trim?.() || ''
   const hasPendingCoverChange = coverDraft !== undefined
@@ -726,6 +744,21 @@ export default function Profile() {
                 )}
               </section>
             </div>
+
+            <section className="profile-page-savebar" aria-label={language === 'ar' ? 'حفظ التغييرات' : 'Save profile changes'}>
+              <div className="profile-page-savebar__meta">
+                <strong>{language === 'ar' ? 'حفظ شامل للصفحة' : 'Save all profile changes'}</strong>
+                <span>
+                  {language === 'ar'
+                    ? 'اضغط Apply لحفظ معلوماتك والعنوان وتغييرات صورة الغلاف.'
+                    : 'Press Apply to persist profile info, address, and pending cover updates.'}
+                </span>
+              </div>
+              <button type="button" className="profile-page-savebar__btn" onClick={applyAllChanges}>
+                <i className={`fa-solid ${saveState === 'saved' ? 'fa-circle-check' : 'fa-floppy-disk'}`} aria-hidden />
+                {saveState === 'saved' ? (language === 'ar' ? 'تم الحفظ' : 'Saved') : language === 'ar' ? 'Apply / حفظ' : 'Apply / Save'}
+              </button>
+            </section>
           </>
         )}
       </div>

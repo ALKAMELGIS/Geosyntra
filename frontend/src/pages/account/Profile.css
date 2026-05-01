@@ -824,6 +824,72 @@ html[data-theme='dark'] .profile-field-cell {
   color: var(--pf-text);
 }
 
+.profile-page-savebar {
+  margin-top: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 16px 18px;
+  border-radius: 16px;
+  border: 1px solid color-mix(in srgb, var(--pf-accent) 24%, var(--pf-border));
+  background:
+    linear-gradient(140deg, color-mix(in srgb, var(--pf-accent) 8%, transparent), transparent 46%),
+    color-mix(in srgb, var(--ds-color-surface, #fff) 92%, transparent);
+  box-shadow: 0 10px 28px rgba(15, 23, 42, 0.09);
+}
+
+.profile-page-savebar__meta {
+  display: grid;
+  gap: 4px;
+}
+
+.profile-page-savebar__meta strong {
+  color: var(--pf-text);
+  font-size: 14px;
+  letter-spacing: -0.01em;
+}
+
+.profile-page-savebar__meta span {
+  color: var(--pf-muted);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.profile-page-savebar__btn {
+  border: none;
+  border-radius: 999px;
+  padding: 11px 18px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 800;
+  letter-spacing: 0.01em;
+  color: #fff;
+  cursor: pointer;
+  background: linear-gradient(135deg, color-mix(in srgb, var(--pf-accent) 96%, #000), var(--pf-accent));
+  box-shadow: 0 12px 26px color-mix(in srgb, var(--pf-accent) 36%, transparent);
+  transition: transform 0.2s var(--pf-ease), filter 0.2s ease;
+}
+
+.profile-page-savebar__btn:hover {
+  transform: translateY(-1px);
+  filter: brightness(1.06);
+}
+
+@media (max-width: 760px) {
+  .profile-page-savebar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .profile-page-savebar__btn {
+    justify-content: center;
+    width: 100%;
+  }
+}
+
 .sr-only {
   position: absolute;
   width: 1px;

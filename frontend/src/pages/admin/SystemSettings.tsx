@@ -290,15 +290,6 @@ export default function SystemSettings() {
   return (
     <div className="gis-page-padding sys-settings">
       <div className="sys-settings-shell">
-        <header className="sys-settings__header-row">
-          <h1 className="sys-settings__title">
-            <span className="sys-settings__title-icon" aria-hidden>
-              <i className="fa-solid fa-sliders" />
-            </span>
-            System settings
-          </h1>
-        </header>
-
         <div className="sys-settings-tabs" role="tablist" aria-label="Settings sections">
           {SETTINGS_TABS.map(({ id, label, icon }) => (
             <button

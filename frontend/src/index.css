@@ -445,6 +445,10 @@ aside {
   overflow-y: auto; /* Allow scrolling within standard pages */
   overflow-x: hidden;
 }
+.page:not(.page-tight) {
+  max-width: min(1560px, 100%);
+  margin-inline: auto;
+}
 .page-tight { padding: 0; gap: 0 }
 .grid-3 {
   display: grid;
