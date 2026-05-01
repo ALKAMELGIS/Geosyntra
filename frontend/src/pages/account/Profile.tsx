@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type ChangeEvent, type ReactNode } from 'react'
-import { Link } from 'react-router-dom'
 import './Profile.css'
-import { hasPermission, normalizeEmail, normalizeRole, readCurrentUser, startSession, type CurrentUser } from '../../lib/auth'
+import { normalizeEmail, normalizeRole, readCurrentUser, startSession, type CurrentUser } from '../../lib/auth'
 import { useLanguage } from '../../lib/i18n'
 
 type ManagementRecord = {
@@ -328,7 +327,6 @@ export default function Profile() {
       : null
 
   const currentRole = normalizeRole(me?.role)
-  const canOpenUserMgmt = hasPermission('admin.users.manage', currentRole)
   const managerLabel = mgmt?.managedById != null ? resolveManagerName(records, mgmt.managedById) : null
 
   const split = me ? splitDisplayName(me.name) : { first: '', last: '' }
@@ -450,20 +448,6 @@ export default function Profile() {
               <h1 className="profile-page-title">{text.myProfile}</h1>
               <p className="profile-page-subtitle">{text.subtitle}</p>
             </div>
-            {me ? (
-              <div className="profile-page-header-actions" aria-label={language === 'ar' ? 'اختصارات الإعدادات' : 'Settings shortcuts'}>
-                <Link to="/account/settings" className="profile-link-btn">
-                  <i className="fa-solid fa-sliders" aria-hidden />
-                  {text.settingsWorkflow}
-                </Link>
-                {canOpenUserMgmt ? (
-                  <Link to="/admin/users" className="profile-link-btn profile-link-btn-primary">
-                    <i className="fa-solid fa-users-gear" aria-hidden />
-                    {text.openUserManagement}
-                  </Link>
-                ) : null}
-              </div>
-            ) : null}
           </div>
         </header>
 
