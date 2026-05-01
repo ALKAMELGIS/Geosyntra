@@ -2,18 +2,20 @@ name: Deploy to GitHub Pages
 
 on:
   push:
-    branches: [main, master]
+    branches: [main]
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
+  pages: write
+  id-token: write
 
 concurrency:
-  group: gh-pages-deploy
-  cancel-in-progress: true
+  group: pages
+  cancel-in-progress: false
 
 jobs:
-  deploy:
+  build:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -25,9 +27,20 @@ jobs:
       - run: npm run build
       - run: touch frontend/dist/.nojekyll
       - run: node -e "const fs=require('fs'); const html=fs.readFileSync('frontend/dist/index.html','utf8'); if (html.includes('/src/main.tsx')) { console.error('dist/index.html still points to Vite dev entry (/src/main.tsx).'); process.exit(1); } if (!/assets\\/index-[^\"\\s]+\\.js/.test(html)) { console.error('dist/index.html does not reference built assets.'); process.exit(1); } console.log('Pages build sanity-check OK.');"
-      - name: Deploy to gh-pages branch
-        uses: peaceiris/actions-gh-pages@v4
+      - name: Configure Pages
+        uses: actions/configure-pages@v5
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
         with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_branch: gh-pages
-          publish_dir: frontend/dist
+          path: frontend/dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
