@@ -1,4 +1,4 @@
-import { Component } from 'react'
+import { Component, useEffect, useState } from 'react'
 import { HashRouter, Navigate, useLocation } from 'react-router-dom'
 import HeaderBar from './components/HeaderBar'
 import NavMenu from './components/NavMenu'
@@ -129,6 +129,15 @@ class AppErrorBoundary extends Component<{ children: JSX.Element }, { err: AppEr
 function AppShell() {
   const { user, logout } = useAuth()
   const location = useLocation()
+  const [hideNavMenuOnCompact, setHideNavMenuOnCompact] = useState(false)
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    const sync = () => setHideNavMenuOnCompact(window.innerWidth <= 1024)
+    sync()
+    window.addEventListener('resize', sync)
+    return () => window.removeEventListener('resize', sync)
+  }, [])
 
   const handleLogout = () => {
     logout()
@@ -163,7 +172,7 @@ function AppShell() {
     <>
       {showChrome && <HeaderBar />}
       <div className={showChrome ? 'layout layout-sidebar app-layout' : 'layout'}>
-        {showChrome && <NavMenu onLogout={handleLogout} />}
+        {showChrome && !hideNavMenuOnCompact && <NavMenu onLogout={handleLogout} />}
         <main className={mainContentClass}>
           <AppRoutes />
           <PersistentAgroCloudEmbed />

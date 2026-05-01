@@ -3,6 +3,7 @@ import { useLocation } from 'react-router-dom'
 import { normalizeEmail, normalizeRole, startSession } from '../lib/auth'
 import { appendAuditLog } from '../lib/audit'
 import { useLanguage } from '../lib/i18n'
+import { appConfig } from '../../config/app'
 
 type AuthUser = {
   id: number
@@ -96,8 +97,11 @@ export default function Login() {
 
   const queueVerificationEmail = (targetEmail: string, verificationToken: string) => {
     try {
-      const base = typeof window !== 'undefined' ? window.location.origin : ''
-      const verifyLink = `${base}/login?verify=${encodeURIComponent(verificationToken)}`
+      const baseOrigin = typeof window !== 'undefined' ? window.location.origin : ''
+      const envBase = typeof import.meta !== 'undefined' && import.meta.env?.BASE_URL ? import.meta.env.BASE_URL : appConfig.basePath
+      const basePath = String(envBase || '/')
+      const normalizedBasePath = `/${basePath.replace(/^\/+|\/+$/g, '')}/`
+      const verifyLink = `${baseOrigin}${normalizedBasePath}#/login?verify=${encodeURIComponent(verificationToken)}`
       const raw = localStorage.getItem('emailOutbox')
       const outbox = raw ? (JSON.parse(raw) as any[]) : []
       const next = Array.isArray(outbox) ? outbox : []

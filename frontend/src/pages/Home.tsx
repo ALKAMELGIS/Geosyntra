@@ -105,6 +105,13 @@ const menuItems: MenuItem[] = [
     ]
   },
   {
+    id: 'profile-direct',
+    label: { en: 'Profile', ar: 'الملف الشخصي' },
+    icon: 'fa-solid fa-user-gear',
+    color: '#0EA5E9',
+    to: '/account/profile'
+  },
+  {
     id: 'account',
     label: { en: 'Account', ar: 'الحساب' },
     icon: 'fa-solid fa-circle-user',
