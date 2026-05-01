@@ -1,6 +1,6 @@
 /* Field calculator strip — settings only, flat (no heavy card), aligned with dsf-fill-modern rhythm */
 
-/* Wrapper after dsf-layer-section: spacing without doubling margins when stacked */
+/* Wrapper after data-source layers block: spacing without doubling margins when stacked */
 .dsf-calc-tools-slot {
   padding-top: 6px;
 }

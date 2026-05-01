@@ -123,6 +123,17 @@ export default function Settings() {
     else navigate('/')
   }
 
+  const scrollToDataSourceCard = () => {
+    document.getElementById('data-source-settings')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  }
+
+  const openConfigureFields = () => {
+    scrollToDataSourceCard()
+    window.setTimeout(() => {
+      ;(document.getElementById('open-fields-btn') as HTMLButtonElement | null)?.click()
+    }, 350)
+  }
+
   return (
     <div className="ec-page settings-page">
       <div className="ec-container ec-container-wide ec-animate-in">
@@ -134,32 +145,6 @@ export default function Settings() {
                   <i className="fa-solid fa-gear" aria-hidden />
                 </div>
                 <h1 className="ec-hero-title" id="ec-hero-title">{text.workflowDataSources}</h1>
-                <div className="ec-hero-ctas settings-hero-ctas">
-                  <button
-                    type="button"
-                    className="ec-btn ec-btn-primary settings-hero-icon-btn"
-                    aria-label={text.configureFields}
-                    title={text.configureFields}
-                    onClick={() => {
-                      const section = document.getElementById('data-source-settings')
-                      section?.scrollIntoView({ behavior: 'smooth', block: 'start' })
-                      setTimeout(() => {
-                        const btn = document.getElementById('open-fields-btn') as HTMLButtonElement | null
-                        btn?.click()
-                      }, 350)
-                    }}
-                  >
-                    <i className="fa-solid fa-sliders" aria-hidden />
-                  </button>
-                  <a
-                    href="#data-source-settings"
-                    className="ec-btn ec-btn-ghost settings-hero-icon-btn"
-                    aria-label={text.jumpToSection}
-                    title={text.jumpToSection}
-                  >
-                    <i className="fa-solid fa-arrow-down-long" aria-hidden />
-                  </a>
-                </div>
               </div>
               <div className="settings-hero-metrics" aria-label="Workflow settings summary">
                 <div className="settings-hero-metric-card">
@@ -190,7 +175,11 @@ export default function Settings() {
           </div>
         ) : (
           <>
-            <div className="ec-card ec-animate-in" id="data-source-settings">
+            <div className="settings-data-source-wrap">
+              <button type="button" className="settings-floating-back" onClick={goBackPage} aria-label={text.backPage} title={text.backPage}>
+                <i className="fa-solid fa-arrow-left-long" aria-hidden />
+              </button>
+              <div className="ec-card ec-animate-in" id="data-source-settings">
               <div className="ec-card-header">
                 <div>
                   <div className="ec-card-title">
@@ -198,9 +187,24 @@ export default function Settings() {
                     {text.dataSource}
                   </div>
                 </div>
-                <div className="ec-card-header-actions">
-                  <button type="button" className="ec-btn ec-btn-secondary ec-btn-sm" onClick={goBackPage} aria-label={text.backPage}>
-                    <i className="fa-solid fa-arrow-left" aria-hidden="true"></i> {text.backPage}
+                <div className="ec-card-header-actions settings-card-header-actions">
+                  <button
+                    type="button"
+                    className="settings-header-icon-btn settings-header-icon-btn--primary"
+                    aria-label={text.configureFields}
+                    title={text.configureFields}
+                    onClick={openConfigureFields}
+                  >
+                    <i className="fa-solid fa-sliders" aria-hidden />
+                  </button>
+                  <button
+                    type="button"
+                    className="settings-header-icon-btn settings-header-icon-btn--ghost"
+                    aria-label={text.jumpToSection}
+                    title={text.jumpToSection}
+                    onClick={scrollToDataSourceCard}
+                  >
+                    <i className="fa-solid fa-arrow-down-long" aria-hidden />
                   </button>
                 </div>
               </div>
@@ -250,6 +254,7 @@ export default function Settings() {
                   </div>
                 ) : null}
               </div>
+            </div>
             </div>
           </>
         )}

@@ -1191,13 +1191,13 @@ export function DataSourceFieldsPanel({
 
         {!isOpen ? null : (
           <div className="dsf-settings-body">
-            <div className="dsf-layer-section">
-              <div className="dsf-layer-section__head">
-                <div className="dsf-layer-section__title">{text.dataSource}</div>
-                <div className="dsf-layer-section__hint">{text.multiLayerHint}</div>
+            <div className="dsf-settings-layers">
+              <div className="dsf-settings-layers__head">
+                <div className="dsf-settings-layers__title">{text.dataSource}</div>
+                <div className="dsf-settings-layers__hint">{text.multiLayerHint}</div>
               </div>
 
-              <div className="dsf-layer-section__body">
+              <div className="dsf-settings-layers__body">
                 {savedLayersLoading ? (
                   <div style={{ fontSize: 12, color: '#64748b', fontWeight: 700 }}>{text.loadingSavedLayers}</div>
                 ) : savedLayersError ? (
