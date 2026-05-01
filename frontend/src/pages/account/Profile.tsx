@@ -46,6 +46,27 @@ function readProfileExtra(email: string): ProfileExtra {
   }
 }
 
+/** Snapshot staged by Apply; committed to storage only on Save when it still matches the form. */
+type StagedProfileCommit = {
+  personal?: {
+    firstName: string
+    lastName: string
+    phone: string
+    dateOfBirth: string
+  }
+  address?: {
+    country: string
+    city: string
+    postalCode: string
+  }
+  /** Present only when a cover change is pending (`null` = remove cover). */
+  cover?: string | null
+}
+
+function stagedProfileFingerprint(s: StagedProfileCommit): string {
+  return JSON.stringify(s)
+}
+
 function writeProfileExtra(email: string, patch: Partial<ProfileExtra>) {
   const key = profileKey(email)
   try {
@@ -149,6 +170,7 @@ const profileCopy = {
     changeCoverPhoto: 'Change cover photo',
     removeCoverPhoto: 'Remove cover',
     applyCoverPhoto: 'Apply cover changes',
+    apply: 'Apply',
     firstName: 'First Name',
     lastName: 'Last Name',
     emailAddress: 'Email Address',
@@ -200,6 +222,7 @@ const profileCopy = {
     changeCoverPhoto: 'تغيير صورة الغلاف',
     removeCoverPhoto: 'إزالة الغلاف',
     applyCoverPhoto: 'تطبيق تغييرات الغلاف',
+    apply: 'تطبيق',
     firstName: 'الاسم الأول',
     lastName: 'اسم العائلة',
     emailAddress: 'البريد الإلكتروني',
@@ -310,6 +333,7 @@ export default function Profile() {
   })
   const [saveState, setSaveState] = useState<'idle' | 'saved'>('idle')
   const saveResetRef = useRef<number | null>(null)
+  const [stagedGate, setStagedGate] = useState<StagedProfileCommit | null>(null)
 
   useEffect(() => {
     const refresh = () => setMe(readCurrentUser())
@@ -321,10 +345,12 @@ export default function Profile() {
     if (!me?.email) {
       setExtra({})
       setCoverDraft(undefined)
+      setStagedGate(null)
       return
     }
     setExtra(readProfileExtra(me.email))
     setCoverDraft(undefined)
+    setStagedGate(null)
   }, [me?.email, avatarTick])
 
   const records = parseManagementUsers()
@@ -382,6 +408,7 @@ export default function Profile() {
     }
     setExtra(readProfileExtra(me.email))
     setEditingPersonal(false)
+    setStagedGate(null)
   }
 
   const openAddressEdit = () => {
@@ -404,6 +431,7 @@ export default function Profile() {
     })
     setExtra(readProfileExtra(me.email))
     setEditingAddress(false)
+    setStagedGate(null)
   }
 
   const onAvatarFile = (e: ChangeEvent<HTMLInputElement>) => {
@@ -441,18 +469,84 @@ export default function Profile() {
     setCoverDraft(null)
   }
 
-  const applyCoverPhoto = () => {
-    if (!me?.email || coverDraft === undefined) return
-    writeProfileExtra(me.email, { coverDataUrl: coverDraft || undefined })
-    setExtra(readProfileExtra(me.email))
-    setCoverDraft(undefined)
+  const stageablePayload = useMemo((): StagedProfileCommit | null => {
+    if (!me?.email) return null
+    const out: StagedProfileCommit = {}
+    if (editingPersonal) {
+      out.personal = {
+        firstName: draftP.firstName,
+        lastName: draftP.lastName,
+        phone: draftP.phone,
+        dateOfBirth: draftP.dateOfBirth,
+      }
+    }
+    if (editingAddress) {
+      out.address = {
+        country: draftA.country,
+        city: draftA.city,
+        postalCode: draftA.postalCode,
+      }
+    }
+    if (coverDraft !== undefined) {
+      out.cover = coverDraft
+    }
+    return Object.keys(out).length > 0 ? out : null
+  }, [me?.email, editingPersonal, editingAddress, draftP, draftA, coverDraft])
+
+  const canApplyChanges = stageablePayload !== null
+  const canConfirmSave =
+    stagedGate !== null &&
+    stageablePayload !== null &&
+    stagedProfileFingerprint(stagedGate) === stagedProfileFingerprint(stageablePayload)
+
+  const stagePendingChanges = () => {
+    if (!stageablePayload) return
+    try {
+      setStagedGate(structuredClone(stageablePayload))
+    } catch {
+      setStagedGate(JSON.parse(JSON.stringify(stageablePayload)) as StagedProfileCommit)
+    }
   }
 
-  const applyAllChanges = () => {
-    if (!me?.email) return
-    if (editingPersonal) savePersonal()
-    if (editingAddress) saveAddress()
-    if (coverDraft !== undefined) applyCoverPhoto()
+  const confirmSaveStaged = () => {
+    if (!me?.email || !stagedGate || !stageablePayload) return
+    if (stagedProfileFingerprint(stagedGate) !== stagedProfileFingerprint(stageablePayload)) return
+
+    const staged = stagedGate
+    const patch: Partial<ProfileExtra> = {}
+    if (staged.personal) {
+      patch.firstName = staged.personal.firstName.trim()
+      patch.lastName = staged.personal.lastName.trim()
+      patch.phone = staged.personal.phone.trim() || undefined
+      patch.dateOfBirth = staged.personal.dateOfBirth.trim() || undefined
+    }
+    if (staged.address) {
+      patch.country = staged.address.country.trim() || undefined
+      patch.city = staged.address.city.trim() || undefined
+      patch.postalCode = staged.address.postalCode.trim() || undefined
+    }
+    if (Object.prototype.hasOwnProperty.call(staged, 'cover')) {
+      patch.coverDataUrl = staged.cover === null ? undefined : staged.cover?.trim() || undefined
+    }
+    if (Object.keys(patch).length > 0) {
+      writeProfileExtra(me.email, patch)
+    }
+    if (staged.personal) {
+      const combined = [staged.personal.firstName.trim(), staged.personal.lastName.trim()].filter(Boolean).join(' ').trim()
+      if (combined && combined !== me.name.trim()) {
+        startSession({ ...me, name: combined }, { persist: shouldPersistSession() })
+      }
+      setEditingPersonal(false)
+    }
+    if (staged.address) {
+      setEditingAddress(false)
+    }
+    if (Object.prototype.hasOwnProperty.call(staged, 'cover')) {
+      setCoverDraft(undefined)
+    }
+    setMe(readCurrentUser())
+    setExtra(readProfileExtra(me.email))
+    setStagedGate(null)
     setSaveState('saved')
     if (saveResetRef.current) window.clearTimeout(saveResetRef.current)
     saveResetRef.current = window.setTimeout(() => setSaveState('idle'), 1600)
@@ -522,7 +616,7 @@ export default function Profile() {
                   <button
                     type="button"
                     className="profile-hero-cover-btn profile-hero-cover-btn--apply profile-hero-cover-btn--icon"
-                    onClick={applyCoverPhoto}
+                    onClick={stagePendingChanges}
                     aria-label={text.applyCoverPhoto}
                     title={text.applyCoverPhoto}
                   >
@@ -630,6 +724,7 @@ export default function Profile() {
                       className="profile-btn-cancel"
                       onClick={() => {
                         setEditingPersonal(false)
+                        setStagedGate(null)
                       }}
                     >
                       {text.cancel}
@@ -685,7 +780,14 @@ export default function Profile() {
                     <button type="button" className="profile-btn-save" onClick={saveAddress}>
                       {text.save}
                     </button>
-                    <button type="button" className="profile-btn-cancel" onClick={() => setEditingAddress(false)}>
+                    <button
+                      type="button"
+                      className="profile-btn-cancel"
+                      onClick={() => {
+                        setEditingAddress(false)
+                        setStagedGate(null)
+                      }}
+                    >
                       {text.cancel}
                     </button>
                   </div>
@@ -745,20 +847,30 @@ export default function Profile() {
               </section>
             </div>
 
-            <section className="profile-page-savebar" aria-label={language === 'ar' ? 'حفظ التغييرات' : 'Save profile changes'}>
-              <div className="profile-page-savebar__meta">
-                <strong>{language === 'ar' ? 'حفظ شامل للصفحة' : 'Save all profile changes'}</strong>
-                <span>
-                  {language === 'ar'
-                    ? 'اضغط Apply لحفظ معلوماتك والعنوان وتغييرات صورة الغلاف.'
-                    : 'Press Apply to persist profile info, address, and pending cover updates.'}
-                </span>
-              </div>
-              <button type="button" className="profile-page-savebar__btn" onClick={applyAllChanges}>
-                <i className={`fa-solid ${saveState === 'saved' ? 'fa-circle-check' : 'fa-floppy-disk'}`} aria-hidden />
-                {saveState === 'saved' ? (language === 'ar' ? 'تم الحفظ' : 'Saved') : language === 'ar' ? 'Apply / حفظ' : 'Apply / Save'}
+            <div
+              className="profile-page-bottom-actions"
+              role="group"
+              aria-label={language === 'ar' ? 'طبّق ثم احفظ للتأكيد' : 'Apply then Save to confirm'}
+            >
+              <button
+                type="button"
+                className="profile-page-action-btn profile-page-action-btn--secondary"
+                onClick={stagePendingChanges}
+                disabled={!canApplyChanges}
+              >
+                <i className="fa-solid fa-check" aria-hidden />
+                {text.apply}
               </button>
-            </section>
+              <button
+                type="button"
+                className="profile-page-action-btn profile-page-action-btn--primary"
+                onClick={confirmSaveStaged}
+                disabled={!canConfirmSave}
+              >
+                <i className={`fa-solid ${saveState === 'saved' ? 'fa-circle-check' : 'fa-floppy-disk'}`} aria-hidden />
+                {saveState === 'saved' ? (language === 'ar' ? 'تم الحفظ' : 'Saved') : text.save}
+              </button>
+            </div>
           </>
         )}
       </div>

@@ -130,7 +130,9 @@ export default function Settings() {
           <div className="ec-hero">
             <div className="ec-hero-content">
               <div className="settings-hero-main">
-                <div className="ec-hero-eyebrow"><i className="fa-solid fa-gear"></i> {text.settings}</div>
+                <div className="ec-hero-eyebrow" aria-label={text.settings} title={text.settings}>
+                  <i className="fa-solid fa-gear" aria-hidden />
+                </div>
                 <h1 className="ec-hero-title" id="ec-hero-title">{text.workflowDataSources}</h1>
                 <div className="ec-hero-ctas settings-hero-ctas">
                   <button

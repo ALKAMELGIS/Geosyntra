@@ -391,7 +391,7 @@ function IndeterminateCheckbox({
   useEffect(() => {
     if (ref.current) ref.current.indeterminate = indeterminate && !checked
   }, [indeterminate, checked])
-  return <input ref={ref} type="checkbox" checked={checked} onChange={onChange} aria-label={ariaLabel} />
+  return <input ref={ref} className="dsf-indeterminate-cb" type="checkbox" checked={checked} onChange={onChange} aria-label={ariaLabel} />
 }
 
 export function AdvancedLayerMultiSelect({
@@ -468,29 +468,22 @@ export function AdvancedLayerMultiSelect({
 
   return (
     <div className="dsf-layer-picker" onKeyDown={handleKeyDown}>
-      <div style={{ marginTop: 8, display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between' }}>
-        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+      <div className="dsf-layer-toolbar">
+        <div className="dsf-layer-toolbar__left">
           <button
             type="button"
+            className={`dsf-layer-toolbar__segment ${view === 'grid' ? 'dsf-layer-toolbar__segment--active' : ''}`}
             onClick={() => setView('grid')}
-            style={{
-              padding: '8px 10px',
-              borderRadius: 10,
-              border: '1px solid #e2e8f0',
-              background: view === 'grid' ? '#e2e8f0' : '#ffffff',
-              cursor: 'pointer',
-              fontWeight: 800,
-              fontSize: 12,
-            }}
             aria-label="Grid view"
+            aria-pressed={view === 'grid'}
           >
             Grid
           </button>
 
           <select
+            className="dsf-layer-toolbar__select"
             value={typeFilter}
             onChange={e => setTypeFilter(e.target.value as any)}
-            style={{ padding: '8px 10px', borderRadius: 10, border: '1px solid #e2e8f0', background: '#ffffff', fontWeight: 800, fontSize: 12 }}
             aria-label="Layer type filter"
           >
             <option value="all">All</option>
@@ -500,61 +493,27 @@ export function AdvancedLayerMultiSelect({
             <option value="custom">Custom</option>
           </select>
 
-          <label style={{ display: 'inline-flex', alignItems: 'center', gap: 8, fontSize: 12, color: '#334155', fontWeight: 800 }}>
+          <label className="dsf-layer-filter-toggle">
             <input type="checkbox" checked={showSelectedOnly} onChange={() => setShowSelectedOnly(v => !v)} aria-label="Show selected only" />
-            Selected only
+            <span className="dsf-layer-filter-toggle__ui" aria-hidden />
+            <span className="dsf-layer-filter-toggle__text">Selected only</span>
           </label>
         </div>
 
-        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
-          <div style={{ fontSize: 12, color: '#64748b', fontWeight: 800 }}>
+        <div className="dsf-layer-toolbar__right">
+          <div className="dsf-layer-toolbar__count" aria-live="polite">
             {selectedInFiltered}/{filtered.length} selected
           </div>
-          <button
-            type="button"
-            onClick={() => onSelectMany(allFilteredIds)}
-            disabled={filtered.length === 0}
-            style={{
-              padding: '8px 10px',
-              borderRadius: 10,
-              border: '1px solid #e2e8f0',
-              background: '#f8fafc',
-              cursor: filtered.length ? 'pointer' : 'not-allowed',
-              fontWeight: 900,
-              fontSize: 12,
-            }}
-            aria-label="Select all filtered"
-          >
+          <button type="button" className="dsf-layer-toolbar__btn" onClick={() => onSelectMany(allFilteredIds)} disabled={filtered.length === 0} aria-label="Select all filtered">
             Select all
           </button>
-          <button
-            type="button"
-            onClick={() => onClearMany(allFilteredIds)}
-            disabled={selectedInFiltered === 0}
-            style={{
-              padding: '8px 10px',
-              borderRadius: 10,
-              border: '1px solid #e2e8f0',
-              background: '#ffffff',
-              cursor: selectedInFiltered ? 'pointer' : 'not-allowed',
-              fontWeight: 900,
-              fontSize: 12,
-            }}
-            aria-label="Clear all filtered"
-          >
+          <button type="button" className="dsf-layer-toolbar__btn dsf-layer-toolbar__btn--ghost" onClick={() => onClearMany(allFilteredIds)} disabled={selectedInFiltered === 0} aria-label="Clear all filtered">
             Clear
           </button>
         </div>
       </div>
 
-      <input
-        className="dsf-layer-search"
-        value={search}
-        onChange={e => onSearchChange(e.target.value)}
-        placeholder="Search layers…"
-        style={{ width: '100%', marginTop: 10, padding: '10px 12px', borderRadius: 12, border: '1px solid #e2e8f0' }}
-        aria-label="Search available layers"
-      />
+      <input className="dsf-layer-search" value={search} onChange={e => onSearchChange(e.target.value)} placeholder="Search layers…" aria-label="Search available layers" />
 
       {view === 'tree' ? (
         <div style={{ marginTop: 10, display: 'grid', gap: 10, maxHeight: viewportHeight, overflow: 'auto', paddingRight: 6 }}>
@@ -591,19 +550,14 @@ export function AdvancedLayerMultiSelect({
                     </div>
                   </div>
                   {!expanded ? null : (
-                    <div style={{ padding: 10, display: 'grid', gap: 6 }}>
+                    <div className="dsf-layer-tree-items">
                       {items.map(l => {
                         const checked = selectedIds.has(l.id)
                         return (
-                          <label
-                            key={l.id}
-                            className="dsf-layer-picker-row-flex"
-                            style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, color: '#334155' }}
-                          >
-                            <input type="checkbox" checked={checked} onChange={() => onToggle(l.id)} aria-label={`Toggle ${l.name}`} />
-                            <span style={{ fontWeight: 800, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                              {l.name}
-                            </span>
+                          <label key={l.id} className={`dsf-layer-row${checked ? ' dsf-layer-row--selected' : ''}`}>
+                            <input type="checkbox" className="dsf-layer-row-native" checked={checked} onChange={() => onToggle(l.id)} aria-label={`Select layer ${l.name}`} />
+                            <span className="dsf-layer-row-indicator" aria-hidden />
+                            <span className="dsf-layer-row-label">{l.name}</span>
                           </label>
                         )
                       })}
@@ -617,36 +571,27 @@ export function AdvancedLayerMultiSelect({
           )}
         </div>
       ) : view === 'grid' ? (
-        <div style={{ marginTop: 10, display: 'grid', gap: 10, maxHeight: viewportHeight, overflow: 'auto', paddingRight: 6, gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))' }}>
+        <div className="dsf-layer-grid">
           {filtered.length ? (
             filtered.map(l => {
               const checked = selectedIds.has(l.id)
               return (
-                <label
-                  key={l.id}
-                  className="dsf-layer-picker-row-grid"
-                  style={{
-                    border: '1px solid #e2e8f0',
-                    borderRadius: 12,
-                    padding: 10,
-                    background: checked ? '#f0f9ff' : '#ffffff',
-                    display: 'grid',
-                    gridTemplateColumns: '18px 1fr',
-                    gap: 10,
-                    alignItems: 'start',
-                    cursor: 'pointer',
-                  }}
-                >
-                  <input type="checkbox" checked={checked} onChange={() => onToggle(l.id)} aria-label={`Toggle ${l.name}`} />
-                  <div style={{ minWidth: 0 }}>
-                    <div style={{ fontSize: 12, fontWeight: 900, color: '#0f172a', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{l.name}</div>
-                    <div style={{ marginTop: 6, fontSize: 11, color: '#64748b', fontWeight: 700 }}>{l.fields.length ? `${l.fields.length} fields` : 'Fields: unknown'}</div>
-                  </div>
+                <label key={l.id} className={`dsf-layer-card${checked ? ' dsf-layer-card--selected' : ''}`}>
+                  <input type="checkbox" className="dsf-layer-card-native" checked={checked} onChange={() => onToggle(l.id)} aria-label={`Select layer ${l.name}`} />
+                  <span className="dsf-layer-card-body">
+                    <span className="dsf-layer-card-top">
+                      <span className="dsf-layer-card-title">{l.name}</span>
+                      <span className="dsf-layer-card-badge" aria-hidden>
+                        <i className="fa-solid fa-check" />
+                      </span>
+                    </span>
+                    <span className="dsf-layer-card-meta">{l.fields.length ? `${l.fields.length} fields` : 'Fields: unknown'}</span>
+                  </span>
                 </label>
               )
             })
           ) : (
-            <div style={{ fontSize: 12, color: '#64748b' }}>No layers found.</div>
+            <div className="dsf-layer-grid-empty">No layers found.</div>
           )}
         </div>
       ) : (
@@ -664,15 +609,10 @@ export function AdvancedLayerMultiSelect({
               visible.map(l => {
                 const checked = selectedIds.has(l.id)
                 return (
-                  <label
-                    key={l.id}
-                    className="dsf-layer-picker-row-flex"
-                    style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, color: '#334155', height: rowHeight }}
-                  >
-                    <input type="checkbox" checked={checked} onChange={() => onToggle(l.id)} aria-label={`Toggle ${l.name}`} />
-                    <span style={{ fontWeight: 800, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                      {l.name}
-                    </span>
+                  <label key={l.id} className={`dsf-layer-row dsf-layer-row--compact${checked ? ' dsf-layer-row--selected' : ''}`} style={{ height: rowHeight }}>
+                    <input type="checkbox" className="dsf-layer-row-native" checked={checked} onChange={() => onToggle(l.id)} aria-label={`Select layer ${l.name}`} />
+                    <span className="dsf-layer-row-indicator" aria-hidden />
+                    <span className="dsf-layer-row-label">{l.name}</span>
                   </label>
                 )
               })
@@ -1231,31 +1171,18 @@ export function DataSourceFieldsPanel({
   if (mode === 'settings') {
     const selectedIds = new Set(draftSourceIds)
     return (
-      <div className="dsf-settings-panel" style={{ border: '1px solid #e2e8f0', borderRadius: 12, padding: 12, background: 'white' }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
-          <div style={{ fontWeight: 700, color: '#0f172a' }}>{text.dataSourceFields}</div>
-          <div style={{ display: 'flex', gap: 8 }}>
-            <button
-              id="open-fields-btn"
-              type="button"
-              onClick={() => setIsOpen(v => !v)}
-              style={{ padding: '8px 12px', borderRadius: 10, border: '1px solid #e2e8f0', background: '#f8fafc', cursor: 'pointer' }}
-            >
+      <div className="dsf-settings-panel">
+        <div className="dsf-settings-head">
+          <div className="dsf-settings-head__title">{text.dataSourceFields}</div>
+          <div className="dsf-settings-head__actions">
+            <button id="open-fields-btn" type="button" className="dsf-settings-head__btn dsf-settings-head__btn--secondary" onClick={() => setIsOpen(v => !v)}>
               {isOpen ? text.close : text.configure}
             </button>
             <button
               type="button"
+              className="dsf-settings-head__btn dsf-settings-head__btn--primary"
               onClick={saveSettings}
               disabled={!draftSourceIds.some(v => v.trim())}
-              style={{
-                padding: '8px 12px',
-                borderRadius: 10,
-                border: '1px solid #0ea5e9',
-                background: '#0ea5e9',
-                color: 'white',
-                cursor: draftSourceIds.some(v => v.trim()) ? 'pointer' : 'not-allowed',
-                fontWeight: 600,
-              }}
             >
               {text.save}
             </button>
@@ -1263,14 +1190,14 @@ export function DataSourceFieldsPanel({
         </div>
 
         {!isOpen ? null : (
-          <div className="dsf-settings-body" style={{ marginTop: 12, display: 'flex', flexDirection: 'column', gap: 12 }}>
-            <div className="dsf-layer-section" style={{ border: '1px solid #e2e8f0', borderRadius: 12, padding: 12, background: '#ffffff' }}>
-              <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 10 }}>
-                <div style={{ fontSize: 12, fontWeight: 900, color: '#0f172a' }}>{text.dataSource}</div>
-                <div style={{ fontSize: 12, fontWeight: 700, color: '#64748b' }}>{text.multiLayerHint}</div>
+          <div className="dsf-settings-body">
+            <div className="dsf-layer-section">
+              <div className="dsf-layer-section__head">
+                <div className="dsf-layer-section__title">{text.dataSource}</div>
+                <div className="dsf-layer-section__hint">{text.multiLayerHint}</div>
               </div>
 
-              <div style={{ marginTop: 10, display: 'grid', gap: 10 }}>
+              <div className="dsf-layer-section__body">
                 {savedLayersLoading ? (
                   <div style={{ fontSize: 12, color: '#64748b', fontWeight: 700 }}>{text.loadingSavedLayers}</div>
                 ) : savedLayersError ? (
@@ -1279,8 +1206,8 @@ export function DataSourceFieldsPanel({
                   </div>
                 ) : null}
 
-                <div style={{ display: 'grid', gap: 6 }}>
-                  <div style={{ fontSize: 12, fontWeight: 800, color: '#0f172a' }}>{text.layer}</div>
+                <div className="dsf-layer-picker-wrap">
+                  <div className="dsf-layer-picker__legend">{text.layer}</div>
                   <AdvancedLayerMultiSelect
                     layers={savedLayers}
                     selectedIds={selectedIds}
@@ -1364,15 +1291,13 @@ export function DataSourceFieldsPanel({
                 return availableFields.filter(f => f.toLowerCase().includes(q))
               })()
               return (
-                <div className="dsf-source-section" key={key} style={{ border: '1px solid #e2e8f0', borderRadius: 12, padding: 12, background: '#ffffff' }}>
-                  <div style={{ display: 'flex', gap: 10, alignItems: 'center', justifyContent: 'space-between' }}>
-                    <div style={{ fontSize: 12, fontWeight: 900, color: '#0f172a' }}>
-                      {layerName}
-                    </div>
+                <div className="dsf-source-section" key={key}>
+                  <div className="dsf-source-section__head">
+                    <div className="dsf-source-section__title">{layerName}</div>
                   </div>
 
-                  <div style={{ marginTop: 10, display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: 12 }}>
-                    <div className="dsf-field-column" style={{ border: '1px solid #e2e8f0', borderRadius: 14, padding: 12, background: '#f8fafc' }}>
+                  <div className="dsf-source-section__grid">
+                    <div className="dsf-field-column">
                       <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 10 }}>
                         <div style={{ fontSize: 12, fontWeight: 900, color: '#0f172a' }}>{text.selectFields}</div>
                         <div style={{ fontSize: 12, fontWeight: 800, color: '#64748b' }}>
@@ -1462,10 +1387,10 @@ export function DataSourceFieldsPanel({
                       </div>
                     </div>
 
-                    <div className="dsf-order-column" style={{ border: '1px solid #e2e8f0', borderRadius: 14, padding: 12, background: '#ffffff' }}>
-                      <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 10 }}>
-                        <div style={{ fontSize: 12, fontWeight: 900, color: '#0f172a' }}>{text.orderFields}</div>
-                        <div style={{ fontSize: 12, fontWeight: 800, color: '#64748b' }}>{selectedConfigs.length ? text.dragOrUseArrows : '—'}</div>
+                    <div className="dsf-order-column">
+                      <div className="dsf-order-column__head">
+                        <div className="dsf-order-column__title">{text.orderFields}</div>
+                        <div className="dsf-order-column__hint">{selectedConfigs.length ? text.dragOrUseArrows : '—'}</div>
                       </div>
 
                       <div className="dsf-order-list" style={{ marginTop: 10, display: 'grid', gap: 8, maxHeight: 320, overflow: 'auto', paddingRight: 6 }}>
