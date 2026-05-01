@@ -3123,7 +3123,7 @@ export default function SatelliteIntelligence() {
   return (
     <div className="si-page">
       <div className="si-main-content">
-        <div className="si-top-bar">
+        <div>
           <div className="si-top-card si-top-card-center">
             <div className="si-timeline-inline">
               <button

@@ -7847,8 +7847,20 @@ html[data-theme='dark'] .gis-domain-cell--dropdown.missing-description .gis-doma
   border-radius: 11px;
   border-color: var(--gis-line);
   background: #ffffff;
+  color: var(--gis-text-strong);
   font-size: 12px;
   font-weight: 850;
+}
+
+.gis-content-page .gis-btn.gis-btn-primary {
+  background: var(--ds-color-primary);
+  border-color: var(--ds-color-primary);
+  color: #ffffff;
+}
+
+.gis-content-page .gis-btn.gis-btn-primary:hover {
+  background: var(--ds-color-primary-hover);
+  border-color: var(--ds-color-primary-hover);
 }
 
 .gis-content-page .gis-content-fields-toggle.active {

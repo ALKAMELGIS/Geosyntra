@@ -109,23 +109,6 @@
   color: #3b82f6;
 }
 
-.si-top-bar {
-  display: grid;
-  grid-template-columns: minmax(0, 2.4fr) minmax(220px, 260px);
-  gap: 10px;
-  align-items: center;
-  position: relative;
-  padding: 8px 24px 10px;
-  min-height: 0;
-  border-radius: 0;
-  background: #050824;
-  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.85);
-  border-bottom: 1px solid rgba(5, 8, 36, 0.9);
-  backdrop-filter: blur(14px);
-  -webkit-backdrop-filter: blur(14px);
-  z-index: 50;
-}
-
 .si-top-card {
   min-height: 0;
   border-radius: 0;

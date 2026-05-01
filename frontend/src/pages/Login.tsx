@@ -80,6 +80,33 @@ export default function Login() {
   const [isRoleOpen, setIsRoleOpen] = useState(false)
   const [keepSignedIn, setKeepSignedIn] = useState(true)
 
+  const createVerificationToken = () =>
+    typeof crypto !== 'undefined' && 'randomUUID' in crypto
+      ? (crypto as any).randomUUID()
+      : `${Date.now()}-${Math.random().toString(36).slice(2)}`
+
+  const queueVerificationEmail = (targetEmail: string, verificationToken: string) => {
+    try {
+      const base = typeof window !== 'undefined' ? window.location.origin : ''
+      const verifyLink = `${base}/login?verify=${encodeURIComponent(verificationToken)}`
+      const raw = localStorage.getItem('emailOutbox')
+      const outbox = raw ? (JSON.parse(raw) as any[]) : []
+      const next = Array.isArray(outbox) ? outbox : []
+      next.unshift({
+        id: createVerificationToken(),
+        type: 'email_verification',
+        to: targetEmail,
+        subject: 'Agro Cloud - Verify your email',
+        body: `Verify your email to activate login:\n${verifyLink}`,
+        createdAt: new Date().toISOString(),
+      })
+      localStorage.setItem('emailOutbox', JSON.stringify(next.slice(0, 200)))
+      return verifyLink
+    } catch {
+      return ''
+    }
+  }
+
   const hashPassword = async (value: string) => {
     const encoder = new TextEncoder()
     const data = encoder.encode(value)
@@ -136,7 +163,14 @@ export default function Login() {
           const nextEmail = String((u as any).email || '').trim()
           if (!nextEmail) return null
           const override = roleOverrideForEmail(nextEmail)
-          return { ...(u as any), email: nextEmail, role: normalizeRole(override ?? (u as any).role) }
+          const nextRole = normalizeRole(override ?? (u as any).role)
+          const hasStoredPassword = typeof (u as any).passwordHash === 'string' && String((u as any).passwordHash).length > 0
+          const emailVerified =
+            typeof (u as any).emailVerified === 'boolean'
+              ? Boolean((u as any).emailVerified)
+              : hasStoredPassword
+          const status = String((u as any).status || (emailVerified ? 'Active' : 'Pending Verification'))
+          return { ...(u as any), email: nextEmail, role: nextRole, emailVerified, status }
         })
         .filter(Boolean) as any[]
 
@@ -165,6 +199,7 @@ export default function Login() {
         }
         const hashed = await hashPassword(password)
         const override = roleOverrideForEmail(emailTrimmed)
+        const verificationToken = createVerificationToken()
         const newUser = matches.length
           ? (() => {
               const base = matches[0] as any
@@ -173,11 +208,11 @@ export default function Login() {
                 name: nameTrimmed,
                 email: emailTrimmed,
                 role: normalizeRole(override ?? base.role ?? role),
-                status: 'Active',
+                status: 'Pending Verification',
                 lastLogin: base.lastLogin || 'Never',
                 passwordHash: hashed,
-                emailVerified: true,
-                verificationToken: undefined,
+                emailVerified: false,
+                verificationToken,
               }
             })()
           : {
@@ -185,19 +220,21 @@ export default function Login() {
               name: nameTrimmed,
               email: emailTrimmed,
               role: normalizeRole(override ?? role),
-              status: 'Active',
+              status: 'Pending Verification',
               lastLogin: 'Never',
               passwordHash: hashed,
-              emailVerified: true,
-              verificationToken:
-                typeof crypto !== 'undefined' && 'randomUUID' in crypto
-                  ? (crypto as any).randomUUID()
-                  : `${Date.now()}-${Math.random().toString(36).slice(2)}`,
+              emailVerified: false,
+              verificationToken,
             }
         const nextUsers = normalizedUsers.filter(u => normalizeEmail(u.email) !== normalizeEmail(emailTrimmed))
         nextUsers.push(newUser)
         localStorage.setItem('adminUsers', JSON.stringify(nextUsers))
-        setInfo(matches.length ? 'Your invitation has been accepted. Please sign in.' : `We have sent a confirmation email to ${email}. Please check your inbox to confirm.`)
+        const verifyLink = queueVerificationEmail(emailTrimmed, verificationToken)
+        setInfo(
+          matches.length
+            ? `Your invitation was completed. We sent a verification email to ${emailTrimmed}. Confirm your email first, then sign in.`
+            : `We sent a confirmation email to ${emailTrimmed}. Please confirm your email before signing in.${verifyLink ? `\nVerification link: ${verifyLink}` : ''}`
+        )
         setError('')
         setMode('signin')
         setInviteToken('')
@@ -235,6 +272,26 @@ export default function Login() {
           matches.map(m => (typeof m.managedById === 'number' ? m.managedById : null)).find(v => typeof v === 'number') ?? undefined
 
         const base = passwordMatches.reduce((best, u) => (roleRank(u.role) > roleRank(best?.role) ? u : best), passwordMatches[0] as any)
+        if (!base.emailVerified) {
+          const currentToken = String(base.verificationToken || createVerificationToken())
+          const verifyLink = queueVerificationEmail(emailTrimmed, currentToken)
+          const nextUsers = normalizedUsers.map(u =>
+            normalizeEmail(u.email) === normalizeEmail(emailTrimmed)
+              ? { ...u, verificationToken: currentToken, status: 'Pending Verification', emailVerified: false }
+              : u
+          )
+          localStorage.setItem('adminUsers', JSON.stringify(nextUsers))
+          setError(
+            `Email not verified. A verification email was sent to ${emailTrimmed}.${verifyLink ? ` Verification link: ${verifyLink}` : ''}`
+          )
+          setIsSubmitting(false)
+          return
+        }
+        if (String(base.status || '').toLowerCase() !== 'active') {
+          setError('Account is not active. Please contact User Management.')
+          setIsSubmitting(false)
+          return
+        }
         const mergedUser = {
           ...base,
           email: emailTrimmed,
@@ -300,12 +357,13 @@ export default function Login() {
       const updatedUser = {
         ...user,
         emailVerified: true,
-        verificationToken: undefined
+        verificationToken: undefined,
+        status: 'Active',
       }
       const nextUsers = [...users]
       nextUsers[index] = updatedUser
       localStorage.setItem('adminUsers', JSON.stringify(nextUsers))
-      setInfo('Your email has been confirmed. Your account is pending approval by an Admin or Manager.')
+      setInfo('Your email has been confirmed. You can now sign in.')
       setError('')
       if (typeof window !== 'undefined') {
         const url = new URL(window.location.href)
