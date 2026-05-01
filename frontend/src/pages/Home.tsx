@@ -132,6 +132,9 @@ export default function Home() {
   const systemSettings = useSystemSettingsOptional()
   const [activeGroup, setActiveGroup] = useState<MenuItem | null>(null)
   const [sublistOpen, setSublistOpen] = useState(true)
+  const [viewportWidth, setViewportWidth] = useState<number>(() =>
+    typeof window === 'undefined' ? 1440 : window.innerWidth,
+  )
   const { language } = useLanguage()
   const homePageSettings = systemSettings?.settings.homePage ?? {
     showItemCounts: true,
@@ -198,6 +201,14 @@ export default function Home() {
   }, [activeGroup?.id])
 
   useEffect(() => {
+    if (typeof window === 'undefined') return
+    const onResize = () => setViewportWidth(window.innerWidth)
+    onResize()
+    window.addEventListener('resize', onResize)
+    return () => window.removeEventListener('resize', onResize)
+  }, [])
+
+  useEffect(() => {
     const root = document.querySelector('.home-page')
     if (!root) return
 
@@ -236,6 +247,13 @@ export default function Home() {
     for (const el of items) observer.observe(el)
     return () => observer.disconnect()
   }, [activeGroup])
+
+  const gridTemplateColumns =
+    viewportWidth <= 640
+      ? 'repeat(2, minmax(0, 1fr))'
+      : viewportWidth <= 1024
+        ? 'repeat(3, minmax(0, 1fr))'
+        : 'repeat(5, minmax(0, 1fr))'
 
   return (
     <div className="page home-page" style={homeBackgroundStyle}>
@@ -292,7 +310,7 @@ export default function Home() {
       ) : (
         <div className="home-modern">
           <div className="home-apps-strip">
-            <div className="home-apps-list" aria-label="Applications">
+            <div className="home-apps-list" aria-label="Applications" style={{ gridTemplateColumns }}>
               {menuItems.map((item) => (
                 <button
                   key={item.id}
