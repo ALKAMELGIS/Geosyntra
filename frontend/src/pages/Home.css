@@ -113,7 +113,7 @@
   }
 }
 
-@media (max-width: 900px) {
+@media (max-width: 1024px) {
   .home-apps-list {
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
@@ -360,6 +360,20 @@
     .home-apps-list {
       grid-template-columns: repeat(5, minmax(0, 1fr));
     }
+  }
+}
+
+/* Force exact card count per row on compact devices */
+@media (min-width: 641px) and (max-width: 1024px) {
+  .home-apps-list {
+    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+  }
+}
+
+@media (max-width: 640px) {
+  .home-apps-list {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: 12px;
   }
 }
 
