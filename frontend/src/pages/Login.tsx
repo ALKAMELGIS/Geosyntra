@@ -135,6 +135,16 @@ export default function Login() {
     return hashArray.map(b => b.toString(16).padStart(2, '0')).join('')
   }
 
+  const hashPasswordBase64 = async (value: string) => {
+    const encoder = new TextEncoder()
+    const data = encoder.encode(value)
+    const buffer = await crypto.subtle.digest('SHA-256', data)
+    const bytes = new Uint8Array(buffer)
+    let binary = ''
+    for (const b of bytes) binary += String.fromCharCode(b)
+    return btoa(binary)
+  }
+
   const isSha256Hex = (value: unknown): boolean =>
     typeof value === 'string' && /^[a-f0-9]{64}$/i.test(String(value).trim())
 
@@ -144,6 +154,32 @@ export default function Login() {
       if (typeof candidate === 'string' && candidate.length > 0) return candidate
     }
     return ''
+  }
+
+  const readPasswordCandidates = (user: any): string[] => {
+    const nested = user?.credentials && typeof user.credentials === 'object' ? user.credentials : {}
+    const values = [
+      user?.passwordHash,
+      user?.password,
+      user?.Password,
+      user?.pass,
+      user?.pwd,
+      user?.passwordText,
+      user?.tempPassword,
+      user?.temporaryPassword,
+      user?.plainPassword,
+      nested?.passwordHash,
+      nested?.password,
+      nested?.tempPassword,
+    ]
+    const out: string[] = []
+    for (const v of values) {
+      if (typeof v !== 'string') continue
+      const clean = String(v).trim()
+      if (!clean) continue
+      if (!out.includes(clean)) out.push(clean)
+    }
+    return out
   }
 
   const sanitizeLoginString = (value: unknown): string => {
@@ -396,18 +432,31 @@ export default function Login() {
         }
         const hashed = await hashPassword(passwordTrimmed)
         const hashedRaw = passwordTrimmed === password ? hashed : await hashPassword(password)
+        const hashedB64 = await hashPasswordBase64(passwordTrimmed)
+        const hashedRawB64 = passwordTrimmed === password ? hashedB64 : await hashPasswordBase64(password)
         let matchedViaLegacyPlain = false
         let passwordMatches = matches.filter(m => {
-          const storedHash = typeof m.passwordHash === 'string' ? String(m.passwordHash).trim() : ''
-          if (storedHash) {
-            // Support both true SHA-256 hashes and accidental plain-text storage in passwordHash.
-            if (isSha256Hex(storedHash)) return storedHash === hashed || storedHash === hashedRaw
-            return storedHash === password || storedHash.trim() === passwordTrimmed
+          const candidates = readPasswordCandidates(m)
+          if (!candidates.length) return false
+          for (const rawCandidate of candidates) {
+            const candidate = String(rawCandidate).trim()
+            if (!candidate) continue
+            const lowered = candidate.toLowerCase()
+            if (isSha256Hex(candidate)) {
+              if (lowered === hashed || lowered === hashedRaw) return true
+              continue
+            }
+            const normalized = candidate.replace(/^sha256:/i, '').trim()
+            if (isSha256Hex(normalized) && (normalized.toLowerCase() === hashed || normalized.toLowerCase() === hashedRaw)) {
+              return true
+            }
+            if (candidate === hashedB64 || candidate === hashedRawB64) return true
+            if (candidate === password || candidate === passwordTrimmed) {
+              matchedViaLegacyPlain = true
+              return true
+            }
           }
-          const legacyPassword = readLegacyPassword(m)
-          const legacyOk = legacyPassword === password || legacyPassword.trim() === passwordTrimmed
-          if (legacyOk) matchedViaLegacyPlain = true
-          return legacyOk
+          return false
         })
 
         // Backward-compatible migration for users still stored with plain-text password fields.
