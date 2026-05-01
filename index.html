@@ -75,16 +75,14 @@
         var firstPathSegment = window.location.pathname.split('/').filter(Boolean)[0] || 'AgroCloud';
         var repoBasePath = '/' + firstPathSegment + '/';
         var appHashPath = repoBasePath + '#/';
-        var githubPagesAppPath = repoBasePath + 'frontend/';
         var localDev = 'http://localhost:5173' + repoBasePath + '#/';
 
         function setFallbackLinks() {
           var codeEl = document.getElementById('boot-app-path');
           var appLink = document.getElementById('boot-open-app');
           var localLink = document.getElementById('boot-open-local');
-          var preferred = isGithubPages ? githubPagesAppPath : appHashPath;
-          if (codeEl) codeEl.textContent = preferred;
-          if (appLink) appLink.setAttribute('href', preferred);
+          if (codeEl) codeEl.textContent = appHashPath;
+          if (appLink) appLink.setAttribute('href', appHashPath);
           if (localLink) localLink.setAttribute('href', localDev);
         }
 
@@ -95,7 +93,7 @@
           return;
         }
         if (isGithubPages) {
-          window.location.replace(githubPagesAppPath);
+          window.location.replace(appHashPath);
           return;
         }
         if (isLocalHost) {
@@ -112,15 +110,15 @@
         <h1>Opening Agri Cloud…</h1>
         <p>
           If redirect does not happen automatically, open:
-          <code id="boot-app-path">/AgroCloud/frontend/</code>
+          <code id="boot-app-path">/AgroCloud/#/</code>
         </p>
         <div class="boot-actions">
-          <a id="boot-open-app" class="primary" href="/AgroCloud/frontend/">Open App</a>
+          <a id="boot-open-app" class="primary" href="/AgroCloud/#/">Open App</a>
           <a id="boot-open-local" href="http://localhost:5173/AgroCloud/#/">Open Local Dev</a>
         </div>
       </div>
     </div>
-    <noscript>JavaScript is required. Open <code>/AgroCloud/frontend/</code> manually.</noscript>
+    <noscript>JavaScript is required. Open <code>/AgroCloud/#/</code> manually.</noscript>
   </body>
 </html>
 
