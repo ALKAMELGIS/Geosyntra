@@ -727,6 +727,7 @@ function GisContentPage() {
   const [layerQuery, setLayerQuery] = useState('')
   const [sortBy, setSortBy] = useState<'priority' | 'name' | 'date'>('priority')
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc')
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
 
   const [layerMeta, setLayerMeta] = useState<Record<string, { createdAt: string }>>(() =>
     safeParseJson<Record<string, { createdAt: string }>>(safeLocalStorageGetItem(LS_META_KEY), {}),
@@ -1750,7 +1751,7 @@ function GisContentPage() {
   }
 
   return (
-    <div className="gis-map-page gis-content-page" dir="ltr" lang="en">
+    <div className={`gis-map-page gis-content-page${sidebarCollapsed ? ' gis-sidebar-collapsed' : ''}`} dir="ltr" lang="en">
       {!layersLoaded ? (
         <div className="gis-empty" style={{ margin: 16 }}>
           <div className="gis-empty-title">Loading GIS Content…</div>
@@ -1773,21 +1774,44 @@ function GisContentPage() {
         </div>
       ) : null}
 
-      <aside className="gis-sidebar" aria-label="GIS Layers Sidebar">
+      <aside className={`gis-sidebar${sidebarCollapsed ? ' gis-sidebar--collapsed' : ''}`} aria-label="GIS Layers Sidebar">
         <div className="gis-sidebar-header">
           <div className="gis-sidebar-title">
             <i className="fa-solid fa-map" aria-hidden="true" />
-            <span>GIS Layers</span>
+            <span className="gis-sidebar-title-text">GIS Layers</span>
           </div>
-          <div className="gis-sidebar-actions">
-            <button className="gis-addlayer-btn" type="button" onClick={openAddLayer}>
+          <div className="gis-sidebar-actions" aria-label="Sidebar tools">
+            <button
+              type="button"
+              className="gis-sidebar-icon-btn"
+              onClick={() => setSidebarCollapsed((v) => !v)}
+              aria-expanded={!sidebarCollapsed}
+              aria-controls="gis-sidebar-panel"
+              aria-label={sidebarCollapsed ? 'Expand GIS layers panel' : 'Collapse GIS layers panel'}
+              title={sidebarCollapsed ? 'Expand panel' : 'Collapse panel'}
+            >
+              <i className={`fa-solid ${sidebarCollapsed ? 'fa-angles-right' : 'fa-angles-left'}`} aria-hidden="true" />
+            </button>
+            <button
+              className="gis-addlayer-btn gis-addlayer-btn--icon-only"
+              type="button"
+              onClick={openAddLayer}
+              aria-label="Add layer"
+              title="Add layer"
+            >
               <i className="fa-solid fa-plus" aria-hidden="true" />
-              <span>Add layer</span>
             </button>
           </div>
         </div>
 
-        <div className="gis-sidebar-body">
+        <div className="gis-sidebar-body" id="gis-sidebar-panel">
+          {sidebarCollapsed ? (
+            <div className="gis-sidebar-collapsed-hint" role="status">
+              <span className="gis-sidebar-collapsed-hint__line">{rows.length} layers</span>
+              <span className="gis-sidebar-collapsed-hint__sub">Expand to browse</span>
+            </div>
+          ) : (
+            <>
           <div className="gis-content-sidebarfilters">
             <input className="gis-input gis-layer-search" value={layerQuery} onChange={(e) => setLayerQuery(e.target.value)} placeholder="Search for a layer..." />
             <div className="gis-content-filterrow">
@@ -1939,6 +1963,8 @@ function GisContentPage() {
               </div>
             ) : null}
           </div>
+            </>
+          )}
         </div>
       </aside>
 

@@ -1333,49 +1333,37 @@ export function DataSourceFieldsPanel({
                         </button>
                       </div>
 
-                      <div className="dsf-field-list" style={{ marginTop: 10, display: 'grid', gap: 6, maxHeight: 320, overflow: 'auto', paddingRight: 6 }}>
+                      <div className="dsf-field-list">
                         {filteredFields.length ? (
                           filteredFields.map((f) => {
                             const checked = selectedSet.has(f)
+                            const isList = Boolean(savedLayerDomainsById[id]?.[f]?.length)
                             return (
-                              <label
-                                key={f}
-                                style={{
-                                  display: 'flex',
-                                  alignItems: 'center',
-                                  gap: 10,
-                                  padding: '8px 10px',
-                                  borderRadius: 12,
-                                  border: '1px solid #e2e8f0',
-                                  background: checked ? '#ffffff' : '#ffffff',
-                                  fontSize: 12,
-                                  color: '#334155',
-                                }}
-                              >
-                                <input
-                                  type="checkbox"
-                                  checked={checked}
-                                  onChange={() => {
-                                    setDraftFieldConfigsBySource(prev => {
-                                      const next = { ...prev }
-                                      const list = Array.isArray(next[id]) ? next[id].slice() : []
-                                      if (checked) {
-                                        next[id] = list.filter(x => x.name !== f)
+                              <label key={f} className={`dsf-field-row${checked ? ' dsf-field-row--selected' : ''}`}>
+                                <span className="dsf-field-row__cb-wrap">
+                                  <input
+                                    type="checkbox"
+                                    className="dsf-field-row__input"
+                                    checked={checked}
+                                    onChange={() => {
+                                      setDraftFieldConfigsBySource(prev => {
+                                        const next = { ...prev }
+                                        const list = Array.isArray(next[id]) ? next[id].slice() : []
+                                        if (checked) {
+                                          next[id] = list.filter(x => x.name !== f)
+                                          return next
+                                        }
+                                        next[id] = [...list, { name: f, enabled: true, required: false }]
                                         return next
-                                      }
-                                      next[id] = [...list, { name: f, enabled: true, required: false }]
-                                      return next
-                                    })
-                                  }}
-                                />
-                                <span style={{ fontWeight: 900, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{f}</span>
-                                {savedLayerDomainsById[id]?.[f]?.length ? (
-                                  <span style={{ marginLeft: 'auto', fontSize: 11, fontWeight: 900, color: '#475569', border: '1px solid #e2e8f0', background: '#f1f5f9', padding: '2px 8px', borderRadius: 999 }}>
-                                    {text.list}
-                                  </span>
-                                ) : (
-                                  <span style={{ marginLeft: 'auto', fontSize: 11, fontWeight: 800, color: '#94a3b8' }}>{text.text}</span>
-                                )}
+                                      })
+                                    }}
+                                  />
+                                  <span className="dsf-field-row__box" aria-hidden />
+                                </span>
+                                <span className="dsf-field-row__name">{f}</span>
+                                <span className={`dsf-field-row__tag${isList ? ' dsf-field-row__tag--list' : ' dsf-field-row__tag--text'}`}>
+                                  {isList ? text.list : text.text}
+                                </span>
                               </label>
                             )
                           })

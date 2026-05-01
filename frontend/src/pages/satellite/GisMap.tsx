@@ -2884,9 +2884,14 @@ export default function GisMap() {
               <span>GIS Layers</span>
             </div>
             <div className="gis-sidebar-actions" aria-label="Sidebar actions">
-              <button className="gis-addlayer-btn" type="button" onClick={() => setIsAddOpen(true)} aria-label="Add layer">
+              <button
+                className="gis-addlayer-btn gis-addlayer-btn--icon-only"
+                type="button"
+                onClick={() => setIsAddOpen(true)}
+                aria-label="Add layer"
+                title="Add layer"
+              >
                 <i className="fa-solid fa-plus" aria-hidden="true" />
-                Add Layer
               </button>
               <button
                 className="gis-sidebar-close"

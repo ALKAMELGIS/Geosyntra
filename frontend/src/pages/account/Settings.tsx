@@ -137,35 +137,7 @@ export default function Settings() {
   return (
     <div className="ec-page settings-page">
       <div className="ec-container ec-container-wide ec-animate-in">
-        <div className="ec-header" role="region" aria-labelledby="ec-hero-title">
-          <div className="ec-hero">
-            <div className="ec-hero-content">
-              <div className="settings-hero-main">
-                <div className="ec-hero-eyebrow" aria-label={text.settings} title={text.settings}>
-                  <i className="fa-solid fa-gear" aria-hidden />
-                </div>
-                <h1 className="ec-hero-title" id="ec-hero-title">{text.workflowDataSources}</h1>
-              </div>
-              <div className="settings-hero-metrics" aria-label="Workflow settings summary">
-                <div className="settings-hero-metric-card">
-                  <span className="settings-hero-metric-icon" aria-hidden><i className="fa-solid fa-diagram-project"></i></span>
-                  <span className="settings-hero-metric-label">{text.activeWorkflow}</span>
-                  <strong className="settings-hero-metric-value">{activeForm}</strong>
-                </div>
-                <div className="settings-hero-metric-card">
-                  <span className="settings-hero-metric-icon" aria-hidden><i className="fa-solid fa-layer-group"></i></span>
-                  <span className="settings-hero-metric-label">{text.connectedLayers}</span>
-                  <strong className="settings-hero-metric-value">{enabledInfo.sourceIds.length}</strong>
-                </div>
-                <div className="settings-hero-metric-card">
-                  <span className="settings-hero-metric-icon" aria-hidden><i className="fa-solid fa-list-check"></i></span>
-                  <span className="settings-hero-metric-label">{text.enabledFields}</span>
-                  <strong className="settings-hero-metric-value">{enabledTotal}</strong>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
+        <h1 className="sr-only">{text.workflowDataSources}</h1>
 
         {!ready ? (
           <div className="ec-card">
@@ -176,85 +148,85 @@ export default function Settings() {
         ) : (
           <>
             <div className="settings-data-source-wrap">
-              <button type="button" className="settings-floating-back" onClick={goBackPage} aria-label={text.backPage} title={text.backPage}>
-                <i className="fa-solid fa-arrow-left-long" aria-hidden />
-              </button>
               <div className="ec-card ec-animate-in" id="data-source-settings">
-              <div className="ec-card-header">
-                <div>
-                  <div className="ec-card-title">
-                    <i className="fa-solid fa-database" style={{ color: 'var(--secondary)' }}></i>
-                    {text.dataSource}
+                <div className="ec-card-header settings-datasource-header">
+                  <button type="button" className="settings-header-back" onClick={goBackPage} aria-label={text.backPage} title={text.backPage}>
+                    <i className="fa-solid fa-arrow-left-long" aria-hidden />
+                  </button>
+                  <div className="settings-datasource-header-title">
+                    <div className="ec-card-title">
+                      <i className="fa-solid fa-database" style={{ color: 'var(--secondary)' }}></i>
+                      {text.dataSource}
+                    </div>
+                  </div>
+                  <div className="ec-card-header-actions settings-card-header-actions">
+                    <button
+                      type="button"
+                      className="settings-header-icon-btn settings-header-icon-btn--primary"
+                      aria-label={text.configureFields}
+                      title={text.configureFields}
+                      onClick={openConfigureFields}
+                    >
+                      <i className="fa-solid fa-sliders" aria-hidden />
+                    </button>
+                    <button
+                      type="button"
+                      className="settings-header-icon-btn settings-header-icon-btn--ghost"
+                      aria-label={text.jumpToSection}
+                      title={text.jumpToSection}
+                      onClick={scrollToDataSourceCard}
+                    >
+                      <i className="fa-solid fa-arrow-down-long" aria-hidden />
+                    </button>
                   </div>
                 </div>
-                <div className="ec-card-header-actions settings-card-header-actions">
-                  <button
-                    type="button"
-                    className="settings-header-icon-btn settings-header-icon-btn--primary"
-                    aria-label={text.configureFields}
-                    title={text.configureFields}
-                    onClick={openConfigureFields}
-                  >
-                    <i className="fa-solid fa-sliders" aria-hidden />
-                  </button>
-                  <button
-                    type="button"
-                    className="settings-header-icon-btn settings-header-icon-btn--ghost"
-                    aria-label={text.jumpToSection}
-                    title={text.jumpToSection}
-                    onClick={scrollToDataSourceCard}
-                  >
-                    <i className="fa-solid fa-arrow-down-long" aria-hidden />
-                  </button>
+
+                <div className="ec-card-body" style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                  <div className="ec-input-group" style={{ maxWidth: 380 }}>
+                    <label className="ec-label">{text.selectWorkflow}</label>
+                    <select className="ec-select" value={activeForm} onChange={e => setActiveForm(e.target.value as FormKey)} aria-label={text.selectWorkflow}>
+                      {FORM_KEYS.map(k => (
+                        <option key={k} value={k}>
+                          {k}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {canManageSettings ? (
+                    <DataSourceFieldsPanel formKey={activeForm} mode="settings" onChange={setLastState} />
+                  ) : (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                      <div style={{ fontSize: 12, color: '#1e293b', background: '#f1f5f9', border: '1px solid #e2e8f0', padding: '10px 12px', borderRadius: 12 }}>
+                        You have read-only access. Only Admins and Managers can change data source settings.
+                      </div>
+                      <div style={{ fontSize: 13, color: '#334155' }}>
+                        <span style={{ fontWeight: 700 }}>Configured sources:</span> {enabledInfo.sourceIds.length ? enabledInfo.sourceIds.join(', ') : '—'}
+                      </div>
+                      <div style={{ fontSize: 13, color: '#334155' }}>
+                        <span style={{ fontWeight: 700 }}>Enabled fields:</span>{' '}
+                        {enabledTotal
+                          ? enabledInfo.sourceIds
+                              .map(id => `${id}: ${(enabledInfo.enabledBySource[id] || []).join(', ')}`)
+                              .filter(Boolean)
+                              .join(' • ')
+                          : '—'}
+                      </div>
+                    </div>
+                  )}
+
+                  {canManageSettings && lastState ? (
+                    <div style={{ fontSize: 12, color: '#64748b' }}>
+                      {text.currentSelection}: {lastState.sourceIds.length ? lastState.sourceIds.join(', ') : '—'} •{' '}
+                      {Object.values(lastState.selectedFieldsBySource || {}).reduce<number>(
+                        (acc, arr) => acc + (Array.isArray(arr) ? arr.length : 0),
+                        0
+                      )}{' '}
+                      {text.fieldsEnabled}
+                    </div>
+                  ) : null}
                 </div>
               </div>
-
-              <div className="ec-card-body" style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                <div className="ec-input-group" style={{ maxWidth: 380 }}>
-                  <label className="ec-label">{text.selectWorkflow}</label>
-                  <select className="ec-select" value={activeForm} onChange={e => setActiveForm(e.target.value as FormKey)} aria-label={text.selectWorkflow}>
-                    {FORM_KEYS.map(k => (
-                      <option key={k} value={k}>
-                        {k}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                {canManageSettings ? (
-                  <DataSourceFieldsPanel formKey={activeForm} mode="settings" onChange={setLastState} />
-                ) : (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                    <div style={{ fontSize: 12, color: '#1e293b', background: '#f1f5f9', border: '1px solid #e2e8f0', padding: '10px 12px', borderRadius: 12 }}>
-                      You have read-only access. Only Admins and Managers can change data source settings.
-                    </div>
-                    <div style={{ fontSize: 13, color: '#334155' }}>
-                      <span style={{ fontWeight: 700 }}>Configured sources:</span> {enabledInfo.sourceIds.length ? enabledInfo.sourceIds.join(', ') : '—'}
-                    </div>
-                    <div style={{ fontSize: 13, color: '#334155' }}>
-                      <span style={{ fontWeight: 700 }}>Enabled fields:</span>{' '}
-                      {enabledTotal
-                        ? enabledInfo.sourceIds
-                            .map(id => `${id}: ${(enabledInfo.enabledBySource[id] || []).join(', ')}`)
-                            .filter(Boolean)
-                            .join(' • ')
-                        : '—'}
-                    </div>
-                  </div>
-                )}
-
-                {canManageSettings && lastState ? (
-                  <div style={{ fontSize: 12, color: '#64748b' }}>
-                    {text.currentSelection}: {lastState.sourceIds.length ? lastState.sourceIds.join(', ') : '—'} •{' '}
-                    {Object.values(lastState.selectedFieldsBySource || {}).reduce<number>(
-                      (acc, arr) => acc + (Array.isArray(arr) ? arr.length : 0),
-                      0
-                    )}{' '}
-                    {text.fieldsEnabled}
-                  </div>
-                ) : null}
-              </div>
-            </div>
             </div>
           </>
         )}
