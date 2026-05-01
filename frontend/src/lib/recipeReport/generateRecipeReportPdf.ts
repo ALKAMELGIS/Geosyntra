@@ -63,12 +63,16 @@ function analysisText(opts: {
   summaries: ReturnType<typeof computeNumericSummaries>
   dateIso: string
   hasMap: boolean
+  periodLabel?: string
 }): string[] {
-  const { workflowTitle, rowCount, columnCount, summaries, dateIso, hasMap } = opts
+  const { workflowTitle, rowCount, columnCount, summaries, dateIso, hasMap, periodLabel } = opts
   const p: string[] = []
+  const periodClause = periodLabel
+    ? ` The user-selected reporting window is: ${periodLabel}.`
+    : ''
   p.push(
     `This analytical summary describes locally saved "${workflowTitle}" recipe rows aligned with fields configured under Master Data → Data Management. ` +
-      `The extract contains ${rowCount} record${rowCount === 1 ? '' : 's'} and ${columnCount} configured column${columnCount === 1 ? '' : 's'}, generated on ${dateIso}.`,
+      `The extract contains ${rowCount} record${rowCount === 1 ? '' : 's'} and ${columnCount} configured column${columnCount === 1 ? '' : 's'}, generated on ${dateIso}.${periodClause}`,
   )
   if (rowCount === 0) {
     p.push(
@@ -202,8 +206,10 @@ export async function generateRecipeReportPdf(opts: {
   formSlug: string
   columns: RecipeColumn[]
   rows: RecipeRow[]
+  /** Optional label for the date window (shown on the PDF). */
+  periodLabel?: string
 }): Promise<void> {
-  const { workflowTitle, formSlug, columns, rows } = opts
+  const { workflowTitle, formSlug, columns, rows, periodLabel } = opts
   const generatedAt = new Date()
   const dateIso = generatedAt.toISOString().replace('T', ' ').slice(0, 19) + ' UTC'
 
@@ -218,6 +224,7 @@ export async function generateRecipeReportPdf(opts: {
     summaries,
     dateIso,
     hasMap: Boolean(fc?.features?.length),
+    periodLabel,
   })
 
   const doc = new jsPDF({ unit: 'mm', format: 'a4', compress: true })
@@ -238,7 +245,16 @@ export async function generateRecipeReportPdf(opts: {
   doc.text(workflowTitle.replace(/_/g, ' '), m, y)
   y += 6
   doc.text(`Generated ${dateIso}`, m, y)
-  y += 10
+  y += 6
+  if (periodLabel) {
+    doc.setFontSize(9)
+    doc.setTextColor(MUTED[0], MUTED[1], MUTED[2])
+    doc.text(`Reporting period: ${periodLabel}`, m, y)
+    y += 8
+    doc.setTextColor(INK[0], INK[1], INK[2])
+  } else {
+    y += 4
+  }
 
   doc.setFontSize(10)
   doc.setTextColor(INK[0], INK[1], INK[2])
@@ -263,10 +279,16 @@ export async function generateRecipeReportPdf(opts: {
 
   const aggHead = [['Metric', 'Value']]
   const aggBody: string[][] = [['Records considered', String(rows.length)]]
+  const nRows = Math.max(rows.length, 1)
+  const sumAbs = summaries.reduce((a, s) => a + Math.abs(s.sum), 0)
   for (const s of summaries) {
     aggBody.push([`${s.column} — count`, String(s.count)])
+    aggBody.push([`${s.column} — % of records`, `${((s.count / nRows) * 100).toFixed(1)}%`])
     aggBody.push([`${s.column} — average`, fmtNum(s.avg)])
     aggBody.push([`${s.column} — sum`, fmtNum(s.sum)])
+    if (sumAbs > 1e-12) {
+      aggBody.push([`${s.column} — share of Σ|sums|`, `${((Math.abs(s.sum) / sumAbs) * 100).toFixed(1)}%`])
+    }
     aggBody.push([`${s.column} — min`, fmtNum(s.min)])
     aggBody.push([`${s.column} — max`, fmtNum(s.max)])
   }

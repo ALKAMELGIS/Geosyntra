@@ -5,6 +5,7 @@ import { generateRecipeReportPdf } from '../../lib/recipeReport/generateRecipeRe
 import { loadRecipeRows, rowsToCsv } from '../../lib/recipeReport/loadRecipeRows'
 import { getRecipeColumnsForForm } from '../../lib/formFieldColumns'
 import { WorkflowHeroStepper } from './components/WorkflowHeroStepper'
+import { RecipeReportConfigModal, type RecipeReportConfigPayload } from './components/RecipeReportConfigModal'
 import { getWorkflowShellMeta, stepLabels } from './workflowMeta'
 import './EC.css'
 import './recipes.css'
@@ -90,6 +91,7 @@ export default function Recipes() {
   const [recycleBinCount] = useState(0)
   const [bindingsTick, setBindingsTick] = useState(0)
   const [reportBusy, setReportBusy] = useState(false)
+  const [reportModalOpen, setReportModalOpen] = useState(false)
 
   useEffect(() => {
     if (!autoRefresh) return
@@ -142,30 +144,35 @@ export default function Recipes() {
 
   const recipeRows = useMemo(() => loadRecipeRows(formKey ?? '', columns), [formKey, columns, bindingsTick])
 
-  const runGenerateReport = useCallback(async () => {
-    if (!formKey || columns.length === 0) return
-    setReportBusy(true)
-    try {
-      await generateRecipeReportPdf({
-        workflowTitle: reportTitleEn || formSlug.replace(/-/g, ' '),
-        formSlug,
-        columns,
-        rows: recipeRows,
-      })
-    } catch (err) {
+  const runGenerateReport = useCallback(
+    async (payload: RecipeReportConfigPayload) => {
+      if (!formKey) return
+      setReportBusy(true)
       try {
-        console.error('[Recipes report]', err)
-      } catch {
+        await generateRecipeReportPdf({
+          workflowTitle: reportTitleEn || formSlug.replace(/-/g, ' '),
+          formSlug,
+          columns: payload.columns,
+          rows: payload.rows,
+          periodLabel: payload.periodLabel,
+        })
+        setReportModalOpen(false)
+      } catch (err) {
+        try {
+          console.error('[Recipes report]', err)
+        } catch {
+        }
+        window.alert(
+          typeof err === 'object' && err && typeof (err as Error).message === 'string'
+            ? (err as Error).message
+            : 'Could not generate the PDF report.',
+        )
+      } finally {
+        setReportBusy(false)
       }
-      window.alert(
-        typeof err === 'object' && err && typeof (err as Error).message === 'string'
-          ? (err as Error).message
-          : 'Could not generate the PDF report.',
-      )
-    } finally {
-      setReportBusy(false)
-    }
-  }, [columns, formKey, formSlug, recipeRows, reportTitleEn])
+    },
+    [formKey, formSlug, reportTitleEn],
+  )
 
   const runExportCsv = useCallback(() => {
     if (!columns.length) return
@@ -224,10 +231,10 @@ export default function Recipes() {
                 className="recipes-tool-btn"
                 disabled={reportBusy || emptyPrimary}
                 title={emptyPrimary ? c.emptyConfigured : c.generateReport}
-                onClick={() => void runGenerateReport()}
+                onClick={() => !emptyPrimary && setReportModalOpen(true)}
               >
-                <i className={reportBusy ? 'fa-solid fa-spinner fa-spin' : 'fa-solid fa-chart-pie'} aria-hidden />
-                <span>{reportBusy ? 'Generating…' : c.generateReport}</span>
+                <i className="fa-solid fa-chart-pie" aria-hidden />
+                <span>{c.generateReport}</span>
               </button>
               <button
                 type="button"
@@ -306,6 +313,16 @@ export default function Recipes() {
             {c.back}
           </button>
         </div>
+
+        <RecipeReportConfigModal
+          open={reportModalOpen}
+          onClose={() => !reportBusy && setReportModalOpen(false)}
+          columns={columns}
+          rows={recipeRows}
+          uiLang={uiLang}
+          busy={reportBusy}
+          onConfirm={runGenerateReport}
+        />
       </div>
     </div>
   )

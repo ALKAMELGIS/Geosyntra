@@ -1254,26 +1254,6 @@ export function DataSourceFieldsPanel({
               </div>
             </div>
 
-            {draftSourceIds.map((calcId, calcIndex) => {
-              const calcLayerName = savedLayers.find(l => l.id === calcId)?.name ?? 'Layer'
-              const calcFieldsRaw = savedLayers.find(l => l.id === calcId)?.fields ?? []
-              const calcFields = Array.isArray(calcFieldsRaw)
-                ? (calcFieldsRaw as any[]).map(v => String(v ?? '').trim()).filter(Boolean)
-                : []
-              if (!calcFields.length) return null
-              return (
-                <div key={`calc-wrap-${calcIndex}-${calcId}`} className="dsf-calc-tools-slot">
-                  <FieldCalculateTools
-                    formKey={formKey}
-                    sourceId={calcId}
-                    layerName={calcLayerName}
-                    availableFields={calcFields}
-                    uiLang={language}
-                  />
-                </div>
-              )
-            })}
-
             {draftSourceIds.map((id, index) => {
               const key = `${index}-${id}`
               const layerName = savedLayers.find(l => l.id === id)?.name ?? 'Layer'
@@ -1295,6 +1275,18 @@ export function DataSourceFieldsPanel({
                   <div className="dsf-source-section__head">
                     <div className="dsf-source-section__title">{layerName}</div>
                   </div>
+
+                  {availableFields.length > 0 ? (
+                    <div className="dsf-calc-tools-slot dsf-calc-tools-slot--in-section">
+                      <FieldCalculateTools
+                        formKey={formKey}
+                        sourceId={id}
+                        layerName={layerName}
+                        availableFields={availableFields}
+                        uiLang={language}
+                      />
+                    </div>
+                  ) : null}
 
                   <div className="dsf-source-section__grid">
                     <div className="dsf-field-column">

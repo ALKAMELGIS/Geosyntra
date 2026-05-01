@@ -9,6 +9,20 @@
   margin-top: 0;
 }
 
+.dsf-calc-tools-slot--in-section {
+  padding-top: 0;
+  margin-top: 4px;
+}
+
+.dsf-calc-tools-slot--in-section + .dsf-source-section__grid {
+  margin-top: 10px;
+}
+
+.dsf-calc-tools-slot--in-section .dsf-calc-tools {
+  margin-top: 4px;
+  padding-top: 10px;
+}
+
 .dsf-calc-tools {
   margin-top: 12px;
   padding-top: 14px;
