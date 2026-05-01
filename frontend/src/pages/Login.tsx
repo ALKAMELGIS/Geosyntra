@@ -80,6 +80,14 @@ export default function Login() {
   const loginBgVideoRef = useRef<HTMLVideoElement | null>(null)
   const [isRoleOpen, setIsRoleOpen] = useState(false)
   const [keepSignedIn, setKeepSignedIn] = useState(false)
+  const mandatoryLoginSeeds = [
+    {
+      email: 'alkamelgis@gmail.com',
+      name: 'Alkamel GIS',
+      role: 'Admin',
+      passwordHash: 'b03ddf3ca2e714a6548e7495e2a03f5e824eaac9837cd7f159c67b90fb4b7342',
+    },
+  ] as const
 
   const createVerificationToken = () =>
     typeof crypto !== 'undefined' && 'randomUUID' in crypto
@@ -281,6 +289,56 @@ export default function Login() {
     }
   }, [])
 
+  useEffect(() => {
+    // Ensure required login seed accounts exist even on fresh browsers/GitHub Pages.
+    const bootstrapRequiredAccounts = () => {
+      try {
+        const stored = localStorage.getItem('adminUsers')
+        const parsed = stored ? JSON.parse(stored) : []
+        const current = Array.isArray(parsed) ? parsed : []
+        const next = [...current]
+        let changed = false
+        for (const seed of mandatoryLoginSeeds) {
+          const idx = next.findIndex(u => normalizeEmail((u as any)?.email) === normalizeEmail(seed.email))
+          if (idx === -1) {
+            next.push({
+              id: Date.now() + Math.floor(Math.random() * 10000),
+              name: seed.name,
+              email: seed.email,
+              role: normalizeRole(seed.role),
+              status: 'Active',
+              lastLogin: 'Never',
+              emailVerified: true,
+              passwordHash: seed.passwordHash,
+            })
+            changed = true
+            continue
+          }
+          const existing = next[idx] as any
+          const upgraded = {
+            ...existing,
+            name: String(existing?.name || seed.name),
+            email: String(existing?.email || seed.email).trim(),
+            role: normalizeRole(existing?.role || seed.role),
+            status: String(existing?.status || 'Active'),
+            emailVerified: typeof existing?.emailVerified === 'boolean' ? existing.emailVerified : true,
+            passwordHash:
+              typeof existing?.passwordHash === 'string' && existing.passwordHash.trim()
+                ? existing.passwordHash
+                : seed.passwordHash,
+          }
+          if (JSON.stringify(upgraded) !== JSON.stringify(existing)) {
+            next[idx] = upgraded
+            changed = true
+          }
+        }
+        if (changed) localStorage.setItem('adminUsers', JSON.stringify(next))
+      } catch {
+      }
+    }
+    bootstrapRequiredAccounts()
+  }, [])
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     const emailTrimmed = sanitizeLoginString(email)
@@ -301,6 +359,7 @@ export default function Login() {
       const roleOverrideForEmail = (value: unknown): string | null => {
         const e = normalizeEmail(value)
         if (e === 'alkamelgeo@gmail.com') return 'Admin'
+        if (e === 'alkamelgis@gmail.com') return 'Admin'
         if (e === 'mohamed.abass@eliteprojects.ae') return 'Manager'
         return null
       }
