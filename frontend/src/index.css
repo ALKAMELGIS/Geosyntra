@@ -7435,6 +7435,99 @@ html[data-theme='dark'] .gis-domain-cell--dropdown.missing-description .gis-doma
   }
 }
 
+/* Phone layout: keep GIS sidebar on the left as floating panel */
+@media (max-width: 767px) {
+  .gis-map-page {
+    position: relative;
+    grid-template-columns: 1fr;
+    grid-template-rows: minmax(0, 1fr);
+    padding: 10px;
+    gap: 0;
+  }
+
+  .gis-sidebar {
+    position: absolute;
+    left: 10px;
+    right: auto;
+    top: 10px;
+    width: min(88vw, 340px);
+    min-width: min(80vw, 280px);
+    max-height: min(60vh, 500px);
+    z-index: 45;
+    border-radius: 20px;
+    box-shadow: 0 20px 48px rgba(2, 6, 23, 0.22);
+    border: 1px solid rgba(255, 255, 255, 0.9);
+  }
+
+  .gis-sidebar-header {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 10px;
+    align-items: stretch;
+  }
+
+  .gis-sidebar-title {
+    width: 100%;
+    min-width: 0;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 14px;
+  }
+
+  .gis-sidebar-title span {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .gis-sidebar-actions {
+    width: 100%;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .gis-addlayer-btn {
+    width: 100%;
+  }
+
+  .gis-map-canvas {
+    min-height: calc(100dvh - var(--header-height) - 88px);
+  }
+}
+
+@media (max-width: 420px) {
+  .gis-map-page {
+    padding: 8px;
+  }
+
+  .gis-sidebar {
+    left: 8px;
+    top: 8px;
+    width: min(92vw, 320px);
+    min-width: min(84vw, 260px);
+    max-height: min(62vh, 460px);
+  }
+
+  .gis-sidebar-header {
+    padding: 12px 10px;
+    gap: 8px;
+  }
+
+  .gis-sidebar-title {
+    font-size: 13px;
+  }
+
+  .gis-sidebar-title i {
+    width: 30px;
+    height: 30px;
+    font-size: 15px;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .gis-map-canvas > .leaflet-container,
   .gis-map-projection-toast {
@@ -8072,4 +8165,110 @@ textarea {
 :root[dir="rtl"] .fa-brands {
   direction: ltr;
   unicode-bidi: isolate;
+}
+
+/* Mobile GIS launcher + side drawer */
+@media (max-width: 767px) {
+  .gis-map-page {
+    position: relative;
+    overflow: hidden;
+  }
+
+  .gis-sidebar-drawer-backdrop {
+    position: absolute;
+    inset: 0;
+    z-index: 40;
+    border: 0;
+    margin: 0;
+    padding: 0;
+    background: rgba(2, 6, 23, 0.28);
+    backdrop-filter: blur(1.5px);
+  }
+
+  .gis-sidebar.is-open,
+  .gis-sidebar.is-collapsed {
+    position: absolute;
+    top: 10px;
+    left: 10px;
+    width: min(86vw, 332px);
+    max-height: min(74vh, 620px);
+    z-index: 45;
+    transition:
+      transform 230ms cubic-bezier(0.22, 1, 0.36, 1),
+      opacity 180ms ease;
+    will-change: transform, opacity;
+  }
+
+  .gis-sidebar.is-open {
+    transform: translateX(0);
+    opacity: 1;
+    pointer-events: auto;
+  }
+
+  .gis-sidebar.is-collapsed {
+    transform: translateX(calc(-100% - 16px));
+    opacity: 0.01;
+    pointer-events: none;
+  }
+
+  .gis-sidebar-launcher {
+    position: absolute;
+    top: 10px;
+    left: 10px;
+    width: 52px;
+    height: 52px;
+    border-radius: 16px;
+    border: 1px solid rgba(226, 232, 240, 0.95);
+    background: rgba(255, 255, 255, 0.96);
+    color: #0f172a;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 23px;
+    box-shadow: 0 14px 34px rgba(2, 6, 23, 0.18);
+    z-index: 42;
+  }
+
+  .gis-launcher-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+    margin-bottom: 10px;
+  }
+
+  .gis-launcher-chip {
+    border: 1px solid rgba(15, 23, 42, 0.1);
+    background: rgba(255, 255, 255, 0.92);
+    border-radius: 12px;
+    min-height: 40px;
+    padding: 6px 8px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    font-size: 11.5px;
+    font-weight: 700;
+    color: #0f172a;
+    white-space: nowrap;
+  }
+
+  .gis-launcher-chip i {
+    color: #047857;
+    font-size: 12px;
+  }
+
+  :root[dir='rtl'] .gis-sidebar.is-open,
+  :root[dir='rtl'] .gis-sidebar.is-collapsed {
+    left: auto;
+    right: 10px;
+  }
+
+  :root[dir='rtl'] .gis-sidebar.is-collapsed {
+    transform: translateX(calc(100% + 16px));
+  }
+
+  :root[dir='rtl'] .gis-sidebar-launcher {
+    left: auto;
+    right: 10px;
+  }
 }

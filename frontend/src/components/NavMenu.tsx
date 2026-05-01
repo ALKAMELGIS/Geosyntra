@@ -284,6 +284,18 @@ export default function NavMenu({ onLogout }: NavMenuProps) {
   }, [openGroup])
 
   useEffect(() => {
+    if (typeof document === 'undefined') return
+    const body = document.body
+    const isMobileViewport = viewport === 'mobile'
+    body.classList.toggle('nav-drawer-viewport', isMobileViewport)
+    body.classList.toggle('nav-drawer-open', isMobileViewport && mobileOpen)
+    return () => {
+      body.classList.remove('nav-drawer-viewport')
+      body.classList.remove('nav-drawer-open')
+    }
+  }, [viewport, mobileOpen])
+
+  useEffect(() => {
     const handleAnyPointerDown = (e: Event) => {
       if (e.type === 'mousedown' && typeof window !== 'undefined' && 'PointerEvent' in window) return
       if (e.type === 'touchstart' && typeof window !== 'undefined' && 'PointerEvent' in window) return
@@ -407,15 +419,15 @@ export default function NavMenu({ onLogout }: NavMenuProps) {
   }
 
   return (
-    <nav
-      className={[
-        'navmenu',
-        mobileOpen ? 'navmenu-open' : '',
-      ].filter(Boolean).join(' ')}
-      aria-label="Primary"
-      ref={navRef}
-      data-viewport={viewport}
-    >
+      <nav
+        className={[
+          'navmenu',
+          mobileOpen ? 'navmenu-open' : '',
+        ].filter(Boolean).join(' ')}
+        aria-label="Primary"
+        ref={navRef}
+        data-viewport={viewport}
+      >
       <button
         className="nav-toggle"
         type="button"
@@ -766,6 +778,6 @@ export default function NavMenu({ onLogout }: NavMenuProps) {
         </li>
 
       </ul>
-    </nav>
+      </nav>
   )
 }

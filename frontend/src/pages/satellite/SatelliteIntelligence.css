@@ -504,7 +504,7 @@
   gap: 10px;
   overflow: visible;
   align-self: start;
-  padding-top: 2px;
+  padding-top: 8px;
 }
 
 .si-range-group {
@@ -1605,6 +1605,7 @@
   align-items: center;
   justify-content: flex-end;
   gap: 8px;
+  margin-top: 2px;
   z-index: 60;
 }
 

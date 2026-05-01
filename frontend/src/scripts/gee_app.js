@@ -22,7 +22,6 @@ function maskS2clouds(image) {
 
 // 2. Index Calculation Functions
 var addIndices = function(image) {
-  var ndvi = image.normalizedDifference(['B8', 'B4']).rename('NDVI');
   var ndmi = image.normalizedDifference(['B8', 'B11']).rename('NDMI');
   var ndwi = image.normalizedDifference(['B3', 'B8']).rename('NDWI');
   
@@ -33,7 +32,7 @@ var addIndices = function(image) {
       'RED': image.select('B4')
     }).rename('SAVI');
 
-  return image.addBands([ndvi, ndmi, ndwi, savi]);
+  return image.addBands([ndmi, ndwi, savi]);
 };
 
 // 3. UI Panel Construction
@@ -68,7 +67,7 @@ panel.add(cloudSlider);
 
 // Layer Selector
 var layerSelect = ui.Select({
-  items: ['RGB', 'NDVI', 'NDMI', 'NDWI', 'SAVI'],
+  items: ['RGB', 'NDMI', 'NDWI', 'SAVI'],
   value: 'RGB',
   onChange: updateMap
 });
@@ -120,9 +119,6 @@ function updateMap() {
   
   if (layer === 'RGB') {
     visParams = {min: 0.0, max: 0.3, bands: ['B4', 'B3', 'B2']};
-  } else if (layer === 'NDVI') {
-    visParams = {min: -1, max: 1, palette: ['blue', 'white', 'green']};
-    image = image.select('NDVI');
   } else if (layer === 'NDMI') {
     visParams = {min: -1, max: 1, palette: ['red', 'white', 'blue']};
     image = image.select('NDMI');
@@ -140,7 +136,7 @@ function updateMap() {
   var region = Map.getBounds(true);
   
   var chart = ui.Chart.image.series({
-    imageCollection: dataset.select(['NDVI', 'NDMI']),
+    imageCollection: dataset.select(['NDMI', 'NDWI']),
     region: region,
     reducer: ee.Reducer.mean(),
     scale: 20

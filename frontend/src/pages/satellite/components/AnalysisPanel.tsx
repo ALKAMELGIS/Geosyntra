@@ -1,6 +1,6 @@
 import React from 'react';
 
-export type IndexType = 'NDVI' | 'NDWI' | 'NDMI' | 'SAVI';
+export type IndexType = 'NDWI' | 'NDMI' | 'SAVI';
 
 interface AnalysisPanelProps {
   activeIndices: Record<IndexType, boolean>;

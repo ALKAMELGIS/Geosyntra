@@ -47,6 +47,7 @@ const menuItems: MenuItem[] = [
     icon: 'fa-solid fa-screwdriver-wrench',
     color: '#F59E0B', // Amber
     items: [
+      { label: { en: 'Data Management', ar: 'إدارة البيانات' }, icon: 'fa-solid fa-database', to: '/data/fertigation-records' },
       { label: { en: 'EC/PH', ar: 'الملوحة والحموضة' }, icon: 'fa-solid fa-droplet', to: '/data/ec-ph' },
       { label: { en: 'Irrigation Scheduling', ar: 'جدولة الري' }, icon: 'fa-solid fa-water', to: '/data/irrigation' },
       { label: { en: 'Harvest Logging', ar: 'تسجيل الحصاد' }, icon: 'fa-solid fa-tractor', to: '/data/harvest' },
@@ -68,12 +69,49 @@ const menuItems: MenuItem[] = [
     ]
   },
   {
+    id: 'camera-direct',
+    label: { en: 'Camera', ar: 'الكاميرا' },
+    icon: 'fa-solid fa-camera',
+    color: '#0EA5E9',
+    to: '/sensors/camera'
+  },
+  {
+    id: 'gps-direct',
+    label: { en: 'GPS Vehicle Tracking', ar: 'تتبع مركبات GPS' },
+    icon: 'fa-solid fa-route',
+    color: '#10B981',
+    to: '/sensors/gps'
+  },
+  {
+    id: 'master',
+    label: { en: 'Master Data', ar: 'البيانات الرئيسية' },
+    icon: 'fa-solid fa-gear',
+    color: '#64748B',
+    items: [
+      { label: { en: 'Data Management', ar: 'إدارة البيانات' }, icon: 'fa-solid fa-sliders', to: '/master/workflow-settings' },
+      { label: { en: 'Dashboard Settings', ar: 'إعدادات لوحة التحكم' }, icon: 'fa-solid fa-link', to: '/master/dashboard-settings' },
+      { label: { en: 'GIS Content', ar: 'محتوى GIS' }, icon: 'fa-solid fa-map-location-dot', to: '/master/gis-content' },
+    ]
+  },
+  {
     id: 'admin',
     label: { en: 'Admin', ar: 'الإدارة' },
     icon: 'fa-solid fa-user-shield',
     color: '#1E293B', // Dark
     items: [
       { label: { en: 'User Management', ar: 'إدارة المستخدمين' }, icon: 'fa-solid fa-users', to: '/admin/users' },
+      { label: { en: 'GitHub Integration', ar: 'تكامل GitHub' }, icon: 'fa-brands fa-github', to: '/admin/github' },
+      { label: { en: 'System Settings', ar: 'إعدادات النظام' }, icon: 'fa-solid fa-sliders', to: '/admin/system-settings' },
+    ]
+  },
+  {
+    id: 'account',
+    label: { en: 'Account', ar: 'الحساب' },
+    icon: 'fa-solid fa-circle-user',
+    color: '#0EA5E9',
+    items: [
+      { label: { en: 'Profile', ar: 'الملف الشخصي' }, icon: 'fa-solid fa-user-gear', to: '/account/profile' },
+      { label: { en: 'Settings', ar: 'الإعدادات' }, icon: 'fa-solid fa-gear', to: '/account/settings' },
     ]
   }
 ]

@@ -52,3 +52,42 @@
   flex: 1 1 auto;
   min-height: min(480px, 70vh);
 }
+
+/*
+ * Mobile fit for embedded external dashboard:
+ * keep desktop canvas dimensions, then scale down uniformly so internal widgets do not overlap.
+ */
+@media (max-width: 900px) {
+  .agro-cloud-frame-wrap {
+    overflow: auto;
+    -webkit-overflow-scrolling: touch;
+    background: #031b14;
+  }
+
+  .agro-cloud-frame-wrap iframe {
+    position: relative;
+    inset: auto;
+    width: 1366px;
+    height: 820px;
+    transform-origin: top left;
+    transform: scale(calc((100vw - 20px) / 1366));
+  }
+
+  .agro-cloud-page,
+  .persistent-agro-cloud-layer-inner {
+    min-height: calc(820px * ((100vw - 20px) / 1366));
+  }
+}
+
+@media (max-width: 480px) {
+  .agro-cloud-frame-wrap iframe {
+    width: 1280px;
+    height: 780px;
+    transform: scale(calc((100vw - 16px) / 1280));
+  }
+
+  .agro-cloud-page,
+  .persistent-agro-cloud-layer-inner {
+    min-height: calc(780px * ((100vw - 16px) / 1280));
+  }
+}

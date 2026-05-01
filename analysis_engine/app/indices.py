@@ -1,9 +1,5 @@
 import xarray as xr
 
-def calculate_ndvi(nir: xr.DataArray, red: xr.DataArray) -> xr.DataArray:
-    """Normalized Difference Vegetation Index"""
-    return (nir - red) / (nir + red)
-
 def calculate_ndwi(green: xr.DataArray, nir: xr.DataArray) -> xr.DataArray:
     """Normalized Difference Water Index (McFeeters)"""
     return (green - nir) / (green + nir)
@@ -28,9 +24,7 @@ def calculate_indices(ds: xr.Dataset, index_name: str) -> xr.DataArray:
     """
     index = index_name.upper()
     
-    if index == 'NDVI':
-        return calculate_ndvi(ds['B08'], ds['B04'])
-    elif index == 'NDWI':
+    if index == 'NDWI':
         return calculate_ndwi(ds['B03'], ds['B08'])
     elif index == 'NDMI':
         return calculate_ndmi(ds['B08'], ds['B11'])

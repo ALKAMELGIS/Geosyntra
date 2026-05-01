@@ -14,7 +14,7 @@ class AnalysisRequest(BaseModel):
     aoi: Dict[str, Any] = Field(..., description="GeoJSON Polygon of the Area of Interest")
     start_date: str = Field(..., description="Start date (YYYY-MM-DD)")
     end_date: str = Field(..., description="End date (YYYY-MM-DD)")
-    indices: List[str] = Field(default=["NDVI"], description="List of indices to calculate (NDVI, NDWI, NDMI, SAVI, SOIL)")
+    indices: List[str] = Field(default=["NDWI"], description="List of indices to calculate (NDWI, NDMI, SAVI, SOIL)")
     cloud_cover: Optional[float] = Field(20.0, description="Maximum cloud cover percentage")
 
 @app.get("/health")

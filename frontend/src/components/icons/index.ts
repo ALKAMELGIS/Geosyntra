@@ -1,2 +1,2 @@
-export { default as AgriAppIcon } from './AgriAppIcon'
+export { AgriAppIcon } from './AgriAppIcon'
 

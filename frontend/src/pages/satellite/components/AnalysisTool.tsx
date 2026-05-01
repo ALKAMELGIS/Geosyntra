@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 
-export type IndexType = 'NDVI' | 'NDWI' | 'NDMI' | 'SAVI';
+export type IndexType = 'NDWI' | 'NDMI' | 'SAVI';
 
 interface AnalysisPanelProps {
   activeIndices: Record<IndexType, boolean>;
@@ -15,16 +15,6 @@ interface AnalysisPanelProps {
 }
 
 const TEMPLATES = [
-  { 
-    id: 'NDVI' as IndexType, 
-    name: 'Vegetation Health', 
-    subtitle: 'NDVI',
-    description: 'Normalized Difference Vegetation Index. Measures live green vegetation.', 
-    icon: 'fa-seedling', 
-    color: '#4caf50',
-    bg: '#e8f5e9',
-    stats: { mean: 0.68, min: 0.12, max: 0.89, label: 'Healthy Vegetation' }
-  },
   { 
     id: 'NDWI' as IndexType, 
     name: 'Water Content', 

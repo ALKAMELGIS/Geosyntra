@@ -4,7 +4,7 @@ A scalable, production-ready remote sensing backend for agricultural analysis us
 
 ## Features
 
-- **Indices Calculation**: NDVI, NDWI, NDMI, SAVI, Soil Index.
+- **Indices Calculation**: NDWI, NDMI, SAVI, Soil Index.
 - **Time Series Analysis**: Generate time-series data for a given Area of Interest (AOI).
 - **Cloud Filtering**: Automatic cloud masking using Scene Classification Layer (SCL).
 - **Open Source**: Built entirely on open-source tools (xarray, stackstac, FastAPI).
@@ -72,7 +72,7 @@ A scalable, production-ready remote sensing backend for agricultural analysis us
   },
   "start_date": "2023-01-01",
   "end_date": "2023-12-31",
-  "indices": ["NDVI", "NDWI"],
+  "indices": ["NDWI", "NDMI"],
   "cloud_cover": 20.0
 }
 ```
@@ -83,7 +83,7 @@ A scalable, production-ready remote sensing backend for agricultural analysis us
 {
   "metadata": { ... },
   "results": {
-    "NDVI": {
+    "NDWI": {
       "timeseries": [
         { "date": "2023-01-05", "value": 0.42 },
         ...

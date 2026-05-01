@@ -1,9 +1,9 @@
 import { Suspense, lazy } from 'react'
+import Home from '../Home'
+import Overview from '../dashboards/Overview'
 
-const Home = lazy(() => import('../Home'))
 const GisMap = lazy(() => import('../satellite/GisMap'))
 const SatelliteIntelligence = lazy(() => import('../satellite/SatelliteIntelligence'))
-const Overview = lazy(() => import('../dashboards/Overview'))
 
 function Placeholder({ title }: { title: string }) {
   return (

@@ -1854,6 +1854,14 @@ export function DataSourceFieldsPanel({
               <label key={fieldName} style={{ display: 'flex', flexDirection: 'column', gap: 6, fontSize: 12, color: '#334155' }}>
                 <span style={{ fontWeight: 800 }}>{fieldName}</span>
                 {(() => {
+                  const mgmtLayerErr = layerFieldErrors?.[mgmtDisplayName]?.[fieldName]
+                  return mgmtLayerErr ? (
+                    <span id={`${makeFieldDomId(mgmtKey, fieldName)}-err`} role="alert" style={{ fontSize: 11, color: '#b91c1c', fontWeight: 700 }}>
+                      {mgmtLayerErr}
+                    </span>
+                  ) : null
+                })()}
+                {(() => {
                   const value = (valuesBySource[mgmtKey] ?? {})[fieldName] ?? ''
                   const type = getFieldType(mgmtKey, fieldName)
                   const domainByField = savedLayerDomainsById[getRealSourceId(mgmtKey)] ?? {}
@@ -1923,11 +1931,6 @@ export function DataSourceFieldsPanel({
                     />
                   )
                 })()}
-                {mgmtLayerErr ? (
-                  <span id={`${makeFieldDomId(mgmtKey, fieldName)}-err`} role="alert" style={{ fontSize: 11, color: '#b91c1c', fontWeight: 700 }}>
-                    {mgmtLayerErr}
-                  </span>
-                ) : null}
               </label>
             ))}
           </div>

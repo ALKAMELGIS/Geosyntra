@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent, type TouchEvent as ReactTouchEvent } from 'react'
 import type { Map as LeafletMap } from 'leaflet'
 import L from 'leaflet'
 import { GeoJSON } from 'react-leaflet'
@@ -340,6 +340,7 @@ export const buildArcGisLegendEntries = (renderer: any, limit = 16): ArcGisLegen
 }
 
 export default function GisMap() {
+  const getIsMobileDrawerViewport = () => (typeof window !== 'undefined' ? window.innerWidth <= 767 : false)
   const mapRef = useRef<LeafletMap | null>(null)
   const selectionOverlayRef = useRef<L.LayerGroup | null>(null)
   const drawingFeatureGroupRef = useRef<L.FeatureGroup | null>(null)
@@ -349,7 +350,8 @@ export default function GisMap() {
   const persistLayersJobRef = useRef<null | { kind: 'idle'; id: number } | { kind: 'timeout'; id: ReturnType<typeof setTimeout> }>(null)
   const geoJsonDataIdByObjectRef = useRef<WeakMap<object, number>>(new WeakMap())
   const geoJsonDataIdSeqRef = useRef(1)
-  const [sidebarOpen, setSidebarOpen] = useState(true)
+  const [isMobileDrawerViewport, setIsMobileDrawerViewport] = useState(getIsMobileDrawerViewport)
+  const [sidebarOpen, setSidebarOpen] = useState(() => !getIsMobileDrawerViewport())
   const [isAddOpen, setIsAddOpen] = useState(false)
   const [activeMapTool, setActiveMapTool] = useState<GisMapToolPanel>(null)
   const [mapToolbarCollapsed, setMapToolbarCollapsed] = useState(false)
@@ -435,6 +437,7 @@ export default function GisMap() {
   const [editGridSize, setEditGridSize] = useState('10')
   const [editGridUnit, setEditGridUnit] = useState('m')
   const [symbologyDialog, setSymbologyDialog] = useState<null | { layerId: string; draft: Required<SymbologyConfig>; original?: SymbologyConfig }>(null)
+  const swipeStartRef = useRef<{ x: number; y: number } | null>(null)
   const dragDepthRef = useRef(0)
   const fileInputRef = useRef<HTMLInputElement | null>(null)
   const mapboxGlobeRef = useRef<any>(null)
@@ -2827,10 +2830,54 @@ export default function GisMap() {
     }
   }
 
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    const onResize = () => {
+      const mobile = window.innerWidth <= 767
+      setIsMobileDrawerViewport(mobile)
+      if (!mobile) setSidebarOpen(true)
+    }
+    onResize()
+    window.addEventListener('resize', onResize)
+    return () => window.removeEventListener('resize', onResize)
+  }, [])
+
+  const onRootTouchStart = (e: ReactTouchEvent<HTMLDivElement>) => {
+    if (!isMobileDrawerViewport) return
+    const t = e.touches[0]
+    if (!t) return
+    swipeStartRef.current = { x: t.clientX, y: t.clientY }
+  }
+
+  const onRootTouchEnd = (e: ReactTouchEvent<HTMLDivElement>) => {
+    if (!isMobileDrawerViewport || !swipeStartRef.current) return
+    const t = e.changedTouches[0]
+    if (!t) return
+    const start = swipeStartRef.current
+    swipeStartRef.current = null
+    const dx = t.clientX - start.x
+    const dy = t.clientY - start.y
+    if (Math.abs(dx) < 72 || Math.abs(dx) < Math.abs(dy) * 1.2) return
+    if (dx > 0 && !sidebarOpen && start.x <= 28) setSidebarOpen(true)
+    if (dx < 0 && sidebarOpen) setSidebarOpen(false)
+  }
+
+  const shouldRenderSidebar = sidebarOpen || isMobileDrawerViewport
+
   return (
-    <div className={sidebarOpen ? 'gis-map-page' : 'gis-map-page sidebar-closed'}>
-      {sidebarOpen ? (
-        <aside className="gis-sidebar" aria-label="GIS Layers">
+    <div
+      className={sidebarOpen ? 'gis-map-page' : 'gis-map-page sidebar-closed'}
+      onTouchStart={onRootTouchStart}
+      onTouchEnd={onRootTouchEnd}
+    >
+      {isMobileDrawerViewport && sidebarOpen ? (
+        <button className="gis-sidebar-drawer-backdrop" type="button" aria-label="Close GIS launcher" onClick={() => setSidebarOpen(false)} />
+      ) : null}
+      {shouldRenderSidebar ? (
+        <aside
+          className={`gis-sidebar ${isMobileDrawerViewport ? (sidebarOpen ? 'is-open' : 'is-collapsed') : ''}`}
+          aria-label="GIS Layers"
+        >
           <div className="gis-sidebar-header">
             <div className="gis-sidebar-title">
               <i className="fa-solid fa-layer-group" aria-hidden="true" />
@@ -2854,6 +2901,34 @@ export default function GisMap() {
           </div>
 
           <div className="gis-sidebar-body">
+            {isMobileDrawerViewport ? (
+              <div className="gis-launcher-grid" role="navigation" aria-label="GIS Launcher">
+                <button type="button" className="gis-launcher-chip" onClick={() => setIsAddOpen(true)}>
+                  <i className="fa-solid fa-grid-2" aria-hidden="true" />
+                  <span>Applications</span>
+                </button>
+                <button type="button" className="gis-launcher-chip" onClick={() => toggleMapTool('basemap')}>
+                  <i className="fa-solid fa-map" aria-hidden="true" />
+                  <span>Maps</span>
+                </button>
+                <button type="button" className="gis-launcher-chip" onClick={() => toggleMapTool('measure')}>
+                  <i className="fa-solid fa-ruler-combined" aria-hidden="true" />
+                  <span>Geo Tools</span>
+                </button>
+                <button type="button" className="gis-launcher-chip" onClick={() => { setTab('database'); setIsAddOpen(true) }}>
+                  <i className="fa-solid fa-gear" aria-hidden="true" />
+                  <span>Settings</span>
+                </button>
+                <button type="button" className="gis-launcher-chip" onClick={() => toggleMapTool('search')}>
+                  <i className="fa-solid fa-magnifying-glass-location" aria-hidden="true" />
+                  <span>Search</span>
+                </button>
+                <button type="button" className="gis-launcher-chip" onClick={() => setSidebarOpen(true)}>
+                  <i className="fa-solid fa-layer-group" aria-hidden="true" />
+                  <span>Layers</span>
+                </button>
+              </div>
+            ) : null}
             {layers.length === 0 ? (
             <div className="gis-empty" role="status" aria-live="polite">
               <div className="gis-empty-title">No layers yet</div>
@@ -3132,7 +3207,12 @@ export default function GisMap() {
             </div>
           )}
         </div>
-      </aside>
+        </aside>
+      ) : null}
+      {isMobileDrawerViewport && !sidebarOpen ? (
+        <button className="gis-sidebar-launcher" type="button" aria-label="Open GIS launcher" onClick={() => setSidebarOpen(true)}>
+          <i className="fa-solid fa-bars" aria-hidden="true" />
+        </button>
       ) : null}
 
       <section

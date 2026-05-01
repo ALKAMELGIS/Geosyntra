@@ -28,7 +28,7 @@ import {
 import { getMapboxAccessToken } from '../../lib/mapboxAccessToken';
 
 const MAPBOX_TOKEN = getMapboxAccessToken();
-const MAPBOX_ALKAMELGIS_STYLE = 'mapbox://styles/alkamelgis/cmlkdwadt009k01sc8pzigp32';
+const MAPBOX_ALKAMELGIS_STYLE = 'mapbox://styles/mapbox/satellite-v9';
 const EMPTY_MAP_STYLE: any = {
   version: 8,
   sources: {},
@@ -65,6 +65,30 @@ const ESRI_SATELLITE_STYLE: any = {
     }
   },
   layers: [{ id: 'esri', type: 'raster', source: 'esri' }]
+};
+const GOOGLE_EARTH_STYLE: any = {
+  version: 8,
+  sources: {
+    googleEarth: {
+      type: 'raster',
+      tiles: ['https://mt1.google.com/vt/lyrs=s&x={x}&y={y}&z={z}'],
+      tileSize: 256,
+      attribution: 'Tiles © Google'
+    }
+  },
+  layers: [{ id: 'google-earth', type: 'raster', source: 'googleEarth' }]
+};
+const OPENTOPO_TERRAIN_STYLE: any = {
+  version: 8,
+  sources: {
+    openTopo: {
+      type: 'raster',
+      tiles: ['https://a.tile.opentopomap.org/{z}/{x}/{y}.png'],
+      tileSize: 256,
+      attribution: '© OpenTopoMap'
+    }
+  },
+  layers: [{ id: 'open-topo', type: 'raster', source: 'openTopo' }]
 };
 const WMS_INSTANCE_ID = '7b6554b7-76f2-483e-a06d-90053e49f462';
 const WMS_URL = `https://services.sentinel-hub.com/ogc/wms/${WMS_INSTANCE_ID}`;
@@ -634,7 +658,7 @@ function getStacItemSensorLabel(item: any): string {
 
 const EXPLORE_RESULTS_PAGE_SIZE = 25;
 
-/** Default search footprint (Dubai) when no field layer, pivot, or drawn AOI — matches ndvi_demo / reference script. */
+/** Default search footprint (Dubai) when no field layer, pivot, or drawn AOI. */
 const DUBAI_STAC_INTERSECTS = {
   type: 'Polygon' as const,
   coordinates: [
@@ -660,10 +684,7 @@ interface WmsLayerInfo {
   title: string;
 }
 
-const FALLBACK_WMS_LAYERS: WmsLayerInfo[] = [
-  { name: 'NDVI', title: 'Normalized Difference Veg. Index (NDVI)' },
-  { name: 'NDWI', title: 'Moisture Index (NDWI)' }
-];
+const FALLBACK_WMS_LAYERS: WmsLayerInfo[] = [{ name: 'NDWI', title: 'Moisture Index (NDWI)' }];
 
 interface BasemapOption {
   id: string;
@@ -672,9 +693,12 @@ interface BasemapOption {
 }
 
 const BASEMAPS: BasemapOption[] = [
-  { id: 'mapbox-alkamelgis', label: 'Satellite (alkamelgis)', style: MAPBOX_ALKAMELGIS_STYLE },
+  { id: 'mapbox-alkamelgis', label: 'Satellite (Mapbox)', style: MAPBOX_ALKAMELGIS_STYLE },
+  { id: 'google-earth', label: 'Google Earth', style: GOOGLE_EARTH_STYLE },
+  { id: 'mapbox-hybrid', label: 'Hybrid', style: 'mapbox://styles/mapbox/satellite-streets-v12' },
+  { id: 'terrain-opentopo', label: 'Terrain (OpenTopo)', style: OPENTOPO_TERRAIN_STYLE },
+  { id: 'osm', label: 'OpenStreetMap', style: OSM_RASTER_STYLE },
   { id: 'esri', label: 'Esri World Imagery', style: ESRI_SATELLITE_STYLE },
-  { id: 'osm', label: 'OSM', style: OSM_RASTER_STYLE }
 ];
 
 interface CustomLayer {
@@ -702,7 +726,7 @@ interface LayerSymbologyDraft {
 
 type AddLayerTab = 'arcgis' | 'upload' | 'database';
 
-type EnvironmentalIndexId = 'NDVI' | 'NDWI' | 'NDMI' | 'EVI' | 'SAVI' | 'NDSI' | 'LST';
+type EnvironmentalIndexId = 'NDWI' | 'NDMI' | 'EVI' | 'SAVI' | 'NDSI' | 'LST';
 
 /** ArcGIS-style tool ids: order matches vertical toolbar (draw → sep → selection). */
 type MapDrawTool =
@@ -821,14 +845,6 @@ const ENVIRONMENTAL_INDICES: Record<EnvironmentalIndexId, {
   palette: string[];
   description: string;
 }> = {
-  NDVI: {
-    label: 'NDVI',
-    collection: 'sentinel-2-l2a',
-    formula: '(B08 - B04) / (B08 + B04)',
-    range: [-1, 1],
-    palette: ['#7f1d1d', '#fef3c7', '#84cc16', '#166534'],
-    description: 'Vegetation vigor from Sentinel-2 Surface Reflectance.',
-  },
   NDWI: {
     label: 'NDWI',
     collection: 'sentinel-2-l2a',
@@ -918,7 +934,7 @@ export default function SatelliteIntelligence() {
   const [is3DView, setIs3DView] = useState(true);
   const [cloudCoverage, setCloudCoverage] = useState(20);
   const [isTimelinePlaying, setIsTimelinePlaying] = useState(false);
-  const [selectedIndex, setSelectedIndex] = useState<EnvironmentalIndexId>('NDVI');
+  const [selectedIndex, setSelectedIndex] = useState<EnvironmentalIndexId>('NDWI');
   const [selectedPivotId, setSelectedPivotId] = useState('all');
   const [weeklyComposites, setWeeklyComposites] = useState<WeeklyComposite[]>([]);
   const [stacItems, setStacItems] = useState<any[]>([]);
@@ -3160,7 +3176,7 @@ export default function SatelliteIntelligence() {
                 type="button"
                 className={`si-env-rail-button ${isLayerDropdownOpen ? 'active' : ''}`}
                 onClick={() => setIsLayerDropdownOpen(open => !open)}
-                title="NDVI"
+                title="Environmental Layers"
               >
                 <i className="fa-solid fa-layer-group"></i>
               </button>

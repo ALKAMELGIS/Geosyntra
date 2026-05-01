@@ -47,14 +47,13 @@ export const SentinelSearch: React.FC<SentinelSearchProps> = ({
   );
   const [cloudCover, setCloudCover] = useState(20);
   const [visualization, setVisualization] = useState('visual');
-  const [analysisType, setAnalysisType] = useState('ndvi');
+  const [analysisType, setAnalysisType] = useState('ndwi');
 
   const VISUALIZATIONS = [
     { label: 'Natural Color', value: 'visual', assets: 'visual', params: {} },
     { label: 'Color Infrared', value: 'color_infrared', assets: 'B08,B04,B03', params: { color_formula: 'gamma R 2.5, gamma G 2.5, gamma B 2.5, sigmoidal R 15 0.35' } },
     { label: 'Short Wave Infrared', value: 'swir', assets: 'B12,B8A,B04', params: {} },
     { label: 'Agriculture', value: 'agriculture', assets: 'B11,B08,B02', params: {} },
-    { label: 'Vegetation Health (NDVI)', value: 'ndvi', expression: '((B08/10000)-(B04/10000))/((B08/10000)+(B04/10000))', colormap: 'rdylgn', rescale: '-1,1' },
     { label: 'Water Content (NDWI)', value: 'ndwi', expression: '((B03/10000)-(B08/10000))/((B03/10000)+(B08/10000))', colormap: 'Blues', rescale: '-1,1' },
     { label: 'Moisture Index (NDMI)', value: 'ndmi', expression: '((B08/10000)-(B11/10000))/((B08/10000)+(B11/10000))', colormap: 'YlGnBu', rescale: '-1,1' },
     { label: 'Enhanced Vegetation (EVI)', value: 'evi', expression: '2.5 * ((B08/10000 - B04/10000) / (B08/10000 + 6 * B04/10000 - 7.5 * B02/10000 + 1))', colormap: 'Greens', rescale: '-1,1' },
