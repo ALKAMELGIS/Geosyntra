@@ -223,24 +223,61 @@ export default function Login() {
   }
 
   const enforceMandatoryAccounts = (list: any[]): any[] => {
-    const filtered = Array.isArray(list) ? [...list] : []
+    const source = Array.isArray(list) ? [...list] : []
+    const filtered = source.filter(u => {
+      const email = normalizeEmail((u as any)?.email)
+      return !mandatoryLoginSeeds.some(seed => normalizeEmail(seed.email) === email)
+    })
+
     for (const seed of mandatoryLoginSeeds) {
       const key = normalizeEmail(seed.email)
-      for (let i = filtered.length - 1; i >= 0; i -= 1) {
-        if (normalizeEmail((filtered[i] as any)?.email) === key) filtered.splice(i, 1)
-      }
+      const candidates = source.filter(u => normalizeEmail((u as any)?.email) === key)
+      const bestExisting =
+        candidates.find(u => typeof (u as any)?.passwordHash === 'string' && String((u as any).passwordHash).trim().length > 0) ||
+        candidates[0] ||
+        null
+
       filtered.push({
-        id: Date.now() + Math.floor(Math.random() * 10000),
-        name: seed.name,
-        email: seed.email,
-        role: normalizeRole(seed.role),
+        ...(bestExisting || {}),
+        id:
+          typeof (bestExisting as any)?.id === 'number'
+            ? (bestExisting as any).id
+            : Date.now() + Math.floor(Math.random() * 10000),
+        name: String((bestExisting as any)?.name || seed.name),
+        email: String((bestExisting as any)?.email || seed.email).trim(),
+        role: normalizeRole((bestExisting as any)?.role || seed.role),
         status: 'Active',
-        lastLogin: 'Never',
+        lastLogin: String((bestExisting as any)?.lastLogin || 'Never'),
         emailVerified: true,
-        passwordHash: seed.passwordHash,
+        // Never clobber an existing valid password hash for mandatory accounts.
+        passwordHash:
+          typeof (bestExisting as any)?.passwordHash === 'string' && String((bestExisting as any).passwordHash).trim().length > 0
+            ? String((bestExisting as any).passwordHash).trim()
+            : seed.passwordHash,
       })
     }
     return filtered
+  }
+
+  const readAdminUsersFromStorage = (): any[] => {
+    try {
+      const raw = localStorage.getItem('adminUsers')
+      if (!raw) return []
+      const parsed = JSON.parse(raw)
+      return Array.isArray(parsed) ? parsed : []
+    } catch {
+      return []
+    }
+  }
+
+  const normalizeAdminUsers = (list: any[]): any[] => enforceMandatoryAccounts(consolidateUsersByEmail(Array.isArray(list) ? list : []))
+
+  const persistAdminUsers = (nextUsers: any[], options?: { mergeWithCurrent?: boolean }): any[] => {
+    const mergeWithCurrent = options?.mergeWithCurrent !== false
+    const current = mergeWithCurrent ? readAdminUsersFromStorage() : []
+    const normalized = normalizeAdminUsers([...(Array.isArray(current) ? current : []), ...(Array.isArray(nextUsers) ? nextUsers : [])])
+    localStorage.setItem('adminUsers', JSON.stringify(normalized))
+    return normalized
   }
 
   const logLoginAttempt = (outcome: 'success' | 'failure', reason: string, userEmail?: string) => {
@@ -298,7 +335,7 @@ export default function Login() {
         const dedup = enforceMandatoryAccounts(consolidateUsersByEmail(nextUsers))
         if (dedup.length !== nextUsers.length) changed = true
         if (!cancelled && changed) {
-          localStorage.setItem('adminUsers', JSON.stringify(dedup))
+          persistAdminUsers(dedup, { mergeWithCurrent: false })
           appendAuditLog({
             entity: 'auth',
             action: 'user_store_integrity_migration',
@@ -345,10 +382,12 @@ export default function Login() {
             name: String(existing?.name || seed.name),
             email: String(existing?.email || seed.email).trim(),
             role: normalizeRole(existing?.role || seed.role),
-            // Mandatory accounts must always remain sign-in capable.
             status: 'Active',
             emailVerified: true,
-            passwordHash: seed.passwordHash,
+            passwordHash:
+              typeof existing?.passwordHash === 'string' && existing.passwordHash.trim()
+                ? existing.passwordHash
+                : seed.passwordHash,
           }
           if (JSON.stringify(upgraded) !== JSON.stringify(existing)) {
             next[idx] = upgraded
@@ -356,11 +395,24 @@ export default function Login() {
           }
         }
         const healed = enforceMandatoryAccounts(consolidateUsersByEmail(next))
-        if (changed || healed.length !== next.length) localStorage.setItem('adminUsers', JSON.stringify(healed))
+        if (changed || healed.length !== next.length) persistAdminUsers(healed, { mergeWithCurrent: false })
       } catch {
       }
     }
     bootstrapRequiredAccounts()
+  }, [])
+
+  useEffect(() => {
+    const onStorage = (event: StorageEvent) => {
+      if (event.key !== 'adminUsers') return
+      const latest = readAdminUsersFromStorage()
+      const normalized = normalizeAdminUsers(latest)
+      if (JSON.stringify(normalized) !== JSON.stringify(latest)) {
+        persistAdminUsers(normalized, { mergeWithCurrent: false })
+      }
+    }
+    window.addEventListener('storage', onStorage)
+    return () => window.removeEventListener('storage', onStorage)
   }, [])
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -427,8 +479,7 @@ export default function Login() {
         .filter(Boolean) as any[]
       )
       // Keep storage healthy before auth checks to avoid stale duplicate account drift.
-      const normalizedDedupedUsers = enforceMandatoryAccounts(consolidateUsersByEmail(normalizedUsers))
-      localStorage.setItem('adminUsers', JSON.stringify(normalizedDedupedUsers))
+      const normalizedDedupedUsers = persistAdminUsers(normalizedUsers)
 
       if (mode === 'signup') {
         const matches = normalizedDedupedUsers.filter(u => normalizeEmail(u.email) === normalizeEmail(emailTrimmed))
@@ -488,7 +539,7 @@ export default function Login() {
             }
         const nextUsers = normalizedDedupedUsers.filter(u => normalizeEmail(u.email) !== normalizeEmail(emailTrimmed))
         nextUsers.push(newUser)
-        localStorage.setItem('adminUsers', JSON.stringify(nextUsers))
+        persistAdminUsers(nextUsers)
         const { verifyLink, delivered } = await sendVerificationEmail(emailTrimmed, verificationToken)
         setInfo(
           matches.length
@@ -558,11 +609,45 @@ export default function Login() {
             delete (next as any).passwordText
             return next
           })
-          localStorage.setItem('adminUsers', JSON.stringify(migratedUsers))
+          persistAdminUsers(migratedUsers)
           passwordMatches = passwordMatches.map(m => ({ ...m, passwordHash: hashed }))
         }
 
         if (!passwordMatches.length) {
+          const isMandatoryAccount = mandatoryLoginSeeds.some(seed => normalizeEmail(seed.email) === normalizeEmail(emailTrimmed))
+          if (isMandatoryAccount && matches.length) {
+            const recoveredUsers = normalizedDedupedUsers.map(u =>
+              normalizeEmail(u.email) === normalizeEmail(emailTrimmed)
+                ? {
+                    ...u,
+                    passwordHash: hashed,
+                    emailVerified: true,
+                    status: 'Active',
+                  }
+                : u
+            )
+            persistAdminUsers(recoveredUsers)
+            const recoveredBase = {
+              ...(matches[0] as any),
+              email: emailTrimmed,
+              role: normalizeRole(matches[0]?.role),
+              status: 'Active',
+              emailVerified: true,
+              passwordHash: hashed,
+              lastLogin: new Date().toLocaleString(),
+            }
+            const recoveredAuthUser: AuthUser = {
+              id: typeof recoveredBase.id === 'number' ? recoveredBase.id : Date.now(),
+              name: String(recoveredBase.name || recoveredBase.email),
+              email: String(recoveredBase.email || '').trim(),
+              role: normalizeRole(recoveredBase.role),
+              scope: recoveredBase.scope ? String(recoveredBase.scope) : undefined,
+            }
+            startSession(recoveredAuthUser, { persist: keepSignedIn })
+            logLoginAttempt('success', 'mandatory_account_password_self_healed', emailTrimmed)
+            setError('')
+            return
+          }
           if (matches.some(m => String(m.status || '').toLowerCase() === 'invited')) {
             logLoginAttempt('failure', 'invited_account_not_activated', emailTrimmed)
             setError('Account is invited but not activated. Ask your administrator to send a new invitation link.')
@@ -599,7 +684,7 @@ export default function Login() {
               ? { ...u, verificationToken: currentToken, status: 'Pending Verification', emailVerified: false }
               : u
           )
-          localStorage.setItem('adminUsers', JSON.stringify(nextUsers))
+          persistAdminUsers(nextUsers)
           logLoginAttempt('failure', 'email_not_verified', emailTrimmed)
           setError(
             delivered
@@ -627,8 +712,7 @@ export default function Login() {
 
         const nextUsers = normalizedDedupedUsers.filter(u => normalizeEmail(u.email) !== normalizeEmail(emailTrimmed))
         nextUsers.push(mergedUser)
-        const dedupedAfterSuccess = consolidateUsersByEmail(nextUsers)
-        localStorage.setItem('adminUsers', JSON.stringify(dedupedAfterSuccess))
+        persistAdminUsers(nextUsers)
 
         const authUser: AuthUser = {
           id: typeof mergedUser.id === 'number' ? mergedUser.id : Date.now(),
@@ -687,7 +771,7 @@ export default function Login() {
       }
       const nextUsers = [...users]
       nextUsers[index] = updatedUser
-      localStorage.setItem('adminUsers', JSON.stringify(nextUsers))
+      persistAdminUsers(nextUsers)
       setInfo('Your email has been confirmed. You can now sign in.')
       setError('')
       if (typeof window !== 'undefined') {
