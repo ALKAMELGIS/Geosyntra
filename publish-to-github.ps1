@@ -4,8 +4,15 @@
 $ErrorActionPreference = 'Stop'
 $HttpsOrigin = 'https://github.com/ALKAMELGIS/AgroCloud.git'
 
-Write-Host "Setting origin to HTTPS (recommended if SSH push fails)..." -ForegroundColor Cyan
-git remote set-url origin $HttpsOrigin
+Write-Host "Configuring origin to HTTPS (add if missing, update if exists)..." -ForegroundColor Cyan
+$originExists = git remote get-url origin 2>$null
+if ($LASTEXITCODE -eq 0 -and $originExists) {
+  git remote set-url origin $HttpsOrigin
+  Write-Host "Updated existing origin remote." -ForegroundColor Green
+} else {
+  git remote add origin $HttpsOrigin
+  Write-Host "Added origin remote." -ForegroundColor Green
+}
 
 $rewrite = git config --global --get-regexp 'insteadOf' 2>$null
 if ($rewrite) {
