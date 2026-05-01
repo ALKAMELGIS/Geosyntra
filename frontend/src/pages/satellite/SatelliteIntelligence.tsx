@@ -4410,30 +4410,7 @@ export default function SatelliteIntelligence() {
             </div>
           )}
 
-          <div className="si-basemap-toggle">
-            <button
-              type="button"
-              className={`si-basemap-button ${isBasemapOpen ? 'active' : ''}`}
-              onClick={() => setIsBasemapOpen(open => !open)}
-              title="Basemap"
-            >
-              <i className="fa-solid fa-globe"></i>
-            </button>
-            {isBasemapOpen && (
-              <div className="si-basemap-widget">
-                {BASEMAPS.map(option => (
-                  <button
-                    key={option.id}
-                    className={`basemap-pill ${basemapId === option.id ? 'active' : ''}`}
-                    onClick={() => setBasemapId(option.id)}
-                  >
-                    {option.label}
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
-
+          <div className="si-map-left-stack">
           <div
             ref={searchRef}
             className={`si-map-search ${isSearchOpen ? 'open' : 'collapsed'}`}
@@ -4503,6 +4480,31 @@ export default function SatelliteIntelligence() {
                 })}
               </div>
             )}
+          </div>
+
+          <div className="si-basemap-toggle">
+            <button
+              type="button"
+              className={`si-basemap-button ${isBasemapOpen ? 'active' : ''}`}
+              onClick={() => setIsBasemapOpen(open => !open)}
+              title="Basemap"
+            >
+              <i className="fa-solid fa-globe"></i>
+            </button>
+            {isBasemapOpen && (
+              <div className="si-basemap-widget">
+                {BASEMAPS.map(option => (
+                  <button
+                    key={option.id}
+                    className={`basemap-pill ${basemapId === option.id ? 'active' : ''}`}
+                    onClick={() => setBasemapId(option.id)}
+                  >
+                    {option.label}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
           </div>
         </div>
       </div>
