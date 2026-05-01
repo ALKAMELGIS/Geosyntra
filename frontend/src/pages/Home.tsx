@@ -3,6 +3,7 @@ import { useLocation, useNavigate } from 'react-router-dom'
 import './Home.css'
 import { useLanguage, type AppLanguage } from '../lib/i18n'
 import { useSystemSettingsOptional } from '../store/SystemSettingsContext'
+import { startSession } from '../lib/auth'
 
 interface MenuItem {
   id: string
@@ -16,7 +17,8 @@ interface MenuItem {
 interface SubMenuItem {
   label: Record<AppLanguage, string>
   icon: string
-  to: string
+  to?: string
+  action?: 'logout'
 }
 
 const menuItems: MenuItem[] = [
@@ -118,7 +120,7 @@ const menuItems: MenuItem[] = [
     color: '#0EA5E9',
     items: [
       { label: { en: 'Profile', ar: 'الملف الشخصي' }, icon: 'fa-solid fa-user-gear', to: '/account/profile' },
-      { label: { en: 'Settings', ar: 'الإعدادات' }, icon: 'fa-solid fa-gear', to: '/account/settings' },
+      { label: { en: 'Logout', ar: 'تسجيل الخروج' }, icon: 'fa-solid fa-arrow-right-from-bracket', action: 'logout' },
     ]
   }
 ]
@@ -172,6 +174,15 @@ export default function Home() {
 
   const handleBack = () => {
     setActiveGroup(null)
+  }
+
+  const handleSubItemClick = (subItem: SubMenuItem) => {
+    if (subItem.action === 'logout') {
+      startSession(null)
+      navigate('/login', { replace: true })
+      return
+    }
+    if (subItem.to) navigate(subItem.to)
   }
 
   useEffect(() => {
@@ -260,10 +271,10 @@ export default function Home() {
             >
               {activeGroup.items?.map(subItem => (
                 <button
-                  key={subItem.to}
+                  key={subItem.to || `${activeGroup.id}-${subItem.action || subItem.label.en}`}
                   type="button"
                   className="sublist-item"
-                  onClick={() => navigate(subItem.to)}
+                  onClick={() => handleSubItemClick(subItem)}
                   aria-label={subItem.label[language]}
                   data-reveal="item"
                 >
