@@ -148,6 +148,7 @@ const profileCopy = {
     changePhoto: 'Change profile photo',
     changeCoverPhoto: 'Change cover photo',
     removeCoverPhoto: 'Remove cover',
+    applyCoverPhoto: 'Apply cover changes',
     firstName: 'First Name',
     lastName: 'Last Name',
     emailAddress: 'Email Address',
@@ -198,6 +199,7 @@ const profileCopy = {
     changePhoto: 'تغيير صورة الملف',
     changeCoverPhoto: 'تغيير صورة الغلاف',
     removeCoverPhoto: 'إزالة الغلاف',
+    applyCoverPhoto: 'تطبيق تغييرات الغلاف',
     firstName: 'الاسم الأول',
     lastName: 'اسم العائلة',
     emailAddress: 'البريد الإلكتروني',
@@ -289,6 +291,7 @@ export default function Profile() {
   const [me, setMe] = useState<CurrentUser | null>(() => readCurrentUser())
   const [extra, setExtra] = useState<ProfileExtra>({})
   const [avatarTick, setAvatarTick] = useState(0)
+  const [coverDraft, setCoverDraft] = useState<string | null | undefined>(undefined)
   const fileRef = useRef<HTMLInputElement | null>(null)
   const coverFileRef = useRef<HTMLInputElement | null>(null)
 
@@ -315,9 +318,11 @@ export default function Profile() {
   useEffect(() => {
     if (!me?.email) {
       setExtra({})
+      setCoverDraft(undefined)
       return
     }
     setExtra(readProfileExtra(me.email))
+    setCoverDraft(undefined)
   }, [me?.email, avatarTick])
 
   const records = parseManagementUsers()
@@ -423,8 +428,7 @@ export default function Profile() {
     }
     try {
       const dataUrl = await fileToCoverDataUrl(file)
-      writeProfileExtra(me.email, { coverDataUrl: dataUrl })
-      setExtra(readProfileExtra(me.email))
+      setCoverDraft(dataUrl)
     } catch {
       /* ignore */
     }
@@ -432,22 +436,24 @@ export default function Profile() {
   }
 
   const removeCoverPhoto = () => {
-    if (!me?.email) return
-    writeProfileExtra(me.email, { coverDataUrl: undefined })
-    setExtra(readProfileExtra(me.email))
+    setCoverDraft(null)
   }
 
-  const coverSrc = extra.coverDataUrl?.trim() || ''
+  const applyCoverPhoto = () => {
+    if (!me?.email || coverDraft === undefined) return
+    writeProfileExtra(me.email, { coverDataUrl: coverDraft || undefined })
+    setExtra(readProfileExtra(me.email))
+    setCoverDraft(undefined)
+  }
+
+  const coverSrc = (coverDraft === undefined ? extra.coverDataUrl : coverDraft)?.trim?.() || ''
+  const hasPendingCoverChange = coverDraft !== undefined
 
   return (
     <div className="profile-page-v2" dir={dir}>
       <div className="profile-page-v2-inner">
         <header className="profile-page-header">
           <div className="profile-page-header-top">
-            <div className="profile-page-header-lead">
-              <h1 className="profile-page-title">{text.myProfile}</h1>
-              <p className="profile-page-subtitle">{text.subtitle}</p>
-            </div>
           </div>
         </header>
 
@@ -482,18 +488,27 @@ export default function Profile() {
                 />
                 <button
                   type="button"
-                  className="profile-hero-cover-btn"
+                  className="profile-hero-cover-btn profile-hero-cover-btn--icon"
                   onClick={() => coverFileRef.current?.click()}
                   aria-label={text.changeCoverPhoto}
                   title={text.changeCoverPhoto}
                 >
                   <i className="fa-solid fa-image" aria-hidden />
-                  <span className="profile-hero-cover-btn-label">{text.changeCoverPhoto}</span>
                 </button>
                 {coverSrc ? (
-                  <button type="button" className="profile-hero-cover-btn profile-hero-cover-btn--ghost" onClick={removeCoverPhoto} aria-label={text.removeCoverPhoto} title={text.removeCoverPhoto}>
+                  <button type="button" className="profile-hero-cover-btn profile-hero-cover-btn--ghost profile-hero-cover-btn--icon" onClick={removeCoverPhoto} aria-label={text.removeCoverPhoto} title={text.removeCoverPhoto}>
                     <i className="fa-solid fa-xmark" aria-hidden />
-                    <span className="profile-hero-cover-btn-label">{text.removeCoverPhoto}</span>
+                  </button>
+                ) : null}
+                {hasPendingCoverChange ? (
+                  <button
+                    type="button"
+                    className="profile-hero-cover-btn profile-hero-cover-btn--apply profile-hero-cover-btn--icon"
+                    onClick={applyCoverPhoto}
+                    aria-label={text.applyCoverPhoto}
+                    title={text.applyCoverPhoto}
+                  >
+                    <i className="fa-solid fa-check" aria-hidden />
                   </button>
                 ) : null}
               </div>

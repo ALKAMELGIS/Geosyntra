@@ -709,22 +709,6 @@ export default function NavMenu({ onLogout }: NavMenuProps) {
           </div>
         </li>
 
-        <li className="navmenu-li navmenu-utility">
-          <NavLink
-            to="/account/profile"
-            onClick={handleNavigate}
-            className={({ isActive }) =>
-              isActive ? 'item active nav-item-profile-quick navmenu-icon-only' : 'item nav-item-profile-quick navmenu-icon-only'
-            }
-            aria-label={t.profile}
-            title={t.profile}
-          >
-            <span className="icon">
-              <i className="fa-solid fa-user-gear"></i>
-            </span>
-          </NavLink>
-        </li>
-
         <li
           className={openGroup === 'account' ? 'group open navmenu-utility navmenu-utility-last' : 'group navmenu-utility navmenu-utility-last'}
           ref={el => {

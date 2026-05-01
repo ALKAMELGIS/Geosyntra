@@ -432,13 +432,8 @@ export default function Login() {
     setIsSubmitting(true)
     setError('')
     try {
-      const roleOverrideForEmail = (value: unknown): string | null => {
-        const e = normalizeEmail(value)
-        if (e === 'alkamelgeo@gmail.com') return 'Admin'
-        if (e === 'alkamelgis@gmail.com') return 'Admin'
-        if (e === 'mohamed.abass@eliteprojects.ae') return 'Manager'
-        return null
-      }
+      // Do not hard-force roles by email; always respect the saved account role.
+      const roleOverrideForEmail = (_value: unknown): string | null => null
       const roleOrder = ['Viewer', 'Editor', 'Admin Manager', 'Admin', 'Manager'] as const
       const roleRank = (r: unknown) => roleOrder.indexOf(normalizeRole(r))
       const bestRole = (roles: unknown[]) =>
