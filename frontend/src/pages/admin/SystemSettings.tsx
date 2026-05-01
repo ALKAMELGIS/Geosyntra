@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { useLocation } from 'react-router-dom'
 import * as yup from 'yup'
 import { useLanguage } from '../../lib/i18n'
-import { hasPermission, normalizeRole } from '../../lib/auth'
+import { hasPermission, normalizeRole, readCurrentUser } from '../../lib/auth'
 import { NAV_DEFAULT_GROUPS, NAV_GROUP_IDS } from '../../nav/navManifest'
 import { loadSystemSettings, normalizeAppPath } from '../../services/settingsStorage'
 import { applyThemeToDocument, useSystemSettings } from '../../store/SystemSettingsContext'
@@ -48,16 +48,7 @@ export default function SystemSettings() {
   )
   const location = useLocation()
 
-  const role = useMemo(() => {
-    try {
-      const raw = localStorage.getItem('currentUser')
-      if (!raw) return 'Viewer'
-      const parsed = JSON.parse(raw) as any
-      return normalizeRole(parsed?.role)
-    } catch {
-      return 'Viewer'
-    }
-  }, [])
+  const role = normalizeRole(readCurrentUser()?.role)
 
   const allowed = hasPermission('admin.users.manage', role)
 
