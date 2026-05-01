@@ -31,10 +31,28 @@ export const normalizeRole = (value: unknown): Role => {
 }
 
 const CURRENT_USER_KEY = 'currentUser'
+const SESSION_TTL_MS = 1000 * 60 * 60 * 24 * 30
+
+type StoredSessionEnvelope = {
+  token: string
+  issuedAt: string
+  expiresAt?: string
+  user: CurrentUser
+}
 
 function readRawSessionOrLocal(): string | null {
   try {
-    return sessionStorage.getItem(CURRENT_USER_KEY) ?? localStorage.getItem(CURRENT_USER_KEY)
+    const sessionRaw = sessionStorage.getItem(CURRENT_USER_KEY)
+    if (sessionRaw) return sessionRaw
+    const localRaw = localStorage.getItem(CURRENT_USER_KEY)
+    if (!localRaw) return null
+    const parsed = JSON.parse(localRaw) as Partial<StoredSessionEnvelope> | null
+    const expiresAt = typeof parsed?.expiresAt === 'string' ? parsed.expiresAt : ''
+    if (expiresAt && new Date(expiresAt).getTime() < Date.now()) {
+      localStorage.removeItem(CURRENT_USER_KEY)
+      return null
+    }
+    return localRaw
   } catch {
     return null
   }
@@ -45,7 +63,12 @@ function parseCurrentUser(raw: string | null): CurrentUser | null {
     if (!raw) return null
     const parsed = JSON.parse(raw) as unknown
     if (!parsed || typeof parsed !== 'object') return null
-    const obj = parsed as Record<string, unknown>
+    const obj =
+      'user' in (parsed as Record<string, unknown>) &&
+      (parsed as Record<string, unknown>).user &&
+      typeof (parsed as Record<string, unknown>).user === 'object'
+        ? ((parsed as StoredSessionEnvelope).user as unknown as Record<string, unknown>)
+        : (parsed as Record<string, unknown>)
     const id = typeof obj.id === 'number' ? obj.id : Number(obj.id ?? 0)
     const email = String(obj.email ?? '').trim()
     if (!email) return null
@@ -65,8 +88,10 @@ function parseCurrentUser(raw: string | null): CurrentUser | null {
 export const readCurrentUser = (): CurrentUser | null => parseCurrentUser(readRawSessionOrLocal())
 
 export type StartSessionOptions = {
-  /** When false, session is kept in sessionStorage only (cleared when the tab closes). Default true (localStorage). */
+  /** When true, session is kept in localStorage. Default false (sessionStorage only). */
   persist?: boolean
+  /** Optional persistent session duration in milliseconds. */
+  persistTtlMs?: number
 }
 
 export const startSession = (user: Partial<CurrentUser> | null, options?: StartSessionOptions): void => {
@@ -75,7 +100,7 @@ export const startSession = (user: Partial<CurrentUser> | null, options?: StartS
       sessionStorage.removeItem(CURRENT_USER_KEY)
       localStorage.removeItem(CURRENT_USER_KEY)
     } else {
-      const persist = options?.persist !== false
+      const persist = options?.persist === true
       const existing = parseCurrentUser(readRawSessionOrLocal())
       const merged: CurrentUser = {
         id: typeof user.id === 'number' ? user.id : existing?.id ?? Date.now(),
@@ -85,7 +110,19 @@ export const startSession = (user: Partial<CurrentUser> | null, options?: StartS
         scope: typeof user.scope === 'string' && user.scope.trim() ? user.scope.trim() : existing?.scope,
         managedById: typeof user.managedById === 'number' ? user.managedById : existing?.managedById,
       }
-      const json = JSON.stringify(merged)
+      const now = Date.now()
+      const sessionToken =
+        typeof crypto !== 'undefined' && 'randomUUID' in crypto
+          ? crypto.randomUUID()
+          : `${now}-${Math.random().toString(36).slice(2)}`
+      const ttl = Math.max(1000 * 60, Number(options?.persistTtlMs || SESSION_TTL_MS))
+      const envelope: StoredSessionEnvelope = {
+        token: sessionToken,
+        issuedAt: new Date(now).toISOString(),
+        expiresAt: persist ? new Date(now + ttl).toISOString() : undefined,
+        user: merged,
+      }
+      const json = JSON.stringify(envelope)
       if (persist) {
         localStorage.setItem(CURRENT_USER_KEY, json)
         sessionStorage.removeItem(CURRENT_USER_KEY)

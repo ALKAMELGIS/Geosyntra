@@ -54,6 +54,7 @@ export default function Users({ embedded }: { embedded?: boolean } = {}) {
   const [batchAction, setBatchAction] = useState<'enable' | 'disable' | 'resetPassword' | 'assignRole' | 'exportCsv'>('disable')
   const [batchRole, setBatchRole] = useState<string>('Viewer')
   const [isNarrow, setIsNarrow] = useState(false)
+  const [duplicateEmailKeys, setDuplicateEmailKeys] = useState<string[]>([])
 
   const currentUser = useMemo(() => readCurrentUser(), [])
   const currentRole = useMemo(() => normalizeRole(currentUser?.role), [currentUser?.role])
@@ -96,6 +97,37 @@ export default function Users({ embedded }: { embedded?: boolean } = {}) {
       emailVerified: typeof raw.emailVerified === 'boolean' ? raw.emailVerified : undefined,
       verificationToken: typeof raw.verificationToken === 'string' ? raw.verificationToken : undefined,
     }
+  }
+
+  const scoreUserQuality = (u: User): number => {
+    const hasPassword = typeof u.passwordHash === 'string' && u.passwordHash.length > 0 ? 8 : 0
+    const verified = u.emailVerified === true ? 4 : 0
+    const active = String(u.status || '').toLowerCase() === 'active' ? 2 : 0
+    const hasLastLogin = String(u.lastLogin || '').toLowerCase() !== 'never' ? 1 : 0
+    return hasPassword + verified + active + hasLastLogin
+  }
+
+  const consolidateUsersByEmail = (list: User[]): User[] => {
+    const byEmail = new Map<string, User>()
+    for (const user of list) {
+      const key = normalizeEmail(user.email)
+      const current = byEmail.get(key)
+      if (!current || scoreUserQuality(user) >= scoreUserQuality(current)) byEmail.set(key, user)
+    }
+    return Array.from(byEmail.values())
+  }
+
+  const detectDuplicateEmailKeys = (list: User[]): string[] => {
+    const counts = new Map<string, number>()
+    for (const user of list) {
+      const key = normalizeEmail(user.email)
+      if (!key) continue
+      counts.set(key, (counts.get(key) ?? 0) + 1)
+    }
+    return Array.from(counts.entries())
+      .filter(([, count]) => count > 1)
+      .map(([key]) => key)
+      .sort((a, b) => a.localeCompare(b))
   }
 
   const showToast = (message: string, type: 'success' | 'error' | 'info' = 'info') => {
@@ -175,6 +207,68 @@ export default function Users({ embedded }: { embedded?: boolean } = {}) {
     navigate('/', { state: { openGroup: 'admin' } })
   }
 
+  const scanDuplicateAccounts = (showResultToast = false): string[] => {
+    try {
+      const raw = localStorage.getItem('adminUsers')
+      if (!raw) {
+        setDuplicateEmailKeys([])
+        if (showResultToast) showToast('No duplicate accounts found.', 'success')
+        return []
+      }
+      const parsed = JSON.parse(raw)
+      if (!Array.isArray(parsed)) {
+        setDuplicateEmailKeys([])
+        if (showResultToast) showToast('No duplicate accounts found.', 'success')
+        return []
+      }
+      const normalized = parsed.map(normalizeUser).filter(Boolean) as User[]
+      const keys = detectDuplicateEmailKeys(normalized)
+      setDuplicateEmailKeys(keys)
+      if (showResultToast) {
+        showToast(keys.length ? `Found ${keys.length} duplicate email account groups.` : 'No duplicate accounts found.', keys.length ? 'info' : 'success')
+      }
+      return keys
+    } catch {
+      if (showResultToast) showToast('Failed to scan duplicate accounts.', 'error')
+      return []
+    }
+  }
+
+  const handleCleanupDuplicateAccounts = () => {
+    try {
+      const raw = localStorage.getItem('adminUsers')
+      if (!raw) {
+        showToast('No duplicate accounts found.', 'success')
+        setDuplicateEmailKeys([])
+        return
+      }
+      const parsed = JSON.parse(raw)
+      if (!Array.isArray(parsed)) {
+        showToast('No duplicate accounts found.', 'success')
+        setDuplicateEmailKeys([])
+        return
+      }
+      const normalized = parsed.map(normalizeUser).filter(Boolean) as User[]
+      const duplicateKeys = detectDuplicateEmailKeys(normalized)
+      if (!duplicateKeys.length) {
+        showToast('No duplicate accounts found.', 'success')
+        setDuplicateEmailKeys([])
+        return
+      }
+      const consolidated = consolidateUsersByEmail(normalized)
+      localStorage.setItem('adminUsers', JSON.stringify(consolidated))
+      setUsers(consolidated)
+      setDuplicateEmailKeys([])
+      appendUserAudit('cleanup_duplicate_accounts', undefined, {
+        duplicateEmailGroups: duplicateKeys.length,
+        removedRecords: Math.max(0, normalized.length - consolidated.length),
+      })
+      showToast(`Cleaned ${duplicateKeys.length} duplicate email account groups.`, 'success')
+    } catch {
+      showToast('Failed to clean duplicate accounts.', 'error')
+    }
+  }
+
   useEffect(() => {
     let loadedUsers: User[] = []
     const stored = localStorage.getItem('adminUsers')
@@ -183,9 +277,8 @@ export default function Users({ embedded }: { embedded?: boolean } = {}) {
         const parsed = JSON.parse(stored)
         if (Array.isArray(parsed)) {
           const normalized = parsed.map(normalizeUser).filter(Boolean) as User[]
-          const byEmail = new Map<string, User>()
-          for (const u of normalized) byEmail.set(normalizeEmail(u.email), u)
-          loadedUsers = Array.from(byEmail.values())
+          setDuplicateEmailKeys(detectDuplicateEmailKeys(normalized))
+          loadedUsers = consolidateUsersByEmail(normalized)
         }
       } catch {
       }
@@ -792,6 +885,47 @@ export default function Users({ embedded }: { embedded?: boolean } = {}) {
           >
             <i className="fa-solid fa-file-export"></i>
             Export CSV
+          </button>
+          <button
+            onClick={() => scanDuplicateAccounts(true)}
+            style={{
+              padding: '8px 14px',
+              borderRadius: '999px',
+              border: '1px solid #e2e8f0',
+              background: duplicateEmailKeys.length ? '#fff7ed' : 'white',
+              fontSize: '13px',
+              fontWeight: 500,
+              cursor: 'pointer',
+              color: duplicateEmailKeys.length ? '#c2410c' : '#0f172a',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px'
+            }}
+            title={duplicateEmailKeys.length ? `${duplicateEmailKeys.length} duplicate groups detected` : 'Scan duplicate accounts'}
+          >
+            <i className="fa-solid fa-triangle-exclamation"></i>
+            {duplicateEmailKeys.length ? `Duplicates: ${duplicateEmailKeys.length}` : 'Scan Duplicates'}
+          </button>
+          <button
+            onClick={handleCleanupDuplicateAccounts}
+            disabled={!duplicateEmailKeys.length}
+            style={{
+              padding: '8px 14px',
+              borderRadius: '999px',
+              border: '1px solid #fed7aa',
+              background: duplicateEmailKeys.length ? '#fff7ed' : '#f8fafc',
+              fontSize: '13px',
+              fontWeight: 600,
+              cursor: duplicateEmailKeys.length ? 'pointer' : 'not-allowed',
+              color: duplicateEmailKeys.length ? '#c2410c' : '#94a3b8',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px'
+            }}
+            title="Keep best account record per email and remove duplicates"
+          >
+            <i className="fa-solid fa-broom"></i>
+            Clean Duplicates
           </button>
           <button
             onClick={() => {

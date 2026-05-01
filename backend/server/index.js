@@ -2,6 +2,7 @@ import express from 'express'
 import cors from 'cors'
 import { WebSocketServer } from 'ws'
 import OpenAI from 'openai'
+import nodemailer from 'nodemailer'
 import { spawn } from 'child_process'
 import path from 'path'
 import { fileURLToPath } from 'url'
@@ -78,6 +79,47 @@ const APP_ORIGIN = String(process.env.APP_ORIGIN || 'http://localhost:5173')
 const ghSessions = new Map()
 const ghStates = new Map()
 const ghEvents = []
+const authEvents = []
+
+const SMTP_HOST = String(process.env.SMTP_HOST || '').trim()
+const SMTP_PORT = Number(process.env.SMTP_PORT || 587)
+const SMTP_USER = String(process.env.SMTP_USER || '').trim()
+const SMTP_PASS = String(process.env.SMTP_PASS || '').trim()
+const SMTP_FROM = String(process.env.SMTP_FROM || SMTP_USER || 'noreply@agri-cloud.local').trim()
+const SMTP_SECURE = String(process.env.SMTP_SECURE || '').trim().toLowerCase() === 'true'
+
+function addAuthEvent(action, payload = {}) {
+  authEvents.push({
+    id: randomUUID(),
+    at: new Date().toISOString(),
+    action: String(action || 'unknown'),
+    ...payload,
+  })
+  while (authEvents.length > 500) authEvents.shift()
+}
+
+function hasSmtpConfig() {
+  return Boolean(SMTP_HOST && SMTP_PORT && SMTP_USER && SMTP_PASS)
+}
+
+async function sendMail({ to, subject, text, html }) {
+  const transporter = nodemailer.createTransport({
+    host: SMTP_HOST,
+    port: SMTP_PORT,
+    secure: SMTP_SECURE,
+    auth: {
+      user: SMTP_USER,
+      pass: SMTP_PASS,
+    },
+  })
+  await transporter.sendMail({
+    from: SMTP_FROM,
+    to,
+    subject,
+    text,
+    html,
+  })
+}
 
 function parseCookies(header) {
   const out = {}
@@ -285,6 +327,55 @@ app.post('/api/github/repos/:owner/:repo/issues', async (req, res) => {
 
 app.get('/api/github/events', (req, res) => {
   res.json({ items: ghEvents.slice(-50).reverse() })
+})
+
+app.get('/api/auth/events', (req, res) => {
+  res.json({ items: authEvents.slice(-200).reverse() })
+})
+
+app.post('/api/auth/send-verification-email', async (req, res) => {
+  const email = String(req.body?.email || '').trim()
+  const verificationLink = String(req.body?.verificationLink || '').trim()
+  const appName = String(req.body?.appName || 'Agro Cloud').trim()
+  if (!email || !verificationLink) {
+    addAuthEvent('verification_email_failed', { email: email || undefined, reason: 'missing_payload' })
+    return res.status(400).json({ error: 'email and verificationLink are required.' })
+  }
+  if (!hasSmtpConfig()) {
+    addAuthEvent('verification_email_failed', { email, reason: 'smtp_not_configured' })
+    return res.status(503).json({ error: 'SMTP is not configured on server.' })
+  }
+
+  const safeName = appName || 'Agro Cloud'
+  const subject = `${safeName} - Confirm your email`
+  const text = [
+    `Welcome to ${safeName}.`,
+    '',
+    'Please confirm your email by opening this link:',
+    verificationLink,
+    '',
+    'If you did not request this, you can ignore this email.',
+  ].join('\n')
+  const html = `
+    <div style="font-family:Arial,sans-serif;line-height:1.5;color:#0f172a">
+      <h2 style="margin:0 0 12px">${safeName}</h2>
+      <p style="margin:0 0 12px">Please confirm your email to complete account registration.</p>
+      <p style="margin:0 0 16px">
+        <a href="${verificationLink}" style="display:inline-block;padding:10px 16px;background:#16a34a;color:#fff;text-decoration:none;border-radius:999px">Confirm Email</a>
+      </p>
+      <p style="margin:0 0 8px;font-size:13px;color:#334155;word-break:break-all">${verificationLink}</p>
+      <p style="margin:0;font-size:12px;color:#64748b">If you did not request this, ignore this email.</p>
+    </div>
+  `
+  try {
+    await sendMail({ to: email, subject, text, html })
+    addAuthEvent('verification_email_sent', { email })
+    return res.status(201).json({ ok: true })
+  } catch (error) {
+    const message = error && typeof error === 'object' && typeof error.message === 'string' ? error.message : 'send_failed'
+    addAuthEvent('verification_email_failed', { email, reason: message })
+    return res.status(502).json({ error: 'Failed to send verification email.', details: message })
+  }
 })
 
 app.post('/api/github/webhook', (req, res) => {

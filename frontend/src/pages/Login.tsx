@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useLocation } from 'react-router-dom'
 import { normalizeEmail, normalizeRole, startSession } from '../lib/auth'
+import { appendAuditLog } from '../lib/audit'
 import { useLanguage } from '../lib/i18n'
 
 type AuthUser = {
@@ -78,7 +79,7 @@ export default function Login() {
   const roleDropdownRef = useRef<HTMLDivElement | null>(null)
   const loginBgVideoRef = useRef<HTMLVideoElement | null>(null)
   const [isRoleOpen, setIsRoleOpen] = useState(false)
-  const [keepSignedIn, setKeepSignedIn] = useState(true)
+  const [keepSignedIn, setKeepSignedIn] = useState(false)
 
   const createVerificationToken = () =>
     typeof crypto !== 'undefined' && 'randomUUID' in crypto
@@ -107,6 +108,25 @@ export default function Login() {
     }
   }
 
+  const sendVerificationEmail = async (targetEmail: string, verificationToken: string) => {
+    const verifyLink = queueVerificationEmail(targetEmail, verificationToken)
+    if (!verifyLink) return { verifyLink: '', delivered: false }
+    try {
+      const response = await fetch('/api/auth/send-verification-email', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: targetEmail,
+          verificationLink: verifyLink,
+          appName: 'Agro Cloud',
+        }),
+      })
+      return { verifyLink, delivered: response.ok }
+    } catch {
+      return { verifyLink, delivered: false }
+    }
+  }
+
   const hashPassword = async (value: string) => {
     const encoder = new TextEncoder()
     const data = encoder.encode(value)
@@ -115,11 +135,122 @@ export default function Login() {
     return hashArray.map(b => b.toString(16).padStart(2, '0')).join('')
   }
 
+  const isSha256Hex = (value: unknown): boolean =>
+    typeof value === 'string' && /^[a-f0-9]{64}$/i.test(String(value).trim())
+
+  const readLegacyPassword = (user: any): string => {
+    const candidates = [user?.password, user?.Password, user?.pass, user?.pwd, user?.passwordText]
+    for (const candidate of candidates) {
+      if (typeof candidate === 'string' && candidate.length > 0) return candidate
+    }
+    return ''
+  }
+
+  const sanitizeLoginString = (value: unknown): string => {
+    let v = String(value ?? '')
+    try {
+      v = v.normalize('NFKC')
+    } catch {
+    }
+    return v.replace(/[\u200B-\u200D\uFEFF]/g, '').trim()
+  }
+
+  const consolidateUsersByEmail = (list: any[]): any[] => {
+    const score = (u: any): number => {
+      const hasHash = typeof u?.passwordHash === 'string' && String(u.passwordHash).length > 0 ? 8 : 0
+      const verified = u?.emailVerified === true ? 4 : 0
+      const active = String(u?.status || '').toLowerCase() === 'active' ? 2 : 0
+      const hasLogin = u?.lastLogin && String(u.lastLogin).toLowerCase() !== 'never' ? 1 : 0
+      return hasHash + verified + active + hasLogin
+    }
+    const byEmail = new Map<string, any>()
+    for (const u of list) {
+      if (!u || typeof u !== 'object') continue
+      const key = normalizeEmail(u.email)
+      if (!key) continue
+      const current = byEmail.get(key)
+      if (!current || score(u) >= score(current)) byEmail.set(key, u)
+    }
+    return Array.from(byEmail.values())
+  }
+
+  const logLoginAttempt = (outcome: 'success' | 'failure', reason: string, userEmail?: string) => {
+    appendAuditLog({
+      entity: 'auth',
+      action: outcome === 'success' ? 'login_success' : 'login_failure',
+      entityId: userEmail ? normalizeEmail(userEmail) : undefined,
+      actorEmail: userEmail ? sanitizeLoginString(userEmail) : undefined,
+      meta: {
+        reason,
+        mode,
+        keepSignedIn,
+        atLocal: new Date().toLocaleString(),
+      },
+    })
+  }
+
+  useEffect(() => {
+    let cancelled = false
+    const runIntegrityPass = async () => {
+      const stored = localStorage.getItem('adminUsers')
+      if (!stored) return
+      let changed = false
+      try {
+        const parsed = JSON.parse(stored)
+        if (!Array.isArray(parsed)) return
+        const nextUsers: any[] = []
+        for (const raw of parsed) {
+          if (!raw || typeof raw !== 'object') continue
+          const candidate = raw as any
+          const email = sanitizeLoginString(candidate.email)
+          if (!email) continue
+          const clean: any = {
+            ...candidate,
+            email,
+            role: normalizeRole(candidate.role),
+          }
+          const hasHash = typeof clean.passwordHash === 'string' && clean.passwordHash.length > 0
+          const legacyPassword = sanitizeLoginString(clean.password)
+          if (!hasHash && legacyPassword) {
+            clean.passwordHash = await hashPassword(legacyPassword)
+            delete clean.password
+            changed = true
+          }
+          if (typeof clean.emailVerified !== 'boolean') {
+            clean.emailVerified = Boolean(clean.passwordHash)
+            changed = true
+          }
+          if (!clean.status) {
+            clean.status = clean.emailVerified ? 'Active' : 'Pending Verification'
+            changed = true
+          }
+          nextUsers.push(clean)
+        }
+        const dedup = consolidateUsersByEmail(nextUsers)
+        if (dedup.length !== nextUsers.length) changed = true
+        if (!cancelled && changed) {
+          localStorage.setItem('adminUsers', JSON.stringify(dedup))
+          appendAuditLog({
+            entity: 'auth',
+            action: 'user_store_integrity_migration',
+            meta: { accounts: dedup.length },
+          })
+        }
+      } catch {
+      }
+    }
+    void runIntegrityPass()
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    const emailTrimmed = email.trim()
-    const nameTrimmed = name.trim()
-    if (!emailTrimmed || !password || (mode === 'signup' && !nameTrimmed)) {
+    const emailTrimmed = sanitizeLoginString(email)
+    const passwordTrimmed = sanitizeLoginString(password)
+    const nameTrimmed = sanitizeLoginString(name)
+    if (!emailTrimmed || !passwordTrimmed || (mode === 'signup' && !nameTrimmed)) {
       setError('All required fields must be filled.')
       return
     }
@@ -151,13 +282,15 @@ export default function Login() {
             users = parsed
           }
         } catch {
+          logLoginAttempt('failure', 'user_data_corrupted', emailTrimmed)
           setError('User data is corrupted.')
           setIsSubmitting(false)
           return
         }
       }
 
-      const normalizedUsers = users
+      const normalizedUsers = (
+        users
         .map(u => {
           if (!u || typeof u !== 'object') return null
           const nextEmail = String((u as any).email || '').trim()
@@ -173,31 +306,36 @@ export default function Login() {
           return { ...(u as any), email: nextEmail, role: nextRole, emailVerified, status }
         })
         .filter(Boolean) as any[]
+      )
 
       if (mode === 'signup') {
         const matches = normalizedUsers.filter(u => normalizeEmail(u.email) === normalizeEmail(emailTrimmed))
         const anyHasPassword = matches.some(m => typeof m.passwordHash === 'string' && m.passwordHash.length > 0)
         if (matches.length && anyHasPassword) {
+          logLoginAttempt('failure', 'signup_email_exists', emailTrimmed)
           setError('An account with this email already exists.')
           setIsSubmitting(false)
           return
         }
         if (matches.length && !inviteToken) {
+          logLoginAttempt('failure', 'signup_missing_invite_token', emailTrimmed)
           setError('This email already has a pending invitation. Please use your invitation link to complete signup.')
           setIsSubmitting(false)
           return
         }
         if (matches.length && !matches.some(m => String(m.verificationToken || '') === String(inviteToken || ''))) {
+          logLoginAttempt('failure', 'signup_invalid_invite_token', emailTrimmed)
           setError('Invitation link is invalid or expired.')
           setIsSubmitting(false)
           return
         }
-        if (password.length < 8) {
+        if (passwordTrimmed.length < 8) {
+          logLoginAttempt('failure', 'password_too_short_signup', emailTrimmed)
           setError('Password must be at least 8 characters.')
           setIsSubmitting(false)
           return
         }
-        const hashed = await hashPassword(password)
+        const hashed = await hashPassword(passwordTrimmed)
         const override = roleOverrideForEmail(emailTrimmed)
         const verificationToken = createVerificationToken()
         const newUser = matches.length
@@ -229,34 +367,68 @@ export default function Login() {
         const nextUsers = normalizedUsers.filter(u => normalizeEmail(u.email) !== normalizeEmail(emailTrimmed))
         nextUsers.push(newUser)
         localStorage.setItem('adminUsers', JSON.stringify(nextUsers))
-        const verifyLink = queueVerificationEmail(emailTrimmed, verificationToken)
+        const { verifyLink, delivered } = await sendVerificationEmail(emailTrimmed, verificationToken)
         setInfo(
           matches.length
-            ? `Your invitation was completed. We sent a verification email to ${emailTrimmed}. Confirm your email first, then sign in.`
-            : `We sent a confirmation email to ${emailTrimmed}. Please confirm your email before signing in.${verifyLink ? `\nVerification link: ${verifyLink}` : ''}`
+            ? delivered
+              ? `Your invitation was completed. A verification email was sent to ${emailTrimmed}. Confirm your email first, then sign in.`
+              : `Your invitation was completed. Email service is currently unavailable. Use this verification link:\n${verifyLink}`
+            : delivered
+              ? `We sent a confirmation email to ${emailTrimmed}. Please confirm your email before signing in.`
+              : `Email service is currently unavailable. Use this verification link:\n${verifyLink}`
         )
         setError('')
         setMode('signin')
         setInviteToken('')
       } else {
-        if (password.length < 8) {
+        if (passwordTrimmed.length < 8) {
+          logLoginAttempt('failure', 'password_too_short_signin', emailTrimmed)
           setError('Password must be at least 8 characters.')
           setIsSubmitting(false)
           return
         }
         const matches = normalizedUsers.filter(u => normalizeEmail(u.email) === normalizeEmail(emailTrimmed))
         if (!matches.length) {
+          logLoginAttempt('failure', 'email_not_found', emailTrimmed)
           setError('Invalid email or password.')
           setIsSubmitting(false)
           return
         }
-        const hashed = await hashPassword(password)
-        const anyHasPassword = matches.some(m => typeof m.passwordHash === 'string' && m.passwordHash.length > 0)
-        const passwordMatches = anyHasPassword
-          ? matches.filter(m => typeof m.passwordHash === 'string' && m.passwordHash === hashed)
-          : matches
+        const hashed = await hashPassword(passwordTrimmed)
+        const hashedRaw = passwordTrimmed === password ? hashed : await hashPassword(password)
+        let matchedViaLegacyPlain = false
+        let passwordMatches = matches.filter(m => {
+          const storedHash = typeof m.passwordHash === 'string' ? String(m.passwordHash).trim() : ''
+          if (storedHash) {
+            // Support both true SHA-256 hashes and accidental plain-text storage in passwordHash.
+            if (isSha256Hex(storedHash)) return storedHash === hashed || storedHash === hashedRaw
+            return storedHash === password || storedHash.trim() === passwordTrimmed
+          }
+          const legacyPassword = readLegacyPassword(m)
+          const legacyOk = legacyPassword === password || legacyPassword.trim() === passwordTrimmed
+          if (legacyOk) matchedViaLegacyPlain = true
+          return legacyOk
+        })
+
+        // Backward-compatible migration for users still stored with plain-text password fields.
+        if (passwordMatches.length && matchedViaLegacyPlain) {
+          const matchedEmails = new Set(passwordMatches.map(m => normalizeEmail(m.email)))
+          const migratedUsers = normalizedUsers.map(u => {
+            if (!matchedEmails.has(normalizeEmail(u.email))) return u
+            const next = { ...(u as any), passwordHash: hashed }
+            delete (next as any).password
+            delete (next as any).Password
+            delete (next as any).pass
+            delete (next as any).pwd
+            delete (next as any).passwordText
+            return next
+          })
+          localStorage.setItem('adminUsers', JSON.stringify(migratedUsers))
+          passwordMatches = passwordMatches.map(m => ({ ...m, passwordHash: hashed }))
+        }
 
         if (!passwordMatches.length) {
+          logLoginAttempt('failure', 'password_mismatch', emailTrimmed)
           setError('Invalid email or password.')
           setIsSubmitting(false)
           return
@@ -274,20 +446,24 @@ export default function Login() {
         const base = passwordMatches.reduce((best, u) => (roleRank(u.role) > roleRank(best?.role) ? u : best), passwordMatches[0] as any)
         if (!base.emailVerified) {
           const currentToken = String(base.verificationToken || createVerificationToken())
-          const verifyLink = queueVerificationEmail(emailTrimmed, currentToken)
+          const { verifyLink, delivered } = await sendVerificationEmail(emailTrimmed, currentToken)
           const nextUsers = normalizedUsers.map(u =>
             normalizeEmail(u.email) === normalizeEmail(emailTrimmed)
               ? { ...u, verificationToken: currentToken, status: 'Pending Verification', emailVerified: false }
               : u
           )
           localStorage.setItem('adminUsers', JSON.stringify(nextUsers))
+          logLoginAttempt('failure', 'email_not_verified', emailTrimmed)
           setError(
-            `Email not verified. A verification email was sent to ${emailTrimmed}.${verifyLink ? ` Verification link: ${verifyLink}` : ''}`
+            delivered
+              ? `Email not verified. A verification email was sent to ${emailTrimmed}.`
+              : `Email not verified and mail service is unavailable. Use this verification link: ${verifyLink}`
           )
           setIsSubmitting(false)
           return
         }
         if (String(base.status || '').toLowerCase() !== 'active') {
+          logLoginAttempt('failure', 'account_not_active', emailTrimmed)
           setError('Account is not active. Please contact User Management.')
           setIsSubmitting(false)
           return
@@ -304,7 +480,8 @@ export default function Login() {
 
         const nextUsers = normalizedUsers.filter(u => normalizeEmail(u.email) !== normalizeEmail(emailTrimmed))
         nextUsers.push(mergedUser)
-        localStorage.setItem('adminUsers', JSON.stringify(nextUsers))
+        const dedupedAfterSuccess = consolidateUsersByEmail(nextUsers)
+        localStorage.setItem('adminUsers', JSON.stringify(dedupedAfterSuccess))
 
         const authUser: AuthUser = {
           id: typeof mergedUser.id === 'number' ? mergedUser.id : Date.now(),
@@ -314,6 +491,7 @@ export default function Login() {
           scope: mergedUser.scope ? String(mergedUser.scope) : undefined,
         }
         startSession(authUser, { persist: keepSignedIn })
+        logLoginAttempt('success', 'authenticated', emailTrimmed)
       }
     } finally {
       setIsSubmitting(false)
@@ -392,6 +570,11 @@ export default function Login() {
     if (!el) return
     void el.play()?.catch(() => {})
   }, [])
+
+  useEffect(() => {
+    // Force default unchecked whenever Sign in tab is shown.
+    if (mode === 'signin') setKeepSignedIn(false)
+  }, [mode])
 
   return (
     <div className="login-page-root">
@@ -515,7 +698,7 @@ export default function Login() {
             </button>
           </div>
         </div>
-        <form onSubmit={handleSubmit}>
+        <form onSubmit={handleSubmit} autoComplete="off">
           {mode === 'signup' && (
             <div
               style={{
@@ -690,6 +873,8 @@ export default function Login() {
                   <input
                     id="login-keep-signed"
                     type="checkbox"
+                    name="login-keep-signed"
+                    autoComplete="off"
                     checked={keepSignedIn}
                     onChange={e => setKeepSignedIn(e.target.checked)}
                   />

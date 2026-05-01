@@ -3124,52 +3124,6 @@ export default function SatelliteIntelligence() {
     <div className="si-page">
       <div className="si-main-content">
         <div>
-          <div className="si-top-card si-top-card-center">
-            <div className="si-timeline-inline">
-              <button
-                type="button"
-                className={`si-timeline-run ${isTimelinePlaying ? 'playing' : ''}`}
-                onClick={() => setIsTimelinePlaying(prev => !prev)}
-                aria-label={isTimelinePlaying ? 'Pause timeline' : 'Run timeline'}
-                title={isTimelinePlaying ? 'Pause timeline' : 'Run timeline'}
-              >
-                <i className={isTimelinePlaying ? 'fa-solid fa-pause' : 'fa-solid fa-play'}></i>
-              </button>
-              <div className="si-timeline-track">
-                <div className="track-line"></div>
-                {dates.map((date, idx) => {
-                  const isActive = date.full.toDateString() === selectedDate.toDateString();
-                  const isEdge = idx === 0 || idx === dates.length - 1;
-                  const maxBaseLabels = 4;
-                  const step = Math.max(1, Math.ceil(dates.length / maxBaseLabels));
-                  const isStepped = idx % step === 0;
-                  const isTodayDate = date.full.toDateString() === new Date().toDateString();
-                  const showLabel = isActive || (isEdge && !isTodayDate) || isStepped;
-                  return (
-                    <div
-                      key={idx}
-                      className={`track-point ${isActive ? 'active' : ''}`}
-                      onClick={() => applySelectedDate(date.full)}
-                    >
-                      <div className="point-dot"></div>
-                      {showLabel && (
-                        <span className="point-label">
-                          {date.day} {date.month}
-                        </span>
-                      )}
-                    </div>
-                  );
-                })}
-                <div
-                  className={`track-point ${selectedDate.toDateString() === new Date().toDateString() ? 'active' : ''}`}
-                  onClick={() => applySelectedDate(new Date())}
-                >
-                  <div className="point-dot"></div>
-                  <span className="point-label">Today</span>
-                </div>
-              </div>
-            </div>
-          </div>
           <div className="si-top-card si-top-card-right">
             <div className="si-env-rail">
               <button

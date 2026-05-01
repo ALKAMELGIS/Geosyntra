@@ -2294,7 +2294,7 @@ function GisContentPage() {
 
       {relModal ? (
         <div className="gis-modal-overlay" role="presentation" onClick={closeRelModal}>
-          <div className="gis-modal gis-modal-compact" role="dialog" aria-modal="true" onClick={(e) => e.stopPropagation()}>
+          <div className="gis-modal gis-modal-compact gis-modal-relationship" role="dialog" aria-modal="true" onClick={(e) => e.stopPropagation()}>
             <div className="gis-modal-header">
               <div className="gis-modal-header-left">
                 <div className="gis-modal-icon" aria-hidden="true">
@@ -2306,8 +2306,8 @@ function GisContentPage() {
                 <i className="fa-solid fa-xmark" aria-hidden="true" />
               </button>
             </div>
-            <div className="gis-modal-body">
-              <div className="gis-content-formgrid">
+            <div className="gis-modal-body gis-modal-body-relationship">
+              <div className="gis-content-formgrid gis-content-formgrid-relationship">
                 <label className="gis-label">
                   Relationship name
                   <input
@@ -2477,7 +2477,7 @@ function GisContentPage() {
                 ) : null}
 
                 <label className="gis-label">Constraints</label>
-                <div className="gis-content-row">
+                <div className="gis-content-row gis-content-row-constraints">
                   <button
                     type="button"
                     className={relDraft.enforce ? 'gis-content-chip active' : 'gis-content-chip'}
@@ -2499,7 +2499,7 @@ function GisContentPage() {
                 {relError ? <div className="gis-inline-error">{relError}</div> : null}
               </div>
             </div>
-            <div className="gis-modal-actions">
+            <div className="gis-modal-actions gis-modal-actions-relationship">
               <button className="gis-btn" type="button" onClick={closeRelModal}>
                 Cancel
               </button>
