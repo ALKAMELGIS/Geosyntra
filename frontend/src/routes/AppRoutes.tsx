@@ -8,6 +8,7 @@ import Home from '../pages/Home'
 import Login from '../pages/Login'
 import DashboardOverview from '../pages/dashboards/Overview'
 import DevelopDashboard from '../pages/dashboards/DevelopDashboard'
+import AgriDesignDashboard from '../pages/dashboards/AgriDesignDashboard'
 const SatelliteIntelligence = lazy(() => import('../pages/satellite/SatelliteIntelligence'))
 const SatelliteMultidimensional = lazy(() => import('../pages/satellite/Multidimensional'))
 const GisMap = lazy(() => import('../pages/satellite/GisMap'))
@@ -23,7 +24,6 @@ const MasterGisContent = lazy(() => import('../pages/master/GisContent'))
 const DashboardSettings = lazy(() => import('../pages/master/DashboardSettings'))
 const AdminUsers = lazy(() => import('../pages/admin/Users'))
 const AdminGitHub = lazy(() => import('../pages/admin/GitHubIntegration'))
-const DashboardPlantAI = lazy(() => import('../pages/dashboards/PlantAI'))
 const DashboardAiChatbot = lazy(() => import('../pages/dashboards/AiChatbot'))
 const DashboardModel = lazy(() => import('../pages/dashboards/Model'))
 const AiAgroCloud = lazy(() => import('../pages/dashboards/AiAgroCloud'))
@@ -54,7 +54,7 @@ export default function AppRoutes() {
         <Route path="/satellite/multidimensional" element={<SatelliteMultidimensional />} />
         <Route path="/satellite/gis" element={<GisMap />} />
         <Route path="/dashboards/overview" element={<DashboardOverview />} />
-        <Route path="/dashboards/plant-ai" element={<DashboardPlantAI />} />
+        <Route path="/dashboards/plant-ai" element={<Navigate to="/dashboard/design" replace />} />
         <Route path="/dashboards/ai-chatbot" element={<DashboardAiChatbot />} />
         <Route path="/dashboards/model" element={<DashboardModel />} />
         <Route path="/dashboards/agro-cloud" element={<AgroCloudDashboard />} />
@@ -74,7 +74,7 @@ export default function AppRoutes() {
         <Route path="/style-guide" element={<StyleGuide />} />
         <Route path="/usability-test" element={<UsabilityTest />} />
         <Route path="/dashboard/develop" element={<DevelopDashboard />} />
-        <Route path="/dashboard/design" element={<Navigate to="/dashboards/plant-ai" replace />} />
+        <Route path="/dashboard/design" element={<AgriDesignDashboard />} />
         {settings.customPages
           .filter(p => p.visible && p.path.trim())
           .map(p => (

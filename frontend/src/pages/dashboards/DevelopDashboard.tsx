@@ -1561,38 +1561,44 @@ export default function DevelopDashboard() {
     destroyCharts()
     const host = chartsHostRef.current
     if (!host) return
-    const layer = layers[bindLayerKey]
-    if (!layer?.data?.features?.length) {
-      host.innerHTML =
-        '<div class="ddb-hint" style="padding:20px;">Select a data layer with features, then use <strong>Add visuals to canvas</strong> in the Visualizations panel.</div>'
-      return
-    }
-    const features = layer.data.features
-    const numericFields = layer.fields.filter(f => features.some(feat => typeof (feat.properties as any)?.[f] === 'number'))
-    const yWell = cartesianWells.yAxis
-    const primaryNum =
-      yWell &&
-      layer.fields.includes(yWell) &&
-      features.some(feat => {
-        const v = (feat.properties as any)?.[yWell]
-        return typeof v === 'number' || !Number.isNaN(parseFloat(String(v ?? '')))
-      })
-        ? yWell
-        : numericFields[0] || layer.fields[0]
-    const xWell = cartesianWells.xAxis
-    const labelField =
-      xWell && layer.fields.includes(xWell)
-        ? xWell
-        : layer.fields.includes('Farm_Name')
-          ? 'Farm_Name'
-          : layer.fields[0] || 'name'
-    const labels = features.slice(0, 8).map((f, i) => String((f.properties as any)?.[labelField] ?? `Item ${i + 1}`))
-    const values = features.slice(0, 8).map(f => parseFloat(String((f.properties as any)?.[primaryNum] ?? 0)) || 0)
 
     if (!canvasVisualSlots.length) {
       host.innerHTML =
         '<div class="ddb-hint" style="padding:20px;">Select chart types in the Visualizations panel — each selection adds that visual here. Use <strong>Add visuals to canvas</strong> to append another copy of <em>all</em> currently selected types, or <strong>Clear canvas</strong> to remove every card.</div>'
       return
+    }
+
+    const layer = bindLayerKey ? layers[bindLayerKey] : undefined
+    const hasLayerData = !!(layer?.data?.features?.length)
+
+    let features: GeoJSON.Feature[] = []
+    let primaryNum = 'value'
+    let labelField = 'category'
+    let labels = ['—', '—', '—']
+    let values = [0, 0, 0]
+
+    if (hasLayerData && layer) {
+      features = layer.data.features
+      const numericFields = layer.fields.filter(f => features.some(feat => typeof (feat.properties as any)?.[f] === 'number'))
+      const yWell = cartesianWells.yAxis
+      primaryNum =
+        yWell &&
+        layer.fields.includes(yWell) &&
+        features.some(feat => {
+          const v = (feat.properties as any)?.[yWell]
+          return typeof v === 'number' || !Number.isNaN(parseFloat(String(v ?? '')))
+        })
+          ? yWell
+          : numericFields[0] || layer.fields[0]
+      const xWell = cartesianWells.xAxis
+      labelField =
+        xWell && layer.fields.includes(xWell)
+          ? xWell
+          : layer.fields.includes('Farm_Name')
+            ? 'Farm_Name'
+            : layer.fields[0] || 'name'
+      labels = features.slice(0, 8).map((f, i) => String((f.properties as any)?.[labelField] ?? `Item ${i + 1}`))
+      values = features.slice(0, 8).map(f => parseFloat(String((f.properties as any)?.[primaryNum] ?? 0)) || 0)
     }
 
     const addChartCard = (instanceId: string, title: string, type: string, dataConfig: any) => {
@@ -1635,6 +1641,14 @@ export default function DevelopDashboard() {
         initialMini,
       })
       if (!chrome) return
+
+      if (!hasLayerData) {
+        const note = document.createElement('p')
+        note.className = 'ddb-hint ddb-visual-placeholder-note'
+        note.textContent =
+          'Connect a data layer in Data, then assign axes or table columns to populate this visual. The chart shape stays on the canvas.'
+        chrome.header.after(note)
+      }
 
       const { strip, menu, filterPanel, chip, titleEl: titleNode, zoomHint } = chrome
       const listEl = filterPanel.querySelector('[data-ddb-filter-list]') as HTMLDivElement | null
@@ -1764,15 +1778,24 @@ export default function DevelopDashboard() {
         const tbl = document.createElement('div')
         tbl.className = 'ddb-visual-card'
         tbl.dataset.ddbInstanceId = instanceId
-        const headers =
-          tableColumnPicks.length > 0
-            ? tableColumnPicks.filter(h => layer.fields.includes(h)).slice(0, 14)
-            : layer.fields.slice(0, 5)
-        const rows = features.slice(0, 5)
-        tbl.innerHTML = `<div class="ddb-visual-title"><i class="fa-solid fa-table"></i> ${tool === 'dataTable' ? 'Data Table' : 'Table'}</div>
-          <div class="ddb-table-responsive"><table><thead><tr>${headers.map(h => `<th>${h}</th>`).join('')}</tr></thead><tbody>
-          ${rows.map(r => `<tr>${headers.map(h => `<td>${String((r.properties as any)?.[h] ?? '-')}</td>`).join('')}</tr>`).join('')}
-          </tbody></table></div>`
+        if (!hasLayerData || !layer) {
+          tbl.innerHTML = `<div class="ddb-visual-title"><i class="fa-solid fa-table"></i> ${tool === 'dataTable' ? 'Data Table' : 'Table'}</div>
+            <div class="ddb-visual-card__body-pad">
+              <p class="ddb-hint ddb-visual-placeholder-note" style="margin:0 0 12px;">Add a feature layer from <strong>Data</strong> (or GIS), select it as the active layer, then pick columns in Visualizations.</p>
+              <div class="ddb-table-responsive"><table><thead><tr><th>Column 1</th><th>Column 2</th><th>Column 3</th></tr></thead><tbody>
+              <tr><td colspan="3" style="text-align:center;color:#64748b;padding:16px;">No rows</td></tr></tbody></table></div>
+            </div>`
+        } else {
+          const headers =
+            tableColumnPicks.length > 0
+              ? tableColumnPicks.filter(h => layer.fields.includes(h)).slice(0, 14)
+              : layer.fields.slice(0, 5)
+          const rows = features.slice(0, 5)
+          tbl.innerHTML = `<div class="ddb-visual-title"><i class="fa-solid fa-table"></i> ${tool === 'dataTable' ? 'Data Table' : 'Table'}</div>
+            <div class="ddb-table-responsive"><table><thead><tr>${headers.map(h => `<th>${h}</th>`).join('')}</tr></thead><tbody>
+            ${rows.map(r => `<tr>${headers.map(h => `<td>${String((r.properties as any)?.[h] ?? '-')}</td>`).join('')}</tr>`).join('')}
+            </tbody></table></div>`
+        }
         host.appendChild(tbl)
         ddbPromoteVisualCardChrome(tbl, { showStatStrip: false, showZoomHint: false })
       } else if (tool === 'matrix') {
@@ -1780,10 +1803,16 @@ export default function DevelopDashboard() {
         matrix.className = 'ddb-visual-card'
         matrix.dataset.ddbInstanceId = instanceId
         const rowLabel = labelField
-        matrix.innerHTML = `<div class="ddb-visual-title"><i class="fa-solid fa-th"></i> Matrix</div><div class="ddb-table-responsive"><table><tr><th>${rowLabel}</th><th>${primaryNum}</th></tr>${labels
-          .slice(0, 4)
-          .map((l, i) => `<tr><td>${l}</td><td>${values[i]}</td></tr>`)
-          .join('')}</table></div>`
+        if (!hasLayerData || !layer) {
+          matrix.innerHTML = `<div class="ddb-visual-title"><i class="fa-solid fa-th"></i> Matrix</div><div class="ddb-visual-card__body-pad">
+            <p class="ddb-hint ddb-visual-placeholder-note" style="margin:0;">Bind rows and values after connecting a layer in <strong>Data</strong>.</p>
+            <div class="ddb-table-responsive" style="margin-top:10px"><table><tr><th>Row</th><th>Value</th></tr><tr><td>—</td><td>—</td></tr></table></div></div>`
+        } else {
+          matrix.innerHTML = `<div class="ddb-visual-title"><i class="fa-solid fa-th"></i> Matrix</div><div class="ddb-table-responsive"><table><tr><th>${rowLabel}</th><th>${primaryNum}</th></tr>${labels
+            .slice(0, 4)
+            .map((l, i) => `<tr><td>${l}</td><td>${values[i]}</td></tr>`)
+            .join('')}</table></div>`
+        }
         host.appendChild(matrix)
         ddbPromoteVisualCardChrome(matrix, { showStatStrip: false, showZoomHint: false })
       } else if (tool === 'stackedBar' || tool === 'clusteredBar') {
@@ -1826,7 +1855,14 @@ export default function DevelopDashboard() {
         card.appendChild(titleEl)
         card.appendChild(canvas)
         host.appendChild(card)
-        ddbPromoteVisualCardChrome(card, { showStatStrip: false, showZoomHint: true })
+        const comboChrome = ddbPromoteVisualCardChrome(card, { showStatStrip: false, showZoomHint: true })
+        if (comboChrome && !hasLayerData) {
+          const note = document.createElement('p')
+          note.className = 'ddb-hint ddb-visual-placeholder-note'
+          note.textContent =
+            'Connect a data layer in Data, then assign axes or table columns to populate this visual. The chart shape stays on the canvas.'
+          comboChrome.header.after(note)
+        }
         const ch = new Chart(canvas.getContext('2d')!, {
           type: 'bar',
           data: {
@@ -1854,28 +1890,45 @@ export default function DevelopDashboard() {
           data: { labels: labels.slice(0, 4), datasets: [{ data: values.slice(0, 4), backgroundColor: ['#3cac6e', '#5a9e7a', '#8bc0a4', '#b1d4be'] }] },
         })
       } else if (tool === 'scatter') {
+        const scatterPts = hasLayerData
+          ? features.slice(0, 12).map((f, i) => ({
+              x: i,
+              y: parseFloat(String((f.properties as any)?.[primaryNum] ?? 0)) || 0,
+            }))
+          : [
+              { x: 0, y: 0 },
+              { x: 1, y: 0 },
+              { x: 2, y: 0 },
+            ]
         addChartCard(instanceId, 'Scatter Plot', 'scatter', {
           data: {
             datasets: [
               {
                 label: primaryNum,
-                data: features.slice(0, 12).map((f, i) => ({
-                  x: i,
-                  y: parseFloat(String((f.properties as any)?.[primaryNum] ?? 0)) || 0,
-                })),
+                data: scatterPts,
                 backgroundColor: '#2c7a4a',
               },
             ],
           },
         })
       } else if (tool === 'waterfall') {
-        addChartCard(instanceId, 'Waterfall', 'bar', {
-          data: { labels: ['Start', 'Step1', 'Step2', 'End'], datasets: [{ label: 'Delta', data: [100, 40, -30, 110] }] },
-        })
+        addChartCard(
+          instanceId,
+          'Waterfall',
+          'bar',
+          hasLayerData
+            ? { data: { labels: ['Start', 'Step1', 'Step2', 'End'], datasets: [{ label: 'Delta', data: [100, 40, -30, 110] }] } }
+            : { data: { labels: ['—', '—', '—', '—'], datasets: [{ label: 'Delta', data: [0, 0, 0, 0] }] } },
+        )
       } else if (tool === 'funnel') {
-        addChartCard(instanceId, 'Funnel', 'bar', {
-          data: { labels: ['Lead', 'Qualify', 'Proposal', 'Win'], datasets: [{ data: [120, 85, 42, 18] }] },
-        })
+        addChartCard(
+          instanceId,
+          'Funnel',
+          'bar',
+          hasLayerData
+            ? { data: { labels: ['Lead', 'Qualify', 'Proposal', 'Win'], datasets: [{ data: [120, 85, 42, 18] }] } }
+            : { data: { labels: ['—', '—', '—', '—'], datasets: [{ data: [0, 0, 0, 0] }] } },
+        )
       } else if (tool === 'gauge') {
         const avgVal = values.reduce((a, b) => a + b, 0) / (values.length || 1)
         const gauge = document.createElement('div')
@@ -1921,7 +1974,7 @@ export default function DevelopDashboard() {
         const fb = document.createElement('div')
         fb.className = 'ddb-visual-card'
         fb.dataset.ddbInstanceId = instanceId
-        fb.innerHTML = `<div class="ddb-visual-title"><i class="fa-solid fa-chart-simple"></i> ${tool.replace(/([A-Z])/g, ' $1')}</div><div class="ddb-visual-card__body-pad"><div>Static simulation for ${tool} based on ${layer.name}</div></div>`
+        fb.innerHTML = `<div class="ddb-visual-title"><i class="fa-solid fa-chart-simple"></i> ${tool.replace(/([A-Z])/g, ' $1')}</div><div class="ddb-visual-card__body-pad"><div>${hasLayerData && layer ? `Static simulation for ${tool} based on ${layer.name}` : `Visual shell for ${tool}. Connect a layer in Data to drive this visual.`}</div></div>`
         host.appendChild(fb)
         ddbPromoteVisualCardChrome(fb, { showStatStrip: false, showZoomHint: false })
       }
@@ -1946,7 +1999,6 @@ export default function DevelopDashboard() {
   ])
 
   useEffect(() => {
-    if (!Object.keys(layers).length || !activeStatsLayer) return
     renderCharts()
     return () => destroyCharts()
   }, [layers, activeStatsLayer, bindLayerKey, canvasVisualSlots, cartesianWells, tableColumnPicks, renderCharts, destroyCharts])
