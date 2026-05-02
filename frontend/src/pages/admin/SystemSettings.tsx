@@ -452,8 +452,9 @@ export default function SystemSettings() {
           ))}
         </div>
 
+      <section className="sys-settings-panel sys-settings-panel--unified">
       {tab === 'theme' ? (
-        <section className="sys-settings-panel">
+        <div className="sys-settings-tab-pane">
           <div className="sys-settings-panel__head">
             <h2 className="sys-settings-panel__title">
               <i className="fa-solid fa-brush" aria-hidden />
@@ -544,11 +545,11 @@ export default function SystemSettings() {
               </div>
             </div>
           ) : null}
-        </section>
+        </div>
       ) : null}
 
       {tab === 'home' ? (
-        <section className="sys-settings-panel">
+        <div className="sys-settings-tab-pane">
           <div className="sys-home-editor">
             <aside className="sys-home-sidebar" aria-label="Home page editor sections">
               <h3 className="sys-home-sidebar__title">Edit home page</h3>
@@ -708,11 +709,11 @@ export default function SystemSettings() {
               </div>
             </div>
           </div>
-        </section>
+        </div>
       ) : null}
 
       {tab === 'logos' ? (
-        <section className="sys-settings-panel">
+        <div className="sys-settings-tab-pane">
           <div className="sys-settings-panel__head">
             <h2 className="sys-settings-panel__title">
               <i className="fa-solid fa-images" aria-hidden />
@@ -789,11 +790,11 @@ export default function SystemSettings() {
               </div>
             </div>
           </div>
-        </section>
+        </div>
       ) : null}
 
       {tab === 'nav' ? (
-        <section className="sys-settings-panel">
+        <div className="sys-settings-tab-pane">
           <div className="sys-settings-panel__head">
             <h2 className="sys-settings-panel__title">
               <i className="fa-solid fa-route" aria-hidden />
@@ -889,11 +890,11 @@ export default function SystemSettings() {
               reorderItem={reorderItem}
             />
           ) : null}
-        </section>
+        </div>
       ) : null}
 
       {tab === 'pages' ? (
-        <section className="sys-settings-panel">
+        <div className="sys-settings-tab-pane">
           <div className="sys-pages-head">
             <div>
               <h2>Dynamic pages</h2>
@@ -1135,11 +1136,11 @@ export default function SystemSettings() {
               ))}
             </div>
           )}
-        </section>
+        </div>
       ) : null}
 
       {tab === 'api-tokens' ? (
-        <section className="sys-settings-panel">
+        <div className="sys-settings-tab-pane">
           <div className="sys-settings-panel__head">
             <h2 className="sys-settings-panel__title">
               <i className="fa-solid fa-key" aria-hidden />
@@ -1442,10 +1443,10 @@ export default function SystemSettings() {
               </p>
             </div>
           </div>
-        </section>
+        </div>
       ) : null}
 
-        <footer className="sys-settings-footer">
+        <footer className="sys-settings-footer sys-settings-panel__footer">
           <button type="button" className="sys-footer-icon-btn is-save" onClick={() => void handleSave()} aria-label="Save settings" title="Save">
             <i className="fa-solid fa-floppy-disk" aria-hidden />
           </button>
@@ -1456,6 +1457,7 @@ export default function SystemSettings() {
             <i className="fa-solid fa-rotate-left" aria-hidden />
           </button>
         </footer>
+      </section>
       </div>
 
       {confirmReset ? (

@@ -1188,6 +1188,8 @@ export default function DevelopDashboard() {
   const [statsField, setStatsField] = useState('')
   const [statsAgg, setStatsAgg] = useState('sum')
   const [selectedCharts, setSelectedCharts] = useState<Set<string>>(() => new Set(['table', 'line', 'kpi']))
+  const selectedChartsRef = useRef<Set<string>>(selectedCharts)
+  selectedChartsRef.current = selectedCharts
   const [canvasVisualSlots, setCanvasVisualSlots] = useState<CanvasVisualSlot[]>([])
   /** Layer used for Build visual wells / bindings (defaults to active stats layer). */
   const [visualBindingsLayerKey, setVisualBindingsLayerKey] = useState('')
@@ -1589,7 +1591,7 @@ export default function DevelopDashboard() {
 
     if (!canvasVisualSlots.length) {
       host.innerHTML =
-        '<div class="ddb-hint" style="padding:20px;">Choose chart types in the Visualizations panel, then click <strong>Add visuals to canvas</strong>. Each click appends another set of cards (same type can appear multiple times, like Power BI). Use <strong>Clear canvas</strong> to remove all.</div>'
+        '<div class="ddb-hint" style="padding:20px;">Select chart types in the Visualizations panel — each selection adds that visual here. Use <strong>Add visuals to canvas</strong> to append another copy of <em>all</em> currently selected types, or <strong>Clear canvas</strong> to remove every card.</div>'
       return
     }
 
@@ -2460,12 +2462,25 @@ export default function DevelopDashboard() {
   }, [remoteDataUrl, layerModalName, closeAddGisModal])
 
   const toggleChartTool = (chart: string) => {
-    setSelectedCharts(prev => {
-      const next = new Set(prev)
-      if (next.has(chart)) next.delete(chart)
-      else next.add(chart)
-      return next
-    })
+    const wasSelected = selectedChartsRef.current.has(chart)
+    const next = new Set(selectedChartsRef.current)
+    if (wasSelected) next.delete(chart)
+    else next.add(chart)
+    selectedChartsRef.current = next
+    setSelectedCharts(next)
+
+    if (DDB_MAP_VIS_CHARTS.has(chart)) return
+
+    if (wasSelected) {
+      setCanvasVisualSlots(sl => {
+        for (let i = sl.length - 1; i >= 0; i--) {
+          if (sl[i]!.chart === chart) return sl.filter((_, j) => j !== i)
+        }
+        return sl
+      })
+    } else {
+      setCanvasVisualSlots(sl => [...sl, { instanceId: newId(), chart }])
+    }
   }
 
   const appendSelectedChartsToCanvas = useCallback(() => {

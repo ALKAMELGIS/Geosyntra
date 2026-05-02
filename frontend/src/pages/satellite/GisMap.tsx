@@ -3614,13 +3614,12 @@ export default function GisMap() {
                 title="Expand layers list"
               >
                 <span className="gis-sidebar-collapsed-layers__visual" aria-hidden>
-                  <span className="gis-sidebar-collapsed-layers__deck gis-sidebar-collapsed-layers__deck--back">
-                    <i className="fa-solid fa-square" />
+                  <span className="gis-sidebar-collapsed-layers__stack-bars">
+                    <span className="gis-sidebar-collapsed-layers__stack-bar" />
+                    <span className="gis-sidebar-collapsed-layers__stack-bar" />
+                    <span className="gis-sidebar-collapsed-layers__stack-bar" />
                   </span>
-                  <span className="gis-sidebar-collapsed-layers__deck gis-sidebar-collapsed-layers__deck--mid">
-                    <i className="fa-solid fa-square" />
-                  </span>
-                  <span className="gis-sidebar-collapsed-layers__deck gis-sidebar-collapsed-layers__deck--front">
+                  <span className="gis-sidebar-collapsed-layers__icon-wrap">
                     <i className="fa-solid fa-layer-group" />
                   </span>
                 </span>

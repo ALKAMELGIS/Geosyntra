@@ -8148,65 +8148,67 @@ html[data-theme='dark'] .gis-domain-cell--dropdown.missing-description .gis-doma
 }
 
 .gis-sidebar-collapsed-layers__visual {
-  position: relative;
-  width: 44px;
-  height: 40px;
-  display: grid;
-  place-items: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  min-height: 52px;
 }
 
-.gis-sidebar-collapsed-layers__deck {
-  position: absolute;
-  width: 28px;
-  height: 28px;
-  border-radius: 8px;
-  display: grid;
-  place-items: center;
-  font-size: 10px;
-  border: 1px solid rgba(4, 120, 87, 0.18);
-  transition: transform 0.2s ease;
+/* Abstract “map stack”: tier lines only — no overlapping cards */
+.gis-sidebar-collapsed-layers__stack-bars {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
 }
 
-.gis-sidebar-collapsed-layers__deck i {
-  opacity: 0.35;
-  color: var(--gis-green);
+.gis-sidebar-collapsed-layers__stack-bar {
+  display: block;
+  height: 3px;
+  border-radius: 999px;
+  background: linear-gradient(90deg, rgba(4, 120, 87, 0.22), rgba(16, 185, 129, 0.55), rgba(4, 120, 87, 0.22));
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.7) inset;
 }
 
-.gis-sidebar-collapsed-layers__deck--back {
-  background: linear-gradient(145deg, #ecfdf5, #d1fae5);
-  transform: translate(-7px, -4px) rotate(-8deg);
+.gis-sidebar-collapsed-layers__stack-bar:nth-child(1) {
+  width: 26px;
+  opacity: 0.55;
 }
 
-.gis-sidebar-collapsed-layers__deck--mid {
-  background: linear-gradient(145deg, #d1fae5, #bbf7d0);
-  transform: translate(0, 0) rotate(4deg);
+.gis-sidebar-collapsed-layers__stack-bar:nth-child(2) {
+  width: 20px;
+  opacity: 0.78;
 }
 
-.gis-sidebar-collapsed-layers__deck--mid i {
-  opacity: 0.5;
-}
-
-.gis-sidebar-collapsed-layers__deck--front {
-  width: 32px;
-  height: 32px;
-  font-size: 15px;
-  background: linear-gradient(160deg, #ffffff, #ecfdf5);
-  box-shadow: 0 8px 18px rgba(4, 120, 87, 0.15);
-  transform: translate(6px, 4px) rotate(-2deg);
-  border-color: rgba(4, 120, 87, 0.22);
-}
-
-.gis-sidebar-collapsed-layers__deck--front i {
+.gis-sidebar-collapsed-layers__stack-bar:nth-child(3) {
+  width: 14px;
   opacity: 1;
+}
+
+.gis-sidebar-collapsed-layers__icon-wrap {
+  width: 36px;
+  height: 36px;
+  border-radius: 12px;
+  display: grid;
+  place-items: center;
+  font-size: 15px;
   color: var(--gis-green-dark);
+  background: linear-gradient(165deg, #ffffff 0%, #ecfdf5 55%, #d1fae5 100%);
+  border: 1px solid rgba(4, 120, 87, 0.16);
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.9) inset,
+    0 6px 14px rgba(4, 120, 87, 0.12);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
 }
 
-.gis-sidebar-collapsed-layers:hover .gis-sidebar-collapsed-layers__deck--back {
-  transform: translate(-8px, -5px) rotate(-10deg);
-}
-
-.gis-sidebar-collapsed-layers:hover .gis-sidebar-collapsed-layers__deck--front {
-  transform: translate(7px, 5px) rotate(-1deg);
+.gis-sidebar-collapsed-layers:hover .gis-sidebar-collapsed-layers__icon-wrap {
+  transform: translateY(-1px);
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.95) inset,
+    0 10px 22px rgba(4, 120, 87, 0.16);
 }
 
 .gis-sidebar-collapsed-layers__badge {

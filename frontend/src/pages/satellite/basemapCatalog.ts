@@ -86,7 +86,8 @@ export function buildBasemapCatalog(mapboxToken: string): BasemapCatalogEntry[] 
   const t = mapboxToken.trim()
   const mbSatStd = mbRaster('standard-satellite', t)
   const mbSatV9 = mbRaster('satellite-v9', t)
-  const mbUnderlay = mbSatStd || mbSatV9
+  /** Leaflet TileLayer uses styles/v1 raster tiles: classic `satellite-v9` is reliable; `standard-satellite` often returns blank/black (GL-first style). */
+  const mbUnderlay = mbSatV9 || mbSatStd
   const mbHyb = mbRaster('satellite-streets-v12', t)
 
   const leafletMbSat: LeafletTileSpec[] = mbUnderlay

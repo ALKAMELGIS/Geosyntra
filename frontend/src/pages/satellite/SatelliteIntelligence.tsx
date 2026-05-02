@@ -30,6 +30,7 @@ import { useGeminiApiKey } from '../../hooks/useGeminiApiKey';
 import { useClaudeApiKey } from '../../hooks/useClaudeApiKey';
 import { getArcgisPortalToken } from '../../lib/arcgisPortalToken';
 import { getMapboxAccessToken } from '../../lib/mapboxAccessToken';
+import { subscribeSentinelHubAccessToken } from '../../lib/sentinelHubAccessToken';
 import {
   getSentinelHubWmsBaseUrl,
   getSentinelHubWmsInstanceId,
@@ -698,8 +699,6 @@ interface WmsLayerInfo {
   title: string;
 }
 
-const FALLBACK_WMS_LAYERS: WmsLayerInfo[] = [{ name: 'NDWI', title: 'Moisture Index (NDWI)' }];
-
 interface CustomLayer {
   id: string;
   name: string;
@@ -919,7 +918,15 @@ export default function SatelliteIntelligence() {
   const [sentinelWmsRev, setSentinelWmsRev] = useState(0);
   const wmsBaseUrl = useMemo(() => getSentinelHubWmsBaseUrl(), [sentinelWmsRev]);
 
-  useEffect(() => subscribeSentinelHubWmsInstance(() => setSentinelWmsRev(r => r + 1)), []);
+  useEffect(() => {
+    const bump = () => setSentinelWmsRev(r => r + 1);
+    const unsubWms = subscribeSentinelHubWmsInstance(bump);
+    const unsubAccess = subscribeSentinelHubAccessToken(bump);
+    return () => {
+      unsubWms();
+      unsubAccess();
+    };
+  }, []);
 
   const [wmsLayer, setWmsLayer] = useState('');
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
@@ -3245,14 +3252,10 @@ export default function SatelliteIntelligence() {
             if (!nameNode) return;
             const titleNode = node.getElementsByTagName('Title')[0];
             const name = nameNode.textContent || '';
-            const title = titleNode?.textContent || name;
+            let title = (titleNode?.textContent || name).trim();
+            if (name === 'NDWI' && /Moisture Index \(NDWI\)/i.test(title)) title = 'NDWI';
             if (name && !parsed.some(l => l.name === name)) {
               parsed.push({ name, title });
-            }
-          });
-          FALLBACK_WMS_LAYERS.forEach(layer => {
-            if (!parsed.some(l => l.name === layer.name)) {
-              parsed.push(layer);
             }
           });
           if (parsed.length > 0) {
@@ -3260,10 +3263,10 @@ export default function SatelliteIntelligence() {
             return;
           }
         }
-        setWmsLayers(FALLBACK_WMS_LAYERS);
+        setWmsLayers([]);
       } catch (error) {
         console.error('Failed to load WMS layers', error);
-        setWmsLayers(FALLBACK_WMS_LAYERS);
+        setWmsLayers([]);
       } finally {
         setIsLoadingLayers(false);
       }
@@ -4254,7 +4257,7 @@ export default function SatelliteIntelligence() {
 
                         <div className="si-field-analysis-section">
                           <label className="si-field-analysis-field si-field-analysis-field--labeled">
-                            <span className="si-field-analysis-label">Layer / vegetation index</span>
+                            <span className="si-field-analysis-label">Layer</span>
                             <select
                               className="si-field-analysis-select"
                               value={isLoadingLayers ? '' : wmsLayerSelectValue}
@@ -4265,12 +4268,12 @@ export default function SatelliteIntelligence() {
                                 if (ids.includes(v as EnvironmentalIndexId)) setSelectedIndex(v as EnvironmentalIndexId);
                               }}
                               disabled={isLoadingLayers}
-                              aria-label="Layer or vegetation index"
+                              aria-label="Layer"
                             >
                               {isLoadingLayers ? (
                                 <option value="">Loading Sentinel Hub layers…</option>
                               ) : wmsLayers.length === 0 ? (
-                                <option value="">No WMS layers (check Sentinel API tokens)</option>
+                                <option value="">No layers — save Sentinel API tokens in System Settings, then reopen</option>
                               ) : (
                                 wmsLayers.map(layer => (
                                   <option key={layer.name} value={layer.name}>
@@ -4281,11 +4284,11 @@ export default function SatelliteIntelligence() {
                             </select>
                           </label>
                           <p className="si-field-analysis-hint" style={{ marginTop: 6 }}>
-                            Options come from your Sentinel Hub WMS instance (
+                            Layers are loaded only from your Sentinel Hub WMS GetCapabilities response for instance{' '}
                             <span style={{ fontFamily: 'ui-monospace, monospace', fontSize: '10px', opacity: 0.95 }}>
                               {getSentinelHubWmsInstanceId().slice(0, 8)}…
-                            </span>
-                            ). Configure it under System Settings → Sentinel API tokens.
+                            </span>{' '}
+                            (System Settings → Sentinel API tokens). No synthetic index list is shown here.
                           </p>
                         </div>
 
