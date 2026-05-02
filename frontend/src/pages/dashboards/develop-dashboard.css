@@ -717,29 +717,13 @@
   min-height: 0;
 }
 
-.develop-dashboard-root .ddb-main-visual-toolbar {
+.develop-dashboard-root .ddb-powerbi-grid--in-main {
   flex: 0 0 auto;
-  background: #fff;
+  margin: 0 0 0;
+  max-height: min(26vh, 240px);
   border-radius: 20px;
-  padding: 12px 14px 14px;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.04);
   border: 1px solid rgba(226, 232, 240, 0.9);
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  min-height: 0;
-}
-
-.develop-dashboard-root .ddb-main-visual-toolbar__actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
-  align-items: center;
-}
-
-.develop-dashboard-root .ddb-powerbi-grid--in-main {
-  margin: 4px 0 4px;
-  max-height: min(26vh, 240px);
 }
 
 /* Power BI–style right rail: Filters | Visualizations | Data | Link */
