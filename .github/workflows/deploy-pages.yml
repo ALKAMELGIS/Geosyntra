@@ -3,8 +3,10 @@ name: Deploy to GitHub Pages
 # ─── One-time (repo admin) — this is the real “root fix” for the live site ───
 # GitHub → Settings → Pages → Build and deployment → Source: GitHub Actions
 # Do NOT use “Deploy from a branch” at repo root: that only serves ./index.html
-# (misconfiguration notice), not the Vite app. After switching to Actions, every
-# push to main runs this workflow and publishes frontend/dist automatically.
+# (misconfiguration notice), not the Vite app. Do NOT commit frontend/dist or docs/
+# to work around it — push protection blocks API tokens embedded in built JS.
+# After switching to Actions, every push to main runs this workflow and publishes
+# frontend/dist as a Pages artifact (no secrets in git history).
 # If the deploy job waits forever: Settings → Environments → github-pages →
 # remove required reviewers / deployment branches, or approve the pending deploy.
 on:

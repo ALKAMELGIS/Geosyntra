@@ -1,10 +1,10 @@
 # Agri Cloud — repository documentation
 
-> **GitHub Pages:** إذا ظهرت هذه الصفحة على الموقع بدل التطبيق، فاذهب إلى **Settings → Pages** واختر المصدر **GitHub Actions** وليس «Deploy from a branch». التطبيق يُنشر من `frontend/dist` عبر `.github/workflows/deploy-pages.yml`.
+> **GitHub Pages:** **Source = GitHub Actions** (`.github/workflows/deploy-pages.yml`). النشر من جذر الفرع يعرض `index.html` التوضيحي فقط. لا تُلتزم `frontend/dist` أو `docs/` في git — حماية الدفع ترفض الرموز المضمّنة في الحزم.
 >
 > **رابط التشغيل (HashRouter):** https://alkamelgis.github.io/AgroCloud/#/
 >
-> **GitHub Pages:** If the website shows documentation instead of the app, set **Settings → Pages → Source** to **GitHub Actions**. The build is published from `frontend/dist`.
+> **GitHub Pages:** Set **Source** to **GitHub Actions** (`deploy-pages.yml`). Do not commit build output: secret scanning / push protection blocks embedded API tokens in bundles.
 >
 > **App URL:** https://alkamelgis.github.io/AgroCloud/#/
 

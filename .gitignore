@@ -41,5 +41,5 @@ backup_*.zip
 coverage-final.json
 .nyc_output/
 
-# Optional local copy of frontend/dist for manual GitHub Pages zip (npm run sync-pages-docs).
+# Built SPA copy for manual zip / branch-at-/docs experiments (do not commit: push protection flags embedded tokens).
 /docs/

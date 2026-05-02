@@ -22,4 +22,4 @@ if (!fs.existsSync(src)) {
 fs.rmSync(dest, { recursive: true, force: true })
 fs.cpSync(src, dest, { recursive: true })
 
-console.log('sync-pages-docs: copied frontend/dist → docs/ (folder is gitignored).')
+console.log('sync-pages-docs: copied frontend/dist → docs/ (folder is gitignored; do not commit dist — use GitHub Actions Pages).')

@@ -2,6 +2,6 @@
 
 ## [→ افتح التطبيق / Open the app ←](https://alkamelgis.github.io/AgroCloud/#/)
 
-**GitHub Pages:** في المستودع → **Settings** → **Pages** → **Source** = **GitHub Actions** (ليس *Deploy from a branch*). بعدها يُخدم الموقع من `frontend/dist`.
+**GitHub Pages:** **Settings → Pages → Source = GitHub Actions** ثم سير العمل `Deploy to GitHub Pages` (يُبنى `frontend/dist` في CI ويُرفع كأرشيف؛ لا تُلتزم مخرجات البناء في الفرع بسبب حماية الدفع من الأسرار).
 
 **Documentation:** [REPOSITORY.md](REPOSITORY.md)
