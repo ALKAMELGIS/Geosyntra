@@ -67,6 +67,8 @@ const CHART_TOOLS: Array<{ chart: string; icon: string; label: string }> = [
   { chart: 'treemap', icon: 'fa-solid fa-tree', label: 'Treemap' },
   { chart: 'map', icon: 'fa-solid fa-map', label: 'Map' },
   { chart: 'filledMap', icon: 'fa-solid fa-map-location-dot', label: 'Filled Map' },
+  /** Dashboard map card: groups `ddb-map-container` with charts when selected. */
+  { chart: 'fieldMap', icon: 'fa-solid fa-map-pin', label: 'Field Map' },
   { chart: 'azureMaps', icon: 'fa-brands fa-microsoft', label: 'Azure Maps' },
   { chart: 'gauge', icon: 'fa-solid fa-gauge-high', label: 'Gauge' },
   { chart: 'card', icon: 'fa-solid fa-id-card', label: 'Card' },
@@ -563,6 +565,17 @@ function ddbReflowCanvasHost(host: HTMLElement) {
     maxBottom = Math.max(maxBottom, top + h + 28)
   })
   host.style.minHeight = `${Math.ceil(maxBottom)}px`
+  const fieldWs = host.closest<HTMLElement>('.ddb-canvas-workspace--field-map')
+  if (fieldWs) {
+    let m = maxBottom
+    const mapEl = fieldWs.querySelector<HTMLElement>('.ddb-map-container.ddb-map-container--canvas')
+    if (mapEl) {
+      const t = parseFloat(mapEl.style.top) || 0
+      const h = parseFloat(mapEl.style.height) || mapEl.getBoundingClientRect().height
+      m = Math.max(m, t + h + 28)
+    }
+    fieldWs.style.minHeight = `${Math.ceil(m)}px`
+  }
 }
 
 function ddbResizeChartsInHost(host: HTMLElement) {
@@ -736,6 +749,254 @@ function ddbAttachCanvasCard(card: HTMLElement, host: HTMLElement, layoutKey: st
   clamp()
 }
 
+const DDB_FIELD_MAP_LAYOUT_KEY = 'ddb-develop-field-map-panel'
+
+type DdbMapPanelEl = HTMLElement & { __ddbMapPanelTeardown?: () => void }
+
+/** Field Map mode: free-form map card (drag header + resize) like `ddb-visual-card--canvas`. */
+function ddbAttachMapPanelCanvas(mapPanel: HTMLElement, workspace: HTMLElement, chartsHost: HTMLElement) {
+  const el = mapPanel as DdbMapPanelEl
+  el.__ddbMapPanelTeardown?.()
+
+  const MIN_W = 280
+  const MIN_H = 200
+  const DEFAULT_W = 420
+  const DEFAULT_H = 300
+  const GAP = 14
+
+  const readSaved = (): DdbCanvasRect | null => {
+    const m = ddbReadCanvasLayouts()[DDB_FIELD_MAP_LAYOUT_KEY]
+    if (!m || typeof m.left !== 'number') return null
+    return m
+  }
+
+  const saveRect = (rect: DdbCanvasRect) => {
+    const all = ddbReadCanvasLayouts()
+    all[DDB_FIELD_MAP_LAYOUT_KEY] = rect
+    ddbWriteCanvasLayouts(all)
+  }
+
+  const saved = readSaved()
+  const defLeft = 10
+  const defTop = 10
+
+  mapPanel.style.left = `${saved?.left ?? defLeft}px`
+  mapPanel.style.top = `${saved?.top ?? defTop}px`
+  mapPanel.style.width = `${Math.max(MIN_W, saved?.width ?? DEFAULT_W)}px`
+  mapPanel.style.height = `${Math.max(MIN_H, saved?.height ?? DEFAULT_H)}px`
+
+  let handle = mapPanel.querySelector<HTMLButtonElement>('.ddb-map-container__canvas-resize')
+  if (!handle) {
+    handle = document.createElement('button')
+    handle.type = 'button'
+    handle.className = 'ddb-map-container__canvas-resize'
+    handle.title = 'Resize card'
+    handle.setAttribute('aria-label', 'Resize card')
+    handle.innerHTML = '<span class="ddb-visual-card__canvas-resize-grip" aria-hidden="true"></span>'
+    mapPanel.appendChild(handle)
+  }
+
+  const dragEl = mapPanel.querySelector<HTMLElement>('.ddb-map-container__drag-header')
+
+  const clamp = () => {
+    const hostW = workspace.clientWidth || 800
+    let w = parseFloat(mapPanel.style.width) || DEFAULT_W
+    let h = parseFloat(mapPanel.style.height) || DEFAULT_H
+    let left = parseFloat(mapPanel.style.left) || 0
+    let top = parseFloat(mapPanel.style.top) || 0
+    w = Math.min(Math.max(MIN_W, w), Math.max(MIN_W, hostW - 24))
+    h = Math.max(MIN_H, h)
+    const maxL = Math.max(0, hostW - w - 12)
+    left = Math.max(0, Math.min(left, maxL))
+    top = Math.max(0, top)
+    mapPanel.style.width = `${w}px`
+    mapPanel.style.height = `${h}px`
+    mapPanel.style.left = `${left}px`
+    mapPanel.style.top = `${top}px`
+  }
+
+  let drag: null | { sx: number; sy: number; sl: number; st: number }
+  let resize: null | { sx: number; sy: number; sw: number; sh: number }
+
+  const endInteract = () => {
+    mapPanel.classList.remove('ddb-map-container--dragging', 'ddb-map-container--resizing')
+    drag = null
+    resize = null
+    window.removeEventListener('pointermove', onMove)
+    window.removeEventListener('pointerup', onUp)
+    window.removeEventListener('pointercancel', onUp)
+    clamp()
+    saveRect({
+      left: parseFloat(mapPanel.style.left) || 0,
+      top: parseFloat(mapPanel.style.top) || 0,
+      width: parseFloat(mapPanel.style.width) || DEFAULT_W,
+      height: parseFloat(mapPanel.style.height) || DEFAULT_H,
+    })
+    ddbReflowCanvasHost(chartsHost)
+  }
+
+  const onMove = (e: PointerEvent) => {
+    if (drag) {
+      const dx = e.clientX - drag.sx
+      const dy = e.clientY - drag.sy
+      mapPanel.style.left = `${drag.sl + dx}px`
+      mapPanel.style.top = `${drag.st + dy}px`
+      clamp()
+      ddbReflowCanvasHost(chartsHost)
+    } else if (resize) {
+      const dx = e.clientX - resize.sx
+      const dy = e.clientY - resize.sy
+      mapPanel.style.width = `${Math.max(MIN_W, resize.sw + dx)}px`
+      mapPanel.style.height = `${Math.max(MIN_H, resize.sh + dy)}px`
+      clamp()
+      ddbReflowCanvasHost(chartsHost)
+    }
+  }
+
+  const onUp = () => {
+    if (drag || resize) endInteract()
+  }
+
+  const onDragDown = (e: PointerEvent) => {
+    const t = e.target as HTMLElement | null
+    if (!t || !dragEl?.contains(t)) return
+    if (t.closest('button') && t !== dragEl) return
+    if (t === handle || handle.contains(t)) return
+    e.preventDefault()
+    drag = {
+      sx: e.clientX,
+      sy: e.clientY,
+      sl: parseFloat(mapPanel.style.left) || 0,
+      st: parseFloat(mapPanel.style.top) || 0,
+    }
+    mapPanel.classList.add('ddb-map-container--dragging')
+    window.addEventListener('pointermove', onMove)
+    window.addEventListener('pointerup', onUp)
+    window.addEventListener('pointercancel', onUp)
+  }
+
+  const onResizeDown = (e: PointerEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    resize = {
+      sx: e.clientX,
+      sy: e.clientY,
+      sw: parseFloat(mapPanel.style.width) || DEFAULT_W,
+      sh: parseFloat(mapPanel.style.height) || DEFAULT_H,
+    }
+    mapPanel.classList.add('ddb-map-container--resizing')
+    window.addEventListener('pointermove', onMove)
+    window.addEventListener('pointerup', onUp)
+    window.addEventListener('pointercancel', onUp)
+  }
+
+  dragEl?.addEventListener('pointerdown', onDragDown)
+  handle.addEventListener('pointerdown', onResizeDown)
+
+  el.__ddbMapPanelTeardown = () => {
+    dragEl?.removeEventListener('pointerdown', onDragDown)
+    handle.removeEventListener('pointerdown', onResizeDown)
+    window.removeEventListener('pointermove', onMove)
+    window.removeEventListener('pointerup', onUp)
+    window.removeEventListener('pointercancel', onUp)
+    handle.remove()
+    mapPanel.classList.remove('ddb-map-container--dragging', 'ddb-map-container--resizing')
+    mapPanel.style.left = ''
+    mapPanel.style.top = ''
+    mapPanel.style.width = ''
+    mapPanel.style.height = ''
+    delete el.__ddbMapPanelTeardown
+  }
+
+  clamp()
+  ddbReflowCanvasHost(chartsHost)
+}
+
+function ddbDetachMapPanelCanvas(mapPanel: HTMLElement) {
+  ;(mapPanel as DdbMapPanelEl).__ddbMapPanelTeardown?.()
+}
+
+type DdbMapSplitEl = HTMLElement & { __ddbMapSplitTeardown?: () => void }
+
+/** Default layout: drag bottom edge to change map strip height. */
+function ddbAttachMapSplitHeightResize(mapPanel: HTMLElement, onResizeEnd: () => void) {
+  const el = mapPanel as DdbMapSplitEl
+  el.__ddbMapSplitTeardown?.()
+
+  const MIN_H = 200
+  const MAX_FRAC = 0.72
+
+  let handle = mapPanel.querySelector<HTMLButtonElement>('.ddb-map-container__split-resize')
+  if (!handle) {
+    handle = document.createElement('button')
+    handle.type = 'button'
+    handle.className = 'ddb-map-container__split-resize'
+    handle.title = 'Resize card'
+    handle.setAttribute('aria-label', 'Resize card')
+    handle.innerHTML = '<span class="ddb-visual-card__canvas-resize-grip" aria-hidden="true"></span>'
+    mapPanel.appendChild(handle)
+  }
+
+  let resize: null | { sy: number; sh: number; workspace: HTMLElement }
+
+  const end = () => {
+    resize = null
+    mapPanel.classList.remove('ddb-map-container--split-resizing')
+    window.removeEventListener('pointermove', onMove)
+    window.removeEventListener('pointerup', onUp)
+    window.removeEventListener('pointercancel', onUp)
+    onResizeEnd()
+  }
+
+  const onMove = (e: PointerEvent) => {
+    if (!resize) return
+    const dy = e.clientY - resize.sy
+    const ws = resize.workspace
+    const maxH = Math.max(MIN_H, Math.floor(ws.clientHeight * MAX_FRAC))
+    const next = Math.min(maxH, Math.max(MIN_H, resize.sh + dy))
+    mapPanel.style.flex = `0 0 ${next}px`
+    mapPanel.style.height = `${next}px`
+    mapPanel.style.minHeight = `${MIN_H}px`
+    onResizeEnd()
+  }
+
+  const onUp = () => {
+    if (resize) end()
+  }
+
+  const onDown = (e: PointerEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    const workspace = mapPanel.parentElement
+    if (!workspace) return
+    const rect = mapPanel.getBoundingClientRect()
+    resize = { sy: e.clientY, sh: rect.height, workspace }
+    mapPanel.classList.add('ddb-map-container--split-resizing')
+    window.addEventListener('pointermove', onMove)
+    window.addEventListener('pointerup', onUp)
+    window.addEventListener('pointercancel', onUp)
+  }
+
+  handle.addEventListener('pointerdown', onDown)
+
+  el.__ddbMapSplitTeardown = () => {
+    handle.removeEventListener('pointerdown', onDown)
+    window.removeEventListener('pointermove', onMove)
+    window.removeEventListener('pointerup', onUp)
+    window.removeEventListener('pointercancel', onUp)
+    handle.remove()
+    mapPanel.style.flex = ''
+    mapPanel.style.height = ''
+    mapPanel.style.minHeight = ''
+    mapPanel.classList.remove('ddb-map-container--split-resizing')
+    delete el.__ddbMapSplitTeardown
+  }
+}
+
+function ddbDetachMapSplitHeightResize(mapPanel: HTMLElement) {
+  ;(mapPanel as DdbMapSplitEl).__ddbMapSplitTeardown?.()
+}
+
 type AddGisLayerTab = 'arcgis' | 'database' | 'upload' | 'url'
 
 type AddSourceWizard = 'home' | 'get-data' | 'gis-list' | 'tabs'
@@ -870,6 +1131,8 @@ export default function DevelopDashboard() {
   const mapSearchMarkerRef = useRef<L.Marker | null>(null)
   const leafletRef = useRef<Record<string, L.Layer>>({})
   const chartsHostRef = useRef<HTMLDivElement | null>(null)
+  const mapContainerRef = useRef<HTMLDivElement | null>(null)
+  const canvasWorkspaceRef = useRef<HTMLDivElement | null>(null)
   const chartInstancesRef = useRef<Chart[]>([])
   const [chartGen, setChartGen] = useState(0)
 
@@ -915,6 +1178,7 @@ export default function DevelopDashboard() {
   const [measureDistanceLabel, setMeasureDistanceLabel] = useState('-')
 
   const layerKeys = useMemo(() => Object.keys(layers), [layers])
+  const fieldMapVisualMode = useMemo(() => selectedCharts.has('fieldMap'), [selectedCharts])
   const sampleLayerKeys = useMemo(() => layerKeys.filter(k => layers[k]?.origin === 'sample'), [layerKeys, layers])
   const userLayerKeys = useMemo(() => layerKeys.filter(k => layers[k]?.origin === 'user'), [layerKeys, layers])
 
@@ -1029,6 +1293,34 @@ export default function DevelopDashboard() {
       mapRef.current = null
     }
   }, [])
+
+  useEffect(() => {
+    const mapEl = mapContainerRef.current
+    const ws = canvasWorkspaceRef.current
+    const charts = chartsHostRef.current
+    if (!mapEl || !ws || !charts) return
+    const inv = () => {
+      window.requestAnimationFrame(() => mapRef.current?.invalidateSize())
+    }
+    let ro: ResizeObserver | null = null
+    if (fieldMapVisualMode) {
+      ddbDetachMapSplitHeightResize(mapEl)
+      ddbAttachMapPanelCanvas(mapEl, ws, charts)
+      inv()
+    } else {
+      ddbDetachMapPanelCanvas(mapEl)
+      ddbAttachMapSplitHeightResize(mapEl, inv)
+      inv()
+    }
+    ro = new ResizeObserver(() => inv())
+    ro.observe(mapEl)
+    return () => {
+      ro?.disconnect()
+      ddbDetachMapPanelCanvas(mapEl)
+      ddbDetachMapSplitHeightResize(mapEl)
+      inv()
+    }
+  }, [fieldMapVisualMode])
 
   /** No bundled demo layers — keep active stats layer in sync when the user adds or removes data. */
   useEffect(() => {
@@ -1262,6 +1554,7 @@ export default function DevelopDashboard() {
     }
 
     for (const tool of selectedCharts) {
+      if (tool === 'fieldMap') continue
       if (tool === 'table' || tool === 'dataTable') {
         const tbl = document.createElement('div')
         tbl.className = 'ddb-visual-card'
@@ -1991,7 +2284,22 @@ export default function DevelopDashboard() {
 
         <div className="ddb-dashboard-body">
         <div className="ddb-main">
-          <div className="ddb-map-container">
+          <div
+            ref={canvasWorkspaceRef}
+            className={`ddb-canvas-workspace${fieldMapVisualMode ? ' ddb-canvas-workspace--field-map' : ''}`}
+            aria-label={fieldMapVisualMode ? 'Visuals canvas with Field Map' : 'Dashboard map and visuals'}
+          >
+          <div
+            ref={mapContainerRef}
+            className={`ddb-map-container${fieldMapVisualMode ? ' ddb-map-container--canvas' : ''}`}
+          >
+            {fieldMapVisualMode ? (
+              <div className="ddb-map-container__drag-header" role="group" aria-label="Field Map card">
+                <span className="ddb-map-container__drag-title">
+                  <i className="fa-solid fa-map-pin" aria-hidden /> Field Map
+                </span>
+              </div>
+            ) : null}
             <div ref={mapElRef} className="ddb-map-inner" />
             <div className="ddb-map-tools">
               <button type="button" className="ddb-btn" onClick={() => mapRef.current?.zoomIn()}>
@@ -2354,8 +2662,7 @@ export default function DevelopDashboard() {
               </div>
             ) : null}
           </div>
-          <div className="ddb-visuals">
-            <div ref={chartsHostRef} id="develop-dashboard-charts" />
+          <div ref={chartsHostRef} className="ddb-charts-host" id="develop-dashboard-charts" />
           </div>
         </div>
 
@@ -2400,7 +2707,8 @@ export default function DevelopDashboard() {
               {rightSheet === 'visualizations' ? (
                 <div className="ddb-right-sheet-body">
                   <p className="ddb-right-sheet-lead">
-                    Multi-select chart types. Hover an icon for its name, then generate below.
+                    Multi-select chart types. Hover an icon for its name, then generate below. Field Map moves the map
+                    into the same canvas as generated visuals (drag header and resize handle).
                   </p>
                   <div className="ddb-powerbi-grid ddb-powerbi-grid--in-right-sheet" role="group" aria-label="Visualization types">
                     {CHART_TOOLS.map(t => (

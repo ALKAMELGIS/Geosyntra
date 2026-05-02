@@ -1221,21 +1221,144 @@
   color: #2c6e49;
 }
 
+.develop-dashboard-root .ddb-canvas-workspace {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  background: #fff;
+  border-radius: 28px;
+  padding: 18px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.04);
+  overflow: hidden;
+  position: relative;
+}
+
+.develop-dashboard-root .ddb-canvas-workspace--field-map {
+  overflow: auto;
+}
+
+.develop-dashboard-root .ddb-canvas-workspace:not(.ddb-canvas-workspace--field-map) > .ddb-map-container {
+  flex: 0 0 38%;
+  min-height: 240px;
+}
+
+.develop-dashboard-root .ddb-charts-host {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+  position: relative;
+  display: block;
+}
+
 .develop-dashboard-root .ddb-map-container {
+  display: flex;
+  flex-direction: column;
   background: #cfdce5;
   border-radius: 28px;
   overflow: visible;
   box-shadow: 0 8px 20px rgba(0, 0, 0, 0.1);
   position: relative;
-  height: 38%;
-  min-height: 240px;
+  min-height: 0;
+}
+
+.develop-dashboard-root .ddb-map-container__drag-header {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  padding: 10px 14px;
+  background: linear-gradient(180deg, #f8fafc 0%, #eef2f6 100%);
+  border-bottom: 1px solid rgba(15, 23, 42, 0.08);
+  border-radius: 28px 28px 0 0;
+  cursor: grab;
+  user-select: none;
+}
+
+.develop-dashboard-root .ddb-map-container__drag-header:active {
+  cursor: grabbing;
+}
+
+.develop-dashboard-root .ddb-map-container__drag-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: var(--ddb-green-dark);
+}
+
+.develop-dashboard-root .ddb-map-container.ddb-map-container--canvas {
+  position: absolute;
+  z-index: 4;
+  margin: 0;
+  box-shadow: 0 8px 26px rgba(15, 23, 42, 0.12);
+}
+
+.develop-dashboard-root .ddb-map-container.ddb-map-container--canvas.ddb-map-container--dragging {
+  z-index: 90;
+  box-shadow: 0 20px 50px rgba(15, 23, 42, 0.16);
+  opacity: 0.98;
+}
+
+.develop-dashboard-root .ddb-map-container.ddb-map-container--canvas.ddb-map-container--resizing {
+  z-index: 90;
+}
+
+.develop-dashboard-root .ddb-map-container__canvas-resize {
+  position: absolute;
+  right: 8px;
+  bottom: 8px;
+  z-index: 1004;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: 1px solid rgba(226, 232, 240, 0.95);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.96);
+  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.08);
+  cursor: nwse-resize;
+  display: grid;
+  place-items: center;
+}
+
+.develop-dashboard-root .ddb-map-container__canvas-resize:hover {
+  background: rgba(232, 244, 236, 0.95);
+  border-color: rgba(44, 122, 74, 0.35);
+}
+
+.develop-dashboard-root .ddb-map-container__split-resize {
+  position: absolute;
+  right: 12px;
+  bottom: 62px;
+  z-index: 1004;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: 1px solid rgba(226, 232, 240, 0.95);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.96);
+  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.08);
+  cursor: ns-resize;
+  display: grid;
+  place-items: center;
+}
+
+.develop-dashboard-root .ddb-map-container__split-resize:hover {
+  background: rgba(232, 244, 236, 0.95);
+  border-color: rgba(44, 122, 74, 0.35);
 }
 
 .develop-dashboard-root .ddb-map-inner {
-  height: 100%;
+  flex: 1 1 auto;
+  min-height: 0;
   width: 100%;
   border-radius: 28px;
   overflow: hidden;
+}
+
+.develop-dashboard-root .ddb-map-container:has(.ddb-map-container__drag-header) .ddb-map-inner {
+  border-radius: 0 0 28px 28px;
 }
 
 .develop-dashboard-root .ddb-map-tools {
@@ -1604,18 +1727,6 @@
   font-weight: 700;
 }
 
-.develop-dashboard-root .ddb-visuals {
-  background: #fff;
-  border-radius: 28px;
-  padding: 18px;
-  overflow: auto;
-  flex: 1;
-  min-height: 0;
-  display: block;
-  position: relative;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.04);
-}
-
 .develop-dashboard-root .ddb-visual-card {
   background: #fefefe;
   border-radius: 24px;
@@ -1968,7 +2079,7 @@
   gap: 8px;
 }
 
-.develop-dashboard-root .ddb-visuals canvas {
+.develop-dashboard-root .ddb-charts-host canvas {
   max-height: 220px;
   width: 100%;
 }

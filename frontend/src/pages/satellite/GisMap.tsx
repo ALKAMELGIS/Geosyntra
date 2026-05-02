@@ -63,39 +63,13 @@ type TableDomainDisplayMode = 'description' | 'code'
 type TableSearchMode = 'description' | 'code' | 'both'
 type TableFilterOperator = 'contains' | 'equals' | 'not_equals' | 'empty' | 'not_empty'
 
-const MAPBOX_GLOBE_STYLE = 'mapbox://styles/mapbox/satellite-streets-v12'
 const GIS_BASEMAP_STORAGE_KEY = 'gis-map-default-basemap'
 
 const defaultGisBasemapId = (): BasemapType =>
   getMapboxAccessToken() ? DEFAULT_BASEMAP_ID : DEFAULT_BASEMAP_ID_NO_MAPBOX
 
-const GLOBE_MAPBOX_SATELLITE_IDS = new Set<BasemapType>([
-  'satellite',
-  'hybrid',
-  'google',
-  'mapbox-standard-satellite',
-  'mapbox-alkamelgis',
-  'google-earth',
-  'mapbox-hybrid',
-  'esri',
-  'esri-imagery-hybrid',
-])
-
-const GLOBE_TERRAIN_IDS = new Set<BasemapType>(['terrain', 'terrain-opentopo'])
 const DEFAULT_GIS_CENTER = { latitude: 2, longitude: 20 }
 const GLOBE_CAMERA_PADDING = { top: 0, right: 0, bottom: 136, left: 0 }
-const ESRI_GLOBE_STYLE: any = {
-  version: 8,
-  sources: {
-    esri: {
-      type: 'raster',
-      tiles: ['https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'],
-      tileSize: 256,
-      attribution: 'Tiles © Esri',
-    },
-  },
-  layers: [{ id: 'esri', type: 'raster', source: 'esri' }],
-}
 const OSM_GLOBE_STYLE: any = {
   version: 8,
   sources: {
@@ -567,10 +541,20 @@ export default function GisMap() {
 
   const orderedLayers = useMemo(() => [...layers].reverse(), [layers])
   const globeMapStyle = useMemo(() => {
-    if (GLOBE_MAPBOX_SATELLITE_IDS.has(selectedBasemap)) return MAPBOX_GLOBE_STYLE
-    if (GLOBE_TERRAIN_IDS.has(selectedBasemap)) return ESRI_GLOBE_STYLE
+    const token = (mapboxAccessToken || getMapboxAccessToken() || '').trim()
+    const cat = buildBasemapCatalog(token)
+    const entry =
+      catalogEntryById(cat, selectedBasemap) ??
+      catalogEntryById(cat, token ? DEFAULT_BASEMAP_ID : DEFAULT_BASEMAP_ID_NO_MAPBOX)
+    const st = entry?.mapboxStyle
+    if (typeof st === 'object' && st !== null && 'version' in (st as Record<string, unknown>)) {
+      return st
+    }
+    if (typeof st === 'string' && st.startsWith('mapbox://')) {
+      return st
+    }
     return OSM_GLOBE_STYLE
-  }, [selectedBasemap])
+  }, [selectedBasemap, mapboxAccessToken])
 
   useEffect(() => {
     try {

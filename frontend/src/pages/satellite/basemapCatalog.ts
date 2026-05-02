@@ -31,6 +31,11 @@ function esriTile(servicePath: string): string {
   return `${ESRI}/${servicePath}/MapServer/tile/{z}/{y}/{x}`
 }
 
+/** Mapbox GL raster sources need a single URL pattern; `{s}` (Leaflet subdomains) and `{r}` (Carto retina) are not expanded. */
+export function tileUrlForMapboxGl(url: string): string {
+  return url.replace(/\{s\}/gi, 'a').replace(/\{r\}/g, '')
+}
+
 export function rasterStyleFromTiles(layers: LeafletTileSpec[]): Record<string, unknown> {
   const sources: Record<string, unknown> = {}
   const mapLayers: unknown[] = []
@@ -38,7 +43,7 @@ export function rasterStyleFromTiles(layers: LeafletTileSpec[]): Record<string, 
     const sid = `r${i}`
     sources[sid] = {
       type: 'raster',
-      tiles: [L.url],
+      tiles: [tileUrlForMapboxGl(L.url)],
       tileSize: 256,
       attribution: L.attribution,
     }
