@@ -30,8 +30,7 @@ Agri Cloud is a monorepo containing a React/Vite frontend and an Express backend
 │  │  └─ services/
 │  ├─ tests/
 │  └─ docs/
-├─ .github/workflows/
-└─ index.html             # root entry gateway (redirects to app)
+└─ .github/workflows/
 ```
 
 ## Requirements
