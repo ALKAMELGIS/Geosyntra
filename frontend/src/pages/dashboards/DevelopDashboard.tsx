@@ -22,7 +22,7 @@ type CsvDataset = {
   origin: LayerOrigin
 }
 
-type RightPowerBiPanel = 'none' | 'filters' | 'visualizations' | 'data' | 'link'
+type RightPowerBiPanel = 'none' | 'filters' | 'visualizations' | 'buildVisual' | 'data' | 'link'
 
 type LayerState = {
   name: string
@@ -2918,9 +2918,11 @@ export default function DevelopDashboard() {
                     ? 'Filters'
                     : rightSheet === 'visualizations'
                       ? 'Visualizations'
-                      : rightSheet === 'data'
-                        ? 'Data'
-                        : 'Link Layers (Relation)'}
+                      : rightSheet === 'buildVisual'
+                        ? 'Build visual'
+                        : rightSheet === 'data'
+                          ? 'Data'
+                          : 'Link Layers (Relation)'}
                 </h2>
                 <button
                   type="button"
@@ -2988,9 +2990,106 @@ export default function DevelopDashboard() {
                       Clear canvas
                     </button>
                   </div>
-                  {vizBuildMode !== 'none' && layerKeys.length > 0 ? (
-                    <div className="ddb-vis-build-visual" aria-label="Build visual field wells">
-                      <div className="ddb-vis-build-visual__title">Build visual</div>
+                  {selectedCharts.has('customStatCard') && vizBuildMode !== 'none' && layerKeys.length > 0 ? (
+                    <div className="ddb-vis-stat-card" aria-label="Custom stat card configuration">
+                      <div className="ddb-vis-stat-card__icon-badge" aria-hidden>
+                        <i className="fa-solid fa-chart-column" />
+                      </div>
+                      <div className="ddb-vis-stat-card__row">
+                        <select
+                          className="ddb-select ddb-vis-stat-select"
+                          value={activeStatsLayer}
+                          onChange={e => setActiveStatsLayer(e.target.value)}
+                          disabled={!layerKeys.length}
+                          aria-label="Layer for stat card"
+                        >
+                          {layerKeys.length === 0 ? (
+                            <option value="">No layers</option>
+                          ) : null}
+                          {layerKeys.map(k => (
+                            <option key={k} value={k}>
+                              {layers[k].name}
+                            </option>
+                          ))}
+                        </select>
+                        <select
+                          className="ddb-select ddb-vis-stat-select"
+                          value={statsField}
+                          onChange={e => setStatsField(e.target.value)}
+                          disabled={!activeFields.length}
+                          aria-label="Numeric field"
+                        >
+                          {activeFields.length === 0 ? (
+                            <option value="">No fields</option>
+                          ) : null}
+                          {activeFields.map(f => (
+                            <option key={f} value={f}>
+                              {f}
+                            </option>
+                          ))}
+                        </select>
+                        <select className="ddb-select ddb-vis-stat-select" value={statsAgg} onChange={e => setStatsAgg(e.target.value)} aria-label="Aggregation">
+                          <option value="sum">Sum</option>
+                          <option value="avg">Average</option>
+                          <option value="count">Count</option>
+                          <option value="max">Max</option>
+                          <option value="min">Min</option>
+                        </select>
+                      </div>
+                      <button
+                        type="button"
+                        className="ddb-btn ddb-vis-stat-add"
+                        onClick={addStatCard}
+                        disabled={!activeStatsLayer || !statsField}
+                      >
+                        <span className="ddb-vis-stat-add__icon" aria-hidden>
+                          <i className="fa-solid fa-plus" />
+                        </span>
+                        Add Card
+                      </button>
+                    </div>
+                  ) : null}
+                  {statCards.length > 0 ? (
+                    <div className="ddb-vis-stat-saved" role="region" aria-label="Saved stat cards">
+                      <div className="ddb-vis-stat-saved-head">Your stat cards</div>
+                      <div className="ddb-stats-cards-container ddb-stats-cards-container--in-sheet">
+                        {statCards.map(c => (
+                          <div key={c.id} className="ddb-stat-card-custom">
+                            <button
+                              type="button"
+                              aria-label="Remove stat card"
+                              className="ddb-small-btn"
+                              style={{ float: 'left', fontSize: 11, padding: '4px 8px' }}
+                              onClick={() => setStatCards(prev => prev.filter(x => x.id !== c.id))}
+                            >
+                              <i className="fa-solid fa-trash" />
+                            </button>
+                            <div className="ddb-stat-number">{c.result.toFixed(2)}</div>
+                            <div className="ddb-stat-label">
+                              {c.agg} / {c.field}
+                            </div>
+                            <div style={{ fontSize: 9 }}>{c.layerName}</div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ) : null}
+                </div>
+              ) : null}
+              {rightSheet === 'buildVisual' ? (
+                <div className="ddb-right-sheet-body ddb-right-sheet-body--build-visual">
+                  {vizBuildMode === 'none' || layerKeys.length === 0 ? (
+                    <div className="ddb-build-visual-empty" role="status">
+                      <p className="ddb-build-visual-empty__title">No visual build context yet</p>
+                      <p className="ddb-build-visual-empty__text">
+                        {layerKeys.length === 0
+                          ? 'Add map layers from the Data panel first.'
+                          : 'Select one or more chart types in Charts, then return here to bind fields (data layer, axes, legend, tooltips).'}
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="ddb-vis-build-visual ddb-vis-build-visual--solo" aria-label="Build visual field wells">
+                      <p className="ddb-vis-build-visual__kicker">Build visual</p>
                       <label className="ddb-vis-bind-layer">
                         <span className="ddb-vis-bind-layer__label">Data layer</span>
                         <select
@@ -3171,91 +3270,7 @@ export default function DevelopDashboard() {
                         </>
                       )}
                     </div>
-                  ) : null}
-                  {selectedCharts.has('customStatCard') && vizBuildMode !== 'none' && layerKeys.length > 0 ? (
-                    <div className="ddb-vis-stat-card" aria-label="Custom stat card configuration">
-                      <div className="ddb-vis-stat-card__icon-badge" aria-hidden>
-                        <i className="fa-solid fa-chart-column" />
-                      </div>
-                      <div className="ddb-vis-stat-card__row">
-                        <select
-                          className="ddb-select ddb-vis-stat-select"
-                          value={activeStatsLayer}
-                          onChange={e => setActiveStatsLayer(e.target.value)}
-                          disabled={!layerKeys.length}
-                          aria-label="Layer for stat card"
-                        >
-                          {layerKeys.length === 0 ? (
-                            <option value="">No layers</option>
-                          ) : null}
-                          {layerKeys.map(k => (
-                            <option key={k} value={k}>
-                              {layers[k].name}
-                            </option>
-                          ))}
-                        </select>
-                        <select
-                          className="ddb-select ddb-vis-stat-select"
-                          value={statsField}
-                          onChange={e => setStatsField(e.target.value)}
-                          disabled={!activeFields.length}
-                          aria-label="Numeric field"
-                        >
-                          {activeFields.length === 0 ? (
-                            <option value="">No fields</option>
-                          ) : null}
-                          {activeFields.map(f => (
-                            <option key={f} value={f}>
-                              {f}
-                            </option>
-                          ))}
-                        </select>
-                        <select className="ddb-select ddb-vis-stat-select" value={statsAgg} onChange={e => setStatsAgg(e.target.value)} aria-label="Aggregation">
-                          <option value="sum">Sum</option>
-                          <option value="avg">Average</option>
-                          <option value="count">Count</option>
-                          <option value="max">Max</option>
-                          <option value="min">Min</option>
-                        </select>
-                      </div>
-                      <button
-                        type="button"
-                        className="ddb-btn ddb-vis-stat-add"
-                        onClick={addStatCard}
-                        disabled={!activeStatsLayer || !statsField}
-                      >
-                        <span className="ddb-vis-stat-add__icon" aria-hidden>
-                          <i className="fa-solid fa-plus" />
-                        </span>
-                        Add Card
-                      </button>
-                    </div>
-                  ) : null}
-                  {statCards.length > 0 ? (
-                    <div className="ddb-vis-stat-saved" role="region" aria-label="Saved stat cards">
-                      <div className="ddb-vis-stat-saved-head">Your stat cards</div>
-                      <div className="ddb-stats-cards-container ddb-stats-cards-container--in-sheet">
-                        {statCards.map(c => (
-                          <div key={c.id} className="ddb-stat-card-custom">
-                            <button
-                              type="button"
-                              aria-label="Remove stat card"
-                              className="ddb-small-btn"
-                              style={{ float: 'left', fontSize: 11, padding: '4px 8px' }}
-                              onClick={() => setStatCards(prev => prev.filter(x => x.id !== c.id))}
-                            >
-                              <i className="fa-solid fa-trash" />
-                            </button>
-                            <div className="ddb-stat-number">{c.result.toFixed(2)}</div>
-                            <div className="ddb-stat-label">
-                              {c.agg} / {c.field}
-                            </div>
-                            <div style={{ fontSize: 9 }}>{c.layerName}</div>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  ) : null}
+                  )}
                 </div>
               ) : null}
               {rightSheet === 'data' ? (
@@ -3512,6 +3527,18 @@ export default function DevelopDashboard() {
                 <i className="fa-solid fa-chart-column ddb-right-rail-icon" />
               </span>
               <span className="ddb-right-rail-label">Charts</span>
+            </button>
+            <button
+              type="button"
+              className={`ddb-right-rail-tab${rightSheet === 'buildVisual' ? ' is-active' : ''}`}
+              onClick={() => toggleRightSheet('buildVisual')}
+              title="Build visual — data layer and field wells"
+              aria-label="Build visual"
+            >
+              <span className="ddb-right-rail-icon-wrap" aria-hidden>
+                <i className="fa-solid fa-table-columns ddb-right-rail-icon" />
+              </span>
+              <span className="ddb-right-rail-label">Build</span>
             </button>
             <button
               type="button"
