@@ -88,6 +88,22 @@ function agroCloudBaseTrailingSlashRedirect(): Plugin {
   }
 }
 
+/** Unique per CI build so Pages index.html ETag changes and browsers/CDNs refetch the shell. */
+function pagesBuildStamp(): Plugin {
+  return {
+    name: 'agri-pages-build-stamp',
+    apply: 'build',
+    transformIndexHtml(html) {
+      if (html.includes('name="agro-pages-build"')) return html
+      const stamp = (process.env.GITHUB_SHA || '').trim() || `local-${Date.now()}`
+      return html.replace(
+        '<meta charset="UTF-8" />',
+        `<meta charset="UTF-8" />\n    <meta name="agro-pages-build" content="${stamp}" />`,
+      )
+    },
+  }
+}
+
 /** Production HTML: canonical URL for GitHub Pages (see appConfig.productionPublicUrl). */
 function productionCanonicalLink(): Plugin {
   const href = appConfig.productionPublicUrl
@@ -111,6 +127,7 @@ export default defineConfig({
   },
   plugins: [
     agroCloudBaseTrailingSlashRedirect(),
+    pagesBuildStamp(),
     productionCanonicalLink(),
     react(),
     ...(process.env.ENABLE_PWA === 'true'
