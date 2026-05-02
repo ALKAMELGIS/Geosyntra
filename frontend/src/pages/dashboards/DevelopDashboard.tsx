@@ -1563,7 +1563,7 @@ export default function DevelopDashboard() {
     const layer = layers[bindLayerKey]
     if (!layer?.data?.features?.length) {
       host.innerHTML =
-        '<div class="ddb-hint" style="padding:20px;">Select a data layer with features, then use <strong>Add visuals to canvas</strong> in Visualizations.</div>'
+        '<div class="ddb-hint" style="padding:20px;">Select a data layer with features, then use <strong>Add visuals to canvas</strong> (toolbar above the canvas or Visualizations panel).</div>'
       return
     }
     const features = layer.data.features
@@ -1590,7 +1590,7 @@ export default function DevelopDashboard() {
 
     if (!canvasVisualSlots.length) {
       host.innerHTML =
-        '<div class="ddb-hint" style="padding:20px;">Choose chart types in the grid, then click <strong>Add visuals to canvas</strong>. Each click appends another set of cards (same type can appear multiple times, like Power BI). Use <strong>Clear canvas</strong> to remove all.</div>'
+        '<div class="ddb-hint" style="padding:20px;">Choose chart types in the toolbar above, then click <strong>Add visuals to canvas</strong>. Each click appends another set of cards (same type can appear multiple times, like Power BI). Use <strong>Clear canvas</strong> to remove all.</div>'
       return
     }
 
@@ -2469,6 +2469,16 @@ export default function DevelopDashboard() {
     })
   }
 
+  const appendSelectedChartsToCanvas = useCallback(() => {
+    const toAdd = [...selectedCharts].filter(c => c !== 'fieldMap' && c !== 'filledMap' && c !== 'map')
+    if (!toAdd.length) return
+    setCanvasVisualSlots(prev => [...prev, ...toAdd.map(chart => ({ instanceId: newId(), chart }))])
+  }, [selectedCharts])
+
+  const clearCanvasVisuals = useCallback(() => {
+    setCanvasVisualSlots([])
+  }, [])
+
   const addStatCard = () => {
     if (!activeStatsLayer || !statsField) return
     const layer = layers[activeStatsLayer]
@@ -2509,16 +2519,49 @@ export default function DevelopDashboard() {
 
         <div className="ddb-dashboard-body">
         <div className="ddb-main">
+          <section className="ddb-main-visual-toolbar" aria-label="Chart types and canvas actions">
+            <div className="ddb-powerbi-grid ddb-powerbi-grid--in-main" role="group" aria-label="Visualization types">
+              {CHART_TOOLS.map(t => (
+                <button
+                  key={t.chart}
+                  type="button"
+                  className={`ddb-chart-tool-item${selectedCharts.has(t.chart) ? ' is-selected' : ''}`}
+                  title={t.label}
+                  aria-pressed={selectedCharts.has(t.chart)}
+                  onClick={() => toggleChartTool(t.chart)}
+                >
+                  <i className={t.icon} aria-hidden />
+                  <span className="ddb-chart-tool-label-sr">{t.label}</span>
+                </button>
+              ))}
+            </div>
+            <div className="ddb-main-visual-toolbar__actions">
+              <button type="button" className="ddb-btn ddb-right-sheet-primary" onClick={appendSelectedChartsToCanvas}>
+                <i className="fa-solid fa-plus" aria-hidden /> Add visuals to canvas
+              </button>
+              <button
+                type="button"
+                className="ddb-btn ddb-right-sheet-secondary"
+                onClick={clearCanvasVisuals}
+                disabled={canvasVisualSlots.length === 0}
+              >
+                Clear canvas
+              </button>
+            </div>
+          </section>
           <div
             ref={canvasWorkspaceRef}
-            className={`ddb-canvas-workspace${mapInCanvasVisualMode ? ' ddb-canvas-workspace--field-map' : ''}`}
+            className={`ddb-canvas-workspace${mapInCanvasVisualMode ? ' ddb-canvas-workspace--field-map' : ' ddb-canvas-workspace--map-hidden'}`}
             aria-label={
-              mapInCanvasVisualMode ? 'Visuals canvas with map (Field or Filled map)' : 'Dashboard map and visuals'
+              mapInCanvasVisualMode
+                ? 'Visuals canvas with map (Field or Filled map)'
+                : 'Visuals canvas — live map hidden until Map, Field Map, or Filled Map is selected in Visualizations'
             }
           >
           <div
             ref={mapContainerRef}
             className={`ddb-map-container${mapInCanvasVisualMode ? ' ddb-map-container--canvas' : ''}`}
+            aria-hidden={!mapInCanvasVisualMode}
           >
             {mapCanvasCardPresentation ? (
               <div
@@ -2937,11 +2980,6 @@ export default function DevelopDashboard() {
               ) : null}
               {rightSheet === 'visualizations' ? (
                 <div className="ddb-right-sheet-body">
-                  <p className="ddb-right-sheet-lead">
-                    Multi-select chart types (hover for name). Click <strong>Add visuals to canvas</strong> to place the
-                    current selection; click again to append more cards, including duplicates of the same type (Power
-                    BI style). Field Map and Filled Map move the live map into the canvas (drag header, resize handle).
-                  </p>
                   <div className="ddb-powerbi-grid ddb-powerbi-grid--in-right-sheet" role="group" aria-label="Visualization types">
                     {CHART_TOOLS.map(t => (
                       <button
@@ -3201,21 +3239,13 @@ export default function DevelopDashboard() {
                     </div>
                   ) : null}
                   <div className="ddb-vis-add-actions">
-                    <button
-                      type="button"
-                      className="ddb-btn ddb-right-sheet-primary"
-                      onClick={() => {
-                        const toAdd = [...selectedCharts].filter(c => c !== 'fieldMap' && c !== 'filledMap' && c !== 'map')
-                        if (!toAdd.length) return
-                        setCanvasVisualSlots(prev => [...prev, ...toAdd.map(chart => ({ instanceId: newId(), chart }))])
-                      }}
-                    >
+                    <button type="button" className="ddb-btn ddb-right-sheet-primary" onClick={appendSelectedChartsToCanvas}>
                       <i className="fa-solid fa-plus" aria-hidden /> Add visuals to canvas
                     </button>
                     <button
                       type="button"
                       className="ddb-btn ddb-right-sheet-secondary"
-                      onClick={() => setCanvasVisualSlots([])}
+                      onClick={clearCanvasVisuals}
                       disabled={canvasVisualSlots.length === 0}
                     >
                       Clear canvas

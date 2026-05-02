@@ -469,14 +469,15 @@
 
 .develop-dashboard-root .ddb-powerbi-grid {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 10px;
-  margin: 12px 0 8px;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 6px;
+  margin: 10px 0 6px;
   max-height: 340px;
+  overflow-x: hidden;
   overflow-y: auto;
-  padding: 10px;
+  padding: 8px;
   background: linear-gradient(180deg, #fbfcfe 0%, #f4f8fb 100%);
-  border-radius: 20px;
+  border-radius: 16px;
   border: 1px solid rgba(226, 237, 240, 0.95);
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.8);
 }
@@ -644,9 +645,9 @@
 
 .develop-dashboard-root .ddb-chart-tool-item {
   background: #fff;
-  border-radius: 16px;
-  padding: 14px 10px;
-  min-height: 56px;
+  border-radius: 11px;
+  padding: 5px 2px;
+  min-height: 36px;
   text-align: center;
   cursor: pointer;
   transition:
@@ -660,18 +661,19 @@
   align-items: center;
   justify-content: center;
   gap: 0;
-  box-shadow: 0 2px 8px rgba(27, 77, 43, 0.04);
+  box-shadow: 0 1px 4px rgba(27, 77, 43, 0.05);
   position: relative;
 }
 
 .develop-dashboard-root .ddb-chart-tool-item:hover {
-  transform: translateY(-2px);
+  transform: translateY(-1px);
   border-color: rgba(60, 172, 110, 0.28);
-  box-shadow: 0 8px 20px rgba(31, 94, 58, 0.1);
+  box-shadow: 0 4px 12px rgba(31, 94, 58, 0.09);
 }
 
 .develop-dashboard-root .ddb-chart-tool-item i {
-  font-size: 1.4rem;
+  font-size: 1rem;
+  line-height: 1;
   color: var(--ddb-green);
 }
 
@@ -708,6 +710,36 @@
   height: 100%;
   min-height: 0;
   overflow: hidden;
+}
+
+.develop-dashboard-root .ddb-main > .ddb-canvas-workspace {
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.develop-dashboard-root .ddb-main-visual-toolbar {
+  flex: 0 0 auto;
+  background: #fff;
+  border-radius: 20px;
+  padding: 12px 14px 14px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.04);
+  border: 1px solid rgba(226, 232, 240, 0.9);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-height: 0;
+}
+
+.develop-dashboard-root .ddb-main-visual-toolbar__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+}
+
+.develop-dashboard-root .ddb-powerbi-grid--in-main {
+  margin: 4px 0 4px;
+  max-height: min(26vh, 240px);
 }
 
 /* Power BI–style right rail: Filters | Visualizations | Data | Link */
@@ -1422,6 +1454,16 @@
 .develop-dashboard-root .ddb-canvas-workspace:not(.ddb-canvas-workspace--field-map) > .ddb-map-container {
   flex: 0 0 38%;
   min-height: 240px;
+}
+
+/* Default: no Map / Field Map / Filled Map selected — hide Leaflet card; user turns it on from Visualizations icons. */
+.develop-dashboard-root .ddb-canvas-workspace--map-hidden > .ddb-map-container {
+  display: none !important;
+}
+
+.develop-dashboard-root .ddb-canvas-workspace--map-hidden > .ddb-charts-host {
+  flex: 1 1 auto;
+  min-height: 0;
 }
 
 .develop-dashboard-root .ddb-charts-host {
