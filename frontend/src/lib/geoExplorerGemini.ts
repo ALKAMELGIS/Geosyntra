@@ -67,22 +67,38 @@ export function messagesToGeminiContents(messages: GeoExplorerMessage[]): Gemini
   }));
 }
 
-/** Prefer 1.5-flash first: many API keys have no free-tier quota on gemini-2.0-flash (limit 0). */
+/**
+ * Prefer 2.5 / 1.5 Flash — do not use gemini-2.0-flash here: many keys show free-tier quota limit 0 for that model.
+ */
 const GEMINI_MODEL_CANDIDATES = [
+  'gemini-2.5-flash',
+  'gemini-2.5-flash-lite',
   'gemini-1.5-flash',
   'gemini-1.5-flash-8b',
   'gemini-1.5-flash-latest',
-  'gemini-2.0-flash',
 ] as const;
+
+function isNonRetryableGeminiAuthError(message: string): boolean {
+  const m = message.toLowerCase();
+  return (
+    m.includes('api key not valid') ||
+    m.includes('invalid api key') ||
+    m.includes('invalid argument') && m.includes('key')
+  );
+}
 
 function shouldTryNextGeminiModel(status: number, message: string): boolean {
   const m = message.toLowerCase();
   return (
     status === 404 ||
     status === 400 ||
+    status === 403 ||
     status === 429 ||
     status === 503 ||
     m.includes('quota') ||
+    m.includes('exceeded') ||
+    m.includes('billing') ||
+    m.includes('limit: 0') ||
     m.includes('resource_exhausted') ||
     m.includes('resource exhausted') ||
     m.includes('rate limit') ||
@@ -90,7 +106,9 @@ function shouldTryNextGeminiModel(status: number, message: string): boolean {
     m.includes('overloaded') ||
     m.includes('not found') ||
     m.includes('is not found') ||
-    m.includes('not supported')
+    m.includes('not supported') ||
+    m.includes('permission_denied') ||
+    m.includes('permission denied')
   );
 }
 
@@ -115,6 +133,7 @@ export async function geminiGenerateContent(params: {
     const data = (await res.json().catch(() => ({}))) as any;
     if (!res.ok) {
       lastErr = data?.error?.message || res.statusText || `HTTP ${res.status}`;
+      if (isNonRetryableGeminiAuthError(String(lastErr))) throw new Error(lastErr);
       if (shouldTryNextGeminiModel(res.status, String(lastErr))) continue;
       throw new Error(lastErr);
     }
@@ -130,5 +149,9 @@ export async function geminiGenerateContent(params: {
     return text;
   }
 
-  throw new Error(lastErr);
+  const hint =
+    /quota|exceeded|rate|billing|limit:\s*0/i.test(lastErr)
+      ? ' Enable billing in Google AI Studio / Cloud console, or wait and retry; free-tier limits vary by model.'
+      : '';
+  throw new Error(`${lastErr}${hint}`);
 }

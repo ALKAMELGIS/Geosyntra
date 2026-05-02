@@ -5776,6 +5776,17 @@ input.si-explore-date-input-linked[type='date'] {
   overflow: hidden;
 }
 
+.si-env-panel--explore-stac .si-env-panel-body > .si-geo-explorer-root.si-geo-explorer-root--dual {
+  gap: 12px;
+  overflow-y: auto;
+}
+
+.si-geo-explorer-root--dual .si-geo-explorer {
+  flex: 1 1 40%;
+  min-height: 200px;
+  max-height: min(48vh, 480px);
+}
+
 .si-geo-explorer-root .si-geo-explorer {
   flex: 1 1 auto;
   min-height: 0;

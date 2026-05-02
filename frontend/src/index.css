@@ -2926,15 +2926,6 @@ aside {
   border-radius: 0 0 20px 20px;
 }
 
-.gis-sidebar-collapsed-count {
-  padding: 12px 6px;
-  text-align: center;
-  font-size: 11px;
-  font-weight: 800;
-  font-variant-numeric: tabular-nums;
-  color: var(--ds-color-text-muted);
-}
-
 @media (min-width: 901px) {
   .gis-map-page.gis-map-page--layers-collapsed {
     grid-template-columns: 56px minmax(0, 1fr);
@@ -8117,8 +8108,13 @@ html[data-theme='dark'] .gis-domain-cell--dropdown.missing-description .gis-doma
   margin-bottom: -8px;
 }
 
-/* Collapsed rail: compact “layer stack” affordance (replaces dashed hint box) */
+/* Collapsed rail: compact “layer stack” affordance (replaces dashed hint box).
+   Default theme tokens so GIS Map (no .gis-content-page) still shows icons/colors. */
 .gis-sidebar-collapsed-layers {
+  --gis-green: #047857;
+  --gis-green-dark: #064e3b;
+  --gis-ink: #0f172a;
+  --gis-muted: #64748b;
   width: 100%;
   margin: 0;
   padding: 12px 8px 14px;

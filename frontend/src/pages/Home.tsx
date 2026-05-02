@@ -31,6 +31,8 @@ const menuItems: MenuItem[] = [
       { label: { en: 'Develop Dashboard', ar: 'تطوير لوحة التحكم' }, icon: 'fa-solid fa-grip', to: '/dashboard/develop' },
       { label: { en: 'Design & Publish', ar: 'التصميم والنشر' }, icon: 'fa-solid fa-palette', to: '/dashboard/design' },
       { label: { en: 'Agro Cloud Dashboard', ar: 'لوحة Agro Cloud' }, icon: 'fa-solid fa-chart-pie', to: '/dashboards/agro-cloud' },
+      { label: { en: 'AI AgroCloud', ar: 'سحابة Agro الذكية' }, icon: 'fa-solid fa-cloud-bolt', to: '/dashboards/ai-agro-cloud' },
+      { label: { en: 'AI Agro-Chat', ar: 'محادثة Agro الذكية' }, icon: 'fa-solid fa-comments', to: '/dashboards/ai-agro-chat' },
     ]
   },
   {
@@ -69,6 +71,13 @@ const menuItems: MenuItem[] = [
       { label: { en: 'Camera', ar: 'الكاميرا' }, icon: 'fa-solid fa-camera', to: '/sensors/camera' },
       { label: { en: 'GPS Vehicle Tracking', ar: 'تتبع مركبات GPS' }, icon: 'fa-solid fa-route', to: '/sensors/gps' },
     ]
+  },
+  {
+    id: 'ai-agro-cloud-home',
+    label: { en: 'AI AgroCloud', ar: 'سحابة Agro الذكية' },
+    icon: 'fa-solid fa-cloud-bolt',
+    color: '#059669',
+    to: '/dashboards/ai-agro-cloud',
   },
   {
     id: 'camera-direct',

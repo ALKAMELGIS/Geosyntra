@@ -10,6 +10,8 @@ export type NavTranslationKey =
   | 'developDashboard'
   | 'designDashboard'
   | 'agroCloudDashboard'
+  | 'aiAgroCloud'
+  | 'aiAgroChat'
   | 'satelliteImagery'
   | 'satelliteIntelligence'
   | 'gisMap'
@@ -86,6 +88,20 @@ export const NAV_DEFAULT_GROUPS: NavGroupDef[] = [
         i18nKey: 'agroCloudDashboard',
         defaultIcon: 'fa-solid fa-chart-pie',
         subitemClass: 'nav-item-dashboard-agro',
+      },
+      {
+        id: 'dashboard-ai-agro-cloud',
+        path: '/dashboards/ai-agro-cloud',
+        i18nKey: 'aiAgroCloud',
+        defaultIcon: 'fa-solid fa-cloud-bolt',
+        subitemClass: 'nav-item-dashboard-ai-agro',
+      },
+      {
+        id: 'dashboard-ai-agro-chat',
+        path: '/dashboards/ai-agro-chat',
+        i18nKey: 'aiAgroChat',
+        defaultIcon: 'fa-solid fa-comments',
+        subitemClass: 'nav-item-dashboard-ai-chat',
       },
     ],
   },

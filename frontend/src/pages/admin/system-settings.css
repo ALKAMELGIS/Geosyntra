@@ -159,6 +159,49 @@ html[data-theme='dark'] .sys-settings-tab:hover:not(.sys-settings-tab--active) {
   }
 }
 
+/* API Tokens — two-column card grid */
+.sys-api-tokens-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 18px 22px;
+  margin-top: 4px;
+}
+
+.sys-api-tokens-card {
+  padding: 18px 18px 16px;
+  border-radius: var(--sys-radius-lg);
+  border: 1px solid var(--sys-border);
+  background: color-mix(in srgb, var(--ds-color-surface) 97%, var(--ds-color-bg));
+  box-shadow:
+    0 1px 0 color-mix(in srgb, #fff 70%, transparent) inset,
+    0 8px 24px color-mix(in srgb, var(--ds-color-text) 5%, transparent);
+  min-width: 0;
+}
+
+.sys-api-tokens-card--wide {
+  grid-column: 1 / -1;
+}
+
+@media (max-width: 900px) {
+  .sys-api-tokens-grid {
+    grid-template-columns: 1fr;
+    gap: 16px;
+  }
+
+  .sys-api-tokens-card--wide {
+    grid-column: 1;
+  }
+}
+
+.sys-api-tokens-card .sys-settings-api-h3 {
+  margin-top: 0;
+}
+
+.sys-api-tokens-card .sys-api-token-row,
+.sys-api-tokens-card .sys-api-token-merge {
+  max-width: none;
+}
+
 /* API Tokens — input + icon actions on one row */
 .sys-settings-api-h3 {
   font-size: 1.05rem;

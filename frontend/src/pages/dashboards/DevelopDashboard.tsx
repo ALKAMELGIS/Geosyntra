@@ -3,6 +3,7 @@ import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
 import Chart from 'chart.js/auto'
 import { loadGisMapSavedLayers } from '../../lib/gisMapLayerStore'
+import { DEVELOP_DATA_CONTEXT_LS_KEY } from '../../lib/geoAiChatClaude'
 import type { LayerData } from '../satellite/components/LayerManager'
 import { parseFile, parseRemoteUrlAsFile } from '../../utils/FileLoader'
 import './develop-dashboard.css'
@@ -108,7 +109,7 @@ function newId() {
 
 type AddGisLayerTab = 'arcgis' | 'database' | 'upload' | 'url'
 
-type AddSourceWizard = 'home' | 'gis-list' | 'tabs'
+type AddSourceWizard = 'home' | 'get-data' | 'gis-list' | 'tabs'
 
 const GET_DATA_COMMON_SOURCES: Array<{
   id: string
@@ -237,7 +238,6 @@ export default function DevelopDashboard() {
   const [gisContentLayers, setGisContentLayers] = useState<LayerData[]>([])
   const [gisContentLoading, setGisContentLoading] = useState(false)
   const [getDataNotice, setGetDataNotice] = useState<string | null>(null)
-  const [homeGetDataOpen, setHomeGetDataOpen] = useState(false)
   const [addTab, setAddTab] = useState<AddGisLayerTab>('arcgis')
   const [serviceUrl, setServiceUrl] = useState('')
   const [arcgisToken, setArcgisToken] = useState('')
@@ -310,6 +310,40 @@ export default function DevelopDashboard() {
       return next
     })
   }, [layerKeys])
+
+  /** Snapshot for Satellite Intelligence → Geo AI Chat (Claude); no full row payloads. */
+  useEffect(() => {
+    try {
+      const snapshot = {
+        updatedAt: new Date().toISOString(),
+        layers: layerKeys.map(key => {
+          const L = layers[key]
+          const fc = L?.data
+          const nFeat = Array.isArray(fc?.features) ? fc.features.length : 0
+          return {
+            key,
+            name: L?.name,
+            type: L?.type,
+            origin: L?.origin,
+            url: typeof L?.url === 'string' ? L.url.slice(0, 800) : '',
+            fields: L?.fields ?? [],
+            featureCount: nFeat,
+            visible: L?.visible,
+          }
+        }),
+        csvTables: csvDatasets.map(ds => ({
+          id: ds.id,
+          name: ds.name,
+          origin: ds.origin,
+          columns: ds.columns,
+          rowCount: ds.rows.length,
+        })),
+      }
+      localStorage.setItem(DEVELOP_DATA_CONTEXT_LS_KEY, JSON.stringify(snapshot))
+    } catch {
+      /* ignore quota / private mode */
+    }
+  }, [layerKeys, layers, csvDatasets])
 
   useEffect(() => {
     const el = mapElRef.current
@@ -662,7 +696,6 @@ export default function DevelopDashboard() {
     setUploadFile(null)
     setRemoteDataUrl('')
     setGetDataNotice(null)
-    setHomeGetDataOpen(false)
   }, [])
 
   const openAddGisModal = useCallback(() => {
@@ -683,7 +716,6 @@ export default function DevelopDashboard() {
   const goAddWizardHome = useCallback(() => {
     setDiscoverError(null)
     setGetDataNotice(null)
-    setHomeGetDataOpen(false)
     setAddWizard('home')
   }, [])
 
@@ -708,19 +740,16 @@ export default function DevelopDashboard() {
     setDiscoverError(null)
     setGetDataNotice(null)
     if (id === 'excel' || id === 'textcsv') {
-      setHomeGetDataOpen(false)
       setAddWizard('tabs')
       setAddTab('upload')
       return
     }
     if (id === 'web' || id === 'odata') {
-      setHomeGetDataOpen(false)
       setAddWizard('tabs')
       setAddTab('url')
       return
     }
     if (id === 'sql' || id === 'analysis') {
-      setHomeGetDataOpen(false)
       setAddWizard('tabs')
       setAddTab('database')
       return
@@ -1029,12 +1058,15 @@ export default function DevelopDashboard() {
                 <button
                   type="button"
                   className="ddb-sidebar-rail-panel-btn"
-                  title="Data — Layer Registry"
-                  aria-label="Data, Layer Registry"
-                  onClick={() => expandToPanel('ddb-sidebar-panel-layers')}
+                  title="Data — map layers & fields"
+                  aria-label="Open Data panel"
+                  onClick={() => {
+                    setSidebarCollapsed(false)
+                    setRightSheet('data')
+                  }}
                 >
                   <span className="ddb-sidebar-rail-panel-icon">
-                    <i className="fa-solid fa-layer-group" aria-hidden />
+                    <i className="fa-solid fa-database" aria-hidden />
                   </span>
                 </button>
                 <button
@@ -1062,9 +1094,12 @@ export default function DevelopDashboard() {
                 <button
                   type="button"
                   className="ddb-sidebar-rail-panel-btn"
-                  title="Power BI tools"
-                  aria-label="Power BI Static Tools"
-                  onClick={() => expandToPanel('ddb-sidebar-panel-visuals')}
+                  title="Chart types — opens Visualizations panel"
+                  aria-label="Open Visualizations panel for chart types"
+                  onClick={() => {
+                    setSidebarCollapsed(false)
+                    setRightSheet('visualizations')
+                  }}
                 >
                   <span className="ddb-sidebar-rail-panel-icon">
                     <i className="fa-solid fa-table-cells" aria-hidden />
@@ -1087,52 +1122,6 @@ export default function DevelopDashboard() {
               </button>
           </div>
           <div id="ddb-sidebar-panels" className="ddb-sidebar-panels">
-          <div id="ddb-sidebar-panel-layers" className="ddb-panel-section">
-            <div className="ddb-layer-registry-head">
-              <div
-                className="ddb-section-title"
-                data-tooltip="Layer Registry"
-                role="group"
-                aria-label="Layer Registry"
-                tabIndex={0}
-              >
-                <i className="fa-solid fa-layer-group" aria-hidden />
-                <span className="ddb-section-title-sr">Layer Registry</span>
-              </div>
-              <button
-                type="button"
-                className="ddb-add-source-icon-btn"
-                data-tooltip="Add Source Data"
-                title="Add Source Data"
-                onClick={openAddGisModal}
-              >
-                <span className="ddb-add-source-icon-btn__glow" aria-hidden />
-                <i className="fa-solid fa-circle-plus" aria-hidden />
-                <span className="ddb-section-title-sr">Add Source Data</span>
-              </button>
-            </div>
-            <div className="ddb-panel-body">
-            <div className="ddb-layers-scroll">
-              {sampleLayerKeys.length > 0 ? (
-                <div className="ddb-layer-group">
-                  <div className="ddb-layer-group-label">Sample data</div>
-                  {sampleLayerKeys.map(key => (
-                    <div key={key}>{renderLayerCard(key)}</div>
-                  ))}
-                </div>
-              ) : null}
-              {userLayerKeys.length > 0 ? (
-                <div className="ddb-layer-group">
-                  <div className="ddb-layer-group-label">Your layers</div>
-                  {userLayerKeys.map(key => (
-                    <div key={key}>{renderLayerCard(key)}</div>
-                  ))}
-                </div>
-              ) : null}
-            </div>
-            </div>
-          </div>
-
           <div id="ddb-sidebar-panel-stats" className="ddb-panel-section">
             <div
               className="ddb-section-title"
@@ -1253,40 +1242,6 @@ export default function DevelopDashboard() {
             {linkStatus ? <div className="ddb-hint" style={{ color: '#2c6e49' }}>{linkStatus}</div> : null}
             </div>
           </div>
-
-          <div id="ddb-sidebar-panel-visuals" className="ddb-panel-section">
-            <div
-              className="ddb-section-title"
-              data-tooltip="Power BI Static Tools (Multi-Select)"
-              role="group"
-              aria-label="Power BI Static Tools (Multi-Select)"
-              tabIndex={0}
-            >
-              <i className="fa-brands fa-microsoft" aria-hidden />
-              <span className="ddb-section-title-sr">Power BI Static Tools (Multi-Select)</span>
-            </div>
-            <div className="ddb-panel-body">
-            <div className="ddb-powerbi-grid">
-              {CHART_TOOLS.map(t => (
-                <button
-                  key={t.chart}
-                  type="button"
-                  className={`ddb-chart-tool-item${selectedCharts.has(t.chart) ? ' is-selected' : ''}`}
-                  title={t.label}
-                  aria-pressed={selectedCharts.has(t.chart)}
-                  onClick={() => toggleChartTool(t.chart)}
-                >
-                  <i className={t.icon} aria-hidden />
-                  <span className="ddb-chart-tool-label-sr">{t.label}</span>
-                </button>
-              ))}
-            </div>
-            <button type="button" className="ddb-btn" style={{ width: '100%', marginTop: 12 }} onClick={() => setChartGen(g => g + 1)}>
-              <i className="fa-solid fa-rotate" aria-hidden /> Generate Selected Visuals
-            </button>
-            <div className="ddb-hint">Hover an icon for its name. Click to select or deselect, then generate.</div>
-            </div>
-          </div>
           </div>
             </>
           )}
@@ -1346,17 +1301,21 @@ export default function DevelopDashboard() {
               ) : null}
               {rightSheet === 'visualizations' ? (
                 <div className="ddb-right-sheet-body">
-                  <p className="ddb-right-sheet-lead">Pick visuals (same as left pane). Multi-select then generate in the main area.</p>
-                  <div className="ddb-right-viz-grid">
-                    {CHART_TOOLS.slice(0, 16).map(t => (
+                  <p className="ddb-right-sheet-lead">
+                    Multi-select chart types (same grid as the former sidebar tools). Hover an icon for its name, then generate below.
+                  </p>
+                  <div className="ddb-powerbi-grid ddb-powerbi-grid--in-right-sheet" role="group" aria-label="Visualization types">
+                    {CHART_TOOLS.map(t => (
                       <button
                         key={t.chart}
                         type="button"
-                        className={`ddb-right-viz-chip${selectedCharts.has(t.chart) ? ' is-on' : ''}`}
+                        className={`ddb-chart-tool-item${selectedCharts.has(t.chart) ? ' is-selected' : ''}`}
                         title={t.label}
+                        aria-pressed={selectedCharts.has(t.chart)}
                         onClick={() => toggleChartTool(t.chart)}
                       >
                         <i className={t.icon} aria-hidden />
+                        <span className="ddb-chart-tool-label-sr">{t.label}</span>
                       </button>
                     ))}
                   </div>
@@ -1367,6 +1326,36 @@ export default function DevelopDashboard() {
               ) : null}
               {rightSheet === 'data' ? (
                 <div className="ddb-right-sheet-body ddb-data-pane">
+                  <section className="ddb-data-map-layers" aria-label="Map layers on dashboard">
+                    <div className="ddb-data-map-layers-head">
+                      <span className="ddb-data-map-layers-title">Map layers</span>
+                      <button type="button" className="ddb-data-add-source-btn" onClick={openAddGisModal} title="Add Source Data">
+                        <i className="fa-solid fa-circle-plus" aria-hidden />
+                        <span>Add source</span>
+                      </button>
+                    </div>
+                    <div className="ddb-data-map-layers-scroll">
+                      {sampleLayerKeys.length > 0 ? (
+                        <div className="ddb-layer-group">
+                          <div className="ddb-layer-group-label">Sample data</div>
+                          {sampleLayerKeys.map(key => (
+                            <div key={key}>{renderLayerCard(key)}</div>
+                          ))}
+                        </div>
+                      ) : null}
+                      {userLayerKeys.length > 0 ? (
+                        <div className="ddb-layer-group">
+                          <div className="ddb-layer-group-label">Your layers</div>
+                          {userLayerKeys.map(key => (
+                            <div key={key}>{renderLayerCard(key)}</div>
+                          ))}
+                        </div>
+                      ) : null}
+                      {sampleLayerKeys.length === 0 && userLayerKeys.length === 0 ? (
+                        <p className="ddb-data-map-layers-empty">No layers yet. Use Add source or open Visualizations after adding data.</p>
+                      ) : null}
+                    </div>
+                  </section>
                   <div className="ddb-data-search-wrap">
                     <i className="fa-solid fa-magnifying-glass" aria-hidden />
                     <input
@@ -1470,42 +1459,48 @@ export default function DevelopDashboard() {
                         )
                       })}
                     {layerKeys.length === 0 && csvDatasets.length === 0 ? (
-                      <p className="ddb-data-empty">Add layers from the left pane or upload a CSV (Text/CSV) via Add Source Data.</p>
+                      <p className="ddb-data-empty">Add a CSV table (Text/CSV) via Add source above, or add map layers first.</p>
                     ) : null}
                   </div>
                 </div>
               ) : null}
             </aside>
           ) : null}
-          <nav className="ddb-right-rail" aria-label="Collapsed panels">
+          <nav className="ddb-right-rail" aria-label="Power BI style panels">
             <button
               type="button"
               className={`ddb-right-rail-tab${rightSheet === 'filters' ? ' is-active' : ''}`}
               onClick={() => toggleRightSheet('filters')}
               title="Filters"
+              aria-label="Filters"
             >
-              <i className="fa-solid fa-angles-left ddb-right-rail-chev" aria-hidden />
-              <i className="fa-solid fa-filter ddb-right-rail-icon" aria-hidden />
+              <span className="ddb-right-rail-icon-wrap" aria-hidden>
+                <i className="fa-solid fa-filter ddb-right-rail-icon" />
+              </span>
               <span className="ddb-right-rail-label">Filters</span>
             </button>
             <button
               type="button"
               className={`ddb-right-rail-tab${rightSheet === 'visualizations' ? ' is-active' : ''}`}
               onClick={() => toggleRightSheet('visualizations')}
-              title="Visualizations"
+              title="Visualizations — chart types"
+              aria-label="Visualizations"
             >
-              <i className="fa-solid fa-angles-left ddb-right-rail-chev" aria-hidden />
-              <i className="fa-solid fa-chart-column ddb-right-rail-icon" aria-hidden />
-              <span className="ddb-right-rail-label">Visualizations</span>
+              <span className="ddb-right-rail-icon-wrap" aria-hidden>
+                <i className="fa-solid fa-chart-column ddb-right-rail-icon" />
+              </span>
+              <span className="ddb-right-rail-label">Charts</span>
             </button>
             <button
               type="button"
               className={`ddb-right-rail-tab${rightSheet === 'data' ? ' is-active' : ''}`}
               onClick={() => toggleRightSheet('data')}
               title="Data"
+              aria-label="Data"
             >
-              <i className="fa-solid fa-angles-left ddb-right-rail-chev" aria-hidden />
-              <i className="fa-solid fa-database ddb-right-rail-icon" aria-hidden />
+              <span className="ddb-right-rail-icon-wrap" aria-hidden>
+                <i className="fa-solid fa-database ddb-right-rail-icon" />
+              </span>
               <span className="ddb-right-rail-label">Data</span>
             </button>
           </nav>
@@ -1596,13 +1591,12 @@ export default function DevelopDashboard() {
                 </button>
                 <button
                   type="button"
-                  className={`ddb-source-option-card${homeGetDataOpen ? ' is-selected' : ''}`}
+                  className="ddb-source-option-card"
                   role="listitem"
-                  aria-expanded={homeGetDataOpen}
                   onClick={() => {
                     setDiscoverError(null)
                     setGetDataNotice(null)
-                    setHomeGetDataOpen(open => !open)
+                    setAddWizard('get-data')
                   }}
                 >
                   <span className="ddb-source-option-indicator" aria-hidden />
@@ -1618,80 +1612,77 @@ export default function DevelopDashboard() {
                   </div>
                 </button>
               </div>
-              {homeGetDataOpen ? (
-                <div className="ddb-get-data-flyout" role="region" aria-label="Get data — common sources">
-                  <div className="ddb-get-data-menu ddb-get-data-menu--flyout" role="navigation" aria-label="Common data sources">
-                    <div className="ddb-get-data-toolbar-mimic">
-                      <span className="ddb-get-data-toolbar-icon" aria-hidden>
-                        <i className="fa-solid fa-database" />
-                        <i className="fa-solid fa-table" />
-                      </span>
-                      <span className="ddb-get-data-toolbar-label">Get data</span>
-                      <i className="fa-solid fa-chevron-down ddb-get-data-toolbar-chev" aria-hidden />
-                    </div>
-                    <div className="ddb-get-data-section-title">Common data sources</div>
-                    <ul className="ddb-get-data-list">
-                      {GET_DATA_COMMON_SOURCES.map(row => (
-                        <li key={row.id}>
-                          <button type="button" className="ddb-get-data-row" onClick={() => pickGetDataSource(row.id)}>
-                            <span className="ddb-get-data-row-icon" style={row.iconColor ? { color: row.iconColor } : undefined}>
-                              <i className={row.icon} aria-hidden />
-                            </span>
-                            <span className="ddb-get-data-row-label">{row.label}</span>
-                          </button>
-                        </li>
-                      ))}
-                    </ul>
-                    <div className="ddb-get-data-divider" role="separator" />
-                    <button
-                      type="button"
-                      className="ddb-get-data-row ddb-get-data-row--footer"
-                      onClick={() =>
-                        setGetDataNotice(
-                          'Template Apps open in the Power BI service. Here, use the list above or GIS Map for curated agriculture layers.',
-                        )
-                      }
-                    >
-                      <span className="ddb-get-data-row-icon ddb-get-data-row-icon--muted">
-                        <i className="fa-solid fa-table-columns" aria-hidden />
-                      </span>
-                      <span className="ddb-get-data-row-label">Power BI Template Apps</span>
-                      <i className="fa-solid fa-arrow-up-right-from-square ddb-get-data-external" aria-hidden />
-                    </button>
-                    <div className="ddb-get-data-divider" role="separator" />
-                    <button
-                      type="button"
-                      className="ddb-get-data-more"
-                      onClick={() => {
-                        setDiscoverError(null)
-                        setGetDataNotice(null)
-                        setHomeGetDataOpen(false)
-                        setAddWizard('tabs')
-                        setAddTab('arcgis')
-                      }}
-                    >
-                      More…
-                    </button>
-                  </div>
-                </div>
-              ) : null}
-              {getDataNotice && addWizard === 'home' ? (
-                <div className="ddb-get-data-notice" role="status">
-                  <i className="fa-solid fa-circle-info" aria-hidden /> {getDataNotice}
-                </div>
-              ) : null}
               <button
                 type="button"
                 className="ddb-add-source-more"
                 onClick={() => {
                   setDiscoverError(null)
-                  setHomeGetDataOpen(false)
                   setAddWizard('tabs')
                   setAddTab('url')
                 }}
               >
                 <i className="fa-solid fa-ellipsis" aria-hidden /> Database, web URL &amp; advanced…
               </button>
+            </div>
+          ) : addWizard === 'get-data' ? (
+            <div className="ddb-add-source-get-data-page gis-modal-body" role="region" aria-label="Get data — common sources">
+              <div className="ddb-get-data-menu ddb-get-data-menu--page" role="navigation" aria-label="Common data sources">
+                <div className="ddb-get-data-toolbar-mimic">
+                  <span className="ddb-get-data-toolbar-icon" aria-hidden>
+                    <i className="fa-solid fa-database" />
+                    <i className="fa-solid fa-table" />
+                  </span>
+                  <span className="ddb-get-data-toolbar-label">Get data</span>
+                  <i className="fa-solid fa-chevron-down ddb-get-data-toolbar-chev" aria-hidden />
+                </div>
+                <div className="ddb-get-data-section-title">Common data sources</div>
+                <ul className="ddb-get-data-list">
+                  {GET_DATA_COMMON_SOURCES.map(row => (
+                    <li key={row.id}>
+                      <button type="button" className="ddb-get-data-row" onClick={() => pickGetDataSource(row.id)}>
+                        <span className="ddb-get-data-row-icon" style={row.iconColor ? { color: row.iconColor } : undefined}>
+                          <i className={row.icon} aria-hidden />
+                        </span>
+                        <span className="ddb-get-data-row-label">{row.label}</span>
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+                <div className="ddb-get-data-divider" role="separator" />
+                <button
+                  type="button"
+                  className="ddb-get-data-row ddb-get-data-row--footer"
+                  onClick={() =>
+                    setGetDataNotice(
+                      'Template Apps open in the Power BI service. Here, use the list above or GIS Map for curated agriculture layers.',
+                    )
+                  }
+                >
+                  <span className="ddb-get-data-row-icon ddb-get-data-row-icon--muted">
+                    <i className="fa-solid fa-table-columns" aria-hidden />
+                  </span>
+                  <span className="ddb-get-data-row-label">Power BI Template Apps</span>
+                  <i className="fa-solid fa-arrow-up-right-from-square ddb-get-data-external" aria-hidden />
+                </button>
+                <div className="ddb-get-data-divider" role="separator" />
+                <button
+                  type="button"
+                  className="ddb-get-data-more"
+                  onClick={() => {
+                    setDiscoverError(null)
+                    setGetDataNotice(null)
+                    setAddWizard('tabs')
+                    setAddTab('arcgis')
+                  }}
+                >
+                  More…
+                </button>
+              </div>
+              {getDataNotice ? (
+                <div className="ddb-get-data-notice" role="status">
+                  <i className="fa-solid fa-circle-info" aria-hidden /> {getDataNotice}
+                </div>
+              ) : null}
             </div>
           ) : addWizard === 'gis-list' ? (
             <div className="ddb-add-source-gis-list gis-modal-body">

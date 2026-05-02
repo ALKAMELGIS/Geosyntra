@@ -3139,7 +3139,11 @@ export default function GisMap() {
           </div>
 
           <div className="gis-sidebar-body">
-            <div className="gis-sidebar-body-main">
+            <div
+              className={['gis-sidebar-body-main', layersRailCollapsed ? 'gis-sidebar-body-main--collapsed-rail' : '']
+                .filter(Boolean)
+                .join(' ')}
+            >
             {isMobileDrawerViewport ? (
               <div className="gis-launcher-grid" role="navigation" aria-label="GIS Launcher">
                 <button type="button" className="gis-launcher-chip" onClick={() => openAddLayerModal()}>
@@ -3458,10 +3462,28 @@ export default function GisMap() {
               })}
             </div>
           ) : null}
-            {layersRailCollapsed && layers.length > 0 ? (
-              <div className="gis-sidebar-collapsed-count" aria-hidden>
-                {layers.length}
-              </div>
+            {layersRailCollapsed ? (
+              <button
+                type="button"
+                className="gis-sidebar-collapsed-layers"
+                onClick={() => setLayersPanelCollapsed(false)}
+                aria-label={`Expand to browse ${layers.length} layer${layers.length === 1 ? '' : 's'}`}
+                title="Expand layers list"
+              >
+                <span className="gis-sidebar-collapsed-layers__visual" aria-hidden>
+                  <span className="gis-sidebar-collapsed-layers__deck gis-sidebar-collapsed-layers__deck--back">
+                    <i className="fa-solid fa-square" />
+                  </span>
+                  <span className="gis-sidebar-collapsed-layers__deck gis-sidebar-collapsed-layers__deck--mid">
+                    <i className="fa-solid fa-square" />
+                  </span>
+                  <span className="gis-sidebar-collapsed-layers__deck gis-sidebar-collapsed-layers__deck--front">
+                    <i className="fa-solid fa-layer-group" />
+                  </span>
+                </span>
+                <span className="gis-sidebar-collapsed-layers__badge">{layers.length}</span>
+                <span className="gis-sidebar-collapsed-layers__caption">layers</span>
+              </button>
             ) : null}
             </div>
             {!isMobileDrawerViewport ? (
