@@ -88,6 +88,19 @@ function agroCloudBaseTrailingSlashRedirect(): Plugin {
   }
 }
 
+/** Production HTML: canonical URL for GitHub Pages (see appConfig.productionPublicUrl). */
+function productionCanonicalLink(): Plugin {
+  const href = appConfig.productionPublicUrl
+  return {
+    name: 'agri-production-canonical',
+    apply: 'build',
+    transformIndexHtml(html) {
+      if (html.includes('rel="canonical"')) return html
+      return html.replace('</head>', `    <link rel="canonical" href="${href}" />\n  </head>`)
+    },
+  }
+}
+
 export default defineConfig({
   base: appConfig.basePath,
   build: {
@@ -98,6 +111,7 @@ export default defineConfig({
   },
   plugins: [
     agroCloudBaseTrailingSlashRedirect(),
+    productionCanonicalLink(),
     react(),
     ...(process.env.ENABLE_PWA === 'true'
       ? [
