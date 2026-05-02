@@ -6,8 +6,8 @@ on:
   workflow_dispatch:
 
 # Pages must publish the Vite build (frontend/dist), not the repo root.
-# If Pages source is "Deploy from branch" at /, GitHub serves repo files; root index.html is then
-# a short setup notice (see repo index.html). For the real app: Settings → Pages → Source: GitHub Actions.
+# Repo root includes `.nojekyll` (disable Jekyll) + `index.html` (misconfiguration notice) so branch
+# publishing does not turn README.md into the site index. For the SPA: Settings → Pages → GitHub Actions.
 permissions:
   contents: read
   pages: write
