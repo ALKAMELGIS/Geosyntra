@@ -1590,7 +1590,7 @@ export default function DevelopDashboard() {
 
     if (!canvasVisualSlots.length) {
       host.innerHTML =
-        '<div class="ddb-hint" style="padding:20px;">Choose chart types in the grid above, then click <strong>Add visuals to canvas</strong> in Visualizations. Each click appends another set of cards (same type can appear multiple times, like Power BI). Use <strong>Clear canvas</strong> to remove all.</div>'
+        '<div class="ddb-hint" style="padding:20px;">Choose chart types in the Visualizations panel, then click <strong>Add visuals to canvas</strong>. Each click appends another set of cards (same type can appear multiple times, like Power BI). Use <strong>Clear canvas</strong> to remove all.</div>'
       return
     }
 
@@ -2519,21 +2519,6 @@ export default function DevelopDashboard() {
 
         <div className="ddb-dashboard-body">
         <div className="ddb-main">
-          <div className="ddb-powerbi-grid ddb-powerbi-grid--in-main" role="group" aria-label="Visualization types">
-            {CHART_TOOLS.map(t => (
-              <button
-                key={t.chart}
-                type="button"
-                className={`ddb-chart-tool-item${selectedCharts.has(t.chart) ? ' is-selected' : ''}`}
-                title={t.label}
-                aria-pressed={selectedCharts.has(t.chart)}
-                onClick={() => toggleChartTool(t.chart)}
-              >
-                <i className={t.icon} aria-hidden />
-                <span className="ddb-chart-tool-label-sr">{t.label}</span>
-              </button>
-            ))}
-          </div>
           <div
             ref={canvasWorkspaceRef}
             className={`ddb-canvas-workspace${mapInCanvasVisualMode ? ' ddb-canvas-workspace--field-map' : ' ddb-canvas-workspace--map-hidden'}`}
