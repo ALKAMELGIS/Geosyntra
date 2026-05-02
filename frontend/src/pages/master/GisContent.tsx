@@ -4,6 +4,7 @@ import {
   fetchImageServerMeta,
   getImageServerServiceRootFromUrl,
 } from '../../lib/arcgisImageServer'
+import { getArcgisPortalToken } from '../../lib/arcgisPortalToken'
 import { parseFile, parseRemoteUrlAsFile } from '../../utils/FileLoader'
 
 export default function GisContent() {
@@ -1205,7 +1206,7 @@ function GisContentPage() {
     try {
       const imageRoot = getImageServerServiceRootFromUrl(trimmed)
       if (imageRoot) {
-        const meta = await fetchImageServerMeta(imageRoot)
+        const meta = await fetchImageServerMeta(imageRoot, { token: getArcgisPortalToken() })
         const extentSource = meta.fullExtent ?? meta.extent
         const bbox = extentSource ? arcgisExtentToWgs84BBox(extentSource) : null
         const layerId = `url:esri-image:${newId()}`

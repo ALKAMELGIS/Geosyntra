@@ -97,7 +97,7 @@ const menuItems: MenuItem[] = [
   },
   {
     id: 'admin',
-    label: { en: 'Admin', ar: 'الإدارة' },
+    label: { en: 'Settings', ar: 'الإعدادات' },
     icon: 'fa-solid fa-user-shield',
     color: '#1E293B', // Dark
     items: [

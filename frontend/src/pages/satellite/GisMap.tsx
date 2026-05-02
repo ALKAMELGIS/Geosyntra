@@ -2894,7 +2894,7 @@ export default function GisMap() {
     try {
       const imageRoot = getImageServerServiceRootFromUrl(trimmed)
       if (imageRoot) {
-        const meta = await fetchImageServerMeta(imageRoot)
+        const meta = await fetchImageServerMeta(imageRoot, { token: getArcgisPortalToken() })
         const extentSource = meta.fullExtent ?? meta.extent
         const bbox = extentSource ? arcgisExtentToWgs84BBox(extentSource) : null
         const layerId = `url:esri-image:${newGisImportId()}`
@@ -3552,6 +3552,7 @@ export default function GisMap() {
               <EsriImageServerLayer
                 key={String(layer.id)}
                 serviceUrl={layer.url}
+                layerAuthToken={typeof layer.authToken === 'string' ? layer.authToken : undefined}
                 opacity={layer.opacity}
                 visible
                 zIndex={380 + layerStackIndex}

@@ -75,6 +75,12 @@ html[data-theme='dark'] .app-layout > .content.content--agro-cloud-dashboard {
   background-color: var(--ds-color-bg);
 }
 
+/* Develop Dashboard (/dashboard/develop): full-bleed toolkit shell */
+.app-layout > .content.content--develop-dashboard {
+  padding: 0;
+  overflow: hidden;
+}
+
 /* Full-width page canvas (no side gutters from max-width) */
 .app-layout > .content .page {
   padding: var(--content-pad);

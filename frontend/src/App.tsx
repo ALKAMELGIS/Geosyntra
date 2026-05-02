@@ -146,6 +146,7 @@ function AppShell() {
   const isOnLogin = location.pathname === '/login'
   const showChrome = !!user && !isOnLogin
   const isAgroCloudDashboard = location.pathname === '/dashboards/agro-cloud'
+  const isDevelopDashboard = location.pathname === '/dashboard/develop'
   /** Operations nav group: irrigation, EC/pH, harvest, QHIS, production, fertigation records */
   const isOperationsDataPage = location.pathname.startsWith('/data/')
   /** Soil / weather / irrigation / camera API integration pages */
@@ -153,6 +154,7 @@ function AppShell() {
   const mainContentClass = [
     'content',
     isAgroCloudDashboard && 'content--agro-cloud-dashboard',
+    isDevelopDashboard && 'content--develop-dashboard',
     isOperationsDataPage && 'content--operations-fit',
     isSensorsPage && 'content--sensors-fit',
   ]

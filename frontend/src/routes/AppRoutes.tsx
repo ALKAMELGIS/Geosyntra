@@ -7,6 +7,7 @@ import AgroCloudDashboard from '../pages/dashboards/AgroCloudDashboard'
 import Home from '../pages/Home'
 import Login from '../pages/Login'
 import DashboardOverview from '../pages/dashboards/Overview'
+import DevelopDashboard from '../pages/dashboards/DevelopDashboard'
 const SatelliteIntelligence = lazy(() => import('../pages/satellite/SatelliteIntelligence'))
 const SatelliteMultidimensional = lazy(() => import('../pages/satellite/Multidimensional'))
 const GisMap = lazy(() => import('../pages/satellite/GisMap'))
@@ -68,7 +69,7 @@ export default function AppRoutes() {
         <Route path="/admin/system-settings" element={<SystemSettings />} />
         <Route path="/style-guide" element={<StyleGuide />} />
         <Route path="/usability-test" element={<UsabilityTest />} />
-        <Route path="/dashboard/develop" element={<Navigate to="/dashboards/overview" replace />} />
+        <Route path="/dashboard/develop" element={<DevelopDashboard />} />
         <Route path="/dashboard/design" element={<Navigate to="/dashboards/plant-ai" replace />} />
         {settings.customPages
           .filter(p => p.visible && p.path.trim())

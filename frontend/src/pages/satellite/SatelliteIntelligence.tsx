@@ -28,6 +28,10 @@ import {
 import { useMapboxAccessToken } from '../../hooks/useMapboxAccessToken';
 import { getArcgisPortalToken } from '../../lib/arcgisPortalToken';
 import { getMapboxAccessToken } from '../../lib/mapboxAccessToken';
+import {
+  getSentinelHubWmsBaseUrl,
+  subscribeSentinelHubWmsInstance,
+} from '../../lib/sentinelHubWmsInstance';
 
 const MAPBOX_STANDARD_SATELLITE = 'mapbox://styles/mapbox/standard-satellite';
 const MAPBOX_ALKAMELGIS_STYLE = 'mapbox://styles/mapbox/satellite-v9';
@@ -92,8 +96,6 @@ const OPENTOPO_TERRAIN_STYLE: any = {
   },
   layers: [{ id: 'open-topo', type: 'raster', source: 'openTopo' }]
 };
-const WMS_INSTANCE_ID = '7b6554b7-76f2-483e-a06d-90053e49f462';
-const WMS_URL = `https://services.sentinel-hub.com/ogc/wms/${WMS_INSTANCE_ID}`;
 const PC_STAC_SEARCH_URL = 'https://planetarycomputer.microsoft.com/api/stac/v1/search';
 const STAC_CONNECTION_STORAGE_KEY = 'si-stac-connection-v1';
 
@@ -379,7 +381,14 @@ function resolveStacAssetHref(item: any, href: string): string {
   }
 }
 
-function buildPcPreviewPngUrl(collection: string, itemId: string, assets: string, assetBidx: string): string {
+function buildPcPreviewPngUrl(
+  collection: string,
+  itemId: string,
+  assets: string,
+  assetBidx: string,
+  width?: number,
+  height?: number,
+): string {
   const u = new URL('https://planetarycomputer.microsoft.com/api/data/v1/item/preview.png');
   u.searchParams.set('collection', collection);
   u.searchParams.set('item', itemId);
@@ -387,6 +396,10 @@ function buildPcPreviewPngUrl(collection: string, itemId: string, assets: string
   u.searchParams.set('asset_bidx', assetBidx);
   u.searchParams.set('nodata', '0');
   u.searchParams.set('format', 'png');
+  if (width && height) {
+    u.searchParams.set('width', String(Math.min(4096, Math.max(64, Math.floor(width)))));
+    u.searchParams.set('height', String(Math.min(4096, Math.max(64, Math.floor(height)))));
+  }
   return u.toString();
 }
 
@@ -399,7 +412,9 @@ function stacCatalogLooksLikePlanetaryComputer(config: StacConnectionConfig): bo
   }
 }
 
-function getStacItemThumbCandidateUrls(item: any, connection?: StacConnectionConfig): string[] {
+type StacThumbUrlOptions = { forMapOverlay?: boolean };
+
+function getStacItemThumbCandidateUrls(item: any, connection?: StacConnectionConfig, options?: StacThumbUrlOptions): string[] {
   const seen = new Set<string>();
   const out: string[] = [];
   const add = (raw: string) => {
@@ -408,6 +423,23 @@ function getStacItemThumbCandidateUrls(item: any, connection?: StacConnectionCon
     seen.add(t);
     out.push(t);
   };
+
+  const mapOv = Boolean(options?.forMapOverlay);
+  const usePcPreview = !connection || stacCatalogLooksLikePlanetaryComputer(connection);
+  const coll = getStacItemCollection(item);
+  const id = getStacItemIdForThumb(item);
+
+  /**
+   * For Mapbox `image` sources the bitmap is stretched to the scene bbox. If we try small STAC
+   * `thumbnail` URLs first, fetchStacMapOverlayBlobUrl used to accept 256px images and the map looked blocky.
+   * Planetary Computer `item/preview.png` supports up to 4096px — try those first for map overlays.
+   */
+  if (mapOv && usePcPreview && coll && id) {
+    for (const sz of [4096, 3072, 2560, 2048, 1536, 1280, 1024]) {
+      add(buildPcPreviewPngUrl(coll, id, 'visual', 'visual|1,2,3', sz, sz));
+      add(buildPcPreviewPngUrl(coll, id, 'B04,B03,B02', 'B04|1,B03|1,B02|1', sz, sz));
+    }
+  }
 
   const a = item?.assets as Record<string, { href?: string } | undefined> | undefined;
   const pick = (k: string) => {
@@ -419,19 +451,17 @@ function getStacItemThumbCandidateUrls(item: any, connection?: StacConnectionCon
   if (tci && !/\.(tif|tiff|jp2|nc|vrt)(\?|$)/i.test(tci)) add(tci);
   const visual = pick('visual');
   if (visual && !/\.(tif|tiff|jp2|nc|vrt)(\?|$)/i.test(visual)) add(visual);
-  for (const key of ['rendered_preview', 'render', 'preview', 'thumbnail', 'thumb']) {
+  const previewKeys = mapOv
+    ? (['rendered_preview', 'render', 'preview'] as const)
+    : (['rendered_preview', 'render', 'preview', 'thumbnail', 'thumb'] as const);
+  for (const key of previewKeys) {
     const u = pick(key);
     if (u) add(u);
   }
 
-  const usePcPreview = !connection || stacCatalogLooksLikePlanetaryComputer(connection);
-  if (usePcPreview) {
-    const coll = getStacItemCollection(item);
-    const id = getStacItemIdForThumb(item);
-    if (coll && id) {
-      add(buildPcPreviewPngUrl(coll, id, 'visual', 'visual|1,2,3'));
-      add(buildPcPreviewPngUrl(coll, id, 'B04,B03,B02', 'B04|1,B03|1,B02|1'));
-    }
+  if (usePcPreview && coll && id && !mapOv) {
+    add(buildPcPreviewPngUrl(coll, id, 'visual', 'visual|1,2,3', 512, 512));
+    add(buildPcPreviewPngUrl(coll, id, 'B04,B03,B02', 'B04|1,B03|1,B02|1', 512, 512));
   }
   return out;
 }
@@ -493,44 +523,47 @@ function revokeStacMapOverlayBlob(url: string | undefined) {
  * Mapbox sometimes fails to paint remote HTTPS URLs (CORS / redirect); same-origin blobs are reliable.
  */
 async function fetchStacMapOverlayBlobUrl(candidateUrls: string[]): Promise<string | null> {
-  const MIN_DIM = 512;
-  const isLargeEnoughImage = async (blob: Blob): Promise<boolean> => {
+  const isLargeEnoughImage = async (blob: Blob, minDim: number): Promise<boolean> => {
     try {
       const bitmap = await createImageBitmap(blob);
-      const ok = bitmap.width >= MIN_DIM && bitmap.height >= MIN_DIM;
+      const ok = bitmap.width >= minDim && bitmap.height >= minDim;
       bitmap.close();
       return ok;
     } catch {
-      // If the browser cannot decode dimensions here, keep existing behavior.
       return true;
     }
   };
 
-  for (const raw of candidateUrls) {
-    const trimmed = raw.trim();
-    if (!trimmed) continue;
-    let fetchUrl = trimmed;
-    if (needsAzureBlobSasSigning(trimmed)) {
-      fetchUrl = await signStacAssetHrefForDisplay(trimmed);
-      if (!fetchUrl.trim()) continue;
+  const tryPass = async (minDim: number): Promise<string | null> => {
+    for (const raw of candidateUrls) {
+      const trimmed = raw.trim();
+      if (!trimmed) continue;
+      let fetchUrl = trimmed;
+      if (needsAzureBlobSasSigning(trimmed)) {
+        fetchUrl = await signStacAssetHrefForDisplay(trimmed);
+        if (!fetchUrl.trim()) continue;
+      }
+      try {
+        const res = await fetch(fetchUrl, { mode: 'cors', credentials: 'omit' });
+        if (!res.ok) continue;
+        const blob = await res.blob();
+        if (blob.size < 32) continue;
+        const okType =
+          !blob.type ||
+          blob.type.startsWith('image/') ||
+          blob.type === 'application/octet-stream';
+        if (!okType) continue;
+        if (!(await isLargeEnoughImage(blob, minDim))) continue;
+        return URL.createObjectURL(blob);
+      } catch {
+        continue;
+      }
     }
-    try {
-      const res = await fetch(fetchUrl, { mode: 'cors', credentials: 'omit' });
-      if (!res.ok) continue;
-      const blob = await res.blob();
-      if (blob.size < 32) continue;
-      const okType =
-        !blob.type ||
-        blob.type.startsWith('image/') ||
-        blob.type === 'application/octet-stream';
-      if (!okType) continue;
-      if (!(await isLargeEnoughImage(blob))) continue;
-      return URL.createObjectURL(blob);
-    } catch {
-      continue;
-    }
-  }
-  return null;
+    return null;
+  };
+
+  /** Prefer sharp previews for georeferenced image overlays; avoid stretching tiny thumbnails. */
+  return (await tryPass(1536)) ?? (await tryPass(1024)) ?? (await tryPass(768)) ?? (await tryPass(512)) ?? null;
 }
 
 function StacExploreThumb({ hrefList, reactKey }: { hrefList: string[]; reactKey: string }) {
@@ -917,6 +950,11 @@ export default function SatelliteIntelligence() {
     bearing: 0
   });
 
+  const [sentinelWmsRev, setSentinelWmsRev] = useState(0);
+  const wmsBaseUrl = useMemo(() => getSentinelHubWmsBaseUrl(), [sentinelWmsRev]);
+
+  useEffect(() => subscribeSentinelHubWmsInstance(() => setSentinelWmsRev(r => r + 1)), []);
+
   const [wmsLayer, setWmsLayer] = useState('');
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [isMapLoaded, setIsMapLoaded] = useState(false);
@@ -928,8 +966,9 @@ export default function SatelliteIntelligence() {
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [timeSeriesStart, setTimeSeriesStart] = useState('2023-11-18');
   const [timeSeriesEnd, setTimeSeriesEnd] = useState('2024-02-18');
-  const [showFieldBoundaries, setShowFieldBoundaries] = useState(false);
+  const [showFieldBoundaries, setShowFieldBoundaries] = useState(true);
   const [showProductivityZones, setShowProductivityZones] = useState(false);
+  const [fieldAnalysisStatus, setFieldAnalysisStatus] = useState('');
   const [wmsLayers, setWmsLayers] = useState<WmsLayerInfo[]>([]);
   const [isLoadingLayers, setIsLoadingLayers] = useState(false);
   const [isLayerDropdownOpen, setIsLayerDropdownOpen] = useState(false);
@@ -1054,7 +1093,7 @@ export default function SatelliteIntelligence() {
   const [apiEndpoint, setApiEndpoint] = useState('');
   const [apiStatus, setApiStatus] = useState('Optional API connection is ready.');
   const [expandedEnvSection, setExpandedEnvSection] = useState<
-    'source' | 'layers' | 'explore-stac'
+    'source' | 'layers' | 'explore-stac' | 'field-analysis' | 'remote-sensing'
   >('source');
   const [polygonClosingSnap, setPolygonClosingSnap] = useState(false);
   const [drawAssistHint, setDrawAssistHint] = useState('');
@@ -1604,18 +1643,27 @@ export default function SatelliteIntelligence() {
     });
   }, [customLayers, viewState.longitude, viewState.latitude]);
 
+  const pivotChartRows = useMemo(() => {
+    const latestMean = weeklyComposites.length ? weeklyComposites[Math.min(weeklyComposites.length - 1, 2)].mean : 0;
+    return pivots.map((pivot, index) => ({
+      ...pivot,
+      value: Number((latestMean + (index - pivots.length / 2) * (selectedIndex === 'LST' ? 0.8 : 0.035)).toFixed(3)),
+    }));
+  }, [pivots, selectedIndex, weeklyComposites]);
+
   const pivotGeoJson = useMemo(() => ({
     type: 'FeatureCollection',
-    features: pivots.map(pivot => ({
+    features: pivots.map((pivot, i) => ({
       ...pivot.feature,
       properties: {
         ...(pivot.feature.properties || {}),
         pivot_id: pivot.id,
         name: pivot.name,
         color: pivot.color,
+        analysisMean: pivotChartRows[i]?.value ?? 0,
       },
     })),
-  }), [pivots]);
+  }), [pivots, pivotChartRows]);
 
   const selectedPivot = useMemo(
     () => pivots.find(pivot => pivot.id === selectedPivotId) || null,
@@ -1687,6 +1735,16 @@ export default function SatelliteIntelligence() {
     });
   };
 
+  const generateFieldAnalysisTimeline = () => {
+    if (weeklyWindows.length < 1) {
+      setFieldAnalysisStatus('Choose a valid start and end date for the time series.');
+      return;
+    }
+    const synthetic = synthesizeWeeklyComposites(Math.max(1, stacItems.length || weeklyWindows.length));
+    setWeeklyComposites(synthetic);
+    setFieldAnalysisStatus(`Timeline ready: ${synthetic.length} week(s) for ${ENVIRONMENTAL_INDICES[selectedIndex].label}.`);
+  };
+
   const openExploreStacFromSource = () => {
     setExpandedEnvSection('explore-stac');
     setExploreTab('parameters');
@@ -1735,6 +1793,8 @@ export default function SatelliteIntelligence() {
       collections: exploreSelectedCollectionIds,
       datetime: `${dStart}/${dEnd}`,
       limit: Math.min(1000, Math.max(1, exploreLimit)),
+      /** Helps catalog return newest scenes first (supported by Planetary Computer STAC). */
+      sortby: [{ field: 'datetime', direction: 'desc' }],
     };
 
     const idList = exploreIdsText
@@ -1903,7 +1963,7 @@ export default function SatelliteIntelligence() {
   };
 
   const showStacItemThumbOnMap = async (item: any) => {
-    const candidates = getStacItemThumbCandidateUrls(item, stacConnection);
+    const candidates = getStacItemThumbCandidateUrls(item, stacConnection, { forMapOverlay: true });
     let bbox = Array.isArray(item?.bbox) && item.bbox.length >= 4 ? (item.bbox as number[]) : null;
     if (!bbox && item?.geometry) {
       const gbounds = getGeoJsonBounds({ type: 'Feature', geometry: item.geometry, properties: {} });
@@ -2295,14 +2355,6 @@ export default function SatelliteIntelligence() {
     }
   };
 
-  const pivotChartRows = useMemo(() => {
-    const latestMean = weeklyComposites.length ? weeklyComposites[Math.min(weeklyComposites.length - 1, 2)].mean : 0;
-    return pivots.map((pivot, index) => ({
-      ...pivot,
-      value: Number((latestMean + (index - pivots.length / 2) * (selectedIndex === 'LST' ? 0.8 : 0.035)).toFixed(3)),
-    }));
-  }, [pivots, selectedIndex, weeklyComposites]);
-
   const aoiVizColor = useMemo(() => {
     if (!drawnStats) return '#facc15';
     const cfg = ENVIRONMENTAL_INDICES[selectedIndex];
@@ -2318,6 +2370,33 @@ export default function SatelliteIntelligence() {
     if (delta > 0) return { tone: 'up' as const, text: `Rising signal (≈ ${delta.toFixed(3)} last − first week).` };
     return { tone: 'down' as const, text: `Falling signal (≈ ${Math.abs(delta).toFixed(3)} last − first week).` };
   }, [weeklyComposites, selectedIndex]);
+
+  const pivotFillLayoutAndPaint = useMemo(() => {
+    const cfg = ENVIRONMENTAL_INDICES[selectedIndex];
+    const range = cfg.range;
+    const mid = (range[0] + range[1]) / 2;
+    const pal = cfg.palette;
+    const interpolateFill: any = [
+      'interpolate',
+      ['linear'],
+      ['get', 'analysisMean'],
+      range[0],
+      pal[0] ?? '#22c55e',
+      mid,
+      pal[Math.min(1, pal.length - 1)] ?? pal[0],
+      range[1],
+      pal[pal.length - 1] ?? '#14532d',
+    ];
+    const visible = showFieldBoundaries || showProductivityZones;
+    return {
+      fillLayout: { visibility: visible ? 'visible' : 'none' } as const,
+      fillPaint: {
+        'fill-color': showProductivityZones ? interpolateFill : (['coalesce', ['get', 'color'], '#22c55e'] as any),
+        'fill-opacity': showProductivityZones ? 0.48 : showFieldBoundaries ? 0.18 : 0,
+      },
+      outlineLayout: { visibility: showFieldBoundaries ? 'visible' : 'none' } as const,
+    };
+  }, [selectedIndex, showFieldBoundaries, showProductivityZones]);
 
   const recomputeDrawnAoiStats = (geometry: any | null) => {
     if (!geometry) {
@@ -2968,7 +3047,7 @@ export default function SatelliteIntelligence() {
     const loadLayers = async () => {
       setIsLoadingLayers(true);
       try {
-        const response = await fetch(`${WMS_URL}?SERVICE=WMS&REQUEST=GetCapabilities`);
+        const response = await fetch(`${wmsBaseUrl}?SERVICE=WMS&REQUEST=GetCapabilities`);
         if (response.ok) {
           const text = await response.text();
           const parser = new DOMParser();
@@ -3004,7 +3083,7 @@ export default function SatelliteIntelligence() {
       }
     };
     loadLayers();
-  }, []);
+  }, [wmsBaseUrl]);
 
   const activeWmsLayer = wmsLayer || (selectedIndex === 'LST' ? '' : selectedIndex);
   const wmsDate = selectedDate.toISOString().split('T')[0];
@@ -3127,12 +3206,12 @@ export default function SatelliteIntelligence() {
     const safeLayer = encodeURIComponent(activeWmsLayer);
     const start = timeSeriesStart || wmsDate;
     const end = timeSeriesEnd || wmsDate;
-    return `${WMS_URL}?SERVICE=WMS&REQUEST=GetMap&VERSION=1.3.0` +
+    return `${wmsBaseUrl}?SERVICE=WMS&REQUEST=GetMap&VERSION=1.3.0` +
       `&LAYERS=${safeLayer}` +
       `&BBOX={bbox-epsg-3857}&CRS=EPSG:3857` +
       `&FORMAT=image/png&TRANSPARENT=true&WIDTH=512&HEIGHT=512` +
       `&TIME=${start}/${end}&MAXCC=${cloudCoverage}&SHOWLOGO=false&WARNINGS=true`;
-  }, [activeWmsLayer, timeSeriesStart, timeSeriesEnd, wmsDate, cloudCoverage]);
+  }, [activeWmsLayer, timeSeriesStart, timeSeriesEnd, wmsDate, cloudCoverage, wmsBaseUrl]);
 
   return (
     <div className="si-page">
@@ -3175,10 +3254,24 @@ export default function SatelliteIntelligence() {
                     </div>
                   </div>
                   <div className="si-env-panel-body">
-                    <div className="si-env-section-tabs" role="tablist" aria-label="Environmental Index sections">
+                    <div
+                      className="si-env-section-tabs si-env-section-tabs--four"
+                      role="tablist"
+                      aria-label="Environmental Index sections"
+                    >
                       {[
                         { id: 'layers' as const, label: 'Layers', icon: 'fa-solid fa-layer-group' },
                         { id: 'explore-stac' as const, label: 'Explore STAC', icon: 'fa-solid fa-magnifying-glass-chart' },
+                        {
+                          id: 'field-analysis' as const,
+                          label: 'Field analysis',
+                          icon: 'fa-solid fa-satellite',
+                        },
+                        {
+                          id: 'remote-sensing' as const,
+                          label: 'Remote sensing',
+                          icon: 'fa-solid fa-satellite-dish',
+                        },
                       ].map(section => (
                         <button
                           key={section.id}
@@ -3238,7 +3331,9 @@ export default function SatelliteIntelligence() {
                 Source
               </button>
             </div>
-            <div className="si-explore-stac-body">
+            <div
+              className={`si-explore-stac-body${exploreTab === 'results' ? ' si-explore-stac-body--results-tab' : ''}`}
+            >
               {exploreTab === 'parameters' ? (
                 <>
                   <div className="si-explore-collections-section">
@@ -3895,6 +3990,144 @@ export default function SatelliteIntelligence() {
                       </div>
                     
                     ) : null}
+                    {(expandedEnvSection === 'field-analysis' || expandedEnvSection === 'remote-sensing') && (
+                      <div className="si-env-section-card si-field-analysis">
+                        <div className="si-field-analysis-header">
+                          <h2 className="si-field-analysis-title">
+                            {expandedEnvSection === 'remote-sensing' ? 'Remote Sensing' : 'Field Analysis'}
+                          </h2>
+                          {expandedEnvSection === 'remote-sensing' ? (
+                            <button
+                              type="button"
+                              className="si-field-analysis-close"
+                              onClick={() => setIsLayerDropdownOpen(false)}
+                              aria-label="Close panel"
+                            >
+                              <i className="fa-solid fa-xmark" aria-hidden />
+                            </button>
+                          ) : null}
+                        </div>
+
+                        <div className="si-field-analysis-section">
+                          <div className="si-field-analysis-kicker">Imagery date</div>
+                          <label className="si-field-analysis-field">
+                            <input
+                              type="date"
+                              value={selectedDate.toISOString().split('T')[0]}
+                              onChange={e => {
+                                const v = e.target.value;
+                                if (!v) return;
+                                applySelectedDate(new Date(`${v}T12:00:00`));
+                              }}
+                              aria-label="Imagery date"
+                            />
+                          </label>
+                          <p className="si-field-analysis-hint">
+                            Select date for satellite imagery (Sentinel-2 updates every 3–5 days).
+                          </p>
+                        </div>
+
+                        <div className="si-field-analysis-section">
+                          <label className="si-field-analysis-field si-field-analysis-field--labeled">
+                            <span className="si-field-analysis-label">Layer / vegetation index</span>
+                            <select
+                              className="si-field-analysis-select"
+                              value={
+                                /^TRUE[_-]COLOR$/i.test(String(wmsLayer).trim()) ? 'TRUE_COLOR' : selectedIndex
+                              }
+                              onChange={e => {
+                                const v = e.target.value;
+                                if (v === 'TRUE_COLOR') {
+                                  setWmsLayer('TRUE_COLOR');
+                                  if (selectedIndex === 'LST') setSelectedIndex('NDWI');
+                                } else {
+                                  setWmsLayer('');
+                                  setSelectedIndex(v as EnvironmentalIndexId);
+                                }
+                              }}
+                              aria-label="Layer or vegetation index"
+                            >
+                              <option value="TRUE_COLOR">True color</option>
+                              {(Object.keys(ENVIRONMENTAL_INDICES) as EnvironmentalIndexId[]).map(id => (
+                                <option key={id} value={id}>
+                                  {ENVIRONMENTAL_INDICES[id].label}
+                                </option>
+                              ))}
+                            </select>
+                          </label>
+                        </div>
+
+                        <div className="si-field-analysis-section">
+                          <div className="si-field-analysis-kicker">Time-series analysis</div>
+                          <div className="si-field-analysis-date-row">
+                            <label className="si-field-analysis-field">
+                              <span className="si-field-analysis-label">Start</span>
+                              <input
+                                type="date"
+                                value={timeSeriesStart}
+                                onChange={e => setTimeSeriesStart(e.target.value)}
+                                aria-label="Time series start"
+                              />
+                            </label>
+                            <label className="si-field-analysis-field">
+                              <span className="si-field-analysis-label">End</span>
+                              <input
+                                type="date"
+                                value={timeSeriesEnd}
+                                onChange={e => setTimeSeriesEnd(e.target.value)}
+                                aria-label="Time series end"
+                              />
+                            </label>
+                          </div>
+                          <button type="button" className="si-field-analysis-timeline-btn" onClick={generateFieldAnalysisTimeline}>
+                            <i className="fa-solid fa-chart-line" aria-hidden />
+                            Generate timeline
+                          </button>
+                          <p className="si-field-analysis-hint">
+                            Browse satellite imagery changes over time. Select a date range and generate the timeline.
+                          </p>
+                        </div>
+
+                        <div className="si-field-analysis-section">
+                          <div className="si-field-analysis-kicker">Display options</div>
+                          <div className="si-field-analysis-toggles">
+                            <div className="display-toggle-row">
+                              <span className="display-option-label">
+                                <span className="display-dot field" aria-hidden />
+                                Field boundaries
+                              </span>
+                              <label className="switch si-field-analysis-switch">
+                                <input
+                                  type="checkbox"
+                                  checked={showFieldBoundaries}
+                                  onChange={e => setShowFieldBoundaries(e.target.checked)}
+                                  aria-label="Toggle field boundaries"
+                                />
+                                <span className="slider round" />
+                              </label>
+                            </div>
+                            <div className="display-toggle-row">
+                              <span className="display-option-label">
+                                <span className="display-dot productivity" aria-hidden />
+                                Productivity zones
+                              </span>
+                              <label className="switch si-field-analysis-switch">
+                                <input
+                                  type="checkbox"
+                                  checked={showProductivityZones}
+                                  onChange={e => setShowProductivityZones(e.target.checked)}
+                                  aria-label="Toggle productivity zones"
+                                />
+                                <span className="slider round" />
+                              </label>
+                            </div>
+                          </div>
+                        </div>
+
+                        <p className="si-field-analysis-footer-hint">Click on a field to view details.</p>
+                        {fieldAnalysisStatus ? <p className="si-field-analysis-status">{fieldAnalysisStatus}</p> : null}
+                      </div>
+                    )}
                     {expandedEnvSection === 'source' && (
                       <div className="si-env-section-card">
                         <p className="si-env-toolbar-hint si-env-toolbar-hint--muted">
@@ -4072,11 +4305,11 @@ export default function SatelliteIntelligence() {
                             checked={showStacFootprintsOnMap}
                             onChange={e => setShowStacFootprintsOnMap(e.target.checked)}
                           />
-                          <span>عرض أغلفة مشاهد STAC على الخريطة</span>
+                          <span>Show STAC scene footprints on the map</span>
                         </label>
                         {stacMapThumb ? (
                           <button type="button" className="si-stac-clear-thumb-btn" onClick={clearStacMapThumb}>
-                            إزالة معاينة الصورة من الخريطة
+                            Remove image preview from map
                           </button>
                         ) : null}
                         <button type="button" className="si-env-upload-inline" onClick={handleUploadCustomLayerClick}>
@@ -4199,14 +4432,13 @@ export default function SatelliteIntelligence() {
                 <Layer
                   id="agri-pivots-fill"
                   type="fill"
-                  paint={{
-                    'fill-color': ['coalesce', ['get', 'color'], '#22c55e'] as any,
-                    'fill-opacity': 0.18,
-                  }}
+                  layout={pivotFillLayoutAndPaint.fillLayout}
+                  paint={pivotFillLayoutAndPaint.fillPaint}
                 />
                 <Layer
                   id="agri-pivots-outline"
                   type="line"
+                  layout={pivotFillLayoutAndPaint.outlineLayout}
                   paint={{
                     'line-color': ['coalesce', ['get', 'color'], '#22c55e'] as any,
                     'line-width': 2,

@@ -10,7 +10,8 @@
     "preview": "vite preview --port 5173",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test",
+    "favicon:png": "node scripts/render-favicon-png.mjs"
   },
   "dependencies": {
     "@fortawesome/fontawesome-free": "^6.7.2",
@@ -48,6 +49,7 @@
     "@vitejs/plugin-react": "^4.2.0",
     "jsdom": "^24.0.0",
     "playwright": "^1.59.1",
+    "sharp": "^0.34.5",
     "typescript": "^5.2.2",
     "vite": "^5.0.8",
     "vite-plugin-compression": "^0.5.1",

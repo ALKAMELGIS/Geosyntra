@@ -17,6 +17,14 @@ import {
   getMapboxAccessTokenBrowserOverride,
   persistMapboxAccessTokenInBrowser,
 } from '../../lib/mapboxAccessToken'
+import {
+  getSentinelHubWmsInstanceIdBrowserOverride,
+  persistSentinelHubWmsInstanceIdInBrowser,
+} from '../../lib/sentinelHubWmsInstance'
+import {
+  getSentinelHubAccessTokenBrowserOverride,
+  persistSentinelHubAccessTokenInBrowser,
+} from '../../lib/sentinelHubAccessToken'
 
 const PAGE_ICON_PRESETS = [
   'fa-solid fa-file',
@@ -44,12 +52,76 @@ const themeSchema = yup.object({
   customPrimaryHex: yup.string().matches(/^#[0-9A-Fa-f]{6}$/, 'Use #RRGGBB'),
 })
 
+type ApiTokenMergeFieldProps = {
+  id: string
+  label: string
+  value: string
+  onChange: (next: string) => void
+  placeholder: string
+  password?: boolean
+  onSave: () => void
+  onClear: () => void
+  saveAria: string
+  clearAria: string
+  saveTitle: string
+  clearTitle: string
+  actionsGroupLabel: string
+}
+
+function ApiTokenMergeField({
+  id,
+  label,
+  value,
+  onChange,
+  placeholder,
+  password,
+  onSave,
+  onClear,
+  saveAria,
+  clearAria,
+  saveTitle,
+  clearTitle,
+  actionsGroupLabel,
+}: ApiTokenMergeFieldProps) {
+  return (
+    <div className="sys-api-token-field">
+      <label className="sys-field-label" htmlFor={id}>
+        {label}
+      </label>
+      <div className="sys-api-token-row">
+        <div className="sys-api-token-merge" dir="ltr">
+          <input
+            id={id}
+            className="gis-input sys-api-token-merge__input"
+            type={password ? 'password' : 'text'}
+            autoComplete="off"
+            spellCheck={false}
+            placeholder={placeholder}
+            value={value}
+            onChange={e => onChange(e.target.value)}
+          />
+          <div className="sys-api-token-actions" role="group" aria-label={actionsGroupLabel}>
+            <button type="button" className="sys-api-icon-btn sys-api-icon-btn--primary" onClick={onSave} title={saveTitle} aria-label={saveAria}>
+              <i className="fa-solid fa-check" aria-hidden />
+            </button>
+            <button type="button" className="sys-api-icon-btn sys-api-icon-btn--ghost" onClick={onClear} title={clearTitle} aria-label={clearAria}>
+              <i className="fa-regular fa-trash-can" aria-hidden />
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export default function SystemSettings() {
   const { draft, setDraft, settings, saveDraft, cancelDraft, resetToDefaults, pushToast } = useSystemSettings()
   const { language } = useLanguage()
   const [tab, setTab] = useState<'theme' | 'home' | 'logos' | 'nav' | 'pages' | 'api-tokens'>('theme')
   const [mapboxTokenDraft, setMapboxTokenDraft] = useState('')
   const [arcgisTokenDraft, setArcgisTokenDraft] = useState('')
+  const [sentinelHubInstanceDraft, setSentinelHubInstanceDraft] = useState('')
+  const [sentinelAccessDraft, setSentinelAccessDraft] = useState('')
   const [confirmReset, setConfirmReset] = useState(false)
   const [homeEditorSection, setHomeEditorSection] = useState<'page' | 'header' | 'blocks' | 'footer' | 'colors' | 'typography'>('page')
   const [pageQuery, setPageQuery] = useState('')
@@ -87,10 +159,22 @@ export default function SystemSettings() {
     return typeof raw === 'string' && raw.trim().length > 0
   }, [])
 
+  const sentinelHubInstanceFromEnv = useMemo(() => {
+    const raw = import.meta.env.VITE_SENTINEL_HUB_WMS_INSTANCE_ID
+    return typeof raw === 'string' && raw.trim().length > 0
+  }, [])
+
+  const sentinelAccessFromEnv = useMemo(() => {
+    const raw = import.meta.env.VITE_SENTINEL_HUB_ACCESS_TOKEN
+    return typeof raw === 'string' && raw.trim().length > 0
+  }, [])
+
   useEffect(() => {
     if (tab !== 'api-tokens') return
     setMapboxTokenDraft(getMapboxAccessTokenBrowserOverride())
     setArcgisTokenDraft(getArcgisPortalTokenBrowserOverride())
+    setSentinelHubInstanceDraft(getSentinelHubWmsInstanceIdBrowserOverride())
+    setSentinelAccessDraft(getSentinelHubAccessTokenBrowserOverride())
   }, [tab])
 
   const pageSchema = useMemo(
@@ -1030,118 +1114,171 @@ export default function SystemSettings() {
             </h2>
             <p className="sys-settings-panel__desc">
               {language === 'ar'
-                ? 'حفظ مفاتيح Mapbox وArcGIS في هذا المتصفح فقط (أو عبر متغيرات البيئة عند البناء). لا تُرفع إلى Git.'
-                : 'Store Mapbox and ArcGIS tokens in this browser only (or use build-time env vars). Never commit secrets to Git.'}
+                ? 'حفظ مفاتيح Mapbox وArcGIS ورموز Sentinel Hub (وصول + WMS) في هذا المتصفح فقط (أو عبر متغيرات البيئة عند البناء). لا تُرفع إلى Git.'
+                : 'Store Mapbox, ArcGIS, and Sentinel Hub tokens (API access + WMS instance) in this browser only (or use build-time env vars). Never commit secrets to Git.'}
             </p>
           </div>
 
-          <h3 className="sys-settings-panel__title" style={{ fontSize: '1.05rem', marginTop: 8, marginBottom: 4 }}>
-            <i className="fa-solid fa-map" aria-hidden style={{ marginInlineEnd: 8 }} />
+          <h3 className="sys-settings-panel__title sys-settings-api-h3">
+            <i className="fa-solid fa-map" aria-hidden />
             Mapbox
           </h3>
           {mapboxTokenFromEnv ? (
-            <p className="sys-settings-panel__desc" style={{ marginTop: 0 }}>
+            <p className="sys-settings-panel__desc sys-settings-api-envnote">
               <strong>{language === 'ar' ? 'نشط من البناء:' : 'Active from build:'}</strong>{' '}
               {language === 'ar' ? 'VITE_MAPBOX_TOKEN يتقدم على الحقل أدناه.' : 'VITE_MAPBOX_TOKEN overrides the field below.'}
             </p>
           ) : null}
-          <label className="sys-field-label" htmlFor="sys-mapbox-token">
-            {language === 'ar' ? 'مفتاح Mapbox (المتصفح)' : 'Mapbox token (browser)'}
-          </label>
-          <input
+          <ApiTokenMergeField
             id="sys-mapbox-token"
-            className="gis-input"
-            type="password"
-            autoComplete="off"
-            spellCheck={false}
-            placeholder={language === 'ar' ? 'pk.eyJ1I…' : 'pk.eyJ1I…'}
+            label={language === 'ar' ? 'مفتاح Mapbox (المتصفح)' : 'Mapbox token (browser)'}
             value={mapboxTokenDraft}
-            onChange={e => setMapboxTokenDraft(e.target.value)}
-            style={{ maxWidth: 560 }}
+            onChange={setMapboxTokenDraft}
+            placeholder={language === 'ar' ? 'pk.eyJ1I…' : 'pk.eyJ1I…'}
+            password
+            onSave={() => {
+              persistMapboxAccessTokenInBrowser(mapboxTokenDraft)
+              pushToast('success', language === 'ar' ? 'تم حفظ مفتاح Mapbox.' : 'Mapbox token saved.')
+            }}
+            onClear={() => {
+              persistMapboxAccessTokenInBrowser('')
+              setMapboxTokenDraft('')
+              pushToast('success', language === 'ar' ? 'أُزيل مفتاح Mapbox من المتصفح.' : 'Mapbox browser token cleared.')
+            }}
+            saveTitle={language === 'ar' ? 'حفظ' : 'Save'}
+            clearTitle={language === 'ar' ? 'مسح' : 'Clear'}
+            saveAria={language === 'ar' ? 'حفظ مفتاح Mapbox' : 'Save Mapbox token'}
+            clearAria={language === 'ar' ? 'مسح مفتاح Mapbox' : 'Clear Mapbox token'}
+            actionsGroupLabel={language === 'ar' ? 'إجراءات مفتاح Mapbox' : 'Mapbox token actions'}
           />
-          <p className="sys-settings-panel__desc" style={{ marginTop: 6 }}>
+          <p className="sys-settings-panel__desc sys-settings-api-hint">
             {language === 'ar'
               ? 'مطلوب لـ Mapbox GL (خرائط الاستخبارات والـ Globe). بعد الحفظ تُحدَّث الخرائط فوراً.'
               : 'Required for Mapbox GL (Satellite intelligence & globe). Maps refresh after save.'}
           </p>
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, marginTop: 10 }}>
-            <button
-              type="button"
-              className="gis-btn gis-btn-primary"
-              onClick={() => {
-                persistMapboxAccessTokenInBrowser(mapboxTokenDraft)
-                pushToast('success', language === 'ar' ? 'تم حفظ مفتاح Mapbox.' : 'Mapbox token saved.')
-              }}
-            >
-              {language === 'ar' ? 'حفظ Mapbox' : 'Save Mapbox'}
-            </button>
-            <button
-              type="button"
-              className="gis-btn gis-btn-outline"
-              onClick={() => {
-                persistMapboxAccessTokenInBrowser('')
-                setMapboxTokenDraft('')
-                pushToast('success', language === 'ar' ? 'أُزيل مفتاح Mapbox من المتصفح.' : 'Mapbox browser token cleared.')
-              }}
-            >
-              {language === 'ar' ? 'مسح Mapbox' : 'Clear Mapbox'}
-            </button>
-          </div>
 
-          <hr style={{ margin: '28px 0', border: 'none', borderTop: '1px solid var(--ds-color-border, #e2e8f0)' }} />
+          <hr className="sys-settings-api-divider" />
 
-          <h3 className="sys-settings-panel__title" style={{ fontSize: '1.05rem', marginBottom: 4 }}>
-            <i className="fa-solid fa-globe" aria-hidden style={{ marginInlineEnd: 8 }} />
+          <h3 className="sys-settings-panel__title sys-settings-api-h3">
+            <i className="fa-solid fa-globe" aria-hidden />
             ArcGIS API
           </h3>
           {arcgisTokenFromEnv ? (
-            <p className="sys-settings-panel__desc" style={{ marginTop: 0 }}>
+            <p className="sys-settings-panel__desc sys-settings-api-envnote">
               <strong>{language === 'ar' ? 'نشط من البناء:' : 'Active from build:'}</strong>{' '}
               {language === 'ar' ? 'VITE_ARCGIS_PORTAL_TOKEN يتقدم على الحقل أدناه.' : 'VITE_ARCGIS_PORTAL_TOKEN overrides the field below.'}
             </p>
           ) : null}
-          <label className="sys-field-label" htmlFor="sys-arcgis-token">
-            {language === 'ar' ? 'رمز ArcGIS / Portal (المتصفح)' : 'ArcGIS / Portal token (browser)'}
-          </label>
-          <input
+          <ApiTokenMergeField
             id="sys-arcgis-token"
-            className="gis-input"
-            type="password"
-            autoComplete="off"
-            spellCheck={false}
-            placeholder={language === 'ar' ? 'رمز REST أو OAuth…' : 'REST or OAuth token…'}
+            label={language === 'ar' ? 'رمز ArcGIS / Portal (المتصفح)' : 'ArcGIS / Portal token (browser)'}
             value={arcgisTokenDraft}
-            onChange={e => setArcgisTokenDraft(e.target.value)}
-            style={{ maxWidth: 560 }}
+            onChange={setArcgisTokenDraft}
+            placeholder={language === 'ar' ? 'رمز REST أو OAuth…' : 'REST or OAuth token…'}
+            password
+            onSave={() => {
+              persistArcgisPortalTokenInBrowser(arcgisTokenDraft)
+              pushToast('success', language === 'ar' ? 'تم حفظ رمز ArcGIS.' : 'ArcGIS token saved.')
+            }}
+            onClear={() => {
+              persistArcgisPortalTokenInBrowser('')
+              setArcgisTokenDraft('')
+              pushToast('success', language === 'ar' ? 'أُزيل رمز ArcGIS من المتصفح.' : 'ArcGIS browser token cleared.')
+            }}
+            saveTitle={language === 'ar' ? 'حفظ' : 'Save'}
+            clearTitle={language === 'ar' ? 'مسح' : 'Clear'}
+            saveAria={language === 'ar' ? 'حفظ رمز ArcGIS' : 'Save ArcGIS token'}
+            clearAria={language === 'ar' ? 'مسح رمز ArcGIS' : 'Clear ArcGIS token'}
+            actionsGroupLabel={language === 'ar' ? 'إجراءات رمز ArcGIS' : 'ArcGIS token actions'}
           />
-          <p className="sys-settings-panel__desc" style={{ marginTop: 6 }}>
+          <p className="sys-settings-panel__desc sys-settings-api-hint">
             {language === 'ar'
-              ? 'يُستخدم كقيمة افتراضية عند إضافة طبقات ArcGIS Feature Service في الخرائط. يمكن تركه فارغاً للخدمات العامة.'
-              : 'Default value when adding ArcGIS Feature Service layers. Leave empty for public services.'}
+              ? 'يُستخدم لخدمات ArcGIS المحمية (مثل Feature Service وImageServer) عند الاستيراد من الرابط أو الخريطة. يمكن تركه فارغاً للخدمات العامة.'
+              : 'Used for secured ArcGIS REST layers (Feature Service, ImageServer from URL, etc.). Leave empty for public services only.'}
           </p>
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, marginTop: 10 }}>
-            <button
-              type="button"
-              className="gis-btn gis-btn-primary"
-              onClick={() => {
-                persistArcgisPortalTokenInBrowser(arcgisTokenDraft)
-                pushToast('success', language === 'ar' ? 'تم حفظ رمز ArcGIS.' : 'ArcGIS token saved.')
-              }}
-            >
-              {language === 'ar' ? 'حفظ ArcGIS' : 'Save ArcGIS'}
-            </button>
-            <button
-              type="button"
-              className="gis-btn gis-btn-outline"
-              onClick={() => {
-                persistArcgisPortalTokenInBrowser('')
-                setArcgisTokenDraft('')
-                pushToast('success', language === 'ar' ? 'أُزيل رمز ArcGIS من المتصفح.' : 'ArcGIS browser token cleared.')
-              }}
-            >
-              {language === 'ar' ? 'مسح ArcGIS' : 'Clear ArcGIS'}
-            </button>
-          </div>
+
+          <hr className="sys-settings-api-divider" />
+
+          <h3 className="sys-settings-panel__title sys-settings-api-h3">
+            <i className="fa-solid fa-satellite" aria-hidden />
+            {language === 'ar' ? 'رموز Sentinel API' : 'Sentinel API tokens'}
+          </h3>
+          <p className="sys-settings-panel__desc sys-settings-api-envnote sys-settings-api-lead">
+            {language === 'ar'
+              ? 'رمز وصول Sentinel Hub (اختياري) ثم معرّف مثيل WMS لطبقات Sentinel-2.'
+              : 'Optional Sentinel Hub access token, then WMS instance UUID for Sentinel-2 overlays.'}
+          </p>
+
+          {sentinelAccessFromEnv ? (
+            <p className="sys-settings-panel__desc sys-settings-api-envnote">
+              <strong>{language === 'ar' ? 'نشط من البناء:' : 'Active from build:'}</strong>{' '}
+              {language === 'ar'
+                ? 'VITE_SENTINEL_HUB_ACCESS_TOKEN يتقدم على حقل رمز الوصول أدناه.'
+                : 'VITE_SENTINEL_HUB_ACCESS_TOKEN overrides the access token field below.'}
+            </p>
+          ) : null}
+          <ApiTokenMergeField
+            id="sys-sentinel-hub-access"
+            label={language === 'ar' ? 'رمز وصول Sentinel Hub (المتصفح)' : 'Sentinel Hub access token (browser)'}
+            value={sentinelAccessDraft}
+            onChange={setSentinelAccessDraft}
+            placeholder={language === 'ar' ? 'OAuth / Process API…' : 'OAuth / Process API…'}
+            password
+            onSave={() => {
+              persistSentinelHubAccessTokenInBrowser(sentinelAccessDraft)
+              pushToast('success', language === 'ar' ? 'تم حفظ رمز Sentinel Hub.' : 'Sentinel Hub access token saved.')
+            }}
+            onClear={() => {
+              persistSentinelHubAccessTokenInBrowser('')
+              setSentinelAccessDraft('')
+              pushToast('success', language === 'ar' ? 'أُزيل رمز Sentinel من المتصفح.' : 'Sentinel Hub access token cleared.')
+            }}
+            saveTitle={language === 'ar' ? 'حفظ' : 'Save'}
+            clearTitle={language === 'ar' ? 'مسح' : 'Clear'}
+            saveAria={language === 'ar' ? 'حفظ رمز وصول Sentinel Hub' : 'Save Sentinel Hub access token'}
+            clearAria={language === 'ar' ? 'مسح رمز وصول Sentinel Hub' : 'Clear Sentinel Hub access token'}
+            actionsGroupLabel={language === 'ar' ? 'إجراءات رمز Sentinel' : 'Sentinel Hub access token actions'}
+          />
+          <p className="sys-settings-panel__desc sys-settings-api-hint">
+            {language === 'ar'
+              ? 'للاستدعاءات المصادق عليها على Sentinel Hub (مثل Process API). اتركه فارغاً إن لم تكن بحاجة إليه.'
+              : 'For authenticated Sentinel Hub REST usage (e.g. Process API). Leave empty if you do not need it.'}
+          </p>
+
+          {sentinelHubInstanceFromEnv ? (
+            <p className="sys-settings-panel__desc sys-settings-api-envnote">
+              <strong>{language === 'ar' ? 'نشط من البناء:' : 'Active from build:'}</strong>{' '}
+              {language === 'ar'
+                ? 'VITE_SENTINEL_HUB_WMS_INSTANCE_ID يتقدم على حقل معرّف المثيل أدناه.'
+                : 'VITE_SENTINEL_HUB_WMS_INSTANCE_ID overrides the instance field below.'}
+            </p>
+          ) : null}
+          <ApiTokenMergeField
+            id="sys-sentinel-hub-instance"
+            label={language === 'ar' ? 'معرّف مثيل WMS (المتصفح)' : 'WMS instance ID (browser)'}
+            value={sentinelHubInstanceDraft}
+            onChange={setSentinelHubInstanceDraft}
+            placeholder="7b6554b7-76f2-483e-a06d-90053e49f462"
+            onSave={() => {
+              persistSentinelHubWmsInstanceIdInBrowser(sentinelHubInstanceDraft)
+              pushToast('success', language === 'ar' ? 'تم حفظ معرّف Sentinel Hub.' : 'Sentinel Hub WMS instance ID saved.')
+            }}
+            onClear={() => {
+              persistSentinelHubWmsInstanceIdInBrowser('')
+              setSentinelHubInstanceDraft('')
+              pushToast('success', language === 'ar' ? 'أُزيل معرّف Sentinel Hub من المتصفح.' : 'Sentinel Hub browser instance ID cleared.')
+            }}
+            saveTitle={language === 'ar' ? 'حفظ' : 'Save'}
+            clearTitle={language === 'ar' ? 'مسح' : 'Clear'}
+            saveAria={language === 'ar' ? 'حفظ معرّف Sentinel Hub' : 'Save Sentinel Hub instance ID'}
+            clearAria={language === 'ar' ? 'مسح معرّف Sentinel Hub' : 'Clear Sentinel Hub instance ID'}
+            actionsGroupLabel={language === 'ar' ? 'إجراءات معرّف WMS' : 'Sentinel Hub WMS instance actions'}
+          />
+          <p className="sys-settings-panel__desc sys-settings-api-hint">
+            {language === 'ar'
+              ? 'معرّف مثيل Sentinel Hub لـ OGC WMS في خرائط الاستخبارات. اتركه فارغاً للقيمة الافتراضية.'
+              : 'Sentinel Hub OGC WMS instance UUID for Sentinel-2 overlays in Satellite Intelligence. Leave empty for the app default.'}
+          </p>
         </section>
       ) : null}
 

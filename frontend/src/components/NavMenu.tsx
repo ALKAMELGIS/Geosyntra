@@ -22,7 +22,7 @@ type AppNotification = {
 const navTranslations = {
   en: {
     account: 'Account',
-    admin: 'Admin',
+    admin: 'Settings',
     arabic: 'Arabic',
     camera: 'Camera',
     clearAll: 'Clear all',
@@ -68,7 +68,7 @@ const navTranslations = {
   },
   ar: {
     account: 'الحساب',
-    admin: 'الإدارة',
+    admin: 'الإعدادات',
     arabic: 'العربية',
     camera: 'الكاميرا',
     clearAll: 'مسح الكل',
@@ -162,7 +162,7 @@ export default function NavMenu({ onLogout }: NavMenuProps) {
     }
     return [
       { id: Date.now() - 2, title: 'Welcome', body: 'Your account is ready.', at: new Date().toLocaleString(), read: false },
-      { id: Date.now() - 1, title: 'Tip', body: 'Use Admin → User Management to manage users.', at: new Date().toLocaleString(), read: false }
+      { id: Date.now() - 1, title: 'Tip', body: 'Use Settings → User Management to manage users.', at: new Date().toLocaleString(), read: false }
     ]
   })
 

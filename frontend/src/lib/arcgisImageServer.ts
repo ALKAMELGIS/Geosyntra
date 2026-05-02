@@ -50,11 +50,14 @@ export function arcgisExtentToWgs84BBox(extent: ArcGisExtent): [number, number, 
 
 export async function fetchImageServerMeta(
   serviceUrl: string,
-  signal?: AbortSignal,
+  opts?: { signal?: AbortSignal; token?: string },
 ): Promise<{ name: string; extent?: ArcGisExtent; fullExtent?: ArcGisExtent }> {
   const base = serviceUrl.replace(/\/+$/, '')
-  const url = `${base}?f=pjson`
-  const res = await fetch(url, { method: 'GET', signal })
+  const u = new URL(`${base}`)
+  u.searchParams.set('f', 'pjson')
+  const tok = opts?.token?.trim()
+  if (tok) u.searchParams.set('token', tok)
+  const res = await fetch(u.toString(), { method: 'GET', signal: opts?.signal })
   if (!res.ok) throw new Error(`ImageServer metadata request failed (${res.status}).`)
   const json = (await res.json()) as Record<string, unknown>
   if (json?.error && typeof (json.error as any)?.message === 'string') {
@@ -70,8 +73,12 @@ export async function fetchImageServerMeta(
   }
 }
 
+export type EsriImageServerGridLayerOptions = L.GridLayerOptions & { arcgisToken?: string }
+
 /** Leaflet grid layer that draws each tile via ArcGIS `exportImage` (works when the service is not a fused tile cache). */
-export function createEsriImageServerGridLayer(serviceUrl: string, options?: L.GridLayerOptions): L.GridLayer {
+export function createEsriImageServerGridLayer(serviceUrl: string, options?: EsriImageServerGridLayerOptions): L.GridLayer {
+  const { arcgisToken, ...gridOptions } = options ?? {}
+  const token = arcgisToken?.trim() || ''
   const base = serviceUrl.replace(/\/+$/, '')
   const Grid = L.GridLayer.extend({
     createTile(this: L.GridLayer, coords: L.Coords, done: L.DoneCallback): HTMLElement {
@@ -98,6 +105,7 @@ export function createEsriImageServerGridLayer(serviceUrl: string, options?: L.G
         interpolation: 'RSP_BilinearInterpolation',
         compressionQuality: '85',
       })
+      if (token) params.set('token', token)
       el.decoding = 'async'
       el.alt = ''
       el.setAttribute('role', 'presentation')
@@ -111,6 +119,6 @@ export function createEsriImageServerGridLayer(serviceUrl: string, options?: L.G
   return new (Grid as unknown as new (opts?: L.GridLayerOptions) => L.GridLayer)({
     maxZoom: 22,
     maxNativeZoom: 19,
-    ...options,
+    ...gridOptions,
   })
 }
