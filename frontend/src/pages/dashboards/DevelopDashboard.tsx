@@ -50,6 +50,47 @@ type CanvasVisualSlot = {
   chart: string
 }
 
+/** Visualization types picker (Visualizations sheet only; 6 columns). */
+const CHART_TOOLS: Array<{ chart: string; icon: string; label: string }> = [
+  { chart: 'table', icon: 'fa-solid fa-table', label: 'Table' },
+  { chart: 'matrix', icon: 'fa-solid fa-th', label: 'Matrix' },
+  { chart: 'stackedBar', icon: 'fa-solid fa-chart-bar', label: 'Stacked Bar' },
+  { chart: 'clusteredBar', icon: 'fa-solid fa-chart-simple', label: 'Clustered Bar' },
+  { chart: 'stackedColumn', icon: 'fa-solid fa-chart-column', label: 'Stacked Column' },
+  { chart: 'clusteredColumn', icon: 'fa-solid fa-chart-column', label: 'Clustered Col' },
+  { chart: '100stackedBar', icon: 'fa-solid fa-percent', label: '100% Stacked Bar' },
+  { chart: '100stackedColumn', icon: 'fa-solid fa-percent', label: '100% Stacked Col' },
+  { chart: 'line', icon: 'fa-solid fa-chart-line', label: 'Line Chart' },
+  { chart: 'area', icon: 'fa-solid fa-chart-area', label: 'Area Chart' },
+  { chart: 'stackedArea', icon: 'fa-solid fa-layer-group', label: 'Stacked Area' },
+  { chart: 'lineClusteredColumn', icon: 'fa-solid fa-chart-line', label: 'Line+Clustered Col' },
+  { chart: 'lineStackedColumn', icon: 'fa-solid fa-chart-line', label: 'Line+Stacked Col' },
+  { chart: 'ribbon', icon: 'fa-solid fa-bars-staggered', label: 'Ribbon Chart' },
+  { chart: 'waterfall', icon: 'fa-solid fa-water', label: 'Waterfall' },
+  { chart: 'funnel', icon: 'fa-solid fa-filter', label: 'Funnel' },
+  { chart: 'scatter', icon: 'fa-solid fa-braille', label: 'Scatter' },
+  { chart: 'pie', icon: 'fa-solid fa-chart-pie', label: 'Pie Chart' },
+  { chart: 'donut', icon: 'fa-solid fa-chart-pie', label: 'Donut' },
+  { chart: 'treemap', icon: 'fa-solid fa-tree', label: 'Treemap' },
+  { chart: 'map', icon: 'fa-solid fa-map', label: 'Map' },
+  { chart: 'filledMap', icon: 'fa-solid fa-map-location-dot', label: 'Filled Map' },
+  { chart: 'fieldMap', icon: 'fa-solid fa-map-pin', label: 'Field Map' },
+  { chart: 'azureMaps', icon: 'fa-brands fa-microsoft', label: 'Azure Maps' },
+  { chart: 'gauge', icon: 'fa-solid fa-gauge-high', label: 'Gauge' },
+  { chart: 'card', icon: 'fa-solid fa-id-card', label: 'Card' },
+  { chart: 'multiRowCard', icon: 'fa-solid fa-address-card', label: 'Multi-row Card' },
+  { chart: 'kpi', icon: 'fa-solid fa-chart-simple', label: 'KPI' },
+  { chart: 'customStatCard', icon: 'fa-solid fa-chart-column', label: 'Custom stat card' },
+  { chart: 'slicer', icon: 'fa-solid fa-scissors', label: 'Slicer' },
+  { chart: 'dataTable', icon: 'fa-solid fa-database', label: 'Data Table' },
+  { chart: 'rScript', icon: 'fa-brands fa-r-project', label: 'R Script' },
+  { chart: 'pythonVisual', icon: 'fa-brands fa-python', label: 'Python Visual' },
+  { chart: 'keyInfluencers', icon: 'fa-solid fa-chart-line', label: 'Key Influencers' },
+  { chart: 'decompositionTree', icon: 'fa-solid fa-diagram-project', label: 'Decomposition Tree' },
+  { chart: 'qa', icon: 'fa-solid fa-circle-question', label: 'Q&A' },
+  { chart: 'smartNarrative', icon: 'fa-solid fa-comment-dots', label: 'Smart Narrative' },
+]
+
 function computeAgg(values: number[], agg: string): number {
   if (!values.length) return 0
   if (agg === 'sum') return values.reduce((a, b) => a + b, 0)
@@ -2418,6 +2459,15 @@ export default function DevelopDashboard() {
     }
   }, [remoteDataUrl, layerModalName, closeAddGisModal])
 
+  const toggleChartTool = (chart: string) => {
+    setSelectedCharts(prev => {
+      const next = new Set(prev)
+      if (next.has(chart)) next.delete(chart)
+      else next.add(chart)
+      return next
+    })
+  }
+
   const appendSelectedChartsToCanvas = useCallback(() => {
     const toAdd = [...selectedCharts].filter(c => c !== 'fieldMap' && c !== 'filledMap' && c !== 'map')
     if (!toAdd.length) return
@@ -2899,6 +2949,25 @@ export default function DevelopDashboard() {
               ) : null}
               {rightSheet === 'visualizations' ? (
                 <div className="ddb-right-sheet-body">
+                  <div
+                    className="ddb-powerbi-grid ddb-powerbi-grid--in-right-sheet"
+                    role="group"
+                    aria-label="Visualization types"
+                  >
+                    {CHART_TOOLS.map(t => (
+                      <button
+                        key={t.chart}
+                        type="button"
+                        className={`ddb-chart-tool-item${selectedCharts.has(t.chart) ? ' is-selected' : ''}`}
+                        title={t.label}
+                        aria-pressed={selectedCharts.has(t.chart)}
+                        onClick={() => toggleChartTool(t.chart)}
+                      >
+                        <i className={t.icon} aria-hidden />
+                        <span className="ddb-chart-tool-label-sr">{t.label}</span>
+                      </button>
+                    ))}
+                  </div>
                   {vizBuildMode !== 'none' && layerKeys.length > 0 ? (
                     <div className="ddb-vis-build-visual" aria-label="Build visual field wells">
                       <div className="ddb-vis-build-visual__title">Build visual</div>
@@ -3083,7 +3152,7 @@ export default function DevelopDashboard() {
                       )}
                     </div>
                   ) : null}
-                  {vizBuildMode !== 'none' && layerKeys.length > 0 ? (
+                  {selectedCharts.has('customStatCard') && vizBuildMode !== 'none' && layerKeys.length > 0 ? (
                     <div className="ddb-vis-stat-card" aria-label="Custom stat card configuration">
                       <div className="ddb-vis-stat-card__icon-badge" aria-hidden>
                         <i className="fa-solid fa-chart-column" />
