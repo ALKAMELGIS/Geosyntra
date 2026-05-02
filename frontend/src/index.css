@@ -2770,9 +2770,8 @@ aside {
   flex: 1 1 auto;
   display: flex;
   flex-direction: column;
-  gap: 12px;
-  overflow-y: auto;
-  overflow-x: hidden;
+  gap: 0;
+  overflow: hidden;
   min-height: 0;
   -ms-overflow-style: none;
   scrollbar-width: none;
@@ -2783,69 +2782,133 @@ aside {
   height: 0;
 }
 
-/* Collapse / expand control (lives inside .gis-sidebar-body) */
-.gis-sidebar-body-collapsebar {
-  flex-shrink: 0;
-  margin: -14px -14px 0 -14px;
-  padding: 0;
-  background: #0f172a;
-  border-bottom: 1px solid rgba(148, 163, 184, 0.22);
-  position: sticky;
-  top: 0;
-  z-index: 6;
+/* Scrollable layer list / filters (fills space above footer toolbar) */
+.gis-sidebar-body-main {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding-bottom: 4px;
 }
 
-.gis-content-page .gis-sidebar-body-collapsebar {
-  margin: -10px -10px 0 -10px;
-}
-
-.gis-content-page.gis-sidebar-collapsed .gis-sidebar-body-collapsebar {
-  margin: -8px -6px 0 -6px;
-}
-
-.gis-sidebar-body-collapsebtn {
-  width: 100%;
-  display: inline-flex;
-  align-items: center;
+.gis-sidebar-body-main--collapsed-rail {
+  flex: 1 1 auto;
   justify-content: center;
-  gap: 8px;
-  padding: 10px 12px;
-  border: 0;
-  background: transparent;
-  color: #cbd5e1;
-  font-size: 12px;
-  font-weight: 700;
-  letter-spacing: 0.02em;
-  cursor: pointer;
+  align-items: stretch;
+}
+
+/* Bottom toolbar (ArcGIS-style dark strip inside .gis-sidebar-body) */
+.gis-sidebar-foot-toolbar {
+  flex-shrink: 0;
+  margin-top: auto;
+  margin-left: -14px;
+  margin-right: -14px;
+  margin-bottom: -14px;
+  padding: 8px 10px 12px;
+  background: linear-gradient(180deg, #243044 0%, #151b2b 48%, #0f141f 100%);
+  border-top: 1px solid rgba(148, 163, 184, 0.18);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  border-radius: 0 0 20px 20px;
+}
+
+.gis-sidebar-foot-divider {
+  height: 1px;
+  margin: 0 0 6px;
+  background: linear-gradient(90deg, transparent, rgba(148, 163, 184, 0.22), transparent);
+}
+
+.gis-sidebar-foot-note,
+.gis-sidebar-foot-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 6px 8px;
+  border-radius: 10px;
+  text-align: left;
   font-family: inherit;
-  transition: background 0.15s ease, color 0.15s ease;
+  font-size: 12px;
+  font-weight: 650;
+  letter-spacing: 0.01em;
+  color: #cbd5e1;
 }
 
-.gis-sidebar-body-collapsebtn i {
-  font-size: 13px;
-  opacity: 0.92;
+.gis-sidebar-foot-note {
+  margin-bottom: 2px;
+  cursor: default;
+  user-select: none;
 }
 
-.gis-sidebar-body-collapsebtn:hover {
-  background: rgba(30, 41, 59, 0.85);
+.gis-sidebar-foot-item {
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  color: #e2e8f0;
+  transition: background 0.16s ease, color 0.16s ease, box-shadow 0.16s ease;
+}
+
+.gis-sidebar-foot-item:hover {
+  background: rgba(148, 163, 184, 0.12);
+  color: #f8fafc;
+}
+
+.gis-sidebar-foot-item:focus-visible {
+  outline: 2px solid rgba(59, 130, 246, 0.65);
+  outline-offset: 1px;
+}
+
+.gis-sidebar-foot-item--primary:hover {
+  background: rgba(59, 130, 246, 0.14);
+  box-shadow: inset 0 0 0 1px rgba(59, 130, 246, 0.25);
+}
+
+.gis-sidebar-foot-item__label {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.gis-sidebar-foot-item__glyph {
+  width: 34px;
+  height: 34px;
+  flex-shrink: 0;
+  display: grid;
+  place-items: center;
+  border-radius: 9px;
+  border: 1px solid rgba(59, 130, 246, 0.55);
+  background: linear-gradient(180deg, rgba(30, 41, 59, 0.95), rgba(15, 23, 42, 0.98));
   color: #f1f5f9;
+  font-size: 13px;
+  box-shadow:
+    0 0 0 1px rgba(0, 0, 0, 0.35),
+    0 4px 12px rgba(0, 0, 0, 0.25);
 }
 
-.gis-sidebar-body-collapsebtn:focus-visible {
-  outline: 2px solid rgba(52, 211, 153, 0.55);
-  outline-offset: -2px;
+.gis-sidebar-foot-item:hover .gis-sidebar-foot-item__glyph {
+  border-color: rgba(96, 165, 250, 0.85);
+  color: #ffffff;
 }
 
-.gis-sidebar-body:has(> .gis-sidebar-body-collapsebar) > .gis-layer-list,
-.gis-sidebar-body:has(> .gis-sidebar-body-collapsebar) > .gis-empty {
-  padding-left: 14px;
-  padding-right: 14px;
+.gis-sidebar-foot-item__glyph--info {
+  position: relative;
+  border-color: rgba(100, 116, 139, 0.55);
+  background: linear-gradient(180deg, rgba(51, 65, 85, 0.9), rgba(30, 41, 59, 0.95));
+  font-size: 14px;
+  color: #e2e8f0;
 }
 
-.gis-content-page .gis-sidebar-body:has(> .gis-sidebar-body-collapsebar) > .gis-layer-list,
-.gis-content-page .gis-sidebar-body:has(> .gis-sidebar-body-collapsebar) > .gis-empty {
-  padding-left: 10px;
-  padding-right: 10px;
+.gis-sidebar-foot-item__glyph--info::after {
+  content: '';
+  position: absolute;
+  right: 3px;
+  bottom: 3px;
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  background: #38bdf8;
+  box-shadow: 0 0 0 2px rgba(15, 23, 42, 0.95);
 }
 
 .gis-sidebar--layers-collapsed .gis-sidebar-body {
@@ -2853,8 +2916,15 @@ aside {
   gap: 0;
 }
 
-.gis-sidebar--layers-collapsed .gis-sidebar-body-collapsebar {
-  margin: 0;
+.gis-sidebar--layers-collapsed .gis-sidebar-body-main {
+  padding: 8px 6px 4px;
+}
+
+.gis-sidebar--layers-collapsed .gis-sidebar-foot-toolbar {
+  margin-left: 0;
+  margin-right: 0;
+  margin-bottom: 0;
+  border-radius: 0 0 20px 20px;
 }
 
 .gis-sidebar-collapsed-count {
@@ -8004,7 +8074,13 @@ html[data-theme='dark'] .gis-domain-cell--dropdown.missing-description .gis-doma
   align-items: stretch;
   justify-content: flex-start;
   padding: 8px 6px;
-  gap: 8px;
+  gap: 0;
+}
+
+.gis-content-page.gis-sidebar-collapsed .gis-sidebar-foot-toolbar {
+  margin-left: -8px;
+  margin-right: -8px;
+  margin-bottom: -8px;
 }
 
 /* Collapsed rail: compact “layer stack” affordance (replaces dashed hint box) */
@@ -8125,9 +8201,16 @@ html[data-theme='dark'] .gis-domain-cell--dropdown.missing-description .gis-doma
 
 .gis-content-page .gis-sidebar-body {
   padding: 10px;
-  gap: 10px;
-  overflow-y: auto;
-  overflow-x: hidden;
+  gap: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.gis-content-page .gis-sidebar-foot-toolbar {
+  margin-left: -10px;
+  margin-right: -10px;
+  margin-bottom: -10px;
 }
 
 .gis-content-page .gis-content-sidebarfilters {
@@ -8529,6 +8612,12 @@ html[data-theme='dark'] .gis-domain-cell--dropdown.missing-description .gis-doma
 
   .gis-content-page .gis-sidebar-body {
     padding: 8px;
+  }
+
+  .gis-content-page .gis-sidebar-foot-toolbar {
+    margin-left: -8px;
+    margin-right: -8px;
+    margin-bottom: -8px;
   }
 
   .gis-content-page .gis-layer-list {

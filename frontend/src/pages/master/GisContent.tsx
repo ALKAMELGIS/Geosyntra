@@ -1875,19 +1875,7 @@ function GisContentPage() {
         <div className="gis-sidebar-body" id="gis-sidebar-panel">
           {sidebarCollapsed ? (
             <>
-            <div className="gis-sidebar-body-collapsebar">
-              <button
-                type="button"
-                className="gis-sidebar-body-collapsebtn"
-                onClick={() => setSidebarCollapsed(false)}
-                aria-controls="gis-sidebar-panel"
-                aria-expanded={false}
-                aria-label="Expand GIS layers panel"
-              >
-                <i className="fa-solid fa-angles-right" aria-hidden="true" />
-                <span>Expand</span>
-              </button>
-            </div>
+            <div className="gis-sidebar-body-main gis-sidebar-body-main--collapsed-rail">
             <button
               type="button"
               className="gis-sidebar-collapsed-layers"
@@ -1909,22 +1897,38 @@ function GisContentPage() {
               <span className="gis-sidebar-collapsed-layers__badge">{rows.length}</span>
               <span className="gis-sidebar-collapsed-layers__caption">layers</span>
             </button>
+            </div>
+            <footer className="gis-sidebar-foot-toolbar" aria-label="Sidebar tools">
+              <div className="gis-sidebar-foot-divider" aria-hidden />
+              <div
+                className="gis-sidebar-foot-note"
+                title="GIS Content: browse layers, records, fields, and relationships from this sidebar."
+                role="note"
+              >
+                <span className="gis-sidebar-foot-item__glyph gis-sidebar-foot-item__glyph--info" aria-hidden>
+                  <i className="fa-solid fa-circle-info" />
+                </span>
+                <span className="gis-sidebar-foot-item__label">Information</span>
+              </div>
+              <button
+                type="button"
+                className="gis-sidebar-foot-item gis-sidebar-foot-item--primary"
+                onClick={() => setSidebarCollapsed(false)}
+                aria-controls="gis-sidebar-panel"
+                aria-expanded={false}
+                aria-label="Expand GIS layers panel"
+                title="Expand"
+              >
+                <span className="gis-sidebar-foot-item__glyph" aria-hidden>
+                  <i className="fa-solid fa-angles-right" />
+                </span>
+                <span className="gis-sidebar-foot-item__label">Expand</span>
+              </button>
+            </footer>
             </>
           ) : (
             <>
-            <div className="gis-sidebar-body-collapsebar">
-              <button
-                type="button"
-                className="gis-sidebar-body-collapsebtn"
-                onClick={() => setSidebarCollapsed(true)}
-                aria-controls="gis-sidebar-panel"
-                aria-expanded
-                aria-label="Collapse GIS layers panel"
-              >
-                <i className="fa-solid fa-angles-left" aria-hidden="true" />
-                <span>Collapse</span>
-              </button>
-            </div>
+            <div className="gis-sidebar-body-main">
           <div className="gis-content-sidebarfilters">
             <input className="gis-input gis-layer-search" value={layerQuery} onChange={(e) => setLayerQuery(e.target.value)} placeholder="Search for a layer..." />
             <div className="gis-content-filterrow">
@@ -2076,6 +2080,34 @@ function GisContentPage() {
               </div>
             ) : null}
           </div>
+            </div>
+            <footer className="gis-sidebar-foot-toolbar" aria-label="Sidebar tools">
+              <div className="gis-sidebar-foot-divider" aria-hidden />
+              <div
+                className="gis-sidebar-foot-note"
+                title="GIS Content: browse layers, records, fields, and relationships from this sidebar."
+                role="note"
+              >
+                <span className="gis-sidebar-foot-item__glyph gis-sidebar-foot-item__glyph--info" aria-hidden>
+                  <i className="fa-solid fa-circle-info" />
+                </span>
+                <span className="gis-sidebar-foot-item__label">Information</span>
+              </div>
+              <button
+                type="button"
+                className="gis-sidebar-foot-item gis-sidebar-foot-item--primary"
+                onClick={() => setSidebarCollapsed(true)}
+                aria-controls="gis-sidebar-panel"
+                aria-expanded
+                aria-label="Collapse GIS layers panel"
+                title="Collapse"
+              >
+                <span className="gis-sidebar-foot-item__glyph" aria-hidden>
+                  <i className="fa-solid fa-angles-left" />
+                </span>
+                <span className="gis-sidebar-foot-item__label">Collapse</span>
+              </button>
+            </footer>
             </>
           )}
         </div>

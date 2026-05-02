@@ -30,6 +30,7 @@ import { getArcgisPortalToken } from '../../lib/arcgisPortalToken';
 import { getMapboxAccessToken } from '../../lib/mapboxAccessToken';
 import {
   getSentinelHubWmsBaseUrl,
+  getSentinelHubWmsInstanceId,
   subscribeSentinelHubWmsInstance,
 } from '../../lib/sentinelHubWmsInstance';
 import {
@@ -3029,7 +3030,34 @@ export default function SatelliteIntelligence() {
     loadLayers();
   }, [wmsBaseUrl]);
 
-  const activeWmsLayer = wmsLayer || (selectedIndex === 'LST' ? '' : selectedIndex);
+  /** Keep WMS layer name aligned with layers returned for the configured Sentinel Hub instance. */
+  useEffect(() => {
+    if (!wmsLayers.length) return;
+    setWmsLayer(prev => (prev && wmsLayers.some(l => l.name === prev) ? prev : wmsLayers[0]!.name));
+  }, [wmsLayers]);
+
+  /** When the chosen WMS layer matches a built-in environmental index id, keep charts/AOI logic in sync. */
+  useEffect(() => {
+    const w = wmsLayer.trim();
+    const ids = Object.keys(ENVIRONMENTAL_INDICES) as EnvironmentalIndexId[];
+    if (ids.includes(w as EnvironmentalIndexId)) setSelectedIndex(w as EnvironmentalIndexId);
+  }, [wmsLayer]);
+
+  const activeWmsLayer = useMemo(() => {
+    const t = wmsLayer.trim();
+    if (t && wmsLayers.some(l => l.name === t)) return t;
+    const first = wmsLayers.find(l => l.name.trim().length > 0)?.name.trim() ?? '';
+    if (first) return first;
+    if (selectedIndex === 'LST') return '';
+    return selectedIndex;
+  }, [wmsLayer, wmsLayers, selectedIndex]);
+
+  const wmsLayerSelectValue = useMemo(() => {
+    const t = wmsLayer.trim();
+    if (t && wmsLayers.some(l => l.name === t)) return t;
+    return wmsLayers[0]?.name ?? '';
+  }, [wmsLayer, wmsLayers]);
+
   const wmsDate = selectedDate.toISOString().split('T')[0];
   const sentinelVisible = isWmsOverlayVisible && !!activeWmsLayer;
   const currentBasemapEntry = useMemo(() => {
@@ -3975,29 +4003,36 @@ export default function SatelliteIntelligence() {
                             <span className="si-field-analysis-label">Layer / vegetation index</span>
                             <select
                               className="si-field-analysis-select"
-                              value={
-                                /^TRUE[_-]COLOR$/i.test(String(wmsLayer).trim()) ? 'TRUE_COLOR' : selectedIndex
-                              }
+                              value={isLoadingLayers ? '' : wmsLayerSelectValue}
                               onChange={e => {
                                 const v = e.target.value;
-                                if (v === 'TRUE_COLOR') {
-                                  setWmsLayer('TRUE_COLOR');
-                                  if (selectedIndex === 'LST') setSelectedIndex('NDWI');
-                                } else {
-                                  setWmsLayer('');
-                                  setSelectedIndex(v as EnvironmentalIndexId);
-                                }
+                                setWmsLayer(v);
+                                const ids = Object.keys(ENVIRONMENTAL_INDICES) as EnvironmentalIndexId[];
+                                if (ids.includes(v as EnvironmentalIndexId)) setSelectedIndex(v as EnvironmentalIndexId);
                               }}
+                              disabled={isLoadingLayers}
                               aria-label="Layer or vegetation index"
                             >
-                              <option value="TRUE_COLOR">True color</option>
-                              {(Object.keys(ENVIRONMENTAL_INDICES) as EnvironmentalIndexId[]).map(id => (
-                                <option key={id} value={id}>
-                                  {ENVIRONMENTAL_INDICES[id].label}
-                                </option>
-                              ))}
+                              {isLoadingLayers ? (
+                                <option value="">Loading Sentinel Hub layers…</option>
+                              ) : wmsLayers.length === 0 ? (
+                                <option value="">No WMS layers (check Sentinel API tokens)</option>
+                              ) : (
+                                wmsLayers.map(layer => (
+                                  <option key={layer.name} value={layer.name}>
+                                    {layer.title}
+                                  </option>
+                                ))
+                              )}
                             </select>
                           </label>
+                          <p className="si-field-analysis-hint" style={{ marginTop: 6 }}>
+                            Options come from your Sentinel Hub WMS instance (
+                            <span style={{ fontFamily: 'ui-monospace, monospace', fontSize: '10px', opacity: 0.95 }}>
+                              {getSentinelHubWmsInstanceId().slice(0, 8)}…
+                            </span>
+                            ). Configure it under System Settings → Sentinel API tokens.
+                          </p>
                         </div>
 
                         <div className="si-field-analysis-section">

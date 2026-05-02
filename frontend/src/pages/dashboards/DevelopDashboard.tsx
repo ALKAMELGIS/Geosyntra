@@ -2,6 +2,9 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
 import Chart from 'chart.js/auto'
+import { loadGisMapSavedLayers } from '../../lib/gisMapLayerStore'
+import type { LayerData } from '../satellite/components/LayerManager'
+import { parseFile, parseRemoteUrlAsFile } from '../../utils/FileLoader'
 import './develop-dashboard.css'
 
 const STRUCTURES_URL =
@@ -88,6 +91,99 @@ function newId() {
   return `${Date.now()}_${Math.random().toString(16).slice(2)}`
 }
 
+type AddGisLayerTab = 'arcgis' | 'database' | 'upload' | 'url'
+
+type AddSourceWizard = 'home' | 'gis-list' | 'tabs'
+
+type DiscoveredArcLayer = {
+  id: number
+  name: string
+  kind: 'layer' | 'table'
+  url: string
+  geometryType?: string
+}
+
+function buildArcGisUrl(baseUrl: string, params: Record<string, string>) {
+  const normalized = baseUrl.trim().replace(/#.*$/, '').replace(/\?.*$/, '').replace(/\/+$/, '')
+  const u = new URL(normalized, typeof window !== 'undefined' ? window.location.origin : 'http://localhost')
+  const search = new URLSearchParams()
+  Object.entries(params).forEach(([k, v]) => {
+    if (v !== '') search.set(k, v)
+  })
+  u.search = search.toString()
+  return u.toString()
+}
+
+function normalizeArcGisServiceUrl(raw: string) {
+  const trimmed = raw.trim().replace(/#.*$/, '').replace(/\?.*$/, '').replace(/\/+$/, '')
+  const parts = trimmed.split('/')
+  const last = parts[parts.length - 1]
+  const prev = parts[parts.length - 2]
+  if (/^\d+$/.test(last) && (prev === 'FeatureServer' || prev === 'MapServer')) {
+    return parts.slice(0, -1).join('/')
+  }
+  return trimmed
+}
+
+async function fetchArcGisFeatureCollection(
+  layerUrl: string,
+  token: string,
+  kind: 'layer' | 'table',
+): Promise<GeoJSON.FeatureCollection> {
+  let returnGeometry = kind !== 'table'
+  try {
+    const defUrl = buildArcGisUrl(layerUrl.replace(/\/+$/, ''), { f: 'json', token: token.trim() })
+    const defRes = await fetch(defUrl)
+    const json = await defRes.json()
+    if (json?.error?.message) {
+      const details = Array.isArray(json?.error?.details) ? json.error.details.join(' ') : ''
+      throw new Error([json.error.message, details].filter(Boolean).join(' '))
+    }
+    if (json?.type && String(json.type).toLowerCase() === 'table') returnGeometry = false
+    else if (typeof json?.geometryType === 'string') returnGeometry = true
+  } catch {
+    returnGeometry = kind !== 'table'
+  }
+  const url = buildArcGisUrl(`${layerUrl.replace(/\/+$/, '')}/query`, {
+    where: '1=1',
+    outFields: '*',
+    returnGeometry: returnGeometry ? 'true' : 'false',
+    outSR: '4326',
+    f: 'geojson',
+    resultRecordCount: '2000',
+    token: token.trim(),
+  })
+  const res = await fetch(url)
+  const geojson = await res.json()
+  if (geojson?.error?.message) {
+    const details = Array.isArray(geojson?.error?.details) ? geojson.error.details.join(' ') : ''
+    throw new Error([geojson.error.message, details].filter(Boolean).join(' '))
+  }
+  if (!geojson || geojson.type !== 'FeatureCollection') throw new Error('Service did not return GeoJSON.')
+  return geojson as GeoJSON.FeatureCollection
+}
+
+function isFeatureCollection(x: unknown): x is GeoJSON.FeatureCollection {
+  return Boolean(x && typeof x === 'object' && (x as GeoJSON.FeatureCollection).type === 'FeatureCollection' && Array.isArray((x as GeoJSON.FeatureCollection).features))
+}
+
+function gisLayerCanImportToDashboard(layer: LayerData): boolean {
+  if (isFeatureCollection(layer.data)) return true
+  if (layer.url && layer.source === 'arcgis') return true
+  return false
+}
+
+function uniqueRegistryKey(existingKeys: string[], displayName: string): string {
+  const stem = (displayName.trim().replace(/\s+/g, '_').replace(/[^a-zA-Z0-9_]/g, '') || 'layer').toLowerCase()
+  let key = stem
+  let i = 0
+  while (existingKeys.includes(key)) {
+    i += 1
+    key = `${stem}_${i}`
+  }
+  return key
+}
+
 export default function DevelopDashboard() {
   const mapElRef = useRef<HTMLDivElement | null>(null)
   const mapRef = useRef<L.Map | null>(null)
@@ -103,10 +199,23 @@ export default function DevelopDashboard() {
   const [selectedCharts, setSelectedCharts] = useState<Set<string>>(() => new Set(['table', 'line', 'kpi']))
   const [statCards, setStatCards] = useState<StatCardRow[]>([])
   const [linkStatus, setLinkStatus] = useState('')
-  const [newLayerOpen, setNewLayerOpen] = useState(false)
-  const [newName, setNewName] = useState('')
-  const [newUrl, setNewUrl] = useState('')
-  const [newType, setNewType] = useState<'feature' | 'table'>('feature')
+  const [addGisOpen, setAddGisOpen] = useState(false)
+  const [addWizard, setAddWizard] = useState<AddSourceWizard>('home')
+  const [gisContentLayers, setGisContentLayers] = useState<LayerData[]>([])
+  const [gisContentLoading, setGisContentLoading] = useState(false)
+  const [addTab, setAddTab] = useState<AddGisLayerTab>('arcgis')
+  const [serviceUrl, setServiceUrl] = useState('')
+  const [arcgisToken, setArcgisToken] = useState('')
+  const [isDiscovering, setIsDiscovering] = useState(false)
+  const [discoverError, setDiscoverError] = useState<string | null>(null)
+  const [discoveredLayers, setDiscoveredLayers] = useState<DiscoveredArcLayer[]>([])
+  const [selectedDiscoveredUrl, setSelectedDiscoveredUrl] = useState('')
+  const [layerModalName, setLayerModalName] = useState('')
+  const [addingLayerKey, setAddingLayerKey] = useState<string | null>(null)
+  const [uploadFile, setUploadFile] = useState<File | null>(null)
+  const [remoteDataUrl, setRemoteDataUrl] = useState('')
+  const addLayerFileInputRef = useRef<HTMLInputElement | null>(null)
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
   const [linkFrom, setLinkFrom] = useState('')
   const [linkTo, setLinkTo] = useState('')
   const [linkFieldFrom, setLinkFieldFrom] = useState('')
@@ -125,6 +234,30 @@ export default function DevelopDashboard() {
       setStatsField(activeFields[0] ?? '')
     }
   }, [activeFields, statsField])
+
+  useEffect(() => {
+    if (!addGisOpen) return
+    let cancelled = false
+    setGisContentLoading(true)
+    void loadGisMapSavedLayers().then(rows => {
+      if (!cancelled) setGisContentLayers(rows)
+    }).finally(() => {
+      if (!cancelled) setGisContentLoading(false)
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [addGisOpen])
+
+  useEffect(() => {
+    const mq = window.matchMedia('(max-width: 1100px)')
+    const sync = () => {
+      if (mq.matches) setSidebarCollapsed(false)
+    }
+    sync()
+    mq.addEventListener('change', sync)
+    return () => mq.removeEventListener('change', sync)
+  }, [])
 
   useEffect(() => {
     const el = mapElRef.current
@@ -211,22 +344,8 @@ export default function DevelopDashboard() {
         })
         gj.addTo(map)
         leafletRef.current[key] = gj
-      } else if (layer.type === 'table' && layer.data?.features?.length) {
-        const points: L.CircleMarker[] = []
-        layer.data.features.forEach((f, idx) => {
-          const props = (f.properties ?? {}) as Record<string, unknown>
-          const lat = 28.5 + (idx % 10) * 0.2
-          const lng = 34.5 + (idx % 8) * 0.3
-          points.push(
-            L.circleMarker([lat, lng], { radius: 5, fillColor: '#ffaa66', color: '#fff', weight: 1 }).bindPopup(
-              `${String(props.Farm_Name ?? 'Record')}<br>Crop: ${String(props.Crop_Type ?? '')}`,
-            ),
-          )
-        })
-        const group = L.layerGroup(points)
-        group.addTo(map)
-        leafletRef.current[key] = group
       }
+      /* Table layers have no geometry: do not plot synthetic markers on the map. */
     }
   }, [layers])
 
@@ -410,6 +529,243 @@ export default function DevelopDashboard() {
     })
   }
 
+  const resetAddGisForm = useCallback(() => {
+    setAddWizard('home')
+    setAddTab('arcgis')
+    setServiceUrl('')
+    setArcgisToken('')
+    setIsDiscovering(false)
+    setDiscoverError(null)
+    setDiscoveredLayers([])
+    setSelectedDiscoveredUrl('')
+    setLayerModalName('')
+    setAddingLayerKey(null)
+    setUploadFile(null)
+    setRemoteDataUrl('')
+  }, [])
+
+  const openAddGisModal = useCallback(() => {
+    resetAddGisForm()
+    setAddGisOpen(true)
+  }, [resetAddGisForm])
+
+  const closeAddGisModal = useCallback(() => {
+    setAddGisOpen(false)
+    resetAddGisForm()
+  }, [resetAddGisForm])
+
+  const switchAddTab = useCallback((t: AddGisLayerTab) => {
+    setDiscoverError(null)
+    setAddTab(t)
+  }, [])
+
+  const goAddWizardHome = useCallback(() => {
+    setDiscoverError(null)
+    setAddWizard('home')
+  }, [])
+
+  const importGisContentLayer = useCallback(
+    async (layer: LayerData) => {
+      if (!gisLayerCanImportToDashboard(layer)) return
+      const opKey = `gis:${String(layer.id)}`
+      setAddingLayerKey(opKey)
+      setDiscoverError(null)
+      try {
+        let data: GeoJSON.FeatureCollection
+        let layerType: 'feature' | 'table' = 'feature'
+        const url = layer.url?.trim() || `gis-content:${String(layer.id)}`
+
+        if (isFeatureCollection(layer.data)) {
+          data = layer.data
+          if (data.features.length === 0) throw new Error('Layer has no features.')
+        } else if (layer.url && layer.source === 'arcgis') {
+          const def = layer.arcgisLayerDefinition
+          const isTable = def?.type === 'table' || String(def?.type || '').toLowerCase() === 'table'
+          const kind: 'layer' | 'table' = isTable ? 'table' : 'layer'
+          layerType = kind === 'table' ? 'table' : 'feature'
+          const token = layer.authToken || ''
+          data = await fetchArcGisFeatureCollection(layer.url, token, kind)
+        } else {
+          throw new Error('Unsupported layer format for this dashboard.')
+        }
+
+        const fields = Object.keys(data.features[0]?.properties ?? {})
+        const displayName = layer.name?.trim() || 'Layer'
+        setLayers(prev => {
+          const key = uniqueRegistryKey(Object.keys(prev), displayName)
+          return {
+            ...prev,
+            [key]: {
+              name: displayName,
+              type: layerType,
+              url,
+              data,
+              fields,
+              visible: true,
+            },
+          }
+        })
+        closeAddGisModal()
+      } catch (e: unknown) {
+        setDiscoverError(e instanceof Error ? e.message : 'Failed to add layer from GIS Content.')
+      } finally {
+        setAddingLayerKey(null)
+      }
+    },
+    [closeAddGisModal],
+  )
+
+  const discoverArcGisLayers = useCallback(async () => {
+    const base = normalizeArcGisServiceUrl(serviceUrl)
+    if (!base) return
+    setIsDiscovering(true)
+    setDiscoverError(null)
+    setDiscoveredLayers([])
+    setSelectedDiscoveredUrl('')
+    try {
+      const url = buildArcGisUrl(base, { f: 'json', token: arcgisToken.trim() })
+      const res = await fetch(url, { method: 'GET' })
+      const json = await res.json()
+      if (json?.error?.message) {
+        const details = Array.isArray(json?.error?.details) ? json.error.details.join(' ') : ''
+        throw new Error([json.error.message, details].filter(Boolean).join(' '))
+      }
+      const layersArr = Array.isArray(json?.layers) ? json.layers : []
+      const tablesArr = Array.isArray(json?.tables) ? json.tables : []
+      const discovered: DiscoveredArcLayer[] = [...layersArr.map((l: any) => ({ ...l, kind: 'layer' as const })), ...tablesArr.map((t: any) => ({ ...t, kind: 'table' as const }))]
+        .filter((l: any) => typeof l?.id === 'number' && typeof l?.name === 'string')
+        .map((l: any) => ({
+          id: l.id as number,
+          name: l.name as string,
+          kind: l.kind as 'layer' | 'table',
+          url: `${base.replace(/\/+$/, '')}/${l.id}`,
+          geometryType: typeof l?.geometryType === 'string' ? (l.geometryType as string) : undefined,
+        }))
+      if (discovered.length === 0) throw new Error('No layers/tables found in this service URL.')
+      setDiscoveredLayers(discovered)
+      setSelectedDiscoveredUrl(discovered[0]!.url)
+      setLayerModalName(prev => (prev.trim() ? prev : discovered[0]!.name))
+    } catch (e: unknown) {
+      setDiscoverError(e instanceof Error ? e.message : 'Failed to connect to service.')
+    } finally {
+      setIsDiscovering(false)
+    }
+  }, [serviceUrl, arcgisToken])
+
+  const addArcGisLayerToRegistry = useCallback(
+    async (l: DiscoveredArcLayer) => {
+      const opKey = `arcgis:${l.url}`
+      setAddingLayerKey(opKey)
+      setDiscoverError(null)
+      try {
+        const data = await fetchArcGisFeatureCollection(l.url, arcgisToken, l.kind)
+        const displayName = layerModalName.trim() || l.name
+        const fields = Object.keys(data.features[0]?.properties ?? {})
+        setLayers(prev => {
+          const key = uniqueRegistryKey(Object.keys(prev), displayName)
+          return {
+            ...prev,
+            [key]: {
+              name: displayName,
+              type: l.kind === 'table' ? 'table' : 'feature',
+              url: l.url,
+              data,
+              fields,
+              visible: true,
+            },
+          }
+        })
+        closeAddGisModal()
+      } catch (e: unknown) {
+        setDiscoverError(e instanceof Error ? e.message : 'Failed to add layer.')
+      } finally {
+        setAddingLayerKey(null)
+      }
+    },
+    [arcgisToken, layerModalName, closeAddGisModal],
+  )
+
+  const addUploadLayerToRegistry = useCallback(async () => {
+    if (!uploadFile) return
+    const opKey = `upload:${uploadFile.name}`
+    setAddingLayerKey(opKey)
+    setDiscoverError(null)
+    try {
+      const parsed = await parseFile(uploadFile)
+      if (parsed.type !== 'geojson') throw new Error('File must contain GIS features (GeoJSON/KML/KMZ/Shapefile zip).')
+      let geojson: unknown = parsed.data
+      if (Array.isArray(geojson)) geojson = geojson[0]
+      const fc = geojson as GeoJSON.FeatureCollection
+      if (!fc || fc.type !== 'FeatureCollection' || !Array.isArray(fc.features)) {
+        throw new Error('File must be a GeoJSON FeatureCollection.')
+      }
+      const displayName = layerModalName.trim() || uploadFile.name.replace(/\.[^.]+$/, '').trim() || 'Layer'
+      const fields = Object.keys(fc.features[0]?.properties ?? {})
+      setLayers(prev => {
+        const key = uniqueRegistryKey(Object.keys(prev), displayName)
+        return {
+          ...prev,
+          [key]: {
+            name: displayName,
+            type: 'feature',
+            url: `upload://${uploadFile.name}`,
+            data: fc,
+            fields,
+            visible: true,
+          },
+        }
+      })
+      closeAddGisModal()
+    } catch (e: unknown) {
+      setDiscoverError(e instanceof Error ? e.message : 'Failed to import file.')
+    } finally {
+      setAddingLayerKey(null)
+    }
+  }, [uploadFile, layerModalName, closeAddGisModal])
+
+  const addUrlLayerToRegistry = useCallback(async () => {
+    const trimmed = remoteDataUrl.trim()
+    if (!trimmed) return
+    const opKey = `url:${trimmed}`
+    setAddingLayerKey(opKey)
+    setDiscoverError(null)
+    try {
+      const file = await parseRemoteUrlAsFile(trimmed)
+      const parsed = await parseFile(file)
+      if (parsed.type !== 'geojson') {
+        throw new Error('URL must resolve to GIS features (GeoJSON/KML/KMZ/Shapefile zip/CSV with coordinates).')
+      }
+      let geojson: unknown = parsed.data
+      if (Array.isArray(geojson)) geojson = geojson[0]
+      const fc = geojson as GeoJSON.FeatureCollection
+      if (!fc || fc.type !== 'FeatureCollection' || !Array.isArray(fc.features)) {
+        throw new Error('URL must resolve to a GeoJSON FeatureCollection.')
+      }
+      const stem = file.name.replace(/\.[^.]+$/, '').trim()
+      const displayName = layerModalName.trim() || stem || 'Layer'
+      const fields = Object.keys(fc.features[0]?.properties ?? {})
+      setLayers(prev => {
+        const key = uniqueRegistryKey(Object.keys(prev), displayName)
+        return {
+          ...prev,
+          [key]: {
+            name: displayName,
+            type: 'feature',
+            url: trimmed,
+            data: fc,
+            fields,
+            visible: true,
+          },
+        }
+      })
+      closeAddGisModal()
+    } catch (e: unknown) {
+      setDiscoverError(e instanceof Error ? e.message : 'Failed to import from URL.')
+    } finally {
+      setAddingLayerKey(null)
+    }
+  }, [remoteDataUrl, layerModalName, closeAddGisModal])
+
   const toggleChartTool = (chart: string) => {
     setSelectedCharts(prev => {
       const next = new Set(prev)
@@ -439,29 +795,11 @@ export default function DevelopDashboard() {
     ])
   }
 
-  const confirmNewLayer = async () => {
-    const name = newName.trim()
-    const url = newUrl.trim()
-    if (!name || !url) return
-    try {
-      const data = await fetchGeoJSON(url, newType === 'table')
-      const fields = Object.keys(data.features[0]?.properties ?? {})
-      setLayers(prev => ({
-        ...prev,
-        [name]: { name, type: newType, url, data, fields, visible: true },
-      }))
-      setNewLayerOpen(false)
-      setNewName('')
-      setNewUrl('')
-    } catch {
-      setInitError('Failed to add layer from URL.')
-    }
-  }
-
   const linkFieldsFrom = linkFrom ? layers[linkFrom]?.fields ?? [] : []
   const linkFieldsTo = linkTo ? layers[linkTo]?.fields ?? [] : []
 
   return (
+    <>
     <div className="page page-tight develop-dashboard-root">
       {initError ? (
         <div className="ddb-hint" style={{ color: '#b91c1c', padding: 12 }}>
@@ -469,7 +807,7 @@ export default function DevelopDashboard() {
         </div>
       ) : null}
 
-      <div className="ddb-dashboard">
+      <div className={`ddb-dashboard${sidebarCollapsed ? ' ddb-dashboard--sidebar-collapsed' : ''}`}>
         <div className="ddb-topbar">
           <div className="ddb-brand">
             <h1>
@@ -481,11 +819,45 @@ export default function DevelopDashboard() {
           </div>
         </div>
 
-        <div className="ddb-sidebar">
+        <div className={`ddb-sidebar${sidebarCollapsed ? ' is-collapsed' : ''}`}>
+          <div className="ddb-sidebar-header">
+            {sidebarCollapsed ? (
+              <button
+                type="button"
+                className="ddb-sidebar-toggle"
+                onClick={() => setSidebarCollapsed(false)}
+                aria-expanded={false}
+                aria-controls="ddb-sidebar-panels"
+                title="Expand sidebar"
+              >
+                <i className="fa-solid fa-angles-right" aria-hidden />
+              </button>
+            ) : (
+              <button
+                type="button"
+                className="ddb-sidebar-toggle"
+                onClick={() => setSidebarCollapsed(true)}
+                aria-expanded={true}
+                aria-controls="ddb-sidebar-panels"
+                title="Collapse sidebar"
+              >
+                <i className="fa-solid fa-angles-left" aria-hidden />
+              </button>
+            )}
+          </div>
+          <div id="ddb-sidebar-panels" className="ddb-sidebar-panels">
           <div className="ddb-panel-section">
-            <div className="ddb-section-title">
-              <i className="fa-solid fa-layer-group" aria-hidden /> Layer Registry
+            <div
+              className="ddb-section-title"
+              data-tooltip="Layer Registry"
+              role="group"
+              aria-label="Layer Registry"
+              tabIndex={0}
+            >
+              <i className="fa-solid fa-layer-group" aria-hidden />
+              <span className="ddb-section-title-sr">Layer Registry</span>
             </div>
+            <div className="ddb-panel-body">
             <div className="ddb-layers-scroll">
               {layerKeys.map(key => {
                 const Lr = layers[key]
@@ -511,28 +883,24 @@ export default function DevelopDashboard() {
                 )
               })}
             </div>
-            <button type="button" className="ddb-btn" style={{ width: '100%', marginTop: 8 }} onClick={() => setNewLayerOpen(o => !o)}>
+            <button type="button" className="ddb-btn ddb-add-gis-layer-btn" onClick={openAddGisModal}>
               <i className="fa-solid fa-plus" aria-hidden /> Add Source Data
             </button>
-            {newLayerOpen ? (
-              <div className="ddb-new-layer-form">
-                <input className="ddb-input" value={newName} onChange={e => setNewName(e.target.value)} placeholder="Name (e.g. Irrigation_Logs)" />
-                <input className="ddb-input" value={newUrl} onChange={e => setNewUrl(e.target.value)} placeholder="URL (GeoJSON or FeatureServer)" />
-                <select className="ddb-select" value={newType} onChange={e => setNewType(e.target.value as 'feature' | 'table')}>
-                  <option value="feature">Spatial Layer (Polygon/Point)</option>
-                  <option value="table">Table Data Only</option>
-                </select>
-                <button type="button" className="ddb-btn" onClick={() => void confirmNewLayer()}>
-                  Add Layer
-                </button>
-              </div>
-            ) : null}
+            </div>
           </div>
 
           <div className="ddb-panel-section">
-            <div className="ddb-section-title">
-              <i className="fa-solid fa-chart-simple" aria-hidden /> Custom Stat Cards
+            <div
+              className="ddb-section-title"
+              data-tooltip="Custom Stat Cards"
+              role="group"
+              aria-label="Custom Stat Cards"
+              tabIndex={0}
+            >
+              <i className="fa-solid fa-chart-simple" aria-hidden />
+              <span className="ddb-section-title-sr">Custom Stat Cards</span>
             </div>
+            <div className="ddb-panel-body">
             <div className="ddb-stats-config-row">
               <select className="ddb-select" value={activeStatsLayer} onChange={e => setActiveStatsLayer(e.target.value)}>
                 {layerKeys.map(k => (
@@ -579,12 +947,21 @@ export default function DevelopDashboard() {
                 </div>
               ))}
             </div>
+            </div>
           </div>
 
           <div className="ddb-panel-section">
-            <div className="ddb-section-title">
-              <i className="fa-solid fa-link" aria-hidden /> Link Layers (Relation)
+            <div
+              className="ddb-section-title"
+              data-tooltip="Link Layers (Relation)"
+              role="group"
+              aria-label="Link Layers (Relation)"
+              tabIndex={0}
+            >
+              <i className="fa-solid fa-link" aria-hidden />
+              <span className="ddb-section-title-sr">Link Layers (Relation)</span>
             </div>
+            <div className="ddb-panel-body">
             <div className="ddb-link-row">
               <select className="ddb-select" value={linkFrom} onChange={e => { setLinkFrom(e.target.value); setLinkFieldFrom('') }}>
                 <option value="">-- Source Layer --</option>
@@ -630,12 +1007,21 @@ export default function DevelopDashboard() {
               Apply Relation &amp; Link Map
             </button>
             {linkStatus ? <div className="ddb-hint" style={{ color: '#2c6e49' }}>{linkStatus}</div> : null}
+            </div>
           </div>
 
           <div className="ddb-panel-section">
-            <div className="ddb-section-title">
-              <i className="fa-brands fa-microsoft" aria-hidden /> Power BI Static Tools (Multi-Select)
+            <div
+              className="ddb-section-title"
+              data-tooltip="Power BI Static Tools (Multi-Select)"
+              role="group"
+              aria-label="Power BI Static Tools (Multi-Select)"
+              tabIndex={0}
+            >
+              <i className="fa-brands fa-microsoft" aria-hidden />
+              <span className="ddb-section-title-sr">Power BI Static Tools (Multi-Select)</span>
             </div>
+            <div className="ddb-panel-body">
             <div className="ddb-powerbi-grid">
               {CHART_TOOLS.map(t => (
                 <button
@@ -653,6 +1039,8 @@ export default function DevelopDashboard() {
               <i className="fa-solid fa-rotate" aria-hidden /> Generate Selected Visuals
             </button>
             <div className="ddb-hint">Click any tool to select/deselect, then generate.</div>
+            </div>
+          </div>
           </div>
         </div>
 
@@ -677,5 +1065,366 @@ export default function DevelopDashboard() {
         </div>
       </div>
     </div>
+
+    {addGisOpen ? (
+      <div className="gis-modal-overlay" role="presentation" onClick={closeAddGisModal}>
+        <div
+          className="gis-modal gis-modal-compact ddb-add-source-modal"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="ddb-add-source-title"
+          onClick={e => e.stopPropagation()}
+        >
+          <div className="ddb-add-source-modal__head">
+            <div className="gis-modal-compact-title" id="ddb-add-source-title">
+              Add Source Data
+            </div>
+            {addWizard !== 'home' ? (
+              <button type="button" className="ddb-add-source-back" onClick={goAddWizardHome}>
+                <i className="fa-solid fa-arrow-left" aria-hidden /> All options
+              </button>
+            ) : null}
+          </div>
+
+          {addWizard === 'home' ? (
+            <div className="ddb-add-source-home">
+              <p className="ddb-add-source-lead">Choose how you want to add layers to the registry for analytics and maps.</p>
+              <div className="ddb-source-option-grid" role="list">
+                <button
+                  type="button"
+                  className="ddb-source-option-card"
+                  role="listitem"
+                  onClick={() => {
+                    setDiscoverError(null)
+                    setAddWizard('gis-list')
+                  }}
+                >
+                  <span className="ddb-source-option-indicator" aria-hidden />
+                  <div className="ddb-source-option-icon-wrap">
+                    <i className="fa-solid fa-layer-group" aria-hidden />
+                  </div>
+                  <div className="ddb-source-option-text">
+                    <span className="ddb-source-option-title">Select from GIS Content</span>
+                    <span className="ddb-source-option-desc">Use layers and fields already saved in GIS Map in this browser.</span>
+                  </div>
+                </button>
+                <button
+                  type="button"
+                  className="ddb-source-option-card"
+                  role="listitem"
+                  onClick={() => {
+                    setDiscoverError(null)
+                    setAddWizard('tabs')
+                    setAddTab('arcgis')
+                  }}
+                >
+                  <span className="ddb-source-option-indicator" aria-hidden />
+                  <div className="ddb-source-option-icon-wrap">
+                    <i className="fa-solid fa-link" aria-hidden />
+                  </div>
+                  <div className="ddb-source-option-text">
+                    <span className="ddb-source-option-title">Provide an ArcGIS Server layer URL</span>
+                    <span className="ddb-source-option-desc">Connect to a feature service and pick a layer or table.</span>
+                  </div>
+                </button>
+                <button
+                  type="button"
+                  className="ddb-source-option-card"
+                  role="listitem"
+                  onClick={() => {
+                    setDiscoverError(null)
+                    setAddWizard('tabs')
+                    setAddTab('upload')
+                  }}
+                >
+                  <span className="ddb-source-option-indicator" aria-hidden />
+                  <div className="ddb-source-option-icon-wrap">
+                    <i className="fa-solid fa-file-arrow-up" aria-hidden />
+                  </div>
+                  <div className="ddb-source-option-text">
+                    <span className="ddb-source-option-title">Upload a file</span>
+                    <span className="ddb-source-option-desc">GeoJSON, KML, KMZ, Shapefile (zip), CSV with coordinates, and more.</span>
+                  </div>
+                </button>
+              </div>
+              <button
+                type="button"
+                className="ddb-add-source-more"
+                onClick={() => {
+                  setDiscoverError(null)
+                  setAddWizard('tabs')
+                  setAddTab('url')
+                }}
+              >
+                <i className="fa-solid fa-ellipsis" aria-hidden /> Database, web URL &amp; advanced…
+              </button>
+            </div>
+          ) : addWizard === 'gis-list' ? (
+            <div className="ddb-add-source-gis-list gis-modal-body">
+              <p className="ddb-add-source-gis-hint">
+                Layers below come from your <strong>GIS Map</strong> session (IndexedDB). Import copies feature data into this dashboard.
+              </p>
+              {gisContentLoading ? (
+                <div className="ddb-add-source-loading">
+                  <i className="fa-solid fa-spinner fa-spin" aria-hidden /> Loading GIS Content…
+                </div>
+              ) : gisContentLayers.length === 0 ? (
+                <div className="ddb-add-source-empty">
+                  <i className="fa-regular fa-folder-open" aria-hidden />
+                  <p>No saved layers yet. Open GIS Map, add a layer, then return here.</p>
+                </div>
+              ) : (
+                <ul className="ddb-gis-content-list">
+                  {gisContentLayers.map(layer => {
+                    const ok = gisLayerCanImportToDashboard(layer)
+                    const busy = addingLayerKey === `gis:${String(layer.id)}`
+                    return (
+                      <li key={String(layer.id)} className="ddb-gis-content-row">
+                        <div className="ddb-gis-content-meta">
+                          <span className="ddb-gis-content-name">{layer.name}</span>
+                          <span className="ddb-gis-content-badges">
+                            <span className="ddb-gis-badge">{layer.type}</span>
+                            {layer.source ? <span className="ddb-gis-badge ddb-gis-badge--muted">{layer.source}</span> : null}
+                          </span>
+                          {!ok ? (
+                            <span className="ddb-gis-content-note">WMS / tiles only — not importable here</span>
+                          ) : null}
+                        </div>
+                        <button
+                          type="button"
+                          className="ddb-gis-content-add-btn"
+                          disabled={!ok || busy}
+                          onClick={() => void importGisContentLayer(layer)}
+                        >
+                          {busy ? 'Adding…' : 'Add'}
+                        </button>
+                      </li>
+                    )
+                  })}
+                </ul>
+              )}
+              {discoverError ? (
+                <div className="gis-inline-error" role="alert" style={{ marginTop: 12 }}>
+                  <i className="fa-solid fa-triangle-exclamation" aria-hidden />
+                  <span>{discoverError}</span>
+                </div>
+              ) : null}
+            </div>
+          ) : (
+            <>
+          <div className="gis-modal-compact-tabs" role="tablist" aria-label="Add GIS layer source">
+            <button
+              type="button"
+              role="tab"
+              aria-selected={addTab === 'arcgis'}
+              className={(addTab === 'arcgis' ? 'gis-compact-tab active' : 'gis-compact-tab') + ' gis-compact-tab--icon'}
+              title="ArcGIS Feature Service"
+              onClick={() => switchAddTab('arcgis')}
+            >
+              <i className="fa-solid fa-cloud" aria-hidden />
+            </button>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={addTab === 'database'}
+              className={(addTab === 'database' ? 'gis-compact-tab active' : 'gis-compact-tab') + ' gis-compact-tab--icon'}
+              title="Database connection"
+              onClick={() => switchAddTab('database')}
+            >
+              <i className="fa-solid fa-database" aria-hidden />
+            </button>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={addTab === 'upload'}
+              className={(addTab === 'upload' ? 'gis-compact-tab active' : 'gis-compact-tab') + ' gis-compact-tab--icon'}
+              title="Upload file"
+              onClick={() => switchAddTab('upload')}
+            >
+              <i className="fa-solid fa-file-arrow-up" aria-hidden />
+            </button>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={addTab === 'url'}
+              className={(addTab === 'url' ? 'gis-compact-tab active' : 'gis-compact-tab') + ' gis-compact-tab--icon'}
+              title="URL or web data"
+              onClick={() => switchAddTab('url')}
+            >
+              <i className="fa-solid fa-globe" aria-hidden />
+            </button>
+          </div>
+
+          <div className="gis-modal-body">
+            {addTab === 'arcgis' ? (
+              <div role="tabpanel" aria-label="ArcGIS Feature Service">
+                <input
+                  className="gis-input"
+                  type="text"
+                  value={serviceUrl}
+                  onChange={e => setServiceUrl(e.target.value)}
+                  placeholder="Feature Service URL"
+                  autoComplete="off"
+                  inputMode="url"
+                  onKeyDown={e => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault()
+                      void discoverArcGisLayers()
+                    }
+                  }}
+                />
+                <input
+                  className="gis-input"
+                  type="text"
+                  value={arcgisToken}
+                  onChange={e => setArcgisToken(e.target.value)}
+                  placeholder="Token / API Key (optional)"
+                  autoComplete="off"
+                />
+                <button
+                  className="gis-btn-outline"
+                  type="button"
+                  onClick={() => void discoverArcGisLayers()}
+                  disabled={isDiscovering || serviceUrl.trim() === ''}
+                >
+                  <i className="fa-solid fa-link" aria-hidden />
+                  {isDiscovering ? ' Connecting…' : ' Connect & Discover Layers'}
+                </button>
+                {discoverError ? (
+                  <div className="gis-inline-error" role="alert">
+                    <i className="fa-solid fa-triangle-exclamation" aria-hidden />
+                    <span>{discoverError}</span>
+                  </div>
+                ) : null}
+                {discoveredLayers.length > 0 ? (
+                  <div className="gis-discover-panel" aria-label="Discovered layers">
+                    <div className="gis-discover-meta">FOUND {discoveredLayers.length} LAYER/TABLE(S):</div>
+                    <div className="gis-form-field">
+                      <div className="gis-form-label">Select layer</div>
+                      <div className="gis-select-wrap">
+                        <select
+                          className="gis-input gis-select"
+                          value={selectedDiscoveredUrl}
+                          onChange={e => {
+                            const next = e.target.value
+                            setSelectedDiscoveredUrl(next)
+                            const found = discoveredLayers.find(d => d.url === next)
+                            if (found && !layerModalName.trim()) setLayerModalName(found.name)
+                          }}
+                        >
+                          {discoveredLayers.map(l => (
+                            <option key={l.url} value={l.url}>
+                              {l.kind === 'table' ? `${l.name} (Table)` : l.geometryType ? `${l.name} (${l.geometryType})` : l.name}
+                            </option>
+                          ))}
+                        </select>
+                        <i className="fa-solid fa-chevron-down" aria-hidden />
+                      </div>
+                    </div>
+                    <input
+                      className="gis-input"
+                      type="text"
+                      value={layerModalName}
+                      onChange={e => setLayerModalName(e.target.value)}
+                      placeholder="Layer display name"
+                    />
+                    <div className="gis-discovered-row">
+                      <button
+                        className="gis-discovered-add"
+                        type="button"
+                        onClick={() => {
+                          const found = discoveredLayers.find(d => d.url === selectedDiscoveredUrl)
+                          if (found) void addArcGisLayerToRegistry(found)
+                        }}
+                        disabled={!selectedDiscoveredUrl || addingLayerKey === `arcgis:${selectedDiscoveredUrl}`}
+                      >
+                        {addingLayerKey === `arcgis:${selectedDiscoveredUrl}` ? 'Adding…' : 'Add'}
+                      </button>
+                    </div>
+                  </div>
+                ) : null}
+              </div>
+            ) : addTab === 'database' ? (
+              <div role="tabpanel" aria-label="Database connection" className="ddb-hint" style={{ padding: '8px 0', lineHeight: 1.5 }}>
+                Full database connection and validation (same as GIS Map) is available on the <strong>GIS Map</strong> page. Here you can
+                add layers via ArcGIS, file upload, or URL.
+              </div>
+            ) : addTab === 'upload' ? (
+              <div role="tabpanel" aria-label="Upload file">
+                <input
+                  ref={addLayerFileInputRef}
+                  type="file"
+                  accept=".kml,.kmz,.zip,.geojson,.json,.csv"
+                  hidden
+                  onChange={e => setUploadFile(e.target.files?.[0] ?? null)}
+                />
+                <button type="button" className="gis-btn-outline" onClick={() => addLayerFileInputRef.current?.click()}>
+                  <i className="fa-solid fa-folder-open" aria-hidden /> Choose file
+                </button>
+                {uploadFile ? <div className="ddb-hint" style={{ marginTop: 8 }}>{uploadFile.name}</div> : null}
+                <input
+                  className="gis-input"
+                  style={{ marginTop: 10 }}
+                  type="text"
+                  value={layerModalName}
+                  onChange={e => setLayerModalName(e.target.value)}
+                  placeholder="Layer display name"
+                />
+                <button className="gis-btn-outline" type="button" style={{ marginTop: 10 }} disabled={!uploadFile || !!addingLayerKey} onClick={() => void addUploadLayerToRegistry()}>
+                  <i className="fa-solid fa-plus" aria-hidden /> Add to registry
+                </button>
+                {discoverError ? (
+                  <div className="gis-inline-error" role="alert" style={{ marginTop: 10 }}>
+                    <i className="fa-solid fa-triangle-exclamation" aria-hidden />
+                    <span>{discoverError}</span>
+                  </div>
+                ) : null}
+              </div>
+            ) : (
+              <div role="tabpanel" aria-label="URL">
+                <input
+                  className="gis-input"
+                  type="url"
+                  value={remoteDataUrl}
+                  onChange={e => setRemoteDataUrl(e.target.value)}
+                  placeholder="https://… (GeoJSON, KML, KMZ, zip, …)"
+                  autoComplete="off"
+                />
+                <input
+                  className="gis-input"
+                  type="text"
+                  value={layerModalName}
+                  onChange={e => setLayerModalName(e.target.value)}
+                  placeholder="Layer display name"
+                />
+                <button
+                  className="gis-btn-outline"
+                  type="button"
+                  disabled={!remoteDataUrl.trim() || !!addingLayerKey}
+                  onClick={() => void addUrlLayerToRegistry()}
+                >
+                  <i className="fa-solid fa-link" aria-hidden /> Add from URL
+                </button>
+                {discoverError ? (
+                  <div className="gis-inline-error" role="alert" style={{ marginTop: 10 }}>
+                    <i className="fa-solid fa-triangle-exclamation" aria-hidden />
+                    <span>{discoverError}</span>
+                  </div>
+                ) : null}
+              </div>
+            )}
+          </div>
+            </>
+          )}
+
+          <div className="gis-modal-footer" style={{ display: 'flex', justifyContent: 'flex-end', padding: '12px 16px', borderTop: '1px solid rgba(226,232,240,0.9)' }}>
+            <button type="button" className="gis-btn" onClick={closeAddGisModal}>
+              Cancel
+            </button>
+          </div>
+        </div>
+      </div>
+    ) : null}
+    </>
   )
 }

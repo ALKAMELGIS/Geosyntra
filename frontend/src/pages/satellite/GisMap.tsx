@@ -3139,21 +3139,7 @@ export default function GisMap() {
           </div>
 
           <div className="gis-sidebar-body">
-            {!isMobileDrawerViewport ? (
-              <div className="gis-sidebar-body-collapsebar">
-                <button
-                  type="button"
-                  className="gis-sidebar-body-collapsebtn"
-                  onClick={() => setLayersPanelCollapsed(c => !c)}
-                  aria-expanded={!layersPanelCollapsed}
-                  aria-controls="gis-sidebar-layers-scroll"
-                  aria-label={layersPanelCollapsed ? 'Expand GIS layers list' : 'Collapse GIS layers list'}
-                >
-                  <i className={`fa-solid ${layersPanelCollapsed ? 'fa-angles-right' : 'fa-angles-left'}`} aria-hidden="true" />
-                  <span>{layersPanelCollapsed ? 'Expand' : 'Collapse'}</span>
-                </button>
-              </div>
-            ) : null}
+            <div className="gis-sidebar-body-main">
             {isMobileDrawerViewport ? (
               <div className="gis-launcher-grid" role="navigation" aria-label="GIS Launcher">
                 <button type="button" className="gis-launcher-chip" onClick={() => openAddLayerModal()}>
@@ -3476,6 +3462,36 @@ export default function GisMap() {
               <div className="gis-sidebar-collapsed-count" aria-hidden>
                 {layers.length}
               </div>
+            ) : null}
+            </div>
+            {!isMobileDrawerViewport ? (
+              <footer className="gis-sidebar-foot-toolbar" aria-label="Sidebar tools">
+                <div className="gis-sidebar-foot-divider" aria-hidden />
+                <div
+                  className="gis-sidebar-foot-note"
+                  title="Use the list above to manage map layers: visibility, sync, attribute table, symbology, and legend."
+                  role="note"
+                >
+                  <span className="gis-sidebar-foot-item__glyph gis-sidebar-foot-item__glyph--info" aria-hidden>
+                    <i className="fa-solid fa-circle-info" />
+                  </span>
+                  <span className="gis-sidebar-foot-item__label">Information</span>
+                </div>
+                <button
+                  type="button"
+                  className="gis-sidebar-foot-item gis-sidebar-foot-item--primary"
+                  onClick={() => setLayersPanelCollapsed(c => !c)}
+                  aria-expanded={!layersPanelCollapsed}
+                  aria-controls="gis-sidebar-layers-scroll"
+                  aria-label={layersPanelCollapsed ? 'Expand GIS layers list' : 'Collapse GIS layers list'}
+                  title={layersPanelCollapsed ? 'Expand' : 'Collapse'}
+                >
+                  <span className="gis-sidebar-foot-item__glyph" aria-hidden>
+                    <i className={`fa-solid ${layersPanelCollapsed ? 'fa-angles-right' : 'fa-angles-left'}`} />
+                  </span>
+                  <span className="gis-sidebar-foot-item__label">{layersPanelCollapsed ? 'Expand' : 'Collapse'}</span>
+                </button>
+              </footer>
             ) : null}
         </div>
         </aside>
