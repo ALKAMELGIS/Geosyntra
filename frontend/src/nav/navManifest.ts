@@ -89,19 +89,27 @@ export const NAV_DEFAULT_GROUPS: NavGroupDef[] = [
         defaultIcon: 'fa-solid fa-chart-pie',
         subitemClass: 'nav-item-dashboard-agro',
       },
+    ],
+  },
+  {
+    id: 'aiAgroCloud',
+    i18nKey: 'aiAgroCloud',
+    defaultIcon: 'fa-solid fa-cloud-bolt',
+    headerClass: 'nav-header-ai-agro-cloud',
+    children: [
       {
-        id: 'dashboard-ai-agro-cloud',
+        id: 'ai-agro-cloud-hub',
         path: '/dashboards/ai-agro-cloud',
         i18nKey: 'aiAgroCloud',
         defaultIcon: 'fa-solid fa-cloud-bolt',
-        subitemClass: 'nav-item-dashboard-ai-agro',
+        subitemClass: 'nav-item-ai-agro-cloud',
       },
       {
-        id: 'dashboard-ai-agro-chat',
+        id: 'ai-agro-chat',
         path: '/dashboards/ai-agro-chat',
         i18nKey: 'aiAgroChat',
         defaultIcon: 'fa-solid fa-comments',
-        subitemClass: 'nav-item-dashboard-ai-chat',
+        subitemClass: 'nav-item-ai-agro-chat',
       },
     ],
   },
@@ -273,6 +281,7 @@ export const NAV_GROUP_IDS = NAV_DEFAULT_GROUPS.map(g => g.id)
 export function defaultSubitemClassForNavGroup(groupId: string): string {
   const map: Record<string, string> = {
     dashboard: 'nav-item-dashboard-edit',
+    aiAgroCloud: 'nav-item-ai-agro-cloud',
     satellite: 'nav-item-indices',
     data: 'nav-item-ec-ph',
     sensors: 'nav-item-sensor-soil',

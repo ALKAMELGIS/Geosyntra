@@ -135,6 +135,7 @@ export default function NavMenu({ onLogout }: NavMenuProps) {
   })
   const [openGroup, setOpenGroup] = useState<
     | 'dashboard'
+    | 'aiAgroCloud'
     | 'satellite'
     | 'data'
     | 'sensors'
@@ -146,7 +147,10 @@ export default function NavMenu({ onLogout }: NavMenuProps) {
     | 'account'
     | string
     | null
-  >(null)
+  >(() => {
+    if (typeof window === 'undefined') return null
+    return window.location.pathname.startsWith('/dashboards/ai-agro-') ? 'aiAgroCloud' : null
+  })
   const location = useLocation()
   const navRef = useRef<HTMLElement | null>(null)
   const groupContainerRefs = useRef<Record<string, HTMLLIElement | null>>({})
@@ -273,7 +277,12 @@ export default function NavMenu({ onLogout }: NavMenuProps) {
   }, [collapsed])
 
   useEffect(() => {
-    closeAll()
+    setMobileOpen(false)
+    if (location.pathname.startsWith('/dashboards/ai-agro-')) {
+      setOpenGroup('aiAgroCloud')
+    } else {
+      setOpenGroup(null)
+    }
   }, [location.pathname])
 
   useEffect(() => {
@@ -346,6 +355,7 @@ export default function NavMenu({ onLogout }: NavMenuProps) {
       return path === n || path.startsWith(`${n}/`)
     })
     if (custom?.navGroupId) return custom.navGroupId
+    if (path.startsWith('/dashboards/ai-agro-')) return 'aiAgroCloud'
     if (path.startsWith('/dashboard')) return 'dashboard'
     if (path.startsWith('/satellite/')) return 'satellite'
     if (path.startsWith('/data/')) return 'data'

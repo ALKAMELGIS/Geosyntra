@@ -80,7 +80,7 @@ export function mergeWithDefaults(partial: Partial<SystemSettingsPersistedV1>): 
   }
 }
 
-const KNOWN_NAV_GROUP_IDS = ['dashboard', 'satellite', 'data', 'sensors', 'master', 'admin'] as const
+const KNOWN_NAV_GROUP_IDS = ['dashboard', 'aiAgroCloud', 'satellite', 'data', 'sensors', 'master', 'admin'] as const
 
 function sanitizeNavGroupId(raw: unknown): string {
   const id = String(raw ?? 'data').trim()

@@ -101,4 +101,20 @@ describe('NavMenu vertical responsive', () => {
     fireEvent.touchStart(document.body)
     expect(screen.getByRole('button', { name: /open navigation menu/i })).toBeInTheDocument()
   })
+
+  it('renders AI AgroCloud group with hub and chat links', () => {
+    setViewport(1280)
+    render(
+      <MemoryRouter future={routerFuture} initialEntries={['/dashboard/develop']}>
+        <SystemSettingsProvider>
+          <NavMenu />
+        </SystemSettingsProvider>
+      </MemoryRouter>,
+    )
+    const groupHeader = screen.getByRole('button', { name: /^ai agrocloud$/i })
+    expect(groupHeader).toBeInTheDocument()
+    fireEvent.click(groupHeader)
+    expect(screen.getByRole('link', { name: /^ai agrocloud$/i })).toHaveAttribute('href', '/dashboards/ai-agro-cloud')
+    expect(screen.getByRole('link', { name: /ai agro-chat/i })).toHaveAttribute('href', '/dashboards/ai-agro-chat')
+  })
 })

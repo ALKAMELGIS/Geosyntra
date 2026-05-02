@@ -172,6 +172,10 @@
 
 .nav-item-dashboard .icon { color: var(--c-dash); border-color: rgba(20, 184, 166, 0.45); }
 
+.nav-header-ai-agro-cloud .icon,
+.nav-item-ai-agro-cloud .icon,
+.nav-item-ai-agro-chat .icon { color: #059669; border-color: rgba(5, 150, 105, 0.45); }
+
 .nav-header-plantai .icon { color: var(--c-plant); border-color: rgba(34, 197, 94, 0.45); }
 .nav-item-plant-overview .icon { color: #84cc16; border-color: rgba(132, 204, 22, 0.45); }
 .nav-item-chatbot .icon { color: #a855f7; border-color: rgba(168, 85, 247, 0.45); }
