@@ -26,6 +26,7 @@ import {
   vertexHitThresholdPx,
 } from './drawingUtils';
 import { useMapboxAccessToken } from '../../hooks/useMapboxAccessToken';
+import { useGeminiApiKey } from '../../hooks/useGeminiApiKey';
 import { getArcgisPortalToken } from '../../lib/arcgisPortalToken';
 import { getMapboxAccessToken } from '../../lib/mapboxAccessToken';
 import {
@@ -895,6 +896,7 @@ type ExploreDateSourceMode = 'manual' | 'environmental_parameter' | 'sentinel2_v
 
 export default function SatelliteIntelligence() {
   const mapboxToken = useMapboxAccessToken();
+  const geminiApiKey = useGeminiApiKey();
   const basemapCatalog = useMemo(() => buildBasemapCatalog(mapboxToken || ''), [mapboxToken]);
   const [viewState, setViewState] = useState({
     longitude: 20,
@@ -2434,10 +2436,10 @@ export default function SatelliteIntelligence() {
     const trimmed = geoExplorerDraft.trim();
     if (geoExplorerInFlightRef.current) return;
     if (!trimmed && !geoExplorerPendingImage) return;
-    const apiKey = (import.meta.env.VITE_GEMINI_API_KEY as string | undefined)?.trim();
+    const apiKey = geminiApiKey.trim();
     if (!apiKey) {
       setGeoExplorerChatError(
-        'Set VITE_GEMINI_API_KEY in your environment (see .env.example). Never commit API keys to the repository.'
+        'Add a Gemini API key: System Settings → API Tokens → Gemini API (saved in this browser), or set VITE_GEMINI_API_KEY at build time. Never commit keys to Git.'
       );
       return;
     }
@@ -2509,7 +2511,7 @@ export default function SatelliteIntelligence() {
       });
       return historyWithUser;
     });
-  }, [geoExplorerDraft, geoExplorerPendingImage]);
+  }, [geminiApiKey, geoExplorerDraft, geoExplorerPendingImage]);
 
   const onGeoExplorerAttachChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -4390,7 +4392,8 @@ export default function SatelliteIntelligence() {
                             </button>
                           </div>
                           <p className="si-geo-explorer-footnote">
-                            Powered by Google Gemini. Configure <code>VITE_GEMINI_API_KEY</code> locally; do not commit keys.
+                            Powered by Google Gemini. Set <code>VITE_GEMINI_API_KEY</code> or save under System Settings → API
+                            Tokens → Gemini API. Do not commit keys.
                           </p>
                         </div>
                       </div>

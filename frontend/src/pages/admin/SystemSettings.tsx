@@ -25,6 +25,10 @@ import {
   getSentinelHubAccessTokenBrowserOverride,
   persistSentinelHubAccessTokenInBrowser,
 } from '../../lib/sentinelHubAccessToken'
+import {
+  getGeminiApiKeyBrowserOverride,
+  persistGeminiApiKeyInBrowser,
+} from '../../lib/geminiApiKey'
 
 const PAGE_ICON_PRESETS = [
   'fa-solid fa-file',
@@ -122,6 +126,7 @@ export default function SystemSettings() {
   const [arcgisTokenDraft, setArcgisTokenDraft] = useState('')
   const [sentinelHubInstanceDraft, setSentinelHubInstanceDraft] = useState('')
   const [sentinelAccessDraft, setSentinelAccessDraft] = useState('')
+  const [geminiApiKeyDraft, setGeminiApiKeyDraft] = useState('')
   const [confirmReset, setConfirmReset] = useState(false)
   const [homeEditorSection, setHomeEditorSection] = useState<'page' | 'header' | 'blocks' | 'footer' | 'colors' | 'typography'>('page')
   const [pageQuery, setPageQuery] = useState('')
@@ -169,12 +174,18 @@ export default function SystemSettings() {
     return typeof raw === 'string' && raw.trim().length > 0
   }, [])
 
+  const geminiApiKeyFromEnv = useMemo(() => {
+    const raw = import.meta.env.VITE_GEMINI_API_KEY
+    return typeof raw === 'string' && raw.trim().length > 0
+  }, [])
+
   useEffect(() => {
     if (tab !== 'api-tokens') return
     setMapboxTokenDraft(getMapboxAccessTokenBrowserOverride())
     setArcgisTokenDraft(getArcgisPortalTokenBrowserOverride())
     setSentinelHubInstanceDraft(getSentinelHubWmsInstanceIdBrowserOverride())
     setSentinelAccessDraft(getSentinelHubAccessTokenBrowserOverride())
+    setGeminiApiKeyDraft(getGeminiApiKeyBrowserOverride())
   }, [tab])
 
   const pageSchema = useMemo(
@@ -1114,8 +1125,8 @@ export default function SystemSettings() {
             </h2>
             <p className="sys-settings-panel__desc">
               {language === 'ar'
-                ? 'حفظ مفاتيح Mapbox وArcGIS ورموز Sentinel Hub (وصول + WMS) في هذا المتصفح فقط (أو عبر متغيرات البيئة عند البناء). لا تُرفع إلى Git.'
-                : 'Store Mapbox, ArcGIS, and Sentinel Hub tokens (API access + WMS instance) in this browser only (or use build-time env vars). Never commit secrets to Git.'}
+                ? 'حفظ مفاتيح Mapbox وArcGIS ورموز Sentinel Hub ومفتاح Gemini في هذا المتصفح فقط (أو عبر متغيرات البيئة عند البناء). لا تُرفع إلى Git.'
+                : 'Store Mapbox, ArcGIS, Sentinel Hub, and Gemini API keys in this browser only (or use build-time env vars). Never commit secrets to Git.'}
             </p>
           </div>
 
@@ -1278,6 +1289,48 @@ export default function SystemSettings() {
             {language === 'ar'
               ? 'معرّف مثيل Sentinel Hub لـ OGC WMS في خرائط الاستخبارات. اتركه فارغاً للقيمة الافتراضية.'
               : 'Sentinel Hub OGC WMS instance UUID for Sentinel-2 overlays in Satellite Intelligence. Leave empty for the app default.'}
+          </p>
+
+          <hr className="sys-settings-api-divider" />
+
+          <h3 className="sys-settings-panel__title sys-settings-api-h3">
+            <i className="fa-solid fa-wand-magic-sparkles" aria-hidden />
+            {language === 'ar' ? 'Gemini API' : 'Gemini API'}
+          </h3>
+          {geminiApiKeyFromEnv ? (
+            <p className="sys-settings-panel__desc sys-settings-api-envnote">
+              <strong>{language === 'ar' ? 'نشط من البناء:' : 'Active from build:'}</strong>{' '}
+              {language === 'ar'
+                ? 'VITE_GEMINI_API_KEY يتقدم على الحقل أدناه.'
+                : 'VITE_GEMINI_API_KEY overrides the field below.'}
+            </p>
+          ) : null}
+          <ApiTokenMergeField
+            id="sys-gemini-api-key"
+            label={language === 'ar' ? 'مفتاح Gemini API (المتصفح)' : 'Gemini API key (browser)'}
+            value={geminiApiKeyDraft}
+            onChange={setGeminiApiKeyDraft}
+            placeholder={language === 'ar' ? 'مفتاح Google AI…' : 'Google AI API key…'}
+            password
+            onSave={() => {
+              persistGeminiApiKeyInBrowser(geminiApiKeyDraft)
+              pushToast('success', language === 'ar' ? 'تم حفظ مفتاح Gemini.' : 'Gemini API key saved.')
+            }}
+            onClear={() => {
+              persistGeminiApiKeyInBrowser('')
+              setGeminiApiKeyDraft('')
+              pushToast('success', language === 'ar' ? 'أُزيل مفتاح Gemini من المتصفح.' : 'Gemini browser API key cleared.')
+            }}
+            saveTitle={language === 'ar' ? 'حفظ' : 'Save'}
+            clearTitle={language === 'ar' ? 'مسح' : 'Clear'}
+            saveAria={language === 'ar' ? 'حفظ مفتاح Gemini API' : 'Save Gemini API key'}
+            clearAria={language === 'ar' ? 'مسح مفتاح Gemini API' : 'Clear Gemini API key'}
+            actionsGroupLabel={language === 'ar' ? 'إجراءات مفتاح Gemini' : 'Gemini API key actions'}
+          />
+          <p className="sys-settings-panel__desc sys-settings-api-hint">
+            {language === 'ar'
+              ? 'مطلوب لمحادثة Geo Explorer في استخبارات الأقمار (Table Geo AI). بعد الحفظ يُستخدم المفتاح فوراً.'
+              : 'Required for Geo Explorer chat in Satellite Intelligence (Table Geo AI). The key is used immediately after save.'}
           </p>
         </section>
       ) : null}
