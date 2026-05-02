@@ -2948,26 +2948,44 @@ export default function DevelopDashboard() {
                 </div>
               ) : null}
               {rightSheet === 'visualizations' ? (
-                <div className="ddb-right-sheet-body">
-                  <div
-                    className="ddb-powerbi-grid ddb-powerbi-grid--in-right-sheet"
-                    role="group"
-                    aria-label="Visualization types"
-                  >
-                    {CHART_TOOLS.map(t => (
-                      <button
-                        key={t.chart}
-                        type="button"
-                        className={`ddb-chart-tool-item${selectedCharts.has(t.chart) ? ' is-selected' : ''}`}
-                        title={t.label}
-                        aria-pressed={selectedCharts.has(t.chart)}
-                        onClick={() => toggleChartTool(t.chart)}
-                      >
-                        <i className={t.icon} aria-hidden />
-                        <span className="ddb-chart-tool-label-sr">{t.label}</span>
-                      </button>
-                    ))}
+                <div className="ddb-right-sheet-body ddb-right-sheet-body--visualizations">
+                  <div className="ddb-vis-add-actions">
+                    <button type="button" className="ddb-btn ddb-right-sheet-primary" onClick={appendSelectedChartsToCanvas}>
+                      <i className="fa-solid fa-plus" aria-hidden /> Add visuals to canvas
+                    </button>
+                    <button
+                      type="button"
+                      className="ddb-btn ddb-right-sheet-secondary"
+                      onClick={clearCanvasVisuals}
+                      disabled={canvasVisualSlots.length === 0}
+                    >
+                      Clear canvas
+                    </button>
                   </div>
+                  <section className="ddb-vis-chart-types" aria-labelledby="ddb-vis-chart-types-heading">
+                    <h3 className="ddb-vis-chart-types__head" id="ddb-vis-chart-types-heading">
+                      Chart types
+                    </h3>
+                    <div
+                      className="ddb-powerbi-grid ddb-powerbi-grid--in-right-sheet"
+                      role="group"
+                      aria-label="Visualization types"
+                    >
+                      {CHART_TOOLS.map(t => (
+                        <button
+                          key={t.chart}
+                          type="button"
+                          className={`ddb-chart-tool-item${selectedCharts.has(t.chart) ? ' is-selected' : ''}`}
+                          title={t.label}
+                          aria-pressed={selectedCharts.has(t.chart)}
+                          onClick={() => toggleChartTool(t.chart)}
+                        >
+                          <i className={t.icon} aria-hidden />
+                          <span className="ddb-chart-tool-label-sr">{t.label}</span>
+                        </button>
+                      ))}
+                    </div>
+                  </section>
                   {vizBuildMode !== 'none' && layerKeys.length > 0 ? (
                     <div className="ddb-vis-build-visual" aria-label="Build visual field wells">
                       <div className="ddb-vis-build-visual__title">Build visual</div>
@@ -3211,19 +3229,6 @@ export default function DevelopDashboard() {
                       </button>
                     </div>
                   ) : null}
-                  <div className="ddb-vis-add-actions">
-                    <button type="button" className="ddb-btn ddb-right-sheet-primary" onClick={appendSelectedChartsToCanvas}>
-                      <i className="fa-solid fa-plus" aria-hidden /> Add visuals to canvas
-                    </button>
-                    <button
-                      type="button"
-                      className="ddb-btn ddb-right-sheet-secondary"
-                      onClick={clearCanvasVisuals}
-                      disabled={canvasVisualSlots.length === 0}
-                    >
-                      Clear canvas
-                    </button>
-                  </div>
                   {statCards.length > 0 ? (
                     <div className="ddb-vis-stat-saved" role="region" aria-label="Saved stat cards">
                       <div className="ddb-vis-stat-saved-head">Your stat cards</div>
