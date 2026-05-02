@@ -2949,19 +2949,6 @@ export default function DevelopDashboard() {
               ) : null}
               {rightSheet === 'visualizations' ? (
                 <div className="ddb-right-sheet-body ddb-right-sheet-body--visualizations">
-                  <div className="ddb-vis-add-actions">
-                    <button type="button" className="ddb-btn ddb-right-sheet-primary" onClick={appendSelectedChartsToCanvas}>
-                      <i className="fa-solid fa-plus" aria-hidden /> Add visuals to canvas
-                    </button>
-                    <button
-                      type="button"
-                      className="ddb-btn ddb-right-sheet-secondary"
-                      onClick={clearCanvasVisuals}
-                      disabled={canvasVisualSlots.length === 0}
-                    >
-                      Clear canvas
-                    </button>
-                  </div>
                   <section className="ddb-vis-chart-types" aria-labelledby="ddb-vis-chart-types-heading">
                     <h3 className="ddb-vis-chart-types__head" id="ddb-vis-chart-types-heading">
                       Chart types
@@ -2986,6 +2973,19 @@ export default function DevelopDashboard() {
                       ))}
                     </div>
                   </section>
+                  <div className="ddb-vis-add-actions ddb-vis-add-actions--below-charts">
+                    <button type="button" className="ddb-btn ddb-right-sheet-primary" onClick={appendSelectedChartsToCanvas}>
+                      <i className="fa-solid fa-plus" aria-hidden /> Add visuals to canvas
+                    </button>
+                    <button
+                      type="button"
+                      className="ddb-btn ddb-right-sheet-secondary"
+                      onClick={clearCanvasVisuals}
+                      disabled={canvasVisualSlots.length === 0}
+                    >
+                      Clear canvas
+                    </button>
+                  </div>
                   {vizBuildMode !== 'none' && layerKeys.length > 0 ? (
                     <div className="ddb-vis-build-visual" aria-label="Build visual field wells">
                       <div className="ddb-vis-build-visual__title">Build visual</div>
