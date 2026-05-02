@@ -2783,6 +2783,112 @@ aside {
   height: 0;
 }
 
+/* Collapse / expand control (lives inside .gis-sidebar-body) */
+.gis-sidebar-body-collapsebar {
+  flex-shrink: 0;
+  margin: -14px -14px 0 -14px;
+  padding: 0;
+  background: #0f172a;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.22);
+  position: sticky;
+  top: 0;
+  z-index: 6;
+}
+
+.gis-content-page .gis-sidebar-body-collapsebar {
+  margin: -10px -10px 0 -10px;
+}
+
+.gis-content-page.gis-sidebar-collapsed .gis-sidebar-body-collapsebar {
+  margin: -8px -6px 0 -6px;
+}
+
+.gis-sidebar-body-collapsebtn {
+  width: 100%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 10px 12px;
+  border: 0;
+  background: transparent;
+  color: #cbd5e1;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  cursor: pointer;
+  font-family: inherit;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.gis-sidebar-body-collapsebtn i {
+  font-size: 13px;
+  opacity: 0.92;
+}
+
+.gis-sidebar-body-collapsebtn:hover {
+  background: rgba(30, 41, 59, 0.85);
+  color: #f1f5f9;
+}
+
+.gis-sidebar-body-collapsebtn:focus-visible {
+  outline: 2px solid rgba(52, 211, 153, 0.55);
+  outline-offset: -2px;
+}
+
+.gis-sidebar-body:has(> .gis-sidebar-body-collapsebar) > .gis-layer-list,
+.gis-sidebar-body:has(> .gis-sidebar-body-collapsebar) > .gis-empty {
+  padding-left: 14px;
+  padding-right: 14px;
+}
+
+.gis-content-page .gis-sidebar-body:has(> .gis-sidebar-body-collapsebar) > .gis-layer-list,
+.gis-content-page .gis-sidebar-body:has(> .gis-sidebar-body-collapsebar) > .gis-empty {
+  padding-left: 10px;
+  padding-right: 10px;
+}
+
+.gis-sidebar--layers-collapsed .gis-sidebar-body {
+  padding: 0;
+  gap: 0;
+}
+
+.gis-sidebar--layers-collapsed .gis-sidebar-body-collapsebar {
+  margin: 0;
+}
+
+.gis-sidebar-collapsed-count {
+  padding: 12px 6px;
+  text-align: center;
+  font-size: 11px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  color: var(--ds-color-text-muted);
+}
+
+@media (min-width: 901px) {
+  .gis-map-page.gis-map-page--layers-collapsed {
+    grid-template-columns: 56px minmax(0, 1fr);
+  }
+}
+
+.gis-map-page--layers-collapsed .gis-sidebar-header {
+  flex-direction: column;
+  align-items: center;
+  padding: 10px 6px;
+  gap: 8px;
+}
+
+.gis-map-page--layers-collapsed .gis-sidebar-title span {
+  display: none;
+}
+
+.gis-map-page--layers-collapsed .gis-sidebar-actions {
+  flex-direction: column;
+  width: 100%;
+  align-items: center;
+}
+
 .gis-sidebar-close {
   width: 39px;
   height: 39px;
@@ -7898,6 +8004,7 @@ html[data-theme='dark'] .gis-domain-cell--dropdown.missing-description .gis-doma
   align-items: stretch;
   justify-content: flex-start;
   padding: 8px 6px;
+  gap: 8px;
 }
 
 /* Collapsed rail: compact “layer stack” affordance (replaces dashed hint box) */

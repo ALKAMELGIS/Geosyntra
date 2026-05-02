@@ -11,6 +11,12 @@ import { FieldVisibilityControl } from './components/FieldVisibilityControl'
 import { MapPopup } from './components/MapPopup'
 import { DrawToolsController } from './components/DrawTools'
 import { BasemapGallery, BasemapLayer, type BasemapType } from './components/BasemapGallery'
+import {
+  buildBasemapCatalog,
+  catalogEntryById,
+  DEFAULT_BASEMAP_ID,
+  DEFAULT_BASEMAP_ID_NO_MAPBOX,
+} from './basemapCatalog'
 import { useMapboxAccessToken } from '../../hooks/useMapboxAccessToken'
 import { getArcgisPortalToken } from '../../lib/arcgisPortalToken'
 import { getMapboxAccessToken } from '../../lib/mapboxAccessToken'
@@ -36,7 +42,23 @@ type TableFilterOperator = 'contains' | 'equals' | 'not_equals' | 'empty' | 'not
 
 const MAPBOX_GLOBE_STYLE = 'mapbox://styles/mapbox/satellite-streets-v12'
 const GIS_BASEMAP_STORAGE_KEY = 'gis-map-default-basemap'
-const DEFAULT_GIS_BASEMAP: BasemapType = 'satellite'
+
+const defaultGisBasemapId = (): BasemapType =>
+  getMapboxAccessToken() ? DEFAULT_BASEMAP_ID : DEFAULT_BASEMAP_ID_NO_MAPBOX
+
+const GLOBE_MAPBOX_SATELLITE_IDS = new Set<BasemapType>([
+  'satellite',
+  'hybrid',
+  'google',
+  'mapbox-standard-satellite',
+  'mapbox-alkamelgis',
+  'google-earth',
+  'mapbox-hybrid',
+  'esri',
+  'esri-imagery-hybrid',
+])
+
+const GLOBE_TERRAIN_IDS = new Set<BasemapType>(['terrain', 'terrain-opentopo'])
 const DEFAULT_GIS_CENTER = { latitude: 2, longitude: 20 }
 const GLOBE_CAMERA_PADDING = { top: 0, right: 0, bottom: 136, left: 0 }
 const ESRI_GLOBE_STYLE: any = {
@@ -249,19 +271,18 @@ const MEASUREMENT_UNITS: Array<{ id: MeasurementUnit; label: string }> = [
 ]
 
 const readStoredBasemap = (): BasemapType => {
-  if (typeof window === 'undefined') return DEFAULT_GIS_BASEMAP
+  const fallback = defaultGisBasemapId()
+  if (typeof window === 'undefined') return fallback
   const stored = window.localStorage.getItem(GIS_BASEMAP_STORAGE_KEY)
-  return stored === 'satellite' || stored === 'street' || stored === 'terrain' || stored === 'hybrid' || stored === 'google'
-    ? stored
-    : DEFAULT_GIS_BASEMAP
+  if (!stored) return fallback
+  const token = getMapboxAccessToken()
+  if (catalogEntryById(buildBasemapCatalog(token), stored)) return stored
+  if (catalogEntryById(buildBasemapCatalog(''), stored)) return stored
+  return fallback
 }
 
 /** Mapbox GL requires a token even for raster fallbacks; avoid Mapbox-only basemap when token is missing. */
-const readInitialGlobeBasemap = (): BasemapType => {
-  const stored = readStoredBasemap()
-  if (!getMapboxAccessToken() && (stored === 'satellite' || stored === 'hybrid' || stored === 'google')) return 'street'
-  return stored
-}
+const readInitialGlobeBasemap = (): BasemapType => readStoredBasemap()
 
 const DB_NAME = 'GisMapStore'
 const STORE_NAME = 'layers'
@@ -370,6 +391,8 @@ export default function GisMap() {
   const geoJsonDataIdSeqRef = useRef(1)
   const [isMobileDrawerViewport, setIsMobileDrawerViewport] = useState(getIsMobileDrawerViewport)
   const [sidebarOpen, setSidebarOpen] = useState(() => !getIsMobileDrawerViewport())
+  /** Desktop / wide layout: narrow the layers column; cleared on mobile or stacked layout. */
+  const [layersPanelCollapsed, setLayersPanelCollapsed] = useState(false)
   const [isAddOpen, setIsAddOpen] = useState(false)
   const [activeMapTool, setActiveMapTool] = useState<GisMapToolPanel>(null)
   const [mapToolbarCollapsed, setMapToolbarCollapsed] = useState(false)
@@ -513,8 +536,8 @@ export default function GisMap() {
 
   const orderedLayers = useMemo(() => [...layers].reverse(), [layers])
   const globeMapStyle = useMemo(() => {
-    if (selectedBasemap === 'satellite' || selectedBasemap === 'hybrid' || selectedBasemap === 'google') return MAPBOX_GLOBE_STYLE
-    if (selectedBasemap === 'terrain') return ESRI_GLOBE_STYLE
+    if (GLOBE_MAPBOX_SATELLITE_IDS.has(selectedBasemap)) return MAPBOX_GLOBE_STYLE
+    if (GLOBE_TERRAIN_IDS.has(selectedBasemap)) return ESRI_GLOBE_STYLE
     return OSM_GLOBE_STYLE
   }, [selectedBasemap])
 
@@ -526,9 +549,10 @@ export default function GisMap() {
 
   useEffect(() => {
     if (mapboxAccessToken) return
-    setSelectedBasemap(prev =>
-      prev === 'satellite' || prev === 'hybrid' || prev === 'google' ? 'street' : prev,
-    )
+    setSelectedBasemap(prev => {
+      const cat = buildBasemapCatalog('')
+      return catalogEntryById(cat, prev) ? prev : DEFAULT_BASEMAP_ID_NO_MAPBOX
+    })
   }, [mapboxAccessToken])
 
   const geoJsonIndexSignature = useMemo(() => {
@@ -3028,8 +3052,10 @@ export default function GisMap() {
     if (typeof window === 'undefined') return
     const onResize = () => {
       const mobile = window.innerWidth <= 767
+      const stacked = window.innerWidth <= 900
       setIsMobileDrawerViewport(mobile)
       if (!mobile) setSidebarOpen(true)
+      if (mobile || stacked) setLayersPanelCollapsed(false)
     }
     onResize()
     window.addEventListener('resize', onResize)
@@ -3058,9 +3084,16 @@ export default function GisMap() {
 
   const shouldRenderSidebar = sidebarOpen || isMobileDrawerViewport
 
+  const layersRailCollapsed = layersPanelCollapsed && !isMobileDrawerViewport
+
   return (
     <div
-      className={sidebarOpen ? 'gis-map-page' : 'gis-map-page sidebar-closed'}
+      className={[
+        sidebarOpen ? 'gis-map-page' : 'gis-map-page sidebar-closed',
+        layersRailCollapsed ? 'gis-map-page--layers-collapsed' : '',
+      ]
+        .filter(Boolean)
+        .join(' ')}
       onTouchStart={onRootTouchStart}
       onTouchEnd={onRootTouchEnd}
     >
@@ -3069,7 +3102,13 @@ export default function GisMap() {
       ) : null}
       {shouldRenderSidebar ? (
         <aside
-          className={`gis-sidebar ${isMobileDrawerViewport ? (sidebarOpen ? 'is-open' : 'is-collapsed') : ''}`}
+          className={[
+            'gis-sidebar',
+            isMobileDrawerViewport ? (sidebarOpen ? 'is-open' : 'is-collapsed') : '',
+            layersRailCollapsed ? 'gis-sidebar--layers-collapsed' : '',
+          ]
+            .filter(Boolean)
+            .join(' ')}
           aria-label="GIS Layers"
         >
           <div className="gis-sidebar-header">
@@ -3100,6 +3139,21 @@ export default function GisMap() {
           </div>
 
           <div className="gis-sidebar-body">
+            {!isMobileDrawerViewport ? (
+              <div className="gis-sidebar-body-collapsebar">
+                <button
+                  type="button"
+                  className="gis-sidebar-body-collapsebtn"
+                  onClick={() => setLayersPanelCollapsed(c => !c)}
+                  aria-expanded={!layersPanelCollapsed}
+                  aria-controls="gis-sidebar-layers-scroll"
+                  aria-label={layersPanelCollapsed ? 'Expand GIS layers list' : 'Collapse GIS layers list'}
+                >
+                  <i className={`fa-solid ${layersPanelCollapsed ? 'fa-angles-right' : 'fa-angles-left'}`} aria-hidden="true" />
+                  <span>{layersPanelCollapsed ? 'Expand' : 'Collapse'}</span>
+                </button>
+              </div>
+            ) : null}
             {isMobileDrawerViewport ? (
               <div className="gis-launcher-grid" role="navigation" aria-label="GIS Launcher">
                 <button type="button" className="gis-launcher-chip" onClick={() => openAddLayerModal()}>
@@ -3128,13 +3182,14 @@ export default function GisMap() {
                 </button>
               </div>
             ) : null}
-            {layers.length === 0 ? (
+            {!layersRailCollapsed && layers.length === 0 ? (
             <div className="gis-empty" role="status" aria-live="polite">
               <div className="gis-empty-title">No layers yet</div>
               <div className="gis-empty-sub">No layers yet. Add an ArcGIS connection or upload a file.</div>
             </div>
-          ) : (
-            <div className="gis-layer-list" role="list" aria-label="Layers list">
+          ) : null}
+            {!layersRailCollapsed && layers.length > 0 ? (
+            <div id="gis-sidebar-layers-scroll" className="gis-layer-list" role="list" aria-label="Layers list">
               {orderedLayers.map(layer => {
                 const layerId = String(layer.id)
                 const isMenuOpen = openLayerMenuId === layerId
@@ -3416,7 +3471,12 @@ export default function GisMap() {
                 )
               })}
             </div>
-          )}
+          ) : null}
+            {layersRailCollapsed && layers.length > 0 ? (
+              <div className="gis-sidebar-collapsed-count" aria-hidden>
+                {layers.length}
+              </div>
+            ) : null}
         </div>
         </aside>
       ) : null}

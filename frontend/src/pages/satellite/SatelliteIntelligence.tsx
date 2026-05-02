@@ -32,9 +32,15 @@ import {
   getSentinelHubWmsBaseUrl,
   subscribeSentinelHubWmsInstance,
 } from '../../lib/sentinelHubWmsInstance';
+import {
+  buildBasemapCatalog,
+  catalogEntryById,
+  DEFAULT_BASEMAP_ID,
+  DEFAULT_BASEMAP_ID_NO_MAPBOX,
+  getBasemapThumbnail,
+  mapboxGlStyleForEntry,
+} from './basemapCatalog';
 
-const MAPBOX_STANDARD_SATELLITE = 'mapbox://styles/mapbox/standard-satellite';
-const MAPBOX_ALKAMELGIS_STYLE = 'mapbox://styles/mapbox/satellite-v9';
 const EMPTY_MAP_STYLE: any = {
   version: 8,
   sources: {},
@@ -47,54 +53,6 @@ const EMPTY_MAP_STYLE: any = {
       }
     }
   ]
-};
-const OSM_RASTER_STYLE: any = {
-  version: 8,
-  sources: {
-    osm: {
-      type: 'raster',
-      tiles: ['https://tile.openstreetmap.org/{z}/{x}/{y}.png'],
-      tileSize: 256,
-      attribution: '© OpenStreetMap contributors'
-    }
-  },
-  layers: [{ id: 'osm', type: 'raster', source: 'osm' }]
-};
-const ESRI_SATELLITE_STYLE: any = {
-  version: 8,
-  sources: {
-    esri: {
-      type: 'raster',
-      tiles: ['https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'],
-      tileSize: 256,
-      attribution: 'Tiles © Esri'
-    }
-  },
-  layers: [{ id: 'esri', type: 'raster', source: 'esri' }]
-};
-const GOOGLE_EARTH_STYLE: any = {
-  version: 8,
-  sources: {
-    googleEarth: {
-      type: 'raster',
-      tiles: ['https://mt1.google.com/vt/lyrs=s&x={x}&y={y}&z={z}'],
-      tileSize: 256,
-      attribution: 'Tiles © Google'
-    }
-  },
-  layers: [{ id: 'google-earth', type: 'raster', source: 'googleEarth' }]
-};
-const OPENTOPO_TERRAIN_STYLE: any = {
-  version: 8,
-  sources: {
-    openTopo: {
-      type: 'raster',
-      tiles: ['https://a.tile.opentopomap.org/{z}/{x}/{y}.png'],
-      tileSize: 256,
-      attribution: '© OpenTopoMap'
-    }
-  },
-  layers: [{ id: 'open-topo', type: 'raster', source: 'openTopo' }]
 };
 const PC_STAC_SEARCH_URL = 'https://planetarycomputer.microsoft.com/api/stac/v1/search';
 const STAC_CONNECTION_STORAGE_KEY = 'si-stac-connection-v1';
@@ -721,22 +679,6 @@ interface WmsLayerInfo {
 
 const FALLBACK_WMS_LAYERS: WmsLayerInfo[] = [{ name: 'NDWI', title: 'Moisture Index (NDWI)' }];
 
-interface BasemapOption {
-  id: string;
-  label: string;
-  style: any;
-}
-
-const BASEMAPS: BasemapOption[] = [
-  { id: 'mapbox-standard-satellite', label: 'Satellite (Mapbox Standard)', style: MAPBOX_STANDARD_SATELLITE },
-  { id: 'mapbox-alkamelgis', label: 'Satellite (Mapbox v9)', style: MAPBOX_ALKAMELGIS_STYLE },
-  { id: 'google-earth', label: 'Google Earth', style: GOOGLE_EARTH_STYLE },
-  { id: 'mapbox-hybrid', label: 'Hybrid', style: 'mapbox://styles/mapbox/satellite-streets-v12' },
-  { id: 'terrain-opentopo', label: 'Terrain (OpenTopo)', style: OPENTOPO_TERRAIN_STYLE },
-  { id: 'osm', label: 'OpenStreetMap', style: OSM_RASTER_STYLE },
-  { id: 'esri', label: 'Esri World Imagery', style: ESRI_SATELLITE_STYLE },
-];
-
 interface CustomLayer {
   id: string;
   name: string;
@@ -942,6 +884,7 @@ type ExploreDateSourceMode = 'manual' | 'environmental_parameter' | 'sentinel2_v
 
 export default function SatelliteIntelligence() {
   const mapboxToken = useMapboxAccessToken();
+  const basemapCatalog = useMemo(() => buildBasemapCatalog(mapboxToken || ''), [mapboxToken]);
   const [viewState, setViewState] = useState({
     longitude: 20,
     latitude: 10,
@@ -972,16 +915,17 @@ export default function SatelliteIntelligence() {
   const [wmsLayers, setWmsLayers] = useState<WmsLayerInfo[]>([]);
   const [isLoadingLayers, setIsLoadingLayers] = useState(false);
   const [isLayerDropdownOpen, setIsLayerDropdownOpen] = useState(false);
-  const [basemapId, setBasemapId] = useState(() => (getMapboxAccessToken() ? 'mapbox-standard-satellite' : 'esri'));
+  const [basemapId, setBasemapId] = useState(() =>
+    getMapboxAccessToken() ? DEFAULT_BASEMAP_ID : DEFAULT_BASEMAP_ID_NO_MAPBOX,
+  );
   const [isBasemapOpen, setIsBasemapOpen] = useState(false);
 
   useEffect(() => {
     if (mapboxToken) return;
     setBasemapId(prev => {
-      const opt = BASEMAPS.find(b => b.id === prev);
-      const st = opt?.style;
-      if (typeof st === 'string' && st.startsWith('mapbox://')) return 'esri';
-      return prev;
+      const cat = buildBasemapCatalog('');
+      if (catalogEntryById(cat, prev)) return prev;
+      return DEFAULT_BASEMAP_ID_NO_MAPBOX;
     });
   }, [mapboxToken]);
   const [is3DView, setIs3DView] = useState(true);
@@ -1093,7 +1037,7 @@ export default function SatelliteIntelligence() {
   const [apiEndpoint, setApiEndpoint] = useState('');
   const [apiStatus, setApiStatus] = useState('Optional API connection is ready.');
   const [expandedEnvSection, setExpandedEnvSection] = useState<
-    'source' | 'layers' | 'explore-stac' | 'field-analysis' | 'remote-sensing'
+    'source' | 'layers' | 'explore-stac' | 'remote-sensing'
   >('source');
   const [polygonClosingSnap, setPolygonClosingSnap] = useState(false);
   const [drawAssistHint, setDrawAssistHint] = useState('');
@@ -3088,13 +3032,21 @@ export default function SatelliteIntelligence() {
   const activeWmsLayer = wmsLayer || (selectedIndex === 'LST' ? '' : selectedIndex);
   const wmsDate = selectedDate.toISOString().split('T')[0];
   const sentinelVisible = isWmsOverlayVisible && !!activeWmsLayer;
-  const currentBasemap = BASEMAPS.find(b => b.id === basemapId) || BASEMAPS[0];
-  const requestedStyle = currentBasemap.style || EMPTY_MAP_STYLE;
-  const isMapboxStyle = typeof requestedStyle === 'string' && requestedStyle.startsWith('mapbox://');
-  const mapStyle = isMapboxStyle ? (mapboxToken ? requestedStyle : ESRI_SATELLITE_STYLE) : requestedStyle;
+  const currentBasemapEntry = useMemo(() => {
+    return (
+      catalogEntryById(basemapCatalog, basemapId) ??
+      catalogEntryById(
+        basemapCatalog,
+        mapboxToken ? DEFAULT_BASEMAP_ID : DEFAULT_BASEMAP_ID_NO_MAPBOX,
+      )!
+    );
+  }, [basemapCatalog, basemapId, mapboxToken]);
+  const mapStyle = currentBasemapEntry
+    ? mapboxGlStyleForEntry(currentBasemapEntry, mapboxToken || '')
+    : EMPTY_MAP_STYLE;
   const toggleWmsOverlayVisibility = () => setIsWmsOverlayVisible(v => !v);
   const toggleStacThumbVisibility = () => setIsStacThumbVisible(v => !v);
-  const currentBasemapLabel = currentBasemap.label || currentBasemap.id || 'Default basemap';
+  const currentBasemapLabel = currentBasemapEntry?.label || basemapId || 'Default basemap';
   const addedLayerEntries = useMemo(
     () => [
       {
@@ -3255,18 +3207,13 @@ export default function SatelliteIntelligence() {
                   </div>
                   <div className="si-env-panel-body">
                     <div
-                      className="si-env-section-tabs si-env-section-tabs--four"
+                      className="si-env-section-tabs si-env-section-tabs--three"
                       role="tablist"
                       aria-label="Environmental Index sections"
                     >
                       {[
                         { id: 'layers' as const, label: 'Layers', icon: 'fa-solid fa-layer-group' },
                         { id: 'explore-stac' as const, label: 'Explore STAC', icon: 'fa-solid fa-magnifying-glass-chart' },
-                        {
-                          id: 'field-analysis' as const,
-                          label: 'Field analysis',
-                          icon: 'fa-solid fa-satellite',
-                        },
                         {
                           id: 'remote-sensing' as const,
                           label: 'Remote sensing',
@@ -3990,22 +3937,18 @@ export default function SatelliteIntelligence() {
                       </div>
                     
                     ) : null}
-                    {(expandedEnvSection === 'field-analysis' || expandedEnvSection === 'remote-sensing') && (
+                    {expandedEnvSection === 'remote-sensing' && (
                       <div className="si-env-section-card si-field-analysis">
                         <div className="si-field-analysis-header">
-                          <h2 className="si-field-analysis-title">
-                            {expandedEnvSection === 'remote-sensing' ? 'Remote Sensing' : 'Field Analysis'}
-                          </h2>
-                          {expandedEnvSection === 'remote-sensing' ? (
-                            <button
-                              type="button"
-                              className="si-field-analysis-close"
-                              onClick={() => setIsLayerDropdownOpen(false)}
-                              aria-label="Close panel"
-                            >
-                              <i className="fa-solid fa-xmark" aria-hidden />
-                            </button>
-                          ) : null}
+                          <h2 className="si-field-analysis-title">Remote Sensing</h2>
+                          <button
+                            type="button"
+                            className="si-field-analysis-close"
+                            onClick={() => setIsLayerDropdownOpen(false)}
+                            aria-label="Close panel"
+                          >
+                            <i className="fa-solid fa-xmark" aria-hidden />
+                          </button>
                         </div>
 
                         <div className="si-field-analysis-section">
@@ -4724,16 +4667,34 @@ export default function SatelliteIntelligence() {
               <i className="fa-solid fa-globe"></i>
             </button>
             {isBasemapOpen && (
-              <div className="si-basemap-widget">
-                {BASEMAPS.map(option => (
-                  <button
-                    key={option.id}
-                    className={`basemap-pill ${basemapId === option.id ? 'active' : ''}`}
-                    onClick={() => setBasemapId(option.id)}
-                  >
-                    {option.label}
-                  </button>
-                ))}
+              <div className="si-basemap-widget si-basemap-widget--grid">
+                {basemapCatalog.map(entry => {
+                  const thumb = getBasemapThumbnail(entry, mapboxToken || '');
+                  const isHybrid =
+                    entry.id === 'hybrid' || entry.id === 'mapbox-hybrid' || entry.id === 'esri-imagery-hybrid';
+                  return (
+                    <button
+                      type="button"
+                      key={entry.id}
+                      className={`si-basemap-card ${basemapId === entry.id ? 'active' : ''}`}
+                      onClick={() => {
+                        setBasemapId(entry.id);
+                        setIsBasemapOpen(false);
+                      }}
+                    >
+                      <span className="si-basemap-card-thumb">
+                        <img src={thumb} alt="" />
+                        {isHybrid && <span className="si-basemap-card-hybrid">Labels</span>}
+                        {basemapId === entry.id && (
+                          <span className="si-basemap-card-check" aria-hidden>
+                            <i className="fa-solid fa-check" />
+                          </span>
+                        )}
+                      </span>
+                      <span className="si-basemap-card-label">{entry.label}</span>
+                    </button>
+                  );
+                })}
               </div>
             )}
           </div>

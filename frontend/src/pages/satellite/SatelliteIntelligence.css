@@ -1573,6 +1573,100 @@
   gap: 4px;
 }
 
+.si-basemap-widget--grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  max-height: min(420px, 58vh);
+  overflow-x: hidden;
+  overflow-y: auto;
+  min-width: 232px;
+  max-width: 288px;
+}
+
+.si-basemap-card {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  border: none;
+  padding: 0;
+  margin: 0;
+  border-radius: 10px;
+  overflow: hidden;
+  cursor: pointer;
+  background: rgba(15, 23, 42, 0.95);
+  border: 1px solid rgba(51, 65, 85, 0.85);
+  transition: box-shadow 0.15s, border-color 0.15s, transform 0.12s;
+  text-align: left;
+}
+
+.si-basemap-card:hover {
+  border-color: rgba(52, 211, 153, 0.65);
+  box-shadow: 0 0 0 1px var(--si-accent-ring), 0 6px 18px rgba(0, 0, 0, 0.45);
+}
+
+.si-basemap-card.active {
+  border-color: rgba(52, 211, 153, 0.95);
+  box-shadow: 0 0 0 2px var(--si-accent-ring), 0 0 20px rgba(22, 163, 74, 0.35);
+}
+
+.si-basemap-card-thumb {
+  position: relative;
+  display: block;
+  height: 72px;
+  background: #0f172a;
+}
+
+.si-basemap-card-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.si-basemap-card-hybrid {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.28);
+  color: #f9fafb;
+  font-size: 11px;
+  font-weight: 600;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.85);
+}
+
+.si-basemap-card-check {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  width: 22px;
+  height: 22px;
+  border-radius: 999px;
+  background: linear-gradient(135deg, var(--si-accent), var(--si-accent-strong));
+  color: #f9fafb;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.45);
+}
+
+.si-basemap-card-label {
+  display: block;
+  padding: 6px 6px 8px;
+  font-size: 10px;
+  font-weight: 500;
+  line-height: 1.25;
+  color: #e5e7eb;
+  text-align: center;
+}
+
+.si-basemap-card.active .si-basemap-card-label {
+  color: #f9fafb;
+}
+
 .basemap-pill {
   border: none;
   outline: none;
@@ -5523,7 +5617,7 @@ input.si-explore-date-input-linked[type='date'] {
   background: rgba(14, 165, 233, 0.22);
 }
 
-/* Field Analysis (Environmental Index — third section tab) */
+/* Remote sensing controls (Environmental Index panel) */
 .si-field-analysis {
   gap: 14px;
 }
