@@ -2,7 +2,11 @@
 
 > **GitHub Pages:** إذا ظهرت وثيقة README بدل التطبيق، فاذهب إلى **Settings → Pages** واختر المصدر **GitHub Actions** وليس «Deploy from a branch». التطبيق يُنشر من مجلد البناء `frontend/dist` عبر سير العمل `.github/workflows/deploy-pages.yml`.
 >
+> **رابط التشغيل (HashRouter):** [https://alkamelgis.github.io/AgroCloud/#/](https://alkamelgis.github.io/AgroCloud/#/)
+>
 > **GitHub Pages:** If you see this README instead of the app, open **Settings → Pages** and set **Source** to **GitHub Actions** (not “Deploy from a branch”). The site is published from `frontend/dist` via `.github/workflows/deploy-pages.yml`.
+>
+> **App URL (hash):** [https://alkamelgis.github.io/AgroCloud/#/](https://alkamelgis.github.io/AgroCloud/#/)
 
 Agri Cloud is a monorepo containing a React/Vite frontend and an Express backend.
 

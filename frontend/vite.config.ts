@@ -117,6 +117,26 @@ function productionCanonicalLink(): Plugin {
   }
 }
 
+/**
+ * GitHub Pages: `/AgroCloud` (no trailing slash) and `/AgroCloud/` with empty hash break the HashRouter shell.
+ * Normalize to `.../AgroCloud/#/` before the app bundle runs.
+ */
+function ghPagesHashAndSlashRedirect(): Plugin {
+  const base = appConfig.basePath
+  const withSlash = base.endsWith('/') ? base : `${base}/`
+  const noSlash = withSlash.replace(/\/$/, '')
+  const marker = 'data-agro-gh-pages-redirect'
+  const snippet = `<script ${marker}="1">;(function(){try{var h=String(location.hostname||"");if(h.indexOf("github.io")===-1)return;var p=location.pathname||"";var ws=${JSON.stringify(withSlash)};var ns=${JSON.stringify(noSlash)};if(p===ns){location.replace(location.origin+ws+location.search+(location.hash&&location.hash.length>1?location.hash:"#/"));return;}if((p===ws||p===ns+"/")&&(!location.hash||location.hash==="#")){location.replace(location.origin+ws+location.search+"#/");}}catch(_){}})();</script>`
+  return {
+    name: 'agro-gh-pages-hash-redirect',
+    apply: 'build',
+    transformIndexHtml(html) {
+      if (html.includes(marker)) return html
+      return html.replace('<body>', `<body>\n    ${snippet}`)
+    },
+  }
+}
+
 export default defineConfig({
   base: appConfig.basePath,
   build: {
@@ -128,6 +148,7 @@ export default defineConfig({
   plugins: [
     agroCloudBaseTrailingSlashRedirect(),
     pagesBuildStamp(),
+    ghPagesHashAndSlashRedirect(),
     productionCanonicalLink(),
     react(),
     ...(process.env.ENABLE_PWA === 'true'
