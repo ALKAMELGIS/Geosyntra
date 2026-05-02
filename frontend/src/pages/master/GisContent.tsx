@@ -1,4 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import {
+  arcgisExtentToWgs84BBox,
+  fetchImageServerMeta,
+  getImageServerServiceRootFromUrl,
+} from '../../lib/arcgisImageServer'
 import { parseFile, parseRemoteUrlAsFile } from '../../utils/FileLoader'
 
 export default function GisContent() {
@@ -59,6 +64,7 @@ type LayerData = {
   url?: string
   authToken?: string
   arcgisLayerDefinition?: any
+  bbox?: [number, number, number, number]
 }
 
 const DB_NAME = 'GisMapStore'
@@ -168,6 +174,7 @@ const getGeoJsonFields = (data: any) => {
 }
 
 const getGeometryType = (layer: LayerData) => {
+  if (layer.type === 'tile' && layer.data?.esriImageServer) return 'ImageServer'
   const arc = layer.source === 'arcgis' ? layer.arcgisLayerDefinition : null
   const fromArc = typeof arc?.geometryType === 'string' ? arc.geometryType : ''
   if (fromArc) return fromArc
@@ -177,6 +184,7 @@ const getGeometryType = (layer: LayerData) => {
 }
 
 const getRecordCount = (layer: LayerData) => {
+  if (layer.type === 'tile' && layer.data?.esriImageServer) return 0
   const features = Array.isArray(layer.data?.features) ? (layer.data.features as any[]) : []
   return features.length
 }
@@ -1195,6 +1203,30 @@ function GisContentPage() {
     setAddingLayerKey(opKey)
     setDiscoverError(null)
     try {
+      const imageRoot = getImageServerServiceRootFromUrl(trimmed)
+      if (imageRoot) {
+        const meta = await fetchImageServerMeta(imageRoot)
+        const extentSource = meta.fullExtent ?? meta.extent
+        const bbox = extentSource ? arcgisExtentToWgs84BBox(extentSource) : null
+        const layerId = `url:esri-image:${newId()}`
+        const name = normalizeName(layerName) || normalizeName(meta.name) || 'Image Server'
+        const newLayer: LayerData = {
+          id: layerId,
+          name,
+          type: 'tile',
+          source: 'url',
+          visible: true,
+          opacity: 1,
+          url: imageRoot,
+          data: { esriImageServer: true },
+          ...(bbox ? { bbox } : {}),
+        }
+        setLayers(prev => [...prev, newLayer])
+        setSelectedLayerId(layerId)
+        closeAddLayer()
+        return
+      }
+
       const file = await parseRemoteUrlAsFile(trimmed)
       const parsed = await parseFile(file)
       if (parsed.type !== 'geojson') {
@@ -2320,7 +2352,7 @@ function GisContentPage() {
                   />
 
                   <p className="gis-dropzone-subtext" style={{ margin: 0 }}>
-                    ArcGIS REST query URLs, hosted GeoJSON/KML/CSV, and other web-accessible GIS files (CORS must allow your browser).
+                    ArcGIS ImageServer URLs, REST query URLs, hosted GeoJSON/KML/CSV, and other web-accessible GIS files (CORS must allow your browser).
                   </p>
 
                   <input

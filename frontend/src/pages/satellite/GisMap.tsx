@@ -2,6 +2,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, typ
 import type { Map as LeafletMap } from 'leaflet'
 import L from 'leaflet'
 import { GeoJSON } from 'react-leaflet'
+import { EsriImageServerLayer } from './components/EsriImageServerLayer'
 import MapboxMap, { Layer, NavigationControl, Source } from 'react-map-gl/mapbox'
 import 'mapbox-gl/dist/mapbox-gl.css'
 import MapView from '../../components/MapView'
@@ -13,6 +14,11 @@ import { BasemapGallery, BasemapLayer, type BasemapType } from './components/Bas
 import { useMapboxAccessToken } from '../../hooks/useMapboxAccessToken'
 import { getArcgisPortalToken } from '../../lib/arcgisPortalToken'
 import { getMapboxAccessToken } from '../../lib/mapboxAccessToken'
+import {
+  arcgisExtentToWgs84BBox,
+  fetchImageServerMeta,
+  getImageServerServiceRootFromUrl,
+} from '../../lib/arcgisImageServer'
 import { parseFile, parseRemoteUrlAsFile } from '../../utils/FileLoader'
 
 type AddLayerTab = 'arcgis' | 'database' | 'upload' | 'url'
@@ -765,6 +771,12 @@ export default function GisMap() {
   const zoomToLayer = (layer: LayerData) => {
     const map = mapRef.current
     if (!map) return
+    if (layer.type === 'tile' && (layer.data as any)?.esriImageServer && Array.isArray(layer.bbox) && layer.bbox.length === 4) {
+      const [w, s, e, n] = layer.bbox as [number, number, number, number]
+      const b = L.latLngBounds([s, w], [n, e])
+      if (b.isValid()) map.fitBounds(b, { padding: [24, 24], maxZoom: 16 })
+      return
+    }
     if (!layer.data) return
     try {
       const bounds = L.geoJSON(layer.data as any).getBounds()
@@ -2880,6 +2892,44 @@ export default function GisMap() {
     setAddingLayerKey(opKey)
     setDiscoverError(null)
     try {
+      const imageRoot = getImageServerServiceRootFromUrl(trimmed)
+      if (imageRoot) {
+        const meta = await fetchImageServerMeta(imageRoot)
+        const extentSource = meta.fullExtent ?? meta.extent
+        const bbox = extentSource ? arcgisExtentToWgs84BBox(extentSource) : null
+        const layerId = `url:esri-image:${newGisImportId()}`
+        const name = layerName.trim() || meta.name || 'Image Server'
+        const newLayer: LayerData = {
+          id: layerId,
+          name,
+          type: 'tile',
+          source: 'url',
+          visible: true,
+          opacity: 1,
+          url: imageRoot,
+          data: { esriImageServer: true },
+          ...(bbox ? { bbox } : {}),
+        }
+        setLayers(prev => [...prev, newLayer])
+        setIsAddOpen(false)
+        setLayerName('')
+        setUploadFile(null)
+        setRemoteDataUrl('')
+        setServiceUrl('')
+        setDiscoveredLayers([])
+        setSelectedDiscoveredUrl('')
+        setDiscoverError(null)
+        if (bbox && mapProjectionMode !== 'globe') {
+          requestAnimationFrame(() => {
+            const map = mapRef.current
+            if (!map) return
+            const b = L.latLngBounds([bbox[1], bbox[0]], [bbox[3], bbox[2]])
+            if (b.isValid()) map.fitBounds(b, { padding: [24, 24], maxZoom: 14 })
+          })
+        }
+        return
+      }
+
       const file = await parseRemoteUrlAsFile(trimmed)
       const parsed = await parseFile(file)
       if (parsed.type !== 'geojson') {
@@ -3088,7 +3138,9 @@ export default function GisMap() {
               {orderedLayers.map(layer => {
                 const layerId = String(layer.id)
                 const isMenuOpen = openLayerMenuId === layerId
+                const isEsriImage = layer.type === 'tile' && (layer.data as any)?.esriImageServer
                 const featureCount = Array.isArray((layer.data as any)?.features) ? (layer.data as any).features.length : 0
+                const countLabel = isEsriImage ? 'Image service' : `${featureCount} features`
 
                 return (
                   <div key={layerId} role="listitem" className="gis-layer-card">
@@ -3121,10 +3173,7 @@ export default function GisMap() {
                               aria-hidden="true"
                             />
                             <span>
-                              {(layer.source === 'arcgis' ? 'ArcGIS' : layer.source === 'url' ? 'URL' : 'Upload') +
-                                ' - ' +
-                                featureCount +
-                                ' features'}
+                              {(layer.source === 'arcgis' ? 'ArcGIS' : layer.source === 'url' ? 'URL' : 'Upload') + ' - ' + countLabel}
                             </span>
                           </span>
                         </span>
@@ -3344,6 +3393,7 @@ export default function GisMap() {
                         applyLayerSymbology(lid, draft)
                         setSymbologyDialog({ layerId: lid, draft, original })
                       }}
+                      disabled={layer.type !== 'geojson'}
                       aria-label={`Symbology for ${layer.name}`}
                       title="Symbology"
                     >
@@ -3355,6 +3405,7 @@ export default function GisMap() {
                       }
                       type="button"
                       onClick={() => setLayerDialog({ mode: 'legend', layerId })}
+                      disabled={layer.type !== 'geojson'}
                       aria-label={`Legend for ${layer.name}`}
                       title="Legend"
                     >
@@ -3496,6 +3547,17 @@ export default function GisMap() {
               if (drawingIsEditing) setDrawingDirty(true)
             }}
           />
+          {layers.map((layer, layerStackIndex) =>
+            layer.visible && layer.type === 'tile' && layer.url && (layer.data as any)?.esriImageServer ? (
+              <EsriImageServerLayer
+                key={String(layer.id)}
+                serviceUrl={layer.url}
+                opacity={layer.opacity}
+                visible
+                zIndex={380 + layerStackIndex}
+              />
+            ) : null,
+          )}
           {layers.map(layer =>
             layer.visible && layer.type === 'geojson' && layer.data ? (
               <GeoJSON
@@ -3656,7 +3718,12 @@ export default function GisMap() {
                     <span className="gis-tool-swatch" style={{ background: layer.color || '#22c55e' }} aria-hidden="true" />
                     <span className="gis-tool-row-main">
                       <strong>{layer.name}</strong>
-                      <small>{layer.visible ? 'Visible' : 'Hidden'} · {Array.isArray((layer.data as any)?.features) ? (layer.data as any).features.length : 0} features</small>
+                      <small>
+                        {layer.visible ? 'Visible' : 'Hidden'} ·{' '}
+                        {layer.type === 'tile' && (layer.data as any)?.esriImageServer
+                          ? 'Image service'
+                          : `${Array.isArray((layer.data as any)?.features) ? (layer.data as any).features.length : 0} features`}
+                      </small>
                     </span>
                   </div>
                 )) : (
@@ -3666,8 +3733,22 @@ export default function GisMap() {
             ) : activeMapTool === 'chart' ? (
               <div className="gis-tool-chart">
                 {orderedLayers.length ? orderedLayers.map(layer => {
-                  const count = Array.isArray((layer.data as any)?.features) ? (layer.data as any).features.length : 0
-                  const max = Math.max(1, ...orderedLayers.map(l => (Array.isArray((l.data as any)?.features) ? (l.data as any).features.length : 0)))
+                  const count =
+                    layer.type === 'tile' && (layer.data as any)?.esriImageServer
+                      ? 0
+                      : Array.isArray((layer.data as any)?.features)
+                        ? (layer.data as any).features.length
+                        : 0
+                  const max = Math.max(
+                    1,
+                    ...orderedLayers.map(l =>
+                      l.type === 'tile' && (l.data as any)?.esriImageServer
+                        ? 0
+                        : Array.isArray((l.data as any)?.features)
+                          ? (l.data as any).features.length
+                          : 0,
+                    ),
+                  )
                   return (
                     <div key={String(layer.id)} className="gis-tool-chart-row">
                       <div className="gis-tool-chart-label">
@@ -5835,7 +5916,7 @@ export default function GisMap() {
                   />
 
                   <p className="gis-dropzone-subtext" style={{ margin: 0 }}>
-                    ArcGIS REST query URLs, hosted GeoJSON/KML/CSV, and other web-accessible GIS files (CORS must allow your browser).
+                    ArcGIS ImageServer URLs, REST query URLs, hosted GeoJSON/KML/CSV, and other web-accessible GIS files (CORS must allow your browser).
                   </p>
 
                   <input
