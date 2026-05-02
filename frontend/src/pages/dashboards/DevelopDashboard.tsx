@@ -8,11 +8,6 @@ import type { LayerData } from '../satellite/components/LayerManager'
 import { parseFile, parseRemoteUrlAsFile } from '../../utils/FileLoader'
 import './develop-dashboard.css'
 
-const STRUCTURES_URL =
-  'https://services1.arcgis.com/jz3ndhbYV5K9NwI8/ArcGIS/rest/services/Agro_Structures/FeatureServer/21'
-const CROPS_URL =
-  'https://services1.arcgis.com/jz3ndhbYV5K9NwI8/ArcGIS/rest/services/Agro_Structures/FeatureServer/32'
-
 type LayerOrigin = 'sample' | 'user'
 
 /** Tabular CSV (no lat/lon) — Power BI “Data” pane style. */
@@ -24,7 +19,7 @@ type CsvDataset = {
   origin: LayerOrigin
 }
 
-type RightPowerBiPanel = 'none' | 'filters' | 'visualizations' | 'data'
+type RightPowerBiPanel = 'none' | 'filters' | 'visualizations' | 'data' | 'link'
 
 type LayerState = {
   name: string
@@ -33,7 +28,7 @@ type LayerState = {
   data: GeoJSON.FeatureCollection
   fields: string[]
   visible: boolean
-  /** `sample` = bundled demo layers; `user` = added via Add Source Data / GIS Content / etc. */
+  /** `sample` reserved; `user` = added via Add Source Data / GIS Content / etc. */
   origin: LayerOrigin
 }
 
@@ -74,6 +69,8 @@ const CHART_TOOLS: Array<{ chart: string; icon: string; label: string }> = [
   { chart: 'card', icon: 'fa-solid fa-id-card', label: 'Card' },
   { chart: 'multiRowCard', icon: 'fa-solid fa-address-card', label: 'Multi-row Card' },
   { chart: 'kpi', icon: 'fa-solid fa-chart-simple', label: 'KPI' },
+  /** Layer + field + aggregation row with “Add card” — same behavior as sidebar Custom Stat Cards. */
+  { chart: 'customStatCard', icon: 'fa-solid fa-chart-column', label: 'Custom stat card' },
   { chart: 'slicer', icon: 'fa-solid fa-scissors', label: 'Slicer' },
   { chart: 'dataTable', icon: 'fa-solid fa-database', label: 'Data Table' },
   { chart: 'rScript', icon: 'fa-brands fa-r-project', label: 'R Script' },
@@ -83,15 +80,6 @@ const CHART_TOOLS: Array<{ chart: string; icon: string; label: string }> = [
   { chart: 'qa', icon: 'fa-solid fa-circle-question', label: 'Q&A' },
   { chart: 'smartNarrative', icon: 'fa-solid fa-comment-dots', label: 'Smart Narrative' },
 ]
-
-async function fetchGeoJSON(url: string, isTable: boolean): Promise<GeoJSON.FeatureCollection> {
-  const query = isTable
-    ? `${url}/query?where=1%3D1&outFields=*&returnGeometry=false&f=geojson`
-    : `${url}/query?where=1%3D1&outFields=*&returnGeometry=true&f=geojson`
-  const resp = await fetch(query)
-  if (!resp.ok) throw new Error(`GeoJSON request failed (${resp.status})`)
-  return (await resp.json()) as GeoJSON.FeatureCollection
-}
 
 function computeAgg(values: number[], agg: string): number {
   if (!values.length) return 0
@@ -218,9 +206,27 @@ function uniqueRegistryKey(existingKeys: string[], displayName: string): string 
   return key
 }
 
+type MapFlyout = 'none' | 'layers' | 'search' | 'analysis' | 'account'
+type MapAnalysisTab = 'measure' | 'drive' | 'demographics' | 'relations' | 'routing'
+type MapAccountTab = 'profile' | 'community' | 'help' | 'settings'
+
+function haversineKm(a: L.LatLng, b: L.LatLng): number {
+  const R = 6371
+  const dLat = ((b.lat - a.lat) * Math.PI) / 180
+  const dLng = ((b.lng - a.lng) * Math.PI) / 180
+  const lat1 = (a.lat * Math.PI) / 180
+  const lat2 = (b.lat * Math.PI) / 180
+  const x =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) + Math.sin(dLng / 2) * Math.sin(dLng / 2) * Math.cos(lat1) * Math.cos(lat2)
+  return 2 * R * Math.asin(Math.sqrt(Math.min(1, x)))
+}
+
 export default function DevelopDashboard() {
   const mapElRef = useRef<HTMLDivElement | null>(null)
   const mapRef = useRef<L.Map | null>(null)
+  const mapMeasureLineRef = useRef<L.Polyline | null>(null)
+  const mapMeasureMarkersRef = useRef<L.CircleMarker[]>([])
+  const mapSearchMarkerRef = useRef<L.Marker | null>(null)
   const leafletRef = useRef<Record<string, L.Layer>>({})
   const chartsHostRef = useRef<HTMLDivElement | null>(null)
   const chartInstancesRef = useRef<Chart[]>([])
@@ -250,7 +256,6 @@ export default function DevelopDashboard() {
   const [uploadFile, setUploadFile] = useState<File | null>(null)
   const [remoteDataUrl, setRemoteDataUrl] = useState('')
   const addLayerFileInputRef = useRef<HTMLInputElement | null>(null)
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
   const [rightSheet, setRightSheet] = useState<RightPowerBiPanel>('none')
   const [dataPaneSearch, setDataPaneSearch] = useState('')
   const [dataTreeOpen, setDataTreeOpen] = useState<Record<string, boolean>>({})
@@ -259,7 +264,14 @@ export default function DevelopDashboard() {
   const [linkTo, setLinkTo] = useState('')
   const [linkFieldFrom, setLinkFieldFrom] = useState('')
   const [linkFieldTo, setLinkFieldTo] = useState('')
-  const [initError, setInitError] = useState<string | null>(null)
+  const [mapFlyout, setMapFlyout] = useState<MapFlyout>('none')
+  const [mapAnalysisTab, setMapAnalysisTab] = useState<MapAnalysisTab>('measure')
+  const [mapAccountTab, setMapAccountTab] = useState<MapAccountTab>('profile')
+  const [geoSearchQuery, setGeoSearchQuery] = useState('')
+  const [geoSearchBusy, setGeoSearchBusy] = useState(false)
+  const [geoSearchError, setGeoSearchError] = useState<string | null>(null)
+  const [measureUnit, setMeasureUnit] = useState<'Metric' | 'Imperial'>('Metric')
+  const [measureDistanceLabel, setMeasureDistanceLabel] = useState('-')
 
   const layerKeys = useMemo(() => Object.keys(layers), [layers])
   const sampleLayerKeys = useMemo(() => layerKeys.filter(k => layers[k]?.origin === 'sample'), [layerKeys, layers])
@@ -289,16 +301,6 @@ export default function DevelopDashboard() {
       cancelled = true
     }
   }, [addGisOpen])
-
-  useEffect(() => {
-    const mq = window.matchMedia('(max-width: 1100px)')
-    const sync = () => {
-      if (mq.matches) setSidebarCollapsed(false)
-    }
-    sync()
-    mq.addEventListener('change', sync)
-    return () => mq.removeEventListener('change', sync)
-  }, [])
 
   useEffect(() => {
     setDataTreeOpen(prev => {
@@ -354,6 +356,26 @@ export default function DevelopDashboard() {
     }).addTo(map)
     mapRef.current = map
     return () => {
+      try {
+        mapMeasureLineRef.current?.remove()
+      } catch {
+        /* ignore */
+      }
+      mapMeasureLineRef.current = null
+      mapMeasureMarkersRef.current.forEach(m => {
+        try {
+          map.removeLayer(m)
+        } catch {
+          /* ignore */
+        }
+      })
+      mapMeasureMarkersRef.current = []
+      try {
+        mapSearchMarkerRef.current?.remove()
+      } catch {
+        /* ignore */
+      }
+      mapSearchMarkerRef.current = null
       Object.values(leafletRef.current).forEach(layer => {
         try {
           map.removeLayer(layer)
@@ -367,45 +389,16 @@ export default function DevelopDashboard() {
     }
   }, [])
 
+  /** No bundled demo layers — keep active stats layer in sync when the user adds or removes data. */
   useEffect(() => {
-    let cancelled = false
-    ;(async () => {
-      try {
-        const structData = await fetchGeoJSON(STRUCTURES_URL, false)
-        const cropsData = await fetchGeoJSON(CROPS_URL, true)
-        if (cancelled) return
-        const structFields = Object.keys(structData.features[0]?.properties ?? {})
-        const cropFields = Object.keys(cropsData.features[0]?.properties ?? {})
-        setLayers({
-          agro_structures: {
-            name: 'Agricultural Structures',
-            type: 'feature',
-            url: STRUCTURES_URL,
-            data: structData,
-            fields: structFields,
-            visible: true,
-            origin: 'sample',
-          },
-          crops_planted: {
-            name: 'Planted Crops',
-            type: 'table',
-            url: CROPS_URL,
-            data: cropsData,
-            fields: cropFields,
-            visible: true,
-            origin: 'sample',
-          },
-        })
-        setActiveStatsLayer('agro_structures')
-        setStatsField(structFields[0] ?? '')
-      } catch (e) {
-        if (!cancelled) setInitError(e instanceof Error ? e.message : 'Failed to load default layers.')
-      }
-    })()
-    return () => {
-      cancelled = true
+    if (!layerKeys.length) {
+      setActiveStatsLayer('')
+      return
     }
-  }, [])
+    const first = layerKeys[0]
+    if (!first) return
+    setActiveStatsLayer(prev => (prev && layers[prev] ? prev : first))
+  }, [layerKeys, layers])
 
   useEffect(() => {
     const map = mapRef.current
@@ -594,6 +587,20 @@ export default function DevelopDashboard() {
         kpi.className = 'ddb-visual-card'
         kpi.innerHTML = `<div class="ddb-visual-title"><i class="fa-solid fa-chart-simple"></i> KPI</div><div style="font-size:2rem;">${values[0] ?? 0}</div><div>Target: 150 | ${((((values[0] ?? 0) / 150) * 100) || 0).toFixed(0)}%</div>`
         host.appendChild(kpi)
+      } else if (tool === 'customStatCard') {
+        if (!statCards.length) {
+          const wrap = document.createElement('div')
+          wrap.className = 'ddb-visual-card'
+          wrap.innerHTML = `<div class="ddb-visual-title"><i class="fa-solid fa-chart-column"></i> Custom stat cards</div><div class="ddb-hint">Pick layer, field, and aggregation in Visualizations, add cards, then generate again to show them here.</div>`
+          host.appendChild(wrap)
+        } else {
+          for (const c of statCards) {
+            const box = document.createElement('div')
+            box.className = 'ddb-visual-card'
+            box.innerHTML = `<div class="ddb-visual-title"><i class="fa-solid fa-chart-column"></i> ${c.layerName}</div><div style="font-size:1.75rem;font-weight:800;">${c.result.toFixed(2)}</div><div>${c.agg} · ${c.field}</div>`
+            host.appendChild(box)
+          }
+        }
       } else {
         const fb = document.createElement('div')
         fb.className = 'ddb-visual-card'
@@ -601,7 +608,7 @@ export default function DevelopDashboard() {
         host.appendChild(fb)
       }
     }
-  }, [activeStatsLayer, destroyCharts, layers, selectedCharts])
+  }, [activeStatsLayer, destroyCharts, layers, selectedCharts, statCards])
 
   useEffect(() => {
     if (!Object.keys(layers).length || !activeStatsLayer) return
@@ -719,14 +726,147 @@ export default function DevelopDashboard() {
     setAddWizard('home')
   }, [])
 
-  const expandToPanel = useCallback((panelId: string) => {
-    setSidebarCollapsed(false)
-    window.requestAnimationFrame(() => {
-      window.requestAnimationFrame(() => {
-        document.getElementById(panelId)?.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
-      })
+  const clearMapMeasurement = useCallback(() => {
+    const map = mapRef.current
+    if (mapMeasureLineRef.current && map) {
+      try {
+        map.removeLayer(mapMeasureLineRef.current)
+      } catch {
+        /* ignore */
+      }
+    }
+    mapMeasureLineRef.current = null
+    mapMeasureMarkersRef.current.forEach(m => {
+      try {
+        map?.removeLayer(m)
+      } catch {
+        /* ignore */
+      }
     })
+    mapMeasureMarkersRef.current = []
+    setMeasureDistanceLabel('-')
   }, [])
+
+  const toggleMapFlyout = useCallback((panel: Exclude<MapFlyout, 'none'>) => {
+    setMapFlyout(prev => (prev === panel ? 'none' : panel))
+  }, [])
+
+  const runGeoSearch = useCallback(async () => {
+    const q = geoSearchQuery.trim()
+    if (!q) return
+    const map = mapRef.current
+    if (!map) return
+    setGeoSearchBusy(true)
+    setGeoSearchError(null)
+    try {
+      let lat: number
+      let lng: number
+      let label: string
+      const gKey = (import.meta.env.VITE_GOOGLE_MAPS_API_KEY as string | undefined)?.trim()
+      if (gKey) {
+        const res = await fetch(
+          `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(q)}&key=${encodeURIComponent(gKey)}`,
+        )
+        const data = (await res.json()) as {
+          status: string
+          results?: Array<{ formatted_address: string; geometry: { location: { lat: number; lng: number } } }>
+          error_message?: string
+        }
+        if (data.status !== 'OK' || !data.results?.[0]) {
+          throw new Error(data.error_message || `Geocoder: ${data.status}`)
+        }
+        const hit = data.results[0]
+        lat = hit.geometry.location.lat
+        lng = hit.geometry.location.lng
+        label = hit.formatted_address
+      } else {
+        const res = await fetch(
+          `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(q)}&format=json&limit=1`,
+          { headers: { Accept: 'application/json' } },
+        )
+        const arr = (await res.json()) as Array<{ lat: string; lon: string; display_name: string }>
+        if (!arr?.[0]) throw new Error('No results')
+        lat = parseFloat(arr[0].lat)
+        lng = parseFloat(arr[0].lon)
+        label = arr[0].display_name
+      }
+      try {
+        mapSearchMarkerRef.current?.remove()
+      } catch {
+        /* ignore */
+      }
+      mapSearchMarkerRef.current = L.marker([lat, lng]).addTo(map).bindPopup(label).openPopup()
+      map.setView([lat, lng], Math.max(map.getZoom(), 11))
+    } catch (e) {
+      setGeoSearchError(e instanceof Error ? e.message : 'Search failed')
+    } finally {
+      setGeoSearchBusy(false)
+    }
+  }, [geoSearchQuery])
+
+  useEffect(() => {
+    if (mapFlyout !== 'analysis' || mapAnalysisTab !== 'measure') {
+      clearMapMeasurement()
+    }
+  }, [mapFlyout, mapAnalysisTab, clearMapMeasurement])
+
+  useEffect(() => {
+    const map = mapRef.current
+    if (!map || mapFlyout !== 'analysis' || mapAnalysisTab !== 'measure') return
+    const onClick = (e: L.LeafletMouseEvent) => {
+      if (mapMeasureMarkersRef.current.length >= 2) clearMapMeasurement()
+      const dot = L.circleMarker(e.latlng, {
+        radius: 6,
+        color: '#fff',
+        weight: 2,
+        fillColor: '#1f5e3a',
+        fillOpacity: 1,
+      }).addTo(map)
+      mapMeasureMarkersRef.current.push(dot)
+      if (mapMeasureMarkersRef.current.length === 2) {
+        const a = mapMeasureMarkersRef.current[0].getLatLng()
+        const b = mapMeasureMarkersRef.current[1].getLatLng()
+        try {
+          if (mapMeasureLineRef.current) map.removeLayer(mapMeasureLineRef.current)
+        } catch {
+          /* ignore */
+        }
+        mapMeasureLineRef.current = L.polyline([a, b], { color: '#1f5e3a', weight: 3, dashArray: '6 4' }).addTo(map)
+        const km = haversineKm(a, b)
+        const dist =
+          measureUnit === 'Metric'
+            ? km < 1
+              ? `${(km * 1000).toFixed(0)} m`
+              : `${km.toFixed(2)} km`
+            : `${(km * 0.621371).toFixed(2)} mi`
+        setMeasureDistanceLabel(dist)
+      }
+    }
+    map.on('click', onClick)
+    return () => {
+      map.off('click', onClick)
+    }
+  }, [mapFlyout, mapAnalysisTab, measureUnit, clearMapMeasurement])
+
+  useEffect(() => {
+    if (mapFlyout !== 'analysis' || mapAnalysisTab !== 'measure') return
+    if (mapMeasureMarkersRef.current.length !== 2) return
+    const a = mapMeasureMarkersRef.current[0].getLatLng()
+    const b = mapMeasureMarkersRef.current[1].getLatLng()
+    const km = haversineKm(a, b)
+    const dist =
+      measureUnit === 'Metric' ? (km < 1 ? `${(km * 1000).toFixed(0)} m` : `${km.toFixed(2)} km`) : `${(km * 0.621371).toFixed(2)} mi`
+    setMeasureDistanceLabel(dist)
+  }, [measureUnit, mapFlyout, mapAnalysisTab])
+
+  useEffect(() => {
+    if (mapFlyout === 'none') return
+    const onKey = (ev: KeyboardEvent) => {
+      if (ev.key === 'Escape') setMapFlyout('none')
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [mapFlyout])
 
   const toggleRightSheet = useCallback((panel: Exclude<RightPowerBiPanel, 'none'>) => {
     setRightSheet(prev => (prev === panel ? 'none' : panel))
@@ -1021,13 +1161,7 @@ export default function DevelopDashboard() {
   return (
     <>
     <div className="page page-tight develop-dashboard-root">
-      {initError ? (
-        <div className="ddb-hint" style={{ color: '#b91c1c', padding: 12 }}>
-          {initError}
-        </div>
-      ) : null}
-
-      <div className={`ddb-dashboard${sidebarCollapsed ? ' ddb-dashboard--sidebar-collapsed' : ''}`}>
+      <div className="ddb-dashboard">
         <div className="ddb-topbar">
           <div className="ddb-brand">
             <h1>
@@ -1040,213 +1174,6 @@ export default function DevelopDashboard() {
         </div>
 
         <div className="ddb-dashboard-body">
-        <div className={`ddb-sidebar${sidebarCollapsed ? ' is-collapsed' : ''}`}>
-          {sidebarCollapsed ? (
-            <nav className="ddb-sidebar-panels ddb-sidebar-panels--rail" aria-label="Sidebar panels (collapsed)">
-              <button
-                type="button"
-                className="ddb-sidebar-rail-expand"
-                onClick={() => setSidebarCollapsed(false)}
-                aria-expanded={false}
-                aria-controls="ddb-sidebar-panels"
-                title="Expand sidebar"
-              >
-                <i className="fa-solid fa-angles-right" aria-hidden />
-                <span className="ddb-sidebar-rail-sr">Expand sidebar</span>
-              </button>
-              <div className="ddb-sidebar-rail-stack" role="group">
-                <button
-                  type="button"
-                  className="ddb-sidebar-rail-panel-btn"
-                  title="Data — map layers & fields"
-                  aria-label="Open Data panel"
-                  onClick={() => {
-                    setSidebarCollapsed(false)
-                    setRightSheet('data')
-                  }}
-                >
-                  <span className="ddb-sidebar-rail-panel-icon">
-                    <i className="fa-solid fa-database" aria-hidden />
-                  </span>
-                </button>
-                <button
-                  type="button"
-                  className="ddb-sidebar-rail-panel-btn"
-                  title="Visualizations — Custom Stat Cards"
-                  aria-label="Visualizations, Custom Stat Cards"
-                  onClick={() => expandToPanel('ddb-sidebar-panel-stats')}
-                >
-                  <span className="ddb-sidebar-rail-panel-icon">
-                    <i className="fa-solid fa-chart-simple" aria-hidden />
-                  </span>
-                </button>
-                <button
-                  type="button"
-                  className="ddb-sidebar-rail-panel-btn"
-                  title="Link layers"
-                  aria-label="Link layers"
-                  onClick={() => expandToPanel('ddb-sidebar-panel-link')}
-                >
-                  <span className="ddb-sidebar-rail-panel-icon">
-                    <i className="fa-solid fa-link" aria-hidden />
-                  </span>
-                </button>
-                <button
-                  type="button"
-                  className="ddb-sidebar-rail-panel-btn"
-                  title="Chart types — opens Visualizations panel"
-                  aria-label="Open Visualizations panel for chart types"
-                  onClick={() => {
-                    setSidebarCollapsed(false)
-                    setRightSheet('visualizations')
-                  }}
-                >
-                  <span className="ddb-sidebar-rail-panel-icon">
-                    <i className="fa-solid fa-table-cells" aria-hidden />
-                  </span>
-                </button>
-              </div>
-            </nav>
-          ) : (
-            <>
-          <div className="ddb-sidebar-header">
-              <button
-                type="button"
-                className="ddb-sidebar-toggle"
-                onClick={() => setSidebarCollapsed(true)}
-                aria-expanded={true}
-                aria-controls="ddb-sidebar-panels"
-                title="Collapse sidebar"
-              >
-                <i className="fa-solid fa-angles-left" aria-hidden />
-              </button>
-          </div>
-          <div id="ddb-sidebar-panels" className="ddb-sidebar-panels">
-          <div id="ddb-sidebar-panel-stats" className="ddb-panel-section">
-            <div
-              className="ddb-section-title"
-              data-tooltip="Custom Stat Cards"
-              role="group"
-              aria-label="Custom Stat Cards"
-              tabIndex={0}
-            >
-              <i className="fa-solid fa-chart-simple" aria-hidden />
-              <span className="ddb-section-title-sr">Custom Stat Cards</span>
-            </div>
-            <div className="ddb-panel-body">
-            <div className="ddb-stats-config-row">
-              <select className="ddb-select" value={activeStatsLayer} onChange={e => setActiveStatsLayer(e.target.value)}>
-                {layerKeys.map(k => (
-                  <option key={k} value={k}>
-                    {layers[k].name}
-                  </option>
-                ))}
-              </select>
-              <select className="ddb-select" value={statsField} onChange={e => setStatsField(e.target.value)}>
-                {activeFields.map(f => (
-                  <option key={f} value={f}>
-                    {f}
-                  </option>
-                ))}
-              </select>
-              <select className="ddb-select" value={statsAgg} onChange={e => setStatsAgg(e.target.value)}>
-                <option value="sum">Sum</option>
-                <option value="avg">Average</option>
-                <option value="count">Count</option>
-                <option value="max">Max</option>
-                <option value="min">Min</option>
-              </select>
-              <button type="button" className="ddb-btn" onClick={addStatCard}>
-                <i className="fa-solid fa-plus-circle" aria-hidden /> Add Card
-              </button>
-            </div>
-            <div className="ddb-stats-cards-container">
-              {statCards.map(c => (
-                <div key={c.id} className="ddb-stat-card-custom">
-                  <button
-                    type="button"
-                    aria-label="Remove"
-                    className="ddb-small-btn"
-                    style={{ float: 'left', fontSize: 11, padding: '4px 8px' }}
-                    onClick={() => setStatCards(prev => prev.filter(x => x.id !== c.id))}
-                  >
-                    <i className="fa-solid fa-trash" />
-                  </button>
-                  <div className="ddb-stat-number">{c.result.toFixed(2)}</div>
-                  <div className="ddb-stat-label">
-                    {c.agg} / {c.field}
-                  </div>
-                  <div style={{ fontSize: 9 }}>{c.layerName}</div>
-                </div>
-              ))}
-            </div>
-            </div>
-          </div>
-
-          <div id="ddb-sidebar-panel-link" className="ddb-panel-section">
-            <div
-              className="ddb-section-title"
-              data-tooltip="Link Layers (Relation)"
-              role="group"
-              aria-label="Link Layers (Relation)"
-              tabIndex={0}
-            >
-              <i className="fa-solid fa-link" aria-hidden />
-              <span className="ddb-section-title-sr">Link Layers (Relation)</span>
-            </div>
-            <div className="ddb-panel-body">
-            <div className="ddb-link-row">
-              <select className="ddb-select" value={linkFrom} onChange={e => { setLinkFrom(e.target.value); setLinkFieldFrom('') }}>
-                <option value="">-- Source Layer --</option>
-                {layerKeys.map(k => (
-                  <option key={k} value={k}>
-                    {layers[k].name}
-                  </option>
-                ))}
-              </select>
-              <span>→</span>
-              <select className="ddb-select" value={linkTo} onChange={e => { setLinkTo(e.target.value); setLinkFieldTo('') }}>
-                <option value="">-- Target Layer --</option>
-                {layerKeys.map(k => (
-                  <option key={k} value={k}>
-                    {layers[k].name}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div className="ddb-link-row">
-              <select className="ddb-select" value={linkFieldFrom} onChange={e => setLinkFieldFrom(e.target.value)}>
-                {linkFieldsFrom.map(f => (
-                  <option key={f} value={f}>
-                    {f}
-                  </option>
-                ))}
-              </select>
-              <span>↔</span>
-              <select className="ddb-select" value={linkFieldTo} onChange={e => setLinkFieldTo(e.target.value)}>
-                {linkFieldsTo.map(f => (
-                  <option key={f} value={f}>
-                    {f}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <button
-              type="button"
-              className="ddb-btn"
-              style={{ width: '100%', marginTop: 4 }}
-              onClick={() => setLinkStatus('Layers linked successfully (conceptual relation set).')}
-            >
-              Apply Relation &amp; Link Map
-            </button>
-            {linkStatus ? <div className="ddb-hint" style={{ color: '#2c6e49' }}>{linkStatus}</div> : null}
-            </div>
-          </div>
-          </div>
-            </>
-          )}
-        </div>
-
         <div className="ddb-main">
           <div className="ddb-map-container si-map-container">
             <div ref={mapElRef} className="ddb-map-inner" />
@@ -1261,6 +1188,355 @@ export default function DevelopDashboard() {
                 <i className="fa-solid fa-expand" />
               </button>
             </div>
+            <nav className="ddb-map-floating-rail" aria-label="Map quick tools">
+              <button
+                type="button"
+                className={`ddb-map-floating-rail-btn${mapFlyout === 'layers' ? ' is-active' : ''}`}
+                title="Layers"
+                aria-label="Layers"
+                aria-pressed={mapFlyout === 'layers'}
+                onClick={() => toggleMapFlyout('layers')}
+              >
+                <i className="fa-solid fa-layer-group" aria-hidden />
+              </button>
+              <button
+                type="button"
+                className={`ddb-map-floating-rail-btn${mapFlyout === 'search' ? ' is-active' : ''}`}
+                title="Search map"
+                aria-label="Search map"
+                aria-pressed={mapFlyout === 'search'}
+                onClick={() => toggleMapFlyout('search')}
+              >
+                <i className="fa-solid fa-magnifying-glass" aria-hidden />
+              </button>
+              <button
+                type="button"
+                className={`ddb-map-floating-rail-btn${mapFlyout === 'analysis' ? ' is-active' : ''}`}
+                title="Analysis"
+                aria-label="Analysis"
+                aria-pressed={mapFlyout === 'analysis'}
+                onClick={() => toggleMapFlyout('analysis')}
+              >
+                <i className="fa-solid fa-chart-column" aria-hidden />
+              </button>
+              <button
+                type="button"
+                className={`ddb-map-floating-rail-btn${mapFlyout === 'account' ? ' is-active' : ''}`}
+                title="Login and settings"
+                aria-label="Login and settings"
+                aria-pressed={mapFlyout === 'account'}
+                onClick={() => toggleMapFlyout('account')}
+              >
+                <i className="fa-solid fa-user" aria-hidden />
+              </button>
+            </nav>
+            {mapFlyout !== 'none' ? (
+              <div className="ddb-map-flyout-backdrop" role="presentation" onClick={() => setMapFlyout('none')} />
+            ) : null}
+            {mapFlyout === 'layers' ? (
+              <div
+                className="ddb-map-flyout ddb-map-flyout--layers"
+                role="dialog"
+                aria-modal="true"
+                aria-labelledby="ddb-map-flyout-layers-title"
+                onMouseDown={e => e.stopPropagation()}
+              >
+                <div className="ddb-map-flyout-head">
+                  <h2 id="ddb-map-flyout-layers-title" className="ddb-map-flyout-title">
+                    Layers
+                  </h2>
+                  <button type="button" className="ddb-map-flyout-close" onClick={() => setMapFlyout('none')} aria-label="Close">
+                    <i className="fa-solid fa-xmark" aria-hidden />
+                  </button>
+                </div>
+                <div className="ddb-map-flyout-body">
+                  <p className="ddb-map-flyout-lead">Add a layer to your map</p>
+                  <button
+                    type="button"
+                    className="ddb-map-flyout-layer-cta"
+                    onClick={() => {
+                      setMapFlyout('none')
+                      openAddGisModal()
+                    }}
+                  >
+                    <span className="ddb-map-flyout-layer-cta-icon" aria-hidden>
+                      <i className="fa-solid fa-layer-group" />
+                    </span>
+                    <span>Add source data</span>
+                  </button>
+                  <button
+                    type="button"
+                    className="ddb-map-flyout-text-btn"
+                    onClick={() => {
+                      setMapFlyout('none')
+                      setRightSheet('data')
+                    }}
+                  >
+                    Open Data catalog
+                  </button>
+                </div>
+              </div>
+            ) : null}
+            {mapFlyout === 'search' ? (
+              <div
+                className="ddb-map-flyout ddb-map-flyout--search"
+                role="dialog"
+                aria-modal="true"
+                aria-labelledby="ddb-map-flyout-search-title"
+                onMouseDown={e => e.stopPropagation()}
+              >
+                <div className="ddb-map-flyout-head">
+                  <h2 id="ddb-map-flyout-search-title" className="ddb-map-flyout-title">
+                    Search
+                  </h2>
+                  <button type="button" className="ddb-map-flyout-close" onClick={() => setMapFlyout('none')} aria-label="Close">
+                    <i className="fa-solid fa-xmark" aria-hidden />
+                  </button>
+                </div>
+                <div className="ddb-map-flyout-body">
+                  <p className="ddb-map-flyout-hint">
+                    Find a place on the map. With <code className="ddb-map-flyout-code">VITE_GOOGLE_MAPS_API_KEY</code> set, Google
+                    Geocoding is used; otherwise OpenStreetMap Nominatim.
+                  </p>
+                  <form
+                    className="ddb-map-search-form"
+                    onSubmit={e => {
+                      e.preventDefault()
+                      void runGeoSearch()
+                    }}
+                  >
+                    <input
+                      type="search"
+                      className="ddb-map-search-input"
+                      placeholder="City, address, or place…"
+                      value={geoSearchQuery}
+                      onChange={e => setGeoSearchQuery(e.target.value)}
+                      aria-label="Search query"
+                    />
+                    <button type="submit" className="ddb-btn ddb-map-search-submit" disabled={geoSearchBusy}>
+                      {geoSearchBusy ? '…' : 'Go'}
+                    </button>
+                  </form>
+                  {geoSearchError ? <p className="ddb-map-flyout-error">{geoSearchError}</p> : null}
+                </div>
+              </div>
+            ) : null}
+            {mapFlyout === 'analysis' ? (
+              <div
+                className="ddb-map-flyout ddb-map-flyout--analysis"
+                role="dialog"
+                aria-modal="true"
+                aria-labelledby="ddb-map-flyout-analysis-title"
+                onMouseDown={e => e.stopPropagation()}
+              >
+                <div className="ddb-map-flyout-head">
+                  <h2 id="ddb-map-flyout-analysis-title" className="ddb-map-flyout-title">
+                    Analysis
+                  </h2>
+                  <button type="button" className="ddb-map-flyout-close" onClick={() => setMapFlyout('none')} aria-label="Close">
+                    <i className="fa-solid fa-xmark" aria-hidden />
+                  </button>
+                </div>
+                <div className="ddb-map-flyout-tabs" role="tablist" aria-label="Analysis tools">
+                  <button
+                    type="button"
+                    role="tab"
+                    aria-selected={mapAnalysisTab === 'measure'}
+                    className={`ddb-map-flyout-tab${mapAnalysisTab === 'measure' ? ' is-active' : ''}`}
+                    title="Measure"
+                    onClick={() => setMapAnalysisTab('measure')}
+                  >
+                    <i className="fa-solid fa-ruler" aria-hidden />
+                  </button>
+                  <button
+                    type="button"
+                    role="tab"
+                    aria-selected={mapAnalysisTab === 'drive'}
+                    className={`ddb-map-flyout-tab${mapAnalysisTab === 'drive' ? ' is-active' : ''}`}
+                    title="Drive time"
+                    onClick={() => setMapAnalysisTab('drive')}
+                  >
+                    <i className="fa-solid fa-car-side" aria-hidden />
+                  </button>
+                  <button
+                    type="button"
+                    role="tab"
+                    aria-selected={mapAnalysisTab === 'demographics'}
+                    className={`ddb-map-flyout-tab${mapAnalysisTab === 'demographics' ? ' is-active' : ''}`}
+                    title="Demographics"
+                    onClick={() => setMapAnalysisTab('demographics')}
+                  >
+                    <i className="fa-solid fa-users" aria-hidden />
+                  </button>
+                  <button
+                    type="button"
+                    role="tab"
+                    aria-selected={mapAnalysisTab === 'relations'}
+                    className={`ddb-map-flyout-tab${mapAnalysisTab === 'relations' ? ' is-active' : ''}`}
+                    title="Link layers"
+                    onClick={() => setMapAnalysisTab('relations')}
+                  >
+                    <i className="fa-solid fa-link" aria-hidden />
+                  </button>
+                  <button
+                    type="button"
+                    role="tab"
+                    aria-selected={mapAnalysisTab === 'routing'}
+                    className={`ddb-map-flyout-tab${mapAnalysisTab === 'routing' ? ' is-active' : ''}`}
+                    title="Routing"
+                    onClick={() => setMapAnalysisTab('routing')}
+                  >
+                    <i className="fa-solid fa-route" aria-hidden />
+                  </button>
+                </div>
+                <div className="ddb-map-flyout-body">
+                  {mapAnalysisTab === 'measure' ? (
+                    <>
+                      <label className="ddb-map-flyout-field">
+                        <span className="ddb-map-flyout-label">Measurement</span>
+                        <select className="ddb-map-flyout-select" value="Distance" disabled aria-disabled>
+                          <option>Distance</option>
+                        </select>
+                      </label>
+                      <label className="ddb-map-flyout-field">
+                        <span className="ddb-map-flyout-label">Unit</span>
+                        <select className="ddb-map-flyout-select" value={measureUnit} onChange={e => setMeasureUnit(e.target.value as 'Metric' | 'Imperial')}>
+                          <option value="Metric">Metric</option>
+                          <option value="Imperial">Imperial</option>
+                        </select>
+                      </label>
+                      <div className="ddb-map-measure-result">
+                        <span className="ddb-map-measure-result-label">Distance</span>
+                        <span className="ddb-map-measure-result-value">{measureDistanceLabel}</span>
+                      </div>
+                      <p className="ddb-map-flyout-hint">Click two points on the map to measure between them.</p>
+                      <div className="ddb-map-flyout-foot">
+                        <button type="button" className="ddb-btn ddb-map-flyout-primary" onClick={clearMapMeasurement}>
+                          Clear measurement
+                        </button>
+                      </div>
+                    </>
+                  ) : null}
+                  {mapAnalysisTab === 'drive' ? (
+                    <p className="ddb-map-flyout-placeholder">Drive-time and reachability analysis (preview — connect a routing service to enable).</p>
+                  ) : null}
+                  {mapAnalysisTab === 'demographics' ? (
+                    <p className="ddb-map-flyout-placeholder">Demographics and population layers (preview).</p>
+                  ) : null}
+                  {mapAnalysisTab === 'relations' ? (
+                    <div className="ddb-map-flyout-stack">
+                      <p className="ddb-map-flyout-hint">Define how layers relate by matching fields.</p>
+                      <button
+                        type="button"
+                        className="ddb-btn ddb-map-flyout-primary"
+                        onClick={() => {
+                          setMapFlyout('none')
+                          setRightSheet('link')
+                        }}
+                      >
+                        Open Link Layers (Relation)
+                      </button>
+                    </div>
+                  ) : null}
+                  {mapAnalysisTab === 'routing' ? (
+                    <p className="ddb-map-flyout-placeholder">Point-to-point routing (preview).</p>
+                  ) : null}
+                </div>
+              </div>
+            ) : null}
+            {mapFlyout === 'account' ? (
+              <div
+                className="ddb-map-flyout ddb-map-flyout--account"
+                role="dialog"
+                aria-modal="true"
+                aria-labelledby="ddb-map-flyout-account-title"
+                onMouseDown={e => e.stopPropagation()}
+              >
+                <div className="ddb-map-flyout-head">
+                  <h2 id="ddb-map-flyout-account-title" className="ddb-map-flyout-title">
+                    Login | Settings
+                  </h2>
+                  <button type="button" className="ddb-map-flyout-close" onClick={() => setMapFlyout('none')} aria-label="Close">
+                    <i className="fa-solid fa-xmark" aria-hidden />
+                  </button>
+                </div>
+                <div className="ddb-map-flyout-tabs" role="tablist" aria-label="Account">
+                  <button
+                    type="button"
+                    role="tab"
+                    aria-selected={mapAccountTab === 'profile'}
+                    className={`ddb-map-flyout-tab${mapAccountTab === 'profile' ? ' is-active' : ''}`}
+                    title="Profile"
+                    onClick={() => setMapAccountTab('profile')}
+                  >
+                    <i className="fa-solid fa-user" aria-hidden />
+                  </button>
+                  <button
+                    type="button"
+                    role="tab"
+                    aria-selected={mapAccountTab === 'community'}
+                    className={`ddb-map-flyout-tab${mapAccountTab === 'community' ? ' is-active' : ''}`}
+                    title="Community"
+                    onClick={() => setMapAccountTab('community')}
+                  >
+                    <i className="fa-solid fa-comments" aria-hidden />
+                  </button>
+                  <button
+                    type="button"
+                    role="tab"
+                    aria-selected={mapAccountTab === 'help'}
+                    className={`ddb-map-flyout-tab${mapAccountTab === 'help' ? ' is-active' : ''}`}
+                    title="Help"
+                    onClick={() => setMapAccountTab('help')}
+                  >
+                    <i className="fa-solid fa-circle-question" aria-hidden />
+                  </button>
+                  <button
+                    type="button"
+                    role="tab"
+                    aria-selected={mapAccountTab === 'settings'}
+                    className={`ddb-map-flyout-tab${mapAccountTab === 'settings' ? ' is-active' : ''}`}
+                    title="Settings"
+                    onClick={() => setMapAccountTab('settings')}
+                  >
+                    <i className="fa-solid fa-gear" aria-hidden />
+                  </button>
+                </div>
+                <div className="ddb-map-flyout-body">
+                  {mapAccountTab === 'profile' ? (
+                    <div className="ddb-map-arcgis-signin">
+                      <div className="ddb-map-arcgis-logo" aria-hidden>
+                        <i className="fa-solid fa-map-location-dot" />
+                      </div>
+                      <h3 className="ddb-map-arcgis-heading">Sign in to ArcGIS</h3>
+                      <p className="ddb-map-arcgis-url">
+                        <i className="fa-solid fa-plug" aria-hidden />{' '}
+                        <a href="https://www.arcgis.com" target="_blank" rel="noreferrer">
+                          https://www.arcgis.com
+                        </a>
+                      </p>
+                      <p className="ddb-map-flyout-hint">Use your organization credentials in the full GIS app; this dashboard link is a preview.</p>
+                      <button
+                        type="button"
+                        className="ddb-btn ddb-map-arcgis-signin-btn"
+                        onClick={() => window.open('https://www.arcgis.com/home/signin.html', '_blank', 'noopener,noreferrer')}
+                      >
+                        Sign In
+                      </button>
+                    </div>
+                  ) : null}
+                  {mapAccountTab === 'community' ? (
+                    <p className="ddb-map-flyout-placeholder">Community and announcements (preview).</p>
+                  ) : null}
+                  {mapAccountTab === 'help' ? (
+                    <p className="ddb-map-flyout-placeholder">Help and documentation (preview).</p>
+                  ) : null}
+                  {mapAccountTab === 'settings' ? (
+                    <p className="ddb-map-flyout-placeholder">Application settings (preview).</p>
+                  ) : null}
+                </div>
+              </div>
+            ) : null}
           </div>
           <div className="ddb-visuals">
             <div ref={chartsHostRef} id="develop-dashboard-charts" />
@@ -1272,7 +1548,13 @@ export default function DevelopDashboard() {
             <aside className={`ddb-right-sheet ddb-right-sheet--${rightSheet}`} aria-labelledby={`ddb-right-sheet-${rightSheet}`}>
               <div className="ddb-right-sheet-head">
                 <h2 className="ddb-right-sheet-title" id={`ddb-right-sheet-${rightSheet}`}>
-                  {rightSheet === 'filters' ? 'Filters' : rightSheet === 'visualizations' ? 'Visualizations' : 'Data'}
+                  {rightSheet === 'filters'
+                    ? 'Filters'
+                    : rightSheet === 'visualizations'
+                      ? 'Visualizations'
+                      : rightSheet === 'data'
+                        ? 'Data'
+                        : 'Link Layers (Relation)'}
                 </h2>
                 <button
                   type="button"
@@ -1302,7 +1584,7 @@ export default function DevelopDashboard() {
               {rightSheet === 'visualizations' ? (
                 <div className="ddb-right-sheet-body">
                   <p className="ddb-right-sheet-lead">
-                    Multi-select chart types (same grid as the former sidebar tools). Hover an icon for its name, then generate below.
+                    Multi-select chart types. Hover an icon for its name, then generate below.
                   </p>
                   <div className="ddb-powerbi-grid ddb-powerbi-grid--in-right-sheet" role="group" aria-label="Visualization types">
                     {CHART_TOOLS.map(t => (
@@ -1319,9 +1601,93 @@ export default function DevelopDashboard() {
                       </button>
                     ))}
                   </div>
+                  {selectedCharts.has('customStatCard') ? (
+                    <div className="ddb-vis-stat-card" aria-label="Custom stat card configuration">
+                      <div className="ddb-vis-stat-card__icon-badge" aria-hidden>
+                        <i className="fa-solid fa-chart-column" />
+                      </div>
+                      <div className="ddb-vis-stat-card__row">
+                        <select
+                          className="ddb-select ddb-vis-stat-select"
+                          value={activeStatsLayer}
+                          onChange={e => setActiveStatsLayer(e.target.value)}
+                          disabled={!layerKeys.length}
+                          aria-label="Layer for stat card"
+                        >
+                          {layerKeys.length === 0 ? (
+                            <option value="">No layers</option>
+                          ) : null}
+                          {layerKeys.map(k => (
+                            <option key={k} value={k}>
+                              {layers[k].name}
+                            </option>
+                          ))}
+                        </select>
+                        <select
+                          className="ddb-select ddb-vis-stat-select"
+                          value={statsField}
+                          onChange={e => setStatsField(e.target.value)}
+                          disabled={!activeFields.length}
+                          aria-label="Numeric field"
+                        >
+                          {activeFields.length === 0 ? (
+                            <option value="">No fields</option>
+                          ) : null}
+                          {activeFields.map(f => (
+                            <option key={f} value={f}>
+                              {f}
+                            </option>
+                          ))}
+                        </select>
+                        <select className="ddb-select ddb-vis-stat-select" value={statsAgg} onChange={e => setStatsAgg(e.target.value)} aria-label="Aggregation">
+                          <option value="sum">Sum</option>
+                          <option value="avg">Average</option>
+                          <option value="count">Count</option>
+                          <option value="max">Max</option>
+                          <option value="min">Min</option>
+                        </select>
+                      </div>
+                      <button
+                        type="button"
+                        className="ddb-btn ddb-vis-stat-add"
+                        onClick={addStatCard}
+                        disabled={!activeStatsLayer || !statsField}
+                      >
+                        <span className="ddb-vis-stat-add__icon" aria-hidden>
+                          <i className="fa-solid fa-plus" />
+                        </span>
+                        Add Card
+                      </button>
+                    </div>
+                  ) : null}
                   <button type="button" className="ddb-btn ddb-right-sheet-primary" onClick={() => setChartGen(g => g + 1)}>
                     <i className="fa-solid fa-rotate" aria-hidden /> Generate selected visuals
                   </button>
+                  {statCards.length > 0 ? (
+                    <div className="ddb-vis-stat-saved" role="region" aria-label="Saved stat cards">
+                      <div className="ddb-vis-stat-saved-head">Your stat cards</div>
+                      <div className="ddb-stats-cards-container ddb-stats-cards-container--in-sheet">
+                        {statCards.map(c => (
+                          <div key={c.id} className="ddb-stat-card-custom">
+                            <button
+                              type="button"
+                              aria-label="Remove stat card"
+                              className="ddb-small-btn"
+                              style={{ float: 'left', fontSize: 11, padding: '4px 8px' }}
+                              onClick={() => setStatCards(prev => prev.filter(x => x.id !== c.id))}
+                            >
+                              <i className="fa-solid fa-trash" />
+                            </button>
+                            <div className="ddb-stat-number">{c.result.toFixed(2)}</div>
+                            <div className="ddb-stat-label">
+                              {c.agg} / {c.field}
+                            </div>
+                            <div style={{ fontSize: 9 }}>{c.layerName}</div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ) : null}
                 </div>
               ) : null}
               {rightSheet === 'data' ? (
@@ -1464,6 +1830,94 @@ export default function DevelopDashboard() {
                   </div>
                 </div>
               ) : null}
+              {rightSheet === 'link' ? (
+                <div className="ddb-right-sheet-body ddb-link-sheet-body">
+                  <div className="ddb-link-relation-card">
+                    <div className="ddb-link-relation-card__icon-badge" aria-hidden>
+                      <i className="fa-solid fa-link" />
+                    </div>
+                    <p className="ddb-link-relation-card__lead">
+                      Choose source and target layers, then map the fields that tie them together.
+                    </p>
+                    <div className="ddb-link-relation-row">
+                      <select
+                        className="ddb-select ddb-link-relation-select"
+                        value={linkFrom}
+                        onChange={e => {
+                          setLinkFrom(e.target.value)
+                          setLinkFieldFrom('')
+                        }}
+                        aria-label="Source layer"
+                      >
+                        <option value="">-- Source Layer --</option>
+                        {layerKeys.map(k => (
+                          <option key={k} value={k}>
+                            {layers[k].name}
+                          </option>
+                        ))}
+                      </select>
+                      <span className="ddb-link-relation-arrow" aria-hidden>
+                        →
+                      </span>
+                      <select
+                        className="ddb-select ddb-link-relation-select"
+                        value={linkTo}
+                        onChange={e => {
+                          setLinkTo(e.target.value)
+                          setLinkFieldTo('')
+                        }}
+                        aria-label="Target layer"
+                      >
+                        <option value="">-- Target Layer --</option>
+                        {layerKeys.map(k => (
+                          <option key={k} value={k}>
+                            {layers[k].name}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <div className="ddb-link-relation-row">
+                      <select
+                        className="ddb-select ddb-link-relation-select"
+                        value={linkFieldFrom}
+                        onChange={e => setLinkFieldFrom(e.target.value)}
+                        aria-label="Source field"
+                      >
+                        <option value="">-- Source field --</option>
+                        {linkFieldsFrom.map(f => (
+                          <option key={f} value={f}>
+                            {f}
+                          </option>
+                        ))}
+                      </select>
+                      <span className="ddb-link-relation-arrow ddb-link-relation-arrow--bidir" aria-hidden>
+                        ↔
+                      </span>
+                      <select
+                        className="ddb-select ddb-link-relation-select"
+                        value={linkFieldTo}
+                        onChange={e => setLinkFieldTo(e.target.value)}
+                        aria-label="Target field"
+                      >
+                        <option value="">-- Target field --</option>
+                        {linkFieldsTo.map(f => (
+                          <option key={f} value={f}>
+                            {f}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <button
+                      type="button"
+                      className="ddb-btn ddb-link-relation-apply"
+                      onClick={() => setLinkStatus('Layers linked successfully (conceptual relation set).')}
+                    >
+                      Apply Relation &amp; Link Map
+                    </button>
+                    {linkStatus ? <div className="ddb-hint ddb-link-relation-status">{linkStatus}</div> : null}
+                  </div>
+                </div>
+              ) : null}
             </aside>
           ) : null}
           <nav className="ddb-right-rail" aria-label="Power BI style panels">
@@ -1502,6 +1956,21 @@ export default function DevelopDashboard() {
                 <i className="fa-solid fa-database ddb-right-rail-icon" />
               </span>
               <span className="ddb-right-rail-label">Data</span>
+            </button>
+            <button
+              type="button"
+              className={`ddb-right-rail-tab${rightSheet === 'link' ? ' is-active' : ''}`}
+              onClick={() => toggleRightSheet('link')}
+              title="Link Layers (Relation)"
+              aria-label="Link Layers (Relation)"
+            >
+              <span className="ddb-right-rail-icon-wrap" aria-hidden>
+                <i className="fa-solid fa-link ddb-right-rail-icon" />
+              </span>
+              <span className="ddb-right-rail-label ddb-right-rail-label--stack">
+                <span>Link</span>
+                <span>Layers</span>
+              </span>
             </button>
           </nav>
         </div>
