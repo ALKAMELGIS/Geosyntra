@@ -40,3 +40,6 @@ backup_*.zip
 *.bak
 coverage-final.json
 .nyc_output/
+
+# Optional local copy of frontend/dist for manual GitHub Pages zip (npm run sync-pages-docs).
+/docs/
