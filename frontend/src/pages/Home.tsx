@@ -116,19 +116,11 @@ const menuItems: MenuItem[] = [
     ]
   },
   {
-    id: 'profile-direct',
-    label: { en: 'Profile', ar: 'الملف الشخصي' },
-    icon: 'fa-solid fa-user-gear',
-    color: '#0EA5E9',
-    to: '/account/profile'
-  },
-  {
     id: 'account',
     label: { en: 'Account', ar: 'الحساب' },
     icon: 'fa-solid fa-circle-user',
     color: '#0EA5E9',
     items: [
-      { label: { en: 'Profile', ar: 'الملف الشخصي' }, icon: 'fa-solid fa-user-gear', to: '/account/profile' },
       { label: { en: 'Settings', ar: 'الإعدادات' }, icon: 'fa-solid fa-gear', to: '/account/settings' },
       { label: { en: 'Logout', ar: 'تسجيل الخروج' }, icon: 'fa-solid fa-arrow-right-from-bracket', action: 'logout' },
     ]

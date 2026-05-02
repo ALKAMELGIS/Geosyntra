@@ -1608,12 +1608,11 @@
   background: #fff;
   border-radius: 28px;
   padding: 18px;
-  overflow-y: auto;
+  overflow: auto;
   flex: 1;
   min-height: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 20px;
+  display: block;
+  position: relative;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.04);
 }
 
@@ -1622,6 +1621,341 @@
   border-radius: 24px;
   padding: 14px;
   border: 1px solid #eef2f0;
+  position: relative;
+  transition:
+    box-shadow 0.25s ease,
+    border-color 0.2s ease;
+}
+
+/* Free-form canvas: absolute cards (drag header, resize corner) */
+.develop-dashboard-root .ddb-visual-card--canvas {
+  position: absolute;
+  z-index: 2;
+  margin: 0;
+  box-shadow: 0 8px 26px rgba(15, 23, 42, 0.08);
+}
+
+.develop-dashboard-root .ddb-visual-card--canvas.ddb-visual-card--dragging {
+  z-index: 90;
+  box-shadow: 0 20px 50px rgba(15, 23, 42, 0.16);
+  opacity: 0.98;
+}
+
+.develop-dashboard-root .ddb-visual-card--canvas.ddb-visual-card--resizing {
+  z-index: 90;
+}
+
+.develop-dashboard-root .ddb-visual-card--canvas .ddb-visual-card__header {
+  cursor: grab;
+  user-select: none;
+}
+
+.develop-dashboard-root .ddb-visual-card--canvas .ddb-visual-card__header:active {
+  cursor: grabbing;
+}
+
+.develop-dashboard-root .ddb-visual-card__canvas-resize {
+  position: absolute;
+  right: 6px;
+  bottom: 6px;
+  z-index: 12;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: 1px solid rgba(226, 232, 240, 0.95);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.96);
+  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.08);
+  cursor: nwse-resize;
+  display: grid;
+  place-items: center;
+  transition:
+    background 0.15s ease,
+    border-color 0.15s ease;
+}
+
+.develop-dashboard-root .ddb-visual-card__canvas-resize:hover {
+  background: rgba(232, 244, 236, 0.95);
+  border-color: rgba(44, 122, 74, 0.35);
+}
+
+.develop-dashboard-root .ddb-visual-card--canvas.ddb-visual-card--focus .ddb-visual-card__canvas-resize {
+  display: none;
+}
+
+.develop-dashboard-root .ddb-visual-card__canvas-resize-grip {
+  width: 11px;
+  height: 11px;
+  border-radius: 2px;
+  background:
+    linear-gradient(135deg, transparent 42%, rgba(44, 122, 74, 0.55) 42%, rgba(44, 122, 74, 0.55) 50%, transparent 50%),
+    linear-gradient(135deg, transparent 58%, rgba(44, 122, 74, 0.55) 58%, rgba(44, 122, 74, 0.55) 66%, transparent 66%);
+}
+
+.develop-dashboard-root .ddb-visual-card--canvas.ddb-visual-card--enhanced {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.develop-dashboard-root .ddb-visual-card--canvas.ddb-visual-card--enhanced .ddb-visual-card__zoom-hint {
+  flex-shrink: 0;
+}
+
+.develop-dashboard-root .ddb-visual-card--canvas.ddb-visual-card--enhanced canvas {
+  flex: 1 1 auto;
+  min-height: 72px;
+  max-height: none !important;
+  height: auto !important;
+}
+
+.develop-dashboard-root .ddb-visual-card--enhanced {
+  padding: 0;
+  overflow: visible;
+  border-color: rgba(226, 232, 240, 0.95);
+  box-shadow: 0 4px 18px rgba(15, 23, 42, 0.06);
+}
+
+.develop-dashboard-root .ddb-visual-card--focus {
+  position: fixed !important;
+  inset: 20px;
+  z-index: 6000;
+  max-width: min(1100px, calc(100vw - 40px));
+  max-height: calc(100vh - 40px);
+  margin: auto;
+  left: 0;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  overflow: auto;
+  box-shadow: 0 24px 80px rgba(15, 23, 42, 0.22) !important;
+  border: 1px solid rgba(31, 94, 58, 0.18) !important;
+}
+
+.develop-dashboard-root .ddb-visual-card__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 12px 14px 10px;
+  border-bottom: 1px solid rgba(226, 232, 240, 0.95);
+  background: linear-gradient(180deg, #fafcfb 0%, #fff 100%);
+  border-radius: 24px 24px 0 0;
+}
+
+.develop-dashboard-root .ddb-visual-card__header .ddb-visual-title {
+  margin-bottom: 0;
+  flex: 1;
+  min-width: 0;
+}
+
+.develop-dashboard-root .ddb-visual-card__actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.develop-dashboard-root .ddb-visual-card__icon-btn {
+  width: 34px;
+  height: 34px;
+  border: none;
+  border-radius: 10px;
+  background: transparent;
+  color: #64748b;
+  cursor: pointer;
+  display: grid;
+  place-items: center;
+  font-size: 0.9rem;
+  transition:
+    background 0.15s ease,
+    color 0.15s ease;
+}
+
+.develop-dashboard-root .ddb-visual-card__icon-btn:hover {
+  background: rgba(31, 94, 58, 0.08);
+  color: var(--ddb-green-dark);
+}
+
+.develop-dashboard-root .ddb-visual-card__statstrip {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 5px;
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding: 10px 12px;
+  background: linear-gradient(180deg, #f1f5f9 0%, #f8fafc 100%);
+  border-bottom: 1px solid rgba(226, 232, 240, 0.9);
+  scrollbar-width: thin;
+  scrollbar-color: rgba(44, 122, 74, 0.35) transparent;
+}
+
+.develop-dashboard-root .ddb-visual-card__statstrip::-webkit-scrollbar {
+  height: 5px;
+}
+
+.develop-dashboard-root .ddb-visual-card__statstrip::-webkit-scrollbar-thumb {
+  background: rgba(44, 122, 74, 0.28);
+  border-radius: 999px;
+}
+
+.develop-dashboard-root .ddb-visual-card__stat-btn {
+  flex: 0 0 auto;
+  width: 36px;
+  height: 36px;
+  border-radius: 999px;
+  border: 1px solid transparent;
+  background: #fff;
+  color: #64748b;
+  cursor: pointer;
+  display: grid;
+  place-items: center;
+  font-size: 0.95rem;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.06);
+  transition:
+    border-color 0.15s ease,
+    color 0.15s ease,
+    box-shadow 0.15s ease,
+    background 0.15s ease;
+}
+
+.develop-dashboard-root .ddb-visual-card__stat-btn:hover {
+  border-color: rgba(31, 94, 58, 0.2);
+  color: var(--ddb-green-dark);
+}
+
+.develop-dashboard-root .ddb-visual-card__stat-btn.is-active {
+  background: linear-gradient(145deg, var(--ddb-green) 0%, var(--ddb-green-dark) 100%);
+  border-color: var(--ddb-green-dark);
+  color: #fff;
+  box-shadow: 0 4px 12px rgba(44, 122, 74, 0.28);
+}
+
+.develop-dashboard-root .ddb-visual-card__zoom-hint {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 14px 0;
+  font-size: 0.65rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: #94a3b8;
+}
+
+.develop-dashboard-root .ddb-visual-card__zoom-hint i {
+  color: var(--ddb-green);
+  font-size: 0.75rem;
+}
+
+.develop-dashboard-root .ddb-visual-card--enhanced canvas {
+  display: block;
+  margin: 0 14px 14px;
+  min-height: 200px;
+  max-height: 280px;
+  width: calc(100% - 28px) !important;
+  cursor: crosshair;
+}
+
+.develop-dashboard-root .ddb-visual-card--enhanced .ddb-visual-card__zoom-hint ~ canvas {
+  cursor: grab;
+}
+
+.develop-dashboard-root .ddb-visual-card--enhanced canvas:active {
+  cursor: grabbing;
+}
+
+.develop-dashboard-root .ddb-visual-card--enhanced .ddb-table-responsive {
+  margin: 0 14px 14px;
+}
+
+.develop-dashboard-root .ddb-visual-card__body-pad {
+  padding: 0 14px 14px;
+}
+
+.develop-dashboard-root .ddb-visual-card__filter-panel {
+  padding: 10px 14px 12px;
+  background: #fff;
+  border-bottom: 1px solid rgba(226, 232, 240, 0.95);
+}
+
+.develop-dashboard-root .ddb-visual-card__filter-title {
+  margin: 0 0 8px;
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #64748b;
+}
+
+.develop-dashboard-root .ddb-visual-card__filter-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 140px;
+  overflow-y: auto;
+  margin-bottom: 10px;
+}
+
+.develop-dashboard-root .ddb-visual-card__filter-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.75rem;
+  color: #334155;
+  cursor: pointer;
+}
+
+.develop-dashboard-root .ddb-visual-card__filter-apply {
+  width: 100%;
+  border-radius: 10px;
+  font-weight: 600;
+  font-size: 0.72rem;
+}
+
+.develop-dashboard-root .ddb-visual-card__dropdown {
+  position: absolute;
+  right: 12px;
+  top: 48px;
+  z-index: 20;
+  min-width: 200px;
+  padding: 6px;
+  background: #fff;
+  border-radius: 12px;
+  border: 1px solid rgba(226, 232, 240, 0.95);
+  box-shadow: 0 12px 32px rgba(15, 23, 42, 0.12);
+}
+
+.develop-dashboard-root .ddb-visual-card__menu-item {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 8px 10px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  font-size: 0.72rem;
+  color: #334155;
+  cursor: pointer;
+}
+
+.develop-dashboard-root .ddb-visual-card__menu-item:hover {
+  background: rgba(31, 94, 58, 0.08);
+  color: var(--ddb-green-dark);
+}
+
+.develop-dashboard-root .ddb-visual-card__stat-chip {
+  margin: 8px 14px 0;
+  padding: 8px 12px;
+  border-radius: 10px;
+  background: linear-gradient(90deg, #ecfdf5, #f0fdf4);
+  border: 1px solid rgba(34, 197, 94, 0.25);
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: var(--ddb-green-dark);
 }
 
 .develop-dashboard-root .ddb-visual-title {

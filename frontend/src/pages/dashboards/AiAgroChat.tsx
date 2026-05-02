@@ -12,9 +12,9 @@ type Msg = { id: string; role: 'user' | 'assistant'; text: string }
 type Provider = 'gemini' | 'deepseek'
 
 const INTRO_EN =
-  "Hello! I'm AgriCloud AI Agro-Chat. I answer from your GIS Map saved layers (GIS Content) in this browser—ask about fields, layers, or patterns."
+  "Hello! I'm AgriCloud AI Agro-Chat. For your saved GIS layers I prioritize GIS Content in this browser; for general topics (e.g. broad weather or definitions) I add clear, labeled general knowledge when your layers don't hold the answer."
 const INTRO_AR =
-  'مرحباً! أنا محادثة AgriCloud الذكية. أردّ بناءً على طبقات GIS المحفوظة في هذا المتصفح—اسأل عن الحقول أو الأنماط.'
+  'مرحباً! أنا محادثة AgriCloud الذكية. أبحث أولاً في بيانات طبقاتك المحفوظة (GIS Content)؛ وإن لم تكفِ، أضيف إجابة عامة من المعرفة العامة مع تصنيف واضح لرفع الدقة وتقليل اللبس.'
 
 export default function AiAgroChat() {
   const { language } = useLanguage()
@@ -68,7 +68,7 @@ export default function AiAgroChat() {
       queueMicrotask(async () => {
         try {
           const gisCtx = await buildGisContentLayersContext()
-          const system = `${AGRO_AI_CHAT_SYSTEM}\n\n---\n${gisCtx}`
+          const system = `${AGRO_AI_CHAT_SYSTEM}\n\n---\nGIS CONTENT (browser snapshot — use first for layer-specific questions):\n${gisCtx}`
 
           let reply: string
           if (provider === 'gemini') {
@@ -191,8 +191,8 @@ export default function AiAgroChat() {
           </div>
           <p className="aagc-hint">
             {ar
-              ? 'المصدر: طبقات GIS Map المحفوظة. المفاتيح: VITE_GEMINI_API_KEY أو VITE_DEEPSEEK_API_KEY أو إعدادات API.'
-              : 'Grounded in GIS Map saved layers only. Keys: System Settings → API Tokens, or VITE_GEMINI_API_KEY / VITE_DEEPSEEK_API_KEY.'}
+              ? 'الأولوية لطبقات GIS المحفوظة؛ للأسئلة العامة يُذكر المصدر (GIS مقابل معرفة عامة). المفاتيح: إعدادات API أو VITE_GEMINI_API_KEY / VITE_DEEPSEEK_API_KEY.'
+              : 'GIS Content first for your layers; general answers labeled when not from your data. Keys: System Settings → API Tokens, or VITE_GEMINI_API_KEY / VITE_DEEPSEEK_API_KEY.'}
           </p>
         </footer>
       </div>

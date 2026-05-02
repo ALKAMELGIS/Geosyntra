@@ -2,11 +2,14 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
 import Chart from 'chart.js/auto'
+import zoomPlugin from 'chartjs-plugin-zoom'
 import { loadGisMapSavedLayers } from '../../lib/gisMapLayerStore'
 import { DEVELOP_DATA_CONTEXT_LS_KEY } from '../../lib/geoAiChatClaude'
 import type { LayerData } from '../satellite/components/LayerManager'
 import { parseFile, parseRemoteUrlAsFile } from '../../utils/FileLoader'
 import './develop-dashboard.css'
+
+Chart.register(zoomPlugin)
 
 type LayerOrigin = 'sample' | 'user'
 
@@ -93,6 +96,644 @@ function computeAgg(values: number[], agg: string): number {
 
 function newId() {
   return `${Date.now()}_${Math.random().toString(16).slice(2)}`
+}
+
+type DdbMiniChartKind =
+  | 'bar'
+  | 'stackedColumn'
+  | 'clusteredColumn'
+  | 'horizontalBar'
+  | 'line'
+  | 'smoothLine'
+  | 'area'
+  | 'pie'
+  | 'doughnut'
+  | 'scatter'
+  | 'bubble'
+  | 'radar'
+  | 'polarArea'
+
+const DDB_PALETTE = ['#2c7a4a', '#5a9e7a', '#8bc0a4', '#b1d4be', '#cfe8d8', '#e2f0e8', '#f0faf4', '#dceee2']
+
+const DDB_MINI_CHART_TOOLS: Array<{ kind: DdbMiniChartKind; icon: string; label: string }> = [
+  { kind: 'bar', icon: 'fa-chart-column', label: 'Column' },
+  { kind: 'stackedColumn', icon: 'fa-layer-group', label: 'Stacked columns' },
+  { kind: 'clusteredColumn', icon: 'fa-chart-simple', label: 'Clustered columns' },
+  { kind: 'horizontalBar', icon: 'fa-chart-bar', label: 'Bar horizontal' },
+  { kind: 'line', icon: 'fa-chart-line', label: 'Line' },
+  { kind: 'smoothLine', icon: 'fa-arrow-trend-up', label: 'Smooth line' },
+  { kind: 'area', icon: 'fa-chart-area', label: 'Area' },
+  { kind: 'pie', icon: 'fa-chart-pie', label: 'Pie' },
+  { kind: 'doughnut', icon: 'fa-chart-pie', label: 'Donut' },
+  { kind: 'scatter', icon: 'fa-braille', label: 'Scatter' },
+  { kind: 'bubble', icon: 'fa-circle-dot', label: 'Bubble' },
+  { kind: 'radar', icon: 'fa-bullseye', label: 'Radar' },
+  { kind: 'polarArea', icon: 'fa-chart-pie', label: 'Polar area' },
+]
+
+function ddbChartZoomPluginConfig(): Record<string, unknown> {
+  return {
+    limits: {
+      x: { min: 'original', max: 'original' },
+      y: { min: 'original', max: 'original' },
+    },
+    pan: {
+      enabled: true,
+      mode: 'xy',
+      modifierKey: null,
+    },
+    zoom: {
+      wheel: { enabled: true, speed: 0.11 },
+      pinch: { enabled: true },
+      drag: {
+        enabled: true,
+        backgroundColor: 'rgba(44, 122, 74, 0.12)',
+        borderColor: 'rgba(31, 94, 58, 0.45)',
+        borderWidth: 1,
+      },
+      mode: 'xy',
+    },
+  }
+}
+
+function ddbChartOptionsFor(
+  chartJsType: string,
+  modifiers?: { stacked?: boolean; indexAxis?: 'x' | 'y' },
+): Record<string, unknown> {
+  const radial = chartJsType === 'pie' || chartJsType === 'doughnut' || chartJsType === 'polarArea' || chartJsType === 'radar'
+  const base: Record<string, unknown> = {
+    responsive: true,
+    maintainAspectRatio: true,
+    interaction: { mode: radial ? 'nearest' : 'index', intersect: false },
+    plugins: {
+      legend: {
+        position: 'top',
+        align: 'center',
+        labels: { usePointStyle: true, boxWidth: 10, padding: 14, font: { size: 11, weight: '600' } },
+      },
+    },
+  }
+  if (!radial) {
+    ;(base.plugins as Record<string, unknown>).zoom = ddbChartZoomPluginConfig()
+    const xScale: Record<string, unknown> = {
+      stacked: Boolean(modifiers?.stacked),
+      ticks: { maxRotation: 0, font: { size: 10 } },
+      grid: { color: 'rgba(31, 94, 58, 0.08)' },
+    }
+    const yScale: Record<string, unknown> = {
+      stacked: Boolean(modifiers?.stacked),
+      ticks: { font: { size: 10 } },
+      grid: { color: 'rgba(31, 94, 58, 0.08)' },
+    }
+    base.scales = { x: xScale, y: yScale }
+    if (modifiers?.indexAxis === 'y') {
+      ;(base as Record<string, unknown>).indexAxis = 'y'
+    }
+  }
+  return base
+}
+
+function ddbLinePointStyle() {
+  return {
+    pointRadius: 5,
+    pointHoverRadius: 7,
+    pointBackgroundColor: '#ffffff',
+    pointBorderColor: '#2c7a4a',
+    pointBorderWidth: 2,
+    pointHoverBackgroundColor: '#f0faf4',
+    pointHoverBorderColor: '#1f5e3a',
+    borderWidth: 2.5,
+  }
+}
+
+function ddbBuildChartFromMiniKind(
+  kind: DdbMiniChartKind,
+  base: { labels: string[]; values: number[]; datasetLabel: string },
+): { type: string; data: Record<string, unknown>; modifiers?: { stacked?: boolean; indexAxis?: 'x' | 'y' } } {
+  const n = Math.min(base.labels.length, base.values.length)
+  const labels = base.labels.slice(0, n)
+  const values = base.values.slice(0, n)
+  const { datasetLabel } = base
+  const lineExtras = ddbLinePointStyle()
+
+  if (kind === 'scatter') {
+    return {
+      type: 'scatter',
+      data: {
+        datasets: [
+          {
+            label: datasetLabel,
+            data: labels.map((_, i) => ({ x: i, y: values[i] ?? 0 })),
+            backgroundColor: 'rgba(44, 122, 74, 0.85)',
+            borderColor: '#1f5e3a',
+            borderWidth: 1,
+          },
+        ],
+      },
+    }
+  }
+  if (kind === 'bubble') {
+    const maxV = Math.max(...values.map(v => Math.abs(v)), 1)
+    return {
+      type: 'bubble',
+      data: {
+        datasets: [
+          {
+            label: datasetLabel,
+            data: labels.map((_, i) => {
+              const y = values[i] ?? 0
+              const r = 6 + Math.round((Math.abs(y) / maxV) * 14)
+              return { x: i, y, r }
+            }),
+            backgroundColor: 'rgba(44, 122, 74, 0.55)',
+            borderColor: '#2c7a4a',
+            borderWidth: 1,
+          },
+        ],
+      },
+    }
+  }
+  if (kind === 'pie') {
+    return {
+      type: 'pie',
+      data: { labels, datasets: [{ data: values, backgroundColor: DDB_PALETTE }] },
+    }
+  }
+  if (kind === 'doughnut') {
+    return {
+      type: 'doughnut',
+      data: { labels, datasets: [{ data: values, backgroundColor: DDB_PALETTE }] },
+    }
+  }
+  if (kind === 'polarArea') {
+    return {
+      type: 'polarArea',
+      data: { labels, datasets: [{ data: values, backgroundColor: DDB_PALETTE }] },
+    }
+  }
+  if (kind === 'radar') {
+    return {
+      type: 'radar',
+      data: {
+        labels,
+        datasets: [
+          {
+            label: datasetLabel,
+            data: values,
+            borderColor: '#2c7a4a',
+            backgroundColor: 'rgba(44, 122, 74, 0.22)',
+            borderWidth: 2,
+            pointBackgroundColor: '#fff',
+            pointBorderColor: '#2c7a4a',
+            pointHoverBackgroundColor: '#f0faf4',
+          },
+        ],
+      },
+    }
+  }
+  if (kind === 'area') {
+    return {
+      type: 'line',
+      data: {
+        labels,
+        datasets: [
+          {
+            label: datasetLabel,
+            data: values,
+            fill: true,
+            backgroundColor: 'rgba(143, 201, 163, 0.35)',
+            borderColor: '#2c7a4a',
+            tension: 0.3,
+            ...lineExtras,
+          },
+        ],
+      },
+    }
+  }
+  if (kind === 'smoothLine') {
+    return {
+      type: 'line',
+      data: {
+        labels,
+        datasets: [
+          {
+            label: datasetLabel,
+            data: values,
+            borderColor: '#2c7a4a',
+            tension: 0.42,
+            fill: false,
+            ...lineExtras,
+          },
+        ],
+      },
+    }
+  }
+  if (kind === 'line') {
+    return {
+      type: 'line',
+      data: {
+        labels,
+        datasets: [
+          {
+            label: datasetLabel,
+            data: values,
+            borderColor: '#2c7a4a',
+            tension: 0.15,
+            fill: false,
+            ...lineExtras,
+          },
+        ],
+      },
+    }
+  }
+  if (kind === 'stackedColumn') {
+    return {
+      type: 'bar',
+      modifiers: { stacked: true },
+      data: {
+        labels,
+        datasets: [
+          { label: datasetLabel, data: values, backgroundColor: '#4c9a6e' },
+          {
+            label: `${datasetLabel} · share`,
+            data: values.map(v => Math.max(0, v * 0.38)),
+            backgroundColor: '#8bc0a4',
+          },
+        ],
+      },
+    }
+  }
+  if (kind === 'clusteredColumn') {
+    return {
+      type: 'bar',
+      modifiers: { stacked: false },
+      data: {
+        labels,
+        datasets: [
+          { label: datasetLabel, data: values, backgroundColor: '#4c9a6e' },
+          {
+            label: `${datasetLabel} · series B`,
+            data: values.map(v => Math.max(0, v * 0.72)),
+            backgroundColor: '#94c3a8',
+          },
+        ],
+      },
+    }
+  }
+  if (kind === 'horizontalBar') {
+    return {
+      type: 'bar',
+      modifiers: { indexAxis: 'y' },
+      data: { labels, datasets: [{ label: datasetLabel, data: values, backgroundColor: '#5a9e7a' }] },
+    }
+  }
+  return {
+    type: 'bar',
+    data: { labels, datasets: [{ label: datasetLabel, data: values, backgroundColor: '#4c9a6e' }] },
+  }
+}
+
+function ddbMiniKindFromChartType(chartType: string, dataConfig: { data?: { datasets?: Array<{ fill?: boolean }> } }): DdbMiniChartKind {
+  if (chartType === 'pie') return 'pie'
+  if (chartType === 'doughnut') return 'doughnut'
+  if (chartType === 'scatter') return 'scatter'
+  if (chartType === 'line' && dataConfig?.data?.datasets?.[0]?.fill) return 'area'
+  if (chartType === 'line') return 'line'
+  return 'bar'
+}
+
+function ddbTitleForMiniKind(titleBase: string, kind: DdbMiniChartKind): string {
+  const map: Record<DdbMiniChartKind, string> = {
+    bar: 'Column chart',
+    stackedColumn: 'Stacked column chart',
+    clusteredColumn: 'Clustered column chart',
+    horizontalBar: 'Horizontal bar chart',
+    line: 'Line chart',
+    smoothLine: 'Smooth line chart',
+    area: 'Area chart',
+    pie: 'Pie chart',
+    doughnut: 'Donut chart',
+    scatter: 'Scatter plot',
+    bubble: 'Bubble chart',
+    radar: 'Radar chart',
+    polarArea: 'Polar area chart',
+  }
+  return map[kind] ?? titleBase
+}
+
+function ddbIconClassForMiniKind(kind: DdbMiniChartKind): string {
+  const row = DDB_MINI_CHART_TOOLS.find(t => t.kind === kind)
+  return row ? `fa-solid ${row.icon}` : 'fa-solid fa-chart-simple'
+}
+
+function ddbPromoteVisualCardChrome(
+  card: HTMLElement,
+  opts: { showStatStrip: boolean; showZoomHint: boolean; initialMini?: DdbMiniChartKind },
+): {
+  header: HTMLDivElement
+  titleEl: HTMLElement
+  actions: HTMLDivElement
+  strip: HTMLDivElement | null
+  menu: HTMLDivElement
+  filterPanel: HTMLDivElement
+  chip: HTMLDivElement
+  zoomHint: HTMLDivElement
+} | null {
+  card.classList.add('ddb-visual-card--enhanced')
+  const first = card.firstElementChild as HTMLElement | null
+  if (!first || !first.classList.contains('ddb-visual-title')) return null
+  const titleEl = first
+  titleEl.remove()
+  const header = document.createElement('div')
+  header.className = 'ddb-visual-card__header'
+  const actions = document.createElement('div')
+  actions.className = 'ddb-visual-card__actions'
+  actions.innerHTML = `
+    <button type="button" class="ddb-visual-card__icon-btn" data-ddb-card-act="filter" title="Filter" aria-label="Filter"><i class="fa-solid fa-filter"></i></button>
+    <button type="button" class="ddb-visual-card__icon-btn" data-ddb-card-act="focus" title="Focus mode" aria-label="Focus mode"><i class="fa-solid fa-expand"></i></button>
+    <button type="button" class="ddb-visual-card__icon-btn" data-ddb-card-act="more" title="More options" aria-label="More options"><i class="fa-solid fa-ellipsis"></i></button>
+  `
+  header.appendChild(titleEl)
+  header.appendChild(actions)
+  card.insertBefore(header, card.firstChild)
+
+  const filterPanel = document.createElement('div')
+  filterPanel.className = 'ddb-visual-card__filter-panel'
+  filterPanel.hidden = true
+  filterPanel.innerHTML = `<p class="ddb-visual-card__filter-title">Show categories</p><div class="ddb-visual-card__filter-list" data-ddb-filter-list></div>
+    <button type="button" class="ddb-btn ddb-visual-card__filter-apply">Apply</button>`
+  card.insertBefore(filterPanel, header.nextSibling)
+
+  const menu = document.createElement('div')
+  menu.className = 'ddb-visual-card__dropdown'
+  menu.hidden = true
+  menu.innerHTML = `
+    <button type="button" class="ddb-visual-card__menu-item" data-stat="sum">Aggregate: Sum</button>
+    <button type="button" class="ddb-visual-card__menu-item" data-stat="avg">Aggregate: Average (mean)</button>
+    <button type="button" class="ddb-visual-card__menu-item" data-stat="median">Aggregate: Median</button>
+    <button type="button" class="ddb-visual-card__menu-item" data-stat="min">Aggregate: Minimum</button>
+    <button type="button" class="ddb-visual-card__menu-item" data-stat="max">Aggregate: Maximum</button>
+    <button type="button" class="ddb-visual-card__menu-item" data-stat="range">Aggregate: Range (max − min)</button>
+    <button type="button" class="ddb-visual-card__menu-item" data-stat="std">Aggregate: Std dev (sample)</button>
+    <button type="button" class="ddb-visual-card__menu-item" data-stat="count">Aggregate: Count</button>
+    <button type="button" class="ddb-visual-card__menu-item" data-stat="reset">Reset aggregate chip</button>
+  `
+  card.appendChild(menu)
+
+  const chip = document.createElement('div')
+  chip.className = 'ddb-visual-card__stat-chip'
+  chip.hidden = true
+  card.insertBefore(chip, filterPanel.nextSibling)
+
+  let strip: HTMLDivElement | null = null
+  if (opts.showStatStrip) {
+    strip = document.createElement('div')
+    strip.className = 'ddb-visual-card__statstrip'
+    strip.setAttribute('role', 'toolbar')
+    strip.setAttribute('aria-label', 'Visualization type')
+    for (const t of DDB_MINI_CHART_TOOLS) {
+      const b = document.createElement('button')
+      b.type = 'button'
+      b.className = 'ddb-visual-card__stat-btn'
+      b.title = t.label
+      b.setAttribute('aria-label', t.label)
+      b.setAttribute('data-mini-kind', t.kind)
+      b.innerHTML = `<i class="fa-solid ${t.icon}" aria-hidden></i>`
+      if (opts.initialMini === t.kind) b.classList.add('is-active')
+      strip.appendChild(b)
+    }
+    card.insertBefore(strip, chip.nextSibling)
+  }
+
+  const zoomHint = document.createElement('div')
+  zoomHint.className = 'ddb-visual-card__zoom-hint'
+  zoomHint.innerHTML =
+    '<i class="fa-solid fa-magnifying-glass-plus" aria-hidden></i> Wheel zoom · drag to pan · drag box to zoom region · double-click to reset'
+  zoomHint.hidden = !opts.showZoomHint
+  if (strip) card.insertBefore(zoomHint, strip.nextSibling)
+  else card.insertBefore(zoomHint, chip.nextSibling)
+
+  actions.querySelector('[data-ddb-card-act="focus"]')?.addEventListener('click', () => {
+    card.classList.toggle('ddb-visual-card--focus')
+  })
+  actions.querySelector('[data-ddb-card-act="filter"]')?.addEventListener('click', () => {
+    filterPanel.hidden = !filterPanel.hidden
+    menu.hidden = true
+  })
+  actions.querySelector('[data-ddb-card-act="more"]')?.addEventListener('click', () => {
+    menu.hidden = !menu.hidden
+    filterPanel.hidden = true
+  })
+
+  return { header, titleEl, actions, strip, menu, filterPanel, chip, zoomHint }
+}
+
+const DDB_CANVAS_LAYOUT_LS = 'ddb-develop-canvas-layouts-v1'
+
+type DdbCanvasRect = { left: number; top: number; width: number; height: number }
+
+function ddbReadCanvasLayouts(): Record<string, DdbCanvasRect> {
+  try {
+    const raw = localStorage.getItem(DDB_CANVAS_LAYOUT_LS)
+    if (!raw) return {}
+    const o = JSON.parse(raw) as unknown
+    return o && typeof o === 'object' && !Array.isArray(o) ? (o as Record<string, DdbCanvasRect>) : {}
+  } catch {
+    return {}
+  }
+}
+
+function ddbWriteCanvasLayouts(map: Record<string, DdbCanvasRect>) {
+  try {
+    localStorage.setItem(DDB_CANVAS_LAYOUT_LS, JSON.stringify(map))
+  } catch {
+    /* ignore quota */
+  }
+}
+
+function ddbCanvasLayoutKey(layerKey: string, chartsSig: string, index: number): string {
+  return `${layerKey}::${chartsSig}::${index}`
+}
+
+function ddbReflowCanvasHost(host: HTMLElement) {
+  let maxBottom = 420
+  host.querySelectorAll<HTMLElement>('.ddb-visual-card--canvas').forEach(el => {
+    const top = parseFloat(el.style.top) || 0
+    const h = parseFloat(el.style.height) || el.getBoundingClientRect().height
+    maxBottom = Math.max(maxBottom, top + h + 28)
+  })
+  host.style.minHeight = `${Math.ceil(maxBottom)}px`
+}
+
+function ddbResizeChartsInHost(host: HTMLElement) {
+  window.requestAnimationFrame(() => {
+    host.querySelectorAll('canvas').forEach(cv => {
+      const ch = Chart.getChart(cv as HTMLCanvasElement)
+      if (ch) ch.resize()
+    })
+  })
+}
+
+type DdbCanvasCardEl = HTMLElement & { __ddbCanvasTeardown?: () => void }
+
+function ddbAttachCanvasCard(card: HTMLElement, host: HTMLElement, layoutKey: string) {
+  const el = card as DdbCanvasCardEl
+  el.__ddbCanvasTeardown?.()
+
+  const MIN_W = 220
+  const MIN_H = 160
+  const DEFAULT_W = 380
+  const DEFAULT_H = 280
+  const GAP = 14
+
+  const readSaved = (): DdbCanvasRect | null => {
+    const m = ddbReadCanvasLayouts()[layoutKey]
+    if (!m || typeof m.left !== 'number') return null
+    return m
+  }
+
+  const saveRect = (rect: DdbCanvasRect) => {
+    const all = ddbReadCanvasLayouts()
+    all[layoutKey] = rect
+    ddbWriteCanvasLayouts(all)
+  }
+
+  const index = Number(card.dataset.ddbCanvasIndex ?? 0) || 0
+  const col = index % 2
+  const row = Math.floor(index / 2)
+  const saved = readSaved()
+  const defLeft = 10 + col * (DEFAULT_W + GAP)
+  const defTop = 10 + row * (DEFAULT_H + GAP)
+
+  card.classList.add('ddb-visual-card--canvas')
+  card.style.left = `${saved?.left ?? defLeft}px`
+  card.style.top = `${saved?.top ?? defTop}px`
+  card.style.width = `${Math.max(MIN_W, saved?.width ?? DEFAULT_W)}px`
+  card.style.height = `${Math.max(MIN_H, saved?.height ?? DEFAULT_H)}px`
+
+  const handle = document.createElement('button')
+  handle.type = 'button'
+  handle.className = 'ddb-visual-card__canvas-resize'
+  handle.title = 'Resize card'
+  handle.setAttribute('aria-label', 'Resize card')
+  handle.innerHTML = '<span class="ddb-visual-card__canvas-resize-grip" aria-hidden="true"></span>'
+  card.appendChild(handle)
+
+  const dragEl =
+    (card.querySelector('.ddb-visual-card__header') as HTMLElement | null) ||
+    (card.querySelector('.ddb-visual-title') as HTMLElement | null)
+
+  const clamp = () => {
+    const hostW = host.clientWidth || 800
+    let w = parseFloat(card.style.width) || DEFAULT_W
+    let h = parseFloat(card.style.height) || DEFAULT_H
+    let left = parseFloat(card.style.left) || 0
+    let top = parseFloat(card.style.top) || 0
+    w = Math.min(Math.max(MIN_W, w), Math.max(MIN_W, hostW - 12))
+    h = Math.max(MIN_H, h)
+    const maxL = Math.max(0, hostW - w - 8)
+    left = Math.max(0, Math.min(left, maxL))
+    top = Math.max(0, top)
+    card.style.width = `${w}px`
+    card.style.height = `${h}px`
+    card.style.left = `${left}px`
+    card.style.top = `${top}px`
+  }
+
+  let drag: null | { sx: number; sy: number; sl: number; st: number }
+  let resize: null | { sx: number; sy: number; sw: number; sh: number }
+
+  const endInteract = () => {
+    card.classList.remove('ddb-visual-card--dragging', 'ddb-visual-card--resizing')
+    drag = null
+    resize = null
+    window.removeEventListener('pointermove', onMove)
+    window.removeEventListener('pointerup', onUp)
+    window.removeEventListener('pointercancel', onUp)
+    clamp()
+    saveRect({
+      left: parseFloat(card.style.left) || 0,
+      top: parseFloat(card.style.top) || 0,
+      width: parseFloat(card.style.width) || DEFAULT_W,
+      height: parseFloat(card.style.height) || DEFAULT_H,
+    })
+    ddbReflowCanvasHost(host)
+    ddbResizeChartsInHost(host)
+  }
+
+  const onMove = (e: PointerEvent) => {
+    if (card.classList.contains('ddb-visual-card--focus')) return
+    if (drag) {
+      const dx = e.clientX - drag.sx
+      const dy = e.clientY - drag.sy
+      card.style.left = `${drag.sl + dx}px`
+      card.style.top = `${drag.st + dy}px`
+      clamp()
+      ddbReflowCanvasHost(host)
+    } else if (resize) {
+      const dx = e.clientX - resize.sx
+      const dy = e.clientY - resize.sy
+      card.style.width = `${Math.max(MIN_W, resize.sw + dx)}px`
+      card.style.height = `${Math.max(MIN_H, resize.sh + dy)}px`
+      clamp()
+      ddbReflowCanvasHost(host)
+    }
+  }
+
+  const onUp = () => {
+    if (drag || resize) endInteract()
+  }
+
+  const onDragDown = (e: PointerEvent) => {
+    if (card.classList.contains('ddb-visual-card--focus')) return
+    const t = e.target as HTMLElement | null
+    if (!t || !dragEl?.contains(t)) return
+    if (t.closest('button')) return
+    if (t === handle || handle.contains(t)) return
+    e.preventDefault()
+    drag = {
+      sx: e.clientX,
+      sy: e.clientY,
+      sl: parseFloat(card.style.left) || 0,
+      st: parseFloat(card.style.top) || 0,
+    }
+    card.classList.add('ddb-visual-card--dragging')
+    window.addEventListener('pointermove', onMove)
+    window.addEventListener('pointerup', onUp)
+    window.addEventListener('pointercancel', onUp)
+  }
+
+  const onResizeDown = (e: PointerEvent) => {
+    if (card.classList.contains('ddb-visual-card--focus')) return
+    e.preventDefault()
+    e.stopPropagation()
+    resize = {
+      sx: e.clientX,
+      sy: e.clientY,
+      sw: parseFloat(card.style.width) || DEFAULT_W,
+      sh: parseFloat(card.style.height) || DEFAULT_H,
+    }
+    card.classList.add('ddb-visual-card--resizing')
+    window.addEventListener('pointermove', onMove)
+    window.addEventListener('pointerup', onUp)
+    window.addEventListener('pointercancel', onUp)
+  }
+
+  dragEl?.addEventListener('pointerdown', onDragDown)
+  handle.addEventListener('pointerdown', onResizeDown)
+
+  el.__ddbCanvasTeardown = () => {
+    dragEl?.removeEventListener('pointerdown', onDragDown)
+    handle.removeEventListener('pointerdown', onResizeDown)
+    window.removeEventListener('pointermove', onMove)
+    window.removeEventListener('pointerup', onUp)
+    window.removeEventListener('pointercancel', onUp)
+    handle.remove()
+    card.classList.remove('ddb-visual-card--canvas', 'ddb-visual-card--dragging', 'ddb-visual-card--resizing')
+    delete el.__ddbCanvasTeardown
+  }
+
+  clamp()
 }
 
 type AddGisLayerTab = 'arcgis' | 'database' | 'upload' | 'url'
@@ -350,7 +991,7 @@ export default function DevelopDashboard() {
   useEffect(() => {
     const el = mapElRef.current
     if (!el) return
-    const map = L.map(el).setView([28.5, 34.5], 6)
+    const map = L.map(el, { zoomControl: false }).setView([28.5, 34.5], 6)
     L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
       attribution: '© CartoDB',
     }).addTo(map)
@@ -434,7 +1075,14 @@ export default function DevelopDashboard() {
     chartInstancesRef.current.forEach(c => c.destroy())
     chartInstancesRef.current = []
     const host = chartsHostRef.current
-    if (host) host.innerHTML = ''
+    if (host) {
+      host.querySelectorAll('.ddb-visual-card').forEach(node => {
+        const n = node as DdbCanvasCardEl
+        n.__ddbCanvasTeardown?.()
+      })
+      host.innerHTML = ''
+      host.style.minHeight = ''
+    }
   }, [])
 
   const renderCharts = useCallback(() => {
@@ -455,15 +1103,162 @@ export default function DevelopDashboard() {
     const addChartCard = (title: string, type: string, dataConfig: any) => {
       const card = document.createElement('div')
       card.className = 'ddb-visual-card'
-      const canvas = document.createElement('canvas')
       const titleEl = document.createElement('div')
       titleEl.className = 'ddb-visual-title'
       titleEl.innerHTML = `<i class="fa-solid fa-chart-simple" aria-hidden="true"></i> ${title}`
+      const canvas = document.createElement('canvas')
       card.appendChild(titleEl)
       card.appendChild(canvas)
       host.appendChild(card)
-      const ch = new Chart(canvas.getContext('2d')!, { type: type as any, data: dataConfig.data, options: { responsive: true, maintainAspectRatio: true } })
-      chartInstancesRef.current.push(ch)
+
+      const ds0 = dataConfig?.data?.datasets?.[0]
+      const rawVals = ds0?.data
+      const datasetLabel = String(ds0?.label ?? primaryNum)
+      let labels = (dataConfig?.data?.labels as string[]) ?? []
+      let values: number[] = Array.isArray(rawVals)
+        ? rawVals.map((v: unknown) => (typeof v === 'number' ? v : parseFloat(String(v)) || 0))
+        : []
+      if (
+        type === 'scatter' &&
+        Array.isArray(rawVals) &&
+        rawVals.length &&
+        typeof rawVals[0] === 'object' &&
+        rawVals[0] !== null &&
+        'y' in (rawVals[0] as object)
+      ) {
+        labels = rawVals.map((_: unknown, i: number) => String(i))
+        values = rawVals.map((p: unknown) => parseFloat(String((p as { y?: unknown }).y ?? 0)) || 0)
+      }
+      const filterSourceLabels = [...labels]
+      const filterSourceValues = [...values]
+      const base = { labels: [...labels], values: [...values], datasetLabel }
+      const initialMini = ddbMiniKindFromChartType(type, dataConfig)
+      const chrome = ddbPromoteVisualCardChrome(card, {
+        showStatStrip: true,
+        showZoomHint: type !== 'pie' && type !== 'doughnut',
+        initialMini,
+      })
+      if (!chrome) return
+
+      const { strip, menu, filterPanel, chip, titleEl: titleNode, zoomHint } = chrome
+      const listEl = filterPanel.querySelector('[data-ddb-filter-list]') as HTMLDivElement | null
+      const applyFilterBtn = filterPanel.querySelector('.ddb-visual-card__filter-apply') as HTMLButtonElement | null
+
+      const syncFilterList = () => {
+        if (!listEl) return
+        listEl.innerHTML = ''
+        filterSourceLabels.forEach((lab, i) => {
+          const id = `ddb-f-${Math.random().toString(16).slice(2)}`
+          const row = document.createElement('label')
+          row.className = 'ddb-visual-card__filter-row'
+          row.innerHTML = `<input type="checkbox" checked data-idx="${i}" id="${id}" /> <span>${lab}</span>`
+          listEl.appendChild(row)
+        })
+      }
+      syncFilterList()
+
+      const applyLabelFilter = () => {
+        if (!listEl) return
+        const checks = listEl.querySelectorAll<HTMLInputElement>('input[type="checkbox"]')
+        const idxOn: number[] = []
+        checks.forEach(c => {
+          if (c.checked) idxOn.push(Number(c.dataset.idx))
+        })
+        if (!idxOn.length) return
+        base.labels = idxOn.map(i => filterSourceLabels[i] ?? '')
+        base.values = idxOn.map(i => filterSourceValues[i] ?? 0)
+      }
+
+      applyFilterBtn?.addEventListener('click', () => {
+        applyLabelFilter()
+        filterPanel.hidden = true
+        rebuild(initialMini)
+      })
+
+      const setStripActive = (k: DdbMiniChartKind) => {
+        strip?.querySelectorAll('.ddb-visual-card__stat-btn').forEach(btn => {
+          btn.classList.toggle('is-active', btn.getAttribute('data-mini-kind') === k)
+        })
+      }
+
+      let chartRef: Chart | null = null
+      const rebuild = (kind: DdbMiniChartKind) => {
+        const built = ddbBuildChartFromMiniKind(kind, base)
+        const prev = chartRef
+        if (prev) {
+          const idx = chartInstancesRef.current.indexOf(prev)
+          if (idx >= 0) chartInstancesRef.current.splice(idx, 1)
+          prev.destroy()
+        }
+        chartRef = null
+        const opt = { ...(ddbChartOptionsFor(built.type, built.modifiers) as any) }
+        if (built.modifiers?.indexAxis === 'y') {
+          opt.indexAxis = 'y'
+        }
+        chartRef = new Chart(canvas.getContext('2d')!, {
+          type: built.type as any,
+          data: built.data as any,
+          options: opt,
+        } as any)
+        chartInstancesRef.current.push(chartRef)
+        const ic = ddbIconClassForMiniKind(kind)
+        titleNode.innerHTML = `<i class="${ic}" aria-hidden="true"></i> ${ddbTitleForMiniKind(title, kind)}`
+        setStripActive(kind)
+        zoomHint.hidden = ['pie', 'doughnut', 'polarArea', 'radar'].includes(built.type)
+      }
+
+      strip?.querySelectorAll('.ddb-visual-card__stat-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const k = btn.getAttribute('data-mini-kind') as DdbMiniChartKind
+          if (!k) return
+          rebuild(k)
+        })
+      })
+
+      const applyStat = (stat: string) => {
+        const v = base.values
+        if (!v.length) return
+        let text = ''
+        if (stat === 'sum') text = `Sum: ${v.reduce((a, b) => a + b, 0).toFixed(2)}`
+        else if (stat === 'avg') text = `Average: ${(v.reduce((a, b) => a + b, 0) / v.length).toFixed(2)}`
+        else if (stat === 'median') {
+          const s = [...v].sort((a, b) => a - b)
+          const m = Math.floor(s.length / 2)
+          const med = s.length % 2 ? s[m]! : (s[m - 1]! + s[m]!) / 2
+          text = `Median: ${med.toFixed(2)}`
+        } else if (stat === 'min') text = `Minimum: ${Math.min(...v).toFixed(2)}`
+        else if (stat === 'max') text = `Maximum: ${Math.max(...v).toFixed(2)}`
+        else if (stat === 'range') text = `Range: ${(Math.max(...v) - Math.min(...v)).toFixed(2)}`
+        else if (stat === 'std') {
+          if (v.length < 2) text = 'Std dev: —'
+          else {
+            const mean = v.reduce((a, b) => a + b, 0) / v.length
+            const variance = v.reduce((acc, x) => acc + (x - mean) ** 2, 0) / (v.length - 1)
+            text = `Std dev: ${Math.sqrt(variance).toFixed(2)}`
+          }
+        } else if (stat === 'count') text = `Count: ${v.length}`
+        else if (stat === 'reset') {
+          chip.hidden = true
+          menu.hidden = true
+          return
+        }
+        chip.textContent = text
+        chip.hidden = false
+        menu.hidden = true
+      }
+
+      menu.querySelectorAll('.ddb-visual-card__menu-item').forEach(el => {
+        el.addEventListener('click', () => {
+          const stat = (el as HTMLElement).dataset.stat
+          if (stat) applyStat(stat)
+        })
+      })
+
+      canvas.addEventListener('dblclick', () => {
+        chartRef?.resetZoom?.()
+      })
+
+      rebuild(initialMini)
     }
 
     for (const tool of selectedCharts) {
@@ -477,6 +1272,7 @@ export default function DevelopDashboard() {
           ${rows.map(r => `<tr>${headers.map(h => `<td>${String((r.properties as any)?.[h] ?? '-')}</td>`).join('')}</tr>`).join('')}
           </tbody></table></div>`
         host.appendChild(tbl)
+        ddbPromoteVisualCardChrome(tbl, { showStatStrip: false, showZoomHint: false })
       } else if (tool === 'matrix') {
         const matrix = document.createElement('div')
         matrix.className = 'ddb-visual-card'
@@ -485,6 +1281,7 @@ export default function DevelopDashboard() {
           .map((l, i) => `<tr><td>${l}</td><td>${values[i]}</td></tr>`)
           .join('')}</table></div>`
         host.appendChild(matrix)
+        ddbPromoteVisualCardChrome(matrix, { showStatStrip: false, showZoomHint: false })
       } else if (tool === 'stackedBar' || tool === 'clusteredBar') {
         addChartCard(tool === 'stackedBar' ? 'Stacked Bar' : 'Clustered Bar', 'bar', {
           data: { labels, datasets: [{ label: primaryNum, data: values, backgroundColor: '#4c9a6e' }] },
@@ -524,6 +1321,7 @@ export default function DevelopDashboard() {
         card.appendChild(titleEl)
         card.appendChild(canvas)
         host.appendChild(card)
+        ddbPromoteVisualCardChrome(card, { showStatStrip: false, showZoomHint: true })
         const ch = new Chart(canvas.getContext('2d')!, {
           type: 'bar',
           data: {
@@ -533,9 +1331,12 @@ export default function DevelopDashboard() {
               { type: 'line', label: 'Trend', data: values.map(v => v * 0.9), borderColor: '#1f5e3a' },
             ],
           },
-          options: { responsive: true, maintainAspectRatio: true },
+          options: ddbChartOptionsFor('bar') as any,
         } as any)
         chartInstancesRef.current.push(ch)
+        canvas.addEventListener('dblclick', () => {
+          ch.resetZoom?.()
+        })
       } else if (tool === 'pie') {
         addChartCard('Pie Chart', 'pie', {
           data: {
@@ -574,40 +1375,55 @@ export default function DevelopDashboard() {
         const avgVal = values.reduce((a, b) => a + b, 0) / (values.length || 1)
         const gauge = document.createElement('div')
         gauge.className = 'ddb-visual-card'
-        gauge.innerHTML = `<div class="ddb-visual-title"><i class="fa-solid fa-gauge-high"></i> Gauge</div><div style="background:#e2e8f0; border-radius:40px; height:20px;"><div style="background:#2c7a4a; width:${Math.min(100, (avgVal / 200) * 100)}%; height:20px; border-radius:40px;"></div></div><div>Value: ${avgVal.toFixed(1)} / 200</div>`
+        gauge.innerHTML = `<div class="ddb-visual-title"><i class="fa-solid fa-gauge-high"></i> Gauge</div><div class="ddb-visual-card__body-pad"><div style="background:#e2e8f0; border-radius:40px; height:20px;"><div style="background:#2c7a4a; width:${Math.min(100, (avgVal / 200) * 100)}%; height:20px; border-radius:40px;"></div></div><div>Value: ${avgVal.toFixed(1)} / 200</div></div>`
         host.appendChild(gauge)
+        ddbPromoteVisualCardChrome(gauge, { showStatStrip: false, showZoomHint: false })
       } else if (tool === 'card') {
         const total = values.reduce((a, b) => a + b, 0)
         const card = document.createElement('div')
         card.className = 'ddb-visual-card'
-        card.innerHTML = `<div class="ddb-visual-title"><i class="fa-solid fa-id-card"></i> Card</div><div style="font-size:2rem; font-weight:800;">${total.toFixed(0)}</div><div>Total ${primaryNum}</div>`
+        card.innerHTML = `<div class="ddb-visual-title"><i class="fa-solid fa-id-card"></i> Card</div><div class="ddb-visual-card__body-pad"><div style="font-size:2rem; font-weight:800;">${total.toFixed(0)}</div><div>Total ${primaryNum}</div></div>`
         host.appendChild(card)
+        ddbPromoteVisualCardChrome(card, { showStatStrip: false, showZoomHint: false })
       } else if (tool === 'kpi') {
         const kpi = document.createElement('div')
         kpi.className = 'ddb-visual-card'
-        kpi.innerHTML = `<div class="ddb-visual-title"><i class="fa-solid fa-chart-simple"></i> KPI</div><div style="font-size:2rem;">${values[0] ?? 0}</div><div>Target: 150 | ${((((values[0] ?? 0) / 150) * 100) || 0).toFixed(0)}%</div>`
+        kpi.innerHTML = `<div class="ddb-visual-title"><i class="fa-solid fa-chart-simple"></i> KPI</div><div class="ddb-visual-card__body-pad"><div style="font-size:2rem;">${values[0] ?? 0}</div><div>Target: 150 | ${((((values[0] ?? 0) / 150) * 100) || 0).toFixed(0)}%</div></div>`
         host.appendChild(kpi)
+        ddbPromoteVisualCardChrome(kpi, { showStatStrip: false, showZoomHint: false })
       } else if (tool === 'customStatCard') {
         if (!statCards.length) {
           const wrap = document.createElement('div')
           wrap.className = 'ddb-visual-card'
-          wrap.innerHTML = `<div class="ddb-visual-title"><i class="fa-solid fa-chart-column"></i> Custom stat cards</div><div class="ddb-hint">Pick layer, field, and aggregation in Visualizations, add cards, then generate again to show them here.</div>`
+          wrap.innerHTML = `<div class="ddb-visual-title"><i class="fa-solid fa-chart-column"></i> Custom stat cards</div><div class="ddb-visual-card__body-pad"><div class="ddb-hint">Pick layer, field, and aggregation in Visualizations, add cards, then generate again to show them here.</div></div>`
           host.appendChild(wrap)
+          ddbPromoteVisualCardChrome(wrap, { showStatStrip: false, showZoomHint: false })
         } else {
           for (const c of statCards) {
             const box = document.createElement('div')
             box.className = 'ddb-visual-card'
-            box.innerHTML = `<div class="ddb-visual-title"><i class="fa-solid fa-chart-column"></i> ${c.layerName}</div><div style="font-size:1.75rem;font-weight:800;">${c.result.toFixed(2)}</div><div>${c.agg} · ${c.field}</div>`
+            box.innerHTML = `<div class="ddb-visual-title"><i class="fa-solid fa-chart-column"></i> ${c.layerName}</div><div class="ddb-visual-card__body-pad"><div style="font-size:1.75rem;font-weight:800;">${c.result.toFixed(2)}</div><div>${c.agg} · ${c.field}</div></div>`
             host.appendChild(box)
+            ddbPromoteVisualCardChrome(box, { showStatStrip: false, showZoomHint: false })
           }
         }
       } else {
         const fb = document.createElement('div')
         fb.className = 'ddb-visual-card'
-        fb.innerHTML = `<div class="ddb-visual-title"><i class="fa-solid fa-chart-simple"></i> ${tool.replace(/([A-Z])/g, ' $1')}</div><div>Static simulation for ${tool} based on ${layer.name}</div>`
+        fb.innerHTML = `<div class="ddb-visual-title"><i class="fa-solid fa-chart-simple"></i> ${tool.replace(/([A-Z])/g, ' $1')}</div><div class="ddb-visual-card__body-pad"><div>Static simulation for ${tool} based on ${layer.name}</div></div>`
         host.appendChild(fb)
+        ddbPromoteVisualCardChrome(fb, { showStatStrip: false, showZoomHint: false })
       }
     }
+
+    const chartsSig = `${[...selectedCharts].join('>')}::sc:${statCards.map(c => c.id).join(',')}`
+    Array.from(host.querySelectorAll(':scope > .ddb-visual-card')).forEach((node, i) => {
+      const he = node as HTMLElement
+      he.dataset.ddbCanvasIndex = String(i)
+      ddbAttachCanvasCard(he, host, ddbCanvasLayoutKey(activeStatsLayer, chartsSig, i))
+    })
+    ddbReflowCanvasHost(host)
+    ddbResizeChartsInHost(host)
   }, [activeStatsLayer, destroyCharts, layers, selectedCharts, statCards])
 
   useEffect(() => {
@@ -1175,7 +1991,7 @@ export default function DevelopDashboard() {
 
         <div className="ddb-dashboard-body">
         <div className="ddb-main">
-          <div className="ddb-map-container si-map-container">
+          <div className="ddb-map-container">
             <div ref={mapElRef} className="ddb-map-inner" />
             <div className="ddb-map-tools">
               <button type="button" className="ddb-btn" onClick={() => mapRef.current?.zoomIn()}>

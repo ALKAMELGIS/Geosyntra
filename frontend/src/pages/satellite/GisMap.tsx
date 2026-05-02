@@ -1,4 +1,14 @@
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent, type TouchEvent as ReactTouchEvent } from 'react'
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ChangeEvent,
+  type PointerEvent as ReactPointerEvent,
+  type TouchEvent as ReactTouchEvent,
+} from 'react'
 import type { Map as LeafletMap } from 'leaflet'
 import L from 'leaflet'
 import { GeoJSON } from 'react-leaflet'
@@ -26,12 +36,25 @@ import {
   getImageServerServiceRootFromUrl,
 } from '../../lib/arcgisImageServer'
 import { parseFile, parseRemoteUrlAsFile } from '../../utils/FileLoader'
+import { useGeminiApiKey } from '../../hooks/useGeminiApiKey'
+import {
+  GEO_EXPLORER_SYSTEM_PROMPT,
+  geminiGenerateContent,
+  messageDisplayText,
+  messagesToGeminiContents,
+  parseMapQueryLngLat,
+  stripMapQueryLine,
+  type GeoExplorerMessage,
+  type GeoExplorerPart,
+} from '../../lib/geoExplorerGemini'
+import { geocodePlaceToLngLat } from '../../lib/geoExplorerGeocode'
+import './gisGeoExplorerPanel.css'
 
 type AddLayerTab = 'arcgis' | 'database' | 'upload' | 'url'
 
 const newGisImportId = () => `${Date.now()}_${Math.random().toString(16).slice(2)}`
 type DatabaseAuthType = 'database' | 'operating-system'
-type GisMapToolPanel = 'basemap' | 'legend' | 'chart' | 'print' | 'measure' | 'search' | null
+type GisMapToolPanel = 'basemap' | 'legend' | 'chart' | 'print' | 'measure' | 'search' | 'geoExplorer' | null
 type MapProjectionMode = 'globe' | '2d'
 type MeasurementMode = 'distance' | 'area' | 'features' | 'vertical' | 'direction' | 'offset' | 'angle'
 type MeasurementMethod = 'geodesic' | 'planar' | 'loxodromic' | 'greatElliptic'
@@ -409,6 +432,14 @@ export default function GisMap() {
   const [globeLoaded, setGlobeLoaded] = useState(false)
   const [mapSearchQuery, setMapSearchQuery] = useState('')
   const [mapSearchStatus, setMapSearchStatus] = useState('')
+  const geminiApiKey = useGeminiApiKey()
+  const geoExplorerFileInputRef = useRef<HTMLInputElement | null>(null)
+  const geoExplorerInFlightRef = useRef(false)
+  const [geoExplorerMessages, setGeoExplorerMessages] = useState<GeoExplorerMessage[]>([])
+  const [geoExplorerDraft, setGeoExplorerDraft] = useState('')
+  const [geoExplorerPendingImage, setGeoExplorerPendingImage] = useState<{ mime: string; base64: string } | null>(null)
+  const [geoExplorerBusy, setGeoExplorerBusy] = useState(false)
+  const [geoExplorerChatError, setGeoExplorerChatError] = useState('')
   const [measurementMode, setMeasurementMode] = useState<MeasurementMode>('distance')
   const [measurementMethod, setMeasurementMethod] = useState<MeasurementMethod>('planar')
   const [measurementUnit, setMeasurementUnit] = useState<MeasurementUnit>('metric')
@@ -1034,6 +1065,131 @@ export default function GisMap() {
       setMapSearchStatus('Search is unavailable. Try coordinates like 25.2, 55.3')
     }
   }
+
+  const onGeoExplorerAttachChange = useCallback((e: ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    e.target.value = ''
+    if (!file) return
+    if (!file.type.startsWith('image/')) {
+      setGeoExplorerChatError('Please attach an image file (PNG, JPEG, WebP, …).')
+      return
+    }
+    const reader = new FileReader()
+    reader.onload = () => {
+      const dataUrl = reader.result as string
+      const i = dataUrl.indexOf(',')
+      const base64 = i >= 0 ? dataUrl.slice(i + 1) : dataUrl
+      setGeoExplorerPendingImage({ mime: file.type || 'image/jpeg', base64 })
+      setGeoExplorerChatError('')
+    }
+    reader.onerror = () => setGeoExplorerChatError('Could not read the image file.')
+    reader.readAsDataURL(file)
+  }, [])
+
+  const clearGeoExplorerChat = useCallback(() => {
+    geoExplorerInFlightRef.current = false
+    setGeoExplorerBusy(false)
+    setGeoExplorerMessages([])
+    setGeoExplorerDraft('')
+    setGeoExplorerPendingImage(null)
+    setGeoExplorerChatError('')
+  }, [])
+
+  const flyGisMapToLngLat = useCallback(
+    (lng: number, lat: number) => {
+      if (mapProjectionMode === 'globe') {
+        const globe = mapboxGlobeRef.current?.getMap ? mapboxGlobeRef.current.getMap() : mapboxGlobeRef.current
+        if (globe) {
+          globe.flyTo({ center: [lng, lat], zoom: Math.max(globe.getZoom(), 10), pitch: 48, duration: 850 })
+        }
+        setGlobeViewState(prev => ({
+          ...prev,
+          longitude: lng,
+          latitude: lat,
+          zoom: Math.max(prev.zoom, 10),
+          pitch: Math.max(prev.pitch, 42),
+        }))
+        return
+      }
+      const map = mapRef.current
+      if (map) map.flyTo([lat, lng], Math.max(map.getZoom(), 13), { duration: 0.6 })
+    },
+    [mapProjectionMode],
+  )
+
+  const sendGeoExplorerChat = useCallback(() => {
+    const trimmed = geoExplorerDraft.trim()
+    if (geoExplorerInFlightRef.current) return
+    if (!trimmed && !geoExplorerPendingImage) return
+    const apiKey = geminiApiKey.trim()
+    if (!apiKey) {
+      setGeoExplorerChatError(
+        'Add a Gemini API key: System Settings → API Tokens → Gemini API (saved in this browser), or set VITE_GEMINI_API_KEY at build time. Never commit keys to Git.',
+      )
+      return
+    }
+
+    const userParts: GeoExplorerPart[] = []
+    if (trimmed) userParts.push({ type: 'text', text: trimmed })
+    if (geoExplorerPendingImage) {
+      userParts.push({
+        type: 'image',
+        mime: geoExplorerPendingImage.mime,
+        base64: geoExplorerPendingImage.base64,
+      })
+    }
+    if (userParts.length === 0) return
+
+    const userId =
+      typeof crypto !== 'undefined' && 'randomUUID' in crypto ? crypto.randomUUID() : `geo-${Date.now()}`
+    const userMsg: GeoExplorerMessage = { id: userId, role: 'user', parts: userParts }
+    const userTextForMapFallback = trimmed
+
+    setGeoExplorerDraft('')
+    setGeoExplorerPendingImage(null)
+    setGeoExplorerChatError('')
+    geoExplorerInFlightRef.current = true
+    setGeoExplorerBusy(true)
+
+    setGeoExplorerMessages(prev => {
+      const historyWithUser = [...prev, userMsg]
+      queueMicrotask(async () => {
+        try {
+          const reply = await geminiGenerateContent({
+            apiKey,
+            systemInstruction: GEO_EXPLORER_SYSTEM_PROMPT,
+            contents: messagesToGeminiContents(historyWithUser),
+          })
+          let coords = parseMapQueryLngLat(reply)
+          let replyText = reply
+          if (!coords && userTextForMapFallback) {
+            const geocoded = await geocodePlaceToLngLat(userTextForMapFallback, {
+              mapboxAccessToken: mapboxAccessToken || undefined,
+            })
+            if (geocoded) {
+              coords = geocoded
+              replyText = `${reply.trimEnd()}\n\n(Map centered on the best place-name match for your message.)`
+            }
+          }
+          const modelId =
+            typeof crypto !== 'undefined' && 'randomUUID' in crypto ? crypto.randomUUID() : `geo-m-${Date.now()}`
+          const modelMsg: GeoExplorerMessage = {
+            id: modelId,
+            role: 'model',
+            parts: [{ type: 'text', text: replyText }],
+          }
+          setGeoExplorerMessages(h => [...h, modelMsg])
+          if (coords) flyGisMapToLngLat(coords[0], coords[1])
+        } catch (e) {
+          setGeoExplorerChatError(e instanceof Error ? e.message : String(e))
+        } finally {
+          geoExplorerInFlightRef.current = false
+          setGeoExplorerBusy(false)
+        }
+      })
+      return historyWithUser
+    })
+  }, [geminiApiKey, geoExplorerDraft, geoExplorerPendingImage, mapboxAccessToken, flyGisMapToLngLat])
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -3779,6 +3935,17 @@ export default function GisMap() {
             <i className="fa-solid fa-magnifying-glass-location" aria-hidden="true" />
             <span>Search</span>
           </button>
+          <button
+            className={activeMapTool === 'geoExplorer' ? 'gis-map-tool active' : 'gis-map-tool'}
+            type="button"
+            onClick={() => toggleMapTool('geoExplorer')}
+            title="Geo Explorer (Gemini chat)"
+            aria-label="Geo Explorer chat"
+            aria-pressed={activeMapTool === 'geoExplorer'}
+          >
+            <i className="fa-solid fa-comments" aria-hidden="true" />
+            <span>Chat</span>
+          </button>
           <span className="gis-map-toolbar-sep" aria-hidden="true" />
           <button className="gis-map-tool icon-only" type="button" onClick={() => zoomMap('in')} title="Zoom in" aria-label="Zoom in">
             <i className="fa-solid fa-plus" aria-hidden="true" />
@@ -3798,15 +3965,33 @@ export default function GisMap() {
         </div>
 
         {activeMapTool ? (
-          <div className="gis-map-tool-panel" role="dialog" aria-label={`${activeMapTool} tools`}>
-            <div className="gis-map-tool-panel-head">
-              <div className="gis-map-tool-panel-title">
-                {activeMapTool === 'basemap' ? 'BaseMap List' : activeMapTool === 'legend' ? 'Legend' : activeMapTool === 'chart' ? 'Chart' : activeMapTool === 'measure' ? 'Measurement tools' : 'Search tools'}
+          <div
+            className={
+              activeMapTool === 'geoExplorer'
+                ? 'gis-map-tool-panel gis-map-tool-panel--geo-explorer'
+                : 'gis-map-tool-panel'
+            }
+            role="dialog"
+            aria-label={`${activeMapTool} tools`}
+          >
+            {activeMapTool !== 'geoExplorer' ? (
+              <div className="gis-map-tool-panel-head">
+                <div className="gis-map-tool-panel-title">
+                  {activeMapTool === 'basemap'
+                    ? 'BaseMap List'
+                    : activeMapTool === 'legend'
+                      ? 'Legend'
+                      : activeMapTool === 'chart'
+                        ? 'Chart'
+                        : activeMapTool === 'measure'
+                          ? 'Measurement tools'
+                          : 'Search tools'}
+                </div>
+                <button className="gis-map-tool-close" type="button" onClick={() => setActiveMapTool(null)} aria-label="Close tool panel">
+                  <i className="fa-solid fa-xmark" aria-hidden="true" />
+                </button>
               </div>
-              <button className="gis-map-tool-close" type="button" onClick={() => setActiveMapTool(null)} aria-label="Close tool panel">
-                <i className="fa-solid fa-xmark" aria-hidden="true" />
-              </button>
-            </div>
+            ) : null}
 
             {activeMapTool === 'basemap' ? (
               <BasemapGallery selectedBasemap={selectedBasemap} onSelectBasemap={setSelectedBasemap} />
@@ -3922,7 +4107,7 @@ export default function GisMap() {
                 <div className="gis-tool-muted">{measurementFooterHint}</div>
                 <button className="gis-btn" type="button" onClick={clearMeasurement}>Clear measurement</button>
               </div>
-            ) : (
+            ) : activeMapTool === 'search' ? (
               <div className="gis-tool-search">
                 <div className="gis-tool-search-row">
                   <input
@@ -3944,7 +4129,139 @@ export default function GisMap() {
                 </div>
                 {mapSearchStatus ? <div className="gis-tool-muted">{mapSearchStatus}</div> : null}
               </div>
-            )}
+            ) : activeMapTool === 'geoExplorer' ? (
+              <div className="gis-geo-explorer-root">
+                <div className="gis-geo-explorer">
+                  <div className="gis-geo-explorer-header">
+                    <h2 className="gis-geo-explorer-title">Geo Explorer</h2>
+                    <div className="gis-geo-explorer-header-actions">
+                      <button
+                        type="button"
+                        className="gis-geo-explorer-icon-btn"
+                        onClick={clearGeoExplorerChat}
+                        aria-label="Clear chat"
+                        title="Clear chat"
+                      >
+                        <i className="fa-solid fa-trash" aria-hidden="true" />
+                      </button>
+                      <button
+                        type="button"
+                        className="gis-geo-explorer-icon-btn"
+                        onClick={() => setActiveMapTool(null)}
+                        aria-label="Close Geo Explorer"
+                        title="Close"
+                      >
+                        <i className="fa-solid fa-xmark" aria-hidden="true" />
+                      </button>
+                    </div>
+                  </div>
+                  <div className="gis-geo-explorer-messages">
+                    <div className="gis-geo-explorer-row gis-geo-explorer-row--model">
+                      <div className="gis-geo-explorer-avatar" aria-hidden>
+                        <i className="fa-solid fa-globe" />
+                      </div>
+                      <div className="gis-geo-explorer-bubble">
+                        <p className="gis-geo-explorer-bubble-text">
+                          Hello! Describe a place, upload an image, or ask for directions. When a location is clear, the map
+                          will fly there (the model adds a MAP_QUERY line).
+                        </p>
+                      </div>
+                    </div>
+                    {geoExplorerMessages.map(msg => {
+                      const raw = messageDisplayText(msg)
+                      const show = msg.role === 'model' ? stripMapQueryLine(raw) : raw
+                      const hasImage = msg.parts.some(p => p.type === 'image')
+                      return (
+                        <div key={msg.id} className={`gis-geo-explorer-row gis-geo-explorer-row--${msg.role}`}>
+                          {msg.role === 'model' ? (
+                            <div className="gis-geo-explorer-avatar" aria-hidden>
+                              <i className="fa-solid fa-wand-magic-sparkles" />
+                            </div>
+                          ) : null}
+                          <div className="gis-geo-explorer-bubble">
+                            {show ? <p className="gis-geo-explorer-bubble-text">{show}</p> : null}
+                            {msg.role === 'user' && hasImage ? (
+                              <p className="gis-geo-explorer-bubble-meta">
+                                <i className="fa-solid fa-paperclip" aria-hidden /> Image attached
+                              </p>
+                            ) : null}
+                          </div>
+                        </div>
+                      )
+                    })}
+                    {geoExplorerBusy ? (
+                      <div className="gis-geo-explorer-row gis-geo-explorer-row--model">
+                        <div className="gis-geo-explorer-avatar" aria-hidden>
+                          <i className="fa-solid fa-wand-magic-sparkles" />
+                        </div>
+                        <div className="gis-geo-explorer-bubble gis-geo-explorer-bubble--typing">
+                          <i className="fa-solid fa-spinner fa-spin" aria-hidden /> Thinking…
+                        </div>
+                      </div>
+                    ) : null}
+                  </div>
+                  {geoExplorerChatError ? <p className="gis-geo-explorer-error">{geoExplorerChatError}</p> : null}
+                  {geoExplorerPendingImage ? (
+                    <p className="gis-geo-explorer-pending-img">
+                      <i className="fa-solid fa-image" aria-hidden /> Image ready to send
+                      <button type="button" className="gis-geo-explorer-linkish" onClick={() => setGeoExplorerPendingImage(null)}>
+                        Remove
+                      </button>
+                    </p>
+                  ) : null}
+                  <div className="gis-geo-explorer-input-row">
+                    <textarea
+                      className="gis-geo-explorer-input"
+                      rows={2}
+                      value={geoExplorerDraft}
+                      onChange={e => setGeoExplorerDraft(e.target.value)}
+                      onKeyDown={e => {
+                        if (e.key === 'Enter' && !e.shiftKey) {
+                          e.preventDefault()
+                          sendGeoExplorerChat()
+                        }
+                      }}
+                      placeholder="Describe a place, ask for directions, or plan a trip…"
+                      aria-label="Geo Explorer message"
+                      disabled={geoExplorerBusy}
+                    />
+                    <input
+                      ref={geoExplorerFileInputRef}
+                      type="file"
+                      className="gis-geo-explorer-file-input"
+                      accept="image/*"
+                      onChange={onGeoExplorerAttachChange}
+                      aria-hidden
+                      tabIndex={-1}
+                    />
+                    <button
+                      type="button"
+                      className="gis-geo-explorer-attach"
+                      onClick={() => geoExplorerFileInputRef.current?.click()}
+                      disabled={geoExplorerBusy}
+                      aria-label="Attach image"
+                      title="Attach image"
+                    >
+                      <i className="fa-solid fa-paperclip" aria-hidden />
+                    </button>
+                    <button
+                      type="button"
+                      className="gis-geo-explorer-send"
+                      onClick={sendGeoExplorerChat}
+                      disabled={geoExplorerBusy || (!geoExplorerDraft.trim() && !geoExplorerPendingImage)}
+                      aria-label="Send"
+                      title="Send"
+                    >
+                      <i className="fa-solid fa-paper-plane" aria-hidden />
+                    </button>
+                  </div>
+                  <p className="gis-geo-explorer-footnote">
+                    Powered by Google Gemini. Set <code>VITE_GEMINI_API_KEY</code> or save under System Settings → API Tokens →
+                    Gemini API. Do not commit keys.
+                  </p>
+                </div>
+              </div>
+            ) : null}
           </div>
         ) : null}
 
