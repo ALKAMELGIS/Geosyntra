@@ -6,10 +6,8 @@ on:
   workflow_dispatch:
 
 # Pages must publish the Vite build (frontend/dist), not the repo root.
-# Do not add a root index.html for GitHub Pages — if Pages source is "Deploy from branch" at /,
-# that file would be served instead of this artifact and the SPA would not load.
-# In the repo: Settings → Pages → Build and deployment → Source: GitHub Actions
-# (not "Deploy from a branch" using / or /docs unless that folder is a full dist copy).
+# If Pages source is "Deploy from branch" at /, GitHub serves repo files; root index.html is then
+# a short setup notice (see repo index.html). For the real app: Settings → Pages → Source: GitHub Actions.
 permissions:
   contents: read
   pages: write

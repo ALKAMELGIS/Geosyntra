@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="ar" data-gh-pages="branch-deploy-notice">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Agro Cloud — إعداد GitHub Pages</title>
+    <!-- GITHUB_PAGES_BRANCH_DEPLOY_STUB: allowed by scripts/pages-dist-check.mjs -->
+    <style>
+      :root {
+        color-scheme: light;
+      }
+      body {
+        font-family: 'Segoe UI', system-ui, sans-serif;
+        max-width: 40rem;
+        margin: 0 auto;
+        padding: 1.5rem 1rem 2.5rem;
+        line-height: 1.55;
+        color: #1e293b;
+        background: #f8fafc;
+      }
+      h1 {
+        font-size: 1.35rem;
+        margin: 0 0 0.75rem;
+      }
+      .box {
+        background: #fffbeb;
+        border: 1px solid #f59e0b;
+        border-radius: 10px;
+        padding: 1rem 1.1rem;
+        margin-bottom: 1rem;
+      }
+      .box strong {
+        color: #b45309;
+      }
+      ol {
+        margin: 0.5rem 0 0;
+        padding-inline-start: 1.25rem;
+      }
+      code {
+        font-size: 0.88em;
+        background: #f1f5f9;
+        padding: 0.12em 0.35em;
+        border-radius: 4px;
+      }
+      .en {
+        margin-top: 1.25rem;
+        padding-top: 1rem;
+        border-top: 1px solid #e2e8f0;
+        font-size: 0.92rem;
+        color: #475569;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Agro Cloud</h1>
+    <div class="box" dir="rtl">
+      <strong>تظهر هذه الصفحة عندما يكون مصدر GitHub Pages هو «Deploy from a branch» من جذر المستودع.</strong>
+      <p>التطبيق (React/Vite) يُبنى في <code>frontend/dist</code> ويُنشر عبر <strong>GitHub Actions</strong> فقط.</p>
+      <ol>
+        <li>افتح المستودع على GitHub → <strong>Settings</strong> → <strong>Pages</strong>.</li>
+        <li>ضمن <strong>Build and deployment</strong> اختر المصدر: <strong>GitHub Actions</strong> (وليس Deploy from a branch).</li>
+        <li>ادفع أي تعديل إلى <code>main</code> أو شغّل يدوياً سير العمل <strong>Deploy to GitHub Pages</strong>.</li>
+      </ol>
+      <p>بعدها يُفترض أن يعمل الموقع على نحو: <code>https://&lt;user&gt;.github.io/AgroCloud/</code></p>
+    </div>
+    <div class="en" lang="en">
+      <strong>English:</strong> You are seeing this file because Pages is publishing the <em>repository root</em> instead of the
+      Vite build. Switch <strong>Settings → Pages → Source</strong> to <strong>GitHub Actions</strong>, then push to
+      <code>main</code> or run the <strong>Deploy to GitHub Pages</strong> workflow. The published app lives in
+      <code>frontend/dist</code>.
+    </div>
+  </body>
+</html>
