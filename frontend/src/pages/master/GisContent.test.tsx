@@ -116,7 +116,7 @@ describe('GisContent', () => {
     fireEvent.click(await screen.findByRole('button', { name: /Add layer/i }))
 
     const dialog = await screen.findByRole('dialog')
-    fireEvent.click(within(dialog).getByRole('tab', { name: 'Upload File' }))
+    fireEvent.click(within(dialog).getByRole('tab', { name: 'Upload file' }))
     fireEvent.change(within(dialog).getByLabelText('Layer Name (optional)'), { target: { value: 'Layer A' } })
 
     const file = new File([JSON.stringify(makeGeoJson('id', '1'))], 'a.geojson', { type: 'application/json' })
@@ -137,7 +137,7 @@ describe('GisContent', () => {
 
     fireEvent.click(await screen.findByRole('button', { name: /Add layer/i }))
     let dialog = await screen.findByRole('dialog')
-    fireEvent.click(within(dialog).getByRole('tab', { name: 'Upload File' }))
+    fireEvent.click(within(dialog).getByRole('tab', { name: 'Upload file' }))
     fireEvent.change(within(dialog).getByLabelText('Layer Name (optional)'), { target: { value: 'Origin' } })
     let file = new File([JSON.stringify(makeGeoJson('id', '1'))], 'o.geojson', { type: 'application/json' })
     fireEvent.change(dialog.querySelector('input[type="file"]') as HTMLInputElement, { target: { files: [file] } })
@@ -146,7 +146,7 @@ describe('GisContent', () => {
 
     fireEvent.click(screen.getByRole('button', { name: /Add layer/i }))
     dialog = await screen.findByRole('dialog')
-    fireEvent.click(within(dialog).getByRole('tab', { name: 'Upload File' }))
+    fireEvent.click(within(dialog).getByRole('tab', { name: 'Upload file' }))
     fireEvent.change(within(dialog).getByLabelText('Layer Name (optional)'), { target: { value: 'Destination' } })
     file = new File([JSON.stringify(makeGeoJson('id', '2'))], 'd.geojson', { type: 'application/json' })
     fireEvent.change(dialog.querySelector('input[type="file"]') as HTMLInputElement, { target: { files: [file] } })

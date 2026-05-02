@@ -1,11 +1,11 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
-import { parseFile } from '../../utils/FileLoader'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { parseFile, parseRemoteUrlAsFile } from '../../utils/FileLoader'
 
 export default function GisContent() {
   return <GisContentPage />
 }
 
-type AddLayerTab = 'arcgis' | 'upload'
+type AddLayerTab = 'arcgis' | 'upload' | 'url'
 
 type FieldType = 'text' | 'number' | 'date' | 'boolean'
 
@@ -52,7 +52,7 @@ type LayerData = {
   id: number | string
   name: string
   type: 'geojson' | 'wms' | 'tile' | 'image'
-  source?: 'arcgis' | 'upload'
+  source?: 'arcgis' | 'upload' | 'url'
   visible: boolean
   opacity: number
   data?: any
@@ -768,6 +768,7 @@ function GisContentPage() {
   const dragDepthRef = useRef(0)
   const [isDragOver, setIsDragOver] = useState(false)
   const [uploadFile, setUploadFile] = useState<File | null>(null)
+  const [remoteDataUrl, setRemoteDataUrl] = useState('')
 
   const [fieldModal, setFieldModal] = useState<null | { mode: 'add' | 'edit'; layerId: string; fieldId?: string }>(null)
   const [fieldDraft, setFieldDraft] = useState<{ name: string; type: FieldType; length: string; defaultValue: string; nullable: boolean }>({
@@ -843,18 +844,6 @@ function GisContentPage() {
     }
     window.location.reload()
   }
-
-  useEffect(() => {
-    if (!isAddOpen) return
-    const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        e.preventDefault()
-        setIsAddOpen(false)
-      }
-    }
-    window.addEventListener('keydown', onKeyDown)
-    return () => window.removeEventListener('keydown', onKeyDown)
-  }, [isAddOpen])
 
   useEffect(() => {
     if (!syncError) return
@@ -1058,6 +1047,7 @@ function GisContentPage() {
     dragDepthRef.current = 0
     setIsDragOver(false)
     setUploadFile(null)
+    setRemoteDataUrl('')
     setTab('arcgis')
     setServiceUrl('')
     setToken('')
@@ -1086,14 +1076,28 @@ function GisContentPage() {
     closeEditLayerModal()
   }
 
-  const closeAddLayer = () => {
+  const closeAddLayer = useCallback(() => {
     dragDepthRef.current = 0
     setIsDragOver(false)
     setIsAddOpen(false)
     setDiscoverError(null)
     setIsDiscovering(false)
     setAddingLayerKey(null)
-  }
+    setUploadFile(null)
+    setRemoteDataUrl('')
+  }, [])
+
+  useEffect(() => {
+    if (!isAddOpen) return
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        e.preventDefault()
+        closeAddLayer()
+      }
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [isAddOpen, closeAddLayer])
 
   const discoverFromService = async () => {
     setDiscoverError(null)
@@ -1179,6 +1183,45 @@ function GisContentPage() {
       closeAddLayer()
     } catch (e: any) {
       setDiscoverError(typeof e?.message === 'string' ? e.message : 'Failed to import file.')
+    } finally {
+      setAddingLayerKey(null)
+    }
+  }
+
+  const addUrlLayerAsGeoJson = async () => {
+    const trimmed = remoteDataUrl.trim()
+    if (!trimmed) return
+    const opKey = `url:${trimmed}`
+    setAddingLayerKey(opKey)
+    setDiscoverError(null)
+    try {
+      const file = await parseRemoteUrlAsFile(trimmed)
+      const parsed = await parseFile(file)
+      if (parsed.type !== 'geojson') {
+        throw new Error('URL must resolve to GIS features (GeoJSON/KML/KMZ/Shapefile zip/CSV with coordinates).')
+      }
+      let geojson: any = parsed.data
+      if (Array.isArray(geojson)) geojson = geojson[0]
+      if (!geojson || geojson.type !== 'FeatureCollection' || !Array.isArray(geojson.features)) {
+        throw new Error('URL must resolve to a GeoJSON FeatureCollection.')
+      }
+      const layerId = `url:${newId()}`
+      const name = normalizeName(layerName) || normalizeName(file.name.replace(/\.[^.]+$/, '')) || 'Layer'
+      const newLayer: LayerData = {
+        id: layerId,
+        name,
+        type: 'geojson',
+        source: 'url',
+        visible: true,
+        opacity: 1,
+        data: geojson,
+        url: trimmed,
+      }
+      setLayers(prev => [...prev, newLayer])
+      setSelectedLayerId(layerId)
+      closeAddLayer()
+    } catch (e: any) {
+      setDiscoverError(typeof e?.message === 'string' ? e.message : 'Failed to import from URL.')
     } finally {
       setAddingLayerKey(null)
     }
@@ -1774,6 +1817,9 @@ function GisContentPage() {
         </div>
       ) : null}
 
+      <div
+        className={`gis-content-unified${sidebarCollapsed ? ' gis-content-unified--collapsed' : ''}`}
+      >
       <aside className={`gis-sidebar${sidebarCollapsed ? ' gis-sidebar--collapsed' : ''}`} aria-label="GIS Layers Sidebar">
         <div className="gis-sidebar-header">
           <div className="gis-sidebar-title">
@@ -1806,10 +1852,27 @@ function GisContentPage() {
 
         <div className="gis-sidebar-body" id="gis-sidebar-panel">
           {sidebarCollapsed ? (
-            <div className="gis-sidebar-collapsed-hint" role="status">
-              <span className="gis-sidebar-collapsed-hint__line">{rows.length} layers</span>
-              <span className="gis-sidebar-collapsed-hint__sub">Expand to browse</span>
-            </div>
+            <button
+              type="button"
+              className="gis-sidebar-collapsed-layers"
+              onClick={() => setSidebarCollapsed(false)}
+              aria-label={`Expand to browse ${rows.length} layer${rows.length === 1 ? '' : 's'}`}
+              title="Expand layers list"
+            >
+              <span className="gis-sidebar-collapsed-layers__visual" aria-hidden>
+                <span className="gis-sidebar-collapsed-layers__deck gis-sidebar-collapsed-layers__deck--back">
+                  <i className="fa-solid fa-square" />
+                </span>
+                <span className="gis-sidebar-collapsed-layers__deck gis-sidebar-collapsed-layers__deck--mid">
+                  <i className="fa-solid fa-square" />
+                </span>
+                <span className="gis-sidebar-collapsed-layers__deck gis-sidebar-collapsed-layers__deck--front">
+                  <i className="fa-solid fa-layer-group" />
+                </span>
+              </span>
+              <span className="gis-sidebar-collapsed-layers__badge">{rows.length}</span>
+              <span className="gis-sidebar-collapsed-layers__caption">layers</span>
+            </button>
           ) : (
             <>
           <div className="gis-content-sidebarfilters">
@@ -1972,6 +2035,7 @@ function GisContentPage() {
         {renderMainHeader()}
         <div className="gis-content-body">{renderMain()}</div>
       </section>
+      </div>
 
       {layerModal ? (
         <div className="gis-modal-overlay" role="presentation" onClick={closeEditLayerModal}>
@@ -2031,21 +2095,34 @@ function GisContentPage() {
                 type="button"
                 role="tab"
                 aria-selected={tab === 'arcgis'}
-                className={tab === 'arcgis' ? 'gis-compact-tab active' : 'gis-compact-tab'}
+                aria-label="ArcGIS Feature Service"
+                title="ArcGIS Feature Service"
+                className={(tab === 'arcgis' ? 'gis-compact-tab active' : 'gis-compact-tab') + ' gis-compact-tab--icon'}
                 onClick={() => setTab('arcgis')}
               >
                 <i className="fa-solid fa-cloud" aria-hidden="true" />
-                ArcGIS Feature Service
               </button>
               <button
                 type="button"
                 role="tab"
                 aria-selected={tab === 'upload'}
-                className={tab === 'upload' ? 'gis-compact-tab active' : 'gis-compact-tab'}
+                aria-label="Upload file"
+                title="Upload file"
+                className={(tab === 'upload' ? 'gis-compact-tab active' : 'gis-compact-tab') + ' gis-compact-tab--icon'}
                 onClick={() => setTab('upload')}
               >
-                <i className="fa-solid fa-upload" aria-hidden="true" />
-                Upload File
+                <i className="fa-solid fa-file-arrow-up" aria-hidden="true" />
+              </button>
+              <button
+                type="button"
+                role="tab"
+                aria-selected={tab === 'url'}
+                aria-label="URL or web data"
+                title="Link to a web URL (GeoJSON, KML, CSV, ArcGIS REST export, documents)"
+                className={(tab === 'url' ? 'gis-compact-tab active' : 'gis-compact-tab') + ' gis-compact-tab--icon'}
+                onClick={() => setTab('url')}
+              >
+                <i className="fa-solid fa-globe" aria-hidden="true" />
               </button>
             </div>
 
@@ -2146,7 +2223,7 @@ function GisContentPage() {
                     </div>
                   ) : null}
                 </div>
-              ) : (
+              ) : tab === 'upload' ? (
                 <div key="upload" role="tabpanel" aria-label="Upload file">
                   <div
                     className={isDragOver ? 'gis-dropzone drag-over' : 'gis-dropzone'}
@@ -2221,6 +2298,56 @@ function GisContentPage() {
                   >
                     <i className="fa-solid fa-upload" aria-hidden="true" />
                     {addingLayerKey === `upload:${uploadFile?.name ?? ''}` ? 'Uploading…' : 'Upload & Import'}
+                  </button>
+                </div>
+              ) : (
+                <div key="url" role="tabpanel" aria-label="URL or web data">
+                  <input
+                    className="gis-input"
+                    type="url"
+                    value={remoteDataUrl}
+                    onChange={(e) => setRemoteDataUrl(e.target.value)}
+                    placeholder="https://… (GeoJSON, KML, KMZ, CSV, or other supported format)"
+                    autoComplete="off"
+                    inputMode="url"
+                    aria-label="Data file or service URL"
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault()
+                        void addUrlLayerAsGeoJson()
+                      }
+                    }}
+                  />
+
+                  <p className="gis-dropzone-subtext" style={{ margin: 0 }}>
+                    ArcGIS REST query URLs, hosted GeoJSON/KML/CSV, and other web-accessible GIS files (CORS must allow your browser).
+                  </p>
+
+                  <input
+                    className="gis-input"
+                    type="text"
+                    value={layerName}
+                    onChange={(e) => setLayerName(e.target.value)}
+                    placeholder="Layer Name (optional)"
+                    autoComplete="off"
+                    aria-label="Layer Name (optional)"
+                  />
+
+                  {discoverError ? (
+                    <div className="gis-inline-error" role="alert">
+                      <i className="fa-solid fa-triangle-exclamation" aria-hidden="true" />
+                      <span>{discoverError}</span>
+                    </div>
+                  ) : null}
+
+                  <button
+                    className="gis-btn-primary-full"
+                    type="button"
+                    onClick={() => void addUrlLayerAsGeoJson()}
+                    disabled={remoteDataUrl.trim() === '' || addingLayerKey === `url:${remoteDataUrl.trim()}`}
+                  >
+                    <i className="fa-solid fa-link" aria-hidden="true" />
+                    {addingLayerKey === `url:${remoteDataUrl.trim()}` ? 'Importing…' : 'Import from URL'}
                   </button>
                 </div>
               )}

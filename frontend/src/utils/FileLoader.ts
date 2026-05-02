@@ -178,3 +178,80 @@ const parseKmz = async (file: File, opts?: ParseOptions): Promise<ParsedData> =>
   }
   throw new Error("No KML file found in KMZ/Zip");
 };
+
+function safeBasename(name: string): string {
+  const n = name.replace(/[/\\]/g, '').trim()
+  return n || 'download'
+}
+
+function filenameFromContentDisposition(cd: string | null): string | null {
+  if (!cd) return null
+  const star = /filename\*\s*=\s*UTF-8''([^;\s]+)/i.exec(cd)
+  if (star?.[1]) {
+    try {
+      return safeBasename(decodeURIComponent(star[1].replace(/^"+|"+$/g, '')))
+    } catch {
+      return safeBasename(star[1])
+    }
+  }
+  const quoted = /filename\s*=\s*"([^"]+)"/i.exec(cd)
+  if (quoted?.[1]) return safeBasename(quoted[1])
+  const plain = /filename\s*=\s*([^;\s]+)/i.exec(cd)
+  if (plain?.[1]) return safeBasename(plain[1].replace(/^"+|"+$/g, ''))
+  return null
+}
+
+function basenameFromUrl(u: URL): string | null {
+  const parts = u.pathname.split('/').filter(Boolean)
+  const last = parts.length ? parts[parts.length - 1] : ''
+  if (!last) return null
+  try {
+    return safeBasename(decodeURIComponent(last))
+  } catch {
+    return safeBasename(last)
+  }
+}
+
+function extensionFromMime(mime: string | null): string | null {
+  if (!mime) return null
+  const base = mime.split(';')[0].trim().toLowerCase()
+  const map: Record<string, string> = {
+    'application/geo+json': 'geojson',
+    'application/json': 'json',
+    'text/csv': 'csv',
+    'text/xml': 'xml',
+    'application/xml': 'xml',
+    'application/vnd.google-earth.kml+xml': 'kml',
+    'application/vnd.google-earth.kmz': 'kmz',
+  }
+  return map[base] ?? null
+}
+
+/** Fetch a remote URL and build a `File` so existing `parseFile` logic can import it (GeoJSON, KML, CSV zip, etc.). */
+export async function parseRemoteUrlAsFile(url: string, opts?: ParseOptions): Promise<File> {
+  let parsed: URL
+  try {
+    parsed = new URL(url.trim())
+  } catch {
+    throw new Error('Invalid URL.')
+  }
+  if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+    throw new Error('Only http and https URLs are supported.')
+  }
+
+  const res = await fetch(parsed.toString(), { method: 'GET', signal: opts?.signal })
+  if (!res.ok) {
+    throw new Error(`Failed to fetch URL (${res.status}).`)
+  }
+
+  const blob = await res.blob()
+  let filename =
+    filenameFromContentDisposition(res.headers.get('content-disposition')) ?? basenameFromUrl(parsed) ?? 'layer'
+
+  if (!/\.[a-z0-9]{2,8}$/i.test(filename)) {
+    const ext = extensionFromMime(res.headers.get('content-type') || blob.type || null)
+    if (ext) filename = `${filename}.${ext}`
+  }
+
+  return new File([blob], filename, { type: blob.type || res.headers.get('content-type') || undefined })
+}

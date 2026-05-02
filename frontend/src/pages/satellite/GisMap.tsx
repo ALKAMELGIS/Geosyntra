@@ -13,8 +13,11 @@ import { BasemapGallery, BasemapLayer, type BasemapType } from './components/Bas
 import { useMapboxAccessToken } from '../../hooks/useMapboxAccessToken'
 import { getArcgisPortalToken } from '../../lib/arcgisPortalToken'
 import { getMapboxAccessToken } from '../../lib/mapboxAccessToken'
+import { parseFile, parseRemoteUrlAsFile } from '../../utils/FileLoader'
 
-type AddLayerTab = 'arcgis' | 'database' | 'upload'
+type AddLayerTab = 'arcgis' | 'database' | 'upload' | 'url'
+
+const newGisImportId = () => `${Date.now()}_${Math.random().toString(16).slice(2)}`
 type DatabaseAuthType = 'database' | 'operating-system'
 type GisMapToolPanel = 'basemap' | 'legend' | 'chart' | 'print' | 'measure' | 'search' | null
 type MapProjectionMode = 'globe' | '2d'
@@ -408,6 +411,8 @@ export default function GisMap() {
   const [discoveredLayers, setDiscoveredLayers] = useState<Array<{ id: number; name: string; kind: 'layer' | 'table'; url: string; geometryType?: string }>>([])
   const [selectedDiscoveredUrl, setSelectedDiscoveredUrl] = useState<string>('')
   const [addingLayerKey, setAddingLayerKey] = useState<string | null>(null)
+  const [uploadFile, setUploadFile] = useState<File | null>(null)
+  const [remoteDataUrl, setRemoteDataUrl] = useState('')
   const [syncingLayerKey, setSyncingLayerKey] = useState<string | null>(null)
   const [openLayerMenuId, setOpenLayerMenuId] = useState<string | null>(null)
   const [layerMenuPos, setLayerMenuPos] = useState<null | { top: number; left: number }>(null)
@@ -472,6 +477,33 @@ export default function GisMap() {
       }
   >(null)
   const [mapPopupPos, setMapPopupPos] = useState<null | { left: number; top: number; placement: 'top' | 'bottom'; arrowLeft: number }>(null)
+
+  const openAddLayerModal = useCallback((initialTab?: AddLayerTab) => {
+    dragDepthRef.current = 0
+    setIsDragOver(false)
+    setUploadFile(null)
+    setRemoteDataUrl('')
+    setTab(initialTab ?? 'arcgis')
+    setServiceUrl('')
+    setDiscoveredLayers([])
+    setSelectedDiscoveredUrl('')
+    setLayerName('')
+    setDiscoverError(null)
+    setIsDiscovering(false)
+    setAddingLayerKey(null)
+    setIsAddOpen(true)
+  }, [])
+
+  const closeAddLayerModal = useCallback(() => {
+    dragDepthRef.current = 0
+    setIsDragOver(false)
+    setIsAddOpen(false)
+    setDiscoverError(null)
+    setIsDiscovering(false)
+    setAddingLayerKey(null)
+    setUploadFile(null)
+    setRemoteDataUrl('')
+  }, [])
 
   const orderedLayers = useMemo(() => [...layers].reverse(), [layers])
   const globeMapStyle = useMemo(() => {
@@ -560,12 +592,12 @@ export default function GisMap() {
     const onKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
         e.preventDefault()
-        setIsAddOpen(false)
+        closeAddLayerModal()
       }
     }
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
-  }, [isAddOpen])
+  }, [isAddOpen, closeAddLayerModal])
 
   useEffect(() => {
     loadLayersFromDB().then((savedLayers) => {
@@ -2784,8 +2816,104 @@ export default function GisMap() {
       setToken('')
       setDiscoveredLayers([])
       setSelectedDiscoveredUrl('')
+      setUploadFile(null)
+      setRemoteDataUrl('')
     } catch (e: any) {
       setDiscoverError(typeof e?.message === 'string' ? e.message : 'Failed to add layer.')
+    } finally {
+      setAddingLayerKey(null)
+    }
+  }
+
+  const setUploadFromFile = (file: File | null) => {
+    setUploadFile(file)
+    if (!file) return
+    if (layerName.trim()) return
+    const stem = file.name.replace(/\.[^.]+$/, '').trim()
+    if (stem) setLayerName(stem)
+  }
+
+  const addUploadLayerAsGeoJson = async () => {
+    if (!uploadFile) return
+    const key = `upload:${uploadFile.name}`
+    setAddingLayerKey(key)
+    setDiscoverError(null)
+    try {
+      const parsed = await parseFile(uploadFile)
+      if (parsed.type !== 'geojson') throw new Error('File must contain GIS features (GeoJSON/KML/KMZ/Shapefile zip).')
+      let geojson: any = parsed.data
+      if (Array.isArray(geojson)) geojson = geojson[0]
+      if (!geojson || geojson.type !== 'FeatureCollection' || !Array.isArray(geojson.features)) {
+        throw new Error('File must be a GeoJSON FeatureCollection.')
+      }
+      const layerId = `upload:${newGisImportId()}`
+      const name = layerName.trim() || uploadFile.name.replace(/\.[^.]+$/, '').trim() || 'Layer'
+      const newLayer: LayerData = {
+        id: layerId,
+        name,
+        type: 'geojson',
+        source: 'upload',
+        visible: true,
+        opacity: 1,
+        data: geojson,
+      }
+      setLayers(prev => [...prev, newLayer])
+      setIsAddOpen(false)
+      setLayerName('')
+      setUploadFile(null)
+      setRemoteDataUrl('')
+      setServiceUrl('')
+      setDiscoveredLayers([])
+      setSelectedDiscoveredUrl('')
+      setDiscoverError(null)
+    } catch (e: any) {
+      setDiscoverError(typeof e?.message === 'string' ? e.message : 'Failed to import file.')
+    } finally {
+      setAddingLayerKey(null)
+    }
+  }
+
+  const addUrlLayerAsGeoJson = async () => {
+    const trimmed = remoteDataUrl.trim()
+    if (!trimmed) return
+    const opKey = `url:${trimmed}`
+    setAddingLayerKey(opKey)
+    setDiscoverError(null)
+    try {
+      const file = await parseRemoteUrlAsFile(trimmed)
+      const parsed = await parseFile(file)
+      if (parsed.type !== 'geojson') {
+        throw new Error('URL must resolve to GIS features (GeoJSON/KML/KMZ/Shapefile zip/CSV with coordinates).')
+      }
+      let geojson: any = parsed.data
+      if (Array.isArray(geojson)) geojson = geojson[0]
+      if (!geojson || geojson.type !== 'FeatureCollection' || !Array.isArray(geojson.features)) {
+        throw new Error('URL must resolve to a GeoJSON FeatureCollection.')
+      }
+      const layerId = `url:${newGisImportId()}`
+      const stem = file.name.replace(/\.[^.]+$/, '').trim()
+      const name = layerName.trim() || stem || 'Layer'
+      const newLayer: LayerData = {
+        id: layerId,
+        name,
+        type: 'geojson',
+        source: 'url',
+        visible: true,
+        opacity: 1,
+        data: geojson,
+        url: trimmed,
+      }
+      setLayers(prev => [...prev, newLayer])
+      setIsAddOpen(false)
+      setLayerName('')
+      setUploadFile(null)
+      setRemoteDataUrl('')
+      setServiceUrl('')
+      setDiscoveredLayers([])
+      setSelectedDiscoveredUrl('')
+      setDiscoverError(null)
+    } catch (e: any) {
+      setDiscoverError(typeof e?.message === 'string' ? e.message : 'Failed to import from URL.')
     } finally {
       setAddingLayerKey(null)
     }
@@ -2903,7 +3031,7 @@ export default function GisMap() {
               <button
                 className="gis-addlayer-btn gis-addlayer-btn--icon-only"
                 type="button"
-                onClick={() => setIsAddOpen(true)}
+                onClick={() => openAddLayerModal()}
                 aria-label="Add layer"
                 title="Add layer"
               >
@@ -2924,7 +3052,7 @@ export default function GisMap() {
           <div className="gis-sidebar-body">
             {isMobileDrawerViewport ? (
               <div className="gis-launcher-grid" role="navigation" aria-label="GIS Launcher">
-                <button type="button" className="gis-launcher-chip" onClick={() => setIsAddOpen(true)}>
+                <button type="button" className="gis-launcher-chip" onClick={() => openAddLayerModal()}>
                   <i className="fa-solid fa-grid-2" aria-hidden="true" />
                   <span>Applications</span>
                 </button>
@@ -2936,7 +3064,7 @@ export default function GisMap() {
                   <i className="fa-solid fa-ruler-combined" aria-hidden="true" />
                   <span>Geo Tools</span>
                 </button>
-                <button type="button" className="gis-launcher-chip" onClick={() => { setTab('database'); setIsAddOpen(true) }}>
+                <button type="button" className="gis-launcher-chip" onClick={() => openAddLayerModal('database')}>
                   <i className="fa-solid fa-gear" aria-hidden="true" />
                   <span>Settings</span>
                 </button>
@@ -2983,10 +3111,21 @@ export default function GisMap() {
                           </span>
                           <span className="gis-layer-meta" aria-label="Layer metadata">
                             <i
-                              className={layer.source === 'arcgis' ? 'fa-solid fa-cloud' : 'fa-solid fa-file-arrow-up'}
+                              className={
+                                layer.source === 'arcgis'
+                                  ? 'fa-solid fa-cloud'
+                                  : layer.source === 'url'
+                                    ? 'fa-solid fa-globe'
+                                    : 'fa-solid fa-file-arrow-up'
+                              }
                               aria-hidden="true"
                             />
-                            <span>{(layer.source === 'arcgis' ? 'ArcGIS' : 'Upload') + ' - ' + featureCount + ' features'}</span>
+                            <span>
+                              {(layer.source === 'arcgis' ? 'ArcGIS' : layer.source === 'url' ? 'URL' : 'Upload') +
+                                ' - ' +
+                                featureCount +
+                                ' features'}
+                            </span>
                           </span>
                         </span>
                       </div>
@@ -5310,7 +5449,7 @@ export default function GisMap() {
       ) : null}
 
       {isAddOpen ? (
-        <div className="gis-modal-overlay" role="presentation" onClick={() => setIsAddOpen(false)}>
+        <div className="gis-modal-overlay" role="presentation" onClick={closeAddLayerModal}>
           <div
             className="gis-modal gis-modal-compact"
             role="dialog"
@@ -5327,31 +5466,45 @@ export default function GisMap() {
                 type="button"
                 role="tab"
                 aria-selected={tab === 'arcgis'}
-                className={tab === 'arcgis' ? 'gis-compact-tab active' : 'gis-compact-tab'}
+                aria-label="ArcGIS Feature Service"
+                title="ArcGIS Feature Service"
+                className={(tab === 'arcgis' ? 'gis-compact-tab active' : 'gis-compact-tab') + ' gis-compact-tab--icon'}
                 onClick={() => setTab('arcgis')}
               >
                 <i className="fa-solid fa-cloud" aria-hidden="true" />
-                ArcGIS Feature Service
               </button>
               <button
                 type="button"
                 role="tab"
                 aria-selected={tab === 'database'}
-                className={tab === 'database' ? 'gis-compact-tab active' : 'gis-compact-tab'}
+                aria-label="Database connection"
+                title="Database connection"
+                className={(tab === 'database' ? 'gis-compact-tab active' : 'gis-compact-tab') + ' gis-compact-tab--icon'}
                 onClick={() => setTab('database')}
               >
                 <i className="fa-solid fa-database" aria-hidden="true" />
-                Database Connection
               </button>
               <button
                 type="button"
                 role="tab"
                 aria-selected={tab === 'upload'}
-                className={tab === 'upload' ? 'gis-compact-tab active' : 'gis-compact-tab'}
+                aria-label="Upload file"
+                title="Upload file"
+                className={(tab === 'upload' ? 'gis-compact-tab active' : 'gis-compact-tab') + ' gis-compact-tab--icon'}
                 onClick={() => setTab('upload')}
               >
-                <i className="fa-solid fa-upload" aria-hidden="true" />
-                Upload File
+                <i className="fa-solid fa-file-arrow-up" aria-hidden="true" />
+              </button>
+              <button
+                type="button"
+                role="tab"
+                aria-selected={tab === 'url'}
+                aria-label="URL or web data"
+                title="Link to a web URL (GeoJSON, KML, CSV, ArcGIS REST export, documents)"
+                className={(tab === 'url' ? 'gis-compact-tab active' : 'gis-compact-tab') + ' gis-compact-tab--icon'}
+                onClick={() => setTab('url')}
+              >
+                <i className="fa-solid fa-globe" aria-hidden="true" />
               </button>
             </div>
 
@@ -5584,7 +5737,7 @@ export default function GisMap() {
                     </div>
                   ) : null}
                 </div>
-              ) : (
+              ) : tab === 'upload' ? (
                 <div role="tabpanel" aria-label="Upload file">
                   <div
                     className={isDragOver ? 'gis-dropzone drag-over' : 'gis-dropzone'}
@@ -5623,6 +5776,8 @@ export default function GisMap() {
                       e.stopPropagation()
                       dragDepthRef.current = 0
                       setIsDragOver(false)
+                      const file = e.dataTransfer?.files?.[0] ?? null
+                      setUploadFromFile(file)
                     }}
                   >
                     <div className="gis-dropzone-icon" aria-hidden="true">
@@ -5632,7 +5787,12 @@ export default function GisMap() {
                     <div className="gis-dropzone-subtext">Supports: GeoJSON, KML, KMZ, Shapefile (.zip)</div>
                   </div>
 
-                  <input ref={fileInputRef} type="file" style={{ display: 'none' }} />
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    style={{ display: 'none' }}
+                    onChange={(e) => setUploadFromFile(e.target.files?.[0] ?? null)}
+                  />
 
                   <input
                     id="gis-layer-name"
@@ -5644,16 +5804,72 @@ export default function GisMap() {
                     autoComplete="off"
                   />
 
-                  <button className="gis-btn-primary-full" type="button">
+                  <button
+                    className="gis-btn-primary-full"
+                    type="button"
+                    onClick={addUploadLayerAsGeoJson}
+                    disabled={!uploadFile || addingLayerKey === `upload:${uploadFile.name}`}
+                  >
                     <i className="fa-solid fa-upload" aria-hidden="true" />
-                    Upload &amp; Import
+                    {addingLayerKey === `upload:${uploadFile?.name ?? ''}` ? 'Uploading…' : 'Upload & Import'}
+                  </button>
+                </div>
+              ) : (
+                <div role="tabpanel" aria-label="URL or web data">
+                  <input
+                    id="gis-remote-data-url"
+                    className="gis-input"
+                    type="url"
+                    value={remoteDataUrl}
+                    onChange={(e) => setRemoteDataUrl(e.target.value)}
+                    placeholder="https://… (GeoJSON, KML, KMZ, CSV, or other supported format)"
+                    autoComplete="off"
+                    inputMode="url"
+                    aria-label="Data file or service URL"
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault()
+                        void addUrlLayerAsGeoJson()
+                      }
+                    }}
+                  />
+
+                  <p className="gis-dropzone-subtext" style={{ margin: 0 }}>
+                    ArcGIS REST query URLs, hosted GeoJSON/KML/CSV, and other web-accessible GIS files (CORS must allow your browser).
+                  </p>
+
+                  <input
+                    className="gis-input"
+                    type="text"
+                    value={layerName}
+                    onChange={(e) => setLayerName(e.target.value)}
+                    placeholder="Layer Name (optional)"
+                    autoComplete="off"
+                    aria-label="Layer Name (optional)"
+                  />
+
+                  {discoverError ? (
+                    <div className="gis-inline-error" role="alert">
+                      <i className="fa-solid fa-triangle-exclamation" aria-hidden="true" />
+                      <span>{discoverError}</span>
+                    </div>
+                  ) : null}
+
+                  <button
+                    className="gis-btn-primary-full"
+                    type="button"
+                    onClick={() => void addUrlLayerAsGeoJson()}
+                    disabled={remoteDataUrl.trim() === '' || addingLayerKey === `url:${remoteDataUrl.trim()}`}
+                  >
+                    <i className="fa-solid fa-link" aria-hidden="true" />
+                    {addingLayerKey === `url:${remoteDataUrl.trim()}` ? 'Importing…' : 'Import from URL'}
                   </button>
                 </div>
               )}
             </div>
 
             <div className="gis-modal-footer">
-              <button className="gis-link-btn" type="button" onClick={() => setIsAddOpen(false)}>
+              <button className="gis-link-btn" type="button" onClick={closeAddLayerModal}>
                 Cancel
               </button>
             </div>

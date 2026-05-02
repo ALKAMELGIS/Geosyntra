@@ -26,7 +26,7 @@ export interface LayerData {
   id: number | string;
   name: string;
   type: 'geojson' | 'wms' | 'tile' | 'image';
-  source?: 'arcgis' | 'upload';
+  source?: 'arcgis' | 'upload' | 'url';
   visible: boolean;
   opacity: number;
   data?: any; // GeoJSON data or other source info
