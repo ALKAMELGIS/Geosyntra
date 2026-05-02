@@ -2953,24 +2953,26 @@ export default function DevelopDashboard() {
                     <h3 className="ddb-vis-chart-types__head" id="ddb-vis-chart-types-heading">
                       Chart types
                     </h3>
-                    <div
-                      className="ddb-powerbi-grid ddb-powerbi-grid--in-right-sheet"
-                      role="group"
-                      aria-label="Visualization types"
-                    >
-                      {CHART_TOOLS.map(t => (
-                        <button
-                          key={t.chart}
-                          type="button"
-                          className={`ddb-chart-tool-item${selectedCharts.has(t.chart) ? ' is-selected' : ''}`}
-                          title={t.label}
-                          aria-pressed={selectedCharts.has(t.chart)}
-                          onClick={() => toggleChartTool(t.chart)}
-                        >
-                          <i className={t.icon} aria-hidden />
-                          <span className="ddb-chart-tool-label-sr">{t.label}</span>
-                        </button>
-                      ))}
+                    <div className="ddb-vis-chart-types__scroll">
+                      <div
+                        className="ddb-powerbi-grid ddb-powerbi-grid--in-right-sheet"
+                        role="group"
+                        aria-label="Visualization types"
+                      >
+                        {CHART_TOOLS.map(t => (
+                          <button
+                            key={t.chart}
+                            type="button"
+                            className={`ddb-chart-tool-item${selectedCharts.has(t.chart) ? ' is-selected' : ''}`}
+                            title={t.label}
+                            aria-pressed={selectedCharts.has(t.chart)}
+                            onClick={() => toggleChartTool(t.chart)}
+                          >
+                            <i className={t.icon} aria-hidden />
+                            <span className="ddb-chart-tool-label-sr">{t.label}</span>
+                          </button>
+                        ))}
+                      </div>
                     </div>
                   </section>
                   <div className="ddb-vis-add-actions ddb-vis-add-actions--below-charts">
