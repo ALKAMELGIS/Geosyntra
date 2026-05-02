@@ -34,6 +34,16 @@ import {
   subscribeSentinelHubWmsInstance,
 } from '../../lib/sentinelHubWmsInstance';
 import {
+  GEO_EXPLORER_SYSTEM_PROMPT,
+  geminiGenerateContent,
+  messageDisplayText,
+  messagesToGeminiContents,
+  parseMapQueryLngLat,
+  stripMapQueryLine,
+  type GeoExplorerMessage,
+  type GeoExplorerPart,
+} from '../../lib/geoExplorerGemini';
+import {
   buildBasemapCatalog,
   catalogEntryById,
   DEFAULT_BASEMAP_ID,
@@ -1038,8 +1048,19 @@ export default function SatelliteIntelligence() {
   const [apiEndpoint, setApiEndpoint] = useState('');
   const [apiStatus, setApiStatus] = useState('Optional API connection is ready.');
   const [expandedEnvSection, setExpandedEnvSection] = useState<
-    'source' | 'layers' | 'explore-stac' | 'remote-sensing'
+    'source' | 'layers' | 'explore-stac' | 'remote-sensing' | 'table-geo-ai'
   >('source');
+  const [geoExplorerMessages, setGeoExplorerMessages] = useState<GeoExplorerMessage[]>([]);
+  const [geoExplorerDraft, setGeoExplorerDraft] = useState('');
+  const [geoExplorerPendingImage, setGeoExplorerPendingImage] = useState<{
+    mime: string;
+    base64: string;
+  } | null>(null);
+  const [geoExplorerBusy, setGeoExplorerBusy] = useState(false);
+  const [geoExplorerChatError, setGeoExplorerChatError] = useState('');
+  const [geoAiPinLngLat, setGeoAiPinLngLat] = useState<[number, number] | null>(null);
+  const geoExplorerFileInputRef = useRef<HTMLInputElement | null>(null);
+  const geoExplorerInFlightRef = useRef(false);
   const [polygonClosingSnap, setPolygonClosingSnap] = useState(false);
   const [drawAssistHint, setDrawAssistHint] = useState('');
   const [circleRadiusM, setCircleRadiusM] = useState<number | null>(null);
@@ -2385,6 +2406,131 @@ export default function SatelliteIntelligence() {
 
   const getMapInstance = () => mapRef.current?.getMap?.() ?? mapRef.current;
 
+  const geoAiPinGeoJson = useMemo(() => {
+    if (!geoAiPinLngLat) return null;
+    return {
+      type: 'FeatureCollection' as const,
+      features: [
+        {
+          type: 'Feature' as const,
+          properties: {},
+          geometry: { type: 'Point' as const, coordinates: geoAiPinLngLat },
+        },
+      ],
+    };
+  }, [geoAiPinLngLat]);
+
+  const clearGeoExplorerChat = useCallback(() => {
+    geoExplorerInFlightRef.current = false;
+    setGeoExplorerBusy(false);
+    setGeoExplorerMessages([]);
+    setGeoExplorerDraft('');
+    setGeoExplorerPendingImage(null);
+    setGeoExplorerChatError('');
+    setGeoAiPinLngLat(null);
+  }, []);
+
+  const sendGeoExplorerChat = useCallback(() => {
+    const trimmed = geoExplorerDraft.trim();
+    if (geoExplorerInFlightRef.current) return;
+    if (!trimmed && !geoExplorerPendingImage) return;
+    const apiKey = (import.meta.env.VITE_GEMINI_API_KEY as string | undefined)?.trim();
+    if (!apiKey) {
+      setGeoExplorerChatError(
+        'Set VITE_GEMINI_API_KEY in your environment (see .env.example). Never commit API keys to the repository.'
+      );
+      return;
+    }
+
+    const userParts: GeoExplorerPart[] = [];
+    if (trimmed) userParts.push({ type: 'text', text: trimmed });
+    if (geoExplorerPendingImage) {
+      userParts.push({
+        type: 'image',
+        mime: geoExplorerPendingImage.mime,
+        base64: geoExplorerPendingImage.base64,
+      });
+    }
+    if (userParts.length === 0) return;
+
+    const userId =
+      typeof crypto !== 'undefined' && 'randomUUID' in crypto
+        ? crypto.randomUUID()
+        : `geo-${Date.now()}`;
+    const userMsg: GeoExplorerMessage = { id: userId, role: 'user', parts: userParts };
+
+    setGeoExplorerDraft('');
+    setGeoExplorerPendingImage(null);
+    setGeoExplorerChatError('');
+    geoExplorerInFlightRef.current = true;
+    setGeoExplorerBusy(true);
+
+    setGeoExplorerMessages(prev => {
+      const historyWithUser = [...prev, userMsg];
+      queueMicrotask(async () => {
+        try {
+          const reply = await geminiGenerateContent({
+            apiKey,
+            systemInstruction: GEO_EXPLORER_SYSTEM_PROMPT,
+            contents: messagesToGeminiContents(historyWithUser),
+          });
+          const modelId =
+            typeof crypto !== 'undefined' && 'randomUUID' in crypto
+              ? crypto.randomUUID()
+              : `geo-m-${Date.now()}`;
+          const modelMsg: GeoExplorerMessage = {
+            id: modelId,
+            role: 'model',
+            parts: [{ type: 'text', text: reply }],
+          };
+          setGeoExplorerMessages(h => [...h, modelMsg]);
+          const coords = parseMapQueryLngLat(reply);
+          if (coords) {
+            setGeoAiPinLngLat(coords);
+            const map = getMapInstance();
+            try {
+              const z = map?.getZoom?.() ?? 2;
+              map?.flyTo?.({
+                center: coords,
+                zoom: Math.max(10, z),
+                duration: 1600,
+                essential: true,
+              });
+            } catch {
+              /* ignore */
+            }
+          }
+        } catch (e) {
+          setGeoExplorerChatError(e instanceof Error ? e.message : String(e));
+        } finally {
+          geoExplorerInFlightRef.current = false;
+          setGeoExplorerBusy(false);
+        }
+      });
+      return historyWithUser;
+    });
+  }, [geoExplorerDraft, geoExplorerPendingImage]);
+
+  const onGeoExplorerAttachChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    if (!file.type.startsWith('image/')) {
+      setGeoExplorerChatError('Please attach an image file (PNG, JPEG, WebP, …).');
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => {
+      const dataUrl = reader.result as string;
+      const i = dataUrl.indexOf(',');
+      const base64 = i >= 0 ? dataUrl.slice(i + 1) : dataUrl;
+      setGeoExplorerPendingImage({ mime: file.type || 'image/jpeg', base64 });
+      setGeoExplorerChatError('');
+    };
+    reader.onerror = () => setGeoExplorerChatError('Could not read the image file.');
+    reader.readAsDataURL(file);
+  }, []);
+
   const setMapDragPanEnabled = (enabled: boolean) => {
     const map = getMapInstance();
     try {
@@ -3215,7 +3361,14 @@ export default function SatelliteIntelligence() {
                 onChange={handleLayerFileChange}
               />
               {isLayerDropdownOpen && (
-                <div className={`si-env-panel${expandedEnvSection === 'explore-stac' ? ' si-env-panel--explore-stac' : ''}`} dir="auto">
+                <div
+                  className={`si-env-panel${
+                    expandedEnvSection === 'explore-stac' || expandedEnvSection === 'table-geo-ai'
+                      ? ' si-env-panel--explore-stac'
+                      : ''
+                  }`}
+                  dir="auto"
+                >
                   <div className="si-env-panel-header">
                     <div className="si-env-header-top">
                       <div>
@@ -3235,7 +3388,7 @@ export default function SatelliteIntelligence() {
                   </div>
                   <div className="si-env-panel-body">
                     <div
-                      className="si-env-section-tabs si-env-section-tabs--three"
+                      className="si-env-section-tabs si-env-section-tabs--four"
                       role="tablist"
                       aria-label="Environmental Index sections"
                     >
@@ -3246,6 +3399,11 @@ export default function SatelliteIntelligence() {
                           id: 'remote-sensing' as const,
                           label: 'Remote sensing',
                           icon: 'fa-solid fa-satellite-dish',
+                        },
+                        {
+                          id: 'table-geo-ai' as const,
+                          label: 'Table Geo AI',
+                          icon: 'fa-solid fa-table-cells-large',
                         },
                       ].map(section => (
                         <button
@@ -4106,6 +4264,137 @@ export default function SatelliteIntelligence() {
                         {fieldAnalysisStatus ? <p className="si-field-analysis-status">{fieldAnalysisStatus}</p> : null}
                       </div>
                     )}
+                    {expandedEnvSection === 'table-geo-ai' && (
+                      <div className="si-geo-explorer-root">
+                        <div className="si-env-section-card si-geo-explorer">
+                          <div className="si-geo-explorer-header">
+                            <h2 className="si-geo-explorer-title">Geo Explorer</h2>
+                            <button
+                              type="button"
+                              className="si-geo-explorer-icon-btn"
+                              onClick={clearGeoExplorerChat}
+                              aria-label="Clear chat"
+                              title="Clear chat"
+                            >
+                              <i className="fa-solid fa-trash" aria-hidden />
+                            </button>
+                          </div>
+                          <div className="si-geo-explorer-messages">
+                            <div className="si-geo-explorer-row si-geo-explorer-row--model">
+                              <div className="si-geo-explorer-avatar" aria-hidden>
+                                <i className="fa-solid fa-globe" />
+                              </div>
+                              <div className="si-geo-explorer-bubble">
+                                Hello! Describe a place, upload an image, or ask for directions. When a location is clear, the
+                                map will fly there (the model adds a MAP_QUERY line).
+                              </div>
+                            </div>
+                            {geoExplorerMessages.map(msg => {
+                              const raw = messageDisplayText(msg);
+                              const show =
+                                msg.role === 'model' ? stripMapQueryLine(raw) : raw;
+                              const hasImage = msg.parts.some(p => p.type === 'image');
+                              return (
+                                <div
+                                  key={msg.id}
+                                  className={`si-geo-explorer-row si-geo-explorer-row--${msg.role}`}
+                                >
+                                  {msg.role === 'model' ? (
+                                    <div className="si-geo-explorer-avatar" aria-hidden>
+                                      <i className="fa-solid fa-wand-magic-sparkles" />
+                                    </div>
+                                  ) : null}
+                                  <div className="si-geo-explorer-bubble">
+                                    {show ? <p className="si-geo-explorer-bubble-text">{show}</p> : null}
+                                    {msg.role === 'user' && hasImage ? (
+                                      <p className="si-geo-explorer-bubble-meta">
+                                        <i className="fa-solid fa-paperclip" aria-hidden /> Image attached
+                                      </p>
+                                    ) : null}
+                                  </div>
+                                </div>
+                              );
+                            })}
+                            {geoExplorerBusy ? (
+                              <div className="si-geo-explorer-row si-geo-explorer-row--model">
+                                <div className="si-geo-explorer-avatar" aria-hidden>
+                                  <i className="fa-solid fa-wand-magic-sparkles" />
+                                </div>
+                                <div className="si-geo-explorer-bubble si-geo-explorer-bubble--typing">
+                                  <i className="fa-solid fa-spinner fa-spin" aria-hidden /> Thinking…
+                                </div>
+                              </div>
+                            ) : null}
+                          </div>
+                          {geoExplorerChatError ? (
+                            <p className="si-geo-explorer-error">{geoExplorerChatError}</p>
+                          ) : null}
+                          {geoExplorerPendingImage ? (
+                            <p className="si-geo-explorer-pending-img">
+                              <i className="fa-solid fa-image" aria-hidden /> Image ready to send
+                              <button
+                                type="button"
+                                className="si-geo-explorer-linkish"
+                                onClick={() => setGeoExplorerPendingImage(null)}
+                              >
+                                Remove
+                              </button>
+                            </p>
+                          ) : null}
+                          <div className="si-geo-explorer-input-row">
+                            <textarea
+                              className="si-geo-explorer-input"
+                              rows={2}
+                              value={geoExplorerDraft}
+                              onChange={e => setGeoExplorerDraft(e.target.value)}
+                              onKeyDown={e => {
+                                if (e.key === 'Enter' && !e.shiftKey) {
+                                  e.preventDefault();
+                                  sendGeoExplorerChat();
+                                }
+                              }}
+                              placeholder="Describe a place, ask for directions, or plan a trip…"
+                              aria-label="Geo Explorer message"
+                              disabled={geoExplorerBusy}
+                            />
+                            <input
+                              ref={geoExplorerFileInputRef}
+                              type="file"
+                              className="si-geo-explorer-file-input"
+                              accept="image/*"
+                              onChange={onGeoExplorerAttachChange}
+                              aria-hidden
+                              tabIndex={-1}
+                            />
+                            <button
+                              type="button"
+                              className="si-geo-explorer-attach"
+                              onClick={() => geoExplorerFileInputRef.current?.click()}
+                              disabled={geoExplorerBusy}
+                              aria-label="Attach image"
+                              title="Attach image"
+                            >
+                              <i className="fa-solid fa-paperclip" aria-hidden />
+                            </button>
+                            <button
+                              type="button"
+                              className="si-geo-explorer-send"
+                              onClick={sendGeoExplorerChat}
+                              disabled={
+                                geoExplorerBusy || (!geoExplorerDraft.trim() && !geoExplorerPendingImage)
+                              }
+                              aria-label="Send"
+                              title="Send"
+                            >
+                              <i className="fa-solid fa-paper-plane" aria-hidden />
+                            </button>
+                          </div>
+                          <p className="si-geo-explorer-footnote">
+                            Powered by Google Gemini. Configure <code>VITE_GEMINI_API_KEY</code> locally; do not commit keys.
+                          </p>
+                        </div>
+                      </div>
+                    )}
                     {expandedEnvSection === 'source' && (
                       <div className="si-env-section-card">
                         <p className="si-env-toolbar-hint si-env-toolbar-hint--muted">
@@ -4425,6 +4714,31 @@ export default function SatelliteIntelligence() {
                 />
               </Source>
             )}
+
+            {geoAiPinGeoJson ? (
+              <Source id="si-geo-ai-pin" type="geojson" data={geoAiPinGeoJson as any}>
+                <Layer
+                  id="si-geo-ai-pin-glow"
+                  type="circle"
+                  paint={{
+                    'circle-radius': 18,
+                    'circle-color': '#a78bfa',
+                    'circle-opacity': 0.35,
+                    'circle-blur': 0.6,
+                  }}
+                />
+                <Layer
+                  id="si-geo-ai-pin-core"
+                  type="circle"
+                  paint={{
+                    'circle-radius': 7,
+                    'circle-color': '#c4b5fd',
+                    'circle-stroke-width': 2,
+                    'circle-stroke-color': '#faf5ff',
+                  }}
+                />
+              </Source>
+            ) : null}
 
             {draftDrawGeoJson ? (
               <Source id="si-draw-draft" type="geojson" data={draftDrawGeoJson as any}>
