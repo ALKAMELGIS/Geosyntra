@@ -67,7 +67,32 @@ export function messagesToGeminiContents(messages: GeoExplorerMessage[]): Gemini
   }));
 }
 
-const GEMINI_MODEL_CANDIDATES = ['gemini-2.0-flash', 'gemini-1.5-flash', 'gemini-1.5-flash-latest'] as const;
+/** Prefer 1.5-flash first: many API keys have no free-tier quota on gemini-2.0-flash (limit 0). */
+const GEMINI_MODEL_CANDIDATES = [
+  'gemini-1.5-flash',
+  'gemini-1.5-flash-8b',
+  'gemini-1.5-flash-latest',
+  'gemini-2.0-flash',
+] as const;
+
+function shouldTryNextGeminiModel(status: number, message: string): boolean {
+  const m = message.toLowerCase();
+  return (
+    status === 404 ||
+    status === 400 ||
+    status === 429 ||
+    status === 503 ||
+    m.includes('quota') ||
+    m.includes('resource_exhausted') ||
+    m.includes('resource exhausted') ||
+    m.includes('rate limit') ||
+    m.includes('rate_limit') ||
+    m.includes('overloaded') ||
+    m.includes('not found') ||
+    m.includes('is not found') ||
+    m.includes('not supported')
+  );
+}
 
 export async function geminiGenerateContent(params: {
   apiKey: string;
@@ -90,7 +115,7 @@ export async function geminiGenerateContent(params: {
     const data = (await res.json().catch(() => ({}))) as any;
     if (!res.ok) {
       lastErr = data?.error?.message || res.statusText || `HTTP ${res.status}`;
-      if (res.status === 404 || res.status === 400) continue;
+      if (shouldTryNextGeminiModel(res.status, String(lastErr))) continue;
       throw new Error(lastErr);
     }
     const text =

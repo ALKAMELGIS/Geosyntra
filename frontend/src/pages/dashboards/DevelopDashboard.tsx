@@ -12,6 +12,19 @@ const STRUCTURES_URL =
 const CROPS_URL =
   'https://services1.arcgis.com/jz3ndhbYV5K9NwI8/ArcGIS/rest/services/Agro_Structures/FeatureServer/32'
 
+type LayerOrigin = 'sample' | 'user'
+
+/** Tabular CSV (no lat/lon) — Power BI “Data” pane style. */
+type CsvDataset = {
+  id: string
+  name: string
+  columns: string[]
+  rows: Record<string, unknown>[]
+  origin: LayerOrigin
+}
+
+type RightPowerBiPanel = 'none' | 'filters' | 'visualizations' | 'data'
+
 type LayerState = {
   name: string
   type: 'feature' | 'table'
@@ -19,6 +32,8 @@ type LayerState = {
   data: GeoJSON.FeatureCollection
   fields: string[]
   visible: boolean
+  /** `sample` = bundled demo layers; `user` = added via Add Source Data / GIS Content / etc. */
+  origin: LayerOrigin
 }
 
 type StatCardRow = {
@@ -94,6 +109,24 @@ function newId() {
 type AddGisLayerTab = 'arcgis' | 'database' | 'upload' | 'url'
 
 type AddSourceWizard = 'home' | 'gis-list' | 'tabs'
+
+const GET_DATA_COMMON_SOURCES: Array<{
+  id: string
+  label: string
+  icon: string
+  iconColor?: string
+}> = [
+  { id: 'excel', label: 'Excel workbook', icon: 'fa-solid fa-file-excel', iconColor: '#217346' },
+  { id: 'semantic', label: 'Power BI semantic models', icon: 'fa-solid fa-cubes', iconColor: '#f2c811' },
+  { id: 'dataflows', label: 'Dataflows', icon: 'fa-solid fa-diagram-project', iconColor: '#742774' },
+  { id: 'dataverse', label: 'Dataverse', icon: 'fa-solid fa-cloud', iconColor: '#742774' },
+  { id: 'sql', label: 'SQL Server', icon: 'fa-solid fa-database', iconColor: '#cc2927' },
+  { id: 'analysis', label: 'Analysis Services', icon: 'fa-solid fa-cube', iconColor: '#5c2d91' },
+  { id: 'textcsv', label: 'Text/CSV', icon: 'fa-solid fa-file-lines', iconColor: '#107c10' },
+  { id: 'web', label: 'Web', icon: 'fa-solid fa-globe', iconColor: '#0078d4' },
+  { id: 'odata', label: 'OData feed', icon: 'fa-solid fa-table-cells', iconColor: '#e98300' },
+  { id: 'blank', label: 'Blank query', icon: 'fa-solid fa-scroll', iconColor: '#c50f1f' },
+]
 
 type DiscoveredArcLayer = {
   id: number
@@ -203,6 +236,8 @@ export default function DevelopDashboard() {
   const [addWizard, setAddWizard] = useState<AddSourceWizard>('home')
   const [gisContentLayers, setGisContentLayers] = useState<LayerData[]>([])
   const [gisContentLoading, setGisContentLoading] = useState(false)
+  const [getDataNotice, setGetDataNotice] = useState<string | null>(null)
+  const [homeGetDataOpen, setHomeGetDataOpen] = useState(false)
   const [addTab, setAddTab] = useState<AddGisLayerTab>('arcgis')
   const [serviceUrl, setServiceUrl] = useState('')
   const [arcgisToken, setArcgisToken] = useState('')
@@ -216,6 +251,10 @@ export default function DevelopDashboard() {
   const [remoteDataUrl, setRemoteDataUrl] = useState('')
   const addLayerFileInputRef = useRef<HTMLInputElement | null>(null)
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
+  const [rightSheet, setRightSheet] = useState<RightPowerBiPanel>('none')
+  const [dataPaneSearch, setDataPaneSearch] = useState('')
+  const [dataTreeOpen, setDataTreeOpen] = useState<Record<string, boolean>>({})
+  const [csvDatasets, setCsvDatasets] = useState<CsvDataset[]>([])
   const [linkFrom, setLinkFrom] = useState('')
   const [linkTo, setLinkTo] = useState('')
   const [linkFieldFrom, setLinkFieldFrom] = useState('')
@@ -223,6 +262,8 @@ export default function DevelopDashboard() {
   const [initError, setInitError] = useState<string | null>(null)
 
   const layerKeys = useMemo(() => Object.keys(layers), [layers])
+  const sampleLayerKeys = useMemo(() => layerKeys.filter(k => layers[k]?.origin === 'sample'), [layerKeys, layers])
+  const userLayerKeys = useMemo(() => layerKeys.filter(k => layers[k]?.origin === 'user'), [layerKeys, layers])
 
   const activeFields = useMemo(() => {
     if (!activeStatsLayer || !layers[activeStatsLayer]) return []
@@ -258,6 +299,17 @@ export default function DevelopDashboard() {
     mq.addEventListener('change', sync)
     return () => mq.removeEventListener('change', sync)
   }, [])
+
+  useEffect(() => {
+    setDataTreeOpen(prev => {
+      const next = { ...prev }
+      for (const k of layerKeys) {
+        const nk = `layer:${k}`
+        if (next[nk] === undefined) next[nk] = true
+      }
+      return next
+    })
+  }, [layerKeys])
 
   useEffect(() => {
     const el = mapElRef.current
@@ -298,6 +350,7 @@ export default function DevelopDashboard() {
             data: structData,
             fields: structFields,
             visible: true,
+            origin: 'sample',
           },
           crops_planted: {
             name: 'Planted Crops',
@@ -306,6 +359,7 @@ export default function DevelopDashboard() {
             data: cropsData,
             fields: cropFields,
             visible: true,
+            origin: 'sample',
           },
         })
         setActiveStatsLayer('agro_structures')
@@ -529,6 +583,71 @@ export default function DevelopDashboard() {
     })
   }
 
+  const deleteUserLayer = useCallback(
+    (key: string) => {
+      const layer = layers[key]
+      if (!layer || layer.origin !== 'user') return
+      if (!window.confirm(`Delete layer "${layer.name}" from the registry? This cannot be undone.`)) return
+      const nextKeys = layerKeys.filter(k => k !== key)
+      setLayers(prev => {
+        const { [key]: _removed, ...rest } = prev
+        return rest
+      })
+      if (activeStatsLayer === key) setActiveStatsLayer(nextKeys[0] ?? '')
+      if (linkFrom === key) {
+        setLinkFrom('')
+        setLinkFieldFrom('')
+      }
+      if (linkTo === key) {
+        setLinkTo('')
+        setLinkFieldTo('')
+      }
+      setStatCards(prev => prev.filter(c => c.layerKey !== key))
+    },
+    [layers, layerKeys, activeStatsLayer, linkFrom, linkTo],
+  )
+
+  const renderLayerCard = (key: string) => {
+    const Lr = layers[key]
+    if (!Lr) return null
+    return (
+      <div className="ddb-layer-card">
+        <div className="ddb-layer-header">
+          <label className="ddb-layer-check-label">
+            <input
+              type="checkbox"
+              checked={Lr.visible}
+              onChange={e => toggleLayerVisible(key, e.target.checked)}
+            />{' '}
+            <span className="ddb-layer-name">{Lr.name}</span>
+          </label>
+          <div className="ddb-layer-header-badges">
+            <span className={`ddb-layer-origin-badge${Lr.origin === 'user' ? ' ddb-layer-origin-badge--user' : ''}`}>
+              {Lr.origin === 'user' ? 'Yours' : 'Sample'}
+            </span>
+            <span className="ddb-layer-badge">{Lr.type}</span>
+          </div>
+        </div>
+        <div className="ddb-layer-actions">
+          <button type="button" className="ddb-btn ddb-small-btn" onClick={() => window.alert(`Fields: ${Lr.fields.join(', ')}`)}>
+            Fields
+          </button>
+          {Lr.origin === 'user' ? (
+            <button
+              type="button"
+              className="ddb-layer-delete-btn"
+              title="Delete layer"
+              aria-label={`Delete layer ${Lr.name}`}
+              onClick={() => deleteUserLayer(key)}
+            >
+              <i className="fa-solid fa-trash" aria-hidden />
+            </button>
+          ) : null}
+        </div>
+      </div>
+    )
+  }
+
   const resetAddGisForm = useCallback(() => {
     setAddWizard('home')
     setAddTab('arcgis')
@@ -542,6 +661,8 @@ export default function DevelopDashboard() {
     setAddingLayerKey(null)
     setUploadFile(null)
     setRemoteDataUrl('')
+    setGetDataNotice(null)
+    setHomeGetDataOpen(false)
   }, [])
 
   const openAddGisModal = useCallback(() => {
@@ -561,7 +682,57 @@ export default function DevelopDashboard() {
 
   const goAddWizardHome = useCallback(() => {
     setDiscoverError(null)
+    setGetDataNotice(null)
+    setHomeGetDataOpen(false)
     setAddWizard('home')
+  }, [])
+
+  const expandToPanel = useCallback((panelId: string) => {
+    setSidebarCollapsed(false)
+    window.requestAnimationFrame(() => {
+      window.requestAnimationFrame(() => {
+        document.getElementById(panelId)?.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
+      })
+    })
+  }, [])
+
+  const toggleRightSheet = useCallback((panel: Exclude<RightPowerBiPanel, 'none'>) => {
+    setRightSheet(prev => (prev === panel ? 'none' : panel))
+  }, [])
+
+  const toggleDataTreeNode = useCallback((key: string) => {
+    setDataTreeOpen(prev => ({ ...prev, [key]: !prev[key] }))
+  }, [])
+
+  const pickGetDataSource = useCallback((id: string) => {
+    setDiscoverError(null)
+    setGetDataNotice(null)
+    if (id === 'excel' || id === 'textcsv') {
+      setHomeGetDataOpen(false)
+      setAddWizard('tabs')
+      setAddTab('upload')
+      return
+    }
+    if (id === 'web' || id === 'odata') {
+      setHomeGetDataOpen(false)
+      setAddWizard('tabs')
+      setAddTab('url')
+      return
+    }
+    if (id === 'sql' || id === 'analysis') {
+      setHomeGetDataOpen(false)
+      setAddWizard('tabs')
+      setAddTab('database')
+      return
+    }
+    const notices: Record<string, string> = {
+      semantic:
+        'Semantic models are not connected in this toolkit. Export data or use GIS Content / ArcGIS instead.',
+      dataflows: 'Dataflows are not available here. Use GIS Map dataflows or upload a file.',
+      dataverse: 'Dataverse is not wired in this view. Use GIS Content or Web to reach your data.',
+      blank: 'Blank query is not available in Develop Dashboard. Use GIS Map for advanced queries.',
+    }
+    setGetDataNotice(notices[id] ?? 'This source is not available in this screen yet.')
   }, [])
 
   const importGisContentLayer = useCallback(
@@ -602,6 +773,7 @@ export default function DevelopDashboard() {
               data,
               fields,
               visible: true,
+              origin: 'user',
             },
           }
         })
@@ -672,6 +844,7 @@ export default function DevelopDashboard() {
               data,
               fields,
               visible: true,
+              origin: 'user',
             },
           }
         })
@@ -692,6 +865,22 @@ export default function DevelopDashboard() {
     setDiscoverError(null)
     try {
       const parsed = await parseFile(uploadFile)
+      if (parsed.type === 'table') {
+        const rows = parsed.data as Record<string, unknown>[]
+        if (!Array.isArray(rows) || rows.length === 0) throw new Error('CSV has no data rows.')
+        const columns = Object.keys(rows[0] ?? {})
+        if (!columns.length) throw new Error('CSV has no columns.')
+        const displayName = layerModalName.trim() || uploadFile.name.replace(/\.[^.]+$/, '').trim() || 'Table'
+        const id = newId()
+        setCsvDatasets(prev => [
+          ...prev,
+          { id, name: displayName, columns, rows, origin: 'user' },
+        ])
+        setDataTreeOpen(prev => ({ ...prev, [`csv:${id}`]: true }))
+        setRightSheet('data')
+        closeAddGisModal()
+        return
+      }
       if (parsed.type !== 'geojson') throw new Error('File must contain GIS features (GeoJSON/KML/KMZ/Shapefile zip).')
       let geojson: unknown = parsed.data
       if (Array.isArray(geojson)) geojson = geojson[0]
@@ -712,6 +901,7 @@ export default function DevelopDashboard() {
             data: fc,
             fields,
             visible: true,
+            origin: 'user',
           },
         }
       })
@@ -755,6 +945,7 @@ export default function DevelopDashboard() {
             data: fc,
             fields,
             visible: true,
+            origin: 'user',
           },
         }
       })
@@ -811,7 +1002,7 @@ export default function DevelopDashboard() {
         <div className="ddb-topbar">
           <div className="ddb-brand">
             <h1>
-              <i className="fa-solid fa-chart-line" aria-hidden /> AgriAnalytics | Power BI Static Toolkit
+              <i className="fa-solid fa-chart-line" aria-hidden /> Agro Cloud Analytics
             </h1>
           </div>
           <div>
@@ -819,20 +1010,71 @@ export default function DevelopDashboard() {
           </div>
         </div>
 
+        <div className="ddb-dashboard-body">
         <div className={`ddb-sidebar${sidebarCollapsed ? ' is-collapsed' : ''}`}>
-          <div className="ddb-sidebar-header">
-            {sidebarCollapsed ? (
+          {sidebarCollapsed ? (
+            <nav className="ddb-sidebar-panels ddb-sidebar-panels--rail" aria-label="Sidebar panels (collapsed)">
               <button
                 type="button"
-                className="ddb-sidebar-toggle"
+                className="ddb-sidebar-rail-expand"
                 onClick={() => setSidebarCollapsed(false)}
                 aria-expanded={false}
                 aria-controls="ddb-sidebar-panels"
                 title="Expand sidebar"
               >
                 <i className="fa-solid fa-angles-right" aria-hidden />
+                <span className="ddb-sidebar-rail-sr">Expand sidebar</span>
               </button>
-            ) : (
+              <div className="ddb-sidebar-rail-stack" role="group">
+                <button
+                  type="button"
+                  className="ddb-sidebar-rail-panel-btn"
+                  title="Data — Layer Registry"
+                  aria-label="Data, Layer Registry"
+                  onClick={() => expandToPanel('ddb-sidebar-panel-layers')}
+                >
+                  <span className="ddb-sidebar-rail-panel-icon">
+                    <i className="fa-solid fa-layer-group" aria-hidden />
+                  </span>
+                </button>
+                <button
+                  type="button"
+                  className="ddb-sidebar-rail-panel-btn"
+                  title="Visualizations — Custom Stat Cards"
+                  aria-label="Visualizations, Custom Stat Cards"
+                  onClick={() => expandToPanel('ddb-sidebar-panel-stats')}
+                >
+                  <span className="ddb-sidebar-rail-panel-icon">
+                    <i className="fa-solid fa-chart-simple" aria-hidden />
+                  </span>
+                </button>
+                <button
+                  type="button"
+                  className="ddb-sidebar-rail-panel-btn"
+                  title="Link layers"
+                  aria-label="Link layers"
+                  onClick={() => expandToPanel('ddb-sidebar-panel-link')}
+                >
+                  <span className="ddb-sidebar-rail-panel-icon">
+                    <i className="fa-solid fa-link" aria-hidden />
+                  </span>
+                </button>
+                <button
+                  type="button"
+                  className="ddb-sidebar-rail-panel-btn"
+                  title="Power BI tools"
+                  aria-label="Power BI Static Tools"
+                  onClick={() => expandToPanel('ddb-sidebar-panel-visuals')}
+                >
+                  <span className="ddb-sidebar-rail-panel-icon">
+                    <i className="fa-solid fa-table-cells" aria-hidden />
+                  </span>
+                </button>
+              </div>
+            </nav>
+          ) : (
+            <>
+          <div className="ddb-sidebar-header">
               <button
                 type="button"
                 className="ddb-sidebar-toggle"
@@ -843,53 +1085,55 @@ export default function DevelopDashboard() {
               >
                 <i className="fa-solid fa-angles-left" aria-hidden />
               </button>
-            )}
           </div>
           <div id="ddb-sidebar-panels" className="ddb-sidebar-panels">
-          <div className="ddb-panel-section">
-            <div
-              className="ddb-section-title"
-              data-tooltip="Layer Registry"
-              role="group"
-              aria-label="Layer Registry"
-              tabIndex={0}
-            >
-              <i className="fa-solid fa-layer-group" aria-hidden />
-              <span className="ddb-section-title-sr">Layer Registry</span>
+          <div id="ddb-sidebar-panel-layers" className="ddb-panel-section">
+            <div className="ddb-layer-registry-head">
+              <div
+                className="ddb-section-title"
+                data-tooltip="Layer Registry"
+                role="group"
+                aria-label="Layer Registry"
+                tabIndex={0}
+              >
+                <i className="fa-solid fa-layer-group" aria-hidden />
+                <span className="ddb-section-title-sr">Layer Registry</span>
+              </div>
+              <button
+                type="button"
+                className="ddb-add-source-icon-btn"
+                data-tooltip="Add Source Data"
+                title="Add Source Data"
+                onClick={openAddGisModal}
+              >
+                <span className="ddb-add-source-icon-btn__glow" aria-hidden />
+                <i className="fa-solid fa-circle-plus" aria-hidden />
+                <span className="ddb-section-title-sr">Add Source Data</span>
+              </button>
             </div>
             <div className="ddb-panel-body">
             <div className="ddb-layers-scroll">
-              {layerKeys.map(key => {
-                const Lr = layers[key]
-                return (
-                  <div key={key} className="ddb-layer-card">
-                    <div className="ddb-layer-header">
-                      <label>
-                        <input
-                          type="checkbox"
-                          checked={Lr.visible}
-                          onChange={e => toggleLayerVisible(key, e.target.checked)}
-                        />{' '}
-                        <span className="ddb-layer-name">{Lr.name}</span>
-                      </label>
-                      <span className="ddb-layer-badge">{Lr.type}</span>
-                    </div>
-                    <div className="ddb-layer-actions">
-                      <button type="button" className="ddb-btn ddb-small-btn" onClick={() => window.alert(`Fields: ${Lr.fields.join(', ')}`)}>
-                        Fields
-                      </button>
-                    </div>
-                  </div>
-                )
-              })}
+              {sampleLayerKeys.length > 0 ? (
+                <div className="ddb-layer-group">
+                  <div className="ddb-layer-group-label">Sample data</div>
+                  {sampleLayerKeys.map(key => (
+                    <div key={key}>{renderLayerCard(key)}</div>
+                  ))}
+                </div>
+              ) : null}
+              {userLayerKeys.length > 0 ? (
+                <div className="ddb-layer-group">
+                  <div className="ddb-layer-group-label">Your layers</div>
+                  {userLayerKeys.map(key => (
+                    <div key={key}>{renderLayerCard(key)}</div>
+                  ))}
+                </div>
+              ) : null}
             </div>
-            <button type="button" className="ddb-btn ddb-add-gis-layer-btn" onClick={openAddGisModal}>
-              <i className="fa-solid fa-plus" aria-hidden /> Add Source Data
-            </button>
             </div>
           </div>
 
-          <div className="ddb-panel-section">
+          <div id="ddb-sidebar-panel-stats" className="ddb-panel-section">
             <div
               className="ddb-section-title"
               data-tooltip="Custom Stat Cards"
@@ -950,7 +1194,7 @@ export default function DevelopDashboard() {
             </div>
           </div>
 
-          <div className="ddb-panel-section">
+          <div id="ddb-sidebar-panel-link" className="ddb-panel-section">
             <div
               className="ddb-section-title"
               data-tooltip="Link Layers (Relation)"
@@ -1010,7 +1254,7 @@ export default function DevelopDashboard() {
             </div>
           </div>
 
-          <div className="ddb-panel-section">
+          <div id="ddb-sidebar-panel-visuals" className="ddb-panel-section">
             <div
               className="ddb-section-title"
               data-tooltip="Power BI Static Tools (Multi-Select)"
@@ -1028,24 +1272,28 @@ export default function DevelopDashboard() {
                   key={t.chart}
                   type="button"
                   className={`ddb-chart-tool-item${selectedCharts.has(t.chart) ? ' is-selected' : ''}`}
+                  title={t.label}
+                  aria-pressed={selectedCharts.has(t.chart)}
                   onClick={() => toggleChartTool(t.chart)}
                 >
                   <i className={t.icon} aria-hidden />
-                  <span>{t.label}</span>
+                  <span className="ddb-chart-tool-label-sr">{t.label}</span>
                 </button>
               ))}
             </div>
             <button type="button" className="ddb-btn" style={{ width: '100%', marginTop: 12 }} onClick={() => setChartGen(g => g + 1)}>
               <i className="fa-solid fa-rotate" aria-hidden /> Generate Selected Visuals
             </button>
-            <div className="ddb-hint">Click any tool to select/deselect, then generate.</div>
+            <div className="ddb-hint">Hover an icon for its name. Click to select or deselect, then generate.</div>
             </div>
           </div>
           </div>
+            </>
+          )}
         </div>
 
         <div className="ddb-main">
-          <div className="ddb-map-container">
+          <div className="ddb-map-container si-map-container">
             <div ref={mapElRef} className="ddb-map-inner" />
             <div className="ddb-map-tools">
               <button type="button" className="ddb-btn" onClick={() => mapRef.current?.zoomIn()}>
@@ -1062,6 +1310,206 @@ export default function DevelopDashboard() {
           <div className="ddb-visuals">
             <div ref={chartsHostRef} id="develop-dashboard-charts" />
           </div>
+        </div>
+
+        <div className={`ddb-right-wrap${rightSheet !== 'none' ? ' is-open' : ''}`} aria-label="Power BI style panels">
+          {rightSheet !== 'none' ? (
+            <aside className={`ddb-right-sheet ddb-right-sheet--${rightSheet}`} aria-labelledby={`ddb-right-sheet-${rightSheet}`}>
+              <div className="ddb-right-sheet-head">
+                <h2 className="ddb-right-sheet-title" id={`ddb-right-sheet-${rightSheet}`}>
+                  {rightSheet === 'filters' ? 'Filters' : rightSheet === 'visualizations' ? 'Visualizations' : 'Data'}
+                </h2>
+                <button
+                  type="button"
+                  className="ddb-right-sheet-collapse"
+                  onClick={() => setRightSheet('none')}
+                  title="Collapse panel"
+                  aria-label="Collapse panel"
+                >
+                  <i className="fa-solid fa-angles-left" aria-hidden />
+                </button>
+              </div>
+              {rightSheet === 'filters' ? (
+                <div className="ddb-right-sheet-body">
+                  <p className="ddb-right-sheet-lead">Slicers and filters (static preview).</p>
+                  <label className="ddb-right-filter-field">
+                    <span className="ddb-right-filter-label">Date range</span>
+                    <input type="date" className="ddb-right-filter-input" disabled aria-disabled />
+                  </label>
+                  <label className="ddb-right-filter-field">
+                    <span className="ddb-right-filter-label">Region</span>
+                    <select className="ddb-right-filter-input" disabled aria-disabled>
+                      <option>All regions</option>
+                    </select>
+                  </label>
+                </div>
+              ) : null}
+              {rightSheet === 'visualizations' ? (
+                <div className="ddb-right-sheet-body">
+                  <p className="ddb-right-sheet-lead">Pick visuals (same as left pane). Multi-select then generate in the main area.</p>
+                  <div className="ddb-right-viz-grid">
+                    {CHART_TOOLS.slice(0, 16).map(t => (
+                      <button
+                        key={t.chart}
+                        type="button"
+                        className={`ddb-right-viz-chip${selectedCharts.has(t.chart) ? ' is-on' : ''}`}
+                        title={t.label}
+                        onClick={() => toggleChartTool(t.chart)}
+                      >
+                        <i className={t.icon} aria-hidden />
+                      </button>
+                    ))}
+                  </div>
+                  <button type="button" className="ddb-btn ddb-right-sheet-primary" onClick={() => setChartGen(g => g + 1)}>
+                    <i className="fa-solid fa-rotate" aria-hidden /> Generate selected visuals
+                  </button>
+                </div>
+              ) : null}
+              {rightSheet === 'data' ? (
+                <div className="ddb-right-sheet-body ddb-data-pane">
+                  <div className="ddb-data-search-wrap">
+                    <i className="fa-solid fa-magnifying-glass" aria-hidden />
+                    <input
+                      type="search"
+                      className="ddb-data-search"
+                      placeholder="Search"
+                      value={dataPaneSearch}
+                      onChange={e => setDataPaneSearch(e.target.value)}
+                      aria-label="Search fields and tables"
+                    />
+                  </div>
+                  <div className="ddb-data-tree">
+                    <div className="ddb-data-tree-section-label">Fields</div>
+                    {layerKeys
+                      .filter(k => {
+                        if (!dataPaneSearch.trim()) return true
+                        const q = dataPaneSearch.toLowerCase()
+                        if (layers[k]?.name.toLowerCase().includes(q)) return true
+                        return layers[k]?.fields.some(f => f.toLowerCase().includes(q))
+                      })
+                      .map(key => {
+                        const Lr = layers[key]
+                        if (!Lr) return null
+                        const nodeKey = `layer:${key}`
+                        const open = dataTreeOpen[nodeKey] ?? false
+                        return (
+                          <div key={key} className="ddb-data-table-block">
+                            <button
+                              type="button"
+                              className="ddb-data-table-toggle"
+                              onClick={() => toggleDataTreeNode(nodeKey)}
+                              aria-expanded={open}
+                            >
+                              <i className={`fa-solid fa-chevron-${open ? 'down' : 'right'}`} aria-hidden />
+                              <span className="ddb-data-table-icon">
+                                <i className="fa-solid fa-table" aria-hidden />
+                              </span>
+                              <span className="ddb-data-table-name">{Lr.name}</span>
+                              <span className="ddb-data-table-meta">{Lr.type}</span>
+                            </button>
+                            {open ? (
+                              <ul className="ddb-data-field-list">
+                                {Lr.fields
+                                  .filter(f => !dataPaneSearch.trim() || f.toLowerCase().includes(dataPaneSearch.toLowerCase()))
+                                  .map(f => (
+                                    <li key={f} className="ddb-data-field-row">
+                                      <span className="ddb-data-field-type">∑</span>
+                                      <span className="ddb-data-field-name">{f}</span>
+                                    </li>
+                                  ))}
+                              </ul>
+                            ) : null}
+                          </div>
+                        )
+                      })}
+                    {csvDatasets
+                      .filter(ds => {
+                        if (!dataPaneSearch.trim()) return true
+                        const q = dataPaneSearch.toLowerCase()
+                        if (ds.name.toLowerCase().includes(q)) return true
+                        return ds.columns.some(c => c.toLowerCase().includes(q))
+                      })
+                      .map(ds => {
+                        const nodeKey = `csv:${ds.id}`
+                        const open = dataTreeOpen[nodeKey] ?? true
+                        return (
+                          <div key={ds.id} className="ddb-data-table-block">
+                            <button
+                              type="button"
+                              className="ddb-data-table-toggle"
+                              onClick={() => toggleDataTreeNode(nodeKey)}
+                              aria-expanded={open}
+                            >
+                              <i className={`fa-solid fa-chevron-${open ? 'down' : 'right'}`} aria-hidden />
+                              <span className="ddb-data-table-icon ddb-data-table-icon--csv">
+                                <i className="fa-solid fa-file-csv" aria-hidden />
+                              </span>
+                              <span className="ddb-data-table-name">{ds.name}</span>
+                              <span className="ddb-data-table-meta">{ds.rows.length} rows</span>
+                            </button>
+                            {open ? (
+                              <ul className="ddb-data-field-list">
+                                {ds.columns
+                                  .filter(c => !dataPaneSearch.trim() || c.toLowerCase().includes(dataPaneSearch.toLowerCase()))
+                                  .map(c => (
+                                    <li key={c} className="ddb-data-field-row">
+                                      <span className="ddb-data-field-type">abc</span>
+                                      <span className="ddb-data-field-name">{c}</span>
+                                    </li>
+                                  ))}
+                              </ul>
+                            ) : null}
+                            <button
+                              type="button"
+                              className="ddb-data-remove-csv"
+                              onClick={() => setCsvDatasets(prev => prev.filter(x => x.id !== ds.id))}
+                            >
+                              Remove table
+                            </button>
+                          </div>
+                        )
+                      })}
+                    {layerKeys.length === 0 && csvDatasets.length === 0 ? (
+                      <p className="ddb-data-empty">Add layers from the left pane or upload a CSV (Text/CSV) via Add Source Data.</p>
+                    ) : null}
+                  </div>
+                </div>
+              ) : null}
+            </aside>
+          ) : null}
+          <nav className="ddb-right-rail" aria-label="Collapsed panels">
+            <button
+              type="button"
+              className={`ddb-right-rail-tab${rightSheet === 'filters' ? ' is-active' : ''}`}
+              onClick={() => toggleRightSheet('filters')}
+              title="Filters"
+            >
+              <i className="fa-solid fa-angles-left ddb-right-rail-chev" aria-hidden />
+              <i className="fa-solid fa-filter ddb-right-rail-icon" aria-hidden />
+              <span className="ddb-right-rail-label">Filters</span>
+            </button>
+            <button
+              type="button"
+              className={`ddb-right-rail-tab${rightSheet === 'visualizations' ? ' is-active' : ''}`}
+              onClick={() => toggleRightSheet('visualizations')}
+              title="Visualizations"
+            >
+              <i className="fa-solid fa-angles-left ddb-right-rail-chev" aria-hidden />
+              <i className="fa-solid fa-chart-column ddb-right-rail-icon" aria-hidden />
+              <span className="ddb-right-rail-label">Visualizations</span>
+            </button>
+            <button
+              type="button"
+              className={`ddb-right-rail-tab${rightSheet === 'data' ? ' is-active' : ''}`}
+              onClick={() => toggleRightSheet('data')}
+              title="Data"
+            >
+              <i className="fa-solid fa-angles-left ddb-right-rail-chev" aria-hidden />
+              <i className="fa-solid fa-database ddb-right-rail-icon" aria-hidden />
+              <span className="ddb-right-rail-label">Data</span>
+            </button>
+          </nav>
+        </div>
         </div>
       </div>
     </div>
@@ -1146,12 +1594,98 @@ export default function DevelopDashboard() {
                     <span className="ddb-source-option-desc">GeoJSON, KML, KMZ, Shapefile (zip), CSV with coordinates, and more.</span>
                   </div>
                 </button>
+                <button
+                  type="button"
+                  className={`ddb-source-option-card${homeGetDataOpen ? ' is-selected' : ''}`}
+                  role="listitem"
+                  aria-expanded={homeGetDataOpen}
+                  onClick={() => {
+                    setDiscoverError(null)
+                    setGetDataNotice(null)
+                    setHomeGetDataOpen(open => !open)
+                  }}
+                >
+                  <span className="ddb-source-option-indicator" aria-hidden />
+                  <div className="ddb-source-option-icon-wrap ddb-source-option-icon-wrap--getdata">
+                    <i className="fa-solid fa-database" aria-hidden />
+                    <i className="fa-solid fa-table-cells" aria-hidden />
+                  </div>
+                  <div className="ddb-source-option-text">
+                    <span className="ddb-source-option-title">Get Data</span>
+                    <span className="ddb-source-option-desc">
+                      Open the same “Common data sources” list as Power BI (Excel, CSV, SQL, Web, OData, …).
+                    </span>
+                  </div>
+                </button>
               </div>
+              {homeGetDataOpen ? (
+                <div className="ddb-get-data-flyout" role="region" aria-label="Get data — common sources">
+                  <div className="ddb-get-data-menu ddb-get-data-menu--flyout" role="navigation" aria-label="Common data sources">
+                    <div className="ddb-get-data-toolbar-mimic">
+                      <span className="ddb-get-data-toolbar-icon" aria-hidden>
+                        <i className="fa-solid fa-database" />
+                        <i className="fa-solid fa-table" />
+                      </span>
+                      <span className="ddb-get-data-toolbar-label">Get data</span>
+                      <i className="fa-solid fa-chevron-down ddb-get-data-toolbar-chev" aria-hidden />
+                    </div>
+                    <div className="ddb-get-data-section-title">Common data sources</div>
+                    <ul className="ddb-get-data-list">
+                      {GET_DATA_COMMON_SOURCES.map(row => (
+                        <li key={row.id}>
+                          <button type="button" className="ddb-get-data-row" onClick={() => pickGetDataSource(row.id)}>
+                            <span className="ddb-get-data-row-icon" style={row.iconColor ? { color: row.iconColor } : undefined}>
+                              <i className={row.icon} aria-hidden />
+                            </span>
+                            <span className="ddb-get-data-row-label">{row.label}</span>
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                    <div className="ddb-get-data-divider" role="separator" />
+                    <button
+                      type="button"
+                      className="ddb-get-data-row ddb-get-data-row--footer"
+                      onClick={() =>
+                        setGetDataNotice(
+                          'Template Apps open in the Power BI service. Here, use the list above or GIS Map for curated agriculture layers.',
+                        )
+                      }
+                    >
+                      <span className="ddb-get-data-row-icon ddb-get-data-row-icon--muted">
+                        <i className="fa-solid fa-table-columns" aria-hidden />
+                      </span>
+                      <span className="ddb-get-data-row-label">Power BI Template Apps</span>
+                      <i className="fa-solid fa-arrow-up-right-from-square ddb-get-data-external" aria-hidden />
+                    </button>
+                    <div className="ddb-get-data-divider" role="separator" />
+                    <button
+                      type="button"
+                      className="ddb-get-data-more"
+                      onClick={() => {
+                        setDiscoverError(null)
+                        setGetDataNotice(null)
+                        setHomeGetDataOpen(false)
+                        setAddWizard('tabs')
+                        setAddTab('arcgis')
+                      }}
+                    >
+                      More…
+                    </button>
+                  </div>
+                </div>
+              ) : null}
+              {getDataNotice && addWizard === 'home' ? (
+                <div className="ddb-get-data-notice" role="status">
+                  <i className="fa-solid fa-circle-info" aria-hidden /> {getDataNotice}
+                </div>
+              ) : null}
               <button
                 type="button"
                 className="ddb-add-source-more"
                 onClick={() => {
                   setDiscoverError(null)
+                  setHomeGetDataOpen(false)
                   setAddWizard('tabs')
                   setAddTab('url')
                 }}
@@ -1362,6 +1896,9 @@ export default function DevelopDashboard() {
                   <i className="fa-solid fa-folder-open" aria-hidden /> Choose file
                 </button>
                 {uploadFile ? <div className="ddb-hint" style={{ marginTop: 8 }}>{uploadFile.name}</div> : null}
+                <p className="ddb-hint" style={{ marginTop: 6, textAlign: 'left' }}>
+                  CSV without latitude/longitude columns is added as a <strong>Data</strong> table (right pane → Data) like Power BI Fields.
+                </p>
                 <input
                   className="gis-input"
                   style={{ marginTop: 10 }}

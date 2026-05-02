@@ -44,6 +44,7 @@ import {
   type GeoExplorerMessage,
   type GeoExplorerPart,
 } from '../../lib/geoExplorerGemini';
+import { geocodePlaceToLngLat } from '../../lib/geoExplorerGeocode';
 import {
   buildBasemapCatalog,
   catalogEntryById,
@@ -2460,6 +2461,7 @@ export default function SatelliteIntelligence() {
         ? crypto.randomUUID()
         : `geo-${Date.now()}`;
     const userMsg: GeoExplorerMessage = { id: userId, role: 'user', parts: userParts };
+    const userTextForMapFallback = trimmed;
 
     setGeoExplorerDraft('');
     setGeoExplorerPendingImage(null);
@@ -2476,6 +2478,17 @@ export default function SatelliteIntelligence() {
             systemInstruction: GEO_EXPLORER_SYSTEM_PROMPT,
             contents: messagesToGeminiContents(historyWithUser),
           });
+          let coords = parseMapQueryLngLat(reply);
+          let replyText = reply;
+          if (!coords && userTextForMapFallback) {
+            const geocoded = await geocodePlaceToLngLat(userTextForMapFallback, {
+              mapboxAccessToken: mapboxToken || undefined,
+            });
+            if (geocoded) {
+              coords = geocoded;
+              replyText = `${reply.trimEnd()}\n\n(Map centered on the best place-name match for your message.)`;
+            }
+          }
           const modelId =
             typeof crypto !== 'undefined' && 'randomUUID' in crypto
               ? crypto.randomUUID()
@@ -2483,24 +2496,19 @@ export default function SatelliteIntelligence() {
           const modelMsg: GeoExplorerMessage = {
             id: modelId,
             role: 'model',
-            parts: [{ type: 'text', text: reply }],
+            parts: [{ type: 'text', text: replyText }],
           };
           setGeoExplorerMessages(h => [...h, modelMsg]);
-          const coords = parseMapQueryLngLat(reply);
           if (coords) {
             setGeoAiPinLngLat(coords);
-            const map = getMapInstance();
-            try {
-              const z = map?.getZoom?.() ?? 2;
-              map?.flyTo?.({
-                center: coords,
-                zoom: Math.max(10, z),
-                duration: 1600,
-                essential: true,
-              });
-            } catch {
-              /* ignore */
-            }
+            setViewState(prev => ({
+              ...prev,
+              longitude: coords[0],
+              latitude: coords[1],
+              zoom: Math.max(10, typeof prev.zoom === 'number' ? prev.zoom : 2),
+              pitch: is3DView ? Math.max(typeof prev.pitch === 'number' ? prev.pitch : 0, 42) : prev.pitch ?? 0,
+              bearing: typeof prev.bearing === 'number' ? prev.bearing : 0,
+            }));
           }
         } catch (e) {
           setGeoExplorerChatError(e instanceof Error ? e.message : String(e));
@@ -2511,7 +2519,7 @@ export default function SatelliteIntelligence() {
       });
       return historyWithUser;
     });
-  }, [geminiApiKey, geoExplorerDraft, geoExplorerPendingImage]);
+  }, [geminiApiKey, geoExplorerDraft, geoExplorerPendingImage, mapboxToken, is3DView]);
 
   const onGeoExplorerAttachChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
