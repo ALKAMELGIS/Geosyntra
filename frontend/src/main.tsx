@@ -28,7 +28,7 @@ const safeSessionRemoveItem = (key: string) => {
 }
 
 if (typeof window !== 'undefined' && 'serviceWorker' in navigator) {
-  const resetKey = 'sw_reset_v1'
+  const resetKey = 'sw_reset_v2'
   const canReload = typeof window !== 'undefined' && typeof sessionStorage !== 'undefined' && !safeSessionGetItem(resetKey)
   const hadController = Boolean(navigator.serviceWorker.controller)
 
