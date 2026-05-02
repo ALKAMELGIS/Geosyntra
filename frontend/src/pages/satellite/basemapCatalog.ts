@@ -31,6 +31,15 @@ function esriTile(servicePath: string): string {
   return `${ESRI}/${servicePath}/MapServer/tile/{z}/{y}/{x}`
 }
 
+/** ArcGIS Online folder paths — many basemaps are not at `/services/ServiceName`. */
+const ESRI_CANVAS_LIGHT_BASE = 'Canvas/World_Light_Gray_Base'
+const ESRI_CANVAS_LIGHT_REF = 'Canvas/World_Light_Gray_Reference'
+const ESRI_CANVAS_DARK_BASE = 'Canvas/World_Dark_Gray_Base'
+const ESRI_CANVAS_DARK_REF = 'Canvas/World_Dark_Gray_Reference'
+const ESRI_OCEAN_BASE = 'Ocean/World_Ocean_Base'
+const ESRI_OCEAN_REF = 'Ocean/World_Ocean_Reference'
+const ESRI_REF_WORLD_OVERLAY = 'Reference/World_Reference_Overlay'
+
 /** Mapbox GL raster sources need a single URL pattern; `{s}` (Leaflet subdomains) and `{r}` (Carto retina) are not expanded. */
 export function tileUrlForMapboxGl(url: string): string {
   return url.replace(/\{s\}/gi, 'a').replace(/\{r\}/g, '')
@@ -61,10 +70,6 @@ const OSM_RASTER: Record<string, unknown> = rasterStyleFromTiles([
   { url: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png', attribution: ATTR_OSM },
 ])
 
-const GOOGLE_RASTER: Record<string, unknown> = rasterStyleFromTiles([
-  { url: 'https://mt1.google.com/vt/lyrs=s&x={x}&y={y}&z={z}', attribution: '© Google' },
-])
-
 const OPENTOPO_RASTER: Record<string, unknown> = rasterStyleFromTiles([
   {
     url: 'https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png',
@@ -79,18 +84,19 @@ const ESRI_IMAGERY_STYLE = rasterStyleFromTiles([{ url: ESRI_IMAGERY, attributio
 /** Build catalog with Mapbox token-dependent URLs filled in for thumbnails / raster. */
 export function buildBasemapCatalog(mapboxToken: string): BasemapCatalogEntry[] {
   const t = mapboxToken.trim()
-  const mbSat = mbRaster('satellite-v9', t)
   const mbSatStd = mbRaster('standard-satellite', t)
+  const mbSatV9 = mbRaster('satellite-v9', t)
+  const mbUnderlay = mbSatStd || mbSatV9
   const mbHyb = mbRaster('satellite-streets-v12', t)
 
-  const leafletMbSat: LeafletTileSpec[] = mbSat
-    ? [{ url: mbSat, attribution: '© Mapbox © OpenStreetMap', opacity: 1 }]
+  const leafletMbSat: LeafletTileSpec[] = mbUnderlay
+    ? [{ url: mbUnderlay, attribution: '© Mapbox © OpenStreetMap', opacity: 1 }]
     : [{ url: ESRI_IMAGERY, attribution: ATTR_ESRI }]
 
   const leafletMbHyb: LeafletTileSpec[] =
-    mbSat && mbHyb
+    mbUnderlay && mbHyb
       ? [
-          { url: mbSat, attribution: '© Mapbox © OpenStreetMap', opacity: 1 },
+          { url: mbUnderlay, attribution: '© Mapbox © OpenStreetMap', opacity: 1 },
           {
             url: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
             attribution: ATTR_OSM,
@@ -105,38 +111,19 @@ export function buildBasemapCatalog(mapboxToken: string): BasemapCatalogEntry[] 
   const entries: BasemapCatalogEntry[] = [
     {
       id: 'mapbox-standard-satellite',
-      label: 'Satellite (Mapbox Standard)',
+      label: 'Satellite (Mapbox)',
       mapboxStyle: 'mapbox://styles/mapbox/standard-satellite',
       requiresMapboxToken: true,
       leafletLayers: leafletMbSat,
     },
     {
-      id: 'mapbox-alkamelgis',
-      label: 'Satellite (Mapbox v9)',
-      mapboxStyle: 'mapbox://styles/mapbox/satellite-v9',
-      requiresMapboxToken: true,
-      leafletLayers: leafletMbSat,
-    },
-    {
       id: 'satellite',
-      label: 'Satellite (Mapbox / Esri)',
-      mapboxStyle: 'mapbox://styles/mapbox/satellite-v9',
-      leafletLayers: leafletMbSat,
-    },
-    {
-      id: 'google-earth',
-      label: 'Google Earth',
-      mapboxStyle: GOOGLE_RASTER,
-      leafletLayers: [{ url: 'https://mt1.google.com/vt/lyrs=s&x={x}&y={y}&z={z}', attribution: '© Google' }],
+      label: 'Satellite (Esri)',
+      mapboxStyle: ESRI_IMAGERY_STYLE,
+      leafletLayers: [{ url: ESRI_IMAGERY, attribution: ATTR_ESRI }],
     },
     {
       id: 'mapbox-hybrid',
-      label: 'Hybrid',
-      mapboxStyle: 'mapbox://styles/mapbox/satellite-streets-v12',
-      leafletLayers: leafletMbHyb,
-    },
-    {
-      id: 'hybrid',
       label: 'Hybrid (imagery + labels)',
       mapboxStyle: 'mapbox://styles/mapbox/satellite-streets-v12',
       leafletLayers: leafletMbHyb,
@@ -156,12 +143,6 @@ export function buildBasemapCatalog(mapboxToken: string): BasemapCatalogEntry[] 
     {
       id: 'osm',
       label: 'OpenStreetMap',
-      mapboxStyle: OSM_RASTER,
-      leafletLayers: [{ url: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', attribution: ATTR_OSM }],
-    },
-    {
-      id: 'street',
-      label: 'OpenStreetMap (short)',
       mapboxStyle: OSM_RASTER,
       leafletLayers: [{ url: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', attribution: ATTR_OSM }],
     },
@@ -195,15 +176,9 @@ export function buildBasemapCatalog(mapboxToken: string): BasemapCatalogEntry[] 
     },
     {
       id: 'esri-topo',
-      label: 'Topographic',
+      label: 'Topographic / Outdoor',
       mapboxStyle: rasterStyleFromTiles([{ url: esriTile('World_Topo_Map'), attribution: ATTR_ESRI }]),
       leafletLayers: [{ url: esriTile('World_Topo_Map'), attribution: ATTR_ESRI }],
-    },
-    {
-      id: 'esri-navigation',
-      label: 'Navigation',
-      mapboxStyle: rasterStyleFromTiles([{ url: esriTile('World_Street_Map'), attribution: ATTR_ESRI }]),
-      leafletLayers: [{ url: esriTile('World_Street_Map'), attribution: ATTR_ESRI }],
     },
     {
       id: 'esri-navigation-night',
@@ -217,51 +192,51 @@ export function buildBasemapCatalog(mapboxToken: string): BasemapCatalogEntry[] 
     },
     {
       id: 'esri-terrain-labels',
-      label: 'Terrain with Labels',
+      label: 'Terrain with labels (Esri)',
       mapboxStyle: rasterStyleFromTiles([
         { url: esriTile('World_Terrain_Base'), attribution: ATTR_ESRI },
-        { url: esriTile('World_Terrain_Reference'), attribution: ATTR_ESRI, opacity: 1 },
+        { url: esriTile(ESRI_REF_WORLD_OVERLAY), attribution: ATTR_ESRI, opacity: 1 },
       ]),
       leafletLayers: [
         { url: esriTile('World_Terrain_Base'), attribution: ATTR_ESRI },
-        { url: esriTile('World_Terrain_Reference'), attribution: ATTR_ESRI },
+        { url: esriTile(ESRI_REF_WORLD_OVERLAY), attribution: ATTR_ESRI },
       ],
     },
     {
       id: 'esri-light-gray',
       label: 'Light Gray Canvas',
       mapboxStyle: rasterStyleFromTiles([
-        { url: esriTile('World_Light_Gray_Base'), attribution: ATTR_ESRI },
-        { url: esriTile('World_Light_Gray_Reference'), attribution: ATTR_ESRI, opacity: 1 },
+        { url: esriTile(ESRI_CANVAS_LIGHT_BASE), attribution: ATTR_ESRI },
+        { url: esriTile(ESRI_CANVAS_LIGHT_REF), attribution: ATTR_ESRI, opacity: 1 },
       ]),
       leafletLayers: [
-        { url: esriTile('World_Light_Gray_Base'), attribution: ATTR_ESRI },
-        { url: esriTile('World_Light_Gray_Reference'), attribution: ATTR_ESRI },
+        { url: esriTile(ESRI_CANVAS_LIGHT_BASE), attribution: ATTR_ESRI },
+        { url: esriTile(ESRI_CANVAS_LIGHT_REF), attribution: ATTR_ESRI },
       ],
     },
     {
       id: 'esri-dark-gray',
       label: 'Dark Gray Canvas',
       mapboxStyle: rasterStyleFromTiles([
-        { url: esriTile('World_Dark_Gray_Base'), attribution: ATTR_ESRI },
-        { url: esriTile('World_Dark_Gray_Reference'), attribution: ATTR_ESRI, opacity: 1 },
+        { url: esriTile(ESRI_CANVAS_DARK_BASE), attribution: ATTR_ESRI },
+        { url: esriTile(ESRI_CANVAS_DARK_REF), attribution: ATTR_ESRI, opacity: 1 },
       ]),
       leafletLayers: [
-        { url: esriTile('World_Dark_Gray_Base'), attribution: ATTR_ESRI },
-        { url: esriTile('World_Dark_Gray_Reference'), attribution: ATTR_ESRI },
+        { url: esriTile(ESRI_CANVAS_DARK_BASE), attribution: ATTR_ESRI },
+        { url: esriTile(ESRI_CANVAS_DARK_REF), attribution: ATTR_ESRI },
       ],
-    },
-    {
-      id: 'esri-outdoor',
-      label: 'Outdoor',
-      mapboxStyle: rasterStyleFromTiles([{ url: esriTile('World_Topo_Map'), attribution: ATTR_ESRI }]),
-      leafletLayers: [{ url: esriTile('World_Topo_Map'), attribution: ATTR_ESRI }],
     },
     {
       id: 'esri-oceans',
       label: 'Oceans',
-      mapboxStyle: rasterStyleFromTiles([{ url: esriTile('Ocean_Basemap'), attribution: ATTR_ESRI }]),
-      leafletLayers: [{ url: esriTile('Ocean_Basemap'), attribution: ATTR_ESRI }],
+      mapboxStyle: rasterStyleFromTiles([
+        { url: esriTile(ESRI_OCEAN_BASE), attribution: ATTR_ESRI },
+        { url: esriTile(ESRI_OCEAN_REF), attribution: ATTR_ESRI, opacity: 1 },
+      ]),
+      leafletLayers: [
+        { url: esriTile(ESRI_OCEAN_BASE), attribution: ATTR_ESRI },
+        { url: esriTile(ESRI_OCEAN_REF), attribution: ATTR_ESRI },
+      ],
     },
     {
       id: 'esri-natgeo',
@@ -282,12 +257,6 @@ export function buildBasemapCatalog(mapboxToken: string): BasemapCatalogEntry[] 
       leafletLayers: [{ url: esriTile('World_Physical_Map'), attribution: ATTR_ESRI }],
     },
     {
-      id: 'esri-charted-territory',
-      label: 'Charted Territory',
-      mapboxStyle: rasterStyleFromTiles([{ url: esriTile('World_Shaded_Relief'), attribution: ATTR_ESRI }]),
-      leafletLayers: [{ url: esriTile('World_Shaded_Relief'), attribution: ATTR_ESRI }],
-    },
-    {
       id: 'carto-positron',
       label: 'Light (Carto)',
       mapboxStyle: rasterStyleFromTiles([
@@ -305,24 +274,6 @@ export function buildBasemapCatalog(mapboxToken: string): BasemapCatalogEntry[] 
       ]),
       leafletLayers: [
         { url: 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', attribution: ATTR_CARTO },
-      ],
-    },
-    {
-      id: 'google',
-      label: 'Google Earth (short)',
-      mapboxStyle: GOOGLE_RASTER,
-      leafletLayers: [{ url: 'https://mt1.google.com/vt/lyrs=s&x={x}&y={y}&z={z}', attribution: '© Google' }],
-    },
-    {
-      id: 'terrain',
-      label: 'Terrain (OpenTopo short)',
-      mapboxStyle: OPENTOPO_RASTER,
-      leafletLayers: [
-        {
-          url: 'https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png',
-          attribution:
-            '© OpenStreetMap contributors, SRTM | © OpenTopoMap (CC-BY-SA)',
-        },
       ],
     },
   ]
@@ -392,22 +343,59 @@ export function mapboxGlStyleForEntry(entry: BasemapCatalogEntry, mapboxToken: s
   return st
 }
 
+function rasterPreviewFromTemplate(template: string): string | null {
+  if (!template.includes('{z}') || !template.includes('{x}') || !template.includes('{y}')) return null
+  return template
+    .replace(/\{s\}/gi, 'a')
+    .replace(/\{r\}/g, '')
+    .replace(/\{z\}/g, '2')
+    .replace(/\{y\}/g, '1')
+    .replace(/\{x\}/g, '2')
+}
+
 export function getBasemapThumbnail(entry: BasemapCatalogEntry, mapboxToken: string): string {
   const t = mapboxToken.trim()
   const first = entry.leafletLayers?.[0]?.url
   if (first) {
-    if (first.includes('{z}')) {
-      let u = first.replace('{s}', 'a').replace('{r}', '')
-      if (first.includes('{x}') && first.includes('{y}')) {
-        u = u.replace('{z}', '2').replace('{y}', '1').replace('{x}', '2')
-      }
-      return u
+    if (first.includes('api.mapbox.com') && t && first.includes('{z}')) {
+      let u = first.includes('access_token=') ? first : `${first}${first.includes('?') ? '&' : '?'}access_token=${encodeURIComponent(t)}`
+      const p = rasterPreviewFromTemplate(u)
+      if (p) return p
     }
+    const direct = rasterPreviewFromTemplate(first)
+    if (direct) return direct
   }
-  if (t && entry.id.includes('mapbox-standard')) return mbThumb('standard-satellite', t)
-  if (t && (entry.id === 'mapbox-alkamelgis' || entry.id === 'satellite')) return mbThumb('satellite-v9', t)
+  if (t && entry.id === 'mapbox-standard-satellite') return mbThumb('standard-satellite', t)
   if (t && entry.id === 'mapbox-hybrid') return mbThumb('satellite-streets-v12', t)
+  if (t && entry.id.startsWith('mb-')) {
+    const map: Record<string, string> = {
+      'mb-streets': 'streets-v12',
+      'mb-outdoors': 'outdoors-v12',
+      'mb-light': 'light-v11',
+      'mb-dark': 'dark-v11',
+      'mb-nav-day': 'navigation-day-v1',
+      'mb-nav-night': 'navigation-night-v1',
+    }
+    const path = map[entry.id]
+    if (path) return mbThumb(path, t)
+  }
   return ESRI_IMAGERY.replace('{z}', '2').replace('{y}', '1').replace('{x}', '2')
+}
+
+/** Map saved UI / config ids to current catalog ids after deduplication or renames. */
+export function resolveBasemapId(id: string): string {
+  const legacy: Record<string, string> = {
+    'mapbox-alkamelgis': 'mapbox-standard-satellite',
+    hybrid: 'mapbox-hybrid',
+    street: 'osm',
+    terrain: 'terrain-opentopo',
+    'google-earth': 'esri',
+    google: 'esri',
+    'esri-navigation': 'esri-streets',
+    'esri-outdoor': 'esri-topo',
+    'esri-charted-territory': 'esri-shaded-relief',
+  }
+  return legacy[id] ?? id
 }
 
 export function catalogEntryById(catalog: BasemapCatalogEntry[], id: string): BasemapCatalogEntry | undefined {

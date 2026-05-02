@@ -7,6 +7,7 @@ import {
   DEFAULT_BASEMAP_ID,
   DEFAULT_BASEMAP_ID_NO_MAPBOX,
   getBasemapThumbnail,
+  resolveBasemapId,
 } from '../basemapCatalog'
 
 export type BasemapType = string
@@ -19,6 +20,7 @@ interface BasemapGalleryProps {
 export const BasemapGallery: React.FC<BasemapGalleryProps> = ({ selectedBasemap, onSelectBasemap }) => {
   const mapboxToken = getMapboxAccessToken()
   const catalog = useMemo(() => buildBasemapCatalog(mapboxToken), [mapboxToken])
+  const activeBasemapId = resolveBasemapId(selectedBasemap)
 
   return (
     <div className="tool-panel">
@@ -40,11 +42,11 @@ export const BasemapGallery: React.FC<BasemapGalleryProps> = ({ selectedBasemap,
             return (
               <div
                 key={entry.id}
-                className={`sentinel-item-card ${selectedBasemap === entry.id ? 'selected' : ''}`}
+                className={`sentinel-item-card ${activeBasemapId === entry.id ? 'selected' : ''}`}
                 onClick={() => onSelectBasemap(entry.id)}
                 style={{
                   cursor: 'pointer',
-                  border: selectedBasemap === entry.id ? '2px solid #2196f3' : '1px solid #eee',
+                  border: activeBasemapId === entry.id ? '2px solid #2196f3' : '1px solid #eee',
                   borderRadius: '8px',
                   overflow: 'hidden',
                   transition: 'all 0.2s',
@@ -58,7 +60,7 @@ export const BasemapGallery: React.FC<BasemapGalleryProps> = ({ selectedBasemap,
                     alt={entry.label}
                     style={{ width: '100%', height: '100%', objectFit: 'cover' }}
                   />
-                  {(entry.id === 'hybrid' || entry.id === 'mapbox-hybrid' || entry.id === 'esri-imagery-hybrid') && (
+                  {(entry.id === 'mapbox-hybrid' || entry.id === 'esri-imagery-hybrid') && (
                     <div
                       style={{
                         position: 'absolute',
@@ -81,7 +83,7 @@ export const BasemapGallery: React.FC<BasemapGalleryProps> = ({ selectedBasemap,
                       </span>
                     </div>
                   )}
-                  {selectedBasemap === entry.id && (
+                  {activeBasemapId === entry.id && (
                     <div
                       style={{
                         position: 'absolute',
@@ -109,7 +111,7 @@ export const BasemapGallery: React.FC<BasemapGalleryProps> = ({ selectedBasemap,
                     fontSize: '11px',
                     padding: '8px 4px',
                     fontWeight: 500,
-                    color: selectedBasemap === entry.id ? '#1976d2' : '#333',
+                    color: activeBasemapId === entry.id ? '#1976d2' : '#333',
                     lineHeight: 1.25,
                   }}
                 >
@@ -127,8 +129,9 @@ export const BasemapGallery: React.FC<BasemapGalleryProps> = ({ selectedBasemap,
 export const BasemapLayer: React.FC<{ selectedBasemap: BasemapType }> = ({ selectedBasemap }) => {
   const mapboxToken = getMapboxAccessToken()
   const catalog = useMemo(() => buildBasemapCatalog(mapboxToken), [mapboxToken])
+  const resolvedId = resolveBasemapId(selectedBasemap)
   const entry =
-    catalogEntryById(catalog, selectedBasemap) ??
+    catalogEntryById(catalog, resolvedId) ??
     catalogEntryById(catalog, mapboxToken ? DEFAULT_BASEMAP_ID : DEFAULT_BASEMAP_ID_NO_MAPBOX)
   const layers = entry?.leafletLayers ?? []
 
@@ -136,11 +139,11 @@ export const BasemapLayer: React.FC<{ selectedBasemap: BasemapType }> = ({ selec
     <>
       {layers.map((L, i) => (
         <TileLayer
-          key={`${selectedBasemap}-${i}-${L.url.slice(0, 48)}`}
+          key={`${resolvedId}-${i}-${L.url.slice(0, 48)}`}
           url={L.url}
           attribution={L.attribution}
           opacity={L.opacity ?? 1}
-          maxZoom={L.url.includes('google.com') ? 20 : 19}
+          maxZoom={19}
         />
       ))}
     </>

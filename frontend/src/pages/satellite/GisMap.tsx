@@ -26,6 +26,7 @@ import {
   catalogEntryById,
   DEFAULT_BASEMAP_ID,
   DEFAULT_BASEMAP_ID_NO_MAPBOX,
+  resolveBasemapId,
 } from './basemapCatalog'
 import { useMapboxAccessToken } from '../../hooks/useMapboxAccessToken'
 import { getArcgisPortalToken } from '../../lib/arcgisPortalToken'
@@ -272,9 +273,10 @@ const readStoredBasemap = (): BasemapType => {
   if (typeof window === 'undefined') return fallback
   const stored = window.localStorage.getItem(GIS_BASEMAP_STORAGE_KEY)
   if (!stored) return fallback
+  const resolved = resolveBasemapId(stored)
   const token = getMapboxAccessToken()
-  if (catalogEntryById(buildBasemapCatalog(token), stored)) return stored
-  if (catalogEntryById(buildBasemapCatalog(''), stored)) return stored
+  if (catalogEntryById(buildBasemapCatalog(token), resolved)) return resolved
+  if (catalogEntryById(buildBasemapCatalog(''), resolved)) return resolved
   return fallback
 }
 
@@ -544,7 +546,7 @@ export default function GisMap() {
     const token = (mapboxAccessToken || getMapboxAccessToken() || '').trim()
     const cat = buildBasemapCatalog(token)
     const entry =
-      catalogEntryById(cat, selectedBasemap) ??
+      catalogEntryById(cat, resolveBasemapId(selectedBasemap)) ??
       catalogEntryById(cat, token ? DEFAULT_BASEMAP_ID : DEFAULT_BASEMAP_ID_NO_MAPBOX)
     const st = entry?.mapboxStyle
     if (typeof st === 'object' && st !== null && 'version' in (st as Record<string, unknown>)) {
@@ -558,7 +560,7 @@ export default function GisMap() {
 
   useEffect(() => {
     try {
-      window.localStorage.setItem(GIS_BASEMAP_STORAGE_KEY, selectedBasemap)
+      window.localStorage.setItem(GIS_BASEMAP_STORAGE_KEY, resolveBasemapId(selectedBasemap))
     } catch {}
   }, [selectedBasemap])
 
@@ -566,7 +568,8 @@ export default function GisMap() {
     if (mapboxAccessToken) return
     setSelectedBasemap(prev => {
       const cat = buildBasemapCatalog('')
-      return catalogEntryById(cat, prev) ? prev : DEFAULT_BASEMAP_ID_NO_MAPBOX
+      const r = resolveBasemapId(prev)
+      return catalogEntryById(cat, r) ? r : DEFAULT_BASEMAP_ID_NO_MAPBOX
     })
   }, [mapboxAccessToken])
 

@@ -44,6 +44,12 @@ type StatCardRow = {
   layerName: string
 }
 
+/** One placed visual on the canvas (same chart type may appear many times — Power BI style). */
+type CanvasVisualSlot = {
+  instanceId: string
+  chart: string
+}
+
 const CHART_TOOLS: Array<{ chart: string; icon: string; label: string }> = [
   { chart: 'table', icon: 'fa-solid fa-table', label: 'Table' },
   { chart: 'matrix', icon: 'fa-solid fa-th', label: 'Matrix' },
@@ -99,6 +105,49 @@ function computeAgg(values: number[], agg: string): number {
 function newId() {
   return `${Date.now()}_${Math.random().toString(16).slice(2)}`
 }
+
+function ddbStrHash(s: string): number {
+  let h = 0
+  for (let i = 0; i < s.length; i++) h = (Math.imul(31, h) + s.charCodeAt(i)) | 0
+  return Math.abs(h)
+}
+
+/** Visualization grid → which “Build visual” wells to show (Power BI style). */
+const DDB_MAP_VIS_CHARTS = new Set(['map', 'fieldMap', 'filledMap'])
+const DDB_TABLE_VIS_CHARTS = new Set(['table', 'matrix', 'dataTable'])
+const DDB_CARTESIAN_VIS_CHARTS = new Set([
+  'stackedBar',
+  'clusteredBar',
+  'stackedColumn',
+  'clusteredColumn',
+  '100stackedBar',
+  '100stackedColumn',
+  'line',
+  'area',
+  'stackedArea',
+  'lineClusteredColumn',
+  'lineStackedColumn',
+  'ribbon',
+  'waterfall',
+  'funnel',
+  'scatter',
+  'pie',
+  'donut',
+  'treemap',
+  'gauge',
+  'card',
+  'kpi',
+  'multiRowCard',
+  'azureMaps',
+  'keyInfluencers',
+  'decompositionTree',
+  'slicer',
+  'rScript',
+  'pythonVisual',
+  'qa',
+  'smartNarrative',
+  'customStatCard',
+])
 
 type DdbMiniChartKind =
   | 'bar'
@@ -553,8 +602,8 @@ function ddbWriteCanvasLayouts(map: Record<string, DdbCanvasRect>) {
   }
 }
 
-function ddbCanvasLayoutKey(layerKey: string, chartsSig: string, index: number): string {
-  return `${layerKey}::${chartsSig}::${index}`
+function ddbCanvasLayoutKey(layerKey: string, instanceId: string): string {
+  return `${layerKey}::canvas::${instanceId}`
 }
 
 function ddbReflowCanvasHost(host: HTMLElement) {
@@ -1134,13 +1183,26 @@ export default function DevelopDashboard() {
   const mapContainerRef = useRef<HTMLDivElement | null>(null)
   const canvasWorkspaceRef = useRef<HTMLDivElement | null>(null)
   const chartInstancesRef = useRef<Chart[]>([])
-  const [chartGen, setChartGen] = useState(0)
 
   const [layers, setLayers] = useState<Record<string, LayerState>>({})
   const [activeStatsLayer, setActiveStatsLayer] = useState('')
   const [statsField, setStatsField] = useState('')
   const [statsAgg, setStatsAgg] = useState('sum')
   const [selectedCharts, setSelectedCharts] = useState<Set<string>>(() => new Set(['table', 'line', 'kpi']))
+  const [canvasVisualSlots, setCanvasVisualSlots] = useState<CanvasVisualSlot[]>([])
+  /** Layer used for Build visual wells / bindings (defaults to active stats layer). */
+  const [visualBindingsLayerKey, setVisualBindingsLayerKey] = useState('')
+  const [mapFieldWells, setMapFieldWells] = useState({ location: '', legend: '', latitude: '', longitude: '' })
+  const [mapTooltipFieldPicks, setMapTooltipFieldPicks] = useState<string[]>([])
+  const [cartesianWells, setCartesianWells] = useState({
+    xAxis: '',
+    yAxis: '',
+    legend: '',
+    smallMultiples: '',
+    tooltips: '',
+  })
+  const [cartesianFieldPicks, setCartesianFieldPicks] = useState<string[]>([])
+  const [tableColumnPicks, setTableColumnPicks] = useState<string[]>([])
   const [statCards, setStatCards] = useState<StatCardRow[]>([])
   const [linkStatus, setLinkStatus] = useState('')
   const [addGisOpen, setAddGisOpen] = useState(false)
@@ -1178,7 +1240,42 @@ export default function DevelopDashboard() {
   const [measureDistanceLabel, setMeasureDistanceLabel] = useState('-')
 
   const layerKeys = useMemo(() => Object.keys(layers), [layers])
-  const fieldMapVisualMode = useMemo(() => selectedCharts.has('fieldMap'), [selectedCharts])
+  const bindLayerKey = useMemo(() => {
+    if (visualBindingsLayerKey && layers[visualBindingsLayerKey]) return visualBindingsLayerKey
+    return activeStatsLayer
+  }, [visualBindingsLayerKey, activeStatsLayer, layers])
+
+  const vizBuildMode = useMemo(() => {
+    const sel = [...selectedCharts]
+    if (sel.some(c => DDB_MAP_VIS_CHARTS.has(c))) return 'map' as const
+    if (sel.some(c => DDB_CARTESIAN_VIS_CHARTS.has(c))) return 'cartesian' as const
+    if (sel.some(c => DDB_TABLE_VIS_CHARTS.has(c))) return 'table' as const
+    return 'none' as const
+  }, [selectedCharts])
+
+  const bindLayerFields = useMemo(() => {
+    if (!bindLayerKey || !layers[bindLayerKey]) return []
+    return layers[bindLayerKey].fields
+  }, [bindLayerKey, layers])
+
+  /** Puts `ddb-map-container` in the visuals canvas (drag + resize) — Map, Field Map, or Filled Map (Power BI). */
+  const mapInCanvasVisualMode = useMemo(
+    () => selectedCharts.has('fieldMap') || selectedCharts.has('filledMap') || selectedCharts.has('map'),
+    [selectedCharts],
+  )
+  const mapCanvasCardPresentation = useMemo(() => {
+    if (!mapInCanvasVisualMode) return null
+    const hasField = selectedCharts.has('fieldMap')
+    const hasFilled = selectedCharts.has('filledMap')
+    const hasMap = selectedCharts.has('map')
+    if (hasField && hasFilled) {
+      return { aria: 'Field and filled map card', icon: 'fa-solid fa-map-location-dot', label: 'Field / Filled map' }
+    }
+    if (hasField) return { aria: 'Field Map card', icon: 'fa-solid fa-map-pin', label: 'Field Map' }
+    if (hasFilled) return { aria: 'Filled Map card', icon: 'fa-solid fa-map-location-dot', label: 'Filled Map' }
+    if (hasMap) return { aria: 'Map card', icon: 'fa-solid fa-map', label: 'Map' }
+    return { aria: 'Map card', icon: 'fa-solid fa-map', label: 'Map' }
+  }, [mapInCanvasVisualMode, selectedCharts])
   const sampleLayerKeys = useMemo(() => layerKeys.filter(k => layers[k]?.origin === 'sample'), [layerKeys, layers])
   const userLayerKeys = useMemo(() => layerKeys.filter(k => layers[k]?.origin === 'user'), [layerKeys, layers])
 
@@ -1303,7 +1400,7 @@ export default function DevelopDashboard() {
       window.requestAnimationFrame(() => mapRef.current?.invalidateSize())
     }
     let ro: ResizeObserver | null = null
-    if (fieldMapVisualMode) {
+    if (mapInCanvasVisualMode) {
       ddbDetachMapSplitHeightResize(mapEl)
       ddbAttachMapPanelCanvas(mapEl, ws, charts)
       inv()
@@ -1320,7 +1417,7 @@ export default function DevelopDashboard() {
       ddbDetachMapSplitHeightResize(mapEl)
       inv()
     }
-  }, [fieldMapVisualMode])
+  }, [mapInCanvasVisualMode])
 
   /** No bundled demo layers — keep active stats layer in sync when the user adds or removes data. */
   useEffect(() => {
@@ -1363,6 +1460,88 @@ export default function DevelopDashboard() {
     }
   }, [layers])
 
+  /** Optional point layer from Latitude / Longitude attribute columns (Map / Field Map / Filled Map wells). */
+  useEffect(() => {
+    const map = mapRef.current
+    const lyr = bindLayerKey ? layers[bindLayerKey] : null
+    const latK = mapFieldWells.latitude
+    const lngK = mapFieldWells.longitude
+    const prev = leafletRef.current.__ddbLatLngMarkers
+
+    const clearPrev = () => {
+      if (prev && map) {
+        try {
+          map.removeLayer(prev)
+        } catch {
+          /* ignore */
+        }
+      }
+      delete leafletRef.current.__ddbLatLngMarkers
+    }
+
+    if (!map || !lyr?.data?.features?.length || !latK || !lngK || !lyr.fields.includes(latK) || !lyr.fields.includes(lngK)) {
+      clearPrev()
+      return
+    }
+
+    clearPrev()
+
+    const feats = lyr.data.features as GeoJSON.Feature[]
+    const group = L.featureGroup()
+    const locK = mapFieldWells.location
+    const legK = mapFieldWells.legend
+    const palette = ['#2c7a4a', '#5a9e7a', '#3b82f6', '#c2410c', '#7c3aed', '#0d9488', '#b45309', '#15803d']
+
+    feats.forEach(f => {
+      const p = (f.properties ?? {}) as Record<string, unknown>
+      const la = parseFloat(String(p[latK]))
+      const lo = parseFloat(String(p[lngK]))
+      if (!Number.isFinite(la) || !Number.isFinite(lo)) return
+      let fill = '#2c7a4a'
+      if (legK && p[legK] != null && String(p[legK]).length) {
+        fill = palette[ddbStrHash(String(p[legK])) % palette.length]!
+      }
+      const mk = L.circleMarker([la, lo], {
+        radius: 6,
+        fillColor: fill,
+        color: '#fff',
+        weight: 1,
+        opacity: 1,
+        fillOpacity: 0.9,
+      })
+      const tipLines: string[] = []
+      if (locK && p[locK] != null) tipLines.push(`<strong>${locK}</strong>: ${String(p[locK])}`)
+      for (const tf of mapTooltipFieldPicks) {
+        if (tf === locK) continue
+        if (p[tf] == null) continue
+        tipLines.push(`${tf}: ${String(p[tf])}`)
+      }
+      if (!tipLines.length && legK && p[legK] != null) tipLines.push(`${legK}: ${String(p[legK])}`)
+      mk.bindPopup(tipLines.length ? tipLines.join('<br/>') : 'Point')
+      mk.addTo(group)
+    })
+
+    if (!group.getLayers().length) return
+
+    group.addTo(map)
+    leafletRef.current.__ddbLatLngMarkers = group
+    try {
+      const b = group.getBounds()
+      if (b.isValid()) map.fitBounds(b, { padding: [24, 24], maxZoom: 16 })
+    } catch {
+      /* ignore */
+    }
+
+    return () => {
+      try {
+        map.removeLayer(group)
+      } catch {
+        /* ignore */
+      }
+      if (leafletRef.current.__ddbLatLngMarkers === group) delete leafletRef.current.__ddbLatLngMarkers
+    }
+  }, [bindLayerKey, layers, mapFieldWells, mapTooltipFieldPicks])
+
   const destroyCharts = useCallback(() => {
     chartInstancesRef.current.forEach(c => c.destroy())
     chartInstancesRef.current = []
@@ -1381,20 +1560,44 @@ export default function DevelopDashboard() {
     destroyCharts()
     const host = chartsHostRef.current
     if (!host) return
-    const layer = layers[activeStatsLayer]
+    const layer = layers[bindLayerKey]
     if (!layer?.data?.features?.length) {
-      host.innerHTML = '<div class="ddb-hint" style="padding:20px;">Select a data layer and click “Generate selected visuals”.</div>'
+      host.innerHTML =
+        '<div class="ddb-hint" style="padding:20px;">Select a data layer with features, then use <strong>Add visuals to canvas</strong> in Visualizations.</div>'
       return
     }
     const features = layer.data.features
     const numericFields = layer.fields.filter(f => features.some(feat => typeof (feat.properties as any)?.[f] === 'number'))
-    const primaryNum = numericFields[0] || layer.fields[0]
-    const labels = features.slice(0, 8).map((f, i) => String((f.properties as any)?.Farm_Name ?? `Item ${i + 1}`))
+    const yWell = cartesianWells.yAxis
+    const primaryNum =
+      yWell &&
+      layer.fields.includes(yWell) &&
+      features.some(feat => {
+        const v = (feat.properties as any)?.[yWell]
+        return typeof v === 'number' || !Number.isNaN(parseFloat(String(v ?? '')))
+      })
+        ? yWell
+        : numericFields[0] || layer.fields[0]
+    const xWell = cartesianWells.xAxis
+    const labelField =
+      xWell && layer.fields.includes(xWell)
+        ? xWell
+        : layer.fields.includes('Farm_Name')
+          ? 'Farm_Name'
+          : layer.fields[0] || 'name'
+    const labels = features.slice(0, 8).map((f, i) => String((f.properties as any)?.[labelField] ?? `Item ${i + 1}`))
     const values = features.slice(0, 8).map(f => parseFloat(String((f.properties as any)?.[primaryNum] ?? 0)) || 0)
 
-    const addChartCard = (title: string, type: string, dataConfig: any) => {
+    if (!canvasVisualSlots.length) {
+      host.innerHTML =
+        '<div class="ddb-hint" style="padding:20px;">Choose chart types in the grid, then click <strong>Add visuals to canvas</strong>. Each click appends another set of cards (same type can appear multiple times, like Power BI). Use <strong>Clear canvas</strong> to remove all.</div>'
+      return
+    }
+
+    const addChartCard = (instanceId: string, title: string, type: string, dataConfig: any) => {
       const card = document.createElement('div')
       card.className = 'ddb-visual-card'
+      card.dataset.ddbInstanceId = instanceId
       const titleEl = document.createElement('div')
       titleEl.className = 'ddb-visual-title'
       titleEl.innerHTML = `<i class="fa-solid fa-chart-simple" aria-hidden="true"></i> ${title}`
@@ -1553,12 +1756,17 @@ export default function DevelopDashboard() {
       rebuild(initialMini)
     }
 
-    for (const tool of selectedCharts) {
-      if (tool === 'fieldMap') continue
+    for (const slot of canvasVisualSlots) {
+      const { chart: tool, instanceId } = slot
+      if (tool === 'fieldMap' || tool === 'filledMap' || tool === 'map') continue
       if (tool === 'table' || tool === 'dataTable') {
         const tbl = document.createElement('div')
         tbl.className = 'ddb-visual-card'
-        const headers = layer.fields.slice(0, 5)
+        tbl.dataset.ddbInstanceId = instanceId
+        const headers =
+          tableColumnPicks.length > 0
+            ? tableColumnPicks.filter(h => layer.fields.includes(h)).slice(0, 14)
+            : layer.fields.slice(0, 5)
         const rows = features.slice(0, 5)
         tbl.innerHTML = `<div class="ddb-visual-title"><i class="fa-solid fa-table"></i> ${tool === 'dataTable' ? 'Data Table' : 'Table'}</div>
           <div class="ddb-table-responsive"><table><thead><tr>${headers.map(h => `<th>${h}</th>`).join('')}</tr></thead><tbody>
@@ -1569,44 +1777,47 @@ export default function DevelopDashboard() {
       } else if (tool === 'matrix') {
         const matrix = document.createElement('div')
         matrix.className = 'ddb-visual-card'
-        matrix.innerHTML = `<div class="ddb-visual-title"><i class="fa-solid fa-th"></i> Matrix</div><div class="ddb-table-responsive"><table><tr><th>Farm</th><th>${primaryNum}</th></tr>${labels
+        matrix.dataset.ddbInstanceId = instanceId
+        const rowLabel = labelField
+        matrix.innerHTML = `<div class="ddb-visual-title"><i class="fa-solid fa-th"></i> Matrix</div><div class="ddb-table-responsive"><table><tr><th>${rowLabel}</th><th>${primaryNum}</th></tr>${labels
           .slice(0, 4)
           .map((l, i) => `<tr><td>${l}</td><td>${values[i]}</td></tr>`)
           .join('')}</table></div>`
         host.appendChild(matrix)
         ddbPromoteVisualCardChrome(matrix, { showStatStrip: false, showZoomHint: false })
       } else if (tool === 'stackedBar' || tool === 'clusteredBar') {
-        addChartCard(tool === 'stackedBar' ? 'Stacked Bar' : 'Clustered Bar', 'bar', {
+        addChartCard(instanceId, tool === 'stackedBar' ? 'Stacked Bar' : 'Clustered Bar', 'bar', {
           data: { labels, datasets: [{ label: primaryNum, data: values, backgroundColor: '#4c9a6e' }] },
         })
       } else if (tool === 'stackedColumn' || tool === 'clusteredColumn') {
-        addChartCard(`${tool} chart`, 'bar', { data: { labels, datasets: [{ label: primaryNum, data: values }] } })
+        addChartCard(instanceId, `${tool} chart`, 'bar', { data: { labels, datasets: [{ label: primaryNum, data: values }] } })
       } else if (tool === '100stackedBar') {
         const total = values.reduce((a, b) => a + b, 0) || 1
         const perc = values.map(v => (v / total) * 100)
-        addChartCard('100% Stacked Bar', 'bar', {
+        addChartCard(instanceId, '100% Stacked Bar', 'bar', {
           data: { labels, datasets: [{ label: 'Percentage', data: perc, backgroundColor: '#2b8c5e' }] },
         })
       } else if (tool === '100stackedColumn') {
         const t = values.reduce((a, b) => a + b, 0) || 1
-        addChartCard('100% Stacked Column', 'bar', {
+        addChartCard(instanceId, '100% Stacked Column', 'bar', {
           data: { labels, datasets: [{ label: '% Share', data: values.map(v => (v / t) * 100) }] },
         })
       } else if (tool === 'line') {
-        addChartCard('Line Chart', 'line', {
+        addChartCard(instanceId, 'Line Chart', 'line', {
           data: { labels, datasets: [{ label: primaryNum, data: values, borderColor: '#2c7a4a' }] },
         })
       } else if (tool === 'area') {
-        addChartCard('Area Chart', 'line', {
+        addChartCard(instanceId, 'Area Chart', 'line', {
           data: { labels, datasets: [{ label: primaryNum, data: values, fill: true, backgroundColor: '#8fc9a3' }] },
         })
       } else if (tool === 'stackedArea') {
-        addChartCard('Stacked Area', 'line', {
+        addChartCard(instanceId, 'Stacked Area', 'line', {
           data: { labels, datasets: [{ label: primaryNum, data: values, fill: true }] },
         })
       } else if (tool === 'lineClusteredColumn') {
         const card = document.createElement('div')
         card.className = 'ddb-visual-card'
+        card.dataset.ddbInstanceId = instanceId
         const canvas = document.createElement('canvas')
         const titleEl = document.createElement('div')
         titleEl.className = 'ddb-visual-title'
@@ -1631,18 +1842,18 @@ export default function DevelopDashboard() {
           ch.resetZoom?.()
         })
       } else if (tool === 'pie') {
-        addChartCard('Pie Chart', 'pie', {
+        addChartCard(instanceId, 'Pie Chart', 'pie', {
           data: {
             labels: labels.slice(0, 5),
             datasets: [{ data: values.slice(0, 5), backgroundColor: ['#2c7a4a', '#5a9e7a', '#8bc0a4', '#b1d4be', '#cfe8d8'] }],
           },
         })
       } else if (tool === 'donut') {
-        addChartCard('Donut Chart', 'doughnut', {
+        addChartCard(instanceId, 'Donut Chart', 'doughnut', {
           data: { labels: labels.slice(0, 4), datasets: [{ data: values.slice(0, 4), backgroundColor: ['#3cac6e', '#5a9e7a', '#8bc0a4', '#b1d4be'] }] },
         })
       } else if (tool === 'scatter') {
-        addChartCard('Scatter Plot', 'scatter', {
+        addChartCard(instanceId, 'Scatter Plot', 'scatter', {
           data: {
             datasets: [
               {
@@ -1657,17 +1868,18 @@ export default function DevelopDashboard() {
           },
         })
       } else if (tool === 'waterfall') {
-        addChartCard('Waterfall', 'bar', {
+        addChartCard(instanceId, 'Waterfall', 'bar', {
           data: { labels: ['Start', 'Step1', 'Step2', 'End'], datasets: [{ label: 'Delta', data: [100, 40, -30, 110] }] },
         })
       } else if (tool === 'funnel') {
-        addChartCard('Funnel', 'bar', {
+        addChartCard(instanceId, 'Funnel', 'bar', {
           data: { labels: ['Lead', 'Qualify', 'Proposal', 'Win'], datasets: [{ data: [120, 85, 42, 18] }] },
         })
       } else if (tool === 'gauge') {
         const avgVal = values.reduce((a, b) => a + b, 0) / (values.length || 1)
         const gauge = document.createElement('div')
         gauge.className = 'ddb-visual-card'
+        gauge.dataset.ddbInstanceId = instanceId
         gauge.innerHTML = `<div class="ddb-visual-title"><i class="fa-solid fa-gauge-high"></i> Gauge</div><div class="ddb-visual-card__body-pad"><div style="background:#e2e8f0; border-radius:40px; height:20px;"><div style="background:#2c7a4a; width:${Math.min(100, (avgVal / 200) * 100)}%; height:20px; border-radius:40px;"></div></div><div>Value: ${avgVal.toFixed(1)} / 200</div></div>`
         host.appendChild(gauge)
         ddbPromoteVisualCardChrome(gauge, { showStatStrip: false, showZoomHint: false })
@@ -1675,12 +1887,14 @@ export default function DevelopDashboard() {
         const total = values.reduce((a, b) => a + b, 0)
         const card = document.createElement('div')
         card.className = 'ddb-visual-card'
+        card.dataset.ddbInstanceId = instanceId
         card.innerHTML = `<div class="ddb-visual-title"><i class="fa-solid fa-id-card"></i> Card</div><div class="ddb-visual-card__body-pad"><div style="font-size:2rem; font-weight:800;">${total.toFixed(0)}</div><div>Total ${primaryNum}</div></div>`
         host.appendChild(card)
         ddbPromoteVisualCardChrome(card, { showStatStrip: false, showZoomHint: false })
       } else if (tool === 'kpi') {
         const kpi = document.createElement('div')
         kpi.className = 'ddb-visual-card'
+        kpi.dataset.ddbInstanceId = instanceId
         kpi.innerHTML = `<div class="ddb-visual-title"><i class="fa-solid fa-chart-simple"></i> KPI</div><div class="ddb-visual-card__body-pad"><div style="font-size:2rem;">${values[0] ?? 0}</div><div>Target: 150 | ${((((values[0] ?? 0) / 150) * 100) || 0).toFixed(0)}%</div></div>`
         host.appendChild(kpi)
         ddbPromoteVisualCardChrome(kpi, { showStatStrip: false, showZoomHint: false })
@@ -1688,13 +1902,15 @@ export default function DevelopDashboard() {
         if (!statCards.length) {
           const wrap = document.createElement('div')
           wrap.className = 'ddb-visual-card'
-          wrap.innerHTML = `<div class="ddb-visual-title"><i class="fa-solid fa-chart-column"></i> Custom stat cards</div><div class="ddb-visual-card__body-pad"><div class="ddb-hint">Pick layer, field, and aggregation in Visualizations, add cards, then generate again to show them here.</div></div>`
+          wrap.dataset.ddbInstanceId = instanceId
+          wrap.innerHTML = `<div class="ddb-visual-title"><i class="fa-solid fa-chart-column"></i> Custom stat cards</div><div class="ddb-visual-card__body-pad"><div class="ddb-hint">Pick layer, field, and aggregation in Visualizations, add cards, then click <strong>Add visuals to canvas</strong> again to refresh.</div></div>`
           host.appendChild(wrap)
           ddbPromoteVisualCardChrome(wrap, { showStatStrip: false, showZoomHint: false })
         } else {
           for (const c of statCards) {
             const box = document.createElement('div')
             box.className = 'ddb-visual-card'
+            box.dataset.ddbInstanceId = `${instanceId}_${c.id}`
             box.innerHTML = `<div class="ddb-visual-title"><i class="fa-solid fa-chart-column"></i> ${c.layerName}</div><div class="ddb-visual-card__body-pad"><div style="font-size:1.75rem;font-weight:800;">${c.result.toFixed(2)}</div><div>${c.agg} · ${c.field}</div></div>`
             host.appendChild(box)
             ddbPromoteVisualCardChrome(box, { showStatStrip: false, showZoomHint: false })
@@ -1703,27 +1919,36 @@ export default function DevelopDashboard() {
       } else {
         const fb = document.createElement('div')
         fb.className = 'ddb-visual-card'
+        fb.dataset.ddbInstanceId = instanceId
         fb.innerHTML = `<div class="ddb-visual-title"><i class="fa-solid fa-chart-simple"></i> ${tool.replace(/([A-Z])/g, ' $1')}</div><div class="ddb-visual-card__body-pad"><div>Static simulation for ${tool} based on ${layer.name}</div></div>`
         host.appendChild(fb)
         ddbPromoteVisualCardChrome(fb, { showStatStrip: false, showZoomHint: false })
       }
     }
 
-    const chartsSig = `${[...selectedCharts].join('>')}::sc:${statCards.map(c => c.id).join(',')}`
-    Array.from(host.querySelectorAll(':scope > .ddb-visual-card')).forEach((node, i) => {
+    Array.from(host.querySelectorAll(':scope > .ddb-visual-card')).forEach(node => {
       const he = node as HTMLElement
-      he.dataset.ddbCanvasIndex = String(i)
-      ddbAttachCanvasCard(he, host, ddbCanvasLayoutKey(activeStatsLayer, chartsSig, i))
+      const id = he.dataset.ddbInstanceId
+      if (!id) return
+      ddbAttachCanvasCard(he, host, ddbCanvasLayoutKey(bindLayerKey, id))
     })
     ddbReflowCanvasHost(host)
     ddbResizeChartsInHost(host)
-  }, [activeStatsLayer, destroyCharts, layers, selectedCharts, statCards])
+  }, [
+    bindLayerKey,
+    canvasVisualSlots,
+    cartesianWells,
+    destroyCharts,
+    layers,
+    statCards,
+    tableColumnPicks,
+  ])
 
   useEffect(() => {
     if (!Object.keys(layers).length || !activeStatsLayer) return
     renderCharts()
     return () => destroyCharts()
-  }, [layers, activeStatsLayer, selectedCharts, chartGen, renderCharts, destroyCharts])
+  }, [layers, activeStatsLayer, bindLayerKey, canvasVisualSlots, cartesianWells, tableColumnPicks, renderCharts, destroyCharts])
 
   const toggleLayerVisible = (key: string, visible: boolean) => {
     setLayers(prev => {
@@ -2286,17 +2511,23 @@ export default function DevelopDashboard() {
         <div className="ddb-main">
           <div
             ref={canvasWorkspaceRef}
-            className={`ddb-canvas-workspace${fieldMapVisualMode ? ' ddb-canvas-workspace--field-map' : ''}`}
-            aria-label={fieldMapVisualMode ? 'Visuals canvas with Field Map' : 'Dashboard map and visuals'}
+            className={`ddb-canvas-workspace${mapInCanvasVisualMode ? ' ddb-canvas-workspace--field-map' : ''}`}
+            aria-label={
+              mapInCanvasVisualMode ? 'Visuals canvas with map (Field or Filled map)' : 'Dashboard map and visuals'
+            }
           >
           <div
             ref={mapContainerRef}
-            className={`ddb-map-container${fieldMapVisualMode ? ' ddb-map-container--canvas' : ''}`}
+            className={`ddb-map-container${mapInCanvasVisualMode ? ' ddb-map-container--canvas' : ''}`}
           >
-            {fieldMapVisualMode ? (
-              <div className="ddb-map-container__drag-header" role="group" aria-label="Field Map card">
+            {mapCanvasCardPresentation ? (
+              <div
+                className="ddb-map-container__drag-header"
+                role="group"
+                aria-label={mapCanvasCardPresentation.aria}
+              >
                 <span className="ddb-map-container__drag-title">
-                  <i className="fa-solid fa-map-pin" aria-hidden /> Field Map
+                  <i className={mapCanvasCardPresentation.icon} aria-hidden /> {mapCanvasCardPresentation.label}
                 </span>
               </div>
             ) : null}
@@ -2707,8 +2938,9 @@ export default function DevelopDashboard() {
               {rightSheet === 'visualizations' ? (
                 <div className="ddb-right-sheet-body">
                   <p className="ddb-right-sheet-lead">
-                    Multi-select chart types. Hover an icon for its name, then generate below. Field Map moves the map
-                    into the same canvas as generated visuals (drag header and resize handle).
+                    Multi-select chart types (hover for name). Click <strong>Add visuals to canvas</strong> to place the
+                    current selection; click again to append more cards, including duplicates of the same type (Power
+                    BI style). Field Map and Filled Map move the live map into the canvas (drag header, resize handle).
                   </p>
                   <div className="ddb-powerbi-grid ddb-powerbi-grid--in-right-sheet" role="group" aria-label="Visualization types">
                     {CHART_TOOLS.map(t => (
@@ -2725,6 +2957,190 @@ export default function DevelopDashboard() {
                       </button>
                     ))}
                   </div>
+                  {vizBuildMode !== 'none' && layerKeys.length > 0 ? (
+                    <div className="ddb-vis-build-visual" aria-label="Build visual field wells">
+                      <div className="ddb-vis-build-visual__title">Build visual</div>
+                      <label className="ddb-vis-bind-layer">
+                        <span className="ddb-vis-bind-layer__label">Data layer</span>
+                        <select
+                          className="ddb-select ddb-vis-bind-layer__select"
+                          value={
+                            visualBindingsLayerKey && layers[visualBindingsLayerKey]
+                              ? visualBindingsLayerKey
+                              : '__active__'
+                          }
+                          onChange={e => {
+                            const v = e.target.value
+                            setVisualBindingsLayerKey(v === '__active__' ? '' : v)
+                          }}
+                        >
+                          <option value="__active__">Active data layer ({layers[activeStatsLayer]?.name ?? '—'})</option>
+                          {layerKeys.map(k => (
+                            <option key={k} value={k}>
+                              {layers[k]?.name ?? k}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                      {vizBuildMode === 'map' ? (
+                        <>
+                          {(
+                            [
+                              { key: 'location' as const, label: 'Location' },
+                              { key: 'legend' as const, label: 'Legend' },
+                              { key: 'latitude' as const, label: 'Latitude' },
+                              { key: 'longitude' as const, label: 'Longitude' },
+                            ] as const
+                          ).map(w => (
+                            <div key={w.key} className="ddb-vis-well">
+                              <span className="ddb-vis-well__label">{w.label}</span>
+                              <select
+                                className="ddb-vis-well__select"
+                                value={mapFieldWells[w.key]}
+                                onChange={e => setMapFieldWells(prev => ({ ...prev, [w.key]: e.target.value }))}
+                                aria-label={w.label}
+                              >
+                                <option value="">Add data fields here</option>
+                                {bindLayerFields.map(f => (
+                                  <option key={f} value={f}>
+                                    {f}
+                                  </option>
+                                ))}
+                              </select>
+                            </div>
+                          ))}
+                          <div className="ddb-vis-well">
+                            <span className="ddb-vis-well__label">Tooltips</span>
+                            <div className="ddb-vis-well__placeholder" title="Use the field list below">
+                              Add data fields here
+                            </div>
+                          </div>
+                          <div className="ddb-vis-drill" aria-hidden>
+                            <div className="ddb-vis-drill__title">Drill through</div>
+                            <div className="ddb-vis-drill__row">
+                              <span>Cross-report</span>
+                              <span className="ddb-vis-fake-toggle is-off">Off</span>
+                            </div>
+                          </div>
+                          <div className="ddb-vis-fields-block">
+                            <div className="ddb-vis-fields-block__head">Fields</div>
+                            <p className="ddb-vis-fields-block__hint">Check a field to include it in map tooltips (with Location / Legend / Lat / Long above).</p>
+                            <ul className="ddb-vis-field-check-list" role="list">
+                              {bindLayerFields.map(f => (
+                                <li key={f}>
+                                  <label className="ddb-vis-field-check-row">
+                                    <input
+                                      type="checkbox"
+                                      checked={mapTooltipFieldPicks.includes(f)}
+                                      onChange={() =>
+                                        setMapTooltipFieldPicks(prev =>
+                                          prev.includes(f) ? prev.filter(x => x !== f) : [...prev, f],
+                                        )
+                                      }
+                                    />
+                                    <span className="ddb-vis-field-check-row__name">{f}</span>
+                                  </label>
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
+                        </>
+                      ) : vizBuildMode === 'cartesian' ? (
+                        <>
+                          {(
+                            [
+                              { key: 'xAxis' as const, label: 'X-axis' },
+                              { key: 'yAxis' as const, label: 'Y-axis' },
+                              { key: 'legend' as const, label: 'Legend' },
+                              { key: 'smallMultiples' as const, label: 'Small multiples' },
+                              { key: 'tooltips' as const, label: 'Tooltips' },
+                            ] as const
+                          ).map(w => (
+                            <div key={w.key} className="ddb-vis-well">
+                              <span className="ddb-vis-well__label">{w.label}</span>
+                              <select
+                                className="ddb-vis-well__select"
+                                value={cartesianWells[w.key]}
+                                onChange={e => setCartesianWells(prev => ({ ...prev, [w.key]: e.target.value }))}
+                                aria-label={w.label}
+                              >
+                                <option value="">Add data fields here</option>
+                                {bindLayerFields.map(f => (
+                                  <option key={f} value={f}>
+                                    {f}
+                                  </option>
+                                ))}
+                              </select>
+                            </div>
+                          ))}
+                          <div className="ddb-vis-drill" aria-hidden>
+                            <div className="ddb-vis-drill__title">Drill through</div>
+                            <div className="ddb-vis-drill__row">
+                              <span>Cross-report</span>
+                              <span className="ddb-vis-fake-toggle is-off">Off</span>
+                            </div>
+                            <div className="ddb-vis-drill__row">
+                              <span>Keep all filters</span>
+                              <span className="ddb-vis-fake-toggle is-on">On</span>
+                            </div>
+                          </div>
+                          <div className="ddb-vis-fields-block">
+                            <div className="ddb-vis-fields-block__head">Fields</div>
+                            <p className="ddb-vis-fields-block__hint">Pin fields for the next chart build (X/Y wells above drive axis labels and values).</p>
+                            <ul className="ddb-vis-field-check-list" role="list">
+                              {bindLayerFields.map(f => (
+                                <li key={f}>
+                                  <label className="ddb-vis-field-check-row">
+                                    <input
+                                      type="checkbox"
+                                      checked={cartesianFieldPicks.includes(f)}
+                                      onChange={() =>
+                                        setCartesianFieldPicks(prev =>
+                                          prev.includes(f) ? prev.filter(x => x !== f) : [...prev, f],
+                                        )
+                                      }
+                                    />
+                                    <span className="ddb-vis-field-check-row__name">{f}</span>
+                                  </label>
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
+                        </>
+                      ) : (
+                        <>
+                          <div className="ddb-vis-well">
+                            <span className="ddb-vis-well__label">Values</span>
+                            <select className="ddb-vis-well__select" disabled aria-disabled title="Use field checkboxes">
+                              <option value="">Add data fields here</option>
+                            </select>
+                          </div>
+                          <div className="ddb-vis-fields-block">
+                            <div className="ddb-vis-fields-block__head">Fields</div>
+                            <p className="ddb-vis-fields-block__hint">Choose columns for Table / Matrix visuals on the canvas.</p>
+                            <ul className="ddb-vis-field-check-list" role="list">
+                              {bindLayerFields.map(f => (
+                                <li key={f}>
+                                  <label className="ddb-vis-field-check-row">
+                                    <input
+                                      type="checkbox"
+                                      checked={tableColumnPicks.includes(f)}
+                                      onChange={() =>
+                                        setTableColumnPicks(prev =>
+                                          prev.includes(f) ? prev.filter(x => x !== f) : [...prev, f],
+                                        )
+                                      }
+                                    />
+                                    <span className="ddb-vis-field-check-row__name">{f}</span>
+                                  </label>
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
+                        </>
+                      )}
+                    </div>
+                  ) : null}
                   {selectedCharts.has('customStatCard') ? (
                     <div className="ddb-vis-stat-card" aria-label="Custom stat card configuration">
                       <div className="ddb-vis-stat-card__icon-badge" aria-hidden>
@@ -2784,9 +3200,27 @@ export default function DevelopDashboard() {
                       </button>
                     </div>
                   ) : null}
-                  <button type="button" className="ddb-btn ddb-right-sheet-primary" onClick={() => setChartGen(g => g + 1)}>
-                    <i className="fa-solid fa-rotate" aria-hidden /> Generate selected visuals
-                  </button>
+                  <div className="ddb-vis-add-actions">
+                    <button
+                      type="button"
+                      className="ddb-btn ddb-right-sheet-primary"
+                      onClick={() => {
+                        const toAdd = [...selectedCharts].filter(c => c !== 'fieldMap' && c !== 'filledMap' && c !== 'map')
+                        if (!toAdd.length) return
+                        setCanvasVisualSlots(prev => [...prev, ...toAdd.map(chart => ({ instanceId: newId(), chart }))])
+                      }}
+                    >
+                      <i className="fa-solid fa-plus" aria-hidden /> Add visuals to canvas
+                    </button>
+                    <button
+                      type="button"
+                      className="ddb-btn ddb-right-sheet-secondary"
+                      onClick={() => setCanvasVisualSlots([])}
+                      disabled={canvasVisualSlots.length === 0}
+                    >
+                      Clear canvas
+                    </button>
+                  </div>
                   {statCards.length > 0 ? (
                     <div className="ddb-vis-stat-saved" role="region" aria-label="Saved stat cards">
                       <div className="ddb-vis-stat-saved-head">Your stat cards</div>

@@ -59,6 +59,7 @@ import {
   DEFAULT_BASEMAP_ID_NO_MAPBOX,
   getBasemapThumbnail,
   mapboxGlStyleForEntry,
+  resolveBasemapId,
 } from './basemapCatalog';
 
 const EMPTY_MAP_STYLE: any = {
@@ -946,10 +947,20 @@ export default function SatelliteIntelligence() {
     if (mapboxToken) return;
     setBasemapId(prev => {
       const cat = buildBasemapCatalog('');
-      if (catalogEntryById(cat, prev)) return prev;
+      const r = resolveBasemapId(prev);
+      if (catalogEntryById(cat, r)) return r;
       return DEFAULT_BASEMAP_ID_NO_MAPBOX;
     });
   }, [mapboxToken]);
+
+  useEffect(() => {
+    setBasemapId(prev => {
+      if (catalogEntryById(basemapCatalog, prev)) return prev;
+      const r = resolveBasemapId(prev);
+      if (catalogEntryById(basemapCatalog, r)) return r;
+      return mapboxToken ? DEFAULT_BASEMAP_ID : DEFAULT_BASEMAP_ID_NO_MAPBOX;
+    });
+  }, [basemapCatalog, mapboxToken]);
   const [is3DView, setIs3DView] = useState(true);
   const [cloudCoverage, setCloudCoverage] = useState(20);
   const [isTimelinePlaying, setIsTimelinePlaying] = useState(false);
@@ -3290,15 +3301,16 @@ export default function SatelliteIntelligence() {
 
   const wmsDate = selectedDate.toISOString().split('T')[0];
   const sentinelVisible = isWmsOverlayVisible && !!activeWmsLayer;
+  const activeBasemapId = useMemo(() => resolveBasemapId(basemapId), [basemapId]);
   const currentBasemapEntry = useMemo(() => {
     return (
-      catalogEntryById(basemapCatalog, basemapId) ??
+      catalogEntryById(basemapCatalog, activeBasemapId) ??
       catalogEntryById(
         basemapCatalog,
         mapboxToken ? DEFAULT_BASEMAP_ID : DEFAULT_BASEMAP_ID_NO_MAPBOX,
       )!
     );
-  }, [basemapCatalog, basemapId, mapboxToken]);
+  }, [basemapCatalog, activeBasemapId, mapboxToken]);
   const mapStyle = currentBasemapEntry
     ? mapboxGlStyleForEntry(currentBasemapEntry, mapboxToken || '')
     : EMPTY_MAP_STYLE;
@@ -5188,12 +5200,12 @@ export default function SatelliteIntelligence() {
                 {basemapCatalog.map(entry => {
                   const thumb = getBasemapThumbnail(entry, mapboxToken || '');
                   const isHybrid =
-                    entry.id === 'hybrid' || entry.id === 'mapbox-hybrid' || entry.id === 'esri-imagery-hybrid';
+                    entry.id === 'mapbox-hybrid' || entry.id === 'esri-imagery-hybrid';
                   return (
                     <button
                       type="button"
                       key={entry.id}
-                      className={`si-basemap-card ${basemapId === entry.id ? 'active' : ''}`}
+                      className={`si-basemap-card ${activeBasemapId === entry.id ? 'active' : ''}`}
                       onClick={() => {
                         setBasemapId(entry.id);
                         setIsBasemapOpen(false);
@@ -5202,7 +5214,7 @@ export default function SatelliteIntelligence() {
                       <span className="si-basemap-card-thumb">
                         <img src={thumb} alt="" />
                         {isHybrid && <span className="si-basemap-card-hybrid">Labels</span>}
-                        {basemapId === entry.id && (
+                        {activeBasemapId === entry.id && (
                           <span className="si-basemap-card-check" aria-hidden>
                             <i className="fa-solid fa-check" />
                           </span>

@@ -818,10 +818,190 @@
   background: #fff;
 }
 
+.develop-dashboard-root .ddb-vis-add-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 4px;
+}
+
 .develop-dashboard-root .ddb-right-sheet-primary {
   width: 100%;
-  margin-top: 4px;
   border-radius: 10px;
+}
+
+.develop-dashboard-root .ddb-right-sheet-secondary {
+  width: 100%;
+  border-radius: 10px;
+  background: #fff;
+  border: 1px solid #c8c6c4;
+  color: #323130;
+}
+
+.develop-dashboard-root .ddb-right-sheet-secondary:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+/* Build visual: Power BI–style wells + field checkboxes (under visualization grid) */
+.develop-dashboard-root .ddb-vis-build-visual {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid rgba(200, 198, 196, 0.9);
+}
+
+.develop-dashboard-root .ddb-vis-build-visual__title {
+  font-size: 0.65rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #605e5c;
+  margin-bottom: 10px;
+}
+
+.develop-dashboard-root .ddb-vis-bind-layer {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 10px;
+}
+
+.develop-dashboard-root .ddb-vis-bind-layer__label {
+  font-size: 0.65rem;
+  font-weight: 600;
+  color: #605e5c;
+}
+
+.develop-dashboard-root .ddb-vis-bind-layer__select {
+  width: 100%;
+  font-size: 0.78rem;
+}
+
+.develop-dashboard-root .ddb-vis-well {
+  margin-bottom: 8px;
+}
+
+.develop-dashboard-root .ddb-vis-well__label {
+  display: block;
+  font-size: 0.68rem;
+  font-weight: 600;
+  color: #323130;
+  margin-bottom: 4px;
+}
+
+.develop-dashboard-root .ddb-vis-well__select {
+  width: 100%;
+  padding: 7px 8px;
+  border-radius: 4px;
+  border: 1px dashed #c8c6c4;
+  background: #fff;
+  font-size: 0.78rem;
+  color: #323130;
+}
+
+.develop-dashboard-root .ddb-vis-well__placeholder {
+  width: 100%;
+  padding: 7px 8px;
+  border-radius: 4px;
+  border: 1px dashed #c8c6c4;
+  background: #faf9f8;
+  font-size: 0.75rem;
+  color: #8a8886;
+}
+
+.develop-dashboard-root .ddb-vis-drill {
+  margin: 10px 0 8px;
+  padding-top: 8px;
+  border-top: 1px solid #e1dfdd;
+}
+
+.develop-dashboard-root .ddb-vis-drill__title {
+  font-size: 0.65rem;
+  font-weight: 700;
+  color: #605e5c;
+  margin-bottom: 6px;
+}
+
+.develop-dashboard-root .ddb-vis-drill__row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 0.72rem;
+  color: #323130;
+  margin-bottom: 4px;
+}
+
+.develop-dashboard-root .ddb-vis-fake-toggle {
+  font-size: 0.65rem;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: #edebe9;
+  color: #605e5c;
+}
+
+.develop-dashboard-root .ddb-vis-fake-toggle.is-on {
+  background: rgba(44, 122, 74, 0.2);
+  color: #1f5e3a;
+}
+
+.develop-dashboard-root .ddb-vis-fields-block {
+  margin-top: 6px;
+}
+
+.develop-dashboard-root .ddb-vis-fields-block__head {
+  font-size: 0.65rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #605e5c;
+  margin-bottom: 4px;
+}
+
+.develop-dashboard-root .ddb-vis-fields-block__hint {
+  margin: 0 0 6px;
+  font-size: 0.68rem;
+  line-height: 1.4;
+  color: #605e5c;
+}
+
+.develop-dashboard-root .ddb-vis-field-check-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  max-height: 200px;
+  overflow-y: auto;
+  border: 1px solid #e1dfdd;
+  border-radius: 8px;
+  background: #fff;
+}
+
+.develop-dashboard-root .ddb-vis-field-check-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 8px;
+  font-size: 0.78rem;
+  border-bottom: 1px solid #f3f2f1;
+  cursor: pointer;
+}
+
+.develop-dashboard-root .ddb-vis-field-check-list li:last-child .ddb-vis-field-check-row {
+  border-bottom: none;
+}
+
+.develop-dashboard-root .ddb-vis-field-check-row:hover {
+  background: #faf9f8;
+}
+
+.develop-dashboard-root .ddb-vis-field-check-row input {
+  flex-shrink: 0;
+}
+
+.develop-dashboard-root .ddb-vis-field-check-row__name {
+  min-width: 0;
+  word-break: break-word;
 }
 
 /* Data pane: map layer cards live above field search (no duplicate sidebar registry header) */
