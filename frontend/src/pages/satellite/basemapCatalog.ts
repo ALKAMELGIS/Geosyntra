@@ -355,6 +355,16 @@ function rasterPreviewFromTemplate(template: string): string | null {
 
 export function getBasemapThumbnail(entry: BasemapCatalogEntry, mapboxToken: string): string {
   const t = mapboxToken.trim()
+  // Gallery <img> previews: raster tiles for `standard-satellite` often return blank; use classic Mapbox raster styles.
+  if (t && entry.id === 'mapbox-standard-satellite') {
+    const u = mbThumb('satellite-v9', t)
+    if (u) return u
+  }
+  if (t && entry.id === 'mapbox-hybrid') {
+    const u = mbThumb('satellite-streets-v12', t)
+    if (u) return u
+  }
+
   const first = entry.leafletLayers?.[0]?.url
   if (first) {
     if (first.includes('api.mapbox.com') && t && first.includes('{z}')) {
@@ -365,8 +375,6 @@ export function getBasemapThumbnail(entry: BasemapCatalogEntry, mapboxToken: str
     const direct = rasterPreviewFromTemplate(first)
     if (direct) return direct
   }
-  if (t && entry.id === 'mapbox-standard-satellite') return mbThumb('standard-satellite', t)
-  if (t && entry.id === 'mapbox-hybrid') return mbThumb('satellite-streets-v12', t)
   if (t && entry.id.startsWith('mb-')) {
     const map: Record<string, string> = {
       'mb-streets': 'streets-v12',
