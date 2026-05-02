@@ -60,6 +60,7 @@
         <li>افتح المستودع على GitHub → <strong>Settings</strong> → <strong>Pages</strong>.</li>
         <li>ضمن <strong>Build and deployment</strong> اختر المصدر: <strong>GitHub Actions</strong> (وليس Deploy from a branch).</li>
         <li>ادفع أي تعديل إلى <code>main</code> أو شغّل يدوياً سير العمل <strong>Deploy to GitHub Pages</strong>.</li>
+        <li>إذا بقي النشر «معلّقاً»: من المستودع → <strong>Settings</strong> → <strong>Environments</strong> → <code>github-pages</code> وأزل قيود الموافقة أو وافق على النشر المعلّق.</li>
       </ol>
       <p>بعد ضبط المصدر على Actions، افتح الواجهة من الرابط (مع <code>#</code> لأن التطبيق يستخدم HashRouter):</p>
       <p><a href="https://alkamelgis.github.io/AgroCloud/#/">https://alkamelgis.github.io/AgroCloud/#/</a></p>
@@ -69,7 +70,8 @@
       <strong>English:</strong> You are seeing this file because Pages is publishing the <em>repository root</em> instead of the
       Vite build. Switch <strong>Settings → Pages → Source</strong> to <strong>GitHub Actions</strong>, then push to
       <code>main</code> or run the <strong>Deploy to GitHub Pages</strong> workflow. The published app lives in
-      <code>frontend/dist</code>.
+      <code>frontend/dist</code>. If a deployment stays <em>Pending</em>, open <strong>Settings → Environments →
+      github-pages</strong> and clear required reviewers or approve the deployment.
     </div>
     <p class="en" lang="en" style="margin-top: 0.75rem">
       After switching to Actions, open the app (hash route):
