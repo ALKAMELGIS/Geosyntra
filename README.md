@@ -4,17 +4,18 @@
 
 ### GitHub Pages — إصلاح صفحة التحذير الصفراء / fix the yellow warning page
 
-الموقع الصحيح بعد النشر: `https://alkamelgis.github.io/AgroCloud/#/` (HashRouter).
+الموقع بعد النشر: `https://alkamelgis.github.io/AgroCloud/#/` (HashRouter).
 
-إذا ظهرت صفحة **«Agro Cloud — إعداد GitHub Pages»** الصفراء على `https://alkamelgis.github.io/AgroCloud/` فالمستودع ما زال ينشر **جذر الفرع** وليس ناتج البناء. العلاج من الجذر (مرة واحدة في GitHub):
+سير العمل [Deploy to GitHub Pages](.github/workflows/deploy-pages.yml) يبني `frontend/dist` ويدفع الموقع إلى فرع **`gh-pages`** (تاريخ orphan — لا يُلتزم البناء في `main`).
 
-1. افتح [إعدادات Pages للمستودع](https://github.com/ALKAMELGIS/AgroCloud/settings/pages).
-2. تحت **Build and deployment** غيّر **Source** من **Deploy from a branch** إلى **GitHub Actions**.
-3. احفظ، ثم من [تبويب Actions](https://github.com/ALKAMELGIS/AgroCloud/actions/workflows/deploy-pages.yml) شغّل **Deploy to GitHub Pages** يدويًا أو ادفع إلى `main` ليبدأ النشر تلقائيًا.
-4. انتظر نجاح الوظيفة `deploy` (أخضر). إذا علّق: **Settings → Environments → github-pages** (أزل مراجعي النشر إن وُجد).
+**الإعداد الواجب مرة واحدة** في [Settings → Pages](https://github.com/ALKAMELGIS/AgroCloud/settings/pages):
 
-بعدها يُستبدل محتوى الموقع بملفات `frontend/dist` من سير العمل [`.github/workflows/deploy-pages.yml`](.github/workflows/deploy-pages.yml) — **لا** تُلتزم `frontend/dist` في Git (حماية الدفع قد ترفض الحزم).
+1. **Build and deployment** → **Source** → **Deploy from a branch**.
+2. **Branch** اختر **`gh-pages`** وليس `main`، والمجلد **`/ (root)`**.
+3. احفظ، ثم انتظر نجاح آخر تشغيل في [Actions](https://github.com/ALKAMELGIS/AgroCloud/actions/workflows/deploy-pages.yml) (أو ادفع إلى `main`).
 
-**English:** If you see the yellow **branch-deploy notice** at the repo root URL, Pages is still set to **Deploy from a branch** at `/`. Switch **Settings → Pages → Source** to **GitHub Actions**, then run or wait for the **Deploy to GitHub Pages** workflow; the live app is only the Vite build artifact from that workflow, not the root `index.html` stub.
+إذا كان المصدر ما زال **`main` / (root)** سيُعرض ملف التحذير في جذر المستودع وليس التطبيق.
+
+**English:** The workflow publishes the Vite build to the **`gh-pages`** branch. In **Settings → Pages**, set **Deploy from a branch** → **gh-pages** → **/** (root), **not** `main` at root (that only serves the yellow stub `index.html` on `main`).
 
 **Documentation:** [REPOSITORY.md](REPOSITORY.md)

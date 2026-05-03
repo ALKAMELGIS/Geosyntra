@@ -1,30 +1,28 @@
 name: Deploy to GitHub Pages
 
-# ─── One-time (repo admin) — this is the real “root fix” for the live site ───
-# GitHub → Settings → Pages → Build and deployment → Source: GitHub Actions
-# Do NOT use “Deploy from a branch” at repo root: that only serves ./index.html
-# (misconfiguration notice), not the Vite app. Do NOT commit frontend/dist or docs/
-# to work around it — push protection blocks API tokens embedded in built JS.
-# After switching to Actions, every push to main runs this workflow and publishes
-# frontend/dist as a Pages artifact (no secrets in git history).
-# If the deploy job waits forever: Settings → Environments → github-pages →
-# remove required reviewers / deployment branches, or approve the pending deploy.
+# Publishes frontend/dist to the orphan branch `gh-pages` on every push to main.
+# GitHub Pages must serve that branch (not `main` at repo root — root has the yellow stub only).
+#
+# Repo admin (one-time): Settings → Pages → Build and deployment
+#   • Source: Deploy from a branch
+#   • Branch: gh-pages  /  Folder: / (root)
+#   OR Source: GitHub Actions — then also enable the optional deploy job below if you prefer artifact deploy.
+#
+# Live app (HashRouter): https://alkamelgis.github.io/AgroCloud/#/
 on:
   push:
     branches: [main]
   workflow_dispatch:
 
 permissions:
-  contents: read
-  pages: write
-  id-token: write
+  contents: write
 
 concurrency:
   group: pages
   cancel-in-progress: false
 
 jobs:
-  build:
+  build-and-publish:
     runs-on: ubuntu-latest
     timeout-minutes: 25
     steps:
@@ -36,27 +34,16 @@ jobs:
           cache-dependency-path: package-lock.json
       - run: npm ci --no-audit --no-fund
       - run: npm run build
-      # Ensures .nojekyll + 404.html (SPA shell) and validates dist/index.html is the real Vite app.
       - name: Prepare Pages dist + sanity-check
         run: node scripts/pages-dist-check.mjs
-      - name: Configure Pages
-        uses: actions/configure-pages@v5
-      - name: Upload Pages artifact
-        uses: actions/upload-pages-artifact@v3
+      - name: Push site to gh-pages branch
+        uses: peaceiris/actions-gh-pages@v4
         with:
-          path: frontend/dist
-      - name: Pages source reminder (repo admin)
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./frontend/dist
+          force_orphan: true
+          user_name: github-actions[bot]
+          user_email: github-actions[bot]@users.noreply.github.com
+      - name: Reminder — Pages branch
         run: |
-          echo "::notice title=GitHub Pages::If https://alkamelgis.github.io/AgroCloud/ still shows the yellow stub, set Settings → Pages → Build and deployment → Source to GitHub Actions (not Deploy from a branch)."
-
-  deploy:
-    needs: build
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
-    steps:
-      - name: Deploy to GitHub Pages
-        id: deployment
-        uses: actions/deploy-pages@v4
+          echo "::notice title=GitHub Pages::Set Settings → Pages → Deploy from branch → gh-pages / (root). Do not use main at / or you will see the yellow stub index.html."

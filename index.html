@@ -61,39 +61,39 @@
     <p style="margin: 0 0 1rem; font-size: 0.95rem">
       <strong lang="en">One-time fix (repo admin):</strong>
       <a href="https://github.com/ALKAMELGIS/AgroCloud/settings/pages" rel="noopener noreferrer">GitHub → Settings → Pages</a>
-      → set <strong>Source</strong> to <strong>GitHub Actions</strong> (not “Deploy from a branch”).
+      → <strong>Deploy from a branch</strong> → branch <strong>gh-pages</strong> → folder <strong>/ (root)</strong>.
+      <span lang="en">Do not publish <code>main</code> at / — the real app is pushed to <code>gh-pages</code> by Actions.</span>
     </p>
     <div class="box" dir="rtl">
-      <strong>تظهر هذه الصفحة عندما يكون مصدر GitHub Pages هو «Deploy from a branch» من جذر المستودع (/).</strong>
+      <strong>تظهر هذه الصفحة عندما ينشر GitHub Pages فرع <code>main</code> من جذر المستودع (/).</strong>
       <p>
-        التطبيق الحقيقي يُبنى في <code>frontend/dist</code> ويُنشر عبر سير العمل
-        <strong>Deploy to GitHub Pages</strong> فقط. لا تُلتزم مخرجات البناء في الفرع لأن GitHub قد يرفض الدفع عند
-        وجود رموز داخل ملفات <code>.js</code> المجمّعة.
+        التطبيق يُبنى في <code>frontend/dist</code> ويُدفع تلقائياً إلى فرع <code>gh-pages</code> عبر سير العمل
+        <strong>Deploy to GitHub Pages</strong>. لا تُلتزم مخرجات البناء في <code>main</code>.
       </p>
       <ol>
         <li>
-          <strong>Settings → Pages → Build and deployment</strong> — اختر المصدر
-          <strong>GitHub Actions</strong> (وليس النشر من الفرع من الجذر).
+          <strong>Settings → Pages → Build and deployment</strong> — المصدر
+          <strong>Deploy from a branch</strong> — الفرع <strong>gh-pages</strong> — المجلد <strong>/ (root)</strong>.
         </li>
-        <li>ادفع إلى <code>main</code> أو شغّل السير يدوياً من تبويب Actions.</li>
-        <li>إذا علق النشر: <strong>Settings → Environments → github-pages</strong>.</li>
+        <li>ادفع إلى <code>main</code> أو شغّل السير من تبويب Actions وانتظر نجاحه ليُحدَّث فرع <code>gh-pages</code>.</li>
+        <li>لا تختر فرع <code>main</code> للنشر العلني — سيُعرض هذا الملف التوضيحي بدلاً من التطبيق.</li>
       </ol>
       <p class="links">
         <a href="https://github.com/ALKAMELGIS/AgroCloud/settings/pages" rel="noopener noreferrer">فتح إعدادات Pages</a>
         <a href="https://github.com/ALKAMELGIS/AgroCloud/actions/workflows/deploy-pages.yml" rel="noopener noreferrer">سير نشر Pages</a>
       </p>
       <p>
-        بعد نجاح النشر عبر Actions، افتح التطبيق (HashRouter — الرابط يجب أن ينتهي بـ
+        بعد ضبط الفرع على <code>gh-pages</code>، افتح التطبيق (HashRouter — الرابط يجب أن ينتهي بـ
         <code>#/</code>):
       </p>
       <p><a href="https://alkamelgis.github.io/AgroCloud/#/">https://alkamelgis.github.io/AgroCloud/#/</a></p>
-      <p>ملاحظة: طالما النشر من الفرع فقط، الرابط أعلاه لن يحمّل حزم React لأنها غير موجودة في الجذر.</p>
+      <p>ملاحظة: طالما النشر من <code>main</code> عند الجذر، الرابط أعلاه يعرض هذه الصفحة وليس حزم React.</p>
     </div>
     <div class="en" lang="en">
-      <strong>English:</strong> This page appears when GitHub Pages uses <strong>Deploy from a branch</strong> at repository
-      <strong>/ (root)</strong>. The real app is built into <code>frontend/dist</code> and published only by the
-      <strong>Deploy to GitHub Pages</strong> workflow. Do not commit <code>frontend/dist</code> or <code>docs/</code> to git:
-      push protection may block embedded tokens in bundles.
+      <strong>English:</strong> This stub is served when GitHub Pages publishes the <strong><code>main</code></strong> branch at
+      <strong>/ (root)</strong>. The workflow builds <code>frontend/dist</code> and pushes the site to the
+      <strong><code>gh-pages</code></strong> branch. Set Pages to <strong>Deploy from a branch</strong> →
+      <strong>gh-pages</strong> → <strong>/</strong>. Do not commit <code>frontend/dist</code> to <code>main</code> (push protection may block tokens in bundles).
     </div>
     <p class="en" lang="en" style="margin-top: 0.75rem">
       <span class="links">
@@ -102,9 +102,9 @@
       </span>
     </p>
     <p class="en" lang="en">
-      After a successful Actions deploy, open the app (hash route):
+      After Pages uses the <strong>gh-pages</strong> branch, open the app (hash route):
       <a href="https://alkamelgis.github.io/AgroCloud/#/">https://alkamelgis.github.io/AgroCloud/#/</a>
-      — until Pages source is Actions, this URL will not load the Vite bundles from a branch-only root deploy.
+      — while Pages still points at <strong>main</strong> / root, this URL keeps showing this notice instead of the Vite bundles.
     </p>
   </body>
 </html>
