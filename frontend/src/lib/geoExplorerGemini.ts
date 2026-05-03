@@ -20,6 +20,13 @@ export const GEO_EXPLORER_LAYER_RULES = `LAYER DATA rules (when a "LAYER DATA" /
 - If the user references a layer or attribute value that is not present in LAYER DATA, say so clearly and omit MAP_QUERY (do not guess a unrelated global location).
 - For purely general geography questions with no layer tie, you may answer normally and use MAP_QUERY only when appropriate.`;
 
+/** Shipped with Geo AI when a map pin / anchor exists — keeps follow-ups coherent and ties weather to coordinates. */
+export const GEO_EXPLORER_SESSION_AND_WEATHER = `Session continuity & weather (read carefully when the next blocks appear):
+- If a "### SESSION MAP ANCHOR" section is present, those coordinates are the app’s current map focus (pin or last explicit MAP_QUERY). Short follow-ups (“same place”, “here”, “that farm”, “weather there”, “Jan to May”, Arabic equivalents) refer to THIS anchor unless the user clearly names a different place or layer.
+- If "### OPEN-METEO FACTS" is present, base any numeric weather or climate statements on that data only; cite “Open-Meteo” once. Never claim coordinates are missing or that the layer has no location if the SESSION MAP ANCHOR lists longitude and latitude.
+- If OPEN-METEO shows a fetch error, say so briefly—do not invent numbers.
+- Keep answers concise: a short lead paragraph, then bullets if helpful; avoid dumping raw JSON from layer context.`;
+
 export type GeoExplorerPart =
   | { type: 'text'; text: string }
   | { type: 'image'; mime: string; base64: string };
@@ -74,6 +81,17 @@ export function messagesToGeminiContents(messages: GeoExplorerMessage[]): Gemini
     role: m.role,
     parts: partsToGeminiPayload(m.parts),
   }));
+}
+
+/** Newest model message first: returns [lng, lat] from the first MAP_QUERY line found. */
+export function lastMapQueryCoordsFromMessages(messages: GeoExplorerMessage[]): [number, number] | null {
+  for (let i = messages.length - 1; i >= 0; i--) {
+    const m = messages[i]
+    if (m.role !== 'model') continue
+    const c = parseMapQueryLngLat(messageDisplayText(m))
+    if (c) return c
+  }
+  return null
 }
 
 /**

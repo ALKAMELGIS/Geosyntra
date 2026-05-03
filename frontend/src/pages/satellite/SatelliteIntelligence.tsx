@@ -45,8 +45,10 @@ import {
 } from '../../lib/sentinelHubWmsInstance';
 import {
   GEO_EXPLORER_LAYER_RULES,
+  GEO_EXPLORER_SESSION_AND_WEATHER,
   GEO_EXPLORER_SYSTEM_PROMPT,
   geminiGenerateContent,
+  lastMapQueryCoordsFromMessages,
   messageDisplayText,
   messagesToGeminiContents,
   parseMapQueryLngLat,
@@ -54,6 +56,11 @@ import {
   type GeoExplorerMessage,
   type GeoExplorerPart,
 } from '../../lib/geoExplorerGemini';
+import {
+  buildOpenMeteoContextBlock,
+  buildSessionAnchorBlock,
+  geoExplorerUserMessageImpliesWeather,
+} from '../../lib/openMeteoGeoExplorer';
 import {
   geocodePlaceToLngLat,
   reverseGeocodeLngLat,
@@ -1266,6 +1273,8 @@ export default function SatelliteIntelligence() {
   const [geoExplorerChatError, setGeoExplorerChatError] = useState('');
   const [geoAiPinLngLat, setGeoAiPinLngLat] = useState<[number, number] | null>(null);
   const [geoAiMapChatPopup, setGeoAiMapChatPopup] = useState<GeoAiMapChatPopupState | null>(null);
+  const geoAiPinLngLatRef = useRef<[number, number] | null>(null);
+  const geoAiMapChatPopupRef = useRef<GeoAiMapChatPopupState | null>(null);
   const geoExplorerFileInputRef = useRef<HTMLInputElement | null>(null);
   const geoExplorerInFlightRef = useRef(false);
   const [geoAiModelTab, setGeoAiModelTab] = useState<'gemini' | 'claude' | 'deepseek'>('gemini');
@@ -2753,6 +2762,14 @@ export default function SatelliteIntelligence() {
     };
   }, [geoAiPinLngLat]);
 
+  useEffect(() => {
+    geoAiPinLngLatRef.current = geoAiPinLngLat;
+  }, [geoAiPinLngLat]);
+
+  useEffect(() => {
+    geoAiMapChatPopupRef.current = geoAiMapChatPopup;
+  }, [geoAiMapChatPopup]);
+
   const clearGeoExplorerChat = useCallback(() => {
     geoExplorerInFlightRef.current = false;
     setGeoExplorerBusy(false);
@@ -2843,7 +2860,23 @@ export default function SatelliteIntelligence() {
           ];
           const gisBlock = await buildGisContentLayersContext(22000);
           const addedBlock = summarizeGeoAiMapLayers(geoAiSatelliteLayerPayload, 20000);
-          const systemInstruction = `${GEO_EXPLORER_SYSTEM_PROMPT}\n\n${GEO_EXPLORER_LAYER_RULES}\n\n---\n### Satellite — Added layers (this page)\n${addedBlock}\n\n${gisBlock}`;
+
+          const pinCoords = geoAiPinLngLatRef.current ?? lastMapQueryCoordsFromMessages(historyWithUser);
+          let sessionWeatherBlocks = `\n\n${GEO_EXPLORER_SESSION_AND_WEATHER}`;
+          if (pinCoords) {
+            const [pinLng, pinLat] = pinCoords;
+            const pop = geoAiMapChatPopupRef.current;
+            const popSnap =
+              pop && Math.abs(pop.lng - pinLng) < 1e-5 && Math.abs(pop.lat - pinLat) < 1e-5
+                ? { placeName: pop.placeName, country: pop.country, fullDescription: pop.fullDescription }
+                : null;
+            sessionWeatherBlocks += `\n\n${buildSessionAnchorBlock(pinLng, pinLat, popSnap)}`;
+            if (geoExplorerUserMessageImpliesWeather(userTextForMapFallback)) {
+              sessionWeatherBlocks += `\n\n${await buildOpenMeteoContextBlock(pinLat, pinLng, userTextForMapFallback)}`;
+            }
+          }
+
+          const systemInstruction = `${GEO_EXPLORER_SYSTEM_PROMPT}\n\n${GEO_EXPLORER_LAYER_RULES}${sessionWeatherBlocks}\n\n---\n### Satellite — Added layers (this page)\n${addedBlock}\n\n${gisBlock}`;
 
           const reply = await geminiGenerateContent({
             apiKey,
@@ -2876,6 +2909,9 @@ export default function SatelliteIntelligence() {
                 }
               }
             }
+          }
+          if (coords && !parseMapQueryLngLat(replyText)) {
+            replyText = `${replyText.trimEnd()}\nMAP_QUERY:${coords[0]},${coords[1]}`;
           }
           const modelId =
             typeof crypto !== 'undefined' && 'randomUUID' in crypto
@@ -3753,9 +3789,18 @@ export default function SatelliteIntelligence() {
       )!
     );
   }, [basemapCatalog, activeBasemapId, mapboxToken]);
-  const mapStyle = currentBasemapEntry
-    ? mapboxGlStyleForEntry(currentBasemapEntry, mapboxToken || '')
-    : EMPTY_MAP_STYLE;
+  /** Stable style reference: raster styles are new objects each call — unstable refs force setStyle every render and trigger "Style is not done loading". */
+  const mapStyle = useMemo(
+    () =>
+      currentBasemapEntry
+        ? mapboxGlStyleForEntry(currentBasemapEntry, mapboxToken || '')
+        : EMPTY_MAP_STYLE,
+    [currentBasemapEntry, mapboxToken],
+  );
+
+  useEffect(() => {
+    setIsMapLoaded(false);
+  }, [mapStyle, activeBasemapId]);
   const toggleWmsOverlayVisibility = () => setIsWmsOverlayVisible(v => !v);
   const toggleStacThumbVisibility = () => setIsStacThumbVisible(v => !v);
   const currentBasemapLabel = currentBasemapEntry?.label || basemapId || 'Default basemap';
@@ -5327,11 +5372,17 @@ export default function SatelliteIntelligence() {
             }}
             mapStyle={mapStyle}
             mapboxAccessToken={mapboxToken || undefined}
-            projection={is3DView ? { name: 'globe' } : { name: 'mercator' }}
-            renderWorldCopies={!is3DView}
-            dragRotate={is3DView}
-            pitchWithRotate={is3DView}
-            fog={is3DView ? { 'range': [0.5, 10], 'color': '#020617', 'horizon-blend': 0.1 } : undefined}
+            projection={
+              isMapLoaded && is3DView ? { name: 'globe' } : { name: 'mercator' }
+            }
+            renderWorldCopies={!(isMapLoaded && is3DView)}
+            dragRotate={isMapLoaded && is3DView}
+            pitchWithRotate={isMapLoaded && is3DView}
+            fog={
+              isMapLoaded && is3DView
+                ? { range: [0.5, 10], color: '#020617', 'horizon-blend': 0.1 }
+                : undefined
+            }
             onError={(e: any) => {
               const message = e?.error?.message || '';
               const url = e?.error?.url || '';
@@ -5349,6 +5400,8 @@ export default function SatelliteIntelligence() {
             }}
             onLoad={() => setIsMapLoaded(true)}
           >
+            {isMapLoaded ? (
+              <>
             {customLayers.map(layer => (
               layer.visible && (
                 <Source key={layer.id} id={layer.id} type="geojson" data={layer.geojson}>
@@ -5679,6 +5732,8 @@ export default function SatelliteIntelligence() {
             )}
 
             <NavigationControl position="bottom-right" />
+              </>
+            ) : null}
           </MapGL>
 
           {drawnStats && (

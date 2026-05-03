@@ -9,12 +9,10 @@ import './develop-dashboard.css'
 import './agro-dashboard.css'
 import {
   type AgroVizType,
-  type FieldAxisRole,
   type FieldAxisRolesMap,
   type FieldChartSlot,
   VIZ_OPTIONS,
   buildSlotVisualization,
-  fieldChartUsesAxisBindings,
   rowsFromFeatureCollection,
   trimRows,
   DEFAULT_FIELD_CHART,
@@ -219,15 +217,6 @@ function agroPlaceholderChartConfig(labels: string[]): ChartConfiguration {
 
 const CHART_VIZ_OPTIONS = VIZ_OPTIONS.filter(o => o.id !== 'table' && o.id !== 'map')
 
-/** Icons for “which chart kinds use this field” in the workflow modal (all VIZ_OPTIONS + map). */
-const WF_FIELD_STYLE_OPTIONS: readonly { id: AgroVizType; title: string; icon: string }[] = [
-  ...VIZ_OPTIONS,
-  { id: 'map', title: 'Map', icon: 'fa-solid fa-map-location-dot' },
-] as const
-
-const WF_STYLE_BAR_CHARTS = WF_FIELD_STYLE_OPTIONS.filter(o => o.id !== 'map')
-const WF_STYLE_MAP_OPTION = WF_FIELD_STYLE_OPTIONS.find(o => o.id === 'map')!
-
 /** OSM embed (Gulf region) — lightweight geographic preview without Mapbox token. */
 const AGRO_MAP_EMBED_SRC =
   'https://www.openstreetmap.org/export/embed.html?bbox=50.2%2C22.4%2C56.8%2C26.6&layer=mapnik'
@@ -425,8 +414,9 @@ export default function AgroDashboard() {
             wfTabBackFields: '→ السابق: الحقول',
             wfPanelsTitle: 'لوحات العرض',
             wfPanelsSub: 'أين يظهر هذا الحقل على اللوحة؟',
-            wfStylesHint:
-              'إن لم تختر أي نوع رسوم، يُستخدم الحقل مع أي نوع رسم تختاره أعلى البطاقة. عند التحديد، يظهر الحقل فقط عندما يطابق نوع الرسم الحالي.',
+            wfChartColumnsTitle: 'أعمدة الرسم (X · Y · القيمة)',
+            wfChartColumnsHint:
+              'اختر من الحقول التي فعّلتها في التبويب السابق. لأنواع الأعمدة والخط والمساحة والشريط، يفضّل أن يكون المحور X وحقول القيمة/المحور Y من نفس الطبقة. نوع الرسم يُختار من شريط أدوات كل بطاقة في اللوحة.',
             wfChartsTabEmpty: 'لم تُختر حقول بعد. ارجع إلى تبويب «الحقول» وفعّل الحقول المطلوبة.',
             chartEmpty: 'اختر حقولاً وفعّل اللوحات وأنواع الرسوم في نافذة «طبقات وحقول».',
             wfAssignCharts: 'أي أنواع رسوم تستخدم هذا الحقل؟',
@@ -562,8 +552,9 @@ export default function AgroDashboard() {
             wfTabBackFields: '← Back: fields',
             wfPanelsTitle: 'Dashboard panels',
             wfPanelsSub: 'Where should this field appear?',
-            wfStylesHint:
-              'Leave all chart icons off to use this field with any chart type you pick on the card toolbar. When you select types here, the field is used only when the card matches one of them.',
+            wfChartColumnsTitle: 'Chart columns (X · Y · Value)',
+            wfChartColumnsHint:
+              'Pick from the fields you checked in the previous tab. For bar, line, area, and similar charts, X and value (and optional Y) should normally come from the same layer. Choose chart type on each card toolbar on the dashboard.',
             wfChartsTabEmpty: 'No fields selected yet. Open the Fields tab and check the columns you need.',
             chartEmpty: 'Select fields and enable panels / chart types in Layers & fields.',
             wfAssignCharts: 'Which chart types use this field?',
@@ -722,21 +713,6 @@ export default function AgroDashboard() {
       return next
     })
   }, [pinnedFieldKeys])
-
-  useEffect(() => {
-    setFieldChartAxisRoles(prev => {
-      const next = { ...prev }
-      let changed = false
-      for (const k of Object.keys(next)) {
-        const st = fieldChartStyles[k]
-        if (!fieldChartUsesAxisBindings(st)) {
-          delete next[k]
-          changed = true
-        }
-      }
-      return changed ? next : prev
-    })
-  }, [fieldChartStyles])
 
   useEffect(() => {
     setFieldChartPlacement(prev => {
@@ -997,27 +973,26 @@ export default function AgroDashboard() {
     })
   }, [])
 
-  const toggleFieldChartStyle = useCallback((key: string, id: AgroVizType) => {
-    setFieldChartStyles(prev => {
-      const cur = new Set(prev[key] ?? [])
-      if (cur.has(id)) cur.delete(id)
-      else cur.add(id)
-      const arr = [...cur]
+  /** One field per axis role: X / Y / Value, chosen from included fields (chart tab). */
+  const assignAxisBindingField = useCallback((role: 'x' | 'y' | 'value', targetKey: string) => {
+    setFieldChartAxisRoles(prev => {
       const next = { ...prev }
-      if (arr.length === 0) delete next[key]
-      else next[key] = arr
+      for (const k of Object.keys(next)) {
+        if (next[k] === role) delete next[k]
+      }
+      if (targetKey) next[targetKey] = role
       return next
     })
   }, [])
 
-  const setFieldAxisRole = useCallback((key: string, role: FieldAxisRole | '') => {
-    setFieldChartAxisRoles(prev => {
-      const next = { ...prev }
-      if (!role || role === '') delete next[key]
-      else next[key] = role
-      return next
-    })
-  }, [])
+  const labelIncludedFieldKey = useCallback(
+    (k: string) => {
+      const { sourceId, field } = parseAgroFieldKey(k)
+      const src = agroSources.find(s => s.id === sourceId)
+      return src && field ? `${src.name} — ${field}` : field || k
+    },
+    [agroSources],
+  )
 
   useEffect(() => {
     if (!addSourceOpen) return
@@ -1941,13 +1916,68 @@ export default function AgroDashboard() {
                             ) : (
                               <>
                                 <p className="agdash-wf-tabpanel-lead">{t.wfPanelPinSubtitle}</p>
+                                <div className="agdash-wf-chart-columns">
+                                  <div className="agdash-wf-chart-columns-head">
+                                    <span className="agdash-wf-assign-section-title">{t.wfChartColumnsTitle}</span>
+                                    <p className="agdash-wf-styles-hint">{t.wfChartColumnsHint}</p>
+                                  </div>
+                                  <div className="agdash-wf-axis-field-grid">
+                                    <div className="agdash-wf-axis-field">
+                                      <label htmlFor={`${wfFieldsTabIds}-axis-x`}>{t.wfAxisX}</label>
+                                      <select
+                                        id={`${wfFieldsTabIds}-axis-x`}
+                                        className="agdash-wf-axis-select"
+                                        value={orderedIncludedPinKeys.find(fk => fieldChartAxisRoles[fk] === 'x') ?? ''}
+                                        onChange={e => assignAxisBindingField('x', e.target.value)}
+                                      >
+                                        <option value="">{t.wfAxisNone}</option>
+                                        {orderedIncludedPinKeys.map(fk => (
+                                          <option key={fk} value={fk}>
+                                            {labelIncludedFieldKey(fk)}
+                                          </option>
+                                        ))}
+                                      </select>
+                                    </div>
+                                    <div className="agdash-wf-axis-field">
+                                      <label htmlFor={`${wfFieldsTabIds}-axis-y`}>{t.wfAxisY}</label>
+                                      <select
+                                        id={`${wfFieldsTabIds}-axis-y`}
+                                        className="agdash-wf-axis-select"
+                                        value={orderedIncludedPinKeys.find(fk => fieldChartAxisRoles[fk] === 'y') ?? ''}
+                                        onChange={e => assignAxisBindingField('y', e.target.value)}
+                                      >
+                                        <option value="">{t.wfAxisNone}</option>
+                                        {orderedIncludedPinKeys.map(fk => (
+                                          <option key={fk} value={fk}>
+                                            {labelIncludedFieldKey(fk)}
+                                          </option>
+                                        ))}
+                                      </select>
+                                    </div>
+                                    <div className="agdash-wf-axis-field">
+                                      <label htmlFor={`${wfFieldsTabIds}-axis-val`}>{t.wfAxisValue}</label>
+                                      <select
+                                        id={`${wfFieldsTabIds}-axis-val`}
+                                        className="agdash-wf-axis-select"
+                                        value={orderedIncludedPinKeys.find(fk => fieldChartAxisRoles[fk] === 'value') ?? ''}
+                                        onChange={e => assignAxisBindingField('value', e.target.value)}
+                                      >
+                                        <option value="">{t.wfAxisNone}</option>
+                                        {orderedIncludedPinKeys.map(fk => (
+                                          <option key={fk} value={fk}>
+                                            {labelIncludedFieldKey(fk)}
+                                          </option>
+                                        ))}
+                                      </select>
+                                    </div>
+                                  </div>
+                                </div>
                                 <ul className="agdash-wf-assign-list">
                                   {orderedIncludedPinKeys.map(key => {
                                     const { sourceId, field } = parseAgroFieldKey(key)
                                     const src = agroSources.find(s => s.id === sourceId)
                                     const label = src && field ? `${src.name} — ${field}` : field || key
                                     const slot = fieldChartPlacement[key] ?? DEFAULT_FIELD_CHART
-                                    const styles = fieldChartStyles[key]
                                     return (
                                       <li key={key} className="agdash-wf-assign-card">
                                         <div className="agdash-wf-assign-card-head">
@@ -1980,73 +2010,6 @@ export default function AgroDashboard() {
                                             {t.slotBot}
                                           </button>
                                         </div>
-                                        <div className="agdash-wf-assign-section agdash-wf-assign-section--styles">
-                                          <span className="agdash-wf-slot-lbl">{t.wfAssignCharts}</span>
-                                          <p className="agdash-wf-styles-hint">{t.wfStylesHint}</p>
-                                        </div>
-                                        <div
-                                          className="agdash-wf-viz-icon-bar"
-                                          role="group"
-                                          aria-label={t.wfAssignCharts}
-                                        >
-                                          {WF_STYLE_BAR_CHARTS.map(opt => {
-                                            const on = styles?.includes(opt.id) ?? false
-                                            return (
-                                              <button
-                                                key={`${key}-${opt.id}`}
-                                                type="button"
-                                                title={opt.title}
-                                                aria-pressed={on}
-                                                className={`agdash-wf-viz-ic${on ? ' agdash-wf-viz-ic--on' : ''}`}
-                                                onClick={() => toggleFieldChartStyle(key, opt.id)}
-                                              >
-                                                <i className={opt.icon} aria-hidden />
-                                              </button>
-                                            )
-                                          })}
-                                          <span className="agdash-wf-viz-bar-sep" aria-hidden />
-                                          <button
-                                            type="button"
-                                            title={WF_STYLE_MAP_OPTION.title}
-                                            aria-pressed={styles?.includes('map') ?? false}
-                                            className={`agdash-wf-viz-ic agdash-wf-viz-ic--map${styles?.includes('map') ? ' agdash-wf-viz-ic--on' : ''}`}
-                                            onClick={() => toggleFieldChartStyle(key, 'map')}
-                                          >
-                                            <i className={WF_STYLE_MAP_OPTION.icon} aria-hidden />
-                                          </button>
-                                        </div>
-                                        {fieldChartUsesAxisBindings(styles) ? (
-                                          <div className="agdash-wf-assign-section agdash-wf-assign-section--axis">
-                                            <span className="agdash-wf-assign-section-title">{t.wfAxisTitle}</span>
-                                            <p className="agdash-wf-styles-hint">{t.wfAxisHint}</p>
-                                            <div className="agdash-wf-axis-chips" role="radiogroup" aria-label={t.wfAxisTitle}>
-                                              {(
-                                                [
-                                                  ['', t.wfAxisNone] as const,
-                                                  ['x', t.wfAxisX] as const,
-                                                  ['y', t.wfAxisY] as const,
-                                                  ['value', t.wfAxisValue] as const,
-                                                  ['legend', t.wfAxisLegend] as const,
-                                                ] as const
-                                              ).map(([role, lbl]) => {
-                                                const current = fieldChartAxisRoles[key] ?? ''
-                                                const on = current === role
-                                                return (
-                                                  <button
-                                                    key={role || 'none'}
-                                                    type="button"
-                                                    role="radio"
-                                                    aria-checked={on}
-                                                    className={`agdash-axis-chip${on ? ' agdash-axis-chip--on' : ''}`}
-                                                    onClick={() => setFieldAxisRole(key, role as FieldAxisRole | '')}
-                                                  >
-                                                    {lbl}
-                                                  </button>
-                                                )
-                                              })}
-                                            </div>
-                                          </div>
-                                        ) : null}
                                       </li>
                                     )
                                   })}

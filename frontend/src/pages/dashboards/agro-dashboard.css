@@ -1835,6 +1835,56 @@
   color: var(--agdash-ink3);
 }
 
+.agro-dash-root .agdash-wf-chart-columns {
+  margin-bottom: 12px;
+  padding: 10px 10px 12px;
+  border-radius: var(--agdash-r12);
+  background: linear-gradient(180deg, #f0fdf4 0%, #eef2f7 100%);
+  border: 1px solid rgba(22, 163, 74, 0.16);
+}
+
+.agro-dash-root .agdash-wf-chart-columns-head {
+  margin-bottom: 8px;
+}
+
+.agro-dash-root .agdash-wf-axis-field-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px 10px;
+}
+
+@media (max-width: 640px) {
+  .agro-dash-root .agdash-wf-axis-field-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.agro-dash-root .agdash-wf-axis-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.agro-dash-root .agdash-wf-axis-field label {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: #166534;
+}
+
+.agro-dash-root .agdash-wf-axis-select {
+  width: 100%;
+  min-width: 0;
+  font-size: 12px;
+  padding: 6px 8px;
+  border-radius: var(--agdash-r8);
+  border: 1px solid rgba(148, 163, 184, 0.55);
+  background: #fff;
+  color: var(--agdash-ink);
+}
+
 .agro-dash-root .agdash-wf-viz-icon-bar {
   display: flex;
   flex-wrap: wrap;
