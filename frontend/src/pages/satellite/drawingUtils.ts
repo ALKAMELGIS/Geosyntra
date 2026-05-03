@@ -11,17 +11,7 @@ export interface DrawStyleConfig {
 }
 
 export function cloneDeep<T>(v: T): T {
-  if (v === null || typeof v !== 'object') return v;
-  try {
-    if (typeof structuredClone === 'function') return structuredClone(v);
-  } catch {
-    /* cyclic / unsupported — fall through */
-  }
-  try {
-    return JSON.parse(JSON.stringify(v)) as T;
-  } catch {
-    return v;
-  }
+  return JSON.parse(JSON.stringify(v));
 }
 
 export function bboxToPolygonFeature(
