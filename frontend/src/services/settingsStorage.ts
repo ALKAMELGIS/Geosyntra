@@ -1,4 +1,4 @@
-import type { CustomPageRecord, SystemSettingsPersistedV1 } from '../types/systemSettings'
+import type { CustomApiTokenSlot, CustomPageRecord, SystemSettingsPersistedV1 } from '../types/systemSettings'
 
 export const SETTINGS_STORAGE_KEY = 'agri_system_settings_v1'
 
@@ -22,6 +22,7 @@ export const DEFAULT_SYSTEM_SETTINGS: SystemSettingsPersistedV1 = {
     backgroundGradientTo: '#14532d',
     backgroundImage: '',
   },
+  customApiTokenSlots: [],
 }
 
 export function loadSystemSettings(): SystemSettingsPersistedV1 {
@@ -61,6 +62,11 @@ export function mergeWithDefaults(partial: Partial<SystemSettingsPersistedV1>): 
     customPages: Array.isArray(partial.customPages)
       ? partial.customPages.map(sanitizeCustomPage).filter(Boolean) as CustomPageRecord[]
       : [],
+    customApiTokenSlots: Array.isArray(partial.customApiTokenSlots)
+      ? (partial.customApiTokenSlots as unknown[])
+          .map(sanitizeCustomApiTokenSlot)
+          .filter((s): s is CustomApiTokenSlot => s != null)
+      : [],
     themeMode:
       partial.themeMode === 'dark' ||
       partial.themeMode === 'custom' ||
@@ -85,6 +91,35 @@ const KNOWN_NAV_GROUP_IDS = ['dashboard', 'aiAgroCloud', 'satellite', 'data', 's
 function sanitizeNavGroupId(raw: unknown): string {
   const id = String(raw ?? 'data').trim()
   return (KNOWN_NAV_GROUP_IDS as readonly string[]).includes(id) ? id : 'data'
+}
+
+function sanitizeCustomApiTokenSlot(raw: unknown): CustomApiTokenSlot | null {
+  if (!raw || typeof raw !== 'object') return null
+  const r = raw as Record<string, unknown>
+  const id = String(r.id ?? '').trim().slice(0, 80)
+  if (!id) return null
+  const title = String(r.title ?? 'API').trim().slice(0, 120) || 'API'
+  const titleArRaw = r.titleAr != null ? String(r.titleAr).trim().slice(0, 120) : ''
+  const description = String(r.description ?? '').trim().slice(0, 800)
+  const descriptionArRaw = r.descriptionAr != null ? String(r.descriptionAr).trim().slice(0, 800) : ''
+  const fieldLabel = String(r.fieldLabel ?? 'API secret').trim().slice(0, 120) || 'API secret'
+  const fieldLabelArRaw = r.fieldLabelAr != null ? String(r.fieldLabelAr).trim().slice(0, 120) : ''
+  const placeholderRaw = r.placeholder != null ? String(r.placeholder).trim().slice(0, 160) : ''
+  const placeholderArRaw = r.placeholderAr != null ? String(r.placeholderAr).trim().slice(0, 160) : ''
+  let iconClass = String(r.iconClass ?? 'fa-solid fa-key').trim().slice(0, 120) || 'fa-solid fa-key'
+  if (!iconClass.includes('fa-')) iconClass = 'fa-solid fa-key'
+  return {
+    id,
+    title,
+    ...(titleArRaw ? { titleAr: titleArRaw } : {}),
+    description,
+    ...(descriptionArRaw ? { descriptionAr: descriptionArRaw } : {}),
+    fieldLabel,
+    ...(fieldLabelArRaw ? { fieldLabelAr: fieldLabelArRaw } : {}),
+    ...(placeholderRaw ? { placeholder: placeholderRaw } : {}),
+    ...(placeholderArRaw ? { placeholderAr: placeholderArRaw } : {}),
+    iconClass,
+  }
 }
 
 function sanitizeCustomPage(raw: unknown): CustomPageRecord | null {

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useLocation } from 'react-router-dom'
 import * as yup from 'yup'
 import { useLanguage } from '../../lib/i18n'
@@ -6,7 +6,8 @@ import { hasPermission, normalizeRole, readCurrentUser } from '../../lib/auth'
 import { NAV_DEFAULT_GROUPS, NAV_GROUP_IDS } from '../../nav/navManifest'
 import { loadSystemSettings, normalizeAppPath } from '../../services/settingsStorage'
 import { applyThemeToDocument, useSystemSettings } from '../../store/SystemSettingsContext'
-import type { CustomPageRecord, SystemSettingsPersistedV1 } from '../../types/systemSettings'
+import { clearUserApiTokenValue, getUserApiTokenValue, persistUserApiTokenValue } from '../../lib/customUserApiTokens'
+import type { CustomApiTokenSlot, CustomPageRecord, SystemSettingsPersistedV1 } from '../../types/systemSettings'
 import './system-settings.css'
 import { NavGroupEditor } from './system-settings/NavGroupEditor'
 import {
@@ -48,6 +49,19 @@ const PAGE_ICON_PRESETS = [
   'fa-solid fa-droplet',
   'fa-solid fa-tractor',
   'fa-solid fa-layer-group',
+] as const
+
+const CUSTOM_API_SLOT_ICONS = [
+  'fa-solid fa-key',
+  'fa-solid fa-cloud',
+  'fa-solid fa-bolt',
+  'fa-solid fa-server',
+  'fa-solid fa-link',
+  'fa-solid fa-shield-halved',
+  'fa-solid fa-code',
+  'fa-solid fa-database',
+  'fa-solid fa-robot',
+  'fa-solid fa-wand-magic-sparkles',
 ] as const
 
 const SETTINGS_TABS = [
@@ -137,6 +151,19 @@ export default function SystemSettings() {
   const [geminiApiKeyDraft, setGeminiApiKeyDraft] = useState('')
   const [claudeApiKeyDraft, setClaudeApiKeyDraft] = useState('')
   const [deepseekApiKeyDraft, setDeepseekApiKeyDraft] = useState('')
+  const [customUserTokenDrafts, setCustomUserTokenDrafts] = useState<Record<string, string>>({})
+  const [addApiModalOpen, setAddApiModalOpen] = useState(false)
+  const [addApiForm, setAddApiForm] = useState({
+    title: '',
+    titleAr: '',
+    description: '',
+    descriptionAr: '',
+    fieldLabel: 'API secret',
+    fieldLabelAr: '',
+    placeholder: '',
+    placeholderAr: '',
+    iconClass: 'fa-solid fa-key',
+  })
   const [confirmReset, setConfirmReset] = useState(false)
   const [homeEditorSection, setHomeEditorSection] = useState<'page' | 'header' | 'blocks' | 'footer' | 'colors' | 'typography'>('page')
   const [pageQuery, setPageQuery] = useState('')
@@ -209,6 +236,91 @@ export default function SystemSettings() {
     setClaudeApiKeyDraft(getClaudeApiKeyBrowserOverride())
     setDeepseekApiKeyDraft(getDeepseekApiKeyBrowserOverride())
   }, [tab])
+
+  useEffect(() => {
+    if (tab !== 'api-tokens') return
+    setCustomUserTokenDrafts(prev => {
+      const next = { ...prev }
+      for (const slot of draft.customApiTokenSlots) {
+        if (!(slot.id in next)) next[slot.id] = getUserApiTokenValue(slot.id)
+      }
+      for (const id of Object.keys(next)) {
+        if (!draft.customApiTokenSlots.some(s => s.id === id)) delete next[id]
+      }
+      return next
+    })
+  }, [tab, draft.customApiTokenSlots])
+
+  const resetAddApiForm = useCallback(() => {
+    setAddApiForm({
+      title: '',
+      titleAr: '',
+      description: '',
+      descriptionAr: '',
+      fieldLabel: language === 'ar' ? 'القيمة السرية' : 'API secret',
+      fieldLabelAr: '',
+      placeholder: '',
+      placeholderAr: '',
+      iconClass: 'fa-solid fa-key',
+    })
+  }, [language])
+
+  const submitAddApiToken = useCallback(() => {
+    const title = addApiForm.title.trim()
+    const fieldLabel = addApiForm.fieldLabel.trim()
+    if (!title) {
+      pushToast('error', language === 'ar' ? 'أدخل اسماً للبطاقة.' : 'Enter a display name for the card.')
+      return
+    }
+    if (!fieldLabel) {
+      pushToast('error', language === 'ar' ? 'أدخل تسمية الحقل.' : 'Enter a label for the secret field.')
+      return
+    }
+    const id =
+      typeof crypto !== 'undefined' && crypto.randomUUID
+        ? crypto.randomUUID()
+        : `api-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`
+    const slot: CustomApiTokenSlot = {
+      id,
+      title,
+      ...(addApiForm.titleAr.trim() ? { titleAr: addApiForm.titleAr.trim() } : {}),
+      description: addApiForm.description.trim(),
+      ...(addApiForm.descriptionAr.trim() ? { descriptionAr: addApiForm.descriptionAr.trim() } : {}),
+      fieldLabel,
+      ...(addApiForm.fieldLabelAr.trim() ? { fieldLabelAr: addApiForm.fieldLabelAr.trim() } : {}),
+      ...(addApiForm.placeholder.trim() ? { placeholder: addApiForm.placeholder.trim() } : {}),
+      ...(addApiForm.placeholderAr.trim() ? { placeholderAr: addApiForm.placeholderAr.trim() } : {}),
+      iconClass: addApiForm.iconClass || 'fa-solid fa-key',
+    }
+    setDraft(d => ({ ...d, customApiTokenSlots: [...d.customApiTokenSlots, slot] }))
+    setCustomUserTokenDrafts(p => ({ ...p, [id]: '' }))
+    setAddApiModalOpen(false)
+    resetAddApiForm()
+    pushToast(
+      'success',
+      language === 'ar' ? 'تمت الإضافة. احفظ الإعدادات لتثبيت البطاقة.' : 'Added. Save settings to persist this entry.',
+    )
+  }, [addApiForm, language, pushToast, resetAddApiForm, setDraft])
+
+  const removeCustomApiSlot = useCallback(
+    (slotId: string) => {
+      const ok = window.confirm(
+        language === 'ar'
+          ? 'حذف بطاقة الرمز والقيمة المحفوظة في هذا المتصفح؟'
+          : 'Remove this token card and its saved value in this browser?',
+      )
+      if (!ok) return
+      clearUserApiTokenValue(slotId)
+      setDraft(d => ({ ...d, customApiTokenSlots: d.customApiTokenSlots.filter(s => s.id !== slotId) }))
+      setCustomUserTokenDrafts(p => {
+        const next = { ...p }
+        delete next[slotId]
+        return next
+      })
+      pushToast('success', language === 'ar' ? 'تمت الإزالة.' : 'Removed.')
+    },
+    [language, pushToast, setDraft],
+  )
 
   const pageSchema = useMemo(
     () =>
@@ -1140,19 +1252,43 @@ export default function SystemSettings() {
       ) : null}
 
       {tab === 'api-tokens' ? (
-        <div className="sys-settings-tab-pane">
-          <div className="sys-settings-panel__head">
-            <h2 className="sys-settings-panel__title">
-              <i className="fa-solid fa-key" aria-hidden />
-              {language === 'ar' ? 'رموز API' : 'API Tokens'}
-            </h2>
-            <p className="sys-settings-panel__desc">
-              {language === 'ar'
-                ? 'حفظ مفاتيح Mapbox وArcGIS ورموز Sentinel Hub ومفاتيح Google Gemini (السحابة) وDeepSeek وClaude في هذا المتصفح فقط (أو عبر متغيرات البيئة عند البناء). لا تُرفع إلى Git.'
-                : 'Store Mapbox, ArcGIS, Sentinel Hub, Google Gemini (Cloud AI), DeepSeek, and Claude API keys in this browser only (or use build-time env vars). Never commit secrets to Git.'}
-            </p>
-          </div>
+        <div className="sys-settings-tab-pane sys-api-tab">
+          <header className="sys-api-hero">
+            <div className="sys-api-hero__text">
+              <h2 className="sys-api-hero__title">
+                <span className="sys-api-hero__title-icon" aria-hidden>
+                  <i className="fa-solid fa-key" />
+                </span>
+                {language === 'ar' ? 'رموز API' : 'API Tokens'}
+              </h2>
+              <p className="sys-api-hero__desc">
+                {language === 'ar'
+                  ? 'حفظ مفاتيح Mapbox وArcGIS ورموز Sentinel Hub ومفاتيح Google Gemini (السحابة) وDeepSeek وClaude في هذا المتصفح فقط (أو عبر متغيرات البيئة عند البناء). يمكنك إضافة أنواع جديدة دون تعديل الكود. لا تُرفع الأسرار إلى Git.'
+                  : 'Store Mapbox, ArcGIS, Sentinel Hub, Google Gemini (Cloud AI), DeepSeek, and Claude keys in this browser (or use build-time env vars). Add new token types yourself—no developer deploy needed. Never commit secrets to Git.'}
+              </p>
+            </div>
+            <button
+              type="button"
+              className="sys-api-add-btn"
+              onClick={() => {
+                resetAddApiForm()
+                setAddApiModalOpen(true)
+              }}
+            >
+              <i className="fa-solid fa-plus" aria-hidden />
+              {language === 'ar' ? 'إضافة رموز API' : 'Add API Tokens'}
+            </button>
+          </header>
 
+          <section className="sys-api-section" aria-labelledby="sys-api-built-in-heading">
+            <div className="sys-api-section__head">
+              <h3 id="sys-api-built-in-heading" className="sys-api-section__title">
+                {language === 'ar' ? 'التكاملات المدمجة' : 'Built-in integrations'}
+              </h3>
+              <p className="sys-api-section__sub">
+                {language === 'ar' ? 'خدمات يستخدمها التطبيق مباشرة.' : 'Providers wired into the app today.'}
+              </p>
+            </div>
           <div className="sys-api-tokens-grid">
             <div className="sys-api-tokens-card">
               <h3 className="sys-settings-panel__title sys-settings-api-h3">
@@ -1443,6 +1579,83 @@ export default function SystemSettings() {
               </p>
             </div>
           </div>
+          </section>
+
+          {draft.customApiTokenSlots.length ? (
+            <section className="sys-api-section sys-api-section--custom" aria-labelledby="sys-api-custom-heading">
+              <div className="sys-api-section__head">
+                <h3 id="sys-api-custom-heading" className="sys-api-section__title">
+                  {language === 'ar' ? 'إدخالاتك' : 'Your API entries'}
+                </h3>
+                <p className="sys-api-section__sub">
+                  {language === 'ar'
+                    ? 'عرّف البطاقة هنا؛ احفظ الإعدادات العامة (أسفل الصفحة) لتثبيت التعريف. زر الحفظ بجانب الحقل يخزّن السر في هذا المتصفح فقط.'
+                    : 'Define the card here; use footer Save to persist its definition. Per-field Save stores the secret in this browser only.'}
+                </p>
+              </div>
+              <div className="sys-api-tokens-grid">
+                {draft.customApiTokenSlots.map(slot => {
+                  const cardTitle = language === 'ar' && slot.titleAr ? slot.titleAr : slot.title
+                  const cardDesc = language === 'ar' && slot.descriptionAr ? slot.descriptionAr : slot.description
+                  const fLabel = language === 'ar' && slot.fieldLabelAr ? slot.fieldLabelAr : slot.fieldLabel
+                  const ph =
+                    language === 'ar' && slot.placeholderAr
+                      ? slot.placeholderAr
+                      : slot.placeholder ?? ''
+                  return (
+                    <div key={slot.id} className="sys-api-tokens-card sys-api-tokens-card--custom">
+                      <div className="sys-api-card-head">
+                        <h3 className="sys-settings-panel__title sys-settings-api-h3 sys-api-card-head__title">
+                          <i className={slot.iconClass} aria-hidden />
+                          {cardTitle}
+                        </h3>
+                        <button
+                          type="button"
+                          className="sys-api-card-remove"
+                          onClick={() => removeCustomApiSlot(slot.id)}
+                          title={language === 'ar' ? 'حذف البطاقة' : 'Remove card'}
+                          aria-label={language === 'ar' ? 'حذف بطاقة الرمز' : 'Remove API token card'}
+                        >
+                          <i className="fa-solid fa-trash" aria-hidden />
+                        </button>
+                      </div>
+                      {cardDesc ? <p className="sys-settings-panel__desc sys-api-card-lead">{cardDesc}</p> : null}
+                      <ApiTokenMergeField
+                        id={`sys-custom-api-${slot.id}`}
+                        label={fLabel}
+                        value={customUserTokenDrafts[slot.id] ?? ''}
+                        onChange={next =>
+                          setCustomUserTokenDrafts(p => ({
+                            ...p,
+                            [slot.id]: next,
+                          }))
+                        }
+                        placeholder={ph || (language === 'ar' ? '••••••••' : '••••••••')}
+                        password
+                        onSave={() => {
+                          persistUserApiTokenValue(slot.id, customUserTokenDrafts[slot.id] ?? '')
+                          pushToast('success', language === 'ar' ? 'تم الحفظ.' : 'Saved.')
+                        }}
+                        onClear={() => {
+                          persistUserApiTokenValue(slot.id, '')
+                          setCustomUserTokenDrafts(p => ({ ...p, [slot.id]: '' }))
+                          pushToast(
+                            'success',
+                            language === 'ar' ? 'تم مسح القيمة.' : 'Cleared from this browser.',
+                          )
+                        }}
+                        saveTitle={language === 'ar' ? 'حفظ' : 'Save'}
+                        clearTitle={language === 'ar' ? 'مسح' : 'Clear'}
+                        saveAria={language === 'ar' ? 'حفظ السر' : 'Save secret'}
+                        clearAria={language === 'ar' ? 'مسح السر' : 'Clear secret'}
+                        actionsGroupLabel={language === 'ar' ? 'إجراءات السر' : 'Secret actions'}
+                      />
+                    </div>
+                  )
+                })}
+              </div>
+            </section>
+          ) : null}
         </div>
       ) : null}
 
@@ -1459,6 +1672,151 @@ export default function SystemSettings() {
         </footer>
       </section>
       </div>
+
+      {addApiModalOpen ? (
+        <div
+          className="sys-api-modal-overlay"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="sys-api-add-modal-title"
+          onClick={e => {
+            if (e.target === e.currentTarget) {
+              setAddApiModalOpen(false)
+              resetAddApiForm()
+            }
+          }}
+        >
+          <div className="sys-api-modal">
+            <h2 id="sys-api-add-modal-title" className="sys-api-modal__title">
+              {language === 'ar' ? 'إضافة نوع رمز API' : 'Add API token type'}
+            </h2>
+            <p className="sys-api-modal__lead">
+              {language === 'ar'
+                ? 'أنشئ بطاقة جديدة (اسم، وصف، تسمية الحقل). القيمة السرية تُحفظ لاحقاً عبر زر الحفظ بجانب الحقل.'
+                : 'Create a new card (name, description, field label). Save the secret later with the check button next to the input.'}
+            </p>
+            <div className="sys-api-modal__grid">
+              <label className="sys-api-modal__field">
+                <span className="sys-api-modal__label">
+                  {language === 'ar' ? 'اسم العرض (إنجليزي) *' : 'Display name (English) *'}
+                </span>
+                <input
+                  className="gis-input sys-api-modal__input"
+                  value={addApiForm.title}
+                  onChange={e => setAddApiForm(f => ({ ...f, title: e.target.value }))}
+                  autoComplete="off"
+                  placeholder={language === 'ar' ? 'مثال: My Weather API' : 'e.g. My Weather API'}
+                />
+              </label>
+              <label className="sys-api-modal__field">
+                <span className="sys-api-modal__label">{language === 'ar' ? 'اسم العرض (عربي)' : 'Display name (Arabic)'}</span>
+                <input
+                  className="gis-input sys-api-modal__input"
+                  value={addApiForm.titleAr}
+                  onChange={e => setAddApiForm(f => ({ ...f, titleAr: e.target.value }))}
+                  autoComplete="off"
+                  dir="rtl"
+                  placeholder={language === 'ar' ? 'اختياري' : 'Optional'}
+                />
+              </label>
+              <label className="sys-api-modal__field sys-api-modal__field--full">
+                <span className="sys-api-modal__label">{language === 'ar' ? 'الوصف (إنجليزي)' : 'Description (English)'}</span>
+                <textarea
+                  className="gis-input sys-api-modal__textarea"
+                  rows={2}
+                  value={addApiForm.description}
+                  onChange={e => setAddApiForm(f => ({ ...f, description: e.target.value }))}
+                  placeholder={language === 'ar' ? 'متى يُستخدم هذا الرمز؟' : 'When is this token used?'}
+                />
+              </label>
+              <label className="sys-api-modal__field sys-api-modal__field--full">
+                <span className="sys-api-modal__label">{language === 'ar' ? 'الوصف (عربي)' : 'Description (Arabic)'}</span>
+                <textarea
+                  className="gis-input sys-api-modal__textarea"
+                  rows={2}
+                  value={addApiForm.descriptionAr}
+                  onChange={e => setAddApiForm(f => ({ ...f, descriptionAr: e.target.value }))}
+                  dir="rtl"
+                  placeholder={language === 'ar' ? 'اختياري' : 'Optional'}
+                />
+              </label>
+              <label className="sys-api-modal__field">
+                <span className="sys-api-modal__label">
+                  {language === 'ar' ? 'تسمية حقل السر (إنجليزي) *' : 'Secret field label (English) *'}
+                </span>
+                <input
+                  className="gis-input sys-api-modal__input"
+                  value={addApiForm.fieldLabel}
+                  onChange={e => setAddApiForm(f => ({ ...f, fieldLabel: e.target.value }))}
+                  autoComplete="off"
+                />
+              </label>
+              <label className="sys-api-modal__field">
+                <span className="sys-api-modal__label">{language === 'ar' ? 'تسمية الحقل (عربي)' : 'Field label (Arabic)'}</span>
+                <input
+                  className="gis-input sys-api-modal__input"
+                  value={addApiForm.fieldLabelAr}
+                  onChange={e => setAddApiForm(f => ({ ...f, fieldLabelAr: e.target.value }))}
+                  autoComplete="off"
+                  dir="rtl"
+                  placeholder={language === 'ar' ? 'اختياري' : 'Optional'}
+                />
+              </label>
+              <label className="sys-api-modal__field">
+                <span className="sys-api-modal__label">{language === 'ar' ? 'نص توضيحي للحقل (إنجليزي)' : 'Input placeholder (English)'}</span>
+                <input
+                  className="gis-input sys-api-modal__input"
+                  value={addApiForm.placeholder}
+                  onChange={e => setAddApiForm(f => ({ ...f, placeholder: e.target.value }))}
+                  autoComplete="off"
+                  placeholder="sk-…"
+                />
+              </label>
+              <label className="sys-api-modal__field">
+                <span className="sys-api-modal__label">{language === 'ar' ? 'نص توضيحي (عربي)' : 'Placeholder (Arabic)'}</span>
+                <input
+                  className="gis-input sys-api-modal__input"
+                  value={addApiForm.placeholderAr}
+                  onChange={e => setAddApiForm(f => ({ ...f, placeholderAr: e.target.value }))}
+                  autoComplete="off"
+                  dir="rtl"
+                  placeholder={language === 'ar' ? 'اختياري' : 'Optional'}
+                />
+              </label>
+            </div>
+            <div className="sys-api-modal__icons" role="group" aria-label={language === 'ar' ? 'أيقونة البطاقة' : 'Card icon'}>
+              {CUSTOM_API_SLOT_ICONS.map(ic => (
+                <button
+                  key={ic}
+                  type="button"
+                  className={`sys-api-modal__iconchip${addApiForm.iconClass === ic ? ' sys-api-modal__iconchip--active' : ''}`}
+                  title={ic}
+                  aria-label={ic}
+                  aria-pressed={addApiForm.iconClass === ic}
+                  onClick={() => setAddApiForm(f => ({ ...f, iconClass: ic }))}
+                >
+                  <i className={ic} aria-hidden />
+                </button>
+              ))}
+            </div>
+            <div className="sys-api-modal__actions">
+              <button
+                type="button"
+                className="gis-btn gis-btn-outline"
+                onClick={() => {
+                  setAddApiModalOpen(false)
+                  resetAddApiForm()
+                }}
+              >
+                {language === 'ar' ? 'إلغاء' : 'Cancel'}
+              </button>
+              <button type="button" className="gis-btn" style={{ background: 'var(--ds-color-primary)', color: '#fff' }} onClick={submitAddApiToken}>
+                {language === 'ar' ? 'إضافة' : 'Add'}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
 
       {confirmReset ? (
         <div

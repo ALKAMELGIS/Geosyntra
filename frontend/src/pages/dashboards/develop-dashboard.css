@@ -4,7 +4,19 @@
   --ddb-green-dark: #1f5e3a;
   --ddb-green-soft: #e8f4ec;
   --ddb-surface: #ffffff;
-  font-family: 'Inter', 'Segoe UI', system-ui, sans-serif;
+  /* Power BI / Microsoft Fabric–aligned tokens for data panes */
+  --ddb-pbi-canvas: #f3f2f1;
+  --ddb-pbi-panel: #ffffff;
+  --ddb-pbi-border: #edebe9;
+  --ddb-pbi-border-strong: #c8c6c4;
+  --ddb-pbi-text: #323130;
+  --ddb-pbi-muted: #605e5c;
+  --ddb-pbi-subtle: #8a8886;
+  --ddb-pbi-placeholder: #a19f9d;
+  --ddb-pbi-blue: #1182d4;
+  --ddb-pbi-blue-dark: #106ebe;
+  --ddb-pbi-blue-soft: #deecf9;
+  font-family: 'Segoe UI', 'Inter', system-ui, sans-serif;
   background: var(--ddb-surface);
   flex: 1;
   min-height: 0;
@@ -512,18 +524,18 @@
   width: 100%;
   max-width: 100%;
   padding: 0;
-  border-radius: 12px;
-  border: 1px solid rgba(15, 23, 42, 0.06);
-  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
-  background: #fafafa;
+  border-radius: 2px;
+  border: 1px solid var(--ddb-pbi-border);
+  box-shadow: none;
+  background: var(--ddb-pbi-panel);
   z-index: 0;
 }
 
 .develop-dashboard-root .ddb-powerbi-grid--in-right-sheet .ddb-chart-tool-item:hover {
   transform: none;
-  border-color: rgba(15, 23, 42, 0.1);
-  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.06);
-  background: #f4f4f5;
+  border-color: var(--ddb-pbi-border-strong);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+  background: var(--ddb-pbi-canvas);
 }
 
 .develop-dashboard-root .ddb-powerbi-grid--in-right-sheet .ddb-chart-tool-item i {
@@ -532,11 +544,11 @@
 }
 
 .develop-dashboard-root .ddb-powerbi-grid--in-right-sheet .ddb-chart-tool-item.is-selected {
-  background: linear-gradient(180deg, #ecfdf5 0%, #f0fdf4 100%);
-  border-color: rgba(34, 197, 94, 0.45);
+  background: var(--ddb-pbi-blue-soft);
+  border-color: color-mix(in srgb, var(--ddb-pbi-blue) 45%, var(--ddb-pbi-border));
   box-shadow:
-    0 0 0 2px rgba(34, 197, 94, 0.22),
-    0 4px 12px rgba(21, 128, 61, 0.1);
+    0 0 0 1px var(--ddb-pbi-blue),
+    0 2px 8px rgba(17, 130, 212, 0.15);
 }
 
 .develop-dashboard-root .ddb-powerbi-grid--in-right-sheet::-webkit-scrollbar {
@@ -556,8 +568,8 @@
   appearance: none;
   font: inherit;
   margin: 0;
-  background: #fafafa;
-  border-radius: 12px;
+  background: var(--ddb-pbi-panel);
+  border-radius: 2px;
   padding: 6px 2px;
   min-height: 40px;
   text-align: center;
@@ -567,44 +579,44 @@
     box-shadow 0.2s ease,
     border-color 0.2s ease,
     background 0.2s ease;
-  border: 1px solid rgba(15, 23, 42, 0.06);
+  border: 1px solid var(--ddb-pbi-border);
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
   gap: 0;
-  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+  box-shadow: none;
   position: relative;
 }
 
 .develop-dashboard-root .ddb-chart-tool-item:hover {
   transform: translateY(-1px);
-  border-color: rgba(15, 23, 42, 0.1);
-  background: #f4f4f5;
-  box-shadow: 0 4px 14px rgba(15, 23, 42, 0.07);
+  border-color: var(--ddb-pbi-border-strong);
+  background: var(--ddb-pbi-canvas);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
 }
 
 .develop-dashboard-root .ddb-chart-tool-item i {
   display: block;
   font-size: 1.02rem;
   line-height: 1;
-  color: var(--ddb-green);
+  color: var(--ddb-pbi-muted);
 }
 
-/* Font Awesome uses ::before; keep icons visibly green on hover (avoid inherited white on white tiles). */
+/* Font Awesome uses ::before — Power BI style blue accent when selected */
 .develop-dashboard-root .ddb-chart-tool-item:not(.is-selected) i,
 .develop-dashboard-root .ddb-chart-tool-item:not(.is-selected) i::before {
-  color: var(--ddb-green);
+  color: var(--ddb-pbi-muted);
 }
 
 .develop-dashboard-root .ddb-chart-tool-item:not(.is-selected):hover i,
 .develop-dashboard-root .ddb-chart-tool-item:not(.is-selected):hover i::before {
-  color: var(--ddb-green-dark);
+  color: var(--ddb-pbi-blue);
 }
 
 .develop-dashboard-root .ddb-powerbi-grid--in-right-sheet .ddb-chart-tool-item:not(.is-selected):hover i,
 .develop-dashboard-root .ddb-powerbi-grid--in-right-sheet .ddb-chart-tool-item:not(.is-selected):hover i::before {
-  color: var(--ddb-green-dark);
+  color: var(--ddb-pbi-blue);
 }
 
 .develop-dashboard-root .ddb-chart-tool-label-sr {
@@ -620,25 +632,25 @@
 }
 
 .develop-dashboard-root .ddb-chart-tool-item.is-selected {
-  background: linear-gradient(180deg, #ecfdf5 0%, #f0fdf4 100%);
-  border-color: rgba(34, 197, 94, 0.5);
+  background: var(--ddb-pbi-blue-soft);
+  border-color: color-mix(in srgb, var(--ddb-pbi-blue) 50%, var(--ddb-pbi-border));
   box-shadow:
-    0 0 0 2px rgba(34, 197, 94, 0.2),
-    0 6px 16px rgba(21, 128, 61, 0.12);
+    0 0 0 1px var(--ddb-pbi-blue),
+    0 2px 10px rgba(17, 130, 212, 0.18);
 }
 
 .develop-dashboard-root .ddb-chart-tool-item.is-selected i,
 .develop-dashboard-root .ddb-chart-tool-item.is-selected i::before {
-  color: var(--ddb-green-dark);
+  color: var(--ddb-pbi-blue);
 }
 
 .develop-dashboard-root .ddb-chart-tool-item.is-selected:hover {
-  background: linear-gradient(180deg, #d1fae5 0%, #ecfdf5 100%);
+  background: color-mix(in srgb, var(--ddb-pbi-blue-soft) 92%, var(--ddb-pbi-panel));
 }
 
 .develop-dashboard-root .ddb-chart-tool-item.is-selected:hover i,
 .develop-dashboard-root .ddb-chart-tool-item.is-selected:hover i::before {
-  color: var(--ddb-green-dark);
+  color: var(--ddb-pbi-blue-dark);
 }
 
 /* Custom stat card tool: config in Visualizations sheet */
@@ -781,7 +793,7 @@
   }
 
   .develop-dashboard-root .ddb-right-rail-tab.is-active {
-    box-shadow: inset 0 -3px 0 #15803d;
+    box-shadow: inset 0 -3px 0 var(--ddb-pbi-blue);
   }
 
   .develop-dashboard-root .ddb-right-rail-icon-wrap {
@@ -818,7 +830,7 @@
   min-height: 0;
 }
 
-/* Power BI–style right rail: Filters | Visualizations | Data | Link */
+/* Power BI–style right rail: Filters | Visualizations | Build | Data | Link */
 .develop-dashboard-root .ddb-right-wrap {
   flex: 0 0 auto;
   display: flex;
@@ -826,10 +838,10 @@
   align-items: stretch;
   min-height: 0;
   max-height: 100%;
-  border-radius: 20px;
-  background: #fff;
-  border: 1px solid #e0e0e0;
-  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.06);
+  border-radius: 2px;
+  background: var(--ddb-pbi-canvas);
+  border: 1px solid var(--ddb-pbi-border);
+  box-shadow: 0 0.3px 0.9px rgba(0, 0, 0, 0.08), 0 1.6px 3.6px rgba(0, 0, 0, 0.06);
   overflow: hidden;
 }
 
@@ -840,8 +852,8 @@
   overflow: hidden;
   display: flex;
   flex-direction: column;
-  background: #fff;
-  border-inline-end: 1px solid #dedede;
+  background: var(--ddb-pbi-panel);
+  border-inline-end: 1px solid var(--ddb-pbi-border);
   transition:
     width 0.28s cubic-bezier(0.4, 0, 0.2, 1),
     min-width 0.28s cubic-bezier(0.4, 0, 0.2, 1),
@@ -849,8 +861,8 @@
 }
 
 .develop-dashboard-root .ddb-right-wrap.is-open .ddb-right-sheet {
-  width: 308px;
-  min-width: 308px;
+  width: 320px;
+  min-width: 320px;
   opacity: 1;
 }
 
@@ -859,26 +871,27 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 8px;
-  padding: 12px 14px 10px;
-  border-bottom: 1px solid #dedede;
-  background: #fafafa;
+  gap: 10px;
+  padding: 14px 16px 12px;
+  border-bottom: 1px solid var(--ddb-pbi-border);
+  background: var(--ddb-pbi-panel);
 }
 
 .develop-dashboard-root .ddb-right-sheet-title {
   margin: 0;
-  font-size: 1rem;
-  font-weight: 700;
-  color: #201f1e;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  color: var(--ddb-pbi-text);
 }
 
 .develop-dashboard-root .ddb-right-sheet-collapse {
-  width: 36px;
-  height: 36px;
-  border-radius: 8px;
-  border: 1px solid #c8c6c4;
-  background: #fff;
-  color: #323130;
+  width: 32px;
+  height: 32px;
+  border-radius: 2px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--ddb-pbi-muted);
   cursor: pointer;
   display: inline-flex;
   align-items: center;
@@ -886,14 +899,17 @@
 }
 
 .develop-dashboard-root .ddb-right-sheet-collapse:hover {
-  background: #f3f2f1;
+  background: var(--ddb-pbi-canvas);
+  color: var(--ddb-pbi-text);
+  border-color: var(--ddb-pbi-border);
 }
 
 .develop-dashboard-root .ddb-right-sheet-body {
   flex: 1;
   min-height: 0;
   overflow-y: auto;
-  padding: 12px 14px 16px;
+  padding: 16px 16px 20px;
+  background: var(--ddb-pbi-canvas);
 }
 
 .develop-dashboard-root .ddb-right-sheet-body--visualizations {
@@ -908,6 +924,7 @@
   flex-direction: column;
   gap: 0;
   overflow-x: hidden;
+  padding-top: 12px;
 }
 
 .develop-dashboard-root .ddb-build-visual-empty {
@@ -946,13 +963,13 @@
 .develop-dashboard-root .ddb-vis-chart-types__head {
   margin: 0;
   flex-shrink: 0;
-  font-size: 0.62rem;
-  font-weight: 700;
+  font-size: 0.625rem;
+  font-weight: 600;
   text-transform: uppercase;
-  letter-spacing: 0.08em;
-  color: #475569;
-  padding: 4px 2px 2px;
-  border-bottom: 1px solid rgba(148, 163, 184, 0.35);
+  letter-spacing: 0.1em;
+  color: var(--ddb-pbi-muted);
+  padding: 0 4px 8px;
+  border-bottom: none;
 }
 
 /* Clips the icon grid so it never paints over the action buttons below */
@@ -963,10 +980,10 @@
   overflow: hidden;
   position: relative;
   isolation: isolate;
-  border-radius: 14px;
-  border: 1px solid rgba(15, 23, 42, 0.06);
-  background: #fff;
-  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.04);
+  border-radius: 2px;
+  border: 1px solid var(--ddb-pbi-border);
+  background: var(--ddb-pbi-panel);
+  box-shadow: 0 0.3px 0.9px rgba(0, 0, 0, 0.06);
 }
 
 .develop-dashboard-root .ddb-right-sheet-lead {
@@ -1009,39 +1026,47 @@
 
 .develop-dashboard-root .ddb-vis-add-actions--below-charts {
   flex-shrink: 0;
-  margin-top: 12px;
-  padding-top: 12px;
-  padding-bottom: 2px;
-  gap: 8px;
+  margin-top: 16px;
+  padding-top: 16px;
+  padding-bottom: 4px;
+  gap: 10px;
   position: relative;
   z-index: 2;
-  border-top: 1px solid rgba(200, 198, 196, 0.95);
-  background: #fff;
-  box-shadow: 0 -4px 14px rgba(15, 23, 42, 0.04);
+  border-top: 1px solid var(--ddb-pbi-border);
+  background: var(--ddb-pbi-canvas);
+  box-shadow: none;
 }
 
 .develop-dashboard-root .ddb-vis-add-actions--below-charts .ddb-right-sheet-primary,
 .develop-dashboard-root .ddb-vis-add-actions--below-charts .ddb-right-sheet-secondary {
-  padding: 9px 12px;
-  font-size: 0.72rem;
+  padding: 10px 14px;
+  font-size: 0.8125rem;
   font-weight: 600;
-  min-height: 0;
-  border-radius: 10px;
+  min-height: 32px;
+  border-radius: 2px;
   position: relative;
   z-index: 1;
 }
 
 .develop-dashboard-root .ddb-right-sheet-primary {
   width: 100%;
-  border-radius: 10px;
+  border-radius: 2px;
+  border: 1px solid transparent;
+  background: var(--ddb-pbi-blue);
+  color: #fff;
+  font-weight: 600;
+}
+
+.develop-dashboard-root .ddb-right-sheet-primary:hover {
+  background: var(--ddb-pbi-blue-dark);
 }
 
 .develop-dashboard-root .ddb-right-sheet-secondary {
   width: 100%;
-  border-radius: 10px;
-  background: #fff;
-  border: 1px solid #c8c6c4;
-  color: #323130;
+  border-radius: 2px;
+  background: var(--ddb-pbi-panel);
+  border: 1px solid var(--ddb-pbi-border-strong);
+  color: var(--ddb-pbi-text);
 }
 
 .develop-dashboard-root .ddb-right-sheet-secondary:disabled {
@@ -1049,15 +1074,15 @@
   cursor: not-allowed;
 }
 
-/* Build visual: Power BI–style wells + field checkboxes */
+/* Build visual: Fabric / Power BI–style wells + field list */
 .develop-dashboard-root .ddb-vis-build-visual {
   flex-shrink: 0;
   position: relative;
   z-index: 1;
-  margin-top: 12px;
-  padding-top: 12px;
-  border-top: 1px solid rgba(200, 198, 196, 0.9);
-  background: #f3f3f3;
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid var(--ddb-pbi-border);
+  background: transparent;
 }
 
 .develop-dashboard-root .ddb-vis-build-visual--solo {
@@ -1066,156 +1091,182 @@
   border-top: none;
   flex: 1;
   min-height: 0;
-  border-radius: 10px;
-  padding: 10px 10px 12px;
-  background: linear-gradient(180deg, #f6f6f6 0%, #f0f0f0 100%);
-  border: 1px solid rgba(200, 198, 196, 0.85);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.75);
+  border-radius: 2px;
+  padding: 16px 16px 18px;
+  background: var(--ddb-pbi-panel);
+  border: 1px solid var(--ddb-pbi-border);
+  box-shadow: 0 0.3px 0.9px rgba(0, 0, 0, 0.06), 0 1.6px 3.6px rgba(0, 0, 0, 0.04);
 }
 
 .develop-dashboard-root .ddb-vis-build-visual__kicker {
-  margin: 0 0 10px;
-  font-size: 0.62rem;
-  font-weight: 700;
+  margin: 0 0 14px;
+  font-size: 0.6875rem;
+  font-weight: 600;
   text-transform: uppercase;
-  letter-spacing: 0.08em;
-  color: #8a8886;
+  letter-spacing: 0.1em;
+  color: var(--ddb-pbi-muted);
 }
 
 .develop-dashboard-root .ddb-vis-build-visual__title {
-  font-size: 0.65rem;
-  font-weight: 700;
+  font-size: 0.625rem;
+  font-weight: 600;
   text-transform: uppercase;
-  letter-spacing: 0.06em;
-  color: #605e5c;
-  margin-bottom: 10px;
+  letter-spacing: 0.1em;
+  color: var(--ddb-pbi-muted);
+  margin-bottom: 12px;
 }
 
 .develop-dashboard-root .ddb-vis-bind-layer {
   display: flex;
   flex-direction: column;
-  gap: 4px;
-  margin-bottom: 10px;
+  gap: 6px;
+  margin-bottom: 16px;
 }
 
 .develop-dashboard-root .ddb-vis-bind-layer__label {
-  font-size: 0.65rem;
+  font-size: 0.75rem;
   font-weight: 600;
-  color: #605e5c;
+  color: var(--ddb-pbi-text);
 }
 
 .develop-dashboard-root .ddb-vis-bind-layer__select {
   width: 100%;
-  font-size: 0.78rem;
+  font-size: 0.8125rem;
+  min-height: 32px;
+  border-radius: 2px;
+  border: 1px solid var(--ddb-pbi-border-strong);
+  padding: 4px 8px;
+  background: var(--ddb-pbi-panel);
+  color: var(--ddb-pbi-text);
 }
 
 .develop-dashboard-root .ddb-vis-well {
-  margin-bottom: 8px;
+  margin-bottom: 12px;
 }
 
 .develop-dashboard-root .ddb-vis-well__label {
   display: block;
-  font-size: 0.68rem;
+  font-size: 0.75rem;
   font-weight: 600;
-  color: #323130;
-  margin-bottom: 4px;
+  color: var(--ddb-pbi-text);
+  margin-bottom: 6px;
 }
 
 .develop-dashboard-root .ddb-vis-well__select {
   width: 100%;
-  padding: 7px 8px;
-  border-radius: 4px;
-  border: 1px dashed #c8c6c4;
-  background: #fff;
-  font-size: 0.78rem;
-  color: #323130;
+  min-height: 32px;
+  padding: 6px 10px;
+  border-radius: 2px;
+  border: 1px solid var(--ddb-pbi-border-strong);
+  background: var(--ddb-pbi-panel);
+  font-size: 0.8125rem;
+  color: var(--ddb-pbi-text);
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.develop-dashboard-root .ddb-vis-well__select:hover {
+  border-color: var(--ddb-pbi-muted);
+}
+
+.develop-dashboard-root .ddb-vis-well__select:focus {
+  outline: none;
+  border-color: var(--ddb-pbi-blue);
+  box-shadow: 0 0 0 1px var(--ddb-pbi-blue);
 }
 
 .develop-dashboard-root .ddb-vis-well__placeholder {
   width: 100%;
-  padding: 7px 8px;
-  border-radius: 4px;
-  border: 1px dashed #c8c6c4;
-  background: #faf9f8;
-  font-size: 0.75rem;
-  color: #8a8886;
+  min-height: 32px;
+  padding: 8px 10px;
+  border-radius: 2px;
+  border: 1px solid var(--ddb-pbi-border);
+  background: var(--ddb-pbi-canvas);
+  font-size: 0.8125rem;
+  color: var(--ddb-pbi-placeholder);
+  line-height: 1.35;
 }
 
 .develop-dashboard-root .ddb-vis-drill {
-  margin: 10px 0 8px;
-  padding-top: 8px;
-  border-top: 1px solid #e1dfdd;
+  margin: 16px 0 12px;
+  padding: 12px 0 0;
+  border-top: 1px solid var(--ddb-pbi-border);
 }
 
 .develop-dashboard-root .ddb-vis-drill__title {
-  font-size: 0.65rem;
-  font-weight: 700;
-  color: #605e5c;
-  margin-bottom: 6px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--ddb-pbi-text);
+  margin-bottom: 8px;
 }
 
 .develop-dashboard-root .ddb-vis-drill__row {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 8px;
-  font-size: 0.72rem;
-  color: #323130;
-  margin-bottom: 4px;
+  gap: 10px;
+  font-size: 0.8125rem;
+  color: var(--ddb-pbi-text);
+  margin-bottom: 8px;
 }
 
 .develop-dashboard-root .ddb-vis-fake-toggle {
-  font-size: 0.65rem;
-  font-weight: 700;
-  padding: 2px 8px;
-  border-radius: 999px;
-  background: #edebe9;
-  color: #605e5c;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  padding: 3px 10px;
+  border-radius: 2px;
+  border: 1px solid var(--ddb-pbi-border-strong);
+  background: var(--ddb-pbi-canvas);
+  color: var(--ddb-pbi-muted);
 }
 
 .develop-dashboard-root .ddb-vis-fake-toggle.is-on {
-  background: rgba(44, 122, 74, 0.2);
-  color: #1f5e3a;
+  background: var(--ddb-pbi-blue-soft);
+  border-color: color-mix(in srgb, var(--ddb-pbi-blue) 35%, var(--ddb-pbi-border-strong));
+  color: var(--ddb-pbi-blue-dark);
 }
 
 .develop-dashboard-root .ddb-vis-fields-block {
-  margin-top: 6px;
+  margin-top: 4px;
+  padding: 14px 0 0;
+  border-top: 1px solid var(--ddb-pbi-border);
 }
 
 .develop-dashboard-root .ddb-vis-fields-block__head {
-  font-size: 0.65rem;
-  font-weight: 700;
+  font-size: 0.625rem;
+  font-weight: 600;
   text-transform: uppercase;
-  letter-spacing: 0.04em;
-  color: #605e5c;
-  margin-bottom: 4px;
+  letter-spacing: 0.1em;
+  color: var(--ddb-pbi-muted);
+  margin-bottom: 8px;
 }
 
 .develop-dashboard-root .ddb-vis-fields-block__hint {
-  margin: 0 0 6px;
-  font-size: 0.68rem;
-  line-height: 1.4;
-  color: #605e5c;
+  margin: 0 0 10px;
+  font-size: 0.8125rem;
+  line-height: 1.5;
+  color: var(--ddb-pbi-muted);
 }
 
 .develop-dashboard-root .ddb-vis-field-check-list {
   list-style: none;
   margin: 0;
   padding: 0;
-  max-height: 200px;
+  max-height: min(240px, 38vh);
   overflow-y: auto;
-  border: 1px solid #e1dfdd;
-  border-radius: 8px;
-  background: #fff;
+  border: 1px solid var(--ddb-pbi-border-strong);
+  border-radius: 2px;
+  background: var(--ddb-pbi-panel);
+  scrollbar-width: thin;
+  scrollbar-color: var(--ddb-pbi-border-strong) transparent;
 }
 
 .develop-dashboard-root .ddb-vis-field-check-row {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 5px 8px;
-  font-size: 0.78rem;
-  border-bottom: 1px solid #f3f2f1;
+  gap: 10px;
+  padding: 8px 12px;
+  font-size: 0.8125rem;
+  border-bottom: 1px solid var(--ddb-pbi-border);
   cursor: pointer;
 }
 
@@ -1224,7 +1275,7 @@
 }
 
 .develop-dashboard-root .ddb-vis-field-check-row:hover {
-  background: #faf9f8;
+  background: var(--ddb-pbi-canvas);
 }
 
 .develop-dashboard-root .ddb-vis-field-check-row input {
@@ -1245,12 +1296,12 @@
 
 .develop-dashboard-root .ddb-data-map-layers {
   flex-shrink: 0;
-  margin: 0 0 14px;
-  padding: 12px;
-  border-radius: 14px;
-  background: linear-gradient(180deg, #fafcfb 0%, #f4faf7 100%);
-  border: 1px solid rgba(209, 226, 216, 0.95);
-  box-shadow: 0 2px 12px rgba(15, 60, 40, 0.06);
+  margin: 0 0 16px;
+  padding: 14px;
+  border-radius: 2px;
+  background: var(--ddb-pbi-panel);
+  border: 1px solid var(--ddb-pbi-border);
+  box-shadow: 0 0.3px 0.9px rgba(0, 0, 0, 0.06);
 }
 
 .develop-dashboard-root .ddb-data-map-layers-head {
@@ -1258,17 +1309,17 @@
   align-items: center;
   justify-content: space-between;
   gap: 10px;
-  margin-bottom: 10px;
-  padding-bottom: 8px;
-  border-bottom: 1px solid rgba(148, 163, 184, 0.28);
+  margin-bottom: 12px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--ddb-pbi-border);
 }
 
 .develop-dashboard-root .ddb-data-map-layers-title {
-  font-size: 0.7rem;
-  font-weight: 800;
+  font-size: 0.625rem;
+  font-weight: 600;
   letter-spacing: 0.1em;
   text-transform: uppercase;
-  color: #64748b;
+  color: var(--ddb-pbi-muted);
 }
 
 .develop-dashboard-root .ddb-data-add-source-btn {
@@ -1329,15 +1380,15 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 8px 10px;
-  border-radius: 8px;
-  border: 1px solid #8a8886;
-  background: #fff;
-  margin-bottom: 14px;
+  padding: 6px 10px;
+  border-radius: 2px;
+  border: 1px solid var(--ddb-pbi-border-strong);
+  background: var(--ddb-pbi-panel);
+  margin-bottom: 16px;
 }
 
 .develop-dashboard-root .ddb-data-search-wrap i {
-  color: #605e5c;
+  color: var(--ddb-pbi-muted);
   font-size: 0.85rem;
 }
 
@@ -1351,19 +1402,19 @@
 }
 
 .develop-dashboard-root .ddb-data-tree-section-label {
-  font-size: 0.65rem;
-  font-weight: 700;
+  font-size: 0.625rem;
+  font-weight: 600;
   text-transform: uppercase;
-  letter-spacing: 0.06em;
-  color: #605e5c;
+  letter-spacing: 0.08em;
+  color: var(--ddb-pbi-muted);
   margin: 0 0 8px 2px;
 }
 
 .develop-dashboard-root .ddb-data-table-block {
   margin-bottom: 10px;
-  border-radius: 6px;
-  background: #fff;
-  border: 1px solid #edebe9;
+  border-radius: 2px;
+  background: var(--ddb-pbi-panel);
+  border: 1px solid var(--ddb-pbi-border);
 }
 
 .develop-dashboard-root .ddb-data-table-toggle {
@@ -1452,18 +1503,17 @@
   color: #605e5c;
 }
 
-/* Right rail: stacked vertical tabs (readable) — avoids three ultra-narrow columns in one strip */
+/* Right rail: Power BI–style vertical tabs (neutral + blue active stripe) */
 .develop-dashboard-root .ddb-right-rail {
-  flex: 0 0 62px;
-  width: 62px;
+  flex: 0 0 64px;
+  width: 64px;
   display: flex;
   flex-direction: column;
   align-items: stretch;
   justify-content: stretch;
   gap: 0;
-  background: linear-gradient(180deg, #fafbfc 0%, #eef1f5 100%);
-  border-inline-start: 1px solid rgba(15, 23, 42, 0.08);
-  box-shadow: inset 1px 0 0 rgba(255, 255, 255, 0.75);
+  background: var(--ddb-pbi-canvas);
+  border-inline-start: 1px solid var(--ddb-pbi-border);
 }
 
 .develop-dashboard-root .ddb-right-rail-tab {
@@ -1474,17 +1524,17 @@
   align-items: center;
   justify-content: center;
   gap: 6px;
-  padding: 8px 4px 10px;
+  padding: 10px 4px 12px;
   border: none;
-  border-bottom: 1px solid rgba(15, 23, 42, 0.07);
+  border-bottom: 1px solid var(--ddb-pbi-border);
   background: transparent;
   cursor: pointer;
   font: inherit;
-  color: #334155;
+  color: var(--ddb-pbi-muted);
   transition:
-    background 0.18s ease,
-    color 0.18s ease,
-    box-shadow 0.18s ease;
+    background 0.15s ease,
+    color 0.15s ease,
+    box-shadow 0.15s ease;
 }
 
 .develop-dashboard-root .ddb-right-rail-tab:last-child {
@@ -1492,36 +1542,35 @@
 }
 
 .develop-dashboard-root .ddb-right-rail-tab:hover {
-  background: rgba(241, 245, 249, 0.95);
-  color: #0f172a;
+  background: color-mix(in srgb, var(--ddb-pbi-panel) 88%, var(--ddb-pbi-canvas));
+  color: var(--ddb-pbi-text);
 }
 
 .develop-dashboard-root .ddb-right-rail-tab.is-active {
-  background: rgba(255, 255, 255, 0.95);
-  box-shadow: inset 3px 0 0 #15803d;
-  color: #14532d;
+  background: var(--ddb-pbi-panel);
+  box-shadow: inset 3px 0 0 var(--ddb-pbi-blue);
+  color: var(--ddb-pbi-text);
 }
 
 .develop-dashboard-root .ddb-right-rail-icon-wrap {
-  width: 36px;
-  height: 36px;
-  border-radius: 12px;
+  width: 34px;
+  height: 34px;
+  border-radius: 2px;
   display: grid;
   place-items: center;
-  background: rgba(255, 255, 255, 0.65);
-  border: 1px solid rgba(15, 23, 42, 0.08);
-  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.06);
+  background: var(--ddb-pbi-panel);
+  border: 1px solid var(--ddb-pbi-border);
 }
 
 .develop-dashboard-root .ddb-right-rail-tab.is-active .ddb-right-rail-icon-wrap {
-  background: linear-gradient(160deg, #ecfdf5, #d1fae5);
-  border-color: rgba(21, 128, 61, 0.28);
-  box-shadow: 0 4px 12px rgba(21, 128, 61, 0.12);
+  background: var(--ddb-pbi-blue-soft);
+  border-color: color-mix(in srgb, var(--ddb-pbi-blue) 28%, var(--ddb-pbi-border));
+  box-shadow: none;
 }
 
 .develop-dashboard-root .ddb-right-rail-icon {
-  font-size: 1.05rem;
-  color: #1e293b;
+  font-size: 1rem;
+  color: var(--ddb-pbi-muted);
 }
 
 .develop-dashboard-root .ddb-right-rail-icon::before {
@@ -1530,30 +1579,30 @@
 
 .develop-dashboard-root .ddb-right-rail-tab:hover .ddb-right-rail-icon,
 .develop-dashboard-root .ddb-right-rail-tab:hover .ddb-right-rail-icon::before {
-  color: #0f172a;
+  color: var(--ddb-pbi-text);
 }
 
 .develop-dashboard-root .ddb-right-rail-tab.is-active .ddb-right-rail-icon {
-  color: #166534;
+  color: var(--ddb-pbi-blue);
 }
 
 .develop-dashboard-root .ddb-right-rail-tab.is-active .ddb-right-rail-icon::before {
-  color: #166534;
+  color: var(--ddb-pbi-blue);
 }
 
 .develop-dashboard-root .ddb-right-rail-tab.is-active:hover .ddb-right-rail-icon,
 .develop-dashboard-root .ddb-right-rail-tab.is-active:hover .ddb-right-rail-icon::before {
-  color: #166534;
+  color: var(--ddb-pbi-blue-dark);
 }
 
 .develop-dashboard-root .ddb-right-rail-label {
   writing-mode: horizontal-tb;
   transform: none;
-  font-size: 0.56rem;
-  font-weight: 800;
+  font-size: 0.5625rem;
+  font-weight: 600;
   letter-spacing: 0.06em;
   text-transform: uppercase;
-  color: #64748b;
+  color: var(--ddb-pbi-subtle);
   line-height: 1.2;
   text-align: center;
   max-width: 100%;
@@ -1561,7 +1610,7 @@
 }
 
 .develop-dashboard-root .ddb-right-rail-tab.is-active .ddb-right-rail-label {
-  color: #166534;
+  color: var(--ddb-pbi-blue-dark);
 }
 
 .develop-dashboard-root .ddb-right-rail-label--stack {
@@ -2636,6 +2685,29 @@
 
 .develop-dashboard-root .ddb-btn:hover {
   filter: brightness(1.05);
+}
+
+.develop-dashboard-root .ddb-btn.ddb-right-sheet-primary {
+  background: var(--ddb-pbi-blue);
+  border-radius: 2px;
+  border: 1px solid transparent;
+}
+
+.develop-dashboard-root .ddb-btn.ddb-right-sheet-primary:hover {
+  filter: none;
+  background: var(--ddb-pbi-blue-dark);
+}
+
+.develop-dashboard-root .ddb-btn.ddb-right-sheet-secondary {
+  background: var(--ddb-pbi-panel);
+  color: var(--ddb-pbi-text);
+  border: 1px solid var(--ddb-pbi-border-strong);
+  border-radius: 2px;
+}
+
+.develop-dashboard-root .ddb-btn.ddb-right-sheet-secondary:hover {
+  filter: none;
+  background: var(--ddb-pbi-canvas);
 }
 
 .develop-dashboard-root .ddb-small-btn {

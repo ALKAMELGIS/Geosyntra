@@ -29,7 +29,6 @@ const menuItems: MenuItem[] = [
     color: '#F97316',
     items: [
       { label: { en: 'Develop Dashboard', ar: 'تطوير لوحة التحكم' }, icon: 'fa-solid fa-grip', to: '/dashboard/develop' },
-      { label: { en: 'Design & Publish', ar: 'التصميم والنشر' }, icon: 'fa-solid fa-palette', to: '/dashboard/design' },
       { label: { en: 'Agro Cloud Dashboard', ar: 'لوحة Agro Cloud' }, icon: 'fa-solid fa-chart-pie', to: '/dashboards/agro-cloud' },
       { label: { en: 'AI AgroCloud', ar: 'سحابة Agro الذكية' }, icon: 'fa-solid fa-cloud-bolt', to: '/dashboards/ai-agro-cloud' },
       { label: { en: 'AI Agro-Chat', ar: 'محادثة Agro الذكية' }, icon: 'fa-solid fa-comments', to: '/dashboards/ai-agro-chat' },

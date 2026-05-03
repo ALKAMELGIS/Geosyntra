@@ -44,6 +44,22 @@ export type HomePageSettings = {
   backgroundImage: string
 }
 
+/** User-defined API token cards (metadata in settings; secret values in separate localStorage keys). */
+export type CustomApiTokenSlot = {
+  id: string
+  /** Card title (English default) */
+  title: string
+  titleAr?: string
+  description: string
+  descriptionAr?: string
+  /** Label for the secret input */
+  fieldLabel: string
+  fieldLabelAr?: string
+  placeholder?: string
+  placeholderAr?: string
+  iconClass: string
+}
+
 export type SystemSettingsPersistedV1 = {
   version: 1
   themeMode: ThemeMode
@@ -58,6 +74,8 @@ export type SystemSettingsPersistedV1 = {
   navOverrides: Record<string, NavItemOverride>
   customPages: CustomPageRecord[]
   homePage: HomePageSettings
+  /** Extra API token types admins add without a code change */
+  customApiTokenSlots: CustomApiTokenSlot[]
 }
 
 export type SystemSettingsDraft = SystemSettingsPersistedV1 & { dirty?: boolean }

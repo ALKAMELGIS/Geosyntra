@@ -8,7 +8,6 @@ import Home from '../pages/Home'
 import Login from '../pages/Login'
 import DashboardOverview from '../pages/dashboards/Overview'
 import DevelopDashboard from '../pages/dashboards/DevelopDashboard'
-import AgriDesignDashboard from '../pages/dashboards/AgriDesignDashboard'
 const SatelliteIntelligence = lazy(() => import('../pages/satellite/SatelliteIntelligence'))
 const SatelliteMultidimensional = lazy(() => import('../pages/satellite/Multidimensional'))
 const GisMap = lazy(() => import('../pages/satellite/GisMap'))
@@ -54,7 +53,7 @@ export default function AppRoutes() {
         <Route path="/satellite/multidimensional" element={<SatelliteMultidimensional />} />
         <Route path="/satellite/gis" element={<GisMap />} />
         <Route path="/dashboards/overview" element={<DashboardOverview />} />
-        <Route path="/dashboards/plant-ai" element={<Navigate to="/dashboard/design" replace />} />
+        <Route path="/dashboards/plant-ai" element={<Navigate to="/dashboards/overview" replace />} />
         <Route path="/dashboards/ai-chatbot" element={<DashboardAiChatbot />} />
         <Route path="/dashboards/model" element={<DashboardModel />} />
         <Route path="/dashboards/agro-cloud" element={<AgroCloudDashboard />} />
@@ -74,7 +73,7 @@ export default function AppRoutes() {
         <Route path="/style-guide" element={<StyleGuide />} />
         <Route path="/usability-test" element={<UsabilityTest />} />
         <Route path="/dashboard/develop" element={<DevelopDashboard />} />
-        <Route path="/dashboard/design" element={<AgriDesignDashboard />} />
+        <Route path="/dashboard/design" element={<Navigate to="/dashboards/overview" replace />} />
         {settings.customPages
           .filter(p => p.visible && p.path.trim())
           .map(p => (
