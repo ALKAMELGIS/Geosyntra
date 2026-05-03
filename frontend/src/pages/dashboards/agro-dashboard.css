@@ -148,42 +148,74 @@
 }
 
 .agro-dash-root .agdash-add-btn {
-  display: flex;
+  display: inline-flex;
   align-items: center;
-  gap: 6px;
-  padding: 7px 16px;
-  border-radius: var(--agdash-r20);
-  background: var(--agdash-violet);
+  justify-content: center;
+  gap: 8px;
+  padding: 9px 18px;
+  min-height: 36px;
+  border-radius: 999px;
+  background: linear-gradient(180deg, #7d6ae8 0%, var(--agdash-violet) 55%, #5a4abf 100%);
   color: #fff;
   border: none;
   font-size: 12px;
-  font-weight: 600;
+  font-weight: 700;
+  letter-spacing: 0.01em;
   cursor: pointer;
-  transition: background 0.15s;
+  box-shadow:
+    0 2px 10px rgba(108, 93, 211, 0.42),
+    0 1px 0 rgba(255, 255, 255, 0.2) inset;
+  transition:
+    background 0.15s,
+    box-shadow 0.15s,
+    transform 0.12s;
 }
 
 .agro-dash-root .agdash-add-btn:hover {
-  background: #5a4fc4;
+  background: linear-gradient(180deg, #8a7aed 0%, #6f5fd8 55%, #6352c9 100%);
+  box-shadow:
+    0 4px 16px rgba(108, 93, 211, 0.5),
+    0 1px 0 rgba(255, 255, 255, 0.22) inset;
+}
+
+.agro-dash-root .agdash-add-btn:active {
+  transform: translateY(1px);
+  box-shadow: 0 1px 6px rgba(108, 93, 211, 0.35);
 }
 
 .agro-dash-root .agdash-add-btn svg {
-  width: 12px;
-  height: 12px;
+  width: 13px;
+  height: 13px;
   flex-shrink: 0;
 }
 
-.agro-dash-root .agdash-nav-avatar {
-  width: 30px;
-  height: 30px;
-  border-radius: 50%;
-  background: var(--agdash-teal-light);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 11px;
-  font-weight: 500;
-  color: #085041;
-  cursor: default;
+/* Add Source Data — GIS inline panel on home (Develop-style) */
+.agro-dash-root .agdash-add-src-gis-inline {
+  margin-top: 4px;
+  padding: 14px 14px 16px;
+  border-radius: 14px;
+  background: #f1f5f9;
+  border: 1px solid #e2e8f0;
+}
+
+.agro-dash-root .agdash-add-src-gis-label {
+  display: block;
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: #334155;
+  margin-bottom: 8px;
+}
+
+.agro-dash-root .agdash-add-src-gis-foot {
+  margin: 10px 0 0;
+  font-size: 0.75rem;
+  line-height: 1.45;
+  color: #94a3b8;
+}
+
+.agro-dash-root .agdash-add-src-gis-import {
+  margin-top: 12px;
+  width: 100%;
 }
 
 .agro-dash-root .agdash-wf {
@@ -613,239 +645,12 @@
   border: 0;
 }
 
-/* Add Source Data — modal on this page only (no Develop Dashboard) */
-.agro-dash-root .agdash-modal-overlay {
-  position: fixed;
-  inset: 0;
-  z-index: 1200;
-  background: rgba(15, 23, 42, 0.45);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 20px;
-}
-
-.agro-dash-root .agdash-modal.agdash-add-source-modal {
-  width: 100%;
-  max-width: 440px;
-  max-height: min(90vh, 640px);
-  overflow-y: auto;
-  background: var(--agdash-surface);
-  border-radius: var(--agdash-r12);
-  border: 1px solid var(--agdash-border);
-  box-shadow: 0 12px 40px rgba(15, 23, 42, 0.18);
-  padding: 22px 22px 18px;
-}
-
-.agro-dash-root .agdash-add-source-modal__title {
-  margin: 0 0 10px;
-  font-size: 1.125rem;
-  font-weight: 700;
-  color: #0f172a;
-  letter-spacing: -0.02em;
-}
-
-.agro-dash-root .agdash-add-source-modal__lead {
-  margin: 0 0 18px;
-  font-size: 0.8125rem;
-  line-height: 1.55;
-  color: var(--agdash-ink3);
-}
-
-.agro-dash-root .agdash-src-fieldset {
-  border: none;
+/* Add Source uses develop-dashboard.css (ddb-add-source-*) + index.css (gis-modal-*). Hint text in modal. */
+.agro-dash-root .gis-modal .ddb-hint {
   margin: 0;
-  padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-
-.agro-dash-root .agdash-src-card {
-  display: flex;
-  align-items: flex-start;
-  gap: 12px;
-  padding: 12px 12px;
-  border-radius: var(--agdash-r8);
-  border: 1px solid var(--agdash-border);
-  background: var(--agdash-surface2);
-  cursor: pointer;
-  transition: border-color 0.15s, background 0.15s, box-shadow 0.15s;
-}
-
-.agro-dash-root .agdash-src-card:hover {
-  background: var(--agdash-surface3);
-}
-
-.agro-dash-root .agdash-src-card--on {
-  border-color: color-mix(in srgb, var(--agdash-teal) 45%, var(--agdash-border2));
-  background: var(--agdash-surface);
-  box-shadow: 0 0 0 1px color-mix(in srgb, var(--agdash-teal) 20%, transparent);
-}
-
-.agro-dash-root .agdash-src-radio {
-  margin-top: 10px;
-  flex-shrink: 0;
-  width: 16px;
-  height: 16px;
-  accent-color: var(--agdash-teal);
-  cursor: pointer;
-}
-
-.agro-dash-root .agdash-src-card-icon {
-  flex-shrink: 0;
-  width: 40px;
-  height: 40px;
-  border-radius: var(--agdash-r8);
-  background: var(--agdash-teal-light);
-  color: #085041;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 1rem;
-}
-
-.agro-dash-root .agdash-src-card-icon--dual {
-  gap: 2px;
-  font-size: 0.75rem;
-}
-
-.agro-dash-root .agdash-src-card-text {
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.agro-dash-root .agdash-src-card-title {
-  font-size: 0.8125rem;
-  font-weight: 600;
-  color: var(--agdash-ink);
-}
-
-.agro-dash-root .agdash-src-card-desc {
-  font-size: 0.75rem;
-  line-height: 1.45;
-  color: var(--agdash-ink3);
-}
-
-.agro-dash-root .agdash-src-advanced-hint {
-  margin: 12px 0 0;
-  padding: 10px 12px;
-  font-size: 0.75rem;
-  line-height: 1.45;
-  color: var(--agdash-ink2);
-  background: var(--agdash-surface3);
-  border-radius: var(--agdash-r8);
-  border: 1px solid var(--agdash-border);
-}
-
-.agro-dash-root .agdash-src-advanced {
-  width: 100%;
-  margin-top: 12px;
-  padding: 11px 14px;
-  border-radius: var(--agdash-r8);
-  border: 1px dashed color-mix(in srgb, var(--agdash-teal) 55%, var(--agdash-border2));
-  background: transparent;
-  color: var(--agdash-teal);
-  font-size: 0.8125rem;
-  font-weight: 500;
-  cursor: pointer;
-  text-align: center;
-  transition: background 0.15s, border-color 0.15s;
-}
-
-.agro-dash-root .agdash-src-advanced:hover {
-  background: var(--agdash-teal-light);
-}
-
-.agro-dash-root .agdash-add-source-modal__footer {
-  display: flex;
-  justify-content: flex-end;
-  align-items: center;
-  gap: 10px;
-  margin-top: 18px;
-  padding-top: 4px;
-}
-
-.agro-dash-root .agdash-add-source-modal__apply {
-  padding: 8px 18px;
-  font-size: 0.8125rem;
-  font-weight: 600;
-  color: #fff;
-  background: var(--agdash-teal, #12a97b);
-  border: 1px solid transparent;
-  border-radius: var(--agdash-r8);
-  cursor: pointer;
-  transition: background 0.15s, opacity 0.15s;
-}
-
-.agro-dash-root .agdash-add-source-modal__apply:hover:not(:disabled) {
-  filter: brightness(1.05);
-}
-
-.agro-dash-root .agdash-add-source-modal__apply:disabled {
-  opacity: 0.55;
-  cursor: not-allowed;
-}
-
-.agro-dash-root .agdash-src-panel {
-  margin-top: 14px;
-  padding: 12px 14px;
-  border-radius: var(--agdash-r8);
-  border: 1px solid var(--agdash-border2);
-  background: var(--agdash-surface2, #f7f8fb);
-}
-
-.agro-dash-root .agdash-src-panel label {
-  display: block;
-  font-size: 0.75rem;
-  font-weight: 600;
-  color: var(--agdash-muted, #5c6370);
-  margin-bottom: 6px;
-}
-
-.agro-dash-root .agdash-src-panel input[type='text'],
-.agro-dash-root .agdash-src-panel input[type='url'],
-.agro-dash-root .agdash-src-panel select {
-  width: 100%;
-  padding: 8px 10px;
-  font-size: 0.875rem;
-  border: 1px solid var(--agdash-border2);
-  border-radius: var(--agdash-r8);
-  background: var(--agdash-surface);
-  box-sizing: border-box;
-}
-
-.agro-dash-root .agdash-src-panel .agdash-src-err {
-  margin-top: 8px;
-  font-size: 0.8125rem;
-  color: #c0392b;
-}
-
-.agro-dash-root .agdash-empty-hint {
-  padding: 12px 14px;
-  font-size: 0.875rem;
-  color: var(--agdash-muted, #5c6370);
-  border: 1px dashed var(--agdash-border2);
-  border-radius: var(--agdash-r8);
-  margin-bottom: 12px;
-}
-
-.agro-dash-root .agdash-add-source-modal__cancel {
-  padding: 8px 18px;
-  font-size: 0.8125rem;
-  font-weight: 500;
-  color: var(--agdash-ink);
-  background: var(--agdash-surface);
-  border: 1px solid var(--agdash-border2);
-  border-radius: var(--agdash-r8);
-  cursor: pointer;
-  transition: background 0.15s;
-}
-
-.agro-dash-root .agdash-add-source-modal__cancel:hover {
-  background: var(--agdash-surface3);
+  font-size: 0.78rem;
+  line-height: 1.5;
+  color: #64748b;
 }
 
 @media (max-width: 960px) {

@@ -1903,6 +1903,16 @@ function GisContentPage() {
             </div>
             <footer className="gis-sidebar-foot-toolbar" aria-label="Sidebar tools">
               <div className="gis-sidebar-foot-divider" aria-hidden />
+              <div
+                className="gis-sidebar-foot-note"
+                title="GIS Content: browse layers, records, fields, and relationships from this sidebar."
+                role="note"
+              >
+                <span className="gis-sidebar-foot-item__glyph gis-sidebar-foot-item__glyph--info" aria-hidden>
+                  <i className="fa-solid fa-circle-info" />
+                </span>
+                <span className="gis-sidebar-foot-item__label">Information</span>
+              </div>
               <button
                 type="button"
                 className="gis-sidebar-foot-item gis-sidebar-foot-item--primary"
@@ -1915,6 +1925,7 @@ function GisContentPage() {
                 <span className="gis-sidebar-foot-item__glyph" aria-hidden>
                   <i className="fa-solid fa-angles-right" />
                 </span>
+                <span className="gis-sidebar-foot-item__label">Expand</span>
               </button>
             </footer>
             </>
@@ -2075,6 +2086,16 @@ function GisContentPage() {
             </div>
             <footer className="gis-sidebar-foot-toolbar" aria-label="Sidebar tools">
               <div className="gis-sidebar-foot-divider" aria-hidden />
+              <div
+                className="gis-sidebar-foot-note"
+                title="GIS Content: browse layers, records, fields, and relationships from this sidebar."
+                role="note"
+              >
+                <span className="gis-sidebar-foot-item__glyph gis-sidebar-foot-item__glyph--info" aria-hidden>
+                  <i className="fa-solid fa-circle-info" />
+                </span>
+                <span className="gis-sidebar-foot-item__label">Information</span>
+              </div>
               <button
                 type="button"
                 className="gis-sidebar-foot-item gis-sidebar-foot-item--primary"
@@ -2087,6 +2108,7 @@ function GisContentPage() {
                 <span className="gis-sidebar-foot-item__glyph" aria-hidden>
                   <i className="fa-solid fa-angles-left" />
                 </span>
+                <span className="gis-sidebar-foot-item__label">Collapse</span>
               </button>
             </footer>
             </>

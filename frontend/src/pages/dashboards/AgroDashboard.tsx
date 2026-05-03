@@ -1,31 +1,28 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import Chart from 'chart.js/auto'
 import type { Chart as ChartInstance } from 'chart.js'
 import { useLanguage } from '../../lib/i18n'
 import { loadGisMapSavedLayers } from '../../lib/gisMapLayerStore'
-import {
-  aggregateGeoJsonToSource,
-  aggregateRowsToSource,
-  loadAgroDashSources,
-  mergeSourcesForCharts,
-  saveAgroDashSources,
-  type AgroDashSource,
-} from '../../lib/agroDashboardAnalytics'
-import { parseFile, parseRemoteUrlAsFile } from '../../utils/FileLoader'
 import type { LayerData } from '../satellite/components/LayerManager'
+import { parseFile, parseRemoteUrlAsFile } from '../../utils/FileLoader'
+import './develop-dashboard.css'
 import './agro-dashboard.css'
 
 const MO_EN = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'] as const
 const MO_AR = ['يناير', 'فبراير', 'مارس', 'أبريل', 'مايو', 'يونيو', 'يوليو', 'أغسطس', 'سبتمبر', 'أكتوبر', 'نوفمبر', 'ديسمبر'] as const
 
-type QuarterKey = 'all' | 'q1' | 'q2' | 'q3' | 'q4'
+const DATA = {
+  all: { h: [120, 180, 240, 980, 560, 420, 680, 740, 310, 190, 80, 40], t: [200, 200, 300, 500, 600, 600, 700, 700, 400, 300, 150, 100] },
+  q1: { h: [120, 180, 240], t: [200, 200, 300] },
+  q2: { h: [980, 560, 420], t: [500, 600, 600] },
+  q3: { h: [680, 740, 310], t: [700, 700, 400] },
+  q4: { h: [190, 80, 40], t: [300, 150, 100] },
+} as const
 
-const QUARTER_SLICE: Record<Exclude<QuarterKey, 'all'>, readonly [number, number]> = {
-  q1: [0, 3],
-  q2: [3, 6],
-  q3: [6, 9],
-  q4: [9, 12],
-}
+type QuarterKey = keyof typeof DATA
+
+const RAIN = [45, 60, 80, 120, 95, 70, 55, 50, 90, 110, 75, 40]
+const YLD = [100, 160, 220, 860, 490, 380, 620, 680, 280, 170, 70, 35]
 
 const COLORS = {
   accent: '#2D6BE4',
@@ -37,50 +34,6 @@ const COLORS = {
   grid: 'rgba(0,0,0,0.05)',
   tick: '#8b90a0',
 } as const
-
-const PIE_PALETTE = [COLORS.accent, COLORS.teal, COLORS.amber, COLORS.violet, COLORS.accentM, COLORS.tealM] as const
-
-const LS_SOURCES = 'agro-dashboard-sources-v1'
-const FEED_KEY = 'agro-dashboard-feed-v1'
-
-type AgroFeedItem = { id: string; title: string; sub: string; at: number; c: string }
-
-function loadFeed(): AgroFeedItem[] {
-  try {
-    const raw = localStorage.getItem(FEED_KEY)
-    if (!raw) return []
-    const arr = JSON.parse(raw) as AgroFeedItem[]
-    return Array.isArray(arr) ? arr : []
-  } catch {
-    return []
-  }
-}
-
-function pad12(arr: number[]): number[] {
-  if (arr.length >= 12) return arr.slice(0, 12)
-  return [...arr, ...new Array(12 - arr.length).fill(0)]
-}
-
-function sliceQuarterData(
-  monthly: number[],
-  secondary: number[],
-  MO: readonly string[],
-  quarter: QuarterKey,
-) {
-  const m = pad12(monthly)
-  const s = pad12(secondary)
-  const maxH = Math.max(1, ...m)
-  if (quarter === 'all') {
-    const target = m.map(v => Math.round(v * 1.08 + maxH * 0.03))
-    return { labels: [...MO], h: [...m], t: target, sec: [...s] }
-  }
-  const [a, b] = QUARTER_SLICE[quarter]
-  const h = m.slice(a, b)
-  const sec = s.slice(a, b)
-  const maxQ = Math.max(1, ...h)
-  const t = h.map(v => Math.round(v * 1.08 + maxQ * 0.03))
-  return { labels: MO.slice(a, b), h, t, sec }
-}
 
 function gridOpts() {
   return { color: COLORS.grid, drawBorder: false }
@@ -94,38 +47,130 @@ function noLegend() {
   return { legend: { display: false } }
 }
 
-function halfYearTrend(monthly: number[]): string | null {
-  const m = pad12(monthly)
-  const a = m.slice(0, 6).reduce((x, y) => x + y, 0)
-  const b = m.slice(6).reduce((x, y) => x + y, 0)
-  if (a === 0 && b === 0) return null
-  if (a === 0) return `▲ ${b > 0 ? '100' : '0'}%`
-  const pct = ((b - a) / a) * 100
-  return `${pct >= 0 ? '▲' : '▼'} ${Math.abs(pct).toFixed(1)}%`
+const FIELDS = [
+  { n: 'Field A-12', kg: 2840, pct: 89, s: 'Active', sc: { background: '#E3F7F1', color: '#085041' } },
+  { n: 'Field B-07', kg: 2610, pct: 81, s: 'Active', sc: { background: '#E3F7F1', color: '#085041' } },
+  { n: 'Field C-03', kg: 2200, pct: 68, s: 'Fallow', sc: { background: '#FEF3E2', color: '#854F0B' } },
+  { n: 'Field D-19', kg: 1980, pct: 62, s: 'Active', sc: { background: '#E3F7F1', color: '#085041' } },
+  { n: 'Field E-22', kg: 1560, pct: 49, s: 'Done', sc: { background: '#EBF1FD', color: '#1e55c0' } },
+] as const
+
+const ACTS = [
+  { title: 'ArcGIS layer synced', sub: 'North region · 34 fields updated', t: '2m ago', c: '#12A97B' },
+  { title: 'Source connected', sub: 'CSV uploaded · Soil quality index', t: '18m ago', c: '#2D6BE4' },
+  { title: 'Yield alert', sub: 'Field C-03 below threshold', t: '1h ago', c: '#E05252' },
+  { title: 'Export ready', sub: 'Q1 report generated as PDF', t: '3h ago', c: '#E8920A' },
+  { title: 'New field pinned', sub: 'Field F-11 added to dashboard', t: '5h ago', c: '#6C5DD3' },
+] as const
+
+type AgroAddWizard = 'home' | 'get-data' | 'gis-list' | 'tabs'
+type AgroAddTab = 'arcgis' | 'database' | 'upload' | 'url'
+
+const GET_DATA_COMMON_SOURCES: Array<{ id: string; label: string; icon: string; iconColor?: string }> = [
+  { id: 'excel', label: 'Excel workbook', icon: 'fa-solid fa-file-excel', iconColor: '#217346' },
+  { id: 'semantic', label: 'Power BI semantic models', icon: 'fa-solid fa-cubes', iconColor: '#f2c811' },
+  { id: 'dataflows', label: 'Dataflows', icon: 'fa-solid fa-diagram-project', iconColor: '#742774' },
+  { id: 'dataverse', label: 'Dataverse', icon: 'fa-solid fa-cloud', iconColor: '#742774' },
+  { id: 'sql', label: 'SQL Server', icon: 'fa-solid fa-database', iconColor: '#cc2927' },
+  { id: 'analysis', label: 'Analysis Services', icon: 'fa-solid fa-cube', iconColor: '#5c2d91' },
+  { id: 'textcsv', label: 'Text/CSV', icon: 'fa-solid fa-file-lines', iconColor: '#107c10' },
+  { id: 'web', label: 'Web', icon: 'fa-solid fa-globe', iconColor: '#0078d4' },
+  { id: 'odata', label: 'OData feed', icon: 'fa-solid fa-table-cells', iconColor: '#e98300' },
+  { id: 'blank', label: 'Blank query', icon: 'fa-solid fa-scroll', iconColor: '#c50f1f' },
+]
+
+type DiscoveredArcLayer = {
+  id: number
+  name: string
+  kind: 'layer' | 'table'
+  url: string
+  geometryType?: string
 }
 
-function statusStyle(s: string): CSSProperties {
-  const u = s.toLowerCase()
-  if (u === 'done') return { background: '#EBF1FD', color: '#1e55c0' }
-  if (u === 'fallow') return { background: '#FEF3E2', color: '#854F0B' }
-  return { background: '#E3F7F1', color: '#085041' }
+function buildArcGisUrl(baseUrl: string, params: Record<string, string>) {
+  const normalized = baseUrl.trim().replace(/#.*$/, '').replace(/\?.*$/, '').replace(/\/+$/, '')
+  const u = new URL(normalized, typeof window !== 'undefined' ? window.location.origin : 'http://localhost')
+  const search = new URLSearchParams()
+  Object.entries(params).forEach(([k, v]) => {
+    if (v !== '') search.set(k, v)
+  })
+  u.search = search.toString()
+  return u.toString()
 }
 
-function relTime(at: number, ar: boolean): string {
-  const sec = Math.max(0, Math.floor((Date.now() - at) / 1000))
-  if (sec < 60) return ar ? `${sec} ث` : `${sec}s`
-  const m = Math.floor(sec / 60)
-  if (m < 60) return ar ? `${m} د` : `${m}m`
-  const h = Math.floor(m / 60)
-  if (h < 48) return ar ? `${h} س` : `${h}h`
-  const d = Math.floor(h / 24)
-  return ar ? `${d} ي` : `${d}d`
+function normalizeArcGisServiceUrl(raw: string) {
+  const trimmed = raw.trim().replace(/#.*$/, '').replace(/\?.*$/, '').replace(/\/+$/, '')
+  const parts = trimmed.split('/')
+  const last = parts[parts.length - 1]
+  const prev = parts[parts.length - 2]
+  if (/^\d+$/.test(last) && (prev === 'FeatureServer' || prev === 'MapServer')) {
+    return parts.slice(0, -1).join('/')
+  }
+  return trimmed
 }
 
-type AgroAddSourceOption = 'gis' | 'arcgis' | 'upload' | 'getdata'
+async function fetchArcGisFeatureCollection(
+  layerUrl: string,
+  token: string,
+  kind: 'layer' | 'table',
+): Promise<GeoJSON.FeatureCollection> {
+  let returnGeometry = kind !== 'table'
+  try {
+    const defUrl = buildArcGisUrl(layerUrl.replace(/\/+$/, ''), { f: 'json', token: token.trim() })
+    const defRes = await fetch(defUrl)
+    const json = await defRes.json()
+    if (json?.error?.message) {
+      const details = Array.isArray(json?.error?.details) ? json.error.details.join(' ') : ''
+      throw new Error([json.error.message, details].filter(Boolean).join(' '))
+    }
+    if (json?.type && String(json.type).toLowerCase() === 'table') returnGeometry = false
+    else if (typeof json?.geometryType === 'string') returnGeometry = true
+  } catch {
+    returnGeometry = kind !== 'table'
+  }
+  const url = buildArcGisUrl(`${layerUrl.replace(/\/+$/, '')}/query`, {
+    where: '1=1',
+    outFields: '*',
+    returnGeometry: returnGeometry ? 'true' : 'false',
+    outSR: '4326',
+    f: 'geojson',
+    resultRecordCount: '2000',
+    token: token.trim(),
+  })
+  const res = await fetch(url)
+  const geojson = await res.json()
+  if (geojson?.error?.message) {
+    const details = Array.isArray(geojson?.error?.details) ? geojson.error.details.join(' ') : ''
+    throw new Error([geojson.error.message, details].filter(Boolean).join(' '))
+  }
+  if (!geojson || geojson.type !== 'FeatureCollection') throw new Error('Service did not return GeoJSON.')
+  return geojson as GeoJSON.FeatureCollection
+}
 
-function gisLayerHasGeoData(l: LayerData): boolean {
-  return l.type === 'geojson' && l.data != null
+function isFeatureCollection(x: unknown): x is GeoJSON.FeatureCollection {
+  return Boolean(
+    x &&
+      typeof x === 'object' &&
+      (x as GeoJSON.FeatureCollection).type === 'FeatureCollection' &&
+      Array.isArray((x as GeoJSON.FeatureCollection).features),
+  )
+}
+
+function gisLayerCanImportToDashboard(layer: LayerData): boolean {
+  if (isFeatureCollection(layer.data)) return true
+  if (layer.url && layer.source === 'arcgis') return true
+  return false
+}
+
+function uniqueRegistryKey(existingKeys: string[], displayName: string): string {
+  const stem = (displayName.trim().replace(/\s+/g, '_').replace(/[^a-zA-Z0-9_]/g, '') || 'layer').toLowerCase()
+  let key = stem
+  let i = 0
+  while (existingKeys.includes(key)) {
+    i += 1
+    key = `${stem}_${i}`
+  }
+  return key
 }
 
 export default function AgroDashboard() {
@@ -140,7 +185,11 @@ export default function AgroDashboard() {
             brand: 'جيو',
             brandBold: 'داش',
             nav: ['نظرة عامة', 'عرض الخريطة', 'التقارير', 'المصادر'],
-            datasetAll: 'كل المصادر',
+            dataset: [
+              { v: 'harvest', l: 'بيانات الحصاد 2024' },
+              { v: 'forecast', l: 'توقعات الإنتاج 2025' },
+              { v: 'soil', l: 'مؤشر جودة التربة' },
+            ],
             addSource: 'إضافة مصدر',
             addSourceBtnTitle: 'فتح نافذة إضافة مصدر البيانات',
             modalTitle: 'إضافة مصدر البيانات',
@@ -153,69 +202,89 @@ export default function AgroDashboard() {
             optUploadTitle: 'رفع ملف',
             optUploadDesc: 'GeoJSON، KML، KMZ، Shapefile (zip)، CSV بإحداثيات، والمزيد.',
             optGetDataTitle: 'الحصول على البيانات',
-            optGetDataDesc: 'Excel، CSV، GeoJSON عبر رابط ويب (مثل Power BI).',
-            advancedBtn: '… قاعدة بيانات، رابط ويب وخيارات متقدمة…',
-            advancedHint: 'سيتم دعم المصادر المتقدمة في تحديثات لاحقة لهذه اللوحة.',
+            optGetDataDesc:
+              'Excel، CSV، GeoJSON عبر عنوان ويب (نفس أنماط مصادر Power BI الشائعة).',
+            advancedBtn: 'قاعدة بيانات، رابط ويب وخيارات متقدمة…',
+            noGeoJsonHint:
+              'لا توجد طبقات GeoJSON في خريطة GIS. أضف طبقة في صفحة الخريطة، ثم عد إلى هنا.',
+            allOptionsBack: 'جميع الخيارات',
+            gisHintBefore: 'الطبقات أدناه من جلسة ',
+            gisHintStrong: 'خريطة GIS',
+            gisHintAfter: ' (IndexedDB). الاستيراد ينسخ بيانات المعالم إلى هذه اللوحة.',
+            gisEmptyBody: 'لا توجد طبقات محفوظة بعد. افتح خريطة GIS، أضف طبقة، ثم عد إلى هنا.',
+            loadGisLabel: 'جاري تحميل محتوى GIS…',
+            wmsNote: 'WMS / البلاط فقط — غير قابلة للاستيراد هنا',
+            addingLabel: 'جاري الإضافة…',
+            addBtn: 'إضافة',
+            getDataRegionAria: 'الحصول على البيانات — مصادر شائعة',
+            commonSources: 'مصادر بيانات شائعة',
+            getDataToolbar: 'الحصول على البيانات',
+            templateAppsRow: 'تطبيقات قالب Power BI',
+            moreEllipsis: 'المزيد…',
+            templateNotice:
+              'تفتح تطبيقات القالب في خدمة Power BI. هنا، استخدم القائمة أعلاه أو خريطة GIS للطبقات الزراعية.',
+            connecting: 'جاري الاتصال…',
+            connectDiscover: 'اتصال واكتشاف الطبقات',
+            featurePh: 'رابط خدمة المعالم',
+            tokenPh: 'رمز / مفتاح API (اختياري)',
+            foundLayers: (n: number) => `تم العثور على ${n} طبقة/جدول:`,
+            selectLayerLbl: 'اختر الطبقة',
+            layerNamePh: 'اسم العرض للطبقة',
+            dbTabBefore: 'الاتصال الكامل بقاعدة البيانات والتحقق (مثل خريطة GIS) متاح في صفحة ',
+            dbTabStrong: 'خريطة GIS',
+            dbTabAfter: '. هنا يمكنك إضافة الطبقات عبر ArcGIS أو رفع ملف أو عنوان URL.',
+            chooseFileBtn: 'اختر ملفًا',
+            addToRegistry: 'إضافة إلى السجل',
+            addFromUrlBtn: 'إضافة من الرابط',
+            urlPh: 'https://… (GeoJSON، KML، KMZ، zip، …)',
+            csvUploadHint:
+              'ملف CSV بدون أعمدة خط العرض/خط الطول يُضاف كجدول بيانات (الجزء الأيمن ← بيانات) مثل حقول Power BI.',
             cancelBtn: 'إلغاء',
-            applyBtn: 'تطبيق',
-            loading: 'جاري التحميل…',
             wf: ['إضافة طبقة', 'إضافة بيانات', 'اختيار الحقول', 'تثبيت الحقول'],
             quarter: [
-              { v: 'all' as const, l: 'كل السنة' },
-              { v: 'q1' as const, l: 'الربع 1' },
-              { v: 'q2' as const, l: 'الربع 2' },
-              { v: 'q3' as const, l: 'الربع 3' },
-              { v: 'q4' as const, l: 'الربع 4' },
+              { v: 'all', l: 'كل 2024' },
+              { v: 'q1', l: 'الربع 1' },
+              { v: 'q2', l: 'الربع 2' },
+              { v: 'q3', l: 'الربع 3' },
+              { v: 'q4', l: 'الربع 4' },
             ],
             export: 'تصدير ↗',
             save: 'حفظ',
             kpi1: 'إجمالي الحصاد (كغ)',
-            kpi2: 'المعالم / الحقول',
-            kpi3: 'متوسط القيمة / معلم',
+            kpi2: 'حقول نشطة',
+            kpi3: 'متوسط الإنتاج / حقل',
             kpi4: 'مصادر البيانات',
             chartMain: 'حجم الحصاد الشهري',
-            chartPie: 'التوزيع حسب الفئة',
-            chartLine: 'المقياس الأساسي مقابل الثانوي',
-            chartLineSub: 'سلاسل زمنية مبنية على البيانات المضافة',
-            topFields: 'أعلى السجلات',
-            topFieldsSub: 'حسب الحقل الرقمي المختار تلقائيًا',
+            chartPie: 'الحصاد حسب المنطقة',
+            chartLine: 'الإنتاج مقابل المطر',
+            chartLineSub: 'ارتباط شهري',
+            topFields: 'أعلى الحقول',
+            topFieldsSub: 'حسب حجم الإخراج',
             activity: 'نشاط حديث',
             activitySub: 'تحديثات مباشرة',
-            tblField: 'التسمية',
-            tblValue: 'القيمة',
+            tblField: 'حقل',
+            tblKg: 'كغ',
             tblProg: 'التقدم',
             tblStatus: 'الحالة',
             analyze: 'تحليل ↗',
-            dist: 'التوزيع',
-            legHarvest: 'القيمة الأساسية',
+            dist: 'التوزيع 2024',
+            legHarvest: 'الحصاد (كغ)',
             legTarget: 'الهدف',
-            legYield: 'أساسي',
-            legRain: 'ثانوي',
-            metaAll: 'يناير – ديسمبر · مصادر مدمجة',
-            metaQ: (q: string) => `${q.toUpperCase()} · مصادر مدمجة`,
-            emptyDash: 'لا توجد مصادر بعد. اضغط «إضافة مصدر» واربط طبقة GIS أو ملفًا أو رابطًا.',
-            selectGisLayer: 'اختر طبقة',
-            noGisLayers: 'لا توجد طبقات GeoJSON محفوظة في خريطة GIS. أضف طبقة من صفحة الخريطة ثم ارجع هنا.',
-            urlPlaceholderArc: 'https://…/FeatureServer/0 أو …/query?where=1=1&f=geojson',
-            urlPlaceholderGet: 'رابط ملف CSV أو GeoJSON أو KML (https)',
-            chooseFile: 'اختيار ملف',
-            feedGis: 'تم ربط طبقة GIS',
-            feedUrl: 'تم الاستيراد من الرابط',
-            feedUpload: 'تم رفع الملف',
-            errGeneric: 'تعذر إضافة المصدر.',
-            errNoLayer: 'اختر طبقة تحتوي على بيانات.',
-            errNoGeo: 'الطبقة لا تحتوي على GeoJSON قابل للتحليل.',
-            errNoUrl: 'أدخل رابطًا صالحًا.',
-            errNoFeatures: 'لم يُعثر على معالم أو أرقام في البيانات.',
-            errParse: 'تعذر تحليل الملف أو الرابط.',
-            live: 'مباشر',
+            legYield: 'مؤشر الإنتاج',
+            legRain: 'المطر (مم)',
+            metaAll: 'يناير – ديسمبر 2024 · كل المناطق',
+            metaQ: (q: string) => `${q.toUpperCase()} 2024 · كل المناطق`,
           }
         : {
             srTitle: 'Harvest analytics dashboard — KPI cards, charts, field table, and activity feed',
             brand: 'Geo',
             brandBold: 'Dash',
             nav: ['Overview', 'Map view', 'Reports', 'Sources'],
-            datasetAll: 'All sources',
+            dataset: [
+              { v: 'harvest', l: 'Harvest data 2024' },
+              { v: 'forecast', l: 'Yield forecast 2025' },
+              { v: 'soil', l: 'Soil quality index' },
+            ],
             addSource: 'Add source',
             addSourceBtnTitle: 'Open Add Source Data',
             modalTitle: 'Add Source Data',
@@ -229,61 +298,95 @@ export default function AgroDashboard() {
             optUploadDesc: 'GeoJSON, KML, KMZ, Shapefile (zip), CSV with coordinates, and more.',
             optGetDataTitle: 'Get Data',
             optGetDataDesc: 'Excel, CSV, GeoJSON via web URL (same patterns as Power BI common sources).',
-            advancedBtn: '… Database, web URL & advanced…',
-            advancedHint: 'Advanced sources will be supported in a future update on this dashboard.',
+            advancedBtn: 'Database, web URL & advanced…',
+            noGeoJsonHint: 'No GeoJSON layers found in GIS Map. Add a layer on the map page, then return here.',
+            allOptionsBack: 'All options',
+            gisHintBefore: 'Layers below come from your ',
+            gisHintStrong: 'GIS Map',
+            gisHintAfter: ' session (IndexedDB). Import copies feature data into this dashboard.',
+            gisEmptyBody: 'No saved layers yet. Open GIS Map, add a layer, then return here.',
+            loadGisLabel: 'Loading GIS Content…',
+            wmsNote: 'WMS / tiles only — not importable here',
+            addingLabel: 'Adding…',
+            addBtn: 'Add',
+            getDataRegionAria: 'Get data — common sources',
+            commonSources: 'Common data sources',
+            getDataToolbar: 'Get data',
+            templateAppsRow: 'Power BI Template Apps',
+            moreEllipsis: 'More…',
+            templateNotice:
+              'Template Apps open in the Power BI service. Here, use the list above or GIS Map for curated agriculture layers.',
+            connecting: 'Connecting…',
+            connectDiscover: 'Connect & Discover Layers',
+            featurePh: 'Feature Service URL',
+            tokenPh: 'Token / API Key (optional)',
+            foundLayers: (n: number) => `FOUND ${n} LAYER/TABLE(S):`,
+            selectLayerLbl: 'Select layer',
+            layerNamePh: 'Layer display name',
+            dbTabBefore: 'Full database connection and validation (same as GIS Map) is available on the ',
+            dbTabStrong: 'GIS Map',
+            dbTabAfter: ' page. Here you can add layers via ArcGIS, file upload, or URL.',
+            chooseFileBtn: 'Choose file',
+            addToRegistry: 'Add to registry',
+            addFromUrlBtn: 'Add from URL',
+            urlPh: 'https://… (GeoJSON, KML, KMZ, zip, …)',
+            csvUploadHint:
+              'CSV without latitude/longitude columns is added as a Data table (right pane → Data) like Power BI Fields.',
             cancelBtn: 'Cancel',
-            applyBtn: 'Apply',
-            loading: 'Loading…',
             wf: ['Add layer', 'Add source data', 'Select fields', 'Pin fields'],
             quarter: [
-              { v: 'all' as const, l: 'Full year' },
-              { v: 'q1' as const, l: 'Q1' },
-              { v: 'q2' as const, l: 'Q2' },
-              { v: 'q3' as const, l: 'Q3' },
-              { v: 'q4' as const, l: 'Q4' },
+              { v: 'all', l: 'All 2024' },
+              { v: 'q1', l: 'Q1' },
+              { v: 'q2', l: 'Q2' },
+              { v: 'q3', l: 'Q3' },
+              { v: 'q4', l: 'Q4' },
             ],
             export: 'Export ↗',
             save: 'Save',
-            kpi1: 'Total primary (kg)',
-            kpi2: 'Features / fields',
-            kpi3: 'Avg value / feature',
+            kpi1: 'Total harvest (kg)',
+            kpi2: 'Active fields',
+            kpi3: 'Avg yield / field',
             kpi4: 'Data sources',
-            chartMain: 'Monthly primary volume',
-            chartPie: 'Share by category',
-            chartLine: 'Primary vs secondary',
-            chartLineSub: 'Series derived from added sources',
-            topFields: 'Top records',
-            topFieldsSub: 'Auto-picked numeric field',
+            chartMain: 'Monthly harvest volume',
+            chartPie: 'Harvest by region',
+            chartLine: 'Yield vs rainfall',
+            chartLineSub: 'Monthly correlation',
+            topFields: 'Top fields',
+            topFieldsSub: 'By output volume',
             activity: 'Recent activity',
             activitySub: 'Live updates',
-            tblField: 'Label',
-            tblValue: 'Value',
+            tblField: 'Field',
+            tblKg: 'Kg',
             tblProg: 'Progress',
             tblStatus: 'Status',
             analyze: 'Analyze ↗',
-            dist: 'Distribution',
-            legHarvest: 'Primary',
+            dist: 'Distribution 2024',
+            legHarvest: 'Harvest (kg)',
             legTarget: 'Target',
-            legYield: 'Primary',
-            legRain: 'Secondary',
-            metaAll: 'Jan – Dec · merged sources',
-            metaQ: (q: string) => `${q.toUpperCase()} · merged sources`,
-            emptyDash: 'No sources yet. Use Add source to connect a GIS layer, file, or URL.',
-            selectGisLayer: 'Select layer',
-            noGisLayers: 'No GeoJSON layers found in GIS Map. Add a layer on the map page, then return here.',
-            urlPlaceholderArc: 'https://…/FeatureServer/0 or …/query?where=1=1&f=geojson',
-            urlPlaceholderGet: 'HTTPS URL to CSV, GeoJSON, or KML',
-            chooseFile: 'Choose file',
-            feedGis: 'GIS layer linked',
-            feedUrl: 'Imported from URL',
-            feedUpload: 'File uploaded',
-            errGeneric: 'Could not add this source.',
-            errNoLayer: 'Pick a layer that has data.',
-            errNoGeo: 'Layer has no analyzable GeoJSON.',
-            errNoUrl: 'Enter a valid URL.',
-            errNoFeatures: 'No features or numeric values found.',
-            errParse: 'Could not parse the file or URL.',
-            live: 'Live',
+            legYield: 'Yield index',
+            legRain: 'Rainfall (mm)',
+            metaAll: 'Jan – Dec 2024 · all regions',
+            metaQ: (q: string) => `${q.toUpperCase()} 2024 · all regions`,
+          },
+    [ar],
+  )
+
+  const getDataNotices = useMemo(
+    () =>
+      ar
+        ? {
+            semantic:
+              'النماذج الدلالية غير متصلة في هذه الأداة. صدّر البيانات أو استخدم محتوى GIS أو ArcGIS.',
+            dataflows: 'تدفقات البيانات غير متوفرة هنا. استخدم خريطة GIS أو رفع ملف.',
+            dataverse: 'Dataverse غير مربوط في هذه الشاشة. استخدم محتوى GIS أو الويب.',
+            blank: 'استعلام فارغ غير متوفر في لوحة Agro. استخدم خريطة GIS للاستعلامات المتقدمة.',
+          }
+        : {
+            semantic:
+              'Semantic models are not connected in this toolkit. Export data or use GIS Content / ArcGIS instead.',
+            dataflows: 'Dataflows are not available here. Use GIS Map dataflows or upload a file.',
+            dataverse: 'Dataverse is not wired in this view. Use GIS Content or Web to reach your data.',
+            blank: 'Blank query is not available on the Agro dashboard. Use GIS Map for advanced queries.',
           },
     [ar],
   )
@@ -293,96 +396,52 @@ export default function AgroDashboard() {
   const [navIdx, setNavIdx] = useState(0)
   const [wfIdx, setWfIdx] = useState(1)
   const [addSourceOpen, setAddSourceOpen] = useState(false)
-  const [addSourceChoice, setAddSourceChoice] = useState<AgroAddSourceOption>('gis')
-  const [addSourceAdvancedHint, setAddSourceAdvancedHint] = useState(false)
+  const [addWizard, setAddWizard] = useState<AgroAddWizard>('home')
+  const [addTab, setAddTab] = useState<AgroAddTab>('arcgis')
+  const [gisContentLayers, setGisContentLayers] = useState<LayerData[]>([])
+  const [gisContentLoading, setGisContentLoading] = useState(false)
+  const [getDataNotice, setGetDataNotice] = useState<string | null>(null)
+  const [serviceUrl, setServiceUrl] = useState('')
+  const [arcgisToken, setArcgisToken] = useState('')
+  const [isDiscovering, setIsDiscovering] = useState(false)
+  const [discoverError, setDiscoverError] = useState<string | null>(null)
+  const [discoveredLayers, setDiscoveredLayers] = useState<DiscoveredArcLayer[]>([])
+  const [selectedDiscoveredUrl, setSelectedDiscoveredUrl] = useState('')
+  const [layerModalName, setLayerModalName] = useState('')
+  const [addingLayerKey, setAddingLayerKey] = useState<string | null>(null)
+  const [uploadFile, setUploadFile] = useState<File | null>(null)
+  const [remoteDataUrl, setRemoteDataUrl] = useState('')
+  const [agroLinkedSources, setAgroLinkedSources] = useState<string[]>([])
+  const [homePick, setHomePick] = useState<'gis' | 'arcgis' | 'upload' | 'getdata'>('gis')
+  const [homeGisLayerId, setHomeGisLayerId] = useState('')
+  const addLayerFileInputRef = useRef<HTMLInputElement | null>(null)
   const [mainType, setMainType] = useState<'bar' | 'line' | 'area'>('bar')
   const [pieType, setPieType] = useState<'pie' | 'doughnut'>('pie')
   const [quarter, setQuarter] = useState<QuarterKey>('all')
-  const [sources, setSources] = useState<AgroDashSource[]>(() => loadAgroDashSources())
-  const [feed, setFeed] = useState<AgroFeedItem[]>(() => loadFeed())
-  const [datasetId, setDatasetId] = useState<string>('all')
-  const [gisLayers, setGisLayers] = useState<LayerData[]>([])
-  const [gisLayerId, setGisLayerId] = useState<string>('')
-  const [arcgisUrl, setArcgisUrl] = useState('')
-  const [getDataUrl, setGetDataUrl] = useState('')
-  const [modalBusy, setModalBusy] = useState(false)
-  const [modalError, setModalError] = useState<string | null>(null)
-  const fileInputRef = useRef<HTMLInputElement>(null)
 
-  useEffect(() => {
-    saveAgroDashSources(sources)
-  }, [sources])
-
-  useEffect(() => {
-    const onStorage = (e: StorageEvent) => {
-      if (e.key === LS_SOURCES && e.newValue) {
-        try {
-          const next = JSON.parse(e.newValue) as AgroDashSource[]
-          if (Array.isArray(next)) setSources(next)
-        } catch {
-          /* */
-        }
-      }
-    }
-    window.addEventListener('storage', onStorage)
-    return () => window.removeEventListener('storage', onStorage)
-  }, [])
-
-  useEffect(() => {
-    if (datasetId !== 'all' && !sources.some(s => s.id === datasetId)) setDatasetId('all')
-  }, [sources, datasetId])
-
-  const activeSources = useMemo(() => {
-    if (datasetId === 'all') return sources
-    return sources.filter(s => s.id === datasetId)
-  }, [sources, datasetId])
-
-  const derived = useMemo(() => mergeSourcesForCharts(activeSources), [activeSources])
+  const gisImportableLayers = useMemo(
+    () => gisContentLayers.filter(gisLayerCanImportToDashboard),
+    [gisContentLayers],
+  )
 
   const mainMeta = quarter === 'all' ? t.metaAll : t.metaQ(quarter)
 
-  const slice = useMemo(
-    () => sliceQuarterData(derived.monthly, derived.secondary, MO, quarter),
-    [derived.monthly, derived.secondary, MO, quarter],
-  )
-
   const kpi1 = useMemo(() => {
-    const sum = slice.h.reduce((a, b) => a + b, 0)
-    return Math.round(sum).toLocaleString(ar ? 'ar' : 'en')
-  }, [slice.h, ar])
+    const totals: Record<QuarterKey, string> = {
+      all: '48,320',
+      q1: '12,080',
+      q2: '13,440',
+      q3: '13,580',
+      q4: '9,220',
+    }
+    return totals[quarter]
+  }, [quarter])
 
-  const kpi1Badge = useMemo(() => halfYearTrend(derived.monthly), [derived.monthly])
-
-  const kpi2 = useMemo(() => derived.totals.features.toLocaleString(ar ? 'ar' : 'en'), [derived.totals.features, ar])
-
-  const kpi3 = useMemo(() => {
-    const n = derived.totals.features
-    const v = n > 0 ? Math.round(derived.totals.sum / n) : 0
-    return `${v.toLocaleString(ar ? 'ar' : 'en')} kg`
-  }, [derived.totals, ar])
-
-  const kpi4 = useMemo(() => String(derived.totals.count), [derived.totals.count])
-
-  const kpi3Badge = useMemo(() => halfYearTrend(derived.secondary), [derived.secondary])
-
-  const peakMonthly = useMemo(() => Math.max(1, ...pad12(derived.monthly)), [derived.monthly])
-  const kpi1Bar = useMemo(() => {
-    const sum = derived.totals.sum
-    return Math.min(100, Math.round((sum / (peakMonthly * 12)) * 100))
-  }, [derived.totals.sum, peakMonthly])
-
-  const kpi2Bar = useMemo(
-    () => Math.min(100, Math.round((derived.totals.features / Math.max(derived.totals.features, 80)) * 100)),
-    [derived.totals.features],
-  )
-
-  const kpi3Bar = useMemo(() => {
-    const n = derived.totals.features
-    const avg = n > 0 ? derived.totals.sum / n : 0
-    return Math.min(100, Math.round((avg / Math.max(avg, peakMonthly * 0.5)) * 100))
-  }, [derived.totals, peakMonthly])
-
-  const kpi4Bar = useMemo(() => Math.min(100, derived.totals.count * 18), [derived.totals.count])
+  const kpi2 = useMemo(() => {
+    if (quarter === 'all') return '142'
+    const f = { q1: 0.25, q2: 0.28, q3: 0.27, q4: 0.2 } as const
+    return String(Math.round(142 * f[quarter as keyof typeof f]))
+  }, [quarter])
 
   const mainCanvasRef = useRef<HTMLCanvasElement>(null)
   const pieCanvasRef = useRef<HTMLCanvasElement>(null)
@@ -395,9 +454,10 @@ export default function AgroDashboard() {
     const ctx = mainCanvasRef.current
     if (!ctx) return
     mainChartRef.current?.destroy()
-    const labs = slice.labels.length ? slice.labels : [...MO]
-    const h = slice.h.length ? slice.h : new Array(labs.length).fill(0)
-    const tgt = slice.t.length ? slice.t : h.map(() => 0)
+    const d = DATA[quarter]
+    const slice = { q1: [0, 3] as const, q2: [3, 6] as const, q3: [6, 9] as const, q4: [9, 12] as const }
+    const labs =
+      quarter !== 'all' ? [...MO].slice(...slice[quarter as Exclude<QuarterKey, 'all'>]) : [...MO]
     const isLine = mainType === 'line' || mainType === 'area'
     const chartType = isLine ? 'line' : 'bar'
 
@@ -407,8 +467,8 @@ export default function AgroDashboard() {
         labels: labs,
         datasets: [
           {
-            label: t.legHarvest,
-            data: [...h],
+            label: 'Harvest',
+            data: [...d.h],
             backgroundColor: mainType === 'bar' ? COLORS.accent : 'transparent',
             borderColor: COLORS.accent,
             borderWidth: isLine ? 2 : 0,
@@ -418,8 +478,8 @@ export default function AgroDashboard() {
             borderRadius: mainType === 'bar' ? 5 : 0,
           },
           {
-            label: t.legTarget,
-            data: [...tgt],
+            label: 'Target',
+            data: [...d.t],
             type: 'line',
             borderColor: COLORS.accentM,
             borderWidth: 1.5,
@@ -455,23 +515,20 @@ export default function AgroDashboard() {
         },
       },
     })
-  }, [MO, mainType, slice, t.legHarvest, t.legTarget])
+  }, [MO, mainType, quarter])
 
   const buildPie = useCallback(() => {
     const ctx = pieCanvasRef.current
     if (!ctx) return
     pieChartRef.current?.destroy()
-    const pie = derived.pie.length
-      ? derived.pie
-      : [{ label: '—', value: 100 }]
     pieChartRef.current = new Chart(ctx, {
       type: pieType,
       data: {
-        labels: pie.map(p => p.label),
+        labels: ['North', 'South', 'East', 'West'],
         datasets: [
           {
-            data: pie.map(p => p.value),
-            backgroundColor: pie.map((_, i) => PIE_PALETTE[i % PIE_PALETTE.length]),
+            data: [35, 28, 22, 15],
+            backgroundColor: [COLORS.accent, COLORS.teal, COLORS.amber, COLORS.violet],
             borderWidth: 0,
             hoverOffset: 6,
           },
@@ -484,31 +541,29 @@ export default function AgroDashboard() {
           ...noLegend(),
           tooltip: {
             callbacks: {
-              label: c => {
-                const v = typeof c.raw === 'number' ? c.raw : 0
-                return ` ${c.label}: ${v}%`
+              label: ctx => {
+                const v = typeof ctx.raw === 'number' ? ctx.raw : 0
+                return ` ${ctx.label}: ${v}%`
               },
             },
           },
         },
       },
     })
-  }, [derived.pie, pieType])
+  }, [pieType])
 
   const buildLine = useCallback(() => {
     const ctx = lineCanvasRef.current
     if (!ctx) return
     lineChartRef.current?.destroy()
-    const m = pad12(derived.monthly)
-    const s = pad12(derived.secondary)
     lineChartRef.current = new Chart(ctx, {
       type: 'line',
       data: {
         labels: [...MO],
         datasets: [
           {
-            label: t.legYield,
-            data: [...m],
+            label: 'Yield',
+            data: [...YLD],
             borderColor: COLORS.accent,
             borderWidth: 2,
             pointRadius: 0,
@@ -516,8 +571,8 @@ export default function AgroDashboard() {
             fill: false,
           },
           {
-            label: t.legRain,
-            data: [...s],
+            label: 'Rainfall',
+            data: [...RAIN],
             borderColor: COLORS.tealM,
             borderWidth: 2,
             borderDash: [4, 3],
@@ -545,7 +600,7 @@ export default function AgroDashboard() {
         },
       },
     })
-  }, [MO, derived.monthly, derived.secondary, t.legRain, t.legYield])
+  }, [MO])
 
   useEffect(() => {
     buildMain()
@@ -571,39 +626,46 @@ export default function AgroDashboard() {
     }
   }, [buildLine])
 
-  const appendFeed = useCallback((title: string, sub: string, c: string) => {
-    const item: AgroFeedItem = { id: `a-${Date.now()}`, title, sub, at: Date.now(), c }
-    setFeed(prev => {
-      const next = [item, ...prev].slice(0, 40)
-      try {
-        localStorage.setItem(FEED_KEY, JSON.stringify(next))
-      } catch {
-        /* */
-      }
-      return next
-    })
+  const resetAgroAddForm = useCallback(() => {
+    setAddWizard('home')
+    setAddTab('arcgis')
+    setGisContentLayers([])
+    setGisContentLoading(false)
+    setGetDataNotice(null)
+    setServiceUrl('')
+    setArcgisToken('')
+    setIsDiscovering(false)
+    setDiscoverError(null)
+    setDiscoveredLayers([])
+    setSelectedDiscoveredUrl('')
+    setLayerModalName('')
+    setAddingLayerKey(null)
+    setUploadFile(null)
+    setRemoteDataUrl('')
+    setHomePick('gis')
+    setHomeGisLayerId('')
   }, [])
 
   const closeAddSourceModal = useCallback(() => {
     setAddSourceOpen(false)
-    setAddSourceAdvancedHint(false)
-    setModalError(null)
-  }, [])
-
-  const refreshGisLayers = useCallback(async () => {
-    const list = await loadGisMapSavedLayers()
-    setGisLayers(list)
-    const geo = list.filter(gisLayerHasGeoData)
-    setGisLayerId(prev => {
-      if (prev && geo.some(l => String(l.id) === prev)) return prev
-      return geo[0] ? String(geo[0].id) : ''
-    })
-  }, [])
+    resetAgroAddForm()
+  }, [resetAgroAddForm])
 
   useEffect(() => {
     if (!addSourceOpen) return
-    void refreshGisLayers()
-  }, [addSourceOpen, refreshGisLayers])
+    let cancelled = false
+    setGisContentLoading(true)
+    void loadGisMapSavedLayers()
+      .then(rows => {
+        if (!cancelled) setGisContentLayers(rows)
+      })
+      .finally(() => {
+        if (!cancelled) setGisContentLoading(false)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [addSourceOpen])
 
   useEffect(() => {
     if (!addSourceOpen) return
@@ -614,104 +676,204 @@ export default function AgroDashboard() {
     return () => window.removeEventListener('keydown', onKey)
   }, [addSourceOpen, closeAddSourceModal])
 
-  const ingestParsed = useCallback(
-    (parsed: { type: 'geojson' | 'table'; data: unknown; filename: string }, kind: AgroDashSource['kind']) => {
-      if (parsed.type === 'geojson') {
-        return aggregateGeoJsonToSource({ name: parsed.filename, kind, geojson: parsed.data })
+  const goAgroWizardHome = useCallback(() => {
+    setDiscoverError(null)
+    setGetDataNotice(null)
+    setHomePick('gis')
+    setHomeGisLayerId('')
+    setAddWizard('home')
+  }, [])
+
+  const switchAddTab = useCallback((tab: AgroAddTab) => {
+    setDiscoverError(null)
+    setAddTab(tab)
+  }, [])
+
+  const pickGetDataSource = useCallback(
+    (id: string) => {
+      setDiscoverError(null)
+      setGetDataNotice(null)
+      if (id === 'excel' || id === 'textcsv') {
+        setAddWizard('tabs')
+        setAddTab('upload')
+        return
       }
-      const rows = Array.isArray(parsed.data) ? (parsed.data as Record<string, unknown>[]) : []
-      return aggregateRowsToSource({ name: parsed.filename, kind, rows })
+      if (id === 'web' || id === 'odata') {
+        setAddWizard('tabs')
+        setAddTab('url')
+        return
+      }
+      if (id === 'sql' || id === 'analysis') {
+        setAddWizard('tabs')
+        setAddTab('database')
+        return
+      }
+      setGetDataNotice(getDataNotices[id as keyof typeof getDataNotices] ?? (ar ? 'هذا المصدر غير متوفر بعد في هذه الشاشة.' : 'This source is not available on this screen yet.'))
     },
-    [],
+    [ar, getDataNotices],
   )
 
-  const applyAddSource = useCallback(async () => {
-    setModalError(null)
-    setModalBusy(true)
+  const discoverArcGisLayers = useCallback(async () => {
+    const base = normalizeArcGisServiceUrl(serviceUrl)
+    if (!base) return
+    setIsDiscovering(true)
+    setDiscoverError(null)
+    setDiscoveredLayers([])
+    setSelectedDiscoveredUrl('')
     try {
-      let next: AgroDashSource | null = null
-      let feedTitle = ''
-      let feedSub = ''
-      const col = '#12A97B'
-
-      if (addSourceChoice === 'gis') {
-        const layer = gisLayers.find(l => String(l.id) === gisLayerId)
-        if (!layer) throw new Error(t.errNoLayer)
-        if (!gisLayerHasGeoData(layer)) throw new Error(t.errNoGeo)
-        next = aggregateGeoJsonToSource({ name: layer.name, kind: 'gis', geojson: layer.data })
-        feedTitle = t.feedGis
-        feedSub = layer.name
-      } else if (addSourceChoice === 'arcgis') {
-        const url = arcgisUrl.trim()
-        if (!url) throw new Error(t.errNoUrl)
-        const file = await parseRemoteUrlAsFile(url)
-        const parsed = await parseFile(file)
-        next = ingestParsed(parsed, 'arcgis')
-        feedTitle = t.feedUrl
-        feedSub = file.name || url.slice(0, 80)
-      } else if (addSourceChoice === 'getdata') {
-        const url = getDataUrl.trim()
-        if (!url) throw new Error(t.errNoUrl)
-        const file = await parseRemoteUrlAsFile(url)
-        const parsed = await parseFile(file)
-        next = ingestParsed(parsed, 'url')
-        feedTitle = t.feedUrl
-        feedSub = file.name || url.slice(0, 80)
+      const url = buildArcGisUrl(base, { f: 'json', token: arcgisToken.trim() })
+      const res = await fetch(url, { method: 'GET' })
+      const json = await res.json()
+      if (json?.error?.message) {
+        const details = Array.isArray(json?.error?.details) ? json.error.details.join(' ') : ''
+        throw new Error([json.error.message, details].filter(Boolean).join(' '))
       }
-
-      if (!next) throw new Error(t.errNoFeatures)
-
-      setSources(prev => [...prev, next!])
-      appendFeed(feedTitle, feedSub, col)
-      setWfIdx(2)
-      setDatasetId('all')
-      closeAddSourceModal()
-    } catch (e) {
-      const msg = e instanceof Error ? e.message : String(e)
-      if (msg.includes('Invalid URL') || msg === t.errNoUrl) setModalError(t.errNoUrl)
-      else if (msg === t.errNoLayer || msg === t.errNoGeo) setModalError(msg)
-      else if (msg === t.errNoFeatures) setModalError(t.errNoFeatures)
-      else if (/parse|fetch|Failed to fetch|Unsupported/i.test(msg)) setModalError(t.errParse)
-      else setModalError(t.errGeneric)
+      const layersArr = Array.isArray(json?.layers) ? json.layers : []
+      const tablesArr = Array.isArray(json?.tables) ? json.tables : []
+      const discovered: DiscoveredArcLayer[] = [
+        ...layersArr.map((l: { id: number; name: string; geometryType?: string }) => ({ ...l, kind: 'layer' as const })),
+        ...tablesArr.map((t: { id: number; name: string }) => ({ ...t, kind: 'table' as const })),
+      ]
+        .filter((l: { id?: unknown; name?: unknown }) => typeof l?.id === 'number' && typeof l?.name === 'string')
+        .map((l: { id: number; name: string; kind: 'layer' | 'table'; geometryType?: string }) => ({
+          id: l.id,
+          name: l.name,
+          kind: l.kind,
+          url: `${base.replace(/\/+$/, '')}/${l.id}`,
+          geometryType: typeof l?.geometryType === 'string' ? l.geometryType : undefined,
+        }))
+      if (discovered.length === 0) throw new Error('No layers/tables found in this service URL.')
+      setDiscoveredLayers(discovered)
+      setSelectedDiscoveredUrl(discovered[0]!.url)
+      setLayerModalName(prev => (prev.trim() ? prev : discovered[0]!.name))
+    } catch (e: unknown) {
+      setDiscoverError(e instanceof Error ? e.message : 'Failed to connect to service.')
     } finally {
-      setModalBusy(false)
+      setIsDiscovering(false)
     }
-  }, [
-    addSourceChoice,
-    appendFeed,
-    arcgisUrl,
-    closeAddSourceModal,
-    getDataUrl,
-    gisLayerId,
-    gisLayers,
-    ingestParsed,
-    t,
-  ])
+  }, [serviceUrl, arcgisToken])
 
-  const onUploadPick = useCallback(
-    async (files: FileList | null) => {
-      const file = files?.[0]
-      if (!file) return
-      setModalError(null)
-      setModalBusy(true)
+  const importGisContentLayer = useCallback(
+    async (layer: LayerData) => {
+      if (!gisLayerCanImportToDashboard(layer)) return
+      const opKey = `gis:${String(layer.id)}`
+      setAddingLayerKey(opKey)
+      setDiscoverError(null)
       try {
-        const parsed = await parseFile(file)
-        const next = ingestParsed(parsed, 'upload')
-        if (!next) throw new Error(t.errNoFeatures)
-        setSources(prev => [...prev, next])
-        appendFeed(t.feedUpload, file.name, '#2D6BE4')
-        setWfIdx(2)
-        setDatasetId('all')
+        let data: GeoJSON.FeatureCollection
+        const displayName = layer.name?.trim() || 'Layer'
+
+        if (isFeatureCollection(layer.data)) {
+          data = layer.data
+          if (data.features.length === 0) throw new Error('Layer has no features.')
+        } else if (layer.url && layer.source === 'arcgis') {
+          const def = layer.arcgisLayerDefinition
+          const isTable = def?.type === 'table' || String(def?.type || '').toLowerCase() === 'table'
+          const kind: 'layer' | 'table' = isTable ? 'table' : 'layer'
+          const token = layer.authToken || ''
+          data = await fetchArcGisFeatureCollection(layer.url, token, kind)
+        } else {
+          throw new Error('Unsupported layer format for this dashboard.')
+        }
+
+        void data
+        setAgroLinkedSources(prev => [...prev, displayName])
         closeAddSourceModal()
-      } catch {
-        setModalError(t.errParse)
+      } catch (e: unknown) {
+        setDiscoverError(e instanceof Error ? e.message : 'Failed to add layer from GIS Content.')
       } finally {
-        setModalBusy(false)
-        if (fileInputRef.current) fileInputRef.current.value = ''
+        setAddingLayerKey(null)
       }
     },
-    [appendFeed, closeAddSourceModal, ingestParsed, t],
+    [closeAddSourceModal],
   )
+
+  const addArcGisLayerToRegistry = useCallback(
+    async (l: DiscoveredArcLayer) => {
+      const opKey = `arcgis:${l.url}`
+      setAddingLayerKey(opKey)
+      setDiscoverError(null)
+      try {
+        const data = await fetchArcGisFeatureCollection(l.url, arcgisToken, l.kind)
+        const displayName = layerModalName.trim() || l.name
+        if (!data.features.length) throw new Error('Layer has no features.')
+        void data
+        setAgroLinkedSources(prev => [...prev, displayName])
+        closeAddSourceModal()
+      } catch (e: unknown) {
+        setDiscoverError(e instanceof Error ? e.message : 'Failed to add layer.')
+      } finally {
+        setAddingLayerKey(null)
+      }
+    },
+    [arcgisToken, layerModalName, closeAddSourceModal],
+  )
+
+  const addUploadLayerToRegistry = useCallback(async () => {
+    if (!uploadFile) return
+    const opKey = `upload:${uploadFile.name}`
+    setAddingLayerKey(opKey)
+    setDiscoverError(null)
+    try {
+      const parsed = await parseFile(uploadFile)
+      if (parsed.type === 'table') {
+        const rows = parsed.data as Record<string, unknown>[]
+        if (!Array.isArray(rows) || rows.length === 0) throw new Error('CSV has no data rows.')
+        const columns = Object.keys(rows[0] ?? {})
+        if (!columns.length) throw new Error('CSV has no columns.')
+        const displayName = layerModalName.trim() || uploadFile.name.replace(/\.[^.]+$/, '').trim() || 'Table'
+        void columns
+        setAgroLinkedSources(prev => [...prev, `${displayName} (table)`])
+        closeAddSourceModal()
+        return
+      }
+      if (parsed.type !== 'geojson') throw new Error('File must contain GIS features (GeoJSON/KML/KMZ/Shapefile zip).')
+      let geojson: unknown = parsed.data
+      if (Array.isArray(geojson)) geojson = geojson[0]
+      const fc = geojson as GeoJSON.FeatureCollection
+      if (!fc || fc.type !== 'FeatureCollection' || !Array.isArray(fc.features)) {
+        throw new Error('File must be a GeoJSON FeatureCollection.')
+      }
+      const displayName = layerModalName.trim() || uploadFile.name.replace(/\.[^.]+$/, '').trim() || 'Layer'
+      void fc
+      setAgroLinkedSources(prev => [...prev, displayName])
+      closeAddSourceModal()
+    } catch (e: unknown) {
+      setDiscoverError(e instanceof Error ? e.message : 'Failed to import file.')
+    } finally {
+      setAddingLayerKey(null)
+    }
+  }, [uploadFile, layerModalName, closeAddSourceModal])
+
+  const addUrlLayerToRegistry = useCallback(async () => {
+    const trimmed = remoteDataUrl.trim()
+    if (!trimmed) return
+    const opKey = `url:${trimmed}`
+    setAddingLayerKey(opKey)
+    setDiscoverError(null)
+    try {
+      const file = await parseRemoteUrlAsFile(trimmed)
+      const parsed = await parseFile(file)
+      if (parsed.type !== 'geojson') {
+        throw new Error('URL must resolve to GIS features (GeoJSON/KML/KMZ/Shapefile zip/CSV with coordinates).')
+      }
+      let geojson: unknown = parsed.data
+      if (Array.isArray(geojson)) geojson = geojson[0]
+      const fc = geojson as GeoJSON.FeatureCollection
+      if (!fc || fc.type !== 'FeatureCollection' || !Array.isArray(fc.features)) {
+        throw new Error('URL must resolve to a GeoJSON FeatureCollection.')
+      }
+      const stem = file.name.replace(/\.[^.]+$/, '').trim()
+      const displayName = layerModalName.trim() || stem || 'Layer'
+      void fc
+      setAgroLinkedSources(prev => [...prev, displayName])
+      closeAddSourceModal()
+    } catch (e: unknown) {
+      setDiscoverError(e instanceof Error ? e.message : 'Failed to import from URL.')
+    } finally {
+      setAddingLayerKey(null)
+    }
+  }, [remoteDataUrl, layerModalName, closeAddSourceModal])
 
   const wfClass = (i: number) => {
     if (i < wfIdx) return 'agdash-done'
@@ -770,16 +932,10 @@ export default function AgroDashboard() {
             ))}
           </div>
           <div className="agdash-nav-end">
-            <select
-              className="agdash-nav-sel"
-              aria-label={ar ? 'مجموعة البيانات' : 'Dataset'}
-              value={datasetId}
-              onChange={e => setDatasetId(e.target.value)}
-            >
-              <option value="all">{t.datasetAll}</option>
-              {sources.map(s => (
-                <option key={s.id} value={s.id}>
-                  {s.name}
+            <select className="agdash-nav-sel" aria-label={ar ? 'مجموعة البيانات' : 'Dataset'} defaultValue="harvest">
+              {t.dataset.map(o => (
+                <option key={o.v} value={o.v}>
+                  {o.l}
                 </option>
               ))}
             </select>
@@ -787,9 +943,7 @@ export default function AgroDashboard() {
               type="button"
               className="agdash-add-btn"
               onClick={() => {
-                setAddSourceChoice('gis')
-                setAddSourceAdvancedHint(false)
-                setModalError(null)
+                resetAgroAddForm()
                 setWfIdx(1)
                 setAddSourceOpen(true)
               }}
@@ -801,9 +955,6 @@ export default function AgroDashboard() {
               </svg>
               {t.addSource}
             </button>
-            <div className="agdash-nav-avatar" aria-hidden>
-              AM
-            </div>
           </div>
         </nav>
 
@@ -840,8 +991,6 @@ export default function AgroDashboard() {
         </div>
 
         <div className="agdash-body">
-          {sources.length === 0 ? <div className="agdash-empty-hint">{t.emptyDash}</div> : null}
-
           <div className="agdash-kpi-row">
             <div className="agdash-kpi">
               <div className="agdash-kpi-header">
@@ -856,21 +1005,12 @@ export default function AgroDashboard() {
                     />
                   </svg>
                 </div>
-                {kpi1Badge ? (
-                  <span
-                    className={`agdash-kpi-badge${kpi1Badge.startsWith('▼') ? ' agdash-dn' : ' agdash-up'}`}
-                  >
-                    {kpi1Badge}
-                  </span>
-                ) : null}
+                <span className="agdash-kpi-badge agdash-up">▲ 12.4%</span>
               </div>
               <div className="agdash-kpi-val">{kpi1}</div>
               <div className="agdash-kpi-lbl">{t.kpi1}</div>
               <div className="agdash-kpi-bar">
-                <div
-                  className="agdash-kpi-fill"
-                  style={{ width: `${kpi1Bar}%`, background: 'var(--agdash-accent)' }}
-                />
+                <div className="agdash-kpi-fill" style={{ width: '78%', background: 'var(--agdash-accent)' }} />
               </div>
             </div>
             <div className="agdash-kpi">
@@ -883,17 +1023,12 @@ export default function AgroDashboard() {
                     <rect x="9" y="9" width="5" height="5" rx="1.5" stroke="#12A97B" strokeWidth="1.4" />
                   </svg>
                 </div>
-                {derived.totals.features > 0 ? (
-                  <span className="agdash-kpi-badge agdash-nt">{t.live}</span>
-                ) : null}
+                <span className="agdash-kpi-badge agdash-up">▲ 8 new</span>
               </div>
               <div className="agdash-kpi-val">{kpi2}</div>
               <div className="agdash-kpi-lbl">{t.kpi2}</div>
               <div className="agdash-kpi-bar">
-                <div
-                  className="agdash-kpi-fill"
-                  style={{ width: `${kpi2Bar}%`, background: 'var(--agdash-teal)' }}
-                />
+                <div className="agdash-kpi-fill" style={{ width: '86%', background: 'var(--agdash-teal)' }} />
               </div>
             </div>
             <div className="agdash-kpi">
@@ -904,21 +1039,12 @@ export default function AgroDashboard() {
                     <path d="M8 5.5V8l2 1.5" stroke="#E8920A" strokeWidth="1.4" strokeLinecap="round" />
                   </svg>
                 </div>
-                {kpi3Badge ? (
-                  <span
-                    className={`agdash-kpi-badge${kpi3Badge.startsWith('▼') ? ' agdash-dn' : ' agdash-up'}`}
-                  >
-                    {kpi3Badge}
-                  </span>
-                ) : null}
+                <span className="agdash-kpi-badge agdash-dn">▼ 2.1%</span>
               </div>
-              <div className="agdash-kpi-val">{kpi3}</div>
+              <div className="agdash-kpi-val">340 kg</div>
               <div className="agdash-kpi-lbl">{t.kpi3}</div>
               <div className="agdash-kpi-bar">
-                <div
-                  className="agdash-kpi-fill"
-                  style={{ width: `${kpi3Bar}%`, background: 'var(--agdash-amber)' }}
-                />
+                <div className="agdash-kpi-fill" style={{ width: '62%', background: 'var(--agdash-amber)' }} />
               </div>
             </div>
             <div className="agdash-kpi">
@@ -934,17 +1060,12 @@ export default function AgroDashboard() {
                     <circle cx="8" cy="8" r="2.5" stroke="#6C5DD3" strokeWidth="1.4" />
                   </svg>
                 </div>
-                {derived.totals.count > 0 ? (
-                  <span className="agdash-kpi-badge agdash-nt">{`${derived.totals.count}`}</span>
-                ) : null}
+                <span className="agdash-kpi-badge agdash-nt">2 added</span>
               </div>
-              <div className="agdash-kpi-val">{kpi4}</div>
+              <div className="agdash-kpi-val">{7 + agroLinkedSources.length}</div>
               <div className="agdash-kpi-lbl">{t.kpi4}</div>
               <div className="agdash-kpi-bar">
-                <div
-                  className="agdash-kpi-fill"
-                  style={{ width: `${kpi4Bar}%`, background: 'var(--agdash-violet)' }}
-                />
+                <div className="agdash-kpi-fill" style={{ width: '50%', background: 'var(--agdash-violet)' }} />
               </div>
             </div>
           </div>
@@ -1046,16 +1167,23 @@ export default function AgroDashboard() {
               <div className="agdash-chart-wrap agdash-chart-sm">
                 <canvas ref={pieCanvasRef} role="img" aria-label={t.chartPie} />
               </div>
-              <div className="agdash-leg" style={{ justifyContent: 'center', flexWrap: 'wrap', gap: 8 }}>
-                {(derived.pie.length ? derived.pie : [{ label: '—', value: 0 }]).map((p, i) => (
-                  <div key={`${p.label}-${i}`} className="agdash-li">
-                    <div
-                      className="agdash-lsq"
-                      style={{ background: PIE_PALETTE[i % PIE_PALETTE.length] }}
-                    />
-                    {p.label} {derived.pie.length ? `${p.value}%` : ''}
-                  </div>
-                ))}
+              <div className="agdash-leg" style={{ justifyContent: 'center' }}>
+                <div className="agdash-li">
+                  <div className="agdash-lsq" style={{ background: 'var(--agdash-accent)' }} />
+                  North 35%
+                </div>
+                <div className="agdash-li">
+                  <div className="agdash-lsq" style={{ background: 'var(--agdash-teal)' }} />
+                  South 28%
+                </div>
+                <div className="agdash-li">
+                  <div className="agdash-lsq" style={{ background: 'var(--agdash-amber)' }} />
+                  East 22%
+                </div>
+                <div className="agdash-li">
+                  <div className="agdash-lsq" style={{ background: 'var(--agdash-violet)' }} />
+                  West 15%
+                </div>
               </div>
             </div>
           </div>
@@ -1097,43 +1225,35 @@ export default function AgroDashboard() {
                 <thead>
                   <tr>
                     <th style={{ width: '38%' }}>{t.tblField}</th>
-                    <th style={{ width: '22%' }}>{t.tblValue}</th>
+                    <th style={{ width: '22%' }}>{t.tblKg}</th>
                     <th style={{ width: '24%' }}>{t.tblProg}</th>
                     <th style={{ width: '16%' }}>{t.tblStatus}</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {derived.table.length === 0 ? (
-                    <tr>
-                      <td colSpan={4} style={{ color: 'var(--agdash-muted, #5c6370)', fontSize: '0.875rem' }}>
-                        {t.emptyDash}
+                  {FIELDS.map(f => (
+                    <tr key={f.n}>
+                      <td style={{ fontWeight: 500 }}>{f.n}</td>
+                      <td>{f.kg.toLocaleString(ar ? 'ar' : 'en')}</td>
+                      <td>
+                        <div style={{ height: 4, borderRadius: 2, background: '#e8ebf2', overflow: 'hidden' }}>
+                          <div
+                            style={{
+                              height: '100%',
+                              width: `${f.pct}%`,
+                              background: 'var(--agdash-teal)',
+                              borderRadius: 2,
+                            }}
+                          />
+                        </div>
+                      </td>
+                      <td>
+                        <span className="agdash-fbadge" style={f.sc}>
+                          {f.s}
+                        </span>
                       </td>
                     </tr>
-                  ) : (
-                    derived.table.map((f, idx) => (
-                      <tr key={`${f.label}-${idx}`}>
-                        <td style={{ fontWeight: 500 }}>{f.label}</td>
-                        <td>{f.value.toLocaleString(ar ? 'ar' : 'en')}</td>
-                        <td>
-                          <div style={{ height: 4, borderRadius: 2, background: '#e8ebf2', overflow: 'hidden' }}>
-                            <div
-                              style={{
-                                height: '100%',
-                                width: `${f.pct}%`,
-                                background: 'var(--agdash-teal)',
-                                borderRadius: 2,
-                              }}
-                            />
-                          </div>
-                        </td>
-                        <td>
-                          <span className="agdash-fbadge" style={statusStyle(f.status)}>
-                            {f.status}
-                          </span>
-                        </td>
-                      </tr>
-                    ))
-                  )}
+                  ))}
                 </tbody>
               </table>
             </div>
@@ -1157,216 +1277,528 @@ export default function AgroDashboard() {
                 />
               </div>
               <div>
-                {feed.length === 0 ? (
-                  <div style={{ fontSize: '0.875rem', color: 'var(--agdash-muted, #5c6370)' }}>{t.emptyDash}</div>
-                ) : (
-                  feed.map(a => (
-                    <div key={a.id} className="agdash-feed-item">
-                      <div className="agdash-feed-dot" style={{ background: a.c }} />
-                      <div>
-                        <div className="agdash-feed-main">{a.title}</div>
-                        <div className="agdash-feed-sub">
-                          {a.sub} · {relTime(a.at, ar)}
-                        </div>
+                {ACTS.map(a => (
+                  <div key={a.title} className="agdash-feed-item">
+                    <div className="agdash-feed-dot" style={{ background: a.c }} />
+                    <div>
+                      <div className="agdash-feed-main">{a.title}</div>
+                      <div className="agdash-feed-sub">
+                        {a.sub} · {a.t}
                       </div>
                     </div>
-                  ))
-                )}
+                  </div>
+                ))}
               </div>
             </div>
           </div>
         </div>
       </div>
 
-      <input
-        ref={fileInputRef}
-        type="file"
-        className="agdash-sr-only"
-        accept=".geojson,.json,.kml,.kmz,.zip,.csv,application/geo+json,application/json"
-        onChange={e => void onUploadPick(e.target.files)}
-      />
-
       {addSourceOpen ? (
-        <div className="agdash-modal-overlay" role="presentation" onClick={closeAddSourceModal}>
+        <div className="gis-modal-overlay" role="presentation" onClick={closeAddSourceModal}>
           <div
-            className="agdash-modal agdash-add-source-modal"
+            className="gis-modal gis-modal-compact ddb-add-source-modal"
             role="dialog"
             aria-modal="true"
             aria-labelledby="agdash-add-source-title"
             onClick={e => e.stopPropagation()}
           >
-            <h2 id="agdash-add-source-title" className="agdash-add-source-modal__title">
-              {t.modalTitle}
-            </h2>
-            <p className="agdash-add-source-modal__lead">{t.modalLead}</p>
-
-            <fieldset className="agdash-src-fieldset">
-              <legend className="agdash-sr-only">{t.modalOptsLegend}</legend>
-
-              <label className={`agdash-src-card${addSourceChoice === 'gis' ? ' agdash-src-card--on' : ''}`}>
-                <input
-                  type="radio"
-                  name="agdash-add-source"
-                  className="agdash-src-radio"
-                  checked={addSourceChoice === 'gis'}
-                  onChange={() => setAddSourceChoice('gis')}
-                />
-                <span className="agdash-src-card-icon" aria-hidden>
-                  <i className="fa-solid fa-layer-group" />
-                </span>
-                <span className="agdash-src-card-text">
-                  <span className="agdash-src-card-title">{t.optGisTitle}</span>
-                  <span className="agdash-src-card-desc">{t.optGisDesc}</span>
-                </span>
-              </label>
-
-              <label className={`agdash-src-card${addSourceChoice === 'arcgis' ? ' agdash-src-card--on' : ''}`}>
-                <input
-                  type="radio"
-                  name="agdash-add-source"
-                  className="agdash-src-radio"
-                  checked={addSourceChoice === 'arcgis'}
-                  onChange={() => setAddSourceChoice('arcgis')}
-                />
-                <span className="agdash-src-card-icon" aria-hidden>
-                  <i className="fa-solid fa-link" />
-                </span>
-                <span className="agdash-src-card-text">
-                  <span className="agdash-src-card-title">{t.optArcTitle}</span>
-                  <span className="agdash-src-card-desc">{t.optArcDesc}</span>
-                </span>
-              </label>
-
-              <label className={`agdash-src-card${addSourceChoice === 'upload' ? ' agdash-src-card--on' : ''}`}>
-                <input
-                  type="radio"
-                  name="agdash-add-source"
-                  className="agdash-src-radio"
-                  checked={addSourceChoice === 'upload'}
-                  onChange={() => setAddSourceChoice('upload')}
-                />
-                <span className="agdash-src-card-icon" aria-hidden>
-                  <i className="fa-solid fa-file-arrow-up" />
-                </span>
-                <span className="agdash-src-card-text">
-                  <span className="agdash-src-card-title">{t.optUploadTitle}</span>
-                  <span className="agdash-src-card-desc">{t.optUploadDesc}</span>
-                </span>
-              </label>
-
-              <label className={`agdash-src-card${addSourceChoice === 'getdata' ? ' agdash-src-card--on' : ''}`}>
-                <input
-                  type="radio"
-                  name="agdash-add-source"
-                  className="agdash-src-radio"
-                  checked={addSourceChoice === 'getdata'}
-                  onChange={() => setAddSourceChoice('getdata')}
-                />
-                <span className="agdash-src-card-icon agdash-src-card-icon--dual" aria-hidden>
-                  <i className="fa-solid fa-database" />
-                  <i className="fa-solid fa-table-cells" />
-                </span>
-                <span className="agdash-src-card-text">
-                  <span className="agdash-src-card-title">{t.optGetDataTitle}</span>
-                  <span className="agdash-src-card-desc">{t.optGetDataDesc}</span>
-                </span>
-              </label>
-            </fieldset>
-
-            {addSourceChoice === 'gis' ? (
-              <div className="agdash-src-panel">
-                <label htmlFor="agdash-gis-layer">{t.selectGisLayer}</label>
-                <select
-                  id="agdash-gis-layer"
-                  value={gisLayerId}
-                  onChange={e => setGisLayerId(e.target.value)}
-                  disabled={modalBusy}
-                >
-                  <option value="" disabled>
-                    {t.selectGisLayer}
-                  </option>
-                  {gisLayers.filter(gisLayerHasGeoData).map(l => (
-                    <option key={String(l.id)} value={String(l.id)}>
-                      {l.name}
-                    </option>
-                  ))}
-                </select>
-                {gisLayers.filter(gisLayerHasGeoData).length === 0 ? (
-                  <p className="agdash-src-err" style={{ color: 'var(--agdash-muted, #5c6370)' }}>
-                    {t.noGisLayers}
-                  </p>
-                ) : null}
+            <div className="ddb-add-source-modal__head">
+              <div className="gis-modal-compact-title" id="agdash-add-source-title">
+                {t.modalTitle}
               </div>
-            ) : null}
-
-            {addSourceChoice === 'arcgis' ? (
-              <div className="agdash-src-panel">
-                <label htmlFor="agdash-arc-url">URL</label>
-                <input
-                  id="agdash-arc-url"
-                  type="url"
-                  value={arcgisUrl}
-                  onChange={e => setArcgisUrl(e.target.value)}
-                  placeholder={t.urlPlaceholderArc}
-                  disabled={modalBusy}
-                  autoComplete="off"
-                />
-              </div>
-            ) : null}
-
-            {addSourceChoice === 'getdata' ? (
-              <div className="agdash-src-panel">
-                <label htmlFor="agdash-get-url">URL</label>
-                <input
-                  id="agdash-get-url"
-                  type="url"
-                  value={getDataUrl}
-                  onChange={e => setGetDataUrl(e.target.value)}
-                  placeholder={t.urlPlaceholderGet}
-                  disabled={modalBusy}
-                  autoComplete="off"
-                />
-              </div>
-            ) : null}
-
-            {addSourceChoice === 'upload' ? (
-              <div className="agdash-src-panel">
-                <button type="button" className="agdash-add-source-modal__apply" onClick={() => fileInputRef.current?.click()} disabled={modalBusy}>
-                  {t.chooseFile}
-                </button>
-              </div>
-            ) : null}
-
-            {modalError ? (
-              <p className="agdash-src-err" role="alert">
-                {modalError}
-              </p>
-            ) : null}
-
-            {addSourceAdvancedHint ? (
-              <p className="agdash-src-advanced-hint" role="status">
-                {t.advancedHint}
-              </p>
-            ) : null}
-
-            <button type="button" className="agdash-src-advanced" onClick={() => setAddSourceAdvancedHint(true)}>
-              {t.advancedBtn}
-            </button>
-
-            <div className="agdash-add-source-modal__footer">
-              <button type="button" className="agdash-add-source-modal__cancel" onClick={closeAddSourceModal} disabled={modalBusy}>
-                {t.cancelBtn}
-              </button>
-              {addSourceChoice !== 'upload' ? (
-                <button
-                  type="button"
-                  className="agdash-add-source-modal__apply"
-                  onClick={() => void applyAddSource()}
-                  disabled={modalBusy}
-                >
-                  {modalBusy ? t.loading : t.applyBtn}
+              {addWizard !== 'home' ? (
+                <button type="button" className="ddb-add-source-back" onClick={goAgroWizardHome}>
+                  <i className={`fa-solid ${ar ? 'fa-arrow-right' : 'fa-arrow-left'}`} aria-hidden /> {t.allOptionsBack}
                 </button>
               ) : null}
+            </div>
+
+            {addWizard === 'home' ? (
+              <div className="ddb-add-source-home">
+                <p className="ddb-add-source-lead">{t.modalLead}</p>
+                <div className="ddb-source-option-grid" role="radiogroup" aria-label={t.modalOptsLegend}>
+                  <button
+                    type="button"
+                    className={`ddb-source-option-card${homePick === 'gis' ? ' is-selected' : ''}`}
+                    role="radio"
+                    aria-checked={homePick === 'gis'}
+                    onClick={() => {
+                      setDiscoverError(null)
+                      setHomePick('gis')
+                    }}
+                  >
+                    <span className="ddb-source-option-indicator" aria-hidden />
+                    <div className="ddb-source-option-icon-wrap">
+                      <i className="fa-solid fa-layer-group" aria-hidden />
+                    </div>
+                    <div className="ddb-source-option-text">
+                      <span className="ddb-source-option-title">{t.optGisTitle}</span>
+                      <span className="ddb-source-option-desc">{t.optGisDesc}</span>
+                    </div>
+                  </button>
+                  <button
+                    type="button"
+                    className={`ddb-source-option-card${homePick === 'arcgis' ? ' is-selected' : ''}`}
+                    role="radio"
+                    aria-checked={homePick === 'arcgis'}
+                    onClick={() => {
+                      setDiscoverError(null)
+                      setHomePick('arcgis')
+                      setAddWizard('tabs')
+                      setAddTab('arcgis')
+                    }}
+                  >
+                    <span className="ddb-source-option-indicator" aria-hidden />
+                    <div className="ddb-source-option-icon-wrap">
+                      <i className="fa-solid fa-link" aria-hidden />
+                    </div>
+                    <div className="ddb-source-option-text">
+                      <span className="ddb-source-option-title">{t.optArcTitle}</span>
+                      <span className="ddb-source-option-desc">{t.optArcDesc}</span>
+                    </div>
+                  </button>
+                  <button
+                    type="button"
+                    className={`ddb-source-option-card${homePick === 'upload' ? ' is-selected' : ''}`}
+                    role="radio"
+                    aria-checked={homePick === 'upload'}
+                    onClick={() => {
+                      setDiscoverError(null)
+                      setHomePick('upload')
+                      setAddWizard('tabs')
+                      setAddTab('upload')
+                    }}
+                  >
+                    <span className="ddb-source-option-indicator" aria-hidden />
+                    <div className="ddb-source-option-icon-wrap">
+                      <i className="fa-solid fa-file-arrow-up" aria-hidden />
+                    </div>
+                    <div className="ddb-source-option-text">
+                      <span className="ddb-source-option-title">{t.optUploadTitle}</span>
+                      <span className="ddb-source-option-desc">{t.optUploadDesc}</span>
+                    </div>
+                  </button>
+                  <button
+                    type="button"
+                    className={`ddb-source-option-card${homePick === 'getdata' ? ' is-selected' : ''}`}
+                    role="radio"
+                    aria-checked={homePick === 'getdata'}
+                    onClick={() => {
+                      setDiscoverError(null)
+                      setGetDataNotice(null)
+                      setHomePick('getdata')
+                      setAddWizard('get-data')
+                    }}
+                  >
+                    <span className="ddb-source-option-indicator" aria-hidden />
+                    <div className="ddb-source-option-icon-wrap ddb-source-option-icon-wrap--getdata">
+                      <i className="fa-solid fa-database" aria-hidden />
+                      <i className="fa-solid fa-table-cells" aria-hidden />
+                    </div>
+                    <div className="ddb-source-option-text">
+                      <span className="ddb-source-option-title">{t.optGetDataTitle}</span>
+                      <span className="ddb-source-option-desc">{t.optGetDataDesc}</span>
+                    </div>
+                  </button>
+                </div>
+
+                {homePick === 'gis' ? (
+                  <div className="agdash-add-src-gis-inline">
+                    {gisContentLoading ? (
+                      <div className="ddb-add-source-loading" style={{ padding: '12px 0', textAlign: 'center' }}>
+                        <i className="fa-solid fa-spinner fa-spin" aria-hidden /> {t.loadGisLabel}
+                      </div>
+                    ) : null}
+                    <label className="agdash-add-src-gis-label" htmlFor="agdash-home-gis-layer">
+                      {t.selectLayerLbl}
+                    </label>
+                    <div className="gis-select-wrap">
+                      <select
+                        id="agdash-home-gis-layer"
+                        className="gis-input gis-select"
+                        value={homeGisLayerId}
+                        disabled={gisContentLoading || addingLayerKey !== null}
+                        onChange={e => setHomeGisLayerId(e.target.value)}
+                        aria-label={t.selectLayerLbl}
+                      >
+                        <option value="">{t.selectLayerLbl}</option>
+                        {gisImportableLayers.map(layer => (
+                          <option key={String(layer.id)} value={String(layer.id)}>
+                            {layer.name}
+                          </option>
+                        ))}
+                      </select>
+                      <i className="fa-solid fa-chevron-down" aria-hidden />
+                    </div>
+                    {!gisContentLoading && gisImportableLayers.length === 0 ? (
+                      <p className="agdash-add-src-gis-foot">{t.noGeoJsonHint}</p>
+                    ) : null}
+                    {gisImportableLayers.length > 0 ? (
+                      <button
+                        type="button"
+                        className="gis-btn-outline agdash-add-src-gis-import"
+                        disabled={!homeGisLayerId || addingLayerKey !== null}
+                        onClick={() => {
+                          const layer = gisImportableLayers.find(l => String(l.id) === homeGisLayerId)
+                          if (layer) void importGisContentLayer(layer)
+                        }}
+                      >
+                        {addingLayerKey?.startsWith('gis:') ? t.addingLabel : t.addBtn}
+                      </button>
+                    ) : null}
+                    {discoverError ? (
+                      <div className="gis-inline-error" role="alert" style={{ marginTop: 10 }}>
+                        <i className="fa-solid fa-triangle-exclamation" aria-hidden />
+                        <span>{discoverError}</span>
+                      </div>
+                    ) : null}
+                  </div>
+                ) : null}
+
+                <button
+                  type="button"
+                  className="ddb-add-source-more"
+                  onClick={() => {
+                    setDiscoverError(null)
+                    setAddWizard('tabs')
+                    setAddTab('url')
+                  }}
+                >
+                  {t.advancedBtn}
+                </button>
+              </div>
+            ) : addWizard === 'get-data' ? (
+              <div className="ddb-add-source-get-data-page gis-modal-body" role="region" aria-label={t.getDataRegionAria}>
+                <div className="ddb-get-data-menu ddb-get-data-menu--page" role="navigation" aria-label={t.commonSources}>
+                  <div className="ddb-get-data-toolbar-mimic">
+                    <span className="ddb-get-data-toolbar-icon" aria-hidden>
+                      <i className="fa-solid fa-database" />
+                      <i className="fa-solid fa-table" />
+                    </span>
+                    <span className="ddb-get-data-toolbar-label">{t.getDataToolbar}</span>
+                    <i className="fa-solid fa-chevron-down ddb-get-data-toolbar-chev" aria-hidden />
+                  </div>
+                  <div className="ddb-get-data-section-title">{t.commonSources}</div>
+                  <ul className="ddb-get-data-list">
+                    {GET_DATA_COMMON_SOURCES.map(row => (
+                      <li key={row.id}>
+                        <button type="button" className="ddb-get-data-row" onClick={() => pickGetDataSource(row.id)}>
+                          <span className="ddb-get-data-row-icon" style={row.iconColor ? { color: row.iconColor } : undefined}>
+                            <i className={row.icon} aria-hidden />
+                          </span>
+                          <span className="ddb-get-data-row-label">{row.label}</span>
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                  <div className="ddb-get-data-divider" role="separator" />
+                  <button
+                    type="button"
+                    className="ddb-get-data-row ddb-get-data-row--footer"
+                    onClick={() => setGetDataNotice(t.templateNotice)}
+                  >
+                    <span className="ddb-get-data-row-icon ddb-get-data-row-icon--muted">
+                      <i className="fa-solid fa-table-columns" aria-hidden />
+                    </span>
+                    <span className="ddb-get-data-row-label">{t.templateAppsRow}</span>
+                    <i className="fa-solid fa-arrow-up-right-from-square ddb-get-data-external" aria-hidden />
+                  </button>
+                  <div className="ddb-get-data-divider" role="separator" />
+                  <button
+                    type="button"
+                    className="ddb-get-data-more"
+                    onClick={() => {
+                      setDiscoverError(null)
+                      setGetDataNotice(null)
+                      setAddWizard('tabs')
+                      setAddTab('arcgis')
+                    }}
+                  >
+                    {t.moreEllipsis}
+                  </button>
+                </div>
+                {getDataNotice ? (
+                  <div className="ddb-get-data-notice" role="status">
+                    <i className="fa-solid fa-circle-info" aria-hidden /> {getDataNotice}
+                  </div>
+                ) : null}
+              </div>
+            ) : addWizard === 'gis-list' ? (
+              <div className="ddb-add-source-gis-list gis-modal-body">
+                <p className="ddb-add-source-gis-hint">
+                  {t.gisHintBefore}
+                  <strong>{t.gisHintStrong}</strong>
+                  {t.gisHintAfter}
+                </p>
+                {gisContentLoading ? (
+                  <div className="ddb-add-source-loading">
+                    <i className="fa-solid fa-spinner fa-spin" aria-hidden /> {t.loadGisLabel}
+                  </div>
+                ) : gisContentLayers.length === 0 ? (
+                  <div className="ddb-add-source-empty">
+                    <i className="fa-regular fa-folder-open" aria-hidden />
+                    <p>{t.gisEmptyBody}</p>
+                  </div>
+                ) : (
+                  <ul className="ddb-gis-content-list">
+                    {gisContentLayers.map(layer => {
+                      const ok = gisLayerCanImportToDashboard(layer)
+                      const busy = addingLayerKey === `gis:${String(layer.id)}`
+                      return (
+                        <li key={String(layer.id)} className="ddb-gis-content-row">
+                          <div className="ddb-gis-content-meta">
+                            <span className="ddb-gis-content-name">{layer.name}</span>
+                            <span className="ddb-gis-content-badges">
+                              <span className="ddb-gis-badge">{layer.type}</span>
+                              {layer.source ? <span className="ddb-gis-badge ddb-gis-badge--muted">{layer.source}</span> : null}
+                            </span>
+                            {!ok ? <span className="ddb-gis-content-note">{t.wmsNote}</span> : null}
+                          </div>
+                          <button
+                            type="button"
+                            className="ddb-gis-content-add-btn"
+                            disabled={!ok || busy}
+                            onClick={() => void importGisContentLayer(layer)}
+                          >
+                            {busy ? t.addingLabel : t.addBtn}
+                          </button>
+                        </li>
+                      )
+                    })}
+                  </ul>
+                )}
+                {discoverError ? (
+                  <div className="gis-inline-error" role="alert" style={{ marginTop: 12 }}>
+                    <i className="fa-solid fa-triangle-exclamation" aria-hidden />
+                    <span>{discoverError}</span>
+                  </div>
+                ) : null}
+              </div>
+            ) : (
+              <>
+                <div className="gis-modal-compact-tabs" role="tablist" aria-label={t.modalOptsLegend}>
+                  <button
+                    type="button"
+                    role="tab"
+                    aria-selected={addTab === 'arcgis'}
+                    className={(addTab === 'arcgis' ? 'gis-compact-tab active' : 'gis-compact-tab') + ' gis-compact-tab--icon'}
+                    title="ArcGIS Feature Service"
+                    onClick={() => switchAddTab('arcgis')}
+                  >
+                    <i className="fa-solid fa-cloud" aria-hidden />
+                  </button>
+                  <button
+                    type="button"
+                    role="tab"
+                    aria-selected={addTab === 'database'}
+                    className={(addTab === 'database' ? 'gis-compact-tab active' : 'gis-compact-tab') + ' gis-compact-tab--icon'}
+                    title="Database connection"
+                    onClick={() => switchAddTab('database')}
+                  >
+                    <i className="fa-solid fa-database" aria-hidden />
+                  </button>
+                  <button
+                    type="button"
+                    role="tab"
+                    aria-selected={addTab === 'upload'}
+                    className={(addTab === 'upload' ? 'gis-compact-tab active' : 'gis-compact-tab') + ' gis-compact-tab--icon'}
+                    title="Upload file"
+                    onClick={() => switchAddTab('upload')}
+                  >
+                    <i className="fa-solid fa-file-arrow-up" aria-hidden />
+                  </button>
+                  <button
+                    type="button"
+                    role="tab"
+                    aria-selected={addTab === 'url'}
+                    className={(addTab === 'url' ? 'gis-compact-tab active' : 'gis-compact-tab') + ' gis-compact-tab--icon'}
+                    title="URL or web data"
+                    onClick={() => switchAddTab('url')}
+                  >
+                    <i className="fa-solid fa-globe" aria-hidden />
+                  </button>
+                </div>
+
+                <div className="gis-modal-body">
+                  {addTab === 'arcgis' ? (
+                    <div role="tabpanel" aria-label="ArcGIS Feature Service">
+                      <input
+                        className="gis-input"
+                        type="text"
+                        value={serviceUrl}
+                        onChange={e => setServiceUrl(e.target.value)}
+                        placeholder={t.featurePh}
+                        autoComplete="off"
+                        inputMode="url"
+                        onKeyDown={e => {
+                          if (e.key === 'Enter') {
+                            e.preventDefault()
+                            void discoverArcGisLayers()
+                          }
+                        }}
+                      />
+                      <input
+                        className="gis-input"
+                        type="text"
+                        value={arcgisToken}
+                        onChange={e => setArcgisToken(e.target.value)}
+                        placeholder={t.tokenPh}
+                        autoComplete="off"
+                      />
+                      <button
+                        className="gis-btn-outline"
+                        type="button"
+                        onClick={() => void discoverArcGisLayers()}
+                        disabled={isDiscovering || serviceUrl.trim() === ''}
+                      >
+                        <i className="fa-solid fa-link" aria-hidden />
+                        {isDiscovering ? ` ${t.connecting}` : ` ${t.connectDiscover}`}
+                      </button>
+                      {discoverError ? (
+                        <div className="gis-inline-error" role="alert">
+                          <i className="fa-solid fa-triangle-exclamation" aria-hidden />
+                          <span>{discoverError}</span>
+                        </div>
+                      ) : null}
+                      {discoveredLayers.length > 0 ? (
+                        <div className="gis-discover-panel" aria-label={t.selectLayerLbl}>
+                          <div className="gis-discover-meta">{t.foundLayers(discoveredLayers.length)}</div>
+                          <div className="gis-form-field">
+                            <div className="gis-form-label">{t.selectLayerLbl}</div>
+                            <div className="gis-select-wrap">
+                              <select
+                                className="gis-input gis-select"
+                                value={selectedDiscoveredUrl}
+                                onChange={e => {
+                                  const next = e.target.value
+                                  setSelectedDiscoveredUrl(next)
+                                  const found = discoveredLayers.find(d => d.url === next)
+                                  if (found && !layerModalName.trim()) setLayerModalName(found.name)
+                                }}
+                              >
+                                {discoveredLayers.map(l => (
+                                  <option key={l.url} value={l.url}>
+                                    {l.kind === 'table' ? `${l.name} (Table)` : l.geometryType ? `${l.name} (${l.geometryType})` : l.name}
+                                  </option>
+                                ))}
+                              </select>
+                              <i className="fa-solid fa-chevron-down" aria-hidden />
+                            </div>
+                          </div>
+                          <input
+                            className="gis-input"
+                            type="text"
+                            value={layerModalName}
+                            onChange={e => setLayerModalName(e.target.value)}
+                            placeholder={t.layerNamePh}
+                          />
+                          <div className="gis-discovered-row">
+                            <button
+                              className="gis-discovered-add"
+                              type="button"
+                              onClick={() => {
+                                const found = discoveredLayers.find(d => d.url === selectedDiscoveredUrl)
+                                if (found) void addArcGisLayerToRegistry(found)
+                              }}
+                              disabled={!selectedDiscoveredUrl || addingLayerKey === `arcgis:${selectedDiscoveredUrl}`}
+                            >
+                              {addingLayerKey === `arcgis:${selectedDiscoveredUrl}` ? t.addingLabel : t.addBtn}
+                            </button>
+                          </div>
+                        </div>
+                      ) : null}
+                    </div>
+                  ) : addTab === 'database' ? (
+                    <div role="tabpanel" aria-label="Database connection" className="ddb-hint" style={{ padding: '8px 0', lineHeight: 1.5 }}>
+                      {t.dbTabBefore}
+                      <strong>{t.dbTabStrong}</strong>
+                      {t.dbTabAfter}
+                    </div>
+                  ) : addTab === 'upload' ? (
+                    <div role="tabpanel" aria-label="Upload file">
+                      <input
+                        ref={addLayerFileInputRef}
+                        type="file"
+                        accept=".kml,.kmz,.zip,.geojson,.json,.csv"
+                        hidden
+                        onChange={e => setUploadFile(e.target.files?.[0] ?? null)}
+                      />
+                      <button type="button" className="gis-btn-outline" onClick={() => addLayerFileInputRef.current?.click()}>
+                        <i className="fa-solid fa-folder-open" aria-hidden /> {t.chooseFileBtn}
+                      </button>
+                      {uploadFile ? <div className="ddb-hint" style={{ marginTop: 8 }}>{uploadFile.name}</div> : null}
+                      <p className="ddb-hint" style={{ marginTop: 6, textAlign: ar ? 'right' : 'left' }}>
+                        {t.csvUploadHint}
+                      </p>
+                      <input
+                        className="gis-input"
+                        style={{ marginTop: 10 }}
+                        type="text"
+                        value={layerModalName}
+                        onChange={e => setLayerModalName(e.target.value)}
+                        placeholder={t.layerNamePh}
+                      />
+                      <button
+                        className="gis-btn-outline"
+                        type="button"
+                        style={{ marginTop: 10 }}
+                        disabled={!uploadFile || !!addingLayerKey}
+                        onClick={() => void addUploadLayerToRegistry()}
+                      >
+                        <i className="fa-solid fa-plus" aria-hidden /> {t.addToRegistry}
+                      </button>
+                      {discoverError ? (
+                        <div className="gis-inline-error" role="alert" style={{ marginTop: 10 }}>
+                          <i className="fa-solid fa-triangle-exclamation" aria-hidden />
+                          <span>{discoverError}</span>
+                        </div>
+                      ) : null}
+                    </div>
+                  ) : (
+                    <div role="tabpanel" aria-label="URL">
+                      <input
+                        className="gis-input"
+                        type="url"
+                        value={remoteDataUrl}
+                        onChange={e => setRemoteDataUrl(e.target.value)}
+                        placeholder={t.urlPh}
+                        autoComplete="off"
+                      />
+                      <input
+                        className="gis-input"
+                        type="text"
+                        value={layerModalName}
+                        onChange={e => setLayerModalName(e.target.value)}
+                        placeholder={t.layerNamePh}
+                      />
+                      <button
+                        className="gis-btn-outline"
+                        type="button"
+                        disabled={!remoteDataUrl.trim() || !!addingLayerKey}
+                        onClick={() => void addUrlLayerToRegistry()}
+                      >
+                        <i className="fa-solid fa-link" aria-hidden /> {t.addFromUrlBtn}
+                      </button>
+                      {discoverError ? (
+                        <div className="gis-inline-error" role="alert" style={{ marginTop: 10 }}>
+                          <i className="fa-solid fa-triangle-exclamation" aria-hidden />
+                          <span>{discoverError}</span>
+                        </div>
+                      ) : null}
+                    </div>
+                  )}
+                </div>
+              </>
+            )}
+
+            <div
+              className="gis-modal-footer"
+              style={{ display: 'flex', justifyContent: 'flex-end', padding: '12px 16px', borderTop: '1px solid rgba(226,232,240,0.9)' }}
+            >
+              <button type="button" className="gis-btn" onClick={closeAddSourceModal}>
+                {t.cancelBtn}
+              </button>
             </div>
           </div>
         </div>
