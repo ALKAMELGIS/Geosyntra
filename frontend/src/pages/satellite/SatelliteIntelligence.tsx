@@ -1339,9 +1339,10 @@ export default function SatelliteIntelligence() {
     return (EARTH_CIRCUMFERENCE_METERS * Math.cos(latRad)) / (tileSize * Math.pow(2, zoom));
   };
 
+  /** Stable fallback when geometry has no bbox — must NOT depend on `viewState` or pivots recompute every `onMove` → Mapbox source churn → stack overflow. */
   const getGeoJsonCentroid = (geojson: any): [number, number] => {
     const bounds = getGeoJsonBounds(geojson);
-    if (!bounds) return [viewState.longitude, viewState.latitude];
+    if (!bounds) return [20, 10];
     return [(bounds[0] + bounds[2]) / 2, (bounds[1] + bounds[3]) / 2];
   };
 
@@ -1906,6 +1907,7 @@ export default function SatelliteIntelligence() {
     setShowSearchResults(false);
   };
 
+  /** Only `customLayers` in deps — not `viewState`: `onMove` updates viewState every frame; rebuilding pivot GeoJSON each time can sync-loop Mapbox/react until stack overflow. */
   const pivots = useMemo<PivotFeature[]>(() => {
     const uploaded = customLayers.find(layer => Array.isArray(layer.geojson?.features) && layer.geojson.features.length > 0);
     const features = uploaded?.geojson?.features;
@@ -1921,7 +1923,7 @@ export default function SatelliteIntelligence() {
         centroid: getGeoJsonCentroid(feature),
       };
     });
-  }, [customLayers, viewState.longitude, viewState.latitude]);
+  }, [customLayers]);
 
   const pivotChartRows = useMemo(() => {
     const latestMean = weeklyComposites.length ? weeklyComposites[Math.min(weeklyComposites.length - 1, 2)].mean : 0;
