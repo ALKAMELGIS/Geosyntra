@@ -450,6 +450,22 @@
   color: var(--agdash-ink3);
 }
 
+.agro-dash-root .agdash-field-picker-charts {
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid var(--agdash-border);
+}
+
+.agro-dash-root .agdash-wf-field-row--label {
+  padding: 2px 0 4px;
+}
+
+.agro-dash-root .agdash-wf-field-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--agdash-ink);
+}
+
 .agro-dash-root .agdash-field-picker-stack {
   display: flex;
   flex-direction: column;

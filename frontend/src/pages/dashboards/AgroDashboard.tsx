@@ -297,7 +297,7 @@ export default function AgroDashboard() {
             csvUploadHint:
               'ملف CSV بدون أعمدة خط العرض/خط الطول يُضاف كجدول بيانات (الجزء الأيمن ← بيانات) مثل حقول Power BI.',
             cancelBtn: 'إلغاء',
-            wf: ['إضافة طبقة', 'إضافة بيانات', 'اختيار الحقول', 'تثبيت الحقول'],
+            wf: ['إضافة طبقة', 'إضافة بيانات', 'اختيار الحقول'],
             wfPanelLayerTitle: 'الطبقات المضافة',
             wfPanelLayerEmpty: 'لم تُضف طبقات بعد. استخدم «إضافة مصدر» لاستيراد طبقة من GIS أو ملف أو خدمة.',
             wfPanelSourceHint: 'استخدم زر «إضافة مصدر» أعلاه لربط بيانات بهذه اللوحة.',
@@ -306,10 +306,8 @@ export default function AgroDashboard() {
             fieldPickerHint: 'اضغط طبقة لفتح قائمة الحقول في طبقة عائمة دون توسيع الصفحة.',
             fieldPickerMenuTitle: (name: string) => `حقول: ${name}`,
             fieldsBadge: (sel: number, tot: number) => `${sel}/${tot}`,
-            wfPanelPinTitle: 'تثبيت الحقول لأنواع الرسوم',
-            wfPanelPinEmpty: 'اختر حقولاً في الخطوة السابقة، ثم حدد هنا ما يظهر في الرسوم.',
-            wfPanelPinSubtitle: 'الحقول المعروضة في الرسوم',
-            chartEmpty: 'ثبّت حقولاً وحدد الرسم لكل حقل أدناه.',
+            wfPanelPinSubtitle: 'تعيين الحقول للرسوم',
+            chartEmpty: 'اختر حقولاً وحدد أي رسم يستخدم كل حقل أدناه.',
             wfAssignCharts: 'أي رسم يستخدم هذا الحقل؟',
             slotMain: 'رئيسي',
             slotPie: 'دائرة',
@@ -402,7 +400,7 @@ export default function AgroDashboard() {
             csvUploadHint:
               'CSV without latitude/longitude columns is added as a Data table (right pane → Data) like Power BI Fields.',
             cancelBtn: 'Cancel',
-            wf: ['Add layer', 'Add source data', 'Select fields', 'Pin fields'],
+            wf: ['Add layer', 'Add source data', 'Select fields'],
             wfPanelLayerTitle: 'Added layers',
             wfPanelLayerEmpty: 'No layers yet. Use Add source to import from GIS, a file, or a service.',
             wfPanelSourceHint: 'Use the Add source button above to connect data to this dashboard.',
@@ -411,10 +409,8 @@ export default function AgroDashboard() {
             fieldPickerHint: 'Click a layer to open its fields in a compact overlay — keeps the layout tidy.',
             fieldPickerMenuTitle: (name: string) => `Fields — ${name}`,
             fieldsBadge: (sel: number, tot: number) => `${sel} / ${tot}`,
-            wfPanelPinTitle: 'Pin fields for chart types',
-            wfPanelPinEmpty: 'Select fields in the previous step, then choose what appears in charts here.',
-            wfPanelPinSubtitle: 'Fields shown in charts',
-            chartEmpty: 'Pin fields and assign each field to a chart below.',
+            wfPanelPinSubtitle: 'Chart assignments',
+            chartEmpty: 'Select fields and assign each field to a chart below.',
             wfAssignCharts: 'Which charts use this field?',
             slotMain: 'Main',
             slotPie: 'Pie',
@@ -653,7 +649,6 @@ export default function AgroDashboard() {
       const keys = layer.fields.map(f => agroFieldKey(layer.id, f))
       setAgroSources(prev => [...prev, layer])
       setIncludedFieldKeys(prev => Array.from(new Set([...prev, ...keys])))
-      setPinnedFieldKeys(prev => Array.from(new Set([...prev, ...keys])))
       setWfIdx(2)
       closeAddSourceModal()
     },
@@ -663,22 +658,18 @@ export default function AgroDashboard() {
   const toggleIncludedFieldKey = useCallback((key: string) => {
     setIncludedFieldKeys(prev => {
       const on = prev.includes(key)
-      const next = on ? prev.filter(k => k !== key) : [...prev, key]
-      if (on) setPinnedFieldKeys(p => p.filter(k => k !== key))
-      return next
+      return on ? prev.filter(k => k !== key) : [...prev, key]
     })
   }, [])
 
-  const togglePinnedFieldKey = useCallback((key: string) => {
-    if (!includedFieldKeys.includes(key)) return
-    setPinnedFieldKeys(prev => (prev.includes(key) ? prev.filter(k => k !== key) : [...prev, key]))
+  useEffect(() => {
+    setPinnedFieldKeys(includedFieldKeys)
   }, [includedFieldKeys])
 
   const wfPanelTitle = useMemo(() => {
     if (wfIdx === 0) return t.wfPanelLayerTitle
     if (wfIdx === 1) return t.wf[1]!
-    if (wfIdx === 2) return t.wfPanelSelectTitle
-    return t.wfPanelPinTitle
+    return t.wfPanelSelectTitle
   }, [wfIdx, t])
 
   const orderedIncludedPinKeys = useMemo(() => {
@@ -1176,66 +1167,53 @@ export default function AgroDashboard() {
                       )
                     })}
                   </div>
-                </div>
-              ))}
-            {wfIdx === 3 &&
-              (orderedIncludedPinKeys.length === 0 ? (
-                <p className="agdash-wf-panel-empty">{t.wfPanelPinEmpty}</p>
-              ) : (
-                <>
-                  <p className="agdash-wf-panel-sub">{t.wfPanelPinSubtitle}</p>
-                  <ul className="agdash-wf-field-rows agdash-wf-field-rows--blocks">
-                    {orderedIncludedPinKeys.map(key => {
-                      const { sourceId, field } = parseAgroFieldKey(key)
-                      const src = agroSources.find(s => s.id === sourceId)
-                      const label = src && field ? `${src.name} — ${field}` : field || key
-                      const pinned = pinnedFieldKeys.includes(key)
-                      const slot = fieldChartPlacement[key] ?? DEFAULT_FIELD_CHART
-                      return (
-                        <li key={key} className="agdash-wf-field-block">
-                          <div className="agdash-wf-field-row">
-                            <label className="agdash-wf-check">
-                              <input
-                                type="checkbox"
-                                checked={pinned}
-                                onChange={() => togglePinnedFieldKey(key)}
-                              />
-                              <span>{label}</span>
-                            </label>
-                          </div>
-                          {pinned ? (
-                            <div className="agdash-wf-slot-row">
-                              <span className="agdash-wf-slot-lbl">{t.wfAssignCharts}</span>
-                              <div className="agdash-wf-slot-btns">
-                                <button
-                                  type="button"
-                                  className={`agdash-slot-chip${slot.main ? ' agdash-slot-chip--on' : ''}`}
-                                  onClick={() => toggleFieldChartSlot(key, 'main')}
-                                >
-                                  {t.slotMain}
-                                </button>
-                                <button
-                                  type="button"
-                                  className={`agdash-slot-chip${slot.pie ? ' agdash-slot-chip--on' : ''}`}
-                                  onClick={() => toggleFieldChartSlot(key, 'pie')}
-                                >
-                                  {t.slotPie}
-                                </button>
-                                <button
-                                  type="button"
-                                  className={`agdash-slot-chip${slot.bot ? ' agdash-slot-chip--on' : ''}`}
-                                  onClick={() => toggleFieldChartSlot(key, 'bot')}
-                                >
-                                  {t.slotBot}
-                                </button>
+                  {orderedIncludedPinKeys.length > 0 ? (
+                    <div className="agdash-field-picker-charts">
+                      <p className="agdash-wf-panel-sub">{t.wfPanelPinSubtitle}</p>
+                      <ul className="agdash-wf-field-rows agdash-wf-field-rows--blocks">
+                        {orderedIncludedPinKeys.map(key => {
+                          const { sourceId, field } = parseAgroFieldKey(key)
+                          const src = agroSources.find(s => s.id === sourceId)
+                          const label = src && field ? `${src.name} — ${field}` : field || key
+                          const slot = fieldChartPlacement[key] ?? DEFAULT_FIELD_CHART
+                          return (
+                            <li key={key} className="agdash-wf-field-block">
+                              <div className="agdash-wf-field-row agdash-wf-field-row--label">
+                                <span className="agdash-wf-field-label">{label}</span>
                               </div>
-                            </div>
-                          ) : null}
-                        </li>
-                      )
-                    })}
-                  </ul>
-                </>
+                              <div className="agdash-wf-slot-row">
+                                <span className="agdash-wf-slot-lbl">{t.wfAssignCharts}</span>
+                                <div className="agdash-wf-slot-btns">
+                                  <button
+                                    type="button"
+                                    className={`agdash-slot-chip${slot.main ? ' agdash-slot-chip--on' : ''}`}
+                                    onClick={() => toggleFieldChartSlot(key, 'main')}
+                                  >
+                                    {t.slotMain}
+                                  </button>
+                                  <button
+                                    type="button"
+                                    className={`agdash-slot-chip${slot.pie ? ' agdash-slot-chip--on' : ''}`}
+                                    onClick={() => toggleFieldChartSlot(key, 'pie')}
+                                  >
+                                    {t.slotPie}
+                                  </button>
+                                  <button
+                                    type="button"
+                                    className={`agdash-slot-chip${slot.bot ? ' agdash-slot-chip--on' : ''}`}
+                                    onClick={() => toggleFieldChartSlot(key, 'bot')}
+                                  >
+                                    {t.slotBot}
+                                  </button>
+                                </div>
+                              </div>
+                            </li>
+                          )
+                        })}
+                      </ul>
+                    </div>
+                  ) : null}
+                </div>
               ))}
           </div>
         </div>
