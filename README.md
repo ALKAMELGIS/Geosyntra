@@ -8,7 +8,7 @@
 
 سير العمل [Deploy to GitHub Pages](.github/workflows/deploy-pages.yml) يبني `frontend/dist` ويدفع الموقع إلى فرع **`gh-pages`** (تاريخ orphan — لا يُلتزم البناء في `main`).
 
-**الإعداد الواجب مرة واحدة** في [Settings → Pages](https://github.com/ALKAMELGIS/AgroCloud/settings/pages):
+**الإعداد الموصى به (مرة واحدة)** في [Settings → Pages](https://github.com/ALKAMELGIS/AgroCloud/settings/pages):
 
 1. **Build and deployment** → **Source** → **Deploy from a branch**.
 2. **Branch** اختر **`gh-pages`** وليس `main`، والمجلد **`/ (root)`**.
@@ -16,6 +16,8 @@
 
 إذا كان المصدر ما زال **`main` / (root)** سيُعرض ملف التحذير في جذر المستودع وليس التطبيق.
 
-**English:** The workflow publishes the Vite build to the **`gh-pages`** branch. In **Settings → Pages**, set **Deploy from a branch** → **gh-pages** → **/** (root), **not** `main` at root (that only serves the yellow stub `index.html` on `main`).
+**اختياري:** يمكن أيضًا ضبط المصدر على **GitHub Actions**؛ السير يحاول النشر بالأرشيف أيضًا (إن وُجدت البيئة `github-pages`)، لكن **gh-pages** كافٍ لإصلاح الصفحة الصفراء.
+
+**English:** The workflow always pushes the build to **`gh-pages`**. Set **Pages → Deploy from a branch** → **gh-pages** → **/** (not `main` at root). Optionally enable **GitHub Actions** as Pages source too — the workflow tries artifact deploy but will not fail the run if that path is not configured.
 
 **Documentation:** [REPOSITORY.md](REPOSITORY.md)

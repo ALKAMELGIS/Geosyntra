@@ -1,12 +1,10 @@
 name: Deploy to GitHub Pages
 
-# Publishes frontend/dist to the orphan branch `gh-pages` on every push to main.
-# GitHub Pages must serve that branch (not `main` at repo root — root has the yellow stub only).
+# Always pushes the built site to the orphan branch `gh-pages` (works with
+# Settings → Pages → Deploy from a branch → gh-pages / root).
 #
-# Repo admin (one-time): Settings → Pages → Build and deployment
-#   • Source: Deploy from a branch
-#   • Branch: gh-pages  /  Folder: / (root)
-#   OR Source: GitHub Actions — then also enable the optional deploy job below if you prefer artifact deploy.
+# Optionally also deploys via the GitHub Pages artifact API when the repo uses
+# Source: GitHub Actions — if not configured, that job is skipped without failing the run.
 #
 # Live app (HashRouter): https://alkamelgis.github.io/AgroCloud/#/
 on:
@@ -16,13 +14,15 @@ on:
 
 permissions:
   contents: write
+  pages: write
+  id-token: write
 
 concurrency:
   group: pages
   cancel-in-progress: false
 
 jobs:
-  build-and-publish:
+  build:
     runs-on: ubuntu-latest
     timeout-minutes: 25
     steps:
@@ -44,6 +44,25 @@ jobs:
           force_orphan: true
           user_name: github-actions[bot]
           user_email: github-actions[bot]@users.noreply.github.com
-      - name: Reminder — Pages branch
+      - name: Configure Pages (for Actions-based deploy, if enabled)
+        uses: actions/configure-pages@v5
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: frontend/dist
+      - name: Pages branch reminder
         run: |
-          echo "::notice title=GitHub Pages::Set Settings → Pages → Deploy from branch → gh-pages / (root). Do not use main at / or you will see the yellow stub index.html."
+          echo "::notice title=GitHub Pages::Primary fix: Settings → Pages → Deploy from branch → gh-pages / (root). Optional: also set Source to GitHub Actions for artifact deploy."
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    continue-on-error: true
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages (artifact)
+        id: deployment
+        uses: actions/deploy-pages@v4
