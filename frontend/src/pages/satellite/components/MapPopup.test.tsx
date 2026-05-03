@@ -92,7 +92,6 @@ describe('MapPopup', () => {
         pos={basePos}
         layer={arcgisLayer}
         onClose={() => {}}
-        onOpenTable={() => {}}
         onZoomTo={() => {}}
         onUpdateFeature={() => {}}
       />,
@@ -108,7 +107,6 @@ describe('MapPopup', () => {
         pos={basePos}
         layer={arcgisLayer}
         onClose={onClose}
-        onOpenTable={() => {}}
         onZoomTo={() => {}}
         onUpdateFeature={() => {}}
       />,
@@ -126,7 +124,6 @@ describe('MapPopup', () => {
         pos={basePos}
         layer={arcgisLayer}
         onClose={() => {}}
-        onOpenTable={() => {}}
         onZoomTo={() => {}}
         onUpdateFeature={onUpdateFeature}
       />,
@@ -156,7 +153,6 @@ describe('MapPopup', () => {
         pos={basePos}
         layer={arcgisLayer}
         onClose={() => {}}
-        onOpenTable={() => {}}
         onZoomTo={() => {}}
         onUpdateFeature={onUpdateFeature}
       />,

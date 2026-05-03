@@ -4425,13 +4425,6 @@ export default function GisMap() {
             layer={layers.find(l => String(l.id) === String(mapPopup.layerId)) ?? null}
             rootRef={popupRef}
             onClose={closeMapPopup}
-            onOpenTable={() => {
-              pendingTableSelectionRef.current = { layerId: mapPopup.layerId, keys: new Set([mapPopup.featureKey]), zoom: false }
-              setLayerDialog({ mode: 'table', layerId: mapPopup.layerId })
-              setShowSelectedOnly(false)
-              setTableDockCollapsed(false)
-              setTableDockMinimized(false)
-            }}
             onZoomTo={() => {
               setSelectedFeatureKeys(new Set([mapPopup.featureKey]))
               showFeatureSelectionOnMap(mapPopup.layerId, mapPopup.featureKey, { zoom: true })

@@ -29,7 +29,6 @@ type FieldDef = {
 }
 
 export type MapPopupStrings = {
-  table: string
   edit: string
   zoomTo: string
   save: string
@@ -40,7 +39,6 @@ export type MapPopupStrings = {
 }
 
 const defaultStrings: MapPopupStrings = {
-  table: 'Table',
   edit: 'Edit',
   zoomTo: 'Zoom to',
   save: 'Save',
@@ -124,18 +122,17 @@ export type MapPopupProps = {
   layer: LayerData | null
   rootRef?: { current: HTMLDivElement | null }
   onClose: () => void
-  onOpenTable: () => void
   onZoomTo: () => void
   onUpdateFeature: (nextFeature: any) => void
   strings?: Partial<MapPopupStrings>
 }
 
 /**
- * Popup لعرض وتحرير حقول Feature.
+ * Popup لعرض وتحرير حقول Feature (قائمة خصائص داخل النافذة، بدون فتح جدول الطبقة الكامل).
  * - يستخرج الحقول من ArcGIS layer definition (fields/domains/subtypes) أو من properties عند عدم توفرها.
  * - يدعم view/edit داخل نفس النافذة مع تحقق من القيم (required / range / number).
  */
-export function MapPopup({ popup, pos, layer, rootRef: externalRootRef, onClose, onOpenTable, onZoomTo, onUpdateFeature, strings }: MapPopupProps) {
+export function MapPopup({ popup, pos, layer, rootRef: externalRootRef, onClose, onZoomTo, onUpdateFeature, strings }: MapPopupProps) {
   const s = { ...defaultStrings, ...(strings || {}) }
   const internalRootRef = useRef<HTMLDivElement | null>(null)
   const rootRef = externalRootRef ?? internalRootRef
@@ -421,11 +418,6 @@ export function MapPopup({ popup, pos, layer, rootRef: externalRootRef, onClose,
         </div>
 
         <div className="gis-map-popup-toolbar" role="toolbar" aria-label="Popup actions">
-          <button className="gis-map-popup-toolbtn" type="button" onClick={onOpenTable}>
-            <i className="fa-solid fa-table" aria-hidden="true" />
-            <span>{s.table}</span>
-          </button>
-          <span className="gis-map-popup-toolsep" aria-hidden="true" />
           <button className="gis-map-popup-toolbtn" type="button" onClick={() => setMode(v => (v === 'edit' ? 'view' : 'edit'))}>
             <i className="fa-solid fa-pen" aria-hidden="true" />
             <span>{s.edit}</span>
