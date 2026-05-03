@@ -113,8 +113,42 @@ function normalizeUniqueValueKey(v: unknown): string {
  * then recurse past the JS stack limit → "Maximum call stack size exceeded" when the style
  * layer is added. Cap branches and fold the remainder into the renderer default symbol.
  */
-const MAX_UNIQUE_VALUE_INFOS_FOR_MAPBOX = 160
-const MAX_CLASS_BREAK_INFOS_FOR_MAPBOX = 96
+/** Keep low: mapbox-gl still walks the full expression tree; smaller caps = safer on low-end devices. */
+const MAX_UNIQUE_VALUE_INFOS_FOR_MAPBOX = 64
+const MAX_CLASS_BREAK_INFOS_FOR_MAPBOX = 40
+
+/** Serialized drawingInfo larger than this is dropped (symbology off) — avoids JSON.stringify stack issues and pathological services. */
+const MAX_ARCGIS_DRAWINGINFO_JSON_CHARS = 180_000
+
+/**
+ * Shrink or reject `drawingInfo` before it is stored on a layer / persisted. Removes the main sources of
+ * "Maximum call stack size exceeded" from Mapbox style compilation and from JSON cloning/stringify.
+ */
+export function sanitizeArcgisDrawingInfoForClient(drawingInfo: unknown): unknown | null {
+  if (!drawingInfo || typeof drawingInfo !== 'object') return drawingInfo
+  let jsonLen = 0
+  try {
+    jsonLen = JSON.stringify(drawingInfo).length
+  } catch {
+    return null
+  }
+  if (jsonLen > MAX_ARCGIS_DRAWINGINFO_JSON_CHARS) return null
+  const di = drawingInfo as Record<string, unknown>
+  const ren = di.renderer as Record<string, unknown> | null | undefined
+  if (!ren || typeof ren !== 'object') return drawingInfo
+  const t = String(ren.type ?? '')
+  let mutated = false
+  const nextRenderer: Record<string, unknown> = { ...ren }
+  if (t === 'uniqueValue' && Array.isArray(ren.uniqueValueInfos) && ren.uniqueValueInfos.length > MAX_UNIQUE_VALUE_INFOS_FOR_MAPBOX) {
+    nextRenderer.uniqueValueInfos = ren.uniqueValueInfos.slice(0, MAX_UNIQUE_VALUE_INFOS_FOR_MAPBOX)
+    mutated = true
+  }
+  if (t === 'classBreaks' && Array.isArray(ren.classBreakInfos) && ren.classBreakInfos.length > MAX_CLASS_BREAK_INFOS_FOR_MAPBOX) {
+    nextRenderer.classBreakInfos = ren.classBreakInfos.slice(0, MAX_CLASS_BREAK_INFOS_FOR_MAPBOX)
+    mutated = true
+  }
+  return mutated ? { ...di, renderer: nextRenderer } : drawingInfo
+}
 
 export type ArcgisMapboxFillPaint = {
   'fill-color': string | any[];

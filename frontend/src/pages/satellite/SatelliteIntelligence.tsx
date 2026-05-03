@@ -34,6 +34,7 @@ import { getArcgisPortalToken } from '../../lib/arcgisPortalToken';
 import {
   arcgisDrawingInfoToFillPaint,
   arcgisDrawingInfoToLinePaint,
+  sanitizeArcgisDrawingInfoForClient,
   fetchArcgisLayerPjson,
   slimArcgisLayerDefinitionForStorage,
 } from '../../lib/arcgisDrawingInfoMapbox';
@@ -755,20 +756,35 @@ function parseStoredCustomLayers(raw: string | null): CustomLayer[] {
           x.geojson &&
           typeof x.geojson === 'object',
       )
-      .map((x: any) => ({
-        id: x.id,
-        name: x.name,
-        geojson: x.geojson,
-        visible: x.visible !== false,
-        color: typeof x.color === 'string' ? x.color : undefined,
-        source: sources.has(x.source) ? x.source : undefined,
-        sourceUrl: typeof x.sourceUrl === 'string' ? x.sourceUrl : undefined,
-        authToken: typeof x.authToken === 'string' ? x.authToken : undefined,
-        useArcGisOnlineSymbology: typeof x.useArcGisOnlineSymbology === 'boolean' ? x.useArcGisOnlineSymbology : undefined,
-        arcgisDrawingInfo: x.arcgisDrawingInfo && typeof x.arcgisDrawingInfo === 'object' ? x.arcgisDrawingInfo : undefined,
-        arcgisLayerDefinition:
-          x.arcgisLayerDefinition && typeof x.arcgisLayerDefinition === 'object' ? x.arcgisLayerDefinition : undefined,
-      }));
+      .map((x: any) => {
+        let arcgisDrawingInfo =
+          x.arcgisDrawingInfo && typeof x.arcgisDrawingInfo === 'object' ? x.arcgisDrawingInfo : undefined;
+        let useArcGisOnlineSymbology =
+          typeof x.useArcGisOnlineSymbology === 'boolean' ? x.useArcGisOnlineSymbology : undefined;
+        if (arcgisDrawingInfo) {
+          const safe = sanitizeArcgisDrawingInfoForClient(arcgisDrawingInfo);
+          if (safe == null) {
+            arcgisDrawingInfo = undefined;
+            useArcGisOnlineSymbology = false;
+          } else {
+            arcgisDrawingInfo = safe as any;
+          }
+        }
+        return {
+          id: x.id,
+          name: x.name,
+          geojson: x.geojson,
+          visible: x.visible !== false,
+          color: typeof x.color === 'string' ? x.color : undefined,
+          source: sources.has(x.source) ? x.source : undefined,
+          sourceUrl: typeof x.sourceUrl === 'string' ? x.sourceUrl : undefined,
+          authToken: typeof x.authToken === 'string' ? x.authToken : undefined,
+          useArcGisOnlineSymbology,
+          arcgisDrawingInfo,
+          arcgisLayerDefinition:
+            x.arcgisLayerDefinition && typeof x.arcgisLayerDefinition === 'object' ? x.arcgisLayerDefinition : undefined,
+        };
+      });
   } catch {
     return [];
   }
@@ -776,7 +792,15 @@ function parseStoredCustomLayers(raw: string | null): CustomLayer[] {
 
 function safePersistSatelliteCustomLayers(layers: CustomLayer[]) {
   try {
-    localStorage.setItem(LS_SATELLITE_CUSTOM_LAYERS_KEY, JSON.stringify(layers));
+    const stable = layers.map(layer => {
+      if (!layer.arcgisDrawingInfo) return layer;
+      const safe = sanitizeArcgisDrawingInfoForClient(layer.arcgisDrawingInfo);
+      if (safe == null) {
+        return { ...layer, arcgisDrawingInfo: undefined, useArcGisOnlineSymbology: false };
+      }
+      return { ...layer, arcgisDrawingInfo: safe as typeof layer.arcgisDrawingInfo };
+    });
+    localStorage.setItem(LS_SATELLITE_CUSTOM_LAYERS_KEY, JSON.stringify(stable));
   } catch (e) {
     console.warn('[SatelliteIntelligence] Could not persist custom map layers', e);
   }
@@ -1586,8 +1610,9 @@ export default function SatelliteIntelligence() {
       if (data?.type !== 'FeatureCollection' || !Array.isArray(data.features)) {
         throw new Error('Service did not return GeoJSON features.');
       }
-      const drawingInfo =
+      const drawingInfoRaw =
         pjson?.drawingInfo && typeof pjson.drawingInfo === 'object' ? pjson.drawingInfo : null;
+      const drawingInfo = drawingInfoRaw ? (sanitizeArcgisDrawingInfoForClient(drawingInfoRaw) as any) : null;
       const arcgisLayerDefinition = slimArcgisLayerDefinitionForStorage(pjson);
       const selectedLayer = discoveredArcgisLayers.find(l => l.url === selectedDiscoveredArcgisUrl);
       const layerTitle =
@@ -1611,7 +1636,7 @@ export default function SatelliteIntelligence() {
           sourceUrl: selectedDiscoveredArcgisUrl,
           authToken: tokenTrim,
           color: initialColor,
-          useArcGisOnlineSymbology: !!drawingInfo,
+          useArcGisOnlineSymbology: Boolean(drawingInfo),
           arcgisDrawingInfo: drawingInfo ?? undefined,
           arcgisLayerDefinition,
         },
@@ -1687,8 +1712,28 @@ export default function SatelliteIntelligence() {
       if (data?.type !== 'FeatureCollection' || !Array.isArray(data.features)) {
         throw new Error('Service did not return GeoJSON features.');
       }
-      const refreshedDi =
-        pjson?.drawingInfo && typeof pjson.drawingInfo === 'object' ? pjson.drawingInfo : null;
+      let nextDrawing: CustomLayer['arcgisDrawingInfo'];
+      let nextUseSym = layer.useArcGisOnlineSymbology;
+      if (pjson?.drawingInfo && typeof pjson.drawingInfo === 'object') {
+        const s = sanitizeArcgisDrawingInfoForClient(pjson.drawingInfo);
+        if (s == null) {
+          nextDrawing = undefined;
+          nextUseSym = false;
+        } else {
+          nextDrawing = s as any;
+          nextUseSym = true;
+        }
+      } else if (layer.arcgisDrawingInfo) {
+        const s = sanitizeArcgisDrawingInfoForClient(layer.arcgisDrawingInfo);
+        if (s == null) {
+          nextDrawing = undefined;
+          nextUseSym = false;
+        } else {
+          nextDrawing = s as any;
+        }
+      } else {
+        nextDrawing = undefined;
+      }
       const refreshedDef = slimArcgisLayerDefinitionForStorage(pjson) ?? layer.arcgisLayerDefinition;
       setCustomLayers(prev =>
         prev.map(item =>
@@ -1696,7 +1741,8 @@ export default function SatelliteIntelligence() {
             ? {
                 ...item,
                 geojson: data,
-                arcgisDrawingInfo: refreshedDi ?? item.arcgisDrawingInfo,
+                arcgisDrawingInfo: nextDrawing,
+                useArcGisOnlineSymbology: nextUseSym,
                 arcgisLayerDefinition: refreshedDef,
               }
             : item,
@@ -1789,7 +1835,12 @@ export default function SatelliteIntelligence() {
         const slim = slimArcgisLayerDefinitionForStorage(pjson);
         if (slim) layerSchemaDef = slim;
       }
-      const fillFromRenderer = drawingInfo ? arcgisDrawingInfoToFillPaint(drawingInfo) : null;
+      let safeDi: any = drawingInfo;
+      if (safeDi) {
+        const s = sanitizeArcgisDrawingInfoForClient(safeDi);
+        safeDi = s == null ? undefined : s;
+      }
+      const fillFromRenderer = safeDi ? arcgisDrawingInfoToFillPaint(safeDi) : null;
       const nextColor =
         fillFromRenderer && typeof fillFromRenderer['fill-color'] === 'string'
           ? fillFromRenderer['fill-color']
@@ -1799,8 +1850,8 @@ export default function SatelliteIntelligence() {
           layer.id === activeDialogLayer.id
             ? {
                 ...layer,
-                useArcGisOnlineSymbology: true,
-                arcgisDrawingInfo: drawingInfo ?? layer.arcgisDrawingInfo,
+                useArcGisOnlineSymbology: Boolean(safeDi),
+                arcgisDrawingInfo: safeDi ?? undefined,
                 arcgisLayerDefinition: layerSchemaDef ?? layer.arcgisLayerDefinition,
                 color: nextColor,
               }
@@ -2722,6 +2773,35 @@ export default function SatelliteIntelligence() {
   }, [drawnGeometry]);
 
   const getMapInstance = () => mapRef.current?.getMap?.() ?? mapRef.current;
+
+  /** Avoid synchronous React ↔ Mapbox feedback when float noise re-issues `move` during a controlled update (stack overflow). */
+  const handleMapMove = useCallback(
+    (evt: {
+      viewState: {
+        longitude: number;
+        latitude: number;
+        zoom: number;
+        pitch?: number;
+        bearing?: number;
+      };
+    }) => {
+      const vs = evt.viewState;
+      setViewState(prev => {
+        const near = (a: number, b: number, eps: number) => Math.abs(a - b) < eps;
+        if (
+          near(prev.longitude, vs.longitude, 1e-12) &&
+          near(prev.latitude, vs.latitude, 1e-12) &&
+          near(prev.zoom, vs.zoom, 1e-8) &&
+          near(prev.pitch ?? 0, vs.pitch ?? 0, 1e-6) &&
+          near(prev.bearing ?? 0, vs.bearing ?? 0, 1e-6)
+        ) {
+          return prev;
+        }
+        return { ...prev, ...vs };
+      });
+    },
+    [],
+  );
 
   const geoAiPinGeoJson = useMemo(() => {
     if (!geoAiPinLngLat) return null;
@@ -5223,7 +5303,7 @@ export default function SatelliteIntelligence() {
           <MapGL
             ref={mapRef}
             {...viewState}
-            onMove={evt => setViewState(evt.viewState)}
+            onMove={handleMapMove}
             onMouseDown={handleMapPointerDown}
             onMouseMove={handleMapPointerMove}
             onClick={evt => handleMapClickDraw(evt.lngLat.lng, evt.lngLat.lat)}
