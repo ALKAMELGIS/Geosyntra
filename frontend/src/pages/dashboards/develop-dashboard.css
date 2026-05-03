@@ -1257,6 +1257,17 @@
   overflow: hidden;
 }
 
+.develop-dashboard-root .ddb-build-fields-panel--top {
+  margin-top: 0;
+  margin-bottom: 4px;
+}
+
+.develop-dashboard-root .ddb-build-fields-panel--top + .ddb-vis-build-visual__kicker {
+  margin-top: 0;
+  padding-top: 14px;
+  border-top: 1px solid var(--ddb-pbi-border);
+}
+
 .develop-dashboard-root .ddb-build-fields-panel__tab {
   display: flex;
   align-items: center;

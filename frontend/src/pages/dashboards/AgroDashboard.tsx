@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import Chart from 'chart.js/auto'
 import type { Chart as ChartInstance } from 'chart.js'
-import { useNavigate } from 'react-router-dom'
 import { useLanguage } from '../../lib/i18n'
 import './agro-dashboard.css'
 
@@ -60,8 +59,9 @@ const ACTS = [
   { title: 'New field pinned', sub: 'Field F-11 added to dashboard', t: '5h ago', c: '#6C5DD3' },
 ] as const
 
+type AgroAddSourceOption = 'gis' | 'arcgis' | 'upload' | 'getdata'
+
 export default function AgroDashboard() {
-  const navigate = useNavigate()
   const { language, direction } = useLanguage()
   const ar = language === 'ar'
 
@@ -79,6 +79,21 @@ export default function AgroDashboard() {
               { v: 'soil', l: 'مؤشر جودة التربة' },
             ],
             addSource: 'إضافة مصدر',
+            addSourceBtnTitle: 'فتح نافذة إضافة مصدر البيانات',
+            modalTitle: 'إضافة مصدر البيانات',
+            modalLead: 'اختر كيف تريد إضافة الطبقات إلى السجل للتحليلات والخرائط.',
+            modalOptsLegend: 'طريقة إضافة المصدر',
+            optGisTitle: 'الاختيار من محتوى GIS',
+            optGisDesc: 'استخدام الطبقات والحقول المحفوظة مسبقًا في خريطة GIS في هذا المتصفح.',
+            optArcTitle: 'توفير رابط طبقة ArcGIS Server',
+            optArcDesc: 'الاتصال بخدمة المعالم واختيار طبقة أو جدول.',
+            optUploadTitle: 'رفع ملف',
+            optUploadDesc: 'GeoJSON، KML، KMZ، Shapefile (zip)، CSV بإحداثيات، والمزيد.',
+            optGetDataTitle: 'الحصول على البيانات',
+            optGetDataDesc: 'فتح قائمة «مصادر البيانات الشائعة» مثل Power BI (Excel، CSV، SQL، Web، OData، …).',
+            advancedBtn: '… قاعدة بيانات، رابط ويب وخيارات متقدمة…',
+            advancedHint: 'سيتم دعم المصادر المتقدمة في تحديثات لاحقة لهذه اللوحة.',
+            cancelBtn: 'إلغاء',
             wf: ['إضافة طبقة', 'إضافة بيانات', 'اختيار الحقول', 'تثبيت الحقول'],
             quarter: [
               { v: 'all', l: 'كل 2024' },
@@ -125,6 +140,21 @@ export default function AgroDashboard() {
               { v: 'soil', l: 'Soil quality index' },
             ],
             addSource: 'Add source',
+            addSourceBtnTitle: 'Open Add Source Data',
+            modalTitle: 'Add Source Data',
+            modalLead: 'Choose how you want to add layers to the registry for analytics and maps.',
+            modalOptsLegend: 'Data source method',
+            optGisTitle: 'Select from GIS Content',
+            optGisDesc: 'Use layers and fields already saved in GIS Map in this browser.',
+            optArcTitle: 'Provide an ArcGIS Server layer URL',
+            optArcDesc: 'Connect to a feature service and pick a layer or table.',
+            optUploadTitle: 'Upload a file',
+            optUploadDesc: 'GeoJSON, KML, KMZ, Shapefile (zip), CSV with coordinates, and more.',
+            optGetDataTitle: 'Get Data',
+            optGetDataDesc: 'Open the same “Common data sources” list as Power BI (Excel, CSV, SQL, Web, OData, …).',
+            advancedBtn: '… Database, web URL & advanced…',
+            advancedHint: 'Advanced sources will be supported in a future update on this dashboard.',
+            cancelBtn: 'Cancel',
             wf: ['Add layer', 'Add source data', 'Select fields', 'Pin fields'],
             quarter: [
               { v: 'all', l: 'All 2024' },
@@ -167,6 +197,9 @@ export default function AgroDashboard() {
 
   const [navIdx, setNavIdx] = useState(0)
   const [wfIdx, setWfIdx] = useState(1)
+  const [addSourceOpen, setAddSourceOpen] = useState(false)
+  const [addSourceChoice, setAddSourceChoice] = useState<AgroAddSourceOption>('gis')
+  const [addSourceAdvancedHint, setAddSourceAdvancedHint] = useState(false)
   const [mainType, setMainType] = useState<'bar' | 'line' | 'area'>('bar')
   const [pieType, setPieType] = useState<'pie' | 'doughnut'>('pie')
   const [quarter, setQuarter] = useState<QuarterKey>('all')
@@ -373,6 +406,20 @@ export default function AgroDashboard() {
     }
   }, [buildLine])
 
+  const closeAddSourceModal = useCallback(() => {
+    setAddSourceOpen(false)
+    setAddSourceAdvancedHint(false)
+  }, [])
+
+  useEffect(() => {
+    if (!addSourceOpen) return
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') closeAddSourceModal()
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [addSourceOpen, closeAddSourceModal])
+
   const wfClass = (i: number) => {
     if (i < wfIdx) return 'agdash-done'
     if (i === wfIdx) return 'agdash-act'
@@ -440,8 +487,13 @@ export default function AgroDashboard() {
             <button
               type="button"
               className="agdash-add-btn"
-              onClick={() => navigate('/dashboard/develop?addSource=1')}
-              title={ar ? 'إضافة بيانات مصدر (لوحة التطوير)' : 'Add Source Data (Develop Dashboard)'}
+              onClick={() => {
+                setAddSourceChoice('gis')
+                setAddSourceAdvancedHint(false)
+                setWfIdx(1)
+                setAddSourceOpen(true)
+              }}
+              title={t.addSourceBtnTitle}
             >
               <svg viewBox="0 0 12 12" fill="none" aria-hidden>
                 <circle cx="6" cy="6" r="5.2" stroke="white" strokeWidth="1.3" />
@@ -790,6 +842,120 @@ export default function AgroDashboard() {
           </div>
         </div>
       </div>
+
+      {addSourceOpen ? (
+        <div className="agdash-modal-overlay" role="presentation" onClick={closeAddSourceModal}>
+          <div
+            className="agdash-modal agdash-add-source-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="agdash-add-source-title"
+            onClick={e => e.stopPropagation()}
+          >
+            <h2 id="agdash-add-source-title" className="agdash-add-source-modal__title">
+              {t.modalTitle}
+            </h2>
+            <p className="agdash-add-source-modal__lead">{t.modalLead}</p>
+
+            <fieldset className="agdash-src-fieldset">
+              <legend className="agdash-sr-only">{t.modalOptsLegend}</legend>
+
+              <label
+                className={`agdash-src-card${addSourceChoice === 'gis' ? ' agdash-src-card--on' : ''}`}
+              >
+                <input
+                  type="radio"
+                  name="agdash-add-source"
+                  className="agdash-src-radio"
+                  checked={addSourceChoice === 'gis'}
+                  onChange={() => setAddSourceChoice('gis')}
+                />
+                <span className="agdash-src-card-icon" aria-hidden>
+                  <i className="fa-solid fa-layer-group" />
+                </span>
+                <span className="agdash-src-card-text">
+                  <span className="agdash-src-card-title">{t.optGisTitle}</span>
+                  <span className="agdash-src-card-desc">{t.optGisDesc}</span>
+                </span>
+              </label>
+
+              <label
+                className={`agdash-src-card${addSourceChoice === 'arcgis' ? ' agdash-src-card--on' : ''}`}
+              >
+                <input
+                  type="radio"
+                  name="agdash-add-source"
+                  className="agdash-src-radio"
+                  checked={addSourceChoice === 'arcgis'}
+                  onChange={() => setAddSourceChoice('arcgis')}
+                />
+                <span className="agdash-src-card-icon" aria-hidden>
+                  <i className="fa-solid fa-link" />
+                </span>
+                <span className="agdash-src-card-text">
+                  <span className="agdash-src-card-title">{t.optArcTitle}</span>
+                  <span className="agdash-src-card-desc">{t.optArcDesc}</span>
+                </span>
+              </label>
+
+              <label
+                className={`agdash-src-card${addSourceChoice === 'upload' ? ' agdash-src-card--on' : ''}`}
+              >
+                <input
+                  type="radio"
+                  name="agdash-add-source"
+                  className="agdash-src-radio"
+                  checked={addSourceChoice === 'upload'}
+                  onChange={() => setAddSourceChoice('upload')}
+                />
+                <span className="agdash-src-card-icon" aria-hidden>
+                  <i className="fa-solid fa-file-arrow-up" />
+                </span>
+                <span className="agdash-src-card-text">
+                  <span className="agdash-src-card-title">{t.optUploadTitle}</span>
+                  <span className="agdash-src-card-desc">{t.optUploadDesc}</span>
+                </span>
+              </label>
+
+              <label
+                className={`agdash-src-card${addSourceChoice === 'getdata' ? ' agdash-src-card--on' : ''}`}
+              >
+                <input
+                  type="radio"
+                  name="agdash-add-source"
+                  className="agdash-src-radio"
+                  checked={addSourceChoice === 'getdata'}
+                  onChange={() => setAddSourceChoice('getdata')}
+                />
+                <span className="agdash-src-card-icon agdash-src-card-icon--dual" aria-hidden>
+                  <i className="fa-solid fa-database" />
+                  <i className="fa-solid fa-table-cells" />
+                </span>
+                <span className="agdash-src-card-text">
+                  <span className="agdash-src-card-title">{t.optGetDataTitle}</span>
+                  <span className="agdash-src-card-desc">{t.optGetDataDesc}</span>
+                </span>
+              </label>
+            </fieldset>
+
+            {addSourceAdvancedHint ? (
+              <p className="agdash-src-advanced-hint" role="status">
+                {t.advancedHint}
+              </p>
+            ) : null}
+
+            <button type="button" className="agdash-src-advanced" onClick={() => setAddSourceAdvancedHint(true)}>
+              {t.advancedBtn}
+            </button>
+
+            <div className="agdash-add-source-modal__footer">
+              <button type="button" className="agdash-add-source-modal__cancel" onClick={closeAddSourceModal}>
+                {t.cancelBtn}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   )
 }

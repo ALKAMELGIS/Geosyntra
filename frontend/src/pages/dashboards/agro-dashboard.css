@@ -153,17 +153,17 @@
   gap: 6px;
   padding: 7px 16px;
   border-radius: var(--agdash-r20);
-  background: var(--agdash-accent);
+  background: var(--agdash-violet);
   color: #fff;
   border: none;
   font-size: 12px;
-  font-weight: 500;
+  font-weight: 600;
   cursor: pointer;
   transition: background 0.15s;
 }
 
 .agro-dash-root .agdash-add-btn:hover {
-  background: #1e55c0;
+  background: #5a4fc4;
 }
 
 .agro-dash-root .agdash-add-btn svg {
@@ -611,6 +611,175 @@
   clip: rect(0, 0, 0, 0);
   white-space: nowrap;
   border: 0;
+}
+
+/* Add Source Data — modal on this page only (no Develop Dashboard) */
+.agro-dash-root .agdash-modal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1200;
+  background: rgba(15, 23, 42, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+
+.agro-dash-root .agdash-modal.agdash-add-source-modal {
+  width: 100%;
+  max-width: 440px;
+  max-height: min(90vh, 640px);
+  overflow-y: auto;
+  background: var(--agdash-surface);
+  border-radius: var(--agdash-r12);
+  border: 1px solid var(--agdash-border);
+  box-shadow: 0 12px 40px rgba(15, 23, 42, 0.18);
+  padding: 22px 22px 18px;
+}
+
+.agro-dash-root .agdash-add-source-modal__title {
+  margin: 0 0 10px;
+  font-size: 1.125rem;
+  font-weight: 700;
+  color: #0f172a;
+  letter-spacing: -0.02em;
+}
+
+.agro-dash-root .agdash-add-source-modal__lead {
+  margin: 0 0 18px;
+  font-size: 0.8125rem;
+  line-height: 1.55;
+  color: var(--agdash-ink3);
+}
+
+.agro-dash-root .agdash-src-fieldset {
+  border: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.agro-dash-root .agdash-src-card {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 12px 12px;
+  border-radius: var(--agdash-r8);
+  border: 1px solid var(--agdash-border);
+  background: var(--agdash-surface2);
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s, box-shadow 0.15s;
+}
+
+.agro-dash-root .agdash-src-card:hover {
+  background: var(--agdash-surface3);
+}
+
+.agro-dash-root .agdash-src-card--on {
+  border-color: color-mix(in srgb, var(--agdash-teal) 45%, var(--agdash-border2));
+  background: var(--agdash-surface);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--agdash-teal) 20%, transparent);
+}
+
+.agro-dash-root .agdash-src-radio {
+  margin-top: 10px;
+  flex-shrink: 0;
+  width: 16px;
+  height: 16px;
+  accent-color: var(--agdash-teal);
+  cursor: pointer;
+}
+
+.agro-dash-root .agdash-src-card-icon {
+  flex-shrink: 0;
+  width: 40px;
+  height: 40px;
+  border-radius: var(--agdash-r8);
+  background: var(--agdash-teal-light);
+  color: #085041;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1rem;
+}
+
+.agro-dash-root .agdash-src-card-icon--dual {
+  gap: 2px;
+  font-size: 0.75rem;
+}
+
+.agro-dash-root .agdash-src-card-text {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.agro-dash-root .agdash-src-card-title {
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--agdash-ink);
+}
+
+.agro-dash-root .agdash-src-card-desc {
+  font-size: 0.75rem;
+  line-height: 1.45;
+  color: var(--agdash-ink3);
+}
+
+.agro-dash-root .agdash-src-advanced-hint {
+  margin: 12px 0 0;
+  padding: 10px 12px;
+  font-size: 0.75rem;
+  line-height: 1.45;
+  color: var(--agdash-ink2);
+  background: var(--agdash-surface3);
+  border-radius: var(--agdash-r8);
+  border: 1px solid var(--agdash-border);
+}
+
+.agro-dash-root .agdash-src-advanced {
+  width: 100%;
+  margin-top: 12px;
+  padding: 11px 14px;
+  border-radius: var(--agdash-r8);
+  border: 1px dashed color-mix(in srgb, var(--agdash-teal) 55%, var(--agdash-border2));
+  background: transparent;
+  color: var(--agdash-teal);
+  font-size: 0.8125rem;
+  font-weight: 500;
+  cursor: pointer;
+  text-align: center;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.agro-dash-root .agdash-src-advanced:hover {
+  background: var(--agdash-teal-light);
+}
+
+.agro-dash-root .agdash-add-source-modal__footer {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 18px;
+  padding-top: 4px;
+}
+
+.agro-dash-root .agdash-add-source-modal__cancel {
+  padding: 8px 18px;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: var(--agdash-ink);
+  background: var(--agdash-surface);
+  border: 1px solid var(--agdash-border2);
+  border-radius: var(--agdash-r8);
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.agro-dash-root .agdash-add-source-modal__cancel:hover {
+  background: var(--agdash-surface3);
 }
 
 @media (max-width: 960px) {
