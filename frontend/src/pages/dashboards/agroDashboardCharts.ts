@@ -25,6 +25,28 @@ export type FieldChartSlot = { main: boolean; pie: boolean; bot: boolean }
 /** Panel toggles default off; user opts fields into Main / Pie / Line areas. */
 export const DEFAULT_FIELD_CHART: FieldChartSlot = { main: false, pie: false, bot: false }
 
+/** How a field maps into cartesian / bubble charts when the user assigns axes in the workflow modal. */
+export type FieldAxisRole = 'x' | 'y' | 'value' | 'legend'
+
+/** Chart kinds that support X / Y / Value / Legend binding in Layers & fields → Chart assignments. */
+export const AGRO_AXIS_BINDING_VIZ: readonly AgroVizType[] = [
+  'bar',
+  'horizontalBar',
+  'line',
+  'area',
+  'scatter',
+  'bubble',
+  'barStack',
+]
+
+export type FieldAxisRolesMap = Record<string, FieldAxisRole | ''>
+
+export function fieldChartUsesAxisBindings(styles: AgroVizType[] | undefined): boolean {
+  if (!styles?.length) return false
+  const set = new Set<string>(AGRO_AXIS_BINDING_VIZ as readonly string[])
+  return styles.some(s => set.has(s))
+}
+
 export const VIZ_OPTIONS: readonly { id: AgroVizType; title: string; icon: string }[] = [
   { id: 'bar', title: 'Bar', icon: 'fa-solid fa-chart-column' },
   { id: 'barStack', title: 'Stacked bar', icon: 'fa-solid fa-layer-group' },
@@ -41,8 +63,6 @@ export const VIZ_OPTIONS: readonly { id: AgroVizType; title: string; icon: strin
   { id: 'treemapBar', title: 'Blocks (bars)', icon: 'fa-solid fa-th-large' },
   { id: 'table', title: 'Table', icon: 'fa-solid fa-table' },
 ] as const
-
-const PALETTE = ['#2D6BE4', '#12A97B', '#E8920A', '#6C5DD3', '#0EA5E9', '#D946EF', '#14B8A6', '#F97316']
 
 export function rowsFromFeatureCollection(fc: GeoJSON.FeatureCollection, maxRows = MAX_AGRO_ROWS): Record<string, unknown>[] {
   return fc.features.slice(0, maxRows).map(f => {
@@ -157,6 +177,230 @@ export type AgroSlotBuildResult =
   | { kind: 'empty'; message: string }
   | { kind: 'map' }
 
+const PALETTE = ['#2D6BE4', '#12A97B', '#E8920A', '#6C5DD3', '#0EA5E9', '#D946EF', '#14B8A6', '#F97316']
+
+function axisRoleOf(roles: FieldAxisRolesMap | undefined, k: string): FieldAxisRole | undefined {
+  const r = roles?.[k]
+  if (!r || r === '') return undefined
+  return r
+}
+
+function hasAnyAxisRole(keys: string[], roles: FieldAxisRolesMap | undefined): boolean {
+  return keys.some(k => Boolean(axisRoleOf(roles, k)))
+}
+
+function rowColorsFromLegendField(layer: AgroLayer, legendField: string, n: number): string[] {
+  const u = new Map<string, number>()
+  let c = 0
+  return Array.from({ length: n }, (_, i) => {
+    const lab = String(layer.rows[i]?.[legendField] ?? '—')
+    if (!u.has(lab)) {
+      u.set(lab, c)
+      c += 1
+    }
+    const idx = u.get(lab) ?? 0
+    return `${PALETTE[idx % PALETTE.length]!}cc`
+  })
+}
+
+/** When axis roles are set on fields in this slot, build chart config from them; else null → legacy path. */
+function buildFromAxisRoles(
+  viz: AgroVizType,
+  keys: string[],
+  sources: AgroLayer[],
+  roles: FieldAxisRolesMap,
+  noDataMsg: string,
+): AgroSlotBuildResult | null {
+  if (!(AGRO_AXIS_BINDING_VIZ as readonly AgroVizType[]).includes(viz)) return null
+  if (!hasAnyAxisRole(keys, roles)) return null
+
+  if (viz === 'scatter' || viz === 'bubble') {
+    let xk = keys.find(k => axisRoleOf(roles, k) === 'x')
+    let yk = keys.find(k => axisRoleOf(roles, k) === 'y')
+    const rk = keys.find(k => axisRoleOf(roles, k) === 'value')
+    const legK = keys.find(k => axisRoleOf(roles, k) === 'legend')
+    if (!xk || !yk) {
+      if (keys.length < 2) return null
+      xk ??= keys[0]
+      yk ??= keys[1]
+    }
+    if (!xk || !yk || xk === yk) return null
+    const a = parseFieldKey(xk)
+    const b = parseFieldKey(yk)
+    const La = layerById(sources, a.sourceId)
+    const Lb = layerById(sources, b.sourceId)
+    if (!La || !Lb || !a.field || !b.field) return null
+    const n = Math.min(La.rows.length, Lb.rows.length, 120)
+    const rv = rk ? parseFieldKey(rk) : null
+    const Lr = rv ? layerById(sources, rv.sourceId) : null
+    const rField = rv?.field
+    const leg = legK ? parseFieldKey(legK) : null
+    const Lleg = leg?.sourceId ? layerById(sources, leg.sourceId) : null
+    const legField = leg?.field
+    const pts: { x: number; y: number; r?: number }[] = []
+    const rawR: number[] = []
+    for (let i = 0; i < n; i += 1) {
+      const x = coerceNumber(La.rows[i]![a.field])
+      const y = coerceNumber(Lb.rows[i]![b.field])
+      if (x === null || y === null) continue
+      let r: number | undefined
+      if (viz === 'bubble' && rField && Lr && rv) {
+        const row = Lr.rows[i]
+        if (row) {
+          const rvv = coerceNumber(row[rField])
+          if (rvv !== null) {
+            rawR.push(rvv)
+            r = rvv
+          }
+        }
+      }
+      if (viz === 'bubble') pts.push({ x, y, r: r ?? 8 })
+      else pts.push({ x, y })
+    }
+    if (!pts.length) return { kind: 'empty', message: noDataMsg }
+    if (viz === 'bubble' && rawR.length) {
+      const mn = Math.min(...rawR)
+      const mx = Math.max(...rawR)
+      const span = mx - mn || 1
+      for (let i = 0; i < pts.length; i += 1) {
+        const p = pts[i]!
+        if (typeof p.r !== 'number') continue
+        const t = (p.r - mn) / span
+        p.r = 4 + t * 18
+      }
+    }
+    let backgroundColor: string | string[] = 'rgba(45,107,228,0.55)'
+    if (legField && Lleg) {
+      backgroundColor = pts.map((_, i) => {
+        const lab = String(Lleg.rows[i]?.[legField] ?? '—')
+        let h = 0
+        for (let j = 0; j < lab.length; j += 1) h = (h * 31 + lab.charCodeAt(j)) >>> 0
+        return PALETTE[h % PALETTE.length]! + 'aa'
+      })
+    }
+    return {
+      kind: 'chart',
+      config: {
+        type: viz === 'bubble' ? 'bubble' : 'scatter',
+        data: {
+          datasets: [
+            {
+              label: `${a.field} vs ${b.field}`,
+              data: pts,
+              backgroundColor,
+              borderColor: PALETTE[0],
+              borderWidth: 1,
+            },
+          ],
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: { legend: { display: Boolean(legField), position: 'bottom', labels: { boxWidth: 10, font: { size: 9 } } } },
+          scales: {
+            x: { type: 'linear', title: { display: true, text: a.field } },
+            y: { type: 'linear', title: { display: true, text: b.field } },
+          },
+        },
+      },
+    }
+  }
+
+  const xk = keys.find(k => axisRoleOf(roles, k) === 'x')
+  const valKeys = keys.filter(k => {
+    const r = axisRoleOf(roles, k)
+    return r === 'value' || r === 'y'
+  })
+  const legK = keys.find(k => axisRoleOf(roles, k) === 'legend')
+  if (!xk || valKeys.length === 0) return null
+
+  const { sourceId: sx, field: xf } = parseFieldKey(xk)
+  const layerX = layerById(sources, sx)
+  if (!layerX || !xf) return null
+  for (const vk of valKeys) {
+    if (parseFieldKey(vk).sourceId !== sx) return null
+  }
+
+  const n = Math.min(layerX.rows.length, 72)
+  const labels = layerX.rows.slice(0, n).map(r => {
+    const v = r[xf]
+    return v === null || v === undefined ? '—' : String(v).slice(0, 40)
+  })
+  const { field: legField } = legK ? parseFieldKey(legK) : { field: '' as string }
+  const legSame = Boolean(legK && parseFieldKey(legK).sourceId === sx && legField)
+
+  const datasets = valKeys
+    .map((vk, i) => {
+      const { field } = parseFieldKey(vk)
+      if (!field) return null
+      const data = layerX.rows.slice(0, n).map(r => {
+        const co = coerceNumber(r[field])
+        return co === null ? 0 : co
+      })
+      const baseColor = PALETTE[i % PALETTE.length]!
+      const perBar = valKeys.length === 1 && legSame ? rowColorsFromLegendField(layerX, legField, n) : undefined
+      return {
+        type: (viz === 'line' || viz === 'area' ? 'line' : 'bar') as 'line' | 'bar',
+        label: fieldShortLabel(vk, sources),
+        data,
+        backgroundColor:
+          viz === 'bar' || viz === 'barStack' ? (perBar ?? `${baseColor}cc`) : viz === 'area' ? `${baseColor}33` : undefined,
+        borderColor: baseColor,
+        borderWidth: viz === 'line' || viz === 'area' ? 2 : 1,
+        fill: viz === 'area',
+        tension: 0.35,
+        stack: viz === 'barStack' ? 's' : undefined,
+        borderRadius: viz === 'bar' || viz === 'barStack' ? 4 : 0,
+      }
+    })
+    .filter(Boolean) as Array<{
+      type: 'line' | 'bar'
+      label: string
+      data: number[]
+      backgroundColor?: string | string[]
+      borderColor: string
+      borderWidth: number
+      fill?: boolean
+      tension?: number
+      stack?: string
+      borderRadius?: number
+    }>
+
+  if (!datasets.length) return { kind: 'empty', message: noDataMsg }
+
+  const indexAxis = viz === 'horizontalBar' ? ('y' as const) : undefined
+  const primary: ChartType =
+    viz === 'line' || viz === 'area' ? 'line' : viz === 'horizontalBar' ? 'bar' : viz === 'barStack' ? 'bar' : 'bar'
+
+  return {
+    kind: 'chart',
+    config: {
+      type: primary,
+      data: { labels, datasets },
+      options: {
+        indexAxis,
+        responsive: true,
+        maintainAspectRatio: false,
+        interaction: { mode: 'index', intersect: false },
+        plugins: {
+          legend: {
+            display: datasets.length > 1 || legSame,
+            position: 'bottom',
+            labels: { boxWidth: 10, font: { size: 9 } },
+          },
+        },
+        scales:
+          primary === 'line' || primary === 'bar'
+            ? {
+                x: { ticks: { maxRotation: 0, font: { size: 9 } }, grid: { display: false }, title: { display: true, text: xf } },
+                y: { beginAtZero: true, ticks: { font: { size: 9 } }, grid: { color: 'rgba(0,0,0,0.05)' } },
+              }
+            : undefined,
+      },
+    },
+  }
+}
+
 export function buildSlotVisualization(
   slot: 'main' | 'pie' | 'bot',
   viz: AgroVizType,
@@ -166,6 +410,8 @@ export function buildSlotVisualization(
   noDataMsg: string,
   /** If set for a key, that field is only used when the dashboard card uses one of these viz types. */
   fieldStyles?: Record<string, AgroVizType[]>,
+  /** X / Y / Value / Legend roles for column, line, area, scatter, bubble, bar charts. */
+  fieldAxisRoles?: FieldAxisRolesMap,
 ): AgroSlotBuildResult {
   if (viz === 'map') {
     return { kind: 'map' }
@@ -192,6 +438,11 @@ export function buildSlotVisualization(
     })
     if (!columns.length) return { kind: 'empty', message: noDataMsg }
     return { kind: 'table', columns, rows }
+  }
+
+  if (fieldAxisRoles && (AGRO_AXIS_BINDING_VIZ as readonly AgroVizType[]).includes(viz)) {
+    const fromRoles = buildFromAxisRoles(viz, keys, sources, fieldAxisRoles, noDataMsg)
+    if (fromRoles) return fromRoles
   }
 
   const { labels, series } = alignNumericSeries(keys, sources)

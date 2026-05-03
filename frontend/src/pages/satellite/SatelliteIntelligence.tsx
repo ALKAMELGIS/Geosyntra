@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useRef, useEffect, useCallback } from 'react';
-import MapGL, { Source, Layer, NavigationControl } from 'react-map-gl/mapbox';
+import MapGL, { Source, Layer, NavigationControl, Popup } from 'react-map-gl/mapbox';
 import 'mapbox-gl/dist/mapbox-gl.css';
 import './SatelliteIntelligence.css';
 import { parseFile, parseRemoteUrlAsFile } from '../../utils/FileLoader';
@@ -54,7 +54,12 @@ import {
   type GeoExplorerMessage,
   type GeoExplorerPart,
 } from '../../lib/geoExplorerGemini';
-import { geocodePlaceToLngLat, simplifyGeoExplorerUserQuery, stripLayerReferenceForGeocode } from '../../lib/geoExplorerGeocode';
+import {
+  geocodePlaceToLngLat,
+  reverseGeocodeLngLat,
+  simplifyGeoExplorerUserQuery,
+  stripLayerReferenceForGeocode,
+} from '../../lib/geoExplorerGeocode';
 import {
   buildGeoAiDataContext,
   buildGisContentLayersContext,
@@ -62,7 +67,13 @@ import {
   GEO_AI_CHAT_SYSTEM_BASE,
   type GeoAiChatTurn,
 } from '../../lib/geoAiChatClaude';
-import { findLngLatFromLayerQuery, summarizeGeoAiMapLayers, type GeoAiMapLayer } from '../../lib/geoExplorerLayerContext';
+import {
+  buildGeoAiLayerPopupAttributeRows,
+  findLngLatFromLayerQuery,
+  summarizeGeoAiMapLayers,
+  type GeoAiMapLayer,
+  type LayerQueryMatch,
+} from '../../lib/geoExplorerLayerContext';
 import { loadGisMapSavedLayers } from '../../lib/gisMapLayerStore';
 import { agroChatWithDeepSeek } from '../../lib/agroAiChat';
 import {
@@ -97,6 +108,18 @@ const STAC_HELP_LINKS = {
   esriMpc: 'https://github.com/Esri/arcgis-for-mpc',
   spec: 'https://stacspec.org/',
 } as const;
+
+type GeoAiMapChatPopupState = {
+  lng: number
+  lat: number
+  layerName: string | null
+  fromLayer: boolean
+  attributeRows: { label: string; value: string }[]
+  placeName: string
+  country: string
+  fullDescription: string
+  reversePending: boolean
+}
 
 const DATABASE_PLATFORM_OPTIONS = [
   'SQL Server',
@@ -772,18 +795,22 @@ function safePersistSatelliteCustomLayers(layers: CustomLayer[]) {
   }
 }
 
-function satelliteCustomLayerFillPaint(layer: CustomLayer): { 'fill-color': any; 'fill-opacity': number } {
+function satelliteCustomLayerFillPaint(layer: CustomLayer): Record<string, unknown> {
   if (layer.source === 'arcgis' && layer.useArcGisOnlineSymbology && layer.arcgisDrawingInfo) {
     const p = arcgisDrawingInfoToFillPaint(layer.arcgisDrawingInfo);
-    if (p) return p;
+    if (p) return { ...p } as Record<string, unknown>;
   }
   return { 'fill-color': layer.color || '#22c55e', 'fill-opacity': 0.35 };
 }
 
-function satelliteCustomLayerLinePaint(layer: CustomLayer): { 'line-color': any; 'line-width': number } {
+function satelliteCustomLayerLinePaint(layer: CustomLayer): Record<string, unknown> {
   if (layer.source === 'arcgis' && layer.useArcGisOnlineSymbology && layer.arcgisDrawingInfo) {
     const p = arcgisDrawingInfoToLinePaint(layer.arcgisDrawingInfo, layer.color || '#22c55e');
-    if (p) return { 'line-color': p['line-color'], 'line-width': p['line-width'] };
+    if (p) {
+      const out: Record<string, unknown> = { 'line-color': p['line-color'], 'line-width': p['line-width'] };
+      if (p['line-opacity'] !== undefined) out['line-opacity'] = p['line-opacity'];
+      return out;
+    }
   }
   return { 'line-color': layer.color || '#22c55e', 'line-width': 1.5 };
 }
@@ -1238,6 +1265,7 @@ export default function SatelliteIntelligence() {
   const [geoExplorerBusy, setGeoExplorerBusy] = useState(false);
   const [geoExplorerChatError, setGeoExplorerChatError] = useState('');
   const [geoAiPinLngLat, setGeoAiPinLngLat] = useState<[number, number] | null>(null);
+  const [geoAiMapChatPopup, setGeoAiMapChatPopup] = useState<GeoAiMapChatPopupState | null>(null);
   const geoExplorerFileInputRef = useRef<HTMLInputElement | null>(null);
   const geoExplorerInFlightRef = useRef(false);
   const [geoAiModelTab, setGeoAiModelTab] = useState<'gemini' | 'claude' | 'deepseek'>('gemini');
@@ -2733,6 +2761,7 @@ export default function SatelliteIntelligence() {
     setGeoExplorerPendingImage(null);
     setGeoExplorerChatError('');
     setGeoAiPinLngLat(null);
+    setGeoAiMapChatPopup(null);
   }, []);
 
   const clearGeoAiChat = useCallback(() => {
@@ -2821,12 +2850,17 @@ export default function SatelliteIntelligence() {
             systemInstruction,
             contents: messagesToGeminiContents(historyWithUser),
           });
-          let coords = parseMapQueryLngLat(reply);
+          const mapQueryCoords = parseMapQueryLngLat(reply);
+          let coords: [number, number] | null = mapQueryCoords;
           let replyText = reply;
+          let layerHit: LayerQueryMatch | null = null;
+          let pinSource: 'map_query' | 'layer' | 'geocode' = mapQueryCoords ? 'map_query' : 'geocode';
+
           if (!coords && userTextForMapFallback) {
-            const layerHit = findLngLatFromLayerQuery(userTextForMapFallback, combinedForLookup);
+            layerHit = findLngLatFromLayerQuery(userTextForMapFallback, combinedForLookup);
             if (layerHit) {
               coords = [layerHit.lng, layerHit.lat];
+              pinSource = 'layer';
               const hint = layerHit.matchSummary.trim();
               replyText = `${reply.trimEnd()}\n\n(Map pin from layer "${layerHit.layerName}" — matched feature attributes: ${hint.slice(0, 200)}${hint.length > 200 ? '…' : ''})`;
             } else {
@@ -2837,6 +2871,7 @@ export default function SatelliteIntelligence() {
                 });
                 if (geocoded) {
                   coords = geocoded;
+                  pinSource = 'geocode';
                   replyText = `${reply.trimEnd()}\n\n(Map centered on the best place-name match for your message.)`;
                 }
               }
@@ -2852,16 +2887,57 @@ export default function SatelliteIntelligence() {
             parts: [{ type: 'text', text: replyText }],
           };
           setGeoExplorerMessages(h => [...h, modelMsg]);
-          if (coords) {
+          if (!coords) {
+            setGeoAiMapChatPopup(null);
+          } else {
             setGeoAiPinLngLat(coords);
+            const targetZoom =
+              pinSource === 'layer' ? 17 : pinSource === 'map_query' ? 15.75 : 13.65;
             setViewState(prev => ({
               ...prev,
               longitude: coords[0],
               latitude: coords[1],
-              zoom: Math.max(10, typeof prev.zoom === 'number' ? prev.zoom : 2),
+              zoom: Math.max(targetZoom, typeof prev.zoom === 'number' ? prev.zoom : 2),
               pitch: is3DView ? Math.max(typeof prev.pitch === 'number' ? prev.pitch : 0, 42) : prev.pitch ?? 0,
               bearing: typeof prev.bearing === 'number' ? prev.bearing : 0,
             }));
+
+            const attributeRows = layerHit ? buildGeoAiLayerPopupAttributeRows(layerHit) : [];
+            const lng0 = coords[0];
+            const lat0 = coords[1];
+            setGeoAiMapChatPopup({
+              lng: lng0,
+              lat: lat0,
+              layerName: layerHit?.layerName ?? null,
+              fromLayer: Boolean(layerHit),
+              attributeRows,
+              placeName: '',
+              country: '',
+              fullDescription: '',
+              reversePending: true,
+            });
+
+            void reverseGeocodeLngLat(lng0, lat0, { mapboxAccessToken: mapboxToken || undefined }).then(rev => {
+              setGeoAiMapChatPopup(prev => {
+                if (!prev || prev.lng !== lng0 || prev.lat !== lat0) return prev;
+                if (!rev) {
+                  return {
+                    ...prev,
+                    placeName: '—',
+                    country: '—',
+                    fullDescription: '',
+                    reversePending: false,
+                  };
+                }
+                return {
+                  ...prev,
+                  placeName: rev.place,
+                  country: rev.country,
+                  fullDescription: rev.fullDescription,
+                  reversePending: false,
+                };
+              });
+            });
           }
         } catch (e) {
           setGeoExplorerChatError(e instanceof Error ? e.message : String(e));
@@ -5339,6 +5415,84 @@ export default function SatelliteIntelligence() {
                   }}
                 />
               </Source>
+            ) : null}
+
+            {geoAiMapChatPopup ? (
+              <Popup
+                longitude={geoAiMapChatPopup.lng}
+                latitude={geoAiMapChatPopup.lat}
+                anchor="bottom"
+                offset={[0, -22]}
+                closeOnClick={false}
+                onClose={() => setGeoAiMapChatPopup(null)}
+                className="si-geo-ai-map-popup-wrap"
+              >
+                <div className="si-geo-ai-map-popup" dir="ltr">
+                  <div className="si-geo-ai-map-popup__head">
+                    <span className="si-geo-ai-map-popup__head-icon" aria-hidden="true">
+                      <i className="fa-solid fa-comment-dots" />
+                    </span>
+                    <div className="si-geo-ai-map-popup__head-text">
+                      <span className="si-geo-ai-map-popup__kicker">Chat reply</span>
+                      <span className="si-geo-ai-map-popup__title">Map location</span>
+                    </div>
+                  </div>
+                  {geoAiMapChatPopup.layerName ? (
+                    <p className="si-geo-ai-map-popup__layer">
+                      <span className="si-geo-ai-map-popup__layer-label">Layer</span>
+                      <span className="si-geo-ai-map-popup__layer-name">{geoAiMapChatPopup.layerName}</span>
+                    </p>
+                  ) : null}
+                  <div className="si-geo-ai-map-popup__table-wrap">
+                    <table className="si-geo-ai-map-popup__table">
+                      <tbody>
+                        {geoAiMapChatPopup.attributeRows.map(row => (
+                          <tr key={row.label}>
+                            <th scope="row">{row.label}</th>
+                            <td>{row.value}</td>
+                          </tr>
+                        ))}
+                        {geoAiMapChatPopup.attributeRows.length > 0 ? (
+                          <tr className="si-geo-ai-map-popup__sep" aria-hidden="true">
+                            <td colSpan={2} />
+                          </tr>
+                        ) : null}
+                        <tr>
+                          <th scope="row">Latitude</th>
+                          <td>{geoAiMapChatPopup.lat.toFixed(6)}°</td>
+                        </tr>
+                        <tr>
+                          <th scope="row">Longitude</th>
+                          <td>{geoAiMapChatPopup.lng.toFixed(6)}°</td>
+                        </tr>
+                        <tr>
+                          <th scope="row">Area / place</th>
+                          <td>
+                            {geoAiMapChatPopup.reversePending ? (
+                              <span className="si-geo-ai-map-popup__pending">Resolving…</span>
+                            ) : (
+                              geoAiMapChatPopup.placeName || '—'
+                            )}
+                          </td>
+                        </tr>
+                        <tr>
+                          <th scope="row">Country</th>
+                          <td>
+                            {geoAiMapChatPopup.reversePending ? (
+                              <span className="si-geo-ai-map-popup__pending">Resolving…</span>
+                            ) : (
+                              geoAiMapChatPopup.country || '—'
+                            )}
+                          </td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+                  {!geoAiMapChatPopup.reversePending && geoAiMapChatPopup.fullDescription ? (
+                    <p className="si-geo-ai-map-popup__foot">{geoAiMapChatPopup.fullDescription}</p>
+                  ) : null}
+                </div>
+              </Popup>
             ) : null}
 
             {draftDrawGeoJson ? (

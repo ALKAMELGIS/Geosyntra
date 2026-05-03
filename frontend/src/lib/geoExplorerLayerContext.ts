@@ -165,6 +165,34 @@ export type LayerQueryMatch = {
   layerName: string
   matchSummary: string
   score: number
+  /** Raw feature properties for map popup / UI. */
+  properties: Record<string, unknown> | null
+  arcgisLayerDefinition: ArcgisLayerDefLite | null
+}
+
+/** Table rows for Geo AI map popup (domain-aware labels when ArcGIS def is present). */
+export function buildGeoAiLayerPopupAttributeRows(
+  hit: Pick<LayerQueryMatch, 'properties' | 'arcgisLayerDefinition'>,
+  maxRows = 26,
+): { label: string; value: string }[] {
+  const p = hit.properties
+  if (!p || typeof p !== 'object') return []
+  const arc = hit.arcgisLayerDefinition
+  const ft = { properties: p as Record<string, unknown> }
+  const displayed =
+    arc && Object.keys(p).length
+      ? formatFeaturePropertiesForGeoAi(p as Record<string, unknown>, ft, arc)
+      : Object.fromEntries(
+          Object.entries(p).map(([k, v]) => [k, v === null || v === undefined ? '—' : String(v)]),
+        )
+  return Object.keys(displayed)
+    .sort((a, b) => a.localeCompare(b))
+    .slice(0, maxRows)
+    .map(label => {
+      const raw = displayed[label]
+      const v = typeof raw === 'string' ? raw.trim() : raw == null ? '' : String(raw)
+      return { label, value: v || '—' }
+    })
 }
 
 /**
@@ -215,7 +243,18 @@ export function findLngLatFromLayerQuery(userText: string, layers: GeoAiMapLayer
             ).slice(0, 220)
           : 'geometry match'
       if (!best || score > best.score) {
-        best = { lng, lat, layerName: layer.name, matchSummary: summary, score }
+        best = {
+          lng,
+          lat,
+          layerName: layer.name,
+          matchSummary: summary,
+          score,
+          properties:
+            f.properties && typeof f.properties === 'object'
+              ? { ...(f.properties as Record<string, unknown>) }
+              : null,
+          arcgisLayerDefinition: arcDef,
+        }
       }
     }
   }

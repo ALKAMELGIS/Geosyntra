@@ -5867,3 +5867,165 @@ input.si-explore-date-input-linked[type='date'] {
   font-size: 9px;
   color: #94a3b8;
 }
+
+/* Geo AI (Gemini) — map “chat reply” popup after a located answer */
+.si-geo-ai-map-popup-wrap .mapboxgl-popup-content {
+  padding: 0;
+  background: transparent;
+  border-radius: 14px;
+  box-shadow: none;
+  overflow: hidden;
+}
+
+.si-geo-ai-map-popup-wrap .mapboxgl-popup-tip {
+  border-top-color: rgba(30, 58, 138, 0.55);
+}
+
+.si-geo-ai-map-popup {
+  min-width: 240px;
+  max-width: min(360px, 92vw);
+  max-height: min(52vh, 420px);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px 12px 10px;
+  border-radius: 14px;
+  border: 1px solid rgba(147, 197, 253, 0.35);
+  background: linear-gradient(
+    155deg,
+    rgba(37, 99, 235, 0.42) 0%,
+    rgba(15, 23, 42, 0.72) 55%,
+    rgba(15, 23, 42, 0.82) 100%
+  );
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  color: #e2e8f0;
+  font-size: 12px;
+  line-height: 1.35;
+  box-shadow:
+    0 18px 40px rgba(2, 6, 23, 0.55),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+
+.si-geo-ai-map-popup__head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.si-geo-ai-map-popup__head-icon {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(145deg, rgba(99, 102, 241, 0.55), rgba(79, 70, 229, 0.35));
+  border: 1px solid rgba(165, 180, 252, 0.35);
+  color: #eef2ff;
+  font-size: 16px;
+}
+
+.si-geo-ai-map-popup__head-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.si-geo-ai-map-popup__kicker {
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #a5b4fc;
+  font-weight: 600;
+}
+
+.si-geo-ai-map-popup__title {
+  font-size: 13px;
+  font-weight: 700;
+  color: #f8fafc;
+}
+
+.si-geo-ai-map-popup__layer {
+  margin: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 6px 10px;
+  font-size: 11px;
+  color: #cbd5e1;
+}
+
+.si-geo-ai-map-popup__layer-label {
+  color: #94a3b8;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  font-size: 9px;
+}
+
+.si-geo-ai-map-popup__layer-name {
+  color: #e0e7ff;
+  font-weight: 600;
+}
+
+.si-geo-ai-map-popup__table-wrap {
+  overflow: auto;
+  max-height: min(38vh, 300px);
+  border-radius: 10px;
+  border: 1px solid rgba(148, 163, 184, 0.22);
+  background: rgba(15, 23, 42, 0.35);
+}
+
+.si-geo-ai-map-popup__table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 11px;
+}
+
+.si-geo-ai-map-popup__table th,
+.si-geo-ai-map-popup__table td {
+  padding: 7px 10px;
+  text-align: start;
+  vertical-align: top;
+  border-bottom: 1px solid rgba(51, 65, 85, 0.65);
+}
+
+.si-geo-ai-map-popup__table th {
+  width: 42%;
+  font-weight: 600;
+  color: #bae6fd;
+  white-space: nowrap;
+}
+
+.si-geo-ai-map-popup__table td {
+  color: #f1f5f9;
+  word-break: break-word;
+}
+
+.si-geo-ai-map-popup__table tr:last-child th,
+.si-geo-ai-map-popup__table tr:last-child td {
+  border-bottom: none;
+}
+
+.si-geo-ai-map-popup__sep td {
+  padding: 0;
+  height: 1px;
+  border-bottom: 1px solid rgba(96, 165, 250, 0.35);
+  background: transparent;
+}
+
+.si-geo-ai-map-popup__pending {
+  color: #93c5fd;
+  font-style: italic;
+}
+
+.si-geo-ai-map-popup__foot {
+  margin: 0;
+  font-size: 10px;
+  line-height: 1.45;
+  color: #94a3b8;
+  max-height: 3.2em;
+  overflow: hidden;
+}

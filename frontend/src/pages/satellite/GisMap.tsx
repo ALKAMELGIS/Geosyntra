@@ -501,6 +501,7 @@ export default function GisMap() {
   const popupRef = useRef<HTMLDivElement | null>(null)
   const popupCloseTimerRef = useRef<number | null>(null)
   const popupLastFocusRef = useRef<HTMLElement | null>(null)
+  const mapPopupPosRafRef = useRef<number | null>(null)
   const [mapPopup, setMapPopup] = useState<
     | null
     | {
@@ -1593,14 +1594,21 @@ export default function GisMap() {
       popupCloseTimerRef.current = null
     }
     popupLastFocusRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null
+    const layerIdStr = String(next.layer.id)
+    const keyStr = String(key)
     setMapPopup({
-      layerId: String(next.layer.id),
+      layerId: layerIdStr,
       layerName: next.layer.name,
-      featureKey: String(key),
+      featureKey: keyStr,
       feature: next.feature,
       latlng: next.latlng,
       phase: 'open',
     })
+    const tableCtx = layerDialogRef.current
+    if (tableCtx?.mode === 'table' && String(tableCtx.layerId) === layerIdStr) {
+      setSelectedFeatureKeys(new Set([keyStr]))
+      queueMicrotask(() => scrollSelectedRowIntoView(keyStr))
+    }
   }, [])
 
   useEffect(() => {
@@ -1667,22 +1675,41 @@ export default function GisMap() {
     setMapPopupPos({ left, top, placement, arrowLeft })
   }, [mapPopup])
 
+  const cancelMapPopupPosRaf = useCallback(() => {
+    if (mapPopupPosRafRef.current !== null) {
+      window.cancelAnimationFrame(mapPopupPosRafRef.current)
+      mapPopupPosRafRef.current = null
+    }
+  }, [])
+
+  const scheduleMapPopupPosUpdate = useCallback(() => {
+    if (mapPopupPosRafRef.current !== null) return
+    mapPopupPosRafRef.current = window.requestAnimationFrame(() => {
+      mapPopupPosRafRef.current = null
+      updateMapPopupPos()
+    })
+  }, [updateMapPopupPos])
+
   useEffect(() => {
     const map = mapRef.current
-    if (!mapPopup || !map || mapPopup.phase === 'closing') return
+    if (!mapPopup || !map || mapPopup.phase === 'closing') {
+      cancelMapPopupPosRaf()
+      return
+    }
     updateMapPopupPos()
-    const onMove = () => updateMapPopupPos()
+    const onMove = () => scheduleMapPopupPosUpdate()
     map.on('move', onMove)
     map.on('zoom', onMove)
     map.on('resize', onMove)
     window.addEventListener('resize', onMove)
     return () => {
+      cancelMapPopupPosRaf()
       map.off('move', onMove)
       map.off('zoom', onMove)
       map.off('resize', onMove)
       window.removeEventListener('resize', onMove)
     }
-  }, [mapPopup, updateMapPopupPos])
+  }, [mapPopup, updateMapPopupPos, scheduleMapPopupPosUpdate, cancelMapPopupPosRaf])
 
   useLayoutEffect(() => {
     if (!mapPopup || mapPopup.phase === 'closing') return
@@ -1693,14 +1720,14 @@ export default function GisMap() {
 
   useEffect(() => {
     if (!mapPopup || mapPopup.phase === 'closing') return
-    const id = window.setTimeout(() => {
+    const id = window.requestAnimationFrame(() => {
       const el = popupRef.current
       const focusTarget =
         el?.querySelector<HTMLElement>('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])') ?? el ?? null
       focusTarget?.focus?.()
-    }, 0)
-    return () => window.clearTimeout(id)
-  }, [mapPopup])
+    })
+    return () => window.cancelAnimationFrame(id)
+  }, [mapPopup?.layerId, mapPopup?.featureKey, mapPopup?.phase])
 
   const clearSelectionOverlay = () => {
     try {
@@ -1778,7 +1805,7 @@ export default function GisMap() {
       setSelectedFeatureKeys(new Set([key]))
     }
 
-    showFeatureSelectionOnMap(layerId, key, { zoom: true })
+    showFeatureSelectionOnMap(layerId, key, { zoom: false })
     requestAnimationFrame(() => scrollSelectedRowIntoView(key))
   }
 
@@ -1800,22 +1827,22 @@ export default function GisMap() {
   }
 
   useEffect(() => {
-    if (layerDialog?.mode !== 'table') {
-      clearSelectionOverlay()
+    if (mapPopup && mapPopup.phase !== 'closing') {
+      showFeatureSelectionOnMap(mapPopup.layerId, mapPopup.featureKey, { zoom: false })
       setSelectionNotice(null)
       return
     }
-    if (selectedFeatureKeys.size !== 1) {
-      clearSelectionOverlay()
-      setSelectionNotice(null)
+    if (layerDialog?.mode === 'table' && selectedFeatureKeys.size === 1) {
+      const it = selectedFeatureKeys.values().next()
+      const key = it.done ? null : (it.value as string)
+      if (!key) return
+      showFeatureSelectionOnMap(String(layerDialog.layerId), key, { zoom: false })
+      requestAnimationFrame(() => scrollSelectedRowIntoView(key))
       return
     }
-    const it = selectedFeatureKeys.values().next()
-    const key = it.done ? null : (it.value as string)
-    if (!key) return
-    showFeatureSelectionOnMap(String(layerDialog.layerId), key)
-    requestAnimationFrame(() => scrollSelectedRowIntoView(key))
-  }, [layerDialog?.mode, layerDialog?.layerId, selectedFeatureKeys])
+    clearSelectionOverlay()
+    setSelectionNotice(null)
+  }, [layerDialog?.mode, layerDialog?.layerId, selectedFeatureKeys, mapPopup])
 
   const zoomToFeatures = (features: any[]) => {
     const map = mapRef.current
@@ -3813,7 +3840,6 @@ export default function GisMap() {
                   try {
                     ll?.off?.('click')
                     ll?.on?.('click', (e: any) => {
-                      identifyFeatureOnMap(layer, feature)
                       const llLatLng = e?.latlng
                       const lat = typeof llLatLng?.lat === 'number' ? llLatLng.lat : undefined
                       const lng = typeof llLatLng?.lng === 'number' ? llLatLng.lng : undefined
@@ -4425,6 +4451,12 @@ export default function GisMap() {
             layer={layers.find(l => String(l.id) === String(mapPopup.layerId)) ?? null}
             rootRef={popupRef}
             onClose={closeMapPopup}
+            onOpenAttributeTable={() => {
+              const lyr = layers.find(l => String(l.id) === String(mapPopup.layerId)) ?? null
+              if (!lyr || !mapPopup.feature) return
+              identifyFeatureOnMap(lyr, mapPopup.feature)
+              queueMicrotask(() => closeMapPopup())
+            }}
             onZoomTo={() => {
               setSelectedFeatureKeys(new Set([mapPopup.featureKey]))
               showFeatureSelectionOnMap(mapPopup.layerId, mapPopup.featureKey, { zoom: true })

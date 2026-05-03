@@ -68,3 +68,114 @@ export async function geocodePlaceToLngLat(
     return null
   }
 }
+
+export type ReverseGeocodeResult = {
+  /** Short place / locality label (city, town, suburb, etc.). */
+  place: string
+  country: string
+  /** Full line suitable for subtitles (Mapbox place_name or Nominatim display_name). */
+  fullDescription: string
+}
+
+function nominatimPlaceFromAddress(addr: Record<string, unknown> | null | undefined): string {
+  if (!addr || typeof addr !== 'object') return ''
+  const keys = [
+    'village',
+    'town',
+    'city',
+    'municipality',
+    'suburb',
+    'hamlet',
+    'neighbourhood',
+    'quarter',
+    'county',
+    'state',
+    'region',
+  ] as const
+  for (const k of keys) {
+    const v = addr[k]
+    if (typeof v === 'string' && v.trim()) return v.trim()
+  }
+  return ''
+}
+
+/**
+ * Reverse geocode for Geo Explorer map popups (place + country).
+ * Prefers Mapbox when a token exists; otherwise OpenStreetMap Nominatim.
+ */
+export async function reverseGeocodeLngLat(
+  lng: number,
+  lat: number,
+  opts: { mapboxAccessToken?: string },
+): Promise<ReverseGeocodeResult | null> {
+  if (!Number.isFinite(lng) || !Number.isFinite(lat)) return null
+
+  try {
+    const token = (opts.mapboxAccessToken || '').trim()
+    if (token) {
+      const res = await fetch(
+        `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(`${lng},${lat}`)}.json?access_token=${encodeURIComponent(token)}&limit=1`,
+      )
+      if (!res.ok) return null
+      const data = (await res.json()) as {
+        features?: { text?: string; place_name?: string; context?: { id?: string; text?: string }[] }[]
+      }
+      const primary = data?.features?.[0]
+      if (!primary) return null
+      const placeName =
+        typeof primary.place_name === 'string'
+          ? primary.place_name
+          : typeof primary.text === 'string'
+            ? primary.text
+            : ''
+      let country = ''
+      const ctx = Array.isArray(primary.context) ? primary.context : []
+      for (const c of ctx) {
+        if (typeof c?.id === 'string' && c.id.startsWith('country.')) {
+          country = (typeof c.text === 'string' && c.text.trim()) || ''
+          break
+        }
+      }
+      const place =
+        (typeof primary.text === 'string' && primary.text.trim()) ||
+        placeName.split(',')[0]?.trim() ||
+        '—'
+      return {
+        place,
+        country: country || '—',
+        fullDescription: placeName || `${place}, ${country}`.trim(),
+      }
+    }
+
+    const res = await fetch(
+      `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${encodeURIComponent(String(lat))}&lon=${encodeURIComponent(String(lng))}`,
+      {
+        headers: {
+          'Accept-Language': 'en',
+          'User-Agent': 'AgroCloud-SatelliteIntelligence/1.0 (Geo Explorer reverse)',
+        },
+      },
+    )
+    if (!res.ok) return null
+    const data = (await res.json()) as {
+      display_name?: string
+      address?: Record<string, unknown>
+    }
+    const display =
+      typeof data?.display_name === 'string' && data.display_name.trim()
+        ? data.display_name.trim()
+        : ''
+    const addr = data?.address
+    const area = nominatimPlaceFromAddress(addr)
+    const countryRaw = addr && typeof addr.country === 'string' ? addr.country.trim() : ''
+    const displayParts = display ? display.split(',').map(s => s.trim()).filter(Boolean) : []
+    const place = area || displayParts[0] || '—'
+    return {
+      place,
+      country: countryRaw || '—',
+      fullDescription: display || `${place}, ${countryRaw}`.trim(),
+    }
+  } catch {
+    return null
+  }
+}

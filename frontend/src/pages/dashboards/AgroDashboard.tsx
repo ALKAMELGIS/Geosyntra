@@ -9,9 +9,12 @@ import './develop-dashboard.css'
 import './agro-dashboard.css'
 import {
   type AgroVizType,
+  type FieldAxisRole,
+  type FieldAxisRolesMap,
   type FieldChartSlot,
   VIZ_OPTIONS,
   buildSlotVisualization,
+  fieldChartUsesAxisBindings,
   rowsFromFeatureCollection,
   trimRows,
   DEFAULT_FIELD_CHART,
@@ -427,6 +430,14 @@ export default function AgroDashboard() {
             wfChartsTabEmpty: 'لم تُختر حقول بعد. ارجع إلى تبويب «الحقول» وفعّل الحقول المطلوبة.',
             chartEmpty: 'اختر حقولاً وفعّل اللوحات وأنواع الرسوم في نافذة «طبقات وحقول».',
             wfAssignCharts: 'أي أنواع رسوم تستخدم هذا الحقل؟',
+            wfAxisTitle: 'المحاور والقيمة والوسيلة',
+            wfAxisHint:
+              'للأعمدة، الخط، المساحة، الانتشار، الفقاعات، والشريط (أفقي/عمودي): عيّن دور كل حقل. المحور X عادةً فئات؛ القيمة/المحور Y أرقام؛ الوسيلة تلوّن النقاط أو الأعمدة.',
+            wfAxisNone: 'بدون',
+            wfAxisX: 'المحور X',
+            wfAxisY: 'المحور Y',
+            wfAxisValue: 'القيمة',
+            wfAxisLegend: 'الوسيلة',
             slotMain: 'رئيسي',
             slotPie: 'دائرة',
             slotBot: 'خط',
@@ -556,6 +567,14 @@ export default function AgroDashboard() {
             wfChartsTabEmpty: 'No fields selected yet. Open the Fields tab and check the columns you need.',
             chartEmpty: 'Select fields and enable panels / chart types in Layers & fields.',
             wfAssignCharts: 'Which chart types use this field?',
+            wfAxisTitle: 'X-Axis · Y-Axis · Value · Legend',
+            wfAxisHint:
+              'For column, line, area, scatter, bubble, and bar charts: assign how this field is used. X is usually categories; Value / Y are numeric measures; Legend drives point or bar colors.',
+            wfAxisNone: 'None',
+            wfAxisX: 'X-Axis',
+            wfAxisY: 'Y-Axis',
+            wfAxisValue: 'Value',
+            wfAxisLegend: 'Legend',
             slotMain: 'Main',
             slotPie: 'Pie',
             slotBot: 'Line',
@@ -659,6 +678,8 @@ export default function AgroDashboard() {
   const [wfFieldsTab, setWfFieldsTab] = useState<'fields' | 'charts'>('fields')
   /** Optional filter: field included in a slot only when the card viz matches one of these types. */
   const [fieldChartStyles, setFieldChartStyles] = useState<Record<string, AgroVizType[]>>({})
+  /** Optional X / Y / Value / Legend mapping for cartesian chart types (see agroDashboardCharts). */
+  const [fieldChartAxisRoles, setFieldChartAxisRoles] = useState<FieldAxisRolesMap>({})
 
   useEffect(() => {
     const valid = new Set(agroSources.map(s => s.id))
@@ -690,6 +711,32 @@ export default function AgroDashboard() {
       return next
     })
   }, [pinnedFieldKeys])
+
+  useEffect(() => {
+    const valid = new Set(pinnedFieldKeys)
+    setFieldChartAxisRoles(prev => {
+      const next = { ...prev }
+      for (const k of Object.keys(next)) {
+        if (!valid.has(k)) delete next[k]
+      }
+      return next
+    })
+  }, [pinnedFieldKeys])
+
+  useEffect(() => {
+    setFieldChartAxisRoles(prev => {
+      const next = { ...prev }
+      let changed = false
+      for (const k of Object.keys(next)) {
+        const st = fieldChartStyles[k]
+        if (!fieldChartUsesAxisBindings(st)) {
+          delete next[k]
+          changed = true
+        }
+      }
+      return changed ? next : prev
+    })
+  }, [fieldChartStyles])
 
   useEffect(() => {
     setFieldChartPlacement(prev => {
@@ -760,6 +807,7 @@ export default function AgroDashboard() {
         agroSourcesOnDashboard,
         t.chartEmpty,
         fieldChartStyles,
+        fieldChartAxisRoles,
       ),
     [
       vizMain,
@@ -768,6 +816,7 @@ export default function AgroDashboard() {
       agroSourcesOnDashboard,
       t.chartEmpty,
       fieldChartStyles,
+      fieldChartAxisRoles,
     ],
   )
   const pieSlot = useMemo(
@@ -780,6 +829,7 @@ export default function AgroDashboard() {
         agroSourcesOnDashboard,
         t.pieNoData,
         fieldChartStyles,
+        fieldChartAxisRoles,
       ),
     [
       vizPie,
@@ -788,6 +838,7 @@ export default function AgroDashboard() {
       agroSourcesOnDashboard,
       t.pieNoData,
       fieldChartStyles,
+      fieldChartAxisRoles,
     ],
   )
   const botSlot = useMemo(
@@ -800,6 +851,7 @@ export default function AgroDashboard() {
         agroSourcesOnDashboard,
         t.chartEmpty,
         fieldChartStyles,
+        fieldChartAxisRoles,
       ),
     [
       vizBot,
@@ -808,6 +860,7 @@ export default function AgroDashboard() {
       agroSourcesOnDashboard,
       t.chartEmpty,
       fieldChartStyles,
+      fieldChartAxisRoles,
     ],
   )
 
@@ -953,6 +1006,15 @@ export default function AgroDashboard() {
       const next = { ...prev }
       if (arr.length === 0) delete next[key]
       else next[key] = arr
+      return next
+    })
+  }, [])
+
+  const setFieldAxisRole = useCallback((key: string, role: FieldAxisRole | '') => {
+    setFieldChartAxisRoles(prev => {
+      const next = { ...prev }
+      if (!role || role === '') delete next[key]
+      else next[key] = role
       return next
     })
   }, [])
@@ -1953,6 +2015,38 @@ export default function AgroDashboard() {
                                             <i className={WF_STYLE_MAP_OPTION.icon} aria-hidden />
                                           </button>
                                         </div>
+                                        {fieldChartUsesAxisBindings(styles) ? (
+                                          <div className="agdash-wf-assign-section agdash-wf-assign-section--axis">
+                                            <span className="agdash-wf-assign-section-title">{t.wfAxisTitle}</span>
+                                            <p className="agdash-wf-styles-hint">{t.wfAxisHint}</p>
+                                            <div className="agdash-wf-axis-chips" role="radiogroup" aria-label={t.wfAxisTitle}>
+                                              {(
+                                                [
+                                                  ['', t.wfAxisNone] as const,
+                                                  ['x', t.wfAxisX] as const,
+                                                  ['y', t.wfAxisY] as const,
+                                                  ['value', t.wfAxisValue] as const,
+                                                  ['legend', t.wfAxisLegend] as const,
+                                                ] as const
+                                              ).map(([role, lbl]) => {
+                                                const current = fieldChartAxisRoles[key] ?? ''
+                                                const on = current === role
+                                                return (
+                                                  <button
+                                                    key={role || 'none'}
+                                                    type="button"
+                                                    role="radio"
+                                                    aria-checked={on}
+                                                    className={`agdash-axis-chip${on ? ' agdash-axis-chip--on' : ''}`}
+                                                    onClick={() => setFieldAxisRole(key, role as FieldAxisRole | '')}
+                                                  >
+                                                    {lbl}
+                                                  </button>
+                                                )
+                                              })}
+                                            </div>
+                                          </div>
+                                        ) : null}
                                       </li>
                                     )
                                   })}
