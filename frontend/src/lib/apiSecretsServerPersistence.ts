@@ -9,6 +9,7 @@ import { persistUserApiTokenValue } from './customUserApiTokens'
 import { persistDeepseekApiKeyInBrowser } from './deepseekApiKey'
 import { persistGeminiApiKeyInBrowser } from './geminiApiKey'
 import { persistMapboxAccessTokenInBrowser } from './mapboxAccessToken'
+import { persistOpenWeatherMapApiKeyInBrowser } from './openWeatherMapApiKey'
 import { persistSentinelHubAccessTokenInBrowser } from './sentinelHubAccessToken'
 import { persistSentinelHubWmsInstanceIdInBrowser } from './sentinelHubWmsInstance'
 
@@ -20,6 +21,7 @@ export type BuiltinSecretKey =
   | 'geminiApiKey'
   | 'claudeApiKey'
   | 'deepseekApiKey'
+  | 'openWeatherMapApiKey'
 
 export type ApiSecretsClientPatch = Partial<Record<BuiltinSecretKey, string>> & {
   customSlots?: Record<string, string>
@@ -39,6 +41,7 @@ const BUILTIN_PERSIST: Record<BuiltinSecretKey, (v: string) => void> = {
   geminiApiKey: persistGeminiApiKeyInBrowser,
   claudeApiKey: persistClaudeApiKeyInBrowser,
   deepseekApiKey: persistDeepseekApiKeyInBrowser,
+  openWeatherMapApiKey: persistOpenWeatherMapApiKeyInBrowser,
 }
 
 function optionalAuthHeaders(): HeadersInit {

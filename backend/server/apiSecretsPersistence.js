@@ -16,6 +16,7 @@ const BUILTIN_KEYS = [
   'geminiApiKey',
   'claudeApiKey',
   'deepseekApiKey',
+  'openWeatherMapApiKey',
 ]
 
 function emptyStore() {

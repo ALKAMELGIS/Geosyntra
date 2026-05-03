@@ -38,17 +38,13 @@ import {
 } from '../../lib/arcgisImageServer'
 import { parseFile, parseRemoteUrlAsFile } from '../../utils/FileLoader'
 import { useGeminiApiKey } from '../../hooks/useGeminiApiKey'
-import {
-  GEO_EXPLORER_SYSTEM_PROMPT,
-  geminiGenerateContent,
-  messageDisplayText,
-  messagesToGeminiContents,
-  parseMapQueryLngLat,
-  stripMapQueryLine,
-  type GeoExplorerMessage,
-  type GeoExplorerPart,
-} from '../../lib/geoExplorerGemini'
-import { geocodePlaceToLngLat } from '../../lib/geoExplorerGeocode'
+import { useOpenWeatherMapApiKey } from '../../hooks/useOpenWeatherMapApiKey'
+import { lastMapQueryCoordsFromMessages, type GeoExplorerMessage, type GeoExplorerPart } from '../../lib/geoExplorerGemini'
+import { reverseGeocodeLngLat } from '../../lib/geoExplorerGeocode'
+import type { GeoAiMapLayer } from '../../lib/geoExplorerLayerContext'
+import type { GeoAiWeatherPopupRef } from '../../lib/geoAiWeatherContext'
+import { runGeoExplorerGeminiTurn } from '../../lib/runGeoExplorerGeminiTurn'
+import { GeoExplorerGeminiChatBody } from './components/GeoExplorerGeminiChatBody'
 import './gisGeoExplorerPanel.css'
 
 type AddLayerTab = 'arcgis' | 'database' | 'upload' | 'url'
@@ -409,6 +405,9 @@ export default function GisMap() {
   const [mapSearchQuery, setMapSearchQuery] = useState('')
   const [mapSearchStatus, setMapSearchStatus] = useState('')
   const geminiApiKey = useGeminiApiKey()
+  const openWeatherMapApiKey = useOpenWeatherMapApiKey()
+  const gisGeoExplorerPinRef = useRef<[number, number] | null>(null)
+  const gisGeoExplorerPopupRef = useRef<GeoAiWeatherPopupRef>(null)
   const geoExplorerFileInputRef = useRef<HTMLInputElement | null>(null)
   const geoExplorerInFlightRef = useRef(false)
   const [geoExplorerMessages, setGeoExplorerMessages] = useState<GeoExplorerMessage[]>([])
@@ -416,6 +415,17 @@ export default function GisMap() {
   const [geoExplorerPendingImage, setGeoExplorerPendingImage] = useState<{ mime: string; base64: string } | null>(null)
   const [geoExplorerBusy, setGeoExplorerBusy] = useState(false)
   const [geoExplorerChatError, setGeoExplorerChatError] = useState('')
+  const gisLayersAsGeoAi = useMemo((): GeoAiMapLayer[] => {
+    return layers.map(l => ({
+      name: l.name,
+      visible: l.visible,
+      source: l.source,
+      data: l.data,
+      arcgisLayerDefinition: (l as { arcgisLayerDefinition?: unknown }).arcgisLayerDefinition as
+        | GeoAiMapLayer['arcgisLayerDefinition']
+        | undefined,
+    }))
+  }, [layers])
   const [measurementMode, setMeasurementMode] = useState<MeasurementMode>('distance')
   const [measurementMethod, setMeasurementMethod] = useState<MeasurementMethod>('planar')
   const [measurementUnit, setMeasurementUnit] = useState<MeasurementUnit>('metric')
@@ -1081,6 +1091,8 @@ export default function GisMap() {
     setGeoExplorerDraft('')
     setGeoExplorerPendingImage(null)
     setGeoExplorerChatError('')
+    gisGeoExplorerPinRef.current = null
+    gisGeoExplorerPopupRef.current = null
   }, [])
 
   const flyGisMapToLngLat = useCallback(
@@ -1143,31 +1155,43 @@ export default function GisMap() {
       const historyWithUser = [...prev, userMsg]
       queueMicrotask(async () => {
         try {
-          const reply = await geminiGenerateContent({
+          const { modelMsg, mapEffect } = await runGeoExplorerGeminiTurn({
             apiKey,
-            systemInstruction: GEO_EXPLORER_SYSTEM_PROMPT,
-            contents: messagesToGeminiContents(historyWithUser),
+            historyWithUser,
+            userTextForMapFallback,
+            primaryVectorLayers: gisLayersAsGeoAi,
+            mapboxAccessToken: mapboxAccessToken || undefined,
+            openWeatherApiKey: openWeatherMapApiKey,
+            pinLngLat: gisGeoExplorerPinRef.current,
+            lastMapQueryCoords: lastMapQueryCoordsFromMessages(historyWithUser),
+            mapPopup: gisGeoExplorerPopupRef.current,
+            addedLayersHeading: '### GIS Map — layers on this map',
           })
-          let coords = parseMapQueryLngLat(reply)
-          let replyText = reply
-          if (!coords && userTextForMapFallback) {
-            const geocoded = await geocodePlaceToLngLat(userTextForMapFallback, {
-              mapboxAccessToken: mapboxAccessToken || undefined,
-            })
-            if (geocoded) {
-              coords = geocoded
-              replyText = `${reply.trimEnd()}\n\n(Map centered on the best place-name match for your message.)`
-            }
-          }
-          const modelId =
-            typeof crypto !== 'undefined' && 'randomUUID' in crypto ? crypto.randomUUID() : `geo-m-${Date.now()}`
-          const modelMsg: GeoExplorerMessage = {
-            id: modelId,
-            role: 'model',
-            parts: [{ type: 'text', text: replyText }],
-          }
           setGeoExplorerMessages(h => [...h, modelMsg])
-          if (coords) flyGisMapToLngLat(coords[0], coords[1])
+          if (mapEffect) {
+            const { coords } = mapEffect
+            gisGeoExplorerPinRef.current = coords
+            flyGisMapToLngLat(coords[0], coords[1])
+            const lng0 = coords[0]
+            const lat0 = coords[1]
+            void reverseGeocodeLngLat(lng0, lat0, { mapboxAccessToken: mapboxAccessToken || undefined }).then(rev => {
+              gisGeoExplorerPopupRef.current = rev
+                ? {
+                    lng: lng0,
+                    lat: lat0,
+                    placeName: rev.place,
+                    country: rev.country,
+                    fullDescription: rev.fullDescription,
+                  }
+                : {
+                    lng: lng0,
+                    lat: lat0,
+                    placeName: '—',
+                    country: '—',
+                    fullDescription: '',
+                  }
+            })
+          }
         } catch (e) {
           setGeoExplorerChatError(e instanceof Error ? e.message : String(e))
         } finally {
@@ -1177,7 +1201,15 @@ export default function GisMap() {
       })
       return historyWithUser
     })
-  }, [geminiApiKey, geoExplorerDraft, geoExplorerPendingImage, mapboxAccessToken, flyGisMapToLngLat])
+  }, [
+    geminiApiKey,
+    geoExplorerDraft,
+    geoExplorerPendingImage,
+    mapboxAccessToken,
+    flyGisMapToLngLat,
+    gisLayersAsGeoAi,
+    openWeatherMapApiKey,
+  ])
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -3955,8 +3987,8 @@ export default function GisMap() {
             className={activeMapTool === 'geoExplorer' ? 'gis-map-tool active' : 'gis-map-tool'}
             type="button"
             onClick={() => toggleMapTool('geoExplorer')}
-            title="Geo Explorer (Gemini chat)"
-            aria-label="Geo Explorer chat"
+            title="Geo AI (Gemini — same as Satellite Imagery)"
+            aria-label="Geo AI chat"
             aria-pressed={activeMapTool === 'geoExplorer'}
           >
             <i className="fa-solid fa-comments" aria-hidden="true" />
@@ -4149,7 +4181,7 @@ export default function GisMap() {
               <div className="gis-geo-explorer-root">
                 <div className="gis-geo-explorer">
                   <div className="gis-geo-explorer-header">
-                    <h2 className="gis-geo-explorer-title">Geo Explorer</h2>
+                    <h2 className="gis-geo-explorer-title">Geo AI</h2>
                     <div className="gis-geo-explorer-header-actions">
                       <button
                         type="button"
@@ -4164,117 +4196,27 @@ export default function GisMap() {
                         type="button"
                         className="gis-geo-explorer-icon-btn"
                         onClick={() => setActiveMapTool(null)}
-                        aria-label="Close Geo Explorer"
+                        aria-label="Close Geo AI"
                         title="Close"
                       >
                         <i className="fa-solid fa-xmark" aria-hidden="true" />
                       </button>
                     </div>
                   </div>
-                  <div className="gis-geo-explorer-messages">
-                    <div className="gis-geo-explorer-row gis-geo-explorer-row--model">
-                      <div className="gis-geo-explorer-avatar" aria-hidden>
-                        <i className="fa-solid fa-globe" />
-                      </div>
-                      <div className="gis-geo-explorer-bubble">
-                        <p className="gis-geo-explorer-bubble-text">
-                          Hello! Describe a place, upload an image, or ask for directions. When a location is clear, the map
-                          will fly there (the model adds a MAP_QUERY line).
-                        </p>
-                      </div>
-                    </div>
-                    {geoExplorerMessages.map(msg => {
-                      const raw = messageDisplayText(msg)
-                      const show = msg.role === 'model' ? stripMapQueryLine(raw) : raw
-                      const hasImage = msg.parts.some(p => p.type === 'image')
-                      return (
-                        <div key={msg.id} className={`gis-geo-explorer-row gis-geo-explorer-row--${msg.role}`}>
-                          {msg.role === 'model' ? (
-                            <div className="gis-geo-explorer-avatar" aria-hidden>
-                              <i className="fa-solid fa-wand-magic-sparkles" />
-                            </div>
-                          ) : null}
-                          <div className="gis-geo-explorer-bubble">
-                            {show ? <p className="gis-geo-explorer-bubble-text">{show}</p> : null}
-                            {msg.role === 'user' && hasImage ? (
-                              <p className="gis-geo-explorer-bubble-meta">
-                                <i className="fa-solid fa-paperclip" aria-hidden /> Image attached
-                              </p>
-                            ) : null}
-                          </div>
-                        </div>
-                      )
-                    })}
-                    {geoExplorerBusy ? (
-                      <div className="gis-geo-explorer-row gis-geo-explorer-row--model">
-                        <div className="gis-geo-explorer-avatar" aria-hidden>
-                          <i className="fa-solid fa-wand-magic-sparkles" />
-                        </div>
-                        <div className="gis-geo-explorer-bubble gis-geo-explorer-bubble--typing">
-                          <i className="fa-solid fa-spinner fa-spin" aria-hidden /> Thinking…
-                        </div>
-                      </div>
-                    ) : null}
-                  </div>
-                  {geoExplorerChatError ? <p className="gis-geo-explorer-error">{geoExplorerChatError}</p> : null}
-                  {geoExplorerPendingImage ? (
-                    <p className="gis-geo-explorer-pending-img">
-                      <i className="fa-solid fa-image" aria-hidden /> Image ready to send
-                      <button type="button" className="gis-geo-explorer-linkish" onClick={() => setGeoExplorerPendingImage(null)}>
-                        Remove
-                      </button>
-                    </p>
-                  ) : null}
-                  <div className="gis-geo-explorer-input-row">
-                    <textarea
-                      className="gis-geo-explorer-input"
-                      rows={2}
-                      value={geoExplorerDraft}
-                      onChange={e => setGeoExplorerDraft(e.target.value)}
-                      onKeyDown={e => {
-                        if (e.key === 'Enter' && !e.shiftKey) {
-                          e.preventDefault()
-                          sendGeoExplorerChat()
-                        }
-                      }}
-                      placeholder="Describe a place, ask for directions, or plan a trip…"
-                      aria-label="Geo Explorer message"
-                      disabled={geoExplorerBusy}
-                    />
-                    <input
-                      ref={geoExplorerFileInputRef}
-                      type="file"
-                      className="gis-geo-explorer-file-input"
-                      accept="image/*"
-                      onChange={onGeoExplorerAttachChange}
-                      aria-hidden
-                      tabIndex={-1}
-                    />
-                    <button
-                      type="button"
-                      className="gis-geo-explorer-attach"
-                      onClick={() => geoExplorerFileInputRef.current?.click()}
-                      disabled={geoExplorerBusy}
-                      aria-label="Attach image"
-                      title="Attach image"
-                    >
-                      <i className="fa-solid fa-paperclip" aria-hidden />
-                    </button>
-                    <button
-                      type="button"
-                      className="gis-geo-explorer-send"
-                      onClick={sendGeoExplorerChat}
-                      disabled={geoExplorerBusy || (!geoExplorerDraft.trim() && !geoExplorerPendingImage)}
-                      aria-label="Send"
-                      title="Send"
-                    >
-                      <i className="fa-solid fa-paper-plane" aria-hidden />
-                    </button>
-                  </div>
-                  <p className="gis-geo-explorer-footnote">
-                    Powered by Google Gemini. Set <code>VITE_GEMINI_API_KEY</code> or save under System Settings → API Tokens →
-                    Gemini API. Do not commit keys.
-                  </p>
+                  <GeoExplorerGeminiChatBody
+                    cssPrefix="gis-geo-explorer"
+                    messages={geoExplorerMessages}
+                    busy={geoExplorerBusy}
+                    error={geoExplorerChatError}
+                    draft={geoExplorerDraft}
+                    onDraftChange={setGeoExplorerDraft}
+                    pendingImage={geoExplorerPendingImage}
+                    onClearPendingImage={() => setGeoExplorerPendingImage(null)}
+                    fileInputRef={geoExplorerFileInputRef}
+                    onAttachChange={onGeoExplorerAttachChange}
+                    onSend={sendGeoExplorerChat}
+                    textareaAriaLabel="Geo AI message"
+                  />
                 </div>
               </div>
             ) : null}

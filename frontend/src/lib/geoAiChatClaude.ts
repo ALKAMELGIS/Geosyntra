@@ -20,7 +20,8 @@ Rules:
 - For counts, distributions, or comparisons implied by the context: add one brief quantitative read (e.g. dominant category, approximate share) only when the numbers are directly supported by the provided summaries.
 - Prefer short structured answers: headings, bullets, and small tables in plain text when useful.
 - Do not invent field values, coordinates, or statistics that are not implied by the context.
-- When sample feature properties appear, treat them as examples only, not exhaustive.`
+- When sample feature properties appear, treat them as examples only, not exhaustive.
+- When "### SESSION MAP ANCHOR", "### OPEN-METEO FACTS", or "### OPENWEATHER FACTS" sections appear after this block, they are authoritative for map focus and weather numbers at that location; cite Open-Meteo and/or OpenWeather once; do not invent values beyond those blocks.`
 
 export type GeoAiChatTurn = { role: 'user' | 'assistant'; text: string }
 

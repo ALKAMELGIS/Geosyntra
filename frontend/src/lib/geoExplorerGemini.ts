@@ -24,7 +24,8 @@ export const GEO_EXPLORER_LAYER_RULES = `LAYER DATA rules (when a "LAYER DATA" /
 export const GEO_EXPLORER_SESSION_AND_WEATHER = `Session continuity & weather (read carefully when the next blocks appear):
 - If a "### SESSION MAP ANCHOR" section is present, those coordinates are the app’s current map focus (pin or last explicit MAP_QUERY). Short follow-ups (“same place”, “here”, “that farm”, “weather there”, “Jan to May”, Arabic equivalents) refer to THIS anchor unless the user clearly names a different place or layer.
 - If "### OPEN-METEO FACTS" is present, base any numeric weather or climate statements on that data only; cite “Open-Meteo” once. Never claim coordinates are missing or that the layer has no location if the SESSION MAP ANCHOR lists longitude and latitude.
-- If OPEN-METEO shows a fetch error, say so briefly—do not invent numbers.
+- If "### OPENWEATHER FACTS" is present, you may use it for current conditions and short-range forecast details (station-style); cite “OpenWeather” once. Prefer OpenWeather for “now” wording when both Open-Meteo and OpenWeather are present; reconcile gently if they differ slightly (different models/times).
+- If OPEN-METEO or OpenWeather shows a fetch error, say so briefly—do not invent numbers.
 - Keep answers concise: a short lead paragraph, then bullets if helpful; avoid dumping raw JSON from layer context.`;
 
 export type GeoExplorerPart =

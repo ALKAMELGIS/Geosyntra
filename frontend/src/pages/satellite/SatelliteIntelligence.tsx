@@ -29,6 +29,7 @@ import { useMapboxAccessToken } from '../../hooks/useMapboxAccessToken';
 import { useGeminiApiKey } from '../../hooks/useGeminiApiKey';
 import { useClaudeApiKey } from '../../hooks/useClaudeApiKey';
 import { useDeepseekApiKey } from '../../hooks/useDeepseekApiKey';
+import { useOpenWeatherMapApiKey } from '../../hooks/useOpenWeatherMapApiKey';
 import { getArcgisPortalToken } from '../../lib/arcgisPortalToken';
 import {
   arcgisDrawingInfoToFillPaint,
@@ -44,45 +45,24 @@ import {
   subscribeSentinelHubWmsInstance,
 } from '../../lib/sentinelHubWmsInstance';
 import {
-  GEO_EXPLORER_LAYER_RULES,
   GEO_EXPLORER_SESSION_AND_WEATHER,
-  GEO_EXPLORER_SYSTEM_PROMPT,
-  geminiGenerateContent,
   lastMapQueryCoordsFromMessages,
-  messageDisplayText,
-  messagesToGeminiContents,
-  parseMapQueryLngLat,
-  stripMapQueryLine,
   type GeoExplorerMessage,
   type GeoExplorerPart,
 } from '../../lib/geoExplorerGemini';
-import {
-  buildOpenMeteoContextBlock,
-  buildSessionAnchorBlock,
-  geoExplorerUserMessageImpliesWeather,
-} from '../../lib/openMeteoGeoExplorer';
-import {
-  geocodePlaceToLngLat,
-  reverseGeocodeLngLat,
-  simplifyGeoExplorerUserQuery,
-  stripLayerReferenceForGeocode,
-} from '../../lib/geoExplorerGeocode';
+import { buildGeoAiWeatherSystemAppend } from '../../lib/geoAiWeatherContext';
+import { reverseGeocodeLngLat } from '../../lib/geoExplorerGeocode';
 import {
   buildGeoAiDataContext,
-  buildGisContentLayersContext,
   claudeGeoAiComplete,
   GEO_AI_CHAT_SYSTEM_BASE,
   type GeoAiChatTurn,
 } from '../../lib/geoAiChatClaude';
-import {
-  buildGeoAiLayerPopupAttributeRows,
-  findLngLatFromLayerQuery,
-  summarizeGeoAiMapLayers,
-  type GeoAiMapLayer,
-  type LayerQueryMatch,
-} from '../../lib/geoExplorerLayerContext';
+import { buildGeoAiLayerPopupAttributeRows, type GeoAiMapLayer } from '../../lib/geoExplorerLayerContext';
 import { loadGisMapSavedLayers } from '../../lib/gisMapLayerStore';
+import { geoExplorerTargetZoomForPinSource, runGeoExplorerGeminiTurn } from '../../lib/runGeoExplorerGeminiTurn';
 import { agroChatWithDeepSeek } from '../../lib/agroAiChat';
+import { GeoExplorerGeminiChatBody } from './components/GeoExplorerGeminiChatBody';
 import {
   buildBasemapCatalog,
   catalogEntryById,
@@ -1070,6 +1050,7 @@ export default function SatelliteIntelligence() {
   const geminiApiKey = useGeminiApiKey();
   const claudeApiKey = useClaudeApiKey();
   const deepseekApiKey = useDeepseekApiKey();
+  const openWeatherMapApiKey = useOpenWeatherMapApiKey();
   const basemapCatalog = useMemo(() => buildBasemapCatalog(mapboxToken || ''), [mapboxToken]);
   const [viewState, setViewState] = useState({
     longitude: 20,
@@ -2843,92 +2824,25 @@ export default function SatelliteIntelligence() {
       const historyWithUser = [...prev, userMsg];
       queueMicrotask(async () => {
         try {
-          const gisSaved = await loadGisMapSavedLayers();
-          const combinedForLookup: GeoAiMapLayer[] = [
-            ...geoAiSatelliteLayerPayload,
-            ...gisSaved.map(
-              (l): GeoAiMapLayer => ({
-                name: l.name,
-                visible: l.visible,
-                source: l.source,
-                data: l.data,
-                arcgisLayerDefinition: (l as { arcgisLayerDefinition?: unknown }).arcgisLayerDefinition as
-                  | GeoAiMapLayer['arcgisLayerDefinition']
-                  | undefined,
-              }),
-            ),
-          ];
-          const gisBlock = await buildGisContentLayersContext(22000);
-          const addedBlock = summarizeGeoAiMapLayers(geoAiSatelliteLayerPayload, 20000);
-
-          const pinCoords = geoAiPinLngLatRef.current ?? lastMapQueryCoordsFromMessages(historyWithUser);
-          let sessionWeatherBlocks = `\n\n${GEO_EXPLORER_SESSION_AND_WEATHER}`;
-          if (pinCoords) {
-            const [pinLng, pinLat] = pinCoords;
-            const pop = geoAiMapChatPopupRef.current;
-            const popSnap =
-              pop && Math.abs(pop.lng - pinLng) < 1e-5 && Math.abs(pop.lat - pinLat) < 1e-5
-                ? { placeName: pop.placeName, country: pop.country, fullDescription: pop.fullDescription }
-                : null;
-            sessionWeatherBlocks += `\n\n${buildSessionAnchorBlock(pinLng, pinLat, popSnap)}`;
-            if (geoExplorerUserMessageImpliesWeather(userTextForMapFallback)) {
-              sessionWeatherBlocks += `\n\n${await buildOpenMeteoContextBlock(pinLat, pinLng, userTextForMapFallback)}`;
-            }
-          }
-
-          const systemInstruction = `${GEO_EXPLORER_SYSTEM_PROMPT}\n\n${GEO_EXPLORER_LAYER_RULES}${sessionWeatherBlocks}\n\n---\n### Satellite — Added layers (this page)\n${addedBlock}\n\n${gisBlock}`;
-
-          const reply = await geminiGenerateContent({
+          const { modelMsg, mapEffect } = await runGeoExplorerGeminiTurn({
             apiKey,
-            systemInstruction,
-            contents: messagesToGeminiContents(historyWithUser),
+            historyWithUser,
+            userTextForMapFallback,
+            primaryVectorLayers: geoAiSatelliteLayerPayload,
+            mapboxAccessToken: mapboxToken || undefined,
+            openWeatherApiKey: openWeatherMapApiKey,
+            pinLngLat: geoAiPinLngLatRef.current,
+            lastMapQueryCoords: lastMapQueryCoordsFromMessages(historyWithUser),
+            mapPopup: geoAiMapChatPopupRef.current,
+            addedLayersHeading: '### Satellite — Added layers (this page)',
           });
-          const mapQueryCoords = parseMapQueryLngLat(reply);
-          let coords: [number, number] | null = mapQueryCoords;
-          let replyText = reply;
-          let layerHit: LayerQueryMatch | null = null;
-          let pinSource: 'map_query' | 'layer' | 'geocode' = mapQueryCoords ? 'map_query' : 'geocode';
-
-          if (!coords && userTextForMapFallback) {
-            layerHit = findLngLatFromLayerQuery(userTextForMapFallback, combinedForLookup);
-            if (layerHit) {
-              coords = [layerHit.lng, layerHit.lat];
-              pinSource = 'layer';
-              const hint = layerHit.matchSummary.trim();
-              replyText = `${reply.trimEnd()}\n\n(Map pin from layer "${layerHit.layerName}" — matched feature attributes: ${hint.slice(0, 200)}${hint.length > 200 ? '…' : ''})`;
-            } else {
-              const geoQuery = stripLayerReferenceForGeocode(simplifyGeoExplorerUserQuery(userTextForMapFallback));
-              if (geoQuery.length >= 2) {
-                const geocoded = await geocodePlaceToLngLat(geoQuery, {
-                  mapboxAccessToken: mapboxToken || undefined,
-                });
-                if (geocoded) {
-                  coords = geocoded;
-                  pinSource = 'geocode';
-                  replyText = `${reply.trimEnd()}\n\n(Map centered on the best place-name match for your message.)`;
-                }
-              }
-            }
-          }
-          if (coords && !parseMapQueryLngLat(replyText)) {
-            replyText = `${replyText.trimEnd()}\nMAP_QUERY:${coords[0]},${coords[1]}`;
-          }
-          const modelId =
-            typeof crypto !== 'undefined' && 'randomUUID' in crypto
-              ? crypto.randomUUID()
-              : `geo-m-${Date.now()}`;
-          const modelMsg: GeoExplorerMessage = {
-            id: modelId,
-            role: 'model',
-            parts: [{ type: 'text', text: replyText }],
-          };
           setGeoExplorerMessages(h => [...h, modelMsg]);
-          if (!coords) {
+          if (!mapEffect) {
             setGeoAiMapChatPopup(null);
           } else {
+            const { coords, pinSource, layerHit } = mapEffect;
             setGeoAiPinLngLat(coords);
-            const targetZoom =
-              pinSource === 'layer' ? 17 : pinSource === 'map_query' ? 15.75 : 13.65;
+            const targetZoom = geoExplorerTargetZoomForPinSource(pinSource);
             setViewState(prev => ({
               ...prev,
               longitude: coords[0],
@@ -2984,7 +2898,15 @@ export default function SatelliteIntelligence() {
       });
       return historyWithUser;
     });
-  }, [geminiApiKey, geoExplorerDraft, geoExplorerPendingImage, mapboxToken, is3DView, geoAiSatelliteLayerPayload]);
+  }, [
+    geminiApiKey,
+    geoExplorerDraft,
+    geoExplorerPendingImage,
+    mapboxToken,
+    is3DView,
+    geoAiSatelliteLayerPayload,
+    openWeatherMapApiKey,
+  ]);
 
   const sendGeoAiChat = useCallback(() => {
     const trimmed = geoAiDraft.trim();
@@ -3011,8 +2933,32 @@ export default function SatelliteIntelligence() {
       const historyWithUser = [...prev, { id: userId, role: 'user' as const, text: trimmed }];
       queueMicrotask(async () => {
         try {
+          const gisSaved = await loadGisMapSavedLayers();
+          const combinedForLookup: GeoAiMapLayer[] = [
+            ...geoAiSatelliteLayerPayload,
+            ...gisSaved.map(
+              (l): GeoAiMapLayer => ({
+                name: l.name,
+                visible: l.visible,
+                source: l.source,
+                data: l.data,
+                arcgisLayerDefinition: (l as { arcgisLayerDefinition?: unknown }).arcgisLayerDefinition as
+                  | GeoAiMapLayer['arcgisLayerDefinition']
+                  | undefined,
+              }),
+            ),
+          ];
+          const weatherAppend = await buildGeoAiWeatherSystemAppend({
+            userText: trimmed,
+            pinLngLat: geoAiPinLngLatRef.current,
+            lastMapQueryCoords: null,
+            combinedLayers: combinedForLookup,
+            mapboxAccessToken: mapboxToken || undefined,
+            openWeatherApiKey: openWeatherMapApiKey,
+            mapPopup: geoAiMapChatPopupRef.current,
+          });
           const dataCtx = await buildGeoAiDataContext(48000, { satelliteLayers: geoAiSatelliteLayerPayload });
-          const system = `${GEO_AI_CHAT_SYSTEM_BASE}\n\n---\nDATA CONTEXT (authoritative for this session turn):\n${dataCtx}`;
+          const system = `${GEO_AI_CHAT_SYSTEM_BASE}\n\n${GEO_EXPLORER_SESSION_AND_WEATHER}${weatherAppend}\n\n---\nDATA CONTEXT (authoritative for this session turn):\n${dataCtx}`;
           const prior = historyWithUser.slice(0, -1);
           const turns: GeoAiChatTurn[] = prior.map(m => ({ role: m.role, text: m.text }));
           const reply = await claudeGeoAiComplete({
@@ -3035,7 +2981,7 @@ export default function SatelliteIntelligence() {
       });
       return historyWithUser;
     });
-  }, [claudeApiKey, geoAiDraft, geoAiSatelliteLayerPayload]);
+  }, [claudeApiKey, geoAiDraft, geoAiSatelliteLayerPayload, mapboxToken, openWeatherMapApiKey]);
 
   const sendGeoDeepseekChat = useCallback(() => {
     const trimmed = geoDeepseekDraft.trim();
@@ -3062,8 +3008,32 @@ export default function SatelliteIntelligence() {
       const historyWithUser = [...prev, { id: userId, role: 'user' as const, text: trimmed }];
       queueMicrotask(async () => {
         try {
+          const gisSaved = await loadGisMapSavedLayers();
+          const combinedForLookup: GeoAiMapLayer[] = [
+            ...geoAiSatelliteLayerPayload,
+            ...gisSaved.map(
+              (l): GeoAiMapLayer => ({
+                name: l.name,
+                visible: l.visible,
+                source: l.source,
+                data: l.data,
+                arcgisLayerDefinition: (l as { arcgisLayerDefinition?: unknown }).arcgisLayerDefinition as
+                  | GeoAiMapLayer['arcgisLayerDefinition']
+                  | undefined,
+              }),
+            ),
+          ];
+          const weatherAppend = await buildGeoAiWeatherSystemAppend({
+            userText: trimmed,
+            pinLngLat: geoAiPinLngLatRef.current,
+            lastMapQueryCoords: null,
+            combinedLayers: combinedForLookup,
+            mapboxAccessToken: mapboxToken || undefined,
+            openWeatherApiKey: openWeatherMapApiKey,
+            mapPopup: geoAiMapChatPopupRef.current,
+          });
           const dataCtx = await buildGeoAiDataContext(48000, { satelliteLayers: geoAiSatelliteLayerPayload });
-          const system = `${GEO_AI_CHAT_SYSTEM_BASE}\n\n---\nDATA CONTEXT (authoritative for this session turn):\n${dataCtx}`;
+          const system = `${GEO_AI_CHAT_SYSTEM_BASE}\n\n${GEO_EXPLORER_SESSION_AND_WEATHER}${weatherAppend}\n\n---\nDATA CONTEXT (authoritative for this session turn):\n${dataCtx}`;
           const prior = historyWithUser.slice(0, -1);
           const turns: GeoAiChatTurn[] = prior.map(m => ({ role: m.role, text: m.text }));
           const reply = await agroChatWithDeepSeek({
@@ -3086,7 +3056,7 @@ export default function SatelliteIntelligence() {
       });
       return historyWithUser;
     });
-  }, [deepseekApiKey, geoDeepseekDraft, geoAiSatelliteLayerPayload]);
+  }, [deepseekApiKey, geoDeepseekDraft, geoAiSatelliteLayerPayload, mapboxToken, openWeatherMapApiKey]);
 
   const onGeoExplorerAttachChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -3798,9 +3768,10 @@ export default function SatelliteIntelligence() {
     [currentBasemapEntry, mapboxToken],
   );
 
+  /** Use stable primitives only — `mapStyle` object identity can churn and would re-fire this every render → stack overflow. */
   useEffect(() => {
     setIsMapLoaded(false);
-  }, [mapStyle, activeBasemapId]);
+  }, [activeBasemapId, mapboxToken, currentBasemapEntry.id]);
   const toggleWmsOverlayVisibility = () => setIsWmsOverlayVisible(v => !v);
   const toggleStacThumbVisibility = () => setIsStacThumbVisible(v => !v);
   const currentBasemapLabel = currentBasemapEntry?.label || basemapId || 'Default basemap';
@@ -4901,121 +4872,20 @@ export default function SatelliteIntelligence() {
                           </div>
 
                           {geoAiModelTab === 'gemini' ? (
-                            <>
-                              <div className="si-geo-explorer-messages">
-                                <div className="si-geo-explorer-row si-geo-explorer-row--model">
-                                  <div className="si-geo-explorer-avatar" aria-hidden>
-                                    <i className="fa-solid fa-globe" />
-                                  </div>
-                                  <div className="si-geo-explorer-bubble">
-                                    Hello! Describe a place, upload an image, or ask for directions. When a location is clear,
-                                    the map will fly there (the model adds a MAP_QUERY line).
-                                  </div>
-                                </div>
-                                {geoExplorerMessages.map(msg => {
-                                  const raw = messageDisplayText(msg);
-                                  const show = msg.role === 'model' ? stripMapQueryLine(raw) : raw;
-                                  const hasImage = msg.parts.some(p => p.type === 'image');
-                                  return (
-                                    <div
-                                      key={msg.id}
-                                      className={`si-geo-explorer-row si-geo-explorer-row--${msg.role}`}
-                                    >
-                                      {msg.role === 'model' ? (
-                                        <div className="si-geo-explorer-avatar" aria-hidden>
-                                          <i className="fa-solid fa-wand-magic-sparkles" />
-                                        </div>
-                                      ) : null}
-                                      <div className="si-geo-explorer-bubble">
-                                        {show ? <p className="si-geo-explorer-bubble-text">{show}</p> : null}
-                                        {msg.role === 'user' && hasImage ? (
-                                          <p className="si-geo-explorer-bubble-meta">
-                                            <i className="fa-solid fa-paperclip" aria-hidden /> Image attached
-                                          </p>
-                                        ) : null}
-                                      </div>
-                                    </div>
-                                  );
-                                })}
-                                {geoExplorerBusy ? (
-                                  <div className="si-geo-explorer-row si-geo-explorer-row--model">
-                                    <div className="si-geo-explorer-avatar" aria-hidden>
-                                      <i className="fa-solid fa-wand-magic-sparkles" />
-                                    </div>
-                                    <div className="si-geo-explorer-bubble si-geo-explorer-bubble--typing">
-                                      <i className="fa-solid fa-spinner fa-spin" aria-hidden /> Thinking…
-                                    </div>
-                                  </div>
-                                ) : null}
-                              </div>
-                              {geoExplorerChatError ? (
-                                <p className="si-geo-explorer-error">{geoExplorerChatError}</p>
-                              ) : null}
-                              {geoExplorerPendingImage ? (
-                                <p className="si-geo-explorer-pending-img">
-                                  <i className="fa-solid fa-image" aria-hidden /> Image ready to send
-                                  <button
-                                    type="button"
-                                    className="si-geo-explorer-linkish"
-                                    onClick={() => setGeoExplorerPendingImage(null)}
-                                  >
-                                    Remove
-                                  </button>
-                                </p>
-                              ) : null}
-                              <div className="si-geo-explorer-input-row">
-                                <textarea
-                                  className="si-geo-explorer-input"
-                                  rows={2}
-                                  value={geoExplorerDraft}
-                                  onChange={e => setGeoExplorerDraft(e.target.value)}
-                                  onKeyDown={e => {
-                                    if (e.key === 'Enter' && !e.shiftKey) {
-                                      e.preventDefault();
-                                      sendGeoExplorerChat();
-                                    }
-                                  }}
-                                  placeholder="Describe a place, ask for directions, or plan a trip…"
-                                  aria-label="Geo AI Gemini message"
-                                  disabled={geoExplorerBusy}
-                                />
-                                <input
-                                  ref={geoExplorerFileInputRef}
-                                  type="file"
-                                  className="si-geo-explorer-file-input"
-                                  accept="image/*"
-                                  onChange={onGeoExplorerAttachChange}
-                                  aria-hidden
-                                  tabIndex={-1}
-                                />
-                                <button
-                                  type="button"
-                                  className="si-geo-explorer-attach"
-                                  onClick={() => geoExplorerFileInputRef.current?.click()}
-                                  disabled={geoExplorerBusy}
-                                  aria-label="Attach image"
-                                  title="Attach image"
-                                >
-                                  <i className="fa-solid fa-paperclip" aria-hidden />
-                                </button>
-                                <button
-                                  type="button"
-                                  className="si-geo-explorer-send"
-                                  onClick={sendGeoExplorerChat}
-                                  disabled={
-                                    geoExplorerBusy || (!geoExplorerDraft.trim() && !geoExplorerPendingImage)
-                                  }
-                                  aria-label="Send"
-                                  title="Send"
-                                >
-                                  <i className="fa-solid fa-paper-plane" aria-hidden />
-                                </button>
-                              </div>
-                              <p className="si-geo-explorer-footnote">
-                                Powered by Google Gemini. Set <code>VITE_GEMINI_API_KEY</code> or save under System Settings →
-                                API Tokens → Gemini API. Do not commit keys.
-                              </p>
-                            </>
+                            <GeoExplorerGeminiChatBody
+                              cssPrefix="si-geo-explorer"
+                              messages={geoExplorerMessages}
+                              busy={geoExplorerBusy}
+                              error={geoExplorerChatError}
+                              draft={geoExplorerDraft}
+                              onDraftChange={setGeoExplorerDraft}
+                              pendingImage={geoExplorerPendingImage}
+                              onClearPendingImage={() => setGeoExplorerPendingImage(null)}
+                              fileInputRef={geoExplorerFileInputRef}
+                              onAttachChange={onGeoExplorerAttachChange}
+                              onSend={sendGeoExplorerChat}
+                              textareaAriaLabel="Geo AI Gemini message"
+                            />
                           ) : null}
 
                           {geoAiModelTab === 'claude' || geoAiModelTab === 'deepseek' ? (

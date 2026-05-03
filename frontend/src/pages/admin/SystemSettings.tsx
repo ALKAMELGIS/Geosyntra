@@ -38,6 +38,10 @@ import {
   getDeepseekApiKeyBrowserOverride,
   persistDeepseekApiKeyInBrowser,
 } from '../../lib/deepseekApiKey'
+import {
+  getOpenWeatherMapApiKeyBrowserOverride,
+  persistOpenWeatherMapApiKeyInBrowser,
+} from '../../lib/openWeatherMapApiKey'
 import { persistApiSecretsPatchToServer } from '../../lib/apiSecretsServerPersistence'
 
 const PAGE_ICON_PRESETS = [
@@ -152,6 +156,7 @@ export default function SystemSettings() {
   const [geminiApiKeyDraft, setGeminiApiKeyDraft] = useState('')
   const [claudeApiKeyDraft, setClaudeApiKeyDraft] = useState('')
   const [deepseekApiKeyDraft, setDeepseekApiKeyDraft] = useState('')
+  const [openWeatherMapApiKeyDraft, setOpenWeatherMapApiKeyDraft] = useState('')
   const [customUserTokenDrafts, setCustomUserTokenDrafts] = useState<Record<string, string>>({})
   const [addApiModalOpen, setAddApiModalOpen] = useState(false)
   const [addApiForm, setAddApiForm] = useState({
@@ -227,6 +232,11 @@ export default function SystemSettings() {
     return typeof raw === 'string' && raw.trim().length > 0
   }, [])
 
+  const openWeatherMapApiKeyFromEnv = useMemo(() => {
+    const raw = import.meta.env.VITE_OPENWEATHER_API_KEY
+    return typeof raw === 'string' && raw.trim().length > 0
+  }, [])
+
   useEffect(() => {
     if (tab !== 'api-tokens') return
     const refreshApiDrafts = () => {
@@ -237,6 +247,7 @@ export default function SystemSettings() {
       setGeminiApiKeyDraft(getGeminiApiKeyBrowserOverride())
       setClaudeApiKeyDraft(getClaudeApiKeyBrowserOverride())
       setDeepseekApiKeyDraft(getDeepseekApiKeyBrowserOverride())
+      setOpenWeatherMapApiKeyDraft(getOpenWeatherMapApiKeyBrowserOverride())
     }
     refreshApiDrafts()
     window.addEventListener('agri-api-secrets-hydrated', refreshApiDrafts)
@@ -1734,6 +1745,74 @@ export default function SystemSettings() {
                 {language === 'ar'
                   ? 'يُفعّل Geo AI Chat في استخبارات الأقمار: يفسّر الطبقات والحقول بناءً على ما هو محفوظ في GIS Map (GIS Content) ولقطة بيانات لوحة التطوير → Data فقط، دون اختلاق قيم.'
                   : 'Powers Geo AI Chat in Satellite Intelligence: answers use only GIS Map saved layers (GIS Content) plus the Develop Dashboard → Data snapshot—no invented field values. Save the key here or use VITE_CLAUDE_API_KEY at build time.'}
+              </p>
+            </div>
+
+            <div className="sys-api-tokens-card">
+              <h3 className="sys-settings-panel__title sys-settings-api-h3">
+                <i className="fa-solid fa-cloud-sun" aria-hidden />
+                {language === 'ar' ? 'OpenWeatherMap API' : 'OpenWeatherMap API'}
+              </h3>
+              {openWeatherMapApiKeyFromEnv ? (
+                <p className="sys-settings-panel__desc sys-settings-api-envnote">
+                  <strong>{language === 'ar' ? 'نشط من البناء:' : 'Active from build:'}</strong>{' '}
+                  {language === 'ar'
+                    ? 'VITE_OPENWEATHER_API_KEY؛ المفتاح المحفوظ في المتصفح يُستخدم أولاً عند وجوده.'
+                    : 'VITE_OPENWEATHER_API_KEY is set at build time; a key saved in this browser is used first when present.'}
+                </p>
+              ) : null}
+              <ApiTokenMergeField
+                id="sys-openweathermap-api-key"
+                label={
+                  language === 'ar'
+                    ? 'مفتاح OpenWeatherMap (المتصفح + الخادم)'
+                    : 'OpenWeatherMap API key (browser + server)'
+                }
+                value={openWeatherMapApiKeyDraft}
+                onChange={setOpenWeatherMapApiKeyDraft}
+                placeholder={language === 'ar' ? 'مفتاح API من openweathermap.org' : 'API key from openweathermap.org'}
+                password
+                onSave={async () => {
+                  persistOpenWeatherMapApiKeyInBrowser(openWeatherMapApiKeyDraft)
+                  const r = await persistApiSecretsPatchToServer({ openWeatherMapApiKey: openWeatherMapApiKeyDraft.trim() })
+                  pushToast(
+                    'success',
+                    r.ok
+                      ? language === 'ar'
+                        ? 'تم حفظ مفتاح OpenWeatherMap على الخادم والمتصفح.'
+                        : 'OpenWeatherMap API key saved on server and in this browser.'
+                      : language === 'ar'
+                        ? 'حُفظ في المتصفح؛ تعذّر تحديث الخادم.'
+                        : 'Saved in this browser; server copy not updated.',
+                  )
+                }}
+                onClear={async () => {
+                  persistOpenWeatherMapApiKeyInBrowser('')
+                  setOpenWeatherMapApiKeyDraft('')
+                  const r = await persistApiSecretsPatchToServer({ openWeatherMapApiKey: '' })
+                  pushToast(
+                    'success',
+                    r.ok
+                      ? language === 'ar'
+                        ? 'أُزيل مفتاح OpenWeatherMap من الخادم والمتصفح.'
+                        : 'OpenWeatherMap API key cleared on server and in this browser.'
+                      : language === 'ar'
+                        ? 'أُزيل من المتصفح؛ تعذّر تحديث الخادم.'
+                        : 'Cleared in this browser; server may be unchanged until API is reachable.',
+                  )
+                }}
+                saveTitle={language === 'ar' ? 'حفظ' : 'Save'}
+                clearTitle={language === 'ar' ? 'مسح' : 'Clear'}
+                saveAria={language === 'ar' ? 'حفظ مفتاح OpenWeatherMap' : 'Save OpenWeatherMap API key'}
+                clearAria={language === 'ar' ? 'مسح مفتاح OpenWeatherMap' : 'Clear OpenWeatherMap API key'}
+                actionsGroupLabel={
+                  language === 'ar' ? 'إجراءات مفتاح OpenWeatherMap' : 'OpenWeatherMap API key actions'
+                }
+              />
+              <p className="sys-settings-panel__desc sys-settings-api-hint">
+                {language === 'ar'
+                  ? 'اختياري: يُضيف بيانات طقس حالية وتوقعات قصيرة لسياق Geo AI (Gemini وClaude وDeepSeek) عند سؤال المستخدم عن الطقس، باستخدام إحداثيات الخريطة أو طبقة GIS أو اسم مكان.'
+                  : 'Optional: adds current conditions and a short forecast to Geo AI (Gemini, Claude, DeepSeek) when the user asks about weather, using the map pin, GIS Content / layer geometry, or a place name. Open-Meteo is always used without a key; OpenWeather refines “now” detail when this key is set.'}
               </p>
             </div>
           </div>
