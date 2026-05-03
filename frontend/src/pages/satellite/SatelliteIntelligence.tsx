@@ -38,7 +38,6 @@ import {
   sanitizeArcgisDrawingInfoForClient,
   slimArcgisLayerDefinitionForStorage,
 } from '../../lib/arcgisDrawingInfoMapbox';
-import { getMapboxAccessToken } from '../../lib/mapboxAccessToken';
 import { subscribeSentinelHubAccessToken } from '../../lib/sentinelHubAccessToken';
 import {
   getSentinelHubWmsBaseUrl,
@@ -64,9 +63,9 @@ import { forEachLngLatPairInCoords } from '../../lib/geoJsonCoordIterWalk';
 import { agroChatWithDeepSeek } from '../../lib/agroAiChat';
 import { GeoExplorerGeminiChatBody } from './components/GeoExplorerGeminiChatBody';
 import {
+  BASEMAP_CATALOG_OPTS_SATELLITE_NO_MAPBOX_VECTOR,
   buildBasemapCatalog,
   catalogEntryById,
-  DEFAULT_BASEMAP_ID,
   DEFAULT_BASEMAP_ID_NO_MAPBOX,
   getBasemapThumbnail,
   mapboxGlStyleForEntry,
@@ -1088,7 +1087,10 @@ export default function SatelliteIntelligence() {
   const claudeApiKey = useClaudeApiKey();
   const deepseekApiKey = useDeepseekApiKey();
   const openWeatherMapApiKey = useOpenWeatherMapApiKey();
-  const basemapCatalog = useMemo(() => buildBasemapCatalog(mapboxToken || ''), [mapboxToken]);
+  const basemapCatalog = useMemo(
+    () => buildBasemapCatalog(mapboxToken || '', BASEMAP_CATALOG_OPTS_SATELLITE_NO_MAPBOX_VECTOR),
+    [mapboxToken],
+  );
   const [viewState, setViewState] = useState({
     longitude: 20,
     latitude: 10,
@@ -1171,15 +1173,13 @@ export default function SatelliteIntelligence() {
   const [wmsLayers, setWmsLayers] = useState<WmsLayerInfo[]>([]);
   const [isLoadingLayers, setIsLoadingLayers] = useState(false);
   const [isLayerDropdownOpen, setIsLayerDropdownOpen] = useState(false);
-  const [basemapId, setBasemapId] = useState(() =>
-    getMapboxAccessToken() ? DEFAULT_BASEMAP_ID : DEFAULT_BASEMAP_ID_NO_MAPBOX,
-  );
+  const [basemapId, setBasemapId] = useState(() => DEFAULT_BASEMAP_ID_NO_MAPBOX);
   const [isBasemapOpen, setIsBasemapOpen] = useState(false);
 
   useEffect(() => {
     if (mapboxToken) return;
     setBasemapId(prev => {
-      const cat = buildBasemapCatalog('');
+      const cat = buildBasemapCatalog('', BASEMAP_CATALOG_OPTS_SATELLITE_NO_MAPBOX_VECTOR);
       const r = resolveBasemapId(prev);
       if (catalogEntryById(cat, r)) return r;
       return DEFAULT_BASEMAP_ID_NO_MAPBOX;
@@ -1191,7 +1191,7 @@ export default function SatelliteIntelligence() {
       if (catalogEntryById(basemapCatalog, prev)) return prev;
       const r = resolveBasemapId(prev);
       if (catalogEntryById(basemapCatalog, r)) return r;
-      return mapboxToken ? DEFAULT_BASEMAP_ID : DEFAULT_BASEMAP_ID_NO_MAPBOX;
+      return DEFAULT_BASEMAP_ID_NO_MAPBOX;
     });
   }, [basemapCatalog, mapboxToken]);
   const [is3DView, setIs3DView] = useState(true);
@@ -3822,10 +3822,7 @@ export default function SatelliteIntelligence() {
   const currentBasemapEntry = useMemo(() => {
     return (
       catalogEntryById(basemapCatalog, activeBasemapId) ??
-      catalogEntryById(
-        basemapCatalog,
-        mapboxToken ? DEFAULT_BASEMAP_ID : DEFAULT_BASEMAP_ID_NO_MAPBOX,
-      )!
+      catalogEntryById(basemapCatalog, DEFAULT_BASEMAP_ID_NO_MAPBOX)!
     );
   }, [basemapCatalog, activeBasemapId, mapboxToken]);
   /** Stable style reference: raster styles are new objects each call — unstable refs force setStyle every render and trigger "Style is not done loading". */

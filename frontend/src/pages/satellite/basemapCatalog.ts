@@ -81,8 +81,23 @@ const OPENTOPO_RASTER: Record<string, unknown> = rasterStyleFromTiles([
 const ESRI_IMAGERY = esriTile('World_Imagery')
 const ESRI_IMAGERY_STYLE = rasterStyleFromTiles([{ url: ESRI_IMAGERY, attribution: ATTR_ESRI }])
 
+export type BuildBasemapCatalogOptions = {
+  /**
+   * When false, omit Mapbox vector styles (`mapbox://…`) and Mapbox-only basemap entries.
+   * Satellite Intelligence uses this so the map relies on Esri/OSM/Carto rasters only (Mapbox token still used for geocoding / GL map engine if present).
+   */
+  includeMapboxVectorBasemaps?: boolean
+}
+
+function entryUsesMapboxVectorBasemap(e: BasemapCatalogEntry): boolean {
+  if (e.requiresMapboxToken) return true
+  const st = e.mapboxStyle
+  return typeof st === 'string' && st.startsWith('mapbox://')
+}
+
 /** Build catalog with Mapbox token-dependent URLs filled in for thumbnails / raster. */
-export function buildBasemapCatalog(mapboxToken: string): BasemapCatalogEntry[] {
+export function buildBasemapCatalog(mapboxToken: string, options?: BuildBasemapCatalogOptions): BasemapCatalogEntry[] {
+  const includeMapboxVector = options?.includeMapboxVectorBasemaps !== false
   const t = mapboxToken.trim()
   const mbSatStd = mbRaster('standard-satellite', t)
   const mbSatV9 = mbRaster('satellite-v9', t)
@@ -279,7 +294,7 @@ export function buildBasemapCatalog(mapboxToken: string): BasemapCatalogEntry[] 
     },
   ]
 
-  const mapboxOnly: BasemapCatalogEntry[] = t
+  const mapboxOnly: BasemapCatalogEntry[] = includeMapboxVector && t
     ? [
         {
           id: 'mb-streets',
@@ -326,8 +341,13 @@ export function buildBasemapCatalog(mapboxToken: string): BasemapCatalogEntry[] 
       ]
     : []
 
+  let combined: BasemapCatalogEntry[] = [...entries, ...mapboxOnly]
+  if (!includeMapboxVector) {
+    combined = combined.filter(e => !entryUsesMapboxVectorBasemap(e))
+  }
+
   const dedup = new Map<string, BasemapCatalogEntry>()
-  ;[...entries, ...mapboxOnly].forEach(e => {
+  combined.forEach(e => {
     if (!dedup.has(e.id)) dedup.set(e.id, e)
   })
   return Array.from(dedup.values())
@@ -394,8 +414,8 @@ export function getBasemapThumbnail(entry: BasemapCatalogEntry, mapboxToken: str
 /** Map saved UI / config ids to current catalog ids after deduplication or renames. */
 export function resolveBasemapId(id: string): string {
   const legacy: Record<string, string> = {
-    'mapbox-alkamelgis': 'mapbox-standard-satellite',
-    hybrid: 'mapbox-hybrid',
+    'mapbox-alkamelgis': 'satellite',
+    hybrid: 'esri-imagery-hybrid',
     street: 'osm',
     terrain: 'terrain-opentopo',
     'google-earth': 'esri',
@@ -413,3 +433,8 @@ export function catalogEntryById(catalog: BasemapCatalogEntry[], id: string): Ba
 
 export const DEFAULT_BASEMAP_ID = 'mapbox-standard-satellite'
 export const DEFAULT_BASEMAP_ID_NO_MAPBOX = 'esri'
+
+/** Satellite page: no Mapbox-hosted basemap styles — Esri / OSM / Carto rasters only. */
+export const BASEMAP_CATALOG_OPTS_SATELLITE_NO_MAPBOX_VECTOR: BuildBasemapCatalogOptions = {
+  includeMapboxVectorBasemaps: false,
+}
