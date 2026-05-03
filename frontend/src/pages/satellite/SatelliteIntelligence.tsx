@@ -1060,6 +1060,20 @@ const ENVIRONMENTAL_INDICES: Record<EnvironmentalIndexId, {
 };
 
 const PIVOT_COLORS = ['#22c55e', '#3b82f6', '#f97316', '#a855f7', '#06b6d4', '#eab308'];
+
+/**
+ * Stable Mapbox GL props (same object identity every render).
+ * Inline `{ name: 'globe' }` / `fog={{…}}` forces react-map-gl to re-apply projection each frame →
+ * map `move` → `setViewState` → re-render → new projection ref → repeat until "Maximum call stack size exceeded".
+ */
+const SAT_MAP_PROJECTION_GLOBE = { name: 'globe' as const };
+const SAT_MAP_PROJECTION_MERCATOR = { name: 'mercator' as const };
+const SAT_MAP_FOG_3D = {
+  range: [0.5, 10] as [number, number],
+  color: '#020617',
+  'horizon-blend': 0.1,
+};
+
 const COLOR_RAMPS: Record<LayerSymbologyDraft['colorRamp'], string[]> = {
   viridis: ['#440154', '#3b528b', '#21918c', '#5ec962', '#fde725'],
   green: ['#14532d', '#166534', '#16a34a', '#4ade80', '#bbf7d0'],
@@ -1101,6 +1115,10 @@ export default function SatelliteIntelligence() {
       }
       return { ...vs };
     });
+  }, []);
+
+  const handleMapLoad = useCallback(() => {
+    setIsMapLoaded(true);
   }, []);
 
   const [sentinelWmsRev, setSentinelWmsRev] = useState(0);
@@ -1484,7 +1502,7 @@ export default function SatelliteIntelligence() {
 
     const pitch = nextIs3D ? Math.max(viewState.pitch || 0, 55) : 0;
     const bearing = viewState.bearing || 0;
-    const projection = nextIs3D ? { name: 'globe' as const } : { name: 'mercator' as const };
+    const projection = nextIs3D ? SAT_MAP_PROJECTION_GLOBE : SAT_MAP_PROJECTION_MERCATOR;
 
     if (mapInstance && typeof mapInstance.setProjection === 'function') {
       try {
@@ -2381,7 +2399,7 @@ export default function SatelliteIntelligence() {
     window.setTimeout(() => {
       const map = mapRef.current?.getMap?.() ?? mapRef.current;
       try {
-        map?.setProjection?.({ name: 'globe' });
+        map?.setProjection?.(SAT_MAP_PROJECTION_GLOBE);
       } catch {
         /* ignore */
       }
@@ -2405,7 +2423,7 @@ export default function SatelliteIntelligence() {
     window.setTimeout(() => {
       const map = mapRef.current?.getMap?.() ?? mapRef.current;
       try {
-        map?.setProjection?.({ name: 'mercator' });
+        map?.setProjection?.(SAT_MAP_PROJECTION_MERCATOR);
       } catch {
         /* ignore */
       }
@@ -2748,6 +2766,11 @@ export default function SatelliteIntelligence() {
         'fill-opacity': showProductivityZones ? 0.48 : showFieldBoundaries ? 0.18 : 0,
       },
       outlineLayout: { visibility: showFieldBoundaries ? 'visible' : 'none' } as const,
+      outlineLinePaint: {
+        'line-color': ['coalesce', ['get', 'color'], '#22c55e'] as any,
+        'line-width': 2,
+        'line-opacity': 0.9,
+      },
     };
   }, [selectedIndex, showFieldBoundaries, showProductivityZones]);
 
@@ -5288,17 +5311,11 @@ export default function SatelliteIntelligence() {
             }}
             mapStyle={mapStyle}
             mapboxAccessToken={mapboxToken || undefined}
-            projection={
-              isMapLoaded && is3DView ? { name: 'globe' } : { name: 'mercator' }
-            }
+            projection={isMapLoaded && is3DView ? SAT_MAP_PROJECTION_GLOBE : SAT_MAP_PROJECTION_MERCATOR}
             renderWorldCopies={!(isMapLoaded && is3DView)}
             dragRotate={isMapLoaded && is3DView}
             pitchWithRotate={isMapLoaded && is3DView}
-            fog={
-              isMapLoaded && is3DView
-                ? { range: [0.5, 10], color: '#020617', 'horizon-blend': 0.1 }
-                : undefined
-            }
+            fog={isMapLoaded && is3DView ? SAT_MAP_FOG_3D : undefined}
             onError={(e: any) => {
               const message = e?.error?.message || '';
               const url = e?.error?.url || '';
@@ -5314,7 +5331,7 @@ export default function SatelliteIntelligence() {
               }
               console.warn('Map Error:', e);
             }}
-            onLoad={() => setIsMapLoaded(true)}
+            onLoad={handleMapLoad}
           >
             {isMapLoaded ? (
               <>
@@ -5352,11 +5369,7 @@ export default function SatelliteIntelligence() {
                   id="agri-pivots-outline"
                   type="line"
                   layout={pivotFillLayoutAndPaint.outlineLayout}
-                  paint={{
-                    'line-color': ['coalesce', ['get', 'color'], '#22c55e'] as any,
-                    'line-width': 2,
-                    'line-opacity': 0.9,
-                  }}
+                  paint={pivotFillLayoutAndPaint.outlineLinePaint as any}
                 />
               </Source>
             )}
