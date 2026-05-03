@@ -81,47 +81,6 @@
   outline-offset: 2px;
 }
 
-.agdash-filters {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
-  gap: 14px 16px;
-  padding: 18px 20px;
-  background: var(--agdash-card);
-  border: 1px solid var(--agdash-border);
-  border-radius: 12px;
-  margin-bottom: 18px;
-}
-
-.agdash-field {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.agdash-field label {
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--agdash-muted);
-}
-
-.agdash-field input,
-.agdash-field select {
-  width: 100%;
-  padding: 9px 11px;
-  border-radius: 8px;
-  border: 1px solid var(--agdash-border);
-  background: #fafbfc;
-  font-size: 13px;
-  color: var(--agdash-text);
-}
-
-.agdash-field input:focus,
-.agdash-field select:focus {
-  outline: none;
-  border-color: var(--agdash-green);
-  box-shadow: 0 0 0 3px rgba(22, 163, 74, 0.15);
-}
-
 .agdash-kpi-row {
   display: grid;
   grid-template-columns: repeat(4, 1fr);

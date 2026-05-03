@@ -18,16 +18,6 @@ const copy = {
   en: {
     title: 'Dashboard',
     download: 'Download',
-    from: 'From',
-    to: 'To',
-    zone: 'Zone',
-    site: 'Site',
-    farmArea: 'Farm Area',
-    field: 'Field',
-    allZones: 'All Zones',
-    allAreas: 'All Areas',
-    allFields: 'All Fields',
-    sitePlaceholder: 'All sites',
     kpiHarvest: 'Total Harvest',
     kpiWater: 'Water Usage Today',
     kpiFields: 'Active Fields',
@@ -49,16 +39,6 @@ const copy = {
   ar: {
     title: 'لوحة التحكم',
     download: 'تنزيل',
-    from: 'من',
-    to: 'إلى',
-    zone: 'المنطقة',
-    site: 'الموقع',
-    farmArea: 'مساحة المزرعة',
-    field: 'الحقل',
-    allZones: 'كل المناطق',
-    allAreas: 'كل المساحات',
-    allFields: 'كل الحقول',
-    sitePlaceholder: 'كل المواقع',
     kpiHarvest: 'إجمالي الحصاد',
     kpiWater: 'استهلاك المياه اليوم',
     kpiFields: 'حقول نشطة',
@@ -138,13 +118,6 @@ export default function AgriDesignDashboard() {
   const { language, direction } = useLanguage()
   const t = copy[language]
   const isAr = language === 'ar'
-
-  const [dateFrom, setDateFrom] = useState('2026-01-01')
-  const [dateTo, setDateTo] = useState('2026-05-02')
-  const [zone, setZone] = useState('')
-  const [site, setSite] = useState('')
-  const [farmArea, setFarmArea] = useState('')
-  const [field, setField] = useState('')
 
   const [toolHarvest, setToolHarvest] = useState('column')
   const [toolTopCategories, setToolTopCategories] = useState('column')
@@ -247,22 +220,16 @@ export default function AgriDesignDashboard() {
       [t.kpiWater, `0 ${t.unitL}`],
       [t.kpiFields, '0'],
       [t.kpiEntries, '0'],
-      [t.from, dateFrom],
-      [t.to, dateTo],
-      [t.zone, zone || t.allZones],
-      [t.site, site || t.sitePlaceholder],
-      [t.farmArea, farmArea || t.allAreas],
-      [t.field, field || t.allFields],
     ]
     const csv = rows.map(r => r.map(c => `"${String(c).replace(/"/g, '""')}"`).join(',')).join('\n')
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
     a.href = url
-    a.download = `dashboard-${dateFrom}-${dateTo}.csv`
+    a.download = `dashboard-export.csv`
     a.click()
     URL.revokeObjectURL(url)
-  }, [dateFrom, dateTo, zone, site, farmArea, field, t])
+  }, [t])
 
   return (
     <div className="page agdash-page" dir={direction}>
@@ -276,52 +243,6 @@ export default function AgriDesignDashboard() {
           </button>
         </div>
       </header>
-
-      <section className="agdash-filters" aria-label={language === 'ar' ? 'عوامل التصفية' : 'Filters'}>
-        <div className="agdash-field">
-          <label htmlFor="agdash-from">{t.from}</label>
-          <input id="agdash-from" type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} />
-        </div>
-        <div className="agdash-field">
-          <label htmlFor="agdash-to">{t.to}</label>
-          <input id="agdash-to" type="date" value={dateTo} onChange={e => setDateTo(e.target.value)} />
-        </div>
-        <div className="agdash-field">
-          <label htmlFor="agdash-zone">{t.zone}</label>
-          <select id="agdash-zone" value={zone} onChange={e => setZone(e.target.value)}>
-            <option value="">{t.allZones}</option>
-            <option value="north">North</option>
-            <option value="central">Central</option>
-            <option value="south">South</option>
-          </select>
-        </div>
-        <div className="agdash-field">
-          <label htmlFor="agdash-site">{t.site}</label>
-          <input
-            id="agdash-site"
-            type="text"
-            value={site}
-            onChange={e => setSite(e.target.value)}
-            placeholder={t.sitePlaceholder}
-          />
-        </div>
-        <div className="agdash-field">
-          <label htmlFor="agdash-area">{t.farmArea}</label>
-          <select id="agdash-area" value={farmArea} onChange={e => setFarmArea(e.target.value)}>
-            <option value="">{t.allAreas}</option>
-            <option value="a1">Block A</option>
-            <option value="b2">Block B</option>
-          </select>
-        </div>
-        <div className="agdash-field">
-          <label htmlFor="agdash-field">{t.field}</label>
-          <select id="agdash-field" value={field} onChange={e => setField(e.target.value)}>
-            <option value="">{t.allFields}</option>
-            <option value="f1">Field 1</option>
-            <option value="f2">Field 2</option>
-          </select>
-        </div>
-      </section>
 
       <section className="agdash-kpi-row" aria-label="KPI summary">
         <article className="agdash-kpi-card">
