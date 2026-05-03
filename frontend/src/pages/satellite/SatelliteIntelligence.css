@@ -5781,10 +5781,58 @@ input.si-explore-date-input-linked[type='date'] {
   overflow-y: auto;
 }
 
+.si-env-panel--explore-stac .si-env-panel-body > .si-geo-explorer-root.si-geo-explorer-root--unified {
+  gap: 0;
+  overflow-y: auto;
+}
+
 .si-geo-explorer-root--dual .si-geo-explorer {
   flex: 1 1 40%;
   min-height: 200px;
   max-height: min(48vh, 480px);
+}
+
+.si-geo-explorer-root--unified .si-geo-explorer {
+  flex: 1 1 auto;
+  min-height: 220px;
+  max-height: min(72vh, 620px);
+}
+
+.si-geo-ai-model-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 0 0 12px;
+  padding: 0 2px;
+}
+
+.si-geo-ai-model-tab {
+  border: 1px solid rgba(148, 163, 184, 0.35);
+  background: rgba(15, 23, 42, 0.65);
+  color: #cbd5e1;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  padding: 6px 12px;
+  border-radius: 999px;
+  cursor: pointer;
+  line-height: 1.2;
+  transition:
+    border-color 0.15s ease,
+    color 0.15s ease,
+    background 0.15s ease;
+}
+
+.si-geo-ai-model-tab:hover {
+  border-color: rgba(167, 139, 250, 0.5);
+  color: #f8fafc;
+}
+
+.si-geo-ai-model-tab--active {
+  border-color: rgba(167, 139, 250, 0.85);
+  background: rgba(88, 28, 135, 0.35);
+  color: #faf5ff;
+  box-shadow: 0 0 0 1px rgba(167, 139, 250, 0.2);
 }
 
 .si-geo-explorer-root .si-geo-explorer {

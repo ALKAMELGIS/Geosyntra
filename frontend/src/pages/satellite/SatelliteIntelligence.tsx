@@ -28,6 +28,7 @@ import {
 import { useMapboxAccessToken } from '../../hooks/useMapboxAccessToken';
 import { useGeminiApiKey } from '../../hooks/useGeminiApiKey';
 import { useClaudeApiKey } from '../../hooks/useClaudeApiKey';
+import { useDeepseekApiKey } from '../../hooks/useDeepseekApiKey';
 import { getArcgisPortalToken } from '../../lib/arcgisPortalToken';
 import { getMapboxAccessToken } from '../../lib/mapboxAccessToken';
 import { subscribeSentinelHubAccessToken } from '../../lib/sentinelHubAccessToken';
@@ -53,6 +54,7 @@ import {
   GEO_AI_CHAT_SYSTEM_BASE,
   type GeoAiChatTurn,
 } from '../../lib/geoAiChatClaude';
+import { agroChatWithDeepSeek } from '../../lib/agroAiChat';
 import {
   buildBasemapCatalog,
   catalogEntryById,
@@ -906,6 +908,7 @@ export default function SatelliteIntelligence() {
   const mapboxToken = useMapboxAccessToken();
   const geminiApiKey = useGeminiApiKey();
   const claudeApiKey = useClaudeApiKey();
+  const deepseekApiKey = useDeepseekApiKey();
   const basemapCatalog = useMemo(() => buildBasemapCatalog(mapboxToken || ''), [mapboxToken]);
   const [viewState, setViewState] = useState({
     longitude: 20,
@@ -1090,6 +1093,7 @@ export default function SatelliteIntelligence() {
   const [geoAiPinLngLat, setGeoAiPinLngLat] = useState<[number, number] | null>(null);
   const geoExplorerFileInputRef = useRef<HTMLInputElement | null>(null);
   const geoExplorerInFlightRef = useRef(false);
+  const [geoAiModelTab, setGeoAiModelTab] = useState<'gemini' | 'claude' | 'deepseek'>('gemini');
   const [geoAiChatMessages, setGeoAiChatMessages] = useState<Array<{ id: string; role: 'user' | 'assistant'; text: string }>>(
     [],
   );
@@ -1097,6 +1101,13 @@ export default function SatelliteIntelligence() {
   const [geoAiBusy, setGeoAiBusy] = useState(false);
   const [geoAiChatError, setGeoAiChatError] = useState('');
   const geoAiInFlightRef = useRef(false);
+  const [geoDeepseekChatMessages, setGeoDeepseekChatMessages] = useState<
+    Array<{ id: string; role: 'user' | 'assistant'; text: string }>
+  >([]);
+  const [geoDeepseekDraft, setGeoDeepseekDraft] = useState('');
+  const [geoDeepseekBusy, setGeoDeepseekBusy] = useState(false);
+  const [geoDeepseekChatError, setGeoDeepseekChatError] = useState('');
+  const geoDeepseekInFlightRef = useRef(false);
   const [polygonClosingSnap, setPolygonClosingSnap] = useState(false);
   const [drawAssistHint, setDrawAssistHint] = useState('');
   const [circleRadiusM, setCircleRadiusM] = useState<number | null>(null);
@@ -2474,6 +2485,20 @@ export default function SatelliteIntelligence() {
     setGeoAiChatError('');
   }, []);
 
+  const clearGeoDeepseekChat = useCallback(() => {
+    geoDeepseekInFlightRef.current = false;
+    setGeoDeepseekBusy(false);
+    setGeoDeepseekChatMessages([]);
+    setGeoDeepseekDraft('');
+    setGeoDeepseekChatError('');
+  }, []);
+
+  const clearCurrentGeoAiPanel = useCallback(() => {
+    if (geoAiModelTab === 'gemini') clearGeoExplorerChat();
+    else if (geoAiModelTab === 'claude') clearGeoAiChat();
+    else clearGeoDeepseekChat();
+  }, [geoAiModelTab, clearGeoExplorerChat, clearGeoAiChat, clearGeoDeepseekChat]);
+
   const sendGeoExplorerChat = useCallback(() => {
     const trimmed = geoExplorerDraft.trim();
     if (geoExplorerInFlightRef.current) return;
@@ -2612,6 +2637,57 @@ export default function SatelliteIntelligence() {
       return historyWithUser;
     });
   }, [claudeApiKey, geoAiDraft]);
+
+  const sendGeoDeepseekChat = useCallback(() => {
+    const trimmed = geoDeepseekDraft.trim();
+    if (geoDeepseekInFlightRef.current || !trimmed) return;
+    const apiKey = deepseekApiKey.trim();
+    if (!apiKey) {
+      setGeoDeepseekChatError(
+        'Add a DeepSeek API key: System Settings → API Tokens → DeepSeek, or set VITE_DEEPSEEK_API_KEY at build time. Never commit keys to Git.',
+      );
+      return;
+    }
+
+    const userId =
+      typeof crypto !== 'undefined' && 'randomUUID' in crypto
+        ? crypto.randomUUID()
+        : `gds-${Date.now()}`;
+
+    setGeoDeepseekDraft('');
+    setGeoDeepseekChatError('');
+    geoDeepseekInFlightRef.current = true;
+    setGeoDeepseekBusy(true);
+
+    setGeoDeepseekChatMessages(prev => {
+      const historyWithUser = [...prev, { id: userId, role: 'user' as const, text: trimmed }];
+      queueMicrotask(async () => {
+        try {
+          const dataCtx = await buildGeoAiDataContext();
+          const system = `${GEO_AI_CHAT_SYSTEM_BASE}\n\n---\nDATA CONTEXT (authoritative for this session turn):\n${dataCtx}`;
+          const prior = historyWithUser.slice(0, -1);
+          const turns: GeoAiChatTurn[] = prior.map(m => ({ role: m.role, text: m.text }));
+          const reply = await agroChatWithDeepSeek({
+            apiKey,
+            system,
+            turns,
+            userMessage: trimmed,
+          });
+          const aid =
+            typeof crypto !== 'undefined' && 'randomUUID' in crypto
+              ? crypto.randomUUID()
+              : `gds-m-${Date.now()}`;
+          setGeoDeepseekChatMessages(h => [...h, { id: aid, role: 'assistant', text: reply }]);
+        } catch (e) {
+          setGeoDeepseekChatError(e instanceof Error ? e.message : String(e));
+        } finally {
+          geoDeepseekInFlightRef.current = false;
+          setGeoDeepseekBusy(false);
+        }
+      });
+      return historyWithUser;
+    });
+  }, [deepseekApiKey, geoDeepseekDraft]);
 
   const onGeoExplorerAttachChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -3501,8 +3577,8 @@ export default function SatelliteIntelligence() {
                         },
                         {
                           id: 'table-geo-ai' as const,
-                          label: 'Table Geo AI',
-                          icon: 'fa-solid fa-table-cells-large',
+                          label: 'Geo AI',
+                          icon: 'fa-solid fa-comments',
                         },
                       ].map(section => (
                         <button
@@ -4364,217 +4440,270 @@ export default function SatelliteIntelligence() {
                       </div>
                     )}
                     {expandedEnvSection === 'table-geo-ai' && (
-                      <div className="si-geo-explorer-root si-geo-explorer-root--dual">
+                      <div className="si-geo-explorer-root si-geo-explorer-root--unified">
                         <div className="si-env-section-card si-geo-explorer">
                           <div className="si-geo-explorer-header">
-                            <h2 className="si-geo-explorer-title">Geo Explorer</h2>
+                            <h2 className="si-geo-explorer-title">Geo AI</h2>
                             <button
                               type="button"
                               className="si-geo-explorer-icon-btn"
-                              onClick={clearGeoExplorerChat}
+                              onClick={clearCurrentGeoAiPanel}
                               aria-label="Clear chat"
                               title="Clear chat"
                             >
                               <i className="fa-solid fa-trash" aria-hidden />
                             </button>
                           </div>
-                          <div className="si-geo-explorer-messages">
-                            <div className="si-geo-explorer-row si-geo-explorer-row--model">
-                              <div className="si-geo-explorer-avatar" aria-hidden>
-                                <i className="fa-solid fa-globe" />
-                              </div>
-                              <div className="si-geo-explorer-bubble">
-                                Hello! Describe a place, upload an image, or ask for directions. When a location is clear, the
-                                map will fly there (the model adds a MAP_QUERY line).
-                              </div>
-                            </div>
-                            {geoExplorerMessages.map(msg => {
-                              const raw = messageDisplayText(msg);
-                              const show =
-                                msg.role === 'model' ? stripMapQueryLine(raw) : raw;
-                              const hasImage = msg.parts.some(p => p.type === 'image');
-                              return (
-                                <div
-                                  key={msg.id}
-                                  className={`si-geo-explorer-row si-geo-explorer-row--${msg.role}`}
-                                >
-                                  {msg.role === 'model' ? (
+                          <div className="si-geo-ai-model-tabs" role="tablist" aria-label="AI model">
+                            <button
+                              type="button"
+                              role="tab"
+                              aria-selected={geoAiModelTab === 'claude'}
+                              className={`si-geo-ai-model-tab${geoAiModelTab === 'claude' ? ' si-geo-ai-model-tab--active' : ''}`}
+                              onClick={() => setGeoAiModelTab('claude')}
+                            >
+                              Claude
+                            </button>
+                            <button
+                              type="button"
+                              role="tab"
+                              aria-selected={geoAiModelTab === 'deepseek'}
+                              className={`si-geo-ai-model-tab${geoAiModelTab === 'deepseek' ? ' si-geo-ai-model-tab--active' : ''}`}
+                              onClick={() => setGeoAiModelTab('deepseek')}
+                            >
+                              DeepSeek
+                            </button>
+                            <button
+                              type="button"
+                              role="tab"
+                              aria-selected={geoAiModelTab === 'gemini'}
+                              className={`si-geo-ai-model-tab${geoAiModelTab === 'gemini' ? ' si-geo-ai-model-tab--active' : ''}`}
+                              onClick={() => setGeoAiModelTab('gemini')}
+                            >
+                              Gemini
+                            </button>
+                          </div>
+
+                          {geoAiModelTab === 'gemini' ? (
+                            <>
+                              <div className="si-geo-explorer-messages">
+                                <div className="si-geo-explorer-row si-geo-explorer-row--model">
+                                  <div className="si-geo-explorer-avatar" aria-hidden>
+                                    <i className="fa-solid fa-globe" />
+                                  </div>
+                                  <div className="si-geo-explorer-bubble">
+                                    Hello! Describe a place, upload an image, or ask for directions. When a location is clear,
+                                    the map will fly there (the model adds a MAP_QUERY line).
+                                  </div>
+                                </div>
+                                {geoExplorerMessages.map(msg => {
+                                  const raw = messageDisplayText(msg);
+                                  const show = msg.role === 'model' ? stripMapQueryLine(raw) : raw;
+                                  const hasImage = msg.parts.some(p => p.type === 'image');
+                                  return (
+                                    <div
+                                      key={msg.id}
+                                      className={`si-geo-explorer-row si-geo-explorer-row--${msg.role}`}
+                                    >
+                                      {msg.role === 'model' ? (
+                                        <div className="si-geo-explorer-avatar" aria-hidden>
+                                          <i className="fa-solid fa-wand-magic-sparkles" />
+                                        </div>
+                                      ) : null}
+                                      <div className="si-geo-explorer-bubble">
+                                        {show ? <p className="si-geo-explorer-bubble-text">{show}</p> : null}
+                                        {msg.role === 'user' && hasImage ? (
+                                          <p className="si-geo-explorer-bubble-meta">
+                                            <i className="fa-solid fa-paperclip" aria-hidden /> Image attached
+                                          </p>
+                                        ) : null}
+                                      </div>
+                                    </div>
+                                  );
+                                })}
+                                {geoExplorerBusy ? (
+                                  <div className="si-geo-explorer-row si-geo-explorer-row--model">
                                     <div className="si-geo-explorer-avatar" aria-hidden>
                                       <i className="fa-solid fa-wand-magic-sparkles" />
                                     </div>
-                                  ) : null}
-                                  <div className="si-geo-explorer-bubble">
-                                    {show ? <p className="si-geo-explorer-bubble-text">{show}</p> : null}
-                                    {msg.role === 'user' && hasImage ? (
-                                      <p className="si-geo-explorer-bubble-meta">
-                                        <i className="fa-solid fa-paperclip" aria-hidden /> Image attached
-                                      </p>
-                                    ) : null}
-                                  </div>
-                                </div>
-                              );
-                            })}
-                            {geoExplorerBusy ? (
-                              <div className="si-geo-explorer-row si-geo-explorer-row--model">
-                                <div className="si-geo-explorer-avatar" aria-hidden>
-                                  <i className="fa-solid fa-wand-magic-sparkles" />
-                                </div>
-                                <div className="si-geo-explorer-bubble si-geo-explorer-bubble--typing">
-                                  <i className="fa-solid fa-spinner fa-spin" aria-hidden /> Thinking…
-                                </div>
-                              </div>
-                            ) : null}
-                          </div>
-                          {geoExplorerChatError ? (
-                            <p className="si-geo-explorer-error">{geoExplorerChatError}</p>
-                          ) : null}
-                          {geoExplorerPendingImage ? (
-                            <p className="si-geo-explorer-pending-img">
-                              <i className="fa-solid fa-image" aria-hidden /> Image ready to send
-                              <button
-                                type="button"
-                                className="si-geo-explorer-linkish"
-                                onClick={() => setGeoExplorerPendingImage(null)}
-                              >
-                                Remove
-                              </button>
-                            </p>
-                          ) : null}
-                          <div className="si-geo-explorer-input-row">
-                            <textarea
-                              className="si-geo-explorer-input"
-                              rows={2}
-                              value={geoExplorerDraft}
-                              onChange={e => setGeoExplorerDraft(e.target.value)}
-                              onKeyDown={e => {
-                                if (e.key === 'Enter' && !e.shiftKey) {
-                                  e.preventDefault();
-                                  sendGeoExplorerChat();
-                                }
-                              }}
-                              placeholder="Describe a place, ask for directions, or plan a trip…"
-                              aria-label="Geo Explorer message"
-                              disabled={geoExplorerBusy}
-                            />
-                            <input
-                              ref={geoExplorerFileInputRef}
-                              type="file"
-                              className="si-geo-explorer-file-input"
-                              accept="image/*"
-                              onChange={onGeoExplorerAttachChange}
-                              aria-hidden
-                              tabIndex={-1}
-                            />
-                            <button
-                              type="button"
-                              className="si-geo-explorer-attach"
-                              onClick={() => geoExplorerFileInputRef.current?.click()}
-                              disabled={geoExplorerBusy}
-                              aria-label="Attach image"
-                              title="Attach image"
-                            >
-                              <i className="fa-solid fa-paperclip" aria-hidden />
-                            </button>
-                            <button
-                              type="button"
-                              className="si-geo-explorer-send"
-                              onClick={sendGeoExplorerChat}
-                              disabled={
-                                geoExplorerBusy || (!geoExplorerDraft.trim() && !geoExplorerPendingImage)
-                              }
-                              aria-label="Send"
-                              title="Send"
-                            >
-                              <i className="fa-solid fa-paper-plane" aria-hidden />
-                            </button>
-                          </div>
-                          <p className="si-geo-explorer-footnote">
-                            Powered by Google Gemini. Set <code>VITE_GEMINI_API_KEY</code> or save under System Settings → API
-                            Tokens → Gemini API. Do not commit keys.
-                          </p>
-                        </div>
-
-                        <div className="si-env-section-card si-geo-explorer">
-                          <div className="si-geo-explorer-header">
-                            <h2 className="si-geo-explorer-title">Geo AI Chat</h2>
-                            <button
-                              type="button"
-                              className="si-geo-explorer-icon-btn"
-                              onClick={clearGeoAiChat}
-                              aria-label="Clear Geo AI chat"
-                              title="Clear Geo AI chat"
-                            >
-                              <i className="fa-solid fa-trash" aria-hidden />
-                            </button>
-                          </div>
-                          <div className="si-geo-explorer-messages">
-                            <div className="si-geo-explorer-row si-geo-explorer-row--model">
-                              <div className="si-geo-explorer-avatar" aria-hidden>
-                                <i className="fa-solid fa-database" />
-                              </div>
-                              <div className="si-geo-explorer-bubble">
-                                Ask about fields, layers, or tables using only data from GIS Map saved layers and the Develop
-                                Dashboard → Data snapshot in this browser. Answers stay grounded in that context.
-                              </div>
-                            </div>
-                            {geoAiChatMessages.map(msg => (
-                              <div
-                                key={msg.id}
-                                className={`si-geo-explorer-row si-geo-explorer-row--${msg.role === 'user' ? 'user' : 'model'}`}
-                              >
-                                {msg.role === 'assistant' ? (
-                                  <div className="si-geo-explorer-avatar" aria-hidden>
-                                    <i className="fa-solid fa-robot" />
+                                    <div className="si-geo-explorer-bubble si-geo-explorer-bubble--typing">
+                                      <i className="fa-solid fa-spinner fa-spin" aria-hidden /> Thinking…
+                                    </div>
                                   </div>
                                 ) : null}
-                                <div className="si-geo-explorer-bubble">
-                                  <p className="si-geo-explorer-bubble-text">{msg.text}</p>
-                                </div>
                               </div>
-                            ))}
-                            {geoAiBusy ? (
-                              <div className="si-geo-explorer-row si-geo-explorer-row--model">
-                                <div className="si-geo-explorer-avatar" aria-hidden>
-                                  <i className="fa-solid fa-robot" />
-                                </div>
-                                <div className="si-geo-explorer-bubble si-geo-explorer-bubble--typing">
-                                  <i className="fa-solid fa-spinner fa-spin" aria-hidden /> Thinking…
-                                </div>
+                              {geoExplorerChatError ? (
+                                <p className="si-geo-explorer-error">{geoExplorerChatError}</p>
+                              ) : null}
+                              {geoExplorerPendingImage ? (
+                                <p className="si-geo-explorer-pending-img">
+                                  <i className="fa-solid fa-image" aria-hidden /> Image ready to send
+                                  <button
+                                    type="button"
+                                    className="si-geo-explorer-linkish"
+                                    onClick={() => setGeoExplorerPendingImage(null)}
+                                  >
+                                    Remove
+                                  </button>
+                                </p>
+                              ) : null}
+                              <div className="si-geo-explorer-input-row">
+                                <textarea
+                                  className="si-geo-explorer-input"
+                                  rows={2}
+                                  value={geoExplorerDraft}
+                                  onChange={e => setGeoExplorerDraft(e.target.value)}
+                                  onKeyDown={e => {
+                                    if (e.key === 'Enter' && !e.shiftKey) {
+                                      e.preventDefault();
+                                      sendGeoExplorerChat();
+                                    }
+                                  }}
+                                  placeholder="Describe a place, ask for directions, or plan a trip…"
+                                  aria-label="Geo AI Gemini message"
+                                  disabled={geoExplorerBusy}
+                                />
+                                <input
+                                  ref={geoExplorerFileInputRef}
+                                  type="file"
+                                  className="si-geo-explorer-file-input"
+                                  accept="image/*"
+                                  onChange={onGeoExplorerAttachChange}
+                                  aria-hidden
+                                  tabIndex={-1}
+                                />
+                                <button
+                                  type="button"
+                                  className="si-geo-explorer-attach"
+                                  onClick={() => geoExplorerFileInputRef.current?.click()}
+                                  disabled={geoExplorerBusy}
+                                  aria-label="Attach image"
+                                  title="Attach image"
+                                >
+                                  <i className="fa-solid fa-paperclip" aria-hidden />
+                                </button>
+                                <button
+                                  type="button"
+                                  className="si-geo-explorer-send"
+                                  onClick={sendGeoExplorerChat}
+                                  disabled={
+                                    geoExplorerBusy || (!geoExplorerDraft.trim() && !geoExplorerPendingImage)
+                                  }
+                                  aria-label="Send"
+                                  title="Send"
+                                >
+                                  <i className="fa-solid fa-paper-plane" aria-hidden />
+                                </button>
                               </div>
-                            ) : null}
-                          </div>
-                          {geoAiChatError ? <p className="si-geo-explorer-error">{geoAiChatError}</p> : null}
-                          <div className="si-geo-explorer-input-row">
-                            <textarea
-                              className="si-geo-explorer-input"
-                              rows={2}
-                              value={geoAiDraft}
-                              onChange={e => setGeoAiDraft(e.target.value)}
-                              onKeyDown={e => {
-                                if (e.key === 'Enter' && !e.shiftKey) {
-                                  e.preventDefault();
-                                  sendGeoAiChat();
-                                }
-                              }}
-                              placeholder="e.g. List layer names and fields from the attached GIS / Develop data…"
-                              aria-label="Geo AI Chat message"
-                              disabled={geoAiBusy}
-                            />
-                            <button
-                              type="button"
-                              className="si-geo-explorer-send"
-                              onClick={sendGeoAiChat}
-                              disabled={geoAiBusy || !geoAiDraft.trim()}
-                              aria-label="Send Geo AI chat"
-                              title="Send"
-                            >
-                              <i className="fa-solid fa-paper-plane" aria-hidden />
-                            </button>
-                          </div>
-                          <p className="si-geo-explorer-footnote">
-                            Powered by Anthropic Claude. Set <code>VITE_CLAUDE_API_KEY</code> or System Settings → API Tokens →
-                            Claude API. Context is rebuilt each send from GIS Content + Develop Dashboard Data.
-                          </p>
+                              <p className="si-geo-explorer-footnote">
+                                Powered by Google Gemini. Set <code>VITE_GEMINI_API_KEY</code> or save under System Settings →
+                                API Tokens → Gemini API. Do not commit keys.
+                              </p>
+                            </>
+                          ) : null}
+
+                          {geoAiModelTab === 'claude' || geoAiModelTab === 'deepseek' ? (
+                            <>
+                              <div className="si-geo-explorer-messages">
+                                <div className="si-geo-explorer-row si-geo-explorer-row--model">
+                                  <div className="si-geo-explorer-avatar" aria-hidden>
+                                    <i className="fa-solid fa-database" />
+                                  </div>
+                                  <div className="si-geo-explorer-bubble">
+                                    Ask about fields, layers, or tables using only data from GIS Map saved layers and the
+                                    Develop Dashboard → Data snapshot in this browser. Answers stay grounded in that context.
+                                  </div>
+                                </div>
+                                {(geoAiModelTab === 'claude' ? geoAiChatMessages : geoDeepseekChatMessages).map(msg => (
+                                  <div
+                                    key={msg.id}
+                                    className={`si-geo-explorer-row si-geo-explorer-row--${
+                                      msg.role === 'user' ? 'user' : 'model'
+                                    }`}
+                                  >
+                                    {msg.role === 'assistant' ? (
+                                      <div className="si-geo-explorer-avatar" aria-hidden>
+                                        <i className="fa-solid fa-robot" />
+                                      </div>
+                                    ) : null}
+                                    <div className="si-geo-explorer-bubble">
+                                      <p className="si-geo-explorer-bubble-text">{msg.text}</p>
+                                    </div>
+                                  </div>
+                                ))}
+                                {(geoAiModelTab === 'claude' ? geoAiBusy : geoDeepseekBusy) ? (
+                                  <div className="si-geo-explorer-row si-geo-explorer-row--model">
+                                    <div className="si-geo-explorer-avatar" aria-hidden>
+                                      <i className="fa-solid fa-robot" />
+                                    </div>
+                                    <div className="si-geo-explorer-bubble si-geo-explorer-bubble--typing">
+                                      <i className="fa-solid fa-spinner fa-spin" aria-hidden /> Thinking…
+                                    </div>
+                                  </div>
+                                ) : null}
+                              </div>
+                              {geoAiModelTab === 'claude' && geoAiChatError ? (
+                                <p className="si-geo-explorer-error">{geoAiChatError}</p>
+                              ) : null}
+                              {geoAiModelTab === 'deepseek' && geoDeepseekChatError ? (
+                                <p className="si-geo-explorer-error">{geoDeepseekChatError}</p>
+                              ) : null}
+                              <div className="si-geo-explorer-input-row">
+                                <textarea
+                                  className="si-geo-explorer-input"
+                                  rows={2}
+                                  value={geoAiModelTab === 'claude' ? geoAiDraft : geoDeepseekDraft}
+                                  onChange={e =>
+                                    geoAiModelTab === 'claude'
+                                      ? setGeoAiDraft(e.target.value)
+                                      : setGeoDeepseekDraft(e.target.value)
+                                  }
+                                  onKeyDown={e => {
+                                    if (e.key === 'Enter' && !e.shiftKey) {
+                                      e.preventDefault();
+                                      if (geoAiModelTab === 'claude') sendGeoAiChat();
+                                      else sendGeoDeepseekChat();
+                                    }
+                                  }}
+                                  placeholder={
+                                    geoAiModelTab === 'claude'
+                                      ? 'e.g. List layer names and fields from the attached GIS / Develop data…'
+                                      : 'e.g. Summarize saved layers and Develop Dashboard fields (same context as Claude)…'
+                                  }
+                                  aria-label={
+                                    geoAiModelTab === 'claude' ? 'Geo AI Claude message' : 'Geo AI DeepSeek message'
+                                  }
+                                  disabled={geoAiModelTab === 'claude' ? geoAiBusy : geoDeepseekBusy}
+                                />
+                                <button
+                                  type="button"
+                                  className="si-geo-explorer-send"
+                                  onClick={geoAiModelTab === 'claude' ? sendGeoAiChat : sendGeoDeepseekChat}
+                                  disabled={
+                                    (geoAiModelTab === 'claude' ? geoAiBusy : geoDeepseekBusy) ||
+                                    !(geoAiModelTab === 'claude' ? geoAiDraft : geoDeepseekDraft).trim()
+                                  }
+                                  aria-label="Send"
+                                  title="Send"
+                                >
+                                  <i className="fa-solid fa-paper-plane" aria-hidden />
+                                </button>
+                              </div>
+                              <p className="si-geo-explorer-footnote">
+                                {geoAiModelTab === 'claude' ? (
+                                  <>
+                                    Powered by Anthropic Claude. Set <code>VITE_CLAUDE_API_KEY</code> or System Settings → API
+                                    Tokens → Claude API. Context is rebuilt each send from GIS Content + Develop Dashboard Data.
+                                  </>
+                                ) : (
+                                  <>
+                                    Powered by DeepSeek. Set <code>VITE_DEEPSEEK_API_KEY</code> or System Settings → API Tokens
+                                    → DeepSeek. Same GIS + Develop context as Claude; rebuilt each send.
+                                  </>
+                                )}
+                              </p>
+                            </>
+                          ) : null}
                         </div>
                       </div>
                     )}

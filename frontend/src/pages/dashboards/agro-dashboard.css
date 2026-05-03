@@ -277,6 +277,54 @@
   user-select: none;
 }
 
+.agro-dash-root .agdash-wf-toolbar {
+  gap: 12px;
+}
+
+.agro-dash-root .agdash-wf-toolbar-start {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex: 1;
+  min-width: 0;
+}
+
+.agro-dash-root .agdash-wf-open-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+  padding: 7px 14px;
+  border-radius: var(--agdash-r20);
+  border: 1px solid var(--agdash-accent-mid);
+  background: var(--agdash-accent-light);
+  color: var(--agdash-accent);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition:
+    background 0.15s,
+    border-color 0.15s,
+    color 0.15s;
+}
+
+.agro-dash-root .agdash-wf-open-btn:hover {
+  background: #dbe8fc;
+  border-color: var(--agdash-accent);
+}
+
+.agro-dash-root .agdash-wf-open-btn i {
+  font-size: 13px;
+}
+
+.agro-dash-root .agdash-wf-toolbar-summary {
+  font-size: 11px;
+  color: var(--agdash-ink3);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 .agro-dash-root .agdash-wf-end {
   margin-inline-start: auto;
   display: flex;
@@ -1192,4 +1240,113 @@
   .agro-dash-root .agdash-kpi-row {
     grid-template-columns: 1fr;
   }
+}
+
+/* Layers & fields setup modal */
+.gis-modal-overlay.agdash-wf-modal-overlay {
+  z-index: 6050;
+}
+
+.gis-modal.agdash-wf-modal-sheet {
+  width: min(720px, 96vw);
+  max-height: min(92vh, 900px);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border-radius: 16px;
+}
+
+.agdash-wf-modal-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--agdash-border, #e4e7ef);
+  background: linear-gradient(180deg, #fff, #f8fafc);
+  flex-shrink: 0;
+}
+
+.agdash-wf-modal-title {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--agdash-ink, #1a1d23);
+  letter-spacing: -0.02em;
+}
+
+.agdash-wf-modal-close {
+  border: none;
+  background: rgba(15, 23, 42, 0.06);
+  color: var(--agdash-ink2, #4a5060);
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition:
+    background 0.15s,
+    color 0.15s;
+}
+
+.agdash-wf-modal-close:hover {
+  background: rgba(15, 23, 42, 0.1);
+  color: var(--agdash-ink, #1a1d23);
+}
+
+.agdash-wf-modal-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+  padding: 12px 16px 16px;
+  background: #f1f5f9;
+}
+
+.agdash-wf-modal-scoped.agro-dash-root {
+  max-width: none;
+  margin: 0;
+  min-height: 0;
+  box-shadow: none;
+}
+
+.agdash-wf-modal-scoped .agdash-wf {
+  border-radius: var(--agdash-r12, 12px);
+  border: 1px solid var(--agdash-border, #e4e7ef);
+  margin-bottom: 10px;
+  height: auto;
+  min-height: 48px;
+  flex-wrap: wrap;
+  row-gap: 4px;
+}
+
+.agdash-wf-modal-scoped .agdash-wf-panel {
+  border-radius: var(--agdash-r12, 12px);
+  border: 1px solid var(--agdash-border, #e4e7ef);
+  margin: 0;
+}
+
+.agdash-wf-modal-foot {
+  flex-shrink: 0;
+  padding: 12px 18px 14px;
+  border-top: 1px solid var(--agdash-border, #e4e7ef);
+  background: #fff;
+  display: flex;
+  justify-content: flex-end;
+}
+
+.agdash-wf-modal-done {
+  padding: 8px 20px;
+  border-radius: var(--agdash-r20, 20px);
+  border: none;
+  background: var(--agdash-accent, #2d6be4);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.agdash-wf-modal-done:hover {
+  filter: brightness(1.05);
 }
