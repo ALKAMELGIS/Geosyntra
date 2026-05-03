@@ -11,6 +11,13 @@ export interface DrawStyleConfig {
 }
 
 export function cloneDeep<T>(v: T): T {
+  if (typeof structuredClone === 'function') {
+    try {
+      return structuredClone(v);
+    } catch {
+      /* non-cloneable values — fall back */
+    }
+  }
   return JSON.parse(JSON.stringify(v));
 }
 

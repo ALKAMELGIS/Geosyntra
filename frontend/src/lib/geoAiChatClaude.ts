@@ -77,9 +77,10 @@ export type { GeoAiMapLayer } from './geoExplorerLayerContext'
 /** Build a single text block appended to the system prompt (truncated for safety). */
 export async function buildGeoAiDataContext(
   maxChars = 48000,
-  opts?: { satelliteLayers?: GeoAiMapLayer[] },
+  opts?: { satelliteLayers?: GeoAiMapLayer[]; includeGisSavedLayers?: boolean },
 ): Promise<string> {
   const chunks: string[] = []
+  const includeGisSavedLayers = opts?.includeGisSavedLayers !== false
 
   if (opts?.satelliteLayers?.length) {
     const cap = Math.min(30000, Math.max(8000, maxChars - 12000))
@@ -89,15 +90,23 @@ export async function buildGeoAiDataContext(
     )
   }
 
-  try {
-    const layers = await loadGisMapSavedLayers()
-    if (layers.length) {
-      chunks.push('### GIS Content (layers saved in this browser / GIS Map)\n' + layers.map(summarizeGisLayer).join('\n'))
-    } else {
-      chunks.push('### GIS Content\n(no saved layers in IndexedDB for this browser yet).')
+  if (includeGisSavedLayers) {
+    try {
+      const layers = await loadGisMapSavedLayers()
+      if (layers.length) {
+        chunks.push(
+          '### GIS Content (layers saved in this browser / GIS Map)\n' + layers.map(summarizeGisLayer).join('\n'),
+        )
+      } else {
+        chunks.push('### GIS Content\n(no saved layers in IndexedDB for this browser yet).')
+      }
+    } catch {
+      chunks.push('### GIS Content\n(could not read saved layers).')
     }
-  } catch {
-    chunks.push('### GIS Content\n(could not read saved layers).')
+  } else {
+    chunks.push(
+      '### GIS Content\n(Omitted on this page — Satellite Geo AI uses only layers added on this map. Open **GIS Map** for Geo AI with saved GIS layers.)',
+    )
   }
 
   try {

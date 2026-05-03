@@ -64,6 +64,11 @@ export type RunGeoExplorerGeminiTurnParams = {
   mapPopup: GeoAiWeatherPopupRef
   /** First line of the added-layers section, e.g. "### Satellite — Added layers (this page)" */
   addedLayersHeading: string
+  /**
+   * GIS Map only: merge IndexedDB saved layers + GIS Content prompt block.
+   * Satellite must pass `false` so Geo AI stays isolated from GIS Map storage and cannot recurse on huge combined layer sets.
+   */
+  attachGisSavedLayers?: boolean
 }
 
 export async function runGeoExplorerGeminiTurn(
@@ -80,25 +85,34 @@ export async function runGeoExplorerGeminiTurn(
     lastMapQueryCoords,
     mapPopup,
     addedLayersHeading,
+    attachGisSavedLayers,
   } = params
 
-  const gisSaved = await loadGisMapSavedLayers()
-  const combinedForLookup: GeoAiMapLayer[] = [
-    ...primaryVectorLayers,
-    ...gisSaved.map(
-      (l): GeoAiMapLayer => ({
-        name: l.name,
-        visible: l.visible,
-        source: l.source,
-        data: l.data,
-        arcgisLayerDefinition: (l as { arcgisLayerDefinition?: unknown }).arcgisLayerDefinition as
-          | GeoAiMapLayer['arcgisLayerDefinition']
-          | undefined,
-      }),
-    ),
-  ]
+  const attachGis = attachGisSavedLayers === true
 
-  const gisBlock = await buildGisContentLayersContext(22000)
+  let combinedForLookup: GeoAiMapLayer[] = [...primaryVectorLayers]
+  let gisBlock =
+    '### GIS Content (saved layers from GIS Map)\n(Not attached on this page — open **GIS Map** → Geo AI to use layers saved in IndexedDB.)'
+
+  if (attachGis) {
+    const gisSaved = await loadGisMapSavedLayers()
+    combinedForLookup = [
+      ...primaryVectorLayers,
+      ...gisSaved.map(
+        (l): GeoAiMapLayer => ({
+          name: l.name,
+          visible: l.visible,
+          source: l.source,
+          data: l.data,
+          arcgisLayerDefinition: (l as { arcgisLayerDefinition?: unknown }).arcgisLayerDefinition as
+            | GeoAiMapLayer['arcgisLayerDefinition']
+            | undefined,
+        }),
+      ),
+    ]
+    gisBlock = await buildGisContentLayersContext(22000)
+  }
+
   const addedBlock = summarizeGeoAiMapLayers(primaryVectorLayers, 20000)
 
   let sessionWeatherBlocks = `\n\n${GEO_EXPLORER_SESSION_AND_WEATHER}`

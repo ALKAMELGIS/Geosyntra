@@ -1294,6 +1294,7 @@ export default function GisMap() {
             lastMapQueryCoords: lastMapQueryCoordsFromMessages(historyWithUser),
             mapPopup: gisGeoExplorerPopupRef.current,
             addedLayersHeading: '### GIS Map — layers on this map',
+            attachGisSavedLayers: true,
           })
           setGeoExplorerMessages(h => [...h, modelMsg])
           if (mapEffect) {

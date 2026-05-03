@@ -3,6 +3,41 @@
  * to Mapbox GL JS paint props for GeoJSON fill/line layers (subset of renderers).
  */
 
+/** Prevent huge renderers from blowing the JS stack or freezing Mapbox expression compilation. */
+const ARCGIS_MAX_UNIQUE_VALUE_INFOS = 220;
+const ARCGIS_MAX_CLASS_BREAK_INFOS = 160;
+const ARCGIS_DRAWING_INFO_MAX_JSON_CHARS = 380_000;
+
+/**
+ * Clone and cap ArcGIS `drawingInfo` for browser storage and Mapbox paint conversion.
+ * Returns `null` if the payload is invalid or still too large after capping (caller should drop symbology).
+ */
+export function sanitizeArcgisDrawingInfoForClient(drawingInfo: unknown): Record<string, unknown> | null {
+  if (!drawingInfo || typeof drawingInfo !== 'object') return null;
+  let di: any;
+  try {
+    di = JSON.parse(JSON.stringify(drawingInfo));
+  } catch {
+    return null;
+  }
+  const ren = di?.renderer;
+  if (ren && typeof ren === 'object') {
+    if (Array.isArray(ren.uniqueValueInfos) && ren.uniqueValueInfos.length > ARCGIS_MAX_UNIQUE_VALUE_INFOS) {
+      ren.uniqueValueInfos = ren.uniqueValueInfos.slice(0, ARCGIS_MAX_UNIQUE_VALUE_INFOS);
+    }
+    if (Array.isArray(ren.classBreakInfos) && ren.classBreakInfos.length > ARCGIS_MAX_CLASS_BREAK_INFOS) {
+      ren.classBreakInfos = ren.classBreakInfos.slice(0, ARCGIS_MAX_CLASS_BREAK_INFOS);
+    }
+  }
+  try {
+    const s = JSON.stringify(di);
+    if (s.length > ARCGIS_DRAWING_INFO_MAX_JSON_CHARS) return null;
+  } catch {
+    return null;
+  }
+  return di as Record<string, unknown>;
+}
+
 function esriColorToCss(c: unknown): string | null {
   if (!Array.isArray(c) || c.length < 3) return null;
   const r = Math.max(0, Math.min(255, Math.round(Number(c[0]))));
@@ -143,7 +178,10 @@ export function arcgisDrawingInfoToFillPaint(drawingInfo: any): ArcgisMapboxFill
     const defOp = esriPolygonFillIsHollow(defSym) ? 0 : defaultFillOpacity(defSym);
     const colorExpr: any[] = ['match', fieldExpr];
     const opExpr: any[] = ['match', fieldExpr];
-    const infos = Array.isArray(ren.uniqueValueInfos) ? ren.uniqueValueInfos : [];
+    const infos = (Array.isArray(ren.uniqueValueInfos) ? ren.uniqueValueInfos : []).slice(
+      0,
+      ARCGIS_MAX_UNIQUE_VALUE_INFOS,
+    );
     for (const uvi of infos) {
       const v = normalizeUniqueValueKey(uvi?.value);
       if (!v) continue;
@@ -176,7 +214,10 @@ export function arcgisDrawingInfoToFillPaint(drawingInfo: any): ArcgisMapboxFill
   if (t === 'classBreaks') {
     const field = pickRendererPrimaryField(ren);
     if (!field) return null;
-    const rawInfos = Array.isArray(ren.classBreakInfos) ? ren.classBreakInfos : [];
+    const rawInfos = (Array.isArray(ren.classBreakInfos) ? ren.classBreakInfos : []).slice(
+      0,
+      ARCGIS_MAX_CLASS_BREAK_INFOS,
+    );
     if (!rawInfos.length) return null;
     const infos = [...rawInfos].filter((br: any) => Number.isFinite(Number(br?.maxValue))).sort((a: any, b: any) => {
       const ma = Number(a?.minValue);
@@ -231,7 +272,10 @@ export function arcgisDrawingInfoToLinePaint(drawingInfo: any, fallbackLineColor
     const defW = defOutline.width;
     const colorExpr: any[] = ['match', fieldExpr];
     const widthExpr: any[] = ['match', fieldExpr];
-    const infos = Array.isArray(ren.uniqueValueInfos) ? ren.uniqueValueInfos : [];
+    const infos = (Array.isArray(ren.uniqueValueInfos) ? ren.uniqueValueInfos : []).slice(
+      0,
+      ARCGIS_MAX_UNIQUE_VALUE_INFOS,
+    );
     for (const uvi of infos) {
       const v = normalizeUniqueValueKey(uvi?.value);
       if (!v) continue;
@@ -249,7 +293,10 @@ export function arcgisDrawingInfoToLinePaint(drawingInfo: any, fallbackLineColor
   if (t === 'classBreaks') {
     const field = pickRendererPrimaryField(ren);
     if (!field) return null;
-    const rawInfos = Array.isArray(ren.classBreakInfos) ? ren.classBreakInfos : [];
+    const rawInfos = (Array.isArray(ren.classBreakInfos) ? ren.classBreakInfos : []).slice(
+      0,
+      ARCGIS_MAX_CLASS_BREAK_INFOS,
+    );
     const infos = [...rawInfos].filter((br: any) => Number.isFinite(Number(br?.maxValue))).sort((a: any, b: any) => {
       const ma = Number(a?.minValue);
       const mb = Number(b?.minValue);
