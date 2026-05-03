@@ -181,7 +181,7 @@ const PALETTE = ['#2D6BE4', '#12A97B', '#E8920A', '#6C5DD3', '#0EA5E9', '#D946EF
 
 function axisRoleOf(roles: FieldAxisRolesMap | undefined, k: string): FieldAxisRole | undefined {
   const r = roles?.[k]
-  if (!r || r === '') return undefined
+  if (r == null || r === '') return undefined
   return r
 }
 

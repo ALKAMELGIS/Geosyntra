@@ -60,7 +60,7 @@ import {
 } from '../../lib/geoAiChatClaude';
 import { buildGeoAiLayerPopupAttributeRows, type GeoAiMapLayer } from '../../lib/geoExplorerLayerContext';
 import { loadGisMapSavedLayers } from '../../lib/gisMapLayerStore';
-import { geoExplorerTargetZoomForPinSource, runGeoExplorerGeminiTurn } from '../../lib/runGeoExplorerGeminiTurn';
+import { forEachLngLatPairInCoords } from '../../lib/geoJsonCoordIterWalk';
 import { agroChatWithDeepSeek } from '../../lib/agroAiChat';
 import { GeoExplorerGeminiChatBody } from './components/GeoExplorerGeminiChatBody';
 import {
@@ -1306,26 +1306,18 @@ export default function SatelliteIntelligence() {
 
   const getGeoJsonBounds = (geojson: any): [number, number, number, number] | null => {
     const points: [number, number][] = [];
-
-    const walkCoords = (coords: any) => {
-      if (!coords) return;
-      if (typeof coords[0] === 'number' && typeof coords[1] === 'number') {
-        points.push([coords[0], coords[1]]);
-        return;
-      }
-      if (Array.isArray(coords)) {
-        coords.forEach(walkCoords);
-      }
+    const pushPair = (lng: number, lat: number) => {
+      points.push([lng, lat]);
     };
 
     if (geojson.type === 'FeatureCollection') {
-      geojson.features?.forEach((f: any) => walkCoords(f.geometry?.coordinates));
+      geojson.features?.forEach((f: any) => forEachLngLatPairInCoords(f.geometry?.coordinates, pushPair));
     } else if (geojson.type === 'Feature') {
-      walkCoords(geojson.geometry?.coordinates);
+      forEachLngLatPairInCoords(geojson.geometry?.coordinates, pushPair);
     } else if (geojson.type === 'GeometryCollection') {
-      geojson.geometries?.forEach((g: any) => walkCoords(g.coordinates));
+      geojson.geometries?.forEach((g: any) => forEachLngLatPairInCoords(g.coordinates, pushPair));
     } else if (geojson.coordinates) {
-      walkCoords(geojson.coordinates);
+      forEachLngLatPairInCoords(geojson.coordinates, pushPair);
     }
 
     if (points.length === 0) return null;
@@ -2824,6 +2816,9 @@ export default function SatelliteIntelligence() {
       const historyWithUser = [...prev, userMsg];
       queueMicrotask(async () => {
         try {
+          const { runGeoExplorerGeminiTurn, geoExplorerTargetZoomForPinSource } = await import(
+            '../../lib/runGeoExplorerGeminiTurn'
+          );
           const { modelMsg, mapEffect } = await runGeoExplorerGeminiTurn({
             apiKey,
             historyWithUser,
@@ -3771,7 +3766,7 @@ export default function SatelliteIntelligence() {
   /** Use stable primitives only — `mapStyle` object identity can churn and would re-fire this every render → stack overflow. */
   useEffect(() => {
     setIsMapLoaded(false);
-  }, [activeBasemapId, mapboxToken, currentBasemapEntry.id]);
+  }, [activeBasemapId, mapboxToken, currentBasemapEntry?.id]);
   const toggleWmsOverlayVisibility = () => setIsWmsOverlayVisible(v => !v);
   const toggleStacThumbVisibility = () => setIsStacThumbVisible(v => !v);
   const currentBasemapLabel = currentBasemapEntry?.label || basemapId || 'Default basemap';

@@ -5,6 +5,7 @@
 
 import type { ArcgisLayerDefLite } from './arcgisAttributeDisplay'
 import { formatFeaturePropertiesForGeoAi } from './arcgisAttributeDisplay'
+import { forEachLngLatPairInCoords } from './geoJsonCoordIterWalk'
 
 export type GeoAiMapLayer = {
   name: string
@@ -31,22 +32,12 @@ function featureCollectionFromLayer(l: GeoAiMapLayer): { features: GeoAiFeature[
   return null
 }
 
-function walkCoords(coords: unknown, out: [number, number][]): void {
-  if (!coords) return
-  if (typeof coords === 'object' && coords !== null && 'length' in (coords as any)) {
-    const c = coords as unknown[]
-    if (c.length >= 2 && typeof c[0] === 'number' && typeof c[1] === 'number') {
-      out.push([c[0], c[1]])
-      return
-    }
-    for (const x of c) walkCoords(x, out)
-  }
-}
-
 function bboxOfGeometry(geom: GeoAiFeature['geometry']): [number, number, number, number] | null {
   if (!geom) return null
   const pts: [number, number][] = []
-  walkCoords((geom as { coordinates?: unknown }).coordinates, pts)
+  forEachLngLatPairInCoords((geom as { coordinates?: unknown }).coordinates, (lng, lat) => {
+    pts.push([lng, lat])
+  })
   if (pts.length === 0) return null
   let [minX, minY] = pts[0]
   let [maxX, maxY] = pts[0]
@@ -126,17 +117,35 @@ export function summarizeGeoAiMapLayers(layers: GeoAiMapLayer[], maxChars = 2800
 
 const LAYER_HINT = /(?:from|in)\s+['"]?([\w\s\-]{2,64})['"]?\s*(?:layer)?/i
 
-function extractLayerHint(userText: string): string | null {
+/** Exported for Geo AI map pin: when set, layer-derived coordinates should win over model MAP_QUERY. */
+export function extractGeoExplorerLayerHint(userText: string): string | null {
   const m = userText.match(LAYER_HINT)
   if (!m?.[1]) return null
   return m[1].trim()
+}
+
+function extractLayerHint(userText: string): string | null {
+  return extractGeoExplorerLayerHint(userText)
+}
+
+function escapeRegExp(s: string): string {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+}
+
+function tokenAppearsAsWordInBlob(blob: string, tok: string): boolean {
+  if (!tok || tok.length < 2) return false
+  try {
+    return new RegExp(`(?:^|[^a-z0-9])${escapeRegExp(tok)}(?:[^a-z0-9]|$)`, 'i').test(blob)
+  } catch {
+    return false
+  }
 }
 
 function tokenizeForSearch(userText: string): string[] {
   let s = userText
   s = s.replace(LAYER_HINT, ' ')
   const fillers =
-    /\b(show|me|in|map|location|the|a|an|on|at|for|from|to|of|layer|layers|please|find|where|is|are|point|pin|fly|zoom|center|goto|go)\b/gi
+    /\b(show|me|in|map|location|locaion|the|a|an|on|at|for|from|to|of|layer|layers|please|find|where|is|are|point|pin|fly|zoom|center|goto|go)\b/gi
   s = s.replace(fillers, ' ')
   const raw = s
     .split(/[^\w\-./]+/)
@@ -225,7 +234,11 @@ export function findLngLatFromLayerQuery(userText: string, layers: GeoAiMapLayer
       for (const tok of tokens) {
         const t = tok.toLowerCase()
         if (t.length < 2) continue
-        if (blob.includes(t)) score += t.length * 4
+        if (!blob.includes(t)) continue
+        let pts = t.length * 4
+        if (tokenAppearsAsWordInBlob(blob, t)) pts += 28
+        if (/^[a-z]{0,4}\d{2,8}[-_]?[a-z0-9]*$/i.test(tok) && tokenAppearsAsWordInBlob(blob, t)) pts += 36
+        score += pts
       }
       if (hintNorm) score += 12
       if (score <= 0) continue

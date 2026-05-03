@@ -13,10 +13,29 @@ import {
   geminiGenerateContent,
   messagesToGeminiContents,
   parseMapQueryLngLat,
+  stripMapQueryLine,
   type GeoExplorerMessage,
 } from './geoExplorerGemini'
-import { findLngLatFromLayerQuery, summarizeGeoAiMapLayers, type GeoAiMapLayer, type LayerQueryMatch } from './geoExplorerLayerContext'
+import {
+  extractGeoExplorerLayerHint,
+  findLngLatFromLayerQuery,
+  summarizeGeoAiMapLayers,
+  type GeoAiMapLayer,
+  type LayerQueryMatch,
+} from './geoExplorerLayerContext'
 import { loadGisMapSavedLayers } from './gisMapLayerStore'
+
+function haversineKm(a: [number, number], b: [number, number]): number {
+  const R = 6371
+  const dLat = ((b[1] - a[1]) * Math.PI) / 180
+  const dLng = ((b[0] - a[0]) * Math.PI) / 180
+  const lat1 = (a[1] * Math.PI) / 180
+  const lat2 = (b[1] * Math.PI) / 180
+  const s =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLng / 2) * Math.sin(dLng / 2)
+  return 2 * R * Math.asin(Math.min(1, Math.sqrt(s)))
+}
 
 export type GeoExplorerGeminiPinSource = 'map_query' | 'layer' | 'geocode'
 
@@ -102,18 +121,45 @@ export async function runGeoExplorerGeminiTurn(
   })
 
   const mapQueryCoords = parseMapQueryLngLat(reply)
-  let coords: [number, number] | null = mapQueryCoords
-  let replyText = reply
-  let layerHit: LayerQueryMatch | null = null
-  let pinSource: GeoExplorerGeminiPinSource = mapQueryCoords ? 'map_query' : 'geocode'
+  const layerHintTrim = (userTextForMapFallback ? extractGeoExplorerLayerHint(userTextForMapFallback) : null)?.trim() ?? ''
+  const layerHit: LayerQueryMatch | null =
+    userTextForMapFallback.trim().length > 0
+      ? findLngLatFromLayerQuery(userTextForMapFallback, combinedForLookup)
+      : null
 
-  if (!coords && userTextForMapFallback) {
-    layerHit = findLngLatFromLayerQuery(userTextForMapFallback, combinedForLookup)
+  let coords: [number, number] | null = null
+  let replyText = reply
+  let pinSource: GeoExplorerGeminiPinSource = 'geocode'
+
+  const layerPinNote = (hit: LayerQueryMatch) => {
+    const hint = hit.matchSummary.trim()
+    return `\n\n(Map pin from layer "${hit.layerName}" — matched feature attributes: ${hint.slice(0, 200)}${hint.length > 200 ? '…' : ''})`
+  }
+
+  /** Prefer vector layer geometry when the user scoped a layer or MAP_QUERY disagrees strongly with the hit feature. */
+  const preferLayerCoords =
+    Boolean(layerHit) &&
+    (Boolean(layerHintTrim) ||
+      Boolean(
+        mapQueryCoords &&
+          layerHit &&
+          haversineKm(mapQueryCoords, [layerHit.lng, layerHit.lat]) > 2 &&
+          layerHit.score >= 22,
+      ))
+
+  if (preferLayerCoords && layerHit) {
+    coords = [layerHit.lng, layerHit.lat]
+    pinSource = 'layer'
+    replyText = `${stripMapQueryLine(reply).trimEnd()}${layerPinNote(layerHit)}`
+  } else if (mapQueryCoords) {
+    coords = mapQueryCoords
+    pinSource = 'map_query'
+    replyText = reply
+  } else if (userTextForMapFallback) {
     if (layerHit) {
       coords = [layerHit.lng, layerHit.lat]
       pinSource = 'layer'
-      const hint = layerHit.matchSummary.trim()
-      replyText = `${reply.trimEnd()}\n\n(Map pin from layer "${layerHit.layerName}" — matched feature attributes: ${hint.slice(0, 200)}${hint.length > 200 ? '…' : ''})`
+      replyText = `${reply.trimEnd()}${layerPinNote(layerHit)}`
     } else {
       const geoQuery = stripLayerReferenceForGeocode(simplifyGeoExplorerUserQuery(userTextForMapFallback))
       if (geoQuery.length >= 2) {

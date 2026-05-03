@@ -13,7 +13,7 @@ import type { Map as LeafletMap } from 'leaflet'
 import L from 'leaflet'
 import { GeoJSON } from 'react-leaflet'
 import { EsriImageServerLayer } from './components/EsriImageServerLayer'
-import MapboxMap, { Layer, NavigationControl, Source } from 'react-map-gl/mapbox'
+import MapboxMap, { Layer, NavigationControl, Popup, Source } from 'react-map-gl/mapbox'
 import 'mapbox-gl/dist/mapbox-gl.css'
 import MapView from '../../components/MapView'
 import type { LayerData, SymbologyClassMethod, SymbologyColorRamp, SymbologyConfig, SymbologyStyle } from './components/LayerManager'
@@ -41,13 +41,104 @@ import { useGeminiApiKey } from '../../hooks/useGeminiApiKey'
 import { useOpenWeatherMapApiKey } from '../../hooks/useOpenWeatherMapApiKey'
 import { lastMapQueryCoordsFromMessages, type GeoExplorerMessage, type GeoExplorerPart } from '../../lib/geoExplorerGemini'
 import { reverseGeocodeLngLat } from '../../lib/geoExplorerGeocode'
-import type { GeoAiMapLayer } from '../../lib/geoExplorerLayerContext'
+import { buildGeoAiLayerPopupAttributeRows, type GeoAiMapLayer, type LayerQueryMatch } from '../../lib/geoExplorerLayerContext'
 import type { GeoAiWeatherPopupRef } from '../../lib/geoAiWeatherContext'
-import { runGeoExplorerGeminiTurn } from '../../lib/runGeoExplorerGeminiTurn'
+import { geoExplorerTargetZoomForPinSource, runGeoExplorerGeminiTurn } from '../../lib/runGeoExplorerGeminiTurn'
 import { GeoExplorerGeminiChatBody } from './components/GeoExplorerGeminiChatBody'
 import './gisGeoExplorerPanel.css'
 
 type AddLayerTab = 'arcgis' | 'database' | 'upload' | 'url'
+
+/** Mapbox globe: Geo AI popup (same content pattern as Satellite Intelligence). */
+type GisGeoAiMapPopupState = {
+  lng: number
+  lat: number
+  layerName: string | null
+  attributeRows: { label: string; value: string }[]
+  placeName: string
+  country: string
+  fullDescription: string
+  reversePending: boolean
+}
+
+function normGisLayerTitle(s: string): string {
+  return s.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim()
+}
+
+function geoAiPropertyOverlapScore(
+  props: Record<string, unknown> | null | undefined,
+  template: Record<string, unknown> | null,
+): number {
+  if (!props || !template) return 0
+  let score = 0
+  for (const [k, v] of Object.entries(template)) {
+    if (v === null || v === undefined || v === '') continue
+    if (String(props[k] ?? '') === String(v)) score += 1
+  }
+  return score
+}
+
+/** Same idea as in-component getGeometryCenter — kept module-local for Geo AI feature resolution. */
+function approxFeatureCenterLngLat(geom: any): [number, number] | null {
+  if (!geom || typeof geom !== 'object') return null
+  const t = geom.type
+  const c = geom.coordinates
+  const pickMid = (coords: any[]) => {
+    if (!Array.isArray(coords) || coords.length === 0) return null
+    const mid = coords[Math.floor(coords.length / 2)]
+    if (!Array.isArray(mid) || mid.length < 2) return null
+    return [mid[0], mid[1]] as [number, number]
+  }
+  if (t === 'Point') return Array.isArray(c) && c.length >= 2 ? ([c[0], c[1]] as [number, number]) : null
+  if (t === 'LineString') return pickMid(c)
+  if (t === 'MultiLineString') return Array.isArray(c) && c.length ? pickMid(c[0]) : null
+  if (t === 'Polygon') return Array.isArray(c) && c.length ? pickMid(c[0]) : null
+  if (t === 'MultiPolygon') return Array.isArray(c) && c.length && c[0]?.length ? pickMid(c[0][0]) : null
+  return null
+}
+
+/**
+ * Resolves Geo AI layer hit to a live map layer + feature so we can select, highlight, and open MapPopup.
+ */
+function findGisMapFeatureForGeoAiLayerHit(
+  layers: LayerData[],
+  hit: LayerQueryMatch,
+  coords: [number, number],
+  getKey: (feature: any, idx: number) => string,
+): { layer: LayerData; feature: any; idx: number; key: string } | null {
+  const [lng, lat] = coords
+  const targetNorm = normGisLayerTitle(hit.layerName)
+  let best: { layer: LayerData; feature: any; idx: number; key: string; score: number } | null = null
+
+  const nameMatches = (layerName: string) => {
+    const ln = normGisLayerTitle(layerName)
+    return ln === targetNorm || ln.includes(targetNorm) || targetNorm.includes(ln)
+  }
+
+  for (const layer of layers) {
+    if (layer.type !== 'geojson' || !layer.data || typeof layer.data !== 'object') continue
+    if (!nameMatches(layer.name)) continue
+    const feats = Array.isArray((layer.data as any).features) ? ((layer.data as any).features as any[]) : []
+    for (let idx = 0; idx < feats.length; idx += 1) {
+      const feature = feats[idx]
+      const propScore = geoAiPropertyOverlapScore(feature?.properties, hit.properties)
+      const c = approxFeatureCenterLngLat(feature?.geometry)
+      let distScore = 0
+      if (c && Number.isFinite(c[0]) && Number.isFinite(c[1])) {
+        const d = Math.hypot(c[0] - lng, c[1] - lat)
+        if (d < 1e-4) distScore = 200
+        else if (d < 0.002) distScore = 120
+        else if (d < 0.01) distScore = 40
+      }
+      const score = propScore * 50 + distScore
+      if (score <= 0) continue
+      const key = getKey(feature, idx)
+      if (!best || score > best.score) best = { layer, feature, idx, key, score }
+    }
+  }
+
+  return best ? { layer: best.layer, feature: best.feature, idx: best.idx, key: best.key } : null
+}
 
 const newGisImportId = () => `${Date.now()}_${Math.random().toString(16).slice(2)}`
 type DatabaseAuthType = 'database' | 'operating-system'
@@ -393,6 +484,8 @@ export default function GisMap() {
   const [mapToolbarCollapsed, setMapToolbarCollapsed] = useState(false)
   const [selectedBasemap, setSelectedBasemap] = useState<BasemapType>(readInitialGlobeBasemap)
   const [mapProjectionMode, setMapProjectionMode] = useState<MapProjectionMode>('2d')
+  const mapProjectionModeRef = useRef<MapProjectionMode>(mapProjectionMode)
+  mapProjectionModeRef.current = mapProjectionMode
   const [projectionToast, setProjectionToast] = useState('')
   const [globeViewState, setGlobeViewState] = useState({
     longitude: DEFAULT_GIS_CENTER.longitude,
@@ -408,6 +501,17 @@ export default function GisMap() {
   const openWeatherMapApiKey = useOpenWeatherMapApiKey()
   const gisGeoExplorerPinRef = useRef<[number, number] | null>(null)
   const gisGeoExplorerPopupRef = useRef<GeoAiWeatherPopupRef>(null)
+  /** Pin shown on 2D Leaflet + 3D Mapbox (refs alone do not re-render map layers). */
+  const [gisGeoExplorerPinLngLat, setGisGeoExplorerPinLngLat] = useState<[number, number] | null>(null)
+  /** Mapbox globe: Geo AI feature popup (aligned with Satellite Intelligence). */
+  const [gisGeoAiMapPopup, setGisGeoAiMapPopup] = useState<GisGeoAiMapPopupState | null>(null)
+  const getFeatureKeyGeoAiRef = useRef<(feature: any, idx: number) => string>((_, idx) => `idx:${idx}`)
+  const openMapPopupForGeoAiRef = useRef<
+    ((next: { layer: LayerData; feature: any; latlng: { lat: number; lng: number } }) => void) | null
+  >(null)
+  const showFeatureSelectionOnMapForGeoAiRef = useRef<
+    (layerId: string, featureKey: string, opts?: { zoom?: boolean }) => void
+  >(() => {})
   const geoExplorerFileInputRef = useRef<HTMLInputElement | null>(null)
   const geoExplorerInFlightRef = useRef(false)
   const [geoExplorerMessages, setGeoExplorerMessages] = useState<GeoExplorerMessage[]>([])
@@ -426,6 +530,21 @@ export default function GisMap() {
         | undefined,
     }))
   }, [layers])
+
+  const gisGeoExplorerPinGeoJson = useMemo(() => {
+    if (!gisGeoExplorerPinLngLat) return null
+    return {
+      type: 'FeatureCollection' as const,
+      features: [
+        {
+          type: 'Feature' as const,
+          properties: { kind: 'geo-ai-pin' },
+          geometry: { type: 'Point' as const, coordinates: gisGeoExplorerPinLngLat },
+        },
+      ],
+    }
+  }, [gisGeoExplorerPinLngLat])
+
   const [measurementMode, setMeasurementMode] = useState<MeasurementMode>('distance')
   const [measurementMethod, setMeasurementMethod] = useState<MeasurementMethod>('planar')
   const [measurementUnit, setMeasurementUnit] = useState<MeasurementUnit>('metric')
@@ -1093,26 +1212,35 @@ export default function GisMap() {
     setGeoExplorerChatError('')
     gisGeoExplorerPinRef.current = null
     gisGeoExplorerPopupRef.current = null
+    setGisGeoExplorerPinLngLat(null)
+    setGisGeoAiMapPopup(null)
   }, [])
 
   const flyGisMapToLngLat = useCallback(
-    (lng: number, lat: number) => {
+    (lng: number, lat: number, zoomHint?: number) => {
+      const z =
+        typeof zoomHint === 'number' && Number.isFinite(zoomHint)
+          ? zoomHint
+          : mapProjectionMode === 'globe'
+            ? 10
+            : 13
       if (mapProjectionMode === 'globe') {
         const globe = mapboxGlobeRef.current?.getMap ? mapboxGlobeRef.current.getMap() : mapboxGlobeRef.current
         if (globe) {
-          globe.flyTo({ center: [lng, lat], zoom: Math.max(globe.getZoom(), 10), pitch: 48, duration: 850 })
+          const flyZoom = Math.max(typeof globe.getZoom === 'function' ? globe.getZoom() : 1, z)
+          globe.flyTo({ center: [lng, lat], zoom: flyZoom, pitch: 48, duration: 850 })
         }
         setGlobeViewState(prev => ({
           ...prev,
           longitude: lng,
           latitude: lat,
-          zoom: Math.max(prev.zoom, 10),
+          zoom: Math.max(prev.zoom, z),
           pitch: Math.max(prev.pitch, 42),
         }))
         return
       }
       const map = mapRef.current
-      if (map) map.flyTo([lat, lng], Math.max(map.getZoom(), 13), { duration: 0.6 })
+      if (map) map.flyTo([lat, lng], Math.max(map.getZoom(), z), { duration: 0.6 })
     },
     [mapProjectionMode],
   )
@@ -1169,13 +1297,56 @@ export default function GisMap() {
           })
           setGeoExplorerMessages(h => [...h, modelMsg])
           if (mapEffect) {
-            const { coords } = mapEffect
+            const { coords, pinSource, layerHit } = mapEffect
+            const [lng0, lat0] = coords
+            const projectionAtSend = mapProjectionMode
+            const attrRows = layerHit ? buildGeoAiLayerPopupAttributeRows(layerHit) : []
+            const resolved =
+              layerHit != null
+                ? findGisMapFeatureForGeoAiLayerHit(layers, layerHit, coords, (f, i) =>
+                    getFeatureKeyGeoAiRef.current(f, i),
+                  )
+                : null
+
             gisGeoExplorerPinRef.current = coords
-            flyGisMapToLngLat(coords[0], coords[1])
-            const lng0 = coords[0]
-            const lat0 = coords[1]
+            setGisGeoExplorerPinLngLat(coords)
+            flyGisMapToLngLat(lng0, lat0, geoExplorerTargetZoomForPinSource(pinSource))
+
+            if (resolved) {
+              setSelectedFeatureKeys(new Set([resolved.key]))
+            }
+
+            if (projectionAtSend === '2d') {
+              setGisGeoAiMapPopup(null)
+              if (resolved) {
+                openMapPopupForGeoAiRef.current?.({
+                  layer: resolved.layer,
+                  feature: resolved.feature,
+                  latlng: { lat: lat0, lng: lng0 },
+                })
+                const lid = String(resolved.layer.id)
+                const k = resolved.key
+                const paintSel = () => showFeatureSelectionOnMapForGeoAiRef.current(lid, k, { zoom: false })
+                queueMicrotask(paintSel)
+                requestAnimationFrame(() => requestAnimationFrame(paintSel))
+              }
+            } else if (layerHit) {
+              setGisGeoAiMapPopup({
+                lng: lng0,
+                lat: lat0,
+                layerName: layerHit.layerName ?? resolved?.layer.name ?? null,
+                attributeRows: attrRows,
+                placeName: '—',
+                country: '—',
+                fullDescription: '',
+                reversePending: true,
+              })
+            } else {
+              setGisGeoAiMapPopup(null)
+            }
+
             void reverseGeocodeLngLat(lng0, lat0, { mapboxAccessToken: mapboxAccessToken || undefined }).then(rev => {
-              gisGeoExplorerPopupRef.current = rev
+              const refPayload = rev
                 ? {
                     lng: lng0,
                     lat: lat0,
@@ -1190,7 +1361,24 @@ export default function GisMap() {
                     country: '—',
                     fullDescription: '',
                   }
+              gisGeoExplorerPopupRef.current = refPayload
+              if (mapProjectionModeRef.current === 'globe' && layerHit) {
+                setGisGeoAiMapPopup(prev => {
+                  if (!prev || prev.lng !== lng0 || prev.lat !== lat0) return prev
+                  return {
+                    ...prev,
+                    placeName: refPayload.placeName,
+                    country: refPayload.country,
+                    fullDescription: refPayload.fullDescription,
+                    reversePending: false,
+                  }
+                })
+              }
             })
+          } else {
+            gisGeoExplorerPinRef.current = null
+            setGisGeoExplorerPinLngLat(null)
+            setGisGeoAiMapPopup(null)
           }
         } catch (e) {
           setGeoExplorerChatError(e instanceof Error ? e.message : String(e))
@@ -1209,6 +1397,8 @@ export default function GisMap() {
     flyGisMapToLngLat,
     gisLayersAsGeoAi,
     openWeatherMapApiKey,
+    layers,
+    mapProjectionMode,
   ])
 
   useEffect(() => {
@@ -1229,6 +1419,10 @@ export default function GisMap() {
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
   }, [changeProjectionMode])
+
+  useEffect(() => {
+    if (mapProjectionMode !== 'globe') setGisGeoAiMapPopup(null)
+  }, [mapProjectionMode])
 
   useEffect(() => {
     return () => {
@@ -1515,6 +1709,7 @@ export default function GisMap() {
     if (feature && typeof feature === 'object') featureKeyCacheRef.current.set(feature, key)
     return key
   }
+  getFeatureKeyGeoAiRef.current = getFeatureKey
 
   const getFeatureKeyFromCache = (feature: any) => {
     if (!feature || typeof feature !== 'object') return null
@@ -1642,6 +1837,7 @@ export default function GisMap() {
       queueMicrotask(() => scrollSelectedRowIntoView(keyStr))
     }
   }, [])
+  openMapPopupForGeoAiRef.current = openMapPopup
 
   useEffect(() => {
     if (!mapPopup) {
@@ -1815,6 +2011,7 @@ export default function GisMap() {
       zoomToFeatures([feature])
     }
   }
+  showFeatureSelectionOnMapForGeoAiRef.current = showFeatureSelectionOnMap
 
   const identifyFeatureOnMap = (layer: LayerData, feature: any) => {
     const layerId = String(layer.id)
@@ -3806,6 +4003,108 @@ export default function GisMap() {
                 </Source>
               )
             })}
+            {gisGeoExplorerPinGeoJson ? (
+              <Source id="gis-geo-ai-pin" type="geojson" data={gisGeoExplorerPinGeoJson as any}>
+                <Layer
+                  id="gis-geo-ai-pin-glow"
+                  type="circle"
+                  paint={{
+                    'circle-radius': 18,
+                    'circle-color': '#a78bfa',
+                    'circle-opacity': 0.35,
+                    'circle-blur': 0.6,
+                  }}
+                />
+                <Layer
+                  id="gis-geo-ai-pin-core"
+                  type="circle"
+                  paint={{
+                    'circle-radius': 7,
+                    'circle-color': '#c4b5fd',
+                    'circle-stroke-width': 2,
+                    'circle-stroke-color': '#faf5ff',
+                  }}
+                />
+              </Source>
+            ) : null}
+
+            {gisGeoAiMapPopup ? (
+              <Popup
+                longitude={gisGeoAiMapPopup.lng}
+                latitude={gisGeoAiMapPopup.lat}
+                anchor="bottom"
+                offset={[0, -22]}
+                closeOnClick={false}
+                onClose={() => setGisGeoAiMapPopup(null)}
+                className="si-geo-ai-map-popup-wrap"
+              >
+                <div className="si-geo-ai-map-popup" dir="ltr">
+                  <div className="si-geo-ai-map-popup__head">
+                    <span className="si-geo-ai-map-popup__head-icon" aria-hidden="true">
+                      <i className="fa-solid fa-comment-dots" />
+                    </span>
+                    <div className="si-geo-ai-map-popup__head-text">
+                      <span className="si-geo-ai-map-popup__kicker">Chat reply</span>
+                      <span className="si-geo-ai-map-popup__title">Map location</span>
+                    </div>
+                  </div>
+                  {gisGeoAiMapPopup.layerName ? (
+                    <p className="si-geo-ai-map-popup__layer">
+                      <span className="si-geo-ai-map-popup__layer-label">Layer</span>
+                      <span className="si-geo-ai-map-popup__layer-name">{gisGeoAiMapPopup.layerName}</span>
+                    </p>
+                  ) : null}
+                  <div className="si-geo-ai-map-popup__table-wrap">
+                    <table className="si-geo-ai-map-popup__table">
+                      <tbody>
+                        {gisGeoAiMapPopup.attributeRows.map(row => (
+                          <tr key={row.label}>
+                            <th scope="row">{row.label}</th>
+                            <td>{row.value}</td>
+                          </tr>
+                        ))}
+                        {gisGeoAiMapPopup.attributeRows.length > 0 ? (
+                          <tr className="si-geo-ai-map-popup__sep" aria-hidden="true">
+                            <td colSpan={2} />
+                          </tr>
+                        ) : null}
+                        <tr>
+                          <th scope="row">Latitude</th>
+                          <td>{gisGeoAiMapPopup.lat.toFixed(6)}°</td>
+                        </tr>
+                        <tr>
+                          <th scope="row">Longitude</th>
+                          <td>{gisGeoAiMapPopup.lng.toFixed(6)}°</td>
+                        </tr>
+                        <tr>
+                          <th scope="row">Area / place</th>
+                          <td>
+                            {gisGeoAiMapPopup.reversePending ? (
+                              <span className="si-geo-ai-map-popup__pending">Resolving…</span>
+                            ) : (
+                              gisGeoAiMapPopup.placeName || '—'
+                            )}
+                          </td>
+                        </tr>
+                        <tr>
+                          <th scope="row">Country</th>
+                          <td>
+                            {gisGeoAiMapPopup.reversePending ? (
+                              <span className="si-geo-ai-map-popup__pending">Resolving…</span>
+                            ) : (
+                              gisGeoAiMapPopup.country || '—'
+                            )}
+                          </td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+                  {!gisGeoAiMapPopup.reversePending && gisGeoAiMapPopup.fullDescription ? (
+                    <p className="si-geo-ai-map-popup__foot">{gisGeoAiMapPopup.fullDescription}</p>
+                  ) : null}
+                </div>
+              </Popup>
+            ) : null}
           </MapboxMap>
         ) : (
         <MapView
@@ -3915,6 +4214,22 @@ export default function GisMap() {
               />
             )
           })}
+          {gisGeoExplorerPinGeoJson ? (
+            <GeoJSON
+              key="gis-geo-ai-pin"
+              data={gisGeoExplorerPinGeoJson as any}
+              pointToLayer={(_, latlng) =>
+                L.circleMarker(latlng, {
+                  radius: 10,
+                  color: '#c2410c',
+                  weight: 3,
+                  opacity: 1,
+                  fillColor: '#f97316',
+                  fillOpacity: 0.95,
+                })
+              }
+            />
+          ) : null}
         </MapView>
         )}
 
