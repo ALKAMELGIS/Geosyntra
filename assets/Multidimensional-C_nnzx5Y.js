@@ -1,1 +1,0 @@
-import{n}from"./index-POA9RGYq.js";function s(){return n.jsxs("div",{style:{padding:24},children:[n.jsx("h1",{children:"Multidimensional Analysis"}),n.jsx("p",{children:"Advanced temporal and volumetric analysis tools coming soon."})]})}export{s as default};
