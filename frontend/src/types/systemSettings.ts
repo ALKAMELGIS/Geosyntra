@@ -44,7 +44,7 @@ export type HomePageSettings = {
   backgroundImage: string
 }
 
-/** User-defined API token cards (metadata in settings; secret values in separate localStorage keys). */
+/** User-defined API token cards (metadata in settings; secret values in localStorage and on the Node server when `/api/system/api-secrets` is available). */
 export type CustomApiTokenSlot = {
   id: string
   /** Card title (English default) */

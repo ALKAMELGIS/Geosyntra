@@ -16,6 +16,7 @@ import {
 } from '../services/settingsStorage'
 import type { SystemSettingsPersistedV1 } from '../types/systemSettings'
 import { useLanguage } from '../lib/i18n'
+import { hydrateBrowserApiSecretsFromServer } from '../lib/apiSecretsServerPersistence'
 
 type ToastState = { kind: 'success' | 'error'; message: string } | null
 
@@ -99,6 +100,16 @@ export function SystemSettingsProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     applyThemeToDocument(settings)
   }, [settings.themeMode, settings.customPrimaryHex])
+
+  useEffect(() => {
+    let cancelled = false
+    void hydrateBrowserApiSecretsFromServer().then(() => {
+      if (cancelled) return
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
   const setSettings = useCallback((next: SystemSettingsPersistedV1) => {
     const merged = mergeWithDefaults(next)

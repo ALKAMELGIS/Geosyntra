@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
 import Chart from 'chart.js/auto'
 import type { Chart as ChartInstance, ChartConfiguration } from 'chart.js'
 import { useLanguage } from '../../lib/i18n'
@@ -214,21 +214,102 @@ function agroPlaceholderChartConfig(labels: string[]): ChartConfiguration {
   }
 }
 
-function AgroVizStrip(props: { value: AgroVizType; onChange: (v: AgroVizType) => void; ariaLabel: string }) {
-  const { value, onChange, ariaLabel } = props
+const CHART_VIZ_OPTIONS = VIZ_OPTIONS.filter(o => o.id !== 'table' && o.id !== 'map')
+
+/** OSM embed (Gulf region) — lightweight geographic preview without Mapbox token. */
+const AGRO_MAP_EMBED_SRC =
+  'https://www.openstreetmap.org/export/embed.html?bbox=50.2%2C22.4%2C56.8%2C26.6&layer=mapnik'
+
+function AgroVizToolbar(props: {
+  value: AgroVizType
+  onChange: (v: AgroVizType) => void
+  groupAriaLabel: string
+  analysisTitle: string
+  mapTitle: string
+  tableTitle: string
+}) {
+  const { value, onChange, groupAriaLabel, analysisTitle, mapTitle, tableTitle } = props
+  const [analysisOpen, setAnalysisOpen] = useState(false)
+  const clusterOptsId = useId()
+  const analysisActive = value !== 'table' && value !== 'map'
+
   return (
-    <div className="agdash-viz-strip" role="group" aria-label={ariaLabel}>
-      {VIZ_OPTIONS.map(opt => (
+    <div className="agdash-viz-toolbar" role="group" aria-label={groupAriaLabel}>
+      <div className={`agdash-viz-cluster${analysisOpen ? ' agdash-viz-cluster--open' : ''}`}>
         <button
-          key={opt.id}
           type="button"
-          title={opt.title}
-          className={`agdash-viz-btn${value === opt.id ? ' agdash-viz-btn--on' : ''}`}
-          onClick={() => onChange(opt.id)}
+          className={`agdash-viz-cluster-toggle${analysisActive ? ' agdash-viz-btn--on' : ''}`}
+          aria-expanded={analysisOpen}
+          aria-controls={clusterOptsId}
+          title={analysisTitle}
+          onClick={() => setAnalysisOpen(o => !o)}
         >
-          <i className={opt.icon} aria-hidden />
+          <i className="fa-solid fa-chart-column" aria-hidden />
+          <i
+            className={`fa-solid fa-chevron-down agdash-viz-cluster-chevron${analysisOpen ? ' agdash-viz-cluster-chevron--up' : ''}`}
+            aria-hidden
+          />
         </button>
-      ))}
+        <div
+          id={clusterOptsId}
+          className={`agdash-viz-cluster-options${analysisOpen ? '' : ' agdash-viz-cluster-options--collapsed'}`}
+          role="group"
+          aria-label={analysisTitle}
+        >
+          {CHART_VIZ_OPTIONS.map(opt => (
+            <button
+              key={opt.id}
+              type="button"
+              title={opt.title}
+              className={`agdash-viz-btn${value === opt.id ? ' agdash-viz-btn--on' : ''}`}
+              onClick={() => {
+                onChange(opt.id)
+                setAnalysisOpen(false)
+              }}
+            >
+              <i className={opt.icon} aria-hidden />
+            </button>
+          ))}
+        </div>
+      </div>
+      <button
+        type="button"
+        title={mapTitle}
+        className={`agdash-viz-btn agdash-viz-btn--solo${value === 'map' ? ' agdash-viz-btn--on' : ''}`}
+        onClick={() => {
+          onChange('map')
+          setAnalysisOpen(false)
+        }}
+      >
+        <i className="fa-solid fa-map-location-dot" aria-hidden />
+      </button>
+      <button
+        type="button"
+        title={tableTitle}
+        className={`agdash-viz-btn agdash-viz-btn--solo${value === 'table' ? ' agdash-viz-btn--on' : ''}`}
+        onClick={() => {
+          onChange('table')
+          setAnalysisOpen(false)
+        }}
+      >
+        <i className="fa-solid fa-table" aria-hidden />
+      </button>
+    </div>
+  )
+}
+
+function AgroMapPreview(props: { title: string; hint: string }) {
+  const { title, hint } = props
+  return (
+    <div className="agdash-chart-map">
+      <iframe
+        title={title}
+        src={AGRO_MAP_EMBED_SRC}
+        loading="lazy"
+        referrerPolicy="no-referrer-when-downgrade"
+        className="agdash-chart-map-frame"
+      />
+      <p className="agdash-map-hint">{hint}</p>
     </div>
   )
 }
@@ -303,12 +384,13 @@ export default function AgroDashboard() {
             wfModalDone: 'تم',
             wfModalCloseAria: 'إغلاق النافذة',
             wfSummary: (layers: number, fields: number) => `${layers} طبقة · ${fields} حقل`,
-            wf: ['إضافة طبقة', 'إضافة بيانات', 'اختيار الحقول'],
-            wfPanelLayerTitle: 'الطبقات المضافة',
-            wfPanelLayerEmpty: 'لم تُضف طبقات بعد. استخدم «إضافة مصدر» لاستيراد طبقة من GIS أو ملف أو خدمة.',
-            wfPanelSourceHint: 'استخدم زر «إضافة مصدر» أعلاه لربط بيانات بهذه اللوحة.',
+            wf: ['إضافة طبقة', 'اختيار الحقول'],
+            wfPanelLayerTitle: 'اختيار الطبقات للوحة',
+            wfPanelLayerEmpty: 'لم تُضف طبقات بعد. استخدم «إضافة مصدر» في الشريط العلوي لاستيراد طبقة من GIS أو ملف أو خدمة.',
+            wfPanelLayerPickHint: 'فعّل الطبقات التي تريد عرضها في لوحة التحكم والرسوم.',
             wfPanelSelectTitle: 'اختيار الحقول حسب الطبقة',
             wfPanelSelectEmpty: 'لا توجد حقول حتى تُضاف طبقة تحتوي على جدول سمات أو أعمدة.',
+            wfPanelSelectNeedLayers: 'فعّل طبقة واحدة على الأقل في الخطوة السابقة لاختيار الحقول.',
             fieldPickerHint: 'اضغط طبقة لفتح قائمة الحقول في طبقة عائمة دون توسيع الصفحة.',
             fieldPickerMenuTitle: (name: string) => `حقول: ${name}`,
             fieldsBadge: (sel: number, tot: number) => `${sel}/${tot}`,
@@ -318,7 +400,12 @@ export default function AgroDashboard() {
             slotMain: 'رئيسي',
             slotPie: 'دائرة',
             slotBot: 'خط',
-            chartTypesAria: 'نوع التصور البياني',
+            chartTypesAria: 'عرض الرسم أو الخريطة أو الجدول',
+            vizAnalysisTitle: 'تحليل — اختر نوع الرسم',
+            vizMapTitle: 'خريطة',
+            vizTableTitle: 'جدول',
+            mapEmbedTitle: 'معاينة خريطة جغرافية',
+            mapHint: 'خريطة مرجعية (OpenStreetMap). للطبقات والتحرير المكاني استخدم خريطة GIS من التطبيق.',
             quarter: [
               { v: 'all', l: 'كل 2024' },
               { v: 'q1', l: 'الربع 1' },
@@ -412,12 +499,13 @@ export default function AgroDashboard() {
             wfModalDone: 'Done',
             wfModalCloseAria: 'Close dialog',
             wfSummary: (layers: number, fields: number) => `${layers} layer(s) · ${fields} field(s)`,
-            wf: ['Add layer', 'Add source data', 'Select fields'],
-            wfPanelLayerTitle: 'Added layers',
-            wfPanelLayerEmpty: 'No layers yet. Use Add source to import from GIS, a file, or a service.',
-            wfPanelSourceHint: 'Use the Add source button above to connect data to this dashboard.',
+            wf: ['Add layer', 'Select fields'],
+            wfPanelLayerTitle: 'Choose layers for the dashboard',
+            wfPanelLayerEmpty: 'No layers yet. Use Add source in the top bar to import from GIS, a file, or a service.',
+            wfPanelLayerPickHint: 'Turn on the layers you want to show on the dashboard and in charts.',
             wfPanelSelectTitle: 'Select fields by layer',
             wfPanelSelectEmpty: 'No fields until you add a layer with attribute columns.',
+            wfPanelSelectNeedLayers: 'Turn on at least one layer in the previous step to select fields.',
             fieldPickerHint: 'Click a layer to open its fields in a compact overlay — keeps the layout tidy.',
             fieldPickerMenuTitle: (name: string) => `Fields — ${name}`,
             fieldsBadge: (sel: number, tot: number) => `${sel} / ${tot}`,
@@ -427,7 +515,12 @@ export default function AgroDashboard() {
             slotMain: 'Main',
             slotPie: 'Pie',
             slotBot: 'Line',
-            chartTypesAria: 'Chart visualization type',
+            chartTypesAria: 'Chart, map, or table view',
+            vizAnalysisTitle: 'Analysis — choose a chart type',
+            vizMapTitle: 'Map',
+            vizTableTitle: 'Table',
+            mapEmbedTitle: 'Geographic map preview',
+            mapHint: 'Reference map (OpenStreetMap). Use GIS Map in the app for full spatial layers and editing.',
             quarter: [
               { v: 'all', l: 'All 2024' },
               { v: 'q1', l: 'Q1' },
@@ -485,7 +578,7 @@ export default function AgroDashboard() {
   const MO = ar ? MO_AR : MO_EN
 
   const [navIdx, setNavIdx] = useState(0)
-  const [wfIdx, setWfIdx] = useState(1)
+  const [wfIdx, setWfIdx] = useState(0)
   const [addSourceOpen, setAddSourceOpen] = useState(false)
   const [wfModalOpen, setWfModalOpen] = useState(false)
   const [addWizard, setAddWizard] = useState<AgroAddWizard>('home')
@@ -504,6 +597,8 @@ export default function AgroDashboard() {
   const [uploadFile, setUploadFile] = useState<File | null>(null)
   const [remoteDataUrl, setRemoteDataUrl] = useState('')
   const [agroSources, setAgroSources] = useState<AgroSourceLayer[]>([])
+  /** Layer IDs included on the dashboard (charts / KPIs). */
+  const [dashboardLayerIds, setDashboardLayerIds] = useState<string[]>([])
   const [includedFieldKeys, setIncludedFieldKeys] = useState<string[]>([])
   const [pinnedFieldKeys, setPinnedFieldKeys] = useState<string[]>([])
   const [homePick, setHomePick] = useState<'gis' | 'arcgis' | 'upload' | 'getdata'>('gis')
@@ -513,28 +608,11 @@ export default function AgroDashboard() {
   const [vizBot, setVizBot] = useState<AgroVizType>('line')
   const [fieldChartPlacement, setFieldChartPlacement] = useState<Record<string, FieldChartSlot>>({})
   const [quarter, setQuarter] = useState<QuarterKey>('all')
-  const [selectFieldsOpenLayerId, setSelectFieldsOpenLayerId] = useState<string | null>(null)
 
   useEffect(() => {
-    if (wfIdx !== 2) setSelectFieldsOpenLayerId(null)
-  }, [wfIdx])
-
-  useEffect(() => {
-    if (selectFieldsOpenLayerId === null) return
-    const onDoc = (e: MouseEvent) => {
-      const el = document.querySelector(`[data-field-dd="${selectFieldsOpenLayerId}"]`)
-      if (el && e.target instanceof Node && !el.contains(e.target)) setSelectFieldsOpenLayerId(null)
-    }
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setSelectFieldsOpenLayerId(null)
-    }
-    document.addEventListener('mousedown', onDoc)
-    document.addEventListener('keydown', onKey)
-    return () => {
-      document.removeEventListener('mousedown', onDoc)
-      document.removeEventListener('keydown', onKey)
-    }
-  }, [selectFieldsOpenLayerId])
+    const valid = new Set(agroSources.map(s => s.id))
+    setDashboardLayerIds(prev => prev.filter(id => valid.has(id)))
+  }, [agroSources])
 
   useEffect(() => {
     setFieldChartPlacement(prev => {
@@ -546,12 +624,35 @@ export default function AgroDashboard() {
     })
   }, [pinnedFieldKeys])
 
+  const agroSourcesOnDashboard = useMemo(
+    () => agroSources.filter(s => dashboardLayerIds.includes(s.id)),
+    [agroSources, dashboardLayerIds],
+  )
+
+  const pinnedFieldKeysOnDashboard = useMemo(
+    () =>
+      pinnedFieldKeys.filter(k => {
+        const { sourceId } = parseAgroFieldKey(k)
+        return dashboardLayerIds.includes(sourceId)
+      }),
+    [pinnedFieldKeys, dashboardLayerIds],
+  )
+
+  const includedFieldKeysOnDashboard = useMemo(
+    () =>
+      includedFieldKeys.filter(k => {
+        const { sourceId } = parseAgroFieldKey(k)
+        return dashboardLayerIds.includes(sourceId)
+      }),
+    [includedFieldKeys, dashboardLayerIds],
+  )
+
   const kpi1 = useMemo(() => {
-    const keys = pinnedFieldKeys.filter(k => (fieldChartPlacement[k] ?? DEFAULT_FIELD_CHART).main)
+    const keys = pinnedFieldKeysOnDashboard.filter(k => (fieldChartPlacement[k] ?? DEFAULT_FIELD_CHART).main)
     if (!keys.length) return '0'
     const key = keys[0]!
     const { sourceId, field } = parseAgroFieldKey(key)
-    const L = agroSources.find(s => s.id === sourceId)
+    const L = agroSourcesOnDashboard.find(s => s.id === sourceId)
     if (!L || !field) return '0'
     let s = 0
     for (const r of L.rows) {
@@ -561,9 +662,9 @@ export default function AgroDashboard() {
     if (!Number.isFinite(s)) return '0'
     const abs = Math.abs(s)
     return abs >= 1000 ? `${(s / 1000).toFixed(1)}k` : String(Math.round(s))
-  }, [pinnedFieldKeys, fieldChartPlacement, agroSources])
+  }, [pinnedFieldKeysOnDashboard, fieldChartPlacement, agroSourcesOnDashboard])
 
-  const kpi2 = useMemo(() => String(includedFieldKeys.length), [includedFieldKeys.length])
+  const kpi2 = useMemo(() => String(includedFieldKeysOnDashboard.length), [includedFieldKeysOnDashboard.length])
 
   const mainCanvasRef = useRef<HTMLCanvasElement>(null)
   const pieCanvasRef = useRef<HTMLCanvasElement>(null)
@@ -573,23 +674,47 @@ export default function AgroDashboard() {
   const lineChartRef = useRef<ChartInstance | null>(null)
 
   const mainSlot = useMemo(
-    () => buildSlotVisualization('main', vizMain, pinnedFieldKeys, fieldChartPlacement, agroSources, t.chartEmpty),
-    [vizMain, pinnedFieldKeys, fieldChartPlacement, agroSources, t.chartEmpty],
+    () =>
+      buildSlotVisualization(
+        'main',
+        vizMain,
+        pinnedFieldKeysOnDashboard,
+        fieldChartPlacement,
+        agroSourcesOnDashboard,
+        t.chartEmpty,
+      ),
+    [vizMain, pinnedFieldKeysOnDashboard, fieldChartPlacement, agroSourcesOnDashboard, t.chartEmpty],
   )
   const pieSlot = useMemo(
-    () => buildSlotVisualization('pie', vizPie, pinnedFieldKeys, fieldChartPlacement, agroSources, t.pieNoData),
-    [vizPie, pinnedFieldKeys, fieldChartPlacement, agroSources, t.pieNoData],
+    () =>
+      buildSlotVisualization(
+        'pie',
+        vizPie,
+        pinnedFieldKeysOnDashboard,
+        fieldChartPlacement,
+        agroSourcesOnDashboard,
+        t.pieNoData,
+      ),
+    [vizPie, pinnedFieldKeysOnDashboard, fieldChartPlacement, agroSourcesOnDashboard, t.pieNoData],
   )
   const botSlot = useMemo(
-    () => buildSlotVisualization('bot', vizBot, pinnedFieldKeys, fieldChartPlacement, agroSources, t.chartEmpty),
-    [vizBot, pinnedFieldKeys, fieldChartPlacement, agroSources, t.chartEmpty],
+    () =>
+      buildSlotVisualization(
+        'bot',
+        vizBot,
+        pinnedFieldKeysOnDashboard,
+        fieldChartPlacement,
+        agroSourcesOnDashboard,
+        t.chartEmpty,
+      ),
+    [vizBot, pinnedFieldKeysOnDashboard, fieldChartPlacement, agroSourcesOnDashboard, t.chartEmpty],
   )
 
   useEffect(() => {
     mainChartRef.current?.destroy()
     mainChartRef.current = null
     const canvas = mainCanvasRef.current
-    if (!canvas || vizMain === 'table') return
+    if (!canvas || vizMain === 'table' || vizMain === 'map') return
     if (mainSlot.kind === 'chart') {
       mainChartRef.current = new Chart(canvas, mainSlot.config)
     } else if (mainSlot.kind === 'empty') {
@@ -605,7 +730,7 @@ export default function AgroDashboard() {
     pieChartRef.current?.destroy()
     pieChartRef.current = null
     const canvas = pieCanvasRef.current
-    if (!canvas || vizPie === 'table') return
+    if (!canvas || vizPie === 'table' || vizPie === 'map') return
     if (pieSlot.kind === 'chart') {
       pieChartRef.current = new Chart(canvas, pieSlot.config)
     } else if (pieSlot.kind === 'empty') {
@@ -621,7 +746,7 @@ export default function AgroDashboard() {
     lineChartRef.current?.destroy()
     lineChartRef.current = null
     const canvas = lineCanvasRef.current
-    if (!canvas || vizBot === 'table') return
+    if (!canvas || vizBot === 'table' || vizBot === 'map') return
     if (botSlot.kind === 'chart') {
       lineChartRef.current = new Chart(canvas, botSlot.config)
     } else if (botSlot.kind === 'empty') {
@@ -659,10 +784,9 @@ export default function AgroDashboard() {
 
   const registerAgroSource = useCallback(
     (layer: AgroSourceLayer) => {
-      const keys = layer.fields.map(f => agroFieldKey(layer.id, f))
       setAgroSources(prev => [...prev, layer])
-      setIncludedFieldKeys(prev => Array.from(new Set([...prev, ...keys])))
-      setWfIdx(2)
+      setDashboardLayerIds(prev => (prev.includes(layer.id) ? prev : [...prev, layer.id]))
+      setWfIdx(1)
       closeAddSourceModal()
       setWfModalOpen(true)
     },
@@ -670,6 +794,15 @@ export default function AgroDashboard() {
   )
 
   const closeWfModal = useCallback(() => setWfModalOpen(false), [])
+
+  const toggleDashboardLayer = useCallback((sourceId: string, checked: boolean) => {
+    if (checked) {
+      setDashboardLayerIds(prev => (prev.includes(sourceId) ? prev : [...prev, sourceId]))
+    } else {
+      setDashboardLayerIds(prev => prev.filter(id => id !== sourceId))
+      setIncludedFieldKeys(prev => prev.filter(k => parseAgroFieldKey(k).sourceId !== sourceId))
+    }
+  }, [])
 
   const toggleIncludedFieldKey = useCallback((key: string) => {
     setIncludedFieldKeys(prev => {
@@ -684,7 +817,6 @@ export default function AgroDashboard() {
 
   const wfPanelTitle = useMemo(() => {
     if (wfIdx === 0) return t.wfPanelLayerTitle
-    if (wfIdx === 1) return t.wf[1]!
     return t.wfPanelSelectTitle
   }, [wfIdx, t])
 
@@ -692,13 +824,14 @@ export default function AgroDashboard() {
     const set = new Set(includedFieldKeys)
     const out: string[] = []
     for (const src of agroSources) {
+      if (!dashboardLayerIds.includes(src.id)) continue
       for (const f of src.fields) {
         const k = agroFieldKey(src.id, f)
         if (set.has(k)) out.push(k)
       }
     }
     return out
-  }, [agroSources, includedFieldKeys])
+  }, [agroSources, includedFieldKeys, dashboardLayerIds])
 
   const toggleFieldChartSlot = useCallback((key: string, slot: keyof FieldChartSlot) => {
     setFieldChartPlacement(prev => {
@@ -1038,7 +1171,7 @@ export default function AgroDashboard() {
               className="agdash-add-btn"
               onClick={() => {
                 resetAgroAddForm()
-                setWfIdx(1)
+                setWfIdx(0)
                 setWfModalOpen(false)
                 setAddSourceOpen(true)
               }}
@@ -1064,7 +1197,9 @@ export default function AgroDashboard() {
               <i className="fa-solid fa-layer-group" aria-hidden />
               <span>{t.wfModalOpenBtn}</span>
             </button>
-            <span className="agdash-wf-toolbar-summary">{t.wfSummary(agroSources.length, includedFieldKeys.length)}</span>
+            <span className="agdash-wf-toolbar-summary">
+              {t.wfSummary(dashboardLayerIds.length, includedFieldKeysOnDashboard.length)}
+            </span>
           </div>
           <div className="agdash-wf-end">
             <select
@@ -1127,7 +1262,9 @@ export default function AgroDashboard() {
                 <div
                   className="agdash-kpi-fill"
                   style={{
-                    width: includedFieldKeys.length ? `${Math.min(100, includedFieldKeys.length * 8)}%` : '0%',
+                    width: includedFieldKeysOnDashboard.length
+                      ? `${Math.min(100, includedFieldKeysOnDashboard.length * 8)}%`
+                      : '0%',
                     background: 'var(--agdash-teal)',
                   }}
                 />
@@ -1162,13 +1299,13 @@ export default function AgroDashboard() {
                   </svg>
                 </div>
               </div>
-              <div className="agdash-kpi-val">{agroSources.length}</div>
+              <div className="agdash-kpi-val">{dashboardLayerIds.length}</div>
               <div className="agdash-kpi-lbl">{t.kpi4}</div>
               <div className="agdash-kpi-bar">
                 <div
                   className="agdash-kpi-fill"
                   style={{
-                    width: agroSources.length ? `${Math.min(100, agroSources.length * 20)}%` : '0%',
+                    width: dashboardLayerIds.length ? `${Math.min(100, dashboardLayerIds.length * 20)}%` : '0%',
                     background: 'var(--agdash-violet)',
                   }}
                 />
@@ -1180,14 +1317,23 @@ export default function AgroDashboard() {
             <div className="agdash-card agdash-card--viz">
               <div className="agdash-ch agdash-ch--headless">
                 <div className="agdash-ch-tools agdash-ch-tools--viz">
-                  <AgroVizStrip value={vizMain} onChange={setVizMain} ariaLabel={t.chartTypesAria} />
+                  <AgroVizToolbar
+                    value={vizMain}
+                    onChange={setVizMain}
+                    groupAriaLabel={t.chartTypesAria}
+                    analysisTitle={t.vizAnalysisTitle}
+                    mapTitle={t.vizMapTitle}
+                    tableTitle={t.vizTableTitle}
+                  />
                   <button type="button" className="agdash-action-link">
                     {t.analyze}
                   </button>
                 </div>
               </div>
               <div className="agdash-chart-wrap">
-                {vizMain === 'table' && mainSlot.kind === 'table' ? (
+                {vizMain === 'map' || mainSlot.kind === 'map' ? (
+                  <AgroMapPreview title={t.mapEmbedTitle} hint={t.mapHint} />
+                ) : vizMain === 'table' && mainSlot.kind === 'table' ? (
                   <div className="agdash-mini-table-scroll">
                     <table className="agdash-mini-table">
                       <thead>
@@ -1216,7 +1362,7 @@ export default function AgroDashboard() {
                   <canvas ref={mainCanvasRef} role="img" aria-label={t.chartMainAria} />
                 )}
               </div>
-              {mainSlot.kind === 'empty' && vizMain !== 'table' ? (
+              {mainSlot.kind === 'empty' && vizMain !== 'table' && vizMain !== 'map' ? (
                 <div className="agdash-leg">
                   <div className="agdash-li agdash-li--muted">{mainSlot.message}</div>
                 </div>
@@ -1226,11 +1372,20 @@ export default function AgroDashboard() {
             <div className="agdash-card agdash-card--viz">
               <div className="agdash-ch agdash-ch--headless">
                 <div className="agdash-ch-tools agdash-ch-tools--viz agdash-ch-tools--col">
-                  <AgroVizStrip value={vizPie} onChange={setVizPie} ariaLabel={t.chartTypesAria} />
+                  <AgroVizToolbar
+                    value={vizPie}
+                    onChange={setVizPie}
+                    groupAriaLabel={t.chartTypesAria}
+                    analysisTitle={t.vizAnalysisTitle}
+                    mapTitle={t.vizMapTitle}
+                    tableTitle={t.vizTableTitle}
+                  />
                 </div>
               </div>
               <div className="agdash-chart-wrap agdash-chart-sm">
-                {vizPie === 'table' && pieSlot.kind === 'table' ? (
+                {vizPie === 'map' || pieSlot.kind === 'map' ? (
+                  <AgroMapPreview title={t.mapEmbedTitle} hint={t.mapHint} />
+                ) : vizPie === 'table' && pieSlot.kind === 'table' ? (
                   <div className="agdash-mini-table-scroll">
                     <table className="agdash-mini-table">
                       <thead>
@@ -1259,7 +1414,7 @@ export default function AgroDashboard() {
                   <canvas ref={pieCanvasRef} role="img" aria-label={t.chartPieAria} />
                 )}
               </div>
-              {pieSlot.kind === 'empty' && vizPie !== 'table' ? (
+              {pieSlot.kind === 'empty' && vizPie !== 'table' && vizPie !== 'map' ? (
                 <div className="agdash-leg" style={{ justifyContent: 'center' }}>
                   <div className="agdash-li agdash-li--muted">{pieSlot.message}</div>
                 </div>
@@ -1271,14 +1426,23 @@ export default function AgroDashboard() {
             <div className="agdash-card agdash-card--viz">
               <div className="agdash-ch agdash-ch--headless">
                 <div className="agdash-ch-tools agdash-ch-tools--viz agdash-ch-tools--line">
-                  <AgroVizStrip value={vizBot} onChange={setVizBot} ariaLabel={t.chartTypesAria} />
+                  <AgroVizToolbar
+                    value={vizBot}
+                    onChange={setVizBot}
+                    groupAriaLabel={t.chartTypesAria}
+                    analysisTitle={t.vizAnalysisTitle}
+                    mapTitle={t.vizMapTitle}
+                    tableTitle={t.vizTableTitle}
+                  />
                   <button type="button" className="agdash-action-link">
                     {t.analyze}
                   </button>
                 </div>
               </div>
               <div className="agdash-chart-wrap agdash-chart-xs">
-                {vizBot === 'table' && botSlot.kind === 'table' ? (
+                {vizBot === 'map' || botSlot.kind === 'map' ? (
+                  <AgroMapPreview title={t.mapEmbedTitle} hint={t.mapHint} />
+                ) : vizBot === 'table' && botSlot.kind === 'table' ? (
                   <div className="agdash-mini-table-scroll">
                     <table className="agdash-mini-table">
                       <thead>
@@ -1307,7 +1471,7 @@ export default function AgroDashboard() {
                   <canvas ref={lineCanvasRef} role="img" aria-label={t.chartLineAria} />
                 )}
               </div>
-              {botSlot.kind === 'empty' && vizBot !== 'table' ? (
+              {botSlot.kind === 'empty' && vizBot !== 'table' && vizBot !== 'map' ? (
                 <div className="agdash-leg" style={{ marginTop: 10 }}>
                   <div className="agdash-li agdash-li--muted">{botSlot.message}</div>
                 </div>
@@ -1442,7 +1606,7 @@ export default function AgroDashboard() {
                   ))}
                 </div>
                 <div
-                  className={`agdash-wf-panel${wfIdx === 2 ? ' agdash-wf-panel--select-fields' : ''}`}
+                  className={`agdash-wf-panel${wfIdx === 1 ? ' agdash-wf-panel--select-fields' : ''}`}
                   role="region"
                   aria-labelledby="agdash-wf-panel-title"
                 >
@@ -1451,109 +1615,81 @@ export default function AgroDashboard() {
                       {wfPanelTitle}
                     </h3>
                   </div>
-                  <div className={`agdash-wf-panel-body${wfIdx === 2 ? ' agdash-wf-panel-body--select-fields' : ''}`}>
+                  <div className={`agdash-wf-panel-body${wfIdx === 1 ? ' agdash-wf-panel-body--select-fields' : ''}`}>
                     {wfIdx === 0 &&
                       (agroSources.length === 0 ? (
                         <p className="agdash-wf-panel-empty">{t.wfPanelLayerEmpty}</p>
                       ) : (
-                        <ul className="agdash-wf-layer-list">
-                          {agroSources.map(s => (
-                            <li key={s.id} className="agdash-wf-layer-item">
-                              <span className="agdash-wf-layer-name">{s.name}</span>
-                              {s.fields.length > 0 ? (
-                                <span className="agdash-wf-layer-meta">
-                                  {s.fields.length} {ar ? 'حقل' : 'fields'}
-                                </span>
-                              ) : null}
-                            </li>
-                          ))}
-                        </ul>
-                      ))}
-                    {wfIdx === 1 && <p className="agdash-wf-panel-empty agdash-wf-panel-hint">{t.wfPanelSourceHint}</p>}
-                    {wfIdx === 2 &&
-                      (agroSources.length === 0 ? (
-                        <p className="agdash-wf-panel-empty">{t.wfPanelSelectEmpty}</p>
-                      ) : (
-                        <div className="agdash-field-picker">
-                          <p className="agdash-field-picker-hint">{t.fieldPickerHint}</p>
-                          <div className="agdash-field-picker-stack">
-                            {agroSources.map(src => {
-                              const open = selectFieldsOpenLayerId === src.id
-                              const nTot = src.fields.length
-                              const nSel = src.fields.filter(f =>
-                                includedFieldKeys.includes(agroFieldKey(src.id, f)),
-                              ).length
+                        <>
+                          <p className="agdash-wf-panel-hint agdash-wf-panel-hint--pick">{t.wfPanelLayerPickHint}</p>
+                          <ul className="agdash-wf-layer-pick-list">
+                            {agroSources.map(s => {
+                              const on = dashboardLayerIds.includes(s.id)
                               return (
-                                <div key={src.id} className="agdash-field-dd" data-field-dd={src.id}>
-                                  <button
-                                    type="button"
-                                    className={`agdash-field-dd-trigger${open ? ' agdash-field-dd-trigger--open' : ''}`}
-                                    aria-expanded={open}
-                                    aria-controls={nTot ? `field-dd-${src.id}` : undefined}
-                                    id={`field-dd-btn-${src.id}`}
-                                    onClick={() => setSelectFieldsOpenLayerId(open ? null : src.id)}
-                                  >
-                                    <span className="agdash-field-dd-trigger-icon" aria-hidden>
-                                      <i className="fa-solid fa-table-list" />
-                                    </span>
-                                    <span className="agdash-field-dd-trigger-text">
-                                      <span className="agdash-field-dd-trigger-name">{src.name}</span>
-                                      <span className="agdash-field-dd-trigger-meta">
-                                        {t.fieldsBadge(nSel, Math.max(nTot, 1))}
+                                <li key={s.id} className={`agdash-wf-layer-pick-item${on ? ' agdash-wf-layer-pick-item--on' : ''}`}>
+                                  <label className="agdash-wf-layer-pick-label">
+                                    <input
+                                      type="checkbox"
+                                      checked={on}
+                                      onChange={e => toggleDashboardLayer(s.id, e.target.checked)}
+                                      aria-label={ar ? `عرض ${s.name} في اللوحة` : `Show ${s.name} on dashboard`}
+                                    />
+                                    <span className="agdash-wf-layer-pick-name">{s.name}</span>
+                                    {s.fields.length > 0 ? (
+                                      <span className="agdash-wf-layer-pick-meta">
+                                        {s.fields.length} {ar ? 'حقل' : 'fields'}
                                       </span>
-                                    </span>
-                                    <span
-                                      className={`agdash-field-dd-chevron${open ? ' agdash-field-dd-chevron--up' : ''}`}
-                                      aria-hidden
-                                    >
-                                      <svg viewBox="0 0 12 12" width="12" height="12" fill="none">
-                                        <path
-                                          d="M2 4l4 4 4-4"
-                                          stroke="currentColor"
-                                          strokeWidth="1.6"
-                                          strokeLinecap="round"
-                                          strokeLinejoin="round"
-                                        />
-                                      </svg>
-                                    </span>
-                                  </button>
-                                  {open && nTot > 0 ? (
-                                    <div
-                                      id={`field-dd-${src.id}`}
-                                      className="agdash-field-dd-menu"
-                                      role="group"
-                                      aria-label={t.fieldPickerMenuTitle(src.name)}
-                                    >
-                                      <div className="agdash-field-dd-menu-head">{t.fieldPickerMenuTitle(src.name)}</div>
-                                      <div className="agdash-field-dd-menu-scroll">
-                                        <ul className="agdash-field-dd-list">
-                                          {src.fields.map(field => {
-                                            const key = agroFieldKey(src.id, field)
-                                            return (
-                                              <li key={key} className="agdash-field-dd-item">
-                                                <label className="agdash-wf-check agdash-field-dd-check">
-                                                  <input
-                                                    type="checkbox"
-                                                    checked={includedFieldKeys.includes(key)}
-                                                    onChange={() => toggleIncludedFieldKey(key)}
-                                                  />
-                                                  <span>{field}</span>
-                                                </label>
-                                              </li>
-                                            )
-                                          })}
-                                        </ul>
-                                      </div>
-                                    </div>
-                                  ) : open && nTot === 0 ? (
-                                    <div className="agdash-field-dd-menu agdash-field-dd-menu--empty">
-                                      <p className="agdash-wf-panel-empty agdash-wf-panel-empty--sm">{t.wfPanelSelectEmpty}</p>
-                                    </div>
-                                  ) : null}
-                                </div>
+                                    ) : null}
+                                  </label>
+                                </li>
                               )
                             })}
-                          </div>
+                          </ul>
+                        </>
+                      ))}
+                    {wfIdx === 1 &&
+                      (agroSources.length === 0 ? (
+                        <p className="agdash-wf-panel-empty">{t.wfPanelSelectEmpty}</p>
+                      ) : dashboardLayerIds.length === 0 ? (
+                        <p className="agdash-wf-panel-empty agdash-wf-panel-hint">{t.wfPanelSelectNeedLayers}</p>
+                      ) : (
+                        <div className="agdash-field-picker agdash-field-picker--flat">
+                          <p className="agdash-field-picker-hint">{t.fieldPickerHint}</p>
+                          {agroSourcesOnDashboard.map(src => (
+                            <details key={src.id} className="agdash-field-layer-block" open>
+                              <summary className="agdash-field-layer-summary">
+                                <i className="fa-solid fa-table-list" aria-hidden />
+                                <span>{src.name}</span>
+                                <span className="agdash-field-layer-summary-meta">
+                                  {t.fieldsBadge(
+                                    src.fields.filter(f => includedFieldKeys.includes(agroFieldKey(src.id, f))).length,
+                                    Math.max(src.fields.length, 1),
+                                  )}
+                                </span>
+                              </summary>
+                              <ul className="agdash-field-flat-list">
+                                {src.fields.length === 0 ? (
+                                  <li className="agdash-field-flat-empty">{t.wfPanelSelectEmpty}</li>
+                                ) : (
+                                  src.fields.map(field => {
+                                    const key = agroFieldKey(src.id, field)
+                                    return (
+                                      <li key={key} className="agdash-field-flat-item">
+                                        <label className="agdash-wf-check agdash-field-flat-check">
+                                          <input
+                                            type="checkbox"
+                                            checked={includedFieldKeys.includes(key)}
+                                            onChange={() => toggleIncludedFieldKey(key)}
+                                          />
+                                          <span>{field}</span>
+                                        </label>
+                                      </li>
+                                    )
+                                  })
+                                )}
+                              </ul>
+                            </details>
+                          ))}
                           {orderedIncludedPinKeys.length > 0 ? (
                             <div className="agdash-field-picker-charts">
                               <p className="agdash-wf-panel-sub">{t.wfPanelPinSubtitle}</p>
@@ -1570,7 +1706,7 @@ export default function AgroDashboard() {
                                       </div>
                                       <div className="agdash-wf-slot-row">
                                         <span className="agdash-wf-slot-lbl">{t.wfAssignCharts}</span>
-                                        <div className="agdash-wf-slot-btns">
+                                        <div className="agdash-wf-slot-btns agdash-wf-slot-btns--green">
                                           <button
                                             type="button"
                                             className={`agdash-slot-chip${slot.main ? ' agdash-slot-chip--on' : ''}`}

@@ -261,6 +261,83 @@ html[data-theme='dark'] .sys-settings-tab:hover:not(.sys-settings-tab--active) {
   border-top: 1px solid color-mix(in srgb, var(--sys-border) 82%, transparent);
 }
 
+.sys-api-section--settings-toolbar {
+  margin-bottom: 0;
+  margin-top: clamp(20px, 3vw, 28px);
+  padding-top: clamp(16px, 2.5vw, 22px);
+  border-top: 1px solid color-mix(in srgb, var(--sys-border) 82%, transparent);
+}
+
+.sys-api-settings-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+
+.sys-api-settings-toolbar__status {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 11px;
+  border: 1px solid var(--sys-border);
+  background: color-mix(in srgb, var(--ds-color-surface) 94%, var(--ds-color-bg));
+  color: var(--ds-color-success, #047857);
+  font-size: 1.05rem;
+}
+
+.sys-api-settings-toolbar__status--dirty {
+  color: color-mix(in srgb, var(--ds-color-primary) 88%, var(--ds-color-text));
+  border-color: color-mix(in srgb, var(--ds-color-primary) 38%, var(--sys-border));
+  background: color-mix(in srgb, var(--ds-color-primary) 10%, var(--ds-color-surface));
+}
+
+.sys-api-settings-toolbar__actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.sys-api-icon-btn--toolbar {
+  width: 44px;
+  height: 44px;
+  min-width: 44px;
+  font-size: 1.02rem;
+}
+
+.sys-api-icon-btn--toolbar:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+  transform: none;
+  pointer-events: none;
+}
+
+.sys-api-icon-btn--toolbar-muted:hover:not(:disabled) {
+  color: var(--ds-color-text);
+  border-color: color-mix(in srgb, var(--ds-color-primary) 38%, var(--sys-border));
+  background: color-mix(in srgb, var(--ds-color-primary) 10%, var(--ds-color-surface));
+}
+
+.sys-api-icon-btn--danger-outline {
+  border-color: color-mix(in srgb, var(--ds-color-danger, #b91c1c) 45%, var(--sys-border));
+  color: var(--ds-color-danger, #b91c1c);
+  background: color-mix(in srgb, var(--ds-color-danger, #b91c1c) 5%, var(--ds-color-surface));
+}
+
+.sys-api-icon-btn--danger-outline:hover {
+  background: color-mix(in srgb, var(--ds-color-danger, #b91c1c) 12%, var(--ds-color-surface));
+  border-color: color-mix(in srgb, var(--ds-color-danger, #b91c1c) 55%, var(--sys-border));
+  color: var(--ds-color-danger, #b91c1c);
+}
+
+:root[dir='rtl'] .sys-api-settings-toolbar {
+  flex-direction: row-reverse;
+}
+
 .sys-api-section__head {
   margin-bottom: 18px;
 }

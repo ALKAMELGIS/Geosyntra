@@ -17,6 +17,8 @@ export type AgroVizType =
   | 'funnel'
   | 'treemapBar'
   | 'table'
+  /** Geographic basemap (dashboard preview, not a Chart.js type). */
+  | 'map'
 
 export type FieldChartSlot = { main: boolean; pie: boolean; bot: boolean }
 
@@ -144,6 +146,7 @@ export type AgroSlotBuildResult =
   | { kind: 'chart'; config: ChartConfiguration }
   | { kind: 'table'; columns: string[]; rows: Record<string, unknown>[] }
   | { kind: 'empty'; message: string }
+  | { kind: 'map' }
 
 export function buildSlotVisualization(
   slot: 'main' | 'pie' | 'bot',
@@ -153,6 +156,10 @@ export function buildSlotVisualization(
   sources: AgroLayer[],
   noDataMsg: string,
 ): AgroSlotBuildResult {
+  if (viz === 'map') {
+    return { kind: 'map' }
+  }
+
   const keys = slotKeys(slot, pinnedFieldKeys, placement)
   if (!keys.length || !sources.length) {
     return { kind: 'empty', message: noDataMsg }

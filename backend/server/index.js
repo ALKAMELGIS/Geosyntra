@@ -10,6 +10,8 @@ import { createHmac, randomBytes, randomUUID, timingSafeEqual } from 'crypto'
 
 /** `backend/server` — scripts and data files live next to this file. */
 const SERVER_DIR = path.dirname(fileURLToPath(import.meta.url))
+/** Encrypted-at-rest optional; file survives app image updates if this path is on a volume. */
+const API_SECRETS_FILE = path.join(SERVER_DIR, 'agri_api_secrets.json')
 /** Repository root (parent of `frontend/` and `backend/`). */
 const REPO_ROOT = path.join(SERVER_DIR, '..', '..')
 /** Vite production output (`npm run build` in `frontend/`). Override with AGRI_FRONTEND_DIST. */
@@ -18,6 +20,7 @@ import * as yup from 'yup'
 import fs from 'fs'
 import versionedRoutes from '../src/routes/index.js'
 import { errorHandler, notFoundHandler } from '../src/middleware/errorHandler.js'
+import { registerApiSecretsRoutes } from './apiSecretsPersistence.js'
 
 const app = express()
 app.use(cors())
@@ -32,6 +35,11 @@ app.use(
     },
   }),
 )
+
+registerApiSecretsRoutes(app, {
+  secretsFilePath: API_SECRETS_FILE,
+  accessToken: process.env.AGRI_API_SECRETS_TOKEN,
+})
 
 app.get('*', (req, res, next) => {
   try {
