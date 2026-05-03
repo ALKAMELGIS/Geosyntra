@@ -58,7 +58,39 @@ jobs:
           force_orphan: true
           user_name: github-actions[bot]
           user_email: github-actions[bot]@users.noreply.github.com
-      - name: Point GitHub Pages at gh-pages (optional PAT — fixes wrong branch from CI)
+      - name: Point GitHub Pages at gh-pages (try GITHUB_TOKEN first)
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          REPO="${GITHUB_REPOSITORY}"
+          TMP="$(mktemp)"
+          trap "rm -f \"$TMP\" /tmp/gh-pages-api-token.json" EXIT
+          jq -n '{build_type:"legacy", source:{branch:"gh-pages", path:"/"}}' >"$TMP"
+          code="$(gh api "repos/${REPO}/pages" -H "Accept: application/vnd.github+json" -w "%{http_code}" -o /tmp/gh-pages-api-token.json 2>/dev/null || echo 000)"
+          if [ "$code" = "200" ]; then
+            bt="$(jq -r '.build_type // empty' /tmp/gh-pages-api-token.json)"
+            if [ "$bt" = "workflow" ]; then
+              echo "::notice title=GitHub Pages::Site uses Actions workflow source; skipping legacy branch API (GITHUB_TOKEN)."
+              exit 0
+            fi
+            cur="$(jq -r '.source.branch // empty' /tmp/gh-pages-api-token.json)"
+            if [ "$cur" = "gh-pages" ]; then
+              echo "::notice title=GitHub Pages::Already on gh-pages (GITHUB_TOKEN check)."
+              exit 0
+            fi
+            if gh api "repos/${REPO}/pages" --method PUT --input "$TMP"; then
+              echo "::notice title=GitHub Pages::Updated Pages to gh-pages / (root) via GITHUB_TOKEN."
+            else
+              exit 1
+            fi
+          elif [ "$code" = "404" ]; then
+            gh api "repos/${REPO}/pages" --method POST --input "$TMP" && echo "::notice title=GitHub Pages::Enabled Pages gh-pages / (root) via GITHUB_TOKEN."
+          else
+            exit 1
+          fi
+      - name: Point GitHub Pages at gh-pages (optional PAT — if token step failed)
         env:
           PAGES_ADMIN_TOKEN: ${{ secrets.PAGES_ADMIN_TOKEN }}
         run: |
@@ -66,14 +98,15 @@ jobs:
           {
             echo "## GitHub Pages"
             echo ""
-            echo "| Issue | Action |"
+            echo "| المشكلة / Issue | الحل / Action |"
             echo "| --- | --- |"
-            echo "| Live URL shows the **stub / help** page | [**Settings → Pages**](https://github.com/${GITHUB_REPOSITORY}/settings/pages) → **Deploy from a branch** → **gh-pages** → **/(root)** (not \`main\`). |"
-            echo "| Want this **fixed automatically** on each deploy | Add repo secret **\`PAGES_ADMIN_TOKEN\`**: classic PAT with **repo** scope, *or* fine-grained PAT with **Administration** + **Contents** (read/write) on this repository only. |"
+            echo "| **404** أو صفحة «إعداد Pages» من جذر \`main\` | [**Settings → Pages**](https://github.com/${GITHUB_REPOSITORY}/settings/pages) → **Deploy from a branch** → **gh-pages** → **/(root)** (ليس \`main\`). |"
+            echo "| **تصحيح تلقائي** إذا رفض الـ API الرمز الافتراضي | أضف سر **\`PAGES_ADMIN_TOKEN\`**: PAT كلاسيكي بصلاحية **repo**، أو PAT دقيق بـ **Administration** + **Contents** على هذا المستودع. |"
+            echo "| Live URL shows **stub / help** from \`main\` | Same: switch branch to **gh-pages** or add **PAGES_ADMIN_TOKEN**. |"
           } >> "$GITHUB_STEP_SUMMARY"
 
           if [ -z "${PAGES_ADMIN_TOKEN:-}" ]; then
-            echo "::notice title=GitHub Pages::Optional: add secret PAGES_ADMIN_TOKEN to auto-point Pages at gh-pages, or set branch manually in Settings → Pages."
+            echo "::notice title=GitHub Pages::If Pages still uses main: open Settings → Pages → branch gh-pages / (root). Optional: PAGES_ADMIN_TOKEN for API fallback."
             exit 0
           fi
 
