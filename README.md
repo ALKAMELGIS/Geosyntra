@@ -6,12 +6,12 @@
 
 الموقع: `https://alkamelgis.github.io/AgroCloud/#/` (HashRouter).
 
-سير العمل [Deploy to GitHub Pages](.github/workflows/deploy-pages.yml) يبني `frontend/dist` ويدفع الموقع إلى فرع **`gh-pages`** (لا يُلتزم `frontend/dist` في `main`). جذر **`main`** لا يحتوي `index.html` للواجهة حتى لا يُنشر بالخطأ محتوى يتعارض مع التطبيق.
+سير العمل [Deploy to GitHub Pages](.github/workflows/deploy-pages.yml) يبني `frontend/dist` وينشره **فقط عبر GitHub Actions** (أرشيف `deploy-pages`)، وليس من فرع. لا تُلتزم `frontend/dist` في `main`.
 
-**الإعداد** في [Settings → Pages](https://github.com/ALKAMELGIS/AgroCloud/settings/pages): **Deploy from a branch** → **`gh-pages`** → **`/(root)`** (أو **GitHub Actions** إن كنت تستخدم نشر الأرشيف فقط).
+**الإعداد** في [Settings → Pages](https://github.com/ALKAMELGIS/AgroCloud/settings/pages): المصدر **GitHub Actions** (لا تختر «نشر من فرع» — كان سبب تعارض 404 سابقاً).
 
-**إصلاح تلقائي (اختياري):** سر **`PAGES_ADMIN_TOKEN`** — راجع التعليق في سير النشر.
+**إن فشل ضبط المصدر تلقائياً:** أضف سر **`PAGES_ADMIN_TOKEN`** (كلاسيكي: نطاق **repo**؛ أو PAT دقيق: **Administration** + **Contents** على هذا المستودع) — يستخدمه [`scripts/ensure-pages-workflow-build.mjs`](scripts/ensure-pages-workflow-build.mjs).
 
-**English:** Workflow pushes the built SPA to **`gh-pages`**. Configure **Pages** to **`gh-pages` / (root)** or **GitHub Actions**. Optional secret **`PAGES_ADMIN_TOKEN`** can align legacy branch settings via API (see workflow).
+**English:** Pages publishes **only** from the workflow artifact (`deploy-pages`). Set **Source: GitHub Actions**. Optional **`PAGES_ADMIN_TOKEN`** if the API cannot switch from legacy branch mode.
 
 **Documentation:** [REPOSITORY.md](REPOSITORY.md)

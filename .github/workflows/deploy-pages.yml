@@ -1,22 +1,18 @@
 name: Deploy to GitHub Pages
 
-# Always pushes the built site to the orphan branch `gh-pages` (works with
-# Settings → Pages → Deploy from a branch → gh-pages / root).
-#
-# Optionally also deploys via the GitHub Pages artifact API when the repo uses
-# Source: GitHub Actions — if not configured, that job is skipped without failing the run.
-#
+# Single publishing path: GitHub Actions → Pages artifact (build_type: workflow).
+# The live site does NOT depend on any branch root (no main vs gh-pages mismatch).
 # Live app (HashRouter): https://alkamelgis.github.io/AgroCloud/#/
 #
-# Pages content lives on branch `gh-pages` (no SPA index on `main` root — avoids wrong-branch publish).
-# Optional: repo secret PAGES_ADMIN_TOKEN → API sets legacy Pages to gh-pages / (root).
+# First run: approve the `github-pages` environment if GitHub prompts (repo Settings → Environments).
+# If the API step cannot set workflow mode, add secret PAGES_ADMIN_TOKEN (see scripts/ensure-pages-workflow-build.mjs).
 on:
   push:
     branches: [main]
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
   pages: write
   id-token: write
 
@@ -35,8 +31,12 @@ jobs:
           node-version: 20
           cache: npm
           cache-dependency-path: package-lock.json
+      - name: Force Pages to publish only from this workflow (not from a branch)
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PAGES_ADMIN_TOKEN: ${{ secrets.PAGES_ADMIN_TOKEN }}
+        run: node scripts/ensure-pages-workflow-build.mjs
       - run: npm ci --no-audit --no-fund
-      # Public Pages build must not embed repo secrets (push protection blocks them on any branch).
       - name: Build SPA for GitHub Pages
         env:
           VITE_MAPBOX_TOKEN: ''
@@ -50,118 +50,30 @@ jobs:
         run: npm run build
       - name: Prepare Pages dist + sanity-check
         run: node scripts/pages-dist-check.mjs
-      - name: Push site to gh-pages branch
-        uses: peaceiris/actions-gh-pages@v4
-        with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_dir: ./frontend/dist
-          force_orphan: true
-          user_name: github-actions[bot]
-          user_email: github-actions[bot]@users.noreply.github.com
-      - name: Point GitHub Pages at gh-pages (try GITHUB_TOKEN first)
-        continue-on-error: true
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          set -euo pipefail
-          REPO="${GITHUB_REPOSITORY}"
-          TMP="$(mktemp)"
-          trap "rm -f \"$TMP\" /tmp/gh-pages-api-token.json" EXIT
-          jq -n '{build_type:"legacy", source:{branch:"gh-pages", path:"/"}}' >"$TMP"
-          code="$(gh api "repos/${REPO}/pages" -H "Accept: application/vnd.github+json" -w "%{http_code}" -o /tmp/gh-pages-api-token.json 2>/dev/null || echo 000)"
-          if [ "$code" = "200" ]; then
-            bt="$(jq -r '.build_type // empty' /tmp/gh-pages-api-token.json)"
-            if [ "$bt" = "workflow" ]; then
-              echo "::notice title=GitHub Pages::Site uses Actions workflow source; skipping legacy branch API (GITHUB_TOKEN)."
-              exit 0
-            fi
-            cur="$(jq -r '.source.branch // empty' /tmp/gh-pages-api-token.json)"
-            if [ "$cur" = "gh-pages" ]; then
-              echo "::notice title=GitHub Pages::Already on gh-pages (GITHUB_TOKEN check)."
-              exit 0
-            fi
-            if gh api "repos/${REPO}/pages" --method PUT --input "$TMP"; then
-              echo "::notice title=GitHub Pages::Updated Pages to gh-pages / (root) via GITHUB_TOKEN."
-            else
-              exit 1
-            fi
-          elif [ "$code" = "404" ]; then
-            gh api "repos/${REPO}/pages" --method POST --input "$TMP" && echo "::notice title=GitHub Pages::Enabled Pages gh-pages / (root) via GITHUB_TOKEN."
-          else
-            exit 1
-          fi
-      - name: Point GitHub Pages at gh-pages (optional PAT — if token step failed)
-        env:
-          PAGES_ADMIN_TOKEN: ${{ secrets.PAGES_ADMIN_TOKEN }}
-        run: |
-          set -euo pipefail
-          {
-            echo "## GitHub Pages"
-            echo ""
-            echo "| المشكلة / Issue | الحل / Action |"
-            echo "| --- | --- |"
-            echo "| **404** أو صفحة «إعداد Pages» من جذر \`main\` | [**Settings → Pages**](https://github.com/${GITHUB_REPOSITORY}/settings/pages) → **Deploy from a branch** → **gh-pages** → **/(root)** (ليس \`main\`). |"
-            echo "| **تصحيح تلقائي** إذا رفض الـ API الرمز الافتراضي | أضف سر **\`PAGES_ADMIN_TOKEN\`**: PAT كلاسيكي بصلاحية **repo**، أو PAT دقيق بـ **Administration** + **Contents** على هذا المستودع. |"
-            echo "| Live URL shows **stub / help** from \`main\` | Same: switch branch to **gh-pages** or add **PAGES_ADMIN_TOKEN**. |"
-          } >> "$GITHUB_STEP_SUMMARY"
-
-          if [ -z "${PAGES_ADMIN_TOKEN:-}" ]; then
-            echo "::notice title=GitHub Pages::If Pages still uses main: open Settings → Pages → branch gh-pages / (root). Optional: PAGES_ADMIN_TOKEN for API fallback."
-            exit 0
-          fi
-
-          export GH_TOKEN="$PAGES_ADMIN_TOKEN"
-          REPO="${GITHUB_REPOSITORY}"
-          TMP="$(mktemp)"
-          trap "rm -f \"$TMP\" /tmp/gh-pages-api.json" EXIT
-          jq -n '{build_type:"legacy", source:{branch:"gh-pages", path:"/"}}' >"$TMP"
-
-          code="$(gh api "repos/${REPO}/pages" -H "Accept: application/vnd.github+json" -w "%{http_code}" -o /tmp/gh-pages-api.json 2>/dev/null || echo 000)"
-          if [ "$code" = "200" ]; then
-            bt="$(jq -r '.build_type // empty' /tmp/gh-pages-api.json)"
-            if [ "$bt" = "workflow" ]; then
-              echo "::notice title=GitHub Pages::Site uses GitHub Actions workflow build; not switching to legacy branch via API."
-              exit 0
-            fi
-            cur="$(jq -r '.source.branch // empty' /tmp/gh-pages-api.json)"
-            if [ "$cur" = "gh-pages" ]; then
-              echo "::notice title=GitHub Pages::Pages already publishes from gh-pages."
-              exit 0
-            fi
-            if gh api "repos/${REPO}/pages" --method PUT --input "$TMP"; then
-              echo "::notice title=GitHub Pages::Updated Pages source to gh-pages / (root) via API."
-            else
-              echo "::warning title=GitHub Pages::PUT /pages failed (check PAT: repo or Administration on this repo)."
-            fi
-          elif [ "$code" = "404" ]; then
-            if gh api "repos/${REPO}/pages" --method POST --input "$TMP"; then
-              echo "::notice title=GitHub Pages::Enabled Pages with source gh-pages / (root) via API."
-            else
-              echo "::warning title=GitHub Pages::POST /pages failed (enable Pages once in Settings or fix PAT)."
-            fi
-          else
-            echo "::warning title=GitHub Pages::Could not read Pages config (HTTP ${code}). Check PAT permissions (repo or Administration on this repo)."
-            exit 0
-          fi
-      - name: Configure Pages (for Actions-based deploy, if enabled)
-        uses: actions/configure-pages@v5
-      - name: Upload Pages artifact
-        uses: actions/upload-pages-artifact@v3
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
         with:
           path: frontend/dist
-      - name: Pages branch reminder
+      - name: Summary
         run: |
-          echo "::notice title=GitHub Pages::Primary fix: Settings → Pages → Deploy from branch → gh-pages / (root). Optional: also set Source to GitHub Actions for artifact deploy."
+          {
+            echo "## GitHub Pages"
+            echo "المصدر الوحيد للنشر: **GitHub Actions** (أرشيف البناء). لا تغيّر المصدر إلى «نشر من فرع» في الإعدادات."
+            echo ""
+            echo "**Single source:** workflow artifact only. Do not set Pages to **Deploy from a branch**."
+            echo ""
+            echo "| URL |"
+            echo "| --- |"
+            echo "| [Open app](https://alkamelgis.github.io/AgroCloud/#/) |"
+          } >> "$GITHUB_STEP_SUMMARY"
 
   deploy:
     needs: build
     runs-on: ubuntu-latest
     timeout-minutes: 10
-    continue-on-error: true
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
-      - name: Deploy to GitHub Pages (artifact)
-        id: deployment
+      - id: deployment
         uses: actions/deploy-pages@v4
