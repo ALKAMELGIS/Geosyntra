@@ -275,8 +275,6 @@ export default function AgroDashboard() {
             wfPanelPinTitle: 'تثبيت الحقول لأنواع الرسوم',
             wfPanelPinEmpty: 'اختر حقولاً في الخطوة السابقة، ثم حدد هنا ما يظهر في الرسوم.',
             wfPanelPinSubtitle: 'الحقول المعروضة في الرسوم',
-            wfChartTypesLabel: 'أنواع الرسوم',
-            wfNoPinnedForCharts: 'لم يُثبت أي حقل للرسوم بعد.',
             quarter: [
               { v: 'all', l: 'كل 2024' },
               { v: 'q1', l: 'الربع 1' },
@@ -291,10 +289,9 @@ export default function AgroDashboard() {
             kpi3: 'متوسط الإنتاج / حقل',
             kpi4: 'مصادر البيانات',
             kpi3Val: '0 كغ',
-            chartMain: 'حجم الحصاد الشهري',
-            chartPie: 'الحصاد حسب المنطقة',
-            chartLine: 'الإنتاج مقابل المطر',
-            chartLineSub: 'ارتباط شهري',
+            chartMainAria: 'رسم الحصاد الشهري',
+            chartPieAria: 'رسم التوزيع حسب المنطقة',
+            chartLineAria: 'رسم الإنتاج مقابل المطر',
             topFields: 'أعلى الحقول',
             topFieldsSub: 'حسب حجم الإخراج',
             activity: 'نشاط حديث',
@@ -304,13 +301,10 @@ export default function AgroDashboard() {
             tblProg: 'التقدم',
             tblStatus: 'الحالة',
             analyze: 'تحليل ↗',
-            dist: 'التوزيع 2024',
             legHarvest: 'الحصاد (كغ)',
             legTarget: 'الهدف',
             legYield: 'مؤشر الإنتاج',
             legRain: 'المطر (مم)',
-            metaAll: 'يناير – ديسمبر 2024 · كل المناطق',
-            metaQ: (q: string) => `${q.toUpperCase()} 2024 · كل المناطق`,
           }
         : {
             srTitle: 'Agro analytics dashboard — KPI cards, charts, field table, and activity feed',
@@ -377,8 +371,6 @@ export default function AgroDashboard() {
             wfPanelPinTitle: 'Pin fields for chart types',
             wfPanelPinEmpty: 'Select fields in the previous step, then choose what appears in charts here.',
             wfPanelPinSubtitle: 'Fields shown in charts',
-            wfChartTypesLabel: 'Chart types',
-            wfNoPinnedForCharts: 'No fields pinned for charts yet.',
             quarter: [
               { v: 'all', l: 'All 2024' },
               { v: 'q1', l: 'Q1' },
@@ -393,10 +385,9 @@ export default function AgroDashboard() {
             kpi3: 'Avg yield / field',
             kpi4: 'Data sources',
             kpi3Val: '0 kg',
-            chartMain: 'Monthly harvest volume',
-            chartPie: 'Harvest by region',
-            chartLine: 'Yield vs rainfall',
-            chartLineSub: 'Monthly correlation',
+            chartMainAria: 'Monthly harvest chart',
+            chartPieAria: 'Regional distribution chart',
+            chartLineAria: 'Yield versus rainfall chart',
             topFields: 'Top fields',
             topFieldsSub: 'By output volume',
             activity: 'Recent activity',
@@ -406,13 +397,10 @@ export default function AgroDashboard() {
             tblProg: 'Progress',
             tblStatus: 'Status',
             analyze: 'Analyze ↗',
-            dist: 'Distribution 2024',
             legHarvest: 'Harvest (kg)',
             legTarget: 'Target',
             legYield: 'Yield index',
             legRain: 'Rainfall (mm)',
-            metaAll: 'Jan – Dec 2024 · all regions',
-            metaQ: (q: string) => `${q.toUpperCase()} 2024 · all regions`,
           },
     [ar],
   )
@@ -465,8 +453,6 @@ export default function AgroDashboard() {
   const [mainType, setMainType] = useState<'bar' | 'line' | 'area'>('bar')
   const [pieType, setPieType] = useState<'pie' | 'doughnut'>('pie')
   const [quarter, setQuarter] = useState<QuarterKey>('all')
-
-  const mainMeta = quarter === 'all' ? t.metaAll : t.metaQ(quarter)
 
   const kpi1 = useMemo(() => '0', [])
 
@@ -699,30 +685,12 @@ export default function AgroDashboard() {
     setPinnedFieldKeys(prev => (prev.includes(key) ? prev.filter(k => k !== key) : [...prev, key]))
   }, [includedFieldKeys])
 
-  const pinnedFieldsSummary = useMemo(() => {
-    if (!pinnedFieldKeys.length) return ''
-    const parts = pinnedFieldKeys.map(k => {
-      const { field } = parseAgroFieldKey(k)
-      return field || k
-    })
-    return parts.join(', ')
-  }, [pinnedFieldKeys])
-
   const wfPanelTitle = useMemo(() => {
     if (wfIdx === 0) return t.wfPanelLayerTitle
     if (wfIdx === 1) return t.wf[1]!
     if (wfIdx === 2) return t.wfPanelSelectTitle
     return t.wfPanelPinTitle
   }, [wfIdx, t])
-
-  const pinnedChartsHintEl = (
-    <div className="agdash-pinned-hint" title={pinnedFieldsSummary || undefined}>
-      <span className="agdash-pinned-hint-lbl">{t.wfChartTypesLabel}</span>
-      <span className="agdash-pinned-hint-val">
-        {pinnedFieldKeys.length ? pinnedFieldsSummary : t.wfNoPinnedForCharts}
-      </span>
-    </div>
-  )
 
   const orderedIncludedPinKeys = useMemo(() => {
     const set = new Set(includedFieldKeys)
@@ -1273,11 +1241,7 @@ export default function AgroDashboard() {
 
           <div className="agdash-mid">
             <div className="agdash-card">
-              <div className="agdash-ch">
-                <div>
-                  <div className="agdash-ctitle">{t.chartMain}</div>
-                  <div className="agdash-csub">{mainMeta}</div>
-                </div>
+              <div className="agdash-ch agdash-ch--headless">
                 <div className="agdash-ch-tools">
                   <div className="agdash-type-grp" role="group" aria-label={ar ? 'نوع الرسم' : 'Chart type'}>
                     <button
@@ -1313,14 +1277,13 @@ export default function AgroDashboard() {
                       </svg>
                     </button>
                   </div>
-                  {pinnedChartsHintEl}
                   <button type="button" className="agdash-action-link">
                     {t.analyze}
                   </button>
                 </div>
               </div>
               <div className="agdash-chart-wrap">
-                <canvas ref={mainCanvasRef} role="img" aria-label={t.chartMain} />
+                <canvas ref={mainCanvasRef} role="img" aria-label={t.chartMainAria} />
               </div>
               <div className="agdash-leg">
                 <div className="agdash-li">
@@ -1335,11 +1298,7 @@ export default function AgroDashboard() {
             </div>
 
             <div className="agdash-card">
-              <div className="agdash-ch">
-                <div>
-                  <div className="agdash-ctitle">{t.chartPie}</div>
-                  <div className="agdash-csub">{t.dist}</div>
-                </div>
+              <div className="agdash-ch agdash-ch--headless">
                 <div className="agdash-ch-tools agdash-ch-tools--col">
                   <div className="agdash-type-grp" role="group" aria-label={ar ? 'نوع الدائرة' : 'Pie type'}>
                     <button
@@ -1366,11 +1325,10 @@ export default function AgroDashboard() {
                       </svg>
                     </button>
                   </div>
-                  {pinnedChartsHintEl}
                 </div>
               </div>
               <div className="agdash-chart-wrap agdash-chart-sm">
-                <canvas ref={pieCanvasRef} role="img" aria-label={t.chartPie} />
+                <canvas ref={pieCanvasRef} role="img" aria-label={t.chartPieAria} />
               </div>
               <div className="agdash-leg" style={{ justifyContent: 'center' }}>
                 <div className="agdash-li agdash-li--muted">{t.pieNoData}</div>
@@ -1380,20 +1338,15 @@ export default function AgroDashboard() {
 
           <div className="agdash-bot">
             <div className="agdash-card">
-              <div className="agdash-ch">
-                <div>
-                  <div className="agdash-ctitle">{t.chartLine}</div>
-                  <div className="agdash-csub">{t.chartLineSub}</div>
-                </div>
+              <div className="agdash-ch agdash-ch--headless">
                 <div className="agdash-ch-tools agdash-ch-tools--line">
-                  {pinnedChartsHintEl}
                   <button type="button" className="agdash-action-link">
                     {t.analyze}
                   </button>
                 </div>
               </div>
               <div className="agdash-chart-wrap agdash-chart-xs">
-                <canvas ref={lineCanvasRef} role="img" aria-label={t.chartLine} />
+                <canvas ref={lineCanvasRef} role="img" aria-label={t.chartLineAria} />
               </div>
               <div className="agdash-leg" style={{ marginTop: 10 }}>
                 <div className="agdash-li">

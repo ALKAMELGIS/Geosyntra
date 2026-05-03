@@ -445,34 +445,6 @@
   align-items: center;
 }
 
-.agro-dash-root .agdash-pinned-hint {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: 2px;
-  max-width: min(280px, 46vw);
-  text-align: end;
-}
-
-.agro-dash-root .agdash-pinned-hint-lbl {
-  font-size: 10px;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.03em;
-  color: var(--agdash-ink3);
-}
-
-.agro-dash-root .agdash-pinned-hint-val {
-  font-size: 11px;
-  color: var(--agdash-ink2);
-  line-height: 1.35;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
-}
-
 .agro-dash-root .agdash-body {
   padding: 18px 20px;
   display: grid;
@@ -588,6 +560,10 @@
   margin-bottom: 16px;
   gap: 10px;
   flex-wrap: wrap;
+}
+
+.agro-dash-root .agdash-ch.agdash-ch--headless {
+  justify-content: flex-end;
 }
 
 .agro-dash-root .agdash-ctitle {
