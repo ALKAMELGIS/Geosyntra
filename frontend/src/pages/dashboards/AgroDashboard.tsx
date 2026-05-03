@@ -303,6 +303,9 @@ export default function AgroDashboard() {
             wfPanelSourceHint: 'استخدم زر «إضافة مصدر» أعلاه لربط بيانات بهذه اللوحة.',
             wfPanelSelectTitle: 'اختيار الحقول حسب الطبقة',
             wfPanelSelectEmpty: 'لا توجد حقول حتى تُضاف طبقة تحتوي على جدول سمات أو أعمدة.',
+            fieldPickerHint: 'اضغط طبقة لفتح قائمة الحقول في طبقة عائمة دون توسيع الصفحة.',
+            fieldPickerMenuTitle: (name: string) => `حقول: ${name}`,
+            fieldsBadge: (sel: number, tot: number) => `${sel}/${tot}`,
             wfPanelPinTitle: 'تثبيت الحقول لأنواع الرسوم',
             wfPanelPinEmpty: 'اختر حقولاً في الخطوة السابقة، ثم حدد هنا ما يظهر في الرسوم.',
             wfPanelPinSubtitle: 'الحقول المعروضة في الرسوم',
@@ -405,6 +408,9 @@ export default function AgroDashboard() {
             wfPanelSourceHint: 'Use the Add source button above to connect data to this dashboard.',
             wfPanelSelectTitle: 'Select fields by layer',
             wfPanelSelectEmpty: 'No fields until you add a layer with attribute columns.',
+            fieldPickerHint: 'Click a layer to open its fields in a compact overlay — keeps the layout tidy.',
+            fieldPickerMenuTitle: (name: string) => `Fields — ${name}`,
+            fieldsBadge: (sel: number, tot: number) => `${sel} / ${tot}`,
             wfPanelPinTitle: 'Pin fields for chart types',
             wfPanelPinEmpty: 'Select fields in the previous step, then choose what appears in charts here.',
             wfPanelPinSubtitle: 'Fields shown in charts',
@@ -498,6 +504,28 @@ export default function AgroDashboard() {
   const [vizBot, setVizBot] = useState<AgroVizType>('line')
   const [fieldChartPlacement, setFieldChartPlacement] = useState<Record<string, FieldChartSlot>>({})
   const [quarter, setQuarter] = useState<QuarterKey>('all')
+  const [selectFieldsOpenLayerId, setSelectFieldsOpenLayerId] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (wfIdx !== 2) setSelectFieldsOpenLayerId(null)
+  }, [wfIdx])
+
+  useEffect(() => {
+    if (selectFieldsOpenLayerId === null) return
+    const onDoc = (e: MouseEvent) => {
+      const el = document.querySelector(`[data-field-dd="${selectFieldsOpenLayerId}"]`)
+      if (el && e.target instanceof Node && !el.contains(e.target)) setSelectFieldsOpenLayerId(null)
+    }
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setSelectFieldsOpenLayerId(null)
+    }
+    document.addEventListener('mousedown', onDoc)
+    document.addEventListener('keydown', onKey)
+    return () => {
+      document.removeEventListener('mousedown', onDoc)
+      document.removeEventListener('keydown', onKey)
+    }
+  }, [selectFieldsOpenLayerId])
 
   useEffect(() => {
     setFieldChartPlacement(prev => {
@@ -1040,13 +1068,17 @@ export default function AgroDashboard() {
           </div>
         </div>
 
-        <div className="agdash-wf-panel" role="region" aria-labelledby="agdash-wf-panel-title">
+        <div
+          className={`agdash-wf-panel${wfIdx === 2 ? ' agdash-wf-panel--select-fields' : ''}`}
+          role="region"
+          aria-labelledby="agdash-wf-panel-title"
+        >
           <div className="agdash-wf-panel-head">
             <h3 id="agdash-wf-panel-title" className="agdash-wf-panel-title">
               {wfPanelTitle}
             </h3>
           </div>
-          <div className="agdash-wf-panel-body">
+          <div className={`agdash-wf-panel-body${wfIdx === 2 ? ' agdash-wf-panel-body--select-fields' : ''}`}>
             {wfIdx === 0 &&
               (agroSources.length === 0 ? (
                 <p className="agdash-wf-panel-empty">{t.wfPanelLayerEmpty}</p>
@@ -1069,33 +1101,81 @@ export default function AgroDashboard() {
               (agroSources.length === 0 ? (
                 <p className="agdash-wf-panel-empty">{t.wfPanelSelectEmpty}</p>
               ) : (
-                <div className="agdash-wf-field-groups">
-                  {agroSources.map(src => (
-                    <div key={src.id} className="agdash-wf-field-group">
-                      <div className="agdash-wf-field-group-title">{src.name}</div>
-                      {src.fields.length === 0 ? (
-                        <p className="agdash-wf-panel-empty agdash-wf-panel-empty--sm">{t.wfPanelSelectEmpty}</p>
-                      ) : (
-                        <ul className="agdash-wf-field-rows">
-                          {src.fields.map(field => {
-                            const key = agroFieldKey(src.id, field)
-                            return (
-                              <li key={key} className="agdash-wf-field-row">
-                                <label className="agdash-wf-check">
-                                  <input
-                                    type="checkbox"
-                                    checked={includedFieldKeys.includes(key)}
-                                    onChange={() => toggleIncludedFieldKey(key)}
-                                  />
-                                  <span>{field}</span>
-                                </label>
-                              </li>
-                            )
-                          })}
-                        </ul>
-                      )}
-                    </div>
-                  ))}
+                <div className="agdash-field-picker">
+                  <p className="agdash-field-picker-hint">{t.fieldPickerHint}</p>
+                  <div className="agdash-field-picker-stack">
+                    {agroSources.map(src => {
+                      const open = selectFieldsOpenLayerId === src.id
+                      const nTot = src.fields.length
+                      const nSel = src.fields.filter(f =>
+                        includedFieldKeys.includes(agroFieldKey(src.id, f)),
+                      ).length
+                      return (
+                        <div key={src.id} className="agdash-field-dd" data-field-dd={src.id}>
+                          <button
+                            type="button"
+                            className={`agdash-field-dd-trigger${open ? ' agdash-field-dd-trigger--open' : ''}`}
+                            aria-expanded={open}
+                            aria-controls={nTot ? `field-dd-${src.id}` : undefined}
+                            id={`field-dd-btn-${src.id}`}
+                            onClick={() => setSelectFieldsOpenLayerId(open ? null : src.id)}
+                          >
+                            <span className="agdash-field-dd-trigger-icon" aria-hidden>
+                              <i className="fa-solid fa-table-list" />
+                            </span>
+                            <span className="agdash-field-dd-trigger-text">
+                              <span className="agdash-field-dd-trigger-name">{src.name}</span>
+                              <span className="agdash-field-dd-trigger-meta">{t.fieldsBadge(nSel, Math.max(nTot, 1))}</span>
+                            </span>
+                            <span className={`agdash-field-dd-chevron${open ? ' agdash-field-dd-chevron--up' : ''}`} aria-hidden>
+                              <svg viewBox="0 0 12 12" width="12" height="12" fill="none">
+                                <path
+                                  d="M2 4l4 4 4-4"
+                                  stroke="currentColor"
+                                  strokeWidth="1.6"
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                />
+                              </svg>
+                            </span>
+                          </button>
+                          {open && nTot > 0 ? (
+                            <div
+                              id={`field-dd-${src.id}`}
+                              className="agdash-field-dd-menu"
+                              role="group"
+                              aria-label={t.fieldPickerMenuTitle(src.name)}
+                            >
+                              <div className="agdash-field-dd-menu-head">{t.fieldPickerMenuTitle(src.name)}</div>
+                              <div className="agdash-field-dd-menu-scroll">
+                                <ul className="agdash-field-dd-list">
+                                  {src.fields.map(field => {
+                                    const key = agroFieldKey(src.id, field)
+                                    return (
+                                      <li key={key} className="agdash-field-dd-item">
+                                        <label className="agdash-wf-check agdash-field-dd-check">
+                                          <input
+                                            type="checkbox"
+                                            checked={includedFieldKeys.includes(key)}
+                                            onChange={() => toggleIncludedFieldKey(key)}
+                                          />
+                                          <span>{field}</span>
+                                        </label>
+                                      </li>
+                                    )
+                                  })}
+                                </ul>
+                              </div>
+                            </div>
+                          ) : open && nTot === 0 ? (
+                            <div className="agdash-field-dd-menu agdash-field-dd-menu--empty">
+                              <p className="agdash-wf-panel-empty agdash-wf-panel-empty--sm">{t.wfPanelSelectEmpty}</p>
+                            </div>
+                          ) : null}
+                        </div>
+                      )
+                    })}
+                  </div>
                 </div>
               ))}
             {wfIdx === 3 &&

@@ -335,6 +335,16 @@
   overflow: auto;
 }
 
+.agro-dash-root .agdash-wf-panel--select-fields {
+  position: relative;
+  z-index: 24;
+}
+
+.agro-dash-root .agdash-wf-panel-body--select-fields {
+  max-height: none;
+  overflow: visible;
+}
+
 .agro-dash-root .agdash-wf-panel-empty {
   margin: 0;
   color: var(--agdash-ink3);
@@ -425,6 +435,181 @@
   margin-top: 2px;
   accent-color: var(--agdash-violet);
   flex-shrink: 0;
+}
+
+.agro-dash-root .agdash-field-picker {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.agro-dash-root .agdash-field-picker-hint {
+  margin: 0;
+  font-size: 11px;
+  line-height: 1.45;
+  color: var(--agdash-ink3);
+}
+
+.agro-dash-root .agdash-field-picker-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.agro-dash-root .agdash-field-dd {
+  position: relative;
+}
+
+.agro-dash-root .agdash-field-dd-trigger {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: var(--agdash-r12);
+  border: 1px solid var(--agdash-border);
+  background: linear-gradient(180deg, #ffffff 0%, #f4f6fa 100%);
+  cursor: pointer;
+  text-align: start;
+  font: inherit;
+  color: var(--agdash-ink);
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+  transition: border-color 0.18s, box-shadow 0.18s, transform 0.12s;
+}
+
+.agro-dash-root .agdash-field-dd-trigger:hover {
+  border-color: rgba(108, 93, 211, 0.45);
+  box-shadow: 0 6px 20px rgba(108, 93, 211, 0.1);
+}
+
+.agro-dash-root .agdash-field-dd-trigger--open {
+  border-color: var(--agdash-violet);
+  box-shadow: 0 0 0 3px var(--agdash-violet-light), 0 8px 24px rgba(108, 93, 211, 0.12);
+}
+
+.agro-dash-root .agdash-field-dd-trigger:active {
+  transform: scale(0.995);
+}
+
+.agro-dash-root .agdash-field-dd-trigger-icon {
+  width: 34px;
+  height: 34px;
+  border-radius: var(--agdash-r8);
+  background: var(--agdash-violet-light);
+  color: var(--agdash-violet);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.agro-dash-root .agdash-field-dd-trigger-icon i {
+  font-size: 14px;
+}
+
+.agro-dash-root .agdash-field-dd-trigger-text {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+}
+
+.agro-dash-root .agdash-field-dd-trigger-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--agdash-ink);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+}
+
+.agro-dash-root .agdash-field-dd-trigger-meta {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--agdash-ink3);
+  text-transform: uppercase;
+}
+
+.agro-dash-root .agdash-field-dd-chevron {
+  flex-shrink: 0;
+  color: var(--agdash-ink3);
+  display: flex;
+  transition: transform 0.2s ease, color 0.15s;
+}
+
+.agro-dash-root .agdash-field-dd-trigger--open .agdash-field-dd-chevron {
+  color: var(--agdash-violet);
+}
+
+.agro-dash-root .agdash-field-dd-chevron--up {
+  transform: rotate(180deg);
+}
+
+.agro-dash-root .agdash-field-dd-menu {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: calc(100% + 6px);
+  z-index: 50;
+  border-radius: var(--agdash-r12);
+  border: 1px solid var(--agdash-border);
+  background: #fff;
+  box-shadow: 0 20px 50px rgba(15, 23, 42, 0.16), 0 0 1px rgba(15, 23, 42, 0.08);
+  overflow: hidden;
+  animation: agdash-dd-in 0.18s ease-out;
+}
+
+@keyframes agdash-dd-in {
+  from {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.agro-dash-root .agdash-field-dd-menu--empty {
+  padding: 12px;
+}
+
+.agro-dash-root .agdash-field-dd-menu-head {
+  padding: 9px 12px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--agdash-ink2);
+  background: linear-gradient(180deg, #f8f9fc 0%, #eef1f6 100%);
+  border-bottom: 1px solid var(--agdash-border);
+}
+
+.agro-dash-root .agdash-field-dd-menu-scroll {
+  max-height: min(260px, 38vh);
+  overflow-y: auto;
+  padding: 6px 0;
+}
+
+.agro-dash-root .agdash-field-dd-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.agro-dash-root .agdash-field-dd-item {
+  padding: 0 10px;
+}
+
+.agro-dash-root .agdash-field-dd-item:hover {
+  background: var(--agdash-surface2);
+}
+
+.agro-dash-root .agdash-field-dd-check {
+  padding: 7px 4px;
+  font-size: 12px;
 }
 
 .agro-dash-root .agdash-ch-tools {
