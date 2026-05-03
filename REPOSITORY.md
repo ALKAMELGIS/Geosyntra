@@ -1,10 +1,10 @@
 # Agri Cloud — repository documentation
 
-> **GitHub Pages:** سير `deploy-pages.yml` ينشر البناء **فقط عبر GitHub Actions** (`build_type: workflow`). في الإعدادات اختر **Source: GitHub Actions** — لا تستخدم «نشر من فرع». لا تُلتزم `frontend/dist` في `main`.
+> **GitHub Pages:** سير `deploy-pages.yml` يبني ثم يزامن `frontend/dist` إلى **جذر `main`** (`[pages-sync]`). الإعدادات: **Deploy from a branch** → **main** → **/**. مخرجات الجذر مُتجاهلة في git محلياً (`.gitignore`) — الالتزام من CI فقط.
 >
 > **رابط التشغيل (HashRouter):** https://alkamelgis.github.io/AgroCloud/#/
 >
-> **GitHub Pages:** `deploy-pages.yml` publishes **only** via **GitHub Actions** (workflow artifact). Set Pages **Source: GitHub Actions** — not branch deploy. Do not commit `frontend/dist` to `main` (push protection / tokens in bundles).
+> **GitHub Pages:** `deploy-pages.yml` copies the build to **main** repo root. Pages: **main** / **(root)**. Root deploy outputs are **gitignored** locally; only CI commits them (avoids embedding local `.env` secrets).
 >
 > **App URL:** https://alkamelgis.github.io/AgroCloud/#/
 

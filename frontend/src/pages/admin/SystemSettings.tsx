@@ -1318,7 +1318,9 @@ export default function SystemSettings() {
                 label={language === 'ar' ? 'مفتاح Mapbox (المتصفح + الخادم)' : 'Mapbox token (browser + server)'}
                 value={mapboxTokenDraft}
                 onChange={setMapboxTokenDraft}
-                placeholder={language === 'ar' ? 'pk.eyJ1I…' : 'pk.eyJ1I…'}
+                placeholder={
+                  language === 'ar' ? 'الصق المفتاح العام من account.mapbox.com' : 'Paste public token from account.mapbox.com'
+                }
                 password
                 onSave={async () => {
                   persistMapboxAccessTokenInBrowser(mapboxTokenDraft)

@@ -44,5 +44,15 @@ backup_*.zip
 coverage-final.json
 .nyc_output/
 
+# GitHub Pages SPA at repo root (CI commits with git add -f; never commit from a dev machine — .env would embed secrets and push protection blocks).
+/assets/
+/avatars/
+/index.html
+/404.html
+/favicon.svg
+/favicon.png
+/favicon-16x16.png
+/favicon-32x32.png
+
 # Built SPA copy for manual zip / branch-at-/docs experiments (do not commit: push protection flags embedded tokens).
 /docs/

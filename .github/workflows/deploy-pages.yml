@@ -1,43 +1,38 @@
 name: Deploy to GitHub Pages
 
-# Single publishing path: GitHub Actions → Pages artifact (build_type: workflow).
-# The live site does NOT depend on any branch root (no main vs gh-pages mismatch).
+# CI builds the SPA with empty public env vars, copies frontend/dist to repo root on main,
+# then pushes [pages-sync]. GitHub Pages: Deploy from a branch → main → /(root).
 # Live app (HashRouter): https://alkamelgis.github.io/AgroCloud/#/
 #
-# First run: approve the `github-pages` environment if GitHub prompts (repo Settings → Environments).
-# If the API step cannot set workflow mode, add secret PAGES_ADMIN_TOKEN (see scripts/ensure-pages-workflow-build.mjs).
+# Root SPA files are gitignored — never commit them from a local machine (local .env would embed secrets).
 on:
   push:
     branches: [main]
   workflow_dispatch:
 
 permissions:
-  contents: read
-  pages: write
-  id-token: write
+  contents: write
 
 concurrency:
   group: pages
   cancel-in-progress: false
 
 jobs:
-  build:
+  publish-to-main-root:
+    if: ${{ github.event_name == 'workflow_dispatch' || !contains(github.event.head_commit.message, '[pages-sync]') }}
     runs-on: ubuntu-latest
     timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - uses: actions/setup-node@v4
         with:
           node-version: 20
           cache: npm
           cache-dependency-path: package-lock.json
-      - name: Force Pages to publish only from this workflow (not from a branch)
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          PAGES_ADMIN_TOKEN: ${{ secrets.PAGES_ADMIN_TOKEN }}
-        run: node scripts/ensure-pages-workflow-build.mjs
       - run: npm ci --no-audit --no-fund
-      - name: Build SPA for GitHub Pages
+      - name: Build SPA for GitHub Pages (no local .env — safe for push protection)
         env:
           VITE_MAPBOX_TOKEN: ''
           VITE_GOOGLE_MAPS_API_KEY: ''
@@ -50,30 +45,29 @@ jobs:
         run: npm run build
       - name: Prepare Pages dist + sanity-check
         run: node scripts/pages-dist-check.mjs
-      - uses: actions/configure-pages@v5
-      - uses: actions/upload-pages-artifact@v3
-        with:
-          path: frontend/dist
+      - name: Sync dist to repository root and push main
+        run: |
+          set -euo pipefail
+          node scripts/sync-pages-dist-to-root.mjs --git-add
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          if git diff --cached --quiet; then
+            echo "No SPA changes to commit at repo root."
+            exit 0
+          fi
+          git commit -m "chore(pages): sync SPA build to repo root [pages-sync]"
+          git pull --rebase origin "${GITHUB_REF_NAME}"
+          git push origin "HEAD:${GITHUB_REF_NAME}"
+      - name: Drop legacy gh-pages branch (optional)
+        continue-on-error: true
+        run: git push origin --delete gh-pages
       - name: Summary
         run: |
           {
-            echo "## GitHub Pages"
-            echo "المصدر الوحيد للنشر: **GitHub Actions** (أرشيف البناء). لا تغيّر المصدر إلى «نشر من فرع» في الإعدادات."
+            echo "## GitHub Pages (main / root)"
+            echo "تم نسخ البناء إلى جذر \`main\` (بدون أسرار من .env المحلي). الإعدادات: **Deploy from a branch** → **main** → **/(root)**."
             echo ""
-            echo "**Single source:** workflow artifact only. Do not set Pages to **Deploy from a branch**."
-            echo ""
-            echo "| URL |"
+            echo "| App |"
             echo "| --- |"
-            echo "| [Open app](https://alkamelgis.github.io/AgroCloud/#/) |"
+            echo "| [https://alkamelgis.github.io/AgroCloud/#/](https://alkamelgis.github.io/AgroCloud/#/) |"
           } >> "$GITHUB_STEP_SUMMARY"
-
-  deploy:
-    needs: build
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
-    steps:
-      - id: deployment
-        uses: actions/deploy-pages@v4

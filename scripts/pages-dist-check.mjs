@@ -7,22 +7,6 @@ import path from 'node:path'
 
 const root = process.cwd()
 
-const rootIndexPath = path.join(root, 'index.html')
-if (fs.existsSync(rootIndexPath)) {
-  const rootHtml = fs.readFileSync(rootIndexPath, 'utf8')
-  const isBranchDeployNotice =
-    rootHtml.includes('GITHUB_PAGES_BRANCH_DEPLOY_STUB') &&
-    rootHtml.includes('data-gh-pages="branch-deploy-notice"')
-  if (!isBranchDeployNotice) {
-    console.error(
-      'Pages check failed: repository root index.html must either be deleted or be the official ' +
-        'GitHub Pages branch-deploy notice (includes GITHUB_PAGES_BRANCH_DEPLOY_STUB + data-gh-pages marker). ' +
-        'Any other root index.html breaks the SPA when Pages uses "Deploy from branch" at /.',
-    )
-    process.exit(1)
-  }
-}
-
 const indexPath = path.join(root, 'frontend', 'dist', 'index.html')
 const html = fs.readFileSync(indexPath, 'utf8')
 
