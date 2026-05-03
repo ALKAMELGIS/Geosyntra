@@ -194,78 +194,17 @@
   min-height: 0;
 }
 
-.agdash-chart-card-head {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 10px;
-  margin-bottom: 10px;
-}
-
 .agdash-chart-card-title {
-  margin: 0;
+  margin: 0 0 10px;
   font-size: 15px;
   font-weight: 700;
   color: var(--agdash-text);
-}
-
-.agdash-chart-toolbar {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px;
-  justify-content: flex-end;
-}
-
-.agdash-chart-toolbtn {
-  width: 30px;
-  height: 30px;
-  padding: 0;
-  border: 1px solid transparent;
-  border-radius: 6px;
-  background: transparent;
-  color: var(--agdash-muted);
-  cursor: pointer;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 13px;
-}
-
-.agdash-chart-toolbtn:hover {
-  background: #f1f5f9;
-  color: var(--agdash-text);
-}
-
-.agdash-chart-toolbtn--active {
-  background: #ecfdf5;
-  color: var(--agdash-green);
-  border-color: rgba(22, 163, 74, 0.25);
 }
 
 .agdash-chart-body {
   position: relative;
   flex: 1;
   min-height: var(--agdash-chart-h);
-}
-
-.agdash-empty {
-  flex: 1;
-  min-height: var(--agdash-chart-h);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  text-align: center;
-  padding: 24px;
-  font-size: 14px;
-  font-weight: 500;
-  color: var(--agdash-muted);
-  border: 1px dashed var(--agdash-border);
-  border-radius: 10px;
-  background: #fafbfc;
-}
-
-:root[dir='rtl'] .agdash-chart-toolbar {
-  justify-content: flex-start;
 }
 
 :root[dir='rtl'] .agdash-header {

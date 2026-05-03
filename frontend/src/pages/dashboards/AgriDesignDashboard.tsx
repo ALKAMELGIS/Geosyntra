@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from 'react'
+import { useCallback, useMemo } from 'react'
 import {
   Chart as ChartJS,
   CategoryScale,
@@ -25,16 +25,11 @@ const copy = {
     waterDelta: '+0% vs yesterday',
     unitKg: 'Kg',
     unitL: 'L',
-    topCategories: 'Top Harvest Categories',
     harvestGrowth: 'Harvest Growth',
     harvestLegend: 'Harvest (Kg)',
-    breakdown: 'Total Harvest Breakdown',
     waterMonthly: 'Monthly Water & Fertilizer',
     legendWater: 'Water (L)',
     legendFert: 'Fertilizer (Kg)',
-    emptyHarvestCat: 'No harvest data available yet',
-    emptyBreakdown: 'No data available',
-    chartToolsAria: 'Chart display options',
   },
   ar: {
     title: 'لوحة التحكم',
@@ -46,16 +41,11 @@ const copy = {
     waterDelta: '+0% مقارنة بالأمس',
     unitKg: 'كغ',
     unitL: 'لتر',
-    topCategories: 'أعلى فئات الحصاد',
     harvestGrowth: 'نمو الحصاد',
     harvestLegend: 'الحصاد (كغ)',
-    breakdown: 'تفصيل إجمالي الحصاد',
     waterMonthly: 'المياه والأسمدة الشهرية',
     legendWater: 'المياه (لتر)',
     legendFert: 'الأسمدة (كغ)',
-    emptyHarvestCat: 'لا توجد بيانات حصاد بعد',
-    emptyBreakdown: 'لا توجد بيانات',
-    chartToolsAria: 'خيارات عرض الرسم',
   },
 } as const
 
@@ -76,53 +66,10 @@ const monthLabels: Record<(typeof MONTH_KEYS)[number], { en: string; ar: string 
   mDec: { en: 'Dec', ar: 'ديسمبر' },
 }
 
-const CHART_TOOL_ICONS = [
-  { id: 'column', icon: 'fa-chart-column' },
-  { id: 'stack', icon: 'fa-layer-group' },
-  { id: 'cluster', icon: 'fa-chart-simple' },
-  { id: 'bar', icon: 'fa-chart-bar' },
-  { id: 'line', icon: 'fa-chart-line' },
-  { id: 'area', icon: 'fa-chart-area' },
-  { id: 'pie', icon: 'fa-chart-pie' },
-  { id: 'percent', icon: 'fa-percent' },
-] as const
-
-function ChartToolbar({
-  activeId,
-  onPick,
-  ariaLabel,
-}: {
-  activeId: string
-  onPick: (id: string) => void
-  ariaLabel: string
-}) {
-  return (
-    <div className="agdash-chart-toolbar" role="toolbar" aria-label={ariaLabel}>
-      {CHART_TOOL_ICONS.map(t => (
-        <button
-          key={t.id}
-          type="button"
-          className={`agdash-chart-toolbtn${activeId === t.id ? ' agdash-chart-toolbtn--active' : ''}`}
-          title={t.id}
-          aria-pressed={activeId === t.id}
-          onClick={() => onPick(t.id)}
-        >
-          <i className={`fa-solid ${t.icon}`} aria-hidden />
-        </button>
-      ))}
-    </div>
-  )
-}
-
 export default function AgriDesignDashboard() {
   const { language, direction } = useLanguage()
   const t = copy[language]
   const isAr = language === 'ar'
-
-  const [toolHarvest, setToolHarvest] = useState('column')
-  const [toolTopCategories, setToolTopCategories] = useState('column')
-  const [toolBreakdown, setToolBreakdown] = useState('column')
-  const [toolWater, setToolWater] = useState('column')
 
   const monthAxis = useMemo(() => MONTH_KEYS.map(k => monthLabels[k][isAr ? 'ar' : 'en']), [isAr])
 
@@ -290,36 +237,14 @@ export default function AgriDesignDashboard() {
 
       <div className="agdash-grid">
         <section className="agdash-chart-card">
-          <div className="agdash-chart-card-head">
-            <h2 className="agdash-chart-card-title">{t.topCategories}</h2>
-            <ChartToolbar activeId={toolTopCategories} onPick={setToolTopCategories} ariaLabel={t.chartToolsAria} />
-          </div>
-          <div className="agdash-empty">{t.emptyHarvestCat}</div>
-        </section>
-
-        <section className="agdash-chart-card">
-          <div className="agdash-chart-card-head">
-            <h2 className="agdash-chart-card-title">{t.harvestGrowth}</h2>
-            <ChartToolbar activeId={toolHarvest} onPick={setToolHarvest} ariaLabel={t.chartToolsAria} />
-          </div>
+          <h2 className="agdash-chart-card-title">{t.harvestGrowth}</h2>
           <div className="agdash-chart-body">
             <Bar data={harvestGrowthData} options={chartCommonOptions} />
           </div>
         </section>
 
         <section className="agdash-chart-card">
-          <div className="agdash-chart-card-head">
-            <h2 className="agdash-chart-card-title">{t.breakdown}</h2>
-            <ChartToolbar activeId={toolBreakdown} onPick={setToolBreakdown} ariaLabel={t.chartToolsAria} />
-          </div>
-          <div className="agdash-empty">{t.emptyBreakdown}</div>
-        </section>
-
-        <section className="agdash-chart-card">
-          <div className="agdash-chart-card-head">
-            <h2 className="agdash-chart-card-title">{t.waterMonthly}</h2>
-            <ChartToolbar activeId={toolWater} onPick={setToolWater} ariaLabel={t.chartToolsAria} />
-          </div>
+          <h2 className="agdash-chart-card-title">{t.waterMonthly}</h2>
           <div className="agdash-chart-body">
             <Bar
               data={waterMonthlyData}

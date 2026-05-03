@@ -15,6 +15,7 @@ import {
   saveSystemSettings,
 } from '../services/settingsStorage'
 import type { SystemSettingsPersistedV1 } from '../types/systemSettings'
+import { useLanguage } from '../lib/i18n'
 
 type ToastState = { kind: 'success' | 'error'; message: string } | null
 
@@ -90,6 +91,7 @@ export function applyThemeToDocument(s: Pick<SystemSettingsPersistedV1, 'themeMo
 }
 
 export function SystemSettingsProvider({ children }: { children: ReactNode }) {
+  const { language } = useLanguage()
   const [settings, setSettingsState] = useState<SystemSettingsPersistedV1>(() => loadSystemSettings())
   const [draft, setDraft] = useState<SystemSettingsPersistedV1>(() => loadSystemSettings())
   const [toast, setToast] = useState<ToastState>(null)
@@ -119,11 +121,11 @@ export function SystemSettingsProvider({ children }: { children: ReactNode }) {
       setSettingsState(merged)
       setDraft(merged)
       applyThemeToDocument(merged)
-      pushToast('success', 'Settings saved.')
+      pushToast('success', language === 'ar' ? 'تم الحفظ.' : 'Saved.')
     } catch {
-      pushToast('error', 'Could not save settings.')
+      pushToast('error', language === 'ar' ? 'تعذّر حفظ الإعدادات.' : 'Could not save settings.')
     }
-  }, [draft, pushToast])
+  }, [draft, pushToast, language])
 
   const cancelDraft = useCallback(() => {
     setDraft(settings)
@@ -160,7 +162,7 @@ export function SystemSettingsProvider({ children }: { children: ReactNode }) {
     <SystemSettingsContext.Provider value={value}>
       {children}
       {toast ? (
-        <div className="ds-toast-host">
+        <div className="ds-toast-host ds-toast-host--system-settings">
           <div
             role="status"
             className={`system-settings-toast ds-toast system-settings-toast-${toast.kind}`}

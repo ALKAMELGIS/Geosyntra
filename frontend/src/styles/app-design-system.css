@@ -273,6 +273,11 @@ html[data-theme='dark'] .ds-surface {
   animation: ds-toast-in 0.38s var(--app-transition-smooth) both;
 }
 
+/* System Settings: footer save/cancel/reset sits bottom-end of content — lift toast so it does not overlap */
+.ds-toast-host--system-settings {
+  bottom: max(100px, calc(72px + env(safe-area-inset-bottom, 0px)));
+}
+
 @keyframes ds-toast-in {
   from {
     opacity: 0;
