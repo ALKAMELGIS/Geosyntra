@@ -89,12 +89,19 @@
       </p>
       <p><a href="https://alkamelgis.github.io/AgroCloud/#/">https://alkamelgis.github.io/AgroCloud/#/</a></p>
       <p>ملاحظة: طالما النشر من <code>main</code> عند الجذر، الرابط أعلاه يعرض هذه الصفحة وليس حزم React.</p>
+      <p>
+        <strong>إصلاح تلقائي (مرة واحدة):</strong> يمكن لمشرف المستودع إضافة سر
+        <code>PAGES_ADMIN_TOKEN</code> ثم تشغيل سير النشر — راجع قسم GitHub Pages في
+        <a href="https://github.com/ALKAMELGIS/AgroCloud/blob/main/README.md" rel="noopener noreferrer">README</a>.
+      </p>
     </div>
     <div class="en" lang="en">
       <strong>English:</strong> This stub is served when GitHub Pages publishes the <strong><code>main</code></strong> branch at
       <strong>/ (root)</strong>. The workflow builds <code>frontend/dist</code> and pushes the site to the
       <strong><code>gh-pages</code></strong> branch. Set Pages to <strong>Deploy from a branch</strong> →
       <strong>gh-pages</strong> → <strong>/</strong>. Do not commit <code>frontend/dist</code> to <code>main</code> (push protection may block tokens in bundles).
+      <strong>Optional auto-fix:</strong> add repo secret <code>PAGES_ADMIN_TOKEN</code> (see
+      <a href="https://github.com/ALKAMELGIS/AgroCloud/blob/main/README.md" rel="noopener noreferrer">README</a>) so the deploy workflow can call the GitHub API to point legacy Pages at <code>gh-pages</code>.
     </div>
     <p class="en" lang="en" style="margin-top: 0.75rem">
       <span class="links">

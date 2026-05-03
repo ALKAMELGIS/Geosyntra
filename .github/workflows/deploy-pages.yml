@@ -7,6 +7,10 @@ name: Deploy to GitHub Pages
 # Source: GitHub Actions — if not configured, that job is skipped without failing the run.
 #
 # Live app (HashRouter): https://alkamelgis.github.io/AgroCloud/#/
+#
+# Root fix for the "yellow stub" page: either set Pages → gh-pages / (root) manually,
+# or add repo secret PAGES_ADMIN_TOKEN (PAT with repo or Administration on this repo);
+# the workflow then calls the GitHub API to point legacy Pages at gh-pages after each push.
 on:
   push:
     branches: [main]
@@ -55,6 +59,58 @@ jobs:
           force_orphan: true
           user_name: github-actions[bot]
           user_email: github-actions[bot]@users.noreply.github.com
+      - name: Point GitHub Pages at gh-pages (optional PAT — fixes wrong branch from CI)
+        env:
+          PAGES_ADMIN_TOKEN: ${{ secrets.PAGES_ADMIN_TOKEN }}
+        run: |
+          set -euo pipefail
+          {
+            echo "## GitHub Pages"
+            echo ""
+            echo "| Issue | Action |"
+            echo "| --- | --- |"
+            echo "| Live URL shows the **stub / help** page | [**Settings → Pages**](https://github.com/${GITHUB_REPOSITORY}/settings/pages) → **Deploy from a branch** → **gh-pages** → **/(root)** (not \`main\`). |"
+            echo "| Want this **fixed automatically** on each deploy | Add repo secret **\`PAGES_ADMIN_TOKEN\`**: classic PAT with **repo** scope, *or* fine-grained PAT with **Administration** + **Contents** (read/write) on this repository only. |"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          if [ -z "${PAGES_ADMIN_TOKEN:-}" ]; then
+            echo "::notice title=GitHub Pages::Optional: add secret PAGES_ADMIN_TOKEN to auto-point Pages at gh-pages, or set branch manually in Settings → Pages."
+            exit 0
+          fi
+
+          export GH_TOKEN="$PAGES_ADMIN_TOKEN"
+          REPO="${GITHUB_REPOSITORY}"
+          TMP="$(mktemp)"
+          trap "rm -f \"$TMP\" /tmp/gh-pages-api.json" EXIT
+          jq -n '{build_type:"legacy", source:{branch:"gh-pages", path:"/"}}' >"$TMP"
+
+          code="$(gh api "repos/${REPO}/pages" -H "Accept: application/vnd.github+json" -w "%{http_code}" -o /tmp/gh-pages-api.json 2>/dev/null || echo 000)"
+          if [ "$code" = "200" ]; then
+            bt="$(jq -r '.build_type // empty' /tmp/gh-pages-api.json)"
+            if [ "$bt" = "workflow" ]; then
+              echo "::notice title=GitHub Pages::Site uses GitHub Actions workflow build; not switching to legacy branch via API."
+              exit 0
+            fi
+            cur="$(jq -r '.source.branch // empty' /tmp/gh-pages-api.json)"
+            if [ "$cur" = "gh-pages" ]; then
+              echo "::notice title=GitHub Pages::Pages already publishes from gh-pages."
+              exit 0
+            fi
+            if gh api "repos/${REPO}/pages" --method PUT --input "$TMP"; then
+              echo "::notice title=GitHub Pages::Updated Pages source to gh-pages / (root) via API."
+            else
+              echo "::warning title=GitHub Pages::PUT /pages failed (check PAT: repo or Administration on this repo)."
+            fi
+          elif [ "$code" = "404" ]; then
+            if gh api "repos/${REPO}/pages" --method POST --input "$TMP"; then
+              echo "::notice title=GitHub Pages::Enabled Pages with source gh-pages / (root) via API."
+            else
+              echo "::warning title=GitHub Pages::POST /pages failed (enable Pages once in Settings or fix PAT)."
+            fi
+          else
+            echo "::warning title=GitHub Pages::Could not read Pages config (HTTP ${code}). Check PAT permissions (repo or Administration on this repo)."
+            exit 0
+          fi
       - name: Configure Pages (for Actions-based deploy, if enabled)
         uses: actions/configure-pages@v5
       - name: Upload Pages artifact
