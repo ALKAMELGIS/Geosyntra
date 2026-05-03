@@ -10,7 +10,6 @@ export default function AiAgroCloud() {
     <div className="page aac-root">
       <section className="aac-hero" aria-labelledby="aac-main-title">
         <div className="aac-hero-inner">
-          <p className="aac-kicker">{ar ? 'ذكاء زراعي' : 'Agricultural intelligence'}</p>
           <h1 id="aac-main-title" className="aac-title">
             <span className="aac-title-icon" aria-hidden>
               <i className="fa-solid fa-cloud-bolt" />
@@ -19,7 +18,7 @@ export default function AiAgroCloud() {
           </h1>
           <p className="aac-lead">
             {ar
-              ? 'بوابة موحّدة للتحليل المساعد بالذكاء الاصطناعي مع بيانات GIS المحفوظة في المتصفح.'
+              ? 'مركز موجّه للزراعة المسندة بالذكاء الاصطناعي ومبنية على طبقات خريطة GIS (محفوظة في هذا المتصفح).'
               : 'A focused hub for AI-assisted agronomy grounded in your GIS Map layers (saved in this browser).'}
           </p>
 
