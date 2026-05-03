@@ -24,13 +24,32 @@
   background: #020617;
 }
 
-/* Top controls row: hug content (no full-width empty band above map) */
+/* Environmental / layers dock: floats over map — no top strip; map canvas fills full height */
 .si-main-content > div:first-child {
+  position: absolute;
+  top: 0;
+  inset-inline-end: 0;
+  z-index: 60;
   display: flex;
   justify-content: flex-end;
   align-items: flex-start;
-  flex: 0 0 auto;
+  width: fit-content;
+  max-width: min(100%, 100vw);
   min-height: 0;
+  flex: unset;
+  pointer-events: none;
+  padding-top: max(6px, env(safe-area-inset-top, 0px));
+  padding-inline-end: max(0px, env(safe-area-inset-end, 0px));
+}
+
+.si-main-content > div:first-child * {
+  pointer-events: auto;
+}
+
+.si-env-map-dock {
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
 }
 
 /* Top Bar - No Overlap */
@@ -502,11 +521,15 @@
   margin-inline-start: auto;
 }
 
-/* Satellite: layers rail only — remove extra top strip, keep rail + buttons */
+/* Satellite: layers rail — overlay on map (no layout strip) */
 .si-top-card.si-top-card-right {
   justify-content: flex-start;
   overflow: visible;
   gap: 0;
+  width: fit-content;
+  max-width: 100%;
+  margin-inline-start: 0;
+  align-self: flex-start;
 }
 
 .si-range-group {

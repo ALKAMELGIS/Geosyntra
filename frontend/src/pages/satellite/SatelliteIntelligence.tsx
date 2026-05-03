@@ -30,6 +30,12 @@ import { useGeminiApiKey } from '../../hooks/useGeminiApiKey';
 import { useClaudeApiKey } from '../../hooks/useClaudeApiKey';
 import { useDeepseekApiKey } from '../../hooks/useDeepseekApiKey';
 import { getArcgisPortalToken } from '../../lib/arcgisPortalToken';
+import {
+  arcgisDrawingInfoToFillPaint,
+  arcgisDrawingInfoToLinePaint,
+  fetchArcgisLayerPjson,
+  slimArcgisLayerDefinitionForStorage,
+} from '../../lib/arcgisDrawingInfoMapbox';
 import { getMapboxAccessToken } from '../../lib/mapboxAccessToken';
 import { subscribeSentinelHubAccessToken } from '../../lib/sentinelHubAccessToken';
 import {
@@ -714,6 +720,12 @@ interface CustomLayer {
   source?: 'arcgis' | 'upload' | 'url' | 'api' | 'stac';
   sourceUrl?: string;
   authToken?: string;
+  /** When true, fill/line paint follows `arcgisDrawingInfo` from the Feature Layer (subset of renderers). */
+  useArcGisOnlineSymbology?: boolean;
+  /** From `GET {sourceUrl}?f=pjson` → `drawingInfo` */
+  arcgisDrawingInfo?: any;
+  /** From `?f=pjson` — fields, types, typeIdField for domain/subtype labels in Geo AI */
+  arcgisLayerDefinition?: any;
 }
 
 const LS_SATELLITE_CUSTOM_LAYERS_KEY = 'agri.satellite.customLayers.v1';
@@ -742,6 +754,10 @@ function parseStoredCustomLayers(raw: string | null): CustomLayer[] {
         source: sources.has(x.source) ? x.source : undefined,
         sourceUrl: typeof x.sourceUrl === 'string' ? x.sourceUrl : undefined,
         authToken: typeof x.authToken === 'string' ? x.authToken : undefined,
+        useArcGisOnlineSymbology: typeof x.useArcGisOnlineSymbology === 'boolean' ? x.useArcGisOnlineSymbology : undefined,
+        arcgisDrawingInfo: x.arcgisDrawingInfo && typeof x.arcgisDrawingInfo === 'object' ? x.arcgisDrawingInfo : undefined,
+        arcgisLayerDefinition:
+          x.arcgisLayerDefinition && typeof x.arcgisLayerDefinition === 'object' ? x.arcgisLayerDefinition : undefined,
       }));
   } catch {
     return [];
@@ -754,6 +770,43 @@ function safePersistSatelliteCustomLayers(layers: CustomLayer[]) {
   } catch (e) {
     console.warn('[SatelliteIntelligence] Could not persist custom map layers', e);
   }
+}
+
+function satelliteCustomLayerFillPaint(layer: CustomLayer): { 'fill-color': any; 'fill-opacity': number } {
+  if (layer.source === 'arcgis' && layer.useArcGisOnlineSymbology && layer.arcgisDrawingInfo) {
+    const p = arcgisDrawingInfoToFillPaint(layer.arcgisDrawingInfo);
+    if (p) return p;
+  }
+  return { 'fill-color': layer.color || '#22c55e', 'fill-opacity': 0.35 };
+}
+
+function satelliteCustomLayerLinePaint(layer: CustomLayer): { 'line-color': any; 'line-width': number } {
+  if (layer.source === 'arcgis' && layer.useArcGisOnlineSymbology && layer.arcgisDrawingInfo) {
+    const p = arcgisDrawingInfoToLinePaint(layer.arcgisDrawingInfo, layer.color || '#22c55e');
+    if (p) return { 'line-color': p['line-color'], 'line-width': p['line-width'] };
+  }
+  return { 'line-color': layer.color || '#22c55e', 'line-width': 1.5 };
+}
+
+function satelliteCustomLayerCirclePaint(layer: CustomLayer): {
+  'circle-radius': number;
+  'circle-color': string;
+  'circle-stroke-width': number;
+  'circle-stroke-color': string;
+} {
+  const base = {
+    'circle-radius': 4,
+    'circle-color': layer.color || '#22c55e',
+    'circle-stroke-width': 1,
+    'circle-stroke-color': '#052e16',
+  };
+  if (layer.source === 'arcgis' && layer.useArcGisOnlineSymbology && layer.arcgisDrawingInfo) {
+    const p = arcgisDrawingInfoToFillPaint(layer.arcgisDrawingInfo);
+    if (p && typeof p['fill-color'] === 'string') {
+      return { ...base, 'circle-color': p['fill-color'] };
+    }
+  }
+  return base;
 }
 
 function deriveExternalApiLayerName(endpoint: string, data: any): string {
@@ -1025,6 +1078,7 @@ export default function SatelliteIntelligence() {
         visible: c.visible,
         source: c.source,
         geojson: c.geojson,
+        arcgisLayerDefinition: c.arcgisLayerDefinition,
       })),
     [customLayers],
   );
@@ -1511,18 +1565,30 @@ export default function SatelliteIntelligence() {
     try {
       const qUrl = `${selectedDiscoveredArcgisUrl}/query?where=1%3D1&outFields=*&returnGeometry=true&f=geojson`;
       const finalUrl = appendTokenIfAny(qUrl, addLayerToken);
-      const res = await fetch(finalUrl);
+      const tokenTrim = addLayerToken.trim() || undefined;
+      const [res, pjson] = await Promise.all([
+        fetch(finalUrl),
+        fetchArcgisLayerPjson(selectedDiscoveredArcgisUrl, tokenTrim),
+      ]);
       if (!res.ok) throw new Error(`query failed (${res.status})`);
       const data = await res.json();
       if (data?.type !== 'FeatureCollection' || !Array.isArray(data.features)) {
         throw new Error('Service did not return GeoJSON features.');
       }
+      const drawingInfo =
+        pjson?.drawingInfo && typeof pjson.drawingInfo === 'object' ? pjson.drawingInfo : null;
+      const arcgisLayerDefinition = slimArcgisLayerDefinitionForStorage(pjson);
       const selectedLayer = discoveredArcgisLayers.find(l => l.url === selectedDiscoveredArcgisUrl);
       const layerTitle =
         (selectedLayer?.name && String(selectedLayer.name).trim()) ||
         addLayerName.trim() ||
         deriveArcgisLayerName(selectedDiscoveredArcgisUrl);
       const id = `arcgis-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+      const fillFromRenderer = drawingInfo ? arcgisDrawingInfoToFillPaint(drawingInfo) : null;
+      const initialColor =
+        fillFromRenderer && typeof fillFromRenderer['fill-color'] === 'string'
+          ? fillFromRenderer['fill-color']
+          : '#22c55e';
       setCustomLayers(prev => [
         ...prev,
         {
@@ -1532,8 +1598,11 @@ export default function SatelliteIntelligence() {
           visible: true,
           source: 'arcgis',
           sourceUrl: selectedDiscoveredArcgisUrl,
-          authToken: addLayerToken.trim() || undefined,
-          color: '#22c55e',
+          authToken: tokenTrim,
+          color: initialColor,
+          useArcGisOnlineSymbology: !!drawingInfo,
+          arcgisDrawingInfo: drawingInfo ?? undefined,
+          arcgisLayerDefinition,
         },
       ]);
       const bounds = getGeoJsonBounds(data);
@@ -1598,13 +1667,30 @@ export default function SatelliteIntelligence() {
     setStacStatus(`Syncing "${layer.name}"...`);
     try {
       const qUrl = `${layer.sourceUrl}/query?where=1%3D1&outFields=*&returnGeometry=true&f=geojson`;
-      const res = await fetch(appendTokenIfAny(qUrl, layer.authToken || ''));
+      const [res, pjson] = await Promise.all([
+        fetch(appendTokenIfAny(qUrl, layer.authToken || '')),
+        fetchArcgisLayerPjson(layer.sourceUrl, layer.authToken),
+      ]);
       if (!res.ok) throw new Error(`query failed (${res.status})`);
       const data = await res.json();
       if (data?.type !== 'FeatureCollection' || !Array.isArray(data.features)) {
         throw new Error('Service did not return GeoJSON features.');
       }
-      setCustomLayers(prev => prev.map(item => (item.id === layer.id ? { ...item, geojson: data } : item)));
+      const refreshedDi =
+        pjson?.drawingInfo && typeof pjson.drawingInfo === 'object' ? pjson.drawingInfo : null;
+      const refreshedDef = slimArcgisLayerDefinitionForStorage(pjson) ?? layer.arcgisLayerDefinition;
+      setCustomLayers(prev =>
+        prev.map(item =>
+          item.id === layer.id
+            ? {
+                ...item,
+                geojson: data,
+                arcgisDrawingInfo: refreshedDi ?? item.arcgisDrawingInfo,
+                arcgisLayerDefinition: refreshedDef,
+              }
+            : item,
+        ),
+      );
       setStacStatus(`Layer synced: "${layer.name}".`);
     } catch (error) {
       setStacStatus(error instanceof Error ? error.message : `Failed to sync "${layer.name}".`);
@@ -1664,7 +1750,7 @@ export default function SatelliteIntelligence() {
   useEffect(() => {
     if (!activeLayerActionDialog || activeLayerActionDialog.mode !== 'symbology' || !activeDialogLayer) return;
     setSymbologyDraft({
-      useArcGisOnline: false,
+      useArcGisOnline: activeDialogLayer.useArcGisOnlineSymbology === true,
       style: 'single',
       classes: 5,
       colorRamp: 'viridis',
@@ -1673,19 +1759,52 @@ export default function SatelliteIntelligence() {
     });
   }, [activeLayerActionDialog, activeDialogLayer]);
 
-  const setLayerColor = (layerId: string, color: string) => {
-    setCustomLayers(prev => prev.map(layer => (layer.id === layerId ? { ...layer, color } : layer)));
-  };
-
-  const applySymbologyDraft = () => {
+  const applySymbologyDraft = async () => {
     if (!activeDialogLayer) return;
     const ramp = COLOR_RAMPS[symbologyDraft.colorRamp];
-    const nextColor = symbologyDraft.useArcGisOnline
-      ? activeDialogLayer.color || '#22c55e'
-      : symbologyDraft.style === 'single'
+    const customColor =
+      symbologyDraft.style === 'single'
         ? symbologyDraft.color
         : ramp[Math.max(0, Math.min(ramp.length - 1, symbologyDraft.classes - 1))];
-    setLayerColor(activeDialogLayer.id, nextColor);
+
+    let drawingInfo = activeDialogLayer.arcgisDrawingInfo;
+    let layerSchemaDef = activeDialogLayer.arcgisLayerDefinition;
+    if (symbologyDraft.useArcGisOnline && activeDialogLayer.source === 'arcgis' && activeDialogLayer.sourceUrl) {
+      if (!drawingInfo || !layerSchemaDef) {
+        const pjson = await fetchArcgisLayerPjson(activeDialogLayer.sourceUrl, activeDialogLayer.authToken);
+        if (!drawingInfo && pjson?.drawingInfo && typeof pjson.drawingInfo === 'object') {
+          drawingInfo = pjson.drawingInfo;
+        }
+        const slim = slimArcgisLayerDefinitionForStorage(pjson);
+        if (slim) layerSchemaDef = slim;
+      }
+      const fillFromRenderer = drawingInfo ? arcgisDrawingInfoToFillPaint(drawingInfo) : null;
+      const nextColor =
+        fillFromRenderer && typeof fillFromRenderer['fill-color'] === 'string'
+          ? fillFromRenderer['fill-color']
+          : activeDialogLayer.color || '#22c55e';
+      setCustomLayers(prev =>
+        prev.map(layer =>
+          layer.id === activeDialogLayer.id
+            ? {
+                ...layer,
+                useArcGisOnlineSymbology: true,
+                arcgisDrawingInfo: drawingInfo ?? layer.arcgisDrawingInfo,
+                arcgisLayerDefinition: layerSchemaDef ?? layer.arcgisLayerDefinition,
+                color: nextColor,
+              }
+            : layer,
+        ),
+      );
+    } else {
+      setCustomLayers(prev =>
+        prev.map(layer =>
+          layer.id === activeDialogLayer.id
+            ? { ...layer, useArcGisOnlineSymbology: false, color: customColor }
+            : layer,
+        ),
+      );
+    }
     setActiveLayerActionDialog(null);
     setStacStatus(`Style saved for "${activeDialogLayer.name}".`);
   };
@@ -2687,6 +2806,9 @@ export default function SatelliteIntelligence() {
                 visible: l.visible,
                 source: l.source,
                 data: l.data,
+                arcgisLayerDefinition: (l as { arcgisLayerDefinition?: unknown }).arcgisLayerDefinition as
+                  | GeoAiMapLayer['arcgisLayerDefinition']
+                  | undefined,
               }),
             ),
           ];
@@ -3691,8 +3813,7 @@ export default function SatelliteIntelligence() {
   return (
     <div className="si-page">
       <div className="si-main-content">
-        <div>
-          <div className="si-top-card si-top-card-right">
+          <div className="si-top-card si-top-card-right si-env-map-dock">
             <div className="si-env-rail">
               <button
                 type="button"
@@ -5090,7 +5211,6 @@ export default function SatelliteIntelligence() {
               )}
             </div>
           </div>
-        </div>
 
         <div
           className={`si-map-container${
@@ -5159,28 +5279,17 @@ export default function SatelliteIntelligence() {
                   <Layer
                     id={`${layer.id}-fill`}
                     type="fill"
-                    paint={{
-                      'fill-color': layer.color || '#22c55e',
-                      'fill-opacity': 0.35
-                    }}
+                    paint={satelliteCustomLayerFillPaint(layer) as any}
                   />
                   <Layer
                     id={`${layer.id}-line`}
                     type="line"
-                    paint={{
-                      'line-color': layer.color || '#22c55e',
-                      'line-width': 1.5
-                    }}
+                    paint={satelliteCustomLayerLinePaint(layer) as any}
                   />
                   <Layer
                     id={`${layer.id}-circle`}
                     type="circle"
-                    paint={{
-                      'circle-radius': 4,
-                      'circle-color': layer.color || '#22c55e',
-                      'circle-stroke-width': 1,
-                      'circle-stroke-color': '#052e16'
-                    }}
+                    paint={satelliteCustomLayerCirclePaint(layer) as any}
                   />
                 </Source>
               )
@@ -6059,7 +6168,7 @@ export default function SatelliteIntelligence() {
                   )}
                   <div className="si-layer-action-modal-footer">
                     <button type="button" className="si-layer-action-footer-btn" onClick={() => setActiveLayerActionDialog(null)}>Cancel</button>
-                    <button type="button" className="si-layer-action-footer-btn primary" onClick={applySymbologyDraft}>Save Style</button>
+                    <button type="button" className="si-layer-action-footer-btn primary" onClick={() => void applySymbologyDraft()}>Save Style</button>
                   </div>
                 </div>
               ) : (

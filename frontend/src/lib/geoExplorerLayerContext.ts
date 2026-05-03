@@ -3,10 +3,15 @@
  * Keeps MAP_QUERY and answers aligned with Added layers + GIS Content data.
  */
 
+import type { ArcgisLayerDefLite } from './arcgisAttributeDisplay'
+import { formatFeaturePropertiesForGeoAi } from './arcgisAttributeDisplay'
+
 export type GeoAiMapLayer = {
   name: string
   visible?: boolean
   source?: string
+  /** ArcGIS `?f=pjson` subset: fields, types, typeIdField — for coded-value / subtype labels in AI context */
+  arcgisLayerDefinition?: ArcgisLayerDefLite | null
   /** GeoJSON FeatureCollection (Satellite custom layers) */
   geojson?: { type?: string; features?: GeoAiFeature[] } | null
   /** GIS Map / LayerData shape */
@@ -93,8 +98,13 @@ export function summarizeGeoAiMapLayer(l: GeoAiMapLayer, maxSampleChars = 400): 
   const fields = fc?.features?.length ? propertyKeys(fc.features).join(', ') : '—'
   let sample = ''
   const first = fc?.features?.[0]
+  const arcDef = l.arcgisLayerDefinition ?? null
   if (first?.properties && typeof first.properties === 'object') {
-    sample = ` | example attributes: ${JSON.stringify(first.properties).slice(0, maxSampleChars)}`
+    const shown = arcDef
+      ? formatFeaturePropertiesForGeoAi(first.properties as Record<string, unknown>, first, arcDef)
+      : first.properties
+    const label = arcDef ? 'example attributes (domain/subtype descriptions)' : 'example attributes'
+    sample = ` | ${label}: ${JSON.stringify(shown).slice(0, maxSampleChars)}`
   }
   const vis = l.visible === false ? 'hidden' : 'visible'
   return `- ${l.name} (features=${n}, ${vis}, source=${l.source ?? 'n/a'}) fields=[${fields || '—'}]${sample}`
@@ -195,10 +205,15 @@ export function findLngLatFromLayerQuery(userText: string, layers: GeoAiMapLayer
       if (!c) continue
       const [lng, lat] = c
       if (!Number.isFinite(lng) || !Number.isFinite(lat)) continue
+      const arcDef = layer.arcgisLayerDefinition ?? null
       const summary =
-        (f.properties && typeof f.properties === 'object' && Object.keys(f.properties).length
-          ? JSON.stringify(f.properties).slice(0, 220)
-          : '') || 'geometry match'
+        f.properties && typeof f.properties === 'object' && Object.keys(f.properties).length
+          ? JSON.stringify(
+              arcDef
+                ? formatFeaturePropertiesForGeoAi(f.properties as Record<string, unknown>, f, arcDef)
+                : f.properties,
+            ).slice(0, 220)
+          : 'geometry match'
       if (!best || score > best.score) {
         best = { lng, lat, layerName: layer.name, matchSummary: summary, score }
       }

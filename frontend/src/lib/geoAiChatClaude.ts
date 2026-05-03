@@ -2,6 +2,7 @@
  * Geo AI Chat: Claude + data context from GIS Content (saved layers) and Develop Dashboard Data pane snapshot.
  */
 
+import { formatFeaturePropertiesForGeoAi, type ArcgisLayerDefLite } from './arcgisAttributeDisplay'
 import { loadGisMapSavedLayers } from './gisMapLayerStore'
 import type { LayerData } from '../pages/satellite/components/LayerManager'
 import { summarizeGeoAiMapLayers } from './geoExplorerLayerContext'
@@ -14,6 +15,9 @@ export const GEO_AI_CHAT_SYSTEM_BASE = `You are Geo AI Chat. Your job is to anal
 
 Rules:
 - If the answer is not supported by the context, say clearly that the data is not in the snapshot and suggest what the user could add (e.g. add layers on this Satellite map, save layers in GIS Map / GIS Content, or open Develop Dashboard → Data).
+- When context lines include "domain/subtype descriptions" or attribute values like "Label (stored code: …)", treat the text before the parenthesis as the authoritative meaning; do not answer with bare database codes alone unless the user explicitly asks for raw codes.
+- For feature/place lookups or layer queries: answer like a GIS or data analyst — use a short **Interpretation** (2–4 sentences), then **Key attributes** as bullets (concise), then location or caveats. Avoid dumping large JSON; reserve raw attribute lists for explicit "show raw" requests.
+- For counts, distributions, or comparisons implied by the context: add one brief quantitative read (e.g. dominant category, approximate share) only when the numbers are directly supported by the provided summaries.
 - Prefer short structured answers: headings, bullets, and small tables in plain text when useful.
 - Do not invent field values, coordinates, or statistics that are not implied by the context.
 - When sample feature properties appear, treat them as examples only, not exhaustive.`
@@ -30,9 +34,23 @@ export function summarizeGisLayer(l: LayerData): string {
   let sample = ''
   const data = l.data as { features?: Array<{ properties?: Record<string, unknown> }> } | undefined
   if (data?.features?.length) {
-    const props = data.features[0]?.properties
+    const ft = data.features[0]
+    const props = ft?.properties
+    const arcDef =
+      l.source === 'arcgis'
+        ? ((l as { arcgisLayerDefinition?: ArcgisLayerDefLite | null }).arcgisLayerDefinition ?? undefined)
+        : undefined
     if (props && typeof props === 'object') {
-      sample = ` | example attributes: ${JSON.stringify(props).slice(0, 420)}`
+      const shown =
+        arcDef && typeof arcDef === 'object'
+          ? formatFeaturePropertiesForGeoAi(
+              props as Record<string, unknown>,
+              ft as { properties?: Record<string, unknown> },
+              arcDef,
+            )
+          : props
+      const label = arcDef && typeof arcDef === 'object' ? 'example attributes (domain/subtype descriptions)' : 'example attributes'
+      sample = ` | ${label}: ${JSON.stringify(shown).slice(0, 420)}`
     }
   }
   return `- ${l.name} (type=${l.type}, source=${l.source ?? 'n/a'}, visible=${l.visible}) fields=[${fields || '—'}]${sample}`
