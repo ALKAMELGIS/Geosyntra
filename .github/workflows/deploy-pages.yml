@@ -45,6 +45,9 @@ jobs:
         uses: actions/upload-pages-artifact@v3
         with:
           path: frontend/dist
+      - name: Pages source reminder (repo admin)
+        run: |
+          echo "::notice title=GitHub Pages::If https://alkamelgis.github.io/AgroCloud/ still shows the yellow stub, set Settings → Pages → Build and deployment → Source to GitHub Actions (not Deploy from a branch)."
 
   deploy:
     needs: build
