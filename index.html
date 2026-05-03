@@ -11,7 +11,7 @@
       }
       body {
         font-family: 'Segoe UI', system-ui, sans-serif;
-        max-width: 40rem;
+        max-width: 42rem;
         margin: 0 auto;
         padding: 1.5rem 1rem 2.5rem;
         line-height: 1.55;
@@ -42,6 +42,11 @@
         padding: 0.12em 0.35em;
         border-radius: 4px;
       }
+      .links a {
+        display: inline-block;
+        margin: 0.35rem 0.75rem 0 0;
+        font-size: 0.9rem;
+      }
       .en {
         margin-top: 1.25rem;
         padding-top: 1rem;
@@ -55,27 +60,46 @@
     <h1>Agro Cloud</h1>
     <div class="box" dir="rtl">
       <strong>تظهر هذه الصفحة عندما يكون مصدر GitHub Pages هو «Deploy from a branch» من جذر المستودع (/).</strong>
-      <p>التطبيق الحقيقي يُبنى في <code>frontend/dist</code> ويُنشر عبر سير العمل <strong>Deploy to GitHub Pages</strong> فقط. لا تُلتزم مخرجات البناء في الفرع لأن GitHub يرفض الدفع إذا وُجدت رموز وصول (مثل Mapbox) داخل ملفات <code>.js</code>.</p>
+      <p>
+        التطبيق الحقيقي يُبنى في <code>frontend/dist</code> ويُنشر عبر سير العمل
+        <strong>Deploy to GitHub Pages</strong> فقط. لا تُلتزم مخرجات البناء في الفرع لأن GitHub قد يرفض الدفع عند
+        وجود رموز داخل ملفات <code>.js</code> المجمّعة.
+      </p>
       <ol>
-        <li>من المستودع: <strong>Settings</strong> → <strong>Pages</strong> → ضمن <strong>Build and deployment</strong> اختر المصدر <strong>GitHub Actions</strong> (وليس النشر من الفرع من الجذر).</li>
-        <li>ادفع إلى <code>main</code> أو من تبويب <strong>Actions</strong> شغّل يدوياً <strong>Deploy to GitHub Pages</strong>.</li>
-        <li>إذا علق النشر: <strong>Settings</strong> → <strong>Environments</strong> → <code>github-pages</code>.</li>
+        <li>
+          <strong>Settings → Pages → Build and deployment</strong> — اختر المصدر
+          <strong>GitHub Actions</strong> (وليس النشر من الفرع من الجذر).
+        </li>
+        <li>ادفع إلى <code>main</code> أو شغّل السير يدوياً من تبويب Actions.</li>
+        <li>إذا علق النشر: <strong>Settings → Environments → github-pages</strong>.</li>
       </ol>
-      <p>بعد نجاح النشر، افتح التطبيق (مع <code>#</code> لأن المشروع يستخدم HashRouter):</p>
+      <p class="links">
+        <a href="https://github.com/ALKAMELGIS/AgroCloud/settings/pages" rel="noopener noreferrer">فتح إعدادات Pages</a>
+        <a href="https://github.com/ALKAMELGIS/AgroCloud/actions/workflows/deploy-pages.yml" rel="noopener noreferrer">سير نشر Pages</a>
+      </p>
+      <p>
+        بعد نجاح النشر عبر Actions، افتح التطبيق (HashRouter — الرابط يجب أن ينتهي بـ
+        <code>#/</code>):
+      </p>
       <p><a href="https://alkamelgis.github.io/AgroCloud/#/">https://alkamelgis.github.io/AgroCloud/#/</a></p>
-      <p>الوثائق الكاملة للمستودع: <code>REPOSITORY.md</code> (ليس عرضاً على الموقع عند استخدام Actions).</p>
+      <p>ملاحظة: طالما النشر من الفرع فقط، الرابط أعلاه لن يحمّل حزم React لأنها غير موجودة في الجذر.</p>
     </div>
     <div class="en" lang="en">
-      <strong>English:</strong> This page appears when Pages uses <strong>Deploy from a branch</strong> at repository
-      <strong>/ (root)</strong>. The real app is produced in <code>frontend/dist</code> and published by the
-      <strong>Deploy to GitHub Pages</strong> workflow. Do not commit built <code>docs/</code> or <code>dist/</code> to git:
-      push protection blocks tokens (e.g. Mapbox) embedded in bundles. Set <strong>Settings → Pages → Source</strong> to
-      <strong>GitHub Actions</strong>, then push to <code>main</code> or run the workflow manually. Pending deployments:
-      <strong>Settings → Environments → github-pages</strong>.
+      <strong>English:</strong> This page appears when GitHub Pages uses <strong>Deploy from a branch</strong> at repository
+      <strong>/ (root)</strong>. The real app is built into <code>frontend/dist</code> and published only by the
+      <strong>Deploy to GitHub Pages</strong> workflow. Do not commit <code>frontend/dist</code> or <code>docs/</code> to git:
+      push protection may block embedded tokens in bundles.
     </div>
     <p class="en" lang="en" style="margin-top: 0.75rem">
+      <span class="links">
+        <a href="https://github.com/ALKAMELGIS/AgroCloud/settings/pages" rel="noopener noreferrer">Pages settings</a>
+        <a href="https://github.com/ALKAMELGIS/AgroCloud/actions/workflows/deploy-pages.yml" rel="noopener noreferrer">Deploy workflow</a>
+      </span>
+    </p>
+    <p class="en" lang="en">
       After a successful Actions deploy, open the app (hash route):
       <a href="https://alkamelgis.github.io/AgroCloud/#/">https://alkamelgis.github.io/AgroCloud/#/</a>
+      — until Pages source is Actions, this URL will not load the Vite bundles from a branch-only root deploy.
     </p>
   </body>
 </html>
