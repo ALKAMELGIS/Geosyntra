@@ -11,18 +11,22 @@ import './agro-dashboard.css'
 const MO_EN = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'] as const
 const MO_AR = ['يناير', 'فبراير', 'مارس', 'أبريل', 'مايو', 'يونيو', 'يوليو', 'أغسطس', 'سبتمبر', 'أكتوبر', 'نوفمبر', 'ديسمبر'] as const
 
+function zeros(n: number): number[] {
+  return Array.from({ length: n }, () => 0)
+}
+
 const DATA = {
-  all: { h: [120, 180, 240, 980, 560, 420, 680, 740, 310, 190, 80, 40], t: [200, 200, 300, 500, 600, 600, 700, 700, 400, 300, 150, 100] },
-  q1: { h: [120, 180, 240], t: [200, 200, 300] },
-  q2: { h: [980, 560, 420], t: [500, 600, 600] },
-  q3: { h: [680, 740, 310], t: [700, 700, 400] },
-  q4: { h: [190, 80, 40], t: [300, 150, 100] },
+  all: { h: zeros(12), t: zeros(12) },
+  q1: { h: zeros(3), t: zeros(3) },
+  q2: { h: zeros(3), t: zeros(3) },
+  q3: { h: zeros(3), t: zeros(3) },
+  q4: { h: zeros(3), t: zeros(3) },
 } as const
 
 type QuarterKey = keyof typeof DATA
 
-const RAIN = [45, 60, 80, 120, 95, 70, 55, 50, 90, 110, 75, 40]
-const YLD = [100, 160, 220, 860, 490, 380, 620, 680, 280, 170, 70, 35]
+const RAIN = zeros(12)
+const YLD = zeros(12)
 
 const COLORS = {
   accent: '#2D6BE4',
@@ -47,21 +51,19 @@ function noLegend() {
   return { legend: { display: false } }
 }
 
-const FIELDS = [
-  { n: 'Field A-12', kg: 2840, pct: 89, s: 'Active', sc: { background: '#E3F7F1', color: '#085041' } },
-  { n: 'Field B-07', kg: 2610, pct: 81, s: 'Active', sc: { background: '#E3F7F1', color: '#085041' } },
-  { n: 'Field C-03', kg: 2200, pct: 68, s: 'Fallow', sc: { background: '#FEF3E2', color: '#854F0B' } },
-  { n: 'Field D-19', kg: 1980, pct: 62, s: 'Active', sc: { background: '#E3F7F1', color: '#085041' } },
-  { n: 'Field E-22', kg: 1560, pct: 49, s: 'Done', sc: { background: '#EBF1FD', color: '#1e55c0' } },
-] as const
+type AgroFieldRow = {
+  n: string
+  kg: number
+  pct: number
+  s: string
+  sc: { background: string; color: string }
+}
 
-const ACTS = [
-  { title: 'ArcGIS layer synced', sub: 'North region · 34 fields updated', t: '2m ago', c: '#12A97B' },
-  { title: 'Source connected', sub: 'CSV uploaded · Soil quality index', t: '18m ago', c: '#2D6BE4' },
-  { title: 'Yield alert', sub: 'Field C-03 below threshold', t: '1h ago', c: '#E05252' },
-  { title: 'Export ready', sub: 'Q1 report generated as PDF', t: '3h ago', c: '#E8920A' },
-  { title: 'New field pinned', sub: 'Field F-11 added to dashboard', t: '5h ago', c: '#6C5DD3' },
-] as const
+const FIELDS: readonly AgroFieldRow[] = []
+
+type AgroActRow = { title: string; sub: string; t: string; c: string }
+
+const ACTS: readonly AgroActRow[] = []
 
 type AgroAddWizard = 'home' | 'get-data' | 'gis-list' | 'tabs'
 type AgroAddTab = 'arcgis' | 'database' | 'upload' | 'url'
@@ -173,6 +175,33 @@ function uniqueRegistryKey(existingKeys: string[], displayName: string): string 
   return key
 }
 
+function newAgroSourceId() {
+  return `src-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`
+}
+
+function agroFieldKey(sourceId: string, field: string) {
+  return `${sourceId}|||${field}`
+}
+
+function parseAgroFieldKey(key: string): { sourceId: string; field: string } {
+  const i = key.indexOf('|||')
+  if (i === -1) return { sourceId: key, field: '' }
+  return { sourceId: key.slice(0, i), field: key.slice(i + 3) }
+}
+
+function fieldsFromFeatureCollection(fc: GeoJSON.FeatureCollection): string[] {
+  const f0 = fc.features[0]?.properties
+  if (!f0 || typeof f0 !== 'object') return []
+  return Object.keys(f0 as Record<string, unknown>)
+}
+
+type AgroSourceLayer = {
+  id: string
+  name: string
+  fields: string[]
+  kind: 'feature' | 'table'
+}
+
 export default function AgroDashboard() {
   const { language, direction } = useLanguage()
   const ar = language === 'ar'
@@ -181,15 +210,14 @@ export default function AgroDashboard() {
     () =>
       ar
         ? {
-            srTitle: 'لوحة تحليلات الحصاد — مؤشرات، رسوم، جدول حقول، ونشاط',
+            srTitle: 'لوحة تحليلات زراعية — مؤشرات، رسوم، جدول حقول، ونشاط',
             brand: 'جيو',
             brandBold: 'داش',
             nav: ['نظرة عامة', 'عرض الخريطة', 'التقارير', 'المصادر'],
-            dataset: [
-              { v: 'harvest', l: 'بيانات الحصاد 2024' },
-              { v: 'forecast', l: 'توقعات الإنتاج 2025' },
-              { v: 'soil', l: 'مؤشر جودة التربة' },
-            ],
+            dataset: [{ v: 'default', l: 'مجموعة البيانات' }],
+            emptyTable: 'لا صفوف بعد. اربط مصدر بيانات لعرض الحقول.',
+            emptyActivity: 'لا يوجد نشاط بعد.',
+            pieNoData: 'لا توجد بيانات توزيع بعد',
             addSource: 'إضافة مصدر',
             addSourceBtnTitle: 'فتح نافذة إضافة مصدر البيانات',
             modalTitle: 'إضافة مصدر البيانات',
@@ -239,6 +267,16 @@ export default function AgroDashboard() {
               'ملف CSV بدون أعمدة خط العرض/خط الطول يُضاف كجدول بيانات (الجزء الأيمن ← بيانات) مثل حقول Power BI.',
             cancelBtn: 'إلغاء',
             wf: ['إضافة طبقة', 'إضافة بيانات', 'اختيار الحقول', 'تثبيت الحقول'],
+            wfPanelLayerTitle: 'الطبقات المضافة',
+            wfPanelLayerEmpty: 'لم تُضف طبقات بعد. استخدم «إضافة مصدر» لاستيراد طبقة من GIS أو ملف أو خدمة.',
+            wfPanelSourceHint: 'استخدم زر «إضافة مصدر» أعلاه لربط بيانات بهذه اللوحة.',
+            wfPanelSelectTitle: 'اختيار الحقول حسب الطبقة',
+            wfPanelSelectEmpty: 'لا توجد حقول حتى تُضاف طبقة تحتوي على جدول سمات أو أعمدة.',
+            wfPanelPinTitle: 'تثبيت الحقول لأنواع الرسوم',
+            wfPanelPinEmpty: 'اختر حقولاً في الخطوة السابقة، ثم حدد هنا ما يظهر في الرسوم.',
+            wfPanelPinSubtitle: 'الحقول المعروضة في الرسوم',
+            wfChartTypesLabel: 'أنواع الرسوم',
+            wfNoPinnedForCharts: 'لم يُثبت أي حقل للرسوم بعد.',
             quarter: [
               { v: 'all', l: 'كل 2024' },
               { v: 'q1', l: 'الربع 1' },
@@ -252,6 +290,7 @@ export default function AgroDashboard() {
             kpi2: 'حقول نشطة',
             kpi3: 'متوسط الإنتاج / حقل',
             kpi4: 'مصادر البيانات',
+            kpi3Val: '0 كغ',
             chartMain: 'حجم الحصاد الشهري',
             chartPie: 'الحصاد حسب المنطقة',
             chartLine: 'الإنتاج مقابل المطر',
@@ -274,15 +313,14 @@ export default function AgroDashboard() {
             metaQ: (q: string) => `${q.toUpperCase()} 2024 · كل المناطق`,
           }
         : {
-            srTitle: 'Harvest analytics dashboard — KPI cards, charts, field table, and activity feed',
+            srTitle: 'Agro analytics dashboard — KPI cards, charts, field table, and activity feed',
             brand: 'Geo',
             brandBold: 'Dash',
             nav: ['Overview', 'Map view', 'Reports', 'Sources'],
-            dataset: [
-              { v: 'harvest', l: 'Harvest data 2024' },
-              { v: 'forecast', l: 'Yield forecast 2025' },
-              { v: 'soil', l: 'Soil quality index' },
-            ],
+            dataset: [{ v: 'default', l: 'Dataset' }],
+            emptyTable: 'No rows yet. Connect a data source to show fields.',
+            emptyActivity: 'No activity yet.',
+            pieNoData: 'No distribution data yet',
             addSource: 'Add source',
             addSourceBtnTitle: 'Open Add Source Data',
             modalTitle: 'Add Source Data',
@@ -331,6 +369,16 @@ export default function AgroDashboard() {
               'CSV without latitude/longitude columns is added as a Data table (right pane → Data) like Power BI Fields.',
             cancelBtn: 'Cancel',
             wf: ['Add layer', 'Add source data', 'Select fields', 'Pin fields'],
+            wfPanelLayerTitle: 'Added layers',
+            wfPanelLayerEmpty: 'No layers yet. Use Add source to import from GIS, a file, or a service.',
+            wfPanelSourceHint: 'Use the Add source button above to connect data to this dashboard.',
+            wfPanelSelectTitle: 'Select fields by layer',
+            wfPanelSelectEmpty: 'No fields until you add a layer with attribute columns.',
+            wfPanelPinTitle: 'Pin fields for chart types',
+            wfPanelPinEmpty: 'Select fields in the previous step, then choose what appears in charts here.',
+            wfPanelPinSubtitle: 'Fields shown in charts',
+            wfChartTypesLabel: 'Chart types',
+            wfNoPinnedForCharts: 'No fields pinned for charts yet.',
             quarter: [
               { v: 'all', l: 'All 2024' },
               { v: 'q1', l: 'Q1' },
@@ -344,6 +392,7 @@ export default function AgroDashboard() {
             kpi2: 'Active fields',
             kpi3: 'Avg yield / field',
             kpi4: 'Data sources',
+            kpi3Val: '0 kg',
             chartMain: 'Monthly harvest volume',
             chartPie: 'Harvest by region',
             chartLine: 'Yield vs rainfall',
@@ -408,7 +457,9 @@ export default function AgroDashboard() {
   const [addingLayerKey, setAddingLayerKey] = useState<string | null>(null)
   const [uploadFile, setUploadFile] = useState<File | null>(null)
   const [remoteDataUrl, setRemoteDataUrl] = useState('')
-  const [agroLinkedSources, setAgroLinkedSources] = useState<string[]>([])
+  const [agroSources, setAgroSources] = useState<AgroSourceLayer[]>([])
+  const [includedFieldKeys, setIncludedFieldKeys] = useState<string[]>([])
+  const [pinnedFieldKeys, setPinnedFieldKeys] = useState<string[]>([])
   const [homePick, setHomePick] = useState<'gis' | 'arcgis' | 'upload' | 'getdata'>('gis')
   const addLayerFileInputRef = useRef<HTMLInputElement | null>(null)
   const [mainType, setMainType] = useState<'bar' | 'line' | 'area'>('bar')
@@ -417,22 +468,9 @@ export default function AgroDashboard() {
 
   const mainMeta = quarter === 'all' ? t.metaAll : t.metaQ(quarter)
 
-  const kpi1 = useMemo(() => {
-    const totals: Record<QuarterKey, string> = {
-      all: '48,320',
-      q1: '12,080',
-      q2: '13,440',
-      q3: '13,580',
-      q4: '9,220',
-    }
-    return totals[quarter]
-  }, [quarter])
+  const kpi1 = useMemo(() => '0', [])
 
-  const kpi2 = useMemo(() => {
-    if (quarter === 'all') return '142'
-    const f = { q1: 0.25, q2: 0.28, q3: 0.27, q4: 0.2 } as const
-    return String(Math.round(142 * f[quarter as keyof typeof f]))
-  }, [quarter])
+  const kpi2 = useMemo(() => String(includedFieldKeys.length), [includedFieldKeys.length])
 
   const mainCanvasRef = useRef<HTMLCanvasElement>(null)
   const pieCanvasRef = useRef<HTMLCanvasElement>(null)
@@ -512,16 +550,17 @@ export default function AgroDashboard() {
     const ctx = pieCanvasRef.current
     if (!ctx) return
     pieChartRef.current?.destroy()
+    const noDataLabel = ar ? 'لا بيانات' : 'No data'
     pieChartRef.current = new Chart(ctx, {
       type: pieType,
       data: {
-        labels: ['North', 'South', 'East', 'West'],
+        labels: [noDataLabel],
         datasets: [
           {
-            data: [35, 28, 22, 15],
-            backgroundColor: [COLORS.accent, COLORS.teal, COLORS.amber, COLORS.violet],
+            data: [1],
+            backgroundColor: ['#e2e8f0'],
             borderWidth: 0,
-            hoverOffset: 6,
+            hoverOffset: 0,
           },
         ],
       },
@@ -530,18 +569,11 @@ export default function AgroDashboard() {
         maintainAspectRatio: false,
         plugins: {
           ...noLegend(),
-          tooltip: {
-            callbacks: {
-              label: ctx => {
-                const v = typeof ctx.raw === 'number' ? ctx.raw : 0
-                return ` ${ctx.label}: ${v}%`
-              },
-            },
-          },
+          tooltip: { enabled: false },
         },
       },
     })
-  }, [pieType])
+  }, [pieType, ar])
 
   const buildLine = useCallback(() => {
     const ctx = lineCanvasRef.current
@@ -640,6 +672,69 @@ export default function AgroDashboard() {
     setAddSourceOpen(false)
     resetAgroAddForm()
   }, [resetAgroAddForm])
+
+  const registerAgroSource = useCallback(
+    (layer: AgroSourceLayer) => {
+      const keys = layer.fields.map(f => agroFieldKey(layer.id, f))
+      setAgroSources(prev => [...prev, layer])
+      setIncludedFieldKeys(prev => Array.from(new Set([...prev, ...keys])))
+      setPinnedFieldKeys(prev => Array.from(new Set([...prev, ...keys])))
+      setWfIdx(2)
+      closeAddSourceModal()
+    },
+    [closeAddSourceModal],
+  )
+
+  const toggleIncludedFieldKey = useCallback((key: string) => {
+    setIncludedFieldKeys(prev => {
+      const on = prev.includes(key)
+      const next = on ? prev.filter(k => k !== key) : [...prev, key]
+      if (on) setPinnedFieldKeys(p => p.filter(k => k !== key))
+      return next
+    })
+  }, [])
+
+  const togglePinnedFieldKey = useCallback((key: string) => {
+    if (!includedFieldKeys.includes(key)) return
+    setPinnedFieldKeys(prev => (prev.includes(key) ? prev.filter(k => k !== key) : [...prev, key]))
+  }, [includedFieldKeys])
+
+  const pinnedFieldsSummary = useMemo(() => {
+    if (!pinnedFieldKeys.length) return ''
+    const parts = pinnedFieldKeys.map(k => {
+      const { field } = parseAgroFieldKey(k)
+      return field || k
+    })
+    return parts.join(', ')
+  }, [pinnedFieldKeys])
+
+  const wfPanelTitle = useMemo(() => {
+    if (wfIdx === 0) return t.wfPanelLayerTitle
+    if (wfIdx === 1) return t.wf[1]!
+    if (wfIdx === 2) return t.wfPanelSelectTitle
+    return t.wfPanelPinTitle
+  }, [wfIdx, t])
+
+  const pinnedChartsHintEl = (
+    <div className="agdash-pinned-hint" title={pinnedFieldsSummary || undefined}>
+      <span className="agdash-pinned-hint-lbl">{t.wfChartTypesLabel}</span>
+      <span className="agdash-pinned-hint-val">
+        {pinnedFieldKeys.length ? pinnedFieldsSummary : t.wfNoPinnedForCharts}
+      </span>
+    </div>
+  )
+
+  const orderedIncludedPinKeys = useMemo(() => {
+    const set = new Set(includedFieldKeys)
+    const out: string[] = []
+    for (const src of agroSources) {
+      for (const f of src.fields) {
+        const k = agroFieldKey(src.id, f)
+        if (set.has(k)) out.push(k)
+      }
+    }
+    return out
+  }, [agroSources, includedFieldKeys])
 
   useEffect(() => {
     if (!addSourceOpen) return
@@ -751,6 +846,7 @@ export default function AgroDashboard() {
       try {
         let data: GeoJSON.FeatureCollection
         const displayName = layer.name?.trim() || 'Layer'
+        let outKind: 'feature' | 'table' = 'feature'
 
         if (isFeatureCollection(layer.data)) {
           data = layer.data
@@ -758,6 +854,7 @@ export default function AgroDashboard() {
         } else if (layer.url && layer.source === 'arcgis') {
           const def = layer.arcgisLayerDefinition
           const isTable = def?.type === 'table' || String(def?.type || '').toLowerCase() === 'table'
+          outKind = isTable ? 'table' : 'feature'
           const kind: 'layer' | 'table' = isTable ? 'table' : 'layer'
           const token = layer.authToken || ''
           data = await fetchArcGisFeatureCollection(layer.url, token, kind)
@@ -765,16 +862,20 @@ export default function AgroDashboard() {
           throw new Error('Unsupported layer format for this dashboard.')
         }
 
-        void data
-        setAgroLinkedSources(prev => [...prev, displayName])
-        closeAddSourceModal()
+        const fields = fieldsFromFeatureCollection(data)
+        registerAgroSource({
+          id: newAgroSourceId(),
+          name: displayName,
+          fields,
+          kind: outKind,
+        })
       } catch (e: unknown) {
         setDiscoverError(e instanceof Error ? e.message : 'Failed to add layer from GIS Content.')
       } finally {
         setAddingLayerKey(null)
       }
     },
-    [closeAddSourceModal],
+    [registerAgroSource],
   )
 
   const addArcGisLayerToRegistry = useCallback(
@@ -785,17 +886,21 @@ export default function AgroDashboard() {
       try {
         const data = await fetchArcGisFeatureCollection(l.url, arcgisToken, l.kind)
         const displayName = layerModalName.trim() || l.name
-        if (!data.features.length) throw new Error('Layer has no features.')
-        void data
-        setAgroLinkedSources(prev => [...prev, displayName])
-        closeAddSourceModal()
+        if (!data.features.length) throw new Error('Layer has no rows or features.')
+        const fields = fieldsFromFeatureCollection(data)
+        registerAgroSource({
+          id: newAgroSourceId(),
+          name: displayName,
+          fields,
+          kind: l.kind === 'table' ? 'table' : 'feature',
+        })
       } catch (e: unknown) {
         setDiscoverError(e instanceof Error ? e.message : 'Failed to add layer.')
       } finally {
         setAddingLayerKey(null)
       }
     },
-    [arcgisToken, layerModalName, closeAddSourceModal],
+    [arcgisToken, layerModalName, registerAgroSource],
   )
 
   const addUploadLayerToRegistry = useCallback(async () => {
@@ -811,9 +916,12 @@ export default function AgroDashboard() {
         const columns = Object.keys(rows[0] ?? {})
         if (!columns.length) throw new Error('CSV has no columns.')
         const displayName = layerModalName.trim() || uploadFile.name.replace(/\.[^.]+$/, '').trim() || 'Table'
-        void columns
-        setAgroLinkedSources(prev => [...prev, `${displayName} (table)`])
-        closeAddSourceModal()
+        registerAgroSource({
+          id: newAgroSourceId(),
+          name: displayName,
+          fields: columns,
+          kind: 'table',
+        })
         return
       }
       if (parsed.type !== 'geojson') throw new Error('File must contain GIS features (GeoJSON/KML/KMZ/Shapefile zip).')
@@ -824,15 +932,19 @@ export default function AgroDashboard() {
         throw new Error('File must be a GeoJSON FeatureCollection.')
       }
       const displayName = layerModalName.trim() || uploadFile.name.replace(/\.[^.]+$/, '').trim() || 'Layer'
-      void fc
-      setAgroLinkedSources(prev => [...prev, displayName])
-      closeAddSourceModal()
+      const fields = fieldsFromFeatureCollection(fc)
+      registerAgroSource({
+        id: newAgroSourceId(),
+        name: displayName,
+        fields,
+        kind: 'feature',
+      })
     } catch (e: unknown) {
       setDiscoverError(e instanceof Error ? e.message : 'Failed to import file.')
     } finally {
       setAddingLayerKey(null)
     }
-  }, [uploadFile, layerModalName, closeAddSourceModal])
+  }, [uploadFile, layerModalName, registerAgroSource])
 
   const addUrlLayerToRegistry = useCallback(async () => {
     const trimmed = remoteDataUrl.trim()
@@ -854,15 +966,19 @@ export default function AgroDashboard() {
       }
       const stem = file.name.replace(/\.[^.]+$/, '').trim()
       const displayName = layerModalName.trim() || stem || 'Layer'
-      void fc
-      setAgroLinkedSources(prev => [...prev, displayName])
-      closeAddSourceModal()
+      const fields = fieldsFromFeatureCollection(fc)
+      registerAgroSource({
+        id: newAgroSourceId(),
+        name: displayName,
+        fields,
+        kind: 'feature',
+      })
     } catch (e: unknown) {
       setDiscoverError(e instanceof Error ? e.message : 'Failed to import from URL.')
     } finally {
       setAddingLayerKey(null)
     }
-  }, [remoteDataUrl, layerModalName, closeAddSourceModal])
+  }, [remoteDataUrl, layerModalName, registerAgroSource])
 
   const wfClass = (i: number) => {
     if (i < wfIdx) return 'agdash-done'
@@ -921,7 +1037,7 @@ export default function AgroDashboard() {
             ))}
           </div>
           <div className="agdash-nav-end">
-            <select className="agdash-nav-sel" aria-label={ar ? 'مجموعة البيانات' : 'Dataset'} defaultValue="harvest">
+            <select className="agdash-nav-sel" aria-label={ar ? 'مجموعة البيانات' : 'Dataset'} defaultValue="default">
               {t.dataset.map(o => (
                 <option key={o.v} value={o.v}>
                   {o.l}
@@ -979,6 +1095,94 @@ export default function AgroDashboard() {
           </div>
         </div>
 
+        <div className="agdash-wf-panel" role="region" aria-labelledby="agdash-wf-panel-title">
+          <div className="agdash-wf-panel-head">
+            <h3 id="agdash-wf-panel-title" className="agdash-wf-panel-title">
+              {wfPanelTitle}
+            </h3>
+          </div>
+          <div className="agdash-wf-panel-body">
+            {wfIdx === 0 &&
+              (agroSources.length === 0 ? (
+                <p className="agdash-wf-panel-empty">{t.wfPanelLayerEmpty}</p>
+              ) : (
+                <ul className="agdash-wf-layer-list">
+                  {agroSources.map(s => (
+                    <li key={s.id} className="agdash-wf-layer-item">
+                      <span className="agdash-wf-layer-name">{s.name}</span>
+                      {s.fields.length > 0 ? (
+                        <span className="agdash-wf-layer-meta">
+                          {s.fields.length} {ar ? 'حقل' : 'fields'}
+                        </span>
+                      ) : null}
+                    </li>
+                  ))}
+                </ul>
+              ))}
+            {wfIdx === 1 && <p className="agdash-wf-panel-empty agdash-wf-panel-hint">{t.wfPanelSourceHint}</p>}
+            {wfIdx === 2 &&
+              (agroSources.length === 0 ? (
+                <p className="agdash-wf-panel-empty">{t.wfPanelSelectEmpty}</p>
+              ) : (
+                <div className="agdash-wf-field-groups">
+                  {agroSources.map(src => (
+                    <div key={src.id} className="agdash-wf-field-group">
+                      <div className="agdash-wf-field-group-title">{src.name}</div>
+                      {src.fields.length === 0 ? (
+                        <p className="agdash-wf-panel-empty agdash-wf-panel-empty--sm">{t.wfPanelSelectEmpty}</p>
+                      ) : (
+                        <ul className="agdash-wf-field-rows">
+                          {src.fields.map(field => {
+                            const key = agroFieldKey(src.id, field)
+                            return (
+                              <li key={key} className="agdash-wf-field-row">
+                                <label className="agdash-wf-check">
+                                  <input
+                                    type="checkbox"
+                                    checked={includedFieldKeys.includes(key)}
+                                    onChange={() => toggleIncludedFieldKey(key)}
+                                  />
+                                  <span>{field}</span>
+                                </label>
+                              </li>
+                            )
+                          })}
+                        </ul>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              ))}
+            {wfIdx === 3 &&
+              (orderedIncludedPinKeys.length === 0 ? (
+                <p className="agdash-wf-panel-empty">{t.wfPanelPinEmpty}</p>
+              ) : (
+                <>
+                  <p className="agdash-wf-panel-sub">{t.wfPanelPinSubtitle}</p>
+                  <ul className="agdash-wf-field-rows">
+                    {orderedIncludedPinKeys.map(key => {
+                      const { sourceId, field } = parseAgroFieldKey(key)
+                      const src = agroSources.find(s => s.id === sourceId)
+                      const label = src && field ? `${src.name} — ${field}` : field || key
+                      return (
+                        <li key={key} className="agdash-wf-field-row">
+                          <label className="agdash-wf-check">
+                            <input
+                              type="checkbox"
+                              checked={pinnedFieldKeys.includes(key)}
+                              onChange={() => togglePinnedFieldKey(key)}
+                            />
+                            <span>{label}</span>
+                          </label>
+                        </li>
+                      )
+                    })}
+                  </ul>
+                </>
+              ))}
+          </div>
+        </div>
+
         <div className="agdash-body">
           <div className="agdash-kpi-row">
             <div className="agdash-kpi">
@@ -994,12 +1198,11 @@ export default function AgroDashboard() {
                     />
                   </svg>
                 </div>
-                <span className="agdash-kpi-badge agdash-up">▲ 12.4%</span>
               </div>
               <div className="agdash-kpi-val">{kpi1}</div>
               <div className="agdash-kpi-lbl">{t.kpi1}</div>
               <div className="agdash-kpi-bar">
-                <div className="agdash-kpi-fill" style={{ width: '78%', background: 'var(--agdash-accent)' }} />
+                <div className="agdash-kpi-fill" style={{ width: '0%', background: 'var(--agdash-accent)' }} />
               </div>
             </div>
             <div className="agdash-kpi">
@@ -1012,12 +1215,17 @@ export default function AgroDashboard() {
                     <rect x="9" y="9" width="5" height="5" rx="1.5" stroke="#12A97B" strokeWidth="1.4" />
                   </svg>
                 </div>
-                <span className="agdash-kpi-badge agdash-up">▲ 8 new</span>
               </div>
               <div className="agdash-kpi-val">{kpi2}</div>
               <div className="agdash-kpi-lbl">{t.kpi2}</div>
               <div className="agdash-kpi-bar">
-                <div className="agdash-kpi-fill" style={{ width: '86%', background: 'var(--agdash-teal)' }} />
+                <div
+                  className="agdash-kpi-fill"
+                  style={{
+                    width: includedFieldKeys.length ? `${Math.min(100, includedFieldKeys.length * 8)}%` : '0%',
+                    background: 'var(--agdash-teal)',
+                  }}
+                />
               </div>
             </div>
             <div className="agdash-kpi">
@@ -1028,12 +1236,11 @@ export default function AgroDashboard() {
                     <path d="M8 5.5V8l2 1.5" stroke="#E8920A" strokeWidth="1.4" strokeLinecap="round" />
                   </svg>
                 </div>
-                <span className="agdash-kpi-badge agdash-dn">▼ 2.1%</span>
               </div>
-              <div className="agdash-kpi-val">340 kg</div>
+              <div className="agdash-kpi-val">{t.kpi3Val}</div>
               <div className="agdash-kpi-lbl">{t.kpi3}</div>
               <div className="agdash-kpi-bar">
-                <div className="agdash-kpi-fill" style={{ width: '62%', background: 'var(--agdash-amber)' }} />
+                <div className="agdash-kpi-fill" style={{ width: '0%', background: 'var(--agdash-amber)' }} />
               </div>
             </div>
             <div className="agdash-kpi">
@@ -1049,12 +1256,17 @@ export default function AgroDashboard() {
                     <circle cx="8" cy="8" r="2.5" stroke="#6C5DD3" strokeWidth="1.4" />
                   </svg>
                 </div>
-                <span className="agdash-kpi-badge agdash-nt">2 added</span>
               </div>
-              <div className="agdash-kpi-val">{7 + agroLinkedSources.length}</div>
+              <div className="agdash-kpi-val">{agroSources.length}</div>
               <div className="agdash-kpi-lbl">{t.kpi4}</div>
               <div className="agdash-kpi-bar">
-                <div className="agdash-kpi-fill" style={{ width: '50%', background: 'var(--agdash-violet)' }} />
+                <div
+                  className="agdash-kpi-fill"
+                  style={{
+                    width: agroSources.length ? `${Math.min(100, agroSources.length * 20)}%` : '0%',
+                    background: 'var(--agdash-violet)',
+                  }}
+                />
               </div>
             </div>
           </div>
@@ -1066,7 +1278,7 @@ export default function AgroDashboard() {
                   <div className="agdash-ctitle">{t.chartMain}</div>
                   <div className="agdash-csub">{mainMeta}</div>
                 </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                <div className="agdash-ch-tools">
                   <div className="agdash-type-grp" role="group" aria-label={ar ? 'نوع الرسم' : 'Chart type'}>
                     <button
                       type="button"
@@ -1101,6 +1313,7 @@ export default function AgroDashboard() {
                       </svg>
                     </button>
                   </div>
+                  {pinnedChartsHintEl}
                   <button type="button" className="agdash-action-link">
                     {t.analyze}
                   </button>
@@ -1127,52 +1340,40 @@ export default function AgroDashboard() {
                   <div className="agdash-ctitle">{t.chartPie}</div>
                   <div className="agdash-csub">{t.dist}</div>
                 </div>
-                <div className="agdash-type-grp" role="group" aria-label={ar ? 'نوع الدائرة' : 'Pie type'}>
-                  <button
-                    type="button"
-                    title="Pie"
-                    className={`agdash-tbtn${pieType === 'pie' ? ' agdash-on' : ''}`}
-                    onClick={() => setPieType('pie')}
-                  >
-                    <svg viewBox="0 0 13 13" fill="currentColor" aria-hidden>
-                      <path d="M6.5 0A6.5 6.5 0 0 1 13 6.5H6.5Z" opacity="0.9" />
-                      <path d="M13 6.5A6.5 6.5 0 0 1 6.5 13V6.5Z" opacity="0.65" />
-                      <path d="M6.5 13A6.5 6.5 0 0 1 0 6.5H6.5Z" opacity="0.4" />
-                      <path d="M0 6.5A6.5 6.5 0 0 1 6.5 0V6.5Z" opacity="0.2" />
-                    </svg>
-                  </button>
-                  <button
-                    type="button"
-                    title="Doughnut"
-                    className={`agdash-tbtn${pieType === 'doughnut' ? ' agdash-on' : ''}`}
-                    onClick={() => setPieType('doughnut')}
-                  >
-                    <svg viewBox="0 0 13 13" fill="none" stroke="currentColor" strokeWidth="3" aria-hidden>
-                      <circle cx="6.5" cy="6.5" r="4" />
-                    </svg>
-                  </button>
+                <div className="agdash-ch-tools agdash-ch-tools--col">
+                  <div className="agdash-type-grp" role="group" aria-label={ar ? 'نوع الدائرة' : 'Pie type'}>
+                    <button
+                      type="button"
+                      title="Pie"
+                      className={`agdash-tbtn${pieType === 'pie' ? ' agdash-on' : ''}`}
+                      onClick={() => setPieType('pie')}
+                    >
+                      <svg viewBox="0 0 13 13" fill="currentColor" aria-hidden>
+                        <path d="M6.5 0A6.5 6.5 0 0 1 13 6.5H6.5Z" opacity="0.9" />
+                        <path d="M13 6.5A6.5 6.5 0 0 1 6.5 13V6.5Z" opacity="0.65" />
+                        <path d="M6.5 13A6.5 6.5 0 0 1 0 6.5H6.5Z" opacity="0.4" />
+                        <path d="M0 6.5A6.5 6.5 0 0 1 6.5 0V6.5Z" opacity="0.2" />
+                      </svg>
+                    </button>
+                    <button
+                      type="button"
+                      title="Doughnut"
+                      className={`agdash-tbtn${pieType === 'doughnut' ? ' agdash-on' : ''}`}
+                      onClick={() => setPieType('doughnut')}
+                    >
+                      <svg viewBox="0 0 13 13" fill="none" stroke="currentColor" strokeWidth="3" aria-hidden>
+                        <circle cx="6.5" cy="6.5" r="4" />
+                      </svg>
+                    </button>
+                  </div>
+                  {pinnedChartsHintEl}
                 </div>
               </div>
               <div className="agdash-chart-wrap agdash-chart-sm">
                 <canvas ref={pieCanvasRef} role="img" aria-label={t.chartPie} />
               </div>
               <div className="agdash-leg" style={{ justifyContent: 'center' }}>
-                <div className="agdash-li">
-                  <div className="agdash-lsq" style={{ background: 'var(--agdash-accent)' }} />
-                  North 35%
-                </div>
-                <div className="agdash-li">
-                  <div className="agdash-lsq" style={{ background: 'var(--agdash-teal)' }} />
-                  South 28%
-                </div>
-                <div className="agdash-li">
-                  <div className="agdash-lsq" style={{ background: 'var(--agdash-amber)' }} />
-                  East 22%
-                </div>
-                <div className="agdash-li">
-                  <div className="agdash-lsq" style={{ background: 'var(--agdash-violet)' }} />
-                  West 15%
-                </div>
+                <div className="agdash-li agdash-li--muted">{t.pieNoData}</div>
               </div>
             </div>
           </div>
@@ -1184,9 +1385,12 @@ export default function AgroDashboard() {
                   <div className="agdash-ctitle">{t.chartLine}</div>
                   <div className="agdash-csub">{t.chartLineSub}</div>
                 </div>
-                <button type="button" className="agdash-action-link">
-                  {t.analyze}
-                </button>
+                <div className="agdash-ch-tools agdash-ch-tools--line">
+                  {pinnedChartsHintEl}
+                  <button type="button" className="agdash-action-link">
+                    {t.analyze}
+                  </button>
+                </div>
               </div>
               <div className="agdash-chart-wrap agdash-chart-xs">
                 <canvas ref={lineCanvasRef} role="img" aria-label={t.chartLine} />
@@ -1220,29 +1424,37 @@ export default function AgroDashboard() {
                   </tr>
                 </thead>
                 <tbody>
-                  {FIELDS.map(f => (
-                    <tr key={f.n}>
-                      <td style={{ fontWeight: 500 }}>{f.n}</td>
-                      <td>{f.kg.toLocaleString(ar ? 'ar' : 'en')}</td>
-                      <td>
-                        <div style={{ height: 4, borderRadius: 2, background: '#e8ebf2', overflow: 'hidden' }}>
-                          <div
-                            style={{
-                              height: '100%',
-                              width: `${f.pct}%`,
-                              background: 'var(--agdash-teal)',
-                              borderRadius: 2,
-                            }}
-                          />
-                        </div>
-                      </td>
-                      <td>
-                        <span className="agdash-fbadge" style={f.sc}>
-                          {f.s}
-                        </span>
+                  {FIELDS.length === 0 ? (
+                    <tr>
+                      <td colSpan={4} className="agdash-empty-td">
+                        {t.emptyTable}
                       </td>
                     </tr>
-                  ))}
+                  ) : (
+                    FIELDS.map(f => (
+                      <tr key={f.n}>
+                        <td style={{ fontWeight: 500 }}>{f.n}</td>
+                        <td>{f.kg.toLocaleString(ar ? 'ar' : 'en')}</td>
+                        <td>
+                          <div style={{ height: 4, borderRadius: 2, background: '#e8ebf2', overflow: 'hidden' }}>
+                            <div
+                              style={{
+                                height: '100%',
+                                width: `${f.pct}%`,
+                                background: 'var(--agdash-teal)',
+                                borderRadius: 2,
+                              }}
+                            />
+                          </div>
+                        </td>
+                        <td>
+                          <span className="agdash-fbadge" style={f.sc}>
+                            {f.s}
+                          </span>
+                        </td>
+                      </tr>
+                    ))
+                  )}
                 </tbody>
               </table>
             </div>
@@ -1266,17 +1478,21 @@ export default function AgroDashboard() {
                 />
               </div>
               <div>
-                {ACTS.map(a => (
-                  <div key={a.title} className="agdash-feed-item">
-                    <div className="agdash-feed-dot" style={{ background: a.c }} />
-                    <div>
-                      <div className="agdash-feed-main">{a.title}</div>
-                      <div className="agdash-feed-sub">
-                        {a.sub} · {a.t}
+                {ACTS.length === 0 ? (
+                  <p className="agdash-empty-act">{t.emptyActivity}</p>
+                ) : (
+                  ACTS.map(a => (
+                    <div key={a.title} className="agdash-feed-item">
+                      <div className="agdash-feed-dot" style={{ background: a.c }} />
+                      <div>
+                        <div className="agdash-feed-main">{a.title}</div>
+                        <div className="agdash-feed-sub">
+                          {a.sub} · {a.t}
+                        </div>
                       </div>
                     </div>
-                  </div>
-                ))}
+                  ))
+                )}
               </div>
             </div>
           </div>
