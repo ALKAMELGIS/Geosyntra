@@ -1889,11 +1889,15 @@ function GisContentPage() {
                   <span className="gis-sidebar-collapsed-layers__stack-bar" />
                   <span className="gis-sidebar-collapsed-layers__stack-bar" />
                 </span>
-                <span className="gis-sidebar-collapsed-layers__icon-wrap">
-                  <i className="fa-solid fa-layer-group" />
+                <span className="gis-sidebar-collapsed-layers__icon-slot">
+                  <span className="gis-sidebar-collapsed-layers__icon-wrap">
+                    <i className="fa-solid fa-layer-group" />
+                  </span>
+                  {rows.length > 0 ? (
+                    <span className="gis-sidebar-collapsed-layers__badge">{rows.length}</span>
+                  ) : null}
                 </span>
               </span>
-              <span className="gis-sidebar-collapsed-layers__badge">{rows.length}</span>
               <span className="gis-sidebar-collapsed-layers__caption">layers</span>
             </button>
             </div>

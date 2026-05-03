@@ -3619,11 +3619,15 @@ export default function GisMap() {
                     <span className="gis-sidebar-collapsed-layers__stack-bar" />
                     <span className="gis-sidebar-collapsed-layers__stack-bar" />
                   </span>
-                  <span className="gis-sidebar-collapsed-layers__icon-wrap">
-                    <i className="fa-solid fa-layer-group" />
+                  <span className="gis-sidebar-collapsed-layers__icon-slot">
+                    <span className="gis-sidebar-collapsed-layers__icon-wrap">
+                      <i className="fa-solid fa-layer-group" />
+                    </span>
+                    {layers.length > 0 ? (
+                      <span className="gis-sidebar-collapsed-layers__badge">{layers.length}</span>
+                    ) : null}
                   </span>
                 </span>
-                <span className="gis-sidebar-collapsed-layers__badge">{layers.length}</span>
                 <span className="gis-sidebar-collapsed-layers__caption">layers</span>
               </button>
             ) : null}

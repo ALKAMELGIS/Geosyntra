@@ -1247,6 +1247,68 @@
   color: var(--ddb-pbi-muted);
 }
 
+/* Build visual: tabbed / collapsible Fields panel (chevron + FIELDS + hint + checklist) */
+.develop-dashboard-root .ddb-build-fields-panel {
+  margin-top: 4px;
+  padding: 0;
+  border: 1px solid var(--ddb-pbi-border-strong);
+  border-radius: 2px;
+  background: var(--ddb-pbi-canvas);
+  overflow: hidden;
+}
+
+.develop-dashboard-root .ddb-build-fields-panel__tab {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 10px 12px;
+  margin: 0;
+  border: none;
+  border-bottom: 1px solid var(--ddb-pbi-border);
+  background: var(--ddb-pbi-panel);
+  cursor: pointer;
+  text-align: left;
+  font: inherit;
+  color: inherit;
+}
+
+.develop-dashboard-root .ddb-build-fields-panel__tab[aria-expanded='false'] {
+  border-bottom: none;
+}
+
+.develop-dashboard-root .ddb-build-fields-panel__tab:hover {
+  background: var(--ddb-pbi-canvas);
+}
+
+.develop-dashboard-root .ddb-build-fields-panel__title {
+  font-size: 0.625rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--ddb-pbi-muted);
+  flex: 1;
+}
+
+.develop-dashboard-root .ddb-build-fields-panel__chev {
+  flex-shrink: 0;
+  width: 1.25rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--ddb-pbi-text);
+  font-size: 0.75rem;
+}
+
+.develop-dashboard-root .ddb-build-fields-panel__body {
+  padding: 12px 12px 14px;
+  background: var(--ddb-pbi-canvas);
+}
+
+.develop-dashboard-root .ddb-build-fields-panel__body .ddb-vis-fields-block__hint {
+  margin-top: 0;
+}
+
 .develop-dashboard-root .ddb-vis-field-check-list {
   list-style: none;
   margin: 0;

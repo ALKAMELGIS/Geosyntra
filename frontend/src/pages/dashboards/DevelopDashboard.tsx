@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
 import Chart from 'chart.js/auto'
@@ -1172,6 +1173,7 @@ function haversineKm(a: L.LatLng, b: L.LatLng): number {
 }
 
 export default function DevelopDashboard() {
+  const [searchParams, setSearchParams] = useSearchParams()
   const mapElRef = useRef<HTMLDivElement | null>(null)
   const mapRef = useRef<L.Map | null>(null)
   const mapMeasureLineRef = useRef<L.Polyline | null>(null)
@@ -1204,6 +1206,7 @@ export default function DevelopDashboard() {
   })
   const [cartesianFieldPicks, setCartesianFieldPicks] = useState<string[]>([])
   const [tableColumnPicks, setTableColumnPicks] = useState<string[]>([])
+  const [buildVisualFieldsOpen, setBuildVisualFieldsOpen] = useState(true)
   const [statCards, setStatCards] = useState<StatCardRow[]>([])
   const [linkStatus, setLinkStatus] = useState('')
   const [addGisOpen, setAddGisOpen] = useState(false)
@@ -2096,6 +2099,14 @@ export default function DevelopDashboard() {
     resetAddGisForm()
     setAddGisOpen(true)
   }, [resetAddGisForm])
+
+  useEffect(() => {
+    if (searchParams.get('addSource') !== '1') return
+    openAddGisModal()
+    const next = new URLSearchParams(searchParams)
+    next.delete('addSource')
+    setSearchParams(next, { replace: true })
+  }, [searchParams, openAddGisModal, setSearchParams])
 
   const closeAddGisModal = useCallback(() => {
     setAddGisOpen(false)
@@ -3144,7 +3155,7 @@ export default function DevelopDashboard() {
                 </div>
               ) : null}
               {rightSheet === 'buildVisual' ? (
-                <div className="ddb-right-sheet-body ddb-right-sheet-body--build-visual">
+                <div className="ddb-right-sheet-body ddb-right-sheet-body--build-visual ddb-right-sheet-buildVisual">
                   {vizBuildMode === 'none' || layerKeys.length === 0 ? (
                     <div className="ddb-build-visual-empty" role="status">
                       <p className="ddb-build-visual-empty__title">No visual build context yet</p>
@@ -3219,27 +3230,51 @@ export default function DevelopDashboard() {
                               <span className="ddb-vis-fake-toggle is-off">Off</span>
                             </div>
                           </div>
-                          <div className="ddb-vis-fields-block">
-                            <div className="ddb-vis-fields-block__head">Fields</div>
-                            <p className="ddb-vis-fields-block__hint">Check a field to include it in map tooltips (with Location / Legend / Lat / Long above).</p>
-                            <ul className="ddb-vis-field-check-list" role="list">
-                              {bindLayerFields.map(f => (
-                                <li key={f}>
-                                  <label className="ddb-vis-field-check-row">
-                                    <input
-                                      type="checkbox"
-                                      checked={mapTooltipFieldPicks.includes(f)}
-                                      onChange={() =>
-                                        setMapTooltipFieldPicks(prev =>
-                                          prev.includes(f) ? prev.filter(x => x !== f) : [...prev, f],
-                                        )
-                                      }
-                                    />
-                                    <span className="ddb-vis-field-check-row__name">{f}</span>
-                                  </label>
-                                </li>
-                              ))}
-                            </ul>
+                          <div className="ddb-build-fields-panel">
+                            <button
+                              type="button"
+                              className="ddb-build-fields-panel__tab"
+                              aria-expanded={buildVisualFieldsOpen}
+                              aria-controls="ddb-build-visual-fields-region"
+                              id="ddb-build-visual-fields-panel-head"
+                              aria-label={buildVisualFieldsOpen ? 'Collapse Fields panel' : 'Expand Fields panel'}
+                              onClick={() => setBuildVisualFieldsOpen(v => !v)}
+                            >
+                              <span className="ddb-build-fields-panel__chev" aria-hidden>
+                                <i className={`fa-solid ${buildVisualFieldsOpen ? 'fa-angles-left' : 'fa-angles-right'}`} />
+                              </span>
+                              <span className="ddb-build-fields-panel__title">Fields</span>
+                            </button>
+                            {buildVisualFieldsOpen ? (
+                              <div
+                                className="ddb-build-fields-panel__body"
+                                id="ddb-build-visual-fields-region"
+                                role="region"
+                                aria-labelledby="ddb-build-visual-fields-panel-head"
+                              >
+                                <p className="ddb-vis-fields-block__hint">
+                                  Check a field to include it in map tooltips (with Location / Legend / Lat / Long above).
+                                </p>
+                                <ul className="ddb-vis-field-check-list" role="list">
+                                  {bindLayerFields.map(f => (
+                                    <li key={f}>
+                                      <label className="ddb-vis-field-check-row">
+                                        <input
+                                          type="checkbox"
+                                          checked={mapTooltipFieldPicks.includes(f)}
+                                          onChange={() =>
+                                            setMapTooltipFieldPicks(prev =>
+                                              prev.includes(f) ? prev.filter(x => x !== f) : [...prev, f],
+                                            )
+                                          }
+                                        />
+                                        <span className="ddb-vis-field-check-row__name">{f}</span>
+                                      </label>
+                                    </li>
+                                  ))}
+                                </ul>
+                              </div>
+                            ) : null}
                           </div>
                         </>
                       ) : vizBuildMode === 'cartesian' ? (
@@ -3281,27 +3316,51 @@ export default function DevelopDashboard() {
                               <span className="ddb-vis-fake-toggle is-on">On</span>
                             </div>
                           </div>
-                          <div className="ddb-vis-fields-block">
-                            <div className="ddb-vis-fields-block__head">Fields</div>
-                            <p className="ddb-vis-fields-block__hint">Pin fields for the next chart build (X/Y wells above drive axis labels and values).</p>
-                            <ul className="ddb-vis-field-check-list" role="list">
-                              {bindLayerFields.map(f => (
-                                <li key={f}>
-                                  <label className="ddb-vis-field-check-row">
-                                    <input
-                                      type="checkbox"
-                                      checked={cartesianFieldPicks.includes(f)}
-                                      onChange={() =>
-                                        setCartesianFieldPicks(prev =>
-                                          prev.includes(f) ? prev.filter(x => x !== f) : [...prev, f],
-                                        )
-                                      }
-                                    />
-                                    <span className="ddb-vis-field-check-row__name">{f}</span>
-                                  </label>
-                                </li>
-                              ))}
-                            </ul>
+                          <div className="ddb-build-fields-panel">
+                            <button
+                              type="button"
+                              className="ddb-build-fields-panel__tab"
+                              aria-expanded={buildVisualFieldsOpen}
+                              aria-controls="ddb-build-visual-fields-region"
+                              id="ddb-build-visual-fields-panel-head"
+                              aria-label={buildVisualFieldsOpen ? 'Collapse Fields panel' : 'Expand Fields panel'}
+                              onClick={() => setBuildVisualFieldsOpen(v => !v)}
+                            >
+                              <span className="ddb-build-fields-panel__chev" aria-hidden>
+                                <i className={`fa-solid ${buildVisualFieldsOpen ? 'fa-angles-left' : 'fa-angles-right'}`} />
+                              </span>
+                              <span className="ddb-build-fields-panel__title">Fields</span>
+                            </button>
+                            {buildVisualFieldsOpen ? (
+                              <div
+                                className="ddb-build-fields-panel__body"
+                                id="ddb-build-visual-fields-region"
+                                role="region"
+                                aria-labelledby="ddb-build-visual-fields-panel-head"
+                              >
+                                <p className="ddb-vis-fields-block__hint">
+                                  Pin fields for the next chart build (X/Y wells above drive axis labels and values).
+                                </p>
+                                <ul className="ddb-vis-field-check-list" role="list">
+                                  {bindLayerFields.map(f => (
+                                    <li key={f}>
+                                      <label className="ddb-vis-field-check-row">
+                                        <input
+                                          type="checkbox"
+                                          checked={cartesianFieldPicks.includes(f)}
+                                          onChange={() =>
+                                            setCartesianFieldPicks(prev =>
+                                              prev.includes(f) ? prev.filter(x => x !== f) : [...prev, f],
+                                            )
+                                          }
+                                        />
+                                        <span className="ddb-vis-field-check-row__name">{f}</span>
+                                      </label>
+                                    </li>
+                                  ))}
+                                </ul>
+                              </div>
+                            ) : null}
                           </div>
                         </>
                       ) : (
@@ -3312,27 +3371,51 @@ export default function DevelopDashboard() {
                               <option value="">Add data fields here</option>
                             </select>
                           </div>
-                          <div className="ddb-vis-fields-block">
-                            <div className="ddb-vis-fields-block__head">Fields</div>
-                            <p className="ddb-vis-fields-block__hint">Choose columns for Table / Matrix visuals on the canvas.</p>
-                            <ul className="ddb-vis-field-check-list" role="list">
-                              {bindLayerFields.map(f => (
-                                <li key={f}>
-                                  <label className="ddb-vis-field-check-row">
-                                    <input
-                                      type="checkbox"
-                                      checked={tableColumnPicks.includes(f)}
-                                      onChange={() =>
-                                        setTableColumnPicks(prev =>
-                                          prev.includes(f) ? prev.filter(x => x !== f) : [...prev, f],
-                                        )
-                                      }
-                                    />
-                                    <span className="ddb-vis-field-check-row__name">{f}</span>
-                                  </label>
-                                </li>
-                              ))}
-                            </ul>
+                          <div className="ddb-build-fields-panel">
+                            <button
+                              type="button"
+                              className="ddb-build-fields-panel__tab"
+                              aria-expanded={buildVisualFieldsOpen}
+                              aria-controls="ddb-build-visual-fields-region"
+                              id="ddb-build-visual-fields-panel-head"
+                              aria-label={buildVisualFieldsOpen ? 'Collapse Fields panel' : 'Expand Fields panel'}
+                              onClick={() => setBuildVisualFieldsOpen(v => !v)}
+                            >
+                              <span className="ddb-build-fields-panel__chev" aria-hidden>
+                                <i className={`fa-solid ${buildVisualFieldsOpen ? 'fa-angles-left' : 'fa-angles-right'}`} />
+                              </span>
+                              <span className="ddb-build-fields-panel__title">Fields</span>
+                            </button>
+                            {buildVisualFieldsOpen ? (
+                              <div
+                                className="ddb-build-fields-panel__body"
+                                id="ddb-build-visual-fields-region"
+                                role="region"
+                                aria-labelledby="ddb-build-visual-fields-panel-head"
+                              >
+                                <p className="ddb-vis-fields-block__hint">
+                                  Choose columns for Table / Matrix visuals on the canvas.
+                                </p>
+                                <ul className="ddb-vis-field-check-list" role="list">
+                                  {bindLayerFields.map(f => (
+                                    <li key={f}>
+                                      <label className="ddb-vis-field-check-row">
+                                        <input
+                                          type="checkbox"
+                                          checked={tableColumnPicks.includes(f)}
+                                          onChange={() =>
+                                            setTableColumnPicks(prev =>
+                                              prev.includes(f) ? prev.filter(x => x !== f) : [...prev, f],
+                                            )
+                                          }
+                                        />
+                                        <span className="ddb-vis-field-check-row__name">{f}</span>
+                                      </label>
+                                    </li>
+                                  ))}
+                                </ul>
+                              </div>
+                            ) : null}
                           </div>
                         </>
                       )}

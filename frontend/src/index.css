@@ -8117,7 +8117,7 @@ html[data-theme='dark'] .gis-domain-cell--dropdown.missing-description .gis-doma
   --gis-muted: #64748b;
   width: 100%;
   margin: 0;
-  padding: 12px 8px 14px;
+  padding: 12px 8px 12px;
   border: 0;
   border-radius: 16px;
   cursor: pointer;
@@ -8125,7 +8125,7 @@ html[data-theme='dark'] .gis-domain-cell--dropdown.missing-description .gis-doma
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 8px;
+  gap: 10px;
   background: linear-gradient(180deg, rgba(236, 253, 245, 0.55), rgba(255, 255, 255, 0.92));
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.85),
@@ -8152,9 +8152,9 @@ html[data-theme='dark'] .gis-domain-cell--dropdown.missing-description .gis-doma
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 8px;
+  gap: 10px;
   width: 100%;
-  min-height: 52px;
+  min-height: 0;
 }
 
 /* Abstract “map stack”: tier lines only — no overlapping cards */
@@ -8188,6 +8188,17 @@ html[data-theme='dark'] .gis-domain-cell--dropdown.missing-description .gis-doma
   opacity: 1;
 }
 
+/* Icon + count: badge sits on the corner (no vertical stack overlap with caption). */
+.gis-sidebar-collapsed-layers__icon-slot {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  flex-shrink: 0;
+}
+
 .gis-sidebar-collapsed-layers__icon-wrap {
   width: 36px;
   height: 36px;
@@ -8212,18 +8223,30 @@ html[data-theme='dark'] .gis-domain-cell--dropdown.missing-description .gis-doma
 }
 
 .gis-sidebar-collapsed-layers__badge {
-  min-width: 26px;
-  padding: 3px 8px;
+  position: absolute;
+  top: -2px;
+  right: -2px;
+  z-index: 2;
+  min-width: 22px;
+  height: 22px;
+  padding: 0 6px;
   border-radius: 999px;
-  font-size: 11px;
-  font-weight: 900;
+  font-size: 10px;
+  font-weight: 800;
+  line-height: 1;
   font-variant-numeric: tabular-nums;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   color: #ffffff;
-  background: linear-gradient(135deg, #10b981, #047857);
-  box-shadow: 0 4px 12px rgba(5, 150, 105, 0.25);
+  background: linear-gradient(145deg, #10b981, #047857);
+  border: 2px solid #ffffff;
+  box-shadow: 0 2px 10px rgba(5, 96, 67, 0.35);
+  pointer-events: none;
 }
 
 .gis-sidebar-collapsed-layers__caption {
+  margin-top: 2px;
   font-size: 9px;
   font-weight: 800;
   letter-spacing: 0.12em;

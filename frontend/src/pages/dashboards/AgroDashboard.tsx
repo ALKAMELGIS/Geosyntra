@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import Chart from 'chart.js/auto'
 import type { Chart as ChartInstance } from 'chart.js'
+import { useNavigate } from 'react-router-dom'
 import { useLanguage } from '../../lib/i18n'
 import './agro-dashboard.css'
 
@@ -60,6 +61,7 @@ const ACTS = [
 ] as const
 
 export default function AgroDashboard() {
+  const navigate = useNavigate()
   const { language, direction } = useLanguage()
   const ar = language === 'ar'
 
@@ -109,16 +111,6 @@ export default function AgroDashboard() {
             legTarget: 'الهدف',
             legYield: 'مؤشر الإنتاج',
             legRain: 'المطر (مم)',
-            modalTitle: 'إضافة بيانات مصدر',
-            modalSub: 'اختر كيفية إضافة الطبقات إلى السجل للتحليل والخرائط.',
-            modalAdv: '··· قاعدة بيانات، رابط ويب، وخيارات متقدمة...',
-            modalCancel: 'إلغاء',
-            src: [
-              { i: 'M', title: 'اختيار من محتوى GIS', desc: 'استخدم الطبقات والحقول المحفوظة في خريطة GIS.' },
-              { i: 'L', title: 'رابط طبقة ArcGIS Server', desc: 'اتصل بخدمة معالم واختر طبقة أو جدولاً.' },
-              { i: 'F', title: 'رفع ملف', desc: 'GeoJSON، KML، KMZ، شيب (zip)، CSV بإحداثيات.' },
-              { i: 'D', title: 'جلب بيانات', desc: 'Excel، CSV، SQL، ويب، OData — مثل مصادر Power BI.' },
-            ],
             metaAll: 'يناير – ديسمبر 2024 · كل المناطق',
             metaQ: (q: string) => `${q.toUpperCase()} 2024 · كل المناطق`,
           }
@@ -165,16 +157,6 @@ export default function AgroDashboard() {
             legTarget: 'Target',
             legYield: 'Yield index',
             legRain: 'Rainfall (mm)',
-            modalTitle: 'Add source data',
-            modalSub: 'Choose how you want to add layers to the registry for analytics and maps.',
-            modalAdv: '··· Database, web URL & advanced...',
-            modalCancel: 'Cancel',
-            src: [
-              { i: 'M', title: 'Select from GIS content', desc: 'Use layers and fields already saved in GIS Map.' },
-              { i: 'L', title: 'Provide an ArcGIS Server layer URL', desc: 'Connect to a feature service and pick a layer or table.' },
-              { i: 'F', title: 'Upload a file', desc: 'GeoJSON, KML, KMZ, Shapefile (zip), CSV with coordinates.' },
-              { i: 'D', title: 'Get data', desc: 'Excel, CSV, SQL, Web, OData — same as Power BI sources.' },
-            ],
             metaAll: 'Jan – Dec 2024 · all regions',
             metaQ: (q: string) => `${q.toUpperCase()} 2024 · all regions`,
           },
@@ -188,7 +170,6 @@ export default function AgroDashboard() {
   const [mainType, setMainType] = useState<'bar' | 'line' | 'area'>('bar')
   const [pieType, setPieType] = useState<'pie' | 'doughnut'>('pie')
   const [quarter, setQuarter] = useState<QuarterKey>('all')
-  const [modalOpen, setModalOpen] = useState(false)
 
   const mainMeta = quarter === 'all' ? t.metaAll : t.metaQ(quarter)
 
@@ -456,7 +437,12 @@ export default function AgroDashboard() {
                 </option>
               ))}
             </select>
-            <button type="button" className="agdash-add-btn" onClick={() => setModalOpen(true)}>
+            <button
+              type="button"
+              className="agdash-add-btn"
+              onClick={() => navigate('/dashboard/develop?addSource=1')}
+              title={ar ? 'إضافة بيانات مصدر (لوحة التطوير)' : 'Add Source Data (Develop Dashboard)'}
+            >
               <svg viewBox="0 0 12 12" fill="none" aria-hidden>
                 <circle cx="6" cy="6" r="5.2" stroke="white" strokeWidth="1.3" />
                 <path d="M6 3.5v5M3.5 6h5" stroke="white" strokeWidth="1.5" strokeLinecap="round" />
@@ -802,55 +788,6 @@ export default function AgroDashboard() {
               </div>
             </div>
           </div>
-        </div>
-      </div>
-
-      <div
-        className={`agdash-modal-wrap${modalOpen ? ' agdash-open' : ''}`}
-        role="presentation"
-        onClick={e => {
-          if (e.target === e.currentTarget) setModalOpen(false)
-        }}
-      >
-        <div className="agdash-modal" role="dialog" aria-modal="true" aria-labelledby="agdash-modal-title">
-          <div className="agdash-modal-hd">
-            <span id="agdash-modal-title" className="agdash-modal-title">
-              {t.modalTitle}
-            </span>
-            <button type="button" className="agdash-modal-close" aria-label={ar ? 'إغلاق' : 'Close'} onClick={() => setModalOpen(false)}>
-              ✕
-            </button>
-          </div>
-          <p className="agdash-modal-sub">{t.modalSub}</p>
-          {t.src.map((s, idx) => (
-            <button
-              key={s.title}
-              type="button"
-              className="agdash-src-opt"
-              onClick={() => setModalOpen(false)}
-              style={{ width: '100%', textAlign: 'start', font: 'inherit', cursor: 'pointer' }}
-            >
-              <div
-                className="agdash-src-icon"
-                style={{
-                  background: ['var(--agdash-accent-light)', 'var(--agdash-teal-light)', 'var(--agdash-amber-light)', 'var(--agdash-violet-light)'][idx],
-                  color: ['var(--agdash-accent)', '#085041', '#854F0B', '#4a3a9a'][idx],
-                }}
-              >
-                {s.i}
-              </div>
-              <div>
-                <div className="agdash-src-title">{s.title}</div>
-                <div className="agdash-src-desc">{s.desc}</div>
-              </div>
-            </button>
-          ))}
-          <button type="button" className="agdash-adv-link" onClick={() => setModalOpen(false)}>
-            {t.modalAdv}
-          </button>
-          <button type="button" className="agdash-modal-cancel" onClick={() => setModalOpen(false)}>
-            {t.modalCancel}
-          </button>
         </div>
       </div>
     </div>
