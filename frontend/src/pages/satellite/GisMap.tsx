@@ -3635,16 +3635,6 @@ export default function GisMap() {
             {!isMobileDrawerViewport ? (
               <footer className="gis-sidebar-foot-toolbar" aria-label="Sidebar tools">
                 <div className="gis-sidebar-foot-divider" aria-hidden />
-                <div
-                  className="gis-sidebar-foot-note"
-                  title="Use the list above to manage map layers: visibility, sync, attribute table, symbology, and legend."
-                  role="note"
-                >
-                  <span className="gis-sidebar-foot-item__glyph gis-sidebar-foot-item__glyph--info" aria-hidden>
-                    <i className="fa-solid fa-circle-info" />
-                  </span>
-                  <span className="gis-sidebar-foot-item__label">Information</span>
-                </div>
                 <button
                   type="button"
                   className="gis-sidebar-foot-item gis-sidebar-foot-item--primary"
@@ -3657,7 +3647,6 @@ export default function GisMap() {
                   <span className="gis-sidebar-foot-item__glyph" aria-hidden>
                     <i className={`fa-solid ${layersPanelCollapsed ? 'fa-angles-right' : 'fa-angles-left'}`} />
                   </span>
-                  <span className="gis-sidebar-foot-item__label">{layersPanelCollapsed ? 'Expand' : 'Collapse'}</span>
                 </button>
               </footer>
             ) : null}

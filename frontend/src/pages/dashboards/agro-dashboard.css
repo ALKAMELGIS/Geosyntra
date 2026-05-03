@@ -762,8 +762,74 @@
 .agro-dash-root .agdash-add-source-modal__footer {
   display: flex;
   justify-content: flex-end;
+  align-items: center;
+  gap: 10px;
   margin-top: 18px;
   padding-top: 4px;
+}
+
+.agro-dash-root .agdash-add-source-modal__apply {
+  padding: 8px 18px;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: #fff;
+  background: var(--agdash-teal, #12a97b);
+  border: 1px solid transparent;
+  border-radius: var(--agdash-r8);
+  cursor: pointer;
+  transition: background 0.15s, opacity 0.15s;
+}
+
+.agro-dash-root .agdash-add-source-modal__apply:hover:not(:disabled) {
+  filter: brightness(1.05);
+}
+
+.agro-dash-root .agdash-add-source-modal__apply:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.agro-dash-root .agdash-src-panel {
+  margin-top: 14px;
+  padding: 12px 14px;
+  border-radius: var(--agdash-r8);
+  border: 1px solid var(--agdash-border2);
+  background: var(--agdash-surface2, #f7f8fb);
+}
+
+.agro-dash-root .agdash-src-panel label {
+  display: block;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--agdash-muted, #5c6370);
+  margin-bottom: 6px;
+}
+
+.agro-dash-root .agdash-src-panel input[type='text'],
+.agro-dash-root .agdash-src-panel input[type='url'],
+.agro-dash-root .agdash-src-panel select {
+  width: 100%;
+  padding: 8px 10px;
+  font-size: 0.875rem;
+  border: 1px solid var(--agdash-border2);
+  border-radius: var(--agdash-r8);
+  background: var(--agdash-surface);
+  box-sizing: border-box;
+}
+
+.agro-dash-root .agdash-src-panel .agdash-src-err {
+  margin-top: 8px;
+  font-size: 0.8125rem;
+  color: #c0392b;
+}
+
+.agro-dash-root .agdash-empty-hint {
+  padding: 12px 14px;
+  font-size: 0.875rem;
+  color: var(--agdash-muted, #5c6370);
+  border: 1px dashed var(--agdash-border2);
+  border-radius: var(--agdash-r8);
+  margin-bottom: 12px;
 }
 
 .agro-dash-root .agdash-add-source-modal__cancel {
