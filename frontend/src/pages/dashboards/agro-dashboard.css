@@ -747,7 +747,7 @@
   transform: scale(0.96);
 }
 
-/* Viz toolbar: Analysis cluster (expand/collapse) + Map + Table */
+/* Viz toolbar: chart cluster (expand/collapse) + divider + Map / Table mode buttons */
 .agro-dash-root .agdash-viz-toolbar {
   display: inline-flex;
   flex-wrap: nowrap;
@@ -817,8 +817,72 @@
   pointer-events: none;
 }
 
-.agro-dash-root .agdash-viz-toolbar .agdash-viz-btn--solo {
-  padding: 0 2px;
+.agro-dash-root .agdash-viz-cluster-divider {
+  flex-shrink: 0;
+  width: 1px;
+  height: 18px;
+  align-self: center;
+  background: color-mix(in srgb, var(--agdash-teal) 28%, var(--agdash-border));
+  margin-inline: 2px;
+}
+
+.agro-dash-root .agdash-viz-btn--mode {
+  width: auto;
+  min-width: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 30px;
+  padding: 0 8px 0 6px;
+  border: none;
+  border-radius: var(--agdash-r8);
+  background: transparent;
+  color: var(--agdash-ink3);
+  cursor: pointer;
+  font: inherit;
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+  transition: background 0.15s, color 0.15s, box-shadow 0.15s;
+}
+
+.agro-dash-root .agdash-viz-btn--mode:hover {
+  background: rgba(255, 255, 255, 0.75);
+  color: var(--agdash-ink);
+}
+
+.agro-dash-root .agdash-viz-mode-label {
+  letter-spacing: 0.02em;
+}
+
+.agro-dash-root .agdash-viz-mode-icon--map {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 16px;
+  flex-shrink: 0;
+}
+
+.agro-dash-root .agdash-viz-map-fold {
+  font-size: 13px;
+  line-height: 1;
+  opacity: 0.92;
+}
+
+.agro-dash-root .agdash-viz-map-pin {
+  position: absolute;
+  right: -3px;
+  bottom: -2px;
+  font-size: 7px;
+  line-height: 1;
+  color: var(--agdash-violet);
+  filter: drop-shadow(0 0 1px rgba(255, 255, 255, 0.9));
+}
+
+.agro-dash-root .agdash-viz-btn--mode.agdash-viz-btn--on .agdash-viz-map-pin {
+  color: var(--agdash-teal);
 }
 
 .agro-dash-root .agdash-viz-toolbar .agdash-viz-btn--on {
@@ -867,8 +931,124 @@
   font-size: 10px;
   line-height: 1.45;
   color: var(--agdash-ink3);
-  background: linear-gradient(180deg, var(--agdash-teal-light) 0%, var(--agdash-surface2) 100%);
-  border-top: 1px solid color-mix(in srgb, var(--agdash-teal) 15%, var(--agdash-border));
+}
+
+/* —— Main card: full-page Map view (readable OSM embed) —— */
+.page.agro-dash-root.agro-dash-root--map-fullpage {
+  overflow: hidden;
+  min-height: 100vh;
+  min-height: 100dvh;
+  max-height: 100dvh;
+  height: 100dvh;
+}
+
+.agro-dash-root.agro-dash-root--map-fullpage {
+  max-width: none;
+  width: 100%;
+  margin: 0;
+}
+
+.agro-dash-root.agro-dash-root--map-fullpage .agdash-db {
+  display: flex;
+  flex-direction: column;
+  min-height: 100%;
+  max-height: 100%;
+  overflow: hidden;
+  border-radius: 0;
+  border-left: none;
+  border-right: none;
+}
+
+.agro-dash-root.agro-dash-root--map-fullpage .agdash-nav {
+  flex-shrink: 0;
+}
+
+.agro-dash-root.agro-dash-root--map-fullpage .agdash-body.agdash-body--map-full {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  padding: 0 12px 12px;
+  overflow: hidden;
+}
+
+.agro-dash-root.agro-dash-root--map-fullpage .agdash-kpi-row {
+  display: none;
+}
+
+.agro-dash-root.agro-dash-root--map-fullpage .agdash-mid {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  grid-template-columns: 1fr;
+  gap: 0;
+}
+
+.agro-dash-root.agro-dash-root--map-fullpage .agdash-mid > .agdash-card--viz:nth-child(2) {
+  display: none;
+}
+
+.agro-dash-root.agro-dash-root--map-fullpage .agdash-bot {
+  display: none;
+}
+
+.agro-dash-root.agro-dash-root--map-fullpage .agdash-mid > .agdash-card--map-hero {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  padding: 10px 12px 12px;
+  margin: 0;
+}
+
+.agro-dash-root.agro-dash-root--map-fullpage .agdash-card--map-hero .agdash-ch {
+  margin-bottom: 10px;
+  flex-shrink: 0;
+}
+
+.agro-dash-root.agro-dash-root--map-fullpage .agdash-chart-wrap--map-full {
+  flex: 1 1 auto;
+  min-height: 0;
+  height: auto !important;
+}
+
+.agro-dash-root.agro-dash-root--map-fullpage .agdash-chart-wrap--map-full .agdash-chart-map {
+  min-height: 0;
+  flex: 1 1 auto;
+}
+
+.agro-dash-root.agro-dash-root--map-fullpage .agdash-map-hint {
+  flex-shrink: 0;
+}
+
+.agro-dash-root .agdash-map-view-pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 6px 14px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: #5b4d9b;
+  background: linear-gradient(180deg, #f3f0ff 0%, #ebe7ff 100%);
+  border: 1px solid rgba(108, 93, 211, 0.28);
+  box-shadow: 0 1px 2px rgba(108, 93, 211, 0.08);
+  white-space: nowrap;
+}
+
+@media (max-width: 720px) {
+  .agro-dash-root .agdash-ch-tools--viz {
+    flex-wrap: wrap;
+  }
+
+  .agro-dash-root .agdash-ch-tools--viz .agdash-map-view-pill {
+    order: 2;
+    width: 100%;
+    margin-inline: 0;
+    justify-content: center;
+  }
 }
 
 .agro-dash-root .agdash-card--viz {
@@ -1461,6 +1641,261 @@
   margin-top: 4px;
   padding-top: 16px;
   border-top: 1px solid rgba(22, 163, 74, 0.2);
+}
+
+.agro-dash-root .agdash-wf-tab-step {
+  margin: 0 0 10px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--agdash-ink2);
+}
+
+.agro-dash-root .agdash-wf-fields-tablist {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 14px;
+  padding: 4px;
+  border-radius: var(--agdash-r12);
+  background: linear-gradient(180deg, #ecfdf5, #f1f5f9);
+  border: 1px solid rgba(22, 163, 74, 0.2);
+}
+
+.agro-dash-root .agdash-wf-fields-tab {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 42px;
+  padding: 8px 12px;
+  border: none;
+  border-radius: var(--agdash-r10, 10px);
+  background: transparent;
+  color: var(--agdash-ink2);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition:
+    background 0.18s,
+    color 0.18s,
+    box-shadow 0.18s;
+}
+
+.agro-dash-root .agdash-wf-fields-tab:hover {
+  background: rgba(255, 255, 255, 0.65);
+  color: var(--agdash-ink);
+}
+
+.agro-dash-root .agdash-wf-fields-tab--active {
+  background: #fff;
+  color: #166534;
+  box-shadow: 0 2px 10px rgba(22, 163, 74, 0.15);
+}
+
+.agro-dash-root .agdash-wf-tab-num {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 800;
+  background: rgba(22, 163, 74, 0.12);
+  color: #15803d;
+}
+
+.agro-dash-root .agdash-wf-fields-tab--active .agdash-wf-tab-num {
+  background: linear-gradient(180deg, #22c55e, #16a34a);
+  color: #fff;
+}
+
+.agro-dash-root .agdash-wf-tab-badge {
+  margin-inline-start: 4px;
+  padding: 2px 7px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+  background: rgba(22, 163, 74, 0.18);
+  color: #14532d;
+}
+
+.agro-dash-root .agdash-wf-tabpanel {
+  min-height: 120px;
+}
+
+.agro-dash-root .agdash-wf-tabpanel--charts {
+  padding-bottom: 4px;
+}
+
+.agro-dash-root .agdash-wf-tabpanel-lead {
+  margin: 0 0 12px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--agdash-ink3);
+}
+
+.agro-dash-root .agdash-wf-tab-nav-next,
+.agro-dash-root .agdash-wf-tab-nav-back {
+  margin-top: 14px;
+  width: 100%;
+  padding: 10px 14px;
+  border-radius: var(--agdash-r12);
+  border: 1px dashed rgba(22, 163, 74, 0.45);
+  background: rgba(255, 255, 255, 0.85);
+  color: #166534;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition:
+    background 0.15s,
+    border-color 0.15s;
+}
+
+.agro-dash-root .agdash-wf-tab-nav-next:hover,
+.agro-dash-root .agdash-wf-tab-nav-back:hover {
+  background: #ecfdf5;
+  border-color: rgba(22, 163, 74, 0.65);
+}
+
+.agro-dash-root .agdash-wf-tab-nav-back--footer {
+  margin-top: 16px;
+}
+
+.agro-dash-root .agdash-wf-tabpanel-empty {
+  text-align: center;
+}
+
+.agro-dash-root .agdash-wf-tabpanel-empty .agdash-wf-tab-nav-back {
+  max-width: 280px;
+  margin-inline: auto;
+}
+
+.agro-dash-root .agdash-wf-assign-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.agro-dash-root .agdash-wf-assign-card {
+  border-radius: var(--agdash-r12);
+  border: 1px solid var(--agdash-border);
+  background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
+  padding: 14px 14px 12px;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.04);
+}
+
+.agro-dash-root .agdash-wf-assign-card-head {
+  margin-bottom: 12px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid rgba(15, 23, 42, 0.06);
+}
+
+.agro-dash-root .agdash-wf-assign-section {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-bottom: 8px;
+}
+
+.agro-dash-root .agdash-wf-assign-section--styles {
+  margin-top: 4px;
+  margin-bottom: 6px;
+}
+
+.agro-dash-root .agdash-wf-assign-section-title {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #166534;
+}
+
+.agro-dash-root .agdash-wf-assign-section-sub {
+  font-size: 11px;
+  color: var(--agdash-ink3);
+  line-height: 1.4;
+}
+
+.agro-dash-root .agdash-wf-slot-btns--panels {
+  margin-bottom: 4px;
+}
+
+.agro-dash-root .agdash-wf-styles-hint {
+  margin: 4px 0 0;
+  font-size: 11px;
+  line-height: 1.45;
+  color: var(--agdash-ink3);
+}
+
+.agro-dash-root .agdash-wf-viz-icon-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 5px;
+  padding: 8px 8px 10px;
+  border-radius: var(--agdash-r12);
+  background: linear-gradient(180deg, #f0fdf4 0%, #eef2f7 100%);
+  border: 1px solid rgba(22, 163, 74, 0.16);
+}
+
+.agro-dash-root .agdash-wf-viz-ic {
+  width: 34px;
+  height: 34px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: none;
+  border-radius: var(--agdash-r8);
+  background: transparent;
+  color: var(--agdash-ink3);
+  cursor: pointer;
+  transition:
+    background 0.15s,
+    color 0.15s,
+    box-shadow 0.15s,
+    transform 0.1s;
+}
+
+.agro-dash-root .agdash-wf-viz-ic i {
+  font-size: 14px;
+  line-height: 1;
+  pointer-events: none;
+}
+
+.agro-dash-root .agdash-wf-viz-ic:hover {
+  background: rgba(255, 255, 255, 0.9);
+  color: var(--agdash-ink);
+}
+
+.agro-dash-root .agdash-wf-viz-ic:active {
+  transform: scale(0.94);
+}
+
+.agro-dash-root .agdash-wf-viz-ic--on {
+  background: #fff;
+  color: #16a34a;
+  box-shadow: 0 1px 5px rgba(22, 163, 74, 0.22);
+}
+
+.agro-dash-root .agdash-wf-viz-bar-sep {
+  width: 1px;
+  height: 22px;
+  margin: 0 4px 0 2px;
+  background: color-mix(in srgb, var(--agdash-teal) 25%, var(--agdash-border));
+  flex-shrink: 0;
+}
+
+.agro-dash-root .agdash-wf-viz-ic--map {
+  margin-inline-start: 2px;
 }
 
 .agro-dash-root .agdash-wf-panel-hint--pick {

@@ -216,6 +216,15 @@ function agroPlaceholderChartConfig(labels: string[]): ChartConfiguration {
 
 const CHART_VIZ_OPTIONS = VIZ_OPTIONS.filter(o => o.id !== 'table' && o.id !== 'map')
 
+/** Icons for “which chart kinds use this field” in the workflow modal (all VIZ_OPTIONS + map). */
+const WF_FIELD_STYLE_OPTIONS: readonly { id: AgroVizType; title: string; icon: string }[] = [
+  ...VIZ_OPTIONS,
+  { id: 'map', title: 'Map', icon: 'fa-solid fa-map-location-dot' },
+] as const
+
+const WF_STYLE_BAR_CHARTS = WF_FIELD_STYLE_OPTIONS.filter(o => o.id !== 'map')
+const WF_STYLE_MAP_OPTION = WF_FIELD_STYLE_OPTIONS.find(o => o.id === 'map')!
+
 /** OSM embed (Gulf region) — lightweight geographic preview without Mapbox token. */
 const AGRO_MAP_EMBED_SRC =
   'https://www.openstreetmap.org/export/embed.html?bbox=50.2%2C22.4%2C56.8%2C26.6&layer=mapnik'
@@ -271,29 +280,37 @@ function AgroVizToolbar(props: {
             </button>
           ))}
         </div>
+        <span className="agdash-viz-cluster-divider" aria-hidden />
+        <button
+          type="button"
+          title={mapTitle}
+          aria-pressed={value === 'map'}
+          className={`agdash-viz-btn agdash-viz-btn--mode${value === 'map' ? ' agdash-viz-btn--on' : ''}`}
+          onClick={() => {
+            onChange('map')
+            setAnalysisOpen(false)
+          }}
+        >
+          <span className="agdash-viz-mode-icon agdash-viz-mode-icon--map" aria-hidden>
+            <i className="fa-solid fa-map agdash-viz-map-fold" />
+            <i className="fa-solid fa-location-dot agdash-viz-map-pin" />
+          </span>
+          <span className="agdash-viz-mode-label">{mapTitle}</span>
+        </button>
+        <button
+          type="button"
+          title={tableTitle}
+          aria-pressed={value === 'table'}
+          className={`agdash-viz-btn agdash-viz-btn--mode${value === 'table' ? ' agdash-viz-btn--on' : ''}`}
+          onClick={() => {
+            onChange('table')
+            setAnalysisOpen(false)
+          }}
+        >
+          <i className="fa-solid fa-table-cells" aria-hidden />
+          <span className="agdash-viz-mode-label">{tableTitle}</span>
+        </button>
       </div>
-      <button
-        type="button"
-        title={mapTitle}
-        className={`agdash-viz-btn agdash-viz-btn--solo${value === 'map' ? ' agdash-viz-btn--on' : ''}`}
-        onClick={() => {
-          onChange('map')
-          setAnalysisOpen(false)
-        }}
-      >
-        <i className="fa-solid fa-map-location-dot" aria-hidden />
-      </button>
-      <button
-        type="button"
-        title={tableTitle}
-        className={`agdash-viz-btn agdash-viz-btn--solo${value === 'table' ? ' agdash-viz-btn--on' : ''}`}
-        onClick={() => {
-          onChange('table')
-          setAnalysisOpen(false)
-        }}
-      >
-        <i className="fa-solid fa-table" aria-hidden />
-      </button>
     </div>
   )
 }
@@ -397,8 +414,19 @@ export default function AgroDashboard() {
             fieldSearchNoMatch: 'لا توجد حقول مطابقة للبحث.',
             fieldsBadge: (sel: number, tot: number) => `${sel}/${tot}`,
             wfPanelPinSubtitle: 'تعيين الحقول للرسوم',
-            chartEmpty: 'اختر حقولاً وحدد أي رسم يستخدم كل حقل أدناه.',
-            wfAssignCharts: 'أي رسم يستخدم هذا الحقل؟',
+            wfFieldsTablistAria: 'خطوات اختيار الحقول وتعيين الرسوم',
+            wfTabStep: (cur: number, tot: number) => `الخطوة ${cur} من ${tot}`,
+            wfTabFields: 'الحقول',
+            wfTabCharts: 'تعيين الرسوم',
+            wfTabNextCharts: 'التالي: تعيين الرسوم ←',
+            wfTabBackFields: '→ السابق: الحقول',
+            wfPanelsTitle: 'لوحات العرض',
+            wfPanelsSub: 'أين يظهر هذا الحقل على اللوحة؟',
+            wfStylesHint:
+              'إن لم تختر أي نوع رسوم، يُستخدم الحقل مع أي نوع رسم تختاره أعلى البطاقة. عند التحديد، يظهر الحقل فقط عندما يطابق نوع الرسم الحالي.',
+            wfChartsTabEmpty: 'لم تُختر حقول بعد. ارجع إلى تبويب «الحقول» وفعّل الحقول المطلوبة.',
+            chartEmpty: 'اختر حقولاً وفعّل اللوحات وأنواع الرسوم في نافذة «طبقات وحقول».',
+            wfAssignCharts: 'أي أنواع رسوم تستخدم هذا الحقل؟',
             slotMain: 'رئيسي',
             slotPie: 'دائرة',
             slotBot: 'خط',
@@ -407,6 +435,7 @@ export default function AgroDashboard() {
             vizMapTitle: 'خريطة',
             vizTableTitle: 'جدول',
             mapEmbedTitle: 'معاينة خريطة جغرافية',
+            mapViewPill: 'عرض الخريطة',
             mapHint: 'خريطة مرجعية (OpenStreetMap). للطبقات والتحرير المكاني استخدم خريطة GIS من التطبيق.',
             quarter: [
               { v: 'all', l: 'كل 2024' },
@@ -514,8 +543,19 @@ export default function AgroDashboard() {
             fieldSearchNoMatch: 'No fields match your search.',
             fieldsBadge: (sel: number, tot: number) => `${sel} / ${tot}`,
             wfPanelPinSubtitle: 'Chart assignments',
-            chartEmpty: 'Select fields and assign each field to a chart below.',
-            wfAssignCharts: 'Which charts use this field?',
+            wfFieldsTablistAria: 'Fields and chart assignment steps',
+            wfTabStep: (cur: number, tot: number) => `Step ${cur} of ${tot}`,
+            wfTabFields: 'Fields',
+            wfTabCharts: 'Chart assignments',
+            wfTabNextCharts: 'Next: chart assignments →',
+            wfTabBackFields: '← Back: fields',
+            wfPanelsTitle: 'Dashboard panels',
+            wfPanelsSub: 'Where should this field appear?',
+            wfStylesHint:
+              'Leave all chart icons off to use this field with any chart type you pick on the card toolbar. When you select types here, the field is used only when the card matches one of them.',
+            wfChartsTabEmpty: 'No fields selected yet. Open the Fields tab and check the columns you need.',
+            chartEmpty: 'Select fields and enable panels / chart types in Layers & fields.',
+            wfAssignCharts: 'Which chart types use this field?',
             slotMain: 'Main',
             slotPie: 'Pie',
             slotBot: 'Line',
@@ -524,6 +564,7 @@ export default function AgroDashboard() {
             vizMapTitle: 'Map',
             vizTableTitle: 'Table',
             mapEmbedTitle: 'Geographic map preview',
+            mapViewPill: 'Map view',
             mapHint: 'Reference map (OpenStreetMap). Use GIS Map in the app for full spatial layers and editing.',
             quarter: [
               { v: 'all', l: 'All 2024' },
@@ -614,6 +655,10 @@ export default function AgroDashboard() {
   /** Per-layer field name filter in the Layers & fields modal (opt-in selection; search narrows the list). */
   const [wfFieldFilterBySource, setWfFieldFilterBySource] = useState<Record<string, string>>({})
   const wfFieldSearchId = useId()
+  const wfFieldsTabIds = useId()
+  const [wfFieldsTab, setWfFieldsTab] = useState<'fields' | 'charts'>('fields')
+  /** Optional filter: field included in a slot only when the card viz matches one of these types. */
+  const [fieldChartStyles, setFieldChartStyles] = useState<Record<string, AgroVizType[]>>({})
 
   useEffect(() => {
     const valid = new Set(agroSources.map(s => s.id))
@@ -629,8 +674,22 @@ export default function AgroDashboard() {
   }, [agroSources])
 
   useEffect(() => {
-    if (!wfModalOpen) setWfFieldFilterBySource({})
+    if (!wfModalOpen) {
+      setWfFieldFilterBySource({})
+      setWfFieldsTab('fields')
+    }
   }, [wfModalOpen])
+
+  useEffect(() => {
+    const valid = new Set(pinnedFieldKeys)
+    setFieldChartStyles(prev => {
+      const next = { ...prev }
+      for (const k of Object.keys(next)) {
+        if (!valid.has(k)) delete next[k]
+      }
+      return next
+    })
+  }, [pinnedFieldKeys])
 
   useEffect(() => {
     setFieldChartPlacement(prev => {
@@ -700,8 +759,16 @@ export default function AgroDashboard() {
         fieldChartPlacement,
         agroSourcesOnDashboard,
         t.chartEmpty,
+        fieldChartStyles,
       ),
-    [vizMain, pinnedFieldKeysOnDashboard, fieldChartPlacement, agroSourcesOnDashboard, t.chartEmpty],
+    [
+      vizMain,
+      pinnedFieldKeysOnDashboard,
+      fieldChartPlacement,
+      agroSourcesOnDashboard,
+      t.chartEmpty,
+      fieldChartStyles,
+    ],
   )
   const pieSlot = useMemo(
     () =>
@@ -712,8 +779,16 @@ export default function AgroDashboard() {
         fieldChartPlacement,
         agroSourcesOnDashboard,
         t.pieNoData,
+        fieldChartStyles,
       ),
-    [vizPie, pinnedFieldKeysOnDashboard, fieldChartPlacement, agroSourcesOnDashboard, t.pieNoData],
+    [
+      vizPie,
+      pinnedFieldKeysOnDashboard,
+      fieldChartPlacement,
+      agroSourcesOnDashboard,
+      t.pieNoData,
+      fieldChartStyles,
+    ],
   )
   const botSlot = useMemo(
     () =>
@@ -724,8 +799,16 @@ export default function AgroDashboard() {
         fieldChartPlacement,
         agroSourcesOnDashboard,
         t.chartEmpty,
+        fieldChartStyles,
       ),
-    [vizBot, pinnedFieldKeysOnDashboard, fieldChartPlacement, agroSourcesOnDashboard, t.chartEmpty],
+    [
+      vizBot,
+      pinnedFieldKeysOnDashboard,
+      fieldChartPlacement,
+      agroSourcesOnDashboard,
+      t.chartEmpty,
+      fieldChartStyles,
+    ],
   )
 
   useEffect(() => {
@@ -775,6 +858,15 @@ export default function AgroDashboard() {
       lineChartRef.current = null
     }
   }, [botSlot, vizBot, MO])
+
+  useEffect(() => {
+    if (vizMain !== 'map') return
+    const prev = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    return () => {
+      document.body.style.overflow = prev
+    }
+  }, [vizMain])
 
   const resetAgroAddForm = useCallback(() => {
     setAddWizard('home')
@@ -849,6 +941,19 @@ export default function AgroDashboard() {
     setFieldChartPlacement(prev => {
       const cur = prev[key] ?? { ...DEFAULT_FIELD_CHART }
       return { ...prev, [key]: { ...cur, [slot]: !cur[slot] } }
+    })
+  }, [])
+
+  const toggleFieldChartStyle = useCallback((key: string, id: AgroVizType) => {
+    setFieldChartStyles(prev => {
+      const cur = new Set(prev[key] ?? [])
+      if (cur.has(id)) cur.delete(id)
+      else cur.add(id)
+      const arr = [...cur]
+      const next = { ...prev }
+      if (arr.length === 0) delete next[key]
+      else next[key] = arr
+      return next
     })
   }, [])
 
@@ -1114,8 +1219,13 @@ export default function AgroDashboard() {
     }
   }, [remoteDataUrl, layerModalName, registerAgroSource])
 
+  const mapFullPage = vizMain === 'map'
+
   return (
-    <div className="page agro-dash-root" dir={direction}>
+    <div
+      className={`page${mapFullPage ? ' page-tight' : ''} agro-dash-root${mapFullPage ? ' agro-dash-root--map-fullpage' : ''}`}
+      dir={direction}
+    >
       <h2 className="agdash-sr-only">{t.srTitle}</h2>
 
       <div className="agdash-db">
@@ -1206,7 +1316,7 @@ export default function AgroDashboard() {
           </div>
         </nav>
 
-        <div className="agdash-body">
+        <div className={`agdash-body${mapFullPage ? ' agdash-body--map-full' : ''}`}>
           <div className="agdash-kpi-row">
             <div className="agdash-kpi">
               <div className="agdash-kpi-header">
@@ -1297,7 +1407,7 @@ export default function AgroDashboard() {
           </div>
 
           <div className="agdash-mid">
-            <div className="agdash-card agdash-card--viz">
+            <div className={`agdash-card agdash-card--viz${mapFullPage ? ' agdash-card--map-hero' : ''}`}>
               <div className="agdash-ch agdash-ch--headless">
                 <div className="agdash-ch-tools agdash-ch-tools--viz">
                   <AgroVizToolbar
@@ -1308,12 +1418,17 @@ export default function AgroDashboard() {
                     mapTitle={t.vizMapTitle}
                     tableTitle={t.vizTableTitle}
                   />
+                  {mapFullPage ? (
+                    <span className="agdash-map-view-pill" role="status">
+                      {t.mapViewPill}
+                    </span>
+                  ) : null}
                   <button type="button" className="agdash-action-link">
                     {t.analyze}
                   </button>
                 </div>
               </div>
-              <div className="agdash-chart-wrap">
+              <div className={`agdash-chart-wrap${mapFullPage ? ' agdash-chart-wrap--map-full' : ''}`}>
                 {vizMain === 'map' || mainSlot.kind === 'map' ? (
                   <AgroMapPreview title={t.mapEmbedTitle} hint={t.mapHint} />
                 ) : vizMain === 'table' && mainSlot.kind === 'table' ? (
@@ -1624,88 +1739,163 @@ export default function AgroDashboard() {
                       ) : dashboardLayerIds.length === 0 ? (
                         <p className="agdash-wf-panel-empty agdash-wf-panel-hint">{t.wfPanelSelectNeedLayers}</p>
                       ) : (
-                        <div className="agdash-field-picker agdash-field-picker--flat">
-                          <p className="agdash-field-picker-hint">{t.fieldPickerHint}</p>
-                          {agroSourcesOnDashboard.map(src => {
-                            const rawFilter = wfFieldFilterBySource[src.id] ?? ''
-                            const q = rawFilter.trim().toLowerCase()
-                            const filteredFields =
-                              q.length === 0 ? src.fields : src.fields.filter(f => f.toLowerCase().includes(q))
-                            return (
-                              <details key={src.id} className="agdash-field-layer-block" open>
-                                <summary className="agdash-field-layer-summary">
-                                  <i className="fa-solid fa-table-list" aria-hidden />
-                                  <span>{src.name}</span>
-                                  <span className="agdash-field-layer-summary-meta">
-                                    {t.fieldsBadge(
-                                      src.fields.filter(f => includedFieldKeys.includes(agroFieldKey(src.id, f))).length,
-                                      Math.max(src.fields.length, 1),
-                                    )}
-                                  </span>
-                                </summary>
-                                <div className="agdash-field-search-row">
-                                  <label className="agdash-field-search-lbl" htmlFor={`${wfFieldSearchId}-${src.id}`}>
-                                    {t.fieldSearchLabel}
-                                  </label>
-                                  <input
-                                    id={`${wfFieldSearchId}-${src.id}`}
-                                    type="search"
-                                    className="agdash-field-search-input"
-                                    placeholder={t.fieldSearchPlaceholder}
-                                    value={rawFilter}
-                                    onChange={e =>
-                                      setWfFieldFilterBySource(prev => ({
-                                        ...prev,
-                                        [src.id]: e.target.value,
-                                      }))
-                                    }
-                                    autoComplete="off"
-                                    spellCheck={false}
-                                  />
-                                </div>
-                                <ul className="agdash-field-flat-list">
-                                  {src.fields.length === 0 ? (
-                                    <li className="agdash-field-flat-empty">{t.wfPanelSelectEmpty}</li>
-                                  ) : filteredFields.length === 0 ? (
-                                    <li className="agdash-field-flat-empty">{t.fieldSearchNoMatch}</li>
-                                  ) : (
-                                    filteredFields.map(field => {
-                                      const key = agroFieldKey(src.id, field)
-                                      return (
-                                        <li key={key} className="agdash-field-flat-item">
-                                          <label className="agdash-wf-check agdash-field-flat-check">
-                                            <input
-                                              type="checkbox"
-                                              checked={includedFieldKeys.includes(key)}
-                                              onChange={() => toggleIncludedFieldKey(key)}
-                                            />
-                                            <span>{field}</span>
-                                          </label>
-                                        </li>
-                                      )
-                                    })
-                                  )}
-                                </ul>
-                              </details>
-                            )
-                          })}
-                          {orderedIncludedPinKeys.length > 0 ? (
-                            <div className="agdash-field-picker-charts">
-                              <p className="agdash-wf-panel-sub">{t.wfPanelPinSubtitle}</p>
-                              <ul className="agdash-wf-field-rows agdash-wf-field-rows--blocks">
-                                {orderedIncludedPinKeys.map(key => {
-                                  const { sourceId, field } = parseAgroFieldKey(key)
-                                  const src = agroSources.find(s => s.id === sourceId)
-                                  const label = src && field ? `${src.name} — ${field}` : field || key
-                                  const slot = fieldChartPlacement[key] ?? DEFAULT_FIELD_CHART
-                                  return (
-                                    <li key={key} className="agdash-wf-field-block">
-                                      <div className="agdash-wf-field-row agdash-wf-field-row--label">
-                                        <span className="agdash-wf-field-label">{label}</span>
-                                      </div>
-                                      <div className="agdash-wf-slot-row">
-                                        <span className="agdash-wf-slot-lbl">{t.wfAssignCharts}</span>
-                                        <div className="agdash-wf-slot-btns agdash-wf-slot-btns--green">
+                        <>
+                          <p className="agdash-wf-tab-step">{t.wfTabStep(wfFieldsTab === 'fields' ? 1 : 2, 2)}</p>
+                          <div className="agdash-wf-fields-tablist" role="tablist" aria-label={t.wfFieldsTablistAria}>
+                            <button
+                              type="button"
+                              role="tab"
+                              id={`${wfFieldsTabIds}-tab-fields`}
+                              aria-selected={wfFieldsTab === 'fields'}
+                              aria-controls={`${wfFieldsTabIds}-panel-fields`}
+                              className={`agdash-wf-fields-tab${wfFieldsTab === 'fields' ? ' agdash-wf-fields-tab--active' : ''}`}
+                              onClick={() => setWfFieldsTab('fields')}
+                            >
+                              <span className="agdash-wf-tab-num" aria-hidden>
+                                1
+                              </span>
+                              <span className="agdash-wf-tab-txt">{t.wfTabFields}</span>
+                            </button>
+                            <button
+                              type="button"
+                              role="tab"
+                              id={`${wfFieldsTabIds}-tab-charts`}
+                              aria-selected={wfFieldsTab === 'charts'}
+                              aria-controls={`${wfFieldsTabIds}-panel-charts`}
+                              className={`agdash-wf-fields-tab${wfFieldsTab === 'charts' ? ' agdash-wf-fields-tab--active' : ''}`}
+                              onClick={() => setWfFieldsTab('charts')}
+                            >
+                              <span className="agdash-wf-tab-num" aria-hidden>
+                                2
+                              </span>
+                              <span className="agdash-wf-tab-txt">{t.wfTabCharts}</span>
+                              {orderedIncludedPinKeys.length > 0 ? (
+                                <span className="agdash-wf-tab-badge">{orderedIncludedPinKeys.length}</span>
+                              ) : null}
+                            </button>
+                          </div>
+                          <div
+                            id={`${wfFieldsTabIds}-panel-fields`}
+                            role="tabpanel"
+                            aria-labelledby={`${wfFieldsTabIds}-tab-fields`}
+                            hidden={wfFieldsTab !== 'fields'}
+                            className="agdash-wf-tabpanel"
+                          >
+                            <div className="agdash-field-picker agdash-field-picker--flat">
+                              <p className="agdash-field-picker-hint">{t.fieldPickerHint}</p>
+                              {agroSourcesOnDashboard.map(src => {
+                                const rawFilter = wfFieldFilterBySource[src.id] ?? ''
+                                const q = rawFilter.trim().toLowerCase()
+                                const filteredFields =
+                                  q.length === 0 ? src.fields : src.fields.filter(f => f.toLowerCase().includes(q))
+                                return (
+                                  <details key={src.id} className="agdash-field-layer-block" open>
+                                    <summary className="agdash-field-layer-summary">
+                                      <i className="fa-solid fa-table-list" aria-hidden />
+                                      <span>{src.name}</span>
+                                      <span className="agdash-field-layer-summary-meta">
+                                        {t.fieldsBadge(
+                                          src.fields.filter(f => includedFieldKeys.includes(agroFieldKey(src.id, f)))
+                                            .length,
+                                          Math.max(src.fields.length, 1),
+                                        )}
+                                      </span>
+                                    </summary>
+                                    <div className="agdash-field-search-row">
+                                      <label className="agdash-field-search-lbl" htmlFor={`${wfFieldSearchId}-${src.id}`}>
+                                        {t.fieldSearchLabel}
+                                      </label>
+                                      <input
+                                        id={`${wfFieldSearchId}-${src.id}`}
+                                        type="search"
+                                        className="agdash-field-search-input"
+                                        placeholder={t.fieldSearchPlaceholder}
+                                        value={rawFilter}
+                                        onChange={e =>
+                                          setWfFieldFilterBySource(prev => ({
+                                            ...prev,
+                                            [src.id]: e.target.value,
+                                          }))
+                                        }
+                                        autoComplete="off"
+                                        spellCheck={false}
+                                      />
+                                    </div>
+                                    <ul className="agdash-field-flat-list">
+                                      {src.fields.length === 0 ? (
+                                        <li className="agdash-field-flat-empty">{t.wfPanelSelectEmpty}</li>
+                                      ) : filteredFields.length === 0 ? (
+                                        <li className="agdash-field-flat-empty">{t.fieldSearchNoMatch}</li>
+                                      ) : (
+                                        filteredFields.map(field => {
+                                          const key = agroFieldKey(src.id, field)
+                                          return (
+                                            <li key={key} className="agdash-field-flat-item">
+                                              <label className="agdash-wf-check agdash-field-flat-check">
+                                                <input
+                                                  type="checkbox"
+                                                  checked={includedFieldKeys.includes(key)}
+                                                  onChange={() => toggleIncludedFieldKey(key)}
+                                                />
+                                                <span>{field}</span>
+                                              </label>
+                                            </li>
+                                          )
+                                        })
+                                      )}
+                                    </ul>
+                                  </details>
+                                )
+                              })}
+                            </div>
+                            {orderedIncludedPinKeys.length > 0 ? (
+                              <button
+                                type="button"
+                                className="agdash-wf-tab-nav-next"
+                                onClick={() => setWfFieldsTab('charts')}
+                              >
+                                {t.wfTabNextCharts}
+                              </button>
+                            ) : null}
+                          </div>
+                          <div
+                            id={`${wfFieldsTabIds}-panel-charts`}
+                            role="tabpanel"
+                            aria-labelledby={`${wfFieldsTabIds}-tab-charts`}
+                            hidden={wfFieldsTab !== 'charts'}
+                            className="agdash-wf-tabpanel agdash-wf-tabpanel--charts"
+                          >
+                            {orderedIncludedPinKeys.length === 0 ? (
+                              <div className="agdash-wf-tabpanel-empty">
+                                <p className="agdash-wf-panel-empty">{t.wfChartsTabEmpty}</p>
+                                <button
+                                  type="button"
+                                  className="agdash-wf-tab-nav-back"
+                                  onClick={() => setWfFieldsTab('fields')}
+                                >
+                                  {t.wfTabBackFields}
+                                </button>
+                              </div>
+                            ) : (
+                              <>
+                                <p className="agdash-wf-tabpanel-lead">{t.wfPanelPinSubtitle}</p>
+                                <ul className="agdash-wf-assign-list">
+                                  {orderedIncludedPinKeys.map(key => {
+                                    const { sourceId, field } = parseAgroFieldKey(key)
+                                    const src = agroSources.find(s => s.id === sourceId)
+                                    const label = src && field ? `${src.name} — ${field}` : field || key
+                                    const slot = fieldChartPlacement[key] ?? DEFAULT_FIELD_CHART
+                                    const styles = fieldChartStyles[key]
+                                    return (
+                                      <li key={key} className="agdash-wf-assign-card">
+                                        <div className="agdash-wf-assign-card-head">
+                                          <span className="agdash-wf-field-label">{label}</span>
+                                        </div>
+                                        <div className="agdash-wf-assign-section">
+                                          <span className="agdash-wf-assign-section-title">{t.wfPanelsTitle}</span>
+                                          <span className="agdash-wf-assign-section-sub">{t.wfPanelsSub}</span>
+                                        </div>
+                                        <div className="agdash-wf-slot-btns agdash-wf-slot-btns--green agdash-wf-slot-btns--panels">
                                           <button
                                             type="button"
                                             className={`agdash-slot-chip${slot.main ? ' agdash-slot-chip--on' : ''}`}
@@ -1728,14 +1918,56 @@ export default function AgroDashboard() {
                                             {t.slotBot}
                                           </button>
                                         </div>
-                                      </div>
-                                    </li>
-                                  )
-                                })}
-                              </ul>
-                            </div>
-                          ) : null}
-                        </div>
+                                        <div className="agdash-wf-assign-section agdash-wf-assign-section--styles">
+                                          <span className="agdash-wf-slot-lbl">{t.wfAssignCharts}</span>
+                                          <p className="agdash-wf-styles-hint">{t.wfStylesHint}</p>
+                                        </div>
+                                        <div
+                                          className="agdash-wf-viz-icon-bar"
+                                          role="group"
+                                          aria-label={t.wfAssignCharts}
+                                        >
+                                          {WF_STYLE_BAR_CHARTS.map(opt => {
+                                            const on = styles?.includes(opt.id) ?? false
+                                            return (
+                                              <button
+                                                key={`${key}-${opt.id}`}
+                                                type="button"
+                                                title={opt.title}
+                                                aria-pressed={on}
+                                                className={`agdash-wf-viz-ic${on ? ' agdash-wf-viz-ic--on' : ''}`}
+                                                onClick={() => toggleFieldChartStyle(key, opt.id)}
+                                              >
+                                                <i className={opt.icon} aria-hidden />
+                                              </button>
+                                            )
+                                          })}
+                                          <span className="agdash-wf-viz-bar-sep" aria-hidden />
+                                          <button
+                                            type="button"
+                                            title={WF_STYLE_MAP_OPTION.title}
+                                            aria-pressed={styles?.includes('map') ?? false}
+                                            className={`agdash-wf-viz-ic agdash-wf-viz-ic--map${styles?.includes('map') ? ' agdash-wf-viz-ic--on' : ''}`}
+                                            onClick={() => toggleFieldChartStyle(key, 'map')}
+                                          >
+                                            <i className={WF_STYLE_MAP_OPTION.icon} aria-hidden />
+                                          </button>
+                                        </div>
+                                      </li>
+                                    )
+                                  })}
+                                </ul>
+                                <button
+                                  type="button"
+                                  className="agdash-wf-tab-nav-back agdash-wf-tab-nav-back--footer"
+                                  onClick={() => setWfFieldsTab('fields')}
+                                >
+                                  {t.wfTabBackFields}
+                                </button>
+                              </>
+                            )}
+                          </div>
+                        </>
                       )}
                     </div>
                   </div>

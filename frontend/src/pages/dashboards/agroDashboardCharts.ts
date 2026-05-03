@@ -22,7 +22,8 @@ export type AgroVizType =
 
 export type FieldChartSlot = { main: boolean; pie: boolean; bot: boolean }
 
-export const DEFAULT_FIELD_CHART: FieldChartSlot = { main: true, pie: true, bot: true }
+/** Panel toggles default off; user opts fields into Main / Pie / Line areas. */
+export const DEFAULT_FIELD_CHART: FieldChartSlot = { main: false, pie: false, bot: false }
 
 export const VIZ_OPTIONS: readonly { id: AgroVizType; title: string; icon: string }[] = [
   { id: 'bar', title: 'Bar', icon: 'fa-solid fa-chart-column' },
@@ -98,8 +99,16 @@ function slotKeys(
   slot: 'main' | 'pie' | 'bot',
   pinnedFieldKeys: string[],
   placement: Record<string, FieldChartSlot>,
+  viz: AgroVizType,
+  fieldStyles?: Record<string, AgroVizType[]>,
 ): string[] {
-  return pinnedFieldKeys.filter(k => (placement[k] ?? DEFAULT_FIELD_CHART)[slot])
+  return pinnedFieldKeys.filter(k => {
+    const slotOn = (placement[k] ?? DEFAULT_FIELD_CHART)[slot]
+    if (!slotOn) return false
+    const allow = fieldStyles?.[k]
+    if (!allow?.length) return true
+    return allow.includes(viz)
+  })
 }
 
 function alignNumericSeries(keys: string[], sources: AgroLayer[]): { labels: string[]; series: { key: string; label: string; data: number[] }[] } {
@@ -155,12 +164,14 @@ export function buildSlotVisualization(
   placement: Record<string, FieldChartSlot>,
   sources: AgroLayer[],
   noDataMsg: string,
+  /** If set for a key, that field is only used when the dashboard card uses one of these viz types. */
+  fieldStyles?: Record<string, AgroVizType[]>,
 ): AgroSlotBuildResult {
   if (viz === 'map') {
     return { kind: 'map' }
   }
 
-  const keys = slotKeys(slot, pinnedFieldKeys, placement)
+  const keys = slotKeys(slot, pinnedFieldKeys, placement, viz, fieldStyles)
   if (!keys.length || !sources.length) {
     return { kind: 'empty', message: noDataMsg }
   }
