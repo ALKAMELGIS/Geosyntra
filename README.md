@@ -10,6 +10,8 @@
 
 **مهم:** ملفات `assets/` و`index.html` في الجذر مُدرجة في `.gitignore` — **لا تُلتقط من جهازك المحلي** (قد يُدمَج `.env` ويُرفض الدفع). التحديث يتم عبر **CI فقط**.
 
-**English:** CI syncs the built SPA to **repo root on `main`**. Pages: **main** / **(root)**. Root `assets/` etc. are **gitignored** — do not commit builds locally (push protection); CI commits them safely.
+**إن ظهر 404 رغم وجود الملفات على `main`:** غالباً المصدر ما زال **GitHub Actions (workflow)** وليس نشراً من الفرع. سير النشر يشغّل `scripts/ensure-pages-legacy-main.mjs` لضبط **legacy + main + /**. إن رفض الـ API الرمز الافتراضي، أضف سر **`PAGES_ADMIN_TOKEN`** (صلاحية repo أو Administration+Contents).
+
+**English:** If you see **404** while `index.html` exists on `main`, Pages may still be on **workflow** artifact mode. The workflow runs `ensure-pages-legacy-main.mjs` to force **branch publish from main**. Add **`PAGES_ADMIN_TOKEN`** if the API rejects `GITHUB_TOKEN`.
 
 **Documentation:** [REPOSITORY.md](REPOSITORY.md)
