@@ -107,6 +107,15 @@ function normalizeUniqueValueKey(v: unknown): string {
   return String(v).trim();
 }
 
+/**
+ * ArcGIS renderers may ship thousands of unique values / class breaks. Feeding them verbatim into
+ * Mapbox `match` / `case` expressions produces extremely deep trees; mapbox-gl (and some browsers)
+ * then recurse past the JS stack limit → "Maximum call stack size exceeded" when the style
+ * layer is added. Cap branches and fold the remainder into the renderer default symbol.
+ */
+const MAX_UNIQUE_VALUE_INFOS_FOR_MAPBOX = 160
+const MAX_CLASS_BREAK_INFOS_FOR_MAPBOX = 96
+
 export type ArcgisMapboxFillPaint = {
   'fill-color': string | any[];
   'fill-opacity': number | any[];
@@ -144,7 +153,8 @@ export function arcgisDrawingInfoToFillPaint(drawingInfo: any): ArcgisMapboxFill
     const colorExpr: any[] = ['match', fieldExpr];
     const opExpr: any[] = ['match', fieldExpr];
     const infos = Array.isArray(ren.uniqueValueInfos) ? ren.uniqueValueInfos : [];
-    for (const uvi of infos) {
+    const infosLimited = infos.slice(0, MAX_UNIQUE_VALUE_INFOS_FOR_MAPBOX);
+    for (const uvi of infosLimited) {
       const v = normalizeUniqueValueKey(uvi?.value);
       if (!v) continue;
       const hollow = esriPolygonFillIsHollow(uvi.symbol);
@@ -157,7 +167,7 @@ export function arcgisDrawingInfoToFillPaint(drawingInfo: any): ArcgisMapboxFill
     opExpr.push(defOp);
     const outlineExpr: any[] = ['match', fieldExpr];
     let hasOutline = false;
-    for (const uvi of infos) {
+    for (const uvi of infosLimited) {
       const v = normalizeUniqueValueKey(uvi?.value);
       if (!v) continue;
       const ol = symbolOutlineStyle(uvi.symbol);
@@ -185,10 +195,11 @@ export function arcgisDrawingInfoToFillPaint(drawingInfo: any): ArcgisMapboxFill
       return Number(a?.maxValue) - Number(b?.maxValue);
     });
     if (!infos.length) return null;
+    const infosLimited = infos.slice(0, MAX_CLASS_BREAK_INFOS_FOR_MAPBOX);
     const numGet: any[] = ['to-number', propertyGetExpression(field), 0];
     const colorExpr: any[] = ['case'];
     const opExpr: any[] = ['case'];
-    for (const br of infos) {
+    for (const br of infosLimited) {
       const maxV = Number(br?.maxValue);
       const minV = Number(br?.minValue);
       const low = Number.isFinite(minV) ? minV : Number(ren?.minValue) || -1e15;
@@ -232,7 +243,8 @@ export function arcgisDrawingInfoToLinePaint(drawingInfo: any, fallbackLineColor
     const colorExpr: any[] = ['match', fieldExpr];
     const widthExpr: any[] = ['match', fieldExpr];
     const infos = Array.isArray(ren.uniqueValueInfos) ? ren.uniqueValueInfos : [];
-    for (const uvi of infos) {
+    const infosLimited = infos.slice(0, MAX_UNIQUE_VALUE_INFOS_FOR_MAPBOX);
+    for (const uvi of infosLimited) {
       const v = normalizeUniqueValueKey(uvi?.value);
       if (!v) continue;
       const ol = symbolOutlineStyle(uvi.symbol);
@@ -257,10 +269,11 @@ export function arcgisDrawingInfoToLinePaint(drawingInfo: any, fallbackLineColor
       return Number(a?.maxValue) - Number(b?.maxValue);
     });
     if (!infos.length) return null;
+    const infosLimited = infos.slice(0, MAX_CLASS_BREAK_INFOS_FOR_MAPBOX);
     const numGet: any[] = ['to-number', propertyGetExpression(field), 0];
     const colorExpr: any[] = ['case'];
     const widthExpr: any[] = ['case'];
-    for (const br of infos) {
+    for (const br of infosLimited) {
       const maxV = Number(br?.maxValue);
       const minV = Number(br?.minValue);
       const low = Number.isFinite(minV) ? minV : Number(ren?.minValue) || -1e15;
