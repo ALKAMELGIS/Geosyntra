@@ -1,6 +1,6 @@
 # Agri Cloud — repository documentation
 
-> **GitHub Pages:** سير `deploy-pages.yml` يدفع البناء إلى فرع **`gh-pages`**. في إعدادات Pages اختر **Deploy from a branch** → **gh-pages** → **/** — لا تستخدم **main** عند الجذر (يظهر التحذير الأصفر). لا تُلتزم `frontend/dist` في `main`.
+> **GitHub Pages:** سير `deploy-pages.yml` يدفع البناء إلى فرع **`gh-pages`**. في إعدادات Pages اختر **Deploy from a branch** → **gh-pages** → **/**. لا تُلتزم `frontend/dist` في `main`؛ جذر `main` بلا `index.html` للواجهة.
 >
 > **رابط التشغيل (HashRouter):** https://alkamelgis.github.io/AgroCloud/#/
 >

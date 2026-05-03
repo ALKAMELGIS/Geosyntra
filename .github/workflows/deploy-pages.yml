@@ -8,9 +8,8 @@ name: Deploy to GitHub Pages
 #
 # Live app (HashRouter): https://alkamelgis.github.io/AgroCloud/#/
 #
-# Root fix for the "yellow stub" page: either set Pages → gh-pages / (root) manually,
-# or add repo secret PAGES_ADMIN_TOKEN (PAT with repo or Administration on this repo);
-# the workflow then calls the GitHub API to point legacy Pages at gh-pages after each push.
+# Pages content lives on branch `gh-pages` (no SPA index on `main` root — avoids wrong-branch publish).
+# Optional: repo secret PAGES_ADMIN_TOKEN → API sets legacy Pages to gh-pages / (root).
 on:
   push:
     branches: [main]
