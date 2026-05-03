@@ -189,35 +189,6 @@
   flex-shrink: 0;
 }
 
-/* Add Source Data — GIS inline panel on home (Develop-style) */
-.agro-dash-root .agdash-add-src-gis-inline {
-  margin-top: 4px;
-  padding: 14px 14px 16px;
-  border-radius: 14px;
-  background: #f1f5f9;
-  border: 1px solid #e2e8f0;
-}
-
-.agro-dash-root .agdash-add-src-gis-label {
-  display: block;
-  font-size: 0.72rem;
-  font-weight: 700;
-  color: #334155;
-  margin-bottom: 8px;
-}
-
-.agro-dash-root .agdash-add-src-gis-foot {
-  margin: 10px 0 0;
-  font-size: 0.75rem;
-  line-height: 1.45;
-  color: #94a3b8;
-}
-
-.agro-dash-root .agdash-add-src-gis-import {
-  margin-top: 12px;
-  width: 100%;
-}
-
 .agro-dash-root .agdash-wf {
   background: var(--agdash-surface);
   border-bottom: 1px solid var(--agdash-border);
@@ -651,6 +622,34 @@
   font-size: 0.78rem;
   line-height: 1.5;
   color: #64748b;
+}
+
+/* GIS Content inner step — banner + list (match Develop / reference layout) */
+.agro-dash-root .agdash-gis-list-page {
+  padding-top: 2px;
+}
+
+.agro-dash-root .agdash-gis-list-banner {
+  margin: 0 0 16px;
+  padding: 12px 14px;
+  border-radius: 14px;
+  background: linear-gradient(105deg, #ecfdf5 0%, #f0fdf4 42%, #f8fafc 100%);
+  border: 1px solid rgba(44, 122, 74, 0.14);
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.85) inset;
+}
+
+.agro-dash-root .agdash-gis-list-banner .ddb-add-source-gis-hint {
+  margin: 0;
+}
+
+.agro-dash-root .agdash-gis-list-page .ddb-gis-content-list {
+  padding-right: 2px;
+}
+
+.agro-dash-root .agdash-gis-list-page .ddb-gis-content-add-btn {
+  border-radius: 999px;
+  padding-inline: 18px;
+  min-width: 72px;
 }
 
 @media (max-width: 960px) {

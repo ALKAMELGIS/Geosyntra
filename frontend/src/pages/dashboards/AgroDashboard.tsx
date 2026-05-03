@@ -205,8 +205,6 @@ export default function AgroDashboard() {
             optGetDataDesc:
               'Excel، CSV، GeoJSON عبر عنوان ويب (نفس أنماط مصادر Power BI الشائعة).',
             advancedBtn: 'قاعدة بيانات، رابط ويب وخيارات متقدمة…',
-            noGeoJsonHint:
-              'لا توجد طبقات GeoJSON في خريطة GIS. أضف طبقة في صفحة الخريطة، ثم عد إلى هنا.',
             allOptionsBack: 'جميع الخيارات',
             gisHintBefore: 'الطبقات أدناه من جلسة ',
             gisHintStrong: 'خريطة GIS',
@@ -299,7 +297,6 @@ export default function AgroDashboard() {
             optGetDataTitle: 'Get Data',
             optGetDataDesc: 'Excel, CSV, GeoJSON via web URL (same patterns as Power BI common sources).',
             advancedBtn: 'Database, web URL & advanced…',
-            noGeoJsonHint: 'No GeoJSON layers found in GIS Map. Add a layer on the map page, then return here.',
             allOptionsBack: 'All options',
             gisHintBefore: 'Layers below come from your ',
             gisHintStrong: 'GIS Map',
@@ -413,16 +410,10 @@ export default function AgroDashboard() {
   const [remoteDataUrl, setRemoteDataUrl] = useState('')
   const [agroLinkedSources, setAgroLinkedSources] = useState<string[]>([])
   const [homePick, setHomePick] = useState<'gis' | 'arcgis' | 'upload' | 'getdata'>('gis')
-  const [homeGisLayerId, setHomeGisLayerId] = useState('')
   const addLayerFileInputRef = useRef<HTMLInputElement | null>(null)
   const [mainType, setMainType] = useState<'bar' | 'line' | 'area'>('bar')
   const [pieType, setPieType] = useState<'pie' | 'doughnut'>('pie')
   const [quarter, setQuarter] = useState<QuarterKey>('all')
-
-  const gisImportableLayers = useMemo(
-    () => gisContentLayers.filter(gisLayerCanImportToDashboard),
-    [gisContentLayers],
-  )
 
   const mainMeta = quarter === 'all' ? t.metaAll : t.metaQ(quarter)
 
@@ -643,7 +634,6 @@ export default function AgroDashboard() {
     setUploadFile(null)
     setRemoteDataUrl('')
     setHomePick('gis')
-    setHomeGisLayerId('')
   }, [])
 
   const closeAddSourceModal = useCallback(() => {
@@ -680,7 +670,6 @@ export default function AgroDashboard() {
     setDiscoverError(null)
     setGetDataNotice(null)
     setHomePick('gis')
-    setHomeGisLayerId('')
     setAddWizard('home')
   }, [])
 
@@ -1320,12 +1309,12 @@ export default function AgroDashboard() {
                 <div className="ddb-source-option-grid" role="radiogroup" aria-label={t.modalOptsLegend}>
                   <button
                     type="button"
-                    className={`ddb-source-option-card${homePick === 'gis' ? ' is-selected' : ''}`}
+                    className="ddb-source-option-card"
                     role="radio"
-                    aria-checked={homePick === 'gis'}
+                    aria-checked={false}
                     onClick={() => {
                       setDiscoverError(null)
-                      setHomePick('gis')
+                      setAddWizard('gis-list')
                     }}
                   >
                     <span className="ddb-source-option-indicator" aria-hidden />
@@ -1403,59 +1392,6 @@ export default function AgroDashboard() {
                   </button>
                 </div>
 
-                {homePick === 'gis' ? (
-                  <div className="agdash-add-src-gis-inline">
-                    {gisContentLoading ? (
-                      <div className="ddb-add-source-loading" style={{ padding: '12px 0', textAlign: 'center' }}>
-                        <i className="fa-solid fa-spinner fa-spin" aria-hidden /> {t.loadGisLabel}
-                      </div>
-                    ) : null}
-                    <label className="agdash-add-src-gis-label" htmlFor="agdash-home-gis-layer">
-                      {t.selectLayerLbl}
-                    </label>
-                    <div className="gis-select-wrap">
-                      <select
-                        id="agdash-home-gis-layer"
-                        className="gis-input gis-select"
-                        value={homeGisLayerId}
-                        disabled={gisContentLoading || addingLayerKey !== null}
-                        onChange={e => setHomeGisLayerId(e.target.value)}
-                        aria-label={t.selectLayerLbl}
-                      >
-                        <option value="">{t.selectLayerLbl}</option>
-                        {gisImportableLayers.map(layer => (
-                          <option key={String(layer.id)} value={String(layer.id)}>
-                            {layer.name}
-                          </option>
-                        ))}
-                      </select>
-                      <i className="fa-solid fa-chevron-down" aria-hidden />
-                    </div>
-                    {!gisContentLoading && gisImportableLayers.length === 0 ? (
-                      <p className="agdash-add-src-gis-foot">{t.noGeoJsonHint}</p>
-                    ) : null}
-                    {gisImportableLayers.length > 0 ? (
-                      <button
-                        type="button"
-                        className="gis-btn-outline agdash-add-src-gis-import"
-                        disabled={!homeGisLayerId || addingLayerKey !== null}
-                        onClick={() => {
-                          const layer = gisImportableLayers.find(l => String(l.id) === homeGisLayerId)
-                          if (layer) void importGisContentLayer(layer)
-                        }}
-                      >
-                        {addingLayerKey?.startsWith('gis:') ? t.addingLabel : t.addBtn}
-                      </button>
-                    ) : null}
-                    {discoverError ? (
-                      <div className="gis-inline-error" role="alert" style={{ marginTop: 10 }}>
-                        <i className="fa-solid fa-triangle-exclamation" aria-hidden />
-                        <span>{discoverError}</span>
-                      </div>
-                    ) : null}
-                  </div>
-                ) : null}
-
                 <button
                   type="button"
                   className="ddb-add-source-more"
@@ -1525,12 +1461,14 @@ export default function AgroDashboard() {
                 ) : null}
               </div>
             ) : addWizard === 'gis-list' ? (
-              <div className="ddb-add-source-gis-list gis-modal-body">
-                <p className="ddb-add-source-gis-hint">
-                  {t.gisHintBefore}
-                  <strong>{t.gisHintStrong}</strong>
-                  {t.gisHintAfter}
-                </p>
+              <div className="ddb-add-source-gis-list gis-modal-body agdash-gis-list-page">
+                <div className="agdash-gis-list-banner">
+                  <p className="ddb-add-source-gis-hint">
+                    {t.gisHintBefore}
+                    <strong>{t.gisHintStrong}</strong>
+                    {t.gisHintAfter}
+                  </p>
+                </div>
                 {gisContentLoading ? (
                   <div className="ddb-add-source-loading">
                     <i className="fa-solid fa-spinner fa-spin" aria-hidden /> {t.loadGisLabel}
