@@ -24,6 +24,15 @@
   background: #020617;
 }
 
+/* Top controls row: hug content (no full-width empty band above map) */
+.si-main-content > div:first-child {
+  display: flex;
+  justify-content: flex-end;
+  align-items: flex-start;
+  flex: 0 0 auto;
+  min-height: 0;
+}
+
 /* Top Bar - No Overlap */
 .si-top-left {
   display: flex;
@@ -487,7 +496,17 @@
   gap: 10px;
   overflow: visible;
   align-self: start;
-  padding-top: 8px;
+  padding: 0;
+  width: fit-content;
+  max-width: 100%;
+  margin-inline-start: auto;
+}
+
+/* Satellite: layers rail only — remove extra top strip, keep rail + buttons */
+.si-top-card.si-top-card-right {
+  justify-content: flex-start;
+  overflow: visible;
+  gap: 0;
 }
 
 .si-range-group {
@@ -839,14 +858,6 @@
   font-variant-numeric: tabular-nums;
 }
 
-.si-env-section-tabs--three {
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-}
-
-.si-env-section-tabs--four {
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-}
-
 .si-env-actions--dual {
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
@@ -999,27 +1010,6 @@
   color: #ecfdf5;
 }
 
-.si-env-upload-inline {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  width: 100%;
-  padding: 9px 12px;
-  border-radius: 12px;
-  border: 1px dashed rgba(52, 211, 153, 0.35);
-  background: rgba(6, 78, 59, 0.12);
-  color: #a7f3d0;
-  font-size: 10px;
-  font-weight: 800;
-  cursor: pointer;
-}
-
-.si-env-upload-inline:hover {
-  border-color: rgba(52, 211, 153, 0.55);
-  background: rgba(6, 78, 59, 0.2);
-}
-
 .si-add-layer-btn {
   display: inline-flex;
   align-items: center;
@@ -1043,263 +1033,9 @@
   filter: saturate(1.06);
 }
 
-.si-layer-modal-overlay {
-  position: fixed;
-  inset: 0;
+/* Add GIS Layer (Satellite Imagery): stack above map widgets; uses shared .gis-modal-* from index.css */
+.si-gis-add-layer-overlay.gis-modal-overlay {
   z-index: 12100;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 24px;
-  background: rgba(2, 6, 23, 0.68);
-}
-
-.si-layer-modal {
-  width: min(740px, 100%);
-  border-radius: 20px;
-  border: 1px solid rgba(148, 163, 184, 0.28);
-  background: linear-gradient(180deg, #f8fafc 0%, #f3f6fb 100%);
-  color: #0f172a;
-  box-shadow: 0 26px 70px rgba(2, 6, 23, 0.28);
-  overflow: hidden;
-}
-
-.si-layer-modal-header {
-  padding: 18px 20px 12px;
-  border-bottom: 1px solid rgba(148, 163, 184, 0.24);
-}
-
-.si-layer-modal-header h2 {
-  margin: 0;
-  font-size: 18px;
-  font-weight: 800;
-  letter-spacing: -0.01em;
-}
-
-.si-layer-modal-header p {
-  margin: 7px 0 0;
-  font-size: 11px;
-  line-height: 1.5;
-  color: #64748b;
-}
-
-.si-layer-modal-tabs {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 8px;
-  padding: 10px 12px;
-  background: rgba(241, 245, 249, 0.62);
-  border-bottom: 1px solid rgba(148, 163, 184, 0.2);
-}
-
-.si-layer-modal-tabs button {
-  min-height: 40px;
-  border-radius: 13px;
-  border: 1px solid rgba(148, 163, 184, 0.32);
-  background: #ffffff;
-  color: #334155;
-  font-size: 12px;
-  font-weight: 700;
-  padding: 8px 11px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 7px;
-  transition: border-color 0.16s ease, background-color 0.16s ease, color 0.16s ease;
-}
-
-.si-layer-modal-tabs button.active {
-  color: #065f46;
-  border-color: rgba(34, 197, 94, 0.42);
-  background: linear-gradient(180deg, rgba(34, 197, 94, 0.16), rgba(16, 185, 129, 0.09));
-  box-shadow: 0 6px 14px rgba(16, 185, 129, 0.15);
-}
-
-.si-layer-modal-body {
-  padding: 12px;
-}
-
-.si-layer-modal-form {
-  border: 1px solid rgba(148, 163, 184, 0.2);
-  border-radius: 14px;
-  background: linear-gradient(180deg, #eef2f7 0%, #edf1f6 100%);
-  padding: 12px;
-  display: grid;
-  gap: 10px;
-}
-
-.si-layer-field {
-  display: grid;
-  gap: 6px;
-}
-
-.si-layer-field > span {
-  font-size: 11px;
-  font-weight: 700;
-  color: #475569;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-}
-
-.si-layer-form-grid-2 {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 10px;
-}
-
-.si-layer-drop-zone {
-  border: 1px dashed rgba(148, 163, 184, 0.7);
-  border-radius: 12px;
-  padding: 20px;
-  display: grid;
-  gap: 8px;
-  place-items: center;
-  text-align: center;
-  color: #475569;
-}
-
-.si-layer-drop-zone i {
-  font-size: 28px;
-}
-
-.si-layer-drop-zone small {
-  color: #64748b;
-}
-
-.si-layer-modal-primary {
-  border-radius: 11px;
-  border: 1px solid rgba(22, 163, 74, 0.55);
-  background: linear-gradient(180deg, #22c55e, #16a34a);
-  color: #f0fdf4;
-  font-size: 12px;
-  font-weight: 800;
-  min-height: 40px;
-}
-
-.si-layer-discover-panel {
-  border: 1px solid rgba(148, 163, 184, 0.35);
-  border-top: 2px solid #4ade80;
-  border-radius: 12px;
-  padding: 10px;
-  background: rgba(255, 255, 255, 0.72);
-  display: grid;
-  gap: 10px;
-}
-
-.si-layer-discover-meta {
-  display: inline-flex;
-  align-items: center;
-  justify-self: start;
-  border: 1px solid rgba(148, 163, 184, 0.45);
-  border-radius: 999px;
-  padding: 4px 9px;
-  font-size: 10px;
-  font-weight: 800;
-  letter-spacing: 0.08em;
-  color: #475569;
-  background: #f8fafc;
-}
-
-.si-layer-discover-row {
-  border: 1px solid rgba(148, 163, 184, 0.35);
-  border-radius: 12px;
-  background: #f8fafc;
-  padding: 10px 12px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-}
-
-.si-layer-discover-row strong {
-  font-size: 16px;
-  color: #0f172a;
-}
-
-.si-layer-discover-add {
-  border: 1px solid rgba(34, 197, 94, 0.65);
-  border-radius: 12px;
-  padding: 7px 14px;
-  background: linear-gradient(180deg, rgba(34, 197, 94, 0.24), rgba(16, 185, 129, 0.18));
-  color: #15803d;
-  font-size: 12px;
-  font-weight: 800;
-}
-
-.si-layer-discover-add:disabled {
-  opacity: 0.55;
-  cursor: not-allowed;
-}
-
-.si-layer-modal-status {
-  margin: 10px 2px 0;
-  font-size: 11px;
-  color: #0f172a;
-}
-
-.si-layer-modal-footer {
-  border-top: 1px solid rgba(148, 163, 184, 0.24);
-  padding: 9px 12px;
-  display: flex;
-  justify-content: flex-end;
-}
-
-.si-layer-modal-cancel {
-  border: none;
-  background: transparent;
-  color: #334155;
-  font-size: 12px;
-}
-
-.si-layer-inline-check {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 13px;
-  color: #334155;
-}
-
-.si-layer-advanced {
-  border: 1px solid rgba(148, 163, 184, 0.32);
-  border-radius: 10px;
-  padding: 8px 10px;
-  background: rgba(255, 255, 255, 0.5);
-}
-
-.si-layer-advanced summary {
-  cursor: pointer;
-  font-size: 13px;
-  font-weight: 700;
-  color: #334155;
-}
-
-.si-layer-advanced small {
-  display: block;
-  margin-top: 8px;
-  color: #64748b;
-  line-height: 1.45;
-}
-
-@media (max-width: 680px) {
-  .si-layer-modal {
-    width: min(96vw, 620px);
-  }
-  .si-layer-modal-header h2 {
-    font-size: 16px;
-  }
-  .si-layer-modal-tabs {
-    grid-template-columns: 1fr;
-  }
-  .si-layer-form-grid-2 {
-    grid-template-columns: 1fr;
-  }
-  .si-layer-discover-row {
-    flex-direction: column;
-    align-items: flex-start;
-  }
-  .si-layer-discover-add {
-    width: 100%;
-  }
 }
 
 .si-env-drawing-tools--modern {
@@ -1703,7 +1439,7 @@
   align-items: center;
   justify-content: flex-end;
   gap: 8px;
-  margin-top: 2px;
+  margin-top: 0;
   z-index: 60;
   /* Shrink to pill width and hug the trailing edge so the control sits clearly on the right */
   width: fit-content;
@@ -2007,6 +1743,12 @@
   border-color: rgba(34, 197, 94, 0.42);
   color: #065f46;
   background: #f8fafc;
+}
+
+.si-env-layer-action-btn--danger:hover {
+  border-color: rgba(248, 113, 113, 0.65);
+  color: #b91c1c;
+  background: rgba(254, 226, 226, 0.55);
 }
 
 .si-layer-action-modal-overlay {
@@ -2454,6 +2196,16 @@
   gap: 7px;
 }
 
+/* Four section icons: one compact row (must follow base grid so it wins in cascade) */
+.si-env-section-tabs--four {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 5px;
+}
+
+.si-env-section-tabs--three {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
 .si-env-section-tabs button {
   min-width: 0;
   min-height: 40px;
@@ -2469,8 +2221,17 @@
   transition: transform 180ms ease, background-color 180ms ease, border-color 180ms ease, box-shadow 180ms ease;
 }
 
+.si-env-section-tabs--four button {
+  min-height: 30px;
+  border-radius: 9px;
+}
+
 .si-env-section-tabs button i {
   font-size: 15px;
+}
+
+.si-env-section-tabs--four button i {
+  font-size: 12px;
 }
 
 .si-env-section-tabs button:hover {
@@ -4473,8 +4234,22 @@ input:checked + .slider:before {
 }
 
 @media (max-width: 520px) {
-  .si-env-panel .si-env-section-tabs {
+  .si-env-panel .si-env-section-tabs:not(.si-env-section-tabs--four) {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .si-env-panel .si-env-section-tabs--four {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 4px;
+  }
+
+  .si-env-section-tabs--four button {
+    min-height: 28px;
+    border-radius: 8px;
+  }
+
+  .si-env-section-tabs--four button i {
+    font-size: 11px;
   }
 }
 

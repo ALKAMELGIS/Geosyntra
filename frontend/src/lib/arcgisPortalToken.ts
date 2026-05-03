@@ -23,11 +23,11 @@ export function getArcgisPortalTokenBrowserOverride(): string {
   }
 }
 
-/** Effective token: VITE_ARCGIS_PORTAL_TOKEN first, then localStorage. */
+/** Effective token: saved browser value first, then VITE_ARCGIS_PORTAL_TOKEN. */
 export function getArcgisPortalToken(): string {
-  const fromEnv = envToken()
-  if (fromEnv) return fromEnv
-  return getArcgisPortalTokenBrowserOverride()
+  const fromLs = getArcgisPortalTokenBrowserOverride()
+  if (fromLs) return fromLs
+  return envToken()
 }
 
 export function persistArcgisPortalTokenInBrowser(token: string): void {

@@ -53,11 +53,18 @@ export function applyPersistedApiSecretsToBrowser(secrets: ServerApiSecretsV3): 
   for (const [k, v] of Object.entries(builtin)) {
     const key = k as BuiltinSecretKey
     const fn = BUILTIN_PERSIST[key]
-    if (fn) fn(typeof v === 'string' ? v : '')
+    if (!fn) continue
+    const s = typeof v === 'string' ? v.trim() : ''
+    // Never push empty strings from the server file into the browser — avoids wiping
+    // locally saved tokens when the server store is partial, stale, or not yet written.
+    if (!s) continue
+    fn(s)
   }
   const slots = secrets.customSlots && typeof secrets.customSlots === 'object' ? secrets.customSlots : {}
   for (const [slotId, v] of Object.entries(slots)) {
-    persistUserApiTokenValue(slotId, typeof v === 'string' ? v : '')
+    const s = typeof v === 'string' ? v.trim() : ''
+    if (!slotId || !s) continue
+    persistUserApiTokenValue(slotId, s)
   }
 }
 

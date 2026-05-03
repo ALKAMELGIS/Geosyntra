@@ -1275,8 +1275,8 @@ export default function SystemSettings() {
               </h2>
               <p className="sys-api-hero__desc">
                 {language === 'ar'
-                  ? 'تُحفظ المفاتيح على خادم التطبيق (ملف بجانب Node) لتبقى بعد تحديث النظام أو إعادة بناء الواجهة، وتُنسَخ أيضاً إلى هذا المتصفح للاستخدام الفوري. يمكن أيضاً استخدام متغيرات البيئة عند البناء. لا تُرفع الأسرار إلى Git.'
-                  : 'Keys are stored on the app server (next to the Node process) so they survive full system updates and frontend rebuilds, and mirrored in this browser for immediate use. Build-time env vars still override where documented. Never commit secrets to Git.'}
+                  ? 'تُحفظ المفاتيح في هذا المتصفح (localStorage) فتبقى بعد تحديث الموقع أو النشر على GitHub Pages ما لم تُمسح بيانات الموقع. عند تشغيل خادم Node تُنسَخ أيضاً إلى ملف بجانب الخادم. القيمة المحفوظة هنا تتقدّم على متغيرات البناء عند التواجد. لا تُرفع الأسرار إلى Git.'
+                  : 'Tokens are saved in this browser (localStorage), so they survive site updates and GitHub Pages redeploys unless the user clears site data. With the Node API running, they are also mirrored to a server-side file. Saved values here take precedence over build-time env vars when both are set. Never commit secrets to Git.'}
               </p>
             </div>
             <button
@@ -1310,7 +1310,9 @@ export default function SystemSettings() {
               {mapboxTokenFromEnv ? (
                 <p className="sys-settings-panel__desc sys-settings-api-envnote">
                   <strong>{language === 'ar' ? 'نشط من البناء:' : 'Active from build:'}</strong>{' '}
-                  {language === 'ar' ? 'VITE_MAPBOX_TOKEN يتقدم على الحقل أدناه.' : 'VITE_MAPBOX_TOKEN overrides the field below.'}
+                  {language === 'ar'
+                    ? 'يُعرض VITE_MAPBOX_TOKEN في البناء؛ إن وُجدت قيمة محفوظة في هذا المتصفح فهي المستخدمة أولاً.'
+                    : 'VITE_MAPBOX_TOKEN is baked at build time; if you have saved a token in this browser, that value is used first.'}
                 </p>
               ) : null}
               <ApiTokenMergeField
@@ -1372,7 +1374,9 @@ export default function SystemSettings() {
               {arcgisTokenFromEnv ? (
                 <p className="sys-settings-panel__desc sys-settings-api-envnote">
                   <strong>{language === 'ar' ? 'نشط من البناء:' : 'Active from build:'}</strong>{' '}
-                  {language === 'ar' ? 'VITE_ARCGIS_PORTAL_TOKEN يتقدم على الحقل أدناه.' : 'VITE_ARCGIS_PORTAL_TOKEN overrides the field below.'}
+                  {language === 'ar'
+                    ? 'VITE_ARCGIS_PORTAL_TOKEN في البناء؛ القيمة المحفوظة في المتصفح تُستخدم أولاً إن وُجدت.'
+                    : 'VITE_ARCGIS_PORTAL_TOKEN is set at build time; a token saved in this browser is used first when present.'}
                 </p>
               ) : null}
               <ApiTokenMergeField
@@ -1439,8 +1443,8 @@ export default function SystemSettings() {
                 <p className="sys-settings-panel__desc sys-settings-api-envnote">
                   <strong>{language === 'ar' ? 'نشط من البناء:' : 'Active from build:'}</strong>{' '}
                   {language === 'ar'
-                    ? 'VITE_SENTINEL_HUB_ACCESS_TOKEN يتقدم على حقل رمز الوصول أدناه.'
-                    : 'VITE_SENTINEL_HUB_ACCESS_TOKEN overrides the access token field below.'}
+                    ? 'VITE_SENTINEL_HUB_ACCESS_TOKEN في البناء؛ الرمز المحفوظ في المتصفح يُستخدم أولاً.'
+                    : 'VITE_SENTINEL_HUB_ACCESS_TOKEN is set at build time; a token saved in this browser is used first when present.'}
                 </p>
               ) : null}
               <ApiTokenMergeField
@@ -1495,8 +1499,8 @@ export default function SystemSettings() {
                 <p className="sys-settings-panel__desc sys-settings-api-envnote">
                   <strong>{language === 'ar' ? 'نشط من البناء:' : 'Active from build:'}</strong>{' '}
                   {language === 'ar'
-                    ? 'VITE_SENTINEL_HUB_WMS_INSTANCE_ID يتقدم على حقل معرّف المثيل أدناه.'
-                    : 'VITE_SENTINEL_HUB_WMS_INSTANCE_ID overrides the instance field below.'}
+                    ? 'VITE_SENTINEL_HUB_WMS_INSTANCE_ID في البناء؛ المعرّف المحفوظ في المتصفح يُستخدم أولاً.'
+                    : 'VITE_SENTINEL_HUB_WMS_INSTANCE_ID is set at build time; an instance id saved in this browser is used first when present.'}
                 </p>
               ) : null}
               <ApiTokenMergeField
@@ -1556,8 +1560,8 @@ export default function SystemSettings() {
                 <p className="sys-settings-panel__desc sys-settings-api-envnote">
                   <strong>{language === 'ar' ? 'نشط من البناء:' : 'Active from build:'}</strong>{' '}
                   {language === 'ar'
-                    ? 'VITE_GEMINI_API_KEY يتقدم على الحقل أدناه.'
-                    : 'VITE_GEMINI_API_KEY overrides the field below.'}
+                    ? 'VITE_GEMINI_API_KEY في البناء؛ المفتاح المحفوظ في المتصفح يُستخدم أولاً.'
+                    : 'VITE_GEMINI_API_KEY is set at build time; a key saved in this browser is used first when present.'}
                 </p>
               ) : null}
               <ApiTokenMergeField
@@ -1618,8 +1622,8 @@ export default function SystemSettings() {
                 <p className="sys-settings-panel__desc sys-settings-api-envnote">
                   <strong>{language === 'ar' ? 'نشط من البناء:' : 'Active from build:'}</strong>{' '}
                   {language === 'ar'
-                    ? 'VITE_DEEPSEEK_API_KEY يتقدم على الحقل أدناه.'
-                    : 'VITE_DEEPSEEK_API_KEY overrides the field below.'}
+                    ? 'VITE_DEEPSEEK_API_KEY في البناء؛ المفتاح المحفوظ في المتصفح يُستخدم أولاً.'
+                    : 'VITE_DEEPSEEK_API_KEY is set at build time; a key saved in this browser is used first when present.'}
                 </p>
               ) : null}
               <ApiTokenMergeField
@@ -1680,8 +1684,8 @@ export default function SystemSettings() {
                 <p className="sys-settings-panel__desc sys-settings-api-envnote">
                   <strong>{language === 'ar' ? 'نشط من البناء:' : 'Active from build:'}</strong>{' '}
                   {language === 'ar'
-                    ? 'VITE_CLAUDE_API_KEY يتقدم على الحقل أدناه.'
-                    : 'VITE_CLAUDE_API_KEY overrides the field below.'}
+                    ? 'VITE_CLAUDE_API_KEY في البناء؛ المفتاح المحفوظ في المتصفح يُستخدم أولاً.'
+                    : 'VITE_CLAUDE_API_KEY is set at build time; a key saved in this browser is used first when present.'}
                 </p>
               ) : null}
               <ApiTokenMergeField
@@ -1963,122 +1967,179 @@ export default function SystemSettings() {
           }}
         >
           <div className="sys-api-modal">
-            <h2 id="sys-api-add-modal-title" className="sys-api-modal__title">
-              {language === 'ar' ? 'إضافة نوع رمز API' : 'Add API token type'}
-            </h2>
-            <p className="sys-api-modal__lead">
-              {language === 'ar'
-                ? 'أنشئ بطاقة جديدة (اسم، وصف، تسمية الحقل). القيمة السرية تُحفظ لاحقاً عبر زر الحفظ بجانب الحقل.'
-                : 'Create a new card (name, description, field label). Save the secret later with the check button next to the input.'}
-            </p>
-            <div className="sys-api-modal__grid">
-              <label className="sys-api-modal__field">
-                <span className="sys-api-modal__label">
-                  {language === 'ar' ? 'اسم العرض (إنجليزي) *' : 'Display name (English) *'}
+            <header className="sys-api-modal__header">
+              <div className="sys-api-modal__header-main">
+                <span className="sys-api-modal__badge" aria-hidden>
+                  <i className="fa-solid fa-key" />
                 </span>
-                <input
-                  className="gis-input sys-api-modal__input"
-                  value={addApiForm.title}
-                  onChange={e => setAddApiForm(f => ({ ...f, title: e.target.value }))}
-                  autoComplete="off"
-                  placeholder={language === 'ar' ? 'مثال: My Weather API' : 'e.g. My Weather API'}
-                />
-              </label>
-              <label className="sys-api-modal__field">
-                <span className="sys-api-modal__label">{language === 'ar' ? 'اسم العرض (عربي)' : 'Display name (Arabic)'}</span>
-                <input
-                  className="gis-input sys-api-modal__input"
-                  value={addApiForm.titleAr}
-                  onChange={e => setAddApiForm(f => ({ ...f, titleAr: e.target.value }))}
-                  autoComplete="off"
-                  dir="rtl"
-                  placeholder={language === 'ar' ? 'اختياري' : 'Optional'}
-                />
-              </label>
-              <label className="sys-api-modal__field sys-api-modal__field--full">
-                <span className="sys-api-modal__label">{language === 'ar' ? 'الوصف (إنجليزي)' : 'Description (English)'}</span>
-                <textarea
-                  className="gis-input sys-api-modal__textarea"
-                  rows={2}
-                  value={addApiForm.description}
-                  onChange={e => setAddApiForm(f => ({ ...f, description: e.target.value }))}
-                  placeholder={language === 'ar' ? 'متى يُستخدم هذا الرمز؟' : 'When is this token used?'}
-                />
-              </label>
-              <label className="sys-api-modal__field sys-api-modal__field--full">
-                <span className="sys-api-modal__label">{language === 'ar' ? 'الوصف (عربي)' : 'Description (Arabic)'}</span>
-                <textarea
-                  className="gis-input sys-api-modal__textarea"
-                  rows={2}
-                  value={addApiForm.descriptionAr}
-                  onChange={e => setAddApiForm(f => ({ ...f, descriptionAr: e.target.value }))}
-                  dir="rtl"
-                  placeholder={language === 'ar' ? 'اختياري' : 'Optional'}
-                />
-              </label>
-              <label className="sys-api-modal__field">
-                <span className="sys-api-modal__label">
-                  {language === 'ar' ? 'تسمية حقل السر (إنجليزي) *' : 'Secret field label (English) *'}
-                </span>
-                <input
-                  className="gis-input sys-api-modal__input"
-                  value={addApiForm.fieldLabel}
-                  onChange={e => setAddApiForm(f => ({ ...f, fieldLabel: e.target.value }))}
-                  autoComplete="off"
-                />
-              </label>
-              <label className="sys-api-modal__field">
-                <span className="sys-api-modal__label">{language === 'ar' ? 'تسمية الحقل (عربي)' : 'Field label (Arabic)'}</span>
-                <input
-                  className="gis-input sys-api-modal__input"
-                  value={addApiForm.fieldLabelAr}
-                  onChange={e => setAddApiForm(f => ({ ...f, fieldLabelAr: e.target.value }))}
-                  autoComplete="off"
-                  dir="rtl"
-                  placeholder={language === 'ar' ? 'اختياري' : 'Optional'}
-                />
-              </label>
-              <label className="sys-api-modal__field">
-                <span className="sys-api-modal__label">{language === 'ar' ? 'نص توضيحي للحقل (إنجليزي)' : 'Input placeholder (English)'}</span>
-                <input
-                  className="gis-input sys-api-modal__input"
-                  value={addApiForm.placeholder}
-                  onChange={e => setAddApiForm(f => ({ ...f, placeholder: e.target.value }))}
-                  autoComplete="off"
-                  placeholder="sk-…"
-                />
-              </label>
-              <label className="sys-api-modal__field">
-                <span className="sys-api-modal__label">{language === 'ar' ? 'نص توضيحي (عربي)' : 'Placeholder (Arabic)'}</span>
-                <input
-                  className="gis-input sys-api-modal__input"
-                  value={addApiForm.placeholderAr}
-                  onChange={e => setAddApiForm(f => ({ ...f, placeholderAr: e.target.value }))}
-                  autoComplete="off"
-                  dir="rtl"
-                  placeholder={language === 'ar' ? 'اختياري' : 'Optional'}
-                />
-              </label>
-            </div>
-            <div className="sys-api-modal__icons" role="group" aria-label={language === 'ar' ? 'أيقونة البطاقة' : 'Card icon'}>
-              {CUSTOM_API_SLOT_ICONS.map(ic => (
-                <button
-                  key={ic}
-                  type="button"
-                  className={`sys-api-modal__iconchip${addApiForm.iconClass === ic ? ' sys-api-modal__iconchip--active' : ''}`}
-                  title={ic}
-                  aria-label={ic}
-                  aria-pressed={addApiForm.iconClass === ic}
-                  onClick={() => setAddApiForm(f => ({ ...f, iconClass: ic }))}
-                >
-                  <i className={ic} aria-hidden />
-                </button>
-              ))}
-            </div>
-            <div className="sys-api-modal__actions">
+                <div className="sys-api-modal__header-text">
+                  <h2 id="sys-api-add-modal-title" className="sys-api-modal__title">
+                    {language === 'ar' ? 'إضافة نوع رمز API' : 'Add API token type'}
+                  </h2>
+                  <p className="sys-api-modal__lead">
+                    {language === 'ar'
+                      ? 'عرّف البطاقة هنا؛ احفظ السر لاحقاً من زر الحقول بعد الإضافة.'
+                      : 'Define the card here; save the secret later with the check control on the field.'}
+                  </p>
+                </div>
+              </div>
               <button
                 type="button"
-                className="gis-btn gis-btn-outline"
+                className="sys-api-modal__close"
+                aria-label={language === 'ar' ? 'إغلاق' : 'Close'}
+                onClick={() => {
+                  setAddApiModalOpen(false)
+                  resetAddApiForm()
+                }}
+              >
+                <i className="fa-solid fa-xmark" aria-hidden />
+              </button>
+            </header>
+
+            <div className="sys-api-modal__body">
+              <section className="sys-api-modal__section" aria-labelledby="sys-api-modal-sec-names">
+                <h3 id="sys-api-modal-sec-names" className="sys-api-modal__section-title">
+                  {language === 'ar' ? 'اسم العرض' : 'Display name'}
+                </h3>
+                <div className="sys-api-modal__grid">
+                  <label className="sys-api-modal__field">
+                    <span className="sys-api-modal__label">
+                      {language === 'ar' ? 'الإنجليزية *' : 'English *'}
+                    </span>
+                    <input
+                      className="gis-input sys-api-modal__input"
+                      value={addApiForm.title}
+                      onChange={e => setAddApiForm(f => ({ ...f, title: e.target.value }))}
+                      autoComplete="off"
+                      placeholder={language === 'ar' ? 'مثال: My Weather API' : 'e.g. My Weather API'}
+                    />
+                  </label>
+                  <label className="sys-api-modal__field">
+                    <span className="sys-api-modal__label">{language === 'ar' ? 'العربية' : 'Arabic'}</span>
+                    <input
+                      className="gis-input sys-api-modal__input"
+                      value={addApiForm.titleAr}
+                      onChange={e => setAddApiForm(f => ({ ...f, titleAr: e.target.value }))}
+                      autoComplete="off"
+                      dir="rtl"
+                      placeholder={language === 'ar' ? 'اختياري' : 'Optional'}
+                    />
+                  </label>
+                </div>
+              </section>
+
+              <section className="sys-api-modal__section" aria-labelledby="sys-api-modal-sec-desc">
+                <h3 id="sys-api-modal-sec-desc" className="sys-api-modal__section-title">
+                  {language === 'ar' ? 'الوصف' : 'Description'}
+                </h3>
+                <div className="sys-api-modal__grid sys-api-modal__grid--stack">
+                  <label className="sys-api-modal__field sys-api-modal__field--full">
+                    <span className="sys-api-modal__label">{language === 'ar' ? 'الإنجليزية' : 'English'}</span>
+                    <textarea
+                      className="gis-input sys-api-modal__textarea"
+                      rows={2}
+                      value={addApiForm.description}
+                      onChange={e => setAddApiForm(f => ({ ...f, description: e.target.value }))}
+                      placeholder={language === 'ar' ? 'متى يُستخدم هذا الرمز؟' : 'When is this token used?'}
+                    />
+                  </label>
+                  <label className="sys-api-modal__field sys-api-modal__field--full">
+                    <span className="sys-api-modal__label">{language === 'ar' ? 'العربية' : 'Arabic'}</span>
+                    <textarea
+                      className="gis-input sys-api-modal__textarea"
+                      rows={2}
+                      value={addApiForm.descriptionAr}
+                      onChange={e => setAddApiForm(f => ({ ...f, descriptionAr: e.target.value }))}
+                      dir="rtl"
+                      placeholder={language === 'ar' ? 'اختياري' : 'Optional'}
+                    />
+                  </label>
+                </div>
+              </section>
+
+              <section className="sys-api-modal__section" aria-labelledby="sys-api-modal-sec-labels">
+                <h3 id="sys-api-modal-sec-labels" className="sys-api-modal__section-title">
+                  {language === 'ar' ? 'تسمية حقل السر' : 'Secret field label'}
+                </h3>
+                <div className="sys-api-modal__grid">
+                  <label className="sys-api-modal__field">
+                    <span className="sys-api-modal__label">{language === 'ar' ? 'الإنجليزية *' : 'English *'}</span>
+                    <input
+                      className="gis-input sys-api-modal__input"
+                      value={addApiForm.fieldLabel}
+                      onChange={e => setAddApiForm(f => ({ ...f, fieldLabel: e.target.value }))}
+                      autoComplete="off"
+                    />
+                  </label>
+                  <label className="sys-api-modal__field">
+                    <span className="sys-api-modal__label">{language === 'ar' ? 'العربية' : 'Arabic'}</span>
+                    <input
+                      className="gis-input sys-api-modal__input"
+                      value={addApiForm.fieldLabelAr}
+                      onChange={e => setAddApiForm(f => ({ ...f, fieldLabelAr: e.target.value }))}
+                      autoComplete="off"
+                      dir="rtl"
+                      placeholder={language === 'ar' ? 'اختياري' : 'Optional'}
+                    />
+                  </label>
+                </div>
+              </section>
+
+              <section className="sys-api-modal__section" aria-labelledby="sys-api-modal-sec-ph">
+                <h3 id="sys-api-modal-sec-ph" className="sys-api-modal__section-title">
+                  {language === 'ar' ? 'نص توضيحي للحقل' : 'Input placeholder'}
+                </h3>
+                <div className="sys-api-modal__grid">
+                  <label className="sys-api-modal__field">
+                    <span className="sys-api-modal__label">{language === 'ar' ? 'الإنجليزية' : 'English'}</span>
+                    <input
+                      className="gis-input sys-api-modal__input"
+                      value={addApiForm.placeholder}
+                      onChange={e => setAddApiForm(f => ({ ...f, placeholder: e.target.value }))}
+                      autoComplete="off"
+                      placeholder={language === 'ar' ? 'مثال: مفتاح API' : 'e.g. API key hint'}
+                    />
+                  </label>
+                  <label className="sys-api-modal__field">
+                    <span className="sys-api-modal__label">{language === 'ar' ? 'العربية' : 'Arabic'}</span>
+                    <input
+                      className="gis-input sys-api-modal__input"
+                      value={addApiForm.placeholderAr}
+                      onChange={e => setAddApiForm(f => ({ ...f, placeholderAr: e.target.value }))}
+                      autoComplete="off"
+                      dir="rtl"
+                      placeholder={language === 'ar' ? 'اختياري' : 'Optional'}
+                    />
+                  </label>
+                </div>
+              </section>
+
+              <section className="sys-api-modal__section sys-api-modal__section--icons" aria-labelledby="sys-api-modal-sec-icons">
+                <h3 id="sys-api-modal-sec-icons" className="sys-api-modal__section-title">
+                  {language === 'ar' ? 'أيقونة البطاقة' : 'Card icon'}
+                </h3>
+                <div className="sys-api-modal__icon-panel" role="group" aria-label={language === 'ar' ? 'أيقونة البطاقة' : 'Card icon'}>
+                  {CUSTOM_API_SLOT_ICONS.map(ic => (
+                    <button
+                      key={ic}
+                      type="button"
+                      className={`sys-api-modal__iconchip${addApiForm.iconClass === ic ? ' sys-api-modal__iconchip--active' : ''}`}
+                      title={ic}
+                      aria-label={ic}
+                      aria-pressed={addApiForm.iconClass === ic}
+                      onClick={() => setAddApiForm(f => ({ ...f, iconClass: ic }))}
+                    >
+                      <i className={ic} aria-hidden />
+                    </button>
+                  ))}
+                </div>
+              </section>
+            </div>
+
+            <footer className="sys-api-modal__footer">
+              <button
+                type="button"
+                className="sys-api-modal__btn sys-api-modal__btn--ghost"
                 onClick={() => {
                   setAddApiModalOpen(false)
                   resetAddApiForm()
@@ -2086,10 +2147,11 @@ export default function SystemSettings() {
               >
                 {language === 'ar' ? 'إلغاء' : 'Cancel'}
               </button>
-              <button type="button" className="gis-btn" style={{ background: 'var(--ds-color-primary)', color: '#fff' }} onClick={submitAddApiToken}>
-                {language === 'ar' ? 'إضافة' : 'Add'}
+              <button type="button" className="sys-api-modal__btn sys-api-modal__btn--primary" onClick={submitAddApiToken}>
+                <i className="fa-solid fa-plus" aria-hidden />
+                {language === 'ar' ? 'إضافة البطاقة' : 'Add card'}
               </button>
-            </div>
+            </footer>
           </div>
         </div>
       ) : null}

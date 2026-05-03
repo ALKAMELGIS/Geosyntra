@@ -25,12 +25,12 @@ export function getSentinelHubWmsInstanceIdBrowserOverride(): string {
   }
 }
 
-/** Effective instance: env wins, then browser override, then built-in default. */
+/** Effective instance: saved browser value, then env, then built-in default. */
 export function getSentinelHubWmsInstanceId(): string {
-  const fromEnv = envInstanceId()
-  if (fromEnv) return fromEnv
   const fromLs = getSentinelHubWmsInstanceIdBrowserOverride()
   if (fromLs) return fromLs
+  const fromEnv = envInstanceId()
+  if (fromEnv) return fromEnv
   return SENTINEL_HUB_WMS_DEFAULT_INSTANCE_ID
 }
 

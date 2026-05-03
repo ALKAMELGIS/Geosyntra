@@ -12,6 +12,14 @@ export function simplifyGeoExplorerUserQuery(raw: string): string {
   return s
 }
 
+/** Remove trailing "from … layer" so geocoders do not treat dataset names as place names. */
+export function stripLayerReferenceForGeocode(raw: string): string {
+  return raw
+    .replace(/\bfrom\s+['"]?[\w\s-]+['"]?\s*layers?\b/gi, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
 export async function geocodePlaceToLngLat(
   query: string,
   opts: { mapboxAccessToken?: string },

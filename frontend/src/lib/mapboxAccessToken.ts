@@ -1,6 +1,8 @@
 /**
- * Mapbox public token: build-time env and/or browser override.
- * Never commit real tokens — use VITE_MAPBOX_TOKEN or Admin → Maps (stored locally).
+ * Mapbox public token: browser override (System Settings) and/or build-time env.
+ * Saved browser values take precedence so tokens survive redeploys and are not replaced
+ * by CI build env unless the user clears the saved value.
+ * Never commit real tokens — use VITE_MAPBOX_TOKEN or Admin → API Tokens (stored locally).
  */
 
 export const MAPBOX_TOKEN_LS_KEY = 'agri_mapbox_access_token_v1'
@@ -24,13 +26,12 @@ export function getMapboxAccessTokenBrowserOverride(): string {
 }
 
 /**
- * Effective token: environment first, then localStorage override.
- * Use for Mapbox GL `mapboxAccessToken` so deploy keeps control, while devs can paste a token without rebuild.
+ * Effective token: non-empty browser override first, then VITE_MAPBOX_TOKEN.
  */
 export function getMapboxAccessToken(): string {
-  const fromEnv = envToken()
-  if (fromEnv) return fromEnv
-  return getMapboxAccessTokenBrowserOverride()
+  const fromLs = getMapboxAccessTokenBrowserOverride()
+  if (fromLs) return fromLs
+  return envToken()
 }
 
 export function persistMapboxAccessTokenInBrowser(token: string): void {

@@ -3660,6 +3660,36 @@ aside {
   line-height: 1;
 }
 
+.gis-content-header-right {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  flex-wrap: wrap;
+  min-width: 0;
+}
+
+.gis-content-master-save-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.gis-content-master-save-hint {
+  font-size: 12px;
+  font-weight: 650;
+  color: #047857;
+  max-width: min(220px, 36vw);
+  line-height: 1.25;
+  text-align: right;
+}
+
+.gis-content-master-save-hint--error {
+  color: #b91c1c;
+}
+
 .gis-content-tabs {
   display: inline-flex;
   align-items: center;
@@ -6114,6 +6144,37 @@ html[data-theme='dark'] .gis-domain-cell--dropdown.missing-description .gis-doma
   color: rgba(15, 23, 42, 1);
   border-bottom: 1px solid rgba(226, 232, 240, 1);
   background: linear-gradient(180deg, rgba(255, 255, 255, 1), rgba(248, 250, 252, 1));
+}
+
+.gis-modal-compact-hero {
+  padding: 14px 16px 12px;
+  border-bottom: 1px solid rgba(226, 232, 240, 1);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 1), rgba(248, 250, 252, 1));
+}
+
+.gis-modal-compact-hero-title {
+  margin: 0 0 6px;
+  font-weight: 750;
+  font-size: 14px;
+  color: rgba(15, 23, 42, 1);
+  letter-spacing: -0.02em;
+}
+
+.gis-modal-compact-hero-lead {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 550;
+  line-height: 1.45;
+  color: rgba(71, 85, 105, 0.95);
+}
+
+.gis-modal-compact-status {
+  margin: 0;
+  padding: 4px 2px 0;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.45;
+  color: rgba(51, 65, 85, 0.92);
 }
 
 .gis-modal-compact-tabs {

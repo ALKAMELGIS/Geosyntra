@@ -23,11 +23,11 @@ export function getGeminiApiKeyBrowserOverride(): string {
   }
 }
 
-/** Effective key: environment first, then localStorage override (same rule as Mapbox). */
+/** Effective key: saved browser value first, then VITE_GEMINI_API_KEY. */
 export function getGeminiApiKey(): string {
-  const fromEnv = envGeminiKey()
-  if (fromEnv) return fromEnv
-  return getGeminiApiKeyBrowserOverride()
+  const fromLs = getGeminiApiKeyBrowserOverride()
+  if (fromLs) return fromLs
+  return envGeminiKey()
 }
 
 export function persistGeminiApiKeyInBrowser(key: string): void {

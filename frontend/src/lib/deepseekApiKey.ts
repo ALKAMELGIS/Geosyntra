@@ -23,9 +23,9 @@ export function getDeepseekApiKeyBrowserOverride(): string {
 }
 
 export function getDeepseekApiKey(): string {
-  const fromEnv = envDeepseekKey()
-  if (fromEnv) return fromEnv
-  return getDeepseekApiKeyBrowserOverride()
+  const fromLs = getDeepseekApiKeyBrowserOverride()
+  if (fromLs) return fromLs
+  return envDeepseekKey()
 }
 
 export function persistDeepseekApiKeyInBrowser(key: string): void {

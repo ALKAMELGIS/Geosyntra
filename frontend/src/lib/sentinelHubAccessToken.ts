@@ -22,11 +22,11 @@ export function getSentinelHubAccessTokenBrowserOverride(): string {
   }
 }
 
-/** Effective token: VITE_SENTINEL_HUB_ACCESS_TOKEN first, then localStorage. */
+/** Effective token: saved browser value first, then VITE_SENTINEL_HUB_ACCESS_TOKEN. */
 export function getSentinelHubAccessToken(): string {
-  const fromEnv = envToken()
-  if (fromEnv) return fromEnv
-  return getSentinelHubAccessTokenBrowserOverride()
+  const fromLs = getSentinelHubAccessTokenBrowserOverride()
+  if (fromLs) return fromLs
+  return envToken()
 }
 
 export function persistSentinelHubAccessTokenInBrowser(token: string): void {

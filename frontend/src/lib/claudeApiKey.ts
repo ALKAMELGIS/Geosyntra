@@ -23,11 +23,11 @@ export function getClaudeApiKeyBrowserOverride(): string {
   }
 }
 
-/** Effective key: environment first, then localStorage override. */
+/** Effective key: saved browser value first, then VITE_CLAUDE_API_KEY. */
 export function getClaudeApiKey(): string {
-  const fromEnv = envClaudeKey()
-  if (fromEnv) return fromEnv
-  return getClaudeApiKeyBrowserOverride()
+  const fromLs = getClaudeApiKeyBrowserOverride()
+  if (fromLs) return fromLs
+  return envClaudeKey()
 }
 
 export function persistClaudeApiKeyInBrowser(key: string): void {

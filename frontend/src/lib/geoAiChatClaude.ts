@@ -4,14 +4,16 @@
 
 import { loadGisMapSavedLayers } from './gisMapLayerStore'
 import type { LayerData } from '../pages/satellite/components/LayerManager'
+import { summarizeGeoAiMapLayers } from './geoExplorerLayerContext'
+import type { GeoAiMapLayer } from './geoExplorerLayerContext'
 
 /** Develop Dashboard writes this when layers / CSV tables change. */
 export const DEVELOP_DATA_CONTEXT_LS_KEY = 'agri_develop_data_context_v1'
 
-export const GEO_AI_CHAT_SYSTEM_BASE = `You are Geo AI Chat. Your job is to analyze and explain tabular or layer-related information using ONLY the data summaries provided in the user message context blocks (GIS Content layers and Develop Dashboard snapshot).
+export const GEO_AI_CHAT_SYSTEM_BASE = `You are Geo AI Chat. Your job is to analyze and explain tabular or layer-related information using ONLY the data summaries provided in the user message context blocks (Satellite Added layers when present, GIS Content layers saved from GIS Map, and Develop Dashboard snapshot).
 
 Rules:
-- If the answer is not supported by the context, say clearly that the data is not in the snapshot and suggest what the user could add (e.g. save layers in GIS Map, or open Develop Dashboard → Data).
+- If the answer is not supported by the context, say clearly that the data is not in the snapshot and suggest what the user could add (e.g. add layers on this Satellite map, save layers in GIS Map / GIS Content, or open Develop Dashboard → Data).
 - Prefer short structured answers: headings, bullets, and small tables in plain text when useful.
 - Do not invent field values, coordinates, or statistics that are not implied by the context.
 - When sample feature properties appear, treat them as examples only, not exhaustive.`
@@ -51,9 +53,22 @@ export async function buildGisContentLayersContext(maxChars = 40000): Promise<st
   }
 }
 
+export type { GeoAiMapLayer } from './geoExplorerLayerContext'
+
 /** Build a single text block appended to the system prompt (truncated for safety). */
-export async function buildGeoAiDataContext(maxChars = 48000): Promise<string> {
+export async function buildGeoAiDataContext(
+  maxChars = 48000,
+  opts?: { satelliteLayers?: GeoAiMapLayer[] },
+): Promise<string> {
   const chunks: string[] = []
+
+  if (opts?.satelliteLayers?.length) {
+    const cap = Math.min(30000, Math.max(8000, maxChars - 12000))
+    chunks.push(
+      '### Satellite Imagery — Added layers (visible vector layers on this map session)\n' +
+        summarizeGeoAiMapLayers(opts.satelliteLayers, cap),
+    )
+  }
 
   try {
     const layers = await loadGisMapSavedLayers()

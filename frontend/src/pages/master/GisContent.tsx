@@ -752,6 +752,9 @@ function GisContentPage() {
     safeParseJson<Record<string, string[]>>(safeLocalStorageGetItem(LS_HIDDEN_FIELDS_KEY), {}),
   )
 
+  const [masterSaveBusy, setMasterSaveBusy] = useState(false)
+  const [masterSaveHint, setMasterSaveHint] = useState<{ kind: 'success' | 'error'; text: string } | null>(null)
+
   const [layerModal, setLayerModal] = useState<null | { mode: 'edit'; layerId: string }>(null)
   const [confirm, setConfirm] = useState<
     | null
@@ -860,17 +863,20 @@ function GisContentPage() {
     return () => window.clearTimeout(t)
   }, [syncError])
 
+  const cancelScheduledLayerPersist = useCallback(() => {
+    if (!persistLayersJobRef.current) return
+    const job = persistLayersJobRef.current
+    persistLayersJobRef.current = null
+    if (job.kind === 'idle') {
+      ;(window as any).cancelIdleCallback?.(job.id)
+    } else {
+      clearTimeout(job.id)
+    }
+  }, [])
+
   useEffect(() => {
     if (!layersLoaded) return
-    if (persistLayersJobRef.current) {
-      const job = persistLayersJobRef.current
-      persistLayersJobRef.current = null
-      if (job.kind === 'idle') {
-        ;(window as any).cancelIdleCallback?.(job.id)
-      } else {
-        clearTimeout(job.id)
-      }
-    }
+    cancelScheduledLayerPersist()
 
     const run = () => {
       persistLayersJobRef.current = null
@@ -890,7 +896,7 @@ function GisContentPage() {
     return () => {
       clearTimeout(id)
     }
-  }, [layers, layersLoaded])
+  }, [layers, layersLoaded, cancelScheduledLayerPersist])
 
   useEffect(() => {
     safeLocalStorageSetItem(LS_META_KEY, JSON.stringify(layerMeta))
@@ -911,6 +917,49 @@ function GisContentPage() {
   useEffect(() => {
     safeLocalStorageSetItem(LS_HIDDEN_FIELDS_KEY, JSON.stringify(hiddenFieldsByLayerId))
   }, [hiddenFieldsByLayerId])
+
+  const applyAndSaveMasterData = useCallback(async () => {
+    if (!layersLoaded) {
+      setMasterSaveHint({ kind: 'error', text: 'Layers are still loading.' })
+      return
+    }
+    cancelScheduledLayerPersist()
+    setMasterSaveBusy(true)
+    setMasterSaveHint(null)
+    try {
+      await saveLayersToDB(layers)
+      safeLocalStorageSetItem(LS_META_KEY, JSON.stringify(layerMeta))
+      safeLocalStorageSetItem(LS_ORDER_KEY, JSON.stringify(layerOrder))
+      safeLocalStorageSetItem(LS_FIELDS_KEY, JSON.stringify(layerFields))
+      safeLocalStorageSetItem(LS_RELATIONSHIPS_KEY, JSON.stringify(relationships))
+      safeLocalStorageSetItem(LS_HIDDEN_FIELDS_KEY, JSON.stringify(hiddenFieldsByLayerId))
+      window.dispatchEvent(new CustomEvent('gis-content-master-saved', { detail: { savedAt: Date.now() } }))
+      setMasterSaveHint({ kind: 'success', text: 'Master data saved.' })
+    } catch (e: any) {
+      setMasterSaveHint({
+        kind: 'error',
+        text: typeof e?.message === 'string' ? e.message : 'Could not save master data.',
+      })
+    } finally {
+      setMasterSaveBusy(false)
+    }
+  }, [
+    cancelScheduledLayerPersist,
+    hiddenFieldsByLayerId,
+    layerFields,
+    layerMeta,
+    layerOrder,
+    layers,
+    layersLoaded,
+    relationships,
+  ])
+
+  useEffect(() => {
+    if (!masterSaveHint) return
+    const ms = masterSaveHint.kind === 'success' ? 2800 : 5200
+    const t = window.setTimeout(() => setMasterSaveHint(null), ms)
+    return () => window.clearTimeout(t)
+  }, [masterSaveHint])
 
   useEffect(() => {
     const nextMeta: Record<string, { createdAt: string }> = { ...layerMeta }
@@ -1516,40 +1565,73 @@ function GisContentPage() {
         <i className="fa-solid fa-layer-group" aria-hidden="true" />
         <span>GIS Layers</span>
       </div>
-      <div className="gis-content-tabs" role="tablist" aria-label="Layer management tabs">
+      <div className="gis-content-header-right">
+        {masterSaveHint ? (
+          <span
+            className={
+              masterSaveHint.kind === 'error'
+                ? 'gis-content-master-save-hint gis-content-master-save-hint--error'
+                : 'gis-content-master-save-hint'
+            }
+            role="status"
+          >
+            {masterSaveHint.text}
+          </span>
+        ) : null}
         <button
           type="button"
-          role="tab"
-          aria-selected={activeTab === 'data'}
-          className={activeTab === 'data' ? 'gis-content-tab active' : 'gis-content-tab'}
-          onClick={() => setActiveTab('data')}
-          disabled={!selectedLayer}
+          className="gis-btn gis-btn-primary gis-content-master-save-btn"
+          onClick={() => void applyAndSaveMasterData()}
+          disabled={!layersLoaded || masterSaveBusy || !!layersLoadError}
+          title="Persist layers and schema to browser storage (IndexedDB + localStorage) as master data for the map, data entry, and Geo AI."
         >
-          Data
+          {masterSaveBusy ? (
+            <>
+              <i className="fa-solid fa-spinner fa-spin" aria-hidden="true" />
+              <span>Saving…</span>
+            </>
+          ) : (
+            <>
+              <i className="fa-solid fa-floppy-disk" aria-hidden="true" />
+              <span>Apply and Save</span>
+            </>
+          )}
         </button>
-        <button
-          type="button"
-          role="tab"
-          aria-selected={activeTab === 'fields'}
-          className={activeTab === 'fields' ? 'gis-content-tab active' : 'gis-content-tab'}
-          onClick={() => setActiveTab('fields')}
-          disabled={!selectedLayer}
-        >
-          Fields
-        </button>
-        <button
-          type="button"
-          role="tab"
-          aria-selected={activeTab === 'relationships'}
-          className={activeTab === 'relationships' ? 'gis-content-tab active' : 'gis-content-tab'}
-          onClick={() => setActiveTab('relationships')}
-        >
-          Relationships
-        </button>
-        <button className="gis-content-tab gis-content-tab-docs" type="button" onClick={() => setHelpOpen(true)}>
-          <i className="fa-solid fa-book" aria-hidden="true" />
-          <span>Documentation</span>
-        </button>
+        <div className="gis-content-tabs" role="tablist" aria-label="Layer management tabs">
+          <button
+            type="button"
+            role="tab"
+            aria-selected={activeTab === 'data'}
+            className={activeTab === 'data' ? 'gis-content-tab active' : 'gis-content-tab'}
+            onClick={() => setActiveTab('data')}
+            disabled={!selectedLayer}
+          >
+            Data
+          </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={activeTab === 'fields'}
+            className={activeTab === 'fields' ? 'gis-content-tab active' : 'gis-content-tab'}
+            onClick={() => setActiveTab('fields')}
+            disabled={!selectedLayer}
+          >
+            Fields
+          </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={activeTab === 'relationships'}
+            className={activeTab === 'relationships' ? 'gis-content-tab active' : 'gis-content-tab'}
+            onClick={() => setActiveTab('relationships')}
+          >
+            Relationships
+          </button>
+          <button className="gis-content-tab gis-content-tab-docs" type="button" onClick={() => setHelpOpen(true)}>
+            <i className="fa-solid fa-book" aria-hidden="true" />
+            <span>Documentation</span>
+          </button>
+        </div>
       </div>
     </div>
   )
