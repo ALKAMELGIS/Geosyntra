@@ -1684,38 +1684,29 @@ export default function SystemSettings() {
                 </span>
               )}
             </div>
-            <div
-              className="sys-settings-actions__toolbar"
-              role="group"
-              aria-label={language === 'ar' ? 'حفظ أو تجاهل أو استعادة' : 'Save, discard, or reset'}
-            >
-              <button
-                type="button"
-                className="sys-settings-actions__iconbtn sys-settings-actions__iconbtn--save"
-                onClick={() => void handleSave()}
-                title={language === 'ar' ? 'حفظ الإعدادات' : 'Save settings'}
-                aria-label={language === 'ar' ? 'حفظ الإعدادات' : 'Save settings'}
-              >
+            <div className="sys-settings-actions__buttons">
+              <button type="button" className="gis-btn gis-btn-primary sys-settings-actions__btn" onClick={() => void handleSave()}>
                 <i className="fa-solid fa-floppy-disk" aria-hidden />
+                {language === 'ar' ? 'حفظ الإعدادات' : 'Save settings'}
               </button>
               <button
                 type="button"
-                className="sys-settings-actions__iconbtn sys-settings-actions__iconbtn--discard"
+                className="gis-btn gis-btn-outline sys-settings-actions__btn"
                 onClick={handleCancel}
                 disabled={!settingsDirty}
                 title={language === 'ar' ? 'تجاهل التعديلات واسترجاع آخر نسخة محفوظة' : 'Discard edits and reload last saved'}
-                aria-label={language === 'ar' ? 'تجاهل التغييرات' : 'Discard changes'}
               >
                 <i className="fa-solid fa-ban" aria-hidden />
+                {language === 'ar' ? 'تجاهل التغييرات' : 'Discard changes'}
               </button>
               <button
                 type="button"
-                className="sys-settings-actions__iconbtn sys-settings-actions__iconbtn--danger"
+                className="gis-btn gis-btn-outline sys-settings-actions__btn sys-settings-actions__btn--danger"
                 onClick={() => setConfirmReset(true)}
                 title={language === 'ar' ? 'استعادة إعدادات المصنع' : 'Restore factory defaults'}
-                aria-label={language === 'ar' ? 'استعادة الافتراضي' : 'Reset to defaults'}
               >
                 <i className="fa-solid fa-rotate-left" aria-hidden />
+                {language === 'ar' ? 'استعادة الافتراضي' : 'Reset to defaults'}
               </button>
             </div>
           </div>
