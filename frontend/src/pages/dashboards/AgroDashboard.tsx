@@ -1,12 +1,22 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import Chart from 'chart.js/auto'
-import type { Chart as ChartInstance } from 'chart.js'
+import type { Chart as ChartInstance, ChartConfiguration } from 'chart.js'
 import { useLanguage } from '../../lib/i18n'
 import { loadGisMapSavedLayers } from '../../lib/gisMapLayerStore'
 import type { LayerData } from '../satellite/components/LayerManager'
 import { parseFile, parseRemoteUrlAsFile } from '../../utils/FileLoader'
 import './develop-dashboard.css'
 import './agro-dashboard.css'
+import {
+  type AgroVizType,
+  type FieldChartSlot,
+  VIZ_OPTIONS,
+  buildSlotVisualization,
+  rowsFromFeatureCollection,
+  trimRows,
+  DEFAULT_FIELD_CHART,
+  coerceNumber,
+} from './agroDashboardCharts'
 
 const MO_EN = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'] as const
 const MO_AR = ['يناير', 'فبراير', 'مارس', 'أبريل', 'مايو', 'يونيو', 'يوليو', 'أغسطس', 'سبتمبر', 'أكتوبر', 'نوفمبر', 'ديسمبر'] as const
@@ -24,32 +34,6 @@ const DATA = {
 } as const
 
 type QuarterKey = keyof typeof DATA
-
-const RAIN = zeros(12)
-const YLD = zeros(12)
-
-const COLORS = {
-  accent: '#2D6BE4',
-  teal: '#12A97B',
-  amber: '#E8920A',
-  violet: '#6C5DD3',
-  accentM: '#93B8F5',
-  tealM: '#7DD9C0',
-  grid: 'rgba(0,0,0,0.05)',
-  tick: '#8b90a0',
-} as const
-
-function gridOpts() {
-  return { color: COLORS.grid, drawBorder: false }
-}
-
-function tickOpts() {
-  return { font: { size: 10 }, color: COLORS.tick }
-}
-
-function noLegend() {
-  return { legend: { display: false } }
-}
 
 type AgroFieldRow = {
   n: string
@@ -200,6 +184,53 @@ type AgroSourceLayer = {
   name: string
   fields: string[]
   kind: 'feature' | 'table'
+  rows: Record<string, unknown>[]
+}
+
+function agroPlaceholderChartConfig(labels: string[]): ChartConfiguration {
+  return {
+    type: 'line',
+    data: {
+      labels,
+      datasets: [
+        {
+          data: labels.map(() => 0),
+          borderColor: '#e4e7ef',
+          borderWidth: 2,
+          tension: 0.35,
+          pointRadius: 0,
+        },
+      ],
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: { legend: { display: false }, tooltip: { enabled: false } },
+      scales: {
+        x: { ticks: { maxRotation: 0, font: { size: 9 } }, grid: { display: false } },
+        y: { min: 0, max: 1, ticks: { display: false }, grid: { color: 'rgba(0,0,0,0.04)' } },
+      },
+    },
+  }
+}
+
+function AgroVizStrip(props: { value: AgroVizType; onChange: (v: AgroVizType) => void; ariaLabel: string }) {
+  const { value, onChange, ariaLabel } = props
+  return (
+    <div className="agdash-viz-strip" role="group" aria-label={ariaLabel}>
+      {VIZ_OPTIONS.map(opt => (
+        <button
+          key={opt.id}
+          type="button"
+          title={opt.title}
+          className={`agdash-viz-btn${value === opt.id ? ' agdash-viz-btn--on' : ''}`}
+          onClick={() => onChange(opt.id)}
+        >
+          <i className={opt.icon} aria-hidden />
+        </button>
+      ))}
+    </div>
+  )
 }
 
 export default function AgroDashboard() {
@@ -275,6 +306,12 @@ export default function AgroDashboard() {
             wfPanelPinTitle: 'تثبيت الحقول لأنواع الرسوم',
             wfPanelPinEmpty: 'اختر حقولاً في الخطوة السابقة، ثم حدد هنا ما يظهر في الرسوم.',
             wfPanelPinSubtitle: 'الحقول المعروضة في الرسوم',
+            chartEmpty: 'ثبّت حقولاً وحدد الرسم لكل حقل أدناه.',
+            wfAssignCharts: 'أي رسم يستخدم هذا الحقل؟',
+            slotMain: 'رئيسي',
+            slotPie: 'دائرة',
+            slotBot: 'خط',
+            chartTypesAria: 'نوع التصور البياني',
             quarter: [
               { v: 'all', l: 'كل 2024' },
               { v: 'q1', l: 'الربع 1' },
@@ -371,6 +408,12 @@ export default function AgroDashboard() {
             wfPanelPinTitle: 'Pin fields for chart types',
             wfPanelPinEmpty: 'Select fields in the previous step, then choose what appears in charts here.',
             wfPanelPinSubtitle: 'Fields shown in charts',
+            chartEmpty: 'Pin fields and assign each field to a chart below.',
+            wfAssignCharts: 'Which charts use this field?',
+            slotMain: 'Main',
+            slotPie: 'Pie',
+            slotBot: 'Line',
+            chartTypesAria: 'Chart visualization type',
             quarter: [
               { v: 'all', l: 'All 2024' },
               { v: 'q1', l: 'Q1' },
@@ -450,11 +493,38 @@ export default function AgroDashboard() {
   const [pinnedFieldKeys, setPinnedFieldKeys] = useState<string[]>([])
   const [homePick, setHomePick] = useState<'gis' | 'arcgis' | 'upload' | 'getdata'>('gis')
   const addLayerFileInputRef = useRef<HTMLInputElement | null>(null)
-  const [mainType, setMainType] = useState<'bar' | 'line' | 'area'>('bar')
-  const [pieType, setPieType] = useState<'pie' | 'doughnut'>('pie')
+  const [vizMain, setVizMain] = useState<AgroVizType>('bar')
+  const [vizPie, setVizPie] = useState<AgroVizType>('doughnut')
+  const [vizBot, setVizBot] = useState<AgroVizType>('line')
+  const [fieldChartPlacement, setFieldChartPlacement] = useState<Record<string, FieldChartSlot>>({})
   const [quarter, setQuarter] = useState<QuarterKey>('all')
 
-  const kpi1 = useMemo(() => '0', [])
+  useEffect(() => {
+    setFieldChartPlacement(prev => {
+      const next: Record<string, FieldChartSlot> = {}
+      for (const k of pinnedFieldKeys) {
+        next[k] = prev[k] ? { ...prev[k]! } : { ...DEFAULT_FIELD_CHART }
+      }
+      return next
+    })
+  }, [pinnedFieldKeys])
+
+  const kpi1 = useMemo(() => {
+    const keys = pinnedFieldKeys.filter(k => (fieldChartPlacement[k] ?? DEFAULT_FIELD_CHART).main)
+    if (!keys.length) return '0'
+    const key = keys[0]!
+    const { sourceId, field } = parseAgroFieldKey(key)
+    const L = agroSources.find(s => s.id === sourceId)
+    if (!L || !field) return '0'
+    let s = 0
+    for (const r of L.rows) {
+      const n = coerceNumber(r[field])
+      if (n !== null) s += n
+    }
+    if (!Number.isFinite(s)) return '0'
+    const abs = Math.abs(s)
+    return abs >= 1000 ? `${(s / 1000).toFixed(1)}k` : String(Math.round(s))
+  }, [pinnedFieldKeys, fieldChartPlacement, agroSources])
 
   const kpi2 = useMemo(() => String(includedFieldKeys.length), [includedFieldKeys.length])
 
@@ -465,175 +535,66 @@ export default function AgroDashboard() {
   const pieChartRef = useRef<ChartInstance | null>(null)
   const lineChartRef = useRef<ChartInstance | null>(null)
 
-  const buildMain = useCallback(() => {
-    const ctx = mainCanvasRef.current
-    if (!ctx) return
-    mainChartRef.current?.destroy()
-    const d = DATA[quarter]
-    const slice = { q1: [0, 3] as const, q2: [3, 6] as const, q3: [6, 9] as const, q4: [9, 12] as const }
-    const labs =
-      quarter !== 'all' ? [...MO].slice(...slice[quarter as Exclude<QuarterKey, 'all'>]) : [...MO]
-    const isLine = mainType === 'line' || mainType === 'area'
-    const chartType = isLine ? 'line' : 'bar'
-
-    mainChartRef.current = new Chart(ctx, {
-      type: chartType,
-      data: {
-        labels: labs,
-        datasets: [
-          {
-            label: 'Harvest',
-            data: [...d.h],
-            backgroundColor: mainType === 'bar' ? COLORS.accent : 'transparent',
-            borderColor: COLORS.accent,
-            borderWidth: isLine ? 2 : 0,
-            fill: mainType === 'area' ? 'origin' : false,
-            tension: 0.4,
-            pointRadius: isLine ? 3 : 0,
-            borderRadius: mainType === 'bar' ? 5 : 0,
-          },
-          {
-            label: 'Target',
-            data: [...d.t],
-            type: 'line',
-            borderColor: COLORS.accentM,
-            borderWidth: 1.5,
-            borderDash: [5, 4],
-            backgroundColor: 'transparent',
-            fill: false,
-            pointRadius: 0,
-            tension: 0.4,
-          },
-        ],
-      },
-      options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        plugins: { ...noLegend() },
-        scales: {
-          x: {
-            ticks: { ...tickOpts(), autoSkip: false, maxRotation: 0 },
-            grid: { display: false },
-            border: { display: false },
-          },
-          y: {
-            ticks: {
-              ...tickOpts(),
-              callback: (v: string | number) => {
-                const n = typeof v === 'number' ? v : Number(v)
-                return n >= 1000 ? `${(n / 1000).toFixed(0)}k` : n
-              },
-            },
-            grid: gridOpts(),
-            border: { display: false },
-          },
-        },
-      },
-    })
-  }, [MO, mainType, quarter])
-
-  const buildPie = useCallback(() => {
-    const ctx = pieCanvasRef.current
-    if (!ctx) return
-    pieChartRef.current?.destroy()
-    const noDataLabel = ar ? 'لا بيانات' : 'No data'
-    pieChartRef.current = new Chart(ctx, {
-      type: pieType,
-      data: {
-        labels: [noDataLabel],
-        datasets: [
-          {
-            data: [1],
-            backgroundColor: ['#e2e8f0'],
-            borderWidth: 0,
-            hoverOffset: 0,
-          },
-        ],
-      },
-      options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        plugins: {
-          ...noLegend(),
-          tooltip: { enabled: false },
-        },
-      },
-    })
-  }, [pieType, ar])
-
-  const buildLine = useCallback(() => {
-    const ctx = lineCanvasRef.current
-    if (!ctx) return
-    lineChartRef.current?.destroy()
-    lineChartRef.current = new Chart(ctx, {
-      type: 'line',
-      data: {
-        labels: [...MO],
-        datasets: [
-          {
-            label: 'Yield',
-            data: [...YLD],
-            borderColor: COLORS.accent,
-            borderWidth: 2,
-            pointRadius: 0,
-            tension: 0.4,
-            fill: false,
-          },
-          {
-            label: 'Rainfall',
-            data: [...RAIN],
-            borderColor: COLORS.tealM,
-            borderWidth: 2,
-            borderDash: [4, 3],
-            pointRadius: 0,
-            tension: 0.4,
-            fill: false,
-          },
-        ],
-      },
-      options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        plugins: { ...noLegend() },
-        scales: {
-          x: {
-            ticks: { ...tickOpts(), autoSkip: true },
-            grid: { display: false },
-            border: { display: false },
-          },
-          y: {
-            ticks: tickOpts(),
-            grid: gridOpts(),
-            border: { display: false },
-          },
-        },
-      },
-    })
-  }, [MO])
+  const mainSlot = useMemo(
+    () => buildSlotVisualization('main', vizMain, pinnedFieldKeys, fieldChartPlacement, agroSources, t.chartEmpty),
+    [vizMain, pinnedFieldKeys, fieldChartPlacement, agroSources, t.chartEmpty],
+  )
+  const pieSlot = useMemo(
+    () => buildSlotVisualization('pie', vizPie, pinnedFieldKeys, fieldChartPlacement, agroSources, t.pieNoData),
+    [vizPie, pinnedFieldKeys, fieldChartPlacement, agroSources, t.pieNoData],
+  )
+  const botSlot = useMemo(
+    () => buildSlotVisualization('bot', vizBot, pinnedFieldKeys, fieldChartPlacement, agroSources, t.chartEmpty),
+    [vizBot, pinnedFieldKeys, fieldChartPlacement, agroSources, t.chartEmpty],
+  )
 
   useEffect(() => {
-    buildMain()
+    mainChartRef.current?.destroy()
+    mainChartRef.current = null
+    const canvas = mainCanvasRef.current
+    if (!canvas || vizMain === 'table') return
+    if (mainSlot.kind === 'chart') {
+      mainChartRef.current = new Chart(canvas, mainSlot.config)
+    } else if (mainSlot.kind === 'empty') {
+      mainChartRef.current = new Chart(canvas, agroPlaceholderChartConfig([...MO]))
+    }
     return () => {
       mainChartRef.current?.destroy()
       mainChartRef.current = null
     }
-  }, [buildMain])
+  }, [mainSlot, vizMain, MO])
 
   useEffect(() => {
-    buildPie()
+    pieChartRef.current?.destroy()
+    pieChartRef.current = null
+    const canvas = pieCanvasRef.current
+    if (!canvas || vizPie === 'table') return
+    if (pieSlot.kind === 'chart') {
+      pieChartRef.current = new Chart(canvas, pieSlot.config)
+    } else if (pieSlot.kind === 'empty') {
+      pieChartRef.current = new Chart(canvas, agroPlaceholderChartConfig([...MO].slice(0, 6)))
+    }
     return () => {
       pieChartRef.current?.destroy()
       pieChartRef.current = null
     }
-  }, [buildPie])
+  }, [pieSlot, vizPie, MO])
 
   useEffect(() => {
-    buildLine()
+    lineChartRef.current?.destroy()
+    lineChartRef.current = null
+    const canvas = lineCanvasRef.current
+    if (!canvas || vizBot === 'table') return
+    if (botSlot.kind === 'chart') {
+      lineChartRef.current = new Chart(canvas, botSlot.config)
+    } else if (botSlot.kind === 'empty') {
+      lineChartRef.current = new Chart(canvas, agroPlaceholderChartConfig([...MO]))
+    }
     return () => {
       lineChartRef.current?.destroy()
       lineChartRef.current = null
     }
-  }, [buildLine])
+  }, [botSlot, vizBot, MO])
 
   const resetAgroAddForm = useCallback(() => {
     setAddWizard('home')
@@ -703,6 +664,13 @@ export default function AgroDashboard() {
     }
     return out
   }, [agroSources, includedFieldKeys])
+
+  const toggleFieldChartSlot = useCallback((key: string, slot: keyof FieldChartSlot) => {
+    setFieldChartPlacement(prev => {
+      const cur = prev[key] ?? { ...DEFAULT_FIELD_CHART }
+      return { ...prev, [key]: { ...cur, [slot]: !cur[slot] } }
+    })
+  }, [])
 
   useEffect(() => {
     if (!addSourceOpen) return
@@ -831,11 +799,13 @@ export default function AgroDashboard() {
         }
 
         const fields = fieldsFromFeatureCollection(data)
+        const rows = rowsFromFeatureCollection(data)
         registerAgroSource({
           id: newAgroSourceId(),
           name: displayName,
           fields,
           kind: outKind,
+          rows,
         })
       } catch (e: unknown) {
         setDiscoverError(e instanceof Error ? e.message : 'Failed to add layer from GIS Content.')
@@ -856,11 +826,13 @@ export default function AgroDashboard() {
         const displayName = layerModalName.trim() || l.name
         if (!data.features.length) throw new Error('Layer has no rows or features.')
         const fields = fieldsFromFeatureCollection(data)
+        const rows = rowsFromFeatureCollection(data)
         registerAgroSource({
           id: newAgroSourceId(),
           name: displayName,
           fields,
           kind: l.kind === 'table' ? 'table' : 'feature',
+          rows,
         })
       } catch (e: unknown) {
         setDiscoverError(e instanceof Error ? e.message : 'Failed to add layer.')
@@ -889,6 +861,7 @@ export default function AgroDashboard() {
           name: displayName,
           fields: columns,
           kind: 'table',
+          rows: trimRows(rows),
         })
         return
       }
@@ -901,11 +874,13 @@ export default function AgroDashboard() {
       }
       const displayName = layerModalName.trim() || uploadFile.name.replace(/\.[^.]+$/, '').trim() || 'Layer'
       const fields = fieldsFromFeatureCollection(fc)
+      const rows = rowsFromFeatureCollection(fc)
       registerAgroSource({
         id: newAgroSourceId(),
         name: displayName,
         fields,
         kind: 'feature',
+        rows,
       })
     } catch (e: unknown) {
       setDiscoverError(e instanceof Error ? e.message : 'Failed to import file.')
@@ -935,11 +910,13 @@ export default function AgroDashboard() {
       const stem = file.name.replace(/\.[^.]+$/, '').trim()
       const displayName = layerModalName.trim() || stem || 'Layer'
       const fields = fieldsFromFeatureCollection(fc)
+      const rows = rowsFromFeatureCollection(fc)
       registerAgroSource({
         id: newAgroSourceId(),
         name: displayName,
         fields,
         kind: 'feature',
+        rows,
       })
     } catch (e: unknown) {
       setDiscoverError(e instanceof Error ? e.message : 'Failed to import from URL.')
@@ -1127,21 +1104,53 @@ export default function AgroDashboard() {
               ) : (
                 <>
                   <p className="agdash-wf-panel-sub">{t.wfPanelPinSubtitle}</p>
-                  <ul className="agdash-wf-field-rows">
+                  <ul className="agdash-wf-field-rows agdash-wf-field-rows--blocks">
                     {orderedIncludedPinKeys.map(key => {
                       const { sourceId, field } = parseAgroFieldKey(key)
                       const src = agroSources.find(s => s.id === sourceId)
                       const label = src && field ? `${src.name} — ${field}` : field || key
+                      const pinned = pinnedFieldKeys.includes(key)
+                      const slot = fieldChartPlacement[key] ?? DEFAULT_FIELD_CHART
                       return (
-                        <li key={key} className="agdash-wf-field-row">
-                          <label className="agdash-wf-check">
-                            <input
-                              type="checkbox"
-                              checked={pinnedFieldKeys.includes(key)}
-                              onChange={() => togglePinnedFieldKey(key)}
-                            />
-                            <span>{label}</span>
-                          </label>
+                        <li key={key} className="agdash-wf-field-block">
+                          <div className="agdash-wf-field-row">
+                            <label className="agdash-wf-check">
+                              <input
+                                type="checkbox"
+                                checked={pinned}
+                                onChange={() => togglePinnedFieldKey(key)}
+                              />
+                              <span>{label}</span>
+                            </label>
+                          </div>
+                          {pinned ? (
+                            <div className="agdash-wf-slot-row">
+                              <span className="agdash-wf-slot-lbl">{t.wfAssignCharts}</span>
+                              <div className="agdash-wf-slot-btns">
+                                <button
+                                  type="button"
+                                  className={`agdash-slot-chip${slot.main ? ' agdash-slot-chip--on' : ''}`}
+                                  onClick={() => toggleFieldChartSlot(key, 'main')}
+                                >
+                                  {t.slotMain}
+                                </button>
+                                <button
+                                  type="button"
+                                  className={`agdash-slot-chip${slot.pie ? ' agdash-slot-chip--on' : ''}`}
+                                  onClick={() => toggleFieldChartSlot(key, 'pie')}
+                                >
+                                  {t.slotPie}
+                                </button>
+                                <button
+                                  type="button"
+                                  className={`agdash-slot-chip${slot.bot ? ' agdash-slot-chip--on' : ''}`}
+                                  onClick={() => toggleFieldChartSlot(key, 'bot')}
+                                >
+                                  {t.slotBot}
+                                </button>
+                              </div>
+                            </div>
+                          ) : null}
                         </li>
                       )
                     })}
@@ -1240,124 +1249,141 @@ export default function AgroDashboard() {
           </div>
 
           <div className="agdash-mid">
-            <div className="agdash-card">
+            <div className="agdash-card agdash-card--viz">
               <div className="agdash-ch agdash-ch--headless">
-                <div className="agdash-ch-tools">
-                  <div className="agdash-type-grp" role="group" aria-label={ar ? 'نوع الرسم' : 'Chart type'}>
-                    <button
-                      type="button"
-                      title="Bar"
-                      className={`agdash-tbtn${mainType === 'bar' ? ' agdash-on' : ''}`}
-                      onClick={() => setMainType('bar')}
-                    >
-                      <svg viewBox="0 0 13 13" fill="currentColor" aria-hidden>
-                        <rect x="0" y="5" width="3" height="8" />
-                        <rect x="5" y="2" width="3" height="11" />
-                        <rect x="10" y="0" width="3" height="13" />
-                      </svg>
-                    </button>
-                    <button
-                      type="button"
-                      title="Line"
-                      className={`agdash-tbtn${mainType === 'line' ? ' agdash-on' : ''}`}
-                      onClick={() => setMainType('line')}
-                    >
-                      <svg viewBox="0 0 13 13" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" aria-hidden>
-                        <polyline points="0,10 4,5 8,7 13,2" />
-                      </svg>
-                    </button>
-                    <button
-                      type="button"
-                      title="Area"
-                      className={`agdash-tbtn${mainType === 'area' ? ' agdash-on' : ''}`}
-                      onClick={() => setMainType('area')}
-                    >
-                      <svg viewBox="0 0 13 13" fill="currentColor" opacity="0.8" aria-hidden>
-                        <polygon points="0,13 0,8 4,4 8,6 13,2 13,13" />
-                      </svg>
-                    </button>
-                  </div>
+                <div className="agdash-ch-tools agdash-ch-tools--viz">
+                  <AgroVizStrip value={vizMain} onChange={setVizMain} ariaLabel={t.chartTypesAria} />
                   <button type="button" className="agdash-action-link">
                     {t.analyze}
                   </button>
                 </div>
               </div>
               <div className="agdash-chart-wrap">
-                <canvas ref={mainCanvasRef} role="img" aria-label={t.chartMainAria} />
+                {vizMain === 'table' && mainSlot.kind === 'table' ? (
+                  <div className="agdash-mini-table-scroll">
+                    <table className="agdash-mini-table">
+                      <thead>
+                        <tr>
+                          {mainSlot.columns.map(c => (
+                            <th key={c}>{c}</th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {mainSlot.rows.map((r, i) => (
+                          <tr key={i}>
+                            {mainSlot.columns.map(c => (
+                              <td key={c}>{String(r[c] ?? '')}</td>
+                            ))}
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                ) : vizMain === 'table' ? (
+                  <div className="agdash-chart-fallback agdash-li--muted">
+                    {mainSlot.kind === 'empty' ? mainSlot.message : t.chartEmpty}
+                  </div>
+                ) : (
+                  <canvas ref={mainCanvasRef} role="img" aria-label={t.chartMainAria} />
+                )}
               </div>
-              <div className="agdash-leg">
-                <div className="agdash-li">
-                  <div className="agdash-lsq" style={{ background: 'var(--agdash-accent)' }} />
-                  {t.legHarvest}
+              {mainSlot.kind === 'empty' && vizMain !== 'table' ? (
+                <div className="agdash-leg">
+                  <div className="agdash-li agdash-li--muted">{mainSlot.message}</div>
                 </div>
-                <div className="agdash-li">
-                  <div className="agdash-lsq" style={{ background: 'var(--agdash-accent-mid)', opacity: 0.6 }} />
-                  {t.legTarget}
-                </div>
-              </div>
+              ) : null}
             </div>
 
-            <div className="agdash-card">
+            <div className="agdash-card agdash-card--viz">
               <div className="agdash-ch agdash-ch--headless">
-                <div className="agdash-ch-tools agdash-ch-tools--col">
-                  <div className="agdash-type-grp" role="group" aria-label={ar ? 'نوع الدائرة' : 'Pie type'}>
-                    <button
-                      type="button"
-                      title="Pie"
-                      className={`agdash-tbtn${pieType === 'pie' ? ' agdash-on' : ''}`}
-                      onClick={() => setPieType('pie')}
-                    >
-                      <svg viewBox="0 0 13 13" fill="currentColor" aria-hidden>
-                        <path d="M6.5 0A6.5 6.5 0 0 1 13 6.5H6.5Z" opacity="0.9" />
-                        <path d="M13 6.5A6.5 6.5 0 0 1 6.5 13V6.5Z" opacity="0.65" />
-                        <path d="M6.5 13A6.5 6.5 0 0 1 0 6.5H6.5Z" opacity="0.4" />
-                        <path d="M0 6.5A6.5 6.5 0 0 1 6.5 0V6.5Z" opacity="0.2" />
-                      </svg>
-                    </button>
-                    <button
-                      type="button"
-                      title="Doughnut"
-                      className={`agdash-tbtn${pieType === 'doughnut' ? ' agdash-on' : ''}`}
-                      onClick={() => setPieType('doughnut')}
-                    >
-                      <svg viewBox="0 0 13 13" fill="none" stroke="currentColor" strokeWidth="3" aria-hidden>
-                        <circle cx="6.5" cy="6.5" r="4" />
-                      </svg>
-                    </button>
-                  </div>
+                <div className="agdash-ch-tools agdash-ch-tools--viz agdash-ch-tools--col">
+                  <AgroVizStrip value={vizPie} onChange={setVizPie} ariaLabel={t.chartTypesAria} />
                 </div>
               </div>
               <div className="agdash-chart-wrap agdash-chart-sm">
-                <canvas ref={pieCanvasRef} role="img" aria-label={t.chartPieAria} />
+                {vizPie === 'table' && pieSlot.kind === 'table' ? (
+                  <div className="agdash-mini-table-scroll">
+                    <table className="agdash-mini-table">
+                      <thead>
+                        <tr>
+                          {pieSlot.columns.map(c => (
+                            <th key={c}>{c}</th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {pieSlot.rows.map((r, i) => (
+                          <tr key={i}>
+                            {pieSlot.columns.map(c => (
+                              <td key={c}>{String(r[c] ?? '')}</td>
+                            ))}
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                ) : vizPie === 'table' ? (
+                  <div className="agdash-chart-fallback agdash-li--muted">
+                    {pieSlot.kind === 'empty' ? pieSlot.message : t.chartEmpty}
+                  </div>
+                ) : (
+                  <canvas ref={pieCanvasRef} role="img" aria-label={t.chartPieAria} />
+                )}
               </div>
-              <div className="agdash-leg" style={{ justifyContent: 'center' }}>
-                <div className="agdash-li agdash-li--muted">{t.pieNoData}</div>
-              </div>
+              {pieSlot.kind === 'empty' && vizPie !== 'table' ? (
+                <div className="agdash-leg" style={{ justifyContent: 'center' }}>
+                  <div className="agdash-li agdash-li--muted">{pieSlot.message}</div>
+                </div>
+              ) : null}
             </div>
           </div>
 
           <div className="agdash-bot">
-            <div className="agdash-card">
+            <div className="agdash-card agdash-card--viz">
               <div className="agdash-ch agdash-ch--headless">
-                <div className="agdash-ch-tools agdash-ch-tools--line">
+                <div className="agdash-ch-tools agdash-ch-tools--viz agdash-ch-tools--line">
+                  <AgroVizStrip value={vizBot} onChange={setVizBot} ariaLabel={t.chartTypesAria} />
                   <button type="button" className="agdash-action-link">
                     {t.analyze}
                   </button>
                 </div>
               </div>
               <div className="agdash-chart-wrap agdash-chart-xs">
-                <canvas ref={lineCanvasRef} role="img" aria-label={t.chartLineAria} />
+                {vizBot === 'table' && botSlot.kind === 'table' ? (
+                  <div className="agdash-mini-table-scroll">
+                    <table className="agdash-mini-table">
+                      <thead>
+                        <tr>
+                          {botSlot.columns.map(c => (
+                            <th key={c}>{c}</th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {botSlot.rows.map((r, i) => (
+                          <tr key={i}>
+                            {botSlot.columns.map(c => (
+                              <td key={c}>{String(r[c] ?? '')}</td>
+                            ))}
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                ) : vizBot === 'table' ? (
+                  <div className="agdash-chart-fallback agdash-li--muted">
+                    {botSlot.kind === 'empty' ? botSlot.message : t.chartEmpty}
+                  </div>
+                ) : (
+                  <canvas ref={lineCanvasRef} role="img" aria-label={t.chartLineAria} />
+                )}
               </div>
-              <div className="agdash-leg" style={{ marginTop: 10 }}>
-                <div className="agdash-li">
-                  <div className="agdash-lsq" style={{ background: 'var(--agdash-accent)' }} />
-                  {t.legYield}
+              {botSlot.kind === 'empty' && vizBot !== 'table' ? (
+                <div className="agdash-leg" style={{ marginTop: 10 }}>
+                  <div className="agdash-li agdash-li--muted">{botSlot.message}</div>
                 </div>
-                <div className="agdash-li">
-                  <div className="agdash-lsq" style={{ background: 'var(--agdash-teal-mid)' }} />
-                  {t.legRain}
-                </div>
-              </div>
+              ) : null}
             </div>
 
             <div className="agdash-card">
