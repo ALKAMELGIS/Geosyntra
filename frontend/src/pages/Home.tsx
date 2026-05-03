@@ -30,6 +30,7 @@ const menuItems: MenuItem[] = [
     items: [
       { label: { en: 'Develop Dashboard', ar: 'تطوير لوحة التحكم' }, icon: 'fa-solid fa-grip', to: '/dashboard/develop' },
       { label: { en: 'Agro Cloud Dashboard', ar: 'لوحة Agro Cloud' }, icon: 'fa-solid fa-chart-pie', to: '/dashboards/agro-cloud' },
+      { label: { en: 'Agro Dashboard', ar: 'لوحة Agro' }, icon: 'fa-solid fa-seedling', to: '/dashboards/agro-dashboard' },
       { label: { en: 'AI AgroCloud', ar: 'سحابة Agro الذكية' }, icon: 'fa-solid fa-cloud-bolt', to: '/dashboards/ai-agro-cloud' },
       { label: { en: 'AI Agro-Chat', ar: 'محادثة Agro الذكية' }, icon: 'fa-solid fa-comments', to: '/dashboards/ai-agro-chat' },
     ]

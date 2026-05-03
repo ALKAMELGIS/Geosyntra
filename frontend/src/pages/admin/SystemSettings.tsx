@@ -4,7 +4,7 @@ import * as yup from 'yup'
 import { useLanguage } from '../../lib/i18n'
 import { hasPermission, normalizeRole, readCurrentUser } from '../../lib/auth'
 import { NAV_DEFAULT_GROUPS, NAV_GROUP_IDS } from '../../nav/navManifest'
-import { loadSystemSettings, normalizeAppPath } from '../../services/settingsStorage'
+import { loadSystemSettings, mergeWithDefaults, normalizeAppPath } from '../../services/settingsStorage'
 import { applyThemeToDocument, useSystemSettings } from '../../store/SystemSettingsContext'
 import { clearUserApiTokenValue, getUserApiTokenValue, persistUserApiTokenValue } from '../../lib/customUserApiTokens'
 import type { CustomApiTokenSlot, CustomPageRecord, SystemSettingsPersistedV1 } from '../../types/systemSettings'
@@ -524,6 +524,11 @@ export default function SystemSettings() {
         (page.navGroupId || 'data').toLowerCase().includes(q)
       )
     })
+
+  const settingsDirty = useMemo(
+    () => JSON.stringify(mergeWithDefaults(settings)) !== JSON.stringify(mergeWithDefaults(draft)),
+    [settings, draft],
+  )
 
   const homePreviewCanvasStyle = useMemo(() => {
     const bg = draft.homePage
@@ -1590,7 +1595,7 @@ export default function SystemSettings() {
                 <p className="sys-api-section__sub">
                   {language === 'ar'
                     ? 'عرّف البطاقة هنا؛ احفظ الإعدادات العامة (أسفل الصفحة) لتثبيت التعريف. زر الحفظ بجانب الحقل يخزّن السر في هذا المتصفح فقط.'
-                    : 'Define the card here; use footer Save to persist its definition. Per-field Save stores the secret in this browser only.'}
+                    : 'Define the card here; use Save settings below to persist its definition. Per-field Save stores the secret in this browser only.'}
                 </p>
               </div>
               <div className="sys-api-tokens-grid">
@@ -1659,16 +1664,52 @@ export default function SystemSettings() {
         </div>
       ) : null}
 
-        <footer className="sys-settings-footer sys-settings-panel__footer">
-          <button type="button" className="sys-footer-icon-btn is-save" onClick={() => void handleSave()} aria-label="Save settings" title="Save">
-            <i className="fa-solid fa-floppy-disk" aria-hidden />
-          </button>
-          <button type="button" className="sys-footer-icon-btn" onClick={handleCancel} aria-label="Cancel changes" title="Cancel">
-            <i className="fa-solid fa-ban" aria-hidden />
-          </button>
-          <button type="button" className="sys-footer-icon-btn is-danger" onClick={() => setConfirmReset(true)} aria-label="Reset defaults" title="Reset defaults">
-            <i className="fa-solid fa-rotate-left" aria-hidden />
-          </button>
+        <footer
+          className="sys-settings-actions"
+          role="region"
+          aria-label={language === 'ar' ? 'إجراءات حفظ الإعدادات' : 'Settings save actions'}
+          dir={language === 'ar' ? 'rtl' : 'ltr'}
+        >
+          <div className="sys-settings-actions__inner">
+            <div className="sys-settings-actions__meta">
+              {settingsDirty ? (
+                <span className="sys-settings-actions__status sys-settings-actions__status--dirty">
+                  <i className="fa-solid fa-pen-to-square" aria-hidden />
+                  {language === 'ar' ? 'تغييرات غير محفوظة' : 'Unsaved changes'}
+                </span>
+              ) : (
+                <span className="sys-settings-actions__status sys-settings-actions__status--clean">
+                  <i className="fa-solid fa-circle-check" aria-hidden />
+                  {language === 'ar' ? 'لا توجد تغييرات معلّقة' : 'No pending changes'}
+                </span>
+              )}
+            </div>
+            <div className="sys-settings-actions__buttons">
+              <button type="button" className="gis-btn gis-btn-primary sys-settings-actions__btn" onClick={() => void handleSave()}>
+                <i className="fa-solid fa-floppy-disk" aria-hidden />
+                {language === 'ar' ? 'حفظ الإعدادات' : 'Save settings'}
+              </button>
+              <button
+                type="button"
+                className="gis-btn gis-btn-outline sys-settings-actions__btn"
+                onClick={handleCancel}
+                disabled={!settingsDirty}
+                title={language === 'ar' ? 'تجاهل التعديلات واسترجاع آخر نسخة محفوظة' : 'Discard edits and reload last saved'}
+              >
+                <i className="fa-solid fa-ban" aria-hidden />
+                {language === 'ar' ? 'تجاهل التغييرات' : 'Discard changes'}
+              </button>
+              <button
+                type="button"
+                className="gis-btn gis-btn-outline sys-settings-actions__btn sys-settings-actions__btn--danger"
+                onClick={() => setConfirmReset(true)}
+                title={language === 'ar' ? 'استعادة إعدادات المصنع' : 'Restore factory defaults'}
+              >
+                <i className="fa-solid fa-rotate-left" aria-hidden />
+                {language === 'ar' ? 'استعادة الافتراضي' : 'Reset to defaults'}
+              </button>
+            </div>
+          </div>
         </footer>
       </section>
       </div>

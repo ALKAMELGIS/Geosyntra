@@ -8,6 +8,7 @@ import Home from '../pages/Home'
 import Login from '../pages/Login'
 import DashboardOverview from '../pages/dashboards/Overview'
 import DevelopDashboard from '../pages/dashboards/DevelopDashboard'
+import AgroDashboard from '../pages/dashboards/AgroDashboard'
 const SatelliteIntelligence = lazy(() => import('../pages/satellite/SatelliteIntelligence'))
 const SatelliteMultidimensional = lazy(() => import('../pages/satellite/Multidimensional'))
 const GisMap = lazy(() => import('../pages/satellite/GisMap'))
@@ -57,6 +58,7 @@ export default function AppRoutes() {
         <Route path="/dashboards/ai-chatbot" element={<DashboardAiChatbot />} />
         <Route path="/dashboards/model" element={<DashboardModel />} />
         <Route path="/dashboards/agro-cloud" element={<AgroCloudDashboard />} />
+        <Route path="/dashboards/agro-dashboard" element={<AgroDashboard />} />
         <Route path="/dashboards/ai-agro-cloud" element={<AiAgroCloud />} />
         <Route path="/dashboards/ai-agro-chat" element={<AiAgroChat />} />
         <Route path="/master/gis-content" element={<MasterGisContent />} />

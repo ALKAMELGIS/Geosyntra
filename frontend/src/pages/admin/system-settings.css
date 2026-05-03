@@ -16,6 +16,9 @@
   max-width: none;
   margin: 0 auto;
   background: var(--ds-color-bg);
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
 }
 
 .sys-settings__header-row {
@@ -63,6 +66,7 @@
 
 /* Segmented tabs — glass strip */
 .sys-settings-tabs {
+  flex-shrink: 0;
   display: inline-flex;
   flex-wrap: wrap;
   gap: 4px;
@@ -677,6 +681,8 @@ html[data-theme='dark'] .sys-settings-tab:hover:not(.sys-settings-tab--active) {
 .sys-settings-panel--unified {
   display: flex;
   flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
   margin-bottom: 0;
   padding: 0;
   border: none;
@@ -686,6 +692,9 @@ html[data-theme='dark'] .sys-settings-tab:hover:not(.sys-settings-tab--active) {
 }
 
 .sys-settings-tab-pane {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
   padding: clamp(20px, 3vw, 28px);
 }
 
@@ -1529,58 +1538,118 @@ html[data-theme='dark'] .sys-settings-tab:hover:not(.sys-settings-tab--active) {
   opacity: 0.75;
 }
 
-/* Footer actions: no separate boxed strip */
-.sys-settings-footer {
+/* Bottom action bar: aligned with tab content width, reads as part of the page (not a floating chip cluster) */
+.sys-settings-actions {
   flex-shrink: 0;
-  position: static;
-  z-index: auto;
-  margin-top: 0;
-  padding: 12px clamp(16px, 3vw, 24px) 0;
-  border-radius: 0;
-  border: none;
-  background: transparent;
-  backdrop-filter: none;
+  margin-top: auto;
+  padding-block: clamp(14px, 2vw, 20px);
+  padding-inline: 0;
+  border-block-start: 1px solid color-mix(in srgb, var(--sys-border) 88%, transparent);
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--ds-color-surface) 55%, var(--ds-color-bg)),
+    color-mix(in srgb, var(--ds-color-surface) 88%, var(--ds-color-bg))
+  );
+  box-shadow: 0 -1px 0 color-mix(in srgb, #fff 55%, transparent) inset;
+}
+
+html[data-theme='dark'] .sys-settings-actions {
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--ds-color-surface) 40%, var(--ds-color-bg)),
+    color-mix(in srgb, var(--ds-color-surface) 72%, var(--ds-color-bg))
+  );
   box-shadow: none;
+}
+
+.sys-settings-actions__inner {
+  width: 100%;
+  max-width: 1120px;
+  margin-inline: auto;
+  padding-inline: clamp(4px, 1vw, 8px);
   display: flex;
-  flex-wrap: nowrap;
-  justify-content: flex-end;
-  gap: 10px;
+  flex-wrap: wrap;
   align-items: center;
+  justify-content: space-between;
+  gap: 14px 20px;
 }
 
-html[data-theme='dark'] .sys-settings-footer {
-  background: transparent;
+.sys-settings-actions__meta {
+  flex: 1 1 200px;
+  min-width: 0;
 }
 
-.sys-footer-icon-btn {
-  width: 40px;
-  height: 40px;
-  border-radius: 12px;
-  border: 1px solid var(--sys-border);
-  background: var(--ds-color-surface);
-  color: var(--ds-color-text);
+.sys-settings-actions__status {
   display: inline-flex;
   align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  font-size: 15px;
-  box-shadow: var(--ds-shadow-sm);
-  transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease, background-color 0.15s ease;
+  gap: 10px;
+  font-size: 0.875rem;
+  font-weight: 600;
+  line-height: 1.35;
 }
 
-.sys-footer-icon-btn:hover {
-  transform: translateY(-1px);
-  box-shadow: var(--ds-shadow-md);
+.sys-settings-actions__status i {
+  font-size: 1rem;
+  opacity: 0.9;
 }
 
-.sys-footer-icon-btn.is-save {
-  border-color: color-mix(in srgb, var(--ds-color-primary) 42%, var(--sys-border));
-  background: color-mix(in srgb, var(--ds-color-primary) 14%, var(--ds-color-surface));
-  color: var(--ds-color-primary);
+.sys-settings-actions__status--clean {
+  color: color-mix(in srgb, var(--ds-color-primary) 78%, var(--sys-muted));
 }
 
-.sys-footer-icon-btn.is-danger {
-  border-color: color-mix(in srgb, var(--ds-color-danger) 42%, var(--sys-border));
-  background: color-mix(in srgb, var(--ds-color-danger) 12%, var(--ds-color-surface));
+.sys-settings-actions__status--dirty {
+  color: color-mix(in srgb, var(--ds-color-warning, #b45309) 55%, var(--ds-color-text));
+}
+
+.sys-settings-actions__buttons {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+.sys-settings-actions__btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 600;
+  min-height: 40px;
+  padding-inline: 14px;
+}
+
+.sys-settings-actions__btn > i {
+  font-size: 0.95rem;
+  opacity: 0.92;
+}
+
+.sys-settings-actions__btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.sys-settings-actions__btn--danger {
+  border-color: color-mix(in srgb, var(--ds-color-danger) 45%, var(--sys-border));
   color: var(--ds-color-danger);
+}
+
+.sys-settings-actions__btn--danger:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--ds-color-danger) 10%, var(--ds-color-surface));
+  border-color: color-mix(in srgb, var(--ds-color-danger) 55%, var(--sys-border));
+}
+
+@media (max-width: 640px) {
+  .sys-settings-actions__inner {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .sys-settings-actions__buttons {
+    justify-content: stretch;
+  }
+
+  .sys-settings-actions__btn {
+    width: 100%;
+    justify-content: center;
+  }
 }
