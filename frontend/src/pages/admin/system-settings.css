@@ -163,9 +163,9 @@ html[data-theme='dark'] .sys-settings-tab:hover:not(.sys-settings-tab--active) {
   }
 }
 
-/* API Tokens tab */
+/* API Tokens tab — wider shell so three token cards fit comfortably per row */
 .sys-api-tab {
-  max-width: 1120px;
+  max-width: 1320px;
   margin-inline: auto;
 }
 
@@ -215,14 +215,6 @@ html[data-theme='dark'] .sys-settings-tab:hover:not(.sys-settings-tab--active) {
   background: color-mix(in srgb, var(--ds-color-primary) 15%, var(--ds-color-surface));
   color: var(--ds-color-primary);
   font-size: 1.05rem;
-}
-
-.sys-api-hero__desc {
-  margin: 0;
-  max-width: 62ch;
-  font-size: 0.94rem;
-  line-height: 1.62;
-  color: var(--ds-color-text-muted, var(--sys-muted));
 }
 
 .sys-api-add-btn {
@@ -338,19 +330,11 @@ html[data-theme='dark'] .sys-settings-tab:hover:not(.sys-settings-tab--active) {
 }
 
 .sys-api-section__title {
-  margin: 0 0 6px;
+  margin: 0;
   font-size: 0.7rem;
   font-weight: 800;
   letter-spacing: 0.14em;
   text-transform: uppercase;
-  color: var(--ds-color-text-muted, var(--sys-muted));
-}
-
-.sys-api-section__sub {
-  margin: 0;
-  max-width: 72ch;
-  font-size: 0.88rem;
-  line-height: 1.55;
   color: var(--ds-color-text-muted, var(--sys-muted));
 }
 
@@ -528,11 +512,11 @@ html[data-theme='dark'] .sys-settings-tab:hover:not(.sys-settings-tab--active) {
   margin-bottom: 12px;
 }
 
-/* API Tokens — two-column card grid */
+/* API Tokens — three-column card grid on large viewports */
 .sys-api-tokens-grid {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 22px 26px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 20px 22px;
   margin-top: 0;
 }
 
@@ -553,6 +537,13 @@ html[data-theme='dark'] .sys-settings-tab:hover:not(.sys-settings-tab--active) {
 
 .sys-api-tokens-card--wide {
   grid-column: 1 / -1;
+}
+
+@media (max-width: 1180px) {
+  .sys-api-tokens-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 18px 20px;
+  }
 }
 
 @media (max-width: 900px) {

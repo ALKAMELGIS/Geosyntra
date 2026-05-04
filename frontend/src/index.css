@@ -3663,6 +3663,43 @@ aside {
   left: 16px;
 }
 
+/* Tool panel docked in sidebar (ArcGIS-style rail + content column) */
+.gis-sidebar-body--tool-dock {
+  padding: 10px 12px 12px;
+}
+
+.gis-sidebar-tool-dock {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.gis-sidebar-content-wrapper.gis-sidebar-tool-dock > .gis-map-tool-panel {
+  position: relative;
+  top: auto;
+  right: auto;
+  left: auto;
+  z-index: 1;
+  width: 100%;
+  max-width: none;
+  max-height: none;
+  flex: 1 1 auto;
+  min-height: 0;
+  margin: 0;
+  overflow: auto;
+  border-radius: 14px;
+  box-shadow: none;
+  border: 1px solid rgba(15, 23, 42, 0.1);
+  backdrop-filter: none;
+}
+
+:root[dir='rtl'] .gis-sidebar-content-wrapper.gis-sidebar-tool-dock > .gis-map-tool-panel {
+  right: auto;
+  left: auto;
+}
+
 .gis-map-tool-panel-head {
   display: flex;
   align-items: center;
@@ -8273,7 +8310,7 @@ html[data-theme='dark'] .gis-domain-cell--dropdown.missing-description .gis-doma
     width: min(74vh, calc(100vw - 28px)) !important;
     height: min(74vh, calc(100vw - 28px)) !important;
   }
-  .gis-map-tool-panel {
+  .gis-map-canvas > .gis-map-tool-panel {
     top: 70px;
     right: 12px;
     left: auto;

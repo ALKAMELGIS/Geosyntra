@@ -10,6 +10,23 @@
   overflow: visible;
 }
 
+.gis-sidebar-content-wrapper.gis-sidebar-tool-dock > .gis-map-tool-panel.gis-map-tool-panel--geo-explorer {
+  width: 100%;
+  max-height: none;
+  overflow: hidden;
+  padding: 4px 0 0;
+}
+
+.gis-sidebar-content-wrapper.gis-sidebar-tool-dock .gis-map-tool-panel .gis-geo-explorer {
+  max-height: none;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.gis-sidebar-content-wrapper.gis-sidebar-tool-dock .gis-map-tool-panel .gis-geo-explorer-messages {
+  min-height: 0;
+}
+
 .gis-map-tool-panel .gis-geo-explorer-header-actions {
   display: flex;
   align-items: center;

@@ -4287,20 +4287,6 @@ export default function SatelliteIntelligence() {
                 />
                 <slot name="actions-end" />
                 <slot name="expand-tooltip" />
-                <button
-                  type="button"
-                  id="expand-toggle"
-                  className="si-env-calcite-action si-env-calcite-action--expand"
-                  aria-pressed={isLayerDropdownOpen}
-                  aria-label={isLayerDropdownOpen ? 'Close environmental panel' : 'Open environmental panel'}
-                  title={isLayerDropdownOpen ? 'Close panel' : 'Open panel'}
-                  onClick={() => setIsLayerDropdownOpen(open => !open)}
-                >
-                  <i
-                    className={`fa-solid ${isLayerDropdownOpen ? 'fa-chevrons-right' : 'fa-chevrons-left'}`}
-                    aria-hidden
-                  />
-                </button>
               </calcite-action-group>
             </div>
             <input

@@ -1282,11 +1282,6 @@ export default function SystemSettings() {
                 </span>
                 {language === 'ar' ? 'رموز API' : 'API Tokens'}
               </h2>
-              <p className="sys-api-hero__desc">
-                {language === 'ar'
-                  ? 'تُحفظ المفاتيح على خادم التطبيق (ملف بجانب عملية Node) لتبقى بعد التحديثات وإعادة بناء الواجهة، وتُحمَّل إلى هذا المتصفح عند الفتح. عند وجود قيمة محفوظة هنا تتقدم على متغيرات VITE_* وقت التشغيل؛ إن لم يكن هناك شيء محفوظاً يُستخدم متغير البيئة أو الملف على الخادم. لا تُرفع الأسرار إلى Git.'
-                  : 'Keys are stored on the app server (next to the Node process) so they survive updates and frontend rebuilds, and are hydrated into this browser on load. When a value is saved here it takes precedence over VITE_* build-time variables at runtime; if nothing is saved yet, the build-time env or server file supplies the token. Never commit secrets to Git.'}
-              </p>
             </div>
             <button
               type="button"
@@ -1306,11 +1301,6 @@ export default function SystemSettings() {
               <h3 id="sys-api-built-in-heading" className="sys-api-section__title">
                 {language === 'ar' ? 'التكاملات المدمجة' : 'Built-in integrations'}
               </h3>
-              <p className="sys-api-section__sub">
-                {language === 'ar'
-                  ? 'التكاملات المدمجة وبطاقاتك المخصّصة (من «إضافة رموز API») تظهر في نفس الشبكة؛ احفظ الإعدادات لتثبيت تعريف البطاقة، وزر الحفظ بجانب الحقل للسر على الخادم والمتصفح.'
-                  : 'Built-in providers and custom cards you add with + Add API Tokens appear in this same grid. Save settings to persist card definitions; use the check by each field to store secrets on the server and in this browser.'}
-              </p>
             </div>
           <div className="sys-api-tokens-grid">
             <div className="sys-api-tokens-card">
