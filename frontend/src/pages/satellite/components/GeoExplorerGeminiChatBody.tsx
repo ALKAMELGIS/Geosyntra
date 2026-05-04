@@ -1,10 +1,5 @@
 import type { ChangeEvent, RefObject } from 'react'
-import {
-  messageDisplayText,
-  stripGeoAiModelMetaAppend,
-  stripMapQueryLine,
-  type GeoExplorerMessage,
-} from '../../../lib/geoExplorerGemini'
+import { messageDisplayText, stripGeoExplorerBubbleDisplayText, type GeoExplorerMessage } from '../../../lib/geoExplorerGemini'
 
 export type GeoExplorerCssPrefix = 'gis-geo-explorer' | 'si-geo-explorer'
 
@@ -55,14 +50,13 @@ export function GeoExplorerGeminiChatBody(props: GeoExplorerGeminiChatBodyProps)
             <i className="fa-solid fa-globe" />
           </div>
           <div className={pfx(cssPrefix, 'bubble')}>
-            Hello! Describe a place, upload an image, or ask for directions. When a location is clear, the map will fly
-            there (the model adds a MAP_QUERY line).
+            Hello! Im Agro Cloud - GeoAI - Describe a place, upload an image, or ask for directions. When a location is
+            clear, the map will fly there
           </div>
         </div>
         {messages.map(msg => {
           const raw = messageDisplayText(msg)
-          const show =
-            msg.role === 'model' ? stripGeoAiModelMetaAppend(stripMapQueryLine(raw)) : raw
+          const show = msg.role === 'model' ? stripGeoExplorerBubbleDisplayText(raw) : raw
           const hasImage = msg.parts.some(part => part.type === 'image')
           return (
             <div key={msg.id} className={`${pfx(cssPrefix, 'row')} ${pfx(cssPrefix, `row--${msg.role}`)}`}>

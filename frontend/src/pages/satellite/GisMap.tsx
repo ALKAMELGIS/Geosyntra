@@ -43,8 +43,7 @@ import {
   lastMapQueryCoordsFromMessages,
   messageDisplayText,
   messagesToGeminiContents,
-  stripGeoAiModelMetaAppend,
-  stripMapQueryLine,
+  stripGeoExplorerBubbleDisplayText,
   type GeoExplorerMessage,
   type GeoExplorerPart,
 } from '../../lib/geoExplorerGemini'
@@ -4237,15 +4236,14 @@ export default function GisMap() {
                   </div>
                   <div className="gis-geo-explorer-bubble">
                     <p className="gis-geo-explorer-bubble-text">
-                      Hello! Describe a place, upload an image, or ask for directions. When a location is clear, the map
-                      will fly there (the model adds a MAP_QUERY line).
+                      Hello! Im Agro Cloud - GeoAI - Describe a place, upload an image, or ask for directions. When a
+                      location is clear, the map will fly there
                     </p>
                   </div>
                 </div>
                 {geoExplorerMessages.map(msg => {
                   const raw = messageDisplayText(msg)
-                  const show =
-                    msg.role === 'model' ? stripGeoAiModelMetaAppend(stripMapQueryLine(raw)) : raw
+                  const show = msg.role === 'model' ? stripGeoExplorerBubbleDisplayText(raw) : raw
                   const hasImage = msg.parts.some(p => p.type === 'image')
                   return (
                     <div key={msg.id} className={`gis-geo-explorer-row gis-geo-explorer-row--${msg.role}`}>
@@ -5257,23 +5255,29 @@ export default function GisMap() {
         </MapView>
         )}
 
-        <div
-          className={mapToolbarCollapsed ? 'gis-map-toolbar collapsed' : 'gis-map-toolbar'}
-          role="toolbar"
-          aria-label="GIS map tools"
-          aria-expanded={!mapToolbarCollapsed}
-        >
+        <div className="gis-map-zoom-cluster" role="group" aria-label="Map zoom">
           <button
-            className="gis-map-tool gis-map-toolbar-toggle icon-only"
             type="button"
-            onClick={() => setMapToolbarCollapsed(v => !v)}
-            title={mapToolbarCollapsed ? 'Expand map tools' : 'Collapse map tools'}
-            aria-label={mapToolbarCollapsed ? 'Expand map tools' : 'Collapse map tools'}
-            aria-pressed={mapToolbarCollapsed}
+            className="gis-map-zoom-cluster__btn"
+            onClick={() => zoomMap('in')}
+            title="Zoom in"
+            aria-label="Zoom in"
           >
-            <i className={mapToolbarCollapsed ? 'fa-solid fa-angles-down' : 'fa-solid fa-angles-up'} aria-hidden="true" />
+            <i className="fa-solid fa-plus" aria-hidden="true" />
           </button>
-          <div className="gis-map-projection-toggle" aria-label="Map projection mode">
+          <button
+            type="button"
+            className="gis-map-zoom-cluster__btn"
+            onClick={() => zoomMap('out')}
+            title="Zoom out"
+            aria-label="Zoom out"
+          >
+            <i className="fa-solid fa-minus" aria-hidden="true" />
+          </button>
+        </div>
+
+        <div className="gis-map-projection-float" role="group" aria-label="Map projection mode">
+          <div className="gis-map-projection-toggle">
             <button
               className={mapProjectionMode === 'globe' ? 'gis-map-tool active' : 'gis-map-tool'}
               type="button"
@@ -5297,6 +5301,24 @@ export default function GisMap() {
               <span>2D</span>
             </button>
           </div>
+        </div>
+
+        <div
+          className={mapToolbarCollapsed ? 'gis-map-toolbar collapsed' : 'gis-map-toolbar'}
+          role="toolbar"
+          aria-label="GIS map tools"
+          aria-expanded={!mapToolbarCollapsed}
+        >
+          <button
+            className="gis-map-tool gis-map-toolbar-toggle icon-only"
+            type="button"
+            onClick={() => setMapToolbarCollapsed(v => !v)}
+            title={mapToolbarCollapsed ? 'Expand map tools' : 'Collapse map tools'}
+            aria-label={mapToolbarCollapsed ? 'Expand map tools' : 'Collapse map tools'}
+            aria-pressed={mapToolbarCollapsed}
+          >
+            <i className={mapToolbarCollapsed ? 'fa-solid fa-angles-down' : 'fa-solid fa-angles-up'} aria-hidden="true" />
+          </button>
           {!showDesktopGisRail ? (
             <>
               <span className="gis-map-toolbar-sep" aria-hidden="true" />
@@ -5337,13 +5359,6 @@ export default function GisMap() {
               </button>
             </>
           ) : null}
-          <span className="gis-map-toolbar-sep" aria-hidden="true" />
-          <button className="gis-map-tool icon-only" type="button" onClick={() => zoomMap('in')} title="Zoom in" aria-label="Zoom in">
-            <i className="fa-solid fa-plus" aria-hidden="true" />
-          </button>
-          <button className="gis-map-tool icon-only" type="button" onClick={() => zoomMap('out')} title="Zoom out" aria-label="Zoom out">
-            <i className="fa-solid fa-minus" aria-hidden="true" />
-          </button>
         </div>
 
         <div

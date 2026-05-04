@@ -41,8 +41,7 @@ import {
   lastMapQueryCoordsFromMessages,
   messageDisplayText,
   messagesToGeminiContents,
-  stripGeoAiModelMetaAppend,
-  stripMapQueryLine,
+  stripGeoExplorerBubbleDisplayText,
   type GeoExplorerMessage,
   type GeoExplorerPart,
 } from '../../lib/geoExplorerGemini';
@@ -73,6 +72,12 @@ import {
   mapboxGlStyleForEntry,
   resolveBasemapId,
 } from './basemapCatalog';
+import {
+  arcgisDrawingInfoToFillPaint,
+  arcgisDrawingInfoToLinePaint,
+  fetchArcgisLayerDrawingInfo,
+  sanitizeArcgisDrawingInfoForClient,
+} from '../../lib/arcgisDrawingInfoMapbox';
 
 const EMPTY_MAP_STYLE: any = {
   version: 8,
@@ -287,6 +292,17 @@ function getResolvedStacSearchUrl(config: StacConnectionConfig): string {
   if (!base) return PC_STAC_SEARCH_URL;
   if (/\/search$/i.test(base)) return base;
   return `${base}/search`;
+}
+
+/** True when resolved URL is the standard Planetary Computer STAC search endpoint (query string ignored). */
+function isDefaultPlanetaryComputerStacSearchUrl(url: string): boolean {
+  try {
+    const u = new URL(url);
+    const path = (u.pathname.replace(/\/+$/, '') || '/').toLowerCase();
+    return u.hostname.toLowerCase() === 'planetarycomputer.microsoft.com' && path === '/api/stac/v1/search';
+  } catch {
+    return false;
+  }
 }
 
 function appendStacQueryParams(url: string, rows: StacKvRow[]): string {
@@ -793,6 +809,10 @@ interface CustomLayer {
   source?: 'arcgis' | 'upload' | 'api' | 'stac';
   sourceUrl?: string;
   authToken?: string;
+  /** Sanitized ArcGIS `drawingInfo` for Mapbox paint (unique value, class breaks, simple). */
+  arcgisDrawingInfo?: Record<string, unknown> | null;
+  /** When true, map uses `arcgisDrawingInfo` instead of a single layer color. */
+  useArcGisSymbology?: boolean;
 }
 
 function parseStoredCustomLayers(raw: string | null): CustomLayer[] {
@@ -820,10 +840,68 @@ function parseStoredCustomLayers(raw: string | null): CustomLayer[] {
         source: x.source === 'arcgis' || x.source === 'upload' || x.source === 'api' || x.source === 'stac' ? x.source : undefined,
         sourceUrl: typeof x.sourceUrl === 'string' ? x.sourceUrl : undefined,
         authToken: typeof x.authToken === 'string' ? x.authToken : undefined,
+        arcgisDrawingInfo:
+          x.arcgisDrawingInfo && typeof x.arcgisDrawingInfo === 'object' ? (x.arcgisDrawingInfo as Record<string, unknown>) : undefined,
+        useArcGisSymbology: typeof x.useArcGisSymbology === 'boolean' ? x.useArcGisSymbology : undefined,
       }));
   } catch {
     return [];
   }
+}
+
+const SI_MAPBOX_POLY_FILTER: any = ['in', ['geometry-type'], ['literal', ['Polygon', 'MultiPolygon']]];
+const SI_MAPBOX_LINE_ONLY_FILTER: any = ['in', ['geometry-type'], ['literal', ['LineString', 'MultiLineString']]];
+const SI_MAPBOX_LINE_POLY_FILTER: any = [
+  'in',
+  ['geometry-type'],
+  ['literal', ['Polygon', 'MultiPolygon', 'LineString', 'MultiLineString']],
+];
+const SI_MAPBOX_POINT_FILTER: any = ['in', ['geometry-type'], ['literal', ['Point', 'MultiPoint']]];
+
+function siLayerMapboxStylePack(layer: CustomLayer): {
+  fillFilter: any;
+  lineFilter: any;
+  pointFilter: any;
+  fillPaint: Record<string, unknown>;
+  linePaint: Record<string, unknown>;
+  circlePaint: Record<string, unknown>;
+} {
+  const c = layer.color || '#22c55e';
+  const useAg = layer.source === 'arcgis' && layer.useArcGisSymbology && layer.arcgisDrawingInfo;
+  if (useAg) {
+    const di = layer.arcgisDrawingInfo as any;
+    const fill = arcgisDrawingInfoToFillPaint(di);
+    const line = arcgisDrawingInfoToLinePaint(di, c);
+    if (fill) {
+      const outlineDriven = Object.prototype.hasOwnProperty.call(fill, 'fill-outline-color');
+      return {
+        fillFilter: SI_MAPBOX_POLY_FILTER,
+        lineFilter: outlineDriven ? SI_MAPBOX_LINE_ONLY_FILTER : SI_MAPBOX_LINE_POLY_FILTER,
+        pointFilter: SI_MAPBOX_POINT_FILTER,
+        fillPaint: fill as Record<string, unknown>,
+        linePaint: (line ?? { 'line-color': c, 'line-width': 1.5, 'line-opacity': 0.95 }) as Record<string, unknown>,
+        circlePaint: {
+          'circle-radius': 4,
+          'circle-color': c,
+          'circle-stroke-width': 1,
+          'circle-stroke-color': '#052e16',
+        },
+      };
+    }
+  }
+  return {
+    fillFilter: SI_MAPBOX_POLY_FILTER,
+    lineFilter: SI_MAPBOX_LINE_POLY_FILTER,
+    pointFilter: SI_MAPBOX_POINT_FILTER,
+    fillPaint: { 'fill-color': c, 'fill-opacity': 0.35 },
+    linePaint: { 'line-color': c, 'line-width': 1.5 },
+    circlePaint: {
+      'circle-radius': 4,
+      'circle-color': c,
+      'circle-stroke-width': 1,
+      'circle-stroke-color': '#052e16',
+    },
+  };
 }
 
 function persistCustomLayersToStorage(layers: CustomLayer[]) {
@@ -1118,7 +1196,7 @@ export default function SatelliteIntelligence() {
   const [acsPickerStaging, setAcsPickerStaging] = useState<string[]>([]);
   const [acsPickerManualPath, setAcsPickerManualPath] = useState('');
   const [acsPickerFilter, setAcsPickerFilter] = useState('');
-  const [exploreTab, setExploreTab] = useState<'parameters' | 'results'>('parameters');
+  const [exploreTab, setExploreTab] = useState<'parameters' | 'results' | 'source'>('parameters');
   const [exploreCatalogLoadKey, setExploreCatalogLoadKey] = useState(0);
   const [stacCatalogCollections, setStacCatalogCollections] = useState<StacCollectionSummary[]>([]);
   const [isLoadingStacCollections, setIsLoadingStacCollections] = useState(false);
@@ -1513,12 +1591,17 @@ export default function SatelliteIntelligence() {
     try {
       const qUrl = `${selectedDiscoveredArcgisUrl}/query?where=1%3D1&outFields=*&returnGeometry=true&f=geojson`;
       const finalUrl = appendTokenIfAny(qUrl, addLayerToken);
-      const res = await fetch(finalUrl);
+      const tokenTrim = addLayerToken.trim() || undefined;
+      const [res, drawingInfoRaw] = await Promise.all([
+        fetch(finalUrl),
+        fetchArcgisLayerDrawingInfo(selectedDiscoveredArcgisUrl, tokenTrim),
+      ]);
       if (!res.ok) throw new Error(`query failed (${res.status})`);
       const data = await res.json();
       if (data?.type !== 'FeatureCollection' || !Array.isArray(data.features)) {
         throw new Error('Service did not return GeoJSON features.');
       }
+      const arcgisDrawingInfo = drawingInfoRaw ? sanitizeArcgisDrawingInfoForClient(drawingInfoRaw) : null;
       const selectedLayer = discoveredArcgisLayers.find(l => l.url === selectedDiscoveredArcgisUrl);
       const layerTitle = addLayerName.trim() || selectedLayer?.name || deriveArcgisLayerName(selectedDiscoveredArcgisUrl);
       const id = `arcgis-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
@@ -1531,8 +1614,10 @@ export default function SatelliteIntelligence() {
           visible: true,
           source: 'arcgis',
           sourceUrl: selectedDiscoveredArcgisUrl,
-          authToken: addLayerToken.trim() || undefined,
+          authToken: tokenTrim,
           color: '#22c55e',
+          arcgisDrawingInfo,
+          useArcGisSymbology: false,
         },
       ]);
       const bounds = getGeoJsonBounds(data);
@@ -1597,7 +1682,19 @@ export default function SatelliteIntelligence() {
       if (data?.type !== 'FeatureCollection' || !Array.isArray(data.features)) {
         throw new Error('Service did not return GeoJSON features.');
       }
-      setCustomLayers(prev => prev.map(item => (item.id === layer.id ? { ...item, geojson: data } : item)));
+      const drawingInfoRaw = await fetchArcgisLayerDrawingInfo(layer.sourceUrl, layer.authToken);
+      const arcgisDrawingInfo = drawingInfoRaw ? sanitizeArcgisDrawingInfoForClient(drawingInfoRaw) : null;
+      setCustomLayers(prev =>
+        prev.map(item =>
+          item.id === layer.id
+            ? {
+                ...item,
+                geojson: data,
+                arcgisDrawingInfo: arcgisDrawingInfo ?? item.arcgisDrawingInfo ?? null,
+              }
+            : item,
+        ),
+      );
       setStacStatus(`Layer synced: "${layer.name}".`);
     } catch (error) {
       setStacStatus(error instanceof Error ? error.message : `Failed to sync "${layer.name}".`);
@@ -1657,7 +1754,7 @@ export default function SatelliteIntelligence() {
   useEffect(() => {
     if (!activeLayerActionDialog || activeLayerActionDialog.mode !== 'symbology' || !activeDialogLayer) return;
     setSymbologyDraft({
-      useArcGisOnline: false,
+      useArcGisOnline: Boolean(activeDialogLayer.useArcGisSymbology),
       style: 'single',
       classes: 5,
       colorRamp: 'viridis',
@@ -1666,21 +1763,45 @@ export default function SatelliteIntelligence() {
     });
   }, [activeLayerActionDialog, activeDialogLayer]);
 
-  const setLayerColor = (layerId: string, color: string) => {
-    setCustomLayers(prev => prev.map(layer => (layer.id === layerId ? { ...layer, color } : layer)));
-  };
-
-  const applySymbologyDraft = () => {
+  const applySymbologyDraft = async () => {
     if (!activeDialogLayer) return;
-    const ramp = COLOR_RAMPS[symbologyDraft.colorRamp];
-    const nextColor = symbologyDraft.useArcGisOnline
-      ? activeDialogLayer.color || '#22c55e'
-      : symbologyDraft.style === 'single'
-        ? symbologyDraft.color
-        : ramp[Math.max(0, Math.min(ramp.length - 1, symbologyDraft.classes - 1))];
-    setLayerColor(activeDialogLayer.id, nextColor);
-    setActiveLayerActionDialog(null);
-    setStacStatus(`Style saved for "${activeDialogLayer.name}".`);
+    try {
+      if (symbologyDraft.useArcGisOnline) {
+        if (activeDialogLayer.source !== 'arcgis' || !activeDialogLayer.sourceUrl?.trim()) {
+          setStacStatus('ArcGIS Online symbology is only available for ArcGIS feature layers.');
+          return;
+        }
+        let di = activeDialogLayer.arcgisDrawingInfo;
+        if (!di) {
+          const raw = await fetchArcgisLayerDrawingInfo(activeDialogLayer.sourceUrl, activeDialogLayer.authToken);
+          di = (raw && sanitizeArcgisDrawingInfoForClient(raw)) || null;
+        }
+        if (!di || !arcgisDrawingInfoToFillPaint(di)) {
+          setStacStatus('Could not load a supported ArcGIS renderer (drawingInfo) for this layer.');
+          return;
+        }
+        setCustomLayers(prev =>
+          prev.map(l =>
+            l.id === activeDialogLayer.id ? { ...l, arcgisDrawingInfo: di!, useArcGisSymbology: true } : l,
+          ),
+        );
+        setActiveLayerActionDialog(null);
+        setStacStatus(`ArcGIS symbology applied for "${activeDialogLayer.name}".`);
+        return;
+      }
+      const ramp = COLOR_RAMPS[symbologyDraft.colorRamp];
+      const nextColor =
+        symbologyDraft.style === 'single'
+          ? symbologyDraft.color
+          : ramp[Math.max(0, Math.min(ramp.length - 1, symbologyDraft.classes - 1))];
+      setCustomLayers(prev =>
+        prev.map(l => (l.id === activeDialogLayer.id ? { ...l, useArcGisSymbology: false, color: nextColor } : l)),
+      );
+      setActiveLayerActionDialog(null);
+      setStacStatus(`Style saved for "${activeDialogLayer.name}".`);
+    } catch (e) {
+      setStacStatus(e instanceof Error ? e.message : 'Failed to save style.');
+    }
   };
 
   const exportTableAsCsv = () => {
@@ -2405,6 +2526,73 @@ export default function SatelliteIntelligence() {
     setIsAcsPickerOpen(false);
     setIsStacModalOpen(false);
   };
+
+  const showStacSearchUrlInChrome = !isDefaultPlanetaryComputerStacSearchUrl(stacActiveSearchUrl);
+
+  const exploreStacSourcePanelContent = (
+    <>
+      <p className="si-env-toolbar-hint si-env-toolbar-hint--muted">
+        Open Explore STAC to search scenes, or use the data API. Toggle map overlays in <strong>Layers</strong>.
+      </p>
+      <div className="si-env-actions">
+        <button type="button" className="si-explore-stac-open-btn" onClick={openExploreStacFromSource}>
+          <i className="fa-solid fa-magnifying-glass-chart" />
+          <span>Explore STAC</span>
+        </button>
+      </div>
+      <div className="si-stac-source-card">
+        <p className="si-stac-source-lead">
+          <strong>STAC</strong> (SpatioTemporal Asset Catalog) is an open standard for cataloging imagery and raster data.
+          STAC connections let you query collections over HTTP, similar to catalog workflows in ArcGIS Pro.
+        </p>
+        <div className="si-stac-active-banner">
+          <span className="si-stac-active-label">Active connection</span>
+          <strong>{stacConnection.connectionName}</strong>
+          <span className="si-stac-active-meta">
+            {stacConnection.presetId === 'planetary-computer'
+              ? 'Microsoft Planetary Computer'
+              : (stacConnection.customCatalogBaseUrl.trim() || 'Custom catalog')}
+          </span>
+          {showStacSearchUrlInChrome ? (
+            <a
+              className="si-stac-active-meta si-stac-url-truncate"
+              href={stacActiveSearchUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              title={stacActiveSearchUrl}
+            >
+              {stacActiveSearchUrl}
+            </a>
+          ) : null}
+        </div>
+        <div className="si-stac-source-actions">
+          <button type="button" className="si-stac-create-connection-btn" onClick={openStacConnectionModal}>
+            <i className="fa-solid fa-plug" aria-hidden />
+            <span>Create STAC connection</span>
+          </button>
+        </div>
+        <div className="si-stac-help-row">
+          <a href={STAC_HELP_LINKS.spec} target="_blank" rel="noopener noreferrer">
+            STAC specification
+          </a>
+          <a href={STAC_HELP_LINKS.docs} target="_blank" rel="noopener noreferrer">
+            PC STAC docs
+          </a>
+          <a href={STAC_HELP_LINKS.catalog} target="_blank" rel="noopener noreferrer">
+            Browse catalog
+          </a>
+          <a href={STAC_HELP_LINKS.esriMpc} target="_blank" rel="noopener noreferrer">
+            ArcGIS for MPC
+          </a>
+        </div>
+        <p className="si-stac-acs-note">
+          Cloud Storage Connection (.acs) files from ArcGIS Pro are not applied in the browser; use the connection dialog
+          (token or headers) when your catalog requires authentication.
+        </p>
+      </div>
+      <div className="si-env-message">{stacStatus}</div>
+    </>
+  );
 
   const openAcsPicker = () => {
     setAcsPickerStaging([]);
@@ -3810,38 +3998,22 @@ export default function SatelliteIntelligence() {
             }}
             onLoad={() => setIsMapLoaded(true)}
           >
-            {customLayers.map(layer => (
-              layer.visible && (
-                <Source key={layer.id} id={layer.id} type="geojson" data={layer.geojson}>
-                  <Layer
-                    id={`${layer.id}-fill`}
-                    type="fill"
-                    paint={{
-                      'fill-color': layer.color || '#22c55e',
-                      'fill-opacity': 0.35
-                    }}
-                  />
-                  <Layer
-                    id={`${layer.id}-line`}
-                    type="line"
-                    paint={{
-                      'line-color': layer.color || '#22c55e',
-                      'line-width': 1.5
-                    }}
-                  />
-                  <Layer
-                    id={`${layer.id}-circle`}
-                    type="circle"
-                    paint={{
-                      'circle-radius': 4,
-                      'circle-color': layer.color || '#22c55e',
-                      'circle-stroke-width': 1,
-                      'circle-stroke-color': '#052e16'
-                    }}
-                  />
+            {customLayers.map(layer => {
+              if (!layer.visible) return null;
+              const st = siLayerMapboxStylePack(layer);
+              return (
+                <Source
+                  key={`${layer.id}-${layer.useArcGisSymbology ? 'ag' : 'c'}`}
+                  id={layer.id}
+                  type="geojson"
+                  data={layer.geojson}
+                >
+                  <Layer id={`${layer.id}-fill`} type="fill" filter={st.fillFilter} paint={st.fillPaint as any} />
+                  <Layer id={`${layer.id}-line`} type="line" filter={st.lineFilter} paint={st.linePaint as any} />
+                  <Layer id={`${layer.id}-circle`} type="circle" filter={st.pointFilter} paint={st.circlePaint as any} />
                 </Source>
-              )
-            ))}
+              );
+            })}
 
             {pivots.length > 0 && (
               <Source id="agri-pivots-source" type="geojson" data={pivotGeoJson as any}>
@@ -4372,8 +4544,20 @@ export default function SatelliteIntelligence() {
                 <h2 id="si-explore-stac-title">Explore STAC</h2>
                 <p className="si-explore-stac-sub">
                   {stacConnection.connectionName}
-                  <span className="si-explore-stac-sub-sep">·</span>
-                  <a className="si-explore-stac-url" href={stacActiveSearchUrl} target="_blank" rel="noopener noreferrer" title={stacActiveSearchUrl}>{stacActiveSearchUrl}</a>
+                  {showStacSearchUrlInChrome ? (
+                    <>
+                      <span className="si-explore-stac-sub-sep">·</span>
+                      <a
+                        className="si-explore-stac-url"
+                        href={stacActiveSearchUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        title={stacActiveSearchUrl}
+                      >
+                        {stacActiveSearchUrl}
+                      </a>
+                    </>
+                  ) : null}
                 </p>
               </div>
               <div className="si-explore-stac-header-actions">
@@ -4404,9 +4588,9 @@ export default function SatelliteIntelligence() {
               <button
                 type="button"
                 role="tab"
-                aria-selected="true"
-                className="active"
-                onClick={() => setExpandedEnvSection('source')}
+                aria-selected={exploreTab === 'source'}
+                className={exploreTab === 'source' ? 'active' : ''}
+                onClick={() => setExploreTab('source')}
               >
                 Source
               </button>
@@ -4795,7 +4979,7 @@ export default function SatelliteIntelligence() {
                     </div>
                   </div>
                 </>
-              ) : (
+              ) : exploreTab === 'results' ? (
                 <>
                   <div className="si-explore-results-toolbar si-explore-results-toolbar--rich">
                     <label className="si-explore-results-toolbar-check">
@@ -5048,6 +5232,8 @@ export default function SatelliteIntelligence() {
                     </div>
                   ) : null}
                 </>
+              ) : (
+                <div className="si-explore-stac-source-tab">{exploreStacSourcePanelContent}</div>
               )}
             </div>
             <div className="si-explore-stac-footer">
@@ -5264,13 +5450,13 @@ export default function SatelliteIntelligence() {
                                     <i className="fa-solid fa-globe" />
                                   </div>
                                   <div className="si-geo-explorer-bubble">
-                                    Hello! Describe a place, upload an image, or ask for directions. When a location is clear,
-                                    the map will fly there (the model adds a MAP_QUERY line).
+                                    Hello! Im Agro Cloud - GeoAI - Describe a place, upload an image, or ask for directions.
+                                    When a location is clear, the map will fly there
                                   </div>
                                 </div>
                                 {geoExplorerMessages.map(msg => {
                                   const raw = messageDisplayText(msg);
-                                  const show = msg.role === 'model' ? stripMapQueryLine(raw) : raw;
+                                  const show = msg.role === 'model' ? stripGeoExplorerBubbleDisplayText(raw) : raw;
                                   const hasImage = msg.parts.some(p => p.type === 'image');
                                   return (
                                     <div
@@ -5401,7 +5587,7 @@ export default function SatelliteIntelligence() {
                                     <div className="si-geo-explorer-bubble">
                                     <p className="si-geo-explorer-bubble-text">
                                       {msg.role === 'assistant'
-                                        ? stripGeoAiModelMetaAppend(stripMapQueryLine(msg.text))
+                                        ? stripGeoExplorerBubbleDisplayText(msg.text)
                                         : msg.text}
                                     </p>
                                     </div>
@@ -5484,68 +5670,7 @@ export default function SatelliteIntelligence() {
                       </div>
                     )}
                     {expandedEnvSection === 'source' && (
-                      <div className="si-env-section-card">
-                        <p className="si-env-toolbar-hint si-env-toolbar-hint--muted">
-                          Open Explore STAC to search scenes, or use the data API. Toggle map overlays in{' '}
-                          <strong>Layers</strong>.
-                        </p>
-                        <div className="si-env-actions">
-                          <button type="button" className="si-explore-stac-open-btn" onClick={openExploreStacFromSource}>
-                            <i className="fa-solid fa-magnifying-glass-chart" />
-                            <span>Explore STAC</span>
-                          </button>
-                        </div>
-                        <div className="si-stac-source-card">
-                          <p className="si-stac-source-lead">
-                            <strong>STAC</strong> (SpatioTemporal Asset Catalog) is an open standard for cataloging imagery and
-                            raster data. STAC connections let you query collections over HTTP, similar to catalog workflows in
-                            ArcGIS Pro.
-                          </p>
-                          <div className="si-stac-active-banner">
-                            <span className="si-stac-active-label">Active connection</span>
-                            <strong>{stacConnection.connectionName}</strong>
-                            <span className="si-stac-active-meta">
-                              {stacConnection.presetId === 'planetary-computer'
-                                ? 'Microsoft Planetary Computer'
-                                : (stacConnection.customCatalogBaseUrl.trim() || 'Custom catalog')}
-                            </span>
-                            <a
-                              className="si-stac-active-meta si-stac-url-truncate"
-                              href={stacActiveSearchUrl}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              title={stacActiveSearchUrl}
-                            >
-                              {stacActiveSearchUrl}
-                            </a>
-                          </div>
-                          <div className="si-stac-source-actions">
-                            <button type="button" className="si-stac-create-connection-btn" onClick={openStacConnectionModal}>
-                              <i className="fa-solid fa-plug" aria-hidden />
-                              <span>Create STAC connection</span>
-                            </button>
-                          </div>
-                          <div className="si-stac-help-row">
-                            <a href={STAC_HELP_LINKS.spec} target="_blank" rel="noopener noreferrer">
-                              STAC specification
-                            </a>
-                            <a href={STAC_HELP_LINKS.docs} target="_blank" rel="noopener noreferrer">
-                              PC STAC docs
-                            </a>
-                            <a href={STAC_HELP_LINKS.catalog} target="_blank" rel="noopener noreferrer">
-                              Browse catalog
-                            </a>
-                            <a href={STAC_HELP_LINKS.esriMpc} target="_blank" rel="noopener noreferrer">
-                              ArcGIS for MPC
-                            </a>
-                          </div>
-                          <p className="si-stac-acs-note">
-                            Cloud Storage Connection (.acs) files from ArcGIS Pro are not applied in the browser; use the
-                            connection dialog (token or headers) when your catalog requires authentication.
-                          </p>
-                        </div>
-                        <div className="si-env-message">{stacStatus}</div>
-                      </div>
+                      <div className="si-env-section-card">{exploreStacSourcePanelContent}</div>
                     )}
                     {expandedEnvSection === 'layers' && (
                       <div className="si-env-section-card">
@@ -6002,6 +6127,7 @@ export default function SatelliteIntelligence() {
                       <input
                         type="checkbox"
                         checked={symbologyDraft.useArcGisOnline}
+                        disabled={activeDialogLayer.source !== 'arcgis'}
                         onChange={e => setSymbologyDraft(prev => ({ ...prev, useArcGisOnline: e.target.checked }))}
                       />
                       <span>Use ArcGIS Online symbology</span>
@@ -6079,7 +6205,13 @@ export default function SatelliteIntelligence() {
                   )}
                   <div className="si-layer-action-modal-footer">
                     <button type="button" className="si-layer-action-footer-btn" onClick={() => setActiveLayerActionDialog(null)}>Cancel</button>
-                    <button type="button" className="si-layer-action-footer-btn primary" onClick={applySymbologyDraft}>Save Style</button>
+                    <button
+                      type="button"
+                      className="si-layer-action-footer-btn primary"
+                      onClick={() => void applySymbologyDraft()}
+                    >
+                      Save Style
+                    </button>
                   </div>
                 </div>
               ) : (

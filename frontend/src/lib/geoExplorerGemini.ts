@@ -81,6 +81,11 @@ export function stripGeoAiModelMetaAppend(text: string): string {
   return t.trimEnd()
 }
 
+/** Chat bubble display: MAP_QUERY line, server map-pin / geocode appendix, and literal `*` (markdown noise). */
+export function stripGeoExplorerBubbleDisplayText(text: string): string {
+  return stripGeoAiModelMetaAppend(stripMapQueryLine(text)).replace(/\*/g, '').trimEnd()
+}
+
 function partsToGeminiPayload(parts: GeoExplorerPart[]): Array<{ text?: string; inline_data?: { mime_type: string; data: string } }> {
   return parts.map(p => {
     if (p.type === 'text') return { text: p.text };
