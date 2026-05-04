@@ -1922,6 +1922,10 @@ export default function GisMap() {
             openWeatherApiKey,
             pinLngLat: geoExplorerAnchor,
             lastMapQueryCoords: lastMapQueryCoordsFromMessages(prev),
+            inspectAnchorLngLat:
+              mapPopup && mapPopup.phase === 'open'
+                ? ([mapPopup.latlng.lng, mapPopup.latlng.lat] as [number, number])
+                : null,
             mapPopup: null,
             addedLayersHeading: '### GIS Map — Active vector layers (this session)',
             attachGisSavedLayers: true,
@@ -1975,6 +1979,7 @@ export default function GisMap() {
     openWeatherApiKey,
     geoExplorerAnchor,
     mapProjectionMode,
+    mapPopup,
   ])
 
   useEffect(() => {

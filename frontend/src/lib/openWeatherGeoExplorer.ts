@@ -115,11 +115,17 @@ type ForecastItem = {
  * Fetches 2.5 weather + forecast; optional One Call 3.0 timemachine for a named past day.
  * Pass userText so a specific calendar day can be matched to forecast slices or historical API.
  */
+export type OpenWeatherContextOpts = {
+  /** When true, skip per-day / timemachine matching — use current + 5-day forecast only (follow-ups like “weather here”). */
+  ambientWindowOnly?: boolean
+}
+
 export async function buildOpenWeatherContextBlock(
   apiKey: string,
   lat: number,
   lng: number,
   userText: string,
+  opts?: OpenWeatherContextOpts,
 ): Promise<string> {
   const key = apiKey.trim()
   if (!key) return ''
@@ -131,7 +137,7 @@ export async function buildOpenWeatherContextBlock(
   lines.push(`Point: latitude ${lat.toFixed(5)}, longitude ${lng.toFixed(5)}`)
   lines.push('Source: https://api.openweathermap.org/data/2.5 (current + forecast), units=metric; historical via data/3.0/onecall/timemachine when available on the key.')
 
-  const requested = parseUserRequestedCalendarDayUtc(userText)
+  const requested = opts?.ambientWindowOnly ? null : parseUserRequestedCalendarDayUtc(userText)
   const requestedYmd = requested ? formatYmdUtc(requested.y, requested.m0, requested.d) : null
   const todayStart = startOfTodayUtcMs()
   const reqStart = requested ? utcDayStartMs(requested.y, requested.m0, requested.d) : null

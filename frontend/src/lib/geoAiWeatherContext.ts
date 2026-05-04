@@ -5,7 +5,7 @@
 
 import { geocodePlaceToLngLat, simplifyGeoExplorerUserQuery, stripLayerReferenceForGeocode } from './geoExplorerGeocode'
 import type { GeoAiMapLayer } from './geoExplorerLayerContext'
-import { findLngLatFromLayerQuery } from './geoExplorerLayerContext'
+import { findLngLatFromLayerQuery, GEO_EXPLORER_MIN_LAYER_PIN_SCORE } from './geoExplorerLayerContext'
 import {
   buildOpenMeteoContextBlock,
   buildSessionAnchorBlock,
@@ -21,6 +21,21 @@ export type GeoAiWeatherPopupRef = {
   country: string
   fullDescription: string
 } | null
+
+/** User named a specific calendar day — enable historical / per-day OpenWeather branches. */
+function userRequestsExplicitCalendarDayForWeather(userText: string): boolean {
+  const t = userText.trim()
+  if (!t) return false
+  return (
+    /\b(today|tomorrow|yesterday|tonight|next\s+week|last\s+week|this\s+week)\b/i.test(t) ||
+    /\b\d{4}-\d{2}-\d{2}\b/.test(t) ||
+    /\b\d{1,2}[./]\d{1,2}[./]\d{4}\b/.test(t) ||
+    /\b(?:january|february|march|april|may|june|july|august|september|october|november|december|jan|feb|mar|apr|jun|jul|aug|sep|sept|oct|nov|dec)\s+\d{1,2}(?:\s*,?\s*\d{4})?\b/i.test(
+      t,
+    ) ||
+    /\b\d{1,2}\s+(?:january|february|march|april|may|june|july|august|september|october|november|december|jan|feb|mar|apr|jun|jul|aug|sep|sept|oct|nov|dec)\b/i.test(t)
+  )
+}
 
 function popupSnapForCoords(popup: GeoAiWeatherPopupRef, lng: number, lat: number): SessionAnchorPopup {
   if (!popup) return null
@@ -42,21 +57,24 @@ export async function buildGeoAiWeatherSystemAppend(input: {
   userText: string
   pinLngLat: [number, number] | null
   lastMapQueryCoords: [number, number] | null
+  /** Inspect card / feature card coords (Satellite Geo AI) or map popup click (GIS) — stabilizes “weather at same pin”. */
+  inspectAnchorLngLat?: [number, number] | null
   combinedLayers: GeoAiMapLayer[]
   mapboxAccessToken?: string
   openWeatherApiKey: string
   mapPopup: GeoAiWeatherPopupRef
 }): Promise<string> {
-  const pinCoords = input.pinLngLat ?? input.lastMapQueryCoords
+  const pinCoords =
+    input.pinLngLat ?? input.lastMapQueryCoords ?? (input.inspectAnchorLngLat ?? null) ?? null
   const weatherImplied = geoExplorerUserMessageImpliesWeather(input.userText)
 
   let factsCoords: [number, number] | null = null
   if (weatherImplied) {
     const hit = findLngLatFromLayerQuery(input.userText, input.combinedLayers)
-    if (hit) {
+    if (hit && hit.score >= GEO_EXPLORER_MIN_LAYER_PIN_SCORE) {
       factsCoords = [hit.lng, hit.lat]
     } else if (pinCoords) {
-      /** Map anchor / last MAP_QUERY — avoids geocoding vague follow-ups (“same location”, “temp here”) to a wrong place. */
+      /** Map anchor / last MAP_QUERY / inspect card — avoids geocoding vague follow-ups (“same location”, “temp here”). */
       factsCoords = pinCoords
     } else {
       const gq = stripLayerReferenceForGeocode(simplifyGeoExplorerUserQuery(input.userText))
@@ -66,6 +84,9 @@ export async function buildGeoAiWeatherSystemAppend(input: {
       }
     }
   }
+
+  const ambientWeather =
+    weatherImplied && Boolean(pinCoords) && !userRequestsExplicitCalendarDayForWeather(input.userText)
 
   const anchorCoords = pinCoords ?? (weatherImplied ? factsCoords : null)
   let out = ''
@@ -81,7 +102,9 @@ export async function buildGeoAiWeatherSystemAppend(input: {
     const owm = input.openWeatherApiKey.trim()
     if (owm) {
       /* With a configured key, Geo AI weather answers use OpenWeather only (avoids mixing Open-Meteo “current” with a historical question). */
-      out += `\n\n${await buildOpenWeatherContextBlock(owm, fLat, fLng, input.userText)}`
+      out += `\n\n${await buildOpenWeatherContextBlock(owm, fLat, fLng, input.userText, {
+        ambientWindowOnly: ambientWeather,
+      })}`
     } else {
       out += `\n\n${await buildOpenMeteoContextBlock(fLat, fLng, input.userText)}`
     }

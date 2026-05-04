@@ -2945,6 +2945,8 @@ export default function SatelliteIntelligence() {
             openWeatherApiKey,
             pinLngLat: geoAiPinLngLat,
             lastMapQueryCoords: lastMapQueryCoordsFromMessages(prev),
+            inspectAnchorLngLat:
+              geoAiInspectCard != null ? ([geoAiInspectCard.lng, geoAiInspectCard.lat] as [number, number]) : null,
             mapPopup: null,
             addedLayersHeading: '### Satellite — Added layers (this map — si-env / vector layers)',
             attachGisSavedLayers: true,
@@ -3005,6 +3007,7 @@ export default function SatelliteIntelligence() {
     customLayers,
     openWeatherApiKey,
     geoAiPinLngLat,
+    geoAiInspectCard,
   ]);
 
   const sendGeoAiChat = useCallback(() => {

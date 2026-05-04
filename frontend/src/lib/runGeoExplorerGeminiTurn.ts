@@ -64,6 +64,8 @@ export type RunGeoExplorerGeminiTurnParams = {
   openWeatherApiKey: string
   pinLngLat: [number, number] | null
   lastMapQueryCoords: [number, number] | null
+  /** Optional: inspect card / map-popup coords for weather when pin lags or user asks “weather here”. */
+  inspectAnchorLngLat?: [number, number] | null
   mapPopup: GeoAiWeatherPopupRef
   /** First line of the added-layers section, e.g. "### Satellite — Added layers (this page)" */
   addedLayersHeading: string
@@ -88,6 +90,7 @@ export async function runGeoExplorerGeminiTurn(
     openWeatherApiKey,
     pinLngLat,
     lastMapQueryCoords,
+    inspectAnchorLngLat,
     mapPopup,
     addedLayersHeading,
     attachGisSavedLayers,
@@ -136,6 +139,7 @@ export async function runGeoExplorerGeminiTurn(
     userText: userTextForMapFallback,
     pinLngLat,
     lastMapQueryCoords,
+    inspectAnchorLngLat,
     combinedLayers: combinedForLookup,
     mapboxAccessToken,
     openWeatherApiKey,

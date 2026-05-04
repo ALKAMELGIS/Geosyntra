@@ -9,8 +9,9 @@ export type SessionAnchorPopup = {
   fullDescription: string
 } | null
 
+/** Month names omitted: they matched polite “May I …” and mis-fired date-specific OpenWeather logic. */
 const WEATHER_INTENT_RE =
-  /\b(weather|climate|rain|rainfall|precip|precipitation|temperature|temp|humid|humidity|wind|forecast|meteo|drizzle|snow|storm|seasonal|wmo|degrees?\s*c|°c|hot|cold|dewpoint|uv\b|january|february|march|april|may|june|july|august|september|october|november|december|jan\.?|feb\.?|mar\.?|apr\.?|may\.?|jun\.?|jul\.?|aug\.?|sep\.?|oct\.?|nov\.?|dec\.?)\b/i
+  /\b(weather|climate|rain|rainfall|precip|precipitation|temperature|temp|humid|humidity|wind|forecast|meteo|drizzle|snow|storm|seasonal|wmo|degrees?\s*c|°c|hot|cold|dewpoint|uv\b)\b/i
 
 export function geoExplorerUserMessageImpliesWeather(text: string): boolean {
   const t = text.trim()
