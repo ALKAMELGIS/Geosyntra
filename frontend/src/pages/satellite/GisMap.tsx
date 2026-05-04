@@ -563,7 +563,8 @@ export default function GisMap() {
   const [tableDockHeight, setTableDockHeight] = useState(320)
   const [tableDockCollapsed, setTableDockCollapsed] = useState(false)
   const [tableDockMinimized, setTableDockMinimized] = useState(false)
-  const [tableToolsCollapsed, setTableToolsCollapsed] = useState(true)
+  /** Expanded by default so table tools match an “on” toolbar (user can collapse). */
+  const [tableToolsCollapsed, setTableToolsCollapsed] = useState(false)
   const [tablesAddMenuOpen, setTablesAddMenuOpen] = useState(false)
   const tablesAddMenuRef = useRef<HTMLDivElement | null>(null)
   const [layersEmptyAddMenuOpen, setLayersEmptyAddMenuOpen] = useState(false)
@@ -3768,6 +3769,11 @@ export default function GisMap() {
     setAgolContentColumnOpen(true)
   }
   const dockMapToolInSidebar = Boolean(showDesktopGisRail && agolContentColumnOpen && activeMapTool)
+  const mapToolPanelRichSurface =
+    activeMapTool === 'chart' ||
+    activeMapTool === 'bookmarks' ||
+    activeMapTool === 'shareMap' ||
+    activeMapTool === 'apps'
 
   /** Collapse only the white action column; keep `gis-sidebar-v-toolbar` rail and optional active tool state. */
   const closeAgolActionPane = () => {
@@ -3785,6 +3791,7 @@ export default function GisMap() {
               ? 'gis-map-tool-panel gis-map-tool-panel--geo-explorer'
               : 'gis-map-tool-panel',
             dockMapToolInSidebar ? 'gis-map-tool-panel--embed-in-action-pane' : '',
+            mapToolPanelRichSurface ? 'gis-map-tool-panel--rich-surface' : '',
           ]
             .filter(Boolean)
             .join(' ')
@@ -3823,37 +3830,71 @@ export default function GisMap() {
             )}
           </div>
         ) : activeMapTool === 'chart' ? (
-          <div className="gis-tool-chart">
-            {orderedLayers.length ? orderedLayers.map(layer => {
-              const count =
-                layer.type === 'tile' && (layer.data as any)?.esriImageServer
-                  ? 0
-                  : Array.isArray((layer.data as any)?.features)
-                    ? (layer.data as any).features.length
-                    : 0
-              const max = Math.max(
-                1,
-                ...orderedLayers.map(l =>
-                  l.type === 'tile' && (l.data as any)?.esriImageServer
-                    ? 0
-                    : Array.isArray((l.data as any)?.features)
-                      ? (l.data as any).features.length
-                      : 0,
-                ),
-              )
-              return (
-                <div key={String(layer.id)} className="gis-tool-chart-row">
-                  <div className="gis-tool-chart-label">
-                    <span>{layer.name}</span>
-                    <strong>{count}</strong>
-                  </div>
-                  <div className="gis-tool-chart-track">
-                    <span style={{ width: `${Math.max(6, (count / max) * 100)}%`, background: layer.color || '#047857' }} />
-                  </div>
+          <div className="gis-tool-chart gis-map-tool-surface">
+            <div className="gis-map-tool-surface__header">
+              <div className="gis-map-tool-surface__icon" aria-hidden="true">
+                <i className="fa-solid fa-chart-simple" />
+              </div>
+              <div className="gis-map-tool-surface__titles">
+                <span className="gis-map-tool-surface__kicker">Layer summary</span>
+                <p className="gis-map-tool-surface__lede">
+                  Relative feature counts per vector layer. Image services are shown with zero features.
+                </p>
+              </div>
+            </div>
+            {orderedLayers.length ? (
+              <div className="gis-map-tool-surface__scroll">
+                <div className="gis-map-tool-surface__list">
+                  {orderedLayers.map(layer => {
+                    const count =
+                      layer.type === 'tile' && (layer.data as any)?.esriImageServer
+                        ? 0
+                        : Array.isArray((layer.data as any)?.features)
+                          ? (layer.data as any).features.length
+                          : 0
+                    const max = Math.max(
+                      1,
+                      ...orderedLayers.map(l =>
+                        l.type === 'tile' && (l.data as any)?.esriImageServer
+                          ? 0
+                          : Array.isArray((l.data as any)?.features)
+                            ? (l.data as any).features.length
+                            : 0,
+                      ),
+                    )
+                    return (
+                      <div key={String(layer.id)} className="gis-map-tool-surface-chart-row">
+                        <div className="gis-map-tool-surface-chart-row__top">
+                          <span
+                            className="gis-map-tool-surface-chart-row__dot"
+                            style={{ background: layer.color || '#047857' }}
+                            aria-hidden="true"
+                          />
+                          <div className="gis-tool-chart-label">
+                            <span title={layer.name}>{layer.name}</span>
+                            <strong>{count}</strong>
+                          </div>
+                        </div>
+                        <div className="gis-tool-chart-track">
+                          <span
+                            style={{
+                              width: `${Math.max(6, (count / max) * 100)}%`,
+                              background: layer.color || '#047857',
+                            }}
+                          />
+                        </div>
+                      </div>
+                    )
+                  })}
                 </div>
-              )
-            }) : (
-              <div className="gis-tool-empty">Add layers to view feature charts.</div>
+              </div>
+            ) : (
+              <div className="gis-map-tool-surface-empty" role="status">
+                <div className="gis-map-tool-surface-empty__icon" aria-hidden="true">
+                  <i className="fa-solid fa-chart-simple" />
+                </div>
+                <p className="gis-map-tool-surface-empty__message">Add layers to the map to see feature count charts.</p>
+              </div>
             )}
           </div>
         ) : activeMapTool === 'measure' ? (
@@ -4098,11 +4139,22 @@ export default function GisMap() {
             )}
           </div>
         ) : activeMapTool === 'bookmarks' ? (
-          <div className="gis-tool-bookmarks">
+          <div className="gis-tool-bookmarks gis-map-tool-surface">
+            <div className="gis-map-tool-surface__header">
+              <div className="gis-map-tool-surface__icon" aria-hidden="true">
+                <i className="fa-solid fa-bookmark" />
+              </div>
+              <div className="gis-map-tool-surface__titles">
+                <span className="gis-map-tool-surface__kicker">Saved views</span>
+                <p className="gis-map-tool-surface__lede">
+                  Capture the current extent and basemap context, then jump back with one tap—same flow as picking a
+                  table from the Tables tool.
+                </p>
+              </div>
+            </div>
             <button
               type="button"
-              className="gis-btn gis-btn-primary"
-              style={{ width: '100%' }}
+              className="gis-map-tool-surface__primary"
               onClick={() => {
                 const v = captureViewForBookmark()
                 if (!v) return
@@ -4112,28 +4164,34 @@ export default function GisMap() {
                 setGisBookmarks(prev => [row, ...prev].slice(0, 40))
               }}
             >
-              Save current extent
+              <i className="fa-solid fa-camera" aria-hidden="true" />
+              <span>Save current extent</span>
             </button>
             {gisBookmarks.length ? (
-              <ul className="gis-bookmark-list">
-                {gisBookmarks.map(b => (
-                  <li key={b.id} className="gis-bookmark-list__item">
-                    <button type="button" className="gis-bookmark-list__go" onClick={() => applyBookmark(b)}>
-                      {b.name}
-                    </button>
-                    <button
-                      type="button"
-                      className="gis-bookmark-list__del"
-                      aria-label={`Remove bookmark ${b.name}`}
-                      onClick={() => setGisBookmarks(p => p.filter(x => x.id !== b.id))}
-                    >
-                      <i className="fa-solid fa-trash" aria-hidden="true" />
-                    </button>
-                  </li>
-                ))}
-              </ul>
+              <div className="gis-map-tool-surface__scroll">
+                <ul className="gis-map-tool-surface__list gis-bookmark-list">
+                  {gisBookmarks.map(b => (
+                    <li key={b.id} className="gis-bookmark-list__item">
+                      <button type="button" className="gis-bookmark-list__go" onClick={() => applyBookmark(b)}>
+                        <i className="fa-solid fa-location-dot gis-bookmark-list__go-icon" aria-hidden="true" />
+                        <span className="gis-bookmark-list__go-text">{b.name}</span>
+                      </button>
+                      <button
+                        type="button"
+                        className="gis-bookmark-list__del"
+                        aria-label={`Remove bookmark ${b.name}`}
+                        onClick={() => setGisBookmarks(p => p.filter(x => x.id !== b.id))}
+                      >
+                        <i className="fa-solid fa-trash" aria-hidden="true" />
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              </div>
             ) : (
-              <p className="gis-tool-muted">No bookmarks yet.</p>
+              <div className="gis-map-tool-surface-empty gis-map-tool-surface-empty--compact" role="status">
+                <p className="gis-map-tool-surface-empty__message">No bookmarks yet. Save an extent to build your list.</p>
+              </div>
             )}
           </div>
         ) : activeMapTool === 'saveOpen' ? (
@@ -4183,33 +4241,86 @@ export default function GisMap() {
             </a>
           </div>
         ) : activeMapTool === 'apps' ? (
-          <div className="gis-tool-apps">
-            <p className="gis-tool-muted">Jump to other modules in this workspace.</p>
-            <div style={{ display: 'grid', gap: 8 }}>
-              <a className="gis-btn" href="/" style={{ display: 'inline-flex', justifyContent: 'center' }}>
-                Home
+          <div className="gis-tool-apps gis-map-tool-surface">
+            <div className="gis-map-tool-surface__header">
+              <div className="gis-map-tool-surface__icon" aria-hidden="true">
+                <i className="fa-solid fa-grid-2" />
+              </div>
+              <div className="gis-map-tool-surface__titles">
+                <span className="gis-map-tool-surface__kicker">Workspace</span>
+                <p className="gis-map-tool-surface__lede">Open other Agro Cloud modules without leaving the map context.</p>
+              </div>
+            </div>
+            <div className="gis-map-tool-surface__list gis-map-tool-surface-app-links">
+              <a className="gis-map-tool-surface-app-row" href="/">
+                <span className="gis-map-tool-surface-app-row__icon" aria-hidden="true">
+                  <i className="fa-solid fa-house" />
+                </span>
+                <span className="gis-map-tool-surface-app-row__main">
+                  <strong>Home</strong>
+                  <small>Landing &amp; navigation</small>
+                </span>
+                <i className="fa-solid fa-chevron-right gis-map-tool-surface-app-row__chev" aria-hidden="true" />
               </a>
-              <a className="gis-btn" href="/satellite/indices" style={{ display: 'inline-flex', justifyContent: 'center' }}>
-                Satellite Intelligence
+              <a className="gis-map-tool-surface-app-row" href="/satellite/indices">
+                <span className="gis-map-tool-surface-app-row__icon" aria-hidden="true">
+                  <i className="fa-solid fa-satellite" />
+                </span>
+                <span className="gis-map-tool-surface-app-row__main">
+                  <strong>Satellite Intelligence</strong>
+                  <small>Indices &amp; imagery workflows</small>
+                </span>
+                <i className="fa-solid fa-chevron-right gis-map-tool-surface-app-row__chev" aria-hidden="true" />
               </a>
-              <a className="gis-btn" href="/satellite/gis" style={{ display: 'inline-flex', justifyContent: 'center' }}>
-                GIS Map (this page)
+              <a className="gis-map-tool-surface-app-row" href="/satellite/gis">
+                <span className="gis-map-tool-surface-app-row__icon" aria-hidden="true">
+                  <i className="fa-solid fa-map-location-dot" />
+                </span>
+                <span className="gis-map-tool-surface-app-row__main">
+                  <strong>GIS Map</strong>
+                  <small>This page</small>
+                </span>
+                <i className="fa-solid fa-chevron-right gis-map-tool-surface-app-row__chev" aria-hidden="true" />
               </a>
-              <a className="gis-btn" href="/master/gis-content" style={{ display: 'inline-flex', justifyContent: 'center' }}>
-                GIS Content
+              <a className="gis-map-tool-surface-app-row" href="/master/gis-content">
+                <span className="gis-map-tool-surface-app-row__icon" aria-hidden="true">
+                  <i className="fa-solid fa-layer-group" />
+                </span>
+                <span className="gis-map-tool-surface-app-row__main">
+                  <strong>GIS Content</strong>
+                  <small>Catalog &amp; published layers</small>
+                </span>
+                <i className="fa-solid fa-chevron-right gis-map-tool-surface-app-row__chev" aria-hidden="true" />
               </a>
-              <a className="gis-btn" href="/admin/system-settings" style={{ display: 'inline-flex', justifyContent: 'center' }}>
-                System settings
+              <a className="gis-map-tool-surface-app-row" href="/admin/system-settings">
+                <span className="gis-map-tool-surface-app-row__icon" aria-hidden="true">
+                  <i className="fa-solid fa-gear" />
+                </span>
+                <span className="gis-map-tool-surface-app-row__main">
+                  <strong>System settings</strong>
+                  <small>Tokens, theme, APIs</small>
+                </span>
+                <i className="fa-solid fa-chevron-right gis-map-tool-surface-app-row__chev" aria-hidden="true" />
               </a>
             </div>
           </div>
         ) : activeMapTool === 'shareMap' ? (
-          <div className="gis-tool-share">
-            <p className="gis-tool-muted">Copy a link to this map page (same origin).</p>
+          <div className="gis-tool-share gis-map-tool-surface">
+            <div className="gis-map-tool-surface__header">
+              <div className="gis-map-tool-surface__icon" aria-hidden="true">
+                <i className="fa-solid fa-link" />
+              </div>
+              <div className="gis-map-tool-surface__titles">
+                <span className="gis-map-tool-surface__kicker">Share</span>
+                <p className="gis-map-tool-surface__lede">
+                  Copy the full URL of this map (same origin). Recipients see the same app route; layer state follows your
+                  app persistence rules.
+                </p>
+              </div>
+            </div>
             <button
               type="button"
-              className="gis-btn gis-btn-primary"
-              style={{ width: '100%' }}
+              className="gis-map-tool-surface__primary"
               onClick={async () => {
                 try {
                   await navigator.clipboard.writeText(window.location.href)
@@ -4219,8 +4330,16 @@ export default function GisMap() {
                 }
               }}
             >
-              Copy map link
+              <i className="fa-solid fa-copy" aria-hidden="true" />
+              <span>Copy map link</span>
             </button>
+            <p className="gis-map-tool-surface__footnote">
+              <i className="fa-solid fa-circle-info" aria-hidden="true" /> For iframe embedding, use{' '}
+              <button type="button" className="gis-map-tool-surface__linkish" onClick={() => setActiveMapTool('embedMap')}>
+                Embed map
+              </button>{' '}
+              in the toolbar.
+            </p>
           </div>
         ) : activeMapTool === 'embedMap' ? (
           <div className="gis-tool-embed">
@@ -6545,7 +6664,7 @@ export default function GisMap() {
                   <label className="gis-edit-toggle">
                     <span>Grid</span>
                     <div className="gis-toggle-switch">
-                      <input type="checkbox" />
+                      <input type="checkbox" defaultChecked />
                       <span className="gis-slider"></span>
                     </div>
                   </label>

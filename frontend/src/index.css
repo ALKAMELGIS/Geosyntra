@@ -2940,6 +2940,11 @@ aside {
   grid-column: 1 / -1;
 }
 
+.gis-sidebar-body--action-pane .gis-map-tool-surface__primary,
+.gis-sidebar-body--action-pane .gis-map-tool-surface__footnote {
+  grid-column: 1 / -1;
+}
+
 .gis-sidebar-body--action-pane .gis-layer-list {
   gap: 8px;
   padding: 0 0 12px;
@@ -2985,6 +2990,12 @@ aside {
 .gis-sidebar-column.gis-sidebar-column--action-pane:has(.gis-sidebar-body--tool-dock) {
   width: min(360px, 100%);
   max-width: 360px;
+}
+
+/* Bookmarks / Share / Charts / Create app — match Tables column width so content is not clipped */
+.gis-sidebar-column.gis-sidebar-column--action-pane:has(.gis-map-tool-panel--rich-surface) {
+  width: min(400px, 100%);
+  max-width: 400px;
 }
 
 /* Dark vertical rail (desktop split layout) — slot-based toolbar + end overlay group */
@@ -4573,6 +4584,353 @@ button.gis-tool-list-row--action:hover {
   color: #64748b;
   font-size: 13px;
   font-weight: 800;
+}
+
+/* Bookmarks / Share / Charts / Create app — same density + polish as Tables tool */
+.gis-map-tool-panel--rich-surface:not(.gis-map-tool-panel--embed-in-action-pane) {
+  width: min(400px, calc(100% - 32px));
+  display: flex;
+  flex-direction: column;
+  max-height: min(720px, calc(100% - 96px));
+  overflow: hidden;
+  padding: 14px 16px 16px;
+}
+
+.gis-sidebar-content-wrapper.gis-sidebar-tool-dock > .gis-map-tool-panel--rich-surface {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  padding: 12px 14px 14px;
+}
+
+.gis-map-tool-panel--rich-surface .gis-map-tool-surface {
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.gis-map-tool-surface {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  min-height: 0;
+}
+
+.gis-tool-chart.gis-map-tool-surface {
+  display: flex;
+}
+
+.gis-map-tool-surface__header {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.gis-map-tool-surface__icon {
+  flex: 0 0 auto;
+  width: 48px;
+  height: 48px;
+  border-radius: 14px;
+  display: grid;
+  place-items: center;
+  font-size: 20px;
+  color: #047857;
+  background: linear-gradient(145deg, rgba(236, 253, 245, 0.98), rgba(255, 255, 255, 0.92));
+  border: 1px solid rgba(4, 120, 87, 0.2);
+  box-shadow: 0 2px 10px rgba(4, 120, 87, 0.1);
+}
+
+.gis-map-tool-surface__titles {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.gis-map-tool-surface__kicker {
+  display: block;
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: rgba(100, 116, 139, 0.9);
+  margin-bottom: 4px;
+}
+
+.gis-map-tool-surface__lede {
+  margin: 0;
+  font-size: 12.5px;
+  font-weight: 650;
+  line-height: 1.5;
+  color: rgba(71, 85, 105, 0.98);
+}
+
+.gis-map-tool-surface__primary {
+  width: 100%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  min-height: 42px;
+  padding: 0 16px;
+  border-radius: 12px;
+  border: 1px solid rgba(4, 120, 87, 0.45);
+  background: linear-gradient(180deg, rgba(5, 150, 105, 0.98), rgba(4, 120, 87, 0.98));
+  color: #ecfdf5;
+  font-size: 13px;
+  font-weight: 850;
+  font-family: inherit;
+  cursor: pointer;
+  box-shadow: 0 4px 14px rgba(4, 120, 87, 0.22);
+  transition: filter 0.15s ease, box-shadow 0.15s ease, transform 0.12s ease;
+}
+
+.gis-map-tool-surface__primary:hover {
+  filter: brightness(1.04);
+  box-shadow: 0 6px 20px rgba(4, 120, 87, 0.28);
+}
+
+.gis-map-tool-surface__primary:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.35), 0 6px 20px rgba(4, 120, 87, 0.28);
+}
+
+.gis-map-tool-surface__primary:active {
+  transform: translateY(1px);
+}
+
+.gis-map-tool-surface__scroll {
+  flex: 1 1 auto;
+  min-height: 100px;
+  max-height: min(46vh, 340px);
+  overflow: auto;
+  padding: 2px 4px 6px;
+  margin: 0 -4px;
+  scrollbar-gutter: stable;
+}
+
+.gis-map-tool-surface__list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.gis-map-tool-surface-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 12px;
+  padding: 18px 12px 16px;
+  border-radius: 16px;
+  border: 1px solid rgba(226, 232, 240, 0.95);
+  background: linear-gradient(180deg, #ffffff 0%, rgba(248, 250, 252, 0.96) 100%);
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.05);
+}
+
+.gis-map-tool-surface-empty--compact {
+  padding: 14px 12px;
+}
+
+.gis-map-tool-surface-empty__icon {
+  width: 56px;
+  height: 56px;
+  border-radius: 16px;
+  display: grid;
+  place-items: center;
+  font-size: 24px;
+  color: rgba(4, 120, 87, 0.85);
+  background: rgba(236, 253, 245, 0.95);
+  border: 1px solid rgba(4, 120, 87, 0.14);
+}
+
+.gis-map-tool-surface-empty__message {
+  margin: 0;
+  max-width: 280px;
+  font-size: 13px;
+  font-weight: 650;
+  line-height: 1.5;
+  color: rgba(71, 85, 105, 0.96);
+}
+
+.gis-map-tool-surface-chart-row {
+  padding: 12px 12px 10px;
+  border-radius: 14px;
+  border: 1px solid rgba(226, 232, 240, 0.98);
+  background: #ffffff;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.04);
+}
+
+.gis-map-tool-surface-chart-row__top {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+
+.gis-map-tool-surface-chart-row__dot {
+  flex: 0 0 auto;
+  width: 10px;
+  height: 10px;
+  border-radius: 999px;
+  box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.95);
+}
+
+.gis-map-tool-surface-chart-row .gis-tool-chart-label {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.gis-map-tool-surface .gis-bookmark-list {
+  margin: 0;
+}
+
+.gis-map-tool-surface .gis-bookmark-list__item {
+  padding: 4px;
+  border-radius: 14px;
+  border: 1px solid rgba(226, 232, 240, 0.98);
+  background: #ffffff;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.04);
+  gap: 8px;
+}
+
+.gis-map-tool-surface .gis-bookmark-list__go {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  text-align: start;
+  border: none;
+  border-radius: 10px;
+  background: transparent;
+  padding: 10px 10px 10px 8px;
+  font-weight: 800;
+  font-size: 13px;
+  color: #0f172a;
+}
+
+.gis-map-tool-surface .gis-bookmark-list__go:hover {
+  background: rgba(236, 253, 245, 0.55);
+}
+
+.gis-map-tool-surface .gis-bookmark-list__go-icon {
+  flex: 0 0 auto;
+  width: 32px;
+  height: 32px;
+  border-radius: 10px;
+  display: grid;
+  place-items: center;
+  font-size: 14px;
+  color: #047857;
+  background: rgba(236, 253, 245, 0.95);
+  border: 1px solid rgba(4, 120, 87, 0.12);
+}
+
+.gis-map-tool-surface .gis-bookmark-list__go-text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.gis-map-tool-surface .gis-bookmark-list__del {
+  border-radius: 10px;
+  border-color: rgba(226, 232, 240, 0.95);
+  background: rgba(248, 250, 252, 0.98);
+}
+
+.gis-map-tool-surface-app-links {
+  gap: 8px;
+}
+
+.gis-map-tool-surface-app-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  border-radius: 14px;
+  border: 1px solid rgba(226, 232, 240, 0.98);
+  background: #ffffff;
+  text-decoration: none;
+  color: inherit;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+  transition: border-color 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
+}
+
+.gis-map-tool-surface-app-row:hover {
+  border-color: rgba(4, 120, 87, 0.22);
+  box-shadow: 0 4px 14px rgba(15, 23, 42, 0.07);
+  background: rgba(236, 253, 245, 0.35);
+}
+
+.gis-map-tool-surface-app-row__icon {
+  flex: 0 0 auto;
+  width: 38px;
+  height: 38px;
+  border-radius: 12px;
+  display: grid;
+  place-items: center;
+  font-size: 16px;
+  color: #047857;
+  background: rgba(236, 253, 245, 0.95);
+  border: 1px solid rgba(4, 120, 87, 0.12);
+}
+
+.gis-map-tool-surface-app-row__main {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: grid;
+  gap: 2px;
+}
+
+.gis-map-tool-surface-app-row__main strong {
+  font-size: 13px;
+  font-weight: 800;
+  color: #0f172a;
+}
+
+.gis-map-tool-surface-app-row__main small {
+  font-size: 11px;
+  font-weight: 650;
+  color: rgba(100, 116, 139, 0.95);
+}
+
+.gis-map-tool-surface-app-row__chev {
+  flex: 0 0 auto;
+  font-size: 11px;
+  color: rgba(148, 163, 184, 0.95);
+}
+
+:root[dir='rtl'] .gis-map-tool-surface-app-row__chev {
+  transform: scaleX(-1);
+}
+
+.gis-map-tool-surface__footnote {
+  margin: 0;
+  font-size: 11.5px;
+  font-weight: 650;
+  line-height: 1.5;
+  color: rgba(100, 116, 139, 0.95);
+}
+
+.gis-map-tool-surface__footnote .fa-circle-info {
+  margin-inline-end: 6px;
+  color: rgba(4, 120, 87, 0.65);
+}
+
+.gis-map-tool-surface__linkish {
+  padding: 0;
+  border: none;
+  background: none;
+  font: inherit;
+  font-weight: 800;
+  color: #047857;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.gis-map-tool-surface__linkish:hover {
+  color: #065f46;
 }
 
 /* Tables tool — ArcGIS Online–style empty state + layer picker (action pane) */

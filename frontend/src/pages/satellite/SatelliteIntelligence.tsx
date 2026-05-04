@@ -858,6 +858,45 @@ const SI_MAPBOX_LINE_POLY_FILTER: any = [
 ];
 const SI_MAPBOX_POINT_FILTER: any = ['in', ['geometry-type'], ['literal', ['Point', 'MultiPoint']]];
 
+/** Mapbox layer id `${sourceId}-fill|line|circle` → custom layer source id. */
+function siVectorLayerIdToCustomSourceId(mapboxLayerId: string): string | null {
+  const m = mapboxLayerId.match(/^(.+)-(fill|line|circle)$/);
+  return m ? m[1] : null;
+}
+
+function siIdentifyLayerIsSkippable(layerId: string): boolean {
+  if (!layerId) return true;
+  if (layerId.startsWith('si-geo-ai-pin')) return true;
+  if (layerId.startsWith('si-draw-draft')) return true;
+  if (layerId.startsWith('si-edit-handles')) return true;
+  if (layerId === 'sentinel-layer' || layerId === 'si-stac-thumb-layer') return true;
+  if (layerId === 'background') return true;
+  return false;
+}
+
+function siIdentifyTitleForLayerId(layerId: string, customLayers: CustomLayer[]): string {
+  const sid = siVectorLayerIdToCustomSourceId(layerId);
+  if (sid) {
+    const c = customLayers.find(l => l.id === sid);
+    if (c?.name) return c.name;
+  }
+  if (layerId.startsWith('agri-pivots')) return 'Pivot markers';
+  if (layerId.startsWith('si-stac-footprints')) return 'STAC footprint';
+  if (layerId.startsWith('drawn-index-geometry')) return 'Drawn AOI';
+  return layerId.replace(/-(fill|line|circle)$/, '') || 'Feature';
+}
+
+function siSanitizeIdentifyProperties(raw: Record<string, unknown> | null | undefined): Record<string, unknown> {
+  if (!raw || typeof raw !== 'object') return {};
+  const out: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(raw)) {
+    if (k.startsWith('mapbox_')) continue;
+    if (k === 'layer' || k === 'id' || k === 'source_layer') continue;
+    out[k] = v;
+  }
+  return out;
+}
+
 function siLayerMapboxStylePack(layer: CustomLayer): {
   fillFilter: any;
   lineFilter: any;
@@ -3524,18 +3563,100 @@ export default function SatelliteIntelligence() {
       }
       if (e.key === 'Escape') {
         cancelCurrentDrawing();
+        setGeoAiInspectCard(null);
       }
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [cancelCurrentDrawing]);
 
+  /** Layer ids passed to queryRenderedFeatures (must exist on the style). */
+  const satelliteQueryableLayerIds = useMemo(() => {
+    const ids: string[] = [];
+    if (!isMapLoaded) return ids;
+    for (const layer of customLayers) {
+      if (!layer.visible) continue;
+      ids.push(`${layer.id}-fill`, `${layer.id}-line`, `${layer.id}-circle`);
+    }
+    if (pivots.length > 0) {
+      ids.push('agri-pivots-fill', 'agri-pivots-outline');
+    }
+    if (showStacFootprintsOnMap && stacFootprintsGeoJson.features.length > 0) {
+      ids.push('si-stac-footprints-fill', 'si-stac-footprints-line');
+    }
+    if (drawnGeometry) {
+      ids.push('drawn-index-geometry-fill', 'drawn-index-geometry-line', 'drawn-index-geometry-point');
+    }
+    return ids;
+  }, [
+    isMapLoaded,
+    customLayers,
+    pivots.length,
+    showStacFootprintsOnMap,
+    stacFootprintsGeoJson.features.length,
+    drawnGeometry,
+  ]);
+
   const handleMapClickDraw = (lng: number, lat: number) => {
     if (skipNextMapClickRef.current) {
       skipNextMapClickRef.current = false;
       return;
     }
-    if (mapDrawTool === 'select') return;
+    if (mapDrawTool === 'select') {
+      try {
+        const map = getMapInstance() as {
+          project?: (lngLat: [number, number]) => { x: number; y: number };
+          queryRenderedFeatures?: (
+            geometry: [number, number] | [number, number][],
+            opts?: { layers?: string[] },
+          ) => Array<{ layer?: { id?: string }; properties?: Record<string, unknown> }>;
+        } | null;
+        if (map?.project && map.queryRenderedFeatures) {
+          const pt = map.project([lng, lat]);
+          const opts =
+            satelliteQueryableLayerIds.length > 0 ? { layers: satelliteQueryableLayerIds } : undefined;
+          let hits = map.queryRenderedFeatures([pt.x, pt.y], opts ?? undefined) ?? [];
+          if (!opts) {
+            hits = hits.filter(h => !siIdentifyLayerIsSkippable(String(h?.layer?.id ?? '')));
+          }
+          const prefer = (
+            a: { layer?: { id?: string } },
+            b: { layer?: { id?: string } },
+          ) => {
+            const la = String(a?.layer?.id ?? '');
+            const lb = String(b?.layer?.id ?? '');
+            const rank = (id: string) => (/-fill$/.test(id) ? 0 : /-circle$/.test(id) ? 1 : 2);
+            return rank(la) - rank(lb);
+          };
+          hits = [...hits].sort(prefer);
+          const hit = hits[0];
+          const layerId = String(hit?.layer?.id ?? '');
+          if (hit && layerId && !siIdentifyLayerIsSkippable(layerId)) {
+            const title = siIdentifyTitleForLayerId(layerId, customLayers);
+            const rawProps =
+              hit.properties && typeof hit.properties === 'object' && !Array.isArray(hit.properties)
+                ? (hit.properties as Record<string, unknown>)
+                : {};
+            const clean = siSanitizeIdentifyProperties(rawProps);
+            setGeoAiInspectCard({
+              title,
+              rows: buildGeoAiLayerPopupAttributeRows(
+                { properties: clean, arcgisLayerDefinition: null },
+                40,
+              ),
+              lng,
+              lat,
+              ...pickGeoAiHumanPlaceFields(clean),
+            });
+            return;
+          }
+        }
+      } catch {
+        /* ignore identify errors */
+      }
+      setGeoAiInspectCard(null);
+      return;
+    }
     if (mapDrawTool === 'freehand' || mapDrawTool === 'text' || mapDrawTool === 'lasso') return;
     if (mapDrawTool === 'rectangle' || mapDrawTool === 'circle' || mapDrawTool === 'box_select') return;
 
@@ -4279,7 +4400,7 @@ export default function SatelliteIntelligence() {
                 <div
                   className="si-geo-ai-inspect-card si-geo-ai-inspect-card--map-anchor"
                   role="dialog"
-                  aria-label="Geo AI location details"
+                  aria-label="Feature identify — attributes at click location"
                   onPointerDown={e => e.stopPropagation()}
                   onClick={e => e.stopPropagation()}
                 >
