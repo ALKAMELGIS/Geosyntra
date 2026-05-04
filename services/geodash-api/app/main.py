@@ -13,7 +13,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from .db import Dataset, SpatialFeature, TelemetryRecord, get_session_factory
+from .db import DashboardBinding, Dataset, SpatialFeature, TelemetryRecord, get_session_factory
 
 DB_PATH = Path(__file__).resolve().parent.parent / "geodash.sqlite"
 SessionLocal = get_session_factory(str(DB_PATH))
@@ -78,3 +78,51 @@ def list_records(dataset_id: int, db: Session = Depends(get_db)):
     q = select(TelemetryRecord).where(TelemetryRecord.dataset_id == dataset_id)
     rows = db.execute(q).scalars().all()
     return {"items": [{"id": r.id, "feature_id": r.feature_id, "payload": json.loads(r.payload_json or "{}")} for r in rows]}
+
+
+@app.post("/dashboard/bindings")
+def upsert_dashboard_binding(payload: dict, db: Session = Depends(get_db)):
+    """One map/registry entity → many chart widget ids (merge by appending unique ids)."""
+    key = str(payload.get("map_entity_key") or "").strip()
+    ids = payload.get("chart_widget_ids")
+    if not key or not isinstance(ids, list):
+        raise HTTPException(400, "map_entity_key and chart_widget_ids[] required")
+    now = datetime.now(timezone.utc).isoformat()
+    row = db.execute(select(DashboardBinding).where(DashboardBinding.map_entity_key == key)).scalar_one_or_none()
+    existing: list = []
+    if row:
+        try:
+            existing = json.loads(row.chart_widget_ids_json or "[]")
+        except json.JSONDecodeError:
+            existing = []
+    merged = list(dict.fromkeys([*(existing if isinstance(existing, list) else []), *[str(x) for x in ids]]))
+    if row:
+        row.chart_widget_ids_json = json.dumps(merged)
+        row.updated_at = now
+    else:
+        db.add(
+            DashboardBinding(
+                scope=str(payload.get("scope") or "agro-dashboard")[:128],
+                map_entity_key=key[:512],
+                chart_widget_ids_json=json.dumps(merged),
+                updated_at=now,
+            )
+        )
+    db.commit()
+    return {"ok": True, "map_entity_key": key, "chart_widget_ids": merged}
+
+
+@app.get("/dashboard/bindings")
+def list_dashboard_bindings(map_entity_key: str | None = None, db: Session = Depends(get_db)):
+    q = select(DashboardBinding)
+    if map_entity_key and map_entity_key.strip():
+        q = q.where(DashboardBinding.map_entity_key == map_entity_key.strip())
+    rows = db.execute(q).scalars().all()
+    out = []
+    for r in rows:
+        try:
+            ids = json.loads(r.chart_widget_ids_json or "[]")
+        except json.JSONDecodeError:
+            ids = []
+        out.append({"id": r.id, "map_entity_key": r.map_entity_key, "chart_widget_ids": ids, "updated_at": r.updated_at})
+    return {"items": out}

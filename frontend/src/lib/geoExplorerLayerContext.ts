@@ -82,6 +82,52 @@ function propertyKeys(features: GeoAiFeature[], cap = 40): string[] {
   return [...keys].slice(0, cap)
 }
 
+/** Distinct id / farm / site values across all features so short codes (e.g. MH105) appear in Geo AI context. */
+export function buildLayerIdValueCatalogSnippet(
+  features: Array<{ properties?: Record<string, unknown> }>,
+  maxChars = 2800,
+): string {
+  if (!Array.isArray(features) || features.length === 0) return ''
+
+  const keyMatchesLabel = (k: string): string | null => {
+    const n = k.replace(/\s+/g, '_')
+    if (/farm.*code|^farmcode$/i.test(n)) return 'Farm_Code'
+    if (/farm.*name|^farmname$/i.test(n)) return 'Farm_Name'
+    if (/site.*id|plot.*id|parcel.*id/i.test(n)) return 'Site_Plot_ID'
+    if (/^objectid$|^fid$/i.test(n)) return 'OBJECTID'
+    if (/^globalid$/i.test(n)) return 'GlobalID'
+    return null
+  }
+
+  const buckets = new Map<string, Set<string>>()
+  for (const f of features) {
+    const p = f.properties
+    if (!p || typeof p !== 'object') continue
+    for (const [k, v] of Object.entries(p)) {
+      const label = keyMatchesLabel(k)
+      if (!label) continue
+      const s = v == null ? '' : String(v).trim()
+      if (!s || s.length > 72) continue
+      if (!buckets.has(label)) buckets.set(label, new Set())
+      const set = buckets.get(label)!
+      if (set.size >= 220) continue
+      set.add(s)
+    }
+  }
+
+  const parts: string[] = []
+  for (const label of ['Farm_Code', 'Farm_Name', 'Site_Plot_ID', 'OBJECTID', 'GlobalID']) {
+    const set = buckets.get(label)
+    if (!set?.size) continue
+    const vals = [...set].sort((a, b) => a.localeCompare(b, undefined, { numeric: true }))
+    parts.push(`${label}=[${vals.join(', ')}]`)
+  }
+  if (!parts.length) return ''
+  let s = `Layer id catalog (all ${features.length} loaded features — use for code/id questions; not exhaustive if truncated): ${parts.join(' | ')}`
+  if (s.length > maxChars) s = `${s.slice(0, maxChars - 24)}… [catalog truncated]`
+  return s
+}
+
 /** One-line + sample for prompts (GIS-style). */
 export function summarizeGeoAiMapLayer(l: GeoAiMapLayer, maxSampleChars = 400): string {
   const fc = featureCollectionFromLayer(l)
@@ -96,6 +142,10 @@ export function summarizeGeoAiMapLayer(l: GeoAiMapLayer, maxSampleChars = 400): 
       : first.properties
     const label = arcDef ? 'example attributes (domain/subtype descriptions)' : 'example attributes'
     sample = ` | ${label}: ${JSON.stringify(shown).slice(0, maxSampleChars)}`
+  }
+  if (fc?.features?.length) {
+    const cat = buildLayerIdValueCatalogSnippet(fc.features, 2600)
+    if (cat) sample += ` | ${cat}`
   }
   const vis = l.visible === false ? 'hidden' : 'visible'
   return `- ${l.name} (features=${n}, ${vis}, source=${l.source ?? 'n/a'}) fields=[${fields || '—'}]${sample}`
@@ -270,10 +320,88 @@ export function pickGeoAiHumanPlaceFields(
   }
 }
 
+function keyPriorityForExactAttributeMatch(key: string): number {
+  const k = key.toLowerCase().replace(/\s+/g, '_')
+  if (k.includes('farm') && k.includes('code')) return 0
+  if (k.includes('farm') && (k.includes('name') || k.endsWith('_name'))) return 1
+  if (k === 'objectid' || k === 'fid' || k.endsWith('_id')) return 2
+  if (k.includes('site') || k.includes('plot') || k.includes('parcel')) return 3
+  return 8
+}
+
+/**
+ * Case-insensitive **full value** match on any attribute (e.g. user sends "MH105" and Farm_Code === "MH105").
+ * Runs before fuzzy substring scoring so short codes pin and answer correctly.
+ */
+export function findExactLayerAttributeMatchInLayers(userText: string, layers: GeoAiMapLayer[]): LayerQueryMatch | null {
+  const tokens = [...new Set(tokenizeForSearch(userText))]
+    .map(t => t.trim())
+    .filter(t => t.length >= 3 && t.length <= 64)
+  if (!tokens.length) return null
+
+  const noise = /^(the|map|maps|layer|layers|show|find|where|gps|geo|json|data|row|rows)$/i
+  const candidates = tokens.filter(t => !noise.test(t)).sort((a, b) => b.length - a.length)
+  if (!candidates.length) return null
+
+  let best: LayerQueryMatch | null = null
+  let bestRank = Number.POSITIVE_INFINITY
+
+  for (const layer of layers) {
+    const fc = featureCollectionFromLayer(layer)
+    if (!fc?.features?.length) continue
+    for (const f of fc.features) {
+      const p = f.properties
+      if (!p || typeof p !== 'object') continue
+      for (const tok of candidates) {
+        const tl = tok.toLowerCase()
+        let hitKey = ''
+        let hitPri = 999
+        for (const [key, val] of Object.entries(p)) {
+          if (val == null) continue
+          const vs = String(val).trim()
+          if (!vs) continue
+          if (vs.toLowerCase() !== tl) continue
+          const pri = keyPriorityForExactAttributeMatch(key)
+          if (pri < hitPri) {
+            hitPri = pri
+            hitKey = key
+          }
+        }
+        if (!hitKey) continue
+        const rank = hitPri * 10 + (100 - Math.min(tl.length, 40))
+        const c = featureCentroid(f)
+        if (!c) continue
+        const arcDef = layer.arcgisLayerDefinition ?? null
+        const fullprops = { ...(p as Record<string, unknown>) }
+        const summary = JSON.stringify(
+          arcDef ? formatFeaturePropertiesForGeoAi(fullprops, f, arcDef) : fullprops,
+        ).slice(0, 4800)
+        const cand: LayerQueryMatch = {
+          lng: c[0],
+          lat: c[1],
+          layerName: layer.name,
+          matchSummary: summary,
+          score: 120 - hitPri,
+          properties: fullprops,
+          arcgisLayerDefinition: arcDef,
+        }
+        if (!best || rank < bestRank || (rank === bestRank && cand.score > best.score)) {
+          best = cand
+          bestRank = rank
+        }
+      }
+    }
+  }
+  return best
+}
+
 /**
  * Best-effort: find a feature whose attributes match the user's text (e.g. NH-101 in Agro_Structures).
  */
 export function findLngLatFromLayerQuery(userText: string, layers: GeoAiMapLayer[]): LayerQueryMatch | null {
+  const exact = findExactLayerAttributeMatchInLayers(userText, layers)
+  if (exact) return exact
+
   const hint = extractLayerHint(userText)
   const hintNorm = hint ? normalizeLayerName(hint) : ''
   const tokens = tokenizeForSearch(userText)

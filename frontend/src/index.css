@@ -4019,10 +4019,11 @@ aside {
   flex: 0 0 auto;
 }
 
-/* Bottom-left map navigation: vertical Mapbox-style control (+ / − / compass) */
+/* Bottom-right map navigation: vertical Mapbox-style control (+ / − / compass); GIS Map + globe align with NavigationControl */
 .gis-map-zoom-cluster {
   position: absolute;
-  left: 16px;
+  right: 16px;
+  left: auto;
   bottom: max(16px, env(safe-area-inset-bottom, 0px));
   z-index: 650;
   display: inline-flex;
@@ -4045,8 +4046,8 @@ aside {
 }
 
 :root[dir='rtl'] .gis-map-zoom-cluster {
-  left: auto;
-  right: 16px;
+  right: auto;
+  left: 16px;
 }
 
 .gis-map-zoom-cluster__btn {

@@ -5,7 +5,7 @@
 import { formatFeaturePropertiesForGeoAi, type ArcgisLayerDefLite } from './arcgisAttributeDisplay'
 import { loadGisMapSavedLayers } from './gisMapLayerStore'
 import type { LayerData } from '../pages/satellite/components/LayerManager'
-import { summarizeGeoAiMapLayers } from './geoExplorerLayerContext'
+import { buildLayerIdValueCatalogSnippet, summarizeGeoAiMapLayers } from './geoExplorerLayerContext'
 import type { GeoAiMapLayer } from './geoExplorerLayerContext'
 
 /** Develop Dashboard writes this when layers / CSV tables change. */
@@ -54,6 +54,9 @@ export function summarizeGisLayer(l: LayerData): string {
       const label = arcDef && typeof arcDef === 'object' ? 'example attributes (domain/subtype descriptions)' : 'example attributes'
       sample = ` | ${label}: ${JSON.stringify(shown).slice(0, 420)}`
     }
+    const feats = data.features as Array<{ properties?: Record<string, unknown> }>
+    const cat = buildLayerIdValueCatalogSnippet(feats, 2400)
+    if (cat) sample += ` | ${cat}`
   }
   return `- ${l.name} (type=${l.type}, source=${l.source ?? 'n/a'}, visible=${l.visible}) fields=[${fields || '—'}]${sample}`
 }

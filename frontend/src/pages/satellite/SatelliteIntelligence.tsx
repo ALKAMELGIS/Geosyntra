@@ -1789,16 +1789,16 @@ export default function SatelliteIntelligence() {
         setStacStatus(`ArcGIS symbology applied for "${activeDialogLayer.name}".`);
         return;
       }
-      const ramp = COLOR_RAMPS[symbologyDraft.colorRamp];
+    const ramp = COLOR_RAMPS[symbologyDraft.colorRamp];
       const nextColor =
         symbologyDraft.style === 'single'
-          ? symbologyDraft.color
-          : ramp[Math.max(0, Math.min(ramp.length - 1, symbologyDraft.classes - 1))];
+        ? symbologyDraft.color
+        : ramp[Math.max(0, Math.min(ramp.length - 1, symbologyDraft.classes - 1))];
       setCustomLayers(prev =>
         prev.map(l => (l.id === activeDialogLayer.id ? { ...l, useArcGisSymbology: false, color: nextColor } : l)),
       );
-      setActiveLayerActionDialog(null);
-      setStacStatus(`Style saved for "${activeDialogLayer.name}".`);
+    setActiveLayerActionDialog(null);
+    setStacStatus(`Style saved for "${activeDialogLayer.name}".`);
     } catch (e) {
       setStacStatus(e instanceof Error ? e.message : 'Failed to save style.');
     }
@@ -4561,7 +4561,7 @@ export default function SatelliteIntelligence() {
                   {stacConnection.connectionName}
                   {showStacSearchUrlInChrome ? (
                     <>
-                      <span className="si-explore-stac-sub-sep">·</span>
+                  <span className="si-explore-stac-sub-sep">·</span>
                       <a
                         className="si-explore-stac-url"
                         href={stacActiveSearchUrl}

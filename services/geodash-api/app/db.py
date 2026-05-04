@@ -42,6 +42,16 @@ class TelemetryRecord(Base):
     feature: Mapped[SpatialFeature | None] = relationship(back_populates="records")
 
 
+class DashboardBinding(Base):
+    """Links one map / registry entity key to many dashboard chart widget ids (JSON array)."""
+    __tablename__ = "dashboard_bindings"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    scope: Mapped[str] = mapped_column(String(128), default="agro-dashboard")
+    map_entity_key: Mapped[str] = mapped_column(String(512))
+    chart_widget_ids_json: Mapped[str] = mapped_column(Text, default="[]")
+    updated_at: Mapped[str] = mapped_column(String(64), default="")
+
+
 def get_engine(db_path: str = "./geodash.sqlite"):
     return create_engine(f"sqlite:///{db_path}", echo=False, future=True)
 
