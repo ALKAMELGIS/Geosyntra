@@ -1160,8 +1160,6 @@ export default function SatelliteIntelligence() {
   const [polygonRing, setPolygonRing] = useState<[number, number][]>([]);
   const [drawnGeometry, setDrawnGeometry] = useState<any | null>(null);
   const [drawnStats, setDrawnStats] = useState<DrawnAoiStats | null>(null);
-  const [apiEndpoint, setApiEndpoint] = useState('');
-  const [apiStatus, setApiStatus] = useState('Optional API connection is ready.');
   const [expandedEnvSection, setExpandedEnvSection] = useState<
     'source' | 'layers' | 'explore-stac' | 'remote-sensing' | 'table-geo-ai'
   >('source');
@@ -2409,49 +2407,6 @@ export default function SatelliteIntelligence() {
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [isStacModalOpen, isAcsPickerOpen]);
-
-  const resetApiConnection = () => {
-    setApiEndpoint('');
-    setApiStatus('Optional API connection is ready.');
-  };
-
-  const syncExternalApiFetch = async () => {
-    const endpoint = apiEndpoint.trim();
-    if (!endpoint) {
-      setApiStatus('Add an API endpoint first.');
-      return;
-    }
-
-    setApiStatus('Fetching data from external API...');
-    try {
-      const response = await fetch(endpoint, {
-        method: 'GET',
-        headers: { Accept: 'application/json, application/geo+json' },
-      });
-
-      if (!response.ok) throw new Error(`API request failed (${response.status})`);
-      const data = await response.json();
-
-      if (data?.type === 'FeatureCollection' || data?.type === 'Feature') {
-        setCustomLayers(prev => [
-          ...prev,
-          {
-            id: `api-${Date.now()}`,
-            name: 'External API layer',
-            geojson: data?.type === 'Feature' ? { type: 'FeatureCollection', features: [data] } : data,
-            visible: true,
-            source: 'api',
-          },
-        ]);
-      }
-      if (Array.isArray(data?.weeklyComposites)) setWeeklyComposites(data.weeklyComposites);
-      if (Array.isArray(data?.stacItems)) setStacItems(data.stacItems);
-
-      setApiStatus('External API data loaded.');
-    } catch (error) {
-      setApiStatus(error instanceof Error ? error.message : 'External API request failed.');
-    }
-  };
 
   const aoiVizColor = useMemo(() => {
     if (!drawnStats) return '#facc15';
@@ -5532,26 +5487,6 @@ export default function SatelliteIntelligence() {
                             Cloud Storage Connection (.acs) files from ArcGIS Pro are not applied in the browser; use the
                             connection dialog (token or headers) when your catalog requires authentication.
                           </p>
-                        </div>
-                        <div className="si-api-card">
-                          <div className="si-env-chart-title">External API</div>
-                          <input
-                            type="url"
-                            value={apiEndpoint}
-                            onChange={(event) => setApiEndpoint(event.target.value)}
-                            placeholder="https://api.example.com/environmental-index"
-                          />
-                          <div className="si-api-actions">
-                            <button type="button" onClick={syncExternalApiFetch}>
-                              <i className="fa-solid fa-download" />
-                              <span>Fetch</span>
-                            </button>
-                            <button type="button" onClick={resetApiConnection}>
-                              <i className="fa-solid fa-rotate-left" />
-                              <span>Reset</span>
-                            </button>
-                          </div>
-                          <small>{apiStatus}</small>
                         </div>
                         <div className="si-env-message">{stacStatus}</div>
                       </div>

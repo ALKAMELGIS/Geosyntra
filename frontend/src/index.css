@@ -2717,9 +2717,19 @@ aside {
   grid-template-columns: minmax(0, 1fr);
 }
 
-/* Wider first column when ArcGIS-style labeled rail is visible (rail + layers panel). */
+/* ArcGIS-style rail: first track sizes to sidebar (rail + ~304px content-wrapper pane), not a wide vw strip. */
 .gis-map-page--agol-rail:not(.sidebar-closed) {
-  grid-template-columns: minmax(420px, 38vw) minmax(0, 1fr);
+  grid-template-columns: auto minmax(0, 1fr);
+}
+
+.gis-map-page--agol-rail:not(.sidebar-closed) .gis-sidebar--has-rail {
+  width: max-content;
+  max-width: 100%;
+  justify-self: start;
+}
+
+:root[dir='rtl'] .gis-map-page--agol-rail:not(.sidebar-closed) .gis-sidebar--has-rail {
+  justify-self: end;
 }
 
 .gis-sidebar {
@@ -2765,7 +2775,6 @@ aside {
   flex-direction: column;
   min-height: 0;
   min-width: 0;
-  flex: 1 1 auto;
   background: #ffffff;
 }
 
@@ -2911,6 +2920,13 @@ aside {
   display: flex;
   flex-direction: column;
   overflow: hidden;
+}
+
+/* ArcGIS Online Map Viewer: content-wrapper width for the white tool/layers column (rail stays fixed). */
+.gis-sidebar-column.gis-sidebar-column--action-pane {
+  flex: 0 0 auto;
+  width: min(304px, 100%);
+  max-width: 304px;
 }
 
 /* Dark vertical rail (desktop split layout) — slot-based toolbar + end overlay group */
@@ -6616,6 +6632,18 @@ html[data-theme='dark'] .gis-domain-cell--dropdown.missing-description .gis-doma
   letter-spacing: 0.06em;
   text-transform: uppercase;
   color: rgba(71, 85, 105, 1);
+}
+
+.gis-style-readonly {
+  min-height: 42px;
+  border-radius: 12px;
+  border: 1px solid rgba(226, 232, 240, 1);
+  background: rgba(248, 250, 252, 0.95);
+  padding: 10px 12px;
+  font-size: 13px;
+  font-weight: 650;
+  color: rgba(15, 23, 42, 0.88);
+  line-height: 1.35;
 }
 
 .gis-style-selectwrap {

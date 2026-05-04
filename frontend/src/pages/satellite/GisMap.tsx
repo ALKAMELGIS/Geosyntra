@@ -447,6 +447,10 @@ export default function GisMap() {
   const drawingFeatureGroupRef = useRef<L.FeatureGroup | null>(null)
   const measurementLayerRef = useRef<L.LayerGroup | null>(null)
   const [layers, setLayers] = useState<LayerData[]>([])
+  const layersRef = useRef<LayerData[]>([])
+  useEffect(() => {
+    layersRef.current = layers
+  }, [layers])
   const [layersLoaded, setLayersLoaded] = useState(false)
   const persistLayersJobRef = useRef<null | { kind: 'idle'; id: number } | { kind: 'timeout'; id: ReturnType<typeof setTimeout> }>(null)
   const geoJsonDataIdByObjectRef = useRef<WeakMap<object, number>>(new WeakMap())
@@ -459,6 +463,8 @@ export default function GisMap() {
   const [sidebarOpen, setSidebarOpen] = useState(() => !getIsMobileDrawerViewport())
   /** Desktop / wide layout: narrow the layers column; cleared on mobile or stacked layout. */
   const [layersPanelCollapsed, setLayersPanelCollapsed] = useState(false)
+  /** ArcGIS rail: hide white action column only; toolbar rail stays visible. */
+  const [agolContentColumnOpen, setAgolContentColumnOpen] = useState(true)
   const [isAddOpen, setIsAddOpen] = useState(false)
   const [activeMapTool, setActiveMapTool] = useState<GisMapToolPanel>(null)
   const [mapToolbarCollapsed, setMapToolbarCollapsed] = useState(false)
@@ -585,6 +591,7 @@ export default function GisMap() {
   const [mapPopupPos, setMapPopupPos] = useState<null | { left: number; top: number; placement: 'top' | 'bottom'; arrowLeft: number }>(null)
 
   const openAddLayerModal = useCallback((initialTab?: AddLayerTab) => {
+    setAgolContentColumnOpen(true)
     dragDepthRef.current = 0
     setIsDragOver(false)
     setUploadFile(null)
@@ -684,6 +691,7 @@ export default function GisMap() {
         geoJsonDataIdByObjectRef.current.set(obj, dataId)
       }
       const s = layer.symbology ? JSON.stringify(layer.symbology) : ''
+      const arcT = (layer as LayerData)?.arcgisRenderer && typeof (layer as any).arcgisRenderer?.type === 'string' ? String((layer as any).arcgisRenderer.type) : ''
       parts.push(
         [
           String(layer.id),
@@ -693,6 +701,7 @@ export default function GisMap() {
           String(layer.weight ?? ''),
           String(layer.opacity ?? ''),
           s,
+          arcT,
         ].join('~'),
       )
     }
@@ -911,6 +920,7 @@ export default function GisMap() {
   }
 
   const toggleMapTool = (tool: NonNullable<GisMapToolPanel>) => {
+    setAgolContentColumnOpen(true)
     setActiveMapTool(prev => (prev === tool ? null : tool))
   }
 
@@ -2373,6 +2383,40 @@ export default function GisMap() {
     return next
   }
 
+  /** When using the service renderer, mirror its visualization into draft fields (used if user switches back to custom). */
+  const inferVisualizationFromArcgisRenderer = (renderer: any): Partial<Required<SymbologyConfig>> => {
+    const type = renderer?.type
+    if (type === 'uniqueValue') {
+      const f1 = typeof renderer?.field1 === 'string' ? renderer.field1 : ''
+      const n = Array.isArray(renderer?.uniqueValueInfos) ? renderer.uniqueValueInfos.length : 0
+      const classes = clampInt(n > 0 ? Math.min(Math.max(n, 2), 12) : 12, 2, 12)
+      return { style: 'unique', field: f1, classes }
+    }
+    if (type === 'classBreaks') {
+      const f = typeof renderer?.field === 'string' ? renderer.field : ''
+      const n = Array.isArray(renderer?.classBreakInfos) ? renderer.classBreakInfos.length : 0
+      const classes = clampInt(n > 0 ? Math.min(Math.max(n, 2), 12) : 5, 2, 12)
+      return { style: 'color', field: f, classes }
+    }
+    return { style: 'color', field: '', classes: 5 }
+  }
+
+  const describeArcGisRendererVisualization = (renderer: any): string => {
+    const type = renderer?.type
+    if (type === 'uniqueValue') {
+      const f1 = typeof renderer?.field1 === 'string' && renderer.field1 ? renderer.field1 : 'attribute'
+      return `Unique symbols (${f1})`
+    }
+    if (type === 'classBreaks') {
+      const f = typeof renderer?.field === 'string' && renderer.field ? renderer.field : 'numeric field'
+      return `Class breaks (${f})`
+    }
+    if (type === 'simple') return 'Single symbol'
+    if (type === 'heatmap') return 'Heatmap'
+    if (type && typeof type === 'string') return `Renderer: ${type}`
+    return 'No renderer loaded'
+  }
+
   const hexToRgb = (hex: string) => {
     const cleaned = hex.trim().replace('#', '')
     if (!/^[0-9a-fA-F]{6}$/.test(cleaned)) return null
@@ -2652,7 +2696,8 @@ export default function GisMap() {
       const raw = f ? feature?.properties?.[f] : undefined
       const v = typeof raw === 'number' && Number.isFinite(raw) ? raw : Number(raw)
       if (!Number.isFinite(v)) return renderer?.defaultSymbol ?? null
-      const infos = Array.isArray(renderer?.classBreakInfos) ? renderer.classBreakInfos : []
+      const infos = Array.isArray(renderer?.classBreakInfos) ? [...renderer.classBreakInfos] : []
+      infos.sort((a: any, b: any) => (Number(a?.classMaxValue) || 0) - (Number(b?.classMaxValue) || 0))
       const found = infos.find((i: any) => typeof i?.classMaxValue === 'number' && v <= i.classMaxValue)
       return found?.symbol ?? renderer?.defaultSymbol ?? null
     }
@@ -3064,9 +3109,13 @@ export default function GisMap() {
   const updateSymbologyDraft = (patch: Partial<Required<SymbologyConfig>>) => {
     setSymbologyDialog(prev => {
       if (!prev) return prev
-      const nextDraft: Required<SymbologyConfig> = { ...prev.draft, ...patch }
+      let nextDraft: Required<SymbologyConfig> = { ...prev.draft, ...patch }
       const layer = symbologyLayer ?? layers.find(l => String(l.id) === prev.layerId)
       if (!layer) return prev
+      if (patch.useArcGisOnline === true) {
+        const renderer = layer.arcgisRenderer ?? layer.arcgisLayerDefinition?.drawingInfo?.renderer
+        nextDraft = { ...nextDraft, ...inferVisualizationFromArcgisRenderer(renderer) }
+      }
       const normalized = normalizeSymbology(layer, nextDraft)
       applyLayerSymbology(prev.layerId, normalized)
       return { ...prev, draft: normalized }
@@ -3166,6 +3215,49 @@ export default function GisMap() {
       throw new Error([json.error.message, details].filter(Boolean).join(' '))
     }
     return json
+  }
+
+  /** Turn on ArcGIS renderer preview: load drawingInfo if missing, align draft style/field with the service renderer, persist symbology. */
+  const activateArcGisOnlineSymbology = async (layerId: string, draft: Required<SymbologyConfig>) => {
+    const cur = layersRef.current.find(l => String(l.id) === layerId)
+    if (!cur) return
+    let fetchedDef: any = null
+    let renderer = cur.arcgisRenderer ?? cur.arcgisLayerDefinition?.drawingInfo?.renderer
+    if (!renderer && cur.source === 'arcgis' && typeof cur.url === 'string' && cur.url.trim()) {
+      try {
+        fetchedDef = await fetchArcGisLayerDefinition(cur.url, cur.authToken)
+        renderer = fetchedDef?.drawingInfo?.renderer ?? renderer
+      } catch {
+        /* keep going — user still gets custom fallback if renderer stays empty */
+      }
+    }
+    let layerForNormalize: LayerData = cur
+    if (fetchedDef) {
+      layerForNormalize = {
+        ...cur,
+        arcgisLayerDefinition: fetchedDef ?? cur.arcgisLayerDefinition,
+        arcgisRenderer: renderer ?? cur.arcgisRenderer,
+        arcgisStyleUrl: typeof fetchedDef?.styleUrl === 'string' ? fetchedDef.styleUrl : cur.arcgisStyleUrl,
+      }
+    }
+    const infer = inferVisualizationFromArcgisRenderer(renderer)
+    const normalized = normalizeSymbology(layerForNormalize, { ...draft, useArcGisOnline: true, ...infer })
+    setLayers(prev =>
+      prev.map(l => {
+        if (String(l.id) !== layerId) return l
+        if (fetchedDef) {
+          return {
+            ...l,
+            arcgisLayerDefinition: fetchedDef ?? l.arcgisLayerDefinition,
+            arcgisRenderer: renderer ?? l.arcgisRenderer,
+            arcgisStyleUrl: typeof fetchedDef?.styleUrl === 'string' ? fetchedDef.styleUrl : l.arcgisStyleUrl,
+            symbology: normalized,
+          }
+        }
+        return { ...l, symbology: normalized }
+      }),
+    )
+    setSymbologyDialog(prev => (prev && prev.layerId === layerId ? { ...prev, draft: normalized } : prev))
   }
 
   const extractArcGisPortalItemId = (def: any): string | undefined => {
@@ -3518,23 +3610,21 @@ export default function GisMap() {
   }
 
   const layersRailCollapsed = layersPanelCollapsed && !isMobileDrawerViewport
-  const showDesktopGisRail = !isMobileDrawerViewport && !layersRailCollapsed && isSplitDesktopLayout
-  /** Panel footer when rail is hidden: narrow layers column, stacked layout, or collapsed rail. */
-  const showSidebarPanelFooter =
-    !isMobileDrawerViewport && (layersRailCollapsed || !isSplitDesktopLayout)
-
+  /** Narrow 56px “collapsed layers” chrome — only when not split desktop; never hide AgOL rail toolbar. */
+  const layersChromeCollapsed = Boolean(layersRailCollapsed && !isSplitDesktopLayout)
+  const showDesktopGisRail = !isMobileDrawerViewport && isSplitDesktopLayout
   const focusLayersPanel = () => {
     setLayersPanelCollapsed(false)
     setActiveMapTool(null)
+    setAgolContentColumnOpen(true)
   }
-  const dockMapToolInSidebar = Boolean(showDesktopGisRail && activeMapTool)
+  const dockMapToolInSidebar = Boolean(showDesktopGisRail && agolContentColumnOpen && activeMapTool)
 
   const closeAgolActionPane = () => {
-    if (activeMapTool) {
-      setActiveMapTool(null)
-      return
+    setActiveMapTool(null)
+    if (showDesktopGisRail) {
+      setAgolContentColumnOpen(false)
     }
-    setLayersPanelCollapsed(true)
   }
 
   const mapToolPanelEl = activeMapTool ? (
@@ -4008,7 +4098,7 @@ export default function GisMap() {
     <div
       className={[
         sidebarOpen ? 'gis-map-page' : 'gis-map-page sidebar-closed',
-        layersRailCollapsed ? 'gis-map-page--layers-collapsed' : '',
+        layersChromeCollapsed ? 'gis-map-page--layers-collapsed' : '',
         showDesktopGisRail ? 'gis-map-page--agol-rail' : '',
       ]
         .filter(Boolean)
@@ -4024,7 +4114,7 @@ export default function GisMap() {
           className={[
             'gis-sidebar',
             isMobileDrawerViewport ? (sidebarOpen ? 'is-open' : 'is-collapsed') : '',
-            layersRailCollapsed ? 'gis-sidebar--layers-collapsed' : '',
+            layersChromeCollapsed ? 'gis-sidebar--layers-collapsed' : '',
             showDesktopGisRail ? 'gis-sidebar--has-rail' : '',
           ]
             .filter(Boolean)
@@ -4218,37 +4308,6 @@ export default function GisMap() {
                       </button>
                     </div>
                   </div>
-                  <div
-                    className="gis-sidebar-v-toolbar__end gis-sidebar-v-toolbar__end--overlay"
-                    role="group"
-                    aria-label="Sidebar utilities"
-                    data-overlay-positioning="absolute"
-                  >
-                    <div className="gis-sidebar-slot gis-sidebar-slot--actions-end" data-slot="actions-end" aria-hidden="true" />
-                    <div
-                      className="gis-sidebar-slot gis-sidebar-slot--expand-tooltip"
-                      data-slot="expand-tooltip"
-                      id="gis-sidebar-expand-tooltip-anchor"
-                      aria-hidden="true"
-                    />
-                    <div className="gis-sidebar-foot-divider gis-sidebar-foot-divider--rail" aria-hidden />
-                    <button
-                      type="button"
-                      id="gis-sidebar-rail-expand-toggle"
-                      className="gis-sidebar-rail-toggle"
-                      onClick={() => setLayersPanelCollapsed(c => !c)}
-                      aria-expanded={!layersPanelCollapsed}
-                      aria-controls="gis-sidebar-layers-scroll"
-                      aria-label={layersPanelCollapsed ? 'Expand GIS layers list' : 'Collapse GIS layers list'}
-                      title={layersPanelCollapsed ? 'Expand layers panel' : 'Collapse layers panel'}
-                    >
-                      <i
-                        className={`fa-solid ${layersPanelCollapsed ? 'fa-chevrons-right' : 'fa-chevrons-left'}`}
-                        aria-hidden="true"
-                      />
-                      <span className="gis-sidebar-rail-toggle__text">{layersPanelCollapsed ? 'Expand' : 'Collapse'}</span>
-                    </button>
-                  </div>
                 </div>
               </nav>
             ) : null}
@@ -4256,6 +4315,7 @@ export default function GisMap() {
               className={['gis-sidebar-column', showDesktopGisRail ? 'gis-sidebar-column--action-pane' : '']
                 .filter(Boolean)
                 .join(' ')}
+              hidden={showDesktopGisRail && !agolContentColumnOpen}
             >
               {showDesktopGisRail ? (
                 <div className="gis-sidebar-action-pane__head">
@@ -4293,7 +4353,7 @@ export default function GisMap() {
             ) : (
               <>
             <div
-              className={['gis-sidebar-body-main', layersRailCollapsed ? 'gis-sidebar-body-main--collapsed-rail' : '']
+              className={['gis-sidebar-body-main', layersChromeCollapsed ? 'gis-sidebar-body-main--collapsed-rail' : '']
                 .filter(Boolean)
                 .join(' ')}
             >
@@ -4325,7 +4385,7 @@ export default function GisMap() {
                 </button>
               </div>
             ) : null}
-            {!layersRailCollapsed && layers.length === 0 ? (
+            {!layersChromeCollapsed && layers.length === 0 ? (
             showDesktopGisRail ? (
               <div className="gis-sidebar-layers-empty-agol" role="status" aria-live="polite">
                 <div className="gis-sidebar-layers-empty-agol__icon" aria-hidden="true">
@@ -4345,7 +4405,7 @@ export default function GisMap() {
               </div>
             )
           ) : null}
-            {!layersRailCollapsed && layers.length > 0 ? (
+            {!layersChromeCollapsed && layers.length > 0 ? (
             <div id="gis-sidebar-layers-scroll" className="gis-layer-list" role="list" aria-label="Layers list">
               {orderedLayers.map(layer => {
                 const layerId = String(layer.id)
@@ -4601,7 +4661,11 @@ export default function GisMap() {
                       onClick={() => {
                         const lid = String(layer.id)
                         const original = layer.symbology
-                        const draft = normalizeSymbology(layer, original)
+                        let draft = normalizeSymbology(layer, original)
+                        if (layer.source === 'arcgis' && draft.useArcGisOnline) {
+                          const r = layer.arcgisRenderer ?? layer.arcgisLayerDefinition?.drawingInfo?.renderer
+                          draft = normalizeSymbology(layer, { ...draft, ...inferVisualizationFromArcgisRenderer(r) })
+                        }
                         applyLayerSymbology(lid, draft)
                         setSymbologyDialog({ layerId: lid, draft, original })
                       }}
@@ -4629,70 +4693,7 @@ export default function GisMap() {
               })}
             </div>
           ) : null}
-            {layersRailCollapsed ? (
-              <button
-                type="button"
-                className="gis-sidebar-collapsed-layers"
-                onClick={() => setLayersPanelCollapsed(false)}
-                aria-label={`Expand to browse ${layers.length} layer${layers.length === 1 ? '' : 's'}`}
-                title="Expand layers list"
-              >
-                <span className="gis-sidebar-collapsed-layers__visual" aria-hidden>
-                  <span className="gis-sidebar-collapsed-layers__stack-bars">
-                    <span className="gis-sidebar-collapsed-layers__stack-bar" />
-                    <span className="gis-sidebar-collapsed-layers__stack-bar" />
-                    <span className="gis-sidebar-collapsed-layers__stack-bar" />
-                  </span>
-                  <span className="gis-sidebar-collapsed-layers__icon-slot">
-                    <span className="gis-sidebar-collapsed-layers__icon-wrap">
-                      <i className="fa-solid fa-layer-group" />
-                    </span>
-                    {layers.length > 0 ? (
-                      <span className="gis-sidebar-collapsed-layers__badge">{layers.length}</span>
-                    ) : null}
-                  </span>
-                </span>
-                <span className="gis-sidebar-collapsed-layers__caption">layers</span>
-              </button>
-            ) : null}
             </div>
-            {showSidebarPanelFooter ? (
-              <footer className="gis-sidebar-foot-toolbar" aria-label="Sidebar tools">
-                <div className="gis-sidebar-foot-divider" aria-hidden />
-                <div
-                  className="gis-sidebar-slot gis-sidebar-slot--actions-end"
-                  data-slot="actions-end"
-                  aria-hidden="true"
-                />
-                <div
-                  className="gis-sidebar-slot gis-sidebar-slot--expand-tooltip"
-                  data-slot="expand-tooltip"
-                  id="gis-sidebar-expand-tooltip-anchor-panel"
-                  aria-hidden="true"
-                />
-                <div className="gis-sidebar-v-toolbar__end gis-sidebar-v-toolbar__end--panel" role="group" aria-label="Layer list size">
-                  <button
-                    type="button"
-                    id="gis-sidebar-panel-expand-toggle"
-                    className="gis-sidebar-foot-item gis-sidebar-foot-item--primary gis-sidebar-rail-toggle gis-sidebar-rail-toggle--panel"
-                    onClick={() => setLayersPanelCollapsed(c => !c)}
-                    aria-expanded={!layersPanelCollapsed}
-                    aria-controls="gis-sidebar-layers-scroll"
-                    aria-label={layersPanelCollapsed ? 'Expand GIS layers list' : 'Collapse GIS layers list'}
-                    title={layersPanelCollapsed ? 'Expand layers panel' : 'Collapse layers panel'}
-                  >
-                    <span className="gis-sidebar-foot-item__glyph gis-sidebar-rail-toggle__glyph" aria-hidden>
-                      <i
-                        className={`fa-solid ${layersPanelCollapsed ? 'fa-chevrons-right' : 'fa-chevrons-left'}`}
-                      />
-                    </span>
-                    <span className="gis-sidebar-foot-item__label gis-sidebar-rail-toggle__text">
-                      {layersPanelCollapsed ? 'Expand' : 'Collapse'}
-                    </span>
-                  </button>
-                </div>
-              </footer>
-            ) : null}
               </>
             )}
         </div>
@@ -4850,7 +4851,7 @@ export default function GisMap() {
           {layers.map(layer =>
             layer.visible && layer.type === 'geojson' && layer.data ? (
               <GeoJSON
-                key={String(layer.id)}
+                key={`${String(layer.id)}:${layer.symbology?.useArcGisOnline ? 'ag1' : 'ag0'}:${layer.symbology?.style ?? 's'}:${(layer.arcgisRenderer as any)?.type ?? 'nr'}`}
                 data={layer.data as any}
                 style={(feature: any) => getFeatureStyle(layer, feature)}
                 onEachFeature={(feature: any, ll: any) => {
@@ -6456,7 +6457,14 @@ export default function GisMap() {
                   <input
                     type="checkbox"
                     checked={symbologyDialog.draft.useArcGisOnline}
-                    onChange={(e) => updateSymbologyDraft({ useArcGisOnline: e.target.checked })}
+                    onChange={(e) => {
+                      if (!symbologyDialog) return
+                      if (e.target.checked) {
+                        void activateArcGisOnlineSymbology(symbologyDialog.layerId, symbologyDialog.draft)
+                      } else {
+                        updateSymbologyDraft({ useArcGisOnline: false })
+                      }
+                    }}
                     disabled={symbologyLayer.source !== 'arcgis'}
                   />
                   <span>Use ArcGIS Online symbology</span>
@@ -6464,9 +6472,51 @@ export default function GisMap() {
               </div>
 
               {symbologyDialog.draft.useArcGisOnline ? (
-                <div className="gis-style-info">
-                  ArcGIS renderer preview is enabled. Uncheck &quot;Use ArcGIS Online symbology&quot; to configure custom styles.
-                </div>
+                <>
+                  <div className="gis-style-info">
+                    ArcGIS renderer preview is enabled. Uncheck &quot;Use ArcGIS Online symbology&quot; to configure custom styles.
+                  </div>
+                  {(() => {
+                    const renderer = symbologyLayer.arcgisRenderer ?? symbologyLayer.arcgisLayerDefinition?.drawingInfo?.renderer
+                    const visLabel = describeArcGisRendererVisualization(renderer)
+                    const styleLabel =
+                      symbologyDialog.draft.style === 'unique'
+                        ? 'Types (unique symbols)'
+                        : symbologyDialog.draft.style === 'color_size'
+                          ? 'Counts and Amounts (color + size)'
+                          : symbologyDialog.draft.style === 'size'
+                            ? 'Counts and Amounts (size)'
+                            : symbologyDialog.draft.style === 'dot_density'
+                              ? 'Dot density'
+                              : symbologyDialog.draft.style === 'threshold_markers'
+                                ? 'Single symbol + threshold markers'
+                                : 'Counts and Amounts (color)'
+                    return (
+                      <div className="gis-style-card" aria-label="ArcGIS visualization">
+                        <div className="gis-style-grid">
+                          <div className="gis-style-field">
+                            <div className="gis-style-label">Visualization style</div>
+                            <div className="gis-style-readonly" title={visLabel}>
+                              {renderer ? visLabel : 'Loading or unavailable — sync the layer if symbols look wrong.'}
+                            </div>
+                          </div>
+                          <div className="gis-style-field">
+                            <div className="gis-style-label">Linked custom style (when unchecked)</div>
+                            <div className="gis-style-readonly">
+                              {styleLabel}
+                              {symbologyDialog.draft.field ? ` · ${symbologyDialog.draft.field}` : ''}
+                            </div>
+                          </div>
+                        </div>
+                        {renderer?.type === 'heatmap' ? (
+                          <div className="gis-style-info" style={{ marginTop: 10 }}>
+                            Heatmap renderers are not reproduced on this Leaflet map; use custom styles or a heatmap-capable client for this visualization.
+                          </div>
+                        ) : null}
+                      </div>
+                    )
+                  })()}
+                </>
               ) : (
                 (() => {
                   const allFields = getGeoJsonFields(symbologyLayer.data)
