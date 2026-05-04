@@ -13,6 +13,7 @@ import {
   ArcElement,
   Filler,
 } from 'chart.js'
+import { appPrompt } from '../../lib/appDialog'
 import { useLanguage } from '../../lib/i18n'
 import { useMapboxAccessToken } from '../../hooks/useMapboxAccessToken'
 import { loadGisMapSavedLayers } from '../../lib/gisMapLayerStore'
@@ -687,10 +688,16 @@ export default function AgroEnterpriseDashboard() {
                 <span>GeoJSON, KML, CSV, …</span>
                 <input type="file" hidden onChange={e => e.target.files?.[0] && void onUpload(e.target.files[0])} />
               </label>
-              <button type="button" className="agro-ent-opt" onClick={() => {
-                const u = window.prompt('URL')
-                if (u) void onUrl(u)
-              }}>
+              <button
+                type="button"
+                className="agro-ent-opt"
+                onClick={() => {
+                  void (async () => {
+                    const u = await appPrompt('Enter a URL for remote GeoJSON or zip.', '', { title: 'URL' })
+                    if (u?.trim()) void onUrl(u.trim())
+                  })()
+                }}
+              >
                 <b>{t.url}</b>
                 <span>Remote GeoJSON / zip</span>
               </button>

@@ -52,6 +52,7 @@ import {
   GEO_AI_CHAT_SYSTEM_BASE,
   type GeoAiChatTurn,
 } from '../../lib/geoAiChatClaude';
+import { appConfirm } from '../../lib/appDialog';
 import { loadGisMapSavedLayers } from '../../lib/gisMapLayerStore';
 import { satelliteCustomLayersToGeoAiLayers } from '../../lib/geoAiMapLayerSources';
 import { geoExplorerTargetZoomForPinSource, runGeoExplorerGeminiTurn } from '../../lib/runGeoExplorerGeminiTurn';
@@ -76,6 +77,7 @@ import {
   arcgisDrawingInfoToFillPaint,
   arcgisDrawingInfoToLinePaint,
   fetchArcgisLayerDrawingInfo,
+  pickRendererPrimaryField,
   sanitizeArcgisDrawingInfoForClient,
 } from '../../lib/arcgisDrawingInfoMapbox';
 
@@ -842,7 +844,14 @@ function parseStoredCustomLayers(raw: string | null): CustomLayer[] {
         authToken: typeof x.authToken === 'string' ? x.authToken : undefined,
         arcgisDrawingInfo:
           x.arcgisDrawingInfo && typeof x.arcgisDrawingInfo === 'object' ? (x.arcgisDrawingInfo as Record<string, unknown>) : undefined,
-        useArcGisSymbology: typeof x.useArcGisSymbology === 'boolean' ? x.useArcGisSymbology : undefined,
+        useArcGisSymbology:
+          x.source === 'arcgis'
+            ? typeof x.useArcGisSymbology === 'boolean'
+              ? x.useArcGisSymbology
+              : true
+            : typeof x.useArcGisSymbology === 'boolean'
+              ? x.useArcGisSymbology
+              : undefined,
       }));
   } catch {
     return [];
@@ -906,7 +915,7 @@ function siLayerMapboxStylePack(layer: CustomLayer): {
   circlePaint: Record<string, unknown>;
 } {
   const c = layer.color || '#22c55e';
-  const useAg = layer.source === 'arcgis' && layer.useArcGisSymbology && layer.arcgisDrawingInfo;
+  const useAg = layer.source === 'arcgis' && layer.useArcGisSymbology !== false && layer.arcgisDrawingInfo;
   if (useAg) {
     const di = layer.arcgisDrawingInfo as any;
     const fill = arcgisDrawingInfoToFillPaint(di);
@@ -954,14 +963,16 @@ function persistCustomLayersToStorage(layers: CustomLayer[]) {
 
 type LayerStyleMode = 'single' | 'classified';
 type LayerClassMethod = 'natural-breaks' | 'equal-interval';
+type SymbologyColorRamp = 'viridis' | 'green' | 'warm' | 'service';
 
 interface LayerSymbologyDraft {
   useArcGisOnline: boolean;
   style: LayerStyleMode;
   classes: number;
-  colorRamp: 'viridis' | 'green' | 'warm';
+  colorRamp: SymbologyColorRamp;
   method: LayerClassMethod;
   color: string;
+  arcgisMaxCategories: number;
 }
 
 type AddLayerTab = 'arcgis' | 'upload' | 'database';
@@ -1136,11 +1147,178 @@ const ENVIRONMENTAL_INDICES: Record<EnvironmentalIndexId, {
 };
 
 const PIVOT_COLORS = ['#22c55e', '#3b82f6', '#f97316', '#a855f7', '#06b6d4', '#eab308'];
-const COLOR_RAMPS: Record<LayerSymbologyDraft['colorRamp'], string[]> = {
+const COLOR_RAMPS: Record<'viridis' | 'green' | 'warm', string[]> = {
   viridis: ['#440154', '#3b528b', '#21918c', '#5ec962', '#fde725'],
   green: ['#14532d', '#166534', '#16a34a', '#4ade80', '#bbf7d0'],
   warm: ['#7f1d1d', '#b45309', '#f59e0b', '#fde047', '#fef9c3'],
 };
+
+function esriColorArrayToCss(c: unknown): string | null {
+  if (!Array.isArray(c) || c.length < 3) return null;
+  const r = Math.max(0, Math.min(255, Math.round(Number(c[0]))));
+  const g = Math.max(0, Math.min(255, Math.round(Number(c[1]))));
+  const b = Math.max(0, Math.min(255, Math.round(Number(c[2]))));
+  if (![r, g, b].every(n => Number.isFinite(n))) return null;
+  let a = c.length >= 4 ? Number(c[3]) : 255;
+  if (!Number.isFinite(a)) a = 255;
+  const alpha = a <= 1 ? a : a / 255;
+  const ao = Math.max(0, Math.min(1, alpha));
+  return `rgba(${r},${g},${b},${ao})`;
+}
+
+function rampColorAt(ramp: string[], i: number, n: number): string {
+  if (!ramp.length) return '#22c55e';
+  if (n <= 1) return ramp[Math.floor((ramp.length - 1) / 2)]!;
+  const t = i / (n - 1);
+  const idx = Math.round(t * (ramp.length - 1));
+  return ramp[Math.max(0, Math.min(ramp.length - 1, idx))]!;
+}
+
+function hexToEsriRgba(hex: string): [number, number, number, number] {
+  const h = (hex || '#22c55e').replace('#', '');
+  const pad = h.length === 3 ? h.split('').map(ch => ch + ch).join('') : h.padEnd(6, '0').slice(0, 6);
+  const r = parseInt(pad.slice(0, 2), 16) || 34;
+  const g = parseInt(pad.slice(2, 4), 16) || 197;
+  const b = parseInt(pad.slice(4, 6), 16) || 94;
+  return [r, g, b, 255];
+}
+
+function arcgisLegendPreviewRows(
+  drawingInfo: Record<string, unknown> | null | undefined,
+  colorRamp: SymbologyColorRamp,
+  maxCategories: number,
+): Array<{ label: string; color: string }> {
+  if (!drawingInfo || typeof drawingInfo !== 'object') return [];
+  const ren = (drawingInfo as any)?.renderer;
+  if (!ren || typeof ren !== 'object') return [];
+  const t = String(ren.type || '');
+  const max = Math.max(1, Math.min(40, Math.floor(maxCategories)));
+  const ramp = colorRamp === 'service' ? null : COLOR_RAMPS[colorRamp];
+
+  if (t === 'uniqueValue') {
+    const infos = (Array.isArray(ren.uniqueValueInfos) ? ren.uniqueValueInfos : []).slice(0, max);
+    return infos.map((uvi: any, i: number) => {
+      const label = String(uvi?.label ?? uvi?.value ?? '');
+      const color =
+        ramp != null
+          ? rampColorAt(ramp, i, Math.max(infos.length, 1))
+          : esriColorArrayToCss(uvi?.symbol?.color) ?? '#64748b';
+      return { label, color };
+    });
+  }
+  if (t === 'classBreaks') {
+    const raw = Array.isArray(ren.classBreakInfos) ? ren.classBreakInfos : [];
+    const sorted = [...raw]
+      .filter((br: any) => Number.isFinite(Number(br?.maxValue)))
+      .sort((a: any, b: any) => {
+        const ma = Number(a?.minValue);
+        const mb = Number(b?.minValue);
+        if (Number.isFinite(ma) && Number.isFinite(mb)) return ma - mb;
+        return Number(a?.maxValue) - Number(b?.maxValue);
+      });
+    const sliced = sorted.slice(0, max);
+    return sliced.map((br: any, i: number) => {
+      const label = `${br?.minValue ?? ''} – ${br?.maxValue ?? ''}`;
+      const color =
+        ramp != null
+          ? rampColorAt(ramp, i, Math.max(sliced.length, 1))
+          : esriColorArrayToCss(br?.symbol?.color) ?? '#64748b';
+      return { label, color };
+    });
+  }
+  if (t === 'simple') {
+    const sym = ren.symbol;
+    const color =
+      ramp != null
+        ? rampColorAt(ramp, 0, 1)
+        : esriColorArrayToCss(sym?.color) ?? '#22c55e';
+    return [{ label: 'Symbol', color }];
+  }
+  return [];
+}
+
+function inferArcgisStyleLabel(drawingInfo: Record<string, unknown> | null | undefined): string {
+  const t = String((drawingInfo as any)?.renderer?.type || '');
+  if (t === 'uniqueValue') return 'Types (unique symbols)';
+  if (t === 'classBreaks') return 'Graduated colors (class breaks)';
+  if (t === 'simple') return 'Single symbol';
+  return 'ArcGIS renderer';
+}
+
+function applySymbologyToArcgisDrawingInfo(
+  drawingInfo: Record<string, unknown>,
+  colorRamp: SymbologyColorRamp,
+  maxCategories: number,
+): Record<string, unknown> | null {
+  let di: any;
+  try {
+    di = JSON.parse(JSON.stringify(drawingInfo));
+  } catch {
+    return null;
+  }
+  const ren = di?.renderer;
+  if (!ren || typeof ren !== 'object') return null;
+  const t = String(ren.type || '');
+  const max = Math.max(1, Math.min(40, Math.floor(maxCategories)));
+  const useRamp = colorRamp !== 'service';
+  const ramp = useRamp ? COLOR_RAMPS[colorRamp] : null;
+
+  if (t === 'uniqueValue') {
+    const infos = Array.isArray(ren.uniqueValueInfos) ? [...ren.uniqueValueInfos] : [];
+    const sliced = infos.slice(0, max);
+    ren.uniqueValueInfos = sliced.map((uvi: any, i: number) => {
+      const u = uvi && typeof uvi === 'object' ? { ...uvi } : {};
+      const sym =
+        u.symbol && typeof u.symbol === 'object' ? JSON.parse(JSON.stringify(u.symbol)) : { type: 'esriSFS', style: 'esriSFSSolid' };
+      sym.type = sym.type || 'esriSFS';
+      sym.style = sym.style || 'esriSFSSolid';
+      if (useRamp && ramp) {
+        sym.color = hexToEsriRgba(rampColorAt(ramp, i, Math.max(sliced.length, 1)));
+      }
+      return { ...u, symbol: sym };
+    });
+    return sanitizeArcgisDrawingInfoForClient(di);
+  }
+
+  if (t === 'classBreaks') {
+    const raw = Array.isArray(ren.classBreakInfos) ? [...ren.classBreakInfos] : [];
+    const sorted = raw
+      .filter((br: any) => Number.isFinite(Number(br?.maxValue)))
+      .sort((a: any, b: any) => {
+        const ma = Number(a?.minValue);
+        const mb = Number(b?.minValue);
+        if (Number.isFinite(ma) && Number.isFinite(mb)) return ma - mb;
+        return Number(a?.maxValue) - Number(b?.maxValue);
+      });
+    const sliced = sorted.slice(0, max);
+    ren.classBreakInfos = sliced.map((br: any, i: number) => {
+      const b = br && typeof br === 'object' ? { ...br } : {};
+      const sym =
+        b.symbol && typeof b.symbol === 'object' ? JSON.parse(JSON.stringify(b.symbol)) : { type: 'esriSFS', style: 'esriSFSSolid' };
+      sym.type = sym.type || 'esriSFS';
+      sym.style = sym.style || 'esriSFSSolid';
+      if (useRamp && ramp) {
+        sym.color = hexToEsriRgba(rampColorAt(ramp, i, Math.max(sliced.length, 1)));
+      }
+      return { ...b, symbol: sym };
+    });
+    return sanitizeArcgisDrawingInfoForClient(di);
+  }
+
+  if (t === 'simple') {
+    const sym =
+      ren.symbol && typeof ren.symbol === 'object' ? JSON.parse(JSON.stringify(ren.symbol)) : { type: 'esriSFS', style: 'esriSFSSolid' };
+    sym.type = sym.type || 'esriSFS';
+    sym.style = sym.style || 'esriSFSSolid';
+    if (useRamp && ramp) {
+      sym.color = hexToEsriRgba(rampColorAt(ramp, 0, 1));
+    }
+    ren.symbol = sym;
+    return sanitizeArcgisDrawingInfoForClient(di);
+  }
+
+  return null;
+}
 
 type ExploreDateSourceMode = 'manual' | 'environmental_parameter' | 'sentinel2_views';
 
@@ -1288,6 +1466,7 @@ export default function SatelliteIntelligence() {
     colorRamp: 'viridis',
     method: 'natural-breaks',
     color: '#22c55e',
+    arcgisMaxCategories: 8,
   });
   const [dbPlatform, setDbPlatform] = useState<(typeof DATABASE_PLATFORM_OPTIONS)[number]>('SQL Server');
   const [dbInstance, setDbInstance] = useState('');
@@ -1656,7 +1835,7 @@ export default function SatelliteIntelligence() {
           authToken: tokenTrim,
           color: '#22c55e',
           arcgisDrawingInfo,
-          useArcGisSymbology: false,
+          useArcGisSymbology: true,
         },
       ]);
       const bounds = getGeoJsonBounds(data);
@@ -1763,6 +1942,42 @@ export default function SatelliteIntelligence() {
     return features.slice(0, 1000).map((feature: any) => feature?.properties || {});
   }, [activeDialogLayer]);
 
+  const arcgisSymbologyLegendRows = useMemo(() => {
+    if (!activeDialogLayer?.arcgisDrawingInfo || !symbologyDraft.useArcGisOnline) return [] as Array<{ label: string; color: string }>;
+    return arcgisLegendPreviewRows(
+      activeDialogLayer.arcgisDrawingInfo as Record<string, unknown>,
+      symbologyDraft.colorRamp,
+      symbologyDraft.arcgisMaxCategories,
+    );
+  }, [activeDialogLayer, symbologyDraft.useArcGisOnline, symbologyDraft.colorRamp, symbologyDraft.arcgisMaxCategories]);
+
+  const arcgisSymbologyField = useMemo(() => {
+    if (!activeDialogLayer?.arcgisDrawingInfo) return '';
+    return pickRendererPrimaryField((activeDialogLayer.arcgisDrawingInfo as any)?.renderer);
+  }, [activeDialogLayer]);
+
+  const arcgisSymbologyRendererCap = useMemo(() => {
+    const ren = (activeDialogLayer?.arcgisDrawingInfo as any)?.renderer;
+    if (!ren) return 40;
+    const t = String(ren.type || '');
+    if (t === 'uniqueValue' && Array.isArray(ren.uniqueValueInfos)) return Math.max(1, ren.uniqueValueInfos.length);
+    if (t === 'classBreaks' && Array.isArray(ren.classBreakInfos)) {
+      return Math.max(1, ren.classBreakInfos.filter((br: any) => Number.isFinite(Number(br?.maxValue))).length);
+    }
+    return 1;
+  }, [activeDialogLayer]);
+
+  const arcgisRendererType = useMemo(
+    () => String((activeDialogLayer?.arcgisDrawingInfo as any)?.renderer?.type || ''),
+    [activeDialogLayer],
+  );
+
+  const arcgisMaxCategoryOptions = useMemo(() => {
+    const cap = Math.min(40, arcgisSymbologyRendererCap);
+    const steps = [3, 4, 5, 6, 7, 8, 10, 12, 16, 20, 30, 40].filter(n => n <= cap);
+    return steps.length ? steps : [Math.max(1, cap)];
+  }, [arcgisSymbologyRendererCap]);
+
   const tableRowsFiltered = useMemo(() => {
     let rows = activeLayerRows.map((row, idx) => ({ row, rowId: `r-${idx}` }));
     const q = tableSearchText.trim().toLowerCase();
@@ -1792,13 +2007,26 @@ export default function SatelliteIntelligence() {
 
   useEffect(() => {
     if (!activeLayerActionDialog || activeLayerActionDialog.mode !== 'symbology' || !activeDialogLayer) return;
+    const di = activeDialogLayer.arcgisDrawingInfo as any;
+    const ren = di?.renderer;
+    const t = String(ren?.type || '');
+    let maxCat = 8;
+    if (t === 'uniqueValue' && Array.isArray(ren.uniqueValueInfos)) {
+      const n = ren.uniqueValueInfos.length;
+      maxCat = n > 0 ? Math.min(8, n) : 8;
+    } else if (t === 'classBreaks' && Array.isArray(ren.classBreakInfos)) {
+      const n = ren.classBreakInfos.filter((br: any) => Number.isFinite(Number(br?.maxValue))).length;
+      maxCat = n > 0 ? Math.min(8, n) : 8;
+    }
+    const useAgOnline = activeDialogLayer.source === 'arcgis' && activeDialogLayer.useArcGisSymbology !== false;
     setSymbologyDraft({
-      useArcGisOnline: Boolean(activeDialogLayer.useArcGisSymbology),
+      useArcGisOnline: useAgOnline,
       style: 'single',
       classes: 5,
-      colorRamp: 'viridis',
+      colorRamp: useAgOnline ? 'service' : 'viridis',
       method: 'natural-breaks',
       color: activeDialogLayer.color || '#22c55e',
+      arcgisMaxCategories: maxCat,
     });
   }, [activeLayerActionDialog, activeDialogLayer]);
 
@@ -1819,16 +2047,28 @@ export default function SatelliteIntelligence() {
           setStacStatus('Could not load a supported ArcGIS renderer (drawingInfo) for this layer.');
           return;
         }
+        const baked =
+          applySymbologyToArcgisDrawingInfo(
+            di as Record<string, unknown>,
+            symbologyDraft.colorRamp,
+            arcgisRendererType === 'simple' ? 1 : symbologyDraft.arcgisMaxCategories,
+          ) ?? (sanitizeArcgisDrawingInfoForClient(di) as Record<string, unknown> | null);
+        if (!baked || !arcgisDrawingInfoToFillPaint(baked)) {
+          setStacStatus('Could not load a supported ArcGIS renderer (drawingInfo) for this layer.');
+          return;
+        }
         setCustomLayers(prev =>
           prev.map(l =>
-            l.id === activeDialogLayer.id ? { ...l, arcgisDrawingInfo: di!, useArcGisSymbology: true } : l,
+            l.id === activeDialogLayer.id ? { ...l, arcgisDrawingInfo: baked, useArcGisSymbology: true } : l,
           ),
         );
         setActiveLayerActionDialog(null);
         setStacStatus(`ArcGIS symbology applied for "${activeDialogLayer.name}".`);
         return;
       }
-    const ramp = COLOR_RAMPS[symbologyDraft.colorRamp];
+    const rampKey: 'viridis' | 'green' | 'warm' =
+        symbologyDraft.colorRamp === 'service' ? 'viridis' : symbologyDraft.colorRamp;
+      const ramp = COLOR_RAMPS[rampKey];
       const nextColor =
         symbologyDraft.style === 'single'
         ? symbologyDraft.color
@@ -1870,7 +2110,10 @@ export default function SatelliteIntelligence() {
     const layer = customLayers.find(item => item.id === layerId);
     if (!layer) return;
     if (action === 'remove') {
-      const ok = window.confirm(`Remove layer "${layer.name}" from the map? It will stay removed after you refresh the page.`);
+      const ok = await appConfirm(
+        `Remove layer "${layer.name}" from the map? It will stay removed after you refresh the page.`,
+        { title: 'Remove layer', danger: true, confirmLabel: 'Remove', cancelLabel: 'Cancel' },
+      );
       if (!ok) return;
       setCustomLayers(prev => prev.filter(item => item.id !== layerId));
       setActiveLayerActionDialog(prev => (prev?.layerId === layerId ? null : prev));
@@ -4146,7 +4389,7 @@ export default function SatelliteIntelligence() {
                   const st = siLayerMapboxStylePack(layer);
                   return (
                     <Source
-                      key={`${layer.id}-${layer.useArcGisSymbology ? 'ag' : 'c'}`}
+                      key={`${layer.id}-${layer.source === 'arcgis' && layer.useArcGisSymbology !== false && layer.arcgisDrawingInfo ? 'ag' : 'c'}`}
                       id={layer.id}
                       type="geojson"
                       data={layer.geojson}
@@ -6181,12 +6424,19 @@ export default function SatelliteIntelligence() {
         >
           <div className="si-layer-action-modal" onMouseDown={e => e.stopPropagation()}>
             <div className="si-layer-action-modal-header">
-              <h3 id="si-layer-action-title">
-                {activeLayerActionDialog.mode === 'table'
-                  ? `Table - ${activeDialogLayer.name}`
-                  : activeLayerActionDialog.mode === 'symbology'
-                    ? `Styles - ${activeDialogLayer.name}`
-                    : `Legend - ${activeDialogLayer.name}`}
+              <h3 id="si-layer-action-title" className={activeLayerActionDialog.mode === 'symbology' ? 'si-styles-modal-title-h' : undefined}>
+                {activeLayerActionDialog.mode === 'symbology' ? (
+                  <>
+                    <span className="si-styles-header-palette" aria-hidden>
+                      <i className="fa-solid fa-palette" />
+                    </span>
+                    <span>Styles - {activeDialogLayer.name}</span>
+                  </>
+                ) : activeLayerActionDialog.mode === 'table' ? (
+                  `Table - ${activeDialogLayer.name}`
+                ) : (
+                  `Legend - ${activeDialogLayer.name}`
+                )}
               </h3>
               <button type="button" className="si-layer-action-close" onClick={() => setActiveLayerActionDialog(null)} aria-label="Close layer dialog">
                 <i className="fa-solid fa-xmark" />
@@ -6265,23 +6515,112 @@ export default function SatelliteIntelligence() {
                   <p className="si-layer-action-empty">No attributes found for this layer.</p>
                 )
               ) : activeLayerActionDialog.mode === 'symbology' ? (
-                <div className="si-layer-action-form">
-                  <div className="si-layer-action-symbology-header">
-                    <strong>Choose an attribute and visualization style. Preview updates live on the map.</strong>
-                    <label className="si-layer-action-switch">
+                <div className="si-layer-action-form si-layer-action-form--symbology">
+                  <div className="si-styles-intro">
+                    <p className="si-styles-intro-text">
+                      Choose an attribute and visualization style. Preview updates live on the map.
+                    </p>
+                    <label className="si-layer-action-toggle">
+                      <span className="si-layer-action-toggle-label">Use ArcGIS Online symbology</span>
                       <input
                         type="checkbox"
+                        className="si-layer-action-toggle-input"
                         checked={symbologyDraft.useArcGisOnline}
                         disabled={activeDialogLayer.source !== 'arcgis'}
-                        onChange={e => setSymbologyDraft(prev => ({ ...prev, useArcGisOnline: e.target.checked }))}
+                        onChange={e => {
+                          const on = e.target.checked;
+                          setSymbologyDraft(prev => ({
+                            ...prev,
+                            useArcGisOnline: on,
+                            colorRamp: on ? 'service' : prev.colorRamp === 'service' ? 'viridis' : prev.colorRamp,
+                          }));
+                        }}
                       />
-                      <span>Use ArcGIS Online symbology</span>
+                      <span className="si-layer-action-toggle-ui" aria-hidden />
                     </label>
                   </div>
-                  {symbologyDraft.useArcGisOnline ? (
-                    <p className="si-layer-action-note">
-                      ArcGIS renderer preview is enabled. Uncheck "Use ArcGIS Online symbology" to configure custom styles.
-                    </p>
+                  {symbologyDraft.useArcGisOnline && activeDialogLayer.source === 'arcgis' ? (
+                    activeDialogLayer.arcgisDrawingInfo ? (
+                      <>
+                        <div className="si-layer-action-symbology-grid si-layer-action-symbology-grid--arcgis">
+                          <label className="si-layer-action-field">
+                            <span className="si-layer-action-field-cap">Style</span>
+                            <div className="gis-input si-styles-readonly" title="From ArcGIS layer renderer">
+                              {inferArcgisStyleLabel(activeDialogLayer.arcgisDrawingInfo as Record<string, unknown>)}
+                            </div>
+                          </label>
+                          <label className="si-layer-action-field">
+                            <span className="si-layer-action-field-cap">Attribute (categorical)</span>
+                            <div className="gis-input si-styles-readonly" title="Renderer field from ArcGIS drawingInfo">
+                              {arcgisSymbologyField || '—'}
+                            </div>
+                          </label>
+                          <label className="si-layer-action-field">
+                            <span className="si-layer-action-field-cap">Color ramp</span>
+                            <select
+                              className="gis-input"
+                              value={symbologyDraft.colorRamp}
+                              onChange={e =>
+                                setSymbologyDraft(prev => ({ ...prev, colorRamp: e.target.value as SymbologyColorRamp }))
+                              }
+                            >
+                              <option value="service">Original (service colors)</option>
+                              <option value="viridis">Viridis</option>
+                              <option value="green">Green</option>
+                              <option value="warm">Warm</option>
+                            </select>
+                          </label>
+                          {arcgisRendererType === 'simple' ? (
+                            <label className="si-layer-action-field">
+                              <span className="si-layer-action-field-cap">Max categories</span>
+                              <select className="gis-input" value={1} disabled>
+                                <option>1 (single symbol)</option>
+                              </select>
+                            </label>
+                          ) : (
+                            <label className="si-layer-action-field">
+                              <span className="si-layer-action-field-cap">Max categories</span>
+                              <select
+                                className="gis-input"
+                                value={
+                                  arcgisMaxCategoryOptions.includes(symbologyDraft.arcgisMaxCategories)
+                                    ? symbologyDraft.arcgisMaxCategories
+                                    : arcgisMaxCategoryOptions[arcgisMaxCategoryOptions.length - 1]!
+                                }
+                                onChange={e =>
+                                  setSymbologyDraft(prev => ({ ...prev, arcgisMaxCategories: Number(e.target.value) }))
+                                }
+                              >
+                                {arcgisMaxCategoryOptions.map(n => (
+                                  <option key={n} value={n}>
+                                    {n}
+                                  </option>
+                                ))}
+                              </select>
+                            </label>
+                          )}
+                        </div>
+                        <p className="si-layer-action-note si-layer-action-note--tight">
+                          Legend preview reflects ramp and max categories. Save applies them to the ArcGIS renderer on this layer.
+                        </p>
+                        <div className="si-layer-action-symbology-legend-scroll">
+                          {arcgisSymbologyLegendRows.length ? (
+                            arcgisSymbologyLegendRows.map((row, i) => (
+                              <div key={`${row.label}-${i}`} className="si-layer-action-ramp-row">
+                                <span className="si-layer-action-legend-swatch" style={{ background: row.color }} />
+                                <strong>{row.label || `Class ${i + 1}`}</strong>
+                              </div>
+                            ))
+                          ) : (
+                            <p className="si-layer-action-empty">No legend classes in this renderer.</p>
+                          )}
+                        </div>
+                      </>
+                    ) : (
+                      <p className="si-layer-action-note">
+                        No drawingInfo loaded for this layer. Use refresh on the layer card or re-add the layer, then open Styles again.
+                      </p>
+                    )
                   ) : (
                     <>
                       <div className="si-layer-action-symbology-grid">
@@ -6300,8 +6639,13 @@ export default function SatelliteIntelligence() {
                           <span>Color ramp</span>
                           <select
                             className="gis-input"
-                            value={symbologyDraft.colorRamp}
-                            onChange={e => setSymbologyDraft(prev => ({ ...prev, colorRamp: e.target.value as LayerSymbologyDraft['colorRamp'] }))}
+                            value={symbologyDraft.colorRamp === 'service' ? 'viridis' : symbologyDraft.colorRamp}
+                            onChange={e =>
+                              setSymbologyDraft(prev => ({
+                                ...prev,
+                                colorRamp: e.target.value as SymbologyColorRamp,
+                              }))
+                            }
                           >
                             <option value="viridis">Viridis</option>
                             <option value="green">Green</option>
@@ -6315,7 +6659,11 @@ export default function SatelliteIntelligence() {
                             value={symbologyDraft.classes}
                             onChange={e => setSymbologyDraft(prev => ({ ...prev, classes: Number(e.target.value) }))}
                           >
-                            {[3, 4, 5, 6, 7].map(v => <option key={v} value={v}>{v}</option>)}
+                            {[3, 4, 5, 6, 7].map(v => (
+                              <option key={v} value={v}>
+                                {v}
+                              </option>
+                            ))}
                           </select>
                         </label>
                         <label className="si-layer-action-field">
@@ -6339,12 +6687,16 @@ export default function SatelliteIntelligence() {
                         </label>
                       </div>
                       <div className="si-layer-action-ramp-preview">
-                        {COLOR_RAMPS[symbologyDraft.colorRamp].slice(0, symbologyDraft.classes).map((color, i) => (
-                          <div key={`${color}-${i}`} className="si-layer-action-ramp-row">
-                            <span className="si-layer-action-legend-swatch" style={{ background: color }} />
-                            <strong>Class {i + 1}</strong>
-                          </div>
-                        ))}
+                        {COLOR_RAMPS[
+                          (symbologyDraft.colorRamp === 'service' ? 'viridis' : symbologyDraft.colorRamp) as 'viridis' | 'green' | 'warm'
+                        ]
+                          .slice(0, symbologyDraft.classes)
+                          .map((color, i) => (
+                            <div key={`${color}-${i}`} className="si-layer-action-ramp-row">
+                              <span className="si-layer-action-legend-swatch" style={{ background: color }} />
+                              <strong>Class {i + 1}</strong>
+                            </div>
+                          ))}
                       </div>
                     </>
                   )}

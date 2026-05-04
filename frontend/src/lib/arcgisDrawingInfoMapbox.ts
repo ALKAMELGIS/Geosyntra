@@ -106,7 +106,7 @@ function propertyGetExpression(field: string): any {
 }
 
 /** Unique / class-break field name(s) — REST uses `field1`, older services use `field`, or `fields[]`. */
-function pickRendererPrimaryField(ren: any): string {
+export function pickRendererPrimaryField(ren: any): string {
   if (typeof ren?.field1 === 'string' && ren.field1.trim()) return ren.field1.trim();
   if (typeof ren?.field === 'string' && ren.field.trim()) return ren.field.trim();
   if (Array.isArray(ren?.fields)) {

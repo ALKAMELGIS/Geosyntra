@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import { appAlert } from '../../../lib/appDialog';
 import { useMap, useMapEvents, ScaleControl, ZoomControl, MapContainer, TileLayer, CircleMarker } from 'react-leaflet';
 import L from 'leaflet';
 
@@ -60,7 +61,7 @@ export const ZoomLocationControl: React.FC = () => {
       map.flyTo(e.latlng, map.getZoom());
       setLoading(false);
     }).on('locationerror', function () {
-      alert("Could not access location");
+      void appAlert('Could not access location.', { title: 'Location' });
       setLoading(false);
     });
   };

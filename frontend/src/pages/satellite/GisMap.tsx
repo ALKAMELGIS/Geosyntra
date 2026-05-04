@@ -48,6 +48,7 @@ import {
   type GeoExplorerMessage,
   type GeoExplorerPart,
 } from '../../lib/geoExplorerGemini'
+import { appAlert, appPrompt } from '../../lib/appDialog'
 import { DEVELOP_DATA_CONTEXT_LS_KEY } from '../../lib/geoAiChatClaude'
 import { loadGisMapSavedLayers } from '../../lib/gisMapLayerStore'
 import { gisLayerDataToGeoAiLayers } from '../../lib/geoAiMapLayerSources'
@@ -3420,7 +3421,7 @@ export default function GisMap() {
       )
     } catch (e) {
       if (!opts?.silent) {
-        window.alert(e instanceof Error ? e.message : 'Failed to sync layer.')
+        void appAlert(e instanceof Error ? e.message : 'Failed to sync layer.', { title: 'Sync failed' })
       }
     } finally {
       if (!opts?.silent) setSyncingLayerKey(null)
@@ -4156,12 +4157,14 @@ export default function GisMap() {
               type="button"
               className="gis-map-tool-surface__primary"
               onClick={() => {
-                const v = captureViewForBookmark()
-                if (!v) return
-                const name = window.prompt('Bookmark name', 'My place')
-                if (!name || !name.trim()) return
-                const row: GisMapBookmark = { id: `${Date.now()}`, name: name.trim(), ...v }
-                setGisBookmarks(prev => [row, ...prev].slice(0, 40))
+                void (async () => {
+                  const v = captureViewForBookmark()
+                  if (!v) return
+                  const name = await appPrompt('Enter a name for this bookmark.', 'My place', { title: 'Bookmark' })
+                  if (name === null || !String(name).trim()) return
+                  const row: GisMapBookmark = { id: `${Date.now()}`, name: String(name).trim(), ...v }
+                  setGisBookmarks(prev => [row, ...prev].slice(0, 40))
+                })()
               }}
             >
               <i className="fa-solid fa-camera" aria-hidden="true" />
@@ -5019,12 +5022,16 @@ export default function GisMap() {
                               type="button"
                               role="menuitem"
                               onClick={() => {
-                                setOpenLayerMenuId(null)
-                                const next = window.prompt('Rename layer:', layer.name)
-                                if (next === null) return
-                                const name = next.trim()
-                                if (!name) return
-                                setLayers(prev => prev.map(l => (l.id === layer.id ? { ...l, name } : l)))
+                                void (async () => {
+                                  setOpenLayerMenuId(null)
+                                  const next = await appPrompt('Enter the new layer name.', layer.name, {
+                                    title: 'Rename layer',
+                                  })
+                                  if (next === null) return
+                                  const name = next.trim()
+                                  if (!name) return
+                                  setLayers(prev => prev.map(l => (l.id === layer.id ? { ...l, name } : l)))
+                                })()
                               }}
                             >
                               <i className="fa-solid fa-pen" aria-hidden="true" />
@@ -5050,13 +5057,21 @@ export default function GisMap() {
                               type="button"
                               role="menuitem"
                               onClick={() => {
-                                setOpenLayerMenuId(null)
-                                const suggested = sanitizeFileName(layer.name)
-                                const next = window.prompt('Save as (filename without extension):', suggested)
-                                if (next === null) return
-                                const base = sanitizeFileName(next)
-                                if (!base) return
-                                downloadTextFile(`${base}.geojson`, JSON.stringify(layer.data ?? {}, null, 2), 'application/geo+json')
+                                void (async () => {
+                                  setOpenLayerMenuId(null)
+                                  const suggested = sanitizeFileName(layer.name)
+                                  const next = await appPrompt('Filename without extension (saved as .geojson):', suggested, {
+                                    title: 'Save as',
+                                  })
+                                  if (next === null) return
+                                  const base = sanitizeFileName(next)
+                                  if (!base) return
+                                  downloadTextFile(
+                                    `${base}.geojson`,
+                                    JSON.stringify(layer.data ?? {}, null, 2),
+                                    'application/geo+json',
+                                  )
+                                })()
                               }}
                             >
                               <i className="fa-solid fa-floppy-disk" aria-hidden="true" />
@@ -5098,11 +5113,17 @@ export default function GisMap() {
                               type="button"
                               role="menuitem"
                               onClick={() => {
-                                setOpenLayerMenuId(null)
-                                const next = window.prompt('Group name (leave empty to clear):', layer.group ?? '')
-                                if (next === null) return
-                                const group = next.trim()
-                                setLayers(prev => prev.map(l => (l.id === layer.id ? { ...l, group: group || undefined } : l)))
+                                void (async () => {
+                                  setOpenLayerMenuId(null)
+                                  const next = await appPrompt('Group name (leave empty to clear):', layer.group ?? '', {
+                                    title: 'Layer group',
+                                  })
+                                  if (next === null) return
+                                  const group = next.trim()
+                                  setLayers(prev =>
+                                    prev.map(l => (l.id === layer.id ? { ...l, group: group || undefined } : l)),
+                                  )
+                                })()
                               }}
                             >
                               <i className="fa-solid fa-layer-group" aria-hidden="true" />

@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { appAlert } from '../../../lib/appDialog';
 import './SentinelSearch.css';
 
 interface StacItem {
@@ -307,7 +308,9 @@ export const SentinelSearch: React.FC<SentinelSearchProps> = ({
                             if (href) {
                               window.open(href, '_blank');
                             } else {
-                              alert('Direct download not available for this item. Please use the map view.');
+                              void appAlert('Direct download not available for this item. Please use the map view.', {
+                                title: 'Download',
+                              });
                             }
                           }}
                         >

@@ -4,6 +4,7 @@ import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
 import Chart from 'chart.js/auto'
 import zoomPlugin from 'chartjs-plugin-zoom'
+import { appAlert, appConfirm } from '../../lib/appDialog'
 import { loadGisMapSavedLayers } from '../../lib/gisMapLayerStore'
 import { DEVELOP_DATA_CONTEXT_LS_KEY } from '../../lib/geoAiChatClaude'
 import type { LayerData } from '../satellite/components/LayerManager'
@@ -2015,10 +2016,15 @@ export default function DevelopDashboard() {
   }
 
   const deleteUserLayer = useCallback(
-    (key: string) => {
+    async (key: string) => {
       const layer = layers[key]
       if (!layer || layer.origin !== 'user') return
-      if (!window.confirm(`Delete layer "${layer.name}" from the registry? This cannot be undone.`)) return
+      const ok = await appConfirm(`Delete layer "${layer.name}" from the registry? This cannot be undone.`, {
+        title: 'Delete layer',
+        danger: true,
+        confirmLabel: 'Delete',
+      })
+      if (!ok) return
       const nextKeys = layerKeys.filter(k => k !== key)
       setLayers(prev => {
         const { [key]: _removed, ...rest } = prev
@@ -2060,7 +2066,11 @@ export default function DevelopDashboard() {
           </div>
         </div>
         <div className="ddb-layer-actions">
-          <button type="button" className="ddb-btn ddb-small-btn" onClick={() => window.alert(`Fields: ${Lr.fields.join(', ')}`)}>
+          <button
+            type="button"
+            className="ddb-btn ddb-small-btn"
+            onClick={() => void appAlert(`Fields: ${Lr.fields.join(', ')}`, { title: Lr.name })}
+          >
             Fields
           </button>
           {Lr.origin === 'user' ? (
@@ -2069,7 +2079,7 @@ export default function DevelopDashboard() {
               className="ddb-layer-delete-btn"
               title="Delete layer"
               aria-label={`Delete layer ${Lr.name}`}
-              onClick={() => deleteUserLayer(key)}
+              onClick={() => void deleteUserLayer(key)}
             >
               <i className="fa-solid fa-trash" aria-hidden />
             </button>

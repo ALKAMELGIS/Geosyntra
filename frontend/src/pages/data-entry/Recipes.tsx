@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { appAlert } from '../../lib/appDialog'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { useLanguage } from '../../lib/i18n'
 import { generateRecipeReportPdf } from '../../lib/recipeReport/generateRecipeReportPdf'
@@ -162,10 +163,11 @@ export default function Recipes() {
           console.error('[Recipes report]', err)
         } catch {
         }
-        window.alert(
+        await appAlert(
           typeof err === 'object' && err && typeof (err as Error).message === 'string'
             ? (err as Error).message
             : 'Could not generate the PDF report.',
+          { title: 'Report error' },
         )
       } finally {
         setReportBusy(false)

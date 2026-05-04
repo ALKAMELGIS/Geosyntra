@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { appAlert } from '../../../lib/appDialog';
 
 export type IndexType = 'NDWI' | 'NDMI' | 'SAVI';
 
@@ -62,20 +63,25 @@ export const AnalysisPanel: React.FC<AnalysisPanelProps> = ({
   const [showResults, setShowResults] = useState(false);
 
   const handleRunAnalysis = () => {
-    if (selectedTemplate) {
-      // Check if image is selected
-      if (!selectedItem) {
-         alert("Please select a satellite image from the 'Image Collection Explorer' before running analysis.");
-         return;
-      }
+    void (async () => {
+      if (selectedTemplate) {
+        // Check if image is selected
+        if (!selectedItem) {
+          await appAlert(
+            "Please select a satellite image from the 'Image Collection Explorer' before running analysis.",
+            { title: 'Analysis' },
+          )
+          return
+        }
 
-      // If not active, toggle it on
-      if (!activeIndices[selectedTemplate]) {
-        onToggleIndex(selectedTemplate);
+        // If not active, toggle it on
+        if (!activeIndices[selectedTemplate]) {
+          onToggleIndex(selectedTemplate)
+        }
+        setShowResults(true)
       }
-      setShowResults(true);
-    }
-  };
+    })()
+  }
 
   const activeTemplate = TEMPLATES.find(t => activeIndices[t.id]);
   const displayTemplate = selectedTemplate ? TEMPLATES.find(t => t.id === selectedTemplate) : activeTemplate;

@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import { appAlert, appConfirm } from '../lib/appDialog'
 import { Badge } from '../components/ui/Badge'
 import { Button } from '../components/ui/Button'
 import { Card } from '../components/ui/Card'
@@ -58,29 +59,31 @@ export default function UsabilityTest() {
   }, [checked, tasks])
 
   const submit = () => {
-    if (!participantRole.trim()) {
-      window.alert('Participant role is required.')
-      return
-    }
-    if (!satisfaction) {
-      window.alert('Satisfaction rating is required.')
-      return
-    }
-    const item: ResponseItem = {
-      id: `${Date.now()}_${Math.random().toString(16).slice(2)}`,
-      createdAt: new Date().toISOString(),
-      participantRole: participantRole.trim(),
-      tasks: tasks.reduce((acc, t) => ({ ...acc, [t.id]: Boolean(checked[t.id]) }), {}),
-      satisfaction,
-      notes: notes.trim(),
-    }
-    const next = [item, ...responses]
-    setResponses(next)
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(next))
-    setParticipantRole('')
-    setChecked({})
-    setSatisfaction('')
-    setNotes('')
+    void (async () => {
+      if (!participantRole.trim()) {
+        await appAlert('Participant role is required.', { title: 'Usability test' })
+        return
+      }
+      if (!satisfaction) {
+        await appAlert('Satisfaction rating is required.', { title: 'Usability test' })
+        return
+      }
+      const item: ResponseItem = {
+        id: `${Date.now()}_${Math.random().toString(16).slice(2)}`,
+        createdAt: new Date().toISOString(),
+        participantRole: participantRole.trim(),
+        tasks: tasks.reduce((acc, t) => ({ ...acc, [t.id]: Boolean(checked[t.id]) }), {}),
+        satisfaction,
+        notes: notes.trim(),
+      }
+      const next = [item, ...responses]
+      setResponses(next)
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(next))
+      setParticipantRole('')
+      setChecked({})
+      setSatisfaction('')
+      setNotes('')
+    })()
   }
 
   const exportJson = () => {
@@ -94,9 +97,16 @@ export default function UsabilityTest() {
   }
 
   const clearAll = () => {
-    if (!window.confirm('Clear all stored test responses?')) return
-    localStorage.removeItem(STORAGE_KEY)
-    setResponses([])
+    void (async () => {
+      const ok = await appConfirm('Clear all stored test responses?', {
+        title: 'Clear responses',
+        danger: true,
+        confirmLabel: 'Clear all',
+      })
+      if (!ok) return
+      localStorage.removeItem(STORAGE_KEY)
+      setResponses([])
+    })()
   }
 
   return (

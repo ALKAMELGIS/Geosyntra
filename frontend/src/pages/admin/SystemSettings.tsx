@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { appConfirm } from '../../lib/appDialog'
 import { useLocation } from 'react-router-dom'
 import * as yup from 'yup'
 import { useLanguage } from '../../lib/i18n'
@@ -319,10 +320,16 @@ export default function SystemSettings() {
 
   const removeCustomApiSlot = useCallback(
     async (slotId: string) => {
-      const ok = window.confirm(
+      const ok = await appConfirm(
         language === 'ar'
           ? 'حذف بطاقة الرمز والقيمة المحفوظة في هذا المتصفح وعلى الخادم؟'
           : 'Remove this token card and its saved value in this browser and on the server?',
+        {
+          title: language === 'ar' ? 'إزالة البطاقة' : 'Remove token card',
+          danger: true,
+          confirmLabel: language === 'ar' ? 'إزالة' : 'Remove',
+          cancelLabel: language === 'ar' ? 'إلغاء' : 'Cancel',
+        },
       )
       if (!ok) return
       clearUserApiTokenValue(slotId)
@@ -394,9 +401,18 @@ export default function SystemSettings() {
   }
 
   const handleCancel = () => {
-    if (window.confirm(language === 'ar' ? 'تجاهل التغييرات غير المحفوظة؟' : 'Discard unsaved changes?')) {
-      cancelDraft()
-    }
+    void (async () => {
+      const ok = await appConfirm(
+        language === 'ar' ? 'تجاهل التغييرات غير المحفوظة؟' : 'Discard unsaved changes?',
+        {
+          title: language === 'ar' ? 'تجاهل التغييرات' : 'Discard changes',
+          danger: true,
+          confirmLabel: language === 'ar' ? 'تجاهل' : 'Discard',
+          cancelLabel: language === 'ar' ? 'البقاء' : 'Stay',
+        },
+      )
+      if (ok) cancelDraft()
+    })()
   }
 
   const readFileAsDataUrl = (file: File) =>

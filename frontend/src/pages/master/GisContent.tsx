@@ -5,6 +5,7 @@ import {
   getImageServerServiceRootFromUrl,
 } from '../../lib/arcgisImageServer'
 import { getArcgisPortalToken } from '../../lib/arcgisPortalToken'
+import { appAlert } from '../../lib/appDialog'
 import { parseFile, parseRemoteUrlAsFile } from '../../utils/FileLoader'
 
 export default function GisContent() {
@@ -1454,7 +1455,7 @@ function GisContentPage() {
     if (selectedLayerId === layerId) setSelectedLayerId(null)
   }
 
-  const applyDeleteField = (layerId: string, fieldId: string) => {
+  const applyDeleteField = async (layerId: string, fieldId: string) => {
     const fields = layerFields[layerId] ?? []
     const target = fields.find(f => f.id === fieldId)
     if (!target) return
@@ -1465,7 +1466,10 @@ function GisContentPage() {
       return false
     })
     if (usedInRelationship) {
-      window.alert('Cannot delete this field because it is used by a relationship. Edit or delete the relationship first.')
+      await appAlert(
+        'Cannot delete this field because it is used by a relationship. Edit or delete the relationship first.',
+        { title: 'Cannot delete field' },
+      )
       return
     }
     setLayerFields(prev => ({ ...prev, [layerId]: fields.filter(f => f.id !== fieldId) }))
@@ -2848,10 +2852,13 @@ function GisContentPage() {
                 className="gis-btn gis-btn-primary"
                 type="button"
                 onClick={() => {
-                  if (confirm.kind === 'deleteLayer') applyDeleteLayer(confirm.layerId)
-                  if (confirm.kind === 'deleteField') applyDeleteField(confirm.layerId, confirm.fieldId)
-                  if (confirm.kind === 'deleteRelationship') setRelationships(prev => prev.filter(r => r.id !== confirm.id))
-                  setConfirm(null)
+                  void (async () => {
+                    if (confirm.kind === 'deleteLayer') applyDeleteLayer(confirm.layerId)
+                    if (confirm.kind === 'deleteField') await applyDeleteField(confirm.layerId, confirm.fieldId)
+                    if (confirm.kind === 'deleteRelationship')
+                      setRelationships(prev => prev.filter(r => r.id !== confirm.id))
+                    setConfirm(null)
+                  })()
                 }}
               >
                 Confirm

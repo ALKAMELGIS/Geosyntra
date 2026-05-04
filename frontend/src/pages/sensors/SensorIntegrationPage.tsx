@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { Navigate, useParams } from 'react-router-dom'
+import { appConfirm } from '../../lib/appDialog'
 import { useLanguage } from '../../lib/i18n'
 import {
   type CameraVmsPreset,
@@ -363,9 +364,14 @@ export default function SensorIntegrationPage() {
     }
   }
 
-  const handleDelete = (id: string) => {
+  const handleDelete = async (id: string) => {
     if (!kind) return
-    const ok = window.confirm(language === 'ar' ? 'حذف هذا التكامل؟' : 'Remove this integration?')
+    const ok = await appConfirm(language === 'ar' ? 'حذف هذا التكامل؟' : 'Remove this integration?', {
+      title: language === 'ar' ? 'حذف التكامل' : 'Remove integration',
+      danger: true,
+      confirmLabel: language === 'ar' ? 'حذف' : 'Remove',
+      cancelLabel: language === 'ar' ? 'إلغاء' : 'Cancel',
+    })
     if (!ok) return
     persist(integrations.filter(x => x.id !== id))
     setFlash({ kind: 'ok', message: c.deleted })
@@ -479,7 +485,7 @@ export default function SensorIntegrationPage() {
                     <button type="button" className="sensor-btn-ghost" onClick={() => openEdit(row.id)}>
                       {c.edit}
                     </button>
-                    <button type="button" className="sensor-btn-ghost danger" onClick={() => handleDelete(row.id)}>
+                    <button type="button" className="sensor-btn-ghost danger" onClick={() => void handleDelete(row.id)}>
                       {c.remove}
                     </button>
                   </div>

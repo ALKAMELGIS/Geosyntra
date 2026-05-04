@@ -1,4 +1,5 @@
 import React from 'react';
+import { appPrompt } from '../../../lib/appDialog';
 
 export type SymbologyStyle =
   | 'unique'
@@ -87,23 +88,24 @@ export const LayerManager: React.FC<LayerManagerProps> = ({
     }
   };
 
-  const handleRename = (id: number | string) => {
+  const handleRename = async (id: number | string) => {
     const layer = layers.find(l => l.id === id);
     if (layer) {
-      const newName = prompt("Enter new layer name:", layer.name);
-      if (newName && newName !== layer.name) {
-        setLayers(layers.map(l => l.id === id ? { ...l, name: newName } : l));
+      const newName = await appPrompt('Enter new layer name:', layer.name, { title: 'Rename layer' });
+      const trimmed = newName?.trim() ?? '';
+      if (trimmed && trimmed !== layer.name) {
+        setLayers(layers.map(l => (l.id === id ? { ...l, name: trimmed } : l)));
       }
     }
     setOpenMenuId(null);
   };
 
-  const handleGroup = (id: number | string) => {
+  const handleGroup = async (id: number | string) => {
     const layer = layers.find(l => l.id === id);
     if (layer) {
-      const groupName = prompt("Enter group name:", layer.group || "");
+      const groupName = await appPrompt('Enter group name:', layer.group || '', { title: 'Layer group' });
       if (groupName !== null) {
-        setLayers(layers.map(l => l.id === id ? { ...l, group: groupName || undefined } : l));
+        setLayers(layers.map(l => (l.id === id ? { ...l, group: groupName.trim() || undefined } : l)));
       }
     }
     setOpenMenuId(null);
@@ -265,13 +267,13 @@ const LayerItem = ({
         >
           <MenuItem icon="fa-magnifying-glass-plus" label="Zoom to layer" onClick={() => { onZoomToLayer?.(layer); setOpenMenuId(null); }} />
           <MenuItem icon="fa-circle-info" label="Show properties" onClick={() => { onLayerInfo?.(layer); setOpenMenuId(null); }} />
-          <MenuItem icon="fa-pen" label="Rename" onClick={() => handleRename(layer.id)} />
+          <MenuItem icon="fa-pen" label="Rename" onClick={() => void handleRename(layer.id)} />
           <MenuItem icon="fa-trash-can" label="Remove" onClick={() => { onRemoveLayer?.(layer.id); setOpenMenuId(null); }} danger />
           <div style={{ height: '1px', background: '#eee', margin: '4px 0' }}></div>
           <MenuItem 
             icon="fa-object-group" 
             label={layer.group ? "Change Group" : "Group"} 
-            onClick={() => handleGroup(layer.id)} 
+            onClick={() => void handleGroup(layer.id)}
           />
           {layer.group && (
              <MenuItem 

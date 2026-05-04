@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { appAlert } from '../../../lib/appDialog'
 import type { RecipeColumn } from '../../../lib/formFieldColumns'
 import type { RecipeRow } from '../../../lib/recipeReport/loadRecipeRows'
 import '../recipe-report-modal.css'
@@ -205,11 +206,11 @@ export function RecipeReportConfigModal({ open, onClose, columns, rows, uiLang, 
 
   const handleSubmit = useCallback(async () => {
     if (selectedColumns.length === 0) {
-      window.alert(t.needColumn)
+      await appAlert(t.needColumn, { title: t.title })
       return
     }
     if (filteredRows.length === 0) {
-      window.alert(t.noRows)
+      await appAlert(t.noRows, { title: t.title })
       return
     }
     await onConfirm({
