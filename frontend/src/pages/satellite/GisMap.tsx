@@ -49,11 +49,29 @@ import {
   type GeoExplorerPart,
 } from '../../lib/geoExplorerGemini'
 import { DEVELOP_DATA_CONTEXT_LS_KEY } from '../../lib/geoAiChatClaude'
+import { loadGisMapSavedLayers } from '../../lib/gisMapLayerStore'
 import { gisLayerDataToGeoAiLayers } from '../../lib/geoAiMapLayerSources'
 import { geoExplorerTargetZoomForPinSource, runGeoExplorerGeminiTurn } from '../../lib/runGeoExplorerGeminiTurn'
 import './gisGeoExplorerPanel.css'
 
-type AddLayerTab = 'arcgis' | 'database' | 'upload' | 'url'
+const GIS_AGOL_RAIL_COMPACT_LS_KEY = 'gis-agol-rail-compact-v1'
+
+type AddLayerTab = 'giscontent' | 'arcgis' | 'database' | 'upload' | 'url'
+
+function isGisMapFeatureCollectionData(x: unknown): boolean {
+  return Boolean(
+    x &&
+      typeof x === 'object' &&
+      (x as { type?: string }).type === 'FeatureCollection' &&
+      Array.isArray((x as { features?: unknown }).features),
+  )
+}
+
+function gisMapLayerImportableFromStore(layer: LayerData): boolean {
+  if (layer.type === 'geojson' && isGisMapFeatureCollectionData(layer.data)) return true
+  if (layer.type === 'tile' && layer.url && (layer.data as { esriImageServer?: boolean })?.esriImageServer) return true
+  return false
+}
 
 const newGisImportId = () => `${Date.now()}_${Math.random().toString(16).slice(2)}`
 type DatabaseAuthType = 'database' | 'operating-system'
@@ -467,6 +485,15 @@ export default function GisMap() {
   const [agolContentColumnOpen, setAgolContentColumnOpen] = useState(true)
   const agolContentColumnOpenRef = useRef(agolContentColumnOpen)
   agolContentColumnOpenRef.current = agolContentColumnOpen
+  /** ArcGIS rail: icon-only narrow strip vs icon + labels (persisted). */
+  const [agolRailCompact, setAgolRailCompact] = useState(() => {
+    if (typeof window === 'undefined') return false
+    try {
+      return window.localStorage.getItem(GIS_AGOL_RAIL_COMPACT_LS_KEY) === '1'
+    } catch {
+      return false
+    }
+  })
   const [isAddOpen, setIsAddOpen] = useState(false)
   const [activeMapTool, setActiveMapTool] = useState<GisMapToolPanel>(null)
   const [mapToolbarCollapsed, setMapToolbarCollapsed] = useState(false)
@@ -500,6 +527,8 @@ export default function GisMap() {
   const [measurementVerticalLoading, setMeasurementVerticalLoading] = useState(false)
   const [measurementVerticalError, setMeasurementVerticalError] = useState<string | null>(null)
   const [tab, setTab] = useState<AddLayerTab>('arcgis')
+  const [gisContentModalLayers, setGisContentModalLayers] = useState<LayerData[]>([])
+  const [gisContentModalLoading, setGisContentModalLoading] = useState(false)
   const [serviceUrl, setServiceUrl] = useState('')
   const [token, setToken] = useState(() => (typeof window !== 'undefined' ? getArcgisPortalToken() : ''))
   const [layerName, setLayerName] = useState('')
@@ -536,6 +565,8 @@ export default function GisMap() {
   const [tableToolsCollapsed, setTableToolsCollapsed] = useState(true)
   const [tablesAddMenuOpen, setTablesAddMenuOpen] = useState(false)
   const tablesAddMenuRef = useRef<HTMLDivElement | null>(null)
+  const [layersEmptyAddMenuOpen, setLayersEmptyAddMenuOpen] = useState(false)
+  const layersEmptyAddMenuRef = useRef<HTMLDivElement | null>(null)
   const [showSelectedOnly, setShowSelectedOnly] = useState(false)
   /** Coded domains / subtype fields: always show descriptions in the attribute table. */
   const tableDomainDisplayMode: TableDomainDisplayMode = 'description'
@@ -623,13 +654,18 @@ export default function GisMap() {
   }, [])
 
   useEffect(() => {
-    if (!tablesAddMenuOpen) return
+    if (!tablesAddMenuOpen && !layersEmptyAddMenuOpen) return
     const onDocMouseDown = (e: MouseEvent) => {
-      const el = tablesAddMenuRef.current
-      if (el && !el.contains(e.target as Node)) setTablesAddMenuOpen(false)
+      const t = e.target as Node
+      if (tablesAddMenuOpen && tablesAddMenuRef.current && !tablesAddMenuRef.current.contains(t)) setTablesAddMenuOpen(false)
+      if (layersEmptyAddMenuOpen && layersEmptyAddMenuRef.current && !layersEmptyAddMenuRef.current.contains(t))
+        setLayersEmptyAddMenuOpen(false)
     }
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setTablesAddMenuOpen(false)
+      if (e.key === 'Escape') {
+        setTablesAddMenuOpen(false)
+        setLayersEmptyAddMenuOpen(false)
+      }
     }
     document.addEventListener('mousedown', onDocMouseDown)
     window.addEventListener('keydown', onKey)
@@ -637,11 +673,20 @@ export default function GisMap() {
       document.removeEventListener('mousedown', onDocMouseDown)
       window.removeEventListener('keydown', onKey)
     }
-  }, [tablesAddMenuOpen])
+  }, [tablesAddMenuOpen, layersEmptyAddMenuOpen])
 
   useEffect(() => {
     if (activeMapTool !== 'table') setTablesAddMenuOpen(false)
+    if (activeMapTool !== null) setLayersEmptyAddMenuOpen(false)
   }, [activeMapTool])
+
+  useEffect(() => {
+    try {
+      window.localStorage.setItem(GIS_AGOL_RAIL_COMPACT_LS_KEY, agolRailCompact ? '1' : '0')
+    } catch {
+      /* ignore */
+    }
+  }, [agolRailCompact])
 
   const orderedLayers = useMemo(() => [...layers].reverse(), [layers])
 
@@ -752,6 +797,21 @@ export default function GisMap() {
     (raw: unknown): LayerData[] => (Array.isArray(raw) ? raw.map(stripLegacyLayerProps) : []),
     [stripLegacyLayerProps],
   )
+
+  useEffect(() => {
+    if (!isAddOpen || tab !== 'giscontent') return
+    let cancelled = false
+    setGisContentModalLoading(true)
+    void loadGisMapSavedLayers().then(raw => {
+      if (cancelled) return
+      const normalized = normalizeLoadedLayers(raw)
+      setGisContentModalLayers(normalized)
+      setGisContentModalLoading(false)
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [isAddOpen, tab, normalizeLoadedLayers])
 
   useEffect(() => {
     if (!isAddOpen) return
@@ -3510,6 +3570,35 @@ export default function GisMap() {
     }
   }
 
+  const importLayerFromGisContent = useCallback(
+    (saved: LayerData) => {
+      if (!gisMapLayerImportableFromStore(saved)) {
+        setDiscoverError('This layer cannot be copied from GIS Content (needs feature data or an image service URL).')
+        return
+      }
+      const opKey = `giscontent-src:${String(saved.id)}`
+      setAddingLayerKey(opKey)
+      setDiscoverError(null)
+      try {
+        const newId = `giscontent:${newGisImportId()}`
+        let data = saved.data
+        try {
+          if (data !== undefined) data = JSON.parse(JSON.stringify(data))
+        } catch {
+          /* keep reference */
+        }
+        const next: LayerData = { ...saved, id: newId, data }
+        setLayers(prev => [...prev, next])
+        setIsAddOpen(false)
+      } catch (e: unknown) {
+        setDiscoverError(e instanceof Error ? e.message : 'Failed to import layer from GIS Content.')
+      } finally {
+        setAddingLayerKey(null)
+      }
+    },
+    [setLayers],
+  )
+
   const addDbPropertyRow = () => {
     setDbAdditionalProperties(prev => [...prev, { id: `db-prop-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`, key: '', value: '' }])
   }
@@ -3650,7 +3739,10 @@ export default function GisMap() {
 
   /** Collapse only the white action column; keep `gis-sidebar-v-toolbar` rail and optional active tool state. */
   const closeAgolActionPane = () => {
-    if (showDesktopGisRail) setAgolContentColumnOpen(false)
+    if (!showDesktopGisRail) return
+    setAgolContentColumnOpen(false)
+    setLayersEmptyAddMenuOpen(false)
+    setTablesAddMenuOpen(false)
   }
 
   const mapToolPanelEl = activeMapTool ? (
@@ -3843,6 +3935,18 @@ export default function GisMap() {
                         role="menuitem"
                         onClick={() => {
                           setTablesAddMenuOpen(false)
+                          openAddLayerModal('giscontent')
+                        }}
+                      >
+                        <i className="fa-solid fa-layer-group" aria-hidden="true" />
+                        <span>From GIS Content</span>
+                      </button>
+                      <button
+                        type="button"
+                        className="gis-tables-agol-add__menu-item"
+                        role="menuitem"
+                        onClick={() => {
+                          setTablesAddMenuOpen(false)
                           openAddLayerModal('arcgis')
                         }}
                       >
@@ -3888,6 +3992,18 @@ export default function GisMap() {
                     </button>
                     {tablesAddMenuOpen ? (
                       <div className="gis-tables-agol-add__menu" role="menu">
+                        <button
+                          type="button"
+                          className="gis-tables-agol-add__menu-item"
+                          role="menuitem"
+                          onClick={() => {
+                            setTablesAddMenuOpen(false)
+                            openAddLayerModal('giscontent')
+                          }}
+                        >
+                          <i className="fa-solid fa-layer-group" aria-hidden="true" />
+                          <span>From GIS Content</span>
+                        </button>
                         <button
                           type="button"
                           className="gis-tables-agol-add__menu-item"
@@ -4259,7 +4375,12 @@ export default function GisMap() {
               .join(' ')}
           >
             {showDesktopGisRail ? (
-              <nav className="gis-sidebar-rail gis-sidebar-rail--agol" aria-label="Map tools (ArcGIS-style)">
+              <nav
+                className={['gis-sidebar-rail', 'gis-sidebar-rail--agol', agolRailCompact ? 'gis-sidebar-rail--agol--compact' : '']
+                  .filter(Boolean)
+                  .join(' ')}
+                aria-label="Map tools (ArcGIS-style)"
+              >
                 <div className="gis-sidebar-v-toolbar" data-scale="m">
                   <div
                     className="gis-sidebar-v-toolbar__main"
@@ -4440,14 +4561,36 @@ export default function GisMap() {
                       </button>
                     </div>
                   </div>
+                  <div
+                    className="gis-sidebar-v-toolbar__end gis-sidebar-v-toolbar__end--overlay gis-sidebar-v-toolbar__end--agol-expand"
+                    role="presentation"
+                  >
+                    <button
+                      type="button"
+                      className="gis-sidebar-rail-expand-toggle"
+                      onClick={() => setAgolRailCompact(v => !v)}
+                      title={agolRailCompact ? 'Expand toolbar (show labels)' : 'Collapse toolbar (icons only)'}
+                      aria-label={agolRailCompact ? 'Expand toolbar' : 'Collapse toolbar'}
+                      aria-expanded={!agolRailCompact}
+                    >
+                      <i
+                        className={agolRailCompact ? 'fa-solid fa-angles-right' : 'fa-solid fa-angles-left'}
+                        aria-hidden="true"
+                      />
+                    </button>
+                  </div>
                 </div>
               </nav>
             ) : null}
             <div
-              className={['gis-sidebar-column', showDesktopGisRail ? 'gis-sidebar-column--action-pane' : '']
+              className={[
+                'gis-sidebar-column',
+                showDesktopGisRail ? 'gis-sidebar-column--action-pane' : '',
+                showDesktopGisRail && !agolContentColumnOpen ? 'gis-sidebar-column--action-pane--collapsed' : '',
+              ]
                 .filter(Boolean)
                 .join(' ')}
-              hidden={showDesktopGisRail && !agolContentColumnOpen}
+              aria-hidden={showDesktopGisRail && !agolContentColumnOpen ? true : undefined}
             >
               {showDesktopGisRail ? (
                 <div className="gis-sidebar-action-pane__head">
@@ -4457,7 +4600,11 @@ export default function GisMap() {
                   <button
                     type="button"
                     className="gis-sidebar-action-pane__close"
-                    onClick={closeAgolActionPane}
+                    onClick={e => {
+                      e.preventDefault()
+                      e.stopPropagation()
+                      closeAgolActionPane()
+                    }}
                     aria-label="Hide details column (toolbar stays open)"
                     title="Hide panel"
                   >
@@ -4523,12 +4670,74 @@ export default function GisMap() {
                 <div className="gis-sidebar-layers-empty-agol__icon" aria-hidden="true">
                   <i className="fa-solid fa-layer-group" />
                 </div>
-                <p className="gis-sidebar-layers-empty-agol__text">Add layers to your map and they will appear here.</p>
-                <button type="button" className="gis-sidebar-layers-empty-agol__add" onClick={() => openAddLayerModal()}>
-                  <i className="fa-solid fa-layer-group" aria-hidden="true" />
-                  <span>Add</span>
-                  <i className="fa-solid fa-chevron-down" aria-hidden="true" />
-                </button>
+                <div className="gis-sidebar-layers-empty-agol__message">
+                  Add layers to your map and they will appear here.
+                </div>
+                <div className="gis-tables-agol-add" ref={layersEmptyAddMenuRef}>
+                  <button
+                    type="button"
+                    className="gis-tables-agol-add__btn"
+                    aria-haspopup="menu"
+                    aria-expanded={layersEmptyAddMenuOpen}
+                    onClick={() => setLayersEmptyAddMenuOpen(v => !v)}
+                  >
+                    <i className="fa-solid fa-layer-group" aria-hidden="true" />
+                    <span>Add</span>
+                    <i className={`fa-solid fa-chevron-down${layersEmptyAddMenuOpen ? ' gis-tables-agol-add__chev--open' : ''}`} aria-hidden="true" />
+                  </button>
+                  {layersEmptyAddMenuOpen ? (
+                    <div className="gis-tables-agol-add__menu" role="menu">
+                      <button
+                        type="button"
+                        className="gis-tables-agol-add__menu-item"
+                        role="menuitem"
+                        onClick={() => {
+                          setLayersEmptyAddMenuOpen(false)
+                          openAddLayerModal('giscontent')
+                        }}
+                      >
+                        <i className="fa-solid fa-layer-group" aria-hidden="true" />
+                        <span>From GIS Content</span>
+                      </button>
+                      <button
+                        type="button"
+                        className="gis-tables-agol-add__menu-item"
+                        role="menuitem"
+                        onClick={() => {
+                          setLayersEmptyAddMenuOpen(false)
+                          openAddLayerModal('arcgis')
+                        }}
+                      >
+                        <i className="fa-solid fa-magnifying-glass" aria-hidden="true" />
+                        <span>Browse layers</span>
+                      </button>
+                      <button
+                        type="button"
+                        className="gis-tables-agol-add__menu-item"
+                        role="menuitem"
+                        onClick={() => {
+                          setLayersEmptyAddMenuOpen(false)
+                          openAddLayerModal('url')
+                        }}
+                      >
+                        <i className="fa-solid fa-globe" aria-hidden="true" />
+                        <span>Add layer from URL</span>
+                      </button>
+                      <button
+                        type="button"
+                        className="gis-tables-agol-add__menu-item"
+                        role="menuitem"
+                        onClick={() => {
+                          setLayersEmptyAddMenuOpen(false)
+                          openAddLayerModal('upload')
+                        }}
+                      >
+                        <i className="fa-solid fa-file-arrow-up" aria-hidden="true" />
+                        <span>Add layer from file</span>
+                      </button>
+                    </div>
+                  ) : null}
+                </div>
               </div>
             ) : (
               <div className="gis-empty" role="status" aria-live="polite">
@@ -6892,6 +7101,17 @@ export default function GisMap() {
               <button
                 type="button"
                 role="tab"
+                aria-selected={tab === 'giscontent'}
+                aria-label="GIS Content — saved layers in this browser"
+                title="GIS Content (IndexedDB)"
+                className={(tab === 'giscontent' ? 'gis-compact-tab active' : 'gis-compact-tab') + ' gis-compact-tab--icon'}
+                onClick={() => setTab('giscontent')}
+              >
+                <i className="fa-solid fa-layer-group" aria-hidden="true" />
+              </button>
+              <button
+                type="button"
+                role="tab"
                 aria-selected={tab === 'arcgis'}
                 aria-label="ArcGIS Feature Service"
                 title="ArcGIS Feature Service"
@@ -6936,7 +7156,60 @@ export default function GisMap() {
             </div>
 
             <div className="gis-modal-body">
-              {tab === 'arcgis' ? (
+              {tab === 'giscontent' ? (
+                <div role="tabpanel" aria-label="GIS Content">
+                  <p className="gis-modal-gis-content-hint">
+                    Layers below come from your <strong>GIS Content</strong> (IndexedDB — same session as GIS Map in this
+                    browser). Import copies feature data into this map.
+                  </p>
+                  {gisContentModalLoading ? (
+                    <div className="gis-modal-gis-content-loading" role="status">
+                      <i className="fa-solid fa-spinner fa-spin" aria-hidden="true" /> Loading GIS Content…
+                    </div>
+                  ) : gisContentModalLayers.length === 0 ? (
+                    <div className="gis-modal-gis-content-empty" role="status">
+                      <i className="fa-regular fa-folder-open" aria-hidden="true" />
+                      <p>No saved layers in GIS Content yet. Add layers on the map — they persist in this browser.</p>
+                    </div>
+                  ) : (
+                    <ul className="gis-modal-gis-content-list" aria-label="Saved layers">
+                      {gisContentModalLayers.map(layer => {
+                        const ok = gisMapLayerImportableFromStore(layer)
+                        const busy = addingLayerKey === `giscontent-src:${String(layer.id)}`
+                        const src = layer.source === 'arcgis' ? 'ArcGIS' : layer.source === 'url' ? 'URL' : layer.source === 'upload' ? 'Upload' : '—'
+                        return (
+                          <li key={String(layer.id)} className="gis-modal-gis-content-row">
+                            <div className="gis-modal-gis-content-meta">
+                              <span className="gis-modal-gis-content-name">{layer.name}</span>
+                              <span className="gis-modal-gis-content-badges">
+                                <span className="gis-modal-gis-content-badge">{String(layer.type).toUpperCase()}</span>
+                                <span className="gis-modal-gis-content-badge gis-modal-gis-content-badge--muted">{src}</span>
+                              </span>
+                              {!ok ? (
+                                <span className="gis-modal-gis-content-note">Not importable here (needs features or image service).</span>
+                              ) : null}
+                            </div>
+                            <button
+                              type="button"
+                              className="gis-modal-gis-content-add-btn"
+                              disabled={!ok || busy}
+                              onClick={() => importLayerFromGisContent(layer)}
+                            >
+                              {busy ? 'Adding…' : 'Add'}
+                            </button>
+                          </li>
+                        )
+                      })}
+                    </ul>
+                  )}
+                  {discoverError ? (
+                    <div className="gis-inline-error" role="alert">
+                      <i className="fa-solid fa-triangle-exclamation" aria-hidden="true" />
+                      <span>{discoverError}</span>
+                    </div>
+                  ) : null}
+                </div>
+              ) : tab === 'arcgis' ? (
                 <div role="tabpanel" aria-label="ArcGIS Feature Service">
                   <input
                     id="gis-arcgis-url"
@@ -7241,7 +7514,7 @@ export default function GisMap() {
                     {addingLayerKey === `upload:${uploadFile?.name ?? ''}` ? 'Uploading…' : 'Upload & Import'}
                   </button>
                 </div>
-              ) : (
+              ) : tab === 'url' ? (
                 <div role="tabpanel" aria-label="URL or web data">
                   <input
                     id="gis-remote-data-url"
@@ -7292,7 +7565,7 @@ export default function GisMap() {
                     {addingLayerKey === `url:${remoteDataUrl.trim()}` ? 'Importing…' : 'Import from URL'}
                   </button>
                 </div>
-              )}
+              ) : null}
             </div>
 
             <div className="gis-modal-footer">
