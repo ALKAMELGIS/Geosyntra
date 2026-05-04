@@ -82,29 +82,36 @@ function propertyKeys(features: GeoAiFeature[], cap = 40): string[] {
   return [...keys].slice(0, cap)
 }
 
-/** Distinct id / farm / site values across all features so short codes (e.g. MH105) appear in Geo AI context. */
+function catalogKeyLabel(k: string): string | null {
+  const n = k.replace(/\s+/g, '_')
+  if (/farm.*code|^farmcode$/i.test(n)) return 'Farm_Code'
+  if (/farm.*name|^farmname$/i.test(n)) return 'Farm_Name'
+  if (/site.*id|plot.*id|parcel.*id/i.test(n)) return 'Site_Plot_ID'
+  if (/^objectid$|^fid$/i.test(n)) return 'OBJECTID'
+  if (/^globalid$/i.test(n)) return 'GlobalID'
+  return null
+}
+
+function skipFieldForValueCatalog(key: string): boolean {
+  const k = key.toLowerCase()
+  if (/^shape|geometry|st_area|st_length|st_perimeter|shape_length|shape_area$/i.test(k)) return true
+  if (k === 'objectid' || k === 'fid' || k === 'globalid') return true
+  return false
+}
+
+/** Distinct values across features — canonical buckets (Farm_Code, …) plus other string fields for Geo AI. */
 export function buildLayerIdValueCatalogSnippet(
   features: Array<{ properties?: Record<string, unknown> }>,
   maxChars = 2800,
 ): string {
   if (!Array.isArray(features) || features.length === 0) return ''
 
-  const keyMatchesLabel = (k: string): string | null => {
-    const n = k.replace(/\s+/g, '_')
-    if (/farm.*code|^farmcode$/i.test(n)) return 'Farm_Code'
-    if (/farm.*name|^farmname$/i.test(n)) return 'Farm_Name'
-    if (/site.*id|plot.*id|parcel.*id/i.test(n)) return 'Site_Plot_ID'
-    if (/^objectid$|^fid$/i.test(n)) return 'OBJECTID'
-    if (/^globalid$/i.test(n)) return 'GlobalID'
-    return null
-  }
-
   const buckets = new Map<string, Set<string>>()
   for (const f of features) {
     const p = f.properties
     if (!p || typeof p !== 'object') continue
     for (const [k, v] of Object.entries(p)) {
-      const label = keyMatchesLabel(k)
+      const label = catalogKeyLabel(k)
       if (!label) continue
       const s = v == null ? '' : String(v).trim()
       if (!s || s.length > 72) continue
@@ -122,8 +129,38 @@ export function buildLayerIdValueCatalogSnippet(
     const vals = [...set].sort((a, b) => a.localeCompare(b, undefined, { numeric: true }))
     parts.push(`${label}=[${vals.join(', ')}]`)
   }
+
+  const fieldSets = new Map<string, Set<string>>()
+  const keysSeen = new Set<string>()
+  for (const f of features.slice(0, 320)) {
+    const p = f.properties
+    if (!p || typeof p !== 'object') continue
+    for (const k of Object.keys(p)) {
+      if (catalogKeyLabel(k)) continue
+      if (skipFieldForValueCatalog(k)) continue
+      if (k.length > 56) continue
+      keysSeen.add(k)
+    }
+  }
+  const extraKeys = [...keysSeen].sort((a, b) => a.localeCompare(b)).slice(0, 22)
+  for (const key of extraKeys) {
+    const set = new Set<string>()
+    for (const f of features) {
+      const p = f.properties
+      if (!p || typeof p !== 'object') continue
+      const v = p[key]
+      const s = v == null ? '' : String(v).trim()
+      if (!s || s.length < 2 || s.length > 80) continue
+      if (set.size >= 48) break
+      set.add(s)
+    }
+    if (set.size === 0) continue
+    const vals = [...set].sort((a, b) => a.localeCompare(b, undefined, { numeric: true }))
+    parts.push(`${key}=[${vals.join(', ')}]`)
+  }
+
   if (!parts.length) return ''
-  let s = `Layer id catalog (all ${features.length} loaded features — use for code/id questions; not exhaustive if truncated): ${parts.join(' | ')}`
+  let s = `Layer id catalog (${features.length} loaded features — search **all** listed fields for ids/names/codes; truncated if long): ${parts.join(' | ')}`
   if (s.length > maxChars) s = `${s.slice(0, maxChars - 24)}… [catalog truncated]`
   return s
 }
@@ -165,20 +202,50 @@ export function summarizeGeoAiMapLayers(layers: GeoAiMapLayer[], maxChars = 2800
   return out
 }
 
-const LAYER_HINT_FROM = /(?:from|in|on)\s+['"]?([\w\s\-_]{2,64})['"]?\s*(?:layer)?/i
+const LAYER_HINT_FROM_QUOTED = /(?:from|in|on)\s+["']([^"']{2,120})["']/i
+/** Single path-like token after from/in/on (no greedy spaces — avoids swallowing "show … NH-23"). */
+const LAYER_HINT_FROM_TOKEN = /(?:from|in|on)\s+([\w.\u0600-\u06FF-]{2,80})(?=$|\s+(?:show|tell|give|list|find|where|display|please|with|for|and|about|near|around|having|map|fly|zoom|pin)\b|[,;])/i
 const LAYER_HINT_TAIL = /\b['"]?([\w][\w\s\-_]{1,62})['"]?\s+layer\b/i
 const LAYER_HINT_AR = /طبقة\s+['"]?([\w\s\-_\u0600-\u06FF]{2,64})['"]?/i
 
-/** Exported for Geo AI map pin: when set, layer-derived coordinates should win over model MAP_QUERY. */
-export function extractGeoExplorerLayerHint(userText: string): string | null {
-  const m1 = userText.match(LAYER_HINT_FROM)
+/**
+ * Layer name after "from / in / on …" for scoping Geo AI to one layer.
+ * When `layers` is passed, prefers the longest actual layer name that prefixes the text after the preposition
+ * (fixes greedy `[\w\s…]+` capturing "Agro_Structures show Nethouse…").
+ */
+export function extractGeoExplorerLayerHint(userText: string, layers?: readonly GeoAiMapLayer[]): string | null {
+  const t = userText.trim()
+  if (layers?.length) {
+    const rel = t.match(/\b(?:from|in|on)\s+/i)
+    if (rel && rel.index !== undefined) {
+      let after = t.slice(rel.index + rel[0].length).trimStart()
+      const qm = after.match(/^["']([^"']{2,120})["']/)
+      if (qm?.[1]) {
+        const inner = qm[1].trim()
+        if (layers.some(l => l.name.toLowerCase() === inner.toLowerCase())) return inner
+      }
+      const names = [...layers].map(l => l.name).filter(n => n.length >= 2)
+      names.sort((a, b) => b.length - a.length)
+      const lowerAfter = after.toLowerCase()
+      for (const name of names) {
+        const ln = name.toLowerCase()
+        if (lowerAfter.startsWith(ln)) {
+          const rest = after.slice(name.length)
+          if (rest.length === 0 || /^[\s,;:.]/.test(rest)) return name
+        }
+      }
+    }
+  }
+  const mq = t.match(LAYER_HINT_FROM_QUOTED)
+  if (mq?.[1]) return mq[1].trim()
+  const m1 = t.match(LAYER_HINT_FROM_TOKEN)
   if (m1?.[1]) return m1[1].trim()
-  const m2 = userText.match(LAYER_HINT_TAIL)
+  const m2 = t.match(LAYER_HINT_TAIL)
   if (m2?.[1]) {
     const w = m2[1].trim().toLowerCase()
     if (!/^(the|a|an|this|that|my|your|our)$/i.test(w)) return m2[1].trim()
   }
-  const m3 = userText.match(LAYER_HINT_AR)
+  const m3 = t.match(LAYER_HINT_AR)
   if (m3?.[1]) return m3[1].trim()
   return null
 }
@@ -197,12 +264,24 @@ function layersWhoseNameAppearsInQuery(userText: string, layers: GeoAiMapLayer[]
   return [hits[0]]
 }
 
-function extractLayerHint(userText: string): string | null {
-  return extractGeoExplorerLayerHint(userText)
+function extractLayerHint(userText: string, layers?: readonly GeoAiMapLayer[]): string | null {
+  return extractGeoExplorerLayerHint(userText, layers)
 }
 
 function escapeRegExp(s: string): string {
   return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+}
+
+function stripLayerReferencePrefixForSearch(userText: string, layers?: readonly GeoAiMapLayer[]): string {
+  let s = userText
+  const hint = extractGeoExplorerLayerHint(userText, layers)
+  if (hint) {
+    const e = escapeRegExp(hint)
+    s = s.replace(new RegExp(`\\b(?:from|in|on)\\s+(?:["']${e}["']|${e})\\b`, 'i'), ' ')
+  }
+  s = s.replace(LAYER_HINT_FROM_QUOTED, ' ').replace(LAYER_HINT_FROM_TOKEN, ' ')
+  s = s.replace(LAYER_HINT_TAIL, ' ').replace(LAYER_HINT_AR, ' ')
+  return s
 }
 
 function tokenAppearsAsWordInBlob(blob: string, tok: string): boolean {
@@ -214,11 +293,10 @@ function tokenAppearsAsWordInBlob(blob: string, tok: string): boolean {
   }
 }
 
-function tokenizeForSearch(userText: string): string[] {
-  let s = userText
-  s = s.replace(LAYER_HINT_FROM, ' ').replace(LAYER_HINT_TAIL, ' ').replace(LAYER_HINT_AR, ' ')
+function tokenizeForSearch(userText: string, layers?: readonly GeoAiMapLayer[]): string[] {
+  let s = stripLayerReferencePrefixForSearch(userText, layers)
   const fillers =
-    /\b(show|me|in|map|location|locaion|the|a|an|on|at|for|from|to|of|layer|layers|please|find|where|is|are|point|pin|fly|zoom|center|goto|go)\b/gi
+    /\b(show|me|describe|display|visualize|visualise|highlight|outline|plot|draw|bring|pull|open|list|tell|give|put|want|need|locate|identify|select|pick|export|table|in|map|location|locaion|the|a|an|on|at|for|from|to|of|layer|layers|please|find|where|is|are|point|pin|fly|zoom|center|goto|go|can\s+you|could\s+you|would\s+you|help\s+me)\b/gi
   s = s.replace(fillers, ' ')
   const raw = s
     .split(/[^\w\-./]+/)
@@ -334,7 +412,7 @@ function keyPriorityForExactAttributeMatch(key: string): number {
  * Runs before fuzzy substring scoring so short codes pin and answer correctly.
  */
 export function findExactLayerAttributeMatchInLayers(userText: string, layers: GeoAiMapLayer[]): LayerQueryMatch | null {
-  const tokens = [...new Set(tokenizeForSearch(userText))]
+  const tokens = [...new Set(tokenizeForSearch(userText, layers))]
     .map(t => t.trim())
     .filter(t => t.length >= 3 && t.length <= 64)
   if (!tokens.length) return null
@@ -395,6 +473,81 @@ export function findExactLayerAttributeMatchInLayers(userText: string, layers: G
   return best
 }
 
+function scoreSubstringTokenInValue(tok: string, key: string, vs: string): number {
+  const tl = tok.toLowerCase()
+  const vl = vs.toLowerCase()
+  if (!vl.includes(tl)) return 0
+  if (tl.length <= 3 && vl.length > tl.length + 28) return 0
+  let sc = 44 + Math.min(tl.length, 20) * 2
+  if (vl === tl) sc += 26
+  else if (tokenAppearsAsWordInBlob(vl, tl)) sc += 16
+  sc -= keyPriorityForExactAttributeMatch(key) * 2
+  return sc
+}
+
+/** Value contains token (not only full-string equality) — e.g. "NH-23" inside Structure_Name or composite labels. */
+function findBestSubstringAttributeLayerMatch(userText: string, layers: GeoAiMapLayer[]): LayerQueryMatch | null {
+  const hint = extractLayerHint(userText, layers)
+  const hintNorm = hint ? normalizeLayerName(hint) : ''
+  const nameScoped = !hintNorm ? layersWhoseNameAppearsInQuery(userText, layers) : null
+  const rawTokens = tokenizeForSearch(userText, layers)
+  const noise = /^(the|map|maps|layer|layers|show|find|where|gps|geo|json|data|row|rows|please)$/i
+  const candidates = [...new Set(rawTokens)]
+    .filter(t => t.length >= 3 && t.length <= 64 && !noise.test(t))
+    .sort((a, b) => b.length - a.length)
+  if (!candidates.length) return null
+
+  let best: LayerQueryMatch | null = null
+
+  for (const layer of layers) {
+    const fc = featureCollectionFromLayer(layer)
+    if (!fc?.features?.length) continue
+    const lname = normalizeLayerName(layer.name)
+    if (!hintNorm && nameScoped?.length && !nameScoped.some(sl => sl.name === layer.name)) continue
+    if (hintNorm) {
+      const hinted =
+        lname.includes(hintNorm) ||
+        hintNorm.includes(lname) ||
+        normalizeLayerName(layer.name.replace(/_/g, ' ')).includes(hintNorm)
+      if (!hinted) continue
+    }
+
+    for (const f of fc.features) {
+      const p = f.properties
+      if (!p || typeof p !== 'object') continue
+      let localBest = 0
+      for (const tok of candidates) {
+        for (const [key, val] of Object.entries(p)) {
+          if (val == null) continue
+          const vs = String(val).trim()
+          if (vs.length < 2) continue
+          const sc = scoreSubstringTokenInValue(tok, key, vs)
+          if (sc > localBest) localBest = sc
+        }
+      }
+      if (localBest < 38) continue
+      const c = featureCentroid(f)
+      if (!c) continue
+      const arcDef = layer.arcgisLayerDefinition ?? null
+      const fullprops = { ...(p as Record<string, unknown>) }
+      const summary = JSON.stringify(
+        arcDef ? formatFeaturePropertiesForGeoAi(fullprops, f, arcDef) : fullprops,
+      ).slice(0, 4800)
+      const cand: LayerQueryMatch = {
+        lng: c[0],
+        lat: c[1],
+        layerName: layer.name,
+        matchSummary: summary,
+        score: localBest,
+        properties: fullprops,
+        arcgisLayerDefinition: arcDef,
+      }
+      if (!best || cand.score > best.score) best = cand
+    }
+  }
+  return best
+}
+
 /**
  * Best-effort: find a feature whose attributes match the user's text (e.g. NH-101 in Agro_Structures).
  */
@@ -402,9 +555,12 @@ export function findLngLatFromLayerQuery(userText: string, layers: GeoAiMapLayer
   const exact = findExactLayerAttributeMatchInLayers(userText, layers)
   if (exact) return exact
 
-  const hint = extractLayerHint(userText)
+  const sub = findBestSubstringAttributeLayerMatch(userText, layers)
+  if (sub) return sub
+
+  const hint = extractLayerHint(userText, layers)
   const hintNorm = hint ? normalizeLayerName(hint) : ''
-  const tokens = tokenizeForSearch(userText)
+  const tokens = tokenizeForSearch(userText, layers)
   if (tokens.length === 0 && !hintNorm) return null
 
   let best: LayerQueryMatch | null = null
@@ -472,6 +628,19 @@ export function findLngLatFromLayerQuery(userText: string, layers: GeoAiMapLayer
   return best
 }
 
+/** True if the message mentions any loaded layer name (substring match). */
+function userTextMentionsAnyLoadedLayer(userText: string, layers: GeoAiMapLayer[]): boolean {
+  return Boolean(layersWhoseNameAppearsInQuery(userText, layers)?.length)
+}
+
+/** Codes / asset ids common in ag layers (e.g. NH-23, MH105, GH-02) — not bare years. */
+function textContainsLikelyFeatureOrAssetId(userText: string): boolean {
+  return (
+    /\b[A-Za-z]{1,5}\d{2,6}(?:[-_/][A-Za-z0-9]{1,12})?\b/.test(userText) ||
+    /\b\d{2,4}-\d{2,4}\b/.test(userText)
+  )
+}
+
 /**
  * True when the user is asking about GIS layers / fields / stats (must be answered from layer context first;
  * do not geocode or MAP_QUERY to an unrelated world place when there is no strong layer match).
@@ -480,11 +649,24 @@ export function findLngLatFromLayerQuery(userText: string, layers: GeoAiMapLayer
 export function isGisDataScopedQuestion(userText: string, layers: GeoAiMapLayer[]): boolean {
   const t = userText.trim()
   if (!t) return false
+  const hasVectorData = layers.some(l => {
+    const fc = featureCollectionFromLayer(l)
+    return Boolean(fc?.features?.length)
+  })
+  if (hasVectorData && userTextMentionsAnyLoadedLayer(t, layers)) return true
+
+  const vizVerb =
+    /\b(show|describe|display|visualize|visualise|highlight|find|locate|identify|pin|zoom|fly|plot|put|open|bring|pull|list|export)\b/i.test(
+      t,
+    )
+  /** Intent + asset-like token (e.g. NH-23) — avoids treating “describe Paris on the map” as layer-only. */
+  if (hasVectorData && vizVerb && textContainsLikelyFeatureOrAssetId(t)) return true
+
   const KW =
     /\b(layers?|layer|field|fields|attribute|attributes|properties|features?|feature|polygon|polygons|parcel|parcels|plot|plots|geojson|shapefile|kml|kmz|how\s+many|count\b|counts|average|mean|median|min|max|sum|total|distribution|statistics|stats|percentage|proportion|tabular|records?|rows?)\b/i
-  const AR = /طبقة|طبقات|حقول|حقل|سمات|خصائص|مضلع|عناصر|عدد|إحصاء|تحليل|إحصائي|البيانات\s+في/i
+  const AR = /طبقة|طبقات|حقول|حقل|سمات|خصائص|مضلع|عناصر|عدد|إحصاء|تحليل|إحصائي|البيانات\s+في|على\s+الخريطة|في\s+الخريطة/i
   if (KW.test(t) || AR.test(t)) return true
-  const hint = extractGeoExplorerLayerHint(t)
+  const hint = extractGeoExplorerLayerHint(t, layers)
   if (!hint) return false
   const norm = normalizeLayerName(hint).replace(/_/g, ' ')
   if (norm.length < 3) return false
@@ -503,7 +685,8 @@ export function allowsGeocodeWhenNoStrongLayerHit(userText: string, layers: GeoA
   if (/\b(weather|forecast|temperature|humidity|precipitation|rain|snow|wind(\s+speed)?)\b/.test(s)) return true
   if (/\b(directions?|navigate|routing|route\s+to|route\s+from|drive\s+to|walking\s+to)\b/.test(s)) return true
   if (/\b(capital of|population of|time\s*zone|timezone|utc\s*offset)\b/.test(s)) return true
-  if (/^(where\s+is|where's|what\s+country|what\s+city)\b/i.test(s) && !extractGeoExplorerLayerHint(userText)) return true
+  if (/^(where\s+is|where's|what\s+country|what\s+city)\b/i.test(s) && !extractGeoExplorerLayerHint(userText, layers))
+    return true
   if (/أين\s+تقع|الطقس|درجة\s+الحرارة|الاتجاهات|طريق\s+إلى/i.test(userText)) return true
   return false
 }

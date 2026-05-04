@@ -1218,7 +1218,7 @@ export default function SatelliteIntelligence() {
   const [exploreSelectedResultKeys, setExploreSelectedResultKeys] = useState<string[]>([]);
   const [stacAddToMenuKey, setStacAddToMenuKey] = useState<string | null>(null);
   const [stacMosaicStaging, setStacMosaicStaging] = useState<any[]>([]);
-  const [showStacFootprintsOnMap, setShowStacFootprintsOnMap] = useState(true);
+  const [showStacFootprintsOnMap, setShowStacFootprintsOnMap] = useState(false);
   const [isWmsOverlayVisible, setIsWmsOverlayVisible] = useState(true);
   const [stacMapThumb, setStacMapThumb] = useState<null | { url: string; coordinates: [[number, number], [number, number], [number, number], [number, number]] }>(
     null,
@@ -1900,7 +1900,13 @@ export default function SatelliteIntelligence() {
   };
 
   const pivots = useMemo<PivotFeature[]>(() => {
-    const uploaded = customLayers.find(layer => Array.isArray(layer.geojson?.features) && layer.geojson.features.length > 0);
+    /** Pivot polygons must not float as a “phantom” layer when the user turned the vector layer off. */
+    const uploaded = customLayers.find(
+      layer =>
+        layer.visible !== false &&
+        Array.isArray(layer.geojson?.features) &&
+        layer.geojson.features.length > 0,
+    );
     const features = uploaded?.geojson?.features;
     const sourceFeatures = Array.isArray(features) ? features : [];
 
@@ -5797,7 +5803,7 @@ export default function SatelliteIntelligence() {
                         ) : null}
                         {pivots.length > 0 ? (
                           <p className="si-env-message">
-                            <strong>{pivots.length}</strong> field pivot feature{pivots.length === 1 ? '' : 's'} on map (from uploaded layer).
+                            <strong>{pivots.length}</strong> field pivot feature{pivots.length === 1 ? '' : 's'} on map (same visibility as the vector layer in the list).
                           </p>
                         ) : null}
                       </div>

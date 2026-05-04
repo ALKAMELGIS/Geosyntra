@@ -222,7 +222,7 @@ export default function AgroEnterpriseDashboard() {
     () =>
       ar
         ? {
-            title: 'لوحة GeoDash المؤسسية',
+            title: 'لوحة المؤسسية',
             subtitle: 'مراقبة، تحليلات مكانية، وإدارة مصادر البيانات.',
             overview: 'نظرة عامة',
             map: 'الخريطة',
@@ -244,7 +244,7 @@ export default function AgroEnterpriseDashboard() {
             noMapToken: 'أضف رمز Mapbox من الإعدادات لتفعيل الخريطة.',
           }
         : {
-            title: 'GeoDash Enterprise',
+            title: 'Agro Enterprise',
             subtitle: 'Monitoring, spatial visualization, and multi-source analytics.',
             overview: 'Overview',
             map: 'Map',
@@ -479,23 +479,10 @@ export default function AgroEnterpriseDashboard() {
 
   return (
     <div className="page agro-ent-root" dir={direction}>
-      <h1 className="agro-ent-sr">GeoDash Enterprise</h1>
+      <h1 className="agro-ent-sr">{t.title}</h1>
       <div className="agro-ent-shell">
         <aside className={`agro-ent-side${sideCollapsed ? ' agro-ent-side--collapsed' : ''}`}>
-          <div className="agro-ent-brand">
-            <div className="agro-ent-mark" aria-hidden>
-              <svg width="18" height="18" viewBox="0 0 16 16" fill="none">
-                <rect x="1" y="8" width="3.5" height="7" rx="1" fill="white" />
-                <rect x="6.25" y="5" width="3.5" height="10" rx="1" fill="white" opacity="0.85" />
-                <rect x="11.5" y="1" width="3.5" height="14" rx="1" fill="white" opacity="0.7" />
-              </svg>
-            </div>
-            {!sideCollapsed ? (
-              <div className="agro-ent-brand-text">
-                <span>Geo</span>
-                <b>Dash</b>
-              </div>
-            ) : null}
+          <div className="agro-ent-side-head">
             <button
               type="button"
               className="agro-ent-collapse"

@@ -39,7 +39,7 @@ export function resolveGeoAiPinFromUserTextAndReply(
   const layerHit: LayerQueryMatch | null =
     trimmed.length > 0 ? findLngLatFromLayerQuery(trimmed, combinedLayers) : null
 
-  const layerHintTrim = (trimmed ? extractGeoExplorerLayerHint(trimmed) : null)?.trim() ?? ''
+  const layerHintTrim = (trimmed ? extractGeoExplorerLayerHint(trimmed, combinedLayers) : null)?.trim() ?? ''
   const preferLayerCoords =
     Boolean(layerHit) &&
     (Boolean(layerHintTrim) ||

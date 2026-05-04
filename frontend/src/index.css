@@ -2733,15 +2733,15 @@ aside {
 }
 
 .gis-sidebar {
-  background: rgba(255, 255, 255, 0.92);
-  border: 1px solid rgba(255, 255, 255, 0.82);
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
   border-radius: 24px;
   min-height: 0;
   min-width: 0;
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  box-shadow: 0 24px 70px rgba(15, 23, 42, 0.10);
+  box-shadow: 0 16px 48px rgba(15, 23, 42, 0.08);
 }
 
 .gis-sidebar-inner {
@@ -2760,13 +2760,13 @@ aside {
 }
 
 .gis-sidebar-inner--agol-action-bar .gis-sidebar-rail--agol {
-  border-right: 1px solid rgba(15, 23, 42, 0.55);
+  border-right: 1px solid #e2e8f0;
   box-shadow: none;
 }
 
 :root[dir='rtl'] .gis-sidebar-inner--agol-action-bar .gis-sidebar-rail--agol {
   border-right: none;
-  border-left: 1px solid rgba(15, 23, 42, 0.55);
+  border-left: 1px solid #e2e8f0;
   box-shadow: none;
 }
 
@@ -2793,8 +2793,7 @@ aside {
   padding: 11px 14px 12px;
   padding-inline-end: 20px;
   border-bottom: 1px solid rgba(15, 23, 42, 0.08);
-  background: rgba(255, 255, 255, 0.45);
-  backdrop-filter: blur(8px);
+  background: #eef2f7;
   position: relative;
   z-index: 1;
 }
@@ -3001,15 +3000,10 @@ aside {
   display: flex;
   flex-direction: column;
   min-height: 0;
-  /* 50% opacity so underlying sidebar / map tone shows through; icons stay solid via their own colors */
-  background: linear-gradient(
-    180deg,
-    rgba(30, 41, 59, 0.5) 0%,
-    rgba(15, 23, 42, 0.5) 55%,
-    rgba(2, 6, 23, 0.5) 100%
-  );
-  border-right: 1px solid rgba(148, 163, 184, 0.22);
-  box-shadow: none;
+  /* Opaque midnight indigo — no glass / map bleed-through */
+  background: linear-gradient(180deg, #1f1a45 0%, #16122e 45%, #100e22 100%);
+  border-right: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: inset -1px 0 0 rgba(0, 0, 0, 0.2);
 }
 
 /* ArcGIS Online–style rail: icon + label, grouped tools */
@@ -3115,8 +3109,8 @@ aside {
 
 :root[dir='rtl'] .gis-sidebar-rail {
   border-right: 0;
-  border-left: 1px solid rgba(148, 163, 184, 0.18);
-  box-shadow: none;
+  border-left: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: inset 1px 0 0 rgba(0, 0, 0, 0.2);
 }
 
 .gis-sidebar-v-toolbar {
@@ -3195,19 +3189,19 @@ aside {
 }
 
 .gis-sidebar-rail-btn:hover {
-  background: rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.1);
   color: #f8fafc;
 }
 
 .gis-sidebar-rail-btn:focus-visible {
-  outline: 2px solid rgba(52, 211, 153, 0.55);
+  outline: 2px solid rgba(45, 212, 191, 0.65);
   outline-offset: 1px;
 }
 
 .gis-sidebar-rail-btn--active {
-  background: rgba(255, 255, 255, 0.12);
+  background: rgba(45, 212, 191, 0.14);
   color: #fff;
-  box-shadow: inset 0 0 0 1px rgba(52, 211, 153, 0.35);
+  box-shadow: inset 0 0 0 1px rgba(45, 212, 191, 0.45);
 }
 
 .gis-sidebar-rail-btn--active i {
@@ -3229,14 +3223,9 @@ aside {
   bottom: 0;
   z-index: 3;
   padding: 10px 6px 8px;
-  background: linear-gradient(
-    180deg,
-    rgba(15, 23, 42, 0) 0%,
-    rgba(15, 23, 42, 0.375) 22%,
-    rgba(2, 6, 23, 0.48) 100%
-  );
-  border-top: 1px solid rgba(51, 65, 85, 0.28);
-  box-shadow: 0 -10px 28px rgba(0, 0, 0, 0.18);
+  background: #0e0c1f;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
 }
 
 /* ArcGIS rail: expand/collapse labels (angles » / «), pinned bottom like Map Viewer */
@@ -3256,16 +3245,17 @@ aside {
   min-height: 36px;
   margin: 0 auto;
   padding: 6px 8px;
-  border: none;
+  border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 10px;
-  background: rgba(255, 255, 255, 0.06);
-  color: rgba(226, 232, 240, 0.88);
+  background: #1a1736;
+  color: rgba(226, 232, 240, 0.92);
   cursor: pointer;
   font: inherit;
   line-height: 1;
   transition:
     background 0.16s ease,
-    color 0.16s ease;
+    color 0.16s ease,
+    border-color 0.16s ease;
 }
 
 .gis-sidebar-rail-expand-toggle i {
@@ -3275,8 +3265,9 @@ aside {
 }
 
 .gis-sidebar-rail-expand-toggle:hover {
-  background: rgba(255, 255, 255, 0.12);
+  background: #242047;
   color: #f8fafc;
+  border-color: rgba(255, 255, 255, 0.14);
 }
 
 .gis-sidebar-rail-expand-toggle:focus-visible {
@@ -3386,11 +3377,10 @@ aside {
   justify-content: space-between;
   gap: 12px;
   border-bottom: 1px solid rgba(15, 23, 42, 0.08);
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(248, 250, 252, 0.88));
+  background: #f1f5f9;
   position: sticky;
   top: 0;
   z-index: 20;
-  backdrop-filter: blur(10px);
 }
 
 .gis-sidebar-title {
@@ -4862,8 +4852,7 @@ button.gis-tool-list-row--action:hover {
 .gis-content-header {
   padding: 12px 16px;
   border-bottom: 1px solid rgba(15, 23, 42, 0.08);
-  background: rgba(255, 255, 255, 0.90);
-  backdrop-filter: blur(14px);
+  background: #f1f5f9;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -5356,11 +5345,9 @@ button.gis-tool-list-row--action:hover {
   min-width: 0;
   padding: 14px;
   border-radius: 20px;
-  border: 1px solid rgba(15, 23, 42, 0.08);
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(248, 250, 252, 0.88)),
-    #ffffff;
-  box-shadow: 0 18px 44px rgba(15, 23, 42, 0.07);
+  border: 1px solid #e2e8f0;
+  background: #f8fafc;
+  box-shadow: 0 14px 40px rgba(15, 23, 42, 0.06);
 }
 
 .gis-content-sidebarfilters .gis-layer-search {
@@ -5739,17 +5726,19 @@ button.gis-tool-list-row--action:hover {
   }
 
   .gis-sidebar-header {
-    background: rgba(15, 23, 42, 0.78);
+    background: #e8edf5;
+    border-bottom-color: rgba(15, 23, 42, 0.1);
   }
 
   .gis-content-header {
-    background: rgba(15, 23, 42, 0.72);
+    background: #e8edf5;
+    border-bottom-color: rgba(15, 23, 42, 0.1);
   }
 
   .gis-content-sidebarfilters {
-    background: rgba(15, 23, 42, 0.62);
-    border-color: rgba(226, 232, 240, 0.14);
-    box-shadow: 0 18px 60px rgba(0, 0, 0, 0.35);
+    background: #f1f5f9;
+    border-color: rgba(15, 23, 42, 0.1);
+    box-shadow: 0 14px 40px rgba(0, 0, 0, 0.12);
   }
 }
 
@@ -9368,7 +9357,7 @@ html[data-theme='dark'] .gis-domain-cell--dropdown.missing-description .gis-doma
     z-index: 45;
     border-radius: 20px;
     box-shadow: 0 20px 48px rgba(2, 6, 23, 0.22);
-    border: 1px solid rgba(255, 255, 255, 0.9);
+    border: 1px solid #e2e8f0;
   }
 
   .gis-sidebar-header {

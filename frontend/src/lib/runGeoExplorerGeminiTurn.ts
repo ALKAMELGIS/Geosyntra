@@ -152,7 +152,9 @@ export async function runGeoExplorerGeminiTurn(
   })
 
   const dataScoped = isGisDataScopedQuestion(userTextForMapFallback, combinedForLookup)
-  const layerHintTrim = (userTextForMapFallback ? extractGeoExplorerLayerHint(userTextForMapFallback) : null)?.trim() ?? ''
+  const layerHintTrim = (
+    userTextForMapFallback ? extractGeoExplorerLayerHint(userTextForMapFallback, combinedForLookup) : null
+  )?.trim() ?? ''
   const rawLayerHit = layerLookup
   const strongLayerHit: LayerQueryMatch | null =
     rawLayerHit && rawLayerHit.score >= GEO_EXPLORER_MIN_LAYER_PIN_SCORE ? rawLayerHit : null
