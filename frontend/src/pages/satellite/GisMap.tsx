@@ -3529,12 +3529,25 @@ export default function GisMap() {
   }
   const dockMapToolInSidebar = Boolean(showDesktopGisRail && activeMapTool)
 
+  const closeAgolActionPane = () => {
+    if (activeMapTool) {
+      setActiveMapTool(null)
+      return
+    }
+    setLayersPanelCollapsed(true)
+  }
+
   const mapToolPanelEl = activeMapTool ? (
       <div
         className={
-          activeMapTool === 'geoExplorer'
-            ? 'gis-map-tool-panel gis-map-tool-panel--geo-explorer'
-            : 'gis-map-tool-panel'
+          [
+            activeMapTool === 'geoExplorer'
+              ? 'gis-map-tool-panel gis-map-tool-panel--geo-explorer'
+              : 'gis-map-tool-panel',
+            dockMapToolInSidebar ? 'gis-map-tool-panel--embed-in-action-pane' : '',
+          ]
+            .filter(Boolean)
+            .join(' ')
         }
         role="dialog"
         aria-label={`${activeMapTool} tools`}
@@ -4018,7 +4031,11 @@ export default function GisMap() {
             .join(' ')}
           aria-label="GIS Layers"
         >
-          <div className="gis-sidebar-inner">
+          <div
+            className={['gis-sidebar-inner', showDesktopGisRail ? 'gis-sidebar-inner--agol-action-bar gis-map-action-bar-container' : '']
+              .filter(Boolean)
+              .join(' ')}
+          >
             {showDesktopGisRail ? (
               <nav className="gis-sidebar-rail gis-sidebar-rail--agol" aria-label="Map tools (ArcGIS-style)">
                 <div className="gis-sidebar-v-toolbar" data-scale="m">
@@ -4235,9 +4252,33 @@ export default function GisMap() {
                 </div>
               </nav>
             ) : null}
-            <div className="gis-sidebar-column">
+            <div
+              className={['gis-sidebar-column', showDesktopGisRail ? 'gis-sidebar-column--action-pane' : '']
+                .filter(Boolean)
+                .join(' ')}
+            >
+              {showDesktopGisRail ? (
+                <div className="gis-sidebar-action-pane__head">
+                  <div className="gis-sidebar-action-pane__title">
+                    {activeMapTool ? mapToolPanelTitle(activeMapTool) : 'Layers'}
+                  </div>
+                  <button
+                    type="button"
+                    className="gis-sidebar-action-pane__close"
+                    onClick={closeAgolActionPane}
+                    aria-label="Close panel"
+                    title="Close"
+                  >
+                    <i className="fa-solid fa-xmark" aria-hidden="true" />
+                  </button>
+                </div>
+              ) : null}
           <div
-            className={['gis-sidebar-body', dockMapToolInSidebar ? 'gis-sidebar-body--tool-dock' : '']
+            className={[
+              'gis-sidebar-body',
+              showDesktopGisRail ? 'gis-sidebar-body--action-pane' : '',
+              dockMapToolInSidebar ? 'gis-sidebar-body--tool-dock' : '',
+            ]
               .filter(Boolean)
               .join(' ')}
           >
@@ -4285,10 +4326,24 @@ export default function GisMap() {
               </div>
             ) : null}
             {!layersRailCollapsed && layers.length === 0 ? (
-            <div className="gis-empty" role="status" aria-live="polite">
-              <div className="gis-empty-title">No layers yet</div>
-              <div className="gis-empty-sub">No layers yet. Add an ArcGIS connection or upload a file.</div>
-            </div>
+            showDesktopGisRail ? (
+              <div className="gis-sidebar-layers-empty-agol" role="status" aria-live="polite">
+                <div className="gis-sidebar-layers-empty-agol__icon" aria-hidden="true">
+                  <i className="fa-solid fa-layer-group" />
+                </div>
+                <p className="gis-sidebar-layers-empty-agol__text">Add layers to your map and they will appear here.</p>
+                <button type="button" className="gis-sidebar-layers-empty-agol__add" onClick={() => openAddLayerModal()}>
+                  <i className="fa-solid fa-layer-group" aria-hidden="true" />
+                  <span>Add</span>
+                  <i className="fa-solid fa-chevron-down" aria-hidden="true" />
+                </button>
+              </div>
+            ) : (
+              <div className="gis-empty" role="status" aria-live="polite">
+                <div className="gis-empty-title">No layers yet</div>
+                <div className="gis-empty-sub">No layers yet. Add an ArcGIS connection or upload a file.</div>
+              </div>
+            )
           ) : null}
             {!layersRailCollapsed && layers.length > 0 ? (
             <div id="gis-sidebar-layers-scroll" className="gis-layer-list" role="list" aria-label="Layers list">

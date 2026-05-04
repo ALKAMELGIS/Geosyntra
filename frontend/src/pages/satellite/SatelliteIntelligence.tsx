@@ -2736,7 +2736,7 @@ export default function SatelliteIntelligence() {
             historyWithUser,
             userTextForMapFallback,
             primaryVectorLayers: satelliteCustomLayersToGeoAiLayers(customLayers),
-            mapboxAccessToken: mapboxToken || undefined,
+              mapboxAccessToken: mapboxToken || undefined,
             openWeatherApiKey,
             pinLngLat: geoAiPinLngLat,
             lastMapQueryCoords: lastMapQueryCoordsFromMessages(prev),
@@ -4255,7 +4255,7 @@ export default function SatelliteIntelligence() {
               </div>
               </div>
               <div className="si-map-floating-controls__right">
-          <div className="si-env-rail">
+            <div className="si-env-rail">
             <div
               role="toolbar"
               aria-orientation="vertical"
@@ -4270,16 +4270,16 @@ export default function SatelliteIntelligence() {
                 selection-mode="none"
                 calcite-hydrated=""
               >
-                <button
-                  type="button"
+              <button
+                type="button"
                   className={`si-env-calcite-action${isLayerDropdownOpen ? ' si-env-calcite-action--selected' : ''}`}
                   aria-pressed={isLayerDropdownOpen}
                   aria-label="Environmental layers and indices"
                   title="Environmental layers"
-                  onClick={() => setIsLayerDropdownOpen(open => !open)}
-                >
+                onClick={() => setIsLayerDropdownOpen(open => !open)}
+              >
                   <i className="fa-solid fa-layer-group" aria-hidden />
-                </button>
+              </button>
                 <span
                   className="si-env-toolbar-lit-hydration"
                   aria-hidden
@@ -4289,1387 +4289,1387 @@ export default function SatelliteIntelligence() {
                 <slot name="expand-tooltip" />
               </calcite-action-group>
             </div>
-            <input
-              ref={fileInputRef}
-              type="file"
-              className="add-layer-input"
-              accept=".kml,.kmz,.zip,.geojson,.json,.csv"
-              onChange={handleLayerFileChange}
-            />
-            {isLayerDropdownOpen && (
-              <div
-                className={`si-env-panel${
-                  expandedEnvSection === 'explore-stac' || expandedEnvSection === 'table-geo-ai'
-                    ? ' si-env-panel--explore-stac'
-                    : ''
-                }`}
-                dir="auto"
-              >
-                <div className="si-env-panel-header">
-                  <div className="si-env-header-top">
-                    <div>
-                      <div className="si-env-title">Environmental Index</div>
-                      <div className="si-env-imagery-date">
-                        Imagery date: {selectedDate.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}
+              <input
+                ref={fileInputRef}
+                type="file"
+                className="add-layer-input"
+                accept=".kml,.kmz,.zip,.geojson,.json,.csv"
+                onChange={handleLayerFileChange}
+              />
+              {isLayerDropdownOpen && (
+                <div
+                  className={`si-env-panel${
+                    expandedEnvSection === 'explore-stac' || expandedEnvSection === 'table-geo-ai'
+                      ? ' si-env-panel--explore-stac'
+                      : ''
+                  }`}
+                  dir="auto"
+                >
+                  <div className="si-env-panel-header">
+                    <div className="si-env-header-top">
+                      <div>
+                        <div className="si-env-title">Environmental Index</div>
+                        <div className="si-env-imagery-date">
+                          Imagery date: {selectedDate.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}
+                        </div>
                       </div>
-                    </div>
-                    <button
-                      type="button"
-                      className="si-env-close"
-                      onClick={() => setIsLayerDropdownOpen(false)}
-                    >
-                      <i className="fa-solid fa-xmark"></i>
-                    </button>
-                  </div>
-                </div>
-                <div className="si-env-panel-body">
-                  <div
-                    className="si-env-section-tabs si-env-section-tabs--four"
-                    role="tablist"
-                    aria-label="Environmental Index sections"
-                  >
-                    {[
-                      { id: 'layers' as const, label: 'Layers', icon: 'fa-solid fa-layer-group' },
-                      { id: 'explore-stac' as const, label: 'Explore STAC', icon: 'fa-solid fa-magnifying-glass-chart' },
-                      {
-                        id: 'remote-sensing' as const,
-                        label: 'Remote sensing',
-                        icon: 'fa-solid fa-satellite-dish',
-                      },
-                      {
-                        id: 'table-geo-ai' as const,
-                        label: 'Geo AI',
-                        icon: 'fa-solid fa-comments',
-                      },
-                    ].map(section => (
                       <button
-                        key={section.id}
                         type="button"
-                        className={expandedEnvSection === section.id ? 'active' : ''}
-                        onClick={() => setExpandedEnvSection(section.id)}
-                        aria-label={section.label}
-                        title={section.label}
+                        className="si-env-close"
+                        onClick={() => setIsLayerDropdownOpen(false)}
                       >
-                        <i className={section.icon} />
+                        <i className="fa-solid fa-xmark"></i>
                       </button>
-                    ))}
+                    </div>
                   </div>
-                  {expandedEnvSection === 'explore-stac' ? (
-                    <div className="si-explore-stac si-explore-stac--embedded si-explore-stac--in-header">
-          <div className="si-explore-stac-header">
-            <div>
-              <h2 id="si-explore-stac-title">Explore STAC</h2>
-              <p className="si-explore-stac-sub">
-                {stacConnection.connectionName}
-                <span className="si-explore-stac-sub-sep">·</span>
-                <a className="si-explore-stac-url" href={stacActiveSearchUrl} target="_blank" rel="noopener noreferrer" title={stacActiveSearchUrl}>{stacActiveSearchUrl}</a>
-              </p>
+                  <div className="si-env-panel-body">
+                    <div
+                      className="si-env-section-tabs si-env-section-tabs--four"
+                      role="tablist"
+                      aria-label="Environmental Index sections"
+                    >
+                      {[
+                        { id: 'layers' as const, label: 'Layers', icon: 'fa-solid fa-layer-group' },
+                        { id: 'explore-stac' as const, label: 'Explore STAC', icon: 'fa-solid fa-magnifying-glass-chart' },
+                        {
+                          id: 'remote-sensing' as const,
+                          label: 'Remote sensing',
+                          icon: 'fa-solid fa-satellite-dish',
+                        },
+                        {
+                          id: 'table-geo-ai' as const,
+                          label: 'Geo AI',
+                          icon: 'fa-solid fa-comments',
+                        },
+                      ].map(section => (
+                        <button
+                          key={section.id}
+                          type="button"
+                          className={expandedEnvSection === section.id ? 'active' : ''}
+                          onClick={() => setExpandedEnvSection(section.id)}
+                          aria-label={section.label}
+                          title={section.label}
+                        >
+                          <i className={section.icon} />
+                        </button>
+                      ))}
+                    </div>
+                    {expandedEnvSection === 'explore-stac' ? (
+                      <div className="si-explore-stac si-explore-stac--embedded si-explore-stac--in-header">
+            <div className="si-explore-stac-header">
+              <div>
+                <h2 id="si-explore-stac-title">Explore STAC</h2>
+                <p className="si-explore-stac-sub">
+                  {stacConnection.connectionName}
+                  <span className="si-explore-stac-sub-sep">·</span>
+                  <a className="si-explore-stac-url" href={stacActiveSearchUrl} target="_blank" rel="noopener noreferrer" title={stacActiveSearchUrl}>{stacActiveSearchUrl}</a>
+                </p>
+              </div>
+              <div className="si-explore-stac-header-actions">
+                <button type="button" className="si-explore-linkish" onClick={refreshExploreStacCatalog} disabled={isLoadingStacCollections}>
+                  {isLoadingStacCollections ? 'Refreshing…' : 'Refresh catalog'}
+                </button>
+              </div>
             </div>
-            <div className="si-explore-stac-header-actions">
-              <button type="button" className="si-explore-linkish" onClick={refreshExploreStacCatalog} disabled={isLoadingStacCollections}>
-                {isLoadingStacCollections ? 'Refreshing…' : 'Refresh catalog'}
+            <div className="si-explore-stac-tabs" role="tablist">
+              <button
+                type="button"
+                role="tab"
+                aria-selected={exploreTab === 'parameters'}
+                className={exploreTab === 'parameters' ? 'active' : ''}
+                onClick={() => setExploreTab('parameters')}
+              >
+                Parameters
+              </button>
+              <button
+                type="button"
+                role="tab"
+                aria-selected={exploreTab === 'results'}
+                className={exploreTab === 'results' ? 'active' : ''}
+                onClick={() => setExploreTab('results')}
+              >
+                Results
+              </button>
+              <button
+                type="button"
+                role="tab"
+                aria-selected="true"
+                className="active"
+                onClick={() => setExpandedEnvSection('source')}
+              >
+                Source
               </button>
             </div>
-          </div>
-          <div className="si-explore-stac-tabs" role="tablist">
-            <button
-              type="button"
-              role="tab"
-              aria-selected={exploreTab === 'parameters'}
-              className={exploreTab === 'parameters' ? 'active' : ''}
-              onClick={() => setExploreTab('parameters')}
+            <div
+              className={`si-explore-stac-body${exploreTab === 'results' ? ' si-explore-stac-body--results-tab' : ''}`}
             >
-              Parameters
-            </button>
-            <button
-              type="button"
-              role="tab"
-              aria-selected={exploreTab === 'results'}
-              className={exploreTab === 'results' ? 'active' : ''}
-              onClick={() => setExploreTab('results')}
-            >
-              Results
-            </button>
-            <button
-              type="button"
-              role="tab"
-              aria-selected="true"
-              className="active"
-              onClick={() => setExpandedEnvSection('source')}
-            >
-              Source
-            </button>
-          </div>
-          <div
-            className={`si-explore-stac-body${exploreTab === 'results' ? ' si-explore-stac-body--results-tab' : ''}`}
-          >
-            {exploreTab === 'parameters' ? (
-              <>
-                <div className="si-explore-collections-section">
-                  <div className="si-explore-collections-section-label">Search collections</div>
-                  <div className="si-explore-collections-search si-explore-collections-search--chrome">
-                    <i className="fa-solid fa-magnifying-glass" aria-hidden />
-                    <input
-                      type="search"
-                      placeholder="Filter by name…"
-                      value={exploreCollectionSearch}
-                      onChange={e => setExploreCollectionSearch(e.target.value)}
-                      aria-label="Search collections"
-                    />
-                    {exploreCollectionSearch ? (
-                      <button
-                        type="button"
-                        className="si-explore-search-clear"
-                        onClick={() => setExploreCollectionSearch('')}
-                        aria-label="Clear search"
-                      >
-                        <i className="fa-solid fa-xmark" aria-hidden />
+              {exploreTab === 'parameters' ? (
+                <>
+                  <div className="si-explore-collections-section">
+                    <div className="si-explore-collections-section-label">Search collections</div>
+                    <div className="si-explore-collections-search si-explore-collections-search--chrome">
+                      <i className="fa-solid fa-magnifying-glass" aria-hidden />
+                      <input
+                        type="search"
+                        placeholder="Filter by name…"
+                        value={exploreCollectionSearch}
+                        onChange={e => setExploreCollectionSearch(e.target.value)}
+                        aria-label="Search collections"
+                      />
+                      {exploreCollectionSearch ? (
+                        <button
+                          type="button"
+                          className="si-explore-search-clear"
+                          onClick={() => setExploreCollectionSearch('')}
+                          aria-label="Clear search"
+                        >
+                          <i className="fa-solid fa-xmark" aria-hidden />
+                        </button>
+                      ) : null}
+                      <i className="fa-solid fa-chevron-down si-explore-collections-search-suffix" aria-hidden />
+                    </div>
+                    <div className="si-explore-collections-quick-actions">
+                      <button type="button" className="si-explore-linkish" onClick={selectAllFilteredExploreCollections}>
+                        Select all (filtered)
                       </button>
-                    ) : null}
-                    <i className="fa-solid fa-chevron-down si-explore-collections-search-suffix" aria-hidden />
+                      <button type="button" className="si-explore-linkish" onClick={clearExploreCollectionSelection}>
+                        Clear selection
+                      </button>
+                    </div>
+                    <div className="si-explore-collection-table-head">
+                      <span />
+                      <span>Name</span>
+                      <span className="si-explore-col-meta-h" aria-hidden>
+                        <i className="fa-solid fa-list" />
+                      </span>
+                    </div>
+                    <div className="si-explore-collection-list-wrap si-explore-collection-list-wrap--parameters-top">
+                      {isLoadingStacCollections ? (
+                        <p className="si-explore-muted">Loading collections…</p>
+                      ) : stacCollectionsLoadError ? (
+                        <p className="si-explore-error">{stacCollectionsLoadError}</p>
+                      ) : exploreFilteredCollections.length === 0 ? (
+                        <p className="si-explore-muted">No collections match the filter.</p>
+                      ) : (
+                        <ul className="si-explore-collection-list">
+                          {exploreFilteredCollections.map(c => {
+                            const href = `${getStacCollectionsListUrl(stacConnection).replace(/\/$/, '')}/${encodeURIComponent(c.id)}`;
+                            return (
+                              <li key={c.id} className="si-explore-collection-row">
+                                <input
+                                  type="checkbox"
+                                  checked={exploreSelectedCollectionIds.includes(c.id)}
+                                  onChange={() => toggleExploreCollection(c.id)}
+                                  aria-label={`Select ${c.id}`}
+                                />
+                                <span className="si-explore-collection-id" title={c.title}>
+                                  {c.id}
+                                </span>
+                                <a
+                                  className="si-explore-collection-link"
+                                  href={href}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  title="Open collection metadata"
+                                  onClick={e => e.stopPropagation()}
+                                >
+                                  <i className="fa-solid fa-list" aria-hidden />
+                                </a>
+                              </li>
+                            );
+                          })}
+                        </ul>
+                      )}
+                    </div>
+                    <div className="si-explore-collections-summary">
+                      <span className="si-explore-collections-summary-note">
+                        {exploreSelectedCollectionIds.length} of {stacCatalogCollections.length} selected
+                      </span>
+                      <i className="fa-solid fa-border-all si-explore-collections-summary-grid" aria-hidden title="Selection summary" />
+                    </div>
                   </div>
-                  <div className="si-explore-collections-quick-actions">
-                    <button type="button" className="si-explore-linkish" onClick={selectAllFilteredExploreCollections}>
-                      Select all (filtered)
-                    </button>
-                    <button type="button" className="si-explore-linkish" onClick={clearExploreCollectionSelection}>
-                      Clear selection
-                    </button>
+
+                  <div className="si-explore-accordions">
+                    <div className="si-explore-acc">
+                      <button type="button" className="si-explore-acc-btn" onClick={() => toggleExploreAccordionKey('description')}>
+                        <span className="si-explore-acc-chev" aria-hidden>
+                          <i className={`fa-solid ${openExploreAccordions.description ? 'fa-chevron-down' : 'fa-chevron-right'}`} />
+                        </span>
+                        Description
+                      </button>
+                      {openExploreAccordions.description ? (
+                        <div className="si-explore-acc-panel">
+                          <label className="si-explore-field si-explore-field--flush">
+                            <span>Filter keyword (id, title, description)</span>
+                            <textarea
+                              className="si-explore-desc-textarea"
+                              rows={4}
+                              value={exploreDescriptionKeyword}
+                              onChange={e => setExploreDescriptionKeyword(e.target.value)}
+                              placeholder="e.g. Sentinel, Landsat, DEM"
+                            />
+                          </label>
+                        </div>
+                      ) : null}
+                    </div>
+                    <div className="si-explore-acc">
+                      <button type="button" className="si-explore-acc-btn" onClick={() => toggleExploreAccordionKey('datetime')}>
+                        <span className="si-explore-acc-chev" aria-hidden>
+                          <i className={`fa-solid ${openExploreAccordions.datetime ? 'fa-chevron-down' : 'fa-chevron-right'}`} />
+                        </span>
+                        Date and Time
+                      </button>
+                      {openExploreAccordions.datetime ? (
+                        <div className="si-explore-acc-panel">
+                          <label className="si-explore-field si-explore-datetime-source">
+                            <span>Time range source</span>
+                            <select
+                              className="si-explore-select"
+                              value={exploreDateSourceMode}
+                              onChange={e => {
+                                const v = e.target.value as ExploreDateSourceMode;
+                                if (v === 'manual') {
+                                  setExploreDateStart(timeSeriesStart);
+                                  setExploreDateEnd(timeSeriesEnd);
+                                }
+                                setExploreDateSourceMode(v);
+                              }}
+                              aria-label="Date and time source"
+                            >
+                              <option value="manual">As specified below</option>
+                              <option value="environmental_parameter">{exploreSelectedCollectionsLabel}</option>
+                              <option value="sentinel2_views">Sentinel-2 views</option>
+                            </select>
+                          </label>
+                          {exploreDateSourceMode === 'manual' ? (
+                            <p className="si-explore-datetime-linked-hint">
+                              Dates are used only for Explore STAC search; adjust the Environmental Index timeline separately if
+                              needed.
+                            </p>
+                          ) : exploreDateSourceMode === 'environmental_parameter' ? (
+                            <p className="si-explore-datetime-linked-hint">
+                              Search uses the <strong>Environmental Index</strong> time range (
+                              {ENVIRONMENTAL_INDICES[selectedIndex].label}): you can edit the dates below or change{' '}
+                              <strong>Time series</strong> in the Source panel.
+                            </p>
+                          ) : (
+                            <p className="si-explore-datetime-linked-hint">
+                              Same range as the Sentinel-2 / weekly workflow — edit the dates below or adjust{' '}
+                              <strong>Time series</strong> in Source.
+                            </p>
+                          )}
+                          <div className="si-explore-date-row">
+                            <label className="si-explore-date-field">
+                              <span>
+                                <i className="fa-regular fa-calendar" aria-hidden /> Start date
+                              </span>
+                              <input
+                                type="date"
+                                value={exploreDateSourceMode === 'manual' ? exploreDateStart : timeSeriesStart}
+                                onChange={e => {
+                                  const v = e.target.value;
+                                  if (exploreDateSourceMode === 'manual') {
+                                    setExploreDateStart(v);
+                                  } else {
+                                    setTimeSeriesStart(v);
+                                    setExploreDateStart(v);
+                                  }
+                                }}
+                              />
+                            </label>
+                            <span className="si-explore-date-sep" aria-hidden>
+                              —
+                            </span>
+                            <label className="si-explore-date-field">
+                              <span>
+                                <i className="fa-regular fa-calendar" aria-hidden /> End date
+                              </span>
+                              <input
+                                type="date"
+                                value={exploreDateSourceMode === 'manual' ? exploreDateEnd : timeSeriesEnd}
+                                onChange={e => {
+                                  const v = e.target.value;
+                                  if (exploreDateSourceMode === 'manual') {
+                                    setExploreDateEnd(v);
+                                  } else {
+                                    setTimeSeriesEnd(v);
+                                    setExploreDateEnd(v);
+                                  }
+                                }}
+                              />
+                            </label>
+                          </div>
+                        </div>
+                      ) : null}
+                    </div>
+                    <div className="si-explore-acc">
+                      <button type="button" className="si-explore-acc-btn" onClick={() => toggleExploreAccordionKey('extent')}>
+                        <span className="si-explore-acc-chev" aria-hidden>
+                          <i className={`fa-solid ${openExploreAccordions.extent ? 'fa-chevron-down' : 'fa-chevron-right'}`} />
+                        </span>
+                        Extent
+                      </button>
+                      {openExploreAccordions.extent ? (
+                        <div className="si-explore-acc-panel">
+                          <label className="si-explore-field si-explore-field--tight">
+                            <span>Spatial extent</span>
+                            <div className="si-explore-extent-select-row">
+                              <select
+                                className="si-explore-select"
+                                value={exploreExtentMode}
+                                onChange={e => setExploreExtentMode(e.target.value as typeof exploreExtentMode)}
+                                aria-label="Extent mode"
+                              >
+                                <option value="map">Current map view</option>
+                                <option value="drawn" disabled={!drawnGeometry}>
+                                  Drawn AOI{!drawnGeometry ? ' (none)' : ''}
+                                </option>
+                                <option value="layer" disabled={!pivots.length}>
+                                  Uploaded fields / pivots{!pivots.length ? ' (none)' : ''}
+                                </option>
+                                <option value="default">Default demo extent</option>
+                                <option value="manual">As specified below</option>
+                              </select>
+                              <button
+                                type="button"
+                                className="si-explore-extent-map-sync"
+                                title="Copy current map extent into manual coordinates"
+                                onClick={() => {
+                                  const map = mapRef.current?.getMap?.() ?? mapRef.current;
+                                  try {
+                                    const b = map?.getBounds?.();
+                                    if (!b) return;
+                                    setExploreExtentMode('manual');
+                                    setExploreManualBbox({
+                                      north: b.getNorth().toFixed(5),
+                                      south: b.getSouth().toFixed(5),
+                                      east: b.getEast().toFixed(5),
+                                      west: b.getWest().toFixed(5),
+                                    });
+                                  } catch {
+                                    /* ignore */
+                                  }
+                                }}
+                              >
+                                <i className="fa-solid fa-map" aria-hidden />
+                              </button>
+                            </div>
+                          </label>
+                          {exploreExtentMode === 'manual' ? (
+                            <div className="si-explore-bbox-diamond">
+                              <div className="si-explore-bbox-diamond-label">Boundary (WGS84)</div>
+                              <div className="si-explore-bbox-row si-explore-bbox-row--single">
+                                <label>
+                                  <span>Top (north)</span>
+                                  <input
+                                    type="text"
+                                    inputMode="decimal"
+                                    value={exploreManualBbox.north}
+                                    onChange={e => setExploreManualBbox(o => ({ ...o, north: e.target.value }))}
+                                    placeholder="25.30"
+                                  />
+                                </label>
+                              </div>
+                              <div className="si-explore-bbox-row si-explore-bbox-row--pair">
+                                <label>
+                                  <span>Left (west)</span>
+                                  <input
+                                    type="text"
+                                    inputMode="decimal"
+                                    value={exploreManualBbox.west}
+                                    onChange={e => setExploreManualBbox(o => ({ ...o, west: e.target.value }))}
+                                    placeholder="55.10"
+                                  />
+                                </label>
+                                <label>
+                                  <span>Right (east)</span>
+                                  <input
+                                    type="text"
+                                    inputMode="decimal"
+                                    value={exploreManualBbox.east}
+                                    onChange={e => setExploreManualBbox(o => ({ ...o, east: e.target.value }))}
+                                    placeholder="55.35"
+                                  />
+                                </label>
+                              </div>
+                              <div className="si-explore-bbox-row si-explore-bbox-row--single">
+                                <label>
+                                  <span>Bottom (south)</span>
+                                  <input
+                                    type="text"
+                                    inputMode="decimal"
+                                    value={exploreManualBbox.south}
+                                    onChange={e => setExploreManualBbox(o => ({ ...o, south: e.target.value }))}
+                                    placeholder="25.00"
+                                  />
+                                </label>
+                              </div>
+                            </div>
+                          ) : null}
+                        </div>
+                      ) : null}
+                    </div>
+                    <div className="si-explore-acc">
+                      <button type="button" className="si-explore-acc-btn" onClick={() => toggleExploreAccordionKey('ids')}>
+                        <span className="si-explore-acc-chev" aria-hidden>
+                          <i className={`fa-solid ${openExploreAccordions.ids ? 'fa-chevron-down' : 'fa-chevron-right'}`} />
+                        </span>
+                        ID(s)
+                      </button>
+                      {openExploreAccordions.ids ? (
+                        <div className="si-explore-acc-panel">
+                          <label className="si-explore-field">
+                            <span>Item ids (comma, space, or newline)</span>
+                            <textarea
+                              value={exploreIdsText}
+                              onChange={e => setExploreIdsText(e.target.value)}
+                              rows={3}
+                              placeholder="S2A_MSIL2A_..."
+                            />
+                          </label>
+                        </div>
+                      ) : null}
+                    </div>
+                    <div className="si-explore-acc">
+                      <button type="button" className="si-explore-acc-btn" onClick={() => toggleExploreAccordionKey('attributes')}>
+                        <span className="si-explore-acc-chev" aria-hidden>
+                          <i className={`fa-solid ${openExploreAccordions.attributes ? 'fa-chevron-down' : 'fa-chevron-right'}`} />
+                        </span>
+                        Attributes
+                      </button>
+                      {openExploreAccordions.attributes ? (
+                        <div className="si-explore-acc-panel">
+                          <label className="si-explore-check">
+                            <input
+                              type="checkbox"
+                              checked={exploreUseCloudFilter}
+                              onChange={e => setExploreUseCloudFilter(e.target.checked)}
+                            />
+                            Apply eo:cloud_cover &lt; limit for Sentinel-2–style collections
+                          </label>
+                          <label className="si-explore-field">
+                            <span>Max cloud cover (%)</span>
+                            <input
+                              type="number"
+                              min={0}
+                              max={100}
+                              value={exploreCloudCoverMax}
+                              onChange={e => setExploreCloudCoverMax(Number(e.target.value))}
+                            />
+                          </label>
+                        </div>
+                      ) : null}
+                    </div>
+                    <div className="si-explore-acc">
+                      <button type="button" className="si-explore-acc-btn" onClick={() => toggleExploreAccordionKey('limit')}>
+                        <span className="si-explore-acc-chev" aria-hidden>
+                          <i className={`fa-solid ${openExploreAccordions.limit ? 'fa-chevron-down' : 'fa-chevron-right'}`} />
+                        </span>
+                        Items per page
+                      </button>
+                      {openExploreAccordions.limit ? (
+                        <div className="si-explore-acc-panel">
+                          <label className="si-explore-field">
+                            <span>API result limit (max 1000)</span>
+                            <input
+                              type="number"
+                              min={1}
+                              max={1000}
+                              value={exploreLimit}
+                              onChange={e => setExploreLimit(Number(e.target.value))}
+                            />
+                          </label>
+                        </div>
+                      ) : null}
+                    </div>
                   </div>
-                  <div className="si-explore-collection-table-head">
-                    <span />
-                    <span>Name</span>
-                    <span className="si-explore-col-meta-h" aria-hidden>
-                      <i className="fa-solid fa-list" />
+                </>
+              ) : (
+                <>
+                  <div className="si-explore-results-toolbar si-explore-results-toolbar--rich">
+                    <label className="si-explore-results-toolbar-check">
+                      <input
+                        type="checkbox"
+                        disabled={!explorePageSelectionStats.keys.length}
+                        checked={explorePageSelectionStats.allSelected}
+                        ref={el => {
+                          if (el) {
+                            el.indeterminate =
+                              explorePageSelectionStats.someSelected && !explorePageSelectionStats.allSelected;
+                          }
+                        }}
+                        onChange={() => {
+                          if (explorePageSelectionStats.allSelected) {
+                            deselectAllExplorePageKeys(explorePageSelectionStats.keys);
+                          } else {
+                            selectAllExplorePageKeys(explorePageSelectionStats.keys);
+                          }
+                        }}
+                        aria-label="Select all on this page"
+                      />
+                    </label>
+                    <div className="si-explore-results-toolbar-icons" aria-hidden>
+                      <i className="fa-solid fa-folder-plus" />
+                      <i className="fa-solid fa-border-all" />
+                    </div>
+                    <span className="si-explore-results-count si-explore-results-count--inline">
+                      {exploreSortedStacItems.length} items
+                      {stacMosaicStaging.length > 0 ? (
+                        <span className="si-explore-mosaic-chip" title="Scenes staged for mosaic">
+                          {' '}
+                          · mosaic {stacMosaicStaging.length}
+                        </span>
+                      ) : null}
                     </span>
+                    <div className="si-explore-results-toolbar-spacer" />
+                    <button
+                      type="button"
+                      className="si-explore-icon-btn"
+                      title={exploreResultsSortDesc ? 'Newest first' : 'Oldest first'}
+                      onClick={() => {
+                        setExploreResultsSortDesc(d => !d);
+                        setExploreResultsPage(0);
+                      }}
+                    >
+                      <i className="fa-solid fa-arrow-down-wide-short" aria-hidden />
+                    </button>
+                    <button
+                      type="button"
+                      className="si-explore-icon-btn"
+                      title="Refresh"
+                      onClick={runExploreStacViewResults}
+                      disabled={isLoadingStac || !exploreSelectedCollectionIds.length}
+                    >
+                      <i className={`fa-solid fa-rotate${isLoadingStac ? ' fa-spin' : ''}`} aria-hidden />
+                    </button>
+                    <button
+                      type="button"
+                      className="si-explore-icon-btn"
+                      title="Zoom to all footprints"
+                      onClick={zoomMapToStacFootprints}
+                      disabled={!stacFootprintsGeoJson.features.length}
+                    >
+                      <i className="fa-solid fa-expand" aria-hidden />
+                    </button>
                   </div>
-                  <div className="si-explore-collection-list-wrap si-explore-collection-list-wrap--parameters-top">
-                    {isLoadingStacCollections ? (
-                      <p className="si-explore-muted">Loading collections…</p>
-                    ) : stacCollectionsLoadError ? (
-                      <p className="si-explore-error">{stacCollectionsLoadError}</p>
-                    ) : exploreFilteredCollections.length === 0 ? (
-                      <p className="si-explore-muted">No collections match the filter.</p>
+                  <label className="si-explore-check-inline si-explore-footprints-toggle">
+                    <input
+                      type="checkbox"
+                      checked={showStacFootprintsOnMap}
+                      onChange={e => setShowStacFootprintsOnMap(e.target.checked)}
+                    />
+                    Footprints on map
+                  </label>
+                  <div className="si-explore-results-cards-wrap">
+                    {exploreSortedStacItems.length === 0 ? (
+                      <p className="si-explore-muted">Run a search from the Parameters tab.</p>
                     ) : (
-                      <ul className="si-explore-collection-list">
-                        {exploreFilteredCollections.map(c => {
-                          const href = `${getStacCollectionsListUrl(stacConnection).replace(/\/$/, '')}/${encodeURIComponent(c.id)}`;
+                      <ul className="si-explore-results-cards">
+                        {explorePaginatedStacItems.map((item: any) => {
+                          const key = stacItemStableKey(item);
+                          const thumbUrls = getStacItemThumbCandidateUrls(item, stacConnection);
+                          const idFull = String(item.id ?? '');
+                          const cloudRaw = item.properties?.['eo:cloud_cover'];
+                          const cloudStr =
+                            cloudRaw == null || cloudRaw === ''
+                              ? '—'
+                              : `${typeof cloudRaw === 'number' ? cloudRaw.toFixed(2) : cloudRaw}%`;
+                          const dt = String(item.properties?.datetime ?? '—');
+                          const sensor = getStacItemSensorLabel(item);
                           return (
-                            <li key={c.id} className="si-explore-collection-row">
+                            <li key={key} className="si-explore-result-card">
                               <input
                                 type="checkbox"
-                                checked={exploreSelectedCollectionIds.includes(c.id)}
-                                onChange={() => toggleExploreCollection(c.id)}
-                                aria-label={`Select ${c.id}`}
+                                className="si-explore-result-card-check"
+                                checked={exploreSelectedResultKeys.includes(key)}
+                                onChange={() => toggleExploreResultKey(key)}
+                                aria-label={`Select ${idFull}`}
                               />
-                              <span className="si-explore-collection-id" title={c.title}>
-                                {c.id}
-                              </span>
-                              <a
-                                className="si-explore-collection-link"
-                                href={href}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                title="Open collection metadata"
-                                onClick={e => e.stopPropagation()}
-                              >
-                                <i className="fa-solid fa-list" aria-hidden />
-                              </a>
+                              <div className="si-explore-result-main">
+                                <div className="si-explore-result-id" title={idFull}>
+                                  {idFull.length > 52 ? `${idFull.slice(0, 52)}…` : idFull}
+                                </div>
+                                <div className="si-explore-result-meta">
+                                  <span title={dt}>{dt.length > 24 ? `${dt.slice(0, 24)}…` : dt}</span>
+                                  <span>{sensor}</span>
+                                  <span>{cloudStr}</span>
+                                  <span className="si-explore-result-collection">{String(item.collection ?? '')}</span>
+                                </div>
+                                <div className="si-explore-result-actions">
+                                  <button
+                                    type="button"
+                                    className="si-explore-result-action-btn"
+                                    title="Zoom to footprint"
+                                    onClick={() => flyToStacItemExtent(item)}
+                                  >
+                                    <i className="fa-solid fa-map-location-dot" aria-hidden />
+                                  </button>
+                                  <div className="si-explore-add-wrap">
+                                    <button
+                                      type="button"
+                                      className="si-explore-add-trigger"
+                                      title="Add to map / scene"
+                                      aria-expanded={stacAddToMenuKey === key}
+                                      aria-haspopup="menu"
+                                      onClick={e => {
+                                        e.stopPropagation();
+                                        setStacAddToMenuKey(k => (k === key ? null : key));
+                                      }}
+                                    >
+                                      <i className="fa-solid fa-folder-plus" aria-hidden />
+                                      <i className="fa-solid fa-chevron-down si-explore-add-chev" aria-hidden />
+                                    </button>
+                                    {stacAddToMenuKey === key ? (
+                                      <ul className="si-explore-add-menu" role="menu">
+                                        <li role="none">
+                                          <button
+                                            type="button"
+                                            role="menuitem"
+                                            className="si-explore-add-menu-item"
+                                            onClick={() => void addStacToCurrentMap(item)}
+                                          >
+                                            <i className="fa-solid fa-map" aria-hidden />
+                                            Add to Current Map
+                                          </button>
+                                        </li>
+                                        <li role="none">
+                                          <button
+                                            type="button"
+                                            role="menuitem"
+                                            className="si-explore-add-menu-item"
+                                            onClick={() => addStacToNewMap(item)}
+                                          >
+                                            <i className="fa-solid fa-map" aria-hidden />
+                                            Add to New Map
+                                          </button>
+                                        </li>
+                                        <li role="none">
+                                          <button
+                                            type="button"
+                                            role="menuitem"
+                                            className="si-explore-add-menu-item"
+                                            onClick={() => void addStacToGlobalScene(item)}
+                                          >
+                                            <i className="fa-solid fa-globe" aria-hidden />
+                                            Add to New Global Scene
+                                          </button>
+                                        </li>
+                                        <li role="none">
+                                          <button
+                                            type="button"
+                                            role="menuitem"
+                                            className="si-explore-add-menu-item"
+                                            onClick={() => void addStacToLocalScene(item)}
+                                          >
+                                            <i className="fa-solid fa-mountain" aria-hidden />
+                                            Add to New Local Scene
+                                          </button>
+                                        </li>
+                                        <li role="none">
+                                          <button
+                                            type="button"
+                                            role="menuitem"
+                                            className="si-explore-add-menu-item"
+                                            onClick={() => addStacToMosaicStaging(item)}
+                                          >
+                                            <i className="fa-solid fa-layer-group" aria-hidden />
+                                            Add to Mosaic Dataset
+                                          </button>
+                                        </li>
+                                      </ul>
+                                    ) : null}
+                                  </div>
+                                  <button
+                                    type="button"
+                                    className="si-explore-result-action-btn"
+                                    title="Open item JSON"
+                                    onClick={() => openExploreStacItemDetails(item)}
+                                  >
+                                    <i className="fa-solid fa-file-code" aria-hidden />
+                                  </button>
+                                  <button
+                                    type="button"
+                                    className="si-explore-result-action-btn"
+                                    title="Preview on map"
+                                    onClick={() => showStacItemThumbOnMap(item)}
+                                  >
+                                    <i className="fa-regular fa-image" aria-hidden />
+                                  </button>
+                                </div>
+                              </div>
+                              <div className="si-explore-result-thumb">
+                                <StacExploreThumb hrefList={thumbUrls} reactKey={key} />
+                              </div>
                             </li>
                           );
                         })}
                       </ul>
                     )}
                   </div>
-                  <div className="si-explore-collections-summary">
-                    <span className="si-explore-collections-summary-note">
-                      {exploreSelectedCollectionIds.length} of {stacCatalogCollections.length} selected
-                    </span>
-                    <i className="fa-solid fa-border-all si-explore-collections-summary-grid" aria-hidden title="Selection summary" />
-                  </div>
-                </div>
-
-                <div className="si-explore-accordions">
-                  <div className="si-explore-acc">
-                    <button type="button" className="si-explore-acc-btn" onClick={() => toggleExploreAccordionKey('description')}>
-                      <span className="si-explore-acc-chev" aria-hidden>
-                        <i className={`fa-solid ${openExploreAccordions.description ? 'fa-chevron-down' : 'fa-chevron-right'}`} />
-                      </span>
-                      Description
-                    </button>
-                    {openExploreAccordions.description ? (
-                      <div className="si-explore-acc-panel">
-                        <label className="si-explore-field si-explore-field--flush">
-                          <span>Filter keyword (id, title, description)</span>
-                          <textarea
-                            className="si-explore-desc-textarea"
-                            rows={4}
-                            value={exploreDescriptionKeyword}
-                            onChange={e => setExploreDescriptionKeyword(e.target.value)}
-                            placeholder="e.g. Sentinel, Landsat, DEM"
-                          />
-                        </label>
+                  {exploreSortedStacItems.length > 0 ? (
+                    <div className="si-explore-results-footer-bar">
+                      <div className="si-explore-results-footer-stats">
+                        <span>
+                          Page {exploreResultsPage + 1} : {explorePageSelectionStats.selectedOnPage} of{' '}
+                          {explorePageSelectionStats.keys.length} selected
+                        </span>
+                        <span className="si-explore-results-footer-sep" />
+                        <span>Total selected items: {exploreSelectedResultKeys.length}</span>
                       </div>
-                    ) : null}
-                  </div>
-                  <div className="si-explore-acc">
-                    <button type="button" className="si-explore-acc-btn" onClick={() => toggleExploreAccordionKey('datetime')}>
-                      <span className="si-explore-acc-chev" aria-hidden>
-                        <i className={`fa-solid ${openExploreAccordions.datetime ? 'fa-chevron-down' : 'fa-chevron-right'}`} />
-                      </span>
-                      Date and Time
-                    </button>
-                    {openExploreAccordions.datetime ? (
-                      <div className="si-explore-acc-panel">
-                        <label className="si-explore-field si-explore-datetime-source">
-                          <span>Time range source</span>
-                          <select
-                            className="si-explore-select"
-                            value={exploreDateSourceMode}
-                            onChange={e => {
-                              const v = e.target.value as ExploreDateSourceMode;
-                              if (v === 'manual') {
-                                setExploreDateStart(timeSeriesStart);
-                                setExploreDateEnd(timeSeriesEnd);
-                              }
-                              setExploreDateSourceMode(v);
-                            }}
-                            aria-label="Date and time source"
-                          >
-                            <option value="manual">As specified below</option>
-                            <option value="environmental_parameter">{exploreSelectedCollectionsLabel}</option>
-                            <option value="sentinel2_views">Sentinel-2 views</option>
-                          </select>
-                        </label>
-                        {exploreDateSourceMode === 'manual' ? (
-                          <p className="si-explore-datetime-linked-hint">
-                            Dates are used only for Explore STAC search; adjust the Environmental Index timeline separately if
-                            needed.
-                          </p>
-                        ) : exploreDateSourceMode === 'environmental_parameter' ? (
-                          <p className="si-explore-datetime-linked-hint">
-                            Search uses the <strong>Environmental Index</strong> time range (
-                            {ENVIRONMENTAL_INDICES[selectedIndex].label}): you can edit the dates below or change{' '}
-                            <strong>Time series</strong> in the Source panel.
-                          </p>
-                        ) : (
-                          <p className="si-explore-datetime-linked-hint">
-                            Same range as the Sentinel-2 / weekly workflow — edit the dates below or adjust{' '}
-                            <strong>Time series</strong> in Source.
-                          </p>
-                        )}
-                        <div className="si-explore-date-row">
-                          <label className="si-explore-date-field">
-                            <span>
-                              <i className="fa-regular fa-calendar" aria-hidden /> Start date
-                            </span>
-                            <input
-                              type="date"
-                              value={exploreDateSourceMode === 'manual' ? exploreDateStart : timeSeriesStart}
-                              onChange={e => {
-                                const v = e.target.value;
-                                if (exploreDateSourceMode === 'manual') {
-                                  setExploreDateStart(v);
-                                } else {
-                                  setTimeSeriesStart(v);
-                                  setExploreDateStart(v);
-                                }
-                              }}
-                            />
-                          </label>
-                          <span className="si-explore-date-sep" aria-hidden>
-                            —
-                          </span>
-                          <label className="si-explore-date-field">
-                            <span>
-                              <i className="fa-regular fa-calendar" aria-hidden /> End date
-                            </span>
-                            <input
-                              type="date"
-                              value={exploreDateSourceMode === 'manual' ? exploreDateEnd : timeSeriesEnd}
-                              onChange={e => {
-                                const v = e.target.value;
-                                if (exploreDateSourceMode === 'manual') {
-                                  setExploreDateEnd(v);
-                                } else {
-                                  setTimeSeriesEnd(v);
-                                  setExploreDateEnd(v);
-                                }
-                              }}
-                            />
-                          </label>
-                        </div>
-                      </div>
-                    ) : null}
-                  </div>
-                  <div className="si-explore-acc">
-                    <button type="button" className="si-explore-acc-btn" onClick={() => toggleExploreAccordionKey('extent')}>
-                      <span className="si-explore-acc-chev" aria-hidden>
-                        <i className={`fa-solid ${openExploreAccordions.extent ? 'fa-chevron-down' : 'fa-chevron-right'}`} />
-                      </span>
-                      Extent
-                    </button>
-                    {openExploreAccordions.extent ? (
-                      <div className="si-explore-acc-panel">
-                        <label className="si-explore-field si-explore-field--tight">
-                          <span>Spatial extent</span>
-                          <div className="si-explore-extent-select-row">
-                            <select
-                              className="si-explore-select"
-                              value={exploreExtentMode}
-                              onChange={e => setExploreExtentMode(e.target.value as typeof exploreExtentMode)}
-                              aria-label="Extent mode"
-                            >
-                              <option value="map">Current map view</option>
-                              <option value="drawn" disabled={!drawnGeometry}>
-                                Drawn AOI{!drawnGeometry ? ' (none)' : ''}
-                              </option>
-                              <option value="layer" disabled={!pivots.length}>
-                                Uploaded fields / pivots{!pivots.length ? ' (none)' : ''}
-                              </option>
-                              <option value="default">Default demo extent</option>
-                              <option value="manual">As specified below</option>
-                            </select>
-                            <button
-                              type="button"
-                              className="si-explore-extent-map-sync"
-                              title="Copy current map extent into manual coordinates"
-                              onClick={() => {
-                                const map = mapRef.current?.getMap?.() ?? mapRef.current;
-                                try {
-                                  const b = map?.getBounds?.();
-                                  if (!b) return;
-                                  setExploreExtentMode('manual');
-                                  setExploreManualBbox({
-                                    north: b.getNorth().toFixed(5),
-                                    south: b.getSouth().toFixed(5),
-                                    east: b.getEast().toFixed(5),
-                                    west: b.getWest().toFixed(5),
-                                  });
-                                } catch {
-                                  /* ignore */
-                                }
-                              }}
-                            >
-                              <i className="fa-solid fa-map" aria-hidden />
-                            </button>
-                          </div>
-                        </label>
-                        {exploreExtentMode === 'manual' ? (
-                          <div className="si-explore-bbox-diamond">
-                            <div className="si-explore-bbox-diamond-label">Boundary (WGS84)</div>
-                            <div className="si-explore-bbox-row si-explore-bbox-row--single">
-                              <label>
-                                <span>Top (north)</span>
-                                <input
-                                  type="text"
-                                  inputMode="decimal"
-                                  value={exploreManualBbox.north}
-                                  onChange={e => setExploreManualBbox(o => ({ ...o, north: e.target.value }))}
-                                  placeholder="25.30"
-                                />
-                              </label>
-                            </div>
-                            <div className="si-explore-bbox-row si-explore-bbox-row--pair">
-                              <label>
-                                <span>Left (west)</span>
-                                <input
-                                  type="text"
-                                  inputMode="decimal"
-                                  value={exploreManualBbox.west}
-                                  onChange={e => setExploreManualBbox(o => ({ ...o, west: e.target.value }))}
-                                  placeholder="55.10"
-                                />
-                              </label>
-                              <label>
-                                <span>Right (east)</span>
-                                <input
-                                  type="text"
-                                  inputMode="decimal"
-                                  value={exploreManualBbox.east}
-                                  onChange={e => setExploreManualBbox(o => ({ ...o, east: e.target.value }))}
-                                  placeholder="55.35"
-                                />
-                              </label>
-                            </div>
-                            <div className="si-explore-bbox-row si-explore-bbox-row--single">
-                              <label>
-                                <span>Bottom (south)</span>
-                                <input
-                                  type="text"
-                                  inputMode="decimal"
-                                  value={exploreManualBbox.south}
-                                  onChange={e => setExploreManualBbox(o => ({ ...o, south: e.target.value }))}
-                                  placeholder="25.00"
-                                />
-                              </label>
-                            </div>
-                          </div>
-                        ) : null}
-                      </div>
-                    ) : null}
-                  </div>
-                  <div className="si-explore-acc">
-                    <button type="button" className="si-explore-acc-btn" onClick={() => toggleExploreAccordionKey('ids')}>
-                      <span className="si-explore-acc-chev" aria-hidden>
-                        <i className={`fa-solid ${openExploreAccordions.ids ? 'fa-chevron-down' : 'fa-chevron-right'}`} />
-                      </span>
-                      ID(s)
-                    </button>
-                    {openExploreAccordions.ids ? (
-                      <div className="si-explore-acc-panel">
-                        <label className="si-explore-field">
-                          <span>Item ids (comma, space, or newline)</span>
-                          <textarea
-                            value={exploreIdsText}
-                            onChange={e => setExploreIdsText(e.target.value)}
-                            rows={3}
-                            placeholder="S2A_MSIL2A_..."
-                          />
-                        </label>
-                      </div>
-                    ) : null}
-                  </div>
-                  <div className="si-explore-acc">
-                    <button type="button" className="si-explore-acc-btn" onClick={() => toggleExploreAccordionKey('attributes')}>
-                      <span className="si-explore-acc-chev" aria-hidden>
-                        <i className={`fa-solid ${openExploreAccordions.attributes ? 'fa-chevron-down' : 'fa-chevron-right'}`} />
-                      </span>
-                      Attributes
-                    </button>
-                    {openExploreAccordions.attributes ? (
-                      <div className="si-explore-acc-panel">
-                        <label className="si-explore-check">
-                          <input
-                            type="checkbox"
-                            checked={exploreUseCloudFilter}
-                            onChange={e => setExploreUseCloudFilter(e.target.checked)}
-                          />
-                          Apply eo:cloud_cover &lt; limit for Sentinel-2–style collections
-                        </label>
-                        <label className="si-explore-field">
-                          <span>Max cloud cover (%)</span>
-                          <input
-                            type="number"
-                            min={0}
-                            max={100}
-                            value={exploreCloudCoverMax}
-                            onChange={e => setExploreCloudCoverMax(Number(e.target.value))}
-                          />
-                        </label>
-                      </div>
-                    ) : null}
-                  </div>
-                  <div className="si-explore-acc">
-                    <button type="button" className="si-explore-acc-btn" onClick={() => toggleExploreAccordionKey('limit')}>
-                      <span className="si-explore-acc-chev" aria-hidden>
-                        <i className={`fa-solid ${openExploreAccordions.limit ? 'fa-chevron-down' : 'fa-chevron-right'}`} />
-                      </span>
-                      Items per page
-                    </button>
-                    {openExploreAccordions.limit ? (
-                      <div className="si-explore-acc-panel">
-                        <label className="si-explore-field">
-                          <span>API result limit (max 1000)</span>
-                          <input
-                            type="number"
-                            min={1}
-                            max={1000}
-                            value={exploreLimit}
-                            onChange={e => setExploreLimit(Number(e.target.value))}
-                          />
-                        </label>
-                      </div>
-                    ) : null}
-                  </div>
-                </div>
-              </>
-            ) : (
-              <>
-                <div className="si-explore-results-toolbar si-explore-results-toolbar--rich">
-                  <label className="si-explore-results-toolbar-check">
-                    <input
-                      type="checkbox"
-                      disabled={!explorePageSelectionStats.keys.length}
-                      checked={explorePageSelectionStats.allSelected}
-                      ref={el => {
-                        if (el) {
-                          el.indeterminate =
-                            explorePageSelectionStats.someSelected && !explorePageSelectionStats.allSelected;
-                        }
-                      }}
-                      onChange={() => {
-                        if (explorePageSelectionStats.allSelected) {
-                          deselectAllExplorePageKeys(explorePageSelectionStats.keys);
-                        } else {
-                          selectAllExplorePageKeys(explorePageSelectionStats.keys);
-                        }
-                      }}
-                      aria-label="Select all on this page"
-                    />
-                  </label>
-                  <div className="si-explore-results-toolbar-icons" aria-hidden>
-                    <i className="fa-solid fa-folder-plus" />
-                    <i className="fa-solid fa-border-all" />
-                  </div>
-                  <span className="si-explore-results-count si-explore-results-count--inline">
-                    {exploreSortedStacItems.length} items
-                    {stacMosaicStaging.length > 0 ? (
-                      <span className="si-explore-mosaic-chip" title="Scenes staged for mosaic">
-                        {' '}
-                        · mosaic {stacMosaicStaging.length}
-                      </span>
-                    ) : null}
-                  </span>
-                  <div className="si-explore-results-toolbar-spacer" />
-                  <button
-                    type="button"
-                    className="si-explore-icon-btn"
-                    title={exploreResultsSortDesc ? 'Newest first' : 'Oldest first'}
-                    onClick={() => {
-                      setExploreResultsSortDesc(d => !d);
-                      setExploreResultsPage(0);
-                    }}
-                  >
-                    <i className="fa-solid fa-arrow-down-wide-short" aria-hidden />
-                  </button>
-                  <button
-                    type="button"
-                    className="si-explore-icon-btn"
-                    title="Refresh"
-                    onClick={runExploreStacViewResults}
-                    disabled={isLoadingStac || !exploreSelectedCollectionIds.length}
-                  >
-                    <i className={`fa-solid fa-rotate${isLoadingStac ? ' fa-spin' : ''}`} aria-hidden />
-                  </button>
-                  <button
-                    type="button"
-                    className="si-explore-icon-btn"
-                    title="Zoom to all footprints"
-                    onClick={zoomMapToStacFootprints}
-                    disabled={!stacFootprintsGeoJson.features.length}
-                  >
-                    <i className="fa-solid fa-expand" aria-hidden />
-                  </button>
-                </div>
-                <label className="si-explore-check-inline si-explore-footprints-toggle">
-                  <input
-                    type="checkbox"
-                    checked={showStacFootprintsOnMap}
-                    onChange={e => setShowStacFootprintsOnMap(e.target.checked)}
-                  />
-                  Footprints on map
-                </label>
-                <div className="si-explore-results-cards-wrap">
-                  {exploreSortedStacItems.length === 0 ? (
-                    <p className="si-explore-muted">Run a search from the Parameters tab.</p>
-                  ) : (
-                    <ul className="si-explore-results-cards">
-                      {explorePaginatedStacItems.map((item: any) => {
-                        const key = stacItemStableKey(item);
-                        const thumbUrls = getStacItemThumbCandidateUrls(item, stacConnection);
-                        const idFull = String(item.id ?? '');
-                        const cloudRaw = item.properties?.['eo:cloud_cover'];
-                        const cloudStr =
-                          cloudRaw == null || cloudRaw === ''
-                            ? '—'
-                            : `${typeof cloudRaw === 'number' ? cloudRaw.toFixed(2) : cloudRaw}%`;
-                        const dt = String(item.properties?.datetime ?? '—');
-                        const sensor = getStacItemSensorLabel(item);
-                        return (
-                          <li key={key} className="si-explore-result-card">
-                            <input
-                              type="checkbox"
-                              className="si-explore-result-card-check"
-                              checked={exploreSelectedResultKeys.includes(key)}
-                              onChange={() => toggleExploreResultKey(key)}
-                              aria-label={`Select ${idFull}`}
-                            />
-                            <div className="si-explore-result-main">
-                              <div className="si-explore-result-id" title={idFull}>
-                                {idFull.length > 52 ? `${idFull.slice(0, 52)}…` : idFull}
-                              </div>
-                              <div className="si-explore-result-meta">
-                                <span title={dt}>{dt.length > 24 ? `${dt.slice(0, 24)}…` : dt}</span>
-                                <span>{sensor}</span>
-                                <span>{cloudStr}</span>
-                                <span className="si-explore-result-collection">{String(item.collection ?? '')}</span>
-                              </div>
-                              <div className="si-explore-result-actions">
-                                <button
-                                  type="button"
-                                  className="si-explore-result-action-btn"
-                                  title="Zoom to footprint"
-                                  onClick={() => flyToStacItemExtent(item)}
-                                >
-                                  <i className="fa-solid fa-map-location-dot" aria-hidden />
-                                </button>
-                                <div className="si-explore-add-wrap">
-                                  <button
-                                    type="button"
-                                    className="si-explore-add-trigger"
-                                    title="Add to map / scene"
-                                    aria-expanded={stacAddToMenuKey === key}
-                                    aria-haspopup="menu"
-                                    onClick={e => {
-                                      e.stopPropagation();
-                                      setStacAddToMenuKey(k => (k === key ? null : key));
-                                    }}
-                                  >
-                                    <i className="fa-solid fa-folder-plus" aria-hidden />
-                                    <i className="fa-solid fa-chevron-down si-explore-add-chev" aria-hidden />
-                                  </button>
-                                  {stacAddToMenuKey === key ? (
-                                    <ul className="si-explore-add-menu" role="menu">
-                                      <li role="none">
-                                        <button
-                                          type="button"
-                                          role="menuitem"
-                                          className="si-explore-add-menu-item"
-                                          onClick={() => void addStacToCurrentMap(item)}
-                                        >
-                                          <i className="fa-solid fa-map" aria-hidden />
-                                          Add to Current Map
-                                        </button>
-                                      </li>
-                                      <li role="none">
-                                        <button
-                                          type="button"
-                                          role="menuitem"
-                                          className="si-explore-add-menu-item"
-                                          onClick={() => addStacToNewMap(item)}
-                                        >
-                                          <i className="fa-solid fa-map" aria-hidden />
-                                          Add to New Map
-                                        </button>
-                                      </li>
-                                      <li role="none">
-                                        <button
-                                          type="button"
-                                          role="menuitem"
-                                          className="si-explore-add-menu-item"
-                                          onClick={() => void addStacToGlobalScene(item)}
-                                        >
-                                          <i className="fa-solid fa-globe" aria-hidden />
-                                          Add to New Global Scene
-                                        </button>
-                                      </li>
-                                      <li role="none">
-                                        <button
-                                          type="button"
-                                          role="menuitem"
-                                          className="si-explore-add-menu-item"
-                                          onClick={() => void addStacToLocalScene(item)}
-                                        >
-                                          <i className="fa-solid fa-mountain" aria-hidden />
-                                          Add to New Local Scene
-                                        </button>
-                                      </li>
-                                      <li role="none">
-                                        <button
-                                          type="button"
-                                          role="menuitem"
-                                          className="si-explore-add-menu-item"
-                                          onClick={() => addStacToMosaicStaging(item)}
-                                        >
-                                          <i className="fa-solid fa-layer-group" aria-hidden />
-                                          Add to Mosaic Dataset
-                                        </button>
-                                      </li>
-                                    </ul>
-                                  ) : null}
-                                </div>
-                                <button
-                                  type="button"
-                                  className="si-explore-result-action-btn"
-                                  title="Open item JSON"
-                                  onClick={() => openExploreStacItemDetails(item)}
-                                >
-                                  <i className="fa-solid fa-file-code" aria-hidden />
-                                </button>
-                                <button
-                                  type="button"
-                                  className="si-explore-result-action-btn"
-                                  title="Preview on map"
-                                  onClick={() => showStacItemThumbOnMap(item)}
-                                >
-                                  <i className="fa-regular fa-image" aria-hidden />
-                                </button>
-                              </div>
-                            </div>
-                            <div className="si-explore-result-thumb">
-                              <StacExploreThumb hrefList={thumbUrls} reactKey={key} />
-                            </div>
-                          </li>
-                        );
-                      })}
-                    </ul>
-                  )}
-                </div>
-                {exploreSortedStacItems.length > 0 ? (
-                  <div className="si-explore-results-footer-bar">
-                    <div className="si-explore-results-footer-stats">
-                      <span>
-                        Page {exploreResultsPage + 1} : {explorePageSelectionStats.selectedOnPage} of{' '}
-                        {explorePageSelectionStats.keys.length} selected
-                      </span>
-                      <span className="si-explore-results-footer-sep" />
-                      <span>Total selected items: {exploreSelectedResultKeys.length}</span>
-                    </div>
-                    <div className="si-explore-results-footer-actions">
-                      <button
-                        type="button"
-                        className="si-explore-page-btn"
-                        disabled={exploreResultsPage <= 0}
-                        onClick={() => setExploreResultsPage(p => Math.max(0, p - 1))}
-                      >
-                        Previous
-                      </button>
-                      <button
-                        type="button"
-                        className="si-explore-page-btn"
-                        disabled={exploreResultsPage >= exploreResultsPageCount - 1}
-                        onClick={() => setExploreResultsPage(p => Math.min(exploreResultsPageCount - 1, p + 1))}
-                      >
-                        Next
-                      </button>
-                    </div>
-                  </div>
-                ) : null}
-              </>
-            )}
-          </div>
-          <div className="si-explore-stac-footer">
-            {exploreTab === 'parameters' ? (
-              <button
-                type="button"
-                className="si-explore-view-results"
-                disabled={isLoadingStac || !exploreSelectedCollectionIds.length}
-                onClick={runExploreStacViewResults}
-              >
-                {isLoadingStac ? <i className="fa-solid fa-spinner fa-spin" aria-hidden /> : null}
-                View Results
-              </button>
-            ) : (
-              <button type="button" className="si-stac-modal-cancel" onClick={() => setExploreTab('parameters')}>
-                Back to Parameters
-              </button>
-            )}
-          </div>
-                    </div>
-                    
-                  ) : null}
-                  {expandedEnvSection === 'remote-sensing' && (
-                    <div className="si-env-section-card si-field-analysis">
-                      <div className="si-field-analysis-header">
-                        <h2 className="si-field-analysis-title">Remote Sensing</h2>
+                      <div className="si-explore-results-footer-actions">
                         <button
                           type="button"
-                          className="si-field-analysis-close"
-                          onClick={() => setIsLayerDropdownOpen(false)}
-                          aria-label="Close panel"
+                          className="si-explore-page-btn"
+                          disabled={exploreResultsPage <= 0}
+                          onClick={() => setExploreResultsPage(p => Math.max(0, p - 1))}
                         >
-                          <i className="fa-solid fa-xmark" aria-hidden />
+                          Previous
+                        </button>
+                        <button
+                          type="button"
+                          className="si-explore-page-btn"
+                          disabled={exploreResultsPage >= exploreResultsPageCount - 1}
+                          onClick={() => setExploreResultsPage(p => Math.min(exploreResultsPageCount - 1, p + 1))}
+                        >
+                          Next
                         </button>
                       </div>
-
-                      <div className="si-field-analysis-section">
-                        <div className="si-field-analysis-kicker">Imagery date</div>
-                        <label className="si-field-analysis-field">
-                          <input
-                            type="date"
-                            value={selectedDate.toISOString().split('T')[0]}
-                            onChange={e => {
-                              const v = e.target.value;
-                              if (!v) return;
-                              applySelectedDate(new Date(`${v}T12:00:00`));
-                            }}
-                            aria-label="Imagery date"
-                          />
-                        </label>
-                        <p className="si-field-analysis-hint">
-                          Select date for satellite imagery (Sentinel-2 updates every 3–5 days).
-                        </p>
-                      </div>
-
-                      <div className="si-field-analysis-section">
-                        <label className="si-field-analysis-field si-field-analysis-field--labeled">
-                          <span className="si-field-analysis-label">Layer</span>
-                          <select
-                            className="si-field-analysis-select"
-                            value={isLoadingLayers ? '' : wmsLayerSelectValue}
-                            onChange={e => {
-                              const v = e.target.value;
-                              setWmsLayer(v);
-                              const ids = Object.keys(ENVIRONMENTAL_INDICES) as EnvironmentalIndexId[];
-                              if (ids.includes(v as EnvironmentalIndexId)) setSelectedIndex(v as EnvironmentalIndexId);
-                            }}
-                            disabled={isLoadingLayers}
-                            aria-label="Layer"
-                          >
-                            {isLoadingLayers ? (
-                              <option value="">Loading Sentinel Hub layers…</option>
-                            ) : wmsLayers.length === 0 ? (
-                              <option value="">No layers — save Sentinel API tokens in System Settings, then reopen</option>
-                            ) : (
-                              wmsLayers.map(layer => (
-                                <option key={layer.name} value={layer.name}>
-                                  {layer.title}
-                                </option>
-                              ))
-                            )}
-                          </select>
-                        </label>
-                        <p className="si-field-analysis-hint" style={{ marginTop: 6 }}>
-                          Layers are loaded only from your Sentinel Hub WMS GetCapabilities response for instance{' '}
-                          <span style={{ fontFamily: 'ui-monospace, monospace', fontSize: '10px', opacity: 0.95 }}>
-                            {getSentinelHubWmsInstanceId().slice(0, 8)}…
-                          </span>{' '}
-                          (System Settings → Sentinel API tokens). No synthetic index list is shown here.
-                        </p>
-                      </div>
-
-                      <div className="si-field-analysis-section">
-                        <div className="si-field-analysis-kicker">Time-series analysis</div>
-                        <div className="si-field-analysis-date-row">
-                          <label className="si-field-analysis-field">
-                            <span className="si-field-analysis-label">Start</span>
-                            <input
-                              type="date"
-                              value={timeSeriesStart}
-                              onChange={e => setTimeSeriesStart(e.target.value)}
-                              aria-label="Time series start"
-                            />
-                          </label>
-                          <label className="si-field-analysis-field">
-                            <span className="si-field-analysis-label">End</span>
-                            <input
-                              type="date"
-                              value={timeSeriesEnd}
-                              onChange={e => setTimeSeriesEnd(e.target.value)}
-                              aria-label="Time series end"
-                            />
-                          </label>
-                        </div>
-                        <button type="button" className="si-field-analysis-timeline-btn" onClick={generateFieldAnalysisTimeline}>
-                          <i className="fa-solid fa-chart-line" aria-hidden />
-                          Generate timeline
-                        </button>
-                        <p className="si-field-analysis-hint">
-                          Browse satellite imagery changes over time. Select a date range and generate the timeline.
-                        </p>
-                      </div>
-
-                      <div className="si-field-analysis-section">
-                        <div className="si-field-analysis-kicker">Display options</div>
-                        <div className="si-field-analysis-toggles">
-                          <div className="display-toggle-row">
-                            <span className="display-option-label">
-                              <span className="display-dot field" aria-hidden />
-                              Field boundaries
-                            </span>
-                            <label className="switch si-field-analysis-switch">
-                              <input
-                                type="checkbox"
-                                checked={showFieldBoundaries}
-                                onChange={e => setShowFieldBoundaries(e.target.checked)}
-                                aria-label="Toggle field boundaries"
-                              />
-                              <span className="slider round" />
-                            </label>
-                          </div>
-                          <div className="display-toggle-row">
-                            <span className="display-option-label">
-                              <span className="display-dot productivity" aria-hidden />
-                              Productivity zones
-                            </span>
-                            <label className="switch si-field-analysis-switch">
-                              <input
-                                type="checkbox"
-                                checked={showProductivityZones}
-                                onChange={e => setShowProductivityZones(e.target.checked)}
-                                aria-label="Toggle productivity zones"
-                              />
-                              <span className="slider round" />
-                            </label>
-                          </div>
-                        </div>
-                      </div>
-
-                      <p className="si-field-analysis-footer-hint">Click on a field to view details.</p>
-                      {fieldAnalysisStatus ? <p className="si-field-analysis-status">{fieldAnalysisStatus}</p> : null}
                     </div>
-                  )}
-                  {expandedEnvSection === 'table-geo-ai' && (
-                    <div className="si-geo-explorer-root si-geo-explorer-root--unified">
-                      <div className="si-env-section-card si-geo-explorer">
-                        <div className="si-geo-explorer-header">
-                          <h2 className="si-geo-explorer-title">Geo AI</h2>
+                  ) : null}
+                </>
+              )}
+            </div>
+            <div className="si-explore-stac-footer">
+              {exploreTab === 'parameters' ? (
+                <button
+                  type="button"
+                  className="si-explore-view-results"
+                  disabled={isLoadingStac || !exploreSelectedCollectionIds.length}
+                  onClick={runExploreStacViewResults}
+                >
+                  {isLoadingStac ? <i className="fa-solid fa-spinner fa-spin" aria-hidden /> : null}
+                  View Results
+                </button>
+              ) : (
+                <button type="button" className="si-stac-modal-cancel" onClick={() => setExploreTab('parameters')}>
+                  Back to Parameters
+                </button>
+              )}
+            </div>
+                      </div>
+                    
+                    ) : null}
+                    {expandedEnvSection === 'remote-sensing' && (
+                      <div className="si-env-section-card si-field-analysis">
+                        <div className="si-field-analysis-header">
+                          <h2 className="si-field-analysis-title">Remote Sensing</h2>
                           <button
                             type="button"
-                            className="si-geo-explorer-icon-btn"
-                            onClick={clearCurrentGeoAiPanel}
-                            aria-label="Clear chat"
-                            title="Clear chat"
+                            className="si-field-analysis-close"
+                            onClick={() => setIsLayerDropdownOpen(false)}
+                            aria-label="Close panel"
                           >
-                            <i className="fa-solid fa-trash" aria-hidden />
-                          </button>
-                        </div>
-                        <div className="si-geo-ai-model-tabs" role="tablist" aria-label="AI model">
-                          <button
-                            type="button"
-                            role="tab"
-                            aria-selected={geoAiModelTab === 'claude'}
-                            className={`si-geo-ai-model-tab${geoAiModelTab === 'claude' ? ' si-geo-ai-model-tab--active' : ''}`}
-                            onClick={() => setGeoAiModelTab('claude')}
-                          >
-                            Claude
-                          </button>
-                          <button
-                            type="button"
-                            role="tab"
-                            aria-selected={geoAiModelTab === 'deepseek'}
-                            className={`si-geo-ai-model-tab${geoAiModelTab === 'deepseek' ? ' si-geo-ai-model-tab--active' : ''}`}
-                            onClick={() => setGeoAiModelTab('deepseek')}
-                          >
-                            DeepSeek
-                          </button>
-                          <button
-                            type="button"
-                            role="tab"
-                            aria-selected={geoAiModelTab === 'gemini'}
-                            className={`si-geo-ai-model-tab${geoAiModelTab === 'gemini' ? ' si-geo-ai-model-tab--active' : ''}`}
-                            onClick={() => setGeoAiModelTab('gemini')}
-                          >
-                            Gemini
+                            <i className="fa-solid fa-xmark" aria-hidden />
                           </button>
                         </div>
 
-                        {geoAiModelTab === 'gemini' ? (
-                          <>
-                            <div className="si-geo-explorer-messages">
-                              <div className="si-geo-explorer-row si-geo-explorer-row--model">
-                                <div className="si-geo-explorer-avatar" aria-hidden>
-                                  <i className="fa-solid fa-globe" />
+                        <div className="si-field-analysis-section">
+                          <div className="si-field-analysis-kicker">Imagery date</div>
+                          <label className="si-field-analysis-field">
+                            <input
+                              type="date"
+                              value={selectedDate.toISOString().split('T')[0]}
+                              onChange={e => {
+                                const v = e.target.value;
+                                if (!v) return;
+                                applySelectedDate(new Date(`${v}T12:00:00`));
+                              }}
+                              aria-label="Imagery date"
+                            />
+                          </label>
+                          <p className="si-field-analysis-hint">
+                            Select date for satellite imagery (Sentinel-2 updates every 3–5 days).
+                          </p>
+                        </div>
+
+                        <div className="si-field-analysis-section">
+                          <label className="si-field-analysis-field si-field-analysis-field--labeled">
+                            <span className="si-field-analysis-label">Layer</span>
+                            <select
+                              className="si-field-analysis-select"
+                              value={isLoadingLayers ? '' : wmsLayerSelectValue}
+                              onChange={e => {
+                                const v = e.target.value;
+                                setWmsLayer(v);
+                                const ids = Object.keys(ENVIRONMENTAL_INDICES) as EnvironmentalIndexId[];
+                                if (ids.includes(v as EnvironmentalIndexId)) setSelectedIndex(v as EnvironmentalIndexId);
+                              }}
+                              disabled={isLoadingLayers}
+                              aria-label="Layer"
+                            >
+                              {isLoadingLayers ? (
+                                <option value="">Loading Sentinel Hub layers…</option>
+                              ) : wmsLayers.length === 0 ? (
+                                <option value="">No layers — save Sentinel API tokens in System Settings, then reopen</option>
+                              ) : (
+                                wmsLayers.map(layer => (
+                                  <option key={layer.name} value={layer.name}>
+                                    {layer.title}
+                                  </option>
+                                ))
+                              )}
+                            </select>
+                          </label>
+                          <p className="si-field-analysis-hint" style={{ marginTop: 6 }}>
+                            Layers are loaded only from your Sentinel Hub WMS GetCapabilities response for instance{' '}
+                            <span style={{ fontFamily: 'ui-monospace, monospace', fontSize: '10px', opacity: 0.95 }}>
+                              {getSentinelHubWmsInstanceId().slice(0, 8)}…
+                            </span>{' '}
+                            (System Settings → Sentinel API tokens). No synthetic index list is shown here.
+                          </p>
+                        </div>
+
+                        <div className="si-field-analysis-section">
+                          <div className="si-field-analysis-kicker">Time-series analysis</div>
+                          <div className="si-field-analysis-date-row">
+                            <label className="si-field-analysis-field">
+                              <span className="si-field-analysis-label">Start</span>
+                              <input
+                                type="date"
+                                value={timeSeriesStart}
+                                onChange={e => setTimeSeriesStart(e.target.value)}
+                                aria-label="Time series start"
+                              />
+                            </label>
+                            <label className="si-field-analysis-field">
+                              <span className="si-field-analysis-label">End</span>
+                              <input
+                                type="date"
+                                value={timeSeriesEnd}
+                                onChange={e => setTimeSeriesEnd(e.target.value)}
+                                aria-label="Time series end"
+                              />
+                            </label>
+                          </div>
+                          <button type="button" className="si-field-analysis-timeline-btn" onClick={generateFieldAnalysisTimeline}>
+                            <i className="fa-solid fa-chart-line" aria-hidden />
+                            Generate timeline
+                          </button>
+                          <p className="si-field-analysis-hint">
+                            Browse satellite imagery changes over time. Select a date range and generate the timeline.
+                          </p>
+                        </div>
+
+                        <div className="si-field-analysis-section">
+                          <div className="si-field-analysis-kicker">Display options</div>
+                          <div className="si-field-analysis-toggles">
+                            <div className="display-toggle-row">
+                              <span className="display-option-label">
+                                <span className="display-dot field" aria-hidden />
+                                Field boundaries
+                              </span>
+                              <label className="switch si-field-analysis-switch">
+                                <input
+                                  type="checkbox"
+                                  checked={showFieldBoundaries}
+                                  onChange={e => setShowFieldBoundaries(e.target.checked)}
+                                  aria-label="Toggle field boundaries"
+                                />
+                                <span className="slider round" />
+                              </label>
+                            </div>
+                            <div className="display-toggle-row">
+                              <span className="display-option-label">
+                                <span className="display-dot productivity" aria-hidden />
+                                Productivity zones
+                              </span>
+                              <label className="switch si-field-analysis-switch">
+                                <input
+                                  type="checkbox"
+                                  checked={showProductivityZones}
+                                  onChange={e => setShowProductivityZones(e.target.checked)}
+                                  aria-label="Toggle productivity zones"
+                                />
+                                <span className="slider round" />
+                              </label>
+                            </div>
+                          </div>
+                        </div>
+
+                        <p className="si-field-analysis-footer-hint">Click on a field to view details.</p>
+                        {fieldAnalysisStatus ? <p className="si-field-analysis-status">{fieldAnalysisStatus}</p> : null}
+                      </div>
+                    )}
+                    {expandedEnvSection === 'table-geo-ai' && (
+                      <div className="si-geo-explorer-root si-geo-explorer-root--unified">
+                        <div className="si-env-section-card si-geo-explorer">
+                          <div className="si-geo-explorer-header">
+                            <h2 className="si-geo-explorer-title">Geo AI</h2>
+                            <button
+                              type="button"
+                              className="si-geo-explorer-icon-btn"
+                              onClick={clearCurrentGeoAiPanel}
+                              aria-label="Clear chat"
+                              title="Clear chat"
+                            >
+                              <i className="fa-solid fa-trash" aria-hidden />
+                            </button>
+                          </div>
+                          <div className="si-geo-ai-model-tabs" role="tablist" aria-label="AI model">
+                            <button
+                              type="button"
+                              role="tab"
+                              aria-selected={geoAiModelTab === 'claude'}
+                              className={`si-geo-ai-model-tab${geoAiModelTab === 'claude' ? ' si-geo-ai-model-tab--active' : ''}`}
+                              onClick={() => setGeoAiModelTab('claude')}
+                            >
+                              Claude
+                            </button>
+                            <button
+                              type="button"
+                              role="tab"
+                              aria-selected={geoAiModelTab === 'deepseek'}
+                              className={`si-geo-ai-model-tab${geoAiModelTab === 'deepseek' ? ' si-geo-ai-model-tab--active' : ''}`}
+                              onClick={() => setGeoAiModelTab('deepseek')}
+                            >
+                              DeepSeek
+                            </button>
+                            <button
+                              type="button"
+                              role="tab"
+                              aria-selected={geoAiModelTab === 'gemini'}
+                              className={`si-geo-ai-model-tab${geoAiModelTab === 'gemini' ? ' si-geo-ai-model-tab--active' : ''}`}
+                              onClick={() => setGeoAiModelTab('gemini')}
+                            >
+                              Gemini
+                            </button>
+                          </div>
+
+                          {geoAiModelTab === 'gemini' ? (
+                            <>
+                              <div className="si-geo-explorer-messages">
+                                <div className="si-geo-explorer-row si-geo-explorer-row--model">
+                                  <div className="si-geo-explorer-avatar" aria-hidden>
+                                    <i className="fa-solid fa-globe" />
+                                  </div>
+                                  <div className="si-geo-explorer-bubble">
+                                    Hello! Describe a place, upload an image, or ask for directions. When a location is clear,
+                                    the map will fly there (the model adds a MAP_QUERY line).
+                                  </div>
                                 </div>
-                                <div className="si-geo-explorer-bubble">
-                                  Hello! Describe a place, upload an image, or ask for directions. When a location is clear,
-                                  the map will fly there (the model adds a MAP_QUERY line).
-                                </div>
+                                {geoExplorerMessages.map(msg => {
+                                  const raw = messageDisplayText(msg);
+                                  const show = msg.role === 'model' ? stripMapQueryLine(raw) : raw;
+                                  const hasImage = msg.parts.some(p => p.type === 'image');
+                                  return (
+                                    <div
+                                      key={msg.id}
+                                      className={`si-geo-explorer-row si-geo-explorer-row--${msg.role}`}
+                                    >
+                                      {msg.role === 'model' ? (
+                                        <div className="si-geo-explorer-avatar" aria-hidden>
+                                          <i className="fa-solid fa-wand-magic-sparkles" />
+                                        </div>
+                                      ) : null}
+                                      <div className="si-geo-explorer-bubble">
+                                        {show ? <p className="si-geo-explorer-bubble-text">{show}</p> : null}
+                                        {msg.role === 'user' && hasImage ? (
+                                          <p className="si-geo-explorer-bubble-meta">
+                                            <i className="fa-solid fa-paperclip" aria-hidden /> Image attached
+                                          </p>
+                                        ) : null}
+                                      </div>
+                                    </div>
+                                  );
+                                })}
+                                {geoExplorerBusy ? (
+                                  <div className="si-geo-explorer-row si-geo-explorer-row--model">
+                                    <div className="si-geo-explorer-avatar" aria-hidden>
+                                      <i className="fa-solid fa-wand-magic-sparkles" />
+                                    </div>
+                                    <div className="si-geo-explorer-bubble si-geo-explorer-bubble--typing">
+                                      <i className="fa-solid fa-spinner fa-spin" aria-hidden /> Thinking…
+                                    </div>
+                                  </div>
+                                ) : null}
                               </div>
-                              {geoExplorerMessages.map(msg => {
-                                const raw = messageDisplayText(msg);
-                                const show = msg.role === 'model' ? stripMapQueryLine(raw) : raw;
-                                const hasImage = msg.parts.some(p => p.type === 'image');
-                                return (
+                              {geoExplorerChatError ? (
+                                <p className="si-geo-explorer-error">{geoExplorerChatError}</p>
+                              ) : null}
+                              {geoExplorerPendingImage ? (
+                                <p className="si-geo-explorer-pending-img">
+                                  <i className="fa-solid fa-image" aria-hidden /> Image ready to send
+                                  <button
+                                    type="button"
+                                    className="si-geo-explorer-linkish"
+                                    onClick={() => setGeoExplorerPendingImage(null)}
+                                  >
+                                    Remove
+                                  </button>
+                                </p>
+                              ) : null}
+                              <div className="si-geo-explorer-input-row">
+                                <textarea
+                                  className="si-geo-explorer-input"
+                                  rows={2}
+                                  value={geoExplorerDraft}
+                                  onChange={e => setGeoExplorerDraft(e.target.value)}
+                                  onKeyDown={e => {
+                                    if (e.key === 'Enter' && !e.shiftKey) {
+                                      e.preventDefault();
+                                      sendGeoExplorerChat();
+                                    }
+                                  }}
+                                  placeholder="Describe a place, ask for directions, or plan a trip…"
+                                  aria-label="Geo AI Gemini message"
+                                  disabled={geoExplorerBusy}
+                                />
+                                <input
+                                  ref={geoExplorerFileInputRef}
+                                  type="file"
+                                  className="si-geo-explorer-file-input"
+                                  accept="image/*"
+                                  onChange={onGeoExplorerAttachChange}
+                                  aria-hidden
+                                  tabIndex={-1}
+                                />
+                                <button
+                                  type="button"
+                                  className="si-geo-explorer-attach"
+                                  onClick={() => geoExplorerFileInputRef.current?.click()}
+                                  disabled={geoExplorerBusy}
+                                  aria-label="Attach image"
+                                  title="Attach image"
+                                >
+                                  <i className="fa-solid fa-paperclip" aria-hidden />
+                                </button>
+                                <button
+                                  type="button"
+                                  className="si-geo-explorer-send"
+                                  onClick={sendGeoExplorerChat}
+                                  disabled={
+                                    geoExplorerBusy || (!geoExplorerDraft.trim() && !geoExplorerPendingImage)
+                                  }
+                                  aria-label="Send"
+                                  title="Send"
+                                >
+                                  <i className="fa-solid fa-paper-plane" aria-hidden />
+                                </button>
+                              </div>
+                              <p className="si-geo-explorer-footnote">
+                                Powered by Google Gemini. Set <code>VITE_GEMINI_API_KEY</code> or save under System Settings →
+                                API Tokens → Gemini API. Do not commit keys.
+                              </p>
+                            </>
+                          ) : null}
+
+                          {geoAiModelTab === 'claude' || geoAiModelTab === 'deepseek' ? (
+                            <>
+                              <div className="si-geo-explorer-messages">
+                                <div className="si-geo-explorer-row si-geo-explorer-row--model">
+                                  <div className="si-geo-explorer-avatar" aria-hidden>
+                                    <i className="fa-solid fa-database" />
+                                  </div>
+                                  <div className="si-geo-explorer-bubble">
+                                    Ask about fields, layers, or tables using only data from GIS Map saved layers and the
+                                    Develop Dashboard → Data snapshot in this browser. Answers stay grounded in that context.
+                                  </div>
+                                </div>
+                                {(geoAiModelTab === 'claude' ? geoAiChatMessages : geoDeepseekChatMessages).map(msg => (
                                   <div
                                     key={msg.id}
-                                    className={`si-geo-explorer-row si-geo-explorer-row--${msg.role}`}
+                                    className={`si-geo-explorer-row si-geo-explorer-row--${
+                                      msg.role === 'user' ? 'user' : 'model'
+                                    }`}
                                   >
-                                    {msg.role === 'model' ? (
+                                    {msg.role === 'assistant' ? (
                                       <div className="si-geo-explorer-avatar" aria-hidden>
-                                        <i className="fa-solid fa-wand-magic-sparkles" />
+                                        <i className="fa-solid fa-robot" />
                                       </div>
                                     ) : null}
                                     <div className="si-geo-explorer-bubble">
-                                      {show ? <p className="si-geo-explorer-bubble-text">{show}</p> : null}
-                                      {msg.role === 'user' && hasImage ? (
-                                        <p className="si-geo-explorer-bubble-meta">
-                                          <i className="fa-solid fa-paperclip" aria-hidden /> Image attached
-                                        </p>
-                                      ) : null}
-                                    </div>
-                                  </div>
-                                );
-                              })}
-                              {geoExplorerBusy ? (
-                                <div className="si-geo-explorer-row si-geo-explorer-row--model">
-                                  <div className="si-geo-explorer-avatar" aria-hidden>
-                                    <i className="fa-solid fa-wand-magic-sparkles" />
-                                  </div>
-                                  <div className="si-geo-explorer-bubble si-geo-explorer-bubble--typing">
-                                    <i className="fa-solid fa-spinner fa-spin" aria-hidden /> Thinking…
-                                  </div>
-                                </div>
-                              ) : null}
-                            </div>
-                            {geoExplorerChatError ? (
-                              <p className="si-geo-explorer-error">{geoExplorerChatError}</p>
-                            ) : null}
-                            {geoExplorerPendingImage ? (
-                              <p className="si-geo-explorer-pending-img">
-                                <i className="fa-solid fa-image" aria-hidden /> Image ready to send
-                                <button
-                                  type="button"
-                                  className="si-geo-explorer-linkish"
-                                  onClick={() => setGeoExplorerPendingImage(null)}
-                                >
-                                  Remove
-                                </button>
-                              </p>
-                            ) : null}
-                            <div className="si-geo-explorer-input-row">
-                              <textarea
-                                className="si-geo-explorer-input"
-                                rows={2}
-                                value={geoExplorerDraft}
-                                onChange={e => setGeoExplorerDraft(e.target.value)}
-                                onKeyDown={e => {
-                                  if (e.key === 'Enter' && !e.shiftKey) {
-                                    e.preventDefault();
-                                    sendGeoExplorerChat();
-                                  }
-                                }}
-                                placeholder="Describe a place, ask for directions, or plan a trip…"
-                                aria-label="Geo AI Gemini message"
-                                disabled={geoExplorerBusy}
-                              />
-                              <input
-                                ref={geoExplorerFileInputRef}
-                                type="file"
-                                className="si-geo-explorer-file-input"
-                                accept="image/*"
-                                onChange={onGeoExplorerAttachChange}
-                                aria-hidden
-                                tabIndex={-1}
-                              />
-                              <button
-                                type="button"
-                                className="si-geo-explorer-attach"
-                                onClick={() => geoExplorerFileInputRef.current?.click()}
-                                disabled={geoExplorerBusy}
-                                aria-label="Attach image"
-                                title="Attach image"
-                              >
-                                <i className="fa-solid fa-paperclip" aria-hidden />
-                              </button>
-                              <button
-                                type="button"
-                                className="si-geo-explorer-send"
-                                onClick={sendGeoExplorerChat}
-                                disabled={
-                                  geoExplorerBusy || (!geoExplorerDraft.trim() && !geoExplorerPendingImage)
-                                }
-                                aria-label="Send"
-                                title="Send"
-                              >
-                                <i className="fa-solid fa-paper-plane" aria-hidden />
-                              </button>
-                            </div>
-                            <p className="si-geo-explorer-footnote">
-                              Powered by Google Gemini. Set <code>VITE_GEMINI_API_KEY</code> or save under System Settings →
-                              API Tokens → Gemini API. Do not commit keys.
-                            </p>
-                          </>
-                        ) : null}
-
-                        {geoAiModelTab === 'claude' || geoAiModelTab === 'deepseek' ? (
-                          <>
-                            <div className="si-geo-explorer-messages">
-                              <div className="si-geo-explorer-row si-geo-explorer-row--model">
-                                <div className="si-geo-explorer-avatar" aria-hidden>
-                                  <i className="fa-solid fa-database" />
-                                </div>
-                                <div className="si-geo-explorer-bubble">
-                                  Ask about fields, layers, or tables using only data from GIS Map saved layers and the
-                                  Develop Dashboard → Data snapshot in this browser. Answers stay grounded in that context.
-                                </div>
-                              </div>
-                              {(geoAiModelTab === 'claude' ? geoAiChatMessages : geoDeepseekChatMessages).map(msg => (
-                                <div
-                                  key={msg.id}
-                                  className={`si-geo-explorer-row si-geo-explorer-row--${
-                                    msg.role === 'user' ? 'user' : 'model'
-                                  }`}
-                                >
-                                  {msg.role === 'assistant' ? (
-                                    <div className="si-geo-explorer-avatar" aria-hidden>
-                                      <i className="fa-solid fa-robot" />
-                                    </div>
-                                  ) : null}
-                                  <div className="si-geo-explorer-bubble">
                                     <p className="si-geo-explorer-bubble-text">
                                       {msg.role === 'assistant'
                                         ? stripGeoAiModelMetaAppend(stripMapQueryLine(msg.text))
                                         : msg.text}
                                     </p>
+                                    </div>
                                   </div>
-                                </div>
-                              ))}
-                              {(geoAiModelTab === 'claude' ? geoAiBusy : geoDeepseekBusy) ? (
-                                <div className="si-geo-explorer-row si-geo-explorer-row--model">
-                                  <div className="si-geo-explorer-avatar" aria-hidden>
-                                    <i className="fa-solid fa-robot" />
-                                  </div>
-                                  <div className="si-geo-explorer-bubble si-geo-explorer-bubble--typing">
-                                    <i className="fa-solid fa-spinner fa-spin" aria-hidden /> Thinking…
-                                  </div>
-                                </div>
-                              ) : null}
-                            </div>
-                            {geoAiModelTab === 'claude' && geoAiChatError ? (
-                              <p className="si-geo-explorer-error">{geoAiChatError}</p>
-                            ) : null}
-                            {geoAiModelTab === 'deepseek' && geoDeepseekChatError ? (
-                              <p className="si-geo-explorer-error">{geoDeepseekChatError}</p>
-                            ) : null}
-                            <div className="si-geo-explorer-input-row">
-                              <textarea
-                                className="si-geo-explorer-input"
-                                rows={2}
-                                value={geoAiModelTab === 'claude' ? geoAiDraft : geoDeepseekDraft}
-                                onChange={e =>
-                                  geoAiModelTab === 'claude'
-                                    ? setGeoAiDraft(e.target.value)
-                                    : setGeoDeepseekDraft(e.target.value)
-                                }
-                                onKeyDown={e => {
-                                  if (e.key === 'Enter' && !e.shiftKey) {
-                                    e.preventDefault();
-                                    if (geoAiModelTab === 'claude') sendGeoAiChat();
-                                    else sendGeoDeepseekChat();
-                                  }
-                                }}
-                                placeholder={
-                                  geoAiModelTab === 'claude'
-                                    ? 'e.g. List layer names and fields from the attached GIS / Develop data…'
-                                    : 'e.g. Summarize saved layers and Develop Dashboard fields (same context as Claude)…'
-                                }
-                                aria-label={
-                                  geoAiModelTab === 'claude' ? 'Geo AI Claude message' : 'Geo AI DeepSeek message'
-                                }
-                                disabled={geoAiModelTab === 'claude' ? geoAiBusy : geoDeepseekBusy}
-                              />
-                              <button
-                                type="button"
-                                className="si-geo-explorer-send"
-                                onClick={geoAiModelTab === 'claude' ? sendGeoAiChat : sendGeoDeepseekChat}
-                                disabled={
-                                  (geoAiModelTab === 'claude' ? geoAiBusy : geoDeepseekBusy) ||
-                                  !(geoAiModelTab === 'claude' ? geoAiDraft : geoDeepseekDraft).trim()
-                                }
-                                aria-label="Send"
-                                title="Send"
-                              >
-                                <i className="fa-solid fa-paper-plane" aria-hidden />
-                              </button>
-                            </div>
-                            <p className="si-geo-explorer-footnote">
-                              {geoAiModelTab === 'claude' ? (
-                                <>
-                                  Powered by Anthropic Claude. Set <code>VITE_CLAUDE_API_KEY</code> or System Settings → API
-                                  Tokens → Claude API. Context is rebuilt each send from GIS Content + Develop Dashboard Data.
-                                </>
-                              ) : (
-                                <>
-                                  Powered by DeepSeek. Set <code>VITE_DEEPSEEK_API_KEY</code> or System Settings → API Tokens
-                                  → DeepSeek. Same GIS + Develop context as Claude; rebuilt each send.
-                                </>
-                              )}
-                            </p>
-                          </>
-                        ) : null}
-                      </div>
-                    </div>
-                  )}
-                  {expandedEnvSection === 'source' && (
-                    <div className="si-env-section-card">
-                      <p className="si-env-toolbar-hint si-env-toolbar-hint--muted">
-                        Open Explore STAC to search scenes, or use the data API. Toggle map overlays in{' '}
-                        <strong>Layers</strong>.
-                      </p>
-                      <div className="si-env-actions">
-                        <button type="button" className="si-explore-stac-open-btn" onClick={openExploreStacFromSource}>
-                          <i className="fa-solid fa-magnifying-glass-chart" />
-                          <span>Explore STAC</span>
-                        </button>
-                      </div>
-                      <div className="si-stac-source-card">
-                        <p className="si-stac-source-lead">
-                          <strong>STAC</strong> (SpatioTemporal Asset Catalog) is an open standard for cataloging imagery and
-                          raster data. STAC connections let you query collections over HTTP, similar to catalog workflows in
-                          ArcGIS Pro.
-                        </p>
-                        <div className="si-stac-active-banner">
-                          <span className="si-stac-active-label">Active connection</span>
-                          <strong>{stacConnection.connectionName}</strong>
-                          <span className="si-stac-active-meta">
-                            {stacConnection.presetId === 'planetary-computer'
-                              ? 'Microsoft Planetary Computer'
-                              : (stacConnection.customCatalogBaseUrl.trim() || 'Custom catalog')}
-                          </span>
-                          <a
-                            className="si-stac-active-meta si-stac-url-truncate"
-                            href={stacActiveSearchUrl}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            title={stacActiveSearchUrl}
-                          >
-                            {stacActiveSearchUrl}
-                          </a>
-                        </div>
-                        <div className="si-stac-source-actions">
-                          <button type="button" className="si-stac-create-connection-btn" onClick={openStacConnectionModal}>
-                            <i className="fa-solid fa-plug" aria-hidden />
-                            <span>Create STAC connection</span>
-                          </button>
-                        </div>
-                        <div className="si-stac-help-row">
-                          <a href={STAC_HELP_LINKS.spec} target="_blank" rel="noopener noreferrer">
-                            STAC specification
-                          </a>
-                          <a href={STAC_HELP_LINKS.docs} target="_blank" rel="noopener noreferrer">
-                            PC STAC docs
-                          </a>
-                          <a href={STAC_HELP_LINKS.catalog} target="_blank" rel="noopener noreferrer">
-                            Browse catalog
-                          </a>
-                          <a href={STAC_HELP_LINKS.esriMpc} target="_blank" rel="noopener noreferrer">
-                            ArcGIS for MPC
-                          </a>
-                        </div>
-                        <p className="si-stac-acs-note">
-                          Cloud Storage Connection (.acs) files from ArcGIS Pro are not applied in the browser; use the
-                          connection dialog (token or headers) when your catalog requires authentication.
-                        </p>
-                      </div>
-                      <div className="si-api-card">
-                        <div className="si-env-chart-title">External API</div>
-                        <input
-                          type="url"
-                          value={apiEndpoint}
-                          onChange={(event) => setApiEndpoint(event.target.value)}
-                          placeholder="https://api.example.com/environmental-index"
-                        />
-                        <div className="si-api-actions">
-                          <button type="button" onClick={syncExternalApiFetch}>
-                            <i className="fa-solid fa-download" />
-                            <span>Fetch</span>
-                          </button>
-                          <button type="button" onClick={resetApiConnection}>
-                            <i className="fa-solid fa-rotate-left" />
-                            <span>Reset</span>
-                          </button>
-                        </div>
-                        <small>{apiStatus}</small>
-                      </div>
-                      <div className="si-env-message">{stacStatus}</div>
-                    </div>
-                  )}
-                  {expandedEnvSection === 'layers' && (
-                    <div className="si-env-section-card">
-                      <button type="button" className="si-add-layer-btn" onClick={openAddLayerModal} aria-label="Add layer" title="Add layer">
-                        <i className="fa-solid fa-plus" aria-hidden />
-                      </button>
-                      <div className="si-env-added-layers">
-                        <div className="si-env-chart-title">Added layers</div>
-                        {addedLayerEntries.length ? (
-                          <div className="si-env-added-layers-list">
-                            {addedLayerEntries.map(layer => (
-                              <div
-                                key={layer.id}
-                                className={`si-env-layer-item${layer.visible ? ' active' : ''}${!layer.toggleable ? ' static' : ''}`}
-                                onClick={layer.toggleable ? layer.onToggle : undefined}
-                                role={layer.toggleable ? 'button' : undefined}
-                                tabIndex={layer.toggleable ? 0 : -1}
-                                onKeyDown={layer.toggleable ? e => {
-                                  if (e.key === 'Enter' || e.key === ' ') {
-                                    e.preventDefault();
-                                    layer.onToggle();
-                                  }
-                                } : undefined}
-                                title={layer.toggleable ? 'Click to toggle visibility' : layer.label}
-                              >
-                                <div className="si-env-layer-top">
-                                  <div className="si-env-layer-info">
-                                    <span className="si-env-layer-name">{layer.label}</span>
-                                    {'meta' in layer && layer.meta ? (
-                                      <span className="si-env-layer-submeta">{layer.meta}</span>
-                                    ) : null}
-                                  </div>
-                                  {layer.toggleable ? (
-                                    <span className="si-env-layer-toggle" aria-hidden>
-                                      <span className="si-env-layer-toggle-knob" />
-                                    </span>
-                                  ) : (
-                                    <span className="si-env-layer-meta-static">always on</span>
-                                  )}
-                                </div>
-                                {'actionable' in layer && layer.actionable && 'sourceLayerId' in layer && layer.sourceLayerId ? (
-                                  <div className="si-env-layer-actions">
-                                    <button
-                                      type="button"
-                                      className="si-env-layer-action-btn"
-                                      title="Sync layer"
-                                      aria-label={`Sync ${layer.label}`}
-                                      onClick={e => handleLayerActionClick(e, 'sync', layer.sourceLayerId)}
-                                    >
-                                      <i className={syncingLayerId === layer.sourceLayerId ? 'fa-solid fa-rotate-right fa-spin' : 'fa-solid fa-rotate-right'} aria-hidden />
-                                    </button>
-                                    <button
-                                      type="button"
-                                      className="si-env-layer-action-btn"
-                                      title="Open tables"
-                                      aria-label={`Open tables for ${layer.label}`}
-                                      onClick={e => handleLayerActionClick(e, 'table', layer.sourceLayerId)}
-                                    >
-                                      <i className="fa-solid fa-table-cells" aria-hidden />
-                                    </button>
-                                    <button
-                                      type="button"
-                                      className="si-env-layer-action-btn"
-                                      title="Symbology"
-                                      aria-label={`Symbology for ${layer.label}`}
-                                      onClick={e => handleLayerActionClick(e, 'symbology', layer.sourceLayerId)}
-                                    >
-                                      <i className="fa-solid fa-sliders" aria-hidden />
-                                    </button>
-                                    <button
-                                      type="button"
-                                      className="si-env-layer-action-btn"
-                                      title="Legend"
-                                      aria-label={`Legend for ${layer.label}`}
-                                      onClick={e => handleLayerActionClick(e, 'legend', layer.sourceLayerId)}
-                                    >
-                                      <i className="fa-solid fa-key" aria-hidden />
-                                    </button>
+                                ))}
+                                {(geoAiModelTab === 'claude' ? geoAiBusy : geoDeepseekBusy) ? (
+                                  <div className="si-geo-explorer-row si-geo-explorer-row--model">
+                                    <div className="si-geo-explorer-avatar" aria-hidden>
+                                      <i className="fa-solid fa-robot" />
+                                    </div>
+                                    <div className="si-geo-explorer-bubble si-geo-explorer-bubble--typing">
+                                      <i className="fa-solid fa-spinner fa-spin" aria-hidden /> Thinking…
+                                    </div>
                                   </div>
                                 ) : null}
                               </div>
-                            ))}
-                          </div>
-                        ) : (
-                          <p className="si-env-message">No layers added yet.</p>
-                        )}
+                              {geoAiModelTab === 'claude' && geoAiChatError ? (
+                                <p className="si-geo-explorer-error">{geoAiChatError}</p>
+                              ) : null}
+                              {geoAiModelTab === 'deepseek' && geoDeepseekChatError ? (
+                                <p className="si-geo-explorer-error">{geoDeepseekChatError}</p>
+                              ) : null}
+                              <div className="si-geo-explorer-input-row">
+                                <textarea
+                                  className="si-geo-explorer-input"
+                                  rows={2}
+                                  value={geoAiModelTab === 'claude' ? geoAiDraft : geoDeepseekDraft}
+                                  onChange={e =>
+                                    geoAiModelTab === 'claude'
+                                      ? setGeoAiDraft(e.target.value)
+                                      : setGeoDeepseekDraft(e.target.value)
+                                  }
+                                  onKeyDown={e => {
+                                    if (e.key === 'Enter' && !e.shiftKey) {
+                                      e.preventDefault();
+                                      if (geoAiModelTab === 'claude') sendGeoAiChat();
+                                      else sendGeoDeepseekChat();
+                                    }
+                                  }}
+                                  placeholder={
+                                    geoAiModelTab === 'claude'
+                                      ? 'e.g. List layer names and fields from the attached GIS / Develop data…'
+                                      : 'e.g. Summarize saved layers and Develop Dashboard fields (same context as Claude)…'
+                                  }
+                                  aria-label={
+                                    geoAiModelTab === 'claude' ? 'Geo AI Claude message' : 'Geo AI DeepSeek message'
+                                  }
+                                  disabled={geoAiModelTab === 'claude' ? geoAiBusy : geoDeepseekBusy}
+                                />
+                                <button
+                                  type="button"
+                                  className="si-geo-explorer-send"
+                                  onClick={geoAiModelTab === 'claude' ? sendGeoAiChat : sendGeoDeepseekChat}
+                                  disabled={
+                                    (geoAiModelTab === 'claude' ? geoAiBusy : geoDeepseekBusy) ||
+                                    !(geoAiModelTab === 'claude' ? geoAiDraft : geoDeepseekDraft).trim()
+                                  }
+                                  aria-label="Send"
+                                  title="Send"
+                                >
+                                  <i className="fa-solid fa-paper-plane" aria-hidden />
+                                </button>
+                              </div>
+                              <p className="si-geo-explorer-footnote">
+                                {geoAiModelTab === 'claude' ? (
+                                  <>
+                                    Powered by Anthropic Claude. Set <code>VITE_CLAUDE_API_KEY</code> or System Settings → API
+                                    Tokens → Claude API. Context is rebuilt each send from GIS Content + Develop Dashboard Data.
+                                  </>
+                                ) : (
+                                  <>
+                                    Powered by DeepSeek. Set <code>VITE_DEEPSEEK_API_KEY</code> or System Settings → API Tokens
+                                    → DeepSeek. Same GIS + Develop context as Claude; rebuilt each send.
+                                  </>
+                                )}
+                              </p>
+                            </>
+                          ) : null}
+                        </div>
                       </div>
-                      <label className="si-stac-footprints-toggle">
-                        <input
-                          type="checkbox"
-                          checked={showStacFootprintsOnMap}
-                          onChange={e => setShowStacFootprintsOnMap(e.target.checked)}
-                        />
-                        <span>Show STAC scene footprints on the map</span>
-                      </label>
-                      {stacMapThumb ? (
-                        <button type="button" className="si-stac-clear-thumb-btn" onClick={clearStacMapThumb}>
-                          Remove image preview from map
-                        </button>
-                      ) : null}
-                      {pivots.length > 0 ? (
-                        <p className="si-env-message">
-                          <strong>{pivots.length}</strong> field pivot feature{pivots.length === 1 ? '' : 's'} on map (from uploaded layer).
+                    )}
+                    {expandedEnvSection === 'source' && (
+                      <div className="si-env-section-card">
+                        <p className="si-env-toolbar-hint si-env-toolbar-hint--muted">
+                          Open Explore STAC to search scenes, or use the data API. Toggle map overlays in{' '}
+                          <strong>Layers</strong>.
                         </p>
-                      ) : null}
-                    </div>
-                  )}
+                        <div className="si-env-actions">
+                          <button type="button" className="si-explore-stac-open-btn" onClick={openExploreStacFromSource}>
+                            <i className="fa-solid fa-magnifying-glass-chart" />
+                            <span>Explore STAC</span>
+                          </button>
+                        </div>
+                        <div className="si-stac-source-card">
+                          <p className="si-stac-source-lead">
+                            <strong>STAC</strong> (SpatioTemporal Asset Catalog) is an open standard for cataloging imagery and
+                            raster data. STAC connections let you query collections over HTTP, similar to catalog workflows in
+                            ArcGIS Pro.
+                          </p>
+                          <div className="si-stac-active-banner">
+                            <span className="si-stac-active-label">Active connection</span>
+                            <strong>{stacConnection.connectionName}</strong>
+                            <span className="si-stac-active-meta">
+                              {stacConnection.presetId === 'planetary-computer'
+                                ? 'Microsoft Planetary Computer'
+                                : (stacConnection.customCatalogBaseUrl.trim() || 'Custom catalog')}
+                            </span>
+                            <a
+                              className="si-stac-active-meta si-stac-url-truncate"
+                              href={stacActiveSearchUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              title={stacActiveSearchUrl}
+                            >
+                              {stacActiveSearchUrl}
+                            </a>
+                          </div>
+                          <div className="si-stac-source-actions">
+                            <button type="button" className="si-stac-create-connection-btn" onClick={openStacConnectionModal}>
+                              <i className="fa-solid fa-plug" aria-hidden />
+                              <span>Create STAC connection</span>
+                            </button>
+                          </div>
+                          <div className="si-stac-help-row">
+                            <a href={STAC_HELP_LINKS.spec} target="_blank" rel="noopener noreferrer">
+                              STAC specification
+                            </a>
+                            <a href={STAC_HELP_LINKS.docs} target="_blank" rel="noopener noreferrer">
+                              PC STAC docs
+                            </a>
+                            <a href={STAC_HELP_LINKS.catalog} target="_blank" rel="noopener noreferrer">
+                              Browse catalog
+                            </a>
+                            <a href={STAC_HELP_LINKS.esriMpc} target="_blank" rel="noopener noreferrer">
+                              ArcGIS for MPC
+                            </a>
+                          </div>
+                          <p className="si-stac-acs-note">
+                            Cloud Storage Connection (.acs) files from ArcGIS Pro are not applied in the browser; use the
+                            connection dialog (token or headers) when your catalog requires authentication.
+                          </p>
+                        </div>
+                        <div className="si-api-card">
+                          <div className="si-env-chart-title">External API</div>
+                          <input
+                            type="url"
+                            value={apiEndpoint}
+                            onChange={(event) => setApiEndpoint(event.target.value)}
+                            placeholder="https://api.example.com/environmental-index"
+                          />
+                          <div className="si-api-actions">
+                            <button type="button" onClick={syncExternalApiFetch}>
+                              <i className="fa-solid fa-download" />
+                              <span>Fetch</span>
+                            </button>
+                            <button type="button" onClick={resetApiConnection}>
+                              <i className="fa-solid fa-rotate-left" />
+                              <span>Reset</span>
+                            </button>
+                          </div>
+                          <small>{apiStatus}</small>
+                        </div>
+                        <div className="si-env-message">{stacStatus}</div>
+                      </div>
+                    )}
+                    {expandedEnvSection === 'layers' && (
+                      <div className="si-env-section-card">
+                        <button type="button" className="si-add-layer-btn" onClick={openAddLayerModal} aria-label="Add layer" title="Add layer">
+                          <i className="fa-solid fa-plus" aria-hidden />
+                        </button>
+                        <div className="si-env-added-layers">
+                          <div className="si-env-chart-title">Added layers</div>
+                          {addedLayerEntries.length ? (
+                            <div className="si-env-added-layers-list">
+                              {addedLayerEntries.map(layer => (
+                                <div
+                                  key={layer.id}
+                                  className={`si-env-layer-item${layer.visible ? ' active' : ''}${!layer.toggleable ? ' static' : ''}`}
+                                  onClick={layer.toggleable ? layer.onToggle : undefined}
+                                  role={layer.toggleable ? 'button' : undefined}
+                                  tabIndex={layer.toggleable ? 0 : -1}
+                                  onKeyDown={layer.toggleable ? e => {
+                                    if (e.key === 'Enter' || e.key === ' ') {
+                                      e.preventDefault();
+                                      layer.onToggle();
+                                    }
+                                  } : undefined}
+                                  title={layer.toggleable ? 'Click to toggle visibility' : layer.label}
+                                >
+                                  <div className="si-env-layer-top">
+                                    <div className="si-env-layer-info">
+                                      <span className="si-env-layer-name">{layer.label}</span>
+                                      {'meta' in layer && layer.meta ? (
+                                        <span className="si-env-layer-submeta">{layer.meta}</span>
+                                      ) : null}
+                                    </div>
+                                    {layer.toggleable ? (
+                                      <span className="si-env-layer-toggle" aria-hidden>
+                                        <span className="si-env-layer-toggle-knob" />
+                                      </span>
+                                    ) : (
+                                      <span className="si-env-layer-meta-static">always on</span>
+                                    )}
+                                  </div>
+                                  {'actionable' in layer && layer.actionable && 'sourceLayerId' in layer && layer.sourceLayerId ? (
+                                    <div className="si-env-layer-actions">
+                                      <button
+                                        type="button"
+                                        className="si-env-layer-action-btn"
+                                        title="Sync layer"
+                                        aria-label={`Sync ${layer.label}`}
+                                        onClick={e => handleLayerActionClick(e, 'sync', layer.sourceLayerId)}
+                                      >
+                                        <i className={syncingLayerId === layer.sourceLayerId ? 'fa-solid fa-rotate-right fa-spin' : 'fa-solid fa-rotate-right'} aria-hidden />
+                                      </button>
+                                      <button
+                                        type="button"
+                                        className="si-env-layer-action-btn"
+                                        title="Open tables"
+                                        aria-label={`Open tables for ${layer.label}`}
+                                        onClick={e => handleLayerActionClick(e, 'table', layer.sourceLayerId)}
+                                      >
+                                        <i className="fa-solid fa-table-cells" aria-hidden />
+                                      </button>
+                                      <button
+                                        type="button"
+                                        className="si-env-layer-action-btn"
+                                        title="Symbology"
+                                        aria-label={`Symbology for ${layer.label}`}
+                                        onClick={e => handleLayerActionClick(e, 'symbology', layer.sourceLayerId)}
+                                      >
+                                        <i className="fa-solid fa-sliders" aria-hidden />
+                                      </button>
+                                      <button
+                                        type="button"
+                                        className="si-env-layer-action-btn"
+                                        title="Legend"
+                                        aria-label={`Legend for ${layer.label}`}
+                                        onClick={e => handleLayerActionClick(e, 'legend', layer.sourceLayerId)}
+                                      >
+                                        <i className="fa-solid fa-key" aria-hidden />
+                                      </button>
+                                    </div>
+                                  ) : null}
+                                </div>
+                              ))}
+                            </div>
+                          ) : (
+                            <p className="si-env-message">No layers added yet.</p>
+                          )}
+                        </div>
+                        <label className="si-stac-footprints-toggle">
+                          <input
+                            type="checkbox"
+                            checked={showStacFootprintsOnMap}
+                            onChange={e => setShowStacFootprintsOnMap(e.target.checked)}
+                          />
+                          <span>Show STAC scene footprints on the map</span>
+                        </label>
+                        {stacMapThumb ? (
+                          <button type="button" className="si-stac-clear-thumb-btn" onClick={clearStacMapThumb}>
+                            Remove image preview from map
+                          </button>
+                        ) : null}
+                        {pivots.length > 0 ? (
+                          <p className="si-env-message">
+                            <strong>{pivots.length}</strong> field pivot feature{pivots.length === 1 ? '' : 's'} on map (from uploaded layer).
+                          </p>
+                        ) : null}
+                      </div>
+                    )}
+                  </div>
                 </div>
-              </div>
-            )}
-          </div>
-              </div>
+              )}
             </div>
           </div>
         </div>
+            </div>
+            </div>
       </div>
       {isAddLayerModalOpen ? (
         <div
@@ -5693,11 +5693,11 @@ export default function SatelliteIntelligence() {
               <p className="gis-modal-compact-hero-lead">
                 Connect services, database sources, or upload local GIS files.
               </p>
-            </div>
+              </div>
 
             <div className="gis-modal-compact-tabs" role="tablist" aria-label="Layer source type">
-              <button
-                type="button"
+                    <button
+                      type="button"
                 role="tab"
                 aria-selected={addLayerTab === 'arcgis'}
                 aria-label="ArcGIS Feature Service"
@@ -5706,9 +5706,9 @@ export default function SatelliteIntelligence() {
                 onClick={() => setAddLayerTab('arcgis')}
               >
                 <i className="fa-solid fa-cloud" aria-hidden />
-              </button>
-              <button
-                type="button"
+                    </button>
+            <button
+              type="button"
                 role="tab"
                 aria-selected={addLayerTab === 'database'}
                 aria-label="Database Connection"
@@ -5717,9 +5717,9 @@ export default function SatelliteIntelligence() {
                 onClick={() => setAddLayerTab('database')}
               >
                 <i className="fa-solid fa-database" aria-hidden />
-              </button>
-              <button
-                type="button"
+            </button>
+                    <button
+                      type="button"
                 role="tab"
                 aria-selected={addLayerTab === 'upload'}
                 aria-label="Upload File"
@@ -5728,8 +5728,8 @@ export default function SatelliteIntelligence() {
                 onClick={() => setAddLayerTab('upload')}
               >
                 <i className="fa-solid fa-file-arrow-up" aria-hidden />
-              </button>
-            </div>
+                    </button>
+              </div>
 
             <div className="gis-modal-body">
               {addLayerTab === 'arcgis' ? (
@@ -5767,25 +5767,25 @@ export default function SatelliteIntelligence() {
                       <div className="gis-form-field">
                         <div className="gis-form-label">Select Layer</div>
                         <div className="gis-select-wrap">
-                          <select
+                        <select
                             className="gis-input gis-select"
-                            value={selectedDiscoveredArcgisUrl}
-                            onChange={e => {
-                              const next = e.target.value;
-                              setSelectedDiscoveredArcgisUrl(next);
-                              const found = discoveredArcgisLayers.find(l => l.url === next);
-                              if (found && !addLayerName.trim()) setAddLayerName(found.name);
-                            }}
+                          value={selectedDiscoveredArcgisUrl}
+                          onChange={e => {
+                            const next = e.target.value;
+                            setSelectedDiscoveredArcgisUrl(next);
+                            const found = discoveredArcgisLayers.find(l => l.url === next);
+                            if (found && !addLayerName.trim()) setAddLayerName(found.name);
+                          }}
                             aria-label="Select discovered layer"
-                          >
-                            {discoveredArcgisLayers.map(l => (
-                              <option key={l.url} value={l.url}>
-                                {l.kind === 'table' ? `${l.name} (Table)` : l.geometryType ? `${l.name} (${l.geometryType})` : l.name}
-                              </option>
-                            ))}
-                          </select>
+                        >
+                          {discoveredArcgisLayers.map(l => (
+                            <option key={l.url} value={l.url}>
+                              {l.kind === 'table' ? `${l.name} (Table)` : l.geometryType ? `${l.name} (${l.geometryType})` : l.name}
+                            </option>
+                          ))}
+                        </select>
                           <i className="fa-solid fa-chevron-down" aria-hidden />
-                        </div>
+                      </div>
                       </div>
                       <div className="gis-discovered-row">
                         <span className="gis-discovered-name">
