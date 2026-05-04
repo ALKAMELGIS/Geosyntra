@@ -207,8 +207,34 @@ const GEMINI_MODEL_CANDIDATES = [
   'gemini-1.5-pro',
 ] as const;
 
-/** Try v1beta first (feature-complete); fall back to v1 when a model id is missing on beta. */
+/** Try v1beta first (supports `systemInstruction`); v1 REST rejects that field — merge system into `contents` for v1. */
 const GEMINI_API_VERSIONS = ['v1beta', 'v1'] as const;
+
+/** v1 `generateContent` does not accept `systemInstruction`; prefix the first user turn (clone, do not mutate caller `contents`). */
+function mergeSystemIntoContents(systemInstruction: string, contents: GeminiContent[]): GeminiContent[] {
+  const prefix = `System (follow strictly):\n${systemInstruction}\n\n---\n\n`
+  const out: GeminiContent[] = contents.map(row => ({
+    role: row.role,
+    parts: row.parts.map(part => ({ ...part })),
+  }))
+  const userIdx = out.findIndex(r => r.role === 'user')
+  if (userIdx < 0) {
+    return [{ role: 'user', parts: [{ text: prefix.trimEnd() }] }, ...out]
+  }
+  const parts = [...out[userIdx]!.parts]
+  if (parts.length === 0) {
+    parts.push({ text: prefix.trimEnd() })
+  } else {
+    const first = parts[0] as { text?: string; inline_data?: { mime_type: string; data: string } }
+    if (typeof first?.text === 'string') {
+      parts[0] = { text: prefix + first.text }
+    } else {
+      parts.unshift({ text: prefix.trimEnd() })
+    }
+  }
+  out[userIdx] = { role: 'user', parts }
+  return out
+}
 
 function isNonRetryableGeminiAuthError(message: string): boolean {
   const m = message.toLowerCase();
@@ -255,13 +281,17 @@ export async function geminiGenerateContent(params: {
   for (const model of GEMINI_MODEL_CANDIDATES) {
     for (const apiVersion of GEMINI_API_VERSIONS) {
       const url = `https://generativelanguage.googleapis.com/${apiVersion}/models/${model}:generateContent?key=${encodeURIComponent(apiKey)}`;
+      const body =
+        apiVersion === 'v1beta'
+          ? {
+              systemInstruction: { parts: [{ text: systemInstruction }] },
+              contents,
+            }
+          : { contents: mergeSystemIntoContents(systemInstruction, contents) }
       const res = await fetch(url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          systemInstruction: { parts: [{ text: systemInstruction }] },
-          contents,
-        }),
+        body: JSON.stringify(body),
       });
       const data = (await res.json().catch(() => ({}))) as any;
       if (!res.ok) {
