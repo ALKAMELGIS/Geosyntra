@@ -1,0 +1,1 @@
+import{m as i}from"./index-DzTIVz_6.js";function s(){return i.jsxs("div",{style:{padding:24},children:[i.jsx("h1",{children:"Multidimensional Analysis"}),i.jsx("p",{children:"Advanced temporal and volumetric analysis tools coming soon."})]})}export{s as default};
