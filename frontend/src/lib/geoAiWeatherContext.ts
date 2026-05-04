@@ -1,6 +1,6 @@
 /**
  * Shared weather facts for Geo AI (Gemini Geo Explorer + Claude/DeepSeek Geo AI Chat):
- * resolves coordinates from map anchor, layer names/attributes, or place geocode, then attaches Open-Meteo (+ optional OpenWeather).
+ * resolves coordinates from map anchor, layer names/attributes, or place geocode, then attaches **OpenWeather** when an API key is set (exclusive), otherwise **Open-Meteo**.
  */
 
 import { geocodePlaceToLngLat, simplifyGeoExplorerUserQuery, stripLayerReferenceForGeocode } from './geoExplorerGeocode'
@@ -78,10 +78,12 @@ export async function buildGeoAiWeatherSystemAppend(input: {
 
   if (weatherImplied && factsCoords) {
     const [fLng, fLat] = factsCoords
-    out += `\n\n${await buildOpenMeteoContextBlock(fLat, fLng, input.userText)}`
     const owm = input.openWeatherApiKey.trim()
     if (owm) {
-      out += `\n\n${await buildOpenWeatherContextBlock(owm, fLat, fLng)}`
+      /* With a configured key, Geo AI weather answers use OpenWeather only (avoids mixing Open-Meteo “current” with a historical question). */
+      out += `\n\n${await buildOpenWeatherContextBlock(owm, fLat, fLng, input.userText)}`
+    } else {
+      out += `\n\n${await buildOpenMeteoContextBlock(fLat, fLng, input.userText)}`
     }
   }
 
