@@ -1654,7 +1654,7 @@ export default function SatelliteIntelligence() {
         centroid: getGeoJsonCentroid(feature),
       };
     });
-  }, [customLayers, viewState.longitude, viewState.latitude]);
+  }, [customLayers]);
 
   const pivotChartRows = useMemo(() => {
     const latestMean = weeklyComposites.length ? weeklyComposites[Math.min(weeklyComposites.length - 1, 2)].mean : 0;
