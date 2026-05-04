@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useRef, useEffect, useCallback } from 'react';
+import React, { useState, useMemo, useRef, useEffect, useLayoutEffect, useCallback } from 'react';
 import MapGL, { Source, Layer, NavigationControl, Marker } from 'react-map-gl/mapbox';
 import 'mapbox-gl/dist/mapbox-gl.css';
 import './SatelliteIntelligence.css';
@@ -3813,6 +3813,17 @@ export default function SatelliteIntelligence() {
   const mapStyle = currentBasemapEntry
     ? mapboxGlStyleForEntry(currentBasemapEntry, mapboxToken || '')
     : EMPTY_MAP_STYLE;
+
+  /** Avoid Mapbox "Style is not done loading" by not mounting GeoJSON/Layer children until style is ready; reset after basemap/token change. */
+  const basemapStyleGateRef = useRef(false);
+  useLayoutEffect(() => {
+    if (!basemapStyleGateRef.current) {
+      basemapStyleGateRef.current = true;
+      return;
+    }
+    setIsMapLoaded(false);
+  }, [activeBasemapId, mapboxToken]);
+
   const toggleWmsOverlayVisibility = () => setIsWmsOverlayVisible(v => !v);
   const toggleStacThumbVisibility = () => setIsStacThumbVisible(v => !v);
   const currentBasemapLabel = currentBasemapEntry?.label || basemapId || 'Default basemap';
@@ -3998,189 +4009,193 @@ export default function SatelliteIntelligence() {
             }}
             onLoad={() => setIsMapLoaded(true)}
           >
-            {customLayers.map(layer => {
-              if (!layer.visible) return null;
-              const st = siLayerMapboxStylePack(layer);
-              return (
-                <Source
-                  key={`${layer.id}-${layer.useArcGisSymbology ? 'ag' : 'c'}`}
-                  id={layer.id}
-                  type="geojson"
-                  data={layer.geojson}
-                >
-                  <Layer id={`${layer.id}-fill`} type="fill" filter={st.fillFilter} paint={st.fillPaint as any} />
-                  <Layer id={`${layer.id}-line`} type="line" filter={st.lineFilter} paint={st.linePaint as any} />
-                  <Layer id={`${layer.id}-circle`} type="circle" filter={st.pointFilter} paint={st.circlePaint as any} />
-                </Source>
-              );
-            })}
+            {isMapLoaded ? (
+              <>
+                {customLayers.map(layer => {
+                  if (!layer.visible) return null;
+                  const st = siLayerMapboxStylePack(layer);
+                  return (
+                    <Source
+                      key={`${layer.id}-${layer.useArcGisSymbology ? 'ag' : 'c'}`}
+                      id={layer.id}
+                      type="geojson"
+                      data={layer.geojson}
+                    >
+                      <Layer id={`${layer.id}-fill`} type="fill" filter={st.fillFilter} paint={st.fillPaint as any} />
+                      <Layer id={`${layer.id}-line`} type="line" filter={st.lineFilter} paint={st.linePaint as any} />
+                      <Layer id={`${layer.id}-circle`} type="circle" filter={st.pointFilter} paint={st.circlePaint as any} />
+                    </Source>
+                  );
+                })}
 
-            {pivots.length > 0 && (
-              <Source id="agri-pivots-source" type="geojson" data={pivotGeoJson as any}>
-                <Layer
-                  id="agri-pivots-fill"
-                  type="fill"
-                  layout={pivotFillLayoutAndPaint.fillLayout}
-                  paint={pivotFillLayoutAndPaint.fillPaint}
-                />
-                <Layer
-                  id="agri-pivots-outline"
-                  type="line"
-                  layout={pivotFillLayoutAndPaint.outlineLayout}
-                  paint={{
-                    'line-color': ['coalesce', ['get', 'color'], '#22c55e'] as any,
-                    'line-width': 2,
-                    'line-opacity': 0.9,
-                  }}
-                />
-              </Source>
-            )}
+                {pivots.length > 0 && (
+                  <Source id="agri-pivots-source" type="geojson" data={pivotGeoJson as any}>
+                    <Layer
+                      id="agri-pivots-fill"
+                      type="fill"
+                      layout={pivotFillLayoutAndPaint.fillLayout}
+                      paint={pivotFillLayoutAndPaint.fillPaint}
+                    />
+                    <Layer
+                      id="agri-pivots-outline"
+                      type="line"
+                      layout={pivotFillLayoutAndPaint.outlineLayout}
+                      paint={{
+                        'line-color': ['coalesce', ['get', 'color'], '#22c55e'] as any,
+                        'line-width': 2,
+                        'line-opacity': 0.9,
+                      }}
+                    />
+                  </Source>
+                )}
 
-            {geoAiPinGeoJson ? (
-              <Source id="si-geo-ai-pin" type="geojson" data={geoAiPinGeoJson as any}>
-                <Layer
-                  id="si-geo-ai-pin-glow"
-                  type="circle"
-                  paint={{
-                    'circle-radius': 18,
-                    'circle-color': '#a78bfa',
-                    'circle-opacity': 0.35,
-                    'circle-blur': 0.6,
-                  }}
-                />
-                <Layer
-                  id="si-geo-ai-pin-core"
-                  type="circle"
-                  paint={{
-                    'circle-radius': 7,
-                    'circle-color': '#c4b5fd',
-                    'circle-stroke-width': 2,
-                    'circle-stroke-color': '#faf5ff',
-                  }}
-                />
-              </Source>
-            ) : null}
+                {geoAiPinGeoJson ? (
+                  <Source id="si-geo-ai-pin" type="geojson" data={geoAiPinGeoJson as any}>
+                    <Layer
+                      id="si-geo-ai-pin-glow"
+                      type="circle"
+                      paint={{
+                        'circle-radius': 18,
+                        'circle-color': '#a78bfa',
+                        'circle-opacity': 0.35,
+                        'circle-blur': 0.6,
+                      }}
+                    />
+                    <Layer
+                      id="si-geo-ai-pin-core"
+                      type="circle"
+                      paint={{
+                        'circle-radius': 7,
+                        'circle-color': '#c4b5fd',
+                        'circle-stroke-width': 2,
+                        'circle-stroke-color': '#faf5ff',
+                      }}
+                    />
+                  </Source>
+                ) : null}
 
-            {draftDrawGeoJson ? (
-              <Source id="si-draw-draft" type="geojson" data={draftDrawGeoJson as any}>
-                <Layer
-                  id="si-draw-draft-fill"
-                  type="fill"
-                  filter={['==', ['geometry-type'], 'Polygon']}
-                  paint={{
-                    'fill-color': drawStyle.fillColor,
-                    'fill-opacity': Math.min(0.45, drawStyle.fillOpacity + 0.12),
-                  }}
-                />
-                <Layer
-                  id="si-draw-draft-line"
-                  type="line"
-                  filter={[
-                    'all',
-                    ['==', ['geometry-type'], 'LineString'],
-                    ['!=', ['get', 'draftRole'], 'closeHint'],
-                  ]}
-                  paint={{
-                    'line-color': drawStyle.strokeColor,
-                    'line-width': drawStyle.strokeWidth,
-                    'line-dasharray': [2, 2],
-                    'line-opacity': 0.9,
-                  }}
-                />
-                <Layer
-                  id="si-draw-draft-close-hint"
-                  type="line"
-                  filter={['==', ['get', 'draftRole'], 'closeHint']}
-                  paint={{
-                    'line-color': '#4ade80',
-                    'line-width': Math.max(2, drawStyle.strokeWidth),
-                    'line-dasharray': [1, 2],
-                    'line-opacity': 0.95,
-                  }}
-                />
-                <Layer
-                  id="si-draw-draft-vertex"
-                  type="circle"
-                  filter={['==', ['get', 'draftRole'], 'polyVertex']}
-                  paint={{
-                    'circle-radius': 7,
-                    'circle-color': '#bbf7d0',
-                    'circle-stroke-width': 2,
-                    'circle-stroke-color': '#14532d',
-                  }}
-                />
-                <Layer
-                  id="si-draw-draft-pt"
-                  type="circle"
-                  filter={[
-                    'all',
-                    ['==', ['geometry-type'], 'Point'],
-                    ['!=', ['get', 'draftRole'], 'polyVertex'],
-                  ]}
-                  paint={{
-                    'circle-radius': 6,
-                    'circle-color': drawStyle.strokeColor,
-                    'circle-stroke-width': 2,
-                    'circle-stroke-color': '#0f172a',
-                  }}
-                />
-              </Source>
-            ) : null}
+                {draftDrawGeoJson ? (
+                  <Source id="si-draw-draft" type="geojson" data={draftDrawGeoJson as any}>
+                    <Layer
+                      id="si-draw-draft-fill"
+                      type="fill"
+                      filter={['==', ['geometry-type'], 'Polygon']}
+                      paint={{
+                        'fill-color': drawStyle.fillColor,
+                        'fill-opacity': Math.min(0.45, drawStyle.fillOpacity + 0.12),
+                      }}
+                    />
+                    <Layer
+                      id="si-draw-draft-line"
+                      type="line"
+                      filter={[
+                        'all',
+                        ['==', ['geometry-type'], 'LineString'],
+                        ['!=', ['get', 'draftRole'], 'closeHint'],
+                      ]}
+                      paint={{
+                        'line-color': drawStyle.strokeColor,
+                        'line-width': drawStyle.strokeWidth,
+                        'line-dasharray': [2, 2],
+                        'line-opacity': 0.9,
+                      }}
+                    />
+                    <Layer
+                      id="si-draw-draft-close-hint"
+                      type="line"
+                      filter={['==', ['get', 'draftRole'], 'closeHint']}
+                      paint={{
+                        'line-color': '#4ade80',
+                        'line-width': Math.max(2, drawStyle.strokeWidth),
+                        'line-dasharray': [1, 2],
+                        'line-opacity': 0.95,
+                      }}
+                    />
+                    <Layer
+                      id="si-draw-draft-vertex"
+                      type="circle"
+                      filter={['==', ['get', 'draftRole'], 'polyVertex']}
+                      paint={{
+                        'circle-radius': 7,
+                        'circle-color': '#bbf7d0',
+                        'circle-stroke-width': 2,
+                        'circle-stroke-color': '#14532d',
+                      }}
+                    />
+                    <Layer
+                      id="si-draw-draft-pt"
+                      type="circle"
+                      filter={[
+                        'all',
+                        ['==', ['geometry-type'], 'Point'],
+                        ['!=', ['get', 'draftRole'], 'polyVertex'],
+                      ]}
+                      paint={{
+                        'circle-radius': 6,
+                        'circle-color': drawStyle.strokeColor,
+                        'circle-stroke-width': 2,
+                        'circle-stroke-color': '#0f172a',
+                      }}
+                    />
+                  </Source>
+                ) : null}
 
-            {drawnGeometry && (
-              <Source id="drawn-index-geometry-source" type="geojson" data={drawnGeometry as any}>
-                <Layer
-                  id="drawn-index-geometry-fill"
-                  type="fill"
-                  filter={['==', ['geometry-type'], 'Polygon']}
-                  paint={{
-                    'fill-color': drawStyle.fillColor,
-                    'fill-opacity': drawStyle.fillOpacity,
-                  }}
-                />
-                <Layer
-                  id="drawn-index-geometry-line"
-                  type="line"
-                  filter={['in', ['geometry-type'], ['literal', ['LineString', 'Polygon']]]}
-                  paint={{
-                    'line-color': drawStyle.strokeColor,
-                    'line-width': [
-                      'case',
-                      ['==', ['geometry-type'], 'LineString'],
-                      Math.max(2, drawStyle.strokeWidth + 1),
-                      drawStyle.strokeWidth,
-                    ],
-                  }}
-                />
-                <Layer
-                  id="drawn-index-geometry-point"
-                  type="circle"
-                  filter={['==', ['geometry-type'], 'Point']}
-                  paint={{
-                    'circle-radius': drawStyle.pointRadius,
-                    'circle-color': drawStyle.fillColor,
-                    'circle-opacity': Math.min(1, drawStyle.fillOpacity + 0.55),
-                    'circle-stroke-color': drawStyle.strokeColor,
-                    'circle-stroke-width': Math.max(1, drawStyle.strokeWidth / 2),
-                  }}
-                />
-              </Source>
-            )}
+                {drawnGeometry && (
+                  <Source id="drawn-index-geometry-source" type="geojson" data={drawnGeometry as any}>
+                    <Layer
+                      id="drawn-index-geometry-fill"
+                      type="fill"
+                      filter={['==', ['geometry-type'], 'Polygon']}
+                      paint={{
+                        'fill-color': drawStyle.fillColor,
+                        'fill-opacity': drawStyle.fillOpacity,
+                      }}
+                    />
+                    <Layer
+                      id="drawn-index-geometry-line"
+                      type="line"
+                      filter={['in', ['geometry-type'], ['literal', ['LineString', 'Polygon']]]}
+                      paint={{
+                        'line-color': drawStyle.strokeColor,
+                        'line-width': [
+                          'case',
+                          ['==', ['geometry-type'], 'LineString'],
+                          Math.max(2, drawStyle.strokeWidth + 1),
+                          drawStyle.strokeWidth,
+                        ],
+                      }}
+                    />
+                    <Layer
+                      id="drawn-index-geometry-point"
+                      type="circle"
+                      filter={['==', ['geometry-type'], 'Point']}
+                      paint={{
+                        'circle-radius': drawStyle.pointRadius,
+                        'circle-color': drawStyle.fillColor,
+                        'circle-opacity': Math.min(1, drawStyle.fillOpacity + 0.55),
+                        'circle-stroke-color': drawStyle.strokeColor,
+                        'circle-stroke-width': Math.max(1, drawStyle.strokeWidth / 2),
+                      }}
+                    />
+                  </Source>
+                )}
 
-            {editHandlesGeoJson ? (
-              <Source id="si-edit-handles" type="geojson" data={editHandlesGeoJson as any}>
-                <Layer
-                  id="si-edit-handles-circles"
-                  type="circle"
-                  paint={{
-                    'circle-radius': 9,
-                    'circle-color': drawStyle.strokeColor,
-                    'circle-stroke-width': 2,
-                    'circle-stroke-color': '#0f172a',
-                    'circle-opacity': 0.95,
-                  }}
-                />
-              </Source>
+                {editHandlesGeoJson ? (
+                  <Source id="si-edit-handles" type="geojson" data={editHandlesGeoJson as any}>
+                    <Layer
+                      id="si-edit-handles-circles"
+                      type="circle"
+                      paint={{
+                        'circle-radius': 9,
+                        'circle-color': drawStyle.strokeColor,
+                        'circle-stroke-width': 2,
+                        'circle-stroke-color': '#0f172a',
+                        'circle-opacity': 0.95,
+                      }}
+                    />
+                  </Source>
+                ) : null}
+              </>
             ) : null}
 
             {isMapLoaded && showStacFootprintsOnMap && stacFootprintsGeoJson.features.length > 0 && (
@@ -4244,7 +4259,7 @@ export default function SatelliteIntelligence() {
               </Source>
             )}
 
-            {geoAiInspectCard ? (
+            {isMapLoaded && geoAiInspectCard ? (
               <Marker
                 className="si-geo-ai-inspect-marker"
                 longitude={geoAiInspectCard.lng}
@@ -4311,7 +4326,7 @@ export default function SatelliteIntelligence() {
               </Marker>
             ) : null}
 
-            <NavigationControl position="bottom-right" />
+            {isMapLoaded ? <NavigationControl position="bottom-right" /> : null}
           </MapGL>
 
           {drawnStats && (

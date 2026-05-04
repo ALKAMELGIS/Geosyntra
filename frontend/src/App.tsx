@@ -36,6 +36,8 @@ class AppErrorBoundary extends Component<{ children: JSX.Element }, { err: AppEr
     if (typeof window === 'undefined') return
     this.onUnhandledRejection = (e) => {
       const reason = (e as any).reason
+      const msg = reason instanceof Error ? reason.message : typeof reason === 'string' ? reason : ''
+      if (msg.includes('Style is not done loading')) return
       const details = reason instanceof Error ? reason.stack : undefined
       this.setState({ err: { error: reason ?? e, kind: 'window', details } })
       try {
@@ -44,6 +46,9 @@ class AppErrorBoundary extends Component<{ children: JSX.Element }, { err: AppEr
       }
     }
     this.onErrorEvent = (e) => {
+      const err = e?.error
+      const msg = err instanceof Error ? err.message : typeof err === 'string' ? err : String(e?.message ?? '')
+      if (msg.includes('Style is not done loading')) return
       const details = typeof e?.error?.stack === 'string' ? e.error.stack : undefined
       this.setState({ err: { error: e.error ?? e.message, kind: 'window', details } })
       try {
