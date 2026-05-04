@@ -3851,7 +3851,9 @@ export default function SatelliteIntelligence() {
             </div>
           )}
 
-          <div className="si-map-left-stack">
+          <div className="si-map-floating-controls">
+            <div className="si-map-floating-controls__row">
+              <div className="si-map-floating-controls__left">
           <div
             ref={searchRef}
             className={`si-map-search ${isSearchOpen ? 'open' : 'collapsed'}`}
@@ -3922,48 +3924,8 @@ export default function SatelliteIntelligence() {
               </div>
             )}
           </div>
-
-          <div className="si-basemap-toggle">
-            <button
-              type="button"
-              className={`si-basemap-button ${isBasemapOpen ? 'active' : ''}`}
-              onClick={() => setIsBasemapOpen(open => !open)}
-              title="Basemap"
-            >
-              <i className="fa-solid fa-globe"></i>
-            </button>
-            {isBasemapOpen && (
-              <div className="si-basemap-widget si-basemap-widget--grid">
-                {basemapCatalog.map(entry => {
-                  const thumb = getBasemapThumbnail(entry, mapboxToken || '');
-                  const isHybrid =
-                    entry.id === 'mapbox-hybrid' || entry.id === 'esri-imagery-hybrid';
-                  return (
-                    <button
-                      type="button"
-                      key={entry.id}
-                      className={`si-basemap-card ${activeBasemapId === entry.id ? 'active' : ''}`}
-                      onClick={() => {
-                        setBasemapId(entry.id);
-                        setIsBasemapOpen(false);
-                      }}
-                    >
-                      <span className="si-basemap-card-thumb">
-                        <img src={thumb} alt="" />
-                        {isHybrid && <span className="si-basemap-card-hybrid">Labels</span>}
-                        {activeBasemapId === entry.id && (
-                          <span className="si-basemap-card-check" aria-hidden>
-                            <i className="fa-solid fa-check" />
-                          </span>
-                        )}
-                      </span>
-                      <span className="si-basemap-card-label">{entry.label}</span>
-                    </button>
-                  );
-                })}
               </div>
-            )}
-          </div>
+              <div className="si-map-floating-controls__right">
           <div className="si-env-rail">
             <button
               type="button"
@@ -5238,7 +5200,6 @@ export default function SatelliteIntelligence() {
                   )}
                   {expandedEnvSection === 'layers' && (
                     <div className="si-env-section-card">
-                      <p className="si-env-toolbar-hint">Turn map overlays and uploads on or off.</p>
                       <button type="button" className="si-add-layer-btn" onClick={openAddLayerModal} aria-label="Add layer" title="Add layer">
                         <i className="fa-solid fa-plus" aria-hidden />
                       </button>
@@ -5336,13 +5297,6 @@ export default function SatelliteIntelligence() {
                           Remove image preview from map
                         </button>
                       ) : null}
-                      <button type="button" className="si-env-upload-inline" onClick={handleUploadCustomLayerClick}>
-                        <i className="fa-solid fa-upload" aria-hidden />
-                        <span>Upload field GeoJSON / KML</span>
-                      </button>
-                      {customLayers.length === 0 ? (
-                        <p className="si-env-message">No uploaded vector layers yet.</p>
-                      ) : null}
                       {pivots.length > 0 ? (
                         <p className="si-env-message">
                           <strong>{pivots.length}</strong> field pivot feature{pivots.length === 1 ? '' : 's'} on map (from uploaded layer).
@@ -5354,6 +5308,51 @@ export default function SatelliteIntelligence() {
               </div>
             )}
           </div>
+              </div>
+            </div>
+            <div className="si-map-floating-controls__below">
+              <div className="si-basemap-toggle">
+                <button
+                  type="button"
+                  className={`si-basemap-button ${isBasemapOpen ? 'active' : ''}`}
+                  onClick={() => setIsBasemapOpen(open => !open)}
+                  title="Basemap"
+                >
+                  <i className="fa-solid fa-globe"></i>
+                </button>
+                {isBasemapOpen && (
+                  <div className="si-basemap-widget si-basemap-widget--grid">
+                    {basemapCatalog.map(entry => {
+                      const thumb = getBasemapThumbnail(entry, mapboxToken || '');
+                      const isHybrid =
+                        entry.id === 'mapbox-hybrid' || entry.id === 'esri-imagery-hybrid';
+                      return (
+                        <button
+                          type="button"
+                          key={entry.id}
+                          className={`si-basemap-card ${activeBasemapId === entry.id ? 'active' : ''}`}
+                          onClick={() => {
+                            setBasemapId(entry.id);
+                            setIsBasemapOpen(false);
+                          }}
+                        >
+                          <span className="si-basemap-card-thumb">
+                            <img src={thumb} alt="" />
+                            {isHybrid && <span className="si-basemap-card-hybrid">Labels</span>}
+                            {activeBasemapId === entry.id && (
+                              <span className="si-basemap-card-check" aria-hidden>
+                                <i className="fa-solid fa-check" />
+                              </span>
+                            )}
+                          </span>
+                          <span className="si-basemap-card-label">{entry.label}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            </div>
           </div>
         </div>
       </div>
