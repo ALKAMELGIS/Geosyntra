@@ -39,6 +39,10 @@ import {
   getDeepseekApiKeyBrowserOverride,
   persistDeepseekApiKeyInBrowser,
 } from '../../lib/deepseekApiKey'
+import {
+  getOpenWeatherMapApiKeyBrowserOverride,
+  persistOpenWeatherMapApiKeyInBrowser,
+} from '../../lib/openWeatherMapApiKey'
 import { persistApiSecretsPatchToServer } from '../../lib/apiSecretsServerPersistence'
 
 const PAGE_ICON_PRESETS = [
@@ -153,6 +157,7 @@ export default function SystemSettings() {
   const [geminiApiKeyDraft, setGeminiApiKeyDraft] = useState('')
   const [claudeApiKeyDraft, setClaudeApiKeyDraft] = useState('')
   const [deepseekApiKeyDraft, setDeepseekApiKeyDraft] = useState('')
+  const [openWeatherMapApiKeyDraft, setOpenWeatherMapApiKeyDraft] = useState('')
   const [customUserTokenDrafts, setCustomUserTokenDrafts] = useState<Record<string, string>>({})
   const [addApiModalOpen, setAddApiModalOpen] = useState(false)
   const [addApiForm, setAddApiForm] = useState({
@@ -225,6 +230,11 @@ export default function SystemSettings() {
     return typeof raw === 'string' && raw.trim().length > 0
   }, [])
 
+  const openWeatherMapApiKeyFromEnv = useMemo(() => {
+    const raw = import.meta.env.VITE_OPENWEATHER_API_KEY
+    return typeof raw === 'string' && raw.trim().length > 0
+  }, [])
+
   useEffect(() => {
     if (tab !== 'api-tokens') return
     const refreshApiDrafts = () => {
@@ -235,6 +245,7 @@ export default function SystemSettings() {
       setGeminiApiKeyDraft(getGeminiApiKeyBrowserOverride())
       setClaudeApiKeyDraft(getClaudeApiKeyBrowserOverride())
       setDeepseekApiKeyDraft(getDeepseekApiKeyBrowserOverride())
+      setOpenWeatherMapApiKeyDraft(getOpenWeatherMapApiKeyBrowserOverride())
     }
     refreshApiDrafts()
     window.addEventListener('agri-api-secrets-hydrated', refreshApiDrafts)
@@ -1296,7 +1307,9 @@ export default function SystemSettings() {
                 {language === 'ar' ? 'التكاملات المدمجة' : 'Built-in integrations'}
               </h3>
               <p className="sys-api-section__sub">
-                {language === 'ar' ? 'خدمات يستخدمها التطبيق مباشرة.' : 'Providers wired into the app today.'}
+                {language === 'ar'
+                  ? 'التكاملات المدمجة وبطاقاتك المخصّصة (من «إضافة رموز API») تظهر في نفس الشبكة؛ احفظ الإعدادات لتثبيت تعريف البطاقة، وزر الحفظ بجانب الحقل للسر على الخادم والمتصفح.'
+                  : 'Built-in providers and custom cards you add with + Add API Tokens appear in this same grid. Save settings to persist card definitions; use the check by each field to store secrets on the server and in this browser.'}
               </p>
             </div>
           <div className="sys-api-tokens-grid">
@@ -1419,6 +1432,76 @@ export default function SystemSettings() {
                 {language === 'ar'
                   ? 'يُستخدم لخدمات ArcGIS المحمية (مثل Feature Service وImageServer) عند الاستيراد من الرابط أو الخريطة. يمكن تركه فارغاً للخدمات العامة.'
                   : 'Used for secured ArcGIS REST layers (Feature Service, ImageServer from URL, etc.). Leave empty for public services only.'}
+              </p>
+            </div>
+
+            <div className="sys-api-tokens-card">
+              <h3 className="sys-settings-panel__title sys-settings-api-h3">
+                <i className="fa-solid fa-cloud-sun" aria-hidden />
+                Open Weather Map
+              </h3>
+              {openWeatherMapApiKeyFromEnv ? (
+                <p className="sys-settings-panel__desc sys-settings-api-envnote">
+                  <strong>{language === 'ar' ? 'متاح من البناء:' : 'Available from build:'}</strong>{' '}
+                  {language === 'ar'
+                    ? 'يُستخدم VITE_OPENWEATHER_API_KEY إذا لم يكن هناك مفتاح محفوظ في هذا المتصفح؛ القيمة المحفوظة أدناه تتقدم عليه.'
+                    : 'VITE_OPENWEATHER_API_KEY is used when this browser has no saved key; a key saved below takes precedence.'}
+                </p>
+              ) : null}
+              <ApiTokenMergeField
+                id="sys-openweathermap-api-key"
+                label={
+                  language === 'ar'
+                    ? 'مفتاح OpenWeatherMap API (المتصفح + الخادم)'
+                    : 'OpenWeatherMap API key (browser + server)'
+                }
+                value={openWeatherMapApiKeyDraft}
+                onChange={setOpenWeatherMapApiKeyDraft}
+                placeholder={language === 'ar' ? 'مفتاح API…' : 'API key…'}
+                password
+                onSave={async () => {
+                  persistOpenWeatherMapApiKeyInBrowser(openWeatherMapApiKeyDraft)
+                  const r = await persistApiSecretsPatchToServer({
+                    openWeatherMapApiKey: openWeatherMapApiKeyDraft.trim(),
+                  })
+                  pushToast(
+                    'success',
+                    r.ok
+                      ? language === 'ar'
+                        ? 'تم حفظ مفتاح OpenWeather على الخادم والمتصفح.'
+                        : 'OpenWeatherMap API key saved on server and in this browser.'
+                      : language === 'ar'
+                        ? 'حُفظ في المتصفح؛ تعذّر تحديث الخادم.'
+                        : 'Saved in this browser; server copy not updated.',
+                  )
+                }}
+                onClear={async () => {
+                  persistOpenWeatherMapApiKeyInBrowser('')
+                  setOpenWeatherMapApiKeyDraft('')
+                  const r = await persistApiSecretsPatchToServer({ openWeatherMapApiKey: '' })
+                  pushToast(
+                    'success',
+                    r.ok
+                      ? language === 'ar'
+                        ? 'أُزيل مفتاح OpenWeather من الخادم والمتصفح.'
+                        : 'OpenWeatherMap API key cleared on server and in this browser.'
+                      : language === 'ar'
+                        ? 'أُزيل من المتصفح؛ تعذّر تحديث الخادم.'
+                        : 'Cleared in this browser; server may be unchanged until API is reachable.',
+                  )
+                }}
+                saveTitle={language === 'ar' ? 'حفظ' : 'Save'}
+                clearTitle={language === 'ar' ? 'مسح' : 'Clear'}
+                saveAria={language === 'ar' ? 'حفظ مفتاح OpenWeatherMap' : 'Save OpenWeatherMap API key'}
+                clearAria={language === 'ar' ? 'مسح مفتاح OpenWeatherMap' : 'Clear OpenWeatherMap API key'}
+                actionsGroupLabel={
+                  language === 'ar' ? 'إجراءات مفتاح OpenWeatherMap' : 'OpenWeatherMap API key actions'
+                }
+              />
+              <p className="sys-settings-panel__desc sys-settings-api-hint">
+                {language === 'ar'
+                  ? 'اختياري: يُستخدم لسياق الطقس في Geo AI (الحالي والتوقعات القصيرة) عبر api.openweathermap.org. بدون مفتاح يبقى Open-Meteo فقط.'
+                  : 'Optional: enriches Geo AI weather context (current + short forecast) via api.openweathermap.org. Without a key, Open-Meteo-only context is used.'}
               </p>
             </div>
 
@@ -1730,102 +1813,84 @@ export default function SystemSettings() {
                   : 'Powers Geo AI Chat in Satellite Intelligence: answers use only GIS Map saved layers (GIS Content) plus the Develop Dashboard → Data snapshot—no invented field values. Save the key here or use VITE_CLAUDE_API_KEY at build time.'}
               </p>
             </div>
+
+            {draft.customApiTokenSlots.map(slot => {
+              const cardTitle = language === 'ar' && slot.titleAr ? slot.titleAr : slot.title
+              const cardDesc = language === 'ar' && slot.descriptionAr ? slot.descriptionAr : slot.description
+              const fLabel = language === 'ar' && slot.fieldLabelAr ? slot.fieldLabelAr : slot.fieldLabel
+              const ph =
+                language === 'ar' && slot.placeholderAr ? slot.placeholderAr : slot.placeholder ?? ''
+              return (
+                <div key={slot.id} className="sys-api-tokens-card sys-api-tokens-card--custom">
+                  <div className="sys-api-card-head">
+                    <h3 className="sys-settings-panel__title sys-settings-api-h3 sys-api-card-head__title">
+                      <i className={slot.iconClass} aria-hidden />
+                      {cardTitle}
+                    </h3>
+                    <button
+                      type="button"
+                      className="sys-api-card-remove"
+                      onClick={() => removeCustomApiSlot(slot.id)}
+                      title={language === 'ar' ? 'حذف البطاقة' : 'Remove card'}
+                      aria-label={language === 'ar' ? 'حذف بطاقة الرمز' : 'Remove API token card'}
+                    >
+                      <i className="fa-solid fa-trash" aria-hidden />
+                    </button>
+                  </div>
+                  {cardDesc ? <p className="sys-settings-panel__desc sys-api-card-lead">{cardDesc}</p> : null}
+                  <ApiTokenMergeField
+                    id={`sys-custom-api-${slot.id}`}
+                    label={fLabel}
+                    value={customUserTokenDrafts[slot.id] ?? ''}
+                    onChange={next =>
+                      setCustomUserTokenDrafts(p => ({
+                        ...p,
+                        [slot.id]: next,
+                      }))
+                    }
+                    placeholder={ph || (language === 'ar' ? '••••••••' : '••••••••')}
+                    password
+                    onSave={async () => {
+                      const v = customUserTokenDrafts[slot.id] ?? ''
+                      persistUserApiTokenValue(slot.id, v)
+                      const r = await persistApiSecretsPatchToServer({ customSlots: { [slot.id]: v.trim() } })
+                      pushToast(
+                        'success',
+                        r.ok
+                          ? language === 'ar'
+                            ? 'تم الحفظ على الخادم والمتصفح.'
+                            : 'Saved on server and in this browser.'
+                          : language === 'ar'
+                            ? 'حُفظ في المتصفح؛ تعذّر تحديث الخادم.'
+                            : 'Saved in this browser; server copy not updated.',
+                      )
+                    }}
+                    onClear={async () => {
+                      persistUserApiTokenValue(slot.id, '')
+                      setCustomUserTokenDrafts(p => ({ ...p, [slot.id]: '' }))
+                      const r = await persistApiSecretsPatchToServer({ customSlots: { [slot.id]: '' } })
+                      pushToast(
+                        'success',
+                        r.ok
+                          ? language === 'ar'
+                            ? 'تم المسح من الخادم والمتصفح.'
+                            : 'Cleared on server and in this browser.'
+                          : language === 'ar'
+                            ? 'أُزيل من المتصفح؛ تعذّر تحديث الخادم.'
+                            : 'Cleared in this browser; server may be unchanged until API is reachable.',
+                      )
+                    }}
+                    saveTitle={language === 'ar' ? 'حفظ' : 'Save'}
+                    clearTitle={language === 'ar' ? 'مسح' : 'Clear'}
+                    saveAria={language === 'ar' ? 'حفظ السر' : 'Save secret'}
+                    clearAria={language === 'ar' ? 'مسح السر' : 'Clear secret'}
+                    actionsGroupLabel={language === 'ar' ? 'إجراءات السر' : 'Secret actions'}
+                  />
+                </div>
+              )
+            })}
           </div>
           </section>
-
-          {draft.customApiTokenSlots.length ? (
-            <section className="sys-api-section sys-api-section--custom" aria-labelledby="sys-api-custom-heading">
-              <div className="sys-api-section__head">
-                <h3 id="sys-api-custom-heading" className="sys-api-section__title">
-                  {language === 'ar' ? 'إدخالاتك' : 'Your API entries'}
-                </h3>
-                <p className="sys-api-section__sub">
-                  {language === 'ar'
-                    ? 'عرّف البطاقة هنا؛ استخدم أيقونة حفظ الإعدادات في الشريط أسفل القسم لتثبيت التعريف. زر الحفظ بجانب الحقل يخزّن السر على الخادم وفي المتصفح عند توفر واجهة API.'
-                    : 'Define the card here; use the settings save icon in the toolbar below to persist the card definition. Per-field Save stores the secret on the server and in this browser when the API is available.'}
-                </p>
-              </div>
-              <div className="sys-api-tokens-grid">
-                {draft.customApiTokenSlots.map(slot => {
-                  const cardTitle = language === 'ar' && slot.titleAr ? slot.titleAr : slot.title
-                  const cardDesc = language === 'ar' && slot.descriptionAr ? slot.descriptionAr : slot.description
-                  const fLabel = language === 'ar' && slot.fieldLabelAr ? slot.fieldLabelAr : slot.fieldLabel
-                  const ph =
-                    language === 'ar' && slot.placeholderAr
-                      ? slot.placeholderAr
-                      : slot.placeholder ?? ''
-                  return (
-                    <div key={slot.id} className="sys-api-tokens-card sys-api-tokens-card--custom">
-                      <div className="sys-api-card-head">
-                        <h3 className="sys-settings-panel__title sys-settings-api-h3 sys-api-card-head__title">
-                          <i className={slot.iconClass} aria-hidden />
-                          {cardTitle}
-                        </h3>
-                        <button
-                          type="button"
-                          className="sys-api-card-remove"
-                          onClick={() => removeCustomApiSlot(slot.id)}
-                          title={language === 'ar' ? 'حذف البطاقة' : 'Remove card'}
-                          aria-label={language === 'ar' ? 'حذف بطاقة الرمز' : 'Remove API token card'}
-                        >
-                          <i className="fa-solid fa-trash" aria-hidden />
-                        </button>
-                      </div>
-                      {cardDesc ? <p className="sys-settings-panel__desc sys-api-card-lead">{cardDesc}</p> : null}
-                      <ApiTokenMergeField
-                        id={`sys-custom-api-${slot.id}`}
-                        label={fLabel}
-                        value={customUserTokenDrafts[slot.id] ?? ''}
-                        onChange={next =>
-                          setCustomUserTokenDrafts(p => ({
-                            ...p,
-                            [slot.id]: next,
-                          }))
-                        }
-                        placeholder={ph || (language === 'ar' ? '••••••••' : '••••••••')}
-                        password
-                        onSave={async () => {
-                          const v = customUserTokenDrafts[slot.id] ?? ''
-                          persistUserApiTokenValue(slot.id, v)
-                          const r = await persistApiSecretsPatchToServer({ customSlots: { [slot.id]: v.trim() } })
-                          pushToast(
-                            'success',
-                            r.ok
-                              ? language === 'ar'
-                                ? 'تم الحفظ على الخادم والمتصفح.'
-                                : 'Saved on server and in this browser.'
-                              : language === 'ar'
-                                ? 'حُفظ في المتصفح؛ تعذّر تحديث الخادم.'
-                                : 'Saved in this browser; server copy not updated.',
-                          )
-                        }}
-                        onClear={async () => {
-                          persistUserApiTokenValue(slot.id, '')
-                          setCustomUserTokenDrafts(p => ({ ...p, [slot.id]: '' }))
-                          const r = await persistApiSecretsPatchToServer({ customSlots: { [slot.id]: '' } })
-                          pushToast(
-                            'success',
-                            r.ok
-                              ? language === 'ar'
-                                ? 'تم المسح من الخادم والمتصفح.'
-                                : 'Cleared on server and in this browser.'
-                              : language === 'ar'
-                                ? 'أُزيل من المتصفح؛ تعذّر تحديث الخادم.'
-                                : 'Cleared in this browser; server may be unchanged until API is reachable.',
-                          )
-                        }}
-                        saveTitle={language === 'ar' ? 'حفظ' : 'Save'}
-                        clearTitle={language === 'ar' ? 'مسح' : 'Clear'}
-                        saveAria={language === 'ar' ? 'حفظ السر' : 'Save secret'}
-                        clearAria={language === 'ar' ? 'مسح السر' : 'Clear secret'}
-                        actionsGroupLabel={language === 'ar' ? 'إجراءات السر' : 'Secret actions'}
-                      />
-                    </div>
-                  )
-                })}
-              </div>
-            </section>
-          ) : null}
 
           <section
             className="sys-api-section sys-api-section--settings-toolbar"

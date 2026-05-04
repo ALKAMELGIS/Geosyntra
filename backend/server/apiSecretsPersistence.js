@@ -11,6 +11,7 @@ import path from 'path'
 const BUILTIN_KEYS = [
   'mapboxToken',
   'arcgisPortalToken',
+  'openWeatherMapApiKey',
   'sentinelHubAccessToken',
   'sentinelHubWmsInstanceId',
   'geminiApiKey',

@@ -9,12 +9,14 @@ import { persistUserApiTokenValue } from './customUserApiTokens'
 import { persistDeepseekApiKeyInBrowser } from './deepseekApiKey'
 import { persistGeminiApiKeyInBrowser } from './geminiApiKey'
 import { persistMapboxAccessTokenInBrowser } from './mapboxAccessToken'
+import { persistOpenWeatherMapApiKeyInBrowser } from './openWeatherMapApiKey'
 import { persistSentinelHubAccessTokenInBrowser } from './sentinelHubAccessToken'
 import { persistSentinelHubWmsInstanceIdInBrowser } from './sentinelHubWmsInstance'
 
 export type BuiltinSecretKey =
   | 'mapboxToken'
   | 'arcgisPortalToken'
+  | 'openWeatherMapApiKey'
   | 'sentinelHubAccessToken'
   | 'sentinelHubWmsInstanceId'
   | 'geminiApiKey'
@@ -34,6 +36,7 @@ export type ServerApiSecretsV3 = {
 const BUILTIN_PERSIST: Record<BuiltinSecretKey, (v: string) => void> = {
   mapboxToken: persistMapboxAccessTokenInBrowser,
   arcgisPortalToken: persistArcgisPortalTokenInBrowser,
+  openWeatherMapApiKey: persistOpenWeatherMapApiKeyInBrowser,
   sentinelHubAccessToken: persistSentinelHubAccessTokenInBrowser,
   sentinelHubWmsInstanceId: persistSentinelHubWmsInstanceIdInBrowser,
   geminiApiKey: persistGeminiApiKeyInBrowser,

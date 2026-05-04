@@ -2717,6 +2717,11 @@ aside {
   grid-template-columns: minmax(0, 1fr);
 }
 
+/* Wider first column when ArcGIS-style labeled rail is visible (rail + layers panel). */
+.gis-map-page--agol-rail:not(.sidebar-closed) {
+  grid-template-columns: minmax(420px, 38vw) minmax(0, 1fr);
+}
+
 .gis-sidebar {
   background: rgba(255, 255, 255, 0.92);
   border: 1px solid rgba(255, 255, 255, 0.82);
@@ -2767,6 +2772,74 @@ aside {
   background: linear-gradient(180deg, #1e293b 0%, #0f172a 55%, #020617 100%);
   border-right: 1px solid rgba(148, 163, 184, 0.18);
   box-shadow: inset -1px 0 0 rgba(255, 255, 255, 0.04);
+}
+
+/* ArcGIS Online–style rail: icon + label, grouped tools */
+.gis-sidebar-rail--agol {
+  width: 182px;
+  min-width: 182px;
+  flex: 0 0 182px;
+}
+
+.gis-sidebar-rail__group {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.gis-sidebar-rail__sep {
+  height: 1px;
+  margin: 8px 0;
+  background: linear-gradient(90deg, transparent, rgba(148, 163, 184, 0.32), transparent);
+}
+
+.gis-sidebar-rail--agol .gis-sidebar-v-toolbar__main {
+  padding: 10px 8px 168px;
+}
+
+.gis-sidebar-rail--agol .gis-sidebar-rail-btn {
+  flex-direction: row;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 10px;
+  min-height: 36px;
+  padding: 6px 10px;
+  border-radius: 10px;
+}
+
+.gis-sidebar-rail--agol .gis-sidebar-rail-btn i {
+  width: 22px;
+  text-align: center;
+  flex-shrink: 0;
+}
+
+.gis-sidebar-rail--agol .gis-sidebar-rail-btn__label {
+  position: static;
+  width: auto;
+  height: auto;
+  margin: 0;
+  padding: 0;
+  overflow: visible;
+  clip: auto;
+  white-space: nowrap;
+  font-size: 11.5px;
+  font-weight: 650;
+  letter-spacing: 0.01em;
+  opacity: 0.94;
+}
+
+.gis-sidebar-rail--agol .gis-sidebar-rail-toggle {
+  flex-direction: row;
+  width: 100%;
+  align-self: stretch;
+  max-width: none;
+  margin: 4px 0 0;
+  padding: 8px 10px;
+  font-size: 11px;
+}
+
+.gis-sidebar-rail--agol .gis-sidebar-rail-toggle__text {
+  max-width: none;
 }
 
 :root[dir='rtl'] .gis-sidebar-rail {
@@ -2898,30 +2971,6 @@ aside {
 .gis-sidebar-foot-divider--rail {
   margin: 0 0 2px;
   background: linear-gradient(90deg, transparent, rgba(148, 163, 184, 0.28), transparent);
-}
-
-.gis-sidebar-foot-note--rail {
-  margin-bottom: 0;
-  padding: 6px 4px;
-  border-radius: 10px;
-  color: rgba(226, 232, 240, 0.82);
-  font-size: 11px;
-  font-weight: 600;
-}
-
-.gis-sidebar-foot-note--rail .gis-sidebar-foot-item__label {
-  color: rgba(226, 232, 240, 0.88);
-}
-
-.gis-sidebar-foot-item__glyph--rail {
-  background: rgba(30, 41, 59, 0.85);
-  border-color: rgba(100, 116, 139, 0.45);
-  color: rgba(226, 232, 240, 0.95);
-  box-shadow: none;
-}
-
-.gis-sidebar-foot-note--rail .gis-sidebar-foot-item__glyph--info::after {
-  box-shadow: 0 0 0 2px rgba(15, 23, 42, 0.95);
 }
 
 /* Expand / collapse: transparent, auto width, icon + visible label */
@@ -3103,7 +3152,6 @@ aside {
   background: linear-gradient(90deg, transparent, rgba(148, 163, 184, 0.35), transparent);
 }
 
-.gis-sidebar-foot-note,
 .gis-sidebar-foot-item {
   display: flex;
   align-items: center;
@@ -3116,16 +3164,6 @@ aside {
   font-size: 12px;
   font-weight: 650;
   letter-spacing: 0.01em;
-  color: #475569;
-}
-
-.gis-sidebar-foot-note {
-  margin-bottom: 2px;
-  cursor: default;
-  user-select: none;
-}
-
-.gis-sidebar-foot-item {
   border: none;
   background: transparent;
   cursor: pointer;
@@ -3170,26 +3208,6 @@ aside {
 .gis-sidebar-foot-item:hover .gis-sidebar-foot-item__glyph {
   border-color: rgba(4, 120, 87, 0.35);
   color: #065f46;
-}
-
-.gis-sidebar-foot-item__glyph--info {
-  position: relative;
-  border-color: rgba(100, 116, 139, 0.28);
-  background: linear-gradient(180deg, #ffffff, #f1f5f9);
-  font-size: 14px;
-  color: #475569;
-}
-
-.gis-sidebar-foot-item__glyph--info::after {
-  content: '';
-  position: absolute;
-  right: 3px;
-  bottom: 3px;
-  width: 6px;
-  height: 6px;
-  border-radius: 999px;
-  background: #0ea5e9;
-  box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.95);
 }
 
 /* Reserved slot hooks in light footer (custom actions / tooltip host) */
@@ -3626,7 +3644,8 @@ aside {
 .gis-map-tool-panel {
   position: absolute;
   top: 74px;
-  left: 16px;
+  right: 16px;
+  left: auto;
   z-index: 719;
   width: min(360px, calc(100% - 32px));
   max-height: min(620px, calc(100% - 96px));
@@ -3637,6 +3656,11 @@ aside {
   background: rgba(255, 255, 255, 0.94);
   box-shadow: 0 24px 70px rgba(15, 23, 42, 0.18);
   backdrop-filter: blur(18px);
+}
+
+:root[dir='rtl'] .gis-map-tool-panel {
+  right: auto;
+  left: 16px;
 }
 
 .gis-map-tool-panel-head {
@@ -3694,6 +3718,64 @@ aside {
   border: 1px solid rgba(15, 23, 42, 0.08);
   border-radius: 14px;
   background: rgba(248, 250, 252, 0.78);
+}
+
+button.gis-tool-list-row--action {
+  width: 100%;
+  cursor: pointer;
+  font: inherit;
+  text-align: inherit;
+  color: inherit;
+}
+
+button.gis-tool-list-row--action:hover {
+  border-color: rgba(4, 120, 87, 0.22);
+  background: #ffffff;
+}
+
+.gis-bookmark-list {
+  list-style: none;
+  margin: 12px 0 0;
+  padding: 0;
+  display: grid;
+  gap: 8px;
+}
+
+.gis-bookmark-list__item {
+  display: flex;
+  gap: 6px;
+  align-items: stretch;
+}
+
+.gis-bookmark-list__go {
+  flex: 1 1 auto;
+  min-width: 0;
+  border: 1px solid rgba(15, 23, 42, 0.1);
+  border-radius: 12px;
+  padding: 8px 10px;
+  background: #ffffff;
+  font-weight: 750;
+  font-size: 12px;
+  cursor: pointer;
+  text-align: left;
+}
+
+.gis-bookmark-list__go:hover {
+  border-color: rgba(4, 120, 87, 0.28);
+}
+
+.gis-bookmark-list__del {
+  flex: 0 0 40px;
+  border: 1px solid rgba(15, 23, 42, 0.12);
+  border-radius: 12px;
+  background: rgba(248, 250, 252, 0.96);
+  color: #64748b;
+  cursor: pointer;
+}
+
+.gis-bookmark-list__del:hover {
+  color: #b91c1c;
+  border-color: rgba(239, 68, 68, 0.35);
 }
 
 .gis-tool-swatch {
@@ -8193,7 +8275,8 @@ html[data-theme='dark'] .gis-domain-cell--dropdown.missing-description .gis-doma
   }
   .gis-map-tool-panel {
     top: 70px;
-    left: 12px;
+    right: 12px;
+    left: auto;
     width: min(360px, calc(100% - 24px));
   }
   .gis-tool-search-row {

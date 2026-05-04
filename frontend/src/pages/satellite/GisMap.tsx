@@ -57,7 +57,22 @@ type AddLayerTab = 'arcgis' | 'database' | 'upload' | 'url'
 
 const newGisImportId = () => `${Date.now()}_${Math.random().toString(16).slice(2)}`
 type DatabaseAuthType = 'database' | 'operating-system'
-type GisMapToolPanel = 'basemap' | 'legend' | 'chart' | 'print' | 'measure' | 'search' | 'geoExplorer' | null
+type GisMapToolPanel =
+  | 'basemap'
+  | 'legend'
+  | 'chart'
+  | 'print'
+  | 'measure'
+  | 'search'
+  | 'geoExplorer'
+  | 'table'
+  | 'bookmarks'
+  | 'saveOpen'
+  | 'settings'
+  | 'apps'
+  | 'embedMap'
+  | 'shareMap'
+  | null
 type MapProjectionMode = 'globe' | '2d'
 type MeasurementMode = 'distance' | 'area' | 'features' | 'vertical' | 'direction' | 'offset' | 'angle'
 type MeasurementMethod = 'geodesic' | 'planar' | 'loxodromic' | 'greatElliptic'
@@ -65,6 +80,51 @@ type MeasurementUnit = 'metric' | 'imperial' | 'miles' | 'feet' | 'usFeet' | 'ya
 type TableDomainDisplayMode = 'description' | 'code'
 type TableSearchMode = 'description' | 'code' | 'both'
 type TableFilterOperator = 'contains' | 'equals' | 'not_equals' | 'empty' | 'not_empty'
+
+type GisMapBookmark = {
+  id: string
+  name: string
+  lat: number
+  lng: number
+  zoom: number
+  projection: MapProjectionMode
+}
+
+const GIS_MAP_BOOKMARKS_LS_KEY = 'gis-map-bookmarks-v1'
+
+function loadGisMapBookmarks(): GisMapBookmark[] {
+  if (typeof window === 'undefined') return []
+  try {
+    const raw = window.localStorage.getItem(GIS_MAP_BOOKMARKS_LS_KEY)
+    if (!raw) return []
+    const parsed = JSON.parse(raw) as unknown
+    if (!Array.isArray(parsed)) return []
+    return parsed
+      .filter(
+        (x): x is GisMapBookmark =>
+          x &&
+          typeof x === 'object' &&
+          typeof (x as GisMapBookmark).id === 'string' &&
+          typeof (x as GisMapBookmark).name === 'string' &&
+          typeof (x as GisMapBookmark).lat === 'number' &&
+          typeof (x as GisMapBookmark).lng === 'number' &&
+          typeof (x as GisMapBookmark).zoom === 'number' &&
+          ((x as GisMapBookmark).projection === '2d' || (x as GisMapBookmark).projection === 'globe'),
+      )
+      .slice(0, 40)
+  } catch {
+    return []
+  }
+}
+
+function persistGisMapBookmarks(rows: GisMapBookmark[]) {
+  if (typeof window === 'undefined') return
+  try {
+    window.localStorage.setItem(GIS_MAP_BOOKMARKS_LS_KEY, JSON.stringify(rows))
+  } catch {
+    // ignore
+  }
+}
 
 const GIS_BASEMAP_STORAGE_KEY = 'gis-map-default-basemap'
 
@@ -478,6 +538,8 @@ export default function GisMap() {
   const [draggingTableField, setDraggingTableField] = useState<string | null>(null)
   const [selectedFeatureKeys, setSelectedFeatureKeys] = useState<Set<string>>(() => new Set())
   const [selectionNotice, setSelectionNotice] = useState<string | null>(null)
+  const [gisBookmarks, setGisBookmarks] = useState<GisMapBookmark[]>(() => loadGisMapBookmarks())
+  const mapSnapshotFileRef = useRef<HTMLInputElement | null>(null)
   const [featureDialog, setFeatureDialog] = useState<null | { layerId: string; featureKey: string; feature: any; layerName: string }>(null)
   const [drawingSelected, setDrawingSelected] = useState<any | null>(null)
   const [drawingCount, setDrawingCount] = useState(0)
@@ -550,6 +612,20 @@ export default function GisMap() {
   }, [])
 
   const orderedLayers = useMemo(() => [...layers].reverse(), [layers])
+
+  const tableCapableLayers = useMemo(
+    () =>
+      orderedLayers.filter(l => {
+        if (l.type === 'tile' && (l.data as any)?.esriImageServer) return false
+        return Array.isArray((l.data as any)?.features)
+      }),
+    [orderedLayers],
+  )
+
+  useEffect(() => {
+    persistGisMapBookmarks(gisBookmarks)
+  }, [gisBookmarks])
+
   const globeMapStyle = useMemo(() => {
     const token = (mapboxAccessToken || getMapboxAccessToken() || '').trim()
     const cat = buildBasemapCatalog(token)
@@ -895,6 +971,123 @@ export default function GisMap() {
       return mode
     })
   }, [activeMapTool, showProjectionToast])
+
+  const captureViewForBookmark = useCallback((): Omit<GisMapBookmark, 'id' | 'name'> | null => {
+    if (mapProjectionMode === 'globe') {
+      return {
+        lat: globeViewState.latitude,
+        lng: globeViewState.longitude,
+        zoom: globeViewState.zoom,
+        projection: 'globe',
+      }
+    }
+    const m = mapRef.current
+    if (!m) return null
+    const c = m.getCenter()
+    return { lat: c.lat, lng: c.lng, zoom: m.getZoom(), projection: '2d' }
+  }, [mapProjectionMode, globeViewState])
+
+  const applyBookmark = useCallback(
+    (b: GisMapBookmark) => {
+      if (b.projection === 'globe') {
+        const applyGlobe = () =>
+          setGlobeViewState(prev => ({
+            ...prev,
+            latitude: b.lat,
+            longitude: b.lng,
+            zoom: Math.max(0.5, b.zoom),
+          }))
+        if (mapProjectionMode !== 'globe') {
+          changeProjectionMode('globe')
+          window.setTimeout(applyGlobe, 140)
+        } else {
+          applyGlobe()
+        }
+        return
+      }
+      if (mapProjectionMode !== '2d') changeProjectionMode('2d')
+      const m = mapRef.current
+      if (m) {
+        requestAnimationFrame(() => {
+          try {
+            m.flyTo([b.lat, b.lng], Math.max(b.zoom, 2), { duration: 0.75 })
+          } catch {}
+        })
+      }
+    },
+    [mapProjectionMode, changeProjectionMode],
+  )
+
+  const exportMapSnapshot = useCallback(() => {
+    const base = {
+      version: 1 as const,
+      exportedAt: new Date().toISOString(),
+      basemap: selectedBasemap,
+      projection: mapProjectionMode,
+    }
+    const snap =
+      mapProjectionMode === 'globe'
+        ? { ...base, view: { ...globeViewState } }
+        : (() => {
+            const m = mapRef.current
+            if (!m) return { ...base, center: null as null, zoom: null as null }
+            const c = m.getCenter()
+            return { ...base, center: { lat: c.lat, lng: c.lng }, zoom: m.getZoom() }
+          })()
+    const blob = new Blob([JSON.stringify(snap, null, 2)], { type: 'application/json' })
+    const a = document.createElement('a')
+    a.href = URL.createObjectURL(blob)
+    a.download = 'gis-map-view.json'
+    a.click()
+    URL.revokeObjectURL(a.href)
+    setSelectionNotice('Map view saved as JSON file.')
+  }, [mapProjectionMode, globeViewState, selectedBasemap])
+
+  const onMapSnapshotFile = useCallback(
+    async (e: ChangeEvent<HTMLInputElement>) => {
+      const file = e.target.files?.[0]
+      e.target.value = ''
+      if (!file) return
+      try {
+        const text = await file.text()
+        const j = JSON.parse(text) as Record<string, unknown>
+        if (typeof j.basemap === 'string') setSelectedBasemap(resolveBasemapId(j.basemap as BasemapType))
+        if (j.projection === 'globe' && j.view && typeof j.view === 'object') {
+          const v = j.view as Record<string, unknown>
+          if (typeof v.latitude === 'number' && typeof v.longitude === 'number' && typeof v.zoom === 'number') {
+            if (mapProjectionMode !== 'globe') changeProjectionMode('globe')
+            setGlobeViewState(prev => ({
+              ...prev,
+              latitude: v.latitude as number,
+              longitude: v.longitude as number,
+              zoom: Math.max(0.5, v.zoom as number),
+            }))
+            setSelectionNotice('Opened saved globe view.')
+            return
+          }
+        }
+        const center = j.center as Record<string, unknown> | undefined
+        const zoom = j.zoom
+        if (
+          center &&
+          typeof center.lat === 'number' &&
+          typeof center.lng === 'number' &&
+          typeof zoom === 'number'
+        ) {
+          if (mapProjectionMode !== '2d') changeProjectionMode('2d')
+          requestAnimationFrame(() => {
+            mapRef.current?.flyTo([center.lat as number, center.lng as number], zoom as number, { duration: 0.85 })
+          })
+          setSelectionNotice('Opened saved map view.')
+          return
+        }
+        setSelectionNotice('Map file did not contain a recognized view.')
+      } catch {
+        setSelectionNotice('Could not read map file.')
+      }
+    },
+    [mapProjectionMode, changeProjectionMode],
+  )
 
   const clearMeasurement = useCallback(() => {
     measurementLayerRef.current?.clearLayers()
@@ -3289,6 +3482,41 @@ export default function GisMap() {
 
   const shouldRenderSidebar = sidebarOpen || isMobileDrawerViewport
 
+  const mapToolPanelTitle = (t: NonNullable<GisMapToolPanel>): string => {
+    switch (t) {
+      case 'basemap':
+        return 'Basemap'
+      case 'legend':
+        return 'Legend'
+      case 'chart':
+        return 'Charts'
+      case 'print':
+        return 'Print'
+      case 'measure':
+        return 'Measure'
+      case 'search':
+        return 'Search'
+      case 'table':
+        return 'Tables'
+      case 'bookmarks':
+        return 'Bookmarks'
+      case 'saveOpen':
+        return 'Save and open'
+      case 'settings':
+        return 'Map properties'
+      case 'apps':
+        return 'Create app'
+      case 'embedMap':
+        return 'Embed map'
+      case 'shareMap':
+        return 'Share map'
+      case 'geoExplorer':
+        return 'Geo AI chat'
+      default:
+        return 'Tools'
+    }
+  }
+
   const layersRailCollapsed = layersPanelCollapsed && !isMobileDrawerViewport
   const showDesktopGisRail = !isMobileDrawerViewport && !layersRailCollapsed && isSplitDesktopLayout
   /** Panel footer when rail is hidden: narrow layers column, stacked layout, or collapsed rail. */
@@ -3305,6 +3533,7 @@ export default function GisMap() {
       className={[
         sidebarOpen ? 'gis-map-page' : 'gis-map-page sidebar-closed',
         layersRailCollapsed ? 'gis-map-page--layers-collapsed' : '',
+        showDesktopGisRail ? 'gis-map-page--agol-rail' : '',
       ]
         .filter(Boolean)
         .join(' ')}
@@ -3328,105 +3557,186 @@ export default function GisMap() {
         >
           <div className="gis-sidebar-inner">
             {showDesktopGisRail ? (
-              <nav className="gis-sidebar-rail" aria-label="GIS vertical toolbar">
+              <nav className="gis-sidebar-rail gis-sidebar-rail--agol" aria-label="Map tools (ArcGIS-style)">
                 <div className="gis-sidebar-v-toolbar" data-scale="m">
                   <div
                     className="gis-sidebar-v-toolbar__main"
                     data-slot="main"
                     role="toolbar"
                     aria-orientation="vertical"
-                    aria-label="Map quick tools"
+                    aria-label="Map tools"
                   >
-                    <button
-                      type="button"
-                      className={['gis-sidebar-rail-btn', activeMapTool === null ? 'gis-sidebar-rail-btn--active' : ''].filter(Boolean).join(' ')}
-                      onClick={focusLayersPanel}
-                      title="Layers"
-                      aria-label="Layers"
-                    >
-                      <i className="fa-solid fa-layer-group" aria-hidden="true" />
-                      <span className="gis-sidebar-rail-btn__label">Layers</span>
-                    </button>
-                    <button
-                      type="button"
-                      className="gis-sidebar-rail-btn"
-                      onClick={() => openAddLayerModal()}
-                      title="Add layer"
-                      aria-label="Add layer"
-                    >
-                      <i className="fa-solid fa-plus" aria-hidden="true" />
-                      <span className="gis-sidebar-rail-btn__label">Add</span>
-                    </button>
-                    <button
-                      type="button"
-                      className={['gis-sidebar-rail-btn', activeMapTool === 'basemap' ? 'gis-sidebar-rail-btn--active' : ''].filter(Boolean).join(' ')}
-                      onClick={() => toggleMapTool('basemap')}
-                      title="Basemap"
-                      aria-label="Basemap"
-                    >
-                      <i className="fa-solid fa-map" aria-hidden="true" />
-                      <span className="gis-sidebar-rail-btn__label">Basemap</span>
-                    </button>
-                    <button
-                      type="button"
-                      className={['gis-sidebar-rail-btn', activeMapTool === 'legend' ? 'gis-sidebar-rail-btn--active' : ''].filter(Boolean).join(' ')}
-                      onClick={() => toggleMapTool('legend')}
-                      title="Legend"
-                      aria-label="Legend"
-                    >
-                      <i className="fa-solid fa-list" aria-hidden="true" />
-                      <span className="gis-sidebar-rail-btn__label">Legend</span>
-                    </button>
-                    <button
-                      type="button"
-                      className={['gis-sidebar-rail-btn', activeMapTool === 'chart' ? 'gis-sidebar-rail-btn--active' : ''].filter(Boolean).join(' ')}
-                      onClick={() => toggleMapTool('chart')}
-                      title="Chart"
-                      aria-label="Chart"
-                    >
-                      <i className="fa-solid fa-chart-column" aria-hidden="true" />
-                      <span className="gis-sidebar-rail-btn__label">Charts</span>
-                    </button>
-                    <button
-                      type="button"
-                      className="gis-sidebar-rail-btn"
-                      onClick={() => window.print()}
-                      title="Print"
-                      aria-label="Print"
-                    >
-                      <i className="fa-solid fa-print" aria-hidden="true" />
-                      <span className="gis-sidebar-rail-btn__label">Print</span>
-                    </button>
-                    <button
-                      type="button"
-                      className={['gis-sidebar-rail-btn', activeMapTool === 'measure' ? 'gis-sidebar-rail-btn--active' : ''].filter(Boolean).join(' ')}
-                      onClick={() => toggleMapTool('measure')}
-                      title="Measure"
-                      aria-label="Measure"
-                    >
-                      <i className="fa-solid fa-ruler-combined" aria-hidden="true" />
-                      <span className="gis-sidebar-rail-btn__label">Measure</span>
-                    </button>
-                    <button
-                      type="button"
-                      className={['gis-sidebar-rail-btn', activeMapTool === 'search' ? 'gis-sidebar-rail-btn--active' : ''].filter(Boolean).join(' ')}
-                      onClick={() => toggleMapTool('search')}
-                      title="Search"
-                      aria-label="Search"
-                    >
-                      <i className="fa-solid fa-magnifying-glass-location" aria-hidden="true" />
-                      <span className="gis-sidebar-rail-btn__label">Search</span>
-                    </button>
-                    <button
-                      type="button"
-                      className={['gis-sidebar-rail-btn', activeMapTool === 'geoExplorer' ? 'gis-sidebar-rail-btn--active' : ''].filter(Boolean).join(' ')}
-                      onClick={() => toggleMapTool('geoExplorer')}
-                      title="Geo Explorer"
-                      aria-label="Geo Explorer"
-                    >
-                      <i className="fa-solid fa-comments" aria-hidden="true" />
-                      <span className="gis-sidebar-rail-btn__label">Chat</span>
-                    </button>
+                    <div className="gis-sidebar-rail__group" role="presentation">
+                      <button
+                        type="button"
+                        className="gis-sidebar-rail-btn"
+                        onClick={() => openAddLayerModal()}
+                        title="Add data"
+                        aria-label="Add"
+                      >
+                        <i className="fa-solid fa-circle-plus" aria-hidden="true" />
+                        <span className="gis-sidebar-rail-btn__label">Add</span>
+                      </button>
+                      <button
+                        type="button"
+                        className={['gis-sidebar-rail-btn', activeMapTool === null ? 'gis-sidebar-rail-btn--active' : ''].filter(Boolean).join(' ')}
+                        onClick={focusLayersPanel}
+                        title="Layers"
+                        aria-label="Layers"
+                      >
+                        <i className="fa-solid fa-layer-group" aria-hidden="true" />
+                        <span className="gis-sidebar-rail-btn__label">Layers</span>
+                      </button>
+                      <button
+                        type="button"
+                        className={['gis-sidebar-rail-btn', activeMapTool === 'table' ? 'gis-sidebar-rail-btn--active' : ''].filter(Boolean).join(' ')}
+                        onClick={() => toggleMapTool('table')}
+                        title="Tables"
+                        aria-label="Tables"
+                      >
+                        <i className="fa-solid fa-table-cells" aria-hidden="true" />
+                        <span className="gis-sidebar-rail-btn__label">Table</span>
+                      </button>
+                      <button
+                        type="button"
+                        className={['gis-sidebar-rail-btn', activeMapTool === 'basemap' ? 'gis-sidebar-rail-btn--active' : ''].filter(Boolean).join(' ')}
+                        onClick={() => toggleMapTool('basemap')}
+                        title="Basemap"
+                        aria-label="Basemap"
+                      >
+                        <i className="fa-solid fa-border-all" aria-hidden="true" />
+                        <span className="gis-sidebar-rail-btn__label">Basemap</span>
+                      </button>
+                      <button
+                        type="button"
+                        className={['gis-sidebar-rail-btn', activeMapTool === 'legend' ? 'gis-sidebar-rail-btn--active' : ''].filter(Boolean).join(' ')}
+                        onClick={() => toggleMapTool('legend')}
+                        title="Legend"
+                        aria-label="Legend"
+                      >
+                        <i className="fa-solid fa-list-ul" aria-hidden="true" />
+                        <span className="gis-sidebar-rail-btn__label">Legend</span>
+                      </button>
+                      <button
+                        type="button"
+                        className={['gis-sidebar-rail-btn', activeMapTool === 'bookmarks' ? 'gis-sidebar-rail-btn--active' : ''].filter(Boolean).join(' ')}
+                        onClick={() => toggleMapTool('bookmarks')}
+                        title="Bookmarks"
+                        aria-label="Bookmarks"
+                      >
+                        <i className="fa-solid fa-bookmark" aria-hidden="true" />
+                        <span className="gis-sidebar-rail-btn__label">Bookmarks</span>
+                      </button>
+                      <button
+                        type="button"
+                        className={['gis-sidebar-rail-btn', activeMapTool === 'chart' ? 'gis-sidebar-rail-btn--active' : ''].filter(Boolean).join(' ')}
+                        onClick={() => toggleMapTool('chart')}
+                        title="Charts"
+                        aria-label="Charts"
+                      >
+                        <i className="fa-solid fa-chart-column" aria-hidden="true" />
+                        <span className="gis-sidebar-rail-btn__label">Chart</span>
+                      </button>
+                    </div>
+                    <div className="gis-sidebar-rail__sep" aria-hidden="true" />
+                    <div className="gis-sidebar-rail__group" role="presentation">
+                      <button
+                        type="button"
+                        className={['gis-sidebar-rail-btn', activeMapTool === 'saveOpen' ? 'gis-sidebar-rail-btn--active' : ''].filter(Boolean).join(' ')}
+                        onClick={() => toggleMapTool('saveOpen')}
+                        title="Save and open"
+                        aria-label="Save and open"
+                      >
+                        <i className="fa-solid fa-folder-open" aria-hidden="true" />
+                        <span className="gis-sidebar-rail-btn__label">Save and open</span>
+                      </button>
+                      <button
+                        type="button"
+                        className={['gis-sidebar-rail-btn', activeMapTool === 'settings' ? 'gis-sidebar-rail-btn--active' : ''].filter(Boolean).join(' ')}
+                        onClick={() => toggleMapTool('settings')}
+                        title="Map properties"
+                        aria-label="Map properties"
+                      >
+                        <i className="fa-solid fa-gear" aria-hidden="true" />
+                        <span className="gis-sidebar-rail-btn__label">Settings</span>
+                      </button>
+                    </div>
+                    <div className="gis-sidebar-rail__sep" aria-hidden="true" />
+                    <div className="gis-sidebar-rail__group" role="presentation">
+                      <button
+                        type="button"
+                        className={['gis-sidebar-rail-btn', activeMapTool === 'shareMap' ? 'gis-sidebar-rail-btn--active' : ''].filter(Boolean).join(' ')}
+                        onClick={() => toggleMapTool('shareMap')}
+                        title="Share map"
+                        aria-label="Share map"
+                      >
+                        <i className="fa-solid fa-arrow-up-right-from-square" aria-hidden="true" />
+                        <span className="gis-sidebar-rail-btn__label">Share map</span>
+                      </button>
+                      <button
+                        type="button"
+                        className={['gis-sidebar-rail-btn', activeMapTool === 'embedMap' ? 'gis-sidebar-rail-btn--active' : ''].filter(Boolean).join(' ')}
+                        onClick={() => toggleMapTool('embedMap')}
+                        title="Embed map"
+                        aria-label="Embed map"
+                      >
+                        <i className="fa-solid fa-code" aria-hidden="true" />
+                        <span className="gis-sidebar-rail-btn__label">Embed map</span>
+                      </button>
+                      <button
+                        type="button"
+                        className={['gis-sidebar-rail-btn', activeMapTool === 'apps' ? 'gis-sidebar-rail-btn--active' : ''].filter(Boolean).join(' ')}
+                        onClick={() => toggleMapTool('apps')}
+                        title="Create app"
+                        aria-label="Create app"
+                      >
+                        <i className="fa-solid fa-grip" aria-hidden="true" />
+                        <span className="gis-sidebar-rail-btn__label">Apps</span>
+                      </button>
+                      <button
+                        type="button"
+                        className="gis-sidebar-rail-btn"
+                        onClick={() => window.print()}
+                        title="Print"
+                        aria-label="Print"
+                      >
+                        <i className="fa-solid fa-print" aria-hidden="true" />
+                        <span className="gis-sidebar-rail-btn__label">Print</span>
+                      </button>
+                    </div>
+                    <div className="gis-sidebar-rail__sep" aria-hidden="true" />
+                    <div className="gis-sidebar-rail__group" role="presentation">
+                      <button
+                        type="button"
+                        className={['gis-sidebar-rail-btn', activeMapTool === 'measure' ? 'gis-sidebar-rail-btn--active' : ''].filter(Boolean).join(' ')}
+                        onClick={() => toggleMapTool('measure')}
+                        title="Measure"
+                        aria-label="Measure"
+                      >
+                        <i className="fa-solid fa-ruler-combined" aria-hidden="true" />
+                        <span className="gis-sidebar-rail-btn__label">Measure</span>
+                      </button>
+                      <button
+                        type="button"
+                        className={['gis-sidebar-rail-btn', activeMapTool === 'search' ? 'gis-sidebar-rail-btn--active' : ''].filter(Boolean).join(' ')}
+                        onClick={() => toggleMapTool('search')}
+                        title="Search"
+                        aria-label="Search"
+                      >
+                        <i className="fa-solid fa-magnifying-glass-location" aria-hidden="true" />
+                        <span className="gis-sidebar-rail-btn__label">Search</span>
+                      </button>
+                      <button
+                        type="button"
+                        className={['gis-sidebar-rail-btn', activeMapTool === 'geoExplorer' ? 'gis-sidebar-rail-btn--active' : ''].filter(Boolean).join(' ')}
+                        onClick={() => toggleMapTool('geoExplorer')}
+                        title="Geo AI chat"
+                        aria-label="Geo AI chat"
+                      >
+                        <i className="fa-solid fa-comments" aria-hidden="true" />
+                        <span className="gis-sidebar-rail-btn__label">Chat</span>
+                      </button>
+                    </div>
                   </div>
                   <div
                     className="gis-sidebar-v-toolbar__end gis-sidebar-v-toolbar__end--overlay"
@@ -3442,16 +3752,6 @@ export default function GisMap() {
                       aria-hidden="true"
                     />
                     <div className="gis-sidebar-foot-divider gis-sidebar-foot-divider--rail" aria-hidden />
-                    <div
-                      className="gis-sidebar-foot-note gis-sidebar-foot-note--rail"
-                      title="Use the list to manage layers: visibility, sync, table, symbology, and legend."
-                      role="note"
-                    >
-                      <span className="gis-sidebar-foot-item__glyph gis-sidebar-foot-item__glyph--info gis-sidebar-foot-item__glyph--rail" aria-hidden>
-                        <i className="fa-solid fa-circle-info" />
-                      </span>
-                      <span className="gis-sidebar-foot-item__label">Information</span>
-                    </div>
                     <button
                       type="button"
                       id="gis-sidebar-rail-expand-toggle"
@@ -3476,7 +3776,7 @@ export default function GisMap() {
           <div className="gis-sidebar-header">
             <div className="gis-sidebar-title">
               <i className="fa-solid fa-layer-group" aria-hidden="true" />
-              <span>GIS Layers</span>
+              <span>Layers</span>
             </div>
             <div className="gis-sidebar-actions" aria-label="Sidebar actions">
               <button
@@ -3865,16 +4165,6 @@ export default function GisMap() {
                   id="gis-sidebar-expand-tooltip-anchor-panel"
                   aria-hidden="true"
                 />
-                <div
-                  className="gis-sidebar-foot-note"
-                  title="Use the list above to manage map layers: visibility, sync, attribute table, symbology, and legend."
-                  role="note"
-                >
-                  <span className="gis-sidebar-foot-item__glyph gis-sidebar-foot-item__glyph--info" aria-hidden>
-                    <i className="fa-solid fa-circle-info" />
-                  </span>
-                  <span className="gis-sidebar-foot-item__label">Information</span>
-                </div>
                 <div className="gis-sidebar-v-toolbar__end gis-sidebar-v-toolbar__end--panel" role="group" aria-label="Layer list size">
                   <button
                     type="button"
@@ -3915,6 +4205,14 @@ export default function GisMap() {
         data-edit-open={featureDialog ? 'true' : 'false'}
         data-projection={mapProjectionMode}
       >
+        <input
+          ref={mapSnapshotFileRef}
+          type="file"
+          accept="application/json,.json"
+          style={{ display: 'none' }}
+          aria-hidden
+          onChange={onMapSnapshotFile}
+        />
         {mapProjectionMode === 'globe' ? (
           <MapboxMap
             ref={mapboxGlobeRef}
@@ -4150,42 +4448,46 @@ export default function GisMap() {
               <span>2D</span>
             </button>
           </div>
-          <span className="gis-map-toolbar-sep" aria-hidden="true" />
-          <button className={activeMapTool === 'basemap' ? 'gis-map-tool active' : 'gis-map-tool'} type="button" onClick={() => toggleMapTool('basemap')} title="BaseMap List" aria-label="BaseMap List">
-            <i className="fa-solid fa-map" aria-hidden="true" />
-            <span>BaseMap</span>
-          </button>
-          <button className={activeMapTool === 'legend' ? 'gis-map-tool active' : 'gis-map-tool'} type="button" onClick={() => toggleMapTool('legend')} title="Legend" aria-label="Legend">
-            <i className="fa-solid fa-list" aria-hidden="true" />
-            <span>Legend</span>
-          </button>
-          <button className={activeMapTool === 'chart' ? 'gis-map-tool active' : 'gis-map-tool'} type="button" onClick={() => toggleMapTool('chart')} title="Chart" aria-label="Chart">
-            <i className="fa-solid fa-chart-column" aria-hidden="true" />
-            <span>Chart</span>
-          </button>
-          <button className="gis-map-tool" type="button" onClick={() => window.print()} title="Print" aria-label="Print map">
-            <i className="fa-solid fa-print" aria-hidden="true" />
-            <span>Print</span>
-          </button>
-          <button className={activeMapTool === 'measure' ? 'gis-map-tool active' : 'gis-map-tool'} type="button" onClick={() => toggleMapTool('measure')} title="Measurement tools" aria-label="Measurement tools">
-            <i className="fa-solid fa-ruler-combined" aria-hidden="true" />
-            <span>Measure</span>
-          </button>
-          <button className={activeMapTool === 'search' ? 'gis-map-tool active' : 'gis-map-tool'} type="button" onClick={() => toggleMapTool('search')} title="Search tools" aria-label="Search tools">
-            <i className="fa-solid fa-magnifying-glass-location" aria-hidden="true" />
-            <span>Search</span>
-          </button>
-          <button
-            className={activeMapTool === 'geoExplorer' ? 'gis-map-tool active' : 'gis-map-tool'}
-            type="button"
-            onClick={() => toggleMapTool('geoExplorer')}
-            title="Geo Explorer (Gemini chat)"
-            aria-label="Geo Explorer chat"
-            aria-pressed={activeMapTool === 'geoExplorer'}
-          >
-            <i className="fa-solid fa-comments" aria-hidden="true" />
-            <span>Chat</span>
-          </button>
+          {!showDesktopGisRail ? (
+            <>
+              <span className="gis-map-toolbar-sep" aria-hidden="true" />
+              <button className={activeMapTool === 'basemap' ? 'gis-map-tool active' : 'gis-map-tool'} type="button" onClick={() => toggleMapTool('basemap')} title="BaseMap List" aria-label="BaseMap List">
+                <i className="fa-solid fa-map" aria-hidden="true" />
+                <span>BaseMap</span>
+              </button>
+              <button className={activeMapTool === 'legend' ? 'gis-map-tool active' : 'gis-map-tool'} type="button" onClick={() => toggleMapTool('legend')} title="Legend" aria-label="Legend">
+                <i className="fa-solid fa-list" aria-hidden="true" />
+                <span>Legend</span>
+              </button>
+              <button className={activeMapTool === 'chart' ? 'gis-map-tool active' : 'gis-map-tool'} type="button" onClick={() => toggleMapTool('chart')} title="Chart" aria-label="Chart">
+                <i className="fa-solid fa-chart-column" aria-hidden="true" />
+                <span>Chart</span>
+              </button>
+              <button className="gis-map-tool" type="button" onClick={() => window.print()} title="Print" aria-label="Print map">
+                <i className="fa-solid fa-print" aria-hidden="true" />
+                <span>Print</span>
+              </button>
+              <button className={activeMapTool === 'measure' ? 'gis-map-tool active' : 'gis-map-tool'} type="button" onClick={() => toggleMapTool('measure')} title="Measurement tools" aria-label="Measurement tools">
+                <i className="fa-solid fa-ruler-combined" aria-hidden="true" />
+                <span>Measure</span>
+              </button>
+              <button className={activeMapTool === 'search' ? 'gis-map-tool active' : 'gis-map-tool'} type="button" onClick={() => toggleMapTool('search')} title="Search tools" aria-label="Search tools">
+                <i className="fa-solid fa-magnifying-glass-location" aria-hidden="true" />
+                <span>Search</span>
+              </button>
+              <button
+                className={activeMapTool === 'geoExplorer' ? 'gis-map-tool active' : 'gis-map-tool'}
+                type="button"
+                onClick={() => toggleMapTool('geoExplorer')}
+                title="Geo Explorer (Gemini chat)"
+                aria-label="Geo Explorer chat"
+                aria-pressed={activeMapTool === 'geoExplorer'}
+              >
+                <i className="fa-solid fa-comments" aria-hidden="true" />
+                <span>Chat</span>
+              </button>
+            </>
+          ) : null}
           <span className="gis-map-toolbar-sep" aria-hidden="true" />
           <button className="gis-map-tool icon-only" type="button" onClick={() => zoomMap('in')} title="Zoom in" aria-label="Zoom in">
             <i className="fa-solid fa-plus" aria-hidden="true" />
@@ -4216,17 +4518,7 @@ export default function GisMap() {
           >
             {activeMapTool !== 'geoExplorer' ? (
               <div className="gis-map-tool-panel-head">
-                <div className="gis-map-tool-panel-title">
-                  {activeMapTool === 'basemap'
-                    ? 'BaseMap List'
-                    : activeMapTool === 'legend'
-                      ? 'Legend'
-                      : activeMapTool === 'chart'
-                        ? 'Chart'
-                        : activeMapTool === 'measure'
-                          ? 'Measurement tools'
-                          : 'Search tools'}
-                </div>
+                <div className="gis-map-tool-panel-title">{mapToolPanelTitle(activeMapTool)}</div>
                 <button className="gis-map-tool-close" type="button" onClick={() => setActiveMapTool(null)} aria-label="Close tool panel">
                   <i className="fa-solid fa-xmark" aria-hidden="true" />
                 </button>
@@ -4368,6 +4660,175 @@ export default function GisMap() {
                   </button>
                 </div>
                 {mapSearchStatus ? <div className="gis-tool-muted">{mapSearchStatus}</div> : null}
+              </div>
+            ) : activeMapTool === 'table' ? (
+              <div className="gis-tool-table-picker">
+                <p className="gis-tool-muted">Choose a layer to open its attribute table in the dock below.</p>
+                {tableCapableLayers.length ? (
+                  <div className="gis-tool-list">
+                    {tableCapableLayers.map(layer => (
+                      <button
+                        key={String(layer.id)}
+                        type="button"
+                        className="gis-tool-list-row gis-tool-list-row--action"
+                        onClick={() => {
+                          setActiveMapTool(null)
+                          setTableDockCollapsed(false)
+                          setTableDockMinimized(false)
+                          setLayerDialog({ mode: 'table', layerId: String(layer.id) })
+                        }}
+                      >
+                        <span className="gis-tool-swatch" style={{ background: layer.color || '#22c55e' }} aria-hidden="true" />
+                        <span className="gis-tool-row-main">
+                          <strong>{layer.name}</strong>
+                          <small>Open attribute table</small>
+                        </span>
+                        <i className="fa-solid fa-table-cells" aria-hidden="true" />
+                      </button>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="gis-tool-empty">No layers with a feature attribute table are available.</div>
+                )}
+              </div>
+            ) : activeMapTool === 'bookmarks' ? (
+              <div className="gis-tool-bookmarks">
+                <button
+                  type="button"
+                  className="gis-btn gis-btn-primary"
+                  style={{ width: '100%' }}
+                  onClick={() => {
+                    const v = captureViewForBookmark()
+                    if (!v) return
+                    const name = window.prompt('Bookmark name', 'My place')
+                    if (!name || !name.trim()) return
+                    const row: GisMapBookmark = { id: `${Date.now()}`, name: name.trim(), ...v }
+                    setGisBookmarks(prev => [row, ...prev].slice(0, 40))
+                  }}
+                >
+                  Save current extent
+                </button>
+                {gisBookmarks.length ? (
+                  <ul className="gis-bookmark-list">
+                    {gisBookmarks.map(b => (
+                      <li key={b.id} className="gis-bookmark-list__item">
+                        <button type="button" className="gis-bookmark-list__go" onClick={() => applyBookmark(b)}>
+                          {b.name}
+                        </button>
+                        <button
+                          type="button"
+                          className="gis-bookmark-list__del"
+                          aria-label={`Remove bookmark ${b.name}`}
+                          onClick={() => setGisBookmarks(p => p.filter(x => x.id !== b.id))}
+                        >
+                          <i className="fa-solid fa-trash" aria-hidden="true" />
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="gis-tool-muted">No bookmarks yet.</p>
+                )}
+              </div>
+            ) : activeMapTool === 'saveOpen' ? (
+              <div className="gis-tool-saveopen">
+                <p className="gis-tool-muted">
+                  Save the current map view (extent, basemap, projection) as a JSON file, or load a file you saved earlier.
+                </p>
+                <div style={{ display: 'grid', gap: 10 }}>
+                  <button type="button" className="gis-btn gis-btn-primary" onClick={exportMapSnapshot}>
+                    Save map
+                  </button>
+                  <button type="button" className="gis-btn" onClick={() => mapSnapshotFileRef.current?.click()}>
+                    Open map file…
+                  </button>
+                </div>
+              </div>
+            ) : activeMapTool === 'settings' ? (
+              <div className="gis-tool-settings">
+                <p className="gis-tool-muted">Map projection</p>
+                <div className="gis-map-projection-toggle" aria-label="Map projection mode">
+                  <button
+                    className={mapProjectionMode === 'globe' ? 'gis-map-tool active' : 'gis-map-tool'}
+                    type="button"
+                    onClick={() => changeProjectionMode('globe')}
+                    title="3D Globe"
+                    aria-pressed={mapProjectionMode === 'globe'}
+                  >
+                    <i className="fa-solid fa-globe" aria-hidden="true" />
+                    <span>3D Globe</span>
+                  </button>
+                  <button
+                    className={mapProjectionMode === '2d' ? 'gis-map-tool active' : 'gis-map-tool'}
+                    type="button"
+                    onClick={() => changeProjectionMode('2d')}
+                    title="2D map"
+                    aria-pressed={mapProjectionMode === '2d'}
+                  >
+                    <i className="fa-solid fa-map-location-dot" aria-hidden="true" />
+                    <span>2D</span>
+                  </button>
+                </div>
+                <p className="gis-tool-muted" style={{ marginTop: 12 }}>
+                  Workspace configuration (themes, API tokens, navigation) lives in system settings.
+                </p>
+                <a className="gis-btn" href="/admin/system-settings" style={{ display: 'inline-flex', justifyContent: 'center', width: '100%' }}>
+                  Open system settings
+                </a>
+              </div>
+            ) : activeMapTool === 'apps' ? (
+              <div className="gis-tool-apps">
+                <p className="gis-tool-muted">Jump to other modules in this workspace.</p>
+                <div style={{ display: 'grid', gap: 8 }}>
+                  <a className="gis-btn" href="/" style={{ display: 'inline-flex', justifyContent: 'center' }}>
+                    Home
+                  </a>
+                  <a className="gis-btn" href="/satellite/indices" style={{ display: 'inline-flex', justifyContent: 'center' }}>
+                    Satellite Intelligence
+                  </a>
+                  <a className="gis-btn" href="/satellite/gis" style={{ display: 'inline-flex', justifyContent: 'center' }}>
+                    GIS Map (this page)
+                  </a>
+                  <a className="gis-btn" href="/master/gis-content" style={{ display: 'inline-flex', justifyContent: 'center' }}>
+                    GIS Content
+                  </a>
+                  <a className="gis-btn" href="/admin/system-settings" style={{ display: 'inline-flex', justifyContent: 'center' }}>
+                    System settings
+                  </a>
+                </div>
+              </div>
+            ) : activeMapTool === 'shareMap' ? (
+              <div className="gis-tool-share">
+                <p className="gis-tool-muted">Copy a link to this map page (same origin).</p>
+                <button
+                  type="button"
+                  className="gis-btn gis-btn-primary"
+                  style={{ width: '100%' }}
+                  onClick={async () => {
+                    try {
+                      await navigator.clipboard.writeText(window.location.href)
+                      setSelectionNotice('Map link copied to clipboard.')
+                    } catch {
+                      setSelectionNotice('Could not copy link.')
+                    }
+                  }}
+                >
+                  Copy map link
+                </button>
+              </div>
+            ) : activeMapTool === 'embedMap' ? (
+              <div className="gis-tool-embed">
+                <p className="gis-tool-muted">
+                  Paste this iframe into a page that is allowed to embed this site. Width and height are starting points—adjust as needed.
+                </p>
+                <textarea
+                  className="gis-input"
+                  readOnly
+                  rows={5}
+                  value={`<iframe src="${typeof window !== 'undefined' ? window.location.href.split('#')[0] : ''}" width="100%" height="520" style="border:0" loading="lazy" title="GIS Map"></iframe>`}
+                  onFocus={e => e.currentTarget.select()}
+                  aria-label="Embed code"
+                />
               </div>
             ) : activeMapTool === 'geoExplorer' ? (
               <div className="gis-geo-explorer-root">
