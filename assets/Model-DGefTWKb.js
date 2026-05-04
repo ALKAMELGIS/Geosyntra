@@ -1,1 +1,0 @@
-import{j as e}from"./index-Cx8lwKZK.js";function i(){return e.jsx("div",{className:"page",children:e.jsxs("div",{className:"card",children:[e.jsx("h1",{style:{margin:0,fontSize:20},children:"Model"}),e.jsx("div",{style:{marginTop:8,color:"#64748b",fontSize:13},children:"This page is a placeholder for model configuration and results."})]})})}export{i as default};
