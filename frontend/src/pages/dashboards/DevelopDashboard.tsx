@@ -1215,6 +1215,8 @@ export default function DevelopDashboard() {
   const [gisContentLayers, setGisContentLayers] = useState<LayerData[]>([])
   const [gisContentLoading, setGisContentLoading] = useState(false)
   const [getDataNotice, setGetDataNotice] = useState<string | null>(null)
+  /** Home step only: which source type is selected (Power BI–style radio list). */
+  const [addSourceHomeChoice, setAddSourceHomeChoice] = useState<'gis' | 'arcgis' | 'upload' | 'getdata' | ''>('')
   const [addTab, setAddTab] = useState<AddGisLayerTab>('arcgis')
   const [serviceUrl, setServiceUrl] = useState('')
   const [arcgisToken, setArcgisToken] = useState('')
@@ -2103,6 +2105,7 @@ export default function DevelopDashboard() {
     setUploadFile(null)
     setRemoteDataUrl('')
     setGetDataNotice(null)
+    setAddSourceHomeChoice('')
   }, [])
 
   const openAddGisModal = useCallback(() => {
@@ -2131,6 +2134,7 @@ export default function DevelopDashboard() {
   const goAddWizardHome = useCallback(() => {
     setDiscoverError(null)
     setGetDataNotice(null)
+    setAddSourceHomeChoice('')
     setAddWizard('home')
   }, [])
 
@@ -3741,7 +3745,7 @@ export default function DevelopDashboard() {
     {addGisOpen ? (
       <div className="gis-modal-overlay" role="presentation" onClick={closeAddGisModal}>
         <div
-          className="gis-modal gis-modal-compact ddb-add-source-modal"
+          className={`gis-modal gis-modal-compact ddb-add-source-modal${addWizard === 'home' ? ' ddb-add-source-modal--home' : ''}`}
           role="dialog"
           aria-modal="true"
           aria-labelledby="ddb-add-source-title"
@@ -3760,86 +3764,102 @@ export default function DevelopDashboard() {
 
           {addWizard === 'home' ? (
             <div className="ddb-add-source-home">
-              <p className="ddb-add-source-lead">Choose how you want to add layers to the registry for analytics and maps.</p>
-              <div className="ddb-source-option-grid" role="list">
-                <button
-                  type="button"
-                  className="ddb-source-option-card"
-                  role="listitem"
-                  onClick={() => {
-                    setDiscoverError(null)
-                    setAddWizard('gis-list')
-                  }}
-                >
-                  <span className="ddb-source-option-indicator" aria-hidden />
-                  <div className="ddb-source-option-icon-wrap">
-                    <i className="fa-solid fa-layer-group" aria-hidden />
-                  </div>
-                  <div className="ddb-source-option-text">
-                    <span className="ddb-source-option-title">Select from GIS Content</span>
-                    <span className="ddb-source-option-desc">Use layers and fields already saved in GIS Map in this browser.</span>
-                  </div>
-                </button>
-                <button
-                  type="button"
-                  className="ddb-source-option-card"
-                  role="listitem"
-                  onClick={() => {
-                    setDiscoverError(null)
-                    setAddWizard('tabs')
-                    setAddTab('arcgis')
-                  }}
-                >
-                  <span className="ddb-source-option-indicator" aria-hidden />
-                  <div className="ddb-source-option-icon-wrap">
-                    <i className="fa-solid fa-link" aria-hidden />
-                  </div>
-                  <div className="ddb-source-option-text">
-                    <span className="ddb-source-option-title">Provide an ArcGIS Server layer URL</span>
-                    <span className="ddb-source-option-desc">Connect to a feature service and pick a layer or table.</span>
-                  </div>
-                </button>
-                <button
-                  type="button"
-                  className="ddb-source-option-card"
-                  role="listitem"
-                  onClick={() => {
-                    setDiscoverError(null)
-                    setAddWizard('tabs')
-                    setAddTab('upload')
-                  }}
-                >
-                  <span className="ddb-source-option-indicator" aria-hidden />
-                  <div className="ddb-source-option-icon-wrap">
-                    <i className="fa-solid fa-file-arrow-up" aria-hidden />
-                  </div>
-                  <div className="ddb-source-option-text">
-                    <span className="ddb-source-option-title">Upload a file</span>
-                    <span className="ddb-source-option-desc">GeoJSON, KML, KMZ, Shapefile (zip), CSV with coordinates, and more.</span>
-                  </div>
-                </button>
-                <button
-                  type="button"
-                  className="ddb-source-option-card"
-                  role="listitem"
-                  onClick={() => {
-                    setDiscoverError(null)
-                    setGetDataNotice(null)
-                    setAddWizard('get-data')
-                  }}
-                >
-                  <span className="ddb-source-option-indicator" aria-hidden />
-                  <div className="ddb-source-option-icon-wrap ddb-source-option-icon-wrap--getdata">
-                    <i className="fa-solid fa-database" aria-hidden />
-                    <i className="fa-solid fa-table-cells" aria-hidden />
-                  </div>
-                  <div className="ddb-source-option-text">
-                    <span className="ddb-source-option-title">Get Data</span>
-                    <span className="ddb-source-option-desc">
+              <p className="ddb-add-source-lead">
+                Choose how you want to add layers to the registry for analytics and maps.
+              </p>
+              <div className="ddb-add-source-radio-list" role="radiogroup" aria-labelledby="ddb-add-source-title">
+                <label className="ddb-add-source-radio-row">
+                  <input
+                    type="radio"
+                    name="ddb-add-source-home"
+                    value="gis"
+                    checked={addSourceHomeChoice === 'gis'}
+                    onChange={() => {
+                      setDiscoverError(null)
+                      setAddSourceHomeChoice('gis')
+                      setAddWizard('gis-list')
+                    }}
+                  />
+                  <span className="ddb-add-source-radio-row__icon" aria-hidden>
+                    <i className="fa-solid fa-layer-group" />
+                  </span>
+                  <span className="ddb-add-source-radio-row__text">
+                    <span className="ddb-add-source-radio-row__title">Select from GIS Content</span>
+                    <span className="ddb-add-source-radio-row__desc">
+                      Use layers and fields already saved in GIS Map in this browser.
+                    </span>
+                  </span>
+                </label>
+                <label className="ddb-add-source-radio-row">
+                  <input
+                    type="radio"
+                    name="ddb-add-source-home"
+                    value="arcgis"
+                    checked={addSourceHomeChoice === 'arcgis'}
+                    onChange={() => {
+                      setDiscoverError(null)
+                      setAddSourceHomeChoice('arcgis')
+                      setAddWizard('tabs')
+                      setAddTab('arcgis')
+                    }}
+                  />
+                  <span className="ddb-add-source-radio-row__icon" aria-hidden>
+                    <i className="fa-solid fa-link" />
+                  </span>
+                  <span className="ddb-add-source-radio-row__text">
+                    <span className="ddb-add-source-radio-row__title">Provide an ArcGIS Server layer URL</span>
+                    <span className="ddb-add-source-radio-row__desc">
+                      Connect to a feature service and pick a layer or table.
+                    </span>
+                  </span>
+                </label>
+                <label className="ddb-add-source-radio-row">
+                  <input
+                    type="radio"
+                    name="ddb-add-source-home"
+                    value="upload"
+                    checked={addSourceHomeChoice === 'upload'}
+                    onChange={() => {
+                      setDiscoverError(null)
+                      setAddSourceHomeChoice('upload')
+                      setAddWizard('tabs')
+                      setAddTab('upload')
+                    }}
+                  />
+                  <span className="ddb-add-source-radio-row__icon" aria-hidden>
+                    <i className="fa-solid fa-file-arrow-up" />
+                  </span>
+                  <span className="ddb-add-source-radio-row__text">
+                    <span className="ddb-add-source-radio-row__title">Upload a file</span>
+                    <span className="ddb-add-source-radio-row__desc">
+                      GeoJSON, KML, KMZ, Shapefile (zip), CSV with coordinates, and more.
+                    </span>
+                  </span>
+                </label>
+                <label className="ddb-add-source-radio-row">
+                  <input
+                    type="radio"
+                    name="ddb-add-source-home"
+                    value="getdata"
+                    checked={addSourceHomeChoice === 'getdata'}
+                    onChange={() => {
+                      setDiscoverError(null)
+                      setGetDataNotice(null)
+                      setAddSourceHomeChoice('getdata')
+                      setAddWizard('get-data')
+                    }}
+                  />
+                  <span className="ddb-add-source-radio-row__icon ddb-add-source-radio-row__icon--getdata" aria-hidden>
+                    <i className="fa-solid fa-database" />
+                    <i className="fa-solid fa-table-cells" />
+                  </span>
+                  <span className="ddb-add-source-radio-row__text">
+                    <span className="ddb-add-source-radio-row__title">Get Data</span>
+                    <span className="ddb-add-source-radio-row__desc">
                       Open the same “Common data sources” list as Power BI (Excel, CSV, SQL, Web, OData, …).
                     </span>
-                  </div>
-                </button>
+                  </span>
+                </label>
               </div>
               <button
                 type="button"
@@ -3850,7 +3870,7 @@ export default function DevelopDashboard() {
                   setAddTab('url')
                 }}
               >
-                <i className="fa-solid fa-ellipsis" aria-hidden /> Database, web URL &amp; advanced…
+                … Database, web URL &amp; advanced…
               </button>
             </div>
           ) : addWizard === 'get-data' ? (

@@ -2832,6 +2832,56 @@
     0 0 0 1px rgba(60, 172, 110, 0.12);
 }
 
+/* Power BI–style “Get Data” home step: light panel, radio rows */
+.ddb-add-source-modal.ddb-add-source-modal--home.gis-modal-compact {
+  max-width: 580px;
+  width: min(580px, calc(100vw - 28px));
+  background: #ffffff;
+  border: 1px solid #edebe9;
+  box-shadow:
+    0 12px 40px rgba(0, 0, 0, 0.14),
+    0 0 0 1px rgba(0, 0, 0, 0.04);
+}
+
+.ddb-add-source-modal--home .ddb-add-source-modal__head {
+  padding: 16px 20px 12px;
+  border-bottom: 1px solid #edebe9;
+}
+
+.ddb-add-source-modal--home .gis-modal-compact-title {
+  font-size: 1.125rem;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  color: #323130;
+}
+
+.ddb-add-source-modal--home .ddb-add-source-home {
+  padding: 16px 20px 12px;
+}
+
+.ddb-add-source-modal--home .ddb-add-source-lead {
+  color: #605e5c;
+  margin-bottom: 14px;
+}
+
+.ddb-add-source-modal--home .gis-modal-footer {
+  background: #faf9f8;
+  border-top-color: #edebe9 !important;
+}
+
+.ddb-add-source-modal--home .gis-modal-footer .gis-btn {
+  background: #ffffff;
+  border: 1px solid #8a8886;
+  color: #323130;
+  font-weight: 600;
+  border-radius: 4px;
+  padding: 8px 20px;
+}
+
+.ddb-add-source-modal--home .gis-modal-footer .gis-btn:hover {
+  background: #f3f2f1;
+}
+
 .ddb-add-source-modal__head {
   display: flex;
   flex-wrap: wrap;
@@ -2949,138 +2999,117 @@
   color: #4a6670;
 }
 
-.ddb-source-option-grid {
+/* Add Source home — Power BI style: radio + icon badge + title / description */
+.ddb-add-source-radio-list {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 10px;
 }
 
-.ddb-source-option-card {
+.ddb-add-source-radio-row {
   display: flex;
   align-items: flex-start;
-  gap: 14px;
-  width: 100%;
-  text-align: left;
-  padding: 16px 16px 16px 14px;
-  border-radius: 16px;
-  border: 2px solid #e2e8f0;
-  background: linear-gradient(180deg, #fff 0%, #fafcfb 100%);
+  gap: 12px;
+  margin: 0;
+  padding: 10px 12px;
+  border-radius: 4px;
+  border: 1px solid #edebe9;
+  background: #ffffff;
   cursor: pointer;
   transition:
-    border-color 0.2s ease,
-    box-shadow 0.2s ease,
-    transform 0.18s ease;
-  position: relative;
-  font: inherit;
-  color: inherit;
+    border-color 0.15s ease,
+    box-shadow 0.15s ease;
 }
 
-.ddb-source-option-card:hover {
-  border-color: rgba(37, 99, 235, 0.45);
-  box-shadow: 0 8px 22px rgba(37, 99, 235, 0.1);
-  transform: translateY(-1px);
+.ddb-add-source-radio-row:hover {
+  border-color: #c8c6c4;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
 }
 
-.ddb-source-option-card:focus-visible {
-  outline: 2px solid #2563eb;
-  outline-offset: 2px;
+.ddb-add-source-radio-row:has(input:focus-visible) {
+  outline: 2px solid #107c10;
+  outline-offset: 1px;
 }
 
-.ddb-source-option-indicator {
-  position: absolute;
-  left: 14px;
-  top: 22px;
+.ddb-add-source-radio-row input[type='radio'] {
   width: 18px;
   height: 18px;
-  border-radius: 50%;
-  border: 2px solid #cbd5e1;
-  background: #fff;
+  margin: 10px 0 0;
   flex-shrink: 0;
+  accent-color: #107c10;
+  cursor: pointer;
 }
 
-.ddb-source-option-card:hover .ddb-source-option-indicator {
-  border-color: #2563eb;
-  box-shadow: inset 0 0 0 3px #fff, inset 0 0 0 5px #2563eb;
-}
-
-.ddb-source-option-card.is-selected {
-  border-color: rgba(44, 122, 74, 0.55);
-  box-shadow: 0 8px 22px rgba(31, 94, 58, 0.12);
-}
-
-.ddb-source-option-card.is-selected .ddb-source-option-indicator {
-  border-color: #2c7a4a;
-  box-shadow: inset 0 0 0 3px #fff, inset 0 0 0 5px #2c7a4a;
-}
-
-.ddb-source-option-icon-wrap--getdata {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 4px;
-}
-
-.ddb-source-option-icon-wrap--getdata i:last-child {
-  font-size: 0.95rem;
-  opacity: 0.92;
-}
-
-.ddb-source-option-icon-wrap {
+.ddb-add-source-radio-row__icon {
   flex-shrink: 0;
-  width: 44px;
-  height: 44px;
-  border-radius: 14px;
-  background: linear-gradient(145deg, #e8f4ec, #d4ecdf);
+  width: 40px;
+  height: 40px;
+  margin-top: 2px;
+  border-radius: 4px;
+  background: #dff6dd;
+  color: #107c10;
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #1f5e3a;
-  font-size: 1.15rem;
-  margin-left: 28px;
+  font-size: 1.05rem;
 }
 
-.ddb-source-option-text {
+.ddb-add-source-radio-row__icon--getdata {
+  gap: 3px;
+}
+
+.ddb-add-source-radio-row__icon--getdata i:last-child {
+  font-size: 0.9rem;
+  opacity: 0.95;
+}
+
+.ddb-add-source-radio-row__text {
   flex: 1;
   min-width: 0;
   display: flex;
   flex-direction: column;
   gap: 4px;
+  padding: 2px 0 4px;
 }
 
-.ddb-source-option-title {
-  font-size: 0.92rem;
-  font-weight: 700;
-  color: #0f172a;
-  line-height: 1.3;
+.ddb-add-source-radio-row__title {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: #323130;
+  line-height: 1.35;
 }
 
-.ddb-source-option-desc {
+.ddb-add-source-radio-row__desc {
   font-size: 0.75rem;
-  color: #64748b;
   line-height: 1.45;
+  color: #605e5c;
 }
 
 .ddb-add-source-more {
-  margin-top: 16px;
+  margin-top: 14px;
   width: 100%;
   padding: 10px 14px;
-  border-radius: 14px;
-  border: 1px dashed rgba(44, 122, 74, 0.35);
-  background: rgba(255, 255, 255, 0.7);
-  color: #1f5e3a;
-  font-size: 0.78rem;
+  border-radius: 4px;
+  border: 1px dashed #107c10;
+  background: transparent;
+  color: #107c10;
+  font-size: 0.8125rem;
   font-weight: 600;
   cursor: pointer;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 8px;
+  gap: 6px;
   transition: background 0.18s ease, border-color 0.18s ease;
 }
 
 .ddb-add-source-more:hover {
-  background: rgba(232, 244, 236, 0.9);
-  border-color: rgba(44, 122, 74, 0.55);
+  background: rgba(16, 124, 16, 0.06);
+  border-color: #0e6b0e;
+}
+
+.ddb-add-source-modal--home .ddb-add-source-more {
+  margin-top: 12px;
 }
 
 .ddb-add-source-gis-hint {

@@ -1,6 +1,12 @@
 /* GeoDash / Agro Enterprise — glassmorphism shell, high-contrast data surfaces */
 
 .agro-ent-root {
+  min-height: calc(100vh - var(--header-height, 56px));
+  display: flex;
+  flex-direction: column;
+}
+
+.agro-ent-root.agro-ent-theme--dark {
   --ae-bg0: #0b1020;
   --ae-bg1: #121a33;
   --ae-glass: rgba(18, 26, 48, 0.72);
@@ -12,14 +18,132 @@
   --ae-accent2: #7c6cff;
   --ae-teal: #2dd4bf;
   --ae-shadow: 0 24px 80px rgba(0, 0, 0, 0.45);
-  min-height: calc(100vh - var(--header-height, 56px));
-  display: flex;
-  flex-direction: column;
+  --ae-pop-bg: rgba(12, 16, 32, 0.94);
+  --ae-nav-on-bg: rgba(99, 91, 255, 0.22);
+  --ae-nav-on-fg: #fff;
+  --ae-nav-on-ring: inset 0 0 0 1px rgba(99, 91, 255, 0.35);
+  --ae-map-tools-bg: rgba(0, 0, 0, 0.45);
+  --ae-float-bg: rgba(12, 18, 36, 0.88);
+  --ae-modal-bg: rgba(14, 18, 34, 0.97);
+  --ae-widget-surface: rgba(255, 255, 255, 0.04);
+  --ae-map-col-bg: rgba(0, 0, 0, 0.35);
   color: var(--ae-text);
   background:
     radial-gradient(1200px 600px at 12% -10%, rgba(99, 91, 255, 0.28), transparent 55%),
     radial-gradient(900px 500px at 88% 0%, rgba(45, 212, 191, 0.12), transparent 50%),
     linear-gradient(165deg, var(--ae-bg0) 0%, var(--ae-bg1) 45%, #0a0e18 100%);
+}
+
+.agro-ent-root.agro-ent-theme--light {
+  --ae-bg0: #f8fafc;
+  --ae-bg1: #e2e8f0;
+  --ae-glass: rgba(255, 255, 255, 0.85);
+  --ae-glass2: rgba(15, 23, 42, 0.06);
+  --ae-border: rgba(15, 23, 42, 0.1);
+  --ae-text: #0f172a;
+  --ae-muted: #64748b;
+  --ae-accent: #4f46e5;
+  --ae-accent2: #6366f1;
+  --ae-teal: #0d9488;
+  --ae-shadow: 0 24px 80px rgba(15, 23, 42, 0.12);
+  --ae-pop-bg: rgba(255, 255, 255, 0.98);
+  --ae-nav-on-bg: rgba(79, 70, 229, 0.14);
+  --ae-nav-on-fg: #1e1b4b;
+  --ae-nav-on-ring: inset 0 0 0 1px rgba(79, 70, 229, 0.35);
+  --ae-map-tools-bg: rgba(241, 245, 249, 0.92);
+  --ae-float-bg: rgba(255, 255, 255, 0.94);
+  --ae-modal-bg: rgba(255, 255, 255, 0.98);
+  --ae-widget-surface: rgba(255, 255, 255, 0.72);
+  --ae-map-col-bg: rgba(226, 232, 240, 0.65);
+  color: var(--ae-text);
+  background:
+    radial-gradient(1000px 520px at 10% -8%, rgba(99, 102, 241, 0.18), transparent 52%),
+    radial-gradient(800px 420px at 92% 4%, rgba(13, 148, 136, 0.12), transparent 48%),
+    linear-gradient(165deg, #f8fafc 0%, #e2e8f0 55%, #cbd5e1 100%);
+}
+
+.agro-ent-root.agro-ent-theme--green {
+  --ae-bg0: #052e1f;
+  --ae-bg1: #064e3b;
+  --ae-glass: rgba(6, 78, 59, 0.55);
+  --ae-glass2: rgba(167, 243, 208, 0.08);
+  --ae-border: rgba(167, 243, 208, 0.14);
+  --ae-text: #ecfdf5;
+  --ae-muted: #6ee7b7;
+  --ae-accent: #059669;
+  --ae-accent2: #10b981;
+  --ae-teal: #34d399;
+  --ae-shadow: 0 24px 80px rgba(0, 0, 0, 0.42);
+  --ae-pop-bg: rgba(6, 78, 59, 0.94);
+  --ae-nav-on-bg: rgba(16, 185, 129, 0.22);
+  --ae-nav-on-fg: #ecfdf5;
+  --ae-nav-on-ring: inset 0 0 0 1px rgba(52, 211, 153, 0.4);
+  --ae-map-tools-bg: rgba(0, 0, 0, 0.38);
+  --ae-float-bg: rgba(6, 47, 36, 0.9);
+  --ae-modal-bg: rgba(4, 47, 36, 0.96);
+  --ae-widget-surface: rgba(255, 255, 255, 0.06);
+  --ae-map-col-bg: rgba(0, 0, 0, 0.32);
+  color: var(--ae-text);
+  background:
+    radial-gradient(1100px 560px at 14% -12%, rgba(16, 185, 129, 0.28), transparent 55%),
+    radial-gradient(820px 460px at 86% 6%, rgba(52, 211, 153, 0.12), transparent 50%),
+    linear-gradient(165deg, #052e1f 0%, #064e3b 48%, #022c22 100%);
+}
+
+.agro-ent-root.agro-ent-theme--blue {
+  --ae-bg0: #0c1929;
+  --ae-bg1: #172554;
+  --ae-glass: rgba(23, 37, 84, 0.62);
+  --ae-glass2: rgba(147, 197, 253, 0.08);
+  --ae-border: rgba(147, 197, 253, 0.14);
+  --ae-text: #eff6ff;
+  --ae-muted: #93c5fd;
+  --ae-accent: #2563eb;
+  --ae-accent2: #3b82f6;
+  --ae-teal: #38bdf8;
+  --ae-shadow: 0 24px 80px rgba(0, 0, 0, 0.45);
+  --ae-pop-bg: rgba(15, 23, 42, 0.95);
+  --ae-nav-on-bg: rgba(37, 99, 235, 0.28);
+  --ae-nav-on-fg: #fff;
+  --ae-nav-on-ring: inset 0 0 0 1px rgba(59, 130, 246, 0.45);
+  --ae-map-tools-bg: rgba(0, 0, 0, 0.42);
+  --ae-float-bg: rgba(15, 23, 42, 0.9);
+  --ae-modal-bg: rgba(15, 23, 42, 0.97);
+  --ae-widget-surface: rgba(255, 255, 255, 0.05);
+  --ae-map-col-bg: rgba(0, 0, 0, 0.34);
+  color: var(--ae-text);
+  background:
+    radial-gradient(1180px 580px at 12% -10%, rgba(37, 99, 235, 0.32), transparent 54%),
+    radial-gradient(880px 480px at 90% 4%, rgba(56, 189, 248, 0.14), transparent 50%),
+    linear-gradient(165deg, #0c1929 0%, #172554 45%, #0f172a 100%);
+}
+
+.agro-ent-root.agro-ent-theme--amber {
+  --ae-bg0: #1c1410;
+  --ae-bg1: #292018;
+  --ae-glass: rgba(41, 37, 36, 0.65);
+  --ae-glass2: rgba(253, 230, 138, 0.08);
+  --ae-border: rgba(251, 191, 36, 0.18);
+  --ae-text: #fffbeb;
+  --ae-muted: #fcd34d;
+  --ae-accent: #d97706;
+  --ae-accent2: #f59e0b;
+  --ae-teal: #fbbf24;
+  --ae-shadow: 0 24px 80px rgba(0, 0, 0, 0.48);
+  --ae-pop-bg: rgba(28, 25, 23, 0.96);
+  --ae-nav-on-bg: rgba(217, 119, 6, 0.28);
+  --ae-nav-on-fg: #fffbeb;
+  --ae-nav-on-ring: inset 0 0 0 1px rgba(251, 191, 36, 0.42);
+  --ae-map-tools-bg: rgba(0, 0, 0, 0.46);
+  --ae-float-bg: rgba(28, 25, 23, 0.92);
+  --ae-modal-bg: rgba(28, 25, 23, 0.97);
+  --ae-widget-surface: rgba(255, 255, 255, 0.06);
+  --ae-map-col-bg: rgba(0, 0, 0, 0.36);
+  color: var(--ae-text);
+  background:
+    radial-gradient(1120px 560px at 14% -10%, rgba(217, 119, 6, 0.28), transparent 54%),
+    radial-gradient(840px 460px at 88% 6%, rgba(251, 191, 36, 0.12), transparent 50%),
+    linear-gradient(165deg, #1c1410 0%, #292018 46%, #0c0a09 100%);
 }
 
 .agro-ent-shell {
@@ -116,9 +240,9 @@
 }
 
 .agro-ent-nav button.agro-ent-nav--on {
-  background: rgba(99, 91, 255, 0.22);
-  color: #fff;
-  box-shadow: inset 0 0 0 1px rgba(99, 91, 255, 0.35);
+  background: var(--ae-nav-on-bg);
+  color: var(--ae-nav-on-fg);
+  box-shadow: var(--ae-nav-on-ring);
 }
 
 .agro-ent-nav button i {
@@ -127,11 +251,111 @@
   opacity: 0.92;
 }
 
-.agro-ent-gallery-wrap {
+.agro-ent-theme-wrap {
   position: relative;
   margin-top: auto;
   padding-top: 8px;
   border-top: 1px solid var(--ae-glass2);
+}
+
+.agro-ent-theme-btn {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid var(--ae-border);
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--ae-text);
+  font-weight: 700;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.agro-ent-theme-btn:hover {
+  border-color: rgba(148, 163, 184, 0.35);
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.agro-ent-theme-btn-label {
+  flex: 1;
+  text-align: start;
+}
+
+.agro-ent-side--collapsed .agro-ent-theme-btn-label {
+  display: none;
+}
+
+.agro-ent-theme-menu {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: calc(100% + 8px);
+  padding: 10px;
+  border-radius: 14px;
+  background: var(--ae-pop-bg);
+  border: 1px solid var(--ae-border);
+  box-shadow: var(--ae-shadow);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  z-index: 41;
+}
+
+.agro-ent-theme-opt {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 10px;
+  border-radius: 10px;
+  border: 1px solid transparent;
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--ae-text);
+  font-size: 12px;
+  font-weight: 650;
+  cursor: pointer;
+  text-align: start;
+}
+
+.agro-ent-theme-opt:hover {
+  border-color: rgba(148, 163, 184, 0.35);
+}
+
+.agro-ent-theme-opt--on {
+  border-color: color-mix(in srgb, var(--ae-accent) 48%, transparent);
+  background: color-mix(in srgb, var(--ae-accent) 14%, transparent);
+}
+
+.agro-ent-theme-swatch {
+  width: 18px;
+  height: 18px;
+  border-radius: 6px;
+  flex-shrink: 0;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.08);
+}
+
+.agro-ent-theme-swatch--dark {
+  background: linear-gradient(135deg, #635bff, #121a33);
+}
+.agro-ent-theme-swatch--light {
+  background: linear-gradient(135deg, #fff, #cbd5e1);
+}
+.agro-ent-theme-swatch--green {
+  background: linear-gradient(135deg, #059669, #052e1f);
+}
+.agro-ent-theme-swatch--blue {
+  background: linear-gradient(135deg, #2563eb, #172554);
+}
+.agro-ent-theme-swatch--amber {
+  background: linear-gradient(135deg, #fbbf24, #92400e);
+}
+
+.agro-ent-gallery-wrap {
+  position: relative;
+  padding-top: 8px;
 }
 
 .agro-ent-gallery-btn {
@@ -142,8 +366,12 @@
   gap: 8px;
   padding: 11px 12px;
   border-radius: 12px;
-  border: 1px solid rgba(99, 91, 255, 0.45);
-  background: linear-gradient(180deg, rgba(124, 108, 255, 0.35), rgba(99, 91, 255, 0.2));
+  border: 1px solid color-mix(in srgb, var(--ae-accent) 48%, transparent);
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--ae-accent2) 35%, transparent),
+    color-mix(in srgb, var(--ae-accent) 22%, transparent)
+  );
   color: #fff;
   font-weight: 800;
   font-size: 12px;
@@ -161,35 +389,88 @@
   left: 0;
   right: 0;
   bottom: calc(100% + 8px);
-  padding: 10px;
-  border-radius: 14px;
-  background: rgba(12, 16, 32, 0.94);
-  border: 1px solid var(--ae-border);
-  box-shadow: var(--ae-shadow);
+  min-width: 0;
+  width: min(320px, calc(100vw - 24px));
+  max-height: min(72vh, 560px);
+  overflow-x: hidden;
+  overflow-y: auto;
+  padding: 12px;
+  border-radius: 16px;
+  background: #12121e;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow:
+    0 20px 50px rgba(0, 0, 0, 0.55),
+    0 0 0 1px rgba(99, 91, 255, 0.12);
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 8px;
+  gap: 10px;
   z-index: 40;
+  scrollbar-color: rgba(99, 91, 255, 0.45) rgba(255, 255, 255, 0.06);
+  scrollbar-width: thin;
 }
 
-.agro-ent-gallery-menu button {
-  padding: 10px 8px;
-  border-radius: 10px;
-  border: 1px solid var(--ae-glass2);
+.agro-ent-gallery-menu::-webkit-scrollbar {
+  width: 8px;
+}
+
+.agro-ent-gallery-menu::-webkit-scrollbar-thumb {
+  background: rgba(99, 91, 255, 0.4);
+  border-radius: 8px;
+}
+
+.agro-ent-gallery-menu::-webkit-scrollbar-track {
   background: rgba(255, 255, 255, 0.04);
-  color: var(--ae-text);
-  font-size: 11px;
-  font-weight: 700;
+  border-radius: 8px;
+}
+
+.agro-ent-gallery-tile {
+  padding: 12px 8px 10px;
+  border-radius: 14px;
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  background: #1e1e2d;
+  color: #ffffff;
+  font: inherit;
+  font-size: 10px;
+  font-weight: 750;
+  letter-spacing: 0.01em;
+  line-height: 1.2;
   cursor: pointer;
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 6px;
+  justify-content: flex-start;
+  gap: 8px;
+  text-align: center;
+  min-height: 84px;
+  transition:
+    border-color 0.18s ease,
+    background 0.18s ease,
+    box-shadow 0.18s ease,
+    transform 0.15s ease;
 }
 
-.agro-ent-gallery-menu button:hover {
-  border-color: rgba(99, 91, 255, 0.5);
-  background: rgba(99, 91, 255, 0.12);
+.agro-ent-gallery-tile i {
+  font-size: 1.35rem;
+  line-height: 1;
+  opacity: 0.98;
+}
+
+.agro-ent-gallery-tile__label {
+  display: block;
+  max-width: 100%;
+  padding: 0 2px;
+}
+
+.agro-ent-gallery-tile:hover {
+  border-color: color-mix(in srgb, var(--ae-accent) 55%, transparent);
+  background: #252536;
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--ae-accent) 25%, transparent);
+  transform: translateY(-1px);
+}
+
+.agro-ent-gallery-tile:focus-visible {
+  outline: 2px solid var(--ae-accent2);
+  outline-offset: 2px;
 }
 
 .agro-ent-main {
@@ -270,7 +551,7 @@
 .agro-ent-widget {
   grid-column: span 6;
   border-radius: 16px;
-  background: rgba(255, 255, 255, 0.04);
+  background: var(--ae-widget-surface);
   border: 1px solid var(--ae-border);
   backdrop-filter: blur(12px);
   display: flex;
@@ -315,7 +596,8 @@
   position: relative;
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: 6px;
+  flex-shrink: 0;
 }
 
 .agro-ent-icon-btn {
@@ -328,6 +610,22 @@
   cursor: pointer;
   display: grid;
   place-items: center;
+  flex-shrink: 0;
+}
+
+.agro-ent-icon-btn--resize {
+  color: var(--ae-muted);
+}
+
+.agro-ent-icon-btn--resize:hover:not(:disabled) {
+  color: var(--ae-accent2);
+  border-color: color-mix(in srgb, var(--ae-accent) 40%, transparent);
+  background: color-mix(in srgb, var(--ae-accent) 10%, transparent);
+}
+
+.agro-ent-icon-btn i {
+  font-size: 14px;
+  line-height: 1;
 }
 
 .agro-ent-pop {
@@ -337,7 +635,7 @@
   width: min(320px, 86vw);
   padding: 12px;
   border-radius: 14px;
-  background: rgba(10, 14, 28, 0.96);
+  background: var(--ae-pop-bg);
   border: 1px solid var(--ae-border);
   box-shadow: var(--ae-shadow);
   z-index: 30;
@@ -380,12 +678,17 @@
   padding: 8px 10px 12px;
 }
 
+.agro-ent-sources-list {
+  font-size: 13px;
+  color: var(--ae-text);
+}
+
 .agro-ent-map-col {
   min-height: 320px;
   border-radius: 16px;
   overflow: hidden;
   border: 1px solid var(--ae-border);
-  background: rgba(0, 0, 0, 0.35);
+  background: var(--ae-map-col-bg);
   box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.04);
   display: flex;
   flex-direction: column;
@@ -396,7 +699,7 @@
   flex-wrap: wrap;
   gap: 6px;
   padding: 8px 10px;
-  background: rgba(0, 0, 0, 0.45);
+  background: var(--ae-map-tools-bg);
   border-bottom: 1px solid var(--ae-glass2);
 }
 
@@ -433,7 +736,7 @@
   gap: 8px;
   padding: 8px 12px;
   border-radius: 999px;
-  background: rgba(12, 18, 36, 0.88);
+  background: var(--ae-float-bg);
   border: 1px solid var(--ae-border);
   backdrop-filter: blur(14px);
   box-shadow: 0 16px 48px rgba(0, 0, 0, 0.45);
@@ -452,7 +755,7 @@
 }
 
 .agro-ent-float-tools button:hover {
-  border-color: rgba(99, 91, 255, 0.45);
+  border-color: color-mix(in srgb, var(--ae-accent) 45%, transparent);
 }
 
 .agro-ent-modal-back {
@@ -471,7 +774,7 @@
   overflow: auto;
   border-radius: 18px;
   padding: 20px;
-  background: rgba(14, 18, 34, 0.97);
+  background: var(--ae-modal-bg);
   border: 1px solid var(--ae-border);
   color: var(--ae-text);
   box-shadow: var(--ae-shadow);
@@ -500,7 +803,7 @@
 }
 
 .agro-ent-opt:hover {
-  border-color: rgba(99, 91, 255, 0.45);
+  border-color: color-mix(in srgb, var(--ae-accent) 45%, transparent);
 }
 
 .agro-ent-opt b {
