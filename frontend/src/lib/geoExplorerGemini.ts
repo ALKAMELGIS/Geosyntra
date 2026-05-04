@@ -30,7 +30,8 @@ export const GEO_EXPLORER_SESSION_AND_WEATHER = `Session continuity & weather (r
 - If "### OPEN-METEO FACTS" is present, base any numeric weather or climate statements on that data only; cite “Open-Meteo” once. Never claim coordinates are missing or that the layer has no location if the SESSION MAP ANCHOR lists longitude and latitude.
 - If "### OPENWEATHER FACTS" is present, you may use it for current conditions and short-range forecast details (station-style); cite “OpenWeather” once. Prefer OpenWeather for “now” wording when both Open-Meteo and OpenWeather are present; reconcile gently if they differ slightly (different models/times).
 - If OPEN-METEO or OpenWeather shows a fetch error, say so briefly—do not invent numbers.
-- Keep answers concise: a short lead paragraph, then bullets if helpful; avoid dumping raw JSON from layer context.`;
+- Keep answers concise: a short lead paragraph, then bullets if helpful; avoid dumping raw JSON from layer context.
+- Conversations are sequential: short follow-ups (“coordinates of that place”, “same feature”, “what country”, “أعطني الإحداثيات”, “نفس الموقع”) refer to the last matched feature or SESSION MAP ANCHOR unless the user names a new layer or ID.`;
 
 export type GeoExplorerPart =
   | { type: 'text'; text: string }
@@ -70,6 +71,14 @@ export function stripMapQueryLine(text: string): string {
     .replace(/\r?\nMAP_QUERY:\s*[^\n]+/gi, '')
     .replace(/^MAP_QUERY:\s*[^\n]+\r?\n?/i, '')
     .trimEnd();
+}
+
+/** UI-only: remove appended map meta the server adds after model text (keep stored history intact for MAP_QUERY). */
+export function stripGeoAiModelMetaAppend(text: string): string {
+  let t = text.trimEnd()
+  t = t.replace(/\n\n\(Map centered on the best place-name match for your message\.\)/gi, '')
+  t = t.replace(/\n\n\(Map pin from layer[\s\S]*$/m, '')
+  return t.trimEnd()
 }
 
 function partsToGeminiPayload(parts: GeoExplorerPart[]): Array<{ text?: string; inline_data?: { mime_type: string; data: string } }> {

@@ -115,13 +115,36 @@ export function summarizeGeoAiMapLayers(layers: GeoAiMapLayer[], maxChars = 2800
   return out
 }
 
-const LAYER_HINT = /(?:from|in)\s+['"]?([\w\s\-]{2,64})['"]?\s*(?:layer)?/i
+const LAYER_HINT_FROM = /(?:from|in|on)\s+['"]?([\w\s\-_]{2,64})['"]?\s*(?:layer)?/i
+const LAYER_HINT_TAIL = /\b['"]?([\w][\w\s\-_]{1,62})['"]?\s+layer\b/i
+const LAYER_HINT_AR = /طبقة\s+['"]?([\w\s\-_\u0600-\u06FF]{2,64})['"]?/i
 
 /** Exported for Geo AI map pin: when set, layer-derived coordinates should win over model MAP_QUERY. */
 export function extractGeoExplorerLayerHint(userText: string): string | null {
-  const m = userText.match(LAYER_HINT)
-  if (!m?.[1]) return null
-  return m[1].trim()
+  const m1 = userText.match(LAYER_HINT_FROM)
+  if (m1?.[1]) return m1[1].trim()
+  const m2 = userText.match(LAYER_HINT_TAIL)
+  if (m2?.[1]) {
+    const w = m2[1].trim().toLowerCase()
+    if (!/^(the|a|an|this|that|my|your|our)$/i.test(w)) return m2[1].trim()
+  }
+  const m3 = userText.match(LAYER_HINT_AR)
+  if (m3?.[1]) return m3[1].trim()
+  return null
+}
+
+function layersWhoseNameAppearsInQuery(userText: string, layers: GeoAiMapLayer[]): GeoAiMapLayer[] | null {
+  const normBlob = normalizeLayerName(userText).replace(/_/g, ' ')
+  const hits: GeoAiMapLayer[] = []
+  for (const layer of layers) {
+    const ln = normalizeLayerName(layer.name).replace(/_/g, ' ')
+    if (ln.length < 3) continue
+    if (normBlob.includes(ln)) hits.push(layer)
+  }
+  if (hits.length === 0) return null
+  if (hits.length === 1) return hits
+  hits.sort((a, b) => normalizeLayerName(b.name).length - normalizeLayerName(a.name).length)
+  return [hits[0]]
 }
 
 function extractLayerHint(userText: string): string | null {
@@ -143,7 +166,7 @@ function tokenAppearsAsWordInBlob(blob: string, tok: string): boolean {
 
 function tokenizeForSearch(userText: string): string[] {
   let s = userText
-  s = s.replace(LAYER_HINT, ' ')
+  s = s.replace(LAYER_HINT_FROM, ' ').replace(LAYER_HINT_TAIL, ' ').replace(LAYER_HINT_AR, ' ')
   const fillers =
     /\b(show|me|in|map|location|locaion|the|a|an|on|at|for|from|to|of|layer|layers|please|find|where|is|are|point|pin|fly|zoom|center|goto|go)\b/gi
   s = s.replace(fillers, ' ')
@@ -215,10 +238,13 @@ export function findLngLatFromLayerQuery(userText: string, layers: GeoAiMapLayer
 
   let best: LayerQueryMatch | null = null
 
+  const nameScoped = !hintNorm ? layersWhoseNameAppearsInQuery(userText, layers) : null
+
   for (const layer of layers) {
     const fc = featureCollectionFromLayer(layer)
     if (!fc?.features?.length) continue
     const lname = normalizeLayerName(layer.name)
+    if (!hintNorm && nameScoped?.length && !nameScoped.some(sl => sl.name === layer.name)) continue
     if (hintNorm) {
       const hinted =
         lname.includes(hintNorm) ||

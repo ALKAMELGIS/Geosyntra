@@ -21,7 +21,8 @@ Rules:
 - Prefer short structured answers: headings, bullets, and small tables in plain text when useful.
 - Do not invent field values, coordinates, or statistics that are not implied by the context.
 - When sample feature properties appear, treat them as examples only, not exhaustive.
-- When "### SESSION MAP ANCHOR", "### OPEN-METEO FACTS", or "### OPENWEATHER FACTS" sections appear after this block, they are authoritative for map focus and weather numbers at that location; cite Open-Meteo and/or OpenWeather once; do not invent values beyond those blocks.`
+- When "### SESSION MAP ANCHOR", "### OPEN-METEO FACTS", or "### OPENWEATHER FACTS" sections appear after this block, they are authoritative for map focus and weather numbers at that location; cite Open-Meteo and/or OpenWeather once; do not invent values beyond those blocks.
+- When DATA CONTEXT clearly identifies one geographic point for the user’s request (feature geometry centroid, or explicit lon/lat fields tied to that feature), you may end with a new line exactly: MAP_QUERY:longitude,latitude (WGS84 decimal degrees, longitude first). Omit MAP_QUERY if no single justified location. Do not put MAP_QUERY inside markdown fences.`
 
 export type GeoAiChatTurn = { role: 'user' | 'assistant'; text: string }
 

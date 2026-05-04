@@ -38,22 +38,27 @@ import {
   subscribeSentinelHubWmsInstance,
 } from '../../lib/sentinelHubWmsInstance';
 import {
-  GEO_EXPLORER_SYSTEM_PROMPT,
-  geminiGenerateContent,
+  lastMapQueryCoordsFromMessages,
   messageDisplayText,
   messagesToGeminiContents,
-  parseMapQueryLngLat,
+  stripGeoAiModelMetaAppend,
   stripMapQueryLine,
   type GeoExplorerMessage,
   type GeoExplorerPart,
 } from '../../lib/geoExplorerGemini';
-import { geocodePlaceToLngLat } from '../../lib/geoExplorerGeocode';
 import {
   buildGeoAiDataContext,
   claudeGeoAiComplete,
+  DEVELOP_DATA_CONTEXT_LS_KEY,
   GEO_AI_CHAT_SYSTEM_BASE,
   type GeoAiChatTurn,
 } from '../../lib/geoAiChatClaude';
+import { loadGisMapSavedLayers } from '../../lib/gisMapLayerStore';
+import { satelliteCustomLayersToGeoAiLayers } from '../../lib/geoAiMapLayerSources';
+import { geoExplorerTargetZoomForPinSource, runGeoExplorerGeminiTurn } from '../../lib/runGeoExplorerGeminiTurn';
+import { buildGeoAiLayerPopupAttributeRows, type GeoAiMapLayer } from '../../lib/geoExplorerLayerContext';
+import { resolveGeoAiPinFromUserTextAndReply } from '../../lib/geoAiResolveMapCoords';
+import { useOpenWeatherMapApiKey } from '../../hooks/useOpenWeatherMapApiKey';
 import { agroChatWithDeepSeek } from '../../lib/agroAiChat';
 import {
   buildBasemapCatalog,
@@ -909,6 +914,7 @@ export default function SatelliteIntelligence() {
   const geminiApiKey = useGeminiApiKey();
   const claudeApiKey = useClaudeApiKey();
   const deepseekApiKey = useDeepseekApiKey();
+  const openWeatherApiKey = useOpenWeatherMapApiKey();
   const basemapCatalog = useMemo(() => buildBasemapCatalog(mapboxToken || ''), [mapboxToken]);
   const [viewState, setViewState] = useState({
     longitude: 20,
@@ -1091,6 +1097,12 @@ export default function SatelliteIntelligence() {
   const [geoExplorerBusy, setGeoExplorerBusy] = useState(false);
   const [geoExplorerChatError, setGeoExplorerChatError] = useState('');
   const [geoAiPinLngLat, setGeoAiPinLngLat] = useState<[number, number] | null>(null);
+  const [geoAiInspectCard, setGeoAiInspectCard] = useState<null | {
+    title: string;
+    rows: { label: string; value: string }[];
+    lng: number;
+    lat: number;
+  }>(null);
   const geoExplorerFileInputRef = useRef<HTMLInputElement | null>(null);
   const geoExplorerInFlightRef = useRef(false);
   const [geoAiModelTab, setGeoAiModelTab] = useState<'gemini' | 'claude' | 'deepseek'>('gemini');
@@ -2475,6 +2487,7 @@ export default function SatelliteIntelligence() {
     setGeoExplorerPendingImage(null);
     setGeoExplorerChatError('');
     setGeoAiPinLngLat(null);
+    setGeoAiInspectCard(null);
   }, []);
 
   const clearGeoAiChat = useCallback(() => {
@@ -2483,6 +2496,7 @@ export default function SatelliteIntelligence() {
     setGeoAiChatMessages([]);
     setGeoAiDraft('');
     setGeoAiChatError('');
+    setGeoAiInspectCard(null);
   }, []);
 
   const clearGeoDeepseekChat = useCallback(() => {
@@ -2491,6 +2505,7 @@ export default function SatelliteIntelligence() {
     setGeoDeepseekChatMessages([]);
     setGeoDeepseekDraft('');
     setGeoDeepseekChatError('');
+    setGeoAiInspectCard(null);
   }, []);
 
   const clearCurrentGeoAiPanel = useCallback(() => {
@@ -2498,6 +2513,60 @@ export default function SatelliteIntelligence() {
     else if (geoAiModelTab === 'claude') clearGeoAiChat();
     else clearGeoDeepseekChat();
   }, [geoAiModelTab, clearGeoExplorerChat, clearGeoAiChat, clearGeoDeepseekChat]);
+
+  const applySatelliteGeoAiMapUi = useCallback(
+    async (userText: string, reply: string) => {
+      const primary = satelliteCustomLayersToGeoAiLayers(customLayers);
+      const saved = await loadGisMapSavedLayers();
+      const combined = [
+        ...primary,
+        ...saved.map(l => ({
+          name: l.name,
+          visible: l.visible,
+          source: l.source,
+          data: l.data,
+          arcgisLayerDefinition: (l as { arcgisLayerDefinition?: GeoAiMapLayer['arcgisLayerDefinition'] })
+            .arcgisLayerDefinition,
+        })),
+      ];
+      const pin = resolveGeoAiPinFromUserTextAndReply(userText, reply, combined);
+      if (!pin) {
+        setGeoAiInspectCard(null);
+        return;
+      }
+      setGeoAiPinLngLat(pin.coords);
+      setViewState(prev => ({
+        ...prev,
+        longitude: pin.coords[0],
+        latitude: pin.coords[1],
+        zoom: Math.max(
+          geoExplorerTargetZoomForPinSource(pin.pinSource),
+          typeof prev.zoom === 'number' ? prev.zoom : 2,
+        ),
+        pitch: is3DView ? Math.max(typeof prev.pitch === 'number' ? prev.pitch : 0, 42) : prev.pitch ?? 0,
+        bearing: typeof prev.bearing === 'number' ? prev.bearing : 0,
+      }));
+      if (pin.layerHit) {
+        setGeoAiInspectCard({
+          title: pin.layerHit.layerName,
+          rows: buildGeoAiLayerPopupAttributeRows(pin.layerHit),
+          lng: pin.coords[0],
+          lat: pin.coords[1],
+        });
+      } else {
+        setGeoAiInspectCard({
+          title: 'Location',
+          rows: [
+            { label: 'Longitude', value: pin.coords[0].toFixed(6) },
+            { label: 'Latitude', value: pin.coords[1].toFixed(6) },
+          ],
+          lng: pin.coords[0],
+          lat: pin.coords[1],
+        });
+      }
+    },
+    [customLayers, is3DView],
+  );
 
   const sendGeoExplorerChat = useCallback(() => {
     const trimmed = geoExplorerDraft.trim();
@@ -2539,42 +2608,65 @@ export default function SatelliteIntelligence() {
       const historyWithUser = [...prev, userMsg];
       queueMicrotask(async () => {
         try {
-          const reply = await geminiGenerateContent({
-            apiKey,
-            systemInstruction: GEO_EXPLORER_SYSTEM_PROMPT,
-            contents: messagesToGeminiContents(historyWithUser),
-          });
-          let coords = parseMapQueryLngLat(reply);
-          let replyText = reply;
-          if (!coords && userTextForMapFallback) {
-            const geocoded = await geocodePlaceToLngLat(userTextForMapFallback, {
-              mapboxAccessToken: mapboxToken || undefined,
-            });
-            if (geocoded) {
-              coords = geocoded;
-              replyText = `${reply.trimEnd()}\n\n(Map centered on the best place-name match for your message.)`;
+          let developAppend = '';
+          try {
+            const raw =
+              typeof localStorage !== 'undefined' ? localStorage.getItem(DEVELOP_DATA_CONTEXT_LS_KEY) : null;
+            if (raw?.trim()) {
+              developAppend = `### Develop Dashboard — Data pane snapshot (JSON)\n${raw.slice(0, 14000)}`;
             }
+          } catch {
+            /* ignore */
           }
-          const modelId =
-            typeof crypto !== 'undefined' && 'randomUUID' in crypto
-              ? crypto.randomUUID()
-              : `geo-m-${Date.now()}`;
-          const modelMsg: GeoExplorerMessage = {
-            id: modelId,
-            role: 'model',
-            parts: [{ type: 'text', text: replyText }],
-          };
-          setGeoExplorerMessages(h => [...h, modelMsg]);
-          if (coords) {
-            setGeoAiPinLngLat(coords);
-            setViewState(prev => ({
-              ...prev,
-              longitude: coords[0],
-              latitude: coords[1],
-              zoom: Math.max(10, typeof prev.zoom === 'number' ? prev.zoom : 2),
-              pitch: is3DView ? Math.max(typeof prev.pitch === 'number' ? prev.pitch : 0, 42) : prev.pitch ?? 0,
-              bearing: typeof prev.bearing === 'number' ? prev.bearing : 0,
+          const result = await runGeoExplorerGeminiTurn({
+            apiKey,
+            historyWithUser,
+            userTextForMapFallback,
+            primaryVectorLayers: satelliteCustomLayersToGeoAiLayers(customLayers),
+            mapboxAccessToken: mapboxToken || undefined,
+            openWeatherApiKey,
+            pinLngLat: geoAiPinLngLat,
+            lastMapQueryCoords: lastMapQueryCoordsFromMessages(prev),
+            mapPopup: null,
+            addedLayersHeading: '### Satellite — Added layers (this map — si-env / vector layers)',
+            attachGisSavedLayers: true,
+            extraSystemAppend: developAppend || undefined,
+          });
+          setGeoExplorerMessages(h => [...h, result.modelMsg]);
+          const me = result.mapEffect;
+          if (me) {
+            setGeoAiPinLngLat(me.coords);
+            setViewState(vs => ({
+              ...vs,
+              longitude: me.coords[0],
+              latitude: me.coords[1],
+              zoom: Math.max(
+                geoExplorerTargetZoomForPinSource(me.pinSource),
+                typeof vs.zoom === 'number' ? vs.zoom : 2,
+              ),
+              pitch: is3DView ? Math.max(typeof vs.pitch === 'number' ? vs.pitch : 0, 42) : vs.pitch ?? 0,
+              bearing: typeof vs.bearing === 'number' ? vs.bearing : 0,
             }));
+            if (me.layerHit) {
+              setGeoAiInspectCard({
+                title: me.layerHit.layerName,
+                rows: buildGeoAiLayerPopupAttributeRows(me.layerHit),
+                lng: me.coords[0],
+                lat: me.coords[1],
+              });
+            } else {
+              setGeoAiInspectCard({
+                title: 'Location',
+                rows: [
+                  { label: 'Longitude', value: me.coords[0].toFixed(6) },
+                  { label: 'Latitude', value: me.coords[1].toFixed(6) },
+                ],
+                lng: me.coords[0],
+                lat: me.coords[1],
+              });
+            }
+          } else {
+            setGeoAiInspectCard(null);
           }
         } catch (e) {
           setGeoExplorerChatError(e instanceof Error ? e.message : String(e));
@@ -2585,7 +2677,16 @@ export default function SatelliteIntelligence() {
       });
       return historyWithUser;
     });
-  }, [geminiApiKey, geoExplorerDraft, geoExplorerPendingImage, mapboxToken, is3DView]);
+  }, [
+    geminiApiKey,
+    geoExplorerDraft,
+    geoExplorerPendingImage,
+    mapboxToken,
+    is3DView,
+    customLayers,
+    openWeatherApiKey,
+    geoAiPinLngLat,
+  ]);
 
   const sendGeoAiChat = useCallback(() => {
     const trimmed = geoAiDraft.trim();
@@ -2612,7 +2713,9 @@ export default function SatelliteIntelligence() {
       const historyWithUser = [...prev, { id: userId, role: 'user' as const, text: trimmed }];
       queueMicrotask(async () => {
         try {
-          const dataCtx = await buildGeoAiDataContext();
+          const dataCtx = await buildGeoAiDataContext(undefined, {
+            satelliteLayers: satelliteCustomLayersToGeoAiLayers(customLayers),
+          });
           const system = `${GEO_AI_CHAT_SYSTEM_BASE}\n\n---\nDATA CONTEXT (authoritative for this session turn):\n${dataCtx}`;
           const prior = historyWithUser.slice(0, -1);
           const turns: GeoAiChatTurn[] = prior.map(m => ({ role: m.role, text: m.text }));
@@ -2627,6 +2730,7 @@ export default function SatelliteIntelligence() {
               ? crypto.randomUUID()
               : `gaic-m-${Date.now()}`;
           setGeoAiChatMessages(h => [...h, { id: aid, role: 'assistant', text: reply }]);
+          await applySatelliteGeoAiMapUi(trimmed, reply);
         } catch (e) {
           setGeoAiChatError(e instanceof Error ? e.message : String(e));
         } finally {
@@ -2636,7 +2740,7 @@ export default function SatelliteIntelligence() {
       });
       return historyWithUser;
     });
-  }, [claudeApiKey, geoAiDraft]);
+  }, [claudeApiKey, geoAiDraft, applySatelliteGeoAiMapUi, customLayers]);
 
   const sendGeoDeepseekChat = useCallback(() => {
     const trimmed = geoDeepseekDraft.trim();
@@ -2663,7 +2767,9 @@ export default function SatelliteIntelligence() {
       const historyWithUser = [...prev, { id: userId, role: 'user' as const, text: trimmed }];
       queueMicrotask(async () => {
         try {
-          const dataCtx = await buildGeoAiDataContext();
+          const dataCtx = await buildGeoAiDataContext(undefined, {
+            satelliteLayers: satelliteCustomLayersToGeoAiLayers(customLayers),
+          });
           const system = `${GEO_AI_CHAT_SYSTEM_BASE}\n\n---\nDATA CONTEXT (authoritative for this session turn):\n${dataCtx}`;
           const prior = historyWithUser.slice(0, -1);
           const turns: GeoAiChatTurn[] = prior.map(m => ({ role: m.role, text: m.text }));
@@ -2678,6 +2784,7 @@ export default function SatelliteIntelligence() {
               ? crypto.randomUUID()
               : `gds-m-${Date.now()}`;
           setGeoDeepseekChatMessages(h => [...h, { id: aid, role: 'assistant', text: reply }]);
+          await applySatelliteGeoAiMapUi(trimmed, reply);
         } catch (e) {
           setGeoDeepseekChatError(e instanceof Error ? e.message : String(e));
         } finally {
@@ -2687,7 +2794,7 @@ export default function SatelliteIntelligence() {
       });
       return historyWithUser;
     });
-  }, [deepseekApiKey, geoDeepseekDraft]);
+  }, [deepseekApiKey, geoDeepseekDraft, applySatelliteGeoAiMapUi, customLayers]);
 
   const onGeoExplorerAttachChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -3843,6 +3950,39 @@ export default function SatelliteIntelligence() {
             <NavigationControl position="bottom-right" />
           </MapGL>
 
+          {geoAiInspectCard ? (
+            <div className="si-geo-ai-inspect-card" role="dialog" aria-label="Geo AI location details">
+              <div className="si-geo-ai-inspect-card__head">
+                <strong className="si-geo-ai-inspect-card__title">{geoAiInspectCard.title}</strong>
+                <button
+                  type="button"
+                  className="si-geo-ai-inspect-card__close"
+                  onClick={() => setGeoAiInspectCard(null)}
+                  aria-label="Close details"
+                >
+                  ×
+                </button>
+              </div>
+              <div className="si-geo-ai-inspect-card__coords" dir="ltr">
+                {geoAiInspectCard.lng.toFixed(5)}, {geoAiInspectCard.lat.toFixed(5)}
+              </div>
+              {geoAiInspectCard.rows.length ? (
+                <div className="si-geo-ai-inspect-card__table-wrap">
+                  <table className="si-geo-ai-inspect-card__table">
+                    <tbody>
+                      {geoAiInspectCard.rows.map(row => (
+                        <tr key={row.label}>
+                          <th scope="row">{row.label}</th>
+                          <td>{row.value}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              ) : null}
+            </div>
+          ) : null}
+
           {drawnStats && (
             <div className="si-aoi-analysis-pill" dir="ltr">
               <span className="si-aoi-analysis-pill-label">AOI</span>
@@ -3927,14 +4067,53 @@ export default function SatelliteIntelligence() {
               </div>
               <div className="si-map-floating-controls__right">
           <div className="si-env-rail">
-            <button
-              type="button"
-              className={`si-env-rail-button ${isLayerDropdownOpen ? 'active' : ''}`}
-              onClick={() => setIsLayerDropdownOpen(open => !open)}
-              title="Environmental Layers"
+            <div
+              role="toolbar"
+              aria-orientation="vertical"
+              aria-label="Environmental map tools"
+              className="si-env-toolbar container"
             >
-              <i className="fa-solid fa-layer-group"></i>
-            </button>
+              <calcite-action-group
+                className="action-group--end"
+                layout="vertical"
+                overlay-positioning="absolute"
+                scale="m"
+                selection-mode="none"
+                calcite-hydrated=""
+              >
+                <button
+                  type="button"
+                  className={`si-env-calcite-action${isLayerDropdownOpen ? ' si-env-calcite-action--selected' : ''}`}
+                  aria-pressed={isLayerDropdownOpen}
+                  aria-label="Environmental layers and indices"
+                  title="Environmental layers"
+                  onClick={() => setIsLayerDropdownOpen(open => !open)}
+                >
+                  <i className="fa-solid fa-layer-group" aria-hidden />
+                </button>
+                <span
+                  className="si-env-toolbar-lit-hydration"
+                  aria-hidden
+                  dangerouslySetInnerHTML={{ __html: '<!--?lit$830856406$-->' }}
+                />
+                <slot name="actions-end" />
+                <slot name="expand-tooltip" />
+                <button
+                  type="button"
+                  id="expand-toggle"
+                  className="si-env-calcite-action si-env-calcite-action--expand"
+                  aria-pressed={isLayerDropdownOpen}
+                  aria-label={isLayerDropdownOpen ? 'Close environmental panel' : 'Open environmental panel'}
+                  title={isLayerDropdownOpen ? 'Close panel' : 'Open panel'}
+                  onClick={() => setIsLayerDropdownOpen(open => !open)}
+                >
+                  <i
+                    className={`fa-solid ${isLayerDropdownOpen ? 'fa-chevrons-right' : 'fa-chevrons-left'}`}
+                    aria-hidden
+                  />
+                </button>
+              </calcite-action-group>
+            </div>
             <input
               ref={fileInputRef}
               type="file"
@@ -5034,7 +5213,11 @@ export default function SatelliteIntelligence() {
                                     </div>
                                   ) : null}
                                   <div className="si-geo-explorer-bubble">
-                                    <p className="si-geo-explorer-bubble-text">{msg.text}</p>
+                                    <p className="si-geo-explorer-bubble-text">
+                                      {msg.role === 'assistant'
+                                        ? stripGeoAiModelMetaAppend(stripMapQueryLine(msg.text))
+                                        : msg.text}
+                                    </p>
                                   </div>
                                 </div>
                               ))}

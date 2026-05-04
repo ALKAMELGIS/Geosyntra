@@ -29,6 +29,7 @@ import {
   resolveBasemapId,
 } from './basemapCatalog'
 import { useMapboxAccessToken } from '../../hooks/useMapboxAccessToken'
+import { useOpenWeatherMapApiKey } from '../../hooks/useOpenWeatherMapApiKey'
 import { getArcgisPortalToken } from '../../lib/arcgisPortalToken'
 import { getMapboxAccessToken } from '../../lib/mapboxAccessToken'
 import {
@@ -39,16 +40,17 @@ import {
 import { parseFile, parseRemoteUrlAsFile } from '../../utils/FileLoader'
 import { useGeminiApiKey } from '../../hooks/useGeminiApiKey'
 import {
-  GEO_EXPLORER_SYSTEM_PROMPT,
-  geminiGenerateContent,
+  lastMapQueryCoordsFromMessages,
   messageDisplayText,
   messagesToGeminiContents,
-  parseMapQueryLngLat,
+  stripGeoAiModelMetaAppend,
   stripMapQueryLine,
   type GeoExplorerMessage,
   type GeoExplorerPart,
 } from '../../lib/geoExplorerGemini'
-import { geocodePlaceToLngLat } from '../../lib/geoExplorerGeocode'
+import { DEVELOP_DATA_CONTEXT_LS_KEY } from '../../lib/geoAiChatClaude'
+import { gisLayerDataToGeoAiLayers } from '../../lib/geoAiMapLayerSources'
+import { geoExplorerTargetZoomForPinSource, runGeoExplorerGeminiTurn } from '../../lib/runGeoExplorerGeminiTurn'
 import './gisGeoExplorerPanel.css'
 
 type AddLayerTab = 'arcgis' | 'database' | 'upload' | 'url'
@@ -378,6 +380,7 @@ export const buildArcGisLegendEntries = (renderer: any, limit = 16): ArcGisLegen
 
 export default function GisMap() {
   const mapboxAccessToken = useMapboxAccessToken()
+  const openWeatherApiKey = useOpenWeatherMapApiKey()
   const getIsMobileDrawerViewport = () => (typeof window !== 'undefined' ? window.innerWidth <= 767 : false)
   const mapRef = useRef<LeafletMap | null>(null)
   const selectionOverlayRef = useRef<L.LayerGroup | null>(null)
@@ -416,6 +419,7 @@ export default function GisMap() {
   const [geoExplorerPendingImage, setGeoExplorerPendingImage] = useState<{ mime: string; base64: string } | null>(null)
   const [geoExplorerBusy, setGeoExplorerBusy] = useState(false)
   const [geoExplorerChatError, setGeoExplorerChatError] = useState('')
+  const [geoExplorerAnchor, setGeoExplorerAnchor] = useState<[number, number] | null>(null)
   const [measurementMode, setMeasurementMode] = useState<MeasurementMode>('distance')
   const [measurementMethod, setMeasurementMethod] = useState<MeasurementMethod>('planar')
   const [measurementUnit, setMeasurementUnit] = useState<MeasurementUnit>('metric')
@@ -1080,103 +1084,39 @@ export default function GisMap() {
     setGeoExplorerDraft('')
     setGeoExplorerPendingImage(null)
     setGeoExplorerChatError('')
+    setGeoExplorerAnchor(null)
+    setMapPopup(null)
+    setMapPopupPos(null)
   }, [])
 
   const flyGisMapToLngLat = useCallback(
-    (lng: number, lat: number) => {
+    (lng: number, lat: number, zoomOpt?: number) => {
+      const floorZ =
+        mapProjectionMode === 'globe' ? Math.max(10, zoomOpt ?? 10) : Math.max(13, zoomOpt ?? 13)
       if (mapProjectionMode === 'globe') {
         const globe = mapboxGlobeRef.current?.getMap ? mapboxGlobeRef.current.getMap() : mapboxGlobeRef.current
         if (globe) {
-          globe.flyTo({ center: [lng, lat], zoom: Math.max(globe.getZoom(), 10), pitch: 48, duration: 850 })
+          globe.flyTo({
+            center: [lng, lat],
+            zoom: Math.max(globe.getZoom(), floorZ),
+            pitch: 48,
+            duration: 850,
+          })
         }
         setGlobeViewState(prev => ({
           ...prev,
           longitude: lng,
           latitude: lat,
-          zoom: Math.max(prev.zoom, 10),
+          zoom: Math.max(prev.zoom, floorZ),
           pitch: Math.max(prev.pitch, 42),
         }))
         return
       }
       const map = mapRef.current
-      if (map) map.flyTo([lat, lng], Math.max(map.getZoom(), 13), { duration: 0.6 })
+      if (map) map.flyTo([lat, lng], Math.max(map.getZoom(), floorZ), { duration: 0.6 })
     },
     [mapProjectionMode],
   )
-
-  const sendGeoExplorerChat = useCallback(() => {
-    const trimmed = geoExplorerDraft.trim()
-    if (geoExplorerInFlightRef.current) return
-    if (!trimmed && !geoExplorerPendingImage) return
-    const apiKey = geminiApiKey.trim()
-    if (!apiKey) {
-      setGeoExplorerChatError(
-        'Add a Gemini API key: System Settings → API Tokens → Gemini API (saved in this browser), or set VITE_GEMINI_API_KEY at build time. Never commit keys to Git.',
-      )
-      return
-    }
-
-    const userParts: GeoExplorerPart[] = []
-    if (trimmed) userParts.push({ type: 'text', text: trimmed })
-    if (geoExplorerPendingImage) {
-      userParts.push({
-        type: 'image',
-        mime: geoExplorerPendingImage.mime,
-        base64: geoExplorerPendingImage.base64,
-      })
-    }
-    if (userParts.length === 0) return
-
-    const userId =
-      typeof crypto !== 'undefined' && 'randomUUID' in crypto ? crypto.randomUUID() : `geo-${Date.now()}`
-    const userMsg: GeoExplorerMessage = { id: userId, role: 'user', parts: userParts }
-    const userTextForMapFallback = trimmed
-
-    setGeoExplorerDraft('')
-    setGeoExplorerPendingImage(null)
-    setGeoExplorerChatError('')
-    geoExplorerInFlightRef.current = true
-    setGeoExplorerBusy(true)
-
-    setGeoExplorerMessages(prev => {
-      const historyWithUser = [...prev, userMsg]
-      queueMicrotask(async () => {
-        try {
-          const reply = await geminiGenerateContent({
-            apiKey,
-            systemInstruction: GEO_EXPLORER_SYSTEM_PROMPT,
-            contents: messagesToGeminiContents(historyWithUser),
-          })
-          let coords = parseMapQueryLngLat(reply)
-          let replyText = reply
-          if (!coords && userTextForMapFallback) {
-            const geocoded = await geocodePlaceToLngLat(userTextForMapFallback, {
-              mapboxAccessToken: mapboxAccessToken || undefined,
-            })
-            if (geocoded) {
-              coords = geocoded
-              replyText = `${reply.trimEnd()}\n\n(Map centered on the best place-name match for your message.)`
-            }
-          }
-          const modelId =
-            typeof crypto !== 'undefined' && 'randomUUID' in crypto ? crypto.randomUUID() : `geo-m-${Date.now()}`
-          const modelMsg: GeoExplorerMessage = {
-            id: modelId,
-            role: 'model',
-            parts: [{ type: 'text', text: replyText }],
-          }
-          setGeoExplorerMessages(h => [...h, modelMsg])
-          if (coords) flyGisMapToLngLat(coords[0], coords[1])
-        } catch (e) {
-          setGeoExplorerChatError(e instanceof Error ? e.message : String(e))
-        } finally {
-          geoExplorerInFlightRef.current = false
-          setGeoExplorerBusy(false)
-        }
-      })
-      return historyWithUser
-    })
-  }, [geminiApiKey, geoExplorerDraft, geoExplorerPendingImage, mapboxAccessToken, flyGisMapToLngLat])
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -1603,6 +1543,118 @@ export default function GisMap() {
     })
   }, [])
 
+  const sendGeoExplorerChat = useCallback(() => {
+    const trimmed = geoExplorerDraft.trim()
+    if (geoExplorerInFlightRef.current) return
+    if (!trimmed && !geoExplorerPendingImage) return
+    const apiKey = geminiApiKey.trim()
+    if (!apiKey) {
+      setGeoExplorerChatError(
+        'Add a Gemini API key: System Settings → API Tokens → Gemini API (saved in this browser), or set VITE_GEMINI_API_KEY at build time. Never commit keys to Git.',
+      )
+      return
+    }
+
+    const userParts: GeoExplorerPart[] = []
+    if (trimmed) userParts.push({ type: 'text', text: trimmed })
+    if (geoExplorerPendingImage) {
+      userParts.push({
+        type: 'image',
+        mime: geoExplorerPendingImage.mime,
+        base64: geoExplorerPendingImage.base64,
+      })
+    }
+    if (userParts.length === 0) return
+
+    const userId =
+      typeof crypto !== 'undefined' && 'randomUUID' in crypto ? crypto.randomUUID() : `geo-${Date.now()}`
+    const userMsg: GeoExplorerMessage = { id: userId, role: 'user', parts: userParts }
+    const userTextForMapFallback = trimmed
+
+    setGeoExplorerDraft('')
+    setGeoExplorerPendingImage(null)
+    setGeoExplorerChatError('')
+    geoExplorerInFlightRef.current = true
+    setGeoExplorerBusy(true)
+
+    setGeoExplorerMessages(prev => {
+      const historyWithUser = [...prev, userMsg]
+      queueMicrotask(async () => {
+        try {
+          let developAppend = ''
+          try {
+            const raw =
+              typeof localStorage !== 'undefined' ? localStorage.getItem(DEVELOP_DATA_CONTEXT_LS_KEY) : null
+            if (raw?.trim()) {
+              developAppend = `### Develop Dashboard — Data pane snapshot (JSON)\n${raw.slice(0, 14000)}`
+            }
+          } catch {
+            /* ignore */
+          }
+          const result = await runGeoExplorerGeminiTurn({
+            apiKey,
+            historyWithUser,
+            userTextForMapFallback,
+            primaryVectorLayers: gisLayerDataToGeoAiLayers(layers),
+            mapboxAccessToken: mapboxAccessToken || undefined,
+            openWeatherApiKey,
+            pinLngLat: geoExplorerAnchor,
+            lastMapQueryCoords: lastMapQueryCoordsFromMessages(prev),
+            mapPopup: null,
+            addedLayersHeading: '### GIS Map — Active vector layers (this session)',
+            attachGisSavedLayers: true,
+            extraSystemAppend: developAppend || undefined,
+          })
+          setGeoExplorerMessages(h => [...h, result.modelMsg])
+          const me = result.mapEffect
+          if (me) {
+            setGeoExplorerAnchor(me.coords)
+            const z = geoExplorerTargetZoomForPinSource(me.pinSource)
+            flyGisMapToLngLat(me.coords[0], me.coords[1], z)
+            if (
+              mapProjectionMode !== 'globe' &&
+              me.layerHit?.properties &&
+              typeof me.layerHit.properties === 'object'
+            ) {
+              const hit = me.layerHit
+              window.setTimeout(() => {
+                const layerRow = layers.find(l => l.name === hit.layerName && l.type === 'geojson')
+                if (!layerRow) return
+                const feature = {
+                  type: 'Feature' as const,
+                  properties: hit.properties,
+                  geometry: { type: 'Point' as const, coordinates: me.coords },
+                }
+                openMapPopup({
+                  layer: layerRow,
+                  feature,
+                  latlng: { lat: me.coords[1], lng: me.coords[0] },
+                })
+              }, 320)
+            }
+          }
+        } catch (e) {
+          setGeoExplorerChatError(e instanceof Error ? e.message : String(e))
+        } finally {
+          geoExplorerInFlightRef.current = false
+          setGeoExplorerBusy(false)
+        }
+      })
+      return historyWithUser
+    })
+  }, [
+    geminiApiKey,
+    geoExplorerDraft,
+    geoExplorerPendingImage,
+    mapboxAccessToken,
+    flyGisMapToLngLat,
+    layers,
+    openMapPopup,
+    openWeatherApiKey,
+    geoExplorerAnchor,
+    mapProjectionMode,
+  ])
+
   useEffect(() => {
     if (!mapPopup) {
       if (popupCloseTimerRef.current) {
@@ -1757,7 +1809,8 @@ export default function GisMap() {
     }
   }
 
-  const identifyFeatureOnMap = (layer: LayerData, feature: any) => {
+  /** Opens the attribute table dock and selects the feature — use only from explicit UI (sidebar, popup “Open table”), not from map feature click. */
+  const openAttributeTableForFeature = (layer: LayerData, feature: any) => {
     const layerId = String(layer.id)
     const key = getFeatureKeyFromCache(feature)
     if (!key) {
@@ -1800,22 +1853,26 @@ export default function GisMap() {
   }
 
   useEffect(() => {
-    if (layerDialog?.mode !== 'table') {
-      clearSelectionOverlay()
-      setSelectionNotice(null)
+    if (layerDialog?.mode === 'table') {
+      if (selectedFeatureKeys.size !== 1) {
+        clearSelectionOverlay()
+        setSelectionNotice(null)
+        return
+      }
+      const it = selectedFeatureKeys.values().next()
+      const key = it.done ? null : (it.value as string)
+      if (!key) return
+      showFeatureSelectionOnMap(String(layerDialog.layerId), key)
+      requestAnimationFrame(() => scrollSelectedRowIntoView(key))
       return
     }
-    if (selectedFeatureKeys.size !== 1) {
-      clearSelectionOverlay()
-      setSelectionNotice(null)
+    if (mapPopup && mapPopup.phase === 'open' && mapPopup.featureKey) {
+      showFeatureSelectionOnMap(String(mapPopup.layerId), String(mapPopup.featureKey), { zoom: false })
       return
     }
-    const it = selectedFeatureKeys.values().next()
-    const key = it.done ? null : (it.value as string)
-    if (!key) return
-    showFeatureSelectionOnMap(String(layerDialog.layerId), key)
-    requestAnimationFrame(() => scrollSelectedRowIntoView(key))
-  }, [layerDialog?.mode, layerDialog?.layerId, selectedFeatureKeys])
+    clearSelectionOverlay()
+    setSelectionNotice(null)
+  }, [layerDialog?.mode, layerDialog?.layerId, selectedFeatureKeys, mapPopup])
 
   const zoomToFeatures = (features: any[]) => {
     const map = mapRef.current
@@ -3645,20 +3702,48 @@ export default function GisMap() {
                   </span>
                   <span className="gis-sidebar-foot-item__label">Information</span>
                 </div>
-                <button
-                  type="button"
-                  className="gis-sidebar-foot-item gis-sidebar-foot-item--primary"
-                  onClick={() => setLayersPanelCollapsed(c => !c)}
-                  aria-expanded={!layersPanelCollapsed}
-                  aria-controls="gis-sidebar-layers-scroll"
-                  aria-label={layersPanelCollapsed ? 'Expand GIS layers list' : 'Collapse GIS layers list'}
-                  title={layersPanelCollapsed ? 'Expand' : 'Collapse'}
+                <div
+                  role="toolbar"
+                  aria-orientation="vertical"
+                  aria-label="Layer list size"
+                  className="gis-sidebar-calcite-toolbar container"
                 >
-                  <span className="gis-sidebar-foot-item__glyph" aria-hidden>
-                    <i className={`fa-solid ${layersPanelCollapsed ? 'fa-angles-right' : 'fa-angles-left'}`} />
-                  </span>
-                  <span className="gis-sidebar-foot-item__label">{layersPanelCollapsed ? 'Expand' : 'Collapse'}</span>
-                </button>
+                  <calcite-action-group
+                    className="action-group--end"
+                    layout="vertical"
+                    overlay-positioning="absolute"
+                    scale="m"
+                    selection-mode="none"
+                    calcite-hydrated=""
+                  >
+                    <span
+                      className="gis-sidebar-toolbar-lit-hydration"
+                      aria-hidden
+                      dangerouslySetInnerHTML={{ __html: '<!--?lit$830856406$-->' }}
+                    />
+                    <slot name="actions-end" />
+                    <slot name="expand-tooltip" />
+                    <button
+                      type="button"
+                      id="expand-toggle"
+                      className="gis-sidebar-foot-item gis-sidebar-foot-item--primary gis-sidebar-calcite-expand"
+                      onClick={() => setLayersPanelCollapsed(c => !c)}
+                      aria-expanded={!layersPanelCollapsed}
+                      aria-controls="gis-sidebar-layers-scroll"
+                      aria-label={layersPanelCollapsed ? 'Expand GIS layers list' : 'Collapse GIS layers list'}
+                      title={layersPanelCollapsed ? 'Expand' : 'Collapse'}
+                    >
+                      <span className="gis-sidebar-foot-item__glyph" aria-hidden>
+                        <i
+                          className={`fa-solid ${layersPanelCollapsed ? 'fa-chevrons-left' : 'fa-chevrons-right'}`}
+                        />
+                      </span>
+                      <span className="gis-sidebar-foot-item__label">
+                        {layersPanelCollapsed ? 'Expand' : 'Collapse'}
+                      </span>
+                    </button>
+                  </calcite-action-group>
+                </div>
               </footer>
             ) : null}
         </div>
@@ -3813,11 +3898,22 @@ export default function GisMap() {
                   try {
                     ll?.off?.('click')
                     ll?.on?.('click', (e: any) => {
-                      identifyFeatureOnMap(layer, feature)
+                      const currentDlg = layerDialogRef.current
+                      if (currentDlg?.mode === 'table' && String(currentDlg.layerId) !== String(layer.id)) {
+                        setLayerDialog(null)
+                      }
+                      const key = getFeatureKeyFromCache(feature) ?? getFeatureKey(feature, 0)
+                      if (!key) {
+                        setSelectionNotice('لا يمكن تحديد هذا العنصر بسبب عدم توفر مُعرّف مناسب.')
+                        return
+                      }
+                      setShowSelectedOnly(false)
+                      setSelectedFeatureKeys(new Set([String(key)]))
                       const llLatLng = e?.latlng
                       const lat = typeof llLatLng?.lat === 'number' ? llLatLng.lat : undefined
                       const lng = typeof llLatLng?.lng === 'number' ? llLatLng.lng : undefined
                       if (typeof lat === 'number' && typeof lng === 'number') {
+                        showFeatureSelectionOnMap(String(layer.id), String(key), { zoom: true })
                         openMapPopup({ layer, feature, latlng: { lat, lng } })
                       }
                     })
@@ -4159,7 +4255,8 @@ export default function GisMap() {
                     </div>
                     {geoExplorerMessages.map(msg => {
                       const raw = messageDisplayText(msg)
-                      const show = msg.role === 'model' ? stripMapQueryLine(raw) : raw
+                      const show =
+                        msg.role === 'model' ? stripGeoAiModelMetaAppend(stripMapQueryLine(raw)) : raw
                       const hasImage = msg.parts.some(p => p.type === 'image')
                       return (
                         <div key={msg.id} className={`gis-geo-explorer-row gis-geo-explorer-row--${msg.role}`}>
@@ -4428,6 +4525,12 @@ export default function GisMap() {
             onZoomTo={() => {
               setSelectedFeatureKeys(new Set([mapPopup.featureKey]))
               showFeatureSelectionOnMap(mapPopup.layerId, mapPopup.featureKey, { zoom: true })
+            }}
+            onOpenAttributeTable={() => {
+              if (!mapPopup || mapPopup.phase === 'closing') return
+              const layer = layers.find(l => String(l.id) === String(mapPopup.layerId))
+              if (!layer) return
+              openAttributeTableForFeature(layer, mapPopup.feature)
             }}
             onUpdateFeature={(nextFeature) => {
               setLayers((prev) =>
@@ -5486,12 +5589,11 @@ export default function GisMap() {
                   <button
                     className="gis-edit-iconbtn"
                     type="button"
-                    title="Split"
-                    aria-label="Split view"
+                    title="Open attribute table"
+                    aria-label="Open attribute table"
                     onClick={() => {
-                      setLayerDialog({ mode: 'table', layerId: featureDialog.layerId })
-                      setTableDockCollapsed(false)
-                      setTableDockMinimized(false)
+                      const lyr = layers.find(l => String(l.id) === String(featureDialog.layerId))
+                      if (lyr) openAttributeTableForFeature(lyr, featureDialog.feature)
                     }}
                   >
                     <i className="fa-solid fa-table-columns" aria-hidden="true" />

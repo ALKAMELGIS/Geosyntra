@@ -1,5 +1,10 @@
 import type { ChangeEvent, RefObject } from 'react'
-import { messageDisplayText, stripMapQueryLine, type GeoExplorerMessage } from '../../../lib/geoExplorerGemini'
+import {
+  messageDisplayText,
+  stripGeoAiModelMetaAppend,
+  stripMapQueryLine,
+  type GeoExplorerMessage,
+} from '../../../lib/geoExplorerGemini'
 
 export type GeoExplorerCssPrefix = 'gis-geo-explorer' | 'si-geo-explorer'
 
@@ -56,7 +61,8 @@ export function GeoExplorerGeminiChatBody(props: GeoExplorerGeminiChatBodyProps)
         </div>
         {messages.map(msg => {
           const raw = messageDisplayText(msg)
-          const show = msg.role === 'model' ? stripMapQueryLine(raw) : raw
+          const show =
+            msg.role === 'model' ? stripGeoAiModelMetaAppend(stripMapQueryLine(raw)) : raw
           const hasImage = msg.parts.some(part => part.type === 'image')
           return (
             <div key={msg.id} className={`${pfx(cssPrefix, 'row')} ${pfx(cssPrefix, `row--${msg.role}`)}`}>

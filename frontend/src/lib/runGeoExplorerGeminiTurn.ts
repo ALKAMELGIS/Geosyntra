@@ -69,6 +69,8 @@ export type RunGeoExplorerGeminiTurnParams = {
    * Satellite must pass `false` so Geo AI stays isolated from GIS Map storage and cannot recurse on huge combined layer sets.
    */
   attachGisSavedLayers?: boolean
+  /** Optional extra authoritative blocks (e.g. Develop Dashboard snapshot excerpt). */
+  extraSystemAppend?: string
 }
 
 export async function runGeoExplorerGeminiTurn(
@@ -86,6 +88,7 @@ export async function runGeoExplorerGeminiTurn(
     mapPopup,
     addedLayersHeading,
     attachGisSavedLayers,
+    extraSystemAppend,
   } = params
 
   const attachGis = attachGisSavedLayers === true
@@ -126,7 +129,8 @@ export async function runGeoExplorerGeminiTurn(
     mapPopup,
   })
 
-  const systemInstruction = `${GEO_EXPLORER_SYSTEM_PROMPT}\n\n${GEO_EXPLORER_LAYER_RULES}${sessionWeatherBlocks}\n\n---\n${addedLayersHeading}\n${addedBlock}\n\n${gisBlock}`
+  const tail = extraSystemAppend?.trim() ? `\n\n${extraSystemAppend.trim()}` : ''
+  const systemInstruction = `${GEO_EXPLORER_SYSTEM_PROMPT}\n\n${GEO_EXPLORER_LAYER_RULES}${sessionWeatherBlocks}\n\n---\n${addedLayersHeading}\n${addedBlock}\n\n${gisBlock}${tail}`
 
   const reply = await geminiGenerateContent({
     apiKey,

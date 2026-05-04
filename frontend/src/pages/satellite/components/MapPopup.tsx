@@ -31,6 +31,7 @@ type FieldDef = {
 export type MapPopupStrings = {
   edit: string
   zoomTo: string
+  openTable: string
   save: string
   cancel: string
   required: string
@@ -41,6 +42,7 @@ export type MapPopupStrings = {
 const defaultStrings: MapPopupStrings = {
   edit: 'Edit',
   zoomTo: 'Zoom to',
+  openTable: 'Open table',
   save: 'Save',
   cancel: 'Cancel',
   required: 'Required',
@@ -123,6 +125,8 @@ export type MapPopupProps = {
   rootRef?: { current: HTMLDivElement | null }
   onClose: () => void
   onZoomTo: () => void
+  /** Opens the layer attribute table dock (optional — map clicks should not auto-open the table). */
+  onOpenAttributeTable?: () => void
   onUpdateFeature: (nextFeature: any) => void
   strings?: Partial<MapPopupStrings>
 }
@@ -132,7 +136,17 @@ export type MapPopupProps = {
  * - يستخرج الحقول من ArcGIS layer definition (fields/domains/subtypes) أو من properties عند عدم توفرها.
  * - يدعم view/edit داخل نفس النافذة مع تحقق من القيم (required / range / number).
  */
-export function MapPopup({ popup, pos, layer, rootRef: externalRootRef, onClose, onZoomTo, onUpdateFeature, strings }: MapPopupProps) {
+export function MapPopup({
+  popup,
+  pos,
+  layer,
+  rootRef: externalRootRef,
+  onClose,
+  onZoomTo,
+  onOpenAttributeTable,
+  onUpdateFeature,
+  strings,
+}: MapPopupProps) {
   const s = { ...defaultStrings, ...(strings || {}) }
   const internalRootRef = useRef<HTMLDivElement | null>(null)
   const rootRef = externalRootRef ?? internalRootRef
@@ -427,6 +441,21 @@ export function MapPopup({ popup, pos, layer, rootRef: externalRootRef, onClose,
             <i className="fa-solid fa-magnifying-glass-plus" aria-hidden="true" />
             <span>{s.zoomTo}</span>
           </button>
+          {onOpenAttributeTable ? (
+            <>
+              <span className="gis-map-popup-toolsep" aria-hidden="true" />
+              <button
+                className="gis-map-popup-toolbtn"
+                type="button"
+                onClick={onOpenAttributeTable}
+                aria-label={s.openTable}
+                title={s.openTable}
+              >
+                <i className="fa-solid fa-table" aria-hidden="true" />
+                <span>{s.openTable}</span>
+              </button>
+            </>
+          ) : null}
         </div>
 
         <div className={collapsed ? 'gis-map-popup-body collapsed' : 'gis-map-popup-body'}>
