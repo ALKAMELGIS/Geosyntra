@@ -46,3 +46,6 @@ coverage-final.json
 
 # Built SPA copy for manual zip / branch-at-/docs experiments (do not commit: push protection flags embedded tokens).
 /docs/
+
+# GeoDash FastAPI local SQLite
+services/geodash-api/geodash.sqlite

@@ -191,6 +191,9 @@ function propsSearchBlob(f: GeoAiFeature): string {
   }
 }
 
+/** Minimum attribute-match score before we move the map pin to a layer feature (reduces wrong locations). */
+export const GEO_EXPLORER_MIN_LAYER_PIN_SCORE = 34
+
 export type LayerQueryMatch = {
   lng: number
   lat: number
@@ -339,4 +342,40 @@ export function findLngLatFromLayerQuery(userText: string, layers: GeoAiMapLayer
   }
 
   return best
+}
+
+/**
+ * True when the user is asking about GIS layers / fields / stats (must be answered from layer context first;
+ * do not geocode or MAP_QUERY to an unrelated world place when there is no strong layer match).
+ * Hint-only patterns like "in Paris" are ignored unless the hint matches an actual layer name.
+ */
+export function isGisDataScopedQuestion(userText: string, layers: GeoAiMapLayer[]): boolean {
+  const t = userText.trim()
+  if (!t) return false
+  const KW =
+    /\b(layers?|layer|field|fields|attribute|attributes|properties|features?|feature|polygon|polygons|parcel|parcels|plot|plots|geojson|shapefile|kml|kmz|how\s+many|count\b|counts|average|mean|median|min|max|sum|total|distribution|statistics|stats|percentage|proportion|tabular|records?|rows?)\b/i
+  const AR = /طبقة|طبقات|حقول|حقل|سمات|خصائص|مضلع|عناصر|عدد|إحصاء|تحليل|إحصائي|البيانات\s+في/i
+  if (KW.test(t) || AR.test(t)) return true
+  const hint = extractGeoExplorerLayerHint(t)
+  if (!hint) return false
+  const norm = normalizeLayerName(hint).replace(/_/g, ' ')
+  if (norm.length < 3) return false
+  for (const l of layers) {
+    const ln = normalizeLayerName(l.name).replace(/_/g, ' ')
+    if (ln.length < 3) continue
+    if (ln.includes(norm) || norm.includes(ln)) return true
+  }
+  return false
+}
+
+/** When no strong layer match, still allow Mapbox geocode for clear world-geography / weather / routing asks. */
+export function allowsGeocodeWhenNoStrongLayerHit(userText: string, layers: GeoAiMapLayer[]): boolean {
+  if (!isGisDataScopedQuestion(userText, layers)) return true
+  const s = userText.toLowerCase()
+  if (/\b(weather|forecast|temperature|humidity|precipitation|rain|snow|wind(\s+speed)?)\b/.test(s)) return true
+  if (/\b(directions?|navigate|routing|route\s+to|route\s+from|drive\s+to|walking\s+to)\b/.test(s)) return true
+  if (/\b(capital of|population of|time\s*zone|timezone|utc\s*offset)\b/.test(s)) return true
+  if (/^(where\s+is|where's|what\s+country|what\s+city)\b/i.test(s) && !extractGeoExplorerLayerHint(userText)) return true
+  if (/أين\s+تقع|الطقس|درجة\s+الحرارة|الاتجاهات|طريق\s+إلى/i.test(userText)) return true
+  return false
 }

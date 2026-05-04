@@ -1033,6 +1033,23 @@ export default function GisMap() {
     else map.zoomOut(0.5)
   }
 
+  const resetMapBearingToNorth = useCallback(() => {
+    if (mapProjectionMode === 'globe') {
+      const globe = mapboxGlobeRef.current?.getMap ? mapboxGlobeRef.current.getMap() : mapboxGlobeRef.current
+      if (!globe?.easeTo) return
+      try {
+        const pitch = typeof globe.getPitch === 'function' ? globe.getPitch() : 30
+        globe.easeTo({ bearing: 0, pitch, duration: 650 })
+      } catch {}
+      return
+    }
+    const map = mapRef.current as L.Map & { getBearing?: () => number; setBearing?: (deg: number) => void }
+    if (!map) return
+    try {
+      if (typeof map.getBearing === 'function' && typeof map.setBearing === 'function') map.setBearing(0)
+    } catch {}
+  }, [mapProjectionMode])
+
   const showProjectionToast = useCallback((message: string) => {
     if (projectionToastTimerRef.current) {
       window.clearTimeout(projectionToastTimerRef.current)
@@ -4131,26 +4148,26 @@ export default function GisMap() {
         ) : activeMapTool === 'settings' ? (
           <div className="gis-tool-settings">
             <p className="gis-tool-muted">Map projection</p>
-            <div className="gis-map-projection-toggle" aria-label="Map projection mode">
+            <div className="gis-map-projection-toggle gis-map-projection-toggle--vertical" aria-label="Map projection mode">
               <button
-                className={mapProjectionMode === 'globe' ? 'gis-map-tool active' : 'gis-map-tool'}
-                type="button"
-                onClick={() => changeProjectionMode('globe')}
-                title="3D Globe"
-                aria-pressed={mapProjectionMode === 'globe'}
-              >
-                <i className="fa-solid fa-globe" aria-hidden="true" />
-                <span>3D Globe</span>
-              </button>
-              <button
-                className={mapProjectionMode === '2d' ? 'gis-map-tool active' : 'gis-map-tool'}
+                className={mapProjectionMode === '2d' ? 'gis-map-tool active icon-only' : 'gis-map-tool icon-only'}
                 type="button"
                 onClick={() => changeProjectionMode('2d')}
-                title="2D map"
+                title="2D map (F)"
+                aria-label="Switch to 2D map projection. Shortcut F"
                 aria-pressed={mapProjectionMode === '2d'}
               >
                 <i className="fa-solid fa-map-location-dot" aria-hidden="true" />
-                <span>2D</span>
+              </button>
+              <button
+                className={mapProjectionMode === 'globe' ? 'gis-map-tool active icon-only' : 'gis-map-tool icon-only'}
+                type="button"
+                onClick={() => changeProjectionMode('globe')}
+                title="3D Globe (G)"
+                aria-label="Switch to 3D Globe projection. Shortcut G"
+                aria-pressed={mapProjectionMode === 'globe'}
+              >
+                <i className="fa-solid fa-globe" aria-hidden="true" />
               </button>
             </div>
             <p className="gis-tool-muted" style={{ marginTop: 12 }}>
@@ -5279,10 +5296,10 @@ export default function GisMap() {
         </MapView>
         )}
 
-        <div className="gis-map-zoom-cluster" role="group" aria-label="Map zoom">
+        <div className="gis-map-zoom-cluster gis-map-zoom-cluster--nav" role="group" aria-label="Map navigation">
           <button
             type="button"
-            className="gis-map-zoom-cluster__btn"
+            className="gis-map-zoom-cluster__btn gis-map-zoom-cluster__btn--nav"
             onClick={() => zoomMap('in')}
             title="Zoom in"
             aria-label="Zoom in"
@@ -5291,30 +5308,31 @@ export default function GisMap() {
           </button>
           <button
             type="button"
-            className="gis-map-zoom-cluster__btn"
+            className="gis-map-zoom-cluster__btn gis-map-zoom-cluster__btn--nav"
             onClick={() => zoomMap('out')}
             title="Zoom out"
             aria-label="Zoom out"
           >
             <i className="fa-solid fa-minus" aria-hidden="true" />
           </button>
+          <button
+            type="button"
+            className="gis-map-zoom-cluster__btn gis-map-zoom-cluster__btn--nav"
+            onClick={resetMapBearingToNorth}
+            title={mapProjectionMode === 'globe' ? 'Reset bearing to north' : 'North is up (2D map)'}
+            aria-label={mapProjectionMode === 'globe' ? 'Reset bearing to north' : 'Compass: map is north-up in 2D'}
+          >
+            <span className="gis-map-zoom-cluster__compass" aria-hidden="true">
+              <span className="gis-map-zoom-cluster__compass-n" />
+              <span className="gis-map-zoom-cluster__compass-s" />
+            </span>
+          </button>
         </div>
 
         <div className="gis-map-projection-float" role="group" aria-label="Map projection mode">
-          <div className="gis-map-projection-toggle">
+          <div className="gis-map-projection-toggle gis-map-projection-toggle--vertical gis-map-projection-toggle--float">
             <button
-              className={mapProjectionMode === 'globe' ? 'gis-map-tool active' : 'gis-map-tool'}
-              type="button"
-              onClick={() => changeProjectionMode('globe')}
-              title="3D Globe projection (G)"
-              aria-label="Switch to 3D Globe projection. Shortcut G"
-              aria-pressed={mapProjectionMode === 'globe'}
-            >
-              <i className="fa-solid fa-globe" aria-hidden="true" />
-              <span>3D Globe</span>
-            </button>
-            <button
-              className={mapProjectionMode === '2d' ? 'gis-map-tool active' : 'gis-map-tool'}
+              className={mapProjectionMode === '2d' ? 'gis-map-tool active icon-only' : 'gis-map-tool icon-only'}
               type="button"
               onClick={() => changeProjectionMode('2d')}
               title="2D projection (F)"
@@ -5322,7 +5340,16 @@ export default function GisMap() {
               aria-pressed={mapProjectionMode === '2d'}
             >
               <i className="fa-solid fa-map-location-dot" aria-hidden="true" />
-              <span>2D</span>
+            </button>
+            <button
+              className={mapProjectionMode === 'globe' ? 'gis-map-tool active icon-only' : 'gis-map-tool icon-only'}
+              type="button"
+              onClick={() => changeProjectionMode('globe')}
+              title="3D Globe projection (G)"
+              aria-label="Switch to 3D Globe projection. Shortcut G"
+              aria-pressed={mapProjectionMode === 'globe'}
+            >
+              <i className="fa-solid fa-globe" aria-hidden="true" />
             </button>
           </div>
         </div>

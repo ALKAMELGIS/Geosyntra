@@ -2717,7 +2717,7 @@ aside {
   grid-template-columns: minmax(0, 1fr);
 }
 
-/* ArcGIS-style rail: first track sizes to sidebar (rail + ~304px content-wrapper pane), not a wide vw strip. */
+/* ArcGIS-style rail: first track sizes to sidebar (rail + ~304px layers pane, or ~360px when tools are docked), not a wide vw strip. */
 .gis-map-page--agol-rail:not(.sidebar-closed) {
   grid-template-columns: auto minmax(0, 1fr);
 }
@@ -2980,6 +2980,12 @@ aside {
   flex: 0 0 auto;
   width: min(304px, 100%);
   max-width: 304px;
+}
+
+/* Docked map tools use the same target width as floating `.gis-map-tool-panel` so grids/buttons are not clipped. */
+.gis-sidebar-column.gis-sidebar-column--action-pane:has(.gis-sidebar-body--tool-dock) {
+  width: min(360px, 100%);
+  max-width: 360px;
 }
 
 /* Dark vertical rail (desktop split layout) — slot-based toolbar + end overlay group */
@@ -3881,6 +3887,82 @@ aside {
   background: rgba(236, 253, 245, 0.56);
 }
 
+/* Icon-only stack: 2D (top) → 3D Globe (bottom) */
+.gis-map-projection-toggle--vertical {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0;
+  padding: 0;
+  overflow: hidden;
+  border-radius: 12px;
+  width: 38px;
+}
+
+.gis-map-projection-toggle--vertical .gis-map-tool,
+.gis-map-projection-toggle--vertical .gis-map-tool.icon-only {
+  width: 100%;
+  min-width: 0;
+  height: 38px;
+  padding: 0;
+  border-radius: 0;
+  border: none;
+  border-bottom: 1px solid rgba(15, 23, 42, 0.1);
+  gap: 0;
+  box-shadow: none;
+  transform: none;
+}
+
+.gis-map-projection-toggle--vertical .gis-map-tool:last-child,
+.gis-map-projection-toggle--vertical .gis-map-tool:last-child.active {
+  border-bottom: none;
+}
+
+.gis-map-projection-toggle--vertical .gis-map-tool:hover,
+.gis-map-projection-toggle--vertical .gis-map-tool.active {
+  transform: none;
+}
+
+.gis-map-projection-toggle--vertical:not(.gis-map-projection-toggle--float) {
+  background: rgba(236, 253, 245, 0.92);
+  border: 1px solid rgba(4, 120, 87, 0.2);
+  backdrop-filter: blur(10px);
+}
+
+.gis-map-projection-toggle--vertical.gis-map-projection-toggle--float {
+  background: rgba(15, 23, 42, 0.48);
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  backdrop-filter: blur(14px);
+  box-shadow: 0 10px 28px rgba(2, 6, 23, 0.22);
+}
+
+.gis-map-projection-toggle--float .gis-map-tool {
+  background: transparent;
+  border: none;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.14);
+  color: #ecfdf5;
+}
+
+.gis-map-projection-toggle--float .gis-map-tool i {
+  color: #a7f3d0;
+}
+
+.gis-map-projection-toggle--float .gis-map-tool:hover:not(.active) {
+  background: rgba(255, 255, 255, 0.1);
+  box-shadow: none;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.14);
+}
+
+.gis-map-projection-toggle--float .gis-map-tool.active {
+  background: rgba(255, 255, 255, 0.96);
+  color: #064e3b;
+  box-shadow: none;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.14);
+}
+
+.gis-map-projection-toggle--float .gis-map-tool.active i {
+  color: #047857;
+}
+
 .gis-map-tool {
   min-width: 40px;
   height: 40px;
@@ -3926,7 +4008,7 @@ aside {
   flex: 0 0 auto;
 }
 
-/* Bottom-left zoom (+ / −): horizontal squircle cluster above map */
+/* Bottom-left map navigation: vertical Mapbox-style control (+ / − / compass) */
 .gis-map-zoom-cluster {
   position: absolute;
   left: 16px;
@@ -3937,6 +4019,18 @@ aside {
   align-items: center;
   gap: 8px;
   pointer-events: auto;
+}
+
+.gis-map-zoom-cluster--nav {
+  flex-direction: column;
+  gap: 0;
+  width: 32px;
+  border-radius: 10px;
+  overflow: hidden;
+  background: #ffffff;
+  box-shadow:
+    0 0 0 1px rgba(0, 0, 0, 0.1),
+    0 2px 10px rgba(0, 0, 0, 0.12);
 }
 
 :root[dir='rtl'] .gis-map-zoom-cluster {
@@ -3971,13 +4065,77 @@ aside {
     color 0.16s ease;
 }
 
+.gis-map-zoom-cluster__btn--nav {
+  width: 32px;
+  height: 34px;
+  min-height: 34px;
+  border-radius: 0;
+  border: none;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.1);
+  background: #ffffff;
+  color: #1f2937;
+  box-shadow: none;
+  backdrop-filter: none;
+}
+
+.gis-map-zoom-cluster__btn--nav:last-child {
+  border-bottom: none;
+}
+
+.gis-map-zoom-cluster__btn--nav:active {
+  background: #e5e7eb;
+}
+
+.gis-map-zoom-cluster__btn--nav:focus-visible {
+  outline: 2px solid rgba(59, 130, 246, 0.5);
+  outline-offset: -2px;
+  z-index: 1;
+}
+
+.gis-map-zoom-cluster__compass {
+  position: relative;
+  display: block;
+  width: 18px;
+  height: 18px;
+}
+
+.gis-map-zoom-cluster__compass-n {
+  position: absolute;
+  left: 50%;
+  top: 1px;
+  transform: translateX(-50%);
+  width: 0;
+  height: 0;
+  border-left: 5px solid transparent;
+  border-right: 5px solid transparent;
+  border-bottom: 8px solid #111827;
+}
+
+.gis-map-zoom-cluster__compass-s {
+  position: absolute;
+  left: 50%;
+  bottom: 1px;
+  transform: translateX(-50%);
+  width: 0;
+  height: 0;
+  border-left: 5px solid transparent;
+  border-right: 5px solid transparent;
+  border-top: 8px solid rgba(17, 24, 39, 0.28);
+}
+
 .gis-map-zoom-cluster__btn i {
   font-size: 17px;
   font-weight: 800;
   color: #14532d;
 }
 
-.gis-map-zoom-cluster__btn:hover {
+.gis-map-zoom-cluster__btn--nav i {
+  font-size: 15px;
+  font-weight: 700;
+  color: #111827;
+}
+
+.gis-map-zoom-cluster__btn:hover:not(.gis-map-zoom-cluster__btn--nav) {
   background: #ffffff;
   border-color: rgba(22, 101, 52, 0.22);
   color: #14532d;
@@ -3987,12 +4145,20 @@ aside {
   transform: translateY(-1px);
 }
 
-.gis-map-zoom-cluster__btn:active {
+.gis-map-zoom-cluster__btn.gis-map-zoom-cluster__btn--nav:hover {
+  background: #f3f4f6;
+  border-color: transparent;
+  color: #111827;
+  transform: none;
+  box-shadow: none;
+}
+
+.gis-map-zoom-cluster__btn:active:not(.gis-map-zoom-cluster__btn--nav) {
   transform: translateY(0);
   box-shadow: 0 4px 12px rgba(15, 23, 42, 0.08);
 }
 
-.gis-map-zoom-cluster__btn:focus-visible {
+.gis-map-zoom-cluster__btn:focus-visible:not(.gis-map-zoom-cluster__btn--nav) {
   outline: 2px solid rgba(22, 163, 74, 0.45);
   outline-offset: 2px;
 }
@@ -4062,11 +4228,15 @@ aside {
 /* Tool panel docked in sidebar (ArcGIS-style rail + content column) */
 .gis-sidebar-body--tool-dock {
   padding: 10px 12px 12px;
+  min-width: 0;
 }
 
 .gis-sidebar-tool-dock {
   flex: 1 1 auto;
   min-height: 0;
+  min-width: 0;
+  width: 100%;
+  max-width: 100%;
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -4079,6 +4249,7 @@ aside {
   left: auto;
   z-index: 1;
   width: 100%;
+  min-width: 0;
   max-width: none;
   max-height: none;
   flex: 1 1 auto;

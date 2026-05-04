@@ -17,8 +17,11 @@ import {
   type GeoExplorerMessage,
 } from './geoExplorerGemini'
 import {
+  allowsGeocodeWhenNoStrongLayerHit,
   extractGeoExplorerLayerHint,
   findLngLatFromLayerQuery,
+  GEO_EXPLORER_MIN_LAYER_PIN_SCORE,
+  isGisDataScopedQuestion,
   summarizeGeoAiMapLayers,
   type GeoAiMapLayer,
   type LayerQueryMatch,
@@ -132,18 +135,26 @@ export async function runGeoExplorerGeminiTurn(
   const tail = extraSystemAppend?.trim() ? `\n\n${extraSystemAppend.trim()}` : ''
   const systemInstruction = `${GEO_EXPLORER_SYSTEM_PROMPT}\n\n${GEO_EXPLORER_LAYER_RULES}${sessionWeatherBlocks}\n\n---\n${addedLayersHeading}\n${addedBlock}\n\n${gisBlock}${tail}`
 
-  const reply = await geminiGenerateContent({
+  let reply = await geminiGenerateContent({
     apiKey,
     systemInstruction,
     contents: messagesToGeminiContents(historyWithUser),
   })
 
-  const mapQueryCoords = parseMapQueryLngLat(reply)
+  const dataScoped = isGisDataScopedQuestion(userTextForMapFallback, combinedForLookup)
   const layerHintTrim = (userTextForMapFallback ? extractGeoExplorerLayerHint(userTextForMapFallback) : null)?.trim() ?? ''
-  const layerHit: LayerQueryMatch | null =
+  const rawLayerHit: LayerQueryMatch | null =
     userTextForMapFallback.trim().length > 0
       ? findLngLatFromLayerQuery(userTextForMapFallback, combinedForLookup)
       : null
+  const strongLayerHit: LayerQueryMatch | null =
+    rawLayerHit && rawLayerHit.score >= GEO_EXPLORER_MIN_LAYER_PIN_SCORE ? rawLayerHit : null
+
+  let mapQueryCoords = parseMapQueryLngLat(reply)
+  if (dataScoped && !strongLayerHit && mapQueryCoords) {
+    reply = `${stripMapQueryLine(reply).trimEnd()}\n\n**Map:** MAP_QUERY was removed — no confident feature match in your active or GIS Content layers; the app will not move the map to an unrelated location.`
+    mapQueryCoords = null
+  }
 
   let coords: [number, number] | null = null
   let replyText = reply
@@ -156,29 +167,28 @@ export async function runGeoExplorerGeminiTurn(
 
   /** Prefer vector layer geometry when the user scoped a layer or MAP_QUERY disagrees strongly with the hit feature. */
   const preferLayerCoords =
-    Boolean(layerHit) &&
+    Boolean(strongLayerHit) &&
     (Boolean(layerHintTrim) ||
       Boolean(
         mapQueryCoords &&
-          layerHit &&
-          haversineKm(mapQueryCoords, [layerHit.lng, layerHit.lat]) > 2 &&
-          layerHit.score >= 22,
+          strongLayerHit &&
+          haversineKm(mapQueryCoords, [strongLayerHit.lng, strongLayerHit.lat]) > 2,
       ))
 
-  if (preferLayerCoords && layerHit) {
-    coords = [layerHit.lng, layerHit.lat]
+  if (preferLayerCoords && strongLayerHit) {
+    coords = [strongLayerHit.lng, strongLayerHit.lat]
     pinSource = 'layer'
-    replyText = `${stripMapQueryLine(reply).trimEnd()}${layerPinNote(layerHit)}`
-  } else if (mapQueryCoords) {
+    replyText = `${stripMapQueryLine(reply).trimEnd()}${layerPinNote(strongLayerHit)}`
+  } else if (mapQueryCoords && (!dataScoped || strongLayerHit)) {
     coords = mapQueryCoords
     pinSource = 'map_query'
     replyText = reply
   } else if (userTextForMapFallback) {
-    if (layerHit) {
-      coords = [layerHit.lng, layerHit.lat]
+    if (strongLayerHit) {
+      coords = [strongLayerHit.lng, strongLayerHit.lat]
       pinSource = 'layer'
-      replyText = `${reply.trimEnd()}${layerPinNote(layerHit)}`
-    } else {
+      replyText = `${reply.trimEnd()}${layerPinNote(strongLayerHit)}`
+    } else if (allowsGeocodeWhenNoStrongLayerHit(userTextForMapFallback, combinedForLookup)) {
       const geoQuery = stripLayerReferenceForGeocode(simplifyGeoExplorerUserQuery(userTextForMapFallback))
       if (geoQuery.length >= 2) {
         const geocoded = await geocodePlaceToLngLat(geoQuery, {
@@ -189,6 +199,11 @@ export async function runGeoExplorerGeminiTurn(
           pinSource = 'geocode'
           replyText = `${reply.trimEnd()}\n\n(Map centered on the best place-name match for your message.)`
         }
+      }
+    } else if (dataScoped) {
+      replyText = reply.trimEnd()
+      if (!/\b(not found|not available|no match|غير متوفر|لا توجد|لم يتم العثور)\b/i.test(replyText)) {
+        replyText += `\n\n**Map:** No matching location in your layers — the map was not changed.`
       }
     }
   }
@@ -214,7 +229,7 @@ export async function runGeoExplorerGeminiTurn(
     mapEffect: {
       coords,
       pinSource,
-      layerHit,
+      layerHit: strongLayerHit,
       replyText,
     },
   }

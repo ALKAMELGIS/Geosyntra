@@ -81,6 +81,12 @@ html[data-theme='dark'] .app-layout > .content.content--agro-cloud-dashboard {
   overflow: hidden;
 }
 
+.app-layout > .content.content--geodash-enterprise {
+  padding: 0;
+  overflow: hidden;
+  background: #020617;
+}
+
 /* Full-width page canvas (no side gutters from max-width) */
 .app-layout > .content .page {
   padding: var(--content-pad);

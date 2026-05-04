@@ -8,6 +8,7 @@ import Home from '../pages/Home'
 import Login from '../pages/Login'
 import DashboardOverview from '../pages/dashboards/Overview'
 import DevelopDashboard from '../pages/dashboards/DevelopDashboard'
+const GeoDashEnterprise = lazy(() => import('../pages/dashboards/GeoDashEnterprise'))
 import AgroDashboard from '../pages/dashboards/AgroDashboard'
 const SatelliteIntelligence = lazy(() => import('../pages/satellite/SatelliteIntelligence'))
 const SatelliteMultidimensional = lazy(() => import('../pages/satellite/Multidimensional'))
@@ -75,6 +76,7 @@ export default function AppRoutes() {
         <Route path="/style-guide" element={<StyleGuide />} />
         <Route path="/usability-test" element={<UsabilityTest />} />
         <Route path="/dashboard/develop" element={<DevelopDashboard />} />
+        <Route path="/dashboards/geodash" element={<GeoDashEnterprise />} />
         <Route path="/dashboard/design" element={<Navigate to="/dashboards/overview" replace />} />
         {settings.customPages
           .filter(p => p.visible && p.path.trim())

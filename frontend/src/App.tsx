@@ -164,6 +164,7 @@ function AppShell() {
   }, [location.pathname, settings.customPages])
   const isAgroCloudDashboard = location.pathname === '/dashboards/agro-cloud'
   const isDevelopDashboard = location.pathname === '/dashboard/develop'
+  const isGeoDashEnterprise = location.pathname === '/dashboards/geodash'
   /** Operations nav group: irrigation, EC/pH, harvest, QHIS, production, fertigation records */
   const isOperationsDataPage = location.pathname.startsWith('/data/')
   /** Soil / weather / irrigation / camera API integration pages */
@@ -172,6 +173,7 @@ function AppShell() {
     'content',
     isAgroCloudDashboard && 'content--agro-cloud-dashboard',
     isDevelopDashboard && 'content--develop-dashboard',
+    isGeoDashEnterprise && 'content--geodash-enterprise',
     isOperationsDataPage && 'content--operations-fit',
     isSensorsPage && 'content--sensors-fit',
   ]
