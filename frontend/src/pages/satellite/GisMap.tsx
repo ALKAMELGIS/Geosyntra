@@ -9,6 +9,7 @@ import {
   type PointerEvent as ReactPointerEvent,
   type TouchEvent as ReactTouchEvent,
 } from 'react'
+import { flushSync } from 'react-dom'
 import type { Map as LeafletMap } from 'leaflet'
 import L from 'leaflet'
 import { GeoJSON } from 'react-leaflet'
@@ -495,9 +496,10 @@ export default function GisMap() {
   })
   const [isAddOpen, setIsAddOpen] = useState(false)
   const [activeMapTool, setActiveMapTool] = useState<GisMapToolPanel>(null)
-  const [mapToolbarCollapsed, setMapToolbarCollapsed] = useState(false)
   const [selectedBasemap, setSelectedBasemap] = useState<BasemapType>(readInitialGlobeBasemap)
   const [mapProjectionMode, setMapProjectionMode] = useState<MapProjectionMode>('2d')
+  const mapProjectionModeRef = useRef<MapProjectionMode>(mapProjectionMode)
+  mapProjectionModeRef.current = mapProjectionMode
   const [projectionToast, setProjectionToast] = useState('')
   const [globeViewState, setGlobeViewState] = useState({
     longitude: DEFAULT_GIS_CENTER.longitude,
@@ -732,6 +734,12 @@ export default function GisMap() {
       return catalogEntryById(cat, r) ? r : DEFAULT_BASEMAP_ID_NO_MAPBOX
     })
   }, [mapboxAccessToken])
+
+  /** Globe Mapbox children must not mount until style is ready; reset after basemap/token change (see Satellite Intelligence). */
+  useLayoutEffect(() => {
+    if (mapProjectionMode !== 'globe') return
+    setGlobeLoaded(false)
+  }, [mapProjectionMode, selectedBasemap, mapboxAccessToken])
 
   const geoJsonIndexSignature = useMemo(() => {
     const ids: string[] = []
@@ -1037,6 +1045,9 @@ export default function GisMap() {
   }, [])
 
   const changeProjectionMode = useCallback((mode: MapProjectionMode) => {
+    if (mode === 'globe' && mapProjectionModeRef.current !== 'globe') {
+      flushSync(() => setGlobeLoaded(false))
+    }
     setMapProjectionMode(prev => {
       if (prev === mode) return prev
       showProjectionToast(mode === 'globe' ? 'Interactive Mapbox 3D Globe enabled' : '2D GIS map enabled')
@@ -5062,6 +5073,7 @@ export default function GisMap() {
         />
         {mapProjectionMode === 'globe' ? (
           <MapboxMap
+            key={`gis-globe-${resolveBasemapId(selectedBasemap)}-${mapboxAccessToken ? 'mb' : 'osm'}`}
             ref={mapboxGlobeRef}
             {...globeViewState}
             onMove={(evt) => setGlobeViewState(evt.viewState)}
@@ -5084,53 +5096,65 @@ export default function GisMap() {
             padding={GLOBE_CAMERA_PADDING}
             fog={{ range: [0.4, 9], color: '#050816', 'horizon-blend': 0.16, 'high-color': '#1d4ed8', 'space-color': '#020617', 'star-intensity': 0.55 }}
             onLoad={(evt) => {
-              setGlobeLoaded(true)
               const map = evt.target
+              const finish = () => {
+                setGlobeLoaded(true)
+                try {
+                  map.setProjection({ name: 'globe' })
+                  map.setFog({ range: [0.4, 9], color: '#050816', 'horizon-blend': 0.16, 'high-color': '#1d4ed8', 'space-color': '#020617', 'star-intensity': 0.55 })
+                  map.easeTo({ pitch: 34, bearing: -12, padding: GLOBE_CAMERA_PADDING, duration: 900 })
+                } catch {}
+              }
               try {
-                map.setProjection({ name: 'globe' })
-                map.setFog({ range: [0.4, 9], color: '#050816', 'horizon-blend': 0.16, 'high-color': '#1d4ed8', 'space-color': '#020617', 'star-intensity': 0.55 })
-                map.easeTo({ pitch: 34, bearing: -12, padding: GLOBE_CAMERA_PADDING, duration: 900 })
-              } catch {}
+                if (typeof map.isStyleLoaded === 'function' && map.isStyleLoaded()) finish()
+                else map.once('style.load', finish)
+              } catch {
+                finish()
+              }
             }}
             onError={(evt: any) => {
               const message = evt?.error?.message || ''
               if (!message.includes('ERR_ABORTED')) console.warn('3D globe error:', evt)
             }}
           >
-            <NavigationControl position="bottom-right" visualizePitch />
-            {orderedLayers.map(layer => {
-              if (!layer.visible || layer.type !== 'geojson' || !layer.data) return null
-              const id = safeMapboxId(layer.id)
-              const color = layer.color || '#22c55e'
-              return (
-                <Source key={`globe-source-${id}`} id={`globe-source-${id}`} type="geojson" data={layer.data as any} tolerance={0.8} buffer={64} maxzoom={14}>
-                  <Layer
-                    id={`globe-fill-${id}`}
-                    type="fill"
-                    filter={['in', ['geometry-type'], ['literal', ['Polygon', 'MultiPolygon']]] as any}
-                    paint={{ 'fill-color': color, 'fill-opacity': globeLoaded ? 0.34 : 0.18 }}
-                  />
-                  <Layer
-                    id={`globe-line-${id}`}
-                    type="line"
-                    filter={['in', ['geometry-type'], ['literal', ['LineString', 'MultiLineString', 'Polygon', 'MultiPolygon']]] as any}
-                    paint={{ 'line-color': color, 'line-opacity': 0.88, 'line-width': ['interpolate', ['linear'], ['zoom'], 2, 0.7, 10, 2.4, 16, 4] }}
-                  />
-                  <Layer
-                    id={`globe-point-${id}`}
-                    type="circle"
-                    filter={['in', ['geometry-type'], ['literal', ['Point', 'MultiPoint']]] as any}
-                    paint={{
-                      'circle-radius': ['interpolate', ['linear'], ['zoom'], 2, 2.2, 10, 5.5, 16, 9],
-                      'circle-color': color,
-                      'circle-stroke-color': '#ffffff',
-                      'circle-stroke-width': 1.2,
-                      'circle-opacity': 0.92,
-                    }}
-                  />
-                </Source>
-              )
-            })}
+            {globeLoaded ? (
+              <>
+                <NavigationControl position="bottom-right" visualizePitch />
+                {orderedLayers.map(layer => {
+                  if (!layer.visible || layer.type !== 'geojson' || !layer.data) return null
+                  const id = safeMapboxId(layer.id)
+                  const color = layer.color || '#22c55e'
+                  return (
+                    <Source key={`globe-source-${id}`} id={`globe-source-${id}`} type="geojson" data={layer.data as any} tolerance={0.8} buffer={64} maxzoom={14}>
+                      <Layer
+                        id={`globe-fill-${id}`}
+                        type="fill"
+                        filter={['in', ['geometry-type'], ['literal', ['Polygon', 'MultiPolygon']]] as any}
+                        paint={{ 'fill-color': color, 'fill-opacity': 0.34 }}
+                      />
+                      <Layer
+                        id={`globe-line-${id}`}
+                        type="line"
+                        filter={['in', ['geometry-type'], ['literal', ['LineString', 'MultiLineString', 'Polygon', 'MultiPolygon']]] as any}
+                        paint={{ 'line-color': color, 'line-opacity': 0.88, 'line-width': ['interpolate', ['linear'], ['zoom'], 2, 0.7, 10, 2.4, 16, 4] }}
+                      />
+                      <Layer
+                        id={`globe-point-${id}`}
+                        type="circle"
+                        filter={['in', ['geometry-type'], ['literal', ['Point', 'MultiPoint']]] as any}
+                        paint={{
+                          'circle-radius': ['interpolate', ['linear'], ['zoom'], 2, 2.2, 10, 5.5, 16, 9],
+                          'circle-color': color,
+                          'circle-stroke-color': '#ffffff',
+                          'circle-stroke-width': 1.2,
+                          'circle-opacity': 0.92,
+                        }}
+                      />
+                    </Source>
+                  )
+                })}
+              </>
+            ) : null}
           </MapboxMap>
         ) : (
         <MapView
@@ -5303,63 +5327,45 @@ export default function GisMap() {
           </div>
         </div>
 
-        <div
-          className={mapToolbarCollapsed ? 'gis-map-toolbar collapsed' : 'gis-map-toolbar'}
-          role="toolbar"
-          aria-label="GIS map tools"
-          aria-expanded={!mapToolbarCollapsed}
-        >
-          <button
-            className="gis-map-tool gis-map-toolbar-toggle icon-only"
-            type="button"
-            onClick={() => setMapToolbarCollapsed(v => !v)}
-            title={mapToolbarCollapsed ? 'Expand map tools' : 'Collapse map tools'}
-            aria-label={mapToolbarCollapsed ? 'Expand map tools' : 'Collapse map tools'}
-            aria-pressed={mapToolbarCollapsed}
-          >
-            <i className={mapToolbarCollapsed ? 'fa-solid fa-angles-down' : 'fa-solid fa-angles-up'} aria-hidden="true" />
-          </button>
-          {!showDesktopGisRail ? (
-            <>
-              <span className="gis-map-toolbar-sep" aria-hidden="true" />
-              <button className={activeMapTool === 'basemap' ? 'gis-map-tool active' : 'gis-map-tool'} type="button" onClick={() => toggleMapTool('basemap')} title="BaseMap List" aria-label="BaseMap List">
-                <i className="fa-solid fa-map" aria-hidden="true" />
-                <span>BaseMap</span>
-              </button>
-              <button className={activeMapTool === 'legend' ? 'gis-map-tool active' : 'gis-map-tool'} type="button" onClick={() => toggleMapTool('legend')} title="Legend" aria-label="Legend">
-                <i className="fa-solid fa-list" aria-hidden="true" />
-                <span>Legend</span>
-              </button>
-              <button className={activeMapTool === 'chart' ? 'gis-map-tool active' : 'gis-map-tool'} type="button" onClick={() => toggleMapTool('chart')} title="Chart" aria-label="Chart">
-                <i className="fa-solid fa-chart-column" aria-hidden="true" />
-                <span>Chart</span>
-              </button>
-              <button className="gis-map-tool" type="button" onClick={() => window.print()} title="Print" aria-label="Print map">
-                <i className="fa-solid fa-print" aria-hidden="true" />
-                <span>Print</span>
-              </button>
-              <button className={activeMapTool === 'measure' ? 'gis-map-tool active' : 'gis-map-tool'} type="button" onClick={() => toggleMapTool('measure')} title="Measurement tools" aria-label="Measurement tools">
-                <i className="fa-solid fa-ruler-combined" aria-hidden="true" />
-                <span>Measure</span>
-              </button>
-              <button className={activeMapTool === 'search' ? 'gis-map-tool active' : 'gis-map-tool'} type="button" onClick={() => toggleMapTool('search')} title="Search tools" aria-label="Search tools">
-                <i className="fa-solid fa-magnifying-glass-location" aria-hidden="true" />
-                <span>Search</span>
-              </button>
-              <button
-                className={activeMapTool === 'geoExplorer' ? 'gis-map-tool active' : 'gis-map-tool'}
-                type="button"
-                onClick={() => toggleMapTool('geoExplorer')}
-                title="Geo Explorer (Gemini chat)"
-                aria-label="Geo Explorer chat"
-                aria-pressed={activeMapTool === 'geoExplorer'}
-              >
-                <i className="fa-solid fa-comments" aria-hidden="true" />
-                <span>Chat</span>
-              </button>
-            </>
-          ) : null}
-        </div>
+        {!showDesktopGisRail ? (
+          <div className="gis-map-toolbar" role="toolbar" aria-label="GIS map tools">
+            <button className={activeMapTool === 'basemap' ? 'gis-map-tool active' : 'gis-map-tool'} type="button" onClick={() => toggleMapTool('basemap')} title="BaseMap List" aria-label="BaseMap List">
+              <i className="fa-solid fa-map" aria-hidden="true" />
+              <span>BaseMap</span>
+            </button>
+            <button className={activeMapTool === 'legend' ? 'gis-map-tool active' : 'gis-map-tool'} type="button" onClick={() => toggleMapTool('legend')} title="Legend" aria-label="Legend">
+              <i className="fa-solid fa-list" aria-hidden="true" />
+              <span>Legend</span>
+            </button>
+            <button className={activeMapTool === 'chart' ? 'gis-map-tool active' : 'gis-map-tool'} type="button" onClick={() => toggleMapTool('chart')} title="Chart" aria-label="Chart">
+              <i className="fa-solid fa-chart-column" aria-hidden="true" />
+              <span>Chart</span>
+            </button>
+            <button className="gis-map-tool" type="button" onClick={() => window.print()} title="Print" aria-label="Print map">
+              <i className="fa-solid fa-print" aria-hidden="true" />
+              <span>Print</span>
+            </button>
+            <button className={activeMapTool === 'measure' ? 'gis-map-tool active' : 'gis-map-tool'} type="button" onClick={() => toggleMapTool('measure')} title="Measurement tools" aria-label="Measurement tools">
+              <i className="fa-solid fa-ruler-combined" aria-hidden="true" />
+              <span>Measure</span>
+            </button>
+            <button className={activeMapTool === 'search' ? 'gis-map-tool active' : 'gis-map-tool'} type="button" onClick={() => toggleMapTool('search')} title="Search tools" aria-label="Search tools">
+              <i className="fa-solid fa-magnifying-glass-location" aria-hidden="true" />
+              <span>Search</span>
+            </button>
+            <button
+              className={activeMapTool === 'geoExplorer' ? 'gis-map-tool active' : 'gis-map-tool'}
+              type="button"
+              onClick={() => toggleMapTool('geoExplorer')}
+              title="Geo Explorer (Gemini chat)"
+              aria-label="Geo Explorer chat"
+              aria-pressed={activeMapTool === 'geoExplorer'}
+            >
+              <i className="fa-solid fa-comments" aria-hidden="true" />
+              <span>Chat</span>
+            </button>
+          </div>
+        ) : null}
 
         <div
           className={projectionToast ? 'gis-map-projection-toast show' : 'gis-map-projection-toast'}

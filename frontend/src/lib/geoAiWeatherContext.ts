@@ -53,15 +53,18 @@ export async function buildGeoAiWeatherSystemAppend(input: {
   let factsCoords: [number, number] | null = null
   if (weatherImplied) {
     const hit = findLngLatFromLayerQuery(input.userText, input.combinedLayers)
-    if (hit) factsCoords = [hit.lng, hit.lat]
-    else {
+    if (hit) {
+      factsCoords = [hit.lng, hit.lat]
+    } else if (pinCoords) {
+      /** Map anchor / last MAP_QUERY — avoids geocoding vague follow-ups (“same location”, “temp here”) to a wrong place. */
+      factsCoords = pinCoords
+    } else {
       const gq = stripLayerReferenceForGeocode(simplifyGeoExplorerUserQuery(input.userText))
       if (gq.length >= 2) {
         const g = await geocodePlaceToLngLat(gq, { mapboxAccessToken: input.mapboxAccessToken })
         if (g) factsCoords = g
       }
     }
-    if (!factsCoords && pinCoords) factsCoords = pinCoords
   }
 
   const anchorCoords = pinCoords ?? (weatherImplied ? factsCoords : null)

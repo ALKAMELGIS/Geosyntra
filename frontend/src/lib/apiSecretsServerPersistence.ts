@@ -51,6 +51,15 @@ function optionalAuthHeaders(): HeadersInit {
   return { 'X-Agri-Api-Secrets-Token': t }
 }
 
+/** Same-origin default when the app is served behind the Node API; override for static hosts (e.g. GitHub Pages) + remote API. */
+const DEFAULT_API_SECRETS_PATH = '/api/system/api-secrets'
+
+export function getApiSecretsEndpoint(): string {
+  const raw = import.meta.env.VITE_AGRI_API_SECRETS_URL
+  const u = typeof raw === 'string' ? raw.trim().replace(/\/$/, '') : ''
+  return u || DEFAULT_API_SECRETS_PATH
+}
+
 export function applyPersistedApiSecretsToBrowser(secrets: ServerApiSecretsV3): void {
   const builtin = secrets.builtin && typeof secrets.builtin === 'object' ? secrets.builtin : {}
   for (const [k, v] of Object.entries(builtin)) {
@@ -67,7 +76,7 @@ export function applyPersistedApiSecretsToBrowser(secrets: ServerApiSecretsV3): 
 /** Load server-stored tokens into this browser (no-op if API unavailable or no file yet). */
 export async function hydrateBrowserApiSecretsFromServer(): Promise<boolean> {
   try {
-    const res = await fetch('/api/system/api-secrets', {
+    const res = await fetch(getApiSecretsEndpoint(), {
       method: 'GET',
       credentials: 'same-origin',
       headers: { ...optionalAuthHeaders() },
@@ -89,7 +98,7 @@ export type PersistApiSecretsResult = { ok: true } | { ok: false; error: string 
 
 export async function persistApiSecretsPatchToServer(patch: ApiSecretsClientPatch): Promise<PersistApiSecretsResult> {
   try {
-    const res = await fetch('/api/system/api-secrets', {
+    const res = await fetch(getApiSecretsEndpoint(), {
       method: 'PUT',
       credentials: 'same-origin',
       headers: { 'Content-Type': 'application/json', ...optionalAuthHeaders() },

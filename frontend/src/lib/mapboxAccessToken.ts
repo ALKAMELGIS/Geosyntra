@@ -3,6 +3,9 @@
  * Non-empty browser/localStorage value wins over env so keys saved via API Tokens survive
  * redeploys; clear the saved token to fall back to VITE_MAPBOX_TOKEN / VITE_MAPBOX_ACCESS_TOKEN.
  * Never commit real tokens — use .env (Vite) or Admin → API Tokens (server file when API runs).
+ *
+ * Static deploys (GitHub Pages): set `VITE_AGRI_API_SECRETS_URL` to your backend `GET/PUT …/api/system/api-secrets`
+ * (CORS + `VITE_AGRI_API_SECRETS_TOKEN` if the route is guarded) so `hydrateBrowserApiSecretsFromServer` can load `mapboxToken` at runtime.
  */
 
 export const MAPBOX_TOKEN_LS_KEY = 'agri_mapbox_access_token_v1'
