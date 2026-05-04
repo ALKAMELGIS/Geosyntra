@@ -402,6 +402,12 @@ a:focus-visible {
   flex-direction: column;
 }
 
+/* Satellite Intelligence: no global HeaderBar — use full viewport height */
+.layout.layout-sidebar.app-layout.app-layout--no-top-header {
+  height: 100dvh;
+  min-height: 100dvh;
+}
+
 @media (max-width: 768px) {
   .layout.layout-sidebar {
     flex-direction: column;

@@ -9,7 +9,6 @@ import { persistUserApiTokenValue } from './customUserApiTokens'
 import { persistDeepseekApiKeyInBrowser } from './deepseekApiKey'
 import { persistGeminiApiKeyInBrowser } from './geminiApiKey'
 import { persistMapboxAccessTokenInBrowser } from './mapboxAccessToken'
-import { persistOpenWeatherMapApiKeyInBrowser } from './openWeatherMapApiKey'
 import { persistSentinelHubAccessTokenInBrowser } from './sentinelHubAccessToken'
 import { persistSentinelHubWmsInstanceIdInBrowser } from './sentinelHubWmsInstance'
 
@@ -21,7 +20,6 @@ export type BuiltinSecretKey =
   | 'geminiApiKey'
   | 'claudeApiKey'
   | 'deepseekApiKey'
-  | 'openWeatherMapApiKey'
 
 export type ApiSecretsClientPatch = Partial<Record<BuiltinSecretKey, string>> & {
   customSlots?: Record<string, string>
@@ -41,7 +39,6 @@ const BUILTIN_PERSIST: Record<BuiltinSecretKey, (v: string) => void> = {
   geminiApiKey: persistGeminiApiKeyInBrowser,
   claudeApiKey: persistClaudeApiKeyInBrowser,
   deepseekApiKey: persistDeepseekApiKeyInBrowser,
-  openWeatherMapApiKey: persistOpenWeatherMapApiKeyInBrowser,
 }
 
 function optionalAuthHeaders(): HeadersInit {
@@ -56,18 +53,11 @@ export function applyPersistedApiSecretsToBrowser(secrets: ServerApiSecretsV3): 
   for (const [k, v] of Object.entries(builtin)) {
     const key = k as BuiltinSecretKey
     const fn = BUILTIN_PERSIST[key]
-    if (!fn) continue
-    const s = typeof v === 'string' ? v.trim() : ''
-    // Never push empty strings from the server file into the browser — avoids wiping
-    // locally saved tokens when the server store is partial, stale, or not yet written.
-    if (!s) continue
-    fn(s)
+    if (fn) fn(typeof v === 'string' ? v : '')
   }
   const slots = secrets.customSlots && typeof secrets.customSlots === 'object' ? secrets.customSlots : {}
   for (const [slotId, v] of Object.entries(slots)) {
-    const s = typeof v === 'string' ? v.trim() : ''
-    if (!slotId || !s) continue
-    persistUserApiTokenValue(slotId, s)
+    persistUserApiTokenValue(slotId, typeof v === 'string' ? v : '')
   }
 }
 

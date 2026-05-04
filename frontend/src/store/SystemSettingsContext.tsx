@@ -132,6 +132,7 @@ export function SystemSettingsProvider({ children }: { children: ReactNode }) {
       setSettingsState(merged)
       setDraft(merged)
       applyThemeToDocument(merged)
+      pushToast('success', language === 'ar' ? 'تم الحفظ.' : 'Saved.')
     } catch {
       pushToast('error', language === 'ar' ? 'تعذّر حفظ الإعدادات.' : 'Could not save settings.')
     }

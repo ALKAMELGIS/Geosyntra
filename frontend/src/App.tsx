@@ -1,4 +1,4 @@
-import { Component, useEffect, useState } from 'react'
+import { Component, useEffect, useMemo, useState } from 'react'
 import { HashRouter, Navigate, useLocation } from 'react-router-dom'
 import HeaderBar from './components/HeaderBar'
 import NavMenu from './components/NavMenu'
@@ -6,7 +6,8 @@ import AppRoutes from './routes/AppRoutes'
 import PersistentAgroCloudEmbed from './components/PersistentAgroCloudEmbed'
 import { AuthProvider, useAuth } from './state/auth'
 import { LanguageProvider } from './lib/i18n'
-import { SystemSettingsProvider } from './store/SystemSettingsContext'
+import { SystemSettingsProvider, useSystemSettings } from './store/SystemSettingsContext'
+import { normalizeAppPath } from './services/settingsStorage'
 
 type AppErrorState = {
   error: unknown
@@ -129,6 +130,7 @@ class AppErrorBoundary extends Component<{ children: JSX.Element }, { err: AppEr
 function AppShell() {
   const { user, logout } = useAuth()
   const location = useLocation()
+  const { settings } = useSystemSettings()
   const [hideNavMenuOnCompact, setHideNavMenuOnCompact] = useState(false)
 
   useEffect(() => {
@@ -145,6 +147,16 @@ function AppShell() {
 
   const isOnLogin = location.pathname === '/login'
   const showChrome = !!user && !isOnLogin
+  /** Top brand bar hidden for full-height satellite workspace (sidebar stays). */
+  const hideHeaderForSatelliteIntelligence = useMemo(() => {
+    const path = normalizeAppPath(location.pathname || '/')
+    if (path === '/satellite/indices') return true
+    for (const p of settings.customPages) {
+      if (!p.visible || !p.path.trim() || p.bindTarget !== 'satellite-indices') continue
+      if (normalizeAppPath(p.path) === path) return true
+    }
+    return false
+  }, [location.pathname, settings.customPages])
   const isAgroCloudDashboard = location.pathname === '/dashboards/agro-cloud'
   const isDevelopDashboard = location.pathname === '/dashboard/develop'
   /** Operations nav group: irrigation, EC/pH, harvest, QHIS, production, fertigation records */
@@ -161,6 +173,15 @@ function AppShell() {
     .filter(Boolean)
     .join(' ')
 
+  const layoutChromeClass = [
+    'layout',
+    'layout-sidebar',
+    'app-layout',
+    hideHeaderForSatelliteIntelligence && 'app-layout--no-top-header',
+  ]
+    .filter(Boolean)
+    .join(' ')
+
   if (user && isOnLogin) {
     const from = (location.state as any)?.from?.pathname
     return <Navigate to={typeof from === 'string' && from ? from : '/'} replace />
@@ -172,8 +193,8 @@ function AppShell() {
 
   return (
     <>
-      {showChrome && <HeaderBar />}
-      <div className={showChrome ? 'layout layout-sidebar app-layout' : 'layout'}>
+      {showChrome && !hideHeaderForSatelliteIntelligence ? <HeaderBar /> : null}
+      <div className={showChrome ? layoutChromeClass : 'layout'}>
         {showChrome && !hideNavMenuOnCompact && <NavMenu onLogout={handleLogout} />}
         <main className={mainContentClass}>
           <AppRoutes />
