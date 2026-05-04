@@ -1,5 +1,10 @@
 /// <reference types="vite/client" />
 
+/** Optional Vite env keys used by this app (documented in repo root `.env.example`). */
+interface ImportMetaEnv {
+  readonly VITE_MAPBOX_ACCESS_TOKEN?: string
+}
+
 declare global {
   namespace JSX {
     interface IntrinsicElements {

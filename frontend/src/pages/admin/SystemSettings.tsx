@@ -16,6 +16,7 @@ import {
 } from '../../lib/arcgisPortalToken'
 import {
   getMapboxAccessTokenBrowserOverride,
+  getMapboxAccessTokenFromEnv,
   persistMapboxAccessTokenInBrowser,
 } from '../../lib/mapboxAccessToken'
 import {
@@ -192,10 +193,7 @@ export default function SystemSettings() {
     }
   }, [])
 
-  const mapboxTokenFromEnv = useMemo(() => {
-    const raw = import.meta.env.VITE_MAPBOX_TOKEN
-    return typeof raw === 'string' && raw.trim().length > 0
-  }, [])
+  const mapboxTokenFromEnv = useMemo(() => getMapboxAccessTokenFromEnv().length > 0, [])
 
   const arcgisTokenFromEnv = useMemo(() => {
     const raw = import.meta.env.VITE_ARCGIS_PORTAL_TOKEN
@@ -1275,8 +1273,8 @@ export default function SystemSettings() {
               </h2>
               <p className="sys-api-hero__desc">
                 {language === 'ar'
-                  ? 'تُحفظ المفاتيح على خادم التطبيق (ملف بجانب Node) لتبقى بعد تحديث النظام أو إعادة بناء الواجهة، وتُنسَخ أيضاً إلى هذا المتصفح للاستخدام الفوري. يمكن أيضاً استخدام متغيرات البيئة عند البناء. لا تُرفع الأسرار إلى Git.'
-                  : 'Keys are stored on the app server (next to the Node process) so they survive full system updates and frontend rebuilds, and mirrored in this browser for immediate use. Build-time env vars still override where documented. Never commit secrets to Git.'}
+                  ? 'تُحفظ المفاتيح على خادم التطبيق (ملف بجانب عملية Node) لتبقى بعد التحديثات وإعادة بناء الواجهة، وتُحمَّل إلى هذا المتصفح عند الفتح. عند وجود قيمة محفوظة هنا تتقدم على متغيرات VITE_* وقت التشغيل؛ إن لم يكن هناك شيء محفوظاً يُستخدم متغير البيئة أو الملف على الخادم. لا تُرفع الأسرار إلى Git.'
+                  : 'Keys are stored on the app server (next to the Node process) so they survive updates and frontend rebuilds, and are hydrated into this browser on load. When a value is saved here it takes precedence over VITE_* build-time variables at runtime; if nothing is saved yet, the build-time env or server file supplies the token. Never commit secrets to Git.'}
               </p>
             </div>
             <button
@@ -1309,8 +1307,10 @@ export default function SystemSettings() {
               </h3>
               {mapboxTokenFromEnv ? (
                 <p className="sys-settings-panel__desc sys-settings-api-envnote">
-                  <strong>{language === 'ar' ? 'نشط من البناء:' : 'Active from build:'}</strong>{' '}
-                  {language === 'ar' ? 'VITE_MAPBOX_TOKEN يتقدم على الحقل أدناه.' : 'VITE_MAPBOX_TOKEN overrides the field below.'}
+                  <strong>{language === 'ar' ? 'متاح من البناء:' : 'Available from build:'}</strong>{' '}
+                  {language === 'ar'
+                    ? 'يُستخدم VITE_MAPBOX_TOKEN أو VITE_MAPBOX_ACCESS_TOKEN إذا لم يكن هناك مفتاح محفوظ في هذا المتصفح؛ القيمة المحفوظة أدناه تتقدم عليهما.'
+                    : 'VITE_MAPBOX_TOKEN or VITE_MAPBOX_ACCESS_TOKEN is used when this browser has no saved token; a token saved below takes precedence.'}
                 </p>
               ) : null}
               <ApiTokenMergeField
