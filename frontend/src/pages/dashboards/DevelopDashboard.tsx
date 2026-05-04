@@ -3743,17 +3743,24 @@ export default function DevelopDashboard() {
     </div>
 
     {addGisOpen ? (
-      <div className="gis-modal-overlay" role="presentation" onClick={closeAddGisModal}>
+      <div className="gis-modal-overlay ddb-add-source-overlay" role="presentation" onClick={closeAddGisModal}>
         <div
-          className={`gis-modal gis-modal-compact ddb-add-source-modal${addWizard === 'home' ? ' ddb-add-source-modal--home' : ''}`}
+          className="gis-modal gis-modal-compact ddb-add-source-modal ddb-add-source-modal--home"
           role="dialog"
           aria-modal="true"
           aria-labelledby="ddb-add-source-title"
           onClick={e => e.stopPropagation()}
         >
           <div className="ddb-add-source-modal__head">
-            <div className="gis-modal-compact-title" id="ddb-add-source-title">
-              Add Source Data
+            <div className="ddb-add-source-modal__head-main">
+              <div className="gis-modal-compact-title" id="ddb-add-source-title">
+                Add Source Data
+              </div>
+              {addWizard === 'home' ? (
+                <p className="ddb-add-source-lead ddb-add-source-lead--head">
+                  Choose how you want to add layers to the registry for analytics and maps.
+                </p>
+              ) : null}
             </div>
             {addWizard !== 'home' ? (
               <button type="button" className="ddb-add-source-back" onClick={goAddWizardHome}>
@@ -3764,9 +3771,6 @@ export default function DevelopDashboard() {
 
           {addWizard === 'home' ? (
             <div className="ddb-add-source-home">
-              <p className="ddb-add-source-lead">
-                Choose how you want to add layers to the registry for analytics and maps.
-              </p>
               <div className="ddb-add-source-radio-list" role="radiogroup" aria-labelledby="ddb-add-source-title">
                 <label className="ddb-add-source-radio-row">
                   <input
@@ -4194,7 +4198,7 @@ export default function DevelopDashboard() {
             </>
           )}
 
-          <div className="gis-modal-footer" style={{ display: 'flex', justifyContent: 'flex-end', padding: '12px 16px', borderTop: '1px solid rgba(226,232,240,0.9)' }}>
+          <div className="gis-modal-footer ddb-add-source-modal__footer">
             <button type="button" className="gis-btn" onClick={closeAddGisModal}>
               Cancel
             </button>

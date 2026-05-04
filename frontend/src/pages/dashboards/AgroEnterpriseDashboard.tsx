@@ -751,13 +751,16 @@ export default function AgroEnterpriseDashboard() {
             <button
               type="button"
               className="agro-ent-gallery-btn"
+              aria-expanded={galleryOpen}
+              aria-haspopup="menu"
+              title={t.gallery}
               onClick={() => {
                 setGalleryOpen(o => !o)
                 setThemeMenuOpen(false)
               }}
             >
-              <i className="fa-solid fa-border-all" />
-              {!sideCollapsed ? t.gallery : null}
+              <i className="fa-solid fa-border-all" aria-hidden />
+              {!sideCollapsed ? <span className="agro-ent-gallery-btn__text">{t.gallery}</span> : null}
             </button>
             {galleryOpen ? (
               <div className="agro-ent-gallery-menu" role="menu" aria-label={t.gallery}>
@@ -768,10 +771,10 @@ export default function AgroEnterpriseDashboard() {
                     role="menuitem"
                     className="agro-ent-gallery-tile"
                     title={entry.label}
+                    aria-label={entry.label}
                     onClick={() => addWidgetFromGallery(entry)}
                   >
                     <i className={`fa-solid ${entry.icon}`} aria-hidden />
-                    <span className="agro-ent-gallery-tile__label">{entry.label}</span>
                   </button>
                 ))}
               </div>
@@ -807,7 +810,7 @@ export default function AgroEnterpriseDashboard() {
                         onClick={() => setSourcesCardWide(w => !w)}
                       >
                         <i
-                          className={`fa-solid ${sourcesCardWide ? 'fa-down-left-and-up-right-to-center' : 'fa-up-right-and-down-left-from-center'}`}
+                          className={`fa-solid ${sourcesCardWide ? 'fa-compress' : 'fa-expand'}`}
                           aria-hidden
                         />
                       </button>
@@ -838,7 +841,7 @@ export default function AgroEnterpriseDashboard() {
                         onClick={() => updateWidget(w.id, { wide: !w.wide })}
                       >
                         <i
-                          className={`fa-solid ${w.wide ? 'fa-down-left-and-up-right-to-center' : 'fa-up-right-and-down-left-from-center'}`}
+                          className={`fa-solid ${w.wide ? 'fa-compress' : 'fa-expand'}`}
                           aria-hidden
                         />
                       </button>

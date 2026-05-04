@@ -2821,7 +2821,12 @@
   gap: 8px;
 }
 
-/* Add Source Data modal (rendered outside .develop-dashboard-root) */
+/* Add Source Data modal — full Power BI–style light flow (صورة 2) */
+.ddb-add-source-overlay {
+  background: rgba(32, 33, 36, 0.42) !important;
+  backdrop-filter: blur(5px);
+}
+
 .ddb-add-source-modal.gis-modal-compact {
   max-width: 520px;
   width: min(520px, calc(100vw - 28px));
@@ -2832,20 +2837,40 @@
     0 0 0 1px rgba(60, 172, 110, 0.12);
 }
 
-/* Power BI–style “Get Data” home step: light panel, radio rows */
 .ddb-add-source-modal.ddb-add-source-modal--home.gis-modal-compact {
   max-width: 580px;
   width: min(580px, calc(100vw - 28px));
   background: #ffffff;
   border: 1px solid #edebe9;
+  color: #323130;
   box-shadow:
     0 12px 40px rgba(0, 0, 0, 0.14),
     0 0 0 1px rgba(0, 0, 0, 0.04);
 }
 
+.ddb-add-source-modal__head-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+}
+
+.ddb-add-source-lead--head {
+  margin: 6px 0 0;
+  padding: 0;
+  font-size: 0.8125rem;
+  line-height: 1.45;
+  color: #605e5c;
+  font-weight: 400;
+  max-width: 52ch;
+}
+
 .ddb-add-source-modal--home .ddb-add-source-modal__head {
-  padding: 16px 20px 12px;
+  padding: 16px 20px 14px;
   border-bottom: 1px solid #edebe9;
+  align-items: flex-start;
 }
 
 .ddb-add-source-modal--home .gis-modal-compact-title {
@@ -2856,7 +2881,7 @@
 }
 
 .ddb-add-source-modal--home .ddb-add-source-home {
-  padding: 16px 20px 12px;
+  padding: 8px 20px 12px;
 }
 
 .ddb-add-source-modal--home .ddb-add-source-lead {
@@ -2880,6 +2905,106 @@
 
 .ddb-add-source-modal--home .gis-modal-footer .gis-btn:hover {
   background: #f3f2f1;
+}
+
+.ddb-add-source-modal__footer {
+  display: flex;
+  justify-content: flex-end;
+  padding: 12px 20px !important;
+  border-top: 1px solid #edebe9 !important;
+}
+
+/* Inner steps: tabs, ArcGIS / upload / URL — same light + green accent as الصورة 2 */
+.ddb-add-source-modal--home .gis-modal-compact-tabs {
+  background: #faf9f8;
+  border-bottom: 1px solid #edebe9;
+}
+
+.ddb-add-source-modal--home .gis-compact-tab {
+  color: #605e5c;
+}
+
+.ddb-add-source-modal--home .gis-compact-tab i {
+  color: #605e5c;
+}
+
+.ddb-add-source-modal--home .gis-compact-tab.active {
+  color: #0e6b0e;
+  border-color: #107c10;
+  background: #dff6dd;
+  box-shadow: none;
+}
+
+.ddb-add-source-modal--home .gis-compact-tab.active i {
+  color: #107c10;
+}
+
+.ddb-add-source-modal--home .gis-modal-body {
+  background: #ffffff;
+  color: #323130;
+}
+
+.ddb-add-source-modal--home .gis-modal-body > [role='tabpanel'] {
+  background: #faf9f8;
+  border: 1px solid #edebe9;
+  box-shadow: none;
+  color: #323130;
+}
+
+.ddb-add-source-modal--home .gis-input,
+.ddb-add-source-modal--home .gis-select {
+  background: #ffffff !important;
+  border: 1px solid #edebe9 !important;
+  color: #201f1e !important;
+}
+
+.ddb-add-source-modal--home .gis-input::placeholder {
+  color: #8a8886;
+}
+
+.ddb-add-source-modal--home .gis-form-label,
+.ddb-add-source-modal--home .gis-discover-meta {
+  color: #323130;
+}
+
+.ddb-add-source-modal--home .gis-btn-outline {
+  border-color: #107c10;
+  color: #107c10;
+  background: #ffffff;
+  font-weight: 600;
+}
+
+.ddb-add-source-modal--home .gis-btn-outline:hover:not(:disabled) {
+  background: #dff6dd;
+  border-color: #0e6b0e;
+  color: #0e6b0e;
+}
+
+.ddb-add-source-modal--home .gis-modal-compact .gis-discovered-add {
+  background: linear-gradient(180deg, #138213, #107c10) !important;
+  border: none !important;
+  color: #ffffff !important;
+  box-shadow: 0 4px 14px rgba(16, 124, 16, 0.32);
+}
+
+.ddb-add-source-modal--home .gis-modal-compact .gis-discovered-add:hover:not(:disabled) {
+  filter: brightness(1.06);
+}
+
+.ddb-add-source-modal--home .gis-inline-error {
+  color: #a4262c;
+  background: #fde7e9;
+  border: 1px solid #f1aeb5;
+  border-radius: 8px;
+  padding: 10px 12px;
+}
+
+.ddb-add-source-modal--home .ddb-hint {
+  color: #605e5c !important;
+}
+
+.ddb-add-source-modal--home .gis-select-wrap > i {
+  color: #605e5c;
 }
 
 .ddb-add-source-modal__head {
