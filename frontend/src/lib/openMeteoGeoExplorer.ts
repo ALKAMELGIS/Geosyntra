@@ -83,7 +83,7 @@ export function buildSessionAnchorBlock(lng: number, lat: number, popup: Session
   s +=
     '- Treat these coordinates as the resolved location even if earlier layer attribute text lacked explicit lat/long.\n' +
     '- Do not claim the location is unknown or that coordinates are missing when this block is present.\n' +
-    '- Weather facts appended after this block (OpenWeather when a key is configured, otherwise Open-Meteo) use this same coordinate pair for the atmosphere at the map focus.\n'
+    '- Weather facts appended after this block (OpenWeather plus Open-Meteo compact when a key is configured, otherwise full Open-Meteo) use this same coordinate pair for the atmosphere at the map focus.\n'
   return s
 }
 

@@ -19,6 +19,49 @@ Example: MAP_QUERY:55.2708,25.2048
 If there is no single justified location, omit MAP_QUERY entirely.
 Do not put MAP_QUERY inside markdown code fences.`;
 
+/**
+ * Satellite “Geo AI” / GIS Geo Explorer shared Copilot contract (Gemini + Claude + DeepSeek system prompts).
+ * Spatial priorities align with `geoAiWeatherEngine.resolveGeoAiWeatherFactsCoords`; map fly uses MAP_QUERY.
+ */
+export const GEO_AI_COPILOT_RULES = `### GEO AI COPILOT (mission — integrate GIS + map + weather)
+You are **Geo AI Copilot**: an advanced geospatial assistant wired to vector layers, map anchors, and (when appended below) weather APIs.
+
+**1. Spatial context (determine location before answering)** — priority order for interpreting user intent:
+- **a)** Map focus / pin / “here” → "### SESSION MAP ANCHOR" or "### WEATHER COORDINATE SOURCE: map_anchor"
+- **b)** Selected feature / popup / inspect (“this farm”, هذه المزرعة) → inspect/popup coordinates in coordinate-source blocks
+- **c)** **GIS layer attributes** → centroid from "### RESOLVED LAYER FEATURE" or best attribute match (farm/code/name/category/crop/type fields across ALL serialized columns and catalogs — not keyword lookup only)
+- **d)** Place name → geocoder-derived coordinates only when blocks explicitly tied geocoding to facts
+
+When SYSTEM lacks usable coordinates for weather/spatial tasks: briefly ask (Arabic or English to match user) to click the map, pick a feature, or name a place clearly.
+
+**2. GIS intelligence** — Layer mentions imply searching summaries across attributes (codes, names, crop/category/type/site strings). Prefer authoritative "### RESOLVED LAYER FEATURE" JSON when present. Never claim absence until catalogs/resolv blocks contradict.
+
+**3. Weather integration** — All numeric weather must come **only** from "### OPENWEATHER FACTS", "### OPEN-METEO FACTS", or "### OPEN-METEO COMPACT" when present (temperature, humidity, wind, forecast). Do not invent values.
+
+**4. Map actions (conceptual → app)** — You drive behavior via prose plus MAP_QUERY when a justified single point exists:
+- **zoomTo** ≈ output MAP_QUERY:<lng>,<lat> on its own line (same constraints as above).
+- **highlightFeature / popup data** ≈ resolved GIS attributes shown from "### RESOLVED LAYER FEATURE"; cite matching summary briefly.
+
+**5. Smart analysis** — When both GIS attributes AND appended weather/agri heuristic blocks apply: tie concise bullets (e.g. vegetation/stress hints only when justified by provided NDVI + numeric weather/heuristic lines).
+
+**6. Structured trace — REQUIRED EVERY REPLY** — After all prose for the user, emit exactly **one final line** (single-line JSON, no markdown fences):
+GEO_AI_JSON:{...minified JSON on one line...}
+
+Strict schema (omit unused keys or use {}):
+{"intent":"weather"|"gis_search"|"analysis"|"unknown","location":{"lat":number|null,"lon":number|null},"feature":{},"action":"zoom"|"highlight"|"weather"|"none","data":{},"insight":"","response":"<≤260 chars echo summary>"}
+
+- **intent**: classify dominant purpose this turn.
+- **location.lat/lon**: primary analytical coords used or null if undetermined.
+- **feature**: key/value subset only when GIS matched one logical entity (else {}).
+- **action**: zoom → MAP_QUERY present this reply; highlight → authoritative FEATURE/resolv tie without MAP_QUERY; weather → weather facts relied on.
+- **data**: optional numeric crumbs actually sourced from CONTEXT blocks only (no hallucinations).
+- **insight**: one tight analytic clause when GIS+weather combined OR optional heuristic justified OR empty string.
+- **response**: short recap copied tone/language from main prose.
+
+**7. Language** — Reply language mirrors user (Arabic/English/etc.); keep prose concise.
+
+**8. Fail-safe** — No fabricated coords or figures; when anchors+facts insufficient for spatial confidence, ask for clarification per §1.`;
+
 /** Appended when LAYER DATA blocks are present (Added layers + GIS Content). */
 export const GEO_EXPLORER_LAYER_RULES = `LAYER DATA rules (when "LAYER DATA" / layer list / GIS Content sections appear):
 - **Natural phrasing:** Treat “show / describe / find / display / highlight / zoom to …” as requests about layer data when the message also names a layer, asset id/code, field concept, or map surface — same as explicit “query layer X”.
@@ -33,7 +76,8 @@ export const GEO_EXPLORER_LAYER_RULES = `LAYER DATA rules (when "LAYER DATA" / l
 /** Shipped with Geo AI when a map pin / anchor exists — keeps follow-ups coherent and ties weather to coordinates. */
 export const GEO_EXPLORER_SESSION_AND_WEATHER = `Session continuity & weather (read carefully when the next blocks appear):
 - If a "### SESSION MAP ANCHOR" section is present, those coordinates are the app’s current map focus (pin or last explicit MAP_QUERY). Short follow-ups (“same place”, “here”, “that farm”, “weather there”, Arabic equivalents) refer to THIS anchor unless the user clearly names a different place or layer.
-- If "### OPENWEATHER FACTS" is present (with "### WEATHER_ANSWER_RULES"), **all** numeric weather for that question must come only from that OpenWeather block for the stated “Point:” coordinates—follow WEATHER_ANSWER_RULES exactly. Cite “OpenWeather” once. Do not substitute current or forecast values for a **different** calendar day when the user asked for one specific day and the facts mark **NO_DATA_FOR_REQUESTED_DAY** or only errors.
+- If "### OPENWEATHER FACTS" is present (with "### WEATHER_ANSWER_RULES"), **primary** numeric weather for that question must come from that OpenWeather block for the stated “Point:” coordinates—follow WEATHER_ANSWER_RULES exactly. Cite “OpenWeather” once.
+- If "### OPEN-METEO COMPACT" appears **together with** OPENWEATHER, it is an **alternative / cross-check** (still same coordinates). Prefer OpenWeather for the main answer unless it clearly failed; cite “Open-Meteo” only if you repeat its numbers.
 - If "### OPEN-METEO FACTS" appears **without** OPENWEATHER (no API key case), base numeric weather on Open-Meteo only; cite “Open-Meteo” once. Do not invent numbers beyond the block.
 - OPENWEATHER / OPEN-METEO blocks use the **same coordinates as SESSION MAP ANCHOR** when the anchor is present. Do **not** say the weather is for a different point than a layer feature (e.g. MH105) when the facts’ coordinates are that feature’s resolved location—the facts **are** that place for atmosphere data. Never steer the user to another city or coordinates they did not ask about.
 - If the user asks for a **specific calendar day** and the facts do not contain usable data for that day (see NO_DATA_FOR_REQUESTED_DAY or failed requests), respond professionally that data could not be obtained: Arabic → **لم أتحصل على بيانات**; English → a short “I could not obtain data for that date/location.” Do **not** answer with “current” or unrelated dates as a stand-in.
@@ -90,9 +134,22 @@ export function stripGeoAiModelMetaAppend(text: string): string {
   return t.trimEnd()
 }
 
-/** Chat bubble display: MAP_QUERY line, server map-pin / geocode appendix, and literal `*` (markdown noise). */
+/** Remove trailing Geo AI Copilot machine trace (single-line GEO_AI_JSON:{...}). */
+export function stripGeoAiCopilotJsonLine(text: string): string {
+  const t = text.trimEnd()
+  const tag = 'GEO_AI_JSON:'
+  const idx = t.lastIndexOf(tag)
+  if (idx < 0) return text
+  const lineStart = t.lastIndexOf('\n', idx)
+  const cut = lineStart >= 0 ? t.slice(0, lineStart) : t.slice(0, idx)
+  return cut.trimEnd()
+}
+
+/** Chat bubble display: MAP_QUERY line, server map-pin / geocode appendix, Copilot JSON trace, and literal `*` (markdown noise). */
 export function stripGeoExplorerBubbleDisplayText(text: string): string {
-  return stripGeoAiModelMetaAppend(stripMapQueryLine(text)).replace(/\*/g, '').trimEnd()
+  return stripGeoAiCopilotJsonLine(stripGeoAiModelMetaAppend(stripMapQueryLine(text)))
+    .replace(/\*/g, '')
+    .trimEnd()
 }
 
 function partsToGeminiPayload(parts: GeoExplorerPart[]): Array<{ text?: string; inline_data?: { mime_type: string; data: string } }> {
@@ -117,6 +174,19 @@ export function lastMapQueryCoordsFromMessages(messages: GeoExplorerMessage[]): 
     const m = messages[i]
     if (m.role !== 'model') continue
     const c = parseMapQueryLngLat(messageDisplayText(m))
+    if (c) return c
+  }
+  return null
+}
+
+/** Claude / DeepSeek Geo AI chat history (role + plain text). */
+export function lastMapQueryCoordsFromSimpleChatHistory(
+  messages: Array<{ role: string; text: string }>,
+): [number, number] | null {
+  for (let i = messages.length - 1; i >= 0; i--) {
+    const m = messages[i]
+    if (m.role !== 'assistant' && m.role !== 'model') continue
+    const c = parseMapQueryLngLat(m.text)
     if (c) return c
   }
   return null

@@ -1,11 +1,18 @@
 /**
- * Shared weather facts for Geo AI (Gemini Geo Explorer + Claude/DeepSeek Geo AI Chat):
- * resolves coordinates from map anchor, layer names/attributes, or place geocode, then attaches **OpenWeather** when an API key is set (exclusive), otherwise **Open-Meteo**.
+ * Shared weather facts for Geo AI (Gemini Geo Explorer):
+ * resolves coordinates (map anchor → inspect/popup selection → named layer feature → text geocode → map fallback),
+ * then attaches **OpenWeather** when a key is set **plus** a compact **Open-Meteo** cross-check; without a key, full **Open-Meteo** only.
  */
 
-import { geocodePlaceToLngLat, simplifyGeoExplorerUserQuery, stripLayerReferenceForGeocode } from './geoExplorerGeocode'
 import type { GeoAiMapLayer } from './geoExplorerLayerContext'
-import { findLngLatFromLayerQuery, GEO_EXPLORER_MIN_LAYER_PIN_SCORE } from './geoExplorerLayerContext'
+import {
+  buildAgriWeatherInsightAppend,
+  buildOpenMeteoCompactComparisonBlock,
+  fetchOpenMeteoCurrentSnapshot,
+  resolveGeoAiWeatherFactsCoords,
+  type WeatherFactsCoordResolution,
+} from './geoAiWeatherEngine'
+import { GEO_EXPLORER_SESSION_AND_WEATHER } from './geoExplorerGemini'
 import {
   buildOpenMeteoContextBlock,
   buildSessionAnchorBlock,
@@ -35,6 +42,13 @@ function userRequestsExplicitCalendarDayForWeather(userText: string): boolean {
     ) ||
     /\b\d{1,2}\s+(?:january|february|march|april|may|june|july|august|september|october|november|december|jan|feb|mar|apr|jun|jul|aug|sep|sept|oct|nov|dec)\b/i.test(t)
   )
+}
+
+/** Session prose + anchor + weather facts (same bundle as Gemini Geo Explorer turn). */
+export async function buildGeoAiFullWeatherSessionAppend(
+  input: Parameters<typeof buildGeoAiWeatherSystemAppend>[0],
+): Promise<string> {
+  return `\n\n${GEO_EXPLORER_SESSION_AND_WEATHER}${await buildGeoAiWeatherSystemAppend(input)}`
 }
 
 function popupSnapForCoords(popup: GeoAiWeatherPopupRef, lng: number, lat: number): SessionAnchorPopup {
@@ -69,24 +83,31 @@ export async function buildGeoAiWeatherSystemAppend(input: {
   const weatherImplied = geoExplorerUserMessageImpliesWeather(input.userText)
 
   let factsCoords: [number, number] | null = null
+  let weatherResolutionNote = ''
+  let weatherResolved: WeatherFactsCoordResolution | null = null
   if (weatherImplied) {
-    const hit = findLngLatFromLayerQuery(input.userText, input.combinedLayers)
-    if (hit && hit.score >= GEO_EXPLORER_MIN_LAYER_PIN_SCORE) {
-      factsCoords = [hit.lng, hit.lat]
-    } else if (pinCoords) {
-      /** Map anchor / last MAP_QUERY / inspect card — avoids geocoding vague follow-ups (“same location”, “temp here”). */
-      factsCoords = pinCoords
-    } else {
-      const gq = stripLayerReferenceForGeocode(simplifyGeoExplorerUserQuery(input.userText))
-      if (gq.length >= 2) {
-        const g = await geocodePlaceToLngLat(gq, { mapboxAccessToken: input.mapboxAccessToken })
-        if (g) factsCoords = g
-      }
+    weatherResolved = await resolveGeoAiWeatherFactsCoords({
+      userText: input.userText,
+      pinLngLat: input.pinLngLat,
+      lastMapQueryCoords: input.lastMapQueryCoords,
+      inspectAnchorLngLat: input.inspectAnchorLngLat ?? null,
+      combinedLayers: input.combinedLayers,
+      mapboxAccessToken: input.mapboxAccessToken,
+    })
+    if (weatherResolved) {
+      factsCoords = [weatherResolved.lng, weatherResolved.lat]
+      weatherResolutionNote = `Weather location resolution: **${weatherResolved.source}**${weatherResolved.placeLabel ? ` — ${weatherResolved.placeLabel}` : ''}.`
     }
   }
 
+  /** Only treat as “ambient follow-up” when the resolved weather point matches the map pin (avoid disabling calendar logic for remote cities while a pin exists elsewhere). */
   const ambientWeather =
-    weatherImplied && Boolean(pinCoords) && !userRequestsExplicitCalendarDayForWeather(input.userText)
+    weatherImplied &&
+    Boolean(pinCoords) &&
+    Boolean(factsCoords) &&
+    !userRequestsExplicitCalendarDayForWeather(input.userText) &&
+    Math.abs(factsCoords![0] - pinCoords![0]) < 0.03 &&
+    Math.abs(factsCoords![1] - pinCoords![1]) < 0.03
 
   const anchorCoords = pinCoords ?? (weatherImplied ? factsCoords : null)
   let out = ''
@@ -100,13 +121,32 @@ export async function buildGeoAiWeatherSystemAppend(input: {
   if (weatherImplied && factsCoords) {
     const [fLng, fLat] = factsCoords
     const owm = input.openWeatherApiKey.trim()
+
+    if (weatherResolutionNote.trim()) {
+      out += `\n\n### WEATHER COORDINATE SOURCE\n${weatherResolutionNote}`
+    }
+
+    const layerForAgri =
+      weatherResolved?.source === 'layer_feature' ? weatherResolved.layerHit : null
+    const omSnap =
+      layerForAgri && factsCoords
+        ? await fetchOpenMeteoCurrentSnapshot(factsCoords[1], factsCoords[0])
+        : null
+
     if (owm) {
-      /* With a configured key, Geo AI weather answers use OpenWeather only (avoids mixing Open-Meteo “current” with a historical question). */
       out += `\n\n${await buildOpenWeatherContextBlock(owm, fLat, fLng, input.userText, {
         ambientWindowOnly: ambientWeather,
       })}`
+      out += `\n\n${await buildOpenMeteoCompactComparisonBlock(fLat, fLng)}`
     } else {
       out += `\n\n${await buildOpenMeteoContextBlock(fLat, fLng, input.userText)}`
+    }
+
+    if (layerForAgri && omSnap) {
+      out += buildAgriWeatherInsightAppend(layerForAgri, {
+        temp: omSnap.temp,
+        windKmh: omSnap.windKmh,
+      })
     }
   }
 

@@ -38,7 +38,9 @@ import {
   subscribeSentinelHubWmsInstance,
 } from '../../lib/sentinelHubWmsInstance';
 import {
+  GEO_AI_COPILOT_RULES,
   lastMapQueryCoordsFromMessages,
+  lastMapQueryCoordsFromSimpleChatHistory,
   messageDisplayText,
   messagesToGeminiContents,
   stripGeoExplorerBubbleDisplayText,
@@ -62,6 +64,7 @@ import {
   type GeoAiMapLayer,
 } from '../../lib/geoExplorerLayerContext';
 import { resolveGeoAiPinFromUserTextAndReply } from '../../lib/geoAiResolveMapCoords';
+import { buildGeoAiFullWeatherSessionAppend } from '../../lib/geoAiWeatherContext';
 import { useOpenWeatherMapApiKey } from '../../hooks/useOpenWeatherMapApiKey';
 import { agroChatWithDeepSeek } from '../../lib/agroAiChat';
 import {
@@ -3566,8 +3569,31 @@ export default function SatelliteIntelligence() {
           const dataCtx = await buildGeoAiDataContext(undefined, {
             satelliteLayers: satelliteCustomLayersToGeoAiLayers(customLayers),
           });
-          const system = `${GEO_AI_CHAT_SYSTEM_BASE}\n\n---\nDATA CONTEXT (authoritative for this session turn):\n${dataCtx}`;
           const prior = historyWithUser.slice(0, -1);
+          const savedLayers = await loadGisMapSavedLayers();
+          const mergedGeoAiLayers: GeoAiMapLayer[] = [
+            ...satelliteCustomLayersToGeoAiLayers(customLayers),
+            ...savedLayers.map(l => ({
+              name: l.name,
+              visible: l.visible,
+              source: l.source,
+              data: l.data,
+              arcgisLayerDefinition: (l as { arcgisLayerDefinition?: GeoAiMapLayer['arcgisLayerDefinition'] })
+                .arcgisLayerDefinition,
+            })),
+          ];
+          const weatherAppend = await buildGeoAiFullWeatherSessionAppend({
+            userText: trimmed,
+            pinLngLat: geoAiPinLngLat,
+            lastMapQueryCoords: lastMapQueryCoordsFromSimpleChatHistory(prior),
+            inspectAnchorLngLat:
+              geoAiInspectCard != null ? ([geoAiInspectCard.lng, geoAiInspectCard.lat] as [number, number]) : null,
+            combinedLayers: mergedGeoAiLayers,
+            mapboxAccessToken: mapboxToken || undefined,
+            openWeatherApiKey,
+            mapPopup: null,
+          });
+          const system = `${GEO_AI_CHAT_SYSTEM_BASE}\n\n---\n## Geo AI Copilot mission\n${GEO_AI_COPILOT_RULES}${weatherAppend}\n\n---\nDATA CONTEXT (authoritative for this session turn):\n${dataCtx}`;
           const turns: GeoAiChatTurn[] = prior.map(m => ({ role: m.role, text: m.text }));
           const reply = await claudeGeoAiComplete({
             apiKey,
@@ -3590,7 +3616,16 @@ export default function SatelliteIntelligence() {
       });
       return historyWithUser;
     });
-  }, [claudeApiKey, geoAiDraft, applySatelliteGeoAiMapUi, customLayers]);
+  }, [
+    claudeApiKey,
+    geoAiDraft,
+    applySatelliteGeoAiMapUi,
+    customLayers,
+    mapboxToken,
+    openWeatherApiKey,
+    geoAiPinLngLat,
+    geoAiInspectCard,
+  ]);
 
   const sendGeoDeepseekChat = useCallback(() => {
     const trimmed = geoDeepseekDraft.trim();
@@ -3620,8 +3655,31 @@ export default function SatelliteIntelligence() {
           const dataCtx = await buildGeoAiDataContext(undefined, {
             satelliteLayers: satelliteCustomLayersToGeoAiLayers(customLayers),
           });
-          const system = `${GEO_AI_CHAT_SYSTEM_BASE}\n\n---\nDATA CONTEXT (authoritative for this session turn):\n${dataCtx}`;
           const prior = historyWithUser.slice(0, -1);
+          const savedDs = await loadGisMapSavedLayers();
+          const mergedDsLayers: GeoAiMapLayer[] = [
+            ...satelliteCustomLayersToGeoAiLayers(customLayers),
+            ...savedDs.map(l => ({
+              name: l.name,
+              visible: l.visible,
+              source: l.source,
+              data: l.data,
+              arcgisLayerDefinition: (l as { arcgisLayerDefinition?: GeoAiMapLayer['arcgisLayerDefinition'] })
+                .arcgisLayerDefinition,
+            })),
+          ];
+          const weatherAppendDs = await buildGeoAiFullWeatherSessionAppend({
+            userText: trimmed,
+            pinLngLat: geoAiPinLngLat,
+            lastMapQueryCoords: lastMapQueryCoordsFromSimpleChatHistory(prior),
+            inspectAnchorLngLat:
+              geoAiInspectCard != null ? ([geoAiInspectCard.lng, geoAiInspectCard.lat] as [number, number]) : null,
+            combinedLayers: mergedDsLayers,
+            mapboxAccessToken: mapboxToken || undefined,
+            openWeatherApiKey,
+            mapPopup: null,
+          });
+          const system = `${GEO_AI_CHAT_SYSTEM_BASE}\n\n---\n## Geo AI Copilot mission\n${GEO_AI_COPILOT_RULES}${weatherAppendDs}\n\n---\nDATA CONTEXT (authoritative for this session turn):\n${dataCtx}`;
           const turns: GeoAiChatTurn[] = prior.map(m => ({ role: m.role, text: m.text }));
           const reply = await agroChatWithDeepSeek({
             apiKey,
@@ -3644,7 +3702,16 @@ export default function SatelliteIntelligence() {
       });
       return historyWithUser;
     });
-  }, [deepseekApiKey, geoDeepseekDraft, applySatelliteGeoAiMapUi, customLayers]);
+  }, [
+    deepseekApiKey,
+    geoDeepseekDraft,
+    applySatelliteGeoAiMapUi,
+    customLayers,
+    mapboxToken,
+    openWeatherApiKey,
+    geoAiPinLngLat,
+    geoAiInspectCard,
+  ]);
 
   const onGeoExplorerAttachChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -6699,7 +6766,9 @@ export default function SatelliteIntelligence() {
             <div className="si-layer-action-modal-body">
               {activeLayerActionDialog.mode === 'table' ? (
                 activeLayerColumns.length ? (
-                  <div className="si-layer-action-table-layout si-layer-action-table-layout--gis">
+                  <div
+                    className={`si-layer-action-table-layout si-layer-action-table-layout--gis${tableToolsCollapsed ? ' si-layer-action-table-layout--tools-collapsed' : ''}`}
+                  >
                     <aside
                       className={
                         tableToolsCollapsed

@@ -4,11 +4,11 @@
  */
 
 import { buildGisContentLayersContext } from './geoAiChatClaude'
-import { buildGeoAiWeatherSystemAppend, type GeoAiWeatherPopupRef } from './geoAiWeatherContext'
+import { buildGeoAiFullWeatherSessionAppend, type GeoAiWeatherPopupRef } from './geoAiWeatherContext'
 import { geocodePlaceToLngLat, simplifyGeoExplorerUserQuery, stripLayerReferenceForGeocode } from './geoExplorerGeocode'
 import {
+  GEO_AI_COPILOT_RULES,
   GEO_EXPLORER_LAYER_RULES,
-  GEO_EXPLORER_SESSION_AND_WEATHER,
   GEO_EXPLORER_SYSTEM_PROMPT,
   geminiGenerateContent,
   messagesToGeminiContents,
@@ -134,8 +134,7 @@ export async function runGeoExplorerGeminiTurn(
     resolvedFeatureAppend = `\n\n### RESOLVED LAYER FEATURE (authoritative for this user message)\nThe question matches **one** loaded vector feature. Answer using **only** this JSON for its attributes and treat the centroid as its map location—do not claim this id/code is missing from layers because the one-line "example attributes" sample showed a different row.\n- Layer: ${layerLookup.layerName}\n- Centroid WGS84 (longitude, latitude): ${layerLookup.lng}, ${layerLookup.lat}\n- Attributes:\n${layerLookup.matchSummary}`
   }
 
-  let sessionWeatherBlocks = `\n\n${GEO_EXPLORER_SESSION_AND_WEATHER}`
-  sessionWeatherBlocks += await buildGeoAiWeatherSystemAppend({
+  const sessionWeatherBlocks = await buildGeoAiFullWeatherSessionAppend({
     userText: userTextForMapFallback,
     pinLngLat,
     lastMapQueryCoords,
@@ -147,7 +146,7 @@ export async function runGeoExplorerGeminiTurn(
   })
 
   const tail = extraSystemAppend?.trim() ? `\n\n${extraSystemAppend.trim()}` : ''
-  const systemInstruction = `${GEO_EXPLORER_SYSTEM_PROMPT}\n\n${GEO_EXPLORER_LAYER_RULES}${sessionWeatherBlocks}${resolvedFeatureAppend}\n\n---\n${addedLayersHeading}\n${addedBlock}\n\n${gisBlock}${tail}`
+  const systemInstruction = `${GEO_EXPLORER_SYSTEM_PROMPT}\n\n${GEO_AI_COPILOT_RULES}\n\n${GEO_EXPLORER_LAYER_RULES}${sessionWeatherBlocks}${resolvedFeatureAppend}\n\n---\n${addedLayersHeading}\n${addedBlock}\n\n${gisBlock}${tail}`
 
   let reply = await geminiGenerateContent({
     apiKey,

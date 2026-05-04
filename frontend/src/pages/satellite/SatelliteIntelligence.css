@@ -1981,6 +1981,12 @@
   align-items: stretch;
 }
 
+/* Match first grid track to .gis-table-dock-sidebar.collapsed (52px) — avoids empty gutter when tools are collapsed */
+.si-layer-action-table-layout--gis.si-layer-action-table-layout--tools-collapsed {
+  grid-template-columns: 52px minmax(0, 1fr);
+  gap: 6px;
+}
+
 .si-layer-action-table-layout--gis > .si-layer-action-table-tools.gis-table-dock-sidebar {
   border: none;
   background: transparent;
