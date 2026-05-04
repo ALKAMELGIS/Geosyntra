@@ -839,14 +839,6 @@
   font-variant-numeric: tabular-nums;
 }
 
-.si-env-section-tabs--three {
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-}
-
-.si-env-section-tabs--four {
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-}
-
 .si-env-actions--dual {
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
@@ -1043,89 +1035,9 @@
   filter: saturate(1.06);
 }
 
-.si-layer-modal-overlay {
-  position: fixed;
-  inset: 0;
+/* Add GIS Layer modal: reuse global gis-modal / gis-modal-compact (index.css); keep above map */
+.si-add-layer-gis-overlay.gis-modal-overlay {
   z-index: 12100;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 24px;
-  background: rgba(2, 6, 23, 0.68);
-}
-
-.si-layer-modal {
-  width: min(740px, 100%);
-  border-radius: 20px;
-  border: 1px solid rgba(148, 163, 184, 0.28);
-  background: linear-gradient(180deg, #f8fafc 0%, #f3f6fb 100%);
-  color: #0f172a;
-  box-shadow: 0 26px 70px rgba(2, 6, 23, 0.28);
-  overflow: hidden;
-}
-
-.si-layer-modal-header {
-  padding: 18px 20px 12px;
-  border-bottom: 1px solid rgba(148, 163, 184, 0.24);
-}
-
-.si-layer-modal-header h2 {
-  margin: 0;
-  font-size: 18px;
-  font-weight: 800;
-  letter-spacing: -0.01em;
-}
-
-.si-layer-modal-header p {
-  margin: 7px 0 0;
-  font-size: 11px;
-  line-height: 1.5;
-  color: #64748b;
-}
-
-.si-layer-modal-tabs {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 8px;
-  padding: 10px 12px;
-  background: rgba(241, 245, 249, 0.62);
-  border-bottom: 1px solid rgba(148, 163, 184, 0.2);
-}
-
-.si-layer-modal-tabs button {
-  min-height: 40px;
-  border-radius: 13px;
-  border: 1px solid rgba(148, 163, 184, 0.32);
-  background: #ffffff;
-  color: #334155;
-  font-size: 12px;
-  font-weight: 700;
-  padding: 8px 11px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 7px;
-  transition: border-color 0.16s ease, background-color 0.16s ease, color 0.16s ease;
-}
-
-.si-layer-modal-tabs button.active {
-  color: #065f46;
-  border-color: rgba(34, 197, 94, 0.42);
-  background: linear-gradient(180deg, rgba(34, 197, 94, 0.16), rgba(16, 185, 129, 0.09));
-  box-shadow: 0 6px 14px rgba(16, 185, 129, 0.15);
-}
-
-.si-layer-modal-body {
-  padding: 12px;
-}
-
-.si-layer-modal-form {
-  border: 1px solid rgba(148, 163, 184, 0.2);
-  border-radius: 14px;
-  background: linear-gradient(180deg, #eef2f7 0%, #edf1f6 100%);
-  padding: 12px;
-  display: grid;
-  gap: 10px;
 }
 
 .si-layer-field {
@@ -1145,110 +1057,6 @@
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 10px;
-}
-
-.si-layer-drop-zone {
-  border: 1px dashed rgba(148, 163, 184, 0.7);
-  border-radius: 12px;
-  padding: 20px;
-  display: grid;
-  gap: 8px;
-  place-items: center;
-  text-align: center;
-  color: #475569;
-}
-
-.si-layer-drop-zone i {
-  font-size: 28px;
-}
-
-.si-layer-drop-zone small {
-  color: #64748b;
-}
-
-.si-layer-modal-primary {
-  border-radius: 11px;
-  border: 1px solid rgba(22, 163, 74, 0.55);
-  background: linear-gradient(180deg, #22c55e, #16a34a);
-  color: #f0fdf4;
-  font-size: 12px;
-  font-weight: 800;
-  min-height: 40px;
-}
-
-.si-layer-discover-panel {
-  border: 1px solid rgba(148, 163, 184, 0.35);
-  border-top: 2px solid #4ade80;
-  border-radius: 12px;
-  padding: 10px;
-  background: rgba(255, 255, 255, 0.72);
-  display: grid;
-  gap: 10px;
-}
-
-.si-layer-discover-meta {
-  display: inline-flex;
-  align-items: center;
-  justify-self: start;
-  border: 1px solid rgba(148, 163, 184, 0.45);
-  border-radius: 999px;
-  padding: 4px 9px;
-  font-size: 10px;
-  font-weight: 800;
-  letter-spacing: 0.08em;
-  color: #475569;
-  background: #f8fafc;
-}
-
-.si-layer-discover-row {
-  border: 1px solid rgba(148, 163, 184, 0.35);
-  border-radius: 12px;
-  background: #f8fafc;
-  padding: 10px 12px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-}
-
-.si-layer-discover-row strong {
-  font-size: 16px;
-  color: #0f172a;
-}
-
-.si-layer-discover-add {
-  border: 1px solid rgba(34, 197, 94, 0.65);
-  border-radius: 12px;
-  padding: 7px 14px;
-  background: linear-gradient(180deg, rgba(34, 197, 94, 0.24), rgba(16, 185, 129, 0.18));
-  color: #15803d;
-  font-size: 12px;
-  font-weight: 800;
-}
-
-.si-layer-discover-add:disabled {
-  opacity: 0.55;
-  cursor: not-allowed;
-}
-
-.si-layer-modal-status {
-  margin: 10px 2px 0;
-  font-size: 11px;
-  color: #0f172a;
-}
-
-.si-layer-modal-footer {
-  border-top: 1px solid rgba(148, 163, 184, 0.24);
-  padding: 9px 12px;
-  display: flex;
-  justify-content: flex-end;
-}
-
-.si-layer-modal-cancel {
-  border: none;
-  background: transparent;
-  color: #334155;
-  font-size: 12px;
 }
 
 .si-layer-inline-check {
@@ -1281,23 +1089,16 @@
 }
 
 @media (max-width: 680px) {
-  .si-layer-modal {
-    width: min(96vw, 620px);
-  }
-  .si-layer-modal-header h2 {
-    font-size: 16px;
-  }
-  .si-layer-modal-tabs {
-    grid-template-columns: 1fr;
-  }
   .si-layer-form-grid-2 {
     grid-template-columns: 1fr;
   }
-  .si-layer-discover-row {
+
+  .gis-modal-compact .gis-discovered-row {
     flex-direction: column;
-    align-items: flex-start;
+    align-items: stretch;
   }
-  .si-layer-discover-add {
+
+  .gis-modal-compact .gis-discovered-add {
     width: 100%;
   }
 }
@@ -1711,6 +1512,15 @@
   margin-inline-start: auto;
   margin-inline-end: 14px;
   align-self: flex-end;
+}
+
+/* Layers rail stacked under basemap (left stack): align with globe control column */
+.si-map-left-stack .si-env-rail {
+  align-self: flex-start;
+  margin-inline-start: 0;
+  margin-inline-end: 0;
+  margin-top: 0;
+  justify-content: flex-start;
 }
 
 /* Single definition: avoids 210px vs clamp conflict; flex + scroll fixes internal overlap */
@@ -2452,6 +2262,14 @@
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 7px;
+}
+
+.si-env-section-tabs--three {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.si-env-section-tabs--four {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
 }
 
 .si-env-section-tabs button {
@@ -4473,8 +4291,18 @@ input:checked + .slider:before {
 }
 
 @media (max-width: 520px) {
-  .si-env-panel .si-env-section-tabs {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+  .si-env-panel .si-env-section-tabs.si-env-section-tabs--four {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 4px;
+  }
+
+  .si-env-panel .si-env-section-tabs.si-env-section-tabs--four button {
+    min-height: 36px;
+    border-radius: 10px;
+  }
+
+  .si-env-panel .si-env-section-tabs.si-env-section-tabs--four button i {
+    font-size: 13px;
   }
 }
 
