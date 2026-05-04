@@ -1,4 +1,5 @@
-import React, { useState, useMemo, useRef, useEffect, useCallback } from 'react';
+import React, { useState, useMemo, useRef, useEffect, useLayoutEffect, useCallback } from 'react';
+import type { MapboxEvent } from 'mapbox-gl';
 import MapGL, { Source, Layer, NavigationControl, Popup } from 'react-map-gl/mapbox';
 import 'mapbox-gl/dist/mapbox-gl.css';
 import './SatelliteIntelligence.css';
@@ -1105,7 +1106,8 @@ export default function SatelliteIntelligence() {
     setViewState(prev => {
       const epsLL = 1e-7;
       const epsZoom = 1e-5;
-      const epsAngle = 0.02;
+      /** Globe / mobile can jitter pitch & bearing more than flat Mercator; tighter eps → extra renders → move feedback loops. */
+      const epsAngle = 0.06;
       if (
         Math.abs(prev.longitude - vs.longitude) < epsLL &&
         Math.abs(prev.latitude - vs.latitude) < epsLL &&
@@ -1117,10 +1119,6 @@ export default function SatelliteIntelligence() {
       }
       return { ...vs };
     });
-  }, []);
-
-  const handleMapLoad = useCallback(() => {
-    setIsMapLoaded(true);
   }, []);
 
   const [sentinelWmsRev, setSentinelWmsRev] = useState(0);
@@ -1139,6 +1137,13 @@ export default function SatelliteIntelligence() {
   const [wmsLayer, setWmsLayer] = useState('');
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [isMapLoaded, setIsMapLoaded] = useState(false);
+  const siAliveRef = useRef(true);
+  useEffect(() => {
+    siAliveRef.current = true;
+    return () => {
+      siAliveRef.current = false;
+    };
+  }, []);
   const [customLayers, setCustomLayers] = useState<CustomLayer[]>(() =>
     typeof window !== 'undefined'
       ? parseStoredCustomLayers(localStorage.getItem(LS_SATELLITE_CUSTOM_LAYERS_KEY))
@@ -1502,14 +1507,6 @@ export default function SatelliteIntelligence() {
 
     const pitch = nextIs3D ? Math.max(viewState.pitch || 0, 55) : 0;
     const bearing = viewState.bearing || 0;
-    const projection = nextIs3D ? SAT_MAP_PROJECTION_GLOBE : SAT_MAP_PROJECTION_MERCATOR;
-
-    if (mapInstance && typeof mapInstance.setProjection === 'function') {
-      try {
-        mapInstance.setProjection(projection);
-      } catch {
-      }
-    }
 
     if (mapInstance && typeof mapInstance.easeTo === 'function') {
       mapInstance.easeTo({
@@ -3824,7 +3821,7 @@ export default function SatelliteIntelligence() {
       catalogEntryById(basemapCatalog, activeBasemapId) ??
       catalogEntryById(basemapCatalog, DEFAULT_BASEMAP_ID_NO_MAPBOX)!
     );
-  }, [basemapCatalog, activeBasemapId, mapboxToken]);
+  }, [basemapCatalog, activeBasemapId]);
   /** Stable style reference: raster styles are new objects each call — unstable refs force setStyle every render and trigger "Style is not done loading". */
   const mapStyle = useMemo(
     () =>
@@ -3834,10 +3831,45 @@ export default function SatelliteIntelligence() {
     [currentBasemapEntry, mapboxToken],
   );
 
-  /** Use stable primitives only — `mapStyle` object identity can churn and would re-fire this every render → stack overflow. */
-  useEffect(() => {
+  const mapSurfaceKey = useMemo(
+    () => `${activeBasemapId}|${mapboxToken ? 't' : 'n'}|${currentBasemapEntry?.id ?? ''}`,
+    [activeBasemapId, mapboxToken, currentBasemapEntry?.id],
+  );
+  const mapSurfaceKeyRef = useRef(mapSurfaceKey);
+  /** Sync before paint so we never briefly treat a new Map instance as "loaded" from the previous surface (avoids Mercator↔Globe thrash + move storms). */
+  useLayoutEffect(() => {
+    mapSurfaceKeyRef.current = mapSurfaceKey;
     setIsMapLoaded(false);
-  }, [activeBasemapId, mapboxToken, currentBasemapEntry?.id]);
+  }, [mapSurfaceKey]);
+
+  /** Wait for style + first idle before enabling globe/fog/layers — avoids projection flips during the initial `move` burst (stack overflow on mobile). */
+  const handleMapLoad = useCallback((e: MapboxEvent) => {
+    const map = e.target;
+    const surfaceAtStart = mapSurfaceKeyRef.current;
+    let done = false;
+    let failSafe: ReturnType<typeof setTimeout>;
+    const finish = () => {
+      if (done) return;
+      if (surfaceAtStart !== mapSurfaceKeyRef.current) return;
+      done = true;
+      window.clearTimeout(failSafe);
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          if (!siAliveRef.current || surfaceAtStart !== mapSurfaceKeyRef.current) return;
+          setIsMapLoaded(true);
+        });
+      });
+    };
+    failSafe = window.setTimeout(finish, 12000);
+    const armIdle = () => {
+      map.once('idle', finish);
+    };
+    if (map.isStyleLoaded()) {
+      armIdle();
+    } else {
+      map.once('style.load', armIdle);
+    }
+  }, []);
   const toggleWmsOverlayVisibility = () => setIsWmsOverlayVisible(v => !v);
   const toggleStacThumbVisibility = () => setIsStacThumbVisible(v => !v);
   const currentBasemapLabel = currentBasemapEntry?.label || basemapId || 'Default basemap';
@@ -5290,6 +5322,7 @@ export default function SatelliteIntelligence() {
             </div>
           ) : null}
           <MapGL
+            key={mapSurfaceKey}
             ref={mapRef}
             {...viewState}
             onMove={handleMapMove}
