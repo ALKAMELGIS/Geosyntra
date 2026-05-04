@@ -123,15 +123,22 @@ export function lastMapQueryCoordsFromMessages(messages: GeoExplorerMessage[]): 
 }
 
 /**
- * Prefer 2.5 / 1.5 Flash — do not use gemini-2.0-flash here: many keys show free-tier quota limit 0 for that model.
+ * Stable IDs first (see https://ai.google.dev/gemini-api/docs/models).
+ * Avoid deprecated aliases like `gemini-1.5-flash-latest` — they often return 404 on v1beta.
+ * Do not prefer gemini-2.0-flash early: many keys still show free-tier quota 0 for 2.0 Flash.
  */
 const GEMINI_MODEL_CANDIDATES = [
   'gemini-2.5-flash',
   'gemini-2.5-flash-lite',
+  'gemini-flash-latest',
+  'gemini-2.5-pro',
   'gemini-1.5-flash',
   'gemini-1.5-flash-8b',
-  'gemini-1.5-flash-latest',
+  'gemini-1.5-pro',
 ] as const;
+
+/** Try v1beta first (feature-complete); fall back to v1 when a model id is missing on beta. */
+const GEMINI_API_VERSIONS = ['v1beta', 'v1'] as const;
 
 function isNonRetryableGeminiAuthError(message: string): boolean {
   const m = message.toLowerCase();
@@ -176,32 +183,37 @@ export async function geminiGenerateContent(params: {
   let lastErr = 'Unknown error';
 
   for (const model of GEMINI_MODEL_CANDIDATES) {
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(apiKey)}`;
-    const res = await fetch(url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        systemInstruction: { parts: [{ text: systemInstruction }] },
-        contents,
-      }),
-    });
-    const data = (await res.json().catch(() => ({}))) as any;
-    if (!res.ok) {
-      lastErr = data?.error?.message || res.statusText || `HTTP ${res.status}`;
-      if (isNonRetryableGeminiAuthError(String(lastErr))) throw new Error(lastErr);
-      if (shouldTryNextGeminiModel(res.status, String(lastErr))) continue;
-      throw new Error(lastErr);
+    for (const apiVersion of GEMINI_API_VERSIONS) {
+      const url = `https://generativelanguage.googleapis.com/${apiVersion}/models/${model}:generateContent?key=${encodeURIComponent(apiKey)}`;
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          systemInstruction: { parts: [{ text: systemInstruction }] },
+          contents,
+        }),
+      });
+      const data = (await res.json().catch(() => ({}))) as any;
+      if (!res.ok) {
+        lastErr = data?.error?.message || res.statusText || `HTTP ${res.status}`;
+        if (isNonRetryableGeminiAuthError(String(lastErr))) throw new Error(lastErr);
+        if (shouldTryNextGeminiModel(res.status, String(lastErr))) {
+          /* try next apiVersion or next model */
+          continue;
+        }
+        throw new Error(lastErr);
+      }
+      const text =
+        data?.candidates?.[0]?.content?.parts
+          ?.map((p: { text?: string }) => p.text)
+          .filter(Boolean)
+          .join('') ?? '';
+      if (!text) {
+        lastErr = 'Empty model response';
+        continue;
+      }
+      return text;
     }
-    const text =
-      data?.candidates?.[0]?.content?.parts
-        ?.map((p: { text?: string }) => p.text)
-        .filter(Boolean)
-        .join('') ?? '';
-    if (!text) {
-      lastErr = 'Empty model response';
-      continue;
-    }
-    return text;
   }
 
   const hint =

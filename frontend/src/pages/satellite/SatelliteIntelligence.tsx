@@ -77,9 +77,13 @@ import {
   arcgisDrawingInfoToFillPaint,
   arcgisDrawingInfoToLinePaint,
   fetchArcgisLayerDrawingInfo,
+  fetchArcgisLayerPjson,
   pickRendererPrimaryField,
   sanitizeArcgisDrawingInfoForClient,
+  slimArcgisLayerDefinitionForStorage,
 } from '../../lib/arcgisDrawingInfoMapbox';
+import { buildArcFieldsByLower, getArcDisplayValue, type ArcgisLayerDefLite } from '../../lib/arcgisAttributeDisplay';
+import { FieldVisibilityControl } from './components/FieldVisibilityControl';
 
 const EMPTY_MAP_STYLE: any = {
   version: 8,
@@ -815,6 +819,43 @@ interface CustomLayer {
   arcgisDrawingInfo?: Record<string, unknown> | null;
   /** When true, map uses `arcgisDrawingInfo` instead of a single layer color. */
   useArcGisSymbology?: boolean;
+  /** Fields/types/domains for attribute table (coded-value descriptions). */
+  arcgisLayerDefinition?: ArcgisLayerDefLite | null;
+}
+
+const SI_TABLE_MAX_FEATURES = 10000;
+
+type SiTableSearchMode = 'description' | 'code' | 'both';
+type SiTableFilterOperator = 'contains' | 'equals' | 'not_equals' | 'empty' | 'not_empty';
+
+function siSanitizeTableFileName(name: string) {
+  const trimmed = name.trim() || 'layer';
+  const cleaned = trimmed.replace(/[<>:"/\\|?*\x00-\x1F]/g, '_').replace(/\s+/g, ' ');
+  return cleaned.length > 80 ? cleaned.slice(0, 80).trim() : cleaned;
+}
+
+function siComputeFeatureRowKey(feature: any, idx: number, cache: Map<object, string>): string {
+  if (feature && typeof feature === 'object') {
+    const cached = cache.get(feature);
+    if (cached) return cached;
+  }
+  const direct = feature?.id;
+  if (direct !== null && direct !== undefined && direct !== '') return String(direct);
+  const props = feature?.properties;
+  if (props && typeof props === 'object') {
+    const candidates = ['OBJECTID', 'ObjectId', 'objectid', 'FID', 'fid', 'Id', 'ID', 'id'];
+    for (const k of candidates) {
+      const v = (props as any)[k];
+      if (v !== null && v !== undefined && v !== '') {
+        const key = `${k}:${String(v)}`;
+        if (feature && typeof feature === 'object') cache.set(feature, key);
+        return key;
+      }
+    }
+  }
+  const key = `idx:${idx}`;
+  if (feature && typeof feature === 'object') cache.set(feature, key);
+  return key;
 }
 
 function parseStoredCustomLayers(raw: string | null): CustomLayer[] {
@@ -852,6 +893,10 @@ function parseStoredCustomLayers(raw: string | null): CustomLayer[] {
             : typeof x.useArcGisSymbology === 'boolean'
               ? x.useArcGisSymbology
               : undefined,
+        arcgisLayerDefinition:
+          x.arcgisLayerDefinition && typeof x.arcgisLayerDefinition === 'object'
+            ? (x.arcgisLayerDefinition as ArcgisLayerDefLite)
+            : undefined,
       }));
   } catch {
     return [];
@@ -1455,10 +1500,16 @@ export default function SatelliteIntelligence() {
   const [activeLayerActionDialog, setActiveLayerActionDialog] = useState<null | { mode: 'table' | 'symbology' | 'legend'; layerId: string }>(null);
   const [syncingLayerId, setSyncingLayerId] = useState<string | null>(null);
   const [tableSearchText, setTableSearchText] = useState('');
+  const [tableSearchMode, setTableSearchMode] = useState<SiTableSearchMode>('description');
   const [tableFilterField, setTableFilterField] = useState('');
+  const [tableFilterOperator, setTableFilterOperator] = useState<SiTableFilterOperator>('contains');
   const [tableFilterValue, setTableFilterValue] = useState('');
   const [tableShowSelectedOnly, setTableShowSelectedOnly] = useState(false);
-  const [tableSelectedRowIds, setTableSelectedRowIds] = useState<string[]>([]);
+  const [tableSelectedKeys, setTableSelectedKeys] = useState<Set<string>>(() => new Set());
+  const [tableToolsCollapsed, setTableToolsCollapsed] = useState(false);
+  const [draggingSiTableField, setDraggingSiTableField] = useState<string | null>(null);
+  const [hiddenSiTableFieldsByLayerId, setHiddenSiTableFieldsByLayerId] = useState<Record<string, Set<string>>>({});
+  const [siTableFieldOrderByLayerId, setSiTableFieldOrderByLayerId] = useState<Record<string, string[]>>({});
   const [symbologyDraft, setSymbologyDraft] = useState<LayerSymbologyDraft>({
     useArcGisOnline: false,
     style: 'single',
@@ -1542,6 +1593,7 @@ export default function SatelliteIntelligence() {
   const exploreCatalogSigRef = useRef('');
   const searchRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<any | null>(null);
+  const siTableFeatureKeyCacheRef = useRef<Map<object, string>>(new Map());
   const drawnGeometryRef = useRef<any | null>(null);
   const dragRectCircleRef = useRef<null | { kind: 'rectangle' | 'circle' | 'box_select'; start: [number, number] }>(null);
   const preEditGeomRef = useRef<any | null>(null);
@@ -1810,9 +1862,10 @@ export default function SatelliteIntelligence() {
       const qUrl = `${selectedDiscoveredArcgisUrl}/query?where=1%3D1&outFields=*&returnGeometry=true&f=geojson`;
       const finalUrl = appendTokenIfAny(qUrl, addLayerToken);
       const tokenTrim = addLayerToken.trim() || undefined;
-      const [res, drawingInfoRaw] = await Promise.all([
+      const [res, drawingInfoRaw, pjson] = await Promise.all([
         fetch(finalUrl),
         fetchArcgisLayerDrawingInfo(selectedDiscoveredArcgisUrl, tokenTrim),
+        fetchArcgisLayerPjson(selectedDiscoveredArcgisUrl, tokenTrim),
       ]);
       if (!res.ok) throw new Error(`query failed (${res.status})`);
       const data = await res.json();
@@ -1820,6 +1873,7 @@ export default function SatelliteIntelligence() {
         throw new Error('Service did not return GeoJSON features.');
       }
       const arcgisDrawingInfo = drawingInfoRaw ? sanitizeArcgisDrawingInfoForClient(drawingInfoRaw) : null;
+      const arcgisLayerDefinition = slimArcgisLayerDefinitionForStorage(pjson) ?? null;
       const selectedLayer = discoveredArcgisLayers.find(l => l.url === selectedDiscoveredArcgisUrl);
       const layerTitle = addLayerName.trim() || selectedLayer?.name || deriveArcgisLayerName(selectedDiscoveredArcgisUrl);
       const id = `arcgis-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
@@ -1836,6 +1890,7 @@ export default function SatelliteIntelligence() {
           color: '#22c55e',
           arcgisDrawingInfo,
           useArcGisSymbology: true,
+          arcgisLayerDefinition,
         },
       ]);
       const bounds = getGeoJsonBounds(data);
@@ -1900,8 +1955,12 @@ export default function SatelliteIntelligence() {
       if (data?.type !== 'FeatureCollection' || !Array.isArray(data.features)) {
         throw new Error('Service did not return GeoJSON features.');
       }
-      const drawingInfoRaw = await fetchArcgisLayerDrawingInfo(layer.sourceUrl, layer.authToken);
+      const [drawingInfoRaw, pjson] = await Promise.all([
+        fetchArcgisLayerDrawingInfo(layer.sourceUrl, layer.authToken),
+        fetchArcgisLayerPjson(layer.sourceUrl, layer.authToken),
+      ]);
       const arcgisDrawingInfo = drawingInfoRaw ? sanitizeArcgisDrawingInfoForClient(drawingInfoRaw) : null;
+      const arcgisLayerDefinition = slimArcgisLayerDefinitionForStorage(pjson) ?? layer.arcgisLayerDefinition ?? null;
       setCustomLayers(prev =>
         prev.map(item =>
           item.id === layer.id
@@ -1909,6 +1968,7 @@ export default function SatelliteIntelligence() {
                 ...item,
                 geojson: data,
                 arcgisDrawingInfo: arcgisDrawingInfo ?? item.arcgisDrawingInfo ?? null,
+                arcgisLayerDefinition,
               }
             : item,
         ),
@@ -1933,14 +1993,87 @@ export default function SatelliteIntelligence() {
     features.slice(0, 50).forEach((feature: any) => {
       Object.keys(feature?.properties || {}).forEach(key => names.add(key));
     });
-    return Array.from(names);
+    return Array.from(names).sort((a, b) => a.localeCompare(b));
   }, [activeDialogLayer]);
 
-  const activeLayerRows = useMemo(() => {
-    if (!activeDialogLayer) return [] as Array<Record<string, any>>;
+  const orderedSiTableFields = useMemo(() => {
+    if (!activeDialogLayer) return [] as string[];
+    const order = siTableFieldOrderByLayerId[activeDialogLayer.id] ?? [];
+    return [...order.filter(f => activeLayerColumns.includes(f)), ...activeLayerColumns.filter(f => !order.includes(f))];
+  }, [activeDialogLayer, activeLayerColumns, siTableFieldOrderByLayerId]);
+
+  const activeTableFeatures = useMemo(() => {
+    if (!activeDialogLayer) return [] as any[];
     const features = Array.isArray(activeDialogLayer.geojson?.features) ? activeDialogLayer.geojson.features : [];
-    return features.slice(0, 1000).map((feature: any) => feature?.properties || {});
+    return features.slice(0, SI_TABLE_MAX_FEATURES);
   }, [activeDialogLayer]);
+
+  const arcDefSiTable = useMemo(
+    () => (activeDialogLayer?.source === 'arcgis' ? activeDialogLayer.arcgisLayerDefinition ?? null : null),
+    [activeDialogLayer?.arcgisLayerDefinition, activeDialogLayer?.source],
+  );
+
+  const arcFieldsByLowerSi = useMemo(() => buildArcFieldsByLower(arcDefSiTable), [arcDefSiTable]);
+
+  const visibleSiTableFields = useMemo(() => {
+    if (!activeDialogLayer) return [] as string[];
+    const hidden = hiddenSiTableFieldsByLayerId[activeDialogLayer.id] ?? new Set<string>();
+    return orderedSiTableFields.filter(f => !hidden.has(f));
+  }, [activeDialogLayer, orderedSiTableFields, hiddenSiTableFieldsByLayerId]);
+
+  const siFilteredTableFeatures = useMemo(() => {
+    if (!activeDialogLayer) return [] as any[];
+    const cache = siTableFeatureKeyCacheRef.current;
+    const domainMode = 'description' as const;
+
+    const getAdv = (ft: any, fieldName: string, raw: any) =>
+      getArcDisplayValue(ft, fieldName, raw, arcDefSiTable, arcFieldsByLowerSi, domainMode);
+
+    const getTableSearchText = (ft: any, fieldName: string, mode: SiTableSearchMode) => {
+      const value = getAdv(ft, fieldName, ft?.properties?.[fieldName]);
+      if (mode === 'description') return value.description || value.display || value.code;
+      if (mode === 'code') return value.code;
+      return [value.display, value.description, value.code].filter(Boolean).join(' ');
+    };
+
+    const passesRuleFilter = (ft: any) => {
+      if (!tableFilterField) return true;
+      const haystack = getTableSearchText(ft, tableFilterField, 'both').toLowerCase();
+      const needle = tableFilterValue.trim().toLowerCase();
+      if (tableFilterOperator === 'empty') return haystack.length === 0;
+      if (tableFilterOperator === 'not_empty') return haystack.length > 0;
+      if (!needle) return true;
+      if (tableFilterOperator === 'equals') return haystack === needle;
+      if (tableFilterOperator === 'not_equals') return haystack !== needle;
+      return haystack.includes(needle);
+    };
+
+    const selectedSubset = tableShowSelectedOnly
+      ? activeTableFeatures.filter((ft, idx) => tableSelectedKeys.has(siComputeFeatureRowKey(ft, idx, cache)))
+      : activeTableFeatures;
+
+    const ruleFiltered = selectedSubset.filter(passesRuleFilter);
+
+    const q = tableSearchText.trim().toLowerCase();
+    if (!q) return ruleFiltered;
+    const fields = orderedSiTableFields;
+    return ruleFiltered.filter(ft =>
+      fields.some(fieldName => getTableSearchText(ft, fieldName, tableSearchMode).toLowerCase().includes(q)),
+    );
+  }, [
+    activeDialogLayer,
+    activeTableFeatures,
+    arcDefSiTable,
+    arcFieldsByLowerSi,
+    orderedSiTableFields,
+    tableFilterField,
+    tableFilterOperator,
+    tableFilterValue,
+    tableShowSelectedOnly,
+    tableSearchText,
+    tableSearchMode,
+    tableSelectedKeys,
+  ]);
 
   const arcgisSymbologyLegendRows = useMemo(() => {
     if (!activeDialogLayer?.arcgisDrawingInfo || !symbologyDraft.useArcGisOnline) return [] as Array<{ label: string; color: string }>;
@@ -1978,31 +2111,18 @@ export default function SatelliteIntelligence() {
     return steps.length ? steps : [Math.max(1, cap)];
   }, [arcgisSymbologyRendererCap]);
 
-  const tableRowsFiltered = useMemo(() => {
-    let rows = activeLayerRows.map((row, idx) => ({ row, rowId: `r-${idx}` }));
-    const q = tableSearchText.trim().toLowerCase();
-    if (q) {
-      rows = rows.filter(({ row }) =>
-        activeLayerColumns.some(col => String(row[col] ?? '').toLowerCase().includes(q)),
-      );
-    }
-    if (tableFilterField && tableFilterValue.trim()) {
-      const v = tableFilterValue.trim().toLowerCase();
-      rows = rows.filter(({ row }) => String(row[tableFilterField] ?? '').toLowerCase().includes(v));
-    }
-    if (tableShowSelectedOnly) {
-      rows = rows.filter(({ rowId }) => tableSelectedRowIds.includes(rowId));
-    }
-    return rows;
-  }, [activeLayerRows, activeLayerColumns, tableSearchText, tableFilterField, tableFilterValue, tableShowSelectedOnly, tableSelectedRowIds]);
-
   useEffect(() => {
     if (!activeLayerActionDialog || activeLayerActionDialog.mode !== 'table') return;
+    siTableFeatureKeyCacheRef.current = new Map();
     setTableSearchText('');
+    setTableSearchMode('description');
     setTableFilterField('');
+    setTableFilterOperator('contains');
     setTableFilterValue('');
     setTableShowSelectedOnly(false);
-    setTableSelectedRowIds([]);
+    setTableSelectedKeys(new Set());
+    setTableToolsCollapsed(false);
+    setDraggingSiTableField(null);
   }, [activeLayerActionDialog]);
 
   useEffect(() => {
@@ -2083,12 +2203,90 @@ export default function SatelliteIntelligence() {
     }
   };
 
+  const moveSiTableColumn = (from: string, to: string) => {
+    if (!activeDialogLayer || !from || !to || from === to) return;
+    const current = orderedSiTableFields.slice();
+    const fromIndex = current.indexOf(from);
+    const toIndex = current.indexOf(to);
+    if (fromIndex < 0 || toIndex < 0) return;
+    current.splice(fromIndex, 1);
+    current.splice(toIndex, 0, from);
+    setSiTableFieldOrderByLayerId(prev => ({ ...prev, [activeDialogLayer.id]: current }));
+  };
+
+  const moveSiTableColumnByOffset = (fieldName: string, offset: number) => {
+    if (!activeDialogLayer) return;
+    const current = orderedSiTableFields.slice();
+    const fromIndex = current.indexOf(fieldName);
+    const toIndex = fromIndex + offset;
+    if (fromIndex < 0 || toIndex < 0 || toIndex >= current.length) return;
+    current.splice(fromIndex, 1);
+    current.splice(toIndex, 0, fieldName);
+    setSiTableFieldOrderByLayerId(prev => ({ ...prev, [activeDialogLayer.id]: current }));
+  };
+
+  const renderSiTableHighlightedValue = (text: string) => {
+    const q = tableSearchText.trim();
+    if (!q) return text;
+    const lower = text.toLowerCase();
+    const at = lower.indexOf(q.toLowerCase());
+    if (at < 0) return text;
+    return (
+      <>
+        {text.slice(0, at)}
+        <mark className="gis-table-match">{text.slice(at, at + q.length)}</mark>
+        {text.slice(at + q.length)}
+      </>
+    );
+  };
+
+  const zoomSiTableToSelection = () => {
+    const map = mapRef.current?.getMap?.() ?? mapRef.current;
+    if (!map || !activeDialogLayer) return;
+    const cache = siTableFeatureKeyCacheRef.current;
+    const selectedFeatures = activeTableFeatures.filter((ft, idx) =>
+      tableSelectedKeys.has(siComputeFeatureRowKey(ft, idx, cache)),
+    );
+    if (!selectedFeatures.length) return;
+    const fc = { type: 'FeatureCollection', features: selectedFeatures };
+    const bounds = getGeoJsonBounds(fc);
+    if (!bounds || typeof map.fitBounds !== 'function') return;
+    map.fitBounds(
+      [
+        [bounds[0], bounds[1]],
+        [bounds[2], bounds[3]],
+      ],
+      { padding: 80, duration: 800, maxZoom: 16 },
+    );
+  };
+
+  const siTableGoHome = () => {
+    const map = mapRef.current?.getMap?.() ?? mapRef.current;
+    if (!map || !activeDialogLayer?.geojson) return;
+    const bounds = getGeoJsonBounds(activeDialogLayer.geojson);
+    if (!bounds || typeof map.fitBounds !== 'function') return;
+    map.fitBounds(
+      [
+        [bounds[0], bounds[1]],
+        [bounds[2], bounds[3]],
+      ],
+      { padding: 80, duration: 800 },
+    );
+  };
+
   const exportTableAsCsv = () => {
-    if (!activeLayerColumns.length) return;
-    const header = activeLayerColumns.join(',');
-    const rows = tableRowsFiltered.map(({ row }) =>
-      activeLayerColumns
-        .map(col => `"${String(row[col] ?? '').replace(/"/g, '""')}"`)
+    if (!activeDialogLayer || !visibleSiTableFields.length) return;
+    const domainMode = 'description' as const;
+    const escapeCsv = (value: unknown) => {
+      const text = value === null || value === undefined ? '' : String(value);
+      return /[",\n\r]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
+    };
+    const header = visibleSiTableFields.map(escapeCsv).join(',');
+    const rows = siFilteredTableFeatures.map(ft =>
+      visibleSiTableFields
+        .map(f =>
+          escapeCsv(getArcDisplayValue(ft, f, ft?.properties?.[f], arcDefSiTable, arcFieldsByLowerSi, domainMode).display),
+        )
         .join(','),
     );
     const csv = [header, ...rows].join('\n');
@@ -2096,9 +2294,57 @@ export default function SatelliteIntelligence() {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `${activeDialogLayer?.name || 'layer'}-table.csv`;
+    a.download = `${siSanitizeTableFileName(activeDialogLayer.name)}-descriptions.csv`;
     a.click();
     URL.revokeObjectURL(url);
+  };
+
+  const saveSiTableFormat = () => {
+    if (!activeDialogLayer) return;
+    const payload = {
+      displayMode: 'description' as const,
+      searchMode: tableSearchMode,
+      hiddenFields: Array.from(hiddenSiTableFieldsByLayerId[activeDialogLayer.id] ?? []),
+      fieldOrder: orderedSiTableFields,
+      filter: { field: tableFilterField, operator: tableFilterOperator, value: tableFilterValue },
+    };
+    try {
+      localStorage.setItem(`si-table-format:${activeDialogLayer.id}`, JSON.stringify(payload));
+    } catch {
+      /* ignore */
+    }
+  };
+
+  const applySiTableFormat = () => {
+    if (!activeDialogLayer) return;
+    try {
+      const raw = localStorage.getItem(`si-table-format:${activeDialogLayer.id}`);
+      if (!raw) return;
+      const parsed = JSON.parse(raw);
+      if (parsed?.searchMode === 'description' || parsed?.searchMode === 'code' || parsed?.searchMode === 'both') {
+        setTableSearchMode(parsed.searchMode);
+      }
+      if (Array.isArray(parsed?.hiddenFields)) {
+        setHiddenSiTableFieldsByLayerId(prev => ({
+          ...prev,
+          [activeDialogLayer.id]: new Set(parsed.hiddenFields.map(String)),
+        }));
+      }
+      if (Array.isArray(parsed?.fieldOrder)) {
+        setSiTableFieldOrderByLayerId(prev => ({ ...prev, [activeDialogLayer.id]: parsed.fieldOrder.map(String) }));
+      }
+      if (parsed?.filter && typeof parsed.filter === 'object') {
+        setTableFilterField(typeof parsed.filter.field === 'string' ? parsed.filter.field : '');
+        setTableFilterOperator(
+          ['contains', 'equals', 'not_equals', 'empty', 'not_empty'].includes(parsed.filter.operator)
+            ? parsed.filter.operator
+            : 'contains',
+        );
+        setTableFilterValue(typeof parsed.filter.value === 'string' ? parsed.filter.value : '');
+      }
+    } catch {
+      /* ignore */
+    }
   };
 
   const handleLayerActionClick = async (
@@ -6422,7 +6668,10 @@ export default function SatelliteIntelligence() {
             if (e.target === e.currentTarget) setActiveLayerActionDialog(null);
           }}
         >
-          <div className="si-layer-action-modal" onMouseDown={e => e.stopPropagation()}>
+          <div
+            className={`si-layer-action-modal${activeLayerActionDialog.mode === 'table' ? ' si-layer-action-modal--gis-table' : ''}`}
+            onMouseDown={e => e.stopPropagation()}
+          >
             <div className="si-layer-action-modal-header">
               <h3 id="si-layer-action-title" className={activeLayerActionDialog.mode === 'symbology' ? 'si-styles-modal-title-h' : undefined}>
                 {activeLayerActionDialog.mode === 'symbology' ? (
@@ -6433,7 +6682,12 @@ export default function SatelliteIntelligence() {
                     <span>Styles - {activeDialogLayer.name}</span>
                   </>
                 ) : activeLayerActionDialog.mode === 'table' ? (
-                  `Table - ${activeDialogLayer.name}`
+                  <>
+                    <span className="si-layer-action-modal-table-title" aria-hidden>
+                      <i className="fa-solid fa-table" />
+                    </span>
+                    <span>Table — {activeDialogLayer.name}</span>
+                  </>
                 ) : (
                   `Legend - ${activeDialogLayer.name}`
                 )}
@@ -6445,67 +6699,362 @@ export default function SatelliteIntelligence() {
             <div className="si-layer-action-modal-body">
               {activeLayerActionDialog.mode === 'table' ? (
                 activeLayerColumns.length ? (
-                  <div className="si-layer-action-table-layout">
-                    <aside className="si-layer-action-table-tools">
-                      <button type="button" onClick={() => setTableShowSelectedOnly(false)}><i className="fa-solid fa-house" /> Home</button>
-                      <button type="button" onClick={() => setTableSelectedRowIds([])}><i className="fa-solid fa-eraser" /> Clear selection</button>
-                      <button type="button" onClick={() => setTableShowSelectedOnly(true)}><i className="fa-solid fa-filter" /> Show selected</button>
-                      <button type="button" onClick={() => setTableShowSelectedOnly(false)}><i className="fa-solid fa-list" /> Show all</button>
-                      <button type="button" onClick={() => setTableSearchText('')}><i className="fa-solid fa-rotate-right" /> Refresh</button>
-                      <button type="button" onClick={exportTableAsCsv}><i className="fa-solid fa-file-csv" /> Export CSV</button>
+                  <div className="si-layer-action-table-layout si-layer-action-table-layout--gis">
+                    <aside
+                      className={
+                        tableToolsCollapsed
+                          ? 'gis-table-dock-sidebar collapsed si-layer-action-table-tools'
+                          : 'gis-table-dock-sidebar si-layer-action-table-tools'
+                      }
+                      aria-label="Table tools"
+                    >
+                      <button
+                        className="gis-table-toolbtn"
+                        type="button"
+                        onClick={() => void zoomSiTableToSelection()}
+                        disabled={tableSelectedKeys.size === 0}
+                        title="Zoom to selection"
+                      >
+                        <i className="fa-solid fa-magnifying-glass-plus" aria-hidden />
+                        <span className="gis-table-tooltext">Zoom to selection</span>
+                      </button>
+                      <button className="gis-table-toolbtn" type="button" onClick={siTableGoHome} title="Home">
+                        <i className="fa-solid fa-house" aria-hidden />
+                        <span className="gis-table-tooltext">Home</span>
+                      </button>
+                      <div className="gis-table-toolsep" role="separator" />
+                      <button
+                        className="gis-table-toolbtn"
+                        type="button"
+                        onClick={() => setTableSelectedKeys(new Set())}
+                        disabled={tableSelectedKeys.size === 0}
+                        title="Clear selection"
+                      >
+                        <i className="fa-solid fa-eraser" aria-hidden />
+                        <span className="gis-table-tooltext">Clear selection</span>
+                      </button>
+                      <button
+                        className="gis-table-toolbtn"
+                        type="button"
+                        onClick={() => setTableShowSelectedOnly(true)}
+                        disabled={tableSelectedKeys.size === 0}
+                        title="Show selected"
+                      >
+                        <i className="fa-solid fa-filter" aria-hidden />
+                        <span className="gis-table-tooltext">Show selected</span>
+                      </button>
+                      <button
+                        className="gis-table-toolbtn"
+                        type="button"
+                        onClick={() => setTableShowSelectedOnly(false)}
+                        disabled={!tableShowSelectedOnly}
+                        title="Show all"
+                      >
+                        <i className="fa-solid fa-list" aria-hidden />
+                        <span className="gis-table-tooltext">Show all</span>
+                      </button>
+                      <div className="gis-table-toolsep" role="separator" />
+                      <button
+                        className="gis-table-toolbtn"
+                        type="button"
+                        onClick={() => void refreshArcgisLayer(activeDialogLayer)}
+                        disabled={
+                          activeDialogLayer.source !== 'arcgis' ||
+                          !activeDialogLayer.sourceUrl?.trim() ||
+                          syncingLayerId === activeDialogLayer.id
+                        }
+                        title="Refresh"
+                      >
+                        <i className="fa-solid fa-rotate-right" aria-hidden />
+                        <span className="gis-table-tooltext">{syncingLayerId === activeDialogLayer.id ? 'Refreshing…' : 'Refresh'}</span>
+                      </button>
+                      <div className="gis-table-toolsep" role="separator" />
+                      <button className="gis-table-toolbtn" type="button" onClick={exportTableAsCsv} title="Export CSV">
+                        <i className="fa-solid fa-file-export" aria-hidden />
+                        <span className="gis-table-tooltext">Export CSV</span>
+                      </button>
+                      <button className="gis-table-toolbtn" type="button" onClick={saveSiTableFormat} title="Save format">
+                        <i className="fa-solid fa-floppy-disk" aria-hidden />
+                        <span className="gis-table-tooltext">Save format</span>
+                      </button>
+                      <button className="gis-table-toolbtn" type="button" onClick={applySiTableFormat} title="Apply format">
+                        <i className="fa-solid fa-layer-group" aria-hidden />
+                        <span className="gis-table-tooltext">Apply format</span>
+                      </button>
+                      <button
+                        className="gis-table-toolbtn"
+                        type="button"
+                        onClick={() => setTableToolsCollapsed(v => !v)}
+                        aria-expanded={!tableToolsCollapsed}
+                        title={tableToolsCollapsed ? 'Expand tools' : 'Collapse tools'}
+                      >
+                        <i className={tableToolsCollapsed ? 'fa-solid fa-angles-right' : 'fa-solid fa-angles-left'} aria-hidden />
+                        <span className="gis-table-tooltext">{tableToolsCollapsed ? 'Expand' : 'Collapse'}</span>
+                      </button>
                     </aside>
-                    <div className="si-layer-action-table-main">
-                      <div className="si-layer-action-table-filters">
-                        <input
-                          type="text"
-                          className="gis-input"
-                          placeholder="Search all fields..."
-                          value={tableSearchText}
-                          onChange={e => setTableSearchText(e.target.value)}
-                        />
-                        <select className="gis-input" value={tableFilterField} onChange={e => setTableFilterField(e.target.value)}>
-                          <option value="">All fields</option>
-                          {activeLayerColumns.map(col => (
-                            <option key={col} value={col}>{col}</option>
-                          ))}
-                        </select>
-                        <input
-                          type="text"
-                          className="gis-input"
-                          placeholder="Filter value..."
-                          value={tableFilterValue}
-                          onChange={e => setTableFilterValue(e.target.value)}
-                        />
+                    <div className="si-layer-action-table-main gis-layer-table-wrap gis-table-dock-table">
+                      <div className="gis-table-dock-header si-table-modal-subheader">
+                        <div className="gis-table-dock-meta si-table-modal-meta">
+                          {activeTableFeatures.length} record{activeTableFeatures.length === 1 ? '' : 's'}, {tableSelectedKeys.size} selected
+                        </div>
+                      </div>
+                      <div className="gis-layer-table-meta">
+                        <div className="gis-layer-table-metatext">
+                          {tableShowSelectedOnly ? `Showing selected: ${siFilteredTableFeatures.length}` : `Showing ${siFilteredTableFeatures.length}`}{' '}
+                          of {activeTableFeatures.length} feature(s)
+                          {activeTableFeatures.length >= SI_TABLE_MAX_FEATURES ? ` (first ${SI_TABLE_MAX_FEATURES} loaded)` : ''}
+                        </div>
+                        <div className="gis-table-controls">
+                          <label className="gis-table-domain-toggle">
+                            <span>Search mode</span>
+                            <select
+                              value={tableSearchMode}
+                              onChange={e => setTableSearchMode(e.target.value as SiTableSearchMode)}
+                              aria-label="Table search mode"
+                            >
+                              <option value="description">Description</option>
+                              <option value="code">Code</option>
+                              <option value="both">Both</option>
+                            </select>
+                          </label>
+                          <label className="gis-table-search">
+                            <i className="fa-solid fa-magnifying-glass" aria-hidden />
+                            <input
+                              value={tableSearchText}
+                              onChange={e => setTableSearchText(e.target.value)}
+                              placeholder={
+                                tableSearchMode === 'code'
+                                  ? 'Search codes...'
+                                  : tableSearchMode === 'both'
+                                    ? 'Search descriptions or codes...'
+                                    : 'Search descriptions...'
+                              }
+                              aria-label="Search table"
+                            />
+                          </label>
+                        </div>
+                      </div>
+                      <div className="gis-table-advanced-controls" aria-label="Advanced table filter">
+                        <label>
+                          <span>Filter field</span>
+                          <select value={tableFilterField} onChange={e => setTableFilterField(e.target.value)}>
+                            <option value="">All records</option>
+                            {orderedSiTableFields.map(f => (
+                              <option key={f} value={f}>
+                                {f}
+                              </option>
+                            ))}
+                          </select>
+                        </label>
+                        <label>
+                          <span>Rule</span>
+                          <select
+                            value={tableFilterOperator}
+                            onChange={e => setTableFilterOperator(e.target.value as SiTableFilterOperator)}
+                          >
+                            <option value="contains">Contains</option>
+                            <option value="equals">Equals</option>
+                            <option value="not_equals">Not equals</option>
+                            <option value="empty">Is empty</option>
+                            <option value="not_empty">Is not empty</option>
+                          </select>
+                        </label>
+                        <label>
+                          <span>Value</span>
+                          <input
+                            value={tableFilterValue}
+                            onChange={e => setTableFilterValue(e.target.value)}
+                            disabled={tableFilterOperator === 'empty' || tableFilterOperator === 'not_empty'}
+                            placeholder="Filter value"
+                          />
+                        </label>
+                        <button
+                          className="gis-table-filter-clear"
+                          type="button"
+                          onClick={() => {
+                            setTableFilterField('');
+                            setTableFilterOperator('contains');
+                            setTableFilterValue('');
+                          }}
+                        >
+                          Clear filter
+                        </button>
                       </div>
                       <div className="si-layer-action-table-wrap">
-                        <table className="si-layer-action-table">
+                        <table className="gis-layer-table si-layer-action-table">
                           <thead>
                             <tr>
-                              <th />
-                              {activeLayerColumns.map(col => (
-                                <th key={col}>{col}</th>
+                              <th className="gis-layer-table-select">
+                                <input
+                                  type="checkbox"
+                                  aria-label="Select all rows"
+                                  checked={
+                                    siFilteredTableFeatures.length > 0 &&
+                                    siFilteredTableFeatures.every(ft => {
+                                      const idx = activeTableFeatures.indexOf(ft);
+                                      if (idx < 0) return false;
+                                      return tableSelectedKeys.has(
+                                        siComputeFeatureRowKey(ft, idx, siTableFeatureKeyCacheRef.current),
+                                      );
+                                    })
+                                  }
+                                  onChange={() => {
+                                    const cache = siTableFeatureKeyCacheRef.current;
+                                    const keysOnScreen = siFilteredTableFeatures
+                                      .map(ft => {
+                                        const idx = activeTableFeatures.indexOf(ft);
+                                        return idx >= 0 ? siComputeFeatureRowKey(ft, idx, cache) : '';
+                                      })
+                                      .filter(Boolean);
+                                    const everySel =
+                                      keysOnScreen.length > 0 && keysOnScreen.every(k => tableSelectedKeys.has(k));
+                                    setTableSelectedKeys(prev => {
+                                      const next = new Set(prev);
+                                      if (everySel) keysOnScreen.forEach(k => next.delete(k));
+                                      else keysOnScreen.forEach(k => next.add(k));
+                                      return next;
+                                    });
+                                  }}
+                                />
+                              </th>
+                              {visibleSiTableFields.map(f => (
+                                <th
+                                  key={f}
+                                  draggable
+                                  className={draggingSiTableField === f ? 'gis-table-column-dragging' : undefined}
+                                  title="Drag to reorder column"
+                                  onDragStart={e => {
+                                    setDraggingSiTableField(f);
+                                    e.dataTransfer.effectAllowed = 'move';
+                                    e.dataTransfer.setData('text/plain', f);
+                                  }}
+                                  onDragOver={e => {
+                                    e.preventDefault();
+                                    e.dataTransfer.dropEffect = 'move';
+                                  }}
+                                  onDrop={e => {
+                                    e.preventDefault();
+                                    moveSiTableColumn(e.dataTransfer.getData('text/plain') || draggingSiTableField || '', f);
+                                    setDraggingSiTableField(null);
+                                  }}
+                                  onDragEnd={() => setDraggingSiTableField(null)}
+                                >
+                                  <span className="gis-table-column-label">
+                                    <i className="fa-solid fa-grip-vertical" aria-hidden />
+                                    {f}
+                                    <span className="gis-table-column-actions">
+                                      <button
+                                        type="button"
+                                        onClick={() => moveSiTableColumnByOffset(f, -1)}
+                                        disabled={orderedSiTableFields.indexOf(f) <= 0}
+                                        aria-label={`Move ${f} column left`}
+                                        title="Move left"
+                                      >
+                                        <i className="fa-solid fa-chevron-left" aria-hidden />
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={() => moveSiTableColumnByOffset(f, 1)}
+                                        disabled={orderedSiTableFields.indexOf(f) >= orderedSiTableFields.length - 1}
+                                        aria-label={`Move ${f} column right`}
+                                        title="Move right"
+                                      >
+                                        <i className="fa-solid fa-chevron-right" aria-hidden />
+                                      </button>
+                                    </span>
+                                  </span>
+                                </th>
                               ))}
+                              <th className="gis-layer-table-actions" aria-label="Actions" />
+                              <th className="gis-layer-table-fieldvis" aria-label="Field visibility">
+                                <FieldVisibilityControl
+                                  layerId={activeDialogLayer.id}
+                                  fields={orderedSiTableFields}
+                                  hiddenFields={hiddenSiTableFieldsByLayerId[activeDialogLayer.id] ?? new Set()}
+                                  onChangeHiddenFields={next =>
+                                    setHiddenSiTableFieldsByLayerId(prev => ({ ...prev, [activeDialogLayer.id]: next }))
+                                  }
+                                />
+                              </th>
                             </tr>
                           </thead>
                           <tbody>
-                            {tableRowsFiltered.map(({ row, rowId }) => (
-                              <tr key={rowId}>
-                                <td>
-                                  <input
-                                    type="checkbox"
-                                    checked={tableSelectedRowIds.includes(rowId)}
-                                    onChange={e => {
-                                      setTableSelectedRowIds(prev =>
-                                        e.target.checked ? [...prev, rowId] : prev.filter(id => id !== rowId),
-                                      );
-                                    }}
-                                  />
-                                </td>
-                                {activeLayerColumns.map(col => (
-                                  <td key={`${rowId}-${col}`}>{String(row[col] ?? '')}</td>
-                                ))}
-                              </tr>
-                            ))}
+                            {siFilteredTableFeatures.map(ft => {
+                              const idx = activeTableFeatures.indexOf(ft);
+                              const rowKey =
+                                idx >= 0 ? siComputeFeatureRowKey(ft, idx, siTableFeatureKeyCacheRef.current) : '';
+                              const isSel = rowKey ? tableSelectedKeys.has(rowKey) : false;
+                              return (
+                                <tr key={rowKey || JSON.stringify(ft?.properties ?? {})} className={isSel ? 'gis-row-selected' : undefined}>
+                                  <td className="gis-layer-table-select">
+                                    <input
+                                      type="checkbox"
+                                      aria-label="Select row"
+                                      checked={isSel}
+                                      disabled={!rowKey}
+                                      onChange={() => {
+                                        if (!rowKey) return;
+                                        setTableSelectedKeys(prev => {
+                                          const next = new Set(prev);
+                                          if (next.has(rowKey)) next.delete(rowKey);
+                                          else next.add(rowKey);
+                                          return next;
+                                        });
+                                      }}
+                                    />
+                                  </td>
+                                  {visibleSiTableFields.map(f => {
+                                    const v = ft?.properties?.[f];
+                                    const out = getArcDisplayValue(ft, f, v, arcDefSiTable, arcFieldsByLowerSi, 'description');
+                                    return (
+                                      <td key={f} title={out.title}>
+                                        <span
+                                          className={[
+                                            'gis-domain-cell',
+                                            out.missingDescription ? 'missing-description' : '',
+                                          ]
+                                            .filter(Boolean)
+                                            .join(' ')}
+                                        >
+                                          {out.missingDescription ? (
+                                            <i className="fa-solid fa-triangle-exclamation" aria-hidden title="No domain description" />
+                                          ) : null}
+                                          {renderSiTableHighlightedValue(out.display)}
+                                        </span>
+                                      </td>
+                                    );
+                                  })}
+                                  <td className="gis-layer-table-actions">
+                                    <button
+                                      className="gis-table-rowbtn"
+                                      type="button"
+                                      aria-label="Zoom to feature"
+                                      title="Zoom to feature"
+                                      onClick={() => {
+                                        const map = mapRef.current?.getMap?.() ?? mapRef.current;
+                                        if (!map || !ft?.geometry) return;
+                                        const b = getGeoJsonBounds({
+                                          type: 'Feature',
+                                          geometry: ft.geometry,
+                                          properties: {},
+                                        });
+                                        if (!b || typeof map.fitBounds !== 'function') return;
+                                        map.fitBounds(
+                                          [
+                                            [b[0], b[1]],
+                                            [b[2], b[3]],
+                                          ],
+                                          { padding: 120, duration: 600, maxZoom: 17 },
+                                        );
+                                      }}
+                                    >
+                                      <i className="fa-solid fa-crosshairs" aria-hidden />
+                                    </button>
+                                  </td>
+                                  <td className="gis-layer-table-fieldvis" aria-hidden />
+                                </tr>
+                              );
+                            })}
                           </tbody>
                         </table>
                       </div>
