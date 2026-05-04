@@ -4236,37 +4236,6 @@ export default function GisMap() {
               </nav>
             ) : null}
             <div className="gis-sidebar-column">
-          {!dockMapToolInSidebar ? (
-            <div className="gis-sidebar-header">
-              <div className="gis-sidebar-title">
-                <i className="fa-solid fa-layer-group" aria-hidden="true" />
-                <span>Layers</span>
-              </div>
-              <div className="gis-sidebar-actions" aria-label="Sidebar actions">
-                {!showDesktopGisRail ? (
-                  <button
-                    className="gis-addlayer-btn gis-addlayer-btn--icon-only"
-                    type="button"
-                    onClick={() => openAddLayerModal()}
-                    aria-label="Add layer"
-                    title="Add layer"
-                  >
-                    <i className="fa-solid fa-plus" aria-hidden="true" />
-                  </button>
-                ) : null}
-                <button
-                  className="gis-sidebar-close"
-                  type="button"
-                  onClick={() => setSidebarOpen(false)}
-                  aria-label="Close GIS Layers"
-                  title="Close"
-                >
-                  <i className="fa-solid fa-xmark" aria-hidden="true" />
-                </button>
-              </div>
-            </div>
-          ) : null}
-
           <div
             className={['gis-sidebar-body', dockMapToolInSidebar ? 'gis-sidebar-body--tool-dock' : '']
               .filter(Boolean)
