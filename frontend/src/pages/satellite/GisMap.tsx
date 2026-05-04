@@ -465,6 +465,8 @@ export default function GisMap() {
   const [layersPanelCollapsed, setLayersPanelCollapsed] = useState(false)
   /** ArcGIS rail: hide white action column only; toolbar rail stays visible. */
   const [agolContentColumnOpen, setAgolContentColumnOpen] = useState(true)
+  const agolContentColumnOpenRef = useRef(agolContentColumnOpen)
+  agolContentColumnOpenRef.current = agolContentColumnOpen
   const [isAddOpen, setIsAddOpen] = useState(false)
   const [activeMapTool, setActiveMapTool] = useState<GisMapToolPanel>(null)
   const [mapToolbarCollapsed, setMapToolbarCollapsed] = useState(false)
@@ -532,6 +534,8 @@ export default function GisMap() {
   const [tableDockCollapsed, setTableDockCollapsed] = useState(false)
   const [tableDockMinimized, setTableDockMinimized] = useState(false)
   const [tableToolsCollapsed, setTableToolsCollapsed] = useState(true)
+  const [tablesAddMenuOpen, setTablesAddMenuOpen] = useState(false)
+  const tablesAddMenuRef = useRef<HTMLDivElement | null>(null)
   const [showSelectedOnly, setShowSelectedOnly] = useState(false)
   /** Coded domains / subtype fields: always show descriptions in the attribute table. */
   const tableDomainDisplayMode: TableDomainDisplayMode = 'description'
@@ -617,6 +621,27 @@ export default function GisMap() {
     setUploadFile(null)
     setRemoteDataUrl('')
   }, [])
+
+  useEffect(() => {
+    if (!tablesAddMenuOpen) return
+    const onDocMouseDown = (e: MouseEvent) => {
+      const el = tablesAddMenuRef.current
+      if (el && !el.contains(e.target as Node)) setTablesAddMenuOpen(false)
+    }
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setTablesAddMenuOpen(false)
+    }
+    document.addEventListener('mousedown', onDocMouseDown)
+    window.addEventListener('keydown', onKey)
+    return () => {
+      document.removeEventListener('mousedown', onDocMouseDown)
+      window.removeEventListener('keydown', onKey)
+    }
+  }, [tablesAddMenuOpen])
+
+  useEffect(() => {
+    if (activeMapTool !== 'table') setTablesAddMenuOpen(false)
+  }, [activeMapTool])
 
   const orderedLayers = useMemo(() => [...layers].reverse(), [layers])
 
@@ -921,7 +946,10 @@ export default function GisMap() {
 
   const toggleMapTool = (tool: NonNullable<GisMapToolPanel>) => {
     setAgolContentColumnOpen(true)
-    setActiveMapTool(prev => (prev === tool ? null : tool))
+    setActiveMapTool(prev => {
+      if (prev === tool && agolContentColumnOpenRef.current) return null
+      return tool
+    })
   }
 
   const zoomMap = (direction: 'in' | 'out') => {
@@ -3620,11 +3648,9 @@ export default function GisMap() {
   }
   const dockMapToolInSidebar = Boolean(showDesktopGisRail && agolContentColumnOpen && activeMapTool)
 
+  /** Collapse only the white action column; keep `gis-sidebar-v-toolbar` rail and optional active tool state. */
   const closeAgolActionPane = () => {
-    setActiveMapTool(null)
-    if (showDesktopGisRail) {
-      setAgolContentColumnOpen(false)
-    }
+    if (showDesktopGisRail) setAgolContentColumnOpen(false)
   }
 
   const mapToolPanelEl = activeMapTool ? (
@@ -3789,32 +3815,138 @@ export default function GisMap() {
           </div>
         ) : activeMapTool === 'table' ? (
           <div className="gis-tool-table-picker">
-            <p className="gis-tool-muted">Choose a layer to open its attribute table in the dock below.</p>
-            {tableCapableLayers.length ? (
-              <div className="gis-tool-list">
-                {tableCapableLayers.map(layer => (
+            {tableCapableLayers.length === 0 ? (
+              <div className="gis-tables-agol-empty">
+                <div className="gis-tables-agol-empty__icon" aria-hidden="true">
+                  <i className="fa-solid fa-table" />
+                </div>
+                <div className="gis-tables-agol-empty__message">
+                  Add tables to your map and they will appear here.
+                </div>
+                <div className="gis-tables-agol-add" ref={tablesAddMenuRef}>
                   <button
-                    key={String(layer.id)}
                     type="button"
-                    className="gis-tool-list-row gis-tool-list-row--action"
-                    onClick={() => {
-                      setActiveMapTool(null)
-                      setTableDockCollapsed(false)
-                      setTableDockMinimized(false)
-                      setLayerDialog({ mode: 'table', layerId: String(layer.id) })
-                    }}
+                    className="gis-tables-agol-add__btn"
+                    aria-haspopup="menu"
+                    aria-expanded={tablesAddMenuOpen}
+                    onClick={() => setTablesAddMenuOpen(v => !v)}
                   >
-                    <span className="gis-tool-swatch" style={{ background: layer.color || '#22c55e' }} aria-hidden="true" />
-                    <span className="gis-tool-row-main">
-                      <strong>{layer.name}</strong>
-                      <small>Open attribute table</small>
-                    </span>
-                    <i className="fa-solid fa-table-cells" aria-hidden="true" />
+                    <i className="fa-solid fa-table" aria-hidden="true" />
+                    <span>Add</span>
+                    <i className={`fa-solid fa-chevron-down${tablesAddMenuOpen ? ' gis-tables-agol-add__chev--open' : ''}`} aria-hidden="true" />
                   </button>
-                ))}
+                  {tablesAddMenuOpen ? (
+                    <div className="gis-tables-agol-add__menu" role="menu">
+                      <button
+                        type="button"
+                        className="gis-tables-agol-add__menu-item"
+                        role="menuitem"
+                        onClick={() => {
+                          setTablesAddMenuOpen(false)
+                          openAddLayerModal('arcgis')
+                        }}
+                      >
+                        <i className="fa-solid fa-magnifying-glass" aria-hidden="true" />
+                        <span>Browse tables</span>
+                      </button>
+                      <button
+                        type="button"
+                        className="gis-tables-agol-add__menu-item"
+                        role="menuitem"
+                        onClick={() => {
+                          setTablesAddMenuOpen(false)
+                          openAddLayerModal('url')
+                        }}
+                      >
+                        <i className="fa-solid fa-globe" aria-hidden="true" />
+                        <span>Add from URL</span>
+                      </button>
+                    </div>
+                  ) : null}
+                </div>
               </div>
             ) : (
-              <div className="gis-tool-empty">No layers with a feature attribute table are available.</div>
+              <>
+                <div className="gis-tables-agol-empty gis-tables-agol-empty--compact">
+                  <div className="gis-tables-agol-empty__icon gis-tables-agol-empty__icon--sm" aria-hidden="true">
+                    <i className="fa-solid fa-table" />
+                  </div>
+                  <div className="gis-tables-agol-empty__message gis-tables-agol-empty__message--inline">
+                    Add tables to your map and they will appear here.
+                  </div>
+                  <div className="gis-tables-agol-add" ref={tablesAddMenuRef}>
+                    <button
+                      type="button"
+                      className="gis-tables-agol-add__btn"
+                      aria-haspopup="menu"
+                      aria-expanded={tablesAddMenuOpen}
+                      onClick={() => setTablesAddMenuOpen(v => !v)}
+                    >
+                      <i className="fa-solid fa-table" aria-hidden="true" />
+                      <span>Add</span>
+                      <i className={`fa-solid fa-chevron-down${tablesAddMenuOpen ? ' gis-tables-agol-add__chev--open' : ''}`} aria-hidden="true" />
+                    </button>
+                    {tablesAddMenuOpen ? (
+                      <div className="gis-tables-agol-add__menu" role="menu">
+                        <button
+                          type="button"
+                          className="gis-tables-agol-add__menu-item"
+                          role="menuitem"
+                          onClick={() => {
+                            setTablesAddMenuOpen(false)
+                            openAddLayerModal('arcgis')
+                          }}
+                        >
+                          <i className="fa-solid fa-magnifying-glass" aria-hidden="true" />
+                          <span>Browse tables</span>
+                        </button>
+                        <button
+                          type="button"
+                          className="gis-tables-agol-add__menu-item"
+                          role="menuitem"
+                          onClick={() => {
+                            setTablesAddMenuOpen(false)
+                            openAddLayerModal('url')
+                          }}
+                        >
+                          <i className="fa-solid fa-globe" aria-hidden="true" />
+                          <span>Add from URL</span>
+                        </button>
+                      </div>
+                    ) : null}
+                  </div>
+                </div>
+                <p className="gis-tables-agol-caption">Choose a layer to open its attribute table in the dock below.</p>
+                <div className="gis-tool-list gis-tables-agol-layer-list">
+                  {tableCapableLayers.map(layer => {
+                    const fc = (layer.data as any)?.features
+                    const n = Array.isArray(fc) ? fc.length : 0
+                    return (
+                      <button
+                        key={String(layer.id)}
+                        type="button"
+                        className="gis-tables-agol-layer-row"
+                        onClick={() => {
+                          setTablesAddMenuOpen(false)
+                          setActiveMapTool(null)
+                          setTableDockCollapsed(false)
+                          setTableDockMinimized(false)
+                          setLayerDialog({ mode: 'table', layerId: String(layer.id) })
+                        }}
+                      >
+                        <span className="gis-tables-agol-layer-row__dot" style={{ background: layer.color || '#22c55e' }} aria-hidden="true" />
+                        <span className="gis-tables-agol-layer-row__main">
+                          <strong>{layer.name}</strong>
+                          <small>
+                            {n} record{n === 1 ? '' : 's'} · attribute table
+                          </small>
+                        </span>
+                        <i className="fa-solid fa-table-cells gis-tables-agol-layer-row__icon" aria-hidden="true" />
+                      </button>
+                    )
+                  })}
+                </div>
+              </>
             )}
           </div>
         ) : activeMapTool === 'bookmarks' ? (
@@ -4326,8 +4458,8 @@ export default function GisMap() {
                     type="button"
                     className="gis-sidebar-action-pane__close"
                     onClick={closeAgolActionPane}
-                    aria-label="Close panel"
-                    title="Close"
+                    aria-label="Hide details column (toolbar stays open)"
+                    title="Hide panel"
                   >
                     <i className="fa-solid fa-xmark" aria-hidden="true" />
                   </button>
@@ -5014,7 +5146,7 @@ export default function GisMap() {
           {projectionToast}
         </div>
 
-        {!dockMapToolInSidebar ? mapToolPanelEl : null}
+        {!dockMapToolInSidebar && (!showDesktopGisRail || agolContentColumnOpen) ? mapToolPanelEl : null}
 
         {drawingEditorOpen ? (
           <div className="gis-modal-overlay" role="presentation" onClick={() => closeDrawingEditor()}>

@@ -89,6 +89,7 @@ const EMPTY_MAP_STYLE: any = {
 };
 const PC_STAC_SEARCH_URL = 'https://planetarycomputer.microsoft.com/api/stac/v1/search';
 const STAC_CONNECTION_STORAGE_KEY = 'si-stac-connection-v1';
+const SATELLITE_CUSTOM_LAYERS_STORAGE_KEY = 'si-satellite-custom-layers-v1';
 
 type GeoAiInspectCardState = {
   title: string;
@@ -794,6 +795,46 @@ interface CustomLayer {
   authToken?: string;
 }
 
+function parseStoredCustomLayers(raw: string | null): CustomLayer[] {
+  if (!raw || typeof raw !== 'string') return [];
+  try {
+    const data = JSON.parse(raw);
+    if (!Array.isArray(data)) return [];
+    return data
+      .filter(
+        (x: unknown) =>
+          x &&
+          typeof x === 'object' &&
+          typeof (x as CustomLayer).id === 'string' &&
+          typeof (x as CustomLayer).name === 'string' &&
+          (x as CustomLayer).geojson &&
+          typeof (x as CustomLayer).geojson === 'object' &&
+          typeof (x as CustomLayer).visible === 'boolean',
+      )
+      .map((x: any) => ({
+        id: String(x.id),
+        name: String(x.name),
+        geojson: x.geojson,
+        visible: Boolean(x.visible),
+        color: typeof x.color === 'string' ? x.color : undefined,
+        source: x.source === 'arcgis' || x.source === 'upload' || x.source === 'api' || x.source === 'stac' ? x.source : undefined,
+        sourceUrl: typeof x.sourceUrl === 'string' ? x.sourceUrl : undefined,
+        authToken: typeof x.authToken === 'string' ? x.authToken : undefined,
+      }));
+  } catch {
+    return [];
+  }
+}
+
+function persistCustomLayersToStorage(layers: CustomLayer[]) {
+  if (typeof window === 'undefined') return;
+  try {
+    window.localStorage.setItem(SATELLITE_CUSTOM_LAYERS_STORAGE_KEY, JSON.stringify(layers));
+  } catch (e) {
+    console.warn('Satellite Intelligence: could not persist custom layers', e);
+  }
+}
+
 type LayerStyleMode = 'single' | 'classified';
 type LayerClassMethod = 'natural-breaks' | 'equal-interval';
 
@@ -1017,7 +1058,14 @@ export default function SatelliteIntelligence() {
   const [wmsLayer, setWmsLayer] = useState('');
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [isMapLoaded, setIsMapLoaded] = useState(false);
-  const [customLayers, setCustomLayers] = useState<CustomLayer[]>([]);
+  const [customLayers, setCustomLayers] = useState<CustomLayer[]>(() => {
+    if (typeof window === 'undefined') return [];
+    return parseStoredCustomLayers(window.localStorage.getItem(SATELLITE_CUSTOM_LAYERS_STORAGE_KEY));
+  });
+
+  useEffect(() => {
+    persistCustomLayersToStorage(customLayers);
+  }, [customLayers]);
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<any[]>([]);
   const [isSearching, setIsSearching] = useState(false);
@@ -1655,12 +1703,20 @@ export default function SatelliteIntelligence() {
 
   const handleLayerActionClick = async (
     event: React.MouseEvent<HTMLButtonElement>,
-    action: 'sync' | 'table' | 'symbology' | 'legend',
+    action: 'sync' | 'table' | 'symbology' | 'legend' | 'remove',
     layerId: string,
   ) => {
     event.stopPropagation();
     const layer = customLayers.find(item => item.id === layerId);
     if (!layer) return;
+    if (action === 'remove') {
+      const ok = window.confirm(`Remove layer "${layer.name}" from the map? It will stay removed after you refresh the page.`);
+      if (!ok) return;
+      setCustomLayers(prev => prev.filter(item => item.id !== layerId));
+      setActiveLayerActionDialog(prev => (prev?.layerId === layerId ? null : prev));
+      setStacStatus(`Removed layer "${layer.name}".`);
+      return;
+    }
     if (action === 'sync') {
       await refreshArcgisLayer(layer);
       return;
@@ -5567,6 +5623,15 @@ export default function SatelliteIntelligence() {
                                         onClick={e => handleLayerActionClick(e, 'legend', layer.sourceLayerId)}
                                       >
                                         <i className="fa-solid fa-key" aria-hidden />
+                                      </button>
+                                      <button
+                                        type="button"
+                                        className="si-env-layer-action-btn si-env-layer-action-btn--danger"
+                                        title="Remove layer"
+                                        aria-label={`Remove ${layer.label} from map`}
+                                        onClick={e => handleLayerActionClick(e, 'remove', layer.sourceLayerId)}
+                                      >
+                                        <i className="fa-solid fa-trash-can" aria-hidden />
                                       </button>
                                     </div>
                                   ) : null}

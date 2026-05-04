@@ -2904,7 +2904,15 @@ aside {
 .gis-sidebar-body--action-pane .gis-tool-settings > p,
 .gis-sidebar-body--action-pane .gis-tool-share .gis-btn,
 .gis-sidebar-body--action-pane .gis-tool-embed .gis-input,
-.gis-sidebar-body--action-pane .gis-tool-table-picker > .gis-tool-muted,
+.gis-sidebar-body--action-pane .gis-tool-table-picker,
+.gis-sidebar-body--action-pane .gis-tables-agol-caption {
+  grid-column: 1 / -1;
+}
+
+.gis-sidebar-body--action-pane .gis-tool-table-picker .gis-tables-agol-layer-list {
+  grid-template-columns: 1fr;
+}
+
 .gis-sidebar-body--action-pane .gis-tool-bookmarks > .gis-btn {
   grid-column: 1 / -1;
 }
@@ -4177,6 +4185,239 @@ button.gis-tool-list-row--action:hover {
   color: #64748b;
   font-size: 13px;
   font-weight: 800;
+}
+
+/* Tables tool — ArcGIS Online–style empty state + layer picker (action pane) */
+.gis-tool-table-picker {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  min-height: 0;
+}
+
+.gis-tables-agol-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 14px;
+  padding: 20px 12px 16px;
+}
+
+.gis-tables-agol-empty--compact {
+  padding: 14px 10px 12px;
+  gap: 10px;
+}
+
+.gis-tables-agol-empty__icon {
+  width: 72px;
+  height: 72px;
+  border-radius: 18px;
+  display: grid;
+  place-items: center;
+  font-size: 34px;
+  color: rgba(100, 116, 139, 0.88);
+  background: rgba(248, 250, 252, 0.98);
+  border: 1px solid rgba(226, 232, 240, 0.95);
+}
+
+.gis-tables-agol-empty__icon--sm {
+  width: 48px;
+  height: 48px;
+  border-radius: 14px;
+  font-size: 22px;
+}
+
+.gis-tables-agol-empty__message {
+  width: 100%;
+  max-width: 260px;
+  margin: 0;
+  padding: 12px 14px;
+  border-radius: 10px;
+  border: 1px solid rgba(226, 232, 240, 1);
+  background: #ffffff;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.45;
+  color: rgba(71, 85, 105, 0.95);
+}
+
+.gis-tables-agol-empty__message--inline {
+  max-width: none;
+  font-size: 12px;
+  padding: 10px 12px;
+}
+
+.gis-tables-agol-add {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.gis-tables-agol-add__btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 36px;
+  padding: 0 14px;
+  border-radius: 10px;
+  border: 1px solid rgba(37, 99, 235, 0.65);
+  background: rgba(255, 255, 255, 0.98);
+  color: #2563eb;
+  font-size: 13px;
+  font-weight: 800;
+  font-family: inherit;
+  cursor: pointer;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.06);
+  transition:
+    background 0.15s ease,
+    border-color 0.15s ease,
+    box-shadow 0.15s ease;
+}
+
+.gis-tables-agol-add__btn:hover {
+  background: rgba(239, 246, 255, 0.98);
+  border-color: rgba(29, 78, 216, 0.85);
+}
+
+.gis-tables-agol-add__btn:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.28);
+}
+
+.gis-tables-agol-add__chev--open {
+  transform: rotate(180deg);
+}
+
+.gis-tables-agol-add__menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 50%;
+  transform: translateX(-50%);
+  min-width: 200px;
+  z-index: 20;
+  padding: 4px 0;
+  border-radius: 10px;
+  border: 1px solid rgba(226, 232, 240, 1);
+  background: #ffffff;
+  box-shadow: 0 12px 32px rgba(15, 23, 42, 0.12);
+}
+
+:root[dir='rtl'] .gis-tables-agol-add__menu {
+  left: auto;
+  right: 50%;
+  transform: translateX(50%);
+}
+
+.gis-tables-agol-add__menu-item {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  border: 0;
+  background: transparent;
+  font-size: 13px;
+  font-weight: 650;
+  color: #0f172a;
+  text-align: left;
+  cursor: pointer;
+  font-family: inherit;
+  transition: background 0.12s ease;
+}
+
+.gis-tables-agol-add__menu-item:hover {
+  background: rgba(241, 245, 249, 0.95);
+}
+
+.gis-tables-agol-add__menu-item i {
+  width: 18px;
+  text-align: center;
+  color: rgba(51, 65, 85, 0.85);
+  font-size: 14px;
+}
+
+.gis-tables-agol-caption {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.45;
+  color: rgba(100, 116, 139, 0.95);
+}
+
+.gis-tables-agol-layer-list {
+  display: grid;
+  gap: 8px;
+}
+
+.gis-tables-agol-layer-row {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid rgba(226, 232, 240, 1);
+  background: rgba(255, 255, 255, 0.96);
+  cursor: pointer;
+  font: inherit;
+  text-align: left;
+  color: inherit;
+  transition:
+    border-color 0.15s ease,
+    box-shadow 0.15s ease,
+    background 0.15s ease;
+}
+
+.gis-tables-agol-layer-row:hover {
+  border-color: rgba(59, 130, 246, 0.35);
+  background: #ffffff;
+  box-shadow: 0 4px 14px rgba(15, 23, 42, 0.06);
+}
+
+.gis-tables-agol-layer-row__dot {
+  flex: 0 0 auto;
+  width: 10px;
+  height: 10px;
+  border-radius: 999px;
+  box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.9);
+}
+
+.gis-tables-agol-layer-row__main {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: grid;
+  gap: 2px;
+}
+
+.gis-tables-agol-layer-row__main strong {
+  font-size: 13px;
+  font-weight: 800;
+  color: #0f172a;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.gis-tables-agol-layer-row__main small {
+  font-size: 11px;
+  font-weight: 650;
+  color: rgba(100, 116, 139, 0.95);
+}
+
+.gis-tables-agol-layer-row__icon {
+  flex: 0 0 auto;
+  font-size: 15px;
+  color: rgba(59, 130, 246, 0.85);
+}
+
+/* Keep Add dropdown visible when tool panels use overflow: auto */
+.gis-map-tool-panel:has(.gis-tables-agol-add__menu),
+.gis-map-tool-panel--embed-in-action-pane:has(.gis-tables-agol-add__menu),
+.gis-sidebar-content-wrapper.gis-sidebar-tool-dock > .gis-map-tool-panel:has(.gis-tables-agol-add__menu) {
+  overflow: visible;
 }
 
 .gis-measure-cursor {
