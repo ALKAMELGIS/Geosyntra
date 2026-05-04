@@ -227,6 +227,46 @@ export function buildGeoAiLayerPopupAttributeRows(
     })
 }
 
+/** Human-readable area / country hints from feature attributes (Geo AI map card header). */
+export function pickGeoAiHumanPlaceFields(
+  props: Record<string, unknown> | null | undefined,
+): { areaName?: string; country?: string } {
+  if (!props || typeof props !== 'object') return {}
+  const str = (k: string) => {
+    const v = props[k]
+    if (v == null) return ''
+    const s = String(v).trim()
+    if (!s || /^null$/i.test(s)) return ''
+    return s
+  }
+  const areaName =
+    str('Farm_Name') ||
+    str('AREA_NAME') ||
+    str('Area_Name') ||
+    str('area_name') ||
+    str('NAME') ||
+    str('Name') ||
+    str('Site_Name') ||
+    str('site_name') ||
+    str('Location') ||
+    str('location') ||
+    str('Farm_Code') ||
+    undefined
+  let country =
+    str('Country_Name') ||
+    str('country_name') ||
+    str('COUNTRY_NAME') ||
+    str('Nation') ||
+    str('Country') ||
+    str('country') ||
+    undefined
+  if (country && /^\d+$/.test(country)) country = undefined
+  return {
+    ...(areaName ? { areaName } : {}),
+    ...(country ? { country } : {}),
+  }
+}
+
 /**
  * Best-effort: find a feature whose attributes match the user's text (e.g. NH-101 in Agro_Structures).
  */

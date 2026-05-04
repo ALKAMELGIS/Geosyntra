@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useRef, useEffect, useCallback } from 'react';
-import MapGL, { Source, Layer, NavigationControl } from 'react-map-gl/mapbox';
+import MapGL, { Source, Layer, NavigationControl, Marker } from 'react-map-gl/mapbox';
 import 'mapbox-gl/dist/mapbox-gl.css';
 import './SatelliteIntelligence.css';
 import { parseFile } from '../../utils/FileLoader';
@@ -56,7 +56,11 @@ import {
 import { loadGisMapSavedLayers } from '../../lib/gisMapLayerStore';
 import { satelliteCustomLayersToGeoAiLayers } from '../../lib/geoAiMapLayerSources';
 import { geoExplorerTargetZoomForPinSource, runGeoExplorerGeminiTurn } from '../../lib/runGeoExplorerGeminiTurn';
-import { buildGeoAiLayerPopupAttributeRows, type GeoAiMapLayer } from '../../lib/geoExplorerLayerContext';
+import {
+  buildGeoAiLayerPopupAttributeRows,
+  pickGeoAiHumanPlaceFields,
+  type GeoAiMapLayer,
+} from '../../lib/geoExplorerLayerContext';
 import { resolveGeoAiPinFromUserTextAndReply } from '../../lib/geoAiResolveMapCoords';
 import { useOpenWeatherMapApiKey } from '../../hooks/useOpenWeatherMapApiKey';
 import { agroChatWithDeepSeek } from '../../lib/agroAiChat';
@@ -85,6 +89,79 @@ const EMPTY_MAP_STYLE: any = {
 };
 const PC_STAC_SEARCH_URL = 'https://planetarycomputer.microsoft.com/api/stac/v1/search';
 const STAC_CONNECTION_STORAGE_KEY = 'si-stac-connection-v1';
+
+type GeoAiInspectCardState = {
+  title: string;
+  rows: { label: string; value: string }[];
+  lng: number;
+  lat: number;
+  areaName?: string;
+  country?: string;
+};
+
+async function reverseLngLatForGeoAiDetails(
+  lng: number,
+  lat: number,
+  mapboxToken: string | undefined,
+): Promise<{ area?: string; country?: string }> {
+  const token = typeof mapboxToken === 'string' ? mapboxToken.trim() : '';
+  if (token) {
+    try {
+      const url = `https://api.mapbox.com/geocoding/v5/mapbox.places/${lng},${lat}.json?access_token=${encodeURIComponent(token)}&limit=1`;
+      const res = await fetch(url);
+      if (res.ok) {
+        const j = (await res.json()) as {
+          features?: Array<{
+            text?: string;
+            context?: Array<{ id?: string; text?: string }>;
+          }>;
+        };
+        const f = j?.features?.[0];
+        if (f) {
+          const ctx = Array.isArray(f.context) ? f.context : [];
+          const countryEnt = ctx.find(c => String(c?.id || '').startsWith('country'));
+          const country = countryEnt?.text ? String(countryEnt.text).trim() : '';
+          const placeFromCtx = ctx.find(c => /(place|locality|district|neighborhood)/.test(String(c?.id || '')));
+          const area =
+            (typeof f.text === 'string' && f.text.trim() ? f.text.trim() : '') ||
+            (placeFromCtx?.text ? String(placeFromCtx.text).trim() : '') ||
+            '';
+          return { area: area || undefined, country: country || undefined };
+        }
+      }
+    } catch {
+      /* fall through to OSM */
+    }
+  }
+  try {
+    const res = await fetch(
+      `https://nominatim.openstreetmap.org/reverse?format=json&lat=${encodeURIComponent(String(lat))}&lon=${encodeURIComponent(String(lng))}&zoom=12&addressdetails=1`,
+      { headers: { 'Accept-Language': 'en', 'User-Agent': 'AgriCloud/1.0 (Geo AI reverse)' } },
+    );
+    if (!res.ok) return {};
+    const j = (await res.json()) as {
+      name?: string;
+      address?: Record<string, string>;
+    };
+    const a = j?.address || {};
+    const area =
+      a.village ||
+      a.town ||
+      a.city ||
+      a.county ||
+      a.state ||
+      a.hamlet ||
+      (typeof j?.name === 'string' ? j.name : '') ||
+      '';
+    const country = a.country || '';
+    return {
+      area: typeof area === 'string' && area.trim() ? area.trim() : undefined,
+      country: typeof country === 'string' && country.trim() ? country.trim() : undefined,
+    };
+  } catch {
+    return {};
+  }
+}
 
 const STAC_HELP_LINKS = {
   catalog: 'https://planetarycomputer.microsoft.com/catalog',
@@ -1097,12 +1174,8 @@ export default function SatelliteIntelligence() {
   const [geoExplorerBusy, setGeoExplorerBusy] = useState(false);
   const [geoExplorerChatError, setGeoExplorerChatError] = useState('');
   const [geoAiPinLngLat, setGeoAiPinLngLat] = useState<[number, number] | null>(null);
-  const [geoAiInspectCard, setGeoAiInspectCard] = useState<null | {
-    title: string;
-    rows: { label: string; value: string }[];
-    lng: number;
-    lat: number;
-  }>(null);
+  const [geoAiInspectCard, setGeoAiInspectCard] = useState<null | GeoAiInspectCardState>(null);
+  const geoAiReverseGeocodeKeyRef = useRef<string>('');
   const geoExplorerFileInputRef = useRef<HTMLInputElement | null>(null);
   const geoExplorerInFlightRef = useRef(false);
   const [geoAiModelTab, setGeoAiModelTab] = useState<'gemini' | 'claude' | 'deepseek'>('gemini');
@@ -2552,6 +2625,7 @@ export default function SatelliteIntelligence() {
           rows: buildGeoAiLayerPopupAttributeRows(pin.layerHit),
           lng: pin.coords[0],
           lat: pin.coords[1],
+          ...pickGeoAiHumanPlaceFields(pin.layerHit.properties),
         });
       } else {
         setGeoAiInspectCard({
@@ -2567,6 +2641,45 @@ export default function SatelliteIntelligence() {
     },
     [customLayers, is3DView],
   );
+
+  useEffect(() => {
+    if (!geoAiInspectCard) {
+      geoAiReverseGeocodeKeyRef.current = '';
+      return;
+    }
+    const coordKey = `${geoAiInspectCard.lng},${geoAiInspectCard.lat}`;
+    const tokenSig = mapboxToken?.trim() ? 'mb' : 'osm';
+    const dedupeKey = `${coordKey}|${tokenSig}`;
+    if (geoAiReverseGeocodeKeyRef.current === dedupeKey) return;
+
+    const hasStrongCountry =
+      Boolean(geoAiInspectCard.country?.trim()) && !/^\d+$/.test(String(geoAiInspectCard.country).trim());
+    const hasArea = Boolean(geoAiInspectCard.areaName?.trim());
+    if (hasStrongCountry && hasArea) {
+      geoAiReverseGeocodeKeyRef.current = dedupeKey;
+      return;
+    }
+
+    geoAiReverseGeocodeKeyRef.current = dedupeKey;
+    let cancelled = false;
+    void (async () => {
+      const rev = await reverseLngLatForGeoAiDetails(geoAiInspectCard.lng, geoAiInspectCard.lat, mapboxToken);
+      if (cancelled) return;
+      setGeoAiInspectCard(prev => {
+        if (!prev || `${prev.lng},${prev.lat}` !== coordKey) return prev;
+        const nextArea = prev.areaName?.trim() || rev.area;
+        const nextCountry =
+          prev.country && !/^\d+$/.test(String(prev.country).trim())
+            ? prev.country
+            : rev.country || prev.country;
+        if (nextArea === prev.areaName && nextCountry === prev.country) return prev;
+        return { ...prev, areaName: nextArea, country: nextCountry };
+      });
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [geoAiInspectCard, mapboxToken]);
 
   const sendGeoExplorerChat = useCallback(() => {
     const trimmed = geoExplorerDraft.trim();
@@ -2653,6 +2766,7 @@ export default function SatelliteIntelligence() {
                 rows: buildGeoAiLayerPopupAttributeRows(me.layerHit),
                 lng: me.coords[0],
                 lat: me.coords[1],
+                ...pickGeoAiHumanPlaceFields(me.layerHit.properties),
               });
             } else {
               setGeoAiInspectCard({
@@ -3947,41 +4061,75 @@ export default function SatelliteIntelligence() {
               </Source>
             )}
 
+            {geoAiInspectCard ? (
+              <Marker
+                className="si-geo-ai-inspect-marker"
+                longitude={geoAiInspectCard.lng}
+                latitude={geoAiInspectCard.lat}
+                anchor="bottom"
+                offset={[0, 6]}
+              >
+                <div
+                  className="si-geo-ai-inspect-card si-geo-ai-inspect-card--map-anchor"
+                  role="dialog"
+                  aria-label="Geo AI location details"
+                  onPointerDown={e => e.stopPropagation()}
+                  onClick={e => e.stopPropagation()}
+                >
+                  <div className="si-geo-ai-inspect-card__head">
+                    <strong className="si-geo-ai-inspect-card__title">{geoAiInspectCard.title}</strong>
+                    <button
+                      type="button"
+                      className="si-geo-ai-inspect-card__close"
+                      onClick={() => setGeoAiInspectCard(null)}
+                      aria-label="Close details"
+                    >
+                      ×
+                    </button>
+                  </div>
+                  <div className="si-geo-ai-inspect-card__meta">
+                    <div className="si-geo-ai-inspect-card__meta-row">
+                      <span className="si-geo-ai-inspect-card__meta-k">Coordinates</span>
+                      <span className="si-geo-ai-inspect-card__meta-v" dir="ltr">
+                        {geoAiInspectCard.lng.toFixed(5)}°, {geoAiInspectCard.lat.toFixed(5)}°
+                      </span>
+                    </div>
+                    <div className="si-geo-ai-inspect-card__meta-row">
+                      <span className="si-geo-ai-inspect-card__meta-k">Area</span>
+                      <span className="si-geo-ai-inspect-card__meta-v">
+                        {geoAiInspectCard.areaName?.trim() || '—'}
+                      </span>
+                    </div>
+                    <div className="si-geo-ai-inspect-card__meta-row">
+                      <span className="si-geo-ai-inspect-card__meta-k">Country</span>
+                      <span className="si-geo-ai-inspect-card__meta-v">
+                        {geoAiInspectCard.country &&
+                        !/^\d+$/.test(String(geoAiInspectCard.country).trim())
+                          ? geoAiInspectCard.country
+                          : '—'}
+                      </span>
+                    </div>
+                  </div>
+                  {geoAiInspectCard.rows.length ? (
+                    <div className="si-geo-ai-inspect-card__table-wrap">
+                      <table className="si-geo-ai-inspect-card__table">
+                        <tbody>
+                          {geoAiInspectCard.rows.map(row => (
+                            <tr key={row.label}>
+                              <th scope="row">{row.label}</th>
+                              <td>{row.value}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  ) : null}
+                </div>
+              </Marker>
+            ) : null}
+
             <NavigationControl position="bottom-right" />
           </MapGL>
-
-          {geoAiInspectCard ? (
-            <div className="si-geo-ai-inspect-card" role="dialog" aria-label="Geo AI location details">
-              <div className="si-geo-ai-inspect-card__head">
-                <strong className="si-geo-ai-inspect-card__title">{geoAiInspectCard.title}</strong>
-                <button
-                  type="button"
-                  className="si-geo-ai-inspect-card__close"
-                  onClick={() => setGeoAiInspectCard(null)}
-                  aria-label="Close details"
-                >
-                  ×
-                </button>
-              </div>
-              <div className="si-geo-ai-inspect-card__coords" dir="ltr">
-                {geoAiInspectCard.lng.toFixed(5)}, {geoAiInspectCard.lat.toFixed(5)}
-              </div>
-              {geoAiInspectCard.rows.length ? (
-                <div className="si-geo-ai-inspect-card__table-wrap">
-                  <table className="si-geo-ai-inspect-card__table">
-                    <tbody>
-                      {geoAiInspectCard.rows.map(row => (
-                        <tr key={row.label}>
-                          <th scope="row">{row.label}</th>
-                          <td>{row.value}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              ) : null}
-            </div>
-          ) : null}
 
           {drawnStats && (
             <div className="si-aoi-analysis-pill" dir="ltr">
@@ -4064,6 +4212,47 @@ export default function SatelliteIntelligence() {
               </div>
             )}
           </div>
+              <div className="si-basemap-toggle">
+                <button
+                  type="button"
+                  className={`si-basemap-button ${isBasemapOpen ? 'active' : ''}`}
+                  onClick={() => setIsBasemapOpen(open => !open)}
+                  title="Basemap"
+                >
+                  <i className="fa-solid fa-globe"></i>
+                </button>
+                {isBasemapOpen && (
+                  <div className="si-basemap-widget si-basemap-widget--grid">
+                    {basemapCatalog.map(entry => {
+                      const thumb = getBasemapThumbnail(entry, mapboxToken || '');
+                      const isHybrid =
+                        entry.id === 'mapbox-hybrid' || entry.id === 'esri-imagery-hybrid';
+                      return (
+                        <button
+                          type="button"
+                          key={entry.id}
+                          className={`si-basemap-card ${activeBasemapId === entry.id ? 'active' : ''}`}
+                          onClick={() => {
+                            setBasemapId(entry.id);
+                            setIsBasemapOpen(false);
+                          }}
+                        >
+                          <span className="si-basemap-card-thumb">
+                            <img src={thumb} alt="" />
+                            {isHybrid && <span className="si-basemap-card-hybrid">Labels</span>}
+                            {activeBasemapId === entry.id && (
+                              <span className="si-basemap-card-check" aria-hidden>
+                                <i className="fa-solid fa-check" />
+                              </span>
+                            )}
+                          </span>
+                          <span className="si-basemap-card-label">{entry.label}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
               </div>
               <div className="si-map-floating-controls__right">
           <div className="si-env-rail">
@@ -5491,49 +5680,6 @@ export default function SatelliteIntelligence() {
               </div>
             )}
           </div>
-              </div>
-            </div>
-            <div className="si-map-floating-controls__below">
-              <div className="si-basemap-toggle">
-                <button
-                  type="button"
-                  className={`si-basemap-button ${isBasemapOpen ? 'active' : ''}`}
-                  onClick={() => setIsBasemapOpen(open => !open)}
-                  title="Basemap"
-                >
-                  <i className="fa-solid fa-globe"></i>
-                </button>
-                {isBasemapOpen && (
-                  <div className="si-basemap-widget si-basemap-widget--grid">
-                    {basemapCatalog.map(entry => {
-                      const thumb = getBasemapThumbnail(entry, mapboxToken || '');
-                      const isHybrid =
-                        entry.id === 'mapbox-hybrid' || entry.id === 'esri-imagery-hybrid';
-                      return (
-                        <button
-                          type="button"
-                          key={entry.id}
-                          className={`si-basemap-card ${activeBasemapId === entry.id ? 'active' : ''}`}
-                          onClick={() => {
-                            setBasemapId(entry.id);
-                            setIsBasemapOpen(false);
-                          }}
-                        >
-                          <span className="si-basemap-card-thumb">
-                            <img src={thumb} alt="" />
-                            {isHybrid && <span className="si-basemap-card-hybrid">Labels</span>}
-                            {activeBasemapId === entry.id && (
-                              <span className="si-basemap-card-check" aria-hidden>
-                                <i className="fa-solid fa-check" />
-                              </span>
-                            )}
-                          </span>
-                          <span className="si-basemap-card-label">{entry.label}</span>
-                        </button>
-                      );
-                    })}
-                  </div>
-                )}
               </div>
             </div>
           </div>

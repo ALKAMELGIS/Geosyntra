@@ -392,6 +392,10 @@ export default function GisMap() {
   const geoJsonDataIdByObjectRef = useRef<WeakMap<object, number>>(new WeakMap())
   const geoJsonDataIdSeqRef = useRef(1)
   const [isMobileDrawerViewport, setIsMobileDrawerViewport] = useState(getIsMobileDrawerViewport)
+  /** Side-by-side map + sidebar (matches CSS breakpoint >900px); rail hides below this width. */
+  const [isSplitDesktopLayout, setIsSplitDesktopLayout] = useState(
+    () => typeof window !== 'undefined' && window.innerWidth > 900,
+  )
   const [sidebarOpen, setSidebarOpen] = useState(() => !getIsMobileDrawerViewport())
   /** Desktop / wide layout: narrow the layers column; cleared on mobile or stacked layout. */
   const [layersPanelCollapsed, setLayersPanelCollapsed] = useState(false)
@@ -3254,6 +3258,7 @@ export default function GisMap() {
       const mobile = window.innerWidth <= 767
       const stacked = window.innerWidth <= 900
       setIsMobileDrawerViewport(mobile)
+      setIsSplitDesktopLayout(window.innerWidth > 900)
       if (!mobile) setSidebarOpen(true)
       if (mobile || stacked) setLayersPanelCollapsed(false)
     }
@@ -3285,6 +3290,15 @@ export default function GisMap() {
   const shouldRenderSidebar = sidebarOpen || isMobileDrawerViewport
 
   const layersRailCollapsed = layersPanelCollapsed && !isMobileDrawerViewport
+  const showDesktopGisRail = !isMobileDrawerViewport && !layersRailCollapsed && isSplitDesktopLayout
+  /** Panel footer when rail is hidden: narrow layers column, stacked layout, or collapsed rail. */
+  const showSidebarPanelFooter =
+    !isMobileDrawerViewport && (layersRailCollapsed || !isSplitDesktopLayout)
+
+  const focusLayersPanel = () => {
+    setLayersPanelCollapsed(false)
+    setActiveMapTool(null)
+  }
 
   return (
     <div
@@ -3306,11 +3320,159 @@ export default function GisMap() {
             'gis-sidebar',
             isMobileDrawerViewport ? (sidebarOpen ? 'is-open' : 'is-collapsed') : '',
             layersRailCollapsed ? 'gis-sidebar--layers-collapsed' : '',
+            showDesktopGisRail ? 'gis-sidebar--has-rail' : '',
           ]
             .filter(Boolean)
             .join(' ')}
           aria-label="GIS Layers"
         >
+          <div className="gis-sidebar-inner">
+            {showDesktopGisRail ? (
+              <nav className="gis-sidebar-rail" aria-label="GIS vertical toolbar">
+                <div className="gis-sidebar-v-toolbar" data-scale="m">
+                  <div
+                    className="gis-sidebar-v-toolbar__main"
+                    data-slot="main"
+                    role="toolbar"
+                    aria-orientation="vertical"
+                    aria-label="Map quick tools"
+                  >
+                    <button
+                      type="button"
+                      className={['gis-sidebar-rail-btn', activeMapTool === null ? 'gis-sidebar-rail-btn--active' : ''].filter(Boolean).join(' ')}
+                      onClick={focusLayersPanel}
+                      title="Layers"
+                      aria-label="Layers"
+                    >
+                      <i className="fa-solid fa-layer-group" aria-hidden="true" />
+                      <span className="gis-sidebar-rail-btn__label">Layers</span>
+                    </button>
+                    <button
+                      type="button"
+                      className="gis-sidebar-rail-btn"
+                      onClick={() => openAddLayerModal()}
+                      title="Add layer"
+                      aria-label="Add layer"
+                    >
+                      <i className="fa-solid fa-plus" aria-hidden="true" />
+                      <span className="gis-sidebar-rail-btn__label">Add</span>
+                    </button>
+                    <button
+                      type="button"
+                      className={['gis-sidebar-rail-btn', activeMapTool === 'basemap' ? 'gis-sidebar-rail-btn--active' : ''].filter(Boolean).join(' ')}
+                      onClick={() => toggleMapTool('basemap')}
+                      title="Basemap"
+                      aria-label="Basemap"
+                    >
+                      <i className="fa-solid fa-map" aria-hidden="true" />
+                      <span className="gis-sidebar-rail-btn__label">Basemap</span>
+                    </button>
+                    <button
+                      type="button"
+                      className={['gis-sidebar-rail-btn', activeMapTool === 'legend' ? 'gis-sidebar-rail-btn--active' : ''].filter(Boolean).join(' ')}
+                      onClick={() => toggleMapTool('legend')}
+                      title="Legend"
+                      aria-label="Legend"
+                    >
+                      <i className="fa-solid fa-list" aria-hidden="true" />
+                      <span className="gis-sidebar-rail-btn__label">Legend</span>
+                    </button>
+                    <button
+                      type="button"
+                      className={['gis-sidebar-rail-btn', activeMapTool === 'chart' ? 'gis-sidebar-rail-btn--active' : ''].filter(Boolean).join(' ')}
+                      onClick={() => toggleMapTool('chart')}
+                      title="Chart"
+                      aria-label="Chart"
+                    >
+                      <i className="fa-solid fa-chart-column" aria-hidden="true" />
+                      <span className="gis-sidebar-rail-btn__label">Charts</span>
+                    </button>
+                    <button
+                      type="button"
+                      className="gis-sidebar-rail-btn"
+                      onClick={() => window.print()}
+                      title="Print"
+                      aria-label="Print"
+                    >
+                      <i className="fa-solid fa-print" aria-hidden="true" />
+                      <span className="gis-sidebar-rail-btn__label">Print</span>
+                    </button>
+                    <button
+                      type="button"
+                      className={['gis-sidebar-rail-btn', activeMapTool === 'measure' ? 'gis-sidebar-rail-btn--active' : ''].filter(Boolean).join(' ')}
+                      onClick={() => toggleMapTool('measure')}
+                      title="Measure"
+                      aria-label="Measure"
+                    >
+                      <i className="fa-solid fa-ruler-combined" aria-hidden="true" />
+                      <span className="gis-sidebar-rail-btn__label">Measure</span>
+                    </button>
+                    <button
+                      type="button"
+                      className={['gis-sidebar-rail-btn', activeMapTool === 'search' ? 'gis-sidebar-rail-btn--active' : ''].filter(Boolean).join(' ')}
+                      onClick={() => toggleMapTool('search')}
+                      title="Search"
+                      aria-label="Search"
+                    >
+                      <i className="fa-solid fa-magnifying-glass-location" aria-hidden="true" />
+                      <span className="gis-sidebar-rail-btn__label">Search</span>
+                    </button>
+                    <button
+                      type="button"
+                      className={['gis-sidebar-rail-btn', activeMapTool === 'geoExplorer' ? 'gis-sidebar-rail-btn--active' : ''].filter(Boolean).join(' ')}
+                      onClick={() => toggleMapTool('geoExplorer')}
+                      title="Geo Explorer"
+                      aria-label="Geo Explorer"
+                    >
+                      <i className="fa-solid fa-comments" aria-hidden="true" />
+                      <span className="gis-sidebar-rail-btn__label">Chat</span>
+                    </button>
+                  </div>
+                  <div
+                    className="gis-sidebar-v-toolbar__end gis-sidebar-v-toolbar__end--overlay"
+                    role="group"
+                    aria-label="Sidebar utilities"
+                    data-overlay-positioning="absolute"
+                  >
+                    <div className="gis-sidebar-slot gis-sidebar-slot--actions-end" data-slot="actions-end" aria-hidden="true" />
+                    <div
+                      className="gis-sidebar-slot gis-sidebar-slot--expand-tooltip"
+                      data-slot="expand-tooltip"
+                      id="gis-sidebar-expand-tooltip-anchor"
+                      aria-hidden="true"
+                    />
+                    <div className="gis-sidebar-foot-divider gis-sidebar-foot-divider--rail" aria-hidden />
+                    <div
+                      className="gis-sidebar-foot-note gis-sidebar-foot-note--rail"
+                      title="Use the list to manage layers: visibility, sync, table, symbology, and legend."
+                      role="note"
+                    >
+                      <span className="gis-sidebar-foot-item__glyph gis-sidebar-foot-item__glyph--info gis-sidebar-foot-item__glyph--rail" aria-hidden>
+                        <i className="fa-solid fa-circle-info" />
+                      </span>
+                      <span className="gis-sidebar-foot-item__label">Information</span>
+                    </div>
+                    <button
+                      type="button"
+                      id="gis-sidebar-rail-expand-toggle"
+                      className="gis-sidebar-rail-toggle"
+                      onClick={() => setLayersPanelCollapsed(c => !c)}
+                      aria-expanded={!layersPanelCollapsed}
+                      aria-controls="gis-sidebar-layers-scroll"
+                      aria-label={layersPanelCollapsed ? 'Expand GIS layers list' : 'Collapse GIS layers list'}
+                      title={layersPanelCollapsed ? 'Expand layers panel' : 'Collapse layers panel'}
+                    >
+                      <i
+                        className={`fa-solid ${layersPanelCollapsed ? 'fa-chevrons-right' : 'fa-chevrons-left'}`}
+                        aria-hidden="true"
+                      />
+                      <span className="gis-sidebar-rail-toggle__text">{layersPanelCollapsed ? 'Expand' : 'Collapse'}</span>
+                    </button>
+                  </div>
+                </div>
+              </nav>
+            ) : null}
+            <div className="gis-sidebar-column">
           <div className="gis-sidebar-header">
             <div className="gis-sidebar-title">
               <i className="fa-solid fa-layer-group" aria-hidden="true" />
@@ -3689,9 +3851,20 @@ export default function GisMap() {
               </button>
             ) : null}
             </div>
-            {!isMobileDrawerViewport ? (
+            {showSidebarPanelFooter ? (
               <footer className="gis-sidebar-foot-toolbar" aria-label="Sidebar tools">
                 <div className="gis-sidebar-foot-divider" aria-hidden />
+                <div
+                  className="gis-sidebar-slot gis-sidebar-slot--actions-end"
+                  data-slot="actions-end"
+                  aria-hidden="true"
+                />
+                <div
+                  className="gis-sidebar-slot gis-sidebar-slot--expand-tooltip"
+                  data-slot="expand-tooltip"
+                  id="gis-sidebar-expand-tooltip-anchor-panel"
+                  aria-hidden="true"
+                />
                 <div
                   className="gis-sidebar-foot-note"
                   title="Use the list above to manage map layers: visibility, sync, attribute table, symbology, and legend."
@@ -3702,51 +3875,32 @@ export default function GisMap() {
                   </span>
                   <span className="gis-sidebar-foot-item__label">Information</span>
                 </div>
-                <div
-                  role="toolbar"
-                  aria-orientation="vertical"
-                  aria-label="Layer list size"
-                  className="gis-sidebar-calcite-toolbar container"
-                >
-                  <calcite-action-group
-                    className="action-group--end"
-                    layout="vertical"
-                    overlay-positioning="absolute"
-                    scale="m"
-                    selection-mode="none"
-                    calcite-hydrated=""
+                <div className="gis-sidebar-v-toolbar__end gis-sidebar-v-toolbar__end--panel" role="group" aria-label="Layer list size">
+                  <button
+                    type="button"
+                    id="gis-sidebar-panel-expand-toggle"
+                    className="gis-sidebar-foot-item gis-sidebar-foot-item--primary gis-sidebar-rail-toggle gis-sidebar-rail-toggle--panel"
+                    onClick={() => setLayersPanelCollapsed(c => !c)}
+                    aria-expanded={!layersPanelCollapsed}
+                    aria-controls="gis-sidebar-layers-scroll"
+                    aria-label={layersPanelCollapsed ? 'Expand GIS layers list' : 'Collapse GIS layers list'}
+                    title={layersPanelCollapsed ? 'Expand layers panel' : 'Collapse layers panel'}
                   >
-                    <span
-                      className="gis-sidebar-toolbar-lit-hydration"
-                      aria-hidden
-                      dangerouslySetInnerHTML={{ __html: '<!--?lit$830856406$-->' }}
-                    />
-                    <slot name="actions-end" />
-                    <slot name="expand-tooltip" />
-                    <button
-                      type="button"
-                      id="expand-toggle"
-                      className="gis-sidebar-foot-item gis-sidebar-foot-item--primary gis-sidebar-calcite-expand"
-                      onClick={() => setLayersPanelCollapsed(c => !c)}
-                      aria-expanded={!layersPanelCollapsed}
-                      aria-controls="gis-sidebar-layers-scroll"
-                      aria-label={layersPanelCollapsed ? 'Expand GIS layers list' : 'Collapse GIS layers list'}
-                      title={layersPanelCollapsed ? 'Expand' : 'Collapse'}
-                    >
-                      <span className="gis-sidebar-foot-item__glyph" aria-hidden>
-                        <i
-                          className={`fa-solid ${layersPanelCollapsed ? 'fa-chevrons-left' : 'fa-chevrons-right'}`}
-                        />
-                      </span>
-                      <span className="gis-sidebar-foot-item__label">
-                        {layersPanelCollapsed ? 'Expand' : 'Collapse'}
-                      </span>
-                    </button>
-                  </calcite-action-group>
+                    <span className="gis-sidebar-foot-item__glyph gis-sidebar-rail-toggle__glyph" aria-hidden>
+                      <i
+                        className={`fa-solid ${layersPanelCollapsed ? 'fa-chevrons-right' : 'fa-chevrons-left'}`}
+                      />
+                    </span>
+                    <span className="gis-sidebar-foot-item__label gis-sidebar-rail-toggle__text">
+                      {layersPanelCollapsed ? 'Expand' : 'Collapse'}
+                    </span>
+                  </button>
                 </div>
               </footer>
             ) : null}
         </div>
+            </div>
+          </div>
         </aside>
       ) : null}
       {isMobileDrawerViewport && !sidebarOpen ? (
