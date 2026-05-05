@@ -80,7 +80,7 @@ export default function Login() {
   const roleDropdownRef = useRef<HTMLDivElement | null>(null)
   const loginBgVideoRef = useRef<HTMLVideoElement | null>(null)
   const [isRoleOpen, setIsRoleOpen] = useState(false)
-  const [keepSignedIn, setKeepSignedIn] = useState(false)
+  const [keepSignedIn, setKeepSignedIn] = useState(true)
   const mandatoryLoginSeeds = [
     {
       email: 'alkamelgis@gmail.com',
@@ -798,8 +798,8 @@ export default function Login() {
   }, [])
 
   useEffect(() => {
-    // Force default unchecked whenever Sign in tab is shown.
-    if (mode === 'signin') setKeepSignedIn(false)
+    // Keep session persistence enabled by default for same-browser multi-tab/window continuity.
+    if (mode === 'signin') setKeepSignedIn(true)
   }, [mode])
 
   return (

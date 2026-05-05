@@ -12,6 +12,8 @@ import xarray as xr
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 from shapely.geometry import shape
+from rasterio.features import geometry_mask
+from rasterio.transform import from_bounds
 
 router = APIRouter()
 
@@ -27,6 +29,9 @@ class MpcProcessRequest(BaseModel):
     max_cloud_cover: Optional[float] = 20.0
     catalog_url: Optional[str] = None
     acs_zip_path: Optional[str] = None
+    clip_to_aoi: bool = True
+    tile_size: int = 1024
+    resolution: int = 20
 
 
 TEMPLATES: Dict[str, Dict[str, Any]] = {
@@ -102,16 +107,47 @@ def _read_acs_zip_entries(path: Optional[str]) -> List[str]:
         raise HTTPException(status_code=400, detail=f"Invalid ACS zip file: {p}") from exc
 
 
-def _stack(items: List[Any], assets: List[str], bbox: tuple[float, float, float, float]) -> xr.DataArray:
+def _stack(
+    items: List[Any],
+    assets: List[str],
+    bbox: tuple[float, float, float, float],
+    *,
+    resolution: int = 20,
+    tile_size: int = 1024,
+) -> xr.DataArray:
     return stackstac.stack(
         items,
         assets=assets,
         bounds_latlon=bbox,
-        resolution=20,
+        resolution=max(5, min(120, int(resolution))),
         epsg=4326,
-        chunksize=1024,
+        chunksize=max(256, min(4096, int(tile_size))),
         fill_value=np.nan,
     ).astype("float32")
+
+
+def _clip_metric_to_aoi(metric: xr.DataArray, aoi_geom: Dict[str, Any], bbox: tuple[float, float, float, float]) -> xr.DataArray:
+    """Mask pixels outside AOI polygon for true clip-to-AOI statistics."""
+    x = metric.coords.get("x")
+    y = metric.coords.get("y")
+    if x is None or y is None:
+        return metric
+    width = int(x.size)
+    height = int(y.size)
+    if width <= 1 or height <= 1:
+        return metric
+
+    w, s, e, n = bbox
+    transform = from_bounds(w, s, e, n, width, height)
+    inside_mask = geometry_mask(
+        [aoi_geom],
+        out_shape=(height, width),
+        transform=transform,
+        invert=True,
+        all_touched=False,
+    )
+    mask_da = xr.DataArray(inside_mask, coords={"y": metric["y"], "x": metric["x"]}, dims=("y", "x"))
+    return metric.where(mask_da)
 
 
 def _compute(template_id: str, arr: xr.DataArray) -> xr.DataArray:
@@ -177,14 +213,24 @@ def process(req: MpcProcessRequest):
     if not items:
         raise HTTPException(status_code=404, detail="No STAC items found for the requested AOI/date range")
 
-    arr = _stack(items, template["assets"], bbox)
+    arr = _stack(
+        items,
+        template["assets"],
+        bbox,
+        resolution=req.resolution,
+        tile_size=req.tile_size,
+    )
     metric = _compute(req.template_id, arr).median(dim="time", skipna=True)
+    if req.clip_to_aoi:
+        metric = _clip_metric_to_aoi(metric, req.aoi["geometry"] if req.aoi.get("type") == "Feature" else req.aoi, bbox)
     metric = metric.where(np.isfinite(metric))
 
     min_v = float(metric.min(skipna=True).compute().item())
     max_v = float(metric.max(skipna=True).compute().item())
     mean_v = float(metric.mean(skipna=True).compute().item())
     std_v = float(metric.std(skipna=True).compute().item())
+    if not all(np.isfinite(v) for v in (min_v, max_v, mean_v, std_v)):
+        raise HTTPException(status_code=422, detail="No valid pixels after clipping/filtering. Expand AOI or disable clip-to-AOI.")
 
     acs_entries = _read_acs_zip_entries(req.acs_zip_path)
 
@@ -199,6 +245,12 @@ def process(req: MpcProcessRequest):
         "statistics": {"min": min_v, "max": max_v, "mean": mean_v, "std": std_v},
         "detail": f"Processed with stackstac assets: {', '.join(template['assets'])}",
         "catalog_url": _normalize_catalog_url(req.catalog_url),
+        "processing": {
+            "clip_to_aoi": req.clip_to_aoi,
+            "tile_size": max(256, min(4096, int(req.tile_size))),
+            "resolution": max(5, min(120, int(req.resolution))),
+            "mode": "tile-based on-the-fly",
+        },
         "acs": {
             "zip_path": req.acs_zip_path,
             "entries_count": len(acs_entries),

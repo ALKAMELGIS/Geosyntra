@@ -38,6 +38,9 @@ export async function mpcProcess(
     max_cloud_cover?: number;
     catalog_url?: string;
     acs_zip_path?: string;
+    clip_to_aoi?: boolean;
+    tile_size?: number;
+    resolution?: number;
   },
 ) {
   const r = await fetch(`${baseUrl}/mpc/process`, {
@@ -68,4 +71,10 @@ export type MpcProcessResult = {
   cog_download_path?: string;
   arcgis?: { note?: string; links?: string[] };
   detail?: string;
+  processing?: {
+    clip_to_aoi?: boolean;
+    tile_size?: number;
+    resolution?: number;
+    mode?: string;
+  };
 };

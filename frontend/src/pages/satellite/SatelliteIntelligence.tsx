@@ -1622,6 +1622,14 @@ export default function SatelliteIntelligence() {
   }, [basemapCatalog, mapboxToken]);
   const [is3DView, setIs3DView] = useState(() => siDefaultSatelliteGlobeEnabled());
   const [edgeCompatMode, setEdgeCompatMode] = useState(false);
+  useEffect(() => {
+    // Edge can report WebGL support but still fail on heavier globe/mapbox paths on some GPUs.
+    // Enter compat mode early to avoid initial blank map render.
+    if (!siBrowserReportsMicrosoftEdge()) return;
+    setEdgeCompatMode(true);
+    setIs3DView(false);
+    setBasemapId(prev => (prev === 'esri' ? prev : 'esri'));
+  }, []);
   const [cloudCoverage, setCloudCoverage] = useState(20);
   const [isTimelinePlaying, setIsTimelinePlaying] = useState(false);
   const [selectedIndex, setSelectedIndex] = useState<EnvironmentalIndexId>('NDWI');
@@ -1645,6 +1653,8 @@ export default function SatelliteIntelligence() {
   const [selectedMpcTemplateId, setSelectedMpcTemplateId] = useState<MpcTemplateId>('ndvi_s2');
   const [isMpcProcessing, setIsMpcProcessing] = useState(false);
   const [mpcProcessResult, setMpcProcessResult] = useState<MpcProcessResult | null>(null);
+  const [mpcClipToAoi, setMpcClipToAoi] = useState(true);
+  const [mpcTileSize, setMpcTileSize] = useState(1024);
   const [processingTargetStacItem, setProcessingTargetStacItem] = useState<any | null>(null);
   const [exploreCatalogLoadKey, setExploreCatalogLoadKey] = useState(0);
   const [stacCatalogCollections, setStacCatalogCollections] = useState<StacCollectionSummary[]>([]);
@@ -3688,6 +3698,11 @@ export default function SatelliteIntelligence() {
           item_count: 1,
           detail: 'Frontend render mode (no analysis backend URL configured).',
           label: LOCAL_PROCESSING_TEMPLATES.find(t => t.id === templateToRun)?.label ?? templateToRun,
+          processing: {
+            clip_to_aoi: mpcClipToAoi,
+            tile_size: Math.max(256, Math.min(4096, Number(mpcTileSize) || 1024)),
+            mode: 'frontend preview mode',
+          },
         } as MpcProcessResult);
         setStacStatus('Processing template applied to the added STAC layer (frontend mode).');
       } catch (err) {
@@ -3708,6 +3723,8 @@ export default function SatelliteIntelligence() {
         max_cloud_cover: exploreUseCloudFilter ? exploreCloudCoverMax : undefined,
         catalog_url: DEFAULT_MPC_CATALOG_URL,
         acs_zip_path: DEFAULT_MPC_ACS_ZIP_PATH,
+        clip_to_aoi: mpcClipToAoi,
+        tile_size: Math.max(256, Math.min(4096, Number(mpcTileSize) || 1024)),
       });
       setMpcProcessResult(result);
       setStacStatus(`Processing template completed: ${result.label || result.template_id}.`);
@@ -6585,9 +6602,33 @@ export default function SatelliteIntelligence() {
                   </p>
                   {!effectiveAnalysisEngineBaseUrl ? (
                     <p className="si-explore-muted">
-                      Backend URL is not set. Running template will still work on the currently added STAC scene (frontend render mode).
+                      Analysis backend URL was not detected. The app will render preview from the currently added STAC scene (frontend mode).
                     </p>
                   ) : null}
+                  <div className="si-field-analysis-field" style={{ marginTop: 8 }}>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <input
+                        type="checkbox"
+                        checked={mpcClipToAoi}
+                        onChange={e => setMpcClipToAoi(e.target.checked)}
+                      />
+                      <span>Clip to AOI (backend analytics mask)</span>
+                    </label>
+                  </div>
+                  <div className="si-field-analysis-field">
+                    <label>
+                      Tile size (tile-based on-the-fly):{' '}
+                      <input
+                        type="number"
+                        min={256}
+                        max={4096}
+                        step={256}
+                        value={mpcTileSize}
+                        onChange={e => setMpcTileSize(Math.max(256, Math.min(4096, Number(e.target.value) || 1024)))}
+                        style={{ width: 120, marginInlineStart: 8 }}
+                      />
+                    </label>
+                  </div>
                   {isLoadingMpcTemplates ? <p className="si-explore-muted">Loading templates…</p> : null}
                   {mpcTemplateError ? <p className="si-explore-error">{mpcTemplateError}</p> : null}
                   {!!mpcTemplates.length ? (
@@ -6636,6 +6677,13 @@ export default function SatelliteIntelligence() {
                       <div><strong>Template:</strong> {mpcProcessResult.label || mpcProcessResult.template_id}</div>
                       <div><strong>Items:</strong> {mpcProcessResult.item_count}</div>
                       <div><strong>Date range:</strong> {mpcProcessResult.datetime}</div>
+                      {mpcProcessResult.processing ? (
+                        <div>
+                          <strong>Mode:</strong> {mpcProcessResult.processing.mode || 'tile-based'} · Clip AOI:{' '}
+                          {mpcProcessResult.processing.clip_to_aoi ? 'On' : 'Off'} · Tile:{' '}
+                          {mpcProcessResult.processing.tile_size ?? '-'}
+                        </div>
+                      ) : null}
                       {mpcProcessResult.statistics ? (
                         <div>
                           <strong>Statistics:</strong>{' '}

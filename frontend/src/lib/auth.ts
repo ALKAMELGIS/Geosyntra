@@ -88,7 +88,7 @@ function parseCurrentUser(raw: string | null): CurrentUser | null {
 export const readCurrentUser = (): CurrentUser | null => parseCurrentUser(readRawSessionOrLocal())
 
 export type StartSessionOptions = {
-  /** When true, session is kept in localStorage. Default false (sessionStorage only). */
+  /** When true, session is kept in localStorage. Default true for cross-tab/browser-window continuity. */
   persist?: boolean
   /** Optional persistent session duration in milliseconds. */
   persistTtlMs?: number
@@ -100,7 +100,7 @@ export const startSession = (user: Partial<CurrentUser> | null, options?: StartS
       sessionStorage.removeItem(CURRENT_USER_KEY)
       localStorage.removeItem(CURRENT_USER_KEY)
     } else {
-      const persist = options?.persist === true
+      const persist = options?.persist !== false
       const existing = parseCurrentUser(readRawSessionOrLocal())
       const merged: CurrentUser = {
         id: typeof user.id === 'number' ? user.id : existing?.id ?? Date.now(),
