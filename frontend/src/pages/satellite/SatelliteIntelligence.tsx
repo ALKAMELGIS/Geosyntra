@@ -2431,7 +2431,10 @@ export default function SatelliteIntelligence() {
     if (activeDialogLayer.source === 'arcgis') return true;
     if (activeDialogLayer.arcgisDrawingInfo) return true;
     if ((activeDialogLayer.arcgisLayerDefinition as any)?.drawingInfo) return true;
-    if (typeof activeDialogLayer.sourceUrl === 'string' && /\/(FeatureServer|MapServer)(\/\d+)?$/i.test(activeDialogLayer.sourceUrl.trim())) {
+    if (
+      typeof activeDialogLayer.sourceUrl === 'string' &&
+      /\/(FeatureServer|MapServer)(\/\d+)?(?:\?.*)?$/i.test(activeDialogLayer.sourceUrl.trim())
+    ) {
       return true;
     }
     return false;
@@ -3552,6 +3555,46 @@ export default function SatelliteIntelligence() {
     };
   }, [expandedEnvSection, exploreTab, effectiveAnalysisEngineBaseUrl, selectedMpcTemplateId]);
 
+  const findCompatibleStacItemForTemplate = useCallback(
+    async (templateId: MpcTemplateId, aoi: GeoJSON.Feature, dStart: string, dEnd: string): Promise<any | null> => {
+      try {
+        const res = await fetch(stacActiveSearchUrl, {
+          method: 'POST',
+          headers: buildStacRequestHeaders(stacConnection),
+          body: JSON.stringify({
+            collections: exploreSelectedCollectionIds,
+            intersects: aoi.geometry,
+            datetime: `${dStart}/${dEnd}`,
+            limit: Math.max(20, Math.min(120, exploreLimit)),
+            query: exploreUseCloudFilter ? { 'eo:cloud_cover': { lte: Number(exploreCloudCoverMax) } } : undefined,
+          }),
+        });
+        if (!res.ok) return null;
+        const json = await res.json();
+        const features = Array.isArray(json?.features) ? json.features : [];
+        for (const item of features) {
+          const assets = (item?.assets && typeof item.assets === 'object' ? item.assets : {}) as Record<string, unknown>;
+          const names = new Set(Object.keys(assets).map(k => String(k).toLowerCase()));
+          const specs = buildProcessingPreviewSpecsForItem(templateId, item).filter(spec =>
+            spec.assets.every(a => names.has(String(a).toLowerCase())),
+          );
+          if (specs.length) return item;
+        }
+        return null;
+      } catch {
+        return null;
+      }
+    },
+    [
+      stacActiveSearchUrl,
+      stacConnection,
+      exploreSelectedCollectionIds,
+      exploreLimit,
+      exploreUseCloudFilter,
+      exploreCloudCoverMax,
+    ],
+  );
+
   const runMpcTemplateProcessing = async (templateOverride?: MpcTemplateId) => {
     const templateToRun = templateOverride ?? selectedMpcTemplateId;
     const selectedKey = exploreSelectedResultKeys[0];
@@ -3581,6 +3624,7 @@ export default function SatelliteIntelligence() {
 
     if (!effectiveAnalysisEngineBaseUrl) {
       try {
+        let effectiveItem = targetItem;
         const coll = getStacItemCollection(targetItem);
         const itemId = getStacItemIdForThumb(targetItem);
         if (!coll || !itemId) throw new Error('Missing STAC collection/item id for selected scene.');
@@ -3591,26 +3635,41 @@ export default function SatelliteIntelligence() {
         }
         if (!bbox || bbox.length < 4) throw new Error('Scene bbox is missing; cannot place processed preview on map.');
         const availableAssets = new Set(
-          Object.keys((targetItem?.assets && typeof targetItem.assets === 'object' ? targetItem.assets : {}) as Record<string, unknown>).map(k =>
+          Object.keys((effectiveItem?.assets && typeof effectiveItem.assets === 'object' ? effectiveItem.assets : {}) as Record<string, unknown>).map(k =>
             String(k).toLowerCase(),
           ),
         );
-        const specs = buildProcessingPreviewSpecsForItem(templateToRun, targetItem).filter(spec =>
+        let specs = buildProcessingPreviewSpecsForItem(templateToRun, effectiveItem).filter(spec =>
           spec.assets.every(a => availableAssets.has(String(a).toLowerCase())),
         );
         if (!specs.length) {
-          throw new Error(
-            `Scene is missing required bands for ${templateToRun}. Available assets: ${
-              Array.from(availableAssets).slice(0, 20).join(', ') || 'none'
-            }`,
-          );
+          const autoItem = await findCompatibleStacItemForTemplate(templateToRun, aoi, dStart, dEnd);
+          if (autoItem) {
+            effectiveItem = autoItem;
+            setProcessingTargetStacItem(autoItem);
+            const assets2 = (autoItem?.assets && typeof autoItem.assets === 'object' ? autoItem.assets : {}) as Record<string, unknown>;
+            const names2 = new Set(Object.keys(assets2).map(k => String(k).toLowerCase()));
+            specs = buildProcessingPreviewSpecsForItem(templateToRun, autoItem).filter(spec =>
+              spec.assets.every(a => names2.has(String(a).toLowerCase())),
+            );
+          }
+          if (!specs.length) {
+            throw new Error(
+              `Scene is missing required bands for ${templateToRun}. Available assets: ${
+                Array.from(availableAssets).slice(0, 20).join(', ') || 'none'
+              }`,
+            );
+          }
         }
+        const effColl = getStacItemCollection(effectiveItem);
+        const effItemId = getStacItemIdForThumb(effectiveItem);
+        if (!effColl || !effItemId) throw new Error('Could not resolve compatible STAC item for rendering.');
         const urls = [4096, 3072, 2560, 2048, 1536, 1280, 1024].flatMap(sz =>
-          specs.map(spec => buildPcProcessingPreviewPngUrl(coll, itemId, spec, sz)),
+          specs.map(spec => buildPcProcessingPreviewPngUrl(effColl, effItemId, spec, sz)),
         );
         let blobUrl = await fetchStacMapOverlayBlobUrl(urls);
         if (!blobUrl) {
-          const genericCandidates = getStacItemThumbCandidateUrls(targetItem, stacConnection, { forMapOverlay: true });
+          const genericCandidates = getStacItemThumbCandidateUrls(effectiveItem, stacConnection, { forMapOverlay: true });
           blobUrl = await fetchStacMapOverlayBlobUrl(genericCandidates);
         }
         if (!blobUrl) throw new Error('Could not render processing template preview for this scene. Check required scene assets or enable backend URL.');
@@ -3620,11 +3679,11 @@ export default function SatelliteIntelligence() {
           return { url: blobUrl, coordinates: bboxToRgCoordinates([w, s, e, n]) };
         });
         setIsStacThumbVisible(true);
-        setStacMapThumbLabel(`STAC imagery (${templateToRun}): ${itemId}`);
+        setStacMapThumbLabel(`STAC imagery (${templateToRun}): ${effItemId}`);
         setMpcProcessResult({
           ok: true,
           template_id: templateToRun,
-          collections: [coll],
+          collections: [effColl],
           datetime: `${dStart}/${dEnd}`,
           item_count: 1,
           detail: 'Frontend render mode (no analysis backend URL configured).',
@@ -7820,7 +7879,7 @@ export default function SatelliteIntelligence() {
                       <input
                         type="checkbox"
                         checked={symbologyDraft.useArcGisOnline}
-                        disabled={!canToggleArcgisSymbology}
+                        disabled={!canToggleArcgisSymbology && !activeDialogLayer?.sourceUrl}
                         onChange={e => {
                           const on = e.target.checked;
                           setSymbologyDraft(prev => ({
@@ -7828,6 +7887,25 @@ export default function SatelliteIntelligence() {
                             useArcGisOnline: on,
                             colorRamp: on ? 'service' : prev.colorRamp,
                           }));
+                          if (
+                            on &&
+                            !activeDialogLayer.arcgisDrawingInfo &&
+                            typeof activeDialogLayer.sourceUrl === 'string' &&
+                            activeDialogLayer.sourceUrl.trim()
+                          ) {
+                            void (async () => {
+                              try {
+                                const raw = await fetchArcgisLayerDrawingInfo(activeDialogLayer.sourceUrl!, activeDialogLayer.authToken);
+                                const cleaned = raw ? sanitizeArcgisDrawingInfoForClient(raw) : null;
+                                if (!cleaned) return;
+                                setCustomLayers(prev =>
+                                  prev.map(l => (l.id === activeDialogLayer.id ? { ...l, arcgisDrawingInfo: cleaned } : l)),
+                                );
+                              } catch {
+                                /* keep toggle usable even if renderer fetch fails */
+                              }
+                            })();
+                          }
                         }}
                       />
                       <span>Use ArcGIS Online symbology</span>
