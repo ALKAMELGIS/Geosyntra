@@ -2505,7 +2505,10 @@ export default function SatelliteIntelligence() {
   const applySymbologyDraft = async () => {
     if (!activeDialogLayer) return;
     try {
-      const isArcgisLayer = activeDialogLayer.source === 'arcgis' && Boolean(activeDialogLayer.sourceUrl?.trim());
+      const hasArcgisRendererSupport =
+        activeDialogLayer.source === 'arcgis' ||
+        Boolean(activeDialogLayer.arcgisDrawingInfo) ||
+        Boolean((activeDialogLayer.arcgisLayerDefinition as any)?.drawingInfo);
       const rampKey: 'viridis' | 'green' | 'warm' =
         symbologyDraft.colorRamp === 'service' ? 'viridis' : symbologyDraft.colorRamp;
       const ramp = COLOR_RAMPS[rampKey];
@@ -2514,8 +2517,13 @@ export default function SatelliteIntelligence() {
           ? symbologyDraft.color
           : ramp[Math.max(0, Math.min(ramp.length - 1, symbologyDraft.classes - 1))];
 
-      if (isArcgisLayer) {
-        let di = activeDialogLayer.arcgisDrawingInfo;
+      if (hasArcgisRendererSupport) {
+        let di =
+          activeDialogLayer.arcgisDrawingInfo ??
+          (sanitizeArcgisDrawingInfoForClient((activeDialogLayer.arcgisLayerDefinition as any)?.drawingInfo) as Record<
+            string,
+            unknown
+          > | null);
         if (!di && activeDialogLayer.sourceUrl?.trim()) {
           const raw = await fetchArcgisLayerDrawingInfo(activeDialogLayer.sourceUrl!, activeDialogLayer.authToken);
           di = (raw && sanitizeArcgisDrawingInfoForClient(raw)) || null;
@@ -3378,21 +3386,6 @@ export default function SatelliteIntelligence() {
     }
     return m;
   }, [stacItems]);
-
-  const selectedProcessingScene = useMemo(() => {
-    if (processingTargetStacItem) return processingTargetStacItem;
-    const selectedKey = exploreSelectedResultKeys[0];
-    if (!selectedKey) return null;
-    return stacItemsByStableKey.get(selectedKey) ?? null;
-  }, [processingTargetStacItem, exploreSelectedResultKeys, stacItemsByStableKey]);
-
-  const selectedProcessingBands = useMemo(() => {
-    const assets =
-      selectedProcessingScene?.assets && typeof selectedProcessingScene.assets === 'object'
-        ? (selectedProcessingScene.assets as Record<string, unknown>)
-        : null;
-    return assets ? Object.keys(assets).sort((a, b) => a.localeCompare(b)) : [];
-  }, [selectedProcessingScene]);
 
   useEffect(() => {
     if (expandedEnvSection !== 'explore-stac') return;
@@ -6690,22 +6683,6 @@ export default function SatelliteIntelligence() {
                 </>
               ) : exploreTab === 'processing-templates' ? (
                 <div className="si-explore-processing-templates">
-                  <p className="si-explore-muted">
-                    Select a raster processing template (NDVI / False Color / Moisture Index). The backend maps required bands from
-                    Microsoft Planetary Computer STAC assets dynamically.
-                  </p>
-                  <p className="si-explore-muted">
-                    Catalog: {DEFAULT_MPC_CATALOG_URL} · ACS ZIP: {DEFAULT_MPC_ACS_ZIP_PATH}
-                  </p>
-                  {!effectiveAnalysisEngineBaseUrl ? (
-                    <p className="si-explore-muted">
-                      Analysis backend URL was not detected. The app will render preview from the currently added STAC scene (frontend mode).
-                    </p>
-                  ) : null}
-                  <p className="si-explore-muted">
-                    Selected scene: <strong>{String(selectedProcessingScene?.id ?? 'none')}</strong>
-                    {selectedProcessingBands.length ? ` · Bands: ${selectedProcessingBands.join(', ')}` : ' · Bands: not available'}
-                  </p>
                   <div className="si-field-analysis-field">
                     <label style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                       <input
@@ -6717,10 +6694,28 @@ export default function SatelliteIntelligence() {
                     </label>
                   </div>
                   <div className="si-field-analysis-field" style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                    <button type="button" className="si-explore-page-btn" onClick={() => setExploreExtentMode('map')}>
+                    <button
+                      type="button"
+                      className="si-explore-page-btn"
+                      onClick={() => {
+                        setExploreExtentMode('map');
+                        cancelCurrentDrawing();
+                      }}
+                    >
                       Use current map view as AOI
                     </button>
-                    <button type="button" className="si-explore-page-btn" onClick={() => setExploreExtentMode('drawn')}>
+                    <button
+                      type="button"
+                      className="si-explore-page-btn"
+                      onClick={() => {
+                        setExploreExtentMode('drawn');
+                        if (stacFootprintsGeoJson.features.length) setShowStacFootprintsOnMap(true);
+                        applyMapDrawTool('rectangle');
+                        setDrawAssistHint(
+                          'Drag a rectangle on the map over the STAC footprint (or any area). Release to set the analysis AOI.',
+                        );
+                      }}
+                    >
                       Use drawn AOI
                     </button>
                   </div>
