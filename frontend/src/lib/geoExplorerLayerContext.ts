@@ -63,7 +63,8 @@ function featureCentroid(f: GeoAiFeature): [number, number] | null {
   return [(b[0] + b[2]) / 2, (b[1] + b[3]) / 2]
 }
 
-function normalizeLayerName(s: string): string {
+/** Normalized layer / hint string for matching (underscores and punctuation → spaces). */
+export function normalizeLayerName(s: string): string {
   return s
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, ' ')
@@ -626,6 +627,35 @@ export function findLngLatFromLayerQuery(userText: string, layers: GeoAiMapLayer
   }
 
   return best
+}
+
+/**
+ * GIS-style lookup: optionally constrain to one layer by name, then score features against `userQuery`
+ * (same scoring stack as {@link findLngLatFromLayerQuery}).
+ * Intent: `GIS.getLayer(layerName).find(userQuery)` when `layerName` matches a loaded layer; otherwise searches all layers.
+ */
+export function findLayerFeatureByUserQuery(
+  userQuery: string,
+  layers: GeoAiMapLayer[],
+  layerName?: string | null,
+): LayerQueryMatch | null {
+  const rawName = layerName?.trim()
+  if (!rawName) return findLngLatFromLayerQuery(userQuery, layers)
+  const hn = normalizeLayerName(rawName)
+  const subset = layers.filter(l => {
+    const ln = normalizeLayerName(l.name)
+    const lnSp = normalizeLayerName(l.name.replace(/_/g, ' '))
+    return (
+      l.name.toLowerCase() === rawName.toLowerCase() ||
+      ln === hn ||
+      ln.includes(hn) ||
+      hn.includes(ln) ||
+      lnSp.includes(hn) ||
+      hn.includes(lnSp)
+    )
+  })
+  if (subset.length === 0) return null
+  return findLngLatFromLayerQuery(userQuery, subset)
 }
 
 /** True if the message mentions any loaded layer name (substring match). */

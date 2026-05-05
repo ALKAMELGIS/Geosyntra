@@ -27,6 +27,57 @@ export function buildArcFieldsByLower(arcDef: ArcgisLayerDefLite | null | undefi
   return map
 }
 
+/**
+ * Single-value legend/table label from layer schema: coded-value domains on the field,
+ * subtype-specific {@code types[].domains[field]}, and subtype names when {@code fieldName}
+ * is the {@code typeIdField}.
+ */
+export function arcLegendLabelForFieldValue(
+  fieldName: string,
+  rawCode: string | number | null | undefined,
+  arcDef: ArcgisLayerDefLite | null | undefined,
+  fieldsByLower: Map<string, any>,
+): string {
+  const rawText = rawCode === null || rawCode === undefined ? '' : String(rawCode)
+  if (!String(fieldName ?? '').trim() || rawText === '') return rawText
+  if (!arcDef) return rawText
+
+  const fnLower = String(fieldName).toLowerCase()
+  const arcTypeIdField = typeof arcDef.typeIdField === 'string' ? arcDef.typeIdField : ''
+
+  if (arcTypeIdField && fnLower === String(arcTypeIdField).toLowerCase()) {
+    const arcTypes = (Array.isArray(arcDef.types) ? arcDef.types : []) as any[]
+    const st = arcTypes.find((type: any) => String(type?.id) === rawText)
+    const name = typeof st?.name === 'string' ? String(st.name).trim() : ''
+    const desc = typeof st?.description === 'string' ? String(st.description).trim() : ''
+    if (name) return name
+    if (desc) return desc
+    return rawText
+  }
+
+  const tryDomain = (domain: any): string | null => {
+    if (!domain || domain.type !== 'codedValue' || !Array.isArray(domain.codedValues)) return null
+    const coded = domain.codedValues.find((cv: any) => String(cv?.code) === rawText)
+    const d = readCodedValueDescription(coded)
+    return d || null
+  }
+
+  const fieldDef = fieldsByLower.get(fnLower)
+  const fromField = tryDomain(fieldDef?.domain)
+  if (fromField) return fromField
+
+  const arcTypes = (Array.isArray(arcDef.types) ? arcDef.types : []) as any[]
+  for (const st of arcTypes) {
+    const subtypeDomains = st?.domains && typeof st.domains === 'object' ? st.domains : null
+    if (!subtypeDomains) continue
+    const dom = subtypeDomains[fieldName] ?? subtypeDomains[String(fieldName)]
+    const label = tryDomain(dom)
+    if (label) return label
+  }
+
+  return rawText
+}
+
 export function getArcSubtype(ft: any, arcDef: ArcgisLayerDefLite | null | undefined): any | null {
   if (!arcDef) return null
   const arcTypeIdField = typeof arcDef.typeIdField === 'string' ? arcDef.typeIdField : ''

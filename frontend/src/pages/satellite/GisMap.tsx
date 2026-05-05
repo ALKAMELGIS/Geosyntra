@@ -19,6 +19,7 @@ import 'mapbox-gl/dist/mapbox-gl.css'
 import MapView from '../../components/MapView'
 import type { LayerData, SymbologyClassMethod, SymbologyColorRamp, SymbologyConfig, SymbologyStyle } from './components/LayerManager'
 import { FieldVisibilityControl } from './components/FieldVisibilityControl'
+import { GeoExplorerGeminiInputRow } from './components/GeoExplorerGeminiInputRow'
 import { MapPopup } from './components/MapPopup'
 import { DrawToolsController } from './components/DrawTools'
 import { BasemapGallery, BasemapLayer, type BasemapType } from './components/BasemapGallery'
@@ -50,10 +51,21 @@ import {
 } from '../../lib/geoExplorerGemini'
 import { appAlert, appPrompt } from '../../lib/appDialog'
 import { DEVELOP_DATA_CONTEXT_LS_KEY } from '../../lib/geoAiChatClaude'
+import {
+  arcLegendLabelForFieldValue,
+  buildArcFieldsByLower,
+  getArcDisplayValue as arcSchemaDisplayValue,
+} from '../../lib/arcgisAttributeDisplay'
 import { loadGisMapSavedLayers } from '../../lib/gisMapLayerStore'
 import { gisLayerDataToGeoAiLayers } from '../../lib/geoAiMapLayerSources'
 import { geoExplorerTargetZoomForPinSource, runGeoExplorerGeminiTurn } from '../../lib/runGeoExplorerGeminiTurn'
+import {
+  loadGisMapChartPanelConfig,
+  persistGisMapChartPanelConfig,
+  type GisChartPanelConfig,
+} from '../../lib/gisMapChartPanelConfig'
 import './gisGeoExplorerPanel.css'
+import { GisGeoExplorerChartConfig } from './components/GisGeoExplorerChartConfig'
 
 const GIS_AGOL_RAIL_COMPACT_LS_KEY = 'gis-agol-rail-compact-v1'
 
@@ -72,6 +84,27 @@ function gisMapLayerImportableFromStore(layer: LayerData): boolean {
   if (layer.type === 'geojson' && isGisMapFeatureCollectionData(layer.data)) return true
   if (layer.type === 'tile' && layer.url && (layer.data as { esriImageServer?: boolean })?.esriImageServer) return true
   return false
+}
+
+function gisLayerFeatureCountForChart(layer: LayerData): number {
+  if (layer.type === 'tile' && (layer.data as { esriImageServer?: boolean })?.esriImageServer) return 0
+  const d = layer.data as { features?: unknown[] } | undefined
+  return Array.isArray(d?.features) ? d.features.length : 0
+}
+
+function gisChartDonutConicBackground(rows: Array<{ count: number; color: string }>): string {
+  const nonzero = rows.filter(r => r.count > 0)
+  const total = nonzero.reduce((s, r) => s + r.count, 0)
+  if (total <= 0) return 'conic-gradient(#e2e8f0 0% 100%)'
+  let acc = 0
+  const segs: string[] = []
+  for (const r of nonzero) {
+    const pct = (r.count / total) * 100
+    const start = acc
+    acc += pct
+    segs.push(`${r.color} ${start}% ${acc}%`)
+  }
+  return `conic-gradient(${segs.join(', ')})`
 }
 
 const newGisImportId = () => `${Date.now()}_${Math.random().toString(16).slice(2)}`
@@ -521,6 +554,7 @@ export default function GisMap() {
   const [geoExplorerBusy, setGeoExplorerBusy] = useState(false)
   const [geoExplorerChatError, setGeoExplorerChatError] = useState('')
   const [geoExplorerAnchor, setGeoExplorerAnchor] = useState<[number, number] | null>(null)
+  const [gisChartPanelConfig, setGisChartPanelConfig] = useState<GisChartPanelConfig>(() => loadGisMapChartPanelConfig())
   const [measurementMode, setMeasurementMode] = useState<MeasurementMode>('distance')
   const [measurementMethod, setMeasurementMethod] = useState<MeasurementMethod>('planar')
   const [measurementUnit, setMeasurementUnit] = useState<MeasurementUnit>('metric')
@@ -691,7 +725,27 @@ export default function GisMap() {
     }
   }, [agolRailCompact])
 
+  useEffect(() => {
+    persistGisMapChartPanelConfig(gisChartPanelConfig)
+  }, [gisChartPanelConfig])
+
   const orderedLayers = useMemo(() => [...layers].reverse(), [layers])
+
+  const chartPanelLayerRows = useMemo(() => {
+    const rows = orderedLayers.map(layer => ({
+      layer,
+      count: gisLayerFeatureCountForChart(layer),
+      color: layer.color || '#047857',
+    }))
+    const { sort } = gisChartPanelConfig
+    const copy = [...rows]
+    if (sort === 'name')
+      copy.sort((a, b) => a.layer.name.localeCompare(b.layer.name, undefined, { sensitivity: 'base' }))
+    else if (sort === 'countDesc')
+      copy.sort((a, b) => b.count - a.count || a.layer.name.localeCompare(b.layer.name, undefined, { sensitivity: 'base' }))
+    else copy.sort((a, b) => a.count - b.count || a.layer.name.localeCompare(b.layer.name, undefined, { sensitivity: 'base' }))
+    return copy
+  }, [orderedLayers, gisChartPanelConfig.sort])
 
   const tableCapableLayers = useMemo(
     () =>
@@ -1867,8 +1921,8 @@ export default function GisMap() {
     })
   }, [])
 
-  const sendGeoExplorerChat = useCallback(() => {
-    const trimmed = geoExplorerDraft.trim()
+  const sendGeoExplorerChat = useCallback((voiceOverrideText?: string) => {
+    const trimmed = (voiceOverrideText ?? geoExplorerDraft).trim()
     if (geoExplorerInFlightRef.current) return
     if (!trimmed && !geoExplorerPendingImage) return
     const apiKey = geminiApiKey.trim()
@@ -3831,7 +3885,11 @@ export default function GisMap() {
             )}
           </div>
         ) : activeMapTool === 'chart' ? (
-          <div className="gis-tool-chart gis-map-tool-surface">
+          <div
+            className={`gis-tool-chart gis-map-tool-surface${
+              gisChartPanelConfig.viz === 'donut' ? ' gis-map-tool-surface--chart-donut' : ''
+            }`}
+          >
             <div className="gis-map-tool-surface__header">
               <div className="gis-map-tool-surface__icon" aria-hidden="true">
                 <i className="fa-solid fa-chart-simple" />
@@ -3839,56 +3897,84 @@ export default function GisMap() {
               <div className="gis-map-tool-surface__titles">
                 <span className="gis-map-tool-surface__kicker">Layer summary</span>
                 <p className="gis-map-tool-surface__lede">
-                  Relative feature counts per vector layer. Image services are shown with zero features.
+                  Relative feature counts per vector layer. Image services are shown with zero features. Adjust sort and
+                  chart type in <strong>Geo AI chat</strong> → Configure chart.
                 </p>
               </div>
             </div>
-            {orderedLayers.length ? (
-              <div className="gis-map-tool-surface__scroll">
-                <div className="gis-map-tool-surface__list">
-                  {orderedLayers.map(layer => {
-                    const count =
-                      layer.type === 'tile' && (layer.data as any)?.esriImageServer
-                        ? 0
-                        : Array.isArray((layer.data as any)?.features)
-                          ? (layer.data as any).features.length
-                          : 0
-                    const max = Math.max(
-                      1,
-                      ...orderedLayers.map(l =>
-                        l.type === 'tile' && (l.data as any)?.esriImageServer
-                          ? 0
-                          : Array.isArray((l.data as any)?.features)
-                            ? (l.data as any).features.length
-                            : 0,
-                      ),
-                    )
-                    return (
-                      <div key={String(layer.id)} className="gis-map-tool-surface-chart-row">
-                        <div className="gis-map-tool-surface-chart-row__top">
-                          <span
-                            className="gis-map-tool-surface-chart-row__dot"
-                            style={{ background: layer.color || '#047857' }}
-                            aria-hidden="true"
-                          />
-                          <div className="gis-tool-chart-label">
-                            <span title={layer.name}>{layer.name}</span>
-                            <strong>{count}</strong>
+            {chartPanelLayerRows.length ? (
+              gisChartPanelConfig.viz === 'donut' ? (
+                <div className="gis-map-tool-chart-donut-layout">
+                  <div
+                    className="gis-map-tool-chart-donut-ring"
+                    style={{ background: gisChartDonutConicBackground(chartPanelLayerRows) }}
+                    role="img"
+                    aria-label="Layer feature count proportions"
+                  >
+                    <div className="gis-map-tool-chart-donut-hole" />
+                  </div>
+                  <ul className="gis-map-tool-chart-donut-legend">
+                    {chartPanelLayerRows.map(({ layer, count, color }) => (
+                      <li key={String(layer.id)} className="gis-map-tool-chart-donut-legend__row">
+                        <span className="gis-map-tool-chart-donut-legend__swatch" style={{ background: color }} aria-hidden />
+                        <span className="gis-map-tool-chart-donut-legend__name" title={layer.name}>
+                          {layer.name}
+                        </span>
+                        <strong className="gis-map-tool-chart-donut-legend__count">{count}</strong>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ) : (
+                <div className="gis-map-tool-surface__scroll">
+                  <div
+                    className={`gis-map-tool-surface__list${
+                      gisChartPanelConfig.layout === 'vertical' ? ' gis-map-tool-surface__list--chart-vertical' : ''
+                    }`}
+                  >
+                    {(() => {
+                      const max = Math.max(1, ...chartPanelLayerRows.map(r => r.count))
+                      return chartPanelLayerRows.map(({ layer, count, color }) => (
+                        <div
+                          key={String(layer.id)}
+                          className={`gis-map-tool-surface-chart-row${
+                            gisChartPanelConfig.layout === 'vertical'
+                              ? ' gis-map-tool-surface-chart-row--bars-vertical'
+                              : ''
+                          }`}
+                        >
+                          <div className="gis-map-tool-surface-chart-row__top">
+                            <span
+                              className="gis-map-tool-surface-chart-row__dot"
+                              style={{ background: color }}
+                              aria-hidden="true"
+                            />
+                            <div className="gis-tool-chart-label">
+                              <span title={layer.name}>{layer.name}</span>
+                              <strong>{count}</strong>
+                            </div>
+                          </div>
+                          <div className="gis-tool-chart-track">
+                            <span
+                              style={
+                                gisChartPanelConfig.layout === 'vertical'
+                                  ? {
+                                      height: `${Math.max(8, (count / max) * 100)}%`,
+                                      background: color,
+                                    }
+                                  : {
+                                      width: `${Math.max(6, (count / max) * 100)}%`,
+                                      background: color,
+                                    }
+                              }
+                            />
                           </div>
                         </div>
-                        <div className="gis-tool-chart-track">
-                          <span
-                            style={{
-                              width: `${Math.max(6, (count / max) * 100)}%`,
-                              background: layer.color || '#047857',
-                            }}
-                          />
-                        </div>
-                      </div>
-                    )
-                  })}
+                      ))
+                    })()}
+                  </div>
                 </div>
-              </div>
+              )
             ) : (
               <div className="gis-map-tool-surface-empty" role="status">
                 <div className="gis-map-tool-surface-empty__icon" aria-hidden="true">
@@ -4384,6 +4470,11 @@ export default function GisMap() {
                   </button>
                 </div>
               </div>
+              <GisGeoExplorerChartConfig
+                config={gisChartPanelConfig}
+                onChange={setGisChartPanelConfig}
+                onOpenCharts={() => setActiveMapTool('chart')}
+              />
               <div className="gis-geo-explorer-messages">
                 <div className="gis-geo-explorer-row gis-geo-explorer-row--model">
                   <div className="gis-geo-explorer-avatar" aria-hidden>
@@ -4438,52 +4529,17 @@ export default function GisMap() {
                   </button>
                 </p>
               ) : null}
-              <div className="gis-geo-explorer-input-row">
-                <textarea
-                  className="gis-geo-explorer-input"
-                  rows={2}
-                  value={geoExplorerDraft}
-                  onChange={e => setGeoExplorerDraft(e.target.value)}
-                  onKeyDown={e => {
-                    if (e.key === 'Enter' && !e.shiftKey) {
-                      e.preventDefault()
-                      sendGeoExplorerChat()
-                    }
-                  }}
-                  placeholder="Describe a place, ask for directions, or plan a trip…"
-                  aria-label="Geo Explorer message"
-                  disabled={geoExplorerBusy}
-                />
-                <input
-                  ref={geoExplorerFileInputRef}
-                  type="file"
-                  className="gis-geo-explorer-file-input"
-                  accept="image/*"
-                  onChange={onGeoExplorerAttachChange}
-                  aria-hidden
-                  tabIndex={-1}
-                />
-                <button
-                  type="button"
-                  className="gis-geo-explorer-attach"
-                  onClick={() => geoExplorerFileInputRef.current?.click()}
-                  disabled={geoExplorerBusy}
-                  aria-label="Attach image"
-                  title="Attach image"
-                >
-                  <i className="fa-solid fa-paperclip" aria-hidden />
-                </button>
-                <button
-                  type="button"
-                  className="gis-geo-explorer-send"
-                  onClick={sendGeoExplorerChat}
-                  disabled={geoExplorerBusy || (!geoExplorerDraft.trim() && !geoExplorerPendingImage)}
-                  aria-label="Send"
-                  title="Send"
-                >
-                  <i className="fa-solid fa-paper-plane" aria-hidden />
-                </button>
-              </div>
+              <GeoExplorerGeminiInputRow
+                cssPrefix="gis-geo-explorer"
+                draft={geoExplorerDraft}
+                onDraftChange={setGeoExplorerDraft}
+                onSend={sendGeoExplorerChat}
+                busy={geoExplorerBusy}
+                pendingImage={geoExplorerPendingImage}
+                fileInputRef={geoExplorerFileInputRef}
+                onAttachChange={onGeoExplorerAttachChange}
+                textareaAriaLabel="Geo Explorer message"
+              />
               <p className="gis-geo-explorer-footnote">
                 Powered by Google Gemini. Set <code>VITE_GEMINI_API_KEY</code> or save under System Settings → API Tokens →
                 Gemini API. Do not commit keys.
@@ -7073,11 +7129,37 @@ export default function GisMap() {
                     const baseStroke = symbologyLayer.color || '#22c55e'
                     const baseWeight = symbologyLayer.weight ?? 2
                     const kind: 'line' | 'point' | 'polygon' = geometryKind === 'polygon' ? 'polygon' : geometryKind === 'point' ? 'point' : 'line'
+                    const arcDef = symbologyLayer.arcgisLayerDefinition ?? null
+                    const fieldsByLower = buildArcFieldsByLower(arcDef)
+                    const fieldNm = symbologyDialog.draft.field
+                    const layerFeatures = Array.isArray((symbologyLayer.data as any)?.features)
+                      ? ((symbologyLayer.data as any).features as any[])
+                      : []
+                    const uniqueLegendLabel = (val: string) => {
+                      if (!fieldNm) return val
+                      const rep = layerFeatures.find((f: any) => {
+                        const r = f?.properties?.[fieldNm]
+                        if (r === null || r === undefined || r === '') return false
+                        return String(r) === val
+                      })
+                      if (rep && arcDef) {
+                        const raw = rep.properties?.[fieldNm]
+                        return arcSchemaDisplayValue(rep, fieldNm, raw, arcDef, fieldsByLower, 'description').display || val
+                      }
+                      if (arcDef) return arcLegendLabelForFieldValue(fieldNm, val, arcDef, fieldsByLower)
+                      return val
+                    }
                     if (symbologyDialog.draft.style === 'unique') {
                       if (kind === 'line') {
                         const vals = ctx.categories.length ? ctx.categories : Object.keys(ctx.uniqueDashes)
                         vals.slice(0, 12).forEach((val) => {
-                          items.push({ label: val, kind, color: baseStroke, width: baseWeight, dash: ctx.uniqueDashes[val] ?? '' })
+                          items.push({
+                            label: uniqueLegendLabel(val),
+                            kind,
+                            color: baseStroke,
+                            width: baseWeight,
+                            dash: ctx.uniqueDashes[val] ?? '',
+                          })
                         })
                         if (vals.length === 0) items.push({ label: 'No values', kind, color: baseStroke, width: baseWeight })
                         return items
@@ -7085,7 +7167,13 @@ export default function GisMap() {
                       const vals = ctx.categories.length ? ctx.categories : Object.keys(ctx.categoryColors)
                       vals.slice(0, 12).forEach((val) => {
                         const fill = ctx.categoryColors[val] ?? ctx.otherColor
-                        items.push({ label: val, kind, color: darkenColor(fill, 0.25), width: baseWeight, fill })
+                        items.push({
+                          label: uniqueLegendLabel(val),
+                          kind,
+                          color: darkenColor(fill, 0.25),
+                          width: baseWeight,
+                          fill,
+                        })
                       })
                       if (vals.length === 0) items.push({ label: 'No values', kind, color: baseStroke, width: baseWeight, fill: baseStroke })
                       return items

@@ -9,6 +9,7 @@ import {
   buildAgriWeatherInsightAppend,
   buildOpenMeteoCompactComparisonBlock,
   fetchOpenMeteoCurrentSnapshot,
+  GEO_AI_WEATHER_ASSISTANT_APPDX,
   resolveGeoAiWeatherFactsCoords,
   type WeatherFactsCoordResolution,
 } from './geoAiWeatherEngine'
@@ -148,6 +149,10 @@ export async function buildGeoAiWeatherSystemAppend(input: {
         windKmh: omSnap.windKmh,
       })
     }
+  }
+
+  if (weatherImplied) {
+    out += `\n\n${GEO_AI_WEATHER_ASSISTANT_APPDX}`
   }
 
   return out

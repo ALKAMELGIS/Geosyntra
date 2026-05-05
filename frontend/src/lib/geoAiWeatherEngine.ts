@@ -6,13 +6,36 @@
 import { geocodePlaceToLngLat, simplifyGeoExplorerUserQuery, stripLayerReferenceForGeocode } from './geoExplorerGeocode'
 import type { GeoAiMapLayer } from './geoExplorerLayerContext'
 import {
+  extractGeoExplorerLayerHint,
+  findLayerFeatureByUserQuery,
   findLngLatFromLayerQuery,
   GEO_EXPLORER_MIN_LAYER_PIN_SCORE,
+  normalizeLayerName,
   type LayerQueryMatch,
 } from './geoExplorerLayerContext'
 import { geoExplorerUserMessageImpliesWeather } from './openMeteoGeoExplorer'
 
 export type WeatherFactsCoordSource = 'map_anchor' | 'inspect_selection' | 'layer_feature' | 'geocode'
+
+/** Appended to Geo AI system context on weather turns — keeps the UI “Hello! …” sample unchanged. */
+export const GEO_AI_WEATHER_ASSISTANT_APPDX = `### GEO AI WEATHER ASSISTANT (reply rules)
+You answer **weather / temperature / forecast / historical** questions using only the **OPEN-METEO**, **OPENWEATHER**, and **WEATHER COORDINATE SOURCE** blocks in this turn (plus layer attribute text when present). Do not invent numbers.
+
+**Location resolution priority (align your wording with how the app resolved the point):**
+1) **GIS layer feature** — loaded vector layers are searched by id/name/code on attributes (same intent as \`GIS.getLayer(layerName).find(userQuery)\`; often scoped when the user writes “from / in / on” plus a layer name).
+2) **Explicit latitude, longitude** in the user message.
+3) **Place name** — geocoding (e.g. Open-Meteo search \`https://geocoding-api.open-meteo.com/v1/search?name=\` when used server-side).
+4) If the user gave no usable place and there is no resolved coordinate block — ask them to specify a place, a layer + id, or coordinates.
+
+**When you have usable facts**, structure the reply clearly (emoji optional; **match the user’s language**):
+- **Location:** named place or **layer + feature**; if attributes include crop/type/name, mention them (e.g. farm or parcel label).
+- **Current:** temperature (°C), humidity (%), wind (km/h) from facts.
+- **Forecast:** next relevant day(s) high/low from daily series in facts.
+- **Historical:** only if archive/historical lines exist in facts — cite date → values from facts.
+
+**Smart notes (optional, from facts only):** if temperature \> 35 °C → hot conditions; humidity \< 30 % → dry conditions; both → you may warn about **water stress** risk.
+
+**If facts are missing or the fetch failed:** respond with: **⚠️ Unable to retrieve weather data** (then briefly suggest naming a place or checking layer data).`
 
 export type WeatherFactsCoordResolution = {
   lng: number
@@ -211,9 +234,25 @@ export async function resolveGeoAiWeatherFactsCoords(input: {
   const pinCoords = input.pinLngLat ?? input.lastMapQueryCoords ?? null
   const inspectCoords = input.inspectAnchorLngLat
 
-  const layerHit = findLngLatFromLayerQuery(userText, combinedLayers)
-  const strongLayer =
-    layerHit && layerHit.score >= GEO_EXPLORER_MIN_LAYER_PIN_SCORE ? layerHit : null
+  const layerHint = extractGeoExplorerLayerHint(userText, combinedLayers)
+  const layerHit =
+    (layerHint?.trim()
+      ? findLayerFeatureByUserQuery(userText, combinedLayers, layerHint)
+      : null) ?? findLngLatFromLayerQuery(userText, combinedLayers)
+
+  const hintMatchesLayer =
+    Boolean(layerHint?.trim()) &&
+    combinedLayers.some(l => {
+      const ln = normalizeLayerName(l.name)
+      const lnSp = normalizeLayerName(l.name.replace(/_/g, ' '))
+      const hn = normalizeLayerName(layerHint!)
+      return ln === hn || ln.includes(hn) || hn.includes(ln) || lnSp.includes(hn) || hn.includes(lnSp)
+    })
+  const layerPinMinScore =
+    hintMatchesLayer && geoExplorerUserMessageImpliesWeather(userText)
+      ? Math.min(GEO_EXPLORER_MIN_LAYER_PIN_SCORE, 26)
+      : GEO_EXPLORER_MIN_LAYER_PIN_SCORE
+  const strongLayer = layerHit && layerHit.score >= layerPinMinScore ? layerHit : null
 
   const preferMap = weatherQueryPrefersMapAnchor(userText)
   const preferInspect = weatherQueryPrefersInspectSelection(userText)

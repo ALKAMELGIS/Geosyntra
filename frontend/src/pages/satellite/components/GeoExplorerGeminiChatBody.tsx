@@ -1,5 +1,6 @@
 import type { ChangeEvent, RefObject } from 'react'
 import { messageDisplayText, stripGeoExplorerBubbleDisplayText, type GeoExplorerMessage } from '../../../lib/geoExplorerGemini'
+import { GeoExplorerGeminiInputRow } from './GeoExplorerGeminiInputRow'
 
 export type GeoExplorerCssPrefix = 'gis-geo-explorer' | 'si-geo-explorer'
 
@@ -14,7 +15,7 @@ export type GeoExplorerGeminiChatBodyProps = {
   onClearPendingImage: () => void
   fileInputRef: RefObject<HTMLInputElement | null>
   onAttachChange: (e: ChangeEvent<HTMLInputElement>) => void
-  onSend: () => void
+  onSend: (voiceOverrideText?: string) => void
   textareaAriaLabel: string
 }
 
@@ -96,52 +97,17 @@ export function GeoExplorerGeminiChatBody(props: GeoExplorerGeminiChatBodyProps)
           </button>
         </p>
       ) : null}
-      <div className={pfx(cssPrefix, 'input-row')}>
-        <textarea
-          className={pfx(cssPrefix, 'input')}
-          rows={2}
-          value={draft}
-          onChange={e => onDraftChange(e.target.value)}
-          onKeyDown={e => {
-            if (e.key === 'Enter' && !e.shiftKey) {
-              e.preventDefault()
-              onSend()
-            }
-          }}
-          placeholder="Describe a place, ask for directions, or plan a trip…"
-          aria-label={textareaAriaLabel}
-          disabled={busy}
-        />
-        <input
-          ref={fileInputRef}
-          type="file"
-          className={pfx(cssPrefix, 'file-input')}
-          accept="image/*"
-          onChange={onAttachChange}
-          aria-hidden
-          tabIndex={-1}
-        />
-        <button
-          type="button"
-          className={pfx(cssPrefix, 'attach')}
-          onClick={() => fileInputRef.current?.click()}
-          disabled={busy}
-          aria-label="Attach image"
-          title="Attach image"
-        >
-          <i className="fa-solid fa-paperclip" aria-hidden />
-        </button>
-        <button
-          type="button"
-          className={pfx(cssPrefix, 'send')}
-          onClick={onSend}
-          disabled={busy || (!draft.trim() && !pendingImage)}
-          aria-label="Send"
-          title="Send"
-        >
-          <i className="fa-solid fa-paper-plane" aria-hidden />
-        </button>
-      </div>
+      <GeoExplorerGeminiInputRow
+        cssPrefix={cssPrefix}
+        draft={draft}
+        onDraftChange={onDraftChange}
+        onSend={onSend}
+        busy={busy}
+        pendingImage={pendingImage}
+        fileInputRef={fileInputRef}
+        onAttachChange={onAttachChange}
+        textareaAriaLabel={textareaAriaLabel}
+      />
       <p className={pfx(cssPrefix, 'footnote')}>
         Powered by Google Gemini. Set <code>VITE_GEMINI_API_KEY</code> or save under System Settings → API Tokens → Gemini
         API. Do not commit keys.

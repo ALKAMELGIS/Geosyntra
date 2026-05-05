@@ -1,3 +1,16 @@
+/* Satellite: make `<main>` a column flex so `.si-page` gets a definite block size (Edge + Chrome height %). */
+main.content:has(> .si-page) {
+  display: flex;
+  flex-direction: column;
+  padding: 0;
+  overflow: hidden;
+}
+
+main.content > .si-page {
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
 .si-page {
   position: relative;
   width: 100%;
@@ -6186,6 +6199,113 @@ input.si-explore-date-input-linked[type='date'] {
   align-items: flex-end;
   gap: 8px;
   margin-top: 4px;
+}
+
+.si-geo-explorer-input-shell {
+  flex: 1 1 auto;
+  min-width: 0;
+  position: relative;
+  display: block;
+}
+
+.si-geo-explorer-input-shell .si-geo-explorer-input {
+  width: 100%;
+  box-sizing: border-box;
+  padding-right: 6.5rem;
+  min-height: 44px;
+}
+
+.si-geo-explorer-input-inset-trail {
+  position: absolute;
+  right: 7px;
+  bottom: 9px;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 5px;
+  max-width: calc(100% - 14px);
+  pointer-events: none;
+}
+
+.si-geo-explorer-input-inset-trail > * {
+  pointer-events: auto;
+}
+
+.si-geo-explorer-input-listening {
+  font-size: 10px;
+  font-weight: 600;
+  color: #ddd6fe;
+  white-space: nowrap;
+  letter-spacing: 0.02em;
+  text-shadow: 0 0 10px rgba(124, 58, 237, 0.45);
+}
+
+.si-geo-explorer-mic {
+  width: 32px;
+  height: 32px;
+  border-radius: 10px;
+  border: 1px solid rgba(148, 163, 184, 0.35);
+  background: rgba(30, 41, 59, 0.85);
+  color: #e2e8f0;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  transition: border-color 0.15s ease, color 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
+}
+
+.si-geo-explorer-mic:hover:not(:disabled) {
+  border-color: rgba(167, 139, 250, 0.55);
+  color: #faf5ff;
+}
+
+.si-geo-explorer-mic:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.si-geo-explorer-mic--active {
+  border-color: rgba(196, 181, 253, 0.9);
+  color: #faf5ff;
+  box-shadow: 0 0 0 2px rgba(124, 58, 237, 0.35), 0 0 18px rgba(124, 58, 237, 0.22);
+  background: rgba(67, 56, 202, 0.42);
+}
+
+.si-geo-explorer-mic--unsupported {
+  opacity: 0.38;
+}
+
+.si-geo-explorer-lang-chip {
+  min-width: 28px;
+  height: 28px;
+  padding: 0 6px;
+  border-radius: 8px;
+  border: 1px solid rgba(148, 163, 184, 0.28);
+  background: rgba(15, 23, 42, 0.75);
+  color: #cbd5e1;
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+  font-family: inherit;
+  transition: border-color 0.15s ease, color 0.15s ease;
+}
+
+.si-geo-explorer-lang-chip:hover:not(:disabled) {
+  border-color: rgba(167, 139, 250, 0.5);
+  color: #f8fafc;
+}
+
+.si-geo-explorer-lang-chip:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.si-geo-explorer-voice-error {
+  margin: 4px 0 0;
+  font-size: 10px;
+  color: #fca5a5;
+  line-height: 1.35;
 }
 
 .si-geo-explorer-input {

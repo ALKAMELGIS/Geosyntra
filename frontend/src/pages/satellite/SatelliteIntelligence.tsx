@@ -65,6 +65,10 @@ import {
 } from '../../lib/geoExplorerLayerContext';
 import { resolveGeoAiPinFromUserTextAndReply } from '../../lib/geoAiResolveMapCoords';
 import { buildGeoAiFullWeatherSessionAppend } from '../../lib/geoAiWeatherContext';
+import {
+  siDefaultSatelliteGlobeEnabled,
+  siMapErrorSuggestsGlobeOrWebglFailure,
+} from '../../lib/siMapboxGlobeCompat';
 import { useOpenWeatherMapApiKey } from '../../hooks/useOpenWeatherMapApiKey';
 import { agroChatWithDeepSeek } from '../../lib/agroAiChat';
 import {
@@ -85,8 +89,14 @@ import {
   sanitizeArcgisDrawingInfoForClient,
   slimArcgisLayerDefinitionForStorage,
 } from '../../lib/arcgisDrawingInfoMapbox';
-import { buildArcFieldsByLower, getArcDisplayValue, type ArcgisLayerDefLite } from '../../lib/arcgisAttributeDisplay';
+import {
+  arcLegendLabelForFieldValue,
+  buildArcFieldsByLower,
+  getArcDisplayValue,
+  type ArcgisLayerDefLite,
+} from '../../lib/arcgisAttributeDisplay';
 import { FieldVisibilityControl } from './components/FieldVisibilityControl';
+import { GeoExplorerGeminiInputRow } from './components/GeoExplorerGeminiInputRow';
 
 const EMPTY_MAP_STYLE: any = {
   version: 8,
@@ -1235,6 +1245,7 @@ function arcgisLegendPreviewRows(
   drawingInfo: Record<string, unknown> | null | undefined,
   colorRamp: SymbologyColorRamp,
   maxCategories: number,
+  arcDef?: ArcgisLayerDefLite | null,
 ): Array<{ label: string; color: string }> {
   if (!drawingInfo || typeof drawingInfo !== 'object') return [];
   const ren = (drawingInfo as any)?.renderer;
@@ -1245,8 +1256,17 @@ function arcgisLegendPreviewRows(
 
   if (t === 'uniqueValue') {
     const infos = (Array.isArray(ren.uniqueValueInfos) ? ren.uniqueValueInfos : []).slice(0, max);
+    const fieldsByLower = buildArcFieldsByLower(arcDef ?? null);
+    const fieldName = pickRendererPrimaryField(ren) || '';
     return infos.map((uvi: any, i: number) => {
-      const label = String(uvi?.label ?? uvi?.value ?? '');
+      const rawVal = uvi?.value;
+      const rawStr = rawVal === null || rawVal === undefined ? '' : String(rawVal);
+      const uviLabel = String(uvi?.label ?? '').trim();
+      let label = uviLabel || rawStr;
+      if (arcDef && fieldName && rawStr !== '') {
+        const resolved = arcLegendLabelForFieldValue(fieldName, rawStr, arcDef, fieldsByLower);
+        if (resolved !== rawStr) label = resolved;
+      }
       const color =
         ramp != null
           ? rampColorAt(ramp, i, Math.max(infos.length, 1))
@@ -1445,7 +1465,7 @@ export default function SatelliteIntelligence() {
       return mapboxToken ? DEFAULT_BASEMAP_ID : DEFAULT_BASEMAP_ID_NO_MAPBOX;
     });
   }, [basemapCatalog, mapboxToken]);
-  const [is3DView, setIs3DView] = useState(true);
+  const [is3DView, setIs3DView] = useState(() => siDefaultSatelliteGlobeEnabled());
   const [cloudCoverage, setCloudCoverage] = useState(20);
   const [isTimelinePlaying, setIsTimelinePlaying] = useState(false);
   const [selectedIndex, setSelectedIndex] = useState<EnvironmentalIndexId>('NDWI');
@@ -1596,6 +1616,8 @@ export default function SatelliteIntelligence() {
   const exploreCatalogSigRef = useRef('');
   const searchRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<any | null>(null);
+  /** One-shot fallback to Mercator when Globe/WebGL errors (e.g. some Edge + GPU combos). */
+  const siGlobeWebglFailoverRef = useRef(false);
   const siTableFeatureKeyCacheRef = useRef<Map<object, string>>(new Map());
   const drawnGeometryRef = useRef<any | null>(null);
   const dragRectCircleRef = useRef<null | { kind: 'rectangle' | 'circle' | 'box_select'; start: [number, number] }>(null);
@@ -1733,6 +1755,9 @@ export default function SatelliteIntelligence() {
   const toggle3DView = () => {
     const mapInstance = mapRef.current?.getMap ? mapRef.current.getMap() : mapRef.current;
     const nextIs3D = !is3DView;
+    if (nextIs3D) {
+      siGlobeWebglFailoverRef.current = false;
+    }
     setIs3DView(nextIs3D);
 
     const pitch = nextIs3D ? Math.max(viewState.pitch || 0, 55) : 0;
@@ -2079,13 +2104,14 @@ export default function SatelliteIntelligence() {
   ]);
 
   const arcgisSymbologyLegendRows = useMemo(() => {
-    if (!activeDialogLayer?.arcgisDrawingInfo || !symbologyDraft.useArcGisOnline) return [] as Array<{ label: string; color: string }>;
+    if (!activeDialogLayer?.arcgisDrawingInfo) return [] as Array<{ label: string; color: string }>;
     return arcgisLegendPreviewRows(
       activeDialogLayer.arcgisDrawingInfo as Record<string, unknown>,
       symbologyDraft.colorRamp,
       symbologyDraft.arcgisMaxCategories,
+      activeDialogLayer.arcgisLayerDefinition ?? null,
     );
-  }, [activeDialogLayer, symbologyDraft.useArcGisOnline, symbologyDraft.colorRamp, symbologyDraft.arcgisMaxCategories]);
+  }, [activeDialogLayer, symbologyDraft.colorRamp, symbologyDraft.arcgisMaxCategories]);
 
   const arcgisSymbologyField = useMemo(() => {
     if (!activeDialogLayer?.arcgisDrawingInfo) return '';
@@ -2146,7 +2172,7 @@ export default function SatelliteIntelligence() {
       useArcGisOnline: useAgOnline,
       style: 'single',
       classes: 5,
-      colorRamp: useAgOnline ? 'service' : 'viridis',
+      colorRamp: activeDialogLayer.source === 'arcgis' ? 'service' : 'viridis',
       method: 'natural-breaks',
       color: activeDialogLayer.color || '#22c55e',
       arcgisMaxCategories: maxCat,
@@ -2156,14 +2182,12 @@ export default function SatelliteIntelligence() {
   const applySymbologyDraft = async () => {
     if (!activeDialogLayer) return;
     try {
-      if (symbologyDraft.useArcGisOnline) {
-        if (activeDialogLayer.source !== 'arcgis' || !activeDialogLayer.sourceUrl?.trim()) {
-          setStacStatus('ArcGIS Online symbology is only available for ArcGIS feature layers.');
-          return;
-        }
+      const isArcgisLayer = activeDialogLayer.source === 'arcgis' && Boolean(activeDialogLayer.sourceUrl?.trim());
+
+      if (isArcgisLayer) {
         let di = activeDialogLayer.arcgisDrawingInfo;
         if (!di) {
-          const raw = await fetchArcgisLayerDrawingInfo(activeDialogLayer.sourceUrl, activeDialogLayer.authToken);
+          const raw = await fetchArcgisLayerDrawingInfo(activeDialogLayer.sourceUrl!, activeDialogLayer.authToken);
           di = (raw && sanitizeArcgisDrawingInfoForClient(raw)) || null;
         }
         if (!di || !arcgisDrawingInfoToFillPaint(di)) {
@@ -2177,7 +2201,7 @@ export default function SatelliteIntelligence() {
             arcgisRendererType === 'simple' ? 1 : symbologyDraft.arcgisMaxCategories,
           ) ?? (sanitizeArcgisDrawingInfoForClient(di) as Record<string, unknown> | null);
         if (!baked || !arcgisDrawingInfoToFillPaint(baked)) {
-          setStacStatus('Could not load a supported ArcGIS renderer (drawingInfo) for this layer.');
+          setStacStatus('Could not apply symbology to this layer renderer.');
           return;
         }
         setCustomLayers(prev =>
@@ -2186,21 +2210,22 @@ export default function SatelliteIntelligence() {
           ),
         );
         setActiveLayerActionDialog(null);
-        setStacStatus(`ArcGIS symbology applied for "${activeDialogLayer.name}".`);
+        setStacStatus(`Style saved for "${activeDialogLayer.name}".`);
         return;
       }
-    const rampKey: 'viridis' | 'green' | 'warm' =
+
+      const rampKey: 'viridis' | 'green' | 'warm' =
         symbologyDraft.colorRamp === 'service' ? 'viridis' : symbologyDraft.colorRamp;
       const ramp = COLOR_RAMPS[rampKey];
       const nextColor =
         symbologyDraft.style === 'single'
-        ? symbologyDraft.color
-        : ramp[Math.max(0, Math.min(ramp.length - 1, symbologyDraft.classes - 1))];
+          ? symbologyDraft.color
+          : ramp[Math.max(0, Math.min(ramp.length - 1, symbologyDraft.classes - 1))];
       setCustomLayers(prev =>
         prev.map(l => (l.id === activeDialogLayer.id ? { ...l, useArcGisSymbology: false, color: nextColor } : l)),
       );
-    setActiveLayerActionDialog(null);
-    setStacStatus(`Style saved for "${activeDialogLayer.name}".`);
+      setActiveLayerActionDialog(null);
+      setStacStatus(`Style saved for "${activeDialogLayer.name}".`);
     } catch (e) {
       setStacStatus(e instanceof Error ? e.message : 'Failed to save style.');
     }
@@ -2835,6 +2860,7 @@ export default function SatelliteIntelligence() {
   const addStacToGlobalScene = async (item: any) => {
     closeStacAddMenu();
     setShowStacFootprintsOnMap(true);
+    siGlobeWebglFailoverRef.current = false;
     setIs3DView(true);
     window.setTimeout(() => {
       const map = mapRef.current?.getMap?.() ?? mapRef.current;
@@ -3417,8 +3443,8 @@ export default function SatelliteIntelligence() {
     };
   }, [geoAiInspectCard, mapboxToken]);
 
-  const sendGeoExplorerChat = useCallback(() => {
-    const trimmed = geoExplorerDraft.trim();
+  const sendGeoExplorerChat = useCallback((voiceOverrideText?: string) => {
+    const trimmed = (voiceOverrideText ?? geoExplorerDraft).trim();
     if (geoExplorerInFlightRef.current) return;
     if (!trimmed && !geoExplorerPendingImage) return;
     const apiKey = geminiApiKey.trim();
@@ -3541,8 +3567,8 @@ export default function SatelliteIntelligence() {
     geoAiInspectCard,
   ]);
 
-  const sendGeoAiChat = useCallback(() => {
-    const trimmed = geoAiDraft.trim();
+  const sendGeoAiChat = useCallback((voiceOverrideText?: string) => {
+    const trimmed = (voiceOverrideText ?? geoAiDraft).trim();
     if (geoAiInFlightRef.current || !trimmed) return;
     const apiKey = claudeApiKey.trim();
     if (!apiKey) {
@@ -3627,8 +3653,8 @@ export default function SatelliteIntelligence() {
     geoAiInspectCard,
   ]);
 
-  const sendGeoDeepseekChat = useCallback(() => {
-    const trimmed = geoDeepseekDraft.trim();
+  const sendGeoDeepseekChat = useCallback((voiceOverrideText?: string) => {
+    const trimmed = (voiceOverrideText ?? geoDeepseekDraft).trim();
     if (geoDeepseekInFlightRef.current || !trimmed) return;
     const apiKey = deepseekApiKey.trim();
     if (!apiKey) {
@@ -4689,6 +4715,11 @@ export default function SatelliteIntelligence() {
                 url.includes('api.mapbox.com/v4/mapbox.satellite') ||
                 url.includes('services.sentinel-hub.com/ogc/wms')
               ) {
+                return;
+              }
+              if (!siGlobeWebglFailoverRef.current && siMapErrorSuggestsGlobeOrWebglFailure(String(message))) {
+                siGlobeWebglFailoverRef.current = true;
+                setIs3DView(v => (v ? false : v));
                 return;
               }
               console.warn('Map Error:', e);
@@ -6206,54 +6237,17 @@ export default function SatelliteIntelligence() {
                                   </button>
                                 </p>
                               ) : null}
-                              <div className="si-geo-explorer-input-row">
-                                <textarea
-                                  className="si-geo-explorer-input"
-                                  rows={2}
-                                  value={geoExplorerDraft}
-                                  onChange={e => setGeoExplorerDraft(e.target.value)}
-                                  onKeyDown={e => {
-                                    if (e.key === 'Enter' && !e.shiftKey) {
-                                      e.preventDefault();
-                                      sendGeoExplorerChat();
-                                    }
-                                  }}
-                                  placeholder="Describe a place, ask for directions, or plan a trip…"
-                                  aria-label="Geo AI Gemini message"
-                                  disabled={geoExplorerBusy}
-                                />
-                                <input
-                                  ref={geoExplorerFileInputRef}
-                                  type="file"
-                                  className="si-geo-explorer-file-input"
-                                  accept="image/*"
-                                  onChange={onGeoExplorerAttachChange}
-                                  aria-hidden
-                                  tabIndex={-1}
-                                />
-                                <button
-                                  type="button"
-                                  className="si-geo-explorer-attach"
-                                  onClick={() => geoExplorerFileInputRef.current?.click()}
-                                  disabled={geoExplorerBusy}
-                                  aria-label="Attach image"
-                                  title="Attach image"
-                                >
-                                  <i className="fa-solid fa-paperclip" aria-hidden />
-                                </button>
-                                <button
-                                  type="button"
-                                  className="si-geo-explorer-send"
-                                  onClick={sendGeoExplorerChat}
-                                  disabled={
-                                    geoExplorerBusy || (!geoExplorerDraft.trim() && !geoExplorerPendingImage)
-                                  }
-                                  aria-label="Send"
-                                  title="Send"
-                                >
-                                  <i className="fa-solid fa-paper-plane" aria-hidden />
-                                </button>
-                              </div>
+                              <GeoExplorerGeminiInputRow
+                                cssPrefix="si-geo-explorer"
+                                draft={geoExplorerDraft}
+                                onDraftChange={setGeoExplorerDraft}
+                                onSend={sendGeoExplorerChat}
+                                busy={geoExplorerBusy}
+                                pendingImage={geoExplorerPendingImage}
+                                fileInputRef={geoExplorerFileInputRef}
+                                onAttachChange={onGeoExplorerAttachChange}
+                                textareaAriaLabel="Geo AI Gemini message"
+                              />
                               <p className="si-geo-explorer-footnote">
                                 Powered by Google Gemini. Set <code>VITE_GEMINI_API_KEY</code> or save under System Settings →
                                 API Tokens → Gemini API. Do not commit keys.
@@ -6311,47 +6305,27 @@ export default function SatelliteIntelligence() {
                               {geoAiModelTab === 'deepseek' && geoDeepseekChatError ? (
                                 <p className="si-geo-explorer-error">{geoDeepseekChatError}</p>
                               ) : null}
-                              <div className="si-geo-explorer-input-row">
-                                <textarea
-                                  className="si-geo-explorer-input"
-                                  rows={2}
-                                  value={geoAiModelTab === 'claude' ? geoAiDraft : geoDeepseekDraft}
-                                  onChange={e =>
-                                    geoAiModelTab === 'claude'
-                                      ? setGeoAiDraft(e.target.value)
-                                      : setGeoDeepseekDraft(e.target.value)
-                                  }
-                                  onKeyDown={e => {
-                                    if (e.key === 'Enter' && !e.shiftKey) {
-                                      e.preventDefault();
-                                      if (geoAiModelTab === 'claude') sendGeoAiChat();
-                                      else sendGeoDeepseekChat();
-                                    }
-                                  }}
-                                  placeholder={
-                                    geoAiModelTab === 'claude'
-                                      ? 'e.g. List layer names and fields from the attached GIS / Develop data…'
-                                      : 'e.g. Summarize saved layers and Develop Dashboard fields (same context as Claude)…'
-                                  }
-                                  aria-label={
-                                    geoAiModelTab === 'claude' ? 'Geo AI Claude message' : 'Geo AI DeepSeek message'
-                                  }
-                                  disabled={geoAiModelTab === 'claude' ? geoAiBusy : geoDeepseekBusy}
-                                />
-                                <button
-                                  type="button"
-                                  className="si-geo-explorer-send"
-                                  onClick={geoAiModelTab === 'claude' ? sendGeoAiChat : sendGeoDeepseekChat}
-                                  disabled={
-                                    (geoAiModelTab === 'claude' ? geoAiBusy : geoDeepseekBusy) ||
-                                    !(geoAiModelTab === 'claude' ? geoAiDraft : geoDeepseekDraft).trim()
-                                  }
-                                  aria-label="Send"
-                                  title="Send"
-                                >
-                                  <i className="fa-solid fa-paper-plane" aria-hidden />
-                                </button>
-                              </div>
+                              <GeoExplorerGeminiInputRow
+                                cssPrefix="si-geo-explorer"
+                                draft={geoAiModelTab === 'claude' ? geoAiDraft : geoDeepseekDraft}
+                                onDraftChange={v =>
+                                  geoAiModelTab === 'claude' ? setGeoAiDraft(v) : setGeoDeepseekDraft(v)
+                                }
+                                onSend={t =>
+                                  geoAiModelTab === 'claude' ? sendGeoAiChat(t) : sendGeoDeepseekChat(t)
+                                }
+                                busy={geoAiModelTab === 'claude' ? geoAiBusy : geoDeepseekBusy}
+                                pendingImage={null}
+                                showAttach={false}
+                                placeholder={
+                                  geoAiModelTab === 'claude'
+                                    ? 'e.g. List layer names and fields from the attached GIS / Develop data…'
+                                    : 'e.g. Summarize saved layers and Develop Dashboard fields (same context as Claude)…'
+                                }
+                                textareaAriaLabel={
+                                  geoAiModelTab === 'claude' ? 'Geo AI Claude message' : 'Geo AI DeepSeek message'
+                                }
+                              />
                               <p className="si-geo-explorer-footnote">
                                 {geoAiModelTab === 'claude' ? (
                                   <>
@@ -7150,14 +7124,14 @@ export default function SatelliteIntelligence() {
                           setSymbologyDraft(prev => ({
                             ...prev,
                             useArcGisOnline: on,
-                            colorRamp: on ? 'service' : prev.colorRamp === 'service' ? 'viridis' : prev.colorRamp,
+                            colorRamp: on ? 'service' : prev.colorRamp,
                           }));
                         }}
                       />
                       <span className="si-layer-action-toggle-ui" aria-hidden />
                     </label>
                   </div>
-                  {symbologyDraft.useArcGisOnline && activeDialogLayer.source === 'arcgis' ? (
+                  {activeDialogLayer.source === 'arcgis' ? (
                     activeDialogLayer.arcgisDrawingInfo ? (
                       <>
                         <div className="si-layer-action-symbology-grid si-layer-action-symbology-grid--arcgis">
