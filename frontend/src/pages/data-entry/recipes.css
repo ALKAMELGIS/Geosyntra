@@ -138,6 +138,35 @@
   color: #047857;
 }
 
+.recipes-tool-btn--report {
+  padding: 9px 14px;
+  border-radius: 12px;
+  border: 1px solid rgba(5, 150, 105, 0.35);
+  background: linear-gradient(135deg, rgba(236, 253, 245, 0.95) 0%, rgba(209, 250, 229, 0.55) 100%);
+  color: #065f46;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.65) inset,
+    0 8px 22px rgba(5, 150, 105, 0.14);
+}
+
+.recipes-tool-btn--report:hover:not(:disabled) {
+  background: linear-gradient(135deg, rgba(209, 250, 229, 0.98) 0%, rgba(167, 243, 208, 0.65) 100%);
+  border-color: rgba(5, 150, 105, 0.55);
+  color: #064e3b;
+}
+
+.recipes-tool-btn--report:disabled {
+  opacity: 0.48;
+  box-shadow: none;
+}
+
+.recipes-tool-btn--report i {
+  font-size: 15px;
+  color: #059669;
+}
+
 .recipes-btn-export {
   display: inline-flex;
   align-items: center;
@@ -255,6 +284,24 @@ html[data-theme='dark'] .recipes-tool-btn:hover {
 
 html[data-theme='dark'] .recipes-tool-btn--on {
   color: #5eead4;
+}
+
+html[data-theme='dark'] .recipes-tool-btn--report {
+  border-color: rgba(45, 212, 191, 0.35);
+  background: linear-gradient(135deg, rgba(6, 78, 59, 0.55) 0%, rgba(15, 118, 110, 0.35) 100%);
+  color: #a7f3d0;
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.06) inset,
+    0 10px 26px rgba(0, 0, 0, 0.35);
+}
+
+html[data-theme='dark'] .recipes-tool-btn--report:hover:not(:disabled) {
+  border-color: rgba(45, 212, 191, 0.55);
+  color: #d1fae5;
+}
+
+html[data-theme='dark'] .recipes-tool-btn--report i {
+  color: #34d399;
 }
 
 html[data-theme='dark'] .recipes-card__head {

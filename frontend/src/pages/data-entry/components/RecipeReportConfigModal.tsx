@@ -238,6 +238,7 @@ export function RecipeReportConfigModal({ open, onClose, columns, rows, uiLang, 
         dir={uiLang === 'ar' ? 'rtl' : 'ltr'}
         onClick={(e) => e.stopPropagation()}
       >
+        <div className="recipe-report-modal__brand-strip" aria-hidden />
         <div className="recipe-report-modal__head">
           <div>
             <h2 id="recipe-report-modal-title" className="recipe-report-modal__title">

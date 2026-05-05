@@ -156,6 +156,7 @@ export default function Recipes() {
           columns: payload.columns,
           rows: payload.rows,
           periodLabel: payload.periodLabel,
+          reportLang: uiLang,
         })
         setReportModalOpen(false)
       } catch (err) {
@@ -173,7 +174,7 @@ export default function Recipes() {
         setReportBusy(false)
       }
     },
-    [formKey, formSlug, reportTitleEn],
+    [formKey, formSlug, reportTitleEn, uiLang],
   )
 
   const runExportCsv = useCallback(() => {
@@ -230,7 +231,7 @@ export default function Recipes() {
             <div className="recipes-toolbar recipes-toolbar--tools" role="toolbar" aria-label="Recipe table actions">
               <button
                 type="button"
-                className="recipes-tool-btn"
+                className="recipes-tool-btn recipes-tool-btn--report"
                 disabled={reportBusy || emptyPrimary}
                 title={emptyPrimary ? c.emptyConfigured : c.generateReport}
                 onClick={() => !emptyPrimary && setReportModalOpen(true)}
