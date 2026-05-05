@@ -511,7 +511,18 @@ function buildPcPreviewPngUrl(
   return u.toString();
 }
 
-function buildPcProcessingPreviewPngUrl(collection: string, itemId: string, templateId: MpcTemplateId, size = 2048): string {
+function buildPcProcessingPreviewPngUrl(
+  collection: string,
+  itemId: string,
+  spec: {
+    assets: string[];
+    expression?: string;
+    rescale?: string;
+    colormapName?: string;
+    assetBidx?: string;
+  },
+  size = 2048,
+): string {
   const u = new URL('https://planetarycomputer.microsoft.com/api/data/v1/item/preview.png');
   u.searchParams.set('collection', collection);
   u.searchParams.set('item', itemId);
@@ -519,30 +530,107 @@ function buildPcProcessingPreviewPngUrl(collection: string, itemId: string, temp
   u.searchParams.set('nodata', '0');
   u.searchParams.set('width', String(Math.max(256, Math.min(4096, Math.floor(size)))));
   u.searchParams.set('height', String(Math.max(256, Math.min(4096, Math.floor(size)))));
-
-  if (templateId === 'ndvi_s2') {
-    u.searchParams.set('assets', 'B08,B04');
-    u.searchParams.set('expression', '(B08-B04)/(B08+B04+1e-6)');
-    u.searchParams.set('rescale', '-1,1');
-    u.searchParams.set('colormap_name', 'rdylgn');
-  } else if (templateId === 'false_color_s2') {
-    u.searchParams.set('assets', 'B12,B08,B04');
-    u.searchParams.set('asset_bidx', 'B12|1,B08|1,B04|1');
-  } else if (templateId === 'ndmi_s2') {
-    u.searchParams.set('assets', 'B08,B11');
-    u.searchParams.set('expression', '(B08-B11)/(B08+B11+1e-6)');
-    u.searchParams.set('rescale', '-1,1');
-    u.searchParams.set('colormap_name', 'viridis');
-  } else if (templateId === 'ndvi_landsat') {
-    u.searchParams.set('assets', 'nir08,red');
-    u.searchParams.set('expression', '(nir08-red)/(nir08+red+1e-6)');
-    u.searchParams.set('rescale', '-1,1');
-    u.searchParams.set('colormap_name', 'rdylgn');
-  } else {
-    u.searchParams.set('assets', 'swir16,nir08,red');
-    u.searchParams.set('asset_bidx', 'swir16|1,nir08|1,red|1');
-  }
+  u.searchParams.set('assets', spec.assets.join(','));
+  if (spec.assetBidx) u.searchParams.set('asset_bidx', spec.assetBidx);
+  if (spec.expression) u.searchParams.set('expression', spec.expression);
+  if (spec.rescale) u.searchParams.set('rescale', spec.rescale);
+  if (spec.colormapName) u.searchParams.set('colormap_name', spec.colormapName);
   return u.toString();
+}
+
+function findStacAssetNameCaseInsensitive(item: any, candidates: string[]): string | null {
+  const assets = item?.assets && typeof item.assets === 'object' ? (item.assets as Record<string, unknown>) : null;
+  if (!assets) return null;
+  for (const candidate of candidates) {
+    if (typeof assets[candidate] === 'object') return candidate;
+  }
+  const entries = Object.keys(assets);
+  for (const candidate of candidates) {
+    const lower = candidate.toLowerCase();
+    const hit = entries.find(k => k.toLowerCase() === lower);
+    if (hit) return hit;
+  }
+  return null;
+}
+
+function buildProcessingPreviewSpecsForItem(templateId: MpcTemplateId, item: any): Array<{
+  assets: string[];
+  expression?: string;
+  rescale?: string;
+  colormapName?: string;
+  assetBidx?: string;
+}> {
+  const aliases = {
+    red: ['B04', 'red', 'SR_B4', 'b4', 'rededge'],
+    green: ['B03', 'green', 'SR_B3', 'b3'],
+    nir: ['B08', 'nir08', 'nir', 'SR_B5', 'b8', 'b8a', 'B8A', 'B8'],
+    swir11: ['B11', 'swir16', 'swir1', 'SR_B6', 'b11', 'b6'],
+    swir12: ['B12', 'swir22', 'swir2', 'SR_B7', 'b12', 'b7'],
+  } as const;
+
+  const pick = (keys: readonly string[]) => findStacAssetNameCaseInsensitive(item, [...keys]);
+  const red = pick(aliases.red);
+  const green = pick(aliases.green);
+  const nir = pick(aliases.nir);
+  const swir11 = pick(aliases.swir11);
+  const swir12 = pick(aliases.swir12);
+
+  if (templateId === 'ndvi_s2' || templateId === 'ndvi_landsat') {
+    const preferredNir = nir ?? (templateId === 'ndvi_landsat' ? 'nir08' : 'B08');
+    const preferredRed = red ?? (templateId === 'ndvi_landsat' ? 'red' : 'B04');
+    return [
+      {
+        assets: [preferredNir, preferredRed],
+        expression: `(${preferredNir}-${preferredRed})/(${preferredNir}+${preferredRed}+1e-6)`,
+        rescale: '-1,1',
+        colormapName: 'rdylgn',
+      },
+      {
+        assets: templateId === 'ndvi_landsat' ? ['nir08', 'red'] : ['B08', 'B04'],
+        expression: templateId === 'ndvi_landsat' ? '(nir08-red)/(nir08+red+1e-6)' : '(B08-B04)/(B08+B04+1e-6)',
+        rescale: '-1,1',
+        colormapName: 'rdylgn',
+      },
+    ];
+  }
+
+  if (templateId === 'ndmi_s2') {
+    const preferredNir = nir ?? 'B08';
+    const preferredSwir = swir11 ?? 'B11';
+    return [
+      {
+        assets: [preferredNir, preferredSwir],
+        expression: `(${preferredNir}-${preferredSwir})/(${preferredNir}+${preferredSwir}+1e-6)`,
+        rescale: '-1,1',
+        colormapName: 'viridis',
+      },
+      {
+        assets: ['B08', 'B11'],
+        expression: '(B08-B11)/(B08+B11+1e-6)',
+        rescale: '-1,1',
+        colormapName: 'viridis',
+      },
+    ];
+  }
+
+  if (templateId === 'false_color_s2') {
+    const a1 = swir12 ?? 'B12';
+    const a2 = nir ?? 'B08';
+    const a3 = red ?? 'B04';
+    return [
+      { assets: [a1, a2, a3], assetBidx: `${a1}|1,${a2}|1,${a3}|1` },
+      { assets: ['B12', 'B08', 'B04'], assetBidx: 'B12|1,B08|1,B04|1' },
+    ];
+  }
+
+  const l1 = swir11 ?? 'swir16';
+  const l2 = nir ?? 'nir08';
+  const l3 = red ?? 'red';
+  return [
+    { assets: [l1, l2, l3], assetBidx: `${l1}|1,${l2}|1,${l3}|1` },
+    { assets: ['swir16', 'nir08', 'red'], assetBidx: 'swir16|1,nir08|1,red|1' },
+    ...(green ? [{ assets: [l1, l2, green], assetBidx: `${l1}|1,${l2}|1,${green}|1` }] : []),
+  ];
 }
 
 function stacCatalogLooksLikePlanetaryComputer(config: StacConnectionConfig): boolean {
@@ -1578,7 +1666,20 @@ export default function SatelliteIntelligence() {
   const [discoveredArcgisLayers, setDiscoveredArcgisLayers] = useState<Array<{ id: number; name: string; url: string; kind: 'layer' | 'table'; geometryType?: string }>>([]);
   const [selectedDiscoveredArcgisUrl, setSelectedDiscoveredArcgisUrl] = useState('');
   const [isAddingDiscoveredArcgisLayer, setIsAddingDiscoveredArcgisLayer] = useState(false);
-  const [gisContentCandidates, setGisContentCandidates] = useState<Array<{ id: string; name: string; data: any }>>([]);
+  const [gisContentCandidates, setGisContentCandidates] = useState<
+    Array<{
+      id: string;
+      name: string;
+      data: any;
+      source?: 'arcgis' | 'upload' | 'url';
+      sourceUrl?: string;
+      authToken?: string;
+      color?: string;
+      useArcGisSymbology?: boolean;
+      arcgisDrawingInfo?: Record<string, unknown> | null;
+      arcgisLayerDefinition?: ArcgisLayerDefLite | null;
+    }>
+  >([]);
   const [isLoadingGisContentCandidates, setIsLoadingGisContentCandidates] = useState(false);
   const [selectedGisContentCandidateId, setSelectedGisContentCandidateId] = useState('');
   const [isImportingRemoteLayer, setIsImportingRemoteLayer] = useState(false);
@@ -1891,6 +1992,19 @@ export default function SatelliteIntelligence() {
             id: String(l.id ?? `gis-${Math.random().toString(36).slice(2)}`),
             name: String(l.name || 'GIS content layer'),
             data: l.data,
+            source: l.source === 'arcgis' || l.source === 'upload' || l.source === 'url' ? l.source : undefined,
+            sourceUrl: typeof l.url === 'string' ? l.url : undefined,
+            authToken: typeof l.authToken === 'string' ? l.authToken : undefined,
+            color: typeof l.color === 'string' ? l.color : undefined,
+            useArcGisSymbology: typeof l?.symbology?.useArcGisOnline === 'boolean' ? l.symbology.useArcGisOnline : undefined,
+            arcgisDrawingInfo:
+              l?.arcgisRenderer && typeof l.arcgisRenderer === 'object'
+                ? (sanitizeArcgisDrawingInfoForClient({ renderer: l.arcgisRenderer }) as Record<string, unknown> | null)
+                : null,
+            arcgisLayerDefinition:
+              l?.arcgisLayerDefinition && typeof l.arcgisLayerDefinition === 'object'
+                ? (slimArcgisLayerDefinitionForStorage(l.arcgisLayerDefinition) ?? null)
+                : null,
           }));
         setGisContentCandidates(candidates);
         setSelectedGisContentCandidateId(candidates[0]?.id ?? '');
@@ -2055,7 +2169,13 @@ export default function SatelliteIntelligence() {
         name: addLayerName.trim() || picked.name,
         geojson: picked.data,
         visible: true,
-        source: 'api',
+        source: picked.source === 'arcgis' ? 'arcgis' : 'api',
+        sourceUrl: picked.sourceUrl,
+        authToken: picked.authToken,
+        color: picked.color || '#22c55e',
+        useArcGisSymbology: picked.source === 'arcgis' ? picked.useArcGisSymbology !== false : undefined,
+        arcgisDrawingInfo: picked.source === 'arcgis' ? picked.arcgisDrawingInfo ?? null : undefined,
+        arcgisLayerDefinition: picked.source === 'arcgis' ? picked.arcgisLayerDefinition ?? null : undefined,
       },
     ]);
     setAddLayerStatus(`Imported from GIS Content: ${picked.name}`);
@@ -3426,8 +3546,9 @@ export default function SatelliteIntelligence() {
           if (gbounds) bbox = [...gbounds];
         }
         if (!bbox || bbox.length < 4) throw new Error('Scene bbox is missing; cannot place processed preview on map.');
-        const urls = [4096, 3072, 2560, 2048, 1536, 1280, 1024].map(sz =>
-          buildPcProcessingPreviewPngUrl(coll, itemId, selectedMpcTemplateId, sz),
+        const specs = buildProcessingPreviewSpecsForItem(selectedMpcTemplateId, targetItem);
+        const urls = [4096, 3072, 2560, 2048, 1536, 1280, 1024].flatMap(sz =>
+          specs.map(spec => buildPcProcessingPreviewPngUrl(coll, itemId, spec, sz)),
         );
         const blobUrl = await fetchStacMapOverlayBlobUrl(urls);
         if (!blobUrl) throw new Error('Could not render processing template preview for this scene.');

@@ -959,10 +959,6 @@ export default function AgroEnterpriseDashboard() {
             {err ? <p style={{ color: '#fb7185' }}>{err}</p> : null}
             <div className="agro-ent-opt-grid">
               <button type="button" className="agro-ent-opt" onClick={() => {}}>
-                <b>{t.gis}</b>
-                <span>IndexedDB layers from GIS Map</span>
-              </button>
-              <button type="button" className="agro-ent-opt" onClick={() => {}}>
                 <b>{t.arc}</b>
                 <span>FeatureServer / MapServer</span>
               </button>
@@ -984,19 +980,6 @@ export default function AgroEnterpriseDashboard() {
                 <b>{t.url}</b>
                 <span>Remote GeoJSON / zip</span>
               </button>
-            </div>
-            <div style={{ marginTop: 16 }}>
-              <h3 style={{ fontSize: 14 }}>{t.gis}</h3>
-              {gisLoading ? <p>…</p> : null}
-              <ul style={{ maxHeight: 200, overflow: 'auto' }}>
-                {gisLayers.map(l => (
-                  <li key={String(l.id)}>
-                    <button type="button" disabled={Boolean(busy) || !gisLayerCanImportToDashboard(l)} onClick={() => void importGis(l)}>
-                      {l.name}
-                    </button>
-                  </li>
-                ))}
-              </ul>
             </div>
             <div style={{ marginTop: 16 }}>
               <h3 style={{ fontSize: 14 }}>{t.arc}</h3>

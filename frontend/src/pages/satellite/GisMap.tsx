@@ -5497,6 +5497,42 @@ export default function GisMap() {
         </MapView>
         )}
 
+        <div className="gis-map-quick-tools" role="toolbar" aria-label="Quick map tools">
+          <button
+            type="button"
+            className={['gis-map-quick-tools__btn', activeMapTool === null ? 'active' : '']
+              .filter(Boolean)
+              .join(' ')}
+            onClick={focusLayersPanel}
+            title="Layers"
+            aria-label="Layers"
+          >
+            <i className="fa-solid fa-layer-group" aria-hidden="true" />
+          </button>
+          <button
+            type="button"
+            className={['gis-map-quick-tools__btn', activeMapTool === 'search' ? 'active' : '']
+              .filter(Boolean)
+              .join(' ')}
+            onClick={() => toggleMapTool('search')}
+            title="Search"
+            aria-label="Search"
+          >
+            <i className="fa-solid fa-magnifying-glass-location" aria-hidden="true" />
+          </button>
+          <button
+            type="button"
+            className={['gis-map-quick-tools__btn', activeMapTool === 'geoExplorer' ? 'active' : '']
+              .filter(Boolean)
+              .join(' ')}
+            onClick={() => toggleMapTool('geoExplorer')}
+            title="Geo AI chat"
+            aria-label="Geo AI chat"
+          >
+            <i className="fa-solid fa-comments" aria-hidden="true" />
+          </button>
+        </div>
+
         <div className="gis-map-zoom-cluster gis-map-zoom-cluster--nav" role="group" aria-label="Map navigation">
           <button
             type="button"
