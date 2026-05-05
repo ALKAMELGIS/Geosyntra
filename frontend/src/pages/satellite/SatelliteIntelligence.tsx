@@ -5517,41 +5517,6 @@ export default function SatelliteIntelligence() {
           <div className="si-map-floating-controls">
             <div className="si-map-floating-controls__row">
               <div className="si-map-floating-controls__left">
-          <div className="si-map-quick-tools" role="toolbar" aria-label="Quick map tools">
-            <button
-              type="button"
-              className={`si-map-quick-tool-btn ${isLayerDropdownOpen ? 'active' : ''}`}
-              onClick={() => {
-                setIsLayerDropdownOpen(open => !open);
-                if (!isLayerDropdownOpen) setExpandedEnvSection('layers');
-              }}
-              title="Layers"
-              aria-label="Layers"
-            >
-              <i className="fa-solid fa-layer-group" aria-hidden />
-            </button>
-            <button
-              type="button"
-              className={`si-map-quick-tool-btn ${isSearchOpen ? 'active' : ''}`}
-              onClick={() => setIsSearchOpen(open => !open)}
-              title="Search"
-              aria-label="Search"
-            >
-              <i className="fa-solid fa-magnifying-glass" aria-hidden />
-            </button>
-            <button
-              type="button"
-              className={`si-map-quick-tool-btn ${isLayerDropdownOpen && expandedEnvSection === 'table-geo-ai' ? 'active' : ''}`}
-              onClick={() => {
-                setIsLayerDropdownOpen(true);
-                setExpandedEnvSection('table-geo-ai');
-              }}
-              title="Geo AI chat"
-              aria-label="Geo AI chat"
-            >
-              <i className="fa-solid fa-comments" aria-hidden />
-            </button>
-          </div>
           <div
             ref={searchRef}
             className={`si-map-search ${isSearchOpen ? 'open' : 'collapsed'}`}
