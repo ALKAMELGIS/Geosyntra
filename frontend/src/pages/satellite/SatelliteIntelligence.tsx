@@ -5636,6 +5636,24 @@ export default function SatelliteIntelligence() {
               <span className="si-aoi-analysis-pill-mean" style={{ color: aoiVizColor }}>{drawnStats.mean}</span>
             </div>
           )}
+          {mpcProcessResult && stacMapThumb ? (
+            <div className="si-map-analysis-pill" dir="ltr">
+              <div className="si-map-analysis-pill-title">
+                {mpcProcessResult.label || mpcProcessResult.template_id}
+              </div>
+              <div className="si-map-analysis-pill-row">
+                <span>Items: {mpcProcessResult.item_count}</span>
+                <span>{mpcProcessResult.datetime}</span>
+              </div>
+              {mpcProcessResult.statistics ? (
+                <div className="si-map-analysis-pill-row">
+                  <span>min {mpcProcessResult.statistics.min.toFixed(3)}</span>
+                  <span>max {mpcProcessResult.statistics.max.toFixed(3)}</span>
+                  <span>mean {mpcProcessResult.statistics.mean.toFixed(3)}</span>
+                </div>
+              ) : null}
+            </div>
+          ) : null}
 
           <div className="si-map-floating-controls">
             <div className="si-map-floating-controls__row">
