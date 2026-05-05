@@ -2506,37 +2506,6 @@ export default function SatelliteIntelligence() {
     if (!activeDialogLayer) return;
     try {
       const isArcgisLayer = activeDialogLayer.source === 'arcgis' && Boolean(activeDialogLayer.sourceUrl?.trim());
-
-      if (isArcgisLayer) {
-        let di = activeDialogLayer.arcgisDrawingInfo;
-        if (!di) {
-          const raw = await fetchArcgisLayerDrawingInfo(activeDialogLayer.sourceUrl!, activeDialogLayer.authToken);
-          di = (raw && sanitizeArcgisDrawingInfoForClient(raw)) || null;
-        }
-        if (!di || !arcgisDrawingInfoToFillPaint(di)) {
-          setStacStatus('Could not load a supported ArcGIS renderer (drawingInfo) for this layer.');
-          return;
-        }
-        const baked =
-          applySymbologyToArcgisDrawingInfo(
-            di as Record<string, unknown>,
-            symbologyDraft.colorRamp,
-            arcgisRendererType === 'simple' ? 1 : symbologyDraft.arcgisMaxCategories,
-          ) ?? (sanitizeArcgisDrawingInfoForClient(di) as Record<string, unknown> | null);
-        if (!baked || !arcgisDrawingInfoToFillPaint(baked)) {
-          setStacStatus('Could not apply symbology to this layer renderer.');
-          return;
-        }
-        setCustomLayers(prev =>
-          prev.map(l =>
-            l.id === activeDialogLayer.id ? { ...l, arcgisDrawingInfo: baked, useArcGisSymbology: true } : l,
-          ),
-        );
-        setActiveLayerActionDialog(null);
-        setStacStatus(`Style saved for "${activeDialogLayer.name}".`);
-        return;
-      }
-
       const rampKey: 'viridis' | 'green' | 'warm' =
         symbologyDraft.colorRamp === 'service' ? 'viridis' : symbologyDraft.colorRamp;
       const ramp = COLOR_RAMPS[rampKey];
@@ -2544,6 +2513,55 @@ export default function SatelliteIntelligence() {
         symbologyDraft.style === 'single'
           ? symbologyDraft.color
           : ramp[Math.max(0, Math.min(ramp.length - 1, symbologyDraft.classes - 1))];
+
+      if (isArcgisLayer) {
+        let di = activeDialogLayer.arcgisDrawingInfo;
+        if (!di && activeDialogLayer.sourceUrl?.trim()) {
+          const raw = await fetchArcgisLayerDrawingInfo(activeDialogLayer.sourceUrl!, activeDialogLayer.authToken);
+          di = (raw && sanitizeArcgisDrawingInfoForClient(raw)) || null;
+        }
+
+        if (symbologyDraft.useArcGisOnline) {
+          if (!di || !arcgisDrawingInfoToFillPaint(di)) {
+            setStacStatus('Could not load a supported ArcGIS renderer (drawingInfo) for this layer.');
+            return;
+          }
+          const baked =
+            applySymbologyToArcgisDrawingInfo(
+              di as Record<string, unknown>,
+              symbologyDraft.colorRamp,
+              arcgisRendererType === 'simple' || symbologyDraft.style === 'single' ? 1 : symbologyDraft.arcgisMaxCategories,
+            ) ?? (sanitizeArcgisDrawingInfoForClient(di) as Record<string, unknown> | null);
+          if (!baked || !arcgisDrawingInfoToFillPaint(baked)) {
+            setStacStatus('Could not apply symbology to this layer renderer.');
+            return;
+          }
+          setCustomLayers(prev =>
+            prev.map(l =>
+              l.id === activeDialogLayer.id ? { ...l, arcgisDrawingInfo: baked, useArcGisSymbology: true, color: nextColor } : l,
+            ),
+          );
+        } else {
+          const baked = di
+            ? applySymbologyToArcgisDrawingInfo(
+                di as Record<string, unknown>,
+                rampKey,
+                symbologyDraft.style === 'single' ? 1 : symbologyDraft.arcgisMaxCategories,
+              )
+            : null;
+          setCustomLayers(prev =>
+            prev.map(l =>
+              l.id === activeDialogLayer.id
+                ? { ...l, arcgisDrawingInfo: baked ?? l.arcgisDrawingInfo ?? null, useArcGisSymbology: false, color: nextColor }
+                : l,
+            ),
+          );
+        }
+        setActiveLayerActionDialog(null);
+        setStacStatus(`Style saved for "${activeDialogLayer.name}".`);
+        return;
+      }
+
       setCustomLayers(prev =>
         prev.map(l => (l.id === activeDialogLayer.id ? { ...l, useArcGisSymbology: false, color: nextColor } : l)),
       );
@@ -8112,10 +8130,16 @@ export default function SatelliteIntelligence() {
                             <div className="gis-style-selectwrap">
                               <select
                                 className="gis-style-select"
-                                value="unique"
-                                disabled
+                                value={symbologyDraft.style}
+                                onChange={e =>
+                                  setSymbologyDraft(prev => ({
+                                    ...prev,
+                                    style: e.target.value as LayerStyleMode,
+                                  }))
+                                }
                               >
-                                <option value="unique">Types (unique symbols)</option>
+                                <option value="single">Single symbol</option>
+                                <option value="classified">Types (unique symbols)</option>
                               </select>
                               <i className="fa-solid fa-chevron-down" aria-hidden="true" />
                             </div>
@@ -8129,47 +8153,77 @@ export default function SatelliteIntelligence() {
                               <i className="fa-solid fa-chevron-down" aria-hidden="true" />
                             </div>
                           </div>
-                          <div className="gis-style-field">
-                            <div className="gis-style-label">Color ramp</div>
-                            <div className="gis-style-selectwrap">
-                              <select
-                                className="gis-style-select"
-                                value={symbologyDraft.colorRamp === 'service' ? 'viridis' : symbologyDraft.colorRamp}
-                                onChange={e =>
-                                  setSymbologyDraft(prev => ({
-                                    ...prev,
-                                    colorRamp: e.target.value as SymbologyColorRamp,
-                                  }))
-                                }
-                              >
-                                <option value="viridis">Viridis</option>
-                                <option value="green">Green</option>
-                                <option value="warm">Warm</option>
-                              </select>
-                              <i className="fa-solid fa-chevron-down" aria-hidden="true" />
+                          {symbologyDraft.style === 'single' ? (
+                            <div className="gis-style-field">
+                              <div className="gis-style-label">Color</div>
+                              <input
+                                type="color"
+                                className="gis-style-input"
+                                value={symbologyDraft.color}
+                                onChange={e => setSymbologyDraft(prev => ({ ...prev, color: e.target.value }))}
+                              />
                             </div>
-                          </div>
-                          <div className="gis-style-field">
-                            <div className="gis-style-label">Max categories</div>
-                            <div className="gis-style-selectwrap">
-                              <select
-                                className="gis-style-select"
-                                value={
-                                  arcgisMaxCategoryOptions.includes(symbologyDraft.arcgisMaxCategories)
-                                    ? String(symbologyDraft.arcgisMaxCategories)
-                                    : String(arcgisMaxCategoryOptions[arcgisMaxCategoryOptions.length - 1] ?? 8)
-                                }
-                                onChange={e => setSymbologyDraft(prev => ({ ...prev, arcgisMaxCategories: Number(e.target.value) }))}
-                              >
-                                {arcgisMaxCategoryOptions.map(n => (
-                                  <option key={n} value={String(n)}>
-                                    {n}
-                                  </option>
-                                ))}
-                              </select>
-                              <i className="fa-solid fa-chevron-down" aria-hidden="true" />
-                            </div>
-                          </div>
+                          ) : (
+                            <>
+                              <div className="gis-style-field">
+                                <div className="gis-style-label">Color ramp</div>
+                                <div className="gis-style-selectwrap">
+                                  <select
+                                    className="gis-style-select"
+                                    value={symbologyDraft.colorRamp === 'service' ? 'viridis' : symbologyDraft.colorRamp}
+                                    onChange={e =>
+                                      setSymbologyDraft(prev => ({
+                                        ...prev,
+                                        colorRamp: e.target.value as SymbologyColorRamp,
+                                      }))
+                                    }
+                                  >
+                                    <option value="viridis">Viridis</option>
+                                    <option value="green">Green</option>
+                                    <option value="warm">Warm</option>
+                                  </select>
+                                  <i className="fa-solid fa-chevron-down" aria-hidden="true" />
+                                </div>
+                              </div>
+                              <div className="gis-style-field">
+                                <div className="gis-style-label">Max categories</div>
+                                <div className="gis-style-selectwrap">
+                                  <select
+                                    className="gis-style-select"
+                                    value={
+                                      arcgisMaxCategoryOptions.includes(symbologyDraft.arcgisMaxCategories)
+                                        ? String(symbologyDraft.arcgisMaxCategories)
+                                        : String(arcgisMaxCategoryOptions[arcgisMaxCategoryOptions.length - 1] ?? 8)
+                                    }
+                                    onChange={e => setSymbologyDraft(prev => ({ ...prev, arcgisMaxCategories: Number(e.target.value) }))}
+                                  >
+                                    {arcgisMaxCategoryOptions.map(n => (
+                                      <option key={n} value={String(n)}>
+                                        {n}
+                                      </option>
+                                    ))}
+                                  </select>
+                                  <i className="fa-solid fa-chevron-down" aria-hidden="true" />
+                                </div>
+                              </div>
+                              <div className="gis-style-field">
+                                <div className="gis-style-label">Method</div>
+                                <div className="gis-style-selectwrap">
+                                  <select
+                                    className="gis-style-select"
+                                    value={symbologyDraft.method}
+                                    onChange={e =>
+                                      setSymbologyDraft(prev => ({ ...prev, method: e.target.value as LayerClassMethod }))
+                                    }
+                                  >
+                                    <option value="natural-breaks">Natural breaks</option>
+                                    <option value="equal-interval">Equal interval</option>
+                                  </select>
+                                  <i className="fa-solid fa-chevron-down" aria-hidden="true" />
+                                </div>
+                              </div>
+                            </>
+                          )}
                         </div>
                       </div>
 

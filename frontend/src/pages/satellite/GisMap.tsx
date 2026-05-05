@@ -4665,6 +4665,16 @@ export default function GisMap() {
                       </button>
                       <button
                         type="button"
+                        className={['gis-sidebar-rail-btn', activeMapTool === null ? 'gis-sidebar-rail-btn--active' : ''].filter(Boolean).join(' ')}
+                        onClick={focusLayersPanel}
+                        title="Layers"
+                        aria-label="Layers"
+                      >
+                        <i className="fa-solid fa-layer-group" aria-hidden="true" />
+                        <span className="gis-sidebar-rail-btn__label">Layers</span>
+                      </button>
+                      <button
+                        type="button"
                         className={['gis-sidebar-rail-btn', activeMapTool === 'table' ? 'gis-sidebar-rail-btn--active' : ''].filter(Boolean).join(' ')}
                         onClick={() => toggleMapTool('table')}
                         title="Tables"
@@ -5570,9 +5580,10 @@ export default function GisMap() {
         </div>
         {quickSearchOpen ? (
           <div className="gis-map-quick-search-popover" ref={quickSearchRef}>
+            <div className="gis-map-quick-search-popover__title">Search</div>
             <div className="gis-map-quick-search-popover__row">
               <input
-                className="gis-input"
+                className="gis-input gis-map-quick-search-popover__input"
                 value={mapSearchQuery}
                 onChange={(e) => setMapSearchQuery(e.target.value)}
                 onKeyDown={(e) => {
@@ -5584,11 +5595,11 @@ export default function GisMap() {
                 placeholder="Search place or coordinates..."
                 aria-label="Search map"
               />
-              <button className="gis-btn gis-btn-primary" type="button" onClick={() => void handleMapSearch()}>
+              <button className="gis-btn gis-btn-primary gis-map-quick-search-popover__btn" type="button" onClick={() => void handleMapSearch()}>
                 Search
               </button>
             </div>
-            {mapSearchStatus ? <div className="gis-tool-muted">{mapSearchStatus}</div> : null}
+            {mapSearchStatus ? <div className="gis-tool-muted gis-map-quick-search-popover__status">{mapSearchStatus}</div> : null}
           </div>
         ) : null}
 
