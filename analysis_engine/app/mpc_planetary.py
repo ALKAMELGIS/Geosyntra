@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 from typing import Any, Dict, List, Literal, Optional
+import os
+import zipfile
 
 import numpy as np
 import planetary_computer as pc
@@ -23,6 +25,8 @@ class MpcProcessRequest(BaseModel):
     template_id: Literal["ndvi_s2", "false_color_s2", "ndmi_s2", "ndvi_landsat", "false_color_landsat"]
     max_items: int = 20
     max_cloud_cover: Optional[float] = 20.0
+    catalog_url: Optional[str] = None
+    acs_zip_path: Optional[str] = None
 
 
 TEMPLATES: Dict[str, Dict[str, Any]] = {
@@ -67,8 +71,35 @@ TEMPLATES: Dict[str, Dict[str, Any]] = {
 }
 
 
-def _catalog() -> pystac_client.Client:
-    return pystac_client.Client.open(MPC_STAC_URL, modifier=pc.sign_inplace)
+def _normalize_catalog_url(raw: Optional[str]) -> str:
+    text = (raw or "").strip()
+    if not text:
+        return MPC_STAC_URL
+    # Accept MPC catalog landing URL and convert to STAC API root.
+    if text.rstrip("/").lower() == "https://planetarycomputer.microsoft.com/catalog":
+        return MPC_STAC_URL
+    if text.rstrip("/").lower().endswith("/api/stac/v1"):
+        return text.rstrip("/")
+    if text.lower().endswith("/search"):
+        return text.rsplit("/", 1)[0]
+    return text.rstrip("/")
+
+
+def _catalog(catalog_url: Optional[str] = None) -> pystac_client.Client:
+    return pystac_client.Client.open(_normalize_catalog_url(catalog_url), modifier=pc.sign_inplace)
+
+
+def _read_acs_zip_entries(path: Optional[str]) -> List[str]:
+    p = (path or "").strip()
+    if not p:
+        return []
+    if not os.path.isfile(p):
+        raise HTTPException(status_code=400, detail=f"ACS zip file not found: {p}")
+    try:
+        with zipfile.ZipFile(p, "r") as zf:
+            return [n for n in zf.namelist() if n.lower().endswith(".acs")]
+    except zipfile.BadZipFile as exc:
+        raise HTTPException(status_code=400, detail=f"Invalid ACS zip file: {p}") from exc
 
 
 def _stack(items: List[Any], assets: List[str], bbox: tuple[float, float, float, float]) -> xr.DataArray:
@@ -134,7 +165,7 @@ def process(req: MpcProcessRequest):
     if req.max_cloud_cover is not None:
         query["eo:cloud_cover"] = {"lt": float(req.max_cloud_cover)}
 
-    cat = _catalog()
+    cat = _catalog(req.catalog_url)
     search = cat.search(
         collections=collections,
         intersects=req.aoi["geometry"] if req.aoi.get("type") == "Feature" else req.aoi,
@@ -155,6 +186,8 @@ def process(req: MpcProcessRequest):
     mean_v = float(metric.mean(skipna=True).compute().item())
     std_v = float(metric.std(skipna=True).compute().item())
 
+    acs_entries = _read_acs_zip_entries(req.acs_zip_path)
+
     return {
         "ok": True,
         "template_id": req.template_id,
@@ -165,4 +198,10 @@ def process(req: MpcProcessRequest):
         "scene_datetimes": [str(getattr(item, "datetime", "") or "") for item in items[:10]],
         "statistics": {"min": min_v, "max": max_v, "mean": mean_v, "std": std_v},
         "detail": f"Processed with stackstac assets: {', '.join(template['assets'])}",
+        "catalog_url": _normalize_catalog_url(req.catalog_url),
+        "acs": {
+            "zip_path": req.acs_zip_path,
+            "entries_count": len(acs_entries),
+            "entries_preview": acs_entries[:10],
+        },
     }

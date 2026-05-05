@@ -633,6 +633,22 @@ function buildProcessingPreviewSpecsForItem(templateId: MpcTemplateId, item: any
   ];
 }
 
+async function probeAnalysisEngineBaseUrl(): Promise<string> {
+  const candidates = ['http://127.0.0.1:8000', 'http://localhost:8000'];
+  for (const base of candidates) {
+    try {
+      const ctrl = new AbortController();
+      const timer = window.setTimeout(() => ctrl.abort(), 1800);
+      const res = await fetch(`${base}/mpc/templates`, { signal: ctrl.signal });
+      window.clearTimeout(timer);
+      if (res.ok) return base;
+    } catch {
+      /* try next candidate */
+    }
+  }
+  return '';
+}
+
 function stacCatalogLooksLikePlanetaryComputer(config: StacConnectionConfig): boolean {
   if (config.presetId === 'planetary-computer') return true;
   try {
@@ -1526,6 +1542,8 @@ const LOCAL_PROCESSING_TEMPLATES: Array<{ id: MpcTemplateId; label: string; coll
   { id: 'ndvi_landsat', label: 'NDVI (Landsat-8/9)', collections: ['landsat-c2-l2'] },
   { id: 'false_color_landsat', label: 'False Color (Landsat-8/9)', collections: ['landsat-c2-l2'] },
 ];
+const DEFAULT_MPC_CATALOG_URL = 'https://planetarycomputer.microsoft.com/catalog';
+const DEFAULT_MPC_ACS_ZIP_PATH = 'C:\\Users\\mohamed.abass.WUSOOM\\Downloads\\ACS_Files.zip';
 
 export default function SatelliteIntelligence() {
   const mapboxToken = useMapboxAccessToken();
@@ -1623,6 +1641,7 @@ export default function SatelliteIntelligence() {
   const [mpcTemplates, setMpcTemplates] = useState<Array<{ id: MpcTemplateId; label: string; collections?: string[] }>>([]);
   const [isLoadingMpcTemplates, setIsLoadingMpcTemplates] = useState(false);
   const [mpcTemplateError, setMpcTemplateError] = useState('');
+  const [runtimeAnalysisEngineBaseUrl, setRuntimeAnalysisEngineBaseUrl] = useState('');
   const [selectedMpcTemplateId, setSelectedMpcTemplateId] = useState<MpcTemplateId>('ndvi_s2');
   const [isMpcProcessing, setIsMpcProcessing] = useState(false);
   const [mpcProcessResult, setMpcProcessResult] = useState<MpcProcessResult | null>(null);
@@ -2407,6 +2426,16 @@ export default function SatelliteIntelligence() {
     () => String((activeDialogLayer?.arcgisDrawingInfo as any)?.renderer?.type || ''),
     [activeDialogLayer],
   );
+  const canToggleArcgisSymbology = useMemo(() => {
+    if (!activeDialogLayer) return false;
+    if (activeDialogLayer.source === 'arcgis') return true;
+    if (activeDialogLayer.arcgisDrawingInfo) return true;
+    if ((activeDialogLayer.arcgisLayerDefinition as any)?.drawingInfo) return true;
+    if (typeof activeDialogLayer.sourceUrl === 'string' && /\/(FeatureServer|MapServer)(\/\d+)?$/i.test(activeDialogLayer.sourceUrl.trim())) {
+      return true;
+    }
+    return false;
+  }, [activeDialogLayer]);
 
   const arcgisMaxCategoryOptions = useMemo(() => {
     const cap = Math.min(40, arcgisSymbologyRendererCap);
@@ -3436,6 +3465,20 @@ export default function SatelliteIntelligence() {
   );
 
   const analysisEngineBaseUrl = useMemo(() => getAnalysisEngineBaseUrl(), []);
+  const effectiveAnalysisEngineBaseUrl = analysisEngineBaseUrl || runtimeAnalysisEngineBaseUrl;
+
+  useEffect(() => {
+    if (analysisEngineBaseUrl) return;
+    if (runtimeAnalysisEngineBaseUrl) return;
+    if (expandedEnvSection !== 'explore-stac' || exploreTab !== 'processing-templates') return;
+    let cancelled = false;
+    void probeAnalysisEngineBaseUrl().then(url => {
+      if (!cancelled && url) setRuntimeAnalysisEngineBaseUrl(url);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [analysisEngineBaseUrl, runtimeAnalysisEngineBaseUrl, expandedEnvSection, exploreTab]);
 
   const resolveExploreAoiFeature = useCallback((): GeoJSON.Feature => {
     const drawnGeom = drawnGeometry?.geometry;
@@ -3470,7 +3513,7 @@ export default function SatelliteIntelligence() {
   useEffect(() => {
     if (expandedEnvSection !== 'explore-stac') return;
     if (exploreTab !== 'processing-templates') return;
-    if (!analysisEngineBaseUrl) {
+    if (!effectiveAnalysisEngineBaseUrl) {
       setMpcTemplateError('');
       setMpcTemplates(LOCAL_PROCESSING_TEMPLATES);
       if (!LOCAL_PROCESSING_TEMPLATES.some(t => t.id === selectedMpcTemplateId)) {
@@ -3481,7 +3524,7 @@ export default function SatelliteIntelligence() {
     let cancelled = false;
     setIsLoadingMpcTemplates(true);
     setMpcTemplateError('');
-    mpcFetchTemplates(analysisEngineBaseUrl)
+    mpcFetchTemplates(effectiveAnalysisEngineBaseUrl)
       .then(data => {
         if (cancelled) return;
         const items = (Array.isArray(data?.templates) ? data.templates : [])
@@ -3507,9 +3550,10 @@ export default function SatelliteIntelligence() {
     return () => {
       cancelled = true;
     };
-  }, [expandedEnvSection, exploreTab, analysisEngineBaseUrl, selectedMpcTemplateId]);
+  }, [expandedEnvSection, exploreTab, effectiveAnalysisEngineBaseUrl, selectedMpcTemplateId]);
 
-  const runMpcTemplateProcessing = async () => {
+  const runMpcTemplateProcessing = async (templateOverride?: MpcTemplateId) => {
+    const templateToRun = templateOverride ?? selectedMpcTemplateId;
     const selectedKey = exploreSelectedResultKeys[0];
     const selectedItemFromResults = selectedKey
       ? exploreSortedStacItems.find((x: any) => stacItemStableKey(x) === selectedKey) ?? null
@@ -3535,7 +3579,7 @@ export default function SatelliteIntelligence() {
     setMpcProcessResult(null);
     setProcessingTargetStacItem(targetItem);
 
-    if (!analysisEngineBaseUrl) {
+    if (!effectiveAnalysisEngineBaseUrl) {
       try {
         const coll = getStacItemCollection(targetItem);
         const itemId = getStacItemIdForThumb(targetItem);
@@ -3546,27 +3590,45 @@ export default function SatelliteIntelligence() {
           if (gbounds) bbox = [...gbounds];
         }
         if (!bbox || bbox.length < 4) throw new Error('Scene bbox is missing; cannot place processed preview on map.');
-        const specs = buildProcessingPreviewSpecsForItem(selectedMpcTemplateId, targetItem);
+        const availableAssets = new Set(
+          Object.keys((targetItem?.assets && typeof targetItem.assets === 'object' ? targetItem.assets : {}) as Record<string, unknown>).map(k =>
+            String(k).toLowerCase(),
+          ),
+        );
+        const specs = buildProcessingPreviewSpecsForItem(templateToRun, targetItem).filter(spec =>
+          spec.assets.every(a => availableAssets.has(String(a).toLowerCase())),
+        );
+        if (!specs.length) {
+          throw new Error(
+            `Scene is missing required bands for ${templateToRun}. Available assets: ${
+              Array.from(availableAssets).slice(0, 20).join(', ') || 'none'
+            }`,
+          );
+        }
         const urls = [4096, 3072, 2560, 2048, 1536, 1280, 1024].flatMap(sz =>
           specs.map(spec => buildPcProcessingPreviewPngUrl(coll, itemId, spec, sz)),
         );
-        const blobUrl = await fetchStacMapOverlayBlobUrl(urls);
-        if (!blobUrl) throw new Error('Could not render processing template preview for this scene.');
+        let blobUrl = await fetchStacMapOverlayBlobUrl(urls);
+        if (!blobUrl) {
+          const genericCandidates = getStacItemThumbCandidateUrls(targetItem, stacConnection, { forMapOverlay: true });
+          blobUrl = await fetchStacMapOverlayBlobUrl(genericCandidates);
+        }
+        if (!blobUrl) throw new Error('Could not render processing template preview for this scene. Check required scene assets or enable backend URL.');
         const [w, s, e, n] = bbox;
         setStacMapThumb(prev => {
           revokeStacMapOverlayBlob(prev?.url);
           return { url: blobUrl, coordinates: bboxToRgCoordinates([w, s, e, n]) };
         });
         setIsStacThumbVisible(true);
-        setStacMapThumbLabel(`STAC imagery (${selectedMpcTemplateId}): ${itemId}`);
+        setStacMapThumbLabel(`STAC imagery (${templateToRun}): ${itemId}`);
         setMpcProcessResult({
           ok: true,
-          template_id: selectedMpcTemplateId,
+          template_id: templateToRun,
           collections: [coll],
           datetime: `${dStart}/${dEnd}`,
           item_count: 1,
           detail: 'Frontend render mode (no analysis backend URL configured).',
-          label: LOCAL_PROCESSING_TEMPLATES.find(t => t.id === selectedMpcTemplateId)?.label ?? selectedMpcTemplateId,
+          label: LOCAL_PROCESSING_TEMPLATES.find(t => t.id === templateToRun)?.label ?? templateToRun,
         } as MpcProcessResult);
         setStacStatus('Processing template applied to the added STAC layer (frontend mode).');
       } catch (err) {
@@ -3578,13 +3640,15 @@ export default function SatelliteIntelligence() {
     }
 
     try {
-      const result = await mpcProcess(analysisEngineBaseUrl, {
+      const result = await mpcProcess(effectiveAnalysisEngineBaseUrl, {
         aoi,
         collections: exploreSelectedCollectionIds,
         datetime: `${dStart}/${dEnd}`,
-        template_id: selectedMpcTemplateId,
+        template_id: templateToRun,
         max_items: Math.max(1, Math.min(80, exploreLimit)),
         max_cloud_cover: exploreUseCloudFilter ? exploreCloudCoverMax : undefined,
+        catalog_url: DEFAULT_MPC_CATALOG_URL,
+        acs_zip_path: DEFAULT_MPC_ACS_ZIP_PATH,
       });
       setMpcProcessResult(result);
       setStacStatus(`Processing template completed: ${result.label || result.template_id}.`);
@@ -6439,7 +6503,10 @@ export default function SatelliteIntelligence() {
                     Select a raster processing template (NDVI / False Color / Moisture Index). The backend maps required bands from
                     Microsoft Planetary Computer STAC assets dynamically.
                   </p>
-                  {!analysisEngineBaseUrl ? (
+                  <p className="si-explore-muted">
+                    Catalog: {DEFAULT_MPC_CATALOG_URL} · ACS ZIP: {DEFAULT_MPC_ACS_ZIP_PATH}
+                  </p>
+                  {!effectiveAnalysisEngineBaseUrl ? (
                     <p className="si-explore-muted">
                       Backend URL is not set. Running template will still work on the currently added STAC scene (frontend render mode).
                     </p>
@@ -6465,6 +6532,18 @@ export default function SatelliteIntelligence() {
                     </div>
                   ) : null}
                   <div className="si-explore-processing-actions">
+                    <button
+                      type="button"
+                      className="si-explore-view-results"
+                      disabled={isMpcProcessing || !mpcTemplates.length}
+                      onClick={() => {
+                        setSelectedMpcTemplateId('ndvi_s2');
+                        void runMpcTemplateProcessing('ndvi_s2');
+                      }}
+                    >
+                      {isMpcProcessing ? <i className="fa-solid fa-spinner fa-spin" aria-hidden /> : null}
+                      Render NDVI Layer
+                    </button>
                     <button
                       type="button"
                       className="si-explore-view-results"
@@ -7319,34 +7398,52 @@ export default function SatelliteIntelligence() {
           }}
         >
           <div
-            className={`si-layer-action-modal${activeLayerActionDialog.mode === 'table' ? ' si-layer-action-modal--gis-table' : ''}`}
+            className={
+              activeLayerActionDialog.mode === 'symbology'
+                ? 'si-layer-action-modal gis-modal gis-modal-styles'
+                : `si-layer-action-modal${activeLayerActionDialog.mode === 'table' ? ' si-layer-action-modal--gis-table' : ''}`
+            }
             onMouseDown={e => e.stopPropagation()}
           >
-            <div className="si-layer-action-modal-header">
-              <h3 id="si-layer-action-title" className={activeLayerActionDialog.mode === 'symbology' ? 'si-styles-modal-title-h' : undefined}>
-                {activeLayerActionDialog.mode === 'symbology' ? (
-                  <>
-                    <span className="si-styles-header-palette" aria-hidden>
-                      <i className="fa-solid fa-palette" />
-                    </span>
-                    <span>Styles - {activeDialogLayer.name}</span>
-                  </>
-                ) : activeLayerActionDialog.mode === 'table' ? (
-                  <>
-                    <span className="si-layer-action-modal-table-title" aria-hidden>
-                      <i className="fa-solid fa-table" />
-                    </span>
-                    <span>Table — {activeDialogLayer.name}</span>
-                  </>
-                ) : (
-                  `Legend - ${activeDialogLayer.name}`
-                )}
-              </h3>
-              <button type="button" className="si-layer-action-close" onClick={() => setActiveLayerActionDialog(null)} aria-label="Close layer dialog">
-                <i className="fa-solid fa-xmark" />
-              </button>
-            </div>
-            <div className="si-layer-action-modal-body">
+            {activeLayerActionDialog.mode === 'symbology' ? (
+              <div className="gis-modal-header">
+                <div className="gis-modal-header-left">
+                  <div className="gis-modal-title-icon" aria-hidden="true">
+                    <i className="fa-solid fa-palette" />
+                  </div>
+                  <div className="gis-modal-title" id="si-layer-action-title">
+                    Styles - {activeDialogLayer.name}
+                  </div>
+                </div>
+                <button
+                  className="gis-sidebar-close"
+                  type="button"
+                  onClick={() => setActiveLayerActionDialog(null)}
+                  aria-label="Close dialog"
+                >
+                  <i className="fa-solid fa-xmark" aria-hidden="true" />
+                </button>
+              </div>
+            ) : (
+              <div className="si-layer-action-modal-header">
+                <h3 id="si-layer-action-title">
+                  {activeLayerActionDialog.mode === 'table' ? (
+                    <>
+                      <span className="si-layer-action-modal-table-title" aria-hidden>
+                        <i className="fa-solid fa-table" />
+                      </span>
+                      <span>Table — {activeDialogLayer.name}</span>
+                    </>
+                  ) : (
+                    `Legend - ${activeDialogLayer.name}`
+                  )}
+                </h3>
+                <button type="button" className="si-layer-action-close" onClick={() => setActiveLayerActionDialog(null)} aria-label="Close layer dialog">
+                  <i className="fa-solid fa-xmark" />
+                </button>
+              </div>
+            )}
+            <div className={activeLayerActionDialog.mode === 'symbology' ? 'gis-modal-body' : 'si-layer-action-modal-body'}>
               {activeLayerActionDialog.mode === 'table' ? (
                 activeLayerColumns.length ? (
                   <div
@@ -7716,18 +7813,14 @@ export default function SatelliteIntelligence() {
                   <p className="si-layer-action-empty">No attributes found for this layer.</p>
                 )
               ) : activeLayerActionDialog.mode === 'symbology' ? (
-                <div className="si-layer-action-form si-layer-action-form--symbology">
-                  <div className="si-styles-intro">
-                    <p className="si-styles-intro-text">
-                      Choose an attribute and visualization style. Preview updates live on the map.
-                    </p>
-                    <label className="si-layer-action-toggle">
-                      <span className="si-layer-action-toggle-label">Use ArcGIS Online symbology</span>
+                <>
+                  <div className="gis-style-hero">
+                    <div className="gis-style-subtitle">Choose an attribute and visualization style. Preview updates live on the map.</div>
+                    <label className="gis-style-check">
                       <input
                         type="checkbox"
-                        className="si-layer-action-toggle-input"
                         checked={symbologyDraft.useArcGisOnline}
-                        disabled={activeDialogLayer.source !== 'arcgis'}
+                        disabled={!canToggleArcgisSymbology}
                         onChange={e => {
                           const on = e.target.checked;
                           setSymbologyDraft(prev => ({
@@ -7737,181 +7830,132 @@ export default function SatelliteIntelligence() {
                           }));
                         }}
                       />
-                      <span className="si-layer-action-toggle-ui" aria-hidden />
+                      <span>Use ArcGIS Online symbology</span>
                     </label>
                   </div>
-                  {activeDialogLayer.source === 'arcgis' ? (
-                    activeDialogLayer.arcgisDrawingInfo ? (
-                      <>
-                        <div className="si-layer-action-symbology-grid si-layer-action-symbology-grid--arcgis">
-                          <label className="si-layer-action-field">
-                            <span className="si-layer-action-field-cap">Style</span>
-                            <div className="gis-input si-styles-readonly" title="From ArcGIS layer renderer">
-                              {inferArcgisStyleLabel(activeDialogLayer.arcgisDrawingInfo as Record<string, unknown>)}
+
+                  {symbologyDraft.useArcGisOnline ? (
+                    <>
+                      <div className="gis-style-info">
+                        ArcGIS renderer preview is enabled. Uncheck &quot;Use ArcGIS Online symbology&quot; to configure custom styles.
+                      </div>
+                      <div className="gis-style-card" aria-label="ArcGIS visualization">
+                        <div className="gis-style-grid">
+                          <div className="gis-style-field">
+                            <div className="gis-style-label">Style</div>
+                            <div className="gis-style-readonly" title="From ArcGIS layer renderer">
+                              {activeDialogLayer.arcgisDrawingInfo
+                                ? inferArcgisStyleLabel(activeDialogLayer.arcgisDrawingInfo as Record<string, unknown>)
+                                : 'Loading or unavailable — sync the layer if symbols look wrong.'}
                             </div>
-                          </label>
-                          <label className="si-layer-action-field">
-                            <span className="si-layer-action-field-cap">Attribute (categorical)</span>
-                            <div className="gis-input si-styles-readonly" title="Renderer field from ArcGIS drawingInfo">
+                          </div>
+                          <div className="gis-style-field">
+                            <div className="gis-style-label">Attribute (categorical)</div>
+                            <div className="gis-style-readonly" title="Renderer field from ArcGIS drawingInfo">
                               {arcgisSymbologyField || '—'}
                             </div>
-                          </label>
-                          <label className="si-layer-action-field">
-                            <span className="si-layer-action-field-cap">Color ramp</span>
-                            <select
-                              className="gis-input"
-                              value={symbologyDraft.colorRamp}
-                              onChange={e =>
-                                setSymbologyDraft(prev => ({ ...prev, colorRamp: e.target.value as SymbologyColorRamp }))
-                              }
-                            >
-                              <option value="service">Original (service colors)</option>
-                              <option value="viridis">Viridis</option>
-                              <option value="green">Green</option>
-                              <option value="warm">Warm</option>
-                            </select>
-                          </label>
-                          {arcgisRendererType === 'simple' ? (
-                            <label className="si-layer-action-field">
-                              <span className="si-layer-action-field-cap">Max categories</span>
-                              <select className="gis-input" value={1} disabled>
-                                <option>1 (single symbol)</option>
-                              </select>
-                            </label>
-                          ) : (
-                            <label className="si-layer-action-field">
-                              <span className="si-layer-action-field-cap">Max categories</span>
+                          </div>
+                        </div>
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <div className="gis-style-card">
+                        <div className="gis-style-grid">
+                          <div className="gis-style-field">
+                            <div className="gis-style-label">Style</div>
+                            <div className="gis-style-selectwrap">
                               <select
-                                className="gis-input"
-                                value={
-                                  arcgisMaxCategoryOptions.includes(symbologyDraft.arcgisMaxCategories)
-                                    ? symbologyDraft.arcgisMaxCategories
-                                    : arcgisMaxCategoryOptions[arcgisMaxCategoryOptions.length - 1]!
-                                }
+                                className="gis-style-select"
+                                value="unique"
+                                disabled
+                              >
+                                <option value="unique">Types (unique symbols)</option>
+                              </select>
+                              <i className="fa-solid fa-chevron-down" aria-hidden="true" />
+                            </div>
+                          </div>
+                          <div className="gis-style-field">
+                            <div className="gis-style-label">Attribute (categorical)</div>
+                            <div className="gis-style-selectwrap">
+                              <select className="gis-style-select" value={arcgisSymbologyField || ''} disabled>
+                                <option value={arcgisSymbologyField || ''}>{arcgisSymbologyField || '—'}</option>
+                              </select>
+                              <i className="fa-solid fa-chevron-down" aria-hidden="true" />
+                            </div>
+                          </div>
+                          <div className="gis-style-field">
+                            <div className="gis-style-label">Color ramp</div>
+                            <div className="gis-style-selectwrap">
+                              <select
+                                className="gis-style-select"
+                                value={symbologyDraft.colorRamp === 'service' ? 'viridis' : symbologyDraft.colorRamp}
                                 onChange={e =>
-                                  setSymbologyDraft(prev => ({ ...prev, arcgisMaxCategories: Number(e.target.value) }))
+                                  setSymbologyDraft(prev => ({
+                                    ...prev,
+                                    colorRamp: e.target.value as SymbologyColorRamp,
+                                  }))
                                 }
                               >
+                                <option value="viridis">Viridis</option>
+                                <option value="green">Green</option>
+                                <option value="warm">Warm</option>
+                              </select>
+                              <i className="fa-solid fa-chevron-down" aria-hidden="true" />
+                            </div>
+                          </div>
+                          <div className="gis-style-field">
+                            <div className="gis-style-label">Max categories</div>
+                            <div className="gis-style-selectwrap">
+                              <select
+                                className="gis-style-select"
+                                value={
+                                  arcgisMaxCategoryOptions.includes(symbologyDraft.arcgisMaxCategories)
+                                    ? String(symbologyDraft.arcgisMaxCategories)
+                                    : String(arcgisMaxCategoryOptions[arcgisMaxCategoryOptions.length - 1] ?? 8)
+                                }
+                                onChange={e => setSymbologyDraft(prev => ({ ...prev, arcgisMaxCategories: Number(e.target.value) }))}
+                              >
                                 {arcgisMaxCategoryOptions.map(n => (
-                                  <option key={n} value={n}>
+                                  <option key={n} value={String(n)}>
                                     {n}
                                   </option>
                                 ))}
                               </select>
-                            </label>
-                          )}
+                              <i className="fa-solid fa-chevron-down" aria-hidden="true" />
+                            </div>
+                          </div>
                         </div>
-                        <p className="si-layer-action-note si-layer-action-note--tight">
-                          Legend preview reflects ramp and max categories. Save applies them to the ArcGIS renderer on this layer.
-                        </p>
-                        <div className="si-layer-action-symbology-legend-scroll">
+                      </div>
+
+                      <div className="gis-style-card gis-style-card-legend">
+                        <div className="gis-style-legend">
                           {arcgisSymbologyLegendRows.length ? (
                             arcgisSymbologyLegendRows.map((row, i) => (
-                              <div key={`${row.label}-${i}`} className="si-layer-action-ramp-row">
-                                <span className="si-layer-action-legend-swatch" style={{ background: row.color }} />
-                                <strong>{row.label || `Class ${i + 1}`}</strong>
+                              <div key={`${row.label}-${i}`} className="gis-style-legend-row">
+                                <svg width="62" height="14" viewBox="0 0 62 14" aria-hidden="true">
+                                  <rect x="18" y="2" width="26" height="10" rx="3" fill={row.color} stroke="#334155" strokeWidth="1.5" />
+                                </svg>
+                                <div className="gis-style-legend-text">{row.label || `Class ${i + 1}`}</div>
                               </div>
                             ))
                           ) : (
-                            <p className="si-layer-action-empty">No legend classes in this renderer.</p>
+                            <div className="gis-style-info">No legend classes in this renderer.</div>
                           )}
                         </div>
-                      </>
-                    ) : (
-                      <p className="si-layer-action-note">
-                        No drawingInfo loaded for this layer. Use refresh on the layer card or re-add the layer, then open Styles again.
-                      </p>
-                    )
-                  ) : (
-                    <>
-                      <div className="si-layer-action-symbology-grid">
-                        <label className="si-layer-action-field">
-                          <span>Style</span>
-                          <select
-                            className="gis-input"
-                            value={symbologyDraft.style}
-                            onChange={e => setSymbologyDraft(prev => ({ ...prev, style: e.target.value as LayerStyleMode }))}
-                          >
-                            <option value="single">Single symbol</option>
-                            <option value="classified">Counts and Amounts (color)</option>
-                          </select>
-                        </label>
-                        <label className="si-layer-action-field">
-                          <span>Color ramp</span>
-                          <select
-                            className="gis-input"
-                            value={symbologyDraft.colorRamp === 'service' ? 'viridis' : symbologyDraft.colorRamp}
-                            onChange={e =>
-                              setSymbologyDraft(prev => ({
-                                ...prev,
-                                colorRamp: e.target.value as SymbologyColorRamp,
-                              }))
-                            }
-                          >
-                            <option value="viridis">Viridis</option>
-                            <option value="green">Green</option>
-                            <option value="warm">Warm</option>
-                          </select>
-                        </label>
-                        <label className="si-layer-action-field">
-                          <span>Classes</span>
-                          <select
-                            className="gis-input"
-                            value={symbologyDraft.classes}
-                            onChange={e => setSymbologyDraft(prev => ({ ...prev, classes: Number(e.target.value) }))}
-                          >
-                            {[3, 4, 5, 6, 7].map(v => (
-                              <option key={v} value={v}>
-                                {v}
-                              </option>
-                            ))}
-                          </select>
-                        </label>
-                        <label className="si-layer-action-field">
-                          <span>Method</span>
-                          <select
-                            className="gis-input"
-                            value={symbologyDraft.method}
-                            onChange={e => setSymbologyDraft(prev => ({ ...prev, method: e.target.value as LayerClassMethod }))}
-                          >
-                            <option value="natural-breaks">Natural breaks</option>
-                            <option value="equal-interval">Equal interval</option>
-                          </select>
-                        </label>
-                        <label className="si-layer-action-field">
-                          <span>Base color</span>
-                          <input
-                            type="color"
-                            value={symbologyDraft.color}
-                            onChange={e => setSymbologyDraft(prev => ({ ...prev, color: e.target.value }))}
-                          />
-                        </label>
-                      </div>
-                      <div className="si-layer-action-ramp-preview">
-                        {COLOR_RAMPS[
-                          (symbologyDraft.colorRamp === 'service' ? 'viridis' : symbologyDraft.colorRamp) as 'viridis' | 'green' | 'warm'
-                        ]
-                          .slice(0, symbologyDraft.classes)
-                          .map((color, i) => (
-                            <div key={`${color}-${i}`} className="si-layer-action-ramp-row">
-                              <span className="si-layer-action-legend-swatch" style={{ background: color }} />
-                              <strong>Class {i + 1}</strong>
-                            </div>
-                          ))}
                       </div>
                     </>
                   )}
-                  <div className="si-layer-action-modal-footer">
-                    <button type="button" className="si-layer-action-footer-btn" onClick={() => setActiveLayerActionDialog(null)}>Cancel</button>
-                    <button
-                      type="button"
-                      className="si-layer-action-footer-btn primary"
-                      onClick={() => void applySymbologyDraft()}
-                    >
+
+                  <div className="gis-style-footer">
+                    <button className="gis-btn" type="button" onClick={() => setActiveLayerActionDialog(null)}>
+                      Cancel
+                    </button>
+                    <button className="gis-btn gis-btn-primary" type="button" onClick={() => void applySymbologyDraft()}>
                       Save Style
                     </button>
                   </div>
-                </div>
+                </>
               ) : (
                 <div className="si-layer-action-legend">
                   <div className="si-layer-action-legend-row">

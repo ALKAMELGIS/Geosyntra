@@ -36,6 +36,8 @@ export async function mpcProcess(
     template_id: MpcTemplateId;
     max_items?: number;
     max_cloud_cover?: number;
+    catalog_url?: string;
+    acs_zip_path?: string;
   },
 ) {
   const r = await fetch(`${baseUrl}/mpc/process`, {

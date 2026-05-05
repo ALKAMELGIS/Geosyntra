@@ -4611,16 +4611,6 @@ export default function GisMap() {
                       </button>
                       <button
                         type="button"
-                        className={['gis-sidebar-rail-btn', activeMapTool === null ? 'gis-sidebar-rail-btn--active' : ''].filter(Boolean).join(' ')}
-                        onClick={focusLayersPanel}
-                        title="Layers"
-                        aria-label="Layers"
-                      >
-                        <i className="fa-solid fa-layer-group" aria-hidden="true" />
-                        <span className="gis-sidebar-rail-btn__label">Layers</span>
-                      </button>
-                      <button
-                        type="button"
                         className={['gis-sidebar-rail-btn', activeMapTool === 'table' ? 'gis-sidebar-rail-btn--active' : ''].filter(Boolean).join(' ')}
                         onClick={() => toggleMapTool('table')}
                         title="Tables"
@@ -4747,26 +4737,6 @@ export default function GisMap() {
                       >
                         <i className="fa-solid fa-ruler-combined" aria-hidden="true" />
                         <span className="gis-sidebar-rail-btn__label">Measure</span>
-                      </button>
-                      <button
-                        type="button"
-                        className={['gis-sidebar-rail-btn', activeMapTool === 'search' ? 'gis-sidebar-rail-btn--active' : ''].filter(Boolean).join(' ')}
-                        onClick={() => toggleMapTool('search')}
-                        title="Search"
-                        aria-label="Search"
-                      >
-                        <i className="fa-solid fa-magnifying-glass-location" aria-hidden="true" />
-                        <span className="gis-sidebar-rail-btn__label">Search</span>
-                      </button>
-                      <button
-                        type="button"
-                        className={['gis-sidebar-rail-btn', activeMapTool === 'geoExplorer' ? 'gis-sidebar-rail-btn--active' : ''].filter(Boolean).join(' ')}
-                        onClick={() => toggleMapTool('geoExplorer')}
-                        title="Geo AI chat"
-                        aria-label="Geo AI chat"
-                      >
-                        <i className="fa-solid fa-comments" aria-hidden="true" />
-                        <span className="gis-sidebar-rail-btn__label">Chat</span>
                       </button>
                     </div>
                   </div>
@@ -4963,6 +4933,11 @@ export default function GisMap() {
                 const isEsriImage = layer.type === 'tile' && (layer.data as any)?.esriImageServer
                 const featureCount = Array.isArray((layer.data as any)?.features) ? (layer.data as any).features.length : 0
                 const countLabel = isEsriImage ? 'Image service' : `${featureCount} features`
+                const isArcTable = String(layer.arcgisLayerDefinition?.type || '').toLowerCase() === 'table'
+                const hasAnyGeometry = Array.isArray((layer.data as any)?.features)
+                  ? (layer.data as any).features.some((f: any) => Boolean(f?.geometry))
+                  : false
+                const isTableLayer = Boolean(isArcTable || (layer.source === 'arcgis' && layer.type === 'geojson' && !hasAnyGeometry))
 
                 return (
                   <div key={layerId} role="listitem" className="gis-layer-card">
@@ -5223,38 +5198,42 @@ export default function GisMap() {
                     >
                       <i className="fa-solid fa-table-cells" aria-hidden="true" />
                     </button>
-                    <button
-                      className="gis-icon-btn"
-                      type="button"
-                      onClick={() => {
-                        const lid = String(layer.id)
-                        const original = layer.symbology
-                        let draft = normalizeSymbology(layer, original)
-                        if (layer.source === 'arcgis' && draft.useArcGisOnline) {
-                          const r = layer.arcgisRenderer ?? layer.arcgisLayerDefinition?.drawingInfo?.renderer
-                          draft = normalizeSymbology(layer, { ...draft, ...inferVisualizationFromArcgisRenderer(r) })
-                        }
-                        applyLayerSymbology(lid, draft)
-                        setSymbologyDialog({ layerId: lid, draft, original })
-                      }}
-                      disabled={layer.type !== 'geojson'}
-                      aria-label={`Symbology for ${layer.name}`}
-                      title="Symbology"
-                    >
-                      <i className="fa-solid fa-sliders" aria-hidden="true" />
-                    </button>
-                    <button
-                      className={
-                        layerDialog?.mode === 'legend' && String(layerDialog.layerId) === String(layer.id) ? 'gis-icon-btn active' : 'gis-icon-btn'
-                      }
-                      type="button"
-                      onClick={() => setLayerDialog({ mode: 'legend', layerId })}
-                      disabled={layer.type !== 'geojson'}
-                      aria-label={`Legend for ${layer.name}`}
-                      title="Legend"
-                    >
-                      <i className="fa-solid fa-key" aria-hidden="true" />
-                    </button>
+                    {!isTableLayer ? (
+                      <>
+                        <button
+                          className="gis-icon-btn"
+                          type="button"
+                          onClick={() => {
+                            const lid = String(layer.id)
+                            const original = layer.symbology
+                            let draft = normalizeSymbology(layer, original)
+                            if (layer.source === 'arcgis' && draft.useArcGisOnline) {
+                              const r = layer.arcgisRenderer ?? layer.arcgisLayerDefinition?.drawingInfo?.renderer
+                              draft = normalizeSymbology(layer, { ...draft, ...inferVisualizationFromArcgisRenderer(r) })
+                            }
+                            applyLayerSymbology(lid, draft)
+                            setSymbologyDialog({ layerId: lid, draft, original })
+                          }}
+                          disabled={layer.type !== 'geojson'}
+                          aria-label={`Symbology for ${layer.name}`}
+                          title="Symbology"
+                        >
+                          <i className="fa-solid fa-sliders" aria-hidden="true" />
+                        </button>
+                        <button
+                          className={
+                            layerDialog?.mode === 'legend' && String(layerDialog.layerId) === String(layer.id) ? 'gis-icon-btn active' : 'gis-icon-btn'
+                          }
+                          type="button"
+                          onClick={() => setLayerDialog({ mode: 'legend', layerId })}
+                          disabled={layer.type !== 'geojson'}
+                          aria-label={`Legend for ${layer.name}`}
+                          title="Legend"
+                        >
+                          <i className="fa-solid fa-key" aria-hidden="true" />
+                        </button>
+                      </>
+                    ) : null}
                   </div>
                   </div>
                 )
