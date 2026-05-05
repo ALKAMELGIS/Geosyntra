@@ -66,12 +66,6 @@ import {
 import { resolveGeoAiPinFromUserTextAndReply } from '../../lib/geoAiResolveMapCoords';
 import { buildGeoAiFullWeatherSessionAppend } from '../../lib/geoAiWeatherContext';
 import {
-  getAnalysisEngineBaseUrl,
-  mpcProcess,
-  type MpcProcessResult,
-  type MpcTemplateId,
-} from '../../lib/mpcPlanetaryApi';
-import {
   siDefaultSatelliteGlobeEnabled,
   siMapErrorSuggestsGlobeOrWebglFailure,
 } from '../../lib/siMapboxGlobeCompat';
@@ -103,6 +97,13 @@ import {
 } from '../../lib/arcgisAttributeDisplay';
 import { FieldVisibilityControl } from './components/FieldVisibilityControl';
 import { GeoExplorerGeminiInputRow } from './components/GeoExplorerGeminiInputRow';
+import {
+  getAnalysisEngineBaseUrl,
+  mpcFetchTemplates,
+  mpcProcess,
+  type MpcProcessResult,
+  type MpcTemplateId,
+} from '../../lib/mpcPlanetaryApi';
 
 const EMPTY_MAP_STYLE: any = {
   version: 8,
@@ -1487,12 +1488,13 @@ export default function SatelliteIntelligence() {
   const [acsPickerStaging, setAcsPickerStaging] = useState<string[]>([]);
   const [acsPickerManualPath, setAcsPickerManualPath] = useState('');
   const [acsPickerFilter, setAcsPickerFilter] = useState('');
-  const [exploreTab, setExploreTab] = useState<'parameters' | 'results' | 'source' | 'processing-templates'>(
-    'parameters',
-  );
-  const [mpcTemplateId, setMpcTemplateId] = useState<MpcTemplateId>('ndvi_s2');
-  const [mpcBusy, setMpcBusy] = useState(false);
-  const [mpcLastResult, setMpcLastResult] = useState<MpcProcessResult | null>(null);
+  const [exploreTab, setExploreTab] = useState<'parameters' | 'results' | 'processing-templates' | 'source'>('parameters');
+  const [mpcTemplates, setMpcTemplates] = useState<Array<{ id: MpcTemplateId; label: string; collections?: string[] }>>([]);
+  const [isLoadingMpcTemplates, setIsLoadingMpcTemplates] = useState(false);
+  const [mpcTemplateError, setMpcTemplateError] = useState('');
+  const [selectedMpcTemplateId, setSelectedMpcTemplateId] = useState<MpcTemplateId>('ndvi_s2');
+  const [isMpcProcessing, setIsMpcProcessing] = useState(false);
+  const [mpcProcessResult, setMpcProcessResult] = useState<MpcProcessResult | null>(null);
   const [exploreCatalogLoadKey, setExploreCatalogLoadKey] = useState(0);
   const [stacCatalogCollections, setStacCatalogCollections] = useState<StacCollectionSummary[]>([]);
   const [isLoadingStacCollections, setIsLoadingStacCollections] = useState(false);
@@ -2561,40 +2563,6 @@ export default function SatelliteIntelligence() {
     return { start: timeSeriesStart.trim(), end: timeSeriesEnd.trim() };
   }, [exploreDateSourceMode, exploreDateStart, exploreDateEnd, timeSeriesStart, timeSeriesEnd]);
 
-  const buildExploreStacSpatialBody = useCallback((): {
-    bbox?: number[];
-    intersects?: typeof DUBAI_STAC_INTERSECTS;
-  } => {
-    const drawnGeom = drawnGeometry?.geometry;
-    const pivotGeom = selectedPivot?.feature?.geometry;
-    const fcBounds = getGeoJsonBounds(pivotGeoJson);
-    if (exploreExtentMode === 'map') {
-      const map = mapRef.current?.getMap?.() ?? mapRef.current;
-      try {
-        const b = map?.getBounds?.();
-        if (b) return { bbox: [b.getWest(), b.getSouth(), b.getEast(), b.getNorth()] };
-      } catch {
-        /* ignore */
-      }
-      return { intersects: DUBAI_STAC_INTERSECTS };
-    }
-    if (exploreExtentMode === 'drawn' && drawnGeom) return { intersects: drawnGeom };
-    if (exploreExtentMode === 'layer') {
-      if (pivotGeom) return { intersects: pivotGeom };
-      if (fcBounds) return { bbox: fcBounds };
-      return { intersects: DUBAI_STAC_INTERSECTS };
-    }
-    if (exploreExtentMode === 'manual') {
-      const n = parseFloat(exploreManualBbox.north);
-      const s = parseFloat(exploreManualBbox.south);
-      const e = parseFloat(exploreManualBbox.east);
-      const w = parseFloat(exploreManualBbox.west);
-      if ([n, s, e, w].every(Number.isFinite)) return { bbox: [w, s, e, n] };
-      return { intersects: DUBAI_STAC_INTERSECTS };
-    }
-    return { intersects: DUBAI_STAC_INTERSECTS };
-  }, [exploreExtentMode, drawnGeometry, exploreManualBbox, selectedPivot, pivotGeoJson]);
-
   const synthesizeWeeklyComposites = (itemCount: number) => {
     const range = ENVIRONMENTAL_INDICES[selectedIndex].range;
     const span = range[1] - range[0];
@@ -2683,9 +2651,34 @@ export default function SatelliteIntelligence() {
       .filter(Boolean);
     if (idList.length) body.ids = idList;
 
-    const spatial = buildExploreStacSpatialBody();
-    if (spatial.bbox) body.bbox = spatial.bbox;
-    if (spatial.intersects) body.intersects = spatial.intersects;
+    if (exploreExtentMode === 'map') {
+      const map = mapRef.current?.getMap?.() ?? mapRef.current;
+      try {
+        const b = map?.getBounds?.();
+        if (b) body.bbox = [b.getWest(), b.getSouth(), b.getEast(), b.getNorth()];
+      } catch {
+        /* ignore */
+      }
+      if (!body.bbox) body.intersects = DUBAI_STAC_INTERSECTS;
+    } else if (exploreExtentMode === 'drawn' && drawnGeom) {
+      body.intersects = drawnGeom;
+    } else if (exploreExtentMode === 'layer') {
+      if (pivotGeom) body.intersects = pivotGeom;
+      else if (fcBounds) body.bbox = fcBounds;
+      else body.intersects = DUBAI_STAC_INTERSECTS;
+    } else if (exploreExtentMode === 'manual') {
+      const n = parseFloat(exploreManualBbox.north);
+      const s = parseFloat(exploreManualBbox.south);
+      const e = parseFloat(exploreManualBbox.east);
+      const w = parseFloat(exploreManualBbox.west);
+      if ([n, s, e, w].every(Number.isFinite)) {
+        body.bbox = [w, s, e, n];
+      } else {
+        body.intersects = DUBAI_STAC_INTERSECTS;
+      }
+    } else {
+      body.intersects = DUBAI_STAC_INTERSECTS;
+    }
 
     const needsCloud =
       exploreUseCloudFilter &&
@@ -2737,56 +2730,6 @@ export default function SatelliteIntelligence() {
       setStacStatus(error instanceof Error ? error.message : 'STAC search failed.');
     } finally {
       setIsLoadingStac(false);
-    }
-  };
-
-  const runMpcProcessing = async () => {
-    const base = getAnalysisEngineBaseUrl();
-    if (!base) {
-      setStacStatus(
-        'Set VITE_ANALYSIS_ENGINE_URL to your FastAPI host (e.g. http://127.0.0.1:8000), install analysis_engine deps, then rebuild.',
-      );
-      return;
-    }
-    const dStart = exploreEffectiveDatetime.start;
-    const dEnd = exploreEffectiveDatetime.end;
-    if (!dStart || !dEnd) {
-      setStacStatus('Choose a valid date range (Date and Time or Environmental Index timeline).');
-      return;
-    }
-    const spatial = buildExploreStacSpatialBody();
-    let aoi: GeoJSON.Feature | null = null;
-    if (spatial.bbox) {
-      const [w, s, e, n] = spatial.bbox;
-      aoi = bboxToPolygonFeature(w, s, e, n, 'MPC processing AOI');
-    } else if (spatial.intersects?.type === 'Polygon') {
-      aoi = { type: 'Feature', properties: { label: 'Extent' }, geometry: spatial.intersects };
-    }
-    if (!aoi) {
-      setStacStatus('Could not build AOI. Draw a rectangle (toolbar), set Parameters → Extent → Drawn AOI, or enter a manual bbox.');
-      return;
-    }
-    const collections = mpcTemplateId.endsWith('_landsat') ? ['landsat-c2-l2'] : ['sentinel-2-l2a'];
-    setMpcBusy(true);
-    setStacStatus('Running Microsoft Planetary Computer template…');
-    try {
-      const result = await mpcProcess(base, {
-        aoi,
-        collections,
-        datetime: `${dStart}/${dEnd}`,
-        template_id: mpcTemplateId,
-        max_items: 2,
-        max_cloud_cover: exploreCloudCoverMax,
-      });
-      setMpcLastResult(result);
-      setStacStatus(
-        `MPC: ${result.label ?? mpcTemplateId} · ${result.item_count ?? 0} scene(s). COG download available below.`,
-      );
-    } catch (e) {
-      setMpcLastResult(null);
-      setStacStatus(e instanceof Error ? e.message : 'MPC processing failed.');
-    } finally {
-      setMpcBusy(false);
     }
   };
 
@@ -3226,6 +3169,113 @@ export default function SatelliteIntelligence() {
       <div className="si-env-message">{stacStatus}</div>
     </>
   );
+
+  const analysisEngineBaseUrl = useMemo(() => getAnalysisEngineBaseUrl(), []);
+
+  const resolveExploreAoiFeature = useCallback((): GeoJSON.Feature => {
+    const drawnGeom = drawnGeometry?.geometry;
+    const pivotGeom = selectedPivot?.feature?.geometry;
+    const fcBounds = getGeoJsonBounds(pivotGeoJson);
+    if (exploreExtentMode === 'drawn' && drawnGeom) {
+      return { type: 'Feature', geometry: drawnGeom, properties: { source: 'drawn' } };
+    }
+    if (exploreExtentMode === 'layer') {
+      if (pivotGeom) return { type: 'Feature', geometry: pivotGeom, properties: { source: 'layer' } };
+      if (fcBounds) return bboxToPolygonFeature(fcBounds[0], fcBounds[1], fcBounds[2], fcBounds[3]);
+    }
+    if (exploreExtentMode === 'manual') {
+      const n = parseFloat(exploreManualBbox.north);
+      const s = parseFloat(exploreManualBbox.south);
+      const e = parseFloat(exploreManualBbox.east);
+      const w = parseFloat(exploreManualBbox.west);
+      if ([n, s, e, w].every(Number.isFinite)) return bboxToPolygonFeature(w, s, e, n);
+    }
+    if (exploreExtentMode === 'map') {
+      const map = mapRef.current?.getMap?.() ?? mapRef.current;
+      try {
+        const b = map?.getBounds?.();
+        if (b) return bboxToPolygonFeature(b.getWest(), b.getSouth(), b.getEast(), b.getNorth());
+      } catch {
+        /* ignore map getBounds issues */
+      }
+    }
+    return { type: 'Feature', geometry: DUBAI_STAC_INTERSECTS, properties: { source: 'default' } };
+  }, [drawnGeometry, selectedPivot, pivotGeoJson, exploreExtentMode, exploreManualBbox]);
+
+  useEffect(() => {
+    if (expandedEnvSection !== 'explore-stac') return;
+    if (exploreTab !== 'processing-templates') return;
+    if (!analysisEngineBaseUrl) {
+      setMpcTemplateError('Set VITE_ANALYSIS_ENGINE_URL to enable Processing Templates.');
+      return;
+    }
+    let cancelled = false;
+    setIsLoadingMpcTemplates(true);
+    setMpcTemplateError('');
+    mpcFetchTemplates(analysisEngineBaseUrl)
+      .then(data => {
+        if (cancelled) return;
+        const items = (Array.isArray(data?.templates) ? data.templates : [])
+          .filter((t: any) => typeof t?.id === 'string' && typeof t?.label === 'string')
+          .map((t: any) => ({
+            id: t.id as MpcTemplateId,
+            label: String(t.label),
+            collections: Array.isArray(t.collections) ? t.collections.map((c: any) => String(c)) : [],
+          }));
+        setMpcTemplates(items);
+        if (items.length && !items.some(t => t.id === selectedMpcTemplateId)) {
+          setSelectedMpcTemplateId(items[0]!.id);
+        }
+      })
+      .catch(err => {
+        if (cancelled) return;
+        setMpcTemplates([]);
+        setMpcTemplateError(err instanceof Error ? err.message : 'Failed to load processing templates.');
+      })
+      .finally(() => {
+        if (!cancelled) setIsLoadingMpcTemplates(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [expandedEnvSection, exploreTab, analysisEngineBaseUrl, selectedMpcTemplateId]);
+
+  const runMpcTemplateProcessing = async () => {
+    if (!analysisEngineBaseUrl) {
+      setMpcTemplateError('Set VITE_ANALYSIS_ENGINE_URL to enable Processing Templates.');
+      return;
+    }
+    if (!exploreSelectedCollectionIds.length) {
+      setMpcTemplateError('Select at least one collection in Parameters tab.');
+      return;
+    }
+    const dStart = exploreEffectiveDatetime.start;
+    const dEnd = exploreEffectiveDatetime.end;
+    if (!dStart || !dEnd) {
+      setMpcTemplateError('Set start and end date in Date and Time.');
+      return;
+    }
+    const aoi = resolveExploreAoiFeature();
+    setIsMpcProcessing(true);
+    setMpcTemplateError('');
+    setMpcProcessResult(null);
+    try {
+      const result = await mpcProcess(analysisEngineBaseUrl, {
+        aoi,
+        collections: exploreSelectedCollectionIds,
+        datetime: `${dStart}/${dEnd}`,
+        template_id: selectedMpcTemplateId,
+        max_items: Math.max(1, Math.min(80, exploreLimit)),
+        max_cloud_cover: exploreUseCloudFilter ? exploreCloudCoverMax : undefined,
+      });
+      setMpcProcessResult(result);
+      setStacStatus(`Processing template completed: ${result.label || result.template_id}.`);
+    } catch (err) {
+      setMpcTemplateError(err instanceof Error ? err.message : 'Processing failed.');
+    } finally {
+      setIsMpcProcessing(false);
+    }
+  };
 
   const openAcsPicker = () => {
     setAcsPickerStaging([]);
@@ -5390,28 +5440,24 @@ export default function SatelliteIntelligence() {
               <button
                 type="button"
                 role="tab"
-                aria-selected={exploreTab === 'source'}
-                className={exploreTab === 'source' ? 'active' : ''}
-                onClick={() => setExploreTab('source')}
-              >
-                Source
-              </button>
-              <button
-                type="button"
-                role="tab"
                 aria-selected={exploreTab === 'processing-templates'}
                 className={exploreTab === 'processing-templates' ? 'active' : ''}
                 onClick={() => setExploreTab('processing-templates')}
               >
                 Processing templates
               </button>
+              <button
+                type="button"
+                role="tab"
+                aria-selected={exploreTab === 'source'}
+                className={exploreTab === 'source' ? 'active' : ''}
+                onClick={() => setExploreTab('source')}
+              >
+                Source
+              </button>
             </div>
             <div
-              className={`si-explore-stac-body${
-                exploreTab === 'results' || exploreTab === 'processing-templates'
-                  ? ' si-explore-stac-body--results-tab'
-                  : ''
-              }`}
+              className={`si-explore-stac-body${exploreTab === 'results' ? ' si-explore-stac-body--results-tab' : ''}`}
             >
               {exploreTab === 'parameters' ? (
                 <>
@@ -6048,112 +6094,57 @@ export default function SatelliteIntelligence() {
                   ) : null}
                 </>
               ) : exploreTab === 'processing-templates' ? (
-                <div className="si-explore-mpc-templates">
-                  <p className="si-explore-muted si-explore-mpc-intro">
-                    Raster templates using the{' '}
-                    <a href="https://planetarycomputer.microsoft.com/catalog" target="_blank" rel="noopener noreferrer">
-                      Microsoft Planetary Computer Data Catalog
-                    </a>{' '}
-                    (STAC + stackstac on the server). For ArcGIS publishing patterns see{' '}
-                    <a href="https://github.com/Esri/arcgis-for-mpc" target="_blank" rel="noopener noreferrer">
-                      Esri / arcgis-for-mpc
-                    </a>
-                    .
+                <div className="si-explore-processing-templates">
+                  <p className="si-explore-muted">
+                    Select a raster processing template (NDVI / False Color / Moisture Index). The backend maps required bands from
+                    Microsoft Planetary Computer STAC assets dynamically.
                   </p>
-                  <div className="si-explore-field">
-                    <span>Template</span>
-                    <select
-                      className="si-explore-select"
-                      value={mpcTemplateId}
-                      onChange={e => setMpcTemplateId(e.target.value as MpcTemplateId)}
-                      aria-label="Processing template"
-                    >
-                      <option value="ndvi_s2">NDVI (Sentinel-2)</option>
-                      <option value="false_color_s2">False color SWIR–NIR–Red (Sentinel-2)</option>
-                      <option value="ndmi_s2">NDMI moisture (Sentinel-2)</option>
-                      <option value="ndvi_landsat">NDVI (Landsat C2)</option>
-                      <option value="false_color_landsat">False color (Landsat C2)</option>
-                    </select>
-                  </div>
-                  <p className="si-explore-muted si-explore-mpc-hint">
-                    Extent and dates follow the <strong>Parameters</strong> tab (Extent + Date and Time). Draw a{' '}
-                    <strong>rectangle</strong> on the map and choose <strong>Drawn AOI</strong> for downloads / timelapse
-                    frames. Default extent uses the Dubai placeholder when the map bounds are unavailable.
-                  </p>
-                  <div className="si-explore-mpc-actions">
+                  {!analysisEngineBaseUrl ? (
+                    <p className="si-explore-error">Set `VITE_ANALYSIS_ENGINE_URL` in frontend env to use backend processing.</p>
+                  ) : null}
+                  {isLoadingMpcTemplates ? <p className="si-explore-muted">Loading templates…</p> : null}
+                  {mpcTemplateError ? <p className="si-explore-error">{mpcTemplateError}</p> : null}
+                  {!!mpcTemplates.length ? (
+                    <div className="si-explore-processing-template-list">
+                      {mpcTemplates.map(tpl => (
+                        <label key={tpl.id} className="si-explore-processing-template-row">
+                          <input
+                            type="radio"
+                            name="si-processing-template"
+                            checked={selectedMpcTemplateId === tpl.id}
+                            onChange={() => setSelectedMpcTemplateId(tpl.id)}
+                          />
+                          <span>
+                            <strong>{tpl.label}</strong>
+                            <small>{tpl.collections?.length ? `Collections: ${tpl.collections.join(', ')}` : 'All collections'}</small>
+                          </span>
+                        </label>
+                      ))}
+                    </div>
+                  ) : null}
+                  <div className="si-explore-processing-actions">
                     <button
                       type="button"
                       className="si-explore-view-results"
-                      disabled={mpcBusy || !getAnalysisEngineBaseUrl()}
-                      onClick={() => void runMpcProcessing()}
+                      disabled={isMpcProcessing || !analysisEngineBaseUrl || !mpcTemplates.length}
+                      onClick={() => void runMpcTemplateProcessing()}
                     >
-                      {mpcBusy ? <i className="fa-solid fa-spinner fa-spin" aria-hidden /> : null}
-                      Run template (backend)
+                      {isMpcProcessing ? <i className="fa-solid fa-spinner fa-spin" aria-hidden /> : null}
+                      Run Processing
                     </button>
                   </div>
-                  {!getAnalysisEngineBaseUrl() ? (
-                    <p className="si-explore-error si-explore-mpc-url-hint">
-                      Configure <code className="si-explore-code">VITE_ANALYSIS_ENGINE_URL</code> (e.g.{' '}
-                      <code className="si-explore-code">http://127.0.0.1:8000</code>) and run{' '}
-                      <code className="si-explore-code">uvicorn app.main:app --reload --port 8000</code> from{' '}
-                      <code className="si-explore-code">analysis_engine</code>.
-                    </p>
-                  ) : null}
-                  {mpcLastResult?.statistics ? (
-                    <div className="si-explore-mpc-stats" aria-label="Raster statistics">
-                      <div className="si-explore-mpc-stats-title">Output statistics (static chart)</div>
-                      <div className="si-explore-mpc-bars">
-                        {(
-                          [
-                            ['min', mpcLastResult.statistics.min],
-                            ['mean', mpcLastResult.statistics.mean],
-                            ['max', mpcLastResult.statistics.max],
-                          ] as const
-                        ).map(([k, v]) => {
-                          const mn = mpcLastResult.statistics!.min;
-                          const mx = mpcLastResult.statistics!.max;
-                          const span = mx - mn || 1;
-                          const pct = Number.isFinite(v) ? Math.max(0, Math.min(100, ((v - mn) / span) * 100)) : 0;
-                          return (
-                            <div key={k} className="si-explore-mpc-bar-row">
-                              <span className="si-explore-mpc-bar-label">{k}</span>
-                              <div className="si-explore-mpc-bar-track">
-                                <div className="si-explore-mpc-bar-fill" style={{ width: `${pct}%` }} />
-                              </div>
-                              <span className="si-explore-mpc-bar-val">{Number.isFinite(v) ? v.toFixed(4) : '—'}</span>
-                            </div>
-                          );
-                        })}
-                      </div>
-                      {mpcLastResult.rescale ? (
-                        <p className="si-explore-muted">
-                          Suggested rescale: {mpcLastResult.rescale[0]} … {mpcLastResult.rescale[1]} (adjust symbology in
-                          desktop GIS).
-                        </p>
+                  {mpcProcessResult ? (
+                    <div className="si-explore-processing-result">
+                      <div><strong>Template:</strong> {mpcProcessResult.label || mpcProcessResult.template_id}</div>
+                      <div><strong>Items:</strong> {mpcProcessResult.item_count}</div>
+                      <div><strong>Date range:</strong> {mpcProcessResult.datetime}</div>
+                      {mpcProcessResult.statistics ? (
+                        <div>
+                          <strong>Statistics:</strong>{' '}
+                          min {mpcProcessResult.statistics.min.toFixed(4)} · max {mpcProcessResult.statistics.max.toFixed(4)} · mean{' '}
+                          {mpcProcessResult.statistics.mean.toFixed(4)}
+                        </div>
                       ) : null}
-                    </div>
-                  ) : null}
-                  {mpcLastResult?.scene_datetimes?.length ? (
-                    <div className="si-explore-mpc-timelapse">
-                      <div className="si-explore-mpc-stats-title">Timelapse / frames (scene datetimes)</div>
-                      <ul className="si-explore-mpc-datetimes">
-                        {mpcLastResult.scene_datetimes.map((dt, i) => (
-                          <li key={`${dt}-${i}`}>{dt}</li>
-                        ))}
-                      </ul>
-                    </div>
-                  ) : null}
-                  {mpcLastResult?.cog_id && getAnalysisEngineBaseUrl() ? (
-                    <div className="si-explore-mpc-download">
-                      <a
-                        className="si-explore-linkish"
-                        href={`${getAnalysisEngineBaseUrl()}${mpcLastResult.cog_download_path ?? `/mpc/cog/${mpcLastResult.cog_id}`}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                      >
-                        Download COG (GeoTIFF)
-                      </a>
-                      <span className="si-explore-muted"> — Cloud Optimized GeoTIFF for ArcGIS / QGIS.</span>
                     </div>
                   ) : null}
                 </div>
