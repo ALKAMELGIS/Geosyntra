@@ -1655,6 +1655,7 @@ export default function SatelliteIntelligence() {
   const [mpcProcessResult, setMpcProcessResult] = useState<MpcProcessResult | null>(null);
   const [mpcClipToAoi, setMpcClipToAoi] = useState(true);
   const [mpcTileSize, setMpcTileSize] = useState(1024);
+  const [autoRunNdviOnScenePick, setAutoRunNdviOnScenePick] = useState(true);
   const [processingTargetStacItem, setProcessingTargetStacItem] = useState<any | null>(null);
   const [exploreCatalogLoadKey, setExploreCatalogLoadKey] = useState(0);
   const [stacCatalogCollections, setStacCatalogCollections] = useState<StacCollectionSummary[]>([]);
@@ -1998,6 +1999,12 @@ export default function SatelliteIntelligence() {
     setSelectedGisContentCandidateId('');
     setGisContentCandidates([]);
     setIsAddLayerModalOpen(true);
+  };
+
+  const openProcessingTemplatesQuickTool = () => {
+    setIsLayerDropdownOpen(true);
+    setExpandedEnvSection('explore-stac');
+    setExploreTab('processing-templates');
   };
 
   const closeAddLayerModal = () => {
@@ -3330,12 +3337,14 @@ export default function SatelliteIntelligence() {
       .map((item: any) => {
         const geometry = stacItemFootprintGeometry(item);
         if (!geometry) return null;
+        const stableKey = stacItemStableKey(item);
         return {
           type: 'Feature' as const,
           properties: {
             id: String(item.id ?? ''),
             collection: String(item.collection ?? ''),
             datetime: String(item.properties?.datetime ?? ''),
+            stacKey: stableKey,
           },
           geometry,
         };
@@ -3343,6 +3352,29 @@ export default function SatelliteIntelligence() {
       .filter((f): f is NonNullable<typeof f> => f != null);
     return { type: 'FeatureCollection' as const, features };
   }, [stacItems]);
+
+  const stacItemsByStableKey = useMemo(() => {
+    const m = new Map<string, any>();
+    for (const item of stacItems) {
+      m.set(stacItemStableKey(item), item);
+    }
+    return m;
+  }, [stacItems]);
+
+  const selectedProcessingScene = useMemo(() => {
+    if (processingTargetStacItem) return processingTargetStacItem;
+    const selectedKey = exploreSelectedResultKeys[0];
+    if (!selectedKey) return null;
+    return stacItemsByStableKey.get(selectedKey) ?? null;
+  }, [processingTargetStacItem, exploreSelectedResultKeys, stacItemsByStableKey]);
+
+  const selectedProcessingBands = useMemo(() => {
+    const assets =
+      selectedProcessingScene?.assets && typeof selectedProcessingScene.assets === 'object'
+        ? (selectedProcessingScene.assets as Record<string, unknown>)
+        : null;
+    return assets ? Object.keys(assets).sort((a, b) => a.localeCompare(b)) : [];
+  }, [selectedProcessingScene]);
 
   useEffect(() => {
     if (expandedEnvSection !== 'explore-stac') return;
@@ -3605,18 +3637,24 @@ export default function SatelliteIntelligence() {
     ],
   );
 
-  const runMpcTemplateProcessing = async (templateOverride?: MpcTemplateId) => {
+  const runMpcTemplateProcessing = async (templateOverride?: MpcTemplateId, forcedTargetItem?: any) => {
     const templateToRun = templateOverride ?? selectedMpcTemplateId;
     const selectedKey = exploreSelectedResultKeys[0];
     const selectedItemFromResults = selectedKey
       ? exploreSortedStacItems.find((x: any) => stacItemStableKey(x) === selectedKey) ?? null
       : null;
-    const targetItem = processingTargetStacItem ?? selectedItemFromResults;
+    const targetItem = forcedTargetItem ?? processingTargetStacItem ?? selectedItemFromResults;
     if (!targetItem) {
       setMpcTemplateError('Add STAC scene to Current Map (or select one scene in Results) before running template.');
       return;
     }
-    if (!exploreSelectedCollectionIds.length) {
+    const targetCollection = getStacItemCollection(targetItem);
+    const effectiveCollections = exploreSelectedCollectionIds.length
+      ? [...exploreSelectedCollectionIds]
+      : targetCollection
+        ? [targetCollection]
+        : [];
+    if (!effectiveCollections.length) {
       setMpcTemplateError('Select at least one collection in Parameters tab.');
       return;
     }
@@ -3716,7 +3754,7 @@ export default function SatelliteIntelligence() {
     try {
       const result = await mpcProcess(effectiveAnalysisEngineBaseUrl, {
         aoi,
-        collections: exploreSelectedCollectionIds,
+        collections: effectiveCollections,
         datetime: `${dStart}/${dEnd}`,
         template_id: templateToRun,
         max_items: Math.max(1, Math.min(80, exploreLimit)),
@@ -4798,6 +4836,38 @@ export default function SatelliteIntelligence() {
                 ? (hit.properties as Record<string, unknown>)
                 : {};
             const clean = siSanitizeIdentifyProperties(rawProps);
+            if (layerId.startsWith('si-stac-footprints')) {
+              const stacKey = String(rawProps?.stacKey ?? '').trim();
+              const fromKey = stacKey ? stacItemsByStableKey.get(stacKey) : null;
+              const fromFallback =
+                fromKey ??
+                stacItems.find(
+                  item =>
+                    String(item?.id ?? '') === String(rawProps?.id ?? '') &&
+                    String(item?.collection ?? '') === String(rawProps?.collection ?? ''),
+                ) ??
+                null;
+              if (fromFallback) {
+                const sceneKey = stacItemStableKey(fromFallback);
+                const sceneCollection = getStacItemCollection(fromFallback);
+                const autoTemplate: MpcTemplateId =
+                  String(sceneCollection).toLowerCase() === 'landsat-c2-l2' ? 'ndvi_landsat' : 'ndvi_s2';
+                setProcessingTargetStacItem(fromFallback);
+                setExploreSelectedResultKeys([sceneKey]);
+                setShowStacFootprintsOnMap(true);
+                setExpandedEnvSection('explore-stac');
+                setExploreTab('processing-templates');
+                if (sceneCollection) {
+                  setExploreSelectedCollectionIds(prev => (prev.includes(sceneCollection) ? prev : [...prev, sceneCollection]));
+                }
+                setStacStatus(`Selected STAC footprint: ${String(fromFallback?.id ?? 'scene')}.`);
+                if (autoRunNdviOnScenePick) {
+                  setSelectedMpcTemplateId(autoTemplate);
+                  void runMpcTemplateProcessing(autoTemplate, fromFallback);
+                }
+              }
+              return;
+            }
             setGeoAiInspectCard({
               title,
               rows: buildGeoAiLayerPopupAttributeRows(
@@ -5754,6 +5824,15 @@ export default function SatelliteIntelligence() {
                 >
                   <i className="fa-solid fa-globe"></i>
                 </button>
+                <button
+                  type="button"
+                  className={`si-basemap-button ${expandedEnvSection === 'explore-stac' && exploreTab === 'processing-templates' ? 'active' : ''}`}
+                  onClick={openProcessingTemplatesQuickTool}
+                  title="Processing templates"
+                  aria-label="Open STAC processing templates tool"
+                >
+                  <i className="fa-solid fa-square-poll-vertical"></i>
+                </button>
                 {isBasemapOpen && (
                   <div className="si-basemap-widget si-basemap-widget--grid">
                     {basemapCatalog.map(entry => {
@@ -6605,6 +6684,28 @@ export default function SatelliteIntelligence() {
                       Analysis backend URL was not detected. The app will render preview from the currently added STAC scene (frontend mode).
                     </p>
                   ) : null}
+                  <p className="si-explore-muted">
+                    Selected scene: <strong>{String(selectedProcessingScene?.id ?? 'none')}</strong>
+                    {selectedProcessingBands.length ? ` · Bands: ${selectedProcessingBands.join(', ')}` : ' · Bands: not available'}
+                  </p>
+                  <div className="si-field-analysis-field">
+                    <label style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <input
+                        type="checkbox"
+                        checked={autoRunNdviOnScenePick}
+                        onChange={e => setAutoRunNdviOnScenePick(e.target.checked)}
+                      />
+                      <span>Auto-run NDVI when selecting footprint on map</span>
+                    </label>
+                  </div>
+                  <div className="si-field-analysis-field" style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                    <button type="button" className="si-explore-page-btn" onClick={() => setExploreExtentMode('map')}>
+                      Use current map view as AOI
+                    </button>
+                    <button type="button" className="si-explore-page-btn" onClick={() => setExploreExtentMode('drawn')}>
+                      Use drawn AOI
+                    </button>
+                  </div>
                   <div className="si-field-analysis-field" style={{ marginTop: 8 }}>
                     <label style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                       <input

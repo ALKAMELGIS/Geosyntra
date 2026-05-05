@@ -545,6 +545,7 @@ export default function GisMap() {
   const [globeLoaded, setGlobeLoaded] = useState(false)
   const [mapSearchQuery, setMapSearchQuery] = useState('')
   const [mapSearchStatus, setMapSearchStatus] = useState('')
+  const [quickSearchOpen, setQuickSearchOpen] = useState(false)
   const geminiApiKey = useGeminiApiKey()
   const geoExplorerFileInputRef = useRef<HTMLInputElement | null>(null)
   const geoExplorerInFlightRef = useRef(false)
@@ -602,6 +603,7 @@ export default function GisMap() {
   const [tableToolsCollapsed, setTableToolsCollapsed] = useState(false)
   const [tablesAddMenuOpen, setTablesAddMenuOpen] = useState(false)
   const tablesAddMenuRef = useRef<HTMLDivElement | null>(null)
+  const quickSearchRef = useRef<HTMLDivElement | null>(null)
   const [layersEmptyAddMenuOpen, setLayersEmptyAddMenuOpen] = useState(false)
   const layersEmptyAddMenuRef = useRef<HTMLDivElement | null>(null)
   const [showSelectedOnly, setShowSelectedOnly] = useState(false)
@@ -716,6 +718,25 @@ export default function GisMap() {
     if (activeMapTool !== 'table') setTablesAddMenuOpen(false)
     if (activeMapTool !== null) setLayersEmptyAddMenuOpen(false)
   }, [activeMapTool])
+
+  useEffect(() => {
+    if (!quickSearchOpen) return
+    const onDocMouseDown = (ev: MouseEvent) => {
+      const target = ev.target as Node | null
+      if (!target) return
+      if (quickSearchRef.current?.contains(target)) return
+      setQuickSearchOpen(false)
+    }
+    const onEsc = (ev: KeyboardEvent) => {
+      if (ev.key === 'Escape') setQuickSearchOpen(false)
+    }
+    document.addEventListener('mousedown', onDocMouseDown)
+    window.addEventListener('keydown', onEsc)
+    return () => {
+      document.removeEventListener('mousedown', onDocMouseDown)
+      window.removeEventListener('keydown', onEsc)
+    }
+  }, [quickSearchOpen])
 
   useEffect(() => {
     try {
@@ -1378,9 +1399,9 @@ export default function GisMap() {
       case 'distance':
         return `Click on the map to add measurement points. Method: ${methodLabel}.`
       case 'area':
-        return `Click vertices; right-click with 3 or more points to close the polygon and measure area. Method: ${methodLabel}.`
+        return `Click vertices to draw area. Finish by double-click, right-click, or clicking near the first point. Method: ${methodLabel}.`
       case 'features':
-        return `Trace a polygon (vertices then right-click to close); perimeter length is shown. Method: ${methodLabel}.`
+        return `Trace a polygon. Finish by double-click, right-click, or clicking near the first point; perimeter is shown. Method: ${methodLabel}.`
       case 'vertical':
         return 'Click two locations; elevation difference uses Open‑Elevation (online).'
       case 'direction':
@@ -1650,6 +1671,17 @@ export default function GisMap() {
         }
         if (mode === 'area' || mode === 'features') {
           if (closed) return { points: [e.latlng], closed: false }
+          if (points.length >= 3) {
+            const first = points[0]
+            if (first) {
+              const firstPx = map.latLngToContainerPoint(first)
+              const clickPx = map.latLngToContainerPoint(e.latlng)
+              const closeDistancePx = firstPx.distanceTo(clickPx)
+              if (closeDistancePx <= 14) {
+                return { points, closed: true }
+              }
+            }
+          }
           return { points: [...points, e.latlng], closed: false }
         }
         return prev
@@ -1665,15 +1697,26 @@ export default function GisMap() {
       })
     }
 
+    const onDoubleClick = (e: L.LeafletMouseEvent) => {
+      if (measurementMode !== 'area' && measurementMode !== 'features') return
+      e.originalEvent.preventDefault()
+      setMeasurementSketch(prev => {
+        if (prev.points.length < 3) return prev
+        return { points: prev.points, closed: true }
+      })
+    }
+
     map.getContainer().classList.add('gis-measure-cursor')
     try {
       map.doubleClickZoom.disable()
     } catch {}
     map.on('click', onClick)
     map.on('contextmenu', onContextMenu)
+    map.on('dblclick', onDoubleClick)
     return () => {
       map.off('click', onClick)
       map.off('contextmenu', onContextMenu)
+      map.off('dblclick', onDoubleClick)
       try {
         map.doubleClickZoom.enable()
       } catch {}
@@ -4040,6 +4083,17 @@ export default function GisMap() {
               </label>
             </div>
             <div className="gis-tool-measure-value">{measurementDisplay}</div>
+            {(measurementMode === 'area' || measurementMode === 'features') &&
+            !measurementSketch.closed &&
+            measurementSketch.points.length >= 3 ? (
+              <button
+                className="gis-btn"
+                type="button"
+                onClick={() => setMeasurementSketch(prev => ({ points: prev.points, closed: prev.points.length >= 3 }))}
+              >
+                Finish shape
+              </button>
+            ) : null}
             <div className="gis-tool-muted">{measurementFooterHint}</div>
             <button className="gis-btn" type="button" onClick={clearMeasurement}>Clear measurement</button>
           </div>
@@ -5490,10 +5544,13 @@ export default function GisMap() {
           </button>
           <button
             type="button"
-            className={['gis-map-quick-tools__btn', activeMapTool === 'search' ? 'active' : '']
+            className={['gis-map-quick-tools__btn', quickSearchOpen ? 'active' : '']
               .filter(Boolean)
               .join(' ')}
-            onClick={() => toggleMapTool('search')}
+            onClick={() => {
+              setQuickSearchOpen(v => !v)
+              if (activeMapTool === 'search') setActiveMapTool(null)
+            }}
             title="Search"
             aria-label="Search"
           >
@@ -5511,6 +5568,29 @@ export default function GisMap() {
             <i className="fa-solid fa-comments" aria-hidden="true" />
           </button>
         </div>
+        {quickSearchOpen ? (
+          <div className="gis-map-quick-search-popover" ref={quickSearchRef}>
+            <div className="gis-map-quick-search-popover__row">
+              <input
+                className="gis-input"
+                value={mapSearchQuery}
+                onChange={(e) => setMapSearchQuery(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault()
+                    void handleMapSearch()
+                  }
+                }}
+                placeholder="Search place or coordinates..."
+                aria-label="Search map"
+              />
+              <button className="gis-btn gis-btn-primary" type="button" onClick={() => void handleMapSearch()}>
+                Search
+              </button>
+            </div>
+            {mapSearchStatus ? <div className="gis-tool-muted">{mapSearchStatus}</div> : null}
+          </div>
+        ) : null}
 
         <div className="gis-map-zoom-cluster gis-map-zoom-cluster--nav" role="group" aria-label="Map navigation">
           <button
