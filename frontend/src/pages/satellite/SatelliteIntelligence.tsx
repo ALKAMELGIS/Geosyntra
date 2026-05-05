@@ -2,7 +2,7 @@ import React, { useState, useMemo, useRef, useEffect, useLayoutEffect, useCallba
 import MapGL, { Source, Layer, NavigationControl, Marker } from 'react-map-gl/mapbox';
 import 'mapbox-gl/dist/mapbox-gl.css';
 import './SatelliteIntelligence.css';
-import { parseFile } from '../../utils/FileLoader';
+import { parseFile, parseRemoteUrlAsFile } from '../../utils/FileLoader';
 import type { DrawStyleConfig, VertexRef } from './drawingUtils';
 import {
   bboxToPolygonFeature,
@@ -66,6 +66,7 @@ import {
 import { resolveGeoAiPinFromUserTextAndReply } from '../../lib/geoAiResolveMapCoords';
 import { buildGeoAiFullWeatherSessionAppend } from '../../lib/geoAiWeatherContext';
 import {
+  siBrowserReportsMicrosoftEdge,
   siDefaultSatelliteGlobeEnabled,
   siMapErrorSuggestsGlobeOrWebglFailure,
 } from '../../lib/siMapboxGlobeCompat';
@@ -506,6 +507,40 @@ function buildPcPreviewPngUrl(
   if (width && height) {
     u.searchParams.set('width', String(Math.min(4096, Math.max(64, Math.floor(width)))));
     u.searchParams.set('height', String(Math.min(4096, Math.max(64, Math.floor(height)))));
+  }
+  return u.toString();
+}
+
+function buildPcProcessingPreviewPngUrl(collection: string, itemId: string, templateId: MpcTemplateId, size = 2048): string {
+  const u = new URL('https://planetarycomputer.microsoft.com/api/data/v1/item/preview.png');
+  u.searchParams.set('collection', collection);
+  u.searchParams.set('item', itemId);
+  u.searchParams.set('format', 'png');
+  u.searchParams.set('nodata', '0');
+  u.searchParams.set('width', String(Math.max(256, Math.min(4096, Math.floor(size)))));
+  u.searchParams.set('height', String(Math.max(256, Math.min(4096, Math.floor(size)))));
+
+  if (templateId === 'ndvi_s2') {
+    u.searchParams.set('assets', 'B08,B04');
+    u.searchParams.set('expression', '(B08-B04)/(B08+B04+1e-6)');
+    u.searchParams.set('rescale', '-1,1');
+    u.searchParams.set('colormap_name', 'rdylgn');
+  } else if (templateId === 'false_color_s2') {
+    u.searchParams.set('assets', 'B12,B08,B04');
+    u.searchParams.set('asset_bidx', 'B12|1,B08|1,B04|1');
+  } else if (templateId === 'ndmi_s2') {
+    u.searchParams.set('assets', 'B08,B11');
+    u.searchParams.set('expression', '(B08-B11)/(B08+B11+1e-6)');
+    u.searchParams.set('rescale', '-1,1');
+    u.searchParams.set('colormap_name', 'viridis');
+  } else if (templateId === 'ndvi_landsat') {
+    u.searchParams.set('assets', 'nir08,red');
+    u.searchParams.set('expression', '(nir08-red)/(nir08+red+1e-6)');
+    u.searchParams.set('rescale', '-1,1');
+    u.searchParams.set('colormap_name', 'rdylgn');
+  } else {
+    u.searchParams.set('assets', 'swir16,nir08,red');
+    u.searchParams.set('asset_bidx', 'swir16|1,nir08|1,red|1');
   }
   return u.toString();
 }
@@ -1040,7 +1075,7 @@ interface LayerSymbologyDraft {
   arcgisMaxCategories: number;
 }
 
-type AddLayerTab = 'arcgis' | 'upload' | 'database';
+type AddLayerTab = 'giscontent' | 'arcgis' | 'upload' | 'database' | 'url';
 
 type EnvironmentalIndexId = 'NDWI' | 'NDMI' | 'EVI' | 'SAVI' | 'NDSI' | 'LST';
 
@@ -1396,6 +1431,13 @@ function applySymbologyToArcgisDrawingInfo(
 }
 
 type ExploreDateSourceMode = 'manual' | 'environmental_parameter' | 'sentinel2_views';
+const LOCAL_PROCESSING_TEMPLATES: Array<{ id: MpcTemplateId; label: string; collections?: string[] }> = [
+  { id: 'ndvi_s2', label: 'NDVI (Sentinel-2)', collections: ['sentinel-2-l2a'] },
+  { id: 'false_color_s2', label: 'False Color (Sentinel-2)', collections: ['sentinel-2-l2a'] },
+  { id: 'ndmi_s2', label: 'Moisture Index / NDMI (Sentinel-2)', collections: ['sentinel-2-l2a'] },
+  { id: 'ndvi_landsat', label: 'NDVI (Landsat-8/9)', collections: ['landsat-c2-l2'] },
+  { id: 'false_color_landsat', label: 'False Color (Landsat-8/9)', collections: ['landsat-c2-l2'] },
+];
 
 export default function SatelliteIntelligence() {
   const mapboxToken = useMapboxAccessToken();
@@ -1473,6 +1515,7 @@ export default function SatelliteIntelligence() {
     });
   }, [basemapCatalog, mapboxToken]);
   const [is3DView, setIs3DView] = useState(() => siDefaultSatelliteGlobeEnabled());
+  const [edgeCompatMode, setEdgeCompatMode] = useState(false);
   const [cloudCoverage, setCloudCoverage] = useState(20);
   const [isTimelinePlaying, setIsTimelinePlaying] = useState(false);
   const [selectedIndex, setSelectedIndex] = useState<EnvironmentalIndexId>('NDWI');
@@ -1495,6 +1538,7 @@ export default function SatelliteIntelligence() {
   const [selectedMpcTemplateId, setSelectedMpcTemplateId] = useState<MpcTemplateId>('ndvi_s2');
   const [isMpcProcessing, setIsMpcProcessing] = useState(false);
   const [mpcProcessResult, setMpcProcessResult] = useState<MpcProcessResult | null>(null);
+  const [processingTargetStacItem, setProcessingTargetStacItem] = useState<any | null>(null);
   const [exploreCatalogLoadKey, setExploreCatalogLoadKey] = useState(0);
   const [stacCatalogCollections, setStacCatalogCollections] = useState<StacCollectionSummary[]>([]);
   const [isLoadingStacCollections, setIsLoadingStacCollections] = useState(false);
@@ -1524,8 +1568,9 @@ export default function SatelliteIntelligence() {
   const [isStacThumbVisible, setIsStacThumbVisible] = useState(true);
   const [stacMapThumbLabel, setStacMapThumbLabel] = useState('');
   const [isAddLayerModalOpen, setIsAddLayerModalOpen] = useState(false);
-  const [addLayerTab, setAddLayerTab] = useState<AddLayerTab>('arcgis');
+  const [addLayerTab, setAddLayerTab] = useState<AddLayerTab>('giscontent');
   const [addLayerUrl, setAddLayerUrl] = useState('');
+  const [addLayerRemoteUrl, setAddLayerRemoteUrl] = useState('');
   const [addLayerToken, setAddLayerToken] = useState(() => (typeof window !== 'undefined' ? getArcgisPortalToken() : ''));
   const [addLayerName, setAddLayerName] = useState('');
   const [addLayerStatus, setAddLayerStatus] = useState('');
@@ -1533,6 +1578,10 @@ export default function SatelliteIntelligence() {
   const [discoveredArcgisLayers, setDiscoveredArcgisLayers] = useState<Array<{ id: number; name: string; url: string; kind: 'layer' | 'table'; geometryType?: string }>>([]);
   const [selectedDiscoveredArcgisUrl, setSelectedDiscoveredArcgisUrl] = useState('');
   const [isAddingDiscoveredArcgisLayer, setIsAddingDiscoveredArcgisLayer] = useState(false);
+  const [gisContentCandidates, setGisContentCandidates] = useState<Array<{ id: string; name: string; data: any }>>([]);
+  const [isLoadingGisContentCandidates, setIsLoadingGisContentCandidates] = useState(false);
+  const [selectedGisContentCandidateId, setSelectedGisContentCandidateId] = useState('');
+  const [isImportingRemoteLayer, setIsImportingRemoteLayer] = useState(false);
   const [activeLayerActionDialog, setActiveLayerActionDialog] = useState<null | { mode: 'table' | 'symbology' | 'legend'; layerId: string }>(null);
   const [syncingLayerId, setSyncingLayerId] = useState<string | null>(null);
   const [tableSearchText, setTableSearchText] = useState('');
@@ -1812,8 +1861,12 @@ export default function SatelliteIntelligence() {
 
   const openAddLayerModal = () => {
     setAddLayerStatus('');
+    setAddLayerTab('giscontent');
     setDiscoveredArcgisLayers([]);
     setSelectedDiscoveredArcgisUrl('');
+    setAddLayerRemoteUrl('');
+    setSelectedGisContentCandidateId('');
+    setGisContentCandidates([]);
     setIsAddLayerModalOpen(true);
   };
 
@@ -1823,6 +1876,35 @@ export default function SatelliteIntelligence() {
     setDiscoveredArcgisLayers([]);
     setSelectedDiscoveredArcgisUrl('');
   };
+
+  useEffect(() => {
+    if (!isAddLayerModalOpen || addLayerTab !== 'giscontent') return;
+    let cancelled = false;
+    setIsLoadingGisContentCandidates(true);
+    setAddLayerStatus('');
+    loadGisMapSavedLayers()
+      .then(layers => {
+        if (cancelled) return;
+        const candidates = (Array.isArray(layers) ? layers : [])
+          .filter((l: any) => l?.type === 'geojson' && l?.data && typeof l?.data === 'object')
+          .map((l: any) => ({
+            id: String(l.id ?? `gis-${Math.random().toString(36).slice(2)}`),
+            name: String(l.name || 'GIS content layer'),
+            data: l.data,
+          }));
+        setGisContentCandidates(candidates);
+        setSelectedGisContentCandidateId(candidates[0]?.id ?? '');
+      })
+      .catch(() => {
+        if (!cancelled) setGisContentCandidates([]);
+      })
+      .finally(() => {
+        if (!cancelled) setIsLoadingGisContentCandidates(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [isAddLayerModalOpen, addLayerTab]);
 
   const deriveArcgisLayerName = (serviceUrl: string, fallback = 'ArcGIS Layer') => {
     const clean = serviceUrl.replace(/\/+$/, '');
@@ -1956,6 +2038,65 @@ export default function SatelliteIntelligence() {
       setAddLayerStatus(error instanceof Error ? error.message : 'Failed to add selected ArcGIS layer.');
     } finally {
       setIsAddingDiscoveredArcgisLayer(false);
+    }
+  };
+
+  const addSelectedGisContentLayer = () => {
+    const picked = gisContentCandidates.find(c => c.id === selectedGisContentCandidateId);
+    if (!picked) {
+      setAddLayerStatus('Select a GIS Content layer first.');
+      return;
+    }
+    const id = `gis-content-${Date.now()}`;
+    setCustomLayers(prev => [
+      ...prev,
+      {
+        id,
+        name: addLayerName.trim() || picked.name,
+        geojson: picked.data,
+        visible: true,
+        source: 'api',
+      },
+    ]);
+    setAddLayerStatus(`Imported from GIS Content: ${picked.name}`);
+    setAddLayerName('');
+    setIsAddLayerModalOpen(false);
+  };
+
+  const importRemoteUrlLayer = async () => {
+    const raw = addLayerRemoteUrl.trim();
+    if (!raw) {
+      setAddLayerStatus('Enter a remote GeoJSON/ZIP/KML URL.');
+      return;
+    }
+    setIsImportingRemoteLayer(true);
+    setAddLayerStatus('Downloading and parsing remote layer...');
+    try {
+      const file = await parseRemoteUrlAsFile(raw);
+      const parsed = await parseFile(file);
+      if (parsed.type !== 'geojson') {
+        throw new Error('URL must point to a geospatial file (GeoJSON/KML/KMZ/ZIP).');
+      }
+      const id = `remote-${Date.now()}`;
+      setCustomLayers(prev => [
+        ...prev,
+        {
+          id,
+          name: addLayerName.trim() || parsed.filename || 'Remote Layer',
+          geojson: parsed.data,
+          visible: true,
+          source: 'api',
+          sourceUrl: raw,
+        },
+      ]);
+      setAddLayerStatus(`Imported remote layer: ${parsed.filename}`);
+      setAddLayerName('');
+      setAddLayerRemoteUrl('');
+      setIsAddLayerModalOpen(false);
+    } catch (e) {
+      setAddLayerStatus(e instanceof Error ? e.message : 'Failed to import remote URL layer.');
+    } finally {
+      setIsImportingRemoteLayer(false);
     }
   };
 
@@ -2853,6 +2994,7 @@ export default function SatelliteIntelligence() {
 
   const addStacToCurrentMap = async (item: any) => {
     closeStacAddMenu();
+    setProcessingTargetStacItem(item);
     setShowStacFootprintsOnMap(true);
     flyToStacItemExtent(item);
     await showStacItemThumbOnMap(item);
@@ -2872,6 +3014,7 @@ export default function SatelliteIntelligence() {
 
   const addStacToGlobalScene = async (item: any) => {
     closeStacAddMenu();
+    setProcessingTargetStacItem(item);
     setShowStacFootprintsOnMap(true);
     siGlobeWebglFailoverRef.current = false;
     setIs3DView(true);
@@ -2897,6 +3040,7 @@ export default function SatelliteIntelligence() {
 
   const addStacToLocalScene = async (item: any) => {
     closeStacAddMenu();
+    setProcessingTargetStacItem(item);
     setShowStacFootprintsOnMap(true);
     setIs3DView(false);
     window.setTimeout(() => {
@@ -2955,6 +3099,7 @@ export default function SatelliteIntelligence() {
       const parsed = JSON.parse(raw) as { item?: any };
       sessionStorage.removeItem('agri-stac-focus');
       if (!parsed?.item) return;
+      setProcessingTargetStacItem(parsed.item);
       window.setTimeout(() => flyToStacItemExtent(parsed.item), 450);
       void showStacItemThumbOnMap(parsed.item);
       setExpandedEnvSection('explore-stac');
@@ -3206,7 +3351,11 @@ export default function SatelliteIntelligence() {
     if (expandedEnvSection !== 'explore-stac') return;
     if (exploreTab !== 'processing-templates') return;
     if (!analysisEngineBaseUrl) {
-      setMpcTemplateError('Set VITE_ANALYSIS_ENGINE_URL to enable Processing Templates.');
+      setMpcTemplateError('');
+      setMpcTemplates(LOCAL_PROCESSING_TEMPLATES);
+      if (!LOCAL_PROCESSING_TEMPLATES.some(t => t.id === selectedMpcTemplateId)) {
+        setSelectedMpcTemplateId(LOCAL_PROCESSING_TEMPLATES[0]!.id);
+      }
       return;
     }
     let cancelled = false;
@@ -3229,8 +3378,8 @@ export default function SatelliteIntelligence() {
       })
       .catch(err => {
         if (cancelled) return;
-        setMpcTemplates([]);
-        setMpcTemplateError(err instanceof Error ? err.message : 'Failed to load processing templates.');
+        setMpcTemplates(LOCAL_PROCESSING_TEMPLATES);
+        setMpcTemplateError(err instanceof Error ? err.message : 'Failed to load backend templates; using local templates.');
       })
       .finally(() => {
         if (!cancelled) setIsLoadingMpcTemplates(false);
@@ -3241,8 +3390,13 @@ export default function SatelliteIntelligence() {
   }, [expandedEnvSection, exploreTab, analysisEngineBaseUrl, selectedMpcTemplateId]);
 
   const runMpcTemplateProcessing = async () => {
-    if (!analysisEngineBaseUrl) {
-      setMpcTemplateError('Set VITE_ANALYSIS_ENGINE_URL to enable Processing Templates.');
+    const selectedKey = exploreSelectedResultKeys[0];
+    const selectedItemFromResults = selectedKey
+      ? exploreSortedStacItems.find((x: any) => stacItemStableKey(x) === selectedKey) ?? null
+      : null;
+    const targetItem = processingTargetStacItem ?? selectedItemFromResults;
+    if (!targetItem) {
+      setMpcTemplateError('Add STAC scene to Current Map (or select one scene in Results) before running template.');
       return;
     }
     if (!exploreSelectedCollectionIds.length) {
@@ -3259,6 +3413,49 @@ export default function SatelliteIntelligence() {
     setIsMpcProcessing(true);
     setMpcTemplateError('');
     setMpcProcessResult(null);
+    setProcessingTargetStacItem(targetItem);
+
+    if (!analysisEngineBaseUrl) {
+      try {
+        const coll = getStacItemCollection(targetItem);
+        const itemId = getStacItemIdForThumb(targetItem);
+        if (!coll || !itemId) throw new Error('Missing STAC collection/item id for selected scene.');
+        let bbox = Array.isArray(targetItem?.bbox) && targetItem.bbox.length >= 4 ? (targetItem.bbox as number[]) : null;
+        if (!bbox && targetItem?.geometry) {
+          const gbounds = getGeoJsonBounds({ type: 'Feature', geometry: targetItem.geometry, properties: {} });
+          if (gbounds) bbox = [...gbounds];
+        }
+        if (!bbox || bbox.length < 4) throw new Error('Scene bbox is missing; cannot place processed preview on map.');
+        const urls = [4096, 3072, 2560, 2048, 1536, 1280, 1024].map(sz =>
+          buildPcProcessingPreviewPngUrl(coll, itemId, selectedMpcTemplateId, sz),
+        );
+        const blobUrl = await fetchStacMapOverlayBlobUrl(urls);
+        if (!blobUrl) throw new Error('Could not render processing template preview for this scene.');
+        const [w, s, e, n] = bbox;
+        setStacMapThumb(prev => {
+          revokeStacMapOverlayBlob(prev?.url);
+          return { url: blobUrl, coordinates: bboxToRgCoordinates([w, s, e, n]) };
+        });
+        setIsStacThumbVisible(true);
+        setStacMapThumbLabel(`STAC imagery (${selectedMpcTemplateId}): ${itemId}`);
+        setMpcProcessResult({
+          ok: true,
+          template_id: selectedMpcTemplateId,
+          collections: [coll],
+          datetime: `${dStart}/${dEnd}`,
+          item_count: 1,
+          detail: 'Frontend render mode (no analysis backend URL configured).',
+          label: LOCAL_PROCESSING_TEMPLATES.find(t => t.id === selectedMpcTemplateId)?.label ?? selectedMpcTemplateId,
+        } as MpcProcessResult);
+        setStacStatus('Processing template applied to the added STAC layer (frontend mode).');
+      } catch (err) {
+        setMpcTemplateError(err instanceof Error ? err.message : 'Processing failed.');
+      } finally {
+        setIsMpcProcessing(false);
+      }
+      return;
+    }
+
     try {
       const result = await mpcProcess(analysisEngineBaseUrl, {
         aoi,
@@ -4645,6 +4842,10 @@ export default function SatelliteIntelligence() {
   const mapStyle = currentBasemapEntry
     ? mapboxGlStyleForEntry(currentBasemapEntry, mapboxToken || '')
     : EMPTY_MAP_STYLE;
+  const edgeCompatBasemapEntry = useMemo(() => catalogEntryById(basemapCatalog, 'esri') ?? currentBasemapEntry, [basemapCatalog, currentBasemapEntry]);
+  const effectiveMapStyle = edgeCompatMode
+    ? mapboxGlStyleForEntry(edgeCompatBasemapEntry!, mapboxToken || '')
+    : mapStyle;
 
   /** Avoid Mapbox "Style is not done loading" by not mounting GeoJSON/Layer children until style is ready; reset after basemap/token change. */
   const basemapStyleGateRef = useRef(false);
@@ -4655,6 +4856,19 @@ export default function SatelliteIntelligence() {
     }
     setIsMapLoaded(false);
   }, [activeBasemapId, mapboxToken]);
+
+  useEffect(() => {
+    if (!siBrowserReportsMicrosoftEdge()) return;
+    if (isMapLoaded || edgeCompatMode) return;
+    const t = window.setTimeout(() => {
+      if (isMapLoaded || edgeCompatMode) return;
+      setEdgeCompatMode(true);
+      setIs3DView(false);
+      setBasemapId('esri');
+      setStacStatus('Edge compatibility mode enabled (2D Esri raster basemap).');
+    }, 3500);
+    return () => window.clearTimeout(t);
+  }, [isMapLoaded, edgeCompatMode]);
 
   const toggleWmsOverlayVisibility = () => setIsWmsOverlayVisible(v => !v);
   const toggleStacThumbVisibility = () => setIsStacThumbVisible(v => !v);
@@ -4801,6 +5015,7 @@ export default function SatelliteIntelligence() {
             </div>
           ) : null}
           <MapGL
+            key={edgeCompatMode ? 'si-map-edge-compat' : 'si-map-default'}
             ref={mapRef}
             {...viewState}
             onMove={evt => setViewState(evt.viewState)}
@@ -4817,13 +5032,13 @@ export default function SatelliteIntelligence() {
                   ? 'pointer'
                   : 'grab',
             }}
-            mapStyle={mapStyle}
+            mapStyle={effectiveMapStyle}
             mapboxAccessToken={mapboxToken || undefined}
-            projection={is3DView ? { name: 'globe' } : { name: 'mercator' }}
-            renderWorldCopies={!is3DView}
-            dragRotate={is3DView}
-            pitchWithRotate={is3DView}
-            fog={is3DView ? { 'range': [0.5, 10], 'color': '#020617', 'horizon-blend': 0.1 } : undefined}
+            projection={edgeCompatMode ? { name: 'mercator' } : is3DView ? { name: 'globe' } : { name: 'mercator' }}
+            renderWorldCopies={edgeCompatMode ? true : !is3DView}
+            dragRotate={edgeCompatMode ? false : is3DView}
+            pitchWithRotate={edgeCompatMode ? false : is3DView}
+            fog={edgeCompatMode ? undefined : is3DView ? { 'range': [0.5, 10], 'color': '#020617', 'horizon-blend': 0.1 } : undefined}
             onError={(e: any) => {
               const message = e?.error?.message || '';
               const url = e?.error?.url || '';
@@ -4840,6 +5055,10 @@ export default function SatelliteIntelligence() {
               if (!siGlobeWebglFailoverRef.current && siMapErrorSuggestsGlobeOrWebglFailure(String(message))) {
                 siGlobeWebglFailoverRef.current = true;
                 setIs3DView(v => (v ? false : v));
+                if (siBrowserReportsMicrosoftEdge()) {
+                  setEdgeCompatMode(true);
+                  setBasemapId('esri');
+                }
                 return;
               }
               console.warn('Map Error:', e);
@@ -5177,6 +5396,41 @@ export default function SatelliteIntelligence() {
           <div className="si-map-floating-controls">
             <div className="si-map-floating-controls__row">
               <div className="si-map-floating-controls__left">
+          <div className="si-map-quick-tools" role="toolbar" aria-label="Quick map tools">
+            <button
+              type="button"
+              className={`si-map-quick-tool-btn ${isLayerDropdownOpen ? 'active' : ''}`}
+              onClick={() => {
+                setIsLayerDropdownOpen(open => !open);
+                if (!isLayerDropdownOpen) setExpandedEnvSection('layers');
+              }}
+              title="Layers"
+              aria-label="Layers"
+            >
+              <i className="fa-solid fa-layer-group" aria-hidden />
+            </button>
+            <button
+              type="button"
+              className={`si-map-quick-tool-btn ${isSearchOpen ? 'active' : ''}`}
+              onClick={() => setIsSearchOpen(open => !open)}
+              title="Search"
+              aria-label="Search"
+            >
+              <i className="fa-solid fa-magnifying-glass" aria-hidden />
+            </button>
+            <button
+              type="button"
+              className={`si-map-quick-tool-btn ${isLayerDropdownOpen && expandedEnvSection === 'table-geo-ai' ? 'active' : ''}`}
+              onClick={() => {
+                setIsLayerDropdownOpen(true);
+                setExpandedEnvSection('table-geo-ai');
+              }}
+              title="Geo AI chat"
+              aria-label="Geo AI chat"
+            >
+              <i className="fa-solid fa-comments" aria-hidden />
+            </button>
+          </div>
           <div
             ref={searchRef}
             className={`si-map-search ${isSearchOpen ? 'open' : 'collapsed'}`}
@@ -6100,7 +6354,9 @@ export default function SatelliteIntelligence() {
                     Microsoft Planetary Computer STAC assets dynamically.
                   </p>
                   {!analysisEngineBaseUrl ? (
-                    <p className="si-explore-error">Set `VITE_ANALYSIS_ENGINE_URL` in frontend env to use backend processing.</p>
+                    <p className="si-explore-muted">
+                      Backend URL is not set. Running template will still work on the currently added STAC scene (frontend render mode).
+                    </p>
                   ) : null}
                   {isLoadingMpcTemplates ? <p className="si-explore-muted">Loading templates…</p> : null}
                   {mpcTemplateError ? <p className="si-explore-error">{mpcTemplateError}</p> : null}
@@ -6126,7 +6382,7 @@ export default function SatelliteIntelligence() {
                     <button
                       type="button"
                       className="si-explore-view-results"
-                      disabled={isMpcProcessing || !analysisEngineBaseUrl || !mpcTemplates.length}
+                      disabled={isMpcProcessing || !mpcTemplates.length}
                       onClick={() => void runMpcTemplateProcessing()}
                     >
                       {isMpcProcessing ? <i className="fa-solid fa-spinner fa-spin" aria-hidden /> : null}
@@ -6672,51 +6928,112 @@ export default function SatelliteIntelligence() {
           >
             <div className="gis-modal-compact-hero">
               <h2 className="gis-modal-compact-hero-title" id="si-layer-modal-title">
-                Add GIS Layer
+                Add Source Data
               </h2>
               <p className="gis-modal-compact-hero-lead">
-                Connect services, database sources, or upload local GIS files.
+                Choose how you want to add layers to the registry for analytics and maps.
               </p>
               </div>
 
-            <div className="gis-modal-compact-tabs" role="tablist" aria-label="Layer source type">
-                    <button
-                      type="button"
-                role="tab"
-                aria-selected={addLayerTab === 'arcgis'}
-                aria-label="ArcGIS Feature Service"
-                title="ArcGIS Feature Service"
-                className={(addLayerTab === 'arcgis' ? 'gis-compact-tab active' : 'gis-compact-tab') + ' gis-compact-tab--icon'}
-                onClick={() => setAddLayerTab('arcgis')}
-              >
-                <i className="fa-solid fa-cloud" aria-hidden />
-                    </button>
-            <button
-              type="button"
-                role="tab"
-                aria-selected={addLayerTab === 'database'}
-                aria-label="Database Connection"
-                title="Database Connection"
-                className={(addLayerTab === 'database' ? 'gis-compact-tab active' : 'gis-compact-tab') + ' gis-compact-tab--icon'}
-                onClick={() => setAddLayerTab('database')}
-              >
-                <i className="fa-solid fa-database" aria-hidden />
-            </button>
-                    <button
-                      type="button"
-                role="tab"
-                aria-selected={addLayerTab === 'upload'}
-                aria-label="Upload File"
-                title="Upload File"
-                className={(addLayerTab === 'upload' ? 'gis-compact-tab active' : 'gis-compact-tab') + ' gis-compact-tab--icon'}
-                onClick={() => setAddLayerTab('upload')}
-              >
-                <i className="fa-solid fa-file-arrow-up" aria-hidden />
-                    </button>
-              </div>
+            <div className="si-add-source-options" role="tablist" aria-label="Layer source type">
+              {[
+                {
+                  id: 'giscontent' as AddLayerTab,
+                  title: 'Select from GIS Content',
+                  sub: 'Use layers already saved in GIS Map in this browser.',
+                  icon: 'fa-solid fa-layer-group',
+                },
+                {
+                  id: 'arcgis' as AddLayerTab,
+                  title: 'Provide an ArcGIS Server layer URL',
+                  sub: 'Connect to a feature service and pick a layer or table.',
+                  icon: 'fa-solid fa-link',
+                },
+                {
+                  id: 'upload' as AddLayerTab,
+                  title: 'Upload a file',
+                  sub: 'GeoJSON, KML, KMZ, Shapefile (zip), CSV with coordinates, and more.',
+                  icon: 'fa-solid fa-file-arrow-up',
+                },
+                {
+                  id: 'url' as AddLayerTab,
+                  title: 'From URL',
+                  sub: 'Remote GeoJSON / ZIP / KML.',
+                  icon: 'fa-solid fa-globe',
+                },
+                {
+                  id: 'database' as AddLayerTab,
+                  title: 'Get Data',
+                  sub: 'Database, web URL, and advanced connectors.',
+                  icon: 'fa-solid fa-database',
+                },
+              ].map(opt => (
+                <button
+                  key={opt.id}
+                  type="button"
+                  role="tab"
+                  aria-selected={addLayerTab === opt.id}
+                  className={`si-add-source-option${addLayerTab === opt.id ? ' active' : ''}`}
+                  onClick={() => setAddLayerTab(opt.id)}
+                >
+                  <span className="si-add-source-option-radio" aria-hidden />
+                  <span className="si-add-source-option-icon" aria-hidden>
+                    <i className={opt.icon} />
+                  </span>
+                  <span className="si-add-source-option-main">
+                    <strong>{opt.title}</strong>
+                    <small>{opt.sub}</small>
+                  </span>
+                </button>
+              ))}
+            </div>
 
             <div className="gis-modal-body">
-              {addLayerTab === 'arcgis' ? (
+              {addLayerTab === 'giscontent' ? (
+                <div key="giscontent" role="tabpanel" aria-label="Select from GIS Content">
+                  {isLoadingGisContentCandidates ? (
+                    <p className="si-explore-muted">Loading saved GIS Content layers…</p>
+                  ) : gisContentCandidates.length === 0 ? (
+                    <p className="si-explore-muted">No saved GIS Map layers found in this browser.</p>
+                  ) : (
+                    <>
+                      <div className="gis-form-field">
+                        <div className="gis-form-label">Saved layers</div>
+                        <div className="gis-select-wrap">
+                          <select
+                            className="gis-input gis-select"
+                            value={selectedGisContentCandidateId}
+                            onChange={e => {
+                              const next = e.target.value;
+                              setSelectedGisContentCandidateId(next);
+                              const found = gisContentCandidates.find(l => l.id === next);
+                              if (found && !addLayerName.trim()) setAddLayerName(found.name);
+                            }}
+                          >
+                            {gisContentCandidates.map(l => (
+                              <option key={l.id} value={l.id}>
+                                {l.name}
+                              </option>
+                            ))}
+                          </select>
+                          <i className="fa-solid fa-chevron-down" aria-hidden />
+                        </div>
+                      </div>
+                      <input
+                        type="text"
+                        className="gis-input"
+                        placeholder="Layer Name (optional)"
+                        value={addLayerName}
+                        onChange={e => setAddLayerName(e.target.value)}
+                        autoComplete="off"
+                      />
+                      <button type="button" className="gis-btn-primary-full" onClick={addSelectedGisContentLayer}>
+                        <i className="fa-solid fa-plus" aria-hidden /> Add selected layer
+                      </button>
+                    </>
+                  )}
+                </div>
+              ) : addLayerTab === 'arcgis' ? (
                 <div key="arcgis" role="tabpanel" aria-label="ArcGIS Feature Service">
                   <input
                     type="url"
@@ -6844,6 +7161,28 @@ export default function SatelliteIntelligence() {
                   </details>
                   <button type="button" className="gis-btn-primary-full" onClick={handleDatabaseConnection}>
                     <i className="fa-solid fa-plug" aria-hidden /> Validate & Save Connection
+                  </button>
+                </div>
+              ) : addLayerTab === 'url' ? (
+                <div key="url" role="tabpanel" aria-label="Remote URL">
+                  <input
+                    type="url"
+                    className="gis-input"
+                    placeholder="https://.../layer.geojson or .zip"
+                    value={addLayerRemoteUrl}
+                    onChange={e => setAddLayerRemoteUrl(e.target.value)}
+                    autoComplete="off"
+                  />
+                  <input
+                    type="text"
+                    className="gis-input"
+                    placeholder="Layer Name (optional)"
+                    value={addLayerName}
+                    onChange={e => setAddLayerName(e.target.value)}
+                    autoComplete="off"
+                  />
+                  <button type="button" className="gis-btn-primary-full" onClick={() => void importRemoteUrlLayer()} disabled={isImportingRemoteLayer}>
+                    <i className="fa-solid fa-cloud-arrow-down" aria-hidden /> {isImportingRemoteLayer ? 'Importing…' : 'Import from URL'}
                   </button>
                 </div>
               ) : (

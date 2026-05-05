@@ -8,7 +8,10 @@ import { persistClaudeApiKeyInBrowser } from './claudeApiKey'
 import { persistUserApiTokenValue } from './customUserApiTokens'
 import { persistDeepseekApiKeyInBrowser } from './deepseekApiKey'
 import { persistGeminiApiKeyInBrowser } from './geminiApiKey'
-import { persistMapboxAccessTokenInBrowser } from './mapboxAccessToken'
+import {
+  getMapboxAccessTokenBrowserOverride,
+  persistMapboxAccessTokenInBrowser,
+} from './mapboxAccessToken'
 import { persistOpenWeatherMapApiKeyInBrowser } from './openWeatherMapApiKey'
 import { persistSentinelHubAccessTokenInBrowser } from './sentinelHubAccessToken'
 import { persistSentinelHubWmsInstanceIdInBrowser } from './sentinelHubWmsInstance'
@@ -65,7 +68,16 @@ export function applyPersistedApiSecretsToBrowser(secrets: ServerApiSecretsV3): 
   for (const [k, v] of Object.entries(builtin)) {
     const key = k as BuiltinSecretKey
     const fn = BUILTIN_PERSIST[key]
-    if (fn) fn(typeof v === 'string' ? v : '')
+    if (!fn) continue
+    const nextValue = typeof v === 'string' ? v : ''
+    /**
+     * Safety: do not wipe an existing browser Mapbox token with empty server value.
+     * This protects static/frontend-only deployments where backend secrets may be empty.
+     */
+    if (key === 'mapboxToken' && !nextValue.trim() && getMapboxAccessTokenBrowserOverride().trim()) {
+      continue
+    }
+    fn(nextValue)
   }
   const slots = secrets.customSlots && typeof secrets.customSlots === 'object' ? secrets.customSlots : {}
   for (const [slotId, v] of Object.entries(slots)) {

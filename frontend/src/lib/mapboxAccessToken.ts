@@ -58,6 +58,20 @@ export function persistMapboxAccessTokenInBrowser(token: string): void {
   window.dispatchEvent(new Event(MAPBOX_TOKEN_EVENT))
 }
 
+/**
+ * Startup self-heal:
+ * - If browser override is empty but Vite env token exists, persist env token to localStorage.
+ * - Prevents token "disappearing" across frontend updates/reloads when users rely on env config.
+ */
+export function bootstrapMapboxAccessTokenPersistence(): void {
+  if (typeof window === 'undefined') return
+  const current = getMapboxAccessTokenBrowserOverride()
+  if (current) return
+  const fromEnv = getMapboxAccessTokenFromEnv()
+  if (!fromEnv) return
+  persistMapboxAccessTokenInBrowser(fromEnv)
+}
+
 export function subscribeMapboxAccessToken(listener: () => void): () => void {
   if (typeof window === 'undefined') return () => {}
   const onStorage = (e: StorageEvent) => {

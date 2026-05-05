@@ -2,6 +2,7 @@
 
 /** Optional Vite env keys used by this app (documented in repo root `.env.example`). */
 interface ImportMetaEnv {
+  readonly VITE_MAPBOX_TOKEN?: string
   readonly VITE_MAPBOX_ACCESS_TOKEN?: string
   /** Absolute URL for GET/PUT api-secrets when the UI is not served from the Node host (e.g. GitHub Pages). */
   readonly VITE_AGRI_API_SECRETS_URL?: string

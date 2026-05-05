@@ -2771,6 +2771,7 @@ aside {
 }
 
 .gis-sidebar-column--action-pane {
+  --gis-action-pane-width: 400px;
   display: flex;
   flex-direction: column;
   min-height: 0;
@@ -2982,20 +2983,20 @@ aside {
 /* ArcGIS Online Map Viewer: content-wrapper width for the white tool/layers column (rail stays fixed). */
 .gis-sidebar-column.gis-sidebar-column--action-pane {
   flex: 0 0 auto;
-  width: min(304px, 100%);
-  max-width: 304px;
+  width: min(var(--gis-action-pane-width), 100%);
+  max-width: var(--gis-action-pane-width);
 }
 
-/* Docked map tools use the same target width as floating `.gis-map-tool-panel` so grids/buttons are not clipped. */
+/* Keep the same width for all tool variants (no per-tool resizing). */
 .gis-sidebar-column.gis-sidebar-column--action-pane:has(.gis-sidebar-body--tool-dock) {
-  width: min(360px, 100%);
-  max-width: 360px;
+  width: min(var(--gis-action-pane-width), 100%);
+  max-width: var(--gis-action-pane-width);
 }
 
-/* Bookmarks / Share / Charts / Create app — match Tables column width so content is not clipped */
+/* Rich-surface tools should match the same unified action-pane width. */
 .gis-sidebar-column.gis-sidebar-column--action-pane:has(.gis-map-tool-panel--rich-surface) {
-  width: min(400px, 100%);
-  max-width: 400px;
+  width: min(var(--gis-action-pane-width), 100%);
+  max-width: var(--gis-action-pane-width);
 }
 
 /* Dark vertical rail (desktop split layout) — slot-based toolbar + end overlay group */
@@ -4325,6 +4326,7 @@ aside {
 .gis-tool-search {
   display: grid;
   gap: 10px;
+  min-width: 0;
 }
 
 .gis-tool-list-row {
@@ -4452,12 +4454,16 @@ button.gis-tool-list-row--action:hover {
 
 .gis-tool-measure-value {
   padding: 14px;
-  border-radius: 16px;
-  background: linear-gradient(135deg, rgba(236, 253, 245, 0.98), rgba(255, 255, 255, 0.92));
+  border-radius: 14px;
+  border: 1px solid rgba(16, 185, 129, 0.24);
+  background:
+    radial-gradient(circle at top right, rgba(16, 185, 129, 0.14), transparent 44%),
+    linear-gradient(135deg, rgba(236, 253, 245, 0.98), rgba(255, 255, 255, 0.92));
   color: #064e3b;
   font-size: 24px;
   font-weight: 900;
   text-align: center;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.8);
 }
 
 .gis-measure-tool-list {
@@ -4465,12 +4471,14 @@ button.gis-tool-list-row--action:hover {
   gap: 6px;
   padding: 6px;
   border: 1px solid rgba(15, 23, 42, 0.08);
-  border-radius: 16px;
-  background: rgba(15, 23, 42, 0.035);
+  border-radius: 14px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.74), rgba(248, 250, 252, 0.8));
+  min-width: 0;
+  overflow: hidden;
 }
 
 .gis-measure-tool-option {
-  min-height: 42px;
+  min-height: 46px;
   display: grid;
   grid-template-columns: 34px minmax(0, 1fr);
   align-items: center;
@@ -4485,6 +4493,7 @@ button.gis-tool-list-row--action:hover {
   padding: 6px 8px;
   cursor: pointer;
   transition: background-color 180ms ease, border-color 180ms ease, color 180ms ease, transform 180ms ease;
+  min-width: 0;
 }
 
 .gis-measure-tool-option:hover:not(:disabled),
@@ -4517,20 +4526,23 @@ button.gis-tool-list-row--action:hover {
 
 .gis-measure-settings {
   display: grid;
-  grid-template-columns: minmax(168px, 1fr) minmax(168px, 1fr);
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 8px;
+  min-width: 0;
 }
 
 .gis-measure-setting {
   min-height: 36px;
   display: grid;
-  grid-template-columns: max-content minmax(110px, 1fr);
+  grid-template-columns: max-content minmax(0, 1fr);
   align-items: center;
   gap: 6px;
   border: 1px solid rgba(203, 213, 225, 0.95);
   border-radius: 10px;
   background: rgba(255, 255, 255, 0.96);
   padding: 0 8px;
+  min-width: 0;
+  overflow: hidden;
 }
 
 .gis-measure-setting-icon,
@@ -4543,7 +4555,7 @@ button.gis-tool-list-row--action:hover {
 
 .gis-measure-setting select {
   width: 100%;
-  min-width: 110px;
+  min-width: 0;
   height: 34px;
   border: 0;
   outline: 0;
@@ -4563,12 +4575,29 @@ button.gis-tool-list-row--action:hover {
   }
 
   .gis-measure-setting {
-    grid-template-columns: minmax(64px, max-content) minmax(150px, 1fr);
+    grid-template-columns: minmax(64px, max-content) minmax(0, 1fr);
   }
 
   .gis-measure-setting select {
-    min-width: 150px;
+    min-width: 0;
   }
+}
+
+.gis-sidebar-body--action-pane .gis-tool-measure {
+  overflow-x: hidden;
+}
+
+.gis-sidebar-body--action-pane .gis-measure-tool-option {
+  min-height: 54px;
+  align-items: start;
+  align-content: center;
+  padding: 8px 9px;
+}
+
+.gis-sidebar-body--action-pane .gis-measure-tool-option > span:last-child {
+  line-height: 1.2;
+  white-space: normal;
+  word-break: break-word;
 }
 
 .gis-tool-search-row {

@@ -5,6 +5,7 @@ import '@fortawesome/fontawesome-free/css/all.min.css'
 import './index.css'
 import './geodash-tailwind.css'
 import './styles/app-design-system.css'
+import { bootstrapMapboxAccessTokenPersistence } from './lib/mapboxAccessToken'
 
 const safeSessionGetItem = (key: string) => {
   try {
@@ -67,6 +68,9 @@ if (typeof window !== 'undefined' && 'serviceWorker' in navigator) {
     if (typeof sessionStorage !== 'undefined') safeSessionRemoveItem(resetKey)
   })
 }
+
+// Ensure Mapbox token is durable across rebuild/update cycles.
+bootstrapMapboxAccessTokenPersistence()
 
 ReactDOM.createRoot(document.getElementById('root') as HTMLElement).render(
   <React.StrictMode>
