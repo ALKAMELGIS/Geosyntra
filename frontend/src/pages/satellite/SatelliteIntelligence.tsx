@@ -5188,6 +5188,9 @@ export default function SatelliteIntelligence() {
   const effectiveMapStyle = edgeCompatMode
     ? mapboxGlStyleForEntry(edgeCompatBasemapEntry!, mapboxToken || '')
     : mapStyle;
+  const effectiveMapStyleUsesMapboxHost = typeof effectiveMapStyle === 'string' && effectiveMapStyle.startsWith('mapbox://');
+  const mapboxTokenTrimmed = (mapboxToken || '').trim();
+  const mapboxAccessTokenForMap = mapboxTokenTrimmed || (!effectiveMapStyleUsesMapboxHost ? 'pk.si-raster-fallback-token' : undefined);
 
   /** Avoid Mapbox "Style is not done loading" by not mounting GeoJSON/Layer children until style is ready; reset after basemap/token change. */
   const basemapStyleGateRef = useRef(false);
@@ -5200,17 +5203,17 @@ export default function SatelliteIntelligence() {
   }, [activeBasemapId, mapboxToken]);
 
   useEffect(() => {
-    if (!siBrowserReportsMicrosoftEdge()) return;
-    if (isMapLoaded || edgeCompatMode) return;
+    if (isMapLoaded) return;
+    const timeoutMs = siBrowserReportsMicrosoftEdge() ? 3500 : 6000;
     const t = window.setTimeout(() => {
-      if (isMapLoaded || edgeCompatMode) return;
+      if (isMapLoaded) return;
       setEdgeCompatMode(true);
       setIs3DView(false);
       setBasemapId('esri');
-      setStacStatus('Edge compatibility mode enabled (2D Esri raster basemap).');
-    }, 3500);
+      setStacStatus('Map compatibility mode enabled (2D Esri raster basemap).');
+    }, timeoutMs);
     return () => window.clearTimeout(t);
-  }, [isMapLoaded, edgeCompatMode]);
+  }, [isMapLoaded]);
 
   const toggleWmsOverlayVisibility = () => setIsWmsOverlayVisible(v => !v);
   const toggleStacThumbVisibility = () => setIsStacThumbVisible(v => !v);
@@ -5357,7 +5360,7 @@ export default function SatelliteIntelligence() {
             </div>
           ) : null}
           <MapGL
-            key={edgeCompatMode ? 'si-map-edge-compat' : 'si-map-default'}
+            key={`${edgeCompatMode ? 'si-map-edge-compat' : 'si-map-default'}:${mapboxAccessTokenForMap ? 'token' : 'no-token'}`}
             ref={mapRef}
             {...viewState}
             onMove={evt => setViewState(evt.viewState)}
@@ -5375,7 +5378,7 @@ export default function SatelliteIntelligence() {
                   : 'grab',
             }}
             mapStyle={effectiveMapStyle}
-            mapboxAccessToken={mapboxToken || undefined}
+            mapboxAccessToken={mapboxAccessTokenForMap}
             projection={edgeCompatMode ? { name: 'mercator' } : is3DView ? { name: 'globe' } : { name: 'mercator' }}
             renderWorldCopies={edgeCompatMode ? true : !is3DView}
             dragRotate={edgeCompatMode ? false : is3DView}
@@ -5394,13 +5397,18 @@ export default function SatelliteIntelligence() {
               ) {
                 return;
               }
-              if (!siGlobeWebglFailoverRef.current && siMapErrorSuggestsGlobeOrWebglFailure(String(message))) {
+              const lowerMessage = String(message || '').toLowerCase();
+              if (
+                !siGlobeWebglFailoverRef.current &&
+                (siMapErrorSuggestsGlobeOrWebglFailure(String(message)) ||
+                  lowerMessage.includes('access token') ||
+                  lowerMessage.includes('mapbox'))
+              ) {
                 siGlobeWebglFailoverRef.current = true;
                 setIs3DView(v => (v ? false : v));
-                if (siBrowserReportsMicrosoftEdge()) {
-                  setEdgeCompatMode(true);
-                  setBasemapId('esri');
-                }
+                setEdgeCompatMode(true);
+                setBasemapId('esri');
+                setStacStatus('Map fallback activated for compatibility (2D Esri basemap).');
                 return;
               }
               console.warn('Map Error:', e);
