@@ -66,6 +66,12 @@ import {
 import { resolveGeoAiPinFromUserTextAndReply } from '../../lib/geoAiResolveMapCoords';
 import { buildGeoAiFullWeatherSessionAppend } from '../../lib/geoAiWeatherContext';
 import {
+  getAnalysisEngineBaseUrl,
+  mpcProcess,
+  type MpcProcessResult,
+  type MpcTemplateId,
+} from '../../lib/mpcPlanetaryApi';
+import {
   siDefaultSatelliteGlobeEnabled,
   siMapErrorSuggestsGlobeOrWebglFailure,
 } from '../../lib/siMapboxGlobeCompat';
@@ -1481,7 +1487,12 @@ export default function SatelliteIntelligence() {
   const [acsPickerStaging, setAcsPickerStaging] = useState<string[]>([]);
   const [acsPickerManualPath, setAcsPickerManualPath] = useState('');
   const [acsPickerFilter, setAcsPickerFilter] = useState('');
-  const [exploreTab, setExploreTab] = useState<'parameters' | 'results' | 'source'>('parameters');
+  const [exploreTab, setExploreTab] = useState<'parameters' | 'results' | 'source' | 'processing-templates'>(
+    'parameters',
+  );
+  const [mpcTemplateId, setMpcTemplateId] = useState<MpcTemplateId>('ndvi_s2');
+  const [mpcBusy, setMpcBusy] = useState(false);
+  const [mpcLastResult, setMpcLastResult] = useState<MpcProcessResult | null>(null);
   const [exploreCatalogLoadKey, setExploreCatalogLoadKey] = useState(0);
   const [stacCatalogCollections, setStacCatalogCollections] = useState<StacCollectionSummary[]>([]);
   const [isLoadingStacCollections, setIsLoadingStacCollections] = useState(false);
@@ -2550,6 +2561,40 @@ export default function SatelliteIntelligence() {
     return { start: timeSeriesStart.trim(), end: timeSeriesEnd.trim() };
   }, [exploreDateSourceMode, exploreDateStart, exploreDateEnd, timeSeriesStart, timeSeriesEnd]);
 
+  const buildExploreStacSpatialBody = useCallback((): {
+    bbox?: number[];
+    intersects?: typeof DUBAI_STAC_INTERSECTS;
+  } => {
+    const drawnGeom = drawnGeometry?.geometry;
+    const pivotGeom = selectedPivot?.feature?.geometry;
+    const fcBounds = getGeoJsonBounds(pivotGeoJson);
+    if (exploreExtentMode === 'map') {
+      const map = mapRef.current?.getMap?.() ?? mapRef.current;
+      try {
+        const b = map?.getBounds?.();
+        if (b) return { bbox: [b.getWest(), b.getSouth(), b.getEast(), b.getNorth()] };
+      } catch {
+        /* ignore */
+      }
+      return { intersects: DUBAI_STAC_INTERSECTS };
+    }
+    if (exploreExtentMode === 'drawn' && drawnGeom) return { intersects: drawnGeom };
+    if (exploreExtentMode === 'layer') {
+      if (pivotGeom) return { intersects: pivotGeom };
+      if (fcBounds) return { bbox: fcBounds };
+      return { intersects: DUBAI_STAC_INTERSECTS };
+    }
+    if (exploreExtentMode === 'manual') {
+      const n = parseFloat(exploreManualBbox.north);
+      const s = parseFloat(exploreManualBbox.south);
+      const e = parseFloat(exploreManualBbox.east);
+      const w = parseFloat(exploreManualBbox.west);
+      if ([n, s, e, w].every(Number.isFinite)) return { bbox: [w, s, e, n] };
+      return { intersects: DUBAI_STAC_INTERSECTS };
+    }
+    return { intersects: DUBAI_STAC_INTERSECTS };
+  }, [exploreExtentMode, drawnGeometry, exploreManualBbox, selectedPivot, pivotGeoJson]);
+
   const synthesizeWeeklyComposites = (itemCount: number) => {
     const range = ENVIRONMENTAL_INDICES[selectedIndex].range;
     const span = range[1] - range[0];
@@ -2638,34 +2683,9 @@ export default function SatelliteIntelligence() {
       .filter(Boolean);
     if (idList.length) body.ids = idList;
 
-    if (exploreExtentMode === 'map') {
-      const map = mapRef.current?.getMap?.() ?? mapRef.current;
-      try {
-        const b = map?.getBounds?.();
-        if (b) body.bbox = [b.getWest(), b.getSouth(), b.getEast(), b.getNorth()];
-      } catch {
-        /* ignore */
-      }
-      if (!body.bbox) body.intersects = DUBAI_STAC_INTERSECTS;
-    } else if (exploreExtentMode === 'drawn' && drawnGeom) {
-      body.intersects = drawnGeom;
-    } else if (exploreExtentMode === 'layer') {
-      if (pivotGeom) body.intersects = pivotGeom;
-      else if (fcBounds) body.bbox = fcBounds;
-      else body.intersects = DUBAI_STAC_INTERSECTS;
-    } else if (exploreExtentMode === 'manual') {
-      const n = parseFloat(exploreManualBbox.north);
-      const s = parseFloat(exploreManualBbox.south);
-      const e = parseFloat(exploreManualBbox.east);
-      const w = parseFloat(exploreManualBbox.west);
-      if ([n, s, e, w].every(Number.isFinite)) {
-        body.bbox = [w, s, e, n];
-      } else {
-        body.intersects = DUBAI_STAC_INTERSECTS;
-      }
-    } else {
-      body.intersects = DUBAI_STAC_INTERSECTS;
-    }
+    const spatial = buildExploreStacSpatialBody();
+    if (spatial.bbox) body.bbox = spatial.bbox;
+    if (spatial.intersects) body.intersects = spatial.intersects;
 
     const needsCloud =
       exploreUseCloudFilter &&
@@ -2717,6 +2737,56 @@ export default function SatelliteIntelligence() {
       setStacStatus(error instanceof Error ? error.message : 'STAC search failed.');
     } finally {
       setIsLoadingStac(false);
+    }
+  };
+
+  const runMpcProcessing = async () => {
+    const base = getAnalysisEngineBaseUrl();
+    if (!base) {
+      setStacStatus(
+        'Set VITE_ANALYSIS_ENGINE_URL to your FastAPI host (e.g. http://127.0.0.1:8000), install analysis_engine deps, then rebuild.',
+      );
+      return;
+    }
+    const dStart = exploreEffectiveDatetime.start;
+    const dEnd = exploreEffectiveDatetime.end;
+    if (!dStart || !dEnd) {
+      setStacStatus('Choose a valid date range (Date and Time or Environmental Index timeline).');
+      return;
+    }
+    const spatial = buildExploreStacSpatialBody();
+    let aoi: GeoJSON.Feature | null = null;
+    if (spatial.bbox) {
+      const [w, s, e, n] = spatial.bbox;
+      aoi = bboxToPolygonFeature(w, s, e, n, 'MPC processing AOI');
+    } else if (spatial.intersects?.type === 'Polygon') {
+      aoi = { type: 'Feature', properties: { label: 'Extent' }, geometry: spatial.intersects };
+    }
+    if (!aoi) {
+      setStacStatus('Could not build AOI. Draw a rectangle (toolbar), set Parameters → Extent → Drawn AOI, or enter a manual bbox.');
+      return;
+    }
+    const collections = mpcTemplateId.endsWith('_landsat') ? ['landsat-c2-l2'] : ['sentinel-2-l2a'];
+    setMpcBusy(true);
+    setStacStatus('Running Microsoft Planetary Computer template…');
+    try {
+      const result = await mpcProcess(base, {
+        aoi,
+        collections,
+        datetime: `${dStart}/${dEnd}`,
+        template_id: mpcTemplateId,
+        max_items: 2,
+        max_cloud_cover: exploreCloudCoverMax,
+      });
+      setMpcLastResult(result);
+      setStacStatus(
+        `MPC: ${result.label ?? mpcTemplateId} · ${result.item_count ?? 0} scene(s). COG download available below.`,
+      );
+    } catch (e) {
+      setMpcLastResult(null);
+      setStacStatus(e instanceof Error ? e.message : 'MPC processing failed.');
+    } finally {
+      setMpcBusy(false);
     }
   };
 
@@ -5326,9 +5396,22 @@ export default function SatelliteIntelligence() {
               >
                 Source
               </button>
+              <button
+                type="button"
+                role="tab"
+                aria-selected={exploreTab === 'processing-templates'}
+                className={exploreTab === 'processing-templates' ? 'active' : ''}
+                onClick={() => setExploreTab('processing-templates')}
+              >
+                Processing templates
+              </button>
             </div>
             <div
-              className={`si-explore-stac-body${exploreTab === 'results' ? ' si-explore-stac-body--results-tab' : ''}`}
+              className={`si-explore-stac-body${
+                exploreTab === 'results' || exploreTab === 'processing-templates'
+                  ? ' si-explore-stac-body--results-tab'
+                  : ''
+              }`}
             >
               {exploreTab === 'parameters' ? (
                 <>
@@ -5964,6 +6047,116 @@ export default function SatelliteIntelligence() {
                     </div>
                   ) : null}
                 </>
+              ) : exploreTab === 'processing-templates' ? (
+                <div className="si-explore-mpc-templates">
+                  <p className="si-explore-muted si-explore-mpc-intro">
+                    Raster templates using the{' '}
+                    <a href="https://planetarycomputer.microsoft.com/catalog" target="_blank" rel="noopener noreferrer">
+                      Microsoft Planetary Computer Data Catalog
+                    </a>{' '}
+                    (STAC + stackstac on the server). For ArcGIS publishing patterns see{' '}
+                    <a href="https://github.com/Esri/arcgis-for-mpc" target="_blank" rel="noopener noreferrer">
+                      Esri / arcgis-for-mpc
+                    </a>
+                    .
+                  </p>
+                  <div className="si-explore-field">
+                    <span>Template</span>
+                    <select
+                      className="si-explore-select"
+                      value={mpcTemplateId}
+                      onChange={e => setMpcTemplateId(e.target.value as MpcTemplateId)}
+                      aria-label="Processing template"
+                    >
+                      <option value="ndvi_s2">NDVI (Sentinel-2)</option>
+                      <option value="false_color_s2">False color SWIR–NIR–Red (Sentinel-2)</option>
+                      <option value="ndmi_s2">NDMI moisture (Sentinel-2)</option>
+                      <option value="ndvi_landsat">NDVI (Landsat C2)</option>
+                      <option value="false_color_landsat">False color (Landsat C2)</option>
+                    </select>
+                  </div>
+                  <p className="si-explore-muted si-explore-mpc-hint">
+                    Extent and dates follow the <strong>Parameters</strong> tab (Extent + Date and Time). Draw a{' '}
+                    <strong>rectangle</strong> on the map and choose <strong>Drawn AOI</strong> for downloads / timelapse
+                    frames. Default extent uses the Dubai placeholder when the map bounds are unavailable.
+                  </p>
+                  <div className="si-explore-mpc-actions">
+                    <button
+                      type="button"
+                      className="si-explore-view-results"
+                      disabled={mpcBusy || !getAnalysisEngineBaseUrl()}
+                      onClick={() => void runMpcProcessing()}
+                    >
+                      {mpcBusy ? <i className="fa-solid fa-spinner fa-spin" aria-hidden /> : null}
+                      Run template (backend)
+                    </button>
+                  </div>
+                  {!getAnalysisEngineBaseUrl() ? (
+                    <p className="si-explore-error si-explore-mpc-url-hint">
+                      Configure <code className="si-explore-code">VITE_ANALYSIS_ENGINE_URL</code> (e.g.{' '}
+                      <code className="si-explore-code">http://127.0.0.1:8000</code>) and run{' '}
+                      <code className="si-explore-code">uvicorn app.main:app --reload --port 8000</code> from{' '}
+                      <code className="si-explore-code">analysis_engine</code>.
+                    </p>
+                  ) : null}
+                  {mpcLastResult?.statistics ? (
+                    <div className="si-explore-mpc-stats" aria-label="Raster statistics">
+                      <div className="si-explore-mpc-stats-title">Output statistics (static chart)</div>
+                      <div className="si-explore-mpc-bars">
+                        {(
+                          [
+                            ['min', mpcLastResult.statistics.min],
+                            ['mean', mpcLastResult.statistics.mean],
+                            ['max', mpcLastResult.statistics.max],
+                          ] as const
+                        ).map(([k, v]) => {
+                          const mn = mpcLastResult.statistics!.min;
+                          const mx = mpcLastResult.statistics!.max;
+                          const span = mx - mn || 1;
+                          const pct = Number.isFinite(v) ? Math.max(0, Math.min(100, ((v - mn) / span) * 100)) : 0;
+                          return (
+                            <div key={k} className="si-explore-mpc-bar-row">
+                              <span className="si-explore-mpc-bar-label">{k}</span>
+                              <div className="si-explore-mpc-bar-track">
+                                <div className="si-explore-mpc-bar-fill" style={{ width: `${pct}%` }} />
+                              </div>
+                              <span className="si-explore-mpc-bar-val">{Number.isFinite(v) ? v.toFixed(4) : '—'}</span>
+                            </div>
+                          );
+                        })}
+                      </div>
+                      {mpcLastResult.rescale ? (
+                        <p className="si-explore-muted">
+                          Suggested rescale: {mpcLastResult.rescale[0]} … {mpcLastResult.rescale[1]} (adjust symbology in
+                          desktop GIS).
+                        </p>
+                      ) : null}
+                    </div>
+                  ) : null}
+                  {mpcLastResult?.scene_datetimes?.length ? (
+                    <div className="si-explore-mpc-timelapse">
+                      <div className="si-explore-mpc-stats-title">Timelapse / frames (scene datetimes)</div>
+                      <ul className="si-explore-mpc-datetimes">
+                        {mpcLastResult.scene_datetimes.map((dt, i) => (
+                          <li key={`${dt}-${i}`}>{dt}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  ) : null}
+                  {mpcLastResult?.cog_id && getAnalysisEngineBaseUrl() ? (
+                    <div className="si-explore-mpc-download">
+                      <a
+                        className="si-explore-linkish"
+                        href={`${getAnalysisEngineBaseUrl()}${mpcLastResult.cog_download_path ?? `/mpc/cog/${mpcLastResult.cog_id}`}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                      >
+                        Download COG (GeoTIFF)
+                      </a>
+                      <span className="si-explore-muted"> — Cloud Optimized GeoTIFF for ArcGIS / QGIS.</span>
+                    </div>
+                  ) : null}
+                </div>
               ) : (
                 <div className="si-explore-stac-source-tab">{exploreStacSourcePanelContent}</div>
               )}

@@ -8,6 +8,8 @@ interface ImportMetaEnv {
   readonly VITE_AGRI_API_SECRETS_TOKEN?: string
   /** Base URL for GeoDash FastAPI (e.g. http://localhost:8090) — no trailing slash */
   readonly VITE_GEODASH_API_URL?: string
+  /** Agri analysis_engine (FastAPI) — MPC `/mpc/*` routes */
+  readonly VITE_ANALYSIS_ENGINE_URL?: string
 }
 
 declare global {

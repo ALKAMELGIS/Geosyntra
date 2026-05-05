@@ -4722,6 +4722,7 @@ input:checked + .slider:before {
 
 .si-explore-stac-tabs {
   display: flex;
+  flex-wrap: wrap;
   gap: 8px;
   padding: 0 16px;
   border-bottom: 1px solid rgba(255, 255, 255, 0.08);
@@ -4744,6 +4745,109 @@ input:checked + .slider:before {
   color: #e0f2fe;
   border-color: rgba(56, 189, 248, 0.7);
   background: rgba(14, 116, 144, 0.28);
+}
+
+.si-explore-mpc-templates {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  max-width: 100%;
+}
+
+.si-explore-mpc-intro a,
+.si-explore-mpc-download a {
+  color: #7dd3fc;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.si-explore-mpc-hint {
+  font-size: 11px;
+  line-height: 1.45;
+  margin: 0;
+}
+
+.si-explore-mpc-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.si-explore-mpc-url-hint {
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+.si-explore-code {
+  font-family: ui-monospace, monospace;
+  font-size: 10px;
+}
+
+.si-explore-mpc-stats {
+  border: 1px solid rgba(148, 163, 184, 0.22);
+  border-radius: 10px;
+  padding: 10px 12px;
+  background: rgba(15, 23, 42, 0.35);
+}
+
+.si-explore-mpc-stats-title {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #94a3b8;
+  margin-bottom: 8px;
+}
+
+.si-explore-mpc-bars {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.si-explore-mpc-bar-row {
+  display: grid;
+  grid-template-columns: 52px 1fr 72px;
+  gap: 8px;
+  align-items: center;
+  font-size: 11px;
+  color: #e2e8f0;
+}
+
+.si-explore-mpc-bar-track {
+  height: 8px;
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.si-explore-mpc-bar-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #0ea5e9, #22c55e);
+  border-radius: 4px;
+}
+
+.si-explore-mpc-bar-val {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.si-explore-mpc-timelapse {
+  margin-top: 4px;
+}
+
+.si-explore-mpc-datetimes {
+  font-size: 11px;
+  color: #cbd5e1;
+  max-height: 96px;
+  overflow-y: auto;
+  margin: 0;
+  padding-left: 18px;
+}
+
+.si-explore-mpc-download {
+  margin-top: 6px;
+  font-size: 12px;
 }
 
 .si-explore-stac-source-tab {

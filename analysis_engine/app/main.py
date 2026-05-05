@@ -1,7 +1,9 @@
 from fastapi import FastAPI, HTTPException, BackgroundTasks
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 from typing import List, Dict, Any, Optional
 from app.timeseries import generate_timeseries
+from app.mpc_planetary import router as mpc_router
 import uvicorn
 
 app = FastAPI(
@@ -9,6 +11,16 @@ app = FastAPI(
     description="Remote Sensing Analysis Backend using Sentinel-2 and STAC",
     version="1.0.0"
 )
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+app.include_router(mpc_router, prefix="/mpc", tags=["mpc"])
 
 class AnalysisRequest(BaseModel):
     aoi: Dict[str, Any] = Field(..., description="GeoJSON Polygon of the Area of Interest")
