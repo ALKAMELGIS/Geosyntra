@@ -270,16 +270,10 @@
 }
 
 :root[dir="rtl"] .app-label,
-:root[dir="rtl"] .sub-label,
 :root[dir="rtl"] .header-title h2 {
   direction: rtl;
   text-align: center;
   unicode-bidi: plaintext;
-}
-
-:root[dir="rtl"] .sublist-item {
-  direction: rtl;
-  text-align: right;
 }
 
 .mini-chev {
@@ -417,19 +411,19 @@
   }
 }
 
-/* --- Sublist View (Redesigned) --- */
+/* --- Sublist view: same visual language as main hub (no outer “card” shell) --- */
 
 .home-sublist-view {
-  background: rgba(255, 255, 255, 0.92);
-  border-radius: 30px;
-  box-shadow: 0 30px 80px rgba(15, 23, 42, 0.14);
-  overflow: hidden;
+  background: transparent;
+  border-radius: 0;
+  box-shadow: none;
+  overflow: visible;
   max-width: none;
   width: 100%;
-  margin: 24px 0 0;
-  border: 1px solid rgba(255,255,255,0.78);
+  margin: 0;
+  border: none;
   animation: fadeIn 0.4s cubic-bezier(0.16, 1, 0.3, 1);
-  backdrop-filter: blur(18px);
+  backdrop-filter: none;
 }
 
 @keyframes slideUp {
@@ -450,10 +444,11 @@
   width: 100%;
   display: flex;
   align-items: center;
-  gap: 16px;
+  gap: 14px;
   min-width: 0;
-  padding: 26px 32px;
-  border-bottom: 1px solid rgba(15, 23, 42, 0.08);
+  padding: clamp(10px, 1.2vw, 18px) clamp(12px, 2vw, 28px) clamp(12px, 1.4vw, 20px);
+  border-bottom: 1px solid rgba(148, 163, 184, 0.22);
+  background: transparent;
 }
 
 .header-title {
@@ -464,24 +459,28 @@
 }
 
 .sublist-toggle {
-  margin-left: auto;
-  width: 40px;
-  height: 40px;
+  margin-inline-start: auto;
+  width: 38px;
+  height: 38px;
   border-radius: 12px;
-  border: 1px solid rgba(15, 23, 42, 0.12);
-  background: rgba(255, 255, 255, 0.9);
-  color: rgba(15, 23, 42, 0.72);
+  border: 1px solid rgba(148, 163, 184, 0.35);
+  background: rgba(248, 250, 252, 0.85);
+  color: rgba(51, 65, 85, 0.88);
   display: inline-flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  box-shadow: 0 10px 20px rgba(15, 23, 42, 0.08);
-  transition: all 0.18s ease;
+  box-shadow: none;
+  transition:
+    background-color 0.18s ease,
+    border-color 0.18s ease,
+    color 0.18s ease,
+    transform 0.18s ease;
 }
 
 .sublist-toggle:hover {
-  background: #ffffff;
-  border-color: rgba(37, 99, 235, 0.28);
+  background: rgba(255, 255, 255, 0.95);
+  border-color: rgba(99, 102, 241, 0.28);
   color: rgba(15, 23, 42, 0.92);
   transform: translateY(-1px);
 }
@@ -499,159 +498,87 @@
   outline-offset: 2px;
 }
 
-.header-icon {
-  width: 46px;
-  height: 46px;
-  border-radius: 16px;
+/* Drill-down header badge — scoped so GIS DrawTools .header-icon is unaffected */
+.home-page .header-title .header-icon {
+  --ha: var(--header-accent, #047857);
+  position: relative;
+  width: 52px;
+  height: 52px;
+  border-radius: 18px;
   display: flex;
   align-items: center;
   justify-content: center;
-  color: white;
-  font-size: 18px;
-  box-shadow: 0 16px 32px rgba(15, 23, 42, 0.16);
+  flex-shrink: 0;
+  isolation: isolate;
+  overflow: hidden;
+  color: #f8fafc;
+  font-size: 20px;
+  border: 1px solid rgba(255, 255, 255, 0.42);
+  background: linear-gradient(
+    165deg,
+    color-mix(in srgb, var(--ha) 32%, #ffffff) 0%,
+    var(--ha) 48%,
+    color-mix(in srgb, var(--ha) 72%, #0f172a) 100%
+  );
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.45) inset,
+    0 14px 34px rgb(var(--header-accent-rgb, 4 120 87) / 0.36),
+    0 4px 14px rgb(var(--header-accent-rgb, 4 120 87) / 0.24);
+  transition: transform 0.22s cubic-bezier(0.34, 1.2, 0.64, 1), box-shadow 0.22s ease;
+}
+
+.home-page .header-title .header-icon::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: linear-gradient(125deg, rgba(255, 255, 255, 0.38) 0%, transparent 52%);
+  pointer-events: none;
+}
+
+.home-page .header-title .header-icon::after {
+  content: '';
+  position: absolute;
+  inset: 1px;
+  border-radius: 17px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  pointer-events: none;
+  opacity: 0.85;
+}
+
+.home-page .header-title .header-icon i {
+  position: relative;
+  z-index: 1;
+  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.28));
 }
 
 .header-title h2 {
-  font-size: 20px;
+  font-size: clamp(17px, 1.35vw, 20px);
   font-weight: 700;
-  color: #0f172a;
+  color: var(--ds-color-text, #0f172a);
   margin: 0;
   letter-spacing: -0.025em;
 }
 
-.sublist-container {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
-  gap: 14px;
-  padding: 18px;
-  background: linear-gradient(180deg, rgba(248, 250, 252, 0.42), rgba(255, 255, 255, 0.62));
+/* Sublist body: identical strip/grid rhythm as `.home-page` > `.home-modern` */
+.sublist-page-area {
+  padding: 0 clamp(12px, 2vw, 28px) clamp(16px, 2.5vw, 28px);
+  background: transparent;
 }
 
-.sublist-container-closed {
+.home-sublist-view .home-modern {
+  gap: clamp(14px, 2vw, 18px);
+}
+
+.sublist-page-area--closed {
   display: none;
-}
-
-.sublist-item {
-  display: flex;
-  align-items: center;
-  width: 100%;
-  padding: 16px;
-  border: 1px solid rgba(255, 255, 255, 0.82);
-  border-radius: 22px;
-  cursor: pointer;
-  transition: all 0.2s ease;
-  position: relative;
-  background: rgba(255, 255, 255, 0.82);
-  box-shadow: 0 14px 32px rgba(15, 23, 42, 0.08);
-  text-align: left;
-  -webkit-tap-highlight-color: transparent;
-}
-
-.sublist-item:hover {
-  background: #ffffff;
-  border-color: rgba(37, 99, 235, 0.35);
-  box-shadow: 0 20px 46px rgba(15, 23, 42, 0.13);
-  transform: translateY(-3px);
-}
-
-.sublist-item:active {
-  transform: translateY(0);
-  background: #f8fafc;
-}
-
-.sub-icon-wrapper {
-  --icon-accent: 15 23 42;
-  width: 44px;
-  height: 44px;
-  border-radius: 14px;
-  background:
-    radial-gradient(circle at top left, rgba(255, 255, 255, 1), rgba(241, 245, 249, 1)),
-    radial-gradient(circle at 30% 0%, rgb(var(--icon-accent) / 0.22), transparent 60%);
-  color: rgb(var(--icon-accent));
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  margin-right: 14px;
-  font-size: 18px;
-  transition: all 0.2s;
-  border: 1px solid rgba(226, 232, 240, 0.95);
-  box-shadow: 0 10px 22px rgba(15, 23, 42, 0.08);
-}
-
-.sub-icon-wrapper i {
-  color: inherit;
-}
-
-.sub-icon-flask { --icon-accent: 59 130 246; }
-.sub-icon-water { --icon-accent: 6 182 212; }
-.sub-icon-tractor { --icon-accent: 245 158 11; }
-.sub-icon-shield-halved { --icon-accent: 16 185 129; }
-.sub-icon-vial { --icon-accent: 34 197 94; }
-.sub-icon-boxes-stacked { --icon-accent: 249 115 22; }
-.sub-icon-layer-group { --icon-accent: 168 85 247; }
-.sub-icon-leaf { --icon-accent: 132 204 22; }
-.sub-icon-comments { --icon-accent: 236 72 153; }
-.sub-icon-brain { --icon-accent: 99 102 241; }
-.sub-icon-seedling { --icon-accent: 34 197 94; }
-.sub-icon-cloud-sun { --icon-accent: 14 165 233; }
-.sub-icon-faucet-drip { --icon-accent: 6 182 212; }
-.sub-icon-camera { --icon-accent: 59 130 246; }
-.sub-icon-route { --icon-accent: 16 185 129; }
-.sub-icon-gear { --icon-accent: 100 116 139; }
-.sub-icon-user-gear { --icon-accent: 14 165 233; }
-.sub-icon-circle-user { --icon-accent: 14 165 233; }
-.sub-icon-map-location-dot { --icon-accent: 59 130 246; }
-.sub-icon-database { --icon-accent: 6 182 212; }
-.sub-icon-tree { --icon-accent: 34 197 94; }
-.sub-icon-tag { --icon-accent: 59 130 246; }
-.sub-icon-sliders { --icon-accent: 100 116 139; }
-.sub-icon-file-lines { --icon-accent: 168 85 247; }
-.sub-icon-users { --icon-accent: 16 185 129; }
-.sub-icon-github { --icon-accent: 71 85 105; }
-
-.sublist-item:hover .sub-icon-wrapper {
-  transform: scale(1.04);
-  border-color: rgba(59, 130, 246, 0.4);
-}
-
-.sub-label {
-  font-size: 16px;
-  font-weight: 500;
-  color: #334155;
-  flex: 1;
-  transition: color 0.2s;
-}
-
-.sublist-item:hover .sub-label {
-  color: #0f172a;
-  font-weight: 600;
-}
-
-.chev-icon {
-  color: #cbd5e1;
-  font-size: 14px;
-  transition: transform 0.2s, color 0.2s;
-}
-
-.sublist-item:hover .chev-icon {
-  color: #64748b;
-  transform: translateX(4px);
-}
-
-.sublist-item:focus {
-  outline: none;
-}
-
-.sublist-item:focus-visible {
-  outline: 2px solid rgba(37, 99, 235, 0.65);
-  outline-offset: 2px;
 }
 
 /* Tablet Responsive for Sublist */
 @media (max-width: 1024px) {
   .home-sublist-view {
-    max-width: 760px;
-    margin: 20px auto;
+    width: 100%;
+    margin: 0;
   }
 }
 
@@ -669,11 +596,11 @@
     flex-direction: column;
   }
 
-  .sublist-container {
+  .sublist-page-area {
     flex: 1;
     overflow-y: auto;
-    grid-template-columns: 1fr;
-    padding: 12px 12px 20px 12px;
+    padding: 12px 12px 24px;
+    min-height: 0;
   }
 
   .home-header {
@@ -689,11 +616,15 @@
     height: 36px;
   }
   
-  .header-icon {
-    width: 32px;
-    height: 32px;
-    font-size: 14px;
-    border-radius: 8px;
+  .home-page .header-title .header-icon {
+    width: 40px;
+    height: 40px;
+    font-size: 16px;
+    border-radius: 14px;
+  }
+
+  .home-page .header-title .header-icon::after {
+    border-radius: 13px;
   }
 
   .header-title h2 {
@@ -752,9 +683,9 @@ html[data-theme="dark"] .app-icon-card:hover {
 }
 
 html[data-theme="dark"] .home-sublist-view {
-  background: var(--ds-color-surface);
-  border: 1px solid var(--ds-color-border-strong);
-  box-shadow: 0 28px 70px rgba(0, 0, 0, 0.5);
+  background: transparent;
+  border: none;
+  box-shadow: none;
 }
 
 html[data-theme="dark"] .home-header-row {
@@ -765,6 +696,22 @@ html[data-theme="dark"] .header-title h2 {
   color: var(--ds-color-text);
 }
 
+html[data-theme="dark"] .home-page .header-title .header-icon {
+  border-color: rgba(255, 255, 255, 0.22);
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.12) inset,
+    0 16px 40px rgb(var(--header-accent-rgb, 52 211 153) / 0.28),
+    0 4px 16px rgba(0, 0, 0, 0.35);
+}
+
+html[data-theme="dark"] .home-page .header-title .header-icon::before {
+  background: linear-gradient(125deg, rgba(255, 255, 255, 0.22) 0%, transparent 55%);
+}
+
+html[data-theme="dark"] .home-page .header-title .header-icon i {
+  filter: drop-shadow(0 1px 3px rgba(0, 0, 0, 0.45));
+}
+
 html[data-theme="dark"] .sublist-toggle {
   background: rgba(255, 255, 255, 0.06);
   border-color: var(--ds-color-border);
@@ -773,49 +720,6 @@ html[data-theme="dark"] .sublist-toggle {
 
 html[data-theme="dark"] .sublist-toggle:hover {
   background: rgba(255, 255, 255, 0.1);
-  color: var(--ds-color-text);
-}
-
-html[data-theme="dark"] .sublist-container {
-  background: color-mix(in srgb, var(--ds-color-bg) 55%, var(--ds-color-surface));
-}
-
-html[data-theme="dark"] .sublist-item {
-  background: rgba(255, 255, 255, 0.04);
-  border: 1px solid var(--ds-color-border);
-  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.22);
-}
-
-html[data-theme="dark"] .sublist-item:hover {
-  background: rgba(255, 255, 255, 0.08);
-  border-color: rgba(52, 211, 153, 0.28);
-}
-
-html[data-theme="dark"] .sublist-item:active {
-  background: rgba(255, 255, 255, 0.06);
-}
-
-html[data-theme="dark"] .sub-label {
-  color: var(--ds-color-text);
-}
-
-html[data-theme="dark"] .sublist-item:hover .sub-label {
-  color: var(--ds-color-text);
-  font-weight: 600;
-}
-
-html[data-theme="dark"] .sub-icon-wrapper {
-  background: color-mix(in srgb, rgb(var(--icon-accent)) 14%, var(--ds-color-surface));
-  border: 1px solid var(--ds-color-border);
-  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.25);
-  color: rgb(var(--icon-accent));
-}
-
-html[data-theme="dark"] .chev-icon {
-  color: var(--ds-color-text-muted);
-}
-
-html[data-theme="dark"] .sublist-item:hover .chev-icon {
   color: var(--ds-color-text);
 }
 

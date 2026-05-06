@@ -1971,8 +1971,8 @@ main.content > .si-page {
 }
 
 .si-env-layer-action-btn {
-  width: 22px;
-  height: 22px;
+  width: 20px;
+  height: 20px;
   border-radius: 6px;
   border: 1px solid rgba(96, 165, 250, 0.26);
   background: rgba(59, 130, 246, 0.11);
@@ -1982,7 +1982,7 @@ main.content > .si-page {
   justify-content: center;
   cursor: pointer;
   padding: 0;
-  font-size: 10px;
+  font-size: 8px;
   line-height: 1;
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
   transition:
@@ -1991,6 +1991,12 @@ main.content > .si-page {
     color 0.16s ease,
     box-shadow 0.16s ease,
     transform 0.12s ease;
+}
+
+/* Font Awesome glyphs: explicit cap so icons stay smaller than the hit area */
+.si-env-layer-action-btn > i {
+  font-size: 7px;
+  line-height: 1;
 }
 
 .si-env-layer-action-btn:hover {

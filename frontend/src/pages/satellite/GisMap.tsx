@@ -7,6 +7,7 @@ import {
   useState,
   type ChangeEvent,
   type PointerEvent as ReactPointerEvent,
+  type ReactNode,
   type TouchEvent as ReactTouchEvent,
 } from 'react'
 import { flushSync } from 'react-dom'
@@ -488,6 +489,25 @@ export const buildArcGisLegendEntries = (renderer: any, limit = 16): ArcGisLegen
     return out
   }
   return []
+}
+
+/** ArcGIS renderer field line (unique values / class breaks) — classic legend subtitle */
+function arcgisRendererFieldHint(renderer: any): string | null {
+  if (!renderer || typeof renderer !== 'object') return null
+  const t = renderer.type
+  if (t === 'uniqueValue') {
+    const single = typeof renderer.field === 'string' ? renderer.field.trim() : ''
+    const f1 = typeof renderer.field1 === 'string' ? renderer.field1.trim() : ''
+    const f2 = typeof renderer.field2 === 'string' ? renderer.field2.trim() : ''
+    const f3 = typeof renderer.field3 === 'string' ? renderer.field3.trim() : ''
+    const parts = [single, f1, f2, f3].filter(Boolean)
+    return parts.length ? parts.join(', ') : null
+  }
+  if (t === 'classBreaks') {
+    const f = typeof renderer.field === 'string' ? renderer.field.trim() : ''
+    return f || null
+  }
+  return null
 }
 
 export default function GisMap() {
@@ -4098,6 +4118,190 @@ export default function GisMap() {
       </div>
     ) : null
 
+  const renderLayerLegendCardInner = (layer: LayerData): ReactNode => {
+    if (layer.type === 'tile' && (layer.data as { esriImageServer?: boolean })?.esriImageServer) {
+      return (
+        <div className="gis-style-card gis-style-card-legend">
+          <p className="gis-style-info" style={{ margin: 0 }}>
+            Image service — symbology is drawn in the map image.
+          </p>
+        </div>
+      )
+    }
+
+    const ctx = symbologyContexts.get(String(layer.id))
+    const geometryKindRaw = ctx?.geometryKind ?? getLayerGeometryKind(layer.data)
+    const geometryKind: 'point' | 'line' | 'polygon' =
+      geometryKindRaw === 'point' ? 'point' : geometryKindRaw === 'polygon' ? 'polygon' : 'line'
+    const renderer = layer.arcgisRenderer ?? layer.arcgisLayerDefinition?.drawingInfo?.renderer
+    /** Prefer ArcGIS renderer when present; allow layers without a local symbology ctx (still ArcGIS-backed). */
+    const showArcGis = Boolean(layer.source === 'arcgis' && renderer && (!ctx || ctx.cfg.useArcGisOnline))
+    const baseStroke = layer.color || '#22c55e'
+    const baseFill = layer.fillColor || layer.color || '#22c55e'
+    const baseWeight = layer.weight ?? 2
+
+    const renderArcGisSwatch = (symbol: any) => {
+      const res = arcGisSymbolToLeaflet(symbol, geometryKind, layer.opacity, baseStroke, baseFill)
+      if (geometryKind === 'point' && res.point) {
+        if (res.point.kind === 'icon') {
+          const iconUrl = resolveArcGisSymbolUrl(layer, res.point.url)
+          return (
+            <svg width="62" height="14" viewBox="0 0 62 14" aria-hidden="true">
+              <image href={iconUrl} x="22" y="1" width="18" height="12" preserveAspectRatio="xMidYMid meet" />
+            </svg>
+          )
+        }
+        const o = res.point.options as any
+        const stroke = typeof o?.color === 'string' ? o.color : baseStroke
+        const fill = typeof o?.fillColor === 'string' ? o.fillColor : baseFill
+        const width = typeof o?.weight === 'number' && Number.isFinite(o.weight) ? Math.max(1, o.weight) : baseWeight
+        return (
+          <svg width="62" height="14" viewBox="0 0 62 14" aria-hidden="true">
+            <circle cx="31" cy="7" r="5" fill={fill} stroke={stroke} strokeWidth={Math.min(4, width)} />
+          </svg>
+        )
+      }
+
+      const p = res.path as any
+      const stroke = typeof p?.color === 'string' ? p.color : baseStroke
+      const width = typeof p?.weight === 'number' && Number.isFinite(p.weight) ? Math.max(1, p.weight) : baseWeight
+      const dash = typeof p?.dashArray === 'string' && p.dashArray ? p.dashArray : undefined
+      const fill = typeof p?.fillColor === 'string' ? p.fillColor : baseFill
+
+      if (geometryKind === 'polygon') {
+        return (
+          <svg width="62" height="14" viewBox="0 0 62 14" aria-hidden="true">
+            <rect x="18" y="2" width="26" height="10" rx="3" fill={fill} stroke={stroke} strokeWidth={Math.min(4, width)} />
+          </svg>
+        )
+      }
+
+      return (
+        <svg width="62" height="14" viewBox="0 0 62 14" aria-hidden="true">
+          <line
+            x1="4"
+            y1="7"
+            x2="58"
+            y2="7"
+            stroke={stroke}
+            strokeWidth={width}
+            strokeLinecap="round"
+            strokeDasharray={dash}
+          />
+        </svg>
+      )
+    }
+
+    const renderCustomSwatch = (it: {
+      label: string
+      kind: 'line' | 'point' | 'polygon'
+      color: string
+      width: number
+      dash?: string
+      fill?: string
+    }) => (
+      <svg width="62" height="14" viewBox="0 0 62 14" aria-hidden="true">
+        {it.kind === 'line' ? (
+          <line
+            x1="4"
+            y1="7"
+            x2="58"
+            y2="7"
+            stroke={it.color}
+            strokeWidth={it.width}
+            strokeLinecap="round"
+            strokeDasharray={it.dash || undefined}
+          />
+        ) : it.kind === 'polygon' ? (
+          <rect x="18" y="2" width="26" height="10" rx="3" fill={it.fill || it.color} stroke={it.color} strokeWidth="2" />
+        ) : (
+          <circle cx="31" cy="7" r="5" fill={it.fill || it.color} stroke={it.color} strokeWidth="2" />
+        )}
+      </svg>
+    )
+
+    if (showArcGis) {
+      const entries = buildArcGisLegendEntries(renderer, 48)
+      if (!entries.length) return <div className="gis-style-info">No legend entries found for this layer.</div>
+      return (
+        <div className="gis-style-card gis-style-card-legend">
+          <div className="gis-style-legend">
+            {entries.map((it, idx) => (
+              <div key={idx} className="gis-style-legend-row">
+                {renderArcGisSwatch(it.symbol)}
+                <div className="gis-style-legend-text">{it.label}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )
+    }
+
+    const items = (() => {
+      const out: Array<{ label: string; kind: 'line' | 'point' | 'polygon'; color: string; width: number; dash?: string; fill?: string }> = []
+      if (!ctx) return out
+      const kind: 'line' | 'point' | 'polygon' = geometryKind === 'polygon' ? 'polygon' : geometryKind === 'point' ? 'point' : 'line'
+      if (ctx.cfg.style === 'unique') {
+        if (kind === 'line') {
+          const vals = ctx.categories.length ? ctx.categories : Object.keys(ctx.uniqueDashes)
+          vals.slice(0, 12).forEach(val => {
+            out.push({ label: val, kind, color: baseStroke, width: baseWeight, dash: ctx.uniqueDashes[val] ?? '' })
+          })
+          if (vals.length === 0) out.push({ label: 'No values', kind, color: baseStroke, width: baseWeight })
+          return out
+        }
+        const vals = ctx.categories.length ? ctx.categories : Object.keys(ctx.categoryColors)
+        vals.slice(0, 12).forEach(val => {
+          const fill = ctx.categoryColors[val] ?? ctx.otherColor
+          out.push({ label: val, kind, color: darkenColor(fill, 0.25), width: baseWeight, fill })
+        })
+        if (vals.length === 0) out.push({ label: 'No values', kind, color: baseStroke, width: baseWeight, fill: baseStroke })
+        return out
+      }
+      if (ctx.cfg.style === 'threshold_markers') {
+        out.push({ label: 'Base', kind, color: baseStroke, width: baseWeight })
+        out.push({ label: `Marker ≥ ${ctx.threshold.toFixed(2)}`, kind: 'point', color: '#ef4444', width: 4, fill: '#ef4444' })
+        return out
+      }
+      const breaks = ctx.breaks
+      const classes = clampInt(ctx.cfg.classes, 2, 12)
+      const showColor = ctx.cfg.style === 'color' || ctx.cfg.style === 'color_size'
+      const showSize = ctx.cfg.style === 'size' || ctx.cfg.style === 'color_size'
+      for (let i = 0; i < Math.min(classes, breaks.length - 1); i += 1) {
+        const a = breaks[i]
+        const b = breaks[i + 1]
+        const label = `${a.toFixed(2)} – ${b.toFixed(2)}`
+        const color = showColor ? ctx.colors[i] ?? baseStroke : baseStroke
+        const width = showSize ? ctx.widths[i] ?? baseWeight : baseWeight
+        const dash = ctx.cfg.style === 'dot_density' ? ctx.dotDashes[i] : undefined
+        if (kind === 'polygon') {
+          const fill = showColor ? color : baseStroke
+          out.push({ label, kind, color: darkenColor(fill, 0.25), width, dash, fill })
+        } else if (kind === 'point') {
+          const fill = showColor ? color : baseStroke
+          out.push({ label, kind, color: darkenColor(fill, 0.25), width, dash, fill })
+        } else {
+          out.push({ label, kind, color, width, dash })
+        }
+      }
+      return out
+    })()
+
+    if (!items.length) return <div className="gis-style-info">No legend available for this layer.</div>
+    return (
+      <div className="gis-style-card gis-style-card-legend">
+        <div className="gis-style-legend">
+          {items.map((it, idx) => (
+            <div key={idx} className="gis-style-legend-row">
+              {renderCustomSwatch(it)}
+              <div className="gis-style-legend-text">{it.label}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+    )
+  }
+
   const mapToolPanelEl = activeMapTool && activeMapTool !== 'geoExplorer' ? (
       <div
         className={
@@ -4122,22 +4326,31 @@ export default function GisMap() {
         {activeMapTool === 'basemap' ? (
           <BasemapGallery selectedBasemap={selectedBasemap} onSelectBasemap={setSelectedBasemap} />
         ) : activeMapTool === 'legend' ? (
-          <div className="gis-tool-list">
-            {orderedLayers.length ? orderedLayers.map(layer => (
-              <div key={String(layer.id)} className="gis-tool-list-row">
-                <span className="gis-tool-swatch" style={{ background: layer.color || '#22c55e' }} aria-hidden="true" />
-                <span className="gis-tool-row-main">
-                  <strong>{layer.name}</strong>
-                  <small>
-                    {layer.visible ? 'Visible' : 'Hidden'} ·{' '}
-                    {layer.type === 'tile' && (layer.data as any)?.esriImageServer
-                      ? 'Image service'
-                      : `${Array.isArray((layer.data as any)?.features) ? (layer.data as any).features.length : 0} features`}
-                  </small>
-                </span>
+          <div className="gis-legend-classic-tool" role="region" aria-label="Map legend">
+            {orderedLayers.filter(l => l.visible).length === 0 ? (
+              <div className="gis-tool-empty">No visible layers to show in the legend.</div>
+            ) : (
+              <div className="gis-legend-classic-tool__scroll">
+                {orderedLayers
+                  .filter(l => l.visible)
+                  .map(layer => {
+                    const renderer = layer.arcgisRenderer ?? layer.arcgisLayerDefinition?.drawingInfo?.renderer
+                    const fieldHint = arcgisRendererFieldHint(renderer)
+                    return (
+                      <section key={String(layer.id)} className="gis-legend-classic-tool__layer" aria-labelledby={`gis-legend-layer-${layer.id}`}>
+                        <header className="gis-legend-classic-tool__layer-head">
+                          <h3 className="gis-legend-classic-tool__layer-title" id={`gis-legend-layer-${layer.id}`}>
+                            {layer.name}
+                          </h3>
+                          {fieldHint ? (
+                            <div className="gis-legend-classic-tool__layer-field">{fieldHint}</div>
+                          ) : null}
+                        </header>
+                        {renderLayerLegendCardInner(layer)}
+                      </section>
+                    )
+                  })}
               </div>
-            )) : (
-              <div className="gis-tool-empty">No layers to show in legend.</div>
             )}
           </div>
         ) : activeMapTool === 'chart' ? (
@@ -6702,180 +6915,7 @@ export default function GisMap() {
               </button>
             </div>
 
-            <div className="gis-modal-body">
-              {(() => {
-                const ctx = symbologyContexts.get(String(dialogLayer.id))
-                const geometryKindRaw = ctx?.geometryKind ?? getLayerGeometryKind(dialogLayer.data)
-                const geometryKind: 'point' | 'line' | 'polygon' =
-                  geometryKindRaw === 'point' ? 'point' : geometryKindRaw === 'polygon' ? 'polygon' : 'line'
-                const renderer = dialogLayer.arcgisRenderer ?? dialogLayer.arcgisLayerDefinition?.drawingInfo?.renderer
-                const showArcGis = Boolean(ctx?.cfg.useArcGisOnline && dialogLayer.source === 'arcgis' && renderer)
-                const baseStroke = dialogLayer.color || '#22c55e'
-                const baseFill = dialogLayer.fillColor || dialogLayer.color || '#22c55e'
-                const baseWeight = dialogLayer.weight ?? 2
-
-                const renderArcGisSwatch = (symbol: any) => {
-                  const res = arcGisSymbolToLeaflet(symbol, geometryKind, dialogLayer.opacity, baseStroke, baseFill)
-                  if (geometryKind === 'point' && res.point) {
-                    if (res.point.kind === 'icon') {
-                      const iconUrl = resolveArcGisSymbolUrl(dialogLayer, res.point.url)
-                      return (
-                        <svg width="62" height="14" viewBox="0 0 62 14" aria-hidden="true">
-                          <image href={iconUrl} x="22" y="1" width="18" height="12" preserveAspectRatio="xMidYMid meet" />
-                        </svg>
-                      )
-                    }
-                    const o = res.point.options as any
-                    const stroke = typeof o?.color === 'string' ? o.color : baseStroke
-                    const fill = typeof o?.fillColor === 'string' ? o.fillColor : baseFill
-                    const width = typeof o?.weight === 'number' && Number.isFinite(o.weight) ? Math.max(1, o.weight) : baseWeight
-                    return (
-                      <svg width="62" height="14" viewBox="0 0 62 14" aria-hidden="true">
-                        <circle cx="31" cy="7" r="5" fill={fill} stroke={stroke} strokeWidth={Math.min(4, width)} />
-                      </svg>
-                    )
-                  }
-
-                  const p = res.path as any
-                  const stroke = typeof p?.color === 'string' ? p.color : baseStroke
-                  const width = typeof p?.weight === 'number' && Number.isFinite(p.weight) ? Math.max(1, p.weight) : baseWeight
-                  const dash = typeof p?.dashArray === 'string' && p.dashArray ? p.dashArray : undefined
-                  const fill = typeof p?.fillColor === 'string' ? p.fillColor : baseFill
-
-                  if (geometryKind === 'polygon') {
-                    return (
-                      <svg width="62" height="14" viewBox="0 0 62 14" aria-hidden="true">
-                        <rect x="18" y="2" width="26" height="10" rx="3" fill={fill} stroke={stroke} strokeWidth={Math.min(4, width)} />
-                      </svg>
-                    )
-                  }
-
-                  return (
-                    <svg width="62" height="14" viewBox="0 0 62 14" aria-hidden="true">
-                      <line
-                        x1="4"
-                        y1="7"
-                        x2="58"
-                        y2="7"
-                        stroke={stroke}
-                        strokeWidth={width}
-                        strokeLinecap="round"
-                        strokeDasharray={dash}
-                      />
-                    </svg>
-                  )
-                }
-
-                const renderCustomSwatch = (it: {
-                  label: string
-                  kind: 'line' | 'point' | 'polygon'
-                  color: string
-                  width: number
-                  dash?: string
-                  fill?: string
-                }) => (
-                  <svg width="62" height="14" viewBox="0 0 62 14" aria-hidden="true">
-                    {it.kind === 'line' ? (
-                      <line
-                        x1="4"
-                        y1="7"
-                        x2="58"
-                        y2="7"
-                        stroke={it.color}
-                        strokeWidth={it.width}
-                        strokeLinecap="round"
-                        strokeDasharray={it.dash || undefined}
-                      />
-                    ) : it.kind === 'polygon' ? (
-                      <rect x="18" y="2" width="26" height="10" rx="3" fill={it.fill || it.color} stroke={it.color} strokeWidth="2" />
-                    ) : (
-                      <circle cx="31" cy="7" r="5" fill={it.fill || it.color} stroke={it.color} strokeWidth="2" />
-                    )}
-                  </svg>
-                )
-
-                if (showArcGis) {
-                  const entries = buildArcGisLegendEntries(renderer)
-                  if (!entries.length) return <div className="gis-style-info">No legend entries found for this layer.</div>
-                  return (
-                    <div className="gis-style-card gis-style-card-legend">
-                      <div className="gis-style-legend">
-                        {entries.map((it, idx) => (
-                          <div key={idx} className="gis-style-legend-row">
-                            {renderArcGisSwatch(it.symbol)}
-                            <div className="gis-style-legend-text">{it.label}</div>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )
-                }
-
-                const items = (() => {
-                  const out: Array<{ label: string; kind: 'line' | 'point' | 'polygon'; color: string; width: number; dash?: string; fill?: string }> = []
-                  if (!ctx) return out
-                  const kind: 'line' | 'point' | 'polygon' = geometryKind === 'polygon' ? 'polygon' : geometryKind === 'point' ? 'point' : 'line'
-                  if (ctx.cfg.style === 'unique') {
-                    if (kind === 'line') {
-                      const vals = ctx.categories.length ? ctx.categories : Object.keys(ctx.uniqueDashes)
-                      vals.slice(0, 12).forEach((val) => {
-                        out.push({ label: val, kind, color: baseStroke, width: baseWeight, dash: ctx.uniqueDashes[val] ?? '' })
-                      })
-                      if (vals.length === 0) out.push({ label: 'No values', kind, color: baseStroke, width: baseWeight })
-                      return out
-                    }
-                    const vals = ctx.categories.length ? ctx.categories : Object.keys(ctx.categoryColors)
-                    vals.slice(0, 12).forEach((val) => {
-                      const fill = ctx.categoryColors[val] ?? ctx.otherColor
-                      out.push({ label: val, kind, color: darkenColor(fill, 0.25), width: baseWeight, fill })
-                    })
-                    if (vals.length === 0) out.push({ label: 'No values', kind, color: baseStroke, width: baseWeight, fill: baseStroke })
-                    return out
-                  }
-                  if (ctx.cfg.style === 'threshold_markers') {
-                    out.push({ label: 'Base', kind, color: baseStroke, width: baseWeight })
-                    out.push({ label: `Marker ≥ ${ctx.threshold.toFixed(2)}`, kind: 'point', color: '#ef4444', width: 4, fill: '#ef4444' })
-                    return out
-                  }
-                  const breaks = ctx.breaks
-                  const classes = clampInt(ctx.cfg.classes, 2, 12)
-                  const showColor = ctx.cfg.style === 'color' || ctx.cfg.style === 'color_size'
-                  const showSize = ctx.cfg.style === 'size' || ctx.cfg.style === 'color_size'
-                  for (let i = 0; i < Math.min(classes, breaks.length - 1); i += 1) {
-                    const a = breaks[i]
-                    const b = breaks[i + 1]
-                    const label = `${a.toFixed(2)} – ${b.toFixed(2)}`
-                    const color = showColor ? ctx.colors[i] ?? baseStroke : baseStroke
-                    const width = showSize ? ctx.widths[i] ?? baseWeight : baseWeight
-                    const dash = ctx.cfg.style === 'dot_density' ? ctx.dotDashes[i] : undefined
-                    if (kind === 'polygon') {
-                      const fill = showColor ? color : baseStroke
-                      out.push({ label, kind, color: darkenColor(fill, 0.25), width, dash, fill })
-                    } else if (kind === 'point') {
-                      const fill = showColor ? color : baseStroke
-                      out.push({ label, kind, color: darkenColor(fill, 0.25), width, dash, fill })
-                    } else {
-                      out.push({ label, kind, color, width, dash })
-                    }
-                  }
-                  return out
-                })()
-
-                if (!items.length) return <div className="gis-style-info">No legend available for this layer.</div>
-                return (
-                  <div className="gis-style-card gis-style-card-legend">
-                    <div className="gis-style-legend">
-                      {items.map((it, idx) => (
-                        <div key={idx} className="gis-style-legend-row">
-                          {renderCustomSwatch(it)}
-                          <div className="gis-style-legend-text">{it.label}</div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )
-              })()}
-            </div>
+            <div className="gis-modal-body">{renderLayerLegendCardInner(dialogLayer)}</div>
           </div>
         </div>
       ) : null}

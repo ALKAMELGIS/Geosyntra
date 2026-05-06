@@ -73,7 +73,6 @@ const CUSTOM_API_SLOT_ICONS = [
 
 const SETTINGS_TABS = [
   { id: 'theme' as const, label: 'Theme', icon: 'fa-solid fa-palette' },
-  { id: 'home' as const, label: 'Home Page', icon: 'fa-solid fa-house' },
   { id: 'logos' as const, label: 'Logos', icon: 'fa-solid fa-image' },
   { id: 'nav' as const, label: 'Navigation', icon: 'fa-solid fa-bars-staggered' },
   { id: 'pages' as const, label: 'Pages', icon: 'fa-solid fa-layer-group' },
@@ -150,7 +149,7 @@ function ApiTokenMergeField({
 export default function SystemSettings() {
   const { draft, setDraft, settings, saveDraft, cancelDraft, resetToDefaults, pushToast } = useSystemSettings()
   const { language } = useLanguage()
-  const [tab, setTab] = useState<'theme' | 'home' | 'logos' | 'nav' | 'pages' | 'api-tokens'>('theme')
+  const [tab, setTab] = useState<'theme' | 'logos' | 'nav' | 'pages' | 'api-tokens'>('theme')
   const [mapboxTokenDraft, setMapboxTokenDraft] = useState('')
   const [arcgisTokenDraft, setArcgisTokenDraft] = useState('')
   const [sentinelHubInstanceDraft, setSentinelHubInstanceDraft] = useState('')
@@ -173,7 +172,6 @@ export default function SystemSettings() {
     iconClass: 'fa-solid fa-key',
   })
   const [confirmReset, setConfirmReset] = useState(false)
-  const [homeEditorSection, setHomeEditorSection] = useState<'page' | 'header' | 'blocks' | 'footer' | 'colors' | 'typography'>('page')
   const [pageQuery, setPageQuery] = useState('')
   const [pageGroupFilter, setPageGroupFilter] = useState<'all' | string>('all')
   const [navPickGroup, setNavPickGroup] = useState<string>(
@@ -433,23 +431,6 @@ export default function SystemSettings() {
     }
   }
 
-  const updateHomePage = (patch: Partial<SystemSettingsPersistedV1['homePage']>) => {
-    setDraft(d => ({
-      ...d,
-      homePage: { ...d.homePage, ...patch },
-    }))
-  }
-
-  const onHomeBackgroundUpload = async (file: File | undefined) => {
-    if (!file) return
-    try {
-      const url = await readFileAsDataUrl(file)
-      updateHomePage({ backgroundImage: url, backgroundMode: 'image' })
-    } catch {
-      pushToast('error', 'Could not read image file.')
-    }
-  }
-
   const updateNavOverride = (id: string, patch: Partial<SystemSettingsPersistedV1['navOverrides'][string]>) => {
     setDraft(d => ({
       ...d,
@@ -561,24 +542,6 @@ export default function SystemSettings() {
     () => JSON.stringify(mergeWithDefaults(settings)) !== JSON.stringify(mergeWithDefaults(draft)),
     [settings, draft],
   )
-
-  const homePreviewCanvasStyle = useMemo(() => {
-    const bg = draft.homePage
-    if (bg.backgroundMode === 'solid') {
-      return { background: bg.backgroundColor }
-    }
-    if (bg.backgroundMode === 'gradient') {
-      return { background: `linear-gradient(160deg, ${bg.backgroundGradientFrom}, ${bg.backgroundGradientTo})` }
-    }
-    if (bg.backgroundMode === 'image' && bg.backgroundImage) {
-      return {
-        backgroundImage: `linear-gradient(180deg, rgba(4, 10, 20, 0.36), rgba(4, 10, 20, 0.54)), url(${bg.backgroundImage})`,
-        backgroundSize: 'cover',
-        backgroundPosition: 'center',
-      }
-    }
-    return undefined
-  }, [draft.homePage])
 
   return (
     <div className="gis-page-padding sys-settings">
@@ -694,170 +657,6 @@ export default function SystemSettings() {
               </div>
             </div>
           ) : null}
-        </div>
-      ) : null}
-
-      {tab === 'home' ? (
-        <div className="sys-settings-tab-pane">
-          <div className="sys-home-editor">
-            <aside className="sys-home-sidebar" aria-label="Home page editor sections">
-              <h3 className="sys-home-sidebar__title">Edit home page</h3>
-              <p className="sys-home-sidebar__lead">
-                Page settings, layout blocks, and visual style controls.
-              </p>
-              <div className="sys-home-section-list" role="tablist" aria-label="Home editor sections">
-                {[
-                  { id: 'page', label: 'Page settings', hint: 'Layout + visibility' },
-                  { id: 'header', label: 'Header', hint: 'Logo, hero, actions' },
-                  { id: 'blocks', label: 'Content blocks', hint: 'Cards and section order' },
-                  { id: 'footer', label: 'Footer', hint: 'Links and footer text' },
-                  { id: 'colors', label: 'Colors', hint: 'Brand and overlay colors' },
-                  { id: 'typography', label: 'Typography', hint: 'Title and body styles' },
-                ].map(section => (
-                  <button
-                    key={section.id}
-                    type="button"
-                    role="tab"
-                    aria-selected={homeEditorSection === section.id}
-                    className={`sys-home-section-btn ${homeEditorSection === section.id ? 'is-active' : ''}`}
-                    onClick={() => setHomeEditorSection(section.id as typeof homeEditorSection)}
-                  >
-                    <strong>{section.label}</strong>
-                    <small>{section.hint}</small>
-                  </button>
-                ))}
-              </div>
-
-              {homeEditorSection === 'page' ? (
-                <div className="sys-home-controls">
-                  <label className="sys-home-check">
-                    <input
-                      type="checkbox"
-                      checked={draft.homePage.showItemCounts}
-                      onChange={e => updateHomePage({ showItemCounts: e.target.checked })}
-                    />
-                    <span>Show item counts under each module</span>
-                  </label>
-
-                  <label className="sys-home-check">
-                    <input
-                      type="checkbox"
-                      checked={draft.homePage.showCardChevron}
-                      onChange={e => updateHomePage({ showCardChevron: e.target.checked })}
-                    />
-                    <span>Show arrow indicator on cards</span>
-                  </label>
-
-                  <label className="sys-home-field" htmlFor="sys-home-density">
-                    <span className="sys-field-label">Card density</span>
-                    <select
-                      id="sys-home-density"
-                      className="gis-input"
-                      value={draft.homePage.cardDensity}
-                      onChange={e =>
-                        updateHomePage({
-                          cardDensity: e.target.value === 'compact' ? 'compact' : 'comfortable',
-                        })
-                      }
-                    >
-                      <option value="comfortable">Comfortable</option>
-                      <option value="compact">Compact</option>
-                    </select>
-                  </label>
-
-                  <label className="sys-home-field" htmlFor="sys-home-bg-mode">
-                    <span className="sys-field-label">Background mode</span>
-                    <select
-                      id="sys-home-bg-mode"
-                      className="gis-input"
-                      value={draft.homePage.backgroundMode}
-                      onChange={e =>
-                        updateHomePage({
-                          backgroundMode:
-                            e.target.value === 'solid' || e.target.value === 'gradient' || e.target.value === 'image'
-                              ? e.target.value
-                              : 'default',
-                        })
-                      }
-                    >
-                      <option value="default">Default</option>
-                      <option value="solid">Solid color</option>
-                      <option value="gradient">Gradient</option>
-                      <option value="image">Background image</option>
-                    </select>
-                  </label>
-
-                  {draft.homePage.backgroundMode === 'solid' ? (
-                    <label className="sys-home-field">
-                      <span className="sys-field-label">Background color</span>
-                      <input
-                        type="color"
-                        className="sys-home-color"
-                        value={draft.homePage.backgroundColor}
-                        onChange={e => updateHomePage({ backgroundColor: e.target.value })}
-                      />
-                    </label>
-                  ) : null}
-
-                  {draft.homePage.backgroundMode === 'gradient' ? (
-                    <div className="sys-home-grid-2">
-                      <label className="sys-home-field">
-                        <span className="sys-field-label">Gradient from</span>
-                        <input
-                          type="color"
-                          className="sys-home-color"
-                          value={draft.homePage.backgroundGradientFrom}
-                          onChange={e => updateHomePage({ backgroundGradientFrom: e.target.value })}
-                        />
-                      </label>
-                      <label className="sys-home-field">
-                        <span className="sys-field-label">Gradient to</span>
-                        <input
-                          type="color"
-                          className="sys-home-color"
-                          value={draft.homePage.backgroundGradientTo}
-                          onChange={e => updateHomePage({ backgroundGradientTo: e.target.value })}
-                        />
-                      </label>
-                    </div>
-                  ) : null}
-
-                  {draft.homePage.backgroundMode === 'image' ? (
-                    <div className="sys-home-field">
-                      <span className="sys-field-label">Background image</span>
-                      <label className="sys-home-upload">
-                        <input type="file" accept="image/*" onChange={e => void onHomeBackgroundUpload(e.target.files?.[0])} />
-                        <span>{draft.homePage.backgroundImage ? 'Replace image' : 'Upload image'}</span>
-                      </label>
-                      {draft.homePage.backgroundImage ? (
-                        <button type="button" className="gis-btn gis-btn-outline" onClick={() => updateHomePage({ backgroundImage: '' })}>
-                          Remove image
-                        </button>
-                      ) : null}
-                    </div>
-                  ) : null}
-                </div>
-              ) : (
-                <div className="sys-home-placeholder">
-                  <i className="fa-solid fa-screwdriver-wrench" aria-hidden />
-                  <span>Section editor will be expanded here.</span>
-                </div>
-              )}
-            </aside>
-
-            <div className="sys-home-preview" role="region" aria-label="Home page preview">
-              <div className="sys-home-preview__canvas" style={homePreviewCanvasStyle}>
-                <div className="sys-home-preview__overlay" />
-                <div className="sys-home-preview__brand">
-                  <span className="sys-home-preview__logo">
-                    <i className="fa-solid fa-seedling" aria-hidden />
-                  </span>
-                  <strong>Elite Agro Projects LLC</strong>
-                </div>
-                <div className="sys-home-preview__meta">52%</div>
-              </div>
-            </div>
-          </div>
         </div>
       ) : null}
 

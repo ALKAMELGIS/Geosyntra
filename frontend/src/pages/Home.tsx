@@ -157,12 +157,6 @@ export default function Home() {
             }
           : {}
 
-  const getIconKey = (icon: string) => {
-    const parts = icon.split(/\s+/).filter(Boolean)
-    const specific = parts.find(p => p.startsWith('fa-') && p !== 'fa-solid' && p !== 'fa-regular' && p !== 'fa-brands')
-    return (specific || '').replace(/^fa-/, '').replace(/[^a-z0-9-]/gi, '')
-  }
-
   const handleMainClick = (item: MenuItem) => {
     if (item.items) {
       setActiveGroup(item)
@@ -246,7 +240,15 @@ export default function Home() {
                 <i className="fa-solid fa-chevron-left" aria-hidden="true"></i>
               </button>
               <div className="header-title">
-                <span className="header-icon" style={{ backgroundColor: activeGroup.color }}>
+                <span
+                  className="header-icon"
+                  style={
+                    {
+                      '--header-accent': activeGroup.color,
+                      '--header-accent-rgb': toRgbTriplet(activeGroup.color),
+                    } as React.CSSProperties
+                  }
+                >
                   <i className={activeGroup.icon} aria-hidden="true"></i>
                 </span>
                 <h2>{activeGroup.label[language]}</h2>
@@ -264,27 +266,50 @@ export default function Home() {
 
             <div
               id={`home-sublist-${activeGroup.id}`}
-              className={sublistOpen ? 'sublist-container' : 'sublist-container sublist-container-closed'}
+              className={sublistOpen ? 'sublist-page-area' : 'sublist-page-area sublist-page-area--closed'}
               role="region"
               aria-label={`${activeGroup.label[language]} submenu`}
               hidden={!sublistOpen}
             >
-              {activeGroup.items?.map(subItem => (
-                <button
-                  key={subItem.to || `${activeGroup.id}-${subItem.action || subItem.label.en}`}
-                  type="button"
-                  className="sublist-item"
-                  onClick={() => handleSubItemClick(subItem)}
-                  aria-label={subItem.label[language]}
-                  data-reveal="item"
-                >
-                  <div className={`sub-icon-wrapper sub-icon-${getIconKey(subItem.icon)}`}>
-                    <i className={subItem.icon} aria-hidden="true"></i>
+              <div className="home-modern">
+                <div className="home-apps-strip">
+                  <div className="home-apps-list">
+                    {activeGroup.items?.map(subItem => (
+                      <button
+                        key={subItem.to || `${activeGroup.id}-${subItem.action || subItem.label.en}`}
+                        type="button"
+                        className={`app-icon-card ${homePageSettings.cardDensity === 'compact' ? 'app-icon-card--compact' : ''}`}
+                        onClick={() => handleSubItemClick(subItem)}
+                        aria-label={subItem.label[language]}
+                        data-reveal="item"
+                        style={
+                          {
+                            '--app-accent': activeGroup.color,
+                            '--app-accent-rgb': toRgbTriplet(activeGroup.color),
+                          } as React.CSSProperties
+                        }
+                      >
+                        <i className={`app-icon ${subItem.icon} fa-fw`} aria-hidden="true"></i>
+                        <span className="app-label">{subItem.label[language]}</span>
+                        {homePageSettings.showItemCounts ? (
+                          <span className="app-meta">
+                            {subItem.action === 'logout'
+                              ? language === 'ar'
+                                ? 'خروج'
+                                : 'Sign out'
+                              : language === 'ar'
+                                ? 'فتح'
+                                : 'Open'}
+                          </span>
+                        ) : null}
+                        {homePageSettings.showCardChevron ? (
+                          <i className="fa-solid fa-chevron-right mini-chev" aria-hidden="true"></i>
+                        ) : null}
+                      </button>
+                    ))}
                   </div>
-                  <span className="sub-label">{subItem.label[language]}</span>
-                  <i className="fa-solid fa-chevron-right chev-icon" aria-hidden="true"></i>
-                </button>
-              ))}
+                </div>
+              </div>
             </div>
           </div>
         </div>

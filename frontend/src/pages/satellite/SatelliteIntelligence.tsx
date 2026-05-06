@@ -97,6 +97,19 @@ import {
   getArcDisplayValue,
   type ArcgisLayerDefLite,
 } from '../../lib/arcgisAttributeDisplay';
+import type { SymbologyClassMethod, SymbologyColorRamp, SymbologyConfig, SymbologyStyle } from './components/LayerManager';
+import {
+  buildSymbologyContext,
+  clampInt,
+  darkenColor,
+  describeArcGisRendererVisualization,
+  getGeoJsonFields,
+  getLayerGeometryKind,
+  getNumericFields,
+  inferVisualizationFromArcgisRenderer,
+  normalizeSymbologyForLayer,
+  type SymbologyContext,
+} from './symbologyHelpers';
 import { FieldVisibilityControl } from './components/FieldVisibilityControl';
 import { GeoExplorerGeminiInputRow } from './components/GeoExplorerGeminiInputRow';
 import {
@@ -981,6 +994,8 @@ interface CustomLayer {
   useArcGisSymbology?: boolean;
   /** Fields/types/domains for attribute table (coded-value descriptions). */
   arcgisLayerDefinition?: ArcgisLayerDefLite | null;
+  /** Saved symbology (GIS Map–aligned); drives Style dialog defaults. */
+  symbology?: SymbologyConfig;
 }
 
 const SI_TABLE_MAX_FEATURES = 10000;
@@ -1016,6 +1031,33 @@ function siComputeFeatureRowKey(feature: any, idx: number, cache: Map<object, st
   const key = `idx:${idx}`;
   if (feature && typeof feature === 'object') cache.set(feature, key);
   return key;
+}
+
+function migrateStoredSymbology(raw: unknown): SymbologyConfig | undefined {
+  if (!raw || typeof raw !== 'object') return undefined;
+  const o = raw as Record<string, unknown>;
+  const cr = o.colorRamp;
+  let colorRamp: SymbologyColorRamp | undefined;
+  if (cr === 'green') colorRamp = 'greens';
+  else if (cr === 'warm') colorRamp = 'magma';
+  else if (cr === 'viridis' || cr === 'blues' || cr === 'greens' || cr === 'plasma' || cr === 'magma' || cr === 'turbo') {
+    colorRamp = cr;
+  }
+  let style = o.style;
+  if (style === 'single') style = 'color';
+  if (style === 'classified') style = 'unique';
+  let method = o.method;
+  if (method === 'natural-breaks') method = 'jenks';
+  if (method === 'equal-interval') method = 'equal_interval';
+  const out: SymbologyConfig = {};
+  if (typeof o.useArcGisOnline === 'boolean') out.useArcGisOnline = o.useArcGisOnline;
+  if (typeof style === 'string') out.style = style as SymbologyStyle;
+  if (typeof o.field === 'string') out.field = o.field;
+  if (typeof o.classes === 'number') out.classes = o.classes;
+  if (typeof method === 'string') out.method = method as SymbologyClassMethod;
+  if (colorRamp) out.colorRamp = colorRamp;
+  if (typeof o.threshold === 'number') out.threshold = o.threshold;
+  return Object.keys(out).length ? out : undefined;
 }
 
 function parseStoredCustomLayers(raw: string | null): CustomLayer[] {
@@ -1057,6 +1099,7 @@ function parseStoredCustomLayers(raw: string | null): CustomLayer[] {
           x.arcgisLayerDefinition && typeof x.arcgisLayerDefinition === 'object'
             ? (x.arcgisLayerDefinition as ArcgisLayerDefLite)
             : undefined,
+        symbology: migrateStoredSymbology(x.symbology),
       }));
   } catch {
     return [];
@@ -1166,19 +1209,10 @@ function persistCustomLayersToStorage(layers: CustomLayer[]) {
   }
 }
 
-type LayerStyleMode = 'single' | 'classified';
-type LayerClassMethod = 'natural-breaks' | 'equal-interval';
-type SymbologyColorRamp = 'viridis' | 'green' | 'warm' | 'service';
+/** Symbology dialog state (GIS Map LayerManager schema + ArcGIS max-class bake slider). */
+type SiSymbologyDraft = Required<SymbologyConfig> & { arcgisMaxCategories: number };
 
-interface LayerSymbologyDraft {
-  useArcGisOnline: boolean;
-  style: LayerStyleMode;
-  classes: number;
-  colorRamp: SymbologyColorRamp;
-  method: LayerClassMethod;
-  color: string;
-  arcgisMaxCategories: number;
-}
+type SiBakeRamp = SymbologyColorRamp | 'service';
 
 type AddLayerTab = 'giscontent' | 'arcgis' | 'upload' | 'database' | 'url';
 
@@ -1352,10 +1386,13 @@ const ENVIRONMENTAL_INDICES: Record<EnvironmentalIndexId, {
 };
 
 const PIVOT_COLORS = ['#22c55e', '#3b82f6', '#f97316', '#a855f7', '#06b6d4', '#eab308'];
-const COLOR_RAMPS: Record<'viridis' | 'green' | 'warm', string[]> = {
+const SI_SYMBOLOGY_BAKE_RAMPS: Record<SymbologyColorRamp, string[]> = {
   viridis: ['#440154', '#3b528b', '#21918c', '#5ec962', '#fde725'],
-  green: ['#14532d', '#166534', '#16a34a', '#4ade80', '#bbf7d0'],
-  warm: ['#7f1d1d', '#b45309', '#f59e0b', '#fde047', '#fef9c3'],
+  blues: ['#eff6ff', '#bfdbfe', '#60a5fa', '#2563eb', '#1e3a8a'],
+  greens: ['#f0fdf4', '#bbf7d0', '#4ade80', '#16a34a', '#14532d'],
+  plasma: ['#0d0887', '#7e03a8', '#cc4778', '#f89540', '#f0f921'],
+  magma: ['#000004', '#3b0f70', '#8c2981', '#de4968', '#fe9f6d', '#fcfdbf'],
+  turbo: ['#30123b', '#3b4cc0', '#26a6d1', '#3de07e', '#f9e721', '#f20c0c'],
 };
 
 function esriColorArrayToCss(c: unknown): string | null {
@@ -1390,7 +1427,7 @@ function hexToEsriRgba(hex: string): [number, number, number, number] {
 
 function arcgisLegendPreviewRows(
   drawingInfo: Record<string, unknown> | null | undefined,
-  colorRamp: SymbologyColorRamp,
+  colorRamp: SiBakeRamp,
   maxCategories: number,
   arcDef?: ArcgisLayerDefLite | null,
 ): Array<{ label: string; color: string }> {
@@ -1399,7 +1436,7 @@ function arcgisLegendPreviewRows(
   if (!ren || typeof ren !== 'object') return [];
   const t = String(ren.type || '');
   const max = Math.max(1, Math.min(40, Math.floor(maxCategories)));
-  const ramp = colorRamp === 'service' ? null : COLOR_RAMPS[colorRamp];
+  const ramp = colorRamp === 'service' ? null : SI_SYMBOLOGY_BAKE_RAMPS[colorRamp];
 
   if (t === 'uniqueValue') {
     const infos = (Array.isArray(ren.uniqueValueInfos) ? ren.uniqueValueInfos : []).slice(0, max);
@@ -1452,17 +1489,9 @@ function arcgisLegendPreviewRows(
   return [];
 }
 
-function inferArcgisStyleLabel(drawingInfo: Record<string, unknown> | null | undefined): string {
-  const t = String((drawingInfo as any)?.renderer?.type || '');
-  if (t === 'uniqueValue') return 'Types (unique symbols)';
-  if (t === 'classBreaks') return 'Graduated colors (class breaks)';
-  if (t === 'simple') return 'Single symbol';
-  return 'ArcGIS renderer';
-}
-
 function applySymbologyToArcgisDrawingInfo(
   drawingInfo: Record<string, unknown>,
-  colorRamp: SymbologyColorRamp,
+  colorRamp: SiBakeRamp,
   maxCategories: number,
 ): Record<string, unknown> | null {
   let di: any;
@@ -1476,7 +1505,7 @@ function applySymbologyToArcgisDrawingInfo(
   const t = String(ren.type || '');
   const max = Math.max(1, Math.min(40, Math.floor(maxCategories)));
   const useRamp = colorRamp !== 'service';
-  const ramp = useRamp ? COLOR_RAMPS[colorRamp] : null;
+  const ramp = useRamp ? SI_SYMBOLOGY_BAKE_RAMPS[colorRamp as SymbologyColorRamp] : null;
 
   if (t === 'uniqueValue') {
     const infos = Array.isArray(ren.uniqueValueInfos) ? [...ren.uniqueValueInfos] : [];
@@ -1729,13 +1758,14 @@ export default function SatelliteIntelligence() {
   const [draggingSiTableField, setDraggingSiTableField] = useState<string | null>(null);
   const [hiddenSiTableFieldsByLayerId, setHiddenSiTableFieldsByLayerId] = useState<Record<string, Set<string>>>({});
   const [siTableFieldOrderByLayerId, setSiTableFieldOrderByLayerId] = useState<Record<string, string[]>>({});
-  const [symbologyDraft, setSymbologyDraft] = useState<LayerSymbologyDraft>({
+  const [symbologyDraft, setSymbologyDraft] = useState<SiSymbologyDraft>({
     useArcGisOnline: false,
-    style: 'single',
+    style: 'color',
+    field: '',
     classes: 5,
+    method: 'jenks',
     colorRamp: 'viridis',
-    method: 'natural-breaks',
-    color: '#22c55e',
+    threshold: Number.NaN,
     arcgisMaxCategories: 8,
   });
   const [dbPlatform, setDbPlatform] = useState<(typeof DATABASE_PLATFORM_OPTIONS)[number]>('SQL Server');
@@ -2431,55 +2461,20 @@ export default function SatelliteIntelligence() {
     tableSelectedKeys,
   ]);
 
-  const arcgisSymbologyLegendRows = useMemo(() => {
-    if (!activeDialogLayer?.arcgisDrawingInfo) return [] as Array<{ label: string; color: string }>;
-    return arcgisLegendPreviewRows(
-      activeDialogLayer.arcgisDrawingInfo as Record<string, unknown>,
-      symbologyDraft.colorRamp,
-      symbologyDraft.arcgisMaxCategories,
-      activeDialogLayer.arcgisLayerDefinition ?? null,
-    );
-  }, [activeDialogLayer, symbologyDraft.colorRamp, symbologyDraft.arcgisMaxCategories]);
+  const siSymbologyNormalized = useMemo(() => {
+    if (!activeDialogLayer) return null;
+    return normalizeSymbologyForLayer(activeDialogLayer.geojson, activeDialogLayer.source, symbologyDraft);
+  }, [activeDialogLayer, symbologyDraft]);
 
-  const arcgisSymbologyField = useMemo(() => {
-    if (!activeDialogLayer?.arcgisDrawingInfo) return '';
-    return pickRendererPrimaryField((activeDialogLayer.arcgisDrawingInfo as any)?.renderer);
-  }, [activeDialogLayer]);
-
-  const arcgisSymbologyRendererCap = useMemo(() => {
-    const ren = (activeDialogLayer?.arcgisDrawingInfo as any)?.renderer;
-    if (!ren) return 40;
-    const t = String(ren.type || '');
-    if (t === 'uniqueValue' && Array.isArray(ren.uniqueValueInfos)) return Math.max(1, ren.uniqueValueInfos.length);
-    if (t === 'classBreaks' && Array.isArray(ren.classBreakInfos)) {
-      return Math.max(1, ren.classBreakInfos.filter((br: any) => Number.isFinite(Number(br?.maxValue))).length);
-    }
-    return 1;
-  }, [activeDialogLayer]);
+  const siSymbologyCtx = useMemo((): SymbologyContext | null => {
+    if (!activeDialogLayer?.geojson || !siSymbologyNormalized) return null;
+    return buildSymbologyContext(activeDialogLayer.geojson, siSymbologyNormalized);
+  }, [activeDialogLayer?.geojson, siSymbologyNormalized]);
 
   const arcgisRendererType = useMemo(
     () => String((activeDialogLayer?.arcgisDrawingInfo as any)?.renderer?.type || ''),
     [activeDialogLayer],
   );
-  const canToggleArcgisSymbology = useMemo(() => {
-    if (!activeDialogLayer) return false;
-    if (activeDialogLayer.source === 'arcgis') return true;
-    if (activeDialogLayer.arcgisDrawingInfo) return true;
-    if ((activeDialogLayer.arcgisLayerDefinition as any)?.drawingInfo) return true;
-    if (
-      typeof activeDialogLayer.sourceUrl === 'string' &&
-      /\/(FeatureServer|MapServer)(\/\d+)?(?:\?.*)?$/i.test(activeDialogLayer.sourceUrl.trim())
-    ) {
-      return true;
-    }
-    return false;
-  }, [activeDialogLayer]);
-
-  const arcgisMaxCategoryOptions = useMemo(() => {
-    const cap = Math.min(40, arcgisSymbologyRendererCap);
-    const steps = [3, 4, 5, 6, 7, 8, 10, 12, 16, 20, 30, 40].filter(n => n <= cap);
-    return steps.length ? steps : [Math.max(1, cap)];
-  }, [arcgisSymbologyRendererCap]);
 
   useEffect(() => {
     if (!activeLayerActionDialog || activeLayerActionDialog.mode !== 'table') return;
@@ -2509,13 +2504,15 @@ export default function SatelliteIntelligence() {
       maxCat = n > 0 ? Math.min(8, n) : 8;
     }
     const useAgOnline = activeDialogLayer.source === 'arcgis' && activeDialogLayer.useArcGisSymbology !== false;
-    setSymbologyDraft({
+    const inferred = inferVisualizationFromArcgisRenderer(ren);
+    const base: SymbologyConfig = {
+      ...activeDialogLayer.symbology,
+      ...inferred,
       useArcGisOnline: useAgOnline,
-      style: 'single',
-      classes: 5,
-      colorRamp: activeDialogLayer.source === 'arcgis' ? 'service' : 'viridis',
-      method: 'natural-breaks',
-      color: activeDialogLayer.color || '#22c55e',
+    };
+    const normalized = normalizeSymbologyForLayer(activeDialogLayer.geojson, activeDialogLayer.source, base);
+    setSymbologyDraft({
+      ...normalized,
       arcgisMaxCategories: maxCat,
     });
   }, [activeLayerActionDialog, activeDialogLayer]);
@@ -2523,17 +2520,27 @@ export default function SatelliteIntelligence() {
   const applySymbologyDraft = async () => {
     if (!activeDialogLayer) return;
     try {
+      const normalized = normalizeSymbologyForLayer(activeDialogLayer.geojson, activeDialogLayer.source, symbologyDraft);
+      const symbologyToSave: SymbologyConfig = {
+        useArcGisOnline: normalized.useArcGisOnline,
+        style: normalized.style,
+        field: normalized.field,
+        classes: normalized.classes,
+        method: normalized.method,
+        colorRamp: normalized.colorRamp,
+        threshold: normalized.threshold,
+      };
+
       const hasArcgisRendererSupport =
         activeDialogLayer.source === 'arcgis' ||
         Boolean(activeDialogLayer.arcgisDrawingInfo) ||
         Boolean((activeDialogLayer.arcgisLayerDefinition as any)?.drawingInfo);
-      const rampKey: 'viridis' | 'green' | 'warm' =
-        symbologyDraft.colorRamp === 'service' ? 'viridis' : symbologyDraft.colorRamp;
-      const ramp = COLOR_RAMPS[rampKey];
+
+      const rampHex = SI_SYMBOLOGY_BAKE_RAMPS[normalized.colorRamp];
       const nextColor =
-        symbologyDraft.style === 'single'
-          ? symbologyDraft.color
-          : ramp[Math.max(0, Math.min(ramp.length - 1, symbologyDraft.classes - 1))];
+        normalized.style === 'unique'
+          ? activeDialogLayer.color || '#22c55e'
+          : rampHex[Math.max(0, Math.min(rampHex.length - 1, normalized.classes - 1))] ?? '#22c55e';
 
       if (hasArcgisRendererSupport) {
         let di =
@@ -2555,8 +2562,8 @@ export default function SatelliteIntelligence() {
           const baked =
             applySymbologyToArcgisDrawingInfo(
               di as Record<string, unknown>,
-              symbologyDraft.colorRamp,
-              arcgisRendererType === 'simple' || symbologyDraft.style === 'single' ? 1 : symbologyDraft.arcgisMaxCategories,
+              'service',
+              arcgisRendererType === 'simple' ? 1 : symbologyDraft.arcgisMaxCategories,
             ) ?? (sanitizeArcgisDrawingInfoForClient(di) as Record<string, unknown> | null);
           if (!baked || !arcgisDrawingInfoToFillPaint(baked)) {
             setStacStatus('Could not apply symbology to this layer renderer.');
@@ -2564,21 +2571,26 @@ export default function SatelliteIntelligence() {
           }
           setCustomLayers(prev =>
             prev.map(l =>
-              l.id === activeDialogLayer.id ? { ...l, arcgisDrawingInfo: baked, useArcGisSymbology: true, color: nextColor } : l,
+              l.id === activeDialogLayer.id
+                ? { ...l, arcgisDrawingInfo: baked, useArcGisSymbology: true, color: nextColor, symbology: symbologyToSave }
+                : l,
             ),
           );
         } else {
+          const maxForBake = normalized.classes;
           const baked = di
-            ? applySymbologyToArcgisDrawingInfo(
-                di as Record<string, unknown>,
-                rampKey,
-                symbologyDraft.style === 'single' ? 1 : symbologyDraft.arcgisMaxCategories,
-              )
+            ? applySymbologyToArcgisDrawingInfo(di as Record<string, unknown>, normalized.colorRamp, maxForBake)
             : null;
           setCustomLayers(prev =>
             prev.map(l =>
               l.id === activeDialogLayer.id
-                ? { ...l, arcgisDrawingInfo: baked ?? l.arcgisDrawingInfo ?? null, useArcGisSymbology: false, color: nextColor }
+                ? {
+                    ...l,
+                    arcgisDrawingInfo: baked ?? l.arcgisDrawingInfo ?? null,
+                    useArcGisSymbology: false,
+                    color: nextColor,
+                    symbology: symbologyToSave,
+                  }
                 : l,
             ),
           );
@@ -2589,7 +2601,9 @@ export default function SatelliteIntelligence() {
       }
 
       setCustomLayers(prev =>
-        prev.map(l => (l.id === activeDialogLayer.id ? { ...l, useArcGisSymbology: false, color: nextColor } : l)),
+        prev.map(l =>
+          l.id === activeDialogLayer.id ? { ...l, useArcGisSymbology: false, color: nextColor, symbology: symbologyToSave } : l,
+        ),
       );
       setActiveLayerActionDialog(null);
       setStacStatus(`Style saved for "${activeDialogLayer.name}".`);
@@ -2597,6 +2611,24 @@ export default function SatelliteIntelligence() {
       setStacStatus(e instanceof Error ? e.message : 'Failed to save style.');
     }
   };
+
+  const updateSymbologyDraft = useCallback(
+    (patch: Partial<SiSymbologyDraft>) => {
+      setSymbologyDraft(prev => {
+        if (!activeDialogLayer) return prev;
+        let merged: SiSymbologyDraft = { ...prev, ...patch };
+        if (patch.useArcGisOnline === true) {
+          const ren =
+            (activeDialogLayer.arcgisDrawingInfo as any)?.renderer ??
+            (activeDialogLayer.arcgisLayerDefinition as any)?.drawingInfo?.renderer;
+          merged = { ...merged, ...inferVisualizationFromArcgisRenderer(ren) };
+        }
+        const normalized = normalizeSymbologyForLayer(activeDialogLayer.geojson, activeDialogLayer.source, merged);
+        return { ...normalized, arcgisMaxCategories: merged.arcgisMaxCategories };
+      });
+    },
+    [activeDialogLayer],
+  );
 
   const moveSiTableColumn = (from: string, to: string) => {
     if (!activeDialogLayer || !from || !to || from === to) return;
@@ -7752,7 +7784,7 @@ export default function SatelliteIntelligence() {
             {activeLayerActionDialog.mode === 'symbology' ? (
               <div className="gis-modal-header">
                 <div className="gis-modal-header-left">
-                  <div className="gis-modal-title-icon" aria-hidden="true">
+                  <div className="gis-modal-icon" aria-hidden="true">
                     <i className="fa-solid fa-palette" />
                   </div>
                   <div className="gis-modal-title" id="si-layer-action-title">
@@ -8164,32 +8196,31 @@ export default function SatelliteIntelligence() {
                       <input
                         type="checkbox"
                         checked={symbologyDraft.useArcGisOnline}
-                        disabled={!canToggleArcgisSymbology && !activeDialogLayer?.sourceUrl}
+                        disabled={activeDialogLayer.source !== 'arcgis'}
                         onChange={e => {
                           const on = e.target.checked;
-                          setSymbologyDraft(prev => ({
-                            ...prev,
-                            useArcGisOnline: on,
-                            colorRamp: on ? 'service' : prev.colorRamp,
-                          }));
-                          if (
-                            on &&
-                            !activeDialogLayer.arcgisDrawingInfo &&
-                            typeof activeDialogLayer.sourceUrl === 'string' &&
-                            activeDialogLayer.sourceUrl.trim()
-                          ) {
-                            void (async () => {
-                              try {
-                                const raw = await fetchArcgisLayerDrawingInfo(activeDialogLayer.sourceUrl!, activeDialogLayer.authToken);
-                                const cleaned = raw ? sanitizeArcgisDrawingInfoForClient(raw) : null;
-                                if (!cleaned) return;
-                                setCustomLayers(prev =>
-                                  prev.map(l => (l.id === activeDialogLayer.id ? { ...l, arcgisDrawingInfo: cleaned } : l)),
-                                );
-                              } catch {
-                                /* keep toggle usable even if renderer fetch fails */
-                              }
-                            })();
+                          if (on) {
+                            updateSymbologyDraft({ useArcGisOnline: true });
+                            if (
+                              !activeDialogLayer.arcgisDrawingInfo &&
+                              typeof activeDialogLayer.sourceUrl === 'string' &&
+                              activeDialogLayer.sourceUrl.trim()
+                            ) {
+                              void (async () => {
+                                try {
+                                  const raw = await fetchArcgisLayerDrawingInfo(activeDialogLayer.sourceUrl!, activeDialogLayer.authToken);
+                                  const cleaned = raw ? sanitizeArcgisDrawingInfoForClient(raw) : null;
+                                  if (!cleaned) return;
+                                  setCustomLayers(prev =>
+                                    prev.map(l => (l.id === activeDialogLayer.id ? { ...l, arcgisDrawingInfo: cleaned } : l)),
+                                  );
+                                } catch {
+                                  /* keep toggle usable even if renderer fetch fails */
+                                }
+                              })();
+                            }
+                          } else {
+                            updateSymbologyDraft({ useArcGisOnline: false });
                           }
                         }}
                       />
@@ -8202,148 +8233,320 @@ export default function SatelliteIntelligence() {
                       <div className="gis-style-info">
                         ArcGIS renderer preview is enabled. Uncheck &quot;Use ArcGIS Online symbology&quot; to configure custom styles.
                       </div>
-                      <div className="gis-style-card" aria-label="ArcGIS visualization">
-                        <div className="gis-style-grid">
-                          <div className="gis-style-field">
-                            <div className="gis-style-label">Style</div>
-                            <div className="gis-style-readonly" title="From ArcGIS layer renderer">
-                              {activeDialogLayer.arcgisDrawingInfo
-                                ? inferArcgisStyleLabel(activeDialogLayer.arcgisDrawingInfo as Record<string, unknown>)
-                                : 'Loading or unavailable — sync the layer if symbols look wrong.'}
+                      {(() => {
+                        const renderer =
+                          (activeDialogLayer.arcgisDrawingInfo as any)?.renderer ??
+                          (activeDialogLayer.arcgisLayerDefinition as any)?.drawingInfo?.renderer;
+                        const visLabel = describeArcGisRendererVisualization(renderer);
+                        const styleLabel =
+                          symbologyDraft.style === 'unique'
+                            ? 'Types (unique symbols)'
+                            : symbologyDraft.style === 'color_size'
+                              ? 'Counts and Amounts (color + size)'
+                              : symbologyDraft.style === 'size'
+                                ? 'Counts and Amounts (size)'
+                                : symbologyDraft.style === 'dot_density'
+                                  ? 'Dot density'
+                                  : symbologyDraft.style === 'threshold_markers'
+                                    ? 'Single symbol + threshold markers'
+                                    : 'Counts and Amounts (color)';
+                        return (
+                          <div className="gis-style-card" aria-label="ArcGIS visualization">
+                            <div className="gis-style-grid">
+                              <div className="gis-style-field">
+                                <div className="gis-style-label">Visualization style</div>
+                                <div className="gis-style-readonly" title={visLabel}>
+                                  {renderer ? visLabel : 'Loading or unavailable — sync the layer if symbols look wrong.'}
+                                </div>
+                              </div>
+                              <div className="gis-style-field">
+                                <div className="gis-style-label">Linked custom style (when unchecked)</div>
+                                <div className="gis-style-readonly">
+                                  {styleLabel}
+                                  {symbologyDraft.field ? ` · ${symbologyDraft.field}` : ''}
+                                </div>
+                              </div>
                             </div>
+                            {renderer?.type === 'heatmap' ? (
+                              <div className="gis-style-info" style={{ marginTop: 10 }}>
+                                Heatmap renderers are not reproduced on this Mapbox map; use custom styles or a heatmap-capable client for this
+                                visualization.
+                              </div>
+                            ) : null}
                           </div>
-                          <div className="gis-style-field">
-                            <div className="gis-style-label">Attribute (categorical)</div>
-                            <div className="gis-style-readonly" title="Renderer field from ArcGIS drawingInfo">
-                              {arcgisSymbologyField || '—'}
-                            </div>
-                          </div>
-                        </div>
-                      </div>
+                        );
+                      })()}
                     </>
                   ) : (
-                    <>
-                      <div className="gis-style-card">
-                        <div className="gis-style-grid">
-                          <div className="gis-style-field">
-                            <div className="gis-style-label">Style</div>
-                            <div className="gis-style-selectwrap">
-                              <select
-                                className="gis-style-select"
-                                value={symbologyDraft.style}
-                                onChange={e =>
-                                  setSymbologyDraft(prev => ({
-                                    ...prev,
-                                    style: e.target.value as LayerStyleMode,
-                                  }))
-                                }
-                              >
-                                <option value="single">Single symbol</option>
-                                <option value="classified">Types (unique symbols)</option>
-                              </select>
-                              <i className="fa-solid fa-chevron-down" aria-hidden="true" />
-                            </div>
-                          </div>
-                          <div className="gis-style-field">
-                            <div className="gis-style-label">Attribute (categorical)</div>
-                            <div className="gis-style-selectwrap">
-                              <select className="gis-style-select" value={arcgisSymbologyField || ''} disabled>
-                                <option value={arcgisSymbologyField || ''}>{arcgisSymbologyField || '—'}</option>
-                              </select>
-                              <i className="fa-solid fa-chevron-down" aria-hidden="true" />
-                            </div>
-                          </div>
-                          {symbologyDraft.style === 'single' ? (
-                            <div className="gis-style-field">
-                              <div className="gis-style-label">Color</div>
-                              <input
-                                type="color"
-                                className="gis-style-input"
-                                value={symbologyDraft.color}
-                                onChange={e => setSymbologyDraft(prev => ({ ...prev, color: e.target.value }))}
-                              />
-                            </div>
-                          ) : (
-                            <>
+                    (() => {
+                      const allFields = getGeoJsonFields(activeDialogLayer.geojson);
+                      const numericFields = getNumericFields(activeDialogLayer.geojson);
+                      const ctx = siSymbologyCtx;
+                      const geometryKind = ctx?.geometryKind ?? getLayerGeometryKind(activeDialogLayer.geojson);
+                      const isUnique = symbologyDraft.style === 'unique';
+                      const classes = clampInt(symbologyDraft.classes, 2, 12);
+                      const showColor =
+                        symbologyDraft.style === 'color' ||
+                        symbologyDraft.style === 'color_size' ||
+                        (isUnique && geometryKind !== 'line');
+                      const showSize = symbologyDraft.style === 'size' || symbologyDraft.style === 'color_size';
+                      const showMethod =
+                        symbologyDraft.style !== 'unique' && symbologyDraft.style !== 'threshold_markers';
+                      const showClasses = true;
+                      const arcDef = activeDialogLayer.arcgisLayerDefinition ?? null;
+                      const fieldsByLower = buildArcFieldsByLower(arcDef);
+                      const fieldNm = symbologyDraft.field;
+                      const layerFeatures = Array.isArray((activeDialogLayer.geojson as any)?.features)
+                        ? ((activeDialogLayer.geojson as any).features as any[])
+                        : [];
+                      const uniqueLegendLabel = (val: string) => {
+                        if (!fieldNm) return val;
+                        const rep = layerFeatures.find((f: any) => {
+                          const r = f?.properties?.[fieldNm];
+                          if (r === null || r === undefined || r === '') return false;
+                          return String(r) === val;
+                        });
+                        if (rep && arcDef) {
+                          const raw = rep.properties?.[fieldNm];
+                          return (
+                            getArcDisplayValue(rep, fieldNm, raw, arcDef, fieldsByLower, 'description').display || val
+                          );
+                        }
+                        if (arcDef) return arcLegendLabelForFieldValue(fieldNm, val, arcDef, fieldsByLower);
+                        return val;
+                      };
+                      const legendItems = (() => {
+                        const items: Array<{
+                          label: string;
+                          kind: 'line' | 'point' | 'polygon';
+                          color: string;
+                          width: number;
+                          dash?: string;
+                          fill?: string;
+                        }> = [];
+                        if (!ctx) return items;
+                        const baseStroke = activeDialogLayer.color || '#22c55e';
+                        const baseWeight = 2;
+                        const kind: 'line' | 'point' | 'polygon' =
+                          geometryKind === 'polygon' ? 'polygon' : geometryKind === 'point' ? 'point' : 'line';
+                        if (symbologyDraft.style === 'unique') {
+                          if (kind === 'line') {
+                            const vals = ctx.categories.length ? ctx.categories : Object.keys(ctx.uniqueDashes);
+                            vals.slice(0, 12).forEach(val => {
+                              items.push({
+                                label: uniqueLegendLabel(val),
+                                kind,
+                                color: baseStroke,
+                                width: baseWeight,
+                                dash: ctx.uniqueDashes[val] ?? '',
+                              });
+                            });
+                            if (vals.length === 0) items.push({ label: 'No values', kind, color: baseStroke, width: baseWeight });
+                            return items;
+                          }
+                          const vals = ctx.categories.length ? ctx.categories : Object.keys(ctx.categoryColors);
+                          vals.slice(0, 12).forEach(val => {
+                            const fill = ctx.categoryColors[val] ?? ctx.otherColor;
+                            items.push({
+                              label: uniqueLegendLabel(val),
+                              kind,
+                              color: darkenColor(fill, 0.25),
+                              width: baseWeight,
+                              fill,
+                            });
+                          });
+                          if (vals.length === 0)
+                            items.push({ label: 'No values', kind, color: baseStroke, width: baseWeight, fill: baseStroke });
+                          return items;
+                        }
+                        if (symbologyDraft.style === 'threshold_markers') {
+                          items.push({ label: 'Base', kind, color: baseStroke, width: baseWeight });
+                          items.push({
+                            label: `Marker ≥ ${ctx.threshold.toFixed(2)}`,
+                            kind: 'point',
+                            color: '#ef4444',
+                            width: 4,
+                            fill: '#ef4444',
+                          });
+                          return items;
+                        }
+                        const breaks = ctx.breaks;
+                        for (let i = 0; i < Math.min(classes, breaks.length - 1); i += 1) {
+                          const a = breaks[i];
+                          const b = breaks[i + 1];
+                          const label = `${a.toFixed(2)} – ${b.toFixed(2)}`;
+                          const color = showColor ? ctx.colors[i] ?? baseStroke : baseStroke;
+                          const width = showSize ? ctx.widths[i] ?? baseWeight : baseWeight;
+                          const dash = symbologyDraft.style === 'dot_density' ? ctx.dotDashes[i] : undefined;
+                          if (kind === 'polygon') {
+                            const fill = showColor ? color : baseStroke;
+                            items.push({ label, kind, color: darkenColor(fill, 0.25), width, dash, fill });
+                          } else if (kind === 'point') {
+                            const fill = showColor ? color : baseStroke;
+                            items.push({ label, kind, color: darkenColor(fill, 0.25), width, dash, fill });
+                          } else {
+                            items.push({ label, kind, color, width, dash });
+                          }
+                        }
+                        return items;
+                      })();
+
+                      return (
+                        <>
+                          <div className="gis-style-card">
+                            <div className="gis-style-grid">
                               <div className="gis-style-field">
-                                <div className="gis-style-label">Color ramp</div>
+                                <div className="gis-style-label">Style</div>
                                 <div className="gis-style-selectwrap">
                                   <select
                                     className="gis-style-select"
-                                    value={symbologyDraft.colorRamp === 'service' ? 'viridis' : symbologyDraft.colorRamp}
-                                    onChange={e =>
-                                      setSymbologyDraft(prev => ({
-                                        ...prev,
-                                        colorRamp: e.target.value as SymbologyColorRamp,
-                                      }))
-                                    }
+                                    value={symbologyDraft.style}
+                                    onChange={e => updateSymbologyDraft({ style: e.target.value as SymbologyStyle })}
                                   >
-                                    <option value="viridis">Viridis</option>
-                                    <option value="green">Green</option>
-                                    <option value="warm">Warm</option>
+                                    <option value="unique">Types (unique symbols)</option>
+                                    <option value="color">Counts and Amounts (color)</option>
+                                    <option value="size">Counts and Amounts (size)</option>
+                                    <option value="color_size">Counts and Amounts (color + size)</option>
+                                    <option value="dot_density">Dot density</option>
+                                    <option value="threshold_markers">Single symbol + threshold markers</option>
                                   </select>
                                   <i className="fa-solid fa-chevron-down" aria-hidden="true" />
                                 </div>
                               </div>
+
                               <div className="gis-style-field">
-                                <div className="gis-style-label">Max categories</div>
+                                <div className="gis-style-label">{isUnique ? 'Attribute (categorical)' : 'Attribute (numeric)'}</div>
                                 <div className="gis-style-selectwrap">
                                   <select
                                     className="gis-style-select"
-                                    value={
-                                      arcgisMaxCategoryOptions.includes(symbologyDraft.arcgisMaxCategories)
-                                        ? String(symbologyDraft.arcgisMaxCategories)
-                                        : String(arcgisMaxCategoryOptions[arcgisMaxCategoryOptions.length - 1] ?? 8)
-                                    }
-                                    onChange={e => setSymbologyDraft(prev => ({ ...prev, arcgisMaxCategories: Number(e.target.value) }))}
+                                    value={symbologyDraft.field}
+                                    onChange={e => updateSymbologyDraft({ field: e.target.value })}
                                   >
-                                    {arcgisMaxCategoryOptions.map(n => (
-                                      <option key={n} value={String(n)}>
-                                        {n}
+                                    {isUnique ? (
+                                      allFields.length ? null : (
+                                        <option value="">No fields</option>
+                                      )
+                                    ) : numericFields.length ? null : (
+                                      <option value="">No numeric fields</option>
+                                    )}
+                                    {(isUnique ? allFields : numericFields).map(f => (
+                                      <option key={f} value={f}>
+                                        {f}
                                       </option>
                                     ))}
                                   </select>
                                   <i className="fa-solid fa-chevron-down" aria-hidden="true" />
                                 </div>
                               </div>
-                              <div className="gis-style-field">
-                                <div className="gis-style-label">Method</div>
-                                <div className="gis-style-selectwrap">
-                                  <select
-                                    className="gis-style-select"
-                                    value={symbologyDraft.method}
-                                    onChange={e =>
-                                      setSymbologyDraft(prev => ({ ...prev, method: e.target.value as LayerClassMethod }))
-                                    }
-                                  >
-                                    <option value="natural-breaks">Natural breaks</option>
-                                    <option value="equal-interval">Equal interval</option>
-                                  </select>
-                                  <i className="fa-solid fa-chevron-down" aria-hidden="true" />
-                                </div>
-                              </div>
-                            </>
-                          )}
-                        </div>
-                      </div>
 
-                      <div className="gis-style-card gis-style-card-legend">
-                        <div className="gis-style-legend">
-                          {arcgisSymbologyLegendRows.length ? (
-                            arcgisSymbologyLegendRows.map((row, i) => (
-                              <div key={`${row.label}-${i}`} className="gis-style-legend-row">
-                                <svg width="62" height="14" viewBox="0 0 62 14" aria-hidden="true">
-                                  <rect x="18" y="2" width="26" height="10" rx="3" fill={row.color} stroke="#334155" strokeWidth="1.5" />
-                                </svg>
-                                <div className="gis-style-legend-text">{row.label || `Class ${i + 1}`}</div>
-                              </div>
-                            ))
-                          ) : (
-                            <div className="gis-style-info">No legend classes in this renderer.</div>
-                          )}
-                        </div>
-                      </div>
-                    </>
+                              {showColor ? (
+                                <div className="gis-style-field">
+                                  <div className="gis-style-label">Color ramp</div>
+                                  <div className="gis-style-selectwrap">
+                                    <select
+                                      className="gis-style-select"
+                                      value={symbologyDraft.colorRamp}
+                                      onChange={e => updateSymbologyDraft({ colorRamp: e.target.value as SymbologyColorRamp })}
+                                    >
+                                      <option value="viridis">Viridis</option>
+                                      <option value="blues">Blues</option>
+                                      <option value="greens">Greens</option>
+                                      <option value="plasma">Plasma</option>
+                                      <option value="magma">Magma</option>
+                                      <option value="turbo">Turbo</option>
+                                    </select>
+                                    <i className="fa-solid fa-chevron-down" aria-hidden="true" />
+                                  </div>
+                                </div>
+                              ) : null}
+
+                              {showClasses ? (
+                                <div className="gis-style-field">
+                                  <div className="gis-style-label">{isUnique ? 'Max categories' : 'Classes'}</div>
+                                  <div className="gis-style-selectwrap">
+                                    <select
+                                      className="gis-style-select"
+                                      value={String(classes)}
+                                      onChange={e => updateSymbologyDraft({ classes: parseInt(e.target.value, 10) })}
+                                    >
+                                      {[2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map(n => (
+                                        <option key={n} value={String(n)}>
+                                          {n}
+                                        </option>
+                                      ))}
+                                    </select>
+                                    <i className="fa-solid fa-chevron-down" aria-hidden="true" />
+                                  </div>
+                                </div>
+                              ) : null}
+
+                              {showMethod ? (
+                                <div className="gis-style-field">
+                                  <div className="gis-style-label">Method</div>
+                                  <div className="gis-style-selectwrap">
+                                    <select
+                                      className="gis-style-select"
+                                      value={symbologyDraft.method}
+                                      onChange={e => updateSymbologyDraft({ method: e.target.value as SymbologyClassMethod })}
+                                    >
+                                      <option value="jenks">Natural breaks</option>
+                                      <option value="quantile">Quantile</option>
+                                      <option value="equal_interval">Equal interval</option>
+                                    </select>
+                                    <i className="fa-solid fa-chevron-down" aria-hidden="true" />
+                                  </div>
+                                </div>
+                              ) : null}
+
+                              {symbologyDraft.style === 'threshold_markers' ? (
+                                <div className="gis-style-field">
+                                  <div className="gis-style-label">Threshold</div>
+                                  <input
+                                    className="gis-style-input"
+                                    type="number"
+                                    value={Number.isFinite(symbologyDraft.threshold) ? String(symbologyDraft.threshold) : ''}
+                                    onChange={e =>
+                                      updateSymbologyDraft({
+                                        threshold: e.target.value === '' ? Number.NaN : Number(e.target.value),
+                                      })
+                                    }
+                                    placeholder="Threshold"
+                                  />
+                                </div>
+                              ) : null}
+                            </div>
+                          </div>
+
+                          <div className="gis-style-card gis-style-card-legend">
+                            <div className="gis-style-legend">
+                              {legendItems.map((it, idx) => (
+                                <div key={idx} className="gis-style-legend-row">
+                                  <svg width="62" height="14" viewBox="0 0 62 14" aria-hidden="true">
+                                    {it.kind === 'line' ? (
+                                      <line
+                                        x1="4"
+                                        y1="7"
+                                        x2="58"
+                                        y2="7"
+                                        stroke={it.color}
+                                        strokeWidth={it.width}
+                                        strokeLinecap="round"
+                                        strokeDasharray={it.dash || undefined}
+                                      />
+                                    ) : it.kind === 'polygon' ? (
+                                      <rect x="18" y="2" width="26" height="10" rx="3" fill={it.fill || it.color} stroke={it.color} strokeWidth="2" />
+                                    ) : (
+                                      <circle cx="31" cy="7" r="5" fill={it.fill || it.color} stroke={it.color} strokeWidth="2" />
+                                    )}
+                                  </svg>
+                                  <div className="gis-style-legend-text">{it.label}</div>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        </>
+                      );
+                    })()
                   )}
 
                   <div className="gis-style-footer">
