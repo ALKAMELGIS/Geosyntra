@@ -6223,9 +6223,6 @@ export default function SatelliteIntelligence() {
                     <div className="si-env-header-top">
                       <div>
                         <div className="si-env-title">Processing Options</div>
-                        <div className="si-env-imagery-date">
-                          Imagery date: {selectedDate.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}
-                        </div>
                       </div>
                       <button
                         type="button"

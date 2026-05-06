@@ -27,7 +27,7 @@
   --c-master: #475569;
   --c-admin: #059669;
   --c-utility-warm: #d97706;
-  --c-utility-accent: #7c3aed;
+  --c-utility-accent: #166534;
 }
 
 .navmenu {
@@ -342,8 +342,8 @@
 .nav-header-language .icon,
 .nav-item-language .icon {
   color: var(--c-utility-accent);
-  border-color: rgba(124, 58, 237, 0.26);
-  background: linear-gradient(155deg, rgba(124, 58, 237, 0.12), rgba(255, 255, 255, 0.94));
+  border-color: rgba(22, 101, 52, 0.28);
+  background: linear-gradient(155deg, rgba(22, 101, 52, 0.14), rgba(255, 255, 255, 0.94));
 }
 
 .nav-header-theme .icon,

@@ -2598,6 +2598,7 @@ main.content > .si-page {
   font-size: 13px;
   font-weight: 900;
   letter-spacing: -0.01em;
+  color: #ffffff;
 }
 
 .si-env-imagery-date {
@@ -6123,6 +6124,12 @@ input.si-explore-date-input-linked[type='date'] {
   gap: 10px;
 }
 
+/* AI Detection in GIS: fluid layout to prevent overlap in narrow side panel widths. */
+.si-env-panel.ai-detection-gis .si-field-analysis-date-row {
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+  gap: 10px;
+}
+
 .si-field-analysis-timeline-btn {
   display: inline-flex;
   align-items: center;
@@ -6216,6 +6223,13 @@ input.si-explore-date-input-linked[type='date'] {
 
 .si-netflora-input-picker .si-field-analysis-select {
   min-width: 0;
+  width: 100%;
+}
+
+.si-env-panel.ai-detection-gis .si-field-analysis-field input,
+.si-env-panel.ai-detection-gis .si-field-analysis-field select {
+  min-width: 0;
+  width: 100%;
 }
 
 .si-netflora-picker-btn {
@@ -6293,6 +6307,12 @@ input.si-explore-date-input-linked[type='date'] {
 
   .si-env-section-card .si-field-analysis {
     gap: 12px;
+  }
+}
+
+@media (max-width: 860px) {
+  .si-env-panel.ai-detection-gis .si-field-analysis-date-row {
+    grid-template-columns: 1fr;
   }
 }
 
