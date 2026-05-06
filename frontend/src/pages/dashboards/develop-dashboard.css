@@ -56,12 +56,69 @@
   backdrop-filter: blur(8px);
   border-radius: 28px;
   padding: 9px 24px 11px;
+  margin-top: -4px;
   display: flex;
   justify-content: space-between;
   align-items: center;
   flex-wrap: wrap;
   gap: 10px;
   box-shadow: 0 6px 14px rgba(0, 0, 0, 0.05);
+}
+
+.develop-dashboard-root .ddb-topbar-tools {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-inline-start: auto;
+  flex-wrap: wrap;
+}
+
+.develop-dashboard-root .ddb-topbar-tool {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 8px;
+  border-radius: 12px;
+  border: 1px solid rgba(148, 163, 184, 0.3);
+  background: #ffffff;
+  color: #475569;
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+
+.develop-dashboard-root .ddb-topbar-tool select {
+  border: 1px solid rgba(148, 163, 184, 0.35);
+  border-radius: 8px;
+  padding: 5px 7px;
+  font-size: 0.72rem;
+  color: #0f172a;
+  background: #fff;
+}
+
+.develop-dashboard-root .ddb-topbar-tool-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid rgba(148, 163, 184, 0.3);
+  background: #fff;
+  color: #334155;
+  border-radius: 12px;
+  padding: 7px 10px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.develop-dashboard-root .ddb-topbar-tool-btn:hover {
+  background: #f8fafc;
+  border-color: rgba(37, 99, 235, 0.35);
+  color: #1e40af;
+}
+
+.develop-dashboard-root .ddb-topbar-tool-btn--theme.is-active {
+  background: #0f172a;
+  border-color: #0f172a;
+  color: #f8fafc;
 }
 
 .develop-dashboard-root .ddb-brand h1 {
@@ -1696,42 +1753,34 @@
 
 /* Collapsed rail: Power BI-like vertical labeled strips (example #2 style) */
 .develop-dashboard-root .ddb-right-wrap:not(.is-open) .ddb-right-rail {
-  flex: 0 0 84px;
-  width: 84px;
+  flex: 0 0 90px;
+  width: 90px;
 }
 
 .develop-dashboard-root .ddb-right-wrap:not(.is-open) .ddb-right-rail-tab {
   position: relative;
-  gap: 0;
-  padding: 32px 6px 12px;
-  background: #ffffff;
-}
-
-.develop-dashboard-root .ddb-right-wrap:not(.is-open) .ddb-right-rail-tab::before {
-  content: "\00AB\00AB";
-  position: absolute;
-  top: 8px;
-  left: 50%;
-  transform: translateX(-50%);
-  font-size: 18px;
-  font-weight: 700;
-  line-height: 1;
-  color: #0f172a;
-  letter-spacing: -2px;
-  opacity: 0.95;
+  gap: 8px;
+  padding: 12px 8px;
+  background: linear-gradient(180deg, #ffffff 0%, #fafafa 100%);
 }
 
 .develop-dashboard-root .ddb-right-wrap:not(.is-open) .ddb-right-rail-icon-wrap {
-  display: none;
+  display: grid;
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  background: #ffffff;
+  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.06);
 }
 
 .develop-dashboard-root .ddb-right-wrap:not(.is-open) .ddb-right-rail-label {
   writing-mode: vertical-rl;
   transform: rotate(180deg);
-  font-size: 1.78rem;
-  font-weight: 700;
+  font-size: 1.02rem;
+  font-weight: 800;
   line-height: 1;
-  letter-spacing: 0;
+  letter-spacing: 0.02em;
   text-transform: none;
   color: #0f172a;
   max-width: none;
@@ -1747,8 +1796,18 @@
 }
 
 .develop-dashboard-root .ddb-right-wrap:not(.is-open) .ddb-right-rail-tab.is-active {
-  background: #ffffff;
+  background: linear-gradient(180deg, #ffffff 0%, #f8fbff 100%);
   box-shadow: inset 4px 0 0 var(--ddb-pbi-blue);
+}
+
+.develop-dashboard-root .ddb-right-wrap:not(.is-open) .ddb-right-rail-tab.is-active .ddb-right-rail-icon-wrap {
+  background: var(--ddb-pbi-blue-soft);
+  border-color: color-mix(in srgb, var(--ddb-pbi-blue) 35%, var(--ddb-pbi-border));
+}
+
+.develop-dashboard-root .ddb-right-wrap:not(.is-open) .ddb-right-rail-tab.is-active .ddb-right-rail-icon,
+.develop-dashboard-root .ddb-right-wrap:not(.is-open) .ddb-right-rail-tab.is-active .ddb-right-rail-icon::before {
+  color: var(--ddb-pbi-blue-dark);
 }
 
 .develop-dashboard-root .ddb-link-sheet-body {
@@ -1835,16 +1894,40 @@
   min-height: 0;
   display: flex;
   flex-direction: column;
-  gap: 14px;
-  background: #fff;
+  gap: 16px;
+  background:
+    radial-gradient(circle at 100% 0%, rgba(16, 185, 129, 0.06), transparent 34%),
+    radial-gradient(circle at 0% 100%, rgba(37, 99, 235, 0.05), transparent 30%),
+    #fff;
   border-radius: 28px;
-  padding: 18px;
+  padding: 20px;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.04);
   overflow-x: hidden;
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
   overscroll-behavior: contain;
   position: relative;
+}
+
+.develop-dashboard-root.ddb-theme-bw .ddb-canvas-workspace {
+  background:
+    radial-gradient(circle at 100% 0%, rgba(148, 163, 184, 0.08), transparent 32%),
+    radial-gradient(circle at 0% 100%, rgba(100, 116, 139, 0.06), transparent 30%),
+    #fff;
+}
+
+.develop-dashboard-root.ddb-theme-bw .ddb-visual-card--canvas {
+  border-color: rgba(148, 163, 184, 0.55);
+  box-shadow: 0 12px 34px rgba(15, 23, 42, 0.12);
+}
+
+.develop-dashboard-root.ddb-theme-bw .ddb-visual-card--canvas .ddb-visual-card__header,
+.develop-dashboard-root.ddb-theme-bw .ddb-visual-card--canvas .ddb-visual-card__statstrip {
+  filter: grayscale(1);
+}
+
+.develop-dashboard-root.ddb-theme-bw .ddb-visual-card--canvas canvas {
+  filter: grayscale(1) contrast(1.02);
 }
 
 .develop-dashboard-root .ddb-canvas-workspace--field-map {
@@ -2412,7 +2495,21 @@
   position: absolute;
   z-index: 2;
   margin: 0;
-  box-shadow: 0 8px 26px rgba(15, 23, 42, 0.08);
+  border: 1px solid rgba(226, 232, 240, 0.95);
+  background: rgba(255, 255, 255, 0.98);
+  box-shadow:
+    0 10px 30px rgba(15, 23, 42, 0.1),
+    0 1px 0 rgba(255, 255, 255, 0.9) inset;
+  transition:
+    box-shadow 0.2s ease,
+    border-color 0.2s ease;
+}
+
+.develop-dashboard-root .ddb-visual-card--canvas:hover {
+  border-color: rgba(148, 163, 184, 0.6);
+  box-shadow:
+    0 16px 40px rgba(15, 23, 42, 0.14),
+    0 1px 0 rgba(255, 255, 255, 0.92) inset;
 }
 
 .develop-dashboard-root .ddb-visual-card--canvas.ddb-visual-card--dragging {
@@ -2524,9 +2621,9 @@
   align-items: center;
   justify-content: space-between;
   gap: 10px;
-  padding: 12px 14px 10px;
+  padding: 12px 14px 11px;
   border-bottom: 1px solid rgba(226, 232, 240, 0.95);
-  background: linear-gradient(180deg, #fafcfb 0%, #fff 100%);
+  background: linear-gradient(180deg, #f8fbff 0%, #ffffff 100%);
   border-radius: 24px 24px 0 0;
 }
 
@@ -2584,12 +2681,12 @@
   flex-direction: row;
   align-items: center;
   justify-content: flex-start;
-  gap: 5px;
+  gap: 6px;
   flex-wrap: nowrap;
   overflow-x: auto;
   overflow-y: hidden;
-  padding: 10px 12px;
-  background: linear-gradient(180deg, #f1f5f9 0%, #f8fafc 100%);
+  padding: 9px 12px;
+  background: linear-gradient(180deg, #f6f9fc 0%, #f8fafc 100%);
   border-bottom: 1px solid rgba(226, 232, 240, 0.9);
   scrollbar-width: thin;
   scrollbar-color: rgba(44, 122, 74, 0.35) transparent;
@@ -2685,7 +2782,8 @@
 }
 
 .develop-dashboard-root .ddb-visual-card__body-pad {
-  padding: 0 14px 14px;
+  padding: 2px 14px 14px;
+  line-height: 1.5;
 }
 
 .develop-dashboard-root .ddb-visual-card__filter-panel {
@@ -2733,8 +2831,8 @@
   right: 12px;
   top: 48px;
   z-index: 20;
-  min-width: 200px;
-  padding: 6px;
+  min-width: 270px;
+  padding: 6px 4px;
   background: #fff;
   border-radius: 12px;
   border: 1px solid rgba(226, 232, 240, 0.95);
@@ -2742,21 +2840,84 @@
 }
 
 .develop-dashboard-root .ddb-visual-card__menu-item {
-  display: block;
+  display: flex;
+  align-items: center;
+  gap: 10px;
   width: 100%;
   text-align: left;
-  padding: 8px 10px;
+  padding: 9px 10px;
   border: none;
   border-radius: 8px;
   background: transparent;
-  font-size: 0.72rem;
-  color: #334155;
+  font-size: 0.78rem;
+  color: #1e293b;
   cursor: pointer;
+  font-weight: 500;
 }
 
 .develop-dashboard-root .ddb-visual-card__menu-item:hover {
-  background: rgba(31, 94, 58, 0.08);
-  color: var(--ddb-green-dark);
+  background: rgba(15, 23, 42, 0.06);
+  color: #0f172a;
+}
+
+.develop-dashboard-root .ddb-visual-card__menu-item > i:first-child {
+  width: 16px;
+  color: #475569;
+  text-align: center;
+  flex-shrink: 0;
+}
+
+.develop-dashboard-root .ddb-visual-card__menu-item > span {
+  flex: 1;
+  min-width: 0;
+}
+
+.develop-dashboard-root .ddb-visual-card__menu-chevron {
+  color: #64748b;
+  font-size: 0.7rem;
+}
+
+.develop-dashboard-root .ddb-visual-card__menu-sep {
+  height: 1px;
+  margin: 6px 8px;
+  background: rgba(226, 232, 240, 0.95);
+}
+
+.develop-dashboard-root .ddb-visual-card__menu-group {
+  position: relative;
+}
+
+.develop-dashboard-root .ddb-visual-card__submenu {
+  position: absolute;
+  top: 0;
+  left: calc(100% - 6px);
+  min-width: 230px;
+  padding: 6px;
+  background: #fff;
+  border: 1px solid rgba(226, 232, 240, 0.95);
+  border-radius: 12px;
+  box-shadow: 0 12px 32px rgba(15, 23, 42, 0.12);
+  opacity: 0;
+  pointer-events: none;
+  transform: translateX(6px);
+  transition: opacity 0.14s ease, transform 0.14s ease;
+}
+
+.develop-dashboard-root .ddb-visual-card__menu-group:hover .ddb-visual-card__submenu {
+  opacity: 1;
+  pointer-events: auto;
+  transform: translateX(0);
+}
+
+.develop-dashboard-root .ddb-visual-card__submenu .ddb-visual-card__menu-item {
+  font-size: 0.74rem;
+  color: #1e3a8a;
+}
+
+.develop-dashboard-root .ddb-visual-card__submenu .ddb-visual-card__menu-item.is-active {
+  background: #ecfdf5;
+  color: #065f46;
+  font-weight: 700;
 }
 
 .develop-dashboard-root .ddb-visual-card__stat-chip {
@@ -2772,12 +2933,19 @@
 
 .develop-dashboard-root .ddb-visual-title {
   font-size: 0.85rem;
-  font-weight: 700;
+  font-weight: 800;
   color: var(--ddb-green-dark);
-  margin-bottom: 12px;
+  margin-bottom: 10px;
   display: flex;
   align-items: center;
   gap: 8px;
+}
+
+@media (max-width: 900px) {
+  .develop-dashboard-root .ddb-canvas-workspace {
+    padding: 14px;
+    gap: 12px;
+  }
 }
 
 .develop-dashboard-root .ddb-charts-host canvas {

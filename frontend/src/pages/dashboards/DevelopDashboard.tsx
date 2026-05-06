@@ -521,15 +521,28 @@ function ddbPromoteVisualCardChrome(
   menu.className = 'ddb-visual-card__dropdown'
   menu.hidden = true
   menu.innerHTML = `
-    <button type="button" class="ddb-visual-card__menu-item" data-stat="sum">Aggregate: Sum</button>
-    <button type="button" class="ddb-visual-card__menu-item" data-stat="avg">Aggregate: Average (mean)</button>
-    <button type="button" class="ddb-visual-card__menu-item" data-stat="median">Aggregate: Median</button>
-    <button type="button" class="ddb-visual-card__menu-item" data-stat="min">Aggregate: Minimum</button>
-    <button type="button" class="ddb-visual-card__menu-item" data-stat="max">Aggregate: Maximum</button>
-    <button type="button" class="ddb-visual-card__menu-item" data-stat="range">Aggregate: Range (max − min)</button>
-    <button type="button" class="ddb-visual-card__menu-item" data-stat="std">Aggregate: Std dev (sample)</button>
-    <button type="button" class="ddb-visual-card__menu-item" data-stat="count">Aggregate: Count</button>
-    <button type="button" class="ddb-visual-card__menu-item" data-stat="reset">Reset aggregate chip</button>
+    <button type="button" class="ddb-visual-card__menu-item"><i class="fa-solid fa-file-export" aria-hidden="true"></i><span>Export data</span></button>
+    <button type="button" class="ddb-visual-card__menu-item"><i class="fa-regular fa-table-list" aria-hidden="true"></i><span>Show as a table</span></button>
+    <button type="button" class="ddb-visual-card__menu-item"><i class="fa-solid fa-xmark" aria-hidden="true"></i><span>Remove</span></button>
+    <button type="button" class="ddb-visual-card__menu-item"><i class="fa-regular fa-rectangle-history" aria-hidden="true"></i><span>Spotlight</span></button>
+    <button type="button" class="ddb-visual-card__menu-item"><i class="fa-solid fa-arrow-down-wide-short" aria-hidden="true"></i><span>Sort axis</span><i class="fa-solid fa-chevron-right ddb-visual-card__menu-chevron" aria-hidden="true"></i></button>
+    <button type="button" class="ddb-visual-card__menu-item"><i class="fa-solid fa-square-root-variable" aria-hidden="true"></i><span>New visual calculation (preview)</span><i class="fa-solid fa-chevron-right ddb-visual-card__menu-chevron" aria-hidden="true"></i></button>
+    <button type="button" class="ddb-visual-card__menu-item"><i class="fa-regular fa-badge-check" aria-hidden="true"></i><span>Set up a verified answer</span></button>
+    <div class="ddb-visual-card__menu-sep" aria-hidden="true"></div>
+    <div class="ddb-visual-card__menu-group">
+      <button type="button" class="ddb-visual-card__menu-item ddb-visual-card__menu-item--has-sub"><i class="fa-solid fa-chart-pie" aria-hidden="true"></i><span>Aggregate</span><i class="fa-solid fa-chevron-right ddb-visual-card__menu-chevron" aria-hidden="true"></i></button>
+      <div class="ddb-visual-card__submenu">
+        <button type="button" class="ddb-visual-card__menu-item is-active" data-stat="sum">Aggregate: Sum</button>
+        <button type="button" class="ddb-visual-card__menu-item" data-stat="avg">Aggregate: Average (mean)</button>
+        <button type="button" class="ddb-visual-card__menu-item" data-stat="median">Aggregate: Median</button>
+        <button type="button" class="ddb-visual-card__menu-item" data-stat="min">Aggregate: Minimum</button>
+        <button type="button" class="ddb-visual-card__menu-item" data-stat="max">Aggregate: Maximum</button>
+        <button type="button" class="ddb-visual-card__menu-item" data-stat="range">Aggregate: Range (max − min)</button>
+        <button type="button" class="ddb-visual-card__menu-item" data-stat="std">Aggregate: Std dev (sample)</button>
+        <button type="button" class="ddb-visual-card__menu-item" data-stat="count">Aggregate: Count</button>
+        <button type="button" class="ddb-visual-card__menu-item" data-stat="reset">Reset aggregate chip</button>
+      </div>
+    </div>
   `
   card.appendChild(menu)
 
@@ -1251,6 +1264,8 @@ export default function DevelopDashboard() {
   const [mapFlyout, setMapFlyout] = useState<MapFlyout>('none')
   const [mapAnalysisTab, setMapAnalysisTab] = useState<MapAnalysisTab>('measure')
   const [mapAccountTab, setMapAccountTab] = useState<MapAccountTab>('profile')
+  const [canvasLayoutPreset, setCanvasLayoutPreset] = useState<'balanced' | 'compact'>('balanced')
+  const [canvasBwTheme, setCanvasBwTheme] = useState(false)
   const [geoSearchQuery, setGeoSearchQuery] = useState('')
   const [geoSearchBusy, setGeoSearchBusy] = useState(false)
   const [geoSearchError, setGeoSearchError] = useState<string | null>(null)
@@ -1682,8 +1697,7 @@ export default function DevelopDashboard() {
       if (!hasLayerData) {
         const note = document.createElement('p')
         note.className = 'ddb-hint ddb-visual-placeholder-note'
-        note.textContent =
-          'Connect a data layer in Data, then assign axes or table columns to populate this visual. The chart shape stays on the canvas.'
+        note.textContent = ''
         chrome.header.after(note)
       }
 
@@ -1908,8 +1922,7 @@ export default function DevelopDashboard() {
         if (comboChrome && !hasLayerData) {
           const note = document.createElement('p')
           note.className = 'ddb-hint ddb-visual-placeholder-note'
-          note.textContent =
-            'Connect a data layer in Data, then assign axes or table columns to populate this visual. The chart shape stays on the canvas.'
+          note.textContent = ''
           comboChrome.header.after(note)
         }
         const ch = new Chart(canvas.getContext('2d')!, {
@@ -2679,15 +2692,110 @@ export default function DevelopDashboard() {
   const linkFieldsFrom = linkFrom ? layers[linkFrom]?.fields ?? [] : []
   const linkFieldsTo = linkTo ? layers[linkTo]?.fields ?? [] : []
 
+  const normalizeCanvasCardSizes = useCallback(() => {
+    const host = chartsHostRef.current
+    if (!host) return
+    const cards = Array.from(host.querySelectorAll<HTMLElement>(':scope > .ddb-visual-card--canvas'))
+    if (!cards.length) return
+    const targetH = canvasLayoutPreset === 'compact' ? 240 : 280
+    const all = ddbReadCanvasLayouts()
+    for (const card of cards) {
+      card.style.height = `${targetH}px`
+      const id = card.dataset.ddbInstanceId
+      if (!id) continue
+      const key = ddbCanvasLayoutKey(bindLayerKey, id)
+      const prev = all[key]
+      all[key] = {
+        left: prev?.left ?? (parseFloat(card.style.left) || 0),
+        top: prev?.top ?? (parseFloat(card.style.top) || 0),
+        width: prev?.width ?? (parseFloat(card.style.width) || 320),
+        height: targetH,
+      }
+    }
+    ddbWriteCanvasLayouts(all)
+    ddbReflowCanvasHost(host)
+    ddbResizeChartsInHost(host)
+  }, [bindLayerKey, canvasLayoutPreset])
+
+  const autoArrangeCanvasCards = useCallback(() => {
+    const host = chartsHostRef.current
+    if (!host) return
+    const cards = Array.from(host.querySelectorAll<HTMLElement>(':scope > .ddb-visual-card--canvas'))
+    if (!cards.length) return
+
+    const sorted = [...cards].sort((a, b) => {
+      const ta = parseFloat(a.style.top) || 0
+      const tb = parseFloat(b.style.top) || 0
+      if (ta !== tb) return ta - tb
+      return (parseFloat(a.style.left) || 0) - (parseFloat(b.style.left) || 0)
+    })
+
+    const gap: number = canvasLayoutPreset === 'compact' ? 10 : 14
+    const minCardW: number = canvasLayoutPreset === 'compact' ? 250 : 300
+    const hostW = Math.max(320, host.clientWidth || 320)
+    const cols = Math.max(1, Math.min(4, Math.floor((hostW + gap) / (minCardW + gap))))
+    const cardW = Math.max(220, Math.floor((hostW - gap * (cols + 1)) / cols))
+    const colHeights = Array.from({ length: cols }, () => gap)
+    const all = ddbReadCanvasLayouts()
+
+    for (const card of sorted) {
+      let col = 0
+      for (let i = 1; i < colHeights.length; i += 1) {
+        if (colHeights[i] < colHeights[col]) col = i
+      }
+      const left = gap + col * (cardW + gap)
+      const top = colHeights[col]
+      const h = Math.max(180, parseFloat(card.style.height) || card.getBoundingClientRect().height || 260)
+      card.style.left = `${left}px`
+      card.style.top = `${top}px`
+      card.style.width = `${cardW}px`
+      card.style.height = `${h}px`
+      colHeights[col] = top + h + gap
+
+      const id = card.dataset.ddbInstanceId
+      if (!id) continue
+      all[ddbCanvasLayoutKey(bindLayerKey, id)] = { left, top, width: cardW, height: h }
+    }
+
+    ddbWriteCanvasLayouts(all)
+    ddbReflowCanvasHost(host)
+    ddbResizeChartsInHost(host)
+  }, [bindLayerKey, canvasLayoutPreset])
+
   return (
     <>
-    <div className="page page-tight develop-dashboard-root">
+    <div className={`page page-tight develop-dashboard-root${canvasBwTheme ? ' ddb-theme-bw' : ''}`}>
       <div className="ddb-dashboard">
         <div className="ddb-topbar">
           <div className="ddb-brand">
             <h1>
               <i className="fa-solid fa-chart-line" aria-hidden /> Agro Cloud Analytics
             </h1>
+          </div>
+          <div className="ddb-topbar-tools" role="group" aria-label="Canvas layout and style tools">
+            <label className="ddb-topbar-tool ddb-topbar-tool--select">
+              <i className="fa-solid fa-object-group" aria-hidden />
+              <span>Layout</span>
+              <select value={canvasLayoutPreset} onChange={e => setCanvasLayoutPreset(e.target.value as 'balanced' | 'compact')}>
+                <option value="balanced">Balanced spacing</option>
+                <option value="compact">Compact spacing</option>
+              </select>
+            </label>
+            <button type="button" className="ddb-topbar-tool-btn" onClick={autoArrangeCanvasCards} title="Auto arrange charts in canvas">
+              <i className="fa-solid fa-table-cells-large" aria-hidden /> Auto Arrange
+            </button>
+            <button type="button" className="ddb-topbar-tool-btn" onClick={normalizeCanvasCardSizes} title="Normalize chart card sizes">
+              <i className="fa-solid fa-up-right-and-down-left-from-center" aria-hidden /> Normalize Size
+            </button>
+            <button
+              type="button"
+              className={`ddb-topbar-tool-btn ddb-topbar-tool-btn--theme${canvasBwTheme ? ' is-active' : ''}`}
+              onClick={() => setCanvasBwTheme(v => !v)}
+              title="Black and white canvas theme"
+              aria-pressed={canvasBwTheme}
+            >
+              <i className="fa-solid fa-circle-half-stroke" aria-hidden /> B/W Theme
+            </button>
           </div>
         </div>
 
@@ -3768,7 +3876,7 @@ export default function DevelopDashboard() {
               aria-label="Filters"
             >
               <span className="ddb-right-rail-icon-wrap" aria-hidden>
-                <i className="fa-solid fa-filter ddb-right-rail-icon" />
+                <i className="fa-solid fa-sliders ddb-right-rail-icon" />
               </span>
               <span className="ddb-right-rail-label">Filters</span>
             </button>
@@ -3780,7 +3888,7 @@ export default function DevelopDashboard() {
               aria-label="Visualizations"
             >
               <span className="ddb-right-rail-icon-wrap" aria-hidden>
-                <i className="fa-solid fa-chart-column ddb-right-rail-icon" />
+                <i className="fa-solid fa-chart-line ddb-right-rail-icon" />
               </span>
               <span className="ddb-right-rail-label">Charts</span>
             </button>
@@ -3792,7 +3900,7 @@ export default function DevelopDashboard() {
               aria-label="Build visual"
             >
               <span className="ddb-right-rail-icon-wrap" aria-hidden>
-                <i className="fa-solid fa-table-columns ddb-right-rail-icon" />
+                <i className="fa-solid fa-wand-magic-sparkles ddb-right-rail-icon" />
               </span>
               <span className="ddb-right-rail-label">Build</span>
             </button>
@@ -3804,7 +3912,7 @@ export default function DevelopDashboard() {
               aria-label="Data"
             >
               <span className="ddb-right-rail-icon-wrap" aria-hidden>
-                <i className="fa-solid fa-database ddb-right-rail-icon" />
+                <i className="fa-solid fa-folder-tree ddb-right-rail-icon" />
               </span>
               <span className="ddb-right-rail-label">Data</span>
             </button>
@@ -3816,7 +3924,7 @@ export default function DevelopDashboard() {
               aria-label="Link Layers (Relation)"
             >
               <span className="ddb-right-rail-icon-wrap" aria-hidden>
-                <i className="fa-solid fa-link ddb-right-rail-icon" />
+                <i className="fa-solid fa-diagram-project ddb-right-rail-icon" />
               </span>
               <span className="ddb-right-rail-label ddb-right-rail-label--stack">
                 <span>Link</span>

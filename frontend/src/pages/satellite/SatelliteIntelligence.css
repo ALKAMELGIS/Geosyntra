@@ -6090,6 +6090,7 @@ input.si-explore-date-input-linked[type='date'] {
   display: flex;
   flex-direction: column;
   gap: 6px;
+  min-width: 0;
 }
 
 .si-field-analysis-field--labeled {
@@ -6118,7 +6119,7 @@ input.si-explore-date-input-linked[type='date'] {
 
 .si-field-analysis-date-row {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 10px;
 }
 
@@ -6202,6 +6203,7 @@ input.si-explore-date-input-linked[type='date'] {
 
 .si-netflora-grid {
   align-items: end;
+  row-gap: 10px;
 }
 
 .si-netflora-input-picker {
@@ -6209,6 +6211,11 @@ input.si-explore-date-input-linked[type='date'] {
   grid-template-columns: minmax(0, 1fr) auto;
   gap: 8px;
   align-items: center;
+  min-width: 0;
+}
+
+.si-netflora-input-picker .si-field-analysis-select {
+  min-width: 0;
 }
 
 .si-netflora-picker-btn {
@@ -6276,6 +6283,17 @@ input.si-explore-date-input-linked[type='date'] {
   display: grid;
   grid-template-columns: 1fr;
   gap: 8px;
+}
+
+@media (max-width: 640px) {
+  .si-field-analysis-date-row {
+    grid-template-columns: 1fr;
+    gap: 9px;
+  }
+
+  .si-env-section-card .si-field-analysis {
+    gap: 12px;
+  }
 }
 
 .si-netflora-stats-grid {

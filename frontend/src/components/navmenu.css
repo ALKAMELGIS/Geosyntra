@@ -430,8 +430,6 @@
   white-space: nowrap;
 }
 
-.navmenu-collapsed > .navmenu-list > .group:hover > .sublist,
-.navmenu-collapsed > .navmenu-list > .group:focus-within > .sublist,
 .navmenu-collapsed > .navmenu-list > .group.open > .sublist {
   display: flex;
 }
