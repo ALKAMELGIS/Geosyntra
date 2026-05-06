@@ -515,7 +515,7 @@ function ddbPromoteVisualCardChrome(
   const actions = document.createElement('div')
   actions.className = 'ddb-visual-card__actions'
   actions.innerHTML = `
-    <button type="button" class="ddb-visual-card__icon-btn" data-ddb-card-act="chartType" title="Chart types" aria-label="Chart types"><i class="fa-solid fa-shapes"></i></button>
+    <button type="button" class="ddb-visual-card__icon-btn" data-ddb-card-act="chartType" title="Chart types" aria-label="Chart types" aria-expanded="false"><i class="fa-solid fa-shapes"></i></button>
     <button type="button" class="ddb-visual-card__icon-btn" data-ddb-card-act="filter" title="Filter" aria-label="Filter"><i class="fa-solid fa-filter"></i></button>
     <button type="button" class="ddb-visual-card__icon-btn" data-ddb-card-act="focus" title="Focus mode" aria-label="Focus mode"><i class="fa-solid fa-expand"></i></button>
     <button type="button" class="ddb-visual-card__icon-btn" data-ddb-card-act="more" title="More options" aria-label="More options"><i class="fa-solid fa-ellipsis"></i></button>
@@ -641,18 +641,28 @@ function ddbPromoteVisualCardChrome(
     e.stopPropagation()
     if (!chartTypeMenu) return
     chartTypeMenu.hidden = !chartTypeMenu.hidden
+    const btn = actions.querySelector('[data-ddb-card-act="chartType"]') as HTMLButtonElement | null
+    if (btn) btn.setAttribute('aria-expanded', chartTypeMenu.hidden ? 'false' : 'true')
     filterPanel.hidden = true
     menu.hidden = true
   })
   actions.querySelector('[data-ddb-card-act="filter"]')?.addEventListener('click', () => {
     filterPanel.hidden = !filterPanel.hidden
     menu.hidden = true
-    if (chartTypeMenu) chartTypeMenu.hidden = true
+    if (chartTypeMenu) {
+      chartTypeMenu.hidden = true
+      const btn = actions.querySelector('[data-ddb-card-act="chartType"]') as HTMLButtonElement | null
+      if (btn) btn.setAttribute('aria-expanded', 'false')
+    }
   })
   actions.querySelector('[data-ddb-card-act="more"]')?.addEventListener('click', () => {
     menu.hidden = !menu.hidden
     filterPanel.hidden = true
-    if (chartTypeMenu) chartTypeMenu.hidden = true
+    if (chartTypeMenu) {
+      chartTypeMenu.hidden = true
+      const btn = actions.querySelector('[data-ddb-card-act="chartType"]') as HTMLButtonElement | null
+      if (btn) btn.setAttribute('aria-expanded', 'false')
+    }
   })
 
   menu.querySelector('[data-action="bringFront"]')?.addEventListener('click', () => {
@@ -1944,6 +1954,8 @@ export default function DevelopDashboard() {
           if (!k) return
           rebuild(k)
           chartTypeMenu.hidden = true
+          const toggleBtn = chrome.actions.querySelector('[data-ddb-card-act="chartType"]') as HTMLButtonElement | null
+          if (toggleBtn) toggleBtn.setAttribute('aria-expanded', 'false')
         })
       })
 
