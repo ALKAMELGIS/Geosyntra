@@ -38,7 +38,7 @@
   flex: 1;
   min-height: 0;
   gap: 14px;
-  padding: 14px;
+  padding: 10px 14px 14px;
 }
 
 .develop-dashboard-root .ddb-dashboard-body {
@@ -55,7 +55,7 @@
   background: rgba(255, 255, 255, 0.94);
   backdrop-filter: blur(8px);
   border-radius: 28px;
-  padding: 12px 24px;
+  padding: 9px 24px 11px;
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -2510,6 +2510,16 @@
 .develop-dashboard-root .ddb-visual-card__icon-btn:hover i,
 .develop-dashboard-root .ddb-visual-card__icon-btn:hover i::before {
   color: var(--ddb-green-dark);
+}
+
+.develop-dashboard-root .ddb-visual-card__icon-btn--close:hover {
+  background: rgba(220, 38, 38, 0.09);
+  color: #b91c1c;
+}
+
+.develop-dashboard-root .ddb-visual-card__icon-btn--close:hover i,
+.develop-dashboard-root .ddb-visual-card__icon-btn--close:hover i::before {
+  color: #b91c1c;
 }
 
 .develop-dashboard-root .ddb-visual-card__statstrip {

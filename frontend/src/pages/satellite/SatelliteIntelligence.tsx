@@ -1707,7 +1707,6 @@ export default function SatelliteIntelligence() {
   const [exploreResultsSortDesc, setExploreResultsSortDesc] = useState(true);
   const [exploreSelectedResultKeys, setExploreSelectedResultKeys] = useState<string[]>([]);
   const [stacAddToMenuKey, setStacAddToMenuKey] = useState<string | null>(null);
-  const [stacMosaicStaging, setStacMosaicStaging] = useState<any[]>([]);
   const [showStacFootprintsOnMap, setShowStacFootprintsOnMap] = useState(false);
   const [isWmsOverlayVisible, setIsWmsOverlayVisible] = useState(true);
   const [stacMapThumb, setStacMapThumb] = useState<null | { url: string; coordinates: [[number, number], [number, number], [number, number], [number, number]] }>(
@@ -1805,7 +1804,7 @@ export default function SatelliteIntelligence() {
   const [drawnGeometry, setDrawnGeometry] = useState<any | null>(null);
   const [drawnStats, setDrawnStats] = useState<DrawnAoiStats | null>(null);
   const [expandedEnvSection, setExpandedEnvSection] = useState<
-    'source' | 'layers' | 'explore-stac' | 'remote-sensing' | 'table-geo-ai'
+    'source' | 'layers' | 'explore-stac' | 'remote-sensing' | 'ai-detection-gis' | 'table-geo-ai'
   >('source');
   const [geoExplorerMessages, setGeoExplorerMessages] = useState<GeoExplorerMessage[]>([]);
   const [geoExplorerDraft, setGeoExplorerDraft] = useState('');
@@ -3257,72 +3256,23 @@ export default function SatelliteIntelligence() {
     setStacStatus('Opened new map tab (scene will zoom when the map loads).');
   };
 
-  const addStacToGlobalScene = async (item: any) => {
+  const downloadStacExploreItem = (item: any) => {
     closeStacAddMenu();
-    setProcessingTargetStacItem(item);
-    setShowStacFootprintsOnMap(true);
-    siGlobeWebglFailoverRef.current = false;
-    setIs3DView(true);
-    window.setTimeout(() => {
-      const map = mapRef.current?.getMap?.() ?? mapRef.current;
-      try {
-        map?.setProjection?.({ name: 'globe' });
-      } catch {
-        /* ignore */
-      }
-      flyToStacItemExtent(item);
-      window.setTimeout(() => {
-        try {
-          map?.easeTo?.({ pitch: 58, duration: 650 });
-        } catch {
-          /* ignore */
-        }
-      }, 800);
-    }, 150);
-    await showStacItemThumbOnMap(item);
-    setStacStatus('Add to new global scene (globe).');
-  };
-
-  const addStacToLocalScene = async (item: any) => {
-    closeStacAddMenu();
-    setProcessingTargetStacItem(item);
-    setShowStacFootprintsOnMap(true);
-    setIs3DView(false);
-    window.setTimeout(() => {
-      const map = mapRef.current?.getMap?.() ?? mapRef.current;
-      try {
-        map?.setProjection?.({ name: 'mercator' });
-      } catch {
-        /* ignore */
-      }
-      const geom = stacItemFootprintGeometry(item);
-      const b = geom ? getGeoJsonBounds({ type: 'Feature', geometry: geom, properties: {} }) : null;
-      if (map && b) {
-        map.fitBounds(
-          [
-            [b[0], b[1]],
-            [b[2], b[3]],
-          ],
-          { padding: 72, duration: 900, pitch: 50, bearing: 0 },
-        );
-      }
-    }, 150);
-    await showStacItemThumbOnMap(item);
-    setStacStatus('Add to new local scene (tilted mercator).');
-  };
-
-  const addStacToMosaicStaging = (item: any) => {
-    closeStacAddMenu();
-    const k = stacItemStableKey(item);
-    setStacMosaicStaging(prev => {
-      if (prev.some(x => stacItemStableKey(x) === k)) {
-        setStacStatus('Already in mosaic dataset list.');
-        return prev;
-      }
-      const next = [...prev, item];
-      setStacStatus(`Mosaic dataset (staging): ${next.length} scene(s). Export or use ArcGIS Pro for production mosaic.`);
-      return next;
-    });
+    const collRaw = getStacItemCollection(item);
+    const idRaw = item?.id != null ? String(item.id) : 'item';
+    const safe = (s: string) =>
+      s
+        .trim()
+        .replace(/[<>:"/\\|?*\x00-\x1F]/g, '_')
+        .replace(/\s+/g, '_')
+        .slice(0, 96) || 'item';
+    const filename = `stac-item_${safe(collRaw)}_${safe(idRaw)}.json`;
+    try {
+      downloadTextFile(filename, JSON.stringify(item, null, 2), 'application/json');
+      setStacStatus(`Downloaded STAC item: ${filename}`);
+    } catch (e) {
+      setStacStatus(e instanceof Error ? e.message : 'Download failed.');
+    }
   };
 
   useEffect(() => {
@@ -6005,7 +5955,7 @@ export default function SatelliteIntelligence() {
                   </div>
                   <div className="si-env-panel-body">
                     <div
-                      className="si-env-section-tabs si-env-section-tabs--four"
+                      className="si-env-section-tabs si-env-section-tabs--five"
                       role="tablist"
                       aria-label="Environmental Index sections"
                     >
@@ -6016,6 +5966,11 @@ export default function SatelliteIntelligence() {
                           id: 'remote-sensing' as const,
                           label: 'Remote sensing',
                           icon: 'fa-solid fa-satellite-dish',
+                        },
+                        {
+                          id: 'ai-detection-gis' as const,
+                          label: 'AI Detection in GIS',
+                          icon: 'fa-solid fa-magnifying-glass-location',
                         },
                         {
                           id: 'table-geo-ai' as const,
@@ -6516,12 +6471,6 @@ export default function SatelliteIntelligence() {
                     </div>
                     <span className="si-explore-results-count si-explore-results-count--inline">
                       {exploreSortedStacItems.length} items
-                      {stacMosaicStaging.length > 0 ? (
-                        <span className="si-explore-mosaic-chip" title="Scenes staged for mosaic">
-                          {' '}
-                          · mosaic {stacMosaicStaging.length}
-                        </span>
-                      ) : null}
                     </span>
                     <div className="si-explore-results-toolbar-spacer" />
                     <button
@@ -6650,32 +6599,10 @@ export default function SatelliteIntelligence() {
                                             type="button"
                                             role="menuitem"
                                             className="si-explore-add-menu-item"
-                                            onClick={() => void addStacToGlobalScene(item)}
+                                            onClick={() => downloadStacExploreItem(item)}
                                           >
-                                            <i className="fa-solid fa-globe" aria-hidden />
-                                            Add to New Global Scene
-                                          </button>
-                                        </li>
-                                        <li role="none">
-                                          <button
-                                            type="button"
-                                            role="menuitem"
-                                            className="si-explore-add-menu-item"
-                                            onClick={() => void addStacToLocalScene(item)}
-                                          >
-                                            <i className="fa-solid fa-mountain" aria-hidden />
-                                            Add to New Local Scene
-                                          </button>
-                                        </li>
-                                        <li role="none">
-                                          <button
-                                            type="button"
-                                            role="menuitem"
-                                            className="si-explore-add-menu-item"
-                                            onClick={() => addStacToMosaicStaging(item)}
-                                          >
-                                            <i className="fa-solid fa-layer-group" aria-hidden />
-                                            Add to Mosaic Dataset
+                                            <i className="fa-solid fa-download" aria-hidden />
+                                            Download
                                           </button>
                                         </li>
                                       </ul>
@@ -7029,6 +6956,27 @@ export default function SatelliteIntelligence() {
 
                         <p className="si-field-analysis-footer-hint">Click on a field to view details.</p>
                         {fieldAnalysisStatus ? <p className="si-field-analysis-status">{fieldAnalysisStatus}</p> : null}
+                      </div>
+                    )}
+                    {expandedEnvSection === 'ai-detection-gis' && (
+                      <div className="si-env-section-card si-field-analysis">
+                        <div className="si-field-analysis-header">
+                          <h2 className="si-field-analysis-title">AI Detection in GIS</h2>
+                          <button
+                            type="button"
+                            className="si-field-analysis-close"
+                            onClick={() => setIsLayerDropdownOpen(false)}
+                            aria-label="Close panel"
+                          >
+                            <i className="fa-solid fa-xmark" aria-hidden />
+                          </button>
+                        </div>
+                        <div className="si-field-analysis-section">
+                          <p className="si-field-analysis-hint" style={{ marginTop: 0 }}>
+                            Run model-assisted detection on the map context (features, imagery layers, and AOI). Workflow and
+                            model endpoints will plug in here; use Geo AI for grounded Q&A on saved GIS data in the meantime.
+                          </p>
+                        </div>
                       </div>
                     )}
                     {expandedEnvSection === 'table-geo-ai' && (

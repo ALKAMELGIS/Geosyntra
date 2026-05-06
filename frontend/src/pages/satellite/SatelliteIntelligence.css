@@ -2699,6 +2699,10 @@ main.content > .si-page {
   grid-template-columns: repeat(4, minmax(0, 1fr));
 }
 
+.si-env-section-tabs--five {
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+}
+
 .si-env-section-tabs button {
   min-width: 0;
   min-height: 40px;
@@ -4809,6 +4813,20 @@ input:checked + .slider:before {
 
   .si-env-panel .si-env-section-tabs.si-env-section-tabs--four button i {
     font-size: 13px;
+  }
+
+  .si-env-panel .si-env-section-tabs.si-env-section-tabs--five {
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    gap: 4px;
+  }
+
+  .si-env-panel .si-env-section-tabs.si-env-section-tabs--five button {
+    min-height: 36px;
+    border-radius: 10px;
+  }
+
+  .si-env-panel .si-env-section-tabs.si-env-section-tabs--five button i {
+    font-size: 12px;
   }
 }
 

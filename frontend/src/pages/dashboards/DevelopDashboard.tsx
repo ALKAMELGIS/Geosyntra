@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
@@ -480,7 +480,7 @@ function ddbIconClassForMiniKind(kind: DdbMiniChartKind): string {
 
 function ddbPromoteVisualCardChrome(
   card: HTMLElement,
-  opts: { showStatStrip: boolean; showZoomHint: boolean; initialMini?: DdbMiniChartKind },
+  opts: { showStatStrip: boolean; showZoomHint: boolean; initialMini?: DdbMiniChartKind; onClose?: () => void },
 ): {
   header: HTMLDivElement
   titleEl: HTMLElement
@@ -504,6 +504,7 @@ function ddbPromoteVisualCardChrome(
     <button type="button" class="ddb-visual-card__icon-btn" data-ddb-card-act="filter" title="Filter" aria-label="Filter"><i class="fa-solid fa-filter"></i></button>
     <button type="button" class="ddb-visual-card__icon-btn" data-ddb-card-act="focus" title="Focus mode" aria-label="Focus mode"><i class="fa-solid fa-expand"></i></button>
     <button type="button" class="ddb-visual-card__icon-btn" data-ddb-card-act="more" title="More options" aria-label="More options"><i class="fa-solid fa-ellipsis"></i></button>
+    <button type="button" class="ddb-visual-card__icon-btn ddb-visual-card__icon-btn--close" data-ddb-card-act="close" title="Close" aria-label="Close"><i class="fa-solid fa-xmark"></i></button>
   `
   header.appendChild(titleEl)
   header.appendChild(actions)
@@ -576,6 +577,16 @@ function ddbPromoteVisualCardChrome(
     menu.hidden = !menu.hidden
     filterPanel.hidden = true
   })
+
+  const closeBtn = actions.querySelector('[data-ddb-card-act="close"]') as HTMLButtonElement | null
+  if (opts.onClose && closeBtn) {
+    closeBtn.addEventListener('click', e => {
+      e.stopPropagation()
+      opts.onClose?.()
+    })
+  } else {
+    closeBtn?.remove()
+  }
 
   return { header, titleEl, actions, strip, menu, filterPanel, chip, zoomHint }
 }
@@ -1563,6 +1574,25 @@ export default function DevelopDashboard() {
     }
   }, [])
 
+  const removeCanvasVisualByInstanceId = useCallback((instanceId: string) => {
+    setCanvasVisualSlots(prev => {
+      const slot = prev.find(s => s.instanceId === instanceId)
+      if (!slot) return prev
+      const chart = slot.chart
+      const next = prev.filter(s => s.instanceId !== instanceId)
+      if (!DDB_MAP_VIS_CHARTS.has(chart)) {
+        const stillHas = next.some(s => s.chart === chart)
+        if (!stillHas) {
+          const nextSel = new Set(selectedChartsRef.current)
+          nextSel.delete(chart)
+          selectedChartsRef.current = nextSel
+          setSelectedCharts(nextSel)
+        }
+      }
+      return next
+    })
+  }, [])
+
   const renderCharts = useCallback(() => {
     destroyCharts()
     const host = chartsHostRef.current
@@ -1570,7 +1600,7 @@ export default function DevelopDashboard() {
 
     if (!canvasVisualSlots.length) {
       host.innerHTML =
-        '<div class="ddb-hint" style="padding:20px;">Select chart types in the Visualizations panel — each selection adds that visual here. Use <strong>Add visuals to canvas</strong> to append another copy of <em>all</em> currently selected types, or <strong>Clear canvas</strong> to remove every card.</div>'
+        '<div class="ddb-hint" style="padding:20px;">In Visualizations, <strong>click</strong> a chart type to add another visual to the canvas (same type can be added many times). <strong>Shift+click</strong> removes the last canvas copy of that type. Map icons still toggle the live map on/off. Use <strong>Add visuals to canvas</strong> to append one copy of every highlighted type at once, or <strong>Clear canvas</strong> to remove all cards.</div>'
       return
     }
 
@@ -1645,6 +1675,7 @@ export default function DevelopDashboard() {
         showStatStrip: true,
         showZoomHint: type !== 'pie' && type !== 'doughnut',
         initialMini,
+        onClose: () => removeCanvasVisualByInstanceId(instanceId),
       })
       if (!chrome) return
 
@@ -1803,7 +1834,11 @@ export default function DevelopDashboard() {
             </tbody></table></div>`
         }
         host.appendChild(tbl)
-        ddbPromoteVisualCardChrome(tbl, { showStatStrip: false, showZoomHint: false })
+        ddbPromoteVisualCardChrome(tbl, {
+          showStatStrip: false,
+          showZoomHint: false,
+          onClose: () => removeCanvasVisualByInstanceId(instanceId),
+        })
       } else if (tool === 'matrix') {
         const matrix = document.createElement('div')
         matrix.className = 'ddb-visual-card'
@@ -1820,7 +1855,11 @@ export default function DevelopDashboard() {
             .join('')}</table></div>`
         }
         host.appendChild(matrix)
-        ddbPromoteVisualCardChrome(matrix, { showStatStrip: false, showZoomHint: false })
+        ddbPromoteVisualCardChrome(matrix, {
+          showStatStrip: false,
+          showZoomHint: false,
+          onClose: () => removeCanvasVisualByInstanceId(instanceId),
+        })
       } else if (tool === 'stackedBar' || tool === 'clusteredBar') {
         addChartCard(instanceId, tool === 'stackedBar' ? 'Stacked Bar' : 'Clustered Bar', 'bar', {
           data: { labels, datasets: [{ label: primaryNum, data: values, backgroundColor: '#4c9a6e' }] },
@@ -1861,7 +1900,11 @@ export default function DevelopDashboard() {
         card.appendChild(titleEl)
         card.appendChild(canvas)
         host.appendChild(card)
-        const comboChrome = ddbPromoteVisualCardChrome(card, { showStatStrip: false, showZoomHint: true })
+        const comboChrome = ddbPromoteVisualCardChrome(card, {
+          showStatStrip: false,
+          showZoomHint: true,
+          onClose: () => removeCanvasVisualByInstanceId(instanceId),
+        })
         if (comboChrome && !hasLayerData) {
           const note = document.createElement('p')
           note.className = 'ddb-hint ddb-visual-placeholder-note'
@@ -1942,7 +1985,11 @@ export default function DevelopDashboard() {
         gauge.dataset.ddbInstanceId = instanceId
         gauge.innerHTML = `<div class="ddb-visual-title"><i class="fa-solid fa-gauge-high"></i> Gauge</div><div class="ddb-visual-card__body-pad"><div style="background:#e2e8f0; border-radius:40px; height:20px;"><div style="background:#2c7a4a; width:${Math.min(100, (avgVal / 200) * 100)}%; height:20px; border-radius:40px;"></div></div><div>Value: ${avgVal.toFixed(1)} / 200</div></div>`
         host.appendChild(gauge)
-        ddbPromoteVisualCardChrome(gauge, { showStatStrip: false, showZoomHint: false })
+        ddbPromoteVisualCardChrome(gauge, {
+          showStatStrip: false,
+          showZoomHint: false,
+          onClose: () => removeCanvasVisualByInstanceId(instanceId),
+        })
       } else if (tool === 'card') {
         const total = values.reduce((a, b) => a + b, 0)
         const card = document.createElement('div')
@@ -1950,14 +1997,22 @@ export default function DevelopDashboard() {
         card.dataset.ddbInstanceId = instanceId
         card.innerHTML = `<div class="ddb-visual-title"><i class="fa-solid fa-id-card"></i> Card</div><div class="ddb-visual-card__body-pad"><div style="font-size:2rem; font-weight:800;">${total.toFixed(0)}</div><div>Total ${primaryNum}</div></div>`
         host.appendChild(card)
-        ddbPromoteVisualCardChrome(card, { showStatStrip: false, showZoomHint: false })
+        ddbPromoteVisualCardChrome(card, {
+          showStatStrip: false,
+          showZoomHint: false,
+          onClose: () => removeCanvasVisualByInstanceId(instanceId),
+        })
       } else if (tool === 'kpi') {
         const kpi = document.createElement('div')
         kpi.className = 'ddb-visual-card'
         kpi.dataset.ddbInstanceId = instanceId
         kpi.innerHTML = `<div class="ddb-visual-title"><i class="fa-solid fa-chart-simple"></i> KPI</div><div class="ddb-visual-card__body-pad"><div style="font-size:2rem;">${values[0] ?? 0}</div><div>Target: 150 | ${((((values[0] ?? 0) / 150) * 100) || 0).toFixed(0)}%</div></div>`
         host.appendChild(kpi)
-        ddbPromoteVisualCardChrome(kpi, { showStatStrip: false, showZoomHint: false })
+        ddbPromoteVisualCardChrome(kpi, {
+          showStatStrip: false,
+          showZoomHint: false,
+          onClose: () => removeCanvasVisualByInstanceId(instanceId),
+        })
       } else if (tool === 'customStatCard') {
         if (!statCards.length) {
           const wrap = document.createElement('div')
@@ -1965,7 +2020,11 @@ export default function DevelopDashboard() {
           wrap.dataset.ddbInstanceId = instanceId
           wrap.innerHTML = `<div class="ddb-visual-title"><i class="fa-solid fa-chart-column"></i> Custom stat cards</div><div class="ddb-visual-card__body-pad"><div class="ddb-hint">Pick layer, field, and aggregation in Visualizations, add cards, then click <strong>Add visuals to canvas</strong> again to refresh.</div></div>`
           host.appendChild(wrap)
-          ddbPromoteVisualCardChrome(wrap, { showStatStrip: false, showZoomHint: false })
+          ddbPromoteVisualCardChrome(wrap, {
+            showStatStrip: false,
+            showZoomHint: false,
+            onClose: () => removeCanvasVisualByInstanceId(instanceId),
+          })
         } else {
           for (const c of statCards) {
             const box = document.createElement('div')
@@ -1973,7 +2032,11 @@ export default function DevelopDashboard() {
             box.dataset.ddbInstanceId = `${instanceId}_${c.id}`
             box.innerHTML = `<div class="ddb-visual-title"><i class="fa-solid fa-chart-column"></i> ${c.layerName}</div><div class="ddb-visual-card__body-pad"><div style="font-size:1.75rem;font-weight:800;">${c.result.toFixed(2)}</div><div>${c.agg} · ${c.field}</div></div>`
             host.appendChild(box)
-            ddbPromoteVisualCardChrome(box, { showStatStrip: false, showZoomHint: false })
+            ddbPromoteVisualCardChrome(box, {
+              showStatStrip: false,
+              showZoomHint: false,
+              onClose: () => removeCanvasVisualByInstanceId(instanceId),
+            })
           }
         }
       } else {
@@ -1982,7 +2045,11 @@ export default function DevelopDashboard() {
         fb.dataset.ddbInstanceId = instanceId
         fb.innerHTML = `<div class="ddb-visual-title"><i class="fa-solid fa-chart-simple"></i> ${tool.replace(/([A-Z])/g, ' $1')}</div><div class="ddb-visual-card__body-pad"><div>${hasLayerData && layer ? `Static simulation for ${tool} based on ${layer.name}` : `Visual shell for ${tool}. Connect a layer in Data to drive this visual.`}</div></div>`
         host.appendChild(fb)
-        ddbPromoteVisualCardChrome(fb, { showStatStrip: false, showZoomHint: false })
+        ddbPromoteVisualCardChrome(fb, {
+          showStatStrip: false,
+          showZoomHint: false,
+          onClose: () => removeCanvasVisualByInstanceId(instanceId),
+        })
       }
     }
 
@@ -2002,6 +2069,7 @@ export default function DevelopDashboard() {
     layers,
     statCards,
     tableColumnPicks,
+    removeCanvasVisualByInstanceId,
   ])
 
   useEffect(() => {
@@ -2538,26 +2606,44 @@ export default function DevelopDashboard() {
     }
   }, [remoteDataUrl, layerModalName, closeAddGisModal])
 
-  const toggleChartTool = (chart: string) => {
-    const wasSelected = selectedChartsRef.current.has(chart)
-    const next = new Set(selectedChartsRef.current)
-    if (wasSelected) next.delete(chart)
-    else next.add(chart)
-    selectedChartsRef.current = next
-    setSelectedCharts(next)
+  const toggleChartTool = (chart: string, ev: MouseEvent<HTMLButtonElement>) => {
+    const nextSel = new Set(selectedChartsRef.current)
 
-    if (DDB_MAP_VIS_CHARTS.has(chart)) return
-
-    if (wasSelected) {
-      setCanvasVisualSlots(sl => {
-        for (let i = sl.length - 1; i >= 0; i--) {
-          if (sl[i]!.chart === chart) return sl.filter((_, j) => j !== i)
-        }
-        return sl
-      })
-    } else {
-      setCanvasVisualSlots(sl => [...sl, { instanceId: newId(), chart }])
+    if (DDB_MAP_VIS_CHARTS.has(chart)) {
+      const wasSelected = selectedChartsRef.current.has(chart)
+      if (wasSelected) nextSel.delete(chart)
+      else nextSel.add(chart)
+      selectedChartsRef.current = nextSel
+      setSelectedCharts(nextSel)
+      return
     }
+
+    if (ev.shiftKey) {
+      setCanvasVisualSlots(prev => {
+        let removeIdx = -1
+        for (let i = prev.length - 1; i >= 0; i--) {
+          if (prev[i]!.chart === chart) {
+            removeIdx = i
+            break
+          }
+        }
+        if (removeIdx < 0) return prev
+        const nextSlots = prev.filter((_, j) => j !== removeIdx)
+        const stillHas = nextSlots.some(s => s.chart === chart)
+        if (!stillHas) {
+          nextSel.delete(chart)
+          selectedChartsRef.current = nextSel
+          setSelectedCharts(nextSel)
+        }
+        return nextSlots
+      })
+      return
+    }
+
+    nextSel.add(chart)
+    selectedChartsRef.current = nextSel
+    setSelectedCharts(nextSel)
+    setCanvasVisualSlots(sl => [...sl, { instanceId: newId(), chart }])
   }
 
   const appendSelectedChartsToCanvas = useCallback(() => {
@@ -2602,9 +2688,6 @@ export default function DevelopDashboard() {
             <h1>
               <i className="fa-solid fa-chart-line" aria-hidden /> Agro Cloud Analytics
             </h1>
-          </div>
-          <div>
-            <i className="fa-solid fa-map-location-dot" aria-hidden /> Unified Panel | Multi-Select Grid | Smart Analytics
           </div>
         </div>
 
@@ -3058,9 +3141,13 @@ export default function DevelopDashboard() {
                             key={t.chart}
                             type="button"
                             className={`ddb-chart-tool-item${selectedCharts.has(t.chart) ? ' is-selected' : ''}`}
-                            title={t.label}
+                            title={
+                              DDB_MAP_VIS_CHARTS.has(t.chart)
+                                ? `${t.label} — click to show or hide the map visual`
+                                : `${t.label} — click to add another visual; Shift+click removes the last copy from the canvas`
+                            }
                             aria-pressed={selectedCharts.has(t.chart)}
-                            onClick={() => toggleChartTool(t.chart)}
+                            onClick={e => toggleChartTool(t.chart, e)}
                           >
                             <i className={t.icon} aria-hidden />
                             <span className="ddb-chart-tool-label-sr">{t.label}</span>
