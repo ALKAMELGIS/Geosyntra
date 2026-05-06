@@ -8459,6 +8459,15 @@ html[data-theme='dark'] .gis-domain-cell--dropdown.missing-description .gis-doma
   box-shadow: 0 0 0 4px rgba(22, 163, 74, 0.14);
 }
 
+.gis-style-check input:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.gis-style-check--disabled {
+  opacity: 0.72;
+}
+
 .gis-style-info {
   padding: 12px;
   border-radius: 12px;

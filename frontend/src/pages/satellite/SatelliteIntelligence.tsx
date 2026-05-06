@@ -1767,7 +1767,7 @@ export default function SatelliteIntelligence() {
   const [hiddenSiTableFieldsByLayerId, setHiddenSiTableFieldsByLayerId] = useState<Record<string, Set<string>>>({});
   const [siTableFieldOrderByLayerId, setSiTableFieldOrderByLayerId] = useState<Record<string, string[]>>({});
   const [symbologyDraft, setSymbologyDraft] = useState<SiSymbologyDraft>({
-    useArcGisOnline: false,
+    useArcGisOnline: true,
     style: 'color',
     field: '',
     classes: 5,
@@ -2775,7 +2775,15 @@ export default function SatelliteIntelligence() {
       const n = ren.classBreakInfos.filter((br: any) => Number.isFinite(Number(br?.maxValue))).length;
       maxCat = n > 0 ? Math.min(8, n) : 8;
     }
-    const useAgOnline = canUseArcGisOnline && activeDialogLayer.useArcGisSymbology !== false;
+    const symSaved =
+      typeof activeDialogLayer.symbology?.useArcGisOnline === 'boolean'
+        ? activeDialogLayer.symbology.useArcGisOnline
+        : undefined;
+    const layerSaved =
+      typeof activeDialogLayer.useArcGisSymbology === 'boolean' ? activeDialogLayer.useArcGisSymbology : undefined;
+    /** Prefer saved symbology, then layer flag; default ON when ArcGIS-backed styling is available. */
+    const preferOnline = symSaved !== undefined ? symSaved : layerSaved !== undefined ? layerSaved : true;
+    const useAgOnline = canUseArcGisOnline && preferOnline;
     const inferred = inferVisualizationFromArcgisRenderer(ren);
     const base: SymbologyConfig = {
       ...activeDialogLayer.symbology,
@@ -2798,8 +2806,10 @@ export default function SatelliteIntelligence() {
         symbologyDraft,
         canUseArcGisOnline,
       );
+      /** Persist explicit user choice; disable ArcGIS Online mode when this UI cannot apply it. */
+      const persistedArcOnline = Boolean(canUseArcGisOnline && normalized.useArcGisOnline);
       const symbologyToSave: SymbologyConfig = {
-        useArcGisOnline: normalized.useArcGisOnline,
+        useArcGisOnline: persistedArcOnline,
         style: normalized.style,
         field: normalized.field,
         classes: normalized.classes,
@@ -2831,7 +2841,7 @@ export default function SatelliteIntelligence() {
           di = (raw && sanitizeArcgisDrawingInfoForClient(raw)) || null;
         }
 
-        if (symbologyDraft.useArcGisOnline) {
+        if (persistedArcOnline) {
           if (!di || !arcgisDrawingInfoToFillPaint(di)) {
             setStacStatus('Could not load a supported ArcGIS renderer (drawingInfo) for this layer.');
             return;
@@ -2849,7 +2859,13 @@ export default function SatelliteIntelligence() {
           setCustomLayers(prev =>
             prev.map(l =>
               l.id === activeDialogLayer.id
-                ? { ...l, arcgisDrawingInfo: baked, useArcGisSymbology: true, color: nextColor, symbology: symbologyToSave }
+                ? {
+                    ...l,
+                    arcgisDrawingInfo: baked,
+                    useArcGisSymbology: symbologyToSave.useArcGisOnline,
+                    color: nextColor,
+                    symbology: symbologyToSave,
+                  }
                 : l,
             ),
           );
@@ -2864,7 +2880,7 @@ export default function SatelliteIntelligence() {
                 ? {
                     ...l,
                     arcgisDrawingInfo: baked ?? l.arcgisDrawingInfo ?? null,
-                    useArcGisSymbology: false,
+                    useArcGisSymbology: symbologyToSave.useArcGisOnline,
                     color: nextColor,
                     symbology: symbologyToSave,
                   }
@@ -2879,7 +2895,9 @@ export default function SatelliteIntelligence() {
 
       setCustomLayers(prev =>
         prev.map(l =>
-          l.id === activeDialogLayer.id ? { ...l, useArcGisSymbology: false, color: nextColor, symbology: symbologyToSave } : l,
+          l.id === activeDialogLayer.id
+            ? { ...l, useArcGisSymbology: symbologyToSave.useArcGisOnline, color: nextColor, symbology: symbologyToSave }
+            : l,
         ),
       );
       setActiveLayerActionDialog(null);
@@ -8474,10 +8492,11 @@ export default function SatelliteIntelligence() {
                 <>
                   <div className="gis-style-hero">
                     <div className="gis-style-subtitle">Choose an attribute and visualization style. Preview updates live on the map.</div>
-                    <label className="gis-style-check">
+                    <label className={`gis-style-check${!canUseArcGisOnline ? ' gis-style-check--disabled' : ''}`}>
                       <input
                         type="checkbox"
                         checked={symbologyDraft.useArcGisOnline}
+                        disabled={!canUseArcGisOnline}
                         onChange={e => {
                           const on = e.target.checked;
                           if (on) {
