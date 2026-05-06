@@ -1,3 +1,4 @@
+import { useMemo, useState } from 'react'
 import type { NavGroupDef } from '../../../nav/navManifest'
 import type { SystemSettingsPersistedV1 } from '../../../types/systemSettings'
 
@@ -9,13 +10,33 @@ type Props = {
 }
 
 export function NavGroupEditor({ groupDef, draft, updateNavOverride, reorderItem }: Props) {
+  const [itemQuery, setItemQuery] = useState('')
   const itemIds = draft.navItemOrders[groupDef.id]?.length
     ? draft.navItemOrders[groupDef.id]
     : groupDef.children.map(c => c.id)
+  const q = itemQuery.trim().toLowerCase()
+  const visibleItemIds = useMemo(() => {
+    if (!q) return itemIds
+    return itemIds.filter(cid => {
+      const leaf = groupDef.children.find(c => c.id === cid)
+      if (!leaf) return false
+      const ov = draft.navOverrides[leaf.id]
+      return [
+        leaf.id,
+        leaf.path,
+        leaf.i18nKey,
+        ov?.labelEn ?? '',
+        ov?.labelAr ?? '',
+      ]
+        .join(' ')
+        .toLowerCase()
+        .includes(q)
+    })
+  }, [draft.navOverrides, groupDef.children, itemIds, q])
 
   return (
     <div className="sys-nav-group-editor">
-      <div className="sys-page-card__grid" style={{ marginBottom: 18 }}>
+      <div className="sys-page-card__grid" style={{ marginBottom: 14 }}>
         <div className="sys-page-field">
           <label htmlFor={`nav-${groupDef.id}-en`}>Label EN override</label>
           <input
@@ -47,7 +68,7 @@ export function NavGroupEditor({ groupDef, draft, updateNavOverride, reorderItem
           />
         </div>
       </div>
-      <label className="sys-page-visible" style={{ marginBottom: 18 }}>
+      <label className="sys-page-visible" style={{ marginBottom: 14 }}>
         <input
           type="checkbox"
           checked={draft.navOverrides[groupDef.id]?.hidden === true}
@@ -56,11 +77,37 @@ export function NavGroupEditor({ groupDef, draft, updateNavOverride, reorderItem
         Hide entire group in sidebar
       </label>
 
-      <p style={{ fontSize: '0.82rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--ds-color-text-muted)', margin: '0 0 10px' }}>
-        Menu items
-      </p>
+      <div className="sys-nav-items-head">
+        <p
+          style={{
+            fontSize: '0.82rem',
+            fontWeight: 700,
+            textTransform: 'uppercase',
+            letterSpacing: '0.06em',
+            color: 'var(--ds-color-text-muted)',
+            margin: 0,
+          }}
+        >
+          Subitems (nav-item labels)
+        </p>
+        <span className="sys-nav-items-count">
+          {visibleItemIds.length} / {itemIds.length}
+        </span>
+      </div>
+      <label className="sys-nav-item-search" htmlFor={`nav-${groupDef.id}-item-search`}>
+        <i className="fa-solid fa-magnifying-glass" aria-hidden />
+        <input
+          id={`nav-${groupDef.id}-item-search`}
+          className="gis-input"
+          placeholder="Search subitem by id, path, or label…"
+          value={itemQuery}
+          onChange={e => setItemQuery(e.target.value)}
+        />
+      </label>
+
       <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
-        {itemIds.map((cid, ix) => {
+        {visibleItemIds.map(cid => {
+          const ix = itemIds.indexOf(cid)
           const leaf = groupDef.children.find(c => c.id === cid)
           if (!leaf) return null
           const ov = draft.navOverrides[leaf.id]
@@ -81,7 +128,48 @@ export function NavGroupEditor({ groupDef, draft, updateNavOverride, reorderItem
                 reorderItem(groupDef.id, from, ix)
               }}
             >
-              <div className="sys-nav-leaf-path">{leaf.path}</div>
+              <div className="sys-nav-leaf-head">
+                <div className="sys-nav-leaf-head__left">
+                  <span className="sys-nav-leaf-handle" aria-hidden title="Drag to reorder">
+                    <i className="fa-solid fa-grip-vertical" />
+                  </span>
+                  <div className="sys-nav-leaf-title-wrap">
+                    <div className="sys-nav-leaf-title">{ov?.labelEn?.trim() || leaf.i18nKey}</div>
+                    <div className="sys-nav-leaf-path">{leaf.path}</div>
+                  </div>
+                </div>
+                <div className="sys-nav-leaf-actions">
+                  <button
+                    type="button"
+                    className="gis-btn gis-btn-outline"
+                    onClick={() => reorderItem(groupDef.id, ix, Math.max(0, ix - 1))}
+                    disabled={ix <= 0}
+                    title="Move up"
+                    aria-label="Move item up"
+                  >
+                    <i className="fa-solid fa-arrow-up" aria-hidden />
+                  </button>
+                  <button
+                    type="button"
+                    className="gis-btn gis-btn-outline"
+                    onClick={() => reorderItem(groupDef.id, ix, Math.min(itemIds.length - 1, ix + 1))}
+                    disabled={ix >= itemIds.length - 1}
+                    title="Move down"
+                    aria-label="Move item down"
+                  >
+                    <i className="fa-solid fa-arrow-down" aria-hidden />
+                  </button>
+                  <button
+                    type="button"
+                    className="gis-btn gis-btn-outline"
+                    onClick={() => updateNavOverride(leaf.id, { labelEn: '', labelAr: '' })}
+                    title="Reset labels to default"
+                    aria-label="Reset labels to default"
+                  >
+                    <i className="fa-solid fa-rotate-left" aria-hidden />
+                  </button>
+                </div>
+              </div>
               <div className="sys-page-card__grid">
                 <div className="sys-page-field">
                   <label htmlFor={`nav-leaf-${leaf.id}-en`}>Label EN</label>

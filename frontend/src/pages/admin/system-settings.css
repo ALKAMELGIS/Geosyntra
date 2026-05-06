@@ -1122,11 +1122,96 @@ html[data-theme='dark'] .sys-settings-tab:hover:not(.sys-settings-tab--active) {
   box-shadow: 0 1px 0 rgba(15, 23, 42, 0.04);
 }
 
+.sys-nav-items-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+
+.sys-nav-items-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 64px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--ds-color-primary);
+  background: color-mix(in srgb, var(--ds-color-primary) 10%, transparent);
+}
+
+.sys-nav-item-search {
+  position: relative;
+  display: block;
+  margin-bottom: 12px;
+}
+
+.sys-nav-item-search i {
+  position: absolute;
+  inset-inline-start: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--sys-muted);
+  pointer-events: none;
+}
+
+.sys-nav-item-search .gis-input {
+  padding-inline-start: 34px;
+}
+
+.sys-nav-leaf-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.sys-nav-leaf-head__left {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  min-width: 0;
+}
+
+.sys-nav-leaf-handle {
+  color: var(--sys-muted);
+  opacity: 0.65;
+  margin-top: 2px;
+}
+
+.sys-nav-leaf-title-wrap {
+  min-width: 0;
+}
+
+.sys-nav-leaf-title {
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: var(--ds-color-text);
+  line-height: 1.2;
+}
+
 .sys-nav-leaf-path {
   font-family: var(--ds-font-mono);
   font-size: 11px;
   color: var(--sys-muted);
-  margin-bottom: 12px;
+  margin-top: 4px;
+}
+
+.sys-nav-leaf-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.sys-nav-leaf-actions .gis-btn {
+  min-width: 34px;
+  height: 34px;
+  padding: 0 10px;
 }
 
 /* Pages — cards */

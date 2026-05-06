@@ -1694,6 +1694,63 @@
   letter-spacing: 0.04em;
 }
 
+/* Collapsed rail: Power BI-like vertical labeled strips (example #2 style) */
+.develop-dashboard-root .ddb-right-wrap:not(.is-open) .ddb-right-rail {
+  flex: 0 0 84px;
+  width: 84px;
+}
+
+.develop-dashboard-root .ddb-right-wrap:not(.is-open) .ddb-right-rail-tab {
+  position: relative;
+  gap: 0;
+  padding: 32px 6px 12px;
+  background: #ffffff;
+}
+
+.develop-dashboard-root .ddb-right-wrap:not(.is-open) .ddb-right-rail-tab::before {
+  content: "\00AB\00AB";
+  position: absolute;
+  top: 8px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 18px;
+  font-weight: 700;
+  line-height: 1;
+  color: #0f172a;
+  letter-spacing: -2px;
+  opacity: 0.95;
+}
+
+.develop-dashboard-root .ddb-right-wrap:not(.is-open) .ddb-right-rail-icon-wrap {
+  display: none;
+}
+
+.develop-dashboard-root .ddb-right-wrap:not(.is-open) .ddb-right-rail-label {
+  writing-mode: vertical-rl;
+  transform: rotate(180deg);
+  font-size: 1.78rem;
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: 0;
+  text-transform: none;
+  color: #0f172a;
+  max-width: none;
+  padding: 0;
+}
+
+.develop-dashboard-root .ddb-right-wrap:not(.is-open) .ddb-right-rail-label--stack {
+  display: block;
+}
+
+.develop-dashboard-root .ddb-right-wrap:not(.is-open) .ddb-right-rail-label--stack > span {
+  display: inline;
+}
+
+.develop-dashboard-root .ddb-right-wrap:not(.is-open) .ddb-right-rail-tab.is-active {
+  background: #ffffff;
+  box-shadow: inset 4px 0 0 var(--ddb-pbi-blue);
+}
+
 .develop-dashboard-root .ddb-link-sheet-body {
   padding-top: 10px;
 }

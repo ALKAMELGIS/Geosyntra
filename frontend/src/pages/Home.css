@@ -498,58 +498,33 @@
   outline-offset: 2px;
 }
 
-/* Drill-down header badge — scoped so GIS DrawTools .header-icon is unaffected */
+/* Drill-down header icon — scoped so GIS DrawTools .header-icon is unaffected */
 .home-page .header-title .header-icon {
-  --ha: var(--header-accent, #047857);
-  position: relative;
-  width: 52px;
-  height: 52px;
-  border-radius: 18px;
+  --ha: var(--header-accent, #ea580c);
+  --ha-rgb: var(--header-accent-rgb, 234 88 12);
+  width: 50px;
+  height: 50px;
+  border-radius: 16px;
   display: flex;
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
-  isolation: isolate;
-  overflow: hidden;
-  color: #f8fafc;
+  color: color-mix(in srgb, var(--ha) 88%, #111827);
   font-size: 20px;
-  border: 1px solid rgba(255, 255, 255, 0.42);
-  background: linear-gradient(
-    165deg,
-    color-mix(in srgb, var(--ha) 32%, #ffffff) 0%,
-    var(--ha) 48%,
-    color-mix(in srgb, var(--ha) 72%, #0f172a) 100%
-  );
-  box-shadow:
-    0 1px 0 rgba(255, 255, 255, 0.45) inset,
-    0 14px 34px rgb(var(--header-accent-rgb, 4 120 87) / 0.36),
-    0 4px 14px rgb(var(--header-accent-rgb, 4 120 87) / 0.24);
-  transition: transform 0.22s cubic-bezier(0.34, 1.2, 0.64, 1), box-shadow 0.22s ease;
-}
-
-.home-page .header-title .header-icon::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  border-radius: inherit;
-  background: linear-gradient(125deg, rgba(255, 255, 255, 0.38) 0%, transparent 52%);
-  pointer-events: none;
-}
-
-.home-page .header-title .header-icon::after {
-  content: '';
-  position: absolute;
-  inset: 1px;
-  border-radius: 17px;
-  border: 1px solid rgba(255, 255, 255, 0.14);
-  pointer-events: none;
-  opacity: 0.85;
+  border: 1px solid rgb(var(--ha-rgb) / 0.22);
+  background: color-mix(in srgb, var(--ha) 10%, #ffffff);
+  box-shadow: 0 6px 18px rgb(var(--ha-rgb) / 0.14);
+  transition: transform 180ms ease, box-shadow 180ms ease, background-color 180ms ease;
 }
 
 .home-page .header-title .header-icon i {
-  position: relative;
-  z-index: 1;
-  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.28));
+  line-height: 1;
+}
+
+.home-page .header-title .header-icon:hover {
+  transform: translateY(-1px);
+  background: color-mix(in srgb, var(--ha) 14%, #ffffff);
+  box-shadow: 0 9px 22px rgb(var(--ha-rgb) / 0.18);
 }
 
 .header-title h2 {
@@ -623,10 +598,6 @@
     border-radius: 14px;
   }
 
-  .home-page .header-title .header-icon::after {
-    border-radius: 13px;
-  }
-
   .header-title h2 {
     font-size: 18px;
   }
@@ -697,19 +668,10 @@ html[data-theme="dark"] .header-title h2 {
 }
 
 html[data-theme="dark"] .home-page .header-title .header-icon {
-  border-color: rgba(255, 255, 255, 0.22);
-  box-shadow:
-    0 1px 0 rgba(255, 255, 255, 0.12) inset,
-    0 16px 40px rgb(var(--header-accent-rgb, 52 211 153) / 0.28),
-    0 4px 16px rgba(0, 0, 0, 0.35);
-}
-
-html[data-theme="dark"] .home-page .header-title .header-icon::before {
-  background: linear-gradient(125deg, rgba(255, 255, 255, 0.22) 0%, transparent 55%);
-}
-
-html[data-theme="dark"] .home-page .header-title .header-icon i {
-  filter: drop-shadow(0 1px 3px rgba(0, 0, 0, 0.45));
+  color: color-mix(in srgb, var(--header-accent, #fb923c) 88%, #ffffff);
+  border-color: rgb(var(--header-accent-rgb, 251 146 60) / 0.32);
+  background: color-mix(in srgb, var(--header-accent, #fb923c) 16%, #0f172a);
+  box-shadow: 0 8px 22px rgb(var(--header-accent-rgb, 251 146 60) / 0.24);
 }
 
 html[data-theme="dark"] .sublist-toggle {

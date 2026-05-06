@@ -269,10 +269,11 @@ export function normalizeSymbologyForLayer(
   geojson: any,
   source: string | undefined,
   cfg?: SymbologyConfig,
+  arcgisOnlineSupported = false,
 ): Required<SymbologyConfig> {
   const allFields = getGeoJsonFields(geojson);
   const numericFields = getNumericFields(geojson);
-  const baseUseArcGisOnline = source === 'arcgis';
+  const baseUseArcGisOnline = source === 'arcgis' || arcgisOnlineSupported;
   const style = (cfg?.style as SymbologyStyle) || 'color';
   const cfgField = typeof cfg?.field === 'string' ? cfg.field : '';
   const field =

@@ -1600,7 +1600,7 @@ export default function DevelopDashboard() {
 
     if (!canvasVisualSlots.length) {
       host.innerHTML =
-        '<div class="ddb-hint" style="padding:20px;">In Visualizations, <strong>click</strong> a chart type to add another visual to the canvas (same type can be added many times). <strong>Shift+click</strong> removes the last canvas copy of that type. Map icons still toggle the live map on/off. Use <strong>Add visuals to canvas</strong> to append one copy of every highlighted type at once, or <strong>Clear canvas</strong> to remove all cards.</div>'
+        '<div class="ddb-hint" style="padding:20px;">Select chart types to add visuals to the canvas.</div>'
       return
     }
 

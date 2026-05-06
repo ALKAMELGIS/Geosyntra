@@ -146,6 +146,14 @@ type GeoAiInspectCardState = {
   country?: string;
 };
 
+type NetfloraDetectionMode = 'aoi_first' | 'full_then_clip';
+type NetfloraAoiSource = 'drawn' | 'view';
+type NetfloraDetectionStats = {
+  total: number;
+  avgConfidence: number;
+  byClass: Array<{ label: string; count: number; avgConfidence: number }>;
+};
+
 async function reverseLngLatForGeoAiDetails(
   lng: number,
   lat: number,
@@ -216,6 +224,7 @@ const STAC_HELP_LINKS = {
   esriMpc: 'https://github.com/Esri/arcgis-for-mpc',
   spec: 'https://stacspec.org/',
 } as const;
+const NETFLORA_DETECTIONS_LAYER_ID = 'ai-detection-netflora-results';
 
 const DATABASE_PLATFORM_OPTIONS = [
   'SQL Server',
@@ -1803,6 +1812,17 @@ export default function SatelliteIntelligence() {
   const [polygonRing, setPolygonRing] = useState<[number, number][]>([]);
   const [drawnGeometry, setDrawnGeometry] = useState<any | null>(null);
   const [drawnStats, setDrawnStats] = useState<DrawnAoiStats | null>(null);
+  const [netfloraRasterPath, setNetfloraRasterPath] = useState('');
+  const [netfloraWeightsPath, setNetfloraWeightsPath] = useState('model_weights.pt');
+  const [netfloraImageSize, setNetfloraImageSize] = useState(1536);
+  const [netfloraThreshold, setNetfloraThreshold] = useState(0.25);
+  const [netfloraDetectionMode, setNetfloraDetectionMode] = useState<NetfloraDetectionMode>('full_then_clip');
+  const [netfloraAoiSource, setNetfloraAoiSource] = useState<NetfloraAoiSource>('drawn');
+  const [netfloraUploadedResults, setNetfloraUploadedResults] = useState<any | null>(null);
+  const [netfloraFilteredResults, setNetfloraFilteredResults] = useState<any | null>(null);
+  const [netfloraStats, setNetfloraStats] = useState<NetfloraDetectionStats | null>(null);
+  const [netfloraBusy, setNetfloraBusy] = useState(false);
+  const [netfloraStatus, setNetfloraStatus] = useState('');
   const [expandedEnvSection, setExpandedEnvSection] = useState<
     'source' | 'layers' | 'explore-stac' | 'remote-sensing' | 'ai-detection-gis' | 'table-geo-ai'
   >('source');
@@ -1852,6 +1872,7 @@ export default function SatelliteIntelligence() {
   const mapDrawToolRef = useRef<MapDrawTool>('select');
   mapDrawToolRef.current = mapDrawTool;
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const netfloraUploadInputRef = useRef<HTMLInputElement | null>(null);
   const skipNextMapClickRef = useRef(false);
   const editDragRef = useRef<null | { mode: 'vertex'; ref: VertexRef } | { mode: 'pan'; last: [number, number] }>(null);
   const consoleErrorRef = useRef<typeof console.error | null>(null);
@@ -1901,6 +1922,219 @@ export default function SatelliteIntelligence() {
     }
     return [minX, minY, maxX, maxY];
   };
+
+  const normalizeDetectionConfidence = (props: Record<string, any>): number => {
+    const candidates = [props.confidence, props.score, props.probability, props.conf];
+    for (const v of candidates) {
+      const n = Number(v);
+      if (Number.isFinite(n)) return n > 1 ? n / 100 : n;
+    }
+    return 0;
+  };
+
+  const normalizeDetectionClass = (props: Record<string, any>): string => {
+    const raw = props.class ?? props.class_name ?? props.species ?? props.label ?? props.name ?? 'Unknown';
+    const txt = String(raw || '').trim();
+    return txt || 'Unknown';
+  };
+
+  const normalizeBboxLike = (bboxLike: any): [number, number, number, number] | null => {
+    if (!Array.isArray(bboxLike) || bboxLike.length < 4) return null;
+    const a = Number(bboxLike[0]);
+    const b = Number(bboxLike[1]);
+    const c = Number(bboxLike[2]);
+    const d = Number(bboxLike[3]);
+    if (![a, b, c, d].every(Number.isFinite)) return null;
+    if (c > a && d > b) return [a, b, c, d];
+    const w = Math.abs(c);
+    const h = Math.abs(d);
+    if (w === 0 || h === 0) return null;
+    return [a, b, a + w, b + h];
+  };
+
+  const bboxesIntersect = (a: [number, number, number, number], b: [number, number, number, number]) =>
+    a[0] <= b[2] && a[2] >= b[0] && a[1] <= b[3] && a[3] >= b[1];
+
+  const getDetectionFeatureBbox = (feature: any): [number, number, number, number] | null => {
+    const fromGeom = getGeoJsonBounds(feature);
+    if (fromGeom) return fromGeom;
+    const fromProps = normalizeBboxLike(feature?.properties?.bbox ?? feature?.bbox);
+    return fromProps;
+  };
+
+  const normalizeNetfloraDetectionCollection = (raw: any) => {
+    const fc =
+      raw?.type === 'FeatureCollection'
+        ? raw
+        : Array.isArray(raw?.features)
+          ? { type: 'FeatureCollection', features: raw.features }
+          : Array.isArray(raw)
+            ? { type: 'FeatureCollection', features: raw }
+            : null;
+    if (!fc || !Array.isArray(fc.features)) return null;
+    const features = fc.features
+      .map((f: any, idx: number) => {
+        const props = typeof f?.properties === 'object' && f.properties ? { ...f.properties } : {};
+        const confidence = normalizeDetectionConfidence(props);
+        const className = normalizeDetectionClass(props);
+        const bbox = getDetectionFeatureBbox(f);
+        const geometry =
+          f?.geometry && typeof f.geometry === 'object'
+            ? f.geometry
+            : bbox
+              ? {
+                  type: 'Polygon',
+                  coordinates: [
+                    [
+                      [bbox[0], bbox[1]],
+                      [bbox[2], bbox[1]],
+                      [bbox[2], bbox[3]],
+                      [bbox[0], bbox[3]],
+                      [bbox[0], bbox[1]],
+                    ],
+                  ],
+                }
+              : null;
+        if (!geometry) return null;
+        return {
+          type: 'Feature',
+          id: String(f?.id ?? `det-${idx}-${Math.random().toString(36).slice(2, 7)}`),
+          geometry,
+          properties: {
+            ...props,
+            className,
+            confidence,
+            confidenceBand: confidence >= 0.75 ? 'High' : confidence >= 0.5 ? 'Medium' : 'Low',
+            bbox: bbox ?? null,
+            bboxText: bbox ? `${bbox[0].toFixed(6)}, ${bbox[1].toFixed(6)}, ${bbox[2].toFixed(6)}, ${bbox[3].toFixed(6)}` : 'n/a',
+          },
+        };
+      })
+      .filter(Boolean);
+    return { type: 'FeatureCollection', features };
+  };
+
+  const netfloraAoiFeature = useMemo(() => {
+    if (netfloraAoiSource === 'drawn' && drawnGeometry) return drawnGeometry;
+    const map = mapRef.current?.getMap?.() ?? mapRef.current;
+    const b = map?.getBounds?.();
+    if (!b) return null;
+    return bboxToPolygonFeature(b.getWest(), b.getSouth(), b.getEast(), b.getNorth(), 'Current map view AOI');
+  }, [drawnGeometry, netfloraAoiSource]);
+
+  const netfloraAoiBounds = useMemo(() => (netfloraAoiFeature ? getGeoJsonBounds(netfloraAoiFeature) : null), [netfloraAoiFeature]);
+
+  const runNetfloraDetection = useCallback(() => {
+    if (!netfloraUploadedResults?.features?.length) {
+      setNetfloraStatus('Upload NetFlora detections GeoJSON first, then run detection.');
+      return;
+    }
+    setNetfloraBusy(true);
+    try {
+      const all = Array.isArray(netfloraUploadedResults.features) ? netfloraUploadedResults.features : [];
+      const filtered = all.filter((ft: any) => {
+        const conf = Number(ft?.properties?.confidence ?? 0);
+        if (!Number.isFinite(conf) || conf < netfloraThreshold) return false;
+        if (!netfloraAoiBounds) return true;
+        if (netfloraDetectionMode === 'aoi_first' || netfloraDetectionMode === 'full_then_clip') {
+          const box = getDetectionFeatureBbox(ft);
+          if (!box) return false;
+          return bboxesIntersect(box, netfloraAoiBounds);
+        }
+        return true;
+      });
+      const out = { type: 'FeatureCollection', features: filtered };
+      const classAgg = new Map<string, { count: number; sum: number }>();
+      let confSum = 0;
+      for (const f of filtered) {
+        const cls = String(f?.properties?.className || 'Unknown');
+        const conf = Number(f?.properties?.confidence ?? 0);
+        const row = classAgg.get(cls) ?? { count: 0, sum: 0 };
+        row.count += 1;
+        row.sum += Number.isFinite(conf) ? conf : 0;
+        classAgg.set(cls, row);
+        confSum += Number.isFinite(conf) ? conf : 0;
+      }
+      const byClass = Array.from(classAgg.entries())
+        .map(([label, row]) => ({
+          label,
+          count: row.count,
+          avgConfidence: row.count ? row.sum / row.count : 0,
+        }))
+        .sort((a, b) => b.count - a.count);
+      const stats: NetfloraDetectionStats = {
+        total: filtered.length,
+        avgConfidence: filtered.length ? confSum / filtered.length : 0,
+        byClass,
+      };
+      setNetfloraFilteredResults(out);
+      setNetfloraStats(stats);
+      setCustomLayers(prev => {
+        const name = 'NetFlora AI detections';
+        const nextLayer: CustomLayer = {
+          id: NETFLORA_DETECTIONS_LAYER_ID,
+          name,
+          source: 'api',
+          sourceUrl: 'netflora://local-results',
+          authToken: null,
+          geojson: out as any,
+          visible: true,
+          color: '#22c55e',
+          symbology: {
+            useArcGisOnline: false,
+            style: 'color',
+            field: 'confidence',
+            classes: 5,
+            method: 'quantile',
+            colorRamp: 'greens',
+            threshold: netfloraThreshold,
+          },
+        };
+        const has = prev.some(l => l.id === NETFLORA_DETECTIONS_LAYER_ID);
+        return has ? prev.map(l => (l.id === NETFLORA_DETECTIONS_LAYER_ID ? { ...l, ...nextLayer } : l)) : [...prev, nextLayer];
+      });
+      setNetfloraStatus(`Detection completed: ${filtered.length} objects mapped to GIS layer.`);
+    } catch (e) {
+      setNetfloraStatus(e instanceof Error ? e.message : 'Failed to run detection workflow.');
+    } finally {
+      setNetfloraBusy(false);
+    }
+  }, [netfloraUploadedResults, netfloraThreshold, netfloraAoiBounds, netfloraDetectionMode]);
+
+  const onNetfloraUploadChange = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    try {
+      const rawText = await file.text();
+      const parsed = JSON.parse(rawText);
+      const normalized = normalizeNetfloraDetectionCollection(parsed);
+      if (!normalized || !normalized.features?.length) {
+        setNetfloraStatus('No valid detection features found in uploaded file.');
+        return;
+      }
+      setNetfloraUploadedResults(normalized);
+      setNetfloraFilteredResults(null);
+      setNetfloraStats(null);
+      setNetfloraStatus(`Loaded ${normalized.features.length} detections from ${file.name}.`);
+    } catch (err) {
+      setNetfloraStatus(err instanceof Error ? err.message : 'Failed to parse uploaded detections file.');
+    } finally {
+      e.target.value = '';
+    }
+  }, []);
+
+  const exportNetfloraResults = useCallback(() => {
+    if (!netfloraFilteredResults?.features?.length) {
+      setNetfloraStatus('No filtered detection results to export.');
+      return;
+    }
+    downloadTextFile(
+      `netflora-detections-${Date.now()}.geojson`,
+      JSON.stringify(netfloraFilteredResults, null, 2),
+      'application/geo+json',
+    );
+    setNetfloraStatus('Exported filtered detections as GeoJSON.');
+  }, [netfloraFilteredResults]);
 
   const getMetersPerPixel = (latitude: number, zoom: number, tileSize = 512) => {
     const latRad = (latitude * Math.PI) / 180;
@@ -2462,7 +2696,12 @@ export default function SatelliteIntelligence() {
 
   const siSymbologyNormalized = useMemo(() => {
     if (!activeDialogLayer) return null;
-    return normalizeSymbologyForLayer(activeDialogLayer.geojson, activeDialogLayer.source, symbologyDraft);
+    const canUseArcGisOnline =
+      activeDialogLayer.source === 'arcgis' ||
+      Boolean(activeDialogLayer.arcgisDrawingInfo) ||
+      Boolean((activeDialogLayer.arcgisLayerDefinition as any)?.drawingInfo) ||
+      Boolean(activeDialogLayer.sourceUrl?.trim());
+    return normalizeSymbologyForLayer(activeDialogLayer.geojson, activeDialogLayer.source, symbologyDraft, canUseArcGisOnline);
   }, [activeDialogLayer, symbologyDraft]);
 
   const siSymbologyCtx = useMemo((): SymbologyContext | null => {
@@ -2472,6 +2711,17 @@ export default function SatelliteIntelligence() {
 
   const arcgisRendererType = useMemo(
     () => String((activeDialogLayer?.arcgisDrawingInfo as any)?.renderer?.type || ''),
+    [activeDialogLayer],
+  );
+  const canUseArcGisOnline = useMemo(
+    () =>
+      Boolean(
+        activeDialogLayer &&
+          (activeDialogLayer.source === 'arcgis' ||
+            activeDialogLayer.arcgisDrawingInfo ||
+            (activeDialogLayer.arcgisLayerDefinition as any)?.drawingInfo ||
+            activeDialogLayer.sourceUrl?.trim()),
+      ),
     [activeDialogLayer],
   );
 
@@ -2502,24 +2752,29 @@ export default function SatelliteIntelligence() {
       const n = ren.classBreakInfos.filter((br: any) => Number.isFinite(Number(br?.maxValue))).length;
       maxCat = n > 0 ? Math.min(8, n) : 8;
     }
-    const useAgOnline = activeDialogLayer.source === 'arcgis' && activeDialogLayer.useArcGisSymbology !== false;
+    const useAgOnline = canUseArcGisOnline && activeDialogLayer.useArcGisSymbology !== false;
     const inferred = inferVisualizationFromArcgisRenderer(ren);
     const base: SymbologyConfig = {
       ...activeDialogLayer.symbology,
       ...inferred,
       useArcGisOnline: useAgOnline,
     };
-    const normalized = normalizeSymbologyForLayer(activeDialogLayer.geojson, activeDialogLayer.source, base);
+    const normalized = normalizeSymbologyForLayer(activeDialogLayer.geojson, activeDialogLayer.source, base, canUseArcGisOnline);
     setSymbologyDraft({
       ...normalized,
       arcgisMaxCategories: maxCat,
     });
-  }, [activeLayerActionDialog, activeDialogLayer]);
+  }, [activeLayerActionDialog, activeDialogLayer, canUseArcGisOnline]);
 
   const applySymbologyDraft = async () => {
     if (!activeDialogLayer) return;
     try {
-      const normalized = normalizeSymbologyForLayer(activeDialogLayer.geojson, activeDialogLayer.source, symbologyDraft);
+      const normalized = normalizeSymbologyForLayer(
+        activeDialogLayer.geojson,
+        activeDialogLayer.source,
+        symbologyDraft,
+        canUseArcGisOnline,
+      );
       const symbologyToSave: SymbologyConfig = {
         useArcGisOnline: normalized.useArcGisOnline,
         style: normalized.style,
@@ -2622,11 +2877,16 @@ export default function SatelliteIntelligence() {
             (activeDialogLayer.arcgisLayerDefinition as any)?.drawingInfo?.renderer;
           merged = { ...merged, ...inferVisualizationFromArcgisRenderer(ren) };
         }
-        const normalized = normalizeSymbologyForLayer(activeDialogLayer.geojson, activeDialogLayer.source, merged);
+        const normalized = normalizeSymbologyForLayer(
+          activeDialogLayer.geojson,
+          activeDialogLayer.source,
+          merged,
+          canUseArcGisOnline,
+        );
         return { ...normalized, arcgisMaxCategories: merged.arcgisMaxCategories };
       });
     },
-    [activeDialogLayer],
+    [activeDialogLayer, canUseArcGisOnline],
   );
 
   const moveSiTableColumn = (from: string, to: string) => {
@@ -6971,10 +7231,171 @@ export default function SatelliteIntelligence() {
                             <i className="fa-solid fa-xmark" aria-hidden />
                           </button>
                         </div>
+                        <input
+                          ref={netfloraUploadInputRef}
+                          type="file"
+                          accept=".geojson,.json"
+                          className="add-layer-input"
+                          onChange={onNetfloraUploadChange}
+                        />
+                        <div className="si-field-analysis-section">
+                          <div className="si-field-analysis-kicker">NetFlora model workflow</div>
+                          <div className="si-netflora-command">
+                            <code>python detect.py --device 0 --weights {netfloraWeightsPath || 'model_weights.pt'} --img {netfloraImageSize}</code>
+                            <code>python results.py --graphics --conf {netfloraThreshold.toFixed(2)}</code>
+                          </div>
+                        </div>
+                        <div className="si-field-analysis-section">
+                          <div className="si-field-analysis-kicker">Input settings</div>
+                          <div className="si-field-analysis-date-row">
+                            <label className="si-field-analysis-field">
+                              <span className="si-field-analysis-label">Raster path / URL</span>
+                              <input
+                                type="text"
+                                value={netfloraRasterPath}
+                                placeholder="/path/to/orthophoto.tif"
+                                onChange={e => setNetfloraRasterPath(e.target.value)}
+                              />
+                            </label>
+                            <label className="si-field-analysis-field">
+                              <span className="si-field-analysis-label">Weights</span>
+                              <input
+                                type="text"
+                                value={netfloraWeightsPath}
+                                placeholder="model_weights.pt"
+                                onChange={e => setNetfloraWeightsPath(e.target.value)}
+                              />
+                            </label>
+                          </div>
+                          <div className="si-field-analysis-date-row">
+                            <label className="si-field-analysis-field">
+                              <span className="si-field-analysis-label">Image size</span>
+                              <input
+                                type="number"
+                                min={256}
+                                max={4096}
+                                step={32}
+                                value={netfloraImageSize}
+                                onChange={e => setNetfloraImageSize(Math.max(256, Math.min(4096, Number(e.target.value) || 1536)))}
+                              />
+                            </label>
+                            <label className="si-field-analysis-field">
+                              <span className="si-field-analysis-label">Confidence threshold ({netfloraThreshold.toFixed(2)})</span>
+                              <input
+                                type="range"
+                                min={0.05}
+                                max={0.99}
+                                step={0.01}
+                                value={netfloraThreshold}
+                                onChange={e => setNetfloraThreshold(Number(e.target.value))}
+                              />
+                            </label>
+                          </div>
+                        </div>
+                        <div className="si-field-analysis-section">
+                          <div className="si-field-analysis-kicker">AOI and processing mode</div>
+                          <div className="si-netflora-pills">
+                            <button
+                              type="button"
+                              className={`si-netflora-pill${netfloraAoiSource === 'drawn' ? ' active' : ''}`}
+                              onClick={() => setNetfloraAoiSource('drawn')}
+                              disabled={!drawnGeometry}
+                              title={!drawnGeometry ? 'Draw AOI first using draw tools' : 'Use drawn AOI'}
+                            >
+                              AOI: Drawn shape
+                            </button>
+                            <button
+                              type="button"
+                              className={`si-netflora-pill${netfloraAoiSource === 'view' ? ' active' : ''}`}
+                              onClick={() => setNetfloraAoiSource('view')}
+                            >
+                              AOI: Current map view
+                            </button>
+                          </div>
+                          <div className="si-netflora-pills" style={{ marginTop: 8 }}>
+                            <button
+                              type="button"
+                              className={`si-netflora-pill${netfloraDetectionMode === 'aoi_first' ? ' active' : ''}`}
+                              onClick={() => setNetfloraDetectionMode('aoi_first')}
+                            >
+                              Option A: detect inside AOI
+                            </button>
+                            <button
+                              type="button"
+                              className={`si-netflora-pill${netfloraDetectionMode === 'full_then_clip' ? ' active' : ''}`}
+                              onClick={() => setNetfloraDetectionMode('full_then_clip')}
+                            >
+                              Option B: full detect then clip
+                            </button>
+                          </div>
+                        </div>
+                        <div className="si-field-analysis-section">
+                          <div className="si-netflora-actions">
+                            <button
+                              type="button"
+                              className="si-field-analysis-timeline-btn"
+                              onClick={() => netfloraUploadInputRef.current?.click()}
+                            >
+                              <i className="fa-solid fa-file-arrow-up" aria-hidden />
+                              Upload NetFlora results (GeoJSON)
+                            </button>
+                            <button
+                              type="button"
+                              className="si-field-analysis-timeline-btn"
+                              disabled={netfloraBusy || !netfloraUploadedResults?.features?.length}
+                              onClick={runNetfloraDetection}
+                            >
+                              {netfloraBusy ? <i className="fa-solid fa-spinner fa-spin" aria-hidden /> : <i className="fa-solid fa-play" aria-hidden />}
+                              Run Detection Workflow
+                            </button>
+                            <button
+                              type="button"
+                              className="si-field-analysis-timeline-btn"
+                              disabled={!netfloraFilteredResults?.features?.length}
+                              onClick={exportNetfloraResults}
+                            >
+                              <i className="fa-solid fa-download" aria-hidden />
+                              Export GeoJSON
+                            </button>
+                          </div>
+                          <p className="si-field-analysis-hint">
+                            Results are added as a GIS layer with confidence-driven styling and popup-ready attributes (class, confidence, bbox).
+                          </p>
+                          {netfloraStatus ? <p className="si-field-analysis-status">{netfloraStatus}</p> : null}
+                        </div>
+                        {netfloraStats ? (
+                          <div className="si-field-analysis-section">
+                            <div className="si-field-analysis-kicker">Detection analytics (inside AOI)</div>
+                            <div className="si-netflora-stats-grid">
+                              <div className="si-netflora-stat-card">
+                                <span>Total detections</span>
+                                <strong>{netfloraStats.total}</strong>
+                              </div>
+                              <div className="si-netflora-stat-card">
+                                <span>Average confidence</span>
+                                <strong>{(netfloraStats.avgConfidence * 100).toFixed(1)}%</strong>
+                              </div>
+                            </div>
+                            <div className="si-netflora-class-list">
+                              {netfloraStats.byClass.map(row => (
+                                <div key={row.label} className="si-netflora-class-row">
+                                  <div className="si-netflora-class-meta">
+                                    <strong>{row.label}</strong>
+                                    <span>{row.count} detections</span>
+                                  </div>
+                                  <div className="si-netflora-class-bar">
+                                    <span style={{ width: `${Math.max(8, (row.count / Math.max(1, netfloraStats.total)) * 100)}%` }} />
+                                  </div>
+                                  <em>{(row.avgConfidence * 100).toFixed(1)}%</em>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        ) : null}
                         <div className="si-field-analysis-section">
                           <p className="si-field-analysis-hint" style={{ marginTop: 0 }}>
-                            Run model-assisted detection on the map context (features, imagery layers, and AOI). Workflow and
-                            model endpoints will plug in here; use Geo AI for grounded Q&A on saved GIS data in the meantime.
+                            ArcGIS/web GIS compatibility: output layer is standard GeoJSON and can be exported/imported into ArcGIS Pro,
+                            ArcGIS Online, or other GIS clients.
                           </p>
                         </div>
                       </div>
@@ -8144,7 +8565,7 @@ export default function SatelliteIntelligence() {
                       <input
                         type="checkbox"
                         checked={symbologyDraft.useArcGisOnline}
-                        disabled={activeDialogLayer.source !== 'arcgis'}
+                        disabled={!canUseArcGisOnline}
                         onChange={e => {
                           const on = e.target.checked;
                           if (on) {
