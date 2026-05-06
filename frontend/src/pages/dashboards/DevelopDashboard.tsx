@@ -215,7 +215,8 @@ function ddbChartOptionsFor(
   modifiers?: { stacked?: boolean; indexAxis?: 'x' | 'y' },
 ): Record<string, unknown> {
   const radial = chartJsType === 'pie' || chartJsType === 'doughnut' || chartJsType === 'polarArea' || chartJsType === 'radar'
-  const dpr = typeof window !== 'undefined' ? Math.max(1.5, Math.min(2.2, window.devicePixelRatio || 1)) : 2
+  const dpr =
+    typeof window !== 'undefined' ? Math.min(3, Math.max(1.5, window.devicePixelRatio || 1)) : 2
   const base: Record<string, unknown> = {
     responsive: true,
     maintainAspectRatio: false,
@@ -225,9 +226,7 @@ function ddbChartOptionsFor(
     interaction: { mode: radial ? 'nearest' : 'index', intersect: false },
     plugins: {
       legend: {
-        position: 'top',
-        align: 'center',
-        labels: { usePointStyle: true, boxWidth: 10, padding: 14, font: { size: 11, weight: '600' } },
+        display: false,
       },
     },
   }
@@ -492,9 +491,217 @@ function ddbIconClassForMiniKind(kind: DdbMiniChartKind): string {
   return row ? `fa-solid ${row.icon}` : 'fa-solid fa-chart-simple'
 }
 
+const DDB_CHART_PALETTE_LS = 'ddb-develop-chart-palette-v1'
+
+/** Chart.js color ramps — one selection applies to every chart on the Develop canvas. */
+const DDB_CHART_PALETTE_MAP: Record<string, string[]> = {
+  emerald: ['#10b981', '#22c55e', '#34d399', '#059669', '#6ee7b7', '#14b8a6'],
+  azure: ['#2563eb', '#3b82f6', '#60a5fa', '#0ea5e9', '#38bdf8', '#1d4ed8'],
+  sunset: ['#f97316', '#f59e0b', '#ef4444', '#fb7185', '#f43f5e', '#ea580c'],
+  violet: ['#7c3aed', '#8b5cf6', '#a78bfa', '#6366f1', '#c084fc', '#6d28d9'],
+  mono: ['#0f172a', '#334155', '#475569', '#64748b', '#94a3b8', '#cbd5e1'],
+  rose: ['#f43f5e', '#fb7185', '#fda4af', '#be123c', '#e11d48', '#fecdd3'],
+  gold: ['#ca8a04', '#eab308', '#facc15', '#fde047', '#f59e0b', '#d97706'],
+  teal: ['#0d9488', '#14b8a6', '#2dd4bf', '#5eead4', '#0f766e', '#115e59'],
+  indigo: ['#312e81', '#4338ca', '#4f46e5', '#6366f1', '#818cf8', '#3730a3'],
+  crimson: ['#991b1b', '#dc2626', '#ef4444', '#f87171', '#b91c1c', '#7f1d1d'],
+  forest: ['#14532d', '#15803d', '#22c55e', '#4ade80', '#166534', '#052e16'],
+  magma: ['#7f1d1d', '#ea580c', '#f97316', '#fbbf24', '#fde047', '#c2410c'],
+}
+
+const DDB_CHART_PALETTE_MENU_ORDER = [
+  'emerald',
+  'azure',
+  'sunset',
+  'violet',
+  'mono',
+  'rose',
+  'gold',
+  'teal',
+  'indigo',
+  'crimson',
+  'forest',
+  'magma',
+] as const satisfies readonly (keyof typeof DDB_CHART_PALETTE_MAP)[]
+
+const DDB_CHART_PALETTE_LABELS: Record<string, string> = {
+  emerald: 'Emerald',
+  azure: 'Azure',
+  sunset: 'Sunset',
+  violet: 'Violet',
+  mono: 'Mono',
+  rose: 'Rose',
+  gold: 'Gold',
+  teal: 'Teal',
+  indigo: 'Indigo',
+  crimson: 'Crimson',
+  forest: 'Forest',
+  magma: 'Magma',
+}
+
+function ddbBuildChartPaletteMenuHtml(activeKey: string): string {
+  return DDB_CHART_PALETTE_MENU_ORDER.map(key => {
+    const cols = DDB_CHART_PALETTE_MAP[key] ?? []
+    const sw = cols.slice(0, 3)
+    const label = DDB_CHART_PALETTE_LABELS[key] ?? key
+    const active = key === activeKey ? ' is-active' : ''
+    return `<button type="button" class="ddb-visual-card__palette-item${active}" data-palette="${key}">
+      <span class="ddb-visual-card__palette-swatch">${sw.map(c => `<i style="background:${c}"></i>`).join('')}</span>
+      <span>${label}</span>
+    </button>`
+  }).join('')
+}
+
+/** Solid color for SVG legend swatches (canvas legend disabled for crisp vector labels). */
+function ddbPickLegendSwatchColor(ds: any, segmentIndex: number, chartType: string): string {
+  const bc = ds?.borderColor
+  const bg = ds?.backgroundColor
+  const radial = chartType === 'pie' || chartType === 'doughnut' || chartType === 'polarArea'
+  if (radial) {
+    const arr = Array.isArray(bg) ? bg : Array.isArray(bc) ? bc : []
+    if (arr.length) {
+      const c = arr[segmentIndex % arr.length]
+      return typeof c === 'string' ? c : '#64748b'
+    }
+  }
+  if (typeof bc === 'string' && bc.length > 0 && bc !== '#ffffff') return bc
+  if (Array.isArray(bc) && bc[segmentIndex]) return String(bc[segmentIndex])
+  if (typeof bg === 'string' && bg.length > 0) return bg
+  if (Array.isArray(bg) && bg[segmentIndex]) return String(bg[segmentIndex])
+  return '#475569'
+}
+
+/** DOM + SVG legend so labels stay sharp (not rasterized like Chart.js canvas legend). */
+function ddbSyncSvgLegend(chart: Chart) {
+  const canvas = chart.canvas
+  const host = canvas.parentElement as HTMLElement | null
+  if (!host) return
+  const chartType = String((chart.config as any).type ?? '')
+  const datasets = chart.data.datasets as any[]
+  if (!datasets?.length) {
+    host.querySelector('.ddb-chart-svg-legend')?.remove()
+    return
+  }
+
+  let leg = host.querySelector('.ddb-chart-svg-legend') as HTMLDivElement | null
+  if (!leg) {
+    leg = document.createElement('div')
+    leg.className = 'ddb-chart-svg-legend'
+    leg.setAttribute('role', 'legend')
+    canvas.insertAdjacentElement('afterend', leg)
+  }
+  leg.replaceChildren()
+
+  const svgNS = 'http://www.w3.org/2000/svg'
+  const appendRow = (label: string, fill: string) => {
+    const row = document.createElement('div')
+    row.className = 'ddb-chart-svg-legend__row'
+    const svg = document.createElementNS(svgNS, 'svg')
+    svg.setAttribute('width', '12')
+    svg.setAttribute('height', '12')
+    svg.setAttribute('viewBox', '0 0 12 12')
+    svg.setAttribute('aria-hidden', 'true')
+    svg.classList.add('ddb-chart-svg-legend__swatch')
+    const circle = document.createElementNS(svgNS, 'circle')
+    circle.setAttribute('cx', '6')
+    circle.setAttribute('cy', '6')
+    circle.setAttribute('r', '4.5')
+    circle.setAttribute('fill', fill)
+    circle.setAttribute('stroke', 'rgba(255,255,255,0.92)')
+    circle.setAttribute('stroke-width', '1')
+    svg.appendChild(circle)
+    const span = document.createElement('span')
+    span.className = 'ddb-chart-svg-legend__label'
+    span.textContent = label
+    row.appendChild(svg)
+    row.appendChild(span)
+    leg!.appendChild(row)
+  }
+
+  if (chartType === 'pie' || chartType === 'doughnut' || chartType === 'polarArea') {
+    const ds = datasets[0]
+    const labels = (chart.data.labels ?? []) as unknown[]
+    const dataLen = Array.isArray(ds?.data) ? ds.data.length : 0
+    const n = Math.max(labels.length, dataLen, 1)
+    for (let i = 0; i < n; i++) {
+      const lab = labels[i] != null && String(labels[i]).length ? String(labels[i]) : `Item ${i + 1}`
+      appendRow(lab, ddbPickLegendSwatchColor(ds, i, chartType))
+    }
+    return
+  }
+
+  datasets.forEach((ds: any, i: number) => {
+    const lab = ds.label != null && String(ds.label).length ? String(ds.label) : `Series ${i + 1}`
+    appendRow(lab, ddbPickLegendSwatchColor(ds, 0, chartType))
+  })
+}
+
+function ddbApplyChartPalette(target: Chart, paletteKey: string) {
+  const colors = DDB_CHART_PALETTE_MAP[paletteKey] ?? DDB_CHART_PALETTE_MAP.emerald
+  target.data.datasets.forEach((dataset: any, idx) => {
+    const color = colors[idx % colors.length]
+    const soft = `${color}33`
+    const lineType = (dataset.type || ((target as any)?.config?.type as string | undefined) || '').toString()
+    dataset.borderColor = color
+    if (lineType === 'line' || lineType === 'radar' || lineType === 'scatter' || lineType === 'bubble') {
+      dataset.backgroundColor = soft
+      dataset.pointBackgroundColor = color
+      dataset.pointBorderColor = '#ffffff'
+    } else if (lineType === 'pie' || lineType === 'doughnut' || lineType === 'polarArea') {
+      dataset.backgroundColor = colors
+      dataset.borderColor = '#ffffff'
+      dataset.hoverBackgroundColor = colors.map((c: string) => `${c}dd`)
+    } else {
+      dataset.backgroundColor = `${color}cc`
+      dataset.hoverBackgroundColor = color
+    }
+  })
+  target.update('none')
+  ddbSyncSvgLegend(target)
+}
+
+function ddbSyncPaletteMenusInHost(host: HTMLElement | null, activeKey: string) {
+  if (!host) return
+  host.querySelectorAll('.ddb-visual-card__palette-menu .ddb-visual-card__palette-item').forEach(item => {
+    const el = item as HTMLElement
+    el.classList.toggle('is-active', el.dataset.palette === activeKey)
+  })
+  host.querySelectorAll('.ddb-visual-card__icon-btn--palette').forEach(btn => {
+    const b = btn as HTMLButtonElement
+    b.title = `Color schemes (${activeKey})`
+    b.setAttribute('aria-label', `Color schemes (${activeKey})`)
+  })
+}
+
+function loadDdbChartPalette(): string {
+  if (typeof window === 'undefined') return 'violet'
+  try {
+    const k = localStorage.getItem(DDB_CHART_PALETTE_LS)
+    if (k && DDB_CHART_PALETTE_MAP[k]) return k
+  } catch {
+    /* ignore */
+  }
+  return 'violet'
+}
+
+function persistDdbChartPalette(key: string) {
+  if (typeof window === 'undefined') return
+  try {
+    localStorage.setItem(DDB_CHART_PALETTE_LS, key)
+  } catch {
+    /* ignore quota */
+  }
+}
+
 function ddbPromoteVisualCardChrome(
   card: HTMLElement,
-  opts: { showStatStrip: boolean; showZoomHint: boolean; initialMini?: DdbMiniChartKind; onClose?: () => void },
+  opts: {
+    showStatStrip: boolean
+    initialMini?: DdbMiniChartKind
+    onClose?: () => void
+    /** Highlights the active scheme in the palette dropdown (global canvas palette). */
+    activePaletteKey?: string
+  },
 ): {
   header: HTMLDivElement
   titleEl: HTMLElement
@@ -504,7 +711,6 @@ function ddbPromoteVisualCardChrome(
   menu: HTMLDivElement
   filterPanel: HTMLDivElement
   chip: HTMLDivElement
-  zoomHint: HTMLDivElement
 } | null {
   card.classList.add('ddb-visual-card--enhanced')
   const first = card.firstElementChild as HTMLElement | null
@@ -604,28 +810,7 @@ function ddbPromoteVisualCardChrome(
   const paletteMenu = document.createElement('div')
   paletteMenu.className = 'ddb-visual-card__palette-menu'
   paletteMenu.hidden = true
-  paletteMenu.innerHTML = `
-    <button type="button" class="ddb-visual-card__palette-item" data-palette="emerald">
-      <span class="ddb-visual-card__palette-swatch"><i style="background:#10b981"></i><i style="background:#22c55e"></i><i style="background:#34d399"></i></span>
-      <span>Emerald</span>
-    </button>
-    <button type="button" class="ddb-visual-card__palette-item" data-palette="azure">
-      <span class="ddb-visual-card__palette-swatch"><i style="background:#2563eb"></i><i style="background:#3b82f6"></i><i style="background:#60a5fa"></i></span>
-      <span>Azure</span>
-    </button>
-    <button type="button" class="ddb-visual-card__palette-item" data-palette="sunset">
-      <span class="ddb-visual-card__palette-swatch"><i style="background:#f97316"></i><i style="background:#f59e0b"></i><i style="background:#ef4444"></i></span>
-      <span>Sunset</span>
-    </button>
-    <button type="button" class="ddb-visual-card__palette-item is-active" data-palette="violet">
-      <span class="ddb-visual-card__palette-swatch"><i style="background:#7c3aed"></i><i style="background:#8b5cf6"></i><i style="background:#a78bfa"></i></span>
-      <span>Violet</span>
-    </button>
-    <button type="button" class="ddb-visual-card__palette-item" data-palette="mono">
-      <span class="ddb-visual-card__palette-swatch"><i style="background:#0f172a"></i><i style="background:#475569"></i><i style="background:#94a3b8"></i></span>
-      <span>Mono</span>
-    </button>
-  `
+  paletteMenu.innerHTML = ddbBuildChartPaletteMenuHtml(opts.activePaletteKey ?? 'violet')
   header.appendChild(paletteMenu)
 
   const anchorMenuToButton = (menuEl: HTMLDivElement, btnEl: HTMLButtonElement | null) => {
@@ -667,14 +852,6 @@ function ddbPromoteVisualCardChrome(
     }
     header.appendChild(chartTypeMenu)
   }
-
-  const zoomHint = document.createElement('div')
-  zoomHint.className = 'ddb-visual-card__zoom-hint'
-  zoomHint.innerHTML =
-    '<i class="fa-solid fa-magnifying-glass-plus" aria-hidden></i> Wheel zoom · drag to pan · drag box to zoom region · double-click to reset'
-  zoomHint.hidden = !opts.showZoomHint
-  if (chartTypeMenu) card.insertBefore(zoomHint, chip.nextSibling)
-  else card.insertBefore(zoomHint, chip.nextSibling)
 
   actions.querySelector('[data-ddb-card-act="focus"]')?.addEventListener('click', () => {
     card.classList.toggle('ddb-visual-card--focus')
@@ -785,7 +962,7 @@ function ddbPromoteVisualCardChrome(
     closeBtn?.remove()
   }
 
-  return { header, titleEl, actions, chartTypeMenu, paletteMenu, menu, filterPanel, chip, zoomHint }
+  return { header, titleEl, actions, chartTypeMenu, paletteMenu, menu, filterPanel, chip }
 }
 
 const DDB_CANVAS_LAYOUT_LS = 'ddb-develop-canvas-layouts-v1'
@@ -1539,6 +1716,8 @@ export default function DevelopDashboard() {
   const mapContainerRef = useRef<HTMLDivElement | null>(null)
   const canvasWorkspaceRef = useRef<HTMLDivElement | null>(null)
   const chartInstancesRef = useRef<Chart[]>([])
+  /** Global chart palette for all Chart.js visuals on the canvas (persisted). */
+  const chartPaletteKeyRef = useRef<string>(loadDdbChartPalette())
 
   const [layers, setLayers] = useState<Record<string, LayerState>>(() => getDdbInitialRegistry().layers)
   const [activeStatsLayer, setActiveStatsLayer] = useState(() => {
@@ -1968,6 +2147,8 @@ export default function DevelopDashboard() {
       return
     }
 
+    const paletteKeyForMenus = chartPaletteKeyRef.current
+
     const layer = bindLayerKey ? layers[bindLayerKey] : undefined
     const hasLayerData = !!(layer?.data?.features?.length)
 
@@ -2053,8 +2234,8 @@ export default function DevelopDashboard() {
       const initialMini = ddbMiniKindFromChartType(type, dataConfig)
       const chrome = ddbPromoteVisualCardChrome(card, {
         showStatStrip: true,
-        showZoomHint: type !== 'pie' && type !== 'doughnut',
         initialMini,
+        activePaletteKey: paletteKeyForMenus,
         onClose: () => removeCanvasVisualByInstanceId(instanceId),
       })
       if (!chrome) return
@@ -2066,7 +2247,7 @@ export default function DevelopDashboard() {
         chrome.header.after(note)
       }
 
-      const { chartTypeMenu, paletteMenu, menu, filterPanel, chip, titleEl: titleNode, zoomHint } = chrome
+      const { chartTypeMenu, paletteMenu, menu, filterPanel, chip, titleEl: titleNode } = chrome
       const sortMetricLabel = menu.querySelector('[data-sort-metric-label]') as HTMLSpanElement | null
       if (sortMetricLabel) sortMetricLabel.textContent = datasetLabel || primaryNum || 'Metric value'
 
@@ -2133,50 +2314,13 @@ export default function DevelopDashboard() {
         }
       }
 
-      const paletteMap: Record<string, string[]> = {
-        emerald: ['#10b981', '#22c55e', '#34d399', '#059669', '#6ee7b7', '#14b8a6'],
-        azure: ['#2563eb', '#3b82f6', '#60a5fa', '#0ea5e9', '#38bdf8', '#1d4ed8'],
-        sunset: ['#f97316', '#f59e0b', '#ef4444', '#fb7185', '#f43f5e', '#ea580c'],
-        violet: ['#7c3aed', '#8b5cf6', '#a78bfa', '#6366f1', '#c084fc', '#6d28d9'],
-        mono: ['#0f172a', '#334155', '#475569', '#64748b', '#94a3b8', '#cbd5e1'],
-      }
-      let paletteKey: keyof typeof paletteMap = 'violet'
       let chartRef: Chart | null = null
 
       const syncPaletteUi = () => {
-        paletteMenu?.querySelectorAll<HTMLElement>('.ddb-visual-card__palette-item').forEach(item => {
-          item.classList.toggle('is-active', item.dataset.palette === paletteKey)
-        })
-        const paletteBtn = chrome.actions.querySelector('[data-ddb-card-act="palette"]') as HTMLButtonElement | null
-        if (paletteBtn) {
-          paletteBtn.title = `Color schemes (${paletteKey})`
-          paletteBtn.setAttribute('aria-label', `Color schemes (${paletteKey})`)
-        }
+        ddbSyncPaletteMenusInHost(host, chartPaletteKeyRef.current)
       }
       syncPaletteUi()
 
-      const applyPalette = (target: Chart, key: keyof typeof paletteMap) => {
-        const colors = paletteMap[key] ?? paletteMap.emerald
-        target.data.datasets.forEach((dataset: any, idx) => {
-          const color = colors[idx % colors.length]
-          const soft = `${color}33`
-          const lineType = (dataset.type || ((target as any)?.config?.type as string | undefined) || '').toString()
-          dataset.borderColor = color
-          if (lineType === 'line' || lineType === 'radar' || lineType === 'scatter') {
-            dataset.backgroundColor = soft
-            dataset.pointBackgroundColor = color
-            dataset.pointBorderColor = '#ffffff'
-          } else if (lineType === 'pie' || lineType === 'doughnut' || lineType === 'polarArea') {
-            dataset.backgroundColor = colors
-            dataset.borderColor = '#ffffff'
-            dataset.hoverBackgroundColor = colors.map(c => `${c}dd`)
-          } else {
-            dataset.backgroundColor = `${color}cc`
-            dataset.hoverBackgroundColor = color
-          }
-        })
-        target.update('none')
-      }
       const rebuild = (kind: DdbMiniChartKind) => {
         const built = ddbBuildChartFromMiniKind(kind, base)
         const prev = chartRef
@@ -2196,11 +2340,10 @@ export default function DevelopDashboard() {
           options: opt,
         } as any)
         chartInstancesRef.current.push(chartRef)
-        applyPalette(chartRef, paletteKey)
+        ddbApplyChartPalette(chartRef, chartPaletteKeyRef.current)
         const ic = ddbIconClassForMiniKind(kind)
         titleNode.innerHTML = `<i class="${ic}" aria-hidden="true"></i> ${ddbTitleForMiniKind(title, kind)}`
         setStripActive(kind)
-        zoomHint.hidden = ['pie', 'doughnut', 'polarArea', 'radar'].includes(built.type)
       }
 
       chartTypeMenu?.querySelectorAll('.ddb-visual-card__chart-type-item').forEach(btn => {
@@ -2219,20 +2362,18 @@ export default function DevelopDashboard() {
 
       paletteMenu?.querySelectorAll('.ddb-visual-card__palette-item').forEach(btn => {
         btn.addEventListener('click', () => {
-          const key = (btn.getAttribute('data-palette') || 'emerald') as keyof typeof paletteMap
-          paletteKey = paletteMap[key] ? key : 'emerald'
-          syncPaletteUi()
-          if (chartRef) applyPalette(chartRef, paletteKey)
+          const raw = btn.getAttribute('data-palette') || 'emerald'
+          const key = DDB_CHART_PALETTE_MAP[raw] ? raw : 'emerald'
+          chartPaletteKeyRef.current = key
+          persistDdbChartPalette(key)
+          chartInstancesRef.current.forEach(ch => ddbApplyChartPalette(ch, key))
+          ddbSyncPaletteMenusInHost(host, key)
           paletteMenu.hidden = true
           const paletteBtn = chrome.actions.querySelector('[data-ddb-card-act="palette"]') as HTMLButtonElement | null
           if (paletteBtn) {
             paletteBtn.setAttribute('aria-expanded', 'false')
             paletteBtn.classList.remove('is-active')
-            paletteBtn.title = `Color schemes (${paletteKey})`
-            paletteBtn.setAttribute('aria-label', `Color schemes (${paletteKey})`)
           }
-          chip.textContent = `Color scheme: ${paletteKey}`
-          chip.hidden = false
         })
       })
 
@@ -2442,7 +2583,7 @@ export default function DevelopDashboard() {
         host.appendChild(tbl)
         ddbPromoteVisualCardChrome(tbl, {
           showStatStrip: false,
-          showZoomHint: false,
+          activePaletteKey: paletteKeyForMenus,
           onClose: () => removeCanvasVisualByInstanceId(instanceId),
         })
       } else if (tool === 'matrix') {
@@ -2463,7 +2604,7 @@ export default function DevelopDashboard() {
         host.appendChild(matrix)
         ddbPromoteVisualCardChrome(matrix, {
           showStatStrip: false,
-          showZoomHint: false,
+          activePaletteKey: paletteKeyForMenus,
           onClose: () => removeCanvasVisualByInstanceId(instanceId),
         })
       } else if (tool === 'stackedBar' || tool === 'clusteredBar') {
@@ -2508,7 +2649,7 @@ export default function DevelopDashboard() {
         host.appendChild(card)
         const comboChrome = ddbPromoteVisualCardChrome(card, {
           showStatStrip: false,
-          showZoomHint: true,
+          activePaletteKey: paletteKeyForMenus,
           onClose: () => removeCanvasVisualByInstanceId(instanceId),
         })
         if (comboChrome && !hasLayerData) {
@@ -2529,6 +2670,7 @@ export default function DevelopDashboard() {
           options: ddbChartOptionsFor('bar') as any,
         } as any)
         chartInstancesRef.current.push(ch)
+        ddbApplyChartPalette(ch, chartPaletteKeyRef.current)
         canvas.addEventListener('dblclick', () => {
           ch.resetZoom?.()
         })
@@ -2588,11 +2730,11 @@ export default function DevelopDashboard() {
         const gauge = document.createElement('div')
         gauge.className = 'ddb-visual-card'
         gauge.dataset.ddbInstanceId = instanceId
-        gauge.innerHTML = `<div class="ddb-visual-title"><i class="fa-solid fa-gauge-high"></i> Gauge</div><div class="ddb-visual-card__body-pad"><div style="background:#e2e8f0; border-radius:40px; height:20px;"><div style="background:#2c7a4a; width:${Math.min(100, (avgVal / 200) * 100)}%; height:20px; border-radius:40px;"></div></div><div>Value: ${avgVal.toFixed(1)} / 200</div></div>`
+        gauge.innerHTML = `<div class="ddb-visual-title"><i class="fa-solid fa-gauge-high"></i> Gauge</div><div class="ddb-visual-card__body-pad"><div class="ddb-visual-card__kpi-label">${primaryNum}</div><div style="background:#e2e8f0; border-radius:40px; height:20px; margin:4px 0 10px;"><div style="background:#2c7a4a; width:${Math.min(100, (avgVal / 200) * 100)}%; height:20px; border-radius:40px;"></div></div><div class="ddb-visual-card__kpi-value ddb-visual-card__kpi-value--gauge">${avgVal.toFixed(1)}</div><div class="ddb-visual-card__kpi-meta">of 200</div></div>`
         host.appendChild(gauge)
         ddbPromoteVisualCardChrome(gauge, {
           showStatStrip: false,
-          showZoomHint: false,
+          activePaletteKey: paletteKeyForMenus,
           onClose: () => removeCanvasVisualByInstanceId(instanceId),
         })
       } else if (tool === 'card') {
@@ -2600,22 +2742,22 @@ export default function DevelopDashboard() {
         const card = document.createElement('div')
         card.className = 'ddb-visual-card'
         card.dataset.ddbInstanceId = instanceId
-        card.innerHTML = `<div class="ddb-visual-title"><i class="fa-solid fa-id-card"></i> Card</div><div class="ddb-visual-card__body-pad"><div style="font-size:2rem; font-weight:800;">${total.toFixed(0)}</div><div>Total ${primaryNum}</div></div>`
+        card.innerHTML = `<div class="ddb-visual-title"><i class="fa-solid fa-id-card"></i> Card</div><div class="ddb-visual-card__body-pad"><div class="ddb-visual-card__kpi-label">Total ${primaryNum}</div><div class="ddb-visual-card__kpi-value">${total.toFixed(0)}</div></div>`
         host.appendChild(card)
         ddbPromoteVisualCardChrome(card, {
           showStatStrip: false,
-          showZoomHint: false,
+          activePaletteKey: paletteKeyForMenus,
           onClose: () => removeCanvasVisualByInstanceId(instanceId),
         })
       } else if (tool === 'kpi') {
         const kpi = document.createElement('div')
         kpi.className = 'ddb-visual-card'
         kpi.dataset.ddbInstanceId = instanceId
-        kpi.innerHTML = `<div class="ddb-visual-title"><i class="fa-solid fa-chart-simple"></i> KPI</div><div class="ddb-visual-card__body-pad"><div style="font-size:2rem;">${values[0] ?? 0}</div><div>Target: 150 | ${((((values[0] ?? 0) / 150) * 100) || 0).toFixed(0)}%</div></div>`
+        kpi.innerHTML = `<div class="ddb-visual-title"><i class="fa-solid fa-chart-simple"></i> KPI</div><div class="ddb-visual-card__body-pad"><div class="ddb-visual-card__kpi-label">${primaryNum}</div><div class="ddb-visual-card__kpi-value">${values[0] ?? 0}</div><div class="ddb-visual-card__kpi-meta">Target: 150 | ${((((values[0] ?? 0) / 150) * 100) || 0).toFixed(0)}%</div></div>`
         host.appendChild(kpi)
         ddbPromoteVisualCardChrome(kpi, {
           showStatStrip: false,
-          showZoomHint: false,
+          activePaletteKey: paletteKeyForMenus,
           onClose: () => removeCanvasVisualByInstanceId(instanceId),
         })
       } else if (tool === 'customStatCard') {
@@ -2627,7 +2769,7 @@ export default function DevelopDashboard() {
           host.appendChild(wrap)
           ddbPromoteVisualCardChrome(wrap, {
             showStatStrip: false,
-            showZoomHint: false,
+            activePaletteKey: paletteKeyForMenus,
             onClose: () => removeCanvasVisualByInstanceId(instanceId),
           })
         } else {
@@ -2635,11 +2777,11 @@ export default function DevelopDashboard() {
             const box = document.createElement('div')
             box.className = 'ddb-visual-card'
             box.dataset.ddbInstanceId = `${instanceId}_${c.id}`
-            box.innerHTML = `<div class="ddb-visual-title"><i class="fa-solid fa-chart-column"></i> ${c.layerName}</div><div class="ddb-visual-card__body-pad"><div style="font-size:1.75rem;font-weight:800;">${c.result.toFixed(2)}</div><div>${c.agg} · ${c.field}</div></div>`
+            box.innerHTML = `<div class="ddb-visual-title"><i class="fa-solid fa-chart-column"></i> ${c.layerName}</div><div class="ddb-visual-card__body-pad"><div class="ddb-visual-card__kpi-label">${c.agg} · ${c.field}</div><div class="ddb-visual-card__kpi-value ddb-visual-card__kpi-value--md">${c.result.toFixed(2)}</div></div>`
             host.appendChild(box)
             ddbPromoteVisualCardChrome(box, {
               showStatStrip: false,
-              showZoomHint: false,
+              activePaletteKey: paletteKeyForMenus,
               onClose: () => removeCanvasVisualByInstanceId(instanceId),
             })
           }
@@ -2652,7 +2794,7 @@ export default function DevelopDashboard() {
         host.appendChild(fb)
         ddbPromoteVisualCardChrome(fb, {
           showStatStrip: false,
-          showZoomHint: false,
+          activePaletteKey: paletteKeyForMenus,
           onClose: () => removeCanvasVisualByInstanceId(instanceId),
         })
       }

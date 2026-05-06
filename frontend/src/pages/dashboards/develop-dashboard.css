@@ -2914,7 +2914,7 @@
   overflow: hidden;
 }
 
-.develop-dashboard-root .ddb-visual-card--canvas.ddb-visual-card--enhanced .ddb-visual-card__zoom-hint {
+.develop-dashboard-root .ddb-visual-card--canvas.ddb-visual-card--enhanced .ddb-chart-svg-legend {
   flex-shrink: 0;
 }
 
@@ -3011,6 +3011,8 @@
   top: calc(100% + 6px);
   z-index: 24;
   min-width: 172px;
+  max-height: min(70vh, 320px);
+  overflow-y: auto;
   padding: 8px;
   border-radius: 12px;
   border: 1px solid rgba(226, 232, 240, 0.95);
@@ -3211,26 +3213,47 @@
   color: #fff;
 }
 
+/* Zoom hint removed — keep selector hidden if legacy markup appears */
 .develop-dashboard-root .ddb-visual-card__zoom-hint {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 6px 14px 0;
-  font-size: 0.65rem;
-  font-weight: 600;
-  letter-spacing: 0.02em;
-  text-transform: uppercase;
-  color: #94a3b8;
+  display: none !important;
 }
 
-.develop-dashboard-root .ddb-visual-card__zoom-hint i {
-  color: var(--ddb-green);
-  font-size: 0.75rem;
+/* Vector (SVG + DOM text) legend — sharp at any zoom; replaces raster Chart.js legend */
+.develop-dashboard-root .ddb-chart-svg-legend {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 10px 16px;
+  padding: 6px 14px 12px;
+  margin: 0;
+  user-select: none;
+}
+
+.develop-dashboard-root .ddb-chart-svg-legend__row {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.develop-dashboard-root .ddb-chart-svg-legend__swatch {
+  flex-shrink: 0;
+  vertical-align: middle;
+  shape-rendering: geometricPrecision;
+}
+
+.develop-dashboard-root .ddb-chart-svg-legend__label {
+  font-size: 11px;
+  font-weight: 600;
+  color: #334155;
+  letter-spacing: 0.012em;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
 .develop-dashboard-root .ddb-visual-card--enhanced canvas {
   display: block;
-  margin: 0 14px 14px;
+  margin: 0 14px 0;
   min-height: 240px;
   height: clamp(240px, 34vh, 420px) !important;
   max-height: none;
@@ -3238,10 +3261,6 @@
   image-rendering: auto;
   backface-visibility: hidden;
   transform: translateZ(0);
-  cursor: crosshair;
-}
-
-.develop-dashboard-root .ddb-visual-card--enhanced .ddb-visual-card__zoom-hint ~ canvas {
   cursor: grab;
 }
 
@@ -3256,6 +3275,39 @@
 .develop-dashboard-root .ddb-visual-card__body-pad {
   padding: 2px 14px 14px;
   line-height: 1.5;
+}
+
+/* KPI-style cards: field label on top, numeric value below */
+.develop-dashboard-root .ddb-visual-card__kpi-label {
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: #64748b;
+  letter-spacing: 0.02em;
+  margin-bottom: 6px;
+}
+
+.develop-dashboard-root .ddb-visual-card__kpi-value {
+  font-size: 2rem;
+  font-weight: 800;
+  color: #0f172a;
+  line-height: 1.15;
+}
+
+.develop-dashboard-root .ddb-visual-card__kpi-value--md {
+  font-size: 1.75rem;
+  font-weight: 800;
+}
+
+.develop-dashboard-root .ddb-visual-card__kpi-value--gauge {
+  font-size: 1.5rem;
+  font-weight: 800;
+}
+
+.develop-dashboard-root .ddb-visual-card__kpi-meta {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #64748b;
+  margin-top: 6px;
 }
 
 .develop-dashboard-root .ddb-visual-card__filter-panel {
