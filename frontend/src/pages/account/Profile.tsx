@@ -2,6 +2,12 @@ import { useEffect, useMemo, useRef, useState, type ChangeEvent, type ReactNode 
 import './Profile.css'
 import { normalizeEmail, normalizeRole, readCurrentUser, startSession, type CurrentUser } from '../../lib/auth'
 import { useLanguage } from '../../lib/i18n'
+import {
+  hydrateProfileFromServer,
+  readProfileExtra,
+  writeProfileExtra,
+  type ProfileExtra,
+} from '../../lib/userProfilePersistence'
 
 type ManagementRecord = {
   id: number
@@ -13,37 +19,6 @@ type ManagementRecord = {
   lastLogin: string
   managedById?: number
   emailVerified?: boolean
-}
-
-/** Extended fields stored under `user_profiles_v1` per email (with avatar). */
-type ProfileExtra = {
-  avatarDataUrl?: string
-  /** Wide banner behind hero (LinkedIn-style), data URL JPEG */
-  coverDataUrl?: string
-  firstName?: string
-  lastName?: string
-  phone?: string
-  dateOfBirth?: string
-  country?: string
-  city?: string
-  postalCode?: string
-}
-
-function profileKey(email: string) {
-  return String(email || '').trim().toLowerCase()
-}
-
-function readProfileExtra(email: string): ProfileExtra {
-  try {
-    const raw = localStorage.getItem('user_profiles_v1')
-    if (!raw) return {}
-    const parsed = JSON.parse(raw) as Record<string, Record<string, unknown>>
-    const row = parsed[profileKey(email)]
-    if (!row || typeof row !== 'object') return {}
-    return row as ProfileExtra
-  } catch {
-    return {}
-  }
 }
 
 /** Snapshot staged by Apply; committed to storage only on Save when it still matches the form. */
@@ -65,20 +40,6 @@ type StagedProfileCommit = {
 
 function stagedProfileFingerprint(s: StagedProfileCommit): string {
   return JSON.stringify(s)
-}
-
-function writeProfileExtra(email: string, patch: Partial<ProfileExtra>) {
-  const key = profileKey(email)
-  try {
-    const raw = localStorage.getItem('user_profiles_v1')
-    const all: Record<string, Record<string, unknown>> = raw ? JSON.parse(raw) : {}
-    const prev = all[key] && typeof all[key] === 'object' ? all[key]! : {}
-    all[key] = { ...prev, ...patch }
-    localStorage.setItem('user_profiles_v1', JSON.stringify(all))
-    window.dispatchEvent(new Event('storage'))
-  } catch {
-    /* ignore */
-  }
 }
 
 /** Downscale cover image for localStorage; keeps banner readable */
@@ -334,6 +295,7 @@ export default function Profile() {
   const [saveState, setSaveState] = useState<'idle' | 'saved'>('idle')
   const saveResetRef = useRef<number | null>(null)
   const [stagedGate, setStagedGate] = useState<StagedProfileCommit | null>(null)
+  const profileHydratedEmailRef = useRef<string | null>(null)
 
   useEffect(() => {
     const refresh = () => setMe(readCurrentUser())
@@ -343,14 +305,37 @@ export default function Profile() {
 
   useEffect(() => {
     if (!me?.email) {
+      profileHydratedEmailRef.current = null
       setExtra({})
       setCoverDraft(undefined)
       setStagedGate(null)
-      return
+      return undefined
     }
-    setExtra(readProfileExtra(me.email))
-    setCoverDraft(undefined)
-    setStagedGate(null)
+    const email = me.email
+    const emailChanged = profileHydratedEmailRef.current !== email
+    profileHydratedEmailRef.current = email
+
+    let cancelled = false
+    const refreshLocal = () => {
+      if (!cancelled) {
+        setExtra(readProfileExtra(email))
+        setCoverDraft(undefined)
+        setStagedGate(null)
+      }
+    }
+
+    if (emailChanged) {
+      void (async () => {
+        await hydrateProfileFromServer(email)
+        refreshLocal()
+      })()
+    } else {
+      refreshLocal()
+    }
+
+    return () => {
+      cancelled = true
+    }
   }, [me?.email, avatarTick])
 
   const records = parseManagementUsers()

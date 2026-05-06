@@ -10,6 +10,7 @@ backend/dist/
 
 # Server-side API token store (Mapbox, Gemini, …) — never commit.
 backend/server/agri_api_secrets.json
+backend/server/agri_user_profiles.json
 
 npm-debug.log*
 yarn-debug.log*

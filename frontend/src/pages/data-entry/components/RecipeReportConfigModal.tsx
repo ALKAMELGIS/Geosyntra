@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { appAlert } from '../../../lib/appDialog'
 import type { RecipeColumn } from '../../../lib/formFieldColumns'
 import type { RecipeRow } from '../../../lib/recipeReport/loadRecipeRows'
@@ -222,7 +223,7 @@ export function RecipeReportConfigModal({ open, onClose, columns, rows, uiLang, 
 
   if (!open) return null
 
-  return (
+  const modal = (
     <div
       className="recipe-report-modal-overlay"
       role="presentation"
@@ -308,4 +309,6 @@ export function RecipeReportConfigModal({ open, onClose, columns, rows, uiLang, 
       </div>
     </div>
   )
+
+  return typeof document !== 'undefined' ? createPortal(modal, document.body) : null
 }

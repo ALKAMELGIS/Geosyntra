@@ -604,6 +604,14 @@ export default function GisMap() {
   const [tablesAddMenuOpen, setTablesAddMenuOpen] = useState(false)
   const tablesAddMenuRef = useRef<HTMLDivElement | null>(null)
   const quickSearchRef = useRef<HTMLDivElement | null>(null)
+  const mapCanvasSectionRef = useRef<HTMLElement | null>(null)
+  const geoExplorerQuickToolBtnRef = useRef<HTMLButtonElement | null>(null)
+  const geoExplorerMapToolbarChatRef = useRef<HTMLButtonElement | null>(null)
+  const geoExplorerPopoverRef = useRef<HTMLDivElement | null>(null)
+  const geoExplorerAnchorSourceRef = useRef<'quick' | 'toolbar'>('quick')
+  const [geoExplorerPopoverLayout, setGeoExplorerPopoverLayout] = useState<null | { top: number; left: number; width: number; maxHeight: number }>(
+    null,
+  )
   const [layersEmptyAddMenuOpen, setLayersEmptyAddMenuOpen] = useState(false)
   const layersEmptyAddMenuRef = useRef<HTMLDivElement | null>(null)
   const [showSelectedOnly, setShowSelectedOnly] = useState(false)
@@ -737,6 +745,91 @@ export default function GisMap() {
       window.removeEventListener('keydown', onEsc)
     }
   }, [quickSearchOpen])
+
+  const repositionGeoExplorerPopover = useCallback(() => {
+    if (activeMapTool !== 'geoExplorer') {
+      setGeoExplorerPopoverLayout(null)
+      return
+    }
+    const canvas = mapCanvasSectionRef.current
+    let btn: HTMLButtonElement | null =
+      geoExplorerAnchorSourceRef.current === 'toolbar' ? geoExplorerMapToolbarChatRef.current : geoExplorerQuickToolBtnRef.current
+    if (!btn) btn = geoExplorerQuickToolBtnRef.current
+    if (!canvas || !btn) {
+      setGeoExplorerPopoverLayout(null)
+      return
+    }
+    const c = canvas.getBoundingClientRect()
+    const b = btn.getBoundingClientRect()
+    const margin = 12
+    const gap = 10
+    const maxW = 400
+    const width = Math.min(maxW, Math.max(280, c.width - margin * 2))
+    const rtl =
+      typeof document !== 'undefined' &&
+      (document.documentElement.getAttribute('dir') === 'rtl' || document.body.getAttribute('dir') === 'rtl')
+    let left = rtl ? b.left - c.left - gap - width : b.right - c.left + gap
+    left = Math.min(Math.max(left, margin), c.width - width - margin)
+
+    const gapY = 10
+    let top = b.bottom - c.top + gapY
+    let maxHeight = c.height - top - margin
+    if (maxHeight < 240) {
+      const aboveTop = b.top - c.top - gapY
+      const heightAbove = aboveTop - margin
+      if (heightAbove > maxHeight) {
+        top = margin
+        maxHeight = Math.max(200, b.top - c.top - gapY - margin)
+      } else {
+        top = Math.max(margin, Math.min(top, c.height - margin - 280))
+        maxHeight = c.height - top - margin
+      }
+    }
+    maxHeight = Math.max(200, Math.min(640, maxHeight))
+    setGeoExplorerPopoverLayout({ top, left, width, maxHeight })
+  }, [activeMapTool])
+
+  useLayoutEffect(() => {
+    if (activeMapTool !== 'geoExplorer') {
+      setGeoExplorerPopoverLayout(null)
+      return
+    }
+    let raf = 0
+    raf = requestAnimationFrame(() => repositionGeoExplorerPopover())
+    const canvas = mapCanvasSectionRef.current
+    const ro = canvas ? new ResizeObserver(() => repositionGeoExplorerPopover()) : null
+    if (canvas && ro) ro.observe(canvas)
+    const onWin = () => repositionGeoExplorerPopover()
+    window.addEventListener('resize', onWin)
+    window.addEventListener('scroll', onWin, true)
+    return () => {
+      cancelAnimationFrame(raf)
+      ro?.disconnect()
+      window.removeEventListener('resize', onWin)
+      window.removeEventListener('scroll', onWin, true)
+    }
+  }, [activeMapTool, repositionGeoExplorerPopover, geoExplorerMessages.length, geoExplorerBusy])
+
+  useEffect(() => {
+    if (activeMapTool !== 'geoExplorer') return
+    const onDocMouseDown = (ev: MouseEvent) => {
+      const target = ev.target as Node | null
+      if (!target) return
+      if (geoExplorerPopoverRef.current?.contains(target)) return
+      if (geoExplorerQuickToolBtnRef.current?.contains(target)) return
+      if (geoExplorerMapToolbarChatRef.current?.contains(target)) return
+      setActiveMapTool(null)
+    }
+    const onEsc = (ev: KeyboardEvent) => {
+      if (ev.key === 'Escape') setActiveMapTool(null)
+    }
+    document.addEventListener('mousedown', onDocMouseDown)
+    window.addEventListener('keydown', onEsc)
+    return () => {
+      document.removeEventListener('mousedown', onDocMouseDown)
+      window.removeEventListener('keydown', onEsc)
+    }
+  }, [activeMapTool])
 
   useEffect(() => {
     try {
@@ -3866,7 +3959,9 @@ export default function GisMap() {
     setActiveMapTool(null)
     setAgolContentColumnOpen(true)
   }
-  const dockMapToolInSidebar = Boolean(showDesktopGisRail && agolContentColumnOpen && activeMapTool)
+  const dockMapToolInSidebar = Boolean(
+    showDesktopGisRail && agolContentColumnOpen && activeMapTool && activeMapTool !== 'geoExplorer',
+  )
   const mapToolPanelRichSurface =
     activeMapTool === 'chart' ||
     activeMapTool === 'bookmarks' ||
@@ -3881,13 +3976,133 @@ export default function GisMap() {
     setTablesAddMenuOpen(false)
   }
 
-  const mapToolPanelEl = activeMapTool ? (
+  const geoExplorerToolBody = (
+    <div className="gis-geo-explorer-root">
+      <div className="gis-geo-explorer">
+        <div className="gis-geo-explorer-header">
+          <h2 className="gis-geo-explorer-title">Geo Explorer</h2>
+          <div className="gis-geo-explorer-header-actions">
+            <button
+              type="button"
+              className="gis-geo-explorer-icon-btn"
+              onClick={clearGeoExplorerChat}
+              aria-label="Clear chat"
+              title="Clear chat"
+            >
+              <i className="fa-solid fa-trash" aria-hidden="true" />
+            </button>
+            <button
+              type="button"
+              className="gis-geo-explorer-icon-btn"
+              onClick={() => setActiveMapTool(null)}
+              aria-label="Close Geo Explorer"
+              title="Close"
+            >
+              <i className="fa-solid fa-xmark" aria-hidden="true" />
+            </button>
+          </div>
+        </div>
+        <GisGeoExplorerChartConfig
+          config={gisChartPanelConfig}
+          onChange={setGisChartPanelConfig}
+          onOpenCharts={() => setActiveMapTool('chart')}
+        />
+        <div className="gis-geo-explorer-messages">
+          <div className="gis-geo-explorer-row gis-geo-explorer-row--model">
+            <div className="gis-geo-explorer-avatar" aria-hidden>
+              <i className="fa-solid fa-globe" />
+            </div>
+            <div className="gis-geo-explorer-bubble">
+              <p className="gis-geo-explorer-bubble-text">
+                Hello! Im Agro Cloud - GeoAI - Describe a place, upload an image, or ask for directions. When a location is
+                clear, the map will fly there
+              </p>
+            </div>
+          </div>
+          {geoExplorerMessages.map(msg => {
+            const raw = messageDisplayText(msg)
+            const show = msg.role === 'model' ? stripGeoExplorerBubbleDisplayText(raw) : raw
+            const hasImage = msg.parts.some(p => p.type === 'image')
+            return (
+              <div key={msg.id} className={`gis-geo-explorer-row gis-geo-explorer-row--${msg.role}`}>
+                {msg.role === 'model' ? (
+                  <div className="gis-geo-explorer-avatar" aria-hidden>
+                    <i className="fa-solid fa-wand-magic-sparkles" />
+                  </div>
+                ) : null}
+                <div className="gis-geo-explorer-bubble">
+                  {show ? <p className="gis-geo-explorer-bubble-text">{show}</p> : null}
+                  {msg.role === 'user' && hasImage ? (
+                    <p className="gis-geo-explorer-bubble-meta">
+                      <i className="fa-solid fa-paperclip" aria-hidden /> Image attached
+                    </p>
+                  ) : null}
+                </div>
+              </div>
+            )
+          })}
+          {geoExplorerBusy ? (
+            <div className="gis-geo-explorer-row gis-geo-explorer-row--model">
+              <div className="gis-geo-explorer-avatar" aria-hidden>
+                <i className="fa-solid fa-wand-magic-sparkles" />
+              </div>
+              <div className="gis-geo-explorer-bubble gis-geo-explorer-bubble--typing">
+                <i className="fa-solid fa-spinner fa-spin" aria-hidden /> Thinking…
+              </div>
+            </div>
+          ) : null}
+        </div>
+        {geoExplorerChatError ? <p className="gis-geo-explorer-error">{geoExplorerChatError}</p> : null}
+        {geoExplorerPendingImage ? (
+          <p className="gis-geo-explorer-pending-img">
+            <i className="fa-solid fa-image" aria-hidden /> Image ready to send
+            <button type="button" className="gis-geo-explorer-linkish" onClick={() => setGeoExplorerPendingImage(null)}>
+              Remove
+            </button>
+          </p>
+        ) : null}
+        <GeoExplorerGeminiInputRow
+          cssPrefix="gis-geo-explorer"
+          draft={geoExplorerDraft}
+          onDraftChange={setGeoExplorerDraft}
+          onSend={sendGeoExplorerChat}
+          busy={geoExplorerBusy}
+          pendingImage={geoExplorerPendingImage}
+          fileInputRef={geoExplorerFileInputRef}
+          onAttachChange={onGeoExplorerAttachChange}
+          textareaAriaLabel="Geo Explorer message"
+        />
+        <p className="gis-geo-explorer-footnote">
+          Powered by Google Gemini. Set <code>VITE_GEMINI_API_KEY</code> or save under System Settings → API Tokens → Gemini
+          API. Do not commit keys.
+        </p>
+      </div>
+    </div>
+  )
+
+  const geoExplorerFloatingEl =
+    activeMapTool === 'geoExplorer' && geoExplorerPopoverLayout ? (
+      <div
+        className="gis-geo-explorer-popover"
+        ref={geoExplorerPopoverRef}
+        style={{
+          top: geoExplorerPopoverLayout.top,
+          left: geoExplorerPopoverLayout.left,
+          width: geoExplorerPopoverLayout.width,
+          maxHeight: geoExplorerPopoverLayout.maxHeight,
+        }}
+        role="dialog"
+        aria-label="Geo AI chat"
+      >
+        <div className="gis-map-tool-panel gis-map-tool-panel--geo-explorer">{geoExplorerToolBody}</div>
+      </div>
+    ) : null
+
+  const mapToolPanelEl = activeMapTool && activeMapTool !== 'geoExplorer' ? (
       <div
         className={
           [
-            activeMapTool === 'geoExplorer'
-              ? 'gis-map-tool-panel gis-map-tool-panel--geo-explorer'
-              : 'gis-map-tool-panel',
+            'gis-map-tool-panel',
             dockMapToolInSidebar ? 'gis-map-tool-panel--embed-in-action-pane' : '',
             mapToolPanelRichSurface ? 'gis-map-tool-panel--rich-surface' : '',
           ]
@@ -3897,14 +4112,12 @@ export default function GisMap() {
         role="dialog"
         aria-label={`${activeMapTool} tools`}
       >
-        {activeMapTool !== 'geoExplorer' ? (
-          <div className="gis-map-tool-panel-head">
-            <div className="gis-map-tool-panel-title">{mapToolPanelTitle(activeMapTool)}</div>
-            <button className="gis-map-tool-close" type="button" onClick={() => setActiveMapTool(null)} aria-label="Close tool panel">
-              <i className="fa-solid fa-xmark" aria-hidden="true" />
-            </button>
-          </div>
-        ) : null}
+        <div className="gis-map-tool-panel-head">
+          <div className="gis-map-tool-panel-title">{mapToolPanelTitle(activeMapTool)}</div>
+          <button className="gis-map-tool-close" type="button" onClick={() => setActiveMapTool(null)} aria-label="Close tool panel">
+            <i className="fa-solid fa-xmark" aria-hidden="true" />
+          </button>
+        </div>
 
         {activeMapTool === 'basemap' ? (
           <BasemapGallery selectedBasemap={selectedBasemap} onSelectBasemap={setSelectedBasemap} />
@@ -4498,108 +4711,6 @@ export default function GisMap() {
               aria-label="Embed code"
             />
           </div>
-        ) : activeMapTool === 'geoExplorer' ? (
-          <div className="gis-geo-explorer-root">
-            <div className="gis-geo-explorer">
-              <div className="gis-geo-explorer-header">
-                <h2 className="gis-geo-explorer-title">Geo Explorer</h2>
-                <div className="gis-geo-explorer-header-actions">
-                  <button
-                    type="button"
-                    className="gis-geo-explorer-icon-btn"
-                    onClick={clearGeoExplorerChat}
-                    aria-label="Clear chat"
-                    title="Clear chat"
-                  >
-                    <i className="fa-solid fa-trash" aria-hidden="true" />
-                  </button>
-                  <button
-                    type="button"
-                    className="gis-geo-explorer-icon-btn"
-                    onClick={() => setActiveMapTool(null)}
-                    aria-label="Close Geo Explorer"
-                    title="Close"
-                  >
-                    <i className="fa-solid fa-xmark" aria-hidden="true" />
-                  </button>
-                </div>
-              </div>
-              <GisGeoExplorerChartConfig
-                config={gisChartPanelConfig}
-                onChange={setGisChartPanelConfig}
-                onOpenCharts={() => setActiveMapTool('chart')}
-              />
-              <div className="gis-geo-explorer-messages">
-                <div className="gis-geo-explorer-row gis-geo-explorer-row--model">
-                  <div className="gis-geo-explorer-avatar" aria-hidden>
-                    <i className="fa-solid fa-globe" />
-                  </div>
-                  <div className="gis-geo-explorer-bubble">
-                    <p className="gis-geo-explorer-bubble-text">
-                      Hello! Im Agro Cloud - GeoAI - Describe a place, upload an image, or ask for directions. When a
-                      location is clear, the map will fly there
-                    </p>
-                  </div>
-                </div>
-                {geoExplorerMessages.map(msg => {
-                  const raw = messageDisplayText(msg)
-                  const show = msg.role === 'model' ? stripGeoExplorerBubbleDisplayText(raw) : raw
-                  const hasImage = msg.parts.some(p => p.type === 'image')
-                  return (
-                    <div key={msg.id} className={`gis-geo-explorer-row gis-geo-explorer-row--${msg.role}`}>
-                      {msg.role === 'model' ? (
-                        <div className="gis-geo-explorer-avatar" aria-hidden>
-                          <i className="fa-solid fa-wand-magic-sparkles" />
-                        </div>
-                      ) : null}
-                      <div className="gis-geo-explorer-bubble">
-                        {show ? <p className="gis-geo-explorer-bubble-text">{show}</p> : null}
-                        {msg.role === 'user' && hasImage ? (
-                          <p className="gis-geo-explorer-bubble-meta">
-                            <i className="fa-solid fa-paperclip" aria-hidden /> Image attached
-                          </p>
-                        ) : null}
-                      </div>
-                    </div>
-                  )
-                })}
-                {geoExplorerBusy ? (
-                  <div className="gis-geo-explorer-row gis-geo-explorer-row--model">
-                    <div className="gis-geo-explorer-avatar" aria-hidden>
-                      <i className="fa-solid fa-wand-magic-sparkles" />
-                    </div>
-                    <div className="gis-geo-explorer-bubble gis-geo-explorer-bubble--typing">
-                      <i className="fa-solid fa-spinner fa-spin" aria-hidden /> Thinking…
-                    </div>
-                  </div>
-                ) : null}
-              </div>
-              {geoExplorerChatError ? <p className="gis-geo-explorer-error">{geoExplorerChatError}</p> : null}
-              {geoExplorerPendingImage ? (
-                <p className="gis-geo-explorer-pending-img">
-                  <i className="fa-solid fa-image" aria-hidden /> Image ready to send
-                  <button type="button" className="gis-geo-explorer-linkish" onClick={() => setGeoExplorerPendingImage(null)}>
-                    Remove
-                  </button>
-                </p>
-              ) : null}
-              <GeoExplorerGeminiInputRow
-                cssPrefix="gis-geo-explorer"
-                draft={geoExplorerDraft}
-                onDraftChange={setGeoExplorerDraft}
-                onSend={sendGeoExplorerChat}
-                busy={geoExplorerBusy}
-                pendingImage={geoExplorerPendingImage}
-                fileInputRef={geoExplorerFileInputRef}
-                onAttachChange={onGeoExplorerAttachChange}
-                textareaAriaLabel="Geo Explorer message"
-              />
-              <p className="gis-geo-explorer-footnote">
-                Powered by Google Gemini. Set <code>VITE_GEMINI_API_KEY</code> or save under System Settings → API Tokens →
-                Gemini API. Do not commit keys.
-              </p>
-            </div>
-          </div>
         ) : null}
       </div>
   ) : null
@@ -4833,28 +4944,42 @@ export default function GisMap() {
               ]
                 .filter(Boolean)
                 .join(' ')}
-              aria-hidden={showDesktopGisRail && !agolContentColumnOpen ? true : undefined}
             >
-              {showDesktopGisRail ? (
+              {showDesktopGisRail && !agolContentColumnOpen ? (
+                <button
+                  type="button"
+                  className="gis-pbi-bookstrip"
+                  onClick={() => setAgolContentColumnOpen(true)}
+                  aria-label="Expand Layers panel"
+                  title="Expand"
+                >
+                  <span className="gis-pbi-bookstrip__chev" aria-hidden="true">
+                    <i className="fa-solid fa-angles-right" />
+                  </span>
+                  <span className="gis-pbi-bookstrip__label">Layers</span>
+                </button>
+              ) : null}
+              {showDesktopGisRail && agolContentColumnOpen ? (
                 <div className="gis-sidebar-action-pane__head">
                   <div className="gis-sidebar-action-pane__title">
-                    {activeMapTool ? mapToolPanelTitle(activeMapTool) : 'Layers'}
+                    {activeMapTool && activeMapTool !== 'geoExplorer' ? mapToolPanelTitle(activeMapTool) : 'Layers'}
                   </div>
                   <button
                     type="button"
-                    className="gis-sidebar-action-pane__close"
+                    className="gis-sidebar-action-pane__close gis-sidebar-action-pane__close--collapse"
                     onClick={e => {
                       e.preventDefault()
                       e.stopPropagation()
                       closeAgolActionPane()
                     }}
-                    aria-label="Hide details column (toolbar stays open)"
-                    title="Hide panel"
+                    aria-label="Collapse Layers panel"
+                    title="Collapse"
                   >
-                    <i className="fa-solid fa-xmark" aria-hidden="true" />
+                    <i className="fa-solid fa-angles-left" aria-hidden="true" />
                   </button>
                 </div>
               ) : null}
+          {(!showDesktopGisRail || agolContentColumnOpen) ? (
           <div
             className={[
               'gis-sidebar-body',
@@ -5308,6 +5433,7 @@ export default function GisMap() {
               </>
             )}
         </div>
+          ) : null}
             </div>
           </div>
         </aside>
@@ -5319,6 +5445,7 @@ export default function GisMap() {
       ) : null}
 
       <section
+        ref={mapCanvasSectionRef}
         className={`gis-map-canvas ${mapProjectionMode === 'globe' ? 'projection-globe' : 'projection-2d'}`}
         aria-label="Map"
         data-edit-open={featureDialog ? 'true' : 'false'}
@@ -5543,17 +5670,6 @@ export default function GisMap() {
         <div className="gis-map-quick-tools" role="toolbar" aria-label="Quick map tools">
           <button
             type="button"
-            className={['gis-map-quick-tools__btn', activeMapTool === null ? 'active' : '']
-              .filter(Boolean)
-              .join(' ')}
-            onClick={focusLayersPanel}
-            title="Layers"
-            aria-label="Layers"
-          >
-            <i className="fa-solid fa-layer-group" aria-hidden="true" />
-          </button>
-          <button
-            type="button"
             className={['gis-map-quick-tools__btn', quickSearchOpen ? 'active' : '']
               .filter(Boolean)
               .join(' ')}
@@ -5568,10 +5684,14 @@ export default function GisMap() {
           </button>
           <button
             type="button"
+            ref={geoExplorerQuickToolBtnRef}
             className={['gis-map-quick-tools__btn', activeMapTool === 'geoExplorer' ? 'active' : '']
               .filter(Boolean)
               .join(' ')}
-            onClick={() => toggleMapTool('geoExplorer')}
+            onClick={() => {
+              geoExplorerAnchorSourceRef.current = 'quick'
+              setActiveMapTool(prev => (prev === 'geoExplorer' ? null : 'geoExplorer'))
+            }}
             title="Geo AI chat"
             aria-label="Geo AI chat"
           >
@@ -5579,27 +5699,47 @@ export default function GisMap() {
           </button>
         </div>
         {quickSearchOpen ? (
-          <div className="gis-map-quick-search-popover" ref={quickSearchRef}>
-            <div className="gis-map-quick-search-popover__title">Search</div>
-            <div className="gis-map-quick-search-popover__row">
-              <input
-                className="gis-input gis-map-quick-search-popover__input"
-                value={mapSearchQuery}
-                onChange={(e) => setMapSearchQuery(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') {
-                    e.preventDefault()
-                    void handleMapSearch()
-                  }
-                }}
-                placeholder="Search place or coordinates..."
-                aria-label="Search map"
-              />
-              <button className="gis-btn gis-btn-primary gis-map-quick-search-popover__btn" type="button" onClick={() => void handleMapSearch()}>
-                Search
+          <div className="gis-map-quick-search-popover" ref={quickSearchRef} role="search">
+            <div className="gis-map-quick-search-popover__bar">
+              <button
+                type="button"
+                className="gis-map-quick-search-popover__close"
+                onClick={() => setQuickSearchOpen(false)}
+                aria-label="Close search"
+                title="Close"
+              >
+                <i className="fa-solid fa-xmark" aria-hidden="true" />
               </button>
+              <div className="gis-map-quick-search-popover__capsule" dir="ltr">
+                <span className="gis-map-quick-search-popover__lead-icon" aria-hidden="true">
+                  <i className="fa-solid fa-magnifying-glass" />
+                </span>
+                <input
+                  className="gis-map-quick-search-popover__field"
+                  value={mapSearchQuery}
+                  onChange={(e) => setMapSearchQuery(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault()
+                      void handleMapSearch()
+                    }
+                  }}
+                  placeholder="Search places"
+                  aria-label="Search map"
+                  autoComplete="off"
+                />
+                <button
+                  type="button"
+                  className="gis-map-quick-search-popover__submit"
+                  onClick={() => void handleMapSearch()}
+                  aria-label="Run search"
+                  title="Search"
+                >
+                  <i className="fa-solid fa-arrow-right" aria-hidden="true" />
+                </button>
+              </div>
             </div>
-            {mapSearchStatus ? <div className="gis-tool-muted gis-map-quick-search-popover__status">{mapSearchStatus}</div> : null}
+            {mapSearchStatus ? <div className="gis-map-quick-search-popover__status">{mapSearchStatus}</div> : null}
           </div>
         ) : null}
 
@@ -5688,9 +5828,13 @@ export default function GisMap() {
               <span>Search</span>
             </button>
             <button
+              ref={geoExplorerMapToolbarChatRef}
               className={activeMapTool === 'geoExplorer' ? 'gis-map-tool active' : 'gis-map-tool'}
               type="button"
-              onClick={() => toggleMapTool('geoExplorer')}
+              onClick={() => {
+                geoExplorerAnchorSourceRef.current = 'toolbar'
+                toggleMapTool('geoExplorer')
+              }}
               title="Geo Explorer (Gemini chat)"
               aria-label="Geo Explorer chat"
               aria-pressed={activeMapTool === 'geoExplorer'}
@@ -5711,6 +5855,7 @@ export default function GisMap() {
         </div>
 
         {!dockMapToolInSidebar && (!showDesktopGisRail || agolContentColumnOpen) ? mapToolPanelEl : null}
+        {geoExplorerFloatingEl}
 
         {drawingEditorOpen ? (
           <div className="gis-modal-overlay" role="presentation" onClick={() => closeDrawingEditor()}>
@@ -6267,7 +6412,7 @@ export default function GisMap() {
                         </button>
 
                         <button
-                          className="gis-table-toolbtn"
+                          className="gis-table-toolbtn gis-table-toolbtn--icon-only"
                           type="button"
                           onClick={() => setTableToolsCollapsed(v => !v)}
                           aria-expanded={!tableToolsCollapsed}
@@ -6278,7 +6423,6 @@ export default function GisMap() {
                             className={tableToolsCollapsed ? 'fa-solid fa-angles-right' : 'fa-solid fa-angles-left'}
                             aria-hidden="true"
                           />
-                          <span className="gis-table-tooltext">{tableToolsCollapsed ? 'Expand' : 'Collapse'}</span>
                         </button>
                       </div>
 

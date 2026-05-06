@@ -27,12 +27,6 @@ export default function AiAgroCloud() {
         ? 'اسأل عن الحقول والطبقات والجداول بناءً على محتوى GIS.'
         : 'Ask about fields, layers, and tables using your GIS Content data.',
     },
-    {
-      to: '/master/gis-content',
-      icon: 'fa-solid fa-map-location-dot',
-      title: ar ? 'محتوى GIS' : 'GIS Content',
-      desc: ar ? 'إدارة الطبقات المحفوظة من خريطة GIS في هذا المتصفح.' : 'Manage layers saved from GIS Map in this browser.',
-    },
   ] as const
 
   return (

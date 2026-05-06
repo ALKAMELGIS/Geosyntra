@@ -1960,51 +1960,31 @@ function GisContentPage() {
 
         <div className="gis-sidebar-body" id="gis-sidebar-panel">
           {sidebarCollapsed ? (
-            <>
             <div className="gis-sidebar-body-main gis-sidebar-body-main--collapsed-rail">
-            <button
-              type="button"
-              className="gis-sidebar-collapsed-layers"
-              onClick={() => setSidebarCollapsed(false)}
-              aria-label={`Expand to browse ${rows.length} layer${rows.length === 1 ? '' : 's'}`}
-              title="Expand layers list"
-            >
-              <span className="gis-sidebar-collapsed-layers__visual" aria-hidden>
-                <span className="gis-sidebar-collapsed-layers__stack-bars">
-                  <span className="gis-sidebar-collapsed-layers__stack-bar" />
-                  <span className="gis-sidebar-collapsed-layers__stack-bar" />
-                  <span className="gis-sidebar-collapsed-layers__stack-bar" />
-                </span>
-                <span className="gis-sidebar-collapsed-layers__icon-slot">
-                  <span className="gis-sidebar-collapsed-layers__icon-wrap">
-                    <i className="fa-solid fa-layer-group" />
-                  </span>
-                  {rows.length > 0 ? (
-                    <span className="gis-sidebar-collapsed-layers__badge">{rows.length}</span>
-                  ) : null}
-                </span>
-              </span>
-              <span className="gis-sidebar-collapsed-layers__caption">layers</span>
-            </button>
-            </div>
-            <footer className="gis-sidebar-foot-toolbar" aria-label="Sidebar tools">
-              <div className="gis-sidebar-foot-divider" aria-hidden />
               <button
                 type="button"
-                className="gis-sidebar-foot-item gis-sidebar-foot-item--primary"
+                className="gis-sidebar-collapsed-layers"
                 onClick={() => setSidebarCollapsed(false)}
-                aria-controls="gis-sidebar-panel"
-                aria-expanded={false}
-                aria-label="Expand GIS layers panel"
-                title="Expand"
+                aria-label={`Expand to browse ${rows.length} layer${rows.length === 1 ? '' : 's'}`}
+                title="Show layers list"
               >
-                <span className="gis-sidebar-foot-item__glyph" aria-hidden>
-                  <i className="fa-solid fa-angles-right" />
+                <span className="gis-sidebar-collapsed-layers__visual" aria-hidden>
+                  <span className="gis-sidebar-collapsed-layers__stack-bars">
+                    <span className="gis-sidebar-collapsed-layers__stack-bar" />
+                    <span className="gis-sidebar-collapsed-layers__stack-bar" />
+                    <span className="gis-sidebar-collapsed-layers__stack-bar" />
+                  </span>
+                  <span className="gis-sidebar-collapsed-layers__icon-slot">
+                    <span className="gis-sidebar-collapsed-layers__icon-wrap">
+                      <i className="fa-solid fa-layer-group" />
+                    </span>
+                    {rows.length > 0 ? (
+                      <span className="gis-sidebar-collapsed-layers__badge">{rows.length}</span>
+                    ) : null}
+                  </span>
                 </span>
-                <span className="gis-sidebar-foot-item__label">Expand</span>
               </button>
-            </footer>
-            </>
+            </div>
           ) : (
             <>
             <div className="gis-sidebar-body-main">
@@ -2160,21 +2140,19 @@ function GisContentPage() {
             ) : null}
           </div>
             </div>
-            <footer className="gis-sidebar-foot-toolbar" aria-label="Sidebar tools">
-              <div className="gis-sidebar-foot-divider" aria-hidden />
+            <footer className="gis-sidebar-foot-toolbar gis-sidebar-foot-toolbar--rail-minimal" aria-label="Sidebar tools">
               <button
                 type="button"
-                className="gis-sidebar-foot-item gis-sidebar-foot-item--primary"
+                className="gis-sidebar-foot-item gis-sidebar-foot-item--primary gis-sidebar-foot-item--icon-only"
                 onClick={() => setSidebarCollapsed(true)}
                 aria-controls="gis-sidebar-panel"
                 aria-expanded
                 aria-label="Collapse GIS layers panel"
-                title="Collapse"
+                title="Hide layers list"
               >
                 <span className="gis-sidebar-foot-item__glyph" aria-hidden>
                   <i className="fa-solid fa-angles-left" />
                 </span>
-                <span className="gis-sidebar-foot-item__label">Collapse</span>
               </button>
             </footer>
             </>
@@ -2599,14 +2577,14 @@ function GisContentPage() {
       {relModal ? (
         <div className="gis-modal-overlay" role="presentation" onClick={closeRelModal}>
           <div className="gis-modal gis-modal-compact gis-modal-relationship" role="dialog" aria-modal="true" onClick={(e) => e.stopPropagation()}>
-            <div className="gis-modal-header">
+            <div className="gis-modal-header gis-modal-relationship__header">
               <div className="gis-modal-header-left">
                 <div className="gis-modal-icon" aria-hidden="true">
                   <i className="fa-solid fa-link" aria-hidden="true" />
                 </div>
                 <div className="gis-modal-title">{relModal.mode === 'add' ? 'Add relationship' : 'Edit relationship'}</div>
               </div>
-              <button className="gis-sidebar-close" type="button" onClick={closeRelModal} aria-label="Close">
+              <button className="gis-modal-close-btn" type="button" onClick={closeRelModal} aria-label="Close">
                 <i className="fa-solid fa-xmark" aria-hidden="true" />
               </button>
             </div>
@@ -2780,24 +2758,33 @@ function GisContentPage() {
                   </>
                 ) : null}
 
-                <label className="gis-label">Constraints</label>
-                <div className="gis-content-row gis-content-row-constraints">
-                  <button
-                    type="button"
-                    className={relDraft.enforce ? 'gis-content-chip active' : 'gis-content-chip'}
-                    aria-pressed={!!relDraft.enforce}
-                    onClick={() => setRelDraft(p => ({ ...p, enforce: !p.enforce }))}
-                  >
-                    Enforce
-                  </button>
-                  <button
-                    type="button"
-                    className={relDraft.cascadeDelete ? 'gis-content-chip active' : 'gis-content-chip'}
-                    aria-pressed={!!relDraft.cascadeDelete}
-                    onClick={() => setRelDraft(p => ({ ...p, cascadeDelete: !p.cascadeDelete }))}
-                  >
-                    Cascade Delete
-                  </button>
+                <div
+                  className="gis-rel-constraints-card"
+                  role="group"
+                  aria-labelledby="gis-rel-constraints-title"
+                >
+                  <div className="gis-rel-constraints-card__head" id="gis-rel-constraints-title">
+                    Constraints
+                  </div>
+                  <p className="gis-rel-constraints-card__hint">Optional rules applied when saving this link between layers.</p>
+                  <div className="gis-rel-constraints-card__chips">
+                    <button
+                      type="button"
+                      className={relDraft.enforce ? 'gis-content-chip active' : 'gis-content-chip'}
+                      aria-pressed={!!relDraft.enforce}
+                      onClick={() => setRelDraft(p => ({ ...p, enforce: !p.enforce }))}
+                    >
+                      Enforce
+                    </button>
+                    <button
+                      type="button"
+                      className={relDraft.cascadeDelete ? 'gis-content-chip active' : 'gis-content-chip'}
+                      aria-pressed={!!relDraft.cascadeDelete}
+                      onClick={() => setRelDraft(p => ({ ...p, cascadeDelete: !p.cascadeDelete }))}
+                    >
+                      Cascade delete
+                    </button>
+                  </div>
                 </div>
 
                 {relError ? <div className="gis-inline-error">{relError}</div> : null}
@@ -2870,45 +2857,74 @@ function GisContentPage() {
 
       {helpOpen ? (
         <div className="gis-modal-overlay" role="presentation" onClick={() => setHelpOpen(false)}>
-          <div className="gis-modal gis-modal-compact gis-modal-docs-wide" role="dialog" aria-modal="true" onClick={(e) => e.stopPropagation()}>
-            <div className="gis-modal-header">
+          <div
+            className="gis-modal gis-modal-compact gis-modal-docs-wide gis-modal-docs"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="gis-docs-modal-title"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="gis-modal-header gis-modal-docs__header">
               <div className="gis-modal-header-left">
                 <div className="gis-modal-icon" aria-hidden="true">
                   <i className="fa-solid fa-circle-info" aria-hidden="true" />
                 </div>
-                <div className="gis-modal-title">Features and UI documentation</div>
+                <div className="gis-modal-title" id="gis-docs-modal-title">
+                  Features and UI documentation
+                </div>
               </div>
-              <button className="gis-sidebar-close" type="button" onClick={() => setHelpOpen(false)} aria-label="Close">
+              <button
+                className="gis-modal-close-btn"
+                type="button"
+                onClick={() => setHelpOpen(false)}
+                aria-label="Close documentation"
+              >
                 <i className="fa-solid fa-xmark" aria-hidden="true" />
               </button>
             </div>
-            <div className="gis-modal-body">
-              <div className="gis-content-confirmtext">
-                <div className="gis-content-muted">Goal</div>
-                <div>This page manages GIS layers in a tabular format (no map), including fields and relationships.</div>
-              </div>
+            <div className="gis-modal-body gis-modal-body--docs">
+              <section className="gis-docs-section" aria-labelledby="gis-doc-goal">
+                <h3 className="gis-docs-section__title" id="gis-doc-goal">
+                  Goal
+                </h3>
+                <div className="gis-docs-section__body">
+                  This page manages GIS layers in a tabular format (no map), including fields and relationships.
+                </div>
+              </section>
 
-              <div className="gis-content-confirmtext">
-                <div className="gis-content-muted">Layers (CRUD)</div>
-                <div>Add (upload GeoJSON or connect ArcGIS), rename, delete with confirmation, show/hide, reorder priority (↑/↓), or sort by name/date.</div>
-              </div>
+              <section className="gis-docs-section" aria-labelledby="gis-doc-layers">
+                <h3 className="gis-docs-section__title" id="gis-doc-layers">
+                  Layers (CRUD)
+                </h3>
+                <div className="gis-docs-section__body">
+                  Add (upload GeoJSON or connect ArcGIS), rename, delete with confirmation, show/hide, reorder priority (↑/↓), or sort by name/date.
+                </div>
+              </section>
 
-              <div className="gis-content-confirmtext">
-                <div className="gis-content-muted">Fields (CRUD)</div>
-                <div>Add/edit/delete with name validation, and reorder via drag-and-drop. Field add/delete/rename is applied to each GeoJSON feature’s properties.</div>
-              </div>
+              <section className="gis-docs-section" aria-labelledby="gis-doc-fields">
+                <h3 className="gis-docs-section__title" id="gis-doc-fields">
+                  Fields (CRUD)
+                </h3>
+                <div className="gis-docs-section__body">
+                  Add/edit/delete with name validation, and reorder via drag-and-drop. Field add/delete/rename is applied to each GeoJSON feature’s properties.
+                </div>
+              </section>
 
-              <div className="gis-content-confirmtext">
-                <div className="gis-content-muted">Relationships</div>
-                <div>
+              <section className="gis-docs-section" aria-labelledby="gis-doc-rel">
+                <h3 className="gis-docs-section__title" id="gis-doc-rel">
+                  Relationships
+                </h3>
+                <div className="gis-docs-section__body">
                   In this app, define one-to-one, one-to-many, or many-to-many links between layers (origin / destination / optional junction), choose key fields, and inspect them in the{' '}
                   <strong>Relationships</strong> tab (list + tree). Storage is local (workflow aid).
                 </div>
-              </div>
+              </section>
 
-              <div className="gis-content-confirmtext">
-                <div className="gis-content-muted">Relationship classes (concept)</div>
-                <div className="gis-docs-prose">
+              <section className="gis-docs-section gis-docs-section--prose" aria-labelledby="gis-doc-rc">
+                <h3 className="gis-docs-section__title" id="gis-doc-rc">
+                  Relationship classes (concept)
+                </h3>
+                <div className="gis-docs-section__body gis-docs-prose">
                   <p>
                     A <strong>relationship class</strong> stores an association between fields or features in an <strong>origin</strong> table or feature class and a{' '}
                     <strong>destination</strong> table or feature class.
@@ -2935,33 +2951,56 @@ function GisContentPage() {
                     Educational text follows common ArcGIS geodatabase relationship-class terminology; behavior here is simplified for browser-side workflows.
                   </p>
                 </div>
-              </div>
+              </section>
 
-              <div className="gis-content-confirmtext">
-                <div className="gis-content-muted">ArcGIS APIs used (client-side)</div>
-                <div>
-                  Discover: <span dir="ltr">GET {`{serviceUrl}`}?f=json&amp;token=...</span>
+              <section className="gis-docs-section" aria-labelledby="gis-doc-api">
+                <h3 className="gis-docs-section__title" id="gis-doc-api">
+                  ArcGIS APIs used (client-side)
+                </h3>
+                <div className="gis-docs-section__body gis-docs-api-lines">
+                  <div className="gis-docs-api-line">
+                    <span className="gis-docs-api-label">Discover</span>
+                    <code className="gis-docs-code" dir="ltr">
+                      GET {`{serviceUrl}`}?f=json&amp;token=...
+                    </code>
+                  </div>
+                  <div className="gis-docs-api-line">
+                    <span className="gis-docs-api-label">Layer definition</span>
+                    <code className="gis-docs-code" dir="ltr">
+                      GET {`{layerUrl}`}?f=json&amp;token=...
+                    </code>
+                  </div>
+                  <div className="gis-docs-api-line">
+                    <span className="gis-docs-api-label">Query GeoJSON</span>
+                    <code className="gis-docs-code" dir="ltr">
+                      GET {`{layerUrl}`}/query?where=1%3D1&amp;outFields=*&amp;returnGeometry=true&amp;outSR=4326&amp;f=geojson&amp;token=...
+                    </code>
+                  </div>
                 </div>
-                <div>
-                  Layer Definition: <span dir="ltr">GET {`{layerUrl}`}?f=json&amp;token=...</span>
-                </div>
-                <div>
-                  Query GeoJSON: <span dir="ltr">GET {`{layerUrl}`}/query?where=1%3D1&amp;outFields=*&amp;returnGeometry=true&amp;outSR=4326&amp;f=geojson&amp;token=...</span>
-                </div>
-              </div>
+              </section>
 
-              <div className="gis-content-confirmtext">
-                <div className="gis-content-muted">Storage</div>
-                <div dir="ltr">
-                  IndexedDB: {DB_NAME} / {STORE_NAME} / key=savedLayers
+              <section className="gis-docs-section" aria-labelledby="gis-doc-storage">
+                <h3 className="gis-docs-section__title" id="gis-doc-storage">
+                  Storage
+                </h3>
+                <div className="gis-docs-section__body gis-docs-storage">
+                  <div className="gis-docs-storage-row" dir="ltr">
+                    <span className="gis-docs-storage-key">IndexedDB</span>
+                    <span className="gis-docs-storage-val">
+                      {DB_NAME} / {STORE_NAME} / key=savedLayers
+                    </span>
+                  </div>
+                  <div className="gis-docs-storage-row" dir="ltr">
+                    <span className="gis-docs-storage-key">localStorage</span>
+                    <span className="gis-docs-storage-val">
+                      {LS_META_KEY}, {LS_ORDER_KEY}, {LS_FIELDS_KEY}, {LS_RELATIONSHIPS_KEY}, {LS_HIDDEN_FIELDS_KEY}
+                    </span>
+                  </div>
                 </div>
-                <div dir="ltr">
-                  localStorage: {LS_META_KEY}, {LS_ORDER_KEY}, {LS_FIELDS_KEY}, {LS_RELATIONSHIPS_KEY}, {LS_HIDDEN_FIELDS_KEY}
-                </div>
-              </div>
+              </section>
             </div>
-            <div className="gis-modal-actions">
-              <button className="gis-btn" type="button" onClick={() => setHelpOpen(false)}>
+            <div className="gis-modal-actions gis-modal-actions--docs">
+              <button className="gis-btn gis-btn-primary" type="button" onClick={() => setHelpOpen(false)}>
                 Close
               </button>
             </div>

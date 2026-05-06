@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import '../../pages/data-entry/EC.css'
 import './Users.css'
 import { hasPermission, normalizeEmail, normalizeRole, readCurrentUser, startSession } from '../../lib/auth'
+import { readProfileExtra } from '../../lib/userProfilePersistence'
 import { appendAuditLog, readAuditLog } from '../../lib/audit'
 
 type User = {
@@ -156,16 +157,8 @@ export default function Users({ embedded }: { embedded?: boolean } = {}) {
   }
 
   const readProfileAvatar = (email: string): string | null => {
-    try {
-      const raw = localStorage.getItem('user_profiles_v1')
-      if (!raw) return null
-      const parsed = JSON.parse(raw) as any
-      const entry = parsed?.[String(email || '').trim()]
-      if (entry && typeof entry === 'object' && typeof entry.avatarDataUrl === 'string' && entry.avatarDataUrl.trim()) return entry.avatarDataUrl
-      return null
-    } catch {
-      return null
-    }
+    const url = readProfileExtra(email).avatarDataUrl?.trim()
+    return url || null
   }
 
   const toggleSelected = (id: number) => {

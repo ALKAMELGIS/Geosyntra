@@ -2,6 +2,7 @@ import React, { useState, useMemo, useRef, useEffect, useLayoutEffect, useCallba
 import MapGL, { Source, Layer, NavigationControl, Marker } from 'react-map-gl/mapbox';
 import 'mapbox-gl/dist/mapbox-gl.css';
 import './SatelliteIntelligence.css';
+import '../dashboards/develop-dashboard.css';
 import { parseFile, parseRemoteUrlAsFile } from '../../utils/FileLoader';
 import type { DrawStyleConfig, VertexRef } from './drawingUtils';
 import {
@@ -1686,6 +1687,8 @@ export default function SatelliteIntelligence() {
   const [isStacThumbVisible, setIsStacThumbVisible] = useState(true);
   const [stacMapThumbLabel, setStacMapThumbLabel] = useState('');
   const [isAddLayerModalOpen, setIsAddLayerModalOpen] = useState(false);
+  /** Home = pick source; gis-list = full-screen GIS Content step (like Develop); source-forms = ArcGIS / upload / URL / database. */
+  const [siAddLayerWizard, setSiAddLayerWizard] = useState<'home' | 'gis-list' | 'source-forms'>('home');
   const [addLayerTab, setAddLayerTab] = useState<AddLayerTab>('giscontent');
   const [addLayerUrl, setAddLayerUrl] = useState('');
   const [addLayerRemoteUrl, setAddLayerRemoteUrl] = useState('');
@@ -1711,7 +1714,7 @@ export default function SatelliteIntelligence() {
     }>
   >([]);
   const [isLoadingGisContentCandidates, setIsLoadingGisContentCandidates] = useState(false);
-  const [selectedGisContentCandidateId, setSelectedGisContentCandidateId] = useState('');
+  const [addingGisContentCandidateId, setAddingGisContentCandidateId] = useState<string | null>(null);
   const [isImportingRemoteLayer, setIsImportingRemoteLayer] = useState(false);
   const [activeLayerActionDialog, setActiveLayerActionDialog] = useState<null | { mode: 'table' | 'symbology' | 'legend'; layerId: string }>(null);
   const [syncingLayerId, setSyncingLayerId] = useState<string | null>(null);
@@ -1992,12 +1995,13 @@ export default function SatelliteIntelligence() {
 
   const openAddLayerModal = () => {
     setAddLayerStatus('');
+    setSiAddLayerWizard('home');
     setAddLayerTab('giscontent');
     setDiscoveredArcgisLayers([]);
     setSelectedDiscoveredArcgisUrl('');
     setAddLayerRemoteUrl('');
-    setSelectedGisContentCandidateId('');
     setGisContentCandidates([]);
+    setAddingGisContentCandidateId(null);
     setIsAddLayerModalOpen(true);
   };
 
@@ -2009,13 +2013,22 @@ export default function SatelliteIntelligence() {
 
   const closeAddLayerModal = () => {
     setIsAddLayerModalOpen(false);
+    setSiAddLayerWizard('home');
     setAddLayerStatus('');
     setDiscoveredArcgisLayers([]);
     setSelectedDiscoveredArcgisUrl('');
+    setAddingGisContentCandidateId(null);
+  };
+
+  const goSiAddLayerWizardHome = () => {
+    setSiAddLayerWizard('home');
+    setAddLayerTab('giscontent');
+    setAddLayerStatus('');
+    setAddingGisContentCandidateId(null);
   };
 
   useEffect(() => {
-    if (!isAddLayerModalOpen || addLayerTab !== 'giscontent') return;
+    if (!isAddLayerModalOpen || siAddLayerWizard !== 'gis-list') return;
     let cancelled = false;
     setIsLoadingGisContentCandidates(true);
     setAddLayerStatus('');
@@ -2043,7 +2056,6 @@ export default function SatelliteIntelligence() {
                 : null,
           }));
         setGisContentCandidates(candidates);
-        setSelectedGisContentCandidateId(candidates[0]?.id ?? '');
       })
       .catch(() => {
         if (!cancelled) setGisContentCandidates([]);
@@ -2054,7 +2066,7 @@ export default function SatelliteIntelligence() {
     return () => {
       cancelled = true;
     };
-  }, [isAddLayerModalOpen, addLayerTab]);
+  }, [isAddLayerModalOpen, siAddLayerWizard]);
 
   const deriveArcgisLayerName = (serviceUrl: string, fallback = 'ArcGIS Layer') => {
     const clean = serviceUrl.replace(/\/+$/, '');
@@ -2191,32 +2203,38 @@ export default function SatelliteIntelligence() {
     }
   };
 
-  const addSelectedGisContentLayer = () => {
-    const picked = gisContentCandidates.find(c => c.id === selectedGisContentCandidateId);
+  const addGisContentLayerByCandidateId = (candidateId: string) => {
+    const picked = gisContentCandidates.find(c => c.id === candidateId);
     if (!picked) {
       setAddLayerStatus('Select a GIS Content layer first.');
       return;
     }
-    const id = `gis-content-${Date.now()}`;
-    setCustomLayers(prev => [
-      ...prev,
-      {
-        id,
-        name: addLayerName.trim() || picked.name,
-        geojson: picked.data,
-        visible: true,
-        source: picked.source === 'arcgis' ? 'arcgis' : 'api',
-        sourceUrl: picked.sourceUrl,
-        authToken: picked.authToken,
-        color: picked.color || '#22c55e',
-        useArcGisSymbology: picked.source === 'arcgis' ? picked.useArcGisSymbology !== false : undefined,
-        arcgisDrawingInfo: picked.source === 'arcgis' ? picked.arcgisDrawingInfo ?? null : undefined,
-        arcgisLayerDefinition: picked.source === 'arcgis' ? picked.arcgisLayerDefinition ?? null : undefined,
-      },
-    ]);
-    setAddLayerStatus(`Imported from GIS Content: ${picked.name}`);
-    setAddLayerName('');
-    setIsAddLayerModalOpen(false);
+    setAddingGisContentCandidateId(candidateId);
+    try {
+      const id = `gis-content-${Date.now()}`;
+      setCustomLayers(prev => [
+        ...prev,
+        {
+          id,
+          name: addLayerName.trim() || picked.name,
+          geojson: picked.data,
+          visible: true,
+          source: picked.source === 'arcgis' ? 'arcgis' : 'api',
+          sourceUrl: picked.sourceUrl,
+          authToken: picked.authToken,
+          color: picked.color || '#22c55e',
+          useArcGisSymbology: picked.source === 'arcgis' ? picked.useArcGisSymbology !== false : undefined,
+          arcgisDrawingInfo: picked.source === 'arcgis' ? picked.arcgisDrawingInfo ?? null : undefined,
+          arcgisLayerDefinition: picked.source === 'arcgis' ? picked.arcgisLayerDefinition ?? null : undefined,
+        },
+      ]);
+      setAddLayerStatus(`Imported from GIS Content: ${picked.name}`);
+      setAddLayerName('');
+      setIsAddLayerModalOpen(false);
+      setSiAddLayerWizard('home');
+    } finally {
+      setAddingGisContentCandidateId(null);
+    }
   };
 
   const importRemoteUrlLayer = async () => {
@@ -7332,120 +7350,197 @@ export default function SatelliteIntelligence() {
           }}
         >
           <div
-            className="gis-modal gis-modal-compact"
+            className={`gis-modal gis-modal-compact ddb-add-source-modal${siAddLayerWizard === 'home' ? ' ddb-add-source-modal--home' : ''}`}
             role="dialog"
             aria-modal="true"
             aria-labelledby="si-layer-modal-title"
             onMouseDown={e => e.stopPropagation()}
           >
-            <div className="gis-modal-compact-hero">
-              <h2 className="gis-modal-compact-hero-title" id="si-layer-modal-title">
-                Add Source Data
-              </h2>
-              <p className="gis-modal-compact-hero-lead">
-                Choose how you want to add layers to the registry for analytics and maps.
-              </p>
-              </div>
-
-            <div className="si-add-source-options" role="tablist" aria-label="Layer source type">
-              {[
-                {
-                  id: 'giscontent' as AddLayerTab,
-                  title: 'Select from GIS Content',
-                  sub: 'Use layers already saved in GIS Map in this browser.',
-                  icon: 'fa-solid fa-layer-group',
-                },
-                {
-                  id: 'arcgis' as AddLayerTab,
-                  title: 'Provide an ArcGIS Server layer URL',
-                  sub: 'Connect to a feature service and pick a layer or table.',
-                  icon: 'fa-solid fa-link',
-                },
-                {
-                  id: 'upload' as AddLayerTab,
-                  title: 'Upload a file',
-                  sub: 'GeoJSON, KML, KMZ, Shapefile (zip), CSV with coordinates, and more.',
-                  icon: 'fa-solid fa-file-arrow-up',
-                },
-                {
-                  id: 'url' as AddLayerTab,
-                  title: 'From URL',
-                  sub: 'Remote GeoJSON / ZIP / KML.',
-                  icon: 'fa-solid fa-globe',
-                },
-                {
-                  id: 'database' as AddLayerTab,
-                  title: 'Get Data',
-                  sub: 'Database, web URL, and advanced connectors.',
-                  icon: 'fa-solid fa-database',
-                },
-              ].map(opt => (
-                <button
-                  key={opt.id}
-                  type="button"
-                  role="tab"
-                  aria-selected={addLayerTab === opt.id}
-                  className={`si-add-source-option${addLayerTab === opt.id ? ' active' : ''}`}
-                  onClick={() => setAddLayerTab(opt.id)}
-                >
-                  <span className="si-add-source-option-radio" aria-hidden />
-                  <span className="si-add-source-option-icon" aria-hidden>
-                    <i className={opt.icon} />
-                  </span>
-                  <span className="si-add-source-option-main">
-                    <strong>{opt.title}</strong>
-                    <small>{opt.sub}</small>
-                  </span>
-                </button>
-              ))}
-            </div>
-
-            <div className="gis-modal-body">
-              {addLayerTab === 'giscontent' ? (
-                <div key="giscontent" role="tabpanel" aria-label="Select from GIS Content">
+            {siAddLayerWizard === 'home' ? (
+              <>
+                <div className="gis-modal-compact-hero">
+                  <h2 className="gis-modal-compact-hero-title" id="si-layer-modal-title">
+                    Add Source Data
+                  </h2>
+                  <p className="gis-modal-compact-hero-lead">
+                    Choose how you want to add layers to the registry for analytics and maps.
+                  </p>
+                </div>
+                <div className="si-add-source-options" role="radiogroup" aria-label="Layer source type">
+                  {[
+                    {
+                      id: 'giscontent' as AddLayerTab,
+                      title: 'Select from GIS Content',
+                      sub: 'Use layers already saved in GIS Map in this browser.',
+                      icon: 'fa-solid fa-layer-group',
+                    },
+                    {
+                      id: 'arcgis' as AddLayerTab,
+                      title: 'Provide an ArcGIS Server layer URL',
+                      sub: 'Connect to a feature service and pick a layer or table.',
+                      icon: 'fa-solid fa-link',
+                    },
+                    {
+                      id: 'upload' as AddLayerTab,
+                      title: 'Upload a file',
+                      sub: 'GeoJSON, KML, KMZ, Shapefile (zip), CSV with coordinates, and more.',
+                      icon: 'fa-solid fa-file-arrow-up',
+                    },
+                    {
+                      id: 'url' as AddLayerTab,
+                      title: 'From URL',
+                      sub: 'Remote GeoJSON / ZIP / KML.',
+                      icon: 'fa-solid fa-globe',
+                    },
+                    {
+                      id: 'database' as AddLayerTab,
+                      title: 'Get Data',
+                      sub: 'Database, web URL, and advanced connectors.',
+                      icon: 'fa-solid fa-database',
+                    },
+                  ].map(opt => (
+                    <button
+                      key={opt.id}
+                      type="button"
+                      className="si-add-source-option"
+                      onClick={() => {
+                        setAddLayerTab(opt.id);
+                        if (opt.id === 'giscontent') setSiAddLayerWizard('gis-list');
+                        else setSiAddLayerWizard('source-forms');
+                      }}
+                    >
+                      <span className="si-add-source-option-radio" aria-hidden />
+                      <span className="si-add-source-option-icon" aria-hidden>
+                        <i className={opt.icon} />
+                      </span>
+                      <span className="si-add-source-option-main">
+                        <strong>{opt.title}</strong>
+                        <small>{opt.sub}</small>
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              </>
+            ) : siAddLayerWizard === 'gis-list' ? (
+              <>
+                <div className="ddb-add-source-modal__head">
+                  <div className="gis-modal-compact-title" id="si-layer-modal-title">
+                    Add Source Data
+                  </div>
+                  <button type="button" className="ddb-add-source-back" onClick={goSiAddLayerWizardHome}>
+                    <i className="fa-solid fa-arrow-left" aria-hidden /> All options
+                  </button>
+                </div>
+                <div className="ddb-add-source-gis-list gis-modal-body">
+                  <div className="si-add-source-gis-banner">
+                    <p className="ddb-add-source-gis-hint">
+                      Layers below come from your <strong>GIS Map</strong> session (IndexedDB). Import copies feature data into
+                      this map.
+                    </p>
+                  </div>
                   {isLoadingGisContentCandidates ? (
-                    <p className="si-explore-muted">Loading saved GIS Content layers…</p>
+                    <div className="ddb-add-source-loading">
+                      <i className="fa-solid fa-spinner fa-spin" aria-hidden /> Loading GIS Content…
+                    </div>
                   ) : gisContentCandidates.length === 0 ? (
-                    <p className="si-explore-muted">No saved GIS Map layers found in this browser.</p>
+                    <div className="ddb-add-source-empty">
+                      <i className="fa-regular fa-folder-open" aria-hidden />
+                      <p>No saved layers yet. Open GIS Map, add a layer, then return here.</p>
+                    </div>
                   ) : (
-                    <>
-                      <div className="gis-form-field">
-                        <div className="gis-form-label">Saved layers</div>
-                        <div className="gis-select-wrap">
-                          <select
-                            className="gis-input gis-select"
-                            value={selectedGisContentCandidateId}
-                            onChange={e => {
-                              const next = e.target.value;
-                              setSelectedGisContentCandidateId(next);
-                              const found = gisContentCandidates.find(l => l.id === next);
-                              if (found && !addLayerName.trim()) setAddLayerName(found.name);
-                            }}
-                          >
-                            {gisContentCandidates.map(l => (
-                              <option key={l.id} value={l.id}>
-                                {l.name}
-                              </option>
-                            ))}
-                          </select>
-                          <i className="fa-solid fa-chevron-down" aria-hidden />
-                        </div>
-                      </div>
-                      <input
-                        type="text"
-                        className="gis-input"
-                        placeholder="Layer Name (optional)"
-                        value={addLayerName}
-                        onChange={e => setAddLayerName(e.target.value)}
-                        autoComplete="off"
-                      />
-                      <button type="button" className="gis-btn-primary-full" onClick={addSelectedGisContentLayer}>
-                        <i className="fa-solid fa-plus" aria-hidden /> Add selected layer
-                      </button>
-                    </>
+                    <ul className="ddb-gis-content-list">
+                      {gisContentCandidates.map(layer => {
+                        const busy = addingGisContentCandidateId === layer.id;
+                        const sourceLabel =
+                          layer.source === 'arcgis'
+                            ? 'ArcGIS'
+                            : layer.source === 'upload'
+                              ? 'Upload'
+                              : layer.source === 'url'
+                                ? 'URL'
+                                : null;
+                        return (
+                          <li key={layer.id} className="ddb-gis-content-row">
+                            <div className="ddb-gis-content-meta">
+                              <span className="ddb-gis-content-name">{layer.name}</span>
+                              <span className="ddb-gis-content-badges">
+                                <span className="ddb-gis-badge">GeoJSON</span>
+                                {sourceLabel ? (
+                                  <span className="ddb-gis-badge ddb-gis-badge--muted">{sourceLabel}</span>
+                                ) : (
+                                  <span className="ddb-gis-badge ddb-gis-badge--muted">Local</span>
+                                )}
+                              </span>
+                            </div>
+                            <button
+                              type="button"
+                              className="ddb-gis-content-add-btn"
+                              disabled={busy}
+                              onClick={() => addGisContentLayerByCandidateId(layer.id)}
+                            >
+                              {busy ? 'Adding…' : 'Add'}
+                            </button>
+                          </li>
+                        );
+                      })}
+                    </ul>
                   )}
                 </div>
-              ) : addLayerTab === 'arcgis' ? (
+              </>
+            ) : (
+              <>
+                <div className="ddb-add-source-modal__head">
+                  <div className="gis-modal-compact-title" id="si-layer-modal-title">
+                    Add Source Data
+                  </div>
+                  <button type="button" className="ddb-add-source-back" onClick={goSiAddLayerWizardHome}>
+                    <i className="fa-solid fa-arrow-left" aria-hidden /> All options
+                  </button>
+                </div>
+                <div className="gis-modal-compact-tabs" role="tablist" aria-label="Add layer source">
+                  <button
+                    type="button"
+                    role="tab"
+                    aria-selected={addLayerTab === 'arcgis'}
+                    className={(addLayerTab === 'arcgis' ? 'gis-compact-tab active' : 'gis-compact-tab') + ' gis-compact-tab--icon'}
+                    title="ArcGIS Feature Service"
+                    onClick={() => setAddLayerTab('arcgis')}
+                  >
+                    <i className="fa-solid fa-link" aria-hidden />
+                  </button>
+                  <button
+                    type="button"
+                    role="tab"
+                    aria-selected={addLayerTab === 'upload'}
+                    className={(addLayerTab === 'upload' ? 'gis-compact-tab active' : 'gis-compact-tab') + ' gis-compact-tab--icon'}
+                    title="Upload file"
+                    onClick={() => setAddLayerTab('upload')}
+                  >
+                    <i className="fa-solid fa-file-arrow-up" aria-hidden />
+                  </button>
+                  <button
+                    type="button"
+                    role="tab"
+                    aria-selected={addLayerTab === 'url'}
+                    className={(addLayerTab === 'url' ? 'gis-compact-tab active' : 'gis-compact-tab') + ' gis-compact-tab--icon'}
+                    title="From URL"
+                    onClick={() => setAddLayerTab('url')}
+                  >
+                    <i className="fa-solid fa-globe" aria-hidden />
+                  </button>
+                  <button
+                    type="button"
+                    role="tab"
+                    aria-selected={addLayerTab === 'database'}
+                    className={(addLayerTab === 'database' ? 'gis-compact-tab active' : 'gis-compact-tab') + ' gis-compact-tab--icon'}
+                    title="Database"
+                    onClick={() => setAddLayerTab('database')}
+                  >
+                    <i className="fa-solid fa-database" aria-hidden />
+                  </button>
+                </div>
+                <div className="gis-modal-body">
+              {addLayerTab === 'arcgis' ? (
                 <div key="arcgis" role="tabpanel" aria-label="ArcGIS Feature Service">
                   <input
                     type="url"
@@ -7624,8 +7719,10 @@ export default function SatelliteIntelligence() {
                   </button>
                 </div>
               )}
-              {addLayerStatus ? <p className="gis-modal-compact-status">{addLayerStatus}</p> : null}
-            </div>
+                </div>
+              </>
+            )}
+            {addLayerStatus ? <p className="gis-modal-compact-status">{addLayerStatus}</p> : null}
             <div className="gis-modal-footer">
               <button type="button" className="gis-link-btn" onClick={closeAddLayerModal}>
                 Cancel
@@ -7778,14 +7875,14 @@ export default function SatelliteIntelligence() {
                         <span className="gis-table-tooltext">Apply format</span>
                       </button>
                       <button
-                        className="gis-table-toolbtn"
+                        className="gis-table-toolbtn gis-table-toolbtn--icon-only"
                         type="button"
                         onClick={() => setTableToolsCollapsed(v => !v)}
                         aria-expanded={!tableToolsCollapsed}
+                        aria-label={tableToolsCollapsed ? 'Expand tools' : 'Collapse tools'}
                         title={tableToolsCollapsed ? 'Expand tools' : 'Collapse tools'}
                       >
                         <i className={tableToolsCollapsed ? 'fa-solid fa-angles-right' : 'fa-solid fa-angles-left'} aria-hidden />
-                        <span className="gis-table-tooltext">{tableToolsCollapsed ? 'Expand' : 'Collapse'}</span>
                       </button>
                     </aside>
                     <div className="si-layer-action-table-main gis-layer-table-wrap gis-table-dock-table">

@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useLocation } from 'react-router-dom'
 import { normalizeEmail, normalizeRole, startSession } from '../lib/auth'
+import { hydrateProfileFromAdminUserRecord, hydrateProfileFromServer } from '../lib/userProfilePersistence'
 import { appendAuditLog } from '../lib/audit'
 import { useLanguage } from '../lib/i18n'
 import { appConfig } from '../../config/app'
@@ -638,7 +639,9 @@ export default function Login() {
               role: normalizeRole(recoveredBase.role),
               scope: recoveredBase.scope ? String(recoveredBase.scope) : undefined,
             }
+            hydrateProfileFromAdminUserRecord(recoveredBase as Record<string, unknown>)
             startSession(recoveredAuthUser, { persist: keepSignedIn })
+            void hydrateProfileFromServer(emailTrimmed)
             logLoginAttempt('success', 'mandatory_account_password_self_healed', emailTrimmed)
             setError('')
             return
@@ -716,7 +719,9 @@ export default function Login() {
           role: normalizeRole(mergedUser.role),
           scope: mergedUser.scope ? String(mergedUser.scope) : undefined,
         }
+        hydrateProfileFromAdminUserRecord(mergedUser as Record<string, unknown>)
         startSession(authUser, { persist: keepSignedIn })
+        void hydrateProfileFromServer(emailTrimmed)
         logLoginAttempt('success', 'authenticated', emailTrimmed)
       }
     } finally {

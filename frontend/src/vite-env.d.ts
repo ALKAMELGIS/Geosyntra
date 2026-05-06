@@ -7,6 +7,9 @@ interface ImportMetaEnv {
   /** Absolute URL for GET/PUT api-secrets when the UI is not served from the Node host (e.g. GitHub Pages). */
   readonly VITE_AGRI_API_SECRETS_URL?: string
   readonly VITE_AGRI_API_SECRETS_TOKEN?: string
+  /** Optional GET/PUT base for cross-device profile sync (default `/api/v1/account/profile-extra`). */
+  readonly VITE_AGRI_USER_PROFILE_URL?: string
+  readonly VITE_AGRI_USER_PROFILE_TOKEN?: string
   /** Base URL for GeoDash FastAPI (e.g. http://localhost:8090) — no trailing slash */
   readonly VITE_GEODASH_API_URL?: string
 }
