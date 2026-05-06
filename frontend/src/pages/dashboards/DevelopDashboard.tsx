@@ -24,6 +24,8 @@ type CsvDataset = {
   origin: LayerOrigin
 }
 
+type CartesianWellKey = 'xAxis' | 'yAxis' | 'legend' | 'smallMultiples' | 'tooltips'
+
 type RightPowerBiPanel = 'none' | 'filters' | 'visualizations' | 'buildVisual' | 'data' | 'link'
 
 type LayerState = {
@@ -213,9 +215,13 @@ function ddbChartOptionsFor(
   modifiers?: { stacked?: boolean; indexAxis?: 'x' | 'y' },
 ): Record<string, unknown> {
   const radial = chartJsType === 'pie' || chartJsType === 'doughnut' || chartJsType === 'polarArea' || chartJsType === 'radar'
+  const dpr = typeof window !== 'undefined' ? Math.max(1.5, Math.min(2.2, window.devicePixelRatio || 1)) : 2
   const base: Record<string, unknown> = {
     responsive: true,
-    maintainAspectRatio: true,
+    maintainAspectRatio: false,
+    devicePixelRatio: dpr,
+    animation: { duration: 240, easing: 'easeOutCubic' },
+    normalized: true,
     interaction: { mode: radial ? 'nearest' : 'index', intersect: false },
     plugins: {
       legend: {
@@ -229,18 +235,26 @@ function ddbChartOptionsFor(
     ;(base.plugins as Record<string, unknown>).zoom = ddbChartZoomPluginConfig()
     const xScale: Record<string, unknown> = {
       stacked: Boolean(modifiers?.stacked),
-      ticks: { maxRotation: 0, font: { size: 10 } },
-      grid: { color: 'rgba(31, 94, 58, 0.08)' },
+      ticks: { maxRotation: 0, font: { size: 10, weight: '600' }, color: '#475569' },
+      grid: { color: 'rgba(148, 163, 184, 0.22)', lineWidth: 1 },
+      border: { color: 'rgba(148, 163, 184, 0.28)' },
     }
     const yScale: Record<string, unknown> = {
       stacked: Boolean(modifiers?.stacked),
-      ticks: { font: { size: 10 } },
-      grid: { color: 'rgba(31, 94, 58, 0.08)' },
+      ticks: { font: { size: 10, weight: '600' }, color: '#475569' },
+      grid: { color: 'rgba(148, 163, 184, 0.22)', lineWidth: 1 },
+      border: { color: 'rgba(148, 163, 184, 0.28)' },
     }
     base.scales = { x: xScale, y: yScale }
     if (modifiers?.indexAxis === 'y') {
       ;(base as Record<string, unknown>).indexAxis = 'y'
     }
+  }
+  ;(base as Record<string, unknown>).elements = {
+    line: { borderWidth: 2.6, tension: 0.25 },
+    point: { radius: 3.2, hoverRadius: 5, borderWidth: 1.4 },
+    bar: { borderRadius: 4, borderSkipped: false, borderWidth: 1 },
+    arc: { borderWidth: 1.2, borderColor: '#ffffff' },
   }
   return base
 }
@@ -485,7 +499,7 @@ function ddbPromoteVisualCardChrome(
   header: HTMLDivElement
   titleEl: HTMLElement
   actions: HTMLDivElement
-  strip: HTMLDivElement | null
+  chartTypeMenu: HTMLDivElement | null
   menu: HTMLDivElement
   filterPanel: HTMLDivElement
   chip: HTMLDivElement
@@ -501,6 +515,7 @@ function ddbPromoteVisualCardChrome(
   const actions = document.createElement('div')
   actions.className = 'ddb-visual-card__actions'
   actions.innerHTML = `
+    <button type="button" class="ddb-visual-card__icon-btn" data-ddb-card-act="chartType" title="Chart types" aria-label="Chart types"><i class="fa-solid fa-shapes"></i></button>
     <button type="button" class="ddb-visual-card__icon-btn" data-ddb-card-act="filter" title="Filter" aria-label="Filter"><i class="fa-solid fa-filter"></i></button>
     <button type="button" class="ddb-visual-card__icon-btn" data-ddb-card-act="focus" title="Focus mode" aria-label="Focus mode"><i class="fa-solid fa-expand"></i></button>
     <button type="button" class="ddb-visual-card__icon-btn" data-ddb-card-act="more" title="More options" aria-label="More options"><i class="fa-solid fa-ellipsis"></i></button>
@@ -521,13 +536,51 @@ function ddbPromoteVisualCardChrome(
   menu.className = 'ddb-visual-card__dropdown'
   menu.hidden = true
   menu.innerHTML = `
-    <button type="button" class="ddb-visual-card__menu-item"><i class="fa-solid fa-file-export" aria-hidden="true"></i><span>Export data</span></button>
-    <button type="button" class="ddb-visual-card__menu-item"><i class="fa-regular fa-table-list" aria-hidden="true"></i><span>Show as a table</span></button>
-    <button type="button" class="ddb-visual-card__menu-item"><i class="fa-solid fa-xmark" aria-hidden="true"></i><span>Remove</span></button>
-    <button type="button" class="ddb-visual-card__menu-item"><i class="fa-regular fa-rectangle-history" aria-hidden="true"></i><span>Spotlight</span></button>
-    <button type="button" class="ddb-visual-card__menu-item"><i class="fa-solid fa-arrow-down-wide-short" aria-hidden="true"></i><span>Sort axis</span><i class="fa-solid fa-chevron-right ddb-visual-card__menu-chevron" aria-hidden="true"></i></button>
-    <button type="button" class="ddb-visual-card__menu-item"><i class="fa-solid fa-square-root-variable" aria-hidden="true"></i><span>New visual calculation (preview)</span><i class="fa-solid fa-chevron-right ddb-visual-card__menu-chevron" aria-hidden="true"></i></button>
-    <button type="button" class="ddb-visual-card__menu-item"><i class="fa-regular fa-badge-check" aria-hidden="true"></i><span>Set up a verified answer</span></button>
+    <button type="button" class="ddb-visual-card__menu-item" data-action="bringFront"><i class="fa-solid fa-layer-group" aria-hidden="true"></i><span>Bring to front</span></button>
+    <button type="button" class="ddb-visual-card__menu-item" data-action="export"><i class="fa-solid fa-file-export" aria-hidden="true"></i><span>Export data</span></button>
+    <button type="button" class="ddb-visual-card__menu-item" data-action="showTable"><i class="fa-regular fa-table-list" aria-hidden="true"></i><span>Show as a table</span></button>
+    <button type="button" class="ddb-visual-card__menu-item" data-action="spotlight"><i class="fa-regular fa-rectangle-history" aria-hidden="true"></i><span>Spotlight</span></button>
+    <div class="ddb-visual-card__menu-group">
+      <button type="button" class="ddb-visual-card__menu-item ddb-visual-card__menu-item--has-sub"><i class="fa-solid fa-arrow-down-wide-short" aria-hidden="true"></i><span>Sort axis</span><i class="fa-solid fa-chevron-right ddb-visual-card__menu-chevron" aria-hidden="true"></i></button>
+      <div class="ddb-visual-card__submenu">
+        <button type="button" class="ddb-visual-card__menu-item ddb-visual-card__sort-item" data-sort-key="label">
+          <i class="fa-solid fa-check ddb-visual-card__check" aria-hidden="true"></i>
+          <span>Field ID</span>
+        </button>
+        <button type="button" class="ddb-visual-card__menu-item ddb-visual-card__sort-item" data-sort-key="value">
+          <i class="fa-solid fa-check ddb-visual-card__check" aria-hidden="true"></i>
+          <span data-sort-metric-label>Metric value</span>
+        </button>
+        <div class="ddb-visual-card__menu-sep" aria-hidden="true"></div>
+        <button type="button" class="ddb-visual-card__menu-item ddb-visual-card__sort-item" data-sort-dir="desc">
+          <i class="fa-solid fa-check ddb-visual-card__check" aria-hidden="true"></i>
+          <span>Sort descending</span>
+        </button>
+        <button type="button" class="ddb-visual-card__menu-item ddb-visual-card__sort-item" data-sort-dir="asc">
+          <i class="fa-solid fa-check ddb-visual-card__check" aria-hidden="true"></i>
+          <span>Sort ascending</span>
+        </button>
+      </div>
+    </div>
+    <div class="ddb-visual-card__menu-group">
+      <button type="button" class="ddb-visual-card__menu-item ddb-visual-card__menu-item--has-sub"><i class="fa-solid fa-square-root-variable" aria-hidden="true"></i><span>New visual calculation (preview)</span><i class="fa-solid fa-chevron-right ddb-visual-card__menu-chevron" aria-hidden="true"></i></button>
+      <div class="ddb-visual-card__submenu">
+        <button type="button" class="ddb-visual-card__menu-item ddb-visual-card__calc-item" data-calc="custom">Custom</button>
+        <button type="button" class="ddb-visual-card__menu-item ddb-visual-card__calc-item" data-calc="running_sum">Running sum</button>
+        <button type="button" class="ddb-visual-card__menu-item ddb-visual-card__calc-item" data-calc="moving_average">Moving average</button>
+        <button type="button" class="ddb-visual-card__menu-item ddb-visual-card__calc-item" data-calc="percent_parent">Percent of parent</button>
+        <button type="button" class="ddb-visual-card__menu-item ddb-visual-card__calc-item" data-calc="percent_grand_total">Percent of grand total</button>
+        <button type="button" class="ddb-visual-card__menu-item ddb-visual-card__calc-item" data-calc="average_children">Average of children</button>
+        <button type="button" class="ddb-visual-card__menu-item ddb-visual-card__calc-item" data-calc="versus_previous">Versus previous</button>
+        <button type="button" class="ddb-visual-card__menu-item ddb-visual-card__calc-item" data-calc="versus_next">Versus next</button>
+        <button type="button" class="ddb-visual-card__menu-item ddb-visual-card__calc-item" data-calc="versus_first">Versus first</button>
+        <button type="button" class="ddb-visual-card__menu-item ddb-visual-card__calc-item" data-calc="versus_last">Versus last</button>
+        <button type="button" class="ddb-visual-card__menu-item ddb-visual-card__calc-item" data-calc="lookup_context">Look up a value with context</button>
+        <button type="button" class="ddb-visual-card__menu-item ddb-visual-card__calc-item" data-calc="lookup_totals">Look up a value with totals</button>
+      </div>
+    </div>
+    <button type="button" class="ddb-visual-card__menu-item" data-action="verified"><i class="fa-regular fa-badge-check" aria-hidden="true"></i><span>Set up a verified answer</span></button>
+    <button type="button" class="ddb-visual-card__menu-item" data-action="remove"><i class="fa-solid fa-xmark" aria-hidden="true"></i><span>Remove</span></button>
     <div class="ddb-visual-card__menu-sep" aria-hidden="true"></div>
     <div class="ddb-visual-card__menu-group">
       <button type="button" class="ddb-visual-card__menu-item ddb-visual-card__menu-item--has-sub"><i class="fa-solid fa-chart-pie" aria-hidden="true"></i><span>Aggregate</span><i class="fa-solid fa-chevron-right ddb-visual-card__menu-chevron" aria-hidden="true"></i></button>
@@ -551,24 +604,26 @@ function ddbPromoteVisualCardChrome(
   chip.hidden = true
   card.insertBefore(chip, filterPanel.nextSibling)
 
-  let strip: HTMLDivElement | null = null
+  let chartTypeMenu: HTMLDivElement | null = null
   if (opts.showStatStrip) {
-    strip = document.createElement('div')
-    strip.className = 'ddb-visual-card__statstrip'
-    strip.setAttribute('role', 'toolbar')
-    strip.setAttribute('aria-label', 'Visualization type')
+    chartTypeMenu = document.createElement('div')
+    chartTypeMenu.className = 'ddb-visual-card__chart-type-menu'
+    chartTypeMenu.setAttribute('role', 'menu')
+    chartTypeMenu.setAttribute('aria-label', 'Visualization types')
+    chartTypeMenu.hidden = true
     for (const t of DDB_MINI_CHART_TOOLS) {
       const b = document.createElement('button')
       b.type = 'button'
-      b.className = 'ddb-visual-card__stat-btn'
+      b.className = 'ddb-visual-card__chart-type-item'
       b.title = t.label
       b.setAttribute('aria-label', t.label)
+      b.setAttribute('role', 'menuitem')
       b.setAttribute('data-mini-kind', t.kind)
       b.innerHTML = `<i class="fa-solid ${t.icon}" aria-hidden></i>`
       if (opts.initialMini === t.kind) b.classList.add('is-active')
-      strip.appendChild(b)
+      chartTypeMenu.appendChild(b)
     }
-    card.insertBefore(strip, chip.nextSibling)
+    header.appendChild(chartTypeMenu)
   }
 
   const zoomHint = document.createElement('div')
@@ -576,19 +631,48 @@ function ddbPromoteVisualCardChrome(
   zoomHint.innerHTML =
     '<i class="fa-solid fa-magnifying-glass-plus" aria-hidden></i> Wheel zoom · drag to pan · drag box to zoom region · double-click to reset'
   zoomHint.hidden = !opts.showZoomHint
-  if (strip) card.insertBefore(zoomHint, strip.nextSibling)
+  if (chartTypeMenu) card.insertBefore(zoomHint, chip.nextSibling)
   else card.insertBefore(zoomHint, chip.nextSibling)
 
   actions.querySelector('[data-ddb-card-act="focus"]')?.addEventListener('click', () => {
     card.classList.toggle('ddb-visual-card--focus')
   })
+  actions.querySelector('[data-ddb-card-act="chartType"]')?.addEventListener('click', e => {
+    e.stopPropagation()
+    if (!chartTypeMenu) return
+    chartTypeMenu.hidden = !chartTypeMenu.hidden
+    filterPanel.hidden = true
+    menu.hidden = true
+  })
   actions.querySelector('[data-ddb-card-act="filter"]')?.addEventListener('click', () => {
     filterPanel.hidden = !filterPanel.hidden
     menu.hidden = true
+    if (chartTypeMenu) chartTypeMenu.hidden = true
   })
   actions.querySelector('[data-ddb-card-act="more"]')?.addEventListener('click', () => {
     menu.hidden = !menu.hidden
     filterPanel.hidden = true
+    if (chartTypeMenu) chartTypeMenu.hidden = true
+  })
+
+  menu.querySelector('[data-action="bringFront"]')?.addEventListener('click', () => {
+    const workspace = card.closest('.ddb-canvas-workspace')
+    const cards = workspace?.querySelectorAll<HTMLElement>('.ddb-visual-card--canvas') ?? []
+    let maxZ = 2
+    cards.forEach(c => {
+      const z = Number.parseInt(c.style.zIndex || '2', 10)
+      if (!Number.isNaN(z)) maxZ = Math.max(maxZ, z)
+    })
+    card.style.zIndex = String(maxZ + 1)
+    menu.hidden = true
+  })
+  menu.querySelector('[data-action="remove"]')?.addEventListener('click', () => {
+    menu.hidden = true
+    opts.onClose?.()
+  })
+  menu.querySelector('[data-action="spotlight"]')?.addEventListener('click', () => {
+    card.classList.toggle('ddb-visual-card--focus')
+    menu.hidden = true
   })
 
   const closeBtn = actions.querySelector('[data-ddb-card-act="close"]') as HTMLButtonElement | null
@@ -601,7 +685,7 @@ function ddbPromoteVisualCardChrome(
     closeBtn?.remove()
   }
 
-  return { header, titleEl, actions, strip, menu, filterPanel, chip, zoomHint }
+  return { header, titleEl, actions, chartTypeMenu, menu, filterPanel, chip, zoomHint }
 }
 
 const DDB_CANVAS_LAYOUT_LS = 'ddb-develop-canvas-layouts-v1'
@@ -698,13 +782,18 @@ function ddbAttachCanvasCard(card: HTMLElement, host: HTMLElement, layoutKey: st
   card.style.width = `${Math.max(MIN_W, saved?.width ?? DEFAULT_W)}px`
   card.style.height = `${Math.max(MIN_H, saved?.height ?? DEFAULT_H)}px`
 
-  const handle = document.createElement('button')
-  handle.type = 'button'
-  handle.className = 'ddb-visual-card__canvas-resize'
-  handle.title = 'Resize card'
-  handle.setAttribute('aria-label', 'Resize card')
-  handle.innerHTML = '<span class="ddb-visual-card__canvas-resize-grip" aria-hidden="true"></span>'
-  card.appendChild(handle)
+  const resizeDirs = ['n', 's', 'e', 'w', 'ne', 'nw', 'se', 'sw'] as const
+  const handles = resizeDirs.map(dir => {
+    const h = document.createElement('button')
+    h.type = 'button'
+    h.className = `ddb-visual-card__resize-handle ddb-visual-card__resize-handle--${dir}`
+    h.title = 'Resize card'
+    h.setAttribute('aria-label', `Resize card ${dir}`)
+    h.dataset.dir = dir
+    if (dir === 'se') h.innerHTML = '<span class="ddb-visual-card__canvas-resize-grip" aria-hidden="true"></span>'
+    card.appendChild(h)
+    return h
+  })
 
   const dragEl =
     (card.querySelector('.ddb-visual-card__header') as HTMLElement | null) ||
@@ -728,7 +817,7 @@ function ddbAttachCanvasCard(card: HTMLElement, host: HTMLElement, layoutKey: st
   }
 
   let drag: null | { sx: number; sy: number; sl: number; st: number }
-  let resize: null | { sx: number; sy: number; sw: number; sh: number }
+  let resize: null | { sx: number; sy: number; sw: number; sh: number; sl: number; st: number; dir: string }
 
   const endInteract = () => {
     card.classList.remove('ddb-visual-card--dragging', 'ddb-visual-card--resizing')
@@ -760,8 +849,24 @@ function ddbAttachCanvasCard(card: HTMLElement, host: HTMLElement, layoutKey: st
     } else if (resize) {
       const dx = e.clientX - resize.sx
       const dy = e.clientY - resize.sy
-      card.style.width = `${Math.max(MIN_W, resize.sw + dx)}px`
-      card.style.height = `${Math.max(MIN_H, resize.sh + dy)}px`
+      let nextW = resize.sw
+      let nextH = resize.sh
+      let nextL = resize.sl
+      let nextT = resize.st
+      if (resize.dir.includes('e')) nextW = Math.max(MIN_W, resize.sw + dx)
+      if (resize.dir.includes('s')) nextH = Math.max(MIN_H, resize.sh + dy)
+      if (resize.dir.includes('w')) {
+        nextW = Math.max(MIN_W, resize.sw - dx)
+        nextL = resize.sl + dx
+      }
+      if (resize.dir.includes('n')) {
+        nextH = Math.max(MIN_H, resize.sh - dy)
+        nextT = resize.st + dy
+      }
+      card.style.width = `${nextW}px`
+      card.style.height = `${nextH}px`
+      card.style.left = `${nextL}px`
+      card.style.top = `${nextT}px`
       clamp()
       ddbReflowCanvasHost(host)
     }
@@ -776,7 +881,7 @@ function ddbAttachCanvasCard(card: HTMLElement, host: HTMLElement, layoutKey: st
     const t = e.target as HTMLElement | null
     if (!t || !dragEl?.contains(t)) return
     if (t.closest('button')) return
-    if (t === handle || handle.contains(t)) return
+    if (handles.some(h => t === h || h.contains(t))) return
     e.preventDefault()
     drag = {
       sx: e.clientX,
@@ -794,11 +899,16 @@ function ddbAttachCanvasCard(card: HTMLElement, host: HTMLElement, layoutKey: st
     if (card.classList.contains('ddb-visual-card--focus')) return
     e.preventDefault()
     e.stopPropagation()
+    const t = e.currentTarget as HTMLElement
+    const dir = t.dataset.dir || 'se'
     resize = {
       sx: e.clientX,
       sy: e.clientY,
       sw: parseFloat(card.style.width) || DEFAULT_W,
       sh: parseFloat(card.style.height) || DEFAULT_H,
+      sl: parseFloat(card.style.left) || 0,
+      st: parseFloat(card.style.top) || 0,
+      dir,
     }
     card.classList.add('ddb-visual-card--resizing')
     window.addEventListener('pointermove', onMove)
@@ -807,15 +917,15 @@ function ddbAttachCanvasCard(card: HTMLElement, host: HTMLElement, layoutKey: st
   }
 
   dragEl?.addEventListener('pointerdown', onDragDown)
-  handle.addEventListener('pointerdown', onResizeDown)
+  handles.forEach(h => h.addEventListener('pointerdown', onResizeDown))
 
   el.__ddbCanvasTeardown = () => {
     dragEl?.removeEventListener('pointerdown', onDragDown)
-    handle.removeEventListener('pointerdown', onResizeDown)
+    handles.forEach(h => h.removeEventListener('pointerdown', onResizeDown))
     window.removeEventListener('pointermove', onMove)
     window.removeEventListener('pointerup', onUp)
     window.removeEventListener('pointercancel', onUp)
-    handle.remove()
+    handles.forEach(h => h.remove())
     card.classList.remove('ddb-visual-card--canvas', 'ddb-visual-card--dragging', 'ddb-visual-card--resizing')
     delete el.__ddbCanvasTeardown
   }
@@ -859,16 +969,19 @@ function ddbAttachMapPanelCanvas(mapPanel: HTMLElement, workspace: HTMLElement, 
   mapPanel.style.width = `${Math.max(MIN_W, saved?.width ?? DEFAULT_W)}px`
   mapPanel.style.height = `${Math.max(MIN_H, saved?.height ?? DEFAULT_H)}px`
 
-  let handle = mapPanel.querySelector<HTMLButtonElement>('.ddb-map-container__canvas-resize')
-  if (!handle) {
-    handle = document.createElement('button')
-    handle.type = 'button'
-    handle.className = 'ddb-map-container__canvas-resize'
-    handle.title = 'Resize card'
-    handle.setAttribute('aria-label', 'Resize card')
-    handle.innerHTML = '<span class="ddb-visual-card__canvas-resize-grip" aria-hidden="true"></span>'
-    mapPanel.appendChild(handle)
-  }
+  mapPanel.querySelectorAll('.ddb-map-container__resize-handle').forEach(n => n.remove())
+  const resizeDirs = ['n', 's', 'e', 'w', 'ne', 'nw', 'se', 'sw'] as const
+  const handles = resizeDirs.map(dir => {
+    const h = document.createElement('button')
+    h.type = 'button'
+    h.className = `ddb-map-container__resize-handle ddb-map-container__resize-handle--${dir}`
+    h.title = 'Resize map card'
+    h.setAttribute('aria-label', `Resize map card ${dir}`)
+    h.dataset.dir = dir
+    if (dir === 'se') h.innerHTML = '<span class="ddb-visual-card__canvas-resize-grip" aria-hidden="true"></span>'
+    mapPanel.appendChild(h)
+    return h
+  })
 
   const dragEl = mapPanel.querySelector<HTMLElement>('.ddb-map-container__drag-header')
 
@@ -890,7 +1003,7 @@ function ddbAttachMapPanelCanvas(mapPanel: HTMLElement, workspace: HTMLElement, 
   }
 
   let drag: null | { sx: number; sy: number; sl: number; st: number }
-  let resize: null | { sx: number; sy: number; sw: number; sh: number }
+  let resize: null | { sx: number; sy: number; sw: number; sh: number; sl: number; st: number; dir: string }
 
   const endInteract = () => {
     mapPanel.classList.remove('ddb-map-container--dragging', 'ddb-map-container--resizing')
@@ -920,8 +1033,24 @@ function ddbAttachMapPanelCanvas(mapPanel: HTMLElement, workspace: HTMLElement, 
     } else if (resize) {
       const dx = e.clientX - resize.sx
       const dy = e.clientY - resize.sy
-      mapPanel.style.width = `${Math.max(MIN_W, resize.sw + dx)}px`
-      mapPanel.style.height = `${Math.max(MIN_H, resize.sh + dy)}px`
+      let nextW = resize.sw
+      let nextH = resize.sh
+      let nextL = resize.sl
+      let nextT = resize.st
+      if (resize.dir.includes('e')) nextW = Math.max(MIN_W, resize.sw + dx)
+      if (resize.dir.includes('s')) nextH = Math.max(MIN_H, resize.sh + dy)
+      if (resize.dir.includes('w')) {
+        nextW = Math.max(MIN_W, resize.sw - dx)
+        nextL = resize.sl + dx
+      }
+      if (resize.dir.includes('n')) {
+        nextH = Math.max(MIN_H, resize.sh - dy)
+        nextT = resize.st + dy
+      }
+      mapPanel.style.width = `${nextW}px`
+      mapPanel.style.height = `${nextH}px`
+      mapPanel.style.left = `${nextL}px`
+      mapPanel.style.top = `${nextT}px`
       clamp()
       ddbReflowCanvasHost(chartsHost)
     }
@@ -935,7 +1064,7 @@ function ddbAttachMapPanelCanvas(mapPanel: HTMLElement, workspace: HTMLElement, 
     const t = e.target as HTMLElement | null
     if (!t || !dragEl?.contains(t)) return
     if (t.closest('button') && t !== dragEl) return
-    if (t === handle || handle.contains(t)) return
+    if (handles.some(h => t === h || h.contains(t))) return
     e.preventDefault()
     drag = {
       sx: e.clientX,
@@ -952,11 +1081,16 @@ function ddbAttachMapPanelCanvas(mapPanel: HTMLElement, workspace: HTMLElement, 
   const onResizeDown = (e: PointerEvent) => {
     e.preventDefault()
     e.stopPropagation()
+    const t = e.currentTarget as HTMLElement
+    const dir = t.dataset.dir || 'se'
     resize = {
       sx: e.clientX,
       sy: e.clientY,
       sw: parseFloat(mapPanel.style.width) || DEFAULT_W,
       sh: parseFloat(mapPanel.style.height) || DEFAULT_H,
+      sl: parseFloat(mapPanel.style.left) || 0,
+      st: parseFloat(mapPanel.style.top) || 0,
+      dir,
     }
     mapPanel.classList.add('ddb-map-container--resizing')
     window.addEventListener('pointermove', onMove)
@@ -965,15 +1099,15 @@ function ddbAttachMapPanelCanvas(mapPanel: HTMLElement, workspace: HTMLElement, 
   }
 
   dragEl?.addEventListener('pointerdown', onDragDown)
-  handle.addEventListener('pointerdown', onResizeDown)
+  handles.forEach(h => h.addEventListener('pointerdown', onResizeDown))
 
   el.__ddbMapPanelTeardown = () => {
     dragEl?.removeEventListener('pointerdown', onDragDown)
-    handle.removeEventListener('pointerdown', onResizeDown)
+    handles.forEach(h => h.removeEventListener('pointerdown', onResizeDown))
     window.removeEventListener('pointermove', onMove)
     window.removeEventListener('pointerup', onUp)
     window.removeEventListener('pointercancel', onUp)
-    handle.remove()
+    handles.forEach(h => h.remove())
     mapPanel.classList.remove('ddb-map-container--dragging', 'ddb-map-container--resizing')
     mapPanel.style.left = ''
     mapPanel.style.top = ''
@@ -1240,7 +1374,7 @@ export default function DevelopDashboard() {
   const [gisContentLoading, setGisContentLoading] = useState(false)
   const [getDataNotice, setGetDataNotice] = useState<string | null>(null)
   /** Home step only: which source type is selected (Power BI–style radio list). */
-  const [addSourceHomeChoice, setAddSourceHomeChoice] = useState<'gis' | 'arcgis' | 'upload' | 'getdata' | ''>('')
+  const [addSourceHomeChoice, setAddSourceHomeChoice] = useState<'gis' | 'arcgis' | 'upload' | 'raster' | 'getdata' | ''>('')
   const [addTab, setAddTab] = useState<AddGisLayerTab>('arcgis')
   const [serviceUrl, setServiceUrl] = useState('')
   const [arcgisToken, setArcgisToken] = useState('')
@@ -1266,6 +1400,8 @@ export default function DevelopDashboard() {
   const [mapAccountTab, setMapAccountTab] = useState<MapAccountTab>('profile')
   const [canvasLayoutPreset, setCanvasLayoutPreset] = useState<'balanced' | 'compact'>('balanced')
   const [canvasBwTheme, setCanvasBwTheme] = useState(false)
+  const [dragFieldName, setDragFieldName] = useState<string | null>(null)
+  const [dragOverWell, setDragOverWell] = useState<CartesianWellKey | null>(null)
   const [geoSearchQuery, setGeoSearchQuery] = useState('')
   const [geoSearchBusy, setGeoSearchBusy] = useState(false)
   const [geoSearchError, setGeoSearchError] = useState<string | null>(null)
@@ -1685,6 +1821,22 @@ export default function DevelopDashboard() {
       const filterSourceLabels = [...labels]
       const filterSourceValues = [...values]
       const base = { labels: [...labels], values: [...values], datasetLabel }
+      let sortKey: 'label' | 'value' = 'label'
+      let sortDir: 'asc' | 'desc' = 'asc'
+      let calcMode:
+        | 'custom'
+        | 'running_sum'
+        | 'moving_average'
+        | 'percent_parent'
+        | 'percent_grand_total'
+        | 'average_children'
+        | 'versus_previous'
+        | 'versus_next'
+        | 'versus_first'
+        | 'versus_last'
+        | 'lookup_context'
+        | 'lookup_totals' = 'custom'
+      let calcSourceValues = [...base.values]
       const initialMini = ddbMiniKindFromChartType(type, dataConfig)
       const chrome = ddbPromoteVisualCardChrome(card, {
         showStatStrip: true,
@@ -1701,7 +1853,25 @@ export default function DevelopDashboard() {
         chrome.header.after(note)
       }
 
-      const { strip, menu, filterPanel, chip, titleEl: titleNode, zoomHint } = chrome
+      const { chartTypeMenu, menu, filterPanel, chip, titleEl: titleNode, zoomHint } = chrome
+      const sortMetricLabel = menu.querySelector('[data-sort-metric-label]') as HTMLSpanElement | null
+      if (sortMetricLabel) sortMetricLabel.textContent = datasetLabel || primaryNum || 'Metric value'
+
+      const syncSortUi = () => {
+        menu.querySelectorAll<HTMLElement>('.ddb-visual-card__sort-item').forEach(el => {
+          const isActive =
+            (el.dataset.sortKey && el.dataset.sortKey === sortKey) || (el.dataset.sortDir && el.dataset.sortDir === sortDir)
+          el.classList.toggle('is-active', Boolean(isActive))
+        })
+      }
+      syncSortUi()
+
+      const syncCalcUi = () => {
+        menu.querySelectorAll<HTMLElement>('.ddb-visual-card__calc-item').forEach(el => {
+          el.classList.toggle('is-active', el.dataset.calc === calcMode)
+        })
+      }
+      syncCalcUi()
       const listEl = filterPanel.querySelector('[data-ddb-filter-list]') as HTMLDivElement | null
       const applyFilterBtn = filterPanel.querySelector('.ddb-visual-card__filter-apply') as HTMLButtonElement | null
 
@@ -1737,7 +1907,7 @@ export default function DevelopDashboard() {
       })
 
       const setStripActive = (k: DdbMiniChartKind) => {
-        strip?.querySelectorAll('.ddb-visual-card__stat-btn').forEach(btn => {
+        chartTypeMenu?.querySelectorAll('.ddb-visual-card__chart-type-item').forEach(btn => {
           btn.classList.toggle('is-active', btn.getAttribute('data-mini-kind') === k)
         })
       }
@@ -1768,11 +1938,12 @@ export default function DevelopDashboard() {
         zoomHint.hidden = ['pie', 'doughnut', 'polarArea', 'radar'].includes(built.type)
       }
 
-      strip?.querySelectorAll('.ddb-visual-card__stat-btn').forEach(btn => {
+      chartTypeMenu?.querySelectorAll('.ddb-visual-card__chart-type-item').forEach(btn => {
         btn.addEventListener('click', () => {
           const k = btn.getAttribute('data-mini-kind') as DdbMiniChartKind
           if (!k) return
           rebuild(k)
+          chartTypeMenu.hidden = true
         })
       })
 
@@ -1808,10 +1979,142 @@ export default function DevelopDashboard() {
         menu.hidden = true
       }
 
+      const applySort = () => {
+        const zipped = base.labels.map((lab, i) => ({ label: lab, value: Number(base.values[i] ?? 0) }))
+        zipped.sort((a, b) => {
+          if (sortKey === 'value') return sortDir === 'asc' ? a.value - b.value : b.value - a.value
+          const cmp = a.label.localeCompare(b.label, undefined, { numeric: true, sensitivity: 'base' })
+          return sortDir === 'asc' ? cmp : -cmp
+        })
+        base.labels = zipped.map(r => r.label)
+        base.values = zipped.map(r => r.value)
+        calcSourceValues = [...base.values]
+      }
+
+      const applyVisualCalculation = () => {
+        const src = [...calcSourceValues]
+        if (!src.length) return
+        const total = src.reduce((a, b) => a + b, 0) || 1
+        const first = src[0] ?? 0
+        const last = src[src.length - 1] ?? 0
+        const mean = src.reduce((a, b) => a + b, 0) / src.length
+        const std = Math.sqrt(src.reduce((acc, x) => acc + (x - mean) ** 2, 0) / Math.max(1, src.length - 1)) || 1
+        let out = [...src]
+        if (calcMode === 'running_sum') {
+          let acc = 0
+          out = src.map(v => (acc += v))
+        } else if (calcMode === 'moving_average') {
+          out = src.map((_, i) => {
+            const a = src[Math.max(0, i - 1)] ?? src[i] ?? 0
+            const b = src[i] ?? 0
+            const c = src[Math.min(src.length - 1, i + 1)] ?? src[i] ?? 0
+            return (a + b + c) / 3
+          })
+        } else if (calcMode === 'percent_parent' || calcMode === 'percent_grand_total') {
+          out = src.map(v => (v / total) * 100)
+        } else if (calcMode === 'average_children') {
+          out = src.map((_, i) => {
+            const left = src[Math.max(0, i - 1)] ?? src[i] ?? 0
+            const mid = src[i] ?? 0
+            const right = src[Math.min(src.length - 1, i + 1)] ?? src[i] ?? 0
+            return (left + mid + right) / 3
+          })
+        } else if (calcMode === 'versus_previous') {
+          out = src.map((v, i) => (i === 0 ? 0 : v - (src[i - 1] ?? 0)))
+        } else if (calcMode === 'versus_next') {
+          out = src.map((v, i) => (i === src.length - 1 ? 0 : v - (src[i + 1] ?? 0)))
+        } else if (calcMode === 'versus_first') {
+          out = src.map(v => v - first)
+        } else if (calcMode === 'versus_last') {
+          out = src.map(v => v - last)
+        } else if (calcMode === 'lookup_context') {
+          out = src.map(v => (v - mean) / std)
+        } else if (calcMode === 'lookup_totals') {
+          let running = 0
+          out = src.map(v => {
+            running += v
+            return (running / total) * 100
+          })
+        }
+        base.values = out
+      }
+
       menu.querySelectorAll('.ddb-visual-card__menu-item').forEach(el => {
         el.addEventListener('click', () => {
-          const stat = (el as HTMLElement).dataset.stat
+          const target = el as HTMLElement
+          const stat = target.dataset.stat
+          const action = target.dataset.action
+          const key = target.dataset.sortKey as 'label' | 'value' | undefined
+          const dir = target.dataset.sortDir as 'asc' | 'desc' | undefined
+          const calc = target.dataset.calc
           if (stat) applyStat(stat)
+          if (key) {
+            sortKey = key
+            applySort()
+            syncSortUi()
+            rebuild(ddbMiniKindFromChartType(type, dataConfig))
+            chip.textContent = `Sorted by ${sortKey === 'label' ? 'Field ID' : datasetLabel} (${sortDir})`
+            chip.hidden = false
+            return
+          }
+          if (dir) {
+            sortDir = dir
+            applySort()
+            syncSortUi()
+            rebuild(ddbMiniKindFromChartType(type, dataConfig))
+            chip.textContent = `Sort ${sortDir === 'asc' ? 'ascending' : 'descending'}`
+            chip.hidden = false
+            return
+          }
+          if (calc) {
+            calcMode = calc as typeof calcMode
+            if (calcMode === 'custom') {
+              base.values = [...calcSourceValues]
+              chip.textContent = 'Custom calculation (raw values)'
+            } else {
+              applyVisualCalculation()
+              chip.textContent = `Calculation: ${target.textContent?.trim() ?? calcMode}`
+            }
+            syncCalcUi()
+            rebuild(ddbMiniKindFromChartType(type, dataConfig))
+            chip.hidden = false
+            menu.hidden = true
+            return
+          }
+          if (action === 'sortAxis') {
+            base.labels = [...base.labels].reverse()
+            base.values = [...base.values].reverse()
+            const chartType = ((chartRef as any)?.config?.type as string | undefined) || type
+            rebuild(ddbMiniKindFromChartType(chartType, { data: chartRef?.data as any }))
+            chip.textContent = 'Axis sorted (descending)'
+            chip.hidden = false
+            menu.hidden = true
+          } else if (action === 'showTable') {
+            const rows = base.labels.map((lab, i) => `${lab}: ${Number(base.values[i] ?? 0).toFixed(2)}`)
+            chip.textContent = rows.slice(0, 3).join(' | ')
+            chip.hidden = false
+            menu.hidden = true
+          } else if (action === 'newCalc') {
+            chip.textContent = 'Visual calculation ready (preview)'
+            chip.hidden = false
+            menu.hidden = true
+          } else if (action === 'verified') {
+            chip.textContent = 'Verified answer configured'
+            chip.hidden = false
+            menu.hidden = true
+          } else if (action === 'export') {
+            const csv = ['Label,Value', ...base.labels.map((lab, i) => `"${String(lab).replace(/"/g, '""')}",${base.values[i] ?? 0}`)].join('\n')
+            const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
+            const url = URL.createObjectURL(blob)
+            const a = document.createElement('a')
+            a.href = url
+            a.download = `${title.replace(/\s+/g, '_').toLowerCase()}_data.csv`
+            document.body.appendChild(a)
+            a.click()
+            a.remove()
+            URL.revokeObjectURL(url)
+            menu.hidden = true
+          }
         })
       })
 
@@ -2762,6 +3065,36 @@ export default function DevelopDashboard() {
     ddbResizeChartsInHost(host)
   }, [bindLayerKey, canvasLayoutPreset])
 
+  const toggleCanvasLayoutPreset = useCallback(() => {
+    setCanvasLayoutPreset(prev => (prev === 'balanced' ? 'compact' : 'balanced'))
+  }, [])
+
+  const assignCartesianFieldToWell = useCallback((field: string, preferred?: CartesianWellKey) => {
+    const order: CartesianWellKey[] = ['xAxis', 'yAxis', 'legend', 'smallMultiples', 'tooltips']
+    setCartesianWells(prev => {
+      const currentKey = order.find(k => prev[k] === field)
+      const target = preferred ?? order.find(k => !prev[k]) ?? 'tooltips'
+      if (!target) return prev
+      if (currentKey && currentKey === target) return prev
+      const next = { ...prev }
+      if (currentKey) next[currentKey] = ''
+      next[target] = field
+      return next
+    })
+    setCartesianFieldPicks(prev => (prev.includes(field) ? prev : [...prev, field]))
+  }, [])
+
+  const unassignCartesianField = useCallback((field: string) => {
+    setCartesianFieldPicks(prev => prev.filter(x => x !== field))
+    setCartesianWells(prev => {
+      const next = { ...prev }
+      ;(['xAxis', 'yAxis', 'legend', 'smallMultiples', 'tooltips'] as CartesianWellKey[]).forEach(k => {
+        if (next[k] === field) next[k] = ''
+      })
+      return next
+    })
+  }, [])
+
   return (
     <>
     <div className={`page page-tight develop-dashboard-root${canvasBwTheme ? ' ddb-theme-bw' : ''}`}>
@@ -2773,28 +3106,46 @@ export default function DevelopDashboard() {
             </h1>
           </div>
           <div className="ddb-topbar-tools" role="group" aria-label="Canvas layout and style tools">
-            <label className="ddb-topbar-tool ddb-topbar-tool--select">
+            <button
+              type="button"
+              className={`ddb-topbar-icon-btn${canvasLayoutPreset === 'compact' ? ' is-active' : ''}`}
+              onClick={toggleCanvasLayoutPreset}
+              title={`Layout preset: ${canvasLayoutPreset === 'balanced' ? 'Balanced spacing' : 'Compact spacing'}`}
+              aria-label={`Layout preset: ${canvasLayoutPreset === 'balanced' ? 'Balanced spacing' : 'Compact spacing'}`}
+              aria-pressed={canvasLayoutPreset === 'compact'}
+            >
               <i className="fa-solid fa-object-group" aria-hidden />
-              <span>Layout</span>
-              <select value={canvasLayoutPreset} onChange={e => setCanvasLayoutPreset(e.target.value as 'balanced' | 'compact')}>
-                <option value="balanced">Balanced spacing</option>
-                <option value="compact">Compact spacing</option>
-              </select>
-            </label>
-            <button type="button" className="ddb-topbar-tool-btn" onClick={autoArrangeCanvasCards} title="Auto arrange charts in canvas">
-              <i className="fa-solid fa-table-cells-large" aria-hidden /> Auto Arrange
-            </button>
-            <button type="button" className="ddb-topbar-tool-btn" onClick={normalizeCanvasCardSizes} title="Normalize chart card sizes">
-              <i className="fa-solid fa-up-right-and-down-left-from-center" aria-hidden /> Normalize Size
+              <span className="ddb-topbar-icon-badge" aria-hidden>
+                {canvasLayoutPreset === 'balanced' ? 'B' : 'C'}
+              </span>
             </button>
             <button
               type="button"
-              className={`ddb-topbar-tool-btn ddb-topbar-tool-btn--theme${canvasBwTheme ? ' is-active' : ''}`}
+              className="ddb-topbar-icon-btn"
+              onClick={autoArrangeCanvasCards}
+              title="Auto arrange charts in canvas"
+              aria-label="Auto arrange charts in canvas"
+            >
+              <i className="fa-solid fa-table-cells-large" aria-hidden />
+            </button>
+            <button
+              type="button"
+              className="ddb-topbar-icon-btn"
+              onClick={normalizeCanvasCardSizes}
+              title="Normalize chart card sizes"
+              aria-label="Normalize chart card sizes"
+            >
+              <i className="fa-solid fa-up-right-and-down-left-from-center" aria-hidden />
+            </button>
+            <button
+              type="button"
+              className={`ddb-topbar-icon-btn ddb-topbar-icon-btn--theme${canvasBwTheme ? ' is-active' : ''}`}
               onClick={() => setCanvasBwTheme(v => !v)}
               title="Black and white canvas theme"
+              aria-label="Black and white canvas theme"
               aria-pressed={canvasBwTheme}
             >
-              <i className="fa-solid fa-circle-half-stroke" aria-hidden /> B/W Theme
+              <i className="fa-solid fa-circle-half-stroke" aria-hidden />
             </button>
           </div>
         </div>
@@ -2824,6 +3175,23 @@ export default function DevelopDashboard() {
                 <span className="ddb-map-container__drag-title">
                   <i className={mapCanvasCardPresentation.icon} aria-hidden /> {mapCanvasCardPresentation.label}
                 </span>
+                <button
+                  type="button"
+                  className="ddb-map-container__close"
+                  aria-label="Close map card"
+                  title="Close map"
+                  onClick={() =>
+                    setSelectedCharts(prev => {
+                      const next = new Set(prev)
+                      next.delete('map')
+                      next.delete('fieldMap')
+                      next.delete('filledMap')
+                      return next
+                    })
+                  }
+                >
+                  <i className="fa-solid fa-xmark" aria-hidden />
+                </button>
               </div>
             ) : null}
             <div ref={mapElRef} className="ddb-map-inner" />
@@ -3453,18 +3821,43 @@ export default function DevelopDashboard() {
                               <ul className="ddb-vis-field-check-list" role="list">
                                 {bindLayerFields.map(f => (
                                   <li key={f}>
-                                    <label className="ddb-vis-field-check-row">
-                                      <input
-                                        type="checkbox"
-                                        checked={cartesianFieldPicks.includes(f)}
-                                        onChange={() =>
-                                          setCartesianFieldPicks(prev =>
-                                            prev.includes(f) ? prev.filter(x => x !== f) : [...prev, f],
-                                          )
-                                        }
-                                      />
-                                      <span className="ddb-vis-field-check-row__name">{f}</span>
-                                    </label>
+                                    <div className="ddb-vis-field-check-row">
+                                      <label className="ddb-vis-field-check-row__main">
+                                        <input
+                                          type="checkbox"
+                                          checked={cartesianFieldPicks.includes(f)}
+                                          onChange={e => {
+                                            if (e.target.checked) assignCartesianFieldToWell(f)
+                                            else unassignCartesianField(f)
+                                          }}
+                                        />
+                                        <span
+                                          className="ddb-vis-field-check-row__name"
+                                          draggable
+                                          onDragStart={e => {
+                                            setDragFieldName(f)
+                                            e.dataTransfer.effectAllowed = 'move'
+                                            e.dataTransfer.setData('text/plain', f)
+                                          }}
+                                          onDragEnd={() => {
+                                            setDragFieldName(null)
+                                            setDragOverWell(null)
+                                          }}
+                                          title="Drag this field to a well"
+                                        >
+                                          {f}
+                                        </span>
+                                      </label>
+                                      <button
+                                        type="button"
+                                        className="ddb-vis-field-pin-btn"
+                                        title="Pin this field to build visual wells"
+                                        aria-label={`Pin ${f} to build visual wells`}
+                                        onClick={() => assignCartesianFieldToWell(f)}
+                                      >
+                                        <i className="fa-solid fa-thumbtack" aria-hidden />
+                                      </button>
+                                    </div>
                                   </li>
                                 ))}
                               </ul>
@@ -3594,12 +3987,35 @@ export default function DevelopDashboard() {
                               { key: 'tooltips' as const, label: 'Tooltips' },
                             ] as const
                           ).map(w => (
-                            <div key={w.key} className="ddb-vis-well">
+                            <div
+                              key={w.key}
+                              className={`ddb-vis-well${dragOverWell === w.key ? ' is-drop-target' : ''}`}
+                              onDragOver={e => {
+                                if (!dragFieldName) return
+                                e.preventDefault()
+                                e.dataTransfer.dropEffect = 'move'
+                                setDragOverWell(w.key)
+                              }}
+                              onDragLeave={() => {
+                                if (dragOverWell === w.key) setDragOverWell(null)
+                              }}
+                              onDrop={e => {
+                                e.preventDefault()
+                                const dropped = dragFieldName || e.dataTransfer.getData('text/plain')
+                                if (dropped) assignCartesianFieldToWell(dropped, w.key)
+                                setDragFieldName(null)
+                                setDragOverWell(null)
+                              }}
+                            >
                               <span className="ddb-vis-well__label">{w.label}</span>
                               <select
                                 className="ddb-vis-well__select"
                                 value={cartesianWells[w.key]}
-                                onChange={e => setCartesianWells(prev => ({ ...prev, [w.key]: e.target.value }))}
+                                onChange={e => {
+                                  const value = e.target.value
+                                  setCartesianWells(prev => ({ ...prev, [w.key]: value }))
+                                  if (value) setCartesianFieldPicks(prev => (prev.includes(value) ? prev : [...prev, value]))
+                                }}
                                 aria-label={w.label}
                               >
                                 <option value="">Add data fields here</option>
@@ -3609,6 +4025,27 @@ export default function DevelopDashboard() {
                                   </option>
                                 ))}
                               </select>
+                              {cartesianWells[w.key] ? (
+                                <button
+                                  type="button"
+                                  className="ddb-vis-well__chip"
+                                  draggable
+                                  onDragStart={e => {
+                                    setDragFieldName(cartesianWells[w.key])
+                                    e.dataTransfer.effectAllowed = 'move'
+                                    e.dataTransfer.setData('text/plain', cartesianWells[w.key])
+                                  }}
+                                  onDragEnd={() => {
+                                    setDragFieldName(null)
+                                    setDragOverWell(null)
+                                  }}
+                                  onClick={() => unassignCartesianField(cartesianWells[w.key])}
+                                  title="Drag to another well or click to remove"
+                                >
+                                  <span>{cartesianWells[w.key]}</span>
+                                  <i className="fa-solid fa-xmark" aria-hidden />
+                                </button>
+                              ) : null}
                             </div>
                           ))}
                           <div className="ddb-vis-drill" aria-hidden>
@@ -3878,7 +4315,6 @@ export default function DevelopDashboard() {
               <span className="ddb-right-rail-icon-wrap" aria-hidden>
                 <i className="fa-solid fa-sliders ddb-right-rail-icon" />
               </span>
-              <span className="ddb-right-rail-label">Filters</span>
             </button>
             <button
               type="button"
@@ -3890,7 +4326,6 @@ export default function DevelopDashboard() {
               <span className="ddb-right-rail-icon-wrap" aria-hidden>
                 <i className="fa-solid fa-chart-line ddb-right-rail-icon" />
               </span>
-              <span className="ddb-right-rail-label">Charts</span>
             </button>
             <button
               type="button"
@@ -3902,7 +4337,6 @@ export default function DevelopDashboard() {
               <span className="ddb-right-rail-icon-wrap" aria-hidden>
                 <i className="fa-solid fa-wand-magic-sparkles ddb-right-rail-icon" />
               </span>
-              <span className="ddb-right-rail-label">Build</span>
             </button>
             <button
               type="button"
@@ -3914,7 +4348,6 @@ export default function DevelopDashboard() {
               <span className="ddb-right-rail-icon-wrap" aria-hidden>
                 <i className="fa-solid fa-folder-tree ddb-right-rail-icon" />
               </span>
-              <span className="ddb-right-rail-label">Data</span>
             </button>
             <button
               type="button"
@@ -3925,10 +4358,6 @@ export default function DevelopDashboard() {
             >
               <span className="ddb-right-rail-icon-wrap" aria-hidden>
                 <i className="fa-solid fa-diagram-project ddb-right-rail-icon" />
-              </span>
-              <span className="ddb-right-rail-label ddb-right-rail-label--stack">
-                <span>Link</span>
-                <span>Layers</span>
               </span>
             </button>
           </nav>
@@ -4056,6 +4485,29 @@ export default function DevelopDashboard() {
                     <span className="ddb-add-source-radio-row__title">Get Data</span>
                     <span className="ddb-add-source-radio-row__desc">
                       Open the same “Common data sources” list as Power BI (Excel, CSV, SQL, Web, OData, …).
+                    </span>
+                  </span>
+                </label>
+                <label className="ddb-add-source-radio-row">
+                  <input
+                    type="radio"
+                    name="ddb-add-source-home"
+                    value="raster"
+                    checked={addSourceHomeChoice === 'raster'}
+                    onChange={() => {
+                      setDiscoverError(null)
+                      setAddSourceHomeChoice('raster')
+                      setAddWizard('tabs')
+                      setAddTab('url')
+                    }}
+                  />
+                  <span className="ddb-add-source-radio-row__icon" aria-hidden>
+                    <i className="fa-regular fa-image" />
+                  </span>
+                  <span className="ddb-add-source-radio-row__text">
+                    <span className="ddb-add-source-radio-row__title">Raster path / URL</span>
+                    <span className="ddb-add-source-radio-row__desc">
+                      Add a raster endpoint or image path and import it through the URL connector.
                     </span>
                   </span>
                 </label>
@@ -4327,7 +4779,7 @@ export default function DevelopDashboard() {
                 <input
                   ref={addLayerFileInputRef}
                   type="file"
-                  accept=".kml,.kmz,.zip,.geojson,.json,.csv"
+                  accept=".kml,.kmz,.zip,.geojson,.json,.csv,.tif,.tiff,.img,.vrt,.jp2,.ecw"
                   hidden
                   onChange={e => setUploadFile(e.target.files?.[0] ?? null)}
                 />
@@ -4337,6 +4789,10 @@ export default function DevelopDashboard() {
                 {uploadFile ? <div className="ddb-hint" style={{ marginTop: 8 }}>{uploadFile.name}</div> : null}
                 <p className="ddb-hint" style={{ marginTop: 6, textAlign: 'left' }}>
                   CSV without latitude/longitude columns is added as a <strong>Data</strong> table (right pane → Data) like Power BI Fields.
+                </p>
+                <p className="ddb-hint" style={{ marginTop: 4, textAlign: 'left' }}>
+                  Raster support: Raster Dataset, Raster Layer, Mosaic Layer, Image Service, Map Server/Layer, Internet Tiled Layer, and
+                  Folder endpoints can be added via URL/Raster path workflows.
                 </p>
                 <input
                   className="gis-input"
@@ -4363,7 +4819,7 @@ export default function DevelopDashboard() {
                   type="url"
                   value={remoteDataUrl}
                   onChange={e => setRemoteDataUrl(e.target.value)}
-                  placeholder="https://… (GeoJSON, KML, KMZ, zip, …)"
+                  placeholder="https://… (GeoJSON, KML, KMZ, zip, Raster path / URL, …)"
                   autoComplete="off"
                 />
                 <input

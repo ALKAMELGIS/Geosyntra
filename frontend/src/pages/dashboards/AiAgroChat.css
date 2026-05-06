@@ -11,7 +11,9 @@
   flex-direction: column;
   min-height: min(78vh, 720px);
   border-radius: 22px;
-  background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
+  background:
+    radial-gradient(circle at 95% 0%, rgba(16, 185, 129, 0.08), transparent 28%),
+    linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
   border: 1px solid rgba(226, 232, 240, 0.95);
   box-shadow:
     0 1px 0 rgba(255, 255, 255, 0.9) inset,
@@ -210,30 +212,130 @@
   background: rgba(248, 250, 252, 0.65);
 }
 
+.aagc-picked-asset {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  max-width: 100%;
+  margin: 0 0 10px;
+  padding: 7px 10px;
+  border-radius: 12px;
+  border: 1px solid rgba(16, 185, 129, 0.3);
+  background: rgba(236, 253, 245, 0.8);
+  color: #065f46;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.aagc-picked-asset span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.aagc-picked-asset__clear {
+  width: 22px;
+  height: 22px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: #065f46;
+  cursor: pointer;
+}
+
+.aagc-picked-asset__clear:hover {
+  background: rgba(15, 23, 42, 0.08);
+}
+
 .aagc-input-row {
   display: flex;
   align-items: stretch;
   gap: 10px;
+  padding: 8px;
+  border-radius: 18px;
+  border: 1px solid rgba(148, 163, 184, 0.28);
+  background:
+    linear-gradient(135deg, rgba(15, 23, 42, 0.95), rgba(30, 41, 59, 0.9)),
+    linear-gradient(180deg, #0f172a, #111827);
+  box-shadow:
+    0 10px 24px rgba(15, 23, 42, 0.2),
+    0 1px 0 rgba(255, 255, 255, 0.08) inset;
+}
+
+.aagc-input-tools {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px;
+  border-radius: 13px;
+  border: 1px solid rgba(148, 163, 184, 0.22);
+  background: rgba(15, 23, 42, 0.42);
+}
+
+.aagc-tool-btn {
+  width: 36px;
+  height: 36px;
+  border: 1px solid rgba(148, 163, 184, 0.22);
+  border-radius: 11px;
+  background: rgba(15, 23, 42, 0.46);
+  color: #e2e8f0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  font-size: 13px;
+  transition:
+    background 0.16s ease,
+    border-color 0.16s ease,
+    color 0.16s ease,
+    box-shadow 0.16s ease,
+    transform 0.16s ease;
+}
+
+.aagc-tool-btn:hover {
+  background: rgba(30, 41, 59, 0.9);
+  border-color: rgba(148, 163, 184, 0.45);
+  color: #ffffff;
+  transform: translateY(-1px);
+}
+
+.aagc-tool-btn.is-active {
+  border-color: rgba(110, 231, 183, 0.65);
+  background: linear-gradient(145deg, rgba(5, 150, 105, 0.95), rgba(6, 95, 70, 0.95));
+  color: #ecfdf5;
+  box-shadow: 0 6px 14px rgba(5, 150, 105, 0.3);
+}
+
+.aagc-tool-btn.is-recording {
+  border-color: rgba(252, 165, 165, 0.72);
+  background: linear-gradient(145deg, rgba(239, 68, 68, 0.95), rgba(185, 28, 28, 0.92));
+  color: #fff;
+  box-shadow: 0 0 0 3px rgba(248, 113, 113, 0.18);
 }
 
 .aagc-input {
   flex: 1 1 auto;
   min-width: 0;
-  border-radius: 14px;
-  border: 1px solid #e2e8f0;
-  padding: 12px 14px;
+  border-radius: 13px;
+  border: 1px solid rgba(148, 163, 184, 0.24);
+  padding: 11px 13px;
   font-size: 14px;
   font-family: inherit;
   resize: none;
   line-height: 1.45;
-  background: #fff;
-  color: #0f172a;
+  background: rgba(15, 23, 42, 0.38);
+  color: #f8fafc;
 }
 
 .aagc-input:focus {
   outline: none;
-  border-color: rgba(34, 197, 94, 0.55);
-  box-shadow: 0 0 0 3px rgba(34, 197, 94, 0.12);
+  border-color: rgba(52, 211, 153, 0.7);
+  box-shadow: 0 0 0 3px rgba(52, 211, 153, 0.2);
+  background: rgba(15, 23, 42, 0.48);
+}
+
+.aagc-input::placeholder {
+  color: #cbd5e1;
 }
 
 .aagc-input:disabled {
@@ -244,16 +346,16 @@
   flex-shrink: 0;
   align-self: flex-end;
   border: none;
-  border-radius: 14px;
-  padding: 0 20px;
+  border-radius: 13px;
+  padding: 0 18px;
   min-height: 46px;
   font-weight: 800;
   font-size: 13px;
   letter-spacing: 0.02em;
   cursor: pointer;
   color: #fff;
-  background: linear-gradient(145deg, #22c55e, #16a34a);
-  box-shadow: 0 8px 20px rgba(22, 163, 74, 0.28);
+  background: linear-gradient(145deg, #8b5cf6, #6d28d9);
+  box-shadow: 0 8px 20px rgba(109, 40, 217, 0.35);
   font-family: inherit;
 }
 

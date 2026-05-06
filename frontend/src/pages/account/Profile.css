@@ -215,6 +215,12 @@ html[data-theme='dark'] .profile-card {
   border-color: color-mix(in srgb, var(--pf-accent) 35%, var(--pf-border));
 }
 
+.profile-hero-cover-btn:focus-visible {
+  outline: none;
+  border-color: color-mix(in srgb, #166534 55%, var(--pf-border));
+  box-shadow: 0 0 0 3px color-mix(in srgb, #166534 35%, transparent);
+}
+
 .profile-hero-cover-btn--ghost {
   border-color: rgba(148, 163, 184, 0.45);
   background: rgba(248, 250, 252, 0.95);
@@ -603,24 +609,27 @@ html[data-theme='dark'] .profile-link-btn:focus-visible {
   gap: 8px;
   padding: 9px 18px;
   border-radius: 999px;
-  border: none;
-  background: linear-gradient(135deg, var(--pf-orange), #ea580c);
-  color: #fff;
+  border: 1px solid color-mix(in srgb, var(--pf-accent) 28%, var(--pf-border));
+  background: color-mix(in srgb, var(--ds-color-surface, #fff) 96%, transparent);
+  color: var(--pf-text);
   font-size: 13px;
   font-weight: 700;
   cursor: pointer;
-  box-shadow: 0 10px 24px rgba(234, 88, 12, 0.28);
+  box-shadow: 0 2px 10px rgba(15, 23, 42, 0.08);
   transition:
     transform 0.2s var(--pf-ease),
     box-shadow 0.2s ease,
-    filter 0.2s ease;
+    background 0.2s ease,
+    border-color 0.2s ease,
+    color 0.2s ease;
 }
 
 .profile-btn-edit-primary:hover:not(:disabled) {
   transform: translateY(-1px);
-  color: #fff;
-  filter: brightness(1.06);
-  box-shadow: 0 14px 32px rgba(234, 88, 12, 0.38);
+  color: var(--pf-text);
+  border-color: color-mix(in srgb, var(--pf-accent) 38%, var(--pf-border));
+  background: var(--ds-color-surface);
+  box-shadow: 0 8px 18px rgba(15, 23, 42, 0.12);
 }
 
 .profile-btn-edit-secondary {

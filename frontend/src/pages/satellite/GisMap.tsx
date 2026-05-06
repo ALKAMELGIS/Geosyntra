@@ -8055,12 +8055,16 @@ export default function GisMap() {
                       <i className="fa-solid fa-upload" />
                     </div>
                     <div className="gis-dropzone-text">Drop a file here or click to browse</div>
-                    <div className="gis-dropzone-subtext">Supports: GeoJSON, KML, KMZ, Shapefile (.zip)</div>
+                    <div className="gis-dropzone-subtext">
+                      Supports: GeoJSON, KML, KMZ, Shapefile (.zip), Raster Dataset (.tif/.tiff/.img/.vrt), Raster Layer, Mosaic Layer,
+                      Image Service, Map Server/Layer, Internet Tiled Layer, Folder.
+                    </div>
                   </div>
 
                   <input
                     ref={fileInputRef}
                     type="file"
+                    accept=".kml,.kmz,.zip,.geojson,.json,.csv,.tif,.tiff,.img,.vrt,.jp2,.ecw"
                     style={{ display: 'none' }}
                     onChange={(e) => setUploadFromFile(e.target.files?.[0] ?? null)}
                   />

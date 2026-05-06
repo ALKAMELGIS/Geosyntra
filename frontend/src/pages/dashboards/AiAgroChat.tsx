@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from 'react'
+import { useCallback, useRef, useState, type ChangeEvent } from 'react'
 import { Link } from 'react-router-dom'
 import { useLanguage } from '../../lib/i18n'
 import { useGeminiApiKey } from '../../hooks/useGeminiApiKey'
@@ -27,7 +27,11 @@ export default function AiAgroChat() {
   const [draft, setDraft] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
+  const [inputMode, setInputMode] = useState<'text' | 'attachment' | 'image' | 'voice'>('text')
+  const [pickedAssetName, setPickedAssetName] = useState('')
   const inFlight = useRef(false)
+  const attachmentRef = useRef<HTMLInputElement | null>(null)
+  const imageRef = useRef<HTMLInputElement | null>(null)
 
   const introText = ar ? INTRO_AR : INTRO_EN
 
@@ -37,6 +41,28 @@ export default function AiAgroChat() {
     setMessages([])
     setDraft('')
     setError('')
+    setPickedAssetName('')
+    setInputMode('text')
+  }, [])
+
+  const onPickAttachment = useCallback((e: ChangeEvent<HTMLInputElement>) => {
+    const f = e.target.files?.[0]
+    if (!f) return
+    setPickedAssetName(f.name)
+    setInputMode('attachment')
+    e.target.value = ''
+  }, [])
+
+  const onPickImage = useCallback((e: ChangeEvent<HTMLInputElement>) => {
+    const f = e.target.files?.[0]
+    if (!f) return
+    setPickedAssetName(f.name)
+    setInputMode('image')
+    e.target.value = ''
+  }, [])
+
+  const toggleVoiceUi = useCallback(() => {
+    setInputMode(prev => (prev === 'voice' ? 'text' : 'voice'))
   }, [])
 
   const send = useCallback(() => {
@@ -169,7 +195,59 @@ export default function AiAgroChat() {
         {error ? <p className="aagc-error">{error}</p> : null}
 
         <footer className="aagc-footer">
+          <input ref={attachmentRef} type="file" hidden onChange={onPickAttachment} />
+          <input ref={imageRef} type="file" accept="image/*" hidden onChange={onPickImage} />
+          {pickedAssetName ? (
+            <div className="aagc-picked-asset" role="status">
+                <i className={inputMode === 'image' ? 'fa-solid fa-image' : 'fa-solid fa-paperclip'} aria-hidden />
+              <span>{pickedAssetName}</span>
+              <button
+                type="button"
+                className="aagc-picked-asset__clear"
+                onClick={() => {
+                  setPickedAssetName('')
+                  setInputMode('text')
+                }}
+                aria-label={ar ? 'إزالة المرفق' : 'Remove selected asset'}
+              >
+                <i className="fa-solid fa-xmark" aria-hidden />
+              </button>
+            </div>
+          ) : null}
           <div className="aagc-input-row">
+            <div className="aagc-input-tools" role="group" aria-label={ar ? 'أدوات الإدخال' : 'Input tools'}>
+              <button
+                type="button"
+                className={`aagc-tool-btn${inputMode === 'attachment' ? ' is-active' : ''}`}
+                onClick={() => attachmentRef.current?.click()}
+                title={ar ? 'إرفاق ملف' : 'Attachment file'}
+                aria-label={ar ? 'إرفاق ملف' : 'Attachment file'}
+                disabled={busy}
+              >
+                <i className="fa-solid fa-paperclip" aria-hidden />
+              </button>
+              <button
+                type="button"
+                className={`aagc-tool-btn${inputMode === 'image' ? ' is-active' : ''}`}
+                onClick={() => imageRef.current?.click()}
+                title={ar ? 'إرفاق صورة' : 'Image attachment'}
+                aria-label={ar ? 'إرفاق صورة' : 'Image attachment'}
+                disabled={busy}
+              >
+                <i className="fa-solid fa-image" aria-hidden />
+              </button>
+              <button
+                type="button"
+                className={`aagc-tool-btn${inputMode === 'voice' ? ' is-active is-recording' : ''}`}
+                onClick={toggleVoiceUi}
+                title={ar ? 'تسجيل صوت' : 'Voice recording'}
+                aria-label={ar ? 'تسجيل صوت' : 'Voice recording'}
+                aria-pressed={inputMode === 'voice'}
+                disabled={busy}
+              >
+                <i className="fa-solid fa-microphone" aria-hidden />
+              </button>
+            </div>
             <textarea
               className="aagc-input"
               rows={2}

@@ -1223,7 +1223,7 @@ type SiSymbologyDraft = Required<SymbologyConfig> & { arcgisMaxCategories: numbe
 
 type SiBakeRamp = SymbologyColorRamp | 'service';
 
-type AddLayerTab = 'giscontent' | 'arcgis' | 'upload' | 'database' | 'url';
+type AddLayerTab = 'giscontent' | 'arcgis' | 'upload' | 'database' | 'url' | 'raster';
 
 type EnvironmentalIndexId = 'NDWI' | 'NDMI' | 'EVI' | 'SAVI' | 'NDSI' | 'LST';
 
@@ -2526,7 +2526,7 @@ export default function SatelliteIntelligence() {
   const importRemoteUrlLayer = async () => {
     const raw = addLayerRemoteUrl.trim();
     if (!raw) {
-      setAddLayerStatus('Enter a remote GeoJSON/ZIP/KML URL.');
+      setAddLayerStatus('Enter a remote URL (GeoJSON/ZIP/KML or Raster/Image service endpoint).');
       return;
     }
     setIsImportingRemoteLayer(true);
@@ -2535,7 +2535,7 @@ export default function SatelliteIntelligence() {
       const file = await parseRemoteUrlAsFile(raw);
       const parsed = await parseFile(file);
       if (parsed.type !== 'geojson') {
-        throw new Error('URL must point to a geospatial file (GeoJSON/KML/KMZ/ZIP).');
+        throw new Error('URL must point to a geospatial source (GeoJSON/KML/KMZ/ZIP or Raster/Image service endpoint).');
       }
       const id = `remote-${Date.now()}`;
       setCustomLayers(prev => [
@@ -6207,7 +6207,7 @@ export default function SatelliteIntelligence() {
                 ref={fileInputRef}
                 type="file"
                 className="add-layer-input"
-                accept=".kml,.kmz,.zip,.geojson,.json,.csv"
+                accept=".kml,.kmz,.zip,.geojson,.json,.csv,.tif,.tiff,.img,.vrt,.jp2,.ecw"
                 onChange={handleLayerFileChange}
               />
               {isLayerDropdownOpen && (
@@ -7847,6 +7847,12 @@ export default function SatelliteIntelligence() {
                       icon: 'fa-solid fa-globe',
                     },
                     {
+                      id: 'raster' as AddLayerTab,
+                      title: 'Raster path / URL',
+                      sub: 'GeoTIFF/Image Service path or remote raster URL.',
+                      icon: 'fa-regular fa-image',
+                    },
+                    {
                       id: 'database' as AddLayerTab,
                       title: 'Get Data',
                       sub: 'Database, web URL, and advanced connectors.',
@@ -7981,6 +7987,16 @@ export default function SatelliteIntelligence() {
                     onClick={() => setAddLayerTab('url')}
                   >
                     <i className="fa-solid fa-globe" aria-hidden />
+                  </button>
+                  <button
+                    type="button"
+                    role="tab"
+                    aria-selected={addLayerTab === 'raster'}
+                    className={(addLayerTab === 'raster' ? 'gis-compact-tab active' : 'gis-compact-tab') + ' gis-compact-tab--icon'}
+                    title="Raster path / URL"
+                    onClick={() => setAddLayerTab('raster')}
+                  >
+                    <i className="fa-regular fa-image" aria-hidden />
                   </button>
                   <button
                     type="button"
@@ -8124,12 +8140,16 @@ export default function SatelliteIntelligence() {
                     <i className="fa-solid fa-plug" aria-hidden /> Validate & Save Connection
                   </button>
                 </div>
-              ) : addLayerTab === 'url' ? (
+              ) : addLayerTab === 'url' || addLayerTab === 'raster' ? (
                 <div key="url" role="tabpanel" aria-label="Remote URL">
                   <input
                     type="url"
                     className="gis-input"
-                    placeholder="https://.../layer.geojson or .zip"
+                    placeholder={
+                      addLayerTab === 'raster'
+                        ? 'Raster path / URL (GeoTIFF, Image Service, tile endpoint)'
+                        : 'https://.../layer.geojson or .zip'
+                    }
                     value={addLayerRemoteUrl}
                     onChange={e => setAddLayerRemoteUrl(e.target.value)}
                     autoComplete="off"
@@ -8143,7 +8163,8 @@ export default function SatelliteIntelligence() {
                     autoComplete="off"
                   />
                   <button type="button" className="gis-btn-primary-full" onClick={() => void importRemoteUrlLayer()} disabled={isImportingRemoteLayer}>
-                    <i className="fa-solid fa-cloud-arrow-down" aria-hidden /> {isImportingRemoteLayer ? 'Importing…' : 'Import from URL'}
+                    <i className="fa-solid fa-cloud-arrow-down" aria-hidden />{' '}
+                    {isImportingRemoteLayer ? 'Importing…' : addLayerTab === 'raster' ? 'Import Raster path / URL' : 'Import from URL'}
                   </button>
                 </div>
               ) : (
@@ -8165,7 +8186,10 @@ export default function SatelliteIntelligence() {
                       <i className="fa-solid fa-upload" />
                     </div>
                     <div className="gis-dropzone-text">Drop a file here or click to browse</div>
-                    <div className="gis-dropzone-subtext">Supports: GeoJSON, KML, KMZ, Shapefile (.zip)</div>
+                    <div className="gis-dropzone-subtext">
+                      Supports: GeoJSON, KML, KMZ, Shapefile (.zip), Raster Dataset (.tif/.tiff/.img/.vrt), Raster Layer, Mosaic Layer,
+                      Image Service, Map Server/Layer, Internet Tiled Layer, Folder.
+                    </div>
                   </div>
                   <input type="text" className="gis-input" placeholder="Layer Name (optional)" value={addLayerName} onChange={e => setAddLayerName(e.target.value)} />
                   <button type="button" className="gis-btn-primary-full" onClick={handleUploadCustomLayerClick}>

@@ -71,54 +71,71 @@
   gap: 8px;
   margin-inline-start: auto;
   flex-wrap: wrap;
+  padding: 4px;
+  border-radius: 16px;
+  border: 1px solid rgba(148, 163, 184, 0.22);
+  background: rgba(255, 255, 255, 0.88);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.75);
 }
 
-.develop-dashboard-root .ddb-topbar-tool {
+.develop-dashboard-root .ddb-topbar-icon-btn {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  padding: 6px 8px;
-  border-radius: 12px;
-  border: 1px solid rgba(148, 163, 184, 0.3);
-  background: #ffffff;
-  color: #475569;
-  font-size: 0.72rem;
-  font-weight: 700;
-}
-
-.develop-dashboard-root .ddb-topbar-tool select {
-  border: 1px solid rgba(148, 163, 184, 0.35);
-  border-radius: 8px;
-  padding: 5px 7px;
-  font-size: 0.72rem;
-  color: #0f172a;
-  background: #fff;
-}
-
-.develop-dashboard-root .ddb-topbar-tool-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
+  justify-content: center;
   border: 1px solid rgba(148, 163, 184, 0.3);
   background: #fff;
   color: #334155;
   border-radius: 12px;
-  padding: 7px 10px;
-  font-size: 0.72rem;
-  font-weight: 700;
+  width: 38px;
+  height: 38px;
+  font-size: 0.9rem;
   cursor: pointer;
+  position: relative;
+  transition:
+    transform 0.16s ease,
+    background 0.16s ease,
+    border-color 0.16s ease,
+    color 0.16s ease,
+    box-shadow 0.16s ease;
 }
 
-.develop-dashboard-root .ddb-topbar-tool-btn:hover {
+.develop-dashboard-root .ddb-topbar-icon-btn:hover {
+  transform: translateY(-1px);
   background: #f8fafc;
-  border-color: rgba(37, 99, 235, 0.35);
-  color: #1e40af;
+  border-color: rgba(37, 99, 235, 0.32);
+  color: #1d4ed8;
+  box-shadow: 0 8px 14px rgba(59, 130, 246, 0.14);
 }
 
-.develop-dashboard-root .ddb-topbar-tool-btn--theme.is-active {
+.develop-dashboard-root .ddb-topbar-icon-btn.is-active {
+  background: #eef6ff;
+  border-color: rgba(37, 99, 235, 0.45);
+  color: #1e40af;
+  box-shadow: 0 8px 16px rgba(37, 99, 235, 0.16);
+}
+
+.develop-dashboard-root .ddb-topbar-icon-btn--theme.is-active {
   background: #0f172a;
   border-color: #0f172a;
   color: #f8fafc;
+  box-shadow: 0 10px 18px rgba(15, 23, 42, 0.28);
+}
+
+.develop-dashboard-root .ddb-topbar-icon-badge {
+  position: absolute;
+  right: -4px;
+  top: -5px;
+  width: 16px;
+  height: 16px;
+  border-radius: 999px;
+  display: grid;
+  place-items: center;
+  font-size: 0.56rem;
+  font-weight: 800;
+  line-height: 1;
+  color: #0f172a;
+  border: 1px solid rgba(148, 163, 184, 0.45);
+  background: #ffffff;
 }
 
 .develop-dashboard-root .ddb-brand h1 {
@@ -1199,6 +1216,12 @@
 
 .develop-dashboard-root .ddb-vis-well {
   margin-bottom: 12px;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.develop-dashboard-root .ddb-vis-well.is-drop-target {
+  background: rgba(219, 234, 254, 0.35);
+  border-radius: 8px;
 }
 
 .develop-dashboard-root .ddb-vis-well__label {
@@ -1229,6 +1252,32 @@
   outline: none;
   border-color: var(--ddb-pbi-blue);
   box-shadow: 0 0 0 1px var(--ddb-pbi-blue);
+}
+
+.develop-dashboard-root .ddb-vis-well__chip {
+  margin-top: 6px;
+  width: 100%;
+  min-height: 28px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  border: 1px dashed rgba(17, 130, 212, 0.5);
+  border-radius: 8px;
+  background: #f8fbff;
+  color: #0f4c81;
+  font-size: 0.72rem;
+  font-weight: 600;
+  padding: 5px 8px;
+  cursor: grab;
+}
+
+.develop-dashboard-root .ddb-vis-well__chip:active {
+  cursor: grabbing;
+}
+
+.develop-dashboard-root .ddb-vis-well__chip i {
+  color: #64748b;
 }
 
 .develop-dashboard-root .ddb-vis-well__placeholder {
@@ -1393,10 +1442,19 @@
 .develop-dashboard-root .ddb-vis-field-check-row {
   display: flex;
   align-items: center;
-  gap: 10px;
+  justify-content: space-between;
+  gap: 8px;
   padding: 8px 12px;
   font-size: 0.8125rem;
   border-bottom: 1px solid var(--ddb-pbi-border);
+}
+
+.develop-dashboard-root .ddb-vis-field-check-row__main {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  flex: 1;
   cursor: pointer;
 }
 
@@ -1415,6 +1473,31 @@
 .develop-dashboard-root .ddb-vis-field-check-row__name {
   min-width: 0;
   word-break: break-word;
+  cursor: grab;
+}
+
+.develop-dashboard-root .ddb-vis-field-check-row__name:active {
+  cursor: grabbing;
+}
+
+.develop-dashboard-root .ddb-vis-field-pin-btn {
+  width: 28px;
+  height: 28px;
+  border: 1px solid var(--ddb-pbi-border-strong);
+  border-radius: 8px;
+  background: #fff;
+  color: #605e5c;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.develop-dashboard-root .ddb-vis-field-pin-btn:hover {
+  border-color: var(--ddb-pbi-blue);
+  color: var(--ddb-pbi-blue);
+  background: #eef6fd;
 }
 
 /* Data pane: map layer cards live above field search (no duplicate sidebar registry header) */
@@ -1635,8 +1718,8 @@
 
 /* Right rail: Power BI–style vertical tabs (neutral + blue active stripe) */
 .develop-dashboard-root .ddb-right-rail {
-  flex: 0 0 64px;
-  width: 64px;
+  flex: 0 0 72px;
+  width: 72px;
   display: flex;
   flex-direction: column;
   align-items: stretch;
@@ -1653,8 +1736,8 @@
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 6px;
-  padding: 10px 4px 12px;
+  gap: 0;
+  padding: 12px 6px;
   border: none;
   border-bottom: 1px solid var(--ddb-pbi-border);
   background: transparent;
@@ -1683,23 +1766,24 @@
 }
 
 .develop-dashboard-root .ddb-right-rail-icon-wrap {
-  width: 34px;
-  height: 34px;
-  border-radius: 2px;
+  width: 42px;
+  height: 42px;
+  border-radius: 12px;
   display: grid;
   place-items: center;
   background: var(--ddb-pbi-panel);
-  border: 1px solid var(--ddb-pbi-border);
+  border: 1px solid rgba(148, 163, 184, 0.3);
+  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.08);
 }
 
 .develop-dashboard-root .ddb-right-rail-tab.is-active .ddb-right-rail-icon-wrap {
-  background: var(--ddb-pbi-blue-soft);
-  border-color: color-mix(in srgb, var(--ddb-pbi-blue) 28%, var(--ddb-pbi-border));
-  box-shadow: none;
+  background: linear-gradient(145deg, #eff6ff, #dbeafe);
+  border-color: color-mix(in srgb, var(--ddb-pbi-blue) 40%, var(--ddb-pbi-border));
+  box-shadow: 0 8px 18px rgba(17, 130, 212, 0.18);
 }
 
 .develop-dashboard-root .ddb-right-rail-icon {
-  font-size: 1rem;
+  font-size: 1.08rem;
   color: var(--ddb-pbi-muted);
 }
 
@@ -1725,74 +1809,27 @@
   color: var(--ddb-pbi-blue-dark);
 }
 
-.develop-dashboard-root .ddb-right-rail-label {
-  writing-mode: horizontal-tb;
-  transform: none;
-  font-size: 0.5625rem;
-  font-weight: 600;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: var(--ddb-pbi-subtle);
-  line-height: 1.2;
-  text-align: center;
-  max-width: 100%;
-  padding: 0 2px;
-}
-
-.develop-dashboard-root .ddb-right-rail-tab.is-active .ddb-right-rail-label {
-  color: var(--ddb-pbi-blue-dark);
-}
-
-.develop-dashboard-root .ddb-right-rail-label--stack {
-  display: flex;
-  flex-direction: column;
-  gap: 0;
-  line-height: 1.15;
-  letter-spacing: 0.04em;
-}
-
-/* Collapsed rail: Power BI-like vertical labeled strips (example #2 style) */
+/* Collapsed rail: icon-only compact style */
 .develop-dashboard-root .ddb-right-wrap:not(.is-open) .ddb-right-rail {
-  flex: 0 0 90px;
-  width: 90px;
+  flex: 0 0 76px;
+  width: 76px;
 }
 
 .develop-dashboard-root .ddb-right-wrap:not(.is-open) .ddb-right-rail-tab {
   position: relative;
-  gap: 8px;
-  padding: 12px 8px;
+  gap: 0;
+  padding: 12px 6px;
   background: linear-gradient(180deg, #ffffff 0%, #fafafa 100%);
 }
 
 .develop-dashboard-root .ddb-right-wrap:not(.is-open) .ddb-right-rail-icon-wrap {
   display: grid;
-  width: 40px;
-  height: 40px;
+  width: 44px;
+  height: 44px;
   border-radius: 12px;
   border: 1px solid rgba(15, 23, 42, 0.08);
   background: #ffffff;
   box-shadow: 0 2px 8px rgba(15, 23, 42, 0.06);
-}
-
-.develop-dashboard-root .ddb-right-wrap:not(.is-open) .ddb-right-rail-label {
-  writing-mode: vertical-rl;
-  transform: rotate(180deg);
-  font-size: 1.02rem;
-  font-weight: 800;
-  line-height: 1;
-  letter-spacing: 0.02em;
-  text-transform: none;
-  color: #0f172a;
-  max-width: none;
-  padding: 0;
-}
-
-.develop-dashboard-root .ddb-right-wrap:not(.is-open) .ddb-right-rail-label--stack {
-  display: block;
-}
-
-.develop-dashboard-root .ddb-right-wrap:not(.is-open) .ddb-right-rail-label--stack > span {
-  display: inline;
 }
 
 .develop-dashboard-root .ddb-right-wrap:not(.is-open) .ddb-right-rail-tab.is-active {
@@ -1983,6 +2020,8 @@
   flex-shrink: 0;
   display: flex;
   align-items: center;
+  justify-content: space-between;
+  gap: 10px;
   padding: 10px 14px;
   background: #fff;
   border-bottom: 1px solid rgba(15, 23, 42, 0.08);
@@ -2002,6 +2041,25 @@
   font-size: 0.82rem;
   font-weight: 700;
   color: var(--ddb-green-dark);
+}
+
+.develop-dashboard-root .ddb-map-container__close {
+  width: 30px;
+  height: 30px;
+  border: 1px solid rgba(148, 163, 184, 0.35);
+  border-radius: 10px;
+  background: #fff;
+  color: #64748b;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.develop-dashboard-root .ddb-map-container__close:hover {
+  color: #b91c1c;
+  border-color: rgba(239, 68, 68, 0.35);
+  background: #fef2f2;
 }
 
 .develop-dashboard-root .ddb-map-container.ddb-map-container--canvas {
@@ -2036,6 +2094,89 @@
   cursor: nwse-resize;
   display: grid;
   place-items: center;
+}
+
+.develop-dashboard-root .ddb-map-container__resize-handle,
+.develop-dashboard-root .ddb-visual-card__resize-handle {
+  position: absolute;
+  z-index: 13;
+  border: 1px solid rgba(226, 232, 240, 0.95);
+  background: rgba(255, 255, 255, 0.96);
+  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.08);
+  padding: 0;
+  display: grid;
+  place-items: center;
+}
+
+.develop-dashboard-root .ddb-map-container__resize-handle {
+  width: 22px;
+  height: 22px;
+  border-radius: 10px;
+}
+
+.develop-dashboard-root .ddb-visual-card__resize-handle {
+  width: 18px;
+  height: 18px;
+  border-radius: 8px;
+}
+
+.develop-dashboard-root .ddb-map-container__resize-handle--n,
+.develop-dashboard-root .ddb-visual-card__resize-handle--n {
+  top: -10px;
+  left: 50%;
+  transform: translateX(-50%);
+  cursor: ns-resize;
+}
+.develop-dashboard-root .ddb-map-container__resize-handle--s,
+.develop-dashboard-root .ddb-visual-card__resize-handle--s {
+  bottom: -10px;
+  left: 50%;
+  transform: translateX(-50%);
+  cursor: ns-resize;
+}
+.develop-dashboard-root .ddb-map-container__resize-handle--e,
+.develop-dashboard-root .ddb-visual-card__resize-handle--e {
+  right: -10px;
+  top: 50%;
+  transform: translateY(-50%);
+  cursor: ew-resize;
+}
+.develop-dashboard-root .ddb-map-container__resize-handle--w,
+.develop-dashboard-root .ddb-visual-card__resize-handle--w {
+  left: -10px;
+  top: 50%;
+  transform: translateY(-50%);
+  cursor: ew-resize;
+}
+.develop-dashboard-root .ddb-map-container__resize-handle--ne,
+.develop-dashboard-root .ddb-visual-card__resize-handle--ne {
+  top: -10px;
+  right: -10px;
+  cursor: nesw-resize;
+}
+.develop-dashboard-root .ddb-map-container__resize-handle--nw,
+.develop-dashboard-root .ddb-visual-card__resize-handle--nw {
+  top: -10px;
+  left: -10px;
+  cursor: nwse-resize;
+}
+.develop-dashboard-root .ddb-map-container__resize-handle--se,
+.develop-dashboard-root .ddb-visual-card__resize-handle--se {
+  right: -10px;
+  bottom: -10px;
+  cursor: nwse-resize;
+}
+.develop-dashboard-root .ddb-map-container__resize-handle--sw,
+.develop-dashboard-root .ddb-visual-card__resize-handle--sw {
+  left: -10px;
+  bottom: -10px;
+  cursor: nesw-resize;
+}
+
+.develop-dashboard-root .ddb-map-container__resize-handle:hover,
+.develop-dashboard-root .ddb-visual-card__resize-handle:hover {
+  background: rgba(232, 244, 236, 0.95);
+  border-color: rgba(44, 122, 74, 0.35);
 }
 
 .develop-dashboard-root .ddb-map-container__canvas-resize:hover {
@@ -2556,7 +2697,8 @@
   border-color: rgba(44, 122, 74, 0.35);
 }
 
-.develop-dashboard-root .ddb-visual-card--canvas.ddb-visual-card--focus .ddb-visual-card__canvas-resize {
+.develop-dashboard-root .ddb-visual-card--canvas.ddb-visual-card--focus .ddb-visual-card__canvas-resize,
+.develop-dashboard-root .ddb-visual-card--canvas.ddb-visual-card--focus .ddb-visual-card__resize-handle {
   display: none;
 }
 
@@ -2617,6 +2759,7 @@
 }
 
 .develop-dashboard-root .ddb-visual-card__header {
+  position: relative;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -2638,6 +2781,51 @@
   align-items: center;
   gap: 4px;
   flex-shrink: 0;
+}
+
+.develop-dashboard-root .ddb-visual-card__chart-type-menu {
+  position: absolute;
+  right: 108px;
+  top: calc(100% - 2px);
+  z-index: 24;
+  max-width: min(420px, calc(100% - 24px));
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding: 8px;
+  border-radius: 12px;
+  border: 1px solid rgba(226, 232, 240, 0.95);
+  background: #ffffff;
+  box-shadow: 0 12px 30px rgba(15, 23, 42, 0.14);
+}
+
+.develop-dashboard-root .ddb-visual-card__chart-type-item {
+  flex: 0 0 auto;
+  width: 34px;
+  height: 34px;
+  border-radius: 999px;
+  border: 1px solid rgba(226, 232, 240, 0.95);
+  background: #ffffff;
+  color: #64748b;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  font-size: 0.9rem;
+}
+
+.develop-dashboard-root .ddb-visual-card__chart-type-item:hover {
+  border-color: rgba(37, 99, 235, 0.36);
+  color: #2563eb;
+  background: #eff6ff;
+}
+
+.develop-dashboard-root .ddb-visual-card__chart-type-item.is-active {
+  border-color: rgba(16, 185, 129, 0.5);
+  background: linear-gradient(145deg, #10b981, #059669);
+  color: #ffffff;
+  box-shadow: 0 6px 14px rgba(16, 185, 129, 0.25);
 }
 
 .develop-dashboard-root .ddb-visual-card__icon-btn {
@@ -2763,9 +2951,13 @@
 .develop-dashboard-root .ddb-visual-card--enhanced canvas {
   display: block;
   margin: 0 14px 14px;
-  min-height: 200px;
-  max-height: 280px;
+  min-height: 240px;
+  height: clamp(240px, 34vh, 420px) !important;
+  max-height: none;
   width: calc(100% - 28px) !important;
+  image-rendering: auto;
+  backface-visibility: hidden;
+  transform: translateZ(0);
   cursor: crosshair;
 }
 
@@ -2830,13 +3022,13 @@
   position: absolute;
   right: 12px;
   top: 48px;
-  z-index: 20;
-  min-width: 270px;
-  padding: 6px 4px;
+  z-index: 80;
+  min-width: 290px;
+  padding: 8px 6px;
   background: #fff;
-  border-radius: 12px;
+  border-radius: 14px;
   border: 1px solid rgba(226, 232, 240, 0.95);
-  box-shadow: 0 12px 32px rgba(15, 23, 42, 0.12);
+  box-shadow: 0 18px 42px rgba(15, 23, 42, 0.16);
 }
 
 .develop-dashboard-root .ddb-visual-card__menu-item {
@@ -2852,11 +3044,11 @@
   font-size: 0.78rem;
   color: #1e293b;
   cursor: pointer;
-  font-weight: 500;
+  font-weight: 600;
 }
 
 .develop-dashboard-root .ddb-visual-card__menu-item:hover {
-  background: rgba(15, 23, 42, 0.06);
+  background: rgba(15, 23, 42, 0.055);
   color: #0f172a;
 }
 
@@ -2865,6 +3057,15 @@
   color: #475569;
   text-align: center;
   flex-shrink: 0;
+}
+
+.develop-dashboard-root .ddb-visual-card__menu-item .ddb-visual-card__check {
+  opacity: 0;
+  color: #0f766e;
+}
+
+.develop-dashboard-root .ddb-visual-card__sort-item.is-active .ddb-visual-card__check {
+  opacity: 1;
 }
 
 .develop-dashboard-root .ddb-visual-card__menu-item > span {
@@ -2879,7 +3080,7 @@
 
 .develop-dashboard-root .ddb-visual-card__menu-sep {
   height: 1px;
-  margin: 6px 8px;
+  margin: 8px 8px;
   background: rgba(226, 232, 240, 0.95);
 }
 
@@ -2890,7 +3091,7 @@
 .develop-dashboard-root .ddb-visual-card__submenu {
   position: absolute;
   top: 0;
-  left: calc(100% - 6px);
+  right: calc(100% - 8px);
   min-width: 230px;
   padding: 6px;
   background: #fff;
@@ -2899,8 +3100,9 @@
   box-shadow: 0 12px 32px rgba(15, 23, 42, 0.12);
   opacity: 0;
   pointer-events: none;
-  transform: translateX(6px);
+  transform: translateX(-6px);
   transition: opacity 0.14s ease, transform 0.14s ease;
+  z-index: 82;
 }
 
 .develop-dashboard-root .ddb-visual-card__menu-group:hover .ddb-visual-card__submenu {
@@ -2915,6 +3117,12 @@
 }
 
 .develop-dashboard-root .ddb-visual-card__submenu .ddb-visual-card__menu-item.is-active {
+  background: #ecfdf5;
+  color: #065f46;
+  font-weight: 700;
+}
+
+.develop-dashboard-root .ddb-visual-card__calc-item.is-active {
   background: #ecfdf5;
   color: #065f46;
   font-weight: 700;
@@ -2949,8 +3157,8 @@
 }
 
 .develop-dashboard-root .ddb-charts-host canvas {
-  max-height: 220px;
   width: 100%;
+  max-height: none;
 }
 
 .develop-dashboard-root .ddb-table-responsive {
