@@ -1916,3 +1916,58 @@ html[data-theme='dark'] .navmenu .group.open > .group-header.active {
     0 8px 22px rgba(0, 0, 0, 0.32);
   transform: none;
 }
+
+/* Unified premium style for all group headers (open + active) */
+.navmenu .group > .group-header {
+  border-radius: 14px;
+}
+
+.navmenu .group.open > .group-header,
+.navmenu .group.open > .group-header[class*='nav-header-'] {
+  background: linear-gradient(180deg, rgba(241, 245, 249, 0.92), rgba(248, 250, 252, 0.86)) !important;
+  border-color: rgba(59, 130, 246, 0.22) !important;
+  color: #0f172a !important;
+  box-shadow:
+    inset 2px 0 0 rgba(59, 130, 246, 0.72),
+    0 6px 16px rgba(15, 23, 42, 0.07) !important;
+  transform: none !important;
+}
+
+.navmenu .group > .group-header.active,
+.navmenu .group > .group-header.active[class*='nav-header-'] {
+  background: linear-gradient(180deg, rgba(239, 246, 255, 0.96), rgba(248, 250, 252, 0.9)) !important;
+  border-color: rgba(37, 99, 235, 0.28) !important;
+  color: #0f172a !important;
+  box-shadow:
+    inset 3px 0 0 rgba(37, 99, 235, 0.88),
+    0 8px 20px rgba(15, 23, 42, 0.08) !important;
+  transform: none !important;
+}
+
+.navmenu .group.open > .group-header .icon,
+.navmenu .group > .group-header.active .icon {
+  transform: none !important;
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.98) inset,
+    0 4px 12px rgba(15, 23, 42, 0.07) !important;
+}
+
+html[data-theme='dark'] .navmenu .group.open > .group-header,
+html[data-theme='dark'] .navmenu .group.open > .group-header[class*='nav-header-'] {
+  background: linear-gradient(180deg, rgba(30, 41, 59, 0.86), rgba(15, 23, 42, 0.84)) !important;
+  border-color: rgba(125, 211, 252, 0.24) !important;
+  color: #e2e8f0 !important;
+  box-shadow:
+    inset 2px 0 0 rgba(56, 189, 248, 0.75),
+    0 8px 22px rgba(0, 0, 0, 0.3) !important;
+}
+
+html[data-theme='dark'] .navmenu .group > .group-header.active,
+html[data-theme='dark'] .navmenu .group > .group-header.active[class*='nav-header-'] {
+  background: linear-gradient(180deg, rgba(30, 58, 138, 0.42), rgba(30, 41, 59, 0.9)) !important;
+  border-color: rgba(125, 211, 252, 0.34) !important;
+  color: #f8fafc !important;
+  box-shadow:
+    inset 3px 0 0 rgba(56, 189, 248, 0.92),
+    0 10px 24px rgba(0, 0, 0, 0.34) !important;
+}

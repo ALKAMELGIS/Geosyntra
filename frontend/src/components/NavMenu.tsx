@@ -147,10 +147,7 @@ export default function NavMenu({ onLogout }: NavMenuProps) {
     | 'account'
     | string
     | null
-  >(() => {
-    if (typeof window === 'undefined') return null
-    return window.location.pathname.startsWith('/dashboards/ai-agro-') ? 'aiAgroCloud' : null
-  })
+  >(null)
   const location = useLocation()
   const navRef = useRef<HTMLElement | null>(null)
   const groupContainerRefs = useRef<Record<string, HTMLLIElement | null>>({})
@@ -278,11 +275,7 @@ export default function NavMenu({ onLogout }: NavMenuProps) {
 
   useEffect(() => {
     setMobileOpen(false)
-    if (location.pathname.startsWith('/dashboards/ai-agro-')) {
-      setOpenGroup('aiAgroCloud')
-    } else {
-      setOpenGroup(null)
-    }
+    setOpenGroup(null)
   }, [location.pathname])
 
   useEffect(() => {

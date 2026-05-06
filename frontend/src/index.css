@@ -2969,6 +2969,12 @@ aside {
   box-shadow: 0 1px 3px rgba(15, 23, 42, 0.06);
 }
 
+/* Layers pane spacing parity with Tables pane (ArcGIS action column). */
+.gis-sidebar-body--action-pane:not(.gis-sidebar-body--tool-dock) > .gis-sidebar-body-main:has(#gis-sidebar-layers-scroll),
+.gis-sidebar-body--action-pane:not(.gis-sidebar-body--tool-dock) > .gis-sidebar-body-main:has(.gis-sidebar-layers-empty-agol) {
+  padding: 14px 14px 16px;
+}
+
 /* ArcGIS empty layers state (desktop rail) — Map Viewer “Layers” empty pane */
 .gis-sidebar-layers-empty-agol {
   flex: 1 1 auto;
@@ -3070,6 +3076,10 @@ aside {
   box-sizing: border-box;
 }
 
+.gis-sidebar-body--action-pane .gis-sidebar-body-main:has(#gis-sidebar-layers-scroll) .gis-layer-list {
+  padding: 2px 2px 6px;
+}
+
 /* Match `.gis-tables-agol-layer-row` density + borders inside the action pane */
 .gis-sidebar-body--action-pane .gis-layer-card {
   overflow: hidden;
@@ -3093,7 +3103,7 @@ aside {
 
 .gis-sidebar-body--action-pane:not(.gis-sidebar-body--tool-dock) .gis-sidebar-layers-empty-agol {
   gap: 14px;
-  padding: 8px 4px 4px;
+  padding: 14px 10px 10px;
 }
 
 .gis-sidebar-body--action-pane:not(.gis-sidebar-body--tool-dock) .gis-sidebar-layers-empty-agol__icon {

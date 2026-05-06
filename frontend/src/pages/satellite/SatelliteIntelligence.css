@@ -6204,6 +6204,31 @@ input.si-explore-date-input-linked[type='date'] {
   align-items: end;
 }
 
+.si-netflora-input-picker {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: center;
+}
+
+.si-netflora-picker-btn {
+  width: 34px;
+  height: 34px;
+  border-radius: 8px;
+  border: 1px solid rgba(148, 163, 184, 0.35);
+  background: rgba(15, 23, 42, 0.72);
+  color: #e2e8f0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+.si-netflora-picker-btn:hover {
+  border-color: rgba(34, 197, 94, 0.65);
+  color: #f8fafc;
+}
+
 .si-netflora-checks {
   display: grid;
   gap: 8px;

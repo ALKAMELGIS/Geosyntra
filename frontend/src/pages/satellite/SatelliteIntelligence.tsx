@@ -1813,6 +1813,7 @@ export default function SatelliteIntelligence() {
   const [drawnGeometry, setDrawnGeometry] = useState<any | null>(null);
   const [drawnStats, setDrawnStats] = useState<DrawnAoiStats | null>(null);
   const [netfloraRasterPath, setNetfloraRasterPath] = useState('');
+  const [netfloraInputLayerId, setNetfloraInputLayerId] = useState('');
   const [netfloraWeightsPath, setNetfloraWeightsPath] = useState('model_weights.pt');
   const [netfloraImageSize, setNetfloraImageSize] = useState(1536);
   const [netfloraThreshold, setNetfloraThreshold] = useState(0.25);
@@ -2028,6 +2029,23 @@ export default function SatelliteIntelligence() {
   }, [drawnGeometry, netfloraAoiSource]);
 
   const netfloraAoiBounds = useMemo(() => (netfloraAoiFeature ? getGeoJsonBounds(netfloraAoiFeature) : null), [netfloraAoiFeature]);
+
+  const netfloraInputLayerOptions = useMemo(() => {
+    const opts: Array<{ id: string; label: string }> = [];
+    if (wmsLayer.trim()) {
+      const title = wmsLayers.find(l => l.name === wmsLayer)?.title || wmsLayer;
+      opts.push({
+        id: `wms:${wmsLayer}`,
+        label: `Raster · Sentinel WMS · ${title} (${selectedDate.toISOString().slice(0, 10)})`,
+      });
+    }
+    for (const layer of customLayers) {
+      const geom = getLayerGeometryKind(layer.geojson);
+      const kind = geom === 'point' || geom === 'line' || geom === 'polygon' ? 'Vector' : 'Layer';
+      opts.push({ id: `layer:${layer.id}`, label: `${kind} · ${layer.name}` });
+    }
+    return opts;
+  }, [customLayers, selectedDate, wmsLayer, wmsLayers]);
 
   const runNetfloraDetection = useCallback(() => {
     if (!netfloraUploadedResults?.features?.length) {
@@ -7248,12 +7266,33 @@ export default function SatelliteIntelligence() {
                           <div className="si-field-analysis-date-row si-netflora-grid">
                             <label className="si-field-analysis-field">
                               <span className="si-field-analysis-label">Input raster</span>
-                              <input
-                                type="text"
-                                value={netfloraRasterPath}
-                                placeholder="/path/to/orthophoto.tif"
-                                onChange={e => setNetfloraRasterPath(e.target.value)}
-                              />
+                              <div className="si-netflora-input-picker">
+                                <select
+                                  className="si-field-analysis-select"
+                                  value={netfloraInputLayerId}
+                                  onChange={e => {
+                                    const v = e.target.value;
+                                    setNetfloraInputLayerId(v);
+                                    if (v) setNetfloraRasterPath(v);
+                                  }}
+                                >
+                                  <option value="">Select Raster / Vector layer…</option>
+                                  {netfloraInputLayerOptions.map(opt => (
+                                    <option key={opt.id} value={opt.id}>
+                                      {opt.label}
+                                    </option>
+                                  ))}
+                                </select>
+                                <button
+                                  type="button"
+                                  className="si-netflora-picker-btn"
+                                  onClick={openAddLayerModal}
+                                  title="Add layer"
+                                  aria-label="Add layer"
+                                >
+                                  <i className="fa-solid fa-ellipsis" aria-hidden />
+                                </button>
+                              </div>
                             </label>
                             <label className="si-field-analysis-field">
                               <span className="si-field-analysis-label">Weights</span>
@@ -7266,6 +7305,15 @@ export default function SatelliteIntelligence() {
                             </label>
                           </div>
                           <div className="si-field-analysis-date-row si-netflora-grid">
+                            <label className="si-field-analysis-field">
+                              <span className="si-field-analysis-label">Raster path / URL (optional)</span>
+                              <input
+                                type="text"
+                                value={netfloraRasterPath}
+                                placeholder="/path/to/orthophoto.tif"
+                                onChange={e => setNetfloraRasterPath(e.target.value)}
+                              />
+                            </label>
                             <label className="si-field-analysis-field">
                               <span className="si-field-analysis-label">Image size</span>
                               <input
