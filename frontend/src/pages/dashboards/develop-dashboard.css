@@ -1853,62 +1853,133 @@
 
 .develop-dashboard-root .ddb-link-relation-card {
   background:
-    radial-gradient(circle at 100% 0%, rgba(16, 185, 129, 0.08), transparent 38%),
+    radial-gradient(circle at 100% 0%, rgba(16, 185, 129, 0.08), transparent 42%),
     #fff;
-  border-radius: 18px;
-  padding: 16px 16px 18px;
-  border: 1px solid rgba(203, 213, 225, 0.9);
+  border-radius: 16px;
+  padding: 14px 14px 16px;
+  border: 1px solid rgba(203, 213, 225, 0.92);
   box-shadow:
-    0 14px 34px rgba(15, 23, 42, 0.1),
+    0 10px 24px rgba(15, 23, 42, 0.09),
     0 1px 0 rgba(255, 255, 255, 0.95) inset;
 }
 
+.develop-dashboard-root .ddb-link-relation-card__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
 .develop-dashboard-root .ddb-link-relation-card__icon-badge {
-  width: 44px;
-  height: 44px;
-  border-radius: 14px;
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
   display: grid;
   place-items: center;
-  margin-bottom: 12px;
+  margin-bottom: 10px;
   background: linear-gradient(160deg, #ecfdf5, #bbf7d0);
   border: 1px solid rgba(16, 185, 129, 0.3);
   color: #065f46;
-  font-size: 1.05rem;
-  box-shadow: 0 6px 14px rgba(16, 185, 129, 0.16);
+  font-size: 0.95rem;
+  box-shadow: 0 4px 12px rgba(16, 185, 129, 0.15);
+}
+
+.develop-dashboard-root .ddb-link-calc-btn {
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  border: 1px solid rgba(37, 99, 235, 0.24);
+  background: linear-gradient(160deg, #eff6ff, #dbeafe);
+  color: #1d4ed8;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  box-shadow: 0 4px 12px rgba(37, 99, 235, 0.16);
+  transition:
+    transform 0.16s ease,
+    box-shadow 0.16s ease,
+    filter 0.16s ease;
+}
+
+.develop-dashboard-root .ddb-link-calc-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 8px 16px rgba(37, 99, 235, 0.2);
+  filter: saturate(1.1);
 }
 
 .develop-dashboard-root .ddb-link-relation-card__lead {
-  margin: 0 0 14px;
-  font-size: 0.75rem;
-  line-height: 1.5;
-  color: #475569;
+  margin: 0 0 12px;
+  font-size: 0.69rem;
+  line-height: 1.45;
+  color: #334155;
+  font-weight: 600;
+}
+
+.develop-dashboard-root .ddb-link-layer-search {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 10px;
+  padding: 6px 10px;
+  border-radius: 10px;
+  border: 1px solid rgba(148, 163, 184, 0.3);
+  background: #f8fafc;
+}
+
+.develop-dashboard-root .ddb-link-layer-search i {
+  color: #64748b;
+  font-size: 0.72rem;
+}
+
+.develop-dashboard-root .ddb-link-layer-search .ddb-input {
+  border: none;
+  background: transparent;
+  box-shadow: none;
+  min-height: 22px;
+  padding: 0;
+  font-size: 0.7rem;
+  color: #0f172a;
+}
+
+.develop-dashboard-root .ddb-link-layer-search .ddb-input:focus {
+  outline: none;
+}
+
+.develop-dashboard-root .ddb-link-layer-search--modal {
+  margin: 0 0 6px;
 }
 
 .develop-dashboard-root .ddb-link-relation-row {
   display: flex;
   align-items: center;
-  gap: 8px;
-  margin-bottom: 12px;
+  gap: 7px;
+  margin-bottom: 10px;
 }
 
 .develop-dashboard-root .ddb-link-relation-row .ddb-link-relation-select {
   flex: 1 1 0;
   min-width: 0;
-  min-height: 38px;
-  border-radius: 12px;
-  border-color: rgba(148, 163, 184, 0.45);
+  min-height: 34px;
+  border-radius: 11px;
+  border-color: rgba(148, 163, 184, 0.5);
   background: #fff;
-  font-weight: 600;
+  color: #0f172a;
+  font-weight: 700;
+  font-size: 0.72rem;
+  line-height: 1.2;
+  letter-spacing: 0.01em;
+  padding-right: 30px;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.05);
 }
 
 .develop-dashboard-root .ddb-link-relation-arrow {
   flex: 0 0 auto;
-  width: 26px;
-  height: 26px;
+  width: 24px;
+  height: 24px;
   border-radius: 999px;
   display: grid;
   place-items: center;
-  font-size: 0.8rem;
+  font-size: 0.74rem;
   font-weight: 700;
   color: #0f766e;
   background: rgba(236, 253, 245, 0.95);
@@ -1917,19 +1988,20 @@
 }
 
 .develop-dashboard-root .ddb-link-relation-arrow--bidir {
-  font-size: 0.95rem;
+  font-size: 0.86rem;
 }
 
 .develop-dashboard-root .ddb-link-relation-apply {
   width: 100%;
-  margin-top: 8px;
-  padding: 11px 14px;
+  margin-top: 6px;
+  padding: 10px 13px;
   border-radius: 999px;
   font-weight: 800;
-  font-size: 0.76rem;
+  font-size: 0.72rem;
   letter-spacing: 0.02em;
   background: linear-gradient(145deg, #16a34a, #047857);
-  box-shadow: 0 10px 18px rgba(5, 150, 105, 0.24);
+  color: #ffffff;
+  box-shadow: 0 8px 16px rgba(5, 150, 105, 0.22);
 }
 
 .develop-dashboard-root .ddb-link-relation-apply:hover {
@@ -1937,11 +2009,118 @@
 }
 
 .develop-dashboard-root .ddb-link-relation-status {
-  margin-top: 12px;
+  margin-top: 10px;
   text-align: center;
   color: #047857;
+  font-size: 0.67rem;
+  font-weight: 800;
+  letter-spacing: 0.01em;
+}
+
+.develop-dashboard-root .ddb-calc-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 1400;
+  background: rgba(2, 6, 23, 0.42);
+  display: grid;
+  place-items: center;
+  padding: 18px;
+}
+
+.develop-dashboard-root .ddb-calc-modal {
+  width: min(560px, calc(100vw - 30px));
+  max-height: min(88vh, 760px);
+  overflow: auto;
+  border-radius: 18px;
+  border: 1px solid rgba(148, 163, 184, 0.3);
+  background:
+    radial-gradient(circle at 100% 0%, rgba(59, 130, 246, 0.08), transparent 34%),
+    #ffffff;
+  box-shadow: 0 24px 60px rgba(2, 6, 23, 0.34);
+}
+
+.develop-dashboard-root .ddb-calc-modal__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 12px 14px;
+  border-bottom: 1px solid rgba(226, 232, 240, 0.95);
+}
+
+.develop-dashboard-root .ddb-calc-modal__title {
+  margin: 0;
+  font-size: 0.95rem;
+  color: #0f172a;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.develop-dashboard-root .ddb-calc-modal__close {
+  width: 30px;
+  height: 30px;
+  border: 1px solid rgba(148, 163, 184, 0.32);
+  border-radius: 9px;
+  background: #ffffff;
+  color: #334155;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+}
+
+.develop-dashboard-root .ddb-calc-modal__body {
+  padding: 12px 14px 14px;
+  display: grid;
+  gap: 10px;
+}
+
+.develop-dashboard-root .ddb-calc-modal__field {
+  display: grid;
+  gap: 5px;
+}
+
+.develop-dashboard-root .ddb-calc-modal__field > span {
   font-size: 0.72rem;
   font-weight: 700;
+  color: #1e293b;
+}
+
+.develop-dashboard-root .ddb-calc-modal__expr {
+  min-height: 120px;
+  resize: vertical;
+  border-radius: 10px;
+  border: 1px solid rgba(148, 163, 184, 0.42);
+  padding: 10px 11px;
+  font-size: 0.74rem;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  color: #0f172a;
+  background: #f8fafc;
+}
+
+.develop-dashboard-root .ddb-calc-modal__hint {
+  margin: 0;
+  font-size: 0.68rem;
+  color: #64748b;
+}
+
+.develop-dashboard-root .ddb-calc-modal__status {
+  margin: 0;
+  font-size: 0.69rem;
+  color: #0369a1;
+  font-weight: 700;
+}
+
+.develop-dashboard-root .ddb-calc-modal__foot {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 10px 14px 14px;
+  border-top: 1px solid rgba(226, 232, 240, 0.92);
+}
+
+.develop-dashboard-root .ddb-calc-modal__apply {
+  min-width: 108px;
 }
 
 .develop-dashboard-root .ddb-canvas-workspace {
@@ -2803,8 +2982,8 @@
 
 .develop-dashboard-root .ddb-visual-card__chart-type-menu {
   position: absolute;
-  right: 108px;
-  top: calc(100% - 2px);
+  right: 0;
+  top: calc(100% + 6px);
   z-index: 24;
   width: min(260px, calc(100% - 24px));
   display: grid;
@@ -2816,6 +2995,63 @@
   border: 1px solid rgba(226, 232, 240, 0.95);
   background: #ffffff;
   box-shadow: 0 12px 30px rgba(15, 23, 42, 0.14);
+}
+
+.develop-dashboard-root .ddb-visual-card__palette-menu {
+  position: absolute;
+  right: 40px;
+  top: calc(100% + 6px);
+  z-index: 24;
+  min-width: 172px;
+  padding: 8px;
+  border-radius: 12px;
+  border: 1px solid rgba(226, 232, 240, 0.95);
+  background: #ffffff;
+  box-shadow: 0 12px 30px rgba(15, 23, 42, 0.14);
+  display: grid;
+  gap: 4px;
+}
+
+.develop-dashboard-root .ddb-visual-card__palette-item {
+  width: 100%;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  background: #ffffff;
+  color: #0f172a;
+  min-height: 34px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 6px 10px;
+  cursor: pointer;
+  font-size: 0.76rem;
+  font-weight: 700;
+}
+
+.develop-dashboard-root .ddb-visual-card__palette-item:hover {
+  border-color: rgba(37, 99, 235, 0.26);
+  background: #f8fbff;
+}
+
+.develop-dashboard-root .ddb-visual-card__palette-item.is-active {
+  border-color: rgba(16, 185, 129, 0.35);
+  background: rgba(236, 253, 245, 0.9);
+  color: #065f46;
+}
+
+.develop-dashboard-root .ddb-visual-card__palette-swatch {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.develop-dashboard-root .ddb-visual-card__palette-swatch i {
+  width: 12px;
+  height: 12px;
+  border-radius: 999px;
+  display: inline-block;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.35);
 }
 
 .develop-dashboard-root .ddb-visual-card__chart-type-item {
@@ -2869,6 +3105,18 @@
 .develop-dashboard-root .ddb-visual-card__icon-btn:hover i,
 .develop-dashboard-root .ddb-visual-card__icon-btn:hover i::before {
   color: var(--ddb-green-dark);
+}
+
+.develop-dashboard-root .ddb-visual-card__icon-btn--chart-type.is-active {
+  background: rgba(236, 253, 245, 0.92);
+  color: #047857;
+  box-shadow: inset 0 0 0 1px rgba(16, 185, 129, 0.32);
+}
+
+.develop-dashboard-root .ddb-visual-card__icon-btn--palette.is-active {
+  background: rgba(239, 246, 255, 0.95);
+  color: #1d4ed8;
+  box-shadow: inset 0 0 0 1px rgba(59, 130, 246, 0.3);
 }
 
 .develop-dashboard-root .ddb-visual-card__icon-btn--close:hover {

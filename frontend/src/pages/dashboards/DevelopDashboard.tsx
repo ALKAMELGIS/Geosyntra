@@ -500,6 +500,7 @@ function ddbPromoteVisualCardChrome(
   titleEl: HTMLElement
   actions: HTMLDivElement
   chartTypeMenu: HTMLDivElement | null
+  paletteMenu: HTMLDivElement | null
   menu: HTMLDivElement
   filterPanel: HTMLDivElement
   chip: HTMLDivElement
@@ -515,7 +516,8 @@ function ddbPromoteVisualCardChrome(
   const actions = document.createElement('div')
   actions.className = 'ddb-visual-card__actions'
   actions.innerHTML = `
-    <button type="button" class="ddb-visual-card__icon-btn" data-ddb-card-act="chartType" title="Chart types" aria-label="Chart types" aria-expanded="false"><i class="fa-solid fa-shapes"></i></button>
+    <button type="button" class="ddb-visual-card__icon-btn ddb-visual-card__icon-btn--chart-type" data-ddb-card-act="chartType" title="Chart types" aria-label="Chart types" aria-expanded="false"><i class="fa-solid fa-shapes"></i></button>
+    <button type="button" class="ddb-visual-card__icon-btn ddb-visual-card__icon-btn--palette" data-ddb-card-act="palette" title="Color schemes" aria-label="Color schemes" aria-expanded="false"><i class="fa-solid fa-palette"></i></button>
     <button type="button" class="ddb-visual-card__icon-btn" data-ddb-card-act="filter" title="Filter" aria-label="Filter"><i class="fa-solid fa-filter"></i></button>
     <button type="button" class="ddb-visual-card__icon-btn" data-ddb-card-act="focus" title="Focus mode" aria-label="Focus mode"><i class="fa-solid fa-expand"></i></button>
     <button type="button" class="ddb-visual-card__icon-btn" data-ddb-card-act="more" title="More options" aria-label="More options"><i class="fa-solid fa-ellipsis"></i></button>
@@ -599,6 +601,33 @@ function ddbPromoteVisualCardChrome(
   `
   card.appendChild(menu)
 
+  const paletteMenu = document.createElement('div')
+  paletteMenu.className = 'ddb-visual-card__palette-menu'
+  paletteMenu.hidden = true
+  paletteMenu.innerHTML = `
+    <button type="button" class="ddb-visual-card__palette-item is-active" data-palette="emerald">
+      <span class="ddb-visual-card__palette-swatch"><i style="background:#10b981"></i><i style="background:#22c55e"></i><i style="background:#34d399"></i></span>
+      <span>Emerald</span>
+    </button>
+    <button type="button" class="ddb-visual-card__palette-item" data-palette="azure">
+      <span class="ddb-visual-card__palette-swatch"><i style="background:#2563eb"></i><i style="background:#3b82f6"></i><i style="background:#60a5fa"></i></span>
+      <span>Azure</span>
+    </button>
+    <button type="button" class="ddb-visual-card__palette-item" data-palette="sunset">
+      <span class="ddb-visual-card__palette-swatch"><i style="background:#f97316"></i><i style="background:#f59e0b"></i><i style="background:#ef4444"></i></span>
+      <span>Sunset</span>
+    </button>
+    <button type="button" class="ddb-visual-card__palette-item" data-palette="violet">
+      <span class="ddb-visual-card__palette-swatch"><i style="background:#7c3aed"></i><i style="background:#8b5cf6"></i><i style="background:#a78bfa"></i></span>
+      <span>Violet</span>
+    </button>
+    <button type="button" class="ddb-visual-card__palette-item" data-palette="mono">
+      <span class="ddb-visual-card__palette-swatch"><i style="background:#0f172a"></i><i style="background:#475569"></i><i style="background:#94a3b8"></i></span>
+      <span>Mono</span>
+    </button>
+  `
+  header.appendChild(paletteMenu)
+
   const chip = document.createElement('div')
   chip.className = 'ddb-visual-card__stat-chip'
   chip.hidden = true
@@ -642,9 +671,39 @@ function ddbPromoteVisualCardChrome(
     if (!chartTypeMenu) return
     chartTypeMenu.hidden = !chartTypeMenu.hidden
     const btn = actions.querySelector('[data-ddb-card-act="chartType"]') as HTMLButtonElement | null
-    if (btn) btn.setAttribute('aria-expanded', chartTypeMenu.hidden ? 'false' : 'true')
+    if (btn) {
+      const open = !chartTypeMenu.hidden
+      btn.setAttribute('aria-expanded', open ? 'true' : 'false')
+      btn.classList.toggle('is-active', open)
+    }
     filterPanel.hidden = true
     menu.hidden = true
+    paletteMenu.hidden = true
+    const paletteBtn = actions.querySelector('[data-ddb-card-act="palette"]') as HTMLButtonElement | null
+    if (paletteBtn) {
+      paletteBtn.setAttribute('aria-expanded', 'false')
+      paletteBtn.classList.remove('is-active')
+    }
+  })
+  actions.querySelector('[data-ddb-card-act="palette"]')?.addEventListener('click', e => {
+    e.stopPropagation()
+    paletteMenu.hidden = !paletteMenu.hidden
+    const btn = actions.querySelector('[data-ddb-card-act="palette"]') as HTMLButtonElement | null
+    if (btn) {
+      const open = !paletteMenu.hidden
+      btn.setAttribute('aria-expanded', open ? 'true' : 'false')
+      btn.classList.toggle('is-active', open)
+    }
+    menu.hidden = true
+    filterPanel.hidden = true
+    if (chartTypeMenu) {
+      chartTypeMenu.hidden = true
+      const chartTypeBtn = actions.querySelector('[data-ddb-card-act="chartType"]') as HTMLButtonElement | null
+      if (chartTypeBtn) {
+        chartTypeBtn.setAttribute('aria-expanded', 'false')
+        chartTypeBtn.classList.remove('is-active')
+      }
+    }
   })
   actions.querySelector('[data-ddb-card-act="filter"]')?.addEventListener('click', () => {
     filterPanel.hidden = !filterPanel.hidden
@@ -653,6 +712,13 @@ function ddbPromoteVisualCardChrome(
       chartTypeMenu.hidden = true
       const btn = actions.querySelector('[data-ddb-card-act="chartType"]') as HTMLButtonElement | null
       if (btn) btn.setAttribute('aria-expanded', 'false')
+      if (btn) btn.classList.remove('is-active')
+    }
+    paletteMenu.hidden = true
+    const paletteBtn = actions.querySelector('[data-ddb-card-act="palette"]') as HTMLButtonElement | null
+    if (paletteBtn) {
+      paletteBtn.setAttribute('aria-expanded', 'false')
+      paletteBtn.classList.remove('is-active')
     }
   })
   actions.querySelector('[data-ddb-card-act="more"]')?.addEventListener('click', () => {
@@ -662,6 +728,13 @@ function ddbPromoteVisualCardChrome(
       chartTypeMenu.hidden = true
       const btn = actions.querySelector('[data-ddb-card-act="chartType"]') as HTMLButtonElement | null
       if (btn) btn.setAttribute('aria-expanded', 'false')
+      if (btn) btn.classList.remove('is-active')
+    }
+    paletteMenu.hidden = true
+    const paletteBtn = actions.querySelector('[data-ddb-card-act="palette"]') as HTMLButtonElement | null
+    if (paletteBtn) {
+      paletteBtn.setAttribute('aria-expanded', 'false')
+      paletteBtn.classList.remove('is-active')
     }
   })
 
@@ -695,7 +768,7 @@ function ddbPromoteVisualCardChrome(
     closeBtn?.remove()
   }
 
-  return { header, titleEl, actions, chartTypeMenu, menu, filterPanel, chip, zoomHint }
+  return { header, titleEl, actions, chartTypeMenu, paletteMenu, menu, filterPanel, chip, zoomHint }
 }
 
 const DDB_CANVAS_LAYOUT_LS = 'ddb-develop-canvas-layouts-v1'
@@ -1405,6 +1478,15 @@ export default function DevelopDashboard() {
   const [linkTo, setLinkTo] = useState('')
   const [linkFieldFrom, setLinkFieldFrom] = useState('')
   const [linkFieldTo, setLinkFieldTo] = useState('')
+  const [calcFieldOpen, setCalcFieldOpen] = useState(false)
+  const [calcLayerKey, setCalcLayerKey] = useState('')
+  const [calcExpressionType, setCalcExpressionType] = useState<'Arcade' | 'Python' | 'SQL'>('Arcade')
+  const [calcTargetField, setCalcTargetField] = useState('')
+  const [calcNewFieldName, setCalcNewFieldName] = useState('')
+  const [calcExpression, setCalcExpression] = useState('')
+  const [calcFieldStatus, setCalcFieldStatus] = useState('')
+  const [linkLayerSearch, setLinkLayerSearch] = useState('')
+  const [calcLayerSearch, setCalcLayerSearch] = useState('')
   const [mapFlyout, setMapFlyout] = useState<MapFlyout>('none')
   const [mapAnalysisTab, setMapAnalysisTab] = useState<MapAnalysisTab>('measure')
   const [mapAccountTab, setMapAccountTab] = useState<MapAccountTab>('profile')
@@ -1863,7 +1945,7 @@ export default function DevelopDashboard() {
         chrome.header.after(note)
       }
 
-      const { chartTypeMenu, menu, filterPanel, chip, titleEl: titleNode, zoomHint } = chrome
+      const { chartTypeMenu, paletteMenu, menu, filterPanel, chip, titleEl: titleNode, zoomHint } = chrome
       const sortMetricLabel = menu.querySelector('[data-sort-metric-label]') as HTMLSpanElement | null
       if (sortMetricLabel) sortMetricLabel.textContent = datasetLabel || primaryNum || 'Metric value'
 
@@ -1920,9 +2002,55 @@ export default function DevelopDashboard() {
         chartTypeMenu?.querySelectorAll('.ddb-visual-card__chart-type-item').forEach(btn => {
           btn.classList.toggle('is-active', btn.getAttribute('data-mini-kind') === k)
         })
+        const toggleBtn = chrome.actions.querySelector('[data-ddb-card-act="chartType"]') as HTMLButtonElement | null
+        if (toggleBtn) {
+          const iconClass = ddbIconClassForMiniKind(k)
+          const i = toggleBtn.querySelector('i')
+          if (i) i.className = iconClass
+          toggleBtn.title = `Chart types (${ddbTitleForMiniKind('Chart', k)})`
+          toggleBtn.setAttribute('aria-label', `Chart types (${ddbTitleForMiniKind('Chart', k)})`)
+        }
       }
 
+      const paletteMap: Record<string, string[]> = {
+        emerald: ['#10b981', '#22c55e', '#34d399', '#059669', '#6ee7b7', '#14b8a6'],
+        azure: ['#2563eb', '#3b82f6', '#60a5fa', '#0ea5e9', '#38bdf8', '#1d4ed8'],
+        sunset: ['#f97316', '#f59e0b', '#ef4444', '#fb7185', '#f43f5e', '#ea580c'],
+        violet: ['#7c3aed', '#8b5cf6', '#a78bfa', '#6366f1', '#c084fc', '#6d28d9'],
+        mono: ['#0f172a', '#334155', '#475569', '#64748b', '#94a3b8', '#cbd5e1'],
+      }
+      let paletteKey: keyof typeof paletteMap = 'emerald'
       let chartRef: Chart | null = null
+
+      const syncPaletteUi = () => {
+        paletteMenu?.querySelectorAll<HTMLElement>('.ddb-visual-card__palette-item').forEach(item => {
+          item.classList.toggle('is-active', item.dataset.palette === paletteKey)
+        })
+      }
+      syncPaletteUi()
+
+      const applyPalette = (target: Chart, key: keyof typeof paletteMap) => {
+        const colors = paletteMap[key] ?? paletteMap.emerald
+        target.data.datasets.forEach((dataset: any, idx) => {
+          const color = colors[idx % colors.length]
+          const soft = `${color}33`
+          const lineType = (dataset.type || ((target as any)?.config?.type as string | undefined) || '').toString()
+          dataset.borderColor = color
+          if (lineType === 'line' || lineType === 'radar' || lineType === 'scatter') {
+            dataset.backgroundColor = soft
+            dataset.pointBackgroundColor = color
+            dataset.pointBorderColor = '#ffffff'
+          } else if (lineType === 'pie' || lineType === 'doughnut' || lineType === 'polarArea') {
+            dataset.backgroundColor = colors
+            dataset.borderColor = '#ffffff'
+            dataset.hoverBackgroundColor = colors.map(c => `${c}dd`)
+          } else {
+            dataset.backgroundColor = `${color}cc`
+            dataset.hoverBackgroundColor = color
+          }
+        })
+        target.update('none')
+      }
       const rebuild = (kind: DdbMiniChartKind) => {
         const built = ddbBuildChartFromMiniKind(kind, base)
         const prev = chartRef
@@ -1942,6 +2070,7 @@ export default function DevelopDashboard() {
           options: opt,
         } as any)
         chartInstancesRef.current.push(chartRef)
+        applyPalette(chartRef, paletteKey)
         const ic = ddbIconClassForMiniKind(kind)
         titleNode.innerHTML = `<i class="${ic}" aria-hidden="true"></i> ${ddbTitleForMiniKind(title, kind)}`
         setStripActive(kind)
@@ -1955,7 +2084,29 @@ export default function DevelopDashboard() {
           rebuild(k)
           chartTypeMenu.hidden = true
           const toggleBtn = chrome.actions.querySelector('[data-ddb-card-act="chartType"]') as HTMLButtonElement | null
-          if (toggleBtn) toggleBtn.setAttribute('aria-expanded', 'false')
+          if (toggleBtn) {
+            toggleBtn.setAttribute('aria-expanded', 'false')
+            toggleBtn.classList.remove('is-active')
+          }
+        })
+      })
+
+      paletteMenu?.querySelectorAll('.ddb-visual-card__palette-item').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const key = (btn.getAttribute('data-palette') || 'emerald') as keyof typeof paletteMap
+          paletteKey = paletteMap[key] ? key : 'emerald'
+          syncPaletteUi()
+          if (chartRef) applyPalette(chartRef, paletteKey)
+          paletteMenu.hidden = true
+          const paletteBtn = chrome.actions.querySelector('[data-ddb-card-act="palette"]') as HTMLButtonElement | null
+          if (paletteBtn) {
+            paletteBtn.setAttribute('aria-expanded', 'false')
+            paletteBtn.classList.remove('is-active')
+            paletteBtn.title = `Color schemes (${paletteKey})`
+            paletteBtn.setAttribute('aria-label', `Color schemes (${paletteKey})`)
+          }
+          chip.textContent = `Color scheme: ${paletteKey}`
+          chip.hidden = false
         })
       })
 
@@ -3006,6 +3157,106 @@ export default function DevelopDashboard() {
 
   const linkFieldsFrom = linkFrom ? layers[linkFrom]?.fields ?? [] : []
   const linkFieldsTo = linkTo ? layers[linkTo]?.fields ?? [] : []
+  const calcLayerFields = calcLayerKey ? layers[calcLayerKey]?.fields ?? [] : []
+  const filteredLinkLayerKeys = useMemo(
+    () =>
+      layerKeys.filter(k => {
+        const q = linkLayerSearch.trim().toLowerCase()
+        if (!q) return true
+        const name = layers[k]?.name?.toLowerCase() ?? ''
+        return name.includes(q) || k.toLowerCase().includes(q)
+      }),
+    [layerKeys, layers, linkLayerSearch],
+  )
+  const filteredCalcLayerKeys = useMemo(
+    () =>
+      layerKeys.filter(k => {
+        const q = calcLayerSearch.trim().toLowerCase()
+        if (!q) return true
+        const name = layers[k]?.name?.toLowerCase() ?? ''
+        return name.includes(q) || k.toLowerCase().includes(q)
+      }),
+    [layerKeys, layers, calcLayerSearch],
+  )
+
+  useEffect(() => {
+    if (!calcFieldOpen) return
+    const fallbackKey = calcLayerKey || linkFrom || activeStatsLayer || layerKeys[0] || ''
+    if (!calcLayerKey && fallbackKey) setCalcLayerKey(fallbackKey)
+  }, [calcFieldOpen, calcLayerKey, linkFrom, activeStatsLayer, layerKeys])
+
+  useEffect(() => {
+    if (!calcFieldOpen) return
+    const fields = calcLayerKey ? layers[calcLayerKey]?.fields ?? [] : []
+    if (calcTargetField !== '__new__' && calcTargetField && !fields.includes(calcTargetField)) {
+      setCalcTargetField('')
+    }
+  }, [calcFieldOpen, calcLayerKey, calcTargetField, layers])
+
+  const runCalculateField = useCallback(() => {
+    if (!calcLayerKey || !layers[calcLayerKey]) {
+      setCalcFieldStatus('Select a valid input layer first.')
+      return
+    }
+    const expression = calcExpression.trim()
+    if (!expression) {
+      setCalcFieldStatus('Enter an expression before calculating.')
+      return
+    }
+    const targetField = calcTargetField === '__new__' ? calcNewFieldName.trim() : calcTargetField.trim()
+    if (!targetField) {
+      setCalcFieldStatus('Choose an existing target field or provide a new field name.')
+      return
+    }
+    if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(targetField)) {
+      setCalcFieldStatus('Field name must start with a letter/underscore and use letters, numbers, or _.')
+      return
+    }
+    if (calcExpressionType !== 'Arcade') {
+      setCalcFieldStatus(`${calcExpressionType} parser is preview-only; Arcade mode is currently executable.`)
+      return
+    }
+
+    try {
+      const normalized = expression
+        .replace(/\[([^\]]+)\]/g, (_m, fieldName: string) => `__f(${JSON.stringify(fieldName.trim())})`)
+        .replace(/\$feature\.([A-Za-z_][A-Za-z0-9_]*)/g, (_m, fieldName: string) => `__f(${JSON.stringify(fieldName)})`)
+      const evaluator = new Function('__f', 'Math', `"use strict"; return (${normalized});`) as (
+        getter: (name: string) => unknown,
+        mathObj: Math,
+      ) => unknown
+
+      const layerName = layers[calcLayerKey].name
+      setLayers(prev => {
+        const layer = prev[calcLayerKey]
+        if (!layer) return prev
+        const nextFeatures = layer.data.features.map(feat => {
+          const props = { ...((feat.properties ?? {}) as Record<string, unknown>) }
+          const getter = (name: string) => props[name]
+          let nextVal: unknown = null
+          try {
+            nextVal = evaluator(getter, Math)
+          } catch {
+            nextVal = null
+          }
+          props[targetField] = nextVal
+          return { ...feat, properties: props }
+        })
+        const nextFields = layer.fields.includes(targetField) ? layer.fields : [...layer.fields, targetField]
+        return {
+          ...prev,
+          [calcLayerKey]: {
+            ...layer,
+            fields: nextFields,
+            data: { ...layer.data, features: nextFeatures },
+          },
+        }
+      })
+      setCalcFieldStatus(`Calculated "${targetField}" for ${layerName}.`)
+    } catch {
+      setCalcFieldStatus('Expression error. Use Arcade style, e.g. [Area] * 0.1 or ($feature.Value + 2).')
+    }
+  }, [calcLayerKey, calcExpression, calcTargetField, calcNewFieldName, calcExpressionType, layers])
 
   const normalizeCanvasCardSizes = useCallback(() => {
     const host = chartsHostRef.current
@@ -4229,12 +4480,41 @@ export default function DevelopDashboard() {
               {rightSheet === 'link' ? (
                 <div className="ddb-right-sheet-body ddb-link-sheet-body">
                   <div className="ddb-link-relation-card">
-                    <div className="ddb-link-relation-card__icon-badge" aria-hidden>
-                      <i className="fa-solid fa-link" />
+                    <div className="ddb-link-relation-card__head">
+                      <div className="ddb-link-relation-card__icon-badge" aria-hidden>
+                        <i className="fa-solid fa-link" />
+                      </div>
+                      <button
+                        type="button"
+                        className="ddb-link-calc-btn"
+                        title="Calculate field"
+                        aria-label="Open calculate field"
+                        onClick={() => {
+                          setCalcFieldStatus('')
+                          setCalcExpressionType('Arcade')
+                          setCalcExpression('')
+                          setCalcTargetField('')
+                          setCalcNewFieldName('')
+                          setCalcLayerKey(linkFrom || activeStatsLayer || layerKeys[0] || '')
+                          setCalcFieldOpen(true)
+                        }}
+                      >
+                        <i className="fa-solid fa-calculator" aria-hidden />
+                      </button>
                     </div>
                     <p className="ddb-link-relation-card__lead">
                       Choose source and target layers, then map the fields that tie them together.
                     </p>
+                    <label className="ddb-link-layer-search">
+                      <i className="fa-solid fa-magnifying-glass" aria-hidden />
+                      <input
+                        className="ddb-input"
+                        value={linkLayerSearch}
+                        onChange={e => setLinkLayerSearch(e.target.value)}
+                        placeholder="Search layers..."
+                        aria-label="Search layers"
+                      />
+                    </label>
                     <div className="ddb-link-relation-row">
                       <select
                         className="ddb-select ddb-link-relation-select"
@@ -4246,7 +4526,7 @@ export default function DevelopDashboard() {
                         aria-label="Source layer"
                       >
                         <option value="">-- Source Layer --</option>
-                        {layerKeys.map(k => (
+                        {filteredLinkLayerKeys.map(k => (
                           <option key={k} value={k}>
                             {layers[k].name}
                           </option>
@@ -4265,7 +4545,7 @@ export default function DevelopDashboard() {
                         aria-label="Target layer"
                       >
                         <option value="">-- Target Layer --</option>
-                        {layerKeys.map(k => (
+                        {filteredLinkLayerKeys.map(k => (
                           <option key={k} value={k}>
                             {layers[k].name}
                           </option>
@@ -4377,6 +4657,104 @@ export default function DevelopDashboard() {
         </div>
       </div>
     </div>
+
+    {calcFieldOpen ? (
+      <div className="ddb-calc-modal-backdrop" role="presentation" onMouseDown={() => setCalcFieldOpen(false)}>
+        <div
+          className="ddb-calc-modal"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="ddb-calc-modal-title"
+          onMouseDown={(e: MouseEvent<HTMLDivElement>) => e.stopPropagation()}
+        >
+          <div className="ddb-calc-modal__head">
+            <h3 id="ddb-calc-modal-title" className="ddb-calc-modal__title">
+              <i className="fa-solid fa-calculator" aria-hidden /> Calculate Field
+            </h3>
+            <button type="button" className="ddb-calc-modal__close" onClick={() => setCalcFieldOpen(false)} aria-label="Close">
+              <i className="fa-solid fa-xmark" aria-hidden />
+            </button>
+          </div>
+          <div className="ddb-calc-modal__body">
+            <label className="ddb-calc-modal__field">
+              <span>Input table</span>
+              <label className="ddb-link-layer-search ddb-link-layer-search--modal">
+                <i className="fa-solid fa-magnifying-glass" aria-hidden />
+                <input
+                  className="ddb-input"
+                  value={calcLayerSearch}
+                  onChange={e => setCalcLayerSearch(e.target.value)}
+                  placeholder="Search input layer..."
+                  aria-label="Search input layer"
+                />
+              </label>
+              <select className="ddb-select" value={calcLayerKey} onChange={e => setCalcLayerKey(e.target.value)}>
+                <option value="">Select layer</option>
+                {filteredCalcLayerKeys.map(k => (
+                  <option key={k} value={k}>
+                    {layers[k].name}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="ddb-calc-modal__field">
+              <span>Expression type</span>
+              <select
+                className="ddb-select"
+                value={calcExpressionType}
+                onChange={e => setCalcExpressionType(e.target.value as 'Arcade' | 'Python' | 'SQL')}
+              >
+                <option value="Arcade">Arcade</option>
+                <option value="Python">Python</option>
+                <option value="SQL">SQL</option>
+              </select>
+            </label>
+            <label className="ddb-calc-modal__field">
+              <span>Field name (existing or new)</span>
+              <select className="ddb-select" value={calcTargetField} onChange={e => setCalcTargetField(e.target.value)}>
+                <option value="">Select target field</option>
+                <option value="__new__">+ Create new field</option>
+                {calcLayerFields.map(f => (
+                  <option key={f} value={f}>
+                    {f}
+                  </option>
+                ))}
+              </select>
+            </label>
+            {calcTargetField === '__new__' ? (
+              <label className="ddb-calc-modal__field">
+                <span>New field name</span>
+                <input
+                  className="ddb-input"
+                  value={calcNewFieldName}
+                  onChange={e => setCalcNewFieldName(e.target.value)}
+                  placeholder="e.g. area_score"
+                />
+              </label>
+            ) : null}
+            <label className="ddb-calc-modal__field">
+              <span>Expression</span>
+              <textarea
+                className="ddb-calc-modal__expr"
+                value={calcExpression}
+                onChange={e => setCalcExpression(e.target.value)}
+                placeholder="Example: [Area] * 0.1 + ($feature.Count || 0)"
+              />
+            </label>
+            <p className="ddb-calc-modal__hint">Use field tokens like [FieldName] or $feature.FieldName.</p>
+            {calcFieldStatus ? <p className="ddb-calc-modal__status">{calcFieldStatus}</p> : null}
+          </div>
+          <div className="ddb-calc-modal__foot">
+            <button type="button" className="ddb-btn ddb-btn--ghost" onClick={() => setCalcFieldOpen(false)}>
+              Cancel
+            </button>
+            <button type="button" className="ddb-btn ddb-calc-modal__apply" onClick={runCalculateField}>
+              <i className="fa-solid fa-bolt" aria-hidden /> Calculate
+            </button>
+          </div>
+        </div>
+      </div>
+    ) : null}
 
     {addGisOpen ? (
       <div className="gis-modal-overlay ddb-add-source-overlay" role="presentation" onClick={closeAddGisModal}>

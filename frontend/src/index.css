@@ -2869,18 +2869,19 @@ aside {
 
 /* Collapse control in pane header — double chevron (Power BI), not dismiss “X” */
 .gis-sidebar-action-pane__close--collapse {
-  transform: none;
-  border-radius: 10px;
-  width: 34px;
-  height: 34px;
-  font-size: 12px;
-  color: #1e3a5f;
-  border-color: rgba(100, 116, 139, 0.35);
-  background: rgba(255, 255, 255, 0.95);
+  transform: none !important;
+  border-radius: 999px;
+  width: 30px;
+  height: 30px;
+  font-size: 11px;
+  color: #1e3a8a;
+  border-color: rgba(59, 130, 246, 0.28);
+  background: #ffffff;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.08);
 }
 
 .gis-sidebar-action-pane__close--collapse:hover {
-  color: #0f172a;
+  color: #1d4ed8;
   border-color: rgba(37, 99, 235, 0.45);
   background: #ffffff;
 }
@@ -2896,10 +2897,10 @@ aside {
   align-items: center;
   justify-content: space-between;
   gap: 10px;
-  padding: 11px 14px 12px;
-  padding-inline-end: 20px;
+  padding: 12px 14px;
+  padding-inline-end: 14px;
   border-bottom: 1px solid rgba(15, 23, 42, 0.08);
-  background: #eef2f7;
+  background: #ffffff;
   position: relative;
   z-index: 1;
 }
@@ -2907,8 +2908,8 @@ aside {
 .gis-sidebar-action-pane__title {
   font-size: 15px;
   font-weight: 800;
-  color: #334155;
-  letter-spacing: 0.01em;
+  color: #0f172a;
+  letter-spacing: -0.01em;
 }
 
 .gis-sidebar-action-pane__close {
@@ -3084,10 +3085,10 @@ aside {
 .gis-sidebar-body--action-pane .gis-layer-card {
   overflow: hidden;
   border-radius: 12px;
-  padding: 10px 12px 8px;
-  background: rgba(255, 255, 255, 0.96);
+  padding: 10px 12px;
+  background: #ffffff;
   border: 1px solid rgba(226, 232, 240, 1);
-  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.05);
 }
 
 .gis-sidebar-body--action-pane .gis-layer-card:hover {
@@ -3099,6 +3100,18 @@ aside {
 
 .gis-sidebar-body--action-pane .gis-layer-dot {
   box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.96);
+}
+
+.gis-sidebar-body--action-pane .gis-layer-name {
+  font-size: 13px;
+  font-weight: 800;
+  color: #0f172a;
+}
+
+.gis-sidebar-body--action-pane .gis-layer-meta {
+  font-size: 11px;
+  font-weight: 650;
+  color: rgba(71, 85, 105, 0.95);
 }
 
 .gis-sidebar-body--action-pane:not(.gis-sidebar-body--tool-dock) .gis-sidebar-layers-empty-agol {
@@ -3123,8 +3136,21 @@ aside {
 }
 
 .gis-sidebar-body--action-pane .gis-layer-actions-row {
+  margin-top: 8px;
+  padding: 8px 0 0;
   border-top-color: rgba(226, 232, 240, 0.98);
-  background: rgba(248, 250, 252, 0.72);
+  background: transparent;
+  border-radius: 0;
+  gap: 6px;
+}
+
+.gis-sidebar-body--action-pane .gis-layer-actions-row .gis-icon-btn {
+  height: 32px;
+  min-height: 32px;
+  border-radius: 10px;
+  border: 1px solid rgba(226, 232, 240, 0.95);
+  background: #ffffff;
+  box-shadow: none;
 }
 
 :root[dir='rtl'] .gis-sidebar-inner {
