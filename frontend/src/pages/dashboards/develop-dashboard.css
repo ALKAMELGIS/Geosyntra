@@ -2986,7 +2986,6 @@
   top: calc(100% + 6px);
   z-index: 24;
   width: min(260px, calc(100% - 24px));
-  display: grid;
   grid-template-columns: repeat(6, minmax(0, 1fr));
   gap: 8px;
   overflow: hidden;
@@ -2995,6 +2994,15 @@
   border: 1px solid rgba(226, 232, 240, 0.95);
   background: #ffffff;
   box-shadow: 0 12px 30px rgba(15, 23, 42, 0.14);
+}
+
+/* Author `display: grid` overrides the UA `[hidden]` rule — keep menus invisible until opened via icon */
+.develop-dashboard-root .ddb-visual-card__chart-type-menu[hidden] {
+  display: none !important;
+}
+
+.develop-dashboard-root .ddb-visual-card__chart-type-menu:not([hidden]) {
+  display: grid;
 }
 
 .develop-dashboard-root .ddb-visual-card__palette-menu {
@@ -3008,8 +3016,15 @@
   border: 1px solid rgba(226, 232, 240, 0.95);
   background: #ffffff;
   box-shadow: 0 12px 30px rgba(15, 23, 42, 0.14);
-  display: grid;
   gap: 4px;
+}
+
+.develop-dashboard-root .ddb-visual-card__palette-menu[hidden] {
+  display: none !important;
+}
+
+.develop-dashboard-root .ddb-visual-card__palette-menu:not([hidden]) {
+  display: grid;
 }
 
 .develop-dashboard-root .ddb-visual-card__palette-item {

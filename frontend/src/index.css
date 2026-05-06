@@ -8461,10 +8461,10 @@ html[data-theme='dark'] .gis-domain-cell--dropdown.missing-description .gis-doma
 
 .gis-style-check input:disabled {
   cursor: not-allowed;
-  opacity: 0.55;
+  opacity: 0.58;
 }
 
-.gis-style-check--disabled {
+.gis-style-check--disabled span {
   opacity: 0.72;
 }
 

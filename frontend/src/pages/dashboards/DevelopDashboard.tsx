@@ -682,13 +682,14 @@ function ddbPromoteVisualCardChrome(
   actions.querySelector('[data-ddb-card-act="chartType"]')?.addEventListener('click', e => {
     e.stopPropagation()
     if (!chartTypeMenu) return
-    chartTypeMenu.hidden = !chartTypeMenu.hidden
+    const willOpen = chartTypeMenu.hidden
+    chartTypeMenu.hidden = !willOpen
     const btn = actions.querySelector('[data-ddb-card-act="chartType"]') as HTMLButtonElement | null
     if (btn) {
-      const open = !chartTypeMenu.hidden
+      const open = willOpen
       btn.setAttribute('aria-expanded', open ? 'true' : 'false')
       btn.classList.toggle('is-active', open)
-      if (open) requestAnimationFrame(() => anchorMenuToButton(chartTypeMenu, btn))
+      if (open) requestAnimationFrame(() => anchorMenuToButton(chartTypeMenu!, btn))
     }
     filterPanel.hidden = true
     menu.hidden = true
@@ -701,10 +702,11 @@ function ddbPromoteVisualCardChrome(
   })
   actions.querySelector('[data-ddb-card-act="palette"]')?.addEventListener('click', e => {
     e.stopPropagation()
-    paletteMenu.hidden = !paletteMenu.hidden
+    const willOpen = paletteMenu.hidden
+    paletteMenu.hidden = !willOpen
     const btn = actions.querySelector('[data-ddb-card-act="palette"]') as HTMLButtonElement | null
     if (btn) {
-      const open = !paletteMenu.hidden
+      const open = willOpen
       btn.setAttribute('aria-expanded', open ? 'true' : 'false')
       btn.classList.toggle('is-active', open)
       if (open) requestAnimationFrame(() => anchorMenuToButton(paletteMenu, btn))
@@ -750,25 +752,6 @@ function ddbPromoteVisualCardChrome(
     if (paletteBtn) {
       paletteBtn.setAttribute('aria-expanded', 'false')
       paletteBtn.classList.remove('is-active')
-    }
-  })
-
-  card.addEventListener('mouseleave', () => {
-    if (!chartTypeMenu?.hidden) {
-      chartTypeMenu.hidden = true
-      const btn = actions.querySelector('[data-ddb-card-act="chartType"]') as HTMLButtonElement | null
-      if (btn) {
-        btn.setAttribute('aria-expanded', 'false')
-        btn.classList.remove('is-active')
-      }
-    }
-    if (!paletteMenu.hidden) {
-      paletteMenu.hidden = true
-      const btn = actions.querySelector('[data-ddb-card-act="palette"]') as HTMLButtonElement | null
-      if (btn) {
-        btn.setAttribute('aria-expanded', 'false')
-        btn.classList.remove('is-active')
-      }
     }
   })
 
@@ -830,6 +813,102 @@ function ddbWriteCanvasLayouts(map: Record<string, DdbCanvasRect>) {
 
 function ddbCanvasLayoutKey(layerKey: string, instanceId: string): string {
   return `${layerKey}::canvas::${instanceId}`
+}
+
+/** User-added map layers + CSV tables — persist across sessions; only removable via UI delete. */
+const DDB_DATA_REGISTRY_LS = 'ddb-develop-data-registry-v1'
+
+type DdbPersistedRegistryV1 = { v: 1; layers: Record<string, LayerState>; csvDatasets: CsvDataset[] }
+
+function ddbIsFeatureCollection(x: unknown): x is GeoJSON.FeatureCollection {
+  return Boolean(
+    x &&
+      typeof x === 'object' &&
+      (x as GeoJSON.FeatureCollection).type === 'FeatureCollection' &&
+      Array.isArray((x as GeoJSON.FeatureCollection).features),
+  )
+}
+
+function ddbParseStoredLayerState(raw: unknown): LayerState | null {
+  if (!raw || typeof raw !== 'object') return null
+  const o = raw as Record<string, unknown>
+  const name = typeof o.name === 'string' ? o.name : ''
+  const type = o.type === 'table' || o.type === 'feature' ? o.type : null
+  const url = typeof o.url === 'string' ? o.url : ''
+  if (!ddbIsFeatureCollection(o.data)) return null
+  const fields = Array.isArray(o.fields) ? o.fields.filter((f): f is string => typeof f === 'string') : []
+  const visible = typeof o.visible === 'boolean' ? o.visible : true
+  const origin = o.origin === 'user' || o.origin === 'sample' ? o.origin : null
+  if (!name.trim() || !type || !origin) return null
+  return {
+    name,
+    type,
+    url,
+    data: o.data,
+    fields,
+    visible,
+    origin,
+  }
+}
+
+function loadDdbDataRegistry(): { layers: Record<string, LayerState>; csvDatasets: CsvDataset[] } {
+  if (typeof window === 'undefined') return { layers: {}, csvDatasets: [] }
+  try {
+    const raw = window.localStorage.getItem(DDB_DATA_REGISTRY_LS)
+    if (!raw) return { layers: {}, csvDatasets: [] }
+    const parsed = JSON.parse(raw) as unknown
+    if (!parsed || typeof parsed !== 'object') return { layers: {}, csvDatasets: [] }
+    const root = parsed as Record<string, unknown>
+    const layers: Record<string, LayerState> = {}
+    const lr = root.layers
+    if (lr && typeof lr === 'object' && !Array.isArray(lr)) {
+      for (const [key, val] of Object.entries(lr as Record<string, unknown>)) {
+        if (!key) continue
+        const ls = ddbParseStoredLayerState(val)
+        if (ls?.origin === 'user') layers[key] = ls
+      }
+    }
+    const csvDatasets: CsvDataset[] = []
+    const cr = root.csvDatasets
+    if (Array.isArray(cr)) {
+      for (const row of cr) {
+        if (!row || typeof row !== 'object') continue
+        const r = row as Record<string, unknown>
+        const id = typeof r.id === 'string' ? r.id : ''
+        const name = typeof r.name === 'string' ? r.name : ''
+        const columns = Array.isArray(r.columns) ? r.columns.filter((c): c is string => typeof c === 'string') : []
+        const rows = Array.isArray(r.rows) ? (r.rows as Record<string, unknown>[]) : []
+        const origin = r.origin === 'user' ? r.origin : null
+        if (!id || !name || !origin) continue
+        csvDatasets.push({ id, name, columns, rows, origin })
+      }
+    }
+    return { layers, csvDatasets }
+  } catch {
+    return { layers: {}, csvDatasets: [] }
+  }
+}
+
+function persistDdbDataRegistry(layers: Record<string, LayerState>, csvDatasets: CsvDataset[]) {
+  if (typeof window === 'undefined') return
+  const userLayers: Record<string, LayerState> = {}
+  for (const [k, v] of Object.entries(layers)) {
+    if (v?.origin === 'user') userLayers[k] = v
+  }
+  const userCsv = csvDatasets.filter(d => d.origin === 'user')
+  try {
+    const payload: DdbPersistedRegistryV1 = { v: 1, layers: userLayers, csvDatasets: userCsv }
+    window.localStorage.setItem(DDB_DATA_REGISTRY_LS, JSON.stringify(payload))
+  } catch (e) {
+    console.warn('Develop Dashboard: could not persist data registry', e)
+  }
+}
+
+/** One-time read for initial React state (avoid triple localStorage parse). */
+let ddbInitialRegistryCache: { layers: Record<string, LayerState>; csvDatasets: CsvDataset[] } | null = null
+function getDdbInitialRegistry() {
+  if (!ddbInitialRegistryCache) ddbInitialRegistryCache = loadDdbDataRegistry()
+  return ddbInitialRegistryCache
 }
 
 function ddbReflowCanvasHost(host: HTMLElement) {
@@ -1461,8 +1540,11 @@ export default function DevelopDashboard() {
   const canvasWorkspaceRef = useRef<HTMLDivElement | null>(null)
   const chartInstancesRef = useRef<Chart[]>([])
 
-  const [layers, setLayers] = useState<Record<string, LayerState>>({})
-  const [activeStatsLayer, setActiveStatsLayer] = useState('')
+  const [layers, setLayers] = useState<Record<string, LayerState>>(() => getDdbInitialRegistry().layers)
+  const [activeStatsLayer, setActiveStatsLayer] = useState(() => {
+    const ks = Object.keys(getDdbInitialRegistry().layers)
+    return ks[0] ?? ''
+  })
   const [statsField, setStatsField] = useState('')
   const [statsAgg, setStatsAgg] = useState('sum')
   const [selectedCharts, setSelectedCharts] = useState<Set<string>>(() => new Set(['table', 'line', 'kpi']))
@@ -1507,7 +1589,7 @@ export default function DevelopDashboard() {
   const [rightSheet, setRightSheet] = useState<RightPowerBiPanel>('none')
   const [dataPaneSearch, setDataPaneSearch] = useState('')
   const [dataTreeOpen, setDataTreeOpen] = useState<Record<string, boolean>>({})
-  const [csvDatasets, setCsvDatasets] = useState<CsvDataset[]>([])
+  const [csvDatasets, setCsvDatasets] = useState<CsvDataset[]>(() => getDdbInitialRegistry().csvDatasets)
   const [linkFrom, setLinkFrom] = useState('')
   const [linkTo, setLinkTo] = useState('')
   const [linkFieldFrom, setLinkFieldFrom] = useState('')
@@ -1578,6 +1660,11 @@ export default function DevelopDashboard() {
     if (!activeStatsLayer || !layers[activeStatsLayer]) return []
     return layers[activeStatsLayer].fields
   }, [activeStatsLayer, layers])
+
+  /** Persist user-added layers and CSV tables; removal only via explicit delete in UI. */
+  useEffect(() => {
+    persistDdbDataRegistry(layers, csvDatasets)
+  }, [layers, csvDatasets])
 
   useEffect(() => {
     if (activeFields.length && !activeFields.includes(statsField)) {

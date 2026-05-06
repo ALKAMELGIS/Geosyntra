@@ -1085,31 +1085,45 @@ function parseStoredCustomLayers(raw: string | null): CustomLayer[] {
           typeof (x as CustomLayer).geojson === 'object' &&
           typeof (x as CustomLayer).visible === 'boolean',
       )
-      .map((x: any) => ({
-        id: String(x.id),
-        name: String(x.name),
-        geojson: x.geojson,
-        visible: Boolean(x.visible),
-        color: typeof x.color === 'string' ? x.color : undefined,
-        source: x.source === 'arcgis' || x.source === 'upload' || x.source === 'api' || x.source === 'stac' ? x.source : undefined,
-        sourceUrl: typeof x.sourceUrl === 'string' ? x.sourceUrl : undefined,
-        authToken: typeof x.authToken === 'string' ? x.authToken : undefined,
-        arcgisDrawingInfo:
-          x.arcgisDrawingInfo && typeof x.arcgisDrawingInfo === 'object' ? (x.arcgisDrawingInfo as Record<string, unknown>) : undefined,
-        useArcGisSymbology:
-          x.source === 'arcgis'
-            ? typeof x.useArcGisSymbology === 'boolean'
-              ? x.useArcGisSymbology
-              : true
-            : typeof x.useArcGisSymbology === 'boolean'
-              ? x.useArcGisSymbology
+      .map((x: any) => {
+        const migratedSym = migrateStoredSymbology(x.symbology);
+        let symbology = migratedSym;
+        if (
+          typeof symbology?.useArcGisOnline !== 'boolean' &&
+          (x.source === 'arcgis' ||
+            (x.arcgisDrawingInfo && typeof x.arcgisDrawingInfo === 'object') ||
+            (x.arcgisLayerDefinition && typeof x.arcgisLayerDefinition === 'object') ||
+            (typeof x.sourceUrl === 'string' && x.sourceUrl.trim()))
+        ) {
+          const fallbackOnline = typeof x.useArcGisSymbology === 'boolean' ? x.useArcGisSymbology : true;
+          symbology = { ...(symbology ?? {}), useArcGisOnline: fallbackOnline };
+        }
+        return {
+          id: String(x.id),
+          name: String(x.name),
+          geojson: x.geojson,
+          visible: Boolean(x.visible),
+          color: typeof x.color === 'string' ? x.color : undefined,
+          source: x.source === 'arcgis' || x.source === 'upload' || x.source === 'api' || x.source === 'stac' ? x.source : undefined,
+          sourceUrl: typeof x.sourceUrl === 'string' ? x.sourceUrl : undefined,
+          authToken: typeof x.authToken === 'string' ? x.authToken : undefined,
+          arcgisDrawingInfo:
+            x.arcgisDrawingInfo && typeof x.arcgisDrawingInfo === 'object' ? (x.arcgisDrawingInfo as Record<string, unknown>) : undefined,
+          useArcGisSymbology:
+            x.source === 'arcgis'
+              ? typeof x.useArcGisSymbology === 'boolean'
+                ? x.useArcGisSymbology
+                : true
+              : typeof x.useArcGisSymbology === 'boolean'
+                ? x.useArcGisSymbology
+                : undefined,
+          arcgisLayerDefinition:
+            x.arcgisLayerDefinition && typeof x.arcgisLayerDefinition === 'object'
+              ? (x.arcgisLayerDefinition as ArcgisLayerDefLite)
               : undefined,
-        arcgisLayerDefinition:
-          x.arcgisLayerDefinition && typeof x.arcgisLayerDefinition === 'object'
-            ? (x.arcgisLayerDefinition as ArcgisLayerDefLite)
-            : undefined,
-        symbology: migrateStoredSymbology(x.symbology),
-      }));
+          symbology,
+        };
+      });
   } catch {
     return [];
   }
@@ -2775,20 +2789,19 @@ export default function SatelliteIntelligence() {
       const n = ren.classBreakInfos.filter((br: any) => Number.isFinite(Number(br?.maxValue))).length;
       maxCat = n > 0 ? Math.min(8, n) : 8;
     }
-    const symSaved =
-      typeof activeDialogLayer.symbology?.useArcGisOnline === 'boolean'
-        ? activeDialogLayer.symbology.useArcGisOnline
-        : undefined;
-    const layerSaved =
-      typeof activeDialogLayer.useArcGisSymbology === 'boolean' ? activeDialogLayer.useArcGisSymbology : undefined;
-    /** Prefer saved symbology, then layer flag; default ON when ArcGIS-backed styling is available. */
-    const preferOnline = symSaved !== undefined ? symSaved : layerSaved !== undefined ? layerSaved : true;
-    const useAgOnline = canUseArcGisOnline && preferOnline;
+    const savedSym = activeDialogLayer.symbology;
+    const resolvedUseArcGisOnline = !canUseArcGisOnline
+      ? false
+      : typeof savedSym?.useArcGisOnline === 'boolean'
+        ? savedSym.useArcGisOnline
+        : typeof activeDialogLayer.useArcGisSymbology === 'boolean'
+          ? activeDialogLayer.useArcGisSymbology
+          : true;
     const inferred = inferVisualizationFromArcgisRenderer(ren);
     const base: SymbologyConfig = {
-      ...activeDialogLayer.symbology,
+      ...savedSym,
       ...inferred,
-      useArcGisOnline: useAgOnline,
+      useArcGisOnline: resolvedUseArcGisOnline,
     };
     const normalized = normalizeSymbologyForLayer(activeDialogLayer.geojson, activeDialogLayer.source, base, canUseArcGisOnline);
     setSymbologyDraft({
@@ -2806,10 +2819,8 @@ export default function SatelliteIntelligence() {
         symbologyDraft,
         canUseArcGisOnline,
       );
-      /** Persist explicit user choice; disable ArcGIS Online mode when this UI cannot apply it. */
-      const persistedArcOnline = Boolean(canUseArcGisOnline && normalized.useArcGisOnline);
       const symbologyToSave: SymbologyConfig = {
-        useArcGisOnline: persistedArcOnline,
+        useArcGisOnline: canUseArcGisOnline ? normalized.useArcGisOnline : false,
         style: normalized.style,
         field: normalized.field,
         classes: normalized.classes,
@@ -2841,7 +2852,7 @@ export default function SatelliteIntelligence() {
           di = (raw && sanitizeArcgisDrawingInfoForClient(raw)) || null;
         }
 
-        if (persistedArcOnline) {
+        if (symbologyDraft.useArcGisOnline) {
           if (!di || !arcgisDrawingInfoToFillPaint(di)) {
             setStacStatus('Could not load a supported ArcGIS renderer (drawingInfo) for this layer.');
             return;
@@ -2859,13 +2870,7 @@ export default function SatelliteIntelligence() {
           setCustomLayers(prev =>
             prev.map(l =>
               l.id === activeDialogLayer.id
-                ? {
-                    ...l,
-                    arcgisDrawingInfo: baked,
-                    useArcGisSymbology: symbologyToSave.useArcGisOnline,
-                    color: nextColor,
-                    symbology: symbologyToSave,
-                  }
+                ? { ...l, arcgisDrawingInfo: baked, useArcGisSymbology: true, color: nextColor, symbology: symbologyToSave }
                 : l,
             ),
           );
@@ -2880,7 +2885,7 @@ export default function SatelliteIntelligence() {
                 ? {
                     ...l,
                     arcgisDrawingInfo: baked ?? l.arcgisDrawingInfo ?? null,
-                    useArcGisSymbology: symbologyToSave.useArcGisOnline,
+                    useArcGisSymbology: false,
                     color: nextColor,
                     symbology: symbologyToSave,
                   }
@@ -2895,9 +2900,7 @@ export default function SatelliteIntelligence() {
 
       setCustomLayers(prev =>
         prev.map(l =>
-          l.id === activeDialogLayer.id
-            ? { ...l, useArcGisSymbology: symbologyToSave.useArcGisOnline, color: nextColor, symbology: symbologyToSave }
-            : l,
+          l.id === activeDialogLayer.id ? { ...l, useArcGisSymbology: false, color: nextColor, symbology: symbologyToSave } : l,
         ),
       );
       setActiveLayerActionDialog(null);
@@ -8495,7 +8498,7 @@ export default function SatelliteIntelligence() {
                     <label className={`gis-style-check${!canUseArcGisOnline ? ' gis-style-check--disabled' : ''}`}>
                       <input
                         type="checkbox"
-                        checked={symbologyDraft.useArcGisOnline}
+                        checked={Boolean(canUseArcGisOnline && symbologyDraft.useArcGisOnline)}
                         disabled={!canUseArcGisOnline}
                         onChange={e => {
                           const on = e.target.checked;
