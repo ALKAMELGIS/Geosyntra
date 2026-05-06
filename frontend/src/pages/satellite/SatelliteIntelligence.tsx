@@ -1818,6 +1818,11 @@ export default function SatelliteIntelligence() {
   const [netfloraThreshold, setNetfloraThreshold] = useState(0.25);
   const [netfloraDetectionMode, setNetfloraDetectionMode] = useState<NetfloraDetectionMode>('full_then_clip');
   const [netfloraAoiSource, setNetfloraAoiSource] = useState<NetfloraAoiSource>('drawn');
+  const [netfloraAddInputToProject, setNetfloraAddInputToProject] = useState(true);
+  const [netfloraGeneratePdf, setNetfloraGeneratePdf] = useState(false);
+  const [netfloraOutputPath, setNetfloraOutputPath] = useState('');
+  const [netfloraOpenOutputAfterRun, setNetfloraOpenOutputAfterRun] = useState(true);
+  const [netfloraReportPath, setNetfloraReportPath] = useState('');
   const [netfloraUploadedResults, setNetfloraUploadedResults] = useState<any | null>(null);
   const [netfloraFilteredResults, setNetfloraFilteredResults] = useState<any | null>(null);
   const [netfloraStats, setNetfloraStats] = useState<NetfloraDetectionStats | null>(null);
@@ -6199,7 +6204,7 @@ export default function SatelliteIntelligence() {
                   <div className="si-env-panel-header">
                     <div className="si-env-header-top">
                       <div>
-                        <div className="si-env-title">Environmental Index</div>
+                        <div className="si-env-title">Processing Options</div>
                         <div className="si-env-imagery-date">
                           Imagery date: {selectedDate.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}
                         </div>
@@ -6217,7 +6222,7 @@ export default function SatelliteIntelligence() {
                     <div
                       className="si-env-section-tabs si-env-section-tabs--five"
                       role="tablist"
-                      aria-label="Environmental Index sections"
+                      aria-label="Processing Options sections"
                     >
                       {[
                         { id: 'layers' as const, label: 'Layers', icon: 'fa-solid fa-layer-group' },
@@ -7239,17 +7244,10 @@ export default function SatelliteIntelligence() {
                           onChange={onNetfloraUploadChange}
                         />
                         <div className="si-field-analysis-section">
-                          <div className="si-field-analysis-kicker">NetFlora model workflow</div>
-                          <div className="si-netflora-command">
-                            <code>python detect.py --device 0 --weights {netfloraWeightsPath || 'model_weights.pt'} --img {netfloraImageSize}</code>
-                            <code>python results.py --graphics --conf {netfloraThreshold.toFixed(2)}</code>
-                          </div>
-                        </div>
-                        <div className="si-field-analysis-section">
-                          <div className="si-field-analysis-kicker">Input settings</div>
-                          <div className="si-field-analysis-date-row">
+                          <div className="si-field-analysis-kicker">Parameters</div>
+                          <div className="si-field-analysis-date-row si-netflora-grid">
                             <label className="si-field-analysis-field">
-                              <span className="si-field-analysis-label">Raster path / URL</span>
+                              <span className="si-field-analysis-label">Input raster</span>
                               <input
                                 type="text"
                                 value={netfloraRasterPath}
@@ -7267,7 +7265,7 @@ export default function SatelliteIntelligence() {
                               />
                             </label>
                           </div>
-                          <div className="si-field-analysis-date-row">
+                          <div className="si-field-analysis-date-row si-netflora-grid">
                             <label className="si-field-analysis-field">
                               <span className="si-field-analysis-label">Image size</span>
                               <input
@@ -7280,15 +7278,34 @@ export default function SatelliteIntelligence() {
                               />
                             </label>
                             <label className="si-field-analysis-field">
-                              <span className="si-field-analysis-label">Confidence threshold ({netfloraThreshold.toFixed(2)})</span>
-                              <input
-                                type="range"
-                                min={0.05}
-                                max={0.99}
-                                step={0.01}
-                                value={netfloraThreshold}
-                                onChange={e => setNetfloraThreshold(Number(e.target.value))}
-                              />
+                              <span className="si-field-analysis-label">Confidence level</span>
+                              <input type="number" min={0.01} max={0.99} step={0.01} value={netfloraThreshold} onChange={e => setNetfloraThreshold(Math.max(0.01, Math.min(0.99, Number(e.target.value) || 0.25)))} />
+                            </label>
+                          </div>
+                          <div className="si-netflora-checks">
+                            <label className="si-netflora-check">
+                              <input type="checkbox" checked={netfloraAddInputToProject} onChange={e => setNetfloraAddInputToProject(e.target.checked)} />
+                              Add input raster to project
+                            </label>
+                            <label className="si-netflora-check">
+                              <input type="checkbox" checked={netfloraGeneratePdf} onChange={e => setNetfloraGeneratePdf(e.target.checked)} />
+                              Generate PDF report
+                            </label>
+                          </div>
+                          <div className="si-field-analysis-date-row si-netflora-grid">
+                            <label className="si-field-analysis-field">
+                              <span className="si-field-analysis-label">Outputs</span>
+                              <input type="text" value={netfloraOutputPath} placeholder="[Create temporary layer]" onChange={e => setNetfloraOutputPath(e.target.value)} />
+                            </label>
+                            <label className="si-field-analysis-field">
+                              <span className="si-field-analysis-label">Save report to file</span>
+                              <input type="text" value={netfloraReportPath} placeholder="[Save to temporary file]" onChange={e => setNetfloraReportPath(e.target.value)} />
+                            </label>
+                          </div>
+                          <div className="si-netflora-checks">
+                            <label className="si-netflora-check">
+                              <input type="checkbox" checked={netfloraOpenOutputAfterRun} onChange={e => setNetfloraOpenOutputAfterRun(e.target.checked)} />
+                              Open output file after running algorithm
                             </label>
                           </div>
                         </div>
@@ -7358,9 +7375,6 @@ export default function SatelliteIntelligence() {
                               Export GeoJSON
                             </button>
                           </div>
-                          <p className="si-field-analysis-hint">
-                            Results are added as a GIS layer with confidence-driven styling and popup-ready attributes (class, confidence, bbox).
-                          </p>
                           {netfloraStatus ? <p className="si-field-analysis-status">{netfloraStatus}</p> : null}
                         </div>
                         {netfloraStats ? (
@@ -7392,12 +7406,6 @@ export default function SatelliteIntelligence() {
                             </div>
                           </div>
                         ) : null}
-                        <div className="si-field-analysis-section">
-                          <p className="si-field-analysis-hint" style={{ marginTop: 0 }}>
-                            ArcGIS/web GIS compatibility: output layer is standard GeoJSON and can be exported/imported into ArcGIS Pro,
-                            ArcGIS Online, or other GIS clients.
-                          </p>
-                        </div>
                       </div>
                     )}
                     {expandedEnvSection === 'table-geo-ai' && (
@@ -8565,7 +8573,6 @@ export default function SatelliteIntelligence() {
                       <input
                         type="checkbox"
                         checked={symbologyDraft.useArcGisOnline}
-                        disabled={!canUseArcGisOnline}
                         onChange={e => {
                           const on = e.target.checked;
                           if (on) {

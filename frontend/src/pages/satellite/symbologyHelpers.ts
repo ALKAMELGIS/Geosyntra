@@ -291,7 +291,6 @@ export function normalizeSymbologyForLayer(
     colorRamp: (cfg?.colorRamp as SymbologyColorRamp) || 'viridis',
     threshold: typeof cfg?.threshold === 'number' && Number.isFinite(cfg.threshold) ? cfg.threshold : Number.NaN,
   };
-  if (!baseUseArcGisOnline) next.useArcGisOnline = false;
   return next;
 }
 

@@ -6200,6 +6200,31 @@ input.si-explore-date-input-linked[type='date'] {
   gap: 8px;
 }
 
+.si-netflora-grid {
+  align-items: end;
+}
+
+.si-netflora-checks {
+  display: grid;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.si-netflora-check {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 11px;
+  font-weight: 600;
+  color: #e2e8f0;
+}
+
+.si-netflora-check input[type='checkbox'] {
+  width: 14px;
+  height: 14px;
+  accent-color: #22c55e;
+}
+
 .si-netflora-pill {
   border: 1px solid rgba(148, 163, 184, 0.35);
   background: rgba(15, 23, 42, 0.7);
