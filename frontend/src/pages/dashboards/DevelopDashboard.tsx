@@ -605,7 +605,7 @@ function ddbPromoteVisualCardChrome(
   paletteMenu.className = 'ddb-visual-card__palette-menu'
   paletteMenu.hidden = true
   paletteMenu.innerHTML = `
-    <button type="button" class="ddb-visual-card__palette-item is-active" data-palette="emerald">
+    <button type="button" class="ddb-visual-card__palette-item" data-palette="emerald">
       <span class="ddb-visual-card__palette-swatch"><i style="background:#10b981"></i><i style="background:#22c55e"></i><i style="background:#34d399"></i></span>
       <span>Emerald</span>
     </button>
@@ -617,7 +617,7 @@ function ddbPromoteVisualCardChrome(
       <span class="ddb-visual-card__palette-swatch"><i style="background:#f97316"></i><i style="background:#f59e0b"></i><i style="background:#ef4444"></i></span>
       <span>Sunset</span>
     </button>
-    <button type="button" class="ddb-visual-card__palette-item" data-palette="violet">
+    <button type="button" class="ddb-visual-card__palette-item is-active" data-palette="violet">
       <span class="ddb-visual-card__palette-swatch"><i style="background:#7c3aed"></i><i style="background:#8b5cf6"></i><i style="background:#a78bfa"></i></span>
       <span>Violet</span>
     </button>
@@ -627,6 +627,19 @@ function ddbPromoteVisualCardChrome(
     </button>
   `
   header.appendChild(paletteMenu)
+
+  const anchorMenuToButton = (menuEl: HTMLDivElement, btnEl: HTMLButtonElement | null) => {
+    if (!btnEl || menuEl.hidden) return
+    const headerRect = header.getBoundingClientRect()
+    const btnRect = btnEl.getBoundingClientRect()
+    const menuRect = menuEl.getBoundingClientRect()
+    const top = Math.round(btnRect.bottom - headerRect.top + 6)
+    let left = Math.round(btnRect.right - headerRect.left - menuRect.width)
+    left = Math.max(8, Math.min(left, Math.max(8, Math.round(headerRect.width - menuRect.width - 8))))
+    menuEl.style.top = `${top}px`
+    menuEl.style.left = `${left}px`
+    menuEl.style.right = 'auto'
+  }
 
   const chip = document.createElement('div')
   chip.className = 'ddb-visual-card__stat-chip'
@@ -675,6 +688,7 @@ function ddbPromoteVisualCardChrome(
       const open = !chartTypeMenu.hidden
       btn.setAttribute('aria-expanded', open ? 'true' : 'false')
       btn.classList.toggle('is-active', open)
+      if (open) requestAnimationFrame(() => anchorMenuToButton(chartTypeMenu, btn))
     }
     filterPanel.hidden = true
     menu.hidden = true
@@ -693,6 +707,7 @@ function ddbPromoteVisualCardChrome(
       const open = !paletteMenu.hidden
       btn.setAttribute('aria-expanded', open ? 'true' : 'false')
       btn.classList.toggle('is-active', open)
+      if (open) requestAnimationFrame(() => anchorMenuToButton(paletteMenu, btn))
     }
     menu.hidden = true
     filterPanel.hidden = true
@@ -735,6 +750,25 @@ function ddbPromoteVisualCardChrome(
     if (paletteBtn) {
       paletteBtn.setAttribute('aria-expanded', 'false')
       paletteBtn.classList.remove('is-active')
+    }
+  })
+
+  card.addEventListener('mouseleave', () => {
+    if (!chartTypeMenu?.hidden) {
+      chartTypeMenu.hidden = true
+      const btn = actions.querySelector('[data-ddb-card-act="chartType"]') as HTMLButtonElement | null
+      if (btn) {
+        btn.setAttribute('aria-expanded', 'false')
+        btn.classList.remove('is-active')
+      }
+    }
+    if (!paletteMenu.hidden) {
+      paletteMenu.hidden = true
+      const btn = actions.querySelector('[data-ddb-card-act="palette"]') as HTMLButtonElement | null
+      if (btn) {
+        btn.setAttribute('aria-expanded', 'false')
+        btn.classList.remove('is-active')
+      }
     }
   })
 
@@ -2019,13 +2053,18 @@ export default function DevelopDashboard() {
         violet: ['#7c3aed', '#8b5cf6', '#a78bfa', '#6366f1', '#c084fc', '#6d28d9'],
         mono: ['#0f172a', '#334155', '#475569', '#64748b', '#94a3b8', '#cbd5e1'],
       }
-      let paletteKey: keyof typeof paletteMap = 'emerald'
+      let paletteKey: keyof typeof paletteMap = 'violet'
       let chartRef: Chart | null = null
 
       const syncPaletteUi = () => {
         paletteMenu?.querySelectorAll<HTMLElement>('.ddb-visual-card__palette-item').forEach(item => {
           item.classList.toggle('is-active', item.dataset.palette === paletteKey)
         })
+        const paletteBtn = chrome.actions.querySelector('[data-ddb-card-act="palette"]') as HTMLButtonElement | null
+        if (paletteBtn) {
+          paletteBtn.title = `Color schemes (${paletteKey})`
+          paletteBtn.setAttribute('aria-label', `Color schemes (${paletteKey})`)
+        }
       }
       syncPaletteUi()
 

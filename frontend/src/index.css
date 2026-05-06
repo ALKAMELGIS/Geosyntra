@@ -2771,12 +2771,13 @@ aside {
 }
 
 .gis-sidebar-column--action-pane {
-  --gis-action-pane-width: 400px;
+  --gis-action-pane-width: 360px;
   display: flex;
   flex-direction: column;
   min-height: 0;
   min-width: 0;
   background: linear-gradient(180deg, #f1f4f8 0%, #e8eef5 55%, #eef2f7 100%);
+  overflow: hidden;
 }
 
 /* Collapsed action column: Power BI–style narrow “book” strip (expand control + vertical label) */
@@ -2951,6 +2952,8 @@ aside {
 .gis-sidebar-body--action-pane {
   border-radius: 0;
   background: transparent;
+  min-width: 0;
+  overflow: hidden;
 }
 
 /*
@@ -2968,6 +2971,9 @@ aside {
   border: 1px solid rgba(15, 23, 42, 0.1);
   background: rgba(255, 255, 255, 0.98);
   box-shadow: 0 1px 3px rgba(15, 23, 42, 0.06);
+  min-width: 0;
+  box-sizing: border-box;
+  overflow: auto;
 }
 
 /* Layers pane spacing parity with Tables pane (ArcGIS action column). */
@@ -3020,9 +3026,9 @@ aside {
   box-shadow: 0 1px 0 rgba(255, 255, 255, 0.75) inset;
 }
 
-.gis-sidebar-column.gis-sidebar-column--action-pane:has(.gis-tables-agol-add__menu),
-.gis-sidebar-body--action-pane:has(.gis-tables-agol-add__menu),
-.gis-sidebar-body-main:has(.gis-tables-agol-add__menu) {
+.gis-sidebar-column.gis-sidebar-column--action-pane:has(.gis-sidebar-body--tool-dock .gis-tables-agol-add__menu),
+.gis-sidebar-body--action-pane.gis-sidebar-body--tool-dock:has(.gis-tables-agol-add__menu),
+.gis-sidebar-body--action-pane.gis-sidebar-body--tool-dock .gis-sidebar-body-main:has(.gis-tables-agol-add__menu) {
   overflow: visible;
 }
 
@@ -3142,9 +3148,13 @@ aside {
   background: transparent;
   border-radius: 0;
   gap: 6px;
+  min-width: 0;
+  flex-wrap: nowrap;
 }
 
 .gis-sidebar-body--action-pane .gis-layer-actions-row .gis-icon-btn {
+  flex: 1 1 0;
+  min-width: 0;
   height: 32px;
   min-height: 32px;
   border-radius: 10px;
@@ -3170,6 +3180,7 @@ aside {
 .gis-sidebar-column.gis-sidebar-column--action-pane {
   flex: 0 0 auto;
   width: min(var(--gis-action-pane-width), 100%);
+  min-width: min(var(--gis-action-pane-width), 100%);
   max-width: var(--gis-action-pane-width);
 }
 
