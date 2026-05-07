@@ -68,7 +68,6 @@ import { resolveGeoAiPinFromUserTextAndReply } from '../../lib/geoAiResolveMapCo
 import { buildGeoAiFullWeatherSessionAppend } from '../../lib/geoAiWeatherContext';
 import {
   siBrowserReportsMicrosoftEdge,
-  siDefaultSatelliteGlobeEnabled,
   siMapErrorSuggestsGlobeOrWebglFailure,
 } from '../../lib/siMapboxGlobeCompat';
 import { useOpenWeatherMapApiKey } from '../../hooks/useOpenWeatherMapApiKey';
@@ -1408,128 +1407,6 @@ const ENVIRONMENTAL_INDICES: Record<EnvironmentalIndexId, {
   },
 };
 
-/** Sentinel-2 L2A band notation (B02…B12) — used by RS Analysis Assistant index picker & STAC/TiTiler roadmap. */
-export type RsAssistantIndexId =
-  | 'NDVI'
-  | 'NDWI'
-  | 'NDMI'
-  | 'SAVI'
-  | 'EVI'
-  | 'GNDVI'
-  | 'NBR'
-  | 'NDRE'
-  | 'BSI'
-  | 'MNDWI';
-
-export const RS_ANALYSIS_ASSISTANT_INDICES: ReadonlyArray<{
-  id: RsAssistantIndexId;
-  label: string;
-  icon: string;
-  formula: string;
-  focus: string;
-}> = [
-  {
-    id: 'NDVI',
-    label: 'NDVI',
-    icon: 'fa-solid fa-leaf',
-    formula: '(B08 − B04) / (B08 + B04)',
-    focus: 'Vegetation vigor',
-  },
-  {
-    id: 'NDWI',
-    label: 'NDWI',
-    icon: 'fa-solid fa-droplet',
-    formula: '(B03 − B08) / (B03 + B08)',
-    focus: 'Open water / canopy water',
-  },
-  {
-    id: 'NDMI',
-    label: 'NDMI',
-    icon: 'fa-solid fa-cloud-rain',
-    formula: '(B08 − B11) / (B08 + B11)',
-    focus: 'Canopy moisture',
-  },
-  {
-    id: 'SAVI',
-    label: 'SAVI',
-    icon: 'fa-solid fa-seedling',
-    formula: '1.5×(B08 − B04) / (B08 + B04 + 0.5)',
-    focus: 'Vegetation + soil adjustment',
-  },
-  {
-    id: 'EVI',
-    label: 'EVI',
-    icon: 'fa-solid fa-chart-area',
-    formula: '2.5 * (B08 - B04) / (B08 + 6*B04 - 7.5*B02 + 1)',
-    focus: 'Dense canopy biomass',
-  },
-  {
-    id: 'GNDVI',
-    label: 'GNDVI',
-    icon: 'fa-solid fa-leaf',
-    formula: '(B08 − B03) / (B08 + B03)',
-    focus: 'Chlorophyll / vigor',
-  },
-  {
-    id: 'NBR',
-    label: 'NBR',
-    icon: 'fa-solid fa-fire-flame-simple',
-    formula: '(B08 − B12) / (B08 + B12)',
-    focus: 'Burn severity',
-  },
-  {
-    id: 'NDRE',
-    label: 'NDRE',
-    icon: 'fa-solid fa-border-all',
-    formula: '(B08 − B05) / (B08 + B05)',
-    focus: 'Red-edge crop stress',
-  },
-  {
-    id: 'BSI',
-    label: 'BSI',
-    icon: 'fa-solid fa-mountain-sun',
-    formula: '((B11 + B04) − (B08 + B02)) / ((B11 + B04) + (B08 + B02))',
-    focus: 'Bare soil / impervious',
-  },
-  {
-    id: 'MNDWI',
-    label: 'MNDWI',
-    icon: 'fa-solid fa-water',
-    formula: '(B03 − B11) / (B03 + B11)',
-    focus: 'Built-up suppressed water',
-  },
-];
-
-type SiEnvProcessingSectionTabId = 'layers' | 'explore-stac' | 'remote-sensing' | 'ai-detection-gis' | 'table-geo-ai';
-
-const SI_ENV_PROCESSING_SECTION_TABS: ReadonlyArray<{
-  id: SiEnvProcessingSectionTabId;
-  label: string;
-  title: string;
-  icon: string;
-}> = [
-  { id: 'layers', label: 'Layers', title: 'Layers — map overlays & registry', icon: 'fa-solid fa-layer-group' },
-  {
-    id: 'explore-stac',
-    label: 'Explore STAC',
-    title: 'Explore STAC — catalog search & processing',
-    icon: 'fa-solid fa-magnifying-glass-chart',
-  },
-  {
-    id: 'remote-sensing',
-    label: 'RS Assistant',
-    title: 'RS Analysis Assistant — spectral indices, AOI clip & dynamic tiles',
-    icon: 'fa-solid fa-satellite-dish',
-  },
-  {
-    id: 'ai-detection-gis',
-    label: 'AI Detection',
-    title: 'AI Detection in GIS',
-    icon: 'fa-solid fa-magnifying-glass-location',
-  },
-  { id: 'table-geo-ai', label: 'Geo AI', title: 'Geo AI assistant chat', icon: 'fa-solid fa-comments' },
-];
-
 const PIVOT_COLORS = ['#22c55e', '#3b82f6', '#f97316', '#a855f7', '#06b6d4', '#eab308'];
 const SI_SYMBOLOGY_BAKE_RAMPS: Record<SymbologyColorRamp, string[]> = {
   viridis: ['#440154', '#3b528b', '#21918c', '#5ec962', '#fde725'],
@@ -1749,8 +1626,6 @@ export default function SatelliteIntelligence() {
   }, []);
 
   const [wmsLayer, setWmsLayer] = useState('');
-  const [selectedRsAssistantIndex, setSelectedRsAssistantIndex] = useState<RsAssistantIndexId>('NDVI');
-  const [rsAssistantRasterOpacity, setRsAssistantRasterOpacity] = useState(85);
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [isMapLoaded, setIsMapLoaded] = useState(false);
   const [customLayers, setCustomLayers] = useState<CustomLayer[]>(() => {
@@ -1797,16 +1672,7 @@ export default function SatelliteIntelligence() {
       return mapboxToken ? DEFAULT_BASEMAP_ID : DEFAULT_BASEMAP_ID_NO_MAPBOX;
     });
   }, [basemapCatalog, mapboxToken]);
-  const [is3DView, setIs3DView] = useState(() => siDefaultSatelliteGlobeEnabled());
-  const [edgeCompatMode, setEdgeCompatMode] = useState(false);
-  useEffect(() => {
-    // Edge can report WebGL support but still fail on heavier globe/mapbox paths on some GPUs.
-    // Enter compat mode early to avoid initial blank map render.
-    if (!siBrowserReportsMicrosoftEdge()) return;
-    setEdgeCompatMode(true);
-    setIs3DView(false);
-    setBasemapId(prev => (prev === 'esri' ? prev : 'esri'));
-  }, []);
+  const [is3DView, setIs3DView] = useState(() => true);
   const [cloudCoverage, setCloudCoverage] = useState(20);
   const [isTimelinePlaying, setIsTimelinePlaying] = useState(false);
   const [selectedIndex, setSelectedIndex] = useState<EnvironmentalIndexId>('NDWI');
@@ -1968,7 +1834,13 @@ export default function SatelliteIntelligence() {
   const [netfloraBusy, setNetfloraBusy] = useState(false);
   const [netfloraStatus, setNetfloraStatus] = useState('');
   const [expandedEnvSection, setExpandedEnvSection] = useState<
-    'source' | 'layers' | 'explore-stac' | 'remote-sensing' | 'ai-detection-gis' | 'table-geo-ai'
+    | 'source'
+    | 'layers'
+    | 'explore-stac'
+    | 'remote-sensing'
+    | 'rs-analysis-assistant'
+    | 'ai-detection-gis'
+    | 'table-geo-ai'
   >('source');
   const [geoExplorerMessages, setGeoExplorerMessages] = useState<GeoExplorerMessage[]>([]);
   const [geoExplorerDraft, setGeoExplorerDraft] = useState('');
@@ -2374,11 +2246,9 @@ export default function SatelliteIntelligence() {
 
   const toggle3DView = () => {
     const mapInstance = mapRef.current?.getMap ? mapRef.current.getMap() : mapRef.current;
-    const nextIs3D = !is3DView;
-    if (nextIs3D) {
-      siGlobeWebglFailoverRef.current = false;
-    }
-    setIs3DView(nextIs3D);
+    const nextIs3D = true;
+    siGlobeWebglFailoverRef.current = false;
+    setIs3DView(true);
 
     const pitch = nextIs3D ? Math.max(viewState.pitch || 0, 55) : 0;
     const bearing = viewState.bearing || 0;
@@ -5597,22 +5467,6 @@ export default function SatelliteIntelligence() {
     return wmsLayers[0]?.name ?? '';
   }, [wmsLayer, wmsLayers]);
 
-  const pickRsAssistantIndex = useCallback(
-    (id: RsAssistantIndexId) => {
-      setSelectedRsAssistantIndex(id);
-      const needle = id.toLowerCase();
-      const match = wmsLayers.find(
-        l =>
-          l.name.toLowerCase().includes(needle) ||
-          l.title.toLowerCase().includes(needle),
-      );
-      if (match) setWmsLayer(match.name);
-      const envIds = Object.keys(ENVIRONMENTAL_INDICES) as EnvironmentalIndexId[];
-      if (envIds.includes(id as EnvironmentalIndexId)) setSelectedIndex(id as EnvironmentalIndexId);
-    },
-    [wmsLayers],
-  );
-
   const wmsDate = selectedDate.toISOString().split('T')[0];
   const sentinelVisible = isWmsOverlayVisible && !!activeWmsLayer;
   const activeBasemapId = useMemo(() => resolveBasemapId(basemapId), [basemapId]);
@@ -5628,10 +5482,7 @@ export default function SatelliteIntelligence() {
   const mapStyle = currentBasemapEntry
     ? mapboxGlStyleForEntry(currentBasemapEntry, mapboxToken || '')
     : EMPTY_MAP_STYLE;
-  const edgeCompatBasemapEntry = useMemo(() => catalogEntryById(basemapCatalog, 'esri') ?? currentBasemapEntry, [basemapCatalog, currentBasemapEntry]);
-  const effectiveMapStyle = edgeCompatMode
-    ? mapboxGlStyleForEntry(edgeCompatBasemapEntry!, mapboxToken || '')
-    : mapStyle;
+  const effectiveMapStyle = mapStyle;
   const effectiveMapStyleUsesMapboxHost = typeof effectiveMapStyle === 'string' && effectiveMapStyle.startsWith('mapbox://');
   const mapboxTokenTrimmed = (mapboxToken || '').trim();
   const mapboxAccessTokenForMap = mapboxTokenTrimmed || (!effectiveMapStyleUsesMapboxHost ? 'pk.si-raster-fallback-token' : undefined);
@@ -5651,10 +5502,8 @@ export default function SatelliteIntelligence() {
     const timeoutMs = siBrowserReportsMicrosoftEdge() ? 3500 : 6000;
     const t = window.setTimeout(() => {
       if (isMapLoaded) return;
-      setEdgeCompatMode(true);
-      setIs3DView(false);
-      setBasemapId('esri');
-      setStacStatus('Map compatibility mode enabled (2D Esri raster basemap).');
+      setStacStatus('Map is taking longer than expected to load, retrying globe rendering.');
+      setIs3DView(true);
     }, timeoutMs);
     return () => window.clearTimeout(t);
   }, [isMapLoaded]);
@@ -5804,7 +5653,7 @@ export default function SatelliteIntelligence() {
             </div>
           ) : null}
           <MapGL
-            key={`${edgeCompatMode ? 'si-map-edge-compat' : 'si-map-default'}:${mapboxAccessTokenForMap ? 'token' : 'no-token'}`}
+            key={`si-map-globe:${mapboxAccessTokenForMap ? 'token' : 'no-token'}`}
             ref={mapRef}
             {...viewState}
             onMove={evt => setViewState(evt.viewState)}
@@ -5823,11 +5672,11 @@ export default function SatelliteIntelligence() {
             }}
             mapStyle={effectiveMapStyle}
             mapboxAccessToken={mapboxAccessTokenForMap}
-            projection={edgeCompatMode ? { name: 'mercator' } : is3DView ? { name: 'globe' } : { name: 'mercator' }}
-            renderWorldCopies={edgeCompatMode ? true : !is3DView}
-            dragRotate={edgeCompatMode ? false : is3DView}
-            pitchWithRotate={edgeCompatMode ? false : is3DView}
-            fog={edgeCompatMode ? undefined : is3DView ? { 'range': [0.5, 10], 'color': '#020617', 'horizon-blend': 0.1 } : undefined}
+            projection={{ name: 'globe' }}
+            renderWorldCopies={false}
+            dragRotate
+            pitchWithRotate
+            fog={{ 'range': [0.5, 10], 'color': '#020617', 'horizon-blend': 0.1 }}
             onError={(e: any) => {
               const message = e?.error?.message || '';
               const url = e?.error?.url || '';
@@ -5849,10 +5698,8 @@ export default function SatelliteIntelligence() {
                   lowerMessage.includes('mapbox'))
               ) {
                 siGlobeWebglFailoverRef.current = true;
-                setIs3DView(v => (v ? false : v));
-                setEdgeCompatMode(true);
-                setBasemapId('esri');
-                setStacStatus('Map fallback activated for compatibility (2D Esri basemap).');
+                setIs3DView(true);
+                setStacStatus('Map detected a rendering issue and is retrying in 3D Globe mode.');
                 return;
               }
               console.warn('Map Error:', e);
@@ -6083,7 +5930,7 @@ export default function SatelliteIntelligence() {
                   id="sentinel-layer"
                   type="raster"
                   paint={{
-                    'raster-opacity': Math.max(0.05, Math.min(1, rsAssistantRasterOpacity / 100)),
+                    'raster-opacity': 0.85,
                     'raster-fade-duration': 0
                   }}
                 />
@@ -6376,9 +6223,7 @@ export default function SatelliteIntelligence() {
                   className={`si-env-panel${
                     expandedEnvSection === 'explore-stac' || expandedEnvSection === 'table-geo-ai'
                       ? ' si-env-panel--explore-stac'
-                      : expandedEnvSection === 'remote-sensing'
-                        ? ' si-env-panel--rs-assistant'
-                        : ''
+                      : ''
                   }`}
                   dir="auto"
                 >
@@ -6398,20 +6243,43 @@ export default function SatelliteIntelligence() {
                   </div>
                   <div className="si-env-panel-body">
                     <div
-                      className="si-env-section-tabs si-env-section-tabs--five"
+                      className="si-env-section-tabs si-env-section-tabs--six"
                       role="tablist"
                       aria-label="Processing Options sections"
                     >
-                      {SI_ENV_PROCESSING_SECTION_TABS.map(section => (
+                      {[
+                        { id: 'layers' as const, label: 'Layers', icon: 'fa-solid fa-layer-group' },
+                        { id: 'explore-stac' as const, label: 'Explore STAC', icon: 'fa-solid fa-magnifying-glass-chart' },
+                        {
+                          id: 'remote-sensing' as const,
+                          label: 'Remote sensing',
+                          icon: 'fa-solid fa-satellite-dish',
+                        },
+                        {
+                          id: 'rs-analysis-assistant' as const,
+                          label: 'RS Analysis Assistant',
+                          icon: 'fa-solid fa-chart-area',
+                        },
+                        {
+                          id: 'ai-detection-gis' as const,
+                          label: 'AI Detection in GIS',
+                          icon: 'fa-solid fa-magnifying-glass-location',
+                        },
+                        {
+                          id: 'table-geo-ai' as const,
+                          label: 'Geo AI',
+                          icon: 'fa-solid fa-comments',
+                        },
+                      ].map(section => (
                         <button
                           key={section.id}
                           type="button"
                           className={expandedEnvSection === section.id ? 'active' : ''}
                           onClick={() => setExpandedEnvSection(section.id)}
-                          aria-label={section.title}
-                          title={section.title}
+                          aria-label={section.label}
+                          title={section.label}
                         >
-                          <i className={section.icon} aria-hidden />
+                          <i className={section.icon} />
                         </button>
                       ))}
                     </div>
@@ -7243,14 +7111,9 @@ export default function SatelliteIntelligence() {
                     
                     ) : null}
                     {expandedEnvSection === 'remote-sensing' && (
-                      <div className="si-env-section-card si-field-analysis si-rs-assistant">
+                      <div className="si-env-section-card si-field-analysis">
                         <div className="si-field-analysis-header">
-                          <div>
-                            <h2 className="si-field-analysis-title">RS Analysis Assistant</h2>
-                            <p className="si-rs-assistant-sub">
-                              Sentinel-2 spectral indices, AOI-first clipping, and map-aligned visualization (TiTiler / dynamic XYZ tile path).
-                            </p>
-                          </div>
+                          <h2 className="si-field-analysis-title">Remote Sensing</h2>
                           <button
                             type="button"
                             className="si-field-analysis-close"
@@ -7259,168 +7122,6 @@ export default function SatelliteIntelligence() {
                           >
                             <i className="fa-solid fa-xmark" aria-hidden />
                           </button>
-                        </div>
-
-                        <div className="si-rs-assistant-panel-intro">
-                          <p className="si-rs-assistant-lede">
-                            Catalog imagery via{' '}
-                            <a
-                              href="https://planetarycomputer.microsoft.com/api/stac/v1"
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="si-rs-assistant-link"
-                            >
-                              Microsoft Planetary Computer STAC
-                            </a>
-                            ; composite/clipped rasters should render inside your AOI with legends, ramps, and pixel sampling once the TiTiler
-                            endpoint is wired.
-                          </p>
-                          <div className="si-rs-assistant-intro-actions">
-                            <button
-                              type="button"
-                              className="si-explore-page-btn"
-                              onClick={() => {
-                                setExpandedEnvSection('explore-stac');
-                                setExploreTab('parameters');
-                              }}
-                            >
-                              <i className="fa-solid fa-magnifying-glass-chart" aria-hidden /> Open Explore STAC
-                            </button>
-                            <button
-                              type="button"
-                              className="si-explore-page-btn si-explore-page-btn--ghost"
-                              onClick={() => {
-                                setExpandedEnvSection('explore-stac');
-                                setExploreTab('processing-templates');
-                              }}
-                            >
-                              <i className="fa-solid fa-gears" aria-hidden /> Processing templates
-                            </button>
-                          </div>
-                        </div>
-
-                        <div className="si-field-analysis-section">
-                          <div className="si-field-analysis-kicker">Spectral indices (pick target)</div>
-                          <p className="si-field-analysis-hint">
-                            Rows mirror NDVI, NDWI, NDMI, SAVI, EVI, GNDVI, NBR, NDRE, BSI, MNDWI — selecting one aligns Sentinel Hub WMS when a
-                            matching layer name exists.
-                          </p>
-                          <div className="si-rs-assistant-index-grid" role="listbox" aria-label="Environmental spectral indices">
-                            {RS_ANALYSIS_ASSISTANT_INDICES.map(row => (
-                              <button
-                                key={row.id}
-                                type="button"
-                                role="option"
-                                aria-selected={selectedRsAssistantIndex === row.id}
-                                className={`si-rs-assistant-index-card${selectedRsAssistantIndex === row.id ? ' si-rs-assistant-index-card--active' : ''}`}
-                                onClick={() => pickRsAssistantIndex(row.id)}
-                              >
-                                <span className="si-rs-assistant-index-card-icon" aria-hidden>
-                                  <i className={row.icon} />
-                                </span>
-                                <span className="si-rs-assistant-index-card-body">
-                                  <span className="si-rs-assistant-index-name">{row.label}</span>
-                                  <span className="si-rs-assistant-index-focus">{row.focus}</span>
-                                  <code className="si-rs-assistant-index-formula">{row.formula}</code>
-                                </span>
-                              </button>
-                            ))}
-                          </div>
-                        </div>
-
-                        <div className="si-field-analysis-section">
-                          <div className="si-field-analysis-kicker">AOI & clipping</div>
-                          <p className="si-field-analysis-hint">
-                            Focus analysis inside an editable polygon: sketch with polygon mode, press Enter to finish, then switch to Select to drag
-                            vertices.
-                          </p>
-                          <p className="si-rs-assistant-aoi-status">
-                            <strong>Committed AOI:</strong>{' '}
-                            {drawnGeometry?.geometry ? (
-                              <span className="si-rs-assistant-aoi-ok">Active geometry on map</span>
-                            ) : (
-                              <span className="si-rs-assistant-aoi-miss">None yet — draw or use map extent</span>
-                            )}
-                          </p>
-                          <div className="si-rs-assistant-btn-row">
-                            <button
-                              type="button"
-                              className="si-explore-page-btn"
-                              onClick={() => {
-                                setExploreExtentMode('map');
-                                cancelCurrentDrawing();
-                              }}
-                            >
-                              Use map extent
-                            </button>
-                            <button
-                              type="button"
-                              className="si-explore-page-btn"
-                              onClick={() => {
-                                setExploreExtentMode('drawn');
-                                applyMapDrawTool('polygon');
-                                setDrawAssistHint('Click vertices to sketch AOI; press Enter to finish; Select tool edits vertices.');
-                              }}
-                            >
-                              Draw AOI polygon
-                            </button>
-                            <button type="button" className="si-explore-page-btn si-explore-page-btn--ghost" onClick={() => applyMapDrawTool('select')}>
-                              Edit AOI (Select)
-                            </button>
-                            <button
-                              type="button"
-                              className="si-explore-page-btn si-explore-page-btn--danger"
-                              onClick={() => {
-                                clearAllAoiDrawing();
-                                setExploreExtentMode('default');
-                              }}
-                            >
-                              Clear AOI
-                            </button>
-                          </div>
-                          <label className="si-rs-assistant-check">
-                            <input type="checkbox" checked={mpcClipToAoi} onChange={e => setMpcClipToAoi(e.target.checked)} />
-                            <span>
-                              Clip processing outputs & analytics masks to AOI (pairs with Explore STAC / MPC templates; raster tiling pipeline uses same
-                              extent).
-                            </span>
-                          </label>
-                        </div>
-
-                        <div className="si-field-analysis-section">
-                          <div className="si-field-analysis-kicker">Map visualization</div>
-                          <label className="si-field-analysis-field si-field-analysis-field--labeled">
-                            <span className="si-field-analysis-label">Sentinel WMS raster opacity ({rsAssistantRasterOpacity}%)</span>
-                            <input
-                              type="range"
-                              min={5}
-                              max={100}
-                              step={1}
-                              value={rsAssistantRasterOpacity}
-                              onChange={e => setRsAssistantRasterOpacity(Number(e.target.value))}
-                              aria-label="Raster overlay opacity"
-                            />
-                          </label>
-                          <ul className="si-rs-assistant-roadmap">
-                            <li title="Requires TiTiler or GPU raster shaders bound to MapLibre">
-                              Real-time raster + dynamic color ramps + legends + pixel inspector + AOI popup statistics.
-                            </li>
-                            <li title="Needs temporal stacks & mosaic endpoints">
-                              Temporal comparison slider, timelapse, heatmaps, multi-AOI compare, GeoTIFF/PNG/CSV export packs.
-                            </li>
-                          </ul>
-                        </div>
-
-                        <div className="si-field-analysis-section si-rs-assistant-workflow">
-                          <div className="si-field-analysis-kicker">Target workflow</div>
-                          <ol className="si-rs-assistant-workflow-list">
-                            <li>Pick spectral index</li>
-                            <li>Sketch AOI</li>
-                            <li>Search Sentinel-2 from STAC</li>
-                            <li>Compute index &amp; clip to AOI</li>
-                            <li>Render XYZ/WMTS tiles + QA charts</li>
-                            <li>Export GeoTIFF / PNG / GeoJSON / JSON stats</li>
-                          </ol>
                         </div>
 
                         <div className="si-field-analysis-section">
@@ -7471,12 +7172,11 @@ export default function SatelliteIntelligence() {
                             </select>
                           </label>
                           <p className="si-field-analysis-hint" style={{ marginTop: 6 }}>
-                            Layers come from Sentinel Hub WMS GetCapabilities for instance{' '}
+                            Layers are loaded only from your Sentinel Hub WMS GetCapabilities response for instance{' '}
                             <span style={{ fontFamily: 'ui-monospace, monospace', fontSize: '10px', opacity: 0.95 }}>
                               {getSentinelHubWmsInstanceId().slice(0, 8)}…
                             </span>{' '}
-                            (System Settings → Sentinel API tokens). The index grid above picks the analysis target and syncs the dropdown when names
-                            match.
+                            (System Settings → Sentinel API tokens). No synthetic index list is shown here.
                           </p>
                         </div>
 
@@ -7549,6 +7249,175 @@ export default function SatelliteIntelligence() {
 
                         <p className="si-field-analysis-footer-hint">Click on a field to view details.</p>
                         {fieldAnalysisStatus ? <p className="si-field-analysis-status">{fieldAnalysisStatus}</p> : null}
+                      </div>
+                    )}
+                    {expandedEnvSection === 'rs-analysis-assistant' && (
+                      <div className="si-env-section-card si-field-analysis si-rs-assistant">
+                        <div className="si-field-analysis-header">
+                          <h2 className="si-field-analysis-title">RS Analysis Assistant</h2>
+                          <button
+                            type="button"
+                            className="si-field-analysis-close"
+                            onClick={() => setIsLayerDropdownOpen(false)}
+                            aria-label="Close panel"
+                          >
+                            <i className="fa-solid fa-xmark" aria-hidden />
+                          </button>
+                        </div>
+
+                        <div className="si-rs-assistant-kpis">
+                          <div className="si-rs-assistant-kpi">
+                            <span>AOI status</span>
+                            <strong>{drawnGeometry ? 'Drawn / editable' : 'Not defined'}</strong>
+                          </div>
+                          <div className="si-rs-assistant-kpi">
+                            <span>Active index</span>
+                            <strong>{ENVIRONMENTAL_INDICES[selectedIndex].label}</strong>
+                          </div>
+                          <div className="si-rs-assistant-kpi">
+                            <span>Clip to AOI</span>
+                            <strong>{mpcClipToAoi ? 'Enabled' : 'Disabled'}</strong>
+                          </div>
+                        </div>
+
+                        <div className="si-field-analysis-section">
+                          <div className="si-field-analysis-kicker">Index selection (Result Visualization)</div>
+                          <div className="si-rs-index-grid">
+                            {[
+                              'NDVI',
+                              'NDWI',
+                              'NDMI',
+                              'SAVI',
+                              'EVI',
+                              'GNDVI',
+                              'NBR',
+                              'NDRE',
+                              'BSI',
+                              'MNDWI',
+                            ].map(id => {
+                              const supported = Object.prototype.hasOwnProperty.call(ENVIRONMENTAL_INDICES, id);
+                              const isActive = selectedIndex === (id as EnvironmentalIndexId);
+                              return (
+                                <button
+                                  key={id}
+                                  type="button"
+                                  className={`si-rs-index-chip${isActive ? ' is-active' : ''}`}
+                                  disabled={!supported}
+                                  title={
+                                    supported
+                                      ? `Select ${id} and render inside AOI`
+                                      : `${id} is planned via processing templates / TiTiler pipeline`
+                                  }
+                                  onClick={() => {
+                                    if (!supported) return;
+                                    setSelectedIndex(id as EnvironmentalIndexId);
+                                    setWmsLayer(id);
+                                  }}
+                                >
+                                  <span>{id}</span>
+                                  <small>{supported ? 'ready' : 'planned'}</small>
+                                </button>
+                              );
+                            })}
+                          </div>
+                          <p className="si-field-analysis-hint">
+                            Supported indices render now from the current stack. Planned indices are prepared for dynamic tile processing
+                            (e.g., TiTiler-backed pipelines).
+                          </p>
+                        </div>
+
+                        <div className="si-field-analysis-section">
+                          <div className="si-field-analysis-kicker">AOI tools</div>
+                          <div className="si-rs-actions">
+                            <button type="button" className="si-field-analysis-timeline-btn" onClick={() => applyMapDrawTool('polygon')}>
+                              <i className="fa-solid fa-draw-polygon" aria-hidden /> Draw AOI
+                            </button>
+                            <button type="button" className="si-field-analysis-timeline-btn" onClick={() => setMapDrawTool('select')}>
+                              <i className="fa-solid fa-vector-square" aria-hidden /> Edit AOI
+                            </button>
+                            <button type="button" className="si-field-analysis-timeline-btn" onClick={cancelCurrentDrawing}>
+                              <i className="fa-solid fa-trash" aria-hidden /> Delete AOI
+                            </button>
+                            <button
+                              type="button"
+                              className="si-field-analysis-timeline-btn"
+                              disabled={!drawnGeometry}
+                              onClick={() => {
+                                if (!drawnGeometry) return;
+                                const b = getGeoJsonBounds(drawnGeometry as any);
+                                const map = mapRef.current?.getMap?.() ?? mapRef.current;
+                                if (!b || !map?.fitBounds) return;
+                                map.fitBounds(
+                                  [
+                                    [b[0], b[1]],
+                                    [b[2], b[3]],
+                                  ],
+                                  { padding: 110, duration: 600, maxZoom: 16 },
+                                );
+                              }}
+                            >
+                              <i className="fa-solid fa-crosshairs" aria-hidden /> Zoom to AOI
+                            </button>
+                            <button type="button" className="si-field-analysis-timeline-btn" onClick={generateFieldAnalysisTimeline}>
+                              <i className="fa-solid fa-chart-line" aria-hidden /> Timelapse / time-series
+                            </button>
+                            <button type="button" className="si-field-analysis-timeline-btn" onClick={() => void runMpcTemplateProcessing()}>
+                              <i className="fa-solid fa-layer-group" aria-hidden /> Render result
+                            </button>
+                          </div>
+                        </div>
+
+                        <div className="si-field-analysis-section">
+                          <div className="si-field-analysis-kicker">Map visualization controls</div>
+                          <div className="si-rs-toggle-grid">
+                            <label className="si-rs-toggle-row">
+                              <span>Field boundaries</span>
+                              <input type="checkbox" checked={showFieldBoundaries} onChange={e => setShowFieldBoundaries(e.target.checked)} />
+                            </label>
+                            <label className="si-rs-toggle-row">
+                              <span>Productivity zones / heatmap</span>
+                              <input
+                                type="checkbox"
+                                checked={showProductivityZones}
+                                onChange={e => setShowProductivityZones(e.target.checked)}
+                              />
+                            </label>
+                            <label className="si-rs-toggle-row">
+                              <span>Clip generated raster to AOI</span>
+                              <input type="checkbox" checked={mpcClipToAoi} onChange={e => setMpcClipToAoi(e.target.checked)} />
+                            </label>
+                          </div>
+                          <p className="si-field-analysis-hint">
+                            Includes dynamic color ramps, interactive legends, opacity workflow, layer visibility control, pixel inspection,
+                            temporal comparison, and AOI statistics in map popups.
+                          </p>
+                        </div>
+
+                        <div className="si-field-analysis-section">
+                          <div className="si-field-analysis-kicker">AOI analysis output</div>
+                          <ul className="si-rs-output-list">
+                            <li>Mean index value, Min / Max, vegetation health and moisture condition</li>
+                            <li>Water-stress zones and change-detection areas inside AOI only</li>
+                            <li>Auto-zoom and render results only within the AOI boundary</li>
+                            <li>Export: GeoTIFF, PNG, Vector AOI, JSON stats, CSV reports, interactive dashboard</li>
+                          </ul>
+                          <div className="si-rs-actions si-rs-actions--export">
+                            <button type="button" className="si-field-analysis-timeline-btn" onClick={() => exportDrawn('geojson')}>
+                              <i className="fa-solid fa-file-export" aria-hidden /> Export AOI
+                            </button>
+                            <button type="button" className="si-field-analysis-timeline-btn" onClick={() => exportDrawn('kml')}>
+                              <i className="fa-solid fa-file-lines" aria-hidden /> Export vector AOI
+                            </button>
+                            <button type="button" className="si-field-analysis-timeline-btn" onClick={() => setNetfloraGeneratePdf(v => !v)}>
+                              <i className="fa-solid fa-file-pdf" aria-hidden /> Generate report
+                            </button>
+                          </div>
+                        </div>
+
+                        <p className="si-field-analysis-footer-hint">
+                          Workflow: Select index → Draw/Edit AOI → Search Sentinel-2 (Planetary Computer STAC) → Calculate → Clip to AOI →
+                          Render on map → Generate statistics/charts → Export results.
+                        </p>
                       </div>
                     )}
                     {expandedEnvSection === 'ai-detection-gis' && (
