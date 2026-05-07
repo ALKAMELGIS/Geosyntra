@@ -1731,7 +1731,6 @@ export default function SatelliteIntelligence() {
   const [cloudCoverage, setCloudCoverage] = useState(20);
   const [isTimelinePlaying, setIsTimelinePlaying] = useState(false);
   const [selectedIndex, setSelectedIndex] = useState<EnvironmentalIndexId>('NDWI');
-  const [rsAssistantIndex, setRsAssistantIndex] = useState<string>('NDWI');
   const [selectedPivotId, setSelectedPivotId] = useState('all');
   const [weeklyComposites, setWeeklyComposites] = useState<WeeklyComposite[]>([]);
   const [stacItems, setStacItems] = useState<any[]>([]);
@@ -4215,7 +4214,7 @@ export default function SatelliteIntelligence() {
       LST: 'false_color_s2',
     };
 
-    const activeIndex = options?.forcedIndex || rsAssistantIndex || selectedIndex;
+    const activeIndex = options?.forcedIndex || wmsLayerSelectValue || selectedIndex;
     const template = templateByIndex[activeIndex] ?? 'ndvi_s2';
     const selectedTemplate = LOCAL_PROCESSING_TEMPLATES.find(t => t.id === template);
     const templateCollections = selectedTemplate?.collections ?? ['sentinel-2-l2a'];
@@ -5757,9 +5756,8 @@ export default function SatelliteIntelligence() {
   const wmsLayerSelectValue = useMemo(() => {
     const t = wmsLayer.trim();
     if (t && remoteSensingLayerOptions.some(l => l.id === t)) return t;
-    if (remoteSensingLayerOptions.some(l => l.id === rsAssistantIndex)) return rsAssistantIndex;
     return remoteSensingLayerOptions[0]?.id ?? '';
-  }, [wmsLayer, remoteSensingLayerOptions, rsAssistantIndex]);
+  }, [wmsLayer, remoteSensingLayerOptions]);
 
   const wmsDate = selectedDate.toISOString().split('T')[0];
   const sentinelVisible = isWmsOverlayVisible && !!activeWmsLayer;
@@ -7494,7 +7492,6 @@ export default function SatelliteIntelligence() {
                               onChange={e => {
                                 const v = e.target.value;
                                 setWmsLayer(v);
-                                setRsAssistantIndex(v);
                                 const ids = Object.keys(ENVIRONMENTAL_INDICES) as EnvironmentalIndexId[];
                                 if (ids.includes(v as EnvironmentalIndexId)) setSelectedIndex(v as EnvironmentalIndexId);
                                 setStacConnection(prev => ({
@@ -7568,7 +7565,7 @@ export default function SatelliteIntelligence() {
                               onClick={() =>
                                 void runRsAnalysisFromAssistant({
                                   keepCurrentSection: true,
-                                  forcedIndex: wmsLayerSelectValue || rsAssistantIndex,
+                                  forcedIndex: wmsLayerSelectValue,
                                 })
                               }
                             >
@@ -7634,7 +7631,7 @@ export default function SatelliteIntelligence() {
                     {false && (
                       <div className="si-env-section-card si-field-analysis si-rs-assistant">
                         <div className="si-field-analysis-header">
-                          <h2 className="si-field-analysis-title">RS Analysis Assistant</h2>
+                          <h2 className="si-field-analysis-title">Analysis Panel</h2>
                           <button
                             type="button"
                             className="si-field-analysis-close"
@@ -7652,7 +7649,7 @@ export default function SatelliteIntelligence() {
                           </div>
                           <div className="si-rs-assistant-kpi">
                             <span>Active index</span>
-                            <strong>{rsAssistantIndex}</strong>
+                            <strong>{wmsLayerSelectValue || selectedIndex}</strong>
                           </div>
                           <div className="si-rs-assistant-kpi">
                             <span>Clip to AOI</span>
@@ -7661,7 +7658,7 @@ export default function SatelliteIntelligence() {
                         </div>
 
                         <div className="si-field-analysis-section">
-                          <div className="si-field-analysis-kicker">Index selection (Result Visualization)</div>
+                          <div className="si-field-analysis-kicker">Index selection</div>
                           <div className="si-rs-index-grid">
                             {[
                               'NDVI',
@@ -7676,7 +7673,7 @@ export default function SatelliteIntelligence() {
                               'MNDWI',
                             ].map(id => {
                               const supported = true;
-                              const isActive = rsAssistantIndex === id;
+                              const isActive = (wmsLayerSelectValue || selectedIndex) === id;
                               return (
                                 <button
                                   key={id}
@@ -7689,7 +7686,6 @@ export default function SatelliteIntelligence() {
                                       : `${id} is planned via processing templates / TiTiler pipeline`
                                   }
                                   onClick={() => {
-                                    setRsAssistantIndex(id);
                                     if (Object.prototype.hasOwnProperty.call(ENVIRONMENTAL_INDICES, id)) {
                                       setSelectedIndex(id as EnvironmentalIndexId);
                                       setWmsLayer(id);
@@ -7840,7 +7836,7 @@ export default function SatelliteIntelligence() {
                     {false && (
                       <div className="si-env-section-card si-field-analysis si-rs-assistant">
                         <div className="si-field-analysis-header">
-                          <h2 className="si-field-analysis-title">Result Visualization</h2>
+                          <h2 className="si-field-analysis-title">Visualization</h2>
                           <button
                             type="button"
                             className="si-field-analysis-close"
