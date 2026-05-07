@@ -1594,6 +1594,7 @@ const LOCAL_PROCESSING_TEMPLATES: Array<{ id: MpcTemplateId; label: string; coll
   { id: 'ndvi_landsat', label: 'NDVI (Landsat-8/9)', collections: ['landsat-c2-l2'] },
   { id: 'false_color_landsat', label: 'False Color (Landsat-8/9)', collections: ['landsat-c2-l2'] },
 ];
+const STAC_RESULT_INDEX_OPTIONS = ['NDVI', 'NDWI', 'NDMI', 'SAVI', 'EVI', 'GNDVI', 'NBR', 'NDRE', 'BSI', 'MNDWI'] as const;
 const DEFAULT_MPC_CATALOG_URL = 'https://planetarycomputer.microsoft.com/catalog';
 const DEFAULT_MPC_ACS_ZIP_PATH = 'C:\\Users\\mohamed.abass.WUSOOM\\Downloads\\ACS_Files.zip';
 
@@ -5568,11 +5569,23 @@ export default function SatelliteIntelligence() {
     return selectedIndex;
   }, [wmsLayer, wmsLayers, selectedIndex]);
 
+  const remoteSensingLayerOptions = useMemo(() => {
+    const named = new Map<string, string>();
+    for (const idx of STAC_RESULT_INDEX_OPTIONS) named.set(idx, idx);
+    for (const layer of wmsLayers) {
+      const id = String(layer.name || '').trim();
+      if (!id) continue;
+      named.set(id, String(layer.title || id).trim() || id);
+    }
+    return Array.from(named.entries()).map(([id, label]) => ({ id, label }));
+  }, [wmsLayers]);
+
   const wmsLayerSelectValue = useMemo(() => {
     const t = wmsLayer.trim();
-    if (t && wmsLayers.some(l => l.name === t)) return t;
-    return wmsLayers[0]?.name ?? '';
-  }, [wmsLayer, wmsLayers]);
+    if (t && remoteSensingLayerOptions.some(l => l.id === t)) return t;
+    if (remoteSensingLayerOptions.some(l => l.id === rsAssistantIndex)) return rsAssistantIndex;
+    return remoteSensingLayerOptions[0]?.id ?? '';
+  }, [wmsLayer, remoteSensingLayerOptions, rsAssistantIndex]);
 
   const wmsDate = selectedDate.toISOString().split('T')[0];
   const sentinelVisible = isWmsOverlayVisible && !!activeWmsLayer;
@@ -7279,31 +7292,42 @@ export default function SatelliteIntelligence() {
                               onChange={e => {
                                 const v = e.target.value;
                                 setWmsLayer(v);
+                                setRsAssistantIndex(v);
                                 const ids = Object.keys(ENVIRONMENTAL_INDICES) as EnvironmentalIndexId[];
                                 if (ids.includes(v as EnvironmentalIndexId)) setSelectedIndex(v as EnvironmentalIndexId);
+                                setStacConnection(prev => ({
+                                  ...prev,
+                                  connectionName: 'Planetary Computer',
+                                  presetId: 'planetary-computer',
+                                  customCatalogBaseUrl: '',
+                                }));
                               }}
                               disabled={isLoadingLayers}
                               aria-label="Layer"
                             >
                               {isLoadingLayers ? (
                                 <option value="">Loading Sentinel Hub layers…</option>
-                              ) : wmsLayers.length === 0 ? (
-                                <option value="">No layers — save Sentinel API tokens in System Settings, then reopen</option>
+                              ) : remoteSensingLayerOptions.length === 0 ? (
+                                <option value="">No layers available from STAC catalog.</option>
                               ) : (
-                                wmsLayers.map(layer => (
-                                  <option key={layer.name} value={layer.name}>
-                                    {layer.title}
+                                remoteSensingLayerOptions.map(layer => (
+                                  <option key={layer.id} value={layer.id}>
+                                    {layer.label}
                                   </option>
                                 ))
                               )}
                             </select>
                           </label>
                           <p className="si-field-analysis-hint" style={{ marginTop: 6 }}>
-                            Layers are loaded only from your Sentinel Hub WMS GetCapabilities response for instance{' '}
-                            <span style={{ fontFamily: 'ui-monospace, monospace', fontSize: '10px', opacity: 0.95 }}>
-                              {getSentinelHubWmsInstanceId().slice(0, 8)}…
-                            </span>{' '}
-                            (System Settings → Sentinel API tokens). No synthetic index list is shown here.
+                            Layer list is configured for Planetary Computer STAC API:{' '}
+                            <a
+                              className="si-explore-stac-url"
+                              href="https://planetarycomputer.microsoft.com/api/stac/v1"
+                              target="_blank"
+                              rel="noopener noreferrer"
+                            >
+                              https://planetarycomputer.microsoft.com/api/stac/v1
+                            </a>
                           </p>
                         </div>
 
