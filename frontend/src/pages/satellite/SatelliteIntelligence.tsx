@@ -1676,6 +1676,7 @@ export default function SatelliteIntelligence() {
   const [cloudCoverage, setCloudCoverage] = useState(20);
   const [isTimelinePlaying, setIsTimelinePlaying] = useState(false);
   const [selectedIndex, setSelectedIndex] = useState<EnvironmentalIndexId>('NDWI');
+  const [rsAssistantIndex, setRsAssistantIndex] = useState<string>('NDWI');
   const [selectedPivotId, setSelectedPivotId] = useState('all');
   const [weeklyComposites, setWeeklyComposites] = useState<WeeklyComposite[]>([]);
   const [stacItems, setStacItems] = useState<any[]>([]);
@@ -4105,14 +4106,14 @@ export default function SatelliteIntelligence() {
     }
   };
 
-  const runRsAnalysisFromAssistant = useCallback(async () => {
+  async function runRsAnalysisFromAssistant() {
     if (!drawnGeometry) {
       setFieldAnalysisStatus('Draw AOI first, then press Run Analysis.');
       setMapDrawTool('polygon');
       return;
     }
 
-    const templateByIndex: Partial<Record<EnvironmentalIndexId, MpcTemplateId>> = {
+    const templateByIndex: Record<string, MpcTemplateId> = {
       NDVI: 'ndvi_s2',
       NDMI: 'ndmi_s2',
       NDWI: 'false_color_s2',
@@ -4126,7 +4127,8 @@ export default function SatelliteIntelligence() {
       LST: 'false_color_s2',
     };
 
-    const template = templateByIndex[selectedIndex] ?? 'ndvi_s2';
+    const activeIndex = rsAssistantIndex || selectedIndex;
+    const template = templateByIndex[activeIndex] ?? 'ndvi_s2';
     const selectedTemplate = LOCAL_PROCESSING_TEMPLATES.find(t => t.id === template);
     const templateCollections = selectedTemplate?.collections ?? ['sentinel-2-l2a'];
     setSelectedMpcTemplateId(template);
@@ -4168,19 +4170,14 @@ export default function SatelliteIntelligence() {
     setStacStatus(`Run ready: ${String(target?.id ?? 'scene')} (${template}).`);
     await runMpcTemplateProcessing(template, target);
     setExpandedEnvSection('result-visualization');
-    setFieldAnalysisStatus(`Run completed for ${selectedIndex}. Results rendered inside AOI.`);
-  }, [
-    drawnGeometry,
-    exploreEffectiveDatetime.end,
-    exploreEffectiveDatetime.start,
-    findCompatibleStacItemForTemplate,
-    processingTargetStacItem,
-    resolveExploreAoiFeature,
-    runMpcTemplateProcessing,
-    selectedIndex,
-    timeSeriesEnd,
-    timeSeriesStart,
-  ]);
+    // Keep the legacy environmental index in sync whenever selected RS index is natively supported.
+    if (Object.prototype.hasOwnProperty.call(ENVIRONMENTAL_INDICES, activeIndex)) {
+      setSelectedIndex(activeIndex as EnvironmentalIndexId);
+      setWmsLayer(activeIndex);
+    }
+    generateFieldAnalysisTimeline();
+    setFieldAnalysisStatus(`Run completed for ${activeIndex}. Results rendered inside AOI.`);
+  }
 
   const openAcsPicker = () => {
     setAcsPickerStaging([]);
@@ -7392,7 +7389,7 @@ export default function SatelliteIntelligence() {
                           </div>
                           <div className="si-rs-assistant-kpi">
                             <span>Active index</span>
-                            <strong>{ENVIRONMENTAL_INDICES[selectedIndex].label}</strong>
+                            <strong>{rsAssistantIndex}</strong>
                           </div>
                           <div className="si-rs-assistant-kpi">
                             <span>Clip to AOI</span>
@@ -7415,8 +7412,8 @@ export default function SatelliteIntelligence() {
                               'BSI',
                               'MNDWI',
                             ].map(id => {
-                              const supported = Object.prototype.hasOwnProperty.call(ENVIRONMENTAL_INDICES, id);
-                              const isActive = selectedIndex === (id as EnvironmentalIndexId);
+                              const supported = true;
+                              const isActive = rsAssistantIndex === id;
                               return (
                                 <button
                                   key={id}
@@ -7429,13 +7426,15 @@ export default function SatelliteIntelligence() {
                                       : `${id} is planned via processing templates / TiTiler pipeline`
                                   }
                                   onClick={() => {
-                                    if (!supported) return;
-                                    setSelectedIndex(id as EnvironmentalIndexId);
-                                    setWmsLayer(id);
+                                    setRsAssistantIndex(id);
+                                    if (Object.prototype.hasOwnProperty.call(ENVIRONMENTAL_INDICES, id)) {
+                                      setSelectedIndex(id as EnvironmentalIndexId);
+                                      setWmsLayer(id);
+                                    }
                                   }}
                                 >
                                   <span>{id}</span>
-                                  <small>{supported ? 'ready' : 'planned'}</small>
+                                  <small>{Object.prototype.hasOwnProperty.call(ENVIRONMENTAL_INDICES, id) ? 'ready' : 'auto-template'}</small>
                                 </button>
                               );
                             })}
@@ -7449,13 +7448,34 @@ export default function SatelliteIntelligence() {
                         <div className="si-field-analysis-section">
                           <div className="si-field-analysis-kicker">AOI tools</div>
                           <div className="si-rs-actions">
-                            <button type="button" className="si-field-analysis-timeline-btn" onClick={() => applyMapDrawTool('polygon')}>
+                            <button
+                              type="button"
+                              className="si-field-analysis-timeline-btn"
+                              onClick={() => {
+                                applyMapDrawTool('polygon');
+                                setFieldAnalysisStatus('AOI drawing mode enabled. Draw polygon on map.');
+                              }}
+                            >
                               <i className="fa-solid fa-draw-polygon" aria-hidden /> Draw AOI
                             </button>
-                            <button type="button" className="si-field-analysis-timeline-btn" onClick={() => setMapDrawTool('select')}>
+                            <button
+                              type="button"
+                              className="si-field-analysis-timeline-btn"
+                              onClick={() => {
+                                setMapDrawTool('select');
+                                setFieldAnalysisStatus('AOI edit mode enabled.');
+                              }}
+                            >
                               <i className="fa-solid fa-vector-square" aria-hidden /> Edit AOI
                             </button>
-                            <button type="button" className="si-field-analysis-timeline-btn" onClick={cancelCurrentDrawing}>
+                            <button
+                              type="button"
+                              className="si-field-analysis-timeline-btn"
+                              onClick={() => {
+                                cancelCurrentDrawing();
+                                setFieldAnalysisStatus('AOI deleted. Draw a new AOI to continue.');
+                              }}
+                            >
                               <i className="fa-solid fa-trash" aria-hidden /> Delete AOI
                             </button>
                             <button
@@ -7474,11 +7494,18 @@ export default function SatelliteIntelligence() {
                                   ],
                                   { padding: 110, duration: 600, maxZoom: 16 },
                                 );
+                                setFieldAnalysisStatus('Map zoomed to AOI.');
                               }}
                             >
                               <i className="fa-solid fa-crosshairs" aria-hidden /> Zoom to AOI
                             </button>
-                            <button type="button" className="si-field-analysis-timeline-btn" onClick={generateFieldAnalysisTimeline}>
+                            <button
+                              type="button"
+                              className="si-field-analysis-timeline-btn"
+                              onClick={() => {
+                                generateFieldAnalysisTimeline();
+                              }}
+                            >
                               <i className="fa-solid fa-chart-line" aria-hidden /> Timelapse / time-series
                             </button>
                             <button type="button" className="si-field-analysis-timeline-btn" disabled={isMpcProcessing} onClick={() => void runRsAnalysisFromAssistant()}>
@@ -7522,10 +7549,32 @@ export default function SatelliteIntelligence() {
                             <li>Export: GeoTIFF, PNG, Vector AOI, JSON stats, CSV reports, interactive dashboard</li>
                           </ul>
                           <div className="si-rs-actions si-rs-actions--export">
-                            <button type="button" className="si-field-analysis-timeline-btn" onClick={() => exportDrawn('geojson')}>
+                            <button
+                              type="button"
+                              className="si-field-analysis-timeline-btn"
+                              onClick={() => {
+                                if (!drawnGeometry) {
+                                  setFieldAnalysisStatus('Draw AOI first to export.');
+                                  return;
+                                }
+                                exportDrawn('geojson');
+                                setFieldAnalysisStatus('AOI exported as GeoJSON.');
+                              }}
+                            >
                               <i className="fa-solid fa-file-export" aria-hidden /> Export AOI
                             </button>
-                            <button type="button" className="si-field-analysis-timeline-btn" onClick={() => exportDrawn('kml')}>
+                            <button
+                              type="button"
+                              className="si-field-analysis-timeline-btn"
+                              onClick={() => {
+                                if (!drawnGeometry) {
+                                  setFieldAnalysisStatus('Draw AOI first to export.');
+                                  return;
+                                }
+                                exportDrawn('kml');
+                                setFieldAnalysisStatus('AOI exported as KML.');
+                              }}
+                            >
                               <i className="fa-solid fa-file-lines" aria-hidden /> Export vector AOI
                             </button>
                             <button type="button" className="si-field-analysis-timeline-btn" onClick={() => setNetfloraGeneratePdf(v => !v)}>
@@ -7636,7 +7685,18 @@ export default function SatelliteIntelligence() {
                             <li>Output formats: GeoTIFF, PNG, Vector AOI, JSON statistics, CSV reports, interactive dashboard.</li>
                           </ul>
                           <div className="si-rs-actions si-rs-actions--export">
-                            <button type="button" className="si-field-analysis-timeline-btn" onClick={() => exportDrawn('geojson')}>
+                            <button
+                              type="button"
+                              className="si-field-analysis-timeline-btn"
+                              onClick={() => {
+                                if (!drawnGeometry) {
+                                  setFieldAnalysisStatus('Draw AOI first to export.');
+                                  return;
+                                }
+                                exportDrawn('geojson');
+                                setFieldAnalysisStatus('AOI analysis exported as GeoJSON.');
+                              }}
+                            >
                               <i className="fa-solid fa-file-export" aria-hidden /> Export AOI analysis
                             </button>
                             <button type="button" className="si-field-analysis-timeline-btn" onClick={() => setNetfloraGeneratePdf(v => !v)}>
