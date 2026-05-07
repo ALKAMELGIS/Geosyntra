@@ -378,12 +378,6 @@ export default function AgroEnterpriseDashboard() {
         ? {
             title: 'لوحة المؤسسية',
             subtitle: 'مراقبة، تحليلات مكانية، وإدارة مصادر البيانات.',
-            theme: 'المظهر',
-            themeLight: 'فاتح',
-            themeDark: 'داكن',
-            themeGreen: 'أخضر',
-            themeBlue: 'أزرق',
-            themeOther: 'آخر (كهرماني)',
             overview: 'نظرة عامة',
             map: 'الخريطة',
             analytics: 'التحليلات',
@@ -392,9 +386,6 @@ export default function AgroEnterpriseDashboard() {
             gallery: 'معرض مرئي',
             collapse: 'طي القائمة',
             expand: 'توسيع القائمة',
-            measure: 'قياس مساحة',
-            buffer: 'منطقة عازلة',
-            monitor: 'مراقبة الحقول',
             modalTitle: 'إضافة مصدر إلى السجل',
             gis: 'من محتوى GIS',
             arc: 'رابط ArcGIS',
@@ -408,12 +399,6 @@ export default function AgroEnterpriseDashboard() {
         : {
             title: 'Agro Enterprise',
             subtitle: 'Monitoring, spatial visualization, and multi-source analytics.',
-            theme: 'Theme',
-            themeLight: 'Light',
-            themeDark: 'Dark',
-            themeGreen: 'Green',
-            themeBlue: 'Blue',
-            themeOther: 'Other (amber)',
             overview: 'Overview',
             map: 'Map',
             analytics: 'Analytics',
@@ -422,9 +407,6 @@ export default function AgroEnterpriseDashboard() {
             gallery: 'Visual gallery',
             collapse: 'Collapse',
             expand: 'Expand',
-            measure: 'Area measure',
-            buffer: 'Buffer',
-            monitor: 'Field monitor',
             modalTitle: 'Add layer to registry',
             gis: 'From GIS Content',
             arc: 'ArcGIS URL',
@@ -441,7 +423,6 @@ export default function AgroEnterpriseDashboard() {
   const [sideCollapsed, setSideCollapsed] = useState(false)
   const [nav, setNav] = useState(0)
   const [galleryOpen, setGalleryOpen] = useState(false)
-  const [themeMenuOpen, setThemeMenuOpen] = useState(false)
   const [entTheme, setEntTheme] = useState<AgroEntTheme>('dark')
   const [widgets, setWidgets] = useState<DashWidget[]>([])
   const [sources, setSources] = useState<AgroRegistrySource[]>([])
@@ -534,7 +515,6 @@ export default function AgroEnterpriseDashboard() {
       },
     ])
     setGalleryOpen(false)
-    setThemeMenuOpen(false)
     setNav(2)
   }, [sources])
 
@@ -704,49 +684,6 @@ export default function AgroEnterpriseDashboard() {
               </button>
             ))}
           </nav>
-          <div className="agro-ent-theme-wrap">
-            <button
-              type="button"
-              className="agro-ent-theme-btn"
-              aria-expanded={themeMenuOpen}
-              title={t.theme}
-              onClick={() => {
-                setThemeMenuOpen(o => !o)
-                setGalleryOpen(false)
-              }}
-            >
-              <i className="fa-solid fa-palette" />
-              {!sideCollapsed ? <span className="agro-ent-theme-btn-label">{t.theme}</span> : null}
-            </button>
-            {themeMenuOpen ? (
-              <div className="agro-ent-theme-menu" role="menu" aria-label={t.theme}>
-                {(
-                  [
-                    ['dark', t.themeDark],
-                    ['light', t.themeLight],
-                    ['green', t.themeGreen],
-                    ['blue', t.themeBlue],
-                    ['amber', t.themeOther],
-                  ] as const
-                ).map(([id, lab]) => (
-                  <button
-                    key={id}
-                    type="button"
-                    role="menuitemradio"
-                    aria-checked={entTheme === id}
-                    className={entTheme === id ? 'agro-ent-theme-opt agro-ent-theme-opt--on' : 'agro-ent-theme-opt'}
-                    onClick={() => {
-                      setEntTheme(id)
-                      setThemeMenuOpen(false)
-                    }}
-                  >
-                    <span className={`agro-ent-theme-swatch agro-ent-theme-swatch--${id}`} aria-hidden />
-                    {lab}
-                  </button>
-                ))}
-              </div>
-            ) : null}
-          </div>
           <div className="agro-ent-gallery-wrap">
             <button
               type="button"
@@ -756,7 +693,6 @@ export default function AgroEnterpriseDashboard() {
               title={t.gallery}
               onClick={() => {
                 setGalleryOpen(o => !o)
-                setThemeMenuOpen(false)
               }}
             >
               <i className="fa-solid fa-border-all" aria-hidden />
@@ -935,21 +871,6 @@ export default function AgroEnterpriseDashboard() {
             </div>
           </div>
         </main>
-      </div>
-
-      <div className="agro-ent-float-tools" role="toolbar" aria-label="Spatial tools">
-        <button type="button">
-          <i className="fa-solid fa-ruler-combined" style={{ marginInlineEnd: 6 }} />
-          {t.measure}
-        </button>
-        <button type="button">
-          <i className="fa-solid fa-circle-notch" style={{ marginInlineEnd: 6 }} />
-          {t.buffer}
-        </button>
-        <button type="button">
-          <i className="fa-solid fa-seedling" style={{ marginInlineEnd: 6 }} />
-          {t.monitor}
-        </button>
       </div>
 
       {modal ? (

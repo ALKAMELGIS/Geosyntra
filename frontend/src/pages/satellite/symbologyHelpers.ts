@@ -283,7 +283,11 @@ export function normalizeSymbologyForLayer(
         ? cfgField
         : numericFields[0] || '';
   const next: Required<SymbologyConfig> = {
-    useArcGisOnline: typeof cfg?.useArcGisOnline === 'boolean' ? cfg.useArcGisOnline : baseUseArcGisOnline,
+    useArcGisOnline: baseUseArcGisOnline
+      ? typeof cfg?.useArcGisOnline === 'boolean'
+        ? cfg.useArcGisOnline
+        : baseUseArcGisOnline
+      : false,
     style,
     field,
     classes: clampInt(typeof cfg?.classes === 'number' ? cfg.classes : style === 'unique' ? 12 : 5, 2, 12),

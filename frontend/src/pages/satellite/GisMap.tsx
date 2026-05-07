@@ -7333,7 +7333,13 @@ export default function GisMap() {
             <div className="gis-modal-body">
               <div className="gis-style-hero">
                 <div className="gis-style-subtitle">Choose an attribute and visualization style. Preview updates live on the map.</div>
-                <label className="gis-style-check">
+                <label
+                  className={`gis-style-check${
+                    symbologyLayer.source !== 'arcgis' && !symbologyDialog.draft.useArcGisOnline
+                      ? ' gis-style-check--disabled'
+                      : ''
+                  }`}
+                >
                   <input
                     type="checkbox"
                     checked={symbologyDialog.draft.useArcGisOnline}
@@ -7345,7 +7351,7 @@ export default function GisMap() {
                         updateSymbologyDraft({ useArcGisOnline: false })
                       }
                     }}
-                    disabled={symbologyLayer.source !== 'arcgis'}
+                    disabled={symbologyLayer.source !== 'arcgis' && !symbologyDialog.draft.useArcGisOnline}
                   />
                   <span>Use ArcGIS Online symbology</span>
                 </label>

@@ -48,6 +48,23 @@ type StatCardRow = {
   layerName: string
 }
 
+/** Map ↔ canvas charts cross-filter (same join field as stats / X axis when possible). */
+type CanvasFeatureFocus = {
+  layerKey: string
+  joinField: string
+  joinValue: string
+}
+
+/** Develop canvas chart axis tick/grid/border colors (matches ddbChartOptionsFor defaults). */
+type DdbAxisColors = {
+  xTick: string
+  yTick: string
+  xGrid: string
+  yGrid: string
+  xBorder: string
+  yBorder: string
+}
+
 /** One placed visual on the canvas (same chart type may appear many times — Power BI style). */
 type CanvasVisualSlot = {
   instanceId: string
@@ -113,6 +130,92 @@ function ddbStrHash(s: string): number {
   let h = 0
   for (let i = 0; i < s.length; i++) h = (Math.imul(31, h) + s.charCodeAt(i)) | 0
   return Math.abs(h)
+}
+
+/** Shared ID / axis field to link map features ↔ chart categories (OBJECTID preferred). */
+function ddbResolveCrossfilterJoinField(layer: LayerState | undefined, xAxisWell: string): string {
+  if (!layer?.fields?.length) return 'OBJECTID'
+  if (layer.fields.includes('OBJECTID')) return 'OBJECTID'
+  if (layer.fields.includes('objectid')) return 'objectid'
+  if (layer.fields.includes('FID')) return 'FID'
+  if (layer.fields.includes('fid')) return 'fid'
+  if (xAxisWell && layer.fields.includes(xAxisWell)) return xAxisWell
+  return layer.fields[0] ?? 'OBJECTID'
+}
+
+/** Dim non-selected rows/slices/points after palette (map selection ↔ charts). */
+function ddbApplyChartRowHighlight(chart: Chart, rowIdx: number | null) {
+  if (rowIdx === null) return
+  const dim = 'rgba(148, 163, 184, 0.42)'
+  const type = String((chart.config as { type?: string }).type ?? '')
+  const labels = (chart.data.labels ?? []) as unknown[]
+  const nLab = labels.length
+  const datasets = chart.data.datasets as any[]
+
+  const applyBarDataset = (ds: any, len: number) => {
+    const bc = ds.backgroundColor
+    const border = ds.borderColor
+    if (Array.isArray(bc)) {
+      ds.backgroundColor = bc.map((c: string, i: number) => (i === rowIdx ? c : dim))
+    } else if (typeof bc === 'string') {
+      ds.backgroundColor = Array.from({ length: len }, (_, i) => (i === rowIdx ? bc : dim))
+    }
+    if (typeof border === 'string') {
+      ds.borderColor = Array.from({ length: len }, (_, i) => (i === rowIdx ? border : dim))
+    } else if (Array.isArray(border)) {
+      ds.borderColor = border.map((c: string, i: number) => (i === rowIdx ? c : dim))
+    }
+  }
+
+  if (type === 'pie' || type === 'doughnut' || type === 'polarArea') {
+    const ds = datasets[0]
+    const n = Array.isArray(ds?.data) ? ds.data.length : nLab
+    if (rowIdx < 0 || rowIdx >= n) return
+    if (ds?.backgroundColor && Array.isArray(ds.backgroundColor)) {
+      ds.backgroundColor = ds.backgroundColor.map((c: string, i: number) => (i === rowIdx ? c : dim))
+      if (Array.isArray(ds.hoverBackgroundColor)) {
+        ds.hoverBackgroundColor = ds.hoverBackgroundColor.map((c: string, i: number) => (i === rowIdx ? c : dim))
+      }
+    }
+    chart.update('none')
+    return
+  }
+
+  if (type === 'radar') {
+    const ds = datasets[0]
+    const n = Array.isArray(ds?.data) ? ds.data.length : nLab
+    if (rowIdx < 0 || rowIdx >= n) return
+    const solid = typeof ds.borderColor === 'string' ? ds.borderColor : '#15803d'
+    ds.pointBackgroundColor = Array.from({ length: n }, (_, i) => (i === rowIdx ? solid : dim))
+    ds.pointBorderColor = '#ffffff'
+    chart.update('none')
+    return
+  }
+
+  datasets.forEach(ds => {
+    const lt = String(ds.type || type || '')
+    const len = Array.isArray(ds.data) ? ds.data.length : nLab
+    if (!len || rowIdx < 0 || rowIdx >= len) return
+    if (lt === 'line') {
+      const border = typeof ds.borderColor === 'string' ? ds.borderColor : '#15803d'
+      ds.pointRadius = Array.from({ length: len }, (_, i) => (i === rowIdx ? 9 : 3.2))
+      ds.pointHoverRadius = Array.from({ length: len }, (_, i) => (i === rowIdx ? 11 : 5))
+      ds.pointBackgroundColor = Array.from({ length: len }, (_, i) => (i === rowIdx ? border : dim))
+      ds.pointBorderColor = Array.from({ length: len }, (_, i) => (i === rowIdx ? '#ffffff' : dim))
+      return
+    }
+    if (lt === 'scatter' || lt === 'bubble') {
+      const border = typeof ds.borderColor === 'string' ? ds.borderColor : '#15803d'
+      ds.pointRadius = Array.from({ length: len }, (_, i) => (i === rowIdx ? 8 : 4))
+      ds.backgroundColor = Array.from({ length: len }, (_, i) => (i === rowIdx ? border : dim))
+      return
+    }
+    if (lt === 'bar') {
+      applyBarDataset(ds, len)
+    }
+  })
+
+  chart.update('none')
 }
 
 /** Visualization grid → which “Build visual” wells to show (Power BI style). */
@@ -185,6 +288,155 @@ const DDB_MINI_CHART_TOOLS: Array<{ kind: DdbMiniChartKind; icon: string; label:
   { kind: 'polarArea', icon: 'fa-chart-pie', label: 'Polar area' },
 ]
 
+const DDB_CHART_AXIS_COLORS_LS = 'ddb-develop-chart-axis-colors-v1'
+
+const DDB_AXIS_COLORS_DEFAULT: DdbAxisColors = {
+  xTick: '#475569',
+  yTick: '#475569',
+  xGrid: 'rgba(148, 163, 184, 0.22)',
+  yGrid: 'rgba(148, 163, 184, 0.22)',
+  xBorder: 'rgba(148, 163, 184, 0.28)',
+  yBorder: 'rgba(148, 163, 184, 0.28)',
+}
+
+function ddbHexToRgba(hex: string, alpha: number): string {
+  let h = hex.replace('#', '').trim()
+  if (h.length === 3) {
+    h = h
+      .split('')
+      .map(ch => ch + ch)
+      .join('')
+  }
+  if (h.length !== 6) return `rgba(71, 85, 105, ${alpha})`
+  const n = parseInt(h, 16)
+  if (Number.isNaN(n)) return `rgba(71, 85, 105, ${alpha})`
+  const r = (n >> 16) & 255
+  const g = (n >> 8) & 255
+  const b = n & 255
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`
+}
+
+function ddbAxisColorsFromXYHex(xHex: string, yHex: string): DdbAxisColors {
+  const nx = xHex.startsWith('#') ? xHex : `#${xHex}`
+  const ny = yHex.startsWith('#') ? yHex : `#${yHex}`
+  return {
+    xTick: nx,
+    yTick: ny,
+    xGrid: ddbHexToRgba(nx, 0.22),
+    yGrid: ddbHexToRgba(ny, 0.22),
+    xBorder: ddbHexToRgba(nx, 0.28),
+    yBorder: ddbHexToRgba(ny, 0.28),
+  }
+}
+
+function ddbTickColorToColorInputValue(tick: string): string {
+  if (typeof tick !== 'string') return '#475569'
+  const t = tick.trim()
+  if (t.startsWith('#')) {
+    if (t.length === 7) return t
+    if (t.length === 4) {
+      const r = t[1]!
+      const g = t[2]!
+      const b = t[3]!
+      return `#${r}${r}${g}${g}${b}${b}`
+    }
+  }
+  const m = t.match(/rgba?\s*\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)/i)
+  if (m) {
+    const r = Number(m[1])
+    const g = Number(m[2])
+    const b = Number(m[3])
+    const hx = (n: number) => Math.max(0, Math.min(255, n)).toString(16).padStart(2, '0')
+    return `#${hx(r)}${hx(g)}${hx(b)}`
+  }
+  return '#475569'
+}
+
+function loadDdbAxisColors(): DdbAxisColors {
+  if (typeof window === 'undefined') return { ...DDB_AXIS_COLORS_DEFAULT }
+  try {
+    const raw = localStorage.getItem(DDB_CHART_AXIS_COLORS_LS)
+    if (!raw) return { ...DDB_AXIS_COLORS_DEFAULT }
+    const o = JSON.parse(raw) as Partial<DdbAxisColors>
+    return { ...DDB_AXIS_COLORS_DEFAULT, ...o }
+  } catch {
+    return { ...DDB_AXIS_COLORS_DEFAULT }
+  }
+}
+
+function persistDdbAxisColors(c: DdbAxisColors) {
+  if (typeof window === 'undefined') return
+  try {
+    localStorage.setItem(DDB_CHART_AXIS_COLORS_LS, JSON.stringify(c))
+  } catch {
+    /* ignore */
+  }
+}
+
+function ddbApplyAxisColorsToChartOptions(
+  options: Record<string, unknown>,
+  colors: DdbAxisColors,
+): Record<string, unknown> {
+  const opt = { ...options }
+  const scales = opt.scales as Record<string, Record<string, unknown>> | undefined
+  if (!scales?.x || !scales?.y) return opt
+  const x = { ...scales.x }
+  const y = { ...scales.y }
+  const xTicks = { ...(x.ticks as Record<string, unknown> | undefined) }
+  const yTicks = { ...(y.ticks as Record<string, unknown> | undefined) }
+  const xGrid = { ...(x.grid as Record<string, unknown> | undefined) }
+  const yGrid = { ...(y.grid as Record<string, unknown> | undefined) }
+  const xBorder = { ...(x.border as Record<string, unknown> | undefined) }
+  const yBorder = { ...(y.border as Record<string, unknown> | undefined) }
+  xTicks.color = colors.xTick
+  yTicks.color = colors.yTick
+  xGrid.color = colors.xGrid
+  yGrid.color = colors.yGrid
+  xBorder.color = colors.xBorder
+  yBorder.color = colors.yBorder
+  x.ticks = xTicks
+  y.ticks = yTicks
+  x.grid = xGrid
+  y.grid = yGrid
+  x.border = xBorder
+  y.border = yBorder
+  opt.scales = { ...scales, x, y }
+  return opt
+}
+
+function ddbApplyAxisColorsToChart(chart: Chart, colors: DdbAxisColors) {
+  const opt = chart.options as { scales?: { x?: { ticks?: { color?: string }; grid?: { color?: string }; border?: { color?: string } }; y?: { ticks?: { color?: string }; grid?: { color?: string }; border?: { color?: string } } } }
+  if (!opt?.scales?.x || !opt?.scales?.y) return
+  const sx = opt.scales.x
+  const sy = opt.scales.y
+  if (sx.ticks) sx.ticks.color = colors.xTick
+  if (sx.grid) sx.grid.color = colors.xGrid
+  if (sx.border) sx.border.color = colors.xBorder
+  if (sy.ticks) sy.ticks.color = colors.yTick
+  if (sy.grid) sy.grid.color = colors.yGrid
+  if (sy.border) sy.border.color = colors.yBorder
+  chart.update('none')
+}
+
+function ddbFlyMapToFeature(map: L.Map | null, feat: GeoJSON.Feature | undefined) {
+  if (!map || !feat?.geometry) return
+  const g = feat.geometry
+  if (g.type === 'Point') {
+    const c = g.coordinates as number[]
+    const lng = c[0]!
+    const lat = c[1]!
+    map.flyTo([lat, lng], Math.min(16, Math.max(map.getZoom(), 13)), { duration: 0.45 })
+    return
+  }
+  try {
+    const layer = L.geoJSON(feat as GeoJSON.GeoJsonObject)
+    const b = layer.getBounds()
+    if (b.isValid()) map.fitBounds(b, { padding: [40, 40], maxZoom: 16 })
+  } catch {
+    /* ignore */
+  }
+}
+
 function ddbChartZoomPluginConfig(): Record<string, unknown> {
   return {
     limits: {
@@ -213,10 +465,15 @@ function ddbChartZoomPluginConfig(): Record<string, unknown> {
 function ddbChartOptionsFor(
   chartJsType: string,
   modifiers?: { stacked?: boolean; indexAxis?: 'x' | 'y' },
+  axisOverrides?: Partial<DdbAxisColors>,
 ): Record<string, unknown> {
   const radial = chartJsType === 'pie' || chartJsType === 'doughnut' || chartJsType === 'polarArea' || chartJsType === 'radar'
   const dpr =
     typeof window !== 'undefined' ? Math.min(3, Math.max(1.5, window.devicePixelRatio || 1)) : 2
+  const ax: DdbAxisColors = {
+    ...DDB_AXIS_COLORS_DEFAULT,
+    ...axisOverrides,
+  }
   const base: Record<string, unknown> = {
     responsive: true,
     maintainAspectRatio: false,
@@ -234,15 +491,15 @@ function ddbChartOptionsFor(
     ;(base.plugins as Record<string, unknown>).zoom = ddbChartZoomPluginConfig()
     const xScale: Record<string, unknown> = {
       stacked: Boolean(modifiers?.stacked),
-      ticks: { maxRotation: 0, font: { size: 10, weight: '600' }, color: '#475569' },
-      grid: { color: 'rgba(148, 163, 184, 0.22)', lineWidth: 1 },
-      border: { color: 'rgba(148, 163, 184, 0.28)' },
+      ticks: { maxRotation: 0, font: { size: 10, weight: '600' }, color: ax.xTick },
+      grid: { color: ax.xGrid, lineWidth: 1 },
+      border: { color: ax.xBorder },
     }
     const yScale: Record<string, unknown> = {
       stacked: Boolean(modifiers?.stacked),
-      ticks: { font: { size: 10, weight: '600' }, color: '#475569' },
-      grid: { color: 'rgba(148, 163, 184, 0.22)', lineWidth: 1 },
-      border: { color: 'rgba(148, 163, 184, 0.28)' },
+      ticks: { font: { size: 10, weight: '600' }, color: ax.yTick },
+      grid: { color: ax.yGrid, lineWidth: 1 },
+      border: { color: ax.yBorder },
     }
     base.scales = { x: xScale, y: yScale }
     if (modifiers?.indexAxis === 'y') {
@@ -636,6 +893,110 @@ function ddbSyncSvgLegend(chart: Chart) {
   })
 }
 
+function ddbFormatDevelopLegendNumber(n: number): string {
+  if (!Number.isFinite(n)) return '—'
+  const abs = Math.abs(n)
+  if (abs >= 1e12 || (abs > 0 && abs < 1e-6)) return n.toExponential(2)
+  return n.toLocaleString(undefined, { maximumFractionDigits: 2 })
+}
+
+/** Legend rows for Table / Matrix on Develop canvas — aligns with global chart palette and Legend field binding. */
+function ddbLegendItemsFromLayerField(
+  features: GeoJSON.Feature[],
+  field: string,
+  paletteColors: string[],
+  opts?: { maxCategories?: number; numericBins?: number; sampleCap?: number },
+): Array<{ label: string; color: string }> {
+  const maxCats = opts?.maxCategories ?? 12
+  const numBins = opts?.numericBins ?? 5
+  const cap = opts?.sampleCap ?? 2500
+  const subset = features.slice(0, Math.min(features.length, cap))
+  const vals: unknown[] = []
+  for (const f of subset) {
+    const v = (f.properties as Record<string, unknown>)?.[field]
+    if (v !== undefined && v !== null && String(v).length > 0) vals.push(v)
+  }
+  if (!vals.length || !paletteColors.length) return []
+
+  const nums = vals.map(v => parseFloat(String(v))).filter(n => Number.isFinite(n))
+  const numericRatio = vals.length ? nums.length / vals.length : 0
+
+  if (numericRatio >= 0.88 && nums.length >= 3) {
+    const sorted = [...nums].sort((a, b) => a - b)
+    const min = sorted[0]!
+    const max = sorted[sorted.length - 1]!
+    const col = (i: number) => paletteColors[i % paletteColors.length] ?? '#64748b'
+    if (min === max) return [{ label: ddbFormatDevelopLegendNumber(min), color: col(0) }]
+    const k = Math.min(numBins, maxCats, sorted.length)
+    const items: Array<{ label: string; color: string }> = []
+    for (let i = 0; i < k; i++) {
+      const lo = min + ((max - min) * i) / k
+      const hi = min + ((max - min) * (i + 1)) / k
+      items.push({
+        label: `${ddbFormatDevelopLegendNumber(lo)} – ${ddbFormatDevelopLegendNumber(hi)}`,
+        color: col(i),
+      })
+    }
+    return items
+  }
+
+  const uniq = new Map<string, number>()
+  for (const v of vals) uniq.set(String(v), (uniq.get(String(v)) ?? 0) + 1)
+  const sortedKeys = [...uniq.keys()].sort((a, b) => a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' }))
+  return sortedKeys.slice(0, maxCats).map((key, i) => ({
+    label: key.length > 56 ? `${key.slice(0, 53)}…` : key,
+    color: paletteColors[i % paletteColors.length] ?? '#64748b',
+  }))
+}
+
+/** DOM legend under Develop canvas tables — mirrors map/chart palette (symbology field = Legend well). */
+function ddbAttachDevelopTableLegend(
+  card: HTMLElement,
+  legendTitle: string,
+  items: Array<{ label: string; color: string }>,
+  hint?: string,
+) {
+  card.querySelector('.ddb-table-visual-legend')?.remove()
+  const wrap = document.createElement('div')
+  wrap.className = 'ddb-table-visual-legend'
+  wrap.setAttribute('role', 'legend')
+  const titleEl = document.createElement('div')
+  titleEl.className = 'ddb-table-visual-legend__title'
+  titleEl.textContent = legendTitle
+  wrap.appendChild(titleEl)
+  if (hint) {
+    const p = document.createElement('p')
+    p.className = 'ddb-table-visual-legend__hint'
+    p.textContent = hint
+    wrap.appendChild(p)
+  }
+  if (items.length) {
+    const list = document.createElement('div')
+    list.className = 'ddb-table-visual-legend__list'
+    for (const it of items) {
+      const row = document.createElement('div')
+      row.className = 'ddb-table-visual-legend__row'
+      const line = document.createElement('span')
+      line.className = 'ddb-table-visual-legend__line'
+      line.setAttribute('aria-hidden', 'true')
+      line.style.background = it.color
+      const lab = document.createElement('span')
+      lab.className = 'ddb-table-visual-legend__label'
+      lab.textContent = it.label
+      row.appendChild(line)
+      row.appendChild(lab)
+      list.appendChild(row)
+    }
+    wrap.appendChild(list)
+  }
+
+  const responsive = card.querySelector('.ddb-table-responsive')
+  const bodyPad = card.querySelector('.ddb-visual-card__body-pad')
+  if (responsive) responsive.insertAdjacentElement('afterend', wrap)
+  else if (bodyPad) bodyPad.appendChild(wrap)
+  else card.appendChild(wrap)
+}
+
 function ddbApplyChartPalette(target: Chart, paletteKey: string) {
   const colors = DDB_CHART_PALETTE_MAP[paletteKey] ?? DDB_CHART_PALETTE_MAP.emerald
   target.data.datasets.forEach((dataset: any, idx) => {
@@ -701,6 +1062,9 @@ function ddbPromoteVisualCardChrome(
     onClose?: () => void
     /** Highlights the active scheme in the palette dropdown (global canvas palette). */
     activePaletteKey?: string
+    /** Axis tick colors (global): paired with `onAxisColorsChange` for palette menu controls. */
+    getAxisColors?: () => DdbAxisColors
+    onAxisColorsChange?: (next: DdbAxisColors) => void
   },
 ): {
   header: HTMLDivElement
@@ -810,8 +1174,48 @@ function ddbPromoteVisualCardChrome(
   const paletteMenu = document.createElement('div')
   paletteMenu.className = 'ddb-visual-card__palette-menu'
   paletteMenu.hidden = true
-  paletteMenu.innerHTML = ddbBuildChartPaletteMenuHtml(opts.activePaletteKey ?? 'violet')
+  let paletteHtml = ddbBuildChartPaletteMenuHtml(opts.activePaletteKey ?? 'violet')
+  if (opts.getAxisColors && opts.onAxisColorsChange) {
+    const ax = opts.getAxisColors()
+    const xv = ddbTickColorToColorInputValue(ax.xTick)
+    const yv = ddbTickColorToColorInputValue(ax.yTick)
+    paletteHtml += `<div class="ddb-visual-card__palette-axis" role="group" aria-label="Axis colors">
+      <div class="ddb-visual-card__palette-axis-title">Axis colors</div>
+      <label class="ddb-visual-card__palette-axis-row"><span>X axis</span><input type="color" data-ddb-axis-x value="${xv}" title="X axis tick color" /></label>
+      <label class="ddb-visual-card__palette-axis-row"><span>Y axis</span><input type="color" data-ddb-axis-y value="${yv}" title="Y axis tick color" /></label>
+      <button type="button" class="ddb-btn ddb-small-btn ddb-visual-card__palette-axis-reset" data-ddb-axis-reset>Reset axis colors</button>
+    </div>`
+  }
+  paletteMenu.innerHTML = paletteHtml
   header.appendChild(paletteMenu)
+
+  const syncAxisColorInputs = () => {
+    if (!opts.getAxisColors) return
+    const ax = opts.getAxisColors()
+    const xIn = paletteMenu.querySelector('[data-ddb-axis-x]') as HTMLInputElement | null
+    const yIn = paletteMenu.querySelector('[data-ddb-axis-y]') as HTMLInputElement | null
+    if (xIn) xIn.value = ddbTickColorToColorInputValue(ax.xTick)
+    if (yIn) yIn.value = ddbTickColorToColorInputValue(ax.yTick)
+  }
+
+  if (opts.getAxisColors && opts.onAxisColorsChange) {
+    const xIn = paletteMenu.querySelector('[data-ddb-axis-x]') as HTMLInputElement | null
+    const yIn = paletteMenu.querySelector('[data-ddb-axis-y]') as HTMLInputElement | null
+    const commitAxis = () => {
+      if (!xIn || !yIn) return
+      opts.onAxisColorsChange!(ddbAxisColorsFromXYHex(xIn.value, yIn.value))
+    }
+    xIn?.addEventListener('input', commitAxis)
+    yIn?.addEventListener('input', commitAxis)
+    paletteMenu.querySelector('[data-ddb-axis-reset]')?.addEventListener('click', e => {
+      e.preventDefault()
+      e.stopPropagation()
+      const d = { ...DDB_AXIS_COLORS_DEFAULT }
+      if (xIn) xIn.value = ddbTickColorToColorInputValue(d.xTick)
+      if (yIn) yIn.value = ddbTickColorToColorInputValue(d.yTick)
+      opts.onAxisColorsChange!(d)
+    })
+  }
 
   const anchorMenuToButton = (menuEl: HTMLDivElement, btnEl: HTMLButtonElement | null) => {
     if (!btnEl || menuEl.hidden) return
@@ -886,7 +1290,10 @@ function ddbPromoteVisualCardChrome(
       const open = willOpen
       btn.setAttribute('aria-expanded', open ? 'true' : 'false')
       btn.classList.toggle('is-active', open)
-      if (open) requestAnimationFrame(() => anchorMenuToButton(paletteMenu, btn))
+      if (open) {
+        syncAxisColorInputs()
+        requestAnimationFrame(() => anchorMenuToButton(paletteMenu, btn))
+      }
     }
     menu.hidden = true
     filterPanel.hidden = true
@@ -1718,6 +2125,11 @@ export default function DevelopDashboard() {
   const chartInstancesRef = useRef<Chart[]>([])
   /** Global chart palette for all Chart.js visuals on the canvas (persisted). */
   const chartPaletteKeyRef = useRef<string>(loadDdbChartPalette())
+  /** Global axis tick/grid/border colors for Cartesian charts (persisted). */
+  const chartAxisColorsRef = useRef<DdbAxisColors>(loadDdbAxisColors())
+  /** Row index in the bound layer’s feature list for map-driven chart highlight (synced in renderCharts). */
+  const canvasChartFocusIdxRef = useRef<number | null>(null)
+  const [canvasFeatureFocus, setCanvasFeatureFocus] = useState<CanvasFeatureFocus | null>(null)
 
   const [layers, setLayers] = useState<Record<string, LayerState>>(() => getDdbInitialRegistry().layers)
   const [activeStatsLayer, setActiveStatsLayer] = useState(() => {
@@ -1918,7 +2330,10 @@ export default function DevelopDashboard() {
       attribution: '© CartoDB',
     }).addTo(map)
     mapRef.current = map
+    const clearMapSelection = () => setCanvasFeatureFocus(null)
+    map.on('click', clearMapSelection)
     return () => {
+      map.off('click', clearMapSelection)
       try {
         mapMeasureLineRef.current?.remove()
       } catch {
@@ -1992,6 +2407,18 @@ export default function DevelopDashboard() {
   }, [layerKeys, layers])
 
   useEffect(() => {
+    setCanvasFeatureFocus(null)
+  }, [bindLayerKey])
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setCanvasFeatureFocus(null)
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [])
+
+  useEffect(() => {
     const map = mapRef.current
     if (!map || !Object.keys(layers).length) return
     for (const layer of Object.values(leafletRef.current)) {
@@ -2012,6 +2439,16 @@ export default function DevelopDashboard() {
           onEachFeature: (f, l) => {
             const props = (f.properties ?? {}) as Record<string, unknown>
             l.bindPopup(String(props.Farm_Name ?? props.Crop_Type ?? 'Feature'))
+            l.on('click', e => {
+              L.DomEvent.stopPropagation(e)
+              const lyrState = layers[key]
+              const jf = ddbResolveCrossfilterJoinField(lyrState, cartesianWells.xAxis)
+              if (!jf || props[jf] === undefined || props[jf] === null) return
+              const val = String(props[jf])
+              setCanvasFeatureFocus(prev =>
+                prev?.layerKey === key && prev.joinValue === val ? null : { layerKey: key, joinField: jf, joinValue: val },
+              )
+            })
           },
         })
         gj.addTo(map)
@@ -2019,7 +2456,7 @@ export default function DevelopDashboard() {
       }
       /* Table layers have no geometry: do not plot synthetic markers on the map. */
     }
-  }, [layers])
+  }, [layers, cartesianWells.xAxis])
 
   /** Optional point layer from Latitude / Longitude attribute columns (Map / Field Map / Filled Map wells). */
   useEffect(() => {
@@ -2079,6 +2516,15 @@ export default function DevelopDashboard() {
       }
       if (!tipLines.length && legK && p[legK] != null) tipLines.push(`${legK}: ${String(p[legK])}`)
       mk.bindPopup(tipLines.length ? tipLines.join('<br/>') : 'Point')
+      const jf = ddbResolveCrossfilterJoinField(lyr, cartesianWells.xAxis)
+      mk.on('click', e => {
+        L.DomEvent.stopPropagation(e)
+        if (!bindLayerKey || !jf || p[jf] === undefined || p[jf] === null) return
+        const val = String(p[jf])
+        setCanvasFeatureFocus(prev =>
+          prev?.layerKey === bindLayerKey && prev.joinValue === val ? null : { layerKey: bindLayerKey, joinField: jf, joinValue: val },
+        )
+      })
       mk.addTo(group)
     })
 
@@ -2101,7 +2547,7 @@ export default function DevelopDashboard() {
       }
       if (leafletRef.current.__ddbLatLngMarkers === group) delete leafletRef.current.__ddbLatLngMarkers
     }
-  }, [bindLayerKey, layers, mapFieldWells, mapTooltipFieldPicks])
+  }, [bindLayerKey, layers, mapFieldWells, mapTooltipFieldPicks, cartesianWells.xAxis])
 
   const destroyCharts = useCallback(() => {
     chartInstancesRef.current.forEach(c => c.destroy())
@@ -2149,6 +2595,23 @@ export default function DevelopDashboard() {
 
     const paletteKeyForMenus = chartPaletteKeyRef.current
 
+    const applyGlobalAxisColors = (next: DdbAxisColors) => {
+      chartAxisColorsRef.current = next
+      persistDdbAxisColors(next)
+      requestAnimationFrame(() => {
+        chartInstancesRef.current.forEach(ch => {
+          ddbApplyAxisColorsToChart(ch, next)
+          ddbApplyChartPalette(ch, chartPaletteKeyRef.current)
+          ddbApplyChartRowHighlight(ch, canvasChartFocusIdxRef.current)
+        })
+      })
+    }
+
+    const axisChromeOpts = {
+      getAxisColors: () => chartAxisColorsRef.current,
+      onAxisColorsChange: applyGlobalAxisColors,
+    }
+
     const layer = bindLayerKey ? layers[bindLayerKey] : undefined
     const hasLayerData = !!(layer?.data?.features?.length)
 
@@ -2182,6 +2645,26 @@ export default function DevelopDashboard() {
       values = features.slice(0, 8).map(f => parseFloat(String((f.properties as any)?.[primaryNum] ?? 0)) || 0)
     }
 
+    let chartFocusIdx: number | null = null
+    if (canvasFeatureFocus && bindLayerKey && canvasFeatureFocus.layerKey === bindLayerKey && hasLayerData) {
+      const jf = canvasFeatureFocus.joinField
+      const nChart = Math.min(8, features.length)
+      for (let i = 0; i < nChart; i++) {
+        const pv = (features[i]?.properties as Record<string, unknown>)?.[jf]
+        if (pv !== undefined && pv !== null && String(pv) === canvasFeatureFocus.joinValue) {
+          chartFocusIdx = i
+          break
+        }
+      }
+    }
+    canvasChartFocusIdxRef.current = chartFocusIdx
+
+    const joinFieldForCrossfilter =
+      hasLayerData && layer ? ddbResolveCrossfilterJoinField(layer, cartesianWells.xAxis) : 'OBJECTID'
+    const chartJoinValuesSlice = features.slice(0, 8).map(f =>
+      String((f.properties as Record<string, unknown>)?.[joinFieldForCrossfilter] ?? ''),
+    )
+
     const addChartCard = (instanceId: string, title: string, type: string, dataConfig: any) => {
       const card = document.createElement('div')
       card.className = 'ddb-visual-card'
@@ -2214,7 +2697,13 @@ export default function DevelopDashboard() {
       }
       const filterSourceLabels = [...labels]
       const filterSourceValues = [...values]
-      const base = { labels: [...labels], values: [...values], datasetLabel }
+      const filterSourceJoinValues = filterSourceLabels.map((_, i) => chartJoinValuesSlice[i] ?? '')
+      const base = {
+        labels: [...labels],
+        values: [...values],
+        datasetLabel,
+        joinValues: [...filterSourceJoinValues],
+      }
       let sortKey: 'label' | 'value' = 'label'
       let sortDir: 'asc' | 'desc' = 'asc'
       let calcMode:
@@ -2237,6 +2726,7 @@ export default function DevelopDashboard() {
         initialMini,
         activePaletteKey: paletteKeyForMenus,
         onClose: () => removeCanvasVisualByInstanceId(instanceId),
+        ...axisChromeOpts,
       })
       if (!chrome) return
 
@@ -2292,6 +2782,7 @@ export default function DevelopDashboard() {
         if (!idxOn.length) return
         base.labels = idxOn.map(i => filterSourceLabels[i] ?? '')
         base.values = idxOn.map(i => filterSourceValues[i] ?? 0)
+        base.joinValues = idxOn.map(i => filterSourceJoinValues[i] ?? '')
       }
 
       applyFilterBtn?.addEventListener('click', () => {
@@ -2321,8 +2812,23 @@ export default function DevelopDashboard() {
       }
       syncPaletteUi()
 
+      const setCrossfilterFromChartIndex = (idx: number) => {
+        if (!bindLayerKey || !hasLayerData) return
+        const jv = base.joinValues[idx]
+        if (jv === undefined || jv === '') return
+        setCanvasFeatureFocus(prev =>
+          prev?.layerKey === bindLayerKey && prev.joinValue === jv
+            ? null
+            : { layerKey: bindLayerKey, joinField: joinFieldForCrossfilter, joinValue: jv },
+        )
+        const feat = features.find(
+          f => String((f.properties as Record<string, unknown>)?.[joinFieldForCrossfilter] ?? '') === jv,
+        )
+        ddbFlyMapToFeature(mapRef.current, feat)
+      }
+
       const rebuild = (kind: DdbMiniChartKind) => {
-        const built = ddbBuildChartFromMiniKind(kind, base)
+        const built = ddbBuildChartFromMiniKind(kind, base as { labels: string[]; values: number[]; datasetLabel: string })
         const prev = chartRef
         if (prev) {
           const idx = chartInstancesRef.current.indexOf(prev)
@@ -2330,9 +2836,17 @@ export default function DevelopDashboard() {
           prev.destroy()
         }
         chartRef = null
-        const opt = { ...(ddbChartOptionsFor(built.type, built.modifiers) as any) }
+        const opt = {
+          ...(ddbChartOptionsFor(built.type, built.modifiers, chartAxisColorsRef.current) as any),
+        }
         if (built.modifiers?.indexAxis === 'y') {
           opt.indexAxis = 'y'
+        }
+        opt.onClick = (_e: unknown, elements: { index: number }[]) => {
+          if (!elements?.length) return
+          const ix = elements[0].index
+          if (typeof ix !== 'number') return
+          requestAnimationFrame(() => setCrossfilterFromChartIndex(ix))
         }
         chartRef = new Chart(canvas.getContext('2d')!, {
           type: built.type as any,
@@ -2341,6 +2855,7 @@ export default function DevelopDashboard() {
         } as any)
         chartInstancesRef.current.push(chartRef)
         ddbApplyChartPalette(chartRef, chartPaletteKeyRef.current)
+        ddbApplyChartRowHighlight(chartRef, chartFocusIdx)
         const ic = ddbIconClassForMiniKind(kind)
         titleNode.innerHTML = `<i class="${ic}" aria-hidden="true"></i> ${ddbTitleForMiniKind(title, kind)}`
         setStripActive(kind)
@@ -2360,20 +2875,42 @@ export default function DevelopDashboard() {
         })
       })
 
-      paletteMenu?.querySelectorAll('.ddb-visual-card__palette-item').forEach(btn => {
-        btn.addEventListener('click', () => {
-          const raw = btn.getAttribute('data-palette') || 'emerald'
-          const key = DDB_CHART_PALETTE_MAP[raw] ? raw : 'emerald'
-          chartPaletteKeyRef.current = key
-          persistDdbChartPalette(key)
-          chartInstancesRef.current.forEach(ch => ddbApplyChartPalette(ch, key))
+      const applyDevelopCanvasPalette = (key: string) => {
+        chartPaletteKeyRef.current = key
+        requestAnimationFrame(() => {
+          chartInstancesRef.current.forEach(ch => {
+            ddbApplyChartPalette(ch, key)
+            ddbApplyChartRowHighlight(ch, canvasChartFocusIdxRef.current)
+          })
           ddbSyncPaletteMenusInHost(host, key)
-          paletteMenu.hidden = true
-          const paletteBtn = chrome.actions.querySelector('[data-ddb-card-act="palette"]') as HTMLButtonElement | null
-          if (paletteBtn) {
-            paletteBtn.setAttribute('aria-expanded', 'false')
-            paletteBtn.classList.remove('is-active')
+        })
+        queueMicrotask(() => persistDdbChartPalette(key))
+        paletteMenu.hidden = true
+        const paletteBtn = chrome.actions.querySelector('[data-ddb-card-act="palette"]') as HTMLButtonElement | null
+        if (paletteBtn) {
+          paletteBtn.setAttribute('aria-expanded', 'false')
+          paletteBtn.classList.remove('is-active')
+        }
+      }
+
+      paletteMenu?.querySelectorAll('.ddb-visual-card__palette-item').forEach(btn => {
+        const readKey = () => {
+          const raw = btn.getAttribute('data-palette') || 'emerald'
+          return DDB_CHART_PALETTE_MAP[raw] ? raw : 'emerald'
+        }
+        let skipClickBecausePointer = false
+        btn.addEventListener('pointerdown', ev => {
+          const e = ev as PointerEvent
+          if (e.pointerType === 'mouse' && e.button !== 0) return
+          skipClickBecausePointer = true
+          applyDevelopCanvasPalette(readKey())
+        })
+        btn.addEventListener('click', () => {
+          if (skipClickBecausePointer) {
+            skipClickBecausePointer = false
+            return
           }
+          applyDevelopCanvasPalette(readKey())
         })
       })
 
@@ -2410,7 +2947,11 @@ export default function DevelopDashboard() {
       }
 
       const applySort = () => {
-        const zipped = base.labels.map((lab, i) => ({ label: lab, value: Number(base.values[i] ?? 0) }))
+        const zipped = base.labels.map((lab, i) => ({
+          label: lab,
+          value: Number(base.values[i] ?? 0),
+          jv: base.joinValues[i] ?? '',
+        }))
         zipped.sort((a, b) => {
           if (sortKey === 'value') return sortDir === 'asc' ? a.value - b.value : b.value - a.value
           const cmp = a.label.localeCompare(b.label, undefined, { numeric: true, sensitivity: 'base' })
@@ -2418,6 +2959,7 @@ export default function DevelopDashboard() {
         })
         base.labels = zipped.map(r => r.label)
         base.values = zipped.map(r => r.value)
+        base.joinValues = zipped.map(r => r.jv)
         calcSourceValues = [...base.values]
       }
 
@@ -2514,6 +3056,7 @@ export default function DevelopDashboard() {
           if (action === 'sortAxis') {
             base.labels = [...base.labels].reverse()
             base.values = [...base.values].reverse()
+            base.joinValues = [...base.joinValues].reverse()
             const chartType = ((chartRef as any)?.config?.type as string | undefined) || type
             rebuild(ddbMiniKindFromChartType(chartType, { data: chartRef?.data as any }))
             chip.textContent = 'Axis sorted (descending)'
@@ -2562,6 +3105,7 @@ export default function DevelopDashboard() {
         const tbl = document.createElement('div')
         tbl.className = 'ddb-visual-card'
         tbl.dataset.ddbInstanceId = instanceId
+        const legendPalList = DDB_CHART_PALETTE_MAP[paletteKeyForMenus] ?? DDB_CHART_PALETTE_MAP.emerald
         if (!hasLayerData || !layer) {
           tbl.innerHTML = `<div class="ddb-visual-title"><i class="fa-solid fa-table"></i> ${tool === 'dataTable' ? 'Data Table' : 'Table'}</div>
             <div class="ddb-visual-card__body-pad">
@@ -2569,6 +3113,12 @@ export default function DevelopDashboard() {
               <div class="ddb-table-responsive"><table><thead><tr><th>Column 1</th><th>Column 2</th><th>Column 3</th></tr></thead><tbody>
               <tr><td colspan="3" style="text-align:center;color:#64748b;padding:16px;">No rows</td></tr></tbody></table></div>
             </div>`
+          ddbAttachDevelopTableLegend(
+            tbl,
+            'Legend',
+            [],
+            'Legend mirrors the bound layer: assign a field to Legend in Visualizations (Build visual). After linking layers under Link, use Style · Symbology on the map layer to control categories.',
+          )
         } else {
           const headers =
             tableColumnPicks.length > 0
@@ -2579,33 +3129,58 @@ export default function DevelopDashboard() {
             <div class="ddb-table-responsive"><table><thead><tr>${headers.map(h => `<th>${h}</th>`).join('')}</tr></thead><tbody>
             ${rows.map(r => `<tr>${headers.map(h => `<td>${String((r.properties as any)?.[h] ?? '-')}</td>`).join('')}</tr>`).join('')}
             </tbody></table></div>`
+          const legendFieldResolved =
+            cartesianWells.legend && layer.fields.includes(cartesianWells.legend) ? cartesianWells.legend : labelField
+          const legendItems = ddbLegendItemsFromLayerField(features, legendFieldResolved, legendPalList)
+          const legendHint =
+            legendItems.length === 0
+              ? `No legend classes for "${legendFieldResolved}". Choose Legend or X-axis field in Visualizations. Map symbology (Style · Symbology) drives categories when the table follows that layer.`
+              : undefined
+          ddbAttachDevelopTableLegend(tbl, legendFieldResolved, legendItems, legendHint)
         }
         host.appendChild(tbl)
         ddbPromoteVisualCardChrome(tbl, {
           showStatStrip: false,
           activePaletteKey: paletteKeyForMenus,
           onClose: () => removeCanvasVisualByInstanceId(instanceId),
+          ...axisChromeOpts,
         })
       } else if (tool === 'matrix') {
         const matrix = document.createElement('div')
         matrix.className = 'ddb-visual-card'
         matrix.dataset.ddbInstanceId = instanceId
         const rowLabel = labelField
+        const matrixLegendPal = DDB_CHART_PALETTE_MAP[paletteKeyForMenus] ?? DDB_CHART_PALETTE_MAP.emerald
         if (!hasLayerData || !layer) {
           matrix.innerHTML = `<div class="ddb-visual-title"><i class="fa-solid fa-th"></i> Matrix</div><div class="ddb-visual-card__body-pad">
             <p class="ddb-hint ddb-visual-placeholder-note" style="margin:0;">Bind rows and values after connecting a layer in <strong>Data</strong>.</p>
             <div class="ddb-table-responsive" style="margin-top:10px"><table><tr><th>Row</th><th>Value</th></tr><tr><td>—</td><td>—</td></tr></table></div></div>`
+          ddbAttachDevelopTableLegend(
+            matrix,
+            'Legend',
+            [],
+            'Assign Legend in Visualizations to classify matrix rows with the same palette as charts.',
+          )
         } else {
           matrix.innerHTML = `<div class="ddb-visual-title"><i class="fa-solid fa-th"></i> Matrix</div><div class="ddb-table-responsive"><table><tr><th>${rowLabel}</th><th>${primaryNum}</th></tr>${labels
             .slice(0, 4)
             .map((l, i) => `<tr><td>${l}</td><td>${values[i]}</td></tr>`)
             .join('')}</table></div>`
+          const matrixLegendField =
+            cartesianWells.legend && layer.fields.includes(cartesianWells.legend) ? cartesianWells.legend : rowLabel
+          const matrixLegendItems = ddbLegendItemsFromLayerField(features, matrixLegendField, matrixLegendPal)
+          const matrixLegendHint =
+            matrixLegendItems.length === 0
+              ? `No classes for "${matrixLegendField}". Adjust Legend in Visualizations or layer symbology.`
+              : undefined
+          ddbAttachDevelopTableLegend(matrix, matrixLegendField, matrixLegendItems, matrixLegendHint)
         }
         host.appendChild(matrix)
         ddbPromoteVisualCardChrome(matrix, {
           showStatStrip: false,
           activePaletteKey: paletteKeyForMenus,
           onClose: () => removeCanvasVisualByInstanceId(instanceId),
+          ...axisChromeOpts,
         })
       } else if (tool === 'stackedBar' || tool === 'clusteredBar') {
         addChartCard(instanceId, tool === 'stackedBar' ? 'Stacked Bar' : 'Clustered Bar', 'bar', {
@@ -2651,12 +3226,33 @@ export default function DevelopDashboard() {
           showStatStrip: false,
           activePaletteKey: paletteKeyForMenus,
           onClose: () => removeCanvasVisualByInstanceId(instanceId),
+          ...axisChromeOpts,
         })
         if (comboChrome && !hasLayerData) {
           const note = document.createElement('p')
           note.className = 'ddb-hint ddb-visual-placeholder-note'
           note.textContent = ''
           comboChrome.header.after(note)
+        }
+        const comboJoinValues = labels.map((_, i) => chartJoinValuesSlice[i] ?? '')
+        const comboOpts = { ...(ddbChartOptionsFor('bar', undefined, chartAxisColorsRef.current) as any) }
+        comboOpts.onClick = (_e: unknown, els: { index: number }[]) => {
+          if (!els?.length || !bindLayerKey || !hasLayerData) return
+          const ix = els[0].index
+          if (typeof ix !== 'number') return
+          const jv = comboJoinValues[ix]
+          if (jv === undefined || jv === '') return
+          requestAnimationFrame(() => {
+            setCanvasFeatureFocus(prev =>
+              prev?.layerKey === bindLayerKey && prev.joinValue === jv
+                ? null
+                : { layerKey: bindLayerKey, joinField: joinFieldForCrossfilter, joinValue: jv },
+            )
+            const feat = features.find(
+              f => String((f.properties as Record<string, unknown>)?.[joinFieldForCrossfilter] ?? '') === jv,
+            )
+            ddbFlyMapToFeature(mapRef.current, feat)
+          })
         }
         const ch = new Chart(canvas.getContext('2d')!, {
           type: 'bar',
@@ -2667,10 +3263,11 @@ export default function DevelopDashboard() {
               { type: 'line', label: 'Trend', data: values.map(v => v * 0.9), borderColor: '#1f5e3a' },
             ],
           },
-          options: ddbChartOptionsFor('bar') as any,
+          options: comboOpts,
         } as any)
         chartInstancesRef.current.push(ch)
         ddbApplyChartPalette(ch, chartPaletteKeyRef.current)
+        ddbApplyChartRowHighlight(ch, chartFocusIdx)
         canvas.addEventListener('dblclick', () => {
           ch.resetZoom?.()
         })
@@ -2736,6 +3333,7 @@ export default function DevelopDashboard() {
           showStatStrip: false,
           activePaletteKey: paletteKeyForMenus,
           onClose: () => removeCanvasVisualByInstanceId(instanceId),
+          ...axisChromeOpts,
         })
       } else if (tool === 'card') {
         const total = values.reduce((a, b) => a + b, 0)
@@ -2748,6 +3346,7 @@ export default function DevelopDashboard() {
           showStatStrip: false,
           activePaletteKey: paletteKeyForMenus,
           onClose: () => removeCanvasVisualByInstanceId(instanceId),
+          ...axisChromeOpts,
         })
       } else if (tool === 'kpi') {
         const kpi = document.createElement('div')
@@ -2759,6 +3358,7 @@ export default function DevelopDashboard() {
           showStatStrip: false,
           activePaletteKey: paletteKeyForMenus,
           onClose: () => removeCanvasVisualByInstanceId(instanceId),
+          ...axisChromeOpts,
         })
       } else if (tool === 'customStatCard') {
         if (!statCards.length) {
@@ -2771,6 +3371,7 @@ export default function DevelopDashboard() {
             showStatStrip: false,
             activePaletteKey: paletteKeyForMenus,
             onClose: () => removeCanvasVisualByInstanceId(instanceId),
+            ...axisChromeOpts,
           })
         } else {
           for (const c of statCards) {
@@ -2783,6 +3384,7 @@ export default function DevelopDashboard() {
               showStatStrip: false,
               activePaletteKey: paletteKeyForMenus,
               onClose: () => removeCanvasVisualByInstanceId(instanceId),
+              ...axisChromeOpts,
             })
           }
         }
@@ -2796,6 +3398,7 @@ export default function DevelopDashboard() {
           showStatStrip: false,
           activePaletteKey: paletteKeyForMenus,
           onClose: () => removeCanvasVisualByInstanceId(instanceId),
+          ...axisChromeOpts,
         })
       }
     }
@@ -2810,6 +3413,7 @@ export default function DevelopDashboard() {
     ddbResizeChartsInHost(host)
   }, [
     bindLayerKey,
+    canvasFeatureFocus,
     canvasVisualSlots,
     cartesianWells,
     destroyCharts,
@@ -2822,7 +3426,17 @@ export default function DevelopDashboard() {
   useEffect(() => {
     renderCharts()
     return () => destroyCharts()
-  }, [layers, activeStatsLayer, bindLayerKey, canvasVisualSlots, cartesianWells, tableColumnPicks, renderCharts, destroyCharts])
+  }, [
+    layers,
+    activeStatsLayer,
+    bindLayerKey,
+    canvasFeatureFocus,
+    canvasVisualSlots,
+    cartesianWells,
+    tableColumnPicks,
+    renderCharts,
+    destroyCharts,
+  ])
 
   const toggleLayerVisible = (key: string, visible: boolean) => {
     setLayers(prev => {
@@ -3799,10 +4413,48 @@ export default function DevelopDashboard() {
                   </button>
                 </div>
                 <div className="ddb-map-flyout-body">
-                  <p className="ddb-map-flyout-lead">Add a layer to your map</p>
+                  {layerKeys.length > 0 ? (
+                    <>
+                      <p className="ddb-map-flyout-layer-section-title">Layers on the map</p>
+                      <ul className="ddb-map-flyout-layer-list" role="list">
+                        {layerKeys.map(key => {
+                          const Lr = layers[key]
+                          if (!Lr) return null
+                          const nFeat =
+                            Lr.type === 'feature' && Array.isArray(Lr.data?.features) ? Lr.data.features.length : 0
+                          return (
+                            <li key={key} className="ddb-map-flyout-layer-row">
+                              <label className="ddb-map-flyout-layer-label">
+                                <input
+                                  type="checkbox"
+                                  checked={Lr.visible}
+                                  onChange={e => toggleLayerVisible(key, e.target.checked)}
+                                  aria-label={`Show ${Lr.name} on map`}
+                                />
+                                <span className="ddb-map-flyout-layer-name">{Lr.name}</span>
+                              </label>
+                              <div className="ddb-map-flyout-layer-meta">
+                                <span
+                                  className={`ddb-layer-origin-badge${Lr.origin === 'user' ? ' ddb-layer-origin-badge--user' : ''}`}
+                                >
+                                  {Lr.origin === 'user' ? 'Yours' : 'Sample'}
+                                </span>
+                                <span className="ddb-layer-badge">{Lr.type}</span>
+                                {Lr.type === 'feature' && nFeat > 0 ? (
+                                  <span className="ddb-map-flyout-layer-count">{nFeat} features</span>
+                                ) : null}
+                              </div>
+                            </li>
+                          )
+                        })}
+                      </ul>
+                    </>
+                  ) : (
+                    <p className="ddb-map-flyout-lead">Add a layer to your map</p>
+                  )}
                   <button
                     type="button"
-                    className="ddb-map-flyout-layer-cta"
+                    className={`ddb-map-flyout-layer-cta${layerKeys.length > 0 ? ' ddb-map-flyout-layer-cta--compact' : ''}`}
                     onClick={() => {
                       setMapFlyout('none')
                       openAddGisModal()

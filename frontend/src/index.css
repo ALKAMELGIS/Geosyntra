@@ -2868,9 +2868,11 @@ aside {
   transform: rotate(0deg);
 }
 
-/* Collapse control in pane header — double chevron (Power BI), not dismiss “X” */
+/* Collapse control in pane header — double chevron (Power BI), not dismiss “X”.
+ * Do not override `transform`: base `.gis-sidebar-action-pane__close` uses translateX to inset the
+ * circle from the sidebar edge; cancelling it clipped the button under `.gis-sidebar { overflow: hidden }`.
+ */
 .gis-sidebar-action-pane__close--collapse {
-  transform: none !important;
   border-radius: 999px;
   width: 30px;
   height: 30px;
@@ -2898,12 +2900,13 @@ aside {
   align-items: center;
   justify-content: space-between;
   gap: 10px;
-  padding: 12px 14px;
-  padding-inline-end: 14px;
+  padding: 12px 16px;
   border-bottom: 1px solid rgba(15, 23, 42, 0.08);
   background: #ffffff;
   position: relative;
   z-index: 1;
+  box-sizing: border-box;
+  min-width: 0;
 }
 
 .gis-sidebar-action-pane__title {
@@ -2911,6 +2914,9 @@ aside {
   font-weight: 800;
   color: #0f172a;
   letter-spacing: -0.01em;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .gis-sidebar-action-pane__close {

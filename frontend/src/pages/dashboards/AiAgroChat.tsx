@@ -94,7 +94,10 @@ export default function AiAgroChat() {
       queueMicrotask(async () => {
         try {
           const gisCtx = await buildGisContentLayersContext()
-          const system = `${AGRO_AI_CHAT_SYSTEM}\n\n---\nGIS CONTENT (browser snapshot — use first for layer-specific questions):\n${gisCtx}`
+          const uiLangLine = ar
+            ? 'UI locale — reply language: **Arabic** for every assistant message (headings, bullets, and labels such as «من المعرفة العامة» where relevant).'
+            : 'UI locale — reply language: **English** for every assistant message (headings, bullets, and labels such as "General:" where relevant).'
+          const system = `${AGRO_AI_CHAT_SYSTEM}\n\n${uiLangLine}\n\n---\nGIS CONTENT (browser snapshot — use first for layer-specific questions):\n${gisCtx}`
 
           let reply: string
           if (provider === 'gemini') {
@@ -215,6 +218,24 @@ export default function AiAgroChat() {
             </div>
           ) : null}
           <div className="aagc-input-row">
+            <textarea
+              className="aagc-input"
+              rows={2}
+              value={draft}
+              onChange={e => setDraft(e.target.value)}
+              onKeyDown={e => {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                  e.preventDefault()
+                  void send()
+                }
+              }}
+              placeholder={ar ? 'اكتب سؤالك…' : 'Type your question…'}
+              disabled={busy}
+              aria-label={ar ? 'رسالة' : 'Message'}
+            />
+            <button type="button" className="aagc-send" onClick={() => void send()} disabled={busy || !draft.trim()}>
+              {ar ? 'إرسال' : 'Send'}
+            </button>
             <div className="aagc-input-tools" role="group" aria-label={ar ? 'أدوات الإدخال' : 'Input tools'}>
               <button
                 type="button"
@@ -248,24 +269,6 @@ export default function AiAgroChat() {
                 <i className="fa-solid fa-microphone" aria-hidden />
               </button>
             </div>
-            <textarea
-              className="aagc-input"
-              rows={2}
-              value={draft}
-              onChange={e => setDraft(e.target.value)}
-              onKeyDown={e => {
-                if (e.key === 'Enter' && !e.shiftKey) {
-                  e.preventDefault()
-                  void send()
-                }
-              }}
-              placeholder={ar ? 'اكتب سؤالك…' : 'Type your question…'}
-              disabled={busy}
-              aria-label={ar ? 'رسالة' : 'Message'}
-            />
-            <button type="button" className="aagc-send" onClick={() => void send()} disabled={busy || !draft.trim()}>
-              {ar ? 'إرسال' : 'Send'}
-            </button>
           </div>
           <p className="aagc-hint">
             {ar

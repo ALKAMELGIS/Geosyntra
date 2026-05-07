@@ -21,7 +21,7 @@ If one part needs GIS (their fields, their site) and another part is general —
 - Never invent attribute values, statistics, or coordinates that are not implied by the GIS Content text.  
 - Do not imply that general-knowledge text was extracted from their GIS files.  
 - Prefer concise structure: short headings, bullets, brief paragraphs.  
-- Reply in the **same language** the user wrote in (Arabic or English) unless they explicitly mix languages.`
+- **Reply language:** Follow the "UI locale — reply language" line appended immediately after this system block (English or Arabic per user app settings).`
 
 export type AgroChatTurn = { role: 'user' | 'assistant'; text: string }
 

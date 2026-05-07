@@ -16,6 +16,11 @@
   --ddb-pbi-blue: #1182d4;
   --ddb-pbi-blue-dark: #106ebe;
   --ddb-pbi-blue-soft: #deecf9;
+  /* Canvas workspace — crisp “vector dashboard” tokens */
+  --ddb-canvas-grid-dot: rgba(15, 23, 42, 0.045);
+  --ddb-canvas-grid-line: rgba(148, 163, 184, 0.09);
+  --ddb-card-plot-bg: #fafcfd;
+  --ddb-card-plot-edge: rgba(226, 232, 240, 0.85);
   font-family: 'Segoe UI', 'Inter', system-ui, sans-serif;
   background: var(--ddb-surface);
   flex: 1;
@@ -2130,12 +2135,32 @@
   flex-direction: column;
   gap: 16px;
   background:
-    radial-gradient(circle at 100% 0%, rgba(16, 185, 129, 0.06), transparent 34%),
-    radial-gradient(circle at 0% 100%, rgba(37, 99, 235, 0.05), transparent 30%),
-    #fff;
+    radial-gradient(circle at 100% 0%, rgba(16, 185, 129, 0.055), transparent 38%),
+    radial-gradient(circle at 0% 100%, rgba(59, 130, 246, 0.045), transparent 34%),
+    radial-gradient(var(--ddb-canvas-grid-dot) 0.8px, transparent 0.9px),
+    linear-gradient(var(--ddb-canvas-grid-line) 1px, transparent 1px),
+    linear-gradient(90deg, var(--ddb-canvas-grid-line) 1px, transparent 1px),
+    #f7f9fb;
+  background-size:
+    auto,
+    auto,
+    20px 20px,
+    80px 80px,
+    80px 80px,
+    auto;
+  background-position:
+    0 0,
+    0 0,
+    0 0,
+    -1px -1px,
+    -1px -1px,
+    0 0;
   border-radius: 28px;
-  padding: 20px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.04);
+  padding: 22px 22px 28px;
+  border: 1px solid rgba(226, 232, 240, 0.85);
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.85) inset,
+    0 12px 40px rgba(15, 23, 42, 0.06);
   overflow-x: hidden;
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
@@ -2145,9 +2170,20 @@
 
 .develop-dashboard-root.ddb-theme-bw .ddb-canvas-workspace {
   background:
-    radial-gradient(circle at 100% 0%, rgba(148, 163, 184, 0.08), transparent 32%),
-    radial-gradient(circle at 0% 100%, rgba(100, 116, 139, 0.06), transparent 30%),
-    #fff;
+    radial-gradient(circle at 100% 0%, rgba(148, 163, 184, 0.1), transparent 36%),
+    radial-gradient(circle at 0% 100%, rgba(100, 116, 139, 0.08), transparent 32%),
+    radial-gradient(rgba(15, 23, 42, 0.05) 0.8px, transparent 0.9px),
+    linear-gradient(rgba(148, 163, 184, 0.1) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(148, 163, 184, 0.1) 1px, transparent 1px),
+    #f3f4f6;
+  background-size:
+    auto,
+    auto,
+    20px 20px,
+    80px 80px,
+    80px 80px,
+    auto;
+  background-position: 0 0, 0 0, 0 0, -1px -1px, -1px -1px, 0 0;
 }
 
 .develop-dashboard-root.ddb-theme-bw .ddb-visual-card--canvas {
@@ -2199,6 +2235,7 @@
   overflow: visible;
   position: relative;
   display: block;
+  isolation: isolate;
 }
 
 .develop-dashboard-root .ddb-map-container {
@@ -2220,9 +2257,9 @@
   justify-content: space-between;
   gap: 10px;
   padding: 10px 14px;
-  background: #fff;
+  background: linear-gradient(180deg, #f9fafb 0%, #ffffff 100%);
   border-bottom: 1px solid rgba(15, 23, 42, 0.08);
-  border-radius: 28px 28px 0 0;
+  border-radius: 22px 22px 0 0;
   cursor: grab;
   user-select: none;
 }
@@ -2263,7 +2300,11 @@
   position: absolute;
   z-index: 4;
   margin: 0;
-  box-shadow: 0 8px 26px rgba(15, 23, 42, 0.12);
+  border-radius: 22px;
+  border-color: rgba(226, 232, 240, 0.98);
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.95) inset,
+    0 12px 36px rgba(15, 23, 42, 0.1);
 }
 
 .develop-dashboard-root .ddb-map-container.ddb-map-container--canvas.ddb-map-container--dragging {
@@ -2688,6 +2729,85 @@
   text-underline-offset: 3px;
 }
 
+.develop-dashboard-root .ddb-map-flyout-layer-section-title {
+  margin: 0 0 10px;
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #64748b;
+}
+
+.develop-dashboard-root .ddb-map-flyout-layer-list {
+  list-style: none;
+  margin: 0 0 14px;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.develop-dashboard-root .ddb-map-flyout-layer-row {
+  border-radius: 12px;
+  border: 1px solid rgba(226, 232, 240, 0.95);
+  background: #f8fafc;
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.develop-dashboard-root .ddb-map-flyout-layer-label {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+  font-weight: 700;
+  font-size: 0.82rem;
+  color: #0f172a;
+}
+
+.develop-dashboard-root .ddb-map-flyout-layer-label input {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--ddb-green-dark);
+}
+
+.develop-dashboard-root .ddb-map-flyout-layer-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.develop-dashboard-root .ddb-map-flyout-layer-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  padding-left: 26px;
+}
+
+.develop-dashboard-root .ddb-map-flyout-layer-count {
+  font-size: 0.68rem;
+  font-weight: 600;
+  color: #64748b;
+}
+
+.develop-dashboard-root .ddb-map-flyout-layer-cta--compact {
+  flex-direction: row;
+  justify-content: center;
+  padding: 12px 14px;
+  gap: 10px;
+}
+
+.develop-dashboard-root .ddb-map-flyout-layer-cta--compact .ddb-map-flyout-layer-cta-icon {
+  width: 40px;
+  height: 40px;
+  font-size: 1.15rem;
+}
+
 .develop-dashboard-root .ddb-map-search-form {
   display: flex;
   gap: 8px;
@@ -2833,21 +2953,26 @@
   position: absolute;
   z-index: 2;
   margin: 0;
-  border: 1px solid rgba(226, 232, 240, 0.95);
-  background: rgba(255, 255, 255, 0.98);
+  border: 1px solid rgba(226, 232, 240, 0.98);
+  border-radius: 22px;
+  background:
+    linear-gradient(165deg, rgba(255, 255, 255, 1) 0%, rgba(248, 250, 252, 0.96) 100%);
   box-shadow:
-    0 10px 30px rgba(15, 23, 42, 0.1),
-    0 1px 0 rgba(255, 255, 255, 0.9) inset;
+    0 1px 0 rgba(255, 255, 255, 0.98) inset,
+    0 10px 28px rgba(15, 23, 42, 0.09),
+    0 2px 6px rgba(15, 23, 42, 0.04);
   transition:
-    box-shadow 0.2s ease,
-    border-color 0.2s ease;
+    box-shadow 0.22s cubic-bezier(0.4, 0, 0.2, 1),
+    border-color 0.2s ease,
+    transform 0.18s ease;
 }
 
 .develop-dashboard-root .ddb-visual-card--canvas:hover {
-  border-color: rgba(148, 163, 184, 0.6);
+  border-color: rgba(148, 163, 184, 0.55);
   box-shadow:
-    0 16px 40px rgba(15, 23, 42, 0.14),
-    0 1px 0 rgba(255, 255, 255, 0.92) inset;
+    0 1px 0 rgba(255, 255, 255, 1) inset,
+    0 18px 46px rgba(15, 23, 42, 0.11),
+    0 4px 12px rgba(59, 130, 246, 0.06);
 }
 
 .develop-dashboard-root .ddb-visual-card--canvas.ddb-visual-card--dragging {
@@ -2923,6 +3048,7 @@
   min-height: 72px;
   max-height: none !important;
   height: auto !important;
+  border-radius: 14px;
 }
 
 .develop-dashboard-root .ddb-visual-card--enhanced {
@@ -2961,16 +3087,29 @@
   align-items: center;
   justify-content: space-between;
   gap: 10px;
-  padding: 12px 14px 11px;
-  border-bottom: 1px solid rgba(226, 232, 240, 0.95);
-  background: linear-gradient(180deg, #f8fbff 0%, #ffffff 100%);
-  border-radius: 24px 24px 0 0;
+  padding: 11px 14px 10px;
+  border-bottom: 1px solid rgba(226, 232, 240, 0.92);
+  background: linear-gradient(180deg, #f9fafb 0%, #ffffff 55%, #ffffff 100%);
+  border-radius: 22px 22px 0 0;
 }
 
 .develop-dashboard-root .ddb-visual-card__header .ddb-visual-title {
   margin-bottom: 0;
   flex: 1;
   min-width: 0;
+  font-size: 0.8125rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: #0f172a;
+}
+
+.develop-dashboard-root .ddb-visual-card--canvas .ddb-visual-card__header .ddb-visual-title {
+  color: var(--ddb-green-dark);
+}
+
+.develop-dashboard-root .ddb-visual-card--canvas .ddb-visual-card__header .ddb-visual-title i {
+  opacity: 0.92;
+  font-size: 0.92em;
 }
 
 .develop-dashboard-root .ddb-visual-card__actions {
@@ -3069,6 +3208,48 @@
   border-radius: 999px;
   display: inline-block;
   box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.35);
+}
+
+.develop-dashboard-root .ddb-visual-card__palette-axis {
+  margin-top: 6px;
+  padding-top: 8px;
+  border-top: 1px solid rgba(226, 232, 240, 0.95);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.develop-dashboard-root .ddb-visual-card__palette-axis-title {
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: #64748b;
+}
+
+.develop-dashboard-root .ddb-visual-card__palette-axis-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  font-size: 0.76rem;
+  font-weight: 600;
+  color: #0f172a;
+}
+
+.develop-dashboard-root .ddb-visual-card__palette-axis-row input[type='color'] {
+  width: 36px;
+  height: 26px;
+  padding: 0;
+  border: 1px solid rgba(226, 232, 240, 0.95);
+  border-radius: 8px;
+  cursor: pointer;
+  background: #fff;
+}
+
+.develop-dashboard-root .ddb-visual-card__palette-axis-reset {
+  width: 100%;
+  margin-top: 2px;
 }
 
 .develop-dashboard-root .ddb-visual-card__chart-type-item {
@@ -3224,10 +3405,12 @@
   flex-wrap: wrap;
   align-items: center;
   justify-content: center;
-  gap: 10px 16px;
-  padding: 6px 14px 12px;
+  gap: 10px 18px;
+  padding: 10px 14px 14px;
   margin: 0;
   user-select: none;
+  border-top: 1px solid rgba(241, 245, 249, 0.95);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.5) 0%, rgba(248, 250, 252, 0.65) 100%);
 }
 
 .develop-dashboard-root .ddb-chart-svg-legend__row {
@@ -3240,13 +3423,14 @@
   flex-shrink: 0;
   vertical-align: middle;
   shape-rendering: geometricPrecision;
+  filter: drop-shadow(0 1px 1px rgba(15, 23, 42, 0.06));
 }
 
 .develop-dashboard-root .ddb-chart-svg-legend__label {
   font-size: 11px;
   font-weight: 600;
-  color: #334155;
-  letter-spacing: 0.012em;
+  color: #475569;
+  letter-spacing: 0.015em;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
@@ -3255,9 +3439,12 @@
   display: block;
   margin: 0 14px 0;
   min-height: 240px;
-  height: clamp(240px, 34vh, 420px) !important;
+  height: clamp(220px, min(34vh, 38vw), 460px) !important;
   max-height: none;
   width: calc(100% - 28px) !important;
+  border-radius: 14px;
+  background: var(--ddb-card-plot-bg);
+  box-shadow: inset 0 0 0 1px var(--ddb-card-plot-edge);
   image-rendering: auto;
   backface-visibility: hidden;
   transform: translateZ(0);
@@ -3483,8 +3670,13 @@
 
 @media (max-width: 900px) {
   .develop-dashboard-root .ddb-canvas-workspace {
-    padding: 14px;
+    padding: 14px 14px 20px;
     gap: 12px;
+    border-radius: 22px;
+  }
+
+  .develop-dashboard-root .ddb-visual-card--enhanced canvas {
+    height: clamp(200px, 46vh, 400px) !important;
   }
 }
 
@@ -3508,6 +3700,97 @@
   border: 1px solid #ddd;
   padding: 6px 8px;
   text-align: left;
+}
+
+.develop-dashboard-root .ddb-visual-card--canvas .ddb-table-responsive {
+  border-radius: 12px;
+  border: 1px solid rgba(226, 232, 240, 0.95);
+  overflow: hidden;
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.75) inset;
+}
+
+.develop-dashboard-root .ddb-visual-card--canvas .ddb-table-responsive th {
+  background: linear-gradient(180deg, #f8fafc 0%, #f1f5f9 100%);
+  font-weight: 700;
+  font-size: 0.65rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #64748b;
+  border-color: rgba(226, 232, 240, 0.95);
+}
+
+.develop-dashboard-root .ddb-visual-card--canvas .ddb-table-responsive td {
+  border-color: rgba(241, 245, 249, 0.98);
+  font-size: 0.72rem;
+  color: #1e293b;
+}
+
+/* Table / Matrix legend — categories or numeric bins; palette matches charts */
+.develop-dashboard-root .ddb-table-visual-legend {
+  margin: 14px 14px 16px;
+  padding: 0;
+}
+
+.develop-dashboard-root .ddb-visual-card--canvas .ddb-table-visual-legend {
+  margin-inline: 16px;
+  margin-bottom: 14px;
+}
+
+.develop-dashboard-root .ddb-table-visual-legend__title {
+  font-size: 0.8125rem;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  color: #0f172a;
+  margin: 0 0 10px;
+}
+
+.develop-dashboard-root .ddb-table-visual-legend__hint {
+  margin: 0 0 12px;
+  font-size: 0.68rem;
+  line-height: 1.45;
+  font-weight: 600;
+  color: #64748b;
+}
+
+.develop-dashboard-root .ddb-table-visual-legend__list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px 12px 14px;
+  border-radius: 14px;
+  border: 1px solid rgba(226, 232, 240, 0.98);
+  background: rgba(248, 250, 252, 0.92);
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+}
+
+.develop-dashboard-root .ddb-table-visual-legend__row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 11px;
+  border-radius: 999px;
+  border: 1px solid rgba(226, 232, 240, 0.95);
+  background: #ffffff;
+}
+
+.develop-dashboard-root .ddb-table-visual-legend__line {
+  flex-shrink: 0;
+  width: 28px;
+  height: 4px;
+  border-radius: 999px;
+  box-shadow: inset 0 0 0 1px rgba(15, 23, 42, 0.06);
+}
+
+.develop-dashboard-root .ddb-table-visual-legend__label {
+  flex: 1;
+  min-width: 0;
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: #0f172a;
+  letter-spacing: 0.01em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .develop-dashboard-root .ddb-field,
