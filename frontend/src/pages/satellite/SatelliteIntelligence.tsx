@@ -4108,7 +4108,7 @@ export default function SatelliteIntelligence() {
   const runRsAnalysisFromAssistant = useCallback(async () => {
     if (!drawnGeometry) {
       setFieldAnalysisStatus('Draw AOI first, then press Run Analysis.');
-      applyMapDrawTool('polygon');
+      setMapDrawTool('polygon');
       return;
     }
 
@@ -4170,7 +4170,6 @@ export default function SatelliteIntelligence() {
     setExpandedEnvSection('result-visualization');
     setFieldAnalysisStatus(`Run completed for ${selectedIndex}. Results rendered inside AOI.`);
   }, [
-    applyMapDrawTool,
     drawnGeometry,
     exploreEffectiveDatetime.end,
     exploreEffectiveDatetime.start,
