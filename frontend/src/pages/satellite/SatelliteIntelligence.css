@@ -852,6 +852,50 @@ main.content > .si-page {
   font-variant-numeric: tabular-nums;
 }
 
+.si-aoi-class-legend {
+  position: absolute;
+  left: 16px;
+  bottom: max(168px, env(safe-area-inset-bottom, 0px) + 140px);
+  z-index: 130;
+  min-width: 220px;
+  max-width: min(320px, 56vw);
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid rgba(148, 163, 184, 0.35);
+  background: rgba(2, 6, 23, 0.8);
+  box-shadow: 0 14px 28px rgba(2, 6, 23, 0.35);
+  backdrop-filter: blur(7px);
+  color: #e2e8f0;
+}
+
+.si-aoi-class-legend-title {
+  margin-bottom: 8px;
+  font-size: 11px;
+  font-weight: 800;
+  color: #f8fafc;
+}
+
+.si-aoi-class-legend-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 10px;
+  line-height: 1.35;
+  color: #cbd5e1;
+}
+
+.si-aoi-class-legend-row + .si-aoi-class-legend-row {
+  margin-top: 4px;
+}
+
+.si-aoi-class-legend-swatch {
+  width: 12px;
+  height: 12px;
+  border-radius: 3px;
+  border: 1px solid rgba(255, 255, 255, 0.4);
+  flex: 0 0 12px;
+}
+
 .si-map-analysis-pill {
   position: absolute;
   left: 16px;
@@ -6312,6 +6356,17 @@ input.si-explore-date-input-linked[type='date'] {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 8px;
+}
+
+.si-rs-actions--compact {
+  grid-template-columns: 1fr;
+}
+
+.si-rs-actions .si-field-analysis-timeline-btn {
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .si-rs-actions--export {

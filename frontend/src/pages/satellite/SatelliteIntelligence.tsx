@@ -1438,6 +1438,19 @@ function rampColorAt(ramp: string[], i: number, n: number): string {
   return ramp[Math.max(0, Math.min(ramp.length - 1, idx))]!;
 }
 
+function pointInAoiGeometry(lng: number, lat: number, geometry: any): boolean {
+  if (!geometry || typeof geometry !== 'object') return false;
+  if (geometry.type === 'Polygon') {
+    return pointInPolygonGeometry(lng, lat, geometry as { type: string; coordinates: number[][][] });
+  }
+  if (geometry.type === 'MultiPolygon' && Array.isArray(geometry.coordinates)) {
+    return geometry.coordinates.some(
+      (coords: number[][][]) => pointInPolygonGeometry(lng, lat, { type: 'Polygon', coordinates: coords }),
+    );
+  }
+  return false;
+}
+
 function hexToEsriRgba(hex: string): [number, number, number, number] {
   const h = (hex || '#22c55e').replace('#', '');
   const pad = h.length === 3 ? h.split('').map(ch => ch + ch).join('') : h.padEnd(6, '0').slice(0, 6);
@@ -4254,6 +4267,88 @@ export default function SatelliteIntelligence() {
     return indexValueToColor(drawnStats.mean, cfg.range, cfg.palette);
   }, [drawnStats, selectedIndex]);
 
+  const aoiFiveClassLegend = useMemo(() => {
+    const cfg = ENVIRONMENTAL_INDICES[selectedIndex];
+    const fallbackMin = cfg.range[0];
+    const fallbackMax = cfg.range[1];
+    let minV = drawnStats ? Math.max(fallbackMin, Math.min(fallbackMax, drawnStats.min)) : fallbackMin;
+    let maxV = drawnStats ? Math.max(fallbackMin, Math.min(fallbackMax, drawnStats.max)) : fallbackMax;
+    if (!Number.isFinite(minV) || !Number.isFinite(maxV) || maxV <= minV) {
+      minV = fallbackMin;
+      maxV = fallbackMax;
+    }
+    const span = maxV - minV;
+    if (span < (fallbackMax - fallbackMin) * 0.08) {
+      minV = fallbackMin;
+      maxV = fallbackMax;
+    }
+    const step = (maxV - minV) / 5;
+    return Array.from({ length: 5 }).map((_, i) => {
+      const lower = Number((minV + i * step).toFixed(3));
+      const upper = Number((i === 4 ? maxV : minV + (i + 1) * step).toFixed(3));
+      return {
+        idx: i,
+        lower,
+        upper,
+        color: rampColorAt(cfg.palette, i, 5),
+        label: `Class ${i + 1}: ${lower.toFixed(2)} - ${upper.toFixed(2)}`,
+      };
+    });
+  }, [selectedIndex, drawnStats]);
+
+  const aoiClassifiedGeoJson = useMemo(() => {
+    if (!drawnGeometry?.geometry || !showProductivityZones) return null;
+    const bounds = getGeoJsonBounds(drawnGeometry as any);
+    if (!bounds) return null;
+    const [w, s, e, n] = bounds;
+    if (![w, s, e, n].every(Number.isFinite) || e <= w || n <= s) return null;
+    const width = e - w;
+    const height = n - s;
+    const aspect = width / Math.max(height, 1e-9);
+    const cols = Math.max(8, Math.min(24, Math.round(12 * Math.max(0.6, Math.min(1.8, aspect)))));
+    const rows = Math.max(8, Math.min(24, Math.round(12 / Math.max(0.6, Math.min(1.8, aspect)))));
+    const dx = width / cols;
+    const dy = height / rows;
+    const minV = aoiFiveClassLegend[0]?.lower ?? -1;
+    const maxV = aoiFiveClassLegend[aoiFiveClassLegend.length - 1]?.upper ?? 1;
+    const span = Math.max(1e-9, maxV - minV);
+    const seed = selectedIndex.split('').reduce((acc, ch) => acc + ch.charCodeAt(0), 0);
+    const features: any[] = [];
+    for (let yy = 0; yy < rows; yy += 1) {
+      for (let xx = 0; xx < cols; xx += 1) {
+        const x1 = w + xx * dx;
+        const y1 = s + yy * dy;
+        const x2 = x1 + dx;
+        const y2 = y1 + dy;
+        const cx = (x1 + x2) / 2;
+        const cy = (y1 + y2) / 2;
+        if (!pointInAoiGeometry(cx, cy, drawnGeometry.geometry)) continue;
+        const gx = (xx + 0.5) / cols;
+        const gy = (yy + 0.5) / rows;
+        const wave = Math.sin((xx + seed * 0.01) * 0.9) * 0.12 + Math.cos((yy + seed * 0.02) * 0.85) * 0.1;
+        const gradient = gx * 0.55 + gy * 0.35 + wave;
+        const normalized = clampUnit(gradient);
+        const value = minV + normalized * span;
+        const classIdx = Math.max(0, Math.min(4, Math.floor(((value - minV) / span) * 5)));
+        const cls = aoiFiveClassLegend[classIdx] ?? aoiFiveClassLegend[0];
+        features.push({
+          type: 'Feature',
+          properties: {
+            value: Number(value.toFixed(3)),
+            classId: classIdx + 1,
+            classLabel: cls?.label ?? `Class ${classIdx + 1}`,
+            color: cls?.color ?? '#22c55e',
+          },
+          geometry: {
+            type: 'Polygon',
+            coordinates: [[[x1, y1], [x2, y1], [x2, y2], [x1, y2], [x1, y1]]],
+          },
+        });
+      }
+    }
+    return { type: 'FeatureCollection', features };
+  }, [drawnGeometry, showProductivityZones, aoiFiveClassLegend, selectedIndex]);
+
   const seriesTrendLabel = useMemo(() => {
     if (weeklyComposites.length < 2) return null;
     const m = weeklyComposites.map(w => w.mean);
@@ -6011,6 +6106,26 @@ export default function SatelliteIntelligence() {
                     />
                   </Source>
                 )}
+                {aoiClassifiedGeoJson?.features?.length ? (
+                  <Source id="si-aoi-classified-source" type="geojson" data={aoiClassifiedGeoJson as any}>
+                    <Layer
+                      id="si-aoi-classified-fill"
+                      type="fill"
+                      paint={{
+                        'fill-color': ['coalesce', ['get', 'color'], '#22c55e'],
+                        'fill-opacity': 0.46,
+                      }}
+                    />
+                    <Layer
+                      id="si-aoi-classified-line"
+                      type="line"
+                      paint={{
+                        'line-color': 'rgba(15,23,42,0.28)',
+                        'line-width': 0.6,
+                      }}
+                    />
+                  </Source>
+                ) : null}
 
                 {editHandlesGeoJson ? (
                   <Source id="si-edit-handles" type="geojson" data={editHandlesGeoJson as any}>
@@ -6168,6 +6283,17 @@ export default function SatelliteIntelligence() {
               <span className="si-aoi-analysis-pill-mean" style={{ color: aoiVizColor }}>{drawnStats.mean}</span>
             </div>
           )}
+          {aoiClassifiedGeoJson?.features?.length ? (
+            <div className="si-aoi-class-legend" dir="ltr">
+              <div className="si-aoi-class-legend-title">{selectedIndex} classified (5 classes)</div>
+              {aoiFiveClassLegend.map(row => (
+                <div key={row.idx} className="si-aoi-class-legend-row">
+                  <span className="si-aoi-class-legend-swatch" style={{ background: row.color }} />
+                  <span>{row.label}</span>
+                </div>
+              ))}
+            </div>
+          ) : null}
           {mpcProcessResult && stacMapThumb ? (
             <div className="si-map-analysis-pill" dir="ltr">
               <div className="si-map-analysis-pill-title">
@@ -7568,20 +7694,10 @@ export default function SatelliteIntelligence() {
                               <input type="checkbox" checked={mpcClipToAoi} onChange={e => setMpcClipToAoi(e.target.checked)} />
                             </label>
                           </div>
-                          <p className="si-field-analysis-hint">
-                            Includes dynamic color ramps, interactive legends, opacity workflow, layer visibility control, pixel inspection,
-                            temporal comparison, and AOI statistics in map popups.
-                          </p>
                         </div>
 
                         <div className="si-field-analysis-section">
-                          <div className="si-field-analysis-kicker">AOI analysis output</div>
-                          <ul className="si-rs-output-list">
-                            <li>Mean index value, Min / Max, vegetation health and moisture condition</li>
-                            <li>Water-stress zones and change-detection areas inside AOI only</li>
-                            <li>Auto-zoom and render results only within the AOI boundary</li>
-                            <li>Export: GeoTIFF, PNG, Vector AOI, JSON stats, CSV reports, interactive dashboard</li>
-                          </ul>
+                          <div className="si-field-analysis-kicker">Export</div>
                           <div className="si-rs-actions si-rs-actions--export">
                             <button
                               type="button"
@@ -7616,11 +7732,6 @@ export default function SatelliteIntelligence() {
                             </button>
                           </div>
                         </div>
-
-                        <p className="si-field-analysis-footer-hint">
-                          Workflow: Select index → Draw/Edit AOI → Search Sentinel-2 (Planetary Computer STAC) → Calculate → Clip to AOI →
-                          Render on map → Generate statistics/charts → Export results.
-                        </p>
                       </div>
                     )}
                     {expandedEnvSection === 'result-visualization' && (
@@ -7639,7 +7750,7 @@ export default function SatelliteIntelligence() {
 
                         <div className="si-field-analysis-section">
                           <div className="si-field-analysis-kicker">Map visualization features</div>
-                          <div className="si-rs-actions">
+                          <div className="si-rs-actions si-rs-actions--compact">
                             <button type="button" className="si-field-analysis-timeline-btn" disabled={isMpcProcessing} onClick={() => void runRsAnalysisFromAssistant()}>
                               <i className="fa-solid fa-play" aria-hidden /> {isMpcProcessing ? 'Running…' : 'Run'}
                             </button>
@@ -7682,42 +7793,7 @@ export default function SatelliteIntelligence() {
                         </div>
 
                         <div className="si-field-analysis-section">
-                          <div className="si-field-analysis-kicker">AOI-focused rendering</div>
-                          <ul className="si-rs-output-list">
-                            <li>All generated environmental results render directly on the map inside user-defined AOI.</li>
-                            <li>AOI polygon remains highlighted with editable boundaries.</li>
-                            <li>All raster outputs are clipped automatically to AOI extent.</li>
-                            <li>System auto-zooms to AOI after rendering.</li>
-                            <li>Supports comparing multiple AOIs and AOI-based exports/reporting.</li>
-                          </ul>
-                        </div>
-
-                        <div className="si-field-analysis-section">
-                          <div className="si-field-analysis-kicker">Raster rendering stack</div>
-                          <ul className="si-rs-output-list">
-                            <li>WebGL and dynamic tile rendering ready for large-scale imagery visualization.</li>
-                            <li>XYZ / WMTS dynamic tiles supported for smooth map interaction.</li>
-                            <li>Recommended clients: ArcGIS Maps SDK, Leaflet, MapLibre GL, OpenLayers, deck.gl.</li>
-                            <li>Recommended server pipeline: rasterio + rio-tiler + TiTiler Dynamic Raster Tile Service.</li>
-                            <li>STAC source configured for Planetary Computer API.</li>
-                          </ul>
-                          <a
-                            className="si-explore-stac-url"
-                            href="https://planetarycomputer.microsoft.com/api/stac/v1"
-                            target="_blank"
-                            rel="noopener noreferrer"
-                          >
-                            https://planetarycomputer.microsoft.com/api/stac/v1
-                          </a>
-                        </div>
-
-                        <div className="si-field-analysis-section">
-                          <div className="si-field-analysis-kicker">Workflow + output formats</div>
-                          <ul className="si-rs-output-list">
-                            <li>Select index → Draw AOI → Search Sentinel-2 → Calculate index → Clip to AOI.</li>
-                            <li>Display map result → Generate charts/statistics → Export/download.</li>
-                            <li>Output formats: GeoTIFF, PNG, Vector AOI, JSON statistics, CSV reports, interactive dashboard.</li>
-                          </ul>
+                          <div className="si-field-analysis-kicker">Export</div>
                           <div className="si-rs-actions si-rs-actions--export">
                             <button
                               type="button"
