@@ -565,7 +565,6 @@ export default function GisMap() {
   const [globeLoaded, setGlobeLoaded] = useState(false)
   const [mapSearchQuery, setMapSearchQuery] = useState('')
   const [mapSearchStatus, setMapSearchStatus] = useState('')
-  const [mapSearchLayerHits, setMapSearchLayerHits] = useState<Array<{ id: string; name: string; meta: string }>>([])
   const [quickSearchOpen, setQuickSearchOpen] = useState(false)
   const geminiApiKey = useGeminiApiKey()
   const geoExplorerFileInputRef = useRef<HTMLInputElement | null>(null)
@@ -1532,7 +1531,6 @@ export default function GisMap() {
   const handleMapSearch = async () => {
     const query = mapSearchQuery.trim()
     if (!query) return
-    setMapSearchLayerHits([])
     const map = mapProjectionMode === '2d' ? mapRef.current : null
     const globe = mapProjectionMode === 'globe'
       ? (mapboxGlobeRef.current?.getMap ? mapboxGlobeRef.current.getMap() : mapboxGlobeRef.current)
@@ -1549,30 +1547,6 @@ export default function GisMap() {
         setMapSearchStatus('Location found')
         return
       }
-    }
-
-    const q = query.toLowerCase()
-    const layerHits = layers
-      .map(layer => {
-        const sourceLabel = layer.source === 'arcgis' ? 'ArcGIS' : layer.source === 'url' ? 'URL' : 'Upload'
-        const haystack = `${layer.name} ${layer.group || ''} ${layer.url || ''} ${sourceLabel}`.toLowerCase()
-        if (!haystack.includes(q)) return null
-        return {
-          id: String(layer.id),
-          name: layer.name,
-          meta: `${sourceLabel}${layer.group ? ` • ${layer.group}` : ''}`,
-        }
-      })
-      .filter(Boolean) as Array<{ id: string; name: string; meta: string }>
-    if (layerHits.length > 0) {
-      setMapSearchLayerHits(layerHits)
-      const firstLayer = layers.find(l => String(l.id) === layerHits[0].id)
-      if (firstLayer) {
-        setLayers(prev => prev.map(l => (l.id === firstLayer.id ? { ...l, visible: true } : l)))
-        zoomToLayer(firstLayer)
-      }
-      setMapSearchStatus(`Found ${layerHits.length} layer${layerHits.length > 1 ? 's' : ''}`)
-      return
     }
 
     try {
@@ -1593,14 +1567,6 @@ export default function GisMap() {
     } catch {
       setMapSearchStatus('Search is unavailable. Try coordinates like 25.2, 55.3')
     }
-  }
-
-  const focusLayerSearchHit = (layerId: string) => {
-    const layer = layers.find(l => String(l.id) === layerId)
-    if (!layer) return
-    setLayers(prev => prev.map(l => (String(l.id) === layerId ? { ...l, visible: true } : l)))
-    zoomToLayer(layer)
-    setMapSearchStatus(`Layer: ${layer.name}`)
   }
 
   const onGeoExplorerAttachChange = useCallback((e: ChangeEvent<HTMLInputElement>) => {
@@ -4578,16 +4544,6 @@ export default function GisMap() {
               </button>
             </div>
             {mapSearchStatus ? <div className="gis-tool-muted">{mapSearchStatus}</div> : null}
-            {mapSearchLayerHits.length ? (
-              <div className="gis-map-search-hits">
-                {mapSearchLayerHits.map(hit => (
-                  <button key={hit.id} type="button" className="gis-map-search-hit" onClick={() => focusLayerSearchHit(hit.id)}>
-                    <strong>{hit.name}</strong>
-                    <span>{hit.meta}</span>
-                  </button>
-                ))}
-              </div>
-            ) : null}
           </div>
         ) : activeMapTool === 'table' ? (
           <div className="gis-tool-table-picker">
@@ -5688,15 +5644,21 @@ export default function GisMap() {
                               type="button"
                               role="menuitem"
                               onClick={() => {
-                                setOpenLayerMenuId(null)
-                                setLayers(prev => {
-                                  const targetGroup = layer.group?.trim() || 'Group'
-                                  return prev.map(l => ({ ...l, group: targetGroup }))
-                                })
+                                void (async () => {
+                                  setOpenLayerMenuId(null)
+                                  const next = await appPrompt('Group name (leave empty to clear):', layer.group ?? '', {
+                                    title: 'Layer group',
+                                  })
+                                  if (next === null) return
+                                  const group = next.trim()
+                                  setLayers(prev =>
+                                    prev.map(l => (l.id === layer.id ? { ...l, group: group || undefined } : l)),
+                                  )
+                                })()
                               }}
                             >
                               <i className="fa-solid fa-layer-group" aria-hidden="true" />
-                              <span>Group Layer</span>
+                              <span>Group</span>
                             </button>
                           </div>
                         ) : null}
@@ -6073,7 +6035,7 @@ export default function GisMap() {
                       void handleMapSearch()
                     }
                   }}
-                  placeholder="Search places or layers"
+                  placeholder="Search places"
                   aria-label="Search map"
                   autoComplete="off"
                 />
@@ -6089,16 +6051,6 @@ export default function GisMap() {
               </div>
             </div>
             {mapSearchStatus ? <div className="gis-map-quick-search-popover__status">{mapSearchStatus}</div> : null}
-            {mapSearchLayerHits.length ? (
-              <div className="gis-map-quick-search-popover__hits">
-                {mapSearchLayerHits.map(hit => (
-                  <button key={hit.id} type="button" className="gis-map-quick-search-popover__hit" onClick={() => focusLayerSearchHit(hit.id)}>
-                    <strong>{hit.name}</strong>
-                    <span>{hit.meta}</span>
-                  </button>
-                ))}
-              </div>
-            ) : null}
           </div>
         ) : null}
 

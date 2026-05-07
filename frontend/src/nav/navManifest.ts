@@ -141,7 +141,43 @@ export const NAV_DEFAULT_GROUPS: NavGroupDef[] = [
     i18nKey: 'operations',
     defaultIcon: 'fa-solid fa-screwdriver-wrench',
     headerClass: 'nav-header-data',
-    children: [],
+    children: [
+      {
+        id: 'data-irrigation',
+        path: '/data/irrigation',
+        i18nKey: 'irrigation',
+        defaultIcon: 'fa-solid fa-water',
+        subitemClass: 'nav-item-irrigation',
+      },
+      {
+        id: 'data-ec-ph',
+        path: '/data/ec-ph',
+        i18nKey: 'ecph',
+        defaultIcon: 'fa-solid fa-droplet',
+        subitemClass: 'nav-item-ec-ph',
+      },
+      {
+        id: 'data-harvest',
+        path: '/data/harvest',
+        i18nKey: 'harvest',
+        defaultIcon: 'fa-solid fa-tractor',
+        subitemClass: 'nav-item-harvest',
+      },
+      {
+        id: 'data-qhis',
+        path: '/data/qhis',
+        i18nKey: 'qhis',
+        defaultIcon: 'fa-solid fa-shield-halved',
+        subitemClass: 'nav-item-qhis',
+      },
+      {
+        id: 'data-production',
+        path: '/data/production',
+        i18nKey: 'productTracking',
+        defaultIcon: 'fa-solid fa-boxes-stacked',
+        subitemClass: 'nav-item-production',
+      },
+    ],
   },
   {
     id: 'sensors',
@@ -192,13 +228,6 @@ export const NAV_DEFAULT_GROUPS: NavGroupDef[] = [
     defaultIcon: 'fa-solid fa-gear',
     headerClass: 'nav-header-master',
     children: [
-      {
-        id: 'master-workflow',
-        path: '/master/workflow-settings',
-        i18nKey: 'workflowDataSources',
-        defaultIcon: 'fa-solid fa-sliders',
-        subitemClass: 'nav-item-master',
-      },
       {
         id: 'master-dashboard-settings',
         path: '/master/dashboard-settings',
@@ -358,7 +387,7 @@ export function mergeNavigationManifest(
   }
 
   const groupOrder = settings.navGroupOrder?.length ? settings.navGroupOrder : baseGroups.map(g => g.id)
-  const merged = sortByIdList(baseGroups.map(resolveGroup), groupOrder).filter(g => g.visible)
+  const merged = sortByIdList(baseGroups.map(resolveGroup), groupOrder).filter(g => g.visible && g.children.length > 0)
 
   const homeOv = ov[NAV_HOME.id]
   const homeResolved: MergedLeaf = {

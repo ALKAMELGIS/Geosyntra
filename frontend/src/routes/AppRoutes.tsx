@@ -12,6 +12,11 @@ import AgroDashboard from '../pages/dashboards/AgroDashboard'
 const SatelliteIntelligence = lazy(() => import('../pages/satellite/SatelliteIntelligence'))
 const SatelliteMultidimensional = lazy(() => import('../pages/satellite/Multidimensional'))
 const GisMap = lazy(() => import('../pages/satellite/GisMap'))
+const DataEntryIrrigation = lazy(() => import('../pages/data-entry/Irrigation'))
+const DataEntryHarvest = lazy(() => import('../pages/data-entry/Harvest'))
+const DataEntryQHIS = lazy(() => import('../pages/data-entry/QHIS'))
+const DataEntryECPH = lazy(() => import('../pages/data-entry/EC'))
+const DataEntryRecipes = lazy(() => import('../pages/data-entry/Recipes'))
 const AccountProfile = lazy(() => import('../pages/account/Profile'))
 const AccountSettings = lazy(() => import('../pages/account/Settings'))
 const MasterGisContent = lazy(() => import('../pages/master/GisContent'))
@@ -37,7 +42,14 @@ export default function AppRoutes() {
         <Route path="/login" element={<Login />} />
         <Route path="/" element={<Home />} />
         <Route path="/satellite" element={<Navigate to="/satellite/indices" replace />} />
-        <Route path="/data/*" element={<Navigate to="/" replace />} />
+        <Route path="/data/fertigation" element={<Navigate to="/data/irrigation" replace />} />
+        <Route path="/data/fertigation-records" element={<Navigate to="/data/irrigation" replace />} />
+        <Route path="/data/irrigation" element={<DataEntryIrrigation />} />
+        <Route path="/data/harvest" element={<DataEntryHarvest />} />
+        <Route path="/data/qhis" element={<DataEntryQHIS />} />
+        <Route path="/data/production" element={<DataEntryHarvest />} />
+        <Route path="/data/ec-ph" element={<DataEntryECPH />} />
+        <Route path="/data/recipes/:formSlug" element={<DataEntryRecipes />} />
         <Route path="/satellite/indices" element={<SatelliteIntelligence />} />
         <Route path="/satellite/multidimensional" element={<SatelliteMultidimensional />} />
         <Route path="/satellite/gis" element={<GisMap />} />
@@ -52,7 +64,7 @@ export default function AppRoutes() {
         <Route path="/dashboards/esri-app" element={<EsriApp />} />
         <Route path="/master/gis-content" element={<MasterGisContent />} />
         <Route path="/master/dashboard-settings" element={<DashboardSettings />} />
-        <Route path="/master/workflow-settings" element={<AccountSettings />} />
+        <Route path="/master/workflow-settings" element={<Navigate to="/master/dashboard-settings" replace />} />
         <Route path="/account/profile" element={<AccountProfile />} />
         <Route path="/account/profile-user-management" element={<Navigate to="/account/profile" replace />} />
         <Route path="/account/settings" element={<AccountSettings />} />

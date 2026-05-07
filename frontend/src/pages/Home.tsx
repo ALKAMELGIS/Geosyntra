@@ -90,7 +90,6 @@ const menuItems: MenuItem[] = [
     icon: 'fa-solid fa-gear',
     color: '#64748B',
     items: [
-      { label: { en: 'Data Management', ar: 'إدارة البيانات' }, icon: 'fa-solid fa-sliders', to: '/master/workflow-settings' },
       { label: { en: 'Dashboard Settings', ar: 'إعدادات لوحة التحكم' }, icon: 'fa-solid fa-link', to: '/master/dashboard-settings' },
       { label: { en: 'GIS Content', ar: 'محتوى GIS' }, icon: 'fa-solid fa-map-location-dot', to: '/master/gis-content' },
     ]

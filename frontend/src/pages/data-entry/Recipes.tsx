@@ -26,7 +26,7 @@ const SLUG_TO_ENTRY_PATH: Record<string, string> = {
   harvest: '/data/harvest',
   production: '/data/production',
   qhis: '/data/qhis',
-  fertigation: '/data/fertigation-records',
+  fertigation: '/data/irrigation',
 }
 
 const DB_NAME = 'GisMapStore'
