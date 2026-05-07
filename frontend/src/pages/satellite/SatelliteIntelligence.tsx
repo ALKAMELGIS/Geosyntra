@@ -544,15 +544,27 @@ function buildPcProcessingPreviewPngUrl(
     assetBidx?: string;
   },
   size = 2048,
+  bbox?: [number, number, number, number] | null,
+  widthOverride?: number,
+  heightOverride?: number,
 ): string {
   const u = new URL('https://planetarycomputer.microsoft.com/api/data/v1/item/preview.png');
   u.searchParams.set('collection', collection);
   u.searchParams.set('item', itemId);
   u.searchParams.set('format', 'png');
   u.searchParams.set('nodata', '0');
-  u.searchParams.set('width', String(Math.max(256, Math.min(4096, Math.floor(size)))));
-  u.searchParams.set('height', String(Math.max(256, Math.min(4096, Math.floor(size)))));
+  const resolvedWidth = Number.isFinite(widthOverride as number)
+    ? Number(widthOverride)
+    : Math.max(256, Math.min(4096, Math.floor(size)));
+  const resolvedHeight = Number.isFinite(heightOverride as number)
+    ? Number(heightOverride)
+    : Math.max(256, Math.min(4096, Math.floor(size)));
+  u.searchParams.set('width', String(Math.max(256, Math.min(4096, Math.floor(resolvedWidth)))));
+  u.searchParams.set('height', String(Math.max(256, Math.min(4096, Math.floor(resolvedHeight)))));
   u.searchParams.set('assets', spec.assets.join(','));
+  if (bbox && bbox.length >= 4 && bbox.every(v => Number.isFinite(v))) {
+    u.searchParams.set('bbox', bbox.join(','));
+  }
   if (spec.assetBidx) u.searchParams.set('asset_bidx', spec.assetBidx);
   if (spec.expression) u.searchParams.set('expression', spec.expression);
   if (spec.rescale) u.searchParams.set('rescale', spec.rescale);
@@ -4069,8 +4081,25 @@ export default function SatelliteIntelligence() {
         const effColl = getStacItemCollection(effectiveItem);
         const effItemId = getStacItemIdForThumb(effectiveItem);
         if (!effColl || !effItemId) throw new Error('Could not resolve compatible STAC item for rendering.');
-        const urls = [4096, 3072, 2560, 2048, 1536, 1280, 1024].flatMap(sz =>
-          specs.map(spec => buildPcProcessingPreviewPngUrl(effColl, effItemId, spec, sz)),
+        const renderBbox = mpcClipToAoi && aoi ? (getGeoJsonBounds(aoi as any) as [number, number, number, number] | null) : null;
+        const targetBbox = renderBbox && renderBbox.every(v => Number.isFinite(v)) ? renderBbox : (bbox as [number, number, number, number]);
+        const latMid = ((targetBbox[1] + targetBbox[3]) / 2) * (Math.PI / 180);
+        const metersPerDegLat = 110540;
+        const metersPerDegLon = 111320 * Math.max(0.2, Math.cos(latMid));
+        const pixelW10m = Math.max(256, Math.min(4096, Math.round(((targetBbox[2] - targetBbox[0]) * metersPerDegLon) / 10)));
+        const pixelH10m = Math.max(256, Math.min(4096, Math.round(((targetBbox[3] - targetBbox[1]) * metersPerDegLat) / 10)));
+        const urls = [1, 0.75, 0.5].flatMap(scale =>
+          specs.map(spec =>
+            buildPcProcessingPreviewPngUrl(
+              effColl,
+              effItemId,
+              spec,
+              2048,
+              targetBbox,
+              Math.round(pixelW10m * scale),
+              Math.round(pixelH10m * scale),
+            ),
+          ),
         );
         let blobUrl = await fetchStacMapOverlayBlobUrl(urls);
         if (!blobUrl) {
@@ -4078,7 +4107,7 @@ export default function SatelliteIntelligence() {
           blobUrl = await fetchStacMapOverlayBlobUrl(genericCandidates);
         }
         if (!blobUrl) throw new Error('Could not render processing template preview for this scene. Check required scene assets or enable backend URL.');
-        const [w, s, e, n] = bbox;
+        const [w, s, e, n] = targetBbox;
         setStacMapThumb(prev => {
           revokeStacMapOverlayBlob(prev?.url);
           return { url: blobUrl, coordinates: bboxToRgCoordinates([w, s, e, n]) };
@@ -6088,7 +6117,7 @@ export default function SatelliteIntelligence() {
                       filter={['==', ['geometry-type'], 'Polygon']}
                       paint={{
                         'fill-color': drawStyle.fillColor,
-                        'fill-opacity': aoiHeatPointGeoJson?.features?.length ? 0.1 : drawStyle.fillOpacity,
+                        'fill-opacity': drawStyle.fillOpacity,
                       }}
                     />
                     <Layer
@@ -6119,7 +6148,7 @@ export default function SatelliteIntelligence() {
                     />
                   </Source>
                 )}
-                {aoiHeatPointGeoJson?.features?.length ? (
+                {false && aoiHeatPointGeoJson?.features?.length ? (
                   <Source id="si-aoi-heat-source" type="geojson" data={aoiHeatPointGeoJson as any}>
                     <Layer
                       id="si-aoi-heatmap"
@@ -6303,7 +6332,7 @@ export default function SatelliteIntelligence() {
               </span>
             </div>
           )}
-          {aoiHeatPointGeoJson?.features?.length ? (
+          {false && aoiHeatPointGeoJson?.features?.length ? (
             <div className="si-aoi-class-legend" dir="ltr">
               <div className="si-aoi-class-legend-title">{selectedIndex} classified (5 classes)</div>
               {aoiFiveClassLegend.map(row => (
