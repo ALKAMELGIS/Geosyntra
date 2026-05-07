@@ -3931,13 +3931,23 @@ export default function SatelliteIntelligence() {
   }, [expandedEnvSection, exploreTab, effectiveAnalysisEngineBaseUrl, selectedMpcTemplateId]);
 
   const findCompatibleStacItemForTemplate = useCallback(
-    async (templateId: MpcTemplateId, aoi: GeoJSON.Feature, dStart: string, dEnd: string): Promise<any | null> => {
+    async (
+      templateId: MpcTemplateId,
+      aoi: GeoJSON.Feature,
+      dStart: string,
+      dEnd: string,
+      collectionOverride?: string[],
+    ): Promise<any | null> => {
       try {
+        const effectiveCollections = (collectionOverride?.length ? collectionOverride : exploreSelectedCollectionIds)
+          .map(v => String(v || '').trim())
+          .filter(Boolean);
+        if (!effectiveCollections.length) return null;
         const res = await fetch(stacActiveSearchUrl, {
           method: 'POST',
           headers: buildStacRequestHeaders(stacConnection),
           body: JSON.stringify({
-            collections: exploreSelectedCollectionIds,
+            collections: effectiveCollections,
             intersects: aoi.geometry,
             datetime: `${dStart}/${dEnd}`,
             limit: Math.max(20, Math.min(120, exploreLimit)),
@@ -4024,7 +4034,7 @@ export default function SatelliteIntelligence() {
           spec.assets.every(a => availableAssets.has(String(a).toLowerCase())),
         );
         if (!specs.length) {
-          const autoItem = await findCompatibleStacItemForTemplate(templateToRun, aoi, dStart, dEnd);
+            const autoItem = await findCompatibleStacItemForTemplate(templateToRun, aoi, dStart, dEnd, effectiveCollections);
           if (autoItem) {
             effectiveItem = autoItem;
             setProcessingTargetStacItem(autoItem);
@@ -4153,7 +4163,7 @@ export default function SatelliteIntelligence() {
 
     let target = processingTargetStacItem;
     if (!target) {
-      target = await findCompatibleStacItemForTemplate(template, aoi, dStart, dEnd);
+      target = await findCompatibleStacItemForTemplate(template, aoi, dStart, dEnd, templateCollections);
     }
     if (!target) {
       setFieldAnalysisStatus('No compatible Sentinel scene found for selected AOI/time range.');
