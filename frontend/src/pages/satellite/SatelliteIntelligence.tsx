@@ -4296,7 +4296,7 @@ export default function SatelliteIntelligence() {
     });
   }, [selectedIndex, drawnStats]);
 
-  const aoiClassifiedGeoJson = useMemo(() => {
+  const aoiHeatPointGeoJson = useMemo(() => {
     if (!drawnGeometry?.geometry || !mpcProcessResult) return null;
     const bounds = getGeoJsonBounds(drawnGeometry as any);
     if (!bounds) return null;
@@ -4305,8 +4305,8 @@ export default function SatelliteIntelligence() {
     const width = e - w;
     const height = n - s;
     const aspect = width / Math.max(height, 1e-9);
-    const cols = Math.max(8, Math.min(24, Math.round(12 * Math.max(0.6, Math.min(1.8, aspect)))));
-    const rows = Math.max(8, Math.min(24, Math.round(12 / Math.max(0.6, Math.min(1.8, aspect)))));
+    const cols = Math.max(22, Math.min(56, Math.round(34 * Math.max(0.6, Math.min(1.8, aspect)))));
+    const rows = Math.max(22, Math.min(56, Math.round(34 / Math.max(0.6, Math.min(1.8, aspect)))));
     const dx = width / cols;
     const dy = height / rows;
     const minV = mpcProcessResult.statistics?.min ?? aoiFiveClassLegend[0]?.lower ?? -1;
@@ -4317,12 +4317,8 @@ export default function SatelliteIntelligence() {
     const features: any[] = [];
     for (let yy = 0; yy < rows; yy += 1) {
       for (let xx = 0; xx < cols; xx += 1) {
-        const x1 = w + xx * dx;
-        const y1 = s + yy * dy;
-        const x2 = x1 + dx;
-        const y2 = y1 + dy;
-        const cx = (x1 + x2) / 2;
-        const cy = (y1 + y2) / 2;
+        const cx = w + (xx + 0.5) * dx;
+        const cy = s + (yy + 0.5) * dy;
         if (!pointInAoiGeometry(cx, cy, drawnGeometry.geometry)) continue;
         const gx = (xx + 0.5) / cols;
         const gy = (yy + 0.5) / rows;
@@ -4336,19 +4332,35 @@ export default function SatelliteIntelligence() {
           type: 'Feature',
           properties: {
             value: Number(value.toFixed(3)),
+            weight: Number(clampUnit((value - minV) / span).toFixed(4)),
             classId: classIdx + 1,
             classLabel: cls?.label ?? `Class ${classIdx + 1}`,
             color: cls?.color ?? '#22c55e',
           },
           geometry: {
-            type: 'Polygon',
-            coordinates: [[[x1, y1], [x2, y1], [x2, y2], [x1, y2], [x1, y1]]],
+            type: 'Point',
+            coordinates: [cx, cy],
           },
         });
       }
     }
     return { type: 'FeatureCollection', features };
   }, [drawnGeometry, aoiFiveClassLegend, selectedIndex, mpcProcessResult]);
+
+  const aoiHeatmapColorExpression = useMemo(() => {
+    const c = aoiFiveClassLegend.map(x => x.color);
+    return [
+      'interpolate',
+      ['linear'],
+      ['heatmap-density'],
+      0.0, 'rgba(0,0,0,0)',
+      0.18, c[0] ?? '#7c3aed',
+      0.36, c[1] ?? '#3b82f6',
+      0.56, c[2] ?? '#22c55e',
+      0.78, c[3] ?? '#f59e0b',
+      1.0, c[4] ?? '#ef4444',
+    ] as any;
+  }, [aoiFiveClassLegend]);
 
   const seriesTrendLabel = useMemo(() => {
     if (weeklyComposites.length < 2) return null;
@@ -6076,7 +6088,7 @@ export default function SatelliteIntelligence() {
                       filter={['==', ['geometry-type'], 'Polygon']}
                       paint={{
                         'fill-color': drawStyle.fillColor,
-                        'fill-opacity': aoiClassifiedGeoJson?.features?.length ? 0.08 : drawStyle.fillOpacity,
+                        'fill-opacity': aoiHeatPointGeoJson?.features?.length ? 0.1 : drawStyle.fillOpacity,
                       }}
                     />
                     <Layer
@@ -6107,22 +6119,27 @@ export default function SatelliteIntelligence() {
                     />
                   </Source>
                 )}
-                {aoiClassifiedGeoJson?.features?.length ? (
-                  <Source id="si-aoi-classified-source" type="geojson" data={aoiClassifiedGeoJson as any}>
+                {aoiHeatPointGeoJson?.features?.length ? (
+                  <Source id="si-aoi-heat-source" type="geojson" data={aoiHeatPointGeoJson as any}>
                     <Layer
-                      id="si-aoi-classified-fill"
-                      type="fill"
+                      id="si-aoi-heatmap"
+                      type="heatmap"
                       paint={{
-                        'fill-color': ['coalesce', ['get', 'color'], '#22c55e'],
-                        'fill-opacity': 0.68,
+                        'heatmap-weight': ['coalesce', ['get', 'weight'], 0.2],
+                        'heatmap-intensity': 1.15,
+                        'heatmap-radius': ['interpolate', ['linear'], ['zoom'], 7, 18, 12, 28, 16, 42],
+                        'heatmap-opacity': 0.78,
+                        'heatmap-color': aoiHeatmapColorExpression,
                       }}
                     />
                     <Layer
-                      id="si-aoi-classified-line"
-                      type="line"
+                      id="si-aoi-heat-points"
+                      type="circle"
+                      minzoom={13}
                       paint={{
-                        'line-color': 'rgba(248,250,252,0.52)',
-                        'line-width': 0.8,
+                        'circle-radius': 2,
+                        'circle-color': ['coalesce', ['get', 'color'], '#22c55e'],
+                        'circle-opacity': 0.32,
                       }}
                     />
                   </Source>
@@ -6286,7 +6303,7 @@ export default function SatelliteIntelligence() {
               </span>
             </div>
           )}
-          {aoiClassifiedGeoJson?.features?.length ? (
+          {aoiHeatPointGeoJson?.features?.length ? (
             <div className="si-aoi-class-legend" dir="ltr">
               <div className="si-aoi-class-legend-title">{selectedIndex} classified (5 classes)</div>
               {aoiFiveClassLegend.map(row => (
@@ -7597,7 +7614,7 @@ export default function SatelliteIntelligence() {
                                   }}
                                 >
                                   <span>{id}</span>
-                                  <small>{Object.prototype.hasOwnProperty.call(ENVIRONMENTAL_INDICES, id) ? 'ready' : 'auto-template'}</small>
+                                  <small>ready</small>
                                 </button>
                               );
                             })}
