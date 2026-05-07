@@ -7528,10 +7528,21 @@ export default function SatelliteIntelligence() {
                               />
                             </label>
                           </div>
-                          <button type="button" className="si-field-analysis-timeline-btn" onClick={generateFieldAnalysisTimeline}>
-                            <i className="fa-solid fa-chart-line" aria-hidden />
-                            Generate timeline
-                          </button>
+                          <div className="si-rs-actions si-rs-actions--compact">
+                            <button type="button" className="si-field-analysis-timeline-btn" onClick={generateFieldAnalysisTimeline}>
+                              <i className="fa-solid fa-chart-line" aria-hidden />
+                              Generate timeline
+                            </button>
+                            <button
+                              type="button"
+                              className="si-field-analysis-timeline-btn"
+                              disabled={isMpcProcessing}
+                              onClick={() => void runRsAnalysisFromAssistant()}
+                            >
+                              <i className="fa-solid fa-play" aria-hidden />
+                              {isMpcProcessing ? 'Running…' : 'Run'}
+                            </button>
+                          </div>
                           <p className="si-field-analysis-hint">
                             Browse satellite imagery changes over time. Select a date range and generate the timeline.
                           </p>
