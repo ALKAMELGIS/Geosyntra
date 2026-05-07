@@ -4105,6 +4105,84 @@ export default function SatelliteIntelligence() {
     }
   };
 
+  const runRsAnalysisFromAssistant = useCallback(async () => {
+    if (!drawnGeometry) {
+      setFieldAnalysisStatus('Draw AOI first, then press Run Analysis.');
+      applyMapDrawTool('polygon');
+      return;
+    }
+
+    const templateByIndex: Partial<Record<EnvironmentalIndexId, MpcTemplateId>> = {
+      NDVI: 'ndvi_s2',
+      NDMI: 'ndmi_s2',
+      NDWI: 'false_color_s2',
+      SAVI: 'ndvi_s2',
+      EVI: 'ndvi_s2',
+      GNDVI: 'ndvi_s2',
+      NBR: 'false_color_s2',
+      NDRE: 'ndvi_s2',
+      BSI: 'false_color_s2',
+      MNDWI: 'false_color_s2',
+      LST: 'false_color_s2',
+    };
+
+    const template = templateByIndex[selectedIndex] ?? 'ndvi_s2';
+    const selectedTemplate = LOCAL_PROCESSING_TEMPLATES.find(t => t.id === template);
+    const templateCollections = selectedTemplate?.collections ?? ['sentinel-2-l2a'];
+    setSelectedMpcTemplateId(template);
+    setExploreSelectedCollectionIds(prev => {
+      const s = new Set(prev);
+      templateCollections.forEach(c => s.add(c));
+      return [...s];
+    });
+    setShowFieldBoundaries(true);
+    setShowProductivityZones(true);
+    setMpcClipToAoi(true);
+    setIsWmsOverlayVisible(true);
+    setIsStacThumbVisible(true);
+
+    const dStart = exploreEffectiveDatetime.start || timeSeriesStart;
+    const dEnd = exploreEffectiveDatetime.end || timeSeriesEnd;
+    const aoi = resolveExploreAoiFeature();
+    if (!aoi || !dStart || !dEnd) {
+      setFieldAnalysisStatus('Set AOI and date range before running analysis.');
+      return;
+    }
+
+    let target = processingTargetStacItem;
+    if (!target) {
+      target = await findCompatibleStacItemForTemplate(template, aoi, dStart, dEnd);
+    }
+    if (!target) {
+      setFieldAnalysisStatus('No compatible Sentinel scene found for selected AOI/time range.');
+      return;
+    }
+
+    const stableKey = stacItemStableKey(target);
+    const collection = getStacItemCollection(target);
+    setProcessingTargetStacItem(target);
+    setExploreSelectedResultKeys([stableKey]);
+    if (collection) {
+      setExploreSelectedCollectionIds(prev => (prev.includes(collection) ? prev : [...prev, collection]));
+    }
+    setStacStatus(`Run ready: ${String(target?.id ?? 'scene')} (${template}).`);
+    await runMpcTemplateProcessing(template, target);
+    setExpandedEnvSection('result-visualization');
+    setFieldAnalysisStatus(`Run completed for ${selectedIndex}. Results rendered inside AOI.`);
+  }, [
+    applyMapDrawTool,
+    drawnGeometry,
+    exploreEffectiveDatetime.end,
+    exploreEffectiveDatetime.start,
+    findCompatibleStacItemForTemplate,
+    processingTargetStacItem,
+    resolveExploreAoiFeature,
+    runMpcTemplateProcessing,
+    selectedIndex,
+    timeSeriesEnd,
+    timeSeriesStart,
+  ]);
+
   const openAcsPicker = () => {
     setAcsPickerStaging([]);
     setAcsPickerManualPath('');
@@ -7404,8 +7482,8 @@ export default function SatelliteIntelligence() {
                             <button type="button" className="si-field-analysis-timeline-btn" onClick={generateFieldAnalysisTimeline}>
                               <i className="fa-solid fa-chart-line" aria-hidden /> Timelapse / time-series
                             </button>
-                            <button type="button" className="si-field-analysis-timeline-btn" onClick={() => void runMpcTemplateProcessing()}>
-                              <i className="fa-solid fa-layer-group" aria-hidden /> Render result
+                            <button type="button" className="si-field-analysis-timeline-btn" disabled={isMpcProcessing} onClick={() => void runRsAnalysisFromAssistant()}>
+                              <i className="fa-solid fa-play" aria-hidden /> {isMpcProcessing ? 'Running…' : 'Run analysis'}
                             </button>
                           </div>
                         </div>
@@ -7479,30 +7557,44 @@ export default function SatelliteIntelligence() {
 
                         <div className="si-field-analysis-section">
                           <div className="si-field-analysis-kicker">Map visualization features</div>
+                          <div className="si-rs-actions">
+                            <button type="button" className="si-field-analysis-timeline-btn" disabled={isMpcProcessing} onClick={() => void runRsAnalysisFromAssistant()}>
+                              <i className="fa-solid fa-play" aria-hidden /> {isMpcProcessing ? 'Running…' : 'Run'}
+                            </button>
+                            <button type="button" className="si-field-analysis-timeline-btn" onClick={toggleStacThumbVisibility}>
+                              <i className="fa-solid fa-images" aria-hidden /> {isStacThumbVisible ? 'Hide raster' : 'Show raster'}
+                            </button>
+                            <button type="button" className="si-field-analysis-timeline-btn" onClick={toggleWmsOverlayVisibility}>
+                              <i className="fa-solid fa-layer-group" aria-hidden /> {isWmsOverlayVisible ? 'Hide overlay' : 'Show overlay'}
+                            </button>
+                            <button type="button" className="si-field-analysis-timeline-btn" onClick={generateFieldAnalysisTimeline}>
+                              <i className="fa-solid fa-chart-line" aria-hidden /> Timelapse
+                            </button>
+                          </div>
                           <div className="si-rs-toggle-grid">
                             <label className="si-rs-toggle-row">
                               <span>Real-time raster rendering</span>
-                              <input type="checkbox" checked readOnly />
+                              <input type="checkbox" checked={isStacThumbVisible} onChange={() => toggleStacThumbVisibility()} />
                             </label>
                             <label className="si-rs-toggle-row">
                               <span>Dynamic color ramps + interactive legends</span>
-                              <input type="checkbox" checked readOnly />
+                              <input type="checkbox" checked={showProductivityZones} onChange={e => setShowProductivityZones(e.target.checked)} />
                             </label>
                             <label className="si-rs-toggle-row">
                               <span>Opacity slider + layer visibility toggle</span>
-                              <input type="checkbox" checked readOnly />
+                              <input type="checkbox" checked={isWmsOverlayVisible} onChange={() => toggleWmsOverlayVisibility()} />
                             </label>
                             <label className="si-rs-toggle-row">
                               <span>Pixel value inspection on click</span>
-                              <input type="checkbox" checked readOnly />
+                              <input type="checkbox" checked={showFieldBoundaries} onChange={e => setShowFieldBoundaries(e.target.checked)} />
                             </label>
                             <label className="si-rs-toggle-row">
                               <span>Popup statistics inside AOI</span>
-                              <input type="checkbox" checked readOnly />
+                              <input type="checkbox" checked={!!drawnGeometry} readOnly />
                             </label>
                             <label className="si-rs-toggle-row">
                               <span>Temporal comparison slider + timelapse</span>
-                              <input type="checkbox" checked readOnly />
+                              <input type="checkbox" checked={weeklyComposites.length > 1} onChange={() => generateFieldAnalysisTimeline()} />
                             </label>
                           </div>
                         </div>
@@ -7553,6 +7645,7 @@ export default function SatelliteIntelligence() {
                             </button>
                           </div>
                         </div>
+                        {fieldAnalysisStatus ? <p className="si-field-analysis-status">{fieldAnalysisStatus}</p> : null}
                       </div>
                     )}
                     {expandedEnvSection === 'ai-detection-gis' && (
