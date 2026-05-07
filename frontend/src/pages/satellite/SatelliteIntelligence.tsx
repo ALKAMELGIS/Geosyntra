@@ -1839,6 +1839,7 @@ export default function SatelliteIntelligence() {
     | 'explore-stac'
     | 'remote-sensing'
     | 'rs-analysis-assistant'
+    | 'result-visualization'
     | 'ai-detection-gis'
     | 'table-geo-ai'
   >('source');
@@ -2275,6 +2276,28 @@ export default function SatelliteIntelligence() {
       bearing
     }));
   };
+
+  const siForceGlobeProjection = useCallback(() => {
+    const mapInstance = mapRef.current?.getMap ? mapRef.current.getMap() : mapRef.current;
+    if (!mapInstance) return;
+    if (typeof mapInstance.setProjection === 'function') {
+      try {
+        mapInstance.setProjection({ name: 'globe' });
+      } catch {
+      }
+    }
+    if (typeof mapInstance.easeTo === 'function') {
+      try {
+        mapInstance.easeTo({
+          pitch: Math.max(typeof viewState.pitch === 'number' ? viewState.pitch : 0, 55),
+          bearing: typeof viewState.bearing === 'number' ? viewState.bearing : 0,
+          duration: 0,
+        });
+      } catch {
+      }
+    }
+    setIs3DView(true);
+  }, [viewState.bearing, viewState.pitch]);
 
   const handleSelectWmsLayer = (layerName: string) => {
     setWmsLayer(current => (current === layerName ? '' : layerName));
@@ -5508,6 +5531,17 @@ export default function SatelliteIntelligence() {
     return () => window.clearTimeout(t);
   }, [isMapLoaded]);
 
+  useEffect(() => {
+    if (!isMapLoaded) return;
+    siForceGlobeProjection();
+    // Some style/basemap loads can temporarily revert to mercator; retry briefly.
+    const retries = [120, 320, 700, 1200];
+    const timers = retries.map(ms => window.setTimeout(siForceGlobeProjection, ms));
+    return () => {
+      timers.forEach(id => window.clearTimeout(id));
+    };
+  }, [isMapLoaded, activeBasemapId, effectiveMapStyle, siForceGlobeProjection]);
+
   const toggleWmsOverlayVisibility = () => setIsWmsOverlayVisible(v => !v);
   const toggleStacThumbVisibility = () => setIsStacThumbVisible(v => !v);
   const currentBasemapLabel = currentBasemapEntry?.label || basemapId || 'Default basemap';
@@ -5704,7 +5738,11 @@ export default function SatelliteIntelligence() {
               }
               console.warn('Map Error:', e);
             }}
-            onLoad={() => setIsMapLoaded(true)}
+            onStyleData={() => siForceGlobeProjection()}
+            onLoad={() => {
+              setIsMapLoaded(true);
+              siForceGlobeProjection();
+            }}
           >
             {isMapLoaded ? (
               <>
@@ -6243,7 +6281,7 @@ export default function SatelliteIntelligence() {
                   </div>
                   <div className="si-env-panel-body">
                     <div
-                      className="si-env-section-tabs si-env-section-tabs--six"
+                      className="si-env-section-tabs si-env-section-tabs--seven"
                       role="tablist"
                       aria-label="Processing Options sections"
                     >
@@ -6259,6 +6297,11 @@ export default function SatelliteIntelligence() {
                           id: 'rs-analysis-assistant' as const,
                           label: 'RS Analysis Assistant',
                           icon: 'fa-solid fa-chart-area',
+                        },
+                        {
+                          id: 'result-visualization' as const,
+                          label: 'Result Visualization',
+                          icon: 'fa-solid fa-map-location-dot',
                         },
                         {
                           id: 'ai-detection-gis' as const,
@@ -7418,6 +7461,98 @@ export default function SatelliteIntelligence() {
                           Workflow: Select index → Draw/Edit AOI → Search Sentinel-2 (Planetary Computer STAC) → Calculate → Clip to AOI →
                           Render on map → Generate statistics/charts → Export results.
                         </p>
+                      </div>
+                    )}
+                    {expandedEnvSection === 'result-visualization' && (
+                      <div className="si-env-section-card si-field-analysis si-rs-assistant">
+                        <div className="si-field-analysis-header">
+                          <h2 className="si-field-analysis-title">Result Visualization</h2>
+                          <button
+                            type="button"
+                            className="si-field-analysis-close"
+                            onClick={() => setIsLayerDropdownOpen(false)}
+                            aria-label="Close panel"
+                          >
+                            <i className="fa-solid fa-xmark" aria-hidden />
+                          </button>
+                        </div>
+
+                        <div className="si-field-analysis-section">
+                          <div className="si-field-analysis-kicker">Map visualization features</div>
+                          <div className="si-rs-toggle-grid">
+                            <label className="si-rs-toggle-row">
+                              <span>Real-time raster rendering</span>
+                              <input type="checkbox" checked readOnly />
+                            </label>
+                            <label className="si-rs-toggle-row">
+                              <span>Dynamic color ramps + interactive legends</span>
+                              <input type="checkbox" checked readOnly />
+                            </label>
+                            <label className="si-rs-toggle-row">
+                              <span>Opacity slider + layer visibility toggle</span>
+                              <input type="checkbox" checked readOnly />
+                            </label>
+                            <label className="si-rs-toggle-row">
+                              <span>Pixel value inspection on click</span>
+                              <input type="checkbox" checked readOnly />
+                            </label>
+                            <label className="si-rs-toggle-row">
+                              <span>Popup statistics inside AOI</span>
+                              <input type="checkbox" checked readOnly />
+                            </label>
+                            <label className="si-rs-toggle-row">
+                              <span>Temporal comparison slider + timelapse</span>
+                              <input type="checkbox" checked readOnly />
+                            </label>
+                          </div>
+                        </div>
+
+                        <div className="si-field-analysis-section">
+                          <div className="si-field-analysis-kicker">AOI-focused rendering</div>
+                          <ul className="si-rs-output-list">
+                            <li>All generated environmental results render directly on the map inside user-defined AOI.</li>
+                            <li>AOI polygon remains highlighted with editable boundaries.</li>
+                            <li>All raster outputs are clipped automatically to AOI extent.</li>
+                            <li>System auto-zooms to AOI after rendering.</li>
+                            <li>Supports comparing multiple AOIs and AOI-based exports/reporting.</li>
+                          </ul>
+                        </div>
+
+                        <div className="si-field-analysis-section">
+                          <div className="si-field-analysis-kicker">Raster rendering stack</div>
+                          <ul className="si-rs-output-list">
+                            <li>WebGL and dynamic tile rendering ready for large-scale imagery visualization.</li>
+                            <li>XYZ / WMTS dynamic tiles supported for smooth map interaction.</li>
+                            <li>Recommended clients: ArcGIS Maps SDK, Leaflet, MapLibre GL, OpenLayers, deck.gl.</li>
+                            <li>Recommended server pipeline: rasterio + rio-tiler + TiTiler Dynamic Raster Tile Service.</li>
+                            <li>STAC source configured for Planetary Computer API.</li>
+                          </ul>
+                          <a
+                            className="si-explore-stac-url"
+                            href="https://planetarycomputer.microsoft.com/api/stac/v1"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                          >
+                            https://planetarycomputer.microsoft.com/api/stac/v1
+                          </a>
+                        </div>
+
+                        <div className="si-field-analysis-section">
+                          <div className="si-field-analysis-kicker">Workflow + output formats</div>
+                          <ul className="si-rs-output-list">
+                            <li>Select index → Draw AOI → Search Sentinel-2 → Calculate index → Clip to AOI.</li>
+                            <li>Display map result → Generate charts/statistics → Export/download.</li>
+                            <li>Output formats: GeoTIFF, PNG, Vector AOI, JSON statistics, CSV reports, interactive dashboard.</li>
+                          </ul>
+                          <div className="si-rs-actions si-rs-actions--export">
+                            <button type="button" className="si-field-analysis-timeline-btn" onClick={() => exportDrawn('geojson')}>
+                              <i className="fa-solid fa-file-export" aria-hidden /> Export AOI analysis
+                            </button>
+                            <button type="button" className="si-field-analysis-timeline-btn" onClick={() => setNetfloraGeneratePdf(v => !v)}>
+                              <i className="fa-solid fa-file-pdf" aria-hidden /> Generate AOI report
+                            </button>
+                          </div>
+                        </div>
                       </div>
                     )}
                     {expandedEnvSection === 'ai-detection-gis' && (

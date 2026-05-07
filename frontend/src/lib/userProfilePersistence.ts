@@ -62,7 +62,7 @@ export function writeProfileExtra(email: string, patch: Partial<ProfileExtra>): 
   return merged
 }
 
-/** Merge server/admin snapshot into local cache (server keys win on conflict). */
+/** Merge server/admin snapshot into local cache (local keys win on conflict). */
 export function mergeExternalProfileIntoCache(email: string, remote: Partial<ProfileExtra> | null | undefined): void {
   if (!remote || typeof remote !== 'object') return
   const key = profileStorageKey(email)
@@ -70,7 +70,9 @@ export function mergeExternalProfileIntoCache(email: string, remote: Partial<Pro
     const raw = localStorage.getItem(USER_PROFILES_STORAGE_KEY)
     const all: Record<string, Record<string, unknown>> = raw ? JSON.parse(raw) : {}
     const local = all[key] && typeof all[key] === 'object' ? (all[key] as ProfileExtra) : {}
-    all[key] = { ...local, ...remote }
+    // Keep the user's latest local saved profile as source of truth.
+    // Remote snapshot is used only to backfill missing keys.
+    all[key] = { ...remote, ...local }
     localStorage.setItem(USER_PROFILES_STORAGE_KEY, JSON.stringify(all))
     window.dispatchEvent(new Event('storage'))
   } catch {
