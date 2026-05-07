@@ -7,6 +7,7 @@ import { normalizeAppPath } from '../services/settingsStorage'
 export type NavTranslationKey =
   | 'home'
   | 'dashboard'
+  | 'esriApp'
   | 'developDashboard'
   | 'agroCloudDashboard'
   | 'agroDashboard'
@@ -88,6 +89,13 @@ export const NAV_DEFAULT_GROUPS: NavGroupDef[] = [
         i18nKey: 'agroDashboard',
         defaultIcon: 'fa-solid fa-seedling',
         subitemClass: 'nav-item-dashboard-agro-dash',
+      },
+      {
+        id: 'dashboard-esri-app',
+        path: '/dashboards/esri-app',
+        i18nKey: 'esriApp',
+        defaultIcon: 'fa-solid fa-map-location-dot',
+        subitemClass: 'nav-item-dashboard-edit',
       },
     ],
   },

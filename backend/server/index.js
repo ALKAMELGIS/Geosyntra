@@ -1495,6 +1495,118 @@ app.post('/api/ai/chat', async (req, res) => {
   }
 })
 
+const ESRI_DASHBOARDS_FILE = path.join(SERVER_DIR, 'esri_dashboards.json')
+
+function readEsriDashboards() {
+  try {
+    if (!fs.existsSync(ESRI_DASHBOARDS_FILE)) return []
+    const raw = fs.readFileSync(ESRI_DASHBOARDS_FILE, 'utf8')
+    const parsed = safeJsonParse(raw, [])
+    return Array.isArray(parsed) ? parsed : []
+  } catch {
+    return []
+  }
+}
+
+function writeEsriDashboards(items) {
+  try {
+    fs.writeFileSync(ESRI_DASHBOARDS_FILE, JSON.stringify(items, null, 2))
+  } catch (err) {
+    console.error('Failed to persist esri dashboards', err)
+  }
+}
+
+app.get('/api/esri-dashboards', (req, res) => {
+  const rows = readEsriDashboards()
+    .map((item) => ({
+      id: item.id,
+      title: item?.schema?.meta?.title || 'Untitled',
+      updatedAt: item.updatedAt,
+      revision: item.revision || 1,
+    }))
+    .sort((a, b) => String(b.updatedAt).localeCompare(String(a.updatedAt)))
+  res.json(rows)
+})
+
+app.get('/api/esri-dashboards/:id', (req, res) => {
+  const id = String(req.params.id || '')
+  const rows = readEsriDashboards()
+  const hit = rows.find((r) => r.id === id)
+  if (!hit) return res.status(404).json({ error: 'Dashboard not found' })
+  res.json(hit.schema)
+})
+
+app.post('/api/esri-dashboards', (req, res) => {
+  const schema = req.body && typeof req.body === 'object' ? req.body : null
+  if (!schema) return res.status(400).json({ error: 'Invalid schema payload' })
+  const meta = schema.meta && typeof schema.meta === 'object' ? schema.meta : {}
+  const id = String(meta.id || randomUUID())
+  const now = new Date().toISOString()
+  const rows = readEsriDashboards()
+  const idx = rows.findIndex((r) => r.id === id)
+  if (idx === -1) {
+    rows.push({ id, schema, revision: 1, createdAt: now, updatedAt: now })
+    writeEsriDashboards(rows)
+    return res.status(201).json({ id, revision: 1 })
+  }
+  const revision = Number(rows[idx].revision || 1) + 1
+  rows[idx] = { ...rows[idx], schema, revision, updatedAt: now }
+  writeEsriDashboards(rows)
+  return res.json({ id, revision })
+})
+
+app.post('/api/esri-dashboards/sources/probe', async (req, res) => {
+  const source = req.body && typeof req.body === 'object' ? req.body : null
+  if (!source) return res.status(400).json({ error: 'Invalid source payload' })
+  const kind = String(source.kind || '').trim()
+  const url = String(source.url || '').trim()
+
+  try {
+    if (kind === 'arcgis-rest') {
+      if (!url) return res.status(400).json({ error: 'ArcGIS URL is required' })
+      const q = `${url.replace(/\/+$/, '')}/query?where=1%3D1&outFields=*&f=json&resultRecordCount=1`
+      const response = await fetch(q)
+      if (!response.ok) return res.status(502).json({ error: 'ArcGIS probe failed' })
+      const json = await response.json()
+      const attrs = json?.features?.[0]?.attributes || {}
+      return res.json({ ok: true, columns: Object.keys(attrs), count: Number(json?.features?.length || 0) })
+    }
+    if (kind === 'geojson-url') {
+      if (!url) return res.status(400).json({ error: 'GeoJSON URL is required' })
+      const response = await fetch(url)
+      if (!response.ok) return res.status(502).json({ error: 'GeoJSON fetch failed' })
+      const json = await response.json()
+      const first = json?.features?.[0]?.properties || {}
+      return res.json({ ok: true, columns: Object.keys(first), count: Number(json?.features?.length || 0) })
+    }
+    if (kind === 'csv-url') {
+      if (!url) return res.status(400).json({ error: 'CSV URL is required' })
+      const response = await fetch(url)
+      if (!response.ok) return res.status(502).json({ error: 'CSV fetch failed' })
+      const text = await response.text()
+      const [headerLine] = text.split('\n')
+      const columns = String(headerLine || '').split(',').map((v) => v.trim()).filter(Boolean)
+      return res.json({ ok: true, columns, count: Math.max(0, text.split('\n').length - 1) })
+    }
+    if (kind === 'sql') {
+      const sqlRef = String(source.sqlRef || '').trim()
+      if (!sqlRef) return res.status(400).json({ error: 'sqlRef is required for SQL source' })
+      return res.json({
+        ok: true,
+        columns: ['id', 'name', 'value', 'lat', 'lon'],
+        count: 0,
+        note: 'SQL source registered. Query execution should run through PostGIS-backed service by sqlRef.',
+      })
+    }
+    if (kind === 'geojson-file' || kind === 'csv-file') {
+      return res.json({ ok: true, columns: [], count: 0 })
+    }
+    return res.status(400).json({ error: 'Unsupported source kind' })
+  } catch (error) {
+    return res.status(500).json({ error: 'Probe failed', details: String(error?.message || error) })
+  }
+})
+
 app.get('*', (req, res) => {
   res.sendFile(path.join(FRONTEND_DIST, 'index.html'))
 })

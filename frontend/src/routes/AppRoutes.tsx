@@ -28,6 +28,7 @@ const DashboardAiChatbot = lazy(() => import('../pages/dashboards/AiChatbot'))
 const DashboardModel = lazy(() => import('../pages/dashboards/Model'))
 const AiAgroCloud = lazy(() => import('../pages/dashboards/AiAgroCloud'))
 const AiAgroChat = lazy(() => import('../pages/dashboards/AiAgroChat'))
+const EsriApp = lazy(() => import('../pages/dashboards/EsriApp'))
 const StyleGuide = lazy(() => import('../pages/StyleGuide'))
 const UsabilityTest = lazy(() => import('../pages/UsabilityTest'))
 const SystemSettings = lazy(() => import('../pages/admin/SystemSettings'))
@@ -61,6 +62,7 @@ export default function AppRoutes() {
         <Route path="/dashboards/agro-dashboard" element={<AgroDashboard />} />
         <Route path="/dashboards/ai-agro-cloud" element={<AiAgroCloud />} />
         <Route path="/dashboards/ai-agro-chat" element={<AiAgroChat />} />
+        <Route path="/dashboards/esri-app" element={<EsriApp />} />
         <Route path="/master/gis-content" element={<MasterGisContent />} />
         <Route path="/master/dashboard-settings" element={<DashboardSettings />} />
         <Route path="/master/workflow-settings" element={<AccountSettings />} />

@@ -587,7 +587,11 @@ function findStacAssetNameCaseInsensitive(item: any, candidates: string[]): stri
   return null;
 }
 
-function buildProcessingPreviewSpecsForItem(templateId: MpcTemplateId, item: any): Array<{
+function buildProcessingPreviewSpecsForItem(
+  templateId: MpcTemplateId,
+  item: any,
+  indexOverride?: string,
+): Array<{
   assets: string[];
   expression?: string;
   rescale?: string;
@@ -596,18 +600,43 @@ function buildProcessingPreviewSpecsForItem(templateId: MpcTemplateId, item: any
 }> {
   const aliases = {
     red: ['B04', 'red', 'SR_B4', 'b4', 'rededge'],
+    blue: ['B02', 'blue', 'SR_B2', 'b2'],
     green: ['B03', 'green', 'SR_B3', 'b3'],
     nir: ['B08', 'nir08', 'nir', 'SR_B5', 'b8', 'b8a', 'B8A', 'B8'],
+    rededge: ['B05', 'rededge', 'RE1', 'b5', 'SR_B5'],
     swir11: ['B11', 'swir16', 'swir1', 'SR_B6', 'b11', 'b6'],
     swir12: ['B12', 'swir22', 'swir2', 'SR_B7', 'b12', 'b7'],
   } as const;
 
   const pick = (keys: readonly string[]) => findStacAssetNameCaseInsensitive(item, [...keys]);
   const red = pick(aliases.red);
+  const blue = pick(aliases.blue);
   const green = pick(aliases.green);
   const nir = pick(aliases.nir);
+  const rededge = pick(aliases.rededge);
   const swir11 = pick(aliases.swir11);
   const swir12 = pick(aliases.swir12);
+
+  if (indexOverride) {
+    const id = String(indexOverride).toUpperCase();
+    const NIR = nir ?? 'B08';
+    const RED = red ?? 'B04';
+    const GREEN = green ?? 'B03';
+    const BLUE = blue ?? 'B02';
+    const SWIR1 = swir11 ?? 'B11';
+    const SWIR2 = swir12 ?? 'B12';
+    const RE = rededge ?? 'B05';
+    if (id === 'NDVI') return [{ assets: [NIR, RED], expression: `(${NIR}-${RED})/(${NIR}+${RED}+1e-6)`, rescale: '-1,1', colormapName: 'rdylgn' }];
+    if (id === 'NDWI') return [{ assets: [GREEN, NIR], expression: `(${GREEN}-${NIR})/(${GREEN}+${NIR}+1e-6)`, rescale: '-1,1', colormapName: 'rdbu' }];
+    if (id === 'NDMI') return [{ assets: [NIR, SWIR1], expression: `(${NIR}-${SWIR1})/(${NIR}+${SWIR1}+1e-6)`, rescale: '-1,1', colormapName: 'rdylgn' }];
+    if (id === 'SAVI') return [{ assets: [NIR, RED], expression: `1.5*(${NIR}-${RED})/(${NIR}+${RED}+0.5)`, rescale: '-1,1', colormapName: 'rdylgn' }];
+    if (id === 'EVI') return [{ assets: [NIR, RED, BLUE], expression: `2.5*(${NIR}-${RED})/(${NIR}+6*${RED}-7.5*${BLUE}+1)`, rescale: '-1,1', colormapName: 'rdylgn' }];
+    if (id === 'GNDVI') return [{ assets: [NIR, GREEN], expression: `(${NIR}-${GREEN})/(${NIR}+${GREEN}+1e-6)`, rescale: '-1,1', colormapName: 'rdylgn' }];
+    if (id === 'NBR') return [{ assets: [NIR, SWIR2], expression: `(${NIR}-${SWIR2})/(${NIR}+${SWIR2}+1e-6)`, rescale: '-1,1', colormapName: 'rdylgn' }];
+    if (id === 'NDRE') return [{ assets: [NIR, RE], expression: `(${NIR}-${RE})/(${NIR}+${RE}+1e-6)`, rescale: '-1,1', colormapName: 'rdylgn' }];
+    if (id === 'BSI') return [{ assets: [SWIR1, RED, NIR, BLUE], expression: `((${SWIR1}+${RED})-(${NIR}+${BLUE}))/((${SWIR1}+${RED})+(${NIR}+${BLUE})+1e-6)`, rescale: '-1,1', colormapName: 'rdbu' }];
+    if (id === 'MNDWI') return [{ assets: [GREEN, SWIR1], expression: `(${GREEN}-${SWIR1})/(${GREEN}+${SWIR1}+1e-6)`, rescale: '-1,1', colormapName: 'rdbu' }];
+  }
 
   if (templateId === 'ndvi_s2' || templateId === 'ndvi_landsat') {
     const preferredNir = nir ?? (templateId === 'ndvi_landsat' ? 'nir08' : 'B08');
@@ -1793,7 +1822,7 @@ export default function SatelliteIntelligence() {
   const [tableFilterValue, setTableFilterValue] = useState('');
   const [tableShowSelectedOnly, setTableShowSelectedOnly] = useState(false);
   const [tableSelectedKeys, setTableSelectedKeys] = useState<Set<string>>(() => new Set());
-  const [tableToolsCollapsed, setTableToolsCollapsed] = useState(false);
+  const [tableToolsCollapsed, setTableToolsCollapsed] = useState(true);
   const [draggingSiTableField, setDraggingSiTableField] = useState<string | null>(null);
   const [hiddenSiTableFieldsByLayerId, setHiddenSiTableFieldsByLayerId] = useState<Record<string, Set<string>>>({});
   const [siTableFieldOrderByLayerId, setSiTableFieldOrderByLayerId] = useState<Record<string, string[]>>({});
@@ -1865,8 +1894,6 @@ export default function SatelliteIntelligence() {
     | 'layers'
     | 'explore-stac'
     | 'remote-sensing'
-    | 'rs-analysis-assistant'
-    | 'result-visualization'
     | 'ai-detection-gis'
     | 'table-geo-ai'
   >('source');
@@ -2816,7 +2843,7 @@ export default function SatelliteIntelligence() {
     setTableFilterValue('');
     setTableShowSelectedOnly(false);
     setTableSelectedKeys(new Set());
-    setTableToolsCollapsed(false);
+    setTableToolsCollapsed(true);
     setDraggingSiTableField(null);
   }, [activeLayerActionDialog]);
 
@@ -3963,6 +3990,7 @@ export default function SatelliteIntelligence() {
       dStart: string,
       dEnd: string,
       collectionOverride?: string[],
+      indexOverride?: string,
     ): Promise<any | null> => {
       try {
         const effectiveCollections = (collectionOverride?.length ? collectionOverride : exploreSelectedCollectionIds)
@@ -3986,7 +4014,7 @@ export default function SatelliteIntelligence() {
         for (const item of features) {
           const assets = (item?.assets && typeof item.assets === 'object' ? item.assets : {}) as Record<string, unknown>;
           const names = new Set(Object.keys(assets).map(k => String(k).toLowerCase()));
-          const specs = buildProcessingPreviewSpecsForItem(templateId, item).filter(spec =>
+          const specs = buildProcessingPreviewSpecsForItem(templateId, item, indexOverride).filter(spec =>
             spec.assets.every(a => names.has(String(a).toLowerCase())),
           );
           if (specs.length) return item;
@@ -4006,7 +4034,7 @@ export default function SatelliteIntelligence() {
     ],
   );
 
-  const runMpcTemplateProcessing = async (templateOverride?: MpcTemplateId, forcedTargetItem?: any) => {
+  const runMpcTemplateProcessing = async (templateOverride?: MpcTemplateId, forcedTargetItem?: any, indexOverride?: string) => {
     const templateToRun = templateOverride ?? selectedMpcTemplateId;
     const selectedKey = exploreSelectedResultKeys[0];
     const selectedItemFromResults = selectedKey
@@ -4056,17 +4084,24 @@ export default function SatelliteIntelligence() {
             String(k).toLowerCase(),
           ),
         );
-        let specs = buildProcessingPreviewSpecsForItem(templateToRun, effectiveItem).filter(spec =>
+        let specs = buildProcessingPreviewSpecsForItem(templateToRun, effectiveItem, indexOverride).filter(spec =>
           spec.assets.every(a => availableAssets.has(String(a).toLowerCase())),
         );
         if (!specs.length) {
-            const autoItem = await findCompatibleStacItemForTemplate(templateToRun, aoi, dStart, dEnd, effectiveCollections);
+            const autoItem = await findCompatibleStacItemForTemplate(
+              templateToRun,
+              aoi,
+              dStart,
+              dEnd,
+              effectiveCollections,
+              indexOverride,
+            );
           if (autoItem) {
             effectiveItem = autoItem;
             setProcessingTargetStacItem(autoItem);
             const assets2 = (autoItem?.assets && typeof autoItem.assets === 'object' ? autoItem.assets : {}) as Record<string, unknown>;
             const names2 = new Set(Object.keys(assets2).map(k => String(k).toLowerCase()));
-            specs = buildProcessingPreviewSpecsForItem(templateToRun, autoItem).filter(spec =>
+            specs = buildProcessingPreviewSpecsForItem(templateToRun, autoItem, indexOverride).filter(spec =>
               spec.assets.every(a => names2.has(String(a).toLowerCase())),
             );
           }
@@ -4159,7 +4194,7 @@ export default function SatelliteIntelligence() {
     }
   };
 
-  async function runRsAnalysisFromAssistant() {
+  async function runRsAnalysisFromAssistant(options?: { keepCurrentSection?: boolean; forcedIndex?: string }) {
     if (!drawnGeometry) {
       setFieldAnalysisStatus('Draw AOI first, then press Run Analysis.');
       setMapDrawTool('polygon');
@@ -4180,7 +4215,7 @@ export default function SatelliteIntelligence() {
       LST: 'false_color_s2',
     };
 
-    const activeIndex = rsAssistantIndex || selectedIndex;
+    const activeIndex = options?.forcedIndex || rsAssistantIndex || selectedIndex;
     const template = templateByIndex[activeIndex] ?? 'ndvi_s2';
     const selectedTemplate = LOCAL_PROCESSING_TEMPLATES.find(t => t.id === template);
     const templateCollections = selectedTemplate?.collections ?? ['sentinel-2-l2a'];
@@ -4206,7 +4241,7 @@ export default function SatelliteIntelligence() {
 
     let target = processingTargetStacItem;
     if (!target) {
-      target = await findCompatibleStacItemForTemplate(template, aoi, dStart, dEnd, templateCollections);
+      target = await findCompatibleStacItemForTemplate(template, aoi, dStart, dEnd, templateCollections, activeIndex);
     }
     if (!target) {
       setFieldAnalysisStatus('No compatible Sentinel scene found for selected AOI/time range.');
@@ -4221,8 +4256,10 @@ export default function SatelliteIntelligence() {
       setExploreSelectedCollectionIds(prev => (prev.includes(collection) ? prev : [...prev, collection]));
     }
     setStacStatus(`Run ready: ${String(target?.id ?? 'scene')} (${template}).`);
-    await runMpcTemplateProcessing(template, target);
-    setExpandedEnvSection('result-visualization');
+    await runMpcTemplateProcessing(template, target, activeIndex);
+    if (!options?.keepCurrentSection) {
+      setExpandedEnvSection('remote-sensing');
+    }
     // Keep the legacy environmental index in sync whenever selected RS index is natively supported.
     if (Object.prototype.hasOwnProperty.call(ENVIRONMENTAL_INDICES, activeIndex)) {
       setSelectedIndex(activeIndex as EnvironmentalIndexId);
@@ -6553,7 +6590,7 @@ export default function SatelliteIntelligence() {
                   </div>
                   <div className="si-env-panel-body">
                     <div
-                      className="si-env-section-tabs si-env-section-tabs--seven"
+                      className="si-env-section-tabs si-env-section-tabs--five"
                       role="tablist"
                       aria-label="Processing Options sections"
                     >
@@ -6564,16 +6601,6 @@ export default function SatelliteIntelligence() {
                           id: 'remote-sensing' as const,
                           label: 'Remote sensing',
                           icon: 'fa-solid fa-satellite-dish',
-                        },
-                        {
-                          id: 'rs-analysis-assistant' as const,
-                          label: 'RS Analysis Assistant',
-                          icon: 'fa-solid fa-chart-area',
-                        },
-                        {
-                          id: 'result-visualization' as const,
-                          label: 'Result Visualization',
-                          icon: 'fa-solid fa-map-location-dot',
                         },
                         {
                           id: 'ai-detection-gis' as const,
@@ -7529,10 +7556,26 @@ export default function SatelliteIntelligence() {
                             </label>
                           </div>
                           <div className="si-rs-actions si-rs-actions--compact">
+                          <div className="si-rs-actions si-rs-actions--compact">
                             <button type="button" className="si-field-analysis-timeline-btn" onClick={generateFieldAnalysisTimeline}>
                               <i className="fa-solid fa-chart-line" aria-hidden />
                               Generate timeline
                             </button>
+                            <button
+                              type="button"
+                              className="si-field-analysis-timeline-btn"
+                              disabled={isMpcProcessing}
+                              onClick={() =>
+                                void runRsAnalysisFromAssistant({
+                                  keepCurrentSection: true,
+                                  forcedIndex: wmsLayerSelectValue || rsAssistantIndex,
+                                })
+                              }
+                            >
+                              <i className="fa-solid fa-play" aria-hidden />
+                              {isMpcProcessing ? 'Running…' : 'Run Remote Sensing'}
+                            </button>
+                          </div>
                             <button
                               type="button"
                               className="si-field-analysis-timeline-btn"
@@ -7588,7 +7631,7 @@ export default function SatelliteIntelligence() {
                         {fieldAnalysisStatus ? <p className="si-field-analysis-status">{fieldAnalysisStatus}</p> : null}
                       </div>
                     )}
-                    {expandedEnvSection === 'rs-analysis-assistant' && (
+                    {false && (
                       <div className="si-env-section-card si-field-analysis si-rs-assistant">
                         <div className="si-field-analysis-header">
                           <h2 className="si-field-analysis-title">RS Analysis Assistant</h2>
@@ -7794,7 +7837,7 @@ export default function SatelliteIntelligence() {
                         </div>
                       </div>
                     )}
-                    {expandedEnvSection === 'result-visualization' && (
+                    {false && (
                       <div className="si-env-section-card si-field-analysis si-rs-assistant">
                         <div className="si-field-analysis-header">
                           <h2 className="si-field-analysis-title">Result Visualization</h2>
