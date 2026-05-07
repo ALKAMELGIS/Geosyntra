@@ -4297,7 +4297,7 @@ export default function SatelliteIntelligence() {
   }, [selectedIndex, drawnStats]);
 
   const aoiClassifiedGeoJson = useMemo(() => {
-    if (!drawnGeometry?.geometry || !showProductivityZones) return null;
+    if (!drawnGeometry?.geometry || !mpcProcessResult) return null;
     const bounds = getGeoJsonBounds(drawnGeometry as any);
     if (!bounds) return null;
     const [w, s, e, n] = bounds;
@@ -4309,8 +4309,9 @@ export default function SatelliteIntelligence() {
     const rows = Math.max(8, Math.min(24, Math.round(12 / Math.max(0.6, Math.min(1.8, aspect)))));
     const dx = width / cols;
     const dy = height / rows;
-    const minV = aoiFiveClassLegend[0]?.lower ?? -1;
-    const maxV = aoiFiveClassLegend[aoiFiveClassLegend.length - 1]?.upper ?? 1;
+    const minV = mpcProcessResult.statistics?.min ?? aoiFiveClassLegend[0]?.lower ?? -1;
+    const maxV = mpcProcessResult.statistics?.max ?? aoiFiveClassLegend[aoiFiveClassLegend.length - 1]?.upper ?? 1;
+    const meanV = mpcProcessResult.statistics?.mean ?? (minV + maxV) / 2;
     const span = Math.max(1e-9, maxV - minV);
     const seed = selectedIndex.split('').reduce((acc, ch) => acc + ch.charCodeAt(0), 0);
     const features: any[] = [];
@@ -4328,7 +4329,7 @@ export default function SatelliteIntelligence() {
         const wave = Math.sin((xx + seed * 0.01) * 0.9) * 0.12 + Math.cos((yy + seed * 0.02) * 0.85) * 0.1;
         const gradient = gx * 0.55 + gy * 0.35 + wave;
         const normalized = clampUnit(gradient);
-        const value = minV + normalized * span;
+        const value = minV + normalized * span * 0.82 + (meanV - minV) * 0.18;
         const classIdx = Math.max(0, Math.min(4, Math.floor(((value - minV) / span) * 5)));
         const cls = aoiFiveClassLegend[classIdx] ?? aoiFiveClassLegend[0];
         features.push({
@@ -4347,7 +4348,7 @@ export default function SatelliteIntelligence() {
       }
     }
     return { type: 'FeatureCollection', features };
-  }, [drawnGeometry, showProductivityZones, aoiFiveClassLegend, selectedIndex]);
+  }, [drawnGeometry, aoiFiveClassLegend, selectedIndex, mpcProcessResult]);
 
   const seriesTrendLabel = useMemo(() => {
     if (weeklyComposites.length < 2) return null;
@@ -6075,7 +6076,7 @@ export default function SatelliteIntelligence() {
                       filter={['==', ['geometry-type'], 'Polygon']}
                       paint={{
                         'fill-color': drawStyle.fillColor,
-                        'fill-opacity': drawStyle.fillOpacity,
+                        'fill-opacity': aoiClassifiedGeoJson?.features?.length ? 0.08 : drawStyle.fillOpacity,
                       }}
                     />
                     <Layer
@@ -6113,15 +6114,15 @@ export default function SatelliteIntelligence() {
                       type="fill"
                       paint={{
                         'fill-color': ['coalesce', ['get', 'color'], '#22c55e'],
-                        'fill-opacity': 0.46,
+                        'fill-opacity': 0.68,
                       }}
                     />
                     <Layer
                       id="si-aoi-classified-line"
                       type="line"
                       paint={{
-                        'line-color': 'rgba(15,23,42,0.28)',
-                        'line-width': 0.6,
+                        'line-color': 'rgba(248,250,252,0.52)',
+                        'line-width': 0.8,
                       }}
                     />
                   </Source>
@@ -6276,11 +6277,13 @@ export default function SatelliteIntelligence() {
             {isMapLoaded ? <NavigationControl position="bottom-right" /> : null}
           </MapGL>
 
-          {drawnStats && (
+          {(mpcProcessResult?.statistics || drawnStats) && (
             <div className="si-aoi-analysis-pill" dir="ltr">
               <span className="si-aoi-analysis-pill-label">AOI</span>
               <span className="si-aoi-analysis-pill-index">{selectedIndex}</span>
-              <span className="si-aoi-analysis-pill-mean" style={{ color: aoiVizColor }}>{drawnStats.mean}</span>
+              <span className="si-aoi-analysis-pill-mean" style={{ color: aoiVizColor }}>
+                {(mpcProcessResult?.statistics?.mean ?? drawnStats?.mean ?? 0).toFixed(3)}
+              </span>
             </div>
           )}
           {aoiClassifiedGeoJson?.features?.length ? (

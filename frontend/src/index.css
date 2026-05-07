@@ -3310,6 +3310,25 @@ aside {
   opacity: 0;
 }
 
+/* Compact rail hardening: render icon-only buttons, never stacked glyph/text noise. */
+.gis-sidebar-rail--agol.gis-sidebar-rail--agol--compact .gis-sidebar-rail-btn {
+  font-size: 0;
+  line-height: 0;
+  min-height: 36px;
+}
+
+.gis-sidebar-rail--agol.gis-sidebar-rail--agol--compact .gis-sidebar-rail-btn > :not(i) {
+  display: none !important;
+}
+
+.gis-sidebar-rail--agol.gis-sidebar-rail--agol--compact .gis-sidebar-rail-btn i {
+  font-size: 15px;
+  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
 .gis-sidebar-rail--agol .gis-sidebar-rail-toggle {
   flex-direction: row;
   width: 100%;
