@@ -6265,92 +6265,6 @@ input.si-explore-date-input-linked[type='date'] {
   line-height: 1.4;
 }
 
-/* Legacy analysis card styles */
-.si-rs-assistant {
-  gap: 12px;
-}
-
-.si-rs-assistant-kpis {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 8px;
-}
-
-.si-rs-assistant-kpi {
-  display: grid;
-  gap: 4px;
-  padding: 10px;
-  border-radius: 12px;
-  border: 1px solid rgba(56, 189, 248, 0.24);
-  background: linear-gradient(165deg, rgba(15, 23, 42, 0.72), rgba(2, 6, 23, 0.56));
-}
-
-.si-rs-assistant-kpi span {
-  font-size: 9px;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  color: #94a3b8;
-  font-weight: 700;
-}
-
-.si-rs-assistant-kpi strong {
-  font-size: 12px;
-  line-height: 1.3;
-  color: #f8fafc;
-}
-
-.si-rs-index-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 8px;
-}
-
-.si-rs-index-chip {
-  width: 100%;
-  min-height: 52px;
-  border-radius: 12px;
-  border: 1px solid rgba(148, 163, 184, 0.3);
-  background: rgba(15, 23, 42, 0.62);
-  color: #e2e8f0;
-  display: grid;
-  align-content: center;
-  justify-items: start;
-  gap: 2px;
-  padding: 8px 10px;
-  text-align: left;
-  cursor: pointer;
-  transition: border-color 0.16s ease, transform 0.16s ease, background 0.16s ease;
-}
-
-.si-rs-index-chip:hover:not(:disabled) {
-  transform: translateY(-1px);
-  border-color: rgba(56, 189, 248, 0.52);
-  background: rgba(30, 41, 59, 0.78);
-}
-
-.si-rs-index-chip.is-active {
-  border-color: rgba(74, 222, 128, 0.65);
-  background: linear-gradient(145deg, rgba(22, 163, 74, 0.45), rgba(15, 23, 42, 0.9));
-  box-shadow: 0 10px 22px rgba(22, 163, 74, 0.22);
-}
-
-.si-rs-index-chip:disabled {
-  opacity: 0.66;
-  cursor: not-allowed;
-}
-
-.si-rs-index-chip span {
-  font-size: 12px;
-  font-weight: 800;
-  color: inherit;
-}
-
-.si-rs-index-chip small {
-  font-size: 9px;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: #94a3b8;
-}
 
 .si-rs-actions {
   display: grid;
@@ -6403,11 +6317,6 @@ input.si-explore-date-input-linked[type='date'] {
 }
 
 @media (max-width: 760px) {
-  .si-rs-assistant-kpis {
-    grid-template-columns: 1fr;
-  }
-
-  .si-rs-index-grid,
   .si-rs-actions {
     grid-template-columns: 1fr;
   }

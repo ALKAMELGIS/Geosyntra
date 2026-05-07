@@ -3003,6 +3003,13 @@ aside {
   gap: 16px;
 }
 
+.gis-sidebar-layers-empty-agol--inline {
+  flex: 0 0 auto;
+  min-height: 0;
+  padding: 10px 6px 12px;
+  gap: 10px;
+}
+
 .gis-sidebar-layers-empty-agol__icon {
   width: auto;
   height: auto;

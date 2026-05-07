@@ -5245,12 +5245,8 @@ export default function GisMap() {
                 </button>
               </div>
             ) : null}
-            {!layersChromeCollapsed && layers.length === 0 ? (
-            showDesktopGisRail ? (
-              <div className="gis-sidebar-layers-empty-agol" role="status" aria-live="polite">
-                <div className="gis-sidebar-layers-empty-agol__icon" aria-hidden="true">
-                  <i className="fa-solid fa-layer-group" />
-                </div>
+            {!layersChromeCollapsed && showDesktopGisRail && layers.length > 0 ? (
+              <div className="gis-sidebar-layers-empty-agol gis-sidebar-layers-empty-agol--inline" role="status" aria-live="polite">
                 <div className="gis-sidebar-layers-empty-agol__message">
                   Add layers to your map and they will appear here.
                 </div>
@@ -5268,18 +5264,6 @@ export default function GisMap() {
                   </button>
                   {layersEmptyAddMenuOpen ? (
                     <div className="gis-tables-agol-add__menu" role="menu">
-                      <button
-                        type="button"
-                        className="gis-tables-agol-add__menu-item"
-                        role="menuitem"
-                        onClick={() => {
-                          setLayersEmptyAddMenuOpen(false)
-                          openAddLayerModal('giscontent')
-                        }}
-                      >
-                        <i className="fa-solid fa-layer-group" aria-hidden="true" />
-                        <span>From GIS Content</span>
-                      </button>
                       <button
                         type="button"
                         className="gis-tables-agol-add__menu-item"
@@ -5315,6 +5299,120 @@ export default function GisMap() {
                       >
                         <i className="fa-solid fa-file-arrow-up" aria-hidden="true" />
                         <span>Add layer from file</span>
+                      </button>
+                      <button
+                        type="button"
+                        className="gis-tables-agol-add__menu-item"
+                        role="menuitem"
+                        onClick={() => {
+                          setLayersEmptyAddMenuOpen(false)
+                          setDrawingEditorOpen(true)
+                          setDrawingActiveTool('polygon')
+                        }}
+                      >
+                        <i className="fa-solid fa-pencil" aria-hidden="true" />
+                        <span>Create sketch layer</span>
+                      </button>
+                      <button
+                        type="button"
+                        className="gis-tables-agol-add__menu-item"
+                        role="menuitem"
+                        onClick={() => {
+                          setLayersEmptyAddMenuOpen(false)
+                          openAddLayerModal('upload')
+                        }}
+                      >
+                        <i className="fa-solid fa-image" aria-hidden="true" />
+                        <span>Add media layer</span>
+                      </button>
+                    </div>
+                  ) : null}
+                </div>
+              </div>
+            ) : null}
+            {!layersChromeCollapsed && layers.length === 0 ? (
+            showDesktopGisRail ? (
+              <div className="gis-sidebar-layers-empty-agol" role="status" aria-live="polite">
+                <div className="gis-sidebar-layers-empty-agol__icon" aria-hidden="true">
+                  <i className="fa-solid fa-layer-group" />
+                </div>
+                <div className="gis-sidebar-layers-empty-agol__message">
+                  Add layers to your map and they will appear here.
+                </div>
+                <div className="gis-tables-agol-add" ref={layersEmptyAddMenuRef}>
+                  <button
+                    type="button"
+                    className="gis-tables-agol-add__btn"
+                    aria-haspopup="menu"
+                    aria-expanded={layersEmptyAddMenuOpen}
+                    onClick={() => setLayersEmptyAddMenuOpen(v => !v)}
+                  >
+                    <i className="fa-solid fa-layer-group" aria-hidden="true" />
+                    <span>Add</span>
+                    <i className={`fa-solid fa-chevron-down${layersEmptyAddMenuOpen ? ' gis-tables-agol-add__chev--open' : ''}`} aria-hidden="true" />
+                  </button>
+                  {layersEmptyAddMenuOpen ? (
+                    <div className="gis-tables-agol-add__menu" role="menu">
+                      <button
+                        type="button"
+                        className="gis-tables-agol-add__menu-item"
+                        role="menuitem"
+                        onClick={() => {
+                          setLayersEmptyAddMenuOpen(false)
+                          openAddLayerModal('arcgis')
+                        }}
+                      >
+                        <i className="fa-solid fa-magnifying-glass" aria-hidden="true" />
+                        <span>Browse layers</span>
+                      </button>
+                      <button
+                        type="button"
+                        className="gis-tables-agol-add__menu-item"
+                        role="menuitem"
+                        onClick={() => {
+                          setLayersEmptyAddMenuOpen(false)
+                          openAddLayerModal('url')
+                        }}
+                      >
+                        <i className="fa-solid fa-globe" aria-hidden="true" />
+                        <span>Add layer from URL</span>
+                      </button>
+                      <button
+                        type="button"
+                        className="gis-tables-agol-add__menu-item"
+                        role="menuitem"
+                        onClick={() => {
+                          setLayersEmptyAddMenuOpen(false)
+                          openAddLayerModal('upload')
+                        }}
+                      >
+                        <i className="fa-solid fa-file-arrow-up" aria-hidden="true" />
+                        <span>Add layer from file</span>
+                      </button>
+                      <button
+                        type="button"
+                        className="gis-tables-agol-add__menu-item"
+                        role="menuitem"
+                        onClick={() => {
+                          setLayersEmptyAddMenuOpen(false)
+                          setDrawingEditorOpen(true)
+                          setDrawingActiveTool('polygon')
+                        }}
+                      >
+                        <i className="fa-solid fa-pencil" aria-hidden="true" />
+                        <span>Create sketch layer</span>
+                      </button>
+                      <button
+                        type="button"
+                        className="gis-tables-agol-add__menu-item"
+                        role="menuitem"
+                        onClick={() => {
+                          setLayersEmptyAddMenuOpen(false)
+                          openAddLayerModal('upload')
+                        }}
+                      >
+                        <i className="fa-solid fa-image" aria-hidden="true" />
+                        <span>Add media layer</span>
                       </button>
                     </div>
                   ) : null}
