@@ -7553,34 +7553,9 @@ export default function SatelliteIntelligence() {
                             </label>
                           </div>
                           <div className="si-rs-actions si-rs-actions--compact">
-                          <div className="si-rs-actions si-rs-actions--compact">
                             <button type="button" className="si-field-analysis-timeline-btn" onClick={generateFieldAnalysisTimeline}>
                               <i className="fa-solid fa-chart-line" aria-hidden />
                               Generate timeline
-                            </button>
-                            <button
-                              type="button"
-                              className="si-field-analysis-timeline-btn"
-                              disabled={isMpcProcessing}
-                              onClick={() =>
-                                void runRsAnalysisFromAssistant({
-                                  keepCurrentSection: true,
-                                  forcedIndex: wmsLayerSelectValue,
-                                })
-                              }
-                            >
-                              <i className="fa-solid fa-play" aria-hidden />
-                              {isMpcProcessing ? 'Running…' : 'Run Remote Sensing'}
-                            </button>
-                          </div>
-                            <button
-                              type="button"
-                              className="si-field-analysis-timeline-btn"
-                              disabled={isMpcProcessing}
-                              onClick={() => void runRsAnalysisFromAssistant()}
-                            >
-                              <i className="fa-solid fa-play" aria-hidden />
-                              {isMpcProcessing ? 'Running…' : 'Run'}
                             </button>
                           </div>
                           <p className="si-field-analysis-hint">

@@ -100,14 +100,10 @@ export const LayerManager: React.FC<LayerManagerProps> = ({
     setOpenMenuId(null);
   };
 
-  const handleGroup = async (id: number | string) => {
+  const handleGroup = (id: number | string) => {
     const layer = layers.find(l => l.id === id);
-    if (layer) {
-      const groupName = await appPrompt('Enter group name:', layer.group || '', { title: 'Layer group' });
-      if (groupName !== null) {
-        setLayers(layers.map(l => (l.id === id ? { ...l, group: groupName.trim() || undefined } : l)));
-      }
-    }
+    const targetGroup = (layer?.group || '').trim() || 'Group';
+    setLayers(layers.map(l => ({ ...l, group: targetGroup })));
     setOpenMenuId(null);
   };
 
@@ -272,8 +268,8 @@ const LayerItem = ({
           <div style={{ height: '1px', background: '#eee', margin: '4px 0' }}></div>
           <MenuItem 
             icon="fa-object-group" 
-            label={layer.group ? "Change Group" : "Group"} 
-            onClick={() => void handleGroup(layer.id)}
+            label="Group Layer"
+            onClick={() => handleGroup(layer.id)}
           />
           {layer.group && (
              <MenuItem 

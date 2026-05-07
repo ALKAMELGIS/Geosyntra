@@ -141,43 +141,7 @@ export const NAV_DEFAULT_GROUPS: NavGroupDef[] = [
     i18nKey: 'operations',
     defaultIcon: 'fa-solid fa-screwdriver-wrench',
     headerClass: 'nav-header-data',
-    children: [
-      {
-        id: 'data-irrigation',
-        path: '/data/irrigation',
-        i18nKey: 'irrigation',
-        defaultIcon: 'fa-solid fa-water',
-        subitemClass: 'nav-item-irrigation',
-      },
-      {
-        id: 'data-ec-ph',
-        path: '/data/ec-ph',
-        i18nKey: 'ecph',
-        defaultIcon: 'fa-solid fa-droplet',
-        subitemClass: 'nav-item-ec-ph',
-      },
-      {
-        id: 'data-harvest',
-        path: '/data/harvest',
-        i18nKey: 'harvest',
-        defaultIcon: 'fa-solid fa-tractor',
-        subitemClass: 'nav-item-harvest',
-      },
-      {
-        id: 'data-qhis',
-        path: '/data/qhis',
-        i18nKey: 'qhis',
-        defaultIcon: 'fa-solid fa-shield-halved',
-        subitemClass: 'nav-item-qhis',
-      },
-      {
-        id: 'data-production',
-        path: '/data/production',
-        i18nKey: 'productTracking',
-        defaultIcon: 'fa-solid fa-boxes-stacked',
-        subitemClass: 'nav-item-production',
-      },
-    ],
+    children: [],
   },
   {
     id: 'sensors',
@@ -394,7 +358,7 @@ export function mergeNavigationManifest(
   }
 
   const groupOrder = settings.navGroupOrder?.length ? settings.navGroupOrder : baseGroups.map(g => g.id)
-  const merged = sortByIdList(baseGroups.map(resolveGroup), groupOrder).filter(g => g.visible && g.children.length > 0)
+  const merged = sortByIdList(baseGroups.map(resolveGroup), groupOrder).filter(g => g.visible)
 
   const homeOv = ov[NAV_HOME.id]
   const homeResolved: MergedLeaf = {
