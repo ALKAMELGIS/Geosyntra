@@ -143,6 +143,13 @@ export const NAV_DEFAULT_GROUPS: NavGroupDef[] = [
     headerClass: 'nav-header-data',
     children: [
       {
+        id: 'data-workflow-settings',
+        path: '/master/workflow-settings',
+        i18nKey: 'workflowDataSources',
+        defaultIcon: 'fa-solid fa-database',
+        subitemClass: 'nav-item-data-management',
+      },
+      {
         id: 'data-irrigation',
         path: '/data/irrigation',
         i18nKey: 'irrigation',

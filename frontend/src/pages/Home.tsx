@@ -181,7 +181,7 @@ export default function Home() {
           : {}
 
   const handleMainClick = (item: MenuItem) => {
-    if (item.items) {
+    if (item.items?.length) {
       setActiveGroup(item)
       setSublistOpen(true)
     } else if (item.to) {
@@ -205,7 +205,7 @@ export default function Home() {
   useEffect(() => {
     const state = location.state as { openGroup?: string } | null
     if (!state?.openGroup) return
-    const group = menuItems.find(i => i.id === state.openGroup && i.items)
+    const group = menuItems.find(i => i.id === state.openGroup && i.items?.length)
     if (group) setActiveGroup(group)
   }, [location.state])
 
@@ -304,7 +304,6 @@ export default function Home() {
                         className={`app-icon-card ${homePageSettings.cardDensity === 'compact' ? 'app-icon-card--compact' : ''}`}
                         onClick={() => handleSubItemClick(subItem)}
                         aria-label={subItem.label[language]}
-                        data-reveal="item"
                         style={
                           {
                             '--app-accent': activeGroup.color,
