@@ -111,10 +111,9 @@ import { FieldVisibilityControl } from './components/FieldVisibilityControl';
 import { GeoAiEditQuestionTool } from './components/GeoAiEditQuestionTool';
 import { GeoExplorerGeminiInputRow } from './components/GeoExplorerGeminiInputRow';
 import { GeoExplorerGeminiMessageParts } from './components/GeoExplorerGeminiMessageParts';
-import { SatelliteMapAnalysisChrome } from './components/SatelliteMapAnalysisChrome';
+import { SatelliteMapAnalysisChrome, SatelliteMapAnalysisToolbar } from './components/SatelliteMapAnalysisChrome';
 import {
   getAnalysisEngineBaseUrl,
-  mpcFetchTemplates,
   mpcProcess,
   type MpcProcessResult,
   type MpcTemplateId,
@@ -1309,30 +1308,6 @@ function clampUnit(t: number) {
   return Math.max(0, Math.min(1, t));
 }
 
-function lerpHex(a: string, b: string, t: number): string {
-  const parse = (x: string) => {
-    const h = x.replace('#', '');
-    return [parseInt(h.slice(0, 2), 16), parseInt(h.slice(2, 4), 16), parseInt(h.slice(4, 6), 16)] as const;
-  };
-  const [ar, ag, ab] = parse(a);
-  const [br, bg, bb] = parse(b);
-  const r = Math.round(ar + (br - ar) * t);
-  const g = Math.round(ag + (bg - ag) * t);
-  const bl = Math.round(ab + (bb - ab) * t);
-  return `#${[r, g, bl].map(c => c.toString(16).padStart(2, '0')).join('')}`;
-}
-
-function indexValueToColor(value: number, range: [number, number], palette: string[]): string {
-  if (!palette.length) return '#22c55e';
-  const span = range[1] - range[0] || 1;
-  const t = clampUnit((value - range[0]) / span);
-  const max = palette.length - 1;
-  const pos = t * max;
-  const i = Math.min(max - 1, Math.floor(pos));
-  const f = pos - i;
-  return lerpHex(palette[i], palette[i + 1], f);
-}
-
 function environmentalIndicatorSummary(indexId: EnvironmentalIndexId, mean: number): string {
   if (indexId === 'LST') {
     if (mean < 22) return 'Cooler surface temperatures across the sampled period.';
@@ -1492,6 +1467,62 @@ function pointInAoiGeometry(lng: number, lat: number, geometry: any): boolean {
     );
   }
   return false;
+}
+
+/** Closed linear ring (GeoJSON first point repeated at end). */
+function closedLinearRing(ring: number[][]): number[][] {
+  if (!Array.isArray(ring) || ring.length < 2) return ring;
+  const a = ring[0];
+  const b = ring[ring.length - 1];
+  if (a && b && a[0] === b[0] && a[1] === b[1]) return ring;
+  return [...ring, a!];
+}
+
+/** Reverse winding so the ring can be used as a polygon hole opposite the world shell. */
+function closedLinearRingOppositeWinding(ring: number[][]): number[][] {
+  const closed = closedLinearRing(ring);
+  if (closed.length < 4) return closed;
+  const open = closed.slice(0, -1);
+  open.reverse();
+  return closedLinearRing(open);
+}
+
+/** World-spanning shell used as the outer ring of a mask polygon (holes = AOI). */
+function worldShellRingForIndexMask(): number[][] {
+  return [
+    [-180, -89],
+    [180, -89],
+    [180, 89],
+    [-180, 89],
+    [-180, -89],
+  ];
+}
+
+/**
+ * GeoJSON polygon covering the world with holes along each AOI exterior ring,
+ * so a fill layer on top of index rasters hides pixels outside the AOI only.
+ */
+function buildIndexOverlayClipMaskFeature(geometry: any): { type: 'Feature'; properties: { siMask: boolean }; geometry: { type: 'Polygon'; coordinates: number[][][] } } | null {
+  if (!geometry || typeof geometry !== 'object') return null;
+  const holes: number[][][] = [];
+  if (geometry.type === 'Polygon' && Array.isArray(geometry.coordinates?.[0])) {
+    const outer = geometry.coordinates[0] as number[][];
+    if (outer.length >= 4) holes.push(closedLinearRingOppositeWinding(outer));
+  } else if (geometry.type === 'MultiPolygon' && Array.isArray(geometry.coordinates)) {
+    for (const poly of geometry.coordinates as number[][][][]) {
+      const outer = poly?.[0] as number[][] | undefined;
+      if (outer && outer.length >= 4) holes.push(closedLinearRingOppositeWinding(outer));
+    }
+  }
+  if (!holes.length) return null;
+  return {
+    type: 'Feature',
+    properties: { siMask: true },
+    geometry: {
+      type: 'Polygon',
+      coordinates: [worldShellRingForIndexMask(), ...holes],
+    },
+  };
 }
 
 function hexToEsriRgba(hex: string): [number, number, number, number] {
@@ -1747,13 +1778,9 @@ export default function SatelliteIntelligence() {
   const [acsPickerStaging, setAcsPickerStaging] = useState<string[]>([]);
   const [acsPickerManualPath, setAcsPickerManualPath] = useState('');
   const [acsPickerFilter, setAcsPickerFilter] = useState('');
-  const [exploreTab, setExploreTab] = useState<'parameters' | 'results' | 'processing-templates' | 'source'>('parameters');
-  const [mpcTemplates, setMpcTemplates] = useState<Array<{ id: MpcTemplateId; label: string; collections?: string[] }>>([]);
-  const [isLoadingMpcTemplates, setIsLoadingMpcTemplates] = useState(false);
-  const [mpcTemplateError, setMpcTemplateError] = useState('');
+  const [exploreTab, setExploreTab] = useState<'parameters' | 'results' | 'source'>('parameters');
   const [runtimeAnalysisEngineBaseUrl, setRuntimeAnalysisEngineBaseUrl] = useState('');
   const [selectedMpcTemplateId, setSelectedMpcTemplateId] = useState<MpcTemplateId>('ndvi_s2');
-  const [isMpcProcessing, setIsMpcProcessing] = useState(false);
   const [mpcProcessResult, setMpcProcessResult] = useState<MpcProcessResult | null>(null);
   const [mpcClipToAoi, setMpcClipToAoi] = useState(true);
   const [mpcTileSize, setMpcTileSize] = useState(1024);
@@ -2518,12 +2545,6 @@ export default function SatelliteIntelligence() {
     setGisContentCandidates([]);
     setAddingGisContentCandidateId(null);
     setIsAddLayerModalOpen(true);
-  };
-
-  const openProcessingTemplatesQuickTool = () => {
-    setIsLayerDropdownOpen(true);
-    setExpandedEnvSection('explore-stac');
-    setExploreTab('processing-templates');
   };
 
   const closeAddLayerModal = () => {
@@ -4045,7 +4066,7 @@ export default function SatelliteIntelligence() {
   useEffect(() => {
     if (analysisEngineBaseUrl) return;
     if (runtimeAnalysisEngineBaseUrl) return;
-    if (expandedEnvSection !== 'explore-stac' || exploreTab !== 'processing-templates') return;
+    if (expandedEnvSection !== 'explore-stac') return;
     let cancelled = false;
     void probeAnalysisEngineBaseUrl().then(url => {
       if (!cancelled && url) setRuntimeAnalysisEngineBaseUrl(url);
@@ -4053,7 +4074,7 @@ export default function SatelliteIntelligence() {
     return () => {
       cancelled = true;
     };
-  }, [analysisEngineBaseUrl, runtimeAnalysisEngineBaseUrl, expandedEnvSection, exploreTab]);
+  }, [analysisEngineBaseUrl, runtimeAnalysisEngineBaseUrl, expandedEnvSection]);
 
   const resolveExploreAoiFeature = useCallback((): GeoJSON.Feature => {
     const drawnGeom = drawnGeometry?.geometry;
@@ -4084,48 +4105,6 @@ export default function SatelliteIntelligence() {
     }
     return { type: 'Feature', geometry: DUBAI_STAC_INTERSECTS, properties: { source: 'default' } };
   }, [drawnGeometry, selectedPivot, pivotGeoJson, exploreExtentMode, exploreManualBbox]);
-
-  useEffect(() => {
-    if (expandedEnvSection !== 'explore-stac') return;
-    if (exploreTab !== 'processing-templates') return;
-    if (!effectiveAnalysisEngineBaseUrl) {
-      setMpcTemplateError('');
-      setMpcTemplates(LOCAL_PROCESSING_TEMPLATES);
-      if (!LOCAL_PROCESSING_TEMPLATES.some(t => t.id === selectedMpcTemplateId)) {
-        setSelectedMpcTemplateId(LOCAL_PROCESSING_TEMPLATES[0]!.id);
-      }
-      return;
-    }
-    let cancelled = false;
-    setIsLoadingMpcTemplates(true);
-    setMpcTemplateError('');
-    mpcFetchTemplates(effectiveAnalysisEngineBaseUrl)
-      .then(data => {
-        if (cancelled) return;
-        const items = (Array.isArray(data?.templates) ? data.templates : [])
-          .filter((t: any) => typeof t?.id === 'string' && typeof t?.label === 'string')
-          .map((t: any) => ({
-            id: t.id as MpcTemplateId,
-            label: String(t.label),
-            collections: Array.isArray(t.collections) ? t.collections.map((c: any) => String(c)) : [],
-          }));
-        setMpcTemplates(items);
-        if (items.length && !items.some(t => t.id === selectedMpcTemplateId)) {
-          setSelectedMpcTemplateId(items[0]!.id);
-        }
-      })
-      .catch(err => {
-        if (cancelled) return;
-        setMpcTemplates(LOCAL_PROCESSING_TEMPLATES);
-        setMpcTemplateError(err instanceof Error ? err.message : 'Failed to load backend templates; using local templates.');
-      })
-      .finally(() => {
-        if (!cancelled) setIsLoadingMpcTemplates(false);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [expandedEnvSection, exploreTab, effectiveAnalysisEngineBaseUrl, selectedMpcTemplateId]);
 
   const findCompatibleStacItemForTemplate = useCallback(
     async (
@@ -4186,7 +4165,7 @@ export default function SatelliteIntelligence() {
       : null;
     const targetItem = forcedTargetItem ?? processingTargetStacItem ?? selectedItemFromResults;
     if (!targetItem) {
-      setMpcTemplateError('Add STAC scene to Current Map (or select one scene in Results) before running template.');
+      setStacStatus('Add STAC scene to Current Map (or select one scene in Results) before running template.');
       return;
     }
     const targetCollection = getStacItemCollection(targetItem);
@@ -4196,18 +4175,16 @@ export default function SatelliteIntelligence() {
         ? [targetCollection]
         : [];
     if (!effectiveCollections.length) {
-      setMpcTemplateError('Select at least one collection in Parameters tab.');
+      setStacStatus('Select at least one collection in Parameters tab.');
       return;
     }
     const dStart = exploreEffectiveDatetime.start;
     const dEnd = exploreEffectiveDatetime.end;
     if (!dStart || !dEnd) {
-      setMpcTemplateError('Set start and end date in Date and Time.');
+      setStacStatus('Set start and end date in Date and Time.');
       return;
     }
     const aoi = resolveExploreAoiFeature();
-    setIsMpcProcessing(true);
-    setMpcTemplateError('');
     setMpcProcessResult(null);
     setProcessingTargetStacItem(targetItem);
 
@@ -4309,9 +4286,7 @@ export default function SatelliteIntelligence() {
         } as MpcProcessResult);
         setStacStatus('Processing template applied to the added STAC layer (frontend mode).');
       } catch (err) {
-        setMpcTemplateError(err instanceof Error ? err.message : 'Processing failed.');
-      } finally {
-        setIsMpcProcessing(false);
+        setStacStatus(err instanceof Error ? err.message : 'Processing failed.');
       }
       return;
     }
@@ -4332,9 +4307,7 @@ export default function SatelliteIntelligence() {
       setMpcProcessResult(result);
       setStacStatus(`Processing template completed: ${result.label || result.template_id}.`);
     } catch (err) {
-      setMpcTemplateError(err instanceof Error ? err.message : 'Processing failed.');
-    } finally {
-      setIsMpcProcessing(false);
+      setStacStatus(err instanceof Error ? err.message : 'Processing failed.');
     }
   };
 
@@ -4470,12 +4443,6 @@ export default function SatelliteIntelligence() {
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [isStacModalOpen, isAcsPickerOpen]);
-
-  const aoiVizColor = useMemo(() => {
-    if (!drawnStats) return '#facc15';
-    const cfg = ENVIRONMENTAL_INDICES[selectedIndex];
-    return indexValueToColor(drawnStats.mean, cfg.range, cfg.palette);
-  }, [drawnStats, selectedIndex]);
 
   const aoiFiveClassLegend = useMemo(() => {
     const cfg = ENVIRONMENTAL_INDICES[selectedIndex];
@@ -5709,7 +5676,7 @@ export default function SatelliteIntelligence() {
                 setExploreSelectedResultKeys([sceneKey]);
                 setShowStacFootprintsOnMap(true);
                 setExpandedEnvSection('explore-stac');
-                setExploreTab('processing-templates');
+                setExploreTab('results');
                 if (sceneCollection) {
                   setExploreSelectedCollectionIds(prev => (prev.includes(sceneCollection) ? prev : [...prev, sceneCollection]));
                 }
@@ -6265,6 +6232,15 @@ export default function SatelliteIntelligence() {
       ? mapDrawTool
       : 'select';
 
+  const indexOverlayClipMaskFeature = useMemo(
+    () => buildIndexOverlayClipMaskFeature(drawnGeometry?.geometry ?? null),
+    [drawnGeometry],
+  );
+
+  const showIndexOutsideAoiMask =
+    !!indexOverlayClipMaskFeature &&
+    (sentinelVisible || (isStacThumbVisible && !!stacMapThumb));
+
   const wmsTileUrl = useMemo(() => {
     const safeLayer = encodeURIComponent(activeWmsLayer);
     const start = timeSeriesStart || wmsDate;
@@ -6499,32 +6475,6 @@ export default function SatelliteIntelligence() {
                         'fill-opacity': drawStyle.fillOpacity,
                       }}
                     />
-                    <Layer
-                      id="drawn-index-geometry-line"
-                      type="line"
-                      filter={['in', ['geometry-type'], ['literal', ['LineString', 'Polygon']]]}
-                      paint={{
-                        'line-color': drawStyle.strokeColor,
-                        'line-width': [
-                          'case',
-                          ['==', ['geometry-type'], 'LineString'],
-                          Math.max(2, drawStyle.strokeWidth + 1),
-                          drawStyle.strokeWidth,
-                        ],
-                      }}
-                    />
-                    <Layer
-                      id="drawn-index-geometry-point"
-                      type="circle"
-                      filter={['==', ['geometry-type'], 'Point']}
-                      paint={{
-                        'circle-radius': drawStyle.pointRadius,
-                        'circle-color': drawStyle.fillColor,
-                        'circle-opacity': Math.min(1, drawStyle.fillOpacity + 0.55),
-                        'circle-stroke-color': drawStyle.strokeColor,
-                        'circle-stroke-width': Math.max(1, drawStyle.strokeWidth / 2),
-                      }}
-                    />
                   </Source>
                 )}
                 {false && aoiHeatPointGeoJson?.features?.length ? (
@@ -6632,6 +6582,50 @@ export default function SatelliteIntelligence() {
               </Source>
             )}
 
+            {isMapLoaded && showIndexOutsideAoiMask && indexOverlayClipMaskFeature ? (
+              <Source id="si-index-overlay-clip-mask" type="geojson" data={indexOverlayClipMaskFeature as any}>
+                <Layer
+                  id="si-index-overlay-clip-mask-fill"
+                  type="fill"
+                  paint={{
+                    'fill-color': '#020617',
+                    'fill-opacity': 1,
+                  }}
+                />
+              </Source>
+            ) : null}
+
+            {isMapLoaded && drawnGeometry ? (
+              <Source id="drawn-index-geometry-outline-source" type="geojson" data={drawnGeometry as any}>
+                <Layer
+                  id="drawn-index-geometry-line"
+                  type="line"
+                  filter={['in', ['geometry-type'], ['literal', ['LineString', 'Polygon']]]}
+                  paint={{
+                    'line-color': drawStyle.strokeColor,
+                    'line-width': [
+                      'case',
+                      ['==', ['geometry-type'], 'LineString'],
+                      Math.max(2, drawStyle.strokeWidth + 1),
+                      drawStyle.strokeWidth,
+                    ],
+                  }}
+                />
+                <Layer
+                  id="drawn-index-geometry-point"
+                  type="circle"
+                  filter={['==', ['geometry-type'], 'Point']}
+                  paint={{
+                    'circle-radius': drawStyle.pointRadius,
+                    'circle-color': drawStyle.fillColor,
+                    'circle-opacity': Math.min(1, drawStyle.fillOpacity + 0.55),
+                    'circle-stroke-color': drawStyle.strokeColor,
+                    'circle-stroke-width': Math.max(1, drawStyle.strokeWidth / 2),
+                  }}
+                />
+              </Source>
+            ) : null}
+
             {isMapLoaded && geoAiInspectCard ? (
               <Marker
                 className="si-geo-ai-inspect-marker"
@@ -6724,15 +6718,6 @@ export default function SatelliteIntelligence() {
             indexLabel={ENVIRONMENTAL_INDICES[selectedIndex].label}
           />
 
-          {(mpcProcessResult?.statistics || drawnStats) && (
-            <div className="si-aoi-analysis-pill" dir="ltr">
-              <span className="si-aoi-analysis-pill-label">AOI</span>
-              <span className="si-aoi-analysis-pill-index">{selectedIndex}</span>
-              <span className="si-aoi-analysis-pill-mean" style={{ color: aoiVizColor }}>
-                {(mpcProcessResult?.statistics?.mean ?? drawnStats?.mean ?? 0).toFixed(3)}
-              </span>
-            </div>
-          )}
           {false && aoiHeatPointGeoJson?.features?.length ? (
             <div className="si-aoi-class-legend" dir="ltr">
               <div className="si-aoi-class-legend-title">{selectedIndex} classified (5 classes)</div>
@@ -6844,15 +6829,6 @@ export default function SatelliteIntelligence() {
                   title="Basemap"
                 >
                   <i className="fa-solid fa-globe"></i>
-                </button>
-                <button
-                  type="button"
-                  className={`si-basemap-button ${expandedEnvSection === 'explore-stac' && exploreTab === 'processing-templates' ? 'active' : ''}`}
-                  onClick={openProcessingTemplatesQuickTool}
-                  title="Processing templates"
-                  aria-label="Open STAC processing templates tool"
-                >
-                  <i className="fa-solid fa-square-poll-vertical"></i>
                 </button>
                 {isBasemapOpen && (
                   <div className="si-basemap-widget si-basemap-widget--grid">
@@ -7040,17 +7016,6 @@ export default function SatelliteIntelligence() {
                 aria-label="Results"
               >
                 <i className="fa-solid fa-chart-column" aria-hidden />
-              </button>
-              <button
-                type="button"
-                role="tab"
-                aria-selected={exploreTab === 'processing-templates'}
-                className={`si-explore-stac-tab${exploreTab === 'processing-templates' ? ' active' : ''}`}
-                onClick={() => setExploreTab('processing-templates')}
-                title="Processing templates"
-                aria-label="Processing templates"
-              >
-                <i className="fa-solid fa-diagram-project" aria-hidden />
               </button>
               <button
                 type="button"
@@ -7673,133 +7638,6 @@ export default function SatelliteIntelligence() {
                     </div>
                   ) : null}
                 </>
-              ) : exploreTab === 'processing-templates' ? (
-                <div className="si-explore-processing-templates">
-                  <div className="si-field-analysis-field">
-                    <label style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                      <input
-                        type="checkbox"
-                        checked={autoRunNdviOnScenePick}
-                        onChange={e => setAutoRunNdviOnScenePick(e.target.checked)}
-                      />
-                      <span>Auto-run NDVI when selecting footprint on map</span>
-                    </label>
-                  </div>
-                  <div className="si-field-analysis-field" style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                    <button
-                      type="button"
-                      className="si-explore-page-btn"
-                      onClick={() => {
-                        setExploreExtentMode('map');
-                        cancelCurrentDrawing();
-                      }}
-                    >
-                      Use current map view as AOI
-                    </button>
-                    <button
-                      type="button"
-                      className="si-explore-page-btn"
-                      onClick={() => {
-                        setExploreExtentMode('drawn');
-                        if (stacFootprintsGeoJson.features.length) setShowStacFootprintsOnMap(true);
-                        applyMapDrawTool('rectangle');
-                        setDrawAssistHint(
-                          'Drag a rectangle on the map over the STAC footprint (or any area). Release to set the analysis AOI.',
-                        );
-                      }}
-                    >
-                      Use drawn AOI
-                    </button>
-                  </div>
-                  <div className="si-field-analysis-field" style={{ marginTop: 8 }}>
-                    <label style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                      <input
-                        type="checkbox"
-                        checked={mpcClipToAoi}
-                        onChange={e => setMpcClipToAoi(e.target.checked)}
-                      />
-                      <span>Clip to AOI (backend analytics mask)</span>
-                    </label>
-                  </div>
-                  <div className="si-field-analysis-field">
-                    <label>
-                      Tile size (tile-based on-the-fly):{' '}
-                      <input
-                        type="number"
-                        min={256}
-                        max={4096}
-                        step={256}
-                        value={mpcTileSize}
-                        onChange={e => setMpcTileSize(Math.max(256, Math.min(4096, Number(e.target.value) || 1024)))}
-                        style={{ width: 120, marginInlineStart: 8 }}
-                      />
-                    </label>
-                  </div>
-                  {isLoadingMpcTemplates ? <p className="si-explore-muted">Loading templates…</p> : null}
-                  {mpcTemplateError ? <p className="si-explore-error">{mpcTemplateError}</p> : null}
-                  {!!mpcTemplates.length ? (
-                    <div className="si-explore-processing-template-list">
-                      {mpcTemplates.map(tpl => (
-                        <label key={tpl.id} className="si-explore-processing-template-row">
-                          <input
-                            type="radio"
-                            name="si-processing-template"
-                            checked={selectedMpcTemplateId === tpl.id}
-                            onChange={() => setSelectedMpcTemplateId(tpl.id)}
-                          />
-                          <span>
-                            <strong>{tpl.label}</strong>
-                            <small>{tpl.collections?.length ? `Collections: ${tpl.collections.join(', ')}` : 'All collections'}</small>
-                          </span>
-                        </label>
-                      ))}
-                    </div>
-                  ) : null}
-                  <div className="si-explore-processing-actions">
-                    <button
-                      type="button"
-                      className="si-explore-view-results"
-                      disabled={isMpcProcessing || !mpcTemplates.length}
-                      onClick={() => {
-                        setSelectedMpcTemplateId('ndvi_s2');
-                        void runMpcTemplateProcessing('ndvi_s2');
-                      }}
-                    >
-                      {isMpcProcessing ? <i className="fa-solid fa-spinner fa-spin" aria-hidden /> : null}
-                      Render NDVI Layer
-                    </button>
-                    <button
-                      type="button"
-                      className="si-explore-view-results"
-                      disabled={isMpcProcessing || !mpcTemplates.length}
-                      onClick={() => void runMpcTemplateProcessing()}
-                    >
-                      {isMpcProcessing ? <i className="fa-solid fa-spinner fa-spin" aria-hidden /> : null}
-                      Run Processing
-                    </button>
-                  </div>
-                  {mpcProcessResult ? (
-                    <div className="si-explore-processing-result">
-                      <div><strong>Template:</strong> {mpcProcessResult.label || mpcProcessResult.template_id}</div>
-                      <div><strong>Items:</strong> {mpcProcessResult.item_count}</div>
-                      <div><strong>Date range:</strong> {mpcProcessResult.datetime}</div>
-                      {mpcProcessResult.processing ? (
-                        <div>
-                          <strong>Mode:</strong> {mpcProcessResult.processing.mode || 'tile-based'} · Clip AOI:{' '}
-                          {mpcProcessResult.processing.clip_to_aoi ? 'On' : 'Off'} · Tile:{' '}
-                          {mpcProcessResult.processing.tile_size ?? '-'}
-                        </div>
-                      ) : null}
-                      {mpcProcessResult.statistics ? (
-                        <div>
-                          <strong>Statistics:</strong>{' '}
-                          min {mpcProcessResult.statistics.min.toFixed(4)} · max {mpcProcessResult.statistics.max.toFixed(4)} · mean{' '}
-                          {mpcProcessResult.statistics.mean.toFixed(4)}
-                        </div>
-                      ) : null}
-                    </div>
-                  ) : null}
-                </div>
               ) : (
                 <div className="si-explore-stac-source-tab">{exploreStacSourcePanelContent}</div>
               )}
@@ -7891,6 +7729,26 @@ export default function SatelliteIntelligence() {
                               )}
                             </select>
                           </label>
+                          {!isLoadingLayers && remoteSensingLayerOptions.length > 0 ? (
+                            <div className="si-field-analysis-layer-visibility">
+                              <label className="si-field-analysis-checkbox-row">
+                                <input
+                                  type="checkbox"
+                                  checked={isWmsOverlayVisible}
+                                  onChange={e => setIsWmsOverlayVisible(e.target.checked)}
+                                  aria-label="Show imagery layer on map"
+                                />
+                                <span>
+                                  Show{' '}
+                                  <strong>
+                                    {remoteSensingLayerOptions.find(o => o.id === wmsLayerSelectValue)?.label ??
+                                      ENVIRONMENTAL_INDICES[selectedIndex].label}
+                                  </strong>{' '}
+                                  on map
+                                </span>
+                              </label>
+                            </div>
+                          ) : null}
                         </div>
 
                         <div className="si-field-analysis-section">
@@ -7915,6 +7773,21 @@ export default function SatelliteIntelligence() {
                               />
                             </label>
                           </div>
+                          <div className="si-field-analysis-map-tools">
+                            <div className="si-field-analysis-kicker si-field-analysis-map-tools-kicker">Analysis tools</div>
+                            <SatelliteMapAnalysisToolbar
+                              embedded
+                              mapTool={satelliteToolbarTool}
+                              onMapTool={t => applyMapDrawTool(t)}
+                              hasAoi={!!drawnGeometry}
+                              onRunAnalysis={runSatelliteMapAnalysis}
+                              runBlockedReason={!drawnGeometry ? 'Draw AOI first' : null}
+                              staticChartsOpen={mapStaticChartsOpen}
+                              onToggleStaticCharts={() => setMapStaticChartsOpen(o => !o)}
+                              analysisLayerAttached={analysisLayerAttached}
+                              onToggleAnalysisLayerAttached={() => setAnalysisLayerAttached(v => !v)}
+                            />
+                          </div>
                           <div className="si-rs-actions si-rs-actions--compact">
                             <button type="button" className="si-field-analysis-timeline-btn" onClick={generateFieldAnalysisTimeline}>
                               <i className="fa-solid fa-chart-line" aria-hidden />
@@ -7922,7 +7795,8 @@ export default function SatelliteIntelligence() {
                             </button>
                           </div>
                           <p className="si-field-analysis-hint">
-                            Use the map toolbar (bottom) for AOI, Run, timeline playback, and charts after generating here.
+                            Generate the timeline first, then use play on the map bar. AOI, Run, and charts are in Analysis tools
+                            above.
                           </p>
                         </div>
 

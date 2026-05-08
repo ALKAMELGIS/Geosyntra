@@ -7,6 +7,105 @@ export type TimelineChip = {
   mean: number;
 };
 
+export type SatelliteMapAnalysisToolbarProps = {
+  mapTool: 'rectangle' | 'polygon' | 'select' | string;
+  onMapTool: (tool: 'rectangle' | 'polygon' | 'select') => void;
+  hasAoi: boolean;
+  onRunAnalysis: () => void;
+  runBlockedReason: string | null;
+  staticChartsOpen: boolean;
+  onToggleStaticCharts: () => void;
+  analysisLayerAttached: boolean;
+  onToggleAnalysisLayerAttached: () => void;
+  /** When true, toolbar sits inside Remote Sensing card (no floating map position). */
+  embedded?: boolean;
+  className?: string;
+};
+
+export function SatelliteMapAnalysisToolbar({
+  mapTool,
+  onMapTool,
+  hasAoi,
+  onRunAnalysis,
+  runBlockedReason,
+  staticChartsOpen,
+  onToggleStaticCharts,
+  analysisLayerAttached,
+  onToggleAnalysisLayerAttached,
+  embedded = false,
+  className = '',
+}: SatelliteMapAnalysisToolbarProps) {
+  const rootClass = [
+    'si-map-analysis-toolbar',
+    embedded ? 'si-map-analysis-toolbar--embedded' : '',
+    className.trim(),
+  ]
+    .filter(Boolean)
+    .join(' ');
+
+  return (
+    <div className={rootClass} role="toolbar" aria-label="Analysis tools">
+      <button
+        type="button"
+        className={`si-map-analysis-tool ${mapTool === 'rectangle' ? 'si-map-analysis-tool--on' : ''}`}
+        aria-pressed={mapTool === 'rectangle'}
+        title="Draw rectangle AOI"
+        onClick={() => onMapTool('rectangle')}
+      >
+        <i className="fa-regular fa-square" aria-hidden />
+      </button>
+      <button
+        type="button"
+        className={`si-map-analysis-tool ${mapTool === 'polygon' ? 'si-map-analysis-tool--on' : ''}`}
+        aria-pressed={mapTool === 'polygon'}
+        title="Draw polygon AOI"
+        onClick={() => onMapTool('polygon')}
+      >
+        <i className="fa-solid fa-draw-polygon" aria-hidden />
+      </button>
+      <button
+        type="button"
+        className={`si-map-analysis-tool ${mapTool === 'select' ? 'si-map-analysis-tool--on' : ''}`}
+        aria-pressed={mapTool === 'select'}
+        title={hasAoi ? 'Select / edit AOI' : 'Select tool'}
+        onClick={() => onMapTool('select')}
+      >
+        <i className="fa-solid fa-arrow-pointer" aria-hidden />
+      </button>
+      <span className="si-map-analysis-toolbar-sep" aria-hidden />
+      <button
+        type="button"
+        className={`si-map-analysis-tool ${staticChartsOpen ? 'si-map-analysis-tool--on' : ''}`}
+        aria-pressed={staticChartsOpen}
+        title="Static info charts (AOI-scoped)"
+        onClick={onToggleStaticCharts}
+      >
+        <i className="fa-solid fa-chart-pie" aria-hidden />
+      </button>
+      <button
+        type="button"
+        className={`si-map-analysis-tool ${analysisLayerAttached ? 'si-map-analysis-tool--on' : ''}`}
+        aria-pressed={analysisLayerAttached}
+        title="Attach analysis output under imagery layer"
+        onClick={onToggleAnalysisLayerAttached}
+      >
+        <i className="fa-solid fa-layer-group" aria-hidden />
+      </button>
+      <span className="si-map-analysis-toolbar-sep" aria-hidden />
+      <button
+        type="button"
+        className="si-map-analysis-run"
+        disabled={!!runBlockedReason}
+        title={runBlockedReason || 'Run analysis (timeline + stats inside AOI)'}
+        onClick={onRunAnalysis}
+      >
+        <i className="fa-solid fa-play" aria-hidden />
+        <span>Run</span>
+      </button>
+    </div>
+  );
+}
+
 export type SatelliteMapAnalysisChromeProps = {
   weeklyChips: TimelineChip[];
   activeChipId: string | null;
@@ -24,6 +123,8 @@ export type SatelliteMapAnalysisChromeProps = {
   onToggleStaticCharts: () => void;
   analysisLayerAttached: boolean;
   onToggleAnalysisLayerAttached: () => void;
+  /** When true, duplicate toolbar stays on map (default off — toolbar lives in Remote Sensing panel). */
+  showFloatingToolbar?: boolean;
   /** Sparkline means (0–1 normalized optional) */
   weeklyMeans: number[];
   pivotBars: Array<{ name: string; value: number }>;
@@ -61,6 +162,7 @@ export function SatelliteMapAnalysisChrome(props: SatelliteMapAnalysisChromeProp
     onToggleStaticCharts,
     analysisLayerAttached,
     onToggleAnalysisLayerAttached,
+    showFloatingToolbar = false,
     weeklyMeans,
     pivotBars,
     indexLabel,
@@ -125,65 +227,20 @@ export function SatelliteMapAnalysisChrome(props: SatelliteMapAnalysisChromeProp
         </div>
       ) : null}
 
-      <div className="si-map-analysis-toolbar" role="toolbar" aria-label="Analysis tools">
-        <button
-          type="button"
-          className={`si-map-analysis-tool ${mapTool === 'rectangle' ? 'si-map-analysis-tool--on' : ''}`}
-          aria-pressed={mapTool === 'rectangle'}
-          title="Draw rectangle AOI"
-          onClick={() => onMapTool('rectangle')}
-        >
-          <i className="fa-regular fa-square" aria-hidden />
-        </button>
-        <button
-          type="button"
-          className={`si-map-analysis-tool ${mapTool === 'polygon' ? 'si-map-analysis-tool--on' : ''}`}
-          aria-pressed={mapTool === 'polygon'}
-          title="Draw polygon AOI"
-          onClick={() => onMapTool('polygon')}
-        >
-          <i className="fa-solid fa-draw-polygon" aria-hidden />
-        </button>
-        <button
-          type="button"
-          className={`si-map-analysis-tool ${mapTool === 'select' ? 'si-map-analysis-tool--on' : ''}`}
-          aria-pressed={mapTool === 'select'}
-          title={hasAoi ? 'Select / edit AOI' : 'Select tool'}
-          onClick={() => onMapTool('select')}
-        >
-          <i className="fa-solid fa-arrow-pointer" aria-hidden />
-        </button>
-        <span className="si-map-analysis-toolbar-sep" aria-hidden />
-        <button
-          type="button"
-          className={`si-map-analysis-tool ${staticChartsOpen ? 'si-map-analysis-tool--on' : ''}`}
-          aria-pressed={staticChartsOpen}
-          title="Static info charts (AOI-scoped)"
-          onClick={onToggleStaticCharts}
-        >
-          <i className="fa-solid fa-chart-pie" aria-hidden />
-        </button>
-        <button
-          type="button"
-          className={`si-map-analysis-tool ${analysisLayerAttached ? 'si-map-analysis-tool--on' : ''}`}
-          aria-pressed={analysisLayerAttached}
-          title="Attach analysis output under imagery layer"
-          onClick={onToggleAnalysisLayerAttached}
-        >
-          <i className="fa-solid fa-layer-group" aria-hidden />
-        </button>
-        <span className="si-map-analysis-toolbar-sep" aria-hidden />
-        <button
-          type="button"
-          className="si-map-analysis-run"
-          disabled={!!runBlockedReason}
-          title={runBlockedReason || 'Run analysis (timeline + stats inside AOI)'}
-          onClick={onRunAnalysis}
-        >
-          <i className="fa-solid fa-play" aria-hidden />
-          <span>Run</span>
-        </button>
-      </div>
+      {showFloatingToolbar ? (
+        <SatelliteMapAnalysisToolbar
+          embedded={false}
+          mapTool={mapTool}
+          onMapTool={onMapTool}
+          hasAoi={hasAoi}
+          onRunAnalysis={onRunAnalysis}
+          runBlockedReason={runBlockedReason}
+          staticChartsOpen={staticChartsOpen}
+          onToggleStaticCharts={onToggleStaticCharts}
+          analysisLayerAttached={analysisLayerAttached}
+          onToggleAnalysisLayerAttached={onToggleAnalysisLayerAttached}
+        />
+      ) : null}
 
       {staticChartsOpen ? (
         <div className="si-map-analysis-charts" role="region" aria-label="Analysis charts">
