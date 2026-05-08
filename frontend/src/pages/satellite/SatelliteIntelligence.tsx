@@ -22,6 +22,7 @@ import {
   pointInPolygonGeometry,
   saveDrawWorkspace,
   setVertexCoord,
+  snapLngLatToBearingStep,
   snapLngLatToNearestVertex,
   translateFeatureCoordinates,
   vertexHitThresholdPx,
@@ -1334,8 +1335,21 @@ function createPointFeature(lng: number, lat: number) {
   };
 }
 
-/** Pixel tolerance to snap to first vertex and close polygon. */
-const POLYGON_CLOSE_SNAP_PX = 20;
+/** Base pixel tolerance to snap to first vertex when closing; see polygonCloseSnapThresholdPx. */
+const POLYGON_CLOSE_SNAP_BASE_PX = 20;
+/** Snap radius to first vertex when closing; scales with zoom like vertex handles. */
+function polygonCloseSnapThresholdPx(map: { getZoom?: () => number } | null | undefined): number {
+  if (!map) return POLYGON_CLOSE_SNAP_BASE_PX;
+  try {
+    return Math.max(POLYGON_CLOSE_SNAP_BASE_PX, vertexHitThresholdPx(map as any));
+  } catch {
+    return POLYGON_CLOSE_SNAP_BASE_PX;
+  }
+}
+
+/** Shift-constrained polygon edge bearings (degrees). */
+const POLYGON_SNAP_BEARING_STEP_DEG = 15;
+
 /** Snap placed vertices to existing ones while sketching (digitizing). */
 const POLYGON_VERTEX_SNAP_PX = 20;
 
@@ -1712,6 +1726,8 @@ export default function SatelliteIntelligence() {
   const [selectedIndex, setSelectedIndex] = useState<EnvironmentalIndexId>('NDWI');
   const [selectedPivotId, setSelectedPivotId] = useState('all');
   const [weeklyComposites, setWeeklyComposites] = useState<WeeklyComposite[]>([]);
+  /** True only after the user (or RS Run path) successfully builds the field timeline — drives Generate ⟷ Stop label. */
+  const [fieldTimelineSessionActive, setFieldTimelineSessionActive] = useState(false);
   const [stacItems, setStacItems] = useState<any[]>([]);
   const [stacStatus, setStacStatus] = useState('Ready to search Planetary Computer STAC.');
   const [isLoadingStac, setIsLoadingStac] = useState(false);
@@ -3460,19 +3476,30 @@ export default function SatelliteIntelligence() {
       return;
     }
     const synthetic = synthesizeWeeklyComposites(Math.max(1, stacItems.length || weeklyWindows.length));
+    if (!synthetic.length) {
+      setFieldAnalysisStatus('No weekly windows in the selected date range.');
+      setFieldTimelineSessionActive(false);
+      return;
+    }
     setWeeklyComposites(synthetic);
+    setFieldTimelineSessionActive(true);
     setFieldAnalysisStatus(`Timeline ready: ${synthetic.length} week(s) for ${ENVIRONMENTAL_INDICES[selectedIndex].label}.`);
   };
 
   const stopFieldAnalysisTimeline = useCallback(() => {
     setIsTimelinePlaying(false);
     setWeeklyComposites([]);
+    setFieldTimelineSessionActive(false);
     setFieldAnalysisStatus('Timeline stopped. Adjust the date range and tap Generate timeline to start again.');
   }, []);
 
+  useEffect(() => {
+    if (weeklyComposites.length === 0) setFieldTimelineSessionActive(false);
+  }, [weeklyComposites.length]);
+
   /** Same control: generate weekly strip, or stop playback and clear it for a fresh run. */
   const onFieldAnalysisTimelinePrimaryClick = () => {
-    if (weeklyComposites.length > 0) {
+    if (fieldTimelineSessionActive) {
       stopFieldAnalysisTimeline();
       return;
     }
@@ -5465,13 +5492,21 @@ export default function SatelliteIntelligence() {
         const { lng: sx, lat: sy, snapped } = snapLngLatToNearestVertex(map, lng, lat, others, POLYGON_VERTEX_SNAP_PX);
         if (snapped) lngLat = [sx, sy];
       }
+      const shiftKey = !!(evt?.originalEvent as MouseEvent | undefined)?.shiftKey;
+      const nRing = polygonRing.length;
+      if (map && shiftKey && nRing >= 2) {
+        const prevI = (sketchVi + nRing - 1) % nRing;
+        const anchor = polygonRing[prevI]!;
+        lngLat = snapLngLatToBearingStep(anchor, lngLat, POLYGON_SNAP_BEARING_STEP_DEG);
+      }
       const nextRing = polygonRing.map((p, j) => (j === sketchVi ? lngLat : p)) as [number, number][];
       setPolygonRing(nextRing);
-      setPointerLngLat([lng, lat]);
+      setPointerLngLat(lngLat);
       if (map && nextRing.length >= 3) {
-        const d0 = lngLatPixelDistance(map, [lng, lat], nextRing[0]!);
-        setPolygonClosingSnap(d0 <= POLYGON_CLOSE_SNAP_PX);
-        setDrawAssistHint(d0 <= POLYGON_CLOSE_SNAP_PX ? 'Click first vertex to close polygon' : '');
+        const closePx = polygonCloseSnapThresholdPx(map);
+        const d0 = lngLatPixelDistance(map, lngLat, nextRing[0]!);
+        setPolygonClosingSnap(d0 <= closePx);
+        setDrawAssistHint(d0 <= closePx ? 'Click first vertex to close polygon' : '');
       } else {
         setPolygonClosingSnap(false);
         setDrawAssistHint('');
@@ -5501,10 +5536,18 @@ export default function SatelliteIntelligence() {
       setPolygonClosingSnap(false);
       setDrawAssistHint('');
     } else if (mapDrawTool === 'polygon' && polygonRing.length) {
-      setPointerLngLat([lng, lat]);
-      if (map && polygonRing.length >= 3) {
-        const d = lngLatPixelDistance(map, [lng, lat], polygonRing[0]);
-        const snap = d <= POLYGON_CLOSE_SNAP_PX;
+      const ring = polygonRing;
+      const shiftKey = !!(evt?.originalEvent as MouseEvent | undefined)?.shiftKey;
+      let ptr: [number, number] = [lng, lat];
+      if (map && shiftKey && ring.length >= 1) {
+        const anchor = ring[ring.length - 1]!;
+        ptr = snapLngLatToBearingStep(anchor, ptr, POLYGON_SNAP_BEARING_STEP_DEG);
+      }
+      setPointerLngLat(ptr);
+      if (map && ring.length >= 3) {
+        const closePx = polygonCloseSnapThresholdPx(map);
+        const d = lngLatPixelDistance(map, ptr, ring[0]);
+        const snap = d <= closePx;
         setPolygonClosingSnap(snap);
         setDrawAssistHint(snap ? 'Click first vertex to close polygon' : '');
       } else {
@@ -5663,7 +5706,7 @@ export default function SatelliteIntelligence() {
     drawnGeometry,
   ]);
 
-  const handleMapClickDraw = (lng: number, lat: number) => {
+  const handleMapClickDraw = (lng: number, lat: number, clickEv?: MouseEvent | null) => {
     if (skipNextMapClickRef.current) {
       skipNextMapClickRef.current = false;
       return;
@@ -5760,10 +5803,16 @@ export default function SatelliteIntelligence() {
 
     if (mapDrawTool === 'polygon') {
       const map = getMapInstance();
+      const shiftKey = !!clickEv?.shiftKey;
       let lngLat: [number, number] = [lng, lat];
+      if (map && shiftKey && polygonRing.length >= 1) {
+        const anchor = polygonRing[polygonRing.length - 1]!;
+        lngLat = snapLngLatToBearingStep(anchor, lngLat, POLYGON_SNAP_BEARING_STEP_DEG);
+      }
       if (map && polygonRing.length >= 3) {
-        const d = lngLatPixelDistance(map, [lng, lat], polygonRing[0]);
-        if (d <= POLYGON_CLOSE_SNAP_PX) {
+        const closePx = polygonCloseSnapThresholdPx(map);
+        const d = lngLatPixelDistance(map, lngLat, polygonRing[0]);
+        if (d <= closePx) {
           polygonRingSketchDragRef.current = null;
           const closed = [...polygonRing, polygonRing[0]];
           commitUserGeometry({
@@ -5781,8 +5830,8 @@ export default function SatelliteIntelligence() {
       if (map && polygonRing.length >= 1) {
         const { lng: sx, lat: sy, snapped } = snapLngLatToNearestVertex(
           map,
-          lng,
-          lat,
+          lngLat[0],
+          lngLat[1],
           polygonRing,
           POLYGON_VERTEX_SNAP_PX,
         );
@@ -6272,7 +6321,7 @@ export default function SatelliteIntelligence() {
   /** Map Run: clip/show analysis raster inside AOI only — never opens static charts (pie tool) or timeline. */
   const runSatelliteMapAnalysis = () => {
     if (!drawnGeometry?.geometry) {
-      setFieldAnalysisStatus('Draw a rectangle or polygon AOI on the map, then tap Run.');
+      setFieldAnalysisStatus('Draw a rectangle, circle, or polygon AOI on the map, then tap Run.');
       return;
     }
     setExploreExtentMode('drawn');
@@ -6294,8 +6343,8 @@ export default function SatelliteIntelligence() {
     if (w) applySelectedDate(new Date(`${w.startDate}T12:00:00`));
   };
 
-  const satelliteToolbarTool: 'rectangle' | 'polygon' | 'select' =
-    mapDrawTool === 'rectangle' || mapDrawTool === 'polygon' || mapDrawTool === 'select'
+  const satelliteToolbarTool: 'rectangle' | 'polygon' | 'circle' | 'select' =
+    mapDrawTool === 'rectangle' || mapDrawTool === 'polygon' || mapDrawTool === 'circle' || mapDrawTool === 'select'
       ? mapDrawTool
       : 'select';
 
@@ -6366,16 +6415,16 @@ export default function SatelliteIntelligence() {
   const polygonSketchHudText = useMemo(() => {
     if (mapDrawTool !== 'polygon') return '';
     if (polygonRing.length === 0) {
-      return 'Click the map to add corners (click-to-add). Drag a green vertex to move it. First corner is only for closing once you have 3+ points.';
+      return 'Click to add corners. Hold Shift for 15°-step edges from the last point. Drag green vertices to adjust; first corner closes the ring when you have 3+ points.';
     }
     if (polygonRing.length === 1) {
-      return 'Click for the next corner. Drag the green dot to move it. Backspace removes the last point.';
+      return 'Click for the next corner. Shift constrains the edge to 15° bearings from the previous point. Backspace removes the last point.';
     }
     if (polygonRing.length === 2) {
-      return 'Add one more corner, then close the polygon: click the first corner, press Enter, or right-click.';
+      return 'Add one more corner, then close: click the first corner, Enter, or right-click. Shift keeps the next edge on 15° steps from the last point.';
     }
     if (polygonClosingSnap) return '';
-    return `${polygonRing.length} vertices — click to add more, drag green dots to adjust, Backspace or Ctrl+Z removes last point, Enter to finish.`;
+    return `${polygonRing.length} vertices — Shift for 15° edges, drag green dots, Backspace or Ctrl+Z undoes last point, Enter to finish.`;
   }, [mapDrawTool, polygonRing.length, polygonClosingSnap]);
 
   return (
@@ -6412,7 +6461,7 @@ export default function SatelliteIntelligence() {
             onMove={evt => setViewState(evt.viewState)}
             onMouseDown={handleMapPointerDown}
             onMouseMove={handleMapPointerMove}
-            onClick={evt => handleMapClickDraw(evt.lngLat.lng, evt.lngLat.lat)}
+            onClick={evt => handleMapClickDraw(evt.lngLat.lng, evt.lngLat.lat, evt.originalEvent ?? undefined)}
             onContextMenu={handleMapContextMenu}
             style={{
               width: '100%',
@@ -7808,9 +7857,6 @@ export default function SatelliteIntelligence() {
                               aria-label="Imagery date"
                             />
                           </label>
-                          <p className="si-field-analysis-hint">
-                            Select date for satellite imagery (Sentinel-2 updates every 3–5 days).
-                          </p>
                         </div>
 
                         <div className="si-field-analysis-section">
@@ -7867,25 +7913,10 @@ export default function SatelliteIntelligence() {
                               </label>
                             </div>
                           ) : null}
-                          {!isLoadingLayers && remoteSensingLayerOptions.length > 0 && drawnGeometry ? (
-                            <p className="si-field-analysis-hint si-field-analysis-hint--aoi-overlay">
-                              With a drawn AOI, the analysis raster (WMS) loads only inside the AOI bounding box — the
-                              basemap is not clipped. Run applies AOI clip to that raster only; it does not open charts
-                              or build the timeline. Use Field boundaries / Productivity toggles separately if you want
-                              pivot polygons; those are not part of the raster mask.
-                            </p>
-                          ) : null}
                         </div>
 
                         <div className="si-field-analysis-section">
                           <div className="si-field-analysis-kicker">Time-series analysis</div>
-                          <p className="si-field-analysis-hint">
-                            Browse satellite imagery changes over time: pick a start/end range, tap{' '}
-                            <strong>Generate timeline</strong>, then use the playback controls on the map bar to step
-                            through dates. Tap again for <strong>Stop Timeline</strong> to halt and reset. This workflow
-                            is <strong>separate from Run</strong> — Run only clips the analysis raster to your AOI; it does
-                            not build or play the timeline.
-                          </p>
                           <div className="si-field-analysis-date-row">
                             <label className="si-field-analysis-field">
                               <span className="si-field-analysis-label">Start</span>
@@ -7926,27 +7957,22 @@ export default function SatelliteIntelligence() {
                               type="button"
                               className={
                                 'si-field-analysis-timeline-btn' +
-                                (weeklyComposites.length > 0 ? ' si-field-analysis-timeline-btn--stop' : '')
+                                (fieldTimelineSessionActive ? ' si-field-analysis-timeline-btn--stop' : '')
                               }
                               onClick={onFieldAnalysisTimelinePrimaryClick}
                               aria-label={
-                                weeklyComposites.length > 0
+                                fieldTimelineSessionActive
                                   ? 'Stop Timeline: pause map playback and clear weekly chips'
                                   : 'Generate weekly timeline from selected date range — not started by Run'
                               }
                             >
                               <i
-                                className={weeklyComposites.length > 0 ? 'fa-solid fa-stop' : 'fa-solid fa-chart-line'}
+                                className={fieldTimelineSessionActive ? 'fa-solid fa-stop' : 'fa-solid fa-chart-line'}
                                 aria-hidden
                               />
-                              {weeklyComposites.length > 0 ? 'Stop Timeline' : 'Generate timeline'}
+                              {fieldTimelineSessionActive ? 'Stop Timeline' : 'Generate timeline'}
                             </button>
                           </div>
-                          <p className="si-field-analysis-hint">
-                            After the timeline exists, use play/pause on the map timeline strip. Tap the same button
-                            again for <strong>Stop Timeline</strong> to end playback and clear chips. Run (above) does not
-                            create this timeline. AOI drawing and static charts use the Analysis tools row.
-                          </p>
                         </div>
 
                         <div className="si-field-analysis-section">
@@ -7985,7 +8011,6 @@ export default function SatelliteIntelligence() {
                           </div>
                         </div>
 
-                        <p className="si-field-analysis-footer-hint">Click on a field to view details.</p>
                         {fieldAnalysisStatus ? <p className="si-field-analysis-status">{fieldAnalysisStatus}</p> : null}
                       </div>
                     )}

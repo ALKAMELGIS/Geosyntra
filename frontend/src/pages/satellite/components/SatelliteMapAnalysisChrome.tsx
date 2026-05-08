@@ -8,8 +8,8 @@ export type TimelineChip = {
 };
 
 export type SatelliteMapAnalysisToolbarProps = {
-  mapTool: 'rectangle' | 'polygon' | 'select' | string;
-  onMapTool: (tool: 'rectangle' | 'polygon' | 'select') => void;
+  mapTool: 'rectangle' | 'polygon' | 'circle' | 'select' | string;
+  onMapTool: (tool: 'rectangle' | 'polygon' | 'circle' | 'select') => void;
   hasAoi: boolean;
   onRunAnalysis: () => void;
   runBlockedReason: string | null;
@@ -58,10 +58,19 @@ export function SatelliteMapAnalysisToolbar({
         type="button"
         className={`si-map-analysis-tool ${mapTool === 'polygon' ? 'si-map-analysis-tool--on' : ''}`}
         aria-pressed={mapTool === 'polygon'}
-        title="Polygon AOI: click to add corners, drag green dots to adjust, Enter or click first corner to close"
+        title="Polygon AOI: click corners, Shift for 15° edge steps, drag green dots, Enter or click first corner to close"
         onClick={() => onMapTool('polygon')}
       >
         <i className="fa-solid fa-draw-polygon" aria-hidden />
+      </button>
+      <button
+        type="button"
+        className={`si-map-analysis-tool ${mapTool === 'circle' ? 'si-map-analysis-tool--on' : ''}`}
+        aria-pressed={mapTool === 'circle'}
+        title="Circle AOI: drag from center to edge"
+        onClick={() => onMapTool('circle')}
+      >
+        <i className="fa-regular fa-circle" aria-hidden />
       </button>
       <button
         type="button"
@@ -119,8 +128,8 @@ export type SatelliteMapAnalysisChromeProps = {
   onTogglePlay: () => void;
   onStep: (dir: -1 | 1) => void;
   timelineVisible: boolean;
-  mapTool: 'rectangle' | 'polygon' | 'select' | string;
-  onMapTool: (tool: 'rectangle' | 'polygon' | 'select') => void;
+  mapTool: 'rectangle' | 'polygon' | 'circle' | 'select' | string;
+  onMapTool: (tool: 'rectangle' | 'polygon' | 'circle' | 'select') => void;
   hasAoi: boolean;
   onRunAnalysis: () => void;
   runBlockedReason: string | null;
@@ -302,14 +311,6 @@ export function SatelliteMapAnalysisChrome(props: SatelliteMapAnalysisChromeProp
               </div>
             </div>
           </div>
-          {!hasAoi ? (
-            <p className="si-map-analysis-charts-foot">Draw an AOI to scope charts to your area.</p>
-          ) : (
-            <p className="si-map-analysis-charts-foot">
-              Charts follow the selected layer and timeline for the AOI. Run only clips the map raster. Open charts with
-              the pie icon; build the weekly timeline with Generate timeline in Remote Sensing (not Run).
-            </p>
-          )}
         </div>
       ) : null}
     </>

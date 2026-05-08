@@ -82,6 +82,28 @@ export function snapLngLatToNearestVertex(
   return { lng, lat, snapped: false };
 }
 
+/**
+ * Constrain `point` to a ray from `anchor` in lng/lat plane space, snapped to `stepDeg` increments (0 = off).
+ * Used for Shift-constrained polygon edges (adequate for typical AOI sizes).
+ */
+export function snapLngLatToBearingStep(
+  anchor: [number, number],
+  point: [number, number],
+  stepDeg: number,
+): [number, number] {
+  if (!Number.isFinite(stepDeg) || stepDeg <= 0) return point;
+  const [lng0, lat0] = anchor;
+  const [lng1, lat1] = point;
+  const dx = lng1 - lng0;
+  const dy = lat1 - lat0;
+  const dist = Math.hypot(dx, dy);
+  if (dist < 1e-14) return point;
+  const bearingDeg = (Math.atan2(dy, dx) * 180) / Math.PI;
+  const snapped = Math.round(bearingDeg / stepDeg) * stepDeg;
+  const rad = (snapped * Math.PI) / 180;
+  return [lng0 + dist * Math.cos(rad), lat0 + dist * Math.sin(rad)];
+}
+
 /** Pixel hit radius that scales slightly with zoom (easier to grab vertices when zoomed out). */
 export function vertexHitThresholdPx(map: MapboxMap, base = 16): number {
   try {
