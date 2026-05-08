@@ -10,8 +10,17 @@ import { createHmac, randomBytes, randomUUID, timingSafeEqual } from 'crypto'
 
 /** `backend/server` — scripts and data files live next to this file. */
 const SERVER_DIR = path.dirname(fileURLToPath(import.meta.url))
-/** Encrypted-at-rest optional; file survives app image updates if this path is on a volume. */
-const API_SECRETS_FILE = path.join(SERVER_DIR, 'agri_api_secrets.json')
+/**
+ * API tokens file — survives deploys when this path is on a persistent volume.
+ * Set `AGRI_API_SECRETS_FILE` to an absolute path (e.g. `/data/agri_api_secrets.json` in Docker)
+ * or a path relative to `backend/server`.
+ */
+const envSecretsPath = process.env.AGRI_API_SECRETS_FILE?.trim()
+const API_SECRETS_FILE = envSecretsPath
+  ? path.isAbsolute(envSecretsPath)
+    ? envSecretsPath
+    : path.join(SERVER_DIR, envSecretsPath)
+  : path.join(SERVER_DIR, 'agri_api_secrets.json')
 const USER_PROFILES_FILE = path.join(SERVER_DIR, 'agri_user_profiles.json')
 /** Repository root (parent of `frontend/` and `backend/`). */
 const REPO_ROOT = path.join(SERVER_DIR, '..', '..')

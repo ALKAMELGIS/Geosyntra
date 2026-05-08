@@ -137,15 +137,24 @@ export async function persistApiSecretsPatchToServer(patch: ApiSecretsClientPatc
       headers: { 'Content-Type': 'application/json', ...optionalAuthHeaders() },
       body: JSON.stringify(patch),
     })
+    let data: { ok?: boolean; persisted?: boolean; secrets?: ServerApiSecretsV3; error?: string } = {}
+    try {
+      data = (await res.json()) as typeof data
+    } catch {
+      // non-JSON error body
+    }
     if (!res.ok) {
-      let msg = res.statusText
-      try {
-        const j = (await res.json()) as { error?: string }
-        if (j?.error) msg = j.error
-      } catch {
-        // ignore
+      return { ok: false, error: data?.error || res.statusText }
+    }
+    /**
+     * Authoritative copy lives on disk (`agri_api_secrets.json` or `AGRI_API_SECRETS_FILE`);
+     * merge the returned snapshot into this browser so tokens match the server for any device/browser.
+     */
+    if (data?.ok && data.persisted && data.secrets) {
+      applyPersistedApiSecretsToBrowser(data.secrets)
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new Event('agri-api-secrets-hydrated'))
       }
-      return { ok: false, error: msg }
     }
     return { ok: true }
   } catch (e) {
