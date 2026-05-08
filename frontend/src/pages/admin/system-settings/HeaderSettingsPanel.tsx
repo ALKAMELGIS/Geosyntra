@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { AppLanguage } from '../../../lib/i18n'
-import type { HeaderSettings } from '../../../types/systemSettings'
+import type { HeaderSettings, ThemeMode } from '../../../types/systemSettings'
+import { HeaderFontStackPicker } from './HeaderFontStackPicker'
 import './header-settings-panel.css'
 
 export type HeaderSmartSuggestions = {
@@ -16,6 +17,7 @@ export type HeaderSettingsPanelProps = {
   smartSuggestions: HeaderSmartSuggestions
   onApplyPreset: (preset: 'default' | 'balanced' | 'branding' | 'minimal') => void
   language: AppLanguage
+  themeMode: ThemeMode
 }
 
 type SectionId = 'typography' | 'layout' | 'insights'
@@ -176,6 +178,7 @@ export function HeaderSettingsPanel({
   smartSuggestions,
   onApplyPreset,
   language,
+  themeMode,
 }: HeaderSettingsPanelProps) {
   const [sectionOrder, setSectionOrder] = useState<SectionId[]>(() => {
     try {
@@ -373,16 +376,17 @@ export function HeaderSettingsPanel({
             onChange={e => onPatch({ logoTextAr: e.target.value })}
           />
         </div>
-        <div className="hs-field hs-cell-span-6">
+        <div className="hs-field hs-cell-span-12">
           <div className="hs-field__label-row">
-            <label htmlFor="hs-font">Font stack</label>
-            <Tip text="CSS font-family list, e.g. Inter, system-ui, sans-serif." />
+            <label htmlFor="hs-font-stack">Font stack</label>
+            <Tip text="Preset stacks load web fonts once; custom CSS keeps full control (e.g. var(--ds-font-sans))." />
           </div>
-          <input
-            id="hs-font"
-            className="gis-input"
+          <HeaderFontStackPicker
+            id="hs-font-stack"
             value={hs.fontFamily}
-            onChange={e => onPatch({ fontFamily: e.target.value })}
+            onChange={next => onPatch({ fontFamily: next })}
+            themeMode={themeMode}
+            language={language}
           />
         </div>
         <div className="hs-field hs-cell-span-6">

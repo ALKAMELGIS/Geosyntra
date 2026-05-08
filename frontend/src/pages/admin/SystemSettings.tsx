@@ -793,6 +793,7 @@ export default function SystemSettings() {
             smartSuggestions={smartHeaderSuggestions}
             onApplyPreset={applyHeaderPreset}
             language={language}
+            themeMode={draft.themeMode}
           />
           {inlineSettingsActions}
         </div>

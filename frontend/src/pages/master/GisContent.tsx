@@ -77,6 +77,18 @@ const LS_ORDER_KEY = 'gisContent.layerOrder.v1'
 const LS_FIELDS_KEY = 'gisContent.layerFields.v1'
 const LS_RELATIONSHIPS_KEY = 'gisContent.relationships.v1'
 const LS_HIDDEN_FIELDS_KEY = 'gisContent.hiddenFields.v1'
+const LS_SIDEBAR_CONTEXT_KEY = 'gisContent.sidebarContext.v1'
+const LS_SIDEBAR_PANEL_COLLAPSED_KEY = 'gisContent.sidebarPanelCollapsed.v1'
+const LS_SIDEBAR_RAIL_COMPACT_KEY = 'gisContent.sidebarRailCompact.v1'
+
+type SidebarContextMode = 'layers' | 'tables' | 'maps' | 'tools'
+
+const SIDEBAR_RAIL_MODES: { id: SidebarContextMode; icon: string; label: string }[] = [
+  { id: 'layers', icon: 'fa-solid fa-layer-group', label: 'Layers' },
+  { id: 'tables', icon: 'fa-solid fa-table-cells', label: 'Tables' },
+  { id: 'maps', icon: 'fa-solid fa-map-location-dot', label: 'Maps' },
+  { id: 'tools', icon: 'fa-solid fa-screwdriver-wrench', label: 'Tools' },
+]
 
 const initDB = () =>
   new Promise<IDBDatabase>((resolve, reject) => {
@@ -144,6 +156,12 @@ const safeLocalStorageSetItem = (key: string, value: string) => {
     localStorage.setItem(key, value)
   } catch {
   }
+}
+
+function readSidebarContextMode(): SidebarContextMode {
+  const v = safeLocalStorageGetItem(LS_SIDEBAR_CONTEXT_KEY)
+  if (v === 'layers' || v === 'tables' || v === 'maps' || v === 'tools') return v
+  return 'layers'
 }
 
 const safeParseJson = <T,>(raw: string | null, fallback: T): T => {
@@ -737,7 +755,16 @@ function GisContentPage() {
   const [layerQuery, setLayerQuery] = useState('')
   const [sortBy, setSortBy] = useState<'priority' | 'name' | 'date'>('priority')
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc')
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
+  const [sidebarContextMode, setSidebarContextMode] = useState<SidebarContextMode>(() => readSidebarContextMode())
+  const [sidebarPanelCollapsed, setSidebarPanelCollapsed] = useState(
+    () => safeLocalStorageGetItem(LS_SIDEBAR_PANEL_COLLAPSED_KEY) === '1',
+  )
+  /** Compact = icon-only narrow rail; labeled = wider rail with text (GIS Map–style). */
+  const [sidebarRailCompact, setSidebarRailCompact] = useState(() => {
+    const s = safeLocalStorageGetItem(LS_SIDEBAR_RAIL_COMPACT_KEY)
+    if (s === '0') return false
+    return true
+  })
 
   const [layerMeta, setLayerMeta] = useState<Record<string, { createdAt: string }>>(() =>
     safeParseJson<Record<string, { createdAt: string }>>(safeLocalStorageGetItem(LS_META_KEY), {}),
@@ -918,6 +945,31 @@ function GisContentPage() {
   useEffect(() => {
     safeLocalStorageSetItem(LS_HIDDEN_FIELDS_KEY, JSON.stringify(hiddenFieldsByLayerId))
   }, [hiddenFieldsByLayerId])
+
+  useEffect(() => {
+    safeLocalStorageSetItem(LS_SIDEBAR_CONTEXT_KEY, sidebarContextMode)
+  }, [sidebarContextMode])
+
+  useEffect(() => {
+    safeLocalStorageSetItem(LS_SIDEBAR_PANEL_COLLAPSED_KEY, sidebarPanelCollapsed ? '1' : '0')
+  }, [sidebarPanelCollapsed])
+
+  useEffect(() => {
+    safeLocalStorageSetItem(LS_SIDEBAR_RAIL_COMPACT_KEY, sidebarRailCompact ? '1' : '0')
+  }, [sidebarRailCompact])
+
+  useEffect(() => {
+    if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return
+    const mq = window.matchMedia('(max-width: 900px)')
+    const sync = () => {
+      if (!mq.matches) return
+      setSidebarRailCompact(true)
+      setSidebarPanelCollapsed(true)
+    }
+    sync()
+    mq.addEventListener('change', sync)
+    return () => mq.removeEventListener('change', sync)
+  }, [])
 
   const applyAndSaveMasterData = useCallback(async () => {
     if (!layersLoaded) {
@@ -1927,8 +1979,34 @@ function GisContentPage() {
     return renderRecords()
   }
 
+  const sidebarHead =
+    sidebarContextMode === 'layers'
+      ? { icon: 'fa-solid fa-layer-group' as const, text: 'GIS Layers' }
+      : sidebarContextMode === 'tables'
+        ? { icon: 'fa-solid fa-table-cells' as const, text: 'Tables' }
+        : sidebarContextMode === 'maps'
+          ? { icon: 'fa-solid fa-map-location-dot' as const, text: 'Maps' }
+          : { icon: 'fa-solid fa-screwdriver-wrench' as const, text: 'Tools' }
+
+  const pageShellClass = [
+    'gis-map-page',
+    'gis-content-page',
+    sidebarPanelCollapsed ? 'gis-content-page--sidebar-panel-collapsed' : '',
+    sidebarRailCompact ? 'gis-content-page--sidebar-rail-compact' : '',
+  ]
+    .filter(Boolean)
+    .join(' ')
+
+  const unifiedShellClass = [
+    'gis-content-unified',
+    sidebarPanelCollapsed ? 'gis-content-unified--panel-collapsed' : '',
+    sidebarRailCompact ? '' : 'gis-content-unified--rail-labeled',
+  ]
+    .filter(Boolean)
+    .join(' ')
+
   return (
-    <div className={`gis-map-page gis-content-page${sidebarCollapsed ? ' gis-sidebar-collapsed' : ''}`} dir="ltr" lang="en">
+    <div className={pageShellClass} dir="ltr" lang="en">
       {!layersLoaded ? (
         <div className="gis-empty" style={{ margin: 16 }}>
           <div className="gis-empty-title">Loading GIS Content…</div>
@@ -1951,263 +2029,391 @@ function GisContentPage() {
         </div>
       ) : null}
 
-      <div
-        className={`gis-content-unified${sidebarCollapsed ? ' gis-content-unified--collapsed' : ''}`}
-      >
-      <aside className={`gis-sidebar${sidebarCollapsed ? ' gis-sidebar--collapsed' : ''}`} aria-label="GIS Layers Sidebar">
-        <div className="gis-content-sidebar-shell">
-          <nav className="gis-content-sidebar-rail" aria-label="GIS tools">
-            <div className="gis-content-sidebar-rail-top">
-              <button type="button" className="gis-content-sidebar-rail-btn" aria-label="Tools">
-                <i className="fa-solid fa-circle-plus" aria-hidden="true" />
-              </button>
-              <button type="button" className="gis-content-sidebar-rail-btn gis-content-sidebar-rail-btn--active" aria-label="Layers">
-                <i className="fa-solid fa-layer-group" aria-hidden="true" />
-              </button>
-              <button type="button" className="gis-content-sidebar-rail-btn" aria-label="Tables">
-                <i className="fa-solid fa-table-cells" aria-hidden="true" />
-              </button>
-              <button type="button" className="gis-content-sidebar-rail-btn" aria-label="Forms">
-                <i className="fa-solid fa-table-list" aria-hidden="true" />
-              </button>
-              <button type="button" className="gis-content-sidebar-rail-btn" aria-label="Bookmarks">
-                <i className="fa-solid fa-bookmark" aria-hidden="true" />
-              </button>
-              <button type="button" className="gis-content-sidebar-rail-btn" aria-label="Charts">
-                <i className="fa-solid fa-chart-column" aria-hidden="true" />
-              </button>
-              <button type="button" className="gis-content-sidebar-rail-btn" aria-label="Files">
-                <i className="fa-solid fa-folder-open" aria-hidden="true" />
-              </button>
-              <button type="button" className="gis-content-sidebar-rail-btn" aria-label="Settings">
-                <i className="fa-solid fa-gear" aria-hidden="true" />
-              </button>
-            </div>
-            <div className="gis-content-sidebar-rail-bottom">
-              <button type="button" className="gis-content-sidebar-rail-btn" aria-label="Collapse rail">
-                <i className="fa-solid fa-angles-right" aria-hidden="true" />
-              </button>
-            </div>
-          </nav>
-          <div className="gis-content-sidebar-panel">
-        <div className="gis-sidebar-header">
-          {sidebarCollapsed ? (
-            <button
-              type="button"
-              className="gis-sidebar-title gis-sidebar-title--expand"
-              onClick={() => setSidebarCollapsed(false)}
-              aria-controls="gis-sidebar-panel"
-              aria-expanded={false}
-              aria-label={`Expand layers panel (${rows.length} layer${rows.length === 1 ? '' : 's'})`}
-              title="Expand layers panel"
-            >
-              <i className="fa-solid fa-map" aria-hidden="true" />
-              <span className="gis-sidebar-title-text">GIS Layers</span>
-              {rows.length > 0 ? (
-                <span className="gis-sidebar-expand-badge" aria-hidden="true">
-                  {rows.length}
-                </span>
-              ) : null}
-            </button>
-          ) : (
-            <div className="gis-sidebar-title">
-              <i className="fa-solid fa-map" aria-hidden="true" />
-              <span className="gis-sidebar-title-text">GIS Layers</span>
-            </div>
-          )}
-          <div className="gis-sidebar-actions" aria-label="Sidebar tools">
-            <button
-              className="gis-addlayer-btn gis-addlayer-btn--icon-only"
-              type="button"
-              onClick={openAddLayer}
-              aria-label="Add layer"
-              title="Add layer"
-            >
-              <i className="fa-solid fa-plus" aria-hidden="true" />
-            </button>
-          </div>
-        </div>
-
-        <div className="gis-sidebar-body" id="gis-sidebar-panel">
-          {sidebarCollapsed ? (
-            <div className="gis-sidebar-body-main gis-sidebar-body-main--collapsed-rail" aria-hidden="true">
-              <div className="gis-sidebar-collapsed-strip-spacer" />
-            </div>
-          ) : (
-            <div className="gis-sidebar-body-main">
-          <div className="gis-content-sidebarfilters">
-            <input className="gis-input gis-layer-search" value={layerQuery} onChange={(e) => setLayerQuery(e.target.value)} placeholder="Search for a layer..." />
-            <div className="gis-content-filterrow">
-              <div className="gis-content-selectwrap">
-                <select className="gis-content-select" value={sortBy} onChange={(e) => setSortBy(e.target.value as any)} aria-label="Sort by">
-                  <option value="priority">Priority</option>
-                  <option value="name">Name</option>
-                  <option value="date">Created date</option>
-                </select>
-                <i className="fa-solid fa-chevron-down" aria-hidden="true" />
+      <div className={unifiedShellClass}>
+        <aside className="gis-sidebar" aria-label="GIS content sidebar">
+          <div className="gis-content-sidebar-shell">
+            <nav className="gis-content-sidebar-rail" aria-label="GIS sidebar modes">
+              <div className="gis-content-sidebar-rail-top">
+                {SIDEBAR_RAIL_MODES.map(m => (
+                  <button
+                    key={m.id}
+                    type="button"
+                    className={`gis-content-sidebar-rail-btn${sidebarContextMode === m.id ? ' gis-content-sidebar-rail-btn--active' : ''}`}
+                    aria-current={sidebarContextMode === m.id ? 'page' : undefined}
+                    title={m.label}
+                    onClick={() => {
+                      setSidebarContextMode(m.id)
+                      setSidebarPanelCollapsed(false)
+                    }}
+                  >
+                    <span className="gis-content-sidebar-rail-btn__glyph" aria-hidden="true">
+                      <i className={m.icon} />
+                    </span>
+                    <span className="gis-content-sidebar-rail-btn__label">{m.label}</span>
+                  </button>
+                ))}
               </div>
-              <button className="gis-btn" type="button" onClick={() => setSortDir(d => (d === 'asc' ? 'desc' : 'asc'))} aria-label="Reverse sort direction">
-                {sortDir === 'asc' ? 'Ascending' : 'Descending'}
-              </button>
-            </div>
-            {syncError ? (
-              <div className="gis-content-muted" style={{ color: '#b91c1c', fontWeight: 800 }}>
-                {syncError}
-              </div>
-            ) : null}
-          </div>
-
-          <div className="gis-layer-list">
-            {rows.map((r) => {
-              const layer = layers.find(l => String(l.id) === r.id)
-              const canSync = r.source === 'arcgis' && Boolean(layer?.url)
-              const isSyncing = syncingLayerId === r.id
-
-              return (
-                <div
-                  key={r.id}
-                  className={selectedLayerId === r.id ? 'gis-layer-card active' : 'gis-layer-card'}
-                  role="button"
-                  tabIndex={0}
-                  onClick={() => {
-                    setSelectedLayerId(r.id)
-                    if (activeTab === 'relationships') return
-                    setActiveTab('data')
-                  }}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter' || e.key === ' ') {
-                      e.preventDefault()
-                      setSelectedLayerId(r.id)
-                    }
-                  }}
+              <div className="gis-content-sidebar-rail-bottom">
+                <button
+                  type="button"
+                  className="gis-content-sidebar-rail-btn"
+                  title={sidebarRailCompact ? 'Show rail labels' : 'Icon-only rail'}
+                  aria-label={sidebarRailCompact ? 'Show sidebar rail labels' : 'Use compact icon-only rail'}
+                  onClick={() => setSidebarRailCompact(c => !c)}
                 >
-                <div className="gis-layer-top">
-                  <div className="gis-layer-title">
-                    <div className="gis-layer-name" title={r.name}>
-                      {r.name}
-                    </div>
-                    <div className="gis-content-submeta">
-                      <span>{r.geometryType}</span>
-                      <span>•</span>
-                      <span>{r.recordCount} records</span>
-                    </div>
-                  </div>
-                  <div className="gis-layer-menu">
-                    <button
-                      className="gis-layer-menu-btn"
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        toggleLayerVisible(r.id)
-                      }}
-                      aria-label={r.visible ? 'Hide layer' : 'Show layer'}
-                      title={r.visible ? 'Hide' : 'Show'}
-                    >
-                      <i className={`fa-solid ${r.visible ? 'fa-eye' : 'fa-eye-slash'}`} aria-hidden="true" />
-                    </button>
-                    <button
-                      className="gis-layer-menu-btn"
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        openEditLayer(r.id)
-                      }}
-                      aria-label="Edit layer"
-                      title="Edit"
-                    >
-                      <i className="fa-solid fa-pen" aria-hidden="true" />
-                    </button>
-                    <button
-                      className="gis-layer-menu-btn"
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        void syncArcGisLayer(r.id)
-                      }}
-                      disabled={!canSync || Boolean(syncingLayerId)}
-                      aria-label={`Sync ${r.name} from ArcGIS`}
-                      title="Sync from ArcGIS"
-                    >
-                      <i
-                        className={isSyncing ? 'fa-solid fa-arrows-rotate fa-spin' : 'fa-solid fa-arrows-rotate'}
-                        aria-hidden="true"
-                      />
-                    </button>
-                    <button
-                      className="gis-layer-menu-btn"
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        setConfirm({ kind: 'deleteLayer', layerId: r.id })
-                      }}
-                      aria-label="Delete layer"
-                      title="Delete"
-                    >
-                      <i className="fa-solid fa-trash" aria-hidden="true" />
-                    </button>
-                  </div>
+                  <span className="gis-content-sidebar-rail-btn__glyph" aria-hidden="true">
+                    <i className={sidebarRailCompact ? 'fa-solid fa-outdent' : 'fa-solid fa-indent'} />
+                  </span>
+                  <span className="gis-content-sidebar-rail-btn__label">{sidebarRailCompact ? 'Labels' : 'Icons'}</span>
+                </button>
+                <button
+                  type="button"
+                  className="gis-content-sidebar-rail-btn"
+                  title={sidebarPanelCollapsed ? 'Show panel' : 'Hide panel'}
+                  aria-label={sidebarPanelCollapsed ? 'Expand GIS sidebar panel' : 'Collapse GIS sidebar panel'}
+                  onClick={() => setSidebarPanelCollapsed(c => !c)}
+                >
+                  <span className="gis-content-sidebar-rail-btn__glyph" aria-hidden="true">
+                    <i className={`fa-solid fa-angles-${sidebarPanelCollapsed ? 'right' : 'left'}`} />
+                  </span>
+                  <span className="gis-content-sidebar-rail-btn__label">{sidebarPanelCollapsed ? 'Open' : 'Hide'}</span>
+                </button>
+              </div>
+            </nav>
+            <div className="gis-content-sidebar-panel">
+              <div className="gis-sidebar-header">
+                <div className="gis-sidebar-title">
+                  <i className={sidebarHead.icon} aria-hidden="true" />
+                  <span className="gis-sidebar-title-text">{sidebarHead.text}</span>
                 </div>
-                <div className="gis-content-layerfooter">
-                  <div className="gis-content-muted" title={r.createdAt}>
-                    {new Date(r.createdAt).toLocaleDateString('en-US')}
-                  </div>
-                  <div className="gis-content-order">
+                <div className="gis-sidebar-actions" aria-label="Sidebar header actions">
+                  {sidebarContextMode === 'layers' ? (
                     <button
-                      className="gis-btn"
+                      className="gis-addlayer-btn gis-addlayer-btn--icon-only"
                       type="button"
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        applyMoveLayer(r.id, 'up')
-                      }}
-                      aria-label="Increase layer priority"
+                      onClick={openAddLayer}
+                      aria-label="Add layer"
+                      title="Add layer"
                     >
-                      ↑
+                      <i className="fa-solid fa-plus" aria-hidden="true" />
                     </button>
-                    <button
-                      className="gis-btn"
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        applyMoveLayer(r.id, 'down')
-                      }}
-                      aria-label="Decrease layer priority"
+                  ) : null}
+                  {sidebarContextMode === 'maps' ? (
+                    <a
+                      className="gis-addlayer-btn gis-addlayer-btn--icon-only"
+                      href="/satellite/gis"
+                      title="Open GIS Map"
+                      aria-label="Open GIS Map"
+                      style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', textDecoration: 'none', color: '#fff' }}
                     >
-                      ↓
-                    </button>
-                  </div>
+                      <i className="fa-solid fa-map" aria-hidden="true" />
+                    </a>
+                  ) : null}
                 </div>
               </div>
-              )
-            })}
-            {!rows.length ? (
-              <div className="gis-empty">
-                <div className="gis-empty-title">No layers</div>
-                <div className="gis-empty-sub">Add a GeoJSON layer or connect an ArcGIS service.</div>
+
+              <div className="gis-sidebar-body" id="gis-sidebar-panel">
+                <div className="gis-sidebar-body-main">
+                  {sidebarContextMode === 'layers' ? (
+                    <>
+                      <div className="gis-content-sidebarfilters">
+                        <input
+                          className="gis-input gis-layer-search"
+                          value={layerQuery}
+                          onChange={e => setLayerQuery(e.target.value)}
+                          placeholder="Search for a layer..."
+                        />
+                        <div className="gis-content-filterrow">
+                          <div className="gis-content-selectwrap">
+                            <select
+                              className="gis-content-select"
+                              value={sortBy}
+                              onChange={e => setSortBy(e.target.value as any)}
+                              aria-label="Sort by"
+                            >
+                              <option value="priority">Priority</option>
+                              <option value="name">Name</option>
+                              <option value="date">Created date</option>
+                            </select>
+                            <i className="fa-solid fa-chevron-down" aria-hidden="true" />
+                          </div>
+                          <button
+                            className="gis-btn"
+                            type="button"
+                            onClick={() => setSortDir(d => (d === 'asc' ? 'desc' : 'asc'))}
+                            aria-label="Reverse sort direction"
+                          >
+                            {sortDir === 'asc' ? 'Ascending' : 'Descending'}
+                          </button>
+                        </div>
+                        {syncError ? (
+                          <div className="gis-content-muted" style={{ color: '#b91c1c', fontWeight: 800 }}>
+                            {syncError}
+                          </div>
+                        ) : null}
+                      </div>
+
+                      <div className="gis-layer-list">
+                        {rows.map(r => {
+                          const layer = layers.find(l => String(l.id) === r.id)
+                          const canSync = r.source === 'arcgis' && Boolean(layer?.url)
+                          const isSyncing = syncingLayerId === r.id
+
+                          return (
+                            <div
+                              key={r.id}
+                              className={selectedLayerId === r.id ? 'gis-layer-card active' : 'gis-layer-card'}
+                              role="button"
+                              tabIndex={0}
+                              onClick={() => {
+                                setSelectedLayerId(r.id)
+                                if (activeTab === 'relationships') return
+                                setActiveTab('data')
+                              }}
+                              onKeyDown={e => {
+                                if (e.key === 'Enter' || e.key === ' ') {
+                                  e.preventDefault()
+                                  setSelectedLayerId(r.id)
+                                }
+                              }}
+                            >
+                              <div className="gis-layer-top">
+                                <div className="gis-layer-title">
+                                  <div className="gis-layer-name" title={r.name}>
+                                    {r.name}
+                                  </div>
+                                  <div className="gis-content-submeta">
+                                    <span>{r.geometryType}</span>
+                                    <span>•</span>
+                                    <span>{r.recordCount} records</span>
+                                  </div>
+                                </div>
+                                <div className="gis-layer-menu">
+                                  <button
+                                    className="gis-layer-menu-btn"
+                                    type="button"
+                                    onClick={e => {
+                                      e.stopPropagation()
+                                      toggleLayerVisible(r.id)
+                                    }}
+                                    aria-label={r.visible ? 'Hide layer' : 'Show layer'}
+                                    title={r.visible ? 'Hide' : 'Show'}
+                                  >
+                                    <i className={`fa-solid ${r.visible ? 'fa-eye' : 'fa-eye-slash'}`} aria-hidden="true" />
+                                  </button>
+                                  <button
+                                    className="gis-layer-menu-btn"
+                                    type="button"
+                                    onClick={e => {
+                                      e.stopPropagation()
+                                      openEditLayer(r.id)
+                                    }}
+                                    aria-label="Edit layer"
+                                    title="Edit"
+                                  >
+                                    <i className="fa-solid fa-pen" aria-hidden="true" />
+                                  </button>
+                                  <button
+                                    className="gis-layer-menu-btn"
+                                    type="button"
+                                    onClick={e => {
+                                      e.stopPropagation()
+                                      void syncArcGisLayer(r.id)
+                                    }}
+                                    disabled={!canSync || Boolean(syncingLayerId)}
+                                    aria-label={`Sync ${r.name} from ArcGIS`}
+                                    title="Sync from ArcGIS"
+                                  >
+                                    <i
+                                      className={isSyncing ? 'fa-solid fa-arrows-rotate fa-spin' : 'fa-solid fa-arrows-rotate'}
+                                      aria-hidden="true"
+                                    />
+                                  </button>
+                                  <button
+                                    className="gis-layer-menu-btn"
+                                    type="button"
+                                    onClick={e => {
+                                      e.stopPropagation()
+                                      setConfirm({ kind: 'deleteLayer', layerId: r.id })
+                                    }}
+                                    aria-label="Delete layer"
+                                    title="Delete"
+                                  >
+                                    <i className="fa-solid fa-trash" aria-hidden="true" />
+                                  </button>
+                                </div>
+                              </div>
+                              <div className="gis-content-layerfooter">
+                                <div className="gis-content-muted" title={r.createdAt}>
+                                  {new Date(r.createdAt).toLocaleDateString('en-US')}
+                                </div>
+                                <div className="gis-content-order">
+                                  <button
+                                    className="gis-btn"
+                                    type="button"
+                                    onClick={e => {
+                                      e.stopPropagation()
+                                      applyMoveLayer(r.id, 'up')
+                                    }}
+                                    aria-label="Increase layer priority"
+                                  >
+                                    ↑
+                                  </button>
+                                  <button
+                                    className="gis-btn"
+                                    type="button"
+                                    onClick={e => {
+                                      e.stopPropagation()
+                                      applyMoveLayer(r.id, 'down')
+                                    }}
+                                    aria-label="Decrease layer priority"
+                                  >
+                                    ↓
+                                  </button>
+                                </div>
+                              </div>
+                            </div>
+                          )
+                        })}
+                        {!rows.length ? (
+                          <div className="gis-empty">
+                            <div className="gis-empty-title">No layers</div>
+                            <div className="gis-empty-sub">Add a GeoJSON layer or connect an ArcGIS service.</div>
+                          </div>
+                        ) : null}
+                      </div>
+                    </>
+                  ) : null}
+
+                  {sidebarContextMode === 'tables' ? (
+                    <div className="gis-content-context-panel">
+                      <div className="gis-content-context-hint">
+                        Choose a layer to work with attribute rows in the main workspace (Data tab opens automatically).
+                      </div>
+                      <div className="gis-layer-list">
+                        {rows.map(r => (
+                          <div
+                            key={r.id}
+                            className={selectedLayerId === r.id ? 'gis-layer-card active' : 'gis-layer-card'}
+                            role="button"
+                            tabIndex={0}
+                            onClick={() => {
+                              setSelectedLayerId(r.id)
+                              setActiveTab('data')
+                            }}
+                            onKeyDown={e => {
+                              if (e.key === 'Enter' || e.key === ' ') {
+                                e.preventDefault()
+                                setSelectedLayerId(r.id)
+                                setActiveTab('data')
+                              }
+                            }}
+                          >
+                            <div className="gis-layer-top">
+                              <div className="gis-layer-title">
+                                <div className="gis-layer-name" title={r.name}>
+                                  {r.name}
+                                </div>
+                                <div className="gis-content-submeta">
+                                  <span>{r.geometryType}</span>
+                                  <span>•</span>
+                                  <span>{r.recordCount} records</span>
+                                </div>
+                              </div>
+                              <div className="gis-layer-menu" aria-hidden="true">
+                                <span className="gis-content-muted" style={{ fontSize: 12 }}>
+                                  <i className="fa-solid fa-table" aria-hidden="true" />
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                        {!rows.length ? (
+                          <div className="gis-empty">
+                            <div className="gis-empty-title">No layers</div>
+                            <div className="gis-empty-sub">Add a layer to browse tables.</div>
+                          </div>
+                        ) : null}
+                      </div>
+                    </div>
+                  ) : null}
+
+                  {sidebarContextMode === 'maps' ? (
+                    <div className="gis-content-context-panel">
+                      <div className="gis-content-context-hint">
+                        Visualize layers on the interactive map. Layers saved here can be pulled into the GIS Map viewer.
+                      </div>
+                      <a className="gis-btn gis-btn-primary" href="/satellite/gis" style={{ alignSelf: 'flex-start' }}>
+                        Open GIS Map
+                      </a>
+                      <div className="gis-layer-list">
+                        {rows.map(r => (
+                          <div key={r.id} className="gis-content-map-card">
+                            <div className="gis-content-map-card__title">{r.name}</div>
+                            <div className="gis-content-submeta">
+                              <span>{r.geometryType}</span>
+                              <span>•</span>
+                              <span>{r.recordCount} records</span>
+                            </div>
+                          </div>
+                        ))}
+                        {!rows.length ? (
+                          <div className="gis-empty">
+                            <div className="gis-empty-title">No layers yet</div>
+                            <div className="gis-empty-sub">Add layers from the Layers mode first.</div>
+                          </div>
+                        ) : null}
+                      </div>
+                    </div>
+                  ) : null}
+
+                  {sidebarContextMode === 'tools' ? (
+                    <div className="gis-content-context-panel">
+                      <div className="gis-content-context-hint">
+                        Quick actions mirror the GIS Map rail — launch workflows without leaving this page.
+                      </div>
+                      <div className="gis-content-tools-grid">
+                        <button type="button" className="gis-content-tool-tile" onClick={openAddLayer}>
+                          <i className="fa-solid fa-plus" aria-hidden="true" />
+                          <span>Add layer</span>
+                        </button>
+                        <button type="button" className="gis-content-tool-tile" onClick={() => window.location.reload()}>
+                          <i className="fa-solid fa-rotate-right" aria-hidden="true" />
+                          <span>Reload page</span>
+                        </button>
+                        <button type="button" className="gis-content-tool-tile" onClick={resetGisContentStorage}>
+                          <i className="fa-solid fa-trash-arrow-up" aria-hidden="true" />
+                          <span>Reset local GIS store</span>
+                        </button>
+                        <a className="gis-content-tool-tile" href="/satellite/gis" style={{ textDecoration: 'none', color: 'inherit' }}>
+                          <i className="fa-solid fa-map-location-dot" aria-hidden="true" />
+                          <span>Open GIS Map</span>
+                        </a>
+                      </div>
+                    </div>
+                  ) : null}
+                </div>
+
+                {!sidebarPanelCollapsed ? (
+                  <footer className="gis-sidebar-foot-toolbar" aria-label="Sidebar layout">
+                    <button
+                      type="button"
+                      className="gis-sidebar-foot-item gis-sidebar-foot-item--primary gis-sidebar-foot-item--icon-only gis-sidebar-foot-toggle"
+                      onClick={() => setSidebarPanelCollapsed(true)}
+                      aria-controls="gis-sidebar-panel"
+                      aria-expanded
+                      aria-label="Collapse GIS sidebar panel"
+                      title="Hide panel (rail stays visible)"
+                    >
+                      <i className="fa-solid fa-angles-left" aria-hidden="true" />
+                      <span className="db-sr-only">Collapse GIS sidebar panel</span>
+                    </button>
+                  </footer>
+                ) : null}
               </div>
-            ) : null}
-          </div>
             </div>
-          )}
-          {!sidebarCollapsed ? (
-            <footer className="gis-sidebar-foot-toolbar" aria-label="Sidebar tools">
-              <button
-                type="button"
-                className="gis-sidebar-foot-item gis-sidebar-foot-item--primary gis-sidebar-foot-item--icon-only gis-sidebar-foot-toggle"
-                onClick={() => setSidebarCollapsed(true)}
-                aria-controls="gis-sidebar-panel"
-                aria-expanded
-                aria-label="Collapse GIS layers panel"
-                title="Hide layers list"
-              >
-                <i className="fa-solid fa-angles-left" aria-hidden="true" />
-                <span className="db-sr-only">Collapse GIS layers panel</span>
-              </button>
-            </footer>
-          ) : null}
-        </div>
           </div>
-        </div>
-      </aside>
+        </aside>
 
       <section className="gis-map-canvas gis-content-canvas" aria-label="GIS Content">
         {renderMainHeader()}
