@@ -71,6 +71,9 @@ type CanvasVisualSlot = {
   chart: string
 }
 
+/** Visualizations sheet: Add chart types | Format | Analytics (Power BI pane). */
+type VizPaneTab = 'add' | 'format' | 'analysis'
+
 /** Visualization types picker (Visualizations sheet only; 6 columns). */
 const CHART_TOOLS: Array<{ chart: string; icon: string; label: string }> = [
   { chart: 'table', icon: 'fa-solid fa-table', label: 'Table' },
@@ -2178,6 +2181,14 @@ export default function DevelopDashboard() {
   const [remoteDataUrl, setRemoteDataUrl] = useState('')
   const addLayerFileInputRef = useRef<HTMLInputElement | null>(null)
   const [rightSheet, setRightSheet] = useState<RightPowerBiPanel>('none')
+  const [vizPaneTab, setVizPaneTab] = useState<VizPaneTab>('add')
+  const [vizFormatSubTab, setVizFormatSubTab] = useState<'visual' | 'general'>('visual')
+  const [vizFormatSearch, setVizFormatSearch] = useState('')
+  const [vizFormatLegend, setVizFormatLegend] = useState(true)
+  const [vizFormatDataLabels, setVizFormatDataLabels] = useState(false)
+  const [vizFormatGridlines, setVizFormatGridlines] = useState(true)
+  const [vizFormatZoomSlider, setVizFormatZoomSlider] = useState(false)
+  const [vizFormatRibbons, setVizFormatRibbons] = useState(false)
   const [dataPaneSearch, setDataPaneSearch] = useState('')
   const [dataTreeOpen, setDataTreeOpen] = useState<Record<string, boolean>>({})
   const [csvDatasets, setCsvDatasets] = useState<CsvDataset[]>(() => getDdbInitialRegistry().csvDatasets)
@@ -2220,6 +2231,14 @@ export default function DevelopDashboard() {
     if (sel.some(c => DDB_TABLE_VIS_CHARTS.has(c))) return 'table' as const
     return 'none' as const
   }, [selectedCharts])
+
+  const vizFormatSectionVisible = useCallback(
+    (label: string) => {
+      const q = vizFormatSearch.trim().toLowerCase()
+      return !q || label.toLowerCase().includes(q)
+    },
+    [vizFormatSearch],
+  )
 
   const bindLayerFields = useMemo(() => {
     if (!bindLayerKey || !layers[bindLayerKey]) return []
@@ -4746,27 +4765,77 @@ export default function DevelopDashboard() {
         <div className={`ddb-right-wrap${rightSheet !== 'none' ? ' is-open' : ''}`} aria-label="Power BI style panels">
           {rightSheet !== 'none' ? (
             <aside className={`ddb-right-sheet ddb-right-sheet--${rightSheet}`} aria-labelledby={`ddb-right-sheet-${rightSheet}`}>
-              <div className="ddb-right-sheet-head">
-                <h2 className="ddb-right-sheet-title" id={`ddb-right-sheet-${rightSheet}`}>
-                  {rightSheet === 'filters'
-                    ? 'Filters'
-                    : rightSheet === 'visualizations'
-                      ? 'Visualizations'
-                      : rightSheet === 'buildVisual'
-                        ? 'Build visual'
-                        : rightSheet === 'data'
-                          ? 'Data'
-                          : 'Link Layers (Relation)'}
-                </h2>
-                <button
-                  type="button"
-                  className="ddb-right-sheet-collapse"
-                  onClick={() => setRightSheet('none')}
-                  title="Collapse panel"
-                  aria-label="Collapse panel"
-                >
-                  <i className="fa-solid fa-angles-left" aria-hidden />
-                </button>
+              <div className={`ddb-right-sheet-head${rightSheet === 'visualizations' ? ' ddb-right-sheet-head--with-viz-tabs' : ''}`}>
+                <div className="ddb-right-sheet-head-main">
+                  <div className="ddb-right-sheet-head-top">
+                    <h2 className="ddb-right-sheet-title" id={`ddb-right-sheet-${rightSheet}`}>
+                      {rightSheet === 'filters'
+                        ? 'Filters'
+                        : rightSheet === 'visualizations'
+                          ? 'Visualizations'
+                          : rightSheet === 'buildVisual'
+                            ? 'Build visual'
+                            : rightSheet === 'data'
+                              ? 'Data'
+                              : 'Link Layers (Relation)'}
+                    </h2>
+                    <button
+                      type="button"
+                      className="ddb-right-sheet-collapse"
+                      onClick={() => setRightSheet('none')}
+                      title="Collapse panel"
+                      aria-label="Collapse panel"
+                    >
+                      <i className="fa-solid fa-angles-left" aria-hidden />
+                    </button>
+                  </div>
+                  {rightSheet === 'visualizations' ? (
+                    <>
+                      <p className="ddb-vis-pane__subtitle" aria-live="polite">
+                        {vizPaneTab === 'add'
+                          ? 'Add to your visual'
+                          : vizPaneTab === 'format'
+                            ? 'Format visual'
+                            : 'Add further analysis to your visual'}
+                      </p>
+                      <div className="ddb-vis-pane__tabs" role="tablist" aria-label="Visualization pane modes">
+                        <button
+                          type="button"
+                          role="tab"
+                          aria-selected={vizPaneTab === 'add'}
+                          className={`ddb-vis-pane__tab${vizPaneTab === 'add' ? ' is-active' : ''}`}
+                          onClick={() => setVizPaneTab('add')}
+                          title="Add to your visual"
+                        >
+                          <i className="fa-solid fa-table-cells-large" aria-hidden />
+                          <span className="ddb-vis-pane__tab-sr">Add to your visual</span>
+                        </button>
+                        <button
+                          type="button"
+                          role="tab"
+                          aria-selected={vizPaneTab === 'format'}
+                          className={`ddb-vis-pane__tab${vizPaneTab === 'format' ? ' is-active' : ''}`}
+                          onClick={() => setVizPaneTab('format')}
+                          title="Format visual"
+                        >
+                          <i className="fa-solid fa-paintbrush" aria-hidden />
+                          <span className="ddb-vis-pane__tab-sr">Format visual</span>
+                        </button>
+                        <button
+                          type="button"
+                          role="tab"
+                          aria-selected={vizPaneTab === 'analysis'}
+                          className={`ddb-vis-pane__tab${vizPaneTab === 'analysis' ? ' is-active' : ''}`}
+                          onClick={() => setVizPaneTab('analysis')}
+                          title="Add further analysis to your visual"
+                        >
+                          <i className="fa-solid fa-magnifying-glass-chart" aria-hidden />
+                          <span className="ddb-vis-pane__tab-sr">Add further analysis to your visual</span>
+                        </button>
+                      </div>
+                    </>
+                  ) : null}
+                </div>
               </div>
               {rightSheet === 'filters' ? (
                 <div className="ddb-right-sheet-body">
@@ -4784,135 +4853,374 @@ export default function DevelopDashboard() {
                 </div>
               ) : null}
               {rightSheet === 'visualizations' ? (
-                <div className="ddb-right-sheet-body ddb-right-sheet-body--visualizations">
-                  <section className="ddb-vis-chart-types" aria-labelledby="ddb-vis-chart-types-heading">
-                    <h3 className="ddb-vis-chart-types__head" id="ddb-vis-chart-types-heading">
-                      Chart types
-                    </h3>
-                    <div className="ddb-vis-chart-types__scroll">
-                      <div
-                        className="ddb-powerbi-grid ddb-powerbi-grid--in-right-sheet"
-                        role="group"
-                        aria-label="Visualization types"
-                      >
-                        {CHART_TOOLS.map(t => (
-                          <button
-                            key={t.chart}
-                            type="button"
-                            className={`ddb-chart-tool-item${selectedCharts.has(t.chart) ? ' is-selected' : ''}`}
-                            title={
-                              DDB_MAP_VIS_CHARTS.has(t.chart)
-                                ? `${t.label} — click to show or hide the map visual`
-                                : `${t.label} — click to add another visual; Shift+click removes the last copy from the canvas`
-                            }
-                            aria-pressed={selectedCharts.has(t.chart)}
-                            onClick={e => toggleChartTool(t.chart, e)}
+                <>
+                  {vizPaneTab === 'add' ? (
+                    <div className="ddb-right-sheet-body ddb-right-sheet-body--visualizations">
+                      <section className="ddb-vis-chart-types" aria-labelledby="ddb-vis-chart-types-heading">
+                        <h3 className="ddb-vis-chart-types__head" id="ddb-vis-chart-types-heading">
+                          Chart types
+                        </h3>
+                        <div className="ddb-vis-chart-types__scroll">
+                          <div
+                            className="ddb-powerbi-grid ddb-powerbi-grid--in-right-sheet"
+                            role="group"
+                            aria-label="Visualization types"
                           >
-                            <i className={t.icon} aria-hidden />
-                            <span className="ddb-chart-tool-label-sr">{t.label}</span>
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                  </section>
-                  <div className="ddb-vis-add-actions ddb-vis-add-actions--below-charts">
-                    <button type="button" className="ddb-btn ddb-right-sheet-primary" onClick={appendSelectedChartsToCanvas}>
-                      <i className="fa-solid fa-plus" aria-hidden /> Add visuals to canvas
-                    </button>
-                    <button
-                      type="button"
-                      className="ddb-btn ddb-right-sheet-secondary"
-                      onClick={clearCanvasVisuals}
-                      disabled={canvasVisualSlots.length === 0}
-                    >
-                      Clear canvas
-                    </button>
-                  </div>
-                  {selectedCharts.has('customStatCard') && vizBuildMode !== 'none' && layerKeys.length > 0 ? (
-                    <div className="ddb-vis-stat-card" aria-label="Custom stat card configuration">
-                      <div className="ddb-vis-stat-card__icon-badge" aria-hidden>
-                        <i className="fa-solid fa-chart-column" />
-                      </div>
-                      <div className="ddb-vis-stat-card__row">
-                        <select
-                          className="ddb-select ddb-vis-stat-select"
-                          value={activeStatsLayer}
-                          onChange={e => setActiveStatsLayer(e.target.value)}
-                          disabled={!layerKeys.length}
-                          aria-label="Layer for stat card"
-                        >
-                          {layerKeys.length === 0 ? (
-                            <option value="">No layers</option>
-                          ) : null}
-                          {layerKeys.map(k => (
-                            <option key={k} value={k}>
-                              {layers[k].name}
-                            </option>
-                          ))}
-                        </select>
-                        <select
-                          className="ddb-select ddb-vis-stat-select"
-                          value={statsField}
-                          onChange={e => setStatsField(e.target.value)}
-                          disabled={!activeFields.length}
-                          aria-label="Numeric field"
-                        >
-                          {activeFields.length === 0 ? (
-                            <option value="">No fields</option>
-                          ) : null}
-                          {activeFields.map(f => (
-                            <option key={f} value={f}>
-                              {f}
-                            </option>
-                          ))}
-                        </select>
-                        <select className="ddb-select ddb-vis-stat-select" value={statsAgg} onChange={e => setStatsAgg(e.target.value)} aria-label="Aggregation">
-                          <option value="sum">Sum</option>
-                          <option value="avg">Average</option>
-                          <option value="count">Count</option>
-                          <option value="max">Max</option>
-                          <option value="min">Min</option>
-                        </select>
-                      </div>
-                      <button
-                        type="button"
-                        className="ddb-btn ddb-vis-stat-add"
-                        onClick={addStatCard}
-                        disabled={!activeStatsLayer || !statsField}
-                      >
-                        <span className="ddb-vis-stat-add__icon" aria-hidden>
-                          <i className="fa-solid fa-plus" />
-                        </span>
-                        Add Card
-                      </button>
-                    </div>
-                  ) : null}
-                  {statCards.length > 0 ? (
-                    <div className="ddb-vis-stat-saved" role="region" aria-label="Saved stat cards">
-                      <div className="ddb-vis-stat-saved-head">Your stat cards</div>
-                      <div className="ddb-stats-cards-container ddb-stats-cards-container--in-sheet">
-                        {statCards.map(c => (
-                          <div key={c.id} className="ddb-stat-card-custom">
-                            <button
-                              type="button"
-                              aria-label="Remove stat card"
-                              className="ddb-small-btn"
-                              style={{ float: 'left', fontSize: 11, padding: '4px 8px' }}
-                              onClick={() => setStatCards(prev => prev.filter(x => x.id !== c.id))}
-                            >
-                              <i className="fa-solid fa-trash" />
-                            </button>
-                            <div className="ddb-stat-number">{c.result.toFixed(2)}</div>
-                            <div className="ddb-stat-label">
-                              {c.agg} / {c.field}
-                            </div>
-                            <div style={{ fontSize: 9 }}>{c.layerName}</div>
+                            {CHART_TOOLS.map(t => (
+                              <button
+                                key={t.chart}
+                                type="button"
+                                className={`ddb-chart-tool-item${selectedCharts.has(t.chart) ? ' is-selected' : ''}`}
+                                title={
+                                  DDB_MAP_VIS_CHARTS.has(t.chart)
+                                    ? `${t.label} — click to show or hide the map visual`
+                                    : `${t.label} — click to add another visual; Shift+click removes the last copy from the canvas`
+                                }
+                                aria-pressed={selectedCharts.has(t.chart)}
+                                onClick={e => toggleChartTool(t.chart, e)}
+                              >
+                                <i className={t.icon} aria-hidden />
+                                <span className="ddb-chart-tool-label-sr">{t.label}</span>
+                              </button>
+                            ))}
                           </div>
-                        ))}
+                        </div>
+                      </section>
+                      <div className="ddb-vis-add-actions ddb-vis-add-actions--below-charts">
+                        <button type="button" className="ddb-btn ddb-right-sheet-primary" onClick={appendSelectedChartsToCanvas}>
+                          <i className="fa-solid fa-plus" aria-hidden /> Add visuals to canvas
+                        </button>
+                        <button
+                          type="button"
+                          className="ddb-btn ddb-right-sheet-secondary"
+                          onClick={clearCanvasVisuals}
+                          disabled={canvasVisualSlots.length === 0}
+                        >
+                          Clear canvas
+                        </button>
+                      </div>
+                      {selectedCharts.has('customStatCard') && vizBuildMode !== 'none' && layerKeys.length > 0 ? (
+                        <div className="ddb-vis-stat-card" aria-label="Custom stat card configuration">
+                          <div className="ddb-vis-stat-card__icon-badge" aria-hidden>
+                            <i className="fa-solid fa-chart-column" />
+                          </div>
+                          <div className="ddb-vis-stat-card__row">
+                            <select
+                              className="ddb-select ddb-vis-stat-select"
+                              value={activeStatsLayer}
+                              onChange={e => setActiveStatsLayer(e.target.value)}
+                              disabled={!layerKeys.length}
+                              aria-label="Layer for stat card"
+                            >
+                              {layerKeys.length === 0 ? (
+                                <option value="">No layers</option>
+                              ) : null}
+                              {layerKeys.map(k => (
+                                <option key={k} value={k}>
+                                  {layers[k].name}
+                                </option>
+                              ))}
+                            </select>
+                            <select
+                              className="ddb-select ddb-vis-stat-select"
+                              value={statsField}
+                              onChange={e => setStatsField(e.target.value)}
+                              disabled={!activeFields.length}
+                              aria-label="Numeric field"
+                            >
+                              {activeFields.length === 0 ? (
+                                <option value="">No fields</option>
+                              ) : null}
+                              {activeFields.map(f => (
+                                <option key={f} value={f}>
+                                  {f}
+                                </option>
+                              ))}
+                            </select>
+                            <select className="ddb-select ddb-vis-stat-select" value={statsAgg} onChange={e => setStatsAgg(e.target.value)} aria-label="Aggregation">
+                              <option value="sum">Sum</option>
+                              <option value="avg">Average</option>
+                              <option value="count">Count</option>
+                              <option value="max">Max</option>
+                              <option value="min">Min</option>
+                            </select>
+                          </div>
+                          <button
+                            type="button"
+                            className="ddb-btn ddb-vis-stat-add"
+                            onClick={addStatCard}
+                            disabled={!activeStatsLayer || !statsField}
+                          >
+                            <span className="ddb-vis-stat-add__icon" aria-hidden>
+                              <i className="fa-solid fa-plus" />
+                            </span>
+                            Add Card
+                          </button>
+                        </div>
+                      ) : null}
+                      {statCards.length > 0 ? (
+                        <div className="ddb-vis-stat-saved" role="region" aria-label="Saved stat cards">
+                          <div className="ddb-vis-stat-saved-head">Your stat cards</div>
+                          <div className="ddb-stats-cards-container ddb-stats-cards-container--in-sheet">
+                            {statCards.map(c => (
+                              <div key={c.id} className="ddb-stat-card-custom">
+                                <button
+                                  type="button"
+                                  aria-label="Remove stat card"
+                                  className="ddb-small-btn"
+                                  style={{ float: 'left', fontSize: 11, padding: '4px 8px' }}
+                                  onClick={() => setStatCards(prev => prev.filter(x => x.id !== c.id))}
+                                >
+                                  <i className="fa-solid fa-trash" />
+                                </button>
+                                <div className="ddb-stat-number">{c.result.toFixed(2)}</div>
+                                <div className="ddb-stat-label">
+                                  {c.agg} / {c.field}
+                                </div>
+                                <div style={{ fontSize: 9 }}>{c.layerName}</div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      ) : null}
+                    </div>
+                  ) : vizPaneTab === 'format' ? (
+                    <div className="ddb-right-sheet-body ddb-right-sheet-body--viz-format">
+                      <div className="ddb-vis-format" role="region" aria-label="Format visual options">
+                        <div className="ddb-vis-format__search-wrap">
+                          <i className="fa-solid fa-magnifying-glass" aria-hidden />
+                          <input
+                            type="search"
+                            className="ddb-vis-format__search"
+                            placeholder="Search"
+                            value={vizFormatSearch}
+                            onChange={e => setVizFormatSearch(e.target.value)}
+                            aria-label="Search format options"
+                          />
+                        </div>
+                        <div className="ddb-vis-format__subtabs" role="tablist" aria-label="Format scope">
+                          <button
+                            type="button"
+                            role="tab"
+                            aria-selected={vizFormatSubTab === 'visual'}
+                            className={`ddb-vis-format__subtab${vizFormatSubTab === 'visual' ? ' is-active' : ''}`}
+                            onClick={() => setVizFormatSubTab('visual')}
+                          >
+                            Visual
+                          </button>
+                          <button
+                            type="button"
+                            role="tab"
+                            aria-selected={vizFormatSubTab === 'general'}
+                            className={`ddb-vis-format__subtab${vizFormatSubTab === 'general' ? ' is-active' : ''}`}
+                            onClick={() => setVizFormatSubTab('general')}
+                          >
+                            General
+                          </button>
+                        </div>
+                        <p className="ddb-vis-format__lead">
+                          Palette, axes, and per-visual layout are edited from each chart card’s toolbar on the canvas. Options below are
+                          workspace defaults for new visuals (preview).
+                        </p>
+                        <div className="ddb-vis-format__scroll">
+                          {vizFormatSubTab === 'visual' ? (
+                            <>
+                              {vizFormatSectionVisible('X-axis') ? (
+                                <details className="ddb-vis-format-acc" open>
+                                  <summary className="ddb-vis-format-acc__sum">X-axis</summary>
+                                  <div className="ddb-vis-format-acc__body">
+                                    <p className="ddb-vis-format__muted">Categories and sort order follow the X-axis field well in Build visual.</p>
+                                  </div>
+                                </details>
+                              ) : null}
+                              {vizFormatSectionVisible('Y-axis') ? (
+                                <details className="ddb-vis-format-acc" open>
+                                  <summary className="ddb-vis-format-acc__sum">Y-axis</summary>
+                                  <div className="ddb-vis-format-acc__body">
+                                    <p className="ddb-vis-format__muted">Values and scale come from the Y-axis well; apply axis colors from the card palette menu.</p>
+                                  </div>
+                                </details>
+                              ) : null}
+                              {vizFormatSectionVisible('Legend') ? (
+                                <div className="ddb-vis-format-panel">
+                                  <div className="ddb-vis-format-toggle-row">
+                                    <span className="ddb-vis-format-toggle-row__label">Legend</span>
+                                    <label className="ddb-vis-switch">
+                                      <input
+                                        type="checkbox"
+                                        className="ddb-vis-switch__input"
+                                        checked={vizFormatLegend}
+                                        onChange={e => setVizFormatLegend(e.target.checked)}
+                                        role="switch"
+                                        aria-label="Show legend by default"
+                                      />
+                                      <span className="ddb-vis-switch__ui" aria-hidden />
+                                    </label>
+                                  </div>
+                                </div>
+                              ) : null}
+                              {vizFormatSectionVisible('Small multiples') ? (
+                                <details className="ddb-vis-format-acc ddb-vis-format-acc--muted">
+                                  <summary className="ddb-vis-format-acc__sum">Small multiples</summary>
+                                  <div className="ddb-vis-format-acc__body">
+                                    <p className="ddb-vis-format__muted">Not available for the current selection.</p>
+                                  </div>
+                                </details>
+                              ) : null}
+                              {vizFormatSectionVisible('Gridlines') ? (
+                                <div className="ddb-vis-format-panel">
+                                  <div className="ddb-vis-format-toggle-row">
+                                    <span className="ddb-vis-format-toggle-row__label">Gridlines</span>
+                                    <label className="ddb-vis-switch">
+                                      <input
+                                        type="checkbox"
+                                        className="ddb-vis-switch__input"
+                                        checked={vizFormatGridlines}
+                                        onChange={e => setVizFormatGridlines(e.target.checked)}
+                                        role="switch"
+                                        aria-label="Show gridlines by default"
+                                      />
+                                      <span className="ddb-vis-switch__ui" aria-hidden />
+                                    </label>
+                                  </div>
+                                </div>
+                              ) : null}
+                              {vizFormatSectionVisible('Zoom slider') ? (
+                                <div className="ddb-vis-format-panel">
+                                  <div className="ddb-vis-format-toggle-row">
+                                    <span className="ddb-vis-format-toggle-row__label">Zoom slider</span>
+                                    <label className="ddb-vis-switch">
+                                      <input
+                                        type="checkbox"
+                                        className="ddb-vis-switch__input"
+                                        checked={vizFormatZoomSlider}
+                                        onChange={e => setVizFormatZoomSlider(e.target.checked)}
+                                        role="switch"
+                                        aria-label="Enable zoom slider"
+                                      />
+                                      <span className="ddb-vis-switch__ui" aria-hidden />
+                                    </label>
+                                  </div>
+                                </div>
+                              ) : null}
+                              {vizFormatSectionVisible('Ribbons') ? (
+                                <div className="ddb-vis-format-panel">
+                                  <div className="ddb-vis-format-toggle-row">
+                                    <span className="ddb-vis-format-toggle-row__label">Ribbons</span>
+                                    <label className="ddb-vis-switch">
+                                      <input
+                                        type="checkbox"
+                                        className="ddb-vis-switch__input"
+                                        checked={vizFormatRibbons}
+                                        onChange={e => setVizFormatRibbons(e.target.checked)}
+                                        role="switch"
+                                        aria-label="Show ribbons"
+                                      />
+                                      <span className="ddb-vis-switch__ui" aria-hidden />
+                                    </label>
+                                  </div>
+                                </div>
+                              ) : null}
+                              {vizFormatSectionVisible('Data labels') ? (
+                                <div className="ddb-vis-format-panel">
+                                  <div className="ddb-vis-format-toggle-row">
+                                    <span className="ddb-vis-format-toggle-row__label">Data labels</span>
+                                    <label className="ddb-vis-switch">
+                                      <input
+                                        type="checkbox"
+                                        className="ddb-vis-switch__input"
+                                        checked={vizFormatDataLabels}
+                                        onChange={e => setVizFormatDataLabels(e.target.checked)}
+                                        role="switch"
+                                        aria-label="Show data labels"
+                                      />
+                                      <span className="ddb-vis-switch__ui" aria-hidden />
+                                    </label>
+                                  </div>
+                                </div>
+                              ) : null}
+                              {vizFormatSectionVisible('Plot area background') ? (
+                                <details className="ddb-vis-format-acc" open>
+                                  <summary className="ddb-vis-format-acc__sum">Plot area background</summary>
+                                  <div className="ddb-vis-format-acc__body">
+                                    <p className="ddb-vis-format__muted">Use the card palette on the canvas for plot and canvas fills.</p>
+                                  </div>
+                                </details>
+                              ) : null}
+                            </>
+                          ) : (
+                            <>
+                              {vizFormatSectionVisible('Title') ? (
+                                <details className="ddb-vis-format-acc" open>
+                                  <summary className="ddb-vis-format-acc__sum">Title</summary>
+                                  <div className="ddb-vis-format-acc__body">
+                                    <p className="ddb-vis-format__muted">Rename visuals from the header on each canvas card.</p>
+                                  </div>
+                                </details>
+                              ) : null}
+                              {vizFormatSectionVisible('Effects') ? (
+                                <details className="ddb-vis-format-acc" open>
+                                  <summary className="ddb-vis-format-acc__sum">Effects</summary>
+                                  <div className="ddb-vis-format-acc__body">
+                                    <p className="ddb-vis-format__muted">Shadows and borders follow the dashboard canvas theme.</p>
+                                  </div>
+                                </details>
+                              ) : null}
+                              {vizFormatSectionVisible('Tooltip') ? (
+                                <details className="ddb-vis-format-acc" open>
+                                  <summary className="ddb-vis-format-acc__sum">Tooltip</summary>
+                                  <div className="ddb-vis-format-acc__body">
+                                    <p className="ddb-vis-format__muted">Tooltip fields are driven by the Tooltips well in Build visual.</p>
+                                  </div>
+                                </details>
+                              ) : null}
+                            </>
+                          )}
+                        </div>
                       </div>
                     </div>
-                  ) : null}
-                </div>
+                  ) : (
+                    <div className="ddb-right-sheet-body ddb-right-sheet-body--viz-analysis">
+                      <div className="ddb-vis-analysis" role="region" aria-label="Analytics for visuals">
+                        <p className="ddb-vis-analysis__lead">
+                          Add analytical overlays such as trend lines and reference bands. Wiring to charts is planned; toggles are placeholders.
+                        </p>
+                        <ul className="ddb-vis-analysis__list">
+                          <li className="ddb-vis-analysis__item">
+                            <span className="ddb-vis-analysis__item-label">Trend line</span>
+                            <button type="button" className="ddb-vis-analysis-chip" disabled title="Coming soon">
+                              Off
+                            </button>
+                          </li>
+                          <li className="ddb-vis-analysis__item">
+                            <span className="ddb-vis-analysis__item-label">Forecast</span>
+                            <button type="button" className="ddb-vis-analysis-chip" disabled title="Coming soon">
+                              Off
+                            </button>
+                          </li>
+                          <li className="ddb-vis-analysis__item">
+                            <span className="ddb-vis-analysis__item-label">Error bars</span>
+                            <button type="button" className="ddb-vis-analysis-chip" disabled title="Coming soon">
+                              Off
+                            </button>
+                          </li>
+                          <li className="ddb-vis-analysis__item">
+                            <span className="ddb-vis-analysis__item-label">Min / Max lines</span>
+                            <button type="button" className="ddb-vis-analysis-chip" disabled title="Coming soon">
+                              Off
+                            </button>
+                          </li>
+                          <li className="ddb-vis-analysis__item">
+                            <span className="ddb-vis-analysis__item-label">Median line</span>
+                            <button type="button" className="ddb-vis-analysis-chip" disabled title="Coming soon">
+                              Off
+                            </button>
+                          </li>
+                        </ul>
+                      </div>
+                    </div>
+                  )}
+                </>
               ) : null}
               {rightSheet === 'buildVisual' ? (
                 <div className="ddb-right-sheet-body ddb-right-sheet-body--build-visual ddb-right-sheet-buildVisual">
