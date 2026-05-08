@@ -7,6 +7,7 @@ const DEFAULT_CENTER_LOGO = 'https://eliteprojects.ae/wp-content/uploads/2022/07
 export default function HeaderBar() {
   const headerRef = useRef<HTMLElement | null>(null)
   const { settings } = useSystemSettings()
+  const logoIconSrc = settings.logoIcon.trim()
 
   const centerLogoSrc = useMemo(() => {
     const isDark = settings.themeMode === 'dark'
@@ -61,7 +62,13 @@ export default function HeaderBar() {
   return (
     <header className="agri-header" ref={headerRef}>
       <div className="header-left">
-        <span className="logo-icon"><i className="fa-solid fa-leaf"></i></span>
+        <span className="logo-icon">
+          {logoIconSrc ? (
+            <img className="logo-icon__img" src={logoIconSrc} alt="Brand icon" loading="lazy" decoding="async" />
+          ) : (
+            <i className="fa-solid fa-leaf" />
+          )}
+        </span>
         <span className="logo-text">Agro Cloud</span>
       </div>
       <div className="header-center">

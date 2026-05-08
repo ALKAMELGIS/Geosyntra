@@ -8,6 +8,7 @@ export const DEFAULT_SYSTEM_SETTINGS: SystemSettingsPersistedV1 = {
   customPrimaryHex: '#047857',
   logoLight: '',
   logoDark: '',
+  logoIcon: '',
   navGroupOrder: [],
   navItemOrders: {},
   navOverrides: {},

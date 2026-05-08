@@ -1469,55 +1469,42 @@ html[data-theme='dark'] .sys-settings-tab:hover:not(.sys-settings-tab--active) {
 /* Bottom action bar: aligned with tab content width, reads as part of the page (not a floating chip cluster) */
 .sys-settings-actions {
   flex-shrink: 0;
-  margin-top: auto;
-  padding-block: clamp(14px, 2vw, 20px);
+  margin-top: 20px;
+  padding-block: 10px 0;
   padding-inline: 0;
-  border-block-start: 1px solid color-mix(in srgb, var(--sys-border) 88%, transparent);
-  background: linear-gradient(
-    180deg,
-    color-mix(in srgb, var(--ds-color-surface) 55%, var(--ds-color-bg)),
-    color-mix(in srgb, var(--ds-color-surface) 88%, var(--ds-color-bg))
-  );
-  box-shadow: 0 -1px 0 color-mix(in srgb, #fff 55%, transparent) inset;
-}
-
-html[data-theme='dark'] .sys-settings-actions {
-  background: linear-gradient(
-    180deg,
-    color-mix(in srgb, var(--ds-color-surface) 40%, var(--ds-color-bg)),
-    color-mix(in srgb, var(--ds-color-surface) 72%, var(--ds-color-bg))
-  );
+  border-block-start: 1px solid color-mix(in srgb, var(--sys-border) 82%, transparent);
+  background: transparent;
   box-shadow: none;
 }
 
 .sys-settings-actions__inner {
   width: 100%;
-  max-width: 1120px;
-  margin-inline: auto;
-  padding-inline: clamp(4px, 1vw, 8px);
+  max-width: 100%;
+  margin-inline: 0;
+  padding-inline: 0;
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   align-items: center;
   justify-content: space-between;
-  gap: 14px 20px;
+  gap: 10px 14px;
 }
 
 .sys-settings-actions__meta {
-  flex: 1 1 200px;
+  flex: 0 1 auto;
   min-width: 0;
 }
 
 .sys-settings-actions__status {
   display: inline-flex;
   align-items: center;
-  gap: 10px;
-  font-size: 0.875rem;
+  gap: 8px;
+  font-size: 0.8rem;
   font-weight: 600;
   line-height: 1.35;
 }
 
 .sys-settings-actions__status i {
-  font-size: 1rem;
+  font-size: 0.85rem;
   opacity: 0.9;
 }
 
@@ -1531,23 +1518,27 @@ html[data-theme='dark'] .sys-settings-actions {
 
 .sys-settings-actions__buttons {
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   align-items: center;
   justify-content: flex-end;
-  gap: 10px;
+  gap: 8px;
+  margin-inline-start: auto;
 }
 
 .sys-settings-actions__btn {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
   font-weight: 600;
-  min-height: 40px;
-  padding-inline: 14px;
+  min-height: 34px;
+  padding-inline: 11px;
+  font-size: 0.8rem;
+  border-radius: 10px;
+  white-space: nowrap;
 }
 
 .sys-settings-actions__btn > i {
-  font-size: 0.95rem;
+  font-size: 0.82rem;
   opacity: 0.92;
 }
 
@@ -1568,16 +1559,11 @@ html[data-theme='dark'] .sys-settings-actions {
 
 @media (max-width: 640px) {
   .sys-settings-actions__inner {
-    flex-direction: column;
-    align-items: stretch;
+    overflow-x: auto;
+    padding-bottom: 2px;
   }
 
   .sys-settings-actions__buttons {
-    justify-content: stretch;
-  }
-
-  .sys-settings-actions__btn {
-    width: 100%;
-    justify-content: center;
+    margin-inline-start: 0;
   }
 }

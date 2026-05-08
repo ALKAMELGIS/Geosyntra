@@ -67,6 +67,7 @@ export type SystemSettingsPersistedV1 = {
   customPrimaryHex: string
   logoLight: string
   logoDark: string
+  logoIcon: string
   navGroupOrder: string[]
   /** groupId -> ordered child item ids */
   navItemOrders: Record<string, string[]>

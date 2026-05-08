@@ -7557,20 +7557,6 @@ export default function SatelliteIntelligence() {
                               <i className="fa-solid fa-chart-line" aria-hidden />
                               Generate timeline
                             </button>
-                            <button
-                              type="button"
-                              className="si-field-analysis-timeline-btn"
-                              disabled={isMpcProcessing}
-                              onClick={() =>
-                                void runRsAnalysisFromAssistant({
-                                  keepCurrentSection: true,
-                                  forcedIndex: wmsLayerSelectValue,
-                                })
-                              }
-                            >
-                              <i className="fa-solid fa-play" aria-hidden />
-                              {isMpcProcessing ? 'Running…' : 'Run Remote Sensing'}
-                            </button>
                           </div>
                           <p className="si-field-analysis-hint">
                             Browse satellite imagery changes over time. Select a date range and generate the timeline.

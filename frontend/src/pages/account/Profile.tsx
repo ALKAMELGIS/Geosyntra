@@ -355,10 +355,10 @@ export default function Profile() {
   const locationLine = [extra.city?.trim(), extra.country?.trim()].filter(Boolean).join(', ') || me?.scope?.trim() || text.none
 
   const avatarSrc = useMemo(() => {
-    if (!me?.email) return `${import.meta.env.BASE_URL}avatars/emirati-farmer.svg`
+    if (!me?.email) return ''
     const bundle = readProfileExtra(me.email)
     if (bundle.avatarDataUrl?.trim()) return bundle.avatarDataUrl
-    return `${import.meta.env.BASE_URL}avatars/emirati-farmer.svg`
+    return ''
   }, [me?.email, avatarTick])
 
   useEffect(() => {
@@ -612,7 +612,13 @@ export default function Profile() {
               <div className="profile-hero-cover-body">
               <div className="profile-avatar-wrap">
                 <div className="profile-avatar-ring" aria-hidden>
-                  <img className="profile-avatar-img" src={avatarSrc} alt="" width={120} height={120} decoding="async" />
+                  {avatarSrc ? (
+                    <img className="profile-avatar-img" src={avatarSrc} alt="" width={120} height={120} decoding="async" />
+                  ) : (
+                    <div className="profile-avatar-empty">
+                      <i className="fa-solid fa-user" aria-hidden />
+                    </div>
+                  )}
                 </div>
                 <input ref={fileRef} type="file" accept="image/*" className="sr-only" onChange={onAvatarFile} aria-hidden />
                 <button type="button" className="profile-avatar-camera" onClick={() => fileRef.current?.click()} aria-label={text.changePhoto}>

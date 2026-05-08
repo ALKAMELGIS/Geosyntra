@@ -73,6 +73,7 @@ const CUSTOM_API_SLOT_ICONS = [
 
 const SETTINGS_TABS = [
   { id: 'theme' as const, label: 'Theme', icon: 'fa-solid fa-palette' },
+  { id: 'header-settings' as const, label: 'Header Settings', icon: 'fa-solid fa-window-maximize' },
   { id: 'logos' as const, label: 'Logos', icon: 'fa-solid fa-image' },
   { id: 'nav' as const, label: 'Navigation', icon: 'fa-solid fa-bars-staggered' },
   { id: 'pages' as const, label: 'Pages', icon: 'fa-solid fa-layer-group' },
@@ -149,7 +150,7 @@ function ApiTokenMergeField({
 export default function SystemSettings() {
   const { draft, setDraft, settings, saveDraft, cancelDraft, resetToDefaults, pushToast } = useSystemSettings()
   const { language } = useLanguage()
-  const [tab, setTab] = useState<'theme' | 'logos' | 'nav' | 'pages' | 'api-tokens'>('theme')
+  const [tab, setTab] = useState<'theme' | 'header-settings' | 'logos' | 'nav' | 'pages' | 'api-tokens'>('theme')
   const [mapboxTokenDraft, setMapboxTokenDraft] = useState('')
   const [arcgisTokenDraft, setArcgisTokenDraft] = useState('')
   const [sentinelHubInstanceDraft, setSentinelHubInstanceDraft] = useState('')
@@ -421,7 +422,7 @@ export default function SystemSettings() {
       r.readAsDataURL(file)
     })
 
-  const onLogoUpload = async (which: 'logoLight' | 'logoDark', file: File | undefined) => {
+  const onLogoUpload = async (which: 'logoLight' | 'logoDark' | 'logoIcon', file: File | undefined) => {
     if (!file) return
     try {
       const url = await readFileAsDataUrl(file)
@@ -542,6 +543,55 @@ export default function SystemSettings() {
     () => JSON.stringify(mergeWithDefaults(settings)) !== JSON.stringify(mergeWithDefaults(draft)),
     [settings, draft],
   )
+  const inlineSettingsActions = (
+    <footer
+      className="sys-settings-actions"
+      role="region"
+      aria-label={language === 'ar' ? 'إجراءات حفظ الإعدادات' : 'Settings save actions'}
+      dir={language === 'ar' ? 'rtl' : 'ltr'}
+    >
+      <div className="sys-settings-actions__inner">
+        <div className="sys-settings-actions__meta">
+          {settingsDirty ? (
+            <span className="sys-settings-actions__status sys-settings-actions__status--dirty">
+              <i className="fa-solid fa-pen-to-square" aria-hidden />
+              {language === 'ar' ? 'تغييرات غير محفوظة' : 'Unsaved changes'}
+            </span>
+          ) : (
+            <span className="sys-settings-actions__status sys-settings-actions__status--clean">
+              <i className="fa-solid fa-circle-check" aria-hidden />
+              {language === 'ar' ? 'لا توجد تغييرات معلّقة' : 'No pending changes'}
+            </span>
+          )}
+        </div>
+        <div className="sys-settings-actions__buttons">
+          <button type="button" className="gis-btn gis-btn-primary sys-settings-actions__btn" onClick={() => void handleSave()}>
+            <i className="fa-solid fa-check" aria-hidden />
+            {language === 'ar' ? 'حفظ' : 'Save'}
+          </button>
+          <button
+            type="button"
+            className="gis-btn gis-btn-outline sys-settings-actions__btn"
+            onClick={handleCancel}
+            disabled={!settingsDirty}
+            title={language === 'ar' ? 'تجاهل التعديلات واسترجاع آخر نسخة محفوظة' : 'Discard edits and reload last saved'}
+          >
+            <i className="fa-solid fa-xmark" aria-hidden />
+            {language === 'ar' ? 'تراجع' : 'Discard'}
+          </button>
+          <button
+            type="button"
+            className="gis-btn gis-btn-outline sys-settings-actions__btn sys-settings-actions__btn--danger"
+            onClick={() => setConfirmReset(true)}
+            title={language === 'ar' ? 'استعادة إعدادات المصنع' : 'Restore factory defaults'}
+          >
+            <i className="fa-solid fa-rotate-left" aria-hidden />
+            {language === 'ar' ? 'إعادة' : 'Reset'}
+          </button>
+        </div>
+      </div>
+    </footer>
+  )
 
   return (
     <div className="gis-page-padding sys-settings">
@@ -657,6 +707,22 @@ export default function SystemSettings() {
               </div>
             </div>
           ) : null}
+          {inlineSettingsActions}
+        </div>
+      ) : null}
+
+      {tab === 'header-settings' ? (
+        <div className="sys-settings-tab-pane">
+          <div className="sys-settings-panel__head">
+            <h2 className="sys-settings-panel__title">
+              <i className="fa-solid fa-window-maximize" aria-hidden />
+              Header Settings
+            </h2>
+            <p className="sys-settings-panel__desc">
+              Configure header-specific options from this section.
+            </p>
+          </div>
+          {inlineSettingsActions}
         </div>
       ) : null}
 
@@ -673,6 +739,38 @@ export default function SystemSettings() {
           </div>
 
           <div className="sys-logo-grid">
+            <div>
+              <span className="sys-field-label">App logo icon</span>
+              <label className="sys-logo-zone">
+                <input
+                  type="file"
+                  accept="image/*"
+                  className="sys-logo-zone__input"
+                  onChange={e => void onLogoUpload('logoIcon', e.target.files?.[0])}
+                />
+                <span className="sys-logo-zone__inner">
+                  {draft.logoIcon ? (
+                    <>
+                      <img src={draft.logoIcon} alt="" className="sys-logo-zone__preview" />
+                      <span className="sys-logo-zone__hint">Click to replace</span>
+                    </>
+                  ) : (
+                    <>
+                      <div className="sys-logo-zone__icon">
+                        <i className="fa-solid fa-leaf" />
+                      </div>
+                      <div className="sys-logo-zone__title">Upload icon</div>
+                      <div className="sys-logo-zone__hint">Used in header logo icon area</div>
+                    </>
+                  )}
+                </span>
+              </label>
+              <div className="sys-logo-zone__actions">
+                <button type="button" className="gis-btn gis-btn-outline" onClick={() => setDraft(d => ({ ...d, logoIcon: '' }))}>
+                  Clear
+                </button>
+              </div>
+            </div>
             <div>
               <span className="sys-field-label">Light theme header</span>
               <label className="sys-logo-zone">
@@ -738,6 +836,7 @@ export default function SystemSettings() {
               </div>
             </div>
           </div>
+          {inlineSettingsActions}
         </div>
       ) : null}
 
@@ -838,6 +937,7 @@ export default function SystemSettings() {
               reorderItem={reorderItem}
             />
           ) : null}
+          {inlineSettingsActions}
         </div>
       ) : null}
 
@@ -1084,6 +1184,7 @@ export default function SystemSettings() {
               ))}
             </div>
           )}
+          {inlineSettingsActions}
         </div>
       ) : null}
 
@@ -1765,55 +1866,6 @@ export default function SystemSettings() {
         </div>
       ) : null}
 
-        {tab !== 'api-tokens' ? (
-        <footer
-          className="sys-settings-actions"
-          role="region"
-          aria-label={language === 'ar' ? 'إجراءات حفظ الإعدادات' : 'Settings save actions'}
-          dir={language === 'ar' ? 'rtl' : 'ltr'}
-        >
-          <div className="sys-settings-actions__inner">
-            <div className="sys-settings-actions__meta">
-              {settingsDirty ? (
-                <span className="sys-settings-actions__status sys-settings-actions__status--dirty">
-                  <i className="fa-solid fa-pen-to-square" aria-hidden />
-                  {language === 'ar' ? 'تغييرات غير محفوظة' : 'Unsaved changes'}
-                </span>
-              ) : (
-                <span className="sys-settings-actions__status sys-settings-actions__status--clean">
-                  <i className="fa-solid fa-circle-check" aria-hidden />
-                  {language === 'ar' ? 'لا توجد تغييرات معلّقة' : 'No pending changes'}
-                </span>
-              )}
-            </div>
-            <div className="sys-settings-actions__buttons">
-              <button type="button" className="gis-btn gis-btn-primary sys-settings-actions__btn" onClick={() => void handleSave()}>
-                <i className="fa-solid fa-floppy-disk" aria-hidden />
-                {language === 'ar' ? 'حفظ الإعدادات' : 'Save settings'}
-              </button>
-              <button
-                type="button"
-                className="gis-btn gis-btn-outline sys-settings-actions__btn"
-                onClick={handleCancel}
-                disabled={!settingsDirty}
-                title={language === 'ar' ? 'تجاهل التعديلات واسترجاع آخر نسخة محفوظة' : 'Discard edits and reload last saved'}
-              >
-                <i className="fa-solid fa-ban" aria-hidden />
-                {language === 'ar' ? 'تجاهل التغييرات' : 'Discard changes'}
-              </button>
-              <button
-                type="button"
-                className="gis-btn gis-btn-outline sys-settings-actions__btn sys-settings-actions__btn--danger"
-                onClick={() => setConfirmReset(true)}
-                title={language === 'ar' ? 'استعادة إعدادات المصنع' : 'Restore factory defaults'}
-              >
-                <i className="fa-solid fa-rotate-left" aria-hidden />
-                {language === 'ar' ? 'استعادة الافتراضي' : 'Reset to defaults'}
-              </button>
-            </div>
-          </div>
-        </footer>
-        ) : null}
       </section>
       </div>
 
