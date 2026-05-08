@@ -571,9 +571,8 @@ export default function SystemSettings() {
   }, [tab, draft, settings, setSettings])
 
   const applyHeaderPreset = (preset: 'default' | 'balanced' | 'branding' | 'minimal') => {
-    const base = DEFAULT_SYSTEM_SETTINGS.headerSettings
     if (preset === 'default') {
-      setDraft(d => ({ ...d, headerSettings: { ...base, ...d.headerSettings, layoutPreset: 'default' } }))
+      setDraft(d => ({ ...d, headerSettings: { ...DEFAULT_SYSTEM_SETTINGS.headerSettings } }))
       return
     }
     if (preset === 'balanced') {
@@ -794,6 +793,9 @@ export default function SystemSettings() {
             onApplyPreset={applyHeaderPreset}
             language={language}
             themeMode={draft.themeMode}
+            onResetHeaderToSystemDefaults={() =>
+              setDraft(d => ({ ...d, headerSettings: { ...DEFAULT_SYSTEM_SETTINGS.headerSettings } }))
+            }
           />
           {inlineSettingsActions}
         </div>

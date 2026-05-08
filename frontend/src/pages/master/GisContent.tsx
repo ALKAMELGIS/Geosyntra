@@ -193,6 +193,17 @@ const getGeoJsonFields = (data: any) => {
   return Array.from(fields).sort((a, b) => a.localeCompare(b))
 }
 
+/** Field names for UI when layerFields has not been seeded (layer never opened on Fields tab). */
+const inferFieldNamesFromLayer = (layer: LayerData | undefined): string[] => {
+  if (!layer) return []
+  if (layer.source === 'arcgis' && Array.isArray(layer.arcgisLayerDefinition?.fields)) {
+    return (layer.arcgisLayerDefinition.fields as any[])
+      .filter((f) => typeof f?.name === 'string' && f.name)
+      .map((f) => String(f.name))
+  }
+  return getGeoJsonFields(layer.data)
+}
+
 const getGeometryType = (layer: LayerData) => {
   if (layer.type === 'tile' && layer.data?.esriImageServer) return 'ImageServer'
   const arc = layer.source === 'arcgis' ? layer.arcgisLayerDefinition : null
@@ -1573,8 +1584,11 @@ function GisContentPage() {
   }
 
   const relationshipKeyFieldsForLayer = (layerId: string) => {
-    const fields = layerFields[layerId] ?? []
-    return fields.map(f => f.name).filter(Boolean)
+    const id = String(layerId)
+    const cached = layerFields[id] ?? []
+    if (cached.length) return cached.map(f => f.name).filter(Boolean)
+    const layer = layers.find(l => String(l.id) === id)
+    return inferFieldNamesFromLayer(layer)
   }
 
   const validateRelationship = (draft: Relationship) => {

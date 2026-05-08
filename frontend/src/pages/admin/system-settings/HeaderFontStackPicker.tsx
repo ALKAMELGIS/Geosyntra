@@ -36,9 +36,18 @@ export type HeaderFontStackPickerProps = {
   onChange: (next: string) => void
   themeMode: ThemeMode
   language: AppLanguage
+  /** Full header restore (typography, layout, toggles) — same as system Default preset */
+  onResetHeaderToSystemDefaults: () => void
 }
 
-export function HeaderFontStackPicker({ id = 'hs-font-stack', value, onChange, themeMode, language }: HeaderFontStackPickerProps) {
+export function HeaderFontStackPicker({
+  id = 'hs-font-stack',
+  value,
+  onChange,
+  themeMode,
+  language,
+  onResetHeaderToSystemDefaults,
+}: HeaderFontStackPickerProps) {
   const [open, setOpen] = useState(false)
   const [query, setQuery] = useState('')
   const [prefersDark, setPrefersDark] = useState(false)
@@ -118,6 +127,12 @@ export function HeaderFontStackPicker({ id = 'hs-font-stack', value, onChange, t
     if (p) applyPreset(p)
   }, [applyPreset, prefersDark, themeMode])
 
+  const applyFullSystemDefault = useCallback(() => {
+    onResetHeaderToSystemDefaults()
+    setOpen(false)
+    setQuery('')
+  }, [onResetHeaderToSystemDefaults])
+
   const triggerPreview = matchedPreset ? previewFontFamily(matchedPreset) : value
 
   return (
@@ -161,6 +176,34 @@ export function HeaderFontStackPicker({ id = 'hs-font-stack', value, onChange, t
 
       {open ? (
         <div className="hs-font-picker__dropdown" role="listbox" aria-label={language === 'ar' ? 'قائمة الخطوط' : 'Font list'}>
+          <button
+            type="button"
+            className="hs-font-picker__reset"
+            onClick={applyFullSystemDefault}
+            aria-label={
+              language === 'ar'
+                ? 'استعادة الافتراضي للنظام: إعادة كل إعدادات الهيدر والخط'
+                : 'Reset to system default: restore all header and typography settings'
+            }
+            title={language === 'ar' ? 'استعادة كل إعدادات الهيدر والخط للوضع الافتراضي' : 'Restore all header & font settings to system defaults'}
+          >
+            <span className="hs-font-picker__reset-icon" aria-hidden>
+              <i className="fa-solid fa-rotate-left" />
+            </span>
+            <span className="hs-font-picker__reset-body">
+              <span className="hs-font-picker__reset-title">
+                {language === 'ar' ? 'استعادة الافتراضي للنظام' : 'Reset to System Default'}
+              </span>
+              <span className="hs-font-picker__reset-preview" style={{ fontFamily: 'var(--ds-font-sans), system-ui, sans-serif' }}>
+                {PREVIEW_SAMPLE}
+              </span>
+              <span className="hs-font-picker__reset-desc">
+                {language === 'ar'
+                  ? 'إلغاء تخصيصات الخط وإرجاع الهيدر بالكامل إلى الإعدادات الأصلية.'
+                  : 'Clears font overrides and restores the full header to factory defaults.'}
+              </span>
+            </span>
+          </button>
           <div className="hs-font-picker__search">
             <i className="fa-solid fa-magnifying-glass" aria-hidden />
             <input

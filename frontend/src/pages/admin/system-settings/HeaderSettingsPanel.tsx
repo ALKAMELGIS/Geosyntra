@@ -18,6 +18,7 @@ export type HeaderSettingsPanelProps = {
   onApplyPreset: (preset: 'default' | 'balanced' | 'branding' | 'minimal') => void
   language: AppLanguage
   themeMode: ThemeMode
+  onResetHeaderToSystemDefaults: () => void
 }
 
 type SectionId = 'typography' | 'layout' | 'insights'
@@ -179,6 +180,7 @@ export function HeaderSettingsPanel({
   onApplyPreset,
   language,
   themeMode,
+  onResetHeaderToSystemDefaults,
 }: HeaderSettingsPanelProps) {
   const [sectionOrder, setSectionOrder] = useState<SectionId[]>(() => {
     try {
@@ -387,6 +389,7 @@ export function HeaderSettingsPanel({
             onChange={next => onPatch({ fontFamily: next })}
             themeMode={themeMode}
             language={language}
+            onResetHeaderToSystemDefaults={onResetHeaderToSystemDefaults}
           />
         </div>
         <div className="hs-field hs-cell-span-6">
