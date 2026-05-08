@@ -1955,6 +1955,41 @@ function GisContentPage() {
         className={`gis-content-unified${sidebarCollapsed ? ' gis-content-unified--collapsed' : ''}`}
       >
       <aside className={`gis-sidebar${sidebarCollapsed ? ' gis-sidebar--collapsed' : ''}`} aria-label="GIS Layers Sidebar">
+        <div className="gis-content-sidebar-shell">
+          <nav className="gis-content-sidebar-rail" aria-label="GIS tools">
+            <div className="gis-content-sidebar-rail-top">
+              <button type="button" className="gis-content-sidebar-rail-btn" aria-label="Tools">
+                <i className="fa-solid fa-circle-plus" aria-hidden="true" />
+              </button>
+              <button type="button" className="gis-content-sidebar-rail-btn gis-content-sidebar-rail-btn--active" aria-label="Layers">
+                <i className="fa-solid fa-layer-group" aria-hidden="true" />
+              </button>
+              <button type="button" className="gis-content-sidebar-rail-btn" aria-label="Tables">
+                <i className="fa-solid fa-table-cells" aria-hidden="true" />
+              </button>
+              <button type="button" className="gis-content-sidebar-rail-btn" aria-label="Forms">
+                <i className="fa-solid fa-table-list" aria-hidden="true" />
+              </button>
+              <button type="button" className="gis-content-sidebar-rail-btn" aria-label="Bookmarks">
+                <i className="fa-solid fa-bookmark" aria-hidden="true" />
+              </button>
+              <button type="button" className="gis-content-sidebar-rail-btn" aria-label="Charts">
+                <i className="fa-solid fa-chart-column" aria-hidden="true" />
+              </button>
+              <button type="button" className="gis-content-sidebar-rail-btn" aria-label="Files">
+                <i className="fa-solid fa-folder-open" aria-hidden="true" />
+              </button>
+              <button type="button" className="gis-content-sidebar-rail-btn" aria-label="Settings">
+                <i className="fa-solid fa-gear" aria-hidden="true" />
+              </button>
+            </div>
+            <div className="gis-content-sidebar-rail-bottom">
+              <button type="button" className="gis-content-sidebar-rail-btn" aria-label="Collapse rail">
+                <i className="fa-solid fa-angles-right" aria-hidden="true" />
+              </button>
+            </div>
+          </nav>
+          <div className="gis-content-sidebar-panel">
         <div className="gis-sidebar-header">
           {sidebarCollapsed ? (
             <button
@@ -2169,6 +2204,8 @@ function GisContentPage() {
               </button>
             </footer>
           ) : null}
+        </div>
+          </div>
         </div>
       </aside>
 
