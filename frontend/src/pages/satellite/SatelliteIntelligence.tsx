@@ -64,6 +64,7 @@ import {
   pickGeoAiHumanPlaceFields,
   type GeoAiMapLayer,
 } from '../../lib/geoExplorerLayerContext';
+import { runGeoAiStatsCommand } from '../../lib/geoAiStatsEngine';
 import { resolveGeoAiPinFromUserTextAndReply } from '../../lib/geoAiResolveMapCoords';
 import { buildGeoAiFullWeatherSessionAppend } from '../../lib/geoAiWeatherContext';
 import {
@@ -135,6 +136,7 @@ const EMPTY_MAP_STYLE: any = {
 const PC_STAC_SEARCH_URL = 'https://planetarycomputer.microsoft.com/api/stac/v1/search';
 const STAC_CONNECTION_STORAGE_KEY = 'si-stac-connection-v1';
 const SATELLITE_CUSTOM_LAYERS_STORAGE_KEY = 'si-satellite-custom-layers-v1';
+const GEO_AI_CHAT_PAGE_SIZE = 40;
 
 type GeoAiInspectCardState = {
   title: string;
@@ -1897,6 +1899,7 @@ export default function SatelliteIntelligence() {
     | 'table-geo-ai'
   >('source');
   const [geoExplorerMessages, setGeoExplorerMessages] = useState<GeoExplorerMessage[]>([]);
+  const [geoExplorerVisibleCount, setGeoExplorerVisibleCount] = useState(GEO_AI_CHAT_PAGE_SIZE);
   const [geoExplorerDraft, setGeoExplorerDraft] = useState('');
   const [geoExplorerPendingImage, setGeoExplorerPendingImage] = useState<{
     mime: string;
@@ -1913,6 +1916,7 @@ export default function SatelliteIntelligence() {
   const [geoAiChatMessages, setGeoAiChatMessages] = useState<Array<{ id: string; role: 'user' | 'assistant'; text: string }>>(
     [],
   );
+  const [geoAiClaudeVisibleCount, setGeoAiClaudeVisibleCount] = useState(GEO_AI_CHAT_PAGE_SIZE);
   const [geoAiDraft, setGeoAiDraft] = useState('');
   const [geoAiBusy, setGeoAiBusy] = useState(false);
   const [geoAiChatError, setGeoAiChatError] = useState('');
@@ -1920,6 +1924,7 @@ export default function SatelliteIntelligence() {
   const [geoDeepseekChatMessages, setGeoDeepseekChatMessages] = useState<
     Array<{ id: string; role: 'user' | 'assistant'; text: string }>
   >([]);
+  const [geoAiDeepseekVisibleCount, setGeoAiDeepseekVisibleCount] = useState(GEO_AI_CHAT_PAGE_SIZE);
   const [geoDeepseekDraft, setGeoDeepseekDraft] = useState('');
   const [geoDeepseekBusy, setGeoDeepseekBusy] = useState(false);
   const [geoDeepseekChatError, setGeoDeepseekChatError] = useState('');
@@ -1942,11 +1947,90 @@ export default function SatelliteIntelligence() {
   const mapDrawToolRef = useRef<MapDrawTool>('select');
   mapDrawToolRef.current = mapDrawTool;
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const geoExplorerMessagesRef = useRef<HTMLDivElement | null>(null);
+  const geoAiClaudeMessagesRef = useRef<HTMLDivElement | null>(null);
+  const geoAiDeepseekMessagesRef = useRef<HTMLDivElement | null>(null);
+  const geoExplorerLoadOlderRef = useRef<{ top: number; height: number } | null>(null);
+  const geoAiClaudeLoadOlderRef = useRef<{ top: number; height: number } | null>(null);
+  const geoAiDeepseekLoadOlderRef = useRef<{ top: number; height: number } | null>(null);
   const netfloraUploadInputRef = useRef<HTMLInputElement | null>(null);
   const skipNextMapClickRef = useRef(false);
   const editDragRef = useRef<null | { mode: 'vertex'; ref: VertexRef } | { mode: 'pan'; last: [number, number] }>(null);
   const consoleErrorRef = useRef<typeof console.error | null>(null);
   const stacFocusHydratedRef = useRef(false);
+
+  const visibleGeoExplorerMessages = useMemo(
+    () => geoExplorerMessages.slice(Math.max(0, geoExplorerMessages.length - geoExplorerVisibleCount)),
+    [geoExplorerMessages, geoExplorerVisibleCount],
+  );
+  const geoExplorerHasOlderMessages = geoExplorerMessages.length > geoExplorerVisibleCount;
+  const visibleGeoAiClaudeMessages = useMemo(
+    () => geoAiChatMessages.slice(Math.max(0, geoAiChatMessages.length - geoAiClaudeVisibleCount)),
+    [geoAiChatMessages, geoAiClaudeVisibleCount],
+  );
+  const geoAiClaudeHasOlderMessages = geoAiChatMessages.length > geoAiClaudeVisibleCount;
+  const visibleGeoAiDeepseekMessages = useMemo(
+    () => geoDeepseekChatMessages.slice(Math.max(0, geoDeepseekChatMessages.length - geoAiDeepseekVisibleCount)),
+    [geoDeepseekChatMessages, geoAiDeepseekVisibleCount],
+  );
+  const geoAiDeepseekHasOlderMessages = geoDeepseekChatMessages.length > geoAiDeepseekVisibleCount;
+
+  const loadOlderGeoExplorerMessages = useCallback(() => {
+    if (!geoExplorerHasOlderMessages) return;
+    const el = geoExplorerMessagesRef.current;
+    if (el) geoExplorerLoadOlderRef.current = { top: el.scrollTop, height: el.scrollHeight };
+    setGeoExplorerVisibleCount(prev => Math.min(geoExplorerMessages.length, prev + GEO_AI_CHAT_PAGE_SIZE));
+  }, [geoExplorerHasOlderMessages, geoExplorerMessages.length]);
+  const loadOlderGeoAiClaudeMessages = useCallback(() => {
+    if (!geoAiClaudeHasOlderMessages) return;
+    const el = geoAiClaudeMessagesRef.current;
+    if (el) geoAiClaudeLoadOlderRef.current = { top: el.scrollTop, height: el.scrollHeight };
+    setGeoAiClaudeVisibleCount(prev => Math.min(geoAiChatMessages.length, prev + GEO_AI_CHAT_PAGE_SIZE));
+  }, [geoAiClaudeHasOlderMessages, geoAiChatMessages.length]);
+  const loadOlderGeoAiDeepseekMessages = useCallback(() => {
+    if (!geoAiDeepseekHasOlderMessages) return;
+    const el = geoAiDeepseekMessagesRef.current;
+    if (el) geoAiDeepseekLoadOlderRef.current = { top: el.scrollTop, height: el.scrollHeight };
+    setGeoAiDeepseekVisibleCount(prev => Math.min(geoDeepseekChatMessages.length, prev + GEO_AI_CHAT_PAGE_SIZE));
+  }, [geoAiDeepseekHasOlderMessages, geoDeepseekChatMessages.length]);
+
+  useLayoutEffect(() => {
+    const el = geoExplorerMessagesRef.current;
+    const restore = geoExplorerLoadOlderRef.current;
+    if (!el || !restore) return;
+    el.scrollTop = restore.top + (el.scrollHeight - restore.height);
+    geoExplorerLoadOlderRef.current = null;
+  }, [geoExplorerVisibleCount]);
+  useLayoutEffect(() => {
+    const el = geoAiClaudeMessagesRef.current;
+    const restore = geoAiClaudeLoadOlderRef.current;
+    if (!el || !restore) return;
+    el.scrollTop = restore.top + (el.scrollHeight - restore.height);
+    geoAiClaudeLoadOlderRef.current = null;
+  }, [geoAiClaudeVisibleCount]);
+  useLayoutEffect(() => {
+    const el = geoAiDeepseekMessagesRef.current;
+    const restore = geoAiDeepseekLoadOlderRef.current;
+    if (!el || !restore) return;
+    el.scrollTop = restore.top + (el.scrollHeight - restore.height);
+    geoAiDeepseekLoadOlderRef.current = null;
+  }, [geoAiDeepseekVisibleCount]);
+
+  useLayoutEffect(() => {
+    const el = geoExplorerMessagesRef.current;
+    if (!el || geoExplorerLoadOlderRef.current) return;
+    if (el.scrollHeight - el.scrollTop - el.clientHeight <= 56) el.scrollTop = el.scrollHeight;
+  }, [geoExplorerMessages.length, geoExplorerBusy]);
+  useLayoutEffect(() => {
+    const el = geoAiClaudeMessagesRef.current;
+    if (!el || geoAiClaudeLoadOlderRef.current) return;
+    if (el.scrollHeight - el.scrollTop - el.clientHeight <= 56) el.scrollTop = el.scrollHeight;
+  }, [geoAiChatMessages.length, geoAiBusy]);
+  useLayoutEffect(() => {
+    const el = geoAiDeepseekMessagesRef.current;
+    if (!el || geoAiDeepseekLoadOlderRef.current) return;
+    if (el.scrollHeight - el.scrollTop - el.clientHeight <= 56) el.scrollTop = el.scrollHeight;
+  }, [geoDeepseekChatMessages.length, geoDeepseekBusy]);
 
   const applySelectedDate = (date: Date) => {
     const iso = date.toISOString().split('T')[0];
@@ -4524,6 +4608,7 @@ export default function SatelliteIntelligence() {
     geoExplorerInFlightRef.current = false;
     setGeoExplorerBusy(false);
     setGeoExplorerMessages([]);
+    setGeoExplorerVisibleCount(GEO_AI_CHAT_PAGE_SIZE);
     setGeoExplorerDraft('');
     setGeoExplorerPendingImage(null);
     setGeoExplorerChatError('');
@@ -4535,6 +4620,7 @@ export default function SatelliteIntelligence() {
     geoAiInFlightRef.current = false;
     setGeoAiBusy(false);
     setGeoAiChatMessages([]);
+    setGeoAiClaudeVisibleCount(GEO_AI_CHAT_PAGE_SIZE);
     setGeoAiDraft('');
     setGeoAiChatError('');
     setGeoAiInspectCard(null);
@@ -4544,6 +4630,7 @@ export default function SatelliteIntelligence() {
     geoDeepseekInFlightRef.current = false;
     setGeoDeepseekBusy(false);
     setGeoDeepseekChatMessages([]);
+    setGeoAiDeepseekVisibleCount(GEO_AI_CHAT_PAGE_SIZE);
     setGeoDeepseekDraft('');
     setGeoDeepseekChatError('');
     setGeoAiInspectCard(null);
@@ -4689,6 +4776,27 @@ export default function SatelliteIntelligence() {
       const historyWithUser = [...prev, userMsg];
       queueMicrotask(async () => {
         try {
+          if (!geoExplorerPendingImage && trimmed) {
+            const savedLayersForStats = await loadGisMapSavedLayers();
+            const mergedLayersForStats: GeoAiMapLayer[] = [
+              ...satelliteCustomLayersToGeoAiLayers(customLayers),
+              ...savedLayersForStats.map(l => ({
+                name: l.name,
+                visible: l.visible,
+                source: l.source,
+                data: l.data,
+                arcgisLayerDefinition: (l as { arcgisLayerDefinition?: GeoAiMapLayer['arcgisLayerDefinition'] })
+                  .arcgisLayerDefinition,
+              })),
+            ];
+            const localStats = runGeoAiStatsCommand(trimmed, mergedLayersForStats);
+            if (localStats?.handled) {
+              const mid = typeof crypto !== 'undefined' && 'randomUUID' in crypto ? crypto.randomUUID() : `geo-s-${Date.now()}`;
+              const modelMsg: GeoExplorerMessage = { id: mid, role: 'model', parts: [{ type: 'text', text: localStats.reply }] };
+              setGeoExplorerMessages(h => [...h, modelMsg]);
+              return;
+            }
+          }
           let developAppend = '';
           try {
             const raw =
@@ -4798,6 +4906,24 @@ export default function SatelliteIntelligence() {
       const historyWithUser = [...prev, { id: userId, role: 'user' as const, text: trimmed }];
       queueMicrotask(async () => {
         try {
+          const savedLayersForStats = await loadGisMapSavedLayers();
+          const mergedLayersForStats: GeoAiMapLayer[] = [
+            ...satelliteCustomLayersToGeoAiLayers(customLayers),
+            ...savedLayersForStats.map(l => ({
+              name: l.name,
+              visible: l.visible,
+              source: l.source,
+              data: l.data,
+              arcgisLayerDefinition: (l as { arcgisLayerDefinition?: GeoAiMapLayer['arcgisLayerDefinition'] })
+                .arcgisLayerDefinition,
+            })),
+          ];
+          const localStats = runGeoAiStatsCommand(trimmed, mergedLayersForStats);
+          if (localStats?.handled) {
+            const aid = typeof crypto !== 'undefined' && 'randomUUID' in crypto ? crypto.randomUUID() : `gaic-s-${Date.now()}`;
+            setGeoAiChatMessages(h => [...h, { id: aid, role: 'assistant', text: localStats.reply }]);
+            return;
+          }
           const dataCtx = await buildGeoAiDataContext(undefined, {
             satelliteLayers: satelliteCustomLayersToGeoAiLayers(customLayers),
           });
@@ -4884,6 +5010,24 @@ export default function SatelliteIntelligence() {
       const historyWithUser = [...prev, { id: userId, role: 'user' as const, text: trimmed }];
       queueMicrotask(async () => {
         try {
+          const savedLayersForStats = await loadGisMapSavedLayers();
+          const mergedLayersForStats: GeoAiMapLayer[] = [
+            ...satelliteCustomLayersToGeoAiLayers(customLayers),
+            ...savedLayersForStats.map(l => ({
+              name: l.name,
+              visible: l.visible,
+              source: l.source,
+              data: l.data,
+              arcgisLayerDefinition: (l as { arcgisLayerDefinition?: GeoAiMapLayer['arcgisLayerDefinition'] })
+                .arcgisLayerDefinition,
+            })),
+          ];
+          const localStats = runGeoAiStatsCommand(trimmed, mergedLayersForStats);
+          if (localStats?.handled) {
+            const aid = typeof crypto !== 'undefined' && 'randomUUID' in crypto ? crypto.randomUUID() : `gds-s-${Date.now()}`;
+            setGeoDeepseekChatMessages(h => [...h, { id: aid, role: 'assistant', text: localStats.reply }]);
+            return;
+          }
           const dataCtx = await buildGeoAiDataContext(undefined, {
             satelliteLayers: satelliteCustomLayersToGeoAiLayers(customLayers),
           });
@@ -7701,7 +7845,25 @@ export default function SatelliteIntelligence() {
 
                           {geoAiModelTab === 'gemini' ? (
                             <>
-                              <div className="si-geo-explorer-messages">
+                              <div
+                                className="si-geo-explorer-messages"
+                                ref={geoExplorerMessagesRef}
+                                onScroll={() => {
+                                  const el = geoExplorerMessagesRef.current;
+                                  if (!el || !geoExplorerHasOlderMessages) return;
+                                  if (el.scrollTop <= 24) loadOlderGeoExplorerMessages();
+                                }}
+                              >
+                                {geoExplorerHasOlderMessages ? (
+                                  <button
+                                    type="button"
+                                    className="si-geo-explorer-load-more"
+                                    onClick={loadOlderGeoExplorerMessages}
+                                    aria-label="Load older messages"
+                                  >
+                                    Load earlier messages
+                                  </button>
+                                ) : null}
                                 <div className="si-geo-explorer-row si-geo-explorer-row--model">
                                   <div className="si-geo-explorer-avatar" aria-hidden>
                                     <i className="fa-solid fa-globe" />
@@ -7711,7 +7873,7 @@ export default function SatelliteIntelligence() {
                                     When a location is clear, the map will fly there
                                   </div>
                                 </div>
-                                {geoExplorerMessages.map(msg => {
+                                {visibleGeoExplorerMessages.map(msg => {
                                   const raw = messageDisplayText(msg);
                                   const show = msg.role === 'model' ? stripGeoExplorerBubbleDisplayText(raw) : raw;
                                   const hasImage = msg.parts.some(p => p.type === 'image');
@@ -7782,7 +7944,33 @@ export default function SatelliteIntelligence() {
 
                           {geoAiModelTab === 'claude' || geoAiModelTab === 'deepseek' ? (
                             <>
-                              <div className="si-geo-explorer-messages">
+                              <div
+                                className="si-geo-explorer-messages"
+                                ref={geoAiModelTab === 'claude' ? geoAiClaudeMessagesRef : geoAiDeepseekMessagesRef}
+                                onScroll={() => {
+                                  const isClaude = geoAiModelTab === 'claude';
+                                  const el = isClaude ? geoAiClaudeMessagesRef.current : geoAiDeepseekMessagesRef.current;
+                                  const hasOlder = isClaude ? geoAiClaudeHasOlderMessages : geoAiDeepseekHasOlderMessages;
+                                  if (!el || !hasOlder) return;
+                                  if (el.scrollTop <= 24) {
+                                    if (isClaude) loadOlderGeoAiClaudeMessages();
+                                    else loadOlderGeoAiDeepseekMessages();
+                                  }
+                                }}
+                              >
+                                {(geoAiModelTab === 'claude' ? geoAiClaudeHasOlderMessages : geoAiDeepseekHasOlderMessages) ? (
+                                  <button
+                                    type="button"
+                                    className="si-geo-explorer-load-more"
+                                    onClick={() => {
+                                      if (geoAiModelTab === 'claude') loadOlderGeoAiClaudeMessages();
+                                      else loadOlderGeoAiDeepseekMessages();
+                                    }}
+                                    aria-label="Load older messages"
+                                  >
+                                    Load earlier messages
+                                  </button>
+                                ) : null}
                                 <div className="si-geo-explorer-row si-geo-explorer-row--model">
                                   <div className="si-geo-explorer-avatar" aria-hidden>
                                     <i className="fa-solid fa-database" />
@@ -7792,7 +7980,7 @@ export default function SatelliteIntelligence() {
                                     Develop Dashboard → Data snapshot in this browser. Answers stay grounded in that context.
                                   </div>
                                 </div>
-                                {(geoAiModelTab === 'claude' ? geoAiChatMessages : geoDeepseekChatMessages).map(msg => (
+                                {(geoAiModelTab === 'claude' ? visibleGeoAiClaudeMessages : visibleGeoAiDeepseekMessages).map(msg => (
                                   <div
                                     key={msg.id}
                                     className={`si-geo-explorer-row si-geo-explorer-row--${

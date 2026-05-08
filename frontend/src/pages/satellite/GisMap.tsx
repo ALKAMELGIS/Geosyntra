@@ -60,6 +60,7 @@ import {
 import { loadGisMapSavedLayers } from '../../lib/gisMapLayerStore'
 import { gisLayerDataToGeoAiLayers } from '../../lib/geoAiMapLayerSources'
 import { geoExplorerTargetZoomForPinSource, runGeoExplorerGeminiTurn } from '../../lib/runGeoExplorerGeminiTurn'
+import { runGeoAiStatsCommand } from '../../lib/geoAiStatsEngine'
 import {
   loadGisMapChartPanelConfig,
   persistGisMapChartPanelConfig,
@@ -69,6 +70,7 @@ import './gisGeoExplorerPanel.css'
 import { GisGeoExplorerChartConfig } from './components/GisGeoExplorerChartConfig'
 
 const GIS_AGOL_RAIL_COMPACT_LS_KEY = 'gis-agol-rail-compact-v1'
+const GEO_AI_CHAT_PAGE_SIZE = 40
 
 type AddLayerTab = 'giscontent' | 'arcgis' | 'database' | 'upload' | 'url'
 
@@ -570,6 +572,7 @@ export default function GisMap() {
   const geoExplorerFileInputRef = useRef<HTMLInputElement | null>(null)
   const geoExplorerInFlightRef = useRef(false)
   const [geoExplorerMessages, setGeoExplorerMessages] = useState<GeoExplorerMessage[]>([])
+  const [geoExplorerVisibleCount, setGeoExplorerVisibleCount] = useState(GEO_AI_CHAT_PAGE_SIZE)
   const [geoExplorerDraft, setGeoExplorerDraft] = useState('')
   const [geoExplorerPendingImage, setGeoExplorerPendingImage] = useState<{ mime: string; base64: string } | null>(null)
   const [geoExplorerBusy, setGeoExplorerBusy] = useState(false)
@@ -628,6 +631,8 @@ export default function GisMap() {
   const geoExplorerQuickToolBtnRef = useRef<HTMLButtonElement | null>(null)
   const geoExplorerMapToolbarChatRef = useRef<HTMLButtonElement | null>(null)
   const geoExplorerPopoverRef = useRef<HTMLDivElement | null>(null)
+  const geoExplorerMessagesRef = useRef<HTMLDivElement | null>(null)
+  const geoExplorerLoadOlderRef = useRef<{ top: number; height: number } | null>(null)
   const geoExplorerAnchorSourceRef = useRef<'quick' | 'toolbar'>('quick')
   const [geoExplorerPopoverLayout, setGeoExplorerPopoverLayout] = useState<null | { top: number; left: number; width: number; maxHeight: number }>(
     null,
@@ -1569,6 +1574,41 @@ export default function GisMap() {
     }
   }
 
+  const visibleGeoExplorerMessages = useMemo(
+    () => geoExplorerMessages.slice(Math.max(0, geoExplorerMessages.length - geoExplorerVisibleCount)),
+    [geoExplorerMessages, geoExplorerVisibleCount],
+  )
+  const geoExplorerHasOlderMessages = geoExplorerMessages.length > geoExplorerVisibleCount
+
+  const loadOlderGeoExplorerMessages = useCallback(() => {
+    if (!geoExplorerHasOlderMessages) return
+    const el = geoExplorerMessagesRef.current
+    if (el) geoExplorerLoadOlderRef.current = { top: el.scrollTop, height: el.scrollHeight }
+    setGeoExplorerVisibleCount(prev => Math.min(geoExplorerMessages.length, prev + GEO_AI_CHAT_PAGE_SIZE))
+  }, [geoExplorerHasOlderMessages, geoExplorerMessages.length])
+
+  const onGeoExplorerMessagesScroll = useCallback(() => {
+    const el = geoExplorerMessagesRef.current
+    if (!el || !geoExplorerHasOlderMessages) return
+    if (el.scrollTop <= 24) loadOlderGeoExplorerMessages()
+  }, [geoExplorerHasOlderMessages, loadOlderGeoExplorerMessages])
+
+  useLayoutEffect(() => {
+    const el = geoExplorerMessagesRef.current
+    const restore = geoExplorerLoadOlderRef.current
+    if (!el || !restore) return
+    const delta = el.scrollHeight - restore.height
+    el.scrollTop = restore.top + delta
+    geoExplorerLoadOlderRef.current = null
+  }, [geoExplorerVisibleCount])
+
+  useLayoutEffect(() => {
+    const el = geoExplorerMessagesRef.current
+    if (!el || geoExplorerLoadOlderRef.current) return
+    const distanceFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight
+    if (distanceFromBottom <= 56) el.scrollTop = el.scrollHeight
+  }, [geoExplorerMessages.length, geoExplorerBusy])
+
   const onGeoExplorerAttachChange = useCallback((e: ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     e.target.value = ''
@@ -1593,6 +1633,7 @@ export default function GisMap() {
     geoExplorerInFlightRef.current = false
     setGeoExplorerBusy(false)
     setGeoExplorerMessages([])
+    setGeoExplorerVisibleCount(GEO_AI_CHAT_PAGE_SIZE)
     setGeoExplorerDraft('')
     setGeoExplorerPendingImage(null)
     setGeoExplorerChatError('')
@@ -2115,6 +2156,15 @@ export default function GisMap() {
       const historyWithUser = [...prev, userMsg]
       queueMicrotask(async () => {
         try {
+          if (!geoExplorerPendingImage && trimmed) {
+            const localStats = runGeoAiStatsCommand(trimmed, gisLayerDataToGeoAiLayers(layers))
+            if (localStats?.handled) {
+              const mid = typeof crypto !== 'undefined' && 'randomUUID' in crypto ? crypto.randomUUID() : `geo-s-${Date.now()}`
+              const modelMsg: GeoExplorerMessage = { id: mid, role: 'model', parts: [{ type: 'text', text: localStats.reply }] }
+              setGeoExplorerMessages(h => [...h, modelMsg])
+              return
+            }
+          }
           let developAppend = ''
           try {
             const raw =
@@ -4027,7 +4077,17 @@ export default function GisMap() {
           onChange={setGisChartPanelConfig}
           onOpenCharts={() => setActiveMapTool('chart')}
         />
-        <div className="gis-geo-explorer-messages">
+        <div className="gis-geo-explorer-messages" ref={geoExplorerMessagesRef} onScroll={onGeoExplorerMessagesScroll}>
+          {geoExplorerHasOlderMessages ? (
+            <button
+              type="button"
+              className="gis-geo-explorer-load-more"
+              onClick={loadOlderGeoExplorerMessages}
+              aria-label="Load older messages"
+            >
+              Load earlier messages
+            </button>
+          ) : null}
           <div className="gis-geo-explorer-row gis-geo-explorer-row--model">
             <div className="gis-geo-explorer-avatar" aria-hidden>
               <i className="fa-solid fa-globe" />
@@ -4039,7 +4099,7 @@ export default function GisMap() {
               </p>
             </div>
           </div>
-          {geoExplorerMessages.map(msg => {
+          {visibleGeoExplorerMessages.map(msg => {
             const raw = messageDisplayText(msg)
             const show = msg.role === 'model' ? stripGeoExplorerBubbleDisplayText(raw) : raw
             const hasImage = msg.parts.some(p => p.type === 'image')
