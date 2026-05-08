@@ -4257,7 +4257,12 @@ export default function SatelliteIntelligence() {
     }
   };
 
-  async function runRsAnalysisFromAssistant(options?: { keepCurrentSection?: boolean; forcedIndex?: string }) {
+  async function runRsAnalysisFromAssistant(options?: {
+    keepCurrentSection?: boolean;
+    forcedIndex?: string;
+    /** When true, do not rebuild the weekly timeline or open static charts (map Run = clip AOI + layer only). */
+    skipTimelineAndCharts?: boolean;
+  }) {
     if (!drawnGeometry) {
       setFieldAnalysisStatus('Draw AOI first, then press Run Analysis.');
       setMapDrawTool('polygon');
@@ -4292,12 +4297,15 @@ export default function SatelliteIntelligence() {
     setShowProductivityZones(true);
     setMpcClipToAoi(true);
     setIsWmsOverlayVisible(true);
-    setIsStacThumbVisible(true);
 
     const dStart = exploreEffectiveDatetime.start || timeSeriesStart;
     const dEnd = exploreEffectiveDatetime.end || timeSeriesEnd;
-    const aoi = resolveExploreAoiFeature();
+    const drawnGeom = drawnGeometry?.geometry as GeoJSON.Geometry | undefined;
+    const aoi: GeoJSON.Feature = drawnGeom
+      ? { type: 'Feature', geometry: drawnGeom, properties: { source: 'drawn' } }
+      : resolveExploreAoiFeature();
     if (!aoi || !dStart || !dEnd) {
+      setIsStacThumbVisible(false);
       setFieldAnalysisStatus('Set AOI and date range before running analysis.');
       return;
     }
@@ -4307,7 +4315,10 @@ export default function SatelliteIntelligence() {
       target = await findCompatibleStacItemForTemplate(template, aoi, dStart, dEnd, templateCollections, activeIndex);
     }
     if (!target) {
-      setFieldAnalysisStatus('No compatible Sentinel scene found for selected AOI/time range.');
+      setIsStacThumbVisible(false);
+      setFieldAnalysisStatus(
+        'No Sentinel scene in the catalog for this AOI and date range. WMS is clipped to your AOI; adjust dates or add a scene from Explore STAC.',
+      );
       return;
     }
 
@@ -4319,6 +4330,7 @@ export default function SatelliteIntelligence() {
       setExploreSelectedCollectionIds(prev => (prev.includes(collection) ? prev : [...prev, collection]));
     }
     setStacStatus(`Run ready: ${String(target?.id ?? 'scene')} (${template}).`);
+    setIsStacThumbVisible(true);
     await runMpcTemplateProcessing(template, target, activeIndex);
     if (!options?.keepCurrentSection) {
       setExpandedEnvSection('remote-sensing');
@@ -4328,7 +4340,9 @@ export default function SatelliteIntelligence() {
       setSelectedIndex(activeIndex as EnvironmentalIndexId);
       setWmsLayer(activeIndex);
     }
-    generateFieldAnalysisTimeline();
+    if (!options?.skipTimelineAndCharts) {
+      generateFieldAnalysisTimeline();
+    }
     setFieldAnalysisStatus(`Run completed for ${activeIndex}. Results rendered inside AOI.`);
   }
 
@@ -6234,12 +6248,12 @@ export default function SatelliteIntelligence() {
   }, [weeklyComposites, selectedDate]);
 
   const runSatelliteMapAnalysis = () => {
-    if (!drawnGeometry) {
+    if (!drawnGeometry?.geometry) {
       setFieldAnalysisStatus('Draw a rectangle or polygon AOI on the map, then tap Run.');
       return;
     }
-    generateFieldAnalysisTimeline();
-    setMapStaticChartsOpen(true);
+    setExploreExtentMode('drawn');
+    void runRsAnalysisFromAssistant({ keepCurrentSection: true, skipTimelineAndCharts: true });
   };
 
   const handleSatelliteTimelineStep = (dir: -1 | 1) => {

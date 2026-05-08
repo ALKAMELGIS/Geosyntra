@@ -96,7 +96,7 @@ export function SatelliteMapAnalysisToolbar({
         type="button"
         className="si-map-analysis-run"
         disabled={!!runBlockedReason}
-        title={runBlockedReason || 'Run analysis (timeline + stats inside AOI)'}
+        title={runBlockedReason || 'Clip raster to AOI and show the analysis layer inside the drawn area'}
         onClick={onRunAnalysis}
       >
         <i className="fa-solid fa-play" aria-hidden />
