@@ -50,11 +50,6 @@ const menuItems: MenuItem[] = [
     color: '#F59E0B', // Amber
     items: [
       {
-        label: { en: 'Data Management', ar: 'إدارة البيانات' },
-        icon: 'fa-solid fa-database',
-        to: '/master/workflow-settings',
-      },
-      {
         label: { en: 'EC/PH', ar: 'الملوحة والحموضة' },
         icon: 'fa-solid fa-droplet',
         to: '/data/ec-ph',
@@ -121,6 +116,7 @@ const menuItems: MenuItem[] = [
     icon: 'fa-solid fa-gear',
     color: '#64748B',
     items: [
+      { label: { en: 'Data Management', ar: 'إدارة البيانات' }, icon: 'fa-solid fa-database', to: '/master/workflow-settings' },
       { label: { en: 'Dashboard Settings', ar: 'إعدادات لوحة التحكم' }, icon: 'fa-solid fa-link', to: '/master/dashboard-settings' },
       { label: { en: 'GIS Content', ar: 'محتوى GIS' }, icon: 'fa-solid fa-map-location-dot', to: '/master/gis-content' },
     ]

@@ -143,13 +143,6 @@ export const NAV_DEFAULT_GROUPS: NavGroupDef[] = [
     headerClass: 'nav-header-data',
     children: [
       {
-        id: 'data-workflow-settings',
-        path: '/master/workflow-settings',
-        i18nKey: 'workflowDataSources',
-        defaultIcon: 'fa-solid fa-database',
-        subitemClass: 'nav-item-data-management',
-      },
-      {
         id: 'data-irrigation',
         path: '/data/irrigation',
         i18nKey: 'irrigation',
@@ -239,8 +232,8 @@ export const NAV_DEFAULT_GROUPS: NavGroupDef[] = [
         id: 'master-workflow',
         path: '/master/workflow-settings',
         i18nKey: 'workflowDataSources',
-        defaultIcon: 'fa-solid fa-sliders',
-        subitemClass: 'nav-item-master',
+        defaultIcon: 'fa-solid fa-database',
+        subitemClass: 'nav-item-data-management',
       },
       {
         id: 'master-dashboard-settings',
