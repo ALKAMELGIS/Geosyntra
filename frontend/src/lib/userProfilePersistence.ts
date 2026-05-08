@@ -16,6 +16,11 @@ export type ProfileExtra = {
   country?: string
   city?: string
   postalCode?: string
+  profileTheme?: 'auto' | 'light' | 'dark'
+  profileIsPrivate?: boolean
+  hideEmailOnProfile?: boolean
+  hidePhoneOnProfile?: boolean
+  allowActivityStatus?: boolean
 }
 
 export function profileStorageKey(email: string): string {

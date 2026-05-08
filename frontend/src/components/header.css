@@ -10,7 +10,7 @@
     color-mix(in srgb, var(--ds-color-primary) 72%, #020617) 100%
   );
   color: rgba(255, 255, 255, 0.94);
-  padding: 0 clamp(16px, 3vw, 28px);
+  padding: var(--header-pad-y, 0) var(--header-pad-x, clamp(16px, 3vw, 28px));
   box-shadow:
     0 20px 60px rgba(2, 6, 23, 0.22),
     inset 0 1px 0 rgba(255, 255, 255, 0.18),
@@ -21,9 +21,30 @@
   flex-shrink: 0;
   border-bottom: 1px solid rgba(255, 255, 255, 0.14);
   overflow: hidden;
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(var(--header-blur, 12px));
+  -webkit-backdrop-filter: blur(var(--header-blur, 12px));
   transition: box-shadow 0.28s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.agri-header--sticky {
+  position: sticky;
+  top: 0;
+}
+
+.agri-header--transparent {
+  background: color-mix(in srgb, var(--ds-color-surface) 20%, transparent);
+}
+
+.agri-header--align-start {
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(0, 220px);
+}
+
+.agri-header--align-center {
+  grid-template-columns: 1fr auto 1fr;
+}
+
+.header-left--center {
+  justify-content: center;
 }
 
 .agri-header::after {
@@ -68,12 +89,22 @@
   display: block;
 }
 
+.logo-icon__svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
 .logo-text {
-  font-weight: 700;
-  font-size: 18px;
-  letter-spacing: -0.02em;
-  color: rgba(255, 255, 255, 0.94);
-  font-family: var(--ds-font-sans);
+  font-weight: var(--header-logo-font-weight, 700);
+  font-size: var(--header-logo-font-size, 18px);
+  letter-spacing: var(--header-logo-letter-spacing, -0.02em);
+  color: var(--header-logo-color-light, rgba(255, 255, 255, 0.94));
+  font-family: var(--header-logo-font-family, var(--ds-font-sans));
+}
+
+html[data-theme='dark'] .logo-text {
+  color: var(--header-logo-color-dark, rgba(255, 255, 255, 0.94));
 }
 
 .header-center {
@@ -84,6 +115,10 @@
   z-index: 1;
   align-self: stretch;
   min-width: 0;
+}
+
+.header-center--hidden {
+  display: none;
 }
 
 .brand-logo {
@@ -252,8 +287,8 @@
     padding: 0 14px;
   }
 
-  .logo-text {
-    font-size: 16px;
+  .agri-header--hide-tablet-text .logo-text {
+    display: none;
   }
 
   .brand-logo {
@@ -273,6 +308,10 @@
 
   .header-center {
     display: none;
+  }
+
+  .agri-header--align-center .header-center {
+    display: flex;
   }
 
   .header-left {
@@ -319,12 +358,20 @@
     line-height: 1;
   }
 
+  .agri-header--hide-mobile-text .logo-text {
+    display: none;
+  }
+
   .brand-logo {
     display: block;
     height: clamp(38px, 11.5vw, 56px);
     max-width: min(72vw, 300px);
     object-fit: contain;
   }
+}
+
+.agri-header--auto-resize .logo-text {
+  font-size: clamp(13px, 1.25vw, var(--header-logo-font-size, 18px));
 }
 
 @media (max-width: 420px) {

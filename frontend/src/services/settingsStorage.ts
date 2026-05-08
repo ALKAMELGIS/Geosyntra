@@ -23,6 +23,34 @@ export const DEFAULT_SYSTEM_SETTINGS: SystemSettingsPersistedV1 = {
     backgroundGradientTo: '#14532d',
     backgroundImage: '',
   },
+  headerSettings: {
+    logoText: 'Agro Cloud',
+    logoTextAr: 'أجرو كلاود',
+    useProjectName: false,
+    fontFamily: 'var(--ds-font-sans)',
+    fontSize: 18,
+    fontWeight: 700,
+    textColorLight: '#0f172a',
+    textColorDark: '#f8fafc',
+    letterSpacing: -0.02,
+    paddingX: 20,
+    paddingY: 10,
+    showLogoText: true,
+    showLogoIcon: true,
+    showCenterLogo: true,
+    logoAlign: 'space-between',
+    mobileShowLogoText: false,
+    tabletShowLogoText: true,
+    sticky: true,
+    transparent: false,
+    blur: 12,
+    enableAnimation: true,
+    autoResize: true,
+    iconClass: 'fa-solid fa-leaf',
+    logoSvg: '',
+    layoutPreset: 'default',
+    autoSave: false,
+  },
   customApiTokenSlots: [],
 }
 
@@ -52,6 +80,7 @@ export function mergeWithDefaults(partial: Partial<SystemSettingsPersistedV1>): 
       : 'default'
   const isHex = (value: unknown, fallback: string) =>
     typeof value === 'string' && /^#[0-9A-Fa-f]{6}$/.test(value) ? value : fallback
+  const hdrRaw = partial.headerSettings as Partial<SystemSettingsPersistedV1['headerSettings']> | undefined
   return {
     ...DEFAULT_SYSTEM_SETTINGS,
     ...partial,
@@ -83,6 +112,43 @@ export function mergeWithDefaults(partial: Partial<SystemSettingsPersistedV1>): 
       backgroundGradientFrom: isHex(homeRaw?.backgroundGradientFrom, DEFAULT_SYSTEM_SETTINGS.homePage.backgroundGradientFrom),
       backgroundGradientTo: isHex(homeRaw?.backgroundGradientTo, DEFAULT_SYSTEM_SETTINGS.homePage.backgroundGradientTo),
       backgroundImage: typeof homeRaw?.backgroundImage === 'string' ? homeRaw.backgroundImage : '',
+    },
+    headerSettings: {
+      logoText: typeof hdrRaw?.logoText === 'string' ? hdrRaw.logoText.slice(0, 120) : DEFAULT_SYSTEM_SETTINGS.headerSettings.logoText,
+      logoTextAr: typeof hdrRaw?.logoTextAr === 'string' ? hdrRaw.logoTextAr.slice(0, 120) : DEFAULT_SYSTEM_SETTINGS.headerSettings.logoTextAr,
+      useProjectName: hdrRaw?.useProjectName === true,
+      fontFamily: typeof hdrRaw?.fontFamily === 'string' && hdrRaw.fontFamily.trim() ? hdrRaw.fontFamily.trim().slice(0, 120) : DEFAULT_SYSTEM_SETTINGS.headerSettings.fontFamily,
+      fontSize: Math.max(10, Math.min(42, Number(hdrRaw?.fontSize ?? DEFAULT_SYSTEM_SETTINGS.headerSettings.fontSize) || DEFAULT_SYSTEM_SETTINGS.headerSettings.fontSize)),
+      fontWeight: Math.max(300, Math.min(900, Number(hdrRaw?.fontWeight ?? DEFAULT_SYSTEM_SETTINGS.headerSettings.fontWeight) || DEFAULT_SYSTEM_SETTINGS.headerSettings.fontWeight)),
+      textColorLight: isHex(hdrRaw?.textColorLight, DEFAULT_SYSTEM_SETTINGS.headerSettings.textColorLight),
+      textColorDark: isHex(hdrRaw?.textColorDark, DEFAULT_SYSTEM_SETTINGS.headerSettings.textColorDark),
+      letterSpacing: Math.max(-0.08, Math.min(0.2, Number(hdrRaw?.letterSpacing ?? DEFAULT_SYSTEM_SETTINGS.headerSettings.letterSpacing) || 0)),
+      paddingX: Math.max(0, Math.min(60, Number(hdrRaw?.paddingX ?? DEFAULT_SYSTEM_SETTINGS.headerSettings.paddingX) || DEFAULT_SYSTEM_SETTINGS.headerSettings.paddingX)),
+      paddingY: Math.max(0, Math.min(24, Number(hdrRaw?.paddingY ?? DEFAULT_SYSTEM_SETTINGS.headerSettings.paddingY) || DEFAULT_SYSTEM_SETTINGS.headerSettings.paddingY)),
+      showLogoText: hdrRaw?.showLogoText !== false,
+      showLogoIcon: hdrRaw?.showLogoIcon !== false,
+      showCenterLogo: hdrRaw?.showCenterLogo !== false,
+      logoAlign:
+        hdrRaw?.logoAlign === 'start' || hdrRaw?.logoAlign === 'center' || hdrRaw?.logoAlign === 'space-between'
+          ? hdrRaw.logoAlign
+          : DEFAULT_SYSTEM_SETTINGS.headerSettings.logoAlign,
+      mobileShowLogoText: hdrRaw?.mobileShowLogoText === true,
+      tabletShowLogoText: hdrRaw?.tabletShowLogoText !== false,
+      sticky: hdrRaw?.sticky !== false,
+      transparent: hdrRaw?.transparent === true,
+      blur: Math.max(0, Math.min(30, Number(hdrRaw?.blur ?? DEFAULT_SYSTEM_SETTINGS.headerSettings.blur) || DEFAULT_SYSTEM_SETTINGS.headerSettings.blur)),
+      enableAnimation: hdrRaw?.enableAnimation !== false,
+      autoResize: hdrRaw?.autoResize !== false,
+      iconClass: typeof hdrRaw?.iconClass === 'string' && hdrRaw.iconClass.trim() ? hdrRaw.iconClass.trim().slice(0, 120) : DEFAULT_SYSTEM_SETTINGS.headerSettings.iconClass,
+      logoSvg: typeof hdrRaw?.logoSvg === 'string' ? hdrRaw.logoSvg.slice(0, 4000) : '',
+      layoutPreset:
+        hdrRaw?.layoutPreset === 'balanced' ||
+        hdrRaw?.layoutPreset === 'branding' ||
+        hdrRaw?.layoutPreset === 'minimal' ||
+        hdrRaw?.layoutPreset === 'default'
+          ? hdrRaw.layoutPreset
+          : DEFAULT_SYSTEM_SETTINGS.headerSettings.layoutPreset,
+      autoSave: hdrRaw?.autoSave === true,
     },
   }
 }

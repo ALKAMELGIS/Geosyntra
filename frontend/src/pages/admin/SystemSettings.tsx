@@ -5,7 +5,7 @@ import * as yup from 'yup'
 import { useLanguage } from '../../lib/i18n'
 import { hasPermission, normalizeRole, readCurrentUser } from '../../lib/auth'
 import { NAV_DEFAULT_GROUPS, NAV_GROUP_IDS } from '../../nav/navManifest'
-import { loadSystemSettings, mergeWithDefaults, normalizeAppPath } from '../../services/settingsStorage'
+import { DEFAULT_SYSTEM_SETTINGS, loadSystemSettings, mergeWithDefaults, normalizeAppPath } from '../../services/settingsStorage'
 import { applyThemeToDocument, useSystemSettings } from '../../store/SystemSettingsContext'
 import { clearUserApiTokenValue, getUserApiTokenValue, persistUserApiTokenValue } from '../../lib/customUserApiTokens'
 import type { CustomApiTokenSlot, CustomPageRecord, SystemSettingsPersistedV1 } from '../../types/systemSettings'
@@ -148,7 +148,7 @@ function ApiTokenMergeField({
 }
 
 export default function SystemSettings() {
-  const { draft, setDraft, settings, saveDraft, cancelDraft, resetToDefaults, pushToast } = useSystemSettings()
+  const { draft, setDraft, settings, setSettings, saveDraft, cancelDraft, resetToDefaults, pushToast } = useSystemSettings()
   const { language } = useLanguage()
   const [tab, setTab] = useState<'theme' | 'header-settings' | 'logos' | 'nav' | 'pages' | 'api-tokens'>('theme')
   const [mapboxTokenDraft, setMapboxTokenDraft] = useState('')
@@ -543,6 +543,82 @@ export default function SystemSettings() {
     () => JSON.stringify(mergeWithDefaults(settings)) !== JSON.stringify(mergeWithDefaults(draft)),
     [settings, draft],
   )
+  const smartHeaderSuggestions = useMemo(() => {
+    const vw = typeof window !== 'undefined' ? window.innerWidth : 1280
+    const recSize = vw >= 1440 ? 20 : vw >= 1024 ? 18 : 16
+    const tips: string[] = []
+    if (draft.headerSettings.fontSize > 26) tips.push('Large logo text may overlap menu on tablet screens.')
+    if (draft.headerSettings.transparent && draft.headerSettings.blur < 8) tips.push('Increase blur to keep text readable on transparent header.')
+    if (draft.headerSettings.showCenterLogo === false && draft.headerSettings.logoAlign === 'center')
+      tips.push('Center alignment looks better with center logo enabled.')
+    return {
+      recommendedSize: recSize,
+      recommendedLightColor: '#0f172a',
+      recommendedDarkColor: '#f8fafc',
+      warnings: tips,
+    }
+  }, [draft.headerSettings])
+
+  useEffect(() => {
+    if (tab !== 'header-settings') return
+    if (!draft.headerSettings.autoSave) return
+    const mergedDraft = mergeWithDefaults(draft)
+    const mergedSettings = mergeWithDefaults(settings)
+    if (JSON.stringify(mergedDraft.headerSettings) === JSON.stringify(mergedSettings.headerSettings)) return
+    const t = window.setTimeout(() => setSettings(mergedDraft), 260)
+    return () => window.clearTimeout(t)
+  }, [tab, draft, settings, setSettings])
+
+  const applyHeaderPreset = (preset: 'default' | 'balanced' | 'branding' | 'minimal') => {
+    const base = DEFAULT_SYSTEM_SETTINGS.headerSettings
+    if (preset === 'default') {
+      setDraft(d => ({ ...d, headerSettings: { ...base, ...d.headerSettings, layoutPreset: 'default' } }))
+      return
+    }
+    if (preset === 'balanced') {
+      setDraft(d => ({
+        ...d,
+        headerSettings: {
+          ...d.headerSettings,
+          layoutPreset: 'balanced',
+          logoAlign: 'center',
+          fontSize: 17,
+          showCenterLogo: true,
+          showLogoText: true,
+          blur: 14,
+        },
+      }))
+      return
+    }
+    if (preset === 'branding') {
+      setDraft(d => ({
+        ...d,
+        headerSettings: {
+          ...d.headerSettings,
+          layoutPreset: 'branding',
+          logoAlign: 'space-between',
+          fontSize: 22,
+          fontWeight: 800,
+          showCenterLogo: true,
+          showLogoText: true,
+          enableAnimation: true,
+        },
+      }))
+      return
+    }
+    setDraft(d => ({
+      ...d,
+      headerSettings: {
+        ...d.headerSettings,
+        layoutPreset: 'minimal',
+        logoAlign: 'start',
+        showCenterLogo: false,
+        showLogoText: true,
+        showLogoIcon: true,
+        fontSize: 16,
+      },
+    }))
+  }
   const inlineSettingsActions = (
     <footer
       className="sys-settings-actions"
@@ -711,8 +787,205 @@ export default function SystemSettings() {
               Header Settings
             </h2>
             <p className="sys-settings-panel__desc">
-              Configure header-specific options from this section.
+              Fully customize header text, alignment, effects, responsive behavior, and smart layout presets.
             </p>
+          </div>
+          <div className="sys-pages-list">
+            <article className="sys-page-card">
+              <div className="sys-page-card__main">
+                <div className="sys-page-card__topbar">
+                  <span className="sys-page-card__index">Text & Branding</span>
+                  <div className="sys-page-card__quick-actions">
+                    {(['default', 'balanced', 'branding', 'minimal'] as const).map(p => (
+                      <button key={p} type="button" className="gis-btn gis-btn-outline" onClick={() => applyHeaderPreset(p)}>
+                        {p}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <div className="sys-page-card__grid">
+                  <div className="sys-page-field">
+                    <label htmlFor="hs-logo-text">Logo text (EN)</label>
+                    <input
+                      id="hs-logo-text"
+                      className="gis-input"
+                      value={draft.headerSettings.logoText}
+                      onChange={e => setDraft(d => ({ ...d, headerSettings: { ...d.headerSettings, logoText: e.target.value } }))}
+                    />
+                  </div>
+                  <div className="sys-page-field">
+                    <label htmlFor="hs-logo-text-ar">Logo text (AR)</label>
+                    <input
+                      id="hs-logo-text-ar"
+                      className="gis-input"
+                      dir="rtl"
+                      value={draft.headerSettings.logoTextAr}
+                      onChange={e => setDraft(d => ({ ...d, headerSettings: { ...d.headerSettings, logoTextAr: e.target.value } }))}
+                    />
+                  </div>
+                  <div className="sys-page-field">
+                    <label htmlFor="hs-font-family">Font family</label>
+                    <input
+                      id="hs-font-family"
+                      className="gis-input"
+                      value={draft.headerSettings.fontFamily}
+                      onChange={e => setDraft(d => ({ ...d, headerSettings: { ...d.headerSettings, fontFamily: e.target.value } }))}
+                    />
+                  </div>
+                  <div className="sys-page-field">
+                    <label htmlFor="hs-icon-class">Icon class</label>
+                    <input
+                      id="hs-icon-class"
+                      className="gis-input"
+                      value={draft.headerSettings.iconClass}
+                      onChange={e => setDraft(d => ({ ...d, headerSettings: { ...d.headerSettings, iconClass: e.target.value } }))}
+                    />
+                  </div>
+                  <div className="sys-page-field">
+                    <label htmlFor="hs-font-size">
+                      Font size ({draft.headerSettings.fontSize}px)
+                    </label>
+                    <input
+                      id="hs-font-size"
+                      type="range"
+                      min={10}
+                      max={42}
+                      value={draft.headerSettings.fontSize}
+                      onChange={e => setDraft(d => ({ ...d, headerSettings: { ...d.headerSettings, fontSize: Number(e.target.value) } }))}
+                    />
+                  </div>
+                  <div className="sys-page-field">
+                    <label htmlFor="hs-font-weight">
+                      Font weight ({draft.headerSettings.fontWeight})
+                    </label>
+                    <input
+                      id="hs-font-weight"
+                      type="range"
+                      min={300}
+                      max={900}
+                      step={100}
+                      value={draft.headerSettings.fontWeight}
+                      onChange={e => setDraft(d => ({ ...d, headerSettings: { ...d.headerSettings, fontWeight: Number(e.target.value) } }))}
+                    />
+                  </div>
+                  <div className="sys-page-field">
+                    <label htmlFor="hs-spacing">
+                      Letter spacing ({draft.headerSettings.letterSpacing.toFixed(2)}em)
+                    </label>
+                    <input
+                      id="hs-spacing"
+                      type="range"
+                      min={-0.08}
+                      max={0.2}
+                      step={0.01}
+                      value={draft.headerSettings.letterSpacing}
+                      onChange={e => setDraft(d => ({ ...d, headerSettings: { ...d.headerSettings, letterSpacing: Number(e.target.value) } }))}
+                    />
+                  </div>
+                  <div className="sys-page-field">
+                    <label htmlFor="hs-color-light">Text color (Light)</label>
+                    <input
+                      id="hs-color-light"
+                      type="color"
+                      className="gis-input"
+                      value={draft.headerSettings.textColorLight}
+                      onChange={e => setDraft(d => ({ ...d, headerSettings: { ...d.headerSettings, textColorLight: e.target.value } }))}
+                    />
+                  </div>
+                  <div className="sys-page-field">
+                    <label htmlFor="hs-color-dark">Text color (Dark)</label>
+                    <input
+                      id="hs-color-dark"
+                      type="color"
+                      className="gis-input"
+                      value={draft.headerSettings.textColorDark}
+                      onChange={e => setDraft(d => ({ ...d, headerSettings: { ...d.headerSettings, textColorDark: e.target.value } }))}
+                    />
+                  </div>
+                </div>
+                <div className="sys-page-actions">
+                  <label className="sys-page-visible"><input type="checkbox" checked={draft.headerSettings.useProjectName} onChange={e => setDraft(d => ({ ...d, headerSettings: { ...d.headerSettings, useProjectName: e.target.checked } }))} />Link to project name</label>
+                  <label className="sys-page-visible"><input type="checkbox" checked={draft.headerSettings.autoResize} onChange={e => setDraft(d => ({ ...d, headerSettings: { ...d.headerSettings, autoResize: e.target.checked } }))} />Auto resize text</label>
+                  <label className="sys-page-visible"><input type="checkbox" checked={draft.headerSettings.autoSave} onChange={e => setDraft(d => ({ ...d, headerSettings: { ...d.headerSettings, autoSave: e.target.checked } }))} />Auto-save header settings</label>
+                </div>
+              </div>
+            </article>
+
+            <article className="sys-page-card">
+              <div className="sys-page-card__main">
+                <div className="sys-page-card__topbar">
+                  <span className="sys-page-card__index">Layout, Visibility, Effects</span>
+                </div>
+                <div className="sys-page-card__grid">
+                  <div className="sys-page-field">
+                    <label htmlFor="hs-align">Logo alignment</label>
+                    <select id="hs-align" className="gis-input" value={draft.headerSettings.logoAlign} onChange={e => setDraft(d => ({ ...d, headerSettings: { ...d.headerSettings, logoAlign: e.target.value as 'start' | 'center' | 'space-between' } }))}>
+                      <option value="start">Start</option>
+                      <option value="center">Center</option>
+                      <option value="space-between">Space between</option>
+                    </select>
+                  </div>
+                  <div className="sys-page-field">
+                    <label htmlFor="hs-padding-x">Horizontal padding ({draft.headerSettings.paddingX}px)</label>
+                    <input id="hs-padding-x" type="range" min={0} max={60} value={draft.headerSettings.paddingX} onChange={e => setDraft(d => ({ ...d, headerSettings: { ...d.headerSettings, paddingX: Number(e.target.value) } }))} />
+                  </div>
+                  <div className="sys-page-field">
+                    <label htmlFor="hs-padding-y">Vertical padding ({draft.headerSettings.paddingY}px)</label>
+                    <input id="hs-padding-y" type="range" min={0} max={24} value={draft.headerSettings.paddingY} onChange={e => setDraft(d => ({ ...d, headerSettings: { ...d.headerSettings, paddingY: Number(e.target.value) } }))} />
+                  </div>
+                  <div className="sys-page-field">
+                    <label htmlFor="hs-blur">Blur ({draft.headerSettings.blur}px)</label>
+                    <input id="hs-blur" type="range" min={0} max={30} value={draft.headerSettings.blur} onChange={e => setDraft(d => ({ ...d, headerSettings: { ...d.headerSettings, blur: Number(e.target.value) } }))} />
+                  </div>
+                  <div className="sys-page-field">
+                    <label htmlFor="hs-logo-svg">Inline SVG logo (optional)</label>
+                    <textarea
+                      id="hs-logo-svg"
+                      className="gis-input"
+                      rows={4}
+                      placeholder="<svg ...>...</svg>"
+                      value={draft.headerSettings.logoSvg}
+                      onChange={e => setDraft(d => ({ ...d, headerSettings: { ...d.headerSettings, logoSvg: e.target.value } }))}
+                    />
+                  </div>
+                </div>
+                <div className="sys-page-actions">
+                  <label className="sys-page-visible"><input type="checkbox" checked={draft.headerSettings.showLogoText} onChange={e => setDraft(d => ({ ...d, headerSettings: { ...d.headerSettings, showLogoText: e.target.checked } }))} />Show logo text</label>
+                  <label className="sys-page-visible"><input type="checkbox" checked={draft.headerSettings.showLogoIcon} onChange={e => setDraft(d => ({ ...d, headerSettings: { ...d.headerSettings, showLogoIcon: e.target.checked } }))} />Show icon</label>
+                  <label className="sys-page-visible"><input type="checkbox" checked={draft.headerSettings.showCenterLogo} onChange={e => setDraft(d => ({ ...d, headerSettings: { ...d.headerSettings, showCenterLogo: e.target.checked } }))} />Show center logo</label>
+                  <label className="sys-page-visible"><input type="checkbox" checked={draft.headerSettings.mobileShowLogoText} onChange={e => setDraft(d => ({ ...d, headerSettings: { ...d.headerSettings, mobileShowLogoText: e.target.checked } }))} />Show text on mobile</label>
+                  <label className="sys-page-visible"><input type="checkbox" checked={draft.headerSettings.tabletShowLogoText} onChange={e => setDraft(d => ({ ...d, headerSettings: { ...d.headerSettings, tabletShowLogoText: e.target.checked } }))} />Show text on tablet</label>
+                  <label className="sys-page-visible"><input type="checkbox" checked={draft.headerSettings.sticky} onChange={e => setDraft(d => ({ ...d, headerSettings: { ...d.headerSettings, sticky: e.target.checked } }))} />Sticky header</label>
+                  <label className="sys-page-visible"><input type="checkbox" checked={draft.headerSettings.transparent} onChange={e => setDraft(d => ({ ...d, headerSettings: { ...d.headerSettings, transparent: e.target.checked } }))} />Transparent header</label>
+                  <label className="sys-page-visible"><input type="checkbox" checked={draft.headerSettings.enableAnimation} onChange={e => setDraft(d => ({ ...d, headerSettings: { ...d.headerSettings, enableAnimation: e.target.checked } }))} />Header animation</label>
+                </div>
+              </div>
+            </article>
+
+            <article className="sys-page-card">
+              <div className="sys-page-card__main">
+                <div className="sys-page-card__topbar">
+                  <span className="sys-page-card__index">Smart Suggestions</span>
+                </div>
+                <p className="sys-settings-panel__desc" style={{ marginTop: 0 }}>
+                  Recommended text size: <strong>{smartHeaderSuggestions.recommendedSize}px</strong> · Theme colors:{' '}
+                  <code>{smartHeaderSuggestions.recommendedLightColor}</code> / <code>{smartHeaderSuggestions.recommendedDarkColor}</code>
+                </p>
+                {smartHeaderSuggestions.warnings.length ? (
+                  <ul style={{ margin: '8px 0 0', paddingInlineStart: 18 }}>
+                    {smartHeaderSuggestions.warnings.map(w => (
+                      <li key={w} style={{ fontSize: 13, color: 'var(--ds-color-warning, #b45309)' }}>
+                        {w}
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="sys-settings-panel__desc" style={{ marginTop: 8 }}>
+                    No UI/UX conflicts detected in current header configuration.
+                  </p>
+                )}
+              </div>
+            </article>
           </div>
           {inlineSettingsActions}
         </div>

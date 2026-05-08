@@ -118,6 +118,22 @@ function formatDobDisplay(iso: string | undefined, locale: string): string {
   }
 }
 
+function initialsFromName(name: string): string {
+  const parts = name.trim().split(/\s+/).filter(Boolean)
+  if (!parts.length) return 'AC'
+  const first = parts[0]?.[0] ?? ''
+  const second = parts[1]?.[0] ?? parts[0]?.[1] ?? ''
+  return `${first}${second}`.toUpperCase()
+}
+
+function gradientFromSeed(seed: string): [string, string] {
+  const src = seed || 'agro-cloud'
+  let hash = 0
+  for (let i = 0; i < src.length; i++) hash = (hash * 31 + src.charCodeAt(i)) | 0
+  const hue = Math.abs(hash) % 360
+  return [`hsl(${hue} 72% 46%)`, `hsl(${(hue + 48) % 360} 74% 54%)`]
+}
+
 const profileCopy = {
   en: {
     myProfile: 'My Profile',
@@ -156,6 +172,22 @@ const profileCopy = {
     lastLogin: 'Last login',
     emailVerified: 'Email verified',
     managedBy: 'Managed by',
+    profileSettings: 'Profile Settings',
+    avatarManagement: 'Avatar management',
+    coverCustomization: 'Cover customization',
+    themePersonalization: 'Theme personalization',
+    privacyAccount: 'Privacy & account',
+    dragDropAvatar: 'Drag & drop avatar or click camera',
+    dragDropCover: 'Drag & drop cover image here',
+    smartFallback: 'Smart fallback avatar',
+    profileTheme: 'Profile theme',
+    autoTheme: 'Auto',
+    lightTheme: 'Light',
+    darkTheme: 'Dark',
+    accountPrivate: 'Private profile mode',
+    hideEmail: 'Hide email in profile',
+    hidePhone: 'Hide phone in profile',
+    activityStatus: 'Show activity status',
     yes: 'Yes',
     no: 'No',
     none: '—',
@@ -207,6 +239,22 @@ const profileCopy = {
     lastLogin: 'آخر دخول',
     emailVerified: 'البريد مُفعَّل',
     managedBy: 'يُدار بواسطة',
+    profileSettings: 'إعدادات الملف الشخصي',
+    avatarManagement: 'إدارة الصورة الشخصية',
+    coverCustomization: 'تخصيص الغلاف',
+    themePersonalization: 'تخصيص المظهر',
+    privacyAccount: 'الخصوصية والحساب',
+    dragDropAvatar: 'اسحب وأفلت الصورة أو اضغط أيقونة الكاميرا',
+    dragDropCover: 'اسحب وأفلت صورة الغلاف هنا',
+    smartFallback: 'صورة افتراضية ذكية',
+    profileTheme: 'نسق الملف الشخصي',
+    autoTheme: 'تلقائي',
+    lightTheme: 'فاتح',
+    darkTheme: 'داكن',
+    accountPrivate: 'وضع الملف الخاص',
+    hideEmail: 'إخفاء البريد في الملف',
+    hidePhone: 'إخفاء الهاتف في الملف',
+    activityStatus: 'إظهار حالة النشاط',
     yes: 'نعم',
     no: 'لا',
     none: '—',
@@ -276,6 +324,8 @@ export default function Profile() {
   const [extra, setExtra] = useState<ProfileExtra>({})
   const [avatarTick, setAvatarTick] = useState(0)
   const [coverDraft, setCoverDraft] = useState<string | null | undefined>(undefined)
+  const [avatarDropActive, setAvatarDropActive] = useState(false)
+  const [coverDropActive, setCoverDropActive] = useState(false)
   const fileRef = useRef<HTMLInputElement | null>(null)
   const coverFileRef = useRef<HTMLInputElement | null>(null)
 
@@ -360,6 +410,11 @@ export default function Profile() {
     if (bundle.avatarDataUrl?.trim()) return bundle.avatarDataUrl
     return ''
   }, [me?.email, avatarTick])
+  const avatarInitials = useMemo(() => initialsFromName(displayName || me?.name || ''), [displayName, me?.name])
+  const avatarGradient = useMemo(
+    () => gradientFromSeed(`${me?.email || ''}:${displayName || me?.name || ''}`),
+    [me?.email, me?.name, displayName],
+  )
 
   useEffect(() => {
     document.title = `${text.myProfile} · Agro Cloud`
@@ -419,9 +474,9 @@ export default function Profile() {
     setStagedGate(null)
   }
 
-  const onAvatarFile = (e: ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    if (!file || !me?.email) return
+  const applyAvatarFile = (file: File) => {
+    if (!me?.email) return
+    if (!file.type.startsWith('image/')) return
     const reader = new FileReader()
     reader.onload = () => {
       const url = String(reader.result || '')
@@ -431,14 +486,18 @@ export default function Profile() {
       }
     }
     reader.readAsDataURL(file)
+  }
+
+  const onAvatarFile = (e: ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    applyAvatarFile(file)
     e.target.value = ''
   }
 
-  const onCoverFile = async (e: ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    if (!file || !me?.email) return
+  const applyCoverFile = async (file: File) => {
+    if (!me?.email) return
     if (!file.type.startsWith('image/')) {
-      e.target.value = ''
       return
     }
     try {
@@ -447,11 +506,35 @@ export default function Profile() {
     } catch {
       /* ignore */
     }
+  }
+
+  const onCoverFile = async (e: ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    await applyCoverFile(file)
     e.target.value = ''
   }
 
   const removeCoverPhoto = () => {
     setCoverDraft(null)
+  }
+
+  const onAvatarDrop = (files: FileList | null) => {
+    const f = files?.[0]
+    if (!f) return
+    applyAvatarFile(f)
+  }
+
+  const onCoverDrop = (files: FileList | null) => {
+    const f = files?.[0]
+    if (!f) return
+    void applyCoverFile(f)
+  }
+
+  const updateProfileFlags = (patch: Partial<ProfileExtra>) => {
+    if (!me?.email) return
+    writeProfileExtra(me.email, patch)
+    setExtra(readProfileExtra(me.email))
   }
 
   const stageablePayload = useMemo((): StagedProfileCommit | null => {
@@ -547,7 +630,7 @@ export default function Profile() {
   const hasPendingCoverChange = coverDraft !== undefined
 
   return (
-    <div className="profile-page-v2" dir={dir}>
+    <div className={`profile-page-v2 profile-page-v2--theme-${extra.profileTheme || 'auto'}`} dir={dir}>
       <div className="profile-page-v2-inner">
         <header className="profile-page-header">
           <div className="profile-page-header-top">
@@ -564,7 +647,7 @@ export default function Profile() {
           <>
             {/* Summary — optional LinkedIn-style cover behind hero */}
             <section
-              className={`profile-card profile-card--hero profile-hero-row${coverSrc ? ' profile-card--hero-cover' : ''}`}
+              className={`profile-card profile-card--hero profile-hero-row${coverSrc ? ' profile-card--hero-cover' : ''}${coverDropActive ? ' profile-card--cover-drop-active' : ''}`}
               style={
                 coverSrc
                   ? {
@@ -572,6 +655,16 @@ export default function Profile() {
                     }
                   : undefined
               }
+              onDragOver={e => {
+                e.preventDefault()
+                setCoverDropActive(true)
+              }}
+              onDragLeave={() => setCoverDropActive(false)}
+              onDrop={e => {
+                e.preventDefault()
+                setCoverDropActive(false)
+                onCoverDrop(e.dataTransfer.files)
+              }}
             >
               <div className="profile-hero-cover-toolbar">
                 <input
@@ -610,13 +703,30 @@ export default function Profile() {
                 ) : null}
               </div>
               <div className="profile-hero-cover-body">
-              <div className="profile-avatar-wrap">
+              {coverDropActive ? <div className="profile-cover-drop-hint">{text.dragDropCover}</div> : null}
+              <div
+                className={`profile-avatar-wrap${avatarDropActive ? ' profile-avatar-wrap--drop-active' : ''}`}
+                onDragOver={e => {
+                  e.preventDefault()
+                  setAvatarDropActive(true)
+                }}
+                onDragLeave={() => setAvatarDropActive(false)}
+                onDrop={e => {
+                  e.preventDefault()
+                  setAvatarDropActive(false)
+                  onAvatarDrop(e.dataTransfer.files)
+                }}
+                title={text.dragDropAvatar}
+              >
                 <div className="profile-avatar-ring" aria-hidden>
                   {avatarSrc ? (
                     <img className="profile-avatar-img" src={avatarSrc} alt="" width={120} height={120} decoding="async" />
                   ) : (
-                    <div className="profile-avatar-empty">
-                      <i className="fa-solid fa-user" aria-hidden />
+                    <div
+                      className="profile-avatar-empty"
+                      style={{ background: `linear-gradient(145deg, ${avatarGradient[0]}, ${avatarGradient[1]})` }}
+                    >
+                      <span className="profile-avatar-empty__initials">{avatarInitials}</span>
                     </div>
                   )}
                 </div>
@@ -624,6 +734,7 @@ export default function Profile() {
                 <button type="button" className="profile-avatar-camera" onClick={() => fileRef.current?.click()} aria-label={text.changePhoto}>
                   <i className="fa-solid fa-camera" aria-hidden />
                 </button>
+                <div className="profile-avatar-drop-hint">{text.dragDropAvatar}</div>
               </div>
               <div className="profile-hero-text">
                 <h2 className="profile-hero-name">{displayName}</h2>
@@ -656,8 +767,8 @@ export default function Profile() {
                   <FieldCell label={text.firstName} value={firstName || text.none} />
                   <FieldCell label={text.lastName} value={lastName || text.none} />
                   <FieldCell label={text.dateOfBirth} value={formatDobDisplay(extra.dateOfBirth, locale) || text.none} />
-                  <FieldCell label={text.emailAddress} value={me.email} />
-                  <FieldCell label={text.phoneNumber} value={extra.phone?.trim() || text.none} />
+                  <FieldCell label={text.emailAddress} value={extra.hideEmailOnProfile ? '••••••' : me.email} />
+                  <FieldCell label={text.phoneNumber} value={extra.hidePhoneOnProfile ? '••••••' : extra.phone?.trim() || text.none} />
                   <FieldCell label={text.userRole} value={roleLabel(normalizeRole(me.role), language)} muted />
                 </div>
               ) : (
@@ -799,7 +910,7 @@ export default function Profile() {
                   rows={[
                     [text.userId, String(me.id)],
                     [text.fullName, me.name],
-                    [text.email, me.email],
+                    [text.email, extra.hideEmailOnProfile ? '••••••' : me.email],
                     [text.role, roleLabel(normalizeRole(me.role), language)],
                     [text.scope, me.scope?.trim() ? me.scope : text.none],
                   ]}
@@ -821,10 +932,10 @@ export default function Profile() {
                     rows={[
                       [text.userId, String(mgmt.id)],
                       [text.fullName, mgmt.name],
-                      [text.email, mgmt.email],
+                      [text.email, extra.hideEmailOnProfile ? '••••••' : mgmt.email],
                       [text.role, roleLabel(normalizeRole(mgmt.role), language)],
                       [text.scope, mgmt.scope?.trim() ? mgmt.scope : text.none],
-                      [text.status, <StatusPill key="st" status={mgmt.status} />],
+                      [text.status, extra.allowActivityStatus === false ? text.none : <StatusPill key="st" status={mgmt.status} />],
                       [text.lastLogin, mgmt.lastLogin],
                       [
                         text.emailVerified,
@@ -837,6 +948,64 @@ export default function Profile() {
                 )}
               </section>
             </div>
+
+            <section className="profile-card profile-card--panel">
+              <div className="profile-card-head">
+                <h3 className="profile-card-title">{text.profileSettings}</h3>
+              </div>
+              <div className="profile-mgmt-grid">
+                <div className="profile-field-cell">
+                  <div className="profile-field-label">{text.avatarManagement}</div>
+                  <div className="profile-settings-actions">
+                    <button type="button" className="profile-btn-edit-primary" onClick={() => fileRef.current?.click()}>
+                      <i className="fa-solid fa-camera" aria-hidden /> {text.changePhoto}
+                    </button>
+                    {!avatarSrc ? <small>{text.smartFallback}</small> : null}
+                  </div>
+                </div>
+                <div className="profile-field-cell">
+                  <div className="profile-field-label">{text.coverCustomization}</div>
+                  <div className="profile-settings-actions">
+                    <button type="button" className="profile-btn-edit-secondary" onClick={() => coverFileRef.current?.click()}>
+                      <i className="fa-solid fa-image" aria-hidden /> {text.changeCoverPhoto}
+                    </button>
+                    {coverSrc ? (
+                      <button type="button" className="profile-btn-cancel" onClick={removeCoverPhoto}>
+                        {text.removeCoverPhoto}
+                      </button>
+                    ) : null}
+                  </div>
+                </div>
+                <div className="profile-field-cell">
+                  <div className="profile-field-label">{text.themePersonalization}</div>
+                  <div className="profile-theme-toggle">
+                    {([
+                      ['auto', text.autoTheme],
+                      ['light', text.lightTheme],
+                      ['dark', text.darkTheme],
+                    ] as const).map(([v, label]) => (
+                      <button
+                        key={v}
+                        type="button"
+                        className={`profile-theme-chip${(extra.profileTheme || 'auto') === v ? ' is-active' : ''}`}
+                        onClick={() => updateProfileFlags({ profileTheme: v })}
+                      >
+                        {label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <div className="profile-field-cell">
+                  <div className="profile-field-label">{text.privacyAccount}</div>
+                  <div className="profile-privacy-list">
+                    <label><input type="checkbox" checked={extra.profileIsPrivate === true} onChange={e => updateProfileFlags({ profileIsPrivate: e.target.checked })} /> {text.accountPrivate}</label>
+                    <label><input type="checkbox" checked={extra.hideEmailOnProfile === true} onChange={e => updateProfileFlags({ hideEmailOnProfile: e.target.checked })} /> {text.hideEmail}</label>
+                    <label><input type="checkbox" checked={extra.hidePhoneOnProfile === true} onChange={e => updateProfileFlags({ hidePhoneOnProfile: e.target.checked })} /> {text.hidePhone}</label>
+                    <label><input type="checkbox" checked={extra.allowActivityStatus !== false} onChange={e => updateProfileFlags({ allowActivityStatus: e.target.checked })} /> {text.activityStatus}</label>
+                  </div>
+                </div>
+              </div>
+            </section>
 
             <div
               className="profile-page-bottom-actions"

@@ -38,6 +38,16 @@ html[data-theme='dark'] .profile-page-v2 {
     var(--ds-color-bg, #0b1220);
 }
 
+.profile-page-v2--theme-light {
+  --pf-surface: color-mix(in srgb, #ffffff 96%, transparent);
+}
+
+.profile-page-v2--theme-dark {
+  --pf-surface: rgba(15, 23, 42, 0.58);
+  --pf-text: #e2e8f0;
+  --pf-muted: #94a3b8;
+}
+
 .profile-page-v2-inner {
   width: 100%;
   max-width: min(1200px, 100%);
@@ -280,6 +290,24 @@ html[data-theme='dark'] .profile-hero-cover-btn--ghost {
   box-sizing: border-box;
 }
 
+.profile-cover-drop-hint {
+  position: absolute;
+  inset: auto 14px 14px 14px;
+  z-index: 3;
+  border: 1px dashed rgba(255, 255, 255, 0.6);
+  background: rgba(15, 23, 42, 0.38);
+  color: #fff;
+  border-radius: 12px;
+  padding: 10px 12px;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.profile-card--cover-drop-active {
+  border-color: color-mix(in srgb, var(--pf-accent) 52%, #fff);
+  box-shadow: var(--pf-shadow-lg), 0 0 0 3px color-mix(in srgb, var(--pf-accent) 28%, transparent);
+}
+
 .profile-card--hero-cover {
   background-size: cover;
   background-position: center center;
@@ -394,6 +422,13 @@ html[data-theme='dark'] .profile-card--mgmt {
   flex-shrink: 0;
 }
 
+.profile-avatar-wrap--drop-active .profile-avatar-ring {
+  transform: scale(1.03);
+  box-shadow:
+    0 26px 56px rgba(15, 23, 42, 0.2),
+    0 0 0 3px color-mix(in srgb, var(--pf-accent) 34%, transparent);
+}
+
 .profile-avatar-ring {
   padding: 4px;
   border-radius: 50%;
@@ -419,6 +454,33 @@ html[data-theme='dark'] .profile-avatar-ring {
   border: 3px solid color-mix(in srgb, var(--ds-color-surface, #fff) 96%, transparent);
   box-shadow: 0 4px 16px rgba(15, 23, 42, 0.08);
   background: linear-gradient(160deg, #ecfdf5, #f0fdf4);
+}
+
+.profile-avatar-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 120px;
+  height: 120px;
+  border-radius: 50%;
+  border: 3px solid color-mix(in srgb, var(--ds-color-surface, #fff) 96%, transparent);
+  box-shadow: 0 8px 20px rgba(15, 23, 42, 0.12);
+}
+
+.profile-avatar-empty__initials {
+  font-size: 34px;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  color: #fff;
+  text-shadow: 0 3px 14px rgba(0, 0, 0, 0.24);
+}
+
+.profile-avatar-drop-hint {
+  margin-top: 10px;
+  max-width: 150px;
+  font-size: 10px;
+  color: var(--pf-muted);
+  text-align: center;
 }
 
 html[data-theme='dark'] .profile-avatar-img {
@@ -890,6 +952,58 @@ html[data-theme='dark'] .profile-field-cell {
   transform: translateY(-1px);
   border-color: color-mix(in srgb, var(--pf-accent) 55%, var(--pf-border));
   background: color-mix(in srgb, var(--pf-accent) 10%, transparent);
+}
+
+.profile-settings-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+}
+
+.profile-settings-actions small {
+  color: var(--pf-muted);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.profile-theme-toggle {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.profile-theme-chip {
+  border: 1px solid var(--pf-border);
+  background: color-mix(in srgb, var(--ds-color-surface, #fff) 94%, transparent);
+  color: var(--pf-text);
+  border-radius: 999px;
+  padding: 7px 12px;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.profile-theme-chip.is-active {
+  border-color: color-mix(in srgb, var(--pf-accent) 55%, var(--pf-border));
+  background: color-mix(in srgb, var(--pf-accent) 14%, transparent);
+}
+
+.profile-privacy-list {
+  display: grid;
+  gap: 8px;
+}
+
+.profile-privacy-list label {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--pf-text);
+}
+
+.profile-privacy-list input[type='checkbox'] {
+  accent-color: color-mix(in srgb, var(--pf-accent) 85%, #000);
 }
 
 @media (max-width: 760px) {

@@ -1,27 +1,51 @@
 import './header.css'
-import { useEffect, useMemo, useRef } from 'react'
+import { useEffect, useMemo, useRef, type CSSProperties } from 'react'
 import { useSystemSettings } from '../store/SystemSettingsContext'
+import { useLanguage } from '../lib/i18n'
 
 const DEFAULT_CENTER_LOGO = 'https://eliteprojects.ae/wp-content/uploads/2022/07/logo-retraced-white-03.png'
 
 export default function HeaderBar() {
   const headerRef = useRef<HTMLElement | null>(null)
   const { settings } = useSystemSettings()
+  const { language } = useLanguage()
   const logoIconSrc = settings.logoIcon.trim()
+  const hs = settings.headerSettings
 
   const centerLogoSrc = useMemo(() => {
-    const isDark = settings.themeMode === 'dark'
+    const prefersDark = typeof window !== 'undefined' && window.matchMedia?.('(prefers-color-scheme: dark)')?.matches
+    const isDark = settings.themeMode === 'dark' || (settings.themeMode === 'system' && prefersDark)
     if (isDark && settings.logoDark.trim()) return settings.logoDark.trim()
     if (!isDark && settings.logoLight.trim()) return settings.logoLight.trim()
     return settings.logoLight.trim() || settings.logoDark.trim() || DEFAULT_CENTER_LOGO
   }, [settings.themeMode, settings.logoLight, settings.logoDark])
+  const logoText = useMemo(() => {
+    if (hs.useProjectName) return String(import.meta.env.VITE_APP_NAME || 'Agro Cloud')
+    if (language === 'ar' && hs.logoTextAr.trim()) return hs.logoTextAr.trim()
+    return hs.logoText.trim() || 'Agro Cloud'
+  }, [hs.logoText, hs.logoTextAr, hs.useProjectName, language])
+  const headerStyle = useMemo(
+    () =>
+      ({
+        '--header-pad-x': `${hs.paddingX}px`,
+        '--header-pad-y': `${hs.paddingY}px`,
+        '--header-blur': `${hs.blur}px`,
+        '--header-logo-font-size': `${hs.fontSize}px`,
+        '--header-logo-font-weight': String(hs.fontWeight),
+        '--header-logo-font-family': hs.fontFamily,
+        '--header-logo-letter-spacing': `${hs.letterSpacing}em`,
+        '--header-logo-color-light': hs.textColorLight,
+        '--header-logo-color-dark': hs.textColorDark,
+      }) as CSSProperties,
+    [hs],
+  )
 
   useEffect(() => {
     const el = headerRef.current
     if (!el) return
 
     const prefersReduced = window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches
-    if (prefersReduced) return
+    if (prefersReduced || !hs.enableAnimation) return
 
     let raf = 0
     let lastX = 0
@@ -57,21 +81,29 @@ export default function HeaderBar() {
       el.removeEventListener('pointermove', onMove)
       el.removeEventListener('pointerleave', onLeave)
     }
-  }, [])
+  }, [hs.enableAnimation])
 
   return (
-    <header className="agri-header" ref={headerRef}>
-      <div className="header-left">
-        <span className="logo-icon">
-          {logoIconSrc ? (
-            <img className="logo-icon__img" src={logoIconSrc} alt="Brand icon" loading="lazy" decoding="async" />
-          ) : (
-            <i className="fa-solid fa-leaf" />
-          )}
-        </span>
-        <span className="logo-text">Agro Cloud</span>
+    <header
+      className={`agri-header agri-header--align-${hs.logoAlign}${hs.sticky ? ' agri-header--sticky' : ''}${hs.transparent ? ' agri-header--transparent' : ''}${hs.autoResize ? ' agri-header--auto-resize' : ''}${hs.mobileShowLogoText ? '' : ' agri-header--hide-mobile-text'}${hs.tabletShowLogoText ? '' : ' agri-header--hide-tablet-text'}`}
+      ref={headerRef}
+      style={headerStyle}
+    >
+      <div className={`header-left${hs.logoAlign === 'center' ? ' header-left--center' : ''}`}>
+        {hs.showLogoIcon ? (
+          <span className="logo-icon">
+            {logoIconSrc ? (
+              <img className="logo-icon__img" src={logoIconSrc} alt="Brand icon" loading="lazy" decoding="async" />
+            ) : hs.logoSvg.trim().startsWith('<svg') ? (
+              <span className="logo-icon__svg" aria-hidden dangerouslySetInnerHTML={{ __html: hs.logoSvg }} />
+            ) : (
+              <i className={hs.iconClass || 'fa-solid fa-leaf'} />
+            )}
+          </span>
+        ) : null}
+        {hs.showLogoText ? <span className="logo-text">{logoText}</span> : null}
       </div>
-      <div className="header-center">
+      <div className={`header-center${hs.showCenterLogo ? '' : ' header-center--hidden'}`}>
         <img
           className="brand-logo"
           src={centerLogoSrc}

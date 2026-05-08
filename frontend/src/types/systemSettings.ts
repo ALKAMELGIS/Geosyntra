@@ -44,6 +44,35 @@ export type HomePageSettings = {
   backgroundImage: string
 }
 
+export type HeaderSettings = {
+  logoText: string
+  logoTextAr: string
+  useProjectName: boolean
+  fontFamily: string
+  fontSize: number
+  fontWeight: number
+  textColorLight: string
+  textColorDark: string
+  letterSpacing: number
+  paddingX: number
+  paddingY: number
+  showLogoText: boolean
+  showLogoIcon: boolean
+  showCenterLogo: boolean
+  logoAlign: 'start' | 'center' | 'space-between'
+  mobileShowLogoText: boolean
+  tabletShowLogoText: boolean
+  sticky: boolean
+  transparent: boolean
+  blur: number
+  enableAnimation: boolean
+  autoResize: boolean
+  iconClass: string
+  logoSvg: string
+  layoutPreset: 'default' | 'balanced' | 'branding' | 'minimal'
+  autoSave: boolean
+}
+
 /** User-defined API token cards (metadata in settings; secret values in localStorage and on the Node server when `/api/system/api-secrets` is available). */
 export type CustomApiTokenSlot = {
   id: string
@@ -75,6 +104,7 @@ export type SystemSettingsPersistedV1 = {
   navOverrides: Record<string, NavItemOverride>
   customPages: CustomPageRecord[]
   homePage: HomePageSettings
+  headerSettings: HeaderSettings
   /** Extra API token types admins add without a code change */
   customApiTokenSlots: CustomApiTokenSlot[]
 }
