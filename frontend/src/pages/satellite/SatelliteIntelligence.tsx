@@ -3464,6 +3464,21 @@ export default function SatelliteIntelligence() {
     setFieldAnalysisStatus(`Timeline ready: ${synthetic.length} week(s) for ${ENVIRONMENTAL_INDICES[selectedIndex].label}.`);
   };
 
+  const stopFieldAnalysisTimeline = useCallback(() => {
+    setIsTimelinePlaying(false);
+    setWeeklyComposites([]);
+    setFieldAnalysisStatus('Timeline stopped. Adjust the date range and tap Generate timeline to start again.');
+  }, []);
+
+  /** Same control: generate weekly strip, or stop playback and clear it for a fresh run. */
+  const onFieldAnalysisTimelinePrimaryClick = () => {
+    if (weeklyComposites.length > 0) {
+      stopFieldAnalysisTimeline();
+      return;
+    }
+    generateFieldAnalysisTimeline();
+  };
+
   const openExploreStacFromSource = () => {
     setExpandedEnvSection('explore-stac');
     setExploreTab('parameters');
@@ -6303,12 +6318,50 @@ export default function SatelliteIntelligence() {
     if (!drawnGeometry) return null;
     const raw = getGeoJsonBounds(drawnGeometry as any);
     if (!raw) return null;
-    const [w, s, e, n] = raw;
-    if (![w, s, e, n].every(Number.isFinite) || e <= w || n <= s) return null;
+    let [w, s, e, n] = raw;
+    if (![w, s, e, n].every(Number.isFinite)) return null;
+    const eps = 1e-4;
+    if (e <= w) {
+      const c = (w + e) / 2;
+      w = c - eps;
+      e = c + eps;
+    }
+    if (n <= s) {
+      const c = (s + n) / 2;
+      s = c - eps;
+      n = c + eps;
+    }
     const padX = Math.max((e - w) * 0.02, 1e-6);
     const padY = Math.max((n - s) * 0.02, 1e-6);
     return [w - padX, s - padY, e + padX, n + padY];
   }, [drawnGeometry]);
+
+  const drawnAoiWmsClipReady = !drawnGeometry || !!wmsRasterAoiBoundsLngLat;
+
+  /**
+   * react-map-gl <Source> does not apply standalone `bounds` updates (see updateSource in library).
+   * Sync Mapbox RasterTileSource.setBounds after mount so AOI clipping always matches the sketch.
+   */
+  useLayoutEffect(() => {
+    if (!isMapLoaded || !sentinelVisible) return;
+    const map = mapRef.current?.getMap?.() ?? mapRef.current;
+    if (!map?.isStyleLoaded?.()) return;
+    const sync = () => {
+      try {
+        const src = map.getSource('sentinel-source') as { setBounds?: (b: [number, number, number, number] | null) => void } | null;
+        if (!src || typeof src.setBounds !== 'function') return;
+        src.setBounds(wmsRasterAoiBoundsLngLat ?? null);
+      } catch {
+        /* ignore map/source race during style rebuild */
+      }
+    };
+    const t = window.setTimeout(sync, 0);
+    map.once('idle', sync);
+    return () => {
+      window.clearTimeout(t);
+      map.off('idle', sync);
+    };
+  }, [isMapLoaded, sentinelVisible, wmsRasterAoiBoundsLngLat, wmsTileUrl, activeWmsLayer, wmsDate, drawnGeometry]);
 
   const polygonSketchHudText = useMemo(() => {
     if (mapDrawTool !== 'polygon') return '';
@@ -6621,7 +6674,7 @@ export default function SatelliteIntelligence() {
               </Source>
             )}
 
-            {isMapLoaded && sentinelVisible && (
+            {isMapLoaded && sentinelVisible && drawnAoiWmsClipReady && (
               <Source
                 key={`sentinel-${activeWmsLayer}-${wmsDate}-${wmsRasterAoiBoundsLngLat?.join(',') ?? 'world'}`}
                 id="sentinel-source"
@@ -7829,8 +7882,9 @@ export default function SatelliteIntelligence() {
                           <p className="si-field-analysis-hint">
                             Browse satellite imagery changes over time: pick a start/end range, tap{' '}
                             <strong>Generate timeline</strong>, then use the playback controls on the map bar to step
-                            through dates. This workflow is <strong>separate from Run</strong> — Run only clips the
-                            analysis raster to your AOI; it does not build or play the timeline.
+                            through dates. Tap again for <strong>Stop Timeline</strong> to halt and reset. This workflow
+                            is <strong>separate from Run</strong> — Run only clips the analysis raster to your AOI; it does
+                            not build or play the timeline.
                           </p>
                           <div className="si-field-analysis-date-row">
                             <label className="si-field-analysis-field">
@@ -7870,18 +7924,28 @@ export default function SatelliteIntelligence() {
                           <div className="si-rs-actions si-rs-actions--compact">
                             <button
                               type="button"
-                              className="si-field-analysis-timeline-btn"
-                              onClick={generateFieldAnalysisTimeline}
-                              aria-label="Generate weekly timeline from selected date range — not started by Run"
+                              className={
+                                'si-field-analysis-timeline-btn' +
+                                (weeklyComposites.length > 0 ? ' si-field-analysis-timeline-btn--stop' : '')
+                              }
+                              onClick={onFieldAnalysisTimelinePrimaryClick}
+                              aria-label={
+                                weeklyComposites.length > 0
+                                  ? 'Stop Timeline: pause map playback and clear weekly chips'
+                                  : 'Generate weekly timeline from selected date range — not started by Run'
+                              }
                             >
-                              <i className="fa-solid fa-chart-line" aria-hidden />
-                              Generate timeline
+                              <i
+                                className={weeklyComposites.length > 0 ? 'fa-solid fa-stop' : 'fa-solid fa-chart-line'}
+                                aria-hidden
+                              />
+                              {weeklyComposites.length > 0 ? 'Stop Timeline' : 'Generate timeline'}
                             </button>
                           </div>
                           <p className="si-field-analysis-hint">
-                            After the timeline exists, use play/pause on the map timeline strip. Run (above) does not
-                            create this timeline — only this button does. AOI drawing and static charts use the Analysis
-                            tools row.
+                            After the timeline exists, use play/pause on the map timeline strip. Tap the same button
+                            again for <strong>Stop Timeline</strong> to end playback and clear chips. Run (above) does not
+                            create this timeline. AOI drawing and static charts use the Analysis tools row.
                           </p>
                         </div>
 
