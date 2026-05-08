@@ -2048,6 +2048,22 @@ function GisContentPage() {
           <div className="gis-content-sidebar-shell">
             <nav className="gis-content-sidebar-rail" aria-label="GIS sidebar modes">
               <div className="gis-content-sidebar-rail-top">
+                <button
+                  type="button"
+                  className="gis-content-sidebar-rail-btn gis-content-sidebar-rail-btn--add-layer"
+                  title="Add layer"
+                  aria-label="Add layer"
+                  onClick={() => {
+                    openAddLayer()
+                    setSidebarContextMode('layers')
+                    setSidebarPanelCollapsed(false)
+                  }}
+                >
+                  <span className="gis-content-sidebar-rail-btn__glyph" aria-hidden="true">
+                    <i className="fa-solid fa-plus" />
+                  </span>
+                  <span className="gis-content-sidebar-rail-btn__label">Add layer</span>
+                </button>
                 {SIDEBAR_RAIL_MODES.map(m => (
                   <button
                     key={m.id}
@@ -2100,19 +2116,8 @@ function GisContentPage() {
                   <i className={sidebarHead.icon} aria-hidden="true" />
                   <span className="gis-sidebar-title-text">{sidebarHead.text}</span>
                 </div>
-                <div className="gis-sidebar-actions" aria-label="Sidebar header actions">
-                  {sidebarContextMode === 'layers' ? (
-                    <button
-                      className="gis-addlayer-btn gis-addlayer-btn--icon-only"
-                      type="button"
-                      onClick={openAddLayer}
-                      aria-label="Add layer"
-                      title="Add layer"
-                    >
-                      <i className="fa-solid fa-plus" aria-hidden="true" />
-                    </button>
-                  ) : null}
-                  {sidebarContextMode === 'maps' ? (
+                {sidebarContextMode === 'maps' ? (
+                  <div className="gis-sidebar-actions" aria-label="Sidebar header actions">
                     <a
                       className="gis-addlayer-btn gis-addlayer-btn--icon-only"
                       href="/satellite/gis"
@@ -2122,8 +2127,8 @@ function GisContentPage() {
                     >
                       <i className="fa-solid fa-map" aria-hidden="true" />
                     </a>
-                  ) : null}
-                </div>
+                  </div>
+                ) : null}
               </div>
 
               <div className="gis-sidebar-body" id="gis-sidebar-panel">

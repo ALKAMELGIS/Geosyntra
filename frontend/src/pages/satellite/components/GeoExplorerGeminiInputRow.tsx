@@ -131,7 +131,7 @@ function relevanceBonus(q: string, label: string): number {
 }
 
 /**
- * Geo AI / Geo Explorer composer: textarea with inset mic, optional attach, send.
+ * Geo AI / Geo Explorer composer: textarea for text, floating voice/lang dock beside it, attach + send.
  */
 export function GeoExplorerGeminiInputRow(props: GeoExplorerGeminiInputRowProps) {
   const {
@@ -179,6 +179,13 @@ export function GeoExplorerGeminiInputRow(props: GeoExplorerGeminiInputRowProps)
       voice.startListening()
     }
   }
+
+  const speechLangArabic = voice.lang.toLowerCase().startsWith('ar')
+  const voiceUiState: 'idle' | 'listening' | 'capturing' =
+    !enableVoice || busy ? 'idle' : voice.listening ? (voice.interimTranscript.trim() ? 'capturing' : 'listening') : 'idle'
+
+  const interimPreview =
+    voice.interimTranscript.trim().length > 56 ? `${voice.interimTranscript.trim().slice(0, 54)}…` : voice.interimTranscript.trim()
 
   const qRaw = draft.trim()
   const q = qRaw.toLowerCase()
@@ -639,74 +646,91 @@ export function GeoExplorerGeminiInputRow(props: GeoExplorerGeminiInputRowProps)
           )}
         </div>
       ) : null}
-      <div className={pfx(cssPrefix, 'input-row')}>
-        <div className={pfx(cssPrefix, 'input-shell')}>
-          <textarea
-            ref={textareaRef}
-            className={pfx(cssPrefix, 'input')}
-            rows={2}
-            value={draft}
-            onChange={e => onDraftChange(e.target.value)}
-            onFocus={() => setComposerFocused(true)}
-            onBlur={() => {
-              window.setTimeout(() => {
-                const a = document.activeElement
-                if (a && a.closest?.(`.${pfx(cssPrefix, 'smart-suggest-panel')}`)) return
-                if (a && a.closest?.(`.${pfx(cssPrefix, 'optimize-wrap')}`)) return
-                setComposerFocused(false)
-              }, 0)
-            }}
-            onKeyDown={e => {
-              onTextareaKeyDown(e)
-              if (e.key === 'Enter' && !e.shiftKey) {
-                e.preventDefault()
-                onSend()
-              }
-            }}
-            placeholder={placeholder}
-            aria-label={textareaAriaLabel}
-            disabled={busy}
-          />
-          <div className={pfx(cssPrefix, 'input-inset-trail')}>
-            {voice.listening ? (
-              <span className={pfx(cssPrefix, 'input-listening')} aria-live="polite">
-                Listening…
-              </span>
-            ) : null}
-            {enableVoice ? (
-              <>
-                <button
-                  type="button"
-                  className={`${pfx(cssPrefix, 'mic')} ${voice.listening ? `${pfx(cssPrefix, 'mic--active')}` : ''} ${
-                    !voice.supported ? `${pfx(cssPrefix, 'mic--unsupported')}` : ''
-                  }`}
-                  onClick={onMicClick}
-                  disabled={busy}
-                  aria-label={voice.listening ? 'Stop voice input' : 'Voice input'}
-                  title={
-                    voice.supported
-                      ? `${voice.listening ? 'Stop' : 'Start'} voice (${voice.lang}). Use the EN/ع chip to switch English/Arabic.`
-                      : 'Voice input is not available in this browser (try Chrome or Edge). Click for details.'
-                  }
-                >
-                  <i className="fa-solid fa-microphone" aria-hidden />
-                </button>
-                <button
-                  type="button"
-                  className={pfx(cssPrefix, 'lang-chip')}
-                  onClick={() => {
-                    voice.cycleLang()
-                    voice.clearError()
-                  }}
-                  disabled={busy}
-                  aria-label="Toggle speech language English / Arabic"
-                  title={`Speech language: ${voice.lang} (click to toggle)`}
-                >
-                  {voice.lang.toLowerCase().startsWith('ar') ? 'ع' : 'EN'}
-                </button>
-              </>
-            ) : null}
+      <div className={pfx(cssPrefix, 'input-row')} data-voice-state={enableVoice ? voiceUiState : undefined}>
+        <div className={pfx(cssPrefix, 'input-composer')}>
+          <div className={pfx(cssPrefix, 'input-shell')}>
+            <textarea
+              ref={textareaRef}
+              className={pfx(cssPrefix, 'input')}
+              rows={2}
+              value={draft}
+              onChange={e => onDraftChange(e.target.value)}
+              onFocus={() => setComposerFocused(true)}
+              onBlur={() => {
+                window.setTimeout(() => {
+                  const a = document.activeElement
+                  if (a && a.closest?.(`.${pfx(cssPrefix, 'smart-suggest-panel')}`)) return
+                  if (a && a.closest?.(`.${pfx(cssPrefix, 'optimize-wrap')}`)) return
+                  setComposerFocused(false)
+                }, 0)
+              }}
+              onKeyDown={e => {
+                onTextareaKeyDown(e)
+                if (e.key === 'Enter' && !e.shiftKey) {
+                  e.preventDefault()
+                  onSend()
+                }
+              }}
+              placeholder={placeholder}
+              aria-label={textareaAriaLabel}
+              disabled={busy}
+            />
           </div>
+          {enableVoice ? (
+            <div
+              className={`${pfx(cssPrefix, 'voice-side')} ${pfx(cssPrefix, `voice-side--${voiceUiState}`)}`}
+              aria-label="Voice input and speech language"
+            >
+              <div className={pfx(cssPrefix, 'voice-side-float')} role="group">
+                {voiceUiState === 'capturing' && interimPreview ? (
+                  <div className={pfx(cssPrefix, 'voice-capture-line')} aria-live="polite">
+                    <span className={pfx(cssPrefix, 'voice-capture-dot')} aria-hidden />
+                    <span className={pfx(cssPrefix, 'voice-capture-text')}>{interimPreview}</span>
+                  </div>
+                ) : voiceUiState === 'listening' || voiceUiState === 'capturing' ? (
+                  <div className={pfx(cssPrefix, 'voice-status-line')} aria-live="polite">
+                    <span className={pfx(cssPrefix, 'voice-status-dot')} aria-hidden />
+                    {voiceUiState === 'capturing' ? 'Capturing speech…' : 'Listening…'}
+                  </div>
+                ) : null}
+                <div className={pfx(cssPrefix, 'voice-mini-actions')}>
+                  <button
+                    type="button"
+                    className={`${pfx(cssPrefix, 'mic')} ${voice.listening ? `${pfx(cssPrefix, 'mic--active')}` : ''} ${
+                      voiceUiState === 'capturing' ? `${pfx(cssPrefix, 'mic--capturing')}` : ''
+                    } ${!voice.supported ? `${pfx(cssPrefix, 'mic--unsupported')}` : ''}`}
+                    onClick={onMicClick}
+                    disabled={busy}
+                    aria-pressed={voice.listening}
+                    aria-label={voice.listening ? 'Stop voice input' : 'Start voice input'}
+                    title={
+                      voice.supported
+                        ? `${voice.listening ? 'Stop' : 'Start'} voice (${speechLangArabic ? 'Arabic' : 'English'}). Toggle language with the button beside this mic.`
+                        : 'Voice input is not available in this browser (try Chrome or Edge).'
+                    }
+                  >
+                    <i className="fa-solid fa-microphone" aria-hidden />
+                  </button>
+                  <button
+                    type="button"
+                    className={pfx(cssPrefix, 'lang-chip')}
+                    onClick={() => {
+                      voice.cycleLang()
+                      voice.clearError()
+                    }}
+                    disabled={busy}
+                    aria-label={`Speech language: ${speechLangArabic ? 'Arabic' : 'English'}. Press to switch.`}
+                    title={`Speech language: ${speechLangArabic ? 'Arabic (ar)' : 'English (en)'}. Click to toggle.`}
+                  >
+                    <span className={pfx(cssPrefix, 'lang-chip-stack')} aria-hidden>
+                      <span className={pfx(cssPrefix, 'lang-chip-full')}>{speechLangArabic ? 'Arabic' : 'English'}</span>
+                      <span className={pfx(cssPrefix, 'lang-chip-abbr')}>{speechLangArabic ? 'AR' : 'EN'}</span>
+                    </span>
+                  </button>
+                </div>
+              </div>
+            </div>
+          ) : null}
         </div>
         {showAttach && fileInputRef && onAttachChange ? (
           <>

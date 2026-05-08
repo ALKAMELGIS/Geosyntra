@@ -65,6 +65,8 @@ export function useGeoAiSpeechRecognition(options: UseGeoAiSpeechRecognitionOpti
   const { disabled, onFinalTranscript } = options
   const [supported] = useState(() => Boolean(getRecognitionCtor()))
   const [listening, setListening] = useState(false)
+  /** Latest non-final transcript while recognition is running (UI: “capturing” vs idle mic). */
+  const [interimTranscript, setInterimTranscript] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [lang, setLang] = useState<string>(() => defaultGeoAiSpeechLang())
   const recRef = useRef<SpeechRecognitionLike | null>(null)
@@ -80,6 +82,7 @@ export function useGeoAiSpeechRecognition(options: UseGeoAiSpeechRecognitionOpti
     }
     recRef.current = null
     setListening(false)
+    setInterimTranscript('')
   }, [])
 
   useEffect(() => () => stopListening(), [stopListening])
@@ -100,6 +103,7 @@ export function useGeoAiSpeechRecognition(options: UseGeoAiSpeechRecognitionOpti
       return
     }
     setError(null)
+    setInterimTranscript('')
     try {
       recRef.current?.abort()
     } catch {
@@ -114,6 +118,12 @@ export function useGeoAiSpeechRecognition(options: UseGeoAiSpeechRecognitionOpti
     finalsAccRef.current = ''
 
     rec.onresult = (event: SpeechRecEvent) => {
+      let interim = ''
+      for (let i = 0; i < event.results.length; i++) {
+        const r = event.results[i]
+        if (!r.isFinal) interim += r[0]?.transcript ?? ''
+      }
+      setInterimTranscript(interim)
       for (let i = event.resultIndex; i < event.results.length; i++) {
         const r = event.results[i]
         if (r.isFinal) finalsAccRef.current += r[0]?.transcript ?? ''
@@ -124,12 +134,14 @@ export function useGeoAiSpeechRecognition(options: UseGeoAiSpeechRecognitionOpti
       const msg = mapSpeechErrorMessage(ev)
       if (msg) setError(msg)
       setListening(false)
+      setInterimTranscript('')
       recRef.current = null
       finalsAccRef.current = ''
     }
 
     rec.onend = () => {
       setListening(false)
+      setInterimTranscript('')
       recRef.current = null
       const t = finalsAccRef.current.trim()
       finalsAccRef.current = ''
@@ -152,6 +164,7 @@ export function useGeoAiSpeechRecognition(options: UseGeoAiSpeechRecognitionOpti
   return {
     supported,
     listening,
+    interimTranscript,
     error,
     clearError,
     lang,

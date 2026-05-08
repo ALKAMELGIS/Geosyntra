@@ -11181,6 +11181,18 @@ html[data-theme='dark'] .gis-domain-cell--dropdown.missing-description .gis-doma
   color: #ffffff;
 }
 
+.gis-content-page .gis-content-sidebar-rail-btn--add-layer {
+  border-color: rgba(16, 185, 129, 0.42);
+  background: rgba(16, 185, 129, 0.16);
+  color: #ecfdf5;
+}
+
+.gis-content-page .gis-content-sidebar-rail-btn--add-layer:hover {
+  background: rgba(16, 185, 129, 0.28);
+  border-color: rgba(52, 211, 153, 0.52);
+  color: #ffffff;
+}
+
 .gis-content-page .gis-content-sidebar-panel {
   flex: 1 1 auto;
   min-width: 0;
