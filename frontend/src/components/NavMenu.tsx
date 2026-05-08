@@ -448,7 +448,15 @@ export default function NavMenu({ onLogout }: NavMenuProps) {
           closeAllGroups()
         }}
       >
-        <i className={mobileOpen ? 'fa-solid fa-xmark' : 'fa-solid fa-bars'}></i>
+        {mobileOpen ? (
+          <i className="fa-solid fa-xmark" aria-hidden></i>
+        ) : (
+          <span className="nav-toggle-hamburger" aria-hidden="true" title="☰">
+            <span className="nav-toggle-hamburger__line" />
+            <span className="nav-toggle-hamburger__line" />
+            <span className="nav-toggle-hamburger__line" />
+          </span>
+        )}
       </button>
       <button
         className="nav-collapse-toggle"

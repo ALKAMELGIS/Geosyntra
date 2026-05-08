@@ -1584,21 +1584,17 @@ function GisContentPage() {
         ) : null}
         <button
           type="button"
-          className="gis-btn gis-btn-primary gis-content-master-save-btn"
+          className="gis-btn gis-btn-primary gis-content-master-save-btn gis-content-master-save-btn--icon"
           onClick={() => void applyAndSaveMasterData()}
           disabled={!layersLoaded || masterSaveBusy || !!layersLoadError}
+          aria-busy={masterSaveBusy}
+          aria-label={masterSaveBusy ? 'Saving…' : 'Save master data'}
           title="Persist layers and schema to browser storage (IndexedDB + localStorage) as master data for the map, data entry, and Geo AI."
         >
           {masterSaveBusy ? (
-            <>
-              <i className="fa-solid fa-spinner fa-spin" aria-hidden="true" />
-              <span>Saving…</span>
-            </>
+            <i className="fa-solid fa-spinner fa-spin" aria-hidden="true" />
           ) : (
-            <>
-              <i className="fa-solid fa-floppy-disk" aria-hidden="true" />
-              <span>Apply and Save</span>
-            </>
+            <i className="fa-solid fa-floppy-disk" aria-hidden="true" />
           )}
         </button>
         <div className="gis-content-tabs" role="tablist" aria-label="Layer management tabs">
@@ -1606,34 +1602,47 @@ function GisContentPage() {
             type="button"
             role="tab"
             aria-selected={activeTab === 'data'}
-            className={activeTab === 'data' ? 'gis-content-tab active' : 'gis-content-tab'}
+            className={activeTab === 'data' ? 'gis-content-tab gis-content-tab--icon active' : 'gis-content-tab gis-content-tab--icon'}
             onClick={() => setActiveTab('data')}
             disabled={!selectedLayer}
+            aria-label="Data"
+            title="Data"
           >
-            Data
+            <i className="fa-solid fa-table-cells" aria-hidden="true" />
           </button>
           <button
             type="button"
             role="tab"
             aria-selected={activeTab === 'fields'}
-            className={activeTab === 'fields' ? 'gis-content-tab active' : 'gis-content-tab'}
+            className={activeTab === 'fields' ? 'gis-content-tab gis-content-tab--icon active' : 'gis-content-tab gis-content-tab--icon'}
             onClick={() => setActiveTab('fields')}
             disabled={!selectedLayer}
+            aria-label="Fields"
+            title="Fields"
           >
-            Fields
+            <i className="fa-solid fa-table-columns" aria-hidden="true" />
           </button>
           <button
             type="button"
             role="tab"
             aria-selected={activeTab === 'relationships'}
-            className={activeTab === 'relationships' ? 'gis-content-tab active' : 'gis-content-tab'}
+            className={
+              activeTab === 'relationships' ? 'gis-content-tab gis-content-tab--icon active' : 'gis-content-tab gis-content-tab--icon'
+            }
             onClick={() => setActiveTab('relationships')}
+            aria-label="Relationships"
+            title="Relationships"
           >
-            Relationships
+            <i className="fa-solid fa-share-nodes" aria-hidden="true" />
           </button>
-          <button className="gis-content-tab gis-content-tab-docs" type="button" onClick={() => setHelpOpen(true)}>
-            <i className="fa-solid fa-book" aria-hidden="true" />
-            <span>Documentation</span>
+          <button
+            className="gis-content-tab gis-content-tab--icon gis-content-tab-docs"
+            type="button"
+            onClick={() => setHelpOpen(true)}
+            aria-label="Documentation"
+            title="Documentation"
+          >
+            <i className="fa-solid fa-book-open" aria-hidden="true" />
           </button>
         </div>
       </div>
@@ -1963,28 +1972,18 @@ function GisContentPage() {
             <div className="gis-sidebar-body-main gis-sidebar-body-main--collapsed-rail">
               <button
                 type="button"
-                className="gis-sidebar-collapsed-layers gis-sidebar-expand-rail"
+                className="gis-sidebar-collapsed-layers"
                 onClick={() => setSidebarCollapsed(false)}
                 aria-label={`Expand to browse ${rows.length} layer${rows.length === 1 ? '' : 's'}`}
                 title="Show layers list"
               >
-                <span className="gis-sidebar-collapsed-layers__visual" aria-hidden>
-                  <span className="gis-sidebar-collapsed-layers__stack-bars">
-                    <span className="gis-sidebar-collapsed-layers__stack-bar" />
-                    <span className="gis-sidebar-collapsed-layers__stack-bar" />
-                    <span className="gis-sidebar-collapsed-layers__stack-bar" />
+                <span className="gis-sidebar-collapsed-layers__icon-slot" aria-hidden="true">
+                  <span className="gis-sidebar-collapsed-layers__icon-wrap">
+                    <i className="fa-solid fa-layer-group" />
                   </span>
-                  <span className="gis-sidebar-collapsed-layers__icon-slot">
-                    <span className="gis-sidebar-collapsed-layers__icon-wrap">
-                      <i className="fa-solid fa-layer-group" />
-                    </span>
-                    {rows.length > 0 ? (
-                      <span className="gis-sidebar-collapsed-layers__badge">{rows.length}</span>
-                    ) : null}
-                  </span>
-                  <span className="gis-sidebar-expand-rail__chev" aria-hidden="true">
-                    <i className="fa-solid fa-angles-right" />
-                  </span>
+                  {rows.length > 0 ? (
+                    <span className="gis-sidebar-collapsed-layers__badge">{rows.length}</span>
+                  ) : null}
                 </span>
               </button>
             </div>
@@ -2143,26 +2142,17 @@ function GisContentPage() {
             ) : null}
           </div>
             </div>
-            <footer className="gis-sidebar-foot-toolbar gis-sidebar-foot-toolbar--rail-minimal" aria-label="Sidebar tools">
+            <footer className="gis-sidebar-foot-toolbar" aria-label="Sidebar tools">
               <button
                 type="button"
-                className="gis-sidebar-foot-item gis-sidebar-foot-item--primary gis-sidebar-foot-item--icon-only gis-sidebar-collapse-trigger"
+                className="gis-sidebar-foot-item gis-sidebar-foot-item--primary gis-sidebar-foot-item--icon-only"
                 onClick={() => setSidebarCollapsed(true)}
                 aria-controls="gis-sidebar-panel"
                 aria-expanded
                 aria-label="Collapse GIS layers panel"
                 title="Hide layers list"
               >
-                <span className="gis-sidebar-collapse-trigger__rail" aria-hidden="true">
-                  <span className="gis-sidebar-collapse-trigger__grip">
-                    <span className="gis-sidebar-collapse-trigger__grip-line gis-sidebar-collapse-trigger__grip-line--a" />
-                    <span className="gis-sidebar-collapse-trigger__grip-line gis-sidebar-collapse-trigger__grip-line--b" />
-                    <span className="gis-sidebar-collapse-trigger__grip-line gis-sidebar-collapse-trigger__grip-line--c" />
-                  </span>
-                  <span className="gis-sidebar-collapse-trigger__chevron">
-                    <i className="fa-solid fa-angles-left" />
-                  </span>
-                </span>
+                <i className="fa-solid fa-angles-left" aria-hidden="true" />
                 <span className="db-sr-only">Collapse GIS layers panel</span>
               </button>
             </footer>

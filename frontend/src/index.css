@@ -3693,6 +3693,60 @@ aside {
   align-items: stretch;
 }
 
+/* Mobile GIS drawer: ArcGIS-style vertical icon rail (left) + scrollable layers column — order matches desktop rail */
+.gis-sidebar-body-main--with-atlas-rail {
+  flex-direction: row;
+  align-items: stretch;
+  gap: 0;
+  padding: 0;
+  padding-inline: 0;
+}
+
+.gis-sidebar-rail.gis-sidebar-rail--mobile-drawer {
+  width: 52px;
+  min-width: 52px;
+  max-width: 52px;
+  flex: 0 0 52px;
+  align-self: stretch;
+  border-radius: 0;
+  border-right: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: inset -1px 0 0 rgba(0, 0, 0, 0.22);
+}
+
+.gis-sidebar-rail--mobile-drawer.gis-sidebar-rail--agol {
+  width: 52px;
+  min-width: 52px;
+  flex: 0 0 52px;
+}
+
+.gis-sidebar-rail--mobile-drawer .gis-sidebar-v-toolbar__main {
+  padding: 8px 5px 14px;
+}
+
+.gis-sidebar-rail--mobile-drawer .gis-sidebar-rail__sep {
+  margin: 6px 0;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.14), transparent);
+}
+
+.gis-sidebar-body-main__fill {
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 10px 10px 10px 12px;
+  box-sizing: border-box;
+  scrollbar-gutter: stable;
+}
+
+/* Desktop: wrapper does not affect layout (single scroll column stays on .gis-sidebar-body-main) */
+.gis-sidebar-body-main__fill--desktop {
+  display: contents;
+}
+
 /* Bottom toolbar — same light family as .gis-sidebar-body (no dark strip) */
 .gis-sidebar-foot-toolbar {
   flex-shrink: 0;
@@ -3770,16 +3824,6 @@ aside {
     0 8px 20px rgba(4, 120, 87, 0.1);
 }
 
-.gis-sidebar-foot-toolbar--rail-minimal {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  padding: 10px 8px 12px;
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.92) 0%, rgba(248, 250, 252, 0.98) 100%);
-  border-top: 1px solid rgba(15, 23, 42, 0.06);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.9);
-}
-
 .gis-sidebar-foot-item__glyph {
   width: 34px;
   height: 34px;
@@ -3803,106 +3847,6 @@ aside {
 .gis-sidebar-foot-toolbar .gis-sidebar-slot--actions-end:empty,
 .gis-sidebar-foot-toolbar .gis-sidebar-slot--expand-tooltip:empty {
   display: none;
-}
-
-/* Premium collapse control — capsule rail + grip + chevron (GIS Content sidebar footer) */
-.gis-sidebar-collapse-trigger.gis-sidebar-foot-item {
-  justify-content: center;
-  padding: 6px 4px 8px !important;
-  background: transparent !important;
-  box-shadow: none !important;
-}
-
-.gis-sidebar-collapse-trigger.gis-sidebar-foot-item:hover {
-  background: transparent !important;
-  box-shadow: none !important;
-}
-
-.gis-sidebar-collapse-trigger__rail {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  width: 100%;
-  max-width: 58px;
-  margin: 0 auto;
-  padding: 11px 10px 13px;
-  border-radius: 999px;
-  background: linear-gradient(165deg, #ffffff 0%, #f0fdf4 42%, #ecfdf5 100%);
-  border: 1px solid rgba(4, 120, 87, 0.14);
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.94),
-    0 12px 34px rgba(4, 120, 87, 0.08),
-    0 2px 10px rgba(15, 23, 42, 0.05);
-  transition:
-    transform 0.22s cubic-bezier(0.2, 0.8, 0.2, 1),
-    box-shadow 0.22s ease,
-    border-color 0.22s ease;
-}
-
-.gis-sidebar-collapse-trigger:hover .gis-sidebar-collapse-trigger__rail {
-  transform: translateY(-2px);
-  border-color: rgba(4, 120, 87, 0.22);
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.96),
-    0 18px 44px rgba(4, 120, 87, 0.12),
-    0 4px 14px rgba(15, 23, 42, 0.07);
-}
-
-.gis-sidebar-collapse-trigger:active .gis-sidebar-collapse-trigger__rail {
-  transform: translateY(0);
-}
-
-.gis-sidebar-collapse-trigger__grip {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 3px;
-  opacity: 0.88;
-}
-
-.gis-sidebar-collapse-trigger__grip-line {
-  display: block;
-  height: 2px;
-  border-radius: 999px;
-  background: linear-gradient(90deg, rgba(4, 120, 87, 0.08), rgba(16, 185, 129, 0.42), rgba(4, 120, 87, 0.08));
-  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.75) inset;
-}
-
-.gis-sidebar-collapse-trigger__grip-line--a {
-  width: 22px;
-}
-
-.gis-sidebar-collapse-trigger__grip-line--b {
-  width: 16px;
-  opacity: 0.92;
-}
-
-.gis-sidebar-collapse-trigger__grip-line--c {
-  width: 10px;
-  opacity: 1;
-}
-
-.gis-sidebar-collapse-trigger__chevron {
-  width: 36px;
-  height: 36px;
-  border-radius: 12px;
-  display: grid;
-  place-items: center;
-  font-size: 13px;
-  color: #065f46;
-  background: linear-gradient(145deg, #ffffff 0%, #d1fae5 100%);
-  border: 1px solid rgba(4, 120, 87, 0.2);
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.92),
-    0 6px 18px rgba(4, 120, 87, 0.12);
-  transition: transform 0.18s ease, color 0.18s ease;
-}
-
-.gis-sidebar-collapse-trigger:hover .gis-sidebar-collapse-trigger__chevron {
-  color: #047857;
-  transform: scale(1.04);
 }
 
 .gis-sidebar--layers-collapsed .gis-sidebar-body {
@@ -5977,6 +5921,21 @@ button.gis-tool-list-row--action:hover {
   flex-shrink: 0;
 }
 
+.gis-content-master-save-btn--icon {
+  gap: 0;
+  justify-content: center;
+  width: 42px;
+  min-width: 42px;
+  height: 42px;
+  padding: 0;
+  border-radius: 14px;
+  box-shadow: 0 4px 14px rgba(5, 96, 67, 0.25);
+}
+
+.gis-content-master-save-btn--icon i {
+  font-size: 17px;
+}
+
 .gis-content-master-save-hint {
   font-size: 12px;
   font-weight: 650;
@@ -6035,6 +5994,32 @@ button.gis-tool-list-row--action:hover {
 .gis-content-tab i {
   font-size: 14px;
   line-height: 1;
+}
+
+.gis-content-tab--icon {
+  width: 42px;
+  min-width: 42px;
+  height: 42px;
+  padding: 0;
+  gap: 0;
+  border-radius: 14px;
+}
+
+.gis-content-tab--icon i {
+  font-size: 17px;
+  line-height: 1;
+  opacity: 0.88;
+  transition: opacity 160ms ease, transform 160ms ease;
+}
+
+.gis-content-tab--icon:hover:not(:disabled) i {
+  opacity: 1;
+  transform: translateY(-0.5px);
+}
+
+.gis-content-tab--icon.active i {
+  opacity: 1;
+  color: #065f46;
 }
 
 .gis-content-tab-docs {
@@ -11034,8 +11019,7 @@ html[data-theme='dark'] .gis-domain-cell--dropdown.missing-description .gis-doma
   margin-bottom: -8px;
 }
 
-/* Collapsed rail: compact “layer stack” affordance (replaces dashed hint box).
-   Default theme tokens so GIS Map (no .gis-content-page) still shows icons/colors. */
+/* Collapsed sidebar: layers icon + count (GIS Content / shared tokens). */
 .gis-sidebar-collapsed-layers {
   --gis-green: #047857;
   --gis-green-dark: #064e3b;
@@ -11043,7 +11027,7 @@ html[data-theme='dark'] .gis-domain-cell--dropdown.missing-description .gis-doma
   --gis-muted: #64748b;
   width: 100%;
   margin: 0;
-  padding: 14px 8px 16px;
+  padding: 12px 8px;
   border: 1px solid rgba(4, 120, 87, 0.1);
   border-radius: 18px;
   cursor: pointer;
@@ -11073,47 +11057,6 @@ html[data-theme='dark'] .gis-domain-cell--dropdown.missing-description .gis-doma
 .gis-sidebar-collapsed-layers:focus-visible {
   outline: 2px solid rgba(4, 120, 87, 0.45);
   outline-offset: 2px;
-}
-
-.gis-sidebar-collapsed-layers__visual {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 12px;
-  width: 100%;
-  min-height: 0;
-}
-
-/* Abstract “map stack”: tier lines only — no overlapping cards */
-.gis-sidebar-collapsed-layers__stack-bars {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 4px;
-}
-
-.gis-sidebar-collapsed-layers__stack-bar {
-  display: block;
-  height: 3px;
-  border-radius: 999px;
-  background: linear-gradient(90deg, rgba(4, 120, 87, 0.22), rgba(16, 185, 129, 0.55), rgba(4, 120, 87, 0.22));
-  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.7) inset;
-}
-
-.gis-sidebar-collapsed-layers__stack-bar:nth-child(1) {
-  width: 26px;
-  opacity: 0.55;
-}
-
-.gis-sidebar-collapsed-layers__stack-bar:nth-child(2) {
-  width: 20px;
-  opacity: 0.78;
-}
-
-.gis-sidebar-collapsed-layers__stack-bar:nth-child(3) {
-  width: 14px;
-  opacity: 1;
 }
 
 /* Icon + count: badge sits on the corner (no vertical stack overlap with caption). */
@@ -11171,44 +11114,6 @@ html[data-theme='dark'] .gis-domain-cell--dropdown.missing-description .gis-doma
   border: 2px solid #ffffff;
   box-shadow: 0 2px 10px rgba(5, 96, 67, 0.35);
   pointer-events: none;
-}
-
-/* Expanded “expand” rail — mirrors collapse control (layers icon + hint chevron) */
-.gis-sidebar-expand-rail.gis-sidebar-collapsed-layers {
-  padding: 12px 8px 14px;
-  border-radius: 999px;
-  max-width: 62px;
-  margin-inline: auto;
-  background: linear-gradient(168deg, rgba(255, 255, 255, 0.99) 0%, rgba(236, 253, 245, 0.72) 46%, rgba(255, 255, 255, 0.97) 100%);
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.96),
-    0 14px 36px rgba(4, 120, 87, 0.07),
-    0 2px 8px rgba(15, 23, 42, 0.05);
-}
-
-.gis-sidebar-expand-rail .gis-sidebar-collapsed-layers__visual {
-  gap: 10px;
-}
-
-.gis-sidebar-expand-rail__chev {
-  width: 30px;
-  height: 30px;
-  border-radius: 10px;
-  display: grid;
-  place-items: center;
-  font-size: 11px;
-  color: #047857;
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.95), rgba(209, 250, 229, 0.65));
-  border: 1px solid rgba(4, 120, 87, 0.14);
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.85),
-    0 4px 12px rgba(4, 120, 87, 0.08);
-  opacity: 0.92;
-}
-
-.gis-sidebar-expand-rail:hover .gis-sidebar-expand-rail__chev {
-  opacity: 1;
-  border-color: rgba(4, 120, 87, 0.22);
 }
 
 .gis-content-page .gis-sidebar-body {
@@ -11384,6 +11289,12 @@ html[data-theme='dark'] .gis-domain-cell--dropdown.missing-description .gis-doma
   border-radius: 12px;
   background: #ffffff;
   font-size: 11.5px;
+}
+
+.gis-content-page .gis-content-tab--icon {
+  min-height: 42px;
+  padding: 0;
+  border-radius: 14px;
 }
 
 .gis-content-page .gis-content-tab.active {

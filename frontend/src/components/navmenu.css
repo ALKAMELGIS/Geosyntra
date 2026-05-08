@@ -108,6 +108,25 @@
   transform: translateY(-1px);
 }
 
+/* Classic hamburger (☰) — phone menu trigger; color follows .nav-toggle */
+.nav-toggle-hamburger {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: stretch;
+  gap: 5px;
+  width: 20px;
+  height: 16px;
+}
+
+.nav-toggle-hamburger__line {
+  display: block;
+  height: 2px;
+  border-radius: 2px;
+  background: currentColor;
+  box-shadow: 0 0.5px 0 rgba(255, 255, 255, 0.35);
+}
+
 .item, .group-header {
   color: var(--nav-text);
   text-decoration: none;
@@ -1553,13 +1572,14 @@ html[data-theme="dark"] .navmenu-sublist-title {
   color: var(--ds-color-text-muted);
 }
 
-/* Mobile edge navigation: floating menu button + slide-over list (fixed shell). */
+/* Mobile edge navigation: hamburger (☰) top-left + flyout list (fixed shell). */
 @media (max-width: 767px) {
   .navmenu[data-viewport="mobile"] {
     position: fixed;
-    top: 50%;
-    left: 8px;
-    transform: translateY(-50%);
+    top: calc(var(--header-height) + max(8px, env(safe-area-inset-top, 0px)));
+    left: max(10px, env(safe-area-inset-left, 0px));
+    right: auto;
+    transform: none;
     width: auto;
     height: auto;
     min-height: 0;
@@ -1570,7 +1590,8 @@ html[data-theme="dark"] .navmenu-sublist-title {
     box-shadow: none;
     backdrop-filter: none;
     overflow: visible;
-    z-index: 3100;
+    /* Above .agri-header (11500) so the control stays tappable */
+    z-index: 11600;
     isolation: auto;
   }
 
@@ -1634,15 +1655,16 @@ html[data-theme="dark"] .navmenu-sublist-title {
     margin-right: 0;
   }
 
+  /* Keep physical top-left hamburger in RTL; flyout opens toward center (same as LTR). */
   :root[dir="rtl"] .navmenu[data-viewport="mobile"] {
-    left: auto;
-    right: 8px;
+    left: max(10px, env(safe-area-inset-left, 0px));
+    right: auto;
   }
 
   :root[dir="rtl"] .navmenu[data-viewport="mobile"] .navmenu-list {
-    left: auto;
-    right: calc(100% + 10px);
-    transform: translateY(-50%) translateX(8px);
+    left: calc(100% + 10px);
+    right: auto;
+    transform: translateY(-50%) translateX(-8px);
   }
 
   :root[dir="rtl"] .navmenu[data-viewport="mobile"].navmenu-open .navmenu-list {

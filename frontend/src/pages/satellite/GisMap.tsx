@@ -4928,6 +4928,156 @@ export default function GisMap() {
       </div>
   ) : null
 
+  /** Same ArcGIS-style tool order as desktop rail — reused in mobile drawer (`gis-sidebar-body`). */
+  const mapToolsRailGroups = (
+    <>
+      <div className="gis-sidebar-rail__group" role="presentation">
+        <button
+          type="button"
+          className="gis-sidebar-rail-btn"
+          onClick={() => openAddLayerModal()}
+          title="Add data"
+          aria-label="Add"
+        >
+          <i className="fa-solid fa-circle-plus" aria-hidden="true" />
+          <span className="gis-sidebar-rail-btn__label">Add</span>
+        </button>
+        <button
+          type="button"
+          className={['gis-sidebar-rail-btn', activeMapTool === null ? 'gis-sidebar-rail-btn--active' : ''].filter(Boolean).join(' ')}
+          onClick={focusLayersPanel}
+          title="Layers"
+          aria-label="Layers"
+        >
+          <i className="fa-solid fa-layer-group" aria-hidden="true" />
+          <span className="gis-sidebar-rail-btn__label">Layers</span>
+        </button>
+        <button
+          type="button"
+          className={['gis-sidebar-rail-btn', activeMapTool === 'table' ? 'gis-sidebar-rail-btn--active' : ''].filter(Boolean).join(' ')}
+          onClick={() => toggleMapTool('table')}
+          title="Tables"
+          aria-label="Tables"
+        >
+          <i className="fa-solid fa-table-cells" aria-hidden="true" />
+          <span className="gis-sidebar-rail-btn__label">Table</span>
+        </button>
+        <button
+          type="button"
+          className={['gis-sidebar-rail-btn', activeMapTool === 'basemap' ? 'gis-sidebar-rail-btn--active' : ''].filter(Boolean).join(' ')}
+          onClick={() => toggleMapTool('basemap')}
+          title="Basemap"
+          aria-label="Basemap"
+        >
+          <i className="fa-solid fa-border-all" aria-hidden="true" />
+          <span className="gis-sidebar-rail-btn__label">Basemap</span>
+        </button>
+        <button
+          type="button"
+          className={['gis-sidebar-rail-btn', activeMapTool === 'legend' ? 'gis-sidebar-rail-btn--active' : ''].filter(Boolean).join(' ')}
+          onClick={() => toggleMapTool('legend')}
+          title="Legend"
+          aria-label="Legend"
+        >
+          <i className="fa-solid fa-list-ul" aria-hidden="true" />
+          <span className="gis-sidebar-rail-btn__label">Legend</span>
+        </button>
+        <button
+          type="button"
+          className={['gis-sidebar-rail-btn', activeMapTool === 'bookmarks' ? 'gis-sidebar-rail-btn--active' : ''].filter(Boolean).join(' ')}
+          onClick={() => toggleMapTool('bookmarks')}
+          title="Bookmarks"
+          aria-label="Bookmarks"
+        >
+          <i className="fa-solid fa-bookmark" aria-hidden="true" />
+          <span className="gis-sidebar-rail-btn__label">Bookmarks</span>
+        </button>
+        <button
+          type="button"
+          className={['gis-sidebar-rail-btn', activeMapTool === 'chart' ? 'gis-sidebar-rail-btn--active' : ''].filter(Boolean).join(' ')}
+          onClick={() => toggleMapTool('chart')}
+          title="Charts"
+          aria-label="Charts"
+        >
+          <i className="fa-solid fa-chart-column" aria-hidden="true" />
+          <span className="gis-sidebar-rail-btn__label">Chart</span>
+        </button>
+      </div>
+      <div className="gis-sidebar-rail__sep" aria-hidden="true" />
+      <div className="gis-sidebar-rail__group" role="presentation">
+        <button
+          type="button"
+          className={['gis-sidebar-rail-btn', activeMapTool === 'saveOpen' ? 'gis-sidebar-rail-btn--active' : ''].filter(Boolean).join(' ')}
+          onClick={() => toggleMapTool('saveOpen')}
+          title="Save and open"
+          aria-label="Save and open"
+        >
+          <i className="fa-solid fa-folder-open" aria-hidden="true" />
+          <span className="gis-sidebar-rail-btn__label">Save and open</span>
+        </button>
+        <button
+          type="button"
+          className={['gis-sidebar-rail-btn', activeMapTool === 'settings' ? 'gis-sidebar-rail-btn--active' : ''].filter(Boolean).join(' ')}
+          onClick={() => toggleMapTool('settings')}
+          title="Map properties"
+          aria-label="Map properties"
+        >
+          <i className="fa-solid fa-gear" aria-hidden="true" />
+          <span className="gis-sidebar-rail-btn__label">Settings</span>
+        </button>
+      </div>
+      <div className="gis-sidebar-rail__sep" aria-hidden="true" />
+      <div className="gis-sidebar-rail__group" role="presentation">
+        <button
+          type="button"
+          className={['gis-sidebar-rail-btn', activeMapTool === 'shareMap' ? 'gis-sidebar-rail-btn--active' : ''].filter(Boolean).join(' ')}
+          onClick={() => toggleMapTool('shareMap')}
+          title="Share map"
+          aria-label="Share map"
+        >
+          <i className="fa-solid fa-arrow-up-right-from-square" aria-hidden="true" />
+          <span className="gis-sidebar-rail-btn__label">Share map</span>
+        </button>
+        <button
+          type="button"
+          className={['gis-sidebar-rail-btn', activeMapTool === 'embedMap' ? 'gis-sidebar-rail-btn--active' : ''].filter(Boolean).join(' ')}
+          onClick={() => toggleMapTool('embedMap')}
+          title="Embed map"
+          aria-label="Embed map"
+        >
+          <i className="fa-solid fa-code" aria-hidden="true" />
+          <span className="gis-sidebar-rail-btn__label">Embed map</span>
+        </button>
+        <button
+          type="button"
+          className={['gis-sidebar-rail-btn', activeMapTool === 'apps' ? 'gis-sidebar-rail-btn--active' : ''].filter(Boolean).join(' ')}
+          onClick={() => toggleMapTool('apps')}
+          title="Create app"
+          aria-label="Create app"
+        >
+          <i className="fa-solid fa-grip" aria-hidden="true" />
+          <span className="gis-sidebar-rail-btn__label">Apps</span>
+        </button>
+        <button type="button" className="gis-sidebar-rail-btn" onClick={() => window.print()} title="Print" aria-label="Print">
+          <i className="fa-solid fa-print" aria-hidden="true" />
+          <span className="gis-sidebar-rail-btn__label">Print</span>
+        </button>
+      </div>
+      <div className="gis-sidebar-rail__sep" aria-hidden="true" />
+      <div className="gis-sidebar-rail__group" role="presentation">
+        <button
+          type="button"
+          className={['gis-sidebar-rail-btn', activeMapTool === 'measure' ? 'gis-sidebar-rail-btn--active' : ''].filter(Boolean).join(' ')}
+          onClick={() => toggleMapTool('measure')}
+          title="Measure"
+          aria-label="Measure"
+        >
+          <i className="fa-solid fa-ruler-combined" aria-hidden="true" />
+          <span className="gis-sidebar-rail-btn__label">Measure</span>
+        </button>
+      </div>
+    </>
+  )
 
   return (
     <div
@@ -4976,157 +5126,7 @@ export default function GisMap() {
                     aria-orientation="vertical"
                     aria-label="Map tools"
                   >
-                    <div className="gis-sidebar-rail__group" role="presentation">
-                      <button
-                        type="button"
-                        className="gis-sidebar-rail-btn"
-                        onClick={() => openAddLayerModal()}
-                        title="Add data"
-                        aria-label="Add"
-                      >
-                        <i className="fa-solid fa-circle-plus" aria-hidden="true" />
-                        <span className="gis-sidebar-rail-btn__label">Add</span>
-                      </button>
-                      <button
-                        type="button"
-                        className={['gis-sidebar-rail-btn', activeMapTool === null ? 'gis-sidebar-rail-btn--active' : ''].filter(Boolean).join(' ')}
-                        onClick={focusLayersPanel}
-                        title="Layers"
-                        aria-label="Layers"
-                      >
-                        <i className="fa-solid fa-layer-group" aria-hidden="true" />
-                        <span className="gis-sidebar-rail-btn__label">Layers</span>
-                      </button>
-                      <button
-                        type="button"
-                        className={['gis-sidebar-rail-btn', activeMapTool === 'table' ? 'gis-sidebar-rail-btn--active' : ''].filter(Boolean).join(' ')}
-                        onClick={() => toggleMapTool('table')}
-                        title="Tables"
-                        aria-label="Tables"
-                      >
-                        <i className="fa-solid fa-table-cells" aria-hidden="true" />
-                        <span className="gis-sidebar-rail-btn__label">Table</span>
-                      </button>
-                      <button
-                        type="button"
-                        className={['gis-sidebar-rail-btn', activeMapTool === 'basemap' ? 'gis-sidebar-rail-btn--active' : ''].filter(Boolean).join(' ')}
-                        onClick={() => toggleMapTool('basemap')}
-                        title="Basemap"
-                        aria-label="Basemap"
-                      >
-                        <i className="fa-solid fa-border-all" aria-hidden="true" />
-                        <span className="gis-sidebar-rail-btn__label">Basemap</span>
-                      </button>
-                      <button
-                        type="button"
-                        className={['gis-sidebar-rail-btn', activeMapTool === 'legend' ? 'gis-sidebar-rail-btn--active' : ''].filter(Boolean).join(' ')}
-                        onClick={() => toggleMapTool('legend')}
-                        title="Legend"
-                        aria-label="Legend"
-                      >
-                        <i className="fa-solid fa-list-ul" aria-hidden="true" />
-                        <span className="gis-sidebar-rail-btn__label">Legend</span>
-                      </button>
-                      <button
-                        type="button"
-                        className={['gis-sidebar-rail-btn', activeMapTool === 'bookmarks' ? 'gis-sidebar-rail-btn--active' : ''].filter(Boolean).join(' ')}
-                        onClick={() => toggleMapTool('bookmarks')}
-                        title="Bookmarks"
-                        aria-label="Bookmarks"
-                      >
-                        <i className="fa-solid fa-bookmark" aria-hidden="true" />
-                        <span className="gis-sidebar-rail-btn__label">Bookmarks</span>
-                      </button>
-                      <button
-                        type="button"
-                        className={['gis-sidebar-rail-btn', activeMapTool === 'chart' ? 'gis-sidebar-rail-btn--active' : ''].filter(Boolean).join(' ')}
-                        onClick={() => toggleMapTool('chart')}
-                        title="Charts"
-                        aria-label="Charts"
-                      >
-                        <i className="fa-solid fa-chart-column" aria-hidden="true" />
-                        <span className="gis-sidebar-rail-btn__label">Chart</span>
-                      </button>
-                    </div>
-                    <div className="gis-sidebar-rail__sep" aria-hidden="true" />
-                    <div className="gis-sidebar-rail__group" role="presentation">
-                      <button
-                        type="button"
-                        className={['gis-sidebar-rail-btn', activeMapTool === 'saveOpen' ? 'gis-sidebar-rail-btn--active' : ''].filter(Boolean).join(' ')}
-                        onClick={() => toggleMapTool('saveOpen')}
-                        title="Save and open"
-                        aria-label="Save and open"
-                      >
-                        <i className="fa-solid fa-folder-open" aria-hidden="true" />
-                        <span className="gis-sidebar-rail-btn__label">Save and open</span>
-                      </button>
-                      <button
-                        type="button"
-                        className={['gis-sidebar-rail-btn', activeMapTool === 'settings' ? 'gis-sidebar-rail-btn--active' : ''].filter(Boolean).join(' ')}
-                        onClick={() => toggleMapTool('settings')}
-                        title="Map properties"
-                        aria-label="Map properties"
-                      >
-                        <i className="fa-solid fa-gear" aria-hidden="true" />
-                        <span className="gis-sidebar-rail-btn__label">Settings</span>
-                      </button>
-                    </div>
-                    <div className="gis-sidebar-rail__sep" aria-hidden="true" />
-                    <div className="gis-sidebar-rail__group" role="presentation">
-                      <button
-                        type="button"
-                        className={['gis-sidebar-rail-btn', activeMapTool === 'shareMap' ? 'gis-sidebar-rail-btn--active' : ''].filter(Boolean).join(' ')}
-                        onClick={() => toggleMapTool('shareMap')}
-                        title="Share map"
-                        aria-label="Share map"
-                      >
-                        <i className="fa-solid fa-arrow-up-right-from-square" aria-hidden="true" />
-                        <span className="gis-sidebar-rail-btn__label">Share map</span>
-                      </button>
-                      <button
-                        type="button"
-                        className={['gis-sidebar-rail-btn', activeMapTool === 'embedMap' ? 'gis-sidebar-rail-btn--active' : ''].filter(Boolean).join(' ')}
-                        onClick={() => toggleMapTool('embedMap')}
-                        title="Embed map"
-                        aria-label="Embed map"
-                      >
-                        <i className="fa-solid fa-code" aria-hidden="true" />
-                        <span className="gis-sidebar-rail-btn__label">Embed map</span>
-                      </button>
-                      <button
-                        type="button"
-                        className={['gis-sidebar-rail-btn', activeMapTool === 'apps' ? 'gis-sidebar-rail-btn--active' : ''].filter(Boolean).join(' ')}
-                        onClick={() => toggleMapTool('apps')}
-                        title="Create app"
-                        aria-label="Create app"
-                      >
-                        <i className="fa-solid fa-grip" aria-hidden="true" />
-                        <span className="gis-sidebar-rail-btn__label">Apps</span>
-                      </button>
-                      <button
-                        type="button"
-                        className="gis-sidebar-rail-btn"
-                        onClick={() => window.print()}
-                        title="Print"
-                        aria-label="Print"
-                      >
-                        <i className="fa-solid fa-print" aria-hidden="true" />
-                        <span className="gis-sidebar-rail-btn__label">Print</span>
-                      </button>
-                    </div>
-                    <div className="gis-sidebar-rail__sep" aria-hidden="true" />
-                    <div className="gis-sidebar-rail__group" role="presentation">
-                      <button
-                        type="button"
-                        className={['gis-sidebar-rail-btn', activeMapTool === 'measure' ? 'gis-sidebar-rail-btn--active' : ''].filter(Boolean).join(' ')}
-                        onClick={() => toggleMapTool('measure')}
-                        title="Measure"
-                        aria-label="Measure"
-                      >
-                        <i className="fa-solid fa-ruler-combined" aria-hidden="true" />
-                        <span className="gis-sidebar-rail-btn__label">Measure</span>
-                      </button>
-                    </div>
+                    {mapToolsRailGroups}
                   </div>
                   <div
                     className="gis-sidebar-v-toolbar__end gis-sidebar-v-toolbar__end--overlay gis-sidebar-v-toolbar__end--agol-expand"
@@ -5213,38 +5213,36 @@ export default function GisMap() {
             ) : (
               <>
             <div
-              className={['gis-sidebar-body-main', layersChromeCollapsed ? 'gis-sidebar-body-main--collapsed-rail' : '']
+              className={[
+                'gis-sidebar-body-main',
+                layersChromeCollapsed ? 'gis-sidebar-body-main--collapsed-rail' : '',
+                isMobileDrawerViewport ? 'gis-sidebar-body-main--with-atlas-rail' : '',
+              ]
                 .filter(Boolean)
                 .join(' ')}
             >
             {isMobileDrawerViewport ? (
-              <div className="gis-launcher-grid" role="navigation" aria-label="GIS Launcher">
-                <button type="button" className="gis-launcher-chip" onClick={() => openAddLayerModal()}>
-                  <i className="fa-solid fa-grid-2" aria-hidden="true" />
-                  <span>Applications</span>
-                </button>
-                <button type="button" className="gis-launcher-chip" onClick={() => toggleMapTool('basemap')}>
-                  <i className="fa-solid fa-map" aria-hidden="true" />
-                  <span>Maps</span>
-                </button>
-                <button type="button" className="gis-launcher-chip" onClick={() => toggleMapTool('measure')}>
-                  <i className="fa-solid fa-ruler-combined" aria-hidden="true" />
-                  <span>Geo Tools</span>
-                </button>
-                <button type="button" className="gis-launcher-chip" onClick={() => openAddLayerModal('database')}>
-                  <i className="fa-solid fa-gear" aria-hidden="true" />
-                  <span>Settings</span>
-                </button>
-                <button type="button" className="gis-launcher-chip" onClick={() => toggleMapTool('search')}>
-                  <i className="fa-solid fa-magnifying-glass-location" aria-hidden="true" />
-                  <span>Search</span>
-                </button>
-                <button type="button" className="gis-launcher-chip" onClick={() => setSidebarOpen(true)}>
-                  <i className="fa-solid fa-layer-group" aria-hidden="true" />
-                  <span>Layers</span>
-                </button>
-              </div>
+              <nav
+                className="gis-sidebar-rail gis-sidebar-rail--agol gis-sidebar-rail--agol--compact gis-sidebar-rail--mobile-drawer"
+                aria-label="Map tools (ArcGIS-style)"
+              >
+                <div className="gis-sidebar-v-toolbar" data-scale="m">
+                  <div
+                    className="gis-sidebar-v-toolbar__main"
+                    role="toolbar"
+                    aria-orientation="vertical"
+                    aria-label="Map tools"
+                  >
+                    {mapToolsRailGroups}
+                  </div>
+                </div>
+              </nav>
             ) : null}
+            <div
+              className={
+                isMobileDrawerViewport ? 'gis-sidebar-body-main__fill' : 'gis-sidebar-body-main__fill gis-sidebar-body-main__fill--desktop'
+              }
+            >
             {!layersChromeCollapsed && showDesktopGisRail && layers.length > 0 ? (
               <div className="gis-sidebar-layers-empty-agol gis-sidebar-layers-empty-agol--inline" role="status" aria-live="polite">
                 <div className="gis-sidebar-layers-empty-agol__message">
@@ -5740,6 +5738,7 @@ export default function GisMap() {
               })}
             </div>
           ) : null}
+            </div>
             </div>
               </>
             )}
