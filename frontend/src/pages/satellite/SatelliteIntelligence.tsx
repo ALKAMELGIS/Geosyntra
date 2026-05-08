@@ -1469,62 +1469,6 @@ function pointInAoiGeometry(lng: number, lat: number, geometry: any): boolean {
   return false;
 }
 
-/** Closed linear ring (GeoJSON first point repeated at end). */
-function closedLinearRing(ring: number[][]): number[][] {
-  if (!Array.isArray(ring) || ring.length < 2) return ring;
-  const a = ring[0];
-  const b = ring[ring.length - 1];
-  if (a && b && a[0] === b[0] && a[1] === b[1]) return ring;
-  return [...ring, a!];
-}
-
-/** Reverse winding so the ring can be used as a polygon hole opposite the world shell. */
-function closedLinearRingOppositeWinding(ring: number[][]): number[][] {
-  const closed = closedLinearRing(ring);
-  if (closed.length < 4) return closed;
-  const open = closed.slice(0, -1);
-  open.reverse();
-  return closedLinearRing(open);
-}
-
-/** World-spanning shell used as the outer ring of a mask polygon (holes = AOI). */
-function worldShellRingForIndexMask(): number[][] {
-  return [
-    [-180, -89],
-    [180, -89],
-    [180, 89],
-    [-180, 89],
-    [-180, -89],
-  ];
-}
-
-/**
- * GeoJSON polygon covering the world with holes along each AOI exterior ring,
- * so a fill layer on top of index rasters hides pixels outside the AOI only.
- */
-function buildIndexOverlayClipMaskFeature(geometry: any): { type: 'Feature'; properties: { siMask: boolean }; geometry: { type: 'Polygon'; coordinates: number[][][] } } | null {
-  if (!geometry || typeof geometry !== 'object') return null;
-  const holes: number[][][] = [];
-  if (geometry.type === 'Polygon' && Array.isArray(geometry.coordinates?.[0])) {
-    const outer = geometry.coordinates[0] as number[][];
-    if (outer.length >= 4) holes.push(closedLinearRingOppositeWinding(outer));
-  } else if (geometry.type === 'MultiPolygon' && Array.isArray(geometry.coordinates)) {
-    for (const poly of geometry.coordinates as number[][][][]) {
-      const outer = poly?.[0] as number[][] | undefined;
-      if (outer && outer.length >= 4) holes.push(closedLinearRingOppositeWinding(outer));
-    }
-  }
-  if (!holes.length) return null;
-  return {
-    type: 'Feature',
-    properties: { siMask: true },
-    geometry: {
-      type: 'Polygon',
-      coordinates: [worldShellRingForIndexMask(), ...holes],
-    },
-  };
-}
-
 function hexToEsriRgba(hex: string): [number, number, number, number] {
   const h = (hex || '#22c55e').replace('#', '');
   const pad = h.length === 3 ? h.split('').map(ch => ch + ch).join('') : h.padEnd(6, '0').slice(0, 6);
@@ -1988,6 +1932,8 @@ export default function SatelliteIntelligence() {
   const geoAiDeepseekLoadOlderRef = useRef<{ top: number; height: number } | null>(null);
   const netfloraUploadInputRef = useRef<HTMLInputElement | null>(null);
   const skipNextMapClickRef = useRef(false);
+  /** While drawing a polygon: index of vertex being dragged, or null. */
+  const polygonRingSketchDragRef = useRef<number | null>(null);
   const editDragRef = useRef<null | { mode: 'vertex'; ref: VertexRef } | { mode: 'pan'; last: [number, number] }>(null);
   const consoleErrorRef = useRef<typeof console.error | null>(null);
   const stacFocusHydratedRef = useRef(false);
@@ -5205,6 +5151,13 @@ export default function SatelliteIntelligence() {
     }
   };
 
+  const endPolygonSketchDrag = useCallback(() => {
+    if (polygonRingSketchDragRef.current === null) return;
+    polygonRingSketchDragRef.current = null;
+    setMapDragPanEnabled(true);
+    skipNextMapClickRef.current = true;
+  }, []);
+
   const commitUserGeometry = (next: any | null) => {
     const cur = drawnGeometryRef.current;
     setGeomUndoStack(u => [...u, cur ? cloneDeep(cur) : null]);
@@ -5297,6 +5250,8 @@ export default function SatelliteIntelligence() {
       const ring = polygonRingRef.current;
       if (ring.length < 3) return;
       e.preventDefault();
+      polygonRingSketchDragRef.current = null;
+      setMapDragPanEnabled(true);
       const closed = [...ring, ring[0]];
       const feature = {
         type: 'Feature',
@@ -5315,6 +5270,7 @@ export default function SatelliteIntelligence() {
 
   const applyMapDrawTool = (tool: MapDrawTool) => {
     dragRectCircleRef.current = null;
+    polygonRingSketchDragRef.current = null;
     setRectCirclePreview(null);
     setPointerLngLat(null);
     setPolylineStart(null);
@@ -5335,6 +5291,8 @@ export default function SatelliteIntelligence() {
       return;
     }
     if (mapDrawTool === 'polygon' && polygonRing.length > 0) {
+      polygonRingSketchDragRef.current = null;
+      setMapDragPanEnabled(true);
       setPolygonRing(prev => prev.slice(0, -1));
       return;
     }
@@ -5347,6 +5305,7 @@ export default function SatelliteIntelligence() {
   /** Abort current sketch (draft only); keeps committed AOI on the map. */
   const cancelCurrentDrawing = useCallback(() => {
     dragRectCircleRef.current = null;
+    polygonRingSketchDragRef.current = null;
     setRectCirclePreview(null);
     setPolylineStart(null);
     setPolygonRing([]);
@@ -5369,6 +5328,7 @@ export default function SatelliteIntelligence() {
     setPolygonRing([]);
     setRectCirclePreview(null);
     dragRectCircleRef.current = null;
+    polygonRingSketchDragRef.current = null;
     editDragRef.current = null;
     preEditGeomRef.current = null;
     setPolygonClosingSnap(false);
@@ -5385,6 +5345,20 @@ export default function SatelliteIntelligence() {
     const lat = evt.lngLat.lat;
     const map = getMapInstance();
     if (!map) return;
+
+    if (mapDrawTool === 'polygon' && polygonRing.length > 0) {
+      const ring = polygonRing;
+      const hitPx = Math.max(POLYGON_VERTEX_SNAP_PX, vertexHitThresholdPx(map));
+      for (let vi = ring.length - 1; vi >= 0; vi -= 1) {
+        const p = ring[vi]!;
+        const d = lngLatPixelDistance(map, [lng, lat], p);
+        if (d > hitPx) continue;
+        if (vi === 0 && ring.length >= 3) continue;
+        polygonRingSketchDragRef.current = vi;
+        setMapDragPanEnabled(false);
+        return;
+      }
+    }
 
     if (mapDrawTool === 'rectangle' || mapDrawTool === 'circle' || mapDrawTool === 'box_select') {
       dragRectCircleRef.current = { kind: mapDrawTool, start: [lng, lat] };
@@ -5447,6 +5421,28 @@ export default function SatelliteIntelligence() {
       return;
     }
 
+    const sketchVi = polygonRingSketchDragRef.current;
+    if (sketchVi !== null && mapDrawTool === 'polygon') {
+      let lngLat: [number, number] = [lng, lat];
+      if (map && polygonRing.length >= 1) {
+        const others = polygonRing.filter((_, j) => j !== sketchVi) as [number, number][];
+        const { lng: sx, lat: sy, snapped } = snapLngLatToNearestVertex(map, lng, lat, others, POLYGON_VERTEX_SNAP_PX);
+        if (snapped) lngLat = [sx, sy];
+      }
+      const nextRing = polygonRing.map((p, j) => (j === sketchVi ? lngLat : p)) as [number, number][];
+      setPolygonRing(nextRing);
+      setPointerLngLat([lng, lat]);
+      if (map && nextRing.length >= 3) {
+        const d0 = lngLatPixelDistance(map, [lng, lat], nextRing[0]!);
+        setPolygonClosingSnap(d0 <= POLYGON_CLOSE_SNAP_PX);
+        setDrawAssistHint(d0 <= POLYGON_CLOSE_SNAP_PX ? 'Click first vertex to close polygon' : '');
+      } else {
+        setPolygonClosingSnap(false);
+        setDrawAssistHint('');
+      }
+      return;
+    }
+
     const ed = editDragRef.current;
     const base = drawnGeometryRef.current;
     if (ed && base) {
@@ -5503,6 +5499,9 @@ export default function SatelliteIntelligence() {
   interactionEndRef.current.finalizeRect = finalizeRectDragFromPointer;
   interactionEndRef.current.endEdit = endEditDragIfNeeded;
 
+  const endPolygonSketchDragRef = useRef(endPolygonSketchDrag);
+  endPolygonSketchDragRef.current = endPolygonSketchDrag;
+
   useEffect(() => {
     const onUp = (e: PointerEvent) => {
       if (dragRectCircleRef.current) {
@@ -5511,6 +5510,7 @@ export default function SatelliteIntelligence() {
       if (editDragRef.current) {
         interactionEndRef.current.endEdit();
       }
+      endPolygonSketchDragRef.current();
     };
     window.addEventListener('pointerup', onUp);
     window.addEventListener('pointercancel', onUp);
@@ -5548,8 +5548,20 @@ export default function SatelliteIntelligence() {
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
+      const t = e.target as HTMLElement | null;
+      if (t) {
+        const tag = t.tagName;
+        if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || t.isContentEditable) return;
+      }
       const mod = e.ctrlKey || e.metaKey;
       const k = e.key.toLowerCase();
+      if (e.key === 'Backspace' && mapDrawToolRef.current === 'polygon' && polygonRingRef.current.length > 0) {
+        e.preventDefault();
+        polygonRingSketchDragRef.current = null;
+        setMapDragPanEnabled(true);
+        setPolygonRing(prev => prev.slice(0, -1));
+        return;
+      }
       if (mod && k === 'z' && !e.shiftKey) {
         if (dragRectCircleRef.current) {
           e.preventDefault();
@@ -5716,6 +5728,7 @@ export default function SatelliteIntelligence() {
       if (map && polygonRing.length >= 3) {
         const d = lngLatPixelDistance(map, [lng, lat], polygonRing[0]);
         if (d <= POLYGON_CLOSE_SNAP_PX) {
+          polygonRingSketchDragRef.current = null;
           const closed = [...polygonRing, polygonRing[0]];
           commitUserGeometry({
             type: 'Feature',
@@ -5774,6 +5787,8 @@ export default function SatelliteIntelligence() {
     if (mapDrawToolRef.current !== 'polygon') return;
     const ring = polygonRingRef.current;
     if (ring.length < 3) return;
+    polygonRingSketchDragRef.current = null;
+    setMapDragPanEnabled(true);
     try {
       evt?.originalEvent?.preventDefault?.();
     } catch {
@@ -5804,6 +5819,21 @@ export default function SatelliteIntelligence() {
     }
     if (mapDrawTool === 'polygon') {
       const ring = polygonRing;
+      if (pointerLngLat && ring.length >= 2) {
+        const withPtr = [...ring, pointerLngLat, ring[0]!] as [number, number][];
+        features.push({
+          type: 'Feature',
+          properties: { draftRole: 'polyPreviewFill' },
+          geometry: { type: 'Polygon', coordinates: [withPtr] },
+        });
+      } else if (ring.length >= 3) {
+        const closed = [...ring, ring[0]!] as [number, number][];
+        features.push({
+          type: 'Feature',
+          properties: { draftRole: 'polyPreviewFill' },
+          geometry: { type: 'Polygon', coordinates: [closed] },
+        });
+      }
       for (const p of ring) {
         features.push({
           type: 'Feature',
@@ -6232,15 +6262,6 @@ export default function SatelliteIntelligence() {
       ? mapDrawTool
       : 'select';
 
-  const indexOverlayClipMaskFeature = useMemo(
-    () => buildIndexOverlayClipMaskFeature(drawnGeometry?.geometry ?? null),
-    [drawnGeometry],
-  );
-
-  const showIndexOutsideAoiMask =
-    !!indexOverlayClipMaskFeature &&
-    (sentinelVisible || (isStacThumbVisible && !!stacMapThumb));
-
   const wmsTileUrl = useMemo(() => {
     const safeLayer = encodeURIComponent(activeWmsLayer);
     const start = timeSeriesStart || wmsDate;
@@ -6252,6 +6273,21 @@ export default function SatelliteIntelligence() {
       `&TIME=${start}/${end}&MAXCC=${cloudCoverage}&SHOWLOGO=false&WARNINGS=true`;
   }, [activeWmsLayer, timeSeriesStart, timeSeriesEnd, wmsDate, cloudCoverage, wmsBaseUrl]);
 
+  const polygonSketchHudText = useMemo(() => {
+    if (mapDrawTool !== 'polygon') return '';
+    if (polygonRing.length === 0) {
+      return 'Click the map to add corners (click-to-add). Drag a green vertex to move it. First corner is only for closing once you have 3+ points.';
+    }
+    if (polygonRing.length === 1) {
+      return 'Click for the next corner. Drag the green dot to move it. Backspace removes the last point.';
+    }
+    if (polygonRing.length === 2) {
+      return 'Add one more corner, then close the polygon: click the first corner, press Enter, or right-click.';
+    }
+    if (polygonClosingSnap) return '';
+    return `${polygonRing.length} vertices — click to add more, drag green dots to adjust, Backspace or Ctrl+Z removes last point, Enter to finish.`;
+  }, [mapDrawTool, polygonRing.length, polygonClosingSnap]);
+
   return (
     <div className="si-page">
       <div className="si-main-content">
@@ -6262,7 +6298,9 @@ export default function SatelliteIntelligence() {
               : ''
           }`}
         >
-          {(circleRadiusM !== null && rectCirclePreview?.kind === 'circle') || drawAssistHint ? (
+          {(circleRadiusM !== null && rectCirclePreview?.kind === 'circle') ||
+          drawAssistHint ||
+          (mapDrawTool === 'polygon' && polygonSketchHudText) ? (
             <div className="si-draw-live-hud" aria-live="polite">
               {circleRadiusM !== null && rectCirclePreview?.kind === 'circle' ? (
                 <span className="si-draw-live-hud-radius">
@@ -6272,7 +6310,9 @@ export default function SatelliteIntelligence() {
                     : `${(circleRadiusM / 1000).toFixed(2)} km`}
                 </span>
               ) : null}
-              {drawAssistHint ? <span className="si-draw-live-hud-hint">{drawAssistHint}</span> : null}
+              {drawAssistHint || polygonSketchHudText ? (
+                <span className="si-draw-live-hud-hint">{drawAssistHint || polygonSketchHudText}</span>
+              ) : null}
             </div>
           ) : null}
           <MapGL
@@ -6440,7 +6480,7 @@ export default function SatelliteIntelligence() {
                       type="circle"
                       filter={['==', ['get', 'draftRole'], 'polyVertex']}
                       paint={{
-                        'circle-radius': 7,
+                        'circle-radius': 9,
                         'circle-color': '#bbf7d0',
                         'circle-stroke-width': 2,
                         'circle-stroke-color': '#14532d',
@@ -6581,19 +6621,6 @@ export default function SatelliteIntelligence() {
                 />
               </Source>
             )}
-
-            {isMapLoaded && showIndexOutsideAoiMask && indexOverlayClipMaskFeature ? (
-              <Source id="si-index-overlay-clip-mask" type="geojson" data={indexOverlayClipMaskFeature as any}>
-                <Layer
-                  id="si-index-overlay-clip-mask-fill"
-                  type="fill"
-                  paint={{
-                    'fill-color': '#020617',
-                    'fill-opacity': 1,
-                  }}
-                />
-              </Source>
-            ) : null}
 
             {isMapLoaded && drawnGeometry ? (
               <Source id="drawn-index-geometry-outline-source" type="geojson" data={drawnGeometry as any}>

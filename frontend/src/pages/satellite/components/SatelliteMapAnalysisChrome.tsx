@@ -58,7 +58,7 @@ export function SatelliteMapAnalysisToolbar({
         type="button"
         className={`si-map-analysis-tool ${mapTool === 'polygon' ? 'si-map-analysis-tool--on' : ''}`}
         aria-pressed={mapTool === 'polygon'}
-        title="Draw polygon AOI"
+        title="Polygon AOI: click to add corners, drag green dots to adjust, Enter or click first corner to close"
         onClick={() => onMapTool('polygon')}
       >
         <i className="fa-solid fa-draw-polygon" aria-hidden />
