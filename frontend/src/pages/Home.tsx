@@ -48,7 +48,38 @@ const menuItems: MenuItem[] = [
     label: { en: 'Operations', ar: 'العمليات' },
     icon: 'fa-solid fa-screwdriver-wrench',
     color: '#F59E0B', // Amber
-    items: []
+    items: [
+      {
+        label: { en: 'Data Management', ar: 'إدارة البيانات' },
+        icon: 'fa-solid fa-database',
+        to: '/master/workflow-settings',
+      },
+      {
+        label: { en: 'EC/PH', ar: 'الملوحة والحموضة' },
+        icon: 'fa-solid fa-droplet',
+        to: '/data/ec-ph',
+      },
+      {
+        label: { en: 'Irrigation Scheduling', ar: 'جدولة الري' },
+        icon: 'fa-solid fa-water',
+        to: '/data/irrigation',
+      },
+      {
+        label: { en: 'Harvest Logging', ar: 'تسجيل الحصاد' },
+        icon: 'fa-solid fa-tractor',
+        to: '/data/harvest',
+      },
+      {
+        label: { en: 'QHIS', ar: 'الجودة والسلامة' },
+        icon: 'fa-solid fa-shield-halved',
+        to: '/data/qhis',
+      },
+      {
+        label: { en: 'Product & Sales Tracking', ar: 'تتبع المنتجات والمبيعات' },
+        icon: 'fa-solid fa-boxes-stacked',
+        to: '/data/production',
+      },
+    ],
   },
   {
     id: 'sensors',
