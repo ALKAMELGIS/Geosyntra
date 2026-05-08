@@ -61,6 +61,7 @@ const dsfTranslations = {
     noFieldsFound: 'No fields found for this layer.',
     noMatchingResults: 'No matching results.',
     orderFields: 'Order Fields',
+    shortcutsHint: 'Ctrl/Cmd+A: select all filtered · Esc: clear filtered',
     save: 'Save',
     searchFields: 'Search fields...',
     selectFields: 'Select Fields',
@@ -81,6 +82,7 @@ const dsfTranslations = {
     noFieldsFound: 'لا توجد حقول لهذه الطبقة.',
     noMatchingResults: 'لا توجد نتائج مطابقة.',
     orderFields: 'ترتيب الحقول',
+    shortcutsHint: 'Ctrl/Cmd+A: تحديد الكل · Esc: مسح المحدد',
     save: 'حفظ',
     searchFields: 'ابحث في الحقول...',
     selectFields: 'اختيار الحقول',
@@ -411,6 +413,8 @@ export function AdvancedLayerMultiSelect({
   search: string
   onSearchChange: (value: string) => void
 }) {
+  const { language } = useLanguage()
+  const ui = dsfTranslations[language]
   const [view, setView] = useState<'list' | 'grid' | 'tree'>('grid')
   const [typeFilter, setTypeFilter] = useState<'all' | 'arcgis' | 'geojson' | 'url' | 'custom'>('all')
   const [showSelectedOnly, setShowSelectedOnly] = useState(false)
@@ -445,8 +449,8 @@ export function AdvancedLayerMultiSelect({
     }
   }
 
-  const rowHeight = 34
-  const viewportHeight = 260
+  const rowHeight = 30
+  const viewportHeight = 192
   const overscan = 10
   const total = filtered.length
   const startIndex = view === 'list' ? Math.max(0, Math.floor(scrollTop / rowHeight) - overscan) : 0
@@ -470,15 +474,28 @@ export function AdvancedLayerMultiSelect({
     <div className="dsf-layer-picker" onKeyDown={handleKeyDown}>
       <div className="dsf-layer-toolbar">
         <div className="dsf-layer-toolbar__left">
-          <button
-            type="button"
-            className={`dsf-layer-toolbar__segment ${view === 'grid' ? 'dsf-layer-toolbar__segment--active' : ''}`}
-            onClick={() => setView('grid')}
-            aria-label="Grid view"
-            aria-pressed={view === 'grid'}
-          >
-            Grid
-          </button>
+          <div className="dsf-layer-toolbar__views" role="group" aria-label="Layer view">
+            <button
+              type="button"
+              className={`dsf-layer-toolbar__icon-btn${view === 'grid' ? ' is-active' : ''}`}
+              onClick={() => setView('grid')}
+              aria-label="Grid view"
+              aria-pressed={view === 'grid'}
+              title="Grid"
+            >
+              <i className="fa-solid fa-table-cells-large" aria-hidden />
+            </button>
+            <button
+              type="button"
+              className={`dsf-layer-toolbar__icon-btn${view === 'list' ? ' is-active' : ''}`}
+              onClick={() => setView('list')}
+              aria-label="List view"
+              aria-pressed={view === 'list'}
+              title="List"
+            >
+              <i className="fa-solid fa-list-ul" aria-hidden />
+            </button>
+          </div>
 
           <select
             className="dsf-layer-toolbar__select"
@@ -502,21 +519,35 @@ export function AdvancedLayerMultiSelect({
 
         <div className="dsf-layer-toolbar__right">
           <div className="dsf-layer-toolbar__count" aria-live="polite">
-            {selectedInFiltered}/{filtered.length} selected
+            <span className="dsf-layer-toolbar__count-num">{selectedInFiltered}</span>
+            <span className="dsf-layer-toolbar__count-sep">/</span>
+            <span>{filtered.length}</span>
+            <span className="dsf-layer-toolbar__count-label">selected</span>
           </div>
           <button type="button" className="dsf-layer-toolbar__btn" onClick={() => onSelectMany(allFilteredIds)} disabled={filtered.length === 0} aria-label="Select all filtered">
+            <i className="fa-solid fa-check-double" aria-hidden />
             Select all
           </button>
           <button type="button" className="dsf-layer-toolbar__btn dsf-layer-toolbar__btn--ghost" onClick={() => onClearMany(allFilteredIds)} disabled={selectedInFiltered === 0} aria-label="Clear all filtered">
+            <i className="fa-solid fa-xmark" aria-hidden />
             Clear
           </button>
         </div>
       </div>
 
-      <input className="dsf-layer-search" value={search} onChange={e => onSearchChange(e.target.value)} placeholder="Search layers…" aria-label="Search available layers" />
+      <div className="dsf-layer-search-wrap">
+        <i className="fa-solid fa-magnifying-glass dsf-layer-search-wrap__icon" aria-hidden />
+        <input
+          className="dsf-layer-search"
+          value={search}
+          onChange={e => onSearchChange(e.target.value)}
+          placeholder="Search layers…"
+          aria-label="Search available layers"
+        />
+      </div>
 
       {view === 'tree' ? (
-        <div style={{ marginTop: 10, display: 'grid', gap: 10, maxHeight: viewportHeight, overflow: 'auto', paddingRight: 6 }}>
+        <div className="dsf-layer-tree-scroll" style={{ maxHeight: viewportHeight }}>
           {grouped.length ? (
             grouped.map(([k, items]) => {
               const label = groupLabel[k] ?? k
@@ -567,7 +598,7 @@ export function AdvancedLayerMultiSelect({
               )
             })
           ) : (
-            <div style={{ fontSize: 12, color: '#64748b' }}>No layers found.</div>
+            <div className="dsf-layer-empty">No layers found.</div>
           )}
         </div>
       ) : view === 'grid' ? (
@@ -598,7 +629,8 @@ export function AdvancedLayerMultiSelect({
         <div
           ref={listViewportRef}
           onScroll={(e) => setScrollTop((e.target as HTMLDivElement).scrollTop)}
-          style={{ marginTop: 10, display: 'grid', gap: 6, height: viewportHeight, overflow: 'auto', paddingRight: 6 }}
+          className="dsf-layer-list-scroll"
+          style={{ height: viewportHeight }}
           role="listbox"
           aria-multiselectable="true"
           aria-label="Available layers"
@@ -617,14 +649,15 @@ export function AdvancedLayerMultiSelect({
                 )
               })
             ) : (
-              <div style={{ fontSize: 12, color: '#64748b' }}>No layers found.</div>
+              <div className="dsf-layer-empty">No layers found.</div>
             )}
           </div>
         </div>
       )}
 
-      <div className="dsf-shortcuts" style={{ marginTop: 8, fontSize: 11, color: '#64748b', fontWeight: 700 }}>
-        Shortcuts: Ctrl/Cmd+A select all filtered • Esc clear filtered
+      <div className="dsf-shortcuts">
+        <i className="fa-regular fa-keyboard dsf-shortcuts__icon" aria-hidden />
+        <span>{ui.shortcutsHint}</span>
       </div>
     </div>
   )
@@ -1171,12 +1204,25 @@ export function DataSourceFieldsPanel({
   if (mode === 'settings') {
     const selectedIds = new Set(draftSourceIds)
     return (
-      <div className="dsf-settings-panel">
+      <div className="dsf-settings-panel dsf-settings-shell--compact">
         <div className="dsf-settings-head">
-          <div className="dsf-settings-head__title">{text.dataSourceFields}</div>
+          <div className="dsf-settings-head__title">
+            <span className="dsf-settings-head__mark" aria-hidden>
+              <i className="fa-solid fa-database" />
+            </span>
+            <span>{text.dataSourceFields}</span>
+          </div>
           <div className="dsf-settings-head__actions">
             <button id="open-fields-btn" type="button" className="dsf-settings-head__btn dsf-settings-head__btn--secondary" onClick={() => setIsOpen(v => !v)}>
-              {isOpen ? text.close : text.configure}
+              {isOpen ? (
+                <>
+                  <i className="fa-solid fa-xmark" aria-hidden /> {text.close}
+                </>
+              ) : (
+                <>
+                  <i className="fa-solid fa-sliders" aria-hidden /> {text.configure}
+                </>
+              )}
             </button>
             <button
               type="button"
@@ -1184,7 +1230,7 @@ export function DataSourceFieldsPanel({
               onClick={saveSettings}
               disabled={!draftSourceIds.some(v => v.trim())}
             >
-              {text.save}
+              <i className="fa-solid fa-floppy-disk" aria-hidden /> {text.save}
             </button>
           </div>
         </div>
