@@ -3,6 +3,7 @@ import { stripGeoExplorerBubbleDisplayText } from '../../../lib/geoExplorerGemin
 import { splitTextIntoMarkdownSegments, type GeoMarkdownSegment } from '../../../lib/geoAiMarkdownTable'
 import type { GeoExplorerCssPrefix } from './GeoExplorerGeminiChatBody'
 import { GeoExplorerDynamicTable, type GeoExplorerMapAction } from './GeoExplorerDynamicTable'
+import { GeoAiEditQuestionTool } from './GeoAiEditQuestionTool'
 
 function pfx(prefix: GeoExplorerCssPrefix, part: string): string {
   return `${prefix}-${part}`
@@ -28,10 +29,25 @@ export type GeoExplorerGeminiMessagePartsProps = {
   msg: GeoExplorerMessage
   cssPrefix: GeoExplorerCssPrefix
   onTableMapAction?: (action: GeoExplorerMapAction, link: GeoExplorerMapLink) => void
+  /** When set, user text bubbles show edit / rephrase controls and update history on save. */
+  onUpdateUserMessage?: (messageId: string, nextText: string) => void
+  onSendEditedToComposer?: (text: string) => void
+  suggestLayers?: string[]
+  suggestFields?: string[]
+  suggestNumericFields?: string[]
 }
 
 export function GeoExplorerGeminiMessageParts(props: GeoExplorerGeminiMessagePartsProps) {
-  const { msg, cssPrefix, onTableMapAction } = props
+  const {
+    msg,
+    cssPrefix,
+    onTableMapAction,
+    onUpdateUserMessage,
+    onSendEditedToComposer,
+    suggestLayers,
+    suggestFields,
+    suggestNumericFields,
+  } = props
 
   if (msg.role === 'user') {
     const text = msg.parts
@@ -41,7 +57,22 @@ export function GeoExplorerGeminiMessageParts(props: GeoExplorerGeminiMessagePar
     const hasImage = msg.parts.some(p => p.type === 'image')
     return (
       <>
-        {text ? <p className={pfx(cssPrefix, 'bubble-text')}>{text}</p> : null}
+        {text ? (
+          onUpdateUserMessage ? (
+            <GeoAiEditQuestionTool
+              cssPrefix={cssPrefix}
+              messageId={msg.id}
+              originalText={text}
+              onCommit={next => onUpdateUserMessage(msg.id, next)}
+              onUseInComposer={onSendEditedToComposer}
+              suggestLayers={suggestLayers}
+              suggestFields={suggestFields}
+              suggestNumericFields={suggestNumericFields}
+            />
+          ) : (
+            <p className={pfx(cssPrefix, 'bubble-text')}>{text}</p>
+          )
+        ) : null}
         {hasImage ? (
           <p className={pfx(cssPrefix, 'bubble-meta')}>
             <i className="fa-solid fa-paperclip" aria-hidden /> Image attached

@@ -44,6 +44,7 @@ import { parseFile, parseRemoteUrlAsFile } from '../../utils/FileLoader'
 import { useGeminiApiKey } from '../../hooks/useGeminiApiKey'
 import {
   lastMapQueryCoordsFromMessages,
+  replaceUserMessageText,
   type GeoExplorerMapLink,
   type GeoExplorerMessage,
   type GeoExplorerPart,
@@ -1636,6 +1637,10 @@ export default function GisMap() {
     if (!el || !geoExplorerHasOlderMessages) return
     if (el.scrollTop <= 24) loadOlderGeoExplorerMessages()
   }, [geoExplorerHasOlderMessages, loadOlderGeoExplorerMessages])
+
+  const onUpdateGeoExplorerUserMessage = useCallback((id: string, text: string) => {
+    setGeoExplorerMessages(prev => prev.map(m => (m.id === id ? replaceUserMessageText(m, text) : m)))
+  }, [])
 
   useLayoutEffect(() => {
     const el = geoExplorerMessagesRef.current
@@ -4192,6 +4197,11 @@ export default function GisMap() {
                   msg={msg}
                   cssPrefix="gis-geo-explorer"
                   onTableMapAction={onGeoAiTableMapAction}
+                  onUpdateUserMessage={onUpdateGeoExplorerUserMessage}
+                  onSendEditedToComposer={setGeoExplorerDraft}
+                  suggestLayers={geoAiSuggestContext.layers}
+                  suggestFields={geoAiSuggestContext.fields}
+                  suggestNumericFields={geoAiSuggestContext.numericFields}
                 />
               </div>
             </div>

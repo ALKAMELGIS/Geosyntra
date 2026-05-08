@@ -32,7 +32,7 @@ function pfx(prefix: GeoExplorerCssPrefix, part: string): string {
 }
 
 const RECENT_LS_KEY = 'geo_ai_suggestions_recent_v1'
-const MAX_VISIBLE = 7
+const MAX_VISIBLE = 6
 const PROGRESSIVE_MS = 380
 
 type RankedChip = {
@@ -41,7 +41,7 @@ type RankedChip = {
   label: string
   /** Inserted into draft */
   insert: string
-  tier: 'recent' | 'context' | 'op' | 'spatial' | 'help'
+  tier: 'guide' | 'recent' | 'context' | 'op' | 'spatial' | 'help'
   score: number
 }
 
@@ -71,6 +71,8 @@ function normalizeChipKey(s: string): string {
 
 type OptimizePack = {
   refined: string
+  /** Short natural prompts users can tap */
+  examples: string[]
   stats: string[]
   math: string[]
   spatial: string[]
@@ -113,7 +115,27 @@ function buildOptimizePack(
     refined = `${d.trim()} — specify layer (${layer ?? '…'}), field (${num}), and comparison for sharper stats`
   }
 
-  return { refined, stats, math, spatial }
+  const examples: string[] = []
+  if (layer) {
+    examples.push(`ما الذي أريد معرفته عن "${layer}" بالتحديد؟`)
+    examples.push(`How many records are in "${layer}", and should we group by ${cat}?`)
+    examples.push(`What totals do I need for ${num} on "${layer}"?`)
+  } else {
+    examples.push(`أي طبقة نبدأ بتحليلها؟`)
+    examples.push(`I want to summarize my data — what should we measure first?`)
+  }
+  examples.push(`Compare ${num} across ${cat}.`)
+
+  return { refined, examples, stats, math, spatial }
+}
+
+const TIER_SORT: Record<RankedChip['tier'], number> = {
+  guide: 60,
+  help: 45,
+  context: 40,
+  recent: 30,
+  op: 20,
+  spatial: 15,
 }
 
 function relevanceBonus(q: string, label: string): number {
@@ -158,7 +180,7 @@ export function GeoExplorerGeminiInputRow(props: GeoExplorerGeminiInputRowProps)
   const optimizeWrapRef = useRef<HTMLDivElement | null>(null)
   const chipRefs = useRef<Array<HTMLButtonElement | null>>([])
   const [composerFocused, setComposerFocused] = useState(false)
-  const [progressiveCap, setProgressiveCap] = useState(4)
+  const [progressiveCap, setProgressiveCap] = useState(3)
   const [chipFocusIdx, setChipFocusIdx] = useState<number | null>(null)
   const [optimizeOpen, setOptimizeOpen] = useState(false)
 
@@ -207,35 +229,117 @@ export function GeoExplorerGeminiInputRow(props: GeoExplorerGeminiInputRowProps)
     }
 
     const calcIntent =
-      /احسب|calculate|sum|average|mean|count|min|max|statistics|stat\b|group\s*by|مجموع|متوسط|عدد|إحصاء|احص/i.test(qRaw)
+      /احسب|calculate|sum|average|mean|count|min|max|statistics|stat\b|group\s*by|مجموع|متوسط|عدد|إحصاء|احص|تلخيص|total\b/i.test(qRaw)
     const filterIntent =
-      /حدد|select|where|filter|>|<|=|!|within|intersects|contains|buffer|اكبر|اصغر|أكبر|أصغر/i.test(qRaw)
+      /حدد|select|where|filter|>|<|=|!|within|intersects|contains|buffer|اكبر|اصغر|أكبر|أصغر|تصفية|عرض السجلات/i.test(qRaw)
+    const spatialHint =
+      /within|intersects|contains|buffer|clip|spatial|boundary|map|نطاق|خريطة|مكان|geometry/i.test(qRaw)
     const focusedOrTyping = composerFocused || qRaw.length > 0
 
-    /** Idle & unfocused → nothing */
     if (!focusedOrTyping && !qRaw) {
       return []
     }
 
-    /** Recent — always high priority when composer active */
+    const showHeavyOps =
+      calcIntent ||
+      filterIntent ||
+      spatialHint ||
+      qRaw.length > 28 ||
+      (/\d/.test(qRaw) && /[<>=]/.test(qRaw))
+
+    const sortByTierThenScore = (rows: RankedChip[]) =>
+      rows.sort((a, b) => {
+        const td = TIER_SORT[b.tier] - TIER_SORT[a.tier]
+        if (td !== 0) return td
+        return b.score - a.score
+      })
+
+    /** Focused empty draft → guide-first (no math/stat spam) */
+    const guideQuiet = composerFocused && qRaw.length === 0 && !calcIntent && !filterIntent
+    if (guideQuiet) {
+      const guides: Array<[string, string]> = [
+        ['ما الذي تريد تحليله؟', 'ما الذي تريد تحليله بالضبط؟ '],
+        ['اختر طبقة أو حقل', 'الطبقة أو الحقل المطلوب: '],
+        ['تلخيص · Summarize', 'تلخيص النتائج: '],
+        ['مقارنة · Compare', 'مقارنة بين '],
+        ['تصفية · Filter', 'عرض السجلات حيث '],
+        ['عدّ السجلات', 'كم عدد السجلات '],
+      ]
+      guides.forEach(([label, insert], i) =>
+        push({
+          key: `guide-${i}-${label}`,
+          label,
+          insert,
+          tier: 'guide',
+          score: 96 - i,
+        }),
+      )
+
+      const topRecent = Object.entries(recentMap)
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 2)
+        .map(([insert]) => ({
+          key: insert,
+          label: insert.length > 26 ? `${insert.slice(0, 24)}…` : insert,
+          insert,
+          tier: 'recent' as const,
+          score: recentBoost(insert, 74, 'recent'),
+        }))
+      for (const c of topRecent) push(c)
+
+      if (availableLayers.length) {
+        for (const l of availableLayers.slice(0, 2)) {
+          const insert = l.includes(' ') ? `Layer: "${l}"` : `Layer: ${l}`
+          push({
+            key: insert,
+            label: `Layer · ${l.length > 22 ? `${l.slice(0, 20)}…` : l}`,
+            insert,
+            tier: 'context',
+            score: recentBoost(insert, 70, 'context'),
+          })
+        }
+      }
+
+      return sortByTierThenScore([...dedupe.values()])
+    }
+
+    /** Short ambiguous drafts → nudge phrasing before ops */
+    const softGuide = !calcIntent && !filterIntent && !spatialHint && qRaw.length > 0 && qRaw.length <= 26
+    if (softGuide) {
+      push({
+        key: 'guide-clarify',
+        label: 'وضّح النتيجة · Clarify goal',
+        insert: ' الهدف: ',
+        tier: 'guide',
+        score: 90,
+      })
+      push({
+        key: 'guide-layer',
+        label: 'حدّد الطبقة · Pick layer',
+        insert: 'الطبقة: ',
+        tier: 'guide',
+        score: 86,
+      })
+    }
+
     const topRecent = Object.entries(recentMap)
       .sort((a, b) => b[1] - a[1])
-      .slice(0, 6)
+      .slice(0, showHeavyOps ? 5 : 3)
       .map(([insert]) => ({
         key: insert,
         label: insert.length > 28 ? `${insert.slice(0, 26)}…` : insert,
         insert,
         tier: 'recent' as const,
-        score: recentBoost(insert, 80, 'recent'),
+        score: recentBoost(insert, 79, 'recent'),
       }))
     for (const c of topRecent) push(c)
 
-    /** Layer / field matches — strong context signals */
     if (availableLayers.length && (qRaw.length >= 2 || calcIntent || filterIntent)) {
+      const layerCap = showHeavyOps ? 4 : 3
       const layers =
         qRaw.length >= 2
-          ? availableLayers.filter(l => l.toLowerCase().includes(q)).slice(0, 4)
-          : availableLayers.slice(0, 2)
+          ? availableLayers.filter(l => l.toLowerCase().includes(q)).slice(0, layerCap)
+          : availableLayers.slice(0, Math.min(3, layerCap))
       for (const l of layers) {
         const insert = l.includes(' ') ? `Layer: "${l}"` : `Layer: ${l}`
         push({
@@ -243,13 +347,14 @@ export function GeoExplorerGeminiInputRow(props: GeoExplorerGeminiInputRowProps)
           label: `Layer · ${l.length > 22 ? `${l.slice(0, 20)}…` : l}`,
           insert,
           tier: 'context',
-          score: recentBoost(insert, 72, 'context'),
+          score: recentBoost(insert, 73, 'context'),
         })
       }
     }
 
     if (availableFields.length && qRaw.length >= 2) {
-      const fields = availableFields.filter(f => f.toLowerCase().includes(q)).slice(0, 4)
+      const fieldCap = showHeavyOps ? 4 : 3
+      const fields = availableFields.filter(f => f.toLowerCase().includes(q)).slice(0, fieldCap)
       for (const f of fields) {
         const insert = `Field: ${f}`
         push({
@@ -257,16 +362,17 @@ export function GeoExplorerGeminiInputRow(props: GeoExplorerGeminiInputRowProps)
           label: `Field · ${f.length > 22 ? `${f.slice(0, 20)}…` : f}`,
           insert,
           tier: 'context',
-          score: recentBoost(insert, 68, 'context'),
+          score: recentBoost(insert, 69, 'context'),
         })
       }
     }
 
     if (availableNumericFields.length && (calcIntent || qRaw.length >= 2)) {
+      const maxN = showHeavyOps ? 3 : 2
       const nums =
         qRaw.length >= 2
-          ? availableNumericFields.filter(f => f.toLowerCase().includes(q)).slice(0, 3)
-          : availableNumericFields.slice(0, 2)
+          ? availableNumericFields.filter(f => f.toLowerCase().includes(q)).slice(0, maxN)
+          : availableNumericFields.slice(0, Math.min(2, maxN))
       for (const f of nums) {
         const insert = `Numeric: ${f}`
         push({
@@ -274,27 +380,35 @@ export function GeoExplorerGeminiInputRow(props: GeoExplorerGeminiInputRowProps)
           label: `# ${f.length > 18 ? `${f.slice(0, 16)}…` : f}`,
           insert,
           tier: 'context',
-          score: recentBoost(insert, 62, 'context'),
+          score: recentBoost(insert, 63, 'context'),
         })
       }
     }
 
-    /** Intent-scoped ops — no “show everything when empty” */
-    if (calcIntent || (composerFocused && qRaw.length === 0 && !filterIntent)) {
-      const aggAll = ['Sum', 'Average', 'Count', 'Min', 'Max', 'Group By']
-      const aggPick = calcIntent || qRaw.length >= 2 ? aggAll : aggAll.slice(0, 4)
-      for (const op of aggPick) {
+    const aggLabels: Array<[string, string]> = [
+      ['مجموع · Sum', 'Sum'],
+      ['متوسط · Average', 'Average'],
+      ['عدد · Count', 'Count'],
+      ['أدنى · Min', 'Min'],
+      ['أقصى · Max', 'Max'],
+      ['تجميع حسب · Group By', 'Group By'],
+    ]
+
+    if (calcIntent || qRaw.length > 22) {
+      const aggPick = calcIntent ? aggLabels : aggLabels.slice(0, 4)
+      for (const [label, insert] of aggPick) {
         push({
-          key: op,
-          label: op,
-          insert: op,
+          key: insert,
+          label,
+          insert,
           tier: 'op',
-          score: recentBoost(op, calcIntent ? 58 : 42, 'op'),
+          score: recentBoost(insert, calcIntent ? 58 : 44, 'op'),
         })
       }
     }
 
-    if (filterIntent || (composerFocused && qRaw.length === 0 && !calcIntent)) {
+    const cmpHeavy = filterIntent || spatialHint || /[><=!]/.test(qRaw)
+    if (cmpHeavy) {
       const cmpAll = ['>', '<', '>=', '<=', '=', '!=']
       const cmpPick = qRaw.length >= 2 || filterIntent ? cmpAll : cmpAll.slice(0, 4)
       for (const op of cmpPick) {
@@ -303,60 +417,25 @@ export function GeoExplorerGeminiInputRow(props: GeoExplorerGeminiInputRowProps)
           label: op,
           insert: op,
           tier: 'op',
-          score: recentBoost(op, filterIntent ? 54 : 34, 'op'),
+          score: recentBoost(op, filterIntent ? 54 : 40, 'op'),
         })
       }
-      const geoCap = qRaw.length >= 2 || filterIntent ? availableGeometryOps.length : Math.min(2, availableGeometryOps.length)
+    }
+
+    if ((filterIntent || spatialHint) && availableGeometryOps.length) {
+      const geoCap = Math.min(showHeavyOps ? 5 : 3, availableGeometryOps.length)
       for (const g of availableGeometryOps.slice(0, geoCap)) {
         push({
           key: g,
           label: g,
           insert: g,
           tier: 'spatial',
-          score: recentBoost(g, filterIntent ? 52 : 30, 'spatial'),
+          score: recentBoost(g, filterIntent ? 52 : 38, 'spatial'),
         })
       }
     }
 
-    /** Compact quick actions — only when intent matches or typing hints */
-    if (
-      calcIntent ||
-      /group|summary|calculate|field|range|filter|records/i.test(qRaw) ||
-      (composerFocused && qRaw.length === 0)
-    ) {
-      const qa: Array<[string, number]> = [
-        ['Group by summary', 46],
-        ['Calculate field preview', 44],
-        ['Count records', 48],
-        ['Range filter', 40],
-      ]
-      for (const [insert, base] of qa) {
-        if (!calcIntent && !filterIntent && qRaw.length > 0 && !/group|calculate|count|range|filter/i.test(qRaw))
-          continue
-        push({
-          key: insert,
-          label: insert.replace(/\spreview$/i, '').trim(),
-          insert,
-          tier: 'help',
-          score: recentBoost(insert, base, 'help'),
-        })
-      }
-    }
-
-    /** Minimal help tokens — single row blend, deduped */
-    if (composerFocused && qRaw.length === 0 && dedupe.size < 4) {
-      for (const h of ['select where', 'within', 'intersects']) {
-        push({
-          key: h,
-          label: h,
-          insert: h,
-          tier: 'help',
-          score: recentBoost(h, 36, 'help'),
-        })
-      }
-    }
-
-    return [...dedupe.values()].sort((a, b) => b.score - a.score)
+    return sortByTierThenScore([...dedupe.values()])
   }, [
     q,
     qRaw,
@@ -378,7 +457,7 @@ export function GeoExplorerGeminiInputRow(props: GeoExplorerGeminiInputRowProps)
       setProgressiveCap(MAX_VISIBLE)
       return
     }
-    setProgressiveCap(4)
+    setProgressiveCap(3)
     const t = window.setTimeout(() => setProgressiveCap(MAX_VISIBLE), PROGRESSIVE_MS)
     return () => window.clearTimeout(t)
   }, [qRaw, composerFocused])
@@ -459,11 +538,11 @@ export function GeoExplorerGeminiInputRow(props: GeoExplorerGeminiInputRowProps)
       onClick={toggleOptimize}
       aria-expanded={optimizeOpen}
       aria-haspopup="dialog"
-      aria-label="Optimize Your Input — templates for layers and fields"
-      title="Optimize Your Input"
+      aria-label="Examples and wording — أمثلة وصياغة"
+      title="Examples, wording, and advanced formulas"
     >
       <i className="fa-solid fa-sparkles" aria-hidden />
-      <span className={pfx(cssPrefix, 'optimize-input-btn-label')}>Optimize</span>
+      <span className={pfx(cssPrefix, 'optimize-input-btn-label')}>Examples</span>
     </button>
   )
 
@@ -525,11 +604,11 @@ export function GeoExplorerGeminiInputRow(props: GeoExplorerGeminiInputRowProps)
     <div
       className={pfx(cssPrefix, 'optimize-popover')}
       role="dialog"
-      aria-label="Optimize Your Input"
+      aria-label="Question guide — دليل الصياغة"
       onMouseDown={ev => ev.preventDefault()}
     >
       <div className={pfx(cssPrefix, 'optimize-popover-head')}>
-        <span className={pfx(cssPrefix, 'optimize-popover-title')}>Optimize Your Input</span>
+        <span className={pfx(cssPrefix, 'optimize-popover-title')}>Guide · دليل الصياغة</span>
         <button
           type="button"
           className={pfx(cssPrefix, 'optimize-popover-close')}
@@ -540,11 +619,22 @@ export function GeoExplorerGeminiInputRow(props: GeoExplorerGeminiInputRowProps)
         </button>
       </div>
       <p className={pfx(cssPrefix, 'optimize-popover-lead')}>
-        Templates use your loaded layers and fields. Tap to append; use “Use wording” to replace the draft.
+        Start with a plain question; open Advanced only when you need formulas and spatial snippets.
       </p>
 
+      <div className={pfx(cssPrefix, 'optimize-examples')}>
+        <div className={pfx(cssPrefix, 'optimize-examples-label')}>Try asking · جرّب أن تقول</div>
+        <div className={pfx(cssPrefix, 'optimize-chip-row')}>
+          {optimizePack.examples.map(ex => (
+            <button key={ex} type="button" className={pfx(cssPrefix, 'optimize-chip')} onClick={() => insertFromOptimize(ex, 'append')}>
+              {ex.length > 72 ? `${ex.slice(0, 70)}…` : ex}
+            </button>
+          ))}
+        </div>
+      </div>
+
       <div className={pfx(cssPrefix, 'optimize-refined')}>
-        <span className={pfx(cssPrefix, 'optimize-refined-label')}>Suggested wording</span>
+        <span className={pfx(cssPrefix, 'optimize-refined-label')}>Sharpen wording · صقل الصياغة</span>
         <p className={pfx(cssPrefix, 'optimize-refined-text')}>{optimizePack.refined}</p>
         <div className={pfx(cssPrefix, 'optimize-refined-actions')}>
           <button type="button" className={pfx(cssPrefix, 'optimize-chip-primary')} onClick={() => insertFromOptimize(optimizePack.refined, 'replace')}>
@@ -556,44 +646,48 @@ export function GeoExplorerGeminiInputRow(props: GeoExplorerGeminiInputRowProps)
         </div>
       </div>
 
-      <div className={pfx(cssPrefix, 'optimize-section')}>
-        <div className={pfx(cssPrefix, 'optimize-section-title')}>
-          Stats Ops <span className={pfx(cssPrefix, 'optimize-section-sub')}>(إحصائياً)</span>
-        </div>
-        <div className={pfx(cssPrefix, 'optimize-chip-row')}>
-          {optimizePack.stats.map(s => (
-            <button key={s} type="button" className={pfx(cssPrefix, 'optimize-chip')} onClick={() => insertFromOptimize(s, 'append')}>
-              {s.length > 52 ? `${s.slice(0, 50)}…` : s}
-            </button>
-          ))}
-        </div>
-      </div>
+      <details className={pfx(cssPrefix, 'optimize-advanced')}>
+        <summary className={pfx(cssPrefix, 'optimize-advanced-summary')}>Advanced · عمليات تقنية</summary>
 
-      <div className={pfx(cssPrefix, 'optimize-section')}>
-        <div className={pfx(cssPrefix, 'optimize-section-title')}>
-          Math Ops <span className={pfx(cssPrefix, 'optimize-section-sub')}>(رياضياً)</span>
+        <div className={pfx(cssPrefix, 'optimize-section')}>
+          <div className={pfx(cssPrefix, 'optimize-section-title')}>
+            Stats <span className={pfx(cssPrefix, 'optimize-section-sub')}>(إحصائياً)</span>
+          </div>
+          <div className={pfx(cssPrefix, 'optimize-chip-row')}>
+            {optimizePack.stats.map(s => (
+              <button key={s} type="button" className={pfx(cssPrefix, 'optimize-chip')} onClick={() => insertFromOptimize(s, 'append')}>
+                {s.length > 52 ? `${s.slice(0, 50)}…` : s}
+              </button>
+            ))}
+          </div>
         </div>
-        <div className={pfx(cssPrefix, 'optimize-chip-row')}>
-          {optimizePack.math.map(s => (
-            <button key={s} type="button" className={pfx(cssPrefix, 'optimize-chip')} onClick={() => insertFromOptimize(s, 'append')}>
-              {s}
-            </button>
-          ))}
-        </div>
-      </div>
 
-      <div className={pfx(cssPrefix, 'optimize-section')}>
-        <div className={pfx(cssPrefix, 'optimize-section-title')}>
-          Spatial Ops <span className={pfx(cssPrefix, 'optimize-section-sub')}>(مكانياً)</span>
+        <div className={pfx(cssPrefix, 'optimize-section')}>
+          <div className={pfx(cssPrefix, 'optimize-section-title')}>
+            Filters <span className={pfx(cssPrefix, 'optimize-section-sub')}>(رياضياً)</span>
+          </div>
+          <div className={pfx(cssPrefix, 'optimize-chip-row')}>
+            {optimizePack.math.map(s => (
+              <button key={s} type="button" className={pfx(cssPrefix, 'optimize-chip')} onClick={() => insertFromOptimize(s, 'append')}>
+                {s}
+              </button>
+            ))}
+          </div>
         </div>
-        <div className={pfx(cssPrefix, 'optimize-chip-row')}>
-          {optimizePack.spatial.map(s => (
-            <button key={s} type="button" className={pfx(cssPrefix, 'optimize-chip')} onClick={() => insertFromOptimize(s, 'append')}>
-              {s.length > 56 ? `${s.slice(0, 54)}…` : s}
-            </button>
-          ))}
+
+        <div className={pfx(cssPrefix, 'optimize-section')}>
+          <div className={pfx(cssPrefix, 'optimize-section-title')}>
+            Spatial <span className={pfx(cssPrefix, 'optimize-section-sub')}>(مكانياً)</span>
+          </div>
+          <div className={pfx(cssPrefix, 'optimize-chip-row')}>
+            {optimizePack.spatial.map(s => (
+              <button key={s} type="button" className={pfx(cssPrefix, 'optimize-chip')} onClick={() => insertFromOptimize(s, 'append')}>
+                {s.length > 56 ? `${s.slice(0, 54)}…` : s}
+              </button>
+            ))}
+          </div>
         </div>
-      </div>
+      </details>
 
       <p className={pfx(cssPrefix, 'optimize-context')}>
         Layers: {availableLayers.length ? availableLayers.slice(0, 4).join(', ') : '—'}
@@ -608,16 +702,17 @@ export function GeoExplorerGeminiInputRow(props: GeoExplorerGeminiInputRowProps)
         <div ref={optimizeWrapRef} className={pfx(cssPrefix, 'optimize-wrap')}>
           {optimizePopover}
           {showSuggestPanel ? (
-            <div className={pfx(cssPrefix, 'smart-suggest-panel')} role="region" aria-label="Smart suggestions">
+            <div className={pfx(cssPrefix, 'smart-suggest-panel')} role="region" aria-label="Smart guide">
               <div className={pfx(cssPrefix, 'smart-suggest-toolbar')}>
-                <span className={pfx(cssPrefix, 'smart-suggest-title')}>Smart suggestions</span>
+                <span className={pfx(cssPrefix, 'smart-suggest-title')}>Smart guide</span>
                 {renderOptimizeTrigger()}
                 <span className={pfx(cssPrefix, 'smart-suggest-toolbar-spacer')} aria-hidden />
                 <span className={pfx(cssPrefix, 'smart-suggest-meta')}>
-                  {visibleChips.length}/{Math.min(rankedChips.length, MAX_VISIBLE)} · Alt+1–9
+                  {visibleChips.length}/{Math.min(rankedChips.length, MAX_VISIBLE)}
+                  {visibleChips.length > 0 ? ' · Alt+1–9' : ''}
                 </span>
               </div>
-              <div className={pfx(cssPrefix, 'smart-suggest-scroll')} role="listbox" aria-label="Suggestion chips">
+              <div className={pfx(cssPrefix, 'smart-suggest-scroll')} role="listbox" aria-label="Guide chips">
                 {visibleChips.map((c, i) => (
                   <button
                     key={c.key}
@@ -639,134 +734,150 @@ export function GeoExplorerGeminiInputRow(props: GeoExplorerGeminiInputRowProps)
               </div>
             </div>
           ) : (
-            <div className={pfx(cssPrefix, 'optimize-strip')} role="region" aria-label="Input assist">
-              <span className={pfx(cssPrefix, 'optimize-strip-label')}>Assist</span>
+            <div className={pfx(cssPrefix, 'optimize-strip')} role="region" aria-label="Question guide">
+              <span className={pfx(cssPrefix, 'optimize-strip-label')}>Guide</span>
               {renderOptimizeTrigger()}
             </div>
           )}
         </div>
       ) : null}
-      <div className={pfx(cssPrefix, 'input-row')} data-voice-state={enableVoice ? voiceUiState : undefined}>
-        <div className={pfx(cssPrefix, 'input-composer')}>
-          <div className={pfx(cssPrefix, 'input-shell')}>
-            <textarea
-              ref={textareaRef}
-              className={pfx(cssPrefix, 'input')}
-              rows={2}
-              value={draft}
-              onChange={e => onDraftChange(e.target.value)}
-              onFocus={() => setComposerFocused(true)}
-              onBlur={() => {
-                window.setTimeout(() => {
-                  const a = document.activeElement
-                  if (a && a.closest?.(`.${pfx(cssPrefix, 'smart-suggest-panel')}`)) return
-                  if (a && a.closest?.(`.${pfx(cssPrefix, 'optimize-wrap')}`)) return
-                  setComposerFocused(false)
-                }, 0)
-              }}
-              onKeyDown={e => {
-                onTextareaKeyDown(e)
-                if (e.key === 'Enter' && !e.shiftKey) {
-                  e.preventDefault()
-                  onSend()
-                }
-              }}
-              placeholder={placeholder}
-              aria-label={textareaAriaLabel}
-              disabled={busy}
-            />
+      <div className={pfx(cssPrefix, 'composer-surface')} data-voice-state={enableVoice ? voiceUiState : undefined}>
+        <header className={pfx(cssPrefix, 'composer-head')}>
+          <span className={pfx(cssPrefix, 'composer-head-led')} aria-hidden />
+          <div className={pfx(cssPrefix, 'composer-head-logo')} aria-hidden>
+            <i className="fa-solid fa-comments" />
           </div>
-          {enableVoice ? (
-            <div
-              className={`${pfx(cssPrefix, 'voice-side')} ${pfx(cssPrefix, `voice-side--${voiceUiState}`)}`}
-              aria-label="Voice input and speech language"
-            >
-              <div className={pfx(cssPrefix, 'voice-side-float')} role="group">
-                {voiceUiState === 'capturing' && interimPreview ? (
-                  <div className={pfx(cssPrefix, 'voice-capture-line')} aria-live="polite">
-                    <span className={pfx(cssPrefix, 'voice-capture-dot')} aria-hidden />
-                    <span className={pfx(cssPrefix, 'voice-capture-text')}>{interimPreview}</span>
-                  </div>
-                ) : voiceUiState === 'listening' || voiceUiState === 'capturing' ? (
-                  <div className={pfx(cssPrefix, 'voice-status-line')} aria-live="polite">
-                    <span className={pfx(cssPrefix, 'voice-status-dot')} aria-hidden />
-                    {voiceUiState === 'capturing' ? 'Capturing speech…' : 'Listening…'}
-                  </div>
-                ) : null}
-                <div className={pfx(cssPrefix, 'voice-mini-actions')}>
-                  <button
-                    type="button"
-                    className={`${pfx(cssPrefix, 'mic')} ${voice.listening ? `${pfx(cssPrefix, 'mic--active')}` : ''} ${
-                      voiceUiState === 'capturing' ? `${pfx(cssPrefix, 'mic--capturing')}` : ''
-                    } ${!voice.supported ? `${pfx(cssPrefix, 'mic--unsupported')}` : ''}`}
-                    onClick={onMicClick}
-                    disabled={busy}
-                    aria-pressed={voice.listening}
-                    aria-label={voice.listening ? 'Stop voice input' : 'Start voice input'}
-                    title={
-                      voice.supported
-                        ? `${voice.listening ? 'Stop' : 'Start'} voice (${speechLangArabic ? 'Arabic' : 'English'}). Toggle language with the button beside this mic.`
-                        : 'Voice input is not available in this browser (try Chrome or Edge).'
-                    }
-                  >
-                    <i className="fa-solid fa-microphone" aria-hidden />
-                  </button>
-                  <button
-                    type="button"
-                    className={pfx(cssPrefix, 'lang-chip')}
-                    onClick={() => {
-                      voice.cycleLang()
-                      voice.clearError()
-                    }}
-                    disabled={busy}
-                    aria-label={`Speech language: ${speechLangArabic ? 'Arabic' : 'English'}. Press to switch.`}
-                    title={`Speech language: ${speechLangArabic ? 'Arabic (ar)' : 'English (en)'}. Click to toggle.`}
-                  >
-                    <span className={pfx(cssPrefix, 'lang-chip-stack')} aria-hidden>
-                      <span className={pfx(cssPrefix, 'lang-chip-full')}>{speechLangArabic ? 'Arabic' : 'English'}</span>
-                      <span className={pfx(cssPrefix, 'lang-chip-abbr')}>{speechLangArabic ? 'AR' : 'EN'}</span>
-                    </span>
-                  </button>
-                </div>
-              </div>
+          <div className={pfx(cssPrefix, 'composer-head-copy')}>
+            <span className={pfx(cssPrefix, 'composer-head-title')}>Geo AI</span>
+            <span className={pfx(cssPrefix, 'composer-head-meta')}>
+              <kbd className={pfx(cssPrefix, 'composer-kbd')}>↵</kbd> send ·{' '}
+              <kbd className={pfx(cssPrefix, 'composer-kbd')}>⇧↵</kbd> line
+            </span>
+          </div>
+        </header>
+
+        <div className={pfx(cssPrefix, 'composer-field')}>
+          <textarea
+            ref={textareaRef}
+            className={pfx(cssPrefix, 'input')}
+            rows={1}
+            value={draft}
+            onChange={e => onDraftChange(e.target.value)}
+            onFocus={() => setComposerFocused(true)}
+            onBlur={() => {
+              window.setTimeout(() => {
+                const a = document.activeElement
+                if (a && a.closest?.(`.${pfx(cssPrefix, 'smart-suggest-panel')}`)) return
+                if (a && a.closest?.(`.${pfx(cssPrefix, 'optimize-wrap')}`)) return
+                setComposerFocused(false)
+              }, 0)
+            }}
+            onKeyDown={e => {
+              onTextareaKeyDown(e)
+              if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault()
+                onSend()
+              }
+            }}
+            placeholder={placeholder}
+            aria-label={textareaAriaLabel}
+            disabled={busy}
+          />
+          {enableVoice && (voiceUiState === 'listening' || voiceUiState === 'capturing') ? (
+            <div className={pfx(cssPrefix, 'composer-voice-hint')} aria-live="polite">
+              {voiceUiState === 'capturing' && interimPreview ? (
+                <>
+                  <span className={pfx(cssPrefix, 'composer-voice-dot')} aria-hidden />
+                  <span className={pfx(cssPrefix, 'composer-voice-hint-text')}>{interimPreview}</span>
+                </>
+              ) : (
+                <>
+                  <span className={pfx(cssPrefix, 'composer-voice-dot')} aria-hidden />
+                  <span className={pfx(cssPrefix, 'composer-voice-hint-text')}>
+                    {voiceUiState === 'capturing' ? 'Capturing…' : 'Listening…'}
+                  </span>
+                </>
+              )}
             </div>
           ) : null}
         </div>
-        {showAttach && fileInputRef && onAttachChange ? (
-          <>
-            <input
-              ref={fileInputRef}
-              type="file"
-              className={pfx(cssPrefix, 'file-input')}
-              accept="image/*"
-              onChange={onAttachChange}
-              aria-hidden
-              tabIndex={-1}
-            />
-            <button
-              type="button"
-              className={pfx(cssPrefix, 'attach')}
-              onClick={() => fileInputRef.current?.click()}
-              disabled={busy}
-              aria-label="Attach image"
-              title="Attach image"
-            >
-              <i className="fa-solid fa-paperclip" aria-hidden />
-            </button>
-          </>
-        ) : null}
-        <button
-          type="button"
-          className={pfx(cssPrefix, 'send')}
-          onClick={() => onSend()}
-          disabled={busy || (!draft.trim() && !(showAttach && pendingImage))}
-          aria-label="Send"
-          title="Send"
-        >
-          <i className="fa-solid fa-paper-plane" aria-hidden />
-        </button>
+
+        <div className={pfx(cssPrefix, 'composer-rule')} aria-hidden />
+
+        <footer className={pfx(cssPrefix, 'composer-toolbar')} aria-label="Composer actions">
+          {enableVoice ? (
+            <>
+              <button
+                type="button"
+                className={`${pfx(cssPrefix, 'composer-icon-btn')} ${voice.listening ? `${pfx(cssPrefix, 'composer-icon-btn--active')}` : ''} ${
+                  voiceUiState === 'capturing' ? `${pfx(cssPrefix, 'composer-icon-btn--live')}` : ''
+                } ${!voice.supported ? `${pfx(cssPrefix, 'composer-icon-btn--muted')}` : ''}`}
+                onClick={onMicClick}
+                disabled={busy}
+                aria-pressed={voice.listening}
+                aria-label={voice.listening ? 'Stop voice input' : 'Start voice input'}
+                title={
+                  voice.supported
+                    ? `${voice.listening ? 'Stop' : 'Start'} voice (${speechLangArabic ? 'Arabic' : 'English'})`
+                    : 'Voice not supported in this browser'
+                }
+              >
+                <i className="fa-solid fa-microphone" aria-hidden />
+              </button>
+              <button
+                type="button"
+                className={`${pfx(cssPrefix, 'composer-icon-btn')} ${pfx(cssPrefix, 'composer-icon-btn--lang')}`}
+                onClick={() => {
+                  voice.cycleLang()
+                  voice.clearError()
+                }}
+                disabled={busy}
+                aria-label={`Speech language: ${speechLangArabic ? 'Arabic' : 'English'}. Switch.`}
+                title={`${speechLangArabic ? 'Arabic' : 'English'} — click to toggle`}
+              >
+                <i className="fa-solid fa-language" aria-hidden />
+                <span className={pfx(cssPrefix, 'composer-lang-badge')}>{speechLangArabic ? 'AR' : 'EN'}</span>
+              </button>
+            </>
+          ) : null}
+          <span className={pfx(cssPrefix, 'composer-toolbar-spacer')} />
+          {showAttach && fileInputRef && onAttachChange ? (
+            <>
+              <input
+                ref={fileInputRef}
+                type="file"
+                className={pfx(cssPrefix, 'file-input')}
+                accept="image/*"
+                onChange={onAttachChange}
+                aria-hidden
+                tabIndex={-1}
+              />
+              <button
+                type="button"
+                className={pfx(cssPrefix, 'composer-icon-btn')}
+                onClick={() => fileInputRef.current?.click()}
+                disabled={busy}
+                aria-label="Attach image"
+                title="Attach image"
+              >
+                <i className="fa-solid fa-paperclip" aria-hidden />
+              </button>
+            </>
+          ) : null}
+          <button
+            type="button"
+            className={`${pfx(cssPrefix, 'composer-icon-btn')} ${pfx(cssPrefix, 'composer-icon-btn--send')}`}
+            onClick={() => onSend()}
+            disabled={busy || (!draft.trim() && !(showAttach && pendingImage))}
+            aria-label="Send message"
+            title="Send"
+          >
+            <i className="fa-solid fa-paper-plane" aria-hidden />
+          </button>
+        </footer>
+
+        {voice.error ? <p className={pfx(cssPrefix, 'voice-error')}>{voice.error}</p> : null}
       </div>
-      {voice.error ? <p className={pfx(cssPrefix, 'voice-error')}>{voice.error}</p> : null}
     </>
   )
 }

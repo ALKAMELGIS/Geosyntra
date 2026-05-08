@@ -129,6 +129,15 @@ export type GeoExplorerMessage = {
   parts: GeoExplorerPart[];
 };
 
+/** Replace user text parts; preserves image / non-text parts. Empty text drops text parts only. */
+export function replaceUserMessageText(msg: GeoExplorerMessage, newText: string): GeoExplorerMessage {
+  if (msg.role !== 'user') return msg;
+  const trimmed = newText.trim();
+  const kept = msg.parts.filter((p): p is Exclude<GeoExplorerPart, { type: 'text' }> => p.type !== 'text');
+  const textParts: GeoExplorerPart[] = trimmed ? [{ type: 'text', text: trimmed }] : [];
+  return { ...msg, parts: [...textParts, ...kept] };
+}
+
 function isValidLngLat(lng: number, lat: number): boolean {
   return Number.isFinite(lng) && Number.isFinite(lat) && lng >= -180 && lng <= 180 && lat >= -90 && lat <= 90;
 }

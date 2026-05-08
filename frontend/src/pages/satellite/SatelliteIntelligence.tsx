@@ -42,6 +42,7 @@ import {
   GEO_AI_COPILOT_RULES,
   lastMapQueryCoordsFromMessages,
   lastMapQueryCoordsFromSimpleChatHistory,
+  replaceUserMessageText,
   stripGeoExplorerBubbleDisplayText,
   type GeoExplorerMapLink,
   type GeoExplorerMessage,
@@ -111,6 +112,7 @@ import {
   type SymbologyContext,
 } from './symbologyHelpers';
 import { FieldVisibilityControl } from './components/FieldVisibilityControl';
+import { GeoAiEditQuestionTool } from './components/GeoAiEditQuestionTool';
 import { GeoExplorerGeminiInputRow } from './components/GeoExplorerGeminiInputRow';
 import { GeoExplorerGeminiMessageParts } from './components/GeoExplorerGeminiMessageParts';
 import {
@@ -1998,6 +2000,10 @@ export default function SatelliteIntelligence() {
     if (el) geoAiDeepseekLoadOlderRef.current = { top: el.scrollTop, height: el.scrollHeight };
     setGeoAiDeepseekVisibleCount(prev => Math.min(geoDeepseekChatMessages.length, prev + GEO_AI_CHAT_PAGE_SIZE));
   }, [geoAiDeepseekHasOlderMessages, geoDeepseekChatMessages.length]);
+
+  const onUpdateGeoExplorerUserMessage = useCallback((id: string, text: string) => {
+    setGeoExplorerMessages(prev => prev.map(m => (m.id === id ? replaceUserMessageText(m, text) : m)));
+  }, []);
 
   useLayoutEffect(() => {
     const el = geoExplorerMessagesRef.current;
@@ -6910,42 +6916,50 @@ export default function SatelliteIntelligence() {
                 </button>
               </div>
             </div>
-            <div className="si-explore-stac-tabs" role="tablist">
+            <div className="si-explore-stac-tabs" role="tablist" aria-label="Explore STAC sections">
               <button
                 type="button"
                 role="tab"
                 aria-selected={exploreTab === 'parameters'}
-                className={exploreTab === 'parameters' ? 'active' : ''}
+                className={`si-explore-stac-tab${exploreTab === 'parameters' ? ' active' : ''}`}
                 onClick={() => setExploreTab('parameters')}
+                title="Parameters"
+                aria-label="Parameters — search and filters"
               >
-                Parameters
+                <i className="fa-solid fa-sliders" aria-hidden />
               </button>
               <button
                 type="button"
                 role="tab"
                 aria-selected={exploreTab === 'results'}
-                className={exploreTab === 'results' ? 'active' : ''}
+                className={`si-explore-stac-tab${exploreTab === 'results' ? ' active' : ''}`}
                 onClick={() => setExploreTab('results')}
+                title="Results"
+                aria-label="Results"
               >
-                Results
+                <i className="fa-solid fa-chart-column" aria-hidden />
               </button>
               <button
                 type="button"
                 role="tab"
                 aria-selected={exploreTab === 'processing-templates'}
-                className={exploreTab === 'processing-templates' ? 'active' : ''}
+                className={`si-explore-stac-tab${exploreTab === 'processing-templates' ? ' active' : ''}`}
                 onClick={() => setExploreTab('processing-templates')}
+                title="Processing templates"
+                aria-label="Processing templates"
               >
-                Processing templates
+                <i className="fa-solid fa-diagram-project" aria-hidden />
               </button>
               <button
                 type="button"
                 role="tab"
                 aria-selected={exploreTab === 'source'}
-                className={exploreTab === 'source' ? 'active' : ''}
+                className={`si-explore-stac-tab${exploreTab === 'source' ? ' active' : ''}`}
                 onClick={() => setExploreTab('source')}
+                title="Source"
+                aria-label="Source catalog"
               >
-                Source
+                <i className="fa-solid fa-database" aria-hidden />
               </button>
             </div>
             <div
@@ -8013,6 +8027,11 @@ export default function SatelliteIntelligence() {
                                         msg={msg}
                                         cssPrefix="si-geo-explorer"
                                         onTableMapAction={onSiGeoAiTableMapAction}
+                                        onUpdateUserMessage={onUpdateGeoExplorerUserMessage}
+                                        onSendEditedToComposer={setGeoExplorerDraft}
+                                        suggestLayers={geoAiSuggestContext.layers}
+                                        suggestFields={geoAiSuggestContext.fields}
+                                        suggestNumericFields={geoAiSuggestContext.numericFields}
                                       />
                                     </div>
                                   </div>
@@ -8117,11 +8136,28 @@ export default function SatelliteIntelligence() {
                                       </div>
                                     ) : null}
                                     <div className="si-geo-explorer-bubble">
-                                    <p className="si-geo-explorer-bubble-text">
-                                      {msg.role === 'assistant'
-                                        ? stripGeoExplorerBubbleDisplayText(msg.text)
-                                        : msg.text}
-                                    </p>
+                                      {msg.role === 'assistant' ? (
+                                        <p className="si-geo-explorer-bubble-text">
+                                          {stripGeoExplorerBubbleDisplayText(msg.text)}
+                                        </p>
+                                      ) : (
+                                        <GeoAiEditQuestionTool
+                                          cssPrefix="si-geo-explorer"
+                                          messageId={msg.id}
+                                          originalText={msg.text}
+                                          onCommit={next =>
+                                            (geoAiModelTab === 'claude' ? setGeoAiChatMessages : setGeoDeepseekChatMessages)(
+                                              prev => prev.map(m => (m.id === msg.id ? { ...m, text: next } : m)),
+                                            )
+                                          }
+                                          onUseInComposer={
+                                            geoAiModelTab === 'claude' ? setGeoAiDraft : setGeoDeepseekDraft
+                                          }
+                                          suggestLayers={geoAiSuggestContext.layers}
+                                          suggestFields={geoAiSuggestContext.fields}
+                                          suggestNumericFields={geoAiSuggestContext.numericFields}
+                                        />
+                                      )}
                                     </div>
                                   </div>
                                 ))}
