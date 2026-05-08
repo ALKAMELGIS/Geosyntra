@@ -32,7 +32,7 @@ function pfx(prefix: GeoExplorerCssPrefix, part: string): string {
 }
 
 const RECENT_LS_KEY = 'geo_ai_suggestions_recent_v1'
-const MAX_VISIBLE = 6
+const MAX_VISIBLE = 7
 const PROGRESSIVE_MS = 380
 
 type RankedChip = {
@@ -41,7 +41,7 @@ type RankedChip = {
   label: string
   /** Inserted into draft */
   insert: string
-  tier: 'guide' | 'recent' | 'context' | 'op' | 'spatial' | 'help'
+  tier: 'recent' | 'context' | 'op' | 'spatial' | 'help'
   score: number
 }
 
@@ -71,8 +71,6 @@ function normalizeChipKey(s: string): string {
 
 type OptimizePack = {
   refined: string
-  /** Short natural prompts users can tap */
-  examples: string[]
   stats: string[]
   math: string[]
   spatial: string[]
@@ -115,27 +113,7 @@ function buildOptimizePack(
     refined = `${d.trim()} — specify layer (${layer ?? '…'}), field (${num}), and comparison for sharper stats`
   }
 
-  const examples: string[] = []
-  if (layer) {
-    examples.push(`ما الذي أريد معرفته عن "${layer}" بالتحديد؟`)
-    examples.push(`How many records are in "${layer}", and should we group by ${cat}?`)
-    examples.push(`What totals do I need for ${num} on "${layer}"?`)
-  } else {
-    examples.push(`أي طبقة نبدأ بتحليلها؟`)
-    examples.push(`I want to summarize my data — what should we measure first?`)
-  }
-  examples.push(`Compare ${num} across ${cat}.`)
-
-  return { refined, examples, stats, math, spatial }
-}
-
-const TIER_SORT: Record<RankedChip['tier'], number> = {
-  guide: 60,
-  help: 45,
-  context: 40,
-  recent: 30,
-  op: 20,
-  spatial: 15,
+  return { refined, stats, math, spatial }
 }
 
 function relevanceBonus(q: string, label: string): number {
@@ -180,7 +158,7 @@ export function GeoExplorerGeminiInputRow(props: GeoExplorerGeminiInputRowProps)
   const optimizeWrapRef = useRef<HTMLDivElement | null>(null)
   const chipRefs = useRef<Array<HTMLButtonElement | null>>([])
   const [composerFocused, setComposerFocused] = useState(false)
-  const [progressiveCap, setProgressiveCap] = useState(3)
+  const [progressiveCap, setProgressiveCap] = useState(4)
   const [chipFocusIdx, setChipFocusIdx] = useState<number | null>(null)
   const [optimizeOpen, setOptimizeOpen] = useState(false)
 
@@ -229,117 +207,32 @@ export function GeoExplorerGeminiInputRow(props: GeoExplorerGeminiInputRowProps)
     }
 
     const calcIntent =
-      /احسب|calculate|sum|average|mean|count|min|max|statistics|stat\b|group\s*by|مجموع|متوسط|عدد|إحصاء|احص|تلخيص|total\b/i.test(qRaw)
+      /احسب|calculate|sum|average|mean|count|min|max|statistics|stat\b|group\s*by|مجموع|متوسط|عدد|إحصاء|احص/i.test(qRaw)
     const filterIntent =
-      /حدد|select|where|filter|>|<|=|!|within|intersects|contains|buffer|اكبر|اصغر|أكبر|أصغر|تصفية|عرض السجلات/i.test(qRaw)
-    const spatialHint =
-      /within|intersects|contains|buffer|clip|spatial|boundary|map|نطاق|خريطة|مكان|geometry/i.test(qRaw)
+      /حدد|select|where|filter|>|<|=|!|within|intersects|contains|buffer|اكبر|اصغر|أكبر|أصغر/i.test(qRaw)
     const focusedOrTyping = composerFocused || qRaw.length > 0
 
     if (!focusedOrTyping && !qRaw) {
       return []
     }
 
-    const showHeavyOps =
-      calcIntent ||
-      filterIntent ||
-      spatialHint ||
-      qRaw.length > 28 ||
-      (/\d/.test(qRaw) && /[<>=]/.test(qRaw))
-
-    const sortByTierThenScore = (rows: RankedChip[]) =>
-      rows.sort((a, b) => {
-        const td = TIER_SORT[b.tier] - TIER_SORT[a.tier]
-        if (td !== 0) return td
-        return b.score - a.score
-      })
-
-    /** Focused empty draft → guide-first (no math/stat spam) */
-    const guideQuiet = composerFocused && qRaw.length === 0 && !calcIntent && !filterIntent
-    if (guideQuiet) {
-      const guides: Array<[string, string]> = [
-        ['ما الذي تريد تحليله؟', 'ما الذي تريد تحليله بالضبط؟ '],
-        ['اختر طبقة أو حقل', 'الطبقة أو الحقل المطلوب: '],
-        ['تلخيص · Summarize', 'تلخيص النتائج: '],
-        ['مقارنة · Compare', 'مقارنة بين '],
-        ['تصفية · Filter', 'عرض السجلات حيث '],
-        ['عدّ السجلات', 'كم عدد السجلات '],
-      ]
-      guides.forEach(([label, insert], i) =>
-        push({
-          key: `guide-${i}-${label}`,
-          label,
-          insert,
-          tier: 'guide',
-          score: 96 - i,
-        }),
-      )
-
-      const topRecent = Object.entries(recentMap)
-        .sort((a, b) => b[1] - a[1])
-        .slice(0, 2)
-        .map(([insert]) => ({
-          key: insert,
-          label: insert.length > 26 ? `${insert.slice(0, 24)}…` : insert,
-          insert,
-          tier: 'recent' as const,
-          score: recentBoost(insert, 74, 'recent'),
-        }))
-      for (const c of topRecent) push(c)
-
-      if (availableLayers.length) {
-        for (const l of availableLayers.slice(0, 2)) {
-          const insert = l.includes(' ') ? `Layer: "${l}"` : `Layer: ${l}`
-          push({
-            key: insert,
-            label: `Layer · ${l.length > 22 ? `${l.slice(0, 20)}…` : l}`,
-            insert,
-            tier: 'context',
-            score: recentBoost(insert, 70, 'context'),
-          })
-        }
-      }
-
-      return sortByTierThenScore([...dedupe.values()])
-    }
-
-    /** Short ambiguous drafts → nudge phrasing before ops */
-    const softGuide = !calcIntent && !filterIntent && !spatialHint && qRaw.length > 0 && qRaw.length <= 26
-    if (softGuide) {
-      push({
-        key: 'guide-clarify',
-        label: 'وضّح النتيجة · Clarify goal',
-        insert: ' الهدف: ',
-        tier: 'guide',
-        score: 90,
-      })
-      push({
-        key: 'guide-layer',
-        label: 'حدّد الطبقة · Pick layer',
-        insert: 'الطبقة: ',
-        tier: 'guide',
-        score: 86,
-      })
-    }
-
     const topRecent = Object.entries(recentMap)
       .sort((a, b) => b[1] - a[1])
-      .slice(0, showHeavyOps ? 5 : 3)
+      .slice(0, 6)
       .map(([insert]) => ({
         key: insert,
         label: insert.length > 28 ? `${insert.slice(0, 26)}…` : insert,
         insert,
         tier: 'recent' as const,
-        score: recentBoost(insert, 79, 'recent'),
+        score: recentBoost(insert, 80, 'recent'),
       }))
     for (const c of topRecent) push(c)
 
     if (availableLayers.length && (qRaw.length >= 2 || calcIntent || filterIntent)) {
-      const layerCap = showHeavyOps ? 4 : 3
       const layers =
         qRaw.length >= 2
-          ? availableLayers.filter(l => l.toLowerCase().includes(q)).slice(0, layerCap)
-          : availableLayers.slice(0, Math.min(3, layerCap))
+          ? availableLayers.filter(l => l.toLowerCase().includes(q)).slice(0, 4)
+          : availableLayers.slice(0, 2)
       for (const l of layers) {
         const insert = l.includes(' ') ? `Layer: "${l}"` : `Layer: ${l}`
         push({
@@ -347,14 +240,13 @@ export function GeoExplorerGeminiInputRow(props: GeoExplorerGeminiInputRowProps)
           label: `Layer · ${l.length > 22 ? `${l.slice(0, 20)}…` : l}`,
           insert,
           tier: 'context',
-          score: recentBoost(insert, 73, 'context'),
+          score: recentBoost(insert, 72, 'context'),
         })
       }
     }
 
     if (availableFields.length && qRaw.length >= 2) {
-      const fieldCap = showHeavyOps ? 4 : 3
-      const fields = availableFields.filter(f => f.toLowerCase().includes(q)).slice(0, fieldCap)
+      const fields = availableFields.filter(f => f.toLowerCase().includes(q)).slice(0, 4)
       for (const f of fields) {
         const insert = `Field: ${f}`
         push({
@@ -362,17 +254,16 @@ export function GeoExplorerGeminiInputRow(props: GeoExplorerGeminiInputRowProps)
           label: `Field · ${f.length > 22 ? `${f.slice(0, 20)}…` : f}`,
           insert,
           tier: 'context',
-          score: recentBoost(insert, 69, 'context'),
+          score: recentBoost(insert, 68, 'context'),
         })
       }
     }
 
     if (availableNumericFields.length && (calcIntent || qRaw.length >= 2)) {
-      const maxN = showHeavyOps ? 3 : 2
       const nums =
         qRaw.length >= 2
-          ? availableNumericFields.filter(f => f.toLowerCase().includes(q)).slice(0, maxN)
-          : availableNumericFields.slice(0, Math.min(2, maxN))
+          ? availableNumericFields.filter(f => f.toLowerCase().includes(q)).slice(0, 3)
+          : availableNumericFields.slice(0, 2)
       for (const f of nums) {
         const insert = `Numeric: ${f}`
         push({
@@ -380,35 +271,26 @@ export function GeoExplorerGeminiInputRow(props: GeoExplorerGeminiInputRowProps)
           label: `# ${f.length > 18 ? `${f.slice(0, 16)}…` : f}`,
           insert,
           tier: 'context',
-          score: recentBoost(insert, 63, 'context'),
+          score: recentBoost(insert, 62, 'context'),
         })
       }
     }
 
-    const aggLabels: Array<[string, string]> = [
-      ['مجموع · Sum', 'Sum'],
-      ['متوسط · Average', 'Average'],
-      ['عدد · Count', 'Count'],
-      ['أدنى · Min', 'Min'],
-      ['أقصى · Max', 'Max'],
-      ['تجميع حسب · Group By', 'Group By'],
-    ]
-
-    if (calcIntent || qRaw.length > 22) {
-      const aggPick = calcIntent ? aggLabels : aggLabels.slice(0, 4)
-      for (const [label, insert] of aggPick) {
+    if (calcIntent || (composerFocused && qRaw.length === 0 && !filterIntent)) {
+      const aggAll = ['Sum', 'Average', 'Count', 'Min', 'Max', 'Group By']
+      const aggPick = calcIntent || qRaw.length >= 2 ? aggAll : aggAll.slice(0, 4)
+      for (const op of aggPick) {
         push({
-          key: insert,
-          label,
-          insert,
+          key: op,
+          label: op,
+          insert: op,
           tier: 'op',
-          score: recentBoost(insert, calcIntent ? 58 : 44, 'op'),
+          score: recentBoost(op, calcIntent ? 58 : 42, 'op'),
         })
       }
     }
 
-    const cmpHeavy = filterIntent || spatialHint || /[><=!]/.test(qRaw)
-    if (cmpHeavy) {
+    if (filterIntent || (composerFocused && qRaw.length === 0 && !calcIntent)) {
       const cmpAll = ['>', '<', '>=', '<=', '=', '!=']
       const cmpPick = qRaw.length >= 2 || filterIntent ? cmpAll : cmpAll.slice(0, 4)
       for (const op of cmpPick) {
@@ -417,25 +299,58 @@ export function GeoExplorerGeminiInputRow(props: GeoExplorerGeminiInputRowProps)
           label: op,
           insert: op,
           tier: 'op',
-          score: recentBoost(op, filterIntent ? 54 : 40, 'op'),
+          score: recentBoost(op, filterIntent ? 54 : 34, 'op'),
         })
       }
-    }
-
-    if ((filterIntent || spatialHint) && availableGeometryOps.length) {
-      const geoCap = Math.min(showHeavyOps ? 5 : 3, availableGeometryOps.length)
+      const geoCap = qRaw.length >= 2 || filterIntent ? availableGeometryOps.length : Math.min(2, availableGeometryOps.length)
       for (const g of availableGeometryOps.slice(0, geoCap)) {
         push({
           key: g,
           label: g,
           insert: g,
           tier: 'spatial',
-          score: recentBoost(g, filterIntent ? 52 : 38, 'spatial'),
+          score: recentBoost(g, filterIntent ? 52 : 30, 'spatial'),
         })
       }
     }
 
-    return sortByTierThenScore([...dedupe.values()])
+    if (
+      calcIntent ||
+      /group|summary|calculate|field|range|filter|records/i.test(qRaw) ||
+      (composerFocused && qRaw.length === 0)
+    ) {
+      const qa: Array<[string, number]> = [
+        ['Group by summary', 46],
+        ['Calculate field preview', 44],
+        ['Count records', 48],
+        ['Range filter', 40],
+      ]
+      for (const [insert, base] of qa) {
+        if (!calcIntent && !filterIntent && qRaw.length > 0 && !/group|calculate|count|range|filter/i.test(qRaw))
+          continue
+        push({
+          key: insert,
+          label: insert.replace(/\spreview$/i, '').trim(),
+          insert,
+          tier: 'help',
+          score: recentBoost(insert, base, 'help'),
+        })
+      }
+    }
+
+    if (composerFocused && qRaw.length === 0 && dedupe.size < 4) {
+      for (const h of ['select where', 'within', 'intersects']) {
+        push({
+          key: h,
+          label: h,
+          insert: h,
+          tier: 'help',
+          score: recentBoost(h, 36, 'help'),
+        })
+      }
+    }
+
+    return [...dedupe.values()].sort((a, b) => b.score - a.score)
   }, [
     q,
     qRaw,
@@ -457,7 +372,7 @@ export function GeoExplorerGeminiInputRow(props: GeoExplorerGeminiInputRowProps)
       setProgressiveCap(MAX_VISIBLE)
       return
     }
-    setProgressiveCap(3)
+    setProgressiveCap(4)
     const t = window.setTimeout(() => setProgressiveCap(MAX_VISIBLE), PROGRESSIVE_MS)
     return () => window.clearTimeout(t)
   }, [qRaw, composerFocused])
@@ -538,11 +453,11 @@ export function GeoExplorerGeminiInputRow(props: GeoExplorerGeminiInputRowProps)
       onClick={toggleOptimize}
       aria-expanded={optimizeOpen}
       aria-haspopup="dialog"
-      aria-label="Examples and wording — أمثلة وصياغة"
-      title="Examples, wording, and advanced formulas"
+      aria-label="Optimize Your Input — templates for layers and fields"
+      title="Optimize Your Input"
     >
       <i className="fa-solid fa-sparkles" aria-hidden />
-      <span className={pfx(cssPrefix, 'optimize-input-btn-label')}>Examples</span>
+      <span className={pfx(cssPrefix, 'optimize-input-btn-label')}>Optimize</span>
     </button>
   )
 
@@ -604,11 +519,11 @@ export function GeoExplorerGeminiInputRow(props: GeoExplorerGeminiInputRowProps)
     <div
       className={pfx(cssPrefix, 'optimize-popover')}
       role="dialog"
-      aria-label="Question guide — دليل الصياغة"
+      aria-label="Optimize Your Input"
       onMouseDown={ev => ev.preventDefault()}
     >
       <div className={pfx(cssPrefix, 'optimize-popover-head')}>
-        <span className={pfx(cssPrefix, 'optimize-popover-title')}>Guide · دليل الصياغة</span>
+        <span className={pfx(cssPrefix, 'optimize-popover-title')}>Optimize Your Input</span>
         <button
           type="button"
           className={pfx(cssPrefix, 'optimize-popover-close')}
@@ -619,22 +534,11 @@ export function GeoExplorerGeminiInputRow(props: GeoExplorerGeminiInputRowProps)
         </button>
       </div>
       <p className={pfx(cssPrefix, 'optimize-popover-lead')}>
-        Start with a plain question; open Advanced only when you need formulas and spatial snippets.
+        Templates use your loaded layers and fields. Tap to append; use “Use wording” to replace the draft.
       </p>
 
-      <div className={pfx(cssPrefix, 'optimize-examples')}>
-        <div className={pfx(cssPrefix, 'optimize-examples-label')}>Try asking · جرّب أن تقول</div>
-        <div className={pfx(cssPrefix, 'optimize-chip-row')}>
-          {optimizePack.examples.map(ex => (
-            <button key={ex} type="button" className={pfx(cssPrefix, 'optimize-chip')} onClick={() => insertFromOptimize(ex, 'append')}>
-              {ex.length > 72 ? `${ex.slice(0, 70)}…` : ex}
-            </button>
-          ))}
-        </div>
-      </div>
-
       <div className={pfx(cssPrefix, 'optimize-refined')}>
-        <span className={pfx(cssPrefix, 'optimize-refined-label')}>Sharpen wording · صقل الصياغة</span>
+        <span className={pfx(cssPrefix, 'optimize-refined-label')}>Suggested wording</span>
         <p className={pfx(cssPrefix, 'optimize-refined-text')}>{optimizePack.refined}</p>
         <div className={pfx(cssPrefix, 'optimize-refined-actions')}>
           <button type="button" className={pfx(cssPrefix, 'optimize-chip-primary')} onClick={() => insertFromOptimize(optimizePack.refined, 'replace')}>
@@ -646,48 +550,44 @@ export function GeoExplorerGeminiInputRow(props: GeoExplorerGeminiInputRowProps)
         </div>
       </div>
 
-      <details className={pfx(cssPrefix, 'optimize-advanced')}>
-        <summary className={pfx(cssPrefix, 'optimize-advanced-summary')}>Advanced · عمليات تقنية</summary>
-
-        <div className={pfx(cssPrefix, 'optimize-section')}>
-          <div className={pfx(cssPrefix, 'optimize-section-title')}>
-            Stats <span className={pfx(cssPrefix, 'optimize-section-sub')}>(إحصائياً)</span>
-          </div>
-          <div className={pfx(cssPrefix, 'optimize-chip-row')}>
-            {optimizePack.stats.map(s => (
-              <button key={s} type="button" className={pfx(cssPrefix, 'optimize-chip')} onClick={() => insertFromOptimize(s, 'append')}>
-                {s.length > 52 ? `${s.slice(0, 50)}…` : s}
-              </button>
-            ))}
-          </div>
+      <div className={pfx(cssPrefix, 'optimize-section')}>
+        <div className={pfx(cssPrefix, 'optimize-section-title')}>
+          Stats Ops <span className={pfx(cssPrefix, 'optimize-section-sub')}>(إحصائياً)</span>
         </div>
-
-        <div className={pfx(cssPrefix, 'optimize-section')}>
-          <div className={pfx(cssPrefix, 'optimize-section-title')}>
-            Filters <span className={pfx(cssPrefix, 'optimize-section-sub')}>(رياضياً)</span>
-          </div>
-          <div className={pfx(cssPrefix, 'optimize-chip-row')}>
-            {optimizePack.math.map(s => (
-              <button key={s} type="button" className={pfx(cssPrefix, 'optimize-chip')} onClick={() => insertFromOptimize(s, 'append')}>
-                {s}
-              </button>
-            ))}
-          </div>
+        <div className={pfx(cssPrefix, 'optimize-chip-row')}>
+          {optimizePack.stats.map(s => (
+            <button key={s} type="button" className={pfx(cssPrefix, 'optimize-chip')} onClick={() => insertFromOptimize(s, 'append')}>
+              {s.length > 52 ? `${s.slice(0, 50)}…` : s}
+            </button>
+          ))}
         </div>
+      </div>
 
-        <div className={pfx(cssPrefix, 'optimize-section')}>
-          <div className={pfx(cssPrefix, 'optimize-section-title')}>
-            Spatial <span className={pfx(cssPrefix, 'optimize-section-sub')}>(مكانياً)</span>
-          </div>
-          <div className={pfx(cssPrefix, 'optimize-chip-row')}>
-            {optimizePack.spatial.map(s => (
-              <button key={s} type="button" className={pfx(cssPrefix, 'optimize-chip')} onClick={() => insertFromOptimize(s, 'append')}>
-                {s.length > 56 ? `${s.slice(0, 54)}…` : s}
-              </button>
-            ))}
-          </div>
+      <div className={pfx(cssPrefix, 'optimize-section')}>
+        <div className={pfx(cssPrefix, 'optimize-section-title')}>
+          Math Ops <span className={pfx(cssPrefix, 'optimize-section-sub')}>(رياضياً)</span>
         </div>
-      </details>
+        <div className={pfx(cssPrefix, 'optimize-chip-row')}>
+          {optimizePack.math.map(s => (
+            <button key={s} type="button" className={pfx(cssPrefix, 'optimize-chip')} onClick={() => insertFromOptimize(s, 'append')}>
+              {s}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div className={pfx(cssPrefix, 'optimize-section')}>
+        <div className={pfx(cssPrefix, 'optimize-section-title')}>
+          Spatial Ops <span className={pfx(cssPrefix, 'optimize-section-sub')}>(مكانياً)</span>
+        </div>
+        <div className={pfx(cssPrefix, 'optimize-chip-row')}>
+          {optimizePack.spatial.map(s => (
+            <button key={s} type="button" className={pfx(cssPrefix, 'optimize-chip')} onClick={() => insertFromOptimize(s, 'append')}>
+              {s.length > 56 ? `${s.slice(0, 54)}…` : s}
+            </button>
+          ))}
+        </div>
+      </div>
 
       <p className={pfx(cssPrefix, 'optimize-context')}>
         Layers: {availableLayers.length ? availableLayers.slice(0, 4).join(', ') : '—'}
@@ -702,17 +602,16 @@ export function GeoExplorerGeminiInputRow(props: GeoExplorerGeminiInputRowProps)
         <div ref={optimizeWrapRef} className={pfx(cssPrefix, 'optimize-wrap')}>
           {optimizePopover}
           {showSuggestPanel ? (
-            <div className={pfx(cssPrefix, 'smart-suggest-panel')} role="region" aria-label="Smart guide">
+            <div className={pfx(cssPrefix, 'smart-suggest-panel')} role="region" aria-label="Smart suggestions">
               <div className={pfx(cssPrefix, 'smart-suggest-toolbar')}>
-                <span className={pfx(cssPrefix, 'smart-suggest-title')}>Smart guide</span>
+                <span className={pfx(cssPrefix, 'smart-suggest-title')}>Smart suggestions</span>
                 {renderOptimizeTrigger()}
                 <span className={pfx(cssPrefix, 'smart-suggest-toolbar-spacer')} aria-hidden />
                 <span className={pfx(cssPrefix, 'smart-suggest-meta')}>
-                  {visibleChips.length}/{Math.min(rankedChips.length, MAX_VISIBLE)}
-                  {visibleChips.length > 0 ? ' · Alt+1–9' : ''}
+                  {visibleChips.length}/{Math.min(rankedChips.length, MAX_VISIBLE)} · Alt+1–9
                 </span>
               </div>
-              <div className={pfx(cssPrefix, 'smart-suggest-scroll')} role="listbox" aria-label="Guide chips">
+              <div className={pfx(cssPrefix, 'smart-suggest-scroll')} role="listbox" aria-label="Suggestion chips">
                 {visibleChips.map((c, i) => (
                   <button
                     key={c.key}
@@ -734,28 +633,14 @@ export function GeoExplorerGeminiInputRow(props: GeoExplorerGeminiInputRowProps)
               </div>
             </div>
           ) : (
-            <div className={pfx(cssPrefix, 'optimize-strip')} role="region" aria-label="Question guide">
-              <span className={pfx(cssPrefix, 'optimize-strip-label')}>Guide</span>
+            <div className={pfx(cssPrefix, 'optimize-strip')} role="region" aria-label="Input assist">
+              <span className={pfx(cssPrefix, 'optimize-strip-label')}>Assist</span>
               {renderOptimizeTrigger()}
             </div>
           )}
         </div>
       ) : null}
       <div className={pfx(cssPrefix, 'composer-surface')} data-voice-state={enableVoice ? voiceUiState : undefined}>
-        <header className={pfx(cssPrefix, 'composer-head')}>
-          <span className={pfx(cssPrefix, 'composer-head-led')} aria-hidden />
-          <div className={pfx(cssPrefix, 'composer-head-logo')} aria-hidden>
-            <i className="fa-solid fa-comments" />
-          </div>
-          <div className={pfx(cssPrefix, 'composer-head-copy')}>
-            <span className={pfx(cssPrefix, 'composer-head-title')}>Geo AI</span>
-            <span className={pfx(cssPrefix, 'composer-head-meta')}>
-              <kbd className={pfx(cssPrefix, 'composer-kbd')}>↵</kbd> send ·{' '}
-              <kbd className={pfx(cssPrefix, 'composer-kbd')}>⇧↵</kbd> line
-            </span>
-          </div>
-        </header>
-
         <div className={pfx(cssPrefix, 'composer-field')}>
           <textarea
             ref={textareaRef}
@@ -802,11 +687,9 @@ export function GeoExplorerGeminiInputRow(props: GeoExplorerGeminiInputRowProps)
           ) : null}
         </div>
 
-        <div className={pfx(cssPrefix, 'composer-rule')} aria-hidden />
-
         <footer className={pfx(cssPrefix, 'composer-toolbar')} aria-label="Composer actions">
           {enableVoice ? (
-            <>
+            <div className={pfx(cssPrefix, 'composer-toolbar-start')}>
               <button
                 type="button"
                 className={`${pfx(cssPrefix, 'composer-icon-btn')} ${voice.listening ? `${pfx(cssPrefix, 'composer-icon-btn--active')}` : ''} ${
@@ -838,7 +721,7 @@ export function GeoExplorerGeminiInputRow(props: GeoExplorerGeminiInputRowProps)
                 <i className="fa-solid fa-language" aria-hidden />
                 <span className={pfx(cssPrefix, 'composer-lang-badge')}>{speechLangArabic ? 'AR' : 'EN'}</span>
               </button>
-            </>
+            </div>
           ) : null}
           <span className={pfx(cssPrefix, 'composer-toolbar-spacer')} />
           {showAttach && fileInputRef && onAttachChange ? (
