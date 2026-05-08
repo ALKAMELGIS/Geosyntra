@@ -229,6 +229,13 @@ export const NAV_DEFAULT_GROUPS: NavGroupDef[] = [
     headerClass: 'nav-header-master',
     children: [
       {
+        id: 'master-workflow',
+        path: '/master/workflow-settings',
+        i18nKey: 'workflowDataSources',
+        defaultIcon: 'fa-solid fa-sliders',
+        subitemClass: 'nav-item-master',
+      },
+      {
         id: 'master-dashboard-settings',
         path: '/master/dashboard-settings',
         i18nKey: 'dashboardSettings',
