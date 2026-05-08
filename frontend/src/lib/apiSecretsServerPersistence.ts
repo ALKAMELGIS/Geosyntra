@@ -3,18 +3,21 @@
  * so secrets survive frontend rebuilds and full app updates when the server data directory persists.
  */
 
-import { persistArcgisPortalTokenInBrowser } from './arcgisPortalToken'
-import { persistClaudeApiKeyInBrowser } from './claudeApiKey'
-import { persistUserApiTokenValue } from './customUserApiTokens'
-import { persistDeepseekApiKeyInBrowser } from './deepseekApiKey'
-import { persistGeminiApiKeyInBrowser } from './geminiApiKey'
+import { getArcgisPortalTokenBrowserOverride, persistArcgisPortalTokenInBrowser } from './arcgisPortalToken'
+import { getClaudeApiKeyBrowserOverride, persistClaudeApiKeyInBrowser } from './claudeApiKey'
+import { getUserApiTokenValue, persistUserApiTokenValue } from './customUserApiTokens'
+import { getDeepseekApiKeyBrowserOverride, persistDeepseekApiKeyInBrowser } from './deepseekApiKey'
+import { getGeminiApiKeyBrowserOverride, persistGeminiApiKeyInBrowser } from './geminiApiKey'
+import { getMapboxAccessTokenBrowserOverride, persistMapboxAccessTokenInBrowser } from './mapboxAccessToken'
+import { getOpenWeatherMapApiKeyBrowserOverride, persistOpenWeatherMapApiKeyInBrowser } from './openWeatherMapApiKey'
 import {
-  getMapboxAccessTokenBrowserOverride,
-  persistMapboxAccessTokenInBrowser,
-} from './mapboxAccessToken'
-import { persistOpenWeatherMapApiKeyInBrowser } from './openWeatherMapApiKey'
-import { persistSentinelHubAccessTokenInBrowser } from './sentinelHubAccessToken'
-import { persistSentinelHubWmsInstanceIdInBrowser } from './sentinelHubWmsInstance'
+  getSentinelHubAccessTokenBrowserOverride,
+  persistSentinelHubAccessTokenInBrowser,
+} from './sentinelHubAccessToken'
+import {
+  getSentinelHubWmsInstanceIdBrowserOverride,
+  persistSentinelHubWmsInstanceIdInBrowser,
+} from './sentinelHubWmsInstance'
 
 export type BuiltinSecretKey =
   | 'mapboxToken'
@@ -47,6 +50,18 @@ const BUILTIN_PERSIST: Record<BuiltinSecretKey, (v: string) => void> = {
   deepseekApiKey: persistDeepseekApiKeyInBrowser,
 }
 
+/** Current browser-only values (never clobber these with an empty server response). */
+const BUILTIN_BROWSER_GET: Record<BuiltinSecretKey, () => string> = {
+  mapboxToken: getMapboxAccessTokenBrowserOverride,
+  arcgisPortalToken: getArcgisPortalTokenBrowserOverride,
+  openWeatherMapApiKey: getOpenWeatherMapApiKeyBrowserOverride,
+  sentinelHubAccessToken: getSentinelHubAccessTokenBrowserOverride,
+  sentinelHubWmsInstanceId: getSentinelHubWmsInstanceIdBrowserOverride,
+  geminiApiKey: getGeminiApiKeyBrowserOverride,
+  claudeApiKey: getClaudeApiKeyBrowserOverride,
+  deepseekApiKey: getDeepseekApiKeyBrowserOverride,
+}
+
 function optionalAuthHeaders(): HeadersInit {
   const raw = import.meta.env.VITE_AGRI_API_SECRETS_TOKEN
   const t = typeof raw === 'string' ? raw.trim() : ''
@@ -71,17 +86,23 @@ export function applyPersistedApiSecretsToBrowser(secrets: ServerApiSecretsV3): 
     if (!fn) continue
     const nextValue = typeof v === 'string' ? v : ''
     /**
-     * Safety: do not wipe an existing browser Mapbox token with empty server value.
-     * This protects static/frontend-only deployments where backend secrets may be empty.
+     * Never wipe an existing browser token with an empty/missing server value.
+     * Applies after deploys when `agri_api_secrets.json` is missing, reset, or not yet synced,
+     * and for static/GitHub Pages builds without a reachable secrets API.
      */
-    if (key === 'mapboxToken' && !nextValue.trim() && getMapboxAccessTokenBrowserOverride().trim()) {
+    const getBrowser = BUILTIN_BROWSER_GET[key]
+    if (!nextValue.trim() && getBrowser?.().trim()) {
       continue
     }
     fn(nextValue)
   }
   const slots = secrets.customSlots && typeof secrets.customSlots === 'object' ? secrets.customSlots : {}
   for (const [slotId, v] of Object.entries(slots)) {
-    persistUserApiTokenValue(slotId, typeof v === 'string' ? v : '')
+    const nextValue = typeof v === 'string' ? v : ''
+    if (!nextValue.trim() && getUserApiTokenValue(slotId).trim()) {
+      continue
+    }
+    persistUserApiTokenValue(slotId, nextValue)
   }
 }
 

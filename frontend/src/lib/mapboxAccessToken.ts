@@ -1,7 +1,9 @@
 /**
  * Mapbox public token: browser (System Settings + hydration from server) and/or build-time env.
  * Non-empty browser/localStorage value wins over env so keys saved via API Tokens survive
- * redeploys; clear the saved token to fall back to VITE_MAPBOX_TOKEN / VITE_MAPBOX_ACCESS_TOKEN.
+ * redeploys; hydration from `/api/system/api-secrets` never overwrites a saved browser token
+ * with an empty server value (same rule applies to all built-in API tokens).
+ * Clear the saved token to fall back to VITE_MAPBOX_TOKEN / VITE_MAPBOX_ACCESS_TOKEN.
  * Never commit real tokens — use .env (Vite) or Admin → API Tokens (server file when API runs).
  *
  * Static deploys (GitHub Pages): set `VITE_AGRI_API_SECRETS_URL` to your backend `GET/PUT …/api/system/api-secrets`
