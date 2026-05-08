@@ -1900,6 +1900,10 @@ export default function SatelliteIntelligence() {
   >('source');
   const [geoExplorerMessages, setGeoExplorerMessages] = useState<GeoExplorerMessage[]>([]);
   const [geoExplorerVisibleCount, setGeoExplorerVisibleCount] = useState(GEO_AI_CHAT_PAGE_SIZE);
+  const [geoAiSmartSuggestionsEnabled, setGeoAiSmartSuggestionsEnabled] = useState(() => {
+    if (typeof window === 'undefined') return true;
+    return window.localStorage.getItem('geo_ai_smart_suggestions_enabled_v1') !== '0';
+  });
   const [geoExplorerDraft, setGeoExplorerDraft] = useState('');
   const [geoExplorerPendingImage, setGeoExplorerPendingImage] = useState<{
     mime: string;
@@ -2031,6 +2035,57 @@ export default function SatelliteIntelligence() {
     if (!el || geoAiDeepseekLoadOlderRef.current) return;
     if (el.scrollHeight - el.scrollTop - el.clientHeight <= 56) el.scrollTop = el.scrollHeight;
   }, [geoDeepseekChatMessages.length, geoDeepseekBusy]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    window.localStorage.setItem('geo_ai_smart_suggestions_enabled_v1', geoAiSmartSuggestionsEnabled ? '1' : '0');
+  }, [geoAiSmartSuggestionsEnabled]);
+
+  const geoAiSuggestContext = useMemo(() => {
+    const allLayers = satelliteCustomLayersToGeoAiLayers(customLayers);
+    const layerNames = allLayers.map(l => l.name).filter(Boolean);
+    const fieldSet = new Set<string>();
+    const numericSet = new Set<string>();
+    const geomOps = new Set<string>();
+    for (const layer of allLayers) {
+      const fc = (layer.geojson && layer.geojson.type === 'FeatureCollection' && Array.isArray(layer.geojson.features))
+        ? layer.geojson.features
+        : layer.data && layer.data.type === 'FeatureCollection' && Array.isArray(layer.data.features)
+          ? layer.data.features
+          : [];
+      for (const f of fc.slice(0, 120)) {
+        const p = f.properties;
+        if (p && typeof p === 'object') {
+          for (const [k, v] of Object.entries(p)) {
+            fieldSet.add(k);
+            if (typeof v === 'number' || (typeof v === 'string' && Number.isFinite(Number(v)))) numericSet.add(k);
+          }
+        }
+        const gt = String(f.geometry?.type ?? '');
+        if (gt.includes('Polygon')) {
+          geomOps.add('Within');
+          geomOps.add('Intersects');
+          geomOps.add('Buffer');
+          geomOps.add('Contains');
+          geomOps.add('Clip');
+        } else if (gt.includes('Line')) {
+          geomOps.add('Intersects');
+          geomOps.add('Buffer');
+          geomOps.add('Near');
+        } else if (gt.includes('Point')) {
+          geomOps.add('Within');
+          geomOps.add('Near');
+          geomOps.add('Buffer');
+        }
+      }
+    }
+    return {
+      layers: layerNames.slice(0, 20),
+      fields: [...fieldSet].sort((a, b) => a.localeCompare(b)).slice(0, 80),
+      numericFields: [...numericSet].sort((a, b) => a.localeCompare(b)).slice(0, 60),
+      geometryOps: [...geomOps].slice(0, 8),
+    };
+  }, [customLayers]);
 
   const applySelectedDate = (date: Date) => {
     const iso = date.toISOString().split('T')[0];
@@ -7803,15 +7858,26 @@ export default function SatelliteIntelligence() {
                         <div className="si-env-section-card si-geo-explorer">
                           <div className="si-geo-explorer-header">
                             <h2 className="si-geo-explorer-title">Geo AI</h2>
-                            <button
-                              type="button"
-                              className="si-geo-explorer-icon-btn"
-                              onClick={clearCurrentGeoAiPanel}
-                              aria-label="Clear chat"
-                              title="Clear chat"
-                            >
-                              <i className="fa-solid fa-trash" aria-hidden />
-                            </button>
+                            <div className="si-geo-explorer-header-actions">
+                              <button
+                                type="button"
+                                className="si-geo-explorer-icon-btn"
+                                onClick={() => setGeoAiSmartSuggestionsEnabled(v => !v)}
+                                aria-label={geoAiSmartSuggestionsEnabled ? 'Disable smart suggestions' : 'Enable smart suggestions'}
+                                title={geoAiSmartSuggestionsEnabled ? 'Smart Suggestions: on' : 'Smart Suggestions: off'}
+                              >
+                                <i className="fa-solid fa-wand-magic-sparkles" aria-hidden />
+                              </button>
+                              <button
+                                type="button"
+                                className="si-geo-explorer-icon-btn"
+                                onClick={clearCurrentGeoAiPanel}
+                                aria-label="Clear chat"
+                                title="Clear chat"
+                              >
+                                <i className="fa-solid fa-trash" aria-hidden />
+                              </button>
+                            </div>
                           </div>
                           <div className="si-geo-ai-model-tabs" role="tablist" aria-label="AI model">
                             <button
@@ -7934,6 +8000,11 @@ export default function SatelliteIntelligence() {
                                 fileInputRef={geoExplorerFileInputRef}
                                 onAttachChange={onGeoExplorerAttachChange}
                                 textareaAriaLabel="Geo AI Gemini message"
+                                availableLayers={geoAiSuggestContext.layers}
+                                availableFields={geoAiSuggestContext.fields}
+                                availableNumericFields={geoAiSuggestContext.numericFields}
+                                availableGeometryOps={geoAiSuggestContext.geometryOps}
+                                smartSuggestionsEnabled={geoAiSmartSuggestionsEnabled}
                               />
                               <p className="si-geo-explorer-footnote">
                                 Powered by Google Gemini. Set <code>VITE_GEMINI_API_KEY</code> or save under System Settings →
@@ -8038,6 +8109,11 @@ export default function SatelliteIntelligence() {
                                 textareaAriaLabel={
                                   geoAiModelTab === 'claude' ? 'Geo AI Claude message' : 'Geo AI DeepSeek message'
                                 }
+                                availableLayers={geoAiSuggestContext.layers}
+                                availableFields={geoAiSuggestContext.fields}
+                                availableNumericFields={geoAiSuggestContext.numericFields}
+                                availableGeometryOps={geoAiSuggestContext.geometryOps}
+                                smartSuggestionsEnabled={geoAiSmartSuggestionsEnabled}
                               />
                               <p className="si-geo-explorer-footnote">
                                 {geoAiModelTab === 'claude' ? (

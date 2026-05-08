@@ -6659,6 +6659,12 @@ input.si-explore-date-input-linked[type='date'] {
   border-bottom: 1px solid rgba(148, 163, 184, 0.22);
 }
 
+.si-geo-explorer-header-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
 .si-geo-explorer-title {
   margin: 0;
   font-size: 15px;
@@ -6799,6 +6805,35 @@ input.si-explore-date-input-linked[type='date'] {
   text-decoration: underline;
   padding: 0;
   font-family: inherit;
+}
+
+.si-geo-explorer-smart-suggest-panel {
+  margin: 0 0 8px;
+}
+
+.si-geo-explorer-smart-suggest-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.si-geo-explorer-smart-chip,
+.si-geo-explorer-help-word {
+  border: 1px solid rgba(148, 163, 184, 0.28);
+  background: rgba(30, 41, 59, 0.72);
+  color: #dbeafe;
+  border-radius: 999px;
+  padding: 4px 9px;
+  font-size: 10px;
+  font-weight: 650;
+  cursor: pointer;
+}
+
+.si-geo-explorer-help-words {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 6px;
 }
 
 .si-geo-explorer-input-row {

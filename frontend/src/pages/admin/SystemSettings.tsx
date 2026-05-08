@@ -551,42 +551,34 @@ export default function SystemSettings() {
       dir={language === 'ar' ? 'rtl' : 'ltr'}
     >
       <div className="sys-settings-actions__inner">
-        <div className="sys-settings-actions__meta">
-          {settingsDirty ? (
-            <span className="sys-settings-actions__status sys-settings-actions__status--dirty">
-              <i className="fa-solid fa-pen-to-square" aria-hidden />
-              {language === 'ar' ? 'تغييرات غير محفوظة' : 'Unsaved changes'}
-            </span>
-          ) : (
-            <span className="sys-settings-actions__status sys-settings-actions__status--clean">
-              <i className="fa-solid fa-circle-check" aria-hidden />
-              {language === 'ar' ? 'لا توجد تغييرات معلّقة' : 'No pending changes'}
-            </span>
-          )}
-        </div>
         <div className="sys-settings-actions__buttons">
-          <button type="button" className="gis-btn gis-btn-primary sys-settings-actions__btn" onClick={() => void handleSave()}>
+          <button
+            type="button"
+            className="gis-btn gis-btn-primary sys-settings-actions__btn sys-settings-actions__btn--icon-only"
+            onClick={() => void handleSave()}
+            title={language === 'ar' ? 'حفظ الإعدادات' : 'Save settings'}
+            aria-label={language === 'ar' ? 'حفظ الإعدادات' : 'Save settings'}
+          >
             <i className="fa-solid fa-check" aria-hidden />
-            {language === 'ar' ? 'حفظ' : 'Save'}
           </button>
           <button
             type="button"
-            className="gis-btn gis-btn-outline sys-settings-actions__btn"
+            className="gis-btn gis-btn-outline sys-settings-actions__btn sys-settings-actions__btn--icon-only"
             onClick={handleCancel}
             disabled={!settingsDirty}
             title={language === 'ar' ? 'تجاهل التعديلات واسترجاع آخر نسخة محفوظة' : 'Discard edits and reload last saved'}
+            aria-label={language === 'ar' ? 'تجاهل التعديلات' : 'Discard changes'}
           >
             <i className="fa-solid fa-xmark" aria-hidden />
-            {language === 'ar' ? 'تراجع' : 'Discard'}
           </button>
           <button
             type="button"
-            className="gis-btn gis-btn-outline sys-settings-actions__btn sys-settings-actions__btn--danger"
+            className="gis-btn gis-btn-outline sys-settings-actions__btn sys-settings-actions__btn--danger sys-settings-actions__btn--icon-only"
             onClick={() => setConfirmReset(true)}
             title={language === 'ar' ? 'استعادة إعدادات المصنع' : 'Restore factory defaults'}
+            aria-label={language === 'ar' ? 'استعادة إعدادات المصنع' : 'Reset to defaults'}
           >
             <i className="fa-solid fa-rotate-left" aria-hidden />
-            {language === 'ar' ? 'إعادة' : 'Reset'}
           </button>
         </div>
       </div>

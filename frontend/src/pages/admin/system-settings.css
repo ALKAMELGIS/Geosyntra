@@ -1485,35 +1485,8 @@ html[data-theme='dark'] .sys-settings-tab:hover:not(.sys-settings-tab--active) {
   display: flex;
   flex-wrap: nowrap;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-end;
   gap: 10px 14px;
-}
-
-.sys-settings-actions__meta {
-  flex: 0 1 auto;
-  min-width: 0;
-}
-
-.sys-settings-actions__status {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 0.8rem;
-  font-weight: 600;
-  line-height: 1.35;
-}
-
-.sys-settings-actions__status i {
-  font-size: 0.85rem;
-  opacity: 0.9;
-}
-
-.sys-settings-actions__status--clean {
-  color: color-mix(in srgb, var(--ds-color-primary) 78%, var(--sys-muted));
-}
-
-.sys-settings-actions__status--dirty {
-  color: color-mix(in srgb, var(--ds-color-warning, #b45309) 55%, var(--ds-color-text));
 }
 
 .sys-settings-actions__buttons {
@@ -1522,7 +1495,7 @@ html[data-theme='dark'] .sys-settings-tab:hover:not(.sys-settings-tab--active) {
   align-items: center;
   justify-content: flex-end;
   gap: 8px;
-  margin-inline-start: auto;
+  margin-inline-start: 0;
 }
 
 .sys-settings-actions__btn {
@@ -1537,9 +1510,31 @@ html[data-theme='dark'] .sys-settings-tab:hover:not(.sys-settings-tab--active) {
   white-space: nowrap;
 }
 
+.sys-settings-actions__btn--icon-only {
+  width: 36px;
+  min-width: 36px;
+  height: 36px;
+  min-height: 36px;
+  padding: 0;
+  justify-content: center;
+  border-radius: 12px;
+  backdrop-filter: blur(8px);
+  box-shadow:
+    0 4px 12px color-mix(in srgb, var(--ds-color-text) 12%, transparent),
+    inset 0 1px 0 color-mix(in srgb, #fff 44%, transparent);
+}
+
 .sys-settings-actions__btn > i {
   font-size: 0.82rem;
   opacity: 0.92;
+}
+
+.sys-settings-actions__btn--icon-only > i {
+  font-size: 0.9rem;
+}
+
+.sys-settings-actions__btn--icon-only:hover:not(:disabled) {
+  transform: translateY(-1px);
 }
 
 .sys-settings-actions__btn:disabled {

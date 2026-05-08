@@ -240,6 +240,35 @@
   font-family: inherit;
 }
 
+.gis-map-tool-panel .gis-geo-explorer-smart-suggest-panel {
+  margin: 0 0 8px;
+}
+
+.gis-map-tool-panel .gis-geo-explorer-smart-suggest-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.gis-map-tool-panel .gis-geo-explorer-smart-chip,
+.gis-map-tool-panel .gis-geo-explorer-help-word {
+  border: 1px solid rgba(148, 163, 184, 0.28);
+  background: rgba(30, 41, 59, 0.72);
+  color: #dbeafe;
+  border-radius: 999px;
+  padding: 4px 9px;
+  font-size: 10px;
+  font-weight: 650;
+  cursor: pointer;
+}
+
+.gis-map-tool-panel .gis-geo-explorer-help-words {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 6px;
+}
+
 .gis-map-tool-panel .gis-geo-explorer-input-row {
   display: flex;
   align-items: flex-end;

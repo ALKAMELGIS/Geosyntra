@@ -573,6 +573,10 @@ export default function GisMap() {
   const geoExplorerInFlightRef = useRef(false)
   const [geoExplorerMessages, setGeoExplorerMessages] = useState<GeoExplorerMessage[]>([])
   const [geoExplorerVisibleCount, setGeoExplorerVisibleCount] = useState(GEO_AI_CHAT_PAGE_SIZE)
+  const [geoAiSmartSuggestionsEnabled, setGeoAiSmartSuggestionsEnabled] = useState(() => {
+    if (typeof window === 'undefined') return true
+    return window.localStorage.getItem('geo_ai_smart_suggestions_enabled_v1') !== '0'
+  })
   const [geoExplorerDraft, setGeoExplorerDraft] = useState('')
   const [geoExplorerPendingImage, setGeoExplorerPendingImage] = useState<{ mime: string; base64: string } | null>(null)
   const [geoExplorerBusy, setGeoExplorerBusy] = useState(false)
@@ -1579,6 +1583,47 @@ export default function GisMap() {
     [geoExplorerMessages, geoExplorerVisibleCount],
   )
   const geoExplorerHasOlderMessages = geoExplorerMessages.length > geoExplorerVisibleCount
+  const geoAiSuggestContext = useMemo(() => {
+    const layerNames = layers.map(l => l.name).filter(Boolean)
+    const fieldSet = new Set<string>()
+    const numericSet = new Set<string>()
+    const geomOps = new Set<string>()
+    for (const l of layers) {
+      const d = l.data as { type?: string; features?: Array<{ properties?: Record<string, unknown>; geometry?: { type?: string } }> } | undefined
+      if (d?.type !== 'FeatureCollection' || !Array.isArray(d.features)) continue
+      for (const f of d.features.slice(0, 120)) {
+        const p = f.properties
+        if (p && typeof p === 'object') {
+          for (const [k, v] of Object.entries(p)) {
+            fieldSet.add(k)
+            if (typeof v === 'number' || (typeof v === 'string' && Number.isFinite(Number(v)))) numericSet.add(k)
+          }
+        }
+        const gt = String(f.geometry?.type ?? '')
+        if (gt.includes('Polygon')) {
+          geomOps.add('Within')
+          geomOps.add('Intersects')
+          geomOps.add('Buffer')
+          geomOps.add('Contains')
+          geomOps.add('Clip')
+        } else if (gt.includes('Line')) {
+          geomOps.add('Intersects')
+          geomOps.add('Buffer')
+          geomOps.add('Near')
+        } else if (gt.includes('Point')) {
+          geomOps.add('Within')
+          geomOps.add('Near')
+          geomOps.add('Buffer')
+        }
+      }
+    }
+    return {
+      layers: layerNames.slice(0, 20),
+      fields: [...fieldSet].sort((a, b) => a.localeCompare(b)).slice(0, 80),
+      numericFields: [...numericSet].sort((a, b) => a.localeCompare(b)).slice(0, 60),
+      geometryOps: [...geomOps].slice(0, 8),
+    }
+  }, [layers])
 
   const loadOlderGeoExplorerMessages = useCallback(() => {
     if (!geoExplorerHasOlderMessages) return
@@ -1608,6 +1653,11 @@ export default function GisMap() {
     const distanceFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight
     if (distanceFromBottom <= 56) el.scrollTop = el.scrollHeight
   }, [geoExplorerMessages.length, geoExplorerBusy])
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    window.localStorage.setItem('geo_ai_smart_suggestions_enabled_v1', geoAiSmartSuggestionsEnabled ? '1' : '0')
+  }, [geoAiSmartSuggestionsEnabled])
 
   const onGeoExplorerAttachChange = useCallback((e: ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
@@ -4055,6 +4105,15 @@ export default function GisMap() {
             <button
               type="button"
               className="gis-geo-explorer-icon-btn"
+              onClick={() => setGeoAiSmartSuggestionsEnabled(v => !v)}
+              aria-label={geoAiSmartSuggestionsEnabled ? 'Disable smart suggestions' : 'Enable smart suggestions'}
+              title={geoAiSmartSuggestionsEnabled ? 'Smart Suggestions: on' : 'Smart Suggestions: off'}
+            >
+              <i className="fa-solid fa-wand-magic-sparkles" aria-hidden="true" />
+            </button>
+            <button
+              type="button"
+              className="gis-geo-explorer-icon-btn"
               onClick={clearGeoExplorerChat}
               aria-label="Clear chat"
               title="Clear chat"
@@ -4151,6 +4210,11 @@ export default function GisMap() {
           fileInputRef={geoExplorerFileInputRef}
           onAttachChange={onGeoExplorerAttachChange}
           textareaAriaLabel="Geo Explorer message"
+          availableLayers={geoAiSuggestContext.layers}
+          availableFields={geoAiSuggestContext.fields}
+          availableNumericFields={geoAiSuggestContext.numericFields}
+          availableGeometryOps={geoAiSuggestContext.geometryOps}
+          smartSuggestionsEnabled={geoAiSmartSuggestionsEnabled}
         />
         <p className="gis-geo-explorer-footnote">
           Powered by Google Gemini. Set <code>VITE_GEMINI_API_KEY</code> or save under System Settings → API Tokens → Gemini
