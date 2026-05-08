@@ -71,7 +71,7 @@ describe('NavMenu vertical responsive', () => {
     expect(ops).toHaveAttribute('aria-expanded', 'false')
   })
 
-  it('shows hamburger and collapsible menu in mobile viewport', () => {
+  it('keeps primary navigation expanded on mobile (no hamburger toggle)', () => {
     setViewport(390)
     render(
       <MemoryRouter future={routerFuture}>
@@ -80,13 +80,15 @@ describe('NavMenu vertical responsive', () => {
         </SystemSettingsProvider>
       </MemoryRouter>,
     )
-    const toggle = screen.getByRole('button', { name: /open navigation menu/i })
-    expect(toggle).toBeInTheDocument()
-    fireEvent.click(toggle)
-    expect(screen.getByRole('button', { name: /close navigation menu/i })).toBeInTheDocument()
+    const nav = screen.getByRole('navigation', { name: /primary/i })
+    expect(nav).toHaveClass('navmenu-open')
+    expect(screen.queryByRole('button', { name: /open navigation menu/i })).not.toBeInTheDocument()
+    const list = document.getElementById('primary-nav')
+    expect(list).toBeTruthy()
+    expect(list).toHaveAttribute('aria-hidden', 'false')
   })
 
-  it('handles touch-style close when tapping outside', () => {
+  it('closes flyout groups when tapping outside on mobile', () => {
     setViewport(390)
     render(
       <MemoryRouter future={routerFuture}>
@@ -96,10 +98,11 @@ describe('NavMenu vertical responsive', () => {
         </SystemSettingsProvider>
       </MemoryRouter>,
     )
-    const toggle = screen.getByRole('button', { name: /open navigation menu/i })
-    fireEvent.click(toggle)
+    const ops = screen.getByRole('button', { name: /operations/i })
+    fireEvent.click(ops)
+    expect(ops).toHaveAttribute('aria-expanded', 'true')
     fireEvent.touchStart(document.body)
-    expect(screen.getByRole('button', { name: /open navigation menu/i })).toBeInTheDocument()
+    expect(ops).toHaveAttribute('aria-expanded', 'false')
   })
 
   it('renders AI AgroCloud group with chat link only', () => {

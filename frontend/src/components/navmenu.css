@@ -108,25 +108,6 @@
   transform: translateY(-1px);
 }
 
-/* Classic hamburger (☰) — phone menu trigger; color follows .nav-toggle */
-.nav-toggle-hamburger {
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  align-items: stretch;
-  gap: 5px;
-  width: 20px;
-  height: 16px;
-}
-
-.nav-toggle-hamburger__line {
-  display: block;
-  height: 2px;
-  border-radius: 2px;
-  background: currentColor;
-  box-shadow: 0 0.5px 0 rgba(255, 255, 255, 0.35);
-}
-
 .item, .group-header {
   color: var(--nav-text);
   text-decoration: none;
@@ -1570,106 +1551,6 @@ html[data-theme="dark"] .navmenu-utility-last .subitem {
 
 html[data-theme="dark"] .navmenu-sublist-title {
   color: var(--ds-color-text-muted);
-}
-
-/* Mobile edge navigation: hamburger (☰) top-left + flyout list (fixed shell). */
-@media (max-width: 767px) {
-  .navmenu[data-viewport="mobile"] {
-    position: fixed;
-    top: calc(var(--header-height) + max(8px, env(safe-area-inset-top, 0px)));
-    left: max(10px, env(safe-area-inset-left, 0px));
-    right: auto;
-    transform: none;
-    width: auto;
-    height: auto;
-    min-height: 0;
-    max-height: none;
-    padding: 0;
-    border: 0;
-    background: transparent;
-    box-shadow: none;
-    backdrop-filter: none;
-    overflow: visible;
-    /* Above .agri-header (11500) so the control stays tappable */
-    z-index: 11600;
-    isolation: auto;
-  }
-
-  .navmenu[data-viewport="mobile"] .nav-collapse-toggle {
-    display: none;
-  }
-
-  .navmenu[data-viewport="mobile"] .nav-toggle {
-    display: inline-flex;
-    width: 44px;
-    height: 44px;
-    border-radius: 14px;
-    background: rgba(255, 255, 255, 0.97);
-    border: 1px solid var(--ds-color-border);
-    box-shadow: 0 12px 30px rgba(15, 23, 42, 0.18);
-  }
-
-  .navmenu[data-viewport="mobile"] .navmenu-list {
-    position: absolute;
-    top: 50%;
-    left: calc(100% + 10px);
-    transform: translateY(-50%) translateX(-8px);
-    width: min(310px, calc(100vw - 74px));
-    max-height: min(78dvh, 640px);
-    overflow: auto;
-    padding: 10px;
-    border: 1px solid rgba(15, 23, 42, 0.08);
-    border-radius: 18px;
-    background: rgba(255, 255, 255, 0.98);
-    box-shadow: 0 24px 70px rgba(15, 23, 42, 0.22);
-    backdrop-filter: blur(14px);
-    opacity: 0;
-    visibility: hidden;
-    pointer-events: none;
-    transition:
-      opacity 0.2s ease,
-      transform 0.2s ease,
-      visibility 0s linear 0.2s;
-  }
-
-  .navmenu[data-viewport="mobile"].navmenu-open .navmenu-list {
-    opacity: 1;
-    visibility: visible;
-    pointer-events: auto;
-    transform: translateY(-50%) translateX(0);
-    transition:
-      opacity 0.2s ease,
-      transform 0.2s ease,
-      visibility 0s linear 0s;
-  }
-
-  .navmenu[data-viewport="mobile"] .navmenu-li,
-  .navmenu[data-viewport="mobile"] .group,
-  .navmenu[data-viewport="mobile"] .item,
-  .navmenu[data-viewport="mobile"] .group-header {
-    width: 100%;
-  }
-
-  .navmenu[data-viewport="mobile"] .navmenu-account {
-    margin-left: 0;
-    margin-right: 0;
-  }
-
-  /* Keep physical top-left hamburger in RTL; flyout opens toward center (same as LTR). */
-  :root[dir="rtl"] .navmenu[data-viewport="mobile"] {
-    left: max(10px, env(safe-area-inset-left, 0px));
-    right: auto;
-  }
-
-  :root[dir="rtl"] .navmenu[data-viewport="mobile"] .navmenu-list {
-    left: calc(100% + 10px);
-    right: auto;
-    transform: translateY(-50%) translateX(-8px);
-  }
-
-  :root[dir="rtl"] .navmenu[data-viewport="mobile"].navmenu-open .navmenu-list {
-    transform: translateY(-50%) translateX(0);
-  }
 }
 
 /* ========== Premium top-nav: glass bar, pill depth, route-tinted active ========== */

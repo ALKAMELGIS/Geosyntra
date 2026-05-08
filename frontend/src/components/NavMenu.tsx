@@ -130,7 +130,6 @@ export default function NavMenu({ onLogout }: NavMenuProps) {
   }
   const [viewport, setViewport] = useState<'desktop' | 'tablet' | 'mobile'>(getViewport)
   const [isMobile, setIsMobile] = useState(() => getViewport() === 'mobile')
-  const [mobileOpen, setMobileOpen] = useState(false)
   const [collapsed, setCollapsed] = useState(() => {
     if (typeof window === 'undefined') return false
     return localStorage.getItem('navCollapsed') === 'true'
@@ -252,7 +251,6 @@ export default function NavMenu({ onLogout }: NavMenuProps) {
 
   const closeAllGroups = () => setOpenGroup(null)
   const closeAll = () => {
-    setMobileOpen(false)
     setOpenGroup(null)
   }
 
@@ -276,7 +274,6 @@ export default function NavMenu({ onLogout }: NavMenuProps) {
   }, [collapsed])
 
   useEffect(() => {
-    setMobileOpen(false)
     setOpenGroup(null)
   }, [location.pathname])
 
@@ -296,12 +293,12 @@ export default function NavMenu({ onLogout }: NavMenuProps) {
     const body = document.body
     const isMobileViewport = viewport === 'mobile'
     body.classList.toggle('nav-drawer-viewport', isMobileViewport)
-    body.classList.toggle('nav-drawer-open', isMobileViewport && mobileOpen)
+    body.classList.toggle('nav-drawer-open', isMobileViewport)
     return () => {
       body.classList.remove('nav-drawer-viewport')
       body.classList.remove('nav-drawer-open')
     }
-  }, [viewport, mobileOpen])
+  }, [viewport])
 
   useEffect(() => {
     const handleAnyPointerDown = (e: Event) => {
@@ -429,35 +426,11 @@ export default function NavMenu({ onLogout }: NavMenuProps) {
 
   return (
       <nav
-        className={[
-          'navmenu',
-          mobileOpen ? 'navmenu-open' : '',
-        ].filter(Boolean).join(' ')}
+        className={['navmenu', isMobile ? 'navmenu-open' : ''].filter(Boolean).join(' ')}
         aria-label="Primary"
         ref={navRef}
         data-viewport={viewport}
       >
-      <button
-        className="nav-toggle"
-        type="button"
-        aria-label={mobileOpen ? t.closeMenu : t.openMenu}
-        aria-expanded={mobileOpen}
-        aria-controls="primary-nav"
-        onClick={() => {
-          setMobileOpen(o => !o)
-          closeAllGroups()
-        }}
-      >
-        {mobileOpen ? (
-          <i className="fa-solid fa-xmark" aria-hidden></i>
-        ) : (
-          <span className="nav-toggle-hamburger" aria-hidden="true" title="☰">
-            <span className="nav-toggle-hamburger__line" />
-            <span className="nav-toggle-hamburger__line" />
-            <span className="nav-toggle-hamburger__line" />
-          </span>
-        )}
-      </button>
       <button
         className="nav-collapse-toggle"
         type="button"
@@ -474,8 +447,8 @@ export default function NavMenu({ onLogout }: NavMenuProps) {
       <ul
         id="primary-nav"
         className="navmenu-list"
-        data-open={mobileOpen ? 'true' : 'false'}
-        aria-hidden={isMobile ? !mobileOpen : undefined}
+        data-open={isMobile ? 'true' : undefined}
+        aria-hidden={isMobile ? false : undefined}
       >
         {mergedHome.visible ? (
           <li className="navmenu-li">
