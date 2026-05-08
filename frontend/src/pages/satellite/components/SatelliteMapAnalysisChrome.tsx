@@ -77,7 +77,8 @@ export function SatelliteMapAnalysisToolbar({
         type="button"
         className={`si-map-analysis-tool ${staticChartsOpen ? 'si-map-analysis-tool--on' : ''}`}
         aria-pressed={staticChartsOpen}
-        title="Static info charts (AOI-scoped)"
+        aria-label="Toggle AOI static charts — independent from Run"
+        title="Static info charts (AOI-scoped) — use this button only; Run does not open charts"
         onClick={onToggleStaticCharts}
       >
         <i className="fa-solid fa-chart-pie" aria-hidden />
@@ -96,7 +97,11 @@ export function SatelliteMapAnalysisToolbar({
         type="button"
         className="si-map-analysis-run"
         disabled={!!runBlockedReason}
-        title={runBlockedReason || 'Clip raster to AOI and show the analysis layer inside the drawn area'}
+        aria-label="Run: clip analysis raster to drawn AOI for map display only"
+        title={
+          runBlockedReason ||
+          'Clip analysis raster to drawn AOI (mask by WMS bounds). Does not open charts or build/play the timeline — use the pie-chart tool for charts and Generate timeline in Remote Sensing for date playback.'
+        }
         onClick={onRunAnalysis}
       >
         <i className="fa-solid fa-play" aria-hidden />
@@ -300,7 +305,10 @@ export function SatelliteMapAnalysisChrome(props: SatelliteMapAnalysisChromeProp
           {!hasAoi ? (
             <p className="si-map-analysis-charts-foot">Draw an AOI to scope charts to your area.</p>
           ) : (
-            <p className="si-map-analysis-charts-foot">Charts follow the selected layer & timeline inside AOI.</p>
+            <p className="si-map-analysis-charts-foot">
+              Charts follow the selected layer and timeline for the AOI. Run only clips the map raster. Open charts with
+              the pie icon; build the weekly timeline with Generate timeline in Remote Sensing (not Run).
+            </p>
           )}
         </div>
       ) : null}

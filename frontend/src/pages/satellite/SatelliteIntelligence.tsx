@@ -4293,8 +4293,15 @@ export default function SatelliteIntelligence() {
       templateCollections.forEach(c => s.add(c));
       return [...s];
     });
-    setShowFieldBoundaries(true);
-    setShowProductivityZones(true);
+    // Map "Run" (skipTimelineAndCharts) must only affect analysis rasters — not turn on pivot-wide fills,
+    // which look like a global green tint over the basemap outside the AOI.
+    if (options?.skipTimelineAndCharts) {
+      setShowFieldBoundaries(false);
+      setShowProductivityZones(false);
+    } else {
+      setShowFieldBoundaries(true);
+      setShowProductivityZones(true);
+    }
     setMpcClipToAoi(true);
     setIsWmsOverlayVisible(true);
 
@@ -6247,6 +6254,7 @@ export default function SatelliteIntelligence() {
     return `w-${hit.weekIndex}-${hit.startDate}`;
   }, [weeklyComposites, selectedDate]);
 
+  /** Map Run: clip/show analysis raster inside AOI only — never opens static charts (pie tool) or timeline. */
   const runSatelliteMapAnalysis = () => {
     if (!drawnGeometry?.geometry) {
       setFieldAnalysisStatus('Draw a rectangle or polygon AOI on the map, then tap Run.');
@@ -6287,7 +6295,10 @@ export default function SatelliteIntelligence() {
       `&TIME=${start}/${end}&MAXCC=${cloudCoverage}&SHOWLOGO=false&WARNINGS=true`;
   }, [activeWmsLayer, timeSeriesStart, timeSeriesEnd, wmsDate, cloudCoverage, wmsBaseUrl]);
 
-  /** Limits Sentinel WMS tile requests to AOI bbox — overlay only; basemap unchanged outside bounds. */
+  /**
+   * Limits Sentinel WMS tile requests to the AOI bounding box (extract-by-mask style for tiles).
+   * Basemap layers are unaffected; only the raster overlay source uses these bounds.
+   */
   const wmsRasterAoiBoundsLngLat = useMemo((): [number, number, number, number] | null => {
     if (!drawnGeometry) return null;
     const raw = getGeoJsonBounds(drawnGeometry as any);
@@ -7805,15 +7816,22 @@ export default function SatelliteIntelligence() {
                           ) : null}
                           {!isLoadingLayers && remoteSensingLayerOptions.length > 0 && drawnGeometry ? (
                             <p className="si-field-analysis-hint si-field-analysis-hint--aoi-overlay">
-                              With a drawn AOI, the selected imagery loads only inside the AOI bounding box as an
-                              overlay; the basemap is unchanged elsewhere. Run uses AOI geometry; generate the timeline
-                              for AOI-scoped charts.
+                              With a drawn AOI, the analysis raster (WMS) loads only inside the AOI bounding box — the
+                              basemap is not clipped. Run applies AOI clip to that raster only; it does not open charts
+                              or build the timeline. Use Field boundaries / Productivity toggles separately if you want
+                              pivot polygons; those are not part of the raster mask.
                             </p>
                           ) : null}
                         </div>
 
                         <div className="si-field-analysis-section">
                           <div className="si-field-analysis-kicker">Time-series analysis</div>
+                          <p className="si-field-analysis-hint">
+                            Browse satellite imagery changes over time: pick a start/end range, tap{' '}
+                            <strong>Generate timeline</strong>, then use the playback controls on the map bar to step
+                            through dates. This workflow is <strong>separate from Run</strong> — Run only clips the
+                            analysis raster to your AOI; it does not build or play the timeline.
+                          </p>
                           <div className="si-field-analysis-date-row">
                             <label className="si-field-analysis-field">
                               <span className="si-field-analysis-label">Start</span>
@@ -7850,14 +7868,20 @@ export default function SatelliteIntelligence() {
                             />
                           </div>
                           <div className="si-rs-actions si-rs-actions--compact">
-                            <button type="button" className="si-field-analysis-timeline-btn" onClick={generateFieldAnalysisTimeline}>
+                            <button
+                              type="button"
+                              className="si-field-analysis-timeline-btn"
+                              onClick={generateFieldAnalysisTimeline}
+                              aria-label="Generate weekly timeline from selected date range — not started by Run"
+                            >
                               <i className="fa-solid fa-chart-line" aria-hidden />
                               Generate timeline
                             </button>
                           </div>
                           <p className="si-field-analysis-hint">
-                            Generate the timeline first, then use play on the map bar. AOI, Run, and charts are in Analysis tools
-                            above.
+                            After the timeline exists, use play/pause on the map timeline strip. Run (above) does not
+                            create this timeline — only this button does. AOI drawing and static charts use the Analysis
+                            tools row.
                           </p>
                         </div>
 
