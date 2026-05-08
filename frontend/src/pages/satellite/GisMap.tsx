@@ -5750,9 +5750,24 @@ export default function GisMap() {
         </aside>
       ) : null}
       {isMobileDrawerViewport && !sidebarOpen ? (
-        <button className="gis-sidebar-launcher" type="button" aria-label="Open GIS launcher" onClick={() => setSidebarOpen(true)}>
-          <i className="fa-solid fa-bars" aria-hidden="true" />
-        </button>
+        <nav className="gis-map-mobile-layers-dock" aria-label="GIS map tools">
+          <button
+            type="button"
+            className="gis-map-mobile-layers-dock__pill"
+            onClick={() => {
+              setSidebarOpen(true)
+              setActiveMapTool(null)
+            }}
+            aria-label="Open layers and map tools"
+            title="Layers & tools"
+          >
+            <span className="gis-map-mobile-layers-dock__icon" aria-hidden="true">
+              <i className="fa-solid fa-layer-group" />
+            </span>
+            <span className="gis-map-mobile-layers-dock__label">Layers & tools</span>
+            <i className="fa-solid fa-chevron-right gis-map-mobile-layers-dock__chev" aria-hidden="true" />
+          </button>
+        </nav>
       ) : null}
 
       <section
