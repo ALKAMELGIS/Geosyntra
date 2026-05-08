@@ -1963,7 +1963,7 @@ function GisContentPage() {
             <div className="gis-sidebar-body-main gis-sidebar-body-main--collapsed-rail">
               <button
                 type="button"
-                className="gis-sidebar-collapsed-layers"
+                className="gis-sidebar-collapsed-layers gis-sidebar-expand-rail"
                 onClick={() => setSidebarCollapsed(false)}
                 aria-label={`Expand to browse ${rows.length} layer${rows.length === 1 ? '' : 's'}`}
                 title="Show layers list"
@@ -1981,6 +1981,9 @@ function GisContentPage() {
                     {rows.length > 0 ? (
                       <span className="gis-sidebar-collapsed-layers__badge">{rows.length}</span>
                     ) : null}
+                  </span>
+                  <span className="gis-sidebar-expand-rail__chev" aria-hidden="true">
+                    <i className="fa-solid fa-angles-right" />
                   </span>
                 </span>
               </button>
@@ -2143,16 +2146,24 @@ function GisContentPage() {
             <footer className="gis-sidebar-foot-toolbar gis-sidebar-foot-toolbar--rail-minimal" aria-label="Sidebar tools">
               <button
                 type="button"
-                className="gis-sidebar-foot-item gis-sidebar-foot-item--primary gis-sidebar-foot-item--icon-only"
+                className="gis-sidebar-foot-item gis-sidebar-foot-item--primary gis-sidebar-foot-item--icon-only gis-sidebar-collapse-trigger"
                 onClick={() => setSidebarCollapsed(true)}
                 aria-controls="gis-sidebar-panel"
                 aria-expanded
                 aria-label="Collapse GIS layers panel"
                 title="Hide layers list"
               >
-                <span className="gis-sidebar-foot-item__glyph" aria-hidden>
-                  <i className="fa-solid fa-angles-left" />
+                <span className="gis-sidebar-collapse-trigger__rail" aria-hidden="true">
+                  <span className="gis-sidebar-collapse-trigger__grip">
+                    <span className="gis-sidebar-collapse-trigger__grip-line gis-sidebar-collapse-trigger__grip-line--a" />
+                    <span className="gis-sidebar-collapse-trigger__grip-line gis-sidebar-collapse-trigger__grip-line--b" />
+                    <span className="gis-sidebar-collapse-trigger__grip-line gis-sidebar-collapse-trigger__grip-line--c" />
+                  </span>
+                  <span className="gis-sidebar-collapse-trigger__chevron">
+                    <i className="fa-solid fa-angles-left" />
+                  </span>
                 </span>
+                <span className="db-sr-only">Collapse GIS layers panel</span>
               </button>
             </footer>
             </>
