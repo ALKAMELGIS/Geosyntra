@@ -5,6 +5,7 @@ import '@fortawesome/fontawesome-free/css/all.min.css'
 import './index.css'
 import './geodash-tailwind.css'
 import './styles/app-design-system.css'
+import './styles/responsive-shell.css'
 import { bootstrapMapboxAccessTokenPersistence } from './lib/mapboxAccessToken'
 
 const safeSessionGetItem = (key: string) => {

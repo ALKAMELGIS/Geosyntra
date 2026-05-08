@@ -6941,3 +6941,43 @@ input.si-explore-date-input-linked[type='date'] {
   font-size: 9px;
   color: #94a3b8;
 }
+
+/* —— Responsive map chrome (mobile / narrow): prevent overlap & horizontal spill —— */
+@media (max-width: 639px) {
+  .si-top-left {
+    min-width: 0;
+    flex: 1 1 auto;
+    max-width: 100%;
+  }
+
+  .si-map-floating-controls {
+    left: max(10px, env(safe-area-inset-left, 0px));
+    right: max(10px, env(safe-area-inset-right, 0px));
+    top: max(10px, env(safe-area-inset-top, 0px));
+  }
+
+  .si-map-floating-controls__row {
+    flex-wrap: wrap;
+    align-items: flex-start;
+    gap: 8px;
+  }
+
+  .si-basemap-widget--grid {
+    min-width: min(232px, calc(100vw - 32px));
+    max-width: min(288px, calc(100vw - 24px));
+  }
+}
+
+@media (min-width: 640px) and (max-width: 1023px) {
+  .si-map-floating-controls__row {
+    flex-wrap: wrap;
+    gap: 10px;
+  }
+}
+
+@media (min-width: 1536px) {
+  .si-map-floating-controls {
+    left: clamp(24px, 2.5vw, 56px);
+    right: clamp(24px, 2.5vw, 56px);
+  }
+}

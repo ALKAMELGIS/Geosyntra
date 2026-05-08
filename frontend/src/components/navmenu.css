@@ -1553,12 +1553,8 @@ html[data-theme="dark"] .navmenu-sublist-title {
   color: var(--ds-color-text-muted);
 }
 
-/* Mobile edge navigation: Samsung-like side handle that saves layout space. */
+/* Mobile edge navigation: floating menu button + slide-over list (fixed shell). */
 @media (max-width: 767px) {
-  .navmenu[data-viewport="mobile"] {
-    display: none !important;
-  }
-
   .navmenu[data-viewport="mobile"] {
     position: fixed;
     top: 50%;
