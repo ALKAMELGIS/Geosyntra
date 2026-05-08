@@ -42,9 +42,8 @@ import {
   GEO_AI_COPILOT_RULES,
   lastMapQueryCoordsFromMessages,
   lastMapQueryCoordsFromSimpleChatHistory,
-  messageDisplayText,
-  messagesToGeminiContents,
   stripGeoExplorerBubbleDisplayText,
+  type GeoExplorerMapLink,
   type GeoExplorerMessage,
   type GeoExplorerPart,
 } from '../../lib/geoExplorerGemini';
@@ -64,6 +63,7 @@ import {
   pickGeoAiHumanPlaceFields,
   type GeoAiMapLayer,
 } from '../../lib/geoExplorerLayerContext';
+import { lngLatFromGeoAiFeatureLink } from '../../lib/geoAiResolveTableMapLink';
 import { runGeoAiStatsCommand } from '../../lib/geoAiStatsEngine';
 import { resolveGeoAiPinFromUserTextAndReply } from '../../lib/geoAiResolveMapCoords';
 import { buildGeoAiFullWeatherSessionAppend } from '../../lib/geoAiWeatherContext';
@@ -112,6 +112,7 @@ import {
 } from './symbologyHelpers';
 import { FieldVisibilityControl } from './components/FieldVisibilityControl';
 import { GeoExplorerGeminiInputRow } from './components/GeoExplorerGeminiInputRow';
+import { GeoExplorerGeminiMessageParts } from './components/GeoExplorerGeminiMessageParts';
 import {
   getAnalysisEngineBaseUrl,
   mpcFetchTemplates,
@@ -4837,6 +4838,7 @@ export default function SatelliteIntelligence() {
               ...satelliteCustomLayersToGeoAiLayers(customLayers),
               ...savedLayersForStats.map(l => ({
                 name: l.name,
+                clientLayerId: String(l.id),
                 visible: l.visible,
                 source: l.source,
                 data: l.data,
@@ -4847,7 +4849,9 @@ export default function SatelliteIntelligence() {
             const localStats = runGeoAiStatsCommand(trimmed, mergedLayersForStats);
             if (localStats?.handled) {
               const mid = typeof crypto !== 'undefined' && 'randomUUID' in crypto ? crypto.randomUUID() : `geo-s-${Date.now()}`;
-              const modelMsg: GeoExplorerMessage = { id: mid, role: 'model', parts: [{ type: 'text', text: localStats.reply }] };
+              const parts: GeoExplorerPart[] = [{ type: 'text', text: localStats.reply }];
+              if (localStats.table) parts.push({ type: 'dataTable', table: localStats.table });
+              const modelMsg: GeoExplorerMessage = { id: mid, role: 'model', parts };
               setGeoExplorerMessages(h => [...h, modelMsg]);
               return;
             }
@@ -4936,6 +4940,58 @@ export default function SatelliteIntelligence() {
     geoAiInspectCard,
   ]);
 
+  const onSiGeoAiTableMapAction = useCallback(
+    (action: 'zoom' | 'highlight' | 'focus', link: GeoExplorerMapLink) => {
+      let lng: number;
+      let lat: number;
+      let title = 'Selected feature';
+      if (link.type === 'feature') {
+        const ll = lngLatFromGeoAiFeatureLink(link, customLayers);
+        if (!ll) return;
+        [lng, lat] = ll;
+      } else {
+        lng = link.lng;
+        lat = link.lat;
+        if (link.layerName) title = link.layerName;
+      }
+      const zTarget = Math.max(
+        geoExplorerTargetZoomForPinSource('layer'),
+        action === 'highlight' ? 13 : 15,
+      );
+      setGeoAiPinLngLat([lng, lat]);
+      setViewState(vs => ({
+        ...vs,
+        longitude: lng,
+        latitude: lat,
+        zoom: Math.max(typeof vs.zoom === 'number' ? vs.zoom : 2, zTarget),
+        pitch: is3DView ? Math.max(typeof vs.pitch === 'number' ? vs.pitch : 0, 42) : vs.pitch ?? 0,
+        bearing: typeof vs.bearing === 'number' ? vs.bearing : 0,
+      }));
+      if (action === 'focus' || action === 'highlight' || link.type === 'feature') {
+        setGeoAiInspectCard({
+          title,
+          rows: [
+            { label: 'Longitude', value: lng.toFixed(6) },
+            { label: 'Latitude', value: lat.toFixed(6) },
+          ],
+          lng,
+          lat,
+        });
+      } else if (link.type === 'coords' && link.layerName) {
+        setGeoAiInspectCard({
+          title: link.layerName,
+          rows: [
+            { label: 'Longitude', value: lng.toFixed(6) },
+            { label: 'Latitude', value: lat.toFixed(6) },
+          ],
+          lng,
+          lat,
+        });
+      }
+    },
+    [customLayers, is3DView],
+  );
+
   const sendGeoAiChat = useCallback((voiceOverrideText?: string) => {
     const trimmed = (voiceOverrideText ?? geoAiDraft).trim();
     if (geoAiInFlightRef.current || !trimmed) return;
@@ -4966,6 +5022,7 @@ export default function SatelliteIntelligence() {
             ...satelliteCustomLayersToGeoAiLayers(customLayers),
             ...savedLayersForStats.map(l => ({
               name: l.name,
+              clientLayerId: String(l.id),
               visible: l.visible,
               source: l.source,
               data: l.data,
@@ -5070,6 +5127,7 @@ export default function SatelliteIntelligence() {
             ...satelliteCustomLayersToGeoAiLayers(customLayers),
             ...savedLayersForStats.map(l => ({
               name: l.name,
+              clientLayerId: String(l.id),
               visible: l.visible,
               source: l.source,
               data: l.data,
@@ -5092,6 +5150,7 @@ export default function SatelliteIntelligence() {
             ...satelliteCustomLayersToGeoAiLayers(customLayers),
             ...savedDs.map(l => ({
               name: l.name,
+              clientLayerId: String(l.id),
               visible: l.visible,
               source: l.source,
               data: l.data,
@@ -7939,31 +7998,25 @@ export default function SatelliteIntelligence() {
                                     When a location is clear, the map will fly there
                                   </div>
                                 </div>
-                                {visibleGeoExplorerMessages.map(msg => {
-                                  const raw = messageDisplayText(msg);
-                                  const show = msg.role === 'model' ? stripGeoExplorerBubbleDisplayText(raw) : raw;
-                                  const hasImage = msg.parts.some(p => p.type === 'image');
-                                  return (
-                                    <div
-                                      key={msg.id}
-                                      className={`si-geo-explorer-row si-geo-explorer-row--${msg.role}`}
-                                    >
-                                      {msg.role === 'model' ? (
-                                        <div className="si-geo-explorer-avatar" aria-hidden>
-                                          <i className="fa-solid fa-wand-magic-sparkles" />
-                                        </div>
-                                      ) : null}
-                                      <div className="si-geo-explorer-bubble">
-                                        {show ? <p className="si-geo-explorer-bubble-text">{show}</p> : null}
-                                        {msg.role === 'user' && hasImage ? (
-                                          <p className="si-geo-explorer-bubble-meta">
-                                            <i className="fa-solid fa-paperclip" aria-hidden /> Image attached
-                                          </p>
-                                        ) : null}
+                                {visibleGeoExplorerMessages.map(msg => (
+                                  <div
+                                    key={msg.id}
+                                    className={`si-geo-explorer-row si-geo-explorer-row--${msg.role}`}
+                                  >
+                                    {msg.role === 'model' ? (
+                                      <div className="si-geo-explorer-avatar" aria-hidden>
+                                        <i className="fa-solid fa-wand-magic-sparkles" />
                                       </div>
+                                    ) : null}
+                                    <div className="si-geo-explorer-bubble">
+                                      <GeoExplorerGeminiMessageParts
+                                        msg={msg}
+                                        cssPrefix="si-geo-explorer"
+                                        onTableMapAction={onSiGeoAiTableMapAction}
+                                      />
                                     </div>
-                                  );
-                                })}
+                                  </div>
+                                ))}
                                 {geoExplorerBusy ? (
                                   <div className="si-geo-explorer-row si-geo-explorer-row--model">
                                     <div className="si-geo-explorer-avatar" aria-hidden>

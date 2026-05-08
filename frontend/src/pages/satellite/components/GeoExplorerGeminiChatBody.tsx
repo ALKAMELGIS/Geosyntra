@@ -1,6 +1,7 @@
 import type { ChangeEvent, RefObject } from 'react'
-import { messageDisplayText, stripGeoExplorerBubbleDisplayText, type GeoExplorerMessage } from '../../../lib/geoExplorerGemini'
+import type { GeoExplorerMessage } from '../../../lib/geoExplorerGemini'
 import { GeoExplorerGeminiInputRow } from './GeoExplorerGeminiInputRow'
+import { GeoExplorerGeminiMessageParts } from './GeoExplorerGeminiMessageParts'
 
 export type GeoExplorerCssPrefix = 'gis-geo-explorer' | 'si-geo-explorer'
 
@@ -55,28 +56,18 @@ export function GeoExplorerGeminiChatBody(props: GeoExplorerGeminiChatBodyProps)
             clear, the map will fly there
           </div>
         </div>
-        {messages.map(msg => {
-          const raw = messageDisplayText(msg)
-          const show = msg.role === 'model' ? stripGeoExplorerBubbleDisplayText(raw) : raw
-          const hasImage = msg.parts.some(part => part.type === 'image')
-          return (
-            <div key={msg.id} className={`${pfx(cssPrefix, 'row')} ${pfx(cssPrefix, `row--${msg.role}`)}`}>
-              {msg.role === 'model' ? (
-                <div className={pfx(cssPrefix, 'avatar')} aria-hidden>
-                  <i className="fa-solid fa-wand-magic-sparkles" />
-                </div>
-              ) : null}
-              <div className={pfx(cssPrefix, 'bubble')}>
-                {show ? <p className={pfx(cssPrefix, 'bubble-text')}>{show}</p> : null}
-                {msg.role === 'user' && hasImage ? (
-                  <p className={pfx(cssPrefix, 'bubble-meta')}>
-                    <i className="fa-solid fa-paperclip" aria-hidden /> Image attached
-                  </p>
-                ) : null}
+        {messages.map(msg => (
+          <div key={msg.id} className={`${pfx(cssPrefix, 'row')} ${pfx(cssPrefix, `row--${msg.role}`)}`}>
+            {msg.role === 'model' ? (
+              <div className={pfx(cssPrefix, 'avatar')} aria-hidden>
+                <i className="fa-solid fa-wand-magic-sparkles" />
               </div>
+            ) : null}
+            <div className={pfx(cssPrefix, 'bubble')}>
+              <GeoExplorerGeminiMessageParts msg={msg} cssPrefix={cssPrefix} />
             </div>
-          )
-        })}
+          </div>
+        ))}
         {busy ? (
           <div className={`${pfx(cssPrefix, 'row')} ${pfx(cssPrefix, 'row--model')}`}>
             <div className={pfx(cssPrefix, 'avatar')} aria-hidden>

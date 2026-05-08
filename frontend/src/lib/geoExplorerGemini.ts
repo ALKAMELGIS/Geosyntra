@@ -85,9 +85,43 @@ export const GEO_EXPLORER_SESSION_AND_WEATHER = `Session continuity & weather (r
 - Keep answers concise: a short lead paragraph, then bullets if helpful; avoid dumping raw JSON from layer context.
 - Conversations are sequential: short follow-ups (“coordinates of that place”, “same feature”, “what country”, “أعطني الإحداثيات”, “نفس الموقع”) refer to the last matched feature or SESSION MAP ANCHOR unless the user names a new layer or ID.`;
 
+/** Row ↔ map actions (GIS feature cache or lon/lat fallback). */
+export type GeoExplorerMapLink =
+  | { type: 'feature'; layerId: string; featureKey: string }
+  | { type: 'coords'; lng: number; lat: number; layerName?: string };
+
+export type GeoExplorerDataTableKind =
+  | 'summary'
+  | 'statistics'
+  | 'groupBy'
+  | 'query'
+  | 'spatial'
+  | 'calculateField'
+  | 'markdown';
+
+export type GeoExplorerDataTableColumn = {
+  key: string;
+  label: string;
+  align?: 'left' | 'right';
+};
+
+export type GeoExplorerDataTableRow = {
+  values: Record<string, string | number | null>;
+  mapLink?: GeoExplorerMapLink;
+};
+
+export type GeoExplorerDataTablePayload = {
+  title?: string;
+  kind: GeoExplorerDataTableKind;
+  columns: GeoExplorerDataTableColumn[];
+  rows: GeoExplorerDataTableRow[];
+  foot?: Record<string, string | number | null>;
+};
+
 export type GeoExplorerPart =
   | { type: 'text'; text: string }
-  | { type: 'image'; mime: string; base64: string };
+  | { type: 'image'; mime: string; base64: string }
+  | { type: 'dataTable'; table: GeoExplorerDataTablePayload };
 
 export type GeoExplorerMessage = {
   id: string;
@@ -112,10 +146,15 @@ export function parseMapQueryLngLat(text: string): [number, number] | null {
 }
 
 export function messageDisplayText(msg: GeoExplorerMessage): string {
-  return msg.parts
-    .filter((p): p is Extract<GeoExplorerPart, { type: 'text' }> => p.type === 'text')
-    .map(p => p.text)
-    .join('\n');
+  const chunks: string[] = [];
+  for (const p of msg.parts) {
+    if (p.type === 'text') chunks.push(p.text);
+    else if (p.type === 'dataTable') {
+      const t = p.table;
+      chunks.push(`[Table: ${t.title ?? t.kind} (${t.rows.length} rows)]`);
+    }
+  }
+  return chunks.join('\n');
 }
 
 export function stripMapQueryLine(text: string): string {
@@ -149,15 +188,28 @@ export function stripGeoAiCopilotJsonLine(text: string): string {
 /** Chat bubble display: MAP_QUERY line, server map-pin / geocode appendix, Copilot JSON trace, and literal `*` (markdown noise). */
 export function stripGeoExplorerBubbleDisplayText(text: string): string {
   return stripGeoAiCopilotJsonLine(stripGeoAiModelMetaAppend(stripMapQueryLine(text)))
+    .replace(/\*\*([^*]+)\*\*/g, '$1')
     .replace(/\*/g, '')
     .trimEnd()
 }
 
 function partsToGeminiPayload(parts: GeoExplorerPart[]): Array<{ text?: string; inline_data?: { mime_type: string; data: string } }> {
-  return parts.map(p => {
-    if (p.type === 'text') return { text: p.text };
-    return { inline_data: { mime_type: p.mime, data: p.base64 } };
-  });
+  const out: Array<{ text?: string; inline_data?: { mime_type: string; data: string } }> = [];
+  for (const p of parts) {
+    if (p.type === 'text') out.push({ text: p.text });
+    else if (p.type === 'image') out.push({ inline_data: { mime_type: p.mime, data: p.base64 } });
+    else {
+      const tbl = p.table;
+      const head = tbl.columns.map(c => c.label).join(' | ');
+      const preview = tbl.rows
+        .slice(0, 12)
+        .map(r => tbl.columns.map(c => String(r.values[c.key] ?? '')).join(' | '))
+        .join('\n');
+      const summary = `[Geo AI structured table omitted from vision — ${tbl.kind}: ${tbl.rows.length} rows. Columns: ${head}${preview ? `\nSample:\n${preview}` : ''}]`;
+      out.push({ text: summary });
+    }
+  }
+  return out;
 }
 
 export type GeminiContent = { role: 'user' | 'model'; parts: ReturnType<typeof partsToGeminiPayload> };

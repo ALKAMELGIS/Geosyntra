@@ -1,4 +1,4 @@
-import type { ChangeEvent, KeyboardEvent, RefObject } from 'react'
+import type { ChangeEvent, KeyboardEvent, MouseEvent as ReactMouseEvent, RefObject } from 'react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useGeoAiSpeechRecognition } from '../../../hooks/useGeoAiSpeechRecognition'
 import type { GeoExplorerCssPrefix } from './GeoExplorerGeminiChatBody'
@@ -69,6 +69,53 @@ function normalizeChipKey(s: string): string {
   return s.trim().toLowerCase().replace(/\s+/g, ' ')
 }
 
+type OptimizePack = {
+  refined: string
+  stats: string[]
+  math: string[]
+  spatial: string[]
+}
+
+function buildOptimizePack(
+  draft: string,
+  layers: string[],
+  fields: string[],
+  numericFields: string[],
+  geometryOps: string[],
+): OptimizePack {
+  const layer = layers[0]
+  const num = numericFields[0] ?? fields.find(f => /\b(area|total|count|sum|length|width|height|amount|price|qty)\b/i.test(f)) ?? fields[0] ?? 'NumericField'
+  const cat =
+    fields.find(f => f !== num && !numericFields.includes(f)) ?? fields.find(f => f !== num) ?? 'Farm_Code'
+  const layerPhrase = layer ? ` on layer "${layer}"` : ''
+
+  const stats = [
+    `Count records${layerPhrase}`,
+    `SUM(${num})${layerPhrase}`,
+    `Average ${num}${layerPhrase}`,
+    `Group by ${cat}`,
+    `Min ${num} and Max ${num}${layerPhrase}`,
+  ]
+  const math = [`${num} < 3000`, `${num} > 100`, `${cat} = MH101`, `${num} >= 500 and ${num} <= 2000`]
+  const spatial = geometryOps.slice(0, 5).map(op => `${op}: describe boundary then filter attributes`)
+
+  const d = draft.trim()
+  let refined = ''
+  if (!d) {
+    refined = `SUM(${num}) where ${num} < 3000${layerPhrase}`
+  } else if (/sum|total|مجموع|اجمالي/i.test(d) && !/\b(where|>|<|>=|<=|=)\b/i.test(d)) {
+    refined = `${d.trim()} where ${num} < 3000`
+  } else if (/count|عدد/i.test(d) && layer) {
+    refined = `Count records${layerPhrase}`
+  } else if (/group|تجميع/i.test(d)) {
+    refined = `Group by ${cat}${layerPhrase}`
+  } else {
+    refined = `${d.trim()} — specify layer (${layer ?? '…'}), field (${num}), and comparison for sharper stats`
+  }
+
+  return { refined, stats, math, spatial }
+}
+
 function relevanceBonus(q: string, label: string): number {
   if (!q) return 0
   const L = label.toLowerCase()
@@ -108,10 +155,12 @@ export function GeoExplorerGeminiInputRow(props: GeoExplorerGeminiInputRowProps)
   } = props
 
   const textareaRef = useRef<HTMLTextAreaElement | null>(null)
+  const optimizeWrapRef = useRef<HTMLDivElement | null>(null)
   const chipRefs = useRef<Array<HTMLButtonElement | null>>([])
   const [composerFocused, setComposerFocused] = useState(false)
   const [progressiveCap, setProgressiveCap] = useState(4)
   const [chipFocusIdx, setChipFocusIdx] = useState<number | null>(null)
+  const [optimizeOpen, setOptimizeOpen] = useState(false)
 
   const voice = useGeoAiSpeechRecognition({
     disabled: busy || !enableVoice,
@@ -334,6 +383,26 @@ export function GeoExplorerGeminiInputRow(props: GeoExplorerGeminiInputRowProps)
   const showSuggestPanel =
     smartSuggestionsEnabled && !busy && (composerFocused || qRaw.length > 0) && visibleChips.length > 0
 
+  const showOptimizeChrome =
+    smartSuggestionsEnabled && !busy && (composerFocused || qRaw.length > 0)
+
+  const optimizePack = useMemo(
+    () => buildOptimizePack(qRaw, availableLayers, availableFields, availableNumericFields, availableGeometryOps),
+    [qRaw, availableLayers, availableFields, availableNumericFields, availableGeometryOps],
+  )
+
+  useEffect(() => {
+    if (!optimizeOpen) return
+    const onDocMouseDown = (ev: Event) => {
+      const el = optimizeWrapRef.current
+      const t = ev.target
+      if (!el || !(t instanceof Node) || el.contains(t)) return
+      setOptimizeOpen(false)
+    }
+    document.addEventListener('mousedown', onDocMouseDown)
+    return () => document.removeEventListener('mousedown', onDocMouseDown)
+  }, [optimizeOpen])
+
   useEffect(() => {
     if (!showSuggestPanel) setChipFocusIdx(null)
     else if (chipFocusIdx != null && chipFocusIdx >= visibleChips.length) setChipFocusIdx(visibleChips.length - 1)
@@ -349,6 +418,57 @@ export function GeoExplorerGeminiInputRow(props: GeoExplorerGeminiInputRowProps)
       textareaRef.current?.focus()
     },
     [draft, onDraftChange],
+  )
+
+  const applyReplaceDraft = useCallback(
+    (next: string) => {
+      const t = next.trim()
+      if (!t) return
+      onDraftChange(t)
+      textareaRef.current?.focus()
+    },
+    [onDraftChange],
+  )
+
+  const toggleOptimize = useCallback((ev: ReactMouseEvent) => {
+    ev.preventDefault()
+    setOptimizeOpen(o => !o)
+  }, [])
+
+  useEffect(() => {
+    if (!optimizeOpen) return
+    const onKey = (e: globalThis.KeyboardEvent) => {
+      if (e.key === 'Escape') setOptimizeOpen(false)
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [optimizeOpen])
+
+  const renderOptimizeTrigger = () => (
+    <button
+      type="button"
+      className={`${pfx(cssPrefix, 'optimize-input-btn')} ${optimizeOpen ? pfx(cssPrefix, 'optimize-input-btn--open') : ''}`}
+      onMouseDown={ev => ev.preventDefault()}
+      onClick={toggleOptimize}
+      aria-expanded={optimizeOpen}
+      aria-haspopup="dialog"
+      aria-label="Optimize Your Input — templates for layers and fields"
+      title="Optimize Your Input"
+    >
+      <i className="fa-solid fa-sparkles" aria-hidden />
+      <span className={pfx(cssPrefix, 'optimize-input-btn-label')}>Optimize</span>
+    </button>
+  )
+
+  const insertFromOptimize = useCallback(
+    (text: string, mode: 'append' | 'replace') => {
+      const t = text.trim()
+      if (!t) return
+      if (mode === 'replace') applyReplaceDraft(t)
+      else applySuggestion(t)
+      setOptimizeOpen(false)
+    },
+    [applyReplaceDraft, applySuggestion],
   )
 
   const onTextareaKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
@@ -394,40 +514,129 @@ export function GeoExplorerGeminiInputRow(props: GeoExplorerGeminiInputRowProps)
     }
   }
 
+  const optimizePopover = optimizeOpen ? (
+    <div
+      className={pfx(cssPrefix, 'optimize-popover')}
+      role="dialog"
+      aria-label="Optimize Your Input"
+      onMouseDown={ev => ev.preventDefault()}
+    >
+      <div className={pfx(cssPrefix, 'optimize-popover-head')}>
+        <span className={pfx(cssPrefix, 'optimize-popover-title')}>Optimize Your Input</span>
+        <button
+          type="button"
+          className={pfx(cssPrefix, 'optimize-popover-close')}
+          aria-label="Close"
+          onClick={() => setOptimizeOpen(false)}
+        >
+          <i className="fa-solid fa-xmark" aria-hidden />
+        </button>
+      </div>
+      <p className={pfx(cssPrefix, 'optimize-popover-lead')}>
+        Templates use your loaded layers and fields. Tap to append; use “Use wording” to replace the draft.
+      </p>
+
+      <div className={pfx(cssPrefix, 'optimize-refined')}>
+        <span className={pfx(cssPrefix, 'optimize-refined-label')}>Suggested wording</span>
+        <p className={pfx(cssPrefix, 'optimize-refined-text')}>{optimizePack.refined}</p>
+        <div className={pfx(cssPrefix, 'optimize-refined-actions')}>
+          <button type="button" className={pfx(cssPrefix, 'optimize-chip-primary')} onClick={() => insertFromOptimize(optimizePack.refined, 'replace')}>
+            Use wording
+          </button>
+          <button type="button" className={pfx(cssPrefix, 'optimize-chip')} onClick={() => insertFromOptimize(optimizePack.refined, 'append')}>
+            Append
+          </button>
+        </div>
+      </div>
+
+      <div className={pfx(cssPrefix, 'optimize-section')}>
+        <div className={pfx(cssPrefix, 'optimize-section-title')}>
+          Stats Ops <span className={pfx(cssPrefix, 'optimize-section-sub')}>(إحصائياً)</span>
+        </div>
+        <div className={pfx(cssPrefix, 'optimize-chip-row')}>
+          {optimizePack.stats.map(s => (
+            <button key={s} type="button" className={pfx(cssPrefix, 'optimize-chip')} onClick={() => insertFromOptimize(s, 'append')}>
+              {s.length > 52 ? `${s.slice(0, 50)}…` : s}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div className={pfx(cssPrefix, 'optimize-section')}>
+        <div className={pfx(cssPrefix, 'optimize-section-title')}>
+          Math Ops <span className={pfx(cssPrefix, 'optimize-section-sub')}>(رياضياً)</span>
+        </div>
+        <div className={pfx(cssPrefix, 'optimize-chip-row')}>
+          {optimizePack.math.map(s => (
+            <button key={s} type="button" className={pfx(cssPrefix, 'optimize-chip')} onClick={() => insertFromOptimize(s, 'append')}>
+              {s}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div className={pfx(cssPrefix, 'optimize-section')}>
+        <div className={pfx(cssPrefix, 'optimize-section-title')}>
+          Spatial Ops <span className={pfx(cssPrefix, 'optimize-section-sub')}>(مكانياً)</span>
+        </div>
+        <div className={pfx(cssPrefix, 'optimize-chip-row')}>
+          {optimizePack.spatial.map(s => (
+            <button key={s} type="button" className={pfx(cssPrefix, 'optimize-chip')} onClick={() => insertFromOptimize(s, 'append')}>
+              {s.length > 56 ? `${s.slice(0, 54)}…` : s}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <p className={pfx(cssPrefix, 'optimize-context')}>
+        Layers: {availableLayers.length ? availableLayers.slice(0, 4).join(', ') : '—'}
+        {availableLayers.length > 4 ? '…' : ''} · Fields: {availableFields.length} · Numeric: {availableNumericFields.length}
+      </p>
+    </div>
+  ) : null
+
   return (
     <>
-      {showSuggestPanel ? (
-        <div
-          className={pfx(cssPrefix, 'smart-suggest-panel')}
-          role="region"
-          aria-label="Smart suggestions"
-        >
-          <div className={pfx(cssPrefix, 'smart-suggest-toolbar')}>
-            <span className={pfx(cssPrefix, 'smart-suggest-title')}>Suggestions</span>
-            <span className={pfx(cssPrefix, 'smart-suggest-meta')}>
-              {visibleChips.length}/{Math.min(rankedChips.length, MAX_VISIBLE)} · Alt+1–9
-            </span>
-          </div>
-          <div className={pfx(cssPrefix, 'smart-suggest-scroll')} role="listbox" aria-label="Suggestion chips">
-            {visibleChips.map((c, i) => (
-              <button
-                key={c.key}
-                type="button"
-                role="option"
-                ref={el => {
-                  chipRefs.current[i] = el
-                }}
-                tabIndex={chipFocusIdx === i ? 0 : -1}
-                className={`${pfx(cssPrefix, 'smart-chip')} ${pfx(cssPrefix, `smart-chip--${c.tier}`)}`}
-                title={`${c.insert} — Alt+${i + 1}`}
-                onMouseDown={ev => ev.preventDefault()}
-                onClick={() => applySuggestion(c.insert)}
-                onKeyDown={e => onChipKeyDown(e, i)}
-              >
-                <span className={pfx(cssPrefix, 'smart-chip-label')}>{c.label}</span>
-              </button>
-            ))}
-          </div>
+      {showOptimizeChrome ? (
+        <div ref={optimizeWrapRef} className={pfx(cssPrefix, 'optimize-wrap')}>
+          {optimizePopover}
+          {showSuggestPanel ? (
+            <div className={pfx(cssPrefix, 'smart-suggest-panel')} role="region" aria-label="Smart suggestions">
+              <div className={pfx(cssPrefix, 'smart-suggest-toolbar')}>
+                <span className={pfx(cssPrefix, 'smart-suggest-title')}>Smart suggestions</span>
+                {renderOptimizeTrigger()}
+                <span className={pfx(cssPrefix, 'smart-suggest-toolbar-spacer')} aria-hidden />
+                <span className={pfx(cssPrefix, 'smart-suggest-meta')}>
+                  {visibleChips.length}/{Math.min(rankedChips.length, MAX_VISIBLE)} · Alt+1–9
+                </span>
+              </div>
+              <div className={pfx(cssPrefix, 'smart-suggest-scroll')} role="listbox" aria-label="Suggestion chips">
+                {visibleChips.map((c, i) => (
+                  <button
+                    key={c.key}
+                    type="button"
+                    role="option"
+                    ref={el => {
+                      chipRefs.current[i] = el
+                    }}
+                    tabIndex={chipFocusIdx === i ? 0 : -1}
+                    className={`${pfx(cssPrefix, 'smart-chip')} ${pfx(cssPrefix, `smart-chip--${c.tier}`)}`}
+                    title={`${c.insert} — Alt+${i + 1}`}
+                    onMouseDown={ev => ev.preventDefault()}
+                    onClick={() => applySuggestion(c.insert)}
+                    onKeyDown={e => onChipKeyDown(e, i)}
+                  >
+                    <span className={pfx(cssPrefix, 'smart-chip-label')}>{c.label}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          ) : (
+            <div className={pfx(cssPrefix, 'optimize-strip')} role="region" aria-label="Input assist">
+              <span className={pfx(cssPrefix, 'optimize-strip-label')}>Assist</span>
+              {renderOptimizeTrigger()}
+            </div>
+          )}
         </div>
       ) : null}
       <div className={pfx(cssPrefix, 'input-row')}>
@@ -443,6 +652,7 @@ export function GeoExplorerGeminiInputRow(props: GeoExplorerGeminiInputRowProps)
               window.setTimeout(() => {
                 const a = document.activeElement
                 if (a && a.closest?.(`.${pfx(cssPrefix, 'smart-suggest-panel')}`)) return
+                if (a && a.closest?.(`.${pfx(cssPrefix, 'optimize-wrap')}`)) return
                 setComposerFocused(false)
               }, 0)
             }}

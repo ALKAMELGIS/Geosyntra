@@ -1,11 +1,21 @@
+import type { GeoExplorerDataTablePayload, GeoExplorerDataTableRow, GeoExplorerMapLink } from './geoExplorerGemini'
 import type { GeoAiMapLayer } from './geoExplorerLayerContext'
-import { extractGeoExplorerLayerHint, normalizeLayerName } from './geoExplorerLayerContext'
+import { extractGeoExplorerLayerHint, geoAiFeatureCentroid, normalizeLayerName } from './geoExplorerLayerContext'
+import { computeStableGisFeatureKey } from './gisFeatureStableKey'
 
-type GeoFeature = { properties?: Record<string, unknown> }
+type GeoFeature = { id?: unknown; properties?: Record<string, unknown>; geometry?: { type?: string; coordinates?: unknown } }
+
+type ScopedFeatureRow = {
+  layerName: string
+  clientLayerId?: string
+  featureIndex: number
+  properties: Record<string, unknown>
+  rawFeature: GeoFeature
+}
 
 type ScopedData = {
   layers: GeoAiMapLayer[]
-  features: Array<{ layerName: string; properties: Record<string, unknown> }>
+  features: ScopedFeatureRow[]
   fields: string[]
 }
 
@@ -18,7 +28,10 @@ type Comparison = {
 export type GeoAiStatsResult = {
   handled: boolean
   reply: string
+  table?: GeoExplorerDataTablePayload
 }
+
+const TABLE_ROW_CAP = 250
 
 function fcFromLayer(layer: GeoAiMapLayer): { features: GeoFeature[] } | null {
   const g = layer.geojson
@@ -40,18 +53,24 @@ function collectScope(query: string, layers: GeoAiMapLayer[]): ScopedData {
     if (subset.length) scoped = subset
   }
 
-  const features: Array<{ layerName: string; properties: Record<string, unknown> }> = []
+  const features: ScopedFeatureRow[] = []
   const fieldSet = new Set<string>()
   for (const l of scoped) {
     const fc = fcFromLayer(l)
     if (!fc?.features?.length) continue
-    for (const f of fc.features) {
+    fc.features.forEach((f, featureIndex) => {
       const props = f.properties
-      if (!props || typeof props !== 'object') continue
+      if (!props || typeof props !== 'object') return
       const p = props as Record<string, unknown>
-      features.push({ layerName: l.name, properties: p })
+      features.push({
+        layerName: l.name,
+        clientLayerId: l.clientLayerId,
+        featureIndex,
+        properties: p,
+        rawFeature: f,
+      })
       for (const k of Object.keys(p)) fieldSet.add(k)
-    }
+    })
   }
 
   return { layers: scoped, features, fields: [...fieldSet] }
@@ -83,6 +102,87 @@ function toNumber(v: unknown): number | null {
     if (Number.isFinite(n)) return n
   }
   return null
+}
+
+function formatCell(v: unknown): string | number | null {
+  if (v === null || v === undefined) return null
+  if (typeof v === 'number' && Number.isFinite(v)) return v
+  if (typeof v === 'boolean') return v ? 'true' : 'false'
+  const s = String(v)
+  return s.length > 120 ? `${s.slice(0, 117)}…` : s
+}
+
+function mapLinkFor(row: ScopedFeatureRow): GeoExplorerMapLink | undefined {
+  if (row.clientLayerId) {
+    return {
+      type: 'feature',
+      layerId: row.clientLayerId,
+      featureKey: computeStableGisFeatureKey(row.rawFeature, row.featureIndex),
+    }
+  }
+  const cen = geoAiFeatureCentroid(row.rawFeature)
+  if (cen) return { type: 'coords', lng: cen[0], lat: cen[1], layerName: row.layerName }
+  return undefined
+}
+
+/** Codes like MH101 or quoted fragments — narrows attribute queries without SQL. */
+function extractLookupTokens(query: string): string[] {
+  const tokens = new Set<string>()
+  const q = query.trim()
+  for (const m of q.matchAll(/\bMH\d+\b/gi)) tokens.add(m[0].toUpperCase())
+  for (const m of q.matchAll(/\b[A-Z]{2,}\d{2,}[A-Z0-9-]*\b/g)) {
+    const t = m[0].toUpperCase()
+    if (t.length >= 4 && !/^SELECT$/i.test(t)) tokens.add(t)
+  }
+  for (const m of q.matchAll(/["']([^"'<>]{2,48})["']/g)) {
+    const inner = m[1].trim()
+    if (inner.length >= 2) tokens.add(inner)
+  }
+  return [...tokens]
+}
+
+function rowMatchesLookupTokens(row: ScopedFeatureRow, tokens: string[]): boolean {
+  if (!tokens.length) return true
+  return tokens.some(tok => {
+    const tl = tok.toLowerCase()
+    for (const v of Object.values(row.properties)) {
+      if (v == null) continue
+      const s = String(v).toLowerCase()
+      if (s === tl || s.includes(tl)) return true
+    }
+    return false
+  })
+}
+
+function pickDisplayColumns(fields: string[], max = 6): string[] {
+  const prio = [
+    'ZONE_ID',
+    'zone_id',
+    'ProjectCode',
+    'projectcode',
+    'Farm_Code',
+    'farm_code',
+    'OBJECTID',
+    'objectid',
+    'FID',
+    'fid',
+    'NAME',
+    'Name',
+    'name',
+    'Id',
+    'ID',
+    'id',
+  ]
+  const picked: string[] = []
+  for (const p of prio) {
+    const hit = fields.find(x => x === p || x.toLowerCase() === p.toLowerCase())
+    if (hit && !picked.includes(hit)) picked.push(hit)
+  }
+  for (const f of fields.sort()) {
+    if (picked.length >= max) break
+    if (!picked.includes(f)) picked.push(f)
+  }
+  return picked.slice(0, max)
 }
 
 function parseComparison(query: string, fields: string[]): Comparison | null {
@@ -125,16 +225,6 @@ function selectRows(scope: ScopedData, comparison: Comparison | null) {
   })
 }
 
-function summarizeSelection(rows: Array<{ layerName: string; properties: Record<string, unknown> }>, limit = 6): string {
-  if (!rows.length) return 'No matching records.'
-  const lines = rows.slice(0, limit).map((r, i) => {
-    const keys = Object.keys(r.properties).slice(0, 4)
-    const sample = keys.map(k => `${k}=${String(r.properties[k] ?? '')}`).join(', ')
-    return `${i + 1}. [${r.layerName}] ${sample}`
-  })
-  return lines.join('\n')
-}
-
 function safeEvalExpr(expr: string, props: Record<string, unknown>): number | null {
   const safe = expr.trim()
   if (!/^[A-Za-z0-9_+\-*/().\s]+$/.test(safe)) return null
@@ -150,12 +240,41 @@ function safeEvalExpr(expr: string, props: Record<string, unknown>): number | nu
   }
 }
 
+function queryFeaturesTable(
+  selected: ScopedFeatureRow[],
+  scopeFields: string[],
+  title = 'Query results',
+): GeoExplorerDataTablePayload {
+  const cols = pickDisplayColumns(scopeFields, 7)
+  const columns = [
+    { key: 'layer', label: 'Layer', align: 'left' as const },
+    ...cols.map(c => ({ key: c, label: c, align: 'left' as const })),
+  ]
+  const slice = selected.slice(0, TABLE_ROW_CAP)
+  const rows: GeoExplorerDataTableRow[] = slice.map(r => {
+    const values: Record<string, string | number | null> = { layer: r.layerName }
+    for (const c of cols) values[c] = formatCell(r.properties[c])
+    return { values, mapLink: mapLinkFor(r) }
+  })
+  return {
+    kind: 'query',
+    title,
+    columns,
+    rows,
+    foot:
+      selected.length > TABLE_ROW_CAP
+        ? { Summary: `Showing ${TABLE_ROW_CAP} of ${selected.length} rows` }
+        : { Summary: `${selected.length} row(s)` },
+  }
+}
+
 export function runGeoAiStatsCommand(query: string, layers: GeoAiMapLayer[]): GeoAiStatsResult | null {
   const q = query.trim()
   if (!q) return null
   const hasStatIntent =
-    /\b(sum|total|average|mean|min|max|count|group\s*by|statistics|summary|calculate field|select|selection|query)\b/i.test(q) ||
-    /(?:مجموع|اجمالي|متوسط|أكبر|اكبر|أصغر|اصغر|عدد|إحصاء|احصاء|تحليل|تحديد|استعلام|group by|calculate field)/i.test(q)
+    /\b(sum|total|average|mean|min|max|count|group\s*by|statistics|stat\b|summary|tabular|table|spreadsheet|calculate field|select|selection|query)\b/i.test(q) ||
+    /\b(show\s+me|find|display|list|records|features|locate|highlight)\b/i.test(q) ||
+    /(?:مجموع|اجمالي|متوسط|أكبر|اكبر|أصغر|اصغر|عدد|إحصاء|احصاء|تحليل|تحديد|استعلام|جدول|ملخص|اعرض|أظهر|اظهر|ابحث|عرض|group by|calculate field)/i.test(q)
   if (!hasStatIntent) return null
 
   const scope = collectScope(q, layers)
@@ -163,21 +282,53 @@ export function runGeoAiStatsCommand(query: string, layers: GeoAiMapLayer[]): Ge
     return { handled: true, reply: 'No loaded layer records are available for statistical analysis right now.' }
   }
 
+  const lookupTokens = extractLookupTokens(q)
   const comparison = parseComparison(q, scope.fields)
-  const selected = selectRows(scope, comparison)
+  let selected = selectRows(scope, comparison)
+  if (lookupTokens.length) {
+    selected = selected.filter(r => rowMatchesLookupTokens(r, lookupTokens))
+  }
   const selectedCount = selected.length
 
   const calc = q.match(/calculate\s+field\s+([A-Za-z_][A-Za-z0-9_]*)\s*=\s*([A-Za-z0-9_+\-*/().\s]+)/i)
   if (calc) {
     const outField = calc[1]
     const expr = calc[2]
-    const vals = selected
-      .map(r => safeEvalExpr(expr, r.properties))
-      .filter((v): v is number => v != null)
-    const preview = vals.slice(0, 8).map((v, i) => `${i + 1}. ${outField} = ${v}`).join('\n')
+    const pairs: Array<{ row: ScopedFeatureRow; value: number }> = []
+    for (const r of selected) {
+      const v = safeEvalExpr(expr, r.properties)
+      if (v != null) pairs.push({ row: r, value: v })
+    }
+    const previewSlice = pairs.slice(0, TABLE_ROW_CAP)
+    const colsPick = pickDisplayColumns(scope.fields, 4)
+    const columns = [
+      { key: 'row_num', label: '#', align: 'right' as const },
+      { key: 'layer', label: 'Layer', align: 'left' as const },
+      ...colsPick.map(c => ({ key: c, label: c, align: 'left' as const })),
+      { key: 'computed', label: outField, align: 'right' as const },
+    ]
+    const rows: GeoExplorerDataTableRow[] = previewSlice.map((p, i) => {
+      const values: Record<string, string | number | null> = {
+        row_num: i + 1,
+        layer: p.row.layerName,
+        computed: p.value,
+      }
+      for (const c of colsPick) values[c] = formatCell(p.row.properties[c])
+      return { values, mapLink: mapLinkFor(p.row) }
+    })
+    const table: GeoExplorerDataTablePayload = {
+      kind: 'calculateField',
+      title: `Calculate field preview (${outField})`,
+      columns,
+      rows,
+      foot: {
+        Summary: `${pairs.length}/${selectedCount} rows · ${outField} = ${expr}`,
+      },
+    }
     return {
       handled: true,
-      reply: `Calculate Field preview (not persisted):\nExpression: ${outField} = ${expr}\nRows evaluated: ${vals.length}/${selectedCount}\n${preview || 'No numeric result rows.'}`,
+      reply: `Calculate Field preview (not persisted). Expression **${outField}** = \`${expr}\`. Rows evaluated: **${pairs.length}** / ${selectedCount}. Use the table for sorting, export, and map links.`,
+      table,
     }
   }
 
@@ -193,12 +344,26 @@ export function runGeoAiStatsCommand(query: string, layers: GeoAiMapLayer[]): Ge
       const k = String(r.properties[gb] ?? 'NULL')
       buckets.set(k, (buckets.get(k) ?? 0) + 1)
     }
-    const lines = [...buckets.entries()]
-      .sort((a, b) => b[1] - a[1])
-      .slice(0, 20)
-      .map(([k, v]) => `- ${gb}=${k}: ${v}`)
-      .join('\n')
-    return { handled: true, reply: `Group By result (${selectedCount} rows):\n${lines || 'No groups.'}` }
+    const sorted = [...buckets.entries()].sort((a, b) => b[1] - a[1]).slice(0, TABLE_ROW_CAP)
+    const rows: GeoExplorerDataTableRow[] = sorted.map(([value, count]) => ({
+      values: { [gb]: value, count },
+      mapLink: undefined,
+    }))
+    const table: GeoExplorerDataTablePayload = {
+      kind: 'groupBy',
+      title: `Group by ${gb}`,
+      columns: [
+        { key: gb, label: gb, align: 'left' },
+        { key: 'count', label: 'Count', align: 'right' },
+      ],
+      rows,
+      foot: { Summary: `${selectedCount} source rows · ${buckets.size} groups` },
+    }
+    return {
+      handled: true,
+      reply: `Group By **${gb}** over **${selectedCount}** rows (${buckets.size} groups). Interactive table below.`,
+      table,
+    }
   }
 
   const op =
@@ -211,18 +376,37 @@ export function runGeoAiStatsCommand(query: string, layers: GeoAiMapLayer[]): Ge
   const field = findField(q, scope.fields)
 
   if (op === 'count' && !field) {
-    const whereTxt = comparison ? ` with filter ${comparison.field} ${comparison.op} ${comparison.value}` : ''
+    const whereTxt = comparison ? ` · Numeric filter: ${comparison.field} ${comparison.op} ${comparison.value}` : ''
+    const tokTxt = lookupTokens.length ? ` · Codes/text: ${lookupTokens.join(', ')}` : ''
+    if (!selectedCount) {
+      return {
+        handled: true,
+        reply: `No matching records (${lookupTokens.length ? `tokens ${lookupTokens.join(', ')}` : 'current filters'}).`,
+        table: queryFeaturesTable([], scope.fields, 'Query results'),
+      }
+    }
+    const table = queryFeaturesTable(selected, scope.fields, lookupTokens.length ? `Matches: ${lookupTokens.join(', ')}` : 'Layer records')
+    const shown = Math.min(TABLE_ROW_CAP, selected.length)
     return {
       handled: true,
-      reply: `Selection count: ${selectedCount} records${whereTxt}.\nSample:\n${summarizeSelection(selected)}`,
+      reply: `**${selectedCount}** record(s)${tokTxt}${whereTxt}.\n\n• Table: sort, search, paginate, export.\n• Row click / Map column: **select in attribute table**, zoom, and highlight (GIS Map).`,
+      table,
     }
   }
 
-  if (!field) return { handled: true, reply: 'Please specify a field name for this statistical operation.' }
+  if (!field) {
+    if (lookupTokens.length && selectedCount > 0) {
+      const table = queryFeaturesTable(selected, scope.fields, `Matches: ${lookupTokens.join(', ')}`)
+      return {
+        handled: true,
+        reply: `Found **${selectedCount}** feature(s) for **${lookupTokens.join(', ')}**. Use the table below — row click syncs the map and attribute table.`,
+        table,
+      }
+    }
+    return { handled: true, reply: 'Please specify a field name for this statistical operation.' }
+  }
 
-  const nums = selected
-    .map(r => toNumber(r.properties[field]))
-    .filter((v): v is number => v != null)
+  const nums = selected.map(r => toNumber(r.properties[field])).filter((v): v is number => v != null)
   if (!nums.length) {
     return { handled: true, reply: `No numeric values found in field "${field}" for the current selection.` }
   }
@@ -231,13 +415,68 @@ export function runGeoAiStatsCommand(query: string, layers: GeoAiMapLayer[]): Ge
   const min = Math.min(...nums)
   const max = Math.max(...nums)
 
-  if (op === 'sum') return { handled: true, reply: `SUM(${field}) = ${sum}\nRows used: ${nums.length}/${selectedCount}` }
-  if (op === 'avg') return { handled: true, reply: `AVG(${field}) = ${avg}\nRows used: ${nums.length}/${selectedCount}` }
-  if (op === 'min') return { handled: true, reply: `MIN(${field}) = ${min}\nRows used: ${nums.length}/${selectedCount}` }
-  if (op === 'max') return { handled: true, reply: `MAX(${field}) = ${max}\nRows used: ${nums.length}/${selectedCount}` }
+  const statLabel =
+    op === 'sum' ? `SUM(${field})` :
+    op === 'avg' ? `AVG(${field})` :
+    op === 'min' ? `MIN(${field})` :
+    op === 'max' ? `MAX(${field})` :
+    `COUNT(${field})`
+
+  const primaryVal =
+    op === 'sum' ? sum :
+    op === 'avg' ? avg :
+    op === 'min' ? min :
+    op === 'max' ? max :
+    nums.length
+
+  const summaryTable: GeoExplorerDataTablePayload = {
+    kind: 'statistics',
+    title: 'Statistics summary',
+    columns: [
+      { key: 'metric', label: 'Metric', align: 'left' },
+      { key: 'value', label: 'Value', align: 'right' },
+      { key: 'note', label: 'Note', align: 'left' },
+    ],
+    rows: [
+      { values: { metric: statLabel, value: primaryVal, note: `${nums.length} numeric values / ${selectedCount} rows` } },
+      { values: { metric: 'SUM', value: sum, note: '—' } },
+      { values: { metric: 'AVG', value: avg, note: '—' } },
+      { values: { metric: 'MIN', value: min, note: '—' } },
+      { values: { metric: 'MAX', value: max, note: '—' } },
+    ],
+    foot: {
+      Summary: `${field} · ${nums.length} numeric / ${selectedCount} rows${comparison ? ` · filter ${comparison.field} ${comparison.op} ${comparison.value}` : ''}`,
+    },
+  }
+
+  if (op === 'sum')
+    return {
+      handled: true,
+      reply: `**SUM(${field})** = **${sum}** (${nums.length}/${selectedCount} rows). See summary table for full statistics.`,
+      table: summaryTable,
+    }
+  if (op === 'avg')
+    return {
+      handled: true,
+      reply: `**AVG(${field})** = **${avg}** (${nums.length}/${selectedCount} rows). See summary table for full statistics.`,
+      table: summaryTable,
+    }
+  if (op === 'min')
+    return {
+      handled: true,
+      reply: `**MIN(${field})** = **${min}** (${nums.length}/${selectedCount} rows). See summary table for full statistics.`,
+      table: summaryTable,
+    }
+  if (op === 'max')
+    return {
+      handled: true,
+      reply: `**MAX(${field})** = **${max}** (${nums.length}/${selectedCount} rows). See summary table for full statistics.`,
+      table: summaryTable,
+    }
 
   return {
     handled: true,
-    reply: `COUNT(${field}) = ${nums.length}\nSelection rows: ${selectedCount}\nStatistics: SUM=${sum}, AVG=${avg}, MIN=${min}, MAX=${max}`,
+    reply: `Statistics on **${field}**: COUNT=${nums.length}, SUM=${sum}, AVG=${avg}, MIN=${min}, MAX=${max}. Selection: ${selectedCount} rows.`,
+    table: summaryTable,
   }
 }

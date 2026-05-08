@@ -13,6 +13,7 @@ export function gisLayerDataToGeoAiLayers(layers: LayerData[]): GeoAiMapLayer[] 
     if (fc.type !== 'FeatureCollection' || !Array.isArray(fc.features) || fc.features.length === 0) continue
     out.push({
       name: l.name,
+      clientLayerId: String(l.id),
       visible: l.visible,
       source: l.source,
       data: l.data,
@@ -24,7 +25,7 @@ export function gisLayerDataToGeoAiLayers(layers: LayerData[]): GeoAiMapLayer[] 
 
 /** Satellite Intelligence custom layer rows (GeoJSON on the map). */
 export function satelliteCustomLayersToGeoAiLayers(
-  layers: Array<{ name: string; visible: boolean; geojson?: unknown; source?: string }>,
+  layers: Array<{ id: string; name: string; visible: boolean; geojson?: unknown; source?: string }>,
 ): GeoAiMapLayer[] {
   const out: GeoAiMapLayer[] = []
   for (const l of layers) {
@@ -32,6 +33,7 @@ export function satelliteCustomLayersToGeoAiLayers(
     if (!g || g.type !== 'FeatureCollection' || !Array.isArray(g.features) || g.features.length === 0) continue
     out.push({
       name: l.name,
+      clientLayerId: String(l.id),
       visible: l.visible,
       source: l.source,
       geojson: g,

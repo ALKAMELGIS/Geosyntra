@@ -9,6 +9,8 @@ import { forEachLngLatPairInCoords } from './geoJsonCoordIterWalk'
 
 export type GeoAiMapLayer = {
   name: string
+  /** GIS Map / Satellite layer id — enables Geo AI table rows to zoom/highlight features */
+  clientLayerId?: string
   visible?: boolean
   source?: string
   /** ArcGIS `?f=pjson` subset: fields, types, typeIdField — for coded-value / subtype labels in AI context */
@@ -61,6 +63,14 @@ function featureCentroid(f: GeoAiFeature): [number, number] | null {
   const b = bboxOfGeometry(g)
   if (!b) return null
   return [(b[0] + b[2]) / 2, (b[1] + b[3]) / 2]
+}
+
+/** Public helper for Geo AI stats / tables — centroid in WGS84 [lng, lat]. */
+export function geoAiFeatureCentroid(f: {
+  geometry?: { type?: string; coordinates?: unknown }
+  properties?: Record<string, unknown> | null
+}): [number, number] | null {
+  return featureCentroid(f as GeoAiFeature)
 }
 
 /** Normalized layer / hint string for matching (underscores and punctuation → spaces). */

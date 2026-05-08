@@ -44,9 +44,7 @@ import { parseFile, parseRemoteUrlAsFile } from '../../utils/FileLoader'
 import { useGeminiApiKey } from '../../hooks/useGeminiApiKey'
 import {
   lastMapQueryCoordsFromMessages,
-  messageDisplayText,
-  messagesToGeminiContents,
-  stripGeoExplorerBubbleDisplayText,
+  type GeoExplorerMapLink,
   type GeoExplorerMessage,
   type GeoExplorerPart,
 } from '../../lib/geoExplorerGemini'
@@ -68,6 +66,7 @@ import {
 } from '../../lib/gisMapChartPanelConfig'
 import './gisGeoExplorerPanel.css'
 import { GisGeoExplorerChartConfig } from './components/GisGeoExplorerChartConfig'
+import { GeoExplorerGeminiMessageParts } from './components/GeoExplorerGeminiMessageParts'
 
 const GIS_AGOL_RAIL_COMPACT_LS_KEY = 'gis-agol-rail-compact-v1'
 const GEO_AI_CHAT_PAGE_SIZE = 40
@@ -2210,7 +2209,9 @@ export default function GisMap() {
             const localStats = runGeoAiStatsCommand(trimmed, gisLayerDataToGeoAiLayers(layers))
             if (localStats?.handled) {
               const mid = typeof crypto !== 'undefined' && 'randomUUID' in crypto ? crypto.randomUUID() : `geo-s-${Date.now()}`
-              const modelMsg: GeoExplorerMessage = { id: mid, role: 'model', parts: [{ type: 'text', text: localStats.reply }] }
+              const parts: GeoExplorerPart[] = [{ type: 'text', text: localStats.reply }]
+              if (localStats.table) parts.push({ type: 'dataTable', table: localStats.table })
+              const modelMsg: GeoExplorerMessage = { id: mid, role: 'model', parts }
               setGeoExplorerMessages(h => [...h, modelMsg])
               return
             }
@@ -4096,6 +4097,27 @@ export default function GisMap() {
     setTablesAddMenuOpen(false)
   }
 
+  const onGeoAiTableMapAction = useCallback(
+    (action: 'zoom' | 'highlight' | 'focus', link: GeoExplorerMapLink) => {
+      if (link.type === 'feature') {
+        if (action === 'focus') {
+          const feature = featureByKeyByLayerRef.current.get(link.layerId)?.get(link.featureKey)
+          const layer = layers.find(l => String(l.id) === link.layerId && l.type === 'geojson')
+          if (feature && layer) {
+            openAttributeTableForFeature(layer, feature)
+            return
+          }
+          showFeatureSelectionOnMap(link.layerId, link.featureKey, { zoom: true })
+          return
+        }
+        showFeatureSelectionOnMap(link.layerId, link.featureKey, { zoom: action === 'zoom' })
+      } else {
+        flyGisMapToLngLat(link.lng, link.lat, action === 'zoom' || action === 'focus' ? 16 : 14)
+      }
+    },
+    [layers, flyGisMapToLngLat, showFeatureSelectionOnMap, openAttributeTableForFeature],
+  )
+
   const geoExplorerToolBody = (
     <div className="gis-geo-explorer-root">
       <div className="gis-geo-explorer">
@@ -4158,28 +4180,22 @@ export default function GisMap() {
               </p>
             </div>
           </div>
-          {visibleGeoExplorerMessages.map(msg => {
-            const raw = messageDisplayText(msg)
-            const show = msg.role === 'model' ? stripGeoExplorerBubbleDisplayText(raw) : raw
-            const hasImage = msg.parts.some(p => p.type === 'image')
-            return (
-              <div key={msg.id} className={`gis-geo-explorer-row gis-geo-explorer-row--${msg.role}`}>
-                {msg.role === 'model' ? (
-                  <div className="gis-geo-explorer-avatar" aria-hidden>
-                    <i className="fa-solid fa-wand-magic-sparkles" />
-                  </div>
-                ) : null}
-                <div className="gis-geo-explorer-bubble">
-                  {show ? <p className="gis-geo-explorer-bubble-text">{show}</p> : null}
-                  {msg.role === 'user' && hasImage ? (
-                    <p className="gis-geo-explorer-bubble-meta">
-                      <i className="fa-solid fa-paperclip" aria-hidden /> Image attached
-                    </p>
-                  ) : null}
+          {visibleGeoExplorerMessages.map(msg => (
+            <div key={msg.id} className={`gis-geo-explorer-row gis-geo-explorer-row--${msg.role}`}>
+              {msg.role === 'model' ? (
+                <div className="gis-geo-explorer-avatar" aria-hidden>
+                  <i className="fa-solid fa-wand-magic-sparkles" />
                 </div>
+              ) : null}
+              <div className="gis-geo-explorer-bubble">
+                <GeoExplorerGeminiMessageParts
+                  msg={msg}
+                  cssPrefix="gis-geo-explorer"
+                  onTableMapAction={onGeoAiTableMapAction}
+                />
               </div>
-            )
-          })}
+            </div>
+          ))}
           {geoExplorerBusy ? (
             <div className="gis-geo-explorer-row gis-geo-explorer-row--model">
               <div className="gis-geo-explorer-avatar" aria-hidden>
