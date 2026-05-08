@@ -6212,6 +6212,10 @@ input.si-explore-date-input-linked[type='date'] {
   color: #94a3b8;
 }
 
+.si-field-analysis-hint--aoi-overlay {
+  margin-top: 8px;
+}
+
 .si-field-analysis-layer-visibility {
   margin-top: 10px;
   padding: 8px 10px;

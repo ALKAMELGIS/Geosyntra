@@ -6273,6 +6273,18 @@ export default function SatelliteIntelligence() {
       `&TIME=${start}/${end}&MAXCC=${cloudCoverage}&SHOWLOGO=false&WARNINGS=true`;
   }, [activeWmsLayer, timeSeriesStart, timeSeriesEnd, wmsDate, cloudCoverage, wmsBaseUrl]);
 
+  /** Limits Sentinel WMS tile requests to AOI bbox — overlay only; basemap unchanged outside bounds. */
+  const wmsRasterAoiBoundsLngLat = useMemo((): [number, number, number, number] | null => {
+    if (!drawnGeometry) return null;
+    const raw = getGeoJsonBounds(drawnGeometry as any);
+    if (!raw) return null;
+    const [w, s, e, n] = raw;
+    if (![w, s, e, n].every(Number.isFinite) || e <= w || n <= s) return null;
+    const padX = Math.max((e - w) * 0.02, 1e-6);
+    const padY = Math.max((n - s) * 0.02, 1e-6);
+    return [w - padX, s - padY, e + padX, n + padY];
+  }, [drawnGeometry]);
+
   const polygonSketchHudText = useMemo(() => {
     if (mapDrawTool !== 'polygon') return '';
     if (polygonRing.length === 0) {
@@ -6586,11 +6598,12 @@ export default function SatelliteIntelligence() {
 
             {isMapLoaded && sentinelVisible && (
               <Source
-                key={`sentinel-${activeWmsLayer}-${wmsDate}`}
+                key={`sentinel-${activeWmsLayer}-${wmsDate}-${wmsRasterAoiBoundsLngLat?.join(',') ?? 'world'}`}
                 id="sentinel-source"
                 type="raster"
                 tiles={[wmsTileUrl]}
                 tileSize={512}
+                bounds={wmsRasterAoiBoundsLngLat ?? undefined}
               >
                 <Layer
                   id="sentinel-layer"
@@ -7775,6 +7788,13 @@ export default function SatelliteIntelligence() {
                                 </span>
                               </label>
                             </div>
+                          ) : null}
+                          {!isLoadingLayers && remoteSensingLayerOptions.length > 0 && drawnGeometry ? (
+                            <p className="si-field-analysis-hint si-field-analysis-hint--aoi-overlay">
+                              With a drawn AOI, the selected imagery loads only inside the AOI bounding box as an
+                              overlay; the basemap is unchanged elsewhere. Run uses AOI geometry; generate the timeline
+                              for AOI-scoped charts.
+                            </p>
                           ) : null}
                         </div>
 
