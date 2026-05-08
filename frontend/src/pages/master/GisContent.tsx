@@ -1969,26 +1969,10 @@ function GisContentPage() {
 
         <div className="gis-sidebar-body" id="gis-sidebar-panel">
           {sidebarCollapsed ? (
-            <div className="gis-sidebar-body-main gis-sidebar-body-main--collapsed-rail">
-              <button
-                type="button"
-                className="gis-sidebar-collapsed-layers"
-                onClick={() => setSidebarCollapsed(false)}
-                aria-label={`Expand to browse ${rows.length} layer${rows.length === 1 ? '' : 's'}`}
-                title="Show layers list"
-              >
-                <span className="gis-sidebar-collapsed-layers__icon-slot" aria-hidden="true">
-                  <span className="gis-sidebar-collapsed-layers__icon-wrap">
-                    <i className="fa-solid fa-layer-group" />
-                  </span>
-                  {rows.length > 0 ? (
-                    <span className="gis-sidebar-collapsed-layers__badge">{rows.length}</span>
-                  ) : null}
-                </span>
-              </button>
+            <div className="gis-sidebar-body-main gis-sidebar-body-main--collapsed-rail" aria-hidden="true">
+              <div className="gis-sidebar-collapsed-strip-spacer" />
             </div>
           ) : (
-            <>
             <div className="gis-sidebar-body-main">
           <div className="gis-content-sidebarfilters">
             <input className="gis-input gis-layer-search" value={layerQuery} onChange={(e) => setLayerQuery(e.target.value)} placeholder="Search for a layer..." />
@@ -2142,10 +2126,30 @@ function GisContentPage() {
             ) : null}
           </div>
             </div>
-            <footer className="gis-sidebar-foot-toolbar" aria-label="Sidebar tools">
+          )}
+          <footer className="gis-sidebar-foot-toolbar" aria-label="Sidebar tools">
+            {sidebarCollapsed ? (
               <button
                 type="button"
-                className="gis-sidebar-foot-item gis-sidebar-foot-item--primary gis-sidebar-foot-item--icon-only"
+                className="gis-sidebar-foot-item gis-sidebar-foot-item--primary gis-sidebar-foot-item--icon-only gis-sidebar-foot-toggle"
+                onClick={() => setSidebarCollapsed(false)}
+                aria-controls="gis-sidebar-panel"
+                aria-expanded={false}
+                aria-label={`Expand to browse ${rows.length} layer${rows.length === 1 ? '' : 's'}`}
+                title="Show layers list"
+              >
+                <i className="fa-solid fa-angles-right" aria-hidden="true" />
+                <span className="db-sr-only">Expand GIS layers panel</span>
+                {rows.length > 0 ? (
+                  <span className="gis-sidebar-foot-toolbar__layer-count" aria-hidden="true">
+                    {rows.length}
+                  </span>
+                ) : null}
+              </button>
+            ) : (
+              <button
+                type="button"
+                className="gis-sidebar-foot-item gis-sidebar-foot-item--primary gis-sidebar-foot-item--icon-only gis-sidebar-foot-toggle"
                 onClick={() => setSidebarCollapsed(true)}
                 aria-controls="gis-sidebar-panel"
                 aria-expanded
@@ -2155,9 +2159,8 @@ function GisContentPage() {
                 <i className="fa-solid fa-angles-left" aria-hidden="true" />
                 <span className="db-sr-only">Collapse GIS layers panel</span>
               </button>
-            </footer>
-            </>
-          )}
+            )}
+          </footer>
         </div>
       </aside>
 

@@ -3689,8 +3689,43 @@ aside {
 
 .gis-sidebar-body-main--collapsed-rail {
   flex: 1 1 auto;
-  justify-content: center;
+  justify-content: flex-start;
   align-items: stretch;
+  min-height: 0;
+}
+
+/* Collapsed sidebar main: empty flex filler — expand/collapse lives in .gis-sidebar-foot-toolbar */
+.gis-sidebar-collapsed-strip-spacer {
+  flex: 1 1 auto;
+  min-height: 12px;
+}
+
+.gis-sidebar-foot-toggle {
+  position: relative;
+}
+
+.gis-sidebar-foot-toolbar__layer-count {
+  position: absolute;
+  top: 5px;
+  right: 10px;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 800;
+  line-height: 18px;
+  text-align: center;
+  color: #ffffff;
+  background: linear-gradient(145deg, #10b981, #047857);
+  border: 2px solid #ffffff;
+  box-shadow: 0 2px 8px rgba(5, 96, 67, 0.35);
+  pointer-events: none;
+}
+
+:root[dir='rtl'] .gis-sidebar-foot-toolbar__layer-count {
+  right: auto;
+  left: 10px;
 }
 
 /* Mobile GIS drawer: ArcGIS-style vertical icon rail (left) + scrollable layers column — order matches desktop rail */
