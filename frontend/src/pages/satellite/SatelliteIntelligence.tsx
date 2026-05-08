@@ -33,11 +33,7 @@ import { useDeepseekApiKey } from '../../hooks/useDeepseekApiKey';
 import { getArcgisPortalToken } from '../../lib/arcgisPortalToken';
 import { getMapboxAccessToken } from '../../lib/mapboxAccessToken';
 import { subscribeSentinelHubAccessToken } from '../../lib/sentinelHubAccessToken';
-import {
-  getSentinelHubWmsBaseUrl,
-  getSentinelHubWmsInstanceId,
-  subscribeSentinelHubWmsInstance,
-} from '../../lib/sentinelHubWmsInstance';
+import { getSentinelHubWmsBaseUrl, subscribeSentinelHubWmsInstance } from '../../lib/sentinelHubWmsInstance';
 import {
   GEO_AI_COPILOT_RULES,
   lastMapQueryCoordsFromMessages,
@@ -115,6 +111,7 @@ import { FieldVisibilityControl } from './components/FieldVisibilityControl';
 import { GeoAiEditQuestionTool } from './components/GeoAiEditQuestionTool';
 import { GeoExplorerGeminiInputRow } from './components/GeoExplorerGeminiInputRow';
 import { GeoExplorerGeminiMessageParts } from './components/GeoExplorerGeminiMessageParts';
+import { SatelliteMapAnalysisChrome } from './components/SatelliteMapAnalysisChrome';
 import {
   getAnalysisEngineBaseUrl,
   mpcFetchTemplates,
@@ -1735,6 +1732,8 @@ export default function SatelliteIntelligence() {
   const [is3DView, setIs3DView] = useState(() => true);
   const [cloudCoverage, setCloudCoverage] = useState(20);
   const [isTimelinePlaying, setIsTimelinePlaying] = useState(false);
+  const [mapStaticChartsOpen, setMapStaticChartsOpen] = useState(false);
+  const [analysisLayerAttached, setAnalysisLayerAttached] = useState(false);
   const [selectedIndex, setSelectedIndex] = useState<EnvironmentalIndexId>('NDWI');
   const [selectedPivotId, setSelectedPivotId] = useState('all');
   const [weeklyComposites, setWeeklyComposites] = useState<WeeklyComposite[]>([]);
@@ -5921,19 +5920,45 @@ export default function SatelliteIntelligence() {
     }
   };
 
+  /** Timeline playback: prefer generated weekly composites; fallback to rolling 14-day strip */
   useEffect(() => {
-    if (!isTimelinePlaying || dates.length === 0) return;
+    if (!isTimelinePlaying) return;
 
-    let index = dates.findIndex(d => d.full.toDateString() === selectedDate.toDateString());
-    if (index === -1) index = 0;
+    if (weeklyComposites.length > 0) {
+      const interval = setInterval(() => {
+        setSelectedDate(prev => {
+          const iso = prev.toISOString().split('T')[0];
+          let idx = weeklyComposites.findIndex(w => iso >= w.startDate && iso <= w.endDate);
+          if (idx < 0) idx = 0;
+          idx = (idx + 1) % weeklyComposites.length;
+          const w = weeklyComposites[idx];
+          const d = new Date(`${w.startDate}T12:00:00`);
+          const iso2 = d.toISOString().split('T')[0];
+          setTimeSeriesStart(ps => (ps && iso2 < ps ? iso2 : ps || iso2));
+          setTimeSeriesEnd(pe => (pe && iso2 > pe ? iso2 : pe || iso2));
+          return d;
+        });
+      }, 1400);
+      return () => clearInterval(interval);
+    }
+
+    if (!dates.length) return;
 
     const interval = setInterval(() => {
-      index = (index + 1) % dates.length;
-      applySelectedDate(dates[index].full);
+      setSelectedDate(prev => {
+        let index = dates.findIndex(d => d.full.toDateString() === prev.toDateString());
+        if (index === -1) index = 0;
+        index = (index + 1) % dates.length;
+        const next = dates[index].full;
+        const iso = next.toISOString().split('T')[0];
+        setTimeSeriesStart(ps => (ps && iso < ps ? iso : ps || iso));
+        setTimeSeriesEnd(pe => (pe && iso > pe ? iso : pe || iso));
+        return next;
+      });
     }, 1200);
 
     return () => clearInterval(interval);
-  }, [isTimelinePlaying, dates, selectedDate]);
+  }, [isTimelinePlaying, weeklyComposites, dates]);
 
   useEffect(() => {
     const iso = selectedDate.toISOString().split('T')[0];
@@ -6184,6 +6209,61 @@ export default function SatelliteIntelligence() {
       map.off('error', handleMapError);
     };
   }, []);
+
+  const satelliteTimelineChips = useMemo(
+    () =>
+      weeklyComposites.map(w => ({
+        id: `w-${w.weekIndex}-${w.startDate}`,
+        shortLabel: `${w.startDate.slice(5, 7)}-${w.startDate.slice(8, 10)}`,
+        fullDate: w.startDate,
+        mean: w.mean,
+      })),
+    [weeklyComposites],
+  );
+
+  const satellitePivotBars = useMemo(
+    () => pivotChartRows.map(r => ({ name: r.name, value: r.value })),
+    [pivotChartRows],
+  );
+
+  const satelliteWeeklyMeans = useMemo(() => weeklyComposites.map(w => w.mean), [weeklyComposites]);
+
+  const satelliteActiveChipId = useMemo(() => {
+    if (!weeklyComposites.length) return null;
+    const iso = selectedDate.toISOString().split('T')[0];
+    const hit =
+      weeklyComposites.find(w => iso >= w.startDate && iso <= w.endDate) ?? weeklyComposites[0];
+    return `w-${hit.weekIndex}-${hit.startDate}`;
+  }, [weeklyComposites, selectedDate]);
+
+  const runSatelliteMapAnalysis = () => {
+    if (!drawnGeometry) {
+      setFieldAnalysisStatus('Draw a rectangle or polygon AOI on the map, then tap Run.');
+      return;
+    }
+    generateFieldAnalysisTimeline();
+    setMapStaticChartsOpen(true);
+  };
+
+  const handleSatelliteTimelineStep = (dir: -1 | 1) => {
+    if (!weeklyComposites.length) return;
+    const iso = selectedDate.toISOString().split('T')[0];
+    let i = weeklyComposites.findIndex(w => iso >= w.startDate && iso <= w.endDate);
+    if (i < 0) i = 0;
+    i = (i + dir + weeklyComposites.length) % weeklyComposites.length;
+    const w = weeklyComposites[i];
+    applySelectedDate(new Date(`${w.startDate}T12:00:00`));
+  };
+
+  const handleSatelliteChipPick = (id: string) => {
+    const w = weeklyComposites.find(x => `w-${x.weekIndex}-${x.startDate}` === id);
+    if (w) applySelectedDate(new Date(`${w.startDate}T12:00:00`));
+  };
+
+  const satelliteToolbarTool: 'rectangle' | 'polygon' | 'select' =
+    mapDrawTool === 'rectangle' || mapDrawTool === 'polygon' || mapDrawTool === 'select'
+      ? mapDrawTool
+      : 'select';
 
   const wmsTileUrl = useMemo(() => {
     const safeLayer = encodeURIComponent(activeWmsLayer);
@@ -6621,6 +6701,28 @@ export default function SatelliteIntelligence() {
 
             {isMapLoaded ? <NavigationControl position="bottom-right" /> : null}
           </MapGL>
+
+          <SatelliteMapAnalysisChrome
+            weeklyChips={satelliteTimelineChips}
+            activeChipId={satelliteActiveChipId}
+            onPickChip={handleSatelliteChipPick}
+            timelinePlaying={isTimelinePlaying}
+            onTogglePlay={() => setIsTimelinePlaying(p => !p)}
+            onStep={handleSatelliteTimelineStep}
+            timelineVisible={weeklyComposites.length > 0}
+            mapTool={satelliteToolbarTool}
+            onMapTool={t => applyMapDrawTool(t)}
+            hasAoi={!!drawnGeometry}
+            onRunAnalysis={runSatelliteMapAnalysis}
+            runBlockedReason={!drawnGeometry ? 'Draw AOI first' : null}
+            staticChartsOpen={mapStaticChartsOpen}
+            onToggleStaticCharts={() => setMapStaticChartsOpen(o => !o)}
+            analysisLayerAttached={analysisLayerAttached}
+            onToggleAnalysisLayerAttached={() => setAnalysisLayerAttached(v => !v)}
+            weeklyMeans={satelliteWeeklyMeans}
+            pivotBars={satellitePivotBars}
+            indexLabel={ENVIRONMENTAL_INDICES[selectedIndex].label}
+          />
 
           {(mpcProcessResult?.statistics || drawnStats) && (
             <div className="si-aoi-analysis-pill" dir="ltr">
@@ -7779,7 +7881,7 @@ export default function SatelliteIntelligence() {
                               {isLoadingLayers ? (
                                 <option value="">Loading Sentinel Hub layers…</option>
                               ) : remoteSensingLayerOptions.length === 0 ? (
-                                <option value="">No layers available from STAC catalog.</option>
+                                <option value="">No Sentinel Hub WMS layers — check API tokens / instance ID.</option>
                               ) : (
                                 remoteSensingLayerOptions.map(layer => (
                                   <option key={layer.id} value={layer.id}>
@@ -7789,17 +7891,6 @@ export default function SatelliteIntelligence() {
                               )}
                             </select>
                           </label>
-                          <p className="si-field-analysis-hint" style={{ marginTop: 6 }}>
-                            Layer list is configured for Planetary Computer STAC API:{' '}
-                            <a
-                              className="si-explore-stac-url"
-                              href="https://planetarycomputer.microsoft.com/api/stac/v1"
-                              target="_blank"
-                              rel="noopener noreferrer"
-                            >
-                              https://planetarycomputer.microsoft.com/api/stac/v1
-                            </a>
-                          </p>
                         </div>
 
                         <div className="si-field-analysis-section">
@@ -7831,7 +7922,7 @@ export default function SatelliteIntelligence() {
                             </button>
                           </div>
                           <p className="si-field-analysis-hint">
-                            Browse satellite imagery changes over time. Select a date range and generate the timeline.
+                            Use the map toolbar (bottom) for AOI, Run, timeline playback, and charts after generating here.
                           </p>
                         </div>
 

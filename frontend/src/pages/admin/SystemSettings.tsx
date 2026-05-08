@@ -1486,7 +1486,7 @@ export default function SystemSettings() {
               </p>
             </div>
 
-            <div className="sys-api-tokens-card sys-api-tokens-card--wide">
+            <div id="sentinel-api-tokens" className="sys-api-tokens-card sys-api-tokens-card--wide">
               <h3 className="sys-settings-panel__title sys-settings-api-h3">
                 <i className="fa-solid fa-satellite" aria-hidden />
                 {language === 'ar' ? 'رموز Sentinel API' : 'Sentinel API tokens'}

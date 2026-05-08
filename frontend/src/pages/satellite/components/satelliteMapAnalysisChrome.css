@@ -1,0 +1,470 @@
+/* Floating analysis UX on Satellite Intelligence map — minimal, map-anchored */
+
+.si-map-analysis-timeline {
+  position: absolute;
+  z-index: 95;
+  left: 50%;
+  /* Above AOI stats pill (~108px) */
+  bottom: 168px;
+  transform: translateX(-50%);
+  width: min(96vw, 720px);
+  pointer-events: auto;
+  animation: si-map-tl-in 0.38s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+@keyframes si-map-tl-in {
+  from {
+    opacity: 0;
+    transform: translateX(-50%) translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+}
+
+.si-map-analysis-timeline-inner {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 14px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.96);
+  border: 1px solid rgba(148, 163, 184, 0.35);
+  box-shadow:
+    0 10px 36px rgba(15, 23, 42, 0.14),
+    inset 0 1px 0 rgba(255, 255, 255, 0.9);
+}
+
+.si-map-analysis-timeline-transport {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.si-map-analysis-tl-btn {
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  border: 1px solid rgba(148, 163, 184, 0.35);
+  background: #f8fafc;
+  color: #475569;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  transition:
+    background 0.15s ease,
+    border-color 0.15s ease,
+    transform 0.12s ease;
+}
+
+.si-map-analysis-tl-btn:hover {
+  background: #fff;
+  border-color: rgba(34, 197, 94, 0.45);
+  color: #166534;
+}
+
+.si-map-analysis-tl-play {
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  border: none;
+  background: linear-gradient(145deg, #22c55e, #16a34a);
+  color: #fff;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  box-shadow: 0 6px 18px rgba(22, 163, 74, 0.35);
+  transition:
+    filter 0.15s ease,
+    transform 0.12s ease;
+}
+
+.si-map-analysis-tl-play:hover {
+  filter: brightness(1.06);
+}
+
+.si-map-analysis-tl-play--on {
+  background: linear-gradient(145deg, #15803d, #14532d);
+}
+
+.si-map-analysis-timeline-track-wrap {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.si-map-analysis-timeline-chips {
+  display: flex;
+  flex-wrap: nowrap;
+  gap: 6px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding: 2px 2px 4px;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(148, 163, 184, 0.45) transparent;
+  -webkit-overflow-scrolling: touch;
+}
+
+.si-map-analysis-chip {
+  flex: 0 0 auto;
+  border: 1px solid rgba(148, 163, 184, 0.45);
+  background: #fff;
+  color: #0f172a;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  padding: 6px 10px;
+  border-radius: 10px;
+  cursor: pointer;
+  transition:
+    border-color 0.15s ease,
+    background 0.15s ease,
+    box-shadow 0.15s ease;
+}
+
+.si-map-analysis-chip:hover {
+  border-color: rgba(34, 197, 94, 0.45);
+}
+
+.si-map-analysis-chip--active {
+  background: linear-gradient(145deg, #22c55e, #16a34a);
+  border-color: transparent;
+  color: #fff;
+  box-shadow: 0 4px 14px rgba(22, 163, 74, 0.35);
+}
+
+.si-map-analysis-timeline-rail {
+  height: 3px;
+  border-radius: 999px;
+  background: linear-gradient(90deg, rgba(148, 163, 184, 0.25), rgba(52, 211, 153, 0.35));
+}
+
+.si-map-analysis-timeline-date {
+  flex-shrink: 0;
+  font-size: 12px;
+  font-weight: 750;
+  font-variant-numeric: tabular-nums;
+  color: #0f172a;
+  padding-inline-start: 8px;
+  border-inline-start: 1px solid rgba(148, 163, 184, 0.35);
+  max-width: 38%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+@media (max-width: 640px) {
+  .si-map-analysis-timeline {
+    width: min(96vw, 100%);
+    bottom: 148px;
+  }
+
+  .si-map-analysis-timeline-inner {
+    flex-wrap: wrap;
+    border-radius: 18px;
+  }
+
+  .si-map-analysis-timeline-date {
+    max-width: 100%;
+    border-inline-start: none;
+    padding-inline-start: 0;
+    padding-top: 4px;
+    width: 100%;
+    text-align: center;
+  }
+}
+
+/* Bottom icon toolbar */
+.si-map-analysis-toolbar {
+  position: absolute;
+  z-index: 96;
+  left: 50%;
+  bottom: 22px;
+  transform: translateX(-50%);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 10px;
+  border-radius: 16px;
+  background: rgba(15, 23, 42, 0.82);
+  border: 1px solid rgba(148, 163, 184, 0.22);
+  backdrop-filter: blur(10px);
+  box-shadow: 0 14px 40px rgba(0, 0, 0, 0.35);
+  pointer-events: auto;
+  animation: si-map-tb-in 0.35s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+@keyframes si-map-tb-in {
+  from {
+    opacity: 0;
+    transform: translateX(-50%) translateY(16px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+}
+
+.si-map-analysis-tool {
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  border: 1px solid rgba(148, 163, 184, 0.25);
+  background: rgba(30, 41, 59, 0.85);
+  color: #e2e8f0;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 15px;
+  transition:
+    background 0.15s ease,
+    border-color 0.15s ease,
+    color 0.15s ease,
+    transform 0.1s ease;
+}
+
+.si-map-analysis-tool:hover {
+  border-color: rgba(167, 139, 250, 0.45);
+  color: #fff;
+}
+
+.si-map-analysis-tool--on {
+  border-color: rgba(52, 211, 153, 0.55);
+  background: rgba(6, 78, 59, 0.55);
+  color: #bbf7d0;
+}
+
+.si-map-analysis-toolbar-sep {
+  width: 1px;
+  height: 26px;
+  background: rgba(148, 163, 184, 0.22);
+  margin: 0 2px;
+}
+
+.si-map-analysis-run {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 14px 0 12px;
+  height: 40px;
+  border-radius: 12px;
+  border: 1px solid rgba(167, 139, 250, 0.45);
+  background: linear-gradient(145deg, rgba(124, 58, 237, 0.95), rgba(109, 40, 217, 0.92));
+  color: #faf5ff;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  cursor: pointer;
+  transition:
+    filter 0.15s ease,
+    transform 0.1s ease,
+    opacity 0.15s ease;
+}
+
+.si-map-analysis-run:hover:not(:disabled) {
+  filter: brightness(1.08);
+}
+
+.si-map-analysis-run:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+/* Charts dock */
+.si-map-analysis-charts {
+  position: absolute;
+  z-index: 94;
+  top: 100px;
+  right: 22px;
+  width: min(380px, calc(100vw - 40px));
+  max-height: min(62vh, 520px);
+  overflow: auto;
+  border-radius: 16px;
+  border: 1px solid rgba(148, 163, 184, 0.2);
+  background: rgba(15, 23, 42, 0.92);
+  backdrop-filter: blur(12px);
+  box-shadow: 0 22px 60px rgba(0, 0, 0, 0.45);
+  pointer-events: auto;
+  animation: si-map-ch-in 0.35s ease;
+}
+
+@keyframes si-map-ch-in {
+  from {
+    opacity: 0;
+    transform: translateX(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+.si-map-analysis-charts-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 12px 14px;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.14);
+}
+
+.si-map-analysis-charts-title {
+  font-size: 12px;
+  font-weight: 800;
+  color: #f1f5f9;
+  letter-spacing: 0.02em;
+}
+
+.si-map-analysis-charts-close {
+  border: none;
+  background: rgba(148, 163, 184, 0.12);
+  color: #cbd5e1;
+  width: 30px;
+  height: 30px;
+  border-radius: 10px;
+  cursor: pointer;
+}
+
+.si-map-analysis-charts-close:hover {
+  background: rgba(248, 113, 113, 0.15);
+  color: #fecaca;
+}
+
+.si-map-analysis-charts-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 12px 14px 14px;
+}
+
+.si-map-analysis-chart-card {
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid rgba(148, 163, 184, 0.14);
+  background: rgba(30, 41, 59, 0.55);
+}
+
+.si-map-analysis-chart-kicker {
+  font-size: 9px;
+  font-weight: 750;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: rgba(148, 163, 184, 0.85);
+  margin-bottom: 8px;
+}
+
+.si-map-analysis-spark {
+  width: 100%;
+  height: 52px;
+  display: block;
+}
+
+.si-map-analysis-spark-path {
+  stroke: #6ee7b7;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.si-map-analysis-bars {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.si-map-analysis-bar-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(56px, 1.2fr) 44px;
+  gap: 8px;
+  align-items: center;
+  font-size: 10px;
+}
+
+.si-map-analysis-bar-name {
+  color: #cbd5e1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.si-map-analysis-bar-track {
+  height: 8px;
+  border-radius: 999px;
+  background: rgba(15, 23, 42, 0.65);
+  overflow: hidden;
+}
+
+.si-map-analysis-bar-fill {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #34d399, #22c55e);
+}
+
+.si-map-analysis-bar-val {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  color: #e2e8f0;
+}
+
+.si-map-analysis-chart-card--pie .si-map-analysis-pie-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.si-map-analysis-pie-seg {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 10px;
+  color: #cbd5e1;
+}
+
+.si-map-analysis-pie-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  flex-shrink: 0;
+}
+
+.si-map-analysis-pie-lbl {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.si-map-analysis-pie-pct {
+  font-variant-numeric: tabular-nums;
+  color: #94a3b8;
+}
+
+.si-map-analysis-charts-foot {
+  margin: 0;
+  padding: 0 14px 12px;
+  font-size: 10px;
+  line-height: 1.4;
+  color: rgba(148, 163, 184, 0.88);
+}
+
+@media (max-width: 520px) {
+  .si-map-analysis-charts {
+    left: 12px;
+    right: 12px;
+    top: auto;
+    bottom: 168px;
+    width: auto;
+    max-height: 42vh;
+  }
+}
