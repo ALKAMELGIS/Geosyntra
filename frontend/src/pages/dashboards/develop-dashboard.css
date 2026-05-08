@@ -1104,17 +1104,20 @@
 .develop-dashboard-root .ddb-vis-format__search-wrap {
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 8px 11px;
-  margin-bottom: 12px;
-  border-radius: 10px;
+  gap: 8px;
+  width: min(240px, 100%);
+  align-self: flex-start;
+  min-height: 34px;
+  padding: 6px 10px;
+  margin-bottom: 10px;
+  border-radius: 9px;
   border: 1px solid var(--ddb-pbi-border);
   background: var(--ddb-pbi-panel);
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
 }
 
 .develop-dashboard-root .ddb-vis-format__search-wrap > i {
-  font-size: 0.78rem;
+  font-size: 0.72rem;
   color: var(--ddb-pbi-muted);
 }
 
@@ -1123,9 +1126,16 @@
   min-width: 0;
   border: none;
   background: transparent;
-  font-size: 0.8125rem;
+  font-size: 0.75rem;
   color: var(--ddb-pbi-text);
   outline: none;
+}
+
+.develop-dashboard-root .ddb-vis-format__search-wrap:focus-within {
+  border-color: color-mix(in srgb, var(--ddb-pbi-accent-green) 38%, var(--ddb-pbi-border));
+  box-shadow:
+    0 0 0 2px color-mix(in srgb, var(--ddb-pbi-accent-green) 15%, #ffffff),
+    0 1px 3px rgba(0, 0, 0, 0.06);
 }
 
 .develop-dashboard-root .ddb-vis-format__search::placeholder {
@@ -1176,6 +1186,44 @@
   font-size: 0.6875rem;
   line-height: 1.5;
   color: var(--ddb-pbi-muted);
+}
+
+.develop-dashboard-root .ddb-vis-general-quicktabs {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  overflow-x: auto;
+  padding: 0 1px 10px;
+  margin-bottom: 10px;
+}
+
+.develop-dashboard-root .ddb-vis-general-quicktab {
+  width: 34px;
+  min-width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  border: 1px solid var(--ddb-pbi-border);
+  background: #ffffff;
+  color: var(--ddb-pbi-muted);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.875rem;
+  cursor: pointer;
+  transition: all 0.18s ease;
+}
+
+.develop-dashboard-root .ddb-vis-general-quicktab:hover {
+  color: var(--ddb-pbi-text);
+  border-color: var(--ddb-pbi-border-strong);
+  transform: translateY(-1px);
+}
+
+.develop-dashboard-root .ddb-vis-general-quicktab.is-active {
+  color: #065f46;
+  border-color: color-mix(in srgb, var(--ddb-pbi-accent-green) 45%, var(--ddb-pbi-border));
+  background: linear-gradient(145deg, #ffffff, #ecfdf5);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--ddb-pbi-accent-green) 20%, #ffffff);
 }
 
 .develop-dashboard-root .ddb-vis-format__scroll {
@@ -1230,6 +1278,12 @@
   padding: 0 14px 12px 2rem;
 }
 
+.develop-dashboard-root .ddb-vis-format-acc__body--stack {
+  display: grid;
+  gap: 8px;
+  padding-inline-start: 14px;
+}
+
 .develop-dashboard-root .ddb-vis-format-acc--muted .ddb-vis-format-acc__sum {
   color: var(--ddb-pbi-placeholder);
 }
@@ -1243,6 +1297,111 @@
 
 .develop-dashboard-root .ddb-vis-format-panel {
   border-bottom: 1px solid var(--ddb-pbi-border);
+}
+
+.develop-dashboard-root .ddb-vis-format-card {
+  border: 1px solid var(--ddb-pbi-border);
+  border-radius: 10px;
+  background: #ffffff;
+}
+
+.develop-dashboard-root .ddb-vis-format-card__sum {
+  list-style: none;
+  cursor: pointer;
+  padding: 9px 11px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--ddb-pbi-text);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.develop-dashboard-root .ddb-vis-format-card__sum::-webkit-details-marker {
+  display: none;
+}
+
+.develop-dashboard-root .ddb-vis-format-card__sum::before {
+  content: '\f054';
+  font-family: 'Font Awesome 6 Free';
+  font-weight: 900;
+  font-size: 0.5rem;
+  color: var(--ddb-pbi-muted);
+  transition: transform 0.18s ease;
+}
+
+.develop-dashboard-root .ddb-vis-format-card[open] > .ddb-vis-format-card__sum::before {
+  transform: rotate(90deg);
+}
+
+.develop-dashboard-root .ddb-vis-format-card__sum--toggle {
+  justify-content: space-between;
+}
+
+.develop-dashboard-root .ddb-vis-format-card__sum--toggle::before {
+  display: none;
+}
+
+.develop-dashboard-root .ddb-vis-format-card__body {
+  display: grid;
+  gap: 10px;
+  padding: 0 11px 11px;
+}
+
+.develop-dashboard-root .ddb-vis-format-field {
+  display: grid;
+  gap: 6px;
+}
+
+.develop-dashboard-root .ddb-vis-format-field > span {
+  font-size: 0.6875rem;
+  font-weight: 600;
+  color: var(--ddb-pbi-muted);
+}
+
+.develop-dashboard-root .ddb-vis-format-field input,
+.develop-dashboard-root .ddb-vis-format-field select {
+  width: 100%;
+  min-height: 32px;
+  border-radius: 8px;
+  border: 1px solid var(--ddb-pbi-border-strong);
+  background: #ffffff;
+  color: var(--ddb-pbi-text);
+  font-size: 0.75rem;
+  padding: 6px 8px;
+}
+
+.develop-dashboard-root .ddb-vis-format-field input:focus-visible,
+.develop-dashboard-root .ddb-vis-format-field select:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--ddb-pbi-blue) 45%, #ffffff);
+  outline-offset: 1px;
+}
+
+.develop-dashboard-root .ddb-vis-format-padding-grid {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.develop-dashboard-root .ddb-vis-format-padding-grid label {
+  display: grid;
+  gap: 5px;
+}
+
+.develop-dashboard-root .ddb-vis-format-padding-grid span {
+  font-size: 0.6875rem;
+  font-weight: 600;
+  color: var(--ddb-pbi-muted);
+}
+
+.develop-dashboard-root .ddb-vis-format-padding-grid input {
+  min-height: 30px;
+  border-radius: 8px;
+  border: 1px solid var(--ddb-pbi-border-strong);
+  background: #ffffff;
+  color: var(--ddb-pbi-text);
+  font-size: 0.75rem;
+  padding: 5px 8px;
 }
 
 .develop-dashboard-root .ddb-vis-format-toggle-row {

@@ -2189,6 +2189,20 @@ export default function DevelopDashboard() {
   const [vizFormatGridlines, setVizFormatGridlines] = useState(true)
   const [vizFormatZoomSlider, setVizFormatZoomSlider] = useState(false)
   const [vizFormatRibbons, setVizFormatRibbons] = useState(false)
+  const [vizGeneralTitleOn, setVizGeneralTitleOn] = useState(true)
+  const [vizGeneralSubtitleOn, setVizGeneralSubtitleOn] = useState(false)
+  const [vizGeneralDividerOn, setVizGeneralDividerOn] = useState(false)
+  const [vizGeneralSpacingOn, setVizGeneralSpacingOn] = useState(false)
+  const [vizGeneralHeaderIconsOn, setVizGeneralHeaderIconsOn] = useState(true)
+  const [vizGeneralTooltipsOn, setVizGeneralTooltipsOn] = useState(true)
+  const [vizGeneralResponsiveOn, setVizGeneralResponsiveOn] = useState(true)
+  const [vizGeneralMaintainLayerOrderOn, setVizGeneralMaintainLayerOrderOn] = useState(false)
+  const [vizGeneralBackgroundOn, setVizGeneralBackgroundOn] = useState(true)
+  const [vizGeneralVisualBorderOn, setVizGeneralVisualBorderOn] = useState(false)
+  const [vizGeneralShadowOn, setVizGeneralShadowOn] = useState(false)
+  const [vizGeneralQuickSection, setVizGeneralQuickSection] = useState<
+    'properties' | 'title' | 'effects' | 'dataFormat' | 'headerIcons' | 'tooltips' | 'altText'
+  >('properties')
   const [dataPaneSearch, setDataPaneSearch] = useState('')
   const [dataTreeOpen, setDataTreeOpen] = useState<Record<string, boolean>>({})
   const [csvDatasets, setCsvDatasets] = useState<CsvDataset[]>(() => getDdbInitialRegistry().csvDatasets)
@@ -2238,6 +2252,11 @@ export default function DevelopDashboard() {
       return !q || label.toLowerCase().includes(q)
     },
     [vizFormatSearch],
+  )
+  const vizGeneralSectionVisible = useCallback(
+    (key: 'properties' | 'title' | 'effects' | 'dataFormat' | 'headerIcons' | 'tooltips' | 'altText', label: string) =>
+      vizGeneralQuickSection === key && vizFormatSectionVisible(label),
+    [vizGeneralQuickSection, vizFormatSectionVisible],
   )
 
   const bindLayerFields = useMemo(() => {
@@ -5150,28 +5169,348 @@ export default function DevelopDashboard() {
                             </>
                           ) : (
                             <>
-                              {vizFormatSectionVisible('Title') ? (
+                              <div className="ddb-vis-general-quicktabs" role="tablist" aria-label="General format sections">
+                                <button
+                                  type="button"
+                                  role="tab"
+                                  aria-selected={vizGeneralQuickSection === 'properties'}
+                                  className={`ddb-vis-general-quicktab${vizGeneralQuickSection === 'properties' ? ' is-active' : ''}`}
+                                  onClick={() => setVizGeneralQuickSection('properties')}
+                                  title="Properties"
+                                >
+                                  <i className="fa-solid fa-sliders" aria-hidden />
+                                </button>
+                                <button
+                                  type="button"
+                                  role="tab"
+                                  aria-selected={vizGeneralQuickSection === 'title'}
+                                  className={`ddb-vis-general-quicktab${vizGeneralQuickSection === 'title' ? ' is-active' : ''}`}
+                                  onClick={() => setVizGeneralQuickSection('title')}
+                                  title="Title"
+                                >
+                                  <i className="fa-solid fa-heading" aria-hidden />
+                                </button>
+                                <button
+                                  type="button"
+                                  role="tab"
+                                  aria-selected={vizGeneralQuickSection === 'effects'}
+                                  className={`ddb-vis-general-quicktab${vizGeneralQuickSection === 'effects' ? ' is-active' : ''}`}
+                                  onClick={() => setVizGeneralQuickSection('effects')}
+                                  title="Effects"
+                                >
+                                  <i className="fa-solid fa-wand-magic-sparkles" aria-hidden />
+                                </button>
+                                <button
+                                  type="button"
+                                  role="tab"
+                                  aria-selected={vizGeneralQuickSection === 'dataFormat'}
+                                  className={`ddb-vis-general-quicktab${vizGeneralQuickSection === 'dataFormat' ? ' is-active' : ''}`}
+                                  onClick={() => setVizGeneralQuickSection('dataFormat')}
+                                  title="Data format"
+                                >
+                                  <i className="fa-solid fa-hashtag" aria-hidden />
+                                </button>
+                                <button
+                                  type="button"
+                                  role="tab"
+                                  aria-selected={vizGeneralQuickSection === 'headerIcons'}
+                                  className={`ddb-vis-general-quicktab${vizGeneralQuickSection === 'headerIcons' ? ' is-active' : ''}`}
+                                  onClick={() => setVizGeneralQuickSection('headerIcons')}
+                                  title="Header icons"
+                                >
+                                  <i className="fa-solid fa-icons" aria-hidden />
+                                </button>
+                                <button
+                                  type="button"
+                                  role="tab"
+                                  aria-selected={vizGeneralQuickSection === 'tooltips'}
+                                  className={`ddb-vis-general-quicktab${vizGeneralQuickSection === 'tooltips' ? ' is-active' : ''}`}
+                                  onClick={() => setVizGeneralQuickSection('tooltips')}
+                                  title="Tooltips"
+                                >
+                                  <i className="fa-solid fa-comment-dots" aria-hidden />
+                                </button>
+                                <button
+                                  type="button"
+                                  role="tab"
+                                  aria-selected={vizGeneralQuickSection === 'altText'}
+                                  className={`ddb-vis-general-quicktab${vizGeneralQuickSection === 'altText' ? ' is-active' : ''}`}
+                                  onClick={() => setVizGeneralQuickSection('altText')}
+                                  title="Alt text"
+                                >
+                                  <i className="fa-solid fa-a" aria-hidden />
+                                </button>
+                              </div>
+                              {vizGeneralSectionVisible('properties', 'Properties') ? (
+                                <details className="ddb-vis-format-acc" open>
+                                  <summary className="ddb-vis-format-acc__sum">Properties</summary>
+                                  <div className="ddb-vis-format-acc__body ddb-vis-format-acc__body--stack">
+                                    <details className="ddb-vis-format-card" open>
+                                      <summary className="ddb-vis-format-card__sum">Size</summary>
+                                      <div className="ddb-vis-format-card__body">
+                                        <label className="ddb-vis-format-field">
+                                          <span>Height</span>
+                                          <input type="number" defaultValue={228} />
+                                        </label>
+                                        <label className="ddb-vis-format-field">
+                                          <span>Width</span>
+                                          <input type="number" defaultValue={622} />
+                                        </label>
+                                        <div className="ddb-vis-format-toggle-row">
+                                          <span className="ddb-vis-format-toggle-row__label">Lock aspect ratio</span>
+                                          <label className="ddb-vis-switch">
+                                            <input type="checkbox" className="ddb-vis-switch__input" defaultChecked={false} />
+                                            <span className="ddb-vis-switch__ui" aria-hidden />
+                                          </label>
+                                        </div>
+                                      </div>
+                                    </details>
+                                    <details className="ddb-vis-format-card" open>
+                                      <summary className="ddb-vis-format-card__sum">Position</summary>
+                                      <div className="ddb-vis-format-card__body">
+                                        <label className="ddb-vis-format-field">
+                                          <span>Horizontal</span>
+                                          <input type="number" defaultValue={96} />
+                                        </label>
+                                        <label className="ddb-vis-format-field">
+                                          <span>Vertical</span>
+                                          <input type="number" defaultValue={471} />
+                                        </label>
+                                      </div>
+                                    </details>
+                                    <details className="ddb-vis-format-card" open>
+                                      <summary className="ddb-vis-format-card__sum">Padding</summary>
+                                      <div className="ddb-vis-format-card__body">
+                                        <div className="ddb-vis-format-padding-grid">
+                                          <label>
+                                            <span>Top</span>
+                                            <input type="number" defaultValue={0} />
+                                          </label>
+                                          <label>
+                                            <span>Right</span>
+                                            <input type="number" defaultValue={5} />
+                                          </label>
+                                          <label>
+                                            <span>Bottom</span>
+                                            <input type="number" defaultValue={5} />
+                                          </label>
+                                          <label>
+                                            <span>Left</span>
+                                            <input type="number" defaultValue={5} />
+                                          </label>
+                                        </div>
+                                      </div>
+                                    </details>
+                                    <details className="ddb-vis-format-card" open>
+                                      <summary className="ddb-vis-format-card__sum">Advanced options</summary>
+                                      <div className="ddb-vis-format-card__body">
+                                        <div className="ddb-vis-format-toggle-row">
+                                          <span className="ddb-vis-format-toggle-row__label">Responsive</span>
+                                          <label className="ddb-vis-switch">
+                                            <input
+                                              type="checkbox"
+                                              className="ddb-vis-switch__input"
+                                              checked={vizGeneralResponsiveOn}
+                                              onChange={e => setVizGeneralResponsiveOn(e.target.checked)}
+                                            />
+                                            <span className="ddb-vis-switch__ui" aria-hidden />
+                                          </label>
+                                        </div>
+                                        <div className="ddb-vis-format-toggle-row">
+                                          <span className="ddb-vis-format-toggle-row__label">Maintain layer order</span>
+                                          <label className="ddb-vis-switch">
+                                            <input
+                                              type="checkbox"
+                                              className="ddb-vis-switch__input"
+                                              checked={vizGeneralMaintainLayerOrderOn}
+                                              onChange={e => setVizGeneralMaintainLayerOrderOn(e.target.checked)}
+                                            />
+                                            <span className="ddb-vis-switch__ui" aria-hidden />
+                                          </label>
+                                        </div>
+                                      </div>
+                                    </details>
+                                  </div>
+                                </details>
+                              ) : null}
+                              {vizGeneralSectionVisible('title', 'Title') ? (
                                 <details className="ddb-vis-format-acc" open>
                                   <summary className="ddb-vis-format-acc__sum">Title</summary>
-                                  <div className="ddb-vis-format-acc__body">
-                                    <p className="ddb-vis-format__muted">Rename visuals from the header on each canvas card.</p>
+                                  <div className="ddb-vis-format-acc__body ddb-vis-format-acc__body--stack">
+                                    <div className="ddb-vis-format-toggle-row">
+                                      <span className="ddb-vis-format-toggle-row__label">Title</span>
+                                      <label className="ddb-vis-switch">
+                                        <input
+                                          type="checkbox"
+                                          className="ddb-vis-switch__input"
+                                          checked={vizGeneralTitleOn}
+                                          onChange={e => setVizGeneralTitleOn(e.target.checked)}
+                                        />
+                                        <span className="ddb-vis-switch__ui" aria-hidden />
+                                      </label>
+                                    </div>
+                                    <details className="ddb-vis-format-card" open>
+                                      <summary className="ddb-vis-format-card__sum">Title</summary>
+                                      <div className="ddb-vis-format-card__body">
+                                        <label className="ddb-vis-format-field">
+                                          <span>Text</span>
+                                          <input type="text" defaultValue="Fertilizer Usage Overview by Field" />
+                                        </label>
+                                        <label className="ddb-vis-format-field">
+                                          <span>Heading</span>
+                                          <select defaultValue="Normal">
+                                            <option>Normal</option>
+                                            <option>Heading 1</option>
+                                            <option>Heading 2</option>
+                                            <option>Heading 3</option>
+                                          </select>
+                                        </label>
+                                      </div>
+                                    </details>
+                                    <details className="ddb-vis-format-card">
+                                      <summary className="ddb-vis-format-card__sum ddb-vis-format-card__sum--toggle">
+                                        <span>Subtitle</span>
+                                        <label className="ddb-vis-switch" onClick={e => e.stopPropagation()}>
+                                          <input
+                                            type="checkbox"
+                                            className="ddb-vis-switch__input"
+                                            checked={vizGeneralSubtitleOn}
+                                            onChange={e => setVizGeneralSubtitleOn(e.target.checked)}
+                                          />
+                                          <span className="ddb-vis-switch__ui" aria-hidden />
+                                        </label>
+                                      </summary>
+                                    </details>
+                                    <details className="ddb-vis-format-card">
+                                      <summary className="ddb-vis-format-card__sum ddb-vis-format-card__sum--toggle">
+                                        <span>Divider</span>
+                                        <label className="ddb-vis-switch" onClick={e => e.stopPropagation()}>
+                                          <input
+                                            type="checkbox"
+                                            className="ddb-vis-switch__input"
+                                            checked={vizGeneralDividerOn}
+                                            onChange={e => setVizGeneralDividerOn(e.target.checked)}
+                                          />
+                                          <span className="ddb-vis-switch__ui" aria-hidden />
+                                        </label>
+                                      </summary>
+                                    </details>
+                                    <details className="ddb-vis-format-card">
+                                      <summary className="ddb-vis-format-card__sum ddb-vis-format-card__sum--toggle">
+                                        <span>Spacing</span>
+                                        <label className="ddb-vis-switch" onClick={e => e.stopPropagation()}>
+                                          <input
+                                            type="checkbox"
+                                            className="ddb-vis-switch__input"
+                                            checked={vizGeneralSpacingOn}
+                                            onChange={e => setVizGeneralSpacingOn(e.target.checked)}
+                                          />
+                                          <span className="ddb-vis-switch__ui" aria-hidden />
+                                        </label>
+                                      </summary>
+                                    </details>
                                   </div>
                                 </details>
                               ) : null}
-                              {vizFormatSectionVisible('Effects') ? (
+                              {vizGeneralSectionVisible('effects', 'Effects') ? (
                                 <details className="ddb-vis-format-acc" open>
                                   <summary className="ddb-vis-format-acc__sum">Effects</summary>
-                                  <div className="ddb-vis-format-acc__body">
-                                    <p className="ddb-vis-format__muted">Shadows and borders follow the dashboard canvas theme.</p>
+                                  <div className="ddb-vis-format-acc__body ddb-vis-format-acc__body--stack">
+                                    <details className="ddb-vis-format-card" open>
+                                      <summary className="ddb-vis-format-card__sum ddb-vis-format-card__sum--toggle">
+                                        <span>Background</span>
+                                        <label className="ddb-vis-switch" onClick={e => e.stopPropagation()}>
+                                          <input
+                                            type="checkbox"
+                                            className="ddb-vis-switch__input"
+                                            checked={vizGeneralBackgroundOn}
+                                            onChange={e => setVizGeneralBackgroundOn(e.target.checked)}
+                                          />
+                                          <span className="ddb-vis-switch__ui" aria-hidden />
+                                        </label>
+                                      </summary>
+                                      <div className="ddb-vis-format-card__body">
+                                        <label className="ddb-vis-format-field">
+                                          <span>Color</span>
+                                          <input type="color" defaultValue="#ffffff" />
+                                        </label>
+                                        <label className="ddb-vis-format-field">
+                                          <span>Transparency</span>
+                                          <input type="number" min={0} max={100} defaultValue={0} />
+                                        </label>
+                                      </div>
+                                    </details>
+                                    <details className="ddb-vis-format-card">
+                                      <summary className="ddb-vis-format-card__sum ddb-vis-format-card__sum--toggle">
+                                        <span>Visual border</span>
+                                        <label className="ddb-vis-switch" onClick={e => e.stopPropagation()}>
+                                          <input
+                                            type="checkbox"
+                                            className="ddb-vis-switch__input"
+                                            checked={vizGeneralVisualBorderOn}
+                                            onChange={e => setVizGeneralVisualBorderOn(e.target.checked)}
+                                          />
+                                          <span className="ddb-vis-switch__ui" aria-hidden />
+                                        </label>
+                                      </summary>
+                                    </details>
+                                    <details className="ddb-vis-format-card">
+                                      <summary className="ddb-vis-format-card__sum ddb-vis-format-card__sum--toggle">
+                                        <span>Shadow</span>
+                                        <label className="ddb-vis-switch" onClick={e => e.stopPropagation()}>
+                                          <input
+                                            type="checkbox"
+                                            className="ddb-vis-switch__input"
+                                            checked={vizGeneralShadowOn}
+                                            onChange={e => setVizGeneralShadowOn(e.target.checked)}
+                                          />
+                                          <span className="ddb-vis-switch__ui" aria-hidden />
+                                        </label>
+                                      </summary>
+                                    </details>
                                   </div>
                                 </details>
                               ) : null}
-                              {vizFormatSectionVisible('Tooltip') ? (
-                                <details className="ddb-vis-format-acc" open>
-                                  <summary className="ddb-vis-format-acc__sum">Tooltip</summary>
-                                  <div className="ddb-vis-format-acc__body">
-                                    <p className="ddb-vis-format__muted">Tooltip fields are driven by the Tooltips well in Build visual.</p>
+                              {vizGeneralSectionVisible('dataFormat', 'Data format') ? (
+                                <details className="ddb-vis-format-acc">
+                                  <summary className="ddb-vis-format-acc__sum">Data format</summary>
+                                </details>
+                              ) : null}
+                              {vizGeneralSectionVisible('headerIcons', 'Header icons') ? (
+                                <div className="ddb-vis-format-panel">
+                                  <div className="ddb-vis-format-toggle-row">
+                                    <span className="ddb-vis-format-toggle-row__label">Header icons</span>
+                                    <label className="ddb-vis-switch">
+                                      <input
+                                        type="checkbox"
+                                        className="ddb-vis-switch__input"
+                                        checked={vizGeneralHeaderIconsOn}
+                                        onChange={e => setVizGeneralHeaderIconsOn(e.target.checked)}
+                                      />
+                                      <span className="ddb-vis-switch__ui" aria-hidden />
+                                    </label>
                                   </div>
+                                </div>
+                              ) : null}
+                              {vizGeneralSectionVisible('tooltips', 'Tooltips') ? (
+                                <div className="ddb-vis-format-panel">
+                                  <div className="ddb-vis-format-toggle-row">
+                                    <span className="ddb-vis-format-toggle-row__label">Tooltips</span>
+                                    <label className="ddb-vis-switch">
+                                      <input
+                                        type="checkbox"
+                                        className="ddb-vis-switch__input"
+                                        checked={vizGeneralTooltipsOn}
+                                        onChange={e => setVizGeneralTooltipsOn(e.target.checked)}
+                                      />
+                                      <span className="ddb-vis-switch__ui" aria-hidden />
+                                    </label>
+                                  </div>
+                                </div>
+                              ) : null}
+                              {vizGeneralSectionVisible('altText', 'Alt text') ? (
+                                <details className="ddb-vis-format-acc">
+                                  <summary className="ddb-vis-format-acc__sum">Alt text</summary>
                                 </details>
                               ) : null}
                             </>
