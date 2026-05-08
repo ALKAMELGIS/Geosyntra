@@ -1,4 +1,5 @@
-import type { ChangeEvent, RefObject } from 'react'
+import type { ChangeEvent, KeyboardEvent, RefObject } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useGeoAiSpeechRecognition } from '../../../hooks/useGeoAiSpeechRecognition'
 import type { GeoExplorerCssPrefix } from './GeoExplorerGeminiChatBody'
 
@@ -30,6 +31,58 @@ function pfx(prefix: GeoExplorerCssPrefix, part: string): string {
   return `${prefix}-${part}`
 }
 
+const RECENT_LS_KEY = 'geo_ai_suggestions_recent_v1'
+const MAX_VISIBLE = 7
+const PROGRESSIVE_MS = 380
+
+type RankedChip = {
+  key: string
+  /** Shown in UI */
+  label: string
+  /** Inserted into draft */
+  insert: string
+  tier: 'recent' | 'context' | 'op' | 'spatial' | 'help'
+  score: number
+}
+
+function readRecentScores(): Record<string, number> {
+  try {
+    const raw = typeof localStorage !== 'undefined' ? localStorage.getItem(RECENT_LS_KEY) : null
+    return raw ? (JSON.parse(raw) as Record<string, number>) : {}
+  } catch {
+    return {}
+  }
+}
+
+function bumpRecent(insert: string) {
+  try {
+    const key = RECENT_LS_KEY
+    const rec = readRecentScores()
+    rec[insert] = (rec[insert] ?? 0) + 1
+    if (typeof localStorage !== 'undefined') localStorage.setItem(key, JSON.stringify(rec))
+  } catch {
+    /* ignore */
+  }
+}
+
+function normalizeChipKey(s: string): string {
+  return s.trim().toLowerCase().replace(/\s+/g, ' ')
+}
+
+function relevanceBonus(q: string, label: string): number {
+  if (!q) return 0
+  const L = label.toLowerCase()
+  const Q = q.toLowerCase()
+  if (!Q) return 0
+  if (L.startsWith(Q)) return 22
+  if (L.includes(Q)) return 12
+  let bonus = 0
+  for (const tok of Q.split(/\s+/).filter(t => t.length > 1)) {
+    if (L.includes(tok)) bonus += 6
+  }
+  return bonus
+}
+
 /**
  * Geo AI / Geo Explorer composer: textarea with inset mic, optional attach, send.
  */
@@ -54,6 +107,12 @@ export function GeoExplorerGeminiInputRow(props: GeoExplorerGeminiInputRowProps)
     smartSuggestionsEnabled = true,
   } = props
 
+  const textareaRef = useRef<HTMLTextAreaElement | null>(null)
+  const chipRefs = useRef<Array<HTMLButtonElement | null>>([])
+  const [composerFocused, setComposerFocused] = useState(false)
+  const [progressiveCap, setProgressiveCap] = useState(4)
+  const [chipFocusIdx, setChipFocusIdx] = useState<number | null>(null)
+
   const voice = useGeoAiSpeechRecognition({
     disabled: busy || !enableVoice,
     onFinalTranscript: text => {
@@ -72,107 +131,323 @@ export function GeoExplorerGeminiInputRow(props: GeoExplorerGeminiInputRowProps)
     }
   }
 
-  const q = draft.trim().toLowerCase()
-  const opSuggestions =
-    /احسب|calculate|sum|average|mean|count|min|max|statistics|group by|مجموع|متوسط|عدد|احص|إحصاء/.test(q) || !q
-      ? ['Sum', 'Average', 'Count', 'Min', 'Max', 'Group By']
-      : []
-  const selectSuggestions =
-    /حدد|select|where|filter|>|<|=|!|within|intersects|contains|buffer|اكبر|اصغر/.test(q) || !q
-      ? ['>', '<', '>=', '<=', '=', '!=', ...availableGeometryOps]
-      : []
-  const quickActions = ['Count records', 'Range filter', 'Group by summary', 'Calculate field preview']
-  const helpWords = ['field', 'layer', 'group by', 'sum', 'average', 'select where', 'within', 'intersects']
+  const qRaw = draft.trim()
+  const q = qRaw.toLowerCase()
 
-  const matchedFields =
-    q.length >= 2
-      ? availableFields.filter(f => f.toLowerCase().includes(q)).slice(0, 6)
-      : availableFields.slice(0, 4)
-  const matchedLayers =
-    q.length >= 2
-      ? availableLayers.filter(l => l.toLowerCase().includes(q)).slice(0, 4)
-      : availableLayers.slice(0, 3)
-  const numericHints =
-    q.length >= 2
-      ? availableNumericFields.filter(f => f.toLowerCase().includes(q)).slice(0, 4)
-      : availableNumericFields.slice(0, 2)
+  const recentMap = useMemo(() => readRecentScores(), [draft])
 
-  const suggestions = Array.from(
-    new Set<string>([
-      ...opSuggestions,
-      ...selectSuggestions,
-      ...matchedFields.map(f => `Field: ${f}`),
-      ...numericHints.map(f => `Numeric: ${f}`),
-      ...matchedLayers.map(l => `Layer: ${l}`),
-      ...quickActions,
-    ]),
-  ).slice(0, 14)
+  const rankedChips = useMemo((): RankedChip[] => {
+    const dedupe = new Map<string, RankedChip>()
+    const push = (c: RankedChip) => {
+      const k = normalizeChipKey(c.key)
+      const prev = dedupe.get(k)
+      if (!prev || c.score > prev.score) dedupe.set(k, { ...c, key: k })
+    }
 
-  const applySuggestion = (s: string) => {
-    const clean = s.replace(/^Field:\s*/i, '').replace(/^Layer:\s*/i, '').replace(/^Numeric:\s*/i, '')
-    const next = draft.trim() ? `${draft} ${clean}` : clean
-    onDraftChange(next)
-    try {
-      const key = 'geo_ai_suggestions_recent_v1'
-      const raw = typeof localStorage !== 'undefined' ? localStorage.getItem(key) : null
-      const rec = raw ? (JSON.parse(raw) as Record<string, number>) : {}
-      rec[clean] = (rec[clean] ?? 0) + 1
-      if (typeof localStorage !== 'undefined') localStorage.setItem(key, JSON.stringify(rec))
-    } catch {
-      /* ignore */
+    const recentBoost = (insert: string, base: number, tier: RankedChip['tier']) => {
+      const uses = recentMap[insert] ?? recentMap[insert.replace(/^Field:\s*/i, '').trim()] ?? 0
+      const rb = uses > 0 ? Math.min(18, 5 + Math.log10(uses + 1) * 8) : 0
+      return base + rb + relevanceBonus(qRaw, insert) + relevanceBonus(qRaw, insert.replace(/^Field:\s*/i, ''))
+    }
+
+    const calcIntent =
+      /احسب|calculate|sum|average|mean|count|min|max|statistics|stat\b|group\s*by|مجموع|متوسط|عدد|إحصاء|احص/i.test(qRaw)
+    const filterIntent =
+      /حدد|select|where|filter|>|<|=|!|within|intersects|contains|buffer|اكبر|اصغر|أكبر|أصغر/i.test(qRaw)
+    const focusedOrTyping = composerFocused || qRaw.length > 0
+
+    /** Idle & unfocused → nothing */
+    if (!focusedOrTyping && !qRaw) {
+      return []
+    }
+
+    /** Recent — always high priority when composer active */
+    const topRecent = Object.entries(recentMap)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 6)
+      .map(([insert]) => ({
+        key: insert,
+        label: insert.length > 28 ? `${insert.slice(0, 26)}…` : insert,
+        insert,
+        tier: 'recent' as const,
+        score: recentBoost(insert, 80, 'recent'),
+      }))
+    for (const c of topRecent) push(c)
+
+    /** Layer / field matches — strong context signals */
+    if (availableLayers.length && (qRaw.length >= 2 || calcIntent || filterIntent)) {
+      const layers =
+        qRaw.length >= 2
+          ? availableLayers.filter(l => l.toLowerCase().includes(q)).slice(0, 4)
+          : availableLayers.slice(0, 2)
+      for (const l of layers) {
+        const insert = l.includes(' ') ? `Layer: "${l}"` : `Layer: ${l}`
+        push({
+          key: insert,
+          label: `Layer · ${l.length > 22 ? `${l.slice(0, 20)}…` : l}`,
+          insert,
+          tier: 'context',
+          score: recentBoost(insert, 72, 'context'),
+        })
+      }
+    }
+
+    if (availableFields.length && qRaw.length >= 2) {
+      const fields = availableFields.filter(f => f.toLowerCase().includes(q)).slice(0, 4)
+      for (const f of fields) {
+        const insert = `Field: ${f}`
+        push({
+          key: insert,
+          label: `Field · ${f.length > 22 ? `${f.slice(0, 20)}…` : f}`,
+          insert,
+          tier: 'context',
+          score: recentBoost(insert, 68, 'context'),
+        })
+      }
+    }
+
+    if (availableNumericFields.length && (calcIntent || qRaw.length >= 2)) {
+      const nums =
+        qRaw.length >= 2
+          ? availableNumericFields.filter(f => f.toLowerCase().includes(q)).slice(0, 3)
+          : availableNumericFields.slice(0, 2)
+      for (const f of nums) {
+        const insert = `Numeric: ${f}`
+        push({
+          key: insert,
+          label: `# ${f.length > 18 ? `${f.slice(0, 16)}…` : f}`,
+          insert,
+          tier: 'context',
+          score: recentBoost(insert, 62, 'context'),
+        })
+      }
+    }
+
+    /** Intent-scoped ops — no “show everything when empty” */
+    if (calcIntent || (composerFocused && qRaw.length === 0 && !filterIntent)) {
+      const aggAll = ['Sum', 'Average', 'Count', 'Min', 'Max', 'Group By']
+      const aggPick = calcIntent || qRaw.length >= 2 ? aggAll : aggAll.slice(0, 4)
+      for (const op of aggPick) {
+        push({
+          key: op,
+          label: op,
+          insert: op,
+          tier: 'op',
+          score: recentBoost(op, calcIntent ? 58 : 42, 'op'),
+        })
+      }
+    }
+
+    if (filterIntent || (composerFocused && qRaw.length === 0 && !calcIntent)) {
+      const cmpAll = ['>', '<', '>=', '<=', '=', '!=']
+      const cmpPick = qRaw.length >= 2 || filterIntent ? cmpAll : cmpAll.slice(0, 4)
+      for (const op of cmpPick) {
+        push({
+          key: op,
+          label: op,
+          insert: op,
+          tier: 'op',
+          score: recentBoost(op, filterIntent ? 54 : 34, 'op'),
+        })
+      }
+      const geoCap = qRaw.length >= 2 || filterIntent ? availableGeometryOps.length : Math.min(2, availableGeometryOps.length)
+      for (const g of availableGeometryOps.slice(0, geoCap)) {
+        push({
+          key: g,
+          label: g,
+          insert: g,
+          tier: 'spatial',
+          score: recentBoost(g, filterIntent ? 52 : 30, 'spatial'),
+        })
+      }
+    }
+
+    /** Compact quick actions — only when intent matches or typing hints */
+    if (
+      calcIntent ||
+      /group|summary|calculate|field|range|filter|records/i.test(qRaw) ||
+      (composerFocused && qRaw.length === 0)
+    ) {
+      const qa: Array<[string, number]> = [
+        ['Group by summary', 46],
+        ['Calculate field preview', 44],
+        ['Count records', 48],
+        ['Range filter', 40],
+      ]
+      for (const [insert, base] of qa) {
+        if (!calcIntent && !filterIntent && qRaw.length > 0 && !/group|calculate|count|range|filter/i.test(qRaw))
+          continue
+        push({
+          key: insert,
+          label: insert.replace(/\spreview$/i, '').trim(),
+          insert,
+          tier: 'help',
+          score: recentBoost(insert, base, 'help'),
+        })
+      }
+    }
+
+    /** Minimal help tokens — single row blend, deduped */
+    if (composerFocused && qRaw.length === 0 && dedupe.size < 4) {
+      for (const h of ['select where', 'within', 'intersects']) {
+        push({
+          key: h,
+          label: h,
+          insert: h,
+          tier: 'help',
+          score: recentBoost(h, 36, 'help'),
+        })
+      }
+    }
+
+    return [...dedupe.values()].sort((a, b) => b.score - a.score)
+  }, [
+    q,
+    qRaw,
+    composerFocused,
+    recentMap,
+    availableFields,
+    availableNumericFields,
+    availableLayers,
+    availableGeometryOps,
+  ])
+
+  const visibleChips = useMemo(() => rankedChips.slice(0, Math.min(progressiveCap, MAX_VISIBLE)), [rankedChips, progressiveCap])
+
+  useEffect(() => {
+    const reduced =
+      typeof window !== 'undefined' &&
+      Boolean(window.matchMedia?.('(prefers-reduced-motion: reduce)').matches)
+    if (reduced) {
+      setProgressiveCap(MAX_VISIBLE)
+      return
+    }
+    setProgressiveCap(4)
+    const t = window.setTimeout(() => setProgressiveCap(MAX_VISIBLE), PROGRESSIVE_MS)
+    return () => window.clearTimeout(t)
+  }, [qRaw, composerFocused])
+
+  useEffect(() => {
+    chipRefs.current = []
+  }, [visibleChips.length])
+
+  const showSuggestPanel =
+    smartSuggestionsEnabled && !busy && (composerFocused || qRaw.length > 0) && visibleChips.length > 0
+
+  useEffect(() => {
+    if (!showSuggestPanel) setChipFocusIdx(null)
+    else if (chipFocusIdx != null && chipFocusIdx >= visibleChips.length) setChipFocusIdx(visibleChips.length - 1)
+  }, [showSuggestPanel, visibleChips.length, chipFocusIdx])
+
+  const applySuggestion = useCallback(
+    (insert: string) => {
+      const clean = insert.replace(/^Field:\s*/i, '').replace(/^Layer:\s*/i, '').replace(/^Numeric:\s*/i, '')
+      const next = draft.trim() ? `${draft} ${clean}` : clean
+      onDraftChange(next)
+      bumpRecent(clean)
+      setChipFocusIdx(null)
+      textareaRef.current?.focus()
+    },
+    [draft, onDraftChange],
+  )
+
+  const onTextareaKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
+    if (!showSuggestPanel || !visibleChips.length) return
+
+    if (e.altKey && /^[1-9]$/.test(e.key)) {
+      const idx = Number(e.key) - 1
+      const chip = visibleChips[idx]
+      if (chip) {
+        e.preventDefault()
+        applySuggestion(chip.insert)
+      }
+      return
+    }
+
+    if (e.key === 'ArrowDown' && !e.shiftKey) {
+      e.preventDefault()
+      setChipFocusIdx(0)
+      requestAnimationFrame(() => chipRefs.current[0]?.focus())
     }
   }
 
-  const recentSuggestions = (() => {
-    try {
-      const key = 'geo_ai_suggestions_recent_v1'
-      const raw = typeof localStorage !== 'undefined' ? localStorage.getItem(key) : null
-      if (!raw) return [] as string[]
-      const rec = JSON.parse(raw) as Record<string, number>
-      return Object.entries(rec)
-        .sort((a, b) => b[1] - a[1])
-        .slice(0, 4)
-        .map(([k]) => k)
-    } catch {
-      return [] as string[]
+  const onChipKeyDown = (e: KeyboardEvent<HTMLButtonElement>, idx: number) => {
+    if (e.key === 'ArrowRight' || e.key === 'ArrowDown') {
+      e.preventDefault()
+      const next = Math.min(idx + 1, visibleChips.length - 1)
+      setChipFocusIdx(next)
+      chipRefs.current[next]?.focus()
+    } else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') {
+      e.preventDefault()
+      if (idx <= 0) {
+        setChipFocusIdx(null)
+        textareaRef.current?.focus()
+      } else {
+        const prev = idx - 1
+        setChipFocusIdx(prev)
+        chipRefs.current[prev]?.focus()
+      }
+    } else if (e.key === 'Escape') {
+      e.preventDefault()
+      setChipFocusIdx(null)
+      textareaRef.current?.focus()
     }
-  })()
+  }
 
   return (
     <>
-      {smartSuggestionsEnabled ? (
-        <div className={pfx(cssPrefix, 'smart-suggest-panel')}>
-          <div className={pfx(cssPrefix, 'smart-suggest-row')}>
-            {recentSuggestions.map(s => (
-              <button key={`recent-${s}`} type="button" className={pfx(cssPrefix, 'smart-chip')} onClick={() => applySuggestion(s)}>
-                {s}
-              </button>
-            ))}
-            {suggestions.map(s => (
-              <button key={s} type="button" className={pfx(cssPrefix, 'smart-chip')} onClick={() => applySuggestion(s)}>
-                {s}
+      {showSuggestPanel ? (
+        <div
+          className={pfx(cssPrefix, 'smart-suggest-panel')}
+          role="region"
+          aria-label="Smart suggestions"
+        >
+          <div className={pfx(cssPrefix, 'smart-suggest-toolbar')}>
+            <span className={pfx(cssPrefix, 'smart-suggest-title')}>Suggestions</span>
+            <span className={pfx(cssPrefix, 'smart-suggest-meta')}>
+              {visibleChips.length}/{Math.min(rankedChips.length, MAX_VISIBLE)} · Alt+1–9
+            </span>
+          </div>
+          <div className={pfx(cssPrefix, 'smart-suggest-scroll')} role="listbox" aria-label="Suggestion chips">
+            {visibleChips.map((c, i) => (
+              <button
+                key={c.key}
+                type="button"
+                role="option"
+                ref={el => {
+                  chipRefs.current[i] = el
+                }}
+                tabIndex={chipFocusIdx === i ? 0 : -1}
+                className={`${pfx(cssPrefix, 'smart-chip')} ${pfx(cssPrefix, `smart-chip--${c.tier}`)}`}
+                title={`${c.insert} — Alt+${i + 1}`}
+                onMouseDown={ev => ev.preventDefault()}
+                onClick={() => applySuggestion(c.insert)}
+                onKeyDown={e => onChipKeyDown(e, i)}
+              >
+                <span className={pfx(cssPrefix, 'smart-chip-label')}>{c.label}</span>
               </button>
             ))}
           </div>
-          {!draft.trim() ? (
-            <div className={pfx(cssPrefix, 'help-words')}>
-              {helpWords.map(w => (
-                <button key={w} type="button" className={pfx(cssPrefix, 'help-word')} onClick={() => applySuggestion(w)}>
-                  {w}
-                </button>
-              ))}
-            </div>
-          ) : null}
         </div>
       ) : null}
       <div className={pfx(cssPrefix, 'input-row')}>
         <div className={pfx(cssPrefix, 'input-shell')}>
           <textarea
+            ref={textareaRef}
             className={pfx(cssPrefix, 'input')}
             rows={2}
             value={draft}
             onChange={e => onDraftChange(e.target.value)}
+            onFocus={() => setComposerFocused(true)}
+            onBlur={() => {
+              window.setTimeout(() => {
+                const a = document.activeElement
+                if (a && a.closest?.(`.${pfx(cssPrefix, 'smart-suggest-panel')}`)) return
+                setComposerFocused(false)
+              }, 0)
+            }}
             onKeyDown={e => {
+              onTextareaKeyDown(e)
               if (e.key === 'Enter' && !e.shiftKey) {
                 e.preventDefault()
                 onSend()

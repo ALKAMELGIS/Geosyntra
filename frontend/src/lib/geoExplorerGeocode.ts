@@ -20,35 +20,60 @@ export function stripLayerReferenceForGeocode(raw: string): string {
     .trim()
 }
 
-export async function geocodePlaceToLngLat(
+export type GeocodeCandidate = {
+  lng: number
+  lat: number
+  label: string
+  /** Normalized confidence score in ~[0,1] — provider-dependent. */
+  score: number
+}
+
+/** Minimum gap between #1 and #2 normalized scores to auto-select without ambiguity. */
+const GEOCODE_AMBIGUITY_MARGIN = 0.11
+
+export async function geocodePlaceCandidates(
   query: string,
-  opts: { mapboxAccessToken?: string },
-): Promise<[number, number] | null> {
+  opts: { mapboxAccessToken?: string; limit?: number },
+): Promise<GeocodeCandidate[]> {
   const q = simplifyGeoExplorerUserQuery(query)
-  if (!q || q.length > 280) return null
+  const lim = Math.min(8, Math.max(2, opts.limit ?? 5))
+  if (!q || q.length > 280) return []
 
   try {
     const token = (opts.mapboxAccessToken || '').trim()
     if (token) {
       const res = await fetch(
-        `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(q)}.json?access_token=${encodeURIComponent(token)}&limit=1`,
+        `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(q)}.json?access_token=${encodeURIComponent(token)}&limit=${lim}`,
       )
-      if (!res.ok) return null
-      const data = (await res.json()) as { features?: { center?: number[] }[] }
-      const center = data?.features?.[0]?.center
-      if (
-        Array.isArray(center) &&
-        center.length >= 2 &&
-        Number.isFinite(center[0]) &&
-        Number.isFinite(center[1])
-      ) {
-        return [center[0], center[1]]
+      if (!res.ok) return []
+      const data = (await res.json()) as {
+        features?: { center?: number[]; place_name?: string; text?: string; relevance?: number }[]
       }
-      return null
+      const feats = Array.isArray(data?.features) ? data.features : []
+      const out: GeocodeCandidate[] = []
+      for (const f of feats) {
+        const center = f?.center
+        if (
+          !Array.isArray(center) ||
+          center.length < 2 ||
+          !Number.isFinite(center[0]) ||
+          !Number.isFinite(center[1])
+        )
+          continue
+        const rel = typeof f.relevance === 'number' && Number.isFinite(f.relevance) ? f.relevance : 0.65
+        const label =
+          typeof f.place_name === 'string' && f.place_name.trim()
+            ? f.place_name.trim()
+            : typeof f.text === 'string'
+              ? f.text.trim()
+              : q
+        out.push({ lng: center[0], lat: center[1], label, score: Math.max(0, Math.min(1, rel)) })
+      }
+      return out
     }
 
     const res = await fetch(
-      `https://nominatim.openstreetmap.org/search?format=json&limit=1&q=${encodeURIComponent(q)}`,
+      `https://nominatim.openstreetmap.org/search?format=json&limit=${lim}&q=${encodeURIComponent(q)}`,
       {
         headers: {
           'Accept-Language': 'en',
@@ -56,17 +81,58 @@ export async function geocodePlaceToLngLat(
         },
       },
     )
-    if (!res.ok) return null
-    const arr = (await res.json()) as { lat?: string; lon?: string }[] | null
-    const first = Array.isArray(arr) ? arr[0] : null
-    if (!first) return null
-    const lat = parseFloat(String(first.lat))
-    const lon = parseFloat(String(first.lon))
-    if (!Number.isFinite(lat) || !Number.isFinite(lon)) return null
-    return [lon, lat]
+    if (!res.ok) return []
+    const arr = (await res.json()) as
+      | { lat?: string; lon?: string; display_name?: string; importance?: number }[]
+      | null
+    if (!Array.isArray(arr) || !arr.length) return []
+    let maxImp = 0
+    for (const row of arr) {
+      const imp = typeof row.importance === 'number' ? row.importance : 0
+      if (imp > maxImp) maxImp = imp
+    }
+    const denom = maxImp > 0 ? maxImp : 1
+    const out: GeocodeCandidate[] = []
+    for (const row of arr) {
+      const lat = parseFloat(String(row.lat))
+      const lon = parseFloat(String(row.lon))
+      if (!Number.isFinite(lat) || !Number.isFinite(lon)) continue
+      const label =
+        typeof row.display_name === 'string' && row.display_name.trim()
+          ? row.display_name.trim()
+          : q
+      const imp = typeof row.importance === 'number' ? row.importance : 0.35
+      const score = Math.max(0.2, Math.min(1, imp / denom))
+      out.push({ lng: lon, lat, label, score })
+    }
+    return out
   } catch {
-    return null
+    return []
   }
+}
+
+/** Pick one candidate only when score is high enough and not ambiguous vs runner-up. */
+export function pickConfidentGeocode(candidates: GeocodeCandidate[]): {
+  chosen: GeocodeCandidate | null
+  ambiguous: boolean
+} {
+  if (!candidates.length) return { chosen: null, ambiguous: false }
+  const sorted = [...candidates].sort((a, b) => b.score - a.score)
+  const top = sorted[0]!
+  const second = sorted[1]
+  const ambiguous = Boolean(second && top.score - second.score < GEOCODE_AMBIGUITY_MARGIN)
+  const strongEnough = top.score >= 0.62
+  if (!strongEnough || ambiguous) return { chosen: null, ambiguous: ambiguous || !strongEnough }
+  return { chosen: top, ambiguous: false }
+}
+
+export async function geocodePlaceToLngLat(
+  query: string,
+  opts: { mapboxAccessToken?: string },
+): Promise<[number, number] | null> {
+  const candidates = await geocodePlaceCandidates(query, opts)
+  const { chosen } = pickConfidentGeocode(candidates)
+  return chosen ? [chosen.lng, chosen.lat] : null
 }
 
 export type ReverseGeocodeResult = {

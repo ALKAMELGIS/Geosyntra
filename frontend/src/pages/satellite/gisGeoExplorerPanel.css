@@ -241,32 +241,133 @@
 }
 
 .gis-map-tool-panel .gis-geo-explorer-smart-suggest-panel {
-  margin: 0 0 8px;
+  margin: 0 0 6px;
+  padding: 6px 8px 8px;
+  border-radius: 11px;
+  border: 1px solid rgba(148, 163, 184, 0.14);
+  background: linear-gradient(165deg, rgba(30, 41, 59, 0.55), rgba(15, 23, 42, 0.42));
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.04) inset;
+  max-width: 100%;
+  box-sizing: border-box;
 }
 
-.gis-map-tool-panel .gis-geo-explorer-smart-suggest-row {
+.gis-map-tool-panel .gis-geo-explorer-smart-suggest-toolbar {
   display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 6px;
 }
 
-.gis-map-tool-panel .gis-geo-explorer-smart-chip,
-.gis-map-tool-panel .gis-geo-explorer-help-word {
-  border: 1px solid rgba(148, 163, 184, 0.28);
-  background: rgba(30, 41, 59, 0.72);
-  color: #dbeafe;
+.gis-map-tool-panel .gis-geo-explorer-smart-suggest-title {
+  font-size: 9px;
+  font-weight: 750;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: rgba(148, 163, 184, 0.92);
+}
+
+.gis-map-tool-panel .gis-geo-explorer-smart-suggest-meta {
+  font-size: 9px;
+  font-weight: 600;
+  color: rgba(100, 116, 139, 0.95);
+  white-space: nowrap;
+}
+
+.gis-map-tool-panel .gis-geo-explorer-smart-suggest-scroll {
+  display: flex;
+  flex-wrap: nowrap;
+  gap: 6px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding: 2px 0 4px;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(148, 163, 184, 0.35) transparent;
+  -webkit-overflow-scrolling: touch;
+}
+
+.gis-map-tool-panel .gis-geo-explorer-smart-suggest-scroll::-webkit-scrollbar {
+  height: 5px;
+}
+
+.gis-map-tool-panel .gis-geo-explorer-smart-suggest-scroll::-webkit-scrollbar-thumb {
+  background: rgba(148, 163, 184, 0.28);
   border-radius: 999px;
-  padding: 4px 9px;
+}
+
+.gis-map-tool-panel .gis-geo-explorer-smart-chip {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid rgba(148, 163, 184, 0.26);
+  background: rgba(15, 23, 42, 0.62);
+  color: #e2e8f0;
+  border-radius: 999px;
+  padding: 4px 10px;
   font-size: 10px;
   font-weight: 650;
   cursor: pointer;
+  font-family: inherit;
+  line-height: 1.2;
+  transition: border-color 0.15s ease, background 0.15s ease, color 0.15s ease;
 }
 
-.gis-map-tool-panel .gis-geo-explorer-help-words {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  margin-top: 6px;
+.gis-map-tool-panel .gis-geo-explorer-smart-chip:hover {
+  border-color: rgba(167, 139, 250, 0.38);
+  background: rgba(30, 41, 59, 0.72);
+  color: #f8fafc;
+}
+
+.gis-map-tool-panel .gis-geo-explorer-smart-chip:focus-visible {
+  outline: 2px solid rgba(167, 139, 250, 0.65);
+  outline-offset: 2px;
+}
+
+.gis-map-tool-panel .gis-geo-explorer-smart-chip-label {
+  max-width: 11rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.gis-map-tool-panel .gis-geo-explorer-smart-chip--recent {
+  border-color: rgba(167, 139, 250, 0.42);
+  background: rgba(76, 29, 149, 0.18);
+}
+
+.gis-map-tool-panel .gis-geo-explorer-smart-chip--context {
+  border-color: rgba(52, 211, 153, 0.38);
+  background: rgba(6, 78, 59, 0.2);
+}
+
+.gis-map-tool-panel .gis-geo-explorer-smart-chip--op {
+  border-color: rgba(96, 165, 250, 0.38);
+}
+
+.gis-map-tool-panel .gis-geo-explorer-smart-chip--spatial {
+  border-color: rgba(251, 191, 36, 0.35);
+}
+
+.gis-map-tool-panel .gis-geo-explorer-smart-chip--help {
+  border-color: rgba(148, 163, 184, 0.22);
+  font-weight: 600;
+}
+
+@media (max-width: 520px) {
+  .gis-map-tool-panel .gis-geo-explorer-smart-suggest-panel {
+    padding: 5px 6px 7px;
+    margin-bottom: 4px;
+  }
+
+  .gis-map-tool-panel .gis-geo-explorer-smart-chip {
+    padding: 6px 11px;
+    font-size: 11px;
+    min-height: 30px;
+  }
+
+  .gis-map-tool-panel .gis-geo-explorer-smart-chip-label {
+    max-width: 9rem;
+  }
 }
 
 .gis-map-tool-panel .gis-geo-explorer-input-row {

@@ -5,7 +5,12 @@
 
 import { buildGisContentLayersContext } from './geoAiChatClaude'
 import { buildGeoAiFullWeatherSessionAppend, type GeoAiWeatherPopupRef } from './geoAiWeatherContext'
-import { geocodePlaceToLngLat, simplifyGeoExplorerUserQuery, stripLayerReferenceForGeocode } from './geoExplorerGeocode'
+import {
+  geocodePlaceCandidates,
+  pickConfidentGeocode,
+  simplifyGeoExplorerUserQuery,
+  stripLayerReferenceForGeocode,
+} from './geoExplorerGeocode'
 import {
   GEO_AI_COPILOT_RULES,
   GEO_EXPLORER_LAYER_RULES,
@@ -27,6 +32,15 @@ import {
   type LayerQueryMatch,
 } from './geoExplorerLayerContext'
 import { loadGisMapSavedLayers } from './gisMapLayerStore'
+import {
+  appendAmbiguousGeocodeGuidance,
+  appendSpatialGuidance,
+  gateModelMapQuery,
+  isTabularAnalysisHeavyQuestion,
+  refinementSuggestionsSuffix,
+  spatialLang,
+  userExplicitlyRequestedMapNavigation,
+} from './geoExplorerSpatialGate'
 
 function haversineKm(a: [number, number], b: [number, number]): number {
   const R = 6371
@@ -164,8 +178,24 @@ export async function runGeoExplorerGeminiTurn(
 
   let mapQueryCoords = parseMapQueryLngLat(reply)
   if (dataScoped && !strongLayerHit && mapQueryCoords) {
-    reply = `${stripMapQueryLine(reply).trimEnd()}\n\n**Map:** MAP_QUERY was removed — no confident feature match in your active or GIS Content layers; the app will not move the map to an unrelated location.`
+    reply = `${stripMapQueryLine(reply).trimEnd()}\n\n**Map:** MAP_QUERY was removed — no confident feature match in your active or GIS Content layers; the app will not move the map to an unrelated location.${refinementSuggestionsSuffix(spatialLang(userTextForMapFallback))}`
     mapQueryCoords = null
+  }
+
+  if (mapQueryCoords && !strongLayerHit) {
+    const mqGate = gateModelMapQuery({
+      userText: userTextForMapFallback,
+      replyText: reply,
+      mapQueryCoords,
+      strongLayerHit,
+    })
+    if (!mqGate.allow) {
+      const lang = spatialLang(userTextForMapFallback)
+      reply = `${stripMapQueryLine(reply).trimEnd()}`
+      reply = appendSpatialGuidance(reply, lang, 'lowConfidenceMapQuery', mqGate.confidence)
+      reply = `${reply.trimEnd()}${refinementSuggestionsSuffix(lang)}`
+      mapQueryCoords = null
+    }
   }
 
   let coords: [number, number] | null = null
@@ -200,22 +230,37 @@ export async function runGeoExplorerGeminiTurn(
       coords = [strongLayerHit.lng, strongLayerHit.lat]
       pinSource = 'layer'
       replyText = `${reply.trimEnd()}${layerPinNote(strongLayerHit)}`
-    } else if (allowsGeocodeWhenNoStrongLayerHit(userTextForMapFallback, combinedForLookup)) {
+    } else if (
+      allowsGeocodeWhenNoStrongLayerHit(userTextForMapFallback, combinedForLookup) &&
+      !(isTabularAnalysisHeavyQuestion(userTextForMapFallback) && !userExplicitlyRequestedMapNavigation(userTextForMapFallback))
+    ) {
       const geoQuery = stripLayerReferenceForGeocode(simplifyGeoExplorerUserQuery(userTextForMapFallback))
       if (geoQuery.length >= 2) {
-        const geocoded = await geocodePlaceToLngLat(geoQuery, {
-          mapboxAccessToken,
-        })
-        if (geocoded) {
-          coords = geocoded
+        const candidates = await geocodePlaceCandidates(geoQuery, { mapboxAccessToken })
+        const { chosen, ambiguous } = pickConfidentGeocode(candidates)
+        const lang = spatialLang(userTextForMapFallback)
+        if (chosen && !ambiguous) {
+          coords = [chosen.lng, chosen.lat]
           pinSource = 'geocode'
-          replyText = `${reply.trimEnd()}\n\n(Map centered on the best place-name match for your message.)`
+          const safeLabel = chosen.label.replace(/\s+/g, ' ').trim().slice(0, 160)
+          replyText = `${stripMapQueryLine(reply).trimEnd()}\n\n(Map centered on "${safeLabel}" — geocoder confidence OK.)`
+        } else if (candidates.length >= 2 && ambiguous) {
+          const shortLabels = candidates
+            .slice(0, 3)
+            .map(c => c.label.split(',').slice(0, 2).join(',').trim())
+            .filter(Boolean)
+          replyText = appendAmbiguousGeocodeGuidance(stripMapQueryLine(reply).trimEnd(), lang, shortLabels)
+        } else if (!candidates.length) {
+          replyText = `${appendSpatialGuidance(stripMapQueryLine(reply).trimEnd(), lang, 'cannotLocatePrecisely').trimEnd()}${refinementSuggestionsSuffix(lang)}`
+        } else {
+          replyText = `${appendSpatialGuidance(stripMapQueryLine(reply).trimEnd(), lang, 'insufficientData').trimEnd()}${refinementSuggestionsSuffix(lang)}`
         }
       }
     } else if (dataScoped) {
       replyText = reply.trimEnd()
+      const lang = spatialLang(userTextForMapFallback)
       if (!/\b(not found|not available|no match|غير متوفر|لا توجد|لم يتم العثور)\b/i.test(replyText)) {
-        replyText += `\n\n**Map:** No matching location in your layers — the map was not changed.`
+        replyText += `\n\n**Map:** No matching location in your layers — the map was not changed.${refinementSuggestionsSuffix(lang)}`
       }
     }
   }

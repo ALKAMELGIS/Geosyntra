@@ -129,6 +129,7 @@ export function stripMapQueryLine(text: string): string {
 export function stripGeoAiModelMetaAppend(text: string): string {
   let t = text.trimEnd()
   t = t.replace(/\n\n\(Map centered on the best place-name match for your message\.\)/gi, '')
+  t = t.replace(/\n\n\(Map centered on "[^"]*" — geocoder confidence OK\.\)/gi, '')
   t = t.replace(/\n\n\(Map pin from layer[\s\S]*$/m, '')
   t = t.replace(/\n\n\*\*Map:\*\*[\s\S]*$/, '')
   return t.trimEnd()

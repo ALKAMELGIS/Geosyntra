@@ -7,9 +7,12 @@ import { parseMapQueryLngLat } from './geoExplorerGemini'
 import {
   extractGeoExplorerLayerHint,
   findLngLatFromLayerQuery,
+  GEO_EXPLORER_MIN_LAYER_PIN_SCORE,
+  isGisDataScopedQuestion,
   type GeoAiMapLayer,
   type LayerQueryMatch,
 } from './geoExplorerLayerContext'
+import { gateModelMapQuery } from './geoExplorerSpatialGate'
 
 function haversineKm(a: [number, number], b: [number, number]): number {
   const R = 6371
@@ -34,30 +37,48 @@ export function resolveGeoAiPinFromUserTextAndReply(
   reply: string,
   combinedLayers: GeoAiMapLayer[],
 ): GeoAiResolvedPin | null {
-  const mapQueryCoords = parseMapQueryLngLat(reply)
+  let mapQueryCoords = parseMapQueryLngLat(reply)
   const trimmed = userText.trim()
   const layerHit: LayerQueryMatch | null =
     trimmed.length > 0 ? findLngLatFromLayerQuery(trimmed, combinedLayers) : null
 
+  const strongLayerHit: LayerQueryMatch | null =
+    layerHit && layerHit.score >= GEO_EXPLORER_MIN_LAYER_PIN_SCORE ? layerHit : null
+
   const layerHintTrim = (trimmed ? extractGeoExplorerLayerHint(trimmed, combinedLayers) : null)?.trim() ?? ''
   const preferLayerCoords =
-    Boolean(layerHit) &&
+    Boolean(strongLayerHit) &&
     (Boolean(layerHintTrim) ||
       Boolean(
         mapQueryCoords &&
-          layerHit &&
-          haversineKm(mapQueryCoords, [layerHit.lng, layerHit.lat]) > 2 &&
-          layerHit.score >= 22,
+          strongLayerHit &&
+          haversineKm(mapQueryCoords, [strongLayerHit.lng, strongLayerHit.lat]) > 2,
       ))
 
-  if (preferLayerCoords && layerHit) {
-    return { coords: [layerHit.lng, layerHit.lat], layerHit, pinSource: 'layer' }
+  if (preferLayerCoords && strongLayerHit) {
+    return { coords: [strongLayerHit.lng, strongLayerHit.lat], layerHit: strongLayerHit, pinSource: 'layer' }
   }
+
+  const dataScoped = isGisDataScopedQuestion(trimmed, combinedLayers)
+  if (dataScoped && !strongLayerHit && mapQueryCoords) {
+    mapQueryCoords = null
+  }
+
+  if (mapQueryCoords && !strongLayerHit) {
+    const gate = gateModelMapQuery({
+      userText: trimmed,
+      replyText: reply,
+      mapQueryCoords,
+      strongLayerHit,
+    })
+    if (!gate.allow) mapQueryCoords = null
+  }
+
   if (mapQueryCoords) {
-    return { coords: mapQueryCoords, layerHit, pinSource: 'map_query' }
+    return { coords: mapQueryCoords, layerHit: strongLayerHit, pinSource: 'map_query' }
   }
-  if (layerHit) {
-    return { coords: [layerHit.lng, layerHit.lat], layerHit, pinSource: 'layer' }
+  if (strongLayerHit) {
+    return { coords: [strongLayerHit.lng, strongLayerHit.lat], layerHit: strongLayerHit, pinSource: 'layer' }
   }
   return null
 }
