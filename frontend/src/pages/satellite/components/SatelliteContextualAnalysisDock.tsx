@@ -335,7 +335,7 @@ export function SatelliteContextualAnalysisDock(props: SatelliteContextualAnalys
 
   const rootClass = [
     'si-sat-ctx-dock',
-    isMap ? 'si-sat-ctx-dock--map si-sat-ctx-dock--map-tall' : 'si-sat-ctx-dock--embedded',
+    isMap ? 'si-sat-ctx-dock--map si-sat-ctx-dock--map-tall si-sat-ctx-dock--map-toolbox' : 'si-sat-ctx-dock--embedded',
     mapPanelCollapsed ? 'si-sat-ctx-dock--map-strip-minimized' : '',
     panelLayoutOpen ? 'si-sat-ctx-dock--open' : 'si-sat-ctx-dock--closed',
     dockMode === 'float' ? 'si-sat-ctx-dock--float-mode' : '',
@@ -354,7 +354,24 @@ export function SatelliteContextualAnalysisDock(props: SatelliteContextualAnalys
       <nav
         className={'si-sat-ctx-rail' + (railWide ? ' si-sat-ctx-rail--labeled' : '')}
         aria-label={isMap ? 'Map toolbox' : 'Analysis contextual tools'}
+        data-toolbox-density={isMap ? (railWide ? 'expanded' : 'icons') : undefined}
       >
+        {isMap ? (
+          <div
+            className={
+              'si-sat-ctx-rail-brand' +
+              (railWide && !mapStripHidden ? ' si-sat-ctx-rail-brand--open' : '') +
+              (mapStripHidden ? ' si-sat-ctx-rail-brand--minimized' : '')
+            }
+          >
+            <span className="si-sat-ctx-rail-brand__mark" aria-hidden>
+              <i className="fa-solid fa-toolbox" />
+            </span>
+            {railWide && !mapStripHidden ? (
+              <span className="si-sat-ctx-rail-brand__title">Map toolbox</span>
+            ) : null}
+          </div>
+        ) : null}
         {railMenuGroups.map((group, gi) => (
           <Fragment key={group.join('-')}>
             {group.map(id => {
@@ -366,7 +383,10 @@ export function SatelliteContextualAnalysisDock(props: SatelliteContextualAnalys
                   type="button"
                   className={
                     'si-sat-ctx-rail-btn' +
-                    (railWide ? ' si-sat-ctx-rail-btn--row' : '') +
+                    (isMap ? ' si-sat-ctx-rail-btn--map' : '') +
+                    (isMap && railWide ? ' si-sat-ctx-rail-btn--row si-sat-ctx-rail-btn--map-expanded' : '') +
+                    (isMap && !railWide ? ' si-sat-ctx-rail-btn--map-collapsed' : '') +
+                    (!isMap && railWide ? ' si-sat-ctx-rail-btn--row' : '') +
                     (panelOpen && activeId === item.id ? ' si-sat-ctx-rail-btn--active' : '')
                   }
                   title={railHintTitle(item)}
@@ -375,7 +395,12 @@ export function SatelliteContextualAnalysisDock(props: SatelliteContextualAnalys
                   onClick={() => toggleRail(item.id)}
                 >
                   <i className={item.icon} aria-hidden />
-                  {railWide ? (
+                  {isMap ? (
+                    <span className="si-sat-ctx-rail-label" aria-hidden={!railWide}>
+                      <span className="si-sat-ctx-rail-label-title">{item.label}</span>
+                      <span className="si-sat-ctx-rail-label-desc">{item.hint}</span>
+                    </span>
+                  ) : railWide ? (
                     <span className="si-sat-ctx-rail-label">
                       <span className="si-sat-ctx-rail-label-title">{item.label}</span>
                       <span className="si-sat-ctx-rail-label-desc">{item.hint}</span>
@@ -425,20 +450,26 @@ export function SatelliteContextualAnalysisDock(props: SatelliteContextualAnalys
           {!isMap || !mapStripHidden ? (
             <button
               type="button"
-              className={'si-sat-ctx-rail-collapse' + (railWide ? ' si-sat-ctx-rail-collapse--labeled' : '')}
+              className={
+                'si-sat-ctx-rail-collapse' +
+                (railWide ? ' si-sat-ctx-rail-collapse--labeled' : '') +
+                (isMap ? ' si-sat-ctx-rail-collapse--map' : '')
+              }
               title={
                 railWide
                   ? isMap
-                    ? 'Collapse to icons only (tooltips)'
+                    ? 'Collapse to icons only (tooltips stay on hover)'
                     : 'Collapse sidebar, close context panel, and show icons only'
                   : isMap
-                    ? 'Expand toolbox (labels and descriptions)'
+                    ? 'Show labels and short descriptions next to each tool'
                     : 'Expand sidebar (show labels)'
               }
               aria-label={
-                railWide ? (isMap ? 'Collapse toolbox to icons' : 'Collapse sidebar and close panel') : 'Expand toolbox'
+                railWide ? (isMap ? 'Collapse toolbox to icons only' : 'Collapse sidebar and close panel') : 'Expand toolbox labels'
               }
-              aria-pressed={railWide}
+              {...(isMap
+                ? { role: 'switch' as const, 'aria-checked': railWide }
+                : { 'aria-pressed': railWide as boolean })}
               onClick={() => {
                 if (railWide) {
                   if (panelOpen) closePanel();
@@ -448,7 +479,12 @@ export function SatelliteContextualAnalysisDock(props: SatelliteContextualAnalys
                 else setRailLabeled(true);
               }}
             >
-              <i className={railWide ? 'fa-solid fa-angles-right' : 'fa-solid fa-angles-left'} aria-hidden />
+              <span className="si-sat-ctx-rail-collapse__icon-wrap" aria-hidden>
+                <i className={railWide ? 'fa-solid fa-angles-right' : 'fa-solid fa-angles-left'} />
+              </span>
+              {isMap && !railWide ? (
+                <span className="si-sat-ctx-rail-collapse-sublabel">Labels</span>
+              ) : null}
               {railWide ? <span className="si-sat-ctx-rail-collapse-text">Collapse</span> : null}
             </button>
           ) : null}
