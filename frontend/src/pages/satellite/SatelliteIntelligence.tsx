@@ -2473,6 +2473,22 @@ export default function SatelliteIntelligence() {
     return true;
   };
 
+  const focusGeoJsonOnMap = (geojson: any) => {
+    const bounds = getGeoJsonBounds(geojson);
+    if (!bounds) return;
+    const [minX, minY, maxX, maxY] = bounds;
+    const mapInstance = mapRef.current?.getMap ? mapRef.current.getMap() : mapRef.current;
+    if (mapInstance && typeof mapInstance.fitBounds === 'function') {
+      mapInstance.fitBounds(
+        [
+          [minX, minY],
+          [maxX, maxY]
+        ],
+        { padding: 80, duration: 800 }
+      );
+    }
+  };
+
   const importAoiDataSourceFile = async (file: File) => {
     const parsed = await parseFile(file);
     if (parsed.type !== 'geojson') {
@@ -3392,7 +3408,7 @@ export default function SatelliteIntelligence() {
 
   const handleLayerActionClick = async (
     event: React.MouseEvent<HTMLButtonElement>,
-    action: 'sync' | 'table' | 'symbology' | 'legend' | 'remove',
+    action: 'sync' | 'table' | 'symbology' | 'legend' | 'remove' | 'rename' | 'editAoi',
     layerId: string,
   ) => {
     event.stopPropagation();
@@ -3411,6 +3427,28 @@ export default function SatelliteIntelligence() {
     }
     if (action === 'sync') {
       await refreshArcgisLayer(layer);
+      return;
+    }
+    if (action === 'rename') {
+      const nextNameRaw = window.prompt('Rename layer', layer.name);
+      if (nextNameRaw === null) return;
+      const nextName = nextNameRaw.trim();
+      if (!nextName) {
+        setStacStatus('Layer name cannot be empty.');
+        return;
+      }
+      setCustomLayers(prev => prev.map(item => (item.id === layerId ? { ...item, name: nextName } : item)));
+      setStacStatus(`Layer renamed to "${nextName}".`);
+      return;
+    }
+    if (action === 'editAoi') {
+      const applied = applyUploadedAoiToAnalysis(layer.geojson, layer.name);
+      if (!applied) {
+        setStacStatus('Selected AOI layer has no valid polygon geometry.');
+        return;
+      }
+      focusGeoJsonOnMap(layer.geojson);
+      setStacStatus(`AOI analysis now uses "${layer.name}".`);
       return;
     }
     if (action === 'table') {
@@ -6616,6 +6654,9 @@ export default function SatelliteIntelligence() {
       ...customLayers.map(layer => {
         const featureCount = Array.isArray(layer.geojson?.features) ? layer.geojson.features.length : 0;
         const lower = layer.name.toLowerCase();
+        const isUploadAoiLayer =
+          layer.source === 'upload' &&
+          pickFirstPolygonAoiFeature(layer.geojson) !== null;
         const sourceType =
           lower.includes('arcgis') ? 'ArcGIS' :
           lower.includes('kml') || lower.includes('kmz') ? 'KML/KMZ' :
@@ -6624,11 +6665,13 @@ export default function SatelliteIntelligence() {
         return {
           id: `custom-${layer.id}`,
           label: layer.name,
-          meta: `${sourceType}${featureCount ? ` - ${featureCount} feature${featureCount === 1 ? '' : 's'}` : ''}`,
+          meta: `${isUploadAoiLayer ? 'AOI data source - ' : ''}${sourceType}${featureCount ? ` - ${featureCount} feature${featureCount === 1 ? '' : 's'}` : ''}`,
           visible: layer.visible,
           toggleable: true,
           actionable: true,
           sourceLayerId: layer.id,
+          supportsAoiEdit: isUploadAoiLayer,
+          supportsRename: true,
           onToggle: () => toggleCustomLayerVisibility(layer.id, !layer.visible),
         };
       }),
@@ -8979,6 +9022,28 @@ export default function SatelliteIntelligence() {
                                   </div>
                                   {'actionable' in layer && layer.actionable && 'sourceLayerId' in layer && layer.sourceLayerId ? (
                                     <div className="si-env-layer-actions">
+                                      {'supportsAoiEdit' in layer && layer.supportsAoiEdit ? (
+                                        <button
+                                          type="button"
+                                          className="si-env-layer-action-btn"
+                                          title="Use as AOI for analysis"
+                                          aria-label={`Use ${layer.label} as AOI`}
+                                          onClick={e => handleLayerActionClick(e, 'editAoi', layer.sourceLayerId)}
+                                        >
+                                          <i className="fa-solid fa-draw-polygon" aria-hidden />
+                                        </button>
+                                      ) : null}
+                                      {'supportsRename' in layer && layer.supportsRename ? (
+                                        <button
+                                          type="button"
+                                          className="si-env-layer-action-btn"
+                                          title="Rename layer"
+                                          aria-label={`Rename ${layer.label}`}
+                                          onClick={e => handleLayerActionClick(e, 'rename', layer.sourceLayerId)}
+                                        >
+                                          <i className="fa-solid fa-pen-to-square" aria-hidden />
+                                        </button>
+                                      ) : null}
                                       <button
                                         type="button"
                                         className="si-env-layer-action-btn"
