@@ -1,4 +1,6 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
+import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import './FieldVisibilityControl.css'
 
 type Props = {
   layerId: string
@@ -36,13 +38,26 @@ const writeHiddenFields = (layerId: string, hidden: Set<string>) => {
   } catch {}
 }
 
+const POPOVER_WIDTH = 360
+
 export function FieldVisibilityControl({ layerId, fields, hiddenFields, onChangeHiddenFields }: Props) {
+  const headingId = useId()
   const btnRef = useRef<HTMLButtonElement | null>(null)
   const popRef = useRef<HTMLDivElement | null>(null)
+  const searchRef = useRef<HTMLInputElement | null>(null)
   const [open, setOpen] = useState(false)
   const [pos, setPos] = useState<null | { top: number; left: number }>(null)
+  const [query, setQuery] = useState('')
+  const [sortAlpha, setSortAlpha] = useState(false)
 
   const fieldsSig = useMemo(() => fields.join('\u0000'), [fields])
+
+  const filteredFields = useMemo(() => {
+    const q = query.trim().toLowerCase()
+    const base = q ? fields.filter(f => f.toLowerCase().includes(q)) : [...fields]
+    if (sortAlpha) base.sort((a, b) => a.localeCompare(b))
+    return base
+  }, [fields, query, sortAlpha])
 
   useEffect(() => {
     const next = readHiddenFields(layerId, fields)
@@ -53,35 +68,53 @@ export function FieldVisibilityControl({ layerId, fields, hiddenFields, onChange
     writeHiddenFields(layerId, hiddenFields)
   }, [layerId, hiddenFields, fieldsSig])
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (!open) return
-    const btn = btnRef.current
-    if (btn) {
+    const update = () => {
+      const btn = btnRef.current
+      if (!btn) return
       const r = btn.getBoundingClientRect()
-      const desiredLeft = r.left
-      const maxLeft = Math.max(8, window.innerWidth - 320 - 8)
-      const left = Math.max(8, Math.min(maxLeft, desiredLeft))
-      const top = Math.max(8, Math.min(window.innerHeight - 120, r.bottom + 8))
+      const margin = 8
+      const maxH = Math.min(520, window.innerHeight * 0.72)
+      let left = r.left
+      if (left + POPOVER_WIDTH > window.innerWidth - margin) left = window.innerWidth - POPOVER_WIDTH - margin
+      if (left < margin) left = margin
+      let top = r.bottom + margin
+      if (top + maxH > window.innerHeight - margin) {
+        top = Math.max(margin, r.top - maxH - margin)
+      }
       setPos({ left, top })
     }
+    update()
+    window.addEventListener('resize', update)
+    window.addEventListener('scroll', update, true)
+    return () => {
+      window.removeEventListener('resize', update)
+      window.removeEventListener('scroll', update, true)
+    }
+  }, [open])
 
+  useEffect(() => {
+    if (!open) {
+      setQuery('')
+      setSortAlpha(false)
+      return
+    }
     const onKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
         e.preventDefault()
         setOpen(false)
       }
     }
-
     const onPointerDown = (e: PointerEvent) => {
       const target = e.target
       if (!(target instanceof Node)) return
       const pop = popRef.current
       const btnEl = btnRef.current
-      if (btnEl && btnEl.contains(target)) return
-      if (pop && pop.contains(target)) return
+      if (btnEl?.contains(target)) return
+      if (pop?.contains(target)) return
       setOpen(false)
     }
-
     window.addEventListener('keydown', onKeyDown)
     document.addEventListener('pointerdown', onPointerDown, true)
     return () => {
@@ -92,10 +125,7 @@ export function FieldVisibilityControl({ layerId, fields, hiddenFields, onChange
 
   useEffect(() => {
     if (!open) return
-    const id = window.setTimeout(() => {
-      const first = popRef.current?.querySelector<HTMLElement>('button')
-      first?.focus?.()
-    }, 0)
+    const id = window.setTimeout(() => searchRef.current?.focus?.(), 0)
     return () => window.clearTimeout(id)
   }, [open])
 
@@ -106,52 +136,124 @@ export function FieldVisibilityControl({ layerId, fields, hiddenFields, onChange
     onChangeHiddenFields(next)
   }
 
+  const selectAllVisible = () => {
+    onChangeHiddenFields(new Set())
+  }
+
+  const popover =
+    open && pos ? (
+      <div
+        ref={popRef}
+        className="gis-fieldvis-popover"
+        role="dialog"
+        aria-modal="true"
+        aria-label="Field visibility"
+        style={{ left: `${pos.left}px`, top: `${pos.top}px`, width: `${POPOVER_WIDTH}px` }}
+        dir="ltr"
+      >
+        <header className="gis-fieldvis-popover__header">
+          <h2 className="gis-fieldvis-popover__title" id={headingId}>
+            Field visibility
+          </h2>
+          <button
+            type="button"
+            className="gis-fieldvis-popover__close"
+            aria-label="Close"
+            onClick={() => setOpen(false)}
+          >
+            <i className="fa-solid fa-xmark" aria-hidden />
+          </button>
+        </header>
+
+        <div className="gis-fieldvis-popover__toolbar">
+          <div className="gis-fieldvis-popover__search-wrap">
+            <i className="fa-solid fa-magnifying-glass" aria-hidden />
+            <input
+              ref={searchRef}
+              type="search"
+              className="gis-fieldvis-popover__search"
+              placeholder="Search fields"
+              aria-label="Search fields"
+              value={query}
+              onChange={e => setQuery(e.target.value)}
+              autoComplete="off"
+            />
+          </div>
+          <button
+            type="button"
+            className={`gis-fieldvis-popover__filter${sortAlpha ? ' gis-fieldvis-popover__filter--on' : ''}`}
+            aria-label={sortAlpha ? 'Restore layer field order' : 'Sort fields A–Z'}
+            aria-pressed={sortAlpha}
+            title={sortAlpha ? 'Original order' : 'Sort A–Z'}
+            onClick={() => setSortAlpha(v => !v)}
+          >
+            <i className="fa-solid fa-filter" aria-hidden />
+          </button>
+        </div>
+
+        <div className="gis-fieldvis-popover__select-row">
+          <button type="button" className="gis-fieldvis-popover__select-all" onClick={selectAllVisible}>
+            Select all
+          </button>
+        </div>
+
+        <div className="gis-fieldvis-popover__list" role="list" aria-labelledby={headingId}>
+          {filteredFields.length === 0 ? (
+            <div className="gis-fieldvis-popover__empty">No fields match your search.</div>
+          ) : (
+            filteredFields.map(f => {
+              const visible = !hiddenFields.has(f)
+              return (
+                <div className="gis-fieldvis-popover__row" role="listitem" key={f}>
+                  <label className="gis-fieldvis-popover__check">
+                    <input
+                      type="checkbox"
+                      checked={visible}
+                      onChange={() => toggleField(f)}
+                      aria-label={visible ? `Hide field ${f}` : `Show field ${f}`}
+                    />
+                    <span className="gis-fieldvis-popover__label" title={f}>
+                      {f}
+                    </span>
+                  </label>
+                  <button
+                    type="button"
+                    className="gis-fieldvis-popover__info"
+                    title={f}
+                    aria-label={`Field name: ${f}`}
+                    tabIndex={-1}
+                  >
+                    <i className="fa-regular fa-circle-info" aria-hidden />
+                  </button>
+                </div>
+              )
+            })
+          )}
+        </div>
+
+        <footer className="gis-fieldvis-popover__footer">
+          <button type="button" className="gis-fieldvis-popover__done" onClick={() => setOpen(false)}>
+            Done
+          </button>
+        </footer>
+      </div>
+    ) : null
+
   return (
     <>
       <button
         ref={btnRef}
         type="button"
-        className="gis-fieldvis-btn"
+        className={`gis-fieldvis-trigger${open ? ' gis-fieldvis-trigger--open' : ''}`}
         aria-label="Field visibility"
+        title="Field visibility"
         aria-haspopup="dialog"
         aria-expanded={open ? 'true' : 'false'}
         onClick={() => setOpen(v => !v)}
       >
-        <i className="fa-solid fa-eye" aria-hidden="true" />
-        <span>Field visibility</span>
+        <i className="fa-solid fa-gear" aria-hidden="true" />
       </button>
-      {open && pos ? (
-        <div
-          ref={popRef}
-          className="gis-fieldvis-popover"
-          role="dialog"
-          aria-label="Field visibility"
-          style={{ left: `${pos.left}px`, top: `${pos.top}px` }}
-        >
-          <div className="gis-fieldvis-title">Field visibility</div>
-          <div className="gis-fieldvis-list" role="list">
-            {fields.map((f) => {
-              const visible = !hiddenFields.has(f)
-              return (
-                <div className="gis-fieldvis-row" role="listitem" key={f}>
-                  <span className="gis-fieldvis-name" title={f}>
-                    {f}
-                  </span>
-                  <button
-                    type="button"
-                    className={visible ? 'gis-fieldvis-toggle' : 'gis-fieldvis-toggle off'}
-                    aria-label={visible ? `Hide field ${f}` : `Show field ${f}`}
-                    aria-pressed={visible ? 'true' : 'false'}
-                    onClick={() => toggleField(f)}
-                  >
-                    <i className={`fa-solid ${visible ? 'fa-eye' : 'fa-eye-slash'}`} aria-hidden="true" />
-                  </button>
-                </div>
-              )
-            })}
-          </div>
-        </div>
-      ) : null}
+      {typeof document !== 'undefined' && popover ? createPortal(popover, document.body) : null}
     </>
   )
 }
@@ -161,4 +263,3 @@ export const __test__ = {
   readHiddenFields,
   writeHiddenFields,
 }
-

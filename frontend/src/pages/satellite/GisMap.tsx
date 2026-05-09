@@ -59,7 +59,13 @@ import {
 import { loadGisMapSavedLayers } from '../../lib/gisMapLayerStore'
 import { gisLayerDataToGeoAiLayers } from '../../lib/geoAiMapLayerSources'
 import { geoExplorerTargetZoomForPinSource, runGeoExplorerGeminiTurn } from '../../lib/runGeoExplorerGeminiTurn'
-import { runGeoAiStatsCommand } from '../../lib/geoAiStatsEngine'
+import { runGeoAiStatsCommand, type GeoAiMapFirstSelection } from '../../lib/geoAiStatsEngine'
+import {
+  findLngLatFromLayerQuery,
+  GEO_EXPLORER_MIN_LAYER_PIN_SCORE,
+  geoAiFeatureCentroid,
+  type LayerQueryMatch,
+} from '../../lib/geoExplorerLayerContext'
 import {
   loadGisMapChartPanelConfig,
   persistGisMapChartPanelConfig,
@@ -93,6 +99,46 @@ function gisLayerFeatureCountForChart(layer: LayerData): number {
   if (layer.type === 'tile' && (layer.data as { esriImageServer?: boolean })?.esriImageServer) return 0
   const d = layer.data as { features?: unknown[] } | undefined
   return Array.isArray(d?.features) ? d.features.length : 0
+}
+
+/** Resolve a Geo AI layer attribute hit to the real map feature (geometry + stable key). */
+function findGisMapFeatureByLayerHit(
+  layers: LayerData[],
+  hit: Pick<LayerQueryMatch, 'layerName' | 'properties'>,
+): { layer: LayerData; feature: any } | null {
+  if (!hit.properties || typeof hit.properties !== 'object') return null
+  const layerRow = layers.find(l => l.name === hit.layerName && l.type === 'geojson')
+  const features = layerRow && Array.isArray((layerRow.data as { features?: unknown[] })?.features)
+    ? ((layerRow.data as { features: any[] }).features as any[])
+    : []
+  if (!layerRow || !features.length) return null
+  const hp = hit.properties as Record<string, unknown>
+  const idKeys = ['OBJECTID', 'objectid', 'FID', 'fid', 'GlobalID', 'globalid'] as const
+  for (const idk of idKeys) {
+    const v = hp[idk]
+    if (v == null || v === '') continue
+    for (let i = 0; i < features.length; i++) {
+      const p = features[i]?.properties as Record<string, unknown> | undefined
+      if (p && String(p[idk]) === String(v)) return { layer: layerRow, feature: features[i] }
+    }
+  }
+  let bestScore = 0
+  let best: { layer: LayerData; feature: any } | null = null
+  for (let i = 0; i < features.length; i++) {
+    const p = features[i]?.properties as Record<string, unknown> | undefined
+    if (!p) continue
+    let s = 0
+    for (const [k, v] of Object.entries(hp)) {
+      if (v == null || v === '') continue
+      if (String(p[k]) === String(v)) s += 2
+    }
+    if (s > bestScore) {
+      bestScore = s
+      best = { layer: layerRow, feature: features[i] }
+    }
+  }
+  if (best && bestScore >= 4) return best
+  return null
 }
 
 function gisChartDonutConicBackground(rows: Array<{ count: number; color: string }>): string {
@@ -637,6 +683,7 @@ export default function GisMap() {
   const geoExplorerPopoverRef = useRef<HTMLDivElement | null>(null)
   const geoExplorerMessagesRef = useRef<HTMLDivElement | null>(null)
   const geoExplorerLoadOlderRef = useRef<{ top: number; height: number } | null>(null)
+  const applyGeoAiMapFirstSyncRef = useRef<(selections: GeoAiMapFirstSelection[]) => void>(() => {})
   const geoExplorerAnchorSourceRef = useRef<'quick' | 'toolbar'>('quick')
   const [geoExplorerPopoverLayout, setGeoExplorerPopoverLayout] = useState<null | { top: number; left: number; width: number; maxHeight: number }>(
     null,
@@ -697,6 +744,8 @@ export default function GisMap() {
         feature: any
         latlng: { lat: number; lng: number }
         phase: 'open' | 'closing'
+        /** Map-first search / Geo AI: show subtype + coded domains, fewer fields. */
+        compactSummary?: boolean
       }
   >(null)
   const [mapPopupPos, setMapPopupPos] = useState<null | { left: number; top: number; placement: 'top' | 'bottom'; arrowLeft: number }>(null)
@@ -1558,6 +1607,31 @@ export default function GisMap() {
       }
     }
 
+    const layerHit = findLngLatFromLayerQuery(query, gisLayerDataToGeoAiLayers(layers))
+    if (layerHit && layerHit.score >= GEO_EXPLORER_MIN_LAYER_PIN_SCORE && map && !globe) {
+      const resolved = findGisMapFeatureByLayerHit(layers, layerHit)
+      if (resolved?.feature) {
+        const layerRow = resolved.layer
+        const features = Array.isArray((layerRow.data as { features?: unknown[] })?.features)
+          ? ((layerRow.data as { features: any[] }).features as any[])
+          : []
+        const idx = Math.max(0, features.indexOf(resolved.feature))
+        const key = String(getFeatureKey(resolved.feature, idx))
+        zoomToFeatures([resolved.feature])
+        setSelectedFeatureKeys(new Set([key]))
+        showFeatureSelectionOnMap(String(layerRow.id), key, { zoom: false })
+        setLayerDialog(null)
+        const cen = geoAiFeatureCentroid(resolved.feature as { geometry?: unknown })
+        const latlng =
+          cen && Number.isFinite(cen[1]) && Number.isFinite(cen[0])
+            ? { lat: cen[1], lng: cen[0] }
+            : { lat: map.getCenter().lat, lng: map.getCenter().lng }
+        openMapPopup({ layer: layerRow, feature: resolved.feature, latlng, compactSummary: true })
+        setMapSearchStatus(`Layer match · ${layerRow.name}`)
+        return
+      }
+    }
+
     try {
       const url = `https://nominatim.openstreetmap.org/search?format=json&limit=1&q=${encodeURIComponent(query)}`
       const res = await fetch(url, { headers: { Accept: 'application/json' } })
@@ -2155,22 +2229,26 @@ export default function GisMap() {
     })
   }, [])
 
-  const openMapPopup = useCallback((next: { layer: LayerData; feature: any; latlng: { lat: number; lng: number } }) => {
-    const key = getFeatureKeyFromCache(next.feature) ?? getFeatureKey(next.feature, 0)
-    if (popupCloseTimerRef.current) {
-      window.clearTimeout(popupCloseTimerRef.current)
-      popupCloseTimerRef.current = null
-    }
-    popupLastFocusRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null
-    setMapPopup({
-      layerId: String(next.layer.id),
-      layerName: next.layer.name,
-      featureKey: String(key),
-      feature: next.feature,
-      latlng: next.latlng,
-      phase: 'open',
-    })
-  }, [])
+  const openMapPopup = useCallback(
+    (next: { layer: LayerData; feature: any; latlng: { lat: number; lng: number }; compactSummary?: boolean }) => {
+      const key = getFeatureKeyFromCache(next.feature) ?? getFeatureKey(next.feature, 0)
+      if (popupCloseTimerRef.current) {
+        window.clearTimeout(popupCloseTimerRef.current)
+        popupCloseTimerRef.current = null
+      }
+      popupLastFocusRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null
+      setMapPopup({
+        layerId: String(next.layer.id),
+        layerName: next.layer.name,
+        featureKey: String(key),
+        feature: next.feature,
+        latlng: next.latlng,
+        phase: 'open',
+        ...(next.compactSummary ? { compactSummary: true as const } : {}),
+      })
+    },
+    [],
+  )
 
   const sendGeoExplorerChat = useCallback((voiceOverrideText?: string) => {
     const trimmed = (voiceOverrideText ?? geoExplorerDraft).trim()
@@ -2218,6 +2296,10 @@ export default function GisMap() {
               if (localStats.table) parts.push({ type: 'dataTable', table: localStats.table })
               const modelMsg: GeoExplorerMessage = { id: mid, role: 'model', parts }
               setGeoExplorerMessages(h => [...h, modelMsg])
+              if (localStats.mapFirstSync?.selections?.length) {
+                const sync = localStats.mapFirstSync.selections
+                queueMicrotask(() => applyGeoAiMapFirstSyncRef.current(sync))
+              }
               return
             }
           }
@@ -2262,18 +2344,31 @@ export default function GisMap() {
             ) {
               const hit = me.layerHit
               window.setTimeout(() => {
+                const resolved = findGisMapFeatureByLayerHit(layers, hit)
                 const layerRow = layers.find(l => l.name === hit.layerName && l.type === 'geojson')
                 if (!layerRow) return
-                const feature = {
-                  type: 'Feature' as const,
-                  properties: hit.properties,
-                  geometry: { type: 'Point' as const, coordinates: me.coords },
-                }
-                openMapPopup({
-                  layer: layerRow,
-                  feature,
-                  latlng: { lat: me.coords[1], lng: me.coords[0] },
-                })
+                const feature =
+                  resolved?.feature ??
+                  ({
+                    type: 'Feature' as const,
+                    properties: hit.properties,
+                    geometry: { type: 'Point' as const, coordinates: [me.coords[0], me.coords[1]] as [number, number] },
+                  } as const)
+                const features = Array.isArray((layerRow.data as { features?: unknown[] })?.features)
+                  ? ((layerRow.data as { features: any[] }).features as any[])
+                  : []
+                const idx = resolved ? Math.max(0, features.indexOf(resolved.feature)) : 0
+                const key = String(getFeatureKey(feature, idx))
+                zoomToFeatures([feature])
+                setSelectedFeatureKeys(new Set([key]))
+                showFeatureSelectionOnMap(String(layerRow.id), key, { zoom: false })
+                setLayerDialog(null)
+                const cen = geoAiFeatureCentroid(feature as { geometry?: unknown })
+                const latlng =
+                  cen && Number.isFinite(cen[1]) && Number.isFinite(cen[0])
+                    ? { lat: cen[1], lng: cen[0] }
+                    : { lat: me.coords[1], lng: me.coords[0] }
+                openMapPopup({ layer: layerRow, feature, latlng, compactSummary: true })
               }, 320)
             }
           }
@@ -2532,6 +2627,65 @@ export default function GisMap() {
       }
     } catch {}
   }
+
+  const applyGeoAiMapFirstSync = useCallback(
+    (selections: GeoAiMapFirstSelection[]) => {
+      if (!selections.length) return
+      const allFeatures: any[] = []
+      for (const s of selections) {
+        const f = featureByKeyByLayerRef.current.get(String(s.layerId))?.get(String(s.featureKey))
+        if (f) allFeatures.push(f)
+      }
+      if (!allFeatures.length) return
+      zoomToFeatures(allFeatures)
+      const overlay = selectionOverlayRef.current
+      if (overlay) {
+        setSelectionNotice(null)
+        try {
+          overlay.clearLayers()
+          for (const feature of allFeatures) {
+            const highlight = L.geoJSON(feature as any, {
+              style: {
+                color: '#00FFFF',
+                weight: 4,
+                opacity: 1,
+                fillColor: '#00FFFF',
+                fillOpacity: 0.3,
+              } as any,
+              pointToLayer: (_, latlng) =>
+                L.marker(latlng, {
+                  icon: L.divIcon({
+                    className: 'gis-exact-point-highlight',
+                    html: `<div style="color: #00FFFF; font-size: 24px; text-shadow: 0 0 4px rgba(0,0,0,0.6); display: flex; align-items: center; justify-content: center;"><i class="fa-solid fa-location-dot"></i></div>`,
+                    iconSize: [24, 24],
+                    iconAnchor: [12, 24],
+                  }),
+                }),
+            })
+            overlay.addLayer(highlight)
+          }
+        } catch {}
+      }
+      setSelectedFeatureKeys(new Set(selections.map(s => String(s.featureKey))))
+      setShowSelectedOnly(false)
+      setLayerDialog(null)
+      const primary = selections[0]!
+      const layerRow = layers.find(l => String(l.id) === String(primary.layerId) && l.type === 'geojson')
+      const feature = featureByKeyByLayerRef.current.get(String(primary.layerId))?.get(String(primary.featureKey))
+      if (!layerRow || !feature) return
+      const cen = geoAiFeatureCentroid(feature)
+      const latlng =
+        cen && Number.isFinite(cen[1]) && Number.isFinite(cen[0])
+          ? { lat: cen[1], lng: cen[0] }
+          : { lat: mapRef.current?.getCenter().lat ?? 0, lng: mapRef.current?.getCenter().lng ?? 0 }
+      openMapPopup({ layer: layerRow, feature, latlng, compactSummary: true })
+    },
+    [layers, openMapPopup],
+  )
+
+  useEffect(() => {
+    applyGeoAiMapFirstSyncRef.current = applyGeoAiMapFirstSync
+  }, [applyGeoAiMapFirstSync])
 
   const getDrawableLayers = useCallback(() => {
     const fg = drawingFeatureGroupRef.current
@@ -4103,21 +4257,23 @@ export default function GisMap() {
   }
 
   const onGeoAiTableMapAction = useCallback(
-    (action: 'zoom' | 'highlight' | 'focus', link: GeoExplorerMapLink) => {
+    (action: 'zoom' | 'highlight' | 'focus' | 'openTable', link: GeoExplorerMapLink) => {
       if (link.type === 'feature') {
-        if (action === 'focus') {
+        if (action === 'openTable' || action === 'focus') {
           const feature = featureByKeyByLayerRef.current.get(link.layerId)?.get(link.featureKey)
           const layer = layers.find(l => String(l.id) === link.layerId && l.type === 'geojson')
           if (feature && layer) {
             openAttributeTableForFeature(layer, feature)
             return
           }
+          setSelectedFeatureKeys(new Set([link.featureKey]))
           showFeatureSelectionOnMap(link.layerId, link.featureKey, { zoom: true })
           return
         }
+        setSelectedFeatureKeys(new Set([link.featureKey]))
         showFeatureSelectionOnMap(link.layerId, link.featureKey, { zoom: action === 'zoom' })
       } else {
-        flyGisMapToLngLat(link.lng, link.lat, action === 'zoom' || action === 'focus' ? 16 : 14)
+        flyGisMapToLngLat(link.lng, link.lat, action === 'zoom' || action === 'focus' || action === 'openTable' ? 16 : 14)
       }
     },
     [layers, flyGisMapToLngLat, showFeatureSelectionOnMap, openAttributeTableForFeature],
@@ -6199,7 +6355,7 @@ export default function GisMap() {
                       void handleMapSearch()
                     }
                   }}
-                  placeholder="Search places"
+                  placeholder="Place name or layer code (e.g. MH101)"
                   aria-label="Search map"
                   autoComplete="off"
                 />
@@ -6504,6 +6660,7 @@ export default function GisMap() {
             popup={mapPopup}
             pos={mapPopupPos}
             layer={layers.find(l => String(l.id) === String(mapPopup.layerId)) ?? null}
+            compactSummary={Boolean(mapPopup.compactSummary)}
             rootRef={popupRef}
             onClose={closeMapPopup}
             onZoomTo={() => {

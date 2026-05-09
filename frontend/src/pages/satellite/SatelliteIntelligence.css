@@ -3501,6 +3501,11 @@ input:checked + .slider:before {
   touch-action: none;
 }
 
+.si-map-container--drawing {
+  transition: box-shadow 0.2s ease;
+  box-shadow: inset 0 0 0 1px rgba(74, 222, 128, 0.22);
+}
+
 .si-draw-live-hud {
   position: absolute;
   left: 12px;
@@ -3520,6 +3525,20 @@ input:checked + .slider:before {
   font-weight: 600;
   color: #e2e8f0;
   line-height: 1.35;
+  transition: opacity 0.15s ease, transform 0.15s ease;
+}
+
+.si-draw-live-hud-metrics {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 6px;
+  font-variant-numeric: tabular-nums;
+}
+
+.si-draw-live-hud-sep {
+  color: #64748b;
+  font-weight: 400;
 }
 
 .si-draw-live-hud-radius {

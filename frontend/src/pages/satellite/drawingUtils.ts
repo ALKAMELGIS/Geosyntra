@@ -144,6 +144,60 @@ export function circleFromEdgeFeature(
   };
 }
 
+export type CircleCardinal = 'n' | 'e' | 's' | 'w';
+
+export function circleRefineCosLat(centerLat: number): number {
+  const latRad = (centerLat * Math.PI) / 180;
+  return Math.max(0.2, Math.cos(latRad));
+}
+
+/** Radius in "degree space" matching {@link circleFromEdgeFeature} (scaled Δlng). */
+export function circleRefineRDeg(center: [number, number], edge: [number, number]): number {
+  const cosLat = circleRefineCosLat(center[1]);
+  const dLng = edge[0] - center[0];
+  const dLat = edge[1] - center[1];
+  return Math.sqrt((dLng * cosLat) ** 2 + dLat ** 2);
+}
+
+export function circleRefineCardinalLngLat(
+  center: [number, number],
+  rDeg: number,
+  cosLat: number,
+  cardinal: CircleCardinal,
+): [number, number] {
+  const [clng, clat] = center;
+  const theta =
+    cardinal === 'e' ? 0 : cardinal === 'n' ? Math.PI / 2 : cardinal === 'w' ? Math.PI : -Math.PI / 2;
+  return [clng + (Math.cos(theta) * rDeg) / cosLat, clat + Math.sin(theta) * rDeg];
+}
+
+/** Project pointer onto the cardinal ray from center so the circle edge stays N/E/S/W aligned. */
+export function projectPointerToCircleCardinalEdge(
+  center: [number, number],
+  cardinal: CircleCardinal,
+  pointer: [number, number],
+): [number, number] {
+  const [clng, clat] = center;
+  const [plng, plat] = pointer;
+  const cosLat = circleRefineCosLat(clat);
+  let ex = 1;
+  let ey = 0;
+  if (cardinal === 'n') {
+    ex = 0;
+    ey = 1;
+  } else if (cardinal === 's') {
+    ex = 0;
+    ey = -1;
+  } else if (cardinal === 'w') {
+    ex = -1;
+    ey = 0;
+  }
+  const vx = (plng - clng) * cosLat;
+  const vy = plat - clat;
+  const t = Math.max(1e-10, vx * ex + vy * ey);
+  return [clng + (ex * t) / cosLat, clat + ey * t];
+}
+
 export function minPixelDistToPolyline(map: MapboxMap, lng: number, lat: number, coords: [number, number][]): number {
   const p: [number, number] = [lng, lat];
   let min = Infinity;

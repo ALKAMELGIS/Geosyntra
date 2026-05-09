@@ -4,10 +4,13 @@ import 'mapbox-gl/dist/mapbox-gl.css';
 import './SatelliteIntelligence.css';
 import '../dashboards/develop-dashboard.css';
 import { parseFile, parseRemoteUrlAsFile } from '../../utils/FileLoader';
-import type { DrawStyleConfig, VertexRef } from './drawingUtils';
+import type { CircleCardinal, DrawStyleConfig, VertexRef } from './drawingUtils';
 import {
   bboxToPolygonFeature,
   circleFromEdgeFeature,
+  circleRefineCardinalLngLat,
+  circleRefineCosLat,
+  circleRefineRDeg,
   clientPointToLngLat,
   cloneDeep,
   collectVertexRefs,
@@ -20,6 +23,7 @@ import {
   lngLatPixelDistance,
   minPixelDistToPolyline,
   pointInPolygonGeometry,
+  projectPointerToCircleCardinalEdge,
   saveDrawWorkspace,
   setVertexCoord,
   snapLngLatToBearingStep,
@@ -35,6 +39,7 @@ import { getArcgisPortalToken } from '../../lib/arcgisPortalToken';
 import { getMapboxAccessToken } from '../../lib/mapboxAccessToken';
 import { subscribeSentinelHubAccessToken } from '../../lib/sentinelHubAccessToken';
 import { getSentinelHubWmsBaseUrl, subscribeSentinelHubWmsInstance } from '../../lib/sentinelHubWmsInstance';
+import { buildSentinelHubWmsAoiClip } from '../../lib/sentinelHubWmsAoiClip';
 import {
   GEO_AI_COPILOT_RULES,
   lastMapQueryCoordsFromMessages,
@@ -112,7 +117,14 @@ import { FieldVisibilityControl } from './components/FieldVisibilityControl';
 import { GeoAiEditQuestionTool } from './components/GeoAiEditQuestionTool';
 import { GeoExplorerGeminiInputRow } from './components/GeoExplorerGeminiInputRow';
 import { GeoExplorerGeminiMessageParts } from './components/GeoExplorerGeminiMessageParts';
+import type { AoiStaticMultiLayerLineChartDataset } from './components/AoiStaticMultiLayerLineChart';
 import { SatelliteMapAnalysisChrome, SatelliteMapAnalysisToolbar } from './components/SatelliteMapAnalysisChrome';
+import {
+  buildStaticAoiMultiChartDatasets,
+  defaultStaticAoiComparisonLayers,
+  sortStaticAoiChartLayerIds,
+  type StaticAoiChartLayerId,
+} from './utils/staticAoiMultiChartData';
 import {
   getAnalysisEngineBaseUrl,
   mpcProcess,
@@ -1353,6 +1365,12 @@ const POLYGON_SNAP_BEARING_STEP_DEG = 15;
 /** Snap placed vertices to existing ones while sketching (digitizing). */
 const POLYGON_VERTEX_SNAP_PX = 20;
 
+/**
+ * Optional Sentinel Hub WMS index mask (NDVI / GNDVI / NDMI / NDWI / EVI profiles): alpha is zero where index is below this value.
+ * null = AOI geometry clipping only (dataMask + GEOMETRY). Example: 0.35 hides very low NDVI inside the AOI (index below threshold).
+ */
+const WMS_AOI_INDEX_VISIBILITY_MIN: number | null = null;
+
 const DEFAULT_DRAW_STYLE: DrawStyleConfig = {
   strokeColor: '#4ade80',
   fillColor: '#22c55e',
@@ -1722,6 +1740,9 @@ export default function SatelliteIntelligence() {
   const [cloudCoverage, setCloudCoverage] = useState(20);
   const [isTimelinePlaying, setIsTimelinePlaying] = useState(false);
   const [mapStaticChartsOpen, setMapStaticChartsOpen] = useState(false);
+  const [staticChartComparisonLayers, setStaticChartComparisonLayers] = useState<StaticAoiChartLayerId[]>(() =>
+    defaultStaticAoiComparisonLayers(),
+  );
   const [analysisLayerAttached, setAnalysisLayerAttached] = useState(false);
   const [selectedIndex, setSelectedIndex] = useState<EnvironmentalIndexId>('NDWI');
   const [selectedPivotId, setSelectedPivotId] = useState('all');
@@ -1925,6 +1946,13 @@ export default function SatelliteIntelligence() {
   const [polygonClosingSnap, setPolygonClosingSnap] = useState(false);
   const [drawAssistHint, setDrawAssistHint] = useState('');
   const [circleRadiusM, setCircleRadiusM] = useState<number | null>(null);
+  /** After initial circle drag: center + edge with N/E/S/W handles before Enter commits. */
+  const [circleRefineDraft, setCircleRefineDraft] = useState<null | { center: [number, number]; edge: [number, number] }>(
+    null,
+  );
+  const [circleRefineActiveHandle, setCircleRefineActiveHandle] = useState<
+    null | 'center' | CircleCardinal | 'pan'
+  >(null);
   const acsFileInputRef = useRef<HTMLInputElement | null>(null);
   const exploreCatalogSigRef = useRef('');
   const searchRef = useRef<HTMLDivElement | null>(null);
@@ -1934,6 +1962,11 @@ export default function SatelliteIntelligence() {
   const siTableFeatureKeyCacheRef = useRef<Map<object, string>>(new Map());
   const drawnGeometryRef = useRef<any | null>(null);
   const dragRectCircleRef = useRef<null | { kind: 'rectangle' | 'circle' | 'box_select'; start: [number, number] }>(null);
+  const circleRefineDraftRef = useRef<null | { center: [number, number]; edge: [number, number] }>(null);
+  const circleRefineInteractionRef = useRef<
+    null | { type: 'handle'; h: 'center' | CircleCardinal } | { type: 'pan'; last: [number, number] }
+  >(null);
+  const circleRefineLastMoveRef = useRef<[number, number] | null>(null);
   const preEditGeomRef = useRef<any | null>(null);
   const polylineStartRef = useRef<[number, number] | null>(null);
   polylineStartRef.current = polylineStart;
@@ -4922,7 +4955,7 @@ export default function SatelliteIntelligence() {
   ]);
 
   const onSiGeoAiTableMapAction = useCallback(
-    (action: 'zoom' | 'highlight' | 'focus', link: GeoExplorerMapLink) => {
+    (action: 'zoom' | 'highlight' | 'focus' | 'openTable', link: GeoExplorerMapLink) => {
       let lng: number;
       let lat: number;
       let title = 'Selected feature';
@@ -4948,7 +4981,7 @@ export default function SatelliteIntelligence() {
         pitch: is3DView ? Math.max(typeof vs.pitch === 'number' ? vs.pitch : 0, 42) : vs.pitch ?? 0,
         bearing: typeof vs.bearing === 'number' ? vs.bearing : 0,
       }));
-      if (action === 'focus' || action === 'highlight' || link.type === 'feature') {
+      if (action === 'focus' || action === 'openTable' || action === 'highlight' || link.type === 'feature') {
         setGeoAiInspectCard({
           title,
           rows: [
@@ -5217,6 +5250,7 @@ export default function SatelliteIntelligence() {
   const endPolygonSketchDrag = useCallback(() => {
     if (polygonRingSketchDragRef.current === null) return;
     polygonRingSketchDragRef.current = null;
+    circleRefineLastMoveRef.current = null;
     setMapDragPanEnabled(true);
     skipNextMapClickRef.current = true;
   }, []);
@@ -5267,20 +5301,40 @@ export default function SatelliteIntelligence() {
     const spec = dragRectCircleRef.current;
     dragRectCircleRef.current = null;
     setRectCirclePreview(null);
-    setMapDragPanEnabled(true);
-    if (!map || !spec) return;
+    if (!map || !spec) {
+      setMapDragPanEnabled(true);
+      return;
+    }
     const end = clientPointToLngLat(map, clientX, clientY);
-    if (!end) return;
+    if (!end) {
+      setMapDragPanEnabled(true);
+      return;
+    }
     const [lng1, lat1] = spec.start;
     const [lng2, lat2] = end;
-    if (Math.hypot(lng2 - lng1, lat2 - lat1) < 1e-7) return;
-    setCircleRadiusM(null);
-    let feature: any;
-    if (spec.kind === 'circle') {
-      feature = circleFromEdgeFeature(lng1, lat1, lng2, lat2, 128);
-    } else {
-      feature = bboxToPolygonFeature(lng1, lat1, lng2, lat2, spec.kind === 'box_select' ? 'Box AOI' : 'Drawn rectangle');
+    if (Math.hypot(lng2 - lng1, lat2 - lat1) < 1e-7) {
+      setMapDragPanEnabled(true);
+      return;
     }
+    if (spec.kind === 'circle') {
+      setCircleRadiusM(null);
+      setCircleRefineDraft({ center: [lng1, lat1], edge: [lng2, lat2] });
+      setDrawAssistHint(
+        'Drag N/E/S/W to resize, center to move, inside AOI to pan. Enter to apply, Esc to cancel.',
+      );
+      setMapDragPanEnabled(false);
+      skipNextMapClickRef.current = true;
+      return;
+    }
+    setCircleRadiusM(null);
+    setMapDragPanEnabled(true);
+    const feature = bboxToPolygonFeature(
+      lng1,
+      lat1,
+      lng2,
+      lat2,
+      spec.kind === 'box_select' ? 'Box AOI' : 'Drawn rectangle',
+    );
     commitUserGeometry(feature);
     setMapDrawTool('select');
     skipNextMapClickRef.current = true;
@@ -5305,6 +5359,7 @@ export default function SatelliteIntelligence() {
 
   const polygonRingRef = useRef(polygonRing);
   polygonRingRef.current = polygonRing;
+  circleRefineDraftRef.current = circleRefineDraft;
 
   useEffect(() => {
     if (mapDrawTool !== 'polygon') return;
@@ -5331,9 +5386,42 @@ export default function SatelliteIntelligence() {
     return () => window.removeEventListener('keydown', onKey);
   }, [mapDrawTool]);
 
+  useLayoutEffect(() => {
+    if (mapDrawTool !== 'polygon') return;
+    if (polygonRingSketchDragRef.current !== null) return;
+    setMapDragPanEnabled(polygonRing.length === 0);
+  }, [mapDrawTool, polygonRing.length]);
+
+  useEffect(() => {
+    if (mapDrawTool !== 'circle') return;
+    const onKey = (e: KeyboardEvent) => {
+      const t = e.target as HTMLElement | null;
+      if (t) {
+        const tag = t.tagName;
+        if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || t.isContentEditable) return;
+      }
+      if (e.key !== 'Enter') return;
+      const d = circleRefineDraftRef.current;
+      if (!d) return;
+      e.preventDefault();
+      circleRefineInteractionRef.current = null;
+      circleRefineLastMoveRef.current = null;
+      setCircleRefineActiveHandle(null);
+      const feature = circleFromEdgeFeature(d.center[0], d.center[1], d.edge[0], d.edge[1], 128);
+      commitUserGeometryRef.current(feature);
+      setCircleRefineDraft(null);
+      setDrawAssistHint('');
+      setMapDrawTool('select');
+      setMapDragPanEnabled(true);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [mapDrawTool]);
+
   const applyMapDrawTool = (tool: MapDrawTool) => {
     dragRectCircleRef.current = null;
     polygonRingSketchDragRef.current = null;
+    circleRefineInteractionRef.current = null;
     setRectCirclePreview(null);
     setPointerLngLat(null);
     setPolylineStart(null);
@@ -5341,7 +5429,16 @@ export default function SatelliteIntelligence() {
     setPolygonClosingSnap(false);
     setDrawAssistHint('');
     setCircleRadiusM(null);
+    setCircleRefineDraft(null);
+    setCircleRefineActiveHandle(null);
     setMapDrawTool(tool);
+    if (tool === 'rectangle' || tool === 'box_select' || tool === 'circle') {
+      setMapDragPanEnabled(false);
+    } else if (tool === 'polygon') {
+      setMapDragPanEnabled(true);
+    } else {
+      setMapDragPanEnabled(true);
+    }
   };
 
   /** Undo last vertex / click while drawing (polygon, polyline start, or in-progress box/circle drag). */
@@ -5351,6 +5448,14 @@ export default function SatelliteIntelligence() {
       setRectCirclePreview(null);
       setCircleRadiusM(null);
       setMapDragPanEnabled(true);
+      return;
+    }
+    if (circleRefineDraft) {
+      circleRefineInteractionRef.current = null;
+      setCircleRefineDraft(null);
+      setCircleRefineActiveHandle(null);
+      setDrawAssistHint('');
+      setMapDragPanEnabled(false);
       return;
     }
     if (mapDrawTool === 'polygon' && polygonRing.length > 0) {
@@ -5369,6 +5474,7 @@ export default function SatelliteIntelligence() {
   const cancelCurrentDrawing = useCallback(() => {
     dragRectCircleRef.current = null;
     polygonRingSketchDragRef.current = null;
+    circleRefineInteractionRef.current = null;
     setRectCirclePreview(null);
     setPolylineStart(null);
     setPolygonRing([]);
@@ -5379,6 +5485,8 @@ export default function SatelliteIntelligence() {
     setPolygonClosingSnap(false);
     setDrawAssistHint('');
     setCircleRadiusM(null);
+    setCircleRefineDraft(null);
+    setCircleRefineActiveHandle(null);
     setMapDrawTool('select');
   }, []);
 
@@ -5397,17 +5505,56 @@ export default function SatelliteIntelligence() {
     setPolygonClosingSnap(false);
     setDrawAssistHint('');
     setCircleRadiusM(null);
+    setCircleRefineDraft(null);
+    setCircleRefineActiveHandle(null);
+    circleRefineInteractionRef.current = null;
     setMapDrawTool('select');
     setMapDragPanEnabled(true);
   };
 
   const handleMapPointerDown = (evt: any) => {
     const orig = evt.originalEvent as MouseEvent | undefined;
-    if (orig && orig.button !== 0) return;
+    if (orig && 'button' in orig && (orig as MouseEvent).button !== 0) return;
     const lng = evt.lngLat.lng;
     const lat = evt.lngLat.lat;
     const map = getMapInstance();
     if (!map) return;
+
+    if (mapDrawTool === 'circle' && circleRefineDraft) {
+      const draft = circleRefineDraft;
+      const [clng, clat] = draft.center;
+      const [elng, elat] = draft.edge;
+      const rDeg = circleRefineRDeg(draft.center, draft.edge);
+      const cosLat = circleRefineCosLat(clat);
+      const hitPx = Math.max(POLYGON_VERTEX_SNAP_PX, vertexHitThresholdPx(map) * 1.05);
+      if (lngLatPixelDistance(map, [lng, lat], draft.center) <= hitPx * 1.15) {
+        circleRefineInteractionRef.current = { type: 'handle', h: 'center' };
+        setCircleRefineActiveHandle('center');
+        circleRefineLastMoveRef.current = [lng, lat];
+        setMapDragPanEnabled(false);
+        return;
+      }
+      const dirs: CircleCardinal[] = ['n', 'e', 's', 'w'];
+      for (const c of dirs) {
+        const p = circleRefineCardinalLngLat(draft.center, rDeg, cosLat, c);
+        if (lngLatPixelDistance(map, [lng, lat], p) <= hitPx) {
+          circleRefineInteractionRef.current = { type: 'handle', h: c };
+          setCircleRefineActiveHandle(c);
+          circleRefineLastMoveRef.current = [lng, lat];
+          setMapDragPanEnabled(false);
+          return;
+        }
+      }
+      const ringGeom = circleFromEdgeFeature(clng, clat, elng, elat, 48, 'hit').geometry;
+      if (pointInPolygonGeometry(lng, lat, ringGeom)) {
+        circleRefineInteractionRef.current = { type: 'pan', last: [lng, lat] };
+        setCircleRefineActiveHandle('pan');
+        circleRefineLastMoveRef.current = [lng, lat];
+        setMapDragPanEnabled(false);
+        return;
+      }
+      return;
+    }
 
     if (mapDrawTool === 'polygon' && polygonRing.length > 0) {
       const ring = polygonRing;
@@ -5424,6 +5571,7 @@ export default function SatelliteIntelligence() {
     }
 
     if (mapDrawTool === 'rectangle' || mapDrawTool === 'circle' || mapDrawTool === 'box_select') {
+      if (mapDrawTool === 'circle' && circleRefineDraft) return;
       dragRectCircleRef.current = { kind: mapDrawTool, start: [lng, lat] };
       setRectCirclePreview({ kind: mapDrawTool, a: [lng, lat], b: [lng, lat] });
       setMapDragPanEnabled(false);
@@ -5470,6 +5618,34 @@ export default function SatelliteIntelligence() {
     const lng = evt.lngLat.lng;
     const lat = evt.lngLat.lat;
     const map = getMapInstance();
+    const cri = circleRefineInteractionRef.current;
+    if (cri && mapDrawTool === 'circle' && circleRefineDraft) {
+      const draft = circleRefineDraft;
+      const last = circleRefineLastMoveRef.current;
+      if (!last) {
+        circleRefineLastMoveRef.current = [lng, lat];
+        return;
+      }
+      const dLng = lng - last[0];
+      const dLat = lat - last[1];
+      circleRefineLastMoveRef.current = [lng, lat];
+      if (cri.type === 'handle' && cri.h === 'center') {
+        setCircleRefineDraft({
+          center: [draft.center[0] + dLng, draft.center[1] + dLat],
+          edge: [draft.edge[0] + dLng, draft.edge[1] + dLat],
+        });
+      } else if (cri.type === 'handle' && cri.h !== 'center') {
+        const newEdge = projectPointerToCircleCardinalEdge(draft.center, cri.h, [lng, lat]);
+        setCircleRefineDraft({ center: draft.center, edge: newEdge });
+      } else if (cri.type === 'pan') {
+        setCircleRefineDraft({
+          center: [draft.center[0] + dLng, draft.center[1] + dLat],
+          edge: [draft.edge[0] + dLng, draft.edge[1] + dLat],
+        });
+      }
+      setPolygonClosingSnap(false);
+      return;
+    }
     const dragSpec = dragRectCircleRef.current;
     if (dragSpec) {
       setRectCirclePreview({ kind: dragSpec.kind, a: dragSpec.start, b: [lng, lat] });
@@ -5554,7 +5730,10 @@ export default function SatelliteIntelligence() {
         setPolygonClosingSnap(false);
         setDrawAssistHint(polygonRing.length ? 'Place vertices; Enter or right-click to finish' : '');
       }
-    } else if (mapDrawTool === 'rectangle' || mapDrawTool === 'circle' || mapDrawTool === 'box_select') {
+    } else if (
+      (mapDrawTool === 'rectangle' || mapDrawTool === 'box_select') ||
+      (mapDrawTool === 'circle' && !circleRefineDraft)
+    ) {
       setPointerLngLat([lng, lat]);
       setPolygonClosingSnap(false);
       setDrawAssistHint('');
@@ -5563,7 +5742,7 @@ export default function SatelliteIntelligence() {
       setPolygonClosingSnap(false);
       setDrawAssistHint('');
     }
-    setCircleRadiusM(null);
+    if (!circleRefineDraft) setCircleRadiusM(null);
   };
 
   const finalizeRectDragFromPointer = (clientX: number, clientY: number) => {
@@ -5585,6 +5764,14 @@ export default function SatelliteIntelligence() {
     const onUp = (e: PointerEvent) => {
       if (dragRectCircleRef.current) {
         interactionEndRef.current.finalizeRect(e.clientX, e.clientY);
+      }
+      if (circleRefineInteractionRef.current) {
+        circleRefineInteractionRef.current = null;
+        circleRefineLastMoveRef.current = null;
+        setCircleRefineActiveHandle(null);
+        if (mapDrawToolRef.current === 'circle' && circleRefineDraftRef.current) {
+          setMapDragPanEnabled(false);
+        }
       }
       if (editDragRef.current) {
         interactionEndRef.current.endEdit();
@@ -5642,6 +5829,16 @@ export default function SatelliteIntelligence() {
         return;
       }
       if (mod && k === 'z' && !e.shiftKey) {
+        if (mapDrawToolRef.current === 'circle' && circleRefineDraftRef.current) {
+          e.preventDefault();
+          circleRefineInteractionRef.current = null;
+          circleRefineLastMoveRef.current = null;
+          setCircleRefineActiveHandle(null);
+          setCircleRefineDraft(null);
+          setDrawAssistHint('');
+          setMapDragPanEnabled(false);
+          return;
+        }
         if (dragRectCircleRef.current) {
           e.preventDefault();
           dragRectCircleRef.current = null;
@@ -5902,6 +6099,26 @@ export default function SatelliteIntelligence() {
         features.push(bboxToPolygonFeature(lng0, lat0, lng1, lat1, 'Preview'));
       }
     }
+    if (mapDrawTool === 'circle' && circleRefineDraft) {
+      const { center: [clng, clat], edge: [elng, elat] } = circleRefineDraft;
+      features.push(circleFromEdgeFeature(clng, clat, elng, elat, 96, 'Refine'));
+      const rDeg = circleRefineRDeg([clng, clat], [elng, elat]);
+      const cosLat = circleRefineCosLat(clat);
+      const dirs: CircleCardinal[] = ['n', 'e', 's', 'w'];
+      for (const c of dirs) {
+        const p = circleRefineCardinalLngLat([clng, clat], rDeg, cosLat, c);
+        features.push({
+          type: 'Feature',
+          properties: { draftRole: 'circleCardinal', dir: c },
+          geometry: { type: 'Point', coordinates: p },
+        });
+      }
+      features.push({
+        type: 'Feature',
+        properties: { draftRole: 'circleCenter' },
+        geometry: { type: 'Point', coordinates: [clng, clat] },
+      });
+    }
     if (mapDrawTool === 'polygon') {
       const ring = polygonRing;
       if (pointerLngLat && ring.length >= 2) {
@@ -5962,7 +6179,7 @@ export default function SatelliteIntelligence() {
     }
     if (!features.length) return null;
     return { type: 'FeatureCollection', features };
-  }, [mapDrawTool, polygonRing, polylineStart, pointerLngLat, rectCirclePreview, polygonClosingSnap]);
+  }, [mapDrawTool, polygonRing, polylineStart, pointerLngLat, rectCirclePreview, polygonClosingSnap, circleRefineDraft]);
 
   const editHandlesGeoJson = useMemo(() => {
     if (mapDrawTool !== 'select' || !drawnGeometry) return null;
@@ -6310,6 +6527,45 @@ export default function SatelliteIntelligence() {
 
   const satelliteWeeklyMeans = useMemo(() => weeklyComposites.map(w => w.mean), [weeklyComposites]);
 
+  const staticAoiChartAoiKey = useMemo(() => {
+    if (!drawnGeometry) return null;
+    try {
+      return JSON.stringify(drawnGeometry);
+    } catch {
+      return 'aoi';
+    }
+  }, [drawnGeometry]);
+
+  const staticAoiMultiLineData = useMemo(() => {
+    if (!weeklyComposites.length) {
+      return {
+        labels: [] as string[],
+        datasets: [] as AoiStaticMultiLayerLineChartDataset[],
+        hasLst: false,
+      };
+    }
+    const built = buildStaticAoiMultiChartDatasets(
+      weeklyComposites,
+      staticChartComparisonLayers,
+      staticAoiChartAoiKey,
+    );
+    return {
+      labels: built.labels,
+      datasets: built.datasets,
+      hasLst: staticChartComparisonLayers.includes('LST'),
+    };
+  }, [weeklyComposites, staticChartComparisonLayers, staticAoiChartAoiKey]);
+
+  const handleStaticComparisonLayerToggle = useCallback((id: StaticAoiChartLayerId) => {
+    setStaticChartComparisonLayers(prev => {
+      if (prev.includes(id)) {
+        if (prev.length <= 1) return prev;
+        return sortStaticAoiChartLayerIds(prev.filter(x => x !== id));
+      }
+      return sortStaticAoiChartLayerIds([...prev, id]);
+    });
+  }, []);
+
   const satelliteActiveChipId = useMemo(() => {
     if (!weeklyComposites.length) return null;
     const iso = selectedDate.toISOString().split('T')[0];
@@ -6348,16 +6604,42 @@ export default function SatelliteIntelligence() {
       ? mapDrawTool
       : 'select';
 
+  /** Sentinel Hub: GEOMETRY (3857 WKT) + EVALSCRIPT (RGBA, alpha = dataMask × optional index mask). */
+  const sentinelHubWmsAoiClip = useMemo(
+    () =>
+      buildSentinelHubWmsAoiClip(drawnGeometry, activeWmsLayer, {
+        indexVisibilityMin: WMS_AOI_INDEX_VISIBILITY_MIN,
+      }),
+    [drawnGeometry, activeWmsLayer],
+  );
+
   const wmsTileUrl = useMemo(() => {
     const safeLayer = encodeURIComponent(activeWmsLayer);
     const start = timeSeriesStart || wmsDate;
     const end = timeSeriesEnd || wmsDate;
-    return `${wmsBaseUrl}?SERVICE=WMS&REQUEST=GetMap&VERSION=1.3.0` +
+    let url =
+      `${wmsBaseUrl}?SERVICE=WMS&REQUEST=GetMap&VERSION=1.3.0` +
       `&LAYERS=${safeLayer}` +
       `&BBOX={bbox-epsg-3857}&CRS=EPSG:3857` +
       `&FORMAT=image/png&TRANSPARENT=true&WIDTH=512&HEIGHT=512` +
       `&TIME=${start}/${end}&MAXCC=${cloudCoverage}&SHOWLOGO=false&WARNINGS=true`;
-  }, [activeWmsLayer, timeSeriesStart, timeSeriesEnd, wmsDate, cloudCoverage, wmsBaseUrl]);
+    if (sentinelHubWmsAoiClip.geometryWkt3857) {
+      url += `&GEOMETRY=${encodeURIComponent(sentinelHubWmsAoiClip.geometryWkt3857)}`;
+    }
+    if (sentinelHubWmsAoiClip.evalscriptB64) {
+      url += `&EVALSCRIPT=${encodeURIComponent(sentinelHubWmsAoiClip.evalscriptB64)}`;
+    }
+    return url;
+  }, [
+    activeWmsLayer,
+    timeSeriesStart,
+    timeSeriesEnd,
+    wmsDate,
+    cloudCoverage,
+    wmsBaseUrl,
+    sentinelHubWmsAoiClip.geometryWkt3857,
+    sentinelHubWmsAoiClip.evalscriptB64,
+  ]);
 
   /**
    * Limits Sentinel WMS tile requests to the AOI bounding box (extract-by-mask style for tiles).
@@ -6412,6 +6694,38 @@ export default function SatelliteIntelligence() {
     };
   }, [isMapLoaded, sentinelVisible, wmsRasterAoiBoundsLngLat, wmsTileUrl, activeWmsLayer, wmsDate, drawnGeometry]);
 
+  const circleRefineHud = useMemo(() => {
+    if (!circleRefineDraft || mapDrawTool !== 'circle') return null;
+    const [clng, clat] = circleRefineDraft.center;
+    const [elng, elat] = circleRefineDraft.edge;
+    const radiusM = haversineDistanceMeters(clng, clat, elng, elat);
+    const diameterM = 2 * radiusM;
+    const areaHa = (Math.PI * radiusM * radiusM) / 10_000;
+    return { radiusM, diameterM, areaHa };
+  }, [circleRefineDraft, mapDrawTool]);
+
+  const siMapCursor = useMemo(() => {
+    if (circleRefineActiveHandle === 'center') return 'move';
+    if (circleRefineActiveHandle === 'n' || circleRefineActiveHandle === 's') return 'ns-resize';
+    if (circleRefineActiveHandle === 'e' || circleRefineActiveHandle === 'w') return 'ew-resize';
+    if (circleRefineActiveHandle === 'pan') return 'grab';
+    if (['point', 'polyline', 'polygon', 'rectangle', 'circle', 'box_select'].includes(mapDrawTool)) {
+      return 'crosshair';
+    }
+    if (mapDrawTool === 'select' && drawnGeometry) return 'pointer';
+    return 'grab';
+  }, [mapDrawTool, drawnGeometry, circleRefineActiveHandle]);
+
+  const siMapDrawingTitle = useMemo(() => {
+    if (mapDrawTool === 'circle' && circleRefineDraft) {
+      return 'Circle: drag N/E/S/W to resize, center to move, inside to pan. Enter to apply, Esc to cancel.';
+    }
+    if (mapDrawTool === 'circle') return 'Circle: click-drag from center outward, then adjust handles.';
+    if (mapDrawTool === 'rectangle' || mapDrawTool === 'box_select') return 'Rectangle: click-drag on the map.';
+    if (mapDrawTool === 'polygon') return 'Polygon: click corners; Enter or first corner to close.';
+    return '';
+  }, [mapDrawTool, circleRefineDraft]);
+
   const polygonSketchHudText = useMemo(() => {
     if (mapDrawTool !== 'polygon') return '';
     if (polygonRing.length === 0) {
@@ -6436,8 +6750,10 @@ export default function SatelliteIntelligence() {
               ? ' si-map-container--drawing'
               : ''
           }`}
+          title={siMapDrawingTitle || undefined}
         >
           {(circleRadiusM !== null && rectCirclePreview?.kind === 'circle') ||
+          circleRefineHud ||
           drawAssistHint ||
           (mapDrawTool === 'polygon' && polygonSketchHudText) ? (
             <div className="si-draw-live-hud" aria-live="polite">
@@ -6447,6 +6763,34 @@ export default function SatelliteIntelligence() {
                   {circleRadiusM < 1000
                     ? `${Math.round(circleRadiusM)} m`
                     : `${(circleRadiusM / 1000).toFixed(2)} km`}
+                </span>
+              ) : null}
+              {circleRefineHud ? (
+                <span className="si-draw-live-hud-metrics">
+                  <span className="si-draw-live-hud-radius">
+                    R{' '}
+                    {circleRefineHud.radiusM < 1000
+                      ? `${Math.round(circleRefineHud.radiusM)} m`
+                      : `${(circleRefineHud.radiusM / 1000).toFixed(2)} km`}
+                  </span>
+                  <span className="si-draw-live-hud-sep" aria-hidden>
+                    ·
+                  </span>
+                  <span>
+                    D{' '}
+                    {circleRefineHud.diameterM < 1000
+                      ? `${Math.round(circleRefineHud.diameterM)} m`
+                      : `${(circleRefineHud.diameterM / 1000).toFixed(2)} km`}
+                  </span>
+                  <span className="si-draw-live-hud-sep" aria-hidden>
+                    ·
+                  </span>
+                  <span>
+                    A{' '}
+                    {circleRefineHud.areaHa < 100
+                      ? `${circleRefineHud.areaHa.toFixed(2)} ha`
+                      : `${(circleRefineHud.areaHa / 100).toFixed(2)} km²`}
+                  </span>
                 </span>
               ) : null}
               {drawAssistHint || polygonSketchHudText ? (
@@ -6461,16 +6805,14 @@ export default function SatelliteIntelligence() {
             onMove={evt => setViewState(evt.viewState)}
             onMouseDown={handleMapPointerDown}
             onMouseMove={handleMapPointerMove}
+            onTouchStart={handleMapPointerDown}
+            onTouchMove={handleMapPointerMove}
             onClick={evt => handleMapClickDraw(evt.lngLat.lng, evt.lngLat.lat, evt.originalEvent ?? undefined)}
             onContextMenu={handleMapContextMenu}
             style={{
               width: '100%',
               height: '100%',
-              cursor: ['point', 'polyline', 'polygon', 'rectangle', 'circle', 'box_select'].includes(mapDrawTool)
-                ? 'crosshair'
-                : mapDrawTool === 'select' && drawnGeometry
-                  ? 'pointer'
-                  : 'grab',
+              cursor: siMapCursor,
             }}
             mapStyle={effectiveMapStyle}
             mapboxAccessToken={mapboxAccessTokenForMap}
@@ -6617,10 +6959,31 @@ export default function SatelliteIntelligence() {
                     <Layer
                       id="si-draw-draft-vertex"
                       type="circle"
-                      filter={['==', ['get', 'draftRole'], 'polyVertex']}
+                      filter={[
+                        'any',
+                        ['==', ['get', 'draftRole'], 'polyVertex'],
+                        ['==', ['get', 'draftRole'], 'circleCenter'],
+                        ['==', ['get', 'draftRole'], 'circleCardinal'],
+                      ]}
                       paint={{
-                        'circle-radius': 9,
-                        'circle-color': '#bbf7d0',
+                        'circle-radius': [
+                          'match',
+                          ['get', 'draftRole'],
+                          'circleCenter',
+                          12,
+                          'circleCardinal',
+                          10,
+                          9,
+                        ] as any,
+                        'circle-color': [
+                          'match',
+                          ['get', 'draftRole'],
+                          'circleCenter',
+                          '#fbbf24',
+                          'circleCardinal',
+                          '#86efac',
+                          '#bbf7d0',
+                        ] as any,
                         'circle-stroke-width': 2,
                         'circle-stroke-color': '#14532d',
                       }}
@@ -6632,6 +6995,8 @@ export default function SatelliteIntelligence() {
                         'all',
                         ['==', ['geometry-type'], 'Point'],
                         ['!=', ['get', 'draftRole'], 'polyVertex'],
+                        ['!=', ['get', 'draftRole'], 'circleCenter'],
+                        ['!=', ['get', 'draftRole'], 'circleCardinal'],
                       ]}
                       paint={{
                         'circle-radius': 6,
@@ -6725,7 +7090,7 @@ export default function SatelliteIntelligence() {
 
             {isMapLoaded && sentinelVisible && drawnAoiWmsClipReady && (
               <Source
-                key={`sentinel-${activeWmsLayer}-${wmsDate}-${wmsRasterAoiBoundsLngLat?.join(',') ?? 'world'}`}
+                key={`sentinel-${activeWmsLayer}-${wmsDate}-${wmsRasterAoiBoundsLngLat?.join(',') ?? 'world'}-${sentinelHubWmsAoiClip.geometryWkt3857 ? 'g1' : 'g0'}-${sentinelHubWmsAoiClip.evalscriptB64 ? 'e1' : 'e0'}`}
                 id="sentinel-source"
                 type="raster"
                 tiles={[wmsTileUrl]}
@@ -6736,7 +7101,7 @@ export default function SatelliteIntelligence() {
                   id="sentinel-layer"
                   type="raster"
                   paint={{
-                    'raster-opacity': 0.85,
+                    'raster-opacity': sentinelHubWmsAoiClip.evalscriptB64 ? 1 : 0.85,
                     'raster-fade-duration': 0
                   }}
                 />
@@ -6883,6 +7248,11 @@ export default function SatelliteIntelligence() {
             weeklyMeans={satelliteWeeklyMeans}
             pivotBars={satellitePivotBars}
             indexLabel={ENVIRONMENTAL_INDICES[selectedIndex].label}
+            staticMultiLineLabels={staticAoiMultiLineData.labels}
+            staticMultiLineDatasets={staticAoiMultiLineData.datasets}
+            staticMultiLineHasLst={staticAoiMultiLineData.hasLst}
+            staticComparisonLayers={staticChartComparisonLayers}
+            onStaticComparisonLayerToggle={handleStaticComparisonLayerToggle}
           />
 
           {false && aoiHeatPointGeoJson?.features?.length ? (

@@ -33,21 +33,21 @@ describe('FieldVisibilityControl', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Field visibility' }))
     expect(await screen.findByRole('dialog', { name: 'Field visibility' })).toBeInTheDocument()
 
-    const toggleA = screen.getByRole('button', { name: 'Hide field A' })
-    expect(toggleA).toHaveAttribute('aria-pressed', 'true')
+    const toggleA = screen.getByRole('checkbox', { name: 'Hide field A' })
+    expect(toggleA).toBeChecked()
 
     fireEvent.click(toggleA)
     expect(screen.getByTestId('visible')).toHaveTextContent('B')
 
-    const toggleA2 = screen.getByRole('button', { name: 'Show field A' })
-    expect(toggleA2).toHaveAttribute('aria-pressed', 'false')
+    const toggleA2 = screen.getByRole('checkbox', { name: 'Show field A' })
+    expect(toggleA2).not.toBeChecked()
   })
 
   it('persists hidden fields to localStorage', async () => {
     render(<Harness layerId="layer-2" fields={['Field1', 'Field2']} />)
 
     fireEvent.click(screen.getByRole('button', { name: 'Field visibility' }))
-    fireEvent.click(screen.getByRole('button', { name: 'Hide field Field1' }))
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Hide field Field1' }))
 
     const key = __test__.storageKeyForLayer('layer-2')
     const stored = window.localStorage.getItem(key)
@@ -65,8 +65,8 @@ describe('FieldVisibilityControl', () => {
     expect(await screen.findByRole('dialog', { name: 'Field visibility' })).toBeInTheDocument()
 
     expect(screen.getByTestId('visible')).toHaveTextContent('B')
-    expect(screen.getByRole('button', { name: 'Show field A' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Hide field B' })).toBeInTheDocument()
+    expect(screen.getByRole('checkbox', { name: 'Show field A' })).toBeInTheDocument()
+    expect(screen.getByRole('checkbox', { name: 'Hide field B' })).toBeInTheDocument()
   })
 
   it('closes popover on Escape and click outside', async () => {

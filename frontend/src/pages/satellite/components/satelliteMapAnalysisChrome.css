@@ -317,8 +317,8 @@
   z-index: 94;
   top: 100px;
   right: 22px;
-  width: min(380px, calc(100vw - 40px));
-  max-height: min(62vh, 520px);
+  width: min(440px, calc(100vw - 40px));
+  max-height: min(72vh, 640px);
   overflow: auto;
   border-radius: 16px;
   border: 1px solid rgba(148, 163, 184, 0.2);
@@ -342,11 +342,18 @@
 
 .si-map-analysis-charts-head {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
   gap: 10px;
   padding: 12px 14px;
   border-bottom: 1px solid rgba(148, 163, 184, 0.14);
+}
+
+.si-map-analysis-charts-head-text {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
 }
 
 .si-map-analysis-charts-title {
@@ -354,6 +361,83 @@
   font-weight: 800;
   color: #f1f5f9;
   letter-spacing: 0.02em;
+}
+
+.si-map-analysis-charts-subtitle {
+  font-size: 10px;
+  font-weight: 600;
+  color: rgba(148, 163, 184, 0.92);
+  line-height: 1.35;
+}
+
+.si-map-analysis-charts-multiline {
+  padding: 10px 14px 8px;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.12);
+}
+
+.si-map-analysis-layer-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 10px;
+}
+
+.si-map-analysis-layer-chip {
+  font-size: 10px;
+  font-weight: 700;
+  padding: 6px 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(148, 163, 184, 0.25);
+  background: rgba(15, 23, 42, 0.55);
+  color: #cbd5e1;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+}
+
+.si-map-analysis-layer-chip--on {
+  border-color: rgba(74, 222, 128, 0.5);
+  background: rgba(34, 197, 94, 0.18);
+  color: #ecfdf5;
+}
+
+.si-map-analysis-layer-chip:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.si-aoi-static-line-wrap {
+  height: 260px;
+  min-height: 220px;
+  background: rgba(248, 250, 252, 0.98);
+  border-radius: 12px;
+  padding: 8px 8px 4px;
+  border: 1px solid rgba(148, 163, 184, 0.35);
+}
+
+.si-aoi-static-line-empty {
+  padding: 20px 14px;
+  text-align: center;
+  background: rgba(30, 41, 59, 0.4);
+  border-radius: 12px;
+  border: 1px dashed rgba(148, 163, 184, 0.35);
+}
+
+.si-aoi-static-line-empty-title {
+  margin: 0 0 6px;
+  font-size: 12px;
+  font-weight: 800;
+  color: #e2e8f0;
+}
+
+.si-aoi-static-line-empty-hint {
+  margin: 0;
+  font-size: 10px;
+  line-height: 1.45;
+  color: rgba(148, 163, 184, 0.95);
+}
+
+.si-map-analysis-charts-grid--below {
+  padding-top: 8px;
 }
 
 .si-map-analysis-charts-close {

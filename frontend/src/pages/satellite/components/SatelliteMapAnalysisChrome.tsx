@@ -1,4 +1,9 @@
 import './satelliteMapAnalysisChrome.css';
+import { AoiStaticMultiLayerLineChart, type AoiStaticMultiLayerLineChartDataset } from './AoiStaticMultiLayerLineChart';
+import {
+  STATIC_AOI_CHART_LAYER_OPTIONS,
+  type StaticAoiChartLayerId,
+} from '../utils/staticAoiMultiChartData';
 
 export type TimelineChip = {
   id: string;
@@ -143,6 +148,12 @@ export type SatelliteMapAnalysisChromeProps = {
   weeklyMeans: number[];
   pivotBars: Array<{ name: string; value: number }>;
   indexLabel: string;
+  /** Multi-layer temporal line chart (WMS-style indices). */
+  staticMultiLineLabels: string[];
+  staticMultiLineDatasets: AoiStaticMultiLayerLineChartDataset[];
+  staticMultiLineHasLst: boolean;
+  staticComparisonLayers: StaticAoiChartLayerId[];
+  onStaticComparisonLayerToggle: (id: StaticAoiChartLayerId) => void;
 };
 
 function sparkPath(values: number[], w: number, h: number): string {
@@ -180,6 +191,11 @@ export function SatelliteMapAnalysisChrome(props: SatelliteMapAnalysisChromeProp
     weeklyMeans,
     pivotBars,
     indexLabel,
+    staticMultiLineLabels,
+    staticMultiLineDatasets,
+    staticMultiLineHasLst,
+    staticComparisonLayers,
+    onStaticComparisonLayerToggle,
   } = props;
 
   const activeFull =
@@ -259,14 +275,46 @@ export function SatelliteMapAnalysisChrome(props: SatelliteMapAnalysisChromeProp
       {staticChartsOpen ? (
         <div className="si-map-analysis-charts" role="region" aria-label="Analysis charts">
           <div className="si-map-analysis-charts-head">
-            <span className="si-map-analysis-charts-title">{indexLabel} · AOI preview</span>
+            <div className="si-map-analysis-charts-head-text">
+              <span className="si-map-analysis-charts-title">AOI static charts</span>
+              <span className="si-map-analysis-charts-subtitle">
+                {indexLabel} · multi-layer timeline (sample). Legend click toggles lines; wheel zooms X.
+              </span>
+            </div>
             <button type="button" className="si-map-analysis-charts-close" aria-label="Close charts" onClick={onToggleStaticCharts}>
               <i className="fa-solid fa-xmark" aria-hidden />
             </button>
           </div>
-          <div className="si-map-analysis-charts-grid">
+          <div className="si-map-analysis-charts-multiline">
+            <div className="si-map-analysis-layer-toolbar" role="group" aria-label="WMS comparison layers">
+              {STATIC_AOI_CHART_LAYER_OPTIONS.map(opt => {
+                const on = staticComparisonLayers.includes(opt.id);
+                const onlyOne = staticComparisonLayers.length <= 1;
+                return (
+                  <button
+                    key={opt.id}
+                    type="button"
+                    className={`si-map-analysis-layer-chip ${on ? 'si-map-analysis-layer-chip--on' : ''}`}
+                    title={opt.subtitle}
+                    aria-pressed={on}
+                    disabled={on && onlyOne}
+                    onClick={() => onStaticComparisonLayerToggle(opt.id)}
+                  >
+                    {opt.label}
+                  </button>
+                );
+              })}
+            </div>
+            <AoiStaticMultiLayerLineChart
+              title="Raster mean in AOI by week"
+              labels={staticMultiLineLabels}
+              datasets={staticMultiLineDatasets}
+              hasLst={staticMultiLineHasLst}
+            />
+          </div>
+          <div className="si-map-analysis-charts-grid si-map-analysis-charts-grid--below">
             <div className="si-map-analysis-chart-card">
-              <div className="si-map-analysis-chart-kicker">Time series</div>
+              <div className="si-map-analysis-chart-kicker">Time series (spark)</div>
               <svg className="si-map-analysis-spark" viewBox="0 0 120 40" preserveAspectRatio="none">
                 <path
                   className="si-map-analysis-spark-path"

@@ -25,10 +25,52 @@ type Comparison = {
   value: number
 }
 
+export type GeoAiMapFirstSelection = { layerId: string; featureKey: string }
+
 export type GeoAiStatsResult = {
   handled: boolean
   reply: string
   table?: GeoExplorerDataTablePayload
+  /** Map-first: zoom, highlight, popup — attribute table only when user asks for it. */
+  mapFirstSync?: { selections: GeoAiMapFirstSelection[] }
+}
+
+function userWantsAttributeTableExplicitly(query: string): boolean {
+  return /\b(attribute\s*table|open\s+table|show\s+table|table\s+view|full\s+table|data\s+table|layer\s+data|all\s+rows|rows\s+and\s+columns|spreadsheet|data\s+grid|browse\s+rows)\b/i.test(
+    query,
+  )
+}
+
+/** Prefer map + popup over an immediate Geo AI data table (unless user asks for a table). */
+function userWantsMapFirstLayerBrowse(query: string, lookupTokens: string[], hasNumericComparison: boolean): boolean {
+  if (userWantsAttributeTableExplicitly(query)) return false
+  if (/\b(sum|average|mean|total|min|max|group\s*by|median|stdev|stddev|statistics|statistic|calculate\s+field|count\s+of\b)/i.test(query))
+    return false
+  const narrowed = lookupTokens.length > 0 || hasNumericComparison
+  if (!narrowed) return false
+  if (
+    /\b(on\s+the\s+map|on\s+map|show\s+.+\bmap\b|map\s+for|fly\s+to|zoom\s+to|center\s+on|pin\b|highlight\s+on\s+the\s+map)\b/i.test(query)
+  )
+    return true
+  if (lookupTokens.length && /\b(find|search|show|display|where\s+is|locate|highlight|pin|zoom)\b/i.test(query)) return true
+  if (
+    lookupTokens.length &&
+    query.trim().split(/\s+/).length <= 4 &&
+    !/\b(sum|average|mean|total|min|max|group|calculate|statistics|tabular)\b/i.test(query)
+  )
+    return true
+  return false
+}
+
+function mapFirstSelectionsFromRows(rows: ScopedFeatureRow[]): GeoAiMapFirstSelection[] {
+  const out: GeoAiMapFirstSelection[] = []
+  for (const r of rows) {
+    const id = r.clientLayerId
+    if (!id) continue
+    const key = computeStableGisFeatureKey(r.rawFeature, r.featureIndex)
+    if (key) out.push({ layerId: id, featureKey: key })
+  }
+  return out
 }
 
 const TABLE_ROW_CAP = 250
@@ -271,10 +313,17 @@ function queryFeaturesTable(
 export function runGeoAiStatsCommand(query: string, layers: GeoAiMapLayer[]): GeoAiStatsResult | null {
   const q = query.trim()
   if (!q) return null
+  const lookupTokensEarly = extractLookupTokens(q)
+  const shortCodeLookup =
+    lookupTokensEarly.length > 0 &&
+    q.length <= 72 &&
+    q.split(/\s+/).filter(Boolean).length <= 8 &&
+    !/\b(sum|average|mean|total|min|max|group\s*by)\b/i.test(q)
   const hasStatIntent =
     /\b(sum|total|average|mean|min|max|count|group\s*by|statistics|stat\b|summary|tabular|table|spreadsheet|calculate field|select|selection|query)\b/i.test(q) ||
     /\b(show\s+me|find|display|list|records|features|locate|highlight)\b/i.test(q) ||
-    /(?:مجموع|اجمالي|متوسط|أكبر|اكبر|أصغر|اصغر|عدد|إحصاء|احصاء|تحليل|تحديد|استعلام|جدول|ملخص|اعرض|أظهر|اظهر|ابحث|عرض|group by|calculate field)/i.test(q)
+    /(?:مجموع|اجمالي|متوسط|أكبر|اكبر|أصغر|اصغر|عدد|إحصاء|احصاء|تحليل|تحديد|استعلام|جدول|ملخص|اعرض|أظهر|اظهر|ابحث|عرض|group by|calculate field)/i.test(q) ||
+    shortCodeLookup
   if (!hasStatIntent) return null
 
   const scope = collectScope(q, layers)
@@ -289,6 +338,8 @@ export function runGeoAiStatsCommand(query: string, layers: GeoAiMapLayer[]): Ge
     selected = selected.filter(r => rowMatchesLookupTokens(r, lookupTokens))
   }
   const selectedCount = selected.length
+  const mapFirst = userWantsMapFirstLayerBrowse(q, lookupTokens, comparison != null)
+  const mapSync = mapFirst && selectedCount > 0 ? { selections: mapFirstSelectionsFromRows(selected) } : undefined
 
   const calc = q.match(/calculate\s+field\s+([A-Za-z_][A-Za-z0-9_]*)\s*=\s*([A-Za-z0-9_+\-*/().\s]+)/i)
   if (calc) {
@@ -382,24 +433,38 @@ export function runGeoAiStatsCommand(query: string, layers: GeoAiMapLayer[]): Ge
       return {
         handled: true,
         reply: `No matching records (${lookupTokens.length ? `tokens ${lookupTokens.join(', ')}` : 'current filters'}).`,
-        table: queryFeaturesTable([], scope.fields, 'Query results'),
+        table: mapFirst ? undefined : queryFeaturesTable([], scope.fields, 'Query results'),
+      }
+    }
+    if (mapFirst && mapSync?.selections.length) {
+      return {
+        handled: true,
+        reply: `**${selectedCount}** record(s)${tokTxt}${whereTxt}.\n\n**Map:** zoomed to the match area, selected, and highlighted. The popup shows essential fields with **subtype** and **coded domains** where the layer defines them. Ask for an **attribute table** or **show table** here when you want the full spreadsheet.`,
+        mapFirstSync: mapSync,
       }
     }
     const table = queryFeaturesTable(selected, scope.fields, lookupTokens.length ? `Matches: ${lookupTokens.join(', ')}` : 'Layer records')
     const shown = Math.min(TABLE_ROW_CAP, selected.length)
     return {
       handled: true,
-      reply: `**${selectedCount}** record(s)${tokTxt}${whereTxt}.\n\n• Table: sort, search, paginate, export.\n• Row click / Map column: **select in attribute table**, zoom, and highlight (GIS Map).`,
+      reply: `**${selectedCount}** record(s)${tokTxt}${whereTxt}.\n\n• Table: sort, search, paginate, export.\n• Row click / Map column: **highlight** on the map; use **Table** in the map column to open the attribute dock.`,
       table,
     }
   }
 
   if (!field) {
     if (lookupTokens.length && selectedCount > 0) {
+      if (mapFirst && mapSync?.selections.length) {
+        return {
+          handled: true,
+          reply: `Found **${selectedCount}** feature(s) for **${lookupTokens.join(', ')}**. **Map** is updated (zoom + highlight). Use the feature popup for a concise readout; say **show table** or **attribute table** to open the full results grid here.`,
+          mapFirstSync: mapSync,
+        }
+      }
       const table = queryFeaturesTable(selected, scope.fields, `Matches: ${lookupTokens.join(', ')}`)
       return {
         handled: true,
-        reply: `Found **${selectedCount}** feature(s) for **${lookupTokens.join(', ')}**. Use the table below — row click syncs the map and attribute table.`,
+        reply: `Found **${selectedCount}** feature(s) for **${lookupTokens.join(', ')}**. Use the table below — row click highlights on the map; use **Table** in the map column to open the attribute dock.`,
         table,
       }
     }

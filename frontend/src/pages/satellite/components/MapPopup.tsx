@@ -122,6 +122,8 @@ export type MapPopupProps = {
   popup: PopupState
   pos: PopupPos
   layer: LayerData | null
+  /** Map-first search: fewer rows, prioritize subtype + coded-value domains. */
+  compactSummary?: boolean
   rootRef?: { current: HTMLDivElement | null }
   onClose: () => void
   onZoomTo: () => void
@@ -140,6 +142,7 @@ export function MapPopup({
   popup,
   pos,
   layer,
+  compactSummary = false,
   rootRef: externalRootRef,
   onClose,
   onZoomTo,
@@ -254,6 +257,38 @@ export function MapPopup({
 
     return defs
   }, [layer, popup.feature])
+
+  const viewFieldDefs = useMemo(() => {
+    if (!compactSummary) return fieldDefs
+    const arcDef = layer?.source === 'arcgis' ? layer.arcgisLayerDefinition : null
+    const typeIdField = typeof arcDef?.typeIdField === 'string' && arcDef.typeIdField ? String(arcDef.typeIdField) : null
+    const picked: FieldDef[] = []
+    const seen = new Set<string>()
+    const push = (d: FieldDef) => {
+      if (seen.has(d.name)) return
+      picked.push(d)
+      seen.add(d.name)
+    }
+    for (const d of fieldDefs) {
+      if (typeIdField && d.name === typeIdField) push(d)
+    }
+    for (const d of fieldDefs) {
+      if (d.codedValues?.length) push(d)
+    }
+    const prioKey = (d: FieldDef) => {
+      const n = `${d.name} ${d.label}`.toLowerCase()
+      return /farm|site|plot|parcel|project|object|unit|^id$|code|name/.test(n)
+    }
+    for (const d of fieldDefs) {
+      if (picked.length >= 10) break
+      if (prioKey(d)) push(d)
+    }
+    for (const d of fieldDefs) {
+      if (picked.length >= 10) break
+      push(d)
+    }
+    return picked.slice(0, 10)
+  }, [compactSummary, fieldDefs, layer])
 
   useEffect(() => {
     if (popup.phase === 'closing') return
@@ -432,6 +467,11 @@ export function MapPopup({
         </div>
 
         <div className="gis-map-popup-toolbar" role="toolbar" aria-label="Popup actions">
+          {compactSummary ? (
+            <span className="gis-map-popup-mapfirst-hint" title="Subtype and coded domains come from the layer schema when available">
+              Layer fields
+            </span>
+          ) : null}
           <button className="gis-map-popup-toolbtn" type="button" onClick={() => setMode(v => (v === 'edit' ? 'view' : 'edit'))}>
             <i className="fa-solid fa-pen" aria-hidden="true" />
             <span>{s.edit}</span>
@@ -553,8 +593,8 @@ export function MapPopup({
             </div>
           ) : (
             <dl className="gis-map-popup-dl">
-              {fieldDefs.length ? (
-                fieldDefs.map((def) => (
+              {viewFieldDefs.length ? (
+                viewFieldDefs.map((def) => (
                   <div key={def.name} className="gis-map-popup-row">
                     <dt className="gis-map-popup-k">{def.label || def.name}</dt>
                     <dd className="gis-map-popup-v" title={renderValueForView(def)}>

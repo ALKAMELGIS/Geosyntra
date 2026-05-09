@@ -10681,6 +10681,15 @@ html[data-theme='dark'] .gis-domain-cell--dropdown.missing-description .gis-doma
   border-bottom: 1px solid rgba(226, 232, 240, 1);
 }
 
+.gis-map-popup-mapfirst-hint {
+  flex: 1;
+  min-width: 0;
+  font-size: 11px;
+  font-weight: 700;
+  color: rgba(71, 85, 105, 0.95);
+  letter-spacing: 0.02em;
+}
+
 .gis-drawing-toolbar {
   position: absolute;
   top: 12px;

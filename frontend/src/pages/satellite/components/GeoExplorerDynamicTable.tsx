@@ -20,7 +20,7 @@ import type {
 
 ChartJS.register(CategoryScale, LinearScale, BarElement, Tooltip, Legend)
 
-export type GeoExplorerMapAction = 'zoom' | 'highlight' | 'focus'
+export type GeoExplorerMapAction = 'zoom' | 'highlight' | 'focus' | 'openTable'
 
 export type GeoExplorerDynamicTableProps = {
   cssPrefix: string
@@ -173,9 +173,9 @@ export function GeoExplorerDynamicTable(props: GeoExplorerDynamicTableProps) {
       <div className={p('dyn-table-toolbar')}>
         <span className={p('dyn-table-badge')}>{table.kind}</span>
         {table.title ? <span className={p('dyn-table-title')}>{table.title}</span> : null}
-        <span className={p('dyn-table-meta')}>
+          <span className={p('dyn-table-meta')}>
           {sorted.length}/{table.rows.length} rows
-          {hasMapCol ? <span className={p('dyn-table-meta-hint')}> · Row = select+zoom</span> : null}
+          {hasMapCol ? <span className={p('dyn-table-meta-hint')}> · Row = map highlight</span> : null}
         </span>
       </div>
       <div className={p('dyn-table-controls')}>
@@ -249,7 +249,10 @@ export function GeoExplorerDynamicTable(props: GeoExplorerDynamicTableProps) {
       ) : null}
 
       <div className={p('dyn-table-scroll')}>
-        <table className={p('dyn-table-grid')} title={hasMapCol ? 'Click a row to select the feature and fly the map (GIS Map).' : undefined}>
+        <table
+          className={p('dyn-table-grid')}
+          title={hasMapCol ? 'Click a row to highlight on the map; use Table to open the attribute dock (GIS Map).' : undefined}
+        >
           <thead>
             <tr>
               {table.columns.map(c => (
@@ -271,7 +274,7 @@ export function GeoExplorerDynamicTable(props: GeoExplorerDynamicTableProps) {
                 onClick={ev => {
                   if (!row.mapLink || !onMapAction) return
                   if ((ev.target as HTMLElement).closest('button')) return
-                  onMapAction('focus', row.mapLink)
+                  onMapAction('highlight', row.mapLink)
                 }}
               >
                 {table.columns.map(c => (
@@ -304,6 +307,17 @@ export function GeoExplorerDynamicTable(props: GeoExplorerDynamicTableProps) {
                           }}
                         >
                           <i className="fa-solid fa-highlighter" aria-hidden />
+                        </button>
+                        <button
+                          type="button"
+                          className={p('dyn-table-icon-btn')}
+                          title="Open linked attribute table"
+                          onClick={ev => {
+                            ev.stopPropagation()
+                            onMapAction?.('openTable', row.mapLink!)
+                          }}
+                        >
+                          <i className="fa-solid fa-table" aria-hidden />
                         </button>
                       </span>
                     ) : (
