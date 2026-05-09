@@ -5,6 +5,7 @@
  */
 
 export type WmsAoiEvalProfile =
+  | 'native'
   | 'true_color'
   | 'false_color'
   | 'ndvi'
@@ -119,14 +120,14 @@ function multiPolygon3857Wkt(rings: [number, number][][]): string {
 export function inferWmsEvalProfile(layerName: string): WmsAoiEvalProfile {
   const u = String(layerName || '').toUpperCase();
   if (u.includes('GNDVI')) return 'gndvi';
-  if (u.includes('NDRE') || u.includes('BSI')) return 'generic_rgb';
+  if (u.includes('NDRE') || u.includes('BSI')) return 'native';
   if (u.includes('NDVI')) return 'ndvi';
   if (u.includes('EVI') && !u.includes('NEVI')) return 'evi';
   if (u.includes('NDMI') || u.includes('MOISTURE')) return 'ndmi';
   if (u.includes('NDWI') || u.includes('MNDWI') || u.includes('WATER')) return 'ndwi';
   if (u.includes('FALSE') || u.includes('SWIR') || u.includes('COLOR_INFRARED')) return 'false_color';
   if (u.includes('TRUE') || u.includes('NATURAL') || u.includes('RGB')) return 'true_color';
-  return 'generic_rgb';
+  return 'native';
 }
 
 function buildEvalscriptV3(profile: WmsAoiEvalProfile, indexVisibilityMin: number | null): string {
@@ -141,6 +142,8 @@ function buildEvalscriptV3(profile: WmsAoiEvalProfile, indexVisibilityMin: numbe
       : `var __a = s.dataMask * ((${indexVar}) >= ${thr} ? 1 : 0);`;
 
   switch (profile) {
+    case 'native':
+      return '';
     case 'true_color':
     case 'generic_rgb':
       return `//VERSION=3
@@ -186,10 +189,11 @@ function evaluatePixel(s) {
   var d = s.B08 + s.B04;
   var ndvi = d > 1e-6 ? (s.B08 - s.B04) / d : 0;
   ${alphaFromIndex('ndvi')}
+  var v = Math.max(0, Math.min(1, (ndvi + 0.2) / 1.2));
   return [
-    Math.max(0, Math.min(1, s.B04 * 2.5)),
-    Math.max(0, Math.min(1, s.B03 * 2.5)),
-    Math.max(0, Math.min(1, s.B02 * 2.5)),
+    Math.max(0, Math.min(1, 0.92 - v * 0.7)),
+    Math.max(0, Math.min(1, 0.2 + v * 0.8)),
+    Math.max(0, Math.min(1, 0.08 + (1 - v) * 0.25)),
     __a
   ];
 }`;
@@ -298,7 +302,7 @@ export function buildSentinelHubWmsAoiClip(
   const profile = inferWmsEvalProfile(layerName);
   const indexMin = options?.indexVisibilityMin ?? null;
   const evalPlain = buildEvalscriptV3(profile, indexMin);
-  let evalscriptB64: string | null = evalscriptToBase64Param(evalPlain);
+  let evalscriptB64: string | null = evalPlain ? evalscriptToBase64Param(evalPlain) : null;
 
   const outerRings: [number, number][][] = [];
   if (geom.type === 'Polygon') {

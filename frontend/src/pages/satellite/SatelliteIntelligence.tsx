@@ -6380,9 +6380,18 @@ export default function SatelliteIntelligence() {
 
   /** When the chosen WMS layer matches a built-in environmental index id, keep charts/AOI logic in sync. */
   useEffect(() => {
-    const w = wmsLayer.trim();
-    const ids = Object.keys(ENVIRONMENTAL_INDICES) as EnvironmentalIndexId[];
-    if (ids.includes(w as EnvironmentalIndexId)) setSelectedIndex(w as EnvironmentalIndexId);
+    const raw = wmsLayer.trim();
+    if (!raw) return;
+    const upper = raw.toUpperCase();
+    const alias =
+      upper.includes('GNDVI') ? 'GNDVI' :
+      upper.includes('NDVI') ? 'NDVI' :
+      upper.includes('EVI') && !upper.includes('NEVI') ? 'EVI' :
+      upper.includes('NDMI') || upper.includes('MOISTURE') ? 'NDMI' :
+      upper.includes('NDWI') || upper.includes('MNDWI') || upper.includes('WATER') ? 'NDWI' :
+      upper.includes('LST') || upper.includes('TEMP') ? 'LST' :
+      null;
+    if (alias) setSelectedIndex(alias as EnvironmentalIndexId);
   }, [wmsLayer]);
 
   const activeWmsLayer = useMemo(() => {
@@ -6413,6 +6422,7 @@ export default function SatelliteIntelligence() {
 
   const wmsDate = selectedDate.toISOString().split('T')[0];
   const sentinelVisible = isWmsOverlayVisible && !!activeWmsLayer;
+  const sentinelAoiVisible = sentinelVisible && !!drawnGeometry;
   const activeBasemapId = useMemo(() => resolveBasemapId(basemapId), [basemapId]);
   const currentBasemapEntry = useMemo(() => {
     return (
@@ -6477,7 +6487,15 @@ export default function SatelliteIntelligence() {
         actionable: false,
         onToggle: () => {},
       },
-      // WMS overlay entry intentionally hidden from Added layers list.
+      {
+        id: 'sentinel-wms',
+        label: activeWmsLayer || 'Remote sensing layer',
+        meta: drawnGeometry ? 'Index raster (AOI clip)' : 'Index raster (draw AOI first)',
+        visible: sentinelAoiVisible,
+        toggleable: true,
+        actionable: false,
+        onToggle: toggleWmsOverlayVisibility,
+      },
       ...(stacMapThumb
         ? [
             {
@@ -6516,6 +6534,8 @@ export default function SatelliteIntelligence() {
       currentBasemapLabel,
       customLayers,
       isStacThumbVisible,
+      drawnGeometry,
+      sentinelAoiVisible,
       sentinelVisible,
       stacMapThumb,
       stacMapThumbLabel,
@@ -6742,14 +6762,14 @@ export default function SatelliteIntelligence() {
     return [w - padX, s - padY, e + padX, n + padY];
   }, [drawnGeometry]);
 
-  const drawnAoiWmsClipReady = !drawnGeometry || !!wmsRasterAoiBoundsLngLat;
+  const drawnAoiWmsClipReady = !!drawnGeometry && !!wmsRasterAoiBoundsLngLat;
 
   /**
    * react-map-gl <Source> does not apply standalone `bounds` updates (see updateSource in library).
    * Sync Mapbox RasterTileSource.setBounds after mount so AOI clipping always matches the sketch.
    */
   useLayoutEffect(() => {
-    if (!isMapLoaded || !sentinelVisible) return;
+    if (!isMapLoaded || !sentinelAoiVisible) return;
     const map = mapRef.current?.getMap?.() ?? mapRef.current;
     if (!map?.isStyleLoaded?.()) return;
     const sync = () => {
@@ -6767,7 +6787,7 @@ export default function SatelliteIntelligence() {
       window.clearTimeout(t);
       map.off('idle', sync);
     };
-  }, [isMapLoaded, sentinelVisible, wmsRasterAoiBoundsLngLat, wmsTileUrl, activeWmsLayer, wmsDate, drawnGeometry]);
+  }, [isMapLoaded, sentinelAoiVisible, wmsRasterAoiBoundsLngLat, wmsTileUrl, activeWmsLayer, wmsDate, drawnGeometry]);
 
   const circleRefineHud = useMemo(() => {
     if (!circleRefineDraft || mapDrawTool !== 'circle') return null;
@@ -7168,7 +7188,7 @@ export default function SatelliteIntelligence() {
               </Source>
             )}
 
-            {isMapLoaded && sentinelVisible && drawnAoiWmsClipReady && (
+            {isMapLoaded && sentinelAoiVisible && drawnAoiWmsClipReady && (
               <Source
                 key={`sentinel-${activeWmsLayer}-${wmsDate}-${wmsRasterAoiBoundsLngLat?.join(',') ?? 'world'}-${sentinelHubWmsAoiClip.geometryWkt3857 ? 'g1' : 'g0'}-${sentinelHubWmsAoiClip.evalscriptB64 ? 'e1' : 'e0'}`}
                 id="sentinel-source"
