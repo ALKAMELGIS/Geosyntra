@@ -7649,37 +7649,20 @@ export default function SatelliteIntelligence() {
               <div className="si-map-floating-controls__right">
             <div className="si-env-rail">
             <div
-              role="toolbar"
-              aria-orientation="vertical"
-              aria-label="Environmental map tools"
-              className="si-env-toolbar container"
+              role="navigation"
+              aria-label="Processing and imagery"
+              className="si-env-side-strip"
             >
-              <calcite-action-group
-                className="action-group--end"
-                layout="vertical"
-                overlay-positioning="absolute"
-                scale="m"
-                selection-mode="none"
-                calcite-hydrated=""
-              >
               <button
                 type="button"
-                  className={`si-env-calcite-action${isLayerDropdownOpen ? ' si-env-calcite-action--selected' : ''}`}
-                  aria-pressed={isLayerDropdownOpen}
-                  aria-label="Environmental layers and indices"
-                  title="Environmental layers"
+                className={`si-env-side-row${isLayerDropdownOpen ? ' si-env-side-row--selected' : ''}`}
+                aria-pressed={isLayerDropdownOpen}
+                aria-label="Processing options and environmental layers"
                 onClick={() => setIsLayerDropdownOpen(open => !open)}
               >
-                  <i className="fa-solid fa-layer-group" aria-hidden />
+                <i className="fa-solid fa-layer-group si-env-side-row__icon" aria-hidden />
+                <span className="si-env-side-row__label">Processing &amp; layers</span>
               </button>
-                <span
-                  className="si-env-toolbar-lit-hydration"
-                  aria-hidden
-                  dangerouslySetInnerHTML={{ __html: '<!--?lit$830856406$-->' }}
-                />
-                <slot name="actions-end" />
-                <slot name="expand-tooltip" />
-              </calcite-action-group>
             </div>
               <input
                 ref={fileInputRef}

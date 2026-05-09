@@ -205,6 +205,10 @@ export default function Login() {
   }
 
   const consolidateUsersByEmail = (list: any[]): any[] => {
+    const mergeProfileExtra = (a?: Record<string, unknown>, b?: Record<string, unknown>) => {
+      const m = { ...(b || {}), ...(a || {}) }
+      return Object.keys(m).length ? m : undefined
+    }
     const score = (u: any): number => {
       const hasHash = typeof u?.passwordHash === 'string' && String(u.passwordHash).length > 0 ? 8 : 0
       const verified = u?.emailVerified === true ? 4 : 0
@@ -218,7 +222,13 @@ export default function Login() {
       const key = normalizeEmail(u.email)
       if (!key) continue
       const current = byEmail.get(key)
-      if (!current || score(u) >= score(current)) byEmail.set(key, u)
+      if (!current || score(u) >= score(current)) {
+        const merged = mergeProfileExtra(u.profileExtra, current?.profileExtra)
+        byEmail.set(key, merged ? { ...u, profileExtra: merged } : { ...u })
+      } else {
+        const merged = mergeProfileExtra(current.profileExtra, u.profileExtra)
+        byEmail.set(key, merged ? { ...current, profileExtra: merged } : { ...current })
+      }
     }
     return Array.from(byEmail.values())
   }

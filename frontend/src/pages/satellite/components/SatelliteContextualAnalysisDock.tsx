@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { Fragment, useCallback, useEffect, useRef, useState } from 'react';
 import type { AoiStaticMultiLayerLineChartDataset } from './AoiStaticMultiLayerLineChart';
 import { AoiStaticMultiLayerLineChart } from './AoiStaticMultiLayerLineChart';
 import {
@@ -44,13 +44,27 @@ export type SatelliteContextualAnalysisDockProps = {
 const RAIL: Array<{ id: SatelliteContextPanelId; icon: string; label: string; title: string }> = [
   { id: 'layers', icon: 'fa-solid fa-layer-group', label: 'Layers', title: 'Layer settings' },
   { id: 'spatial', icon: 'fa-solid fa-vector-square', label: 'Analysis', title: 'Spatial analysis' },
-  { id: 'aoi', icon: 'fa-solid fa-draw-polygon', label: 'AOI', title: 'AOI drawing tools' },
+  { id: 'aoi', icon: 'fa-solid fa-draw-polygon', label: 'AOI sketch', title: 'AOI drawing tools' },
   { id: 'charts', icon: 'fa-solid fa-chart-column', label: 'Charts', title: 'Charts' },
-  { id: 'stats', icon: 'fa-solid fa-chart-pie', label: 'Stats', title: 'Statistics' },
+  { id: 'stats', icon: 'fa-solid fa-chart-pie', label: 'Statistics', title: 'Statistics' },
   { id: 'weather', icon: 'fa-solid fa-cloud-sun', label: 'Weather', title: 'Weather data' },
-  { id: 'raster', icon: 'fa-solid fa-image', label: 'Raster', title: 'Raster controls' },
-  { id: 'feature', icon: 'fa-solid fa-circle-info', label: 'Feature', title: 'Feature information' },
+  { id: 'raster', icon: 'fa-solid fa-image', label: 'Imagery', title: 'Raster controls' },
+  { id: 'feature', icon: 'fa-solid fa-circle-info', label: 'Feature info', title: 'Feature information' },
 ];
+
+const RAIL_GROUPS: SatelliteContextPanelId[][] = [
+  ['layers', 'spatial', 'aoi'],
+  ['charts', 'stats', 'weather'],
+  ['raster', 'feature'],
+];
+
+const RAIL_BY_ID = RAIL.reduce(
+  (acc, r) => {
+    acc[r.id] = r
+    return acc
+  },
+  {} as Record<SatelliteContextPanelId, (typeof RAIL)[number]>,
+)
 
 function defaultSparkPath(values: number[], w: number, h: number): string {
   if (!values.length) return '';
@@ -115,6 +129,13 @@ export function SatelliteContextualAnalysisDock(props: SatelliteContextualAnalys
     return variant === 'embedded' ? Math.min(340, typeof window !== 'undefined' ? window.innerWidth - 48 : 340) : 340;
   });
   const [innerTab, setInnerTab] = useState<string>('main');
+  const [railLabeled, setRailLabeled] = useState(() => {
+    try {
+      return localStorage.getItem('si-sat-ctx-rail-labeled') !== '0';
+    } catch {
+      return true;
+    }
+  });
   const resizeRef = useRef<{ startX: number; startW: number } | null>(null);
   const lastActiveRef = useRef<SatelliteContextPanelId>('aoi');
 
@@ -141,6 +162,14 @@ export function SatelliteContextualAnalysisDock(props: SatelliteContextualAnalys
       /* ignore */
     }
   }, [panelWidth]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('si-sat-ctx-rail-labeled', railLabeled ? '1' : '0');
+    } catch {
+      /* ignore */
+    }
+  }, [railLabeled]);
 
   const openPanel = useCallback(
     (id: SatelliteContextPanelId) => {
@@ -199,6 +228,7 @@ export function SatelliteContextualAnalysisDock(props: SatelliteContextualAnalys
     panelOpen ? 'si-sat-ctx-dock--open' : 'si-sat-ctx-dock--closed',
     dockMode === 'float' ? 'si-sat-ctx-dock--float-mode' : '',
     surface === 'light' ? 'si-sat-ctx-dock--light' : 'si-sat-ctx-dock--dark',
+    railLabeled ? 'si-sat-ctx-dock--rail-labeled' : 'si-sat-ctx-dock--rail-narrow',
     className.trim(),
   ]
     .filter(Boolean)
@@ -206,32 +236,52 @@ export function SatelliteContextualAnalysisDock(props: SatelliteContextualAnalys
 
   return (
     <div className={rootClass} role="presentation">
-      <nav className="si-sat-ctx-rail" aria-label="Analysis contextual tools">
-        {RAIL.map(item => (
-          <button
-            key={item.id}
-            type="button"
-            className={
-              'si-sat-ctx-rail-btn' +
-              (panelOpen && activeId === item.id ? ' si-sat-ctx-rail-btn--active' : '')
-            }
-            title={item.title}
-            aria-pressed={panelOpen && activeId === item.id}
-            onClick={() => toggleRail(item.id)}
-          >
-            <i className={item.icon} aria-hidden />
-          </button>
+      <nav
+        className={'si-sat-ctx-rail' + (railLabeled ? ' si-sat-ctx-rail--labeled' : '')}
+        aria-label="Analysis contextual tools"
+      >
+        {RAIL_GROUPS.map((group, gi) => (
+          <Fragment key={group.join('-')}>
+            {group.map(id => {
+              const item = RAIL_BY_ID[id];
+              if (!item) return null;
+              return (
+                <button
+                  key={item.id}
+                  type="button"
+                  className={
+                    'si-sat-ctx-rail-btn' +
+                    (railLabeled ? ' si-sat-ctx-rail-btn--row' : '') +
+                    (panelOpen && activeId === item.id ? ' si-sat-ctx-rail-btn--active' : '')
+                  }
+                  title={item.title}
+                  aria-label={railLabeled ? undefined : item.title}
+                  aria-pressed={panelOpen && activeId === item.id}
+                  onClick={() => toggleRail(item.id)}
+                >
+                  <i className={item.icon} aria-hidden />
+                  {railLabeled ? <span className="si-sat-ctx-rail-label">{item.label}</span> : null}
+                </button>
+              );
+            })}
+            {gi < RAIL_GROUPS.length - 1 ? (
+              <div className="si-sat-ctx-rail-sep" role="separator" aria-hidden />
+            ) : null}
+          </Fragment>
         ))}
         <div className="si-sat-ctx-rail-spacer" aria-hidden />
-        <button
-          type="button"
-          className="si-sat-ctx-rail-collapse"
-          title={panelOpen ? 'Collapse panel' : 'Expand last panel'}
-          aria-label={panelOpen ? 'Collapse panel' : 'Expand panel'}
-          onClick={() => (panelOpen ? closePanel() : openPanel(activeId ?? lastActiveRef.current))}
-        >
-          <i className={panelOpen ? 'fa-solid fa-angles-left' : 'fa-solid fa-angles-right'} aria-hidden />
-        </button>
+        <div className="si-sat-ctx-rail-footer">
+          <button
+            type="button"
+            className={'si-sat-ctx-rail-collapse' + (railLabeled ? ' si-sat-ctx-rail-collapse--labeled' : '')}
+            title={railLabeled ? 'Collapse sidebar (icons only)' : 'Expand sidebar (show labels)'}
+            aria-label={railLabeled ? 'Collapse sidebar' : 'Expand sidebar'}
+            onClick={() => setRailLabeled(v => !v)}
+          >
+            <i className={railLabeled ? 'fa-solid fa-angles-right' : 'fa-solid fa-angles-left'} aria-hidden />
+            {railLabeled ? <span className="si-sat-ctx-rail-collapse-text">Collapse</span> : null}
+          </button>
+        </div>
       </nav>
 
       <div

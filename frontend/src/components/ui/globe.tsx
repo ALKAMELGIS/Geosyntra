@@ -1,53 +1,57 @@
 import React from 'react'
 
-/** Earth texture (Unsplash — space / planet imagery). */
-const GLOBE_BG =
-  'https://images.unsplash.com/photo-1614730344863-4f3916fcbc53?auto=format&fit=crop&w=900&q=80'
-
 const Globe: React.FC = () => {
   return (
     <>
       <style>
         {`
           @keyframes earthRotate {
-            0% { background-position: 0% center; }
-            100% { background-position: 200% center; }
+            0% { background-position: 0 0; }
+            100% { background-position: 400px 0; }
           }
-          @keyframes twinkling { 0%, 100% { opacity: 0.15; } 50% { opacity: 1; } }
-          @keyframes twinkling-slow { 0%, 100% { opacity: 0.12; } 50% { opacity: 0.95; } }
-          @keyframes twinkling-long { 0%, 100% { opacity: 0.1; } 50% { opacity: 1; } }
-          @keyframes twinkling-fast { 0%, 100% { opacity: 0.18; } 50% { opacity: 1; } }
+          @keyframes twinkling { 0%,100% { opacity:0.1; } 50% { opacity:1; } }
+          @keyframes twinkling-slow { 0%,100% { opacity:0.1; } 50% { opacity:1; } }
+          @keyframes twinkling-long { 0%,100% { opacity:0.1; } 50% { opacity:1; } }
+          @keyframes twinkling-fast { 0%,100% { opacity:0.1; } 50% { opacity:1; } }
         `}
       </style>
-      <div className="flex w-full items-center justify-center py-4 sm:py-6">
+      <div className="flex items-center justify-center h-screen">
         <div
-          className="relative h-[220px] w-[220px] overflow-hidden rounded-full shadow-[0_0_24px_rgba(56,189,248,0.25),inset_-8px_0_20px_rgba(0,0,0,0.45)] sm:h-[250px] sm:w-[250px]"
+          className="relative w-[250px] h-[250px] rounded-full overflow-hidden shadow-[0_0_20px_rgba(255,255,255,0.2),-5px_0_8px_#c3f4ff_inset,15px_2px_25px_#000_inset,-24px_-2px_34px_#c3f4ff99_inset,250px_0_44px_#00000066_inset,150px_0_38px_#000000aa_inset]"
           style={{
-            backgroundImage: `url('${GLOBE_BG}')`,
+            backgroundImage: "url('https://pub-940ccf6255b54fa799a9b01050e6c227.r2.dev/globe.jpeg')",
             backgroundSize: 'cover',
-            backgroundPosition: 'left center',
-            animation: 'earthRotate 36s linear infinite',
+            backgroundPosition: 'left',
+            animation: 'earthRotate 30s linear infinite',
           }}
         >
           <div
-            className="absolute left-[12%] top-[18%] h-1 w-1 rounded-full bg-white"
+            className="absolute left-[-20px] w-1 h-1 bg-white rounded-full"
             style={{ animation: 'twinkling 3s infinite' }}
           />
           <div
-            className="absolute left-[78%] top-[22%] h-1 w-1 rounded-full bg-white"
-            style={{ animation: 'twinkling-slow 2.4s infinite' }}
+            className="absolute left-[-40px] top-[30px] w-1 h-1 bg-white rounded-full"
+            style={{ animation: 'twinkling-slow 2s infinite' }}
           />
           <div
-            className="absolute left-[52%] top-[68%] h-1 w-1 rounded-full bg-white"
+            className="absolute left-[350px] top-[90px] w-1 h-1 bg-white rounded-full"
             style={{ animation: 'twinkling-long 4s infinite' }}
           />
           <div
-            className="absolute left-[30%] top-[72%] h-1 w-1 rounded-full bg-white"
-            style={{ animation: 'twinkling-fast 1.6s infinite' }}
+            className="absolute left-[200px] top-[290px] w-1 h-1 bg-white rounded-full"
+            style={{ animation: 'twinkling 3s infinite' }}
           />
           <div
-            className="absolute left-[88%] top-[55%] h-1 w-1 rounded-full bg-white"
-            style={{ animation: 'twinkling 2.8s infinite 0.4s' }}
+            className="absolute left-[50px] top-[270px] w-1 h-1 bg-white rounded-full"
+            style={{ animation: 'twinkling-fast 1.5s infinite' }}
+          />
+          <div
+            className="absolute left-[250px] top-[-50px] w-1 h-1 bg-white rounded-full"
+            style={{ animation: 'twinkling-long 4s infinite' }}
+          />
+          <div
+            className="absolute left-[290px] top-[60px] w-1 h-1 bg-white rounded-full"
+            style={{ animation: 'twinkling-slow 2s infinite' }}
           />
         </div>
       </div>

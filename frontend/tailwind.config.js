@@ -1,5 +1,6 @@
 /** @type {import('tailwindcss').Config} */
 export default {
+  darkMode: ['class', '[data-theme="dark"]'],
   content: ['./index.html', './src/**/*.{js,ts,jsx,tsx}'],
   corePlugins: {
     preflight: false,
@@ -49,9 +50,15 @@ export default {
           '70%': { opacity: '1', transform: 'translateX(0) scale(1)' },
           '100%': { opacity: '0', transform: 'translateX(0.5rem) scale(0.95)' },
         },
+        fadeOutLabel: {
+          '0%': { opacity: '1', transform: 'translateX(0) scale(1)' },
+          '70%': { opacity: '1', transform: 'translateX(0) scale(1)' },
+          '100%': { opacity: '0', transform: 'translateX(0.5rem) scale(0.95)' },
+        },
       },
       animation: {
         fadeOut: 'fadeOut 2.2s ease-out forwards',
+        fadeOutLabel: 'fadeOutLabel 2.2s ease-out forwards',
       },
     },
   },

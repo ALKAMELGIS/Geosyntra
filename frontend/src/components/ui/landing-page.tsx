@@ -1,26 +1,30 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { Link } from 'react-router-dom'
 import Globe from '@/components/ui/globe'
+import {
+  HOME_QUICK_TILES,
+  HOME_TILE_ORDER,
+  homeHubBadgeForCount,
+  homeMenuItems,
+  hubPathForGroupId,
+  type MenuItem,
+} from '@/config/homeMenu'
+import { useLanguage } from '@/lib/i18n'
 import { cn } from '@/lib/utils'
-import { useLanguage, type AppLanguage } from '@/lib/i18n'
-import { homeMenuItems } from '@/config/homeMenu'
-import { startSession } from '@/lib/auth'
+import { useMergedNavigation } from '@/store/SystemSettingsContext'
+import type { MergedGroup } from '@/nav/navManifest'
 
-export interface ScrollGlobeSection {
-  id: string
-  badge?: string
-  title: string
-  subtitle?: string
-  description: string
-  align?: 'left' | 'center' | 'right'
-  /** Small lines under hero description (e.g. bilingual hints). */
-  heroHints?: string[]
-  features?: { title: string; description: string }[]
-  actions?: { label: string; variant: 'primary' | 'secondary'; onClick?: () => void }[]
-}
-
-export interface ScrollGlobeProps {
-  sections: ScrollGlobeSection[]
+interface ScrollGlobeProps {
+  sections: {
+    id: string
+    badge?: string
+    title: string
+    subtitle?: string
+    description: string
+    align?: 'left' | 'center' | 'right'
+    features?: { title: string; description: string }[]
+    actions?: { label: string; variant: 'primary' | 'secondary'; onClick?: () => void }[]
+  }[]
   globeConfig?: {
     positions: {
       top: string
@@ -29,31 +33,123 @@ export interface ScrollGlobeProps {
     }[]
   }
   className?: string
-  /** Scroll this section into view once after mount (e.g. deep link from nav). */
-  initialSectionId?: string | null
 }
 
 const defaultGlobeConfig = {
   positions: [
-    { top: '50%', left: '75%', scale: 1.35 },
-    { top: '28%', left: '52%', scale: 0.88 },
-    { top: '18%', left: '88%', scale: 1.75 },
-    { top: '48%', left: '48%', scale: 1.65 },
+    { top: '50%', left: '75%', scale: 1.4 },
+    { top: '25%', left: '50%', scale: 0.9 },
+    { top: '15%', left: '90%', scale: 2 },
+    { top: '50%', left: '50%', scale: 1.8 },
   ],
 }
 
 const parsePercent = (str: string): number => parseFloat(str.replace('%', ''))
 
-export function ScrollGlobe({ sections, globeConfig = defaultGlobeConfig, className, initialSectionId }: ScrollGlobeProps) {
+const QUICK_IDS = new Set(HOME_QUICK_TILES.map(t => t.id))
+
+function HomeHubTile({
+  tile,
+  language,
+  isActive,
+}: {
+  tile: MenuItem
+  language: 'en' | 'ar'
+  isActive: boolean
+}) {
+  const title = language === 'ar' ? tile.labelAr : tile.labelEn
+  const openBadge = tile.badge === 'Open'
+
+  return (
+    <Link
+      to={tile.path}
+      className={cn('home-hub__card', isActive && 'home-hub__card--active')}
+      aria-current={isActive ? 'page' : undefined}
+    >
+      <div className="home-hub__icon-wrap" aria-hidden>
+        <i className={tile.icon} />
+      </div>
+      <div className="home-hub__card-label">{title}</div>
+      <span className={cn('home-hub__badge', openBadge && 'home-hub__badge--open')}>{tile.badge}</span>
+    </Link>
+  )
+}
+
+function buildHubTiles(groups: MergedGroup[]): MenuItem[] {
+  const staticById = new Map(homeMenuItems.map(m => [m.id, m]))
+  const groupById = new Map(groups.map(g => [g.id, g]))
+  const out: MenuItem[] = []
+
+  for (const id of HOME_TILE_ORDER) {
+    if (QUICK_IDS.has(id)) {
+      const s = HOME_QUICK_TILES.find(t => t.id === id)
+      if (s) out.push(s)
+      continue
+    }
+    const g = groupById.get(id)
+    const fallback = staticById.get(id)
+    if (!g || !g.children.length) continue
+    const n = g.children.length
+    const firstPath = g.children[0]?.path
+    const titleEn = (g.labelEn && g.labelEn.trim()) || fallback?.labelEn || g.id
+    const titleAr = (g.labelAr && g.labelAr.trim()) || fallback?.labelAr || g.id
+    out.push({
+      id: g.id,
+      labelEn: titleEn,
+      labelAr: titleAr,
+      path: hubPathForGroupId(g.id, firstPath),
+      icon: (g.iconClass && g.iconClass.trim()) || fallback?.icon || 'fa-solid fa-circle',
+      badge: homeHubBadgeForCount(n),
+      subItems: fallback?.subItems,
+    })
+  }
+
+  return out
+}
+
+function HomeHub({ initialOpenGroupId }: LandingPageProps) {
+  const { groups } = useMergedNavigation()
+  const { language, direction } = useLanguage()
+  const tiles = useMemo(() => buildHubTiles(groups), [groups])
+
+  const heading = language === 'ar' ? 'مركز التطبيق' : 'Application hub'
+  const sub =
+    language === 'ar'
+      ? 'اختَر مساحة عمل للانتقال السريع. يتغير المحتوى وفق صلاحياتك وإعدادات المسؤول.'
+      : 'Choose a workspace to jump in. Tiles reflect your permissions and administrator navigation settings.'
+
+  return (
+    <div className="home-hub" dir={direction}>
+      <div className="home-hub__shell">
+        <header className="home-hub__header">
+          <h1 className="home-hub__title">{heading}</h1>
+          <p className="home-hub__subtitle">{sub}</p>
+        </header>
+        <div className="home-hub__grid">
+          {tiles.map(tile => (
+            <HomeHubTile
+              key={tile.id}
+              tile={tile}
+              language={language}
+              isActive={Boolean(initialOpenGroupId && initialOpenGroupId === tile.id)}
+            />
+          ))}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+export function ScrollGlobe({ sections, globeConfig = defaultGlobeConfig, className }: ScrollGlobeProps) {
   const [activeSection, setActiveSection] = useState(0)
   const [scrollProgress, setScrollProgress] = useState(0)
   const [globeTransform, setGlobeTransform] = useState('')
+  const containerRef = useRef<HTMLDivElement>(null)
   const sectionRefs = useRef<(HTMLElement | null)[]>([])
   const animationFrameId = useRef<number | undefined>(undefined)
-  const didInitialScroll = useRef(false)
 
   const calculatedPositions = useMemo(() => {
-    return globeConfig.positions.map((pos) => ({
+    return globeConfig.positions.map(pos => ({
       top: parsePercent(pos.top),
       left: parsePercent(pos.left),
       scale: pos.scale,
@@ -61,9 +157,10 @@ export function ScrollGlobe({ sections, globeConfig = defaultGlobeConfig, classN
   }, [globeConfig.positions])
 
   const updateScrollPosition = useCallback(() => {
-    const scrollTop = window.scrollY || document.documentElement.scrollTop
-    const docHeight = Math.max(1, document.documentElement.scrollHeight - window.innerHeight)
+    const scrollTop = window.pageYOffset
+    const docHeight = document.documentElement.scrollHeight - window.innerHeight
     const progress = Math.min(Math.max(scrollTop / docHeight, 0), 1)
+
     setScrollProgress(progress)
 
     const viewportCenter = window.innerHeight / 2
@@ -71,38 +168,47 @@ export function ScrollGlobe({ sections, globeConfig = defaultGlobeConfig, classN
     let minDistance = Infinity
 
     sectionRefs.current.forEach((ref, index) => {
-      if (!ref) return
-      const rect = ref.getBoundingClientRect()
-      const sectionCenter = rect.top + rect.height / 2
-      const distance = Math.abs(sectionCenter - viewportCenter)
-      if (distance < minDistance) {
-        minDistance = distance
-        newActiveSection = index
+      if (ref) {
+        const rect = ref.getBoundingClientRect()
+        const sectionCenter = rect.top + rect.height / 2
+        const distance = Math.abs(sectionCenter - viewportCenter)
+
+        if (distance < minDistance) {
+          minDistance = distance
+          newActiveSection = index
+        }
       }
     })
 
-    const currentPos = calculatedPositions[Math.min(newActiveSection, calculatedPositions.length - 1)]
+    const currentPos = calculatedPositions[newActiveSection]
     const transform = `translate3d(${currentPos.left}vw, ${currentPos.top}vh, 0) translate3d(-50%, -50%, 0) scale3d(${currentPos.scale}, ${currentPos.scale}, 1)`
+
     setGlobeTransform(transform)
+
     setActiveSection(newActiveSection)
   }, [calculatedPositions])
 
   useEffect(() => {
     let ticking = false
+
     const handleScroll = () => {
       if (!ticking) {
-        animationFrameId.current = window.requestAnimationFrame(() => {
+        animationFrameId.current = requestAnimationFrame(() => {
           updateScrollPosition()
           ticking = false
         })
         ticking = true
       }
     }
+
     window.addEventListener('scroll', handleScroll, { passive: true })
     updateScrollPosition()
+
     return () => {
       window.removeEventListener('scroll', handleScroll)
-      if (animationFrameId.current) cancelAnimationFrame(animationFrameId.current)
+      if (animationFrameId.current) {
+        cancelAnimationFrame(animationFrameId.current)
+      }
     }
   }, [updateScrollPosition])
 
@@ -112,27 +218,14 @@ export function ScrollGlobe({ sections, globeConfig = defaultGlobeConfig, classN
     setGlobeTransform(initialTransform)
   }, [calculatedPositions])
 
-  useEffect(() => {
-    if (!initialSectionId || didInitialScroll.current) return
-    const idx = sections.findIndex((s) => s.id === initialSectionId)
-    if (idx < 0) return
-    didInitialScroll.current = true
-    const id = window.requestAnimationFrame(() => {
-      sectionRefs.current[idx]?.scrollIntoView({ behavior: 'smooth', block: 'center' })
-    })
-    return () => cancelAnimationFrame(id)
-  }, [initialSectionId, sections])
-
   return (
     <div
-      className={cn(
-        'landing-scroll-globe-root relative min-h-screen w-full max-w-[100vw] overflow-x-hidden bg-background text-foreground',
-        className,
-      )}
+      ref={containerRef}
+      className={cn('relative w-full max-w-screen overflow-x-hidden min-h-screen bg-background text-foreground', className)}
     >
-      <div className="pointer-events-none fixed left-0 top-0 z-50 h-0.5 w-full bg-gradient-to-r from-border/20 via-border/40 to-border/20">
+      <div className="fixed top-0 left-0 w-full h-0.5 bg-gradient-to-r from-border/20 via-border/40 to-border/20 z-50">
         <div
-          className="h-full bg-gradient-to-r from-primary via-blue-600 to-blue-900 shadow-sm will-change-transform"
+          className="h-full bg-gradient-to-r from-primary via-blue-600 to-blue-900 will-change-transform shadow-sm"
           style={{
             transform: `scaleX(${scrollProgress})`,
             transformOrigin: 'left center',
@@ -142,19 +235,21 @@ export function ScrollGlobe({ sections, globeConfig = defaultGlobeConfig, classN
         />
       </div>
 
-      <div className="fixed right-2 top-1/2 z-40 hidden -translate-y-1/2 sm:right-4 sm:flex lg:right-8">
-        <div className="relative space-y-3 sm:space-y-4 lg:space-y-6">
+      <div className="hidden sm:flex fixed right-2 sm:right-4 lg:right-8 top-1/2 -translate-y-1/2 z-40">
+        <div className="space-y-3 sm:space-y-4 lg:space-y-6">
           {sections.map((section, index) => (
-            <div key={section.id} className="group relative">
+            <div key={index} className="relative group">
               <div
                 className={cn(
-                  'nav-label absolute right-5 top-1/2 z-50 -translate-y-1/2 whitespace-nowrap rounded-md border border-border/60 bg-background/95 px-2 py-1 text-xs font-medium shadow-xl backdrop-blur-md sm:right-6 sm:px-3 sm:py-1.5 sm:text-sm lg:right-8 lg:px-4 lg:py-2 lg:text-base',
-                  activeSection === index ? 'animate-fadeOut opacity-100' : 'opacity-0',
+                  'nav-label absolute right-5 sm:right-6 lg:right-8 top-1/2 -translate-y-1/2',
+                  'px-2 sm:px-3 lg:px-4 py-1 sm:py-1.5 lg:py-2 rounded-md sm:rounded-lg text-xs sm:text-sm font-medium whitespace-nowrap',
+                  'bg-background/95 backdrop-blur-md border border-border/60 shadow-xl z-50',
+                  activeSection === index ? 'animate-fadeOut' : 'opacity-0',
                 )}
               >
                 <div className="flex items-center gap-1 sm:gap-1.5 lg:gap-2">
-                  <div className="h-1 w-1 animate-pulse rounded-full bg-primary sm:h-1.5 sm:w-1.5 lg:h-2 lg:w-2" />
-                  <span>{section.badge || `Section ${index + 1}`}</span>
+                  <div className="w-1 sm:w-1.5 lg:w-2 h-1 sm:h-1.5 lg:h-2 rounded-full bg-primary animate-pulse" />
+                  <span className="text-xs sm:text-sm lg:text-base">{section.badge || `Section ${index + 1}`}</span>
                 </div>
               </div>
 
@@ -167,24 +262,26 @@ export function ScrollGlobe({ sections, globeConfig = defaultGlobeConfig, classN
                   })
                 }}
                 className={cn(
-                  'relative h-2 w-2 rounded-full border-2 transition-all duration-300 before:absolute before:inset-0 before:rounded-full before:transition-all before:duration-300 sm:h-2.5 sm:w-2.5 lg:h-3 lg:w-3',
+                  'relative w-2 h-2 sm:w-2.5 sm:h-2.5 lg:w-3 lg:h-3 rounded-full border-2 transition-all duration-300 hover:scale-125',
+                  'before:absolute before:inset-0 before:rounded-full before:transition-all before:duration-300',
                   activeSection === index
-                    ? 'border-primary bg-primary shadow-lg before:animate-ping before:bg-primary/20'
-                    : 'border-muted-foreground/40 bg-transparent hover:scale-125 hover:border-primary/60 hover:bg-primary/10',
+                    ? 'bg-primary border-primary shadow-lg before:animate-ping before:bg-primary/20'
+                    : 'bg-transparent border-muted-foreground/40 hover:border-primary/60 hover:bg-primary/10',
                 )}
                 aria-label={`Go to ${section.badge || `section ${index + 1}`}`}
               />
             </div>
           ))}
-          <div className="absolute bottom-0 left-1/2 top-0 -z-10 w-0.5 -translate-x-1/2 bg-gradient-to-b from-transparent via-primary/20 to-transparent lg:w-px" />
         </div>
+
+        <div className="absolute left-1/2 top-0 bottom-0 w-0.5 lg:w-px bg-gradient-to-b from-transparent via-primary/20 to-transparent -translate-x-1/2 -z-10" />
       </div>
 
       <div
-        className="pointer-events-none fixed z-10 transition-all duration-[1400ms] ease-[cubic-bezier(0.23,1,0.32,1)] will-change-transform"
+        className="fixed z-10 pointer-events-none will-change-transform transition-all duration-[1400ms] ease-[cubic-bezier(0.23,1,0.32,1)]"
         style={{
           transform: globeTransform,
-          opacity: activeSection === 3 ? 0.42 : 0.88,
+          filter: `opacity(${activeSection === 3 ? 0.4 : 0.85})`,
         }}
       >
         <div className="scale-75 sm:scale-90 lg:scale-100">
@@ -195,12 +292,12 @@ export function ScrollGlobe({ sections, globeConfig = defaultGlobeConfig, classN
       {sections.map((section, index) => (
         <section
           key={section.id}
-          id={`landing-section-${section.id}`}
-          ref={(el) => {
+          ref={el => {
             sectionRefs.current[index] = el
           }}
           className={cn(
-            'relative z-20 flex min-h-screen w-full max-w-full flex-col justify-center overflow-hidden px-4 py-12 sm:px-6 sm:py-16 md:px-8 lg:px-12 lg:py-20',
+            'relative min-h-screen flex flex-col justify-center px-4 sm:px-6 md:px-8 lg:px-12 z-20 py-12 sm:py-16 lg:py-20',
+            'w-full max-w-full overflow-hidden',
             section.align === 'center' && 'items-center text-center',
             section.align === 'right' && 'items-end text-right',
             section.align !== 'center' && section.align !== 'right' && 'items-start text-left',
@@ -208,12 +305,13 @@ export function ScrollGlobe({ sections, globeConfig = defaultGlobeConfig, classN
         >
           <div
             className={cn(
-              'w-full max-w-sm translate-y-0 opacity-100 transition-all duration-700 will-change-transform sm:max-w-lg md:max-w-2xl lg:max-w-4xl xl:max-w-5xl',
+              'w-full max-w-sm sm:max-w-lg md:max-w-2xl lg:max-w-4xl xl:max-w-5xl will-change-transform transition-all duration-700',
+              'opacity-100 translate-y-0',
             )}
           >
             <h1
               className={cn(
-                'mb-6 font-bold leading-[1.1] tracking-tight sm:mb-8',
+                'font-bold mb-6 sm:mb-8 leading-[1.1] tracking-tight',
                 index === 0
                   ? 'text-3xl sm:text-4xl md:text-5xl lg:text-6xl xl:text-7xl 2xl:text-8xl'
                   : 'text-2xl sm:text-3xl md:text-4xl lg:text-5xl xl:text-6xl 2xl:text-7xl',
@@ -222,7 +320,7 @@ export function ScrollGlobe({ sections, globeConfig = defaultGlobeConfig, classN
               {section.subtitle ? (
                 <div className="space-y-1 sm:space-y-2">
                   <div className="bg-gradient-to-r from-foreground to-foreground/80 bg-clip-text text-transparent">{section.title}</div>
-                  <div className="text-[0.6em] font-medium tracking-wider text-muted-foreground/90 sm:text-[0.7em]">{section.subtitle}</div>
+                  <div className="text-muted-foreground/90 text-[0.6em] sm:text-[0.7em] font-medium tracking-wider">{section.subtitle}</div>
                 </div>
               ) : (
                 <div className="bg-gradient-to-r from-foreground via-foreground to-foreground/80 bg-clip-text text-transparent">{section.title}</div>
@@ -231,75 +329,82 @@ export function ScrollGlobe({ sections, globeConfig = defaultGlobeConfig, classN
 
             <div
               className={cn(
-                'mb-8 text-base font-light leading-relaxed text-muted-foreground/80 sm:mb-10 sm:text-lg lg:text-xl',
-                section.align === 'center' ? 'mx-auto max-w-full text-center' : 'max-w-full',
+                'text-muted-foreground/80 leading-relaxed mb-8 sm:mb-10 text-base sm:text-lg lg:text-xl font-light',
+                section.align === 'center' ? 'max-w-full mx-auto text-center' : 'max-w-full',
               )}
             >
               <p className="mb-3 sm:mb-4">{section.description}</p>
-              {index === 0 && section.heroHints?.length ? (
-                <div className="mt-4 flex flex-wrap items-center gap-3 text-xs text-muted-foreground/60 sm:mt-6 sm:gap-4 sm:text-sm">
-                  {section.heroHints.map((hint, hi) => (
-                    <div key={hi} className="flex items-center gap-1.5 sm:gap-2">
-                      <div
-                        className="h-1 w-1 animate-pulse rounded-full bg-primary"
-                        style={hi ? { animationDelay: '0.5s' } : undefined}
-                      />
-                      <span>{hint}</span>
-                    </div>
-                  ))}
+              {index === 0 && (
+                <div className="flex flex-wrap items-center gap-3 sm:gap-4 text-xs sm:text-sm text-muted-foreground/60 mt-4 sm:mt-6">
+                  <div className="flex items-center gap-1.5 sm:gap-2">
+                    <div className="w-1 h-1 rounded-full bg-primary animate-pulse" />
+                    <span>Interactive Experience</span>
+                  </div>
+                  <div className="flex items-center gap-1.5 sm:gap-2">
+                    <div
+                      className="w-1 h-1 rounded-full bg-primary animate-pulse"
+                      style={{ animationDelay: '0.5s' }}
+                    />
+                    <span>Scroll to Explore</span>
+                  </div>
                 </div>
-              ) : null}
+              )}
             </div>
 
-            {section.features ? (
-              <div className="mb-8 grid gap-3 sm:mb-10 sm:gap-4">
-                {section.features.map((feature) => (
+            {section.features && (
+              <div className="grid gap-3 sm:gap-4 mb-8 sm:mb-10">
+                {section.features.map((feature, featureIndex) => (
                   <div
                     key={feature.title}
-                    className="group rounded-lg border bg-card/50 p-4 backdrop-blur-sm transition-all duration-300 hover:-translate-y-1 hover:border-primary/20 hover:bg-card/80 hover:shadow-lg hover:shadow-primary/5 sm:rounded-xl sm:p-5 lg:p-6"
+                    className={cn(
+                      'group p-4 sm:p-5 lg:p-6 rounded-lg sm:rounded-xl border bg-card/50 backdrop-blur-sm hover:bg-card/80 transition-all duration-300 hover:shadow-lg hover:shadow-primary/5',
+                      'hover:border-primary/20 hover:-translate-y-1',
+                    )}
+                    style={{ animationDelay: `${featureIndex * 0.1}s` }}
                   >
                     <div className="flex items-start gap-3 sm:gap-4">
-                      <div className="mt-1.5 h-1.5 w-1.5 flex-shrink-0 rounded-full bg-primary/60 transition-colors group-hover:bg-primary sm:mt-2 sm:h-2 sm:w-2" />
-                      <div className="min-w-0 flex-1 space-y-1.5 sm:space-y-2">
-                        <h3 className="text-base font-semibold text-card-foreground sm:text-lg">{feature.title}</h3>
-                        <p className="text-sm leading-relaxed text-muted-foreground/80 sm:text-base">{feature.description}</p>
+                      <div className="w-1.5 sm:w-2 h-1.5 sm:h-2 rounded-full bg-primary/60 mt-1.5 sm:mt-2 group-hover:bg-primary transition-colors flex-shrink-0" />
+                      <div className="flex-1 space-y-1.5 sm:space-y-2 min-w-0">
+                        <h3 className="font-semibold text-card-foreground text-base sm:text-lg">{feature.title}</h3>
+                        <p className="text-muted-foreground/80 leading-relaxed text-sm sm:text-base">{feature.description}</p>
                       </div>
                     </div>
                   </div>
                 ))}
               </div>
-            ) : null}
+            )}
 
-            {section.actions ? (
+            {section.actions && (
               <div
                 className={cn(
-                  'flex flex-col flex-wrap gap-3 sm:flex-row sm:gap-4',
+                  'flex flex-col sm:flex-row flex-wrap gap-3 sm:gap-4',
                   section.align === 'center' && 'justify-center',
                   section.align === 'right' && 'justify-end',
                   (!section.align || section.align === 'left') && 'justify-start',
                 )}
               >
-                {section.actions.map((action) => (
+                {section.actions.map((action, actionIndex) => (
                   <button
                     key={action.label}
                     type="button"
                     onClick={action.onClick}
                     className={cn(
-                      'group relative w-full rounded-lg px-6 py-3 text-sm font-medium transition-all duration-300 hover:scale-[1.02] focus:outline-none focus:ring-2 focus:ring-primary/20 active:scale-[0.98] sm:w-auto sm:rounded-xl sm:px-8 sm:py-4 sm:text-base',
-                      'hover:shadow-lg',
+                      'group relative px-6 sm:px-8 py-3 sm:py-4 rounded-lg sm:rounded-xl font-medium transition-all duration-300 hover:scale-[1.02] active:scale-[0.98] text-sm sm:text-base',
+                      'hover:shadow-lg focus:outline-none focus:ring-2 focus:ring-primary/20 w-full sm:w-auto',
                       action.variant === 'primary'
-                        ? 'bg-primary text-primary-foreground shadow-lg shadow-primary/20 hover:bg-primary/90 hover:shadow-primary/30'
-                        : 'border-2 border-border/60 bg-background/50 text-foreground backdrop-blur-sm hover:border-primary/30 hover:bg-accent/50',
+                        ? 'bg-primary text-primary-foreground hover:bg-primary/90 shadow-lg shadow-primary/20 hover:shadow-primary/30'
+                        : 'border-2 border-border/60 bg-background/50 backdrop-blur-sm hover:bg-accent/50 hover:border-primary/30 text-foreground',
                     )}
+                    style={{ animationDelay: `${actionIndex * 0.1 + 0.2}s` }}
                   >
                     <span className="relative z-10">{action.label}</span>
-                    {action.variant === 'primary' ? (
-                      <div className="absolute inset-0 rounded-lg bg-gradient-to-r from-primary to-primary/80 opacity-0 transition-opacity duration-300 group-hover:opacity-100 sm:rounded-xl" />
-                    ) : null}
+                    {action.variant === 'primary' && (
+                      <div className="absolute inset-0 rounded-lg sm:rounded-xl bg-gradient-to-r from-primary to-primary/80 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+                    )}
                   </button>
                 ))}
               </div>
-            ) : null}
+            )}
           </div>
         </section>
       ))}
@@ -307,149 +412,66 @@ export function ScrollGlobe({ sections, globeConfig = defaultGlobeConfig, classN
   )
 }
 
-function t(lang: AppLanguage, en: string, ar: string) {
-  return lang === 'ar' ? ar : en
-}
-
-function mapOpenGroupToSectionId(openGroup?: string): string | null {
-  if (!openGroup) return null
-  const map: Record<string, string> = {
-    dashboard: 'connected',
-    satellite: 'connected',
-    data: 'discovery',
-    sensors: 'discovery',
-    master: 'future',
-    admin: 'future',
-    account: 'future',
-    'ai-agro-cloud-home': 'hero',
-    'camera-direct': 'discovery',
-    'gps-direct': 'discovery',
-  }
-  return map[openGroup] ?? 'connected'
-}
-
-function buildAgroSections(
-  lang: AppLanguage,
-  navigate: (path: string) => void,
-  onLogout: () => void,
-): ScrollGlobeSection[] {
-  const nav = (path: string) => () => navigate(path)
-
-  const topTiles = homeMenuItems
-    .filter((m) => ['dashboard', 'satellite', 'data', 'sensors', 'ai-agro-cloud-home', 'master', 'admin'].includes(m.id))
-    .map((m) => ({
-      title: m.label[lang],
-      description: m.items?.length
-        ? t(lang, `${m.items.length} shortcuts in this group`, `${m.items.length} اختصار في هذه المجموعة`)
-        : t(lang, 'Open module', 'فتح الوحدة'),
-    }))
-
-  return [
+const demoSections: ScrollGlobeProps['sections'] = [
     {
       id: 'hero',
-      badge: t(lang, 'Welcome', 'مرحباً'),
-      title: t(lang, 'Agri Cloud', 'سحابة الزراعة'),
-      subtitle: t(lang, 'Command Center', 'مركز القيادة'),
-      description: t(
-        lang,
-        'Satellite intelligence, field operations, sensors, and AI in one workspace. Scroll to tour the platform — your globe stays in sync with each chapter.',
-        'ذكاء الأقمار، العمليات الحقلية، الحساسات والذكاء الاصطنافي في مساحة واحدة. مرّر لتتعرّف على المنصة.',
-      ),
-      align: 'left',
-      heroHints: [
-        t(lang, 'GIS · AI · Operations', 'GIS · ذكاء اصطناعي · عمليات'),
-        t(lang, 'Scroll to explore', 'مرّر للاستكشاف'),
-      ],
+      badge: 'Welcome',
+      title: 'Explore',
+      subtitle: 'Our World',
+      description:
+        'Journey through an immersive experience where technology meets innovation. Watch as perspectives shift and possibilities unfold with every interaction, creating a symphony of digital artistry.',
+      align: 'left' as const,
       actions: [
-        { label: t(lang, 'Agro Cloud Dashboard', 'لوحة Agro Cloud'), variant: 'primary', onClick: nav('/dashboards/agro-cloud') },
-        { label: t(lang, 'AI AgroCloud', 'سحابة Agro الذكية'), variant: 'secondary', onClick: nav('/dashboards/ai-agro-cloud') },
+        { label: 'Begin Journey', variant: 'primary' as const, onClick: () => console.log('Get started clicked') },
+        { label: 'Learn More', variant: 'secondary' as const, onClick: () => console.log('Learn more clicked') },
       ],
     },
     {
-      id: 'connected',
-      badge: t(lang, 'Modules', 'الوحدات'),
-      title: t(lang, 'Everything Connected', 'كل شيء مترابط'),
-      description: t(
-        lang,
-        'Move from dashboards to imagery, irrigation, quality programs, and fleet tracking without losing context. Pick a pillar and dive in.',
-        'انتقل من اللوحات إلى الصور والري وبرامج الجودة وتتبع الأسطول دون فقدان السياق.',
-      ),
-      align: 'center',
-      features: topTiles.slice(0, 5),
+      id: 'innovation',
+      badge: 'Innovation',
+      title: 'Connected Worldwide',
+      description:
+        'From every corner of the globe, we witness the interconnected web of human achievement. Each connection represents progress, every interaction drives innovation forward into uncharted territories.',
+      align: 'center' as const,
     },
     {
       id: 'discovery',
-      badge: t(lang, 'Field to Insight', 'من الحقل إلى الرؤية'),
-      title: t(lang, 'Operational', 'العمليات'),
-      subtitle: t(lang, 'Precision', 'بدقة'),
-      description: t(
-        lang,
-        'Capture EC/pH, irrigation rounds, harvest batches, and QHIS evidence where work happens — then roll it up for leadership dashboards.',
-        'سجّل الملوحة والري والحصاد وأدلة الجودة في مكان العمل، ثم اعرضها على لوحات القيادة.',
-      ),
-      align: 'left',
+      badge: 'Discovery',
+      title: 'Expanding',
+      subtitle: 'Possibilities',
+      description:
+        "As we push beyond familiar boundaries, new worlds of opportunity emerge from the horizon. What seemed impossible yesterday becomes tomorrow's foundation for extraordinary achievements.",
+      align: 'left' as const,
       features: [
-        {
-          title: t(lang, 'Satellite & GIS', 'الأقمار وGIS'),
-          description: t(lang, 'Indices, multidimensional stacks, and map-ready layers.', 'مؤشرات، طبقات متعددة الأبعاد، وجاهزية للخرائط.'),
-        },
-        {
-          title: t(lang, 'Operations & Data Entry', 'العمليات وإدخال البيانات'),
-          description: t(lang, 'Structured forms for irrigation, harvest, and compliance trails.', 'نماذج منظمة للري والحصاد ومسارات الامتثال.'),
-        },
-        {
-          title: t(lang, 'Sensors & Mobility', 'الحساسات والتنقل'),
-          description: t(lang, 'Soil, weather, cameras, and GPS-linked assets in one telemetry fabric.', 'تربة وطقس وكاميرات وأصول مرتبطة بـ GPS.'),
-        },
+        { title: 'Limitless Exploration', description: 'Discover new dimensions of possibility and innovation' },
+        { title: 'Seamless Integration', description: 'Where cutting-edge technology meets human intuition' },
+        { title: 'Future-Ready Solutions', description: "Built for tomorrow's challenges and opportunities" },
       ],
     },
     {
       id: 'future',
-      badge: t(lang, 'Next', 'التالي'),
-      title: t(lang, 'Configure', 'اضبط'),
-      subtitle: t(lang, '& Scale', 'ووسّع'),
-      description: t(
-        lang,
-        'Tune master data, dashboard bindings, and admin policies — then invite your team. Log out securely when you are done on shared devices.',
-        'اضبط البيانات الرئيسية والروابط والسياسات، ثم ادعُ الفريق. سجّل الخروج على الأجهزة المشتركة.',
-      ),
-      align: 'center',
+      badge: 'Future',
+      title: 'Our Shared',
+      subtitle: 'Tomorrow',
+      description:
+        'In this moment of unity, we see not just a planet, but a canvas of infinite human potential. Every connection represents hope, every innovation builds bridges to our collective future of endless possibilities.',
+      align: 'center' as const,
       actions: [
-        { label: t(lang, 'System Settings', 'إعدادات النظام'), variant: 'primary', onClick: nav('/admin/system-settings') },
-        { label: t(lang, 'Account', 'الحساب'), variant: 'secondary', onClick: nav('/account/settings') },
-        { label: t(lang, 'Log out', 'تسجيل الخروج'), variant: 'secondary', onClick: onLogout },
+        { label: 'Join the Movement', variant: 'primary' as const, onClick: () => console.log('Join clicked') },
+        { label: 'Explore More', variant: 'secondary' as const, onClick: () => console.log('Explore clicked') },
       ],
     },
-  ]
+]
+
+export function GlobeScrollDemo() {
+  return <ScrollGlobe sections={demoSections} className="bg-gradient-to-br from-background via-muted/20 to-background" />
 }
 
 export type LandingPageProps = {
-  initialOpenGroupId?: string
+  initialOpenGroupId?: string | undefined
 }
 
+/** Home route — module grid driven by merged navigation + quick links. */
 export default function LandingPage({ initialOpenGroupId }: LandingPageProps) {
-  const navigate = useNavigate()
-  const { language } = useLanguage()
-  const initialSectionId = useMemo(() => mapOpenGroupToSectionId(initialOpenGroupId), [initialOpenGroupId])
-
-  const sections = useMemo(
-    () =>
-      buildAgroSections(
-        language,
-        (path) => navigate(path),
-        () => {
-          startSession(null)
-          navigate('/login', { replace: true })
-        },
-      ),
-    [language, navigate],
-  )
-
-  return (
-    <ScrollGlobe
-      sections={sections}
-      initialSectionId={initialSectionId}
-      className="bg-gradient-to-br from-background via-muted/20 to-background"
-    />
-  )
+  return <HomeHub initialOpenGroupId={initialOpenGroupId} />
 }

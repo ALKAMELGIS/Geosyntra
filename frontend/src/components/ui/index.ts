@@ -5,4 +5,7 @@ export { Input } from './Input'
 export { Modal } from './Modal'
 export { Select } from './Select'
 export { Textarea } from './Textarea'
+export { default as Globe } from './globe'
+export { ScrollGlobe, GlobeScrollDemo } from './landing-page'
+export { default as LandingPage } from './landing-page'
 
