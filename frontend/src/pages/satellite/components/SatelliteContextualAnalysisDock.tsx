@@ -136,6 +136,14 @@ export function SatelliteContextualAnalysisDock(props: SatelliteContextualAnalys
       return true;
     }
   });
+  /** Map variant: full-height empty strip; Collapse hides the whole strip (ArcGIS-style shell). */
+  const [mapStripHidden, setMapStripHidden] = useState(() => {
+    try {
+      return localStorage.getItem('si-sat-map-ctx-strip-hidden') === '1';
+    } catch {
+      return false;
+    }
+  });
   const resizeRef = useRef<{ startX: number; startW: number } | null>(null);
   const lastActiveRef = useRef<SatelliteContextPanelId>('aoi');
 
@@ -164,12 +172,22 @@ export function SatelliteContextualAnalysisDock(props: SatelliteContextualAnalys
   }, [panelWidth]);
 
   useEffect(() => {
+    if (variant === 'map') return;
     try {
       localStorage.setItem('si-sat-ctx-rail-labeled', railLabeled ? '1' : '0');
     } catch {
       /* ignore */
     }
-  }, [railLabeled]);
+  }, [railLabeled, variant]);
+
+  useEffect(() => {
+    if (variant !== 'map') return;
+    try {
+      localStorage.setItem('si-sat-map-ctx-strip-hidden', mapStripHidden ? '1' : '0');
+    } catch {
+      /* ignore */
+    }
+  }, [mapStripHidden, variant]);
 
   const openPanel = useCallback(
     (id: SatelliteContextPanelId) => {
@@ -222,9 +240,59 @@ export function SatelliteContextualAnalysisDock(props: SatelliteContextualAnalys
   const activeMeta = activeId ? RAIL.find(r => r.id === activeId) : null;
   const maxPivot = pivotBars.length ? Math.max(...pivotBars.map(p => Math.abs(p.value))) : 1;
 
+  if (variant === 'map') {
+    if (mapStripHidden) {
+      return (
+        <button
+          type="button"
+          className={'si-sat-ctx-map-strip-reopen ' + className.trim()}
+          title="Show map side strip"
+          aria-label="Show map side strip"
+          onClick={() => setMapStripHidden(false)}
+        >
+          <i className="fa-solid fa-angles-right" aria-hidden />
+        </button>
+      );
+    }
+
+    const mapEmptyRoot = [
+      'si-sat-ctx-dock',
+      'si-sat-ctx-dock--map',
+      'si-sat-ctx-dock--map-empty',
+      'si-sat-ctx-dock--closed',
+      surface === 'light' ? 'si-sat-ctx-dock--light' : 'si-sat-ctx-dock--dark',
+      className.trim(),
+    ]
+      .filter(Boolean)
+      .join(' ');
+
+    return (
+      <div className={mapEmptyRoot} role="presentation">
+        <nav className="si-sat-ctx-rail si-sat-ctx-rail--empty" aria-label="Map tools">
+          <div className="si-sat-ctx-rail-empty-fill" aria-hidden />
+          <div className="si-sat-ctx-rail-footer">
+            <button
+              type="button"
+              className="si-sat-ctx-rail-collapse si-sat-ctx-rail-collapse--labeled si-sat-ctx-rail-collapse--sole"
+              title="Collapse side strip"
+              aria-label="Collapse side strip"
+              onClick={() => {
+                setPanelOpen(false);
+                setMapStripHidden(true);
+              }}
+            >
+              <i className="fa-solid fa-angles-left" aria-hidden />
+              <span className="si-sat-ctx-rail-collapse-text">Collapse</span>
+            </button>
+          </div>
+        </nav>
+      </div>
+    );
+  }
+
   const rootClass = [
     'si-sat-ctx-dock',
-    variant === 'map' ? 'si-sat-ctx-dock--map' : 'si-sat-ctx-dock--embedded',
+    'si-sat-ctx-dock--embedded',
     panelOpen ? 'si-sat-ctx-dock--open' : 'si-sat-ctx-dock--closed',
     dockMode === 'float' ? 'si-sat-ctx-dock--float-mode' : '',
     surface === 'light' ? 'si-sat-ctx-dock--light' : 'si-sat-ctx-dock--dark',

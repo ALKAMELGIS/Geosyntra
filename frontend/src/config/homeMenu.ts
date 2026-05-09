@@ -1,6 +1,6 @@
 /**
  * Home hub tiles — aligned with `nav/navManifest` groups + quick links.
- * Re-exported from `pages/Home.tsx` for consumers that need static metadata.
+ * Static hub metadata (used by previews / tooling). The `/` route uses `pages/Home.tsx` classic grid.
  */
 import { NAV_DEFAULT_GROUPS } from '@/nav/navManifest'
 

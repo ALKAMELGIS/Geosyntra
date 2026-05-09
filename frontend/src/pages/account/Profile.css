@@ -451,9 +451,9 @@ html[data-theme='dark'] .profile-avatar-ring {
   height: 120px;
   border-radius: 50%;
   object-fit: cover;
-  border: 3px solid color-mix(in srgb, var(--ds-color-surface, #fff) 96%, transparent);
-  box-shadow: 0 4px 16px rgba(15, 23, 42, 0.08);
-  background: linear-gradient(160deg, #ecfdf5, #f0fdf4);
+  border: none;
+  box-shadow: none;
+  background: transparent;
 }
 
 .profile-avatar-empty {
@@ -484,8 +484,8 @@ html[data-theme='dark'] .profile-avatar-ring {
 }
 
 html[data-theme='dark'] .profile-avatar-img {
-  border-color: rgba(15, 23, 42, 0.9);
-  background: rgba(30, 41, 59, 0.5);
+  border: none;
+  background: transparent;
 }
 
 .profile-avatar-camera {

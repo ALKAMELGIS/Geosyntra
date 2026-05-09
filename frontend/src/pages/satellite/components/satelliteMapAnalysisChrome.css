@@ -664,6 +664,74 @@
   filter: drop-shadow(0 18px 40px rgba(2, 6, 23, 0.42));
 }
 
+/* Full-height empty right strip (Satellite Intelligence map) — shell only + Collapse */
+.si-sat-ctx-dock--map.si-sat-ctx-dock--map-empty {
+  top: 0;
+  bottom: 0;
+  transform: none;
+  height: 100%;
+  max-height: none;
+  align-self: stretch;
+}
+
+.si-sat-ctx-rail--empty {
+  width: 52px;
+  height: 100%;
+  min-height: 0;
+  flex: 1 1 auto;
+  align-self: stretch;
+  justify-content: flex-end;
+  padding-top: 10px;
+  padding-bottom: 10px;
+}
+
+.si-sat-ctx-rail-empty-fill {
+  flex: 1 1 auto;
+  min-height: 24px;
+}
+
+.si-sat-ctx-rail-collapse--sole {
+  width: 100%;
+}
+
+.si-sat-ctx-map-strip-reopen {
+  position: absolute;
+  z-index: 96;
+  inset-inline-end: 0;
+  top: 0;
+  bottom: 0;
+  width: 16px;
+  margin: 0;
+  padding: 0;
+  border: none;
+  border-radius: 10px 0 0 10px;
+  background: linear-gradient(180deg, rgba(30, 41, 59, 0.92), rgba(15, 23, 42, 0.96));
+  border: 1px solid rgba(148, 163, 184, 0.28);
+  border-right: none;
+  color: #94a3b8;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  box-shadow: -4px 0 18px rgba(2, 6, 23, 0.35);
+  transition:
+    color 0.15s ease,
+    background 0.15s ease,
+    width 0.2s ease;
+}
+
+.si-sat-ctx-map-strip-reopen:hover {
+  color: #e2e8f0;
+  background: linear-gradient(180deg, rgba(51, 65, 85, 0.95), rgba(30, 41, 59, 0.98));
+}
+
+html[data-theme='light'] .si-sat-ctx-map-strip-reopen {
+  background: linear-gradient(180deg, rgba(248, 250, 252, 0.98), rgba(241, 245, 249, 0.96));
+  color: #64748b;
+  border-color: rgba(148, 163, 184, 0.45);
+}
+
 .si-sat-ctx-dock--embedded {
   position: relative;
   width: 100%;
@@ -1148,5 +1216,24 @@
   .si-sat-ctx-dock--map .si-sat-ctx-panel-wrap {
     width: 100% !important;
     flex-basis: auto !important;
+  }
+
+  /* Empty full-height strip: ignore compact “floating dock” mobile layout */
+  .si-sat-ctx-dock--map.si-sat-ctx-dock--map-empty {
+    top: 0;
+    bottom: 0;
+    inset-inline-end: 0;
+    max-height: none;
+    flex-direction: row-reverse;
+    width: auto;
+    max-width: none;
+  }
+
+  .si-sat-ctx-dock--map.si-sat-ctx-dock--map-empty .si-sat-ctx-rail--empty {
+    flex-direction: column;
+    flex-wrap: nowrap;
+    width: 52px;
+    max-width: 52px;
+    border-radius: 14px 0 0 14px;
   }
 }
