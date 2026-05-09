@@ -276,7 +276,7 @@ export function SatelliteContextualAnalysisDock(props: SatelliteContextualAnalys
             className={'si-sat-ctx-rail-collapse' + (railLabeled ? ' si-sat-ctx-rail-collapse--labeled' : '')}
             title={
               railLabeled
-                ? 'Collapse sidebar: close panel if open, then icon-only rail'
+                ? 'Collapse sidebar, close context panel, and show icons only'
                 : 'Expand sidebar (show labels)'
             }
             aria-label={railLabeled ? 'Collapse sidebar and close panel' : 'Expand sidebar'}
