@@ -664,8 +664,8 @@
   filter: drop-shadow(0 18px 40px rgba(2, 6, 23, 0.42));
 }
 
-/* Full-height empty right strip (Satellite Intelligence map) — shell only + Collapse */
-.si-sat-ctx-dock--map.si-sat-ctx-dock--map-empty {
+/* Full-height map toolbox (Satellite Intelligence) — docked right, expand/collapse rail */
+.si-sat-ctx-dock--map.si-sat-ctx-dock--map-tall {
   top: 0;
   bottom: 0;
   transform: none;
@@ -674,24 +674,60 @@
   align-self: stretch;
 }
 
-.si-sat-ctx-rail--empty {
-  width: 52px;
+.si-sat-ctx-dock--map-tall .si-sat-ctx-rail {
   height: 100%;
   min-height: 0;
-  flex: 1 1 auto;
+  flex: 0 0 auto;
   align-self: stretch;
-  justify-content: flex-end;
-  padding-top: 10px;
-  padding-bottom: 10px;
+  border-radius: 0;
+  border-start-end-radius: 14px;
+  border-end-end-radius: 14px;
 }
 
-.si-sat-ctx-rail-empty-fill {
-  flex: 1 1 auto;
-  min-height: 24px;
+.si-sat-ctx-dock--map-tall .si-sat-ctx-panel {
+  max-height: none;
+  height: 100%;
+  min-height: 0;
 }
 
-.si-sat-ctx-rail-collapse--sole {
+.si-sat-ctx-dock--map-tall .si-sat-ctx-panel-wrap {
+  max-height: none;
+}
+
+.si-sat-ctx-rail-footer--map {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  align-items: stretch;
+}
+
+.si-sat-ctx-rail-strip-hide {
   width: 100%;
+  min-height: 30px;
+  border-radius: 8px;
+  border: 1px solid rgba(148, 163, 184, 0.22);
+  background: rgba(15, 23, 42, 0.2);
+  color: var(--si-ctx-muted);
+  cursor: pointer;
+  font-size: 12px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  transition:
+    color 0.15s ease,
+    border-color 0.15s ease,
+    background 0.15s ease;
+}
+
+.si-sat-ctx-rail-strip-hide:hover {
+  color: var(--si-ctx-text);
+  border-color: rgba(129, 140, 248, 0.4);
+  background: rgba(30, 41, 59, 0.35);
+}
+
+.si-sat-ctx-dock--light .si-sat-ctx-rail-strip-hide {
+  background: rgba(255, 255, 255, 0.55);
 }
 
 .si-sat-ctx-map-strip-reopen {
@@ -704,10 +740,12 @@
   margin: 0;
   padding: 0;
   border: none;
-  border-radius: 10px 0 0 10px;
+  border-radius: 0;
+  border-start-start-radius: 10px;
+  border-end-start-radius: 10px;
   background: linear-gradient(180deg, rgba(30, 41, 59, 0.92), rgba(15, 23, 42, 0.96));
   border: 1px solid rgba(148, 163, 184, 0.28);
-  border-right: none;
+  border-inline-end: none;
   color: #94a3b8;
   cursor: pointer;
   display: inline-flex;
@@ -730,6 +768,12 @@ html[data-theme='light'] .si-sat-ctx-map-strip-reopen {
   background: linear-gradient(180deg, rgba(248, 250, 252, 0.98), rgba(241, 245, 249, 0.96));
   color: #64748b;
   border-color: rgba(148, 163, 184, 0.45);
+}
+
+.si-sat-ctx-dock[dir='rtl'] .si-sat-ctx-rail-collapse i,
+.si-sat-ctx-dock[dir='rtl'] .si-sat-ctx-rail-strip-hide i,
+.si-sat-ctx-dock[dir='rtl'] .si-sat-ctx-map-strip-reopen i {
+  transform: scaleX(-1);
 }
 
 .si-sat-ctx-dock--embedded {
@@ -845,11 +889,30 @@ html[data-theme='light'] .si-sat-ctx-map-strip-reopen {
   flex: 1;
   min-width: 0;
   text-align: start;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 3px;
+}
+
+.si-sat-ctx-rail-label-title {
   font-size: 12px;
-  font-weight: 600;
+  font-weight: 700;
   letter-spacing: 0.01em;
   line-height: 1.25;
   color: var(--si-ctx-text);
+}
+
+.si-sat-ctx-rail-label-desc {
+  font-size: 10px;
+  font-weight: 500;
+  line-height: 1.35;
+  color: var(--si-ctx-muted);
+}
+
+.si-sat-ctx-dock[dir='rtl'] .si-sat-ctx-rail-label {
+  align-items: flex-end;
+  text-align: end;
 }
 
 .si-sat-ctx-rail-btn:hover {
@@ -930,7 +993,7 @@ html[data-theme='light'] .si-sat-ctx-map-strip-reopen {
   background: var(--si-ctx-bg);
   backdrop-filter: blur(16px);
   border: 1px solid var(--si-ctx-border);
-  border-right: none;
+  border-inline-end: none;
   box-shadow: -12px 0 40px rgba(2, 6, 23, 0.25);
 }
 
@@ -939,9 +1002,17 @@ html[data-theme='light'] .si-sat-ctx-map-strip-reopen {
   max-height: min(70vh, 640px);
 }
 
+.si-sat-ctx-dock[dir='rtl'] .si-sat-ctx-panel {
+  border-radius: 0 16px 16px 0;
+}
+
+.si-sat-ctx-dock[dir='rtl'].si-sat-ctx-dock--embedded .si-sat-ctx-panel {
+  border-radius: 0 12px 12px 0;
+}
+
 .si-sat-ctx-panel-resize {
   position: absolute;
-  right: 0;
+  inset-inline-end: 0;
   top: 0;
   bottom: 0;
   width: 7px;
@@ -950,8 +1021,16 @@ html[data-theme='light'] .si-sat-ctx-map-strip-reopen {
   background: linear-gradient(270deg, rgba(99, 102, 241, 0.12), transparent);
 }
 
+.si-sat-ctx-dock[dir='rtl'] .si-sat-ctx-panel-resize {
+  background: linear-gradient(90deg, rgba(99, 102, 241, 0.12), transparent);
+}
+
 .si-sat-ctx-panel-resize:hover {
   background: linear-gradient(270deg, rgba(52, 211, 153, 0.25), transparent);
+}
+
+.si-sat-ctx-dock[dir='rtl'] .si-sat-ctx-panel-resize:hover {
+  background: linear-gradient(90deg, rgba(52, 211, 153, 0.25), transparent);
 }
 
 .si-sat-ctx-panel-header {
@@ -1218,8 +1297,8 @@ html[data-theme='light'] .si-sat-ctx-map-strip-reopen {
     flex-basis: auto !important;
   }
 
-  /* Empty full-height strip: ignore compact “floating dock” mobile layout */
-  .si-sat-ctx-dock--map.si-sat-ctx-dock--map-empty {
+  /* Full-height toolbox: keep vertical rail on small screens */
+  .si-sat-ctx-dock--map.si-sat-ctx-dock--map-tall {
     top: 0;
     bottom: 0;
     inset-inline-end: 0;
@@ -1229,11 +1308,17 @@ html[data-theme='light'] .si-sat-ctx-map-strip-reopen {
     max-width: none;
   }
 
-  .si-sat-ctx-dock--map.si-sat-ctx-dock--map-empty .si-sat-ctx-rail--empty {
+  .si-sat-ctx-dock--map.si-sat-ctx-dock--map-tall .si-sat-ctx-rail {
     flex-direction: column;
     flex-wrap: nowrap;
-    width: 52px;
+    width: auto;
+    max-width: min(220px, 42vw);
+    border-radius: 0;
+    border-start-end-radius: 14px;
+    border-end-end-radius: 14px;
+  }
+
+  .si-sat-ctx-dock--map.si-sat-ctx-dock--map-tall.si-sat-ctx-dock--rail-narrow .si-sat-ctx-rail {
     max-width: 52px;
-    border-radius: 14px 0 0 14px;
   }
 }

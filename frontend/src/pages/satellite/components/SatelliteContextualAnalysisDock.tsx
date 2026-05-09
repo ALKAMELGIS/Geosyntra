@@ -1,4 +1,5 @@
 import { Fragment, useCallback, useEffect, useRef, useState } from 'react';
+import { useLanguage } from '@/lib/i18n';
 import type { AoiStaticMultiLayerLineChartDataset } from './AoiStaticMultiLayerLineChart';
 import { AoiStaticMultiLayerLineChart } from './AoiStaticMultiLayerLineChart';
 import {
@@ -41,15 +42,63 @@ export type SatelliteContextualAnalysisDockProps = {
   sparkPathBuilder?: (values: number[], w: number, h: number) => string;
 };
 
-const RAIL: Array<{ id: SatelliteContextPanelId; icon: string; label: string; title: string }> = [
-  { id: 'layers', icon: 'fa-solid fa-layer-group', label: 'Layers', title: 'Layer settings' },
-  { id: 'spatial', icon: 'fa-solid fa-vector-square', label: 'Analysis', title: 'Spatial analysis' },
-  { id: 'aoi', icon: 'fa-solid fa-draw-polygon', label: 'AOI sketch', title: 'AOI drawing tools' },
-  { id: 'charts', icon: 'fa-solid fa-chart-column', label: 'Charts', title: 'Charts' },
-  { id: 'stats', icon: 'fa-solid fa-chart-pie', label: 'Statistics', title: 'Statistics' },
-  { id: 'weather', icon: 'fa-solid fa-cloud-sun', label: 'Weather', title: 'Weather data' },
-  { id: 'raster', icon: 'fa-solid fa-image', label: 'Imagery', title: 'Raster controls' },
-  { id: 'feature', icon: 'fa-solid fa-circle-info', label: 'Feature info', title: 'Feature information' },
+const RAIL: Array<{ id: SatelliteContextPanelId; icon: string; label: string; title: string; hint: string }> = [
+  {
+    id: 'layers',
+    icon: 'fa-solid fa-layer-group',
+    label: 'Layers',
+    title: 'Layer settings',
+    hint: 'Opacity, ordering, and imagery context while mapping.',
+  },
+  {
+    id: 'spatial',
+    icon: 'fa-solid fa-vector-square',
+    label: 'Analysis',
+    title: 'Spatial analysis',
+    hint: 'Zonal summaries and AOI-scoped workflows.',
+  },
+  {
+    id: 'aoi',
+    icon: 'fa-solid fa-draw-polygon',
+    label: 'AOI sketch',
+    title: 'AOI drawing tools',
+    hint: 'Rectangle, polygon, circle, select, and clear.',
+  },
+  {
+    id: 'charts',
+    icon: 'fa-solid fa-chart-column',
+    label: 'Charts',
+    title: 'Charts',
+    hint: 'Timeline charts and comparison indices.',
+  },
+  {
+    id: 'stats',
+    icon: 'fa-solid fa-chart-pie',
+    label: 'Statistics',
+    title: 'Statistics',
+    hint: 'Sparkline, bars, and mix summaries for the AOI.',
+  },
+  {
+    id: 'weather',
+    icon: 'fa-solid fa-cloud-sun',
+    label: 'Weather',
+    title: 'Weather data',
+    hint: 'Forecasts and context near the map or AOI.',
+  },
+  {
+    id: 'raster',
+    icon: 'fa-solid fa-image',
+    label: 'Imagery',
+    title: 'Raster controls',
+    hint: 'Dates, WMS layer, and playback in Remote Sensing.',
+  },
+  {
+    id: 'feature',
+    icon: 'fa-solid fa-circle-info',
+    label: 'Feature info',
+    title: 'Feature information',
+    hint: 'Identify results and attribute tables.',
+  },
 ];
 
 const RAIL_GROUPS: SatelliteContextPanelId[][] = [
@@ -80,6 +129,7 @@ function defaultSparkPath(values: number[], w: number, h: number): string {
 }
 
 export function SatelliteContextualAnalysisDock(props: SatelliteContextualAnalysisDockProps) {
+  const { direction } = useLanguage();
   const {
     variant,
     className = '',
@@ -136,10 +186,18 @@ export function SatelliteContextualAnalysisDock(props: SatelliteContextualAnalys
       return true;
     }
   });
-  /** Map variant: full-height empty strip; Collapse hides the whole strip (ArcGIS-style shell). */
+  /** Map variant: hide entire toolbox to map edge (reopen tab). */
   const [mapStripHidden, setMapStripHidden] = useState(() => {
     try {
       return localStorage.getItem('si-sat-map-ctx-strip-hidden') === '1';
+    } catch {
+      return false;
+    }
+  });
+  /** Map variant: expanded rail shows labels + wide targets; collapsed = icons + tooltips (ArcGIS-style). */
+  const [mapRailLabeled, setMapRailLabeled] = useState(() => {
+    try {
+      return localStorage.getItem('si-sat-map-ctx-rail-labeled') === '1';
     } catch {
       return false;
     }
@@ -189,6 +247,15 @@ export function SatelliteContextualAnalysisDock(props: SatelliteContextualAnalys
     }
   }, [mapStripHidden, variant]);
 
+  useEffect(() => {
+    if (variant !== 'map') return;
+    try {
+      localStorage.setItem('si-sat-map-ctx-rail-labeled', mapRailLabeled ? '1' : '0');
+    } catch {
+      /* ignore */
+    }
+  }, [mapRailLabeled, variant]);
+
   const openPanel = useCallback(
     (id: SatelliteContextPanelId) => {
       lastActiveRef.current = id;
@@ -220,7 +287,8 @@ export function SatelliteContextualAnalysisDock(props: SatelliteContextualAnalys
       resizeRef.current = { startX: e.clientX, startW: panelWidth };
       const onMove = (ev: PointerEvent) => {
         if (!resizeRef.current) return;
-        const dx = ev.clientX - resizeRef.current.startX;
+        let dx = ev.clientX - resizeRef.current.startX;
+        if (variant === 'map' && direction === 'rtl') dx = -dx;
         const next = Math.min(560, Math.max(260, resizeRef.current.startW - dx));
         setPanelWidth(next);
       };
@@ -234,79 +302,53 @@ export function SatelliteContextualAnalysisDock(props: SatelliteContextualAnalys
       window.addEventListener('pointerup', onUp);
       window.addEventListener('pointercancel', onUp);
     },
-    [panelWidth],
+    [panelWidth, variant, direction],
   );
 
   const activeMeta = activeId ? RAIL.find(r => r.id === activeId) : null;
   const maxPivot = pivotBars.length ? Math.max(...pivotBars.map(p => Math.abs(p.value))) : 1;
 
-  if (variant === 'map') {
-    if (mapStripHidden) {
-      return (
-        <button
-          type="button"
-          className={'si-sat-ctx-map-strip-reopen ' + className.trim()}
-          title="Show map side strip"
-          aria-label="Show map side strip"
-          onClick={() => setMapStripHidden(false)}
-        >
-          <i className="fa-solid fa-angles-right" aria-hidden />
-        </button>
-      );
-    }
+  const isMap = variant === 'map';
+  const railWide = isMap ? mapRailLabeled : railLabeled;
 
-    const mapEmptyRoot = [
-      'si-sat-ctx-dock',
-      'si-sat-ctx-dock--map',
-      'si-sat-ctx-dock--map-empty',
-      'si-sat-ctx-dock--closed',
-      surface === 'light' ? 'si-sat-ctx-dock--light' : 'si-sat-ctx-dock--dark',
-      className.trim(),
-    ]
-      .filter(Boolean)
-      .join(' ');
-
+  if (isMap && mapStripHidden) {
     return (
-      <div className={mapEmptyRoot} role="presentation">
-        <nav className="si-sat-ctx-rail si-sat-ctx-rail--empty" aria-label="Map tools">
-          <div className="si-sat-ctx-rail-empty-fill" aria-hidden />
-          <div className="si-sat-ctx-rail-footer">
-            <button
-              type="button"
-              className="si-sat-ctx-rail-collapse si-sat-ctx-rail-collapse--labeled si-sat-ctx-rail-collapse--sole"
-              title="Collapse side strip"
-              aria-label="Collapse side strip"
-              onClick={() => {
-                setPanelOpen(false);
-                setMapStripHidden(true);
-              }}
-            >
-              <i className="fa-solid fa-angles-left" aria-hidden />
-              <span className="si-sat-ctx-rail-collapse-text">Collapse</span>
-            </button>
-          </div>
-        </nav>
-      </div>
+      <button
+        type="button"
+        className={'si-sat-ctx-map-strip-reopen ' + className.trim()}
+        title="Show map toolbox"
+        aria-label="Show map toolbox"
+        dir={direction}
+        onClick={() => {
+          setMapStripHidden(false);
+          setMapRailLabeled(false);
+        }}
+      >
+        <i className="fa-solid fa-angles-right" aria-hidden />
+      </button>
     );
   }
 
   const rootClass = [
     'si-sat-ctx-dock',
-    'si-sat-ctx-dock--embedded',
+    isMap ? 'si-sat-ctx-dock--map si-sat-ctx-dock--map-tall' : 'si-sat-ctx-dock--embedded',
     panelOpen ? 'si-sat-ctx-dock--open' : 'si-sat-ctx-dock--closed',
     dockMode === 'float' ? 'si-sat-ctx-dock--float-mode' : '',
     surface === 'light' ? 'si-sat-ctx-dock--light' : 'si-sat-ctx-dock--dark',
-    railLabeled ? 'si-sat-ctx-dock--rail-labeled' : 'si-sat-ctx-dock--rail-narrow',
+    railWide ? 'si-sat-ctx-dock--rail-labeled' : 'si-sat-ctx-dock--rail-narrow',
     className.trim(),
   ]
     .filter(Boolean)
     .join(' ');
 
+  const railHintTitle = (item: (typeof RAIL)[number]) =>
+    railWide ? item.title : `${item.title} — ${item.hint}`;
+
   return (
-    <div className={rootClass} role="presentation">
+    <div className={rootClass} role="presentation" dir={direction}>
       <nav
-        className={'si-sat-ctx-rail' + (railLabeled ? ' si-sat-ctx-rail--labeled' : '')}
-        aria-label="Analysis contextual tools"
+        className={'si-sat-ctx-rail' + (railWide ? ' si-sat-ctx-rail--labeled' : '')}
+        aria-label={isMap ? 'Map toolbox' : 'Analysis contextual tools'}
       >
         {RAIL_GROUPS.map((group, gi) => (
           <Fragment key={group.join('-')}>
@@ -319,16 +361,21 @@ export function SatelliteContextualAnalysisDock(props: SatelliteContextualAnalys
                   type="button"
                   className={
                     'si-sat-ctx-rail-btn' +
-                    (railLabeled ? ' si-sat-ctx-rail-btn--row' : '') +
+                    (railWide ? ' si-sat-ctx-rail-btn--row' : '') +
                     (panelOpen && activeId === item.id ? ' si-sat-ctx-rail-btn--active' : '')
                   }
-                  title={item.title}
-                  aria-label={railLabeled ? undefined : item.title}
+                  title={railHintTitle(item)}
+                  aria-label={railWide ? item.label : railHintTitle(item)}
                   aria-pressed={panelOpen && activeId === item.id}
                   onClick={() => toggleRail(item.id)}
                 >
                   <i className={item.icon} aria-hidden />
-                  {railLabeled ? <span className="si-sat-ctx-rail-label">{item.label}</span> : null}
+                  {railWide ? (
+                    <span className="si-sat-ctx-rail-label">
+                      <span className="si-sat-ctx-rail-label-title">{item.label}</span>
+                      <span className="si-sat-ctx-rail-label-desc">{item.hint}</span>
+                    </span>
+                  ) : null}
                 </button>
               );
             })}
@@ -338,27 +385,47 @@ export function SatelliteContextualAnalysisDock(props: SatelliteContextualAnalys
           </Fragment>
         ))}
         <div className="si-sat-ctx-rail-spacer" aria-hidden />
-        <div className="si-sat-ctx-rail-footer">
+        <div className={'si-sat-ctx-rail-footer' + (isMap ? ' si-sat-ctx-rail-footer--map' : '')}>
+          {isMap ? (
+            <button
+              type="button"
+              className="si-sat-ctx-rail-strip-hide"
+              title="Hide toolbox strip"
+              aria-label="Hide toolbox strip"
+              onClick={() => {
+                closePanel();
+                setMapStripHidden(true);
+              }}
+            >
+              <i className="fa-solid fa-angles-right" aria-hidden />
+            </button>
+          ) : null}
           <button
             type="button"
-            className={'si-sat-ctx-rail-collapse' + (railLabeled ? ' si-sat-ctx-rail-collapse--labeled' : '')}
+            className={'si-sat-ctx-rail-collapse' + (railWide ? ' si-sat-ctx-rail-collapse--labeled' : '')}
             title={
-              railLabeled
-                ? 'Collapse sidebar, close context panel, and show icons only'
-                : 'Expand sidebar (show labels)'
+              railWide
+                ? isMap
+                  ? 'Collapse to icons only (tooltips)'
+                  : 'Collapse sidebar, close context panel, and show icons only'
+                : isMap
+                  ? 'Expand toolbox (labels and descriptions)'
+                  : 'Expand sidebar (show labels)'
             }
-            aria-label={railLabeled ? 'Collapse sidebar and close panel' : 'Expand sidebar'}
+            aria-label={
+              railWide ? (isMap ? 'Collapse toolbox to icons' : 'Collapse sidebar and close panel') : 'Expand toolbox'
+            }
             onClick={() => {
-              if (railLabeled) {
-                if (panelOpen) closePanel()
-                setRailLabeled(false)
-              } else {
-                setRailLabeled(true)
-              }
+              if (railWide) {
+                if (panelOpen) closePanel();
+                if (isMap) setMapRailLabeled(false);
+                else setRailLabeled(false);
+              } else if (isMap) setMapRailLabeled(true);
+              else setRailLabeled(true);
             }}
           >
-            <i className={railLabeled ? 'fa-solid fa-angles-right' : 'fa-solid fa-angles-left'} aria-hidden />
-            {railLabeled ? <span className="si-sat-ctx-rail-collapse-text">Collapse</span> : null}
+            <i className={railWide ? 'fa-solid fa-angles-right' : 'fa-solid fa-angles-left'} aria-hidden />
+            {railWide ? <span className="si-sat-ctx-rail-collapse-text">Collapse</span> : null}
           </button>
         </div>
       </nav>
