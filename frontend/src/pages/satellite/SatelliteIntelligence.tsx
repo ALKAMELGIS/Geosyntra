@@ -1888,8 +1888,7 @@ export default function SatelliteIntelligence() {
     limit: false,
   });
   const [mapDrawTool, setMapDrawTool] = useState<MapDrawTool>('select');
-  /** Show edit vertices only when user explicitly enters Select/Edit mode. */
-  const [selectEditModeArmed, setSelectEditModeArmed] = useState(false);
+  const [showEditHandles, setShowEditHandles] = useState(false);
   const [drawStyle, setDrawStyle] = useState<DrawStyleConfig>(() => ({ ...DEFAULT_DRAW_STYLE }));
   const [pointerLngLat, setPointerLngLat] = useState<[number, number] | null>(null);
   const [rectCirclePreview, setRectCirclePreview] = useState<
@@ -5450,6 +5449,7 @@ export default function SatelliteIntelligence() {
       setCircleRefineDraft(null);
       setDrawAssistHint('');
       setMapDrawTool('select');
+      setShowEditHandles(false);
       setMapDragPanEnabled(true);
     };
     window.addEventListener('keydown', onKey);
@@ -5469,7 +5469,7 @@ export default function SatelliteIntelligence() {
     setCircleRadiusM(null);
     setCircleRefineDraft(null);
     setCircleRefineActiveHandle(null);
-    setSelectEditModeArmed(tool === 'select' && !!drawnGeometry);
+    setShowEditHandles(tool === 'select' && !!drawnGeometryRef.current);
     setMapDrawTool(tool);
     if (tool === 'rectangle' || tool === 'box_select' || tool === 'circle') {
       setMapDragPanEnabled(false);
@@ -5551,6 +5551,7 @@ export default function SatelliteIntelligence() {
     circleRefineLastMoveRef.current = null;
     skipNextMapClickRef.current = false;
     setMapDrawTool('select');
+    setShowEditHandles(false);
     setMapDragPanEnabled(true);
     setExploreExtentMode(prev => (prev === 'drawn' ? 'default' : prev));
   }, []);
@@ -6275,7 +6276,7 @@ export default function SatelliteIntelligence() {
   }, [mapDrawTool, polygonRing, polylineStart, pointerLngLat, rectCirclePreview, polygonClosingSnap, circleRefineDraft]);
 
   const editHandlesGeoJson = useMemo(() => {
-    if (mapDrawTool !== 'select' || !selectEditModeArmed || !drawnGeometry) return null;
+    if (mapDrawTool !== 'select' || !showEditHandles || !drawnGeometry) return null;
     const verts = collectVertexRefs(drawnGeometry.geometry);
     if (!verts.length) return null;
     return {
@@ -6286,7 +6287,7 @@ export default function SatelliteIntelligence() {
         geometry: { type: 'Point', coordinates: v.coord },
       })),
     };
-  }, [mapDrawTool, selectEditModeArmed, drawnGeometry]);
+  }, [mapDrawTool, showEditHandles, drawnGeometry]);
 
   const persistDrawWorkspace = () => {
     saveDrawWorkspace({ feature: drawnGeometry, style: drawStyle });
