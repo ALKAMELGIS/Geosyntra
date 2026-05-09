@@ -4,7 +4,11 @@
  */
 
 import type { ArcgisLayerDefLite } from './arcgisAttributeDisplay'
-import { formatFeaturePropertiesForGeoAi } from './arcgisAttributeDisplay'
+import {
+  buildArcFieldsByLower,
+  formatFeaturePropertiesForGeoAi,
+  getArcDomainForField,
+} from './arcgisAttributeDisplay'
 import { forEachLngLatPairInCoords } from './geoJsonCoordIterWalk'
 
 export type GeoAiMapLayer = {
@@ -344,29 +348,273 @@ export type LayerQueryMatch = {
   arcgisLayerDefinition: ArcgisLayerDefLite | null
 }
 
-/** Table rows for Geo AI map popup (domain-aware labels when ArcGIS def is present). */
+/** Options for {@link buildGeoAiLayerPopupAttributeRows}. */
+export type BuildGeoAiLayerPopupRowsOptions = {
+  maxRows?: number
+  /** Last Geo AI user message: popup lists fields that match the question (labels, aliases, values). */
+  queryContext?: string | null
+  /** Drop lat/lon columns that duplicate the map inspect anchor. */
+  inspectCoords?: { lng: number; lat: number }
+}
+
+const POPUP_QUERY_STOPWORDS = new Set(
+  [
+    'the',
+    'a',
+    'an',
+    'and',
+    'or',
+    'to',
+    'of',
+    'in',
+    'on',
+    'at',
+    'for',
+    'from',
+    'with',
+    'is',
+    'are',
+    'was',
+    'were',
+    'be',
+    'been',
+    'by',
+    'as',
+    'it',
+    'this',
+    'that',
+    'these',
+    'those',
+    'what',
+    'which',
+    'who',
+    'how',
+    'when',
+    'where',
+    'why',
+    'can',
+    'could',
+    'would',
+    'should',
+    'please',
+    'show',
+    'tell',
+    'give',
+    'list',
+    'me',
+    'my',
+    'we',
+    'our',
+    'your',
+    'map',
+    'layer',
+    'layers',
+    'data',
+    'row',
+    'rows',
+    'field',
+    'fields',
+    'attribute',
+    'attributes',
+    'table',
+    'popup',
+    'pin',
+    'point',
+    'click',
+    'select',
+    'just',
+    'need',
+    'want',
+    'about',
+    'into',
+    'onto',
+    'also',
+    'then',
+    'than',
+    'there',
+    'here',
+    'does',
+    'did',
+    'do',
+    'get',
+    'got',
+  ].map(s => s.toLowerCase()),
+)
+
+function normalizePopupRowOptions(
+  options?: number | BuildGeoAiLayerPopupRowsOptions | null,
+): BuildGeoAiLayerPopupRowsOptions {
+  if (typeof options === 'number') return { maxRows: options }
+  return options && typeof options === 'object' ? { ...options } : {}
+}
+
+function tokenizeGeoAiPopupQuery(q: string): string[] {
+  const s = String(q || '')
+    .toLowerCase()
+    .split(/[^a-z0-9_\u0600-\u06ff]+/)
+    .map(x => x.trim())
+    .filter(x => x.length >= 2 && x.length <= 64 && !POPUP_QUERY_STOPWORDS.has(x))
+  return [...new Set(s)]
+}
+
+function fieldAliasFromArc(arc: ArcgisLayerDefLite | null, fieldName: string): string {
+  if (!arc || !Array.isArray(arc.fields)) return ''
+  const f = arc.fields.find(
+    (x: any) => typeof x?.name === 'string' && String(x.name).toLowerCase() === String(fieldName).toLowerCase(),
+  ) as { alias?: string } | undefined
+  return typeof f?.alias === 'string' && f.alias.trim() ? f.alias.trim() : ''
+}
+
+function isRedundantAnchorCoordField(key: string, val: unknown, anchor?: { lng: number; lat: number }): boolean {
+  if (!anchor) return false
+  const k = String(key)
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, '_')
+  const n = typeof val === 'number' ? val : typeof val === 'string' && val.trim() !== '' ? Number(val) : NaN
+  if (!Number.isFinite(n)) return false
+  const latKeys = /(^|_)(lat|latitude|northing)(_|$)/.test(k) || k === 'y'
+  const lngKeys = /(^|_)(lon|lng|long|longitude|easting)(_|$)/.test(k) || k === 'x'
+  if (latKeys) return Math.abs(n - anchor.lat) < 1e-4
+  if (lngKeys) return Math.abs(n - anchor.lng) < 1e-4
+  return false
+}
+
+function scoreFieldAgainstQuery(fieldKey: string, alias: string, displayVal: string, tokens: string[]): number {
+  if (!tokens.length) return 0
+  const fk = fieldKey.toLowerCase()
+  const al = alias.toLowerCase()
+  const dv = displayVal.toLowerCase()
+  let score = 0
+  for (const tok of tokens) {
+    if (!tok) continue
+    if (fk.includes(tok) || tok.includes(fk)) score += 4
+    if (al && (al.includes(tok) || tok.includes(al))) score += 4
+    if (dv.includes(tok)) score += 6
+  }
+  return score
+}
+
+function pickCompactPopupFieldKeys(
+  props: Record<string, unknown>,
+  arc: ArcgisLayerDefLite | null,
+  maxKeys: number,
+): string[] {
+  const keys = Object.keys(props).filter(k => k && !k.startsWith('mapbox_'))
+  if (!keys.length) return []
+  const out: string[] = []
+  const seen = new Set<string>()
+  const push = (k: string) => {
+    if (!k || seen.has(k) || !keys.includes(k)) return
+    out.push(k)
+    seen.add(k)
+  }
+  const preferred = [
+    'Farm_Name',
+    'farm_name',
+    'NAME',
+    'Name',
+    'Project_Code',
+    'ProjectCode',
+    'SITE_NAME',
+    'Site_Name',
+    'OBJECTID',
+    'ObjectId',
+    'objectid',
+    'FID',
+    'fid',
+    'GlobalID',
+    'globalid',
+  ]
+  for (const k of preferred) {
+    if (out.length >= maxKeys) return out
+    push(k)
+  }
+  if (arc?.typeIdField) {
+    if (out.length >= maxKeys) return out
+    push(String(arc.typeIdField))
+  }
+  const ft = { properties: props }
+  const fl = buildArcFieldsByLower(arc)
+  const codedFields = keys
+    .filter(k => {
+      if (seen.has(k)) return false
+      const dom = arc ? getArcDomainForField(ft, k, arc, fl) : null
+      return dom?.type === 'codedValue' && Array.isArray(dom.codedValues) && dom.codedValues.length
+    })
+    .sort((a, b) => a.localeCompare(b))
+  for (const k of codedFields) {
+    if (out.length >= maxKeys) break
+    push(k)
+  }
+  if (out.length === 0) {
+    return keys.sort((a, b) => a.localeCompare(b)).slice(0, Math.min(5, maxKeys))
+  }
+  return out.slice(0, maxKeys)
+}
+
+function selectGeoAiPopupFieldKeysForContext(
+  props: Record<string, unknown>,
+  arc: ArcgisLayerDefLite | null,
+  displayed: Record<string, string>,
+  query: string | null | undefined,
+  maxRows: number,
+  inspectCoords?: { lng: number; lat: number },
+): string[] {
+  const allKeys = Object.keys(props).filter(k => k && !k.startsWith('mapbox_'))
+  const tokens = query?.trim() ? tokenizeGeoAiPopupQuery(query) : []
+  const passAnchor = (k: string) => !isRedundantAnchorCoordField(k, props[k], inspectCoords)
+
+  if (tokens.length) {
+    const scored = allKeys
+      .filter(passAnchor)
+      .map(k => ({
+        k,
+        s: scoreFieldAgainstQuery(k, fieldAliasFromArc(arc, k), displayed[k] ?? '', tokens),
+      }))
+      .filter(x => x.s > 0)
+      .sort((a, b) => b.s - a.s || a.k.localeCompare(b.k))
+    if (scored.length) return scored.map(x => x.k).slice(0, maxRows)
+  }
+
+  const compact = pickCompactPopupFieldKeys(props, arc, maxRows).filter(passAnchor)
+  if (compact.length) return compact.slice(0, maxRows)
+  return allKeys.filter(passAnchor).sort((a, b) => a.localeCompare(b)).slice(0, Math.min(6, maxRows))
+}
+
+/**
+ * Table rows for Geo AI inspect popup: domain/subtype labels when ArcGIS def is present;
+ * fields filtered by chat query when provided, otherwise a compact schema-driven subset (not all columns).
+ */
 export function buildGeoAiLayerPopupAttributeRows(
   hit: Pick<LayerQueryMatch, 'properties' | 'arcgisLayerDefinition'>,
-  maxRows = 26,
+  options?: number | BuildGeoAiLayerPopupRowsOptions | null,
 ): { label: string; value: string }[] {
+  const opts = normalizePopupRowOptions(options)
+  const maxRows = typeof opts.maxRows === 'number' && opts.maxRows > 0 ? opts.maxRows : 26
   const p = hit.properties
   if (!p || typeof p !== 'object') return []
   const arc = hit.arcgisLayerDefinition
   const ft = { properties: p as Record<string, unknown> }
-  const displayed =
+  const displayed: Record<string, string> =
     arc && Object.keys(p).length
       ? formatFeaturePropertiesForGeoAi(p as Record<string, unknown>, ft, arc)
       : Object.fromEntries(
           Object.entries(p).map(([k, v]) => [k, v === null || v === undefined ? '—' : String(v)]),
         )
-  return Object.keys(displayed)
-    .sort((a, b) => a.localeCompare(b))
-    .slice(0, maxRows)
-    .map(label => {
-      const raw = displayed[label]
-      const v = typeof raw === 'string' ? raw.trim() : raw == null ? '' : String(raw)
-      return { label, value: v || '—' }
-    })
+  const keys = selectGeoAiPopupFieldKeysForContext(
+    p as Record<string, unknown>,
+    arc,
+    displayed,
+    opts.queryContext ?? null,
+    maxRows,
+    opts.inspectCoords,
+  )
+  return keys.map(label => {
+    const raw = displayed[label]
+    const v = typeof raw === 'string' ? raw.trim() : raw == null ? '' : String(raw)
+    return { label, value: v || '—' }
+  })
 }
 
 /** Human-readable area / country hints from feature attributes (Geo AI map card header). */

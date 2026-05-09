@@ -66,7 +66,7 @@ import {
   pickGeoAiHumanPlaceFields,
   type GeoAiMapLayer,
 } from '../../lib/geoExplorerLayerContext';
-import { lngLatFromGeoAiFeatureLink } from '../../lib/geoAiResolveTableMapLink';
+import { lngLatFromGeoAiFeatureLink, resolveGeoAiFeatureFromLink } from '../../lib/geoAiResolveTableMapLink';
 import { runGeoAiStatsCommand, type GeoAiMapFirstSelection } from '../../lib/geoAiStatsEngine';
 import { resolveGeoAiPinFromUserTextAndReply } from '../../lib/geoAiResolveMapCoords';
 import { buildGeoAiFullWeatherSessionAppend } from '../../lib/geoAiWeatherContext';
@@ -1220,6 +1220,13 @@ function siIdentifyTitleForLayerId(layerId: string, customLayers: CustomLayer[])
   return layerId.replace(/-(fill|line|circle)$/, '') || 'Feature';
 }
 
+function siArcgisDefForIdentifyLayerId(layerId: string, customLayers: CustomLayer[]): ArcgisLayerDefLite | null {
+  const sid = siVectorLayerIdToCustomSourceId(layerId);
+  if (!sid) return null;
+  const c = customLayers.find(l => l.id === sid);
+  return c?.arcgisLayerDefinition && typeof c.arcgisLayerDefinition === 'object' ? c.arcgisLayerDefinition : null;
+}
+
 function siSanitizeIdentifyProperties(raw: Record<string, unknown> | null | undefined): Record<string, unknown> {
   if (!raw || typeof raw !== 'object') return {};
   const out: Record<string, unknown> = {};
@@ -1940,6 +1947,8 @@ export default function SatelliteIntelligence() {
   const [geoExplorerChatError, setGeoExplorerChatError] = useState('');
   const [geoAiPinLngLat, setGeoAiPinLngLat] = useState<[number, number] | null>(null);
   const [geoAiInspectCard, setGeoAiInspectCard] = useState<null | GeoAiInspectCardState>(null);
+  /** Last Geo AI user message (any model) — drives inspect-popup field pick + map identify context. */
+  const geoAiLastUserMapQueryRef = useRef<string>('');
   const geoAiReverseGeocodeKeyRef = useRef<string>('');
   const geoExplorerFileInputRef = useRef<HTMLInputElement | null>(null);
   const geoExplorerInFlightRef = useRef(false);
@@ -4799,6 +4808,7 @@ export default function SatelliteIntelligence() {
     setGeoExplorerChatError('');
     setGeoAiPinLngLat(null);
     setGeoAiInspectCard(null);
+    geoAiLastUserMapQueryRef.current = '';
   }, []);
 
   const clearGeoAiChat = useCallback(() => {
@@ -4809,6 +4819,7 @@ export default function SatelliteIntelligence() {
     setGeoAiDraft('');
     setGeoAiChatError('');
     setGeoAiInspectCard(null);
+    geoAiLastUserMapQueryRef.current = '';
   }, []);
 
   const clearGeoDeepseekChat = useCallback(() => {
@@ -4819,6 +4830,7 @@ export default function SatelliteIntelligence() {
     setGeoDeepseekDraft('');
     setGeoDeepseekChatError('');
     setGeoAiInspectCard(null);
+    geoAiLastUserMapQueryRef.current = '';
   }, []);
 
   const clearCurrentGeoAiPanel = useCallback(() => {
@@ -4862,7 +4874,11 @@ export default function SatelliteIntelligence() {
       if (pin.layerHit) {
         setGeoAiInspectCard({
           title: pin.layerHit.layerName,
-          rows: buildGeoAiLayerPopupAttributeRows(pin.layerHit),
+          rows: buildGeoAiLayerPopupAttributeRows(pin.layerHit, {
+            maxRows: 28,
+            queryContext: userText,
+            inspectCoords: { lng: pin.coords[0], lat: pin.coords[1] },
+          }),
           lng: pin.coords[0],
           lat: pin.coords[1],
           ...pickGeoAiHumanPlaceFields(pin.layerHit.properties),
@@ -4925,6 +4941,7 @@ export default function SatelliteIntelligence() {
     const trimmed = (voiceOverrideText ?? geoExplorerDraft).trim();
     if (geoExplorerInFlightRef.current) return;
     if (!trimmed && !geoExplorerPendingImage) return;
+    if (trimmed) geoAiLastUserMapQueryRef.current = trimmed;
     const apiKey = geminiApiKey.trim();
     if (!apiKey) {
       setGeoExplorerChatError(
@@ -5032,7 +5049,11 @@ export default function SatelliteIntelligence() {
             if (me.layerHit) {
               setGeoAiInspectCard({
                 title: me.layerHit.layerName,
-                rows: buildGeoAiLayerPopupAttributeRows(me.layerHit),
+                rows: buildGeoAiLayerPopupAttributeRows(me.layerHit, {
+                  maxRows: 28,
+                  queryContext: userTextForMapFallback,
+                  inspectCoords: { lng: me.coords[0], lat: me.coords[1] },
+                }),
                 lng: me.coords[0],
                 lat: me.coords[1],
                 ...pickGeoAiHumanPlaceFields(me.layerHit.properties),
@@ -5077,10 +5098,30 @@ export default function SatelliteIntelligence() {
       let lng: number;
       let lat: number;
       let title = 'Selected feature';
+      let featureInspect: GeoAiInspectCardState | null = null;
       if (link.type === 'feature') {
         const ll = lngLatFromGeoAiFeatureLink(link, customLayers);
         if (!ll) return;
         [lng, lat] = ll;
+        const resolved = resolveGeoAiFeatureFromLink(link, customLayers);
+        if (resolved) {
+          const clean = siSanitizeIdentifyProperties(resolved.properties);
+          title = resolved.layerName;
+          featureInspect = {
+            title,
+            rows: buildGeoAiLayerPopupAttributeRows(
+              { properties: clean, arcgisLayerDefinition: resolved.arcgisLayerDefinition },
+              {
+                maxRows: 28,
+                queryContext: geoAiLastUserMapQueryRef.current,
+                inspectCoords: { lng, lat },
+              },
+            ),
+            lng,
+            lat,
+            ...pickGeoAiHumanPlaceFields(clean),
+          };
+        }
       } else {
         lng = link.lng;
         lat = link.lat;
@@ -5100,15 +5141,19 @@ export default function SatelliteIntelligence() {
         bearing: typeof vs.bearing === 'number' ? vs.bearing : 0,
       }));
       if (action === 'focus' || action === 'openTable' || action === 'highlight' || link.type === 'feature') {
-        setGeoAiInspectCard({
-          title,
-          rows: [
-            { label: 'Longitude', value: lng.toFixed(6) },
-            { label: 'Latitude', value: lat.toFixed(6) },
-          ],
-          lng,
-          lat,
-        });
+        if (featureInspect) {
+          setGeoAiInspectCard(featureInspect);
+        } else {
+          setGeoAiInspectCard({
+            title,
+            rows: [
+              { label: 'Longitude', value: lng.toFixed(6) },
+              { label: 'Latitude', value: lat.toFixed(6) },
+            ],
+            lng,
+            lat,
+          });
+        }
       } else if (link.type === 'coords' && link.layerName) {
         setGeoAiInspectCard({
           title: link.layerName,
@@ -5140,6 +5185,7 @@ export default function SatelliteIntelligence() {
   const sendGeoAiChat = useCallback((voiceOverrideText?: string) => {
     const trimmed = (voiceOverrideText ?? geoAiDraft).trim();
     if (geoAiInFlightRef.current || !trimmed) return;
+    geoAiLastUserMapQueryRef.current = trimmed;
     const apiKey = claudeApiKey.trim();
     if (!apiKey) {
       setGeoAiChatError(
@@ -5248,6 +5294,7 @@ export default function SatelliteIntelligence() {
   const sendGeoDeepseekChat = useCallback((voiceOverrideText?: string) => {
     const trimmed = (voiceOverrideText ?? geoDeepseekDraft).trim();
     if (geoDeepseekInFlightRef.current || !trimmed) return;
+    geoAiLastUserMapQueryRef.current = trimmed;
     const apiKey = deepseekApiKey.trim();
     if (!apiKey) {
       setGeoDeepseekChatError(
@@ -6170,11 +6217,16 @@ export default function SatelliteIntelligence() {
               }
               return;
             }
+            const arcDef = siArcgisDefForIdentifyLayerId(layerId, customLayers);
             setGeoAiInspectCard({
               title,
               rows: buildGeoAiLayerPopupAttributeRows(
-                { properties: clean, arcgisLayerDefinition: null },
-                40,
+                { properties: clean, arcgisLayerDefinition: arcDef },
+                {
+                  maxRows: 28,
+                  queryContext: geoAiLastUserMapQueryRef.current,
+                  inspectCoords: { lng, lat },
+                },
               ),
               lng,
               lat,

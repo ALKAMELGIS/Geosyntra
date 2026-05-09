@@ -1,4 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
+import {
+  buildArcFieldsByLower,
+  getArcDisplayValue,
+  readCodedValueDescription,
+  type ArcgisLayerDefLite,
+} from '../../../lib/arcgisAttributeDisplay'
 import type { LayerData } from './LayerManager'
 
 type PopupState = {
@@ -159,6 +165,12 @@ export function MapPopup({
   const [form, setForm] = useState<Record<string, string>>({})
   const [errors, setErrors] = useState<Record<string, string>>({})
 
+  const arcDefForDisplay: ArcgisLayerDefLite | null =
+    layer?.source === 'arcgis' && layer.arcgisLayerDefinition && typeof layer.arcgisLayerDefinition === 'object'
+      ? (layer.arcgisLayerDefinition as ArcgisLayerDefLite)
+      : null
+  const arcFieldsByLowerForDisplay = useMemo(() => buildArcFieldsByLower(arcDefForDisplay), [arcDefForDisplay])
+
   const fieldDefs = useMemo<FieldDef[]>(() => {
     const props = popup.feature?.properties && typeof popup.feature.properties === 'object' ? (popup.feature.properties as Record<string, any>) : {}
     const arcDef = layer?.source === 'arcgis' ? layer.arcgisLayerDefinition : null
@@ -232,7 +244,7 @@ export function MapPopup({
           .filter(cv => cv && cv.code !== undefined)
           .map(cv => ({
             value: String(cv.code),
-            label: typeof cv?.name === 'string' && cv.name ? cv.name : String(cv.code),
+            label: readCodedValueDescription(cv) || (typeof cv?.name === 'string' && cv.name ? cv.name : String(cv.code)),
             rawCode: cv.code,
           }))
         defs.push({ name, label: alias, kind: 'text', required, editable, codedValues })
@@ -381,6 +393,11 @@ export function MapPopup({
     if (def.codedValues?.length) {
       const cv = def.codedValues.find(o => o.value === rawText)
       return cv?.label || rawText
+    }
+    if (arcDefForDisplay) {
+      const ft = { properties: props as Record<string, unknown> }
+      const parts = getArcDisplayValue(ft, def.name, raw, arcDefForDisplay, arcFieldsByLowerForDisplay, 'description')
+      if (parts.display && (!parts.hasDomain || parts.description || parts.display !== parts.code)) return parts.display
     }
     if (def.kind === 'date' && rawText) {
       const ms = typeof raw === 'number' ? raw : Number(raw)
