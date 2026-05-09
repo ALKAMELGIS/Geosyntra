@@ -4717,19 +4717,56 @@ export default function SatelliteIntelligence() {
       const map = mapRef.current?.getMap?.() ?? mapRef.current;
       const fc = { type: 'FeatureCollection', features };
       const bounds = getGeoJsonBounds(fc);
-      if (bounds && map && typeof map.fitBounds === 'function') {
-        map.fitBounds(
-          [
-            [bounds[0], bounds[1]],
-            [bounds[2], bounds[3]],
-          ],
-          { padding: 88, duration: 780, maxZoom: 18 },
-        );
-      }
       const m0 = metas[0]!;
       const primary = features[0]!;
       const cen = geoAiFeatureCentroid(primary);
       if (!cen || !Number.isFinite(cen[0]) || !Number.isFinite(cen[1])) return;
+
+      /**
+       * MapGL is controlled via React `viewState`. Calling only `map.fitBounds` moves the Mapbox
+       * camera briefly; the next render reapplies stale longitude/latitude/zoom — globe stays world view.
+       * Sync camera into `viewState` immediately after fitting (duration 0 avoids fighting React mid-animation).
+       */
+      let syncedCamera = false;
+      if (bounds && map && typeof map.fitBounds === 'function') {
+        try {
+          map.fitBounds(
+            [
+              [bounds[0], bounds[1]],
+              [bounds[2], bounds[3]],
+            ],
+            { padding: 88, duration: 0, maxZoom: 18 },
+          );
+          const c = map.getCenter();
+          const zoom = map.getZoom();
+          const bearing = typeof map.getBearing === 'function' ? map.getBearing() : undefined;
+          const pitchFromMap = typeof map.getPitch === 'function' ? map.getPitch() : undefined;
+          setViewState(prev => ({
+            ...prev,
+            longitude: c.lng,
+            latitude: c.lat,
+            zoom,
+            ...(typeof bearing === 'number' ? { bearing } : {}),
+            pitch: is3DView
+              ? Math.max(typeof pitchFromMap === 'number' ? pitchFromMap : prev.pitch ?? 0, 42)
+              : typeof pitchFromMap === 'number'
+                ? pitchFromMap
+                : prev.pitch ?? 0,
+          }));
+          syncedCamera = true;
+        } catch {
+          /* fall through */
+        }
+      }
+      if (!syncedCamera) {
+        setViewState(prev => ({
+          ...prev,
+          longitude: cen[0],
+          latitude: cen[1],
+          zoom: Math.max(typeof prev.zoom === 'number' ? prev.zoom : 2, 15.25),
+          pitch: is3DView ? Math.max(typeof prev.pitch === 'number' ? prev.pitch : 0, 42) : prev.pitch ?? 0,
+        }));
+      }
       setGeoAiPinLngLat([cen[0], cen[1]]);
       setGeoAiInspectCard({
         title: m0.layerName,
@@ -4739,7 +4776,7 @@ export default function SatelliteIntelligence() {
         ...pickGeoAiHumanPlaceFields(m0.props),
       });
     },
-    [getGeoJsonBounds],
+    [getGeoJsonBounds, is3DView],
   );
 
   useEffect(() => {
