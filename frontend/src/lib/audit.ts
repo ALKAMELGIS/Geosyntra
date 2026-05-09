@@ -10,7 +10,7 @@ export type AuditEntry = {
   meta?: Record<string, unknown>
 }
 
-const AUDIT_KEY = 'audit_log_v1'
+export const AUDIT_LOG_STORAGE_KEY = 'audit_log_v1'
 
 const normalizeEntry = (raw: unknown): AuditEntry | null => {
   if (!raw || typeof raw !== 'object') return null
@@ -28,7 +28,7 @@ const normalizeEntry = (raw: unknown): AuditEntry | null => {
 
 export const readAuditLog = (): AuditEntry[] => {
   try {
-    const raw = localStorage.getItem(AUDIT_KEY)
+    const raw = localStorage.getItem(AUDIT_LOG_STORAGE_KEY)
     if (!raw) return []
     const parsed = JSON.parse(raw) as unknown
     if (!Array.isArray(parsed)) return []
@@ -71,9 +71,12 @@ export const appendAuditLog = (
   const current = readAuditLog()
   const next = [normalized, ...current].slice(0, 2000)
   try {
-    localStorage.setItem(AUDIT_KEY, JSON.stringify(next))
+    localStorage.setItem(AUDIT_LOG_STORAGE_KEY, JSON.stringify(next))
   } catch {
   }
+  void import('./adminDirectoryPersistence')
+    .then(m => m.scheduleAdminDirectorySync())
+    .catch(() => {})
   return normalized
 }
 

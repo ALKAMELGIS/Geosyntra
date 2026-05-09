@@ -148,8 +148,10 @@ function AppShell() {
   const isOperationsDataPage = location.pathname.startsWith('/data/')
   /** Soil / weather / irrigation / camera API integration pages */
   const isSensorsPage = location.pathname.startsWith('/sensors/')
+  const isHomeLanding = location.pathname === '/' || location.pathname === ''
   const mainContentClass = [
     'content',
+    isHomeLanding && 'content--home-landing',
     isAgroCloudDashboard && 'content--agro-cloud-dashboard',
     isDevelopDashboard && 'content--develop-dashboard',
     isOperationsDataPage && 'content--operations-fit',

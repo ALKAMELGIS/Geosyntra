@@ -22,6 +22,12 @@ const API_SECRETS_FILE = envSecretsPath
     : path.join(SERVER_DIR, envSecretsPath)
   : path.join(SERVER_DIR, 'agri_api_secrets.json')
 const USER_PROFILES_FILE = path.join(SERVER_DIR, 'agri_user_profiles.json')
+const envAdminDirPath = process.env.AGRI_ADMIN_DIRECTORY_FILE?.trim()
+const ADMIN_DIRECTORY_FILE = envAdminDirPath
+  ? path.isAbsolute(envAdminDirPath)
+    ? envAdminDirPath
+    : path.join(SERVER_DIR, envAdminDirPath)
+  : path.join(SERVER_DIR, 'agri_admin_directory.json')
 /** Repository root (parent of `frontend/` and `backend/`). */
 const REPO_ROOT = path.join(SERVER_DIR, '..', '..')
 /** Vite production output (`npm run build` in `frontend/`). Override with AGRI_FRONTEND_DIST. */
@@ -32,6 +38,7 @@ import versionedRoutes from '../src/routes/index.js'
 import { errorHandler, notFoundHandler } from '../src/middleware/errorHandler.js'
 import { registerApiSecretsRoutes } from './apiSecretsPersistence.js'
 import { registerUserProfilePersistence } from './userProfilePersistence.js'
+import { registerAdminDirectoryPersistence } from './adminDirectoryPersistence.js'
 
 const app = express()
 app.use(cors())
@@ -55,6 +62,11 @@ registerApiSecretsRoutes(app, {
 registerUserProfilePersistence(app, {
   filePath: USER_PROFILES_FILE,
   accessToken: process.env.AGRI_USER_PROFILE_TOKEN,
+})
+
+registerAdminDirectoryPersistence(app, {
+  filePath: ADMIN_DIRECTORY_FILE,
+  accessToken: process.env.AGRI_ADMIN_DIRECTORY_TOKEN,
 })
 
 app.get('*', (req, res, next) => {

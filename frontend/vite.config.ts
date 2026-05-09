@@ -1,5 +1,6 @@
 import { readdir, readFile, writeFile } from 'node:fs/promises'
-import { extname, isAbsolute, join } from 'node:path'
+import { dirname, extname, isAbsolute, join, resolve } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import { promisify } from 'node:util'
 import { brotliCompress, gzip } from 'node:zlib'
 import { defineConfig, type Plugin, type ResolvedConfig } from 'vite'
@@ -10,6 +11,8 @@ import { appConfig } from './config/app'
 
 const gzipAsync = promisify(gzip)
 const brotliAsync = promisify(brotliCompress)
+
+const __dirname = dirname(fileURLToPath(import.meta.url))
 
 const COMPRESSIBLE_EXTENSIONS = new Set([
   '.css',
@@ -139,6 +142,11 @@ function ghPagesHashAndSlashRedirect(): Plugin {
 
 export default defineConfig({
   base: appConfig.basePath,
+  resolve: {
+    alias: {
+      '@': resolve(__dirname, 'src'),
+    },
+  },
   build: {
     chunkSizeWarningLimit: 1800,
     modulePreload: {

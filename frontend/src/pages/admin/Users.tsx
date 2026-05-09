@@ -1,10 +1,15 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import '../../pages/data-entry/EC.css'
 import './Users.css'
 import { hasPermission, normalizeEmail, normalizeRole, readCurrentUser, startSession } from '../../lib/auth'
 import { readProfileExtra } from '../../lib/userProfilePersistence'
-import { appendAuditLog, readAuditLog } from '../../lib/audit'
+import { appendAuditLog, AUDIT_LOG_STORAGE_KEY, readAuditLog } from '../../lib/audit'
+import {
+  flushAdminDirectoryToServer,
+  pullAdminDirectoryFromServer,
+  scheduleAdminDirectorySync,
+} from '../../lib/adminDirectoryPersistence'
 
 type User = {
   id: number
@@ -56,6 +61,7 @@ export default function Users({ embedded }: { embedded?: boolean } = {}) {
   const [batchRole, setBatchRole] = useState<string>('Viewer')
   const [isNarrow, setIsNarrow] = useState(false)
   const [duplicateEmailKeys, setDuplicateEmailKeys] = useState<string[]>([])
+  const directoryHydratedRef = useRef(false)
 
   const currentUser = useMemo(() => readCurrentUser(), [])
   const currentRole = useMemo(() => normalizeRole(currentUser?.role), [currentUser?.role])
@@ -263,52 +269,96 @@ export default function Users({ embedded }: { embedded?: boolean } = {}) {
   }
 
   useEffect(() => {
-    let loadedUsers: User[] = []
-    const stored = localStorage.getItem('adminUsers')
-    if (stored) {
-      try {
-        const parsed = JSON.parse(stored)
-        if (Array.isArray(parsed)) {
-          const normalized = parsed.map(normalizeUser).filter(Boolean) as User[]
+    let cancelled = false
+    ;(async () => {
+      let loadedUsers: User[] = []
+      const remote = await pullAdminDirectoryFromServer()
+      if (cancelled) return
+
+      if (remote && Array.isArray(remote.users) && remote.users.length > 0) {
+        try {
+          const normalized = remote.users.map(normalizeUser).filter(Boolean) as User[]
           setDuplicateEmailKeys(detectDuplicateEmailKeys(normalized))
           loadedUsers = consolidateUsersByEmail(normalized)
-        }
-      } catch {
-      }
-    }
-
-    const storedCurrent = localStorage.getItem('currentUser')
-    if (storedCurrent) {
-      try {
-        const parsedCurrent = JSON.parse(storedCurrent) as { id?: number; name?: string; email?: string; role?: string; scope?: string }
-        if (parsedCurrent && parsedCurrent.email) {
-          const exists = loadedUsers.some(u => normalizeEmail(u.email) === normalizeEmail(parsedCurrent.email))
-          if (!exists) {
-            const seededUser: User = {
-              id: parsedCurrent.id || Date.now(),
-              name: parsedCurrent.name || parsedCurrent.email,
-              email: String(parsedCurrent.email).trim(),
-              role: normalizeRole(parsedCurrent.role),
-              scope: parsedCurrent.scope ? String(parsedCurrent.scope).trim() || undefined : undefined,
-              status: 'Active',
-              lastLogin: 'Never',
-              emailVerified: true
+          localStorage.setItem('adminUsers', JSON.stringify(loadedUsers))
+          if (Array.isArray(remote.auditLog) && remote.auditLog.length) {
+            try {
+              localStorage.setItem(AUDIT_LOG_STORAGE_KEY, JSON.stringify(remote.auditLog))
+            } catch {
+              /* ignore */
             }
-            loadedUsers = [...loadedUsers, seededUser]
+          }
+        } catch {
+          loadedUsers = []
+        }
+      } else {
+        const stored = localStorage.getItem('adminUsers')
+        if (stored) {
+          try {
+            const parsed = JSON.parse(stored)
+            if (Array.isArray(parsed)) {
+              const normalized = parsed.map(normalizeUser).filter(Boolean) as User[]
+              setDuplicateEmailKeys(detectDuplicateEmailKeys(normalized))
+              loadedUsers = consolidateUsersByEmail(normalized)
+            }
+          } catch {
+            /* ignore */
           }
         }
-      } catch {
       }
-    }
 
-    if (loadedUsers.length) {
-      setUsers(loadedUsers)
-      localStorage.setItem('adminUsers', JSON.stringify(loadedUsers))
+      const storedCurrent = localStorage.getItem('currentUser')
+      if (storedCurrent) {
+        try {
+          const parsedCurrent = JSON.parse(storedCurrent) as { id?: number; name?: string; email?: string; role?: string; scope?: string }
+          if (parsedCurrent && parsedCurrent.email) {
+            const exists = loadedUsers.some(u => normalizeEmail(u.email) === normalizeEmail(parsedCurrent.email))
+            if (!exists) {
+              const seededUser: User = {
+                id: parsedCurrent.id || Date.now(),
+                name: parsedCurrent.name || parsedCurrent.email,
+                email: String(parsedCurrent.email).trim(),
+                role: normalizeRole(parsedCurrent.role),
+                scope: parsedCurrent.scope ? String(parsedCurrent.scope).trim() || undefined : undefined,
+                status: 'Active',
+                lastLogin: 'Never',
+                emailVerified: true
+              }
+              loadedUsers = [...loadedUsers, seededUser]
+            }
+          }
+        } catch {
+          /* ignore */
+        }
+      }
+
+      if (loadedUsers.length) {
+        setUsers(loadedUsers)
+        try {
+          localStorage.setItem('adminUsers', JSON.stringify(loadedUsers))
+        } catch {
+          /* ignore */
+        }
+        if (!remote || !remote.users.length) {
+          void flushAdminDirectoryToServer()
+        }
+      }
+
+      directoryHydratedRef.current = true
+    })()
+    return () => {
+      cancelled = true
     }
   }, [])
 
   useEffect(() => {
-    localStorage.setItem('adminUsers', JSON.stringify(users))
+    if (!directoryHydratedRef.current) return
+    try {
+      localStorage.setItem('adminUsers', JSON.stringify(users))
+    } catch {
+      /* ignore */
+    }
+    scheduleAdminDirectorySync()
   }, [users])
 
   const validateEmail = (email: string) => {
@@ -721,75 +771,25 @@ export default function Users({ embedded }: { embedded?: boolean } = {}) {
     }
   }
 
-  const renderStatusPill = (status: string) => {
-    let bg = '#e2e8f0'
-    let color = '#0f172a'
-    if (status === 'Active') {
-      bg = '#dcfce7'
-      color = '#166534'
-    } else if (status === 'Inactive') {
-      bg = '#e2e8f0'
-      color = '#475569'
-    } else if (status === 'Suspended') {
-      bg = '#fee2e2'
-      color = '#b91c1c'
-    } else if (status === 'Invited') {
-      bg = '#e0f2fe'
-      color = '#0369a1'
-    } else if (status === 'Deleted') {
-      bg = '#f1f5f9'
-      color = '#64748b'
-    }
-    return (
-      <span
-        style={{
-          background: bg,
-          color,
-          padding: '4px 10px',
-          borderRadius: '20px',
-          fontSize: '11px',
-          fontWeight: 600
-        }}
-      >
-        {status}
-      </span>
-    )
-  }
+  const statusSlug = (status: string) =>
+    String(status || '')
+      .toLowerCase()
+      .replace(/\s+/g, '-')
+      .replace(/[^a-z0-9-]/g, '') || 'unknown'
 
-  const renderRolePill = (role: string) => {
-    let bg = '#e0f2fe'
-    let color = '#0369a1'
-    if (role === 'Admin') {
-      bg = '#ecfdf5'
-      color = '#047857'
-    } else if (role === 'Manager') {
-      bg = '#fffbeb'
-      color = '#92400e'
-    } else if (role === 'Admin Manager') {
-      bg = '#f5f3ff'
-      color = '#6d28d9'
-    } else if (role === 'Editor') {
-      bg = '#eff6ff'
-      color = '#1d4ed8'
-    } else if (role === 'Viewer') {
-      bg = '#f1f5f9'
-      color = '#475569'
-    }
-    return (
-      <span
-        style={{
-          background: bg,
-          color,
-          padding: '4px 10px',
-          borderRadius: '20px',
-          fontSize: '11px',
-          fontWeight: 600
-        }}
-      >
-        {role}
-      </span>
-    )
-  }
+  const roleSlug = (role: string) =>
+    String(role || '')
+      .toLowerCase()
+      .replace(/\s+/g, '-')
+      .replace(/[^a-z0-9-]/g, '') || 'viewer'
+
+  const renderStatusPill = (status: string) => (
+    <span className={`admin-users-pill admin-users-pill--status admin-users-pill--status-${statusSlug(status)}`}>{status}</span>
+  )
+
+  const renderRolePill = (role: string) => (
+    <span className={`admin-users-pill admin-users-pill--role admin-users-pill--role-${roleSlug(role)}`}>{role}</span>
+  )
 
   const hasUsers = filteredAndSorted.length > 0
 
@@ -821,106 +821,60 @@ export default function Users({ embedded }: { embedded?: boolean } = {}) {
   }
 
   return (
-    <div className={isEmbedded ? undefined : 'page'} style={{ width: '100%', maxWidth: 'none', margin: isEmbedded ? '0' : 0 }}>
-      <div
-        style={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          marginBottom: '16px'
-        }}
-      >
-        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+    <div
+      className={['admin-users', isEmbedded ? 'admin-users--embedded' : 'page'].filter(Boolean).join(' ')}
+      style={{ width: '100%', maxWidth: 'none', margin: isEmbedded ? '0' : 0 }}
+    >
+      <div className="admin-users__toolbar">
+        <div className="admin-users__toolbar-left">
           {!isEmbedded ? (
             <button type="button" className="back-btn" onClick={handleBack} aria-label="Back" title="Back">
               <i className="fa-solid fa-chevron-left"></i>
             </button>
           ) : null}
-          <h1 style={{ fontSize: '20px', fontWeight: 700, color: '#0f172a', margin: 0 }}>User Management</h1>
+          <h1 className="admin-users__title">User Management</h1>
         </div>
-        <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+        <div className="admin-users__toolbar-actions">
           <button
+            type="button"
+            className="admin-users__btn admin-users__btn--ghost"
             onClick={() => canSeeAudit && setIsAuditOpen(true)}
             disabled={!canSeeAudit}
-            style={{
-              padding: '8px 14px',
-              borderRadius: '999px',
-              border: '1px solid #e2e8f0',
-              background: 'white',
-              fontSize: '13px',
-              fontWeight: 500,
-              cursor: canSeeAudit ? 'pointer' : 'not-allowed',
-              color: '#0f172a',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '6px'
-            }}
           >
             <i className="fa-solid fa-clipboard-list"></i>
             Audit Log
           </button>
           <button
+            type="button"
+            className="admin-users__btn admin-users__btn--accent"
             onClick={() => handleExportCsv()}
             disabled={!hasUsers}
-            style={{
-              padding: '8px 14px',
-              borderRadius: '999px',
-              border: '1px solid #e2e8f0',
-              background: hasUsers ? '#ecfeff' : '#f8fafc',
-              fontSize: '13px',
-              fontWeight: 500,
-              cursor: hasUsers ? 'pointer' : 'not-allowed',
-              color: hasUsers ? '#0369a1' : '#94a3b8',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '6px'
-            }}
           >
             <i className="fa-solid fa-file-export"></i>
             Export CSV
           </button>
           <button
+            type="button"
+            className={'admin-users__btn admin-users__btn--ghost' + (duplicateEmailKeys.length ? ' admin-users__btn--warn' : '')}
             onClick={() => scanDuplicateAccounts(true)}
-            style={{
-              padding: '8px 14px',
-              borderRadius: '999px',
-              border: '1px solid #e2e8f0',
-              background: duplicateEmailKeys.length ? '#fff7ed' : 'white',
-              fontSize: '13px',
-              fontWeight: 500,
-              cursor: 'pointer',
-              color: duplicateEmailKeys.length ? '#c2410c' : '#0f172a',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '6px'
-            }}
             title={duplicateEmailKeys.length ? `${duplicateEmailKeys.length} duplicate groups detected` : 'Scan duplicate accounts'}
           >
             <i className="fa-solid fa-triangle-exclamation"></i>
             {duplicateEmailKeys.length ? `Duplicates: ${duplicateEmailKeys.length}` : 'Scan Duplicates'}
           </button>
           <button
+            type="button"
+            className="admin-users__btn admin-users__btn--warn"
             onClick={handleCleanupDuplicateAccounts}
             disabled={!duplicateEmailKeys.length}
-            style={{
-              padding: '8px 14px',
-              borderRadius: '999px',
-              border: '1px solid #fed7aa',
-              background: duplicateEmailKeys.length ? '#fff7ed' : '#f8fafc',
-              fontSize: '13px',
-              fontWeight: 600,
-              cursor: duplicateEmailKeys.length ? 'pointer' : 'not-allowed',
-              color: duplicateEmailKeys.length ? '#c2410c' : '#94a3b8',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '6px'
-            }}
             title="Keep best account record per email and remove duplicates"
           >
             <i className="fa-solid fa-broom"></i>
             Clean Duplicates
           </button>
           <button
+            type="button"
+            className="admin-users__btn admin-users__btn--primary"
             onClick={() => {
               if (!canAddUser) return
               setEditingId(null)
@@ -930,20 +884,6 @@ export default function Users({ embedded }: { embedded?: boolean } = {}) {
               setIsModalOpen(true)
             }}
             disabled={!canAddUser}
-            style={{
-              padding: '8px 16px',
-              borderRadius: '999px',
-              border: 'none',
-              background: canAddUser ? '#10b981' : '#94a3b8',
-              color: 'white',
-              fontWeight: 600,
-              fontSize: '13px',
-              cursor: canAddUser ? 'pointer' : 'not-allowed',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '6px',
-              boxShadow: '0 10px 20px rgba(16, 185, 129, 0.3)'
-            }}
           >
             <i className="fa-solid fa-user-plus"></i>
             Add User
@@ -951,45 +891,23 @@ export default function Users({ embedded }: { embedded?: boolean } = {}) {
         </div>
       </div>
 
-      <div
-        style={{
-          display: 'flex',
-          flexWrap: 'wrap',
-          gap: '12px',
-          marginBottom: '16px',
-          alignItems: 'center'
-        }}
-      >
+      <div className="admin-users__filters">
         <input
           type="text"
+          className="admin-users__search"
           placeholder="Search by name or email"
           value={searchTerm}
           onChange={e => {
             setSearchTerm(e.target.value)
             setCurrentPage(1)
           }}
-          style={{
-            flex: '1 1 220px',
-            minWidth: '200px',
-            padding: '8px 12px',
-            borderRadius: '999px',
-            border: '1px solid #e2e8f0',
-            outline: 'none',
-            fontSize: '13px'
-          }}
         />
         <select
+          className="admin-users__select"
           value={roleFilter}
           onChange={e => {
             setRoleFilter(e.target.value)
             setCurrentPage(1)
-          }}
-          style={{
-            padding: '8px 12px',
-            borderRadius: '999px',
-            border: '1px solid #e2e8f0',
-            background: 'white',
-            fontSize: '13px'
           }}
         >
           <option value="All">All Roles</option>
@@ -1000,17 +918,11 @@ export default function Users({ embedded }: { embedded?: boolean } = {}) {
           <option value="Viewer">Viewer</option>
         </select>
         <select
+          className="admin-users__select"
           value={statusFilter}
           onChange={e => {
             setStatusFilter(e.target.value)
             setCurrentPage(1)
-          }}
-          style={{
-            padding: '8px 12px',
-            borderRadius: '999px',
-            border: '1px solid #e2e8f0',
-            background: 'white',
-            fontSize: '13px'
           }}
         >
           <option value="All">All Statuses</option>
@@ -1023,25 +935,12 @@ export default function Users({ embedded }: { embedded?: boolean } = {}) {
       </div>
 
       {selectedIds.length ? (
-        <div
-          style={{
-            display: 'flex',
-            gap: 10,
-            alignItems: 'center',
-            flexWrap: 'wrap',
-            padding: '10px 12px',
-            borderRadius: 12,
-            border: '1px solid #e2e8f0',
-            background: '#f8fafc',
-            marginBottom: 12,
-          }}
-          aria-label="Batch actions"
-        >
-          <div style={{ fontSize: 13, color: '#0f172a', fontWeight: 700 }}>{selectedIds.length} selected</div>
+        <div className="admin-users__batch" aria-label="Batch actions">
+          <div className="admin-users__batch-count">{selectedIds.length} selected</div>
           <select
+            className="admin-users__select admin-users__select--sm"
             value={batchAction}
             onChange={e => setBatchAction(e.target.value as any)}
-            style={{ padding: '8px 12px', borderRadius: 999, border: '1px solid #e2e8f0', background: 'white', fontSize: 13 }}
             aria-label="Batch action"
           >
             <option value="enable">Enable</option>
@@ -1052,9 +951,9 @@ export default function Users({ embedded }: { embedded?: boolean } = {}) {
           </select>
           {batchAction === 'assignRole' ? (
             <select
+              className="admin-users__select admin-users__select--sm"
               value={batchRole}
               onChange={e => setBatchRole(e.target.value)}
-              style={{ padding: '8px 12px', borderRadius: 999, border: '1px solid #e2e8f0', background: 'white', fontSize: 13 }}
               aria-label="Role"
             >
               {isSuperManager ? <option value="Admin">Admin</option> : null}
@@ -1082,7 +981,7 @@ export default function Users({ embedded }: { embedded?: boolean } = {}) {
                 const manageable = canManageUser(user)
                 const checked = selectedIds.includes(user.id)
                 return (
-                  <div key={user.id} className="card" style={{ border: '1px solid #e2e8f0', borderRadius: 12, background: 'white', padding: 14 }}>
+                  <div key={user.id} className="card admin-users__mobile-card">
                     <div style={{ display: 'grid', gridTemplateColumns: 'auto 1fr auto', gap: 10, alignItems: 'center' }}>
                       <input
                         type="checkbox"
@@ -1092,10 +991,10 @@ export default function Users({ embedded }: { embedded?: boolean } = {}) {
                         aria-label={`Select ${user.email}`}
                       />
                       <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
-                        <img src={avatar} alt="" style={{ width: 40, height: 40, borderRadius: '50%', objectFit: 'cover', border: '1px solid #e2e8f0' }} />
+                        <img src={avatar} alt="" className="admin-users__avatar admin-users__avatar--lg" />
                         <div style={{ minWidth: 0 }}>
-                          <div style={{ fontWeight: 800, color: '#0f172a', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{user.name}</div>
-                          <div style={{ fontSize: 12, color: '#64748b', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{user.email}</div>
+                          <div className="admin-users__cell-name">{user.name}</div>
+                          <div className="admin-users__cell-email">{user.email}</div>
                         </div>
                       </div>
                       <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
@@ -1104,11 +1003,12 @@ export default function Users({ embedded }: { embedded?: boolean } = {}) {
                       </div>
                     </div>
                     <div style={{ marginTop: 10, display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10 }}>
-                      <div style={{ fontSize: 12, color: '#64748b' }}>Last login: {user.lastLogin || 'Never'}</div>
-                      <div style={{ display: 'flex', gap: 12, justifyContent: 'flex-end' }}>
+                      <div className="admin-users__meta">Last login: {user.lastLogin || 'Never'}</div>
+                      <div className="admin-users__row-actions">
                         {canImpersonate ? (
                           <button
-                            style={{ border: 'none', background: 'none', color: '#7c3aed', cursor: 'pointer', fontSize: 16 }}
+                            type="button"
+                            className="admin-users__icon-btn admin-users__icon-btn--impersonate"
                             title="Impersonate"
                             onClick={() => handleImpersonate(user)}
                           >
@@ -1116,30 +1016,40 @@ export default function Users({ embedded }: { embedded?: boolean } = {}) {
                           </button>
                         ) : null}
                         <button
-                          style={{ border: 'none', background: 'none', color: manageable ? '#64748b' : '#cbd5e1', cursor: manageable ? 'pointer' : 'not-allowed', fontSize: 16 }}
+                          type="button"
+                          className={'admin-users__icon-btn' + (manageable ? '' : ' admin-users__icon-btn--disabled')}
                           title="Edit"
                           onClick={() => handleEditUser(user)}
+                          disabled={!manageable}
                         >
                           <i className="fa-solid fa-pen"></i>
                         </button>
                         <button
-                          style={{ border: 'none', background: 'none', color: canDeleteUser(user) ? '#ef4444' : '#cbd5e1', cursor: canDeleteUser(user) ? 'pointer' : 'not-allowed', fontSize: 16 }}
+                          type="button"
+                          className={
+                            'admin-users__icon-btn admin-users__icon-btn--danger' + (canDeleteUser(user) ? '' : ' admin-users__icon-btn--disabled')
+                          }
                           title={canDeleteUser(user) ? 'Delete' : 'Not allowed'}
                           onClick={() => handleRequestDelete(user.id)}
+                          disabled={!canDeleteUser(user)}
                         >
                           <i className="fa-solid fa-trash"></i>
                         </button>
                         <button
-                          style={{ border: 'none', background: 'none', color: manageable ? '#0ea5e9' : '#cbd5e1', cursor: manageable ? 'pointer' : 'not-allowed', fontSize: 16 }}
+                          type="button"
+                          className={'admin-users__icon-btn' + (manageable ? '' : ' admin-users__icon-btn--disabled')}
                           title="Reset Password"
                           onClick={() => handleResetPassword(user)}
+                          disabled={!manageable}
                         >
                           <i className="fa-solid fa-key"></i>
                         </button>
                         <button
-                          style={{ border: 'none', background: 'none', color: manageable ? '#10b981' : '#cbd5e1', cursor: manageable ? 'pointer' : 'not-allowed', fontSize: 16 }}
+                          type="button"
+                          className={'admin-users__icon-btn admin-users__icon-btn--toggle' + (manageable ? '' : ' admin-users__icon-btn--disabled')}
                           title={user.status === 'Active' ? 'Deactivate User' : 'Activate User'}
                           onClick={() => handleToggleStatus(user)}
+                          disabled={!manageable}
                         >
                           <i className={user.status === 'Active' ? 'fa-solid fa-user-slash' : 'fa-solid fa-user-check'}></i>
                         </button>
@@ -1150,11 +1060,11 @@ export default function Users({ embedded }: { embedded?: boolean } = {}) {
               })}
             </div>
           ) : (
-            <div className="card" style={{ padding: 0, overflowX: 'auto', border: '1px solid #e2e8f0', borderRadius: '12px', background: 'white' }}>
-              <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
+            <div className="card admin-users__table-wrap">
+              <table className="admin-users__table">
                 <thead>
-                  <tr style={{ borderBottom: '1px solid #e2e8f0', background: '#f8fafc' }}>
-                    <th style={{ padding: '16px' }}>
+                  <tr className="admin-users__thead-row">
+                    <th className="admin-users__th admin-users__th--check">
                       <input
                         type="checkbox"
                         checked={paginatedUsers.length > 0 && paginatedUsers.every(u => selectedIds.includes(u.id))}
@@ -1170,47 +1080,48 @@ export default function Users({ embedded }: { embedded?: boolean } = {}) {
                         aria-label="Select all users on this page"
                       />
                     </th>
-                    <th style={{ padding: '16px', fontSize: '12px', fontWeight: 600, color: '#64748b', textTransform: 'uppercase' }}>Avatar</th>
-                    <th onClick={() => handleSort('name')} style={{ padding: '16px', fontSize: '12px', fontWeight: 600, color: '#64748b', textTransform: 'uppercase', cursor: 'pointer' }}>
+                    <th className="admin-users__th">Avatar</th>
+                    <th className="admin-users__th admin-users__th--sort" onClick={() => handleSort('name')}>
                       Name
                     </th>
-                    <th onClick={() => handleSort('email')} style={{ padding: '16px', fontSize: '12px', fontWeight: 600, color: '#64748b', textTransform: 'uppercase', cursor: 'pointer' }}>
+                    <th className="admin-users__th admin-users__th--sort" onClick={() => handleSort('email')}>
                       Email
                     </th>
-                    <th onClick={() => handleSort('role')} style={{ padding: '16px', fontSize: '12px', fontWeight: 600, color: '#64748b', textTransform: 'uppercase', cursor: 'pointer' }}>
+                    <th className="admin-users__th admin-users__th--sort" onClick={() => handleSort('role')}>
                       Role
                     </th>
-                    <th onClick={() => handleSort('status')} style={{ padding: '16px', fontSize: '12px', fontWeight: 600, color: '#64748b', textTransform: 'uppercase', cursor: 'pointer' }}>
+                    <th className="admin-users__th admin-users__th--sort" onClick={() => handleSort('status')}>
                       Status
                     </th>
-                    <th onClick={() => handleSort('lastLogin')} style={{ padding: '16px', fontSize: '12px', fontWeight: 600, color: '#64748b', textTransform: 'uppercase', cursor: 'pointer' }}>
+                    <th className="admin-users__th admin-users__th--sort" onClick={() => handleSort('lastLogin')}>
                       Last Login
                     </th>
-                    <th style={{ padding: '16px', fontSize: '12px', fontWeight: 600, color: '#64748b', textTransform: 'uppercase', textAlign: 'right' }}>Actions</th>
+                    <th className="admin-users__th admin-users__th--actions">Actions</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {paginatedUsers.map((user, idx) => {
+                  {paginatedUsers.map(user => {
                     const avatar = readProfileAvatar(user.email) || `${import.meta.env.BASE_URL}avatars/emirati-farmer.svg`
                     const manageable = canManageUser(user)
                     return (
-                      <tr key={user.id} style={{ borderBottom: idx < users.length - 1 ? '1px solid #f1f5f9' : 'none' }}>
-                        <td style={{ padding: '16px' }}>
+                      <tr key={user.id} className="admin-users__tbody-row">
+                        <td className="admin-users__td">
                           <input type="checkbox" checked={selectedIds.includes(user.id)} disabled={!manageable} onChange={() => toggleSelected(user.id)} aria-label={`Select ${user.email}`} />
                         </td>
-                        <td style={{ padding: '16px' }}>
-                          <img src={avatar} alt="" style={{ width: 28, height: 28, borderRadius: '50%', objectFit: 'cover', border: '1px solid #e2e8f0' }} />
+                        <td className="admin-users__td">
+                          <img src={avatar} alt="" className="admin-users__avatar" />
                         </td>
-                        <td style={{ padding: '16px', color: '#334155' }}>{user.name}</td>
-                        <td style={{ padding: '16px', color: '#334155' }}>{user.email}</td>
-                        <td style={{ padding: '16px' }}>{renderRolePill(user.role)}</td>
-                        <td style={{ padding: '16px' }}>{renderStatusPill(user.status || 'Active')}</td>
-                        <td style={{ padding: '16px', color: '#64748b' }}>{user.lastLogin || 'Never'}</td>
-                        <td style={{ padding: '16px', textAlign: 'right' }}>
-                          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px' }}>
+                        <td className="admin-users__td admin-users__td--strong">{user.name}</td>
+                        <td className="admin-users__td admin-users__td--strong">{user.email}</td>
+                        <td className="admin-users__td">{renderRolePill(user.role)}</td>
+                        <td className="admin-users__td">{renderStatusPill(user.status || 'Active')}</td>
+                        <td className="admin-users__td admin-users__td--muted">{user.lastLogin || 'Never'}</td>
+                        <td className="admin-users__td admin-users__td--actions">
+                          <div className="admin-users__row-actions">
                             {canImpersonate ? (
                               <button
-                                style={{ border: 'none', background: 'none', color: '#7c3aed', cursor: 'pointer', fontSize: '16px' }}
+                                type="button"
+                                className="admin-users__icon-btn admin-users__icon-btn--impersonate"
                                 title="Impersonate"
                                 onClick={() => handleImpersonate(user)}
                               >
@@ -1218,30 +1129,41 @@ export default function Users({ embedded }: { embedded?: boolean } = {}) {
                               </button>
                             ) : null}
                             <button
-                              style={{ border: 'none', background: 'none', color: manageable ? '#64748b' : '#cbd5e1', cursor: manageable ? 'pointer' : 'not-allowed', fontSize: '16px' }}
+                              type="button"
+                              className={'admin-users__icon-btn' + (manageable ? '' : ' admin-users__icon-btn--disabled')}
                               title="Edit"
                               onClick={() => handleEditUser(user)}
+                              disabled={!manageable}
                             >
                               <i className="fa-solid fa-pen"></i>
                             </button>
                             <button
-                              style={{ border: 'none', background: 'none', color: canDeleteUser(user) ? '#ef4444' : '#cbd5e1', cursor: canDeleteUser(user) ? 'pointer' : 'not-allowed', fontSize: '16px' }}
+                              type="button"
+                              className={
+                                'admin-users__icon-btn admin-users__icon-btn--danger' +
+                                (canDeleteUser(user) ? '' : ' admin-users__icon-btn--disabled')
+                              }
                               title={canDeleteUser(user) ? 'Delete' : 'Not allowed'}
                               onClick={() => handleRequestDelete(user.id)}
+                              disabled={!canDeleteUser(user)}
                             >
                               <i className="fa-solid fa-trash"></i>
                             </button>
                             <button
-                              style={{ border: 'none', background: 'none', color: manageable ? '#0ea5e9' : '#cbd5e1', cursor: manageable ? 'pointer' : 'not-allowed', fontSize: '16px' }}
+                              type="button"
+                              className={'admin-users__icon-btn' + (manageable ? '' : ' admin-users__icon-btn--disabled')}
                               title="Reset Password"
                               onClick={() => handleResetPassword(user)}
+                              disabled={!manageable}
                             >
                               <i className="fa-solid fa-key"></i>
                             </button>
                             <button
-                              style={{ border: 'none', background: 'none', color: manageable ? '#10b981' : '#cbd5e1', cursor: manageable ? 'pointer' : 'not-allowed', fontSize: '16px' }}
+                              type="button"
+                              className={'admin-users__icon-btn admin-users__icon-btn--toggle' + (manageable ? '' : ' admin-users__icon-btn--disabled')}
                               title={user.status === 'Active' ? 'Deactivate User' : 'Activate User'}
                               onClick={() => handleToggleStatus(user)}
+                              disabled={!manageable}
                             >
                               <i className={user.status === 'Active' ? 'fa-solid fa-user-slash' : 'fa-solid fa-user-check'}></i>
                             </button>
@@ -1256,33 +1178,24 @@ export default function Users({ embedded }: { embedded?: boolean } = {}) {
           )}
 
           {totalPages > 1 && (
-            <div
-              style={{
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'center',
-                padding: '12px 16px',
-                borderTop: '1px solid #e2e8f0',
-                background: '#f8fafc',
-                borderRadius: 12,
-                marginTop: 10,
-              }}
-            >
-              <span style={{ fontSize: '12px', color: '#64748b' }}>
+            <div className="admin-users__pager">
+              <span className="admin-users__pager-meta">
                 Page {currentPage} of {totalPages}
               </span>
-              <div style={{ display: 'flex', gap: '4px' }}>
+              <div className="admin-users__pager-btns">
                 <button
+                  type="button"
+                  className="admin-users__pager-btn"
                   disabled={currentPage === 1}
                   onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
-                  style={{ padding: '4px 10px', borderRadius: '999px', border: '1px solid #e2e8f0', background: 'white', fontSize: '12px', cursor: currentPage === 1 ? 'not-allowed' : 'pointer' }}
                 >
                   Prev
                 </button>
                 <button
+                  type="button"
+                  className="admin-users__pager-btn"
                   disabled={currentPage === totalPages}
                   onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
-                  style={{ padding: '4px 10px', borderRadius: '999px', border: '1px solid #e2e8f0', background: 'white', fontSize: '12px', cursor: currentPage === totalPages ? 'not-allowed' : 'pointer' }}
                 >
                   Next
                 </button>
@@ -1291,18 +1204,7 @@ export default function Users({ embedded }: { embedded?: boolean } = {}) {
           )}
         </>
       ) : (
-        <div
-          className="card"
-          style={{
-            padding: '32px',
-            border: '1px solid #e2e8f0',
-            borderRadius: '12px',
-            background: 'white',
-            textAlign: 'center',
-            color: '#64748b',
-            fontSize: '14px'
-          }}
-        >
+        <div className="card admin-users__empty">
           No users found. Use Add User to create the first user.
         </div>
       )}
@@ -1507,64 +1409,19 @@ export default function Users({ embedded }: { embedded?: boolean } = {}) {
       )}
 
       {confirmDeleteId !== null && (
-        <div
-          className="ec-modal-overlay ec-modal-active"
-          style={{
-            position: 'fixed',
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            background: 'rgba(0,0,0,0.5)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            zIndex: 1000
-          }}
-        >
-          <div
-            className="ec-modal"
-            style={{
-              background: 'white',
-              padding: '24px',
-              borderRadius: '12px',
-              width: '100%',
-              maxWidth: '420px',
-              boxShadow: '0 20px 25px -5px rgba(0,0,0,0.1)'
-            }}
-          >
-            <h2 style={{ margin: 0, marginBottom: '12px', fontSize: '18px', fontWeight: 700, color: '#0f172a' }}>
+        <div className="ec-modal-overlay ec-modal-active admin-users__mini-overlay" role="presentation">
+          <div className="ec-modal admin-users__mini-dialog" role="dialog" aria-modal="true" aria-labelledby="users-delete-heading">
+            <h2 id="users-delete-heading" className="admin-users__mini-title">
               Confirm Delete
             </h2>
-            <p style={{ fontSize: '14px', color: '#64748b', marginBottom: '20px' }}>
+            <p className="admin-users__mini-text">
               Are you sure you want to delete this user? This action cannot be undone.
             </p>
-            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
-              <button
-                onClick={() => setConfirmDeleteId(null)}
-                style={{
-                  padding: '8px 16px',
-                  borderRadius: '6px',
-                  border: '1px solid #e2e8f0',
-                  background: 'white',
-                  cursor: 'pointer',
-                  fontWeight: 500
-                }}
-              >
+            <div className="admin-users__mini-actions">
+              <button type="button" className="admin-users__mini-btn admin-users__mini-btn--cancel" onClick={() => setConfirmDeleteId(null)}>
                 Cancel
               </button>
-              <button
-                onClick={handleConfirmDelete}
-                style={{
-                  padding: '8px 16px',
-                  borderRadius: '6px',
-                  border: 'none',
-                  background: '#ef4444',
-                  color: 'white',
-                  cursor: 'pointer',
-                  fontWeight: 500
-                }}
-              >
+              <button type="button" className="admin-users__mini-btn admin-users__mini-btn--danger" onClick={handleConfirmDelete}>
                 Delete
               </button>
             </div>
@@ -1573,62 +1430,35 @@ export default function Users({ embedded }: { embedded?: boolean } = {}) {
       )}
 
       {isAuditOpen && (
-        <div
-          className="ec-modal-overlay ec-modal-active"
-          style={{
-            position: 'fixed',
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            background: 'rgba(0,0,0,0.5)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            zIndex: 1000
-          }}
-        >
-          <div
-            className="ec-modal"
-            style={{
-              background: 'white',
-              padding: '24px',
-              borderRadius: '12px',
-              width: '100%',
-              maxWidth: '540px',
-              boxShadow: '0 20px 25px -5px rgba(0,0,0,0.1)',
-              maxHeight: '70vh',
-              overflowY: 'auto'
-            }}
-          >
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-              <h2 style={{ margin: 0, fontSize: '18px', fontWeight: 700, color: '#0f172a' }}>Audit Log</h2>
-              <button
-                onClick={() => setIsAuditOpen(false)}
-                style={{ border: 'none', background: 'none', cursor: 'pointer', fontSize: '18px', color: '#64748b' }}
-              >
+        <div className="ec-modal-overlay ec-modal-active admin-users__mini-overlay" role="presentation">
+          <div className="ec-modal admin-users__mini-dialog admin-users__audit-dialog" role="dialog" aria-modal="true" aria-labelledby="users-audit-heading">
+            <div className="admin-users__audit-head">
+              <h2 id="users-audit-heading" className="admin-users__mini-title admin-users__mini-title--plain">
+                Audit Log
+              </h2>
+              <button type="button" className="admin-users__audit-close" onClick={() => setIsAuditOpen(false)} aria-label="Close audit log">
                 <i className="fa-solid fa-xmark"></i>
               </button>
             </div>
             {auditEntries.length === 0 ? (
-              <p style={{ fontSize: '14px', color: '#64748b' }}>No activity recorded yet.</p>
+              <p className="admin-users__mini-text">No activity recorded yet.</p>
             ) : (
-              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
+              <table className="admin-users__audit-table">
                 <thead>
-                  <tr style={{ borderBottom: '1px solid #e2e8f0', background: '#f8fafc' }}>
-                    <th style={{ padding: '8px', textAlign: 'left', color: '#64748b' }}>Time</th>
-                    <th style={{ padding: '8px', textAlign: 'left', color: '#64748b' }}>Actor</th>
-                    <th style={{ padding: '8px', textAlign: 'left', color: '#64748b' }}>Action</th>
-                    <th style={{ padding: '8px', textAlign: 'left', color: '#64748b' }}>Target</th>
+                  <tr>
+                    <th>Time</th>
+                    <th>Actor</th>
+                    <th>Action</th>
+                    <th>Target</th>
                   </tr>
                 </thead>
                 <tbody>
                   {auditEntries.map(entry => (
-                    <tr key={entry.id} style={{ borderBottom: '1px solid #f1f5f9' }}>
-                      <td style={{ padding: '8px', color: '#64748b' }}>{new Date(entry.at).toLocaleString()}</td>
-                      <td style={{ padding: '8px', color: '#0f172a' }}>{entry.actorEmail || '—'}</td>
-                      <td style={{ padding: '8px', color: '#0f172a' }}>{entry.action}</td>
-                      <td style={{ padding: '8px', color: '#0f172a' }}>
+                    <tr key={entry.id}>
+                      <td className="admin-users__audit-muted">{new Date(entry.at).toLocaleString()}</td>
+                      <td>{entry.actorEmail || '—'}</td>
+                      <td>{entry.action}</td>
+                      <td>
                         {typeof entry.meta?.['targetEmail'] === 'string' ? String(entry.meta['targetEmail']) : entry.entityId || '—'}
                       </td>
                     </tr>
