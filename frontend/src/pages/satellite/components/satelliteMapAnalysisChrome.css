@@ -664,7 +664,8 @@
 .si-sat-ctx-dock--map {
   position: absolute;
   z-index: 96;
-  inset-inline-end: 12px;
+  /* Flush with mapboxgl-canvas-container edge (no gutter between toolbox and canvas). */
+  inset-inline-end: 0;
   left: auto;
   top: 50%;
   transform: translateY(-50%);
@@ -1268,7 +1269,7 @@ html[data-theme='light'] .si-sat-ctx-map-strip-reopen {
 
 @media (max-width: 768px) {
   .si-sat-ctx-dock--map {
-    inset-inline-end: 8px;
+    inset-inline-end: 0;
     left: auto;
     top: auto;
     bottom: 120px;

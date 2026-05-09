@@ -1,4 +1,4 @@
-import { Fragment, useCallback, useEffect, useRef, useState } from 'react';
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useLanguage } from '@/lib/i18n';
 import type { AoiStaticMultiLayerLineChartDataset } from './AoiStaticMultiLayerLineChart';
 import { AoiStaticMultiLayerLineChart } from './AoiStaticMultiLayerLineChart';
@@ -107,6 +107,10 @@ const RAIL_GROUPS: SatelliteContextPanelId[][] = [
   ['raster', 'feature'],
 ];
 
+/** In-map toolbox (`variant="map"`): only layer controls — other workflows use the main Remote Sensing panels. */
+const RAIL_MAP_TOOLBOX_IDS = new Set<SatelliteContextPanelId>(['layers']);
+const RAIL_GROUPS_MAP: SatelliteContextPanelId[][] = [['layers']];
+
 const RAIL_BY_ID = RAIL.reduce(
   (acc, r) => {
     acc[r.id] = r
@@ -203,7 +207,7 @@ export function SatelliteContextualAnalysisDock(props: SatelliteContextualAnalys
     }
   });
   const resizeRef = useRef<{ startX: number; startW: number } | null>(null);
-  const lastActiveRef = useRef<SatelliteContextPanelId>('aoi');
+  const lastActiveRef = useRef<SatelliteContextPanelId>('layers');
 
   useEffect(() => {
     try {
@@ -255,6 +259,20 @@ export function SatelliteContextualAnalysisDock(props: SatelliteContextualAnalys
       /* ignore */
     }
   }, [mapRailLabeled, variant]);
+
+  const isMapVariant = variant === 'map';
+  const railMenuGroups = useMemo(
+    () => (isMapVariant ? RAIL_GROUPS_MAP : RAIL_GROUPS),
+    [isMapVariant],
+  );
+
+  useEffect(() => {
+    if (!isMapVariant) return;
+    if (activeId && !RAIL_MAP_TOOLBOX_IDS.has(activeId)) {
+      setPanelOpen(false);
+      setActiveId(null);
+    }
+  }, [isMapVariant, activeId]);
 
   const openPanel = useCallback(
     (id: SatelliteContextPanelId) => {
@@ -308,7 +326,7 @@ export function SatelliteContextualAnalysisDock(props: SatelliteContextualAnalys
   const activeMeta = activeId ? RAIL.find(r => r.id === activeId) : null;
   const maxPivot = pivotBars.length ? Math.max(...pivotBars.map(p => Math.abs(p.value))) : 1;
 
-  const isMap = variant === 'map';
+  const isMap = isMapVariant;
   const railWide = isMap ? mapRailLabeled : railLabeled;
 
   if (isMap && mapStripHidden) {
@@ -350,7 +368,7 @@ export function SatelliteContextualAnalysisDock(props: SatelliteContextualAnalys
         className={'si-sat-ctx-rail' + (railWide ? ' si-sat-ctx-rail--labeled' : '')}
         aria-label={isMap ? 'Map toolbox' : 'Analysis contextual tools'}
       >
-        {RAIL_GROUPS.map((group, gi) => (
+        {railMenuGroups.map((group, gi) => (
           <Fragment key={group.join('-')}>
             {group.map(id => {
               const item = RAIL_BY_ID[id];
@@ -379,7 +397,7 @@ export function SatelliteContextualAnalysisDock(props: SatelliteContextualAnalys
                 </button>
               );
             })}
-            {gi < RAIL_GROUPS.length - 1 ? (
+            {gi < railMenuGroups.length - 1 ? (
               <div className="si-sat-ctx-rail-sep" role="separator" aria-hidden />
             ) : null}
           </Fragment>
