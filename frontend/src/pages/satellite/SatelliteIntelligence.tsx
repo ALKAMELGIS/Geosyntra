@@ -119,6 +119,7 @@ import { GeoExplorerGeminiInputRow } from './components/GeoExplorerGeminiInputRo
 import { GeoExplorerGeminiMessageParts } from './components/GeoExplorerGeminiMessageParts';
 import type { AoiStaticMultiLayerLineChartDataset } from './components/AoiStaticMultiLayerLineChart';
 import { SatelliteMapAnalysisChrome, SatelliteMapAnalysisToolbar } from './components/SatelliteMapAnalysisChrome';
+import { SiCalciteToolbarActionGroup, SiCalciteVerticalToolbar } from './components/SiCalciteVerticalToolbar';
 import {
   buildStaticAoiMultiChartDatasets,
   defaultStaticAoiComparisonLayers,
@@ -1724,6 +1725,8 @@ export default function SatelliteIntelligence() {
   const [wmsLayers, setWmsLayers] = useState<WmsLayerInfo[]>([]);
   const [isLoadingLayers, setIsLoadingLayers] = useState(false);
   const [isLayerDropdownOpen, setIsLayerDropdownOpen] = useState(false);
+  /** Environmental rail: Calcite-style icon-only vs icon+label (expand/collapse). */
+  const [siEnvToolbarExpanded, setSiEnvToolbarExpanded] = useState(false);
   const [basemapId, setBasemapId] = useState(() =>
     getMapboxAccessToken() ? DEFAULT_BASEMAP_ID : DEFAULT_BASEMAP_ID_NO_MAPBOX,
   );
@@ -7648,39 +7651,29 @@ export default function SatelliteIntelligence() {
               </div>
               <div className="si-map-floating-controls__right">
             <div className="si-env-rail">
-            <div
-              role="toolbar"
-              aria-orientation="vertical"
-              aria-label="Environmental map tools"
-              className="si-env-toolbar container"
-            >
-              <calcite-action-group
-                className="action-group--end"
-                layout="vertical"
-                overlay-positioning="absolute"
+              <SiCalciteVerticalToolbar
+                ariaLabel="Environmental map tools"
                 scale="m"
-                selection-mode="none"
-                calcite-hydrated=""
+                overlayPositioning="absolute"
+                expanded={siEnvToolbarExpanded}
+                onExpandedChange={setSiEnvToolbarExpanded}
+                expandCollapseLabels={{ expand: 'Expand toolbar (show labels)', collapse: 'Collapse toolbar (icons only)' }}
+                className="si-env-toolbar si-env-toolbar--calcite-host"
               >
-              <button
-                type="button"
-                  className={`si-env-calcite-action${isLayerDropdownOpen ? ' si-env-calcite-action--selected' : ''}`}
-                  aria-pressed={isLayerDropdownOpen}
-                  aria-label="Environmental layers and indices"
-                  title="Environmental layers"
-                onClick={() => setIsLayerDropdownOpen(open => !open)}
-              >
-                  <i className="fa-solid fa-layer-group" aria-hidden />
-              </button>
-                <span
-                  className="si-env-toolbar-lit-hydration"
-                  aria-hidden
-                  dangerouslySetInnerHTML={{ __html: '<!--?lit$830856406$-->' }}
-                />
-                <slot name="actions-end" />
-                <slot name="expand-tooltip" />
-              </calcite-action-group>
-            </div>
+                <SiCalciteToolbarActionGroup part="primary-actions">
+                  <button
+                    type="button"
+                    className={`si-calcite-toolbar__action${isLayerDropdownOpen ? ' si-calcite-toolbar__action--selected' : ''}`}
+                    aria-pressed={isLayerDropdownOpen}
+                    aria-label="Environmental layers and indices"
+                    title="Environmental layers"
+                    onClick={() => setIsLayerDropdownOpen(open => !open)}
+                  >
+                    <i className="fa-solid fa-layer-group" aria-hidden />
+                    <span className="si-calcite-toolbar__action-label">Layers</span>
+                  </button>
+                </SiCalciteToolbarActionGroup>
+              </SiCalciteVerticalToolbar>
               <input
                 ref={fileInputRef}
                 type="file"
@@ -7713,7 +7706,7 @@ export default function SatelliteIntelligence() {
                   </div>
                   <div className="si-env-panel-body">
                     <div
-                      className="si-env-section-tabs si-env-section-tabs--five"
+                      className="si-env-section-tabs si-env-section-tabs--five si-env-section-tabs--calcite-panel"
                       role="tablist"
                       aria-label="Processing Options sections"
                     >
