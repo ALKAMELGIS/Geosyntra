@@ -626,6 +626,7 @@ export default function GisMap() {
   const [geoExplorerDraft, setGeoExplorerDraft] = useState('')
   const [geoExplorerPendingImage, setGeoExplorerPendingImage] = useState<{ mime: string; base64: string } | null>(null)
   const [geoExplorerBusy, setGeoExplorerBusy] = useState(false)
+  const [geoExplorerAwaitKind, setGeoExplorerAwaitKind] = useState<'send' | 'edit'>('send')
   const [geoExplorerChatError, setGeoExplorerChatError] = useState('')
   const [geoExplorerAnchor, setGeoExplorerAnchor] = useState<[number, number] | null>(null)
   const [gisChartPanelConfig, setGisChartPanelConfig] = useState<GisChartPanelConfig>(() => loadGisMapChartPanelConfig())
@@ -1712,10 +1713,6 @@ export default function GisMap() {
     if (el.scrollTop <= 24) loadOlderGeoExplorerMessages()
   }, [geoExplorerHasOlderMessages, loadOlderGeoExplorerMessages])
 
-  const onUpdateGeoExplorerUserMessage = useCallback((id: string, text: string) => {
-    setGeoExplorerMessages(prev => prev.map(m => (m.id === id ? replaceUserMessageText(m, text) : m)))
-  }, [])
-
   useLayoutEffect(() => {
     const el = geoExplorerMessagesRef.current
     const restore = geoExplorerLoadOlderRef.current
@@ -2250,151 +2247,6 @@ export default function GisMap() {
     [],
   )
 
-  const sendGeoExplorerChat = useCallback((voiceOverrideText?: string) => {
-    const trimmed = (voiceOverrideText ?? geoExplorerDraft).trim()
-    if (geoExplorerInFlightRef.current) return
-    if (!trimmed && !geoExplorerPendingImage) return
-    const apiKey = geminiApiKey.trim()
-    if (!apiKey) {
-      setGeoExplorerChatError(
-        'Add a Gemini API key: System Settings → API Tokens → Gemini API (saved in this browser), or set VITE_GEMINI_API_KEY at build time. Never commit keys to Git.',
-      )
-      return
-    }
-
-    const userParts: GeoExplorerPart[] = []
-    if (trimmed) userParts.push({ type: 'text', text: trimmed })
-    if (geoExplorerPendingImage) {
-      userParts.push({
-        type: 'image',
-        mime: geoExplorerPendingImage.mime,
-        base64: geoExplorerPendingImage.base64,
-      })
-    }
-    if (userParts.length === 0) return
-
-    const userId =
-      typeof crypto !== 'undefined' && 'randomUUID' in crypto ? crypto.randomUUID() : `geo-${Date.now()}`
-    const userMsg: GeoExplorerMessage = { id: userId, role: 'user', parts: userParts }
-    const userTextForMapFallback = trimmed
-
-    setGeoExplorerDraft('')
-    setGeoExplorerPendingImage(null)
-    setGeoExplorerChatError('')
-    geoExplorerInFlightRef.current = true
-    setGeoExplorerBusy(true)
-
-    setGeoExplorerMessages(prev => {
-      const historyWithUser = [...prev, userMsg]
-      queueMicrotask(async () => {
-        try {
-          if (!geoExplorerPendingImage && trimmed) {
-            const localStats = runGeoAiStatsCommand(trimmed, gisLayerDataToGeoAiLayers(layers))
-            if (localStats?.handled) {
-              const mid = typeof crypto !== 'undefined' && 'randomUUID' in crypto ? crypto.randomUUID() : `geo-s-${Date.now()}`
-              const parts: GeoExplorerPart[] = [{ type: 'text', text: localStats.reply }]
-              if (localStats.table) parts.push({ type: 'dataTable', table: localStats.table })
-              const modelMsg: GeoExplorerMessage = { id: mid, role: 'model', parts }
-              setGeoExplorerMessages(h => [...h, modelMsg])
-              if (localStats.mapFirstSync?.selections?.length) {
-                const sync = localStats.mapFirstSync.selections
-                queueMicrotask(() => applyGeoAiMapFirstSyncRef.current(sync))
-              }
-              return
-            }
-          }
-          let developAppend = ''
-          try {
-            const raw =
-              typeof localStorage !== 'undefined' ? localStorage.getItem(DEVELOP_DATA_CONTEXT_LS_KEY) : null
-            if (raw?.trim()) {
-              developAppend = `### Develop Dashboard — Data pane snapshot (JSON)\n${raw.slice(0, 14000)}`
-            }
-          } catch {
-            /* ignore */
-          }
-          const result = await runGeoExplorerGeminiTurn({
-            apiKey,
-            historyWithUser,
-            userTextForMapFallback,
-            primaryVectorLayers: gisLayerDataToGeoAiLayers(layers),
-            mapboxAccessToken: mapboxAccessToken || undefined,
-            openWeatherApiKey,
-            pinLngLat: geoExplorerAnchor,
-            lastMapQueryCoords: lastMapQueryCoordsFromMessages(prev),
-            inspectAnchorLngLat:
-              mapPopup && mapPopup.phase === 'open'
-                ? ([mapPopup.latlng.lng, mapPopup.latlng.lat] as [number, number])
-                : null,
-            mapPopup: null,
-            addedLayersHeading: '### GIS Map — Active vector layers (this session)',
-            attachGisSavedLayers: true,
-            extraSystemAppend: developAppend || undefined,
-          })
-          setGeoExplorerMessages(h => [...h, result.modelMsg])
-          const me = result.mapEffect
-          if (me) {
-            setGeoExplorerAnchor(me.coords)
-            const z = geoExplorerTargetZoomForPinSource(me.pinSource)
-            flyGisMapToLngLat(me.coords[0], me.coords[1], z)
-            if (
-              mapProjectionMode !== 'globe' &&
-              me.layerHit?.properties &&
-              typeof me.layerHit.properties === 'object'
-            ) {
-              const hit = me.layerHit
-              window.setTimeout(() => {
-                const resolved = findGisMapFeatureByLayerHit(layers, hit)
-                const layerRow = layers.find(l => l.name === hit.layerName && l.type === 'geojson')
-                if (!layerRow) return
-                const feature =
-                  resolved?.feature ??
-                  ({
-                    type: 'Feature' as const,
-                    properties: hit.properties,
-                    geometry: { type: 'Point' as const, coordinates: [me.coords[0], me.coords[1]] as [number, number] },
-                  } as const)
-                const features = Array.isArray((layerRow.data as { features?: unknown[] })?.features)
-                  ? ((layerRow.data as { features: any[] }).features as any[])
-                  : []
-                const idx = resolved ? Math.max(0, features.indexOf(resolved.feature)) : 0
-                const key = String(getFeatureKey(feature, idx))
-                zoomToFeatures([feature])
-                setSelectedFeatureKeys(new Set([key]))
-                showFeatureSelectionOnMap(String(layerRow.id), key, { zoom: false })
-                setLayerDialog(null)
-                const cen = geoAiFeatureCentroid(feature as { geometry?: unknown })
-                const latlng =
-                  cen && Number.isFinite(cen[1]) && Number.isFinite(cen[0])
-                    ? { lat: cen[1], lng: cen[0] }
-                    : { lat: me.coords[1], lng: me.coords[0] }
-                openMapPopup({ layer: layerRow, feature, latlng, compactSummary: true })
-              }, 320)
-            }
-          }
-        } catch (e) {
-          setGeoExplorerChatError(e instanceof Error ? e.message : String(e))
-        } finally {
-          geoExplorerInFlightRef.current = false
-          setGeoExplorerBusy(false)
-        }
-      })
-      return historyWithUser
-    })
-  }, [
-    geminiApiKey,
-    geoExplorerDraft,
-    geoExplorerPendingImage,
-    mapboxAccessToken,
-    flyGisMapToLngLat,
-    layers,
-    openMapPopup,
-    openWeatherApiKey,
-    geoExplorerAnchor,
-    mapProjectionMode,
-    mapPopup,
-  ])
-
   useEffect(() => {
     if (!mapPopup) {
       if (popupCloseTimerRef.current) {
@@ -2627,6 +2479,223 @@ export default function GisMap() {
       }
     } catch {}
   }
+
+  const runGisGeoExplorerGeminiPipeline = useCallback(
+    async (args: {
+      historyWithUser: GeoExplorerMessage[]
+      userTextForMapFallback: string
+      coordsSourceMessages: GeoExplorerMessage[]
+      skipLocalStatsBecausePendingImage: boolean
+      questionEditInPlace: boolean
+    }) => {
+      const {
+        historyWithUser,
+        userTextForMapFallback,
+        coordsSourceMessages,
+        skipLocalStatsBecausePendingImage,
+        questionEditInPlace,
+      } = args
+      const trimmed = userTextForMapFallback.trim()
+      const apiKey = geminiApiKey.trim()
+      if (!apiKey) return
+      try {
+        if (!skipLocalStatsBecausePendingImage && trimmed) {
+          const localStats = runGeoAiStatsCommand(trimmed, gisLayerDataToGeoAiLayers(layers))
+          if (localStats?.handled) {
+            const mid =
+              typeof crypto !== 'undefined' && 'randomUUID' in crypto ? crypto.randomUUID() : `geo-s-${Date.now()}`
+            const parts: GeoExplorerPart[] = [{ type: 'text', text: localStats.reply }]
+            if (localStats.table) parts.push({ type: 'dataTable', table: localStats.table })
+            const modelMsg: GeoExplorerMessage = { id: mid, role: 'model', parts }
+            setGeoExplorerMessages(h => [...h, modelMsg])
+            if (localStats.mapFirstSync?.selections?.length) {
+              const sync = localStats.mapFirstSync.selections
+              queueMicrotask(() => applyGeoAiMapFirstSyncRef.current(sync))
+            }
+            return
+          }
+        }
+        let developAppend = ''
+        try {
+          const raw =
+            typeof localStorage !== 'undefined' ? localStorage.getItem(DEVELOP_DATA_CONTEXT_LS_KEY) : null
+          if (raw?.trim()) {
+            developAppend = `### Develop Dashboard — Data pane snapshot (JSON)\n${raw.slice(0, 14000)}`
+          }
+        } catch {
+          /* ignore */
+        }
+        const result = await runGeoExplorerGeminiTurn({
+          apiKey,
+          historyWithUser,
+          userTextForMapFallback,
+          primaryVectorLayers: gisLayerDataToGeoAiLayers(layers),
+          mapboxAccessToken: mapboxAccessToken || undefined,
+          openWeatherApiKey,
+          pinLngLat: geoExplorerAnchor,
+          lastMapQueryCoords: lastMapQueryCoordsFromMessages(coordsSourceMessages),
+          inspectAnchorLngLat:
+            mapPopup && mapPopup.phase === 'open'
+              ? ([mapPopup.latlng.lng, mapPopup.latlng.lat] as [number, number])
+              : null,
+          mapPopup: null,
+          addedLayersHeading: '### GIS Map — Active vector layers (this session)',
+          attachGisSavedLayers: true,
+          extraSystemAppend: developAppend || undefined,
+          questionEditInPlace,
+        })
+        setGeoExplorerMessages(h => [...h, result.modelMsg])
+        const me = result.mapEffect
+        if (me) {
+          setGeoExplorerAnchor(me.coords)
+          const z = geoExplorerTargetZoomForPinSource(me.pinSource)
+          flyGisMapToLngLat(me.coords[0], me.coords[1], z)
+          if (
+            mapProjectionMode !== 'globe' &&
+            me.layerHit?.properties &&
+            typeof me.layerHit.properties === 'object'
+          ) {
+            const hit = me.layerHit
+            window.setTimeout(() => {
+              const resolved = findGisMapFeatureByLayerHit(layers, hit)
+              const layerRow = layers.find(l => l.name === hit.layerName && l.type === 'geojson')
+              if (!layerRow) return
+              const feature =
+                resolved?.feature ??
+                ({
+                  type: 'Feature' as const,
+                  properties: hit.properties,
+                  geometry: { type: 'Point' as const, coordinates: [me.coords[0], me.coords[1]] as [number, number] },
+                } as const)
+              const features = Array.isArray((layerRow.data as { features?: unknown[] })?.features)
+                ? ((layerRow.data as { features: any[] }).features as any[])
+                : []
+              const idx = resolved ? Math.max(0, features.indexOf(resolved.feature)) : 0
+              const key = String(getFeatureKey(feature, idx))
+              zoomToFeatures([feature])
+              setSelectedFeatureKeys(new Set([key]))
+              showFeatureSelectionOnMap(String(layerRow.id), key, { zoom: false })
+              setLayerDialog(null)
+              const cen = geoAiFeatureCentroid(feature as { geometry?: unknown })
+              const latlng =
+                cen && Number.isFinite(cen[1]) && Number.isFinite(cen[0])
+                  ? { lat: cen[1], lng: cen[0] }
+                  : { lat: me.coords[1], lng: me.coords[0] }
+              openMapPopup({ layer: layerRow, feature, latlng, compactSummary: true })
+            }, 320)
+          }
+        }
+      } catch (e) {
+        setGeoExplorerChatError(e instanceof Error ? e.message : String(e))
+      } finally {
+        geoExplorerInFlightRef.current = false
+        setGeoExplorerBusy(false)
+      }
+    },
+    [
+      geminiApiKey,
+      layers,
+      mapboxAccessToken,
+      flyGisMapToLngLat,
+      openMapPopup,
+      openWeatherApiKey,
+      geoExplorerAnchor,
+      mapProjectionMode,
+      mapPopup,
+    ],
+  )
+
+  const saveEditedGeoExplorerGeminiQuestion = useCallback(
+    (messageId: string, nextText: string) => {
+      const trimmed = nextText.trim()
+      if (!trimmed) return
+      if (geoExplorerInFlightRef.current) return
+      const apiKey = geminiApiKey.trim()
+      if (!apiKey) {
+        setGeoExplorerChatError(
+          'Add a Gemini API key: System Settings → API Tokens → Gemini API (saved in this browser), or set VITE_GEMINI_API_KEY at build time. Never commit keys to Git.',
+        )
+        return
+      }
+
+      let snapshot: GeoExplorerMessage[] | null = null
+      setGeoExplorerMessages(prev => {
+        const i = prev.findIndex(m => m.id === messageId)
+        if (i < 0) return prev
+        const updated = replaceUserMessageText(prev[i], trimmed)
+        snapshot = [...prev.slice(0, i), updated]
+        return snapshot
+      })
+
+      if (!snapshot?.length) return
+
+      setGeoExplorerChatError('')
+      geoExplorerInFlightRef.current = true
+      setGeoExplorerBusy(true)
+      setGeoExplorerAwaitKind('edit')
+      queueMicrotask(() =>
+        void runGisGeoExplorerGeminiPipeline({
+          historyWithUser: snapshot!,
+          userTextForMapFallback: trimmed,
+          coordsSourceMessages: snapshot!,
+          skipLocalStatsBecausePendingImage: false,
+          questionEditInPlace: true,
+        }),
+      )
+    },
+    [geminiApiKey, runGisGeoExplorerGeminiPipeline],
+  )
+
+  const sendGeoExplorerChat = useCallback((voiceOverrideText?: string) => {
+    const trimmed = (voiceOverrideText ?? geoExplorerDraft).trim()
+    if (geoExplorerInFlightRef.current) return
+    if (!trimmed && !geoExplorerPendingImage) return
+    const apiKey = geminiApiKey.trim()
+    if (!apiKey) {
+      setGeoExplorerChatError(
+        'Add a Gemini API key: System Settings → API Tokens → Gemini API (saved in this browser), or set VITE_GEMINI_API_KEY at build time. Never commit keys to Git.',
+      )
+      return
+    }
+
+    const userParts: GeoExplorerPart[] = []
+    if (trimmed) userParts.push({ type: 'text', text: trimmed })
+    if (geoExplorerPendingImage) {
+      userParts.push({
+        type: 'image',
+        mime: geoExplorerPendingImage.mime,
+        base64: geoExplorerPendingImage.base64,
+      })
+    }
+    if (userParts.length === 0) return
+
+    const userId =
+      typeof crypto !== 'undefined' && 'randomUUID' in crypto ? crypto.randomUUID() : `geo-${Date.now()}`
+    const userMsg: GeoExplorerMessage = { id: userId, role: 'user', parts: userParts }
+    const userTextForMapFallback = trimmed
+
+    const composerHadPendingImage = !!geoExplorerPendingImage
+    setGeoExplorerDraft('')
+    setGeoExplorerPendingImage(null)
+    setGeoExplorerChatError('')
+    geoExplorerInFlightRef.current = true
+    setGeoExplorerBusy(true)
+    setGeoExplorerAwaitKind('send')
+
+    setGeoExplorerMessages(prev => {
+      const historyWithUser = [...prev, userMsg]
+      queueMicrotask(() =>
+        void runGisGeoExplorerGeminiPipeline({
+          historyWithUser,
+          userTextForMapFallback,
+          coordsSourceMessages: prev,
+          skipLocalStatsBecausePendingImage: composerHadPendingImage,
+          questionEditInPlace: false,
+        }),
+      )
+      return historyWithUser
+    })
+  }, [geminiApiKey, geoExplorerDraft, geoExplorerPendingImage, runGisGeoExplorerGeminiPipeline])
 
   const applyGeoAiMapFirstSync = useCallback(
     (selections: GeoAiMapFirstSelection[]) => {
@@ -4353,7 +4422,7 @@ export default function GisMap() {
                   msg={msg}
                   cssPrefix="gis-geo-explorer"
                   onTableMapAction={onGeoAiTableMapAction}
-                  onUpdateUserMessage={onUpdateGeoExplorerUserMessage}
+                  onSaveEditedUserMessage={saveEditedGeoExplorerGeminiQuestion}
                   onSendEditedToComposer={setGeoExplorerDraft}
                   suggestLayers={geoAiSuggestContext.layers}
                   suggestFields={geoAiSuggestContext.fields}
@@ -4368,7 +4437,8 @@ export default function GisMap() {
                 <i className="fa-solid fa-wand-magic-sparkles" />
               </div>
               <div className="gis-geo-explorer-bubble gis-geo-explorer-bubble--typing">
-                <i className="fa-solid fa-spinner fa-spin" aria-hidden /> Thinking…
+                <i className="fa-solid fa-spinner fa-spin" aria-hidden />{' '}
+                {geoExplorerAwaitKind === 'edit' ? 'Updating…' : 'Thinking…'}
               </div>
             </div>
           ) : null}

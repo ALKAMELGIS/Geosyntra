@@ -1955,6 +1955,8 @@ export default function SatelliteIntelligence() {
     base64: string;
   } | null>(null);
   const [geoExplorerBusy, setGeoExplorerBusy] = useState(false);
+  /** Distinguishes full send vs in-place question edit so the UI shows “Updating…” instead of “Thinking…”. */
+  const [geoExplorerAwaitKind, setGeoExplorerAwaitKind] = useState<'send' | 'edit'>('send');
   const [geoExplorerChatError, setGeoExplorerChatError] = useState('');
   const [geoAiPinLngLat, setGeoAiPinLngLat] = useState<[number, number] | null>(null);
   const [geoAiInspectCard, setGeoAiInspectCard] = useState<null | GeoAiInspectCardState>(null);
@@ -2062,9 +2064,180 @@ export default function SatelliteIntelligence() {
     setGeoAiDeepseekVisibleCount(prev => Math.min(geoDeepseekChatMessages.length, prev + GEO_AI_CHAT_PAGE_SIZE));
   }, [geoAiDeepseekHasOlderMessages, geoDeepseekChatMessages.length]);
 
-  const onUpdateGeoExplorerUserMessage = useCallback((id: string, text: string) => {
-    setGeoExplorerMessages(prev => prev.map(m => (m.id === id ? replaceUserMessageText(m, text) : m)));
-  }, []);
+  const runSatelliteGeoExplorerGeminiPipeline = useCallback(
+    async (args: {
+      historyWithUser: GeoExplorerMessage[];
+      userTextForMapFallback: string;
+      coordsSourceMessages: GeoExplorerMessage[];
+      skipLocalStatsBecausePendingImage: boolean;
+      questionEditInPlace: boolean;
+    }) => {
+      const {
+        historyWithUser,
+        userTextForMapFallback,
+        coordsSourceMessages,
+        skipLocalStatsBecausePendingImage,
+        questionEditInPlace,
+      } = args;
+      const trimmed = userTextForMapFallback.trim();
+      const apiKey = geminiApiKey.trim();
+      if (!apiKey) return;
+      try {
+        if (!skipLocalStatsBecausePendingImage && trimmed) {
+          const savedLayersForStats = await loadGisMapSavedLayers();
+          const mergedLayersForStats: GeoAiMapLayer[] = [
+            ...satelliteCustomLayersToGeoAiLayers(customLayers),
+            ...savedLayersForStats.map(l => ({
+              name: l.name,
+              clientLayerId: String(l.id),
+              visible: l.visible,
+              source: l.source,
+              data: l.data,
+              arcgisLayerDefinition: (l as { arcgisLayerDefinition?: GeoAiMapLayer['arcgisLayerDefinition'] })
+                .arcgisLayerDefinition,
+            })),
+          ];
+          const localStats = runGeoAiStatsCommand(trimmed, mergedLayersForStats);
+          if (localStats?.handled) {
+            const mid =
+              typeof crypto !== 'undefined' && 'randomUUID' in crypto ? crypto.randomUUID() : `geo-s-${Date.now()}`;
+            const parts: GeoExplorerPart[] = [{ type: 'text', text: localStats.reply }];
+            if (localStats.table) parts.push({ type: 'dataTable', table: localStats.table });
+            const modelMsg: GeoExplorerMessage = { id: mid, role: 'model', parts };
+            setGeoExplorerMessages(h => [...h, modelMsg]);
+            if (localStats.mapFirstSync?.selections?.length) {
+              queueMicrotask(() => applySatelliteGeoAiMapFirstSync(localStats.mapFirstSync!.selections));
+            }
+            return;
+          }
+        }
+        let developAppend = '';
+        try {
+          const raw =
+            typeof localStorage !== 'undefined' ? localStorage.getItem(DEVELOP_DATA_CONTEXT_LS_KEY) : null;
+          if (raw?.trim()) {
+            developAppend = `### Develop Dashboard — Data pane snapshot (JSON)\n${raw.slice(0, 14000)}`;
+          }
+        } catch {
+          /* ignore */
+        }
+        const result = await runGeoExplorerGeminiTurn({
+          apiKey,
+          historyWithUser,
+          userTextForMapFallback,
+          primaryVectorLayers: satelliteCustomLayersToGeoAiLayers(customLayers),
+          mapboxAccessToken: mapboxToken || undefined,
+          openWeatherApiKey,
+          pinLngLat: geoAiPinLngLat,
+          lastMapQueryCoords: lastMapQueryCoordsFromMessages(coordsSourceMessages),
+          inspectAnchorLngLat:
+            geoAiInspectCard != null ? ([geoAiInspectCard.lng, geoAiInspectCard.lat] as [number, number]) : null,
+          mapPopup: null,
+          addedLayersHeading: '### Satellite — Added layers (this map — si-env / vector layers)',
+          attachGisSavedLayers: true,
+          extraSystemAppend: developAppend || undefined,
+          questionEditInPlace,
+        });
+        setGeoExplorerMessages(h => [...h, result.modelMsg]);
+        const me = result.mapEffect;
+        if (me) {
+          setGeoAiPinLngLat(me.coords);
+          setViewState(vs => ({
+            ...vs,
+            longitude: me.coords[0],
+            latitude: me.coords[1],
+            zoom: Math.max(
+              geoExplorerTargetZoomForPinSource(me.pinSource),
+              typeof vs.zoom === 'number' ? vs.zoom : 2,
+            ),
+            pitch: is3DView ? Math.max(typeof vs.pitch === 'number' ? vs.pitch : 0, 42) : vs.pitch ?? 0,
+            bearing: typeof vs.bearing === 'number' ? vs.bearing : 0,
+          }));
+          if (me.layerHit) {
+            setGeoAiInspectCard({
+              title: me.layerHit.layerName,
+              rows: buildGeoAiLayerPopupAttributeRows(me.layerHit, {
+                maxRows: 28,
+                queryContext: userTextForMapFallback,
+                inspectCoords: { lng: me.coords[0], lat: me.coords[1] },
+              }),
+              lng: me.coords[0],
+              lat: me.coords[1],
+              ...pickGeoAiHumanPlaceFields(me.layerHit.properties),
+            });
+          } else {
+            setGeoAiInspectCard({
+              title: 'Location',
+              rows: [
+                { label: 'Longitude', value: me.coords[0].toFixed(6) },
+                { label: 'Latitude', value: me.coords[1].toFixed(6) },
+              ],
+              lng: me.coords[0],
+              lat: me.coords[1],
+            });
+          }
+        } else {
+          setGeoAiInspectCard(null);
+        }
+      } catch (e) {
+        setGeoExplorerChatError(e instanceof Error ? e.message : String(e));
+      } finally {
+        geoExplorerInFlightRef.current = false;
+        setGeoExplorerBusy(false);
+      }
+    },
+    [
+      geminiApiKey,
+      customLayers,
+      mapboxToken,
+      openWeatherApiKey,
+      geoAiPinLngLat,
+      geoAiInspectCard,
+      is3DView,
+    ],
+  );
+
+  const saveEditedGeoExplorerGeminiQuestion = useCallback(
+    (messageId: string, nextText: string) => {
+      const trimmed = nextText.trim();
+      if (!trimmed) return;
+      if (geoExplorerInFlightRef.current) return;
+      const apiKey = geminiApiKey.trim();
+      if (!apiKey) {
+        setGeoExplorerChatError(
+          'Add a Gemini API key: System Settings → API Tokens → Gemini API (saved in this browser), or set VITE_GEMINI_API_KEY at build time. Never commit keys to Git.',
+        );
+        return;
+      }
+
+      let snapshot: GeoExplorerMessage[] | null = null;
+      setGeoExplorerMessages(prev => {
+        const i = prev.findIndex(m => m.id === messageId);
+        if (i < 0) return prev;
+        const updated = replaceUserMessageText(prev[i], trimmed);
+        snapshot = [...prev.slice(0, i), updated];
+        return snapshot;
+      });
+
+      if (!snapshot?.length) return;
+
+      geoAiLastUserMapQueryRef.current = trimmed;
+      setGeoExplorerChatError('');
+      geoExplorerInFlightRef.current = true;
+      setGeoExplorerBusy(true);
+      setGeoExplorerAwaitKind('edit');
+      queueMicrotask(() =>
+        void runSatelliteGeoExplorerGeminiPipeline({
+          historyWithUser: snapshot!,
+          userTextForMapFallback: trimmed,
+          coordsSourceMessages: snapshot!,
+          skipLocalStatsBecausePendingImage: false,
+          questionEditInPlace: true,
+        }),
+      );
+    },
+    [geminiApiKey, runSatelliteGeoExplorerGeminiPipeline],
+  );
 
   useLayoutEffect(() => {
     const el = geoExplorerMessagesRef.current;
@@ -4979,129 +5152,32 @@ export default function SatelliteIntelligence() {
     const userMsg: GeoExplorerMessage = { id: userId, role: 'user', parts: userParts };
     const userTextForMapFallback = trimmed;
 
+    const composerHadPendingImage = !!geoExplorerPendingImage;
     setGeoExplorerDraft('');
     setGeoExplorerPendingImage(null);
     setGeoExplorerChatError('');
     geoExplorerInFlightRef.current = true;
     setGeoExplorerBusy(true);
+    setGeoExplorerAwaitKind('send');
 
     setGeoExplorerMessages(prev => {
       const historyWithUser = [...prev, userMsg];
-      queueMicrotask(async () => {
-        try {
-          if (!geoExplorerPendingImage && trimmed) {
-            const savedLayersForStats = await loadGisMapSavedLayers();
-            const mergedLayersForStats: GeoAiMapLayer[] = [
-              ...satelliteCustomLayersToGeoAiLayers(customLayers),
-              ...savedLayersForStats.map(l => ({
-                name: l.name,
-                clientLayerId: String(l.id),
-                visible: l.visible,
-                source: l.source,
-                data: l.data,
-                arcgisLayerDefinition: (l as { arcgisLayerDefinition?: GeoAiMapLayer['arcgisLayerDefinition'] })
-                  .arcgisLayerDefinition,
-              })),
-            ];
-            const localStats = runGeoAiStatsCommand(trimmed, mergedLayersForStats);
-            if (localStats?.handled) {
-              const mid = typeof crypto !== 'undefined' && 'randomUUID' in crypto ? crypto.randomUUID() : `geo-s-${Date.now()}`;
-              const parts: GeoExplorerPart[] = [{ type: 'text', text: localStats.reply }];
-              if (localStats.table) parts.push({ type: 'dataTable', table: localStats.table });
-              const modelMsg: GeoExplorerMessage = { id: mid, role: 'model', parts };
-              setGeoExplorerMessages(h => [...h, modelMsg]);
-              if (localStats.mapFirstSync?.selections?.length) {
-                queueMicrotask(() => applySatelliteGeoAiMapFirstSync(localStats.mapFirstSync!.selections));
-              }
-              return;
-            }
-          }
-          let developAppend = '';
-          try {
-            const raw =
-              typeof localStorage !== 'undefined' ? localStorage.getItem(DEVELOP_DATA_CONTEXT_LS_KEY) : null;
-            if (raw?.trim()) {
-              developAppend = `### Develop Dashboard — Data pane snapshot (JSON)\n${raw.slice(0, 14000)}`;
-            }
-          } catch {
-            /* ignore */
-          }
-          const result = await runGeoExplorerGeminiTurn({
-            apiKey,
-            historyWithUser,
-            userTextForMapFallback,
-            primaryVectorLayers: satelliteCustomLayersToGeoAiLayers(customLayers),
-              mapboxAccessToken: mapboxToken || undefined,
-            openWeatherApiKey,
-            pinLngLat: geoAiPinLngLat,
-            lastMapQueryCoords: lastMapQueryCoordsFromMessages(prev),
-            inspectAnchorLngLat:
-              geoAiInspectCard != null ? ([geoAiInspectCard.lng, geoAiInspectCard.lat] as [number, number]) : null,
-            mapPopup: null,
-            addedLayersHeading: '### Satellite — Added layers (this map — si-env / vector layers)',
-            attachGisSavedLayers: true,
-            extraSystemAppend: developAppend || undefined,
-          });
-          setGeoExplorerMessages(h => [...h, result.modelMsg]);
-          const me = result.mapEffect;
-          if (me) {
-            setGeoAiPinLngLat(me.coords);
-            setViewState(vs => ({
-              ...vs,
-              longitude: me.coords[0],
-              latitude: me.coords[1],
-              zoom: Math.max(
-                geoExplorerTargetZoomForPinSource(me.pinSource),
-                typeof vs.zoom === 'number' ? vs.zoom : 2,
-              ),
-              pitch: is3DView ? Math.max(typeof vs.pitch === 'number' ? vs.pitch : 0, 42) : vs.pitch ?? 0,
-              bearing: typeof vs.bearing === 'number' ? vs.bearing : 0,
-            }));
-            if (me.layerHit) {
-              setGeoAiInspectCard({
-                title: me.layerHit.layerName,
-                rows: buildGeoAiLayerPopupAttributeRows(me.layerHit, {
-                  maxRows: 28,
-                  queryContext: userTextForMapFallback,
-                  inspectCoords: { lng: me.coords[0], lat: me.coords[1] },
-                }),
-                lng: me.coords[0],
-                lat: me.coords[1],
-                ...pickGeoAiHumanPlaceFields(me.layerHit.properties),
-              });
-            } else {
-              setGeoAiInspectCard({
-                title: 'Location',
-                rows: [
-                  { label: 'Longitude', value: me.coords[0].toFixed(6) },
-                  { label: 'Latitude', value: me.coords[1].toFixed(6) },
-                ],
-                lng: me.coords[0],
-                lat: me.coords[1],
-              });
-            }
-          } else {
-            setGeoAiInspectCard(null);
-          }
-        } catch (e) {
-          setGeoExplorerChatError(e instanceof Error ? e.message : String(e));
-        } finally {
-          geoExplorerInFlightRef.current = false;
-          setGeoExplorerBusy(false);
-        }
-      });
+      queueMicrotask(() =>
+        void runSatelliteGeoExplorerGeminiPipeline({
+          historyWithUser,
+          userTextForMapFallback,
+          coordsSourceMessages: prev,
+          skipLocalStatsBecausePendingImage: composerHadPendingImage,
+          questionEditInPlace: false,
+        }),
+      );
       return historyWithUser;
     });
   }, [
     geminiApiKey,
     geoExplorerDraft,
     geoExplorerPendingImage,
-    mapboxToken,
-    is3DView,
-    customLayers,
-    openWeatherApiKey,
-    geoAiPinLngLat,
-    geoAiInspectCard,
+    runSatelliteGeoExplorerGeminiPipeline,
   ]);
 
   const onSiGeoAiTableMapAction = useCallback(
@@ -8822,7 +8898,7 @@ export default function SatelliteIntelligence() {
                                         msg={msg}
                                         cssPrefix="si-geo-explorer"
                                         onTableMapAction={onSiGeoAiTableMapAction}
-                                        onUpdateUserMessage={onUpdateGeoExplorerUserMessage}
+                                        onSaveEditedUserMessage={saveEditedGeoExplorerGeminiQuestion}
                                         onSendEditedToComposer={setGeoExplorerDraft}
                                         suggestLayers={geoAiSuggestContext.layers}
                                         suggestFields={geoAiSuggestContext.fields}
@@ -8837,7 +8913,8 @@ export default function SatelliteIntelligence() {
                                       <i className="fa-solid fa-wand-magic-sparkles" />
                                     </div>
                                     <div className="si-geo-explorer-bubble si-geo-explorer-bubble--typing">
-                                      <i className="fa-solid fa-spinner fa-spin" aria-hidden /> Thinking…
+                                      <i className="fa-solid fa-spinner fa-spin" aria-hidden />{' '}
+                                      {geoExplorerAwaitKind === 'edit' ? 'Updating…' : 'Thinking…'}
                                     </div>
                                   </div>
                                 ) : null}

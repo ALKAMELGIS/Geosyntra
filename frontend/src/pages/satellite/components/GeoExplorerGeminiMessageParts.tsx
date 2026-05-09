@@ -29,8 +29,13 @@ export type GeoExplorerGeminiMessagePartsProps = {
   msg: GeoExplorerMessage
   cssPrefix: GeoExplorerCssPrefix
   onTableMapAction?: (action: GeoExplorerMapAction, link: GeoExplorerMapLink) => void
-  /** When set, user text bubbles show edit / rephrase controls and update history on save. */
+  /** When set, user text bubbles show edit / rephrase controls and update history on save (text only, no re-run). */
   onUpdateUserMessage?: (messageId: string, nextText: string) => void
+  /**
+   * When set (Gemini Geo AI), saving an edited question truncates stale replies after it and re-runs the model
+   * for a partial refresh with the same thread context.
+   */
+  onSaveEditedUserMessage?: (messageId: string, nextText: string) => void
   onSendEditedToComposer?: (text: string) => void
   suggestLayers?: string[]
   suggestFields?: string[]
@@ -43,6 +48,7 @@ export function GeoExplorerGeminiMessageParts(props: GeoExplorerGeminiMessagePar
     cssPrefix,
     onTableMapAction,
     onUpdateUserMessage,
+    onSaveEditedUserMessage,
     onSendEditedToComposer,
     suggestLayers,
     suggestFields,
@@ -58,12 +64,14 @@ export function GeoExplorerGeminiMessageParts(props: GeoExplorerGeminiMessagePar
     return (
       <>
         {text ? (
-          onUpdateUserMessage ? (
+          onSaveEditedUserMessage || onUpdateUserMessage ? (
             <GeoAiEditQuestionTool
               cssPrefix={cssPrefix}
               messageId={msg.id}
               originalText={text}
-              onCommit={next => onUpdateUserMessage(msg.id, next)}
+              onCommit={next =>
+                (onSaveEditedUserMessage ?? onUpdateUserMessage)!(msg.id, next)
+              }
               onUseInComposer={onSendEditedToComposer}
               suggestLayers={suggestLayers}
               suggestFields={suggestFields}

@@ -740,78 +740,76 @@
   background: rgba(255, 255, 255, 0.55);
 }
 
-.si-sat-ctx-map-strip-reopen {
-  position: absolute;
-  z-index: 96;
-  inset-inline-end: 0;
-  top: 0;
-  bottom: 0;
-  /* Was 16px — too narrow to tap; Mapbox-style “peek” tab with comfortable hit target */
-  width: 44px;
-  min-width: 44px;
-  margin: 0;
-  padding: 8px 4px;
-  border: none;
-  border-radius: 0;
-  border-start-start-radius: 10px;
-  border-end-start-radius: 10px;
-  background: linear-gradient(180deg, rgba(30, 41, 59, 0.92), rgba(15, 23, 42, 0.96));
-  border: 1px solid rgba(148, 163, 184, 0.28);
-  border-inline-end: none;
-  color: #94a3b8;
+/* Map toolbox minimized to edge: icon rail + clear “restore strip” control (no blank peek tab). */
+.si-sat-ctx-dock--map.si-sat-ctx-dock--map-strip-minimized {
+  filter: drop-shadow(0 14px 32px rgba(2, 6, 23, 0.4));
+}
+
+.si-sat-ctx-dock--map-strip-minimized .si-sat-ctx-rail {
+  width: 56px;
+  min-width: 56px;
+  max-width: 56px;
+  padding-inline: 7px;
+  border-inline-start: 2px solid rgba(52, 211, 153, 0.38);
+}
+
+.si-sat-ctx-rail-strip-show {
+  width: 100%;
+  min-height: 52px;
+  padding: 8px 4px 10px;
+  border-radius: 8px;
+  border: 1px solid rgba(52, 211, 153, 0.42);
+  background: rgba(6, 95, 70, 0.22);
+  color: #a7f3d0;
   cursor: pointer;
+  font-size: 13px;
   display: inline-flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
   gap: 6px;
-  font-size: 14px;
-  box-shadow: -4px 0 18px rgba(2, 6, 23, 0.35);
   transition:
-    color 0.15s ease,
-    background 0.15s ease,
-    width 0.2s ease,
-    filter 0.15s ease;
+    color 0.16s ease,
+    border-color 0.16s ease,
+    background 0.16s ease,
+    transform 0.14s ease;
 }
 
-.si-sat-ctx-map-strip-reopen:hover {
-  color: #e2e8f0;
-  background: linear-gradient(180deg, rgba(51, 65, 85, 0.95), rgba(30, 41, 59, 0.98));
-  filter: brightness(1.06);
+.si-sat-ctx-rail-strip-show:hover {
+  color: #ecfdf5;
+  border-color: rgba(52, 211, 153, 0.65);
+  background: rgba(6, 78, 59, 0.35);
 }
 
-.si-sat-ctx-map-strip-reopen:focus-visible {
+.si-sat-ctx-rail-strip-show:focus-visible {
   outline: 2px solid rgba(52, 211, 153, 0.85);
   outline-offset: 2px;
 }
 
-.si-sat-ctx-map-strip-reopen__hint {
+.si-sat-ctx-rail-strip-show__label {
   font-size: 9px;
   font-weight: 700;
-  letter-spacing: 0.06em;
-  line-height: 1.1;
+  letter-spacing: 0.08em;
+  line-height: 1.15;
   text-transform: uppercase;
-  color: rgba(148, 163, 184, 0.95);
-  writing-mode: vertical-rl;
-  text-orientation: mixed;
-  transform: rotate(180deg);
-  max-height: 7rem;
+  color: rgba(167, 243, 208, 0.95);
   user-select: none;
+  text-align: center;
 }
 
-html[data-theme='light'] .si-sat-ctx-map-strip-reopen__hint {
-  color: #64748b;
+.si-sat-ctx-dock--light .si-sat-ctx-rail-strip-show {
+  background: rgba(16, 185, 129, 0.12);
+  color: #047857;
+  border-color: rgba(5, 150, 105, 0.45);
 }
 
-html[data-theme='light'] .si-sat-ctx-map-strip-reopen {
-  background: linear-gradient(180deg, rgba(248, 250, 252, 0.98), rgba(241, 245, 249, 0.96));
-  color: #64748b;
-  border-color: rgba(148, 163, 184, 0.45);
+.si-sat-ctx-dock--light .si-sat-ctx-rail-strip-show__label {
+  color: #047857;
 }
 
 .si-sat-ctx-dock[dir='rtl'] .si-sat-ctx-rail-collapse i,
 .si-sat-ctx-dock[dir='rtl'] .si-sat-ctx-rail-strip-hide i,
-.si-sat-ctx-dock[dir='rtl'] .si-sat-ctx-map-strip-reopen i {
+.si-sat-ctx-dock[dir='rtl'] .si-sat-ctx-rail-strip-show i {
   transform: scaleX(-1);
 }
 
@@ -873,7 +871,8 @@ html[data-theme='light'] .si-sat-ctx-map-strip-reopen {
 
 @media (prefers-reduced-motion: reduce) {
   .si-sat-ctx-dock--map .si-sat-ctx-rail,
-  .si-sat-ctx-panel-wrap {
+  .si-sat-ctx-panel-wrap,
+  .si-sat-ctx-dock--map .si-sat-ctx-rail-label {
     transition: none !important;
   }
 }
@@ -954,6 +953,12 @@ html[data-theme='light'] .si-sat-ctx-map-strip-reopen {
   letter-spacing: 0.01em;
   line-height: 1.25;
   color: var(--si-ctx-text);
+}
+
+.si-sat-ctx-dock--map .si-sat-ctx-rail-label {
+  transition:
+    opacity 0.2s ease,
+    transform 0.24s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 .si-sat-ctx-rail-label-desc {
@@ -1388,5 +1393,11 @@ html[data-theme='light'] .si-sat-ctx-map-strip-reopen {
 
   .si-sat-ctx-dock--map.si-sat-ctx-dock--map-tall.si-sat-ctx-dock--rail-narrow .si-sat-ctx-rail {
     max-width: 52px;
+  }
+
+  .si-sat-ctx-dock--map.si-sat-ctx-dock--map-tall.si-sat-ctx-dock--map-strip-minimized .si-sat-ctx-rail {
+    max-width: 56px;
+    width: 56px;
+    min-width: 56px;
   }
 }

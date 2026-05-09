@@ -90,6 +90,11 @@ export type RunGeoExplorerGeminiTurnParams = {
   attachGisSavedLayers?: boolean
   /** Optional extra authoritative blocks (e.g. Develop Dashboard snapshot excerpt). */
   extraSystemAppend?: string
+  /**
+   * User edited an existing question in-place; history already ends with the revised user message.
+   * Model should answer concisely and apply deltas without generic re-onboarding.
+   */
+  questionEditInPlace?: boolean
 }
 
 export async function runGeoExplorerGeminiTurn(
@@ -109,6 +114,7 @@ export async function runGeoExplorerGeminiTurn(
     addedLayersHeading,
     attachGisSavedLayers,
     extraSystemAppend,
+    questionEditInPlace,
   } = params
 
   const attachGis = attachGisSavedLayers === true
@@ -160,7 +166,10 @@ export async function runGeoExplorerGeminiTurn(
   })
 
   const tail = extraSystemAppend?.trim() ? `\n\n${extraSystemAppend.trim()}` : ''
-  const systemInstruction = `${GEO_EXPLORER_SYSTEM_PROMPT}\n\n${GEO_AI_COPILOT_RULES}\n\n${GEO_EXPLORER_LAYER_RULES}${sessionWeatherBlocks}${resolvedFeatureAppend}\n\n---\n${addedLayersHeading}\n${addedBlock}\n\n${gisBlock}${tail}`
+  const editInPlaceNote = questionEditInPlace
+    ? `\n\n### In-place question refinement\nThe user edited their latest question in the same thread (no new chat). Prior assistant replies after that question are not in this history. Answer only the **updated** wording: apply new field/layer/selection/stat instructions concisely. Skip greetings, recap, and generic onboarding.`
+    : ''
+  const systemInstruction = `${GEO_EXPLORER_SYSTEM_PROMPT}\n\n${GEO_AI_COPILOT_RULES}\n\n${GEO_EXPLORER_LAYER_RULES}${sessionWeatherBlocks}${resolvedFeatureAppend}\n\n---\n${addedLayersHeading}\n${addedBlock}\n\n${gisBlock}${editInPlaceNote}${tail}`
 
   let reply = await geminiGenerateContent({
     apiKey,

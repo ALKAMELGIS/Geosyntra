@@ -208,6 +208,8 @@ export function SatelliteContextualAnalysisDock(props: SatelliteContextualAnalys
   });
   const resizeRef = useRef<{ startX: number; startW: number } | null>(null);
   const lastActiveRef = useRef<SatelliteContextPanelId>('layers');
+  /** When minimizing the map toolbox strip, remember label mode so restoring the strip does not reset it. */
+  const mapRailLabeledBeforeStripHideRef = useRef<boolean | null>(null);
 
   useEffect(() => {
     try {
@@ -327,32 +329,15 @@ export function SatelliteContextualAnalysisDock(props: SatelliteContextualAnalys
   const maxPivot = pivotBars.length ? Math.max(...pivotBars.map(p => Math.abs(p.value))) : 1;
 
   const isMap = isMapVariant;
-  const railWide = isMap ? mapRailLabeled : railLabeled;
-
-  if (isMap && mapStripHidden) {
-    return (
-      <button
-        type="button"
-        className={'si-sat-ctx-map-strip-reopen ' + className.trim()}
-        title="Show map toolbox — layers and analysis tools"
-        aria-label="Show map toolbox"
-        aria-expanded={false}
-        dir={direction}
-        onClick={() => {
-          setMapStripHidden(false);
-          setMapRailLabeled(false);
-        }}
-      >
-        <i className="fa-solid fa-angles-left" aria-hidden />
-        <span className="si-sat-ctx-map-strip-reopen__hint">Tools</span>
-      </button>
-    );
-  }
+  const mapPanelCollapsed = isMap && mapStripHidden;
+  const panelLayoutOpen = panelOpen && !mapPanelCollapsed;
+  const railWide = isMap ? !mapStripHidden && mapRailLabeled : railLabeled;
 
   const rootClass = [
     'si-sat-ctx-dock',
     isMap ? 'si-sat-ctx-dock--map si-sat-ctx-dock--map-tall' : 'si-sat-ctx-dock--embedded',
-    panelOpen ? 'si-sat-ctx-dock--open' : 'si-sat-ctx-dock--closed',
+    mapPanelCollapsed ? 'si-sat-ctx-dock--map-strip-minimized' : '',
+    panelLayoutOpen ? 'si-sat-ctx-dock--open' : 'si-sat-ctx-dock--closed',
     dockMode === 'float' ? 'si-sat-ctx-dock--float-mode' : '',
     surface === 'light' ? 'si-sat-ctx-dock--light' : 'si-sat-ctx-dock--dark',
     railWide ? 'si-sat-ctx-dock--rail-labeled' : 'si-sat-ctx-dock--rail-narrow',
@@ -406,55 +391,74 @@ export function SatelliteContextualAnalysisDock(props: SatelliteContextualAnalys
         ))}
         <div className="si-sat-ctx-rail-spacer" aria-hidden />
         <div className={'si-sat-ctx-rail-footer' + (isMap ? ' si-sat-ctx-rail-footer--map' : '')}>
-          {isMap ? (
+          {isMap && mapStripHidden ? (
+            <button
+              type="button"
+              className="si-sat-ctx-rail-strip-show"
+              title="Restore full toolbox strip (keeps your label mode and panel state)"
+              aria-label="Restore full map toolbox strip"
+              onClick={() => {
+                setMapStripHidden(false);
+                const snap = mapRailLabeledBeforeStripHideRef.current;
+                if (snap !== null) setMapRailLabeled(snap);
+              }}
+            >
+              <i className="fa-solid fa-angles-left" aria-hidden />
+              <span className="si-sat-ctx-rail-strip-show__label">Full strip</span>
+            </button>
+          ) : null}
+          {isMap && !mapStripHidden ? (
             <button
               type="button"
               className="si-sat-ctx-rail-strip-hide"
-              title="Hide toolbox strip"
-              aria-label="Hide toolbox strip"
+              title="Minimize strip to edge — icons stay visible; panel stays ready when you expand again"
+              aria-label="Minimize map toolbox strip to edge"
+              aria-pressed={mapStripHidden}
               onClick={() => {
-                closePanel();
+                mapRailLabeledBeforeStripHideRef.current = mapRailLabeled;
                 setMapStripHidden(true);
               }}
             >
               <i className="fa-solid fa-angles-right" aria-hidden />
             </button>
           ) : null}
-          <button
-            type="button"
-            className={'si-sat-ctx-rail-collapse' + (railWide ? ' si-sat-ctx-rail-collapse--labeled' : '')}
-            title={
-              railWide
-                ? isMap
-                  ? 'Collapse to icons only (tooltips)'
-                  : 'Collapse sidebar, close context panel, and show icons only'
-                : isMap
-                  ? 'Expand toolbox (labels and descriptions)'
-                  : 'Expand sidebar (show labels)'
-            }
-            aria-label={
-              railWide ? (isMap ? 'Collapse toolbox to icons' : 'Collapse sidebar and close panel') : 'Expand toolbox'
-            }
-            aria-expanded={railWide}
-            onClick={() => {
-              if (railWide) {
-                if (panelOpen) closePanel();
-                if (isMap) setMapRailLabeled(false);
-                else setRailLabeled(false);
-              } else if (isMap) setMapRailLabeled(true);
-              else setRailLabeled(true);
-            }}
-          >
-            <i className={railWide ? 'fa-solid fa-angles-right' : 'fa-solid fa-angles-left'} aria-hidden />
-            {railWide ? <span className="si-sat-ctx-rail-collapse-text">Collapse</span> : null}
-          </button>
+          {!isMap || !mapStripHidden ? (
+            <button
+              type="button"
+              className={'si-sat-ctx-rail-collapse' + (railWide ? ' si-sat-ctx-rail-collapse--labeled' : '')}
+              title={
+                railWide
+                  ? isMap
+                    ? 'Collapse to icons only (tooltips)'
+                    : 'Collapse sidebar, close context panel, and show icons only'
+                  : isMap
+                    ? 'Expand toolbox (labels and descriptions)'
+                    : 'Expand sidebar (show labels)'
+              }
+              aria-label={
+                railWide ? (isMap ? 'Collapse toolbox to icons' : 'Collapse sidebar and close panel') : 'Expand toolbox'
+              }
+              aria-pressed={railWide}
+              onClick={() => {
+                if (railWide) {
+                  if (panelOpen) closePanel();
+                  if (isMap) setMapRailLabeled(false);
+                  else setRailLabeled(false);
+                } else if (isMap) setMapRailLabeled(true);
+                else setRailLabeled(true);
+              }}
+            >
+              <i className={railWide ? 'fa-solid fa-angles-right' : 'fa-solid fa-angles-left'} aria-hidden />
+              {railWide ? <span className="si-sat-ctx-rail-collapse-text">Collapse</span> : null}
+            </button>
+          ) : null}
         </div>
       </nav>
 
       <div
         className="si-sat-ctx-panel-wrap"
-        style={panelOpen ? { width: panelWidth, flexBasis: panelWidth } : { width: 0, flexBasis: 0 }}
-        aria-hidden={!panelOpen}
+        style={panelLayoutOpen ? { width: panelWidth, flexBasis: panelWidth } : { width: 0, flexBasis: 0 }}
+        aria-hidden={!panelLayoutOpen}
       >
         <aside
           className="si-sat-ctx-panel"

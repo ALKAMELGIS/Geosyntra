@@ -2,6 +2,8 @@ import type { GeoExplorerDataTablePayload, GeoExplorerDataTableRow, GeoExplorerM
 import type { GeoAiMapLayer } from './geoExplorerLayerContext'
 import { extractGeoExplorerLayerHint, geoAiFeatureCentroid, normalizeLayerName } from './geoExplorerLayerContext'
 import { computeStableGisFeatureKey } from './gisFeatureStableKey'
+import { featureIntersectsMask, featureWithinMask } from './geoAiGeoJsonSpatial'
+import { evalWhereExpr, extractWhereFromQuery, hasSqlWhereIntent } from './geoAiSqlWhere'
 
 type GeoFeature = { id?: unknown; properties?: Record<string, unknown>; geometry?: { type?: string; coordinates?: unknown } }
 
@@ -85,6 +87,60 @@ function fcFromLayer(layer: GeoAiMapLayer): { features: GeoFeature[] } | null {
   if (g && g.type === 'FeatureCollection' && Array.isArray(g.features)) return { features: g.features }
   const d = layer.data as { type?: string; features?: GeoFeature[] } | undefined
   if (d && d.type === 'FeatureCollection' && Array.isArray(d.features)) return { features: d.features }
+  return null
+}
+
+function collectMaskGeometries(
+  maskName: string,
+  layers: GeoAiMapLayer[],
+): Array<{ type?: string; coordinates?: unknown }> {
+  const hn = normalizeLayerName(maskName)
+  const geoms: Array<{ type?: string; coordinates?: unknown }> = []
+  for (const l of layers) {
+    const ln = normalizeLayerName(l.name)
+    if (!(ln === hn || ln.includes(hn) || hn.includes(ln))) continue
+    const fc = fcFromLayer(l)
+    if (!fc?.features?.length) continue
+    for (const f of fc.features) {
+      const g = f.geometry as { type?: string; coordinates?: unknown } | undefined
+      if (g && typeof g === 'object') geoms.push(g)
+    }
+  }
+  return geoms
+}
+
+/** “Select by location” — target scope from layer hint; mask layer name from phrase. */
+function parseSelectByLocationQuery(
+  query: string,
+  layers: GeoAiMapLayer[],
+): null | { relation: 'within' | 'intersects'; maskName: string } {
+  const q = query.trim()
+  if (!layers.length) return null
+
+  const relFromQuery = (): 'within' | 'intersects' => {
+    if (/\b(?:intersect|overlap)\b/i.test(q)) return 'intersects'
+    return 'within'
+  }
+
+  const q1 = q.match(
+    /\b(?:within|inside|intersect(?:s|ing)?|overlap)\s+(?:with\s+)?(?:the\s+)?(?:layer\s+)?["']([^"'\n]+)["']/i,
+  )
+  if (q1?.[1]?.trim()) return { relation: relFromQuery(), maskName: q1[1].trim() }
+
+  const q2 = q.match(
+    /\b(?:within|inside|intersect(?:s|ing)?|overlap)\s+(?:with\s+)?(?:the\s+)?(?:layer\s+)([\w][\w\s-]{1,80})/i,
+  )
+  if (q2?.[1]?.trim()) return { relation: relFromQuery(), maskName: q2[1].trim() }
+
+  const ar = q.match(/(?:داخل|ضمن)\s+(?:طبقة\s+)?["']?([^"'\n;]{2,80})["']?/i)
+  if (ar?.[1]?.trim()) return { relation: 'within', maskName: ar[1].trim() }
+
+  if (/\bselect\s+by\s+location\b/i.test(q)) {
+    const m =
+      q.match(/\b(?:using|from|with)\s+["']?([^"'\n;]{2,80})["']?/i) ?? q.match(/\b(?:mask|boundary)\s+["']?([^"'\n;]{2,80})["']?/i)
+    if (m?.[1]?.trim()) return { relation: 'within', maskName: m[1].trim() }
+  }
+
   return null
 }
 
@@ -335,11 +391,16 @@ export function runGeoAiStatsCommand(query: string, layers: GeoAiMapLayer[]): Ge
     q.length <= 72 &&
     q.split(/\s+/).filter(Boolean).length <= 8 &&
     !/\b(sum|average|mean|total|min|max|group\s*by)\b/i.test(q)
+  const spatialSpecEarly = parseSelectByLocationQuery(q, layers)
+  const sqlWhereEarly = extractWhereFromQuery(q)
+  const hasSqlWhereClause = Boolean(sqlWhereEarly && hasSqlWhereIntent(q))
   const hasStatIntent =
     /\b(sum|total|average|mean|min|max|count|group\s*by|statistics|stat\b|summary|tabular|table|spreadsheet|calculate field|select|selection|query)\b/i.test(q) ||
     /\b(show\s+me|find|display|list|records|features|locate|highlight)\b/i.test(q) ||
     /(?:مجموع|اجمالي|متوسط|أكبر|اكبر|أصغر|اصغر|عدد|إحصاء|احصاء|تحليل|تحديد|استعلام|جدول|ملخص|اعرض|أظهر|اظهر|ابحث|عرض|group by|calculate field)/i.test(q) ||
-    shortCodeLookup
+    shortCodeLookup ||
+    spatialSpecEarly != null ||
+    hasSqlWhereClause
   if (!hasStatIntent) return null
 
   const scope = collectScope(q, layers)
@@ -347,14 +408,50 @@ export function runGeoAiStatsCommand(query: string, layers: GeoAiMapLayer[]): Ge
     return { handled: true, reply: 'No loaded layer records are available for statistical analysis right now.' }
   }
 
+  let workingFeatures = scope.features
+  const spatialSpec = spatialSpecEarly
+  if (spatialSpec) {
+    const maskGeoms = collectMaskGeometries(spatialSpec.maskName, layers)
+    if (!maskGeoms.length) {
+      return {
+        handled: true,
+        reply: `Select by location: no polygon/line geometries found on mask layer **${spatialSpec.maskName}**. Add or show that layer, then try again.`,
+      }
+    }
+    const hint = extractGeoExplorerLayerHint(q, layers)
+    const hintN = hint ? normalizeLayerName(hint) : ''
+    const maskN = normalizeLayerName(spatialSpec.maskName)
+    if (hintN && hintN === maskN && scope.layers.length < 2) {
+      return {
+        handled: true,
+        reply:
+          'Select by location needs **two different layers**: scope the target layer in your question (e.g. layer name in quotes) and name another layer as the mask/boundary.',
+      }
+    }
+    workingFeatures = workingFeatures.filter(row =>
+      spatialSpec.relation === 'within'
+        ? featureWithinMask(row.rawFeature, maskGeoms)
+        : featureIntersectsMask(row.rawFeature, maskGeoms),
+    )
+  }
+
+  if (hasSqlWhereClause && sqlWhereEarly) {
+    workingFeatures = workingFeatures.filter(r => evalWhereExpr(sqlWhereEarly, r.properties) === true)
+  }
+
+  const effectiveScope: ScopedData = { ...scope, features: workingFeatures }
+
   const lookupTokens = extractLookupTokens(q)
-  const comparison = parseComparison(q, scope.fields)
-  let selected = selectRows(scope, comparison)
+  const comparison = parseComparison(q, effectiveScope.fields)
+  let selected = selectRows(effectiveScope, comparison)
   if (lookupTokens.length) {
     selected = selected.filter(r => rowMatchesLookupTokens(r, lookupTokens))
   }
   const selectedCount = selected.length
-  const mapFirst = userWantsMapFirstLayerBrowse(q, lookupTokens, comparison != null)
+  const mapFirst =
+    userWantsMapFirstLayerBrowse(q, lookupTokens, comparison != null) ||
+    Boolean(spatialSpec) ||
+    hasSqlWhereClause
   const mapSync = mapFirst && selectedCount > 0 ? { selections: mapFirstSelectionsFromRows(selected) } : undefined
 
   const calc = q.match(/calculate\s+field\s+([A-Za-z_][A-Za-z0-9_]*)\s*=\s*([A-Za-z0-9_+\-*/().\s]+)/i)
@@ -367,7 +464,7 @@ export function runGeoAiStatsCommand(query: string, layers: GeoAiMapLayer[]): Ge
       if (v != null) pairs.push({ row: r, value: v })
     }
     const previewSlice = pairs.slice(0, TABLE_ROW_CAP)
-    const colsPick = pickDisplayColumns(scope.fields, 4)
+    const colsPick = pickDisplayColumns(effectiveScope.fields, 4)
     const columns = [
       { key: 'row_num', label: '#', align: 'right' as const },
       { key: 'layer', label: 'Layer', align: 'left' as const },
@@ -404,7 +501,7 @@ export function runGeoAiStatsCommand(query: string, layers: GeoAiMapLayer[]): Ge
     q.match(/(?:حسب|تجميع حسب)\s+([A-Za-z_][A-Za-z0-9_]*)/i)?.[1] ??
     null
   if (groupByField) {
-    const gb = scope.fields.find(f => f.toLowerCase() === groupByField.toLowerCase())
+    const gb = effectiveScope.fields.find(f => f.toLowerCase() === groupByField.toLowerCase())
     if (!gb) return { handled: true, reply: `Group field "${groupByField}" was not found.` }
     const buckets = new Map<string, number>()
     for (const r of selected) {
@@ -440,7 +537,7 @@ export function runGeoAiStatsCommand(query: string, layers: GeoAiMapLayer[]): Ge
     /\b(max|maximum|أكبر|اكبر|اعلى)\b/i.test(q) ? 'max' :
     'count'
 
-  const field = findField(q, scope.fields)
+  const field = findField(q, effectiveScope.fields)
 
   if (op === 'count' && !field) {
     const whereTxt = comparison ? ` · Numeric filter: ${comparison.field} ${comparison.op} ${comparison.value}` : ''
@@ -449,7 +546,7 @@ export function runGeoAiStatsCommand(query: string, layers: GeoAiMapLayer[]): Ge
       return {
         handled: true,
         reply: `No matching records (${lookupTokens.length ? `tokens ${lookupTokens.join(', ')}` : 'current filters'}).`,
-        table: mapFirst ? undefined : queryFeaturesTable([], scope.fields, 'Query results'),
+        table: mapFirst ? undefined : queryFeaturesTable([], effectiveScope.fields, 'Query results'),
       }
     }
     if (mapFirst && mapSync?.selections.length) {
@@ -459,7 +556,11 @@ export function runGeoAiStatsCommand(query: string, layers: GeoAiMapLayer[]): Ge
         mapFirstSync: mapSync,
       }
     }
-    const table = queryFeaturesTable(selected, scope.fields, lookupTokens.length ? `Matches: ${lookupTokens.join(', ')}` : 'Layer records')
+    const table = queryFeaturesTable(
+      selected,
+      effectiveScope.fields,
+      lookupTokens.length ? `Matches: ${lookupTokens.join(', ')}` : 'Layer records',
+    )
     const shown = Math.min(TABLE_ROW_CAP, selected.length)
     return {
       handled: true,
@@ -477,7 +578,7 @@ export function runGeoAiStatsCommand(query: string, layers: GeoAiMapLayer[]): Ge
           mapFirstSync: mapSync,
         }
       }
-      const table = queryFeaturesTable(selected, scope.fields, `Matches: ${lookupTokens.join(', ')}`)
+      const table = queryFeaturesTable(selected, effectiveScope.fields, `Matches: ${lookupTokens.join(', ')}`)
       return {
         handled: true,
         reply: `Found **${selectedCount}** feature(s) for **${lookupTokens.join(', ')}**. Use the table below — row click highlights on the map; use **Table** in the map column to open the attribute dock.`,

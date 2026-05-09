@@ -129,6 +129,11 @@ export function GeoAiEditQuestionTool(props: GeoAiEditQuestionToolProps) {
               className={pfx(cssPrefix, 'edit-q-textarea')}
               value={draft}
               onChange={e => setDraft(e.target.value)}
+              onKeyDown={e => {
+                if (e.key !== 'Enter' || e.shiftKey) return
+                e.preventDefault();
+                handleSave();
+              }}
               rows={Math.min(8, Math.max(3, String(draft).split(/\r?\n/).length))}
               spellCheck
             />
