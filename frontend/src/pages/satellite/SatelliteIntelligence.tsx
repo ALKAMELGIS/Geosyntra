@@ -39,12 +39,7 @@ import { getArcgisPortalToken } from '../../lib/arcgisPortalToken';
 import { getMapboxAccessToken } from '../../lib/mapboxAccessToken';
 import { subscribeSentinelHubAccessToken } from '../../lib/sentinelHubAccessToken';
 import { getSentinelHubWmsBaseUrl, subscribeSentinelHubWmsInstance } from '../../lib/sentinelHubWmsInstance';
-import {
-  buildSentinelHubWmsAoiClip,
-  getSentinelWmsThematicLegendBins,
-  inferWmsEvalProfile,
-  isThematicWmsProfile,
-} from '../../lib/sentinelHubWmsAoiClip';
+import { buildSentinelHubWmsAoiClip } from '../../lib/sentinelHubWmsAoiClip';
 import {
   GEO_AI_COPILOT_RULES,
   lastMapQueryCoordsFromMessages,
@@ -68,13 +63,11 @@ import { satelliteCustomLayersToGeoAiLayers } from '../../lib/geoAiMapLayerSourc
 import { geoExplorerTargetZoomForPinSource, runGeoExplorerGeminiTurn } from '../../lib/runGeoExplorerGeminiTurn';
 import {
   buildGeoAiLayerPopupAttributeRows,
-  geoAiFeatureCentroid,
   pickGeoAiHumanPlaceFields,
   type GeoAiMapLayer,
 } from '../../lib/geoExplorerLayerContext';
 import { lngLatFromGeoAiFeatureLink } from '../../lib/geoAiResolveTableMapLink';
-import { runGeoAiStatsCommand, type GeoAiMapFirstSelection } from '../../lib/geoAiStatsEngine';
-import { computeStableGisFeatureKey } from '../../lib/gisFeatureStableKey';
+import { runGeoAiStatsCommand } from '../../lib/geoAiStatsEngine';
 import { resolveGeoAiPinFromUserTextAndReply } from '../../lib/geoAiResolveMapCoords';
 import { buildGeoAiFullWeatherSessionAppend } from '../../lib/geoAiWeatherContext';
 import {
@@ -1890,8 +1883,6 @@ export default function SatelliteIntelligence() {
   const [polygonRing, setPolygonRing] = useState<[number, number][]>([]);
   const [drawnGeometry, setDrawnGeometry] = useState<any | null>(null);
   const [drawnStats, setDrawnStats] = useState<DrawnAoiStats | null>(null);
-  /** Multiplies opacity on AOI sketch / clip overlays while clearing (smooth fade). */
-  const [aoiSketchOpacity, setAoiSketchOpacity] = useState(1);
   const [netfloraRasterPath, setNetfloraRasterPath] = useState('');
   const [netfloraInputLayerId, setNetfloraInputLayerId] = useState('');
   const [netfloraWeightsPath, setNetfloraWeightsPath] = useState('model_weights.pt');
@@ -1935,9 +1926,6 @@ export default function SatelliteIntelligence() {
   const geoAiReverseGeocodeKeyRef = useRef<string>('');
   const geoExplorerFileInputRef = useRef<HTMLInputElement | null>(null);
   const geoExplorerInFlightRef = useRef(false);
-  const applySatelliteGeoAiMapFirstSyncRef = useRef<(s: GeoAiMapFirstSelection[], layers: GeoAiMapLayer[]) => void>(
-    () => {},
-  );
   const [geoAiModelTab, setGeoAiModelTab] = useState<'gemini' | 'claude' | 'deepseek'>('gemini');
   const [geoAiChatMessages, setGeoAiChatMessages] = useState<Array<{ id: string; role: 'user' | 'assistant'; text: string }>>(
     [],
@@ -1956,6 +1944,9 @@ export default function SatelliteIntelligence() {
   const [geoDeepseekChatError, setGeoDeepseekChatError] = useState('');
   const geoDeepseekInFlightRef = useRef(false);
   const [polygonClosingSnap, setPolygonClosingSnap] = useState(false);
+  /** 1 during interaction; animates toward 0 while clearing AOI overlays for a smooth fade-out */
+  const [drawVisualOpacity, setDrawVisualOpacity] = useState(1);
+  const drawFadeRafRef = useRef<number | null>(null);
   const [drawAssistHint, setDrawAssistHint] = useState('');
   const [circleRadiusM, setCircleRadiusM] = useState<number | null>(null);
   /** After initial circle drag: center + edge with N/E/S/W handles before Enter commits. */
@@ -1998,8 +1989,6 @@ export default function SatelliteIntelligence() {
   const editDragRef = useRef<null | { mode: 'vertex'; ref: VertexRef } | { mode: 'pan'; last: [number, number] }>(null);
   const consoleErrorRef = useRef<typeof console.error | null>(null);
   const stacFocusHydratedRef = useRef(false);
-  const aoiClearFadeRafRef = useRef<number | null>(null);
-  const aoiClearFadeActiveRef = useRef(false);
 
   const visibleGeoExplorerMessages = useMemo(
     () => geoExplorerMessages.slice(Math.max(0, geoExplorerMessages.length - geoExplorerVisibleCount)),
@@ -4346,6 +4335,102 @@ export default function SatelliteIntelligence() {
     }
   };
 
+  async function runRsAnalysisFromAssistant(options?: {
+    keepCurrentSection?: boolean;
+    forcedIndex?: string;
+    /** When true, do not rebuild the weekly timeline or open static charts (map Run = clip AOI + layer only). */
+    skipTimelineAndCharts?: boolean;
+  }) {
+    if (!drawnGeometry) {
+      setFieldAnalysisStatus('Draw AOI first, then press Run Analysis.');
+      setMapDrawTool('polygon');
+      return;
+    }
+
+    const templateByIndex: Record<string, MpcTemplateId> = {
+      NDVI: 'ndvi_s2',
+      NDMI: 'ndmi_s2',
+      NDWI: 'false_color_s2',
+      SAVI: 'ndvi_s2',
+      EVI: 'ndvi_s2',
+      GNDVI: 'ndvi_s2',
+      NBR: 'false_color_s2',
+      NDRE: 'ndvi_s2',
+      BSI: 'false_color_s2',
+      MNDWI: 'false_color_s2',
+      LST: 'false_color_s2',
+    };
+
+    const activeIndex = options?.forcedIndex || wmsLayerSelectValue || selectedIndex;
+    const template = templateByIndex[activeIndex] ?? 'ndvi_s2';
+    const selectedTemplate = LOCAL_PROCESSING_TEMPLATES.find(t => t.id === template);
+    const templateCollections = selectedTemplate?.collections ?? ['sentinel-2-l2a'];
+    setSelectedMpcTemplateId(template);
+    setExploreSelectedCollectionIds(prev => {
+      const s = new Set(prev);
+      templateCollections.forEach(c => s.add(c));
+      return [...s];
+    });
+    // Map "Run" (skipTimelineAndCharts) must only affect analysis rasters — not turn on pivot-wide fills,
+    // which look like a global green tint over the basemap outside the AOI.
+    if (options?.skipTimelineAndCharts) {
+      setShowFieldBoundaries(false);
+      setShowProductivityZones(false);
+    } else {
+      setShowFieldBoundaries(true);
+      setShowProductivityZones(true);
+    }
+    setMpcClipToAoi(true);
+    setIsWmsOverlayVisible(true);
+
+    const dStart = exploreEffectiveDatetime.start || timeSeriesStart;
+    const dEnd = exploreEffectiveDatetime.end || timeSeriesEnd;
+    const drawnGeom = drawnGeometry?.geometry as GeoJSON.Geometry | undefined;
+    const aoi: GeoJSON.Feature = drawnGeom
+      ? { type: 'Feature', geometry: drawnGeom, properties: { source: 'drawn' } }
+      : resolveExploreAoiFeature();
+    if (!aoi || !dStart || !dEnd) {
+      setIsStacThumbVisible(false);
+      setFieldAnalysisStatus('Set AOI and date range before running analysis.');
+      return;
+    }
+
+    let target = processingTargetStacItem;
+    if (!target) {
+      target = await findCompatibleStacItemForTemplate(template, aoi, dStart, dEnd, templateCollections, activeIndex);
+    }
+    if (!target) {
+      setIsStacThumbVisible(false);
+      setFieldAnalysisStatus(
+        'No Sentinel scene in the catalog for this AOI and date range. WMS is clipped to your AOI; adjust dates or add a scene from Explore STAC.',
+      );
+      return;
+    }
+
+    const stableKey = stacItemStableKey(target);
+    const collection = getStacItemCollection(target);
+    setProcessingTargetStacItem(target);
+    setExploreSelectedResultKeys([stableKey]);
+    if (collection) {
+      setExploreSelectedCollectionIds(prev => (prev.includes(collection) ? prev : [...prev, collection]));
+    }
+    setStacStatus(`Run ready: ${String(target?.id ?? 'scene')} (${template}).`);
+    setIsStacThumbVisible(true);
+    await runMpcTemplateProcessing(template, target, activeIndex);
+    if (!options?.keepCurrentSection) {
+      setExpandedEnvSection('remote-sensing');
+    }
+    // Keep the legacy environmental index in sync whenever selected RS index is natively supported.
+    if (Object.prototype.hasOwnProperty.call(ENVIRONMENTAL_INDICES, activeIndex)) {
+      setSelectedIndex(activeIndex as EnvironmentalIndexId);
+      setWmsLayer(activeIndex);
+    }
+    if (!options?.skipTimelineAndCharts) {
+      generateFieldAnalysisTimeline();
+    }
+    setFieldAnalysisStatus(`Run completed for ${activeIndex}. Results rendered inside AOI.`);
+  }
+
   const openAcsPicker = () => {
     setAcsPickerStaging([]);
     setAcsPickerManualPath('');
@@ -4576,6 +4661,12 @@ export default function SatelliteIntelligence() {
     drawnGeometryRef.current = drawnGeometry;
   }, [drawnGeometry]);
 
+  useEffect(() => {
+    return () => {
+      if (drawFadeRafRef.current != null) cancelAnimationFrame(drawFadeRafRef.current);
+    };
+  }, []);
+
   const getMapInstance = () => mapRef.current?.getMap?.() ?? mapRef.current;
 
   const geoAiPinGeoJson = useMemo(() => {
@@ -4685,104 +4776,6 @@ export default function SatelliteIntelligence() {
     [customLayers, is3DView],
   );
 
-  /** Local stats “map-first”: fit map to matched feature(s), pin + inspect card (deduped selections). */
-  const applySatelliteGeoAiMapFirstSync = useCallback(
-    (selections: GeoAiMapFirstSelection[], layersSnapshot: GeoAiMapLayer[]) => {
-      if (!selections.length) return;
-      const features: any[] = [];
-      const metas: {
-        layerName: string;
-        arc: GeoAiMapLayer['arcgisLayerDefinition'] | null | undefined;
-        props: Record<string, unknown> | null;
-      }[] = [];
-      for (const s of selections) {
-        const layer = layersSnapshot.find(l => String(l.clientLayerId) === String(s.layerId));
-        if (!layer) continue;
-        const raw = (layer.geojson ?? layer.data) as { type?: string; features?: unknown[] } | undefined;
-        if (!raw || raw.type !== 'FeatureCollection' || !Array.isArray(raw.features)) continue;
-        for (let i = 0; i < raw.features.length; i++) {
-          const f = raw.features[i] as { properties?: unknown; geometry?: unknown };
-          if (computeStableGisFeatureKey(f, i) !== s.featureKey) continue;
-          features.push(f);
-          const p = f.properties;
-          metas.push({
-            layerName: layer.name,
-            arc: layer.arcgisLayerDefinition,
-            props: p && typeof p === 'object' ? (p as Record<string, unknown>) : null,
-          });
-          break;
-        }
-      }
-      if (!features.length) return;
-      const map = mapRef.current?.getMap?.() ?? mapRef.current;
-      const fc = { type: 'FeatureCollection', features };
-      const bounds = getGeoJsonBounds(fc);
-      const m0 = metas[0]!;
-      const primary = features[0]!;
-      const cen = geoAiFeatureCentroid(primary);
-      if (!cen || !Number.isFinite(cen[0]) || !Number.isFinite(cen[1])) return;
-
-      /**
-       * MapGL is controlled via React `viewState`. Calling only `map.fitBounds` moves the Mapbox
-       * camera briefly; the next render reapplies stale longitude/latitude/zoom — globe stays world view.
-       * Sync camera into `viewState` immediately after fitting (duration 0 avoids fighting React mid-animation).
-       */
-      let syncedCamera = false;
-      if (bounds && map && typeof map.fitBounds === 'function') {
-        try {
-          map.fitBounds(
-            [
-              [bounds[0], bounds[1]],
-              [bounds[2], bounds[3]],
-            ],
-            { padding: 88, duration: 0, maxZoom: 18 },
-          );
-          const c = map.getCenter();
-          const zoom = map.getZoom();
-          const bearing = typeof map.getBearing === 'function' ? map.getBearing() : undefined;
-          const pitchFromMap = typeof map.getPitch === 'function' ? map.getPitch() : undefined;
-          setViewState(prev => ({
-            ...prev,
-            longitude: c.lng,
-            latitude: c.lat,
-            zoom,
-            ...(typeof bearing === 'number' ? { bearing } : {}),
-            pitch: is3DView
-              ? Math.max(typeof pitchFromMap === 'number' ? pitchFromMap : prev.pitch ?? 0, 42)
-              : typeof pitchFromMap === 'number'
-                ? pitchFromMap
-                : prev.pitch ?? 0,
-          }));
-          syncedCamera = true;
-        } catch {
-          /* fall through */
-        }
-      }
-      if (!syncedCamera) {
-        setViewState(prev => ({
-          ...prev,
-          longitude: cen[0],
-          latitude: cen[1],
-          zoom: Math.max(typeof prev.zoom === 'number' ? prev.zoom : 2, 15.25),
-          pitch: is3DView ? Math.max(typeof prev.pitch === 'number' ? prev.pitch : 0, 42) : prev.pitch ?? 0,
-        }));
-      }
-      setGeoAiPinLngLat([cen[0], cen[1]]);
-      setGeoAiInspectCard({
-        title: m0.layerName,
-        rows: buildGeoAiLayerPopupAttributeRows({ properties: m0.props, arcgisLayerDefinition: m0.arc ?? null }),
-        lng: cen[0],
-        lat: cen[1],
-        ...pickGeoAiHumanPlaceFields(m0.props),
-      });
-    },
-    [getGeoJsonBounds, is3DView],
-  );
-
-  useEffect(() => {
-    applySatelliteGeoAiMapFirstSyncRef.current = applySatelliteGeoAiMapFirstSync;
-  }, [applySatelliteGeoAiMapFirstSync]);
-
   useEffect(() => {
     if (!geoAiInspectCard) {
       geoAiReverseGeocodeKeyRef.current = '';
@@ -4878,9 +4871,6 @@ export default function SatelliteIntelligence() {
             ];
             const localStats = runGeoAiStatsCommand(trimmed, mergedLayersForStats);
             if (localStats?.handled) {
-              if (localStats.mapFirstSync?.selections?.length) {
-                applySatelliteGeoAiMapFirstSyncRef.current(localStats.mapFirstSync.selections, mergedLayersForStats);
-              }
               const mid = typeof crypto !== 'undefined' && 'randomUUID' in crypto ? crypto.randomUUID() : `geo-s-${Date.now()}`;
               const parts: GeoExplorerPart[] = [{ type: 'text', text: localStats.reply }];
               if (localStats.table) parts.push({ type: 'dataTable', table: localStats.table });
@@ -4915,6 +4905,7 @@ export default function SatelliteIntelligence() {
             attachGisSavedLayers: true,
             extraSystemAppend: developAppend || undefined,
           });
+          setGeoExplorerMessages(h => [...h, result.modelMsg]);
           const me = result.mapEffect;
           if (me) {
             setGeoAiPinLngLat(me.coords);
@@ -4951,7 +4942,6 @@ export default function SatelliteIntelligence() {
           } else {
             setGeoAiInspectCard(null);
           }
-          setGeoExplorerMessages(h => [...h, result.modelMsg]);
         } catch (e) {
           setGeoExplorerChatError(e instanceof Error ? e.message : String(e));
         } finally {
@@ -5065,9 +5055,6 @@ export default function SatelliteIntelligence() {
           ];
           const localStats = runGeoAiStatsCommand(trimmed, mergedLayersForStats);
           if (localStats?.handled) {
-            if (localStats.mapFirstSync?.selections?.length) {
-              applySatelliteGeoAiMapFirstSyncRef.current(localStats.mapFirstSync.selections, mergedLayersForStats);
-            }
             const aid = typeof crypto !== 'undefined' && 'randomUUID' in crypto ? crypto.randomUUID() : `gaic-s-${Date.now()}`;
             setGeoAiChatMessages(h => [...h, { id: aid, role: 'assistant', text: localStats.reply }]);
             return;
@@ -5173,9 +5160,6 @@ export default function SatelliteIntelligence() {
           ];
           const localStats = runGeoAiStatsCommand(trimmed, mergedLayersForStats);
           if (localStats?.handled) {
-            if (localStats.mapFirstSync?.selections?.length) {
-              applySatelliteGeoAiMapFirstSyncRef.current(localStats.mapFirstSync.selections, mergedLayersForStats);
-            }
             const aid = typeof crypto !== 'undefined' && 'randomUUID' in crypto ? crypto.randomUUID() : `gds-s-${Date.now()}`;
             setGeoDeepseekChatMessages(h => [...h, { id: aid, role: 'assistant', text: localStats.reply }]);
             return;
@@ -5522,8 +5506,8 @@ export default function SatelliteIntelligence() {
     setDrawnStats(null);
     setPolylineStart(null);
     setPolygonRing([]);
-    setPointerLngLat(null);
     setRectCirclePreview(null);
+    setPointerLngLat(null);
     dragRectCircleRef.current = null;
     polygonRingSketchDragRef.current = null;
     editDragRef.current = null;
@@ -5534,12 +5518,63 @@ export default function SatelliteIntelligence() {
     setCircleRefineDraft(null);
     setCircleRefineActiveHandle(null);
     circleRefineInteractionRef.current = null;
+    circleRefineLastMoveRef.current = null;
+    skipNextMapClickRef.current = false;
     setMapDrawTool('select');
     setMapDragPanEnabled(true);
-    setMpcProcessResult(null);
+    setExploreExtentMode(prev => (prev === 'drawn' ? 'default' : prev));
     setAnalysisLayerAttached(false);
-    clearStacMapThumb();
-  }, [clearStacMapThumb]);
+  }, []);
+
+  /** Fade AOI sketch + clipped raster overlay, then purge geometry and restore pan (basemap / vector layers unchanged). */
+  const clearSatelliteDrawingWithFade = useCallback(() => {
+    const hasVisual =
+      drawnGeometry != null ||
+      rectCirclePreview != null ||
+      polygonRing.length > 0 ||
+      circleRefineDraft != null ||
+      polylineStart != null ||
+      mapDrawTool !== 'select';
+
+    const finish = () => {
+      clearAllAoiDrawing();
+      setDrawVisualOpacity(1);
+    };
+
+    if (!hasVisual) {
+      finish();
+      return;
+    }
+
+    if (drawFadeRafRef.current != null) {
+      cancelAnimationFrame(drawFadeRafRef.current);
+      drawFadeRafRef.current = null;
+    }
+
+    const start = performance.now();
+    const duration = 300;
+
+    const tick = (now: number) => {
+      const t = Math.min(1, (now - start) / duration);
+      const eased = 1 - t * t;
+      setDrawVisualOpacity(eased);
+      if (t < 1) {
+        drawFadeRafRef.current = requestAnimationFrame(tick);
+      } else {
+        drawFadeRafRef.current = null;
+        finish();
+      }
+    };
+    drawFadeRafRef.current = requestAnimationFrame(tick);
+  }, [
+    clearAllAoiDrawing,
+    drawnGeometry,
+    rectCirclePreview,
+    polygonRing.length,
+    circleRefineDraft,
+    polylineStart,
+    mapDrawTool,
+  ]);
 
   const handleMapPointerDown = (evt: any) => {
     const orig = evt.originalEvent as MouseEvent | undefined;
@@ -5548,7 +5583,6 @@ export default function SatelliteIntelligence() {
     const lat = evt.lngLat.lat;
     const map = getMapInstance();
     if (!map) return;
-    if (aoiClearFadeActiveRef.current) return;
 
     if (mapDrawTool === 'circle' && circleRefineDraft) {
       const draft = circleRefineDraft;
@@ -5645,7 +5679,6 @@ export default function SatelliteIntelligence() {
   };
 
   const handleMapPointerMove = (evt: any) => {
-    if (aoiClearFadeActiveRef.current) return;
     const lng = evt.lngLat.lng;
     const lat = evt.lngLat.lat;
     const map = getMapInstance();
@@ -6226,72 +6259,6 @@ export default function SatelliteIntelligence() {
     };
   }, [mapDrawTool, drawnGeometry]);
 
-  const clearDrawingToolbarEnabled = useMemo(
-    () =>
-      !!draftDrawGeoJson ||
-      !!drawnGeometry ||
-      !!mpcProcessResult ||
-      !!stacMapThumb ||
-      mapDrawTool !== 'select',
-    [draftDrawGeoJson, drawnGeometry, mpcProcessResult, stacMapThumb, mapDrawTool],
-  );
-
-  const handleClearDrawing = useCallback(() => {
-    if (aoiClearFadeRafRef.current != null) {
-      cancelAnimationFrame(aoiClearFadeRafRef.current);
-      aoiClearFadeRafRef.current = null;
-      setAoiSketchOpacity(1);
-    }
-    aoiClearFadeActiveRef.current = false;
-    const reduceMotion =
-      typeof window !== 'undefined' &&
-      typeof window.matchMedia === 'function' &&
-      window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-    if (reduceMotion) {
-      setAoiSketchOpacity(1);
-      clearAllAoiDrawing();
-      return;
-    }
-    const needsFade =
-      !!draftDrawGeoJson ||
-      !!drawnGeometry ||
-      !!editHandlesGeoJson ||
-      !!mpcProcessResult ||
-      !!stacMapThumb;
-    if (!needsFade) {
-      setAoiSketchOpacity(1);
-      clearAllAoiDrawing();
-      return;
-    }
-    aoiClearFadeActiveRef.current = true;
-    const start = performance.now();
-    const duration = 300;
-    const tick = (now: number) => {
-      const t = Math.min(1, (now - start) / duration);
-      setAoiSketchOpacity(1 - t);
-      if (t < 1) {
-        aoiClearFadeRafRef.current = window.requestAnimationFrame(tick);
-      } else {
-        aoiClearFadeRafRef.current = null;
-        aoiClearFadeActiveRef.current = false;
-        clearAllAoiDrawing();
-        setAoiSketchOpacity(1);
-      }
-    };
-    aoiClearFadeRafRef.current = window.requestAnimationFrame(tick);
-  }, [clearAllAoiDrawing, draftDrawGeoJson, drawnGeometry, editHandlesGeoJson, mpcProcessResult, stacMapThumb]);
-
-  useEffect(
-    () => () => {
-      if (aoiClearFadeRafRef.current != null) {
-        cancelAnimationFrame(aoiClearFadeRafRef.current);
-        aoiClearFadeRafRef.current = null;
-      }
-      aoiClearFadeActiveRef.current = false;
-    },
-    [],
-  );
-
   const persistDrawWorkspace = () => {
     saveDrawWorkspace({ feature: drawnGeometry, style: drawStyle });
   };
@@ -6671,6 +6638,16 @@ export default function SatelliteIntelligence() {
     return `w-${hit.weekIndex}-${hit.startDate}`;
   }, [weeklyComposites, selectedDate]);
 
+  /** Map Run: clip/show analysis raster inside AOI only — never opens static charts (pie tool) or timeline. */
+  const runSatelliteMapAnalysis = () => {
+    if (!drawnGeometry?.geometry) {
+      setFieldAnalysisStatus('Draw a rectangle, circle, or polygon AOI on the map, then tap Run.');
+      return;
+    }
+    setExploreExtentMode('drawn');
+    void runRsAnalysisFromAssistant({ keepCurrentSection: true, skipTimelineAndCharts: true });
+  };
+
   const handleSatelliteTimelineStep = (dir: -1 | 1) => {
     if (!weeklyComposites.length) return;
     const iso = selectedDate.toISOString().split('T')[0];
@@ -6691,6 +6668,17 @@ export default function SatelliteIntelligence() {
       ? mapDrawTool
       : 'select';
 
+  const satelliteHasClearableDrawing = useMemo(
+    () =>
+      drawnGeometry != null ||
+      rectCirclePreview != null ||
+      polygonRing.length > 0 ||
+      circleRefineDraft != null ||
+      polylineStart != null ||
+      mapDrawTool !== 'select',
+    [drawnGeometry, rectCirclePreview, polygonRing.length, circleRefineDraft, polylineStart, mapDrawTool],
+  );
+
   /** Sentinel Hub: GEOMETRY (3857 WKT) + EVALSCRIPT (RGBA, alpha = dataMask × optional index mask). */
   const sentinelHubWmsAoiClip = useMemo(
     () =>
@@ -6702,18 +6690,14 @@ export default function SatelliteIntelligence() {
 
   const wmsTileUrl = useMemo(() => {
     const safeLayer = encodeURIComponent(activeWmsLayer);
-    /** Snapshot must match "Imagery date". Wide TIME + MAXCC often yields empty mosaics → transparent tiles → only basemap inside AOI. */
-    const snapshotIso = wmsDate;
-    const maxCc =
-      sentinelHubWmsAoiClip.evalscriptB64 != null
-        ? Math.min(100, Math.max(cloudCoverage, 55))
-        : cloudCoverage;
+    const start = timeSeriesStart || wmsDate;
+    const end = timeSeriesEnd || wmsDate;
     let url =
       `${wmsBaseUrl}?SERVICE=WMS&REQUEST=GetMap&VERSION=1.3.0` +
       `&LAYERS=${safeLayer}` +
       `&BBOX={bbox-epsg-3857}&CRS=EPSG:3857` +
       `&FORMAT=image/png&TRANSPARENT=true&WIDTH=512&HEIGHT=512` +
-      `&TIME=${snapshotIso}/${snapshotIso}&MAXCC=${maxCc}&SHOWLOGO=false&WARNINGS=true`;
+      `&TIME=${start}/${end}&MAXCC=${cloudCoverage}&SHOWLOGO=false&WARNINGS=true`;
     if (sentinelHubWmsAoiClip.geometryWkt3857) {
       url += `&GEOMETRY=${encodeURIComponent(sentinelHubWmsAoiClip.geometryWkt3857)}`;
     }
@@ -6723,33 +6707,14 @@ export default function SatelliteIntelligence() {
     return url;
   }, [
     activeWmsLayer,
+    timeSeriesStart,
+    timeSeriesEnd,
     wmsDate,
     cloudCoverage,
     wmsBaseUrl,
     sentinelHubWmsAoiClip.geometryWkt3857,
     sentinelHubWmsAoiClip.evalscriptB64,
   ]);
-
-  /** Legend bins aligned with AOI EVALSCRIPT thematic ramps (updates when AOI or layer changes). */
-  const wmsThematicLegendBins = useMemo(() => {
-    if (!drawnGeometry || !sentinelHubWmsAoiClip.evalscriptB64 || !activeWmsLayer.trim()) return null;
-    const profile = inferWmsEvalProfile(activeWmsLayer);
-    if (!isThematicWmsProfile(profile)) return null;
-    return getSentinelWmsThematicLegendBins(profile);
-  }, [drawnGeometry, sentinelHubWmsAoiClip.evalscriptB64, activeWmsLayer]);
-
-  /**
-   * Sketch fill is drawn *below* the WMS raster; any transparency in tiles blends with this green tint,
-   * which looks like a broken AOI datamask. Hide fill while thematic Sentinel overlay is on (outline stays).
-   */
-  const suppressAoiSketchFillForThematicWms = useMemo(
-    () =>
-      sentinelVisible &&
-      !!drawnGeometry &&
-      !!activeWmsLayer.trim() &&
-      isThematicWmsProfile(inferWmsEvalProfile(activeWmsLayer)),
-    [sentinelVisible, drawnGeometry, activeWmsLayer],
-  );
 
   /**
    * Limits Sentinel WMS tile requests to the AOI bounding box (extract-by-mask style for tiles).
@@ -7037,7 +7002,7 @@ export default function SatelliteIntelligence() {
                       filter={['==', ['geometry-type'], 'Polygon']}
                       paint={{
                         'fill-color': drawStyle.fillColor,
-                        'fill-opacity': Math.min(0.45, drawStyle.fillOpacity + 0.12) * aoiSketchOpacity,
+                        'fill-opacity': Math.min(0.45, drawStyle.fillOpacity + 0.12) * drawVisualOpacity,
                       }}
                     />
                     <Layer
@@ -7052,7 +7017,7 @@ export default function SatelliteIntelligence() {
                         'line-color': drawStyle.strokeColor,
                         'line-width': drawStyle.strokeWidth,
                         'line-dasharray': [2, 2],
-                        'line-opacity': 0.9 * aoiSketchOpacity,
+                        'line-opacity': 0.9 * drawVisualOpacity,
                       }}
                     />
                     <Layer
@@ -7063,7 +7028,7 @@ export default function SatelliteIntelligence() {
                         'line-color': '#4ade80',
                         'line-width': Math.max(2, drawStyle.strokeWidth),
                         'line-dasharray': [1, 2],
-                        'line-opacity': 0.95 * aoiSketchOpacity,
+                        'line-opacity': 0.95 * drawVisualOpacity,
                       }}
                     />
                     <Layer
@@ -7096,7 +7061,8 @@ export default function SatelliteIntelligence() {
                         ] as any,
                         'circle-stroke-width': 2,
                         'circle-stroke-color': '#14532d',
-                        'circle-opacity': aoiSketchOpacity,
+                        'circle-opacity': drawVisualOpacity,
+                        'circle-stroke-opacity': drawVisualOpacity,
                       }}
                     />
                     <Layer
@@ -7114,7 +7080,8 @@ export default function SatelliteIntelligence() {
                         'circle-color': drawStyle.strokeColor,
                         'circle-stroke-width': 2,
                         'circle-stroke-color': '#0f172a',
-                        'circle-opacity': aoiSketchOpacity,
+                        'circle-opacity': drawVisualOpacity,
+                        'circle-stroke-opacity': drawVisualOpacity,
                       }}
                     />
                   </Source>
@@ -7125,12 +7092,10 @@ export default function SatelliteIntelligence() {
                     <Layer
                       id="drawn-index-geometry-fill"
                       type="fill"
-                      filter={['in', ['geometry-type'], ['literal', ['Polygon', 'MultiPolygon']]]}
+                      filter={['==', ['geometry-type'], 'Polygon']}
                       paint={{
                         'fill-color': drawStyle.fillColor,
-                        'fill-opacity': suppressAoiSketchFillForThematicWms
-                          ? 0
-                          : drawStyle.fillOpacity * aoiSketchOpacity,
+                        'fill-opacity': drawStyle.fillOpacity * drawVisualOpacity,
                       }}
                     />
                   </Source>
@@ -7171,7 +7136,8 @@ export default function SatelliteIntelligence() {
                         'circle-color': drawStyle.strokeColor,
                         'circle-stroke-width': 2,
                         'circle-stroke-color': '#0f172a',
-                        'circle-opacity': 0.95 * aoiSketchOpacity,
+                        'circle-opacity': 0.95 * drawVisualOpacity,
+                        'circle-stroke-opacity': drawVisualOpacity,
                       }}
                     />
                   </Source>
@@ -7215,14 +7181,10 @@ export default function SatelliteIntelligence() {
                   id="sentinel-layer"
                   type="raster"
                   paint={{
-                    'raster-opacity': (sentinelHubWmsAoiClip.evalscriptB64 ? 1 : 0.85) * aoiSketchOpacity,
-                    'raster-fade-duration':
-                      drawnGeometry && sentinelHubWmsAoiClip.evalscriptB64
-                        ? typeof window !== 'undefined' &&
-                          window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches
-                          ? 0
-                          : 420
-                        : 0,
+                    'raster-opacity':
+                      (sentinelHubWmsAoiClip.evalscriptB64 ? 1 : 0.85) *
+                      (drawnGeometry != null && wmsRasterAoiBoundsLngLat ? drawVisualOpacity : 1),
+                    'raster-fade-duration': 0
                   }}
                 />
               </Source>
@@ -7240,7 +7202,7 @@ export default function SatelliteIntelligence() {
                   id="si-stac-thumb-layer"
                   type="raster"
                   paint={{
-                    'raster-opacity': 0.92 * aoiSketchOpacity,
+                    'raster-opacity': 0.92,
                     'raster-fade-duration': 0,
                   }}
                 />
@@ -7261,7 +7223,7 @@ export default function SatelliteIntelligence() {
                       Math.max(2, drawStyle.strokeWidth + 1),
                       drawStyle.strokeWidth,
                     ],
-                    'line-opacity': aoiSketchOpacity,
+                    'line-opacity': drawVisualOpacity,
                   }}
                 />
                 <Layer
@@ -7271,9 +7233,10 @@ export default function SatelliteIntelligence() {
                   paint={{
                     'circle-radius': drawStyle.pointRadius,
                     'circle-color': drawStyle.fillColor,
-                    'circle-opacity': Math.min(1, drawStyle.fillOpacity + 0.55) * aoiSketchOpacity,
+                    'circle-opacity': Math.min(1, drawStyle.fillOpacity + 0.55) * drawVisualOpacity,
                     'circle-stroke-color': drawStyle.strokeColor,
                     'circle-stroke-width': Math.max(1, drawStyle.strokeWidth / 2),
+                    'circle-stroke-opacity': drawVisualOpacity,
                   }}
                 />
               </Source>
@@ -7359,7 +7322,11 @@ export default function SatelliteIntelligence() {
             timelineVisible={weeklyComposites.length > 0}
             mapTool={satelliteToolbarTool}
             onMapTool={t => applyMapDrawTool(t)}
+            hasClearableDrawing={satelliteHasClearableDrawing}
+            onClearDrawing={clearSatelliteDrawingWithFade}
             hasAoi={!!drawnGeometry}
+            onRunAnalysis={runSatelliteMapAnalysis}
+            runBlockedReason={!drawnGeometry ? 'Draw AOI first' : null}
             staticChartsOpen={mapStaticChartsOpen}
             onToggleStaticCharts={() => setMapStaticChartsOpen(o => !o)}
             analysisLayerAttached={analysisLayerAttached}
@@ -8402,34 +8369,6 @@ export default function SatelliteIntelligence() {
                               </label>
                             </div>
                           ) : null}
-                          {wmsThematicLegendBins && wmsThematicLegendBins.length ? (
-                            <div className="si-wms-aoi-legend" role="region" aria-label="Thematic index scale inside AOI">
-                              <div className="si-wms-aoi-legend__title">
-                                {remoteSensingLayerOptions.find(o => o.id === wmsLayerSelectValue)?.label ?? activeWmsLayer}{' '}
-                                <span className="si-wms-aoi-legend__badge">AOI mask</span>
-                              </div>
-                              <div className="si-wms-aoi-legend__bar" aria-hidden>
-                                {wmsThematicLegendBins.map((b, i) => (
-                                  <span
-                                    key={`${b.color}-${i}`}
-                                    className="si-wms-aoi-legend__seg"
-                                    style={{ background: b.color }}
-                                    title={b.label}
-                                  />
-                                ))}
-                              </div>
-                              <div className="si-wms-aoi-legend__labels">
-                                {wmsThematicLegendBins.map((b, i) => (
-                                  <span key={`${b.label}-${i}`} className="si-wms-aoi-legend__lab">
-                                    {b.label}
-                                  </span>
-                                ))}
-                              </div>
-                              <p className="si-wms-aoi-legend__hint">
-                                Thematic colors render only inside the AOI; the basemap stays visible outside.
-                              </p>
-                            </div>
-                          ) : null}
                         </div>
 
                         <div className="si-field-analysis-section">
@@ -8460,7 +8399,11 @@ export default function SatelliteIntelligence() {
                               embedded
                               mapTool={satelliteToolbarTool}
                               onMapTool={t => applyMapDrawTool(t)}
+                              hasClearableDrawing={satelliteHasClearableDrawing}
+                              onClearDrawing={clearSatelliteDrawingWithFade}
                               hasAoi={!!drawnGeometry}
+                              onRunAnalysis={runSatelliteMapAnalysis}
+                              runBlockedReason={!drawnGeometry ? 'Draw AOI first' : null}
                               staticChartsOpen={mapStaticChartsOpen}
                               onToggleStaticCharts={() => setMapStaticChartsOpen(o => !o)}
                               analysisLayerAttached={analysisLayerAttached}
@@ -8478,7 +8421,7 @@ export default function SatelliteIntelligence() {
                               aria-label={
                                 fieldTimelineSessionActive
                                   ? 'Stop Timeline: pause map playback and clear weekly chips'
-                                  : 'Generate weekly timeline from selected date range'
+                                  : 'Generate weekly timeline from selected date range — not started by Run'
                               }
                             >
                               <i
@@ -9501,27 +9444,15 @@ export default function SatelliteIntelligence() {
                         <i className="fa-solid fa-house" aria-hidden />
                         <span className="gis-table-tooltext">Home</span>
                       </button>
-                      <button
-                        className="gis-table-toolbtn"
-                        type="button"
-                        onClick={handleClearDrawing}
-                        disabled={!clearDrawingToolbarEnabled}
-                        title="Clear map drawing (AOI), vertices, and optional analysis overlays — restores map pan"
-                        aria-label="Clear map drawing"
-                      >
-                        <i className="fa-solid fa-eraser" aria-hidden />
-                        <span className="gis-table-tooltext">Clear map drawing</span>
-                      </button>
                       <div className="gis-table-toolsep" role="separator" />
                       <button
                         className="gis-table-toolbtn"
                         type="button"
                         onClick={() => setTableSelectedKeys(new Set())}
                         disabled={tableSelectedKeys.size === 0}
-                        title="Clear row selection"
-                        aria-label="Clear row selection"
+                        title="Clear selection"
                       >
-                        <i className="fa-solid fa-square-xmark" aria-hidden />
+                        <i className="fa-solid fa-eraser" aria-hidden />
                         <span className="gis-table-tooltext">Clear selection</span>
                       </button>
                       <button

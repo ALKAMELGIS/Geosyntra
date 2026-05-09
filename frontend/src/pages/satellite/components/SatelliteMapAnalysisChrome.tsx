@@ -15,7 +15,13 @@ export type TimelineChip = {
 export type SatelliteMapAnalysisToolbarProps = {
   mapTool: 'rectangle' | 'polygon' | 'circle' | 'select' | string;
   onMapTool: (tool: 'rectangle' | 'polygon' | 'circle' | 'select') => void;
+  /** AOI sketch committed or any drawing/edit session active — disables Clear when false */
+  hasClearableDrawing?: boolean;
+  /** Clear all AOI graphics, exit drawing mode, restore pan; leaves basemap / imagery layers intact */
+  onClearDrawing?: () => void;
   hasAoi: boolean;
+  onRunAnalysis: () => void;
+  runBlockedReason: string | null;
   staticChartsOpen: boolean;
   onToggleStaticCharts: () => void;
   analysisLayerAttached: boolean;
@@ -28,7 +34,11 @@ export type SatelliteMapAnalysisToolbarProps = {
 export function SatelliteMapAnalysisToolbar({
   mapTool,
   onMapTool,
+  hasClearableDrawing = false,
+  onClearDrawing,
   hasAoi,
+  onRunAnalysis,
+  runBlockedReason,
   staticChartsOpen,
   onToggleStaticCharts,
   analysisLayerAttached,
@@ -82,13 +92,23 @@ export function SatelliteMapAnalysisToolbar({
       >
         <i className="fa-solid fa-arrow-pointer" aria-hidden />
       </button>
+      <button
+        type="button"
+        className="si-map-analysis-tool si-map-analysis-tool--clear"
+        aria-label="Clear drawing"
+        title="Clear all AOI drawings (polygon, rectangle, circle, sketches), exit drawing mode, and restore map pan. Optionally resets AOI-clipped overlay stacking."
+        disabled={!hasClearableDrawing}
+        onClick={() => onClearDrawing?.()}
+      >
+        <i className="fa-solid fa-broom" aria-hidden />
+      </button>
       <span className="si-map-analysis-toolbar-sep" aria-hidden />
       <button
         type="button"
         className={`si-map-analysis-tool ${staticChartsOpen ? 'si-map-analysis-tool--on' : ''}`}
         aria-pressed={staticChartsOpen}
-        aria-label="Toggle AOI static charts"
-        title="Static info charts (AOI-scoped)"
+        aria-label="Toggle AOI static charts — independent from Run"
+        title="Static info charts (AOI-scoped) — use this button only; Run does not open charts"
         onClick={onToggleStaticCharts}
       >
         <i className="fa-solid fa-chart-pie" aria-hidden />
@@ -101,6 +121,21 @@ export function SatelliteMapAnalysisToolbar({
         onClick={onToggleAnalysisLayerAttached}
       >
         <i className="fa-solid fa-layer-group" aria-hidden />
+      </button>
+      <span className="si-map-analysis-toolbar-sep" aria-hidden />
+      <button
+        type="button"
+        className="si-map-analysis-run"
+        disabled={!!runBlockedReason}
+        aria-label="Run: clip analysis raster to drawn AOI for map display only"
+        title={
+          runBlockedReason ||
+          'Clip analysis raster to drawn AOI (mask by WMS bounds). Does not open charts or build/play the timeline — use the pie-chart tool for charts and Generate timeline in Remote Sensing for date playback.'
+        }
+        onClick={onRunAnalysis}
+      >
+        <i className="fa-solid fa-play" aria-hidden />
+        <span>Run</span>
       </button>
     </div>
   );
@@ -116,7 +151,11 @@ export type SatelliteMapAnalysisChromeProps = {
   timelineVisible: boolean;
   mapTool: 'rectangle' | 'polygon' | 'circle' | 'select' | string;
   onMapTool: (tool: 'rectangle' | 'polygon' | 'circle' | 'select') => void;
+  hasClearableDrawing?: boolean;
+  onClearDrawing?: () => void;
   hasAoi: boolean;
+  onRunAnalysis: () => void;
+  runBlockedReason: string | null;
   staticChartsOpen: boolean;
   onToggleStaticCharts: () => void;
   analysisLayerAttached: boolean;
@@ -159,7 +198,11 @@ export function SatelliteMapAnalysisChrome(props: SatelliteMapAnalysisChromeProp
     timelineVisible,
     mapTool,
     onMapTool,
+    hasClearableDrawing = false,
+    onClearDrawing,
     hasAoi,
+    onRunAnalysis,
+    runBlockedReason,
     staticChartsOpen,
     onToggleStaticCharts,
     analysisLayerAttached,
@@ -239,7 +282,11 @@ export function SatelliteMapAnalysisChrome(props: SatelliteMapAnalysisChromeProp
           embedded={false}
           mapTool={mapTool}
           onMapTool={onMapTool}
+          hasClearableDrawing={hasClearableDrawing}
+          onClearDrawing={onClearDrawing}
           hasAoi={hasAoi}
+          onRunAnalysis={onRunAnalysis}
+          runBlockedReason={runBlockedReason}
           staticChartsOpen={staticChartsOpen}
           onToggleStaticCharts={onToggleStaticCharts}
           analysisLayerAttached={analysisLayerAttached}
