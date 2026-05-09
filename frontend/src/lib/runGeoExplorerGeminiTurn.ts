@@ -203,8 +203,7 @@ export async function runGeoExplorerGeminiTurn(
   let pinSource: GeoExplorerGeminiPinSource = 'geocode'
 
   const layerPinNote = (hit: LayerQueryMatch) => {
-    const hint = hit.matchSummary.trim()
-    return `\n\n(Map pin from layer "${hit.layerName}" — matched feature attributes: ${hint.slice(0, 200)}${hint.length > 200 ? '…' : ''})`
+    return `\n\n_Map: centered on **${hit.layerName}** — open the map card beside the globe for attributes._`
   }
 
   /** Prefer vector layer geometry when the user scoped a layer or MAP_QUERY disagrees strongly with the hit feature. */

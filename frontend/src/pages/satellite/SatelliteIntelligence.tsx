@@ -63,11 +63,13 @@ import { satelliteCustomLayersToGeoAiLayers } from '../../lib/geoAiMapLayerSourc
 import { geoExplorerTargetZoomForPinSource, runGeoExplorerGeminiTurn } from '../../lib/runGeoExplorerGeminiTurn';
 import {
   buildGeoAiLayerPopupAttributeRows,
+  geoAiFeatureCentroid,
   pickGeoAiHumanPlaceFields,
   type GeoAiMapLayer,
 } from '../../lib/geoExplorerLayerContext';
 import { lngLatFromGeoAiFeatureLink } from '../../lib/geoAiResolveTableMapLink';
-import { runGeoAiStatsCommand } from '../../lib/geoAiStatsEngine';
+import { runGeoAiStatsCommand, type GeoAiMapFirstSelection } from '../../lib/geoAiStatsEngine';
+import { computeStableGisFeatureKey } from '../../lib/gisFeatureStableKey';
 import { resolveGeoAiPinFromUserTextAndReply } from '../../lib/geoAiResolveMapCoords';
 import { buildGeoAiFullWeatherSessionAppend } from '../../lib/geoAiWeatherContext';
 import {
@@ -1883,6 +1885,8 @@ export default function SatelliteIntelligence() {
   const [polygonRing, setPolygonRing] = useState<[number, number][]>([]);
   const [drawnGeometry, setDrawnGeometry] = useState<any | null>(null);
   const [drawnStats, setDrawnStats] = useState<DrawnAoiStats | null>(null);
+  /** Multiplies opacity on AOI sketch / clip overlays while clearing (smooth fade). */
+  const [aoiSketchOpacity, setAoiSketchOpacity] = useState(1);
   const [netfloraRasterPath, setNetfloraRasterPath] = useState('');
   const [netfloraInputLayerId, setNetfloraInputLayerId] = useState('');
   const [netfloraWeightsPath, setNetfloraWeightsPath] = useState('model_weights.pt');
@@ -1926,6 +1930,9 @@ export default function SatelliteIntelligence() {
   const geoAiReverseGeocodeKeyRef = useRef<string>('');
   const geoExplorerFileInputRef = useRef<HTMLInputElement | null>(null);
   const geoExplorerInFlightRef = useRef(false);
+  const applySatelliteGeoAiMapFirstSyncRef = useRef<(s: GeoAiMapFirstSelection[], layers: GeoAiMapLayer[]) => void>(
+    () => {},
+  );
   const [geoAiModelTab, setGeoAiModelTab] = useState<'gemini' | 'claude' | 'deepseek'>('gemini');
   const [geoAiChatMessages, setGeoAiChatMessages] = useState<Array<{ id: string; role: 'user' | 'assistant'; text: string }>>(
     [],
@@ -1986,6 +1993,8 @@ export default function SatelliteIntelligence() {
   const editDragRef = useRef<null | { mode: 'vertex'; ref: VertexRef } | { mode: 'pan'; last: [number, number] }>(null);
   const consoleErrorRef = useRef<typeof console.error | null>(null);
   const stacFocusHydratedRef = useRef(false);
+  const aoiClearFadeRafRef = useRef<number | null>(null);
+  const aoiClearFadeActiveRef = useRef(false);
 
   const visibleGeoExplorerMessages = useMemo(
     () => geoExplorerMessages.slice(Math.max(0, geoExplorerMessages.length - geoExplorerVisibleCount)),
@@ -4767,6 +4776,67 @@ export default function SatelliteIntelligence() {
     [customLayers, is3DView],
   );
 
+  /** Local stats “map-first”: fit map to matched feature(s), pin + inspect card (deduped selections). */
+  const applySatelliteGeoAiMapFirstSync = useCallback(
+    (selections: GeoAiMapFirstSelection[], layersSnapshot: GeoAiMapLayer[]) => {
+      if (!selections.length) return;
+      const features: any[] = [];
+      const metas: {
+        layerName: string;
+        arc: GeoAiMapLayer['arcgisLayerDefinition'] | null | undefined;
+        props: Record<string, unknown> | null;
+      }[] = [];
+      for (const s of selections) {
+        const layer = layersSnapshot.find(l => String(l.clientLayerId) === String(s.layerId));
+        if (!layer) continue;
+        const raw = (layer.geojson ?? layer.data) as { type?: string; features?: unknown[] } | undefined;
+        if (!raw || raw.type !== 'FeatureCollection' || !Array.isArray(raw.features)) continue;
+        for (let i = 0; i < raw.features.length; i++) {
+          const f = raw.features[i] as { properties?: unknown; geometry?: unknown };
+          if (computeStableGisFeatureKey(f, i) !== s.featureKey) continue;
+          features.push(f);
+          const p = f.properties;
+          metas.push({
+            layerName: layer.name,
+            arc: layer.arcgisLayerDefinition,
+            props: p && typeof p === 'object' ? (p as Record<string, unknown>) : null,
+          });
+          break;
+        }
+      }
+      if (!features.length) return;
+      const map = mapRef.current?.getMap?.() ?? mapRef.current;
+      const fc = { type: 'FeatureCollection', features };
+      const bounds = getGeoJsonBounds(fc);
+      if (bounds && map && typeof map.fitBounds === 'function') {
+        map.fitBounds(
+          [
+            [bounds[0], bounds[1]],
+            [bounds[2], bounds[3]],
+          ],
+          { padding: 88, duration: 780, maxZoom: 18 },
+        );
+      }
+      const m0 = metas[0]!;
+      const primary = features[0]!;
+      const cen = geoAiFeatureCentroid(primary);
+      if (!cen || !Number.isFinite(cen[0]) || !Number.isFinite(cen[1])) return;
+      setGeoAiPinLngLat([cen[0], cen[1]]);
+      setGeoAiInspectCard({
+        title: m0.layerName,
+        rows: buildGeoAiLayerPopupAttributeRows({ properties: m0.props, arcgisLayerDefinition: m0.arc ?? null }),
+        lng: cen[0],
+        lat: cen[1],
+        ...pickGeoAiHumanPlaceFields(m0.props),
+      });
+    },
+    [getGeoJsonBounds],
+  );
+
+  useEffect(() => {
+    applySatelliteGeoAiMapFirstSyncRef.current = applySatelliteGeoAiMapFirstSync;
+  }, [applySatelliteGeoAiMapFirstSync]);
+
   useEffect(() => {
     if (!geoAiInspectCard) {
       geoAiReverseGeocodeKeyRef.current = '';
@@ -4862,6 +4932,9 @@ export default function SatelliteIntelligence() {
             ];
             const localStats = runGeoAiStatsCommand(trimmed, mergedLayersForStats);
             if (localStats?.handled) {
+              if (localStats.mapFirstSync?.selections?.length) {
+                applySatelliteGeoAiMapFirstSyncRef.current(localStats.mapFirstSync.selections, mergedLayersForStats);
+              }
               const mid = typeof crypto !== 'undefined' && 'randomUUID' in crypto ? crypto.randomUUID() : `geo-s-${Date.now()}`;
               const parts: GeoExplorerPart[] = [{ type: 'text', text: localStats.reply }];
               if (localStats.table) parts.push({ type: 'dataTable', table: localStats.table });
@@ -4896,7 +4969,6 @@ export default function SatelliteIntelligence() {
             attachGisSavedLayers: true,
             extraSystemAppend: developAppend || undefined,
           });
-          setGeoExplorerMessages(h => [...h, result.modelMsg]);
           const me = result.mapEffect;
           if (me) {
             setGeoAiPinLngLat(me.coords);
@@ -4933,6 +5005,7 @@ export default function SatelliteIntelligence() {
           } else {
             setGeoAiInspectCard(null);
           }
+          setGeoExplorerMessages(h => [...h, result.modelMsg]);
         } catch (e) {
           setGeoExplorerChatError(e instanceof Error ? e.message : String(e));
         } finally {
@@ -5046,6 +5119,9 @@ export default function SatelliteIntelligence() {
           ];
           const localStats = runGeoAiStatsCommand(trimmed, mergedLayersForStats);
           if (localStats?.handled) {
+            if (localStats.mapFirstSync?.selections?.length) {
+              applySatelliteGeoAiMapFirstSyncRef.current(localStats.mapFirstSync.selections, mergedLayersForStats);
+            }
             const aid = typeof crypto !== 'undefined' && 'randomUUID' in crypto ? crypto.randomUUID() : `gaic-s-${Date.now()}`;
             setGeoAiChatMessages(h => [...h, { id: aid, role: 'assistant', text: localStats.reply }]);
             return;
@@ -5151,6 +5227,9 @@ export default function SatelliteIntelligence() {
           ];
           const localStats = runGeoAiStatsCommand(trimmed, mergedLayersForStats);
           if (localStats?.handled) {
+            if (localStats.mapFirstSync?.selections?.length) {
+              applySatelliteGeoAiMapFirstSyncRef.current(localStats.mapFirstSync.selections, mergedLayersForStats);
+            }
             const aid = typeof crypto !== 'undefined' && 'randomUUID' in crypto ? crypto.randomUUID() : `gds-s-${Date.now()}`;
             setGeoDeepseekChatMessages(h => [...h, { id: aid, role: 'assistant', text: localStats.reply }]);
             return;
@@ -5490,13 +5569,14 @@ export default function SatelliteIntelligence() {
     setMapDrawTool('select');
   }, []);
 
-  const clearAllAoiDrawing = () => {
+  const clearAllAoiDrawing = useCallback(() => {
     setGeomUndoStack([]);
     setGeomRedoStack([]);
     setDrawnGeometry(null);
     setDrawnStats(null);
     setPolylineStart(null);
     setPolygonRing([]);
+    setPointerLngLat(null);
     setRectCirclePreview(null);
     dragRectCircleRef.current = null;
     polygonRingSketchDragRef.current = null;
@@ -5510,7 +5590,10 @@ export default function SatelliteIntelligence() {
     circleRefineInteractionRef.current = null;
     setMapDrawTool('select');
     setMapDragPanEnabled(true);
-  };
+    setMpcProcessResult(null);
+    setAnalysisLayerAttached(false);
+    clearStacMapThumb();
+  }, [clearStacMapThumb]);
 
   const handleMapPointerDown = (evt: any) => {
     const orig = evt.originalEvent as MouseEvent | undefined;
@@ -5519,6 +5602,7 @@ export default function SatelliteIntelligence() {
     const lat = evt.lngLat.lat;
     const map = getMapInstance();
     if (!map) return;
+    if (aoiClearFadeActiveRef.current) return;
 
     if (mapDrawTool === 'circle' && circleRefineDraft) {
       const draft = circleRefineDraft;
@@ -5615,6 +5699,7 @@ export default function SatelliteIntelligence() {
   };
 
   const handleMapPointerMove = (evt: any) => {
+    if (aoiClearFadeActiveRef.current) return;
     const lng = evt.lngLat.lng;
     const lat = evt.lngLat.lat;
     const map = getMapInstance();
@@ -6194,6 +6279,72 @@ export default function SatelliteIntelligence() {
       })),
     };
   }, [mapDrawTool, drawnGeometry]);
+
+  const clearDrawingToolbarEnabled = useMemo(
+    () =>
+      !!draftDrawGeoJson ||
+      !!drawnGeometry ||
+      !!mpcProcessResult ||
+      !!stacMapThumb ||
+      mapDrawTool !== 'select',
+    [draftDrawGeoJson, drawnGeometry, mpcProcessResult, stacMapThumb, mapDrawTool],
+  );
+
+  const handleClearDrawing = useCallback(() => {
+    if (aoiClearFadeRafRef.current != null) {
+      cancelAnimationFrame(aoiClearFadeRafRef.current);
+      aoiClearFadeRafRef.current = null;
+      setAoiSketchOpacity(1);
+    }
+    aoiClearFadeActiveRef.current = false;
+    const reduceMotion =
+      typeof window !== 'undefined' &&
+      typeof window.matchMedia === 'function' &&
+      window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    if (reduceMotion) {
+      setAoiSketchOpacity(1);
+      clearAllAoiDrawing();
+      return;
+    }
+    const needsFade =
+      !!draftDrawGeoJson ||
+      !!drawnGeometry ||
+      !!editHandlesGeoJson ||
+      !!mpcProcessResult ||
+      !!stacMapThumb;
+    if (!needsFade) {
+      setAoiSketchOpacity(1);
+      clearAllAoiDrawing();
+      return;
+    }
+    aoiClearFadeActiveRef.current = true;
+    const start = performance.now();
+    const duration = 300;
+    const tick = (now: number) => {
+      const t = Math.min(1, (now - start) / duration);
+      setAoiSketchOpacity(1 - t);
+      if (t < 1) {
+        aoiClearFadeRafRef.current = window.requestAnimationFrame(tick);
+      } else {
+        aoiClearFadeRafRef.current = null;
+        aoiClearFadeActiveRef.current = false;
+        clearAllAoiDrawing();
+        setAoiSketchOpacity(1);
+      }
+    };
+    aoiClearFadeRafRef.current = window.requestAnimationFrame(tick);
+  }, [clearAllAoiDrawing, draftDrawGeoJson, drawnGeometry, editHandlesGeoJson, mpcProcessResult, stacMapThumb]);
+
+  useEffect(
+    () => () => {
+      if (aoiClearFadeRafRef.current != null) {
+        cancelAnimationFrame(aoiClearFadeRafRef.current);
+        aoiClearFadeRafRef.current = null;
+      }
+      aoiClearFadeActiveRef.current = false;
+    },
+    [],
+  );
 
   const persistDrawWorkspace = () => {
     saveDrawWorkspace({ feature: drawnGeometry, style: drawStyle });
@@ -6927,7 +7078,7 @@ export default function SatelliteIntelligence() {
                       filter={['==', ['geometry-type'], 'Polygon']}
                       paint={{
                         'fill-color': drawStyle.fillColor,
-                        'fill-opacity': Math.min(0.45, drawStyle.fillOpacity + 0.12),
+                        'fill-opacity': Math.min(0.45, drawStyle.fillOpacity + 0.12) * aoiSketchOpacity,
                       }}
                     />
                     <Layer
@@ -6942,7 +7093,7 @@ export default function SatelliteIntelligence() {
                         'line-color': drawStyle.strokeColor,
                         'line-width': drawStyle.strokeWidth,
                         'line-dasharray': [2, 2],
-                        'line-opacity': 0.9,
+                        'line-opacity': 0.9 * aoiSketchOpacity,
                       }}
                     />
                     <Layer
@@ -6953,7 +7104,7 @@ export default function SatelliteIntelligence() {
                         'line-color': '#4ade80',
                         'line-width': Math.max(2, drawStyle.strokeWidth),
                         'line-dasharray': [1, 2],
-                        'line-opacity': 0.95,
+                        'line-opacity': 0.95 * aoiSketchOpacity,
                       }}
                     />
                     <Layer
@@ -6986,6 +7137,7 @@ export default function SatelliteIntelligence() {
                         ] as any,
                         'circle-stroke-width': 2,
                         'circle-stroke-color': '#14532d',
+                        'circle-opacity': aoiSketchOpacity,
                       }}
                     />
                     <Layer
@@ -7003,6 +7155,7 @@ export default function SatelliteIntelligence() {
                         'circle-color': drawStyle.strokeColor,
                         'circle-stroke-width': 2,
                         'circle-stroke-color': '#0f172a',
+                        'circle-opacity': aoiSketchOpacity,
                       }}
                     />
                   </Source>
@@ -7016,7 +7169,7 @@ export default function SatelliteIntelligence() {
                       filter={['==', ['geometry-type'], 'Polygon']}
                       paint={{
                         'fill-color': drawStyle.fillColor,
-                        'fill-opacity': drawStyle.fillOpacity,
+                        'fill-opacity': drawStyle.fillOpacity * aoiSketchOpacity,
                       }}
                     />
                   </Source>
@@ -7057,7 +7210,7 @@ export default function SatelliteIntelligence() {
                         'circle-color': drawStyle.strokeColor,
                         'circle-stroke-width': 2,
                         'circle-stroke-color': '#0f172a',
-                        'circle-opacity': 0.95,
+                        'circle-opacity': 0.95 * aoiSketchOpacity,
                       }}
                     />
                   </Source>
@@ -7101,7 +7254,7 @@ export default function SatelliteIntelligence() {
                   id="sentinel-layer"
                   type="raster"
                   paint={{
-                    'raster-opacity': sentinelHubWmsAoiClip.evalscriptB64 ? 1 : 0.85,
+                    'raster-opacity': (sentinelHubWmsAoiClip.evalscriptB64 ? 1 : 0.85) * aoiSketchOpacity,
                     'raster-fade-duration': 0
                   }}
                 />
@@ -7120,7 +7273,7 @@ export default function SatelliteIntelligence() {
                   id="si-stac-thumb-layer"
                   type="raster"
                   paint={{
-                    'raster-opacity': 0.92,
+                    'raster-opacity': 0.92 * aoiSketchOpacity,
                     'raster-fade-duration': 0,
                   }}
                 />
@@ -7141,6 +7294,7 @@ export default function SatelliteIntelligence() {
                       Math.max(2, drawStyle.strokeWidth + 1),
                       drawStyle.strokeWidth,
                     ],
+                    'line-opacity': aoiSketchOpacity,
                   }}
                 />
                 <Layer
@@ -7150,7 +7304,7 @@ export default function SatelliteIntelligence() {
                   paint={{
                     'circle-radius': drawStyle.pointRadius,
                     'circle-color': drawStyle.fillColor,
-                    'circle-opacity': Math.min(1, drawStyle.fillOpacity + 0.55),
+                    'circle-opacity': Math.min(1, drawStyle.fillOpacity + 0.55) * aoiSketchOpacity,
                     'circle-stroke-color': drawStyle.strokeColor,
                     'circle-stroke-width': Math.max(1, drawStyle.strokeWidth / 2),
                   }}
@@ -9356,15 +9510,27 @@ export default function SatelliteIntelligence() {
                         <i className="fa-solid fa-house" aria-hidden />
                         <span className="gis-table-tooltext">Home</span>
                       </button>
+                      <button
+                        className="gis-table-toolbtn"
+                        type="button"
+                        onClick={handleClearDrawing}
+                        disabled={!clearDrawingToolbarEnabled}
+                        title="Clear map drawing (AOI), vertices, and optional analysis overlays — restores map pan"
+                        aria-label="Clear map drawing"
+                      >
+                        <i className="fa-solid fa-eraser" aria-hidden />
+                        <span className="gis-table-tooltext">Clear map drawing</span>
+                      </button>
                       <div className="gis-table-toolsep" role="separator" />
                       <button
                         className="gis-table-toolbtn"
                         type="button"
                         onClick={() => setTableSelectedKeys(new Set())}
                         disabled={tableSelectedKeys.size === 0}
-                        title="Clear selection"
+                        title="Clear row selection"
+                        aria-label="Clear row selection"
                       >
-                        <i className="fa-solid fa-eraser" aria-hidden />
+                        <i className="fa-solid fa-square-xmark" aria-hidden />
                         <span className="gis-table-tooltext">Clear selection</span>
                       </button>
                       <button
