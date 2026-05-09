@@ -16,8 +16,6 @@ export type SatelliteMapAnalysisToolbarProps = {
   mapTool: 'rectangle' | 'polygon' | 'circle' | 'select' | string;
   onMapTool: (tool: 'rectangle' | 'polygon' | 'circle' | 'select') => void;
   hasAoi: boolean;
-  onRunAnalysis: () => void;
-  runBlockedReason: string | null;
   staticChartsOpen: boolean;
   onToggleStaticCharts: () => void;
   analysisLayerAttached: boolean;
@@ -31,8 +29,6 @@ export function SatelliteMapAnalysisToolbar({
   mapTool,
   onMapTool,
   hasAoi,
-  onRunAnalysis,
-  runBlockedReason,
   staticChartsOpen,
   onToggleStaticCharts,
   analysisLayerAttached,
@@ -91,8 +87,8 @@ export function SatelliteMapAnalysisToolbar({
         type="button"
         className={`si-map-analysis-tool ${staticChartsOpen ? 'si-map-analysis-tool--on' : ''}`}
         aria-pressed={staticChartsOpen}
-        aria-label="Toggle AOI static charts — independent from Run"
-        title="Static info charts (AOI-scoped) — use this button only; Run does not open charts"
+        aria-label="Toggle AOI static charts"
+        title="Static info charts (AOI-scoped)"
         onClick={onToggleStaticCharts}
       >
         <i className="fa-solid fa-chart-pie" aria-hidden />
@@ -105,21 +101,6 @@ export function SatelliteMapAnalysisToolbar({
         onClick={onToggleAnalysisLayerAttached}
       >
         <i className="fa-solid fa-layer-group" aria-hidden />
-      </button>
-      <span className="si-map-analysis-toolbar-sep" aria-hidden />
-      <button
-        type="button"
-        className="si-map-analysis-run"
-        disabled={!!runBlockedReason}
-        aria-label="Run: clip analysis raster to drawn AOI for map display only"
-        title={
-          runBlockedReason ||
-          'Clip analysis raster to drawn AOI (mask by WMS bounds). Does not open charts or build/play the timeline — use the pie-chart tool for charts and Generate timeline in Remote Sensing for date playback.'
-        }
-        onClick={onRunAnalysis}
-      >
-        <i className="fa-solid fa-play" aria-hidden />
-        <span>Run</span>
       </button>
     </div>
   );
@@ -136,8 +117,6 @@ export type SatelliteMapAnalysisChromeProps = {
   mapTool: 'rectangle' | 'polygon' | 'circle' | 'select' | string;
   onMapTool: (tool: 'rectangle' | 'polygon' | 'circle' | 'select') => void;
   hasAoi: boolean;
-  onRunAnalysis: () => void;
-  runBlockedReason: string | null;
   staticChartsOpen: boolean;
   onToggleStaticCharts: () => void;
   analysisLayerAttached: boolean;
@@ -181,8 +160,6 @@ export function SatelliteMapAnalysisChrome(props: SatelliteMapAnalysisChromeProp
     mapTool,
     onMapTool,
     hasAoi,
-    onRunAnalysis,
-    runBlockedReason,
     staticChartsOpen,
     onToggleStaticCharts,
     analysisLayerAttached,
@@ -263,8 +240,6 @@ export function SatelliteMapAnalysisChrome(props: SatelliteMapAnalysisChromeProp
           mapTool={mapTool}
           onMapTool={onMapTool}
           hasAoi={hasAoi}
-          onRunAnalysis={onRunAnalysis}
-          runBlockedReason={runBlockedReason}
           staticChartsOpen={staticChartsOpen}
           onToggleStaticCharts={onToggleStaticCharts}
           analysisLayerAttached={analysisLayerAttached}

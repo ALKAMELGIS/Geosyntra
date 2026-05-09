@@ -4346,102 +4346,6 @@ export default function SatelliteIntelligence() {
     }
   };
 
-  async function runRsAnalysisFromAssistant(options?: {
-    keepCurrentSection?: boolean;
-    forcedIndex?: string;
-    /** When true, do not rebuild the weekly timeline or open static charts (map Run = clip AOI + layer only). */
-    skipTimelineAndCharts?: boolean;
-  }) {
-    if (!drawnGeometry) {
-      setFieldAnalysisStatus('Draw AOI first, then press Run Analysis.');
-      setMapDrawTool('polygon');
-      return;
-    }
-
-    const templateByIndex: Record<string, MpcTemplateId> = {
-      NDVI: 'ndvi_s2',
-      NDMI: 'ndmi_s2',
-      NDWI: 'false_color_s2',
-      SAVI: 'ndvi_s2',
-      EVI: 'ndvi_s2',
-      GNDVI: 'ndvi_s2',
-      NBR: 'false_color_s2',
-      NDRE: 'ndvi_s2',
-      BSI: 'false_color_s2',
-      MNDWI: 'false_color_s2',
-      LST: 'false_color_s2',
-    };
-
-    const activeIndex = options?.forcedIndex || wmsLayerSelectValue || selectedIndex;
-    const template = templateByIndex[activeIndex] ?? 'ndvi_s2';
-    const selectedTemplate = LOCAL_PROCESSING_TEMPLATES.find(t => t.id === template);
-    const templateCollections = selectedTemplate?.collections ?? ['sentinel-2-l2a'];
-    setSelectedMpcTemplateId(template);
-    setExploreSelectedCollectionIds(prev => {
-      const s = new Set(prev);
-      templateCollections.forEach(c => s.add(c));
-      return [...s];
-    });
-    // Map "Run" (skipTimelineAndCharts) must only affect analysis rasters — not turn on pivot-wide fills,
-    // which look like a global green tint over the basemap outside the AOI.
-    if (options?.skipTimelineAndCharts) {
-      setShowFieldBoundaries(false);
-      setShowProductivityZones(false);
-    } else {
-      setShowFieldBoundaries(true);
-      setShowProductivityZones(true);
-    }
-    setMpcClipToAoi(true);
-    setIsWmsOverlayVisible(true);
-
-    const dStart = exploreEffectiveDatetime.start || timeSeriesStart;
-    const dEnd = exploreEffectiveDatetime.end || timeSeriesEnd;
-    const drawnGeom = drawnGeometry?.geometry as GeoJSON.Geometry | undefined;
-    const aoi: GeoJSON.Feature = drawnGeom
-      ? { type: 'Feature', geometry: drawnGeom, properties: { source: 'drawn' } }
-      : resolveExploreAoiFeature();
-    if (!aoi || !dStart || !dEnd) {
-      setIsStacThumbVisible(false);
-      setFieldAnalysisStatus('Set AOI and date range before running analysis.');
-      return;
-    }
-
-    let target = processingTargetStacItem;
-    if (!target) {
-      target = await findCompatibleStacItemForTemplate(template, aoi, dStart, dEnd, templateCollections, activeIndex);
-    }
-    if (!target) {
-      setIsStacThumbVisible(false);
-      setFieldAnalysisStatus(
-        'No Sentinel scene in the catalog for this AOI and date range. WMS is clipped to your AOI; adjust dates or add a scene from Explore STAC.',
-      );
-      return;
-    }
-
-    const stableKey = stacItemStableKey(target);
-    const collection = getStacItemCollection(target);
-    setProcessingTargetStacItem(target);
-    setExploreSelectedResultKeys([stableKey]);
-    if (collection) {
-      setExploreSelectedCollectionIds(prev => (prev.includes(collection) ? prev : [...prev, collection]));
-    }
-    setStacStatus(`Run ready: ${String(target?.id ?? 'scene')} (${template}).`);
-    setIsStacThumbVisible(true);
-    await runMpcTemplateProcessing(template, target, activeIndex);
-    if (!options?.keepCurrentSection) {
-      setExpandedEnvSection('remote-sensing');
-    }
-    // Keep the legacy environmental index in sync whenever selected RS index is natively supported.
-    if (Object.prototype.hasOwnProperty.call(ENVIRONMENTAL_INDICES, activeIndex)) {
-      setSelectedIndex(activeIndex as EnvironmentalIndexId);
-      setWmsLayer(activeIndex);
-    }
-    if (!options?.skipTimelineAndCharts) {
-      generateFieldAnalysisTimeline();
-    }
-    setFieldAnalysisStatus(`Run completed for ${activeIndex}. Results rendered inside AOI.`);
-  }
-
   const openAcsPicker = () => {
     setAcsPickerStaging([]);
     setAcsPickerManualPath('');
@@ -6730,16 +6634,6 @@ export default function SatelliteIntelligence() {
     return `w-${hit.weekIndex}-${hit.startDate}`;
   }, [weeklyComposites, selectedDate]);
 
-  /** Map Run: clip/show analysis raster inside AOI only — never opens static charts (pie tool) or timeline. */
-  const runSatelliteMapAnalysis = () => {
-    if (!drawnGeometry?.geometry) {
-      setFieldAnalysisStatus('Draw a rectangle, circle, or polygon AOI on the map, then tap Run.');
-      return;
-    }
-    setExploreExtentMode('drawn');
-    void runRsAnalysisFromAssistant({ keepCurrentSection: true, skipTimelineAndCharts: true });
-  };
-
   const handleSatelliteTimelineStep = (dir: -1 | 1) => {
     if (!weeklyComposites.length) return;
     const iso = selectedDate.toISOString().split('T')[0];
@@ -7412,8 +7306,6 @@ export default function SatelliteIntelligence() {
             mapTool={satelliteToolbarTool}
             onMapTool={t => applyMapDrawTool(t)}
             hasAoi={!!drawnGeometry}
-            onRunAnalysis={runSatelliteMapAnalysis}
-            runBlockedReason={!drawnGeometry ? 'Draw AOI first' : null}
             staticChartsOpen={mapStaticChartsOpen}
             onToggleStaticCharts={() => setMapStaticChartsOpen(o => !o)}
             analysisLayerAttached={analysisLayerAttached}
@@ -8515,8 +8407,6 @@ export default function SatelliteIntelligence() {
                               mapTool={satelliteToolbarTool}
                               onMapTool={t => applyMapDrawTool(t)}
                               hasAoi={!!drawnGeometry}
-                              onRunAnalysis={runSatelliteMapAnalysis}
-                              runBlockedReason={!drawnGeometry ? 'Draw AOI first' : null}
                               staticChartsOpen={mapStaticChartsOpen}
                               onToggleStaticCharts={() => setMapStaticChartsOpen(o => !o)}
                               analysisLayerAttached={analysisLayerAttached}
@@ -8534,7 +8424,7 @@ export default function SatelliteIntelligence() {
                               aria-label={
                                 fieldTimelineSessionActive
                                   ? 'Stop Timeline: pause map playback and clear weekly chips'
-                                  : 'Generate weekly timeline from selected date range — not started by Run'
+                                  : 'Generate weekly timeline from selected date range'
                               }
                             >
                               <i
