@@ -1,5 +1,7 @@
 /** Stored in localStorage — see services/settingsStorage.ts */
 
+import type { Role } from '../lib/auth'
+
 export type ThemeMode = 'light' | 'dark' | 'custom' | 'system'
 
 export type NavItemOverride = {
@@ -107,6 +109,11 @@ export type SystemSettingsPersistedV1 = {
   headerSettings: HeaderSettings
   /** Extra API token types admins add without a code change */
   customApiTokenSlots: CustomApiTokenSlot[]
+  /**
+   * Canonical ordered subset of {@link Role} values offered on public sign-up and in User Management
+   * role pickers. Order follows the global role order; omit roles by excluding them from the array.
+   */
+  directoryRoleCatalog: Role[]
 }
 
 export type SystemSettingsDraft = SystemSettingsPersistedV1 & { dirty?: boolean }

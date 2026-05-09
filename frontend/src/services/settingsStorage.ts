@@ -1,6 +1,25 @@
+import type { Role } from '../lib/auth'
+import { normalizeRole } from '../lib/auth'
 import type { CustomApiTokenSlot, CustomPageRecord, SystemSettingsPersistedV1 } from '../types/systemSettings'
 
 export const SETTINGS_STORAGE_KEY = 'agri_system_settings_v1'
+
+/** Fired on the window after `saveSystemSettings` (same tab). Cross-tab still receives `storage`. */
+export const SYSTEM_SETTINGS_UPDATED_EVENT = 'agri-system-settings-updated'
+
+/** Global role order — sign-up and directory pickers use a subset in this order. */
+export const DIRECTORY_ROLES_CANONICAL: readonly Role[] = ['Admin', 'Manager', 'Admin Manager', 'Editor', 'Viewer']
+
+export function sanitizeDirectoryRoleCatalog(raw: unknown): Role[] {
+  if (!Array.isArray(raw) || raw.length === 0) return [...DIRECTORY_ROLES_CANONICAL]
+  const want = new Set<Role>()
+  for (const x of raw) {
+    const n = normalizeRole(x)
+    if ((DIRECTORY_ROLES_CANONICAL as readonly string[]).includes(n)) want.add(n)
+  }
+  const out = DIRECTORY_ROLES_CANONICAL.filter(r => want.has(r))
+  return out.length ? out : [...DIRECTORY_ROLES_CANONICAL]
+}
 
 export const DEFAULT_SYSTEM_SETTINGS: SystemSettingsPersistedV1 = {
   version: 1,
@@ -52,6 +71,7 @@ export const DEFAULT_SYSTEM_SETTINGS: SystemSettingsPersistedV1 = {
     autoSave: false,
   },
   customApiTokenSlots: [],
+  directoryRoleCatalog: [...DIRECTORY_ROLES_CANONICAL],
 }
 
 export function loadSystemSettings(): SystemSettingsPersistedV1 {
@@ -97,6 +117,7 @@ export function mergeWithDefaults(partial: Partial<SystemSettingsPersistedV1>): 
           .map(sanitizeCustomApiTokenSlot)
           .filter((s): s is CustomApiTokenSlot => s != null)
       : [],
+    directoryRoleCatalog: sanitizeDirectoryRoleCatalog(partial.directoryRoleCatalog),
     themeMode:
       partial.themeMode === 'dark' ||
       partial.themeMode === 'custom' ||
@@ -222,6 +243,9 @@ function sanitizeCustomPage(raw: unknown): CustomPageRecord | null {
 export function saveSystemSettings(next: SystemSettingsPersistedV1): void {
   try {
     localStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(next))
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent(SYSTEM_SETTINGS_UPDATED_EVENT))
+    }
   } catch {
     console.warn('[settings] Failed to persist')
   }

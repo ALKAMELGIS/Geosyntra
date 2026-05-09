@@ -6983,6 +6983,7 @@ export default function SatelliteIntelligence() {
   return (
     <div className="si-page">
       <div className="si-main-content">
+        {/* Map viewport: MapGL fills this box; SatelliteMapAnalysisChrome portals MapToolsDock into mapboxgl-canvas-container */}
         <div
           className={`si-map-container${
             ['point', 'polyline', 'polygon', 'rectangle', 'circle', 'box_select'].includes(mapDrawTool)
@@ -7499,6 +7500,8 @@ export default function SatelliteIntelligence() {
             staticMultiLineHasLst={staticAoiMultiLineData.hasLst}
             staticComparisonLayers={staticChartComparisonLayers}
             onStaticComparisonLayerToggle={handleStaticComparisonLayerToggle}
+            mapRef={mapRef}
+            mapLoaded={isMapLoaded}
           />
 
           {false && aoiHeatPointGeoJson?.features?.length ? (

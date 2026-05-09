@@ -1,9 +1,11 @@
 import './satelliteMapAnalysisChrome.css';
+import type { RefObject } from 'react';
 import type { AoiStaticMultiLayerLineChartDataset } from './AoiStaticMultiLayerLineChart';
 import {
   type StaticAoiChartLayerId,
 } from '../utils/staticAoiMultiChartData';
 import { SatelliteContextualAnalysisDock } from './SatelliteContextualAnalysisDock';
+import { MapToolsDock } from './MapToolsDock';
 
 export type TimelineChip = {
   id: string;
@@ -109,6 +111,9 @@ export type SatelliteMapAnalysisChromeProps = {
   staticMultiLineHasLst: boolean;
   staticComparisonLayers: StaticAoiChartLayerId[];
   onStaticComparisonLayerToggle: (id: StaticAoiChartLayerId) => void;
+  /** With `mapLoaded`, portals the contextual dock into `mapboxgl-canvas-container` for a true in-map overlay. */
+  mapRef?: RefObject<any>;
+  mapLoaded?: boolean;
 };
 
 function sparkPath(values: number[], w: number, h: number): string {
@@ -148,12 +153,36 @@ export function SatelliteMapAnalysisChrome(props: SatelliteMapAnalysisChromeProp
     staticMultiLineHasLst,
     staticComparisonLayers,
     onStaticComparisonLayerToggle,
+    mapRef,
+    mapLoaded = false,
   } = props;
 
   const activeFull =
     weeklyChips.find(c => c.id === activeChipId)?.fullDate ??
     weeklyChips[0]?.fullDate ??
     '';
+
+  const contextualDock = (
+    <SatelliteContextualAnalysisDock
+      variant="map"
+      mapTool={mapTool}
+      onMapTool={onMapTool}
+      hasClearableDrawing={hasClearableDrawing}
+      onClearDrawing={onClearDrawing}
+      hasAoi={hasAoi}
+      staticChartsOpen={staticChartsOpen}
+      onToggleStaticCharts={onToggleStaticCharts}
+      indexLabel={indexLabel}
+      staticMultiLineLabels={staticMultiLineLabels}
+      staticMultiLineDatasets={staticMultiLineDatasets}
+      staticMultiLineHasLst={staticMultiLineHasLst}
+      staticComparisonLayers={staticComparisonLayers}
+      onStaticComparisonLayerToggle={onStaticComparisonLayerToggle}
+      weeklyMeans={weeklyMeans}
+      pivotBars={pivotBars}
+      sparkPathBuilder={sparkPath}
+    />
+  );
 
   return (
     <>
@@ -207,25 +236,14 @@ export function SatelliteMapAnalysisChrome(props: SatelliteMapAnalysisChromeProp
         </div>
       ) : null}
 
-      <SatelliteContextualAnalysisDock
-        variant="map"
-        mapTool={mapTool}
-        onMapTool={onMapTool}
-        hasClearableDrawing={hasClearableDrawing}
-        onClearDrawing={onClearDrawing}
-        hasAoi={hasAoi}
-        staticChartsOpen={staticChartsOpen}
-        onToggleStaticCharts={onToggleStaticCharts}
-        indexLabel={indexLabel}
-        staticMultiLineLabels={staticMultiLineLabels}
-        staticMultiLineDatasets={staticMultiLineDatasets}
-        staticMultiLineHasLst={staticMultiLineHasLst}
-        staticComparisonLayers={staticComparisonLayers}
-        onStaticComparisonLayerToggle={onStaticComparisonLayerToggle}
-        weeklyMeans={weeklyMeans}
-        pivotBars={pivotBars}
-        sparkPathBuilder={sparkPath}
-      />
+      {/* si-map-container: MapGL + chrome; MapToolsDock portals into mapboxgl-canvas-container */}
+      {mapRef ? (
+        <MapToolsDock mapRef={mapRef} mapLoaded={mapLoaded}>
+          {contextualDock}
+        </MapToolsDock>
+      ) : (
+        contextualDock
+      )}
     </>
   );
 }

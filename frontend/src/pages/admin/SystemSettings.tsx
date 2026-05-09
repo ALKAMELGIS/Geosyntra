@@ -5,7 +5,13 @@ import * as yup from 'yup'
 import { useLanguage } from '../../lib/i18n'
 import { hasPermission, normalizeRole, readCurrentUser } from '../../lib/auth'
 import { NAV_DEFAULT_GROUPS, NAV_GROUP_IDS } from '../../nav/navManifest'
-import { DEFAULT_SYSTEM_SETTINGS, loadSystemSettings, mergeWithDefaults, normalizeAppPath } from '../../services/settingsStorage'
+import {
+  DEFAULT_SYSTEM_SETTINGS,
+  DIRECTORY_ROLES_CANONICAL,
+  loadSystemSettings,
+  mergeWithDefaults,
+  normalizeAppPath,
+} from '../../services/settingsStorage'
 import { applyThemeToDocument, useSystemSettings } from '../../store/SystemSettingsContext'
 import { clearUserApiTokenValue, getUserApiTokenValue, persistUserApiTokenValue } from '../../lib/customUserApiTokens'
 import type { CustomApiTokenSlot, CustomPageRecord, SystemSettingsPersistedV1 } from '../../types/systemSettings'
@@ -78,6 +84,7 @@ const SETTINGS_TABS = [
   { id: 'logos' as const, label: 'Logos', icon: 'fa-solid fa-image' },
   { id: 'nav' as const, label: 'Navigation', icon: 'fa-solid fa-bars-staggered' },
   { id: 'pages' as const, label: 'Pages', icon: 'fa-solid fa-layer-group' },
+  { id: 'signup-roles' as const, label: 'Sign-up & roles', icon: 'fa-solid fa-user-plus' },
   { id: 'api-tokens' as const, label: 'API Tokens', icon: 'fa-solid fa-key' },
 ]
 
@@ -151,7 +158,9 @@ function ApiTokenMergeField({
 export default function SystemSettings() {
   const { draft, setDraft, settings, setSettings, saveDraft, cancelDraft, resetToDefaults, pushToast } = useSystemSettings()
   const { language } = useLanguage()
-  const [tab, setTab] = useState<'theme' | 'header-settings' | 'logos' | 'nav' | 'pages' | 'api-tokens'>('theme')
+  const [tab, setTab] = useState<
+    'theme' | 'header-settings' | 'logos' | 'nav' | 'pages' | 'signup-roles' | 'api-tokens'
+  >('theme')
   const [mapboxTokenDraft, setMapboxTokenDraft] = useState('')
   const [arcgisTokenDraft, setArcgisTokenDraft] = useState('')
   const [sentinelHubInstanceDraft, setSentinelHubInstanceDraft] = useState('')
@@ -677,7 +686,11 @@ export default function SystemSettings() {
               <span className="sys-settings-tab__icon" aria-hidden>
                 <i className={icon} />
               </span>
-              {id === 'api-tokens' && language === 'ar' ? 'رموز API' : label}
+              {id === 'api-tokens' && language === 'ar'
+                ? 'رموز API'
+                : id === 'signup-roles' && language === 'ar'
+                  ? 'التسجيل والأدوار'
+                  : label}
             </button>
           ))}
         </div>
@@ -1259,6 +1272,59 @@ export default function SystemSettings() {
               ))}
             </div>
           )}
+          {inlineSettingsActions}
+        </div>
+      ) : null}
+
+      {tab === 'signup-roles' ? (
+        <div className="sys-settings-tab-pane">
+          <div className="sys-settings-panel__head">
+            <h2 className="sys-settings-panel__title">
+              <i className="fa-solid fa-user-plus" aria-hidden />
+              {language === 'ar' ? 'التسجيل وكتالوج الأدوار' : 'Sign-up & directory roles'}
+            </h2>
+            <p className="sys-settings-panel__desc">
+              {language === 'ar'
+                ? 'الأدوار المفعّلة تظهر في شاشة إنشاء الحساب وفي قوائم الدور داخل إدارة المستخدمين. يبقى تقييد من يستطيع تعيين أي دور وفق صلاحيات المسؤول.'
+                : 'Checked roles appear on public sign-up and in User Management role pickers. Who may assign each tier is still enforced by administrator permissions (for example, Admin Manager can only assign Editor or Viewer).'}
+            </p>
+          </div>
+          <span className="sys-field-label">{language === 'ar' ? 'الأدوار المتاحة' : 'Roles offered'}</span>
+          <div className="sys-role-catalog-list">
+            {DIRECTORY_ROLES_CANONICAL.map(roleId => {
+              const enabled = draft.directoryRoleCatalog.includes(roleId)
+              return (
+                <label key={roleId} className="sys-role-catalog-row">
+                  <input
+                    type="checkbox"
+                    checked={enabled}
+                    onChange={() => {
+                      setDraft(d => {
+                        const cur = new Set(d.directoryRoleCatalog)
+                        if (cur.has(roleId)) {
+                          if (cur.size <= 1) return d
+                          cur.delete(roleId)
+                        } else {
+                          cur.add(roleId)
+                        }
+                        const next = DIRECTORY_ROLES_CANONICAL.filter(r => cur.has(r))
+                        return {
+                          ...d,
+                          directoryRoleCatalog: next.length ? next : [...DIRECTORY_ROLES_CANONICAL],
+                        }
+                      })
+                    }}
+                  />
+                  <span>{roleId}</span>
+                </label>
+              )
+            })}
+          </div>
+          <p className="sys-settings-panel__desc" style={{ marginTop: 12 }}>
+            {language === 'ar'
+              ? 'يُنصح بإبقاء دور منخفض الصلاحية (مثل مشاهد) مفعّلاً إذا استخدمتم التسجيل الذاتي.'
+              : 'Keep at least one lower-privilege role (for example Viewer) enabled if you use self-service registration.'}
+          </p>
           {inlineSettingsActions}
         </div>
       ) : null}

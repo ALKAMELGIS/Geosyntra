@@ -66,47 +66,64 @@
 */
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme]) {
-    --ds-color-bg: #0b1220;
-    --ds-color-surface: #0f172a;
-    --ds-color-surface-2: rgba(255, 255, 255, 0.06);
-    --ds-color-text: #e5e7eb;
-    --ds-color-text-muted: rgba(226, 232, 240, 0.72);
-    --ds-color-border: rgba(226, 232, 240, 0.14);
-    --ds-color-border-strong: rgba(226, 232, 240, 0.22);
+    color-scheme: dark;
+    --ds-color-bg: #071210;
+    --ds-color-bg-dashboard: #081816;
+    --ds-color-surface: #0f1a16;
+    --ds-color-surface-2: rgba(255, 255, 255, 0.07);
+    --ds-color-text: #f1f5f9;
+    --ds-color-text-muted: rgba(226, 232, 240, 0.7);
+    --ds-color-border: rgba(34, 197, 94, 0.16);
+    --ds-color-border-strong: rgba(34, 197, 94, 0.28);
 
     --ds-color-primary: #22c55e;
-    --ds-color-primary-hover: #16a34a;
-    --ds-color-primary-soft: rgba(34, 197, 94, 0.14);
-    --ds-color-danger: #ef4444;
-    --ds-color-warning: #f59e0b;
+    --ds-color-primary-hover: #4ade80;
+    --ds-color-primary-soft: rgba(34, 197, 94, 0.18);
+    --ds-color-danger: #f87171;
+    --ds-color-warning: #fbbf24;
     --ds-color-info: #38bdf8;
 
-    --ds-focus-ring: 0 0 0 3px rgba(56, 189, 248, 0.22);
+    --ds-shadow-sm: 0 8px 28px rgba(0, 0, 0, 0.42);
+    --ds-shadow-md: 0 20px 52px rgba(0, 0, 0, 0.52);
+    --ds-shadow-lg: 0 32px 72px rgba(0, 0, 0, 0.58);
+    --ds-glass-bg: rgba(15, 26, 22, 0.82);
+    --ds-glass-border: rgba(34, 197, 94, 0.2);
+
+    --ds-focus-ring: 0 0 0 3px rgba(34, 197, 94, 0.35);
   }
 }
 
 :root[data-theme="dark"],
 html[data-theme="dark"] {
-  --ds-color-bg: #0b1220;
-  --ds-color-surface: #0f172a;
-  --ds-color-surface-2: rgba(255, 255, 255, 0.06);
-  --ds-color-text: #e5e7eb;
-  --ds-color-text-muted: rgba(226, 232, 240, 0.72);
-  --ds-color-border: rgba(226, 232, 240, 0.14);
-  --ds-color-border-strong: rgba(226, 232, 240, 0.22);
+  color-scheme: dark;
+  --ds-color-bg: #071210;
+  --ds-color-bg-dashboard: #081816;
+  --ds-color-surface: #0f1a16;
+  --ds-color-surface-2: rgba(255, 255, 255, 0.07);
+  --ds-color-text: #f1f5f9;
+  --ds-color-text-muted: rgba(226, 232, 240, 0.7);
+  --ds-color-border: rgba(34, 197, 94, 0.16);
+  --ds-color-border-strong: rgba(34, 197, 94, 0.28);
 
   --ds-color-primary: #22c55e;
-  --ds-color-primary-hover: #16a34a;
-  --ds-color-primary-soft: rgba(34, 197, 94, 0.14);
-  --ds-color-danger: #ef4444;
-  --ds-color-warning: #f59e0b;
+  --ds-color-primary-hover: #4ade80;
+  --ds-color-primary-soft: rgba(34, 197, 94, 0.18);
+  --ds-color-danger: #f87171;
+  --ds-color-warning: #fbbf24;
   --ds-color-info: #38bdf8;
 
-  --ds-focus-ring: 0 0 0 3px rgba(56, 189, 248, 0.22);
+  --ds-shadow-sm: 0 8px 28px rgba(0, 0, 0, 0.42);
+  --ds-shadow-md: 0 20px 52px rgba(0, 0, 0, 0.52);
+  --ds-shadow-lg: 0 32px 72px rgba(0, 0, 0, 0.58);
+  --ds-glass-bg: rgba(15, 26, 22, 0.82);
+  --ds-glass-border: rgba(34, 197, 94, 0.2);
+
+  --ds-focus-ring: 0 0 0 3px rgba(34, 197, 94, 0.35);
 }
 
 :root[data-theme="light"],
 html[data-theme="light"] {
+  color-scheme: light;
   --ds-color-bg: #f8fafc;
   --ds-color-bg-dashboard: #eef7f1;
   --ds-color-surface: rgba(255, 255, 255, 0.88);

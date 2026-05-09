@@ -3,6 +3,13 @@ import { useNavigate } from 'react-router-dom'
 import '../../pages/data-entry/EC.css'
 import './Users.css'
 import { hasPermission, normalizeEmail, normalizeRole, readCurrentUser, startSession } from '../../lib/auth'
+import {
+  filterDirectoryRolesForAdminPicker,
+  pickDefaultAssignableRole,
+  roleFilterOptions,
+  rolesForUserModal,
+  useDirectoryRoleCatalog,
+} from '../../lib/roleCatalog'
 import { readProfileExtra } from '../../lib/userProfilePersistence'
 import { appendAuditLog, AUDIT_LOG_STORAGE_KEY, readAuditLog } from '../../lib/audit'
 import {
@@ -103,6 +110,36 @@ export default function Users({ embedded }: { embedded?: boolean } = {}) {
   const isSuperManager = currentRole === 'Manager' || currentRole === 'Admin'
   const isAdminManager = currentRole === 'Admin Manager'
   const canImpersonate = currentRole === 'Admin'
+  const centralRoleCatalog = useDirectoryRoleCatalog()
+  const adminPickerRoles = useMemo(
+    () => filterDirectoryRolesForAdminPicker(centralRoleCatalog, isSuperManager, isAdminManager),
+    [centralRoleCatalog, isSuperManager, isAdminManager],
+  )
+  const roleFilterSelectOptions = useMemo(
+    () => roleFilterOptions(centralRoleCatalog, isSuperManager, isAdminManager, users.map(u => normalizeRole(u.role))),
+    [centralRoleCatalog, isSuperManager, isAdminManager, users],
+  )
+  const modalRoleOptions = useMemo(() => {
+    const existing =
+      editingId !== null ? users.find(u => u.id === editingId)?.role : undefined
+    return rolesForUserModal(adminPickerRoles, existing)
+  }, [adminPickerRoles, editingId, users])
+
+  useEffect(() => {
+    setBatchRole(prev => {
+      const n = normalizeRole(prev)
+      if (adminPickerRoles.includes(n)) return prev
+      return pickDefaultAssignableRole(adminPickerRoles)
+    })
+  }, [adminPickerRoles])
+
+  useEffect(() => {
+    setNewUser(prev => {
+      const n = normalizeRole(prev.role)
+      if (modalRoleOptions.includes(n)) return prev
+      return { ...prev, role: pickDefaultAssignableRole(modalRoleOptions) }
+    })
+  }, [modalRoleOptions])
 
   useEffect(() => {
     const onResize = () => setIsNarrow(window.innerWidth <= 600)
@@ -426,6 +463,12 @@ export default function Users({ embedded }: { embedded?: boolean } = {}) {
       return
     }
 
+    const roleNorm = normalizeRole(newUser.role)
+    if (!modalRoleOptions.includes(roleNorm)) {
+      showToast('Selected role is not allowed by the system role catalog.', 'error')
+      return
+    }
+
     if (editingId !== null) {
       const existing = users.find(u => u.id === editingId)
       if (!existing) {
@@ -546,7 +589,16 @@ export default function Users({ embedded }: { embedded?: boolean } = {}) {
     }
     setIsModalOpen(false)
     setEditingId(null)
-    setNewUser({ name: '', email: '', password: '', role: 'Viewer', scope: '', managedById: '', status: 'Active', lastLogin: 'Never' })
+    setNewUser({
+      name: '',
+      email: '',
+      password: '',
+      role: pickDefaultAssignableRole(adminPickerRoles),
+      scope: '',
+      managedById: '',
+      status: 'Active',
+      lastLogin: 'Never',
+    })
     setCurrentPage(1)
   }
 
@@ -777,6 +829,11 @@ export default function Users({ embedded }: { embedded?: boolean } = {}) {
     }
 
     if (batchAction === 'assignRole') {
+      const br = normalizeRole(batchRole)
+      if (!adminPickerRoles.includes(br)) {
+        showToast('Selected role is not allowed by the system role catalog.', 'error')
+        return
+      }
       setUsers(prev => prev.map(u => (manageable.some(m => m.id === u.id) ? { ...u, role: normalizeRole(batchRole) } : u)))
       manageable.forEach(u => appendUserAudit('role_change', { id: String(u.id), email: u.email }, { to: batchRole }))
       showToast(`Role updated for ${manageable.length} users.`, 'success')
@@ -907,9 +964,17 @@ export default function Users({ embedded }: { embedded?: boolean } = {}) {
             onClick={() => {
               if (!canAddUser) return
               setEditingId(null)
-              const baseRole = isAdminManager ? 'Viewer' : 'Viewer'
               const baseScope = isAdminManager ? String(currentUser?.scope || '') : ''
-              setNewUser({ name: '', email: '', password: '', role: baseRole, scope: baseScope, managedById: isAdminManager && typeof currentUser?.id === 'number' ? currentUser.id : '', status: 'Active', lastLogin: 'Never' })
+              setNewUser({
+                name: '',
+                email: '',
+                password: '',
+                role: pickDefaultAssignableRole(adminPickerRoles),
+                scope: baseScope,
+                managedById: isAdminManager && typeof currentUser?.id === 'number' ? currentUser.id : '',
+                status: 'Active',
+                lastLogin: 'Never',
+              })
               setIsModalOpen(true)
             }}
             disabled={!canAddUser}
@@ -940,11 +1005,11 @@ export default function Users({ embedded }: { embedded?: boolean } = {}) {
           }}
         >
           <option value="All">All Roles</option>
-          {isSuperManager ? <option value="Admin">Admin</option> : null}
-          {isSuperManager ? <option value="Manager">Manager</option> : null}
-          {isSuperManager ? <option value="Admin Manager">Admin Manager</option> : null}
-          <option value="Editor">Editor</option>
-          <option value="Viewer">Viewer</option>
+          {roleFilterSelectOptions.map(r => (
+            <option key={r} value={r}>
+              {r}
+            </option>
+          ))}
         </select>
         <select
           className="admin-users__select"
@@ -985,11 +1050,11 @@ export default function Users({ embedded }: { embedded?: boolean } = {}) {
               onChange={e => setBatchRole(e.target.value)}
               aria-label="Role"
             >
-              {isSuperManager ? <option value="Admin">Admin</option> : null}
-              {isSuperManager ? <option value="Manager">Manager</option> : null}
-              {isSuperManager ? <option value="Admin Manager">Admin Manager</option> : null}
-              <option value="Editor">Editor</option>
-              <option value="Viewer">Viewer</option>
+              {adminPickerRoles.map(r => (
+                <option key={r} value={r}>
+                  {r}
+                </option>
+              ))}
             </select>
           ) : null}
           <button type="button" className="ec-btn ec-btn-primary" onClick={applyBatchAction}>
@@ -1317,31 +1382,12 @@ export default function Users({ embedded }: { embedded?: boolean } = {}) {
                       value={newUser.role}
                       onChange={e => setNewUser({ ...newUser, role: e.target.value })}
                       className="ec-input"
-                      disabled={isAdminManager && !(newUser.role === 'Editor' || newUser.role === 'Viewer')}
                     >
-                      {isSuperManager ? (
-                        <>
-                          <option value="Admin">Admin</option>
-                          <option value="Manager">Manager</option>
-                          <option value="Admin Manager">Admin Manager</option>
-                          <option value="Editor">Editor</option>
-                          <option value="Viewer">Viewer</option>
-                        </>
-                      ) : isAdminManager ? (
-                        newUser.role === 'Admin Manager' ? (
-                          <option value="Admin Manager">Admin Manager</option>
-                        ) : (
-                          <>
-                            <option value="Editor">Editor</option>
-                            <option value="Viewer">Viewer</option>
-                          </>
-                        )
-                      ) : (
-                        <>
-                          <option value="Editor">Editor</option>
-                          <option value="Viewer">Viewer</option>
-                        </>
-                      )}
+                      {modalRoleOptions.map(r => (
+                        <option key={r} value={r}>
+                          {r}
+                        </option>
+                      ))}
                     </select>
                   </div>
 

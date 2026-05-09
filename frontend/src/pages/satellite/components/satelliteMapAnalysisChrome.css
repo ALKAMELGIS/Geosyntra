@@ -634,6 +634,15 @@
   }
 }
 
+/* Portal host: inside .mapboxgl-canvas-container — pass-through hits canvas except tool UI */
+.si-map-tools-dock-host {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  pointer-events: none;
+  overflow: visible;
+}
+
 /* —— Calcite-style contextual dock (rail + panel) —— */
 .si-sat-ctx-dock {
   --si-ctx-bg: rgba(15, 23, 42, 0.88);
@@ -825,6 +834,20 @@ html[data-theme='light'] .si-sat-ctx-map-strip-reopen {
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
 }
 
+.si-sat-ctx-dock--map .si-sat-ctx-rail {
+  transition:
+    width 0.3s cubic-bezier(0.22, 1, 0.36, 1),
+    padding 0.24s ease,
+    border-radius 0.2s ease;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .si-sat-ctx-dock--map .si-sat-ctx-rail,
+  .si-sat-ctx-panel-wrap {
+    transition: none !important;
+  }
+}
+
 .si-sat-ctx-rail--labeled {
   width: min(220px, 38vw);
   padding-inline: 8px;
@@ -966,6 +989,11 @@ html[data-theme='light'] .si-sat-ctx-map-strip-reopen {
 .si-sat-ctx-rail-collapse:hover {
   color: var(--si-ctx-text);
   border-color: rgba(129, 140, 248, 0.45);
+}
+
+.si-sat-ctx-rail-collapse:focus-visible {
+  outline: 2px solid rgba(129, 140, 248, 0.75);
+  outline-offset: 2px;
 }
 
 .si-sat-ctx-panel-wrap {

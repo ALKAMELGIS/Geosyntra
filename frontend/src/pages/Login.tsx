@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useLocation } from 'react-router-dom'
 import { normalizeEmail, normalizeRole, startSession } from '../lib/auth'
+import { pickDefaultAssignableRole, useDirectoryRoleCatalog } from '../lib/roleCatalog'
 import { hydrateProfileFromAdminUserRecord, hydrateProfileFromServer } from '../lib/userProfilePersistence'
 import { appendAuditLog } from '../lib/audit'
 import { useLanguage } from '../lib/i18n'
@@ -36,6 +37,7 @@ const loginTranslations = {
     roles: {
       Admin: 'Admin',
       Manager: 'Manager',
+      'Admin Manager': 'Admin Manager',
       Editor: 'Editor',
       Viewer: 'Viewer',
     },
@@ -59,6 +61,7 @@ const loginTranslations = {
     roles: {
       Admin: 'مدير النظام',
       Manager: 'مدير',
+      'Admin Manager': 'مدير إداري',
       Editor: 'محرر',
       Viewer: 'مشاهد',
     },
@@ -68,6 +71,7 @@ const loginTranslations = {
 export default function Login() {
   const { language } = useLanguage()
   const text = loginTranslations[language]
+  const signupRoleCatalog = useDirectoryRoleCatalog()
   const [mode, setMode] = useState<'signin' | 'signup'>('signin')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -307,6 +311,13 @@ export default function Login() {
   }
 
   useEffect(() => {
+    const current = normalizeRole(role)
+    if (!signupRoleCatalog.includes(current)) {
+      setRole(pickDefaultAssignableRole(signupRoleCatalog))
+    }
+  }, [signupRoleCatalog, role])
+
+  useEffect(() => {
     let cancelled = false
     const runIntegrityPass = async () => {
       const stored = localStorage.getItem('adminUsers')
@@ -514,6 +525,13 @@ export default function Login() {
           setIsSubmitting(false)
           return
         }
+        const chosenRole = normalizeRole(role)
+        if (!signupRoleCatalog.includes(chosenRole)) {
+          logLoginAttempt('failure', 'signup_role_not_allowed', emailTrimmed)
+          setError('Selected role is not available for self-service registration.')
+          setIsSubmitting(false)
+          return
+        }
         const hashed = await hashPassword(passwordTrimmed)
         const override = roleOverrideForEmail(emailTrimmed)
         const verificationToken = createVerificationToken()
@@ -524,7 +542,7 @@ export default function Login() {
                 ...base,
                 name: nameTrimmed,
                 email: emailTrimmed,
-                role: normalizeRole(override ?? base.role ?? role),
+                role: normalizeRole(override ?? base.role ?? chosenRole),
                 status: 'Pending Verification',
                 lastLogin: base.lastLogin || 'Never',
                 passwordHash: hashed,
@@ -536,7 +554,7 @@ export default function Login() {
               id: Date.now(),
               name: nameTrimmed,
               email: emailTrimmed,
-              role: normalizeRole(override ?? role),
+              role: normalizeRole(override ?? chosenRole),
               status: 'Pending Verification',
               lastLogin: 'Never',
               passwordHash: hashed,
@@ -1241,7 +1259,7 @@ export default function Login() {
                           zIndex: 30
                         }}
                       >
-                        {['Admin', 'Manager', 'Editor', 'Viewer'].map(option => (
+                        {signupRoleCatalog.map(option => (
                           <button
                             key={option}
                             type="button"
