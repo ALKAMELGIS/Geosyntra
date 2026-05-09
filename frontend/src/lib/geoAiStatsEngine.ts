@@ -46,13 +46,17 @@ function userWantsMapFirstLayerBrowse(query: string, lookupTokens: string[], has
   if (userWantsAttributeTableExplicitly(query)) return false
   if (/\b(sum|average|mean|total|min|max|group\s*by|median|stdev|stddev|statistics|statistic|calculate\s+field|count\s+of\b)/i.test(query))
     return false
+  const explicitMapIntent = /\b(on\s+the\s+map|on\s+map|show\s+.+\bmap\b|map\s+for|fly\s+to|zoom\s+to|center\s+on|pin\b|highlight\s+on\s+the\s+map)\b/i.test(
+    query,
+  )
   const narrowed = lookupTokens.length > 0 || hasNumericComparison
-  const explicitMapNavigate =
-    /\b(on\s+the\s+map|on\s+map|show\s+.+\bmap\b|map\s+for|fly\s+to|zoom\s+to|center\s+on|pin\b|highlight\s+on\s+the\s+map|على\s+الخريطة|في\s+الخريطة|اظهر\s+على\s+الخريطة|اعرض\s+على\s+الخريطة)\b/i.test(
-      query,
-    )
-  if (explicitMapNavigate && narrowed) return true
-  if (!narrowed) return false
+  /** Obvious structure/plot code in the same sentence as “on map” — still narrow even if token regex misses. */
+  const looseCodeTail = /\b[A-Za-z]\d{2,}[A-Za-z0-9_-]*\b/i.test(query)
+  if (!narrowed) {
+    if (explicitMapIntent && looseCodeTail) return true
+    return false
+  }
+  if (explicitMapIntent) return true
   if (lookupTokens.length && /\b(find|search|show|display|where\s+is|locate|highlight|pin|zoom)\b/i.test(query)) return true
   if (
     lookupTokens.length &&
@@ -173,14 +177,20 @@ function extractLookupTokens(query: string): string[] {
   const tokens = new Set<string>()
   const q = query.trim()
   for (const m of q.matchAll(/\bMH\d+\b/gi)) tokens.add(m[0].toUpperCase())
-  // Structure / plot codes like M101, A12 (single letter + digits; MH101 is covered by MH\d+ above)
-  for (const m of q.matchAll(/\b[A-Za-z]\d{2,}[A-Za-z0-9-]*\b/g)) {
-    const t = m[0].toUpperCase()
-    if (t.length >= 3 && !/^SELECT$/i.test(t)) tokens.add(t)
-  }
   for (const m of q.matchAll(/\b[A-Z]{2,}\d{2,}[A-Z0-9-]*\b/g)) {
     const t = m[0].toUpperCase()
     if (t.length >= 4 && !/^SELECT$/i.test(t)) tokens.add(t)
+  }
+  /** Single letter + digits (e.g. M101, P42) — common farm/structure plot codes. */
+  for (const m of q.matchAll(/\b[A-Za-z]\d{2,}[A-Za-z0-9_-]*\b/g)) {
+    const t = m[0].toUpperCase()
+    if (!/^SELECT$/i.test(t)) tokens.add(t)
+  }
+  /** Hyphenated variants (e.g. M-101). */
+  for (const m of q.matchAll(/\b[A-Za-z]{1,3}-\d{2,}[A-Za-z0-9_-]*\b/gi)) {
+    const t = m[0].replace(/-/g, '').toUpperCase()
+    if (t.length >= 3 && !/^SELECT$/i.test(t)) tokens.add(t)
+    tokens.add(m[0].toUpperCase())
   }
   for (const m of q.matchAll(/["']([^"'<>]{2,48})["']/g)) {
     const inner = m[1].trim()
