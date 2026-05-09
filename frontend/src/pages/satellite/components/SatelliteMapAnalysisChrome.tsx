@@ -103,8 +103,8 @@ export function SatelliteMapAnalysisToolbar({
         type="button"
         className={`si-map-analysis-tool ${staticChartsOpen ? 'si-map-analysis-tool--on' : ''}`}
         aria-pressed={staticChartsOpen}
-        aria-label="Toggle AOI static charts — independent from Run"
-        title="Static info charts (AOI-scoped) — use this button only; Run does not open charts"
+        aria-label="Toggle AOI static charts"
+        title="Static info charts (AOI-scoped)"
         onClick={onToggleStaticCharts}
       >
         <i className="fa-solid fa-chart-pie" aria-hidden />

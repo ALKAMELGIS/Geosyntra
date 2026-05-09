@@ -1657,6 +1657,18 @@ const LOCAL_PROCESSING_TEMPLATES: Array<{ id: MpcTemplateId; label: string; coll
   { id: 'ndvi_landsat', label: 'NDVI (Landsat-8/9)', collections: ['landsat-c2-l2'] },
   { id: 'false_color_landsat', label: 'False Color (Landsat-8/9)', collections: ['landsat-c2-l2'] },
 ];
+const REMOTE_SENSING_HIDDEN_LAYER_IDS = new Set([
+  'NDVI',
+  'NDWI',
+  'NDMI',
+  'SAVI',
+  'EVI',
+  'GNDVI',
+  'NBR',
+  'NDRE',
+  'BSI',
+  'MNDWI',
+]);
 const DEFAULT_MPC_CATALOG_URL = 'https://planetarycomputer.microsoft.com/catalog';
 const DEFAULT_MPC_ACS_ZIP_PATH = 'C:\\Users\\mohamed.abass.WUSOOM\\Downloads\\ACS_Files.zip';
 
@@ -6404,24 +6416,29 @@ export default function SatelliteIntelligence() {
     if (alias) setSelectedIndex(alias as EnvironmentalIndexId);
   }, [wmsLayer]);
 
+  const visibleWmsLayers = useMemo(
+    () => wmsLayers.filter(l => !REMOTE_SENSING_HIDDEN_LAYER_IDS.has(String(l.name || '').trim().toUpperCase())),
+    [wmsLayers],
+  );
+
   const activeWmsLayer = useMemo(() => {
     const t = wmsLayer.trim();
-    if (t && wmsLayers.some(l => l.name === t)) return t;
-    const first = wmsLayers.find(l => l.name.trim().length > 0)?.name.trim() ?? '';
+    if (t && visibleWmsLayers.some(l => l.name === t)) return t;
+    const first = visibleWmsLayers.find(l => l.name.trim().length > 0)?.name.trim() ?? '';
     if (first) return first;
     if (selectedIndex === 'LST') return '';
     return selectedIndex;
-  }, [wmsLayer, wmsLayers, selectedIndex]);
+  }, [wmsLayer, visibleWmsLayers, selectedIndex]);
 
   const remoteSensingLayerOptions = useMemo(() => {
     const named = new Map<string, string>();
-    for (const layer of wmsLayers) {
+    for (const layer of visibleWmsLayers) {
       const id = String(layer.name || '').trim();
       if (!id) continue;
       named.set(id, String(layer.title || id).trim() || id);
     }
     return Array.from(named.entries()).map(([id, label]) => ({ id, label }));
-  }, [wmsLayers]);
+  }, [visibleWmsLayers]);
 
   const wmsLayerSelectValue = useMemo(() => {
     const t = wmsLayer.trim();
@@ -8438,7 +8455,7 @@ export default function SatelliteIntelligence() {
                               aria-label={
                                 fieldTimelineSessionActive
                                   ? 'Stop Timeline: pause map playback and clear weekly chips'
-                                  : 'Generate weekly timeline from selected date range — not started by Run'
+                                  : 'Generate weekly timeline from selected date range'
                               }
                             >
                               <i
