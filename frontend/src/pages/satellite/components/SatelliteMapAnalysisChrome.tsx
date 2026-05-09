@@ -22,8 +22,6 @@ export type SatelliteMapAnalysisToolbarProps = {
   hasAoi: boolean;
   staticChartsOpen: boolean;
   onToggleStaticCharts: () => void;
-  analysisLayerAttached: boolean;
-  onToggleAnalysisLayerAttached: () => void;
   /** When true, toolbar sits inside Remote Sensing card (no floating map position). */
   embedded?: boolean;
   className?: string;
@@ -37,8 +35,6 @@ export function SatelliteMapAnalysisToolbar({
   hasAoi,
   staticChartsOpen,
   onToggleStaticCharts,
-  analysisLayerAttached,
-  onToggleAnalysisLayerAttached,
   embedded = false,
   className = '',
 }: SatelliteMapAnalysisToolbarProps) {
@@ -109,15 +105,6 @@ export function SatelliteMapAnalysisToolbar({
       >
         <i className="fa-solid fa-chart-pie" aria-hidden />
       </button>
-      <button
-        type="button"
-        className={`si-map-analysis-tool ${analysisLayerAttached ? 'si-map-analysis-tool--on' : ''}`}
-        aria-pressed={analysisLayerAttached}
-        title="Attach analysis output under imagery layer"
-        onClick={onToggleAnalysisLayerAttached}
-      >
-        <i className="fa-solid fa-layer-group" aria-hidden />
-      </button>
     </div>
   );
 }
@@ -137,8 +124,6 @@ export type SatelliteMapAnalysisChromeProps = {
   hasAoi: boolean;
   staticChartsOpen: boolean;
   onToggleStaticCharts: () => void;
-  analysisLayerAttached: boolean;
-  onToggleAnalysisLayerAttached: () => void;
   /** When true, duplicate toolbar stays on map (default off — toolbar lives in Remote Sensing panel). */
   showFloatingToolbar?: boolean;
   /** Sparkline means (0–1 normalized optional) */
@@ -182,8 +167,6 @@ export function SatelliteMapAnalysisChrome(props: SatelliteMapAnalysisChromeProp
     hasAoi,
     staticChartsOpen,
     onToggleStaticCharts,
-    analysisLayerAttached,
-    onToggleAnalysisLayerAttached,
     showFloatingToolbar = false,
     weeklyMeans,
     pivotBars,
@@ -264,8 +247,6 @@ export function SatelliteMapAnalysisChrome(props: SatelliteMapAnalysisChromeProp
           hasAoi={hasAoi}
           staticChartsOpen={staticChartsOpen}
           onToggleStaticCharts={onToggleStaticCharts}
-          analysisLayerAttached={analysisLayerAttached}
-          onToggleAnalysisLayerAttached={onToggleAnalysisLayerAttached}
         />
       ) : null}
 

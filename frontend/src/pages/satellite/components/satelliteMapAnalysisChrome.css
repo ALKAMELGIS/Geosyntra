@@ -391,12 +391,53 @@
 }
 
 .si-aoi-static-line-wrap {
+  position: relative;
   height: 260px;
   min-height: 220px;
-  background: rgba(248, 250, 252, 0.98);
   border-radius: 12px;
   padding: 8px 8px 4px;
+  border: 1px solid rgba(148, 163, 184, 0.24);
+  transition: background 0.2s ease, border-color 0.2s ease;
+}
+
+.si-aoi-static-line-wrap--dark {
+  background: linear-gradient(180deg, rgba(15, 23, 42, 0.82), rgba(15, 23, 42, 0.64));
+  border-color: rgba(99, 102, 241, 0.22);
+}
+
+.si-aoi-static-line-wrap--light {
+  background: rgba(248, 250, 252, 0.98);
+  border-color: rgba(148, 163, 184, 0.35);
+}
+
+.si-aoi-static-line-theme-toggle {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 26px;
+  height: 26px;
+  border-radius: 8px;
   border: 1px solid rgba(148, 163, 184, 0.35);
+  background: rgba(15, 23, 42, 0.58);
+  color: #f8fafc;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  cursor: pointer;
+  z-index: 2;
+  transition: filter 0.15s ease, background 0.15s ease, border-color 0.15s ease;
+}
+
+.si-aoi-static-line-theme-toggle:hover {
+  filter: brightness(1.08);
+  border-color: rgba(129, 140, 248, 0.45);
+}
+
+.si-aoi-static-line-wrap--light .si-aoi-static-line-theme-toggle {
+  background: rgba(255, 255, 255, 0.95);
+  color: #334155;
+  border-color: rgba(148, 163, 184, 0.5);
 }
 
 .si-aoi-static-line-empty {

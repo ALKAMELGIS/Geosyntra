@@ -1754,7 +1754,6 @@ export default function SatelliteIntelligence() {
   const [staticChartComparisonLayers, setStaticChartComparisonLayers] = useState<StaticAoiChartLayerId[]>(() =>
     defaultStaticAoiComparisonLayers(),
   );
-  const [analysisLayerAttached, setAnalysisLayerAttached] = useState(false);
   const [selectedIndex, setSelectedIndex] = useState<EnvironmentalIndexId>('NDWI');
   const selectedIndexConfig =
     ENVIRONMENTAL_INDICES[selectedIndex] ?? ENVIRONMENTAL_INDICES.NDWI;
@@ -5551,7 +5550,6 @@ export default function SatelliteIntelligence() {
     setMapDrawTool('select');
     setMapDragPanEnabled(true);
     setExploreExtentMode(prev => (prev === 'drawn' ? 'default' : prev));
-    setAnalysisLayerAttached(false);
   }, []);
 
   /** Fade AOI sketch + clipped raster overlay, then purge geometry and restore pan (basemap / vector layers unchanged). */
@@ -6402,8 +6400,14 @@ export default function SatelliteIntelligence() {
 
   /** Keep WMS layer name aligned with layers returned for the configured Sentinel Hub instance. */
   useEffect(() => {
-    if (!wmsLayers.length) return;
-    setWmsLayer(prev => (prev && wmsLayers.some(l => l.name === prev) ? prev : wmsLayers[0]!.name));
+    const allowed = wmsLayers.filter(
+      l => !REMOTE_SENSING_HIDDEN_LAYER_IDS.has(String(l.name || '').trim().toUpperCase()),
+    );
+    if (!allowed.length) {
+      setWmsLayer('');
+      return;
+    }
+    setWmsLayer(prev => (prev && allowed.some(l => l.name === prev) ? prev : allowed[0]!.name));
   }, [wmsLayers]);
 
   /** When the chosen WMS layer matches a built-in environmental index id, keep charts/AOI logic in sync. */
@@ -7378,8 +7382,6 @@ export default function SatelliteIntelligence() {
             hasAoi={!!drawnGeometry}
             staticChartsOpen={mapStaticChartsOpen}
             onToggleStaticCharts={() => setMapStaticChartsOpen(o => !o)}
-            analysisLayerAttached={analysisLayerAttached}
-            onToggleAnalysisLayerAttached={() => setAnalysisLayerAttached(v => !v)}
             weeklyMeans={satelliteWeeklyMeans}
             pivotBars={satellitePivotBars}
             indexLabel={selectedIndexConfig.label}
@@ -8447,8 +8449,6 @@ export default function SatelliteIntelligence() {
                               hasAoi={!!drawnGeometry}
                               staticChartsOpen={mapStaticChartsOpen}
                               onToggleStaticCharts={() => setMapStaticChartsOpen(o => !o)}
-                              analysisLayerAttached={analysisLayerAttached}
-                              onToggleAnalysisLayerAttached={() => setAnalysisLayerAttached(v => !v)}
                             />
                           </div>
                           <div className="si-rs-actions si-rs-actions--compact">
