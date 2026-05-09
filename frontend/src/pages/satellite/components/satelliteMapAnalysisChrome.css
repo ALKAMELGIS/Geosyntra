@@ -337,6 +337,17 @@
   gap: 10px;
   padding: 12px 14px;
   border-bottom: 1px solid rgba(148, 163, 184, 0.14);
+  cursor: grab;
+  user-select: none;
+  touch-action: none;
+}
+
+.si-map-analysis-charts-head:active {
+  cursor: grabbing;
+}
+
+.si-map-analysis-charts--dragged {
+  animation: none;
 }
 
 .si-map-analysis-charts-head-text {

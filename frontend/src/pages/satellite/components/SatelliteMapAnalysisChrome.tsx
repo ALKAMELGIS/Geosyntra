@@ -1,3 +1,4 @@
+import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react';
 import './satelliteMapAnalysisChrome.css';
 import { AoiStaticMultiLayerLineChart, type AoiStaticMultiLayerLineChartDataset } from './AoiStaticMultiLayerLineChart';
 import {
@@ -184,6 +185,44 @@ export function SatelliteMapAnalysisChrome(props: SatelliteMapAnalysisChromeProp
     '';
 
   const maxPivot = pivotBars.length ? Math.max(...pivotBars.map(p => Math.abs(p.value))) : 1;
+  const chartsRef = useRef<HTMLDivElement | null>(null);
+  const [chartsPos, setChartsPos] = useState<{ x: number; y: number } | null>(null);
+  const dragRef = useRef<{ id: number; dx: number; dy: number } | null>(null);
+
+  useEffect(() => {
+    const onMove = (e: PointerEvent) => {
+      if (!dragRef.current || !chartsRef.current) return;
+      const panel = chartsRef.current;
+      const margin = 8;
+      const maxX = Math.max(margin, window.innerWidth - panel.offsetWidth - margin);
+      const maxY = Math.max(margin, window.innerHeight - panel.offsetHeight - margin);
+      const nextX = Math.min(maxX, Math.max(margin, e.clientX - dragRef.current.dx));
+      const nextY = Math.min(maxY, Math.max(margin, e.clientY - dragRef.current.dy));
+      setChartsPos({ x: nextX, y: nextY });
+    };
+    const onUp = (e: PointerEvent) => {
+      if (!dragRef.current) return;
+      if (dragRef.current.id !== e.pointerId) return;
+      dragRef.current = null;
+    };
+    window.addEventListener('pointermove', onMove);
+    window.addEventListener('pointerup', onUp);
+    window.addEventListener('pointercancel', onUp);
+    return () => {
+      window.removeEventListener('pointermove', onMove);
+      window.removeEventListener('pointerup', onUp);
+      window.removeEventListener('pointercancel', onUp);
+    };
+  }, []);
+
+  const onChartsDragStart = (e: ReactPointerEvent<HTMLDivElement>) => {
+    if (!chartsRef.current) return;
+    const t = e.target as HTMLElement | null;
+    if (t && t.closest('button')) return;
+    const rect = chartsRef.current.getBoundingClientRect();
+    dragRef.current = { id: e.pointerId, dx: e.clientX - rect.left, dy: e.clientY - rect.top };
+    e.preventDefault();
+  };
 
   return (
     <>
@@ -251,8 +290,14 @@ export function SatelliteMapAnalysisChrome(props: SatelliteMapAnalysisChromeProp
       ) : null}
 
       {staticChartsOpen ? (
-        <div className="si-map-analysis-charts" role="region" aria-label="Analysis charts">
-          <div className="si-map-analysis-charts-head">
+        <div
+          ref={chartsRef}
+          className={`si-map-analysis-charts ${chartsPos ? 'si-map-analysis-charts--dragged' : ''}`}
+          role="region"
+          aria-label="Analysis charts"
+          style={chartsPos ? { left: chartsPos.x, top: chartsPos.y, right: 'auto', bottom: 'auto' } : undefined}
+        >
+          <div className="si-map-analysis-charts-head" onPointerDown={onChartsDragStart}>
             <div className="si-map-analysis-charts-head-text">
               <span className="si-map-analysis-charts-title">AOI static charts</span>
               <span className="si-map-analysis-charts-subtitle">
