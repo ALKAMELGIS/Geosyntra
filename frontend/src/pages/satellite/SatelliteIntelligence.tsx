@@ -6739,6 +6739,19 @@ export default function SatelliteIntelligence() {
   }, [drawnGeometry, sentinelHubWmsAoiClip.evalscriptB64, activeWmsLayer]);
 
   /**
+   * Sketch fill is drawn *below* the WMS raster; any transparency in tiles blends with this green tint,
+   * which looks like a broken AOI datamask. Hide fill while thematic Sentinel overlay is on (outline stays).
+   */
+  const suppressAoiSketchFillForThematicWms = useMemo(
+    () =>
+      sentinelVisible &&
+      !!drawnGeometry &&
+      !!activeWmsLayer.trim() &&
+      isThematicWmsProfile(inferWmsEvalProfile(activeWmsLayer)),
+    [sentinelVisible, drawnGeometry, activeWmsLayer],
+  );
+
+  /**
    * Limits Sentinel WMS tile requests to the AOI bounding box (extract-by-mask style for tiles).
    * Basemap layers are unaffected; only the raster overlay source uses these bounds.
    */
@@ -7112,10 +7125,12 @@ export default function SatelliteIntelligence() {
                     <Layer
                       id="drawn-index-geometry-fill"
                       type="fill"
-                      filter={['==', ['geometry-type'], 'Polygon']}
+                      filter={['in', ['geometry-type'], ['literal', ['Polygon', 'MultiPolygon']]]}
                       paint={{
                         'fill-color': drawStyle.fillColor,
-                        'fill-opacity': drawStyle.fillOpacity * aoiSketchOpacity,
+                        'fill-opacity': suppressAoiSketchFillForThematicWms
+                          ? 0
+                          : drawStyle.fillOpacity * aoiSketchOpacity,
                       }}
                     />
                   </Source>

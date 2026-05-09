@@ -182,6 +182,39 @@ function multiPolygon3857Wkt(rings: [number, number][][]): string {
   return `MULTIPOLYGON(${parts})`;
 }
 
+/** Axis-aligned WGS84 bbox → EPSG:3857 POLYGON; keeps URLs short when full AOI ring exceeds limits (preserve thematic EVALSCRIPT). */
+function bbox3857WktFromOuterRings(outerRings: [number, number][][]): string {
+  let minLng = Infinity;
+  let maxLng = -Infinity;
+  let minLat = Infinity;
+  let maxLat = -Infinity;
+  for (const ring of outerRings) {
+    for (const [lng, lat] of ring) {
+      minLng = Math.min(minLng, lng);
+      maxLng = Math.max(maxLng, lng);
+      minLat = Math.min(minLat, lat);
+      maxLat = Math.max(maxLat, lat);
+    }
+  }
+  if (!Number.isFinite(minLng) || maxLng <= minLng || maxLat <= minLat) {
+    return polygon3857WktFromRing([
+      [-180, -85],
+      [180, -85],
+      [180, 85],
+      [-180, 85],
+      [-180, -85],
+    ]);
+  }
+  const pad = 1e-5;
+  return polygon3857WktFromRing([
+    [minLng - pad, minLat - pad],
+    [maxLng + pad, minLat - pad],
+    [maxLng + pad, maxLat + pad],
+    [minLng - pad, maxLat + pad],
+    [minLng - pad, minLat - pad],
+  ]);
+}
+
 export function inferWmsEvalProfile(layerName: string): WmsAoiEvalProfile {
   const u = String(layerName || '').toUpperCase();
   if (u.includes('GNDVI')) return 'gndvi';
@@ -207,6 +240,9 @@ function buildEvalscriptV3(profile: WmsAoiEvalProfile, indexVisibilityMin: numbe
       ? 'var __a = s.dataMask;'
       : `var __a = s.dataMask * ((${indexVar}) >= ${thr} ? 1 : 0);`;
 
+  /** FLOAT32 keeps RGBA alpha well-defined for OGC GetMap PNG; AUTO can mis-blend with Mapbox raster compositing. */
+  const outRgba = 'output: { bands: 4, sampleType: "FLOAT32" }';
+
   switch (profile) {
     case 'true_color':
     case 'generic_rgb':
@@ -214,39 +250,37 @@ function buildEvalscriptV3(profile: WmsAoiEvalProfile, indexVisibilityMin: numbe
 function setup() {
   return {
     input: ["B02", "B03", "B04", "dataMask"],
-    output: { bands: 4, sampleType: "AUTO" }
+    ${outRgba}
   };
 }
 function evaluatePixel(s) {
-  return [
-    Math.max(0, Math.min(1, s.B04 * 2.5)),
-    Math.max(0, Math.min(1, s.B03 * 2.5)),
-    Math.max(0, Math.min(1, s.B02 * 2.5)),
-    s.dataMask
-  ];
+  var r = Math.max(0, Math.min(1, s.B04 * 2.5));
+  var g = Math.max(0, Math.min(1, s.B03 * 2.5));
+  var b = Math.max(0, Math.min(1, s.B02 * 2.5));
+  var a = Math.max(0, Math.min(1, s.dataMask));
+  return [r, g, b, a];
 }`;
     case 'false_color':
       return `//VERSION=3
 function setup() {
   return {
     input: ["B02", "B03", "B04", "B08", "dataMask"],
-    output: { bands: 4, sampleType: "AUTO" }
+    ${outRgba}
   };
 }
 function evaluatePixel(s) {
-  return [
-    Math.max(0, Math.min(1, s.B08 * 2.5)),
-    Math.max(0, Math.min(1, s.B04 * 2.5)),
-    Math.max(0, Math.min(1, s.B03 * 2.5)),
-    s.dataMask
-  ];
+  var r = Math.max(0, Math.min(1, s.B08 * 2.5));
+  var g = Math.max(0, Math.min(1, s.B04 * 2.5));
+  var b = Math.max(0, Math.min(1, s.B03 * 2.5));
+  var a = Math.max(0, Math.min(1, s.dataMask));
+  return [r, g, b, a];
 }`;
     case 'ndvi':
       return `//VERSION=3
 function setup() {
   return {
     input: ["B02", "B03", "B04", "B08", "dataMask"],
-    output: { bands: 4, sampleType: "AUTO" }
+    ${outRgba}
   };
 }
 ${V3_INDEX_RAMP_HELPERS}
@@ -263,7 +297,7 @@ function evaluatePixel(s) {
 function setup() {
   return {
     input: ["B02", "B03", "B04", "B08", "dataMask"],
-    output: { bands: 4, sampleType: "AUTO" }
+    ${outRgba}
   };
 }
 ${V3_INDEX_RAMP_HELPERS}
@@ -280,7 +314,7 @@ function evaluatePixel(s) {
 function setup() {
   return {
     input: ["B02", "B03", "B04", "B08", "dataMask"],
-    output: { bands: 4, sampleType: "AUTO" }
+    ${outRgba}
   };
 }
 ${V3_INDEX_RAMP_HELPERS}
@@ -298,7 +332,7 @@ function evaluatePixel(s) {
 function setup() {
   return {
     input: ["B04", "B08", "B11", "dataMask"],
-    output: { bands: 4, sampleType: "AUTO" }
+    ${outRgba}
   };
 }
 ${V3_INDEX_RAMP_HELPERS}
@@ -315,7 +349,7 @@ function evaluatePixel(s) {
 function setup() {
   return {
     input: ["B03", "B08", "dataMask"],
-    output: { bands: 4, sampleType: "AUTO" }
+    ${outRgba}
   };
 }
 ${V3_INDEX_RAMP_HELPERS}
@@ -332,7 +366,7 @@ function evaluatePixel(s) {
 function setup() {
   return {
     input: ["B02", "B04", "B08", "dataMask"],
-    output: { bands: 4, sampleType: "AUTO" }
+    ${outRgba}
   };
 }
 ${V3_INDEX_RAMP_HELPERS}
@@ -402,7 +436,7 @@ export function buildSentinelHubWmsAoiClip(
       if (outer?.length >= 3) outerRings.push(simplifyOuterRingWgs84(outer));
     }
   }
-  if (!outerRings.length) return { geometryWkt3857: null, evalscriptB64 };
+  if (!outerRings.length) return { geometryWkt3857: null, evalscriptB64: null };
 
   let geometryWkt3857 = multiPolygon3857Wkt(outerRings);
   let combinedLen = geometryWkt3857.length + (evalscriptB64?.length ?? 0);
@@ -417,7 +451,11 @@ export function buildSentinelHubWmsAoiClip(
   }
 
   if (geometryWkt3857.length > MAX_WKT_CHARS + 500) {
-    evalscriptB64 = null;
+    geometryWkt3857 = bbox3857WktFromOuterRings(outerRings);
+    const bboxLen = geometryWkt3857.length + (evalscriptB64?.length ?? 0);
+    if (bboxLen > MAX_WKT_CHARS + 800) {
+      evalscriptB64 = null;
+    }
   }
 
   return { geometryWkt3857, evalscriptB64 };
