@@ -20,8 +20,6 @@ export type SatelliteMapAnalysisToolbarProps = {
   /** Clear all AOI graphics, exit drawing mode, restore pan; leaves basemap / imagery layers intact */
   onClearDrawing?: () => void;
   hasAoi: boolean;
-  onRunAnalysis: () => void;
-  runBlockedReason: string | null;
   staticChartsOpen: boolean;
   onToggleStaticCharts: () => void;
   analysisLayerAttached: boolean;
@@ -37,8 +35,6 @@ export function SatelliteMapAnalysisToolbar({
   hasClearableDrawing = false,
   onClearDrawing,
   hasAoi,
-  onRunAnalysis,
-  runBlockedReason,
   staticChartsOpen,
   onToggleStaticCharts,
   analysisLayerAttached,
@@ -100,7 +96,7 @@ export function SatelliteMapAnalysisToolbar({
         disabled={!hasClearableDrawing}
         onClick={() => onClearDrawing?.()}
       >
-        <i className="fa-solid fa-broom" aria-hidden />
+        <i className="fa-solid fa-eraser" aria-hidden />
       </button>
       <span className="si-map-analysis-toolbar-sep" aria-hidden />
       <button
@@ -122,21 +118,6 @@ export function SatelliteMapAnalysisToolbar({
       >
         <i className="fa-solid fa-layer-group" aria-hidden />
       </button>
-      <span className="si-map-analysis-toolbar-sep" aria-hidden />
-      <button
-        type="button"
-        className="si-map-analysis-run"
-        disabled={!!runBlockedReason}
-        aria-label="Run: clip analysis raster to drawn AOI for map display only"
-        title={
-          runBlockedReason ||
-          'Clip analysis raster to drawn AOI (mask by WMS bounds). Does not open charts or build/play the timeline — use the pie-chart tool for charts and Generate timeline in Remote Sensing for date playback.'
-        }
-        onClick={onRunAnalysis}
-      >
-        <i className="fa-solid fa-play" aria-hidden />
-        <span>Run</span>
-      </button>
     </div>
   );
 }
@@ -154,8 +135,6 @@ export type SatelliteMapAnalysisChromeProps = {
   hasClearableDrawing?: boolean;
   onClearDrawing?: () => void;
   hasAoi: boolean;
-  onRunAnalysis: () => void;
-  runBlockedReason: string | null;
   staticChartsOpen: boolean;
   onToggleStaticCharts: () => void;
   analysisLayerAttached: boolean;
@@ -201,8 +180,6 @@ export function SatelliteMapAnalysisChrome(props: SatelliteMapAnalysisChromeProp
     hasClearableDrawing = false,
     onClearDrawing,
     hasAoi,
-    onRunAnalysis,
-    runBlockedReason,
     staticChartsOpen,
     onToggleStaticCharts,
     analysisLayerAttached,
@@ -285,8 +262,6 @@ export function SatelliteMapAnalysisChrome(props: SatelliteMapAnalysisChromeProp
           hasClearableDrawing={hasClearableDrawing}
           onClearDrawing={onClearDrawing}
           hasAoi={hasAoi}
-          onRunAnalysis={onRunAnalysis}
-          runBlockedReason={runBlockedReason}
           staticChartsOpen={staticChartsOpen}
           onToggleStaticCharts={onToggleStaticCharts}
           analysisLayerAttached={analysisLayerAttached}

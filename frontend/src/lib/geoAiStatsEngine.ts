@@ -439,7 +439,7 @@ export function runGeoAiStatsCommand(query: string, layers: GeoAiMapLayer[]): Ge
     if (mapFirst && mapSync?.selections.length) {
       return {
         handled: true,
-        reply: `**${selectedCount}** record(s)${tokTxt}${whereTxt}.\n\n**Map:** zoomed to the match area, selected, and highlighted. The popup shows essential fields with **subtype** and **coded domains** where the layer defines them. Ask for an **attribute table** or **show table** here when you want the full spreadsheet.`,
+        reply: `Matched **${selectedCount}** record(s)${tokTxt}${whereTxt}. Zoomed in directly to the top match and highlighted it on the map.`,
         mapFirstSync: mapSync,
       }
     }
@@ -457,7 +457,7 @@ export function runGeoAiStatsCommand(query: string, layers: GeoAiMapLayer[]): Ge
       if (mapFirst && mapSync?.selections.length) {
         return {
           handled: true,
-          reply: `Found **${selectedCount}** feature(s) for **${lookupTokens.join(', ')}**. **Map** is updated (zoom + highlight). Use the feature popup for a concise readout; say **show table** or **attribute table** to open the full results grid here.`,
+          reply: `Found **${selectedCount}** feature(s) for **${lookupTokens.join(', ')}**. Zoomed in directly to the first match and highlighted it.`,
           mapFirstSync: mapSync,
         }
       }

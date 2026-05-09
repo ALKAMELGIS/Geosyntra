@@ -39,7 +39,7 @@ import { getArcgisPortalToken } from '../../lib/arcgisPortalToken';
 import { getMapboxAccessToken } from '../../lib/mapboxAccessToken';
 import { subscribeSentinelHubAccessToken } from '../../lib/sentinelHubAccessToken';
 import { getSentinelHubWmsBaseUrl, subscribeSentinelHubWmsInstance } from '../../lib/sentinelHubWmsInstance';
-import { buildSentinelHubWmsAoiClip } from '../../lib/sentinelHubWmsAoiClip';
+import { buildSentinelHubWmsAoiClip, getDrawnGeometry } from '../../lib/sentinelHubWmsAoiClip';
 import {
   GEO_AI_COPILOT_RULES,
   lastMapQueryCoordsFromMessages,
@@ -67,7 +67,7 @@ import {
   type GeoAiMapLayer,
 } from '../../lib/geoExplorerLayerContext';
 import { lngLatFromGeoAiFeatureLink } from '../../lib/geoAiResolveTableMapLink';
-import { runGeoAiStatsCommand } from '../../lib/geoAiStatsEngine';
+import { runGeoAiStatsCommand, type GeoAiMapFirstSelection } from '../../lib/geoAiStatsEngine';
 import { resolveGeoAiPinFromUserTextAndReply } from '../../lib/geoAiResolveMapCoords';
 import { buildGeoAiFullWeatherSessionAppend } from '../../lib/geoAiWeatherContext';
 import {
@@ -1657,7 +1657,6 @@ const LOCAL_PROCESSING_TEMPLATES: Array<{ id: MpcTemplateId; label: string; coll
   { id: 'ndvi_landsat', label: 'NDVI (Landsat-8/9)', collections: ['landsat-c2-l2'] },
   { id: 'false_color_landsat', label: 'False Color (Landsat-8/9)', collections: ['landsat-c2-l2'] },
 ];
-const STAC_RESULT_INDEX_OPTIONS = ['NDVI', 'NDWI', 'NDMI', 'SAVI', 'EVI', 'GNDVI', 'NBR', 'NDRE', 'BSI', 'MNDWI'] as const;
 const DEFAULT_MPC_CATALOG_URL = 'https://planetarycomputer.microsoft.com/catalog';
 const DEFAULT_MPC_ACS_ZIP_PATH = 'C:\\Users\\mohamed.abass.WUSOOM\\Downloads\\ACS_Files.zip';
 
@@ -4366,11 +4365,6 @@ export default function SatelliteIntelligence() {
     const selectedTemplate = LOCAL_PROCESSING_TEMPLATES.find(t => t.id === template);
     const templateCollections = selectedTemplate?.collections ?? ['sentinel-2-l2a'];
     setSelectedMpcTemplateId(template);
-    setExploreSelectedCollectionIds(prev => {
-      const s = new Set(prev);
-      templateCollections.forEach(c => s.add(c));
-      return [...s];
-    });
     // Map "Run" (skipTimelineAndCharts) must only affect analysis rasters — not turn on pivot-wide fills,
     // which look like a global green tint over the basemap outside the AOI.
     if (options?.skipTimelineAndCharts) {
@@ -4407,14 +4401,8 @@ export default function SatelliteIntelligence() {
       return;
     }
 
-    const stableKey = stacItemStableKey(target);
-    const collection = getStacItemCollection(target);
     setProcessingTargetStacItem(target);
-    setExploreSelectedResultKeys([stableKey]);
-    if (collection) {
-      setExploreSelectedCollectionIds(prev => (prev.includes(collection) ? prev : [...prev, collection]));
-    }
-    setStacStatus(`Run ready: ${String(target?.id ?? 'scene')} (${template}).`);
+    // Keep Explore STAC tab isolated from Remote Sensing state.
     setIsStacThumbVisible(true);
     await runMpcTemplateProcessing(template, target, activeIndex);
     if (!options?.keepCurrentSection) {
@@ -4876,6 +4864,9 @@ export default function SatelliteIntelligence() {
               if (localStats.table) parts.push({ type: 'dataTable', table: localStats.table });
               const modelMsg: GeoExplorerMessage = { id: mid, role: 'model', parts };
               setGeoExplorerMessages(h => [...h, modelMsg]);
+              if (localStats.mapFirstSync?.selections?.length) {
+                queueMicrotask(() => applySatelliteGeoAiMapFirstSync(localStats.mapFirstSync!.selections));
+              }
               return;
             }
           }
@@ -4979,7 +4970,7 @@ export default function SatelliteIntelligence() {
       }
       const zTarget = Math.max(
         geoExplorerTargetZoomForPinSource('layer'),
-        action === 'highlight' ? 13 : 15,
+        action === 'highlight' ? 14 : 17,
       );
       setGeoAiPinLngLat([lng, lat]);
       setViewState(vs => ({
@@ -5013,6 +5004,19 @@ export default function SatelliteIntelligence() {
       }
     },
     [customLayers, is3DView],
+  );
+
+  const applySatelliteGeoAiMapFirstSync = useCallback(
+    (selections: GeoAiMapFirstSelection[]) => {
+      const first = Array.isArray(selections) ? selections[0] : null;
+      if (!first) return;
+      onSiGeoAiTableMapAction('zoom', {
+        type: 'feature',
+        layerId: first.layerId,
+        featureKey: first.featureKey,
+      });
+    },
+    [onSiGeoAiTableMapAction],
   );
 
   const sendGeoAiChat = useCallback((voiceOverrideText?: string) => {
@@ -5057,6 +5061,9 @@ export default function SatelliteIntelligence() {
           if (localStats?.handled) {
             const aid = typeof crypto !== 'undefined' && 'randomUUID' in crypto ? crypto.randomUUID() : `gaic-s-${Date.now()}`;
             setGeoAiChatMessages(h => [...h, { id: aid, role: 'assistant', text: localStats.reply }]);
+            if (localStats.mapFirstSync?.selections?.length) {
+              queueMicrotask(() => applySatelliteGeoAiMapFirstSync(localStats.mapFirstSync!.selections));
+            }
             return;
           }
           const dataCtx = await buildGeoAiDataContext(undefined, {
@@ -5162,6 +5169,9 @@ export default function SatelliteIntelligence() {
           if (localStats?.handled) {
             const aid = typeof crypto !== 'undefined' && 'randomUUID' in crypto ? crypto.randomUUID() : `gds-s-${Date.now()}`;
             setGeoDeepseekChatMessages(h => [...h, { id: aid, role: 'assistant', text: localStats.reply }]);
+            if (localStats.mapFirstSync?.selections?.length) {
+              queueMicrotask(() => applySatelliteGeoAiMapFirstSync(localStats.mapFirstSync!.selections));
+            }
             return;
           }
           const dataCtx = await buildGeoAiDataContext(undefined, {
@@ -6405,7 +6415,6 @@ export default function SatelliteIntelligence() {
 
   const remoteSensingLayerOptions = useMemo(() => {
     const named = new Map<string, string>();
-    for (const idx of STAC_RESULT_INDEX_OPTIONS) named.set(idx, idx);
     for (const layer of wmsLayers) {
       const id = String(layer.name || '').trim();
       if (!id) continue;
@@ -6422,7 +6431,8 @@ export default function SatelliteIntelligence() {
 
   const wmsDate = selectedDate.toISOString().split('T')[0];
   const sentinelVisible = isWmsOverlayVisible && !!activeWmsLayer;
-  const sentinelAoiVisible = sentinelVisible && !!drawnGeometry;
+  const normalizedDrawnAoiGeometry = useMemo(() => getDrawnGeometry(drawnGeometry), [drawnGeometry]);
+  const sentinelAoiVisible = sentinelVisible && !!normalizedDrawnAoiGeometry;
   const activeBasemapId = useMemo(() => resolveBasemapId(basemapId), [basemapId]);
   const currentBasemapEntry = useMemo(() => {
     return (
@@ -6658,16 +6668,6 @@ export default function SatelliteIntelligence() {
     return `w-${hit.weekIndex}-${hit.startDate}`;
   }, [weeklyComposites, selectedDate]);
 
-  /** Map Run: clip/show analysis raster inside AOI only — never opens static charts (pie tool) or timeline. */
-  const runSatelliteMapAnalysis = () => {
-    if (!drawnGeometry?.geometry) {
-      setFieldAnalysisStatus('Draw a rectangle, circle, or polygon AOI on the map, then tap Run.');
-      return;
-    }
-    setExploreExtentMode('drawn');
-    void runRsAnalysisFromAssistant({ keepCurrentSection: true, skipTimelineAndCharts: true });
-  };
-
   const handleSatelliteTimelineStep = (dir: -1 | 1) => {
     if (!weeklyComposites.length) return;
     const iso = selectedDate.toISOString().split('T')[0];
@@ -6741,8 +6741,13 @@ export default function SatelliteIntelligence() {
    * Basemap layers are unaffected; only the raster overlay source uses these bounds.
    */
   const wmsRasterAoiBoundsLngLat = useMemo((): [number, number, number, number] | null => {
-    if (!drawnGeometry) return null;
-    const raw = getGeoJsonBounds(drawnGeometry as any);
+    if (!normalizedDrawnAoiGeometry) return null;
+    const raw =
+      getGeoJsonBounds({
+        type: 'Feature',
+        geometry: normalizedDrawnAoiGeometry,
+        properties: {},
+      } as any) ?? getGeoJsonBounds(drawnGeometry as any);
     if (!raw) return null;
     let [w, s, e, n] = raw;
     if (![w, s, e, n].every(Number.isFinite)) return null;
@@ -6760,9 +6765,11 @@ export default function SatelliteIntelligence() {
     const padX = Math.max((e - w) * 0.02, 1e-6);
     const padY = Math.max((n - s) * 0.02, 1e-6);
     return [w - padX, s - padY, e + padX, n + padY];
-  }, [drawnGeometry]);
+  }, [normalizedDrawnAoiGeometry, drawnGeometry]);
 
-  const drawnAoiWmsClipReady = !!drawnGeometry && !!wmsRasterAoiBoundsLngLat;
+  const drawnAoiWmsClipReady =
+    !!normalizedDrawnAoiGeometry &&
+    (!!wmsRasterAoiBoundsLngLat || !!sentinelHubWmsAoiClip.geometryWkt3857);
 
   /**
    * react-map-gl <Source> does not apply standalone `bounds` updates (see updateSource in library).
@@ -7345,8 +7352,6 @@ export default function SatelliteIntelligence() {
             hasClearableDrawing={satelliteHasClearableDrawing}
             onClearDrawing={clearSatelliteDrawingWithFade}
             hasAoi={!!drawnGeometry}
-            onRunAnalysis={runSatelliteMapAnalysis}
-            runBlockedReason={!drawnGeometry ? 'Draw AOI first' : null}
             staticChartsOpen={mapStaticChartsOpen}
             onToggleStaticCharts={() => setMapStaticChartsOpen(o => !o)}
             analysisLayerAttached={analysisLayerAttached}
@@ -8346,12 +8351,6 @@ export default function SatelliteIntelligence() {
                                 setWmsLayer(v);
                                 const ids = Object.keys(ENVIRONMENTAL_INDICES) as EnvironmentalIndexId[];
                                 if (ids.includes(v as EnvironmentalIndexId)) setSelectedIndex(v as EnvironmentalIndexId);
-                                setStacConnection(prev => ({
-                                  ...prev,
-                                  connectionName: 'Planetary Computer',
-                                  presetId: 'planetary-computer',
-                                  customCatalogBaseUrl: '',
-                                }));
                               }}
                               disabled={isLoadingLayers}
                               aria-label="Layer"
@@ -8422,8 +8421,6 @@ export default function SatelliteIntelligence() {
                               hasClearableDrawing={satelliteHasClearableDrawing}
                               onClearDrawing={clearSatelliteDrawingWithFade}
                               hasAoi={!!drawnGeometry}
-                              onRunAnalysis={runSatelliteMapAnalysis}
-                              runBlockedReason={!drawnGeometry ? 'Draw AOI first' : null}
                               staticChartsOpen={mapStaticChartsOpen}
                               onToggleStaticCharts={() => setMapStaticChartsOpen(o => !o)}
                               analysisLayerAttached={analysisLayerAttached}
