@@ -1481,6 +1481,7 @@ main.content > .si-page {
 }
 
 .si-map-floating-controls__row {
+  position: relative;
   display: flex;
   flex-direction: row;
   align-items: flex-start;
@@ -1697,6 +1698,177 @@ main.content > .si-page {
 .si-map-floating-controls__right .si-env-rail {
   margin: 0;
   justify-content: flex-end;
+}
+
+/* —— Processing Options: Mapbox-style ctrl on map (centered strip + expand/collapse) —— */
+.si-env-rail--mapbox-float {
+  position: absolute;
+  inset-inline-start: 50%;
+  top: 0;
+  transform: translateX(-50%);
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  width: auto;
+  max-width: min(96vw, 560px);
+  z-index: 18;
+}
+
+.si-proc-mb-row {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: stretch;
+  justify-content: center;
+  border-radius: 4px;
+  overflow: hidden;
+  border: 2px solid rgba(31, 31, 31, 0.96);
+  box-shadow:
+    0 0 0 1px rgba(255, 255, 255, 0.12),
+    0 4px 16px rgba(0, 0, 0, 0.45);
+  background: rgba(42, 42, 42, 0.94);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+
+.si-proc-mb-row--collapsed .si-proc-mb-btn {
+  min-width: 30px;
+  width: 30px;
+  padding: 0;
+}
+
+.si-proc-mb-row--expanded .si-proc-mb-btn {
+  min-width: 5.5rem;
+  padding-inline: 8px;
+}
+
+.si-proc-mb-btn {
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  min-height: 30px;
+  margin: 0;
+  border: none;
+  border-inline-end: 1px solid rgba(255, 255, 255, 0.1);
+  background: transparent;
+  color: #e5e7eb;
+  font-size: 14px;
+  cursor: pointer;
+  transition:
+    background 0.15s ease,
+    color 0.15s ease;
+}
+
+.si-proc-mb-btn:last-of-type {
+  border-inline-end: none;
+}
+
+.si-proc-mb-btn:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: #fff;
+}
+
+.si-proc-mb-btn--active {
+  background: rgba(22, 163, 74, 0.35);
+  color: #ecfdf5;
+}
+
+.si-proc-mb-btn-label {
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  line-height: 1.1;
+  text-align: center;
+  max-width: 5.25rem;
+  color: rgba(226, 232, 240, 0.92);
+}
+
+.si-proc-mb-toggle {
+  flex: 0 0 30px;
+  width: 30px;
+  min-height: 30px;
+  margin: 0;
+  border: none;
+  border-inline-start: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(0, 0, 0, 0.25);
+  color: #cbd5e1;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.si-proc-mb-toggle:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: #f8fafc;
+}
+
+html[data-theme='light'] .si-proc-mb-row {
+  border-color: rgba(148, 163, 184, 0.55);
+  background: rgba(248, 250, 252, 0.96);
+  box-shadow:
+    0 0 0 1px rgba(15, 23, 42, 0.08),
+    0 4px 14px rgba(15, 23, 42, 0.12);
+}
+
+html[data-theme='light'] .si-proc-mb-btn {
+  color: #334155;
+  border-inline-end-color: rgba(148, 163, 184, 0.45);
+}
+
+html[data-theme='light'] .si-proc-mb-btn:hover {
+  background: rgba(241, 245, 249, 0.95);
+  color: #0f172a;
+}
+
+html[data-theme='light'] .si-proc-mb-btn--active {
+  background: rgba(16, 185, 129, 0.2);
+  color: #047857;
+}
+
+html[data-theme='light'] .si-proc-mb-btn-label {
+  color: #475569;
+}
+
+html[data-theme='light'] .si-proc-mb-toggle {
+  background: rgba(241, 245, 249, 0.9);
+  color: #64748b;
+  border-inline-start-color: rgba(148, 163, 184, 0.45);
+}
+
+/* Panel anchored under the Mapbox-style strip (not tied to right rail width) */
+.si-env-panel.si-env-panel--mapbox-drop {
+  position: fixed;
+  inset-inline-start: 50%;
+  inset-inline-end: auto;
+  top: 52px;
+  transform: translateX(-50%);
+  margin: 0;
+  z-index: 220;
+  max-height: min(82vh, 760px);
+}
+
+@media (max-width: 768px) {
+  .si-env-rail--mapbox-float {
+    max-width: calc(100vw - 24px);
+    transform: translateX(-50%) scale(0.98);
+    transform-origin: top center;
+  }
+
+  .si-env-panel.si-env-panel--mapbox-drop {
+    width: min(calc(100vw - 20px), 390px) !important;
+    max-height: min(78vh, 720px);
+    top: 48px;
+  }
+
+  .si-proc-mb-row--expanded .si-proc-mb-btn {
+    min-width: 4.25rem;
+  }
 }
 
 /* ArcGIS-style labeled strip (replaces narrow calcite icon pill) */

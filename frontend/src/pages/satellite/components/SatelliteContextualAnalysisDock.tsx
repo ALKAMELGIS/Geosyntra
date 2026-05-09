@@ -334,15 +334,17 @@ export function SatelliteContextualAnalysisDock(props: SatelliteContextualAnalys
       <button
         type="button"
         className={'si-sat-ctx-map-strip-reopen ' + className.trim()}
-        title="Show map toolbox"
+        title="Show map toolbox — layers and analysis tools"
         aria-label="Show map toolbox"
+        aria-expanded={false}
         dir={direction}
         onClick={() => {
           setMapStripHidden(false);
           setMapRailLabeled(false);
         }}
       >
-        <i className="fa-solid fa-angles-right" aria-hidden />
+        <i className="fa-solid fa-angles-left" aria-hidden />
+        <span className="si-sat-ctx-map-strip-reopen__hint">Tools</span>
       </button>
     );
   }
@@ -433,6 +435,7 @@ export function SatelliteContextualAnalysisDock(props: SatelliteContextualAnalys
             aria-label={
               railWide ? (isMap ? 'Collapse toolbox to icons' : 'Collapse sidebar and close panel') : 'Expand toolbox'
             }
+            aria-expanded={railWide}
             onClick={() => {
               if (railWide) {
                 if (panelOpen) closePanel();

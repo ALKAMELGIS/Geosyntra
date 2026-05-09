@@ -150,6 +150,15 @@ const STAC_CONNECTION_STORAGE_KEY = 'si-stac-connection-v1';
 const SATELLITE_CUSTOM_LAYERS_STORAGE_KEY = 'si-satellite-custom-layers-v1';
 const GEO_AI_CHAT_PAGE_SIZE = 40;
 
+/** In-map Processing Options toolbar (Mapbox-style ctrl group). */
+const SI_PROC_MAP_SECTIONS = [
+  { id: 'layers' as const, label: 'Layers', icon: 'fa-solid fa-layer-group' },
+  { id: 'explore-stac' as const, label: 'Explore STAC', icon: 'fa-solid fa-magnifying-glass-chart' },
+  { id: 'remote-sensing' as const, label: 'Remote sensing', icon: 'fa-solid fa-satellite-dish' },
+  { id: 'ai-detection-gis' as const, label: 'AI Detection in GIS', icon: 'fa-solid fa-magnifying-glass-location' },
+  { id: 'table-geo-ai' as const, label: 'Geo AI', icon: 'fa-solid fa-comments' },
+] as const;
+
 type GeoAiInspectCardState = {
   title: string;
   rows: { label: string; value: string }[];
@@ -1731,6 +1740,8 @@ export default function SatelliteIntelligence() {
   const [wmsLayers, setWmsLayers] = useState<WmsLayerInfo[]>([]);
   const [isLoadingLayers, setIsLoadingLayers] = useState(false);
   const [isLayerDropdownOpen, setIsLayerDropdownOpen] = useState(false);
+  /** Mapbox-style processing bar: expanded shows icon + short label per section. */
+  const [procMbRowExpanded, setProcMbRowExpanded] = useState(false);
   const [basemapId, setBasemapId] = useState(() =>
     getMapboxAccessToken() ? DEFAULT_BASEMAP_ID : DEFAULT_BASEMAP_ID_NO_MAPBOX,
   );
@@ -7702,23 +7713,41 @@ export default function SatelliteIntelligence() {
               </div>
               </div>
               <div className="si-map-floating-controls__right">
-            <div className="si-env-rail">
-            <div
-              role="navigation"
-              aria-label="Processing and imagery"
-              className="si-env-side-strip"
-            >
-              <button
-                type="button"
-                className={`si-env-side-row${isLayerDropdownOpen ? ' si-env-side-row--selected' : ''}`}
-                aria-pressed={isLayerDropdownOpen}
-                aria-label="Processing options and environmental layers"
-                onClick={() => setIsLayerDropdownOpen(open => !open)}
+            <div className="si-env-rail si-env-rail--mapbox-float">
+              <div
+                className={`si-proc-mb-row${procMbRowExpanded ? ' si-proc-mb-row--expanded' : ' si-proc-mb-row--collapsed'}`}
+                role="tablist"
+                aria-label="Processing options"
               >
-                <i className="fa-solid fa-layer-group si-env-side-row__icon" aria-hidden />
-                <span className="si-env-side-row__label">Processing &amp; layers</span>
-              </button>
-            </div>
+                {SI_PROC_MAP_SECTIONS.map(section => (
+                  <button
+                    key={section.id}
+                    type="button"
+                    role="tab"
+                    aria-selected={expandedEnvSection === section.id && isLayerDropdownOpen}
+                    className={`si-proc-mb-btn${expandedEnvSection === section.id && isLayerDropdownOpen ? ' si-proc-mb-btn--active' : ''}`}
+                    title={section.label}
+                    aria-label={section.label}
+                    onClick={() => {
+                      setExpandedEnvSection(section.id);
+                      setIsLayerDropdownOpen(true);
+                    }}
+                  >
+                    <i className={section.icon} aria-hidden />
+                    {procMbRowExpanded ? <span className="si-proc-mb-btn-label">{section.label}</span> : null}
+                  </button>
+                ))}
+                <button
+                  type="button"
+                  className="si-proc-mb-toggle"
+                  onClick={() => setProcMbRowExpanded(v => !v)}
+                  title={procMbRowExpanded ? 'Icon bar only' : 'Show section labels'}
+                  aria-label={procMbRowExpanded ? 'Icon bar only' : 'Show section labels'}
+                  aria-expanded={procMbRowExpanded}
+                >
+                  <i className={procMbRowExpanded ? 'fa-solid fa-angles-left' : 'fa-solid fa-angles-right'} aria-hidden />
+                </button>
+              </div>
               <input
                 ref={fileInputRef}
                 type="file"
@@ -7728,7 +7757,7 @@ export default function SatelliteIntelligence() {
               />
               {isLayerDropdownOpen && (
                 <div
-                  className={`si-env-panel${
+                  className={`si-env-panel si-env-panel--mapbox-drop${
                     expandedEnvSection === 'explore-stac' || expandedEnvSection === 'table-geo-ai'
                       ? ' si-env-panel--explore-stac'
                       : ''
@@ -7750,42 +7779,6 @@ export default function SatelliteIntelligence() {
                     </div>
                   </div>
                   <div className="si-env-panel-body">
-                    <div
-                      className="si-env-section-tabs si-env-section-tabs--five"
-                      role="tablist"
-                      aria-label="Processing Options sections"
-                    >
-                      {[
-                        { id: 'layers' as const, label: 'Layers', icon: 'fa-solid fa-layer-group' },
-                        { id: 'explore-stac' as const, label: 'Explore STAC', icon: 'fa-solid fa-magnifying-glass-chart' },
-                        {
-                          id: 'remote-sensing' as const,
-                          label: 'Remote sensing',
-                          icon: 'fa-solid fa-satellite-dish',
-                        },
-                        {
-                          id: 'ai-detection-gis' as const,
-                          label: 'AI Detection in GIS',
-                          icon: 'fa-solid fa-magnifying-glass-location',
-                        },
-                        {
-                          id: 'table-geo-ai' as const,
-                          label: 'Geo AI',
-                          icon: 'fa-solid fa-comments',
-                        },
-                      ].map(section => (
-                        <button
-                          key={section.id}
-                          type="button"
-                          className={expandedEnvSection === section.id ? 'active' : ''}
-                          onClick={() => setExpandedEnvSection(section.id)}
-                          aria-label={section.label}
-                          title={section.label}
-                        >
-                          <i className={section.icon} />
-                        </button>
-                      ))}
-                    </div>
                     {expandedEnvSection === 'explore-stac' ? (
                       <div className="si-explore-stac si-explore-stac--embedded si-explore-stac--in-header">
             <div className="si-explore-stac-header">
