@@ -1756,6 +1756,12 @@ export default function SatelliteIntelligence() {
   );
   const [analysisLayerAttached, setAnalysisLayerAttached] = useState(false);
   const [selectedIndex, setSelectedIndex] = useState<EnvironmentalIndexId>('NDWI');
+  const selectedIndexConfig =
+    ENVIRONMENTAL_INDICES[selectedIndex] ?? ENVIRONMENTAL_INDICES.NDWI;
+  useEffect(() => {
+    if (Object.prototype.hasOwnProperty.call(ENVIRONMENTAL_INDICES, selectedIndex)) return;
+    setSelectedIndex('NDWI');
+  }, [selectedIndex]);
   const [selectedPivotId, setSelectedPivotId] = useState('all');
   const [weeklyComposites, setWeeklyComposites] = useState<WeeklyComposite[]>([]);
   /** True only after the user (or RS Run path) successfully builds the field timeline — drives Generate ⟷ Stop label. */
@@ -3498,7 +3504,7 @@ export default function SatelliteIntelligence() {
   }, [exploreDateSourceMode, exploreDateStart, exploreDateEnd, timeSeriesStart, timeSeriesEnd]);
 
   const synthesizeWeeklyComposites = (itemCount: number) => {
-    const range = ENVIRONMENTAL_INDICES[selectedIndex].range;
+    const range = selectedIndexConfig.range;
     const span = range[1] - range[0];
     return weeklyWindows.map((week, idx) => {
       const seasonal = Math.sin((idx / Math.max(1, weeklyWindows.length - 1)) * Math.PI);
@@ -3530,7 +3536,7 @@ export default function SatelliteIntelligence() {
     }
     setWeeklyComposites(synthetic);
     setFieldTimelineSessionActive(true);
-    setFieldAnalysisStatus(`Timeline ready: ${synthetic.length} week(s) for ${ENVIRONMENTAL_INDICES[selectedIndex].label}.`);
+    setFieldAnalysisStatus(`Timeline ready: ${synthetic.length} week(s) for ${selectedIndexConfig.label}.`);
   };
 
   const stopFieldAnalysisTimeline = useCallback(() => {
@@ -4490,7 +4496,7 @@ export default function SatelliteIntelligence() {
   }, [isStacModalOpen, isAcsPickerOpen]);
 
   const aoiFiveClassLegend = useMemo(() => {
-    const cfg = ENVIRONMENTAL_INDICES[selectedIndex];
+    const cfg = selectedIndexConfig;
     const fallbackMin = cfg.range[0];
     const fallbackMax = cfg.range[1];
     let minV = drawnStats ? Math.max(fallbackMin, Math.min(fallbackMax, drawnStats.min)) : fallbackMin;
@@ -4516,7 +4522,7 @@ export default function SatelliteIntelligence() {
         label: `Class ${i + 1}: ${lower.toFixed(2)} - ${upper.toFixed(2)}`,
       };
     });
-  }, [selectedIndex, drawnStats]);
+  }, [selectedIndexConfig, drawnStats]);
 
   const aoiHeatPointGeoJson = useMemo(() => {
     if (!drawnGeometry?.geometry || !mpcProcessResult) return null;
@@ -4595,7 +4601,7 @@ export default function SatelliteIntelligence() {
   }, [weeklyComposites, selectedIndex]);
 
   const pivotFillLayoutAndPaint = useMemo(() => {
-    const cfg = ENVIRONMENTAL_INDICES[selectedIndex];
+    const cfg = selectedIndexConfig;
     const range = cfg.range;
     const mid = (range[0] + range[1]) / 2;
     const pal = cfg.palette;
@@ -4619,7 +4625,7 @@ export default function SatelliteIntelligence() {
       },
       outlineLayout: { visibility: showFieldBoundaries ? 'visible' : 'none' } as const,
     };
-  }, [selectedIndex, showFieldBoundaries, showProductivityZones]);
+  }, [selectedIndexConfig, showFieldBoundaries, showProductivityZones]);
 
   const recomputeDrawnAoiStats = (geometry: any | null) => {
     if (!geometry) {
@@ -6405,15 +6411,16 @@ export default function SatelliteIntelligence() {
     const raw = wmsLayer.trim();
     if (!raw) return;
     const upper = raw.toUpperCase();
-    const alias =
-      upper.includes('GNDVI') ? 'GNDVI' :
-      upper.includes('NDVI') ? 'NDVI' :
+    const alias: EnvironmentalIndexId | null =
+      upper.includes('LST') || upper.includes('TEMP') ? 'LST' :
+      upper.includes('NDSI') || upper.includes('SNOW') ? 'NDSI' :
       upper.includes('EVI') && !upper.includes('NEVI') ? 'EVI' :
       upper.includes('NDMI') || upper.includes('MOISTURE') ? 'NDMI' :
       upper.includes('NDWI') || upper.includes('MNDWI') || upper.includes('WATER') ? 'NDWI' :
-      upper.includes('LST') || upper.includes('TEMP') ? 'LST' :
+      // Vegetation-like indices not in EnvironmentalIndexId map are normalized to SAVI.
+      (upper.includes('SAVI') || upper.includes('NDVI') || upper.includes('GNDVI') || upper.includes('NDRE') || upper.includes('NBR') || upper.includes('BSI')) ? 'SAVI' :
       null;
-    if (alias) setSelectedIndex(alias as EnvironmentalIndexId);
+    if (alias) setSelectedIndex(alias);
   }, [wmsLayer]);
 
   const visibleWmsLayers = useMemo(
@@ -7375,7 +7382,7 @@ export default function SatelliteIntelligence() {
             onToggleAnalysisLayerAttached={() => setAnalysisLayerAttached(v => !v)}
             weeklyMeans={satelliteWeeklyMeans}
             pivotBars={satellitePivotBars}
-            indexLabel={ENVIRONMENTAL_INDICES[selectedIndex].label}
+            indexLabel={selectedIndexConfig.label}
             staticMultiLineLabels={staticAoiMultiLineData.labels}
             staticMultiLineDatasets={staticAoiMultiLineData.datasets}
             staticMultiLineHasLst={staticAoiMultiLineData.hasLst}
@@ -7843,7 +7850,7 @@ export default function SatelliteIntelligence() {
                           ) : exploreDateSourceMode === 'environmental_parameter' ? (
                             <p className="si-explore-datetime-linked-hint">
                               Search uses the <strong>Environmental Index</strong> time range (
-                              {ENVIRONMENTAL_INDICES[selectedIndex].label}): you can edit the dates below or change{' '}
+                              {selectedIndexConfig.label}): you can edit the dates below or change{' '}
                               <strong>Time series</strong> in the Source panel.
                             </p>
                           ) : (
@@ -8398,7 +8405,7 @@ export default function SatelliteIntelligence() {
                                   Show{' '}
                                   <strong>
                                     {remoteSensingLayerOptions.find(o => o.id === wmsLayerSelectValue)?.label ??
-                                      ENVIRONMENTAL_INDICES[selectedIndex].label}
+                                      selectedIndexConfig.label}
                                   </strong>{' '}
                                   on map
                                 </span>
