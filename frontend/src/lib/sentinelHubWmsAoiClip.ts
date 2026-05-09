@@ -182,6 +182,39 @@ function multiPolygon3857Wkt(rings: [number, number][][]): string {
   return `MULTIPOLYGON(${parts})`;
 }
 
+/** Axis-aligned WGS84 bbox of all vertices → small EPSG:3857 POLYGON (fits tight URL limits). */
+function bbox3857WktFromOuterRings(outerRings: [number, number][][]): string {
+  let minLng = Infinity;
+  let maxLng = -Infinity;
+  let minLat = Infinity;
+  let maxLat = -Infinity;
+  for (const ring of outerRings) {
+    for (const [lng, lat] of ring) {
+      minLng = Math.min(minLng, lng);
+      maxLng = Math.max(maxLng, lng);
+      minLat = Math.min(minLat, lat);
+      maxLat = Math.max(maxLat, lat);
+    }
+  }
+  if (!Number.isFinite(minLng) || maxLng <= minLng || maxLat <= minLat) {
+    return polygon3857WktFromRing([
+      [-180, -85],
+      [180, -85],
+      [180, 85],
+      [-180, 85],
+      [-180, -85],
+    ]);
+  }
+  const pad = 1e-5;
+  return polygon3857WktFromRing([
+    [minLng - pad, minLat - pad],
+    [maxLng + pad, minLat - pad],
+    [maxLng + pad, maxLat + pad],
+    [minLng - pad, maxLat + pad],
+    [minLng - pad, minLat - pad],
+  ]);
+}
+
 export function inferWmsEvalProfile(layerName: string): WmsAoiEvalProfile {
   const u = String(layerName || '').toUpperCase();
   if (u.includes('GNDVI')) return 'gndvi';
@@ -207,6 +240,9 @@ function buildEvalscriptV3(profile: WmsAoiEvalProfile, indexVisibilityMin: numbe
       ? 'var __a = s.dataMask;'
       : `var __a = s.dataMask * ((${indexVar}) >= ${thr} ? 1 : 0);`;
 
+  /** Explicit FLOAT32 avoids AUTO sample-type ambiguity in some OGC GetMap PNG paths. */
+  const outRgba = 'output: { bands: 4, sampleType: "FLOAT32" }';
+
   switch (profile) {
     case 'true_color':
     case 'generic_rgb':
@@ -214,39 +250,37 @@ function buildEvalscriptV3(profile: WmsAoiEvalProfile, indexVisibilityMin: numbe
 function setup() {
   return {
     input: ["B02", "B03", "B04", "dataMask"],
-    output: { bands: 4, sampleType: "AUTO" }
+    ${outRgba}
   };
 }
 function evaluatePixel(s) {
-  return [
-    Math.max(0, Math.min(1, s.B04 * 2.5)),
-    Math.max(0, Math.min(1, s.B03 * 2.5)),
-    Math.max(0, Math.min(1, s.B02 * 2.5)),
-    s.dataMask
-  ];
+  var r = Math.max(0, Math.min(1, s.B04 * 2.5));
+  var g = Math.max(0, Math.min(1, s.B03 * 2.5));
+  var b = Math.max(0, Math.min(1, s.B02 * 2.5));
+  var a = Math.max(0, Math.min(1, s.dataMask));
+  return [r, g, b, a];
 }`;
     case 'false_color':
       return `//VERSION=3
 function setup() {
   return {
     input: ["B02", "B03", "B04", "B08", "dataMask"],
-    output: { bands: 4, sampleType: "AUTO" }
+    ${outRgba}
   };
 }
 function evaluatePixel(s) {
-  return [
-    Math.max(0, Math.min(1, s.B08 * 2.5)),
-    Math.max(0, Math.min(1, s.B04 * 2.5)),
-    Math.max(0, Math.min(1, s.B03 * 2.5)),
-    s.dataMask
-  ];
+  var r = Math.max(0, Math.min(1, s.B08 * 2.5));
+  var g = Math.max(0, Math.min(1, s.B04 * 2.5));
+  var b = Math.max(0, Math.min(1, s.B03 * 2.5));
+  var a = Math.max(0, Math.min(1, s.dataMask));
+  return [r, g, b, a];
 }`;
     case 'ndvi':
       return `//VERSION=3
 function setup() {
   return {
     input: ["B02", "B03", "B04", "B08", "dataMask"],
-    output: { bands: 4, sampleType: "AUTO" }
+    ${outRgba}
   };
 }
 ${V3_INDEX_RAMP_HELPERS}
@@ -263,7 +297,7 @@ function evaluatePixel(s) {
 function setup() {
   return {
     input: ["B02", "B03", "B04", "B08", "dataMask"],
-    output: { bands: 4, sampleType: "AUTO" }
+    ${outRgba}
   };
 }
 ${V3_INDEX_RAMP_HELPERS}
@@ -280,7 +314,7 @@ function evaluatePixel(s) {
 function setup() {
   return {
     input: ["B02", "B03", "B04", "B08", "dataMask"],
-    output: { bands: 4, sampleType: "AUTO" }
+    ${outRgba}
   };
 }
 ${V3_INDEX_RAMP_HELPERS}
@@ -298,7 +332,7 @@ function evaluatePixel(s) {
 function setup() {
   return {
     input: ["B04", "B08", "B11", "dataMask"],
-    output: { bands: 4, sampleType: "AUTO" }
+    ${outRgba}
   };
 }
 ${V3_INDEX_RAMP_HELPERS}
@@ -315,7 +349,7 @@ function evaluatePixel(s) {
 function setup() {
   return {
     input: ["B03", "B08", "dataMask"],
-    output: { bands: 4, sampleType: "AUTO" }
+    ${outRgba}
   };
 }
 ${V3_INDEX_RAMP_HELPERS}
@@ -332,7 +366,7 @@ function evaluatePixel(s) {
 function setup() {
   return {
     input: ["B02", "B04", "B08", "dataMask"],
-    output: { bands: 4, sampleType: "AUTO" }
+    ${outRgba}
   };
 }
 ${V3_INDEX_RAMP_HELPERS}
@@ -382,15 +416,16 @@ export function buildSentinelHubWmsAoiClip(
   layerName: string,
   options?: BuildSentinelHubWmsAoiClipOptions,
 ): { geometryWkt3857: string | null; evalscriptB64: string | null } {
-  const geom = getDrawnGeometry(drawn);
-  if (!geom) {
-    return { geometryWkt3857: null, evalscriptB64: null };
-  }
-
   const profile = inferWmsEvalProfile(layerName);
   const indexMin = options?.indexVisibilityMin ?? null;
   const evalPlain = buildEvalscriptV3(profile, indexMin);
-  let evalscriptB64: string | null = evalscriptToBase64Param(evalPlain);
+  const evalscriptB64: string | null = evalscriptToBase64Param(evalPlain);
+
+  const geom = getDrawnGeometry(drawn);
+  if (!geom) {
+    /** Without AOI we still send EVALSCRIPT so indices render as RGB ramps (not catalog grayscale). */
+    return { geometryWkt3857: null, evalscriptB64 };
+  }
 
   const outerRings: [number, number][][] = [];
   if (geom.type === 'Polygon') {
@@ -416,8 +451,9 @@ export function buildSentinelHubWmsAoiClip(
     geometryWkt3857 = multiPolygon3857Wkt(outerRings.map(r => decimateMax(r, 12)));
   }
 
+  /** Never drop EVALSCRIPT — catalog defaults are often single-band gray; use AOI bbox instead of omitting symbology. */
   if (geometryWkt3857.length > MAX_WKT_CHARS + 500) {
-    evalscriptB64 = null;
+    geometryWkt3857 = bbox3857WktFromOuterRings(outerRings);
   }
 
   return { geometryWkt3857, evalscriptB64 };

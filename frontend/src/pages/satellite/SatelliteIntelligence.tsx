@@ -6693,11 +6693,11 @@ export default function SatelliteIntelligence() {
 
   /** Legend bins aligned with AOI EVALSCRIPT thematic ramps (updates when AOI or layer changes). */
   const wmsThematicLegendBins = useMemo(() => {
-    if (!drawnGeometry || !sentinelHubWmsAoiClip.evalscriptB64 || !activeWmsLayer.trim()) return null;
+    if (!sentinelHubWmsAoiClip.evalscriptB64 || !activeWmsLayer.trim()) return null;
     const profile = inferWmsEvalProfile(activeWmsLayer);
     if (!isThematicWmsProfile(profile)) return null;
     return getSentinelWmsThematicLegendBins(profile);
-  }, [drawnGeometry, sentinelHubWmsAoiClip.evalscriptB64, activeWmsLayer]);
+  }, [sentinelHubWmsAoiClip.evalscriptB64, activeWmsLayer]);
 
   /**
    * Limits Sentinel WMS tile requests to the AOI bounding box (extract-by-mask style for tiles).
