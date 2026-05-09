@@ -274,9 +274,20 @@ export function SatelliteContextualAnalysisDock(props: SatelliteContextualAnalys
           <button
             type="button"
             className={'si-sat-ctx-rail-collapse' + (railLabeled ? ' si-sat-ctx-rail-collapse--labeled' : '')}
-            title={railLabeled ? 'Collapse sidebar (icons only)' : 'Expand sidebar (show labels)'}
-            aria-label={railLabeled ? 'Collapse sidebar' : 'Expand sidebar'}
-            onClick={() => setRailLabeled(v => !v)}
+            title={
+              railLabeled
+                ? 'Collapse sidebar: close panel if open, then icon-only rail'
+                : 'Expand sidebar (show labels)'
+            }
+            aria-label={railLabeled ? 'Collapse sidebar and close panel' : 'Expand sidebar'}
+            onClick={() => {
+              if (railLabeled) {
+                if (panelOpen) closePanel()
+                setRailLabeled(false)
+              } else {
+                setRailLabeled(true)
+              }
+            }}
           >
             <i className={railLabeled ? 'fa-solid fa-angles-right' : 'fa-solid fa-angles-left'} aria-hidden />
             {railLabeled ? <span className="si-sat-ctx-rail-collapse-text">Collapse</span> : null}
