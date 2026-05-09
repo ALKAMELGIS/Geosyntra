@@ -1,6 +1,13 @@
 import { useEffect, useMemo, useRef, useState, type ChangeEvent, type ReactNode } from 'react'
 import './Profile.css'
-import { normalizeEmail, normalizeRole, readCurrentUser, startSession, type CurrentUser } from '../../lib/auth'
+import {
+  normalizeEmail,
+  normalizeRole,
+  readCurrentUser,
+  startSession,
+  type CurrentUser,
+  type Role,
+} from '../../lib/auth'
 import { useLanguage } from '../../lib/i18n'
 import {
   hydrateProfileFromServer,
@@ -177,7 +184,6 @@ const profileCopy = {
     coverCustomization: 'Cover customization',
     themePersonalization: 'Theme personalization',
     privacyAccount: 'Privacy & account',
-    dragDropAvatar: 'Drag & drop avatar or click camera',
     dragDropCover: 'Drag & drop cover image here',
     smartFallback: 'Smart fallback avatar',
     profileTheme: 'Profile theme',
@@ -244,7 +250,6 @@ const profileCopy = {
     coverCustomization: 'تخصيص الغلاف',
     themePersonalization: 'تخصيص المظهر',
     privacyAccount: 'الخصوصية والحساب',
-    dragDropAvatar: 'اسحب وأفلت الصورة أو اضغط أيقونة الكاميرا',
     dragDropCover: 'اسحب وأفلت صورة الغلاف هنا',
     smartFallback: 'صورة افتراضية ذكية',
     profileTheme: 'نسق الملف الشخصي',
@@ -346,11 +351,18 @@ export default function Profile() {
   const saveResetRef = useRef<number | null>(null)
   const [stagedGate, setStagedGate] = useState<StagedProfileCommit | null>(null)
   const profileHydratedEmailRef = useRef<string | null>(null)
+  /** Bumps when another tab updates `adminUsers` so directory-backed fields re-render. */
+  const [directoryRev, setDirectoryRev] = useState(0)
 
   useEffect(() => {
-    const refresh = () => setMe(readCurrentUser())
-    window.addEventListener('storage', refresh)
-    return () => window.removeEventListener('storage', refresh)
+    const onStorage = (e: StorageEvent) => {
+      setMe(readCurrentUser())
+      if (e.key == null || e.key === 'adminUsers' || e.key === 'currentUser') {
+        setDirectoryRev(v => v + 1)
+      }
+    }
+    window.addEventListener('storage', onStorage)
+    return () => window.removeEventListener('storage', onStorage)
   }, [])
 
   useEffect(() => {
@@ -388,21 +400,37 @@ export default function Profile() {
     }
   }, [me?.email, avatarTick])
 
-  const records = parseManagementUsers()
+  const records = useMemo(() => parseManagementUsers(), [directoryRev])
+
   const mgmt =
     me?.email != null
       ? records.find(u => normalizeEmail(u.email) === normalizeEmail(me.email)) ?? null
       : null
 
-  const currentRole = normalizeRole(me?.role)
+  /** Canonical role from User Management when listed in admin directory; else session role. */
+  const displayRole: Role = mgmt != null ? normalizeRole(mgmt.role) : normalizeRole(me?.role)
   const managerLabel = mgmt?.managedById != null ? resolveManagerName(records, mgmt.managedById) : null
 
   const split = me ? splitDisplayName(me.name) : { first: '', last: '' }
   const firstName = extra.firstName?.trim() || split.first
   const lastName = extra.lastName?.trim() || split.last
   const displayName = [firstName, lastName].filter(Boolean).join(' ').trim() || me?.name || ''
+  const heroDisplayName = (mgmt?.name?.trim() || displayName).trim() || me?.name || ''
 
-  const locationLine = [extra.city?.trim(), extra.country?.trim()].filter(Boolean).join(', ') || me?.scope?.trim() || text.none
+  const locationLine =
+    mgmt?.scope?.trim() ||
+    [extra.city?.trim(), extra.country?.trim()].filter(Boolean).join(', ') ||
+    me?.scope?.trim() ||
+    text.none
+
+  useEffect(() => {
+    if (!me?.email || !mgmt) return
+    const nextRole = normalizeRole(mgmt.role)
+    const nextScope = mgmt.scope?.trim() || undefined
+    if (normalizeRole(me.role) === nextRole && (me.scope?.trim() || '') === (nextScope || '')) return
+    startSession({ ...me, role: nextRole, scope: nextScope }, { persist: shouldPersistSession() })
+    setMe(readCurrentUser())
+  }, [me?.email, me?.role, me?.scope, mgmt?.role, mgmt?.scope])
 
   const avatarSrc = useMemo(() => {
     if (!me?.email) return ''
@@ -410,10 +438,10 @@ export default function Profile() {
     if (bundle.avatarDataUrl?.trim()) return bundle.avatarDataUrl
     return ''
   }, [me?.email, avatarTick])
-  const avatarInitials = useMemo(() => initialsFromName(displayName || me?.name || ''), [displayName, me?.name])
+  const avatarInitials = useMemo(() => initialsFromName(heroDisplayName || me?.name || ''), [heroDisplayName, me?.name])
   const avatarGradient = useMemo(
-    () => gradientFromSeed(`${me?.email || ''}:${displayName || me?.name || ''}`),
-    [me?.email, me?.name, displayName],
+    () => gradientFromSeed(`${me?.email || ''}:${heroDisplayName || me?.name || ''}`),
+    [me?.email, me?.name, heroDisplayName],
   )
 
   useEffect(() => {
@@ -716,11 +744,11 @@ export default function Profile() {
                   setAvatarDropActive(false)
                   onAvatarDrop(e.dataTransfer.files)
                 }}
-                title={text.dragDropAvatar}
+                title={text.changePhoto}
               >
                 <div className="profile-avatar-ring" aria-hidden>
                   {avatarSrc ? (
-                    <img className="profile-avatar-img" src={avatarSrc} alt="" width={120} height={120} decoding="async" />
+                    <img className="profile-avatar-img" src={avatarSrc} alt="" width={152} height={152} decoding="async" />
                   ) : (
                     <div
                       className="profile-avatar-empty"
@@ -734,13 +762,12 @@ export default function Profile() {
                 <button type="button" className="profile-avatar-camera" onClick={() => fileRef.current?.click()} aria-label={text.changePhoto}>
                   <i className="fa-solid fa-camera" aria-hidden />
                 </button>
-                <div className="profile-avatar-drop-hint">{text.dragDropAvatar}</div>
               </div>
               <div className="profile-hero-text">
-                <h2 className="profile-hero-name">{displayName}</h2>
+                <h2 className="profile-hero-name">{heroDisplayName}</h2>
                 <p className="profile-hero-meta">
                   <span className="profile-hero-label">{text.roleLine}</span>
-                  <span className="profile-hero-value">{roleLabel(normalizeRole(me.role), language)}</span>
+                  <span className="profile-hero-value">{roleLabel(displayRole, language)}</span>
                 </p>
                 <p className="profile-hero-meta">
                   <span className="profile-hero-label">{text.locationLine}</span>
@@ -769,7 +796,7 @@ export default function Profile() {
                   <FieldCell label={text.dateOfBirth} value={formatDobDisplay(extra.dateOfBirth, locale) || text.none} />
                   <FieldCell label={text.emailAddress} value={extra.hideEmailOnProfile ? '••••••' : me.email} />
                   <FieldCell label={text.phoneNumber} value={extra.hidePhoneOnProfile ? '••••••' : extra.phone?.trim() || text.none} />
-                  <FieldCell label={text.userRole} value={roleLabel(normalizeRole(me.role), language)} muted />
+                  <FieldCell label={text.userRole} value={roleLabel(displayRole, language)} muted />
                 </div>
               ) : (
                 <>
@@ -814,7 +841,7 @@ export default function Profile() {
                     </div>
                     <div>
                       <div className="profile-field-label">{text.userRole}</div>
-                      <input className="profile-input" value={roleLabel(normalizeRole(me.role), language)} disabled />
+                      <input className="profile-input" value={roleLabel(displayRole, language)} disabled />
                     </div>
                   </div>
                   <div className="profile-edit-actions">
@@ -907,13 +934,23 @@ export default function Profile() {
                   </div>
                 </div>
                 <ProfileRows
-                  rows={[
-                    [text.userId, String(me.id)],
-                    [text.fullName, me.name],
-                    [text.email, extra.hideEmailOnProfile ? '••••••' : me.email],
-                    [text.role, roleLabel(normalizeRole(me.role), language)],
-                    [text.scope, me.scope?.trim() ? me.scope : text.none],
-                  ]}
+                  rows={
+                    mgmt
+                      ? [
+                          [text.userId, String(mgmt.id)],
+                          [text.fullName, mgmt.name],
+                          [text.email, extra.hideEmailOnProfile ? '••••••' : mgmt.email],
+                          [text.role, roleLabel(displayRole, language)],
+                          [text.scope, mgmt.scope?.trim() ? mgmt.scope : text.none],
+                        ]
+                      : [
+                          [text.userId, String(me.id)],
+                          [text.fullName, me.name],
+                          [text.email, extra.hideEmailOnProfile ? '••••••' : me.email],
+                          [text.role, roleLabel(displayRole, language)],
+                          [text.scope, me.scope?.trim() ? me.scope : text.none],
+                        ]
+                  }
                   dir={dir}
                 />
               </section>
@@ -933,7 +970,7 @@ export default function Profile() {
                       [text.userId, String(mgmt.id)],
                       [text.fullName, mgmt.name],
                       [text.email, extra.hideEmailOnProfile ? '••••••' : mgmt.email],
-                      [text.role, roleLabel(normalizeRole(mgmt.role), language)],
+                      [text.role, roleLabel(displayRole, language)],
                       [text.scope, mgmt.scope?.trim() ? mgmt.scope : text.none],
                       [text.status, extra.allowActivityStatus === false ? text.none : <StatusPill key="st" status={mgmt.status} />],
                       [text.lastLogin, mgmt.lastLogin],
