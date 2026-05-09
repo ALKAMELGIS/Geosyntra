@@ -39,7 +39,12 @@ import { getArcgisPortalToken } from '../../lib/arcgisPortalToken';
 import { getMapboxAccessToken } from '../../lib/mapboxAccessToken';
 import { subscribeSentinelHubAccessToken } from '../../lib/sentinelHubAccessToken';
 import { getSentinelHubWmsBaseUrl, subscribeSentinelHubWmsInstance } from '../../lib/sentinelHubWmsInstance';
-import { buildSentinelHubWmsAoiClip } from '../../lib/sentinelHubWmsAoiClip';
+import {
+  buildSentinelHubWmsAoiClip,
+  getSentinelWmsThematicLegendBins,
+  inferWmsEvalProfile,
+  isThematicWmsProfile,
+} from '../../lib/sentinelHubWmsAoiClip';
 import {
   GEO_AI_COPILOT_RULES,
   lastMapQueryCoordsFromMessages,
@@ -6792,6 +6797,14 @@ export default function SatelliteIntelligence() {
     sentinelHubWmsAoiClip.evalscriptB64,
   ]);
 
+  /** Legend bins aligned with AOI EVALSCRIPT thematic ramps (updates when AOI or layer changes). */
+  const wmsThematicLegendBins = useMemo(() => {
+    if (!drawnGeometry || !sentinelHubWmsAoiClip.evalscriptB64 || !activeWmsLayer.trim()) return null;
+    const profile = inferWmsEvalProfile(activeWmsLayer);
+    if (!isThematicWmsProfile(profile)) return null;
+    return getSentinelWmsThematicLegendBins(profile);
+  }, [drawnGeometry, sentinelHubWmsAoiClip.evalscriptB64, activeWmsLayer]);
+
   /**
    * Limits Sentinel WMS tile requests to the AOI bounding box (extract-by-mask style for tiles).
    * Basemap layers are unaffected; only the raster overlay source uses these bounds.
@@ -7255,7 +7268,13 @@ export default function SatelliteIntelligence() {
                   type="raster"
                   paint={{
                     'raster-opacity': (sentinelHubWmsAoiClip.evalscriptB64 ? 1 : 0.85) * aoiSketchOpacity,
-                    'raster-fade-duration': 0
+                    'raster-fade-duration':
+                      drawnGeometry && sentinelHubWmsAoiClip.evalscriptB64
+                        ? typeof window !== 'undefined' &&
+                          window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches
+                          ? 0
+                          : 420
+                        : 0,
                   }}
                 />
               </Source>
@@ -8435,6 +8454,34 @@ export default function SatelliteIntelligence() {
                                   on map
                                 </span>
                               </label>
+                            </div>
+                          ) : null}
+                          {wmsThematicLegendBins && wmsThematicLegendBins.length ? (
+                            <div className="si-wms-aoi-legend" role="region" aria-label="Thematic index scale inside AOI">
+                              <div className="si-wms-aoi-legend__title">
+                                {remoteSensingLayerOptions.find(o => o.id === wmsLayerSelectValue)?.label ?? activeWmsLayer}{' '}
+                                <span className="si-wms-aoi-legend__badge">AOI mask</span>
+                              </div>
+                              <div className="si-wms-aoi-legend__bar" aria-hidden>
+                                {wmsThematicLegendBins.map((b, i) => (
+                                  <span
+                                    key={`${b.color}-${i}`}
+                                    className="si-wms-aoi-legend__seg"
+                                    style={{ background: b.color }}
+                                    title={b.label}
+                                  />
+                                ))}
+                              </div>
+                              <div className="si-wms-aoi-legend__labels">
+                                {wmsThematicLegendBins.map((b, i) => (
+                                  <span key={`${b.label}-${i}`} className="si-wms-aoi-legend__lab">
+                                    {b.label}
+                                  </span>
+                                ))}
+                              </div>
+                              <p className="si-wms-aoi-legend__hint">
+                                Thematic colors render only inside the AOI; the basemap stays visible outside.
+                              </p>
                             </div>
                           ) : null}
                         </div>

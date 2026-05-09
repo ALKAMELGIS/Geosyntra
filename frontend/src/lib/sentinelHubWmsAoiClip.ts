@@ -12,7 +12,73 @@ export type WmsAoiEvalProfile =
   | 'ndmi'
   | 'ndwi'
   | 'evi'
+  | 'savi'
   | 'generic_rgb';
+
+/** Bins for UI legend — value ranges are indicative for typical index domains (−1…1). */
+export type WmsThematicLegendBin = {
+  label: string
+  color: string
+};
+
+const V3_INDEX_RAMP_HELPERS = `function _clamp(x,a,b){return Math.max(a,Math.min(b,x));}
+function _rRdYlGn(t){
+  t=_clamp(t,0,1);
+  if(t<0.5){var u=t/0.5;return[1,u,0];}
+  var v=(t-0.5)/0.5;return[1-v,1,0];
+}
+function _rMoist(t){
+  t=_clamp(t,0,1);
+  return[0.12+0.33*t,0.45+0.45*t,0.95-0.62*t];
+}
+`;
+
+function rgb01ToHex(r: number, g: number, b: number): string {
+  const h = (n: number) =>
+    Math.max(0, Math.min(255, Math.round(n * 255)))
+      .toString(16)
+      .padStart(2, '0')
+  return `#${h(r)}${h(g)}${h(b)}`
+}
+
+function rampRdYlGn01(t: number): [number, number, number] {
+  const c = Math.max(0, Math.min(1, t))
+  if (c < 0.5) {
+    const u = c / 0.5
+    return [1, u, 0]
+  }
+  const v = (c - 0.5) / 0.5
+  return [1 - v, 1, 0]
+}
+
+function rampMoist01(t: number): [number, number, number] {
+  const x = Math.max(0, Math.min(1, t))
+  return [0.12 + 0.33 * x, 0.45 + 0.45 * x, 0.95 - 0.62 * x]
+}
+
+/** AOI WMS uses a custom EVALSCRIPT for these profiles (thematic RGBA, not raw RGB). */
+export function isThematicWmsProfile(profile: WmsAoiEvalProfile): boolean {
+  return profile === 'ndvi' || profile === 'gndvi' || profile === 'ndmi' || profile === 'ndwi' || profile === 'evi' || profile === 'savi'
+}
+
+export function getSentinelWmsThematicLegendBins(profile: WmsAoiEvalProfile): WmsThematicLegendBin[] {
+  if (!isThematicWmsProfile(profile)) return []
+  const moist = profile === 'ndmi' || profile === 'ndwi'
+  const edges = [-1, -0.6, -0.2, 0.2, 0.6, 1]
+  const out: WmsThematicLegendBin[] = []
+  for (let i = 0; i < edges.length - 1; i++) {
+    const lo = edges[i]!
+    const hi = edges[i + 1]!
+    const mid = (lo + hi) / 2
+    const t = (mid + 1) * 0.5
+    const rgb = moist ? rampMoist01(t) : rampRdYlGn01(t)
+    out.push({
+      label: `${lo.toFixed(1)} … ${hi.toFixed(1)}`,
+      color: rgb01ToHex(rgb[0], rgb[1], rgb[2]),
+    })
+  }
+  return out
+}
 
 export type BuildSentinelHubWmsAoiClipOptions = {
   /** When set (0–1), multiply alpha by (index >= minIndex) for index-style profiles (e.g. NDVI). Ignored for RGB-only profiles. */
@@ -119,6 +185,7 @@ function multiPolygon3857Wkt(rings: [number, number][][]): string {
 export function inferWmsEvalProfile(layerName: string): WmsAoiEvalProfile {
   const u = String(layerName || '').toUpperCase();
   if (u.includes('GNDVI')) return 'gndvi';
+  if (u.includes('SAVI')) return 'savi';
   if (u.includes('NDRE') || u.includes('BSI')) return 'generic_rgb';
   if (u.includes('NDVI')) return 'ndvi';
   if (u.includes('EVI') && !u.includes('NEVI')) return 'evi';
@@ -182,16 +249,14 @@ function setup() {
     output: { bands: 4, sampleType: "AUTO" }
   };
 }
+${V3_INDEX_RAMP_HELPERS}
 function evaluatePixel(s) {
   var d = s.B08 + s.B04;
   var ndvi = d > 1e-6 ? (s.B08 - s.B04) / d : 0;
   ${alphaFromIndex('ndvi')}
-  return [
-    Math.max(0, Math.min(1, s.B04 * 2.5)),
-    Math.max(0, Math.min(1, s.B03 * 2.5)),
-    Math.max(0, Math.min(1, s.B02 * 2.5)),
-    __a
-  ];
+  var t = (ndvi + 1) * 0.5;
+  var c = _rRdYlGn(t);
+  return [c[0], c[1], c[2], __a];
 }`;
     case 'gndvi':
       return `//VERSION=3
@@ -201,12 +266,32 @@ function setup() {
     output: { bands: 4, sampleType: "AUTO" }
   };
 }
+${V3_INDEX_RAMP_HELPERS}
 function evaluatePixel(s) {
   var d = s.B08 + s.B03;
   var gndvi = d > 1e-6 ? (s.B08 - s.B03) / d : 0;
   ${alphaFromIndex('gndvi')}
-  var v = Math.max(0, Math.min(1, (gndvi + 0.12) / 1.24));
-  return [v, v, v, __a];
+  var t = (gndvi + 1) * 0.5;
+  var c = _rRdYlGn(t);
+  return [c[0], c[1], c[2], __a];
+}`;
+    case 'savi':
+      return `//VERSION=3
+function setup() {
+  return {
+    input: ["B02", "B03", "B04", "B08", "dataMask"],
+    output: { bands: 4, sampleType: "AUTO" }
+  };
+}
+${V3_INDEX_RAMP_HELPERS}
+function evaluatePixel(s) {
+  var L = 0.5;
+  var d = s.B08 + s.B04 + L;
+  var savi = d > 1e-6 ? (1 + L) * (s.B08 - s.B04) / d : 0;
+  ${alphaFromIndex('savi')}
+  var t = (savi + 1) * 0.5;
+  var c = _rRdYlGn(t);
+  return [c[0], c[1], c[2], __a];
 }`;
     case 'ndmi':
       return `//VERSION=3
@@ -216,12 +301,14 @@ function setup() {
     output: { bands: 4, sampleType: "AUTO" }
   };
 }
+${V3_INDEX_RAMP_HELPERS}
 function evaluatePixel(s) {
   var d = s.B08 + s.B11;
   var ndmi = d > 1e-6 ? (s.B08 - s.B11) / d : 0;
   ${alphaFromIndex('ndmi')}
-  var v = Math.max(0, Math.min(1, (ndmi + 0.35) / 1.3));
-  return [v, v * 0.85, 1 - v * 0.45, __a];
+  var t = (ndmi + 1) * 0.5;
+  var c = _rMoist(t);
+  return [c[0], c[1], c[2], __a];
 }`;
     case 'ndwi':
       return `//VERSION=3
@@ -231,12 +318,14 @@ function setup() {
     output: { bands: 4, sampleType: "AUTO" }
   };
 }
+${V3_INDEX_RAMP_HELPERS}
 function evaluatePixel(s) {
   var d = s.B08 + s.B03;
   var ndwi = d > 1e-6 ? (s.B03 - s.B08) / d : 0;
   ${alphaFromIndex('ndwi')}
-  var v = Math.max(0, Math.min(1, (ndwi + 0.35) / 1.2));
-  return [v * 0.35, v * 0.75, 0.92 - v * 0.35, __a];
+  var t = (ndwi + 1) * 0.5;
+  var c = _rMoist(t);
+  return [c[0], c[1], c[2], __a];
 }`;
     case 'evi':
       return `//VERSION=3
@@ -246,11 +335,14 @@ function setup() {
     output: { bands: 4, sampleType: "AUTO" }
   };
 }
+${V3_INDEX_RAMP_HELPERS}
 function evaluatePixel(s) {
-  var evi = 2.5 * ((s.B08 - s.B04) / (s.B08 + 6 * s.B04 - 7.5 * s.B02 + 1));
+  var den = s.B08 + 6 * s.B04 - 7.5 * s.B02 + 1;
+  var evi = den > 1e-6 ? 2.5 * ((s.B08 - s.B04) / den) : 0;
   ${alphaFromIndex('evi')}
-  var v = Math.max(0, Math.min(1, (evi + 0.2) / 1.4));
-  return [v * 0.9, v, v * 0.55, __a];
+  var t = _clamp((evi + 0.25) / 1.5, 0, 1);
+  var c = _rRdYlGn(t);
+  return [c[0], c[1], c[2], __a];
 }`;
     default:
       return buildEvalscriptV3('generic_rgb', null);
