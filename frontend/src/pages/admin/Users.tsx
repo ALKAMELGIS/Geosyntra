@@ -32,6 +32,40 @@ type SortConfig = {
   direction: 'asc' | 'desc'
 }
 
+function adminUserInitials(name: string): string {
+  const parts = name.trim().split(/\s+/).filter(Boolean)
+  if (!parts.length) return '?'
+  const first = parts[0]?.[0] ?? ''
+  const second = parts[1]?.[0] ?? parts[0]?.[1] ?? ''
+  return `${first}${second}`.toUpperCase()
+}
+
+function adminAvatarFallbackBg(seed: string): string {
+  const s = seed || 'user'
+  let hash = 0
+  for (let i = 0; i < s.length; i++) hash = (hash * 31 + s.charCodeAt(i)) | 0
+  const hue = Math.abs(hash) % 360
+  return `linear-gradient(145deg, hsl(${hue} 52% 44%), hsl(${(hue + 42) % 360} 56% 50%))`
+}
+
+function AdminUserAvatar({ email, name, large }: { email: string; name: string; large?: boolean }) {
+  const url = readProfileExtra(email).avatarDataUrl?.trim()
+  const base = 'admin-users__avatar' + (large ? ' admin-users__avatar--lg' : '')
+  if (url) {
+    return <img src={url} alt="" className={base} />
+  }
+  return (
+    <div
+      className={`${base} admin-users__avatar-fallback`}
+      style={{ background: adminAvatarFallbackBg(email) }}
+      aria-hidden
+      title={name}
+    >
+      {adminUserInitials(name)}
+    </div>
+  )
+}
+
 export default function Users({ embedded }: { embedded?: boolean } = {}) {
   const navigate = useNavigate()
   const isEmbedded = Boolean(embedded)
@@ -160,11 +194,6 @@ export default function Users({ embedded }: { embedded?: boolean } = {}) {
         }, 420)
       }, 2600)
     } catch {}
-  }
-
-  const readProfileAvatar = (email: string): string | null => {
-    const url = readProfileExtra(email).avatarDataUrl?.trim()
-    return url || null
   }
 
   const toggleSelected = (id: number) => {
@@ -977,7 +1006,6 @@ export default function Users({ embedded }: { embedded?: boolean } = {}) {
           {isNarrow ? (
             <div style={{ display: 'grid', gap: 10 }}>
               {paginatedUsers.map((user) => {
-                const avatar = readProfileAvatar(user.email) || `${import.meta.env.BASE_URL}avatars/emirati-farmer.svg`
                 const manageable = canManageUser(user)
                 const checked = selectedIds.includes(user.id)
                 return (
@@ -991,7 +1019,7 @@ export default function Users({ embedded }: { embedded?: boolean } = {}) {
                         aria-label={`Select ${user.email}`}
                       />
                       <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
-                        <img src={avatar} alt="" className="admin-users__avatar admin-users__avatar--lg" />
+                        <AdminUserAvatar email={user.email} name={user.name} large />
                         <div style={{ minWidth: 0 }}>
                           <div className="admin-users__cell-name">{user.name}</div>
                           <div className="admin-users__cell-email">{user.email}</div>
@@ -1101,7 +1129,6 @@ export default function Users({ embedded }: { embedded?: boolean } = {}) {
                 </thead>
                 <tbody>
                   {paginatedUsers.map(user => {
-                    const avatar = readProfileAvatar(user.email) || `${import.meta.env.BASE_URL}avatars/emirati-farmer.svg`
                     const manageable = canManageUser(user)
                     return (
                       <tr key={user.id} className="admin-users__tbody-row">
@@ -1109,7 +1136,7 @@ export default function Users({ embedded }: { embedded?: boolean } = {}) {
                           <input type="checkbox" checked={selectedIds.includes(user.id)} disabled={!manageable} onChange={() => toggleSelected(user.id)} aria-label={`Select ${user.email}`} />
                         </td>
                         <td className="admin-users__td">
-                          <img src={avatar} alt="" className="admin-users__avatar" />
+                          <AdminUserAvatar email={user.email} name={user.name} />
                         </td>
                         <td className="admin-users__td admin-users__td--strong">{user.name}</td>
                         <td className="admin-users__td admin-users__td--strong">{user.email}</td>

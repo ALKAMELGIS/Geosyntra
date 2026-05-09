@@ -531,6 +531,24 @@ html[data-theme='dark'] .admin-users__tbody-row:hover {
   height: 40px;
 }
 
+.admin-users__avatar-fallback {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  color: #fff;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.22);
+  flex-shrink: 0;
+  line-height: 1;
+}
+
+.admin-users__avatar--lg.admin-users__avatar-fallback {
+  font-size: 13px;
+}
+
 .admin-users__row-actions {
   display: flex;
   justify-content: flex-end;
