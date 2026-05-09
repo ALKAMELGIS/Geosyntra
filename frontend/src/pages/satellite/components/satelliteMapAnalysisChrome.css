@@ -426,10 +426,17 @@
   border-color: rgba(148, 163, 184, 0.35);
 }
 
-.si-aoi-static-line-theme-toggle {
+.si-aoi-static-line-actions {
   position: absolute;
   top: 8px;
   right: 8px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  z-index: 2;
+}
+
+.si-aoi-static-line-theme-toggle {
   width: 26px;
   height: 26px;
   border-radius: 8px;

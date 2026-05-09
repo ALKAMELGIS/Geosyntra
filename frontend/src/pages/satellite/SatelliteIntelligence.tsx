@@ -2428,58 +2428,113 @@ export default function SatelliteIntelligence() {
     return `P-${String(number).padStart(2, '0')}`;
   };
 
+  const pickFirstPolygonAoiFeature = (geojson: any): { type: 'Feature'; geometry: any; properties: Record<string, unknown> } | null => {
+    if (!geojson || typeof geojson !== 'object') return null;
+    if (geojson.type === 'Feature') {
+      const g = (geojson as any).geometry;
+      if (g?.type === 'Polygon' || g?.type === 'MultiPolygon') {
+        return {
+          type: 'Feature',
+          geometry: g,
+          properties: (geojson as any).properties || {},
+        };
+      }
+      return null;
+    }
+    if (geojson.type === 'FeatureCollection' && Array.isArray((geojson as any).features)) {
+      for (const ft of (geojson as any).features) {
+        const g = ft?.geometry;
+        if (g?.type === 'Polygon' || g?.type === 'MultiPolygon') {
+          return {
+            type: 'Feature',
+            geometry: g,
+            properties: ft?.properties || {},
+          };
+        }
+      }
+      return null;
+    }
+    if (geojson.type === 'Polygon' || geojson.type === 'MultiPolygon') {
+      return { type: 'Feature', geometry: geojson, properties: {} };
+    }
+    return null;
+  };
+
+  const applyUploadedAoiToAnalysis = (geojson: any, layerName: string) => {
+    const feature = pickFirstPolygonAoiFeature(geojson);
+    if (!feature) return false;
+    setGeomUndoStack([]);
+    setGeomRedoStack([]);
+    updateDrawnStats(feature as any);
+    setExploreExtentMode('drawn');
+    setMapDrawTool('select');
+    setMapDragPanEnabled(true);
+    setFieldAnalysisStatus(`AOI loaded from "${layerName}". You can run analysis inside this AOI.`);
+    return true;
+  };
+
+  const importAoiDataSourceFile = async (file: File) => {
+    const parsed = await parseFile(file);
+    if (parsed.type !== 'geojson') {
+      throw new Error('Selected file has no spatial geometry.');
+    }
+    const geo = parsed.data;
+    const polygonAoi = pickFirstPolygonAoiFeature(geo);
+    if (!polygonAoi) {
+      throw new Error('AOI must contain at least one Polygon or MultiPolygon geometry.');
+    }
+
+    const id = `custom-${Date.now()}-${file.name}`;
+    const layerName = addLayerName.trim() || file.name;
+    setCustomLayers(prev => [
+      ...prev,
+      {
+        id,
+        name: layerName,
+        geojson: geo,
+        visible: true,
+        source: 'upload',
+      }
+    ]);
+    setAddLayerStatus(`Imported AOI data source: ${layerName}`);
+    setAddLayerName('');
+    setIsAddLayerModalOpen(false);
+
+    const bounds = getGeoJsonBounds(geo);
+    if (bounds) {
+      const [minX, minY, maxX, maxY] = bounds;
+      const mapInstance = mapRef.current?.getMap ? mapRef.current.getMap() : mapRef.current;
+      if (mapInstance && typeof mapInstance.fitBounds === 'function') {
+        mapInstance.fitBounds(
+          [
+            [minX, minY],
+            [maxX, maxY]
+          ],
+          { padding: 80, duration: 800 }
+        );
+      } else {
+        const centerLng = (minX + maxX) / 2;
+        const centerLat = (minY + maxY) / 2;
+        setViewState(prev => ({
+          ...prev,
+          longitude: centerLng,
+          latitude: centerLat,
+          zoom: Math.max(prev.zoom, 13)
+        }));
+      }
+    }
+    applyUploadedAoiToAnalysis(geo, layerName);
+  };
+
   const handleLayerFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
 
     try {
-      const parsed = await parseFile(file);
-      if (parsed.type === 'geojson') {
-        const id = `custom-${Date.now()}-${file.name}`;
-        setCustomLayers(prev => [
-          ...prev,
-          {
-            id,
-            name: addLayerName.trim() || file.name,
-            geojson: parsed.data,
-            visible: true,
-            source: 'upload',
-          }
-        ]);
-        setAddLayerStatus(`Imported layer: ${addLayerName.trim() || file.name}`);
-        setAddLayerName('');
-        setIsAddLayerModalOpen(false);
-
-        const bounds = getGeoJsonBounds(parsed.data);
-        if (bounds) {
-          const [minX, minY, maxX, maxY] = bounds;
-          const mapInstance = mapRef.current?.getMap ? mapRef.current.getMap() : mapRef.current;
-          if (mapInstance && typeof mapInstance.fitBounds === 'function') {
-            mapInstance.fitBounds(
-              [
-                [minX, minY],
-                [maxX, maxY]
-              ],
-              { padding: 80, duration: 800 }
-            );
-          } else {
-            const centerLng = (minX + maxX) / 2;
-            const centerLat = (minY + maxY) / 2;
-            setViewState(prev => ({
-              ...prev,
-              longitude: centerLng,
-              latitude: centerLat,
-              zoom: Math.max(prev.zoom, 13)
-            }));
-          }
-        }
-      } else {
-        console.warn('Uploaded file does not contain spatial data');
-        setAddLayerStatus('Selected file has no spatial features.');
-      }
+      await importAoiDataSourceFile(file);
     } catch (error) {
       console.error('Failed to add layer', error);
-      setAddLayerStatus('Failed to import file layer.');
+      setAddLayerStatus(error instanceof Error ? error.message : 'Failed to import file layer.');
     } finally {
       event.target.value = '';
     }
@@ -2560,6 +2615,13 @@ export default function SatelliteIntelligence() {
     setGisContentCandidates([]);
     setAddingGisContentCandidateId(null);
     setIsAddLayerModalOpen(true);
+  };
+
+  const openAoiDataSourceUploader = () => {
+    openAddLayerModal();
+    setSiAddLayerWizard('source-forms');
+    setAddLayerTab('upload');
+    setAddLayerStatus('Upload AOI as SHP (.zip), KML/KMZ, or GeoJSON.');
   };
 
   const closeAddLayerModal = () => {
@@ -8418,6 +8480,15 @@ export default function SatelliteIntelligence() {
                               </label>
                             </div>
                           ) : null}
+                          <button
+                            type="button"
+                            className="si-field-analysis-aoi-upload-btn"
+                            onClick={openAoiDataSourceUploader}
+                            title="Add Data Source (AOI): SHP (.zip), KML/KMZ, GeoJSON"
+                          >
+                            <i className="fa-solid fa-cloud-arrow-up" aria-hidden />
+                            <span>Add Data Source (AOI)</span>
+                          </button>
                         </div>
 
                         <div className="si-field-analysis-section">
@@ -9377,14 +9448,28 @@ export default function SatelliteIntelligence() {
                       }
                     }}
                     onClick={() => handleUploadCustomLayerClick()}
+                    onDragOver={e => {
+                      e.preventDefault();
+                    }}
+                    onDrop={e => {
+                      e.preventDefault();
+                      const file = e.dataTransfer?.files?.[0];
+                      if (!file) return;
+                      void (async () => {
+                        try {
+                          await importAoiDataSourceFile(file);
+                        } catch (error) {
+                          setAddLayerStatus(error instanceof Error ? error.message : 'Failed to import dropped AOI file.');
+                        }
+                      })();
+                    }}
                   >
                     <div className="gis-dropzone-icon" aria-hidden>
                       <i className="fa-solid fa-upload" />
                     </div>
                     <div className="gis-dropzone-text">Drop a file here or click to browse</div>
                     <div className="gis-dropzone-subtext">
-                      Supports: GeoJSON, KML, KMZ, Shapefile (.zip), Raster Dataset (.tif/.tiff/.img/.vrt), Raster Layer, Mosaic Layer,
-                      Image Service, Map Server/Layer, Internet Tiled Layer, Folder.
+                      Supports: SHP (.zip), KML/KMZ, GeoJSON.
                     </div>
                   </div>
                   <input type="text" className="gis-input" placeholder="Layer Name (optional)" value={addLayerName} onChange={e => setAddLayerName(e.target.value)} />

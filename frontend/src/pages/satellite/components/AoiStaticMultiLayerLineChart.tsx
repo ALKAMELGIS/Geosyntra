@@ -165,17 +165,59 @@ export function AoiStaticMultiLayerLineChart({ title, labels, datasets, hasLst }
     );
   }
 
+  const exportChartToExcel = () => {
+    const escapeCsv = (value: string | number) => {
+      const raw = String(value ?? '');
+      if (/[",\n]/.test(raw)) return `"${raw.replace(/"/g, '""')}"`;
+      return raw;
+    };
+
+    const header = ['Date', ...datasets.map(ds => ds.label)];
+    const lines = [header.map(escapeCsv).join(',')];
+    for (let i = 0; i < labels.length; i++) {
+      const row = [labels[i] ?? ''];
+      for (const ds of datasets) {
+        const v = ds.data[i];
+        row.push(Number.isFinite(v) ? Number(v).toFixed(4) : '');
+      }
+      lines.push(row.map(escapeCsv).join(','));
+    }
+
+    const csv = lines.join('\n');
+    const stamp = new Date().toISOString().replace(/[:.]/g, '-');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `aoi-chart-${stamp}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
   return (
     <div className={`si-aoi-static-line-wrap ${isLight ? 'si-aoi-static-line-wrap--light' : 'si-aoi-static-line-wrap--dark'}`}>
-      <button
-        type="button"
-        className="si-aoi-static-line-theme-toggle"
-        aria-label={isLight ? 'Switch chart to dark theme' : 'Switch chart to light theme'}
-        title={isLight ? 'Dark chart theme' : 'Light chart theme'}
-        onClick={() => setChartTheme(prev => (prev === 'light' ? 'dark' : 'light'))}
-      >
-        <i className={`fa-solid ${isLight ? 'fa-moon' : 'fa-sun'}`} aria-hidden />
-      </button>
+      <div className="si-aoi-static-line-actions">
+        <button
+          type="button"
+          className="si-aoi-static-line-theme-toggle"
+          aria-label={isLight ? 'Switch chart to dark theme' : 'Switch chart to light theme'}
+          title={isLight ? 'Dark chart theme' : 'Light chart theme'}
+          onClick={() => setChartTheme(prev => (prev === 'light' ? 'dark' : 'light'))}
+        >
+          <i className={`fa-solid ${isLight ? 'fa-moon' : 'fa-sun'}`} aria-hidden />
+        </button>
+        <button
+          type="button"
+          className="si-aoi-static-line-theme-toggle"
+          aria-label="Export chart to Excel"
+          title="Export chart to Excel (.csv)"
+          onClick={exportChartToExcel}
+        >
+          <i className="fa-regular fa-file-excel" aria-hidden />
+        </button>
+      </div>
       <Line data={data} options={options} />
     </div>
   );

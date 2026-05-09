@@ -6251,6 +6251,31 @@ input.si-explore-date-input-linked[type='date'] {
   background: rgba(15, 23, 42, 0.35);
 }
 
+.si-field-analysis-aoi-upload-btn {
+  width: 100%;
+  margin-top: 10px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border: 1px solid rgba(34, 197, 94, 0.45);
+  border-radius: 12px;
+  background: linear-gradient(135deg, rgba(16, 185, 129, 0.2), rgba(14, 116, 144, 0.14));
+  color: #d1fae5;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  padding: 9px 10px;
+  cursor: pointer;
+  transition: border-color 0.18s ease, transform 0.18s ease, background 0.18s ease;
+}
+
+.si-field-analysis-aoi-upload-btn:hover {
+  border-color: rgba(52, 211, 153, 0.85);
+  background: linear-gradient(135deg, rgba(16, 185, 129, 0.3), rgba(14, 116, 144, 0.2));
+  transform: translateY(-1px);
+}
+
 .si-field-analysis-checkbox-row {
   display: flex;
   align-items: center;
