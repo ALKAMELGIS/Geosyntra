@@ -6665,14 +6665,18 @@ export default function SatelliteIntelligence() {
 
   const wmsTileUrl = useMemo(() => {
     const safeLayer = encodeURIComponent(activeWmsLayer);
-    const start = timeSeriesStart || wmsDate;
-    const end = timeSeriesEnd || wmsDate;
+    /** Snapshot must match "Imagery date". Wide TIME + MAXCC often yields empty mosaics → transparent tiles → only basemap inside AOI. */
+    const snapshotIso = wmsDate;
+    const maxCc =
+      sentinelHubWmsAoiClip.evalscriptB64 != null
+        ? Math.min(100, Math.max(cloudCoverage, 55))
+        : cloudCoverage;
     let url =
       `${wmsBaseUrl}?SERVICE=WMS&REQUEST=GetMap&VERSION=1.3.0` +
       `&LAYERS=${safeLayer}` +
       `&BBOX={bbox-epsg-3857}&CRS=EPSG:3857` +
       `&FORMAT=image/png&TRANSPARENT=true&WIDTH=512&HEIGHT=512` +
-      `&TIME=${start}/${end}&MAXCC=${cloudCoverage}&SHOWLOGO=false&WARNINGS=true`;
+      `&TIME=${snapshotIso}/${snapshotIso}&MAXCC=${maxCc}&SHOWLOGO=false&WARNINGS=true`;
     if (sentinelHubWmsAoiClip.geometryWkt3857) {
       url += `&GEOMETRY=${encodeURIComponent(sentinelHubWmsAoiClip.geometryWkt3857)}`;
     }
@@ -6682,8 +6686,6 @@ export default function SatelliteIntelligence() {
     return url;
   }, [
     activeWmsLayer,
-    timeSeriesStart,
-    timeSeriesEnd,
     wmsDate,
     cloudCoverage,
     wmsBaseUrl,
@@ -6693,11 +6695,11 @@ export default function SatelliteIntelligence() {
 
   /** Legend bins aligned with AOI EVALSCRIPT thematic ramps (updates when AOI or layer changes). */
   const wmsThematicLegendBins = useMemo(() => {
-    if (!sentinelHubWmsAoiClip.evalscriptB64 || !activeWmsLayer.trim()) return null;
+    if (!drawnGeometry || !sentinelHubWmsAoiClip.evalscriptB64 || !activeWmsLayer.trim()) return null;
     const profile = inferWmsEvalProfile(activeWmsLayer);
     if (!isThematicWmsProfile(profile)) return null;
     return getSentinelWmsThematicLegendBins(profile);
-  }, [sentinelHubWmsAoiClip.evalscriptB64, activeWmsLayer]);
+  }, [drawnGeometry, sentinelHubWmsAoiClip.evalscriptB64, activeWmsLayer]);
 
   /**
    * Limits Sentinel WMS tile requests to the AOI bounding box (extract-by-mask style for tiles).
