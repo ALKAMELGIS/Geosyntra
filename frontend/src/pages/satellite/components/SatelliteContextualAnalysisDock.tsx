@@ -747,9 +747,8 @@ export function SatelliteContextualAnalysisDock(props: SatelliteContextualAnalys
                     {!isMap ? (
                       <nav className="si-sat-ctx-analysis-launcher" aria-label="Contextual analysis tools">
                         {RAIL.map(item => {
-                          const launcherPressed =
-                            activeId === item.id &&
-                            (MAP_RAIL_FLOAT_IDS.has(item.id) ? !panelOpen : panelOpen);
+                          /* Embedded dock: no portaled float stack — active follows panel + selection */
+                          const launcherPressed = activeId === item.id && panelOpen;
                           return (
                             <button
                               key={item.id}
