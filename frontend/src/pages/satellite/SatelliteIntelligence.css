@@ -1700,6 +1700,18 @@ main.content > .si-page {
   justify-content: flex-end;
 }
 
+.si-map-floating-controls__right--proc-stack {
+  align-items: flex-start;
+}
+
+.si-env-rail--proc-anchor {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 8px;
+  position: relative;
+}
+
 /* —— Processing Options: Mapbox-style ctrl on map (centered strip + expand/collapse) —— */
 .si-env-rail--mapbox-float {
   position: absolute;

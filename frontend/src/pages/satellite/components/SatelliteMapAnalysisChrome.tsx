@@ -5,7 +5,7 @@ import {
   type StaticAoiChartLayerId,
 } from '../utils/staticAoiMultiChartData';
 import { SatelliteContextualAnalysisDock } from './SatelliteContextualAnalysisDock';
-import type { SatelliteSmartProcessingPanelProps } from './SatelliteSmartProcessingPanel';
+import type { SmartProcessingSectionId } from './SmartProcessingWorkflowPanel';
 import { MapToolsDock } from './MapToolsDock';
 
 export type TimelineChip = {
@@ -117,13 +117,8 @@ export type SatelliteMapAnalysisChromeProps = {
   mapLoaded?: boolean;
   /** When false, the right-rail map toolbox is omitted (timeline and other chrome still render). */
   showMapToolbox?: boolean;
-  /** Dock the map toolbox on the map inline-start edge (left in LTR). */
-  mapToolboxInlineStart?: boolean;
-  /** Optional GIS workflow panel (Satellite Intelligence). */
-  mapToolboxSmartProcessing?: Pick<
-    SatelliteSmartProcessingPanelProps,
-    'layerContextHint' | 'layerKind' | 'onOpenEnvSection' | 'onGeoAiQuickPrompt'
-  >;
+  onProcessingWorkflowNavigate?: (sectionId: SmartProcessingSectionId) => void;
+  activeProcessingLayerHint?: string | null;
 };
 
 function sparkPath(values: number[], w: number, h: number): string {
@@ -166,8 +161,8 @@ export function SatelliteMapAnalysisChrome(props: SatelliteMapAnalysisChromeProp
     mapRef,
     mapLoaded = false,
     showMapToolbox = true,
-    mapToolboxInlineStart = false,
-    mapToolboxSmartProcessing,
+    onProcessingWorkflowNavigate,
+    activeProcessingLayerHint = null,
   } = props;
 
   const activeFull =
@@ -194,8 +189,8 @@ export function SatelliteMapAnalysisChrome(props: SatelliteMapAnalysisChromeProp
       weeklyMeans={weeklyMeans}
       pivotBars={pivotBars}
       sparkPathBuilder={sparkPath}
-      mapToolboxInlineStart={mapToolboxInlineStart}
-      smartProcessing={mapToolboxSmartProcessing}
+      onProcessingWorkflowNavigate={onProcessingWorkflowNavigate}
+      activeProcessingLayerHint={activeProcessingLayerHint}
     />
   ) : null;
 

@@ -664,59 +664,17 @@
 .si-sat-ctx-dock--map {
   position: absolute;
   z-index: 96;
-  /* Default: dock on map inline-end (right in LTR). Satellite Intelligence uses --map-left. */
-  inset-inline-end: 0;
-  left: auto;
+  /* Flush with canvas edge: toolbox on physical start side (left in LTR). */
+  inset-inline-start: 0;
+  inset-inline-end: auto;
   top: 50%;
   transform: translateY(-50%);
   max-height: min(86vh, 760px);
-  flex-direction: row-reverse;
+  flex-direction: row;
   filter: drop-shadow(0 18px 40px rgba(2, 6, 23, 0.42));
 }
 
-/* Toolbox on map start (left in LTR): rail first, panel opens toward map center */
-.si-sat-ctx-dock--map.si-sat-ctx-dock--map-left {
-  inset-inline-end: auto;
-  inset-inline-start: 0;
-  right: auto;
-  flex-direction: row;
-}
-
-.si-sat-ctx-dock--map.si-sat-ctx-dock--map-left .si-sat-ctx-panel {
-  border-radius: 0 16px 16px 0;
-  border-inline-start: none;
-  border-inline-end: 1px solid var(--si-ctx-border);
-  box-shadow: 12px 0 40px rgba(2, 6, 23, 0.25);
-}
-
-.si-sat-ctx-dock--map.si-sat-ctx-dock--map-left .si-sat-ctx-panel-resize {
-  inset-inline-end: auto;
-  inset-inline-start: 0;
-  background: linear-gradient(90deg, rgba(99, 102, 241, 0.12), transparent);
-}
-
-.si-sat-ctx-dock--map.si-sat-ctx-dock--map-left .si-sat-ctx-panel-resize:hover {
-  background: linear-gradient(90deg, rgba(52, 211, 153, 0.25), transparent);
-}
-
-.si-sat-ctx-dock[dir='rtl'].si-sat-ctx-dock--map.si-sat-ctx-dock--map-left .si-sat-ctx-panel {
-  border-radius: 16px 0 0 16px;
-  border-inline-start: 1px solid var(--si-ctx-border);
-  border-inline-end: none;
-  box-shadow: -12px 0 40px rgba(2, 6, 23, 0.25);
-}
-
-.si-sat-ctx-dock[dir='rtl'].si-sat-ctx-dock--map.si-sat-ctx-dock--map-left .si-sat-ctx-panel-resize {
-  inset-inline-start: auto;
-  inset-inline-end: 0;
-  background: linear-gradient(270deg, rgba(99, 102, 241, 0.12), transparent);
-}
-
-.si-sat-ctx-dock[dir='rtl'].si-sat-ctx-dock--map.si-sat-ctx-dock--map-left .si-sat-ctx-panel-resize:hover {
-  background: linear-gradient(270deg, rgba(52, 211, 153, 0.25), transparent);
-}
-
-/* Full-height map toolbox (Satellite Intelligence) — docked to map edge */
+/* Full-height map toolbox (Satellite Intelligence) — docked start (LTR: left), expand/collapse rail */
 .si-sat-ctx-dock--map.si-sat-ctx-dock--map-tall {
   top: 0;
   bottom: 0;
@@ -726,17 +684,7 @@
   align-self: stretch;
 }
 
-.si-sat-ctx-dock--map-tall:not(.si-sat-ctx-dock--map-left) .si-sat-ctx-rail {
-  height: 100%;
-  min-height: 0;
-  flex: 0 0 auto;
-  align-self: stretch;
-  border-radius: 0;
-  border-start-end-radius: 14px;
-  border-end-end-radius: 14px;
-}
-
-.si-sat-ctx-dock--map-tall.si-sat-ctx-dock--map-left .si-sat-ctx-rail {
+.si-sat-ctx-dock--map-tall .si-sat-ctx-rail {
   height: 100%;
   min-height: 0;
   flex: 0 0 auto;
@@ -744,6 +692,20 @@
   border-radius: 0;
   border-start-start-radius: 14px;
   border-end-start-radius: 14px;
+}
+
+.si-sat-ctx-dock--map .si-sat-ctx-panel {
+  border-radius: 0 16px 16px 0;
+  border-inline-start: none;
+  border-inline-end: 1px solid var(--si-ctx-border);
+  box-shadow: 12px 0 40px rgba(2, 6, 23, 0.25);
+}
+
+.si-sat-ctx-dock.si-sat-ctx-dock--map[dir='rtl'] .si-sat-ctx-panel {
+  border-radius: 16px 0 0 16px;
+  border-inline-end: none;
+  border-inline-start: 1px solid var(--si-ctx-border);
+  box-shadow: -12px 0 40px rgba(2, 6, 23, 0.25);
 }
 
 .si-sat-ctx-dock--map-tall .si-sat-ctx-panel {
@@ -802,6 +764,11 @@
   min-width: 56px;
   max-width: 56px;
   padding-inline: 7px;
+  border-inline-end: 2px solid rgba(52, 211, 153, 0.38);
+}
+
+.si-sat-ctx-dock.si-sat-ctx-dock--map-strip-minimized[dir='rtl'] .si-sat-ctx-rail {
+  border-inline-end: none;
   border-inline-start: 2px solid rgba(52, 211, 153, 0.38);
 }
 
@@ -1528,8 +1495,8 @@
 
 @media (max-width: 768px) {
   .si-sat-ctx-dock--map {
-    inset-inline-end: 0;
-    left: auto;
+    inset-inline-start: 0;
+    inset-inline-end: auto;
     top: auto;
     bottom: 120px;
     transform: none;
@@ -1589,9 +1556,10 @@
   .si-sat-ctx-dock--map.si-sat-ctx-dock--map-tall {
     top: 0;
     bottom: 0;
-    inset-inline-end: 0;
+    inset-inline-start: 0;
+    inset-inline-end: auto;
     max-height: none;
-    flex-direction: row-reverse;
+    flex-direction: row;
     width: auto;
     max-width: none;
   }
@@ -1602,8 +1570,8 @@
     width: auto;
     max-width: min(220px, 42vw);
     border-radius: 0;
-    border-start-end-radius: 14px;
-    border-end-end-radius: 14px;
+    border-start-start-radius: 14px;
+    border-end-start-radius: 14px;
   }
 
   .si-sat-ctx-dock--map.si-sat-ctx-dock--map-tall.si-sat-ctx-dock--rail-narrow .si-sat-ctx-rail {
@@ -1615,217 +1583,226 @@
     width: 56px;
     min-width: 56px;
   }
-
-  .si-sat-ctx-dock--map.si-sat-ctx-dock--map-tall.si-sat-ctx-dock--map-left {
-    inset-inline-end: auto;
-    inset-inline-start: 0;
-    flex-direction: row;
-  }
-
-  .si-sat-ctx-dock--map.si-sat-ctx-dock--map-tall.si-sat-ctx-dock--map-left .si-sat-ctx-rail {
-    border-start-end-radius: 0;
-    border-end-end-radius: 0;
-    border-start-start-radius: 14px;
-    border-end-start-radius: 14px;
-  }
 }
 
-/* —— Smart processing (GIS workflow) panel inside map toolbox —— */
-.si-sat-smart-proc {
+/* —— Smart Processing workflow (inside map toolbox panel) —— */
+.si-smart-proc {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 14px;
+  padding: 2px 2px 8px;
   min-height: 0;
 }
 
-.si-sat-smart-proc__hero {
-  padding: 2px 2px 8px;
-  border-bottom: 1px solid var(--si-ctx-border);
+.si-smart-proc__context {
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid rgba(129, 140, 248, 0.22);
+  background: linear-gradient(165deg, rgba(30, 41, 59, 0.55), rgba(15, 23, 42, 0.35));
 }
 
-.si-sat-smart-proc__hero-k {
+.si-sat-ctx-dock--light .si-smart-proc__context {
+  background: linear-gradient(165deg, rgba(248, 250, 252, 0.95), rgba(241, 245, 249, 0.88));
+  border-color: rgba(148, 163, 184, 0.4);
+}
+
+.si-smart-proc__context-kicker {
   font-size: 9px;
   font-weight: 800;
   letter-spacing: 0.12em;
   text-transform: uppercase;
   color: var(--si-ctx-muted);
-  margin-bottom: 4px;
+  margin-bottom: 6px;
 }
 
-.si-sat-smart-proc__hero-title {
-  margin: 0 0 6px;
-  font-size: 17px;
-  font-weight: 750;
-  letter-spacing: -0.02em;
-  line-height: 1.2;
-  color: var(--si-ctx-text);
-}
-
-.si-sat-smart-proc__hero-desc {
-  margin: 0 0 8px;
+.si-smart-proc__context-body {
   font-size: 12px;
-  line-height: 1.45;
-  color: var(--si-ctx-muted);
-}
-
-.si-sat-smart-proc__ctx {
-  margin: 0 0 6px;
-  font-size: 11px;
-  line-height: 1.35;
-  color: #a5b4fc;
-  display: flex;
-  gap: 8px;
-  align-items: flex-start;
-}
-
-.si-sat-smart-proc__ctx i {
-  margin-top: 2px;
-  opacity: 0.85;
-}
-
-.si-sat-smart-proc__dyn {
-  margin: 0;
-  font-size: 11px;
-  line-height: 1.4;
-  color: rgba(148, 163, 184, 0.95);
-  font-style: italic;
-}
-
-.si-sat-smart-proc__cats {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-}
-
-.si-sat-smart-proc__cat {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 6px 10px;
-  border-radius: 999px;
-  border: 1px solid rgba(148, 163, 184, 0.28);
-  background: rgba(15, 23, 42, 0.35);
-  color: var(--si-ctx-muted);
-  font-size: 11px;
   font-weight: 650;
-  cursor: pointer;
-  transition:
-    background 0.15s ease,
-    border-color 0.15s ease,
-    color 0.15s ease;
-}
-
-.si-sat-smart-proc__cat--on {
-  border-color: rgba(129, 140, 248, 0.55);
-  background: rgba(79, 70, 229, 0.22);
-  color: #e0e7ff;
-}
-
-.si-sat-smart-proc__cat:hover {
-  border-color: rgba(52, 211, 153, 0.35);
+  line-height: 1.45;
   color: var(--si-ctx-text);
 }
 
-.si-sat-smart-proc__body {
-  flex: 1;
-  min-height: 0;
-  overflow: auto;
-  padding-right: 2px;
+.si-smart-proc__context-hint {
+  margin: 8px 0 0;
+  font-size: 11px;
+  line-height: 1.5;
+  color: var(--si-ctx-muted);
 }
 
-.si-sat-smart-proc__actions {
-  list-style: none;
-  margin: 0;
-  padding: 0;
+.si-smart-proc__quick {
   display: flex;
   flex-direction: column;
   gap: 8px;
 }
 
-.si-sat-smart-proc__btn {
+.si-smart-proc__cat-head {
+  display: flex;
+  align-items: center;
+}
+
+.si-smart-proc__cat-toggle {
   width: 100%;
   display: flex;
-  align-items: flex-start;
-  gap: 12px;
-  text-align: start;
-  padding: 10px 12px;
-  border-radius: 12px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 9px 11px;
+  border-radius: 10px;
   border: 1px solid rgba(148, 163, 184, 0.22);
-  background: rgba(30, 41, 59, 0.45);
+  background: rgba(15, 23, 42, 0.35);
   color: var(--si-ctx-text);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  cursor: pointer;
+  transition:
+    background 0.16s ease,
+    border-color 0.16s ease,
+    color 0.16s ease;
+}
+
+.si-sat-ctx-dock--light .si-smart-proc__cat-toggle {
+  background: rgba(255, 255, 255, 0.72);
+  border-color: rgba(148, 163, 184, 0.35);
+  color: #0f172a;
+}
+
+.si-smart-proc__cat-toggle:hover {
+  border-color: rgba(129, 140, 248, 0.45);
+  background: rgba(30, 41, 59, 0.45);
+}
+
+.si-sat-ctx-dock--light .si-smart-proc__cat-toggle:hover {
+  background: rgba(241, 245, 249, 0.95);
+}
+
+.si-smart-proc__cat-toggle--on {
+  border-color: rgba(52, 211, 153, 0.45);
+  background: rgba(34, 197, 94, 0.12);
+}
+
+.si-smart-proc__cat-title {
+  text-align: start;
+}
+
+.si-smart-proc__cat-sub {
+  margin: -2px 0 0;
+  padding: 0 2px;
+  font-size: 10px;
+  line-height: 1.45;
+  color: var(--si-ctx-muted);
+}
+
+.si-smart-proc__chip-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.si-smart-proc__chip {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  min-width: 4.75rem;
+  padding: 8px 6px;
+  border-radius: 10px;
+  border: 1px solid rgba(148, 163, 184, 0.2);
+  background: rgba(15, 23, 42, 0.25);
+  color: var(--si-ctx-text);
+  font-size: 10px;
+  font-weight: 650;
+  cursor: pointer;
+  transition:
+    transform 0.12s ease,
+    border-color 0.15s ease,
+    background 0.15s ease;
+}
+
+.si-sat-ctx-dock--light .si-smart-proc__chip {
+  background: rgba(255, 255, 255, 0.85);
+  border-color: rgba(148, 163, 184, 0.35);
+  color: #0f172a;
+}
+
+.si-smart-proc__chip:hover {
+  border-color: rgba(99, 102, 241, 0.45);
+  transform: translateY(-1px);
+}
+
+.si-smart-proc__chip i {
+  font-size: 15px;
+  color: #a5b4fc;
+}
+
+.si-sat-ctx-dock--light .si-smart-proc__chip i {
+  color: #4f46e5;
+}
+
+.si-smart-proc__cats {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.si-smart-proc__cat {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.si-smart-proc__tool-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 4px;
+}
+
+.si-smart-proc__tool {
+  display: grid;
+  grid-template-columns: 28px 1fr;
+  grid-template-rows: auto auto;
+  column-gap: 10px;
+  row-gap: 2px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  border: 1px solid rgba(148, 163, 184, 0.18);
+  background: rgba(30, 41, 59, 0.28);
+  color: var(--si-ctx-text);
+  text-align: start;
   cursor: pointer;
   transition:
     border-color 0.15s ease,
-    background 0.15s ease,
-    transform 0.12s ease;
+    background 0.15s ease;
 }
 
-.si-sat-smart-proc__btn:hover {
-  border-color: rgba(99, 102, 241, 0.45);
-  background: rgba(30, 41, 59, 0.72);
+.si-sat-ctx-dock--light .si-smart-proc__tool {
+  background: rgba(248, 250, 252, 0.92);
+  border-color: rgba(148, 163, 184, 0.32);
 }
 
-.si-sat-smart-proc__btn:active {
-  transform: scale(0.99);
+.si-smart-proc__tool:hover {
+  border-color: rgba(52, 211, 153, 0.35);
+  background: rgba(34, 197, 94, 0.08);
 }
 
-.si-sat-smart-proc__btn i {
-  font-size: 16px;
-  margin-top: 2px;
-  color: #94a3b8;
+.si-smart-proc__tool i {
+  grid-row: 1 / span 2;
+  align-self: center;
+  font-size: 15px;
+  color: #93c5fd;
 }
 
-.si-sat-smart-proc__btn strong {
-  display: block;
-  font-size: 13px;
-  font-weight: 650;
-  margin-bottom: 2px;
+.si-smart-proc__tool-label {
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.25;
 }
 
-.si-sat-smart-proc__btn small {
-  display: block;
+.si-smart-proc__tool-hint {
+  grid-column: 2;
   font-size: 10px;
-  font-weight: 500;
-  color: var(--si-ctx-muted);
   line-height: 1.35;
-}
-
-.si-sat-smart-proc__btn--accent {
-  border-color: rgba(52, 211, 153, 0.4);
-  background: rgba(6, 78, 59, 0.28);
-}
-
-.si-sat-smart-proc__btn--accent i {
-  color: #6ee7b7;
-}
-
-.si-sat-smart-proc__hint {
-  margin: 0;
-  padding: 10px 12px;
-  font-size: 11px;
-  line-height: 1.45;
   color: var(--si-ctx-muted);
-  border-radius: 10px;
-  background: rgba(15, 23, 42, 0.35);
-  border: 1px dashed rgba(148, 163, 184, 0.25);
-}
-
-.si-sat-ctx-dock--light .si-sat-smart-proc__cat {
-  background: rgba(255, 255, 255, 0.75);
-  color: rgba(51, 65, 85, 0.92);
-}
-
-.si-sat-ctx-dock--light .si-sat-smart-proc__cat--on {
-  background: rgba(224, 231, 255, 0.95);
-  color: #312e81;
-}
-
-.si-sat-ctx-dock--light .si-sat-smart-proc__btn {
-  background: rgba(248, 250, 252, 0.95);
-  border-color: rgba(148, 163, 184, 0.35);
-}
-
-.si-sat-ctx-dock--light .si-sat-smart-proc__btn--accent {
-  background: rgba(209, 250, 229, 0.65);
-  border-color: rgba(5, 150, 105, 0.35);
 }

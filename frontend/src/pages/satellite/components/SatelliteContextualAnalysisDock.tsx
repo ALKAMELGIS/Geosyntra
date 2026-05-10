@@ -3,15 +3,13 @@ import { useLanguage } from '@/lib/i18n';
 import type { AoiStaticMultiLayerLineChartDataset } from './AoiStaticMultiLayerLineChart';
 import { AoiStaticMultiLayerLineChart } from './AoiStaticMultiLayerLineChart';
 import {
-  SatelliteSmartProcessingPanel,
-  type SatelliteProcessingEnvSection,
-} from './SatelliteSmartProcessingPanel';
-import {
   STATIC_AOI_CHART_LAYER_OPTIONS,
   type StaticAoiChartLayerId,
 } from '../utils/staticAoiMultiChartData';
+import { SmartProcessingWorkflowPanel, type SmartProcessingSectionId } from './SmartProcessingWorkflowPanel';
 
 export type SatelliteContextPanelId =
+  | 'processing'
   | 'layers'
   | 'spatial'
   | 'aoi'
@@ -19,8 +17,7 @@ export type SatelliteContextPanelId =
   | 'stats'
   | 'weather'
   | 'raster'
-  | 'feature'
-  | 'processing';
+  | 'feature';
 
 export type SatelliteContextDockVariant = 'map' | 'embedded';
 
@@ -45,18 +42,19 @@ export type SatelliteContextualAnalysisDockProps = {
   weeklyMeans?: number[];
   pivotBars?: Array<{ name: string; value: number }>;
   sparkPathBuilder?: (values: number[], w: number, h: number) => string;
-  /** Map toolbox: dock on map inline-start (left in LTR) instead of inline-end. */
-  mapToolboxInlineStart?: boolean;
-  /** Smart processing hub (GIS workflow) — optional callbacks from host page. */
-  smartProcessing?: {
-    layerContextHint?: string;
-    layerKind?: 'raster' | 'vector' | 'none';
-    onOpenEnvSection: (id: SatelliteProcessingEnvSection) => void;
-    onGeoAiQuickPrompt?: (text: string) => void;
-  };
+  /** Map toolbox: opens the same processing stack as Satellite Intelligence (no reload). */
+  onProcessingWorkflowNavigate?: (sectionId: SmartProcessingSectionId) => void;
+  activeProcessingLayerHint?: string | null;
 };
 
 const RAIL: Array<{ id: SatelliteContextPanelId; icon: string; label: string; title: string; hint: string }> = [
+  {
+    id: 'processing',
+    icon: 'fa-solid fa-gears',
+    label: 'Processing',
+    title: 'Smart processing',
+    hint: 'STAC, AI, selection, SQL-style queries, and layer workflows.',
+  },
   {
     id: 'layers',
     icon: 'fa-solid fa-layer-group',
@@ -113,13 +111,6 @@ const RAIL: Array<{ id: SatelliteContextPanelId; icon: string; label: string; ti
     title: 'Feature information',
     hint: 'Identify results and attribute tables.',
   },
-  {
-    id: 'processing',
-    icon: 'fa-solid fa-diagram-project',
-    label: 'Processing',
-    title: 'Smart processing',
-    hint: 'GIS workflow: selection, SQL, spatial analysis, AI, quick actions.',
-  },
 ];
 
 const RAIL_GROUPS: SatelliteContextPanelId[][] = [
@@ -128,9 +119,9 @@ const RAIL_GROUPS: SatelliteContextPanelId[][] = [
   ['raster', 'feature'],
 ];
 
-/** In-map toolbox (`variant="map"`): layers, AOI sketch, smart processing hub. */
-const RAIL_MAP_TOOLBOX_IDS = new Set<SatelliteContextPanelId>(['layers', 'aoi', 'processing']);
-const RAIL_GROUPS_MAP: SatelliteContextPanelId[][] = [['layers', 'aoi'], ['processing']];
+/** In-map toolbox (`variant="map"`): smart processing hub + layer context. */
+const RAIL_MAP_TOOLBOX_IDS = new Set<SatelliteContextPanelId>(['processing', 'layers']);
+const RAIL_GROUPS_MAP: SatelliteContextPanelId[][] = [['processing'], ['layers']];
 
 const RAIL_BY_ID = RAIL.reduce(
   (acc, r) => {
@@ -175,8 +166,8 @@ export function SatelliteContextualAnalysisDock(props: SatelliteContextualAnalys
     weeklyMeans = [],
     pivotBars = [],
     sparkPathBuilder = defaultSparkPath,
-    mapToolboxInlineStart = false,
-    smartProcessing,
+    onProcessingWorkflowNavigate,
+    activeProcessingLayerHint = null,
   } = props;
 
   const [panelOpen, setPanelOpen] = useState(false);
@@ -324,6 +315,14 @@ export function SatelliteContextualAnalysisDock(props: SatelliteContextualAnalys
     setPanelOpen(false);
   }, []);
 
+  const handleProcessingNavigate = useCallback(
+    (sectionId: SmartProcessingSectionId) => {
+      onProcessingWorkflowNavigate?.(sectionId);
+      closePanel();
+    },
+    [closePanel, onProcessingWorkflowNavigate],
+  );
+
   const onResizePointerDown = useCallback(
     (e: React.PointerEvent) => {
       e.preventDefault();
@@ -332,11 +331,7 @@ export function SatelliteContextualAnalysisDock(props: SatelliteContextualAnalys
         if (!resizeRef.current) return;
         let dx = ev.clientX - resizeRef.current.startX;
         if (variant === 'map' && direction === 'rtl') dx = -dx;
-        let nextW = resizeRef.current.startW - dx;
-        if (variant === 'map' && mapToolboxInlineStart && direction === 'ltr') {
-          nextW = resizeRef.current.startW + dx;
-        }
-        const next = Math.min(560, Math.max(260, nextW));
+        const next = Math.min(560, Math.max(260, resizeRef.current.startW - dx));
         setPanelWidth(next);
       };
       const onUp = () => {
@@ -349,7 +344,7 @@ export function SatelliteContextualAnalysisDock(props: SatelliteContextualAnalys
       window.addEventListener('pointerup', onUp);
       window.addEventListener('pointercancel', onUp);
     },
-    [panelWidth, variant, direction, mapToolboxInlineStart],
+    [panelWidth, variant, direction],
   );
 
   const activeMeta = activeId ? RAIL.find(r => r.id === activeId) : null;
@@ -362,10 +357,7 @@ export function SatelliteContextualAnalysisDock(props: SatelliteContextualAnalys
 
   const rootClass = [
     'si-sat-ctx-dock',
-    isMap
-      ? 'si-sat-ctx-dock--map si-sat-ctx-dock--map-tall si-sat-ctx-dock--map-toolbox' +
-        (mapToolboxInlineStart ? ' si-sat-ctx-dock--map-left' : '')
-      : 'si-sat-ctx-dock--embedded',
+    isMap ? 'si-sat-ctx-dock--map si-sat-ctx-dock--map-tall si-sat-ctx-dock--map-toolbox' : 'si-sat-ctx-dock--embedded',
     mapPanelCollapsed ? 'si-sat-ctx-dock--map-strip-minimized' : '',
     panelLayoutOpen ? 'si-sat-ctx-dock--open' : 'si-sat-ctx-dock--closed',
     dockMode === 'float' ? 'si-sat-ctx-dock--float-mode' : '',
@@ -384,7 +376,7 @@ export function SatelliteContextualAnalysisDock(props: SatelliteContextualAnalys
       <nav
         className={'si-sat-ctx-rail' + (railWide ? ' si-sat-ctx-rail--labeled' : '')}
         aria-label={isMap ? 'Map toolbox' : 'Analysis contextual tools'}
-        data-toolbox-density={isMap ? (railWide ? 'labeled' : 'compact') : undefined}
+        data-toolbox-density={isMap ? (railWide ? 'labels' : 'icons') : undefined}
       >
         {isMap ? (
           <div
@@ -488,23 +480,23 @@ export function SatelliteContextualAnalysisDock(props: SatelliteContextualAnalys
               title={
                 railWide
                   ? isMap
-                    ? 'Compact rail — icons only for maximum map space'
+                    ? 'Expand: switch to icon-only rail for maximum map space'
                     : 'Collapse sidebar, close context panel, and show icons only'
                   : isMap
-                    ? 'Show tool names and hints on the rail'
+                    ? 'Collapse: show icons with text labels on the toolbox'
                     : 'Expand sidebar (show labels)'
               }
               aria-label={
                 railWide
                   ? isMap
-                    ? 'Compact toolbox rail (icons only)'
+                    ? 'Expand toolbox to icon-only mode'
                     : 'Collapse sidebar and close panel'
                   : isMap
-                    ? 'Show labeled toolbox rail'
+                    ? 'Collapse toolbox to show text labels'
                     : 'Expand toolbox labels'
               }
               {...(isMap
-                ? { role: 'switch' as const, 'aria-checked': railWide }
+                ? { role: 'switch' as const, 'aria-checked': !railWide }
                 : { 'aria-pressed': railWide as boolean })}
               onClick={() => {
                 if (railWide) {
@@ -518,9 +510,9 @@ export function SatelliteContextualAnalysisDock(props: SatelliteContextualAnalys
               <span className="si-sat-ctx-rail-collapse__icon-wrap" aria-hidden>
                 <i className={railWide ? 'fa-solid fa-angles-right' : 'fa-solid fa-angles-left'} />
               </span>
-              {railWide ? (
-                <span className="si-sat-ctx-rail-collapse-text">{isMap ? 'Compact' : 'Collapse'}</span>
-              ) : null}
+              {isMap && railWide ? <span className="si-sat-ctx-rail-collapse-text">Expand</span> : null}
+              {isMap && !railWide ? <span className="si-sat-ctx-rail-collapse-text">Collapse</span> : null}
+              {!isMap && railWide ? <span className="si-sat-ctx-rail-collapse-text">Collapse</span> : null}
             </button>
           ) : null}
         </div>
@@ -569,29 +561,40 @@ export function SatelliteContextualAnalysisDock(props: SatelliteContextualAnalys
                 </div>
               </header>
 
-              <div className="si-sat-ctx-tabs" role="tablist">
-                <button
-                  type="button"
-                  role="tab"
-                  aria-selected={innerTab === 'main'}
-                  className={'si-sat-ctx-tab' + (innerTab === 'main' ? ' si-sat-ctx-tab--on' : '')}
-                  onClick={() => setInnerTab('main')}
-                >
-                  Main
-                </button>
-                <button
-                  type="button"
-                  role="tab"
-                  aria-selected={innerTab === 'options'}
-                  className={'si-sat-ctx-tab' + (innerTab === 'options' ? ' si-sat-ctx-tab--on' : '')}
-                  onClick={() => setInnerTab('options')}
-                >
-                  Options
-                </button>
-              </div>
+              {activeId !== 'processing' ? (
+                <div className="si-sat-ctx-tabs" role="tablist">
+                  <button
+                    type="button"
+                    role="tab"
+                    aria-selected={innerTab === 'main'}
+                    className={'si-sat-ctx-tab' + (innerTab === 'main' ? ' si-sat-ctx-tab--on' : '')}
+                    onClick={() => setInnerTab('main')}
+                  >
+                    Main
+                  </button>
+                  <button
+                    type="button"
+                    role="tab"
+                    aria-selected={innerTab === 'options'}
+                    className={'si-sat-ctx-tab' + (innerTab === 'options' ? ' si-sat-ctx-tab--on' : '')}
+                    onClick={() => setInnerTab('options')}
+                  >
+                    Options
+                  </button>
+                </div>
+              ) : null}
 
               <div className="si-sat-ctx-panel-body">
-                {innerTab === 'main' ? (
+                {activeId === 'processing' && onProcessingWorkflowNavigate ? (
+                  <SmartProcessingWorkflowPanel
+                    activeLayerSummary={activeProcessingLayerHint}
+                    onNavigateSection={handleProcessingNavigate}
+                  />
+                ) : activeId === 'processing' ? (
+                  <div className="si-sat-ctx-prose">
+                    <p className="si-sat-ctx-muted">Processing hub is not wired on this host.</p>
+                  </div>
+                ) : innerTab === 'main' ? (
                   <>
                     {activeId === 'layers' && (
                       <div className="si-sat-ctx-prose">
@@ -786,19 +789,6 @@ export function SatelliteContextualAnalysisDock(props: SatelliteContextualAnalys
                         <p className="si-sat-ctx-muted">Select a feature on the map or open the attribute table from Layers.</p>
                       </div>
                     )}
-                    {activeId === 'processing' &&
-                      (smartProcessing ? (
-                        <SatelliteSmartProcessingPanel
-                          layerContextHint={smartProcessing.layerContextHint}
-                          layerKind={smartProcessing.layerKind}
-                          onOpenEnvSection={smartProcessing.onOpenEnvSection}
-                          onGeoAiQuickPrompt={smartProcessing.onGeoAiQuickPrompt}
-                        />
-                      ) : (
-                        <div className="si-sat-ctx-prose">
-                          <p className="si-sat-ctx-muted">Smart processing is not wired for this host.</p>
-                        </div>
-                      ))}
                   </>
                 ) : (
                   <div className="si-sat-ctx-prose">
@@ -809,9 +799,11 @@ export function SatelliteContextualAnalysisDock(props: SatelliteContextualAnalys
 
               <footer className="si-sat-ctx-panel-footer">
                 <span className="si-sat-ctx-footer-hint">
-                  {activeId === 'aoi'
-                    ? 'Polygon: Shift constrains angles · Circle: Enter commits · Clear restores pan.'
-                    : 'Drag the inner edge to resize. Click the active tool again to collapse.'}
+                  {activeId === 'processing'
+                    ? 'Opens the floating processing stack; map state and Geo AI context are preserved.'
+                    : activeId === 'aoi'
+                      ? 'Polygon: Shift constrains angles · Circle: Enter commits · Clear restores pan.'
+                      : 'Drag the inner edge to resize. Click the active tool again to collapse.'}
                 </span>
               </footer>
             </>

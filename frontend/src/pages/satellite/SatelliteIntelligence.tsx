@@ -1769,33 +1769,6 @@ export default function SatelliteIntelligence() {
     if (Object.prototype.hasOwnProperty.call(ENVIRONMENTAL_INDICES, selectedIndex)) return;
     setSelectedIndex('NDWI');
   }, [selectedIndex]);
-
-  const mapToolboxSmartProcessing = useMemo(
-    () => ({
-      layerContextHint:
-        `${selectedIndexConfig.label}` +
-        (customLayers.length
-          ? ` · ${customLayers
-              .map(l => l.name)
-              .slice(0, 3)
-              .join(', ')}${customLayers.length > 3 ? '…' : ''}`
-          : ''),
-      layerKind: (customLayers.length > 0 ? 'vector' : 'raster') as 'raster' | 'vector' | 'none',
-      onOpenEnvSection: (
-        id: 'layers' | 'explore-stac' | 'remote-sensing' | 'ai-detection-gis' | 'table-geo-ai',
-      ) => {
-        setExpandedEnvSection(id);
-        setIsLayerDropdownOpen(true);
-      },
-      onGeoAiQuickPrompt: (text: string) => {
-        setExpandedEnvSection('table-geo-ai');
-        setIsLayerDropdownOpen(true);
-        setGeoExplorerDraft(text);
-      },
-    }),
-    [selectedIndexConfig, customLayers],
-  );
-
   const [selectedPivotId, setSelectedPivotId] = useState('all');
   const [weeklyComposites, setWeeklyComposites] = useState<WeeklyComposite[]>([]);
   /** True only after the user (or RS Run path) successfully builds the field timeline — drives Generate ⟷ Stop label. */
@@ -7658,9 +7631,13 @@ export default function SatelliteIntelligence() {
             onStaticComparisonLayerToggle={handleStaticComparisonLayerToggle}
             mapRef={mapRef}
             mapLoaded={isMapLoaded}
-            showMapToolbox
-            mapToolboxInlineStart
-            mapToolboxSmartProcessing={mapToolboxSmartProcessing}
+            onProcessingWorkflowNavigate={id => {
+              setExpandedEnvSection(id);
+              setIsLayerDropdownOpen(true);
+            }}
+            activeProcessingLayerHint={
+              remoteSensingLayerOptions.find(o => o.id === wmsLayerSelectValue)?.label ?? selectedIndexConfig.label
+            }
           />
 
           {false && aoiHeatPointGeoJson?.features?.length ? (
@@ -7808,8 +7785,8 @@ export default function SatelliteIntelligence() {
                 )}
               </div>
               </div>
-              <div className="si-map-floating-controls__right">
-            <div className="si-env-rail si-env-rail--mapbox-float si-env-rail--from-map-toolbox">
+              <div className="si-map-floating-controls__right si-map-floating-controls__right--proc-stack">
+            <div className="si-env-rail si-env-rail--proc-anchor">
               <input
                 ref={fileInputRef}
                 type="file"
@@ -7829,7 +7806,7 @@ export default function SatelliteIntelligence() {
                   <div className="si-env-panel-header">
                     <div className="si-env-header-top">
                       <div>
-                        <div className="si-env-title">Smart processing</div>
+                        <div className="si-env-title">Processing Options</div>
                       </div>
                       <button
                         type="button"
