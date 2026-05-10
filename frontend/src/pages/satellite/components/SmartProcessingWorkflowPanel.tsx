@@ -8,11 +8,16 @@ export type SmartProcessingSectionId =
   | 'ai-detection-gis'
   | 'table-geo-ai';
 
-type SmartProcessingWorkflowPanelProps = {
+export type SmartProcessingWorkflowPanelProps = {
   /** Short label for current imagery / vector context (optional). */
   activeLayerSummary?: string | null;
   /** Open the full processing UI for a catalog section (no reload). */
   onNavigateSection: (id: SmartProcessingSectionId) => void;
+  /**
+   * Single Layers hub inside Map Toolbox: primary catalog control, no duplicate “Layers” quick chip,
+   * same workflow links as the former quick strip (STAC, RS, AI…).
+   */
+  layersHubMode?: boolean;
 };
 
 type CatKey = 'quick' | 'selection' | 'spatial' | 'ai' | 'geom' | 'edit';
@@ -118,22 +123,55 @@ const WORKFLOW_ROWS: Array<{
 ];
 
 export function SmartProcessingWorkflowPanel(props: SmartProcessingWorkflowPanelProps) {
-  const { activeLayerSummary, onNavigateSection } = props;
+  const { activeLayerSummary, onNavigateSection, layersHubMode = false } = props;
   const [openCat, setOpenCat] = useState<CatKey | null>('quick');
 
   const layerLine = useMemo(() => {
     const t = typeof activeLayerSummary === 'string' ? activeLayerSummary.trim() : '';
-    return t || 'No layer summary — pick imagery or a vector layer in Layers.';
-  }, [activeLayerSummary]);
+    if (t) return t;
+    return layersHubMode
+      ? 'Pick imagery or a vector layer in the catalog to drive overlays and analysis.'
+      : 'No layer summary — pick imagery or a vector layer in Layers.';
+  }, [activeLayerSummary, layersHubMode]);
+
+  const quickLinks = useMemo(
+    () => (layersHubMode ? QUICK_LINKS.filter(l => l.id !== 'layers') : QUICK_LINKS),
+    [layersHubMode],
+  );
 
   return (
-    <div className="si-smart-proc" role="region" aria-label="Smart processing workflow">
+    <div
+      className={'si-smart-proc' + (layersHubMode ? ' si-smart-proc--layers-hub' : '')}
+      role="region"
+      aria-label={layersHubMode ? 'Layers and processing workflows' : 'Smart processing workflow'}
+    >
+      {layersHubMode ? (
+        <button
+          type="button"
+          className="si-smart-proc__layers-hero"
+          onClick={() => onNavigateSection('layers')}
+          title="Opacity, ordering, vector tables, and overlay toggles"
+        >
+          <span className="si-smart-proc__layers-hero-icon" aria-hidden>
+            <i className="fa-solid fa-layer-group" />
+          </span>
+          <span className="si-smart-proc__layers-hero-text">
+            <span className="si-smart-proc__layers-hero-title">Layer settings</span>
+            <span className="si-smart-proc__layers-hero-desc">
+              Opacity, ordering, and imagery context — open the full catalog without leaving the map.
+            </span>
+          </span>
+          <i className="fa-solid fa-arrow-up-right-from-square si-smart-proc__layers-hero-go" aria-hidden />
+        </button>
+      ) : null}
+
       <div className="si-smart-proc__context">
-        <div className="si-smart-proc__context-kicker">Active context</div>
+        <div className="si-smart-proc__context-kicker">{layersHubMode ? 'Active layer' : 'Active context'}</div>
         <div className="si-smart-proc__context-body">{layerLine}</div>
         <p className="si-smart-proc__context-hint">
-          Tools adapt by layer and data type. Results update in place (no reload). Use the map for click, hover, draw,
-          selection, and popups while a tool runs.
+          {layersHubMode
+            ? 'One toolbox entry for layers: use the hero above for the catalog, or jump to STAC / sensing / AI below. Map interactions stay live — no reload.'
+            : 'Tools adapt by layer and data type. Results update in place (no reload). Use the map for click, hover, draw, selection, and popups while a tool runs.'}
         </p>
       </div>
 
@@ -145,13 +183,13 @@ export function SmartProcessingWorkflowPanel(props: SmartProcessingWorkflowPanel
             onClick={() => setOpenCat(c => (c === 'quick' ? null : 'quick'))}
             aria-expanded={openCat === 'quick'}
           >
-            <span>Quick processing</span>
+            <span>{layersHubMode ? 'Linked workflows' : 'Quick processing'}</span>
             <i className={`fa-solid fa-chevron-${openCat === 'quick' ? 'up' : 'down'}`} aria-hidden />
           </button>
         </div>
         {openCat === 'quick' ? (
-          <div className="si-smart-proc__chip-grid" role="group" aria-label="Quick links">
-            {QUICK_LINKS.map(l => (
+          <div className="si-smart-proc__chip-grid" role="group" aria-label={layersHubMode ? 'Workflow shortcuts' : 'Quick links'}>
+            {quickLinks.map(l => (
               <button
                 key={l.id}
                 type="button"

@@ -9,7 +9,6 @@ import {
 import { SmartProcessingWorkflowPanel, type SmartProcessingSectionId } from './SmartProcessingWorkflowPanel';
 
 export type SatelliteContextPanelId =
-  | 'processing'
   | 'layers'
   | 'spatial'
   | 'aoi'
@@ -49,18 +48,11 @@ export type SatelliteContextualAnalysisDockProps = {
 
 const RAIL: Array<{ id: SatelliteContextPanelId; icon: string; label: string; title: string; hint: string }> = [
   {
-    id: 'processing',
-    icon: 'fa-solid fa-gears',
-    label: 'Processing',
-    title: 'Smart processing',
-    hint: 'STAC, AI, selection, SQL-style queries, and layer workflows.',
-  },
-  {
     id: 'layers',
     icon: 'fa-solid fa-layer-group',
     label: 'Layers',
     title: 'Layer settings',
-    hint: 'Opacity, ordering, and imagery context while mapping.',
+    hint: 'Catalog, ordering, overlays, and linked STAC / AI workflows in one place.',
   },
   {
     id: 'spatial',
@@ -119,9 +111,9 @@ const RAIL_GROUPS: SatelliteContextPanelId[][] = [
   ['raster', 'feature'],
 ];
 
-/** In-map toolbox (`variant="map"`): smart processing hub + layer context. */
-const RAIL_MAP_TOOLBOX_IDS = new Set<SatelliteContextPanelId>(['processing', 'layers']);
-const RAIL_GROUPS_MAP: SatelliteContextPanelId[][] = [['processing'], ['layers']];
+/** In-map toolbox (`variant="map"`): single Layers hub (catalog + workflows, no duplicate rail). */
+const RAIL_MAP_TOOLBOX_IDS = new Set<SatelliteContextPanelId>(['layers']);
+const RAIL_GROUPS_MAP: SatelliteContextPanelId[][] = [['layers']];
 
 const RAIL_BY_ID = RAIL.reduce(
   (acc, r) => {
@@ -318,7 +310,7 @@ export function SatelliteContextualAnalysisDock(props: SatelliteContextualAnalys
   const handleProcessingNavigate = useCallback(
     (sectionId: SmartProcessingSectionId) => {
       onProcessingWorkflowNavigate?.(sectionId);
-      closePanel();
+      if (sectionId !== 'layers') closePanel();
     },
     [closePanel, onProcessingWorkflowNavigate],
   );
@@ -561,7 +553,7 @@ export function SatelliteContextualAnalysisDock(props: SatelliteContextualAnalys
                 </div>
               </header>
 
-              {activeId !== 'processing' ? (
+              {!(isMap && activeId === 'layers') ? (
                 <div className="si-sat-ctx-tabs" role="tablist">
                   <button
                     type="button"
@@ -585,15 +577,12 @@ export function SatelliteContextualAnalysisDock(props: SatelliteContextualAnalys
               ) : null}
 
               <div className="si-sat-ctx-panel-body">
-                {activeId === 'processing' && onProcessingWorkflowNavigate ? (
+                {isMap && activeId === 'layers' && onProcessingWorkflowNavigate ? (
                   <SmartProcessingWorkflowPanel
+                    layersHubMode
                     activeLayerSummary={activeProcessingLayerHint}
                     onNavigateSection={handleProcessingNavigate}
                   />
-                ) : activeId === 'processing' ? (
-                  <div className="si-sat-ctx-prose">
-                    <p className="si-sat-ctx-muted">Processing hub is not wired on this host.</p>
-                  </div>
                 ) : innerTab === 'main' ? (
                   <>
                     {activeId === 'layers' && (
@@ -799,8 +788,8 @@ export function SatelliteContextualAnalysisDock(props: SatelliteContextualAnalys
 
               <footer className="si-sat-ctx-panel-footer">
                 <span className="si-sat-ctx-footer-hint">
-                  {activeId === 'processing'
-                    ? 'Opens the floating processing stack; map state and Geo AI context are preserved.'
+                  {isMap && activeId === 'layers'
+                    ? 'Layers catalog opens beside the map; this toolbox stays open for context. Other shortcuts collapse the panel when opened.'
                     : activeId === 'aoi'
                       ? 'Polygon: Shift constrains angles · Circle: Enter commits · Clear restores pan.'
                       : 'Drag the inner edge to resize. Click the active tool again to collapse.'}
