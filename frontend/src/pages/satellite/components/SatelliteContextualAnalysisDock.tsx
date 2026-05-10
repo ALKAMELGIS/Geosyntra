@@ -67,6 +67,10 @@ export type SatelliteContextualAnalysisDockProps = {
   onToolboxPanelClose?: () => void;
   /** Map toolbox Layers → Main tab: add layer + Added layers list (same as Processing Options). */
   mapToolboxLayersMain?: ReactNode;
+  /** Geo AI floating widget visibility — keeps rail highlight without opening the processing stack. */
+  geoAiFloatingOpen?: boolean;
+  /** Toggle Geo AI floating widget from the map toolbox rail (same button as highlight). */
+  onGeoAiFloatingRailToggle?: () => void;
 };
 
 const RAIL: Array<{ id: SatelliteContextPanelId; icon: string; label: string; title: string; hint: string }> = [
@@ -176,7 +180,6 @@ const MAP_RAIL_FLOAT_IDS = new Set<SatelliteContextPanelId>([
   'explore-stac',
   'remote-sensing',
   'ai-detection-gis',
-  'table-geo-ai',
 ]);
 
 const RAIL_GROUPS_MAP: SatelliteContextPanelId[][] = [
@@ -233,6 +236,8 @@ export function SatelliteContextualAnalysisDock(props: SatelliteContextualAnalys
     onMapToolboxEmbedHost,
     onToolboxPanelClose,
     mapToolboxLayersMain,
+    geoAiFloatingOpen = false,
+    onGeoAiFloatingRailToggle,
   } = props;
 
   const [panelOpen, setPanelOpen] = useState(false);
@@ -376,6 +381,10 @@ export function SatelliteContextualAnalysisDock(props: SatelliteContextualAnalys
 
   const toggleRail = useCallback(
     (id: SatelliteContextPanelId) => {
+      if (isMapVariant && id === 'table-geo-ai' && onGeoAiFloatingRailToggle) {
+        onGeoAiFloatingRailToggle();
+        return;
+      }
       if (isMapVariant && MAP_RAIL_FLOAT_IDS.has(id) && onProcessingWorkflowNavigate) {
         if (panelOpen && activeId === id) {
           setPanelOpen(false);
@@ -405,6 +414,7 @@ export function SatelliteContextualAnalysisDock(props: SatelliteContextualAnalys
       isMapVariant,
       onProcessingWorkflowNavigate,
       onToolboxPanelClose,
+      onGeoAiFloatingRailToggle,
       openPanel,
       panelOpen,
       processingDropdownOpen,
@@ -508,16 +518,6 @@ export function SatelliteContextualAnalysisDock(props: SatelliteContextualAnalys
         ) : null}
         {railMenuGroups.map((group, gi) => (
           <Fragment key={group.join('-')}>
-            {isMap && gi === 0 ? (
-              <div className="si-sat-ctx-rail-group-kicker" role="presentation">
-                Main
-              </div>
-            ) : null}
-            {isMap && gi === 1 ? (
-              <div className="si-sat-ctx-rail-group-kicker" role="presentation">
-                Options
-              </div>
-            ) : null}
             {group.map(id => {
               const item = RAIL_BY_ID[id];
               if (!item) return null;
@@ -526,6 +526,7 @@ export function SatelliteContextualAnalysisDock(props: SatelliteContextualAnalys
                   processingDropdownOpen &&
                   processingEmbedSection !== null &&
                   processingEmbedSection === item.id) ||
+                (item.id === 'table-geo-ai' && geoAiFloatingOpen) ||
                 (activeId === item.id &&
                   (MAP_RAIL_FLOAT_IDS.has(item.id) ? !panelOpen : panelOpen));
               return (

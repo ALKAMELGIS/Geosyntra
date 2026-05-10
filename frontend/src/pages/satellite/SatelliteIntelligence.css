@@ -8843,12 +8843,12 @@ html[data-theme='light'] .si-env-panel-body--workspace .si-explore-collections-s
 /* ------------------------------------------------------------------
    Map toolbox embed only: panel-body as one surface (no nested cards)
    ------------------------------------------------------------------ */
-.si-env-panel--toolbox-embed .si-env-panel-body--toolbox-flat {
+.si-env-panel--satellite-toolbox .si-env-panel-body--toolbox-flat {
   padding: 6px 10px 16px;
   gap: 0;
 }
 
-.si-env-panel--toolbox-embed .si-env-panel-body--toolbox-flat > .si-env-section-card {
+.si-env-panel--satellite-toolbox .si-env-panel-body--toolbox-flat > .si-env-section-card {
   border: none !important;
   box-shadow: none !important;
   background: transparent !important;
@@ -8856,19 +8856,19 @@ html[data-theme='light'] .si-env-panel-body--workspace .si-explore-collections-s
   border-radius: 0 !important;
 }
 
-.si-env-panel--toolbox-embed .si-env-panel-body--toolbox-flat .si-field-analysis-header {
+.si-env-panel--satellite-toolbox .si-env-panel-body--toolbox-flat .si-field-analysis-header {
   display: none !important;
 }
 
-.si-env-panel--toolbox-embed .si-env-panel-body--toolbox-flat .si-env-section-card.si-field-analysis {
+.si-env-panel--satellite-toolbox .si-env-panel-body--toolbox-flat .si-env-section-card.si-field-analysis {
   gap: 14px;
 }
 
-.si-env-panel--toolbox-embed .si-env-panel-body--toolbox-flat .si-geo-explorer-title {
+.si-env-panel--satellite-toolbox .si-env-panel-body--toolbox-flat .si-geo-explorer-title {
   display: none;
 }
 
-.si-env-panel--toolbox-embed .si-env-panel-body--toolbox-flat .si-geo-explorer-header {
+.si-env-panel--satellite-toolbox .si-env-panel-body--toolbox-flat .si-geo-explorer-header {
   justify-content: flex-end;
   border: none;
   padding: 2px 0 10px;
@@ -8876,8 +8876,8 @@ html[data-theme='light'] .si-env-panel-body--workspace .si-explore-collections-s
   border-bottom: 1px solid rgba(148, 163, 184, 0.12);
 }
 
-.si-env-panel--toolbox-embed .si-env-panel-body--toolbox-flat .si-geo-explorer-root,
-.si-env-panel--toolbox-embed .si-env-panel-body--toolbox-flat .si-env-section-card.si-geo-explorer {
+.si-env-panel--satellite-toolbox .si-env-panel-body--toolbox-flat .si-geo-explorer-root,
+.si-env-panel--satellite-toolbox .si-env-panel-body--toolbox-flat .si-env-section-card.si-geo-explorer {
   border: none !important;
   box-shadow: none !important;
   background: transparent !important;
@@ -8885,24 +8885,24 @@ html[data-theme='light'] .si-env-panel-body--workspace .si-explore-collections-s
   border-radius: 0 !important;
 }
 
-.si-env-panel--toolbox-embed .si-env-panel-body--toolbox-flat .si-geo-explorer-bubble {
+.si-env-panel--satellite-toolbox .si-env-panel-body--toolbox-flat .si-geo-explorer-bubble {
   border: none !important;
   border-radius: 0 !important;
   border-bottom: 1px solid rgba(148, 163, 184, 0.08);
   background: rgba(148, 163, 184, 0.04);
 }
 
-.si-env-panel--toolbox-embed .si-env-panel-body--toolbox-flat .si-geo-ai-model-tab {
+.si-env-panel--satellite-toolbox .si-env-panel-body--toolbox-flat .si-geo-ai-model-tab {
   border: none;
   background: rgba(148, 163, 184, 0.08);
   border-radius: 8px;
 }
 
-.si-env-panel--toolbox-embed .si-env-panel-body--toolbox-flat .si-geo-ai-model-tab--active {
+.si-env-panel--satellite-toolbox .si-env-panel-body--toolbox-flat .si-geo-ai-model-tab--active {
   box-shadow: none;
 }
 
-.si-env-panel--toolbox-embed .si-env-panel-body--toolbox-flat .si-map-analysis-toolbar--embedded {
+.si-env-panel--satellite-toolbox .si-env-panel-body--toolbox-flat .si-map-analysis-toolbar--embedded {
   border: none !important;
   box-shadow: none !important;
   background: transparent !important;
@@ -8910,32 +8910,32 @@ html[data-theme='light'] .si-env-panel-body--workspace .si-explore-collections-s
   margin: 0 !important;
 }
 
-.si-env-panel--toolbox-embed .si-env-panel-body--toolbox-flat .si-map-toolbox-layers-card {
+.si-env-panel--satellite-toolbox .si-env-panel-body--toolbox-flat .si-map-toolbox-layers-card {
   border: none !important;
   box-shadow: none !important;
   background: transparent !important;
   padding: 0 !important;
 }
 
-.si-env-panel--toolbox-embed .si-env-panel-body--toolbox-flat .si-env-added-layers {
+.si-env-panel--satellite-toolbox .si-env-panel-body--toolbox-flat .si-env-added-layers {
   border: none;
   border-radius: 0;
   background: rgba(148, 163, 184, 0.04);
 }
 
-.si-env-panel--toolbox-embed .si-env-panel-body--toolbox-flat .si-env-layer-list {
+.si-env-panel--satellite-toolbox .si-env-panel-body--toolbox-flat .si-env-layer-list {
   border-radius: 0;
   border: none;
 }
 
-.si-env-panel--toolbox-embed .si-env-panel-body--toolbox-flat .si-netflora-stat-card {
+.si-env-panel--satellite-toolbox .si-env-panel-body--toolbox-flat .si-netflora-stat-card {
   border: none !important;
   border-radius: 0 !important;
   background: rgba(148, 163, 184, 0.06) !important;
   border-bottom: 1px solid rgba(148, 163, 184, 0.1);
 }
 
-.si-env-panel--toolbox-embed .si-env-panel-body--toolbox-flat .si-netflora-class-row {
+.si-env-panel--satellite-toolbox .si-env-panel-body--toolbox-flat .si-netflora-class-row {
   border: none !important;
   border-radius: 0 !important;
   background: transparent !important;
@@ -8943,90 +8943,104 @@ html[data-theme='light'] .si-env-panel-body--workspace .si-explore-collections-s
 }
 
 /* Explore STAC: accordions + lists as rows, not nested panels */
-.si-env-panel--toolbox-embed .si-env-panel-body--toolbox-flat .si-explore-acc {
+.si-env-panel--satellite-toolbox .si-env-panel-body--toolbox-flat .si-explore-acc {
   background: transparent !important;
   border: none !important;
   border-radius: 0 !important;
   border-bottom: 1px solid rgba(148, 163, 184, 0.1) !important;
 }
 
-.si-env-panel--toolbox-embed .si-env-panel-body--toolbox-flat .si-explore-acc-btn {
+.si-env-panel--satellite-toolbox .si-env-panel-body--toolbox-flat .si-explore-acc-btn {
   border-radius: 0;
   background: transparent;
 }
 
-.si-env-panel--toolbox-embed .si-env-panel-body--toolbox-flat .si-explore-collection-list-wrap {
+.si-env-panel--satellite-toolbox .si-env-panel-body--toolbox-flat .si-explore-collection-list-wrap {
   background: transparent !important;
   border: none !important;
   border-radius: 0 !important;
 }
 
-.si-env-panel--toolbox-embed .si-env-panel-body--toolbox-flat .si-explore-collections-search {
+.si-env-panel--satellite-toolbox .si-env-panel-body--toolbox-flat .si-explore-collections-search {
   border: none !important;
   border-radius: 0 !important;
   background: transparent !important;
 }
 
-.si-env-panel--toolbox-embed .si-env-panel-body--toolbox-flat .si-explore-result-card {
+.si-env-panel--satellite-toolbox .si-env-panel-body--toolbox-flat .si-explore-result-card {
   border: none !important;
   border-radius: 0 !important;
   background: transparent !important;
   border-bottom: 1px solid rgba(148, 163, 184, 0.08);
 }
 
-.si-env-panel--toolbox-embed .si-env-panel-body--toolbox-flat .si-explore-results-table-wrap,
-.si-env-panel--toolbox-embed .si-env-panel-body--toolbox-flat .si-explore-results-cards-wrap {
+.si-env-panel--satellite-toolbox .si-env-panel-body--toolbox-flat .si-explore-results-table-wrap,
+.si-env-panel--satellite-toolbox .si-env-panel-body--toolbox-flat .si-explore-results-cards-wrap {
   border: none !important;
   border-radius: 0 !important;
   background: transparent !important;
 }
 
-.si-env-panel--toolbox-embed .si-env-panel-body--toolbox-flat .si-explore-view-results {
+.si-env-panel--satellite-toolbox .si-env-panel-body--toolbox-flat .si-explore-view-results {
   border-radius: 10px;
   border: 1px solid rgba(34, 197, 94, 0.35);
 }
 
-html[data-theme='light'] .si-env-panel--toolbox-embed .si-env-panel-body--toolbox-flat .si-explore-collections-search,
-html[data-theme='light'] .si-env-panel--toolbox-embed .si-env-panel-body--toolbox-flat .si-explore-collection-list-wrap {
+html[data-theme='light'] .si-env-panel--satellite-toolbox .si-env-panel-body--toolbox-flat .si-explore-collections-search,
+html[data-theme='light'] .si-env-panel--satellite-toolbox .si-env-panel-body--toolbox-flat .si-explore-collection-list-wrap {
   background: transparent !important;
 }
 
 /* ------------------------------------------------------------------
-   Toolbox embed: one continuous surface (header + nav + body)
-   No stacked “panels”, no nested section chrome, stable scroll.
+   Satellite map toolbox: one continuous surface (single header + body)
+   No stacked panels, no nested section chrome, stable scroll.
    ------------------------------------------------------------------ */
-.si-env-panel--toolbox-embed.si-env-panel--single-surface {
+.si-env-panel--satellite-toolbox.si-env-panel--single-surface {
+  --si-toolbox-ink: #e2e8f0;
+  --si-toolbox-ink-muted: #94a3b8;
+  --si-toolbox-inset: rgba(2, 6, 23, 0.42);
+  --si-toolbox-inset-strong: rgba(15, 23, 42, 0.55);
+  --si-toolbox-line: rgba(148, 163, 184, 0.16);
   color-scheme: dark;
-  color: #e2e8f0;
-  background: linear-gradient(165deg, #070a14 0%, #111126 42%, #0f172a 100%);
+  color: var(--si-toolbox-ink);
+  background: linear-gradient(165deg, #070a14 0%, #0b1020 38%, #0f172a 100%);
   border: 1px solid rgba(71, 85, 105, 0.45);
   box-shadow: none;
   overflow: hidden;
   isolation: isolate;
 }
 
+.si-env-panel.si-env-panel--satellite-toolbox.si-env-panel--single-surface {
+  border-radius: 14px;
+}
+
+.si-env-panel--satellite-toolbox.si-env-panel--single-surface .si-explore-stac--in-header .si-explore-stac-body {
+  padding: 8px 10px 12px;
+}
+
 /* No inner “card” chrome: STAC root blends into the toolbox surface */
-.si-env-panel--toolbox-embed.si-env-panel--single-surface .si-explore-stac.si-explore-stac--embedded {
+.si-env-panel--satellite-toolbox.si-env-panel--single-surface .si-explore-stac.si-explore-stac--embedded {
   background: transparent !important;
   border: none !important;
   box-shadow: none !important;
+  border-radius: 0 !important;
 }
 
 /* Explore STAC parameters: one column — section titles are static labels, bodies always visible */
-.si-env-panel--toolbox-embed.si-env-panel--single-surface .si-explore-accordions {
+.si-env-panel--satellite-toolbox.si-env-panel--single-surface .si-explore-accordions {
   display: flex;
   flex-direction: column;
   gap: 14px;
 }
 
-.si-env-panel--toolbox-embed.si-env-panel--single-surface .si-explore-acc {
+.si-env-panel--satellite-toolbox.si-env-panel--single-surface .si-explore-acc {
   border: none;
   padding: 0;
   margin: 0;
   background: transparent;
 }
 
-.si-env-panel--toolbox-embed.si-env-panel--single-surface .si-explore-acc-btn {
+.si-env-panel--satellite-toolbox.si-env-panel--single-surface .si-explore-acc-btn {
   pointer-events: none;
   width: 100%;
   text-align: start;
@@ -9043,27 +9057,27 @@ html[data-theme='light'] .si-env-panel--toolbox-embed .si-env-panel-body--toolbo
   cursor: default;
 }
 
-.si-env-panel--toolbox-embed.si-env-panel--single-surface .si-explore-acc-chev {
+.si-env-panel--satellite-toolbox.si-env-panel--single-surface .si-explore-acc-chev {
   display: none;
 }
 
-.si-env-panel--toolbox-embed.si-env-panel--single-surface .si-explore-acc-panel {
+.si-env-panel--satellite-toolbox.si-env-panel--single-surface .si-explore-acc-panel {
   padding-top: 2px;
 }
 
-.si-env-panel--toolbox-embed.si-env-panel--single-surface .si-field-analysis-timeline-btn--stop {
+.si-env-panel--satellite-toolbox.si-env-panel--single-surface .si-field-analysis-timeline-btn--stop {
   background: rgba(30, 41, 59, 0.92) !important;
   color: #e2e8f0 !important;
   border-color: rgba(148, 163, 184, 0.35) !important;
 }
 
-.si-env-panel--toolbox-embed.si-env-panel--single-surface .si-field-analysis-timeline-btn--stop:hover {
+.si-env-panel--satellite-toolbox.si-env-panel--single-surface .si-field-analysis-timeline-btn--stop:hover {
   background: rgba(51, 65, 85, 0.95) !important;
   color: #f8fafc !important;
   border-color: rgba(148, 163, 184, 0.45) !important;
 }
 
-.si-env-panel--toolbox-embed.si-env-panel--single-surface .si-env-panel-header {
+.si-env-panel--satellite-toolbox.si-env-panel--single-surface .si-env-panel-header {
   border-bottom: 1px solid rgba(148, 163, 184, 0.12);
   background: transparent;
   background-image: none;
@@ -9071,13 +9085,13 @@ html[data-theme='light'] .si-env-panel--toolbox-embed .si-env-panel-body--toolbo
 }
 
 /* Title already in panel header — hide duplicate Explore STAC h2 inside body */
-.si-env-panel--toolbox-embed.si-env-panel--single-surface .si-explore-stac--in-header .si-explore-stac-header h2,
-.si-env-panel--toolbox-embed .si-env-panel-body--toolbox-flat .si-explore-stac--in-header .si-explore-stac-header h2 {
+.si-env-panel--satellite-toolbox.si-env-panel--single-surface .si-explore-stac--in-header .si-explore-stac-header h2,
+.si-env-panel--satellite-toolbox .si-env-panel-body--toolbox-flat .si-explore-stac--in-header .si-explore-stac-header h2 {
   display: none !important;
 }
 
-.si-env-panel--toolbox-embed.si-env-panel--single-surface .si-explore-stac--in-header .si-explore-stac-header,
-.si-env-panel--toolbox-embed .si-env-panel-body--toolbox-flat .si-explore-stac--in-header .si-explore-stac-header {
+.si-env-panel--satellite-toolbox.si-env-panel--single-surface .si-explore-stac--in-header .si-explore-stac-header,
+.si-env-panel--satellite-toolbox .si-env-panel-body--toolbox-flat .si-explore-stac--in-header .si-explore-stac-header {
   display: flex;
   flex-wrap: wrap;
   align-items: flex-end;
@@ -9088,13 +9102,11 @@ html[data-theme='light'] .si-env-panel--toolbox-embed .si-env-panel-body--toolbo
   border-bottom: 1px solid rgba(148, 163, 184, 0.12);
 }
 
-.si-env-panel--toolbox-embed.si-env-panel--single-surface .si-env-toolbox-nav {
-  background: transparent;
-  border-bottom: 1px solid rgba(148, 163, 184, 0.12);
-  padding: 6px 12px 8px;
+.si-env-panel--satellite-toolbox.si-env-panel--single-surface .si-env-toolbox-nav {
+  display: none !important;
 }
 
-.si-env-panel--toolbox-embed.si-env-panel--single-surface .si-env-panel-body--toolbox-flat {
+.si-env-panel--satellite-toolbox.si-env-panel--single-surface .si-env-panel-body--toolbox-flat {
   flex: 1 1 auto;
   min-height: 0;
   overflow: auto;
@@ -9103,12 +9115,12 @@ html[data-theme='light'] .si-env-panel--toolbox-embed .si-env-panel-body--toolbo
   background: transparent;
 }
 
-.si-env-panel--toolbox-embed.si-env-panel--single-surface .si-env-panel-body--toolbox-flat > * {
+.si-env-panel--satellite-toolbox.si-env-panel--single-surface .si-env-panel-body--toolbox-flat > * {
   min-height: 0;
 }
 
 /* Remote sensing / field blocks: spacing only, no subsection panels */
-.si-env-panel--toolbox-embed.si-env-panel--single-surface .si-env-panel-body--toolbox-flat .si-field-analysis-section {
+.si-env-panel--satellite-toolbox.si-env-panel--single-surface .si-env-panel-body--toolbox-flat .si-field-analysis-section {
   border: none !important;
   background: transparent !important;
   box-shadow: none !important;
@@ -9117,19 +9129,19 @@ html[data-theme='light'] .si-env-panel--toolbox-embed .si-env-panel-body--toolbo
   margin: 0 0 16px;
 }
 
-.si-env-panel--toolbox-embed.si-env-panel--single-surface .si-env-panel-body--toolbox-flat .si-field-analysis-kicker {
+.si-env-panel--satellite-toolbox.si-env-panel--single-surface .si-env-panel-body--toolbox-flat .si-field-analysis-kicker {
   margin-bottom: 6px;
 }
 
 /* Explore STAC: tab strip as underline row (not nested pill bar) */
-.si-env-panel--toolbox-embed.si-env-panel--single-surface .si-env-panel-body--toolbox-flat .si-explore-stac-tabs {
+.si-env-panel--satellite-toolbox.si-env-panel--single-surface .si-env-panel-body--toolbox-flat .si-explore-stac-tabs {
   gap: 2px;
   padding: 0;
   margin: 0 0 8px;
   border-bottom: 1px solid rgba(148, 163, 184, 0.14);
 }
 
-.si-env-panel--toolbox-embed.si-env-panel--single-surface .si-env-panel-body--toolbox-flat .si-explore-stac-tabs .si-explore-stac-tab {
+.si-env-panel--satellite-toolbox.si-env-panel--single-surface .si-env-panel-body--toolbox-flat .si-explore-stac-tabs .si-explore-stac-tab {
   margin: 0;
   border-radius: 0;
   background: transparent !important;
@@ -9138,13 +9150,13 @@ html[data-theme='light'] .si-env-panel--toolbox-embed .si-env-panel-body--toolbo
   padding: 8px 10px;
 }
 
-.si-env-panel--toolbox-embed.si-env-panel--single-surface .si-env-panel-body--toolbox-flat .si-explore-stac-tabs .si-explore-stac-tab.active {
+.si-env-panel--satellite-toolbox.si-env-panel--single-surface .si-env-panel-body--toolbox-flat .si-explore-stac-tabs .si-explore-stac-tab.active {
   background: transparent !important;
   border-bottom-color: rgba(52, 211, 153, 0.85);
   box-shadow: none !important;
 }
 
-.si-env-panel--toolbox-embed.si-env-panel--single-surface .si-env-panel-body--toolbox-flat .si-explore-stac-footer {
+.si-env-panel--satellite-toolbox.si-env-panel--single-surface .si-env-panel-body--toolbox-flat .si-explore-stac-footer {
   border-top: 1px solid rgba(148, 163, 184, 0.12);
   background: transparent;
   margin-top: 8px;
@@ -9152,7 +9164,7 @@ html[data-theme='light'] .si-env-panel--toolbox-embed .si-env-panel-body--toolbo
 }
 
 /* Geo AI: composer is part of same canvas (no nested purple card) */
-.si-env-panel--toolbox-embed.si-env-panel--single-surface .si-env-panel-body--toolbox-flat .si-geo-explorer-composer-surface {
+.si-env-panel--satellite-toolbox.si-env-panel--single-surface .si-env-panel-body--toolbox-flat .si-geo-explorer-composer-surface {
   margin-top: 4px;
   padding: 8px 0 0;
   border: none !important;
@@ -9162,97 +9174,97 @@ html[data-theme='light'] .si-env-panel--toolbox-embed .si-env-panel-body--toolbo
   border-top: 1px solid rgba(148, 163, 184, 0.1);
 }
 
-.si-env-panel--toolbox-embed.si-env-panel--single-surface .si-env-panel-body--toolbox-flat .si-geo-explorer-input {
+.si-env-panel--satellite-toolbox.si-env-panel--single-surface .si-env-panel-body--toolbox-flat .si-geo-explorer-input {
   border-radius: 10px;
   border-color: rgba(148, 163, 184, 0.22);
   background: rgba(2, 6, 23, 0.35);
 }
 
-.si-env-panel--toolbox-embed.si-env-panel--single-surface .si-env-panel-body--toolbox-flat .si-geo-explorer-composer-voice-hint {
+.si-env-panel--satellite-toolbox.si-env-panel--single-surface .si-env-panel-body--toolbox-flat .si-geo-explorer-composer-voice-hint {
   border: none;
   background: rgba(148, 163, 184, 0.06);
   border-radius: 8px;
 }
 
-.si-env-panel--toolbox-embed.si-env-panel--single-surface .si-env-panel-body--toolbox-flat .si-geo-explorer-messages {
+.si-env-panel--satellite-toolbox.si-env-panel--single-surface .si-env-panel-body--toolbox-flat .si-geo-explorer-messages {
   border: none !important;
   background: transparent !important;
 }
 
 /* Light app theme: map toolbox stays a dark instrument panel (same as dark theme) */
-html[data-theme='light'] .si-env-panel--toolbox-embed.si-env-panel--single-surface {
+html[data-theme='light'] .si-env-panel--satellite-toolbox.si-env-panel--single-surface {
   color-scheme: dark;
   color: #e2e8f0;
   background: linear-gradient(165deg, #070a14 0%, #111126 42%, #0f172a 100%);
   border-color: rgba(71, 85, 105, 0.45);
 }
 
-html[data-theme='light'] .si-env-panel--toolbox-embed.si-env-panel--single-surface .si-env-panel-header,
-html[data-theme='light'] .si-env-panel--toolbox-embed.si-env-panel--single-surface .si-env-toolbox-nav {
+html[data-theme='light'] .si-env-panel--satellite-toolbox.si-env-panel--single-surface .si-env-panel-header,
+html[data-theme='light'] .si-env-panel--satellite-toolbox.si-env-panel--single-surface .si-env-toolbox-nav {
   border-bottom-color: rgba(148, 163, 184, 0.16);
 }
 
-html[data-theme='light'] .si-env-panel--toolbox-embed.si-env-panel--single-surface .si-env-toolbox-back {
+html[data-theme='light'] .si-env-panel--satellite-toolbox.si-env-panel--single-surface .si-env-toolbox-back {
   background: rgba(15, 23, 42, 0.72);
   color: #e2e8f0;
   border-color: rgba(148, 163, 184, 0.28);
 }
 
-html[data-theme='light'] .si-env-panel--toolbox-embed.si-env-panel--single-surface .si-env-toolbox-breadcrumb {
+html[data-theme='light'] .si-env-panel--satellite-toolbox.si-env-panel--single-surface .si-env-toolbox-breadcrumb {
   color: #94a3b8;
 }
 
-html[data-theme='light'] .si-env-panel--toolbox-embed.si-env-panel--single-surface .si-env-toolbox-breadcrumb-current {
+html[data-theme='light'] .si-env-panel--satellite-toolbox.si-env-panel--single-surface .si-env-toolbox-breadcrumb-current {
   color: #f1f5f9;
 }
 
-html[data-theme='light'] .si-env-panel--toolbox-embed.si-env-panel--single-surface .si-env-panel-body--workspace .si-env-section-card {
+html[data-theme='light'] .si-env-panel--satellite-toolbox.si-env-panel--single-surface .si-env-panel-body--workspace .si-env-section-card {
   background: transparent !important;
 }
 
-html[data-theme='light'] .si-env-panel--toolbox-embed.si-env-panel--single-surface .si-env-panel-body--workspace .si-env-added-layers {
+html[data-theme='light'] .si-env-panel--satellite-toolbox.si-env-panel--single-surface .si-env-panel-body--workspace .si-env-added-layers {
   background: rgba(2, 6, 23, 0.35) !important;
 }
 
-html[data-theme='light'] .si-env-panel--toolbox-embed.si-env-panel--single-surface .si-env-panel-body--workspace > .si-explore-stac.si-explore-stac--embedded {
+html[data-theme='light'] .si-env-panel--satellite-toolbox.si-env-panel--single-surface .si-env-panel-body--workspace > .si-explore-stac.si-explore-stac--embedded {
   background: transparent !important;
 }
 
-html[data-theme='light'] .si-env-panel--toolbox-embed.si-env-panel--single-surface .si-env-panel-body--workspace .si-explore-collections-search {
+html[data-theme='light'] .si-env-panel--satellite-toolbox.si-env-panel--single-surface .si-env-panel-body--workspace .si-explore-collections-search {
   background: rgba(2, 6, 23, 0.55) !important;
   border-color: rgba(148, 163, 184, 0.22) !important;
   color: #cbd5e1 !important;
 }
 
-html[data-theme='light'] .si-env-panel--toolbox-embed.si-env-panel--single-surface .si-field-analysis-select,
-html[data-theme='light'] .si-env-panel--toolbox-embed.si-env-panel--single-surface .si-field-analysis-field input[type='date'] {
+html[data-theme='light'] .si-env-panel--satellite-toolbox.si-env-panel--single-surface .si-field-analysis-select,
+html[data-theme='light'] .si-env-panel--satellite-toolbox.si-env-panel--single-surface .si-field-analysis-field input[type='date'] {
   background: rgba(2, 6, 23, 0.5) !important;
   color: #e2e8f0 !important;
   border-color: rgba(148, 163, 184, 0.28) !important;
 }
 
-html[data-theme='light'] .si-env-panel--toolbox-embed.si-env-panel--single-surface .si-field-analysis-label,
-html[data-theme='light'] .si-env-panel--toolbox-embed.si-env-panel--single-surface .si-field-analysis-kicker {
+html[data-theme='light'] .si-env-panel--satellite-toolbox.si-env-panel--single-surface .si-field-analysis-label,
+html[data-theme='light'] .si-env-panel--satellite-toolbox.si-env-panel--single-surface .si-field-analysis-kicker {
   color: #94a3b8 !important;
 }
 
-html[data-theme='light'] .si-env-panel--toolbox-embed.si-env-panel--single-surface .si-field-analysis-title {
+html[data-theme='light'] .si-env-panel--satellite-toolbox.si-env-panel--single-surface .si-field-analysis-title {
   color: #f8fafc !important;
 }
 
-html[data-theme='light'] .si-env-panel--toolbox-embed.si-env-panel--single-surface .si-field-analysis-checkbox-row {
+html[data-theme='light'] .si-env-panel--satellite-toolbox.si-env-panel--single-surface .si-field-analysis-checkbox-row {
   color: #e2e8f0 !important;
 }
 
-html[data-theme='light'] .si-env-panel--toolbox-embed.si-env-panel--single-surface .si-explore-stac-header h2,
-html[data-theme='light'] .si-env-panel--toolbox-embed.si-env-panel--single-surface .si-explore-stac-sub {
+html[data-theme='light'] .si-env-panel--satellite-toolbox.si-env-panel--single-surface .si-explore-stac-header h2,
+html[data-theme='light'] .si-env-panel--satellite-toolbox.si-env-panel--single-surface .si-explore-stac-sub {
   color: #e2e8f0 !important;
 }
 
-html[data-theme='light'] .si-env-panel--toolbox-embed.si-env-panel--single-surface .si-explore-stac-sub {
+html[data-theme='light'] .si-env-panel--satellite-toolbox.si-env-panel--single-surface .si-explore-stac-sub {
   opacity: 0.9;
 }
 
-html[data-theme='light'] .si-env-panel--toolbox-embed.si-env-panel--single-surface .si-explore-view-results {
+html[data-theme='light'] .si-env-panel--satellite-toolbox.si-env-panel--single-surface .si-explore-view-results {
   color: #ecfdf5 !important;
 }
