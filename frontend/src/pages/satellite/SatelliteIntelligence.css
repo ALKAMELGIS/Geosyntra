@@ -8986,11 +8986,71 @@ html[data-theme='light'] .si-env-panel--toolbox-embed .si-env-panel-body--toolbo
    No stacked “panels”, no nested section chrome, stable scroll.
    ------------------------------------------------------------------ */
 .si-env-panel--toolbox-embed.si-env-panel--single-surface {
-  background: rgba(15, 23, 42, 0.92);
-  border: 1px solid rgba(148, 163, 184, 0.16);
+  color-scheme: dark;
+  color: #e2e8f0;
+  background: linear-gradient(165deg, #070a14 0%, #111126 42%, #0f172a 100%);
+  border: 1px solid rgba(71, 85, 105, 0.45);
   box-shadow: none;
   overflow: hidden;
   isolation: isolate;
+}
+
+/* No inner “card” chrome: STAC root blends into the toolbox surface */
+.si-env-panel--toolbox-embed.si-env-panel--single-surface .si-explore-stac.si-explore-stac--embedded {
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+}
+
+/* Explore STAC parameters: one column — section titles are static labels, bodies always visible */
+.si-env-panel--toolbox-embed.si-env-panel--single-surface .si-explore-accordions {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.si-env-panel--toolbox-embed.si-env-panel--single-surface .si-explore-acc {
+  border: none;
+  padding: 0;
+  margin: 0;
+  background: transparent;
+}
+
+.si-env-panel--toolbox-embed.si-env-panel--single-surface .si-explore-acc-btn {
+  pointer-events: none;
+  width: 100%;
+  text-align: start;
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  padding: 0 0 6px;
+  margin: 0;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: rgba(148, 163, 184, 0.95);
+  cursor: default;
+}
+
+.si-env-panel--toolbox-embed.si-env-panel--single-surface .si-explore-acc-chev {
+  display: none;
+}
+
+.si-env-panel--toolbox-embed.si-env-panel--single-surface .si-explore-acc-panel {
+  padding-top: 2px;
+}
+
+.si-env-panel--toolbox-embed.si-env-panel--single-surface .si-field-analysis-timeline-btn--stop {
+  background: rgba(30, 41, 59, 0.92) !important;
+  color: #e2e8f0 !important;
+  border-color: rgba(148, 163, 184, 0.35) !important;
+}
+
+.si-env-panel--toolbox-embed.si-env-panel--single-surface .si-field-analysis-timeline-btn--stop:hover {
+  background: rgba(51, 65, 85, 0.95) !important;
+  color: #f8fafc !important;
+  border-color: rgba(148, 163, 184, 0.45) !important;
 }
 
 .si-env-panel--toolbox-embed.si-env-panel--single-surface .si-env-panel-header {
@@ -9091,18 +9151,80 @@ html[data-theme='light'] .si-env-panel--toolbox-embed .si-env-panel-body--toolbo
   background: transparent !important;
 }
 
+/* Light app theme: map toolbox stays a dark instrument panel (same as dark theme) */
 html[data-theme='light'] .si-env-panel--toolbox-embed.si-env-panel--single-surface {
-  background: rgba(248, 250, 252, 0.98);
-  border-color: rgba(148, 163, 184, 0.35);
+  color-scheme: dark;
+  color: #e2e8f0;
+  background: linear-gradient(165deg, #070a14 0%, #111126 42%, #0f172a 100%);
+  border-color: rgba(71, 85, 105, 0.45);
 }
 
 html[data-theme='light'] .si-env-panel--toolbox-embed.si-env-panel--single-surface .si-env-panel-header,
 html[data-theme='light'] .si-env-panel--toolbox-embed.si-env-panel--single-surface .si-env-toolbox-nav {
-  border-bottom-color: rgba(148, 163, 184, 0.28);
+  border-bottom-color: rgba(148, 163, 184, 0.16);
 }
 
 html[data-theme='light'] .si-env-panel--toolbox-embed.si-env-panel--single-surface .si-env-toolbox-back {
-  background: rgba(255, 255, 255, 0.95);
-  color: #0f172a;
-  border-color: rgba(148, 163, 184, 0.35);
+  background: rgba(15, 23, 42, 0.72);
+  color: #e2e8f0;
+  border-color: rgba(148, 163, 184, 0.28);
+}
+
+html[data-theme='light'] .si-env-panel--toolbox-embed.si-env-panel--single-surface .si-env-toolbox-breadcrumb {
+  color: #94a3b8;
+}
+
+html[data-theme='light'] .si-env-panel--toolbox-embed.si-env-panel--single-surface .si-env-toolbox-breadcrumb-current {
+  color: #f1f5f9;
+}
+
+html[data-theme='light'] .si-env-panel--toolbox-embed.si-env-panel--single-surface .si-env-panel-body--workspace .si-env-section-card {
+  background: transparent !important;
+}
+
+html[data-theme='light'] .si-env-panel--toolbox-embed.si-env-panel--single-surface .si-env-panel-body--workspace .si-env-added-layers {
+  background: rgba(2, 6, 23, 0.35) !important;
+}
+
+html[data-theme='light'] .si-env-panel--toolbox-embed.si-env-panel--single-surface .si-env-panel-body--workspace > .si-explore-stac.si-explore-stac--embedded {
+  background: transparent !important;
+}
+
+html[data-theme='light'] .si-env-panel--toolbox-embed.si-env-panel--single-surface .si-env-panel-body--workspace .si-explore-collections-search {
+  background: rgba(2, 6, 23, 0.55) !important;
+  border-color: rgba(148, 163, 184, 0.22) !important;
+  color: #cbd5e1 !important;
+}
+
+html[data-theme='light'] .si-env-panel--toolbox-embed.si-env-panel--single-surface .si-field-analysis-select,
+html[data-theme='light'] .si-env-panel--toolbox-embed.si-env-panel--single-surface .si-field-analysis-field input[type='date'] {
+  background: rgba(2, 6, 23, 0.5) !important;
+  color: #e2e8f0 !important;
+  border-color: rgba(148, 163, 184, 0.28) !important;
+}
+
+html[data-theme='light'] .si-env-panel--toolbox-embed.si-env-panel--single-surface .si-field-analysis-label,
+html[data-theme='light'] .si-env-panel--toolbox-embed.si-env-panel--single-surface .si-field-analysis-kicker {
+  color: #94a3b8 !important;
+}
+
+html[data-theme='light'] .si-env-panel--toolbox-embed.si-env-panel--single-surface .si-field-analysis-title {
+  color: #f8fafc !important;
+}
+
+html[data-theme='light'] .si-env-panel--toolbox-embed.si-env-panel--single-surface .si-field-analysis-checkbox-row {
+  color: #e2e8f0 !important;
+}
+
+html[data-theme='light'] .si-env-panel--toolbox-embed.si-env-panel--single-surface .si-explore-stac-header h2,
+html[data-theme='light'] .si-env-panel--toolbox-embed.si-env-panel--single-surface .si-explore-stac-sub {
+  color: #e2e8f0 !important;
+}
+
+html[data-theme='light'] .si-env-panel--toolbox-embed.si-env-panel--single-surface .si-explore-stac-sub {
+  opacity: 0.9;
+}
+
+html[data-theme='light'] .si-env-panel--toolbox-embed.si-env-panel--single-surface .si-explore-view-results {
+  color: #ecfdf5 !important;
 }

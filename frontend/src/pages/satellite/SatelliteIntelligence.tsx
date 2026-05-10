@@ -119,6 +119,7 @@ import { GeoExplorerGeminiInputRow } from './components/GeoExplorerGeminiInputRo
 import { GeoExplorerGeminiMessageParts } from './components/GeoExplorerGeminiMessageParts';
 import type { AoiStaticMultiLayerLineChartDataset } from './components/AoiStaticMultiLayerLineChart';
 import { SatelliteMapAnalysisChrome, type MapToolboxNavigateHandler } from './components/SatelliteMapAnalysisChrome';
+import { SatelliteAoiStaticChartsMapOverlay } from './components/SatelliteAoiStaticChartsMapOverlay';
 import { SatelliteMapProcessingOptionsPortal } from './components/SatelliteMapProcessingOptionsPortal';
 import {
   buildStaticAoiMultiChartDatasets,
@@ -1960,6 +1961,20 @@ export default function SatelliteIntelligence() {
       setProcessingNavStack([]);
     }
   }, [isLayerDropdownOpen]);
+
+  /** Map toolbox embed: show all Explore STAC parameter blocks at once (single surface, no accordion collapse). */
+  useLayoutEffect(() => {
+    if (mapToolboxEmbedHost && isLayerDropdownOpen && expandedEnvSection === 'explore-stac') {
+      setOpenExploreAccordions({
+        description: true,
+        datetime: true,
+        extent: true,
+        ids: true,
+        attributes: true,
+        limit: true,
+      });
+    }
+  }, [mapToolboxEmbedHost, isLayerDropdownOpen, expandedEnvSection]);
 
   const onProcessingWorkflowNavigateMapToolbox: MapToolboxNavigateHandler = useCallback(
     (id, meta) => {
@@ -7844,6 +7859,19 @@ export default function SatelliteIntelligence() {
 
             {isMapLoaded ? <NavigationControl position="bottom-right" /> : null}
           </MapGL>
+
+          <SatelliteAoiStaticChartsMapOverlay
+            open={mapStaticChartsOpen}
+            onClose={() => setMapStaticChartsOpen(false)}
+            indexLabel={selectedIndexConfig.label}
+            staticComparisonLayers={staticChartComparisonLayers}
+            onStaticComparisonLayerToggle={handleStaticComparisonLayerToggle}
+            staticMultiLineLabels={staticAoiMultiLineData.labels}
+            staticMultiLineDatasets={staticAoiMultiLineData.datasets}
+            staticMultiLineHasLst={staticAoiMultiLineData.hasLst}
+            weeklyMeans={satelliteWeeklyMeans}
+            pivotBars={satellitePivotBars}
+          />
 
           <SatelliteMapAnalysisChrome
             weeklyChips={satelliteTimelineChips}

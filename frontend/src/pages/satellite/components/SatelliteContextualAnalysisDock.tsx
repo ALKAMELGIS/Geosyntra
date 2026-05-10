@@ -639,9 +639,6 @@ export function SatelliteContextualAnalysisDock(props: SatelliteContextualAnalys
               <span className="si-sat-ctx-rail-collapse__icon-wrap" aria-hidden>
                 <i className={railWide ? 'fa-solid fa-angles-right' : 'fa-solid fa-angles-left'} />
               </span>
-              {isMap && railWide ? <span className="si-sat-ctx-rail-collapse-text">Expand</span> : null}
-              {isMap && !railWide ? <span className="si-sat-ctx-rail-collapse-text">Collapse</span> : null}
-              {!isMap && railWide ? <span className="si-sat-ctx-rail-collapse-text">Collapse</span> : null}
             </button>
           ) : null}
         </div>
