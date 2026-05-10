@@ -119,6 +119,15 @@ export type SatelliteMapAnalysisChromeProps = {
   showMapToolbox?: boolean;
   onProcessingWorkflowNavigate?: (sectionId: SmartProcessingSectionId) => void;
   processingDropdownOpen?: boolean;
+  /** Section shown inside portaled Processing Options — syncs toolbox chrome (title / rail) with content. */
+  processingEmbedSection?:
+    | 'source'
+    | 'layers'
+    | 'explore-stac'
+    | 'remote-sensing'
+    | 'ai-detection-gis'
+    | 'table-geo-ai'
+    | null;
   onMapToolboxEmbedHost?: (el: HTMLDivElement | null) => void;
   onToolboxPanelClose?: () => void;
   /** Layers tool → Main tab: add layer + Added layers (optional; parent provides memoized JSX). */
@@ -167,6 +176,7 @@ export function SatelliteMapAnalysisChrome(props: SatelliteMapAnalysisChromeProp
     showMapToolbox = true,
     onProcessingWorkflowNavigate,
     processingDropdownOpen = false,
+    processingEmbedSection = null,
     onMapToolboxEmbedHost,
     onToolboxPanelClose,
     mapToolboxLayersMain,
@@ -198,6 +208,7 @@ export function SatelliteMapAnalysisChrome(props: SatelliteMapAnalysisChromeProp
       sparkPathBuilder={sparkPath}
       onProcessingWorkflowNavigate={onProcessingWorkflowNavigate}
       processingDropdownOpen={processingDropdownOpen}
+      processingEmbedSection={processingEmbedSection}
       onMapToolboxEmbedHost={onMapToolboxEmbedHost}
       onToolboxPanelClose={onToolboxPanelClose}
       mapToolboxLayersMain={mapToolboxLayersMain}

@@ -7796,6 +7796,7 @@ export default function SatelliteIntelligence() {
               setIsLayerDropdownOpen(true);
             }}
             processingDropdownOpen={isLayerDropdownOpen}
+            processingEmbedSection={isLayerDropdownOpen ? expandedEnvSection : null}
             onMapToolboxEmbedHost={setMapToolboxEmbedHost}
             onToolboxPanelClose={() => setIsLayerDropdownOpen(false)}
             mapToolboxLayersMain={layersEnvMainTools}
@@ -7970,7 +7971,23 @@ export default function SatelliteIntelligence() {
                   <div className="si-env-panel-header">
                     <div className="si-env-header-top">
                       <div>
-                        <div className="si-env-title">Processing Options</div>
+                        <div className="si-env-title">
+                          {mapToolboxEmbedHost
+                            ? expandedEnvSection === 'explore-stac'
+                              ? 'Explore STAC'
+                              : expandedEnvSection === 'remote-sensing'
+                                ? 'Remote sensing'
+                                : expandedEnvSection === 'ai-detection-gis'
+                                  ? 'AI Detection in GIS'
+                                  : expandedEnvSection === 'table-geo-ai'
+                                    ? 'Geo AI'
+                                    : expandedEnvSection === 'layers'
+                                      ? 'Layers'
+                                      : expandedEnvSection === 'source'
+                                        ? 'Source catalog'
+                                        : 'Processing Options'
+                            : 'Processing Options'}
+                        </div>
                       </div>
                       <button
                         type="button"

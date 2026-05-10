@@ -8445,14 +8445,6 @@ input.si-explore-date-input-linked[type='date'] {
   border: 1px solid rgba(148, 163, 184, 0.08);
 }
 
-.si-env-panel-body--workspace .si-explore-stac--in-header .si-explore-stac-header {
-  border-bottom-color: rgba(148, 163, 184, 0.1);
-}
-
-.si-env-panel-body--workspace .si-explore-stac-tabs {
-  border-bottom-color: rgba(148, 163, 184, 0.1);
-}
-
 /* Layers list: workspace + embedded toolbox layers card */
 .si-env-panel-body--workspace .si-env-added-layers,
 .si-sat-ctx-panel-body > .si-map-toolbox-layers-card .si-env-added-layers {
@@ -8559,4 +8551,176 @@ html[data-theme='light'] .si-sat-ctx-panel-body > .si-map-toolbox-layers-card .s
 html[data-theme='light'] .si-env-panel-body--workspace .si-env-layer-item.active,
 html[data-theme='light'] .si-sat-ctx-panel-body > .si-map-toolbox-layers-card .si-env-layer-item.active {
   background: rgba(22, 163, 74, 0.1);
+}
+
+/* =============================================================================
+   Explore STAC — flat surface inside workspace panel-body
+   One canvas: no nested “card” chrome; spacing + hairlines only.
+   ============================================================================= */
+
+/* Toolbox embed: drop redundant “Processing Options” row when STAC is root content */
+.si-env-panel--toolbox-embed:has(.si-env-panel-body--workspace > .si-explore-stac.si-explore-stac--embedded) > .si-env-panel-header {
+  display: none;
+}
+
+.si-env-panel-body--workspace > .si-explore-stac.si-explore-stac--embedded {
+  border: none;
+  border-radius: 0;
+  box-shadow: none;
+  background: transparent;
+  width: 100%;
+}
+
+.si-env-panel-body--workspace .si-explore-stac--in-header .si-explore-stac-header {
+  padding: 2px 2px 12px;
+  margin: 0 0 2px;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.1);
+}
+
+.si-env-panel-body--workspace .si-explore-stac-header h2 {
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+.si-env-panel-body--workspace .si-explore-stac-tabs {
+  padding: 0 2px;
+  gap: 8px;
+  margin-bottom: 4px;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.08);
+}
+
+.si-env-panel-body--workspace .si-explore-stac-tabs .si-explore-stac-tab {
+  border: none;
+  background: rgba(148, 163, 184, 0.08);
+  border-radius: 10px;
+  margin: 8px 0;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.si-env-panel-body--workspace .si-explore-stac-tabs .si-explore-stac-tab:hover:not(.active) {
+  border: none;
+  background: rgba(148, 163, 184, 0.14);
+  color: #e2e8f0;
+}
+
+.si-env-panel-body--workspace .si-explore-stac-tabs .si-explore-stac-tab.active {
+  border: none;
+  box-shadow: none;
+  background: rgba(56, 189, 248, 0.22);
+  color: #f0f9ff;
+}
+
+.si-env-panel-body--workspace .si-explore-stac--in-header .si-explore-stac-body {
+  padding: 10px 2px 12px;
+}
+
+.si-env-panel-body--workspace .si-explore-collections-section {
+  margin-bottom: 18px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.08);
+}
+
+.si-env-panel-body--workspace .si-explore-collections-search {
+  border: 1px solid rgba(148, 163, 184, 0.12);
+  background: rgba(2, 6, 23, 0.35);
+  border-radius: 10px;
+}
+
+.si-env-panel-body--workspace .si-explore-collection-list-wrap {
+  border: none;
+  border-radius: 10px;
+  background: rgba(148, 163, 184, 0.04);
+}
+
+.si-env-panel-body--workspace .si-explore-collection-table-head {
+  border-bottom: 1px solid rgba(148, 163, 184, 0.1);
+}
+
+.si-env-panel-body--workspace .si-explore-collection-row {
+  border-bottom: 1px solid rgba(148, 163, 184, 0.06);
+  transition: background 0.12s ease;
+}
+
+.si-env-panel-body--workspace .si-explore-collection-row:last-child {
+  border-bottom: none;
+}
+
+.si-env-panel-body--workspace .si-explore-collection-row:hover {
+  background: rgba(148, 163, 184, 0.06);
+}
+
+.si-env-panel-body--workspace .si-explore-acc {
+  border: none;
+  border-radius: 10px;
+  background: rgba(148, 163, 184, 0.05);
+}
+
+.si-env-panel-body--workspace .si-explore-acc-btn:hover {
+  background: rgba(148, 163, 184, 0.09);
+}
+
+.si-env-panel-body--workspace .si-explore-stac-footer {
+  border-top: 1px solid rgba(148, 163, 184, 0.1);
+  background: transparent;
+  padding-top: 14px;
+  margin-top: 4px;
+}
+
+.si-env-panel-body--workspace .si-explore-view-results {
+  border-radius: 10px;
+  border: 1px solid rgba(34, 197, 94, 0.32);
+  background: rgba(22, 163, 74, 0.12);
+  transition: background 0.15s ease, border-color 0.15s ease, transform 0.12s ease;
+}
+
+.si-env-panel-body--workspace .si-explore-view-results:not(:disabled):hover {
+  background: rgba(22, 163, 74, 0.22);
+  transform: translateY(-1px);
+}
+
+.si-env-panel-body--workspace .si-explore-results-table-wrap {
+  border: 1px solid rgba(148, 163, 184, 0.1);
+  background: rgba(148, 163, 184, 0.04);
+  border-radius: 10px;
+}
+
+.si-env-panel-body--workspace .si-explore-results-cards-wrap {
+  border: none;
+  background: rgba(148, 163, 184, 0.04);
+  border-radius: 10px;
+}
+
+.si-env-panel-body--workspace .si-explore-result-card {
+  border: 1px solid rgba(148, 163, 184, 0.08);
+  background: rgba(2, 6, 23, 0.25);
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+
+.si-env-panel-body--workspace .si-explore-result-card:hover {
+  border-color: rgba(56, 189, 248, 0.25);
+  background: rgba(2, 6, 23, 0.38);
+}
+
+.si-env-panel-body--workspace .si-explore-results-footer-bar {
+  border-top-color: rgba(148, 163, 184, 0.1);
+}
+
+.si-env-panel-body--workspace .si-explore-page-btn {
+  border: 1px solid rgba(148, 163, 184, 0.14);
+  background: rgba(148, 163, 184, 0.06);
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.si-env-panel-body--workspace .si-explore-page-btn:hover:not(:disabled) {
+  background: rgba(148, 163, 184, 0.12);
+}
+
+html[data-theme='light'] .si-env-panel-body--workspace > .si-explore-stac.si-explore-stac--embedded {
+  background: transparent;
+}
+
+html[data-theme='light'] .si-env-panel-body--workspace .si-explore-collections-search {
+  background: rgba(241, 245, 249, 0.9);
+  border-color: rgba(148, 163, 184, 0.28);
 }
