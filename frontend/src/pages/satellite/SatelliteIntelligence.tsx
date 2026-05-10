@@ -8112,7 +8112,12 @@ export default function SatelliteIntelligence() {
                       </ol>
                     </div>
                   ) : null}
-                  <div className="si-env-panel-body si-env-panel-body--workspace">
+                  <div
+                    className={
+                      'si-env-panel-body si-env-panel-body--workspace' +
+                      (mapToolboxEmbedHost ? ' si-env-panel-body--toolbox-flat' : '')
+                    }
+                  >
                     {expandedEnvSection === 'explore-stac' ? (
                       <div className="si-explore-stac si-explore-stac--embedded si-explore-stac--in-header">
             <div className="si-explore-stac-header">

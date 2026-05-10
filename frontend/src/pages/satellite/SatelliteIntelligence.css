@@ -8825,3 +8825,154 @@ html[data-theme='light'] .si-env-panel-body--workspace .si-explore-collections-s
   background: rgba(241, 245, 249, 0.9);
   border-color: rgba(148, 163, 184, 0.28);
 }
+
+/* ------------------------------------------------------------------
+   Map toolbox embed only: panel-body as one surface (no nested cards)
+   ------------------------------------------------------------------ */
+.si-env-panel--toolbox-embed .si-env-panel-body--toolbox-flat {
+  padding: 6px 10px 16px;
+  gap: 0;
+}
+
+.si-env-panel--toolbox-embed .si-env-panel-body--toolbox-flat > .si-env-section-card {
+  border: none !important;
+  box-shadow: none !important;
+  background: transparent !important;
+  padding: 8px 0 12px;
+  border-radius: 0 !important;
+}
+
+.si-env-panel--toolbox-embed .si-env-panel-body--toolbox-flat .si-field-analysis-header {
+  display: none !important;
+}
+
+.si-env-panel--toolbox-embed .si-env-panel-body--toolbox-flat .si-env-section-card.si-field-analysis {
+  gap: 14px;
+}
+
+.si-env-panel--toolbox-embed .si-env-panel-body--toolbox-flat .si-geo-explorer-title {
+  display: none;
+}
+
+.si-env-panel--toolbox-embed .si-env-panel-body--toolbox-flat .si-geo-explorer-header {
+  justify-content: flex-end;
+  border: none;
+  padding: 2px 0 10px;
+  margin: 0 0 2px;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.12);
+}
+
+.si-env-panel--toolbox-embed .si-env-panel-body--toolbox-flat .si-geo-explorer-root,
+.si-env-panel--toolbox-embed .si-env-panel-body--toolbox-flat .si-env-section-card.si-geo-explorer {
+  border: none !important;
+  box-shadow: none !important;
+  background: transparent !important;
+  padding: 6px 0 10px;
+  border-radius: 0 !important;
+}
+
+.si-env-panel--toolbox-embed .si-env-panel-body--toolbox-flat .si-geo-explorer-bubble {
+  border: none !important;
+  border-radius: 0 !important;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.08);
+  background: rgba(148, 163, 184, 0.04);
+}
+
+.si-env-panel--toolbox-embed .si-env-panel-body--toolbox-flat .si-geo-ai-model-tab {
+  border: none;
+  background: rgba(148, 163, 184, 0.08);
+  border-radius: 8px;
+}
+
+.si-env-panel--toolbox-embed .si-env-panel-body--toolbox-flat .si-geo-ai-model-tab--active {
+  box-shadow: none;
+}
+
+.si-env-panel--toolbox-embed .si-env-panel-body--toolbox-flat .si-map-analysis-toolbar--embedded {
+  border: none !important;
+  box-shadow: none !important;
+  background: transparent !important;
+  padding: 0 !important;
+  margin: 0 !important;
+}
+
+.si-env-panel--toolbox-embed .si-env-panel-body--toolbox-flat .si-map-toolbox-layers-card {
+  border: none !important;
+  box-shadow: none !important;
+  background: transparent !important;
+  padding: 0 !important;
+}
+
+.si-env-panel--toolbox-embed .si-env-panel-body--toolbox-flat .si-env-added-layers {
+  border: none;
+  border-radius: 0;
+  background: rgba(148, 163, 184, 0.04);
+}
+
+.si-env-panel--toolbox-embed .si-env-panel-body--toolbox-flat .si-env-layer-list {
+  border-radius: 0;
+  border: none;
+}
+
+.si-env-panel--toolbox-embed .si-env-panel-body--toolbox-flat .si-netflora-stat-card {
+  border: none !important;
+  border-radius: 0 !important;
+  background: rgba(148, 163, 184, 0.06) !important;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.1);
+}
+
+.si-env-panel--toolbox-embed .si-env-panel-body--toolbox-flat .si-netflora-class-row {
+  border: none !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.06);
+}
+
+/* Explore STAC: accordions + lists as rows, not nested panels */
+.si-env-panel--toolbox-embed .si-env-panel-body--toolbox-flat .si-explore-acc {
+  background: transparent !important;
+  border: none !important;
+  border-radius: 0 !important;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.1) !important;
+}
+
+.si-env-panel--toolbox-embed .si-env-panel-body--toolbox-flat .si-explore-acc-btn {
+  border-radius: 0;
+  background: transparent;
+}
+
+.si-env-panel--toolbox-embed .si-env-panel-body--toolbox-flat .si-explore-collection-list-wrap {
+  background: transparent !important;
+  border: none !important;
+  border-radius: 0 !important;
+}
+
+.si-env-panel--toolbox-embed .si-env-panel-body--toolbox-flat .si-explore-collections-search {
+  border: none !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+}
+
+.si-env-panel--toolbox-embed .si-env-panel-body--toolbox-flat .si-explore-result-card {
+  border: none !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.08);
+}
+
+.si-env-panel--toolbox-embed .si-env-panel-body--toolbox-flat .si-explore-results-table-wrap,
+.si-env-panel--toolbox-embed .si-env-panel-body--toolbox-flat .si-explore-results-cards-wrap {
+  border: none !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+}
+
+.si-env-panel--toolbox-embed .si-env-panel-body--toolbox-flat .si-explore-view-results {
+  border-radius: 10px;
+  border: 1px solid rgba(34, 197, 94, 0.35);
+}
+
+html[data-theme='light'] .si-env-panel--toolbox-embed .si-env-panel-body--toolbox-flat .si-explore-collections-search,
+html[data-theme='light'] .si-env-panel--toolbox-embed .si-env-panel-body--toolbox-flat .si-explore-collection-list-wrap {
+  background: transparent !important;
+}
