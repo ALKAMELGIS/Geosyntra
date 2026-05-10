@@ -6694,6 +6694,10 @@ input.si-explore-date-input-linked[type='date'] {
   margin: 12px 0 14px;
 }
 
+.si-field-analysis-map-tools > .si-field-analysis-kicker {
+  margin-bottom: 8px;
+}
+
 .si-field-analysis-map-tools-kicker {
   margin-bottom: 8px;
 }
