@@ -664,7 +664,7 @@
 .si-sat-ctx-dock--map {
   position: absolute;
   z-index: 96;
-  /* Flush with mapboxgl-canvas-container edge (no gutter between toolbox and canvas). */
+  /* Default: dock on map inline-end (right in LTR). Satellite Intelligence uses --map-left. */
   inset-inline-end: 0;
   left: auto;
   top: 50%;
@@ -674,7 +674,49 @@
   filter: drop-shadow(0 18px 40px rgba(2, 6, 23, 0.42));
 }
 
-/* Full-height map toolbox (Satellite Intelligence) — docked right, expand/collapse rail */
+/* Toolbox on map start (left in LTR): rail first, panel opens toward map center */
+.si-sat-ctx-dock--map.si-sat-ctx-dock--map-left {
+  inset-inline-end: auto;
+  inset-inline-start: 0;
+  right: auto;
+  flex-direction: row;
+}
+
+.si-sat-ctx-dock--map.si-sat-ctx-dock--map-left .si-sat-ctx-panel {
+  border-radius: 0 16px 16px 0;
+  border-inline-start: none;
+  border-inline-end: 1px solid var(--si-ctx-border);
+  box-shadow: 12px 0 40px rgba(2, 6, 23, 0.25);
+}
+
+.si-sat-ctx-dock--map.si-sat-ctx-dock--map-left .si-sat-ctx-panel-resize {
+  inset-inline-end: auto;
+  inset-inline-start: 0;
+  background: linear-gradient(90deg, rgba(99, 102, 241, 0.12), transparent);
+}
+
+.si-sat-ctx-dock--map.si-sat-ctx-dock--map-left .si-sat-ctx-panel-resize:hover {
+  background: linear-gradient(90deg, rgba(52, 211, 153, 0.25), transparent);
+}
+
+.si-sat-ctx-dock[dir='rtl'].si-sat-ctx-dock--map.si-sat-ctx-dock--map-left .si-sat-ctx-panel {
+  border-radius: 16px 0 0 16px;
+  border-inline-start: 1px solid var(--si-ctx-border);
+  border-inline-end: none;
+  box-shadow: -12px 0 40px rgba(2, 6, 23, 0.25);
+}
+
+.si-sat-ctx-dock[dir='rtl'].si-sat-ctx-dock--map.si-sat-ctx-dock--map-left .si-sat-ctx-panel-resize {
+  inset-inline-start: auto;
+  inset-inline-end: 0;
+  background: linear-gradient(270deg, rgba(99, 102, 241, 0.12), transparent);
+}
+
+.si-sat-ctx-dock[dir='rtl'].si-sat-ctx-dock--map.si-sat-ctx-dock--map-left .si-sat-ctx-panel-resize:hover {
+  background: linear-gradient(270deg, rgba(52, 211, 153, 0.25), transparent);
+}
+
+/* Full-height map toolbox (Satellite Intelligence) — docked to map edge */
 .si-sat-ctx-dock--map.si-sat-ctx-dock--map-tall {
   top: 0;
   bottom: 0;
@@ -684,7 +726,7 @@
   align-self: stretch;
 }
 
-.si-sat-ctx-dock--map-tall .si-sat-ctx-rail {
+.si-sat-ctx-dock--map-tall:not(.si-sat-ctx-dock--map-left) .si-sat-ctx-rail {
   height: 100%;
   min-height: 0;
   flex: 0 0 auto;
@@ -692,6 +734,16 @@
   border-radius: 0;
   border-start-end-radius: 14px;
   border-end-end-radius: 14px;
+}
+
+.si-sat-ctx-dock--map-tall.si-sat-ctx-dock--map-left .si-sat-ctx-rail {
+  height: 100%;
+  min-height: 0;
+  flex: 0 0 auto;
+  align-self: stretch;
+  border-radius: 0;
+  border-start-start-radius: 14px;
+  border-end-start-radius: 14px;
 }
 
 .si-sat-ctx-dock--map-tall .si-sat-ctx-panel {
@@ -1113,10 +1165,12 @@
 }
 
 .si-sat-ctx-dock--map-toolbox.si-sat-ctx-dock--rail-narrow .si-sat-ctx-rail-collapse--map {
-  flex-direction: column;
-  gap: 3px;
+  flex-direction: row;
+  justify-content: center;
+  align-items: center;
+  gap: 0;
   padding: 8px 4px;
-  min-height: 52px;
+  min-height: 48px;
   border-style: solid;
   border-color: rgba(129, 140, 248, 0.38);
   background: rgba(30, 41, 59, 0.45);
@@ -1126,21 +1180,6 @@
 .si-sat-ctx-dock--light.si-sat-ctx-dock--map-toolbox.si-sat-ctx-dock--rail-narrow .si-sat-ctx-rail-collapse--map {
   background: rgba(255, 255, 255, 0.85);
   border-color: rgba(99, 102, 241, 0.28);
-}
-
-.si-sat-ctx-rail-collapse-sublabel {
-  display: block;
-  font-size: 8px;
-  font-weight: 800;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-  color: var(--si-ctx-muted);
-  line-height: 1;
-  text-align: center;
-}
-
-.si-sat-ctx-dock--map-toolbox.si-sat-ctx-dock--rail-narrow .si-sat-ctx-rail-collapse-sublabel {
-  font-size: 7px;
 }
 
 .si-sat-ctx-dock[dir='rtl'] .si-sat-ctx-rail-label {
@@ -1576,4 +1615,217 @@
     width: 56px;
     min-width: 56px;
   }
+
+  .si-sat-ctx-dock--map.si-sat-ctx-dock--map-tall.si-sat-ctx-dock--map-left {
+    inset-inline-end: auto;
+    inset-inline-start: 0;
+    flex-direction: row;
+  }
+
+  .si-sat-ctx-dock--map.si-sat-ctx-dock--map-tall.si-sat-ctx-dock--map-left .si-sat-ctx-rail {
+    border-start-end-radius: 0;
+    border-end-end-radius: 0;
+    border-start-start-radius: 14px;
+    border-end-start-radius: 14px;
+  }
+}
+
+/* —— Smart processing (GIS workflow) panel inside map toolbox —— */
+.si-sat-smart-proc {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-height: 0;
+}
+
+.si-sat-smart-proc__hero {
+  padding: 2px 2px 8px;
+  border-bottom: 1px solid var(--si-ctx-border);
+}
+
+.si-sat-smart-proc__hero-k {
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--si-ctx-muted);
+  margin-bottom: 4px;
+}
+
+.si-sat-smart-proc__hero-title {
+  margin: 0 0 6px;
+  font-size: 17px;
+  font-weight: 750;
+  letter-spacing: -0.02em;
+  line-height: 1.2;
+  color: var(--si-ctx-text);
+}
+
+.si-sat-smart-proc__hero-desc {
+  margin: 0 0 8px;
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--si-ctx-muted);
+}
+
+.si-sat-smart-proc__ctx {
+  margin: 0 0 6px;
+  font-size: 11px;
+  line-height: 1.35;
+  color: #a5b4fc;
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+}
+
+.si-sat-smart-proc__ctx i {
+  margin-top: 2px;
+  opacity: 0.85;
+}
+
+.si-sat-smart-proc__dyn {
+  margin: 0;
+  font-size: 11px;
+  line-height: 1.4;
+  color: rgba(148, 163, 184, 0.95);
+  font-style: italic;
+}
+
+.si-sat-smart-proc__cats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.si-sat-smart-proc__cat {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(148, 163, 184, 0.28);
+  background: rgba(15, 23, 42, 0.35);
+  color: var(--si-ctx-muted);
+  font-size: 11px;
+  font-weight: 650;
+  cursor: pointer;
+  transition:
+    background 0.15s ease,
+    border-color 0.15s ease,
+    color 0.15s ease;
+}
+
+.si-sat-smart-proc__cat--on {
+  border-color: rgba(129, 140, 248, 0.55);
+  background: rgba(79, 70, 229, 0.22);
+  color: #e0e7ff;
+}
+
+.si-sat-smart-proc__cat:hover {
+  border-color: rgba(52, 211, 153, 0.35);
+  color: var(--si-ctx-text);
+}
+
+.si-sat-smart-proc__body {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding-right: 2px;
+}
+
+.si-sat-smart-proc__actions {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.si-sat-smart-proc__btn {
+  width: 100%;
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  text-align: start;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid rgba(148, 163, 184, 0.22);
+  background: rgba(30, 41, 59, 0.45);
+  color: var(--si-ctx-text);
+  cursor: pointer;
+  transition:
+    border-color 0.15s ease,
+    background 0.15s ease,
+    transform 0.12s ease;
+}
+
+.si-sat-smart-proc__btn:hover {
+  border-color: rgba(99, 102, 241, 0.45);
+  background: rgba(30, 41, 59, 0.72);
+}
+
+.si-sat-smart-proc__btn:active {
+  transform: scale(0.99);
+}
+
+.si-sat-smart-proc__btn i {
+  font-size: 16px;
+  margin-top: 2px;
+  color: #94a3b8;
+}
+
+.si-sat-smart-proc__btn strong {
+  display: block;
+  font-size: 13px;
+  font-weight: 650;
+  margin-bottom: 2px;
+}
+
+.si-sat-smart-proc__btn small {
+  display: block;
+  font-size: 10px;
+  font-weight: 500;
+  color: var(--si-ctx-muted);
+  line-height: 1.35;
+}
+
+.si-sat-smart-proc__btn--accent {
+  border-color: rgba(52, 211, 153, 0.4);
+  background: rgba(6, 78, 59, 0.28);
+}
+
+.si-sat-smart-proc__btn--accent i {
+  color: #6ee7b7;
+}
+
+.si-sat-smart-proc__hint {
+  margin: 0;
+  padding: 10px 12px;
+  font-size: 11px;
+  line-height: 1.45;
+  color: var(--si-ctx-muted);
+  border-radius: 10px;
+  background: rgba(15, 23, 42, 0.35);
+  border: 1px dashed rgba(148, 163, 184, 0.25);
+}
+
+.si-sat-ctx-dock--light .si-sat-smart-proc__cat {
+  background: rgba(255, 255, 255, 0.75);
+  color: rgba(51, 65, 85, 0.92);
+}
+
+.si-sat-ctx-dock--light .si-sat-smart-proc__cat--on {
+  background: rgba(224, 231, 255, 0.95);
+  color: #312e81;
+}
+
+.si-sat-ctx-dock--light .si-sat-smart-proc__btn {
+  background: rgba(248, 250, 252, 0.95);
+  border-color: rgba(148, 163, 184, 0.35);
+}
+
+.si-sat-ctx-dock--light .si-sat-smart-proc__btn--accent {
+  background: rgba(209, 250, 229, 0.65);
+  border-color: rgba(5, 150, 105, 0.35);
 }

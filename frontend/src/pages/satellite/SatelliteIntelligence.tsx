@@ -150,15 +150,6 @@ const STAC_CONNECTION_STORAGE_KEY = 'si-stac-connection-v1';
 const SATELLITE_CUSTOM_LAYERS_STORAGE_KEY = 'si-satellite-custom-layers-v1';
 const GEO_AI_CHAT_PAGE_SIZE = 40;
 
-/** In-map Processing Options toolbar (Mapbox-style ctrl group). */
-const SI_PROC_MAP_SECTIONS = [
-  { id: 'layers' as const, label: 'Layers', icon: 'fa-solid fa-layer-group' },
-  { id: 'explore-stac' as const, label: 'Explore STAC', icon: 'fa-solid fa-magnifying-glass-chart' },
-  { id: 'remote-sensing' as const, label: 'Remote sensing', icon: 'fa-solid fa-satellite-dish' },
-  { id: 'ai-detection-gis' as const, label: 'AI Detection in GIS', icon: 'fa-solid fa-magnifying-glass-location' },
-  { id: 'table-geo-ai' as const, label: 'Geo AI', icon: 'fa-solid fa-comments' },
-] as const;
-
 type GeoAiInspectCardState = {
   title: string;
   rows: { label: string; value: string }[];
@@ -1741,7 +1732,6 @@ export default function SatelliteIntelligence() {
   const [isLoadingLayers, setIsLoadingLayers] = useState(false);
   const [isLayerDropdownOpen, setIsLayerDropdownOpen] = useState(false);
   /** Mapbox-style processing bar: expanded shows icon + short label per section. */
-  const [procMbRowExpanded, setProcMbRowExpanded] = useState(false);
   const [basemapId, setBasemapId] = useState(() =>
     getMapboxAccessToken() ? DEFAULT_BASEMAP_ID : DEFAULT_BASEMAP_ID_NO_MAPBOX,
   );
@@ -1779,6 +1769,33 @@ export default function SatelliteIntelligence() {
     if (Object.prototype.hasOwnProperty.call(ENVIRONMENTAL_INDICES, selectedIndex)) return;
     setSelectedIndex('NDWI');
   }, [selectedIndex]);
+
+  const mapToolboxSmartProcessing = useMemo(
+    () => ({
+      layerContextHint:
+        `${selectedIndexConfig.label}` +
+        (customLayers.length
+          ? ` · ${customLayers
+              .map(l => l.name)
+              .slice(0, 3)
+              .join(', ')}${customLayers.length > 3 ? '…' : ''}`
+          : ''),
+      layerKind: (customLayers.length > 0 ? 'vector' : 'raster') as 'raster' | 'vector' | 'none',
+      onOpenEnvSection: (
+        id: 'layers' | 'explore-stac' | 'remote-sensing' | 'ai-detection-gis' | 'table-geo-ai',
+      ) => {
+        setExpandedEnvSection(id);
+        setIsLayerDropdownOpen(true);
+      },
+      onGeoAiQuickPrompt: (text: string) => {
+        setExpandedEnvSection('table-geo-ai');
+        setIsLayerDropdownOpen(true);
+        setGeoExplorerDraft(text);
+      },
+    }),
+    [selectedIndexConfig, customLayers],
+  );
+
   const [selectedPivotId, setSelectedPivotId] = useState('all');
   const [weeklyComposites, setWeeklyComposites] = useState<WeeklyComposite[]>([]);
   /** True only after the user (or RS Run path) successfully builds the field timeline — drives Generate ⟷ Stop label. */
@@ -7122,7 +7139,7 @@ export default function SatelliteIntelligence() {
   return (
     <div className="si-page">
       <div className="si-main-content">
-        {/* Map viewport: MapGL fills this box; SatelliteMapAnalysisChrome portals MapToolsDock into mapboxgl-canvas-container */}
+        {/* Map viewport: MapGL fills this box; timeline chrome below (in-map toolbox rail disabled). */}
         <div
           className={`si-map-container${
             ['point', 'polyline', 'polygon', 'rectangle', 'circle', 'box_select'].includes(mapDrawTool)
@@ -7641,6 +7658,9 @@ export default function SatelliteIntelligence() {
             onStaticComparisonLayerToggle={handleStaticComparisonLayerToggle}
             mapRef={mapRef}
             mapLoaded={isMapLoaded}
+            showMapToolbox
+            mapToolboxInlineStart
+            mapToolboxSmartProcessing={mapToolboxSmartProcessing}
           />
 
           {false && aoiHeatPointGeoJson?.features?.length ? (
@@ -7789,41 +7809,7 @@ export default function SatelliteIntelligence() {
               </div>
               </div>
               <div className="si-map-floating-controls__right">
-            <div className="si-env-rail si-env-rail--mapbox-float">
-              <div
-                className={`si-proc-mb-row${procMbRowExpanded ? ' si-proc-mb-row--expanded' : ' si-proc-mb-row--collapsed'}`}
-                role="tablist"
-                aria-label="Processing options"
-              >
-                {SI_PROC_MAP_SECTIONS.map(section => (
-                  <button
-                    key={section.id}
-                    type="button"
-                    role="tab"
-                    aria-selected={expandedEnvSection === section.id && isLayerDropdownOpen}
-                    className={`si-proc-mb-btn${expandedEnvSection === section.id && isLayerDropdownOpen ? ' si-proc-mb-btn--active' : ''}`}
-                    title={section.label}
-                    aria-label={section.label}
-                    onClick={() => {
-                      setExpandedEnvSection(section.id);
-                      setIsLayerDropdownOpen(true);
-                    }}
-                  >
-                    <i className={section.icon} aria-hidden />
-                    {procMbRowExpanded ? <span className="si-proc-mb-btn-label">{section.label}</span> : null}
-                  </button>
-                ))}
-                <button
-                  type="button"
-                  className="si-proc-mb-toggle"
-                  onClick={() => setProcMbRowExpanded(v => !v)}
-                  title={procMbRowExpanded ? 'Icon bar only' : 'Show section labels'}
-                  aria-label={procMbRowExpanded ? 'Icon bar only' : 'Show section labels'}
-                  aria-expanded={procMbRowExpanded}
-                >
-                  <i className={procMbRowExpanded ? 'fa-solid fa-angles-left' : 'fa-solid fa-angles-right'} aria-hidden />
-                </button>
-              </div>
+            <div className="si-env-rail si-env-rail--mapbox-float si-env-rail--from-map-toolbox">
               <input
                 ref={fileInputRef}
                 type="file"
@@ -7843,7 +7829,7 @@ export default function SatelliteIntelligence() {
                   <div className="si-env-panel-header">
                     <div className="si-env-header-top">
                       <div>
-                        <div className="si-env-title">Processing Options</div>
+                        <div className="si-env-title">Smart processing</div>
                       </div>
                       <button
                         type="button"

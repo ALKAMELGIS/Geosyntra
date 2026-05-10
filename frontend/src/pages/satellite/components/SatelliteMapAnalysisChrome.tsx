@@ -5,6 +5,7 @@ import {
   type StaticAoiChartLayerId,
 } from '../utils/staticAoiMultiChartData';
 import { SatelliteContextualAnalysisDock } from './SatelliteContextualAnalysisDock';
+import type { SatelliteSmartProcessingPanelProps } from './SatelliteSmartProcessingPanel';
 import { MapToolsDock } from './MapToolsDock';
 
 export type TimelineChip = {
@@ -114,6 +115,15 @@ export type SatelliteMapAnalysisChromeProps = {
   /** With `mapLoaded`, portals the contextual dock into `mapboxgl-canvas-container` for a true in-map overlay. */
   mapRef?: RefObject<any>;
   mapLoaded?: boolean;
+  /** When false, the right-rail map toolbox is omitted (timeline and other chrome still render). */
+  showMapToolbox?: boolean;
+  /** Dock the map toolbox on the map inline-start edge (left in LTR). */
+  mapToolboxInlineStart?: boolean;
+  /** Optional GIS workflow panel (Satellite Intelligence). */
+  mapToolboxSmartProcessing?: Pick<
+    SatelliteSmartProcessingPanelProps,
+    'layerContextHint' | 'layerKind' | 'onOpenEnvSection' | 'onGeoAiQuickPrompt'
+  >;
 };
 
 function sparkPath(values: number[], w: number, h: number): string {
@@ -155,6 +165,9 @@ export function SatelliteMapAnalysisChrome(props: SatelliteMapAnalysisChromeProp
     onStaticComparisonLayerToggle,
     mapRef,
     mapLoaded = false,
+    showMapToolbox = true,
+    mapToolboxInlineStart = false,
+    mapToolboxSmartProcessing,
   } = props;
 
   const activeFull =
@@ -162,7 +175,7 @@ export function SatelliteMapAnalysisChrome(props: SatelliteMapAnalysisChromeProp
     weeklyChips[0]?.fullDate ??
     '';
 
-  const contextualDock = (
+  const contextualDock = showMapToolbox ? (
     <SatelliteContextualAnalysisDock
       variant="map"
       mapTool={mapTool}
@@ -181,8 +194,10 @@ export function SatelliteMapAnalysisChrome(props: SatelliteMapAnalysisChromeProp
       weeklyMeans={weeklyMeans}
       pivotBars={pivotBars}
       sparkPathBuilder={sparkPath}
+      mapToolboxInlineStart={mapToolboxInlineStart}
+      smartProcessing={mapToolboxSmartProcessing}
     />
-  );
+  ) : null;
 
   return (
     <>
@@ -237,13 +252,15 @@ export function SatelliteMapAnalysisChrome(props: SatelliteMapAnalysisChromeProp
       ) : null}
 
       {/* si-map-container: MapGL + chrome; MapToolsDock portals into mapboxgl-canvas-container */}
-      {mapRef ? (
-        <MapToolsDock mapRef={mapRef} mapLoaded={mapLoaded}>
-          {contextualDock}
-        </MapToolsDock>
-      ) : (
-        contextualDock
-      )}
+      {contextualDock ? (
+        mapRef ? (
+          <MapToolsDock mapRef={mapRef} mapLoaded={mapLoaded}>
+            {contextualDock}
+          </MapToolsDock>
+        ) : (
+          contextualDock
+        )
+      ) : null}
     </>
   );
 }
