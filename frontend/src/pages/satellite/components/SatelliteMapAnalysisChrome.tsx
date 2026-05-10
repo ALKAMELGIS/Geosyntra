@@ -6,6 +6,13 @@ import {
 } from '../utils/staticAoiMultiChartData';
 import { SatelliteContextualAnalysisDock } from './SatelliteContextualAnalysisDock';
 import type { SmartProcessingSectionId } from './SmartProcessingWorkflowPanel';
+
+/** Optional metadata when opening a processing section from the map toolbox. */
+export type MapToolboxNavigateMeta = { fromDockOptions?: boolean };
+export type MapToolboxNavigateHandler = (
+  sectionId: SmartProcessingSectionId,
+  meta?: MapToolboxNavigateMeta,
+) => void;
 import { MapToolsDock } from './MapToolsDock';
 
 export type TimelineChip = {
@@ -117,7 +124,7 @@ export type SatelliteMapAnalysisChromeProps = {
   mapLoaded?: boolean;
   /** When false, the right-rail map toolbox is omitted (timeline and other chrome still render). */
   showMapToolbox?: boolean;
-  onProcessingWorkflowNavigate?: (sectionId: SmartProcessingSectionId) => void;
+  onProcessingWorkflowNavigate?: MapToolboxNavigateHandler;
   processingDropdownOpen?: boolean;
   /** Section shown inside portaled Processing Options — syncs toolbox chrome (title / rail) with content. */
   processingEmbedSection?:

@@ -1037,6 +1037,61 @@
   padding-inline: 0;
 }
 
+.si-sat-ctx-subnav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin: 0 0 12px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  border: 1px solid rgba(148, 163, 184, 0.18);
+  background: rgba(2, 6, 23, 0.22);
+}
+
+.si-sat-ctx-dock--light .si-sat-ctx-subnav {
+  background: rgba(241, 245, 249, 0.75);
+  border-color: rgba(148, 163, 184, 0.35);
+}
+
+.si-sat-ctx-subnav-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 10px;
+  border-radius: 8px;
+  border: 1px solid rgba(148, 163, 184, 0.28);
+  background: rgba(15, 23, 42, 0.35);
+  color: var(--si-ctx-text);
+  font-size: 11px;
+  font-weight: 800;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.si-sat-ctx-subnav-back:hover {
+  border-color: rgba(129, 140, 248, 0.45);
+  background: var(--si-ctx-bg2);
+}
+
+.si-sat-ctx-subnav-back i {
+  font-size: 12px;
+  color: var(--si-ctx-muted);
+}
+
+.si-sat-ctx-dock[dir='rtl'] .si-sat-ctx-subnav-back i {
+  transform: scaleX(-1);
+}
+
+.si-sat-ctx-subnav-crumb {
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--si-ctx-muted);
+}
+
 .si-sat-ctx-toolbox-opt-actions {
   display: flex;
   flex-direction: column;

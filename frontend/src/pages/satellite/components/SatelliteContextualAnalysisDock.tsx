@@ -46,7 +46,7 @@ export type SatelliteContextualAnalysisDockProps = {
   pivotBars?: Array<{ name: string; value: number }>;
   sparkPathBuilder?: (values: number[], w: number, h: number) => string;
   /** Map toolbox: opens the same processing stack as Satellite Intelligence (no reload). */
-  onProcessingWorkflowNavigate?: (sectionId: SmartProcessingSectionId) => void;
+  onProcessingWorkflowNavigate?: (sectionId: SmartProcessingSectionId, meta?: { fromDockOptions?: boolean }) => void;
   /** When true, the dock panel body hosts the floating Processing Options UI (portal target). */
   processingDropdownOpen?: boolean;
   /**
@@ -384,7 +384,7 @@ export function SatelliteContextualAnalysisDock(props: SatelliteContextualAnalys
           return;
         }
         openPanel(id);
-        onProcessingWorkflowNavigate(id as SmartProcessingSectionId);
+        onProcessingWorkflowNavigate(id as SmartProcessingSectionId, undefined);
         return;
       }
       /* Docked-only tools (e.g. Layers): never stack under portaled Processing Options */
@@ -959,6 +959,18 @@ export function SatelliteContextualAnalysisDock(props: SatelliteContextualAnalys
                   <div className="si-sat-ctx-prose">
                     {activeId === 'layers' && isMap && onProcessingWorkflowNavigate ? (
                       <>
+                        <div className="si-sat-ctx-subnav" role="navigation" aria-label="Layers options navigation">
+                          <button
+                            type="button"
+                            className="si-sat-ctx-subnav-back"
+                            onClick={() => setInnerTab('main')}
+                            aria-label="Back to Layers main"
+                          >
+                            <i className="fa-solid fa-arrow-left" aria-hidden />
+                            <span>Main</span>
+                          </button>
+                          <span className="si-sat-ctx-subnav-crumb">Layers · Options</span>
+                        </div>
                         <p>
                           <strong>Options</strong> — open the floating processing stack for a section (state is preserved; no
                           page reload).
@@ -973,7 +985,7 @@ export function SatelliteContextualAnalysisDock(props: SatelliteContextualAnalys
                               className="si-sat-ctx-toolbox-opt-btn"
                               onClick={() => {
                                 openPanel(sid as SatelliteContextPanelId);
-                                onProcessingWorkflowNavigate(sid);
+                                onProcessingWorkflowNavigate(sid, { fromDockOptions: true });
                               }}
                             >
                               <i className={RAIL_BY_ID[sid].icon} aria-hidden />

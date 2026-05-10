@@ -118,7 +118,11 @@ import { GeoAiEditQuestionTool } from './components/GeoAiEditQuestionTool';
 import { GeoExplorerGeminiInputRow } from './components/GeoExplorerGeminiInputRow';
 import { GeoExplorerGeminiMessageParts } from './components/GeoExplorerGeminiMessageParts';
 import type { AoiStaticMultiLayerLineChartDataset } from './components/AoiStaticMultiLayerLineChart';
-import { SatelliteMapAnalysisChrome, SatelliteMapAnalysisToolbar } from './components/SatelliteMapAnalysisChrome';
+import {
+  SatelliteMapAnalysisChrome,
+  SatelliteMapAnalysisToolbar,
+  type MapToolboxNavigateHandler,
+} from './components/SatelliteMapAnalysisChrome';
 import { SatelliteMapProcessingOptionsPortal } from './components/SatelliteMapProcessingOptionsPortal';
 import {
   buildStaticAoiMultiChartDatasets,
@@ -150,6 +154,24 @@ const PC_STAC_SEARCH_URL = 'https://planetarycomputer.microsoft.com/api/stac/v1/
 const STAC_CONNECTION_STORAGE_KEY = 'si-stac-connection-v1';
 const SATELLITE_CUSTOM_LAYERS_STORAGE_KEY = 'si-satellite-custom-layers-v1';
 const GEO_AI_CHAT_PAGE_SIZE = 40;
+
+/** Sections shown inside the map toolbox processing portal (stack + breadcrumb). */
+type MapToolboxSectionId =
+  | 'source'
+  | 'layers'
+  | 'explore-stac'
+  | 'remote-sensing'
+  | 'ai-detection-gis'
+  | 'table-geo-ai';
+
+const MAP_TOOLBOX_SECTION_LABEL: Record<MapToolboxSectionId, string> = {
+  source: 'Source catalog',
+  layers: 'Layers',
+  'explore-stac': 'Explore STAC',
+  'remote-sensing': 'Remote sensing',
+  'ai-detection-gis': 'AI Detection in GIS',
+  'table-geo-ai': 'Geo AI',
+};
 
 type GeoAiInspectCardState = {
   title: string;
@@ -1733,6 +1755,8 @@ export default function SatelliteIntelligence() {
   const [isLoadingLayers, setIsLoadingLayers] = useState(false);
   const [isLayerDropdownOpen, setIsLayerDropdownOpen] = useState(false);
   const [mapToolboxEmbedHost, setMapToolboxEmbedHost] = useState<HTMLDivElement | null>(null);
+  /** Previous toolbox sections when drilling in-portal (Back pops without closing). */
+  const [processingNavStack, setProcessingNavStack] = useState<MapToolboxSectionId[]>([]);
   const [basemapId, setBasemapId] = useState(() =>
     getMapboxAccessToken() ? DEFAULT_BASEMAP_ID : DEFAULT_BASEMAP_ID_NO_MAPBOX,
   );
@@ -1934,6 +1958,65 @@ export default function SatelliteIntelligence() {
     | 'ai-detection-gis'
     | 'table-geo-ai'
   >('source');
+
+  useEffect(() => {
+    if (!isLayerDropdownOpen) {
+      setProcessingNavStack([]);
+    }
+  }, [isLayerDropdownOpen]);
+
+  const onProcessingWorkflowNavigateMapToolbox: MapToolboxNavigateHandler = useCallback(
+    (id, meta) => {
+      const sid = id as MapToolboxSectionId;
+      if (meta?.fromDockOptions) {
+        setProcessingNavStack(s => [...s, 'layers']);
+        setExpandedEnvSection(sid);
+        setIsLayerDropdownOpen(true);
+        return;
+      }
+      if (isLayerDropdownOpen && mapToolboxEmbedHost) {
+        setExpandedEnvSection(prev => {
+          if (prev !== sid) {
+            setProcessingNavStack(s => [...s, prev]);
+          }
+          return sid;
+        });
+      } else {
+        setExpandedEnvSection(sid);
+      }
+      setIsLayerDropdownOpen(true);
+    },
+    [isLayerDropdownOpen, mapToolboxEmbedHost],
+  );
+
+  const handleMapToolboxEmbedBack = useCallback(() => {
+    setProcessingNavStack(s => {
+      if (s.length > 0) {
+        const prev = s[s.length - 1];
+        setExpandedEnvSection(prev);
+        return s.slice(0, -1);
+      }
+      setExpandedEnvSection(current => {
+        if (current !== 'layers') {
+          return 'layers';
+        }
+        setIsLayerDropdownOpen(false);
+        return current;
+      });
+      return s;
+    });
+  }, []);
+
+  const mapToolboxBreadcrumbParts = useMemo(
+    () =>
+      [
+        'Toolbox',
+        ...processingNavStack.map(sec => MAP_TOOLBOX_SECTION_LABEL[sec]),
+        MAP_TOOLBOX_SECTION_LABEL[expandedEnvSection],
+      ],
+    [processingNavStack, expandedEnvSection],
+  );
+
   const [geoExplorerMessages, setGeoExplorerMessages] = useState<GeoExplorerMessage[]>([]);
   const [geoExplorerVisibleCount, setGeoExplorerVisibleCount] = useState(GEO_AI_CHAT_PAGE_SIZE);
   const [geoAiSmartSuggestionsEnabled, setGeoAiSmartSuggestionsEnabled] = useState(() => {
@@ -7791,10 +7874,7 @@ export default function SatelliteIntelligence() {
             onStaticComparisonLayerToggle={handleStaticComparisonLayerToggle}
             mapRef={mapRef}
             mapLoaded={isMapLoaded}
-            onProcessingWorkflowNavigate={id => {
-              setExpandedEnvSection(id);
-              setIsLayerDropdownOpen(true);
-            }}
+            onProcessingWorkflowNavigate={onProcessingWorkflowNavigateMapToolbox}
             processingDropdownOpen={isLayerDropdownOpen}
             processingEmbedSection={isLayerDropdownOpen ? expandedEnvSection : null}
             onMapToolboxEmbedHost={setMapToolboxEmbedHost}
@@ -7998,6 +8078,40 @@ export default function SatelliteIntelligence() {
                       </button>
                     </div>
                   </div>
+                  {isLayerDropdownOpen ? (
+                    <div className="si-env-toolbox-nav" role="navigation" aria-label="Toolbox navigation">
+                      <button
+                        type="button"
+                        className="si-env-toolbox-back"
+                        onClick={handleMapToolboxEmbedBack}
+                        aria-label="Back to previous step"
+                      >
+                        <i className="fa-solid fa-arrow-left" aria-hidden />
+                        <span>Back</span>
+                      </button>
+                      <ol className="si-env-toolbox-breadcrumb" aria-live="polite">
+                        {mapToolboxBreadcrumbParts.map((label, i) => (
+                          <li key={`${i}-${label}`} className="si-env-toolbox-breadcrumb-item">
+                            {i > 0 ? (
+                              <span className="si-env-toolbox-breadcrumb-sep" aria-hidden>
+                                ›
+                              </span>
+                            ) : null}
+                            <span
+                              className={
+                                i === mapToolboxBreadcrumbParts.length - 1
+                                  ? 'si-env-toolbox-breadcrumb-current'
+                                  : undefined
+                              }
+                              aria-current={i === mapToolboxBreadcrumbParts.length - 1 ? 'page' : undefined}
+                            >
+                              {label}
+                            </span>
+                          </li>
+                        ))}
+                      </ol>
+                    </div>
+                  ) : null}
                   <div className="si-env-panel-body si-env-panel-body--workspace">
                     {expandedEnvSection === 'explore-stac' ? (
                       <div className="si-explore-stac si-explore-stac--embedded si-explore-stac--in-header">

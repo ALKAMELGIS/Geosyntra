@@ -1885,6 +1885,107 @@ html[data-theme='light'] .si-proc-mb-toggle {
   max-height: min(78vh, 800px);
 }
 
+/* Hierarchical back + breadcrumb (map toolbox portal) */
+.si-env-toolbox-nav {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  flex-shrink: 0;
+  padding: 8px 12px 10px;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.18);
+  background: rgba(2, 6, 23, 0.35);
+}
+
+.si-env-toolbox-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+  padding: 6px 12px;
+  border-radius: 9px;
+  border: 1px solid rgba(148, 163, 184, 0.28);
+  background: rgba(15, 23, 42, 0.55);
+  color: #e2e8f0;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+}
+
+.si-env-toolbox-back:hover {
+  border-color: rgba(129, 140, 248, 0.45);
+  background: rgba(30, 41, 59, 0.75);
+  color: #fff;
+}
+
+.si-env-toolbox-back:focus-visible {
+  outline: 2px solid rgba(52, 211, 153, 0.75);
+  outline-offset: 2px;
+}
+
+.si-env-toolbox-back i {
+  font-size: 13px;
+  opacity: 0.9;
+}
+
+[dir='rtl'] .si-env-toolbox-back i {
+  transform: scaleX(-1);
+}
+
+.si-env-toolbox-breadcrumb {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 2px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #94a3b8;
+  min-width: 0;
+}
+
+.si-env-toolbox-breadcrumb-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.si-env-toolbox-breadcrumb-sep {
+  opacity: 0.55;
+  font-weight: 600;
+  user-select: none;
+}
+
+.si-env-toolbox-breadcrumb-current {
+  color: #e2e8f0;
+  letter-spacing: 0.04em;
+}
+
+html[data-theme='light'] .si-env-toolbox-nav {
+  background: rgba(241, 245, 249, 0.92);
+  border-bottom-color: rgba(148, 163, 184, 0.35);
+}
+
+html[data-theme='light'] .si-env-toolbox-back {
+  background: rgba(255, 255, 255, 0.95);
+  color: #0f172a;
+  border-color: rgba(148, 163, 184, 0.4);
+}
+
+html[data-theme='light'] .si-env-toolbox-back:hover {
+  background: #f8fafc;
+  border-color: rgba(99, 102, 241, 0.45);
+}
+
+html[data-theme='light'] .si-env-toolbox-breadcrumb-current {
+  color: #0f172a;
+}
+
 @media (max-width: 768px) {
   .si-env-rail--mapbox-float {
     max-width: calc(100vw - 24px);
