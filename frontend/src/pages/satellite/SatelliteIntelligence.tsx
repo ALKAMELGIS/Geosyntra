@@ -8074,9 +8074,16 @@ export default function SatelliteIntelligence() {
                     }`}
                     dir="auto"
                   >
-                  <div className="si-env-panel-header">
+                  <div
+                    className={`si-env-panel-header${mapToolboxEmbedHost ? ' si-env-panel-header--toolbox-primary' : ''}`}
+                  >
                     <div className="si-env-header-top">
                       <div>
+                        {mapToolboxEmbedHost ? (
+                          <div className="si-env-toolbox-kicker" aria-hidden="false">
+                            Toolbox
+                          </div>
+                        ) : null}
                         <div className="si-env-title">
                           {mapToolboxEmbedHost
                             ? expandedEnvSection === 'explore-stac'
@@ -8104,7 +8111,7 @@ export default function SatelliteIntelligence() {
                       </button>
                     </div>
                   </div>
-                  {isLayerDropdownOpen ? (
+                  {isLayerDropdownOpen && !mapToolboxEmbedHost ? (
                     <div className="si-env-toolbox-nav" role="navigation" aria-label="Toolbox navigation">
                       <button
                         type="button"

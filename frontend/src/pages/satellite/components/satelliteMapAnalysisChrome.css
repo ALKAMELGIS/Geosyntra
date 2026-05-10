@@ -350,6 +350,14 @@
   animation: none;
 }
 
+.si-map-analysis-charts--dragging {
+  cursor: grabbing;
+}
+
+.si-map-analysis-charts--dragging .si-map-analysis-charts-head {
+  cursor: grabbing;
+}
+
 .si-map-analysis-charts-head-text {
   display: flex;
   flex-direction: column;

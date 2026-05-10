@@ -3001,6 +3001,21 @@ html[data-theme='light'] .si-env-side-row--selected {
   color: #e5e7eb;
 }
 
+/* Map toolbox (embed): one primary chrome row — kicker + tool title + close */
+.si-env-panel-header--toolbox-primary {
+  gap: 8px;
+}
+
+.si-env-toolbox-kicker {
+  margin: 0 0 4px;
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: #94a3b8;
+  line-height: 1.2;
+}
+
 .si-env-top-params {
   flex-shrink: 0;
   display: flex;
@@ -8663,11 +8678,6 @@ html[data-theme='light'] .si-sat-ctx-panel-body .si-map-toolbox-layers-card .si-
    One canvas: no nested “card” chrome; spacing + hairlines only.
    ============================================================================= */
 
-/* Toolbox embed: drop redundant “Processing Options” row when STAC is root content */
-.si-env-panel--toolbox-embed:has(.si-env-panel-body--workspace > .si-explore-stac.si-explore-stac--embedded) > .si-env-panel-header {
-  display: none;
-}
-
 .si-env-panel-body--workspace > .si-explore-stac.si-explore-stac--embedded {
   border: none;
   border-radius: 0;
@@ -9058,6 +9068,24 @@ html[data-theme='light'] .si-env-panel--toolbox-embed .si-env-panel-body--toolbo
   background: transparent;
   background-image: none;
   padding: 10px 12px;
+}
+
+/* Title already in panel header — hide duplicate Explore STAC h2 inside body */
+.si-env-panel--toolbox-embed.si-env-panel--single-surface .si-explore-stac--in-header .si-explore-stac-header h2,
+.si-env-panel--toolbox-embed .si-env-panel-body--toolbox-flat .si-explore-stac--in-header .si-explore-stac-header h2 {
+  display: none !important;
+}
+
+.si-env-panel--toolbox-embed.si-env-panel--single-surface .si-explore-stac--in-header .si-explore-stac-header,
+.si-env-panel--toolbox-embed .si-env-panel-body--toolbox-flat .si-explore-stac--in-header .si-explore-stac-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 10px 14px;
+  padding: 4px 0 10px;
+  margin: 0 0 4px;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.12);
 }
 
 .si-env-panel--toolbox-embed.si-env-panel--single-surface .si-env-toolbox-nav {
