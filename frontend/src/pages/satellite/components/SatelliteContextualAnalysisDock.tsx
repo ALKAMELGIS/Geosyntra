@@ -381,8 +381,8 @@ export function SatelliteContextualAnalysisDock(props: SatelliteContextualAnalys
 
   const toggleRail = useCallback(
     (id: SatelliteContextPanelId) => {
-      if (isMapVariant && id === 'table-geo-ai' && onGeoAiFloatingRailToggle) {
-        onGeoAiFloatingRailToggle();
+      if (isMapVariant && id === 'table-geo-ai') {
+        onGeoAiFloatingRailToggle?.();
         return;
       }
       if (isMapVariant && MAP_RAIL_FLOAT_IDS.has(id) && onProcessingWorkflowNavigate) {
@@ -982,6 +982,10 @@ export function SatelliteContextualAnalysisDock(props: SatelliteContextualAnalys
                               type="button"
                               className="si-sat-ctx-toolbox-opt-btn"
                               onClick={() => {
+                                if (isMap && sid === 'table-geo-ai' && onGeoAiFloatingRailToggle) {
+                                  onGeoAiFloatingRailToggle();
+                                  return;
+                                }
                                 openPanel(sid as SatelliteContextPanelId);
                                 onProcessingWorkflowNavigate(sid, { fromDockOptions: true });
                               }}

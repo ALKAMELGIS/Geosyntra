@@ -1950,7 +1950,13 @@ export default function SatelliteIntelligence() {
   const [geoAiFloatingExpanded, setGeoAiFloatingExpanded] = useState(true);
 
   const onGeoAiFloatingRailToggle = useCallback(() => {
-    setGeoAiFloatingOpen(prev => !prev);
+    setGeoAiFloatingOpen(prev => {
+      const next = !prev;
+      if (next) {
+        setIsLayerDropdownOpen(false);
+      }
+      return next;
+    });
   }, []);
 
   useEffect(() => {
