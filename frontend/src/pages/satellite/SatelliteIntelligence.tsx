@@ -8808,7 +8808,6 @@ export default function SatelliteIntelligence() {
                             </label>
                           </div>
                           <div className="si-field-analysis-map-tools">
-                            <div className="si-field-analysis-kicker si-field-analysis-map-tools-kicker">Analysis tools</div>
                             <SatelliteMapAnalysisToolbar
                               embedded
                               mapTool={satelliteToolbarTool}

@@ -672,7 +672,11 @@ export function SatelliteContextualAnalysisDock(props: SatelliteContextualAnalys
               <header className="si-sat-ctx-panel-header">
                 <div className="si-sat-ctx-panel-header-text">
                   <span className="si-sat-ctx-panel-kicker">
-                    {isMap && processingDropdownOpen && processingEmbedHeader ? processingEmbedHeader.kicker : 'Context'}
+                    {isMap && processingDropdownOpen && processingEmbedHeader
+                      ? processingEmbedHeader.kicker
+                      : !isMap
+                        ? 'Analysis tools'
+                        : 'Context'}
                   </span>
                   <h2 className="si-sat-ctx-panel-title">
                     {isMap && processingDropdownOpen && processingEmbedHeader
@@ -734,7 +738,39 @@ export function SatelliteContextualAnalysisDock(props: SatelliteContextualAnalys
                     </button>
                   </div>
 
-                  <div className="si-sat-ctx-panel-body">
+                  <div
+                    className={
+                      'si-sat-ctx-panel-body' +
+                      (!isMap ? ' si-sat-ctx-panel-body--embedded-analysis' : '')
+                    }
+                  >
+                    {!isMap ? (
+                      <nav className="si-sat-ctx-analysis-launcher" aria-label="Contextual analysis tools">
+                        {RAIL.map(item => {
+                          const launcherPressed =
+                            activeId === item.id &&
+                            (MAP_RAIL_FLOAT_IDS.has(item.id) ? !panelOpen : panelOpen);
+                          return (
+                            <button
+                              key={item.id}
+                              type="button"
+                              className={
+                                'si-sat-ctx-analysis-launcher-btn' +
+                                (launcherPressed ? ' si-sat-ctx-analysis-launcher-btn--active' : '')
+                              }
+                              title={railHintTitle(item)}
+                              aria-label={railWide ? item.label : railHintTitle(item)}
+                              aria-pressed={launcherPressed}
+                              onClick={() => toggleRail(item.id)}
+                            >
+                              <i className={item.icon} aria-hidden />
+                              <span className="si-sat-ctx-analysis-launcher-label">{item.label}</span>
+                            </button>
+                          );
+                        })}
+                      </nav>
+                    ) : null}
+                    <div className="si-sat-ctx-panel-body-core">
                 {innerTab === 'main' ? (
                   <>
                     {activeId === 'layers' && mapToolboxLayersMain}
@@ -954,6 +990,7 @@ export function SatelliteContextualAnalysisDock(props: SatelliteContextualAnalys
                     )}
                   </div>
                 )}
+                    </div>
               </div>
                 </>
               )}

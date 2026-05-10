@@ -8447,7 +8447,7 @@ input.si-explore-date-input-linked[type='date'] {
 
 /* Layers list: workspace + embedded toolbox layers card */
 .si-env-panel-body--workspace .si-env-added-layers,
-.si-sat-ctx-panel-body > .si-map-toolbox-layers-card .si-env-added-layers {
+.si-sat-ctx-panel-body .si-map-toolbox-layers-card .si-env-added-layers {
   border: none;
   border-radius: 10px;
   background: rgba(148, 163, 184, 0.05);
@@ -8455,7 +8455,7 @@ input.si-explore-date-input-linked[type='date'] {
 }
 
 .si-env-panel-body--workspace .si-env-chart-title,
-.si-sat-ctx-panel-body > .si-map-toolbox-layers-card .si-env-chart-title {
+.si-sat-ctx-panel-body .si-map-toolbox-layers-card .si-env-chart-title {
   font-size: 11px;
   font-weight: 800;
   letter-spacing: 0.04em;
@@ -8464,7 +8464,7 @@ input.si-explore-date-input-linked[type='date'] {
 }
 
 .si-env-panel-body--workspace .si-env-layer-item,
-.si-sat-ctx-panel-body > .si-map-toolbox-layers-card .si-env-layer-item {
+.si-sat-ctx-panel-body .si-map-toolbox-layers-card .si-env-layer-item {
   position: relative;
   border: none;
   border-radius: 8px;
@@ -8474,20 +8474,20 @@ input.si-explore-date-input-linked[type='date'] {
 }
 
 .si-env-panel-body--workspace .si-env-layer-item:hover,
-.si-sat-ctx-panel-body > .si-map-toolbox-layers-card .si-env-layer-item:hover {
+.si-sat-ctx-panel-body .si-map-toolbox-layers-card .si-env-layer-item:hover {
   background: rgba(148, 163, 184, 0.07);
   border: none;
 }
 
 .si-env-panel-body--workspace .si-env-layer-item.active,
-.si-sat-ctx-panel-body > .si-map-toolbox-layers-card .si-env-layer-item.active {
+.si-sat-ctx-panel-body .si-map-toolbox-layers-card .si-env-layer-item.active {
   background: rgba(34, 197, 94, 0.09);
   border: none;
   box-shadow: none;
 }
 
 .si-env-panel-body--workspace .si-env-layer-item.active::before,
-.si-sat-ctx-panel-body > .si-map-toolbox-layers-card .si-env-layer-item.active::before {
+.si-sat-ctx-panel-body .si-map-toolbox-layers-card .si-env-layer-item.active::before {
   content: '';
   position: absolute;
   inset-inline-start: 0;
@@ -8500,12 +8500,12 @@ input.si-explore-date-input-linked[type='date'] {
 }
 
 .si-env-panel-body--workspace .si-env-layer-actions,
-.si-sat-ctx-panel-body > .si-map-toolbox-layers-card .si-env-layer-actions {
+.si-sat-ctx-panel-body .si-map-toolbox-layers-card .si-env-layer-actions {
   border-top-color: rgba(148, 163, 184, 0.1);
 }
 
 .si-env-panel-body--workspace .si-env-layer-action-btn,
-.si-sat-ctx-panel-body > .si-map-toolbox-layers-card .si-env-layer-action-btn {
+.si-sat-ctx-panel-body .si-map-toolbox-layers-card .si-env-layer-action-btn {
   border: none;
   background: rgba(59, 130, 246, 0.14);
   border-radius: 8px;
@@ -8513,7 +8513,7 @@ input.si-explore-date-input-linked[type='date'] {
 }
 
 .si-env-panel-body--workspace .si-env-layer-action-btn:hover,
-.si-sat-ctx-panel-body > .si-map-toolbox-layers-card .si-env-layer-action-btn:hover {
+.si-sat-ctx-panel-body .si-map-toolbox-layers-card .si-env-layer-action-btn:hover {
   background: rgba(59, 130, 246, 0.26);
   box-shadow: none;
   transform: translateY(-1px);
@@ -8544,12 +8544,12 @@ html[data-theme='light'] .si-env-panel-body--workspace .si-env-section-card {
 }
 
 html[data-theme='light'] .si-env-panel-body--workspace .si-env-added-layers,
-html[data-theme='light'] .si-sat-ctx-panel-body > .si-map-toolbox-layers-card .si-env-added-layers {
+html[data-theme='light'] .si-sat-ctx-panel-body .si-map-toolbox-layers-card .si-env-added-layers {
   background: rgba(15, 23, 42, 0.04);
 }
 
 html[data-theme='light'] .si-env-panel-body--workspace .si-env-layer-item.active,
-html[data-theme='light'] .si-sat-ctx-panel-body > .si-map-toolbox-layers-card .si-env-layer-item.active {
+html[data-theme='light'] .si-sat-ctx-panel-body .si-map-toolbox-layers-card .si-env-layer-item.active {
   background: rgba(22, 163, 74, 0.1);
 }
 

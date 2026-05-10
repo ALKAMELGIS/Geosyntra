@@ -1448,17 +1448,117 @@
 .si-sat-ctx-panel-body {
   flex: 1;
   min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  padding: 0;
+  -webkit-overflow-scrolling: touch;
+}
+
+.si-sat-ctx-panel-body-core {
+  flex: 1;
+  min-height: 0;
   overflow: auto;
   padding: 12px 14px 12px 16px;
   -webkit-overflow-scrolling: touch;
 }
 
-.si-sat-ctx-panel-body > .si-map-toolbox-layers-card {
+/* Embedded contextual dock: width-first tool strip (two rows) + scrollable detail */
+.si-sat-ctx-panel-body--embedded-analysis {
+  gap: 0;
+}
+
+.si-sat-ctx-analysis-launcher {
+  display: grid;
+  grid-template-rows: auto auto;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(0, 1fr);
+  gap: 6px 8px;
+  flex-shrink: 0;
+  padding: 10px 12px 10px 14px;
+  border-bottom: 1px solid var(--si-ctx-border);
+  background: rgba(2, 6, 23, 0.22);
+}
+
+.si-sat-ctx-dock--light .si-sat-ctx-analysis-launcher {
+  background: rgba(241, 245, 249, 0.65);
+}
+
+.si-sat-ctx-analysis-launcher-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  min-width: 0;
+  min-height: 52px;
+  padding: 6px 4px;
+  border-radius: 10px;
+  border: 1px solid rgba(148, 163, 184, 0.22);
+  background: rgba(15, 23, 42, 0.35);
+  color: var(--si-ctx-muted);
+  cursor: pointer;
+  font-size: 15px;
+  transition:
+    background 0.18s ease,
+    color 0.18s ease,
+    border-color 0.18s ease,
+    transform 0.14s ease;
+}
+
+.si-sat-ctx-dock--light .si-sat-ctx-analysis-launcher-btn {
+  background: rgba(255, 255, 255, 0.88);
+  border-color: rgba(148, 163, 184, 0.35);
+}
+
+.si-sat-ctx-analysis-launcher-btn:hover {
+  border-color: rgba(129, 140, 248, 0.45);
+  color: var(--si-ctx-text);
+  background: var(--si-ctx-bg2);
+}
+
+.si-sat-ctx-analysis-launcher-btn--active {
+  border-color: rgba(52, 211, 153, 0.55);
+  background: rgba(6, 78, 59, 0.42);
+  color: #bbf7d0;
+  box-shadow: 0 0 0 1px rgba(52, 211, 153, 0.2);
+}
+
+.si-sat-ctx-dock--light .si-sat-ctx-analysis-launcher-btn--active {
+  color: #047857;
+  background: rgba(16, 185, 129, 0.14);
+  border-color: rgba(5, 150, 105, 0.45);
+  box-shadow: 0 0 0 1px rgba(16, 185, 129, 0.18);
+}
+
+.si-sat-ctx-analysis-launcher-label {
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  line-height: 1.15;
+  text-align: center;
+  text-transform: uppercase;
+  color: inherit;
+  opacity: 0.92;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* When the embedded panel is open, tool switching uses the launcher grid — hide duplicate rail icons */
+.si-sat-ctx-dock--embedded.si-map-analysis-toolbar--embedded.si-sat-ctx-dock--open .si-sat-ctx-rail-btn,
+.si-sat-ctx-dock--embedded.si-map-analysis-toolbar--embedded.si-sat-ctx-dock--open .si-sat-ctx-rail-sep,
+.si-sat-ctx-dock--embedded.si-map-analysis-toolbar--embedded.si-sat-ctx-dock--open .si-sat-ctx-rail-spacer {
+  display: none !important;
+}
+
+.si-sat-ctx-panel-body .si-map-toolbox-layers-card {
   margin-bottom: 12px;
 }
 
 /* Layers block in map toolbox: same flat surface as Processing Options workspace */
-.si-sat-ctx-panel-body > .si-map-toolbox-layers-card.si-env-section-card {
+.si-sat-ctx-panel-body .si-map-toolbox-layers-card.si-env-section-card {
   border: none;
   border-radius: 0;
   background: transparent;
@@ -1691,6 +1791,7 @@
   min-height: 0;
 }
 
+.si-sat-ctx-panel-body-core > .si-smart-proc + .si-sat-ctx-prose,
 .si-sat-ctx-panel-body > .si-smart-proc + .si-sat-ctx-prose {
   margin-top: 12px;
 }
