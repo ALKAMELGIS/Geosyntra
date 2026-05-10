@@ -8980,3 +8980,129 @@ html[data-theme='light'] .si-env-panel--toolbox-embed .si-env-panel-body--toolbo
 html[data-theme='light'] .si-env-panel--toolbox-embed .si-env-panel-body--toolbox-flat .si-explore-collection-list-wrap {
   background: transparent !important;
 }
+
+/* ------------------------------------------------------------------
+   Toolbox embed: one continuous surface (header + nav + body)
+   No stacked “panels”, no nested section chrome, stable scroll.
+   ------------------------------------------------------------------ */
+.si-env-panel--toolbox-embed.si-env-panel--single-surface {
+  background: rgba(15, 23, 42, 0.92);
+  border: 1px solid rgba(148, 163, 184, 0.16);
+  box-shadow: none;
+  overflow: hidden;
+  isolation: isolate;
+}
+
+.si-env-panel--toolbox-embed.si-env-panel--single-surface .si-env-panel-header {
+  border-bottom: 1px solid rgba(148, 163, 184, 0.12);
+  background: transparent;
+  background-image: none;
+  padding: 10px 12px;
+}
+
+.si-env-panel--toolbox-embed.si-env-panel--single-surface .si-env-toolbox-nav {
+  background: transparent;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.12);
+  padding: 6px 12px 8px;
+}
+
+.si-env-panel--toolbox-embed.si-env-panel--single-surface .si-env-panel-body--toolbox-flat {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+  overscroll-behavior: contain;
+  border-top: none;
+  background: transparent;
+}
+
+.si-env-panel--toolbox-embed.si-env-panel--single-surface .si-env-panel-body--toolbox-flat > * {
+  min-height: 0;
+}
+
+/* Remote sensing / field blocks: spacing only, no subsection panels */
+.si-env-panel--toolbox-embed.si-env-panel--single-surface .si-env-panel-body--toolbox-flat .si-field-analysis-section {
+  border: none !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  border-radius: 0 !important;
+  padding: 0 !important;
+  margin: 0 0 16px;
+}
+
+.si-env-panel--toolbox-embed.si-env-panel--single-surface .si-env-panel-body--toolbox-flat .si-field-analysis-kicker {
+  margin-bottom: 6px;
+}
+
+/* Explore STAC: tab strip as underline row (not nested pill bar) */
+.si-env-panel--toolbox-embed.si-env-panel--single-surface .si-env-panel-body--toolbox-flat .si-explore-stac-tabs {
+  gap: 2px;
+  padding: 0;
+  margin: 0 0 8px;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.14);
+}
+
+.si-env-panel--toolbox-embed.si-env-panel--single-surface .si-env-panel-body--toolbox-flat .si-explore-stac-tabs .si-explore-stac-tab {
+  margin: 0;
+  border-radius: 0;
+  background: transparent !important;
+  border: none !important;
+  border-bottom: 2px solid transparent;
+  padding: 8px 10px;
+}
+
+.si-env-panel--toolbox-embed.si-env-panel--single-surface .si-env-panel-body--toolbox-flat .si-explore-stac-tabs .si-explore-stac-tab.active {
+  background: transparent !important;
+  border-bottom-color: rgba(52, 211, 153, 0.85);
+  box-shadow: none !important;
+}
+
+.si-env-panel--toolbox-embed.si-env-panel--single-surface .si-env-panel-body--toolbox-flat .si-explore-stac-footer {
+  border-top: 1px solid rgba(148, 163, 184, 0.12);
+  background: transparent;
+  margin-top: 8px;
+  padding-top: 12px;
+}
+
+/* Geo AI: composer is part of same canvas (no nested purple card) */
+.si-env-panel--toolbox-embed.si-env-panel--single-surface .si-env-panel-body--toolbox-flat .si-geo-explorer-composer-surface {
+  margin-top: 4px;
+  padding: 8px 0 0;
+  border: none !important;
+  box-shadow: none !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  border-top: 1px solid rgba(148, 163, 184, 0.1);
+}
+
+.si-env-panel--toolbox-embed.si-env-panel--single-surface .si-env-panel-body--toolbox-flat .si-geo-explorer-input {
+  border-radius: 10px;
+  border-color: rgba(148, 163, 184, 0.22);
+  background: rgba(2, 6, 23, 0.35);
+}
+
+.si-env-panel--toolbox-embed.si-env-panel--single-surface .si-env-panel-body--toolbox-flat .si-geo-explorer-composer-voice-hint {
+  border: none;
+  background: rgba(148, 163, 184, 0.06);
+  border-radius: 8px;
+}
+
+.si-env-panel--toolbox-embed.si-env-panel--single-surface .si-env-panel-body--toolbox-flat .si-geo-explorer-messages {
+  border: none !important;
+  background: transparent !important;
+}
+
+html[data-theme='light'] .si-env-panel--toolbox-embed.si-env-panel--single-surface {
+  background: rgba(248, 250, 252, 0.98);
+  border-color: rgba(148, 163, 184, 0.35);
+}
+
+html[data-theme='light'] .si-env-panel--toolbox-embed.si-env-panel--single-surface .si-env-panel-header,
+html[data-theme='light'] .si-env-panel--toolbox-embed.si-env-panel--single-surface .si-env-toolbox-nav {
+  border-bottom-color: rgba(148, 163, 184, 0.28);
+}
+
+html[data-theme='light'] .si-env-panel--toolbox-embed.si-env-panel--single-surface .si-env-toolbox-back {
+  background: rgba(255, 255, 255, 0.95);
+  color: #0f172a;
+  border-color: rgba(148, 163, 184, 0.35);
+}

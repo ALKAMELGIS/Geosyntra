@@ -8036,7 +8036,9 @@ export default function SatelliteIntelligence() {
                 {isLayerDropdownOpen ? (
                   <div
                     className={`si-env-panel ${
-                      mapToolboxEmbedHost ? 'si-env-panel--toolbox-embed' : 'si-env-panel--mapbox-drop'
+                      mapToolboxEmbedHost
+                        ? 'si-env-panel--toolbox-embed si-env-panel--single-surface'
+                        : 'si-env-panel--mapbox-drop'
                     }${
                       expandedEnvSection === 'explore-stac' || expandedEnvSection === 'table-geo-ai'
                         ? ' si-env-panel--explore-stac'
