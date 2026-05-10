@@ -1865,6 +1865,26 @@ html[data-theme='light'] .si-proc-mb-toggle {
   max-height: min(82vh, 760px);
 }
 
+/* Portal target: toolbox panel-body (SatelliteContextualAnalysisDock) */
+.si-env-panel.si-env-panel--toolbox-embed {
+  position: relative !important;
+  inset: auto !important;
+  top: auto !important;
+  transform: none !important;
+  width: 100%;
+  max-width: none;
+  margin: 0;
+  z-index: 1;
+  max-height: min(72vh, 720px);
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 10px 36px rgba(2, 6, 23, 0.35);
+}
+
+.si-env-panel.si-env-panel--toolbox-embed.si-env-panel--explore-stac {
+  max-height: min(78vh, 800px);
+}
+
 @media (max-width: 768px) {
   .si-env-rail--mapbox-float {
     max-width: calc(100vw - 24px);

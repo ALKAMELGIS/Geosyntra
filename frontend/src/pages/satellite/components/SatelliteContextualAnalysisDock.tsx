@@ -48,6 +48,12 @@ export type SatelliteContextualAnalysisDockProps = {
   /** Map toolbox: opens the same processing stack as Satellite Intelligence (no reload). */
   onProcessingWorkflowNavigate?: (sectionId: SmartProcessingSectionId) => void;
   activeProcessingLayerHint?: string | null;
+  /** When true, the dock panel body hosts the floating Processing Options UI (portal target). */
+  processingDropdownOpen?: boolean;
+  /** Called with the embed host element whenever the map panel mounts/updates; null when unmounted. */
+  onMapToolboxEmbedHost?: (el: HTMLDivElement | null) => void;
+  /** Close the floating processing dropdown (e.g. when the toolbox panel closes). */
+  onToolboxPanelClose?: () => void;
 };
 
 const RAIL: Array<{ id: SatelliteContextPanelId; icon: string; label: string; title: string; hint: string }> = [
@@ -210,6 +216,9 @@ export function SatelliteContextualAnalysisDock(props: SatelliteContextualAnalys
     sparkPathBuilder = defaultSparkPath,
     onProcessingWorkflowNavigate,
     activeProcessingLayerHint = null,
+    processingDropdownOpen = false,
+    onMapToolboxEmbedHost,
+    onToolboxPanelClose,
   } = props;
 
   const [panelOpen, setPanelOpen] = useState(false);
@@ -332,6 +341,15 @@ export function SatelliteContextualAnalysisDock(props: SatelliteContextualAnalys
     }
   }, [isMapVariant, activeId]);
 
+  useEffect(() => {
+    if (!isMapVariant) return;
+    if (processingDropdownOpen) return;
+    if (activeId && MAP_RAIL_FLOAT_IDS.has(activeId)) {
+      setPanelOpen(false);
+      setActiveId(null);
+    }
+  }, [processingDropdownOpen, activeId, isMapVariant]);
+
   const openPanel = useCallback(
     (id: SatelliteContextPanelId) => {
       lastActiveRef.current = id;
@@ -345,12 +363,13 @@ export function SatelliteContextualAnalysisDock(props: SatelliteContextualAnalys
   const toggleRail = useCallback(
     (id: SatelliteContextPanelId) => {
       if (isMapVariant && MAP_RAIL_FLOAT_IDS.has(id) && onProcessingWorkflowNavigate) {
-        if (!panelOpen && activeId === id) {
+        if (panelOpen && activeId === id) {
+          setPanelOpen(false);
           setActiveId(null);
+          onToolboxPanelClose?.();
           return;
         }
-        if (panelOpen) setPanelOpen(false);
-        setActiveId(id);
+        openPanel(id);
         onProcessingWorkflowNavigate(id as SmartProcessingSectionId);
         return;
       }
@@ -360,12 +379,23 @@ export function SatelliteContextualAnalysisDock(props: SatelliteContextualAnalys
       }
       openPanel(id);
     },
-    [activeId, isMapVariant, onProcessingWorkflowNavigate, openPanel, panelOpen],
+    [activeId, isMapVariant, onProcessingWorkflowNavigate, onToolboxPanelClose, openPanel, panelOpen],
   );
 
   const closePanel = useCallback(() => {
     setPanelOpen(false);
-  }, []);
+    if (isMapVariant) {
+      onMapToolboxEmbedHost?.(null);
+      onToolboxPanelClose?.();
+    }
+  }, [isMapVariant, onMapToolboxEmbedHost, onToolboxPanelClose]);
+
+  const mapToolboxEmbedHostRef = useCallback(
+    (node: HTMLDivElement | null) => {
+      onMapToolboxEmbedHost?.(node);
+    },
+    [onMapToolboxEmbedHost],
+  );
 
   const onResizePointerDown = useCallback(
     (e: React.PointerEvent) => {
@@ -581,7 +611,10 @@ export function SatelliteContextualAnalysisDock(props: SatelliteContextualAnalys
         aria-hidden={!panelLayoutOpen}
       >
         <aside
-          className="si-sat-ctx-panel"
+          className={
+            'si-sat-ctx-panel' +
+            (isMap && panelOpen && processingDropdownOpen ? ' si-sat-ctx-panel--processing-embed-mode' : '')
+          }
           role="complementary"
           aria-label={activeMeta ? `${activeMeta.title} panel` : 'Context panel'}
         >
@@ -618,28 +651,36 @@ export function SatelliteContextualAnalysisDock(props: SatelliteContextualAnalys
                 </div>
               </header>
 
-              <div className="si-sat-ctx-tabs" role="tablist">
-                <button
-                  type="button"
-                  role="tab"
-                  aria-selected={innerTab === 'main'}
-                  className={'si-sat-ctx-tab' + (innerTab === 'main' ? ' si-sat-ctx-tab--on' : '')}
-                  onClick={() => setInnerTab('main')}
-                >
-                  Main
-                </button>
-                <button
-                  type="button"
-                  role="tab"
-                  aria-selected={innerTab === 'options'}
-                  className={'si-sat-ctx-tab' + (innerTab === 'options' ? ' si-sat-ctx-tab--on' : '')}
-                  onClick={() => setInnerTab('options')}
-                >
-                  Options
-                </button>
-              </div>
+              {isMap && processingDropdownOpen ? (
+                <div
+                  ref={mapToolboxEmbedHostRef}
+                  className="si-sat-ctx-panel-body si-sat-ctx-panel-body--processing-embed-host"
+                  data-si-map-toolbox-embed-host=""
+                />
+              ) : (
+                <>
+                  <div className="si-sat-ctx-tabs" role="tablist">
+                    <button
+                      type="button"
+                      role="tab"
+                      aria-selected={innerTab === 'main'}
+                      className={'si-sat-ctx-tab' + (innerTab === 'main' ? ' si-sat-ctx-tab--on' : '')}
+                      onClick={() => setInnerTab('main')}
+                    >
+                      Main
+                    </button>
+                    <button
+                      type="button"
+                      role="tab"
+                      aria-selected={innerTab === 'options'}
+                      className={'si-sat-ctx-tab' + (innerTab === 'options' ? ' si-sat-ctx-tab--on' : '')}
+                      onClick={() => setInnerTab('options')}
+                    >
+                      Options
+                    </button>
+                  </div>
 
-              <div className="si-sat-ctx-panel-body">
+                  <div className="si-sat-ctx-panel-body">
                 {innerTab === 'main' ? (
                   <>
                     {activeId === 'layers' && (
@@ -876,6 +917,8 @@ export function SatelliteContextualAnalysisDock(props: SatelliteContextualAnalys
                   </div>
                 )}
               </div>
+                </>
+              )}
 
               <footer className="si-sat-ctx-panel-footer">
                 <span className="si-sat-ctx-footer-hint">

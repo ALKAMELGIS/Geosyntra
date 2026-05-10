@@ -119,6 +119,7 @@ import { GeoExplorerGeminiInputRow } from './components/GeoExplorerGeminiInputRo
 import { GeoExplorerGeminiMessageParts } from './components/GeoExplorerGeminiMessageParts';
 import type { AoiStaticMultiLayerLineChartDataset } from './components/AoiStaticMultiLayerLineChart';
 import { SatelliteMapAnalysisChrome, SatelliteMapAnalysisToolbar } from './components/SatelliteMapAnalysisChrome';
+import { SatelliteMapProcessingOptionsPortal } from './components/SatelliteMapProcessingOptionsPortal';
 import {
   buildStaticAoiMultiChartDatasets,
   defaultStaticAoiComparisonLayers,
@@ -1731,6 +1732,7 @@ export default function SatelliteIntelligence() {
   const [wmsLayers, setWmsLayers] = useState<WmsLayerInfo[]>([]);
   const [isLoadingLayers, setIsLoadingLayers] = useState(false);
   const [isLayerDropdownOpen, setIsLayerDropdownOpen] = useState(false);
+  const [mapToolboxEmbedHost, setMapToolboxEmbedHost] = useState<HTMLDivElement | null>(null);
   const [basemapId, setBasemapId] = useState(() =>
     getMapboxAccessToken() ? DEFAULT_BASEMAP_ID : DEFAULT_BASEMAP_ID_NO_MAPBOX,
   );
@@ -7637,6 +7639,9 @@ export default function SatelliteIntelligence() {
             activeProcessingLayerHint={
               remoteSensingLayerOptions.find(o => o.id === wmsLayerSelectValue)?.label ?? selectedIndexConfig.label
             }
+            processingDropdownOpen={isLayerDropdownOpen}
+            onMapToolboxEmbedHost={setMapToolboxEmbedHost}
+            onToolboxPanelClose={() => setIsLayerDropdownOpen(false)}
           />
 
           {false && aoiHeatPointGeoJson?.features?.length ? (
@@ -7793,15 +7798,18 @@ export default function SatelliteIntelligence() {
                 accept=".kml,.kmz,.zip,.geojson,.json,.csv,.tif,.tiff,.img,.vrt,.jp2,.ecw"
                 onChange={handleLayerFileChange}
               />
-              {isLayerDropdownOpen && (
-                <div
-                  className={`si-env-panel si-env-panel--mapbox-drop${
-                    expandedEnvSection === 'explore-stac' || expandedEnvSection === 'table-geo-ai'
-                      ? ' si-env-panel--explore-stac'
-                      : ''
-                  }`}
-                  dir="auto"
-                >
+              <SatelliteMapProcessingOptionsPortal portalTarget={mapToolboxEmbedHost}>
+                {isLayerDropdownOpen ? (
+                  <div
+                    className={`si-env-panel ${
+                      mapToolboxEmbedHost ? 'si-env-panel--toolbox-embed' : 'si-env-panel--mapbox-drop'
+                    }${
+                      expandedEnvSection === 'explore-stac' || expandedEnvSection === 'table-geo-ai'
+                        ? ' si-env-panel--explore-stac'
+                        : ''
+                    }`}
+                    dir="auto"
+                  >
                   <div className="si-env-panel-header">
                     <div className="si-env-header-top">
                       <div>
@@ -9198,7 +9206,8 @@ export default function SatelliteIntelligence() {
                     )}
                   </div>
                 </div>
-              )}
+                ) : null}
+              </SatelliteMapProcessingOptionsPortal>
             </div>
           </div>
         </div>

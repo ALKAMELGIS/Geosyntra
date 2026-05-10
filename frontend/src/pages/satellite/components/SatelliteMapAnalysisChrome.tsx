@@ -119,6 +119,9 @@ export type SatelliteMapAnalysisChromeProps = {
   showMapToolbox?: boolean;
   onProcessingWorkflowNavigate?: (sectionId: SmartProcessingSectionId) => void;
   activeProcessingLayerHint?: string | null;
+  processingDropdownOpen?: boolean;
+  onMapToolboxEmbedHost?: (el: HTMLDivElement | null) => void;
+  onToolboxPanelClose?: () => void;
 };
 
 function sparkPath(values: number[], w: number, h: number): string {
@@ -163,6 +166,9 @@ export function SatelliteMapAnalysisChrome(props: SatelliteMapAnalysisChromeProp
     showMapToolbox = true,
     onProcessingWorkflowNavigate,
     activeProcessingLayerHint = null,
+    processingDropdownOpen = false,
+    onMapToolboxEmbedHost,
+    onToolboxPanelClose,
   } = props;
 
   const activeFull =
@@ -191,6 +197,9 @@ export function SatelliteMapAnalysisChrome(props: SatelliteMapAnalysisChromeProp
       sparkPathBuilder={sparkPath}
       onProcessingWorkflowNavigate={onProcessingWorkflowNavigate}
       activeProcessingLayerHint={activeProcessingLayerHint}
+      processingDropdownOpen={processingDropdownOpen}
+      onMapToolboxEmbedHost={onMapToolboxEmbedHost}
+      onToolboxPanelClose={onToolboxPanelClose}
     />
   ) : null;
 
