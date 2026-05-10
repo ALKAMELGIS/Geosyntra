@@ -9,25 +9,7 @@
   }
 }
 
-/* Scrollbars (Chromium / WebKit) */
-html[data-theme='dark'] * {
-  scrollbar-color: color-mix(in srgb, var(--ds-color-primary) 35%, transparent) var(--ds-color-surface);
-}
-
-html[data-theme='dark'] ::-webkit-scrollbar {
-  width: 10px;
-  height: 10px;
-}
-
-html[data-theme='dark'] ::-webkit-scrollbar-track {
-  background: var(--ds-color-bg);
-}
-
-html[data-theme='dark'] ::-webkit-scrollbar-thumb {
-  background: color-mix(in srgb, var(--ds-color-primary) 45%, var(--ds-color-surface));
-  border-radius: 999px;
-  border: 2px solid var(--ds-color-bg);
-}
+/* Scrollbars: see styles/si-scrollbar-system.css (loaded from main.tsx) */
 
 /* Font Awesome: follow surrounding text color (avoids dark icons on dark chrome) */
 html[data-theme='dark'] .app-layout i[class*='fa-'],

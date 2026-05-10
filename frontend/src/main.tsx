@@ -9,6 +9,7 @@ import './styles/design-tokens.css'
 import './styles/home-hub.css'
 import './styles/app-design-system.css'
 import './styles/dark-mode-unified.css'
+import './styles/si-scrollbar-system.css'
 import './styles/responsive-shell.css'
 import { bootstrapMapboxAccessTokenPersistence } from './lib/mapboxAccessToken'
 
