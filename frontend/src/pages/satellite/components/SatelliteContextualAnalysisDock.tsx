@@ -49,6 +49,18 @@ export type SatelliteContextualAnalysisDockProps = {
   onProcessingWorkflowNavigate?: (sectionId: SmartProcessingSectionId) => void;
   /** When true, the dock panel body hosts the floating Processing Options UI (portal target). */
   processingDropdownOpen?: boolean;
+  /**
+   * Active section inside the portaled Processing Options (matches parent `expandedEnvSection`).
+   * Keeps toolbox header and rail highlight aligned with Explore STAC / RS / AI — not stuck on Layers.
+   */
+  processingEmbedSection?:
+    | 'source'
+    | 'layers'
+    | 'explore-stac'
+    | 'remote-sensing'
+    | 'ai-detection-gis'
+    | 'table-geo-ai'
+    | null;
   /** Called with the embed host element whenever the map panel mounts/updates; null when unmounted. */
   onMapToolboxEmbedHost?: (el: HTMLDivElement | null) => void;
   /** Close the floating processing dropdown (e.g. when the toolbox panel closes). */
@@ -217,6 +229,7 @@ export function SatelliteContextualAnalysisDock(props: SatelliteContextualAnalys
     sparkPathBuilder = defaultSparkPath,
     onProcessingWorkflowNavigate,
     processingDropdownOpen = false,
+    processingEmbedSection = null,
     onMapToolboxEmbedHost,
     onToolboxPanelClose,
     mapToolboxLayersMain,
@@ -374,13 +387,28 @@ export function SatelliteContextualAnalysisDock(props: SatelliteContextualAnalys
         onProcessingWorkflowNavigate(id as SmartProcessingSectionId);
         return;
       }
+      /* Docked-only tools (e.g. Layers): never stack under portaled Processing Options */
       if (panelOpen && activeId === id) {
         setPanelOpen(false);
+        if (isMapVariant && processingDropdownOpen) {
+          onToolboxPanelClose?.();
+        }
         return;
+      }
+      if (isMapVariant && processingDropdownOpen) {
+        onToolboxPanelClose?.();
       }
       openPanel(id);
     },
-    [activeId, isMapVariant, onProcessingWorkflowNavigate, onToolboxPanelClose, openPanel, panelOpen],
+    [
+      activeId,
+      isMapVariant,
+      onProcessingWorkflowNavigate,
+      onToolboxPanelClose,
+      openPanel,
+      panelOpen,
+      processingDropdownOpen,
+    ],
   );
 
   const closePanel = useCallback(() => {
@@ -423,6 +451,15 @@ export function SatelliteContextualAnalysisDock(props: SatelliteContextualAnalys
   );
 
   const activeMeta = activeId ? RAIL.find(r => r.id === activeId) : null;
+  const processingEmbedHeader = useMemo(() => {
+    if (!processingEmbedSection) return null;
+    if (processingEmbedSection === 'source') {
+      return { title: 'Source catalog', kicker: 'Toolbox' };
+    }
+    const row = RAIL_BY_ID[processingEmbedSection as SatelliteContextPanelId];
+    if (row) return { title: row.title, kicker: 'Toolbox' };
+    return { title: 'Processing', kicker: 'Toolbox' };
+  }, [processingEmbedSection]);
   const maxPivot = pivotBars.length ? Math.max(...pivotBars.map(p => Math.abs(p.value))) : 1;
 
   const isMap = isMapVariant;
@@ -485,8 +522,12 @@ export function SatelliteContextualAnalysisDock(props: SatelliteContextualAnalys
               const item = RAIL_BY_ID[id];
               if (!item) return null;
               const railPressed =
-                activeId === item.id &&
-                (MAP_RAIL_FLOAT_IDS.has(item.id) ? !panelOpen : panelOpen);
+                (isMap &&
+                  processingDropdownOpen &&
+                  processingEmbedSection !== null &&
+                  processingEmbedSection === item.id) ||
+                (activeId === item.id &&
+                  (MAP_RAIL_FLOAT_IDS.has(item.id) ? !panelOpen : panelOpen));
               return (
                 <button
                   key={item.id}
@@ -617,15 +658,27 @@ export function SatelliteContextualAnalysisDock(props: SatelliteContextualAnalys
             (isMap && panelOpen && processingDropdownOpen ? ' si-sat-ctx-panel--processing-embed-mode' : '')
           }
           role="complementary"
-          aria-label={activeMeta ? `${activeMeta.title} panel` : 'Context panel'}
+          aria-label={
+            isMap && processingDropdownOpen && processingEmbedHeader
+              ? `${processingEmbedHeader.title} panel`
+              : activeMeta
+                ? `${activeMeta.title} panel`
+                : 'Context panel'
+          }
         >
           {panelOpen && activeId ? (
             <>
               <div className="si-sat-ctx-panel-resize" onPointerDown={onResizePointerDown} title="Resize panel" />
               <header className="si-sat-ctx-panel-header">
                 <div className="si-sat-ctx-panel-header-text">
-                  <span className="si-sat-ctx-panel-kicker">Context</span>
-                  <h2 className="si-sat-ctx-panel-title">{activeMeta?.title ?? 'Panel'}</h2>
+                  <span className="si-sat-ctx-panel-kicker">
+                    {isMap && processingDropdownOpen && processingEmbedHeader ? processingEmbedHeader.kicker : 'Context'}
+                  </span>
+                  <h2 className="si-sat-ctx-panel-title">
+                    {isMap && processingDropdownOpen && processingEmbedHeader
+                      ? processingEmbedHeader.title
+                      : activeMeta?.title ?? 'Panel'}
+                  </h2>
                 </div>
                 <div className="si-sat-ctx-panel-header-actions">
                   <button
@@ -883,7 +936,10 @@ export function SatelliteContextualAnalysisDock(props: SatelliteContextualAnalys
                               key={sid}
                               type="button"
                               className="si-sat-ctx-toolbox-opt-btn"
-                              onClick={() => onProcessingWorkflowNavigate(sid)}
+                              onClick={() => {
+                                openPanel(sid as SatelliteContextPanelId);
+                                onProcessingWorkflowNavigate(sid);
+                              }}
                             >
                               <i className={RAIL_BY_ID[sid].icon} aria-hidden />
                               <span>Open {RAIL_BY_ID[sid].label}</span>
