@@ -10,6 +10,10 @@ import { SmartProcessingWorkflowPanel, type SmartProcessingSectionId } from './S
 
 export type SatelliteContextPanelId =
   | 'layers'
+  | 'explore-stac'
+  | 'remote-sensing'
+  | 'ai-detection-gis'
+  | 'table-geo-ai'
   | 'spatial'
   | 'aoi'
   | 'charts'
@@ -52,7 +56,35 @@ const RAIL: Array<{ id: SatelliteContextPanelId; icon: string; label: string; ti
     icon: 'fa-solid fa-layer-group',
     label: 'Layers',
     title: 'Layer settings',
-    hint: 'Catalog, ordering, overlays, and linked STAC / AI workflows in one place.',
+    hint: 'Opacity, ordering, and imagery context while mapping.',
+  },
+  {
+    id: 'explore-stac',
+    icon: 'fa-solid fa-magnifying-glass-chart',
+    label: 'Explore STAC',
+    title: 'Explore STAC',
+    hint: 'Catalog search, collections, and items on the map.',
+  },
+  {
+    id: 'remote-sensing',
+    icon: 'fa-solid fa-satellite-dish',
+    label: 'Remote sensing',
+    title: 'Remote sensing',
+    hint: 'Indices, WMS layers, timeline, and AOI tools.',
+  },
+  {
+    id: 'ai-detection-gis',
+    icon: 'fa-solid fa-magnifying-glass-location',
+    label: 'AI Detection in GIS',
+    title: 'AI Detection in GIS',
+    hint: 'Map-aware detection and inspect workflows.',
+  },
+  {
+    id: 'table-geo-ai',
+    icon: 'fa-solid fa-comments',
+    label: 'Geo AI',
+    title: 'Geo AI',
+    hint: 'Copilot, attributes, and SQL-style prompts.',
   },
   {
     id: 'spatial',
@@ -111,9 +143,27 @@ const RAIL_GROUPS: SatelliteContextPanelId[][] = [
   ['raster', 'feature'],
 ];
 
-/** In-map toolbox (`variant="map"`): single Layers hub (catalog + workflows, no duplicate rail). */
-const RAIL_MAP_TOOLBOX_IDS = new Set<SatelliteContextPanelId>(['layers']);
-const RAIL_GROUPS_MAP: SatelliteContextPanelId[][] = [['layers']];
+/** In-map toolbox: Main (layers + STAC + RS) and Options (AI GIS + Geo AI). */
+const RAIL_MAP_TOOLBOX_IDS = new Set<SatelliteContextPanelId>([
+  'layers',
+  'explore-stac',
+  'remote-sensing',
+  'ai-detection-gis',
+  'table-geo-ai',
+]);
+
+/** Rail tools that open the floating processing stack instead of the docked panel. */
+const MAP_RAIL_FLOAT_IDS = new Set<SatelliteContextPanelId>([
+  'explore-stac',
+  'remote-sensing',
+  'ai-detection-gis',
+  'table-geo-ai',
+]);
+
+const RAIL_GROUPS_MAP: SatelliteContextPanelId[][] = [
+  ['layers', 'explore-stac', 'remote-sensing'],
+  ['ai-detection-gis', 'table-geo-ai'],
+];
 
 const RAIL_BY_ID = RAIL.reduce(
   (acc, r) => {
@@ -294,26 +344,28 @@ export function SatelliteContextualAnalysisDock(props: SatelliteContextualAnalys
 
   const toggleRail = useCallback(
     (id: SatelliteContextPanelId) => {
+      if (isMapVariant && MAP_RAIL_FLOAT_IDS.has(id) && onProcessingWorkflowNavigate) {
+        if (!panelOpen && activeId === id) {
+          setActiveId(null);
+          return;
+        }
+        if (panelOpen) setPanelOpen(false);
+        setActiveId(id);
+        onProcessingWorkflowNavigate(id as SmartProcessingSectionId);
+        return;
+      }
       if (panelOpen && activeId === id) {
         setPanelOpen(false);
         return;
       }
       openPanel(id);
     },
-    [activeId, openPanel, panelOpen],
+    [activeId, isMapVariant, onProcessingWorkflowNavigate, openPanel, panelOpen],
   );
 
   const closePanel = useCallback(() => {
     setPanelOpen(false);
   }, []);
-
-  const handleProcessingNavigate = useCallback(
-    (sectionId: SmartProcessingSectionId) => {
-      onProcessingWorkflowNavigate?.(sectionId);
-      if (sectionId !== 'layers') closePanel();
-    },
-    [closePanel, onProcessingWorkflowNavigate],
-  );
 
   const onResizePointerDown = useCallback(
     (e: React.PointerEvent) => {
@@ -388,9 +440,22 @@ export function SatelliteContextualAnalysisDock(props: SatelliteContextualAnalys
         ) : null}
         {railMenuGroups.map((group, gi) => (
           <Fragment key={group.join('-')}>
+            {isMap && gi === 0 ? (
+              <div className="si-sat-ctx-rail-group-kicker" role="presentation">
+                Main
+              </div>
+            ) : null}
+            {isMap && gi === 1 ? (
+              <div className="si-sat-ctx-rail-group-kicker" role="presentation">
+                Options
+              </div>
+            ) : null}
             {group.map(id => {
               const item = RAIL_BY_ID[id];
               if (!item) return null;
+              const railPressed =
+                activeId === item.id &&
+                (MAP_RAIL_FLOAT_IDS.has(item.id) ? !panelOpen : panelOpen);
               return (
                 <button
                   key={item.id}
@@ -401,11 +466,11 @@ export function SatelliteContextualAnalysisDock(props: SatelliteContextualAnalys
                     (isMap && railWide ? ' si-sat-ctx-rail-btn--row si-sat-ctx-rail-btn--map-expanded' : '') +
                     (isMap && !railWide ? ' si-sat-ctx-rail-btn--map-collapsed' : '') +
                     (!isMap && railWide ? ' si-sat-ctx-rail-btn--row' : '') +
-                    (panelOpen && activeId === item.id ? ' si-sat-ctx-rail-btn--active' : '')
+                    (railPressed ? ' si-sat-ctx-rail-btn--active' : '')
                   }
                   title={railHintTitle(item)}
                   aria-label={railWide ? item.label : railHintTitle(item)}
-                  aria-pressed={panelOpen && activeId === item.id}
+                  aria-pressed={railPressed}
                   onClick={() => toggleRail(item.id)}
                 >
                   <i className={item.icon} aria-hidden />
@@ -553,49 +618,49 @@ export function SatelliteContextualAnalysisDock(props: SatelliteContextualAnalys
                 </div>
               </header>
 
-              {!(isMap && activeId === 'layers') ? (
-                <div className="si-sat-ctx-tabs" role="tablist">
-                  <button
-                    type="button"
-                    role="tab"
-                    aria-selected={innerTab === 'main'}
-                    className={'si-sat-ctx-tab' + (innerTab === 'main' ? ' si-sat-ctx-tab--on' : '')}
-                    onClick={() => setInnerTab('main')}
-                  >
-                    Main
-                  </button>
-                  <button
-                    type="button"
-                    role="tab"
-                    aria-selected={innerTab === 'options'}
-                    className={'si-sat-ctx-tab' + (innerTab === 'options' ? ' si-sat-ctx-tab--on' : '')}
-                    onClick={() => setInnerTab('options')}
-                  >
-                    Options
-                  </button>
-                </div>
-              ) : null}
+              <div className="si-sat-ctx-tabs" role="tablist">
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={innerTab === 'main'}
+                  className={'si-sat-ctx-tab' + (innerTab === 'main' ? ' si-sat-ctx-tab--on' : '')}
+                  onClick={() => setInnerTab('main')}
+                >
+                  Main
+                </button>
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={innerTab === 'options'}
+                  className={'si-sat-ctx-tab' + (innerTab === 'options' ? ' si-sat-ctx-tab--on' : '')}
+                  onClick={() => setInnerTab('options')}
+                >
+                  Options
+                </button>
+              </div>
 
               <div className="si-sat-ctx-panel-body">
-                {isMap && activeId === 'layers' && onProcessingWorkflowNavigate ? (
-                  <SmartProcessingWorkflowPanel
-                    layersHubMode
-                    activeLayerSummary={activeProcessingLayerHint}
-                    onNavigateSection={handleProcessingNavigate}
-                  />
-                ) : innerTab === 'main' ? (
+                {innerTab === 'main' ? (
                   <>
                     {activeId === 'layers' && (
-                      <div className="si-sat-ctx-prose">
-                        <p>
-                          <strong>Layer settings</strong> — opacity, ordering, and imagery visibility are managed from the
-                          environment <strong>Layers</strong> tab. Use this panel for quick context while mapping.
-                        </p>
-                        <ul className="si-sat-ctx-list">
-                          <li>Toggle index overlay visibility in Remote Sensing.</li>
-                          <li>Added vector layers support identify and table actions.</li>
-                        </ul>
-                      </div>
+                      <>
+                        {isMap && onProcessingWorkflowNavigate ? (
+                          <SmartProcessingWorkflowPanel
+                            activeLayerSummary={activeProcessingLayerHint}
+                            onNavigateSection={sid => onProcessingWorkflowNavigate(sid)}
+                          />
+                        ) : null}
+                        <div className="si-sat-ctx-prose">
+                          <p>
+                            <strong>Layer settings</strong> — opacity, ordering, and imagery visibility are managed from the
+                            environment <strong>Layers</strong> tab. Use this panel for quick context while mapping.
+                          </p>
+                          <ul className="si-sat-ctx-list">
+                            <li>Toggle index overlay visibility in Remote Sensing.</li>
+                            <li>Added vector layers support identify and table actions.</li>
+                          </ul>
+                        </div>
+                      </>
                     )}
                     {activeId === 'spatial' && (
                       <div className="si-sat-ctx-prose">
@@ -781,17 +846,43 @@ export function SatelliteContextualAnalysisDock(props: SatelliteContextualAnalys
                   </>
                 ) : (
                   <div className="si-sat-ctx-prose">
-                    <p className="si-sat-ctx-muted">Tool-specific advanced options will appear here as features are extended.</p>
+                    {activeId === 'layers' && isMap && onProcessingWorkflowNavigate ? (
+                      <>
+                        <p>
+                          <strong>Options</strong> — open the floating processing stack for a section (state is preserved; no
+                          page reload).
+                        </p>
+                        <div className="si-sat-ctx-toolbox-opt-actions" role="group" aria-label="Open processing sections">
+                          {(
+                            ['explore-stac', 'remote-sensing', 'ai-detection-gis', 'table-geo-ai'] as SmartProcessingSectionId[]
+                          ).map(sid => (
+                            <button
+                              key={sid}
+                              type="button"
+                              className="si-sat-ctx-toolbox-opt-btn"
+                              onClick={() => onProcessingWorkflowNavigate(sid)}
+                            >
+                              <i className={RAIL_BY_ID[sid].icon} aria-hidden />
+                              <span>Open {RAIL_BY_ID[sid].label}</span>
+                            </button>
+                          ))}
+                        </div>
+                      </>
+                    ) : (
+                      <p className="si-sat-ctx-muted">
+                        Tool-specific advanced options will appear here as features are extended.
+                      </p>
+                    )}
                   </div>
                 )}
               </div>
 
               <footer className="si-sat-ctx-panel-footer">
                 <span className="si-sat-ctx-footer-hint">
-                  {isMap && activeId === 'layers'
-                    ? 'Layers catalog opens beside the map; this toolbox stays open for context. Other shortcuts collapse the panel when opened.'
-                    : activeId === 'aoi'
-                      ? 'Polygon: Shift constrains angles · Circle: Enter commits · Clear restores pan.'
+                  {activeId === 'aoi'
+                    ? 'Polygon: Shift constrains angles · Circle: Enter commits · Clear restores pan.'
+                    : activeId === 'layers' && isMap
+                      ? 'Main: workflows + layer notes · Options: shortcuts. Other toolbox buttons open the floating panel.'
                       : 'Drag the inner edge to resize. Click the active tool again to collapse.'}
                 </span>
               </footer>

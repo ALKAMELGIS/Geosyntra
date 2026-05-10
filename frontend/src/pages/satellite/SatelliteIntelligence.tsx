@@ -117,7 +117,6 @@ import { FieldVisibilityControl } from './components/FieldVisibilityControl';
 import { GeoAiEditQuestionTool } from './components/GeoAiEditQuestionTool';
 import { GeoExplorerGeminiInputRow } from './components/GeoExplorerGeminiInputRow';
 import { GeoExplorerGeminiMessageParts } from './components/GeoExplorerGeminiMessageParts';
-import { MapFloatingAiAssistant } from './components/MapFloatingAiAssistant';
 import type { AoiStaticMultiLayerLineChartDataset } from './components/AoiStaticMultiLayerLineChart';
 import { SatelliteMapAnalysisChrome, SatelliteMapAnalysisToolbar } from './components/SatelliteMapAnalysisChrome';
 import {
@@ -1732,9 +1731,6 @@ export default function SatelliteIntelligence() {
   const [wmsLayers, setWmsLayers] = useState<WmsLayerInfo[]>([]);
   const [isLoadingLayers, setIsLoadingLayers] = useState(false);
   const [isLayerDropdownOpen, setIsLayerDropdownOpen] = useState(false);
-  /** Floating map assistant (Geo AI) — expanded panel XOR with env dropdown to avoid duplicate mounts. */
-  const [mapFloatGeoAiExpanded, setMapFloatGeoAiExpanded] = useState(false);
-  /** Mapbox-style processing bar: expanded shows icon + short label per section. */
   const [basemapId, setBasemapId] = useState(() =>
     getMapboxAccessToken() ? DEFAULT_BASEMAP_ID : DEFAULT_BASEMAP_ID_NO_MAPBOX,
   );
@@ -2008,9 +2004,7 @@ export default function SatelliteIntelligence() {
   const mapDrawToolRef = useRef<MapDrawTool>('select');
   mapDrawToolRef.current = mapDrawTool;
   const fileInputRef = useRef<HTMLInputElement | null>(null);
-  const mapContainerRef = useRef<HTMLDivElement | null>(null);
   const geoExplorerMessagesRef = useRef<HTMLDivElement | null>(null);
-  const geoExplorerFloatMessagesRef = useRef<HTMLDivElement | null>(null);
   const geoAiClaudeMessagesRef = useRef<HTMLDivElement | null>(null);
   const geoAiDeepseekMessagesRef = useRef<HTMLDivElement | null>(null);
   const geoExplorerLoadOlderRef = useRef<{ top: number; height: number } | null>(null);
@@ -2261,12 +2255,6 @@ export default function SatelliteIntelligence() {
     if (!el || geoExplorerLoadOlderRef.current) return;
     if (el.scrollHeight - el.scrollTop - el.clientHeight <= 56) el.scrollTop = el.scrollHeight;
   }, [geoExplorerMessages.length, geoExplorerBusy]);
-  useLayoutEffect(() => {
-    if (!mapFloatGeoAiExpanded) return;
-    const el = geoExplorerFloatMessagesRef.current;
-    if (!el || geoExplorerLoadOlderRef.current) return;
-    if (el.scrollHeight - el.scrollTop - el.clientHeight <= 56) el.scrollTop = el.scrollHeight;
-  }, [geoExplorerMessages.length, geoExplorerBusy, mapFloatGeoAiExpanded]);
   useLayoutEffect(() => {
     const el = geoAiClaudeMessagesRef.current;
     if (!el || geoAiClaudeLoadOlderRef.current) return;
@@ -7125,7 +7113,6 @@ export default function SatelliteIntelligence() {
       <div className="si-main-content">
         {/* Map viewport: MapGL fills this box; timeline chrome below (in-map toolbox rail disabled). */}
         <div
-          ref={mapContainerRef}
           className={`si-map-container${
             ['point', 'polyline', 'polygon', 'rectangle', 'circle', 'box_select'].includes(mapDrawTool)
               ? ' si-map-container--drawing'
@@ -7618,126 +7605,6 @@ export default function SatelliteIntelligence() {
             {isMapLoaded ? <NavigationControl position="bottom-right" /> : null}
           </MapGL>
 
-          {isMapLoaded ? (
-            <MapFloatingAiAssistant
-              containerRef={mapContainerRef}
-              expanded={mapFloatGeoAiExpanded}
-              onExpandedChange={setMapFloatGeoAiExpanded}
-              onOpenFullWorkspace={() => {
-                setExpandedEnvSection('table-geo-ai');
-                setIsLayerDropdownOpen(true);
-                setMapFloatGeoAiExpanded(false);
-              }}
-              title="Map Assistant"
-              subtitle="Geo AI · Gemini"
-            >
-              <div className="si-geo-explorer-root si-geo-explorer-root--unified si-geo-explorer-float-host">
-                <div className="si-env-section-card si-geo-explorer">
-                  <div className="si-geo-explorer-header si-geo-explorer-header--float">
-                    <h2 className="si-geo-explorer-title">Geo AI</h2>
-                    <div className="si-geo-explorer-header-actions">
-                      <button
-                        type="button"
-                        className="si-geo-explorer-icon-btn"
-                        onClick={() => setGeoAiSmartSuggestionsEnabled(v => !v)}
-                        aria-label={geoAiSmartSuggestionsEnabled ? 'Disable smart suggestions' : 'Enable smart suggestions'}
-                        title={geoAiSmartSuggestionsEnabled ? 'Smart Suggestions: on' : 'Smart Suggestions: off'}
-                      >
-                        <i className="fa-solid fa-wand-magic-sparkles" aria-hidden />
-                      </button>
-                      <button
-                        type="button"
-                        className="si-geo-explorer-icon-btn"
-                        onClick={clearCurrentGeoAiPanel}
-                        aria-label="Clear chat"
-                        title="Clear chat"
-                      >
-                        <i className="fa-solid fa-trash" aria-hidden />
-                      </button>
-                    </div>
-                  </div>
-                  <>
-                      <div className="si-geo-explorer-messages" ref={geoExplorerFloatMessagesRef}>
-                        <div className="si-geo-explorer-row si-geo-explorer-row--model">
-                          <div className="si-geo-explorer-avatar" aria-hidden>
-                            <i className="fa-solid fa-globe" />
-                          </div>
-                          <div className="si-geo-explorer-bubble">
-                            Hello! Im Agro Cloud - GeoAI - Describe a place, upload an image, or ask for directions.
-                            When a location is clear, the map will fly there
-                          </div>
-                        </div>
-                        {visibleGeoExplorerMessages.map(msg => (
-                          <div key={msg.id} className={`si-geo-explorer-row si-geo-explorer-row--${msg.role}`}>
-                            {msg.role === 'model' ? (
-                              <div className="si-geo-explorer-avatar" aria-hidden>
-                                <i className="fa-solid fa-wand-magic-sparkles" />
-                              </div>
-                            ) : null}
-                            <div className="si-geo-explorer-bubble">
-                              <GeoExplorerGeminiMessageParts
-                                msg={msg}
-                                cssPrefix="si-geo-explorer"
-                                onTableMapAction={onSiGeoAiTableMapAction}
-                                onSaveEditedUserMessage={saveEditedGeoExplorerGeminiQuestion}
-                                onSendEditedToComposer={setGeoExplorerDraft}
-                                suggestLayers={geoAiSuggestContext.layers}
-                                suggestFields={geoAiSuggestContext.fields}
-                                suggestNumericFields={geoAiSuggestContext.numericFields}
-                              />
-                            </div>
-                          </div>
-                        ))}
-                        {geoExplorerBusy ? (
-                          <div className="si-geo-explorer-row si-geo-explorer-row--model">
-                            <div className="si-geo-explorer-avatar" aria-hidden>
-                              <i className="fa-solid fa-wand-magic-sparkles" />
-                            </div>
-                            <div className="si-geo-explorer-bubble si-geo-explorer-bubble--typing">
-                              <i className="fa-solid fa-spinner fa-spin" aria-hidden />{' '}
-                              {geoExplorerAwaitKind === 'edit' ? 'Updating…' : 'Thinking…'}
-                            </div>
-                          </div>
-                        ) : null}
-                      </div>
-                      {geoExplorerChatError ? <p className="si-geo-explorer-error">{geoExplorerChatError}</p> : null}
-                      {geoExplorerPendingImage ? (
-                        <p className="si-geo-explorer-pending-img">
-                          <i className="fa-solid fa-image" aria-hidden /> Image ready to send
-                          <button
-                            type="button"
-                            className="si-geo-explorer-linkish"
-                            onClick={() => setGeoExplorerPendingImage(null)}
-                          >
-                            Remove
-                          </button>
-                        </p>
-                      ) : null}
-                      <GeoExplorerGeminiInputRow
-                        cssPrefix="si-geo-explorer"
-                        draft={geoExplorerDraft}
-                        onDraftChange={setGeoExplorerDraft}
-                        onSend={sendGeoExplorerChat}
-                        busy={geoExplorerBusy}
-                        pendingImage={geoExplorerPendingImage}
-                        fileInputRef={geoExplorerFileInputRef}
-                        onAttachChange={onGeoExplorerAttachChange}
-                        textareaAriaLabel="Geo AI Gemini message"
-                        availableLayers={geoAiSuggestContext.layers}
-                        availableFields={geoAiSuggestContext.fields}
-                        availableNumericFields={geoAiSuggestContext.numericFields}
-                        availableGeometryOps={geoAiSuggestContext.geometryOps}
-                        smartSuggestionsEnabled={geoAiSmartSuggestionsEnabled}
-                      />
-                      <p className="si-geo-explorer-footnote si-geo-explorer-footnote--float">
-                        Gemini on map — use the expand icon for Claude / DeepSeek and the full workspace layout.
-                      </p>
-                    </>
-                </div>
-              </div>
-            </MapFloatingAiAssistant>
-          ) : null}
-
           <SatelliteMapAnalysisChrome
             weeklyChips={satelliteTimelineChips}
             activeChipId={satelliteActiveChipId}
@@ -7764,7 +7631,6 @@ export default function SatelliteIntelligence() {
             mapRef={mapRef}
             mapLoaded={isMapLoaded}
             onProcessingWorkflowNavigate={id => {
-              if (id === 'table-geo-ai') setMapFloatGeoAiExpanded(false);
               setExpandedEnvSection(id);
               setIsLayerDropdownOpen(true);
             }}
@@ -8893,7 +8759,7 @@ export default function SatelliteIntelligence() {
                         ) : null}
                       </div>
                     )}
-                    {expandedEnvSection === 'table-geo-ai' && !mapFloatGeoAiExpanded && (
+                    {expandedEnvSection === 'table-geo-ai' && (
                       <div className="si-geo-explorer-root si-geo-explorer-root--unified">
                         <div className="si-env-section-card si-geo-explorer">
                           <div className="si-geo-explorer-header">
