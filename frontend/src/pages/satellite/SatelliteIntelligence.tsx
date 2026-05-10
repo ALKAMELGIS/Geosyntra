@@ -118,11 +118,7 @@ import { GeoAiEditQuestionTool } from './components/GeoAiEditQuestionTool';
 import { GeoExplorerGeminiInputRow } from './components/GeoExplorerGeminiInputRow';
 import { GeoExplorerGeminiMessageParts } from './components/GeoExplorerGeminiMessageParts';
 import type { AoiStaticMultiLayerLineChartDataset } from './components/AoiStaticMultiLayerLineChart';
-import {
-  SatelliteMapAnalysisChrome,
-  SatelliteMapAnalysisToolbar,
-  type MapToolboxNavigateHandler,
-} from './components/SatelliteMapAnalysisChrome';
+import { SatelliteMapAnalysisChrome, type MapToolboxNavigateHandler } from './components/SatelliteMapAnalysisChrome';
 import { SatelliteMapProcessingOptionsPortal } from './components/SatelliteMapProcessingOptionsPortal';
 import {
   buildStaticAoiMultiChartDatasets,
@@ -8927,24 +8923,69 @@ export default function SatelliteIntelligence() {
                             </label>
                           </div>
                           <div className="si-field-analysis-map-tools">
-                            <SatelliteMapAnalysisToolbar
-                              embedded
-                              mapTool={satelliteToolbarTool}
-                              onMapTool={t => applyMapDrawTool(t)}
-                              hasClearableDrawing={satelliteHasClearableDrawing}
-                              onClearDrawing={clearSatelliteDrawingWithFade}
-                              hasAoi={!!drawnGeometry}
-                              staticChartsOpen={mapStaticChartsOpen}
-                              onToggleStaticCharts={() => setMapStaticChartsOpen(o => !o)}
-                              weeklyMeans={satelliteWeeklyMeans}
-                              pivotBars={satellitePivotBars}
-                              indexLabel={selectedIndexConfig.label}
-                              staticMultiLineLabels={staticAoiMultiLineData.labels}
-                              staticMultiLineDatasets={staticAoiMultiLineData.datasets}
-                              staticMultiLineHasLst={staticAoiMultiLineData.hasLst}
-                              staticComparisonLayers={staticChartComparisonLayers}
-                              onStaticComparisonLayerToggle={handleStaticComparisonLayerToggle}
-                            />
+                            <div className="si-field-analysis-kicker">Drawing tools</div>
+                            <div
+                              className="si-map-analysis-toolbar si-map-analysis-toolbar--embedded"
+                              role="toolbar"
+                              aria-label="AOI drawing tools"
+                            >
+                              <button
+                                type="button"
+                                className={`si-map-analysis-tool${mapDrawTool === 'rectangle' ? ' si-map-analysis-tool--on' : ''}`}
+                                title="Rectangle AOI"
+                                aria-pressed={mapDrawTool === 'rectangle'}
+                                onClick={() => applyMapDrawTool('rectangle')}
+                              >
+                                <i className="fa-regular fa-square" aria-hidden />
+                              </button>
+                              <button
+                                type="button"
+                                className={`si-map-analysis-tool${mapDrawTool === 'polygon' ? ' si-map-analysis-tool--on' : ''}`}
+                                title="Polygon AOI"
+                                aria-pressed={mapDrawTool === 'polygon'}
+                                onClick={() => applyMapDrawTool('polygon')}
+                              >
+                                <i className="fa-solid fa-draw-polygon" aria-hidden />
+                              </button>
+                              <button
+                                type="button"
+                                className={`si-map-analysis-tool${mapDrawTool === 'circle' ? ' si-map-analysis-tool--on' : ''}`}
+                                title="Circle AOI"
+                                aria-pressed={mapDrawTool === 'circle'}
+                                onClick={() => applyMapDrawTool('circle')}
+                              >
+                                <i className="fa-regular fa-circle" aria-hidden />
+                              </button>
+                              <button
+                                type="button"
+                                className={`si-map-analysis-tool${mapDrawTool === 'select' ? ' si-map-analysis-tool--on' : ''}`}
+                                title={drawnGeometry ? 'Select / edit AOI' : 'Select'}
+                                aria-pressed={mapDrawTool === 'select'}
+                                onClick={() => applyMapDrawTool('select')}
+                              >
+                                <i className="fa-solid fa-arrow-pointer" aria-hidden />
+                              </button>
+                              <button
+                                type="button"
+                                className="si-map-analysis-tool si-map-analysis-tool--clear"
+                                disabled={!satelliteHasClearableDrawing}
+                                title="Clear drawing"
+                                aria-label="Clear drawing"
+                                onClick={clearSatelliteDrawingWithFade}
+                              >
+                                <i className="fa-solid fa-eraser" aria-hidden />
+                              </button>
+                              <span className="si-map-analysis-toolbar-sep" aria-hidden role="separator" />
+                              <button
+                                type="button"
+                                className={`si-map-analysis-tool${mapStaticChartsOpen ? ' si-map-analysis-tool--on' : ''}`}
+                                title={mapStaticChartsOpen ? 'Hide AOI charts on map' : 'Show AOI charts on map'}
+                                aria-pressed={mapStaticChartsOpen}
+                                onClick={() => setMapStaticChartsOpen(o => !o)}
+                              >
+                                <i className="fa-solid fa-chart-pie" aria-hidden />
+                              </button>
+                            </div>
                           </div>
                           <div className="si-rs-actions si-rs-actions--compact">
                             <button
