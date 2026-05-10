@@ -664,17 +664,17 @@
 .si-sat-ctx-dock--map {
   position: absolute;
   z-index: 96;
-  /* Flush with canvas edge: toolbox on physical start side (left in LTR). */
-  inset-inline-start: 0;
-  inset-inline-end: auto;
+  /* Flush with canvas trailing edge (right in LTR, left in RTL); panel opens toward map center. */
+  inset-inline-end: 0;
+  inset-inline-start: auto;
   top: 50%;
   transform: translateY(-50%);
   max-height: min(86vh, 760px);
-  flex-direction: row;
+  flex-direction: row-reverse;
   filter: drop-shadow(0 18px 40px rgba(2, 6, 23, 0.42));
 }
 
-/* Full-height map toolbox (Satellite Intelligence) — docked start (LTR: left), expand/collapse rail */
+/* Full-height map toolbox (Satellite Intelligence) — docked trailing edge, expand/collapse rail */
 .si-sat-ctx-dock--map.si-sat-ctx-dock--map-tall {
   top: 0;
   bottom: 0;
@@ -690,22 +690,23 @@
   flex: 0 0 auto;
   align-self: stretch;
   border-radius: 0;
-  border-start-start-radius: 14px;
-  border-end-start-radius: 14px;
+  /* Outer edge = inline-end when toolbox is on the trailing side of the map */
+  border-start-end-radius: 14px;
+  border-end-end-radius: 14px;
 }
 
 .si-sat-ctx-dock--map .si-sat-ctx-panel {
-  border-radius: 0 16px 16px 0;
-  border-inline-start: none;
-  border-inline-end: 1px solid var(--si-ctx-border);
-  box-shadow: 12px 0 40px rgba(2, 6, 23, 0.25);
-}
-
-.si-sat-ctx-dock.si-sat-ctx-dock--map[dir='rtl'] .si-sat-ctx-panel {
   border-radius: 16px 0 0 16px;
   border-inline-end: none;
   border-inline-start: 1px solid var(--si-ctx-border);
   box-shadow: -12px 0 40px rgba(2, 6, 23, 0.25);
+}
+
+.si-sat-ctx-dock.si-sat-ctx-dock--map[dir='rtl'] .si-sat-ctx-panel {
+  border-radius: 0 16px 16px 0;
+  border-inline-start: none;
+  border-inline-end: 1px solid var(--si-ctx-border);
+  box-shadow: 12px 0 40px rgba(2, 6, 23, 0.25);
 }
 
 .si-sat-ctx-dock--map-tall .si-sat-ctx-panel {
@@ -764,12 +765,13 @@
   min-width: 56px;
   max-width: 56px;
   padding-inline: 7px;
-  border-inline-end: 2px solid rgba(52, 211, 153, 0.38);
+  /* Accent on the map-facing edge of the rail (inline-start when docked on inline-end) */
+  border-inline-start: 2px solid rgba(52, 211, 153, 0.38);
 }
 
 .si-sat-ctx-dock.si-sat-ctx-dock--map-strip-minimized[dir='rtl'] .si-sat-ctx-rail {
-  border-inline-end: none;
-  border-inline-start: 2px solid rgba(52, 211, 153, 0.38);
+  border-inline-start: none;
+  border-inline-end: 2px solid rgba(52, 211, 153, 0.38);
 }
 
 .si-sat-ctx-rail-strip-show {
@@ -883,10 +885,20 @@
 }
 
 .si-sat-ctx-dock--map .si-sat-ctx-rail {
+  border-radius: 0;
+  border-start-end-radius: 14px;
+  border-end-end-radius: 14px;
   transition:
     width 0.3s cubic-bezier(0.22, 1, 0.36, 1),
     padding 0.24s ease,
     border-radius 0.2s ease;
+}
+
+.si-sat-ctx-dock.si-sat-ctx-dock--map[dir='rtl'] .si-sat-ctx-rail {
+  border-start-end-radius: 0;
+  border-end-end-radius: 0;
+  border-start-start-radius: 14px;
+  border-end-start-radius: 14px;
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -1441,6 +1453,20 @@
   -webkit-overflow-scrolling: touch;
 }
 
+.si-sat-ctx-panel-body > .si-map-toolbox-layers-card {
+  margin-bottom: 12px;
+}
+
+/* Layers block in map toolbox: same flat surface as Processing Options workspace */
+.si-sat-ctx-panel-body > .si-map-toolbox-layers-card.si-env-section-card {
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  padding: 0 0 8px;
+  gap: 12px;
+}
+
 .si-sat-ctx-panel-footer {
   flex-shrink: 0;
   padding: 8px 14px 10px 16px;
@@ -1559,8 +1585,8 @@
 
 @media (max-width: 768px) {
   .si-sat-ctx-dock--map {
-    inset-inline-start: 0;
-    inset-inline-end: auto;
+    inset-inline-end: 0;
+    inset-inline-start: auto;
     top: auto;
     bottom: 120px;
     transform: none;
@@ -1620,10 +1646,10 @@
   .si-sat-ctx-dock--map.si-sat-ctx-dock--map-tall {
     top: 0;
     bottom: 0;
-    inset-inline-start: 0;
-    inset-inline-end: auto;
+    inset-inline-end: 0;
+    inset-inline-start: auto;
     max-height: none;
-    flex-direction: row;
+    flex-direction: row-reverse;
     width: auto;
     max-width: none;
   }
@@ -1634,6 +1660,13 @@
     width: auto;
     max-width: min(220px, 42vw);
     border-radius: 0;
+    border-start-end-radius: 14px;
+    border-end-end-radius: 14px;
+  }
+
+  .si-sat-ctx-dock.si-sat-ctx-dock--map.si-sat-ctx-dock--map-tall[dir='rtl'] .si-sat-ctx-rail {
+    border-start-end-radius: 0;
+    border-end-end-radius: 0;
     border-start-start-radius: 14px;
     border-end-start-radius: 14px;
   }

@@ -6818,6 +6818,165 @@ export default function SatelliteIntelligence() {
       stacMapThumbLabel,
     ],
   );
+
+  /** Shared “Main tools” layers UI: add layer + Added layers list (map toolbox Main + Processing Options). */
+  const layersEnvMainTools = useMemo(
+    () => (
+      <div className="si-env-section-card si-map-toolbox-layers-card">
+        <button type="button" className="si-add-layer-btn" onClick={openAddLayerModal} aria-label="Add layer" title="Add layer">
+          <i className="fa-solid fa-plus" aria-hidden />
+        </button>
+        <div className="si-env-added-layers">
+          <div className="si-env-chart-title">Added layers</div>
+          {addedLayerEntries.length ? (
+            <div className="si-env-added-layers-list">
+              {addedLayerEntries.map(layer => (
+                <div
+                  key={layer.id}
+                  className={`si-env-layer-item${layer.visible ? ' active' : ''}${!layer.toggleable ? ' static' : ''}`}
+                  onClick={layer.toggleable ? layer.onToggle : undefined}
+                  role={layer.toggleable ? 'button' : undefined}
+                  tabIndex={layer.toggleable ? 0 : -1}
+                  onKeyDown={
+                    layer.toggleable
+                      ? e => {
+                          if (e.key === 'Enter' || e.key === ' ') {
+                            e.preventDefault();
+                            layer.onToggle();
+                          }
+                        }
+                      : undefined
+                  }
+                  title={layer.toggleable ? 'Click to toggle visibility' : layer.label}
+                >
+                  <div className="si-env-layer-top">
+                    <div className="si-env-layer-info">
+                      <span className="si-env-layer-name">{layer.label}</span>
+                      {'meta' in layer && layer.meta ? <span className="si-env-layer-submeta">{layer.meta}</span> : null}
+                    </div>
+                    {layer.toggleable ? (
+                      <span className="si-env-layer-toggle" aria-hidden>
+                        <span className="si-env-layer-toggle-knob" />
+                      </span>
+                    ) : (
+                      <span className="si-env-layer-meta-static">always on</span>
+                    )}
+                  </div>
+                  {'actionable' in layer && layer.actionable && 'sourceLayerId' in layer && layer.sourceLayerId ? (
+                    <div className="si-env-layer-actions">
+                      {'supportsAoiEdit' in layer && layer.supportsAoiEdit ? (
+                        <button
+                          type="button"
+                          className="si-env-layer-action-btn"
+                          title="Use as AOI for analysis"
+                          aria-label={`Use ${layer.label} as AOI`}
+                          onClick={e => handleLayerActionClick(e, 'editAoi', layer.sourceLayerId)}
+                        >
+                          <i className="fa-solid fa-draw-polygon" aria-hidden />
+                        </button>
+                      ) : null}
+                      {'supportsRename' in layer && layer.supportsRename ? (
+                        <button
+                          type="button"
+                          className="si-env-layer-action-btn"
+                          title="Rename layer"
+                          aria-label={`Rename ${layer.label}`}
+                          onClick={e => handleLayerActionClick(e, 'rename', layer.sourceLayerId)}
+                        >
+                          <i className="fa-solid fa-pen-to-square" aria-hidden />
+                        </button>
+                      ) : null}
+                      <button
+                        type="button"
+                        className="si-env-layer-action-btn"
+                        title="Sync layer"
+                        aria-label={`Sync ${layer.label}`}
+                        onClick={e => handleLayerActionClick(e, 'sync', layer.sourceLayerId)}
+                      >
+                        <i
+                          className={
+                            syncingLayerId === layer.sourceLayerId ? 'fa-solid fa-rotate-right fa-spin' : 'fa-solid fa-rotate-right'
+                          }
+                        />
+                      </button>
+                      <button
+                        type="button"
+                        className="si-env-layer-action-btn"
+                        title="Open tables"
+                        aria-label={`Open tables for ${layer.label}`}
+                        onClick={e => handleLayerActionClick(e, 'table', layer.sourceLayerId)}
+                      >
+                        <i className="fa-solid fa-table-cells" aria-hidden />
+                      </button>
+                      <button
+                        type="button"
+                        className="si-env-layer-action-btn"
+                        title="Symbology"
+                        aria-label={`Symbology for ${layer.label}`}
+                        onClick={e => handleLayerActionClick(e, 'symbology', layer.sourceLayerId)}
+                      >
+                        <i className="fa-solid fa-sliders" aria-hidden />
+                      </button>
+                      <button
+                        type="button"
+                        className="si-env-layer-action-btn"
+                        title="Legend"
+                        aria-label={`Legend for ${layer.label}`}
+                        onClick={e => handleLayerActionClick(e, 'legend', layer.sourceLayerId)}
+                      >
+                        <i className="fa-solid fa-key" aria-hidden />
+                      </button>
+                      <button
+                        type="button"
+                        className="si-env-layer-action-btn si-env-layer-action-btn--danger"
+                        title="Remove layer"
+                        aria-label={`Remove ${layer.label} from map`}
+                        onClick={e => handleLayerActionClick(e, 'remove', layer.sourceLayerId)}
+                      >
+                        <i className="fa-solid fa-trash-can" aria-hidden />
+                      </button>
+                    </div>
+                  ) : null}
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="si-env-message">No layers added yet.</p>
+          )}
+        </div>
+        <label className="si-stac-footprints-toggle">
+          <input
+            type="checkbox"
+            checked={showStacFootprintsOnMap}
+            onChange={e => setShowStacFootprintsOnMap(e.target.checked)}
+          />
+          <span>Show STAC scene footprints on the map</span>
+        </label>
+        {stacMapThumb ? (
+          <button type="button" className="si-stac-clear-thumb-btn" onClick={clearStacMapThumb}>
+            Remove image preview from map
+          </button>
+        ) : null}
+        {pivots.length > 0 ? (
+          <p className="si-env-message">
+            <strong>{pivots.length}</strong> field pivot feature{pivots.length === 1 ? '' : 's'} on map (same visibility as the
+            vector layer in the list).
+          </p>
+        ) : null}
+      </div>
+    ),
+    [
+      addedLayerEntries,
+      clearStacMapThumb,
+      handleLayerActionClick,
+      openAddLayerModal,
+      pivots,
+      showStacFootprintsOnMap,
+      stacMapThumb,
+      syncingLayerId,
+    ],
+  );
+
   const exploreSelectedCollectionsLabel = useMemo(() => {
     if (!exploreSelectedCollectionIds.length) return 'From selected collections';
     const preview = exploreSelectedCollectionIds.slice(0, 2).join(', ');
@@ -7636,12 +7795,10 @@ export default function SatelliteIntelligence() {
               setExpandedEnvSection(id);
               setIsLayerDropdownOpen(true);
             }}
-            activeProcessingLayerHint={
-              remoteSensingLayerOptions.find(o => o.id === wmsLayerSelectValue)?.label ?? selectedIndexConfig.label
-            }
             processingDropdownOpen={isLayerDropdownOpen}
             onMapToolboxEmbedHost={setMapToolboxEmbedHost}
             onToolboxPanelClose={() => setIsLayerDropdownOpen(false)}
+            mapToolboxLayersMain={layersEnvMainTools}
           />
 
           {false && aoiHeatPointGeoJson?.features?.length ? (
@@ -7824,7 +7981,7 @@ export default function SatelliteIntelligence() {
                       </button>
                     </div>
                   </div>
-                  <div className="si-env-panel-body">
+                  <div className="si-env-panel-body si-env-panel-body--workspace">
                     {expandedEnvSection === 'explore-stac' ? (
                       <div className="si-explore-stac si-explore-stac--embedded si-explore-stac--in-header">
             <div className="si-explore-stac-header">
@@ -9067,143 +9224,7 @@ export default function SatelliteIntelligence() {
                     {expandedEnvSection === 'source' && (
                       <div className="si-env-section-card">{exploreStacSourcePanelContent}</div>
                     )}
-                    {expandedEnvSection === 'layers' && (
-                      <div className="si-env-section-card">
-                        <button type="button" className="si-add-layer-btn" onClick={openAddLayerModal} aria-label="Add layer" title="Add layer">
-                          <i className="fa-solid fa-plus" aria-hidden />
-                        </button>
-                        <div className="si-env-added-layers">
-                          <div className="si-env-chart-title">Added layers</div>
-                          {addedLayerEntries.length ? (
-                            <div className="si-env-added-layers-list">
-                              {addedLayerEntries.map(layer => (
-                                <div
-                                  key={layer.id}
-                                  className={`si-env-layer-item${layer.visible ? ' active' : ''}${!layer.toggleable ? ' static' : ''}`}
-                                  onClick={layer.toggleable ? layer.onToggle : undefined}
-                                  role={layer.toggleable ? 'button' : undefined}
-                                  tabIndex={layer.toggleable ? 0 : -1}
-                                  onKeyDown={layer.toggleable ? e => {
-                                    if (e.key === 'Enter' || e.key === ' ') {
-                                      e.preventDefault();
-                                      layer.onToggle();
-                                    }
-                                  } : undefined}
-                                  title={layer.toggleable ? 'Click to toggle visibility' : layer.label}
-                                >
-                                  <div className="si-env-layer-top">
-                                    <div className="si-env-layer-info">
-                                      <span className="si-env-layer-name">{layer.label}</span>
-                                      {'meta' in layer && layer.meta ? (
-                                        <span className="si-env-layer-submeta">{layer.meta}</span>
-                                      ) : null}
-                                    </div>
-                                    {layer.toggleable ? (
-                                      <span className="si-env-layer-toggle" aria-hidden>
-                                        <span className="si-env-layer-toggle-knob" />
-                                      </span>
-                                    ) : (
-                                      <span className="si-env-layer-meta-static">always on</span>
-                                    )}
-                                  </div>
-                                  {'actionable' in layer && layer.actionable && 'sourceLayerId' in layer && layer.sourceLayerId ? (
-                                    <div className="si-env-layer-actions">
-                                      {'supportsAoiEdit' in layer && layer.supportsAoiEdit ? (
-                                        <button
-                                          type="button"
-                                          className="si-env-layer-action-btn"
-                                          title="Use as AOI for analysis"
-                                          aria-label={`Use ${layer.label} as AOI`}
-                                          onClick={e => handleLayerActionClick(e, 'editAoi', layer.sourceLayerId)}
-                                        >
-                                          <i className="fa-solid fa-draw-polygon" aria-hidden />
-                                        </button>
-                                      ) : null}
-                                      {'supportsRename' in layer && layer.supportsRename ? (
-                                        <button
-                                          type="button"
-                                          className="si-env-layer-action-btn"
-                                          title="Rename layer"
-                                          aria-label={`Rename ${layer.label}`}
-                                          onClick={e => handleLayerActionClick(e, 'rename', layer.sourceLayerId)}
-                                        >
-                                          <i className="fa-solid fa-pen-to-square" aria-hidden />
-                                        </button>
-                                      ) : null}
-                                      <button
-                                        type="button"
-                                        className="si-env-layer-action-btn"
-                                        title="Sync layer"
-                                        aria-label={`Sync ${layer.label}`}
-                                        onClick={e => handleLayerActionClick(e, 'sync', layer.sourceLayerId)}
-                                      >
-                                        <i className={syncingLayerId === layer.sourceLayerId ? 'fa-solid fa-rotate-right fa-spin' : 'fa-solid fa-rotate-right'} aria-hidden />
-                                      </button>
-                                      <button
-                                        type="button"
-                                        className="si-env-layer-action-btn"
-                                        title="Open tables"
-                                        aria-label={`Open tables for ${layer.label}`}
-                                        onClick={e => handleLayerActionClick(e, 'table', layer.sourceLayerId)}
-                                      >
-                                        <i className="fa-solid fa-table-cells" aria-hidden />
-                                      </button>
-                                      <button
-                                        type="button"
-                                        className="si-env-layer-action-btn"
-                                        title="Symbology"
-                                        aria-label={`Symbology for ${layer.label}`}
-                                        onClick={e => handleLayerActionClick(e, 'symbology', layer.sourceLayerId)}
-                                      >
-                                        <i className="fa-solid fa-sliders" aria-hidden />
-                                      </button>
-                                      <button
-                                        type="button"
-                                        className="si-env-layer-action-btn"
-                                        title="Legend"
-                                        aria-label={`Legend for ${layer.label}`}
-                                        onClick={e => handleLayerActionClick(e, 'legend', layer.sourceLayerId)}
-                                      >
-                                        <i className="fa-solid fa-key" aria-hidden />
-                                      </button>
-                                      <button
-                                        type="button"
-                                        className="si-env-layer-action-btn si-env-layer-action-btn--danger"
-                                        title="Remove layer"
-                                        aria-label={`Remove ${layer.label} from map`}
-                                        onClick={e => handleLayerActionClick(e, 'remove', layer.sourceLayerId)}
-                                      >
-                                        <i className="fa-solid fa-trash-can" aria-hidden />
-                                      </button>
-                                    </div>
-                                  ) : null}
-                                </div>
-                              ))}
-                            </div>
-                          ) : (
-                            <p className="si-env-message">No layers added yet.</p>
-                          )}
-                        </div>
-                        <label className="si-stac-footprints-toggle">
-                          <input
-                            type="checkbox"
-                            checked={showStacFootprintsOnMap}
-                            onChange={e => setShowStacFootprintsOnMap(e.target.checked)}
-                          />
-                          <span>Show STAC scene footprints on the map</span>
-                        </label>
-                        {stacMapThumb ? (
-                          <button type="button" className="si-stac-clear-thumb-btn" onClick={clearStacMapThumb}>
-                            Remove image preview from map
-                          </button>
-                        ) : null}
-                        {pivots.length > 0 ? (
-                          <p className="si-env-message">
-                            <strong>{pivots.length}</strong> field pivot feature{pivots.length === 1 ? '' : 's'} on map (same visibility as the vector layer in the list).
-                          </p>
-                        ) : null}
-                      </div>
-                    )}
+                    {expandedEnvSection === 'layers' && layersEnvMainTools}
                   </div>
                 </div>
                 ) : null}

@@ -1,4 +1,4 @@
-import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useLanguage } from '@/lib/i18n';
 import type { AoiStaticMultiLayerLineChartDataset } from './AoiStaticMultiLayerLineChart';
 import { AoiStaticMultiLayerLineChart } from './AoiStaticMultiLayerLineChart';
@@ -6,7 +6,7 @@ import {
   STATIC_AOI_CHART_LAYER_OPTIONS,
   type StaticAoiChartLayerId,
 } from '../utils/staticAoiMultiChartData';
-import { SmartProcessingWorkflowPanel, type SmartProcessingSectionId } from './SmartProcessingWorkflowPanel';
+import type { SmartProcessingSectionId } from './SmartProcessingWorkflowPanel';
 
 export type SatelliteContextPanelId =
   | 'layers'
@@ -47,13 +47,14 @@ export type SatelliteContextualAnalysisDockProps = {
   sparkPathBuilder?: (values: number[], w: number, h: number) => string;
   /** Map toolbox: opens the same processing stack as Satellite Intelligence (no reload). */
   onProcessingWorkflowNavigate?: (sectionId: SmartProcessingSectionId) => void;
-  activeProcessingLayerHint?: string | null;
   /** When true, the dock panel body hosts the floating Processing Options UI (portal target). */
   processingDropdownOpen?: boolean;
   /** Called with the embed host element whenever the map panel mounts/updates; null when unmounted. */
   onMapToolboxEmbedHost?: (el: HTMLDivElement | null) => void;
   /** Close the floating processing dropdown (e.g. when the toolbox panel closes). */
   onToolboxPanelClose?: () => void;
+  /** Map toolbox Layers → Main tab: add layer + Added layers list (same as Processing Options). */
+  mapToolboxLayersMain?: ReactNode;
 };
 
 const RAIL: Array<{ id: SatelliteContextPanelId; icon: string; label: string; title: string; hint: string }> = [
@@ -215,10 +216,10 @@ export function SatelliteContextualAnalysisDock(props: SatelliteContextualAnalys
     pivotBars = [],
     sparkPathBuilder = defaultSparkPath,
     onProcessingWorkflowNavigate,
-    activeProcessingLayerHint = null,
     processingDropdownOpen = false,
     onMapToolboxEmbedHost,
     onToolboxPanelClose,
+    mapToolboxLayersMain,
   } = props;
 
   const [panelOpen, setPanelOpen] = useState(false);
@@ -683,26 +684,7 @@ export function SatelliteContextualAnalysisDock(props: SatelliteContextualAnalys
                   <div className="si-sat-ctx-panel-body">
                 {innerTab === 'main' ? (
                   <>
-                    {activeId === 'layers' && (
-                      <>
-                        {isMap && onProcessingWorkflowNavigate ? (
-                          <SmartProcessingWorkflowPanel
-                            activeLayerSummary={activeProcessingLayerHint}
-                            onNavigateSection={sid => onProcessingWorkflowNavigate(sid)}
-                          />
-                        ) : null}
-                        <div className="si-sat-ctx-prose">
-                          <p>
-                            <strong>Layer settings</strong> — opacity, ordering, and imagery visibility are managed from the
-                            environment <strong>Layers</strong> tab. Use this panel for quick context while mapping.
-                          </p>
-                          <ul className="si-sat-ctx-list">
-                            <li>Toggle index overlay visibility in Remote Sensing.</li>
-                            <li>Added vector layers support identify and table actions.</li>
-                          </ul>
-                        </div>
-                      </>
-                    )}
+                    {activeId === 'layers' && mapToolboxLayersMain}
                     {activeId === 'spatial' && (
                       <div className="si-sat-ctx-prose">
                         <p>
@@ -925,7 +907,7 @@ export function SatelliteContextualAnalysisDock(props: SatelliteContextualAnalys
                   {activeId === 'aoi'
                     ? 'Polygon: Shift constrains angles · Circle: Enter commits · Clear restores pan.'
                     : activeId === 'layers' && isMap
-                      ? 'Main: workflows + layer notes · Options: shortcuts. Other toolbox buttons open the floating panel.'
+                      ? 'Main: add layers, visibility, and layer actions. Options: open STAC / Remote sensing / AI from the floating panel.'
                       : 'Drag the inner edge to resize. Click the active tool again to collapse.'}
                 </span>
               </footer>

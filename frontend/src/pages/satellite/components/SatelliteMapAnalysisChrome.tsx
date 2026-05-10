@@ -1,5 +1,5 @@
 import './satelliteMapAnalysisChrome.css';
-import type { RefObject } from 'react';
+import type { ReactNode, RefObject } from 'react';
 import type { AoiStaticMultiLayerLineChartDataset } from './AoiStaticMultiLayerLineChart';
 import {
   type StaticAoiChartLayerId,
@@ -118,10 +118,11 @@ export type SatelliteMapAnalysisChromeProps = {
   /** When false, the right-rail map toolbox is omitted (timeline and other chrome still render). */
   showMapToolbox?: boolean;
   onProcessingWorkflowNavigate?: (sectionId: SmartProcessingSectionId) => void;
-  activeProcessingLayerHint?: string | null;
   processingDropdownOpen?: boolean;
   onMapToolboxEmbedHost?: (el: HTMLDivElement | null) => void;
   onToolboxPanelClose?: () => void;
+  /** Layers tool → Main tab: add layer + Added layers (optional; parent provides memoized JSX). */
+  mapToolboxLayersMain?: ReactNode;
 };
 
 function sparkPath(values: number[], w: number, h: number): string {
@@ -165,10 +166,10 @@ export function SatelliteMapAnalysisChrome(props: SatelliteMapAnalysisChromeProp
     mapLoaded = false,
     showMapToolbox = true,
     onProcessingWorkflowNavigate,
-    activeProcessingLayerHint = null,
     processingDropdownOpen = false,
     onMapToolboxEmbedHost,
     onToolboxPanelClose,
+    mapToolboxLayersMain,
   } = props;
 
   const activeFull =
@@ -196,10 +197,10 @@ export function SatelliteMapAnalysisChrome(props: SatelliteMapAnalysisChromeProp
       pivotBars={pivotBars}
       sparkPathBuilder={sparkPath}
       onProcessingWorkflowNavigate={onProcessingWorkflowNavigate}
-      activeProcessingLayerHint={activeProcessingLayerHint}
       processingDropdownOpen={processingDropdownOpen}
       onMapToolboxEmbedHost={onMapToolboxEmbedHost}
       onToolboxPanelClose={onToolboxPanelClose}
+      mapToolboxLayersMain={mapToolboxLayersMain}
     />
   ) : null;
 
