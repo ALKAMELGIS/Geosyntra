@@ -67,7 +67,6 @@ export function SatelliteAoiStaticChartsMapOverlay({
   const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
   const dragOffsetRef = useRef(dragOffset);
   dragOffsetRef.current = dragOffset;
-  const [userDragged, setUserDragged] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
   const dragSession = useRef<{
     pointerId: number;
@@ -76,80 +75,94 @@ export function SatelliteAoiStaticChartsMapOverlay({
     originX: number;
     originY: number;
   } | null>(null);
+  const winListenersRef = useRef<{ move: (e: PointerEvent) => void; up: (e: PointerEvent) => void } | null>(null);
+
+  const removeWindowDragListeners = useCallback(() => {
+    const h = winListenersRef.current;
+    if (!h) return;
+    window.removeEventListener('pointermove', h.move);
+    window.removeEventListener('pointerup', h.up);
+    window.removeEventListener('pointercancel', h.up);
+    winListenersRef.current = null;
+  }, []);
 
   useEffect(() => {
     if (open) {
       setDragOffset({ x: 0, y: 0 });
-      setUserDragged(false);
+    } else {
+      removeWindowDragListeners();
+      dragSession.current = null;
+      setIsDragging(false);
     }
-  }, [open]);
+  }, [open, removeWindowDragListeners]);
+
+  useEffect(() => () => removeWindowDragListeners(), [removeWindowDragListeners]);
 
   const sparkD = useMemo(
     () => sparkPathForOverlay(weeklyMeans.length ? weeklyMeans : [0], 120, 40),
     [weeklyMeans],
   );
 
-  const onChartsHeadPointerDown = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
-    if (e.button !== 0) return;
-    const t = e.target as HTMLElement;
-    if (t.closest('.si-map-analysis-charts-close')) return;
-    const el = panelRef.current;
-    if (!el) return;
-    e.preventDefault();
-    const o = dragOffsetRef.current;
-    dragSession.current = {
-      pointerId: e.pointerId,
-      startClientX: e.clientX,
-      startClientY: e.clientY,
-      originX: o.x,
-      originY: o.y,
-    };
-    el.setPointerCapture(e.pointerId);
-    setIsDragging(true);
-  }, []);
+  const onChartsHeadPointerDown = useCallback(
+    (e: React.PointerEvent<HTMLDivElement>) => {
+      if (e.button !== 0) return;
+      const t = e.target as HTMLElement;
+      if (t.closest('.si-map-analysis-charts-close')) return;
+      const el = panelRef.current;
+      if (!el) return;
+      e.preventDefault();
+      e.stopPropagation();
+      removeWindowDragListeners();
+      const pid = e.pointerId;
+      const o = dragOffsetRef.current;
+      dragSession.current = {
+        pointerId: pid,
+        startClientX: e.clientX,
+        startClientY: e.clientY,
+        originX: o.x,
+        originY: o.y,
+      };
 
-  const onChartsPointerMove = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
-    const s = dragSession.current;
-    if (!s || e.pointerId !== s.pointerId) return;
-    const el = panelRef.current;
-    if (!el) return;
-    setUserDragged(true);
-    const nx = s.originX + (e.clientX - s.startClientX);
-    const ny = s.originY + (e.clientY - s.startClientY);
-    const clamped = clampPanelTranslate(el, nx, ny);
-    setDragOffset(clamped);
-  }, []);
+      const onMove = (ev: PointerEvent) => {
+        if (ev.pointerId !== pid) return;
+        ev.preventDefault();
+        const s = dragSession.current;
+        if (!s) return;
+        const panel = panelRef.current;
+        if (!panel) return;
+        const nx = s.originX + (ev.clientX - s.startClientX);
+        const ny = s.originY + (ev.clientY - s.startClientY);
+        setDragOffset(clampPanelTranslate(panel, nx, ny));
+      };
 
-  const onChartsPointerUp = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
-    const s = dragSession.current;
-    if (!s || e.pointerId !== s.pointerId) return;
-    const el = panelRef.current;
-    dragSession.current = null;
-    setIsDragging(false);
-    try {
-      el?.releasePointerCapture(e.pointerId);
-    } catch {
-      /* ignore */
-    }
-  }, []);
+      const onUp = (ev: PointerEvent) => {
+        if (ev.pointerId !== pid) return;
+        dragSession.current = null;
+        setIsDragging(false);
+        removeWindowDragListeners();
+      };
+
+      winListenersRef.current = { move: onMove, up: onUp };
+      window.addEventListener('pointermove', onMove, { passive: false });
+      window.addEventListener('pointerup', onUp);
+      window.addEventListener('pointercancel', onUp);
+      setIsDragging(true);
+    },
+    [removeWindowDragListeners],
+  );
 
   if (!open) return null;
 
   return (
     <div
       ref={panelRef}
-      className={`si-map-analysis-charts${userDragged ? ' si-map-analysis-charts--dragged' : ''}${
-        isDragging ? ' si-map-analysis-charts--dragging' : ''
+      className={`si-map-analysis-charts${isDragging ? ' si-map-analysis-charts--dragging' : ''}${
+        dragOffset.x !== 0 || dragOffset.y !== 0 ? ' si-map-analysis-charts--dragged' : ''
       }`}
       role="dialog"
       aria-modal="false"
       aria-label="AOI static charts"
-      style={
-        userDragged ? { transform: `translate(${dragOffset.x}px, ${dragOffset.y}px)` } : undefined
-      }
-      onPointerMove={onChartsPointerMove}
-      onPointerUp={onChartsPointerUp}
-      onPointerCancel={onChartsPointerUp}
+      style={{ transform: `translate(${dragOffset.x}px, ${dragOffset.y}px)` }}
     >
       <div
         className="si-map-analysis-charts-head"

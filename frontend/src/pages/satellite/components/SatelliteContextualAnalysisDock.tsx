@@ -461,14 +461,13 @@ export function SatelliteContextualAnalysisDock(props: SatelliteContextualAnalys
   );
 
   const activeMeta = activeId ? RAIL.find(r => r.id === activeId) : null;
-  const processingEmbedHeader = useMemo(() => {
+  /** Section title for map toolbox dock chrome only (portaled panel hides its own header to avoid duplicates). */
+  const processingEmbedTitle = useMemo(() => {
     if (!processingEmbedSection) return null;
-    if (processingEmbedSection === 'source') {
-      return { title: 'Source catalog', kicker: 'Toolbox' };
-    }
+    if (processingEmbedSection === 'source') return 'Source catalog';
     const row = RAIL_BY_ID[processingEmbedSection as SatelliteContextPanelId];
-    if (row) return { title: row.title, kicker: 'Toolbox' };
-    return { title: 'Processing', kicker: 'Toolbox' };
+    if (row) return row.label;
+    return 'Processing';
   }, [processingEmbedSection]);
   const maxPivot = pivotBars.length ? Math.max(...pivotBars.map(p => Math.abs(p.value))) : 1;
 
@@ -657,8 +656,8 @@ export function SatelliteContextualAnalysisDock(props: SatelliteContextualAnalys
           }
           role="complementary"
           aria-label={
-            isMap && processingDropdownOpen && processingEmbedHeader
-              ? `${processingEmbedHeader.title} panel`
+            isMap && processingDropdownOpen && processingEmbedTitle
+              ? `${processingEmbedTitle} panel`
               : activeMeta
                 ? `${activeMeta.title} panel`
                 : 'Context panel'
@@ -669,18 +668,18 @@ export function SatelliteContextualAnalysisDock(props: SatelliteContextualAnalys
               <div className="si-sat-ctx-panel-resize" onPointerDown={onResizePointerDown} title="Resize panel" />
               <header className="si-sat-ctx-panel-header">
                 <div className="si-sat-ctx-panel-header-text">
-                  <span className="si-sat-ctx-panel-kicker">
-                    {isMap && processingDropdownOpen && processingEmbedHeader
-                      ? processingEmbedHeader.kicker
-                      : !isMap
-                        ? 'Analysis tools'
-                        : 'Context'}
-                  </span>
-                  <h2 className="si-sat-ctx-panel-title">
-                    {isMap && processingDropdownOpen && processingEmbedHeader
-                      ? processingEmbedHeader.title
-                      : activeMeta?.title ?? 'Panel'}
-                  </h2>
+                  {isMap && processingDropdownOpen && processingEmbedTitle ? (
+                    <h2 className="si-sat-ctx-panel-title si-sat-ctx-panel-title--toolbox-embed-root">
+                      {processingEmbedTitle}
+                    </h2>
+                  ) : (
+                    <>
+                      <span className="si-sat-ctx-panel-kicker">
+                        {!isMap ? 'Analysis tools' : 'Context'}
+                      </span>
+                      <h2 className="si-sat-ctx-panel-title">{activeMeta?.title ?? 'Panel'}</h2>
+                    </>
+                  )}
                 </div>
                 <div className="si-sat-ctx-panel-header-actions">
                   <button

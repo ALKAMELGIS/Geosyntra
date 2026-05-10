@@ -1878,11 +1878,30 @@ html[data-theme='light'] .si-proc-mb-toggle {
   max-height: min(72vh, 720px);
   display: flex;
   flex-direction: column;
-  box-shadow: 0 10px 36px rgba(2, 6, 23, 0.35);
+  /* One chrome row lives on the dock; avoid a second titled card inside the host */
+  box-shadow: none;
+  border-radius: 0;
+  border: none;
+  outline: none;
+  background: transparent;
 }
 
 .si-env-panel.si-env-panel--toolbox-embed.si-env-panel--explore-stac {
   max-height: min(78vh, 800px);
+}
+
+/* Duplicate title + close row: dock header already provides context and close */
+.si-env-panel.si-env-panel--toolbox-embed .si-env-panel-header {
+  display: none !important;
+}
+
+.si-env-panel.si-env-panel--toolbox-embed .si-env-panel-body.si-env-panel-body--workspace {
+  border-top: none;
+  padding-top: 0;
+}
+
+html[data-theme='light'] .si-env-panel.si-env-panel--toolbox-embed {
+  background: transparent;
 }
 
 /* Hierarchical back + breadcrumb (map toolbox portal) */

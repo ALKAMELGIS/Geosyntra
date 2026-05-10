@@ -1,5 +1,5 @@
 import './satelliteMapAnalysisChrome.css';
-import type { ReactNode, RefObject } from 'react';
+import { useLayoutEffect, useMemo, useRef, type ReactNode, type RefObject } from 'react';
 import type { AoiStaticMultiLayerLineChartDataset } from './AoiStaticMultiLayerLineChart';
 import {
   type StaticAoiChartLayerId,
@@ -100,6 +100,10 @@ export type SatelliteMapAnalysisChromeProps = {
   onTogglePlay: () => void;
   onStep: (dir: -1 | 1) => void;
   timelineVisible: boolean;
+  /** Milliseconds between automatic steps while timeline is playing (drives interval in parent). */
+  timelinePlaybackMs?: number;
+  /** Cycle playback speed (parent owns state). */
+  onCycleTimelineSpeed?: () => void;
   mapTool: 'rectangle' | 'polygon' | 'circle' | 'select' | string;
   onMapTool: (tool: 'rectangle' | 'polygon' | 'circle' | 'select') => void;
   hasClearableDrawing?: boolean;
@@ -158,6 +162,8 @@ function sparkPath(values: number[], w: number, h: number): string {
 }
 
 export function SatelliteMapAnalysisChrome(props: SatelliteMapAnalysisChromeProps) {
+  const chipStripRef = useRef<HTMLDivElement | null>(null);
+
   const {
     weeklyChips,
     activeChipId,
@@ -166,6 +172,8 @@ export function SatelliteMapAnalysisChrome(props: SatelliteMapAnalysisChromeProp
     onTogglePlay,
     onStep,
     timelineVisible,
+    timelinePlaybackMs = 1400,
+    onCycleTimelineSpeed,
     mapTool,
     onMapTool,
     hasClearableDrawing = false,
@@ -198,6 +206,42 @@ export function SatelliteMapAnalysisChrome(props: SatelliteMapAnalysisChromeProp
     weeklyChips.find(c => c.id === activeChipId)?.fullDate ??
     weeklyChips[0]?.fullDate ??
     '';
+
+  const activeIndex = useMemo(() => {
+    if (!weeklyChips.length) return 0;
+    const i = weeklyChips.findIndex(c => c.id === activeChipId);
+    return i < 0 ? 0 : i;
+  }, [weeklyChips, activeChipId]);
+
+  const timelineProgress = useMemo(() => {
+    if (weeklyChips.length <= 1) return 1;
+    return activeIndex / (weeklyChips.length - 1);
+  }, [weeklyChips.length, activeIndex]);
+
+  const rangeStartLabel = weeklyChips[0]?.fullDate ?? '';
+  const rangeEndLabel = weeklyChips[weeklyChips.length - 1]?.fullDate ?? '';
+
+  const playbackSpeedLabel = useMemo(() => {
+    const base = 1400;
+    const x = base / Math.max(1, timelinePlaybackMs);
+    if (x < 1.12) return '1×';
+    if (x < 9.5) return `${x.toFixed(1)}×`;
+    return `${Math.round(x)}×`;
+  }, [timelinePlaybackMs]);
+
+  useLayoutEffect(() => {
+    if (!activeChipId || !chipStripRef.current) return;
+    const strip = chipStripRef.current;
+    const esc =
+      typeof CSS !== 'undefined' && typeof CSS.escape === 'function'
+        ? CSS.escape(activeChipId)
+        : activeChipId.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+    const chip = strip.querySelector<HTMLElement>(`[data-timeline-chip="${esc}"]`);
+    if (!chip) return;
+    const reduceMotion =
+      typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+    chip.scrollIntoView({ block: 'nearest', inline: 'center', behavior: reduceMotion ? 'auto' : 'smooth' });
+  }, [activeChipId, weeklyChips.length]);
 
   const contextualDock = showMapToolbox ? (
     <SatelliteContextualAnalysisDock
@@ -256,26 +300,87 @@ export function SatelliteMapAnalysisChrome(props: SatelliteMapAnalysisChromeProp
                 <i className="fa-solid fa-forward-step" aria-hidden />
               </button>
             </div>
+
             <div className="si-map-analysis-timeline-track-wrap">
-              <div className="si-map-analysis-timeline-chips" role="tablist">
+              <div
+                ref={chipStripRef}
+                className={[
+                  'si-map-analysis-timeline-chips',
+                  weeklyChips.length > 22 ? 'si-map-analysis-timeline-chips--dense' : '',
+                ]
+                  .filter(Boolean)
+                  .join(' ')}
+                role="tablist"
+              >
                 {weeklyChips.map(chip => (
                   <button
                     key={chip.id}
                     type="button"
                     role="tab"
+                    data-timeline-chip={chip.id}
                     aria-selected={chip.id === activeChipId}
                     className={`si-map-analysis-chip ${chip.id === activeChipId ? 'si-map-analysis-chip--active' : ''}`}
                     onClick={() => onPickChip(chip.id)}
-                    title={`${chip.fullDate} · μ≈${chip.mean.toFixed(3)}`}
+                    title={`${chip.fullDate} · index mean ≈ ${chip.mean.toFixed(3)}`}
                   >
                     {chip.shortLabel}
                   </button>
                 ))}
               </div>
-              <div className="si-map-analysis-timeline-rail" aria-hidden />
+
+              <div className="si-map-analysis-timeline-scrub">
+                <button
+                  type="button"
+                  className="si-map-analysis-tl-nudge"
+                  aria-label="Step timeline backward (rail)"
+                  onClick={() => onStep(-1)}
+                >
+                  <i className="fa-solid fa-chevron-left" aria-hidden />
+                </button>
+                <div className="si-map-analysis-timeline-scrub-core">
+                  <span className="si-map-analysis-timeline-range-edge" title={rangeStartLabel}>
+                    {rangeStartLabel || '—'}
+                  </span>
+                  <div className="si-map-analysis-timeline-progress-track" aria-hidden>
+                    <div className="si-map-analysis-timeline-progress-bg" />
+                    <div
+                      className="si-map-analysis-timeline-progress-fill"
+                      style={{ transform: `scaleX(${timelineProgress})` }}
+                    />
+                  </div>
+                  <span className="si-map-analysis-timeline-range-edge" title={rangeEndLabel}>
+                    {rangeEndLabel || '—'}
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  className="si-map-analysis-tl-nudge"
+                  aria-label="Step timeline forward (rail)"
+                  onClick={() => onStep(1)}
+                >
+                  <i className="fa-solid fa-chevron-right" aria-hidden />
+                </button>
+              </div>
             </div>
-            <div className="si-map-analysis-timeline-date" title={activeFull}>
-              {activeFull || '—'}
+
+            <div className="si-map-analysis-timeline-meta">
+              <div className="si-map-analysis-timeline-date-block">
+                <span className="si-map-analysis-timeline-date-label">Selected</span>
+                <time className="si-map-analysis-timeline-date" dateTime={activeFull || undefined} title={activeFull}>
+                  {activeFull || '—'}
+                </time>
+              </div>
+              {onCycleTimelineSpeed ? (
+                <button
+                  type="button"
+                  className="si-map-analysis-tl-speed"
+                  title={`Playback interval ${timelinePlaybackMs} ms — click to change speed`}
+                  aria-label={`Playback speed ${playbackSpeedLabel}, click to cycle`}
+                  onClick={onCycleTimelineSpeed}
+                >
+                  {playbackSpeedLabel}
+                </button>
+              ) : null}
             </div>
           </div>
         </div>

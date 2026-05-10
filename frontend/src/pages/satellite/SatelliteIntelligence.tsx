@@ -1770,6 +1770,15 @@ export default function SatelliteIntelligence() {
   const [is3DView, setIs3DView] = useState(() => true);
   const [cloudCoverage, setCloudCoverage] = useState(20);
   const [isTimelinePlaying, setIsTimelinePlaying] = useState(false);
+  /** Interval for timeline auto-advance (ms); user cycles via map timeline control. */
+  const [timelinePlaybackMs, setTimelinePlaybackMs] = useState(1400);
+  const cycleTimelinePlaybackSpeed = useCallback(() => {
+    setTimelinePlaybackMs(prev => {
+      const speeds = [1400, 900, 500, 280];
+      const i = speeds.indexOf(prev);
+      return speeds[(i < 0 ? 0 : i + 1) % speeds.length];
+    });
+  }, []);
   const [mapStaticChartsOpen, setMapStaticChartsOpen] = useState(false);
   const [staticChartComparisonLayers, setStaticChartComparisonLayers] = useState<StaticAoiChartLayerId[]>(() =>
     defaultStaticAoiComparisonLayers(),
@@ -6627,7 +6636,7 @@ export default function SatelliteIntelligence() {
           setTimeSeriesEnd(pe => (pe && iso2 > pe ? iso2 : pe || iso2));
           return d;
         });
-      }, 1400);
+      }, timelinePlaybackMs);
       return () => clearInterval(interval);
     }
 
@@ -6644,10 +6653,10 @@ export default function SatelliteIntelligence() {
         setTimeSeriesEnd(pe => (pe && iso > pe ? iso : pe || iso));
         return next;
       });
-    }, 1200);
+    }, Math.max(200, Math.round(timelinePlaybackMs * 0.85)));
 
     return () => clearInterval(interval);
-  }, [isTimelinePlaying, weeklyComposites, dates]);
+  }, [isTimelinePlaying, weeklyComposites, dates, timelinePlaybackMs]);
 
   useEffect(() => {
     const iso = selectedDate.toISOString().split('T')[0];
@@ -8159,6 +8168,8 @@ export default function SatelliteIntelligence() {
             onTogglePlay={() => setIsTimelinePlaying(p => !p)}
             onStep={handleSatelliteTimelineStep}
             timelineVisible={weeklyComposites.length > 0}
+            timelinePlaybackMs={timelinePlaybackMs}
+            onCycleTimelineSpeed={cycleTimelinePlaybackSpeed}
             mapTool={satelliteToolbarTool}
             onMapTool={t => applyMapDrawTool(t)}
             hasClearableDrawing={satelliteHasClearableDrawing}

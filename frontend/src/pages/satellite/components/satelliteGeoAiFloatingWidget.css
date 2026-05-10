@@ -19,6 +19,12 @@
   pointer-events: auto;
 }
 
+.si-geo-ai-float--resizing {
+  pointer-events: auto;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
 .si-geo-ai-float-inner {
   pointer-events: auto;
   display: flex;
@@ -94,6 +100,7 @@
 }
 
 .si-geo-ai-float-panel {
+  position: relative;
   width: min(400px, calc(100vw - 28px));
   max-height: min(72vh, 640px);
   display: flex;
@@ -105,6 +112,12 @@
   box-shadow: 0 22px 55px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.05);
   overflow: hidden;
   animation: si-geo-ai-float-in 0.28s ease;
+}
+
+/* User-controlled size (inline width/height from JS) */
+.si-geo-ai-float-panel--sized {
+  max-height: none;
+  max-width: none;
 }
 
 @keyframes si-geo-ai-float-in {
@@ -120,6 +133,136 @@
 
 .si-geo-ai-float-panel--dragging {
   animation: none;
+}
+
+.si-geo-ai-float-panel--resizing {
+  animation: none;
+}
+
+/* Minimal resize affordances — large hit targets, light visuals (touch-friendly) */
+.si-geo-ai-float-resize-handle {
+  position: absolute;
+  z-index: 24;
+  box-sizing: border-box;
+  padding: 0;
+  margin: 0;
+  border: none;
+  border-radius: 3px;
+  background: transparent;
+  touch-action: none;
+  opacity: 0.22;
+  transition: opacity 0.14s ease, background 0.14s ease;
+}
+
+.si-geo-ai-float-panel:hover .si-geo-ai-float-resize-handle,
+.si-geo-ai-float-panel:focus-within .si-geo-ai-float-resize-handle,
+.si-geo-ai-float-panel--resizing .si-geo-ai-float-resize-handle {
+  opacity: 0.55;
+}
+
+.si-geo-ai-float-resize-handle:hover,
+.si-geo-ai-float-resize-handle:focus-visible {
+  opacity: 0.95 !important;
+  background: rgba(129, 140, 248, 0.12);
+  outline: none;
+}
+
+.si-geo-ai-float-resize-handle:focus-visible {
+  box-shadow: 0 0 0 2px rgba(52, 211, 153, 0.45);
+}
+
+.si-geo-ai-float-resize-handle--n {
+  top: 0;
+  left: 22px;
+  right: 22px;
+  height: 10px;
+  cursor: ns-resize;
+}
+
+.si-geo-ai-float-resize-handle--s {
+  bottom: 0;
+  left: 22px;
+  right: 22px;
+  height: 10px;
+  cursor: ns-resize;
+}
+
+.si-geo-ai-float-resize-handle--e {
+  top: 46px;
+  right: 0;
+  bottom: 12px;
+  width: 12px;
+  cursor: ew-resize;
+}
+
+.si-geo-ai-float-resize-handle--w {
+  top: 46px;
+  left: 0;
+  bottom: 12px;
+  width: 12px;
+  cursor: ew-resize;
+}
+
+.si-geo-ai-float-resize-handle--nw {
+  top: 0;
+  left: 0;
+  width: 22px;
+  height: 22px;
+  cursor: nwse-resize;
+  border-radius: 14px 0 6px 0;
+}
+
+.si-geo-ai-float-resize-handle--ne {
+  top: 0;
+  right: 0;
+  width: 22px;
+  height: 22px;
+  cursor: nesw-resize;
+  border-radius: 0 14px 0 6px;
+}
+
+.si-geo-ai-float-resize-handle--sw {
+  bottom: 0;
+  left: 0;
+  width: 22px;
+  height: 22px;
+  cursor: nesw-resize;
+  border-radius: 0 6px 0 14px;
+}
+
+.si-geo-ai-float-resize-handle--se {
+  bottom: 0;
+  right: 0;
+  width: 22px;
+  height: 22px;
+  cursor: nwse-resize;
+  border-radius: 0 0 14px 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .si-geo-ai-float-resize-handle {
+    transition: none;
+  }
+}
+
+@media (pointer: coarse) {
+  .si-geo-ai-float-resize-handle--e,
+  .si-geo-ai-float-resize-handle--w {
+    width: 16px;
+  }
+
+  .si-geo-ai-float-resize-handle--n,
+  .si-geo-ai-float-resize-handle--s {
+    height: 14px;
+  }
+
+  .si-geo-ai-float-resize-handle--nw,
+  .si-geo-ai-float-resize-handle--ne,
+  .si-geo-ai-float-resize-handle--sw,
+  .si-geo-ai-float-resize-handle--se {
+    width: 28px;
+    height: 28px;
+  }
 }
 
 .si-geo-ai-float-head {
@@ -220,8 +363,7 @@
     bottom: max(160px, env(safe-area-inset-bottom, 0px) + 112px);
   }
 
-  .si-geo-ai-float-panel {
-    width: calc(100vw - 24px);
-    max-height: min(68vh, 560px);
+  .si-geo-ai-float-panel--sized {
+    max-width: calc(100vw - 16px);
   }
 }
