@@ -359,15 +359,23 @@ function queryFeaturesTable(
   scopeFields: string[],
   title = 'Query results',
 ): GeoExplorerDataTablePayload {
-  const cols = pickDisplayColumns(scopeFields, 7)
-  const columns = [
-    { key: 'layer', label: 'Layer', align: 'left' as const },
-    ...cols.map(c => ({ key: c, label: c, align: 'left' as const })),
+  const priority = pickDisplayColumns(scopeFields, 7)
+  const prioritySet = new Set(priority)
+  const extra = scopeFields.filter(f => !prioritySet.has(f)).slice(0, 28)
+  const allFieldKeys = [...priority, ...extra]
+  const columns: GeoExplorerDataTablePayload['columns'] = [
+    { key: 'layer', label: 'Layer', align: 'left', defaultVisible: true },
+    ...allFieldKeys.map(f => ({
+      key: f,
+      label: f,
+      align: 'left' as const,
+      defaultVisible: prioritySet.has(f),
+    })),
   ]
   const slice = selected.slice(0, TABLE_ROW_CAP)
   const rows: GeoExplorerDataTableRow[] = slice.map(r => {
     const values: Record<string, string | number | null> = { layer: r.layerName }
-    for (const c of cols) values[c] = formatCell(r.properties[c])
+    for (const f of allFieldKeys) values[f] = formatCell(r.properties[f])
     return { values, mapLink: mapLinkFor(r) }
   })
   return {
@@ -377,8 +385,14 @@ function queryFeaturesTable(
     rows,
     foot:
       selected.length > TABLE_ROW_CAP
-        ? { Summary: `Showing ${TABLE_ROW_CAP} of ${selected.length} rows` }
-        : { Summary: `${selected.length} row(s)` },
+        ? {
+            Summary: `Showing ${TABLE_ROW_CAP} of ${selected.length} rows`,
+            Fields: `${priority.length} key columns shown by default · ${extra.length} more in “More fields”`,
+          }
+        : {
+            Summary: `${selected.length} row(s)`,
+            Fields: `${priority.length} key columns by default · ${extra.length} optional`,
+          },
   }
 }
 

@@ -29,6 +29,8 @@ export type GeoExplorerGeminiMessagePartsProps = {
   msg: GeoExplorerMessage
   cssPrefix: GeoExplorerCssPrefix
   onTableMapAction?: (action: GeoExplorerMapAction, link: GeoExplorerMapLink) => void
+  /** Zoom map to combined extent of several linked features (GIS table multi-select). */
+  onTableBatchZoom?: (links: GeoExplorerMapLink[]) => void
   /** When set, user text bubbles show edit / rephrase controls and update history on save (text only, no re-run). */
   onUpdateUserMessage?: (messageId: string, nextText: string) => void
   /**
@@ -47,6 +49,7 @@ export function GeoExplorerGeminiMessageParts(props: GeoExplorerGeminiMessagePar
     msg,
     cssPrefix,
     onTableMapAction,
+    onTableBatchZoom,
     onUpdateUserMessage,
     onSaveEditedUserMessage,
     onSendEditedToComposer,
@@ -100,7 +103,13 @@ export function GeoExplorerGeminiMessageParts(props: GeoExplorerGeminiMessagePar
             {seg.text}
           </p>
         ) : (
-          <GeoExplorerDynamicTable key={`tbl-${i}`} cssPrefix={cssPrefix} table={seg.table} onMapAction={onTableMapAction} />
+          <GeoExplorerDynamicTable
+            key={`tbl-${i}`}
+            cssPrefix={cssPrefix}
+            table={seg.table}
+            onMapAction={onTableMapAction}
+            onBatchZoom={onTableBatchZoom ?? undefined}
+          />
         ),
       )}
     </>

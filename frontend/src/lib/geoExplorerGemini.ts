@@ -36,7 +36,7 @@ When SYSTEM lacks usable coordinates for weather/spatial tasks: briefly ask (Ara
 
 **2. GIS intelligence** — Layer mentions imply searching summaries across attributes (codes, names, crop/category/type/site strings). Prefer authoritative "### RESOLVED LAYER FEATURE" JSON when present. Never claim absence until catalogs/resolv blocks contradict.
 
-**2b. Map-driven selection (client)** — When the user asks for **Select by attributes** with a \`WHERE …\` clause, **Select by location** (within / intersect / overlap a named layer), or SQL-like filters on layer fields, the app may run a **local Geo AI stats pipeline** first: results sync to **map selection + popup** without a full page reload. Encourage precise layer names, \`WHERE\` syntax (\`=\`, \`<>\`, \`LIKE\`, \`IN (...)\`, \`AND\` / \`OR\`), and clear mask layer names for spatial filters.
+**2b. Map-driven selection (client)** — When the user asks for **Select by attributes** with a \`WHERE …\` clause, **Select by location** (within / intersect / overlap a named layer), **Near / buffer** phrasing (treated as intersect-with-mask when a mask layer exists), or SQL-like filters on layer fields, the app runs a **local Geo AI stats pipeline** first: results render as an **interactive attribute table** (search, sort, optional extra fields, multi-row selection, CSV/Excel export) and **map fit + highlight** sync without reload. Encourage precise layer names, \`WHERE\` syntax (\`=\`, \`<>\`, \`LIKE\`, \`IN (...)\`, \`AND\` / \`OR\`), and clear mask layer names for spatial filters. Mention the table explicitly when rows are returned.
 
 **3. Weather integration** — All numeric weather must come **only** from "### OPENWEATHER FACTS", "### OPEN-METEO FACTS", or "### OPEN-METEO COMPACT" when present (temperature, humidity, wind, forecast). Do not invent values.
 
@@ -105,6 +105,8 @@ export type GeoExplorerDataTableColumn = {
   key: string;
   label: string;
   align?: 'left' | 'right';
+  /** When false, the column stays in data/export but is hidden until the user expands “More fields”. */
+  defaultVisible?: boolean;
 };
 
 export type GeoExplorerDataTableRow = {
@@ -243,14 +245,23 @@ export function lastMapQueryCoordsFromMessages(messages: GeoExplorerMessage[]): 
   return null
 }
 
-/** Claude / DeepSeek Geo AI chat history (role + plain text). */
+/** Claude / DeepSeek Geo AI: plain `{text}` history or full `GeoExplorerMessage` parts. */
 export function lastMapQueryCoordsFromSimpleChatHistory(
-  messages: Array<{ role: string; text: string }>,
+  messages: Array<{ role: string; text?: string; parts?: GeoExplorerPart[] }>,
 ): [number, number] | null {
   for (let i = messages.length - 1; i >= 0; i--) {
     const m = messages[i]
     if (m.role !== 'assistant' && m.role !== 'model') continue
-    const c = parseMapQueryLngLat(m.text)
+    const raw =
+      Array.isArray(m.parts) && m.parts.length
+        ? m.parts
+            .filter((p): p is Extract<GeoExplorerPart, { type: 'text' }> => p.type === 'text')
+            .map(p => p.text)
+            .join('\n')
+        : typeof m.text === 'string'
+          ? m.text
+          : ''
+    const c = parseMapQueryLngLat(raw)
     if (c) return c
   }
   return null

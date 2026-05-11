@@ -9,10 +9,11 @@ import {
 } from 'chart.js'
 import jsPDF from 'jspdf'
 import autoTable from 'jspdf-autotable'
-import { useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Bar } from 'react-chartjs-2'
 import * as XLSX from 'xlsx'
 import type {
+  GeoExplorerDataTableColumn,
   GeoExplorerDataTablePayload,
   GeoExplorerDataTableRow,
   GeoExplorerMapLink,
@@ -26,6 +27,8 @@ export type GeoExplorerDynamicTableProps = {
   cssPrefix: string
   table: GeoExplorerDataTablePayload
   onMapAction?: (action: GeoExplorerMapAction, link: GeoExplorerMapLink) => void
+  /** Fit map to combined extent of linked features (multi-select). */
+  onBatchZoom?: (links: GeoExplorerMapLink[]) => void
 }
 
 const PAGE_OPTS = [10, 25, 50, 100] as const
@@ -35,14 +38,25 @@ function cellStr(v: string | number | null | undefined): string {
   return String(v)
 }
 
-function exportRows(payload: GeoExplorerDataTablePayload, rows: GeoExplorerDataTableRow[]) {
-  const head = payload.columns.map(c => c.label)
-  const body = rows.map(r => payload.columns.map(c => cellStr(r.values[c.key])))
+function stableRowKey(row: GeoExplorerDataTableRow): string {
+  const ml = row.mapLink
+  if (ml?.type === 'feature') return `f:${ml.layerId}:${ml.featureKey}`
+  if (ml?.type === 'coords') return `c:${ml.lng},${ml.lat}`
+  const entries = Object.keys(row.values)
+    .sort()
+    .map(k => `${k}=${cellStr(row.values[k])}`)
+    .join('|')
+  return `v:${entries.slice(0, 480)}`
+}
+
+function exportRowsWithColumns(cols: GeoExplorerDataTableColumn[], rows: GeoExplorerDataTableRow[]) {
+  const head = cols.map(c => c.label)
+  const body = rows.map(r => cols.map(c => cellStr(r.values[c.key])))
   return { head, body }
 }
 
 export function GeoExplorerDynamicTable(props: GeoExplorerDynamicTableProps) {
-  const { cssPrefix, table, onMapAction } = props
+  const { cssPrefix, table, onMapAction, onBatchZoom } = props
   const p = (part: string) => `${cssPrefix}-${part}`
 
   const [search, setSearch] = useState('')
@@ -51,6 +65,22 @@ export function GeoExplorerDynamicTable(props: GeoExplorerDynamicTableProps) {
   const [page, setPage] = useState(0)
   const [pageSize, setPageSize] = useState(10)
   const [chartOpen, setChartOpen] = useState(false)
+  const [showMoreFields, setShowMoreFields] = useState(false)
+  const [selectedKeys, setSelectedKeys] = useState<Set<string>>(() => new Set())
+
+  const hasHiddenByDefault = useMemo(
+    () => table.columns.some(c => c.defaultVisible === false),
+    [table.columns],
+  )
+
+  const displayColumns = useMemo(() => {
+    if (showMoreFields || !hasHiddenByDefault) return table.columns
+    return table.columns.filter(c => c.defaultVisible !== false)
+  }, [table.columns, showMoreFields, hasHiddenByDefault])
+
+  useEffect(() => {
+    setSelectedKeys(new Set())
+  }, [table.rows, table.columns, search, sortKey, sortDir])
 
   const hasMapCol = Boolean(onMapAction) && table.rows.some(r => r.mapLink)
 
@@ -87,9 +117,33 @@ export function GeoExplorerDynamicTable(props: GeoExplorerDynamicTableProps) {
     }
   }
 
+  const toggleRowKey = useCallback((key: string) => {
+    setSelectedKeys(prev => {
+      const next = new Set(prev)
+      if (next.has(key)) next.delete(key)
+      else next.add(key)
+      return next
+    })
+  }, [])
+
+  const selectAllOnPage = useCallback(() => {
+    setSelectedKeys(prev => {
+      const next = new Set(prev)
+      for (const row of pageRows) next.add(stableRowKey(row))
+      return next
+    })
+  }, [pageRows])
+
+  const clearSelection = useCallback(() => setSelectedKeys(new Set()), [])
+
+  const selectedRows = useMemo(
+    () => sorted.filter(r => selectedKeys.has(stableRowKey(r))),
+    [sorted, selectedKeys],
+  )
+
   const { chartLabels, chartDataNums } = useMemo(() => {
-    const labelCol = table.columns.find(c => c.align !== 'right') ?? table.columns[0]
-    const numCol = table.columns.find(c => c.align === 'right')
+    const labelCol = displayColumns.find(c => c.align !== 'right') ?? displayColumns[0]
+    const numCol = displayColumns.find(c => c.align === 'right')
     if (!labelCol || !numCol) return { chartLabels: [] as string[], chartDataNums: [] as number[] }
     const labels: string[] = []
     const nums: number[] = []
@@ -102,7 +156,7 @@ export function GeoExplorerDynamicTable(props: GeoExplorerDynamicTableProps) {
       nums.push(nv)
     }
     return { chartLabels: labels, chartDataNums: nums }
-  }, [sorted, table.columns])
+  }, [sorted, displayColumns])
 
   const chartJsData: ChartData<'bar'> | null =
     chartOpen && chartLabels.length && chartDataNums.length
@@ -110,7 +164,7 @@ export function GeoExplorerDynamicTable(props: GeoExplorerDynamicTableProps) {
           labels: chartLabels,
           datasets: [
             {
-              label: table.columns.find(c => c.align === 'right')?.label ?? 'Value',
+              label: displayColumns.find(c => c.align === 'right')?.label ?? 'Value',
               data: chartDataNums,
               backgroundColor: 'rgba(167, 139, 250, 0.55)',
               borderColor: 'rgba(167, 139, 250, 1)',
@@ -120,8 +174,22 @@ export function GeoExplorerDynamicTable(props: GeoExplorerDynamicTableProps) {
         }
       : null
 
+  const exportSubset = (rows: GeoExplorerDataTableRow[], label: string) => {
+    const cols = showMoreFields ? table.columns : displayColumns
+    const { head, body } = exportRowsWithColumns(cols, rows)
+    const esc = (s: string) => (/[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s)
+    const lines = [head.map(esc).join(','), ...body.map(row => row.map(esc).join(','))]
+    const blob = new Blob([`\ufeff${lines.join('\n')}`], { type: 'text/csv;charset=utf-8' })
+    const a = document.createElement('a')
+    a.href = URL.createObjectURL(blob)
+    a.download = `${(table.title ?? 'geo-ai-table').replace(/\s+/g, '_')}_${label}.csv`
+    a.click()
+    URL.revokeObjectURL(a.href)
+  }
+
   const copyTsv = async () => {
-    const { head, body } = exportRows(table, sorted)
+    const cols = showMoreFields ? table.columns : displayColumns
+    const { head, body } = exportRowsWithColumns(cols, sorted)
     const tsv = [head.join('\t'), ...body.map(line => line.join('\t'))].join('\n')
     try {
       await navigator.clipboard.writeText(tsv)
@@ -130,20 +198,11 @@ export function GeoExplorerDynamicTable(props: GeoExplorerDynamicTableProps) {
     }
   }
 
-  const downloadCsv = () => {
-    const { head, body } = exportRows(table, sorted)
-    const esc = (s: string) => (/[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s)
-    const lines = [head.map(esc).join(','), ...body.map(row => row.map(esc).join(','))]
-    const blob = new Blob([`\ufeff${lines.join('\n')}`], { type: 'text/csv;charset=utf-8' })
-    const a = document.createElement('a')
-    a.href = URL.createObjectURL(blob)
-    a.download = `${(table.title ?? 'geo-ai-table').replace(/\s+/g, '_')}.csv`
-    a.click()
-    URL.revokeObjectURL(a.href)
-  }
+  const downloadCsv = () => exportSubset(sorted, 'all')
 
   const downloadXlsx = () => {
-    const { head, body } = exportRows(table, sorted)
+    const cols = showMoreFields ? table.columns : displayColumns
+    const { head, body } = exportRowsWithColumns(cols, sorted)
     const ws = XLSX.utils.aoa_to_sheet([head, ...body])
     const wb = XLSX.utils.book_new()
     XLSX.utils.book_append_sheet(wb, ws, 'Results')
@@ -156,7 +215,8 @@ export function GeoExplorerDynamicTable(props: GeoExplorerDynamicTableProps) {
     doc.text(table.title ?? 'Geo AI table', 40, 36)
     doc.setFontSize(8)
     doc.text(`${table.kind} · ${sorted.length} rows`, 40, 52)
-    const { head, body } = exportRows(table, sorted.slice(0, 500))
+    const cols = showMoreFields ? table.columns : displayColumns
+    const { head, body } = exportRowsWithColumns(cols, sorted.slice(0, 500))
     autoTable(doc, {
       head: [head],
       body,
@@ -168,13 +228,20 @@ export function GeoExplorerDynamicTable(props: GeoExplorerDynamicTableProps) {
     doc.save(`${(table.title ?? 'geo-ai-table').replace(/\s+/g, '_')}.pdf`)
   }
 
+  const batchZoomSelection = () => {
+    const links = selectedRows.map(r => r.mapLink).filter(Boolean) as GeoExplorerMapLink[]
+    if (links.length >= 2 && onBatchZoom) onBatchZoom(links)
+    else if (links.length === 1 && onMapAction) onMapAction('zoom', links[0]!)
+  }
+
   return (
     <div className={p('dyn-table')} role="region" aria-label={table.title ?? 'Data table'}>
       <div className={p('dyn-table-toolbar')}>
         <span className={p('dyn-table-badge')}>{table.kind}</span>
         {table.title ? <span className={p('dyn-table-title')}>{table.title}</span> : null}
-          <span className={p('dyn-table-meta')}>
+        <span className={p('dyn-table-meta')}>
           {sorted.length}/{table.rows.length} rows
+          {selectedKeys.size ? ` · ${selectedKeys.size} selected` : null}
           {hasMapCol ? <span className={p('dyn-table-meta-hint')}> · Row = map highlight</span> : null}
         </span>
       </div>
@@ -193,6 +260,16 @@ export function GeoExplorerDynamicTable(props: GeoExplorerDynamicTableProps) {
             autoComplete="off"
           />
         </label>
+        {hasHiddenByDefault ? (
+          <label className={p('dyn-table-toggle')}>
+            <input
+              type="checkbox"
+              checked={showMoreFields}
+              onChange={e => setShowMoreFields(e.target.checked)}
+            />{' '}
+            More fields
+          </label>
+        ) : null}
         <label className={p('dyn-table-pagesize')}>
           Rows
           <select
@@ -210,6 +287,33 @@ export function GeoExplorerDynamicTable(props: GeoExplorerDynamicTableProps) {
           </select>
         </label>
         <div className={p('dyn-table-actions')}>
+          {hasMapCol ? (
+            <>
+              <button type="button" className={p('dyn-table-btn')} onClick={selectAllOnPage} title="Select all rows on this page">
+                Select page
+              </button>
+              <button type="button" className={p('dyn-table-btn')} onClick={clearSelection} disabled={!selectedKeys.size}>
+                Clear sel.
+              </button>
+              <button
+                type="button"
+                className={p('dyn-table-btn')}
+                disabled={!selectedRows.some(r => r.mapLink)}
+                onClick={batchZoomSelection}
+                title="Zoom map to combined extent of selected features"
+              >
+                <i className="fa-solid fa-expand" aria-hidden /> Zoom selection
+              </button>
+              <button
+                type="button"
+                className={p('dyn-table-btn')}
+                disabled={!selectedKeys.size}
+                onClick={() => exportSubset(selectedRows, 'selection')}
+              >
+                CSV selection
+              </button>
+            </>
+          ) : null}
           <button type="button" className={p('dyn-table-btn')} onClick={copyTsv} title="Copy as TSV">
             <i className="fa-regular fa-copy" aria-hidden /> Copy
           </button>
@@ -251,11 +355,20 @@ export function GeoExplorerDynamicTable(props: GeoExplorerDynamicTableProps) {
       <div className={p('dyn-table-scroll')}>
         <table
           className={p('dyn-table-grid')}
-          title={hasMapCol ? 'Click a row to highlight on the map; use Table to open the attribute dock (GIS Map).' : undefined}
+          title={
+            hasMapCol
+              ? 'Use checkboxes for multi-select; row click highlights map; use Table icon for attribute dock.'
+              : undefined
+          }
         >
           <thead>
             <tr>
-              {table.columns.map(c => (
+              {hasMapCol ? (
+                <th className={p('dyn-table-sel-col')} scope="col">
+                  <span className={p('dyn-table-sel-hint')}>Sel</span>
+                </th>
+              ) : null}
+              {displayColumns.map(c => (
                 <th key={c.key} className={c.align === 'right' ? p('dyn-table-th-numeric') : undefined}>
                   <button type="button" className={p('dyn-table-sort')} onClick={() => onSort(c.key)}>
                     {c.label}
@@ -267,66 +380,86 @@ export function GeoExplorerDynamicTable(props: GeoExplorerDynamicTableProps) {
             </tr>
           </thead>
           <tbody>
-            {pageRows.map((row, ri) => (
-              <tr
-                key={`${safePage}-${ri}`}
-                className={row.mapLink ? p('dyn-table-row--interactive') : undefined}
-                onClick={ev => {
-                  if (!row.mapLink || !onMapAction) return
-                  if ((ev.target as HTMLElement).closest('button')) return
-                  onMapAction('highlight', row.mapLink)
-                }}
-              >
-                {table.columns.map(c => (
-                  <td key={c.key} className={c.align === 'right' ? p('dyn-table-td-numeric') : undefined}>
-                    {cellStr(row.values[c.key]) || '—'}
-                  </td>
-                ))}
-                {hasMapCol ? (
-                  <td className={p('dyn-table-map-cell')}>
-                    {row.mapLink ? (
-                      <span className={p('dyn-table-map-btns')}>
-                        <button
-                          type="button"
-                          className={p('dyn-table-icon-btn')}
-                          title="Zoom to feature"
-                          onClick={ev => {
-                            ev.stopPropagation()
-                            onMapAction?.('zoom', row.mapLink!)
-                          }}
-                        >
-                          <i className="fa-solid fa-magnifying-glass-location" aria-hidden />
-                        </button>
-                        <button
-                          type="button"
-                          className={p('dyn-table-icon-btn')}
-                          title="Highlight on map"
-                          onClick={ev => {
-                            ev.stopPropagation()
-                            onMapAction?.('highlight', row.mapLink!)
-                          }}
-                        >
-                          <i className="fa-solid fa-highlighter" aria-hidden />
-                        </button>
-                        <button
-                          type="button"
-                          className={p('dyn-table-icon-btn')}
-                          title="Open linked attribute table"
-                          onClick={ev => {
-                            ev.stopPropagation()
-                            onMapAction?.('openTable', row.mapLink!)
-                          }}
-                        >
-                          <i className="fa-solid fa-table" aria-hidden />
-                        </button>
-                      </span>
-                    ) : (
-                      <span className={p('dyn-table-dash')}>—</span>
-                    )}
-                  </td>
-                ) : null}
-              </tr>
-            ))}
+            {pageRows.map((row, ri) => {
+              const rk = stableRowKey(row)
+              const sel = selectedKeys.has(rk)
+              return (
+                <tr
+                  key={`${safePage}-${ri}-${rk}`}
+                  className={[
+                    row.mapLink ? p('dyn-table-row--interactive') : '',
+                    sel ? p('dyn-table-row--selected') : '',
+                  ]
+                    .filter(Boolean)
+                    .join(' ')}
+                  onClick={ev => {
+                    if ((ev.target as HTMLElement).closest('input,button,a,label')) return
+                    if (!row.mapLink || !onMapAction) return
+                    if ((ev.target as HTMLElement).closest('button')) return
+                    onMapAction('highlight', row.mapLink)
+                  }}
+                >
+                  {hasMapCol ? (
+                    <td className={p('dyn-table-sel-cell')} onClick={e => e.stopPropagation()}>
+                      <input
+                        type="checkbox"
+                        checked={sel}
+                        aria-label="Select row for map / export"
+                        onChange={() => toggleRowKey(rk)}
+                      />
+                    </td>
+                  ) : null}
+                  {displayColumns.map(c => (
+                    <td key={c.key} className={c.align === 'right' ? p('dyn-table-td-numeric') : undefined}>
+                      {cellStr(row.values[c.key]) || '—'}
+                    </td>
+                  ))}
+                  {hasMapCol ? (
+                    <td className={p('dyn-table-map-cell')}>
+                      {row.mapLink ? (
+                        <span className={p('dyn-table-map-btns')}>
+                          <button
+                            type="button"
+                            className={p('dyn-table-icon-btn')}
+                            title="Zoom to feature"
+                            onClick={ev => {
+                              ev.stopPropagation()
+                              onMapAction?.('zoom', row.mapLink!)
+                            }}
+                          >
+                            <i className="fa-solid fa-magnifying-glass-location" aria-hidden />
+                          </button>
+                          <button
+                            type="button"
+                            className={p('dyn-table-icon-btn')}
+                            title="Highlight on map"
+                            onClick={ev => {
+                              ev.stopPropagation()
+                              onMapAction?.('highlight', row.mapLink!)
+                            }}
+                          >
+                            <i className="fa-solid fa-highlighter" aria-hidden />
+                          </button>
+                          <button
+                            type="button"
+                            className={p('dyn-table-icon-btn')}
+                            title="Open linked attribute table"
+                            onClick={ev => {
+                              ev.stopPropagation()
+                              onMapAction?.('openTable', row.mapLink!)
+                            }}
+                          >
+                            <i className="fa-solid fa-table" aria-hidden />
+                          </button>
+                        </span>
+                      ) : (
+                        <span className={p('dyn-table-dash')}>—</span>
+                      )}
+                    </td>
+                  ) : null}
+                </tr>
+              )
+            })}
           </tbody>
         </table>
       </div>
@@ -335,7 +468,9 @@ export function GeoExplorerDynamicTable(props: GeoExplorerDynamicTableProps) {
         <div className={p('dyn-table-foot')}>
           {Object.entries(table.foot).map(([k, v]) => (
             <div key={k} className={p('dyn-table-foot-line')}>
-              {k === 'Summary' ? cellStr(v) : (
+              {k === 'Summary' ? (
+                cellStr(v)
+              ) : (
                 <>
                   <strong>{k}:</strong> {cellStr(v)}
                 </>
