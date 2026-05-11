@@ -83,9 +83,7 @@ textarea::-webkit-scrollbar-thumb {
 
 /* Reduce scroll chaining / “scroll inside scroll” jitter on major shells */
 .si-map-analysis-charts,
-.si-env-panel-body,
-.si-env-panel-body--workspace,
-.si-env-panel-body--toolbox-flat,
+.si-sat-proc-panel,
 .si-sat-ctx-panel-body,
 .si-sat-ctx-panel-body--processing-embed-host,
 .si-sat-ctx-panel-body-core,

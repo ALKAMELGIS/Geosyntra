@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { buildGeoQuestionEditSuggestions } from '../../../lib/geoQuestionEditSuggestions'
 import type { GeoExplorerCssPrefix } from './GeoExplorerGeminiChatBody'
+import { SiCopyTextButton } from './SiCopyTextButton'
 
 function pfx(prefix: GeoExplorerCssPrefix, part: string): string {
   return `${prefix}-${part}`
@@ -188,19 +189,28 @@ export function GeoAiEditQuestionTool(props: GeoAiEditQuestionToolProps) {
           </div>
         )}
         {!open ? (
-          <button
-            type="button"
-            className={pfx(cssPrefix, 'edit-q-icon-btn')}
-            aria-label="Edit question"
-            title="Edit question"
-            onClick={() => {
-              setDraft(originalText)
-              setUndoStack([])
-              setOpen(true)
-            }}
-          >
-            <i className="fa-solid fa-pen" aria-hidden />
-          </button>
+          <div className={pfx(cssPrefix, 'edit-q-tools')}>
+            <SiCopyTextButton
+              text={originalText}
+              className={pfx(cssPrefix, 'edit-q-copy-btn')}
+              title="Copy question"
+              ariaLabel="Copy question text"
+              variant="compact"
+            />
+            <button
+              type="button"
+              className={pfx(cssPrefix, 'edit-q-icon-btn')}
+              aria-label="Edit question"
+              title="Edit question"
+              onClick={() => {
+                setDraft(originalText)
+                setUndoStack([])
+                setOpen(true)
+              }}
+            >
+              <i className="fa-solid fa-pen" aria-hidden />
+            </button>
+          </div>
         ) : null}
       </div>
     </div>

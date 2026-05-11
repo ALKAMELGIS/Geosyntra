@@ -74,6 +74,7 @@ import {
 import './gisGeoExplorerPanel.css'
 import { GisGeoExplorerChartConfig } from './components/GisGeoExplorerChartConfig'
 import { GeoExplorerGeminiMessageParts } from './components/GeoExplorerGeminiMessageParts'
+import { SiCopyTextButton } from './components/SiCopyTextButton'
 
 const GIS_AGOL_RAIL_COMPACT_LS_KEY = 'gis-agol-rail-compact-v1'
 const GEO_AI_CHAT_PAGE_SIZE = 40
@@ -4443,7 +4444,18 @@ export default function GisMap() {
             </div>
           ) : null}
         </div>
-        {geoExplorerChatError ? <p className="gis-geo-explorer-error">{geoExplorerChatError}</p> : null}
+        {geoExplorerChatError ? (
+          <div className="gis-geo-explorer-error-row">
+            <p className="gis-geo-explorer-error">{geoExplorerChatError}</p>
+            <SiCopyTextButton
+              text={geoExplorerChatError}
+              className="gis-geo-explorer-error-copy-btn"
+              title="Copy error message"
+              ariaLabel="Copy error text"
+              variant="compact"
+            />
+          </div>
+        ) : null}
         {geoExplorerPendingImage ? (
           <p className="gis-geo-explorer-pending-img">
             <i className="fa-solid fa-image" aria-hidden /> Image ready to send

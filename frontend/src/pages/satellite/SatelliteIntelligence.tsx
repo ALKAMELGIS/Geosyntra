@@ -116,6 +116,7 @@ import {
 import { FieldVisibilityControl } from './components/FieldVisibilityControl';
 import { GeoExplorerGeminiInputRow } from './components/GeoExplorerGeminiInputRow';
 import { GeoExplorerGeminiMessageParts } from './components/GeoExplorerGeminiMessageParts';
+import { SiCopyTextButton } from './components/SiCopyTextButton';
 import type { AoiStaticMultiLayerLineChartDataset } from './components/AoiStaticMultiLayerLineChart';
 import { SatelliteMapAnalysisChrome, type MapToolboxNavigateHandler } from './components/SatelliteMapAnalysisChrome';
 import { SatelliteGeoAiFloatingWidget } from './components/SatelliteGeoAiFloatingWidget';
@@ -1769,6 +1770,14 @@ const REMOTE_SENSING_HIDDEN_LAYER_IDS = new Set([
 ]);
 const DEFAULT_MPC_CATALOG_URL = 'https://planetarycomputer.microsoft.com/catalog';
 const DEFAULT_MPC_ACS_ZIP_PATH = 'C:\\Users\\mohamed.abass.WUSOOM\\Downloads\\ACS_Files.zip';
+
+/** Static welcome shown above the Gemini Geo AI thread (also used for clipboard copy). */
+const SI_GEO_AI_WELCOME_GEMINI_TEXT =
+  "Hello! I'm Agro Cloud - GeoAI - Describe a place, upload an image, or ask for directions.\nWhen a location is clear, the map will fly there.";
+
+/** Static welcome for Claude / DeepSeek data assistant tab. */
+const SI_GEO_AI_WELCOME_DATA_ASSISTANT_TEXT =
+  'Ask about GIS layers using natural language. The app runs **Select by attributes**, **SQL WHERE**, and **Select by location** (within / intersect) on loaded vectors first — results appear as **interactive tables** (sort, filter, multi-select, export) and sync to the map.';
 
 export default function SatelliteIntelligence() {
   const mapboxToken = useMapboxAccessToken();
@@ -7073,13 +7082,22 @@ export default function SatelliteIntelligence() {
                       <span className="si-env-layer-name">{layer.label}</span>
                       {'meta' in layer && layer.meta ? <span className="si-env-layer-submeta">{layer.meta}</span> : null}
                     </div>
-                    {layer.toggleable ? (
-                      <span className="si-env-layer-toggle" aria-hidden>
-                        <span className="si-env-layer-toggle-knob" />
-                      </span>
-                    ) : (
-                      <span className="si-env-layer-meta-static">always on</span>
-                    )}
+                    <div className="si-env-layer-top-side">
+                      <SiCopyTextButton
+                        text={'meta' in layer && layer.meta ? `${layer.label}\n${layer.meta}` : layer.label}
+                        className="si-env-layer-copy-btn"
+                        title="Copy layer name and details"
+                        ariaLabel={`Copy ${layer.label}`}
+                        variant="compact"
+                      />
+                      {layer.toggleable ? (
+                        <span className="si-env-layer-toggle" aria-hidden>
+                          <span className="si-env-layer-toggle-knob" />
+                        </span>
+                      ) : (
+                        <span className="si-env-layer-meta-static">always on</span>
+                      )}
+                    </div>
                   </div>
                   {'actionable' in layer && layer.actionable && 'sourceLayerId' in layer && layer.sourceLayerId ? (
                     <div className="si-env-layer-actions">
@@ -8094,8 +8112,16 @@ export default function SatelliteIntelligence() {
                                     <i className="fa-solid fa-globe" />
                                   </div>
                                   <div className="si-geo-explorer-bubble">
-                                    Hello! Im Agro Cloud - GeoAI - Describe a place, upload an image, or ask for directions.
-                                    When a location is clear, the map will fly there
+                                    <div className="si-geo-explorer-bubble-with-copy">
+                                      <p className="si-geo-explorer-bubble-text">{SI_GEO_AI_WELCOME_GEMINI_TEXT}</p>
+                                      <SiCopyTextButton
+                                        text={SI_GEO_AI_WELCOME_GEMINI_TEXT}
+                                        className="si-geo-explorer-bubble-copy-btn"
+                                        title="Copy intro"
+                                        ariaLabel="Copy welcome text"
+                                        variant="compact"
+                                      />
+                                    </div>
                                   </div>
                                 </div>
                                 {visibleGeoExplorerMessages.map(msg => (
@@ -8135,8 +8161,17 @@ export default function SatelliteIntelligence() {
                                   </div>
                                 ) : null}
                               </div>
-                              {geoExplorerChatError ? (
-                                <p className="si-geo-explorer-error">{geoExplorerChatError}</p>
+                                {geoExplorerChatError ? (
+                                <div className="si-geo-explorer-error-row">
+                                  <p className="si-geo-explorer-error">{geoExplorerChatError}</p>
+                                  <SiCopyTextButton
+                                    text={geoExplorerChatError}
+                                    className="si-geo-explorer-error-copy-btn"
+                                    title="Copy error message"
+                                    ariaLabel="Copy error text"
+                                    variant="compact"
+                                  />
+                                </div>
                               ) : null}
                               {geoExplorerPendingImage ? (
                                 <p className="si-geo-explorer-pending-img">
@@ -8207,9 +8242,16 @@ export default function SatelliteIntelligence() {
                                     <i className="fa-solid fa-database" />
                                   </div>
                                   <div className="si-geo-explorer-bubble">
-                                    Ask about GIS layers using natural language. The app runs **Select by attributes**, **SQL
-                                    WHERE**, and **Select by location** (within / intersect) on loaded vectors first — results
-                                    appear as **interactive tables** (sort, filter, multi-select, export) and sync to the map.
+                                    <div className="si-geo-explorer-bubble-with-copy">
+                                      <p className="si-geo-explorer-bubble-text">{SI_GEO_AI_WELCOME_DATA_ASSISTANT_TEXT}</p>
+                                      <SiCopyTextButton
+                                        text={SI_GEO_AI_WELCOME_DATA_ASSISTANT_TEXT}
+                                        className="si-geo-explorer-bubble-copy-btn"
+                                        title="Copy intro"
+                                        ariaLabel="Copy welcome text"
+                                        variant="compact"
+                                      />
+                                    </div>
                                   </div>
                                 </div>
                                 {(geoAiModelTab === 'claude' ? visibleGeoAiClaudeMessages : visibleGeoAiDeepseekMessages).map(msg => (
@@ -8263,10 +8305,28 @@ export default function SatelliteIntelligence() {
                                 ) : null}
                               </div>
                               {geoAiModelTab === 'claude' && geoAiChatError ? (
-                                <p className="si-geo-explorer-error">{geoAiChatError}</p>
+                                <div className="si-geo-explorer-error-row">
+                                  <p className="si-geo-explorer-error">{geoAiChatError}</p>
+                                  <SiCopyTextButton
+                                    text={geoAiChatError}
+                                    className="si-geo-explorer-error-copy-btn"
+                                    title="Copy error message"
+                                    ariaLabel="Copy error text"
+                                    variant="compact"
+                                  />
+                                </div>
                               ) : null}
                               {geoAiModelTab === 'deepseek' && geoDeepseekChatError ? (
-                                <p className="si-geo-explorer-error">{geoDeepseekChatError}</p>
+                                <div className="si-geo-explorer-error-row">
+                                  <p className="si-geo-explorer-error">{geoDeepseekChatError}</p>
+                                  <SiCopyTextButton
+                                    text={geoDeepseekChatError}
+                                    className="si-geo-explorer-error-copy-btn"
+                                    title="Copy error message"
+                                    ariaLabel="Copy error text"
+                                    variant="compact"
+                                  />
+                                </div>
                               ) : null}
                               <GeoExplorerGeminiInputRow
                                 cssPrefix="si-geo-explorer"
@@ -9551,7 +9611,7 @@ export default function SatelliteIntelligence() {
           }}
         >
           <div
-            className={`gis-modal gis-modal-compact ddb-add-source-modal${siAddLayerWizard === 'home' ? ' ddb-add-source-modal--home' : ''}`}
+            className={`si-add-source-modal gis-modal gis-modal-compact ddb-add-source-modal${siAddLayerWizard === 'home' ? ' ddb-add-source-modal--home' : ''}`}
             role="dialog"
             aria-modal="true"
             aria-labelledby="si-layer-modal-title"

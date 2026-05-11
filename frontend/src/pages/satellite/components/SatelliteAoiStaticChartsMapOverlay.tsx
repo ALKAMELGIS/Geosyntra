@@ -1,5 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { AoiStaticMultiLayerLineChart, type AoiStaticMultiLayerLineChartDataset } from './AoiStaticMultiLayerLineChart';
+import {
+  AoiStaticMultiLayerLineChart,
+  type AoiStaticExportLngLat,
+  type AoiStaticMultiLayerLineChartDataset,
+} from './AoiStaticMultiLayerLineChart';
 import {
   STATIC_AOI_CHART_LAYER_OPTIONS,
   type StaticAoiChartLayerId,
@@ -28,6 +32,7 @@ export type SatelliteAoiStaticChartsMapOverlayProps = {
   staticMultiLineLabels: string[];
   staticMultiLineDatasets: AoiStaticMultiLayerLineChartDataset[];
   staticMultiLineHasLst: boolean;
+  staticChartExportLngLatPerRow?: AoiStaticExportLngLat[];
   weeklyMeans: number[];
   pivotBars: Array<{ name: string; value: number }>;
 };
@@ -59,6 +64,7 @@ export function SatelliteAoiStaticChartsMapOverlay({
   staticMultiLineLabels,
   staticMultiLineDatasets,
   staticMultiLineHasLst,
+  staticChartExportLngLatPerRow,
   weeklyMeans,
   pivotBars,
 }: SatelliteAoiStaticChartsMapOverlayProps) {
@@ -210,6 +216,7 @@ export function SatelliteAoiStaticChartsMapOverlay({
           labels={staticMultiLineLabels}
           datasets={staticMultiLineDatasets}
           hasLst={staticMultiLineHasLst}
+          exportLngLatPerRow={staticChartExportLngLatPerRow}
         />
       </div>
 

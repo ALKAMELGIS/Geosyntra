@@ -1,6 +1,9 @@
 import './satelliteMapAnalysisChrome.css';
 import { useLayoutEffect, useMemo, useRef, type ReactNode, type RefObject } from 'react';
-import type { AoiStaticMultiLayerLineChartDataset } from './AoiStaticMultiLayerLineChart';
+import type {
+  AoiStaticExportLngLat,
+  AoiStaticMultiLayerLineChartDataset,
+} from './AoiStaticMultiLayerLineChart';
 import {
   type StaticAoiChartLayerId,
 } from '../utils/staticAoiMultiChartData';
@@ -46,6 +49,8 @@ export type SatelliteMapAnalysisToolbarProps = {
   staticMultiLineLabels?: string[];
   staticMultiLineDatasets?: AoiStaticMultiLayerLineChartDataset[];
   staticMultiLineHasLst?: boolean;
+  /** One WGS84 point per timeline row for CSV export (inside AOI when polygon). */
+  staticChartExportLngLatPerRow?: AoiStaticExportLngLat[];
 };
 
 export function SatelliteMapAnalysisToolbar({
@@ -67,6 +72,7 @@ export function SatelliteMapAnalysisToolbar({
   staticMultiLineLabels = [],
   staticMultiLineDatasets = [],
   staticMultiLineHasLst = false,
+  staticChartExportLngLatPerRow,
 }: SatelliteMapAnalysisToolbarProps) {
   return (
     <SatelliteContextualAnalysisDock
@@ -86,6 +92,7 @@ export function SatelliteMapAnalysisToolbar({
       staticMultiLineLabels={staticMultiLineLabels}
       staticMultiLineDatasets={staticMultiLineDatasets}
       staticMultiLineHasLst={staticMultiLineHasLst}
+      staticChartExportLngLatPerRow={staticChartExportLngLatPerRow}
       staticComparisonLayers={staticComparisonLayers}
       onStaticComparisonLayerToggle={onStaticComparisonLayerToggle}
     />
@@ -121,6 +128,7 @@ export type SatelliteMapAnalysisChromeProps = {
   staticMultiLineLabels: string[];
   staticMultiLineDatasets: AoiStaticMultiLayerLineChartDataset[];
   staticMultiLineHasLst: boolean;
+  staticChartExportLngLatPerRow?: AoiStaticExportLngLat[];
   staticComparisonLayers: StaticAoiChartLayerId[];
   onStaticComparisonLayerToggle: (id: StaticAoiChartLayerId) => void;
   /** With `mapLoaded`, portals the contextual dock into `mapboxgl-canvas-container` for a true in-map overlay. */
@@ -187,6 +195,7 @@ export function SatelliteMapAnalysisChrome(props: SatelliteMapAnalysisChromeProp
     staticMultiLineLabels,
     staticMultiLineDatasets,
     staticMultiLineHasLst,
+    staticChartExportLngLatPerRow,
     staticComparisonLayers,
     onStaticComparisonLayerToggle,
     mapRef,
@@ -257,6 +266,7 @@ export function SatelliteMapAnalysisChrome(props: SatelliteMapAnalysisChromeProp
       staticMultiLineLabels={staticMultiLineLabels}
       staticMultiLineDatasets={staticMultiLineDatasets}
       staticMultiLineHasLst={staticMultiLineHasLst}
+      staticChartExportLngLatPerRow={staticChartExportLngLatPerRow}
       staticComparisonLayers={staticComparisonLayers}
       onStaticComparisonLayerToggle={onStaticComparisonLayerToggle}
       weeklyMeans={weeklyMeans}
@@ -277,7 +287,7 @@ export function SatelliteMapAnalysisChrome(props: SatelliteMapAnalysisChromeProp
     <>
       {timelineVisible && weeklyChips.length > 0 ? (
         <div className="si-map-analysis-timeline" role="region" aria-label="Imagery timeline">
-          <div className="si-map-analysis-timeline-inner">
+          <div className="si-map-analysis-timeline-inner si-map-analysis-timeline-inner--eo">
             <div className="si-map-analysis-timeline-transport">
               <button
                 type="button"

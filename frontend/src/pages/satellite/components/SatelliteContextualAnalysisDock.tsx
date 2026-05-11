@@ -1,6 +1,6 @@
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useLanguage } from '@/lib/i18n';
-import type { AoiStaticMultiLayerLineChartDataset } from './AoiStaticMultiLayerLineChart';
+import type { AoiStaticExportLngLat, AoiStaticMultiLayerLineChartDataset } from './AoiStaticMultiLayerLineChart';
 import { AoiStaticMultiLayerLineChart } from './AoiStaticMultiLayerLineChart';
 import {
   STATIC_AOI_CHART_LAYER_OPTIONS,
@@ -40,6 +40,7 @@ export type SatelliteContextualAnalysisDockProps = {
   staticMultiLineLabels?: string[];
   staticMultiLineDatasets?: AoiStaticMultiLayerLineChartDataset[];
   staticMultiLineHasLst?: boolean;
+  staticChartExportLngLatPerRow?: AoiStaticExportLngLat[];
   staticComparisonLayers?: StaticAoiChartLayerId[];
   onStaticComparisonLayerToggle?: (id: StaticAoiChartLayerId) => void;
   weeklyMeans?: number[];
@@ -225,6 +226,7 @@ export function SatelliteContextualAnalysisDock(props: SatelliteContextualAnalys
     staticMultiLineLabels = [],
     staticMultiLineDatasets = [],
     staticMultiLineHasLst = false,
+    staticChartExportLngLatPerRow,
     staticComparisonLayers = [],
     onStaticComparisonLayerToggle,
     weeklyMeans = [],
@@ -874,6 +876,7 @@ export function SatelliteContextualAnalysisDock(props: SatelliteContextualAnalys
                             labels={staticMultiLineLabels}
                             datasets={staticMultiLineDatasets}
                             hasLst={staticMultiLineHasLst}
+                            exportLngLatPerRow={staticChartExportLngLatPerRow}
                           />
                         </div>
                       ))}

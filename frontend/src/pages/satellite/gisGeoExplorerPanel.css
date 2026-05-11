@@ -204,6 +204,28 @@
   word-break: break-word;
 }
 
+.gis-map-tool-panel .gis-geo-explorer-bubble-with-copy {
+  display: flex;
+  gap: 6px;
+  align-items: flex-start;
+  width: 100%;
+  min-width: 0;
+}
+
+.gis-map-tool-panel .gis-geo-explorer-bubble-with-copy .gis-geo-explorer-bubble-text {
+  flex: 1;
+  min-width: 0;
+}
+
+.gis-map-tool-panel .gis-geo-explorer-bubble-copy-btn {
+  margin-top: 1px;
+  align-self: flex-start;
+}
+
+.gis-map-tool-panel .gis-geo-explorer-bubble-with-copy + .gis-geo-explorer-bubble-with-copy {
+  margin-top: 8px;
+}
+
 .gis-map-tool-panel .gis-geo-explorer-bubble-meta {
   margin: 8px 0 0;
   font-size: 10px;
@@ -227,11 +249,35 @@
   min-width: 0;
 }
 
+.gis-map-tool-panel .gis-geo-explorer-edit-q-tools {
+  display: flex;
+  flex-direction: row;
+  gap: 4px;
+  flex-shrink: 0;
+  align-items: flex-start;
+  margin: -4px -6px 0 0;
+}
+
+.gis-map-tool-panel .gis-geo-explorer-edit-q-copy-btn {
+  flex-shrink: 0;
+  width: 28px;
+  height: 28px;
+  margin: 0;
+  padding: 0;
+  border-radius: 8px;
+  opacity: 0.35;
+}
+
+.gis-map-tool-panel .gis-geo-explorer-edit-q-wrap:hover .gis-geo-explorer-edit-q-copy-btn,
+.gis-map-tool-panel .gis-geo-explorer-edit-q-copy-btn:focus-visible {
+  opacity: 1;
+}
+
 .gis-map-tool-panel .gis-geo-explorer-edit-q-icon-btn {
   flex-shrink: 0;
   width: 28px;
   height: 28px;
-  margin: -4px -6px 0 0;
+  margin: 0;
   padding: 0;
   border: none;
   border-radius: 8px;
@@ -392,6 +438,25 @@
   align-items: center;
   gap: 8px;
   color: #cbd5e1;
+}
+
+.gis-map-tool-panel .gis-geo-explorer-error-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin: 0 0 5px;
+  min-width: 0;
+}
+
+.gis-map-tool-panel .gis-geo-explorer-error-row .gis-geo-explorer-error {
+  flex: 1;
+  margin: 0;
+  min-width: 0;
+}
+
+.gis-map-tool-panel .gis-geo-explorer-error-copy-btn {
+  flex-shrink: 0;
+  margin-top: 1px;
 }
 
 .gis-map-tool-panel .gis-geo-explorer-error {
@@ -809,7 +874,8 @@
   }
 }
 
-.gis-map-tool-panel .gis-geo-explorer-bubble-text + .gis-geo-explorer-dyn-table {
+.gis-map-tool-panel .gis-geo-explorer-bubble-text + .gis-geo-explorer-dyn-table,
+.gis-map-tool-panel .gis-geo-explorer-bubble-with-copy + .gis-geo-explorer-dyn-table {
   margin-top: 10px;
 }
 

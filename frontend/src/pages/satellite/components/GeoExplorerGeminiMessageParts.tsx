@@ -4,6 +4,7 @@ import { splitTextIntoMarkdownSegments, type GeoMarkdownSegment } from '../../..
 import type { GeoExplorerCssPrefix } from './GeoExplorerGeminiChatBody'
 import { GeoExplorerDynamicTable, type GeoExplorerMapAction } from './GeoExplorerDynamicTable'
 import { GeoAiEditQuestionTool } from './GeoAiEditQuestionTool'
+import { SiCopyTextButton } from './SiCopyTextButton'
 
 function pfx(prefix: GeoExplorerCssPrefix, part: string): string {
   return `${prefix}-${part}`
@@ -81,7 +82,16 @@ export function GeoExplorerGeminiMessageParts(props: GeoExplorerGeminiMessagePar
               suggestNumericFields={suggestNumericFields}
             />
           ) : (
-            <p className={pfx(cssPrefix, 'bubble-text')}>{text}</p>
+            <div className={pfx(cssPrefix, 'bubble-with-copy')}>
+              <p className={pfx(cssPrefix, 'bubble-text')}>{text}</p>
+              <SiCopyTextButton
+                text={text}
+                className={pfx(cssPrefix, 'bubble-copy-btn')}
+                title="Copy message"
+                ariaLabel="Copy message text"
+                variant="compact"
+              />
+            </div>
           )
         ) : null}
         {hasImage ? (
@@ -99,9 +109,16 @@ export function GeoExplorerGeminiMessageParts(props: GeoExplorerGeminiMessagePar
     <>
       {segments.map((seg, i) =>
         seg.type === 'text' ? (
-          <p key={`t-${i}`} className={pfx(cssPrefix, 'bubble-text')}>
-            {seg.text}
-          </p>
+          <div key={`t-${i}`} className={pfx(cssPrefix, 'bubble-with-copy')}>
+            <p className={pfx(cssPrefix, 'bubble-text')}>{seg.text}</p>
+            <SiCopyTextButton
+              text={seg.text}
+              className={pfx(cssPrefix, 'bubble-copy-btn')}
+              title="Copy reply"
+              ariaLabel="Copy assistant reply"
+              variant="compact"
+            />
+          </div>
         ) : (
           <GeoExplorerDynamicTable
             key={`tbl-${i}`}
