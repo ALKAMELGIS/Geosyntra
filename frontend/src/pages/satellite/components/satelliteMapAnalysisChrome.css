@@ -36,14 +36,21 @@
   gap: 14px;
   padding: 9px 14px 10px;
   border-radius: 999px;
-  background: linear-gradient(165deg, rgba(30, 41, 59, 0.62), rgba(15, 23, 42, 0.78));
+  background: linear-gradient(
+    165deg,
+    rgba(37, 99, 235, 0.38),
+    rgba(30, 64, 175, 0.32) 40%,
+    rgba(15, 23, 42, 0.78)
+  );
   box-shadow:
-    0 20px 48px rgba(2, 6, 23, 0.48),
-    0 1px 0 rgba(255, 255, 255, 0.06) inset;
-  outline: 1px solid rgba(148, 163, 184, 0.12);
+    0 20px 48px rgba(2, 6, 23, 0.55),
+    0 0 0 1px rgba(96, 165, 250, 0.22) inset,
+    0 1px 0 rgba(191, 219, 254, 0.12) inset;
+  outline: 1px solid rgba(59, 130, 246, 0.28);
   outline-offset: 0;
   border: none;
-  backdrop-filter: blur(16px) saturate(1.25);
+  backdrop-filter: blur(18px) saturate(1.35);
+  -webkit-backdrop-filter: blur(18px) saturate(1.35);
 }
 
 .si-map-analysis-timeline-inner--eo {
@@ -58,8 +65,8 @@
   align-self: center;
   padding: 3px;
   border-radius: 14px;
-  background: rgba(2, 6, 23, 0.28);
-  box-shadow: inset 0 0 0 1px rgba(148, 163, 184, 0.1);
+  background: rgba(30, 58, 138, 0.42);
+  box-shadow: inset 0 0 0 1px rgba(147, 197, 253, 0.2);
 }
 
 .si-map-analysis-tl-btn {
@@ -67,14 +74,14 @@
   height: 30px;
   border-radius: 10px;
   border: none;
-  background: rgba(15, 23, 42, 0.35);
-  color: #cbd5e1;
+  background: rgba(30, 64, 175, 0.45);
+  color: #e0f2fe;
   cursor: pointer;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   font-size: 11px;
-  box-shadow: inset 0 0 0 1px rgba(148, 163, 184, 0.12);
+  box-shadow: inset 0 0 0 1px rgba(147, 197, 253, 0.22);
   transition:
     background 0.16s ease,
     color 0.16s ease,
@@ -83,7 +90,7 @@
 }
 
 .si-map-analysis-tl-btn:hover {
-  background: rgba(51, 65, 85, 0.55);
+  background: rgba(59, 130, 246, 0.38);
   box-shadow: inset 0 0 0 1px var(--si-tl-ring);
   color: #f8fafc;
 }
@@ -140,8 +147,8 @@
   padding: 4px 6px;
   margin: 0;
   border-radius: 12px;
-  background: rgba(2, 6, 23, 0.32);
-  box-shadow: inset 0 0 0 1px rgba(148, 163, 184, 0.08);
+  background: rgba(30, 58, 138, 0.4);
+  box-shadow: inset 0 0 0 1px rgba(96, 165, 250, 0.2);
   scrollbar-width: none;
   -ms-overflow-style: none;
   -webkit-overflow-scrolling: touch;
@@ -162,8 +169,8 @@
 .si-map-analysis-chip {
   flex: 0 0 auto;
   border: none;
-  background: rgba(248, 250, 252, 0.06);
-  color: #e2e8f0;
+  background: rgba(59, 130, 246, 0.18);
+  color: #e0f2fe;
   font-size: 10px;
   font-weight: 650;
   letter-spacing: 0.03em;
@@ -171,7 +178,7 @@
   padding: 5px 9px;
   border-radius: 999px;
   cursor: pointer;
-  box-shadow: inset 0 0 0 1px rgba(148, 163, 184, 0.12);
+  box-shadow: inset 0 0 0 1px rgba(147, 197, 253, 0.35);
   transition:
     background 0.16s ease,
     box-shadow 0.16s ease,
@@ -181,7 +188,8 @@
 
 .si-map-analysis-chip:hover {
   box-shadow: inset 0 0 0 1px var(--si-tl-ring);
-  background: rgba(30, 41, 59, 0.55);
+  background: rgba(96, 165, 250, 0.28);
+  color: #f8fafc;
 }
 
 .si-map-analysis-chip--active {
@@ -208,7 +216,7 @@
   border: none;
   border-radius: 8px;
   background: transparent;
-  color: rgba(148, 163, 184, 0.85);
+  color: rgba(186, 230, 253, 0.82);
   font-size: 9px;
   cursor: pointer;
   display: inline-flex;
@@ -219,7 +227,7 @@
 
 .si-map-analysis-tl-nudge:hover {
   color: #f8fafc;
-  background: rgba(255, 255, 255, 0.06);
+  background: rgba(59, 130, 246, 0.22);
 }
 
 .si-map-analysis-timeline-scrub-core {
@@ -236,7 +244,7 @@
   font-weight: 700;
   font-variant-numeric: tabular-nums;
   letter-spacing: 0.02em;
-  color: rgba(203, 213, 225, 0.88);
+  color: rgba(224, 242, 254, 0.92);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -258,8 +266,8 @@
   height: 6px;
   border-radius: 999px;
   overflow: hidden;
-  background: rgba(2, 6, 23, 0.45);
-  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.45);
+  background: rgba(15, 23, 42, 0.55);
+  box-shadow: inset 0 1px 3px rgba(15, 23, 42, 0.55), inset 0 0 0 1px rgba(96, 165, 250, 0.15);
 }
 
 .si-map-analysis-timeline-progress-bg {
@@ -296,7 +304,7 @@
   min-width: 112px;
   max-width: min(34vw, 210px);
   padding-inline-start: 12px;
-  border-inline-start: 1px solid rgba(148, 163, 184, 0.1);
+  border-inline-start: 1px solid rgba(96, 165, 250, 0.28);
 }
 
 .si-map-analysis-timeline-date-block {
@@ -313,7 +321,7 @@
   font-weight: 800;
   letter-spacing: 0.1em;
   text-transform: uppercase;
-  color: rgba(148, 163, 184, 0.72);
+  color: rgba(186, 230, 253, 0.78);
 }
 
 .si-map-analysis-timeline-date {
@@ -339,9 +347,9 @@
   font-variant-numeric: tabular-nums;
   letter-spacing: 0.03em;
   cursor: pointer;
-  color: rgba(248, 250, 252, 0.96);
-  background: rgba(255, 255, 255, 0.08);
-  box-shadow: inset 0 0 0 1px rgba(148, 163, 184, 0.16);
+  color: #e0f2fe;
+  background: rgba(37, 99, 235, 0.35);
+  box-shadow: inset 0 0 0 1px rgba(147, 197, 253, 0.4);
   transition: background 0.15s ease, box-shadow 0.15s ease, color 0.15s ease;
 }
 
@@ -362,44 +370,53 @@
 }
 
 html[data-theme='light'] .si-map-analysis-timeline-inner {
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.94), rgba(241, 245, 249, 0.98));
-  outline-color: rgba(15, 23, 42, 0.06);
+  background: linear-gradient(
+    165deg,
+    rgba(37, 99, 235, 0.38),
+    rgba(30, 64, 175, 0.32) 40%,
+    rgba(15, 23, 42, 0.78)
+  );
+  outline-color: rgba(59, 130, 246, 0.28);
   box-shadow:
-    0 16px 40px rgba(15, 23, 42, 0.12),
-    inset 0 1px 0 rgba(255, 255, 255, 1);
+    0 20px 48px rgba(2, 6, 23, 0.45),
+    0 0 0 1px rgba(96, 165, 250, 0.22) inset,
+    0 1px 0 rgba(191, 219, 254, 0.12) inset;
+  backdrop-filter: blur(18px) saturate(1.35);
+  -webkit-backdrop-filter: blur(18px) saturate(1.35);
 }
 
 html[data-theme='light'] .si-map-analysis-timeline-transport {
-  background: rgba(241, 245, 249, 0.85);
-  box-shadow: inset 0 0 0 1px rgba(15, 23, 42, 0.06);
+  background: rgba(30, 58, 138, 0.42);
+  box-shadow: inset 0 0 0 1px rgba(147, 197, 253, 0.2);
 }
 
 html[data-theme='light'] .si-map-analysis-tl-btn {
-  background: rgba(255, 255, 255, 0.9);
-  color: #475569;
-  box-shadow: inset 0 0 0 1px rgba(15, 23, 42, 0.06);
+  background: rgba(30, 64, 175, 0.45);
+  color: #e0f2fe;
+  box-shadow: inset 0 0 0 1px rgba(147, 197, 253, 0.22);
 }
 
 html[data-theme='light'] .si-map-analysis-tl-btn:hover {
-  background: #fff;
-  color: #0f172a;
+  background: rgba(59, 130, 246, 0.38);
+  color: #f8fafc;
   box-shadow: inset 0 0 0 1px var(--si-tl-ring);
 }
 
 html[data-theme='light'] .si-map-analysis-timeline-chips {
-  background: rgba(255, 255, 255, 0.75);
-  box-shadow: inset 0 0 0 1px rgba(15, 23, 42, 0.06);
+  background: rgba(30, 58, 138, 0.4);
+  box-shadow: inset 0 0 0 1px rgba(96, 165, 250, 0.2);
 }
 
 html[data-theme='light'] .si-map-analysis-chip {
-  background: #fff;
-  color: #334155;
-  box-shadow: inset 0 0 0 1px rgba(15, 23, 42, 0.08);
+  background: rgba(59, 130, 246, 0.18);
+  color: #e0f2fe;
+  box-shadow: inset 0 0 0 1px rgba(147, 197, 253, 0.35);
 }
 
 html[data-theme='light'] .si-map-analysis-chip:hover {
-  background: #f8fafc;
-  box-shadow: inset 0 0 0 1px rgba(99, 102, 241, 0.25);
+  background: rgba(96, 165, 250, 0.28);
+  color: #f8fafc;
+  box-shadow: inset 0 0 0 1px rgba(99, 102, 241, 0.35);
 }
 
 html[data-theme='light'] .si-map-analysis-chip--active {
@@ -407,13 +424,13 @@ html[data-theme='light'] .si-map-analysis-chip--active {
 }
 
 html[data-theme='light'] .si-map-analysis-timeline-range-edge {
-  color: #475569;
+  color: rgba(224, 242, 254, 0.92);
   font-weight: 750;
 }
 
 html[data-theme='light'] .si-map-analysis-timeline-progress-track {
-  background: rgba(226, 232, 240, 0.98);
-  box-shadow: inset 0 1px 3px rgba(15, 23, 42, 0.06);
+  background: rgba(15, 23, 42, 0.55);
+  box-shadow: inset 0 1px 3px rgba(15, 23, 42, 0.55), inset 0 0 0 1px rgba(96, 165, 250, 0.15);
 }
 
 html[data-theme='light'] .si-map-analysis-timeline-progress-fill {
@@ -421,78 +438,88 @@ html[data-theme='light'] .si-map-analysis-timeline-progress-fill {
 }
 
 html[data-theme='light'] .si-map-analysis-timeline-date-label {
-  color: #64748b;
+  color: rgba(186, 230, 253, 0.78);
 }
 
 html[data-theme='light'] .si-map-analysis-timeline-date {
-  color: #0f172a;
+  color: #f8fafc;
 }
 
 html[data-theme='light'] .si-map-analysis-timeline-meta {
-  border-inline-start-color: rgba(15, 23, 42, 0.08);
+  border-inline-start-color: rgba(96, 165, 250, 0.28);
 }
 
 html[data-theme='light'] .si-map-analysis-tl-speed {
-  color: #0f172a;
-  background: #fff;
-  box-shadow: inset 0 0 0 1px rgba(15, 23, 42, 0.08);
+  color: #e0f2fe;
+  background: rgba(37, 99, 235, 0.35);
+  box-shadow: inset 0 0 0 1px rgba(147, 197, 253, 0.4);
 }
 
 html[data-theme='light'] .si-map-analysis-tl-speed:hover {
-  color: #065f46;
-  background: rgba(236, 253, 245, 0.95);
+  color: #ecfdf5;
+  background: rgba(34, 197, 94, 0.18);
+  box-shadow: inset 0 0 0 1px var(--si-tl-ring);
 }
 
 html[data-theme='light'] .si-map-analysis-tl-nudge {
-  color: #64748b;
+  color: rgba(186, 230, 253, 0.82);
 }
 
 html[data-theme='light'] .si-map-analysis-tl-nudge:hover {
-  color: #0f172a;
-  background: rgba(15, 23, 42, 0.05);
+  color: #f8fafc;
+  background: rgba(59, 130, 246, 0.22);
 }
 
 /* System theme: document has no data-theme on <html> when themeMode is "system" + OS light */
 @media (prefers-color-scheme: light) {
   html:not([data-theme]) .si-map-analysis-timeline-inner {
-    background: linear-gradient(180deg, rgba(255, 255, 255, 0.94), rgba(241, 245, 249, 0.98));
-    outline-color: rgba(15, 23, 42, 0.06);
+    background: linear-gradient(
+      165deg,
+      rgba(37, 99, 235, 0.38),
+      rgba(30, 64, 175, 0.32) 40%,
+      rgba(15, 23, 42, 0.78)
+    );
+    outline-color: rgba(59, 130, 246, 0.28);
     box-shadow:
-      0 16px 40px rgba(15, 23, 42, 0.12),
-      inset 0 1px 0 rgba(255, 255, 255, 1);
+      0 20px 48px rgba(2, 6, 23, 0.45),
+      0 0 0 1px rgba(96, 165, 250, 0.22) inset,
+      0 1px 0 rgba(191, 219, 254, 0.12) inset;
+    backdrop-filter: blur(18px) saturate(1.35);
+    -webkit-backdrop-filter: blur(18px) saturate(1.35);
   }
 
   html:not([data-theme]) .si-map-analysis-timeline-transport {
-    background: rgba(241, 245, 249, 0.85);
-    box-shadow: inset 0 0 0 1px rgba(15, 23, 42, 0.06);
+    background: rgba(30, 58, 138, 0.42);
+    box-shadow: inset 0 0 0 1px rgba(147, 197, 253, 0.2);
   }
 
   html:not([data-theme]) .si-map-analysis-tl-btn {
-    background: rgba(255, 255, 255, 0.9);
-    color: #475569;
-    box-shadow: inset 0 0 0 1px rgba(15, 23, 42, 0.06);
+    background: rgba(30, 64, 175, 0.45);
+    color: #e0f2fe;
+    box-shadow: inset 0 0 0 1px rgba(147, 197, 253, 0.22);
   }
 
   html:not([data-theme]) .si-map-analysis-tl-btn:hover {
-    background: #fff;
-    color: #0f172a;
+    background: rgba(59, 130, 246, 0.38);
+    color: #f8fafc;
     box-shadow: inset 0 0 0 1px var(--si-tl-ring);
   }
 
   html:not([data-theme]) .si-map-analysis-timeline-chips {
-    background: rgba(255, 255, 255, 0.75);
-    box-shadow: inset 0 0 0 1px rgba(15, 23, 42, 0.06);
+    background: rgba(30, 58, 138, 0.4);
+    box-shadow: inset 0 0 0 1px rgba(96, 165, 250, 0.2);
   }
 
   html:not([data-theme]) .si-map-analysis-chip {
-    background: #fff;
-    color: #334155;
-    box-shadow: inset 0 0 0 1px rgba(15, 23, 42, 0.08);
+    background: rgba(59, 130, 246, 0.18);
+    color: #e0f2fe;
+    box-shadow: inset 0 0 0 1px rgba(147, 197, 253, 0.35);
   }
 
   html:not([data-theme]) .si-map-analysis-chip:hover {
-    background: #f8fafc;
-    box-shadow: inset 0 0 0 1px rgba(99, 102, 241, 0.25);
+    background: rgba(96, 165, 250, 0.28);
+    color: #f8fafc;
+    box-shadow: inset 0 0 0 1px rgba(99, 102, 241, 0.35);
   }
 
   html:not([data-theme]) .si-map-analysis-chip--active {
@@ -500,13 +527,13 @@ html[data-theme='light'] .si-map-analysis-tl-nudge:hover {
   }
 
   html:not([data-theme]) .si-map-analysis-timeline-range-edge {
-    color: #475569;
+    color: rgba(224, 242, 254, 0.92);
     font-weight: 750;
   }
 
   html:not([data-theme]) .si-map-analysis-timeline-progress-track {
-    background: rgba(226, 232, 240, 0.98);
-    box-shadow: inset 0 1px 3px rgba(15, 23, 42, 0.06);
+    background: rgba(15, 23, 42, 0.55);
+    box-shadow: inset 0 1px 3px rgba(15, 23, 42, 0.55), inset 0 0 0 1px rgba(96, 165, 250, 0.15);
   }
 
   html:not([data-theme]) .si-map-analysis-timeline-progress-fill {
@@ -514,35 +541,36 @@ html[data-theme='light'] .si-map-analysis-tl-nudge:hover {
   }
 
   html:not([data-theme]) .si-map-analysis-timeline-date-label {
-    color: #64748b;
+    color: rgba(186, 230, 253, 0.78);
   }
 
   html:not([data-theme]) .si-map-analysis-timeline-date {
-    color: #0f172a;
+    color: #f8fafc;
   }
 
   html:not([data-theme]) .si-map-analysis-timeline-meta {
-    border-inline-start-color: rgba(15, 23, 42, 0.08);
+    border-inline-start-color: rgba(96, 165, 250, 0.28);
   }
 
   html:not([data-theme]) .si-map-analysis-tl-speed {
-    color: #0f172a;
-    background: #fff;
-    box-shadow: inset 0 0 0 1px rgba(15, 23, 42, 0.08);
+    color: #e0f2fe;
+    background: rgba(37, 99, 235, 0.35);
+    box-shadow: inset 0 0 0 1px rgba(147, 197, 253, 0.4);
   }
 
   html:not([data-theme]) .si-map-analysis-tl-speed:hover {
-    color: #065f46;
-    background: rgba(236, 253, 245, 0.95);
+    color: #ecfdf5;
+    background: rgba(34, 197, 94, 0.18);
+    box-shadow: inset 0 0 0 1px var(--si-tl-ring);
   }
 
   html:not([data-theme]) .si-map-analysis-tl-nudge {
-    color: #64748b;
+    color: rgba(186, 230, 253, 0.82);
   }
 
   html:not([data-theme]) .si-map-analysis-tl-nudge:hover {
-    color: #0f172a;
-    background: rgba(15, 23, 42, 0.05);
+    color: #f8fafc;
+    background: rgba(59, 130, 246, 0.22);
   }
 }
 
@@ -1515,6 +1543,56 @@ html[data-theme='light'] .si-map-analysis-tl-nudge:hover {
   padding-bottom: 6px;
 }
 
+/* Add data — circular + above Layers (Satellite Intelligence map toolbox) */
+.si-sat-ctx-rail-add-data {
+  margin-bottom: 6px;
+}
+
+.si-sat-ctx-rail-add-data .si-sat-ctx-rail-label {
+  text-align: start;
+}
+
+.si-sat-ctx-rail-add-data__mark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 999px;
+  flex-shrink: 0;
+  background: linear-gradient(160deg, #f5f3ff, #e9e4ff);
+  color: #312e81;
+  border: 1px solid rgba(167, 139, 250, 0.55);
+  box-shadow:
+    0 2px 10px rgba(0, 0, 0, 0.18),
+    inset 0 1px 0 rgba(255, 255, 255, 0.65);
+  font-size: 15px;
+  line-height: 1;
+}
+
+.si-sat-ctx-rail-add-data:hover .si-sat-ctx-rail-add-data__mark {
+  border-color: rgba(52, 211, 153, 0.65);
+  color: #14532d;
+  background: linear-gradient(160deg, #ecfdf5, #d1fae5);
+}
+
+.si-sat-ctx-dock--light .si-sat-ctx-rail-add-data__mark {
+  background: linear-gradient(160deg, #ffffff, #eef2ff);
+  color: #3730a3;
+  border-color: rgba(79, 70, 229, 0.35);
+  box-shadow: 0 1px 6px rgba(15, 23, 42, 0.12);
+}
+
+.si-sat-ctx-rail-add-data.si-sat-ctx-rail-btn--map-collapsed {
+  justify-content: center;
+}
+
+.si-sat-ctx-rail-add-data.si-sat-ctx-rail-btn--map-collapsed .si-sat-ctx-rail-add-data__mark {
+  width: 38px;
+  height: 38px;
+  font-size: 16px;
+}
+
 .si-sat-ctx-rail-group-kicker {
   flex-shrink: 0;
   padding: 4px 2px 2px;
@@ -2454,9 +2532,14 @@ html[data-theme='light'] .si-map-analysis-tl-nudge:hover {
 .si-sat-ctx-panel-body--processing-embed-host .si-env-panel {
   flex: 1 1 auto;
   min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
 }
 
-.si-sat-ctx-panel-body--processing-embed-host .si-sat-proc-panel {
+.si-sat-ctx-panel-body--processing-embed-host
+  .si-env-panel.si-env-panel--satellite-toolbox.si-env-panel--single-surface
+  > :not(.si-env-panel-header) {
   flex: 1 1 auto;
   min-height: 0;
   overflow: auto;
