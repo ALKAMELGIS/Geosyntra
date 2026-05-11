@@ -617,6 +617,40 @@ export function buildGeoAiLayerPopupAttributeRows(
   })
 }
 
+/** One attribute row for popup / configuration (stable field key + display label). */
+export type GeoAiPopupAttrRow = { key: string; label: string; value: string }
+
+/**
+ * All attribute rows (up to max) for popup configuration and “show everything” panels.
+ * Unlike {@link buildGeoAiLayerPopupAttributeRows}, does not trim to a query-compact subset.
+ */
+export function buildGeoAiLayerPopupAllAttributeRows(
+  hit: Pick<LayerQueryMatch, 'properties' | 'arcgisLayerDefinition'>,
+  options?: { maxRows?: number; inspectCoords?: { lng: number; lat: number } },
+): GeoAiPopupAttrRow[] {
+  const cap = Math.min(600, Math.max(4, options?.maxRows ?? 320))
+  const p = hit.properties
+  if (!p || typeof p !== 'object') return []
+  const arc = hit.arcgisLayerDefinition
+  const ft = { properties: p as Record<string, unknown> }
+  const displayed: Record<string, string> =
+    arc && Object.keys(p).length
+      ? formatFeaturePropertiesForGeoAi(p as Record<string, unknown>, ft, arc)
+      : Object.fromEntries(
+          Object.entries(p).map(([k, v]) => [k, v === null || v === undefined ? '—' : String(v)]),
+        )
+  const allKeys = Object.keys(p).filter(k => k && !k.startsWith('mapbox_'))
+  const passAnchor = (k: string) =>
+    !isRedundantAnchorCoordField(k, (p as Record<string, unknown>)[k], options?.inspectCoords)
+  const keys = allKeys.filter(passAnchor).sort((a, b) => a.localeCompare(b)).slice(0, cap)
+  return keys.map(key => {
+    const alias = fieldAliasFromArc(arc, key)
+    const raw = displayed[key]
+    const v = typeof raw === 'string' ? raw.trim() : raw == null ? '' : String(raw)
+    return { key, label: (alias && alias.trim()) || key, value: v || '—' }
+  })
+}
+
 /** Human-readable area / country hints from feature attributes (Geo AI map card header). */
 export function pickGeoAiHumanPlaceFields(
   props: Record<string, unknown> | null | undefined,

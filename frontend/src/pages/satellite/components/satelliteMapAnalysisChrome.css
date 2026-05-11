@@ -1587,11 +1587,100 @@ html[data-theme='light'] .si-map-analysis-tl-nudge:hover {
   color: var(--si-ctx-muted);
 }
 
+.si-sat-ctx-layers-options-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.si-sat-ctx-layers-options-stack > p {
+  margin-top: 0;
+}
+
 .si-sat-ctx-toolbox-opt-actions {
   display: flex;
   flex-direction: column;
   gap: 8px;
   margin-top: 10px;
+}
+
+/* Layers → Options: per-layer popup configuration (parent supplies JSX) */
+.si-map-toolbox-layer-popup-cfg {
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px solid rgba(148, 163, 184, 0.22);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.si-map-toolbox-layer-popup-cfg .si-env-chart-title {
+  margin-bottom: 0;
+}
+
+.si-map-toolbox-layer-popup-cfg__hint {
+  margin: 0;
+  font-size: 11px;
+  line-height: 1.45;
+  color: var(--si-ctx-muted);
+}
+
+.si-map-toolbox-layer-popup-cfg__field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 11px;
+  color: var(--si-ctx-muted);
+}
+
+.si-map-toolbox-layer-popup-cfg__field select {
+  padding: 8px 10px;
+  border-radius: 10px;
+  border: 1px solid rgba(129, 140, 248, 0.28);
+  background: rgba(30, 41, 59, 0.55);
+  color: var(--si-ctx-text);
+  font-size: 12px;
+}
+
+.si-sat-ctx-dock--light .si-map-toolbox-layer-popup-cfg__field select {
+  background: rgba(255, 255, 255, 0.95);
+  border-color: rgba(99, 102, 241, 0.25);
+  color: #0f172a;
+}
+
+.si-map-toolbox-layer-popup-cfg__btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  width: 100%;
+  padding: 9px 12px;
+  border-radius: 10px;
+  border: 1px solid rgba(52, 211, 153, 0.38);
+  background: rgba(16, 185, 129, 0.14);
+  color: var(--si-ctx-text);
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  transition:
+    border-color 0.15s ease,
+    background 0.15s ease;
+}
+
+.si-map-toolbox-layer-popup-cfg__btn:hover:not(:disabled) {
+  border-color: rgba(52, 211, 153, 0.55);
+  background: rgba(16, 185, 129, 0.22);
+}
+
+.si-map-toolbox-layer-popup-cfg__btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.si-sat-ctx-dock--light .si-map-toolbox-layer-popup-cfg__btn {
+  background: rgba(5, 150, 105, 0.1);
+  border-color: rgba(5, 150, 105, 0.35);
+  color: #0f172a;
 }
 
 .si-sat-ctx-toolbox-opt-btn {

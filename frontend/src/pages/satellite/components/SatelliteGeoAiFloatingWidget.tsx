@@ -438,7 +438,7 @@ export function SatelliteGeoAiFloatingWidget({
         .join(' ')}
       style={transformStyle}
       role="region"
-      aria-label="Geo AI Assistant"
+      aria-label="Geo AI Exploration"
     >
       <div className="si-geo-ai-float-inner">
         {expanded ? (
@@ -455,8 +455,8 @@ export function SatelliteGeoAiFloatingWidget({
           >
             <div className="si-geo-ai-float-head" onPointerDown={onPointerDownHeader}>
               <div className="si-geo-ai-float-head-text">
-                <div className="si-geo-ai-float-title">Geo AI Assistant</div>
-                <div className="si-geo-ai-float-sub">AI Agent</div>
+                <div className="si-geo-ai-float-title">Geo AI Exploration</div>
+                <div className="si-geo-ai-float-sub">Map-linked AI</div>
               </div>
               <div className="si-geo-ai-float-actions">
                 <button
@@ -501,12 +501,12 @@ export function SatelliteGeoAiFloatingWidget({
           <button
             type="button"
             className="si-geo-ai-float-fab"
-            title="Geo AI Assistant — AI Agent"
+            title="Geo AI Exploration — map-linked intelligence"
             aria-expanded={expanded}
-            aria-label="Geo AI Assistant"
+            aria-label="Geo AI Exploration"
             onPointerDown={onPointerDownFab}
           >
-            <span className="si-geo-ai-float-fab-label">Geo AI Assistant, AI Agent</span>
+            <span className="si-geo-ai-float-fab-label">Geo AI Exploration</span>
             <span className="si-geo-ai-float-fab-mark" aria-hidden>
               <i className="fa-solid fa-comments si-geo-ai-float-fab-mark-back" />
               <i className="fa-solid fa-comments si-geo-ai-float-fab-mark-front" />

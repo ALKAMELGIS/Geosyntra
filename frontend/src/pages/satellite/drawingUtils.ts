@@ -229,7 +229,9 @@ export function clientPointToLngLat(map: MapboxMap, clientX: number, clientY: nu
   return [p.lng, p.lat];
 }
 
-export type VertexRef = { kind: 'LineString'; index: number } | { kind: 'Polygon'; ring: number; index: number };
+export type VertexRef =
+  | { kind: 'LineString'; index: number }
+  | { kind: 'Polygon'; ring: number; index: number; polyIndex?: number };
 
 export function collectVertexRefs(geometry: any): { ref: VertexRef; coord: [number, number] }[] {
   const out: { ref: VertexRef; coord: [number, number] }[] = [];
@@ -254,6 +256,23 @@ export function collectVertexRefs(geometry: any): { ref: VertexRef; coord: [numb
       for (let i = 0; i < max; i++) {
         out.push({ ref: { kind: 'Polygon', ring: ringIndex, index: i }, coord: ring[i] as [number, number] });
       }
+    });
+  }
+  if (geometry.type === 'MultiPolygon' && Array.isArray(geometry.coordinates)) {
+    geometry.coordinates.forEach((poly: number[][][], polyIndex: number) => {
+      poly.forEach((ring: number[][], ringIndex: number) => {
+        const lastDup =
+          ring.length > 1 &&
+          ring[0][0] === ring[ring.length - 1][0] &&
+          ring[0][1] === ring[ring.length - 1][1];
+        const max = lastDup ? ring.length - 1 : ring.length;
+        for (let i = 0; i < max; i++) {
+          out.push({
+            ref: { kind: 'Polygon', ring: ringIndex, index: i, polyIndex },
+            coord: ring[i] as [number, number],
+          });
+        }
+      });
     });
   }
   return out;
@@ -327,6 +346,22 @@ export function translateFeatureCoordinates(feature: any, deltaLng: number, delt
     }
     return f;
   }
+  if (g.type === 'MultiPolygon') {
+    g.coordinates = g.coordinates.map((poly: number[][][]) =>
+      poly.map((ring: number[][]) => {
+        const nr = ring.map(tr);
+        if (nr.length > 1) {
+          const first = nr[0];
+          const last = nr[nr.length - 1];
+          if (first[0] === last[0] && first[1] === last[1]) {
+            nr[nr.length - 1] = [...first];
+          }
+        }
+        return nr;
+      }),
+    );
+    return f;
+  }
   return f;
 }
 
@@ -344,6 +379,23 @@ export function setVertexCoord(feature: any, ref: VertexRef, lng: number, lat: n
   }
   if (g.type === 'Polygon' && ref.kind === 'Polygon') {
     const ring = g.coordinates[ref.ring];
+    if (!ring) return f;
+    ring[ref.index] = [lng, lat];
+    const lastDup =
+      ring.length > 1 &&
+      ring[0][0] === ring[ring.length - 1][0] &&
+      ring[0][1] === ring[ring.length - 1][1];
+    if (lastDup && ref.index === 0) {
+      ring[ring.length - 1] = [lng, lat];
+    } else if (lastDup && ref.index === ring.length - 1) {
+      ring[0] = [lng, lat];
+    }
+    return f;
+  }
+  if (g.type === 'MultiPolygon' && ref.kind === 'Polygon' && ref.polyIndex != null) {
+    const poly = g.coordinates[ref.polyIndex];
+    if (!poly) return f;
+    const ring = poly[ref.ring];
     if (!ring) return f;
     ring[ref.index] = [lng, lat];
     const lastDup =
@@ -425,29 +477,69 @@ export function downloadTextFile(filename: string, content: string, mime: string
   URL.revokeObjectURL(url);
 }
 
-const LS_KEY = 'si-satellite-draw-workspace-v1';
+const LS_KEY_V2 = 'si-satellite-draw-workspace-v2';
+const LS_KEY_V1 = 'si-satellite-draw-workspace-v1';
 
-export function saveDrawWorkspace(payload: { feature: any | null; style: DrawStyleConfig }) {
+export type SiAoiFieldPersistV2 = {
+  id: string;
+  name: string;
+  geometry: GeoJSON.Polygon | GeoJSON.MultiPolygon;
+  style: { fillColor: string; strokeColor: string; strokeWidth: number; fillOpacity: number };
+};
+
+export function saveDrawWorkspace(payload: {
+  feature: any | null;
+  style: DrawStyleConfig;
+  fields?: SiAoiFieldPersistV2[];
+  selectedFieldId?: string | null;
+  drawTargetMode?: 'aoi' | 'field';
+}) {
   try {
     localStorage.setItem(
-      LS_KEY,
+      LS_KEY_V2,
       JSON.stringify({
         savedAt: new Date().toISOString(),
         feature: payload.feature,
         style: payload.style,
-      })
+        fields: payload.fields ?? [],
+        selectedFieldId: payload.selectedFieldId ?? null,
+        drawTargetMode: payload.drawTargetMode ?? 'aoi',
+      }),
     );
   } catch {
     /* ignore quota */
   }
 }
 
-export function loadDrawWorkspace(): { feature: any | null; style: DrawStyleConfig | null } | null {
+export function loadDrawWorkspace(): {
+  feature: any | null;
+  style: DrawStyleConfig | null;
+  fields: SiAoiFieldPersistV2[];
+  selectedFieldId: string | null;
+  drawTargetMode: 'aoi' | 'field';
+} | null {
   try {
-    const raw = localStorage.getItem(LS_KEY);
+    const rawV2 = localStorage.getItem(LS_KEY_V2);
+    if (rawV2) {
+      const data = JSON.parse(rawV2);
+      return {
+        feature: data.feature ?? null,
+        style: data.style ?? null,
+        fields: Array.isArray(data.fields) ? data.fields : [],
+        selectedFieldId: typeof data.selectedFieldId === 'string' ? data.selectedFieldId : null,
+        drawTargetMode: data.drawTargetMode === 'field' ? 'field' : 'aoi',
+      };
+    }
+    const raw = localStorage.getItem(LS_KEY_V1);
     if (!raw) return null;
     const data = JSON.parse(raw);
-    return { feature: data.feature ?? null, style: data.style ?? null };
+    return {
+      feature: data.feature ?? null,
+      style: data.style ?? null,
+      fields: [],
+      selectedFieldId: null,
+      drawTargetMode: 'aoi',
+    };
   } catch {
     return null;
   }

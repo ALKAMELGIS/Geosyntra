@@ -566,7 +566,7 @@ export function runGeoAiStatsCommand(query: string, layers: GeoAiMapLayer[]): Ge
     if (mapFirst && mapSync?.selections.length) {
       return {
         handled: true,
-        reply: `Matched **${selectedCount}** record(s)${tokTxt}${whereTxt}. Zoomed in directly to the top match and highlighted it on the map.`,
+        reply: `Matched **${selectedCount}** record(s)${tokTxt}${whereTxt}. Map highlights synced — use **Camera** in Geo AI (Explore / Fit all / Focus first) to control zoom and popups.`,
         mapFirstSync: mapSync,
       }
     }
@@ -588,7 +588,7 @@ export function runGeoAiStatsCommand(query: string, layers: GeoAiMapLayer[]): Ge
       if (mapFirst && mapSync?.selections.length) {
         return {
           handled: true,
-          reply: `Found **${selectedCount}** feature(s) for **${lookupTokens.join(', ')}**. Zoomed in directly to the first match and highlighted it.`,
+          reply: `Found **${selectedCount}** feature(s) for **${lookupTokens.join(', ')}**. Map highlights synced — adjust **Camera** mode if you want a softer map (no forced zoom to one feature).`,
           mapFirstSync: mapSync,
         }
       }

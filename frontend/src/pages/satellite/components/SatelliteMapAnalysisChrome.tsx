@@ -151,6 +151,8 @@ export type SatelliteMapAnalysisChromeProps = {
   onToolboxPanelClose?: () => void;
   /** Layers tool → Main tab: add layer + Added layers (optional; parent provides memoized JSX). */
   mapToolboxLayersMain?: ReactNode;
+  /** Layers tool → Options tab: e.g. per-layer popup configuration (optional). */
+  mapToolboxLayersOptionsExtra?: ReactNode;
   /** Geo AI opens as a floating map widget (not inside the processing panel). */
   geoAiFloatingOpen?: boolean;
   onGeoAiFloatingRailToggle?: () => void;
@@ -207,6 +209,7 @@ export function SatelliteMapAnalysisChrome(props: SatelliteMapAnalysisChromeProp
     onMapToolboxEmbedHost,
     onToolboxPanelClose,
     mapToolboxLayersMain,
+    mapToolboxLayersOptionsExtra,
     geoAiFloatingOpen = false,
     onGeoAiFloatingRailToggle,
   } = props;
@@ -278,6 +281,7 @@ export function SatelliteMapAnalysisChrome(props: SatelliteMapAnalysisChromeProp
       onMapToolboxEmbedHost={onMapToolboxEmbedHost}
       onToolboxPanelClose={onToolboxPanelClose}
       mapToolboxLayersMain={mapToolboxLayersMain}
+      mapToolboxLayersOptionsExtra={mapToolboxLayersOptionsExtra}
       geoAiFloatingOpen={geoAiFloatingOpen}
       onGeoAiFloatingRailToggle={onGeoAiFloatingRailToggle}
     />

@@ -68,6 +68,8 @@ export type SatelliteContextualAnalysisDockProps = {
   onToolboxPanelClose?: () => void;
   /** Map toolbox Layers → Main tab: add layer + Added layers list (same as Processing Options). */
   mapToolboxLayersMain?: ReactNode;
+  /** Map toolbox Layers → Options tab: advanced tools (e.g. popup configuration). */
+  mapToolboxLayersOptionsExtra?: ReactNode;
   /** Geo AI floating widget visibility — keeps rail highlight without opening the processing stack. */
   geoAiFloatingOpen?: boolean;
   /** Toggle Geo AI floating widget from the map toolbox rail (same button as highlight). */
@@ -238,6 +240,7 @@ export function SatelliteContextualAnalysisDock(props: SatelliteContextualAnalys
     onMapToolboxEmbedHost,
     onToolboxPanelClose,
     mapToolboxLayersMain,
+    mapToolboxLayersOptionsExtra,
     geoAiFloatingOpen = false,
     onGeoAiFloatingRailToggle,
   } = props;
@@ -958,7 +961,7 @@ export function SatelliteContextualAnalysisDock(props: SatelliteContextualAnalys
                 ) : (
                   <div className="si-sat-ctx-prose">
                     {activeId === 'layers' && isMap && onProcessingWorkflowNavigate ? (
-                      <>
+                      <div className="si-sat-ctx-layers-options-stack">
                         <div className="si-sat-ctx-subnav" role="navigation" aria-label="Layers options navigation">
                           <button
                             type="button"
@@ -997,7 +1000,8 @@ export function SatelliteContextualAnalysisDock(props: SatelliteContextualAnalys
                             </button>
                           ))}
                         </div>
-                      </>
+                        {mapToolboxLayersOptionsExtra}
+                      </div>
                     ) : (
                       <p className="si-sat-ctx-muted">
                         Tool-specific advanced options will appear here as features are extended.
@@ -1015,7 +1019,7 @@ export function SatelliteContextualAnalysisDock(props: SatelliteContextualAnalys
                   {activeId === 'aoi'
                     ? 'Polygon: Shift constrains angles · Circle: Enter commits · Clear restores pan.'
                     : activeId === 'layers' && isMap
-                      ? 'Main: add layers, visibility, and layer actions. Options: open STAC / Remote sensing / AI from the floating panel.'
+                      ? 'Main: add layers and actions. Options: open STAC / RS / AI, and configure per-layer identify popups.'
                       : 'Drag the inner edge to resize. Click the active tool again to collapse.'}
                 </span>
               </footer>

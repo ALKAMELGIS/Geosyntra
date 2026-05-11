@@ -70,11 +70,9 @@ import { loadGisMapSavedLayers } from '../../lib/gisMapLayerStore';
 import { computeStableGisFeatureKey } from '../../lib/gisFeatureStableKey';
 import { satelliteCustomLayersToGeoAiLayers } from '../../lib/geoAiMapLayerSources';
 import { geoExplorerTargetZoomForPinSource, runGeoExplorerGeminiTurn } from '../../lib/runGeoExplorerGeminiTurn';
-import {
-  buildGeoAiLayerPopupAttributeRows,
-  pickGeoAiHumanPlaceFields,
-  type GeoAiMapLayer,
-} from '../../lib/geoExplorerLayerContext';
+import { pickGeoAiHumanPlaceFields, type GeoAiMapLayer } from '../../lib/geoExplorerLayerContext';
+import { buildGeoAiInspectCardContent, type SiPopupInspectPayload } from '../../lib/siLayerPopupInspect';
+import { normalizeSiLayerPopupConfig, type SiLayerPopupConfig } from '../../lib/siLayerPopupConfig';
 import { lngLatFromGeoAiFeatureLink, resolveGeoAiFeatureFromLink } from '../../lib/geoAiResolveTableMapLink';
 import {
   buildGeoAiCoordsHighlightPoints,
@@ -138,6 +136,20 @@ import { SatelliteMapAnalysisChrome, type MapToolboxNavigateHandler } from './co
 import { SatelliteGeoAiFloatingWidget } from './components/SatelliteGeoAiFloatingWidget';
 import { SatelliteAoiStaticChartsMapOverlay } from './components/SatelliteAoiStaticChartsMapOverlay';
 import { SatelliteMapProcessingOptionsPortal } from './components/SatelliteMapProcessingOptionsPortal';
+import { SiAoiFieldsPanel } from './components/SiAoiFieldsPanel';
+import { SiGeoAiInspectPopupBody } from './components/SiGeoAiInspectPopupBody';
+import { SiLayerPopupConfigurator } from './components/SiLayerPopupConfigurator';
+import {
+  buildSiAoiFieldRecord,
+  computeSiAoiFieldMetrics,
+  fieldGeometryWithinAoi,
+  fieldGeometriesRoughOverlap,
+  mergeSiAoiPolygonFields,
+  newSiAoiFieldId,
+  rotatePolygonGeometry,
+  type SiAoiFieldRecord,
+  siAoiFieldsToFeatureCollection,
+} from '../../lib/siAoiFields';
 import {
   buildStaticAoiMultiChartDatasets,
   defaultStaticAoiComparisonLayers,
@@ -181,6 +193,8 @@ type MapToolboxSectionId =
 type GeoAiInspectCardState = {
   title: string;
   rows: { label: string; value: string }[];
+  /** Rich popup layout (sections, tabs, search) when built from layer identify. */
+  inspect?: SiPopupInspectPayload | null;
   lng: number;
   lat: number;
   areaName?: string;
@@ -197,6 +211,21 @@ type GeoAiInspectPopupState = GeoAiInspectCardState & {
 type GeoAiPopupMode = 'single' | 'multiple' | 'docked' | 'side';
 
 const GEO_AI_POPUP_MODE_LS_KEY = 'si-geo-ai-popup-mode-v1';
+
+function readStoredGeoAiPopupMode(): GeoAiPopupMode {
+  try {
+    const v = typeof localStorage !== 'undefined' ? localStorage.getItem(GEO_AI_POPUP_MODE_LS_KEY) : '';
+    if (v === 'single' || v === 'multiple' || v === 'docked' || v === 'side') return v;
+  } catch {
+    /* ignore */
+  }
+  return 'multiple';
+}
+const GEO_AI_EXPLORATION_LS_KEY = 'si-geo-ai-exploration-v1';
+/** Max simultaneous on-map identify popups (multiple / exploration mode). */
+const GEO_AI_MAX_INSPECT_POPUPS = 22;
+/** When a vector layer has at least this many Point/MultiPoint features, enable Mapbox clustering on that source. */
+const GEO_AI_CLUSTER_POINT_THRESHOLD = 28;
 
 /** Cap geometry sent to Mapbox for table↔map highlight (full selection stays in the table). */
 const SI_GEO_AI_MAP_HIGHLIGHT_MAX_LINKS = 2800;
@@ -1109,6 +1138,8 @@ interface CustomLayer {
   importMetadata?: { format?: string; crs?: string; bytes?: number };
   /** Original IFC blob URL for future viewer hooks (session only). */
   bimBlobUrl?: string;
+  /** Map identify popup: field visibility, order, groups, and view mode. */
+  popupConfig?: SiLayerPopupConfig | null;
 }
 
 const SI_TABLE_MAX_FEATURES = 10000;
@@ -1234,6 +1265,7 @@ function parseStoredCustomLayers(raw: string | null): CustomLayer[] {
           ephemeral: typeof x.ephemeral === 'boolean' ? x.ephemeral : undefined,
           importMetadata: x.importMetadata && typeof x.importMetadata === 'object' ? x.importMetadata : undefined,
           bimBlobUrl: typeof x.bimBlobUrl === 'string' ? x.bimBlobUrl : undefined,
+          popupConfig: x.popupConfig ? normalizeSiLayerPopupConfig(x.popupConfig) : undefined,
         };
       });
   } catch {
@@ -1315,9 +1347,9 @@ const SI_MAPBOX_LINE_POLY_FILTER: any = [
 ];
 const SI_MAPBOX_POINT_FILTER: any = ['in', ['geometry-type'], ['literal', ['Point', 'MultiPoint']]];
 
-/** Mapbox layer id `${sourceId}-fill|line|circle` → custom layer source id. */
+/** Mapbox layer id `${sourceId}-fill|line|circle|cluster|cluster-count` → custom layer source id. */
 function siVectorLayerIdToCustomSourceId(mapboxLayerId: string): string | null {
-  const m = mapboxLayerId.match(/^(.+)-(fill|line|circle)$/);
+  const m = mapboxLayerId.match(/^(.+)-(fill|line|circle|cluster|cluster-count)$/);
   return m ? m[1] : null;
 }
 
@@ -1330,6 +1362,25 @@ function siIdentifyLayerIsSkippable(layerId: string): boolean {
   if (layerId === 'sentinel-layer' || layerId === 'si-stac-thumb-layer') return true;
   if (layerId === 'background') return true;
   return false;
+}
+
+function siGeoJsonPointishFeatureCount(gj: unknown): number {
+  if (!gj || typeof gj !== 'object') return 0;
+  const feats = (gj as { features?: unknown[] }).features;
+  if (!Array.isArray(feats)) return 0;
+  let n = 0;
+  for (const ft of feats) {
+    const g = (ft as { geometry?: { type?: string; coordinates?: unknown } })?.geometry;
+    const t = g?.type;
+    if (t === 'Point') n += 1;
+    else if (t === 'MultiPoint' && Array.isArray(g?.coordinates)) n += g.coordinates.length;
+  }
+  return n;
+}
+
+function siCustomLayerShouldClusterPoints(layer: { renderMode?: string; geojson?: unknown }): boolean {
+  if (layer.renderMode === 'raster' || !layer.geojson) return false;
+  return siGeoJsonPointishFeatureCount(layer.geojson) >= GEO_AI_CLUSTER_POINT_THRESHOLD;
 }
 
 function siIdentifyTitleForLayerId(layerId: string, customLayers: CustomLayer[]): string {
@@ -2111,6 +2162,8 @@ export default function SatelliteIntelligence() {
   const [wmsLayer, setWmsLayer] = useState('');
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [isMapLoaded, setIsMapLoaded] = useState(false);
+  const [layerPopupCfgPickId, setLayerPopupCfgPickId] = useState<string | null>(null);
+  const [layerPopupCfgOpen, setLayerPopupCfgOpen] = useState(false);
   const [customLayers, setCustomLayers] = useState<CustomLayer[]>(() => {
     if (typeof window === 'undefined') return [];
     return parseStoredCustomLayers(window.localStorage.getItem(SATELLITE_CUSTOM_LAYERS_STORAGE_KEY));
@@ -2323,6 +2376,25 @@ export default function SatelliteIntelligence() {
   const [polylineStart, setPolylineStart] = useState<[number, number] | null>(null);
   const [polygonRing, setPolygonRing] = useState<[number, number][]>([]);
   const [drawnGeometry, setDrawnGeometry] = useState<any | null>(null);
+  const [drawTargetMode, setDrawTargetMode] = useState<'aoi' | 'field'>('aoi');
+  const drawTargetModeRef = useRef<'aoi' | 'field'>('aoi');
+  const [aoiFields, setAoiFields] = useState<SiAoiFieldRecord[]>([]);
+  const aoiFieldsRef = useRef<SiAoiFieldRecord[]>([]);
+  const [selectedFieldId, setSelectedFieldId] = useState<string | null>(null);
+  const selectedFieldIdRef = useRef<string | null>(null);
+  const [aoiFieldSnap, setAoiFieldSnap] = useState(true);
+  const aoiFieldSnapRef = useRef(true);
+  const [aoiFieldNoOverlap, setAoiFieldNoOverlap] = useState(false);
+  const aoiFieldNoOverlapRef = useRef(false);
+  const [fieldMergePick, setFieldMergePick] = useState<[string | null, string | null]>([null, null]);
+  const fieldGeometryClipboardRef = useRef<any>(null);
+  /** Lets the fields panel enable “Paste” after a copy without forcing unrelated re-renders. */
+  const [fieldGeomClipboardPresent, setFieldGeomClipboardPresent] = useState(false);
+  const fieldImportInputRef = useRef<HTMLInputElement | null>(null);
+  const fieldEditDragRef = useRef<
+    null | { fieldId: string; mode: 'vertex'; ref: VertexRef } | { fieldId: string; mode: 'pan'; last: [number, number] }
+  >(null);
+  const preFieldEditSnapshotRef = useRef<SiAoiFieldRecord | null>(null);
   const [drawnStats, setDrawnStats] = useState<DrawnAoiStats | null>(null);
   const [netfloraRasterPath, setNetfloraRasterPath] = useState('');
   const [netfloraInputLayerId, setNetfloraInputLayerId] = useState('');
@@ -2422,14 +2494,16 @@ export default function SatelliteIntelligence() {
   const [geoAiPinLngLat, setGeoAiPinLngLat] = useState<[number, number] | null>(null);
   const [geoAiInspectPopups, setGeoAiInspectPopups] = useState<GeoAiInspectPopupState[]>([]);
   const geoAiInspectCard = geoAiInspectPopups.length > 0 ? geoAiInspectPopups[0]! : null;
-  const [geoAiPopupMode, setGeoAiPopupMode] = useState<GeoAiPopupMode>(() => {
+  const [geoAiPopupMode, setGeoAiPopupMode] = useState<GeoAiPopupMode>(readStoredGeoAiPopupMode);
+  /** When true, row highlight / map identify do not pan or zoom the map (use row “zoom” icon to fly there). */
+  const [geoAiExplorationMode, setGeoAiExplorationMode] = useState(() => {
     try {
-      const v = typeof localStorage !== 'undefined' ? localStorage.getItem(GEO_AI_POPUP_MODE_LS_KEY) : '';
-      if (v === 'multiple' || v === 'docked' || v === 'side') return v;
+      const v = typeof localStorage !== 'undefined' ? localStorage.getItem(GEO_AI_EXPLORATION_LS_KEY) : '';
+      if (v === '0' || v === 'false') return false;
     } catch {
       /* ignore */
     }
-    return 'single';
+    return true;
   });
   const [geoAiTableSelectionsByTableId, setGeoAiTableSelectionsByTableId] = useState<Record<string, GeoExplorerMapLink[]>>(
     {},
@@ -2517,6 +2591,14 @@ export default function SatelliteIntelligence() {
     }
   }, [geoAiPopupMode]);
 
+  useEffect(() => {
+    try {
+      localStorage.setItem(GEO_AI_EXPLORATION_LS_KEY, geoAiExplorationMode ? '1' : '0');
+    } catch {
+      /* ignore */
+    }
+  }, [geoAiExplorationMode]);
+
   const geoAiMergedTableSelectionLinks = useMemo(() => {
     const out: GeoExplorerMapLink[] = [];
     const seen = new Set<string>();
@@ -2586,6 +2668,7 @@ export default function SatelliteIntelligence() {
             ? {
                 title: cur.title,
                 rows: cur.rows,
+                inspect: cur.inspect,
                 lng: cur.lng,
                 lat: cur.lat,
                 areaName: cur.areaName,
@@ -2603,6 +2686,7 @@ export default function SatelliteIntelligence() {
               pinned: cur.pinned,
               collapsed: cur.collapsed,
               featureLinkKey: cur.featureLinkKey,
+              inspect: n.inspect ?? cur.inspect,
             },
             ...prev.slice(1),
           ];
@@ -2625,11 +2709,17 @@ export default function SatelliteIntelligence() {
           const ix = prev.findIndex(p => p.featureLinkKey === fk && !p.pinned);
           if (ix >= 0) {
             const cp = [...prev];
-            cp[ix] = { ...cp[ix], ...card, featureLinkKey: fk, collapsed: cp[ix]!.collapsed };
-            return cp;
+            cp[ix] = {
+              ...cp[ix],
+              ...card,
+              featureLinkKey: fk,
+              collapsed: cp[ix]!.collapsed,
+              inspect: card.inspect ?? cp[ix]!.inspect,
+            };
+            return cp.slice(-GEO_AI_MAX_INSPECT_POPUPS);
           }
         }
-        return [...prev, w];
+        return [...prev, w].slice(-GEO_AI_MAX_INSPECT_POPUPS);
       });
     },
     [geoAiPopupMode, wrapInspectPopup],
@@ -2760,13 +2850,18 @@ export default function SatelliteIntelligence() {
             bearing: typeof vs.bearing === 'number' ? vs.bearing : 0,
           }));
           if (me.layerHit) {
+            const lyrCfg = customLayers.find(l => l.name === me.layerHit.layerName);
+            const built = buildGeoAiInspectCardContent({
+              properties: me.layerHit.properties,
+              arcgisLayerDefinition: me.layerHit.arcgisLayerDefinition,
+              popupConfig: lyrCfg?.popupConfig,
+              queryContext: userTextForMapFallback,
+              inspectCoords: { lng: me.coords[0], lat: me.coords[1] },
+            });
             setGeoAiInspectCard({
               title: me.layerHit.layerName,
-              rows: buildGeoAiLayerPopupAttributeRows(me.layerHit, {
-                maxRows: 28,
-                queryContext: userTextForMapFallback,
-                inspectCoords: { lng: me.coords[0], lat: me.coords[1] },
-              }),
+              rows: built.rows,
+              inspect: built.inspect,
               lng: me.coords[0],
               lat: me.coords[1],
               ...pickGeoAiHumanPlaceFields(me.layerHit.properties),
@@ -5754,6 +5849,36 @@ export default function SatelliteIntelligence() {
   }, [drawnGeometry]);
 
   useEffect(() => {
+    drawTargetModeRef.current = drawTargetMode;
+  }, [drawTargetMode]);
+
+  useEffect(() => {
+    aoiFieldsRef.current = aoiFields;
+  }, [aoiFields]);
+
+  useEffect(() => {
+    selectedFieldIdRef.current = selectedFieldId;
+  }, [selectedFieldId]);
+
+  useEffect(() => {
+    aoiFieldSnapRef.current = aoiFieldSnap;
+  }, [aoiFieldSnap]);
+
+  useEffect(() => {
+    aoiFieldNoOverlapRef.current = aoiFieldNoOverlap;
+  }, [aoiFieldNoOverlap]);
+
+  useEffect(() => {
+    if (!drawnGeometry) {
+      setAoiFields([]);
+      setSelectedFieldId(null);
+      setFieldMergePick([null, null]);
+      fieldEditDragRef.current = null;
+      preFieldEditSnapshotRef.current = null;
+    }
+  }, [drawnGeometry]);
+
+  useEffect(() => {
     return () => {
       if (drawFadeRafRef.current != null) cancelAnimationFrame(drawFadeRafRef.current);
     };
@@ -5855,13 +5980,18 @@ export default function SatelliteIntelligence() {
         bearing: typeof prev.bearing === 'number' ? prev.bearing : 0,
       }));
       if (pin.layerHit) {
+        const lyrCfg = customLayers.find(l => l.name === pin.layerHit.layerName);
+        const built = buildGeoAiInspectCardContent({
+          properties: pin.layerHit.properties,
+          arcgisLayerDefinition: pin.layerHit.arcgisLayerDefinition,
+          popupConfig: lyrCfg?.popupConfig,
+          queryContext: userText,
+          inspectCoords: { lng: pin.coords[0], lat: pin.coords[1] },
+        });
         setGeoAiInspectCard({
           title: pin.layerHit.layerName,
-          rows: buildGeoAiLayerPopupAttributeRows(pin.layerHit, {
-            maxRows: 28,
-            queryContext: userText,
-            inspectCoords: { lng: pin.coords[0], lat: pin.coords[1] },
-          }),
+          rows: built.rows,
+          inspect: built.inspect,
           lng: pin.coords[0],
           lat: pin.coords[1],
           ...pickGeoAiHumanPlaceFields(pin.layerHit.properties),
@@ -5993,16 +6123,18 @@ export default function SatelliteIntelligence() {
         if (resolved) {
           const clean = siSanitizeIdentifyProperties(resolved.properties);
           title = resolved.layerName;
+          const lyrCfg = customLayers.find(l => String(l.id) === link.layerId);
+          const built = buildGeoAiInspectCardContent({
+            properties: clean,
+            arcgisLayerDefinition: resolved.arcgisLayerDefinition,
+            popupConfig: lyrCfg?.popupConfig,
+            queryContext: geoAiLastUserMapQueryRef.current,
+            inspectCoords: { lng, lat },
+          });
           featureInspect = {
             title,
-            rows: buildGeoAiLayerPopupAttributeRows(
-              { properties: clean, arcgisLayerDefinition: resolved.arcgisLayerDefinition },
-              {
-                maxRows: 28,
-                queryContext: geoAiLastUserMapQueryRef.current,
-                inspectCoords: { lng, lat },
-              },
-            ),
+            rows: built.rows,
+            inspect: built.inspect,
             lng,
             lat,
             ...pickGeoAiHumanPlaceFields(clean),
@@ -6017,15 +6149,20 @@ export default function SatelliteIntelligence() {
         geoExplorerTargetZoomForPinSource('layer'),
         action === 'highlight' ? 14 : 17,
       );
-      setGeoAiPinLngLat([lng, lat]);
-      setViewState(vs => ({
-        ...vs,
-        longitude: lng,
-        latitude: lat,
-        zoom: Math.max(typeof vs.zoom === 'number' ? vs.zoom : 2, zTarget),
-        pitch: is3DView ? Math.max(typeof vs.pitch === 'number' ? vs.pitch : 0, 42) : vs.pitch ?? 0,
-        bearing: typeof vs.bearing === 'number' ? vs.bearing : 0,
-      }));
+      const moveCamera = action === 'zoom' || !geoAiExplorationMode;
+      if (moveCamera) {
+        setGeoAiPinLngLat([lng, lat]);
+        setViewState(vs => ({
+          ...vs,
+          longitude: lng,
+          latitude: lat,
+          zoom: Math.max(typeof vs.zoom === 'number' ? vs.zoom : 2, zTarget),
+          pitch: is3DView ? Math.max(typeof vs.pitch === 'number' ? vs.pitch : 0, 42) : vs.pitch ?? 0,
+          bearing: typeof vs.bearing === 'number' ? vs.bearing : 0,
+        }));
+      } else {
+        setGeoAiPinLngLat([lng, lat]);
+      }
       if (action === 'focus' || action === 'openTable' || action === 'highlight' || link.type === 'feature') {
         if (featureInspect) {
           mergeGeoAiInspectFromMapOrTable(featureInspect, link);
@@ -6058,12 +6195,13 @@ export default function SatelliteIntelligence() {
         );
       }
     },
-    [customLayers, is3DView, mergeGeoAiInspectFromMapOrTable],
+    [customLayers, geoAiExplorationMode, is3DView, mergeGeoAiInspectFromMapOrTable],
   );
 
   /** Fit map to union bounds of Geo AI query hits (multi-feature selection). */
   const applySatelliteGeoAiMapSelectionSync = useCallback(
-    (selections: GeoAiMapFirstSelection[]) => {
+    (selections: GeoAiMapFirstSelection[], opts?: { fitBounds?: boolean }) => {
+      const fitBounds = opts?.fitBounds !== false;
       const map = mapRef.current?.getMap?.() ?? mapRef.current;
       if (!map || !selections.length) return;
       const feats: Array<{ type?: string; geometry?: unknown; properties?: unknown }> = [];
@@ -6081,6 +6219,7 @@ export default function SatelliteIntelligence() {
         }
       }
       if (!feats.length) return;
+      if (!fitBounds) return;
       const fc = { type: 'FeatureCollection' as const, features: feats };
       const bounds = getGeoJsonBounds(fc as any);
       if (bounds && typeof map.fitBounds === 'function') {
@@ -6104,6 +6243,7 @@ export default function SatelliteIntelligence() {
       if (!featureLinks.length) return;
       applySatelliteGeoAiMapSelectionSync(
         featureLinks.map(l => ({ layerId: l.layerId, featureKey: l.featureKey })),
+        { fitBounds: true },
       );
     },
     [applySatelliteGeoAiMapSelectionSync],
@@ -6112,7 +6252,7 @@ export default function SatelliteIntelligence() {
   const applySatelliteGeoAiMapFirstSync = useCallback(
     (selections: GeoAiMapFirstSelection[]) => {
       if (!selections.length) return;
-      applySatelliteGeoAiMapSelectionSync(selections);
+      applySatelliteGeoAiMapSelectionSync(selections, { fitBounds: !geoAiExplorationMode });
       const first = selections[0]!;
       onSiGeoAiTableMapAction('highlight', {
         type: 'feature',
@@ -6120,7 +6260,7 @@ export default function SatelliteIntelligence() {
         featureKey: first.featureKey,
       });
     },
-    [applySatelliteGeoAiMapSelectionSync, onSiGeoAiTableMapAction],
+    [applySatelliteGeoAiMapSelectionSync, geoAiExplorationMode, onSiGeoAiTableMapAction],
   );
 
   const sendGeoAiChat = useCallback((voiceOverrideText?: string) => {
@@ -6400,7 +6540,71 @@ export default function SatelliteIntelligence() {
     skipNextMapClickRef.current = true;
   }, []);
 
+  const collectAoiFieldSnapVertices = (): [number, number][] => {
+    const out: [number, number][] = [];
+    const aoi = drawnGeometryRef.current;
+    if (aoi?.geometry) {
+      for (const v of collectVertexRefs(aoi.geometry)) out.push(v.coord);
+    }
+    for (const f of aoiFieldsRef.current) {
+      for (const v of collectVertexRefs(f.geometry)) out.push(v.coord);
+    }
+    return out;
+  };
+
+  const tryAddFieldFromFeature = (feature: any, opts?: { silent?: boolean }): boolean => {
+    const aoi = drawnGeometryRef.current;
+    if (!aoi?.geometry) {
+      if (!opts?.silent) setFieldAnalysisStatus('Draw an AOI first, then add fields inside it.');
+      return false;
+    }
+    const g = feature?.geometry;
+    if (g?.type !== 'Polygon' && g?.type !== 'MultiPolygon') {
+      if (!opts?.silent) setFieldAnalysisStatus('Fields must be polygon or multipolygon geometries.');
+      return false;
+    }
+    if (!fieldGeometryWithinAoi(aoi.geometry, g)) {
+      if (!opts?.silent) setFieldAnalysisStatus('Field geometry must stay inside the AOI.');
+      return false;
+    }
+    let created: SiAoiFieldRecord | null = null;
+    setAoiFields(prev => {
+      if (aoiFieldNoOverlapRef.current) {
+        for (const ex of prev) {
+          if (fieldGeometriesRoughOverlap(ex.geometry, g)) {
+            return prev;
+          }
+        }
+      }
+      const rec = buildSiAoiFieldRecord(g, `Field ${prev.length + 1}`, prev.length);
+      created = rec;
+      const next = [...prev, rec];
+      aoiFieldsRef.current = next;
+      return next;
+    });
+    if (!created) {
+      if (!opts?.silent) {
+        setFieldAnalysisStatus('Overlap with an existing field — adjust or turn off “no overlap”.');
+      }
+      return false;
+    }
+    setSelectedFieldId(created.id);
+    if (!opts?.silent) {
+      setFieldAnalysisStatus(`Added ${created.name} (${created.areaHa.toFixed(2)} ha).`);
+    }
+    return true;
+  };
+
   const commitUserGeometry = (next: any | null) => {
+    if (next && drawTargetModeRef.current === 'field') {
+      tryAddFieldFromFeature(next);
+      return;
+    }
+    if (next && drawTargetModeRef.current === 'aoi') {
+      setAoiFields([]);
+      setSelectedFieldId(null);
+      setFieldMergePick([null, null]);
+    }
     const cur = drawnGeometryRef.current;
     setGeomUndoStack(u => [...u, cur ? cloneDeep(cur) : null]);
     setGeomRedoStack([]);
@@ -6486,6 +6690,27 @@ export default function SatelliteIntelligence() {
   };
 
   const endEditDragIfNeeded = () => {
+    if (fieldEditDragRef.current) {
+      fieldEditDragRef.current = null;
+      setMapDragPanEnabled(true);
+      const snap = preFieldEditSnapshotRef.current;
+      preFieldEditSnapshotRef.current = null;
+      if (snap) {
+        const aoi = drawnGeometryRef.current;
+        const cur = aoiFieldsRef.current.find(x => x.id === snap.id);
+        if (cur && aoi?.geometry && !fieldGeometryWithinAoi(aoi.geometry, cur.geometry)) {
+          setAoiFields(prev => {
+            const next = prev.map(x =>
+              x.id === snap.id ? { ...snap, ...computeSiAoiFieldMetrics(snap.geometry) } : x,
+            );
+            aoiFieldsRef.current = next;
+            return next;
+          });
+          setFieldAnalysisStatus('Edit reverted: field must stay inside the AOI.');
+        }
+      }
+      return;
+    }
     if (!editDragRef.current) return;
     editDragRef.current = null;
     setMapDragPanEnabled(true);
@@ -6642,6 +6867,10 @@ export default function SatelliteIntelligence() {
     setGeomRedoStack([]);
     setDrawnGeometry(null);
     setDrawnStats(null);
+    setAoiFields([]);
+    setSelectedFieldId(null);
+    setFieldMergePick([null, null]);
+    setDrawTargetMode('aoi');
     setPolylineStart(null);
     setPolygonRing([]);
     setRectCirclePreview(null);
@@ -6650,6 +6879,10 @@ export default function SatelliteIntelligence() {
     polygonRingSketchDragRef.current = null;
     editDragRef.current = null;
     preEditGeomRef.current = null;
+    fieldEditDragRef.current = null;
+    preFieldEditSnapshotRef.current = null;
+    fieldGeometryClipboardRef.current = null;
+    setFieldGeomClipboardPresent(false);
     setPolygonClosingSnap(false);
     setDrawAssistHint('');
     setCircleRadiusM(null);
@@ -6668,6 +6901,7 @@ export default function SatelliteIntelligence() {
   const clearSatelliteDrawingWithFade = useCallback(() => {
     const hasVisual =
       drawnGeometry != null ||
+      aoiFields.length > 0 ||
       rectCirclePreview != null ||
       polygonRing.length > 0 ||
       circleRefineDraft != null ||
@@ -6707,6 +6941,7 @@ export default function SatelliteIntelligence() {
   }, [
     clearAllAoiDrawing,
     drawnGeometry,
+    aoiFields.length,
     rectCirclePreview,
     polygonRing.length,
     circleRefineDraft,
@@ -6778,6 +7013,38 @@ export default function SatelliteIntelligence() {
       setRectCirclePreview({ kind: mapDrawTool, a: [lng, lat], b: [lng, lat] });
       setMapDragPanEnabled(false);
       return;
+    }
+
+    if (mapDrawTool === 'select' && selectedFieldIdRef.current) {
+      const row = aoiFieldsRef.current.find(x => x.id === selectedFieldIdRef.current);
+      if (row) {
+        const geom = row.geometry;
+        const hitPx = vertexHitThresholdPx(map);
+        const hit = findNearestVertex(map, geom, lng, lat, hitPx);
+        if (hit) {
+          preFieldEditSnapshotRef.current = cloneDeep(row);
+          fieldEditDragRef.current = { fieldId: row.id, mode: 'vertex', ref: hit.ref };
+          setMapDragPanEnabled(false);
+          return;
+        }
+        if (geom.type === 'Polygon' && pointInPolygonGeometry(lng, lat, geom)) {
+          preFieldEditSnapshotRef.current = cloneDeep(row);
+          fieldEditDragRef.current = { fieldId: row.id, mode: 'pan', last: [lng, lat] };
+          setMapDragPanEnabled(false);
+          return;
+        }
+        if (geom.type === 'MultiPolygon') {
+          for (const poly of geom.coordinates) {
+            const fake = { type: 'Polygon' as const, coordinates: poly };
+            if (pointInPolygonGeometry(lng, lat, fake as any)) {
+              preFieldEditSnapshotRef.current = cloneDeep(row);
+              fieldEditDragRef.current = { fieldId: row.id, mode: 'pan', last: [lng, lat] };
+              setMapDragPanEnabled(false);
+              return;
+            }
+          }
+        }
+      }
     }
 
     if (mapDrawTool === 'select' && drawnGeometryRef.current) {
@@ -6920,7 +7187,11 @@ export default function SatelliteIntelligence() {
       let lngLat: [number, number] = [lng, lat];
       if (map && polygonRing.length >= 1) {
         const others = polygonRing.filter((_, j) => j !== sketchVi) as [number, number][];
-        const { lng: sx, lat: sy, snapped } = snapLngLatToNearestVertex(map, lng, lat, others, POLYGON_VERTEX_SNAP_PX);
+        const snapPool =
+          drawTargetModeRef.current === 'field' && aoiFieldSnapRef.current
+            ? [...others, ...collectAoiFieldSnapVertices()]
+            : others;
+        const { lng: sx, lat: sy, snapped } = snapLngLatToNearestVertex(map, lng, lat, snapPool, POLYGON_VERTEX_SNAP_PX);
         if (snapped) lngLat = [sx, sy];
       }
       const shiftKey = !!(evt?.originalEvent as MouseEvent | undefined)?.shiftKey;
@@ -6941,6 +7212,42 @@ export default function SatelliteIntelligence() {
       } else {
         setPolygonClosingSnap(false);
         setDrawAssistHint('');
+      }
+      return;
+    }
+
+    const fed = fieldEditDragRef.current;
+    if (fed && map) {
+      const row = aoiFieldsRef.current.find(x => x.id === fed.fieldId);
+      if (!row) {
+        fieldEditDragRef.current = null;
+      } else {
+        const base = { type: 'Feature' as const, properties: {}, geometry: row.geometry };
+        if (fed.mode === 'vertex') {
+          const next = setVertexCoord(base, fed.ref, lng, lat);
+          const ng = next.geometry;
+          setAoiFields(prev => {
+            const mapped = prev.map(x =>
+              x.id === fed.fieldId ? { ...x, geometry: ng, ...computeSiAoiFieldMetrics(ng) } : x,
+            );
+            aoiFieldsRef.current = mapped;
+            return mapped;
+          });
+        } else {
+          const [plng, plat] = fed.last;
+          const dLng = lng - plng;
+          const dLat = lat - plat;
+          fieldEditDragRef.current = { ...fed, last: [lng, lat] };
+          const moved = translateFeatureCoordinates(base, dLng, dLat);
+          const mg = moved.geometry;
+          setAoiFields(prev => {
+            const mapped = prev.map(x =>
+              x.id === fed.fieldId ? { ...x, geometry: mg, ...computeSiAoiFieldMetrics(mg) } : x,
+            );
+            aoiFieldsRef.current = mapped;
+            return mapped;
+          });
+        }
       }
       return;
     }
@@ -7143,7 +7450,11 @@ export default function SatelliteIntelligence() {
     if (!isMapLoaded) return ids;
     for (const layer of customLayers) {
       if (!layer.visible) continue;
-      ids.push(`${layer.id}-fill`, `${layer.id}-line`, `${layer.id}-circle`);
+      if (siCustomLayerShouldClusterPoints(layer)) {
+        ids.push(`${layer.id}-cluster`, `${layer.id}-cluster-count`, `${layer.id}-fill`, `${layer.id}-line`, `${layer.id}-circle`);
+      } else {
+        ids.push(`${layer.id}-fill`, `${layer.id}-line`, `${layer.id}-circle`);
+      }
     }
     if (pivots.length > 0) {
       ids.push('agri-pivots-fill', 'agri-pivots-outline');
@@ -7154,6 +7465,9 @@ export default function SatelliteIntelligence() {
     if (drawnGeometry) {
       ids.push('drawn-index-geometry-fill', 'drawn-index-geometry-line', 'drawn-index-geometry-point');
     }
+    if (aoiFields.length > 0) {
+      ids.push('si-aoi-fields-fill', 'si-aoi-fields-line');
+    }
     return ids;
   }, [
     isMapLoaded,
@@ -7162,6 +7476,7 @@ export default function SatelliteIntelligence() {
     showStacFootprintsOnMap,
     stacFootprintsGeoJson.features.length,
     drawnGeometry,
+    aoiFields.length,
   ]);
 
   const handleMapClickDraw = (lng: number, lat: number, clickEv?: MouseEvent | null) => {
@@ -7192,7 +7507,13 @@ export default function SatelliteIntelligence() {
           ) => {
             const la = String(a?.layer?.id ?? '');
             const lb = String(b?.layer?.id ?? '');
-            const rank = (id: string) => (/-fill$/.test(id) ? 0 : /-circle$/.test(id) ? 1 : 2);
+            const rank = (id: string) => {
+              if (/-cluster$/.test(id)) return -2;
+              if (/-cluster-count$/.test(id)) return -1;
+              if (/-fill$/.test(id)) return 0;
+              if (/-circle$/.test(id)) return 1;
+              return 2;
+            };
             return rank(la) - rank(lb);
           };
           hits = [...hits].sort(prefer);
@@ -7205,6 +7526,29 @@ export default function SatelliteIntelligence() {
                 ? (hit.properties as Record<string, unknown>)
                 : {};
             const clean = siSanitizeIdentifyProperties(rawProps);
+            if (layerId.endsWith('-cluster') || layerId.endsWith('-cluster-count')) {
+              const sourceId = layerId.replace(/-(cluster|cluster-count)$/, '');
+              const clusterId = rawProps.cluster_id;
+              const fullMap = (mapRef.current?.getMap?.() ?? mapRef.current) as {
+                getSource?: (id: string) => {
+                  getClusterExpansionZoom?: (id: number, cb: (err: Error | null, zoom: number) => void) => void;
+                };
+                easeTo?: (o: { center: [number, number]; zoom: number; duration?: number }) => void;
+              } | null;
+              const src = fullMap?.getSource?.(sourceId);
+              if (
+                src &&
+                typeof clusterId === 'number' &&
+                typeof src.getClusterExpansionZoom === 'function' &&
+                typeof fullMap?.easeTo === 'function'
+              ) {
+                src.getClusterExpansionZoom(clusterId, (err: Error | null, z: number) => {
+                  if (err != null || typeof z !== 'number' || Number.isNaN(z)) return;
+                  fullMap.easeTo!({ center: [lng, lat], zoom: z, duration: 520 });
+                });
+                return;
+              }
+            }
             if (layerId.startsWith('si-stac-footprints')) {
               const stacKey = String(rawProps?.stacKey ?? '').trim();
               const fromKey = stacKey ? stacItemsByStableKey.get(stacKey) : null;
@@ -7237,23 +7581,24 @@ export default function SatelliteIntelligence() {
               }
               return;
             }
+            const baseLayerId = layerId.replace(/-(fill|line|circle|cluster|cluster-count)$/, '');
+            const customHitLayer = customLayers.find(l => String(l.id) === baseLayerId);
             const arcDef = siArcgisDefForIdentifyLayerId(layerId, customLayers);
+            const built = buildGeoAiInspectCardContent({
+              properties: clean,
+              arcgisLayerDefinition: arcDef,
+              popupConfig: customHitLayer?.popupConfig,
+              queryContext: geoAiLastUserMapQueryRef.current,
+              inspectCoords: { lng, lat },
+            });
             const inspectCard: GeoAiInspectCardState = {
               title,
-              rows: buildGeoAiLayerPopupAttributeRows(
-                { properties: clean, arcgisLayerDefinition: arcDef },
-                {
-                  maxRows: 28,
-                  queryContext: geoAiLastUserMapQueryRef.current,
-                  inspectCoords: { lng, lat },
-                },
-              ),
+              rows: built.rows,
+              inspect: built.inspect,
               lng,
               lat,
               ...pickGeoAiHumanPlaceFields(clean),
             };
-            const baseLayerId = layerId.replace(/-(fill|line|circle)$/, '');
-            const customHitLayer = customLayers.find(l => String(l.id) === baseLayerId);
             let linkForTable: GeoExplorerMapLink | null = null;
             let featureFocusKey: string | null = null;
             if (customHitLayer?.geojson?.features) {
@@ -7316,11 +7661,15 @@ export default function SatelliteIntelligence() {
         }
       }
       if (map && polygonRing.length >= 1) {
+        const snapPool =
+          drawTargetModeRef.current === 'field' && aoiFieldSnapRef.current
+            ? [...polygonRing, ...collectAoiFieldSnapVertices()]
+            : polygonRing;
         const { lng: sx, lat: sy, snapped } = snapLngLatToNearestVertex(
           map,
           lngLat[0],
           lngLat[1],
-          polygonRing,
+          snapPool,
           POLYGON_VERTEX_SNAP_PX,
         );
         if (snapped) lngLat = [sx, sy];
@@ -7473,8 +7822,11 @@ export default function SatelliteIntelligence() {
   }, [mapDrawTool, polygonRing, polylineStart, pointerLngLat, rectCirclePreview, polygonClosingSnap, circleRefineDraft]);
 
   const editHandlesGeoJson = useMemo(() => {
-    if (mapDrawTool !== 'select' || !showEditHandles || !drawnGeometry) return null;
-    const verts = collectVertexRefs(drawnGeometry.geometry);
+    if (mapDrawTool !== 'select' || !showEditHandles) return null;
+    const fieldRow = selectedFieldId ? aoiFields.find(f => f.id === selectedFieldId) : null;
+    const geom = fieldRow?.geometry ?? drawnGeometry?.geometry;
+    if (!geom) return null;
+    const verts = collectVertexRefs(geom);
     if (!verts.length) return null;
     return {
       type: 'FeatureCollection',
@@ -7484,11 +7836,36 @@ export default function SatelliteIntelligence() {
         geometry: { type: 'Point', coordinates: v.coord },
       })),
     };
-  }, [mapDrawTool, showEditHandles, drawnGeometry]);
+  }, [mapDrawTool, showEditHandles, drawnGeometry, aoiFields, selectedFieldId]);
 
-  const persistDrawWorkspace = () => {
-    saveDrawWorkspace({ feature: drawnGeometry, style: drawStyle });
-  };
+  const aoiFieldsMapGeoJson = useMemo(() => {
+    if (!aoiFields.length) return null;
+    return siAoiFieldsToFeatureCollection(aoiFields);
+  }, [aoiFields]);
+
+  const aoiFieldsMapLinePaint = useMemo(
+    () =>
+      ({
+        'line-color': ['get', 'strokeColor'],
+        'line-width': [
+          'case',
+          ['==', ['get', 'id'], selectedFieldId ?? '__si_none__'],
+          4,
+          ['coalesce', ['get', 'strokeWidth'], 2],
+        ],
+        'line-opacity': drawVisualOpacity,
+      }) as Record<string, unknown>,
+    [selectedFieldId, drawVisualOpacity],
+  );
+
+  const aoiFieldsMapFillPaint = useMemo(
+    () =>
+      ({
+        'fill-color': ['get', 'fillColor'],
+        'fill-opacity': ['*', ['coalesce', ['get', 'fillOpacity'], 0.35], drawVisualOpacity],
+      }) as Record<string, unknown>,
+    [drawVisualOpacity],
+  );
 
   const restoreDrawWorkspace = () => {
     const w = loadDrawWorkspace();
@@ -7497,7 +7874,21 @@ export default function SatelliteIntelligence() {
     setGeomUndoStack([]);
     setGeomRedoStack([]);
     updateDrawnStats(w.feature);
+    const loaded = (w.fields ?? []) as SiAoiFieldRecord[];
+    setAoiFields(loaded.map(x => ({ ...x, ...computeSiAoiFieldMetrics(x.geometry) })));
+    setSelectedFieldId(w.selectedFieldId ?? null);
+    setDrawTargetMode(w.drawTargetMode === 'field' ? 'field' : 'aoi');
   };
+
+  useEffect(() => {
+    saveDrawWorkspace({
+      feature: drawnGeometry,
+      style: drawStyle,
+      fields: aoiFields,
+      selectedFieldId,
+      drawTargetMode,
+    });
+  }, [drawnGeometry, drawStyle, aoiFields, selectedFieldId, drawTargetMode]);
 
   const exportDrawn = (kind: 'geojson' | 'wkt' | 'kml') => {
     if (!drawnGeometry) return;
@@ -7960,6 +8351,73 @@ export default function SatelliteIntelligence() {
     ],
   );
 
+  const layersEnvOptionsExtra = useMemo(() => {
+    const vectorLayers = customLayers.filter(l => l.renderMode !== 'raster');
+    const cfgLayer = layerPopupCfgPickId ? customLayers.find(l => l.id === layerPopupCfgPickId) : null;
+    const canConfigure = cfgLayer && cfgLayer.renderMode !== 'raster';
+    return (
+      <>
+        <div className="si-map-toolbox-layer-popup-cfg">
+          <div className="si-env-chart-title">Configure Layer Popups</div>
+          <p className="si-map-toolbox-layer-popup-cfg__hint">
+            Per-layer identify: field visibility, order, grouped sections, related records / attachments / media toggles, and
+            table / card / compact layout.
+          </p>
+          {vectorLayers.length ? (
+            <>
+              <label className="si-map-toolbox-layer-popup-cfg__field">
+                <span>Layer</span>
+                <select
+                  value={layerPopupCfgPickId ?? ''}
+                  onChange={e => setLayerPopupCfgPickId(e.target.value || null)}
+                  aria-label="Select layer for popup configuration"
+                >
+                  <option value="">Select a layer…</option>
+                  {vectorLayers.map(l => (
+                    <option key={l.id} value={l.id}>
+                      {l.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <button
+                type="button"
+                className="si-map-toolbox-layer-popup-cfg__btn"
+                disabled={!canConfigure}
+                onClick={() => {
+                  if (canConfigure) setLayerPopupCfgOpen(true);
+                }}
+              >
+                <i className="fa-solid fa-gear" aria-hidden />
+                <span>Open configuration…</span>
+              </button>
+            </>
+          ) : (
+            <p className="si-env-message">Add a vector layer to configure identify popups.</p>
+          )}
+        </div>
+        {layerPopupCfgOpen && canConfigure && cfgLayer ? (
+          <SiLayerPopupConfigurator
+            key={cfgLayer.id}
+            layer={{
+              id: cfgLayer.id,
+              name: cfgLayer.name,
+              geojson: cfgLayer.geojson,
+              popupConfig: cfgLayer.popupConfig,
+              arcgisLayerDefinition: cfgLayer.arcgisLayerDefinition,
+            }}
+            onSave={next =>
+              setCustomLayers(prev =>
+                prev.map(l => (l.id === cfgLayer.id ? { ...l, popupConfig: normalizeSiLayerPopupConfig(next) } : l)),
+              )
+            }
+            onClose={() => setLayerPopupCfgOpen(false)}
+          />
+        ) : null}
+      </>
+    );
+  }, [customLayers, layerPopupCfgOpen, layerPopupCfgPickId]);
+
   const exploreSelectedCollectionsLabel = useMemo(() => {
     if (!exploreSelectedCollectionIds.length) return 'From selected collections';
     const preview = exploreSelectedCollectionIds.slice(0, 2).join(', ');
@@ -8105,12 +8563,13 @@ export default function SatelliteIntelligence() {
   const satelliteHasClearableDrawing = useMemo(
     () =>
       drawnGeometry != null ||
+      aoiFields.length > 0 ||
       rectCirclePreview != null ||
       polygonRing.length > 0 ||
       circleRefineDraft != null ||
       polylineStart != null ||
       mapDrawTool !== 'select',
-    [drawnGeometry, rectCirclePreview, polygonRing.length, circleRefineDraft, polylineStart, mapDrawTool],
+    [drawnGeometry, aoiFields.length, rectCirclePreview, polygonRing.length, circleRefineDraft, polylineStart, mapDrawTool],
   );
 
   /** Sentinel Hub: GEOMETRY (3857 WKT) + EVALSCRIPT (RGBA, alpha = dataMask × optional index mask). */
@@ -8399,15 +8858,60 @@ export default function SatelliteIntelligence() {
                     );
                   }
                   const st = siLayerMapboxStylePack(layer);
-                  return (
-                    <Source
-                      key={`${layer.id}-${layer.source === 'arcgis' && layer.useArcGisSymbology !== false && layer.arcgisDrawingInfo ? 'ag' : 'c'}`}
-                      id={layer.id}
-                      type="geojson"
-                      data={layer.geojson}
-                    >
+                  const useCluster = siCustomLayerShouldClusterPoints(layer);
+                  const ptUnclustered: any = ['all', st.pointFilter, ['!', ['has', 'point_count']]];
+                  const srcKey = `${layer.id}-${useCluster ? 'cl' : 'ncl'}-${layer.source === 'arcgis' && layer.useArcGisSymbology !== false && layer.arcgisDrawingInfo ? 'ag' : 'c'}`;
+                  const fillLine = (
+                    <>
                       <Layer id={`${layer.id}-fill`} type="fill" filter={st.fillFilter} paint={st.fillPaint as any} />
                       <Layer id={`${layer.id}-line`} type="line" filter={st.lineFilter} paint={st.linePaint as any} />
+                    </>
+                  );
+                  if (useCluster) {
+                    return (
+                      <Source
+                        key={srcKey}
+                        id={layer.id}
+                        type="geojson"
+                        data={layer.geojson}
+                        cluster
+                        clusterMaxZoom={14}
+                        clusterRadius={52}
+                        clusterMinPoints={2}
+                      >
+                        {fillLine}
+                        <Layer
+                          id={`${layer.id}-cluster`}
+                          type="circle"
+                          filter={['has', 'point_count']}
+                          paint={
+                            {
+                              'circle-color': st.circlePaint['circle-color'],
+                              'circle-radius': ['step', ['get', 'point_count'], 16, 10, 20, 50, 26, 200, 34],
+                              'circle-opacity': 0.88,
+                              'circle-stroke-width': 2,
+                              'circle-stroke-color': st.circlePaint['circle-stroke-color'] ?? 'rgba(15,23,42,0.75)',
+                            } as any
+                          }
+                        />
+                        <Layer
+                          id={`${layer.id}-cluster-count`}
+                          type="symbol"
+                          filter={['has', 'point_count']}
+                          layout={{
+                            'text-field': '{point_count_abbreviated}',
+                            'text-font': ['DIN Offc Pro Medium', 'Arial Unicode MS Bold'],
+                            'text-size': 11,
+                          }}
+                          paint={{ 'text-color': '#f8fafc' } as any}
+                        />
+                        <Layer id={`${layer.id}-circle`} type="circle" filter={ptUnclustered} paint={st.circlePaint as any} />
+                      </Source>
+                    );
+                  }
+                  return (
+                    <Source key={srcKey} id={layer.id} type="geojson" data={layer.geojson}>
+                      {fillLine}
                       <Layer id={`${layer.id}-circle`} type="circle" filter={st.pointFilter} paint={st.circlePaint as any} />
                     </Source>
                   );
@@ -8565,6 +9069,17 @@ export default function SatelliteIntelligence() {
                     />
                   </Source>
                 )}
+                {aoiFieldsMapGeoJson ? (
+                  <Source id="si-aoi-fields-source" type="geojson" data={aoiFieldsMapGeoJson as any}>
+                    <Layer
+                      id="si-aoi-fields-fill"
+                      type="fill"
+                      filter={['in', ['geometry-type'], ['literal', ['Polygon', 'MultiPolygon']]]}
+                      paint={aoiFieldsMapFillPaint as any}
+                    />
+                    <Layer id="si-aoi-fields-line" type="line" paint={aoiFieldsMapLinePaint as any} />
+                  </Source>
+                ) : null}
                 {false && aoiHeatPointGeoJson?.features?.length ? (
                   <Source id="si-aoi-heat-source" type="geojson" data={aoiHeatPointGeoJson as any}>
                     <Layer
@@ -8753,7 +9268,7 @@ export default function SatelliteIntelligence() {
                 longitude={pop.lng}
                 latitude={pop.lat}
                 anchor="bottom"
-                offset={[popIdx * 18, 6 - popIdx * 12]}
+                offset={[((popIdx * 47) % 160) - 80, 6 - (popIdx % 7) * 11]}
               >
                 <div
                   className={`si-geo-ai-inspect-card si-geo-ai-inspect-card--map-anchor${pop.pinned ? ' si-geo-ai-inspect-card--pinned' : ''}${
@@ -8826,18 +9341,13 @@ export default function SatelliteIntelligence() {
                         </span>
                       </div>
                     </div>
-                    {pop.rows.length ? (
-                      <div className="si-geo-ai-inspect-card__table-wrap">
-                        <table className="si-geo-ai-inspect-card__table">
-                          <tbody>
-                            {pop.rows.map(row => (
-                              <tr key={`${pop.id}-${row.label}`}>
-                                <th scope="row">{row.label}</th>
-                                <td>{row.value}</td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
+                    {pop.rows.length || pop.inspect ? (
+                      <div className="si-geo-ai-inspect-card__explore-wrap">
+                        <SiGeoAiInspectPopupBody
+                          rows={pop.rows}
+                          inspect={pop.inspect}
+                          layout={pop.inspect?.viewMode}
+                        />
                       </div>
                     ) : null}
                   </div>
@@ -8926,18 +9436,13 @@ export default function SatelliteIntelligence() {
                         </span>
                       </div>
                     </div>
-                    {pop.rows.length ? (
-                      <div className="si-geo-ai-inspect-card__table-wrap">
-                        <table className="si-geo-ai-inspect-card__table">
-                          <tbody>
-                            {pop.rows.slice(0, 16).map(row => (
-                              <tr key={`${pop.id}-${row.label}`}>
-                                <th scope="row">{row.label}</th>
-                                <td>{row.value}</td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
+                    {pop.rows.length || pop.inspect ? (
+                      <div className="si-geo-ai-inspect-card__explore-wrap">
+                        <SiGeoAiInspectPopupBody
+                          rows={pop.rows}
+                          inspect={pop.inspect}
+                          layout={pop.inspect?.viewMode}
+                        />
                       </div>
                     ) : null}
                   </div>
@@ -8972,7 +9477,7 @@ export default function SatelliteIntelligence() {
                       <div className="si-geo-explorer-root si-geo-explorer-root--unified">
                         <div className="si-env-section-card si-geo-explorer">
                           <div className="si-geo-explorer-header">
-                            <h2 className="si-geo-explorer-title">Geo AI</h2>
+                            <h2 className="si-geo-explorer-title">Geo AI Exploration</h2>
                             <div className="si-geo-explorer-header-actions">
                               <button
                                 type="button"
@@ -8992,6 +9497,17 @@ export default function SatelliteIntelligence() {
                               >
                                 <i className="fa-solid fa-trash" aria-hidden />
                               </button>
+                              <label className="si-geo-ai-popup-mode-label si-geo-ai-exploration-toggle" title="Off: row highlight & map identify do not pan/zoom (use table zoom icon to fly).">
+                                <span className="si-geo-ai-popup-mode-label-text">Explore</span>
+                                <button
+                                  type="button"
+                                  className={`si-geo-ai-exploration-btn${geoAiExplorationMode ? ' si-geo-ai-exploration-btn--on' : ''}`}
+                                  aria-pressed={geoAiExplorationMode}
+                                  onClick={() => setGeoAiExplorationMode(v => !v)}
+                                >
+                                  {geoAiExplorationMode ? 'On' : 'Off'}
+                                </button>
+                              </label>
                               <label className="si-geo-ai-popup-mode-label">
                                 <span className="si-geo-ai-popup-mode-label-text">Popup</span>
                                 <select
@@ -9392,18 +9908,13 @@ export default function SatelliteIntelligence() {
                                         </span>
                                       </div>
                                     </div>
-                                    {pop.rows.length ? (
-                                      <div className="si-geo-ai-inspect-card__table-wrap">
-                                        <table className="si-geo-ai-inspect-card__table">
-                                          <tbody>
-                                            {pop.rows.slice(0, 20).map(row => (
-                                              <tr key={`${pop.id}-${row.label}`}>
-                                                <th scope="row">{row.label}</th>
-                                                <td>{row.value}</td>
-                                              </tr>
-                                            ))}
-                                          </tbody>
-                                        </table>
+                                    {pop.rows.length || pop.inspect ? (
+                                      <div className="si-geo-ai-inspect-card__explore-wrap">
+                                        <SiGeoAiInspectPopupBody
+                                          rows={pop.rows}
+                                          inspect={pop.inspect}
+                                          layout={pop.inspect?.viewMode}
+                                        />
                                       </div>
                                     ) : null}
                                   </div>
@@ -9449,6 +9960,7 @@ export default function SatelliteIntelligence() {
             onMapToolboxEmbedHost={setMapToolboxEmbedHost}
             onToolboxPanelClose={() => setIsLayerDropdownOpen(false)}
             mapToolboxLayersMain={layersEnvMainTools}
+            mapToolboxLayersOptionsExtra={layersEnvOptionsExtra}
             geoAiFloatingOpen={geoAiFloatingOpen}
             onGeoAiFloatingRailToggle={onGeoAiFloatingRailToggle}
           />
@@ -10517,6 +11029,159 @@ export default function SatelliteIntelligence() {
                               </button>
                             </div>
                           </div>
+                          <SiAoiFieldsPanel
+                            hasAoi={!!drawnGeometry}
+                            drawTargetMode={drawTargetMode}
+                            onDrawTargetMode={m => {
+                              setDrawTargetMode(m);
+                              if (m === 'field') setShowEditHandles(true);
+                            }}
+                            fields={aoiFields}
+                            selectedFieldId={selectedFieldId}
+                            onSelectField={setSelectedFieldId}
+                            onRenameField={(id, name) => {
+                              setAoiFields(prev => {
+                                const next = prev.map(x => (x.id === id ? { ...x, name } : x));
+                                aoiFieldsRef.current = next;
+                                return next;
+                              });
+                            }}
+                            onDeleteField={id => {
+                              setAoiFields(prev => {
+                                const next = prev.filter(x => x.id !== id);
+                                aoiFieldsRef.current = next;
+                                return next;
+                              });
+                              setSelectedFieldId(cur => (cur === id ? null : cur));
+                              setFieldMergePick(([a, b]) => [a === id ? null : a, b === id ? null : b]);
+                            }}
+                            onDuplicateField={id => {
+                              const row = aoiFields.find(f => f.id === id);
+                              if (!row) return;
+                              const g = cloneDeep(row.geometry);
+                              const rec = buildSiAoiFieldRecord(g, `${row.name} copy`, aoiFields.length);
+                              rec.style = { ...row.style };
+                              setAoiFields(prev => {
+                                const next = [...prev, rec];
+                                aoiFieldsRef.current = next;
+                                return next;
+                              });
+                              setSelectedFieldId(rec.id);
+                              setFieldAnalysisStatus(`Duplicated as ${rec.name}.`);
+                            }}
+                            onRotateField={(id, deg) => {
+                              const aoi = drawnGeometryRef.current;
+                              const row = aoiFields.find(f => f.id === id);
+                              if (!row || !aoi?.geometry) return;
+                              const rg = rotatePolygonGeometry(row.geometry, deg);
+                              if (!fieldGeometryWithinAoi(aoi.geometry, rg)) {
+                                setFieldAnalysisStatus('Rotate blocked: geometry would leave the AOI.');
+                                return;
+                              }
+                              setAoiFields(prev => {
+                                const next = prev.map(x =>
+                                  x.id === id ? { ...x, geometry: rg, ...computeSiAoiFieldMetrics(rg) } : x,
+                                );
+                                aoiFieldsRef.current = next;
+                                return next;
+                              });
+                            }}
+                            fieldSnap={aoiFieldSnap}
+                            onFieldSnap={setAoiFieldSnap}
+                            fieldNoOverlap={aoiFieldNoOverlap}
+                            onFieldNoOverlap={setAoiFieldNoOverlap}
+                            mergePick={fieldMergePick}
+                            onMergePick={(slot, id) =>
+                              setFieldMergePick(prev => (slot === 0 ? [id, prev[1]] : [prev[0], id]))
+                            }
+                            onMergeFields={() => {
+                              const [a, b] = fieldMergePick;
+                              if (!a || !b || a === b) return;
+                              const fa = aoiFields.find(f => f.id === a);
+                              const fb = aoiFields.find(f => f.id === b);
+                              if (!fa || !fb) return;
+                              const merged = mergeSiAoiPolygonFields(fa, fb, `${fa.name} + ${fb.name}`);
+                              if (!merged) {
+                                setFieldAnalysisStatus('Merge needs two polygon fields (not MultiPolygon).');
+                                return;
+                              }
+                              setAoiFields(prev => {
+                                const next = [...prev.filter(x => x.id !== a && x.id !== b), merged];
+                                aoiFieldsRef.current = next;
+                                return next;
+                              });
+                              setSelectedFieldId(merged.id);
+                              setFieldMergePick([null, null]);
+                              setFieldAnalysisStatus(`Merged into ${merged.name}.`);
+                            }}
+                            onCopyGeometry={() => {
+                              if (!selectedFieldId) return;
+                              const row = aoiFields.find(f => f.id === selectedFieldId);
+                              if (!row) return;
+                              fieldGeometryClipboardRef.current = cloneDeep(row.geometry);
+                              setFieldGeomClipboardPresent(true);
+                              setFieldAnalysisStatus('Field geometry copied.');
+                            }}
+                            onPasteGeometry={() => {
+                              const g = fieldGeometryClipboardRef.current;
+                              if (!g) return;
+                              tryAddFieldFromFeature({ type: 'Feature', properties: {}, geometry: g });
+                            }}
+                            canPaste={fieldGeomClipboardPresent && !!fieldGeometryClipboardRef.current}
+                            onExportFieldsGeoJson={() => {
+                              if (!drawnGeometry || !aoiFields.length) return;
+                              const fc = siAoiFieldsToFeatureCollection(aoiFields);
+                              const doc = {
+                                type: 'FeatureCollection',
+                                features: fc.features,
+                                siAoiWorkspace: {
+                                  version: 1,
+                                  parentAoiFeature: drawnGeometry,
+                                  exportedAt: new Date().toISOString(),
+                                },
+                              };
+                              downloadTextFile(
+                                'aoi-fields-nested.geojson',
+                                JSON.stringify(doc, null, 2),
+                                'application/geo+json',
+                              );
+                              setFieldAnalysisStatus('Exported nested fields GeoJSON.');
+                            }}
+                            importInputRef={fieldImportInputRef}
+                            onImportGeojson={e => {
+                              const file = e.target.files?.[0];
+                              e.target.value = '';
+                              if (!file) return;
+                              const reader = new FileReader();
+                              reader.onload = () => {
+                                try {
+                                  const json = JSON.parse(String(reader.result));
+                                  const feats: any[] = [];
+                                  if (json?.type === 'FeatureCollection' && Array.isArray(json.features)) {
+                                    feats.push(...json.features);
+                                  } else if (json?.type === 'Feature') {
+                                    feats.push(json);
+                                  }
+                                  let added = 0;
+                                  for (const ft of feats) {
+                                    if (tryAddFieldFromFeature(ft, { silent: true })) added++;
+                                  }
+                                  if (added > 0) {
+                                    setFieldAnalysisStatus(`Imported ${added} field polygon(s).`);
+                                  } else if (!feats.length) {
+                                    setFieldAnalysisStatus('No features found in GeoJSON.');
+                                  } else {
+                                    setFieldAnalysisStatus(
+                                      'No fields imported (check overlap / inside AOI / polygon type).',
+                                    );
+                                  }
+                                } catch {
+                                  setFieldAnalysisStatus('Could not parse GeoJSON for fields import.');
+                                }
+                              };
+                              reader.readAsText(file);
+                            }}
+                          />
                           <div className="si-rs-actions si-rs-actions--compact">
                             <button
                               type="button"
