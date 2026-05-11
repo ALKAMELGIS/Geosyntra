@@ -2,6 +2,7 @@ import React from 'react';
 import { appPrompt } from '../../../lib/appDialog';
 
 export type SymbologyStyle =
+  | 'single'
   | 'unique'
   | 'color'
   | 'size'
@@ -46,6 +47,7 @@ export interface LayerData {
   color?: string;       // Stroke color
   fillColor?: string;   // Fill color
   weight?: number;      // Stroke width
+  strokeStyle?: 'solid' | 'dashed' | 'dotted' | 'dashdot';
   symbology?: SymbologyConfig;
 }
 

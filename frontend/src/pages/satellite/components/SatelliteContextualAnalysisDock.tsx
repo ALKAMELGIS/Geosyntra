@@ -74,6 +74,8 @@ export type SatelliteContextualAnalysisDockProps = {
   geoAiFloatingOpen?: boolean;
   /** Toggle Geo AI floating widget from the map toolbox rail (same button as highlight). */
   onGeoAiFloatingRailToggle?: () => void;
+  /** Map toolbox only: quick action above Layers — open add-data / add-layer flow. */
+  onMapToolboxAddData?: () => void;
 };
 
 const RAIL: Array<{ id: SatelliteContextPanelId; icon: string; label: string; title: string; hint: string }> = [
@@ -243,6 +245,7 @@ export function SatelliteContextualAnalysisDock(props: SatelliteContextualAnalys
     mapToolboxLayersOptionsExtra,
     geoAiFloatingOpen = false,
     onGeoAiFloatingRailToggle,
+    onMapToolboxAddData,
   } = props;
 
   const [panelOpen, setPanelOpen] = useState(false);
@@ -519,6 +522,27 @@ export function SatelliteContextualAnalysisDock(props: SatelliteContextualAnalys
               <span className="si-sat-ctx-rail-brand__title">Map toolbox</span>
             ) : null}
           </div>
+        ) : null}
+        {isMap && onMapToolboxAddData ? (
+          <button
+            type="button"
+            className={
+              'si-sat-ctx-rail-btn si-sat-ctx-rail-btn--map si-sat-ctx-rail-add-data' +
+              (railWide ? ' si-sat-ctx-rail-btn--row si-sat-ctx-rail-btn--map-expanded' : '') +
+              (!railWide ? ' si-sat-ctx-rail-btn--map-collapsed' : '')
+            }
+            title="Add data — upload, import, or connect a new layer to the map"
+            aria-label="Add data"
+            onClick={() => onMapToolboxAddData()}
+          >
+            <span className="si-sat-ctx-rail-add-data__mark" aria-hidden>
+              <i className="fa-solid fa-plus" />
+            </span>
+            <span className="si-sat-ctx-rail-label" aria-hidden={!railWide}>
+              <span className="si-sat-ctx-rail-label-title">Add data</span>
+              <span className="si-sat-ctx-rail-label-desc">Upload or connect a new map layer</span>
+            </span>
+          </button>
         ) : null}
         {railMenuGroups.map((group, gi) => (
           <Fragment key={group.join('-')}>

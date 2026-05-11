@@ -10,7 +10,7 @@ import {
   type ReactNode,
   type TouchEvent as ReactTouchEvent,
 } from 'react'
-import { flushSync } from 'react-dom'
+import { createPortal, flushSync } from 'react-dom'
 import type { Map as LeafletMap } from 'leaflet'
 import L from 'leaflet'
 import { GeoJSON } from 'react-leaflet'
@@ -40,7 +40,12 @@ import {
   fetchImageServerMeta,
   getImageServerServiceRootFromUrl,
 } from '../../lib/arcgisImageServer'
-import { parseFile, parseRemoteUrlAsFile } from '../../utils/FileLoader'
+import {
+  mergeShpLikeToFeatureCollection,
+  normalizeGeoJsonEnvelope,
+  parseFile,
+  parseRemoteUrlAsFile,
+} from '../../utils/FileLoader'
 import { useGeminiApiKey } from '../../hooks/useGeminiApiKey'
 import {
   lastMapQueryCoordsFromMessages,
@@ -80,6 +85,16 @@ const GIS_AGOL_RAIL_COMPACT_LS_KEY = 'gis-agol-rail-compact-v1'
 const GEO_AI_CHAT_PAGE_SIZE = 40
 
 type AddLayerTab = 'giscontent' | 'arcgis' | 'database' | 'upload' | 'url'
+type SymbologyStrokeStyle = 'solid' | 'dashed' | 'dotted' | 'dashdot'
+
+const clamp01 = (n: number) => Math.max(0, Math.min(1, n))
+
+const strokeDashFromStyle = (style?: string): string => {
+  if (style === 'dashed') return '8 4'
+  if (style === 'dotted') return '2 4'
+  if (style === 'dashdot') return '12 4 2 4'
+  return ''
+}
 
 function isGisMapFeatureCollectionData(x: unknown): boolean {
   return Boolean(
@@ -268,19 +283,19 @@ const DB_PLATFORM_OPTIONS = [
 ] as const
 const GIS_DB_CONNECTIONS_STORAGE_KEY = 'gis-map-db-connections-v1'
 
-/** Anchor layer ⋮ menu to its trigger so it stays aligned while scrolling */
-function computeLayerMenuPosition(layerRootId: string): { top: number; left: number } | null {
-  const root = document.querySelector(`[data-layer-menu-root="${layerRootId}"]`)
-  const btn = root?.querySelector('button.gis-layer-menu-btn')
-  if (!(btn instanceof HTMLElement)) return null
-  const rect = btn.getBoundingClientRect()
+/** Anchor layer ⋮ menu to the clicked trigger (avoids wrong `querySelector` + stacking/scroll contexts). */
+function computeLayerMenuPositionFromAnchor(anchor: HTMLElement): { top: number; left: number; maxHeight: number } {
+  const rect = anchor.getBoundingClientRect()
   const vw = window.innerWidth
   const vh = window.innerHeight
   let left = Math.min(rect.right - GIS_LAYER_MENU_WIDTH, vw - GIS_LAYER_MENU_WIDTH - 8)
   left = Math.max(8, left)
   let top = rect.bottom + 6
-  if (top + GIS_LAYER_MENU_MAX_HEIGHT > vh - 8) top = Math.max(8, rect.top - 6 - GIS_LAYER_MENU_MAX_HEIGHT)
-  return { top, left }
+  if (top + GIS_LAYER_MENU_MAX_HEIGHT > vh - 8) {
+    top = Math.max(8, rect.top - 6 - GIS_LAYER_MENU_MAX_HEIGHT)
+  }
+  const maxHeight = Math.min(GIS_LAYER_MENU_MAX_HEIGHT, Math.max(120, vh - 8 - top))
+  return { top, left, maxHeight }
 }
 
 const MEASUREMENT_TOOLS: Array<{ id: MeasurementMode; label: string; icon: string; disabled?: boolean }> = [
@@ -668,7 +683,8 @@ export default function GisMap() {
   const [remoteDataUrl, setRemoteDataUrl] = useState('')
   const [syncingLayerKey, setSyncingLayerKey] = useState<string | null>(null)
   const [openLayerMenuId, setOpenLayerMenuId] = useState<string | null>(null)
-  const [layerMenuPos, setLayerMenuPos] = useState<null | { top: number; left: number }>(null)
+  const [layerMenuPos, setLayerMenuPos] = useState<null | { top: number; left: number; maxHeight: number }>(null)
+  const layerMenuAnchorRef = useRef<HTMLButtonElement | null>(null)
   const [layerDialog, setLayerDialog] = useState<null | { mode: 'props' | 'table' | 'legend'; layerId: string }>(null)
   const layerDialogRef = useRef<null | { mode: 'props' | 'table' | 'legend'; layerId: string }>(null)
   const [tableDockHeight, setTableDockHeight] = useState(320)
@@ -722,7 +738,28 @@ export default function GisMap() {
   const [editSnappingLayerIds, setEditSnappingLayerIds] = useState<Set<string>>(() => new Set())
   const [editGridSize, setEditGridSize] = useState('10')
   const [editGridUnit, setEditGridUnit] = useState('m')
-  const [symbologyDialog, setSymbologyDialog] = useState<null | { layerId: string; draft: Required<SymbologyConfig>; original?: SymbologyConfig }>(null)
+  const [symbologyDialog, setSymbologyDialog] = useState<
+    | null
+    | {
+        layerId: string
+        draft: Required<SymbologyConfig>
+        original?: SymbologyConfig
+        originalAppearance: {
+          color: string
+          fillColor: string
+          weight: number
+          opacity: number
+          strokeStyle: SymbologyStrokeStyle
+        }
+        draftAppearance: {
+          color: string
+          fillColor: string
+          weight: number
+          opacity: number
+          strokeStyle: SymbologyStrokeStyle
+        }
+      }
+  >(null)
   const swipeStartRef = useRef<{ x: number; y: number } | null>(null)
   const dragDepthRef = useRef(0)
   const fileInputRef = useRef<HTMLInputElement | null>(null)
@@ -1148,20 +1185,26 @@ export default function GisMap() {
         setOpenLayerMenuId(null)
         return
       }
-      if (target.closest(`[data-layer-menu-root="${openLayerMenuId}"]`)) return
+      const hitRoot = target.closest('[data-layer-menu-root]')
+      if (hitRoot?.getAttribute('data-layer-menu-root') === openLayerMenuId) return
+      if (target.closest('[data-gis-layer-menu-floating="1"]')) return
       setOpenLayerMenuId(null)
     }
     document.addEventListener('pointerdown', onPointerDown, true)
     return () => document.removeEventListener('pointerdown', onPointerDown, true)
   }, [openLayerMenuId])
 
+  useEffect(() => {
+    if (openLayerMenuId) return
+    setLayerMenuPos(null)
+    layerMenuAnchorRef.current = null
+  }, [openLayerMenuId])
+
   const repositionLayerMenu = useCallback(() => {
-    if (!openLayerMenuId) {
-      setLayerMenuPos(null)
-      return
-    }
-    const next = computeLayerMenuPosition(openLayerMenuId)
-    if (next) setLayerMenuPos(next)
+    if (!openLayerMenuId) return
+    const btn = layerMenuAnchorRef.current
+    if (!(btn instanceof HTMLElement)) return
+    setLayerMenuPos(computeLayerMenuPositionFromAnchor(btn))
   }, [openLayerMenuId])
 
   useLayoutEffect(() => {
@@ -1193,6 +1236,12 @@ export default function GisMap() {
     setSelectedFeatureKeys(new Set())
     setShowSelectedOnly(false)
     setTableDockCollapsed(false)
+  }, [layerDialog?.mode, layerDialog?.layerId])
+
+  useEffect(() => {
+    if (layerDialog?.mode === 'table') {
+      setTableToolsCollapsed(false)
+    }
   }, [layerDialog?.mode, layerDialog?.layerId])
 
   useEffect(() => {
@@ -3027,7 +3076,9 @@ export default function GisMap() {
     const style = (cfg?.style as SymbologyStyle) || 'color'
     const cfgField = typeof cfg?.field === 'string' ? cfg.field : ''
     const field =
-      style === 'unique'
+      style === 'single'
+        ? ''
+        : style === 'unique'
         ? cfgField || allFields[0] || numericFields[0] || ''
         : numericFields.includes(cfgField)
           ? cfgField
@@ -3644,11 +3695,18 @@ export default function GisMap() {
       opacity: baseOpacity,
       fillColor: baseFill,
       fillOpacity: geometryKind === 'polygon' ? 0.35 * baseOpacity : geometryKind === 'point' ? 0.7 * baseOpacity : 0,
+      dashArray: strokeDashFromStyle((layer as any).strokeStyle),
     }
     if (geometryKind !== 'polygon') base.fillOpacity = 0
     if (!ctx || ctx.cfg.useArcGisOnline) {
       const arc = getArcGisPathStyleForFeature(layer, feature)
       return arc ?? base
+    }
+
+    if (ctx.cfg.style === 'single') {
+      if (geometryKind === 'line') return { ...base, fillOpacity: 0 }
+      if (geometryKind === 'polygon') return { ...base, fillColor: baseFill, fillOpacity: 0.35 * baseOpacity }
+      return base
     }
 
     if (ctx.cfg.style === 'unique') {
@@ -3717,6 +3775,9 @@ export default function GisMap() {
     let fillOpacity = 0.7 * baseOpacity
 
     if (ctx && !ctx.cfg.useArcGisOnline) {
+      if (ctx.cfg.style === 'single') {
+        return { radius, color, weight, opacity, fillColor, fillOpacity }
+      }
       if (ctx.cfg.style === 'unique') {
         const raw = ctx.cfg.field ? feature?.properties?.[ctx.cfg.field] : undefined
         const key = raw === null || raw === undefined || raw === '' ? 'Other' : String(raw)
@@ -3758,9 +3819,30 @@ export default function GisMap() {
     )
   }
 
+  const applyLayerAppearance = (
+    layerId: string,
+    next: { color: string; fillColor: string; weight: number; opacity: number; strokeStyle: SymbologyStrokeStyle },
+  ) => {
+    setLayers(prev =>
+      prev.map(l =>
+        String(l.id) === layerId
+          ? {
+              ...l,
+              color: next.color,
+              fillColor: next.fillColor,
+              weight: Math.max(0.5, Math.min(16, next.weight)),
+              opacity: clamp01(next.opacity),
+              strokeStyle: next.strokeStyle,
+            }
+          : l,
+      ),
+    )
+  }
+
   const cancelSymbology = () => {
     if (!symbologyDialog) return
     applyLayerSymbology(symbologyDialog.layerId, symbologyDialog.original)
+    applyLayerAppearance(symbologyDialog.layerId, symbologyDialog.originalAppearance)
     setSymbologyDialog(null)
   }
 
@@ -3781,6 +3863,22 @@ export default function GisMap() {
       const normalized = normalizeSymbology(layer, nextDraft)
       applyLayerSymbology(prev.layerId, normalized)
       return { ...prev, draft: normalized }
+    })
+  }
+
+  const updateSymbologyAppearance = (
+    patch: Partial<{ color: string; fillColor: string; weight: number; opacity: number; strokeStyle: SymbologyStrokeStyle }>,
+  ) => {
+    setSymbologyDialog(prev => {
+      if (!prev) return prev
+      const next = {
+        ...prev.draftAppearance,
+        ...patch,
+      }
+      next.weight = Math.max(0.5, Math.min(16, Number.isFinite(next.weight) ? next.weight : 2))
+      next.opacity = clamp01(Number.isFinite(next.opacity) ? next.opacity : 1)
+      applyLayerAppearance(prev.layerId, next)
+      return { ...prev, draftAppearance: next }
     })
   }
 
@@ -4030,9 +4128,13 @@ export default function GisMap() {
       if (parsed.type !== 'geojson') throw new Error('File must contain GIS features (GeoJSON/KML/KMZ/Shapefile zip).')
       let geojson: any = parsed.data
       if (Array.isArray(geojson)) geojson = geojson[0]
-      if (!geojson || geojson.type !== 'FeatureCollection' || !Array.isArray(geojson.features)) {
-        throw new Error('File must be a GeoJSON FeatureCollection.')
+      const normalized = normalizeGeoJsonEnvelope(mergeShpLikeToFeatureCollection(geojson))
+      if (!normalized.features.length) {
+        throw new Error(
+          'No drawable features found. KML/KMZ may use empty folders, GroundOverlay-only files, or nested MultiGeometry — try a layer with placemark polygons/paths, or export as GeoJSON.',
+        )
       }
+      geojson = normalized
       const layerId = `upload:${newGisImportId()}`
       const name = layerName.trim() || uploadFile.name.replace(/\.[^.]+$/, '').trim() || 'Layer'
       const newLayer: LayerData = {
@@ -4112,9 +4214,13 @@ export default function GisMap() {
       }
       let geojson: any = parsed.data
       if (Array.isArray(geojson)) geojson = geojson[0]
-      if (!geojson || geojson.type !== 'FeatureCollection' || !Array.isArray(geojson.features)) {
-        throw new Error('URL must resolve to a GeoJSON FeatureCollection.')
+      const normalizedUrl = normalizeGeoJsonEnvelope(mergeShpLikeToFeatureCollection(geojson))
+      if (!normalizedUrl.features.length) {
+        throw new Error(
+          'URL resolved to no drawable vector features. If this is KML/KMZ, ensure placemarks include geometry (not only network links or overlays).',
+        )
       }
+      geojson = normalizedUrl
       const layerId = `url:${newGisImportId()}`
       const stem = file.name.replace(/\.[^.]+$/, '').trim()
       const name = layerName.trim() || stem || 'Layer'
@@ -5879,11 +5985,10 @@ export default function GisMap() {
                             e.stopPropagation()
                             if (openLayerMenuId === layerId) {
                               setOpenLayerMenuId(null)
-                              setLayerMenuPos(null)
                               return
                             }
-                            const pos = computeLayerMenuPosition(layerId)
-                            if (pos) setLayerMenuPos(pos)
+                            layerMenuAnchorRef.current = e.currentTarget
+                            setLayerMenuPos(computeLayerMenuPositionFromAnchor(e.currentTarget))
                             setOpenLayerMenuId(layerId)
                           }}
                         >
@@ -5891,21 +5996,25 @@ export default function GisMap() {
                         </button>
 
                         {isMenuOpen ? (
-                          <div
-                            className="gis-layer-menu-popover"
-                            role="menu"
-                            aria-label={`Layer options menu for ${layer.name}`}
-                            style={
-                              layerMenuPos
-                                ? {
-                                    position: 'fixed',
-                                    top: layerMenuPos.top,
-                                    left: layerMenuPos.left,
-                                    width: GIS_LAYER_MENU_WIDTH,
-                                  }
-                                : undefined
-                            }
-                          >
+                          createPortal(
+                            <div
+                              className="gis-layer-menu-popover"
+                              data-gis-layer-menu-floating="1"
+                              role="menu"
+                              aria-label={`Layer options menu for ${layer.name}`}
+                              style={
+                                layerMenuPos
+                                  ? {
+                                      position: 'fixed',
+                                      top: layerMenuPos.top,
+                                      left: layerMenuPos.left,
+                                      width: GIS_LAYER_MENU_WIDTH,
+                                      maxHeight: layerMenuPos.maxHeight,
+                                      zIndex: 12000,
+                                    }
+                                  : undefined
+                              }
+                            >
                             <button
                               className="gis-layer-menu-item"
                               type="button"
@@ -6046,7 +6155,9 @@ export default function GisMap() {
                               <i className="fa-solid fa-layer-group" aria-hidden="true" />
                               <span>Group</span>
                             </button>
-                          </div>
+                          </div>,
+                            document.body,
+                          )
                         ) : null}
                       </div>
                     </div>
@@ -6097,8 +6208,22 @@ export default function GisMap() {
                               const r = layer.arcgisRenderer ?? layer.arcgisLayerDefinition?.drawingInfo?.renderer
                               draft = normalizeSymbology(layer, { ...draft, ...inferVisualizationFromArcgisRenderer(r) })
                             }
+                            const baseAppearance = {
+                              color: layer.color || '#22c55e',
+                              fillColor: layer.fillColor || layer.color || '#22c55e',
+                              weight: layer.weight ?? 2,
+                              opacity: typeof layer.opacity === 'number' && Number.isFinite(layer.opacity) ? clamp01(layer.opacity) : 1,
+                              strokeStyle: ((layer as any).strokeStyle as SymbologyStrokeStyle) || 'solid',
+                            }
                             applyLayerSymbology(lid, draft)
-                            setSymbologyDialog({ layerId: lid, draft, original })
+                            applyLayerAppearance(lid, baseAppearance)
+                            setSymbologyDialog({
+                              layerId: lid,
+                              draft,
+                              original,
+                              originalAppearance: baseAppearance,
+                              draftAppearance: baseAppearance,
+                            })
                           }}
                           disabled={layer.type !== 'geojson'}
                           aria-label={`Symbology for ${layer.name}`}
@@ -7044,10 +7169,15 @@ export default function GisMap() {
                     <div className="gis-layer-panel-muted">No fields found.</div>
                   ) : (
                     <div className="gis-table-dock-layout">
-                      <div
-                        className={tableToolsCollapsed ? 'gis-table-dock-sidebar collapsed' : 'gis-table-dock-sidebar'}
-                        aria-label="Table tools"
+                      <aside
+                        className={`gis-workspace-sidebar gis-table-dock-sidebar${tableToolsCollapsed ? ' collapsed' : ''}`}
+                        aria-label="GIS workspace — table tools, search, and filters"
                       >
+                        <div className="gis-workspace-sidebar__scope" aria-hidden={tableToolsCollapsed ? true : undefined}>
+                          <span className="gis-workspace-sidebar__scope-label">Table</span>
+                          <span className="gis-workspace-sidebar__scope-hint">Attribute workspace</span>
+                        </div>
+                        <div className="gis-workspace-sidebar__tools" role="toolbar" aria-label="Table actions">
                         <button
                           className="gis-table-toolbtn"
                           type="button"
@@ -7128,90 +7258,126 @@ export default function GisMap() {
                           <i className="fa-solid fa-layer-group" aria-hidden="true" />
                           <span className="gis-table-tooltext">Apply format</span>
                         </button>
+                        </div>
+
+                        <div className="gis-workspace-sidebar__rich" role="region" aria-label="Table search and filters">
+                          <details className="gis-workspace-acc" open>
+                            <summary className="gis-workspace-acc__summary">Search &amp; browse</summary>
+                            <div className="gis-workspace-acc__body gis-workspace-acc__body--stack">
+                              <div className="gis-table-controls gis-table-controls--workspace">
+                                <label className="gis-table-domain-toggle">
+                                  <span>Search mode</span>
+                                  <select
+                                    value={tableSearchMode}
+                                    onChange={(e) => setTableSearchMode(e.target.value as TableSearchMode)}
+                                    aria-label="Table search mode"
+                                  >
+                                    <option value="description">Description</option>
+                                    <option value="code">Code</option>
+                                    <option value="both">Both</option>
+                                  </select>
+                                </label>
+                                <label className="gis-table-search">
+                                  <i className="fa-solid fa-magnifying-glass" aria-hidden="true" />
+                                  <input
+                                    value={tableSearchQuery}
+                                    onChange={(e) => setTableSearchQuery(e.target.value)}
+                                    placeholder={
+                                      tableSearchMode === 'code'
+                                        ? 'Search codes...'
+                                        : tableSearchMode === 'both'
+                                          ? 'Search descriptions or codes...'
+                                          : 'Search descriptions...'
+                                    }
+                                    aria-label="Search table by selected display mode"
+                                  />
+                                </label>
+                              </div>
+                            </div>
+                          </details>
+                          <details className="gis-workspace-acc" open>
+                            <summary className="gis-workspace-acc__summary">Field filter</summary>
+                            <div className="gis-workspace-acc__body gis-workspace-acc__body--stack">
+                              <div className="gis-table-advanced-controls gis-table-advanced-controls--workspace" aria-label="Advanced table filter">
+                                <label>
+                                  <span>Filter field</span>
+                                  <select value={tableFilterField} onChange={(e) => setTableFilterField(e.target.value)}>
+                                    <option value="">All records</option>
+                                    {fields.map(f => (
+                                      <option key={f} value={f}>
+                                        {f}
+                                      </option>
+                                    ))}
+                                  </select>
+                                </label>
+                                <label>
+                                  <span>Rule</span>
+                                  <select
+                                    value={tableFilterOperator}
+                                    onChange={(e) => setTableFilterOperator(e.target.value as TableFilterOperator)}
+                                  >
+                                    <option value="contains">Contains</option>
+                                    <option value="equals">Equals</option>
+                                    <option value="not_equals">Not equals</option>
+                                    <option value="empty">Is empty</option>
+                                    <option value="not_empty">Is not empty</option>
+                                  </select>
+                                </label>
+                                <label>
+                                  <span>Value</span>
+                                  <input
+                                    value={tableFilterValue}
+                                    onChange={(e) => setTableFilterValue(e.target.value)}
+                                    disabled={tableFilterOperator === 'empty' || tableFilterOperator === 'not_empty'}
+                                    placeholder="Filter value"
+                                  />
+                                </label>
+                                <button
+                                  className="gis-table-filter-clear"
+                                  type="button"
+                                  onClick={() => {
+                                    setTableFilterField('')
+                                    setTableFilterOperator('contains')
+                                    setTableFilterValue('')
+                                  }}
+                                >
+                                  Clear filter
+                                </button>
+                              </div>
+                            </div>
+                          </details>
+                          <details className="gis-workspace-acc">
+                            <summary className="gis-workspace-acc__summary">Map &amp; analysis hub</summary>
+                            <div className="gis-workspace-acc__body gis-workspace-acc__body--prose">
+                              <p>
+                                Layer styling, pop-ups, related records, GeoAI, and map tools stay in the main map sidebar so they are
+                                not duplicated here.
+                              </p>
+                            </div>
+                          </details>
+                        </div>
 
                         <button
-                          className="gis-table-toolbtn gis-table-toolbtn--icon-only"
+                          className="gis-table-toolbtn gis-table-toolbtn--icon-only gis-workspace-sidebar__collapse"
                           type="button"
                           onClick={() => setTableToolsCollapsed(v => !v)}
                           aria-expanded={!tableToolsCollapsed}
-                          aria-label={tableToolsCollapsed ? 'Expand tools' : 'Collapse tools'}
-                          title={tableToolsCollapsed ? 'Expand tools' : 'Collapse tools'}
+                          aria-label={tableToolsCollapsed ? 'Expand workspace' : 'Collapse workspace'}
+                          title={tableToolsCollapsed ? 'Expand workspace' : 'Collapse workspace'}
                         >
                           <i
                             className={tableToolsCollapsed ? 'fa-solid fa-angles-right' : 'fa-solid fa-angles-left'}
                             aria-hidden="true"
                           />
                         </button>
-                      </div>
+                      </aside>
 
                       <div className="gis-layer-table-wrap gis-table-dock-table" aria-label="Layer table" ref={tableScrollRootRef}>
-                        <div className="gis-layer-table-meta">
+                        <div className="gis-layer-table-meta gis-layer-table-meta--table-only">
                           <div className="gis-layer-table-metatext">
                             {showSelectedOnly ? `Showing selected: ${filteredRows.length}` : `Showing ${filteredRows.length}`} of {features.length} feature(s)
                             {features.length > maxRows ? ` (first ${maxRows} loaded)` : ''}
                           </div>
-                          <div className="gis-table-controls">
-                            <label className="gis-table-domain-toggle">
-                              <span>Search mode</span>
-                              <select
-                                value={tableSearchMode}
-                                onChange={(e) => setTableSearchMode(e.target.value as TableSearchMode)}
-                                aria-label="Table search mode"
-                              >
-                                <option value="description">Description</option>
-                                <option value="code">Code</option>
-                                <option value="both">Both</option>
-                              </select>
-                            </label>
-                            <label className="gis-table-search">
-                              <i className="fa-solid fa-magnifying-glass" aria-hidden="true" />
-                              <input
-                                value={tableSearchQuery}
-                                onChange={(e) => setTableSearchQuery(e.target.value)}
-                                placeholder={tableSearchMode === 'code' ? 'Search codes...' : tableSearchMode === 'both' ? 'Search descriptions or codes...' : 'Search descriptions...'}
-                                aria-label="Search table by selected display mode"
-                              />
-                            </label>
-                          </div>
-                        </div>
-                        <div className="gis-table-advanced-controls" aria-label="Advanced table filter">
-                          <label>
-                            <span>Filter field</span>
-                            <select value={tableFilterField} onChange={(e) => setTableFilterField(e.target.value)}>
-                              <option value="">All records</option>
-                              {fields.map(f => <option key={f} value={f}>{f}</option>)}
-                            </select>
-                          </label>
-                          <label>
-                            <span>Rule</span>
-                            <select value={tableFilterOperator} onChange={(e) => setTableFilterOperator(e.target.value as TableFilterOperator)}>
-                              <option value="contains">Contains</option>
-                              <option value="equals">Equals</option>
-                              <option value="not_equals">Not equals</option>
-                              <option value="empty">Is empty</option>
-                              <option value="not_empty">Is not empty</option>
-                            </select>
-                          </label>
-                          <label>
-                            <span>Value</span>
-                            <input
-                              value={tableFilterValue}
-                              onChange={(e) => setTableFilterValue(e.target.value)}
-                              disabled={tableFilterOperator === 'empty' || tableFilterOperator === 'not_empty'}
-                              placeholder="Filter value"
-                            />
-                          </label>
-                          <button
-                            className="gis-table-filter-clear"
-                            type="button"
-                            onClick={() => {
-                              setTableFilterField('')
-                              setTableFilterOperator('contains')
-                              setTableFilterValue('')
-                            }}
-                          >
-                            Clear filter
-                          </button>
                         </div>
                       {selectionNotice ? <div className="gis-layer-panel-muted">{selectionNotice}</div> : null}
                       <table className="gis-layer-table">
@@ -7871,7 +8037,9 @@ export default function GisMap() {
                     const renderer = symbologyLayer.arcgisRenderer ?? symbologyLayer.arcgisLayerDefinition?.drawingInfo?.renderer
                     const visLabel = describeArcGisRendererVisualization(renderer)
                     const styleLabel =
-                      symbologyDialog.draft.style === 'unique'
+                      symbologyDialog.draft.style === 'single'
+                        ? 'Location (single symbol)'
+                        : symbologyDialog.draft.style === 'unique'
                         ? 'Types (unique symbols)'
                         : symbologyDialog.draft.style === 'color_size'
                           ? 'Counts and Amounts (color + size)'
@@ -7915,6 +8083,7 @@ export default function GisMap() {
                   const ctx = symbologyContexts.get(String(symbologyLayer.id))
                   const geometryKind = ctx?.geometryKind ?? getLayerGeometryKind(symbologyLayer.data)
                   const isUnique = symbologyDialog.draft.style === 'unique'
+                  const isSingle = symbologyDialog.draft.style === 'single'
                   const classes = clampInt(symbologyDialog.draft.classes, 2, 12)
                   const showColor =
                     symbologyDialog.draft.style === 'color' ||
@@ -7922,8 +8091,13 @@ export default function GisMap() {
                     (isUnique && geometryKind !== 'line')
                   const showSize = symbologyDialog.draft.style === 'size' || symbologyDialog.draft.style === 'color_size'
                   const showMethod =
-                    symbologyDialog.draft.style !== 'unique' && symbologyDialog.draft.style !== 'threshold_markers'
-                  const showClasses = true
+                    symbologyDialog.draft.style !== 'unique' &&
+                    symbologyDialog.draft.style !== 'threshold_markers' &&
+                    symbologyDialog.draft.style !== 'single'
+                  const showClasses = !isSingle
+                  const showFieldSelector = !isSingle
+                  const appearance = symbologyDialog.draftAppearance
+                  const previewDash = strokeDashFromStyle(appearance.strokeStyle)
                   const legendItems = (() => {
                     const items: Array<{ label: string; kind: 'line' | 'point' | 'polygon'; color: string; width: number; dash?: string; fill?: string }> = []
                     if (!ctx) return items
@@ -7949,6 +8123,18 @@ export default function GisMap() {
                       }
                       if (arcDef) return arcLegendLabelForFieldValue(fieldNm, val, arcDef, fieldsByLower)
                       return val
+                    }
+                    if (symbologyDialog.draft.style === 'single') {
+                      const fill = appearance.fillColor
+                      items.push({
+                        label: 'Base symbol',
+                        kind,
+                        color: appearance.color,
+                        width: appearance.weight,
+                        dash: previewDash || undefined,
+                        fill,
+                      })
+                      return items
                     }
                     if (symbologyDialog.draft.style === 'unique') {
                       if (kind === 'line') {
@@ -8017,6 +8203,7 @@ export default function GisMap() {
                               value={symbologyDialog.draft.style}
                               onChange={(e) => updateSymbologyDraft({ style: e.target.value as SymbologyStyle })}
                             >
+                              <option value="single">Location (single symbol)</option>
                               <option value="unique">Types (unique symbols)</option>
                               <option value="color">Counts and Amounts (color)</option>
                               <option value="size">Counts and Amounts (size)</option>
@@ -8028,24 +8215,26 @@ export default function GisMap() {
                           </div>
                         </div>
 
-                        <div className="gis-style-field">
-                          <div className="gis-style-label">{isUnique ? 'Attribute (categorical)' : 'Attribute (numeric)'}</div>
-                          <div className="gis-style-selectwrap">
-                            <select
-                              className="gis-style-select"
-                              value={symbologyDialog.draft.field}
-                              onChange={(e) => updateSymbologyDraft({ field: e.target.value })}
-                            >
-                              {isUnique ? (allFields.length ? null : <option value="">No fields</option>) : numericFields.length ? null : <option value="">No numeric fields</option>}
-                              {(isUnique ? allFields : numericFields).map(f => (
-                                <option key={f} value={f}>
-                                  {f}
-                                </option>
-                              ))}
-                            </select>
-                            <i className="fa-solid fa-chevron-down" aria-hidden="true" />
+                        {showFieldSelector ? (
+                          <div className="gis-style-field">
+                            <div className="gis-style-label">{isUnique ? 'Attribute (categorical)' : 'Attribute (numeric)'}</div>
+                            <div className="gis-style-selectwrap">
+                              <select
+                                className="gis-style-select"
+                                value={symbologyDialog.draft.field}
+                                onChange={(e) => updateSymbologyDraft({ field: e.target.value })}
+                              >
+                                {isUnique ? (allFields.length ? null : <option value="">No fields</option>) : numericFields.length ? null : <option value="">No numeric fields</option>}
+                                {(isUnique ? allFields : numericFields).map(f => (
+                                  <option key={f} value={f}>
+                                    {f}
+                                  </option>
+                                ))}
+                              </select>
+                              <i className="fa-solid fa-chevron-down" aria-hidden="true" />
+                            </div>
                           </div>
-                        </div>
+                        ) : null}
 
                         {showColor ? (
                           <div className="gis-style-field">
@@ -8121,6 +8310,103 @@ export default function GisMap() {
                       </div>
                       </div>
 
+                      <div className="gis-style-card">
+                        <div className="gis-style-panel-title">Symbol Style Studio</div>
+                        <div className="gis-style-grid">
+                          <div className="gis-style-field">
+                            <div className="gis-style-label">Fill</div>
+                            <input className="gis-style-input" type="color" value={appearance.fillColor} onChange={(e) => updateSymbologyAppearance({ fillColor: e.target.value })} />
+                          </div>
+                          <div className="gis-style-field">
+                            <div className="gis-style-label">Outline</div>
+                            <input className="gis-style-input" type="color" value={appearance.color} onChange={(e) => updateSymbologyAppearance({ color: e.target.value })} />
+                          </div>
+                          <div className="gis-style-field">
+                            <div className="gis-style-label">Stroke Style</div>
+                            <div className="gis-style-selectwrap">
+                              <select
+                                className="gis-style-select"
+                                value={appearance.strokeStyle}
+                                onChange={(e) => updateSymbologyAppearance({ strokeStyle: e.target.value as SymbologyStrokeStyle })}
+                              >
+                                <option value="solid">Solid</option>
+                                <option value="dashed">Dashed</option>
+                                <option value="dotted">Dotted</option>
+                                <option value="dashdot">Dash-dot</option>
+                              </select>
+                              <i className="fa-solid fa-chevron-down" aria-hidden="true" />
+                            </div>
+                          </div>
+                          <div className="gis-style-field">
+                            <div className="gis-style-label">Width ({appearance.weight.toFixed(1)} px)</div>
+                            <input
+                              className="gis-style-input"
+                              type="range"
+                              min={0.5}
+                              max={16}
+                              step={0.5}
+                              value={appearance.weight}
+                              onChange={(e) => updateSymbologyAppearance({ weight: Number(e.target.value) })}
+                            />
+                          </div>
+                          <div className="gis-style-field">
+                            <div className="gis-style-label">Transparency ({Math.round((1 - appearance.opacity) * 100)}%)</div>
+                            <input
+                              className="gis-style-input"
+                              type="range"
+                              min={0}
+                              max={100}
+                              step={1}
+                              value={Math.round((1 - appearance.opacity) * 100)}
+                              onChange={(e) => updateSymbologyAppearance({ opacity: 1 - Number(e.target.value) / 100 })}
+                            />
+                          </div>
+                          <div className="gis-style-field">
+                            <div className="gis-style-label">Symbol preview</div>
+                            <div className="gis-style-preview-box">
+                              <svg width="100%" height="56" viewBox="0 0 240 56" aria-hidden="true">
+                                {geometryKind === 'line' ? (
+                                  <line
+                                    x1="14"
+                                    y1="28"
+                                    x2="226"
+                                    y2="28"
+                                    stroke={appearance.color}
+                                    strokeWidth={Math.max(1, appearance.weight)}
+                                    strokeDasharray={previewDash || undefined}
+                                    strokeLinecap="round"
+                                    opacity={appearance.opacity}
+                                  />
+                                ) : geometryKind === 'point' ? (
+                                  <circle
+                                    cx="120"
+                                    cy="28"
+                                    r={Math.max(6, Math.min(16, 4 + appearance.weight))}
+                                    fill={appearance.fillColor}
+                                    stroke={appearance.color}
+                                    strokeWidth={Math.max(1, appearance.weight * 0.6)}
+                                    opacity={appearance.opacity}
+                                  />
+                                ) : (
+                                  <rect
+                                    x="72"
+                                    y="12"
+                                    width="96"
+                                    height="32"
+                                    rx="8"
+                                    fill={appearance.fillColor}
+                                    stroke={appearance.color}
+                                    strokeWidth={Math.max(1, appearance.weight)}
+                                    strokeDasharray={previewDash || undefined}
+                                    opacity={appearance.opacity}
+                                  />
+                                )}
+                              </svg>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+
                       <div className="gis-style-card gis-style-card-legend">
                       <div className="gis-style-legend">
                         {legendItems.map((it, idx) => (
@@ -8167,7 +8453,7 @@ export default function GisMap() {
       ) : null}
 
       {isAddOpen ? (
-        <div className="gis-modal-overlay" role="presentation" onClick={closeAddLayerModal}>
+        <div className="gis-modal-overlay gis-map-add-layer-overlay" role="presentation" onClick={closeAddLayerModal}>
           <div
             className="gis-modal gis-modal-compact"
             role="dialog"
@@ -8589,6 +8875,13 @@ export default function GisMap() {
                     placeholder="Layer Name (optional)"
                     autoComplete="off"
                   />
+
+                  {discoverError ? (
+                    <div className="gis-inline-error" role="alert">
+                      <i className="fa-solid fa-triangle-exclamation" aria-hidden="true" />
+                      <span>{discoverError}</span>
+                    </div>
+                  ) : null}
 
                   <button
                     className="gis-btn-primary-full"

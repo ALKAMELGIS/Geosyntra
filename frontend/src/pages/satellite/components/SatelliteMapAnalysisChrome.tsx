@@ -156,6 +156,8 @@ export type SatelliteMapAnalysisChromeProps = {
   /** Geo AI opens as a floating map widget (not inside the processing panel). */
   geoAiFloatingOpen?: boolean;
   onGeoAiFloatingRailToggle?: () => void;
+  /** Map toolbox rail: opens add layer / data dialog (Satellite Intelligence). */
+  onMapToolboxAddData?: () => void;
 };
 
 function sparkPath(values: number[], w: number, h: number): string {
@@ -212,6 +214,7 @@ export function SatelliteMapAnalysisChrome(props: SatelliteMapAnalysisChromeProp
     mapToolboxLayersOptionsExtra,
     geoAiFloatingOpen = false,
     onGeoAiFloatingRailToggle,
+    onMapToolboxAddData,
   } = props;
 
   const activeFull =
@@ -284,6 +287,7 @@ export function SatelliteMapAnalysisChrome(props: SatelliteMapAnalysisChromeProp
       mapToolboxLayersOptionsExtra={mapToolboxLayersOptionsExtra}
       geoAiFloatingOpen={geoAiFloatingOpen}
       onGeoAiFloatingRailToggle={onGeoAiFloatingRailToggle}
+      onMapToolboxAddData={onMapToolboxAddData}
     />
   ) : null;
 

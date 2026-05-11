@@ -396,7 +396,8 @@ export function GeoExplorerGeminiInputRow(props: GeoExplorerGeminiInputRowProps)
     const el = textareaRef.current
     if (!el) return
     el.style.height = 'auto'
-    const maxPx = 200
+    const maxPx =
+      typeof window !== 'undefined' ? Math.min(340, Math.max(200, Math.round(window.innerHeight * 0.42))) : 280
     const h = Math.min(Math.max(el.scrollHeight, 44), maxPx)
     el.style.height = `${h}px`
   }, [])
@@ -404,6 +405,12 @@ export function GeoExplorerGeminiInputRow(props: GeoExplorerGeminiInputRowProps)
   useEffect(() => {
     syncTextareaHeight()
   }, [draft, busy, syncTextareaHeight])
+
+  useEffect(() => {
+    const onResize = () => syncTextareaHeight()
+    window.addEventListener('resize', onResize, { passive: true })
+    return () => window.removeEventListener('resize', onResize)
+  }, [syncTextareaHeight])
 
   useEffect(() => {
     if (!optimizeOpen) return

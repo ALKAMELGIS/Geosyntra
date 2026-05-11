@@ -118,6 +118,9 @@
 .si-geo-ai-float-panel--sized {
   max-height: none;
   max-width: none;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
 }
 
 @keyframes si-geo-ai-float-in {
@@ -334,10 +337,100 @@
 .si-geo-ai-float-body {
   flex: 1 1 auto;
   min-height: 0;
-  overflow: auto;
+  overflow: hidden;
   padding: 0 10px 12px;
+  display: flex;
+  flex-direction: column;
   scrollbar-width: thin;
   scrollbar-color: rgba(148, 163, 184, 0.45) transparent;
+}
+
+.si-geo-ai-float-body .si-geo-explorer-root.si-geo-explorer-root--unified {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.si-geo-ai-float-body .si-env-section-card.si-geo-explorer {
+  display: flex !important;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.si-geo-ai-float-body .si-geo-explorer-root--unified .si-geo-explorer {
+  flex: 1 1 auto;
+  min-height: 0;
+  max-height: none;
+  gap: 8px;
+}
+
+.si-geo-ai-float-body .si-geo-ai-model-tabs {
+  flex-shrink: 0;
+}
+
+.si-geo-ai-float-body .si-geo-explorer-messages {
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.si-geo-ai-float-body .si-geo-explorer-row--model:has(.si-geo-explorer-dyn-table) {
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.si-geo-ai-float-body .si-geo-explorer-row--model:has(.si-geo-explorer-dyn-table) .si-geo-explorer-bubble {
+  flex: 1 1 auto;
+  min-height: 0;
+  max-width: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.si-geo-ai-float-body .si-geo-explorer-msg-stack:has(.si-geo-explorer-dyn-table) {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.si-geo-ai-float-body .si-geo-explorer-msg-segment--media:has(.si-geo-explorer-dyn-table) {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.si-geo-ai-float-body .si-geo-explorer-dyn-table {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.si-geo-ai-float-body .si-geo-explorer-dyn-table-toolbar,
+.si-geo-ai-float-body .si-geo-explorer-dyn-table-query-row,
+.si-geo-ai-float-body .si-geo-explorer-dyn-table-controls,
+.si-geo-ai-float-body .si-geo-explorer-dyn-table-chart,
+.si-geo-ai-float-body .si-geo-explorer-dyn-table-foot,
+.si-geo-ai-float-body .si-geo-explorer-dyn-table-pagination {
+  flex-shrink: 0;
+}
+
+.si-geo-ai-float-body .si-geo-explorer-dyn-table-scroll {
+  min-height: 0;
+  max-height: none;
+  overflow: auto;
+  overscroll-behavior: contain;
+}
+
+.si-geo-ai-float-body .si-geo-explorer-composer-surface,
+.si-geo-ai-float-body .si-geo-explorer-error-row,
+.si-geo-ai-float-body .si-geo-explorer-pending-img,
+.si-geo-ai-float-body .si-geo-explorer-footnote {
+  flex-shrink: 0;
 }
 
 /* Flatten inner explorer chrome inside floating shell */

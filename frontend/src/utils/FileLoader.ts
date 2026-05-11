@@ -106,6 +106,13 @@ function yieldToBrowser(): Promise<void> {
 export function mergeShpLikeToFeatureCollection(geo: unknown): { type: 'FeatureCollection'; features: any[] } {
   if (!geo || typeof geo !== 'object') return { type: 'FeatureCollection', features: [] };
   const g = geo as any;
+  /** KML `<MultiGeometry>` and some exports surface as a root or nested GeometryCollection. */
+  if (g.type === 'GeometryCollection' && Array.isArray(g.geometries)) {
+    const feats = g.geometries
+      .filter((geom: any) => geom && typeof geom === 'object')
+      .map((geom: any) => ({ type: 'Feature', properties: {}, geometry: geom }));
+    return mergeShpLikeToFeatureCollection({ type: 'FeatureCollection', features: feats });
+  }
   if (g.type === 'FeatureCollection' && Array.isArray(g.features)) {
     return { type: 'FeatureCollection', features: g.features.filter(Boolean) };
   }
@@ -131,9 +138,38 @@ export function mergeShpLikeToFeatureCollection(geo: unknown): { type: 'FeatureC
   return { type: 'FeatureCollection', features };
 }
 
+function flattenGeometryCollectionPieces(geom: any): any[] {
+  if (!geom || typeof geom !== 'object') return [];
+  if (geom.type === 'GeometryCollection' && Array.isArray(geom.geometries)) {
+    const out: any[] = [];
+    for (const inner of geom.geometries) {
+      out.push(...flattenGeometryCollectionPieces(inner));
+    }
+    return out;
+  }
+  return [geom];
+}
+
 export function normalizeGeoJsonEnvelope(data: unknown): { type: 'FeatureCollection'; features: any[] } {
   const merged = mergeShpLikeToFeatureCollection(data);
-  const cleaned = merged.features.filter(f => f && f.geometry && typeof f.geometry === 'object');
+  const expanded: any[] = [];
+  for (const f of merged.features) {
+    if (!f || typeof f !== 'object') continue;
+    const geom = (f as any).geometry;
+    if (!geom || typeof geom !== 'object') continue;
+    const pieces = flattenGeometryCollectionPieces(geom);
+    if (pieces.length === 0) continue;
+    if (pieces.length === 1) {
+      expanded.push({ ...f, geometry: pieces[0] });
+    } else {
+      for (const piece of pieces) {
+        expanded.push({ ...f, geometry: piece });
+      }
+    }
+  }
+  const cleaned = expanded.filter(
+    f => f && f.geometry && typeof f.geometry === 'object' && typeof (f.geometry as any).type === 'string',
+  );
   return { type: 'FeatureCollection', features: cleaned };
 }
 
