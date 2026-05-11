@@ -236,16 +236,17 @@ export function arcgisDrawingInfoToFillPaint(drawingInfo: any): ArcgisMapboxFill
       if (!Number.isFinite(maxV)) continue;
       const sym = br?.symbol;
       const hollow = esriPolygonFillIsHollow(sym);
-      const fc = hollow ? 'rgba(0,0,0,0)' : symbolFillColor(sym) || '#94a3b8';
-      const fo = hollow ? 0 : defaultFillOpacity(sym);
+      const fc = hollow ? 'rgba(0,0,0,0)' : symbolFillColor(sym) ?? 'rgba(0,0,0,0)';
+      const fo = hollow || fc === 'rgba(0,0,0,0)' ? 0 : defaultFillOpacity(sym);
       const cond: any[] = ['all', ['>=', numGet, low], ['<=', numGet, maxV]];
       colorExpr.push(cond, fc);
       opExpr.push(cond, fo);
     }
     const defSym = ren.defaultSymbol;
     const defHollow = esriPolygonFillIsHollow(defSym);
-    colorExpr.push(defHollow ? 'rgba(0,0,0,0)' : symbolFillColor(defSym) || '#64748b');
-    opExpr.push(defHollow ? 0 : defaultFillOpacity(defSym));
+    const defFill = defHollow ? 'rgba(0,0,0,0)' : symbolFillColor(defSym) ?? 'rgba(0,0,0,0)';
+    colorExpr.push(defFill);
+    opExpr.push(defHollow || defFill === 'rgba(0,0,0,0)' ? 0 : defaultFillOpacity(defSym));
     return { 'fill-color': colorExpr, 'fill-opacity': opExpr };
   }
 

@@ -51,7 +51,7 @@ export function GeoExplorerGeminiChatBody(props: GeoExplorerGeminiChatBodyProps)
           <div className={pfx(cssPrefix, 'avatar')} aria-hidden>
             <i className="fa-solid fa-globe" />
           </div>
-          <div className={pfx(cssPrefix, 'bubble')}>
+          <div className={`${pfx(cssPrefix, 'bubble')} ${pfx(cssPrefix, 'bubble--welcome')}`}>
             Hello! Im Agro Cloud - GeoAI - Describe a place, upload an image, or ask for directions. When a location is
             clear, the map will fly there
           </div>
@@ -69,12 +69,17 @@ export function GeoExplorerGeminiChatBody(props: GeoExplorerGeminiChatBodyProps)
           </div>
         ))}
         {busy ? (
-          <div className={`${pfx(cssPrefix, 'row')} ${pfx(cssPrefix, 'row--model')}`}>
+          <div className={`${pfx(cssPrefix, 'row')} ${pfx(cssPrefix, 'row--model')}`} aria-busy="true">
             <div className={pfx(cssPrefix, 'avatar')} aria-hidden>
               <i className="fa-solid fa-wand-magic-sparkles" />
             </div>
-            <div className={`${pfx(cssPrefix, 'bubble')} ${pfx(cssPrefix, 'bubble--typing')}`}>
-              <i className="fa-solid fa-spinner fa-spin" aria-hidden /> Thinking…
+            <div className={`${pfx(cssPrefix, 'bubble')} ${pfx(cssPrefix, 'bubble--typing')}`} role="status" aria-live="polite">
+              <span className={pfx(cssPrefix, 'typing-dots')} aria-hidden>
+                <span />
+                <span />
+                <span />
+              </span>
+              <span className={pfx(cssPrefix, 'typing-label')}>Thinking…</span>
             </div>
           </div>
         ) : null}

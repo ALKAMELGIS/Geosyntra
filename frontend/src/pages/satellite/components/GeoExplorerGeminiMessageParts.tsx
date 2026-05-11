@@ -43,6 +43,9 @@ export type GeoExplorerGeminiMessagePartsProps = {
   suggestLayers?: string[]
   suggestFields?: string[]
   suggestNumericFields?: string[]
+  onTableSelectionLinksChange?: (tableId: string, links: GeoExplorerMapLink[]) => void
+  mapFocusFeatureKey?: string | null
+  onTableQuerySelectApplied?: () => void
 }
 
 export function GeoExplorerGeminiMessageParts(props: GeoExplorerGeminiMessagePartsProps) {
@@ -57,6 +60,9 @@ export function GeoExplorerGeminiMessageParts(props: GeoExplorerGeminiMessagePar
     suggestLayers,
     suggestFields,
     suggestNumericFields,
+    onTableSelectionLinksChange,
+    mapFocusFeatureKey,
+    onTableQuerySelectApplied,
   } = props
 
   if (msg.role === 'user') {
@@ -105,30 +111,38 @@ export function GeoExplorerGeminiMessageParts(props: GeoExplorerGeminiMessagePar
 
   const segments = modelSegmentsFromParts(msg.parts)
 
+  let tableRunIdx = 0
   return (
-    <>
+    <div className={pfx(cssPrefix, 'msg-stack')}>
       {segments.map((seg, i) =>
         seg.type === 'text' ? (
-          <div key={`t-${i}`} className={pfx(cssPrefix, 'bubble-with-copy')}>
-            <p className={pfx(cssPrefix, 'bubble-text')}>{seg.text}</p>
-            <SiCopyTextButton
-              text={seg.text}
-              className={pfx(cssPrefix, 'bubble-copy-btn')}
-              title="Copy reply"
-              ariaLabel="Copy assistant reply"
-              variant="compact"
-            />
+          <div key={`t-${i}`} className={`${pfx(cssPrefix, 'msg-segment')} ${pfx(cssPrefix, 'msg-segment--text')}`}>
+            <div className={pfx(cssPrefix, 'bubble-with-copy')}>
+              <p className={pfx(cssPrefix, 'bubble-text')}>{seg.text}</p>
+              <SiCopyTextButton
+                text={seg.text}
+                className={pfx(cssPrefix, 'bubble-copy-btn')}
+                title="Copy reply"
+                ariaLabel="Copy assistant reply"
+                variant="compact"
+              />
+            </div>
           </div>
         ) : (
-          <GeoExplorerDynamicTable
-            key={`tbl-${i}`}
-            cssPrefix={cssPrefix}
-            table={seg.table}
-            onMapAction={onTableMapAction}
-            onBatchZoom={onTableBatchZoom ?? undefined}
-          />
+          <div key={`tbl-${msg.id}-t${tableRunIdx}`} className={`${pfx(cssPrefix, 'msg-segment')} ${pfx(cssPrefix, 'msg-segment--media')}`}>
+            <GeoExplorerDynamicTable
+              cssPrefix={cssPrefix}
+              table={seg.table}
+              onMapAction={onTableMapAction}
+              onBatchZoom={onTableBatchZoom ?? undefined}
+              tableSyncId={`${msg.id}-t${tableRunIdx++}`}
+              onSelectionLinksChange={onTableSelectionLinksChange}
+              mapFocusFeatureKey={mapFocusFeatureKey ?? undefined}
+              onQuerySelectApplied={onTableQuerySelectApplied}
+            />
+          </div>
         ),
       )}
-    </>
+    </div>
   )
 }

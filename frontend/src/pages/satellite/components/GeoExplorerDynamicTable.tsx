@@ -9,7 +9,7 @@ import {
 } from 'chart.js'
 import jsPDF from 'jspdf'
 import autoTable from 'jspdf-autotable'
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Bar } from 'react-chartjs-2'
 import * as XLSX from 'xlsx'
 import type {
@@ -18,6 +18,7 @@ import type {
   GeoExplorerDataTableRow,
   GeoExplorerMapLink,
 } from '../../../lib/geoExplorerGemini'
+import { stableFeatureLinkKey } from '../../../lib/geoAiLinkedSelection'
 
 ChartJS.register(CategoryScale, LinearScale, BarElement, Tooltip, Legend)
 
@@ -29,6 +30,14 @@ export type GeoExplorerDynamicTableProps = {
   onMapAction?: (action: GeoExplorerMapAction, link: GeoExplorerMapLink) => void
   /** Fit map to combined extent of linked features (multi-select). */
   onBatchZoom?: (links: GeoExplorerMapLink[]) => void
+  /** Stable id for this table instance (e.g. messageId + table index) — drives merged map highlight. */
+  tableSyncId?: string
+  /** Emits whenever checkbox selection changes so the map can highlight linked features in real time. */
+  onSelectionLinksChange?: (tableId: string, links: GeoExplorerMapLink[]) => void
+  /** `layerId::featureKey` from map identify — scrolls/highlights the matching row. */
+  mapFocusFeatureKey?: string | null
+  /** Called after applying a FIELD IN (...) query selection (parent may briefly suppress identify popups). */
+  onQuerySelectApplied?: () => void
 }
 
 const PAGE_OPTS = [10, 25, 50, 100] as const
@@ -55,8 +64,31 @@ function exportRowsWithColumns(cols: GeoExplorerDataTableColumn[], rows: GeoExpl
   return { head, body }
 }
 
+/** Parse `GRIDCODE IN (74,82,65)` or `Farm_Code IN (MH101, MH105)` (quotes optional). */
+export function parseGeoAiTableFieldInQuery(q: string): { field: string; values: string[] } | null {
+  const m = q.trim().match(/^([\w.]+)\s+IN\s*\(([^)]*)\)\s*$/is)
+  if (!m) return null
+  const field = m[1].trim()
+  const inner = m[2] ?? ''
+  const values = inner
+    .split(',')
+    .map(s => s.trim().replace(/^['"]|['"]$/g, ''))
+    .filter(Boolean)
+  if (!field || !values.length) return null
+  return { field, values }
+}
+
 export function GeoExplorerDynamicTable(props: GeoExplorerDynamicTableProps) {
-  const { cssPrefix, table, onMapAction, onBatchZoom } = props
+  const {
+    cssPrefix,
+    table,
+    onMapAction,
+    onBatchZoom,
+    tableSyncId,
+    onSelectionLinksChange,
+    mapFocusFeatureKey,
+    onQuerySelectApplied,
+  } = props
   const p = (part: string) => `${cssPrefix}-${part}`
 
   const [search, setSearch] = useState('')
@@ -67,6 +99,9 @@ export function GeoExplorerDynamicTable(props: GeoExplorerDynamicTableProps) {
   const [chartOpen, setChartOpen] = useState(false)
   const [showMoreFields, setShowMoreFields] = useState(false)
   const [selectedKeys, setSelectedKeys] = useState<Set<string>>(() => new Set())
+  const [queryExpr, setQueryExpr] = useState('')
+  const shiftRangeAnchorIdxRef = useRef<number | null>(null)
+  const scrollWrapRef = useRef<HTMLDivElement | null>(null)
 
   const hasHiddenByDefault = useMemo(
     () => table.columns.some(c => c.defaultVisible === false),
@@ -140,6 +175,46 @@ export function GeoExplorerDynamicTable(props: GeoExplorerDynamicTableProps) {
     () => sorted.filter(r => selectedKeys.has(stableRowKey(r))),
     [sorted, selectedKeys],
   )
+
+  useEffect(() => {
+    if (!onSelectionLinksChange || !tableSyncId) return
+    const links = sorted
+      .filter(r => selectedKeys.has(stableRowKey(r)) && r.mapLink)
+      .map(r => r.mapLink!) as GeoExplorerMapLink[]
+    onSelectionLinksChange(tableSyncId, links)
+  }, [selectedKeys, sorted, tableSyncId, onSelectionLinksChange])
+
+  useEffect(() => {
+    if (!mapFocusFeatureKey || !scrollWrapRef.current) return
+    try {
+      const el = scrollWrapRef.current.querySelector(`[data-geoai-fk="${CSS.escape(mapFocusFeatureKey)}"]`)
+      el?.scrollIntoView({ block: 'nearest', behavior: 'smooth' })
+    } catch {
+      /* ignore */
+    }
+  }, [mapFocusFeatureKey, safePage, sorted])
+
+  const applyFieldInQuery = useCallback(() => {
+    const parsed = parseGeoAiTableFieldInQuery(queryExpr)
+    if (!parsed) return
+    const { field, values } = parsed
+    const lowered = values.map(v => v.toLowerCase())
+    const next = new Set<string>()
+    for (const row of table.rows) {
+      const v = row.values[field]
+      if (v === undefined || v === null) continue
+      const s = cellStr(v)
+      const n = typeof v === 'number' ? v : Number(String(v).replace(/,/g, ''))
+      const hit =
+        values.includes(s) ||
+        lowered.includes(s.toLowerCase()) ||
+        (Number.isFinite(n) && values.some(x => Number(String(x).replace(/,/g, '')) === n))
+      if (hit) next.add(stableRowKey(row))
+    }
+    setSelectedKeys(next)
+    setPage(0)
+    onQuerySelectApplied?.()
+  }, [queryExpr, table.rows, onQuerySelectApplied])
 
   const { chartLabels, chartDataNums } = useMemo(() => {
     const labelCol = displayColumns.find(c => c.align !== 'right') ?? displayColumns[0]
@@ -242,9 +317,40 @@ export function GeoExplorerDynamicTable(props: GeoExplorerDynamicTableProps) {
         <span className={p('dyn-table-meta')}>
           {sorted.length}/{table.rows.length} rows
           {selectedKeys.size ? ` · ${selectedKeys.size} selected` : null}
-          {hasMapCol ? <span className={p('dyn-table-meta-hint')}> · Row = map highlight</span> : null}
+          {hasMapCol ? (
+            <span className={p('dyn-table-meta-hint')}>
+              {' '}
+              · Linked map · Ctrl/Shift + checkbox · Row click selects one
+            </span>
+          ) : null}
         </span>
       </div>
+      {hasMapCol ? (
+        <div className={p('dyn-table-query-row')}>
+          <label className={p('dyn-table-query-label')}>
+            <span>Query select</span>
+            <input
+              type="text"
+              className={p('dyn-table-query-input')}
+              value={queryExpr}
+              placeholder='e.g. GRIDCODE IN (74,82,65) or Farm_Code IN (MH101, MH105)'
+              onChange={e => setQueryExpr(e.target.value)}
+              onKeyDown={e => {
+                if (e.key === 'Enter') {
+                  e.preventDefault()
+                  applyFieldInQuery()
+                }
+              }}
+              spellCheck={false}
+              autoComplete="off"
+              aria-label="Query select rows, FIELD IN (values)"
+            />
+          </label>
+          <button type="button" className={p('dyn-table-btn')} onClick={applyFieldInQuery} title="Apply query to row selection">
+            Apply query
+          </button>
+        </div>
+      ) : null}
       <div className={p('dyn-table-controls')}>
         <label className={p('dyn-table-search')}>
           <i className="fa-solid fa-magnifying-glass" aria-hidden />
@@ -352,7 +458,7 @@ export function GeoExplorerDynamicTable(props: GeoExplorerDynamicTableProps) {
         </div>
       ) : null}
 
-      <div className={p('dyn-table-scroll')}>
+      <div className={p('dyn-table-scroll')} ref={scrollWrapRef}>
         <table
           className={p('dyn-table-grid')}
           title={
@@ -383,12 +489,18 @@ export function GeoExplorerDynamicTable(props: GeoExplorerDynamicTableProps) {
             {pageRows.map((row, ri) => {
               const rk = stableRowKey(row)
               const sel = selectedKeys.has(rk)
+              const idxGlobal = sorted.findIndex(r => stableRowKey(r) === rk)
+              const fk =
+                row.mapLink?.type === 'feature' ? stableFeatureLinkKey(row.mapLink) : null
+              const mapFocus = fk && mapFocusFeatureKey === fk
               return (
                 <tr
                   key={`${safePage}-${ri}-${rk}`}
+                  data-geoai-fk={fk ?? undefined}
                   className={[
                     row.mapLink ? p('dyn-table-row--interactive') : '',
                     sel ? p('dyn-table-row--selected') : '',
+                    mapFocus ? p('dyn-table-row--map-focus') : '',
                   ]
                     .filter(Boolean)
                     .join(' ')}
@@ -396,6 +508,29 @@ export function GeoExplorerDynamicTable(props: GeoExplorerDynamicTableProps) {
                     if ((ev.target as HTMLElement).closest('input,button,a,label')) return
                     if (!row.mapLink || !onMapAction) return
                     if ((ev.target as HTMLElement).closest('button')) return
+                    if (ev.ctrlKey || ev.metaKey) {
+                      ev.preventDefault()
+                      toggleRowKey(rk)
+                      onMapAction('highlight', row.mapLink)
+                      return
+                    }
+                    if (ev.shiftKey && idxGlobal >= 0 && shiftRangeAnchorIdxRef.current != null) {
+                      ev.preventDefault()
+                      const a = Math.min(shiftRangeAnchorIdxRef.current, idxGlobal)
+                      const b = Math.max(shiftRangeAnchorIdxRef.current, idxGlobal)
+                      setSelectedKeys(prev => {
+                        const next = new Set(prev)
+                        for (let j = a; j <= b; j++) {
+                          const rj = sorted[j]
+                          if (rj?.mapLink) next.add(stableRowKey(rj))
+                        }
+                        return next
+                      })
+                      onMapAction('highlight', row.mapLink)
+                      return
+                    }
+                    shiftRangeAnchorIdxRef.current = idxGlobal >= 0 ? idxGlobal : null
+                    setSelectedKeys(new Set([rk]))
                     onMapAction('highlight', row.mapLink)
                   }}
                 >
@@ -405,7 +540,31 @@ export function GeoExplorerDynamicTable(props: GeoExplorerDynamicTableProps) {
                         type="checkbox"
                         checked={sel}
                         aria-label="Select row for map / export"
-                        onChange={() => toggleRowKey(rk)}
+                        onClick={e => {
+                          e.stopPropagation()
+                          if (idxGlobal < 0) return
+                          if (e.shiftKey && shiftRangeAnchorIdxRef.current != null) {
+                            const a = Math.min(shiftRangeAnchorIdxRef.current, idxGlobal)
+                            const b = Math.max(shiftRangeAnchorIdxRef.current, idxGlobal)
+                            setSelectedKeys(prev => {
+                              const next = new Set(prev)
+                              for (let j = a; j <= b; j++) {
+                                const rj = sorted[j]
+                                if (rj?.mapLink) next.add(stableRowKey(rj))
+                              }
+                              return next
+                            })
+                            return
+                          }
+                          if (e.ctrlKey || e.metaKey) {
+                            toggleRowKey(rk)
+                            shiftRangeAnchorIdxRef.current = idxGlobal
+                            return
+                          }
+                          toggleRowKey(rk)
+                          shiftRangeAnchorIdxRef.current = idxGlobal
+                        }}
+                        onChange={() => {}}
                       />
                     </td>
                   ) : null}

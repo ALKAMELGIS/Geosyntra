@@ -129,6 +129,7 @@
 .gis-map-tool-panel .gis-geo-explorer-messages {
   flex: 1 1 auto;
   min-height: min(180px, 28vh);
+  min-width: 0;
   overflow-y: auto;
   overflow-x: hidden;
   display: flex;
@@ -141,6 +142,14 @@
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
   scrollbar-width: thin;
   scrollbar-color: rgba(148, 163, 184, 0.45) transparent;
+  container-type: inline-size;
+  container-name: gis-geo-chat;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .gis-map-tool-panel .gis-geo-explorer-messages {
+    scroll-behavior: smooth;
+  }
 }
 
 .gis-map-tool-panel .gis-geo-explorer-load-more {
@@ -158,7 +167,8 @@
 .gis-map-tool-panel .gis-geo-explorer-row {
   display: flex;
   gap: 10px;
-  align-items: flex-end;
+  align-items: flex-start;
+  min-width: 0;
 }
 
 .gis-map-tool-panel .gis-geo-explorer-row--user {
@@ -183,17 +193,41 @@
 }
 
 .gis-map-tool-panel .gis-geo-explorer-bubble {
-  max-width: min(100%, 300px);
   padding: 10px 12px;
   border-radius: 14px;
   font-size: 12px;
   line-height: 1.45;
   color: #e2e8f0;
-  background: rgba(30, 41, 59, 0.92);
+  background: rgba(30, 41, 59, 0.88);
   border: 1px solid rgba(148, 163, 184, 0.2);
+  box-shadow:
+    0 10px 28px rgba(0, 0, 0, 0.22),
+    inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  min-width: 0;
+  transition:
+    border-color 0.18s ease,
+    box-shadow 0.22s ease,
+    background 0.18s ease;
+}
+
+.gis-map-tool-panel .gis-geo-explorer-row--model .gis-geo-explorer-bubble {
+  flex: 1 1 0;
+  width: 100%;
+  max-width: min(100%, 920px);
+}
+
+.gis-map-tool-panel .gis-geo-explorer-row--model .gis-geo-explorer-bubble--welcome {
+  flex: 0 1 auto;
+  width: fit-content;
+  max-width: min(100%, 640px);
 }
 
 .gis-map-tool-panel .gis-geo-explorer-row--user .gis-geo-explorer-bubble {
+  flex: 0 1 auto;
+  width: fit-content;
+  max-width: min(100%, 520px);
   background: rgba(51, 65, 85, 0.95);
   border-color: rgba(148, 163, 184, 0.28);
 }
@@ -224,6 +258,30 @@
 
 .gis-map-tool-panel .gis-geo-explorer-bubble-with-copy + .gis-geo-explorer-bubble-with-copy {
   margin-top: 8px;
+}
+
+.gis-map-tool-panel .gis-geo-explorer-msg-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: 100%;
+  min-width: 0;
+}
+
+.gis-map-tool-panel .gis-geo-explorer-msg-segment {
+  min-width: 0;
+}
+
+.gis-map-tool-panel .gis-geo-explorer-msg-segment--text .gis-geo-explorer-bubble-with-copy {
+  max-width: min(100%, 72ch);
+}
+
+.gis-map-tool-panel .gis-geo-explorer-msg-segment--media {
+  width: 100%;
+}
+
+.gis-map-tool-panel .gis-geo-explorer-msg-segment--media .gis-geo-explorer-dyn-table {
+  margin-top: 0;
 }
 
 .gis-map-tool-panel .gis-geo-explorer-bubble-meta {
@@ -436,8 +494,60 @@
 .gis-map-tool-panel .gis-geo-explorer-bubble--typing {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
+  gap: 10px;
   color: #cbd5e1;
+  width: fit-content;
+  max-width: min(100%, 280px);
+}
+
+.gis-map-tool-panel .gis-geo-explorer-typing-dots {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.gis-map-tool-panel .gis-geo-explorer-typing-dots span {
+  width: 5px;
+  height: 5px;
+  border-radius: 999px;
+  background: rgba(167, 139, 250, 0.95);
+  animation: gis-geo-explorer-typing-dot 1.05s ease-in-out infinite;
+}
+
+.gis-map-tool-panel .gis-geo-explorer-typing-dots span:nth-child(2) {
+  animation-delay: 0.15s;
+}
+
+.gis-map-tool-panel .gis-geo-explorer-typing-dots span:nth-child(3) {
+  animation-delay: 0.3s;
+}
+
+.gis-map-tool-panel .gis-geo-explorer-typing-label {
+  font-size: 11px;
+  font-weight: 650;
+  letter-spacing: 0.02em;
+  color: #cbd5e1;
+}
+
+@keyframes gis-geo-explorer-typing-dot {
+  0%,
+  70%,
+  100% {
+    transform: translateY(0);
+    opacity: 0.35;
+  }
+
+  35% {
+    transform: translateY(-4px);
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .gis-map-tool-panel .gis-geo-explorer-typing-dots span {
+    animation: none;
+    opacity: 0.75;
+  }
 }
 
 .gis-map-tool-panel .gis-geo-explorer-error-row {
@@ -887,6 +997,8 @@
   background: rgba(15, 23, 42, 0.65);
   max-width: 100%;
   box-sizing: border-box;
+  container-type: inline-size;
+  container-name: gis-geo-dyn-tbl;
 }
 
 .gis-map-tool-panel .gis-geo-explorer-dyn-table-toolbar {
@@ -1009,9 +1121,14 @@
 
 .gis-map-tool-panel .gis-geo-explorer-dyn-table-scroll {
   overflow-x: auto;
+  overflow-y: hidden;
   margin-bottom: 8px;
   border-radius: 8px;
   border: 1px solid rgba(148, 163, 184, 0.12);
+  max-width: 100%;
+  min-width: 0;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-x: contain;
 }
 
 .gis-map-tool-panel .gis-geo-explorer-dyn-table-grid {
@@ -1048,7 +1165,7 @@
 .gis-map-tool-panel .gis-geo-explorer-dyn-table-grid td {
   padding: 6px 8px;
   border-bottom: 1px solid rgba(148, 163, 184, 0.08);
-  max-width: 14rem;
+  max-width: min(14rem, 38cqi);
   overflow: hidden;
   text-overflow: ellipsis;
 }
@@ -1147,14 +1264,22 @@
   flex-shrink: 0;
   padding: 10px 12px 10px;
   border-radius: 14px;
-  background: rgba(15, 23, 42, 0.65);
+  background: rgba(15, 23, 42, 0.72);
   border: 1px solid rgba(167, 139, 250, 0.42);
-  box-shadow: 0 0 0 1px rgba(167, 139, 250, 0.08);
+  box-shadow:
+    0 0 0 1px rgba(167, 139, 250, 0.08),
+    0 12px 36px rgba(0, 0, 0, 0.28);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
   display: flex;
   flex-direction: column;
   gap: 10px;
   container-type: inline-size;
   container-name: gis-geo-input;
+  transition:
+    border-color 0.2s ease,
+    box-shadow 0.22s ease,
+    background 0.2s ease;
 }
 
 .gis-map-tool-panel .gis-geo-explorer-composer-surface[data-voice-state='listening'] {
@@ -1186,7 +1311,7 @@
   padding: 10px 12px;
   line-height: 1.45;
   min-height: 44px;
-  max-height: 140px;
+  max-height: 200px;
   overflow-y: auto;
   transition:
     border-color 0.15s ease,

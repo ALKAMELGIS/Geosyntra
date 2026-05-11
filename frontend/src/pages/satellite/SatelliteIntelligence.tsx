@@ -1,9 +1,18 @@
-import React, { useState, useMemo, useRef, useEffect, useLayoutEffect, useCallback } from 'react';
+import React, {
+  useState,
+  useMemo,
+  useRef,
+  useEffect,
+  useLayoutEffect,
+  useCallback,
+  useDeferredValue,
+} from 'react';
 import MapGL, { Source, Layer, NavigationControl, Marker } from 'react-map-gl/mapbox';
 import 'mapbox-gl/dist/mapbox-gl.css';
 import './SatelliteIntelligence.css';
 import '../dashboards/develop-dashboard.css';
 import { parseFile, parseRemoteUrlAsFile } from '../../utils/FileLoader';
+import type { RasterMapCoordinates } from '../../utils/FileLoader';
 import type { CircleCardinal, DrawStyleConfig, VertexRef } from './drawingUtils';
 import {
   bboxToPolygonFeature,
@@ -67,6 +76,13 @@ import {
   type GeoAiMapLayer,
 } from '../../lib/geoExplorerLayerContext';
 import { lngLatFromGeoAiFeatureLink, resolveGeoAiFeatureFromLink } from '../../lib/geoAiResolveTableMapLink';
+import {
+  buildGeoAiCoordsHighlightPoints,
+  buildGeoAiLinkedHighlightCollection,
+  sampleGeoAiMapSelectionLinks,
+  stableFeatureLinkKey,
+} from '../../lib/geoAiLinkedSelection';
+import { SI_GEO_AI_MAP_SELECTION_PAINT } from './siGeoAiMapSelectionPaint';
 import { runGeoAiStatsCommand, type GeoAiMapFirstSelection } from '../../lib/geoAiStatsEngine';
 import { resolveGeoAiPinFromUserTextAndReply } from '../../lib/geoAiResolveMapCoords';
 import { buildGeoAiFullWeatherSessionAppend } from '../../lib/geoAiWeatherContext';
@@ -170,6 +186,20 @@ type GeoAiInspectCardState = {
   areaName?: string;
   country?: string;
 };
+
+type GeoAiInspectPopupState = GeoAiInspectCardState & {
+  id: string;
+  pinned: boolean;
+  collapsed: boolean;
+  featureLinkKey: string | null;
+};
+
+type GeoAiPopupMode = 'single' | 'multiple' | 'docked' | 'side';
+
+const GEO_AI_POPUP_MODE_LS_KEY = 'si-geo-ai-popup-mode-v1';
+
+/** Cap geometry sent to Mapbox for table↔map highlight (full selection stays in the table). */
+const SI_GEO_AI_MAP_HIGHLIGHT_MAX_LINKS = 2800;
 
 type NetfloraDetectionMode = 'aoi_first' | 'full_then_clip';
 type NetfloraAoiSource = 'drawn' | 'view';
@@ -1071,6 +1101,14 @@ interface CustomLayer {
   arcgisLayerDefinition?: ArcgisLayerDefLite | null;
   /** Saved symbology (GIS Map–aligned); drives Style dialog defaults. */
   symbology?: SymbologyConfig;
+  /** When set to `raster`, `raster` uses a Mapbox image source instead of GeoJSON vectors. */
+  renderMode?: 'vector' | 'raster';
+  raster?: { url: string; coordinates: RasterMapCoordinates };
+  /** Session-only layers (GeoTIFF preview / IFC) are not written to localStorage. */
+  ephemeral?: boolean;
+  importMetadata?: { format?: string; crs?: string; bytes?: number };
+  /** Original IFC blob URL for future viewer hooks (session only). */
+  bimBlobUrl?: string;
 }
 
 const SI_TABLE_MAX_FEATURES = 10000;
@@ -1188,11 +1226,84 @@ function parseStoredCustomLayers(raw: string | null): CustomLayer[] {
               ? (x.arcgisLayerDefinition as ArcgisLayerDefLite)
               : undefined,
           symbology,
+          renderMode: x.renderMode === 'raster' || x.renderMode === 'vector' ? x.renderMode : undefined,
+          raster:
+            x.raster && typeof x.raster === 'object' && typeof x.raster.url === 'string' && Array.isArray(x.raster.coordinates)
+              ? (x.raster as CustomLayer['raster'])
+              : undefined,
+          ephemeral: typeof x.ephemeral === 'boolean' ? x.ephemeral : undefined,
+          importMetadata: x.importMetadata && typeof x.importMetadata === 'object' ? x.importMetadata : undefined,
+          bimBlobUrl: typeof x.bimBlobUrl === 'string' ? x.bimBlobUrl : undefined,
         };
       });
   } catch {
     return [];
   }
+}
+
+function siBimAnchorFootprint(lng: number, lat: number, halfEdgeM = 140): any {
+  const cos = Math.max(1e-6, Math.cos((lat * Math.PI) / 180));
+  const dLat = halfEdgeM / 111_320;
+  const dLng = halfEdgeM / (111_320 * cos);
+  const w = lng - dLng;
+  const e = lng + dLng;
+  const s = lat - dLat;
+  const n = lat + dLat;
+  return {
+    type: 'FeatureCollection',
+    features: [
+      {
+        type: 'Feature',
+        properties: {
+          kind: 'bim_anchor',
+          note:
+            'IFC model uploaded. Full 3D geometry needs a BIM viewer; this footprint anchors the file to the current map view.',
+        },
+        geometry: {
+          type: 'Polygon',
+          coordinates: [
+            [
+              [w, s],
+              [e, s],
+              [e, n],
+              [w, n],
+              [w, s],
+            ],
+          ],
+        },
+      },
+    ],
+  };
+}
+
+function siRasterExtentFootprint(coords: RasterMapCoordinates): any {
+  const lngs = coords.map(c => c[0]);
+  const lats = coords.map(c => c[1]);
+  const w = Math.min(...lngs);
+  const e = Math.max(...lngs);
+  const s = Math.min(...lats);
+  const n = Math.max(...lats);
+  return {
+    type: 'FeatureCollection',
+    features: [
+      {
+        type: 'Feature',
+        properties: { kind: 'raster_extent' },
+        geometry: {
+          type: 'Polygon',
+          coordinates: [
+            [
+              [w, s],
+              [e, s],
+              [e, n],
+              [w, n],
+              [w, s],
+            ],
+          ],
+        },
+      },
+    ],
+  };
 }
 
 const SI_MAPBOX_POLY_FILTER: any = ['in', ['geometry-type'], ['literal', ['Polygon', 'MultiPolygon']]];
@@ -1213,6 +1324,7 @@ function siVectorLayerIdToCustomSourceId(mapboxLayerId: string): string | null {
 function siIdentifyLayerIsSkippable(layerId: string): boolean {
   if (!layerId) return true;
   if (layerId.startsWith('si-geo-ai-pin')) return true;
+  if (layerId.startsWith('si-geo-ai-sel-')) return true;
   if (layerId.startsWith('si-draw-draft')) return true;
   if (layerId.startsWith('si-edit-handles')) return true;
   if (layerId === 'sentinel-layer' || layerId === 'si-stac-thumb-layer') return true;
@@ -1250,6 +1362,10 @@ function siSanitizeIdentifyProperties(raw: Record<string, unknown> | null | unde
   return out;
 }
 
+/** Line / point fallback when honoring ArcGIS drawingInfo — avoids Mapbox brand greens on service symbology. */
+const SI_ARCGIS_MAPBOX_NEUTRAL_LINE = 'rgba(148, 163, 184, 0.55)';
+const SI_ARCGIS_MAPBOX_NEUTRAL_STROKE = 'rgba(15, 23, 42, 0.72)';
+
 function siLayerMapboxStylePack(layer: CustomLayer): {
   fillFilter: any;
   lineFilter: any;
@@ -1263,7 +1379,7 @@ function siLayerMapboxStylePack(layer: CustomLayer): {
   if (useAg) {
     const di = layer.arcgisDrawingInfo as any;
     const fill = arcgisDrawingInfoToFillPaint(di);
-    const line = arcgisDrawingInfoToLinePaint(di, c);
+    const line = arcgisDrawingInfoToLinePaint(di, SI_ARCGIS_MAPBOX_NEUTRAL_LINE);
     if (fill) {
       const outlineDriven = Object.prototype.hasOwnProperty.call(fill, 'fill-outline-color');
       return {
@@ -1271,15 +1387,36 @@ function siLayerMapboxStylePack(layer: CustomLayer): {
         lineFilter: outlineDriven ? SI_MAPBOX_LINE_ONLY_FILTER : SI_MAPBOX_LINE_POLY_FILTER,
         pointFilter: SI_MAPBOX_POINT_FILTER,
         fillPaint: fill as Record<string, unknown>,
-        linePaint: (line ?? { 'line-color': c, 'line-width': 1.5, 'line-opacity': 0.95 }) as Record<string, unknown>,
+        linePaint: (line ?? {
+          'line-color': SI_ARCGIS_MAPBOX_NEUTRAL_LINE,
+          'line-width': 1.5,
+          'line-opacity': 0.95,
+        }) as Record<string, unknown>,
         circlePaint: {
           'circle-radius': 4,
-          'circle-color': c,
+          'circle-color': SI_ARCGIS_MAPBOX_NEUTRAL_LINE,
           'circle-stroke-width': 1,
-          'circle-stroke-color': '#052e16',
+          'circle-stroke-color': SI_ARCGIS_MAPBOX_NEUTRAL_STROKE,
         },
       };
     }
+    return {
+      fillFilter: SI_MAPBOX_POLY_FILTER,
+      lineFilter: SI_MAPBOX_LINE_POLY_FILTER,
+      pointFilter: SI_MAPBOX_POINT_FILTER,
+      fillPaint: { 'fill-color': 'rgba(0,0,0,0)', 'fill-opacity': 0 },
+      linePaint: (line ?? {
+        'line-color': SI_ARCGIS_MAPBOX_NEUTRAL_LINE,
+        'line-width': 1.25,
+        'line-opacity': 0.85,
+      }) as Record<string, unknown>,
+      circlePaint: {
+        'circle-radius': 4,
+        'circle-color': SI_ARCGIS_MAPBOX_NEUTRAL_LINE,
+        'circle-stroke-width': 1,
+        'circle-stroke-color': SI_ARCGIS_MAPBOX_NEUTRAL_STROKE,
+      },
+    };
   }
   return {
     fillFilter: SI_MAPBOX_POLY_FILTER,
@@ -1299,7 +1436,8 @@ function siLayerMapboxStylePack(layer: CustomLayer): {
 function persistCustomLayersToStorage(layers: CustomLayer[]) {
   if (typeof window === 'undefined') return;
   try {
-    window.localStorage.setItem(SATELLITE_CUSTOM_LAYERS_STORAGE_KEY, JSON.stringify(layers));
+    const storable = layers.filter(l => !l.ephemeral);
+    window.localStorage.setItem(SATELLITE_CUSTOM_LAYERS_STORAGE_KEY, JSON.stringify(storable));
   } catch (e) {
     console.warn('Satellite Intelligence: could not persist custom layers', e);
   }
@@ -1311,6 +1449,169 @@ type SiSymbologyDraft = Required<SymbologyConfig> & { arcgisMaxCategories: numbe
 type SiBakeRamp = SymbologyColorRamp | 'service';
 
 type AddLayerTab = 'giscontent' | 'arcgis' | 'upload' | 'database' | 'url' | 'raster';
+
+type SiGetDataPickAction =
+  | { kind: 'tab'; tab: AddLayerTab; presetRemoteUrl?: string; statusHint?: string }
+  | { kind: 'gis-map' }
+  | { kind: 'sql'; platform: (typeof DATABASE_PLATFORM_OPTIONS)[number] }
+  | { kind: 'toast'; message: string };
+
+type SiGetDataSourceEntry = {
+  id: string;
+  title: string;
+  description: string;
+  iconClass: string;
+  action: SiGetDataPickAction;
+};
+
+/** Power BI–style “Common data sources” — routes into existing Satellite import tabs / SQL profile. */
+const SI_GET_DATA_COMMON_SOURCES: SiGetDataSourceEntry[] = [
+  {
+    id: 'excel',
+    title: 'Excel workbook',
+    description: '.xlsx / .xls — use Upload after saving as CSV (with lat/lon) or as GeoJSON for mapping.',
+    iconClass: 'fa-solid fa-file-excel',
+    action: { kind: 'tab', tab: 'upload', statusHint: 'Excel: convert to CSV with coordinates or GeoJSON, then use Upload.' },
+  },
+  {
+    id: 'csv',
+    title: 'Text / CSV',
+    description: 'Delimited text — include latitude / longitude columns for point layers.',
+    iconClass: 'fa-solid fa-file-csv',
+    action: { kind: 'tab', tab: 'upload', statusHint: 'CSV: Upload tab — ensure lat/lon column names (lat, lon, latitude, longitude, …).' },
+  },
+  {
+    id: 'json-geojson',
+    title: 'JSON / GeoJSON file',
+    description: 'FeatureCollection or single Feature — same as spatial upload.',
+    iconClass: 'fa-solid fa-file-code',
+    action: { kind: 'tab', tab: 'upload', statusHint: 'Upload .json or .geojson from the Upload tab.' },
+  },
+  {
+    id: 'semantic-models',
+    title: 'Semantic model (Power BI–style)',
+    description: 'Hosted datasets — connect via SQL or OData when your workspace exposes them.',
+    iconClass: 'fa-solid fa-chart-simple',
+    action: { kind: 'toast', message: 'Semantic models require a workspace connector — use SQL or OData for now.' },
+  },
+  {
+    id: 'dataflows',
+    title: 'Dataflows',
+    description: 'Prepared ETL outputs — planned for enterprise connector.',
+    iconClass: 'fa-solid fa-diagram-project',
+    action: { kind: 'toast', message: 'Dataflows connector is not wired yet — export to CSV/Parquet or use Web / SQL.' },
+  },
+  {
+    id: 'dataverse',
+    title: 'Dataverse',
+    description: 'Microsoft Dataverse / Dynamics tables — OData or SQL gateway.',
+    iconClass: 'fa-solid fa-cloud',
+    action: { kind: 'toast', message: 'Dataverse: use OData feed URL from the Web tab when available from your tenant.' },
+  },
+  {
+    id: 'sql-server',
+    title: 'SQL Server',
+    description: 'Relational database — connection profile (in-app, future gateway).',
+    iconClass: 'fa-solid fa-server',
+    action: { kind: 'sql', platform: 'SQL Server' },
+  },
+  {
+    id: 'analysis-services',
+    title: 'Analysis Services',
+    description: 'Tabular / multidimensional — use SQL transport or export to CSV for this client.',
+    iconClass: 'fa-solid fa-cube',
+    action: { kind: 'toast', message: 'Analysis Services: use SQL connection string profile below, or export a slice to CSV.' },
+  },
+  {
+    id: 'postgres',
+    title: 'PostgreSQL',
+    description: 'Postgres / PostGIS-friendly profile.',
+    iconClass: 'fa-solid fa-database',
+    action: { kind: 'sql', platform: 'PostgreSQL' },
+  },
+  {
+    id: 'oracle',
+    title: 'Oracle',
+    description: 'Oracle Database connection profile.',
+    iconClass: 'fa-solid fa-database',
+    action: { kind: 'sql', platform: 'Oracle' },
+  },
+  {
+    id: 'snowflake',
+    title: 'Snowflake',
+    description: 'Cloud warehouse — JDBC/ODBC-style profile fields.',
+    iconClass: 'fa-solid fa-snowflake',
+    action: { kind: 'sql', platform: 'Snowflake' },
+  },
+  {
+    id: 'bigquery',
+    title: 'Google BigQuery',
+    description: 'BigQuery project connection profile.',
+    iconClass: 'fa-solid fa-table',
+    action: { kind: 'sql', platform: 'BigQuery' },
+  },
+  {
+    id: 'web',
+    title: 'Web',
+    description: 'Anonymous HTTP — GeoJSON, ZIP, KML, or other file URLs.',
+    iconClass: 'fa-solid fa-globe',
+    action: { kind: 'tab', tab: 'url', statusHint: 'Paste a direct https URL to GeoJSON, ZIP (shapefile/KMZ), or KML.' },
+  },
+  {
+    id: 'odata',
+    title: 'OData feed',
+    description: 'Open Data Protocol — public TripPin sample URL prefilled; replace with your service root.',
+    iconClass: 'fa-solid fa-table-list',
+    action: {
+      kind: 'tab',
+      tab: 'url',
+      presetRemoteUrl: 'https://services.odata.org/V4/TripPinServiceRW/',
+      statusHint: 'OData: URL tab opened — replace with your $metadata root or file export URL when supported.',
+    },
+  },
+  {
+    id: 'rest-json',
+    title: 'REST API (JSON)',
+    description: 'GET endpoint returning GeoJSON or downloadable JSON — same as From URL.',
+    iconClass: 'fa-solid fa-code',
+    action: { kind: 'tab', tab: 'url', statusHint: 'REST JSON: use From URL with a stable GeoJSON or file endpoint.' },
+  },
+  {
+    id: 'geotiff-url',
+    title: 'Raster / GeoTIFF (URL)',
+    description: 'GeoTIFF, image service, or tile endpoint path.',
+    iconClass: 'fa-regular fa-image',
+    action: { kind: 'tab', tab: 'raster', statusHint: 'Raster URL: paste path or HTTPS URL to GeoTIFF / image service.' },
+  },
+  {
+    id: 'shapefile',
+    title: 'Shapefile (ZIP)',
+    description: 'Esri shapefile compressed in .zip — use Upload.',
+    iconClass: 'fa-solid fa-draw-polygon',
+    action: { kind: 'tab', tab: 'upload', statusHint: 'Shapefile: Upload tab — .zip containing .shp/.dbf/.shx.' },
+  },
+  {
+    id: 'kml-kmz',
+    title: 'KML / KMZ',
+    description: 'Google Earth / OGC KML — upload or URL.',
+    iconClass: 'fa-solid fa-location-dot',
+    action: { kind: 'tab', tab: 'upload', statusHint: 'KML/KMZ: use Upload, or paste a .kml/.kmz URL under From URL.' },
+  },
+  {
+    id: 'arcgis',
+    title: 'ArcGIS Feature Service',
+    description: 'FeatureServer layer URL — discover and add layers.',
+    iconClass: 'fa-solid fa-link',
+    action: { kind: 'tab', tab: 'arcgis', statusHint: 'ArcGIS: paste Feature Service URL, then Connect & Discover.' },
+  },
+  {
+    id: 'gis-map',
+    title: 'GIS Map (this browser)',
+    description: 'Layers saved in GIS Map session (IndexedDB).',
+    iconClass: 'fa-solid fa-layer-group',
+    action: { kind: 'gis-map' },
+  },
+];
 
 type EnvironmentalIndexId = 'NDWI' | 'NDMI' | 'EVI' | 'SAVI' | 'NDSI' | 'LST';
 
@@ -1638,7 +1939,7 @@ function arcgisLegendPreviewRows(
       const color =
         ramp != null
           ? rampColorAt(ramp, i, Math.max(infos.length, 1))
-          : esriColorArrayToCss(uvi?.symbol?.color) ?? '#64748b';
+          : esriColorArrayToCss(uvi?.symbol?.color) ?? 'rgba(148, 163, 184, 0.35)';
       return { label, color };
     });
   }
@@ -1658,7 +1959,7 @@ function arcgisLegendPreviewRows(
       const color =
         ramp != null
           ? rampColorAt(ramp, i, Math.max(sliced.length, 1))
-          : esriColorArrayToCss(br?.symbol?.color) ?? '#64748b';
+          : esriColorArrayToCss(br?.symbol?.color) ?? 'rgba(148, 163, 184, 0.35)';
       return { label, color };
     });
   }
@@ -1936,6 +2237,10 @@ export default function SatelliteIntelligence() {
   const [addLayerToken, setAddLayerToken] = useState(() => (typeof window !== 'undefined' ? getArcgisPortalToken() : ''));
   const [addLayerName, setAddLayerName] = useState('');
   const [addLayerStatus, setAddLayerStatus] = useState('');
+  const [siUploadStagedFile, setSiUploadStagedFile] = useState<File | null>(null);
+  const [siUploadPhase, setSiUploadPhase] = useState<'idle' | 'reading' | 'processing' | 'completed' | 'failed'>('idle');
+  const [siUploadProgressPct, setSiUploadProgressPct] = useState(0);
+  const [siUploadDropActive, setSiUploadDropActive] = useState(false);
   const [isConnectingLayer, setIsConnectingLayer] = useState(false);
   const [discoveredArcgisLayers, setDiscoveredArcgisLayers] = useState<Array<{ id: number; name: string; url: string; kind: 'layer' | 'table'; geometryType?: string }>>([]);
   const [selectedDiscoveredArcgisUrl, setSelectedDiscoveredArcgisUrl] = useState('');
@@ -1988,6 +2293,8 @@ export default function SatelliteIntelligence() {
   const [dbSaveCredentials, setDbSaveCredentials] = useState(true);
   const [dbName, setDbName] = useState('');
   const [dbConnectionFileName, setDbConnectionFileName] = useState('');
+  const [siGetDataStep, setSiGetDataStep] = useState<'menu' | 'sql'>('menu');
+  const prevAddLayerTabForGetDataRef = useRef<AddLayerTab | null>(null);
   const clearStacMapThumb = useCallback(() => {
     setStacMapThumb(prev => {
       revokeStacMapOverlayBlob(prev?.url);
@@ -2113,10 +2420,25 @@ export default function SatelliteIntelligence() {
   const [geoExplorerAwaitKind, setGeoExplorerAwaitKind] = useState<'send' | 'edit'>('send');
   const [geoExplorerChatError, setGeoExplorerChatError] = useState('');
   const [geoAiPinLngLat, setGeoAiPinLngLat] = useState<[number, number] | null>(null);
-  const [geoAiInspectCard, setGeoAiInspectCard] = useState<null | GeoAiInspectCardState>(null);
+  const [geoAiInspectPopups, setGeoAiInspectPopups] = useState<GeoAiInspectPopupState[]>([]);
+  const geoAiInspectCard = geoAiInspectPopups.length > 0 ? geoAiInspectPopups[0]! : null;
+  const [geoAiPopupMode, setGeoAiPopupMode] = useState<GeoAiPopupMode>(() => {
+    try {
+      const v = typeof localStorage !== 'undefined' ? localStorage.getItem(GEO_AI_POPUP_MODE_LS_KEY) : '';
+      if (v === 'multiple' || v === 'docked' || v === 'side') return v;
+    } catch {
+      /* ignore */
+    }
+    return 'single';
+  });
+  const [geoAiTableSelectionsByTableId, setGeoAiTableSelectionsByTableId] = useState<Record<string, GeoExplorerMapLink[]>>(
+    {},
+  );
+  const [geoAiTableMapFocusKey, setGeoAiTableMapFocusKey] = useState<string | null>(null);
   /** Last Geo AI user message (any model) — drives inspect-popup field pick + map identify context. */
   const geoAiLastUserMapQueryRef = useRef<string>('');
   const geoAiReverseGeocodeKeyRef = useRef<string>('');
+  const geoAiSuppressPopupsUntilRef = useRef(0);
   const geoExplorerFileInputRef = useRef<HTMLInputElement | null>(null);
   const geoExplorerInFlightRef = useRef(false);
   const [geoAiModelTab, setGeoAiModelTab] = useState<'gemini' | 'claude' | 'deepseek'>('gemini');
@@ -2173,11 +2495,145 @@ export default function SatelliteIntelligence() {
   const geoAiDeepseekLoadOlderRef = useRef<{ top: number; height: number } | null>(null);
   const netfloraUploadInputRef = useRef<HTMLInputElement | null>(null);
   const skipNextMapClickRef = useRef(false);
+  /** Shift+drag (primary button): orbit camera bearing/pitch without stealing polygon vertex drag. */
+  const siCameraOrbitDragRef = useRef<{
+    startX: number;
+    startY: number;
+    bearing0: number;
+    pitch0: number;
+    moved: boolean;
+  } | null>(null);
   /** While drawing a polygon: index of vertex being dragged, or null. */
   const polygonRingSketchDragRef = useRef<number | null>(null);
   const editDragRef = useRef<null | { mode: 'vertex'; ref: VertexRef } | { mode: 'pan'; last: [number, number] }>(null);
   const consoleErrorRef = useRef<typeof console.error | null>(null);
   const stacFocusHydratedRef = useRef(false);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(GEO_AI_POPUP_MODE_LS_KEY, geoAiPopupMode);
+    } catch {
+      /* ignore */
+    }
+  }, [geoAiPopupMode]);
+
+  const geoAiMergedTableSelectionLinks = useMemo(() => {
+    const out: GeoExplorerMapLink[] = [];
+    const seen = new Set<string>();
+    for (const arr of Object.values(geoAiTableSelectionsByTableId)) {
+      for (const l of arr) {
+        const k =
+          l.type === 'feature' ? stableFeatureLinkKey(l) ?? '' : `c:${l.lng},${l.lat}`;
+        if (!k || seen.has(k)) continue;
+        seen.add(k);
+        out.push(l);
+      }
+    }
+    return out;
+  }, [geoAiTableSelectionsByTableId]);
+
+  const deferredGeoAiMergedSelectionLinks = useDeferredValue(geoAiMergedTableSelectionLinks);
+  const geoAiMapHighlightSelectionLinks = useMemo(
+    () => sampleGeoAiMapSelectionLinks(deferredGeoAiMergedSelectionLinks, SI_GEO_AI_MAP_HIGHLIGHT_MAX_LINKS),
+    [deferredGeoAiMergedSelectionLinks],
+  );
+
+  const geoAiLinkedHighlightGeojson = useMemo(() => {
+    const fc = buildGeoAiLinkedHighlightCollection(geoAiMapHighlightSelectionLinks, customLayers);
+    const pts = buildGeoAiCoordsHighlightPoints(
+      geoAiMapHighlightSelectionLinks.filter((l): l is Extract<GeoExplorerMapLink, { type: 'coords' }> => l.type === 'coords'),
+    );
+    return { type: 'FeatureCollection' as const, features: [...fc.features, ...pts.features] };
+  }, [geoAiMapHighlightSelectionLinks, customLayers]);
+
+  const onGeoAiTableSelectionSync = useCallback((tableId: string, links: GeoExplorerMapLink[]) => {
+    setGeoAiTableSelectionsByTableId(prev => ({ ...prev, [tableId]: links }));
+  }, []);
+
+  const onGeoAiQuerySelectApplied = useCallback(() => {
+    geoAiSuppressPopupsUntilRef.current = Date.now() + 1000;
+  }, []);
+
+  const shouldSuppressGeoAiMapIdentifyPopup = useCallback(() => {
+    if (Date.now() < geoAiSuppressPopupsUntilRef.current) return true;
+    const t = mapDrawToolRef.current;
+    if (t === 'box_select' || t === 'lasso' || t === 'freehand') return true;
+    if (dragRectCircleRef.current != null) return true;
+    return false;
+  }, []);
+
+  const wrapInspectPopup = useCallback(
+    (card: GeoAiInspectCardState, featureLinkKey: string | null): GeoAiInspectPopupState => ({
+      ...card,
+      id: typeof crypto !== 'undefined' && 'randomUUID' in crypto ? crypto.randomUUID() : `p-${Date.now()}`,
+      pinned: false,
+      collapsed: false,
+      featureLinkKey,
+    }),
+    [],
+  );
+
+  const setGeoAiInspectCard = useCallback(
+    (next: GeoAiInspectCardState | null | ((prev: GeoAiInspectCardState | null) => GeoAiInspectCardState | null)) => {
+      if (next === null) {
+        setGeoAiInspectPopups([]);
+        return;
+      }
+      if (typeof next === 'function') {
+        setGeoAiInspectPopups(prev => {
+          const cur = prev[0];
+          const curCard: GeoAiInspectCardState | null = cur
+            ? {
+                title: cur.title,
+                rows: cur.rows,
+                lng: cur.lng,
+                lat: cur.lat,
+                areaName: cur.areaName,
+                country: cur.country,
+              }
+            : null;
+          const n = next(curCard);
+          if (!n) return [];
+          if (!cur) return [wrapInspectPopup(n, null)];
+          return [
+            {
+              ...cur,
+              ...n,
+              id: cur.id,
+              pinned: cur.pinned,
+              collapsed: cur.collapsed,
+              featureLinkKey: cur.featureLinkKey,
+            },
+            ...prev.slice(1),
+          ];
+        });
+        return;
+      }
+      setGeoAiInspectPopups([wrapInspectPopup(next, null)]);
+    },
+    [wrapInspectPopup],
+  );
+
+  const mergeGeoAiInspectFromMapOrTable = useCallback(
+    (card: GeoAiInspectCardState, linkForKey: GeoExplorerMapLink | null) => {
+      const fk = linkForKey?.type === 'feature' ? stableFeatureLinkKey(linkForKey) : null;
+      setGeoAiTableMapFocusKey(fk);
+      setGeoAiInspectPopups(prev => {
+        const w = wrapInspectPopup(card, fk);
+        if (geoAiPopupMode === 'single') return [w];
+        if (fk) {
+          const ix = prev.findIndex(p => p.featureLinkKey === fk && !p.pinned);
+          if (ix >= 0) {
+            const cp = [...prev];
+            cp[ix] = { ...cp[ix], ...card, featureLinkKey: fk, collapsed: cp[ix]!.collapsed };
+            return cp;
+          }
+        }
+        return [...prev, w];
+      });
+    },
+    [geoAiPopupMode, wrapInspectPopup],
+  );
 
   const visibleGeoExplorerMessages = useMemo(
     () => geoExplorerMessages.slice(Math.max(0, geoExplorerMessages.length - geoExplorerVisibleCount)),
@@ -2833,70 +3289,183 @@ export default function SatelliteIntelligence() {
   };
 
   const importAoiDataSourceFile = async (file: File) => {
-    const parsed = await parseFile(file);
-    if (parsed.type !== 'geojson') {
-      throw new Error('Selected file has no spatial geometry.');
-    }
-    const geo = parsed.data;
-    const polygonAoi = pickFirstPolygonAoiFeature(geo);
-    if (!polygonAoi) {
-      throw new Error('AOI must contain at least one Polygon or MultiPolygon geometry.');
-    }
-
-    const id = `custom-${Date.now()}-${file.name}`;
-    const layerName = addLayerName.trim() || file.name;
-    setCustomLayers(prev => [
-      ...prev,
-      {
-        id,
-        name: layerName,
-        geojson: geo,
-        visible: true,
-        source: 'upload',
-      }
-    ]);
-    setAddLayerStatus(`Imported AOI data source: ${layerName}`);
-    setAddLayerName('');
-    setIsAddLayerModalOpen(false);
-
-    const bounds = getGeoJsonBounds(geo);
-    if (bounds) {
-      const [minX, minY, maxX, maxY] = bounds;
-      const mapInstance = mapRef.current?.getMap ? mapRef.current.getMap() : mapRef.current;
-      if (mapInstance && typeof mapInstance.fitBounds === 'function') {
-        mapInstance.fitBounds(
-          [
-            [minX, minY],
-            [maxX, maxY]
-          ],
-          { padding: 80, duration: 800 }
-        );
-      } else {
-        const centerLng = (minX + maxX) / 2;
-        const centerLat = (minY + maxY) / 2;
-        setViewState(prev => ({
-          ...prev,
-          longitude: centerLng,
-          latitude: centerLat,
-          zoom: Math.max(prev.zoom, 13)
-        }));
-      }
-    }
-    applyUploadedAoiToAnalysis(geo, layerName);
-  };
-
-  const handleLayerFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
-
+    let rasterPreviewUrl: string | null = null;
+    setSiUploadPhase('reading');
+    setSiUploadProgressPct(2);
+    setAddLayerStatus('Reading file…');
     try {
-      await importAoiDataSourceFile(file);
+      const parsed = await parseFile(file, {
+        onProgress: pct => setSiUploadProgressPct(Math.round(2 + pct * 0.35)),
+      });
+      setSiUploadPhase('processing');
+      setSiUploadProgressPct(40);
+      setAddLayerStatus('Processing…');
+
+      if (parsed.type === 'table') {
+        throw new Error('This CSV has no latitude/longitude columns. Add lat/lon columns or use GeoJSON / KML / SHP (.zip).');
+      }
+
+      const id = `custom-${Date.now()}-${file.name.replace(/\s+/g, '_')}`;
+      const baseName = file.name.replace(/\.[^.]+$/, '');
+      const layerName = addLayerName.trim() || baseName || file.name;
+
+      if (parsed.type === 'raster') {
+        rasterPreviewUrl = parsed.previewObjectUrl;
+        const outline = siRasterExtentFootprint(parsed.coordinates);
+        setCustomLayers(prev => [
+          ...prev,
+          {
+            id,
+            name: layerName,
+            geojson: outline,
+            visible: true,
+            source: 'upload',
+            renderMode: 'raster',
+            raster: { url: parsed.previewObjectUrl, coordinates: parsed.coordinates },
+            ephemeral: true,
+            importMetadata: {
+              format: 'GeoTIFF',
+              crs: parsed.crsHint,
+              bytes: file.size,
+            },
+          },
+        ]);
+        setAddLayerStatus(`Completed: GeoTIFF "${layerName}" (${parsed.widthPx}×${parsed.heightPx}px, ${parsed.bands} band(s)).`);
+        setSiUploadProgressPct(100);
+        setSiUploadPhase('completed');
+        setAddLayerName('');
+        setSiUploadStagedFile(null);
+        setIsAddLayerModalOpen(false);
+        focusGeoJsonOnMap(outline);
+        setFieldAnalysisStatus(
+          `Raster "${layerName}" is on the map. Draw a polygon AOI if you need to clip analysis to an area.`,
+        );
+        return;
+      }
+
+      if (parsed.type === 'bim') {
+        const bimBlobUrl = URL.createObjectURL(file);
+        const footprint = siBimAnchorFootprint(viewState.longitude, viewState.latitude);
+        setCustomLayers(prev => [
+          ...prev,
+          {
+            id,
+            name: layerName,
+            geojson: footprint,
+            visible: true,
+            source: 'upload',
+            ephemeral: true,
+            bimBlobUrl,
+            importMetadata: { format: 'IFC', bytes: parsed.byteLength },
+          },
+        ]);
+        setAddLayerStatus(`Completed: IFC "${layerName}" anchored to the map (${Math.round(parsed.byteLength / 1024)} KB).`);
+        setSiUploadProgressPct(100);
+        setSiUploadPhase('completed');
+        setAddLayerName('');
+        setSiUploadStagedFile(null);
+        setIsAddLayerModalOpen(false);
+        focusGeoJsonOnMap(footprint);
+        setFieldAnalysisStatus(
+          `IFC "${layerName}" stored for this session. Download from layer metadata or open in your BIM tool for full 3D geometry.`,
+        );
+        return;
+      }
+
+      const geo = parsed.data;
+      if (!geo || typeof geo !== 'object') {
+        throw new Error('Parsed file did not contain valid geospatial data.');
+      }
+      const featureCount = Array.isArray(geo.features) ? geo.features.length : 0;
+      if (!featureCount) {
+        throw new Error('No drawable features found. Check CRS and geometry types in the source file.');
+      }
+
+      setCustomLayers(prev => [
+        ...prev,
+        {
+          id,
+          name: layerName,
+          geojson: geo,
+          visible: true,
+          source: 'upload',
+          importMetadata: {
+            format: parsed.crsHint ? `Vector (${parsed.crsHint})` : 'Vector',
+            crs: parsed.crsHint,
+            bytes: file.size,
+          },
+        },
+      ]);
+      setAddLayerStatus(`Completed: vector layer "${layerName}" (${featureCount} feature${featureCount === 1 ? '' : 's'}).`);
+      setSiUploadProgressPct(100);
+      setSiUploadPhase('completed');
+      setAddLayerName('');
+      setSiUploadStagedFile(null);
+      setIsAddLayerModalOpen(false);
+
+      const bounds = getGeoJsonBounds(geo);
+      if (bounds) {
+        const [minX, minY, maxX, maxY] = bounds;
+        const mapInstance = mapRef.current?.getMap ? mapRef.current.getMap() : mapRef.current;
+        if (mapInstance && typeof mapInstance.fitBounds === 'function') {
+          mapInstance.fitBounds(
+            [
+              [minX, minY],
+              [maxX, maxY],
+            ],
+            { padding: 80, duration: 800 },
+          );
+        } else {
+          const centerLng = (minX + maxX) / 2;
+          const centerLat = (minY + maxY) / 2;
+          setViewState(prev => ({
+            ...prev,
+            longitude: centerLng,
+            latitude: centerLat,
+            zoom: Math.max(prev.zoom, 13),
+          }));
+        }
+      }
+
+      if (applyUploadedAoiToAnalysis(geo, layerName)) {
+        /* AOI polygon applied */
+      } else {
+        setFieldAnalysisStatus(
+          `Layer "${layerName}" added (points/lines or no polygon). Use a polygon layer or draw an AOI to run AOI-clipped analysis.`,
+        );
+      }
     } catch (error) {
       console.error('Failed to add layer', error);
+      if (rasterPreviewUrl) URL.revokeObjectURL(rasterPreviewUrl);
+      setSiUploadPhase('failed');
+      setSiUploadProgressPct(0);
       setAddLayerStatus(error instanceof Error ? error.message : 'Failed to import file layer.');
-    } finally {
-      event.target.value = '';
     }
+  };
+
+  const handleLayerFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    setSiUploadStagedFile(file);
+    setSiUploadPhase('idle');
+    setSiUploadProgressPct(0);
+    const mb = file.size / (1024 * 1024);
+    setAddLayerStatus(
+      `Ready: ${file.name} (${mb >= 0.01 ? mb.toFixed(2) : '<0.01'} MB). Click “Import to map” to add.`,
+    );
+    event.target.value = '';
+  };
+
+  const openSiUploadFilePicker = () => {
+    fileInputRef.current?.click();
+  };
+
+  const commitSiLayerUpload = () => {
+    if (!siUploadStagedFile) {
+      setAddLayerStatus('Choose a file (browse) or drop one on the upload area, then click Import to map.');
+      return;
+    }
+    void importAoiDataSourceFile(siUploadStagedFile);
   };
 
   const toggle3DView = () => {
@@ -2958,14 +3527,13 @@ export default function SatelliteIntelligence() {
     setIsLayerDropdownOpen(false);
   };
 
-  const handleUploadCustomLayerClick = () => {
-    if (fileInputRef.current) {
-      fileInputRef.current.click();
-    }
-  };
-
   const openAddLayerModal = () => {
     setAddLayerStatus('');
+    setSiGetDataStep('menu');
+    setSiUploadStagedFile(null);
+    setSiUploadPhase('idle');
+    setSiUploadProgressPct(0);
+    setSiUploadDropActive(false);
     setSiAddLayerWizard('home');
     setAddLayerTab('giscontent');
     setDiscoveredArcgisLayers([]);
@@ -2980,13 +3548,18 @@ export default function SatelliteIntelligence() {
     openAddLayerModal();
     setSiAddLayerWizard('source-forms');
     setAddLayerTab('upload');
-    setAddLayerStatus('Upload AOI as SHP (.zip), KML/KMZ, or GeoJSON.');
+    setAddLayerStatus('Upload vector, raster, or BIM: browse or drop a file, preview details, then Import to map.');
   };
 
   const closeAddLayerModal = () => {
     setIsAddLayerModalOpen(false);
     setSiAddLayerWizard('home');
     setAddLayerStatus('');
+    setSiGetDataStep('menu');
+    setSiUploadStagedFile(null);
+    setSiUploadPhase('idle');
+    setSiUploadProgressPct(0);
+    setSiUploadDropActive(false);
     setDiscoveredArcgisLayers([]);
     setSelectedDiscoveredArcgisUrl('');
     setAddingGisContentCandidateId(null);
@@ -2996,6 +3569,10 @@ export default function SatelliteIntelligence() {
     setSiAddLayerWizard('home');
     setAddLayerTab('giscontent');
     setAddLayerStatus('');
+    setSiUploadStagedFile(null);
+    setSiUploadPhase('idle');
+    setSiUploadProgressPct(0);
+    setSiUploadDropActive(false);
     setAddingGisContentCandidateId(null);
   };
 
@@ -3220,15 +3797,48 @@ export default function SatelliteIntelligence() {
     try {
       const file = await parseRemoteUrlAsFile(raw);
       const parsed = await parseFile(file);
-      if (parsed.type !== 'geojson') {
-        throw new Error('URL must point to a geospatial source (GeoJSON/KML/KMZ/ZIP or Raster/Image service endpoint).');
+      if (parsed.type === 'table') {
+        throw new Error('Remote file is a table CSV without latitude/longitude columns.');
+      }
+      if (parsed.type === 'bim') {
+        throw new Error('IFC must be uploaded from disk — remote IFC import is not enabled here.');
       }
       const id = `remote-${Date.now()}`;
+      const baseName = addLayerName.trim() || parsed.filename || 'Remote Layer';
+
+      if (parsed.type === 'raster') {
+        const outline = siRasterExtentFootprint(parsed.coordinates);
+        setCustomLayers(prev => [
+          ...prev,
+          {
+            id,
+            name: baseName,
+            geojson: outline,
+            visible: true,
+            source: 'api',
+            sourceUrl: raw,
+            renderMode: 'raster',
+            raster: { url: parsed.previewObjectUrl, coordinates: parsed.coordinates },
+            ephemeral: true,
+            importMetadata: {
+              format: 'GeoTIFF',
+              crs: parsed.crsHint,
+            },
+          },
+        ]);
+        setAddLayerStatus(`Imported remote GeoTIFF: ${parsed.filename}`);
+        setAddLayerName('');
+        setAddLayerRemoteUrl('');
+        setIsAddLayerModalOpen(false);
+        focusGeoJsonOnMap(outline);
+        return;
+      }
+
       setCustomLayers(prev => [
         ...prev,
         {
           id,
-          name: addLayerName.trim() || parsed.filename || 'Remote Layer',
+          name: baseName,
           geojson: parsed.data,
           visible: true,
           source: 'api',
@@ -3239,10 +3849,45 @@ export default function SatelliteIntelligence() {
       setAddLayerName('');
       setAddLayerRemoteUrl('');
       setIsAddLayerModalOpen(false);
+      focusGeoJsonOnMap(parsed.data);
     } catch (e) {
       setAddLayerStatus(e instanceof Error ? e.message : 'Failed to import remote URL layer.');
     } finally {
       setIsImportingRemoteLayer(false);
+    }
+  };
+
+  useEffect(() => {
+    const prev = prevAddLayerTabForGetDataRef.current;
+    prevAddLayerTabForGetDataRef.current = addLayerTab;
+    if (addLayerTab === 'database' && prev !== null && prev !== 'database') {
+      setSiGetDataStep('menu');
+    }
+  }, [addLayerTab]);
+
+  const applySiGetDataPick = (item: SiGetDataSourceEntry) => {
+    const a = item.action;
+    if (a.kind === 'toast') {
+      setAddLayerStatus(a.message);
+      return;
+    }
+    if (a.kind === 'gis-map') {
+      setAddLayerStatus('');
+      setSiAddLayerWizard('gis-list');
+      setAddLayerTab('giscontent');
+      return;
+    }
+    if (a.kind === 'sql') {
+      setAddLayerStatus('');
+      setDbPlatform(a.platform);
+      setSiGetDataStep('sql');
+      return;
+    }
+    if (a.kind === 'tab') {
+      setAddLayerTab(a.tab);
+      if (a.presetRemoteUrl !== undefined) setAddLayerRemoteUrl(a.presetRemoteUrl);
+      else if (a.tab === 'upload' || a.tab === 'arcgis' || a.tab === 'raster') setAddLayerRemoteUrl('');
+      setAddLayerStatus(a.statusHint ?? '');
     }
   };
 
@@ -3529,12 +4174,8 @@ export default function SatelliteIntelligence() {
             setStacStatus('Could not load a supported ArcGIS renderer (drawingInfo) for this layer.');
             return;
           }
-          const baked =
-            applySymbologyToArcgisDrawingInfo(
-              di as Record<string, unknown>,
-              'service',
-              arcgisRendererType === 'simple' ? 1 : symbologyDraft.arcgisMaxCategories,
-            ) ?? (sanitizeArcgisDrawingInfoForClient(di) as Record<string, unknown> | null);
+          /** Keep the service renderer intact — do not slice unique/class lists (applySymbology… caps categories). */
+          const baked = sanitizeArcgisDrawingInfoForClient(di) as Record<string, unknown> | null;
           if (!baked || !arcgisDrawingInfoToFillPaint(baked)) {
             setStacStatus('Could not apply symbology to this layer renderer.');
             return;
@@ -3763,6 +4404,8 @@ export default function SatelliteIntelligence() {
         { title: 'Remove layer', danger: true, confirmLabel: 'Remove', cancelLabel: 'Cancel' },
       );
       if (!ok) return;
+      if (layer.raster?.url?.startsWith('blob:')) URL.revokeObjectURL(layer.raster.url);
+      if (layer.bimBlobUrl?.startsWith('blob:')) URL.revokeObjectURL(layer.bimBlobUrl);
       setCustomLayers(prev => prev.filter(item => item.id !== layerId));
       setActiveLayerActionDialog(prev => (prev?.layerId === layerId ? null : prev));
       setStacStatus(`Removed layer "${layer.name}".`);
@@ -5141,7 +5784,9 @@ export default function SatelliteIntelligence() {
     setGeoExplorerPendingImage(null);
     setGeoExplorerChatError('');
     setGeoAiPinLngLat(null);
-    setGeoAiInspectCard(null);
+    setGeoAiInspectPopups([]);
+    setGeoAiTableSelectionsByTableId({});
+    setGeoAiTableMapFocusKey(null);
     geoAiLastUserMapQueryRef.current = '';
   }, []);
 
@@ -5152,7 +5797,9 @@ export default function SatelliteIntelligence() {
     setGeoAiClaudeVisibleCount(GEO_AI_CHAT_PAGE_SIZE);
     setGeoAiDraft('');
     setGeoAiChatError('');
-    setGeoAiInspectCard(null);
+    setGeoAiInspectPopups([]);
+    setGeoAiTableSelectionsByTableId({});
+    setGeoAiTableMapFocusKey(null);
     geoAiLastUserMapQueryRef.current = '';
   }, []);
 
@@ -5163,7 +5810,9 @@ export default function SatelliteIntelligence() {
     setGeoAiDeepseekVisibleCount(GEO_AI_CHAT_PAGE_SIZE);
     setGeoDeepseekDraft('');
     setGeoDeepseekChatError('');
-    setGeoAiInspectCard(null);
+    setGeoAiInspectPopups([]);
+    setGeoAiTableSelectionsByTableId({});
+    setGeoAiTableMapFocusKey(null);
     geoAiLastUserMapQueryRef.current = '';
   }, []);
 
@@ -5379,31 +6028,37 @@ export default function SatelliteIntelligence() {
       }));
       if (action === 'focus' || action === 'openTable' || action === 'highlight' || link.type === 'feature') {
         if (featureInspect) {
-          setGeoAiInspectCard(featureInspect);
+          mergeGeoAiInspectFromMapOrTable(featureInspect, link);
         } else {
-          setGeoAiInspectCard({
-            title,
+          mergeGeoAiInspectFromMapOrTable(
+            {
+              title,
+              rows: [
+                { label: 'Longitude', value: lng.toFixed(6) },
+                { label: 'Latitude', value: lat.toFixed(6) },
+              ],
+              lng,
+              lat,
+            },
+            link,
+          );
+        }
+      } else if (link.type === 'coords' && link.layerName) {
+        mergeGeoAiInspectFromMapOrTable(
+          {
+            title: link.layerName,
             rows: [
               { label: 'Longitude', value: lng.toFixed(6) },
               { label: 'Latitude', value: lat.toFixed(6) },
             ],
             lng,
             lat,
-          });
-        }
-      } else if (link.type === 'coords' && link.layerName) {
-        setGeoAiInspectCard({
-          title: link.layerName,
-          rows: [
-            { label: 'Longitude', value: lng.toFixed(6) },
-            { label: 'Latitude', value: lat.toFixed(6) },
-          ],
-          lng,
-          lat,
-        });
+          },
+          link,
+        );
       }
     },
-    [customLayers, is3DView],
+    [customLayers, is3DView, mergeGeoAiInspectFromMapOrTable],
   );
 
   /** Fit map to union bounds of Geo AI query hits (multi-feature selection). */
@@ -6159,12 +6814,65 @@ export default function SatelliteIntelligence() {
         }
       }
     }
+
+    const orbitEv = orig as MouseEvent | undefined;
+    const toolForOrbit = mapDrawToolRef.current;
+    if (
+      orbitEv?.shiftKey &&
+      orbitEv.button === 0 &&
+      !(toolForOrbit === 'polygon' && polygonRing.length > 0) &&
+      toolForOrbit !== 'rectangle' &&
+      toolForOrbit !== 'circle' &&
+      toolForOrbit !== 'box_select' &&
+      !(toolForOrbit === 'polyline' && polylineStart) &&
+      toolForOrbit !== 'lasso' &&
+      toolForOrbit !== 'freehand' &&
+      toolForOrbit !== 'text' &&
+      !circleRefineDraft
+    ) {
+      let bearing0 = viewState.bearing;
+      let pitch0 = viewState.pitch;
+      try {
+        const m = map as { getBearing?: () => number; getPitch?: () => number };
+        if (typeof m.getBearing === 'function') bearing0 = m.getBearing();
+        if (typeof m.getPitch === 'function') pitch0 = m.getPitch();
+      } catch {
+        /* ignore */
+      }
+      siCameraOrbitDragRef.current = {
+        startX: orbitEv.clientX,
+        startY: orbitEv.clientY,
+        bearing0,
+        pitch0,
+        moved: false,
+      };
+      setMapDragPanEnabled(false);
+      try {
+        orbitEv.preventDefault();
+      } catch {
+        /* ignore */
+      }
+      return;
+    }
   };
 
   const handleMapPointerMove = (evt: any) => {
     const lng = evt.lngLat.lng;
     const lat = evt.lngLat.lat;
     const map = getMapInstance();
+    const orbitDrag = siCameraOrbitDragRef.current;
+    const moveOrig = evt.originalEvent as MouseEvent | undefined;
+    if (orbitDrag && moveOrig && 'clientX' in moveOrig) {
+      const dx = moveOrig.clientX - orbitDrag.startX;
+      const dy = moveOrig.clientY - orbitDrag.startY;
+      if (Math.abs(dx) + Math.abs(dy) > 2) orbitDrag.moved = true;
+      setViewState(prev => ({
+        ...prev,
+        bearing: orbitDrag.bearing0 + dx * 0.42,
+        pitch: Math.max(0, Math.min(78, orbitDrag.pitch0 - dy * 0.38)),
+      }));
+      return;
+    }
     const cri = circleRefineInteractionRef.current;
     if (cri && mapDrawTool === 'circle' && circleRefineDraft) {
       const draft = circleRefineDraft;
@@ -6309,6 +7017,12 @@ export default function SatelliteIntelligence() {
 
   useEffect(() => {
     const onUp = (e: PointerEvent) => {
+      const od = siCameraOrbitDragRef.current;
+      if (od) {
+        siCameraOrbitDragRef.current = null;
+        setMapDragPanEnabled(true);
+        if (od.moved) skipNextMapClickRef.current = true;
+      }
       if (dragRectCircleRef.current) {
         interactionEndRef.current.finalizeRect(e.clientX, e.clientY);
       }
@@ -6524,7 +7238,7 @@ export default function SatelliteIntelligence() {
               return;
             }
             const arcDef = siArcgisDefForIdentifyLayerId(layerId, customLayers);
-            setGeoAiInspectCard({
+            const inspectCard: GeoAiInspectCardState = {
               title,
               rows: buildGeoAiLayerPopupAttributeRows(
                 { properties: clean, arcgisLayerDefinition: arcDef },
@@ -6537,7 +7251,32 @@ export default function SatelliteIntelligence() {
               lng,
               lat,
               ...pickGeoAiHumanPlaceFields(clean),
-            });
+            };
+            const baseLayerId = layerId.replace(/-(fill|line|circle)$/, '');
+            const customHitLayer = customLayers.find(l => String(l.id) === baseLayerId);
+            let linkForTable: GeoExplorerMapLink | null = null;
+            let featureFocusKey: string | null = null;
+            if (customHitLayer?.geojson?.features) {
+              const want = JSON.stringify(clean);
+              const feats = customHitLayer.geojson.features as Array<{ properties?: Record<string, unknown> }>;
+              for (let i = 0; i < feats.length; i++) {
+                const f = feats[i] as { properties?: Record<string, unknown> };
+                const fp =
+                  f.properties && typeof f.properties === 'object' && !Array.isArray(f.properties)
+                    ? siSanitizeIdentifyProperties(f.properties)
+                    : {};
+                if (JSON.stringify(fp) === want) {
+                  const fk = computeStableGisFeatureKey(f, i);
+                  featureFocusKey = `${String(customHitLayer.id)}::${fk}`;
+                  linkForTable = { type: 'feature', layerId: String(customHitLayer.id), featureKey: fk };
+                  break;
+                }
+              }
+            }
+            setGeoAiTableMapFocusKey(featureFocusKey);
+            if (!shouldSuppressGeoAiMapIdentifyPopup()) {
+              mergeGeoAiInspectFromMapOrTable(inspectCard, linkForTable);
+            }
             return;
           }
         }
@@ -7016,10 +7755,17 @@ export default function SatelliteIntelligence() {
           layer.source === 'upload' &&
           pickFirstPolygonAoiFeature(layer.geojson) !== null;
         const sourceType =
-          lower.includes('arcgis') ? 'ArcGIS' :
-          lower.includes('kml') || lower.includes('kmz') ? 'KML/KMZ' :
-          lower.includes('shp') || lower.includes('shape') ? 'SHP' :
-          'Vector layer';
+          layer.renderMode === 'raster' || layer.importMetadata?.format === 'GeoTIFF'
+            ? 'GeoTIFF raster'
+            : layer.importMetadata?.format === 'IFC' || layer.bimBlobUrl
+              ? 'IFC (BIM anchor)'
+              : lower.includes('arcgis')
+                ? 'ArcGIS'
+                : lower.includes('kml') || lower.includes('kmz')
+                  ? 'KML/KMZ'
+                  : lower.includes('shp') || lower.includes('shape')
+                    ? 'SHP'
+                    : 'Vector layer';
         return {
           id: `custom-${layer.id}`,
           label: layer.name,
@@ -7591,6 +8337,12 @@ export default function SatelliteIntelligence() {
             renderWorldCopies={false}
             dragRotate
             pitchWithRotate
+            touchPitch
+            touchZoomRotate
+            minPitch={0}
+            maxPitch={78}
+            doubleClickZoom
+            scrollZoom
             fog={{ 'range': [0.5, 10], 'color': '#020617', 'horizon-blend': 0.1 }}
             onError={(e: any) => {
               const message = e?.error?.message || '';
@@ -7629,6 +8381,23 @@ export default function SatelliteIntelligence() {
               <>
                 {customLayers.map(layer => {
                   if (!layer.visible) return null;
+                  if (layer.renderMode === 'raster' && layer.raster?.url && layer.raster.coordinates) {
+                    return (
+                      <Source
+                        key={`${layer.id}-raster`}
+                        id={layer.id}
+                        type="image"
+                        url={layer.raster.url}
+                        coordinates={layer.raster.coordinates}
+                      >
+                        <Layer
+                          id={`${layer.id}-raster`}
+                          type="raster"
+                          paint={{ 'raster-opacity': 0.92, 'raster-fade-duration': 0 } as any}
+                        />
+                      </Source>
+                    );
+                  }
                   const st = siLayerMapboxStylePack(layer);
                   return (
                     <Source
@@ -7938,75 +8707,244 @@ export default function SatelliteIntelligence() {
               </Source>
             ) : null}
 
-            {isMapLoaded && geoAiInspectCard ? (
+            {isMapLoaded && geoAiLinkedHighlightGeojson.features.length > 0 ? (
+              <Source id="si-geo-ai-table-selection" type="geojson" data={geoAiLinkedHighlightGeojson as any}>
+                <Layer
+                  id="si-geo-ai-sel-fill"
+                  type="fill"
+                  filter={['in', ['geometry-type'], ['literal', ['Polygon', 'MultiPolygon']]]}
+                  paint={{
+                    'fill-color': SI_GEO_AI_MAP_SELECTION_PAINT.fillColor,
+                    'fill-opacity': SI_GEO_AI_MAP_SELECTION_PAINT.fillOpacity,
+                  }}
+                />
+                <Layer
+                  id="si-geo-ai-sel-line"
+                  type="line"
+                  filter={['in', ['geometry-type'], ['literal', ['LineString', 'Polygon', 'MultiPolygon']]]}
+                  paint={{
+                    'line-color': SI_GEO_AI_MAP_SELECTION_PAINT.lineColor,
+                    'line-width': SI_GEO_AI_MAP_SELECTION_PAINT.lineWidth,
+                    'line-opacity': SI_GEO_AI_MAP_SELECTION_PAINT.lineOpacity,
+                  }}
+                />
+                <Layer
+                  id="si-geo-ai-sel-point"
+                  type="circle"
+                  filter={['==', ['geometry-type'], 'Point']}
+                  paint={{
+                    'circle-radius': SI_GEO_AI_MAP_SELECTION_PAINT.pointRadius,
+                    'circle-color': SI_GEO_AI_MAP_SELECTION_PAINT.pointColor,
+                    'circle-opacity': SI_GEO_AI_MAP_SELECTION_PAINT.pointOpacity,
+                    'circle-stroke-width': SI_GEO_AI_MAP_SELECTION_PAINT.pointStrokeWidth,
+                    'circle-stroke-color': SI_GEO_AI_MAP_SELECTION_PAINT.pointStrokeColor,
+                  }}
+                />
+              </Source>
+            ) : null}
+
+            {isMapLoaded &&
+            (geoAiPopupMode === 'single' || geoAiPopupMode === 'multiple') &&
+            geoAiInspectPopups.length > 0 &&
+            geoAiInspectPopups.map((pop, popIdx) => (
               <Marker
+                key={pop.id}
                 className="si-geo-ai-inspect-marker"
-                longitude={geoAiInspectCard.lng}
-                latitude={geoAiInspectCard.lat}
+                longitude={pop.lng}
+                latitude={pop.lat}
                 anchor="bottom"
-                offset={[0, 6]}
+                offset={[popIdx * 18, 6 - popIdx * 12]}
               >
                 <div
-                  className="si-geo-ai-inspect-card si-geo-ai-inspect-card--map-anchor"
+                  className={`si-geo-ai-inspect-card si-geo-ai-inspect-card--map-anchor${pop.pinned ? ' si-geo-ai-inspect-card--pinned' : ''}${
+                    pop.collapsed ? ' si-geo-ai-inspect-card--collapsed' : ''
+                  }`}
                   role="dialog"
                   aria-label="Feature identify — attributes at click location"
                   onPointerDown={e => e.stopPropagation()}
                   onClick={e => e.stopPropagation()}
                 >
                   <div className="si-geo-ai-inspect-card__head">
-                    <strong className="si-geo-ai-inspect-card__title">{geoAiInspectCard.title}</strong>
-                    <button
-                      type="button"
-                      className="si-geo-ai-inspect-card__close"
-                      onClick={() => setGeoAiInspectCard(null)}
-                      aria-label="Close details"
-                    >
-                      ×
-                    </button>
+                    <strong className="si-geo-ai-inspect-card__title">{pop.title}</strong>
+                    <span className="si-geo-ai-inspect-card__head-actions">
+                      <button
+                        type="button"
+                        className="si-geo-ai-inspect-card__collapse"
+                        onClick={() =>
+                          setGeoAiInspectPopups(prev =>
+                            prev.map(p => (p.id === pop.id ? { ...p, collapsed: !p.collapsed } : p)),
+                          )
+                        }
+                        title={pop.collapsed ? 'Expand' : 'Collapse'}
+                        aria-expanded={!pop.collapsed}
+                        aria-label={pop.collapsed ? 'Expand popup' : 'Collapse popup'}
+                      >
+                        <i
+                          className={pop.collapsed ? 'fa-solid fa-chevron-down' : 'fa-solid fa-chevron-up'}
+                          aria-hidden
+                        />
+                      </button>
+                      <button
+                        type="button"
+                        className="si-geo-ai-inspect-card__pin"
+                        onClick={() =>
+                          setGeoAiInspectPopups(prev =>
+                            prev.map(p => (p.id === pop.id ? { ...p, pinned: !p.pinned } : p)),
+                          )
+                        }
+                        title={pop.pinned ? 'Unpin' : 'Pin'}
+                        aria-label={pop.pinned ? 'Unpin popup' : 'Pin popup'}
+                      >
+                        <i className={pop.pinned ? 'fa-solid fa-thumbtack' : 'fa-regular fa-thumbtack'} aria-hidden />
+                      </button>
+                      <button
+                        type="button"
+                        className="si-geo-ai-inspect-card__close"
+                        onClick={() => setGeoAiInspectPopups(prev => prev.filter(p => p.id !== pop.id))}
+                        aria-label="Close details"
+                      >
+                        ×
+                      </button>
+                    </span>
                   </div>
-                  <div className="si-geo-ai-inspect-card__meta">
-                    <div className="si-geo-ai-inspect-card__meta-row">
-                      <span className="si-geo-ai-inspect-card__meta-k">Coordinates</span>
-                      <span className="si-geo-ai-inspect-card__meta-v" dir="ltr">
-                        {geoAiInspectCard.lng.toFixed(5)}°, {geoAiInspectCard.lat.toFixed(5)}°
-                      </span>
+                  <div className="si-geo-ai-inspect-card__body">
+                    <div className="si-geo-ai-inspect-card__meta">
+                      <div className="si-geo-ai-inspect-card__meta-row">
+                        <span className="si-geo-ai-inspect-card__meta-k">Coordinates</span>
+                        <span className="si-geo-ai-inspect-card__meta-v" dir="ltr">
+                          {pop.lng.toFixed(5)}°, {pop.lat.toFixed(5)}°
+                        </span>
+                      </div>
+                      <div className="si-geo-ai-inspect-card__meta-row">
+                        <span className="si-geo-ai-inspect-card__meta-k">Area</span>
+                        <span className="si-geo-ai-inspect-card__meta-v">{pop.areaName?.trim() || '—'}</span>
+                      </div>
+                      <div className="si-geo-ai-inspect-card__meta-row">
+                        <span className="si-geo-ai-inspect-card__meta-k">Country</span>
+                        <span className="si-geo-ai-inspect-card__meta-v">
+                          {pop.country && !/^\d+$/.test(String(pop.country).trim()) ? pop.country : '—'}
+                        </span>
+                      </div>
                     </div>
-                    <div className="si-geo-ai-inspect-card__meta-row">
-                      <span className="si-geo-ai-inspect-card__meta-k">Area</span>
-                      <span className="si-geo-ai-inspect-card__meta-v">
-                        {geoAiInspectCard.areaName?.trim() || '—'}
-                      </span>
-                    </div>
-                    <div className="si-geo-ai-inspect-card__meta-row">
-                      <span className="si-geo-ai-inspect-card__meta-k">Country</span>
-                      <span className="si-geo-ai-inspect-card__meta-v">
-                        {geoAiInspectCard.country &&
-                        !/^\d+$/.test(String(geoAiInspectCard.country).trim())
-                          ? geoAiInspectCard.country
-                          : '—'}
-                      </span>
-                    </div>
+                    {pop.rows.length ? (
+                      <div className="si-geo-ai-inspect-card__table-wrap">
+                        <table className="si-geo-ai-inspect-card__table">
+                          <tbody>
+                            {pop.rows.map(row => (
+                              <tr key={`${pop.id}-${row.label}`}>
+                                <th scope="row">{row.label}</th>
+                                <td>{row.value}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    ) : null}
                   </div>
-                  {geoAiInspectCard.rows.length ? (
-                    <div className="si-geo-ai-inspect-card__table-wrap">
-                      <table className="si-geo-ai-inspect-card__table">
-                        <tbody>
-                          {geoAiInspectCard.rows.map(row => (
-                            <tr key={row.label}>
-                              <th scope="row">{row.label}</th>
-                              <td>{row.value}</td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  ) : null}
                 </div>
               </Marker>
-            ) : null}
+            ))}
 
-            {isMapLoaded ? <NavigationControl position="bottom-right" /> : null}
+            {isMapLoaded ? (
+              <>
+                <div className="si-globe-camera-hint" dir="rtl" aria-hidden>
+                  <strong className="si-globe-camera-hint__title">🔄 الكاميرا — Globe</strong>
+                  <span className="si-globe-camera-hint__line">
+                    <kbd>Shift</kbd> + سحب: تدوير المشهد + الميل (360°)
+                  </span>
+                  <span className="si-globe-camera-hint__line">
+                    أو زر البوصلة ↓ — اضغط مع السحب للميل؛ نقرة مزدوجة لإعادة الشمال
+                  </span>
+                  <span className="si-globe-camera-hint__line">
+                    لوحة: <kbd>Ctrl</kbd> / زر أيمن + سحب يدوّر أيضًا · الهاتف: إصبعان للدوران، سحب عمودي للميل
+                  </span>
+                </div>
+                <NavigationControl position="bottom-right" visualizePitch />
+              </>
+            ) : null}
           </MapGL>
+
+          {isMapLoaded && geoAiPopupMode === 'side' && geoAiInspectPopups.length > 0 ? (
+            <div className="si-geo-ai-inspect-side-stack" role="region" aria-label="Geo AI attribute inspector">
+              {geoAiInspectPopups.map(pop => (
+                <div
+                  key={pop.id}
+                  className={`si-geo-ai-inspect-card si-geo-ai-inspect-card--side${pop.pinned ? ' si-geo-ai-inspect-card--pinned' : ''}${
+                    pop.collapsed ? ' si-geo-ai-inspect-card--collapsed' : ''
+                  }`}
+                  onPointerDown={e => e.stopPropagation()}
+                >
+                  <div className="si-geo-ai-inspect-card__head">
+                    <strong className="si-geo-ai-inspect-card__title">{pop.title}</strong>
+                    <span className="si-geo-ai-inspect-card__head-actions">
+                      <button
+                        type="button"
+                        className="si-geo-ai-inspect-card__collapse"
+                        onClick={() =>
+                          setGeoAiInspectPopups(prev =>
+                            prev.map(p => (p.id === pop.id ? { ...p, collapsed: !p.collapsed } : p)),
+                          )
+                        }
+                        title={pop.collapsed ? 'Expand' : 'Collapse'}
+                        aria-expanded={!pop.collapsed}
+                        aria-label={pop.collapsed ? 'Expand' : 'Collapse'}
+                      >
+                        <i
+                          className={pop.collapsed ? 'fa-solid fa-chevron-down' : 'fa-solid fa-chevron-up'}
+                          aria-hidden
+                        />
+                      </button>
+                      <button
+                        type="button"
+                        className="si-geo-ai-inspect-card__pin"
+                        onClick={() =>
+                          setGeoAiInspectPopups(prev =>
+                            prev.map(p => (p.id === pop.id ? { ...p, pinned: !p.pinned } : p)),
+                          )
+                        }
+                        title={pop.pinned ? 'Unpin' : 'Pin'}
+                        aria-label={pop.pinned ? 'Unpin' : 'Pin'}
+                      >
+                        <i className={pop.pinned ? 'fa-solid fa-thumbtack' : 'fa-regular fa-thumbtack'} aria-hidden />
+                      </button>
+                      <button
+                        type="button"
+                        className="si-geo-ai-inspect-card__close"
+                        onClick={() => setGeoAiInspectPopups(prev => prev.filter(p => p.id !== pop.id))}
+                        aria-label="Close"
+                      >
+                        ×
+                      </button>
+                    </span>
+                  </div>
+                  <div className="si-geo-ai-inspect-card__body">
+                    <div className="si-geo-ai-inspect-card__meta">
+                      <div className="si-geo-ai-inspect-card__meta-row">
+                        <span className="si-geo-ai-inspect-card__meta-k">Coordinates</span>
+                        <span className="si-geo-ai-inspect-card__meta-v" dir="ltr">
+                          {pop.lng.toFixed(5)}°, {pop.lat.toFixed(5)}°
+                        </span>
+                      </div>
+                    </div>
+                    {pop.rows.length ? (
+                      <div className="si-geo-ai-inspect-card__table-wrap">
+                        <table className="si-geo-ai-inspect-card__table">
+                          <tbody>
+                            {pop.rows.slice(0, 16).map(row => (
+                              <tr key={`${pop.id}-${row.label}`}>
+                                <th scope="row">{row.label}</th>
+                                <td>{row.value}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    ) : null}
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : null}
 
           <SatelliteAoiStaticChartsMapOverlay
             open={mapStaticChartsOpen}
@@ -8054,6 +8992,21 @@ export default function SatelliteIntelligence() {
                               >
                                 <i className="fa-solid fa-trash" aria-hidden />
                               </button>
+                              <label className="si-geo-ai-popup-mode-label">
+                                <span className="si-geo-ai-popup-mode-label-text">Popup</span>
+                                <select
+                                  className="si-geo-ai-popup-mode-select"
+                                  value={geoAiPopupMode}
+                                  onChange={e => setGeoAiPopupMode(e.target.value as GeoAiPopupMode)}
+                                  title="How feature identify windows appear (linked with map / table)"
+                                  aria-label="Geo AI popup mode"
+                                >
+                                  <option value="single">Single</option>
+                                  <option value="multiple">Multiple</option>
+                                  <option value="docked">Docked panel</option>
+                                  <option value="side">Side inspector</option>
+                                </select>
+                              </label>
                             </div>
                           </div>
                           <div className="si-geo-ai-model-tabs" role="tablist" aria-label="AI model">
@@ -8145,6 +9098,9 @@ export default function SatelliteIntelligence() {
                                         suggestLayers={geoAiSuggestContext.layers}
                                         suggestFields={geoAiSuggestContext.fields}
                                         suggestNumericFields={geoAiSuggestContext.numericFields}
+                                        onTableSelectionLinksChange={onGeoAiTableSelectionSync}
+                                        mapFocusFeatureKey={geoAiTableMapFocusKey}
+                                        onTableQuerySelectApplied={onGeoAiQuerySelectApplied}
                                       />
                                     </div>
                                   </div>
@@ -8289,6 +9245,9 @@ export default function SatelliteIntelligence() {
                                         suggestLayers={geoAiSuggestContext.layers}
                                         suggestFields={geoAiSuggestContext.fields}
                                         suggestNumericFields={geoAiSuggestContext.numericFields}
+                                        onTableSelectionLinksChange={onGeoAiTableSelectionSync}
+                                        mapFocusFeatureKey={geoAiTableMapFocusKey}
+                                        onTableQuerySelectApplied={onGeoAiQuerySelectApplied}
                                       />
                                     </div>
                                   </div>
@@ -8368,6 +9327,89 @@ export default function SatelliteIntelligence() {
                                 )}
                               </p>
                             </>
+                          ) : null}
+                          {geoAiPopupMode === 'docked' && geoAiInspectPopups.length > 0 ? (
+                            <div className="si-geo-ai-inspect-dock-panel" role="region" aria-label="Identify — docked">
+                              {geoAiInspectPopups.map(pop => (
+                                <div
+                                  key={pop.id}
+                                  className={`si-geo-ai-inspect-card si-geo-ai-inspect-card--docked${
+                                    pop.pinned ? ' si-geo-ai-inspect-card--pinned' : ''
+                                  }${pop.collapsed ? ' si-geo-ai-inspect-card--collapsed' : ''}`}
+                                >
+                                  <div className="si-geo-ai-inspect-card__head">
+                                    <strong className="si-geo-ai-inspect-card__title">{pop.title}</strong>
+                                    <span className="si-geo-ai-inspect-card__head-actions">
+                                      <button
+                                        type="button"
+                                        className="si-geo-ai-inspect-card__collapse"
+                                        onClick={() =>
+                                          setGeoAiInspectPopups(prev =>
+                                            prev.map(p => (p.id === pop.id ? { ...p, collapsed: !p.collapsed } : p)),
+                                          )
+                                        }
+                                        title={pop.collapsed ? 'Expand' : 'Collapse'}
+                                        aria-expanded={!pop.collapsed}
+                                        aria-label={pop.collapsed ? 'Expand' : 'Collapse'}
+                                      >
+                                        <i
+                                          className={pop.collapsed ? 'fa-solid fa-chevron-down' : 'fa-solid fa-chevron-up'}
+                                          aria-hidden
+                                        />
+                                      </button>
+                                      <button
+                                        type="button"
+                                        className="si-geo-ai-inspect-card__pin"
+                                        onClick={() =>
+                                          setGeoAiInspectPopups(prev =>
+                                            prev.map(p => (p.id === pop.id ? { ...p, pinned: !p.pinned } : p)),
+                                          )
+                                        }
+                                        title={pop.pinned ? 'Unpin' : 'Pin'}
+                                        aria-label={pop.pinned ? 'Unpin' : 'Pin'}
+                                      >
+                                        <i
+                                          className={pop.pinned ? 'fa-solid fa-thumbtack' : 'fa-regular fa-thumbtack'}
+                                          aria-hidden
+                                        />
+                                      </button>
+                                      <button
+                                        type="button"
+                                        className="si-geo-ai-inspect-card__close"
+                                        onClick={() => setGeoAiInspectPopups(prev => prev.filter(p => p.id !== pop.id))}
+                                        aria-label="Close"
+                                      >
+                                        ×
+                                      </button>
+                                    </span>
+                                  </div>
+                                  <div className="si-geo-ai-inspect-card__body">
+                                    <div className="si-geo-ai-inspect-card__meta">
+                                      <div className="si-geo-ai-inspect-card__meta-row">
+                                        <span className="si-geo-ai-inspect-card__meta-k">Coordinates</span>
+                                        <span className="si-geo-ai-inspect-card__meta-v" dir="ltr">
+                                          {pop.lng.toFixed(5)}°, {pop.lat.toFixed(5)}°
+                                        </span>
+                                      </div>
+                                    </div>
+                                    {pop.rows.length ? (
+                                      <div className="si-geo-ai-inspect-card__table-wrap">
+                                        <table className="si-geo-ai-inspect-card__table">
+                                          <tbody>
+                                            {pop.rows.slice(0, 20).map(row => (
+                                              <tr key={`${pop.id}-${row.label}`}>
+                                                <th scope="row">{row.label}</th>
+                                                <td>{row.value}</td>
+                                              </tr>
+                                            ))}
+                                          </tbody>
+                                        </table>
+                                      </div>
+                                    ) : null}
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
                           ) : null}
                         </div>
                       </div>
@@ -8562,7 +9604,7 @@ export default function SatelliteIntelligence() {
                 ref={fileInputRef}
                 type="file"
                 className="add-layer-input"
-                accept=".kml,.kmz,.zip,.geojson,.json,.csv,.tif,.tiff,.img,.vrt,.jp2,.ecw"
+                accept=".kml,.kmz,.zip,.geojson,.json,.csv,.tif,.tiff,.ifc,.gpx,.img,.vrt,.jp2,.ecw"
                 onChange={handleLayerFileChange}
               />
               <SatelliteMapProcessingOptionsPortal portalTarget={mapToolboxEmbedHost}>
@@ -9662,7 +10704,7 @@ export default function SatelliteIntelligence() {
                     {
                       id: 'database' as AddLayerTab,
                       title: 'Get Data',
-                      sub: 'Database, web URL, and advanced connectors.',
+                      sub: 'Excel, CSV, SQL, Web, OData, GIS files — same “common sources” style as Power BI.',
                       icon: 'fa-solid fa-database',
                     },
                   ].map(opt => (
@@ -9810,7 +10852,7 @@ export default function SatelliteIntelligence() {
                     role="tab"
                     aria-selected={addLayerTab === 'database'}
                     className={(addLayerTab === 'database' ? 'gis-compact-tab active' : 'gis-compact-tab') + ' gis-compact-tab--icon'}
-                    title="Database"
+                    title="Get data"
                     onClick={() => setAddLayerTab('database')}
                   >
                     <i className="fa-solid fa-database" aria-hidden />
@@ -9889,63 +10931,138 @@ export default function SatelliteIntelligence() {
                   ) : null}
                 </div>
               ) : addLayerTab === 'database' ? (
-                <div key="database" role="tabpanel" aria-label="Database Connection">
-                  <div className="si-layer-form-grid-2">
-                    <label className="si-layer-field">
-                      <span>Database Platform</span>
-                      <select className="gis-input" value={dbPlatform} onChange={e => setDbPlatform(e.target.value as (typeof DATABASE_PLATFORM_OPTIONS)[number])}>
-                        {DATABASE_PLATFORM_OPTIONS.map(platform => (
-                          <option key={platform} value={platform}>{platform}</option>
+                <div key="database" role="tabpanel" aria-label="Get data">
+                  {siGetDataStep === 'menu' ? (
+                    <div className="si-get-data-panel">
+                      <div className="si-get-data-hero">
+                        <div className="si-get-data-hero-icons" aria-hidden>
+                          <i className="fa-solid fa-database" />
+                          <i className="fa-solid fa-table" />
+                        </div>
+                        <div>
+                          <h3 className="si-get-data-hero-title">Get data</h3>
+                          <p className="si-get-data-hero-sub">Common data sources</p>
+                        </div>
+                      </div>
+                      <div className="si-get-data-list" role="list">
+                        {SI_GET_DATA_COMMON_SOURCES.map(row => (
+                          <button
+                            key={row.id}
+                            type="button"
+                            role="listitem"
+                            className="si-get-data-row"
+                            onClick={() => applySiGetDataPick(row)}
+                          >
+                            <span
+                              className={`si-get-data-row-icon${row.id === 'excel' ? ' si-get-data-row-icon--excel' : ''}${
+                                row.id === 'csv' ? ' si-get-data-row-icon--csv' : ''
+                              }`}
+                              aria-hidden
+                            >
+                              <i className={row.iconClass} />
+                            </span>
+                            <span className="si-get-data-row-text">
+                              <span className="si-get-data-row-title">{row.title}</span>
+                              <span className="si-get-data-row-desc">{row.description}</span>
+                            </span>
+                          </button>
                         ))}
-                      </select>
-                    </label>
-                    <label className="si-layer-field">
-                      <span>Instance / Host</span>
-                      <input type="text" className="gis-input" placeholder="server\\instance or host:port" value={dbInstance} onChange={e => setDbInstance(e.target.value)} />
-                    </label>
-                  </div>
-                  <label className="si-layer-field">
-                    <span>Authentication Type</span>
-                    <select className="gis-input" value={dbAuthType} onChange={e => setDbAuthType(e.target.value as 'database' | 'operating-system')}>
-                      <option value="database">Database authentication</option>
-                      <option value="operating-system">Operating system authentication</option>
-                    </select>
-                  </label>
-                  {dbAuthType === 'database' ? (
-                    <div className="si-layer-form-grid-2">
-                      <label className="si-layer-field">
-                        <span>User Name</span>
-                        <input type="text" className="gis-input" placeholder="db_user" value={dbUsername} onChange={e => setDbUsername(e.target.value)} />
-                      </label>
-                      <label className="si-layer-field">
-                        <span>Password</span>
-                        <input type="password" className="gis-input" placeholder="••••••••" value={dbPassword} onChange={e => setDbPassword(e.target.value)} />
-                      </label>
+                      </div>
+                      <div className="si-get-data-footer">
+                        <button
+                          type="button"
+                          className="si-get-data-more-btn"
+                          onClick={() => {
+                            setAddLayerTab('upload');
+                            setAddLayerStatus('More spatial formats: use Upload, From URL, Raster, or ArcGIS tabs in the bar above.');
+                          }}
+                        >
+                          More… <span className="si-get-data-more-hint">(all GIS / BIM upload formats)</span>
+                        </button>
+                      </div>
                     </div>
-                  ) : null}
-                  <label className="si-layer-inline-check">
-                    <input type="checkbox" checked={dbSaveCredentials} onChange={e => setDbSaveCredentials(e.target.checked)} />
-                    <span>Save User/Password</span>
-                  </label>
-                  <div className="si-layer-form-grid-2">
-                    <label className="si-layer-field">
-                      <span>Database</span>
-                      <input type="text" className="gis-input" placeholder="optional" value={dbName} onChange={e => setDbName(e.target.value)} />
-                    </label>
-                    <label className="si-layer-field">
-                      <span>Connection File Name</span>
-                      <input type="text" className="gis-input" placeholder="optional" value={dbConnectionFileName} onChange={e => setDbConnectionFileName(e.target.value)} />
-                    </label>
-                  </div>
-                  <details className="si-layer-advanced">
-                    <summary>Additional Properties</summary>
-                    <small>
-                      This profile is prepared in-app for future backend connector support. Validate required fields and save.
-                    </small>
-                  </details>
-                  <button type="button" className="gis-btn-primary-full" onClick={handleDatabaseConnection}>
-                    <i className="fa-solid fa-plug" aria-hidden /> Validate & Save Connection
-                  </button>
+                  ) : (
+                    <>
+                      <button type="button" className="si-get-data-back" onClick={() => setSiGetDataStep('menu')}>
+                        <i className="fa-solid fa-arrow-left" aria-hidden /> Common data sources
+                      </button>
+                      <p className="si-get-data-sql-lead">Database connection — profile is stored in-app for future gateway support.</p>
+                      <div className="si-layer-form-grid-2">
+                        <label className="si-layer-field">
+                          <span>Database Platform</span>
+                          <select
+                            className="gis-input"
+                            value={dbPlatform}
+                            onChange={e => setDbPlatform(e.target.value as (typeof DATABASE_PLATFORM_OPTIONS)[number])}
+                          >
+                            {DATABASE_PLATFORM_OPTIONS.map(platform => (
+                              <option key={platform} value={platform}>
+                                {platform}
+                              </option>
+                            ))}
+                          </select>
+                        </label>
+                        <label className="si-layer-field">
+                          <span>Instance / Host</span>
+                          <input
+                            type="text"
+                            className="gis-input"
+                            placeholder="server\\instance or host:port"
+                            value={dbInstance}
+                            onChange={e => setDbInstance(e.target.value)}
+                          />
+                        </label>
+                      </div>
+                      <label className="si-layer-field">
+                        <span>Authentication Type</span>
+                        <select className="gis-input" value={dbAuthType} onChange={e => setDbAuthType(e.target.value as 'database' | 'operating-system')}>
+                          <option value="database">Database authentication</option>
+                          <option value="operating-system">Operating system authentication</option>
+                        </select>
+                      </label>
+                      {dbAuthType === 'database' ? (
+                        <div className="si-layer-form-grid-2">
+                          <label className="si-layer-field">
+                            <span>User Name</span>
+                            <input type="text" className="gis-input" placeholder="db_user" value={dbUsername} onChange={e => setDbUsername(e.target.value)} />
+                          </label>
+                          <label className="si-layer-field">
+                            <span>Password</span>
+                            <input type="password" className="gis-input" placeholder="••••••••" value={dbPassword} onChange={e => setDbPassword(e.target.value)} />
+                          </label>
+                        </div>
+                      ) : null}
+                      <label className="si-layer-inline-check">
+                        <input type="checkbox" checked={dbSaveCredentials} onChange={e => setDbSaveCredentials(e.target.checked)} />
+                        <span>Save User/Password</span>
+                      </label>
+                      <div className="si-layer-form-grid-2">
+                        <label className="si-layer-field">
+                          <span>Database</span>
+                          <input type="text" className="gis-input" placeholder="optional" value={dbName} onChange={e => setDbName(e.target.value)} />
+                        </label>
+                        <label className="si-layer-field">
+                          <span>Connection File Name</span>
+                          <input
+                            type="text"
+                            className="gis-input"
+                            placeholder="optional"
+                            value={dbConnectionFileName}
+                            onChange={e => setDbConnectionFileName(e.target.value)}
+                          />
+                        </label>
+                      </div>
+                      <details className="si-layer-advanced">
+                        <summary>Additional Properties</summary>
+                        <small>
+                          This profile is prepared in-app for future backend connector support. Validate required fields and save.
+                        </small>
+                      </details>
+                      <button type="button" className="gis-btn-primary-full" onClick={handleDatabaseConnection}>
+                        <i className="fa-solid fa-plug" aria-hidden /> Validate & Save Connection
+                      </button>
+                    </>
+                  )}
                 </div>
               ) : addLayerTab === 'url' || addLayerTab === 'raster' ? (
                 <div key="url" role="tabpanel" aria-label="Remote URL">
@@ -9976,46 +11093,107 @@ export default function SatelliteIntelligence() {
                 </div>
               ) : (
                 <div key="upload" role="tabpanel" aria-label="Upload file">
-                  <div
-                    className="gis-dropzone"
-                    role="button"
-                    tabIndex={0}
-                    aria-label="Drop a file here or click to browse"
-                    onKeyDown={e => {
-                      if (e.key === 'Enter' || e.key === ' ') {
-                        e.preventDefault();
-                        handleUploadCustomLayerClick();
-                      }
-                    }}
-                    onClick={() => handleUploadCustomLayerClick()}
-                    onDragOver={e => {
-                      e.preventDefault();
-                    }}
-                    onDrop={e => {
-                      e.preventDefault();
-                      const file = e.dataTransfer?.files?.[0];
-                      if (!file) return;
-                      void (async () => {
-                        try {
-                          await importAoiDataSourceFile(file);
-                        } catch (error) {
-                          setAddLayerStatus(error instanceof Error ? error.message : 'Failed to import dropped AOI file.');
-                        }
-                      })();
-                    }}
-                  >
-                    <div className="gis-dropzone-icon" aria-hidden>
-                      <i className="fa-solid fa-upload" />
-                    </div>
-                    <div className="gis-dropzone-text">Drop a file here or click to browse</div>
-                    <div className="gis-dropzone-subtext">
-                      Supports: SHP (.zip), KML/KMZ, GeoJSON.
-                    </div>
-                  </div>
-                  <input type="text" className="gis-input" placeholder="Layer Name (optional)" value={addLayerName} onChange={e => setAddLayerName(e.target.value)} />
-                  <button type="button" className="gis-btn-primary-full" onClick={handleUploadCustomLayerClick}>
-                    <i className="fa-solid fa-upload" aria-hidden /> Upload & Import
-                  </button>
+                  {(() => {
+                    const siUploadBusy = siUploadPhase === 'reading' || siUploadPhase === 'processing';
+                    return (
+                      <>
+                        <div
+                          className={`gis-dropzone${siUploadDropActive ? ' drag-over' : ''}`}
+                          role="button"
+                          tabIndex={0}
+                          aria-label="Drop a file here or click to browse"
+                          onKeyDown={e => {
+                            if (e.key === 'Enter' || e.key === ' ') {
+                              e.preventDefault();
+                              openSiUploadFilePicker();
+                            }
+                          }}
+                          onClick={() => openSiUploadFilePicker()}
+                          onDragEnter={e => {
+                            e.preventDefault();
+                            setSiUploadDropActive(true);
+                          }}
+                          onDragLeave={e => {
+                            e.preventDefault();
+                            if (e.currentTarget === e.target) setSiUploadDropActive(false);
+                          }}
+                          onDragOver={e => {
+                            e.preventDefault();
+                          }}
+                          onDrop={e => {
+                            e.preventDefault();
+                            setSiUploadDropActive(false);
+                            const file = e.dataTransfer?.files?.[0];
+                            if (!file) return;
+                            setSiUploadStagedFile(file);
+                            setSiUploadPhase('idle');
+                            setSiUploadProgressPct(0);
+                            const mb = file.size / (1024 * 1024);
+                            setAddLayerStatus(
+                              `Ready: ${file.name} (${mb >= 0.01 ? mb.toFixed(2) : '<0.01'} MB). Click “Import to map”.`,
+                            );
+                          }}
+                        >
+                          <div className="gis-dropzone-icon" aria-hidden>
+                            <i className="fa-solid fa-cloud-arrow-up" />
+                          </div>
+                          <div className="gis-dropzone-text">Drop a file here or click to browse</div>
+                          <div className="gis-dropzone-subtext">
+                            SHP (.zip) · GeoJSON · KML / KMZ · CSV (lat/lon) · GeoTIFF (.tif / .tiff) · IFC (.ifc)
+                          </div>
+                        </div>
+                        {siUploadStagedFile && !siUploadBusy ? (
+                          <div className="si-upload-staged-card">
+                            <div className="si-upload-staged-main">
+                              <span className="si-upload-staged-name">{siUploadStagedFile.name}</span>
+                              <span className="si-upload-staged-meta">
+                                {(siUploadStagedFile.size / (1024 * 1024)).toFixed(2)} MB ·{' '}
+                                {String(siUploadStagedFile.name.split('.').pop() || '').toUpperCase()}
+                              </span>
+                            </div>
+                            <button
+                              type="button"
+                              className="si-upload-staged-clear"
+                              onClick={() => {
+                                setSiUploadStagedFile(null);
+                                setAddLayerStatus('');
+                                setSiUploadPhase('idle');
+                              }}
+                            >
+                              Clear
+                            </button>
+                          </div>
+                        ) : null}
+                        {siUploadBusy ? (
+                          <div
+                            className="si-upload-progress"
+                            role="progressbar"
+                            aria-valuemin={0}
+                            aria-valuemax={100}
+                            aria-valuenow={siUploadProgressPct}
+                            aria-label="Import progress"
+                          >
+                            <div className="si-upload-progress__track">
+                              <div className="si-upload-progress__fill" style={{ width: `${siUploadProgressPct}%` }} />
+                            </div>
+                            <div className="si-upload-progress__label">
+                              {siUploadPhase === 'reading' ? 'Uploading / reading' : 'Processing'} · {siUploadProgressPct}%
+                            </div>
+                          </div>
+                        ) : null}
+                        <input type="text" className="gis-input" placeholder="Layer Name (optional)" value={addLayerName} onChange={e => setAddLayerName(e.target.value)} />
+                        <button
+                          type="button"
+                          className="gis-btn-primary-full"
+                          onClick={() => commitSiLayerUpload()}
+                          disabled={siUploadBusy}
+                        >
+                          <i className="fa-solid fa-circle-check" aria-hidden />{' '}
+                          {siUploadBusy ? 'Working…' : siUploadStagedFile ? 'Import to map' : 'Import to map (choose file first)'}
+                        </button>
+                      </>
+                    );
+                  })()}
                 </div>
               )}
                 </div>

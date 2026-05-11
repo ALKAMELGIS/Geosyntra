@@ -392,6 +392,19 @@ export function GeoExplorerGeminiInputRow(props: GeoExplorerGeminiInputRowProps)
     [qRaw, availableLayers, availableFields, availableNumericFields, availableGeometryOps],
   )
 
+  const syncTextareaHeight = useCallback(() => {
+    const el = textareaRef.current
+    if (!el) return
+    el.style.height = 'auto'
+    const maxPx = 200
+    const h = Math.min(Math.max(el.scrollHeight, 44), maxPx)
+    el.style.height = `${h}px`
+  }, [])
+
+  useEffect(() => {
+    syncTextareaHeight()
+  }, [draft, busy, syncTextareaHeight])
+
   useEffect(() => {
     if (!optimizeOpen) return
     const onDocMouseDown = (ev: Event) => {
@@ -647,7 +660,10 @@ export function GeoExplorerGeminiInputRow(props: GeoExplorerGeminiInputRowProps)
             className={pfx(cssPrefix, 'input')}
             rows={1}
             value={draft}
-            onChange={e => onDraftChange(e.target.value)}
+            onChange={e => {
+              onDraftChange(e.target.value)
+              requestAnimationFrame(() => syncTextareaHeight())
+            }}
             onFocus={() => setComposerFocused(true)}
             onBlur={() => {
               window.setTimeout(() => {
