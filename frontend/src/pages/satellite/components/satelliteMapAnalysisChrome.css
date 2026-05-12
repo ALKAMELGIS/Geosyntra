@@ -1543,54 +1543,19 @@ html[data-theme='light'] .si-map-analysis-tl-nudge:hover {
   padding-bottom: 6px;
 }
 
-/* Add data — circular + above Layers (Satellite Intelligence map toolbox) */
+/* Add data — same rail chrome as Layers / other toolbox icons (no FAB pill) */
 .si-sat-ctx-rail-add-data {
-  margin-bottom: 6px;
+  margin-bottom: 2px;
 }
 
 .si-sat-ctx-rail-add-data .si-sat-ctx-rail-label {
   text-align: start;
 }
 
-.si-sat-ctx-rail-add-data__mark {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 34px;
-  height: 34px;
-  border-radius: 999px;
-  flex-shrink: 0;
-  background: linear-gradient(160deg, #f5f3ff, #e9e4ff);
-  color: #312e81;
-  border: 1px solid rgba(167, 139, 250, 0.55);
-  box-shadow:
-    0 2px 10px rgba(0, 0, 0, 0.18),
-    inset 0 1px 0 rgba(255, 255, 255, 0.65);
-  font-size: 15px;
+.si-sat-ctx-dock--map-toolbox .si-sat-ctx-rail-add-data.si-sat-ctx-rail-btn--map > i.fa-plus {
+  font-size: 14px;
   line-height: 1;
-}
-
-.si-sat-ctx-rail-add-data:hover .si-sat-ctx-rail-add-data__mark {
-  border-color: rgba(52, 211, 153, 0.65);
-  color: #14532d;
-  background: linear-gradient(160deg, #ecfdf5, #d1fae5);
-}
-
-.si-sat-ctx-dock--light .si-sat-ctx-rail-add-data__mark {
-  background: linear-gradient(160deg, #ffffff, #eef2ff);
-  color: #3730a3;
-  border-color: rgba(79, 70, 229, 0.35);
-  box-shadow: 0 1px 6px rgba(15, 23, 42, 0.12);
-}
-
-.si-sat-ctx-rail-add-data.si-sat-ctx-rail-btn--map-collapsed {
-  justify-content: center;
-}
-
-.si-sat-ctx-rail-add-data.si-sat-ctx-rail-btn--map-collapsed .si-sat-ctx-rail-add-data__mark {
-  width: 38px;
-  height: 38px;
-  font-size: 16px;
+  color: inherit;
 }
 
 .si-sat-ctx-rail-group-kicker {

@@ -535,9 +535,7 @@ export function SatelliteContextualAnalysisDock(props: SatelliteContextualAnalys
             aria-label="Add data"
             onClick={() => onMapToolboxAddData()}
           >
-            <span className="si-sat-ctx-rail-add-data__mark" aria-hidden>
-              <i className="fa-solid fa-plus" />
-            </span>
+            <i className="fa-solid fa-plus" aria-hidden />
             <span className="si-sat-ctx-rail-label" aria-hidden={!railWide}>
               <span className="si-sat-ctx-rail-label-title">Add data</span>
               <span className="si-sat-ctx-rail-label-desc">Upload or connect a new map layer</span>
