@@ -136,7 +136,6 @@ import { SatelliteMapAnalysisChrome, type MapToolboxNavigateHandler } from './co
 import { SatelliteGeoAiFloatingWidget } from './components/SatelliteGeoAiFloatingWidget';
 import { SatelliteAoiStaticChartsMapOverlay } from './components/SatelliteAoiStaticChartsMapOverlay';
 import { SatelliteMapProcessingOptionsPortal } from './components/SatelliteMapProcessingOptionsPortal';
-import { SiAoiFieldsPanel } from './components/SiAoiFieldsPanel';
 import { SiGeoAiInspectPopupBody } from './components/SiGeoAiInspectPopupBody';
 import { SiLayerPopupConfigurator } from './components/SiLayerPopupConfigurator';
 import {
@@ -144,7 +143,6 @@ import {
   computeSiAoiFieldMetrics,
   fieldGeometryWithinAoi,
   fieldGeometriesRoughOverlap,
-  mergeSiAoiPolygonFields,
   newSiAoiFieldId,
   rotatePolygonGeometry,
   type SiAoiFieldRecord,
@@ -2422,11 +2420,6 @@ export default function SatelliteIntelligence() {
   const aoiFieldSnapRef = useRef(true);
   const [aoiFieldNoOverlap, setAoiFieldNoOverlap] = useState(false);
   const aoiFieldNoOverlapRef = useRef(false);
-  const [fieldMergePick, setFieldMergePick] = useState<[string | null, string | null]>([null, null]);
-  const fieldGeometryClipboardRef = useRef<any>(null);
-  /** Lets the fields panel enable “Paste” after a copy without forcing unrelated re-renders. */
-  const [fieldGeomClipboardPresent, setFieldGeomClipboardPresent] = useState(false);
-  const fieldImportInputRef = useRef<HTMLInputElement | null>(null);
   const fieldEditDragRef = useRef<
     null | { fieldId: string; mode: 'vertex'; ref: VertexRef } | { fieldId: string; mode: 'pan'; last: [number, number] }
   >(null);
@@ -6098,39 +6091,6 @@ export default function SatelliteIntelligence() {
     );
   }, [multiAoiItems]);
 
-  const runMultiAoiAnalysis = useCallback(() => {
-    if (!multiAoiItems.length) {
-      setFieldAnalysisStatus('No AOIs in workspace. Draw or import AOIs first.');
-      return;
-    }
-    const values = weeklyComposites.length ? weeklyComposites : synthesizeWeeklyComposites(stacItems.length);
-    if (!values.length) {
-      setFieldAnalysisStatus('No timeline values yet. Generate timeline first, then run Multi-AOI analysis.');
-      return;
-    }
-    const baseMeans = values.map(v => v.mean);
-    const baseMin = Math.min(...baseMeans);
-    const baseMax = Math.max(...baseMeans);
-    setMultiAoiItems(prev =>
-      prev.map((row, idx) => {
-        const drift = ((idx % 7) - 3) * 0.013;
-        const mean = Number((baseMeans.reduce((s, x) => s + x, 0) / baseMeans.length + drift).toFixed(3));
-        const min = Number((baseMin + drift * 0.7).toFixed(3));
-        const max = Number((baseMax + drift * 0.9).toFixed(3));
-        return {
-          ...row,
-          analysis: {
-            mean,
-            min,
-            max,
-            trend: mean > 0.03 ? 'up' : mean < -0.03 ? 'down' : 'flat',
-          },
-        };
-      }),
-    );
-    setFieldAnalysisStatus(`Multi-AOI analysis completed for ${multiAoiItems.length} AOI(s).`);
-  }, [multiAoiItems.length, weeklyComposites, stacItems.length]);
-
   useEffect(() => {
     drawnGeometryRef.current = drawnGeometry;
   }, [drawnGeometry]);
@@ -6159,7 +6119,6 @@ export default function SatelliteIntelligence() {
     if (!drawnGeometry) {
       setAoiFields([]);
       setSelectedFieldId(null);
-      setFieldMergePick([null, null]);
       fieldEditDragRef.current = null;
       preFieldEditSnapshotRef.current = null;
     }
@@ -6890,7 +6849,6 @@ export default function SatelliteIntelligence() {
     if (next && drawTargetModeRef.current === 'aoi') {
       setAoiFields([]);
       setSelectedFieldId(null);
-      setFieldMergePick([null, null]);
       registerMultiAoiWorkspace(next, `Drawn AOI ${multiAoiItems.length + 1}`, 'drawn', { setActiveFirst: true });
     }
     const cur = drawnGeometryRef.current;
@@ -7157,7 +7115,6 @@ export default function SatelliteIntelligence() {
     setDrawnStats(null);
     setAoiFields([]);
     setSelectedFieldId(null);
-    setFieldMergePick([null, null]);
     setDrawTargetMode('aoi');
     setPolylineStart(null);
     setPolygonRing([]);
@@ -7169,8 +7126,6 @@ export default function SatelliteIntelligence() {
     preEditGeomRef.current = null;
     fieldEditDragRef.current = null;
     preFieldEditSnapshotRef.current = null;
-    fieldGeometryClipboardRef.current = null;
-    setFieldGeomClipboardPresent(false);
     setPolygonClosingSnap(false);
     setDrawAssistHint('');
     setCircleRadiusM(null);
@@ -9938,23 +9893,7 @@ export default function SatelliteIntelligence() {
               </Marker>
             ))}
 
-            {isMapLoaded ? (
-              <>
-                <div className="si-globe-camera-hint" dir="rtl" aria-hidden>
-                  <strong className="si-globe-camera-hint__title">🔄 الكاميرا — Globe</strong>
-                  <span className="si-globe-camera-hint__line">
-                    <kbd>Shift</kbd> + سحب: تدوير المشهد + الميل (360°)
-                  </span>
-                  <span className="si-globe-camera-hint__line">
-                    أو زر البوصلة ↓ — اضغط مع السحب للميل؛ نقرة مزدوجة لإعادة الشمال
-                  </span>
-                  <span className="si-globe-camera-hint__line">
-                    لوحة: <kbd>Ctrl</kbd> / زر أيمن + سحب يدوّر أيضًا · الهاتف: إصبعان للدوران، سحب عمودي للميل
-                  </span>
-                </div>
-                <NavigationControl position="bottom-right" visualizePitch />
-              </>
-            ) : null}
+            {isMapLoaded ? <NavigationControl position="bottom-right" visualizePitch /> : null}
           </MapGL>
 
           {isMapLoaded && geoAiPopupMode === 'side' && geoAiInspectPopups.length > 0 ? (
@@ -10742,66 +10681,68 @@ export default function SatelliteIntelligence() {
                     {expandedEnvSection === 'explore-stac' ? (
                       <div className="si-explore-stac si-explore-stac--embedded si-explore-stac--in-header">
             <div className="si-explore-stac-header">
-              <div>
-                <h2 id="si-explore-stac-title">Explore STAC</h2>
-                <p className="si-explore-stac-sub">
-                  {stacConnection.connectionName}
-                  {showStacSearchUrlInChrome ? (
-                    <>
-                  <span className="si-explore-stac-sub-sep">·</span>
-                      <a
-                        className="si-explore-stac-url"
-                        href={stacActiveSearchUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        title={stacActiveSearchUrl}
-                      >
-                        {stacActiveSearchUrl}
-                      </a>
-                    </>
-                  ) : null}
-                </p>
+              <div className="si-explore-stac-header-top">
+                <div>
+                  <h2 id="si-explore-stac-title">Explore STAC</h2>
+                  <p className="si-explore-stac-sub">
+                    {stacConnection.connectionName}
+                    {showStacSearchUrlInChrome ? (
+                      <>
+                        <span className="si-explore-stac-sub-sep">·</span>
+                        <a
+                          className="si-explore-stac-url"
+                          href={stacActiveSearchUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          title={stacActiveSearchUrl}
+                        >
+                          {stacActiveSearchUrl}
+                        </a>
+                      </>
+                    ) : null}
+                  </p>
+                </div>
+                <div className="si-explore-stac-header-actions">
+                  <button type="button" className="si-explore-linkish" onClick={refreshExploreStacCatalog} disabled={isLoadingStacCollections}>
+                    {isLoadingStacCollections ? 'Refreshing…' : 'Refresh catalog'}
+                  </button>
+                </div>
               </div>
-              <div className="si-explore-stac-header-actions">
-                <button type="button" className="si-explore-linkish" onClick={refreshExploreStacCatalog} disabled={isLoadingStacCollections}>
-                  {isLoadingStacCollections ? 'Refreshing…' : 'Refresh catalog'}
+              <div className="si-explore-stac-tabs" role="tablist" aria-label="Explore STAC sections">
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={exploreTab === 'parameters'}
+                  className={`si-explore-stac-tab${exploreTab === 'parameters' ? ' active' : ''}`}
+                  onClick={() => setExploreTab('parameters')}
+                  title="Parameters"
+                  aria-label="Parameters — search and filters"
+                >
+                  <i className="fa-solid fa-sliders" aria-hidden />
+                </button>
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={exploreTab === 'results'}
+                  className={`si-explore-stac-tab${exploreTab === 'results' ? ' active' : ''}`}
+                  onClick={() => setExploreTab('results')}
+                  title="Results"
+                  aria-label="Results"
+                >
+                  <i className="fa-solid fa-chart-column" aria-hidden />
+                </button>
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={exploreTab === 'source'}
+                  className={`si-explore-stac-tab${exploreTab === 'source' ? ' active' : ''}`}
+                  onClick={() => setExploreTab('source')}
+                  title="Source"
+                  aria-label="Source catalog"
+                >
+                  <i className="fa-solid fa-database" aria-hidden />
                 </button>
               </div>
-            </div>
-            <div className="si-explore-stac-tabs" role="tablist" aria-label="Explore STAC sections">
-              <button
-                type="button"
-                role="tab"
-                aria-selected={exploreTab === 'parameters'}
-                className={`si-explore-stac-tab${exploreTab === 'parameters' ? ' active' : ''}`}
-                onClick={() => setExploreTab('parameters')}
-                title="Parameters"
-                aria-label="Parameters — search and filters"
-              >
-                <i className="fa-solid fa-sliders" aria-hidden />
-              </button>
-              <button
-                type="button"
-                role="tab"
-                aria-selected={exploreTab === 'results'}
-                className={`si-explore-stac-tab${exploreTab === 'results' ? ' active' : ''}`}
-                onClick={() => setExploreTab('results')}
-                title="Results"
-                aria-label="Results"
-              >
-                <i className="fa-solid fa-chart-column" aria-hidden />
-              </button>
-              <button
-                type="button"
-                role="tab"
-                aria-selected={exploreTab === 'source'}
-                className={`si-explore-stac-tab${exploreTab === 'source' ? ' active' : ''}`}
-                onClick={() => setExploreTab('source')}
-                title="Source"
-                aria-label="Source catalog"
-              >
-                <i className="fa-solid fa-database" aria-hidden />
-              </button>
             </div>
             <div
               className={`si-explore-stac-body${exploreTab === 'results' ? ' si-explore-stac-body--results-tab' : ''}`}
@@ -11612,159 +11553,6 @@ export default function SatelliteIntelligence() {
                               </button>
                             </div>
                           </div>
-                          <SiAoiFieldsPanel
-                            hasAoi={!!drawnGeometry}
-                            drawTargetMode={drawTargetMode}
-                            onDrawTargetMode={m => {
-                              setDrawTargetMode(m);
-                              if (m === 'field') setShowEditHandles(true);
-                            }}
-                            fields={aoiFields}
-                            selectedFieldId={selectedFieldId}
-                            onSelectField={setSelectedFieldId}
-                            onRenameField={(id, name) => {
-                              setAoiFields(prev => {
-                                const next = prev.map(x => (x.id === id ? { ...x, name } : x));
-                                aoiFieldsRef.current = next;
-                                return next;
-                              });
-                            }}
-                            onDeleteField={id => {
-                              setAoiFields(prev => {
-                                const next = prev.filter(x => x.id !== id);
-                                aoiFieldsRef.current = next;
-                                return next;
-                              });
-                              setSelectedFieldId(cur => (cur === id ? null : cur));
-                              setFieldMergePick(([a, b]) => [a === id ? null : a, b === id ? null : b]);
-                            }}
-                            onDuplicateField={id => {
-                              const row = aoiFields.find(f => f.id === id);
-                              if (!row) return;
-                              const g = cloneDeep(row.geometry);
-                              const rec = buildSiAoiFieldRecord(g, `${row.name} copy`, aoiFields.length);
-                              rec.style = { ...row.style };
-                              setAoiFields(prev => {
-                                const next = [...prev, rec];
-                                aoiFieldsRef.current = next;
-                                return next;
-                              });
-                              setSelectedFieldId(rec.id);
-                              setFieldAnalysisStatus(`Duplicated as ${rec.name}.`);
-                            }}
-                            onRotateField={(id, deg) => {
-                              const aoi = drawnGeometryRef.current;
-                              const row = aoiFields.find(f => f.id === id);
-                              if (!row || !aoi?.geometry) return;
-                              const rg = rotatePolygonGeometry(row.geometry, deg);
-                              if (!fieldGeometryWithinAoi(aoi.geometry, rg)) {
-                                setFieldAnalysisStatus('Rotate blocked: geometry would leave the AOI.');
-                                return;
-                              }
-                              setAoiFields(prev => {
-                                const next = prev.map(x =>
-                                  x.id === id ? { ...x, geometry: rg, ...computeSiAoiFieldMetrics(rg) } : x,
-                                );
-                                aoiFieldsRef.current = next;
-                                return next;
-                              });
-                            }}
-                            fieldSnap={aoiFieldSnap}
-                            onFieldSnap={setAoiFieldSnap}
-                            fieldNoOverlap={aoiFieldNoOverlap}
-                            onFieldNoOverlap={setAoiFieldNoOverlap}
-                            mergePick={fieldMergePick}
-                            onMergePick={(slot, id) =>
-                              setFieldMergePick(prev => (slot === 0 ? [id, prev[1]] : [prev[0], id]))
-                            }
-                            onMergeFields={() => {
-                              const [a, b] = fieldMergePick;
-                              if (!a || !b || a === b) return;
-                              const fa = aoiFields.find(f => f.id === a);
-                              const fb = aoiFields.find(f => f.id === b);
-                              if (!fa || !fb) return;
-                              const merged = mergeSiAoiPolygonFields(fa, fb, `${fa.name} + ${fb.name}`);
-                              if (!merged) {
-                                setFieldAnalysisStatus('Merge needs two polygon fields (not MultiPolygon).');
-                                return;
-                              }
-                              setAoiFields(prev => {
-                                const next = [...prev.filter(x => x.id !== a && x.id !== b), merged];
-                                aoiFieldsRef.current = next;
-                                return next;
-                              });
-                              setSelectedFieldId(merged.id);
-                              setFieldMergePick([null, null]);
-                              setFieldAnalysisStatus(`Merged into ${merged.name}.`);
-                            }}
-                            onCopyGeometry={() => {
-                              if (!selectedFieldId) return;
-                              const row = aoiFields.find(f => f.id === selectedFieldId);
-                              if (!row) return;
-                              fieldGeometryClipboardRef.current = cloneDeep(row.geometry);
-                              setFieldGeomClipboardPresent(true);
-                              setFieldAnalysisStatus('Field geometry copied.');
-                            }}
-                            onPasteGeometry={() => {
-                              const g = fieldGeometryClipboardRef.current;
-                              if (!g) return;
-                              tryAddFieldFromFeature({ type: 'Feature', properties: {}, geometry: g });
-                            }}
-                            canPaste={fieldGeomClipboardPresent && !!fieldGeometryClipboardRef.current}
-                            onExportFieldsGeoJson={() => {
-                              if (!drawnGeometry || !aoiFields.length) return;
-                              const fc = siAoiFieldsToFeatureCollection(aoiFields);
-                              const doc = {
-                                type: 'FeatureCollection',
-                                features: fc.features,
-                                siAoiWorkspace: {
-                                  version: 1,
-                                  parentAoiFeature: drawnGeometry,
-                                  exportedAt: new Date().toISOString(),
-                                },
-                              };
-                              downloadTextFile(
-                                'aoi-fields-nested.geojson',
-                                JSON.stringify(doc, null, 2),
-                                'application/geo+json',
-                              );
-                              setFieldAnalysisStatus('Exported nested fields GeoJSON.');
-                            }}
-                            importInputRef={fieldImportInputRef}
-                            onImportGeojson={e => {
-                              const file = e.target.files?.[0];
-                              e.target.value = '';
-                              if (!file) return;
-                              const reader = new FileReader();
-                              reader.onload = () => {
-                                try {
-                                  const json = JSON.parse(String(reader.result));
-                                  const feats: any[] = [];
-                                  if (json?.type === 'FeatureCollection' && Array.isArray(json.features)) {
-                                    feats.push(...json.features);
-                                  } else if (json?.type === 'Feature') {
-                                    feats.push(json);
-                                  }
-                                  let added = 0;
-                                  for (const ft of feats) {
-                                    if (tryAddFieldFromFeature(ft, { silent: true })) added++;
-                                  }
-                                  if (added > 0) {
-                                    setFieldAnalysisStatus(`Imported ${added} field polygon(s).`);
-                                  } else if (!feats.length) {
-                                    setFieldAnalysisStatus('No features found in GeoJSON.');
-                                  } else {
-                                    setFieldAnalysisStatus(
-                                      'No fields imported (check overlap / inside AOI / polygon type).',
-                                    );
-                                  }
-                                } catch {
-                                  setFieldAnalysisStatus('Could not parse GeoJSON for fields import.');
-                                }
-                              };
-                              reader.readAsText(file);
-                            }}
-                          />
                           <div className="si-rs-actions si-rs-actions--compact">
                             <button
                               type="button"
@@ -11822,94 +11610,6 @@ export default function SatelliteIntelligence() {
                               </label>
                             </div>
                           </div>
-                        </div>
-
-                        <div className="si-field-analysis-section si-multi-aoi-workspace">
-                          <div className="si-field-analysis-kicker">GIS Workspace · Multi-AOI Analysis</div>
-                          <div className="si-multi-aoi-workspace__actions">
-                            <button
-                              type="button"
-                              className="si-field-analysis-aoi-upload-btn"
-                              onClick={runMultiAoiAnalysis}
-                              disabled={multiAoiItems.length === 0}
-                              title="Run independent analysis per AOI"
-                            >
-                              <i className="fa-solid fa-diagram-project" aria-hidden />
-                              <span>Analyze all AOIs</span>
-                            </button>
-                            <button
-                              type="button"
-                              className="si-field-analysis-aoi-upload-btn"
-                              disabled={!activeMultiAoiId}
-                              onClick={() => {
-                                if (!activeMultiAoiId) return;
-                                const hit = multiAoiItems.find(x => x.id === activeMultiAoiId);
-                                if (hit) {
-                                  updateDrawnStats(hit.feature as any);
-                                  setExploreExtentMode('drawn');
-                                  setFieldAnalysisStatus(`AOI "${hit.name}" is now active for single-AOI tools.`);
-                                }
-                              }}
-                              title="Set selected AOI as active for current single-AOI tools"
-                            >
-                              <i className="fa-solid fa-bullseye" aria-hidden />
-                              <span>Set active AOI</span>
-                            </button>
-                          </div>
-                          {multiAoiItems.length === 0 ? (
-                            <p className="si-multi-aoi-workspace__empty">
-                              Draw polygons or import SHP/KMZ/GeoJSON to build a Multi-AOI workspace.
-                            </p>
-                          ) : (
-                            <div className="si-multi-aoi-workspace__table" role="table" aria-label="Multi AOI results table">
-                              {multiAoiItems.map((row, idx) => {
-                                const active = row.id === activeMultiAoiId;
-                                return (
-                                  <div
-                                    key={row.id}
-                                    className={`si-multi-aoi-workspace__row${active ? ' is-active' : ''}`}
-                                    role="row"
-                                    onClick={() => {
-                                      setActiveMultiAoiId(row.id);
-                                      zoomToMultiAoi(row.id);
-                                    }}
-                                  >
-                                    <span className="si-multi-aoi-workspace__chip" style={{ background: row.color }} aria-hidden />
-                                    <span className="si-multi-aoi-workspace__name" title={row.name}>
-                                      {idx + 1}. {row.name}
-                                    </span>
-                                    <span className="si-multi-aoi-workspace__metric">
-                                      {row.analysis ? row.analysis.mean.toFixed(3) : '—'}
-                                    </span>
-                                    <button
-                                      type="button"
-                                      className="si-multi-aoi-workspace__mini-btn"
-                                      onClick={e => {
-                                        e.stopPropagation();
-                                        zoomToMultiAoi(row.id);
-                                      }}
-                                      title="Zoom to AOI"
-                                    >
-                                      <i className="fa-solid fa-expand" aria-hidden />
-                                    </button>
-                                    <button
-                                      type="button"
-                                      className="si-multi-aoi-workspace__mini-btn"
-                                      onClick={e => {
-                                        e.stopPropagation();
-                                        setMultiAoiPopupIds(prev =>
-                                          prev.includes(row.id) ? prev.filter(x => x !== row.id) : [...prev, row.id],
-                                        );
-                                      }}
-                                      title="Toggle popup"
-                                    >
-                                      <i className="fa-regular fa-comment-dots" aria-hidden />
-                                    </button>
-                                  </div>
-                                );
-                              })}
-                            </div>
-                          )}
                         </div>
 
                         {fieldAnalysisStatus ? <p className="si-field-analysis-status">{fieldAnalysisStatus}</p> : null}
