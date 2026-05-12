@@ -21,8 +21,8 @@ concurrency:
 
 jobs:
   publish-to-main-root:
-    # Only skip when the *bot* pushes the root SPA sync commit — avoids an infinite loop. User commits may mention [pages-sync] in the body without skipping deploy.
-    if: ${{ github.event_name == 'workflow_dispatch' || github.event.pusher.name != 'github-actions[bot]' || !contains(github.event.head_commit.message, '[pages-sync]') }}
+    # Skip only the automated root sync commit from this workflow (avoids infinite loop). Do not skip user commits that merely mention [pages-sync] in the message body.
+    if: ${{ github.event_name == 'workflow_dispatch' || !startsWith(github.event.head_commit.message, 'chore(pages): sync SPA build to repo root') }}
     runs-on: ubuntu-latest
     timeout-minutes: 25
     steps:
