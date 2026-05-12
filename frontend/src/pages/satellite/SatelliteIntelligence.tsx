@@ -10921,7 +10921,7 @@ export default function SatelliteIntelligence() {
                 {isLayerDropdownOpen ? (
                   <div
                     className={`si-env-panel si-env-panel--satellite-toolbox si-env-panel--single-surface${
-                      mapToolboxEmbedHost ? ' si-map-toolbox-stack' : ' si-env-panel--mapbox-drop'
+                      mapToolboxEmbedHost ? '' : ' si-env-panel--mapbox-drop'
                     }${expandedEnvSection === 'explore-stac' ? ' si-env-panel--explore-stac' : ''}`}
                     dir="auto"
                   >
