@@ -7145,6 +7145,50 @@ button.gis-tool-list-row--action:hover {
   margin: 4px 2px;
 }
 
+.gis-layer-menu-popover--pro {
+  border: 1px solid rgba(199, 210, 254, 0.95);
+  border-left: 3px solid rgba(139, 92, 246, 0.88);
+  background: rgba(255, 255, 255, 0.86);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  box-shadow:
+    0 2px 6px rgba(88, 28, 135, 0.07),
+    0 18px 44px rgba(49, 46, 129, 0.16);
+  animation: gis-layer-menu-pop-in 160ms ease both;
+}
+
+@keyframes gis-layer-menu-pop-in {
+  from {
+    opacity: 0;
+    transform: translateY(-5px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.gis-layer-menu-popover--pro .gis-layer-menu-item i {
+  color: rgba(109, 40, 217, 0.92);
+}
+
+.gis-layer-menu-popover--pro .gis-layer-menu-item:hover:not(:disabled):not(.is-disabled) {
+  background: rgba(237, 233, 254, 0.82);
+}
+
+.gis-layer-menu-item.is-disabled,
+.gis-layer-menu-item:disabled {
+  opacity: 0.48;
+  cursor: not-allowed;
+}
+
+.gis-layer-popup-hint {
+  font-size: 12px;
+  line-height: 1.45;
+  color: rgba(71, 85, 105, 0.96);
+  margin: 0 0 10px;
+}
+
 .gis-layer-header {
   display: grid;
   grid-template-columns: auto auto minmax(0, 1fr);
@@ -8241,9 +8285,9 @@ html[data-theme='dark'] .gis-domain-cell--dropdown.missing-description .gis-doma
 }
 
 .gis-workspace-sidebar.gis-table-dock-sidebar:not(.collapsed) {
-  width: min(320px, 36vw);
-  min-width: 240px;
-  max-width: 400px;
+  width: min(260px, 28vw);
+  min-width: 176px;
+  max-width: 300px;
 }
 
 .gis-table-dock-sidebar.collapsed {
@@ -9173,6 +9217,27 @@ html[data-theme='dark'] .gis-domain-cell--dropdown.missing-description .gis-doma
 .gis-style-acc-trigger:hover {
   border-color: rgba(14, 165, 233, 0.35);
   background: rgba(248, 250, 252, 1);
+}
+
+.gis-style-slider-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid rgba(226, 232, 240, 0.9);
+}
+
+.gis-style-slider-stack input[type='range'] {
+  width: 100%;
+  accent-color: rgba(14, 165, 233, 0.9);
+}
+
+.gis-style-hint {
+  font-size: 11px;
+  color: rgba(100, 116, 139, 0.95);
+  margin-top: 4px;
+  line-height: 1.35;
 }
 
 .gis-style-preset-row {

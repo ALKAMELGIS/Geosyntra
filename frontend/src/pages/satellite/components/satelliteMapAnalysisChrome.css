@@ -2494,7 +2494,7 @@ html[data-theme='light'] .si-map-analysis-tl-nudge:hover {
   padding: 0;
 }
 
-.si-sat-ctx-panel-body--processing-embed-host .si-env-panel {
+.si-sat-ctx-panel-body--processing-embed-host .si-map-toolbox-stack.si-env-panel {
   flex: 1 1 auto;
   min-height: 0;
   display: flex;
@@ -2503,7 +2503,7 @@ html[data-theme='light'] .si-map-analysis-tl-nudge:hover {
 }
 
 .si-sat-ctx-panel-body--processing-embed-host
-  .si-env-panel.si-env-panel--satellite-toolbox.si-env-panel--single-surface
+  .si-map-toolbox-stack.si-env-panel.si-env-panel--satellite-toolbox.si-env-panel--single-surface
   > :not(.si-env-panel-header) {
   flex: 1 1 auto;
   min-height: 0;

@@ -1054,29 +1054,6 @@ main.content > .si-page {
   color: #ecfdf5;
 }
 
-.si-add-layer-btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 38px;
-  height: 38px;
-  padding: 0;
-  border-radius: 12px;
-  border: 1px solid rgba(74, 222, 128, 0.55);
-  background: linear-gradient(180deg, rgba(34, 197, 94, 0.95), rgba(22, 163, 74, 0.9));
-  color: #ecfdf5;
-  font-size: 15px;
-  font-weight: 700;
-  box-shadow: 0 10px 24px rgba(22, 163, 74, 0.28);
-  transition: transform 0.16s ease, box-shadow 0.16s ease, filter 0.16s ease;
-}
-
-.si-add-layer-btn:hover {
-  transform: translateY(-1px);
-  box-shadow: 0 14px 26px rgba(21, 128, 61, 0.32);
-  filter: saturate(1.06);
-}
-
 /* Add GIS Layer modal: reuse global gis-modal / gis-modal-compact (index.css); keep above map */
 .si-add-layer-gis-overlay.gis-modal-overlay {
   z-index: 12100;
@@ -2494,43 +2471,55 @@ html[data-theme='light'] .si-proc-mb-toggle {
   max-height: min(82vh, 760px);
 }
 
-/* Portal target: toolbox panel-body (SatelliteContextualAnalysisDock) */
-.si-env-panel.si-env-panel--toolbox-embed {
+/* Portaled toolbox inside dock host: flex stack only — no second panel chrome
+   (replaces si-env-panel--toolbox-embed; beats later .si-env-panel--satellite-toolbox surface rules) */
+.si-sat-ctx-panel-body--processing-embed-host > .si-map-toolbox-stack.si-env-panel.si-env-panel--satellite-toolbox.si-env-panel--single-surface {
   position: relative !important;
   inset: auto !important;
   top: auto !important;
   transform: none !important;
-  width: 100%;
-  max-width: none;
-  margin: 0;
+  width: 100% !important;
+  max-width: none !important;
+  margin: 0 !important;
   z-index: 1;
   max-height: min(72vh, 720px);
   display: flex;
   flex-direction: column;
-  /* One chrome row lives on the dock; avoid a second titled card inside the host */
-  box-shadow: none;
-  border-radius: 0;
-  border: none;
-  outline: none;
-  background: transparent;
-}
-
-.si-env-panel.si-env-panel--toolbox-embed.si-env-panel--explore-stac {
-  max-height: min(78vh, 800px);
-}
-
-/* Duplicate title + close row: dock header already provides context and close */
-.si-env-panel.si-env-panel--toolbox-embed .si-env-panel-header {
-  display: none !important;
-}
-
-.si-env-panel.si-env-panel--toolbox-embed.si-env-panel--satellite-toolbox.si-env-panel--single-surface {
-  border-top: none;
+  box-shadow: none !important;
+  border-radius: 0 !important;
+  border: none !important;
+  outline: none !important;
+  background: transparent !important;
+  isolation: auto;
   padding-top: 0;
 }
 
-html[data-theme='light'] .si-env-panel.si-env-panel--toolbox-embed {
-  background: transparent;
+.si-sat-ctx-panel-body--processing-embed-host
+  > .si-map-toolbox-stack.si-env-panel.si-env-panel--satellite-toolbox.si-env-panel--single-surface.si-env-panel--explore-stac {
+  max-height: min(78vh, 800px);
+}
+
+.si-sat-ctx-panel-body--processing-embed-host > .si-map-toolbox-stack .si-env-panel-header {
+  display: none !important;
+}
+
+.si-sat-ctx-panel-body--processing-embed-host
+  > .si-map-toolbox-stack.si-env-panel.si-env-panel--satellite-toolbox.si-env-panel--single-surface
+  > :not(.si-env-panel-header) {
+  padding: 6px 10px 10px;
+  gap: 8px;
+}
+
+html[data-theme='light']
+  .si-sat-ctx-panel-body--processing-embed-host
+  > .si-map-toolbox-stack.si-env-panel.si-env-panel--satellite-toolbox.si-env-panel--single-surface {
+  background: transparent !important;
+}
+
+.si-sat-ctx-panel-body--processing-embed-host > .si-map-toolbox-stack .si-env-toolbox-nav {
+  padding: 6px 10px 8px;
+  border-bottom-color: rgba(148, 163, 184, 0.12);
+  background: rgba(2, 6, 23, 0.22);
 }
 
 /* Hierarchical back + breadcrumb (map toolbox portal) */
@@ -3256,7 +3245,36 @@ html[data-theme='light'] .si-env-layer-options-menu__item > i {
 .si-layer-action-modal--gis-table {
   width: min(1180px, 98vw);
   max-width: min(1180px, 98vw);
-  max-height: min(88vh, 920px);
+  max-height: min(92vh, 960px);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.si-layer-action-modal--gis-table .si-layer-action-modal-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.si-layer-action-modal--gis-table .si-layer-action-table-layout {
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.si-layer-action-modal-resize {
+  flex-shrink: 0;
+  height: 10px;
+  cursor: ns-resize;
+  touch-action: none;
+  background: linear-gradient(to bottom, rgba(226, 232, 240, 0.95), rgba(148, 163, 184, 0.45));
+  border-top: 1px solid rgba(148, 163, 184, 0.35);
+}
+
+.si-layer-action-modal-resize:hover {
+  background: linear-gradient(to bottom, rgba(56, 189, 248, 0.35), rgba(34, 197, 94, 0.28));
 }
 
 .si-layer-action-modal-table-title {
@@ -3284,7 +3302,9 @@ html[data-theme='light'] .si-env-layer-options-menu__item > i {
 }
 
 .si-layer-action-modal--gis-table .si-layer-action-table-wrap {
-  max-height: min(50vh, 560px);
+  flex: 1 1 auto;
+  min-height: 0;
+  max-height: none;
 }
 
 .si-layer-action-modal-header {
@@ -3325,7 +3345,7 @@ html[data-theme='light'] .si-env-layer-options-menu__item > i {
 }
 
 .si-layer-action-table-layout--gis {
-  grid-template-columns: minmax(200px, min(36vw, 400px)) minmax(0, 1fr);
+  grid-template-columns: minmax(160px, min(24vw, 260px)) minmax(0, 1fr);
   align-items: stretch;
 }
 
@@ -3348,6 +3368,11 @@ html[data-theme='light'] .si-env-layer-options-menu__item > i {
 
 .si-layer-action-modal--gis-table .si-layer-action-table-main.gis-layer-table-wrap {
   min-width: 0;
+  min-height: 0;
+  flex: 1 1 auto;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
 }
 
 .si-layer-action-table-tools {
@@ -7589,18 +7614,35 @@ input.si-explore-date-input-linked[type='date'] {
   box-sizing: border-box;
   padding: 9px 11px;
   border-radius: 10px;
-  border: 1px solid rgba(148, 163, 184, 0.35);
-  background: rgba(15, 23, 42, 0.72);
-  color: #e2e8f0;
+  border: 1px solid rgba(56, 189, 248, 0.22);
+  background: linear-gradient(180deg, rgba(30, 41, 59, 0.92), rgba(15, 23, 42, 0.88));
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  color: #f1f5f9;
   font-size: 12px;
   font-family: inherit;
+  /* Native dropdown list: avoid flat OS grey; Chromium/Firefox honor option colors below */
+  color-scheme: dark;
+  accent-color: #22c55e;
 }
 
 .si-field-analysis-field input[type='date']:focus,
 .si-field-analysis-select:focus {
   outline: none;
   border-color: rgba(56, 189, 248, 0.55);
-  box-shadow: 0 0 0 1px rgba(56, 189, 248, 0.25);
+  box-shadow: 0 0 0 1px rgba(56, 189, 248, 0.28);
+}
+
+.si-field-analysis-select option,
+.si-field-analysis-select optgroup {
+  background-color: #0f172a;
+  color: #f1f5f9;
+}
+
+.si-field-analysis-select option:checked,
+.si-field-analysis-select option:focus {
+  background-color: rgba(14, 165, 233, 0.35);
+  color: #f8fafc;
 }
 
 .si-field-analysis-date-row {
@@ -9835,15 +9877,20 @@ input.si-explore-date-input-linked[type='date'] {
 
 .si-env-panel.si-env-panel--satellite-toolbox.si-env-panel--single-surface .si-field-analysis-field input[type='date'],
 .si-env-panel.si-env-panel--satellite-toolbox.si-env-panel--single-surface .si-field-analysis-select {
-  border: 1px solid rgba(148, 163, 184, 0.14);
-  background: rgba(2, 6, 23, 0.35);
+  border: 1px solid rgba(56, 189, 248, 0.2);
+  background: linear-gradient(180deg, rgba(30, 41, 59, 0.9), rgba(15, 23, 42, 0.86));
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
   border-radius: 10px;
+  color: #f8fafc;
+  color-scheme: dark;
+  accent-color: #22c55e;
 }
 
 .si-env-panel.si-env-panel--satellite-toolbox.si-env-panel--single-surface .si-field-analysis-field input[type='date']:focus,
 .si-env-panel.si-env-panel--satellite-toolbox.si-env-panel--single-surface .si-field-analysis-select:focus {
-  border-color: rgba(56, 189, 248, 0.45);
-  box-shadow: 0 0 0 2px rgba(56, 189, 248, 0.12);
+  border-color: rgba(56, 189, 248, 0.5);
+  box-shadow: 0 0 0 2px rgba(56, 189, 248, 0.14);
 }
 
 .si-env-panel.si-env-panel--satellite-toolbox.si-env-panel--single-surface .si-field-analysis-aoi-upload-btn {
@@ -10603,9 +10650,17 @@ html[data-theme='light'] .si-env-panel--satellite-toolbox.si-env-panel--single-s
 
 html[data-theme='light'] .si-env-panel--satellite-toolbox.si-env-panel--single-surface .si-field-analysis-select,
 html[data-theme='light'] .si-env-panel--satellite-toolbox.si-env-panel--single-surface .si-field-analysis-field input[type='date'] {
-  background: rgba(2, 6, 23, 0.5) !important;
-  color: #e2e8f0 !important;
-  border-color: rgba(148, 163, 184, 0.28) !important;
+  background: linear-gradient(180deg, rgba(30, 41, 59, 0.94), rgba(15, 23, 42, 0.9)) !important;
+  color: #f8fafc !important;
+  border-color: rgba(56, 189, 248, 0.28) !important;
+  color-scheme: dark !important;
+  accent-color: #22c55e !important;
+}
+
+html[data-theme='light'] .si-env-panel--satellite-toolbox.si-env-panel--single-surface .si-field-analysis-select option,
+html[data-theme='light'] .si-env-panel--satellite-toolbox.si-env-panel--single-surface .si-field-analysis-select optgroup {
+  background-color: #0f172a !important;
+  color: #f1f5f9 !important;
 }
 
 html[data-theme='light'] .si-env-panel--satellite-toolbox.si-env-panel--single-surface .si-field-analysis-label,

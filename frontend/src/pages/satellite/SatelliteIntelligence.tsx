@@ -127,6 +127,20 @@ import {
   normalizeSymbologyForLayer,
   type SymbologyContext,
 } from './symbologyHelpers';
+import {
+  appearanceFromSiCustomLayerFields,
+  buildSiCustomVectorStylePack,
+  defaultSiSymbologyAppearance,
+  loadSiStudioSectionPrefs,
+  persistedSiAppearance,
+  readSiStyleClipboard,
+  saveSiStudioSectionPrefs,
+  strokeDashSvgFromStyle,
+  type SiLayerAppearancePersisted,
+  type SiStudioSectionState,
+  type SiSymbologyAppearance,
+  writeSiStyleClipboard,
+} from './siSymbolStyleStudio';
 import { FieldVisibilityControl } from './components/FieldVisibilityControl';
 import { GeoExplorerGeminiInputRow } from './components/GeoExplorerGeminiInputRow';
 import { GeoExplorerGeminiMessageParts } from './components/GeoExplorerGeminiMessageParts';
@@ -1140,6 +1154,15 @@ interface CustomLayer {
   popupConfig?: SiLayerPopupConfig | null;
   /** 0.05–1 — scales vector/raster layer draw opacity on the map (GIS-style transparency). */
   mapOpacity?: number;
+  /** Polygon / point fill tint (GIS `fillColor`). */
+  fillColor?: string;
+  /** Stroke width (GIS `weight`). */
+  weight?: number;
+  strokeStyle?: 'solid' | 'dashed' | 'dotted' | 'dashdot';
+  polygonFillAlpha?: number;
+  pointRadius?: number;
+  fillStyle?: 'solid' | 'pattern' | 'hatch' | 'gradient';
+  blendMode?: 'normal' | 'multiply' | 'screen' | 'overlay' | 'darken' | 'lighten';
 }
 
 const SI_TABLE_MAX_FEATURES = 10000;
@@ -1272,6 +1295,31 @@ function parseStoredCustomLayers(raw: string | null): CustomLayer[] {
             x.mapOpacity >= 0.05 &&
             x.mapOpacity <= 1
               ? x.mapOpacity
+              : undefined,
+          fillColor: typeof x.fillColor === 'string' ? x.fillColor : undefined,
+          weight: typeof x.weight === 'number' && Number.isFinite(x.weight) ? x.weight : undefined,
+          strokeStyle:
+            x.strokeStyle === 'solid' || x.strokeStyle === 'dashed' || x.strokeStyle === 'dotted' || x.strokeStyle === 'dashdot'
+              ? x.strokeStyle
+              : undefined,
+          polygonFillAlpha:
+            typeof x.polygonFillAlpha === 'number' && Number.isFinite(x.polygonFillAlpha) && x.polygonFillAlpha >= 0 && x.polygonFillAlpha <= 1
+              ? x.polygonFillAlpha
+              : undefined,
+          pointRadius:
+            typeof x.pointRadius === 'number' && Number.isFinite(x.pointRadius) ? x.pointRadius : undefined,
+          fillStyle:
+            x.fillStyle === 'solid' || x.fillStyle === 'pattern' || x.fillStyle === 'hatch' || x.fillStyle === 'gradient'
+              ? x.fillStyle
+              : undefined,
+          blendMode:
+            x.blendMode === 'multiply' ||
+            x.blendMode === 'screen' ||
+            x.blendMode === 'overlay' ||
+            x.blendMode === 'darken' ||
+            x.blendMode === 'lighten' ||
+            x.blendMode === 'normal'
+              ? x.blendMode
               : undefined,
         };
       });
@@ -1424,6 +1472,23 @@ function siSanitizeIdentifyProperties(raw: Record<string, unknown> | null | unde
 const SI_ARCGIS_MAPBOX_NEUTRAL_LINE = 'rgba(148, 163, 184, 0.55)';
 const SI_ARCGIS_MAPBOX_NEUTRAL_STROKE = 'rgba(15, 23, 42, 0.72)';
 
+function pickSiCustomLayerStyleSnapshot(l: CustomLayer): Partial<CustomLayer> {
+  return {
+    symbology: l.symbology ? { ...l.symbology } : undefined,
+    color: l.color,
+    fillColor: l.fillColor,
+    weight: l.weight,
+    strokeStyle: l.strokeStyle,
+    polygonFillAlpha: l.polygonFillAlpha,
+    pointRadius: l.pointRadius,
+    fillStyle: l.fillStyle,
+    blendMode: l.blendMode,
+    mapOpacity: l.mapOpacity,
+    useArcGisSymbology: l.useArcGisSymbology,
+    arcgisDrawingInfo: l.arcgisDrawingInfo,
+  };
+}
+
 function siLayerMapboxStylePack(layer: CustomLayer): {
   fillFilter: any;
   lineFilter: any;
@@ -1432,7 +1497,6 @@ function siLayerMapboxStylePack(layer: CustomLayer): {
   linePaint: Record<string, unknown>;
   circlePaint: Record<string, unknown>;
 } {
-  const c = layer.color || '#22c55e';
   const useAg = layer.source === 'arcgis' && layer.useArcGisSymbology !== false && layer.arcgisDrawingInfo;
   if (useAg) {
     const di = layer.arcgisDrawingInfo as any;
@@ -1476,19 +1540,23 @@ function siLayerMapboxStylePack(layer: CustomLayer): {
       },
     };
   }
-  return {
-    fillFilter: SI_MAPBOX_POLY_FILTER,
-    lineFilter: SI_MAPBOX_LINE_POLY_FILTER,
-    pointFilter: SI_MAPBOX_POINT_FILTER,
-    fillPaint: { 'fill-color': c, 'fill-opacity': 0.35 },
-    linePaint: { 'line-color': c, 'line-width': 1.5 },
-    circlePaint: {
-      'circle-radius': 4,
-      'circle-color': c,
-      'circle-stroke-width': 1,
-      'circle-stroke-color': '#052e16',
-    },
-  };
+  return buildSiCustomVectorStylePack({
+    geojson: layer.geojson,
+    source: layer.source,
+    symbology: layer.symbology,
+    color: layer.color,
+    fillColor: layer.fillColor,
+    weight: layer.weight,
+    strokeStyle: layer.strokeStyle as any,
+    polygonFillAlpha: layer.polygonFillAlpha,
+    pointRadius: layer.pointRadius,
+    fillStyle: layer.fillStyle as any,
+    canUseArcGisOnline:
+      layer.source === 'arcgis' ||
+      Boolean(layer.arcgisDrawingInfo) ||
+      Boolean((layer.arcgisLayerDefinition as any)?.drawingInfo) ||
+      Boolean(layer.sourceUrl?.trim()),
+  });
 }
 
 /** Multiply numeric *-opacity paint props for per-layer transparency (Mapbox GL). */
@@ -1858,6 +1926,14 @@ const SI_SYMBOLOGY_BAKE_RAMPS: Record<SymbologyColorRamp, string[]> = {
   turbo: ['#30123b', '#3b4cc0', '#26a6d1', '#3de07e', '#f9e721', '#f20c0c'],
 };
 
+const SI_STYLE_PRESET_CHIPS: Array<{ id: string; label: string; patch: Partial<SiLayerAppearancePersisted> }> = [
+  { id: 'carto', label: 'Carto outline', patch: { strokeStyle: 'solid', weight: 2.5, polygonFillAlpha: 0.28, fillStyle: 'solid', blendMode: 'normal' } },
+  { id: 'soft', label: 'Soft fill', patch: { polygonFillAlpha: 0.5, weight: 1, opacity: 0.92, fillStyle: 'solid', blendMode: 'normal' } },
+  { id: 'survey', label: 'Survey dashed', patch: { strokeStyle: 'dashed', weight: 2, polygonFillAlpha: 0.22, fillStyle: 'pattern', blendMode: 'normal' } },
+  { id: 'bold', label: 'Bold lines', patch: { weight: 5, strokeStyle: 'solid', polygonFillAlpha: 0.4, pointRadius: 10, blendMode: 'normal' } },
+  { id: 'multiply', label: 'Multiply blend', patch: { blendMode: 'multiply', polygonFillAlpha: 0.45, fillStyle: 'solid' } },
+];
+
 function esriColorArrayToCss(c: unknown): string | null {
   if (!Array.isArray(c) || c.length < 3) return null;
   const r = Math.max(0, Math.min(255, Math.round(Number(c[0]))));
@@ -2192,7 +2268,10 @@ export default function SatelliteIntelligence() {
   });
 
   useEffect(() => {
-    persistCustomLayersToStorage(customLayers);
+    const t = window.setTimeout(() => {
+      persistCustomLayersToStorage(customLayers);
+    }, 480);
+    return () => window.clearTimeout(t);
   }, [customLayers]);
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<any[]>([]);
@@ -2347,6 +2426,8 @@ export default function SatelliteIntelligence() {
   const [tableShowSelectedOnly, setTableShowSelectedOnly] = useState(false);
   const [tableSelectedKeys, setTableSelectedKeys] = useState<Set<string>>(() => new Set());
   const [tableToolsCollapsed, setTableToolsCollapsed] = useState(true);
+  /** Pixel height of the layer table modal (table mode); drag bottom edge to resize. */
+  const [siLayerTableModalHeight, setSiLayerTableModalHeight] = useState(560);
   const [draggingSiTableField, setDraggingSiTableField] = useState<string | null>(null);
   const [hiddenSiTableFieldsByLayerId, setHiddenSiTableFieldsByLayerId] = useState<Record<string, Set<string>>>({});
   const [siTableFieldOrderByLayerId, setSiTableFieldOrderByLayerId] = useState<Record<string, string[]>>({});
@@ -2360,6 +2441,17 @@ export default function SatelliteIntelligence() {
     threshold: Number.NaN,
     arcgisMaxCategories: 8,
   });
+  const [siSymbologyAppearance, setSiSymbologyAppearance] = useState<SiSymbologyAppearance>(() => defaultSiSymbologyAppearance());
+  const [siStudioSections, setSiStudioSections] = useState<SiStudioSectionState>(() => ({
+    visualization: true,
+    appearance: true,
+    templates: false,
+    ...loadSiStudioSectionPrefs(),
+  }));
+  const customLayersRef = useRef(customLayers);
+  customLayersRef.current = customLayers;
+  const siStyleSessionBackupRef = useRef<{ layerId: string; snap: Partial<CustomLayer> } | null>(null);
+  const siSymbologyLiveLayerIdRef = useRef<string | null>(null);
   const [dbPlatform, setDbPlatform] = useState<(typeof DATABASE_PLATFORM_OPTIONS)[number]>('SQL Server');
   const [dbInstance, setDbInstance] = useState('');
   const [dbAuthType, setDbAuthType] = useState<'database' | 'operating-system'>('database');
@@ -4276,46 +4368,209 @@ export default function SatelliteIntelligence() {
     setTableFilterValue('');
     setTableShowSelectedOnly(false);
     setTableSelectedKeys(new Set());
-    setTableToolsCollapsed(false);
+    setTableToolsCollapsed(true);
+    setSiLayerTableModalHeight(Math.min(780, Math.max(400, Math.round(window.innerHeight * 0.76))));
     setDraggingSiTableField(null);
   }, [activeLayerActionDialog]);
 
-  useEffect(() => {
-    if (!activeLayerActionDialog || activeLayerActionDialog.mode !== 'symbology' || !activeDialogLayer) return;
-    const di = activeDialogLayer.arcgisDrawingInfo as any;
-    const ren = di?.renderer;
-    const t = String(ren?.type || '');
-    let maxCat = 8;
-    if (t === 'uniqueValue' && Array.isArray(ren.uniqueValueInfos)) {
-      const n = ren.uniqueValueInfos.length;
-      maxCat = n > 0 ? Math.min(8, n) : 8;
-    } else if (t === 'classBreaks' && Array.isArray(ren.classBreakInfos)) {
-      const n = ren.classBreakInfos.filter((br: any) => Number.isFinite(Number(br?.maxValue))).length;
-      maxCat = n > 0 ? Math.min(8, n) : 8;
-    }
-    const savedSym = activeDialogLayer.symbology;
-    const resolvedUseArcGisOnline = !canUseArcGisOnline
-      ? false
-      : typeof savedSym?.useArcGisOnline === 'boolean'
-        ? savedSym.useArcGisOnline
-        : typeof activeDialogLayer.useArcGisSymbology === 'boolean'
-          ? activeDialogLayer.useArcGisSymbology
-          : true;
-    const inferred = inferVisualizationFromArcgisRenderer(ren);
-    const base: SymbologyConfig = {
-      ...savedSym,
-      ...inferred,
-      useArcGisOnline: resolvedUseArcGisOnline,
+  const startSiLayerTableModalResize = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
+    if (e.button !== 0) return;
+    e.preventDefault();
+    const startY = e.clientY;
+    const startH = siLayerTableModalHeight;
+    const maxH = Math.max(420, Math.round(window.innerHeight * 0.92));
+    const minH = 360;
+    const onMove = (ev: PointerEvent) => {
+      const delta = ev.clientY - startY;
+      setSiLayerTableModalHeight(Math.max(minH, Math.min(maxH, Math.round(startH + delta))));
     };
-    const normalized = normalizeSymbologyForLayer(activeDialogLayer.geojson, activeDialogLayer.source, base, canUseArcGisOnline);
-    setSymbologyDraft({
-      ...normalized,
-      arcgisMaxCategories: maxCat,
+    const onUp = () => {
+      window.removeEventListener('pointermove', onMove);
+      window.removeEventListener('pointerup', onUp);
+    };
+    window.addEventListener('pointermove', onMove);
+    window.addEventListener('pointerup', onUp);
+  }, [siLayerTableModalHeight]);
+
+  useLayoutEffect(() => {
+    if (!activeLayerActionDialog || activeLayerActionDialog.mode !== 'symbology') {
+      siStyleSessionBackupRef.current = null;
+      return;
+    }
+    const lid = activeLayerActionDialog.layerId;
+    const layer = customLayersRef.current.find(l => l.id === lid);
+    if (layer) siStyleSessionBackupRef.current = { layerId: lid, snap: pickSiCustomLayerStyleSnapshot(layer) };
+  }, [activeLayerActionDialog]);
+
+  useEffect(() => {
+    if (!activeLayerActionDialog || activeLayerActionDialog.mode !== 'symbology') {
+      siSymbologyLiveLayerIdRef.current = null;
+      return;
+    }
+    const lid = activeLayerActionDialog.layerId;
+    const layer = customLayersRef.current.find(l => l.id === lid);
+    if (!layer) return;
+    const canUse =
+      layer.source === 'arcgis' ||
+      Boolean(layer.arcgisDrawingInfo) ||
+      Boolean((layer.arcgisLayerDefinition as any)?.drawingInfo) ||
+      Boolean(layer.sourceUrl?.trim());
+
+    const needInit = siSymbologyLiveLayerIdRef.current !== lid;
+    if (needInit) {
+      siSymbologyLiveLayerIdRef.current = lid;
+      const di = layer.arcgisDrawingInfo as any;
+      const ren = di?.renderer;
+      const t = String(ren?.type || '');
+      let maxCat = 8;
+      if (t === 'uniqueValue' && Array.isArray(ren.uniqueValueInfos)) {
+        const n = ren.uniqueValueInfos.length;
+        maxCat = n > 0 ? Math.min(8, n) : 8;
+      } else if (t === 'classBreaks' && Array.isArray(ren.classBreakInfos)) {
+        const n = ren.classBreakInfos.filter((br: any) => Number.isFinite(Number(br?.maxValue))).length;
+        maxCat = n > 0 ? Math.min(8, n) : 8;
+      }
+      const savedSym = layer.symbology;
+      const resolvedUseArcGisOnline = !canUse
+        ? false
+        : typeof savedSym?.useArcGisOnline === 'boolean'
+          ? savedSym.useArcGisOnline
+          : typeof layer.useArcGisSymbology === 'boolean'
+            ? layer.useArcGisSymbology
+            : true;
+      const inferred = inferVisualizationFromArcgisRenderer(ren);
+      const base: SymbologyConfig = {
+        ...savedSym,
+        ...inferred,
+        useArcGisOnline: resolvedUseArcGisOnline,
+      };
+      const normalized = normalizeSymbologyForLayer(layer.geojson, layer.source, base, canUse);
+      setSymbologyDraft({
+        ...normalized,
+        arcgisMaxCategories: maxCat,
+      });
+      setSiSymbologyAppearance(appearanceFromSiCustomLayerFields(layer));
+      return;
+    }
+
+    if (symbologyDraft.useArcGisOnline) {
+      const normalized = normalizeSymbologyForLayer(layer.geojson, layer.source, symbologyDraft, canUse);
+      const symSave: SymbologyConfig = {
+        useArcGisOnline: canUse ? normalized.useArcGisOnline : false,
+        style: normalized.style,
+        field: normalized.field,
+        classes: normalized.classes,
+        method: normalized.method,
+        colorRamp: normalized.colorRamp,
+        threshold: normalized.threshold,
+      };
+      setCustomLayers(prev => prev.map(l => (l.id === lid ? { ...l, symbology: symSave } : l)));
+      return;
+    }
+    const normalized = normalizeSymbologyForLayer(layer.geojson, layer.source, symbologyDraft, canUse);
+    const symSave: SymbologyConfig = {
+      useArcGisOnline: canUse ? normalized.useArcGisOnline : false,
+      style: normalized.style,
+      field: normalized.field,
+      classes: normalized.classes,
+      method: normalized.method,
+      colorRamp: normalized.colorRamp,
+      threshold: normalized.threshold,
+    };
+    const ap = persistedSiAppearance(siSymbologyAppearance);
+    setCustomLayers(prev =>
+      prev.map(l =>
+        l.id === lid
+          ? {
+              ...l,
+              symbology: symSave,
+              color: ap.color,
+              fillColor: ap.fillColor,
+              weight: ap.weight,
+              mapOpacity: ap.opacity,
+              strokeStyle: ap.strokeStyle as CustomLayer['strokeStyle'],
+              polygonFillAlpha: ap.polygonFillAlpha,
+              pointRadius: ap.pointRadius,
+              fillStyle: ap.fillStyle as CustomLayer['fillStyle'],
+              blendMode: ap.blendMode as CustomLayer['blendMode'],
+            }
+          : l,
+      ),
+    );
+  }, [activeLayerActionDialog, symbologyDraft, siSymbologyAppearance]);
+
+  const cancelSiSymbologyDialog = useCallback(() => {
+    const b = siStyleSessionBackupRef.current;
+    if (b) {
+      setCustomLayers(prev => prev.map(l => (l.id === b.layerId ? { ...l, ...b.snap } : l)));
+    }
+    siStyleSessionBackupRef.current = null;
+    siSymbologyLiveLayerIdRef.current = null;
+    setActiveLayerActionDialog(null);
+  }, []);
+
+  const resetSiSymbologyStudio = useCallback(() => {
+    const dlg = activeLayerActionDialog;
+    const b = siStyleSessionBackupRef.current;
+    if (!dlg || dlg.mode !== 'symbology' || !activeDialogLayer || !b || b.layerId !== dlg.layerId) return;
+    const merged: CustomLayer = { ...activeDialogLayer, ...b.snap };
+    setCustomLayers(prev => prev.map(l => (l.id === b.layerId ? { ...l, ...b.snap } : l)));
+    const canUse =
+      merged.source === 'arcgis' ||
+      Boolean(merged.arcgisDrawingInfo) ||
+      Boolean((merged.arcgisLayerDefinition as any)?.drawingInfo) ||
+      Boolean(merged.sourceUrl?.trim());
+    setSymbologyDraft(prev => ({
+      ...normalizeSymbologyForLayer(merged.geojson, merged.source, merged.symbology, canUse),
+      arcgisMaxCategories: prev.arcgisMaxCategories,
+    }));
+    setSiSymbologyAppearance(appearanceFromSiCustomLayerFields(merged));
+  }, [activeLayerActionDialog, activeDialogLayer]);
+
+  const updateSiSymbologyAppearance = useCallback((patch: Partial<SiSymbologyAppearance>) => {
+    setSiSymbologyAppearance(prev => {
+      let merged: SiSymbologyAppearance = { ...prev, ...patch };
+      merged.weight = Math.max(0.5, Math.min(16, Number.isFinite(merged.weight) ? merged.weight : 2));
+      merged.opacity = Math.max(0, Math.min(1, Number.isFinite(merged.opacity) ? merged.opacity : 1));
+      merged.polygonFillAlpha = Math.max(
+        0,
+        Math.min(1, Number.isFinite(merged.polygonFillAlpha) ? merged.polygonFillAlpha : 0.35),
+      );
+      merged.pointRadius = Math.max(3, Math.min(24, Number.isFinite(merged.pointRadius) ? merged.pointRadius : 6));
+      merged.previewCornerRadius = Math.max(
+        0,
+        Math.min(24, Number.isFinite(merged.previewCornerRadius) ? merged.previewCornerRadius : 8),
+      );
+      const fs = merged.fillStyle;
+      merged.fillStyle = fs === 'pattern' || fs === 'hatch' || fs === 'gradient' || fs === 'solid' ? fs : 'solid';
+      const bm = merged.blendMode;
+      merged.blendMode =
+        bm === 'multiply' || bm === 'screen' || bm === 'overlay' || bm === 'darken' || bm === 'lighten' || bm === 'normal'
+          ? bm
+          : 'normal';
+      const ss = merged.strokeStyle;
+      merged.strokeStyle = ss === 'dashed' || ss === 'dotted' || ss === 'dashdot' || ss === 'solid' ? ss : 'solid';
+      return merged;
     });
-  }, [activeLayerActionDialog, activeDialogLayer, canUseArcGisOnline]);
+  }, []);
 
   const applySymbologyDraft = async () => {
     if (!activeDialogLayer) return;
+    const ap = persistedSiAppearance(siSymbologyAppearance);
+    const appearancePatch: Pick<
+      CustomLayer,
+      'color' | 'fillColor' | 'weight' | 'mapOpacity' | 'strokeStyle' | 'polygonFillAlpha' | 'pointRadius' | 'fillStyle' | 'blendMode'
+    > = {
+      color: ap.color,
+      fillColor: ap.fillColor,
+      weight: ap.weight,
+      mapOpacity: ap.opacity,
+      strokeStyle: ap.strokeStyle as CustomLayer['strokeStyle'],
+      polygonFillAlpha: ap.polygonFillAlpha,
+      pointRadius: ap.pointRadius,
+      fillStyle: ap.fillStyle as CustomLayer['fillStyle'],
+      blendMode: ap.blendMode as CustomLayer['blendMode'],
+    };
     try {
       const normalized = normalizeSymbologyForLayer(
         activeDialogLayer.geojson,
@@ -4370,7 +4625,15 @@ export default function SatelliteIntelligence() {
           setCustomLayers(prev =>
             prev.map(l =>
               l.id === activeDialogLayer.id
-                ? { ...l, arcgisDrawingInfo: baked, useArcGisSymbology: true, color: nextColor, symbology: symbologyToSave }
+                ? {
+                    ...l,
+                    ...appearancePatch,
+                    arcgisDrawingInfo: baked,
+                    useArcGisSymbology: true,
+                    color: ap.color || nextColor,
+                    fillColor: ap.fillColor || ap.color || nextColor,
+                    symbology: symbologyToSave,
+                  }
                 : l,
             ),
           );
@@ -4384,15 +4647,19 @@ export default function SatelliteIntelligence() {
               l.id === activeDialogLayer.id
                 ? {
                     ...l,
+                    ...appearancePatch,
                     arcgisDrawingInfo: baked ?? l.arcgisDrawingInfo ?? null,
                     useArcGisSymbology: false,
-                    color: nextColor,
+                    color: ap.color || nextColor,
+                    fillColor: ap.fillColor || ap.color || nextColor,
                     symbology: symbologyToSave,
                   }
                 : l,
             ),
           );
         }
+        siStyleSessionBackupRef.current = null;
+        siSymbologyLiveLayerIdRef.current = null;
         setActiveLayerActionDialog(null);
         setStacStatus(`Style saved for "${activeDialogLayer.name}".`);
         return;
@@ -4400,9 +4667,20 @@ export default function SatelliteIntelligence() {
 
       setCustomLayers(prev =>
         prev.map(l =>
-          l.id === activeDialogLayer.id ? { ...l, useArcGisSymbology: false, color: nextColor, symbology: symbologyToSave } : l,
+          l.id === activeDialogLayer.id
+            ? {
+                ...l,
+                ...appearancePatch,
+                useArcGisSymbology: false,
+                color: ap.color || nextColor,
+                fillColor: ap.fillColor,
+                symbology: symbologyToSave,
+              }
+            : l,
         ),
       );
+      siStyleSessionBackupRef.current = null;
+      siSymbologyLiveLayerIdRef.current = null;
       setActiveLayerActionDialog(null);
       setStacStatus(`Style saved for "${activeDialogLayer.name}".`);
     } catch (e) {
@@ -8473,13 +8751,10 @@ export default function SatelliteIntelligence() {
     ],
   );
 
-  /** Shared “Main tools” layers UI: add layer + Added layers list (map toolbox Main + Processing Options). */
+  /** Shared “Main tools” layers UI: Added layers list (map toolbox Main + Processing Options). */
   const layersEnvMainTools = useMemo(
     () => (
       <div className="si-env-section-card si-map-toolbox-layers-card">
-        <button type="button" className="si-add-layer-btn" onClick={openAddLayerModal} aria-label="Add layer" title="Add layer">
-          <i className="fa-solid fa-plus" aria-hidden />
-        </button>
         <div className="si-env-added-layers">
           <div className="si-env-chart-title">Added layers</div>
           {addedLayerEntries.length ? (
@@ -10646,7 +10921,7 @@ export default function SatelliteIntelligence() {
                 {isLayerDropdownOpen ? (
                   <div
                     className={`si-env-panel si-env-panel--satellite-toolbox si-env-panel--single-surface${
-                      mapToolboxEmbedHost ? ' si-env-panel--toolbox-embed' : ' si-env-panel--mapbox-drop'
+                      mapToolboxEmbedHost ? ' si-map-toolbox-stack' : ' si-env-panel--mapbox-drop'
                     }${expandedEnvSection === 'explore-stac' ? ' si-env-panel--explore-stac' : ''}`}
                     dir="auto"
                   >
@@ -12274,7 +12549,10 @@ export default function SatelliteIntelligence() {
           aria-modal="true"
           aria-labelledby="si-layer-action-title"
           onMouseDown={e => {
-            if (e.target === e.currentTarget) setActiveLayerActionDialog(null);
+            if (e.target === e.currentTarget) {
+              if (activeLayerActionDialog.mode === 'symbology') cancelSiSymbologyDialog();
+              else setActiveLayerActionDialog(null);
+            }
           }}
         >
           <div
@@ -12283,6 +12561,7 @@ export default function SatelliteIntelligence() {
                 ? 'si-layer-action-modal gis-modal gis-modal-styles'
                 : `si-layer-action-modal${activeLayerActionDialog.mode === 'table' ? ' si-layer-action-modal--gis-table' : ''}`
             }
+            style={activeLayerActionDialog.mode === 'table' ? { height: siLayerTableModalHeight } : undefined}
             onMouseDown={e => e.stopPropagation()}
           >
             {activeLayerActionDialog.mode === 'symbology' ? (
@@ -12298,7 +12577,7 @@ export default function SatelliteIntelligence() {
                 <button
                   className="gis-sidebar-close"
                   type="button"
-                  onClick={() => setActiveLayerActionDialog(null)}
+                  onClick={() => cancelSiSymbologyDialog()}
                   aria-label="Close dialog"
                 >
                   <i className="fa-solid fa-xmark" aria-hidden="true" />
@@ -12415,7 +12694,7 @@ export default function SatelliteIntelligence() {
                         </button>
                       </div>
                       <div className="gis-workspace-sidebar__rich" role="region" aria-label="Table search and filters">
-                        <details className="gis-workspace-acc" open>
+                        <details className="gis-workspace-acc">
                           <summary className="gis-workspace-acc__summary">Search &amp; browse</summary>
                           <div className="gis-workspace-acc__body gis-workspace-acc__body--stack">
                             <div className="gis-table-controls gis-table-controls--workspace">
@@ -12449,7 +12728,7 @@ export default function SatelliteIntelligence() {
                             </div>
                           </div>
                         </details>
-                        <details className="gis-workspace-acc" open>
+                        <details className="gis-workspace-acc">
                           <summary className="gis-workspace-acc__summary">Field filter</summary>
                           <div className="gis-workspace-acc__body gis-workspace-acc__body--stack">
                             <div className="gis-table-advanced-controls gis-table-advanced-controls--workspace" aria-label="Advanced table filter">
@@ -12761,6 +13040,99 @@ export default function SatelliteIntelligence() {
                     </label>
                   </div>
 
+                  <div className="gis-style-toolbar" role="toolbar" aria-label="Style actions">
+                    <button
+                      type="button"
+                      className="gis-style-toolbtn"
+                      onClick={() => resetSiSymbologyStudio()}
+                      disabled={symbologyDraft.useArcGisOnline}
+                      title={
+                        symbologyDraft.useArcGisOnline
+                          ? 'Unavailable while ArcGIS renderer is active'
+                          : 'Restore visualization and symbol properties from when this panel opened'
+                      }
+                    >
+                      <i className="fa-solid fa-rotate-left" aria-hidden />
+                      Reset
+                    </button>
+                    <button
+                      type="button"
+                      className="gis-style-toolbtn"
+                      onClick={() => writeSiStyleClipboard(persistedSiAppearance(siSymbologyAppearance))}
+                      disabled={symbologyDraft.useArcGisOnline}
+                      title="Copy symbol appearance to local storage"
+                    >
+                      <i className="fa-solid fa-copy" aria-hidden />
+                      Copy style
+                    </button>
+                    <button
+                      type="button"
+                      className="gis-style-toolbtn"
+                      onClick={() => {
+                        const clip = readSiStyleClipboard();
+                        if (!clip) return;
+                        updateSiSymbologyAppearance({
+                          ...clip,
+                          previewCornerRadius: siSymbologyAppearance.previewCornerRadius,
+                        });
+                      }}
+                      disabled={symbologyDraft.useArcGisOnline}
+                      title="Paste symbol appearance from clipboard"
+                    >
+                      <i className="fa-solid fa-paste" aria-hidden />
+                      Paste
+                    </button>
+                    <button
+                      type="button"
+                      className="gis-style-toolbtn"
+                      onClick={() => {
+                        const snap = persistedSiAppearance(siSymbologyAppearance);
+                        setCustomLayers(prev =>
+                          prev.map(l =>
+                            l.renderMode !== 'raster' && l.geojson && l.visible
+                              ? {
+                                  ...l,
+                                  color: snap.color,
+                                  fillColor: snap.fillColor,
+                                  weight: snap.weight,
+                                  mapOpacity: snap.opacity,
+                                  strokeStyle: snap.strokeStyle as CustomLayer['strokeStyle'],
+                                  polygonFillAlpha: snap.polygonFillAlpha,
+                                  pointRadius: snap.pointRadius,
+                                  fillStyle: snap.fillStyle as CustomLayer['fillStyle'],
+                                  blendMode: snap.blendMode as CustomLayer['blendMode'],
+                                }
+                              : l,
+                          ),
+                        );
+                      }}
+                      disabled={symbologyDraft.useArcGisOnline}
+                      title="Apply current appearance fields to every visible vector layer"
+                    >
+                      <i className="fa-solid fa-layer-group" aria-hidden />
+                      Apply to all layers
+                    </button>
+                    <button
+                      type="button"
+                      className="gis-style-toolbtn"
+                      onClick={() =>
+                        setDrawStyle(d => ({
+                          ...d,
+                          fillColor: siSymbologyAppearance.fillColor,
+                          strokeColor: siSymbologyAppearance.color,
+                          strokeWidth: Math.max(1, Math.round(siSymbologyAppearance.weight)),
+                          fillOpacity: siSymbologyAppearance.polygonFillAlpha,
+                          pointRadius: Math.round(siSymbologyAppearance.pointRadius),
+                        }))
+                      }
+                      disabled={symbologyDraft.useArcGisOnline}
+                      title="Use current colors for new AOI / draw shapes"
+                    >
+                      <i className="fa-solid fa-pen-ruler" aria-hidden />
+                      Sync draw colors
+                    </button>
+                  </div>
+
                   {symbologyDraft.useArcGisOnline ? (
                     <>
                       <div className="gis-style-info">
@@ -12817,6 +13189,7 @@ export default function SatelliteIntelligence() {
                       const ctx = siSymbologyCtx;
                       const geometryKind = ctx?.geometryKind ?? getLayerGeometryKind(activeDialogLayer.geojson);
                       const isUnique = symbologyDraft.style === 'unique';
+                      const isSingle = symbologyDraft.style === 'single';
                       const classes = clampInt(symbologyDraft.classes, 2, 12);
                       const showColor =
                         symbologyDraft.style === 'color' ||
@@ -12824,8 +13197,10 @@ export default function SatelliteIntelligence() {
                         (isUnique && geometryKind !== 'line');
                       const showSize = symbologyDraft.style === 'size' || symbologyDraft.style === 'color_size';
                       const showMethod =
-                        symbologyDraft.style !== 'unique' && symbologyDraft.style !== 'threshold_markers';
-                      const showClasses = true;
+                        symbologyDraft.style !== 'unique' &&
+                        symbologyDraft.style !== 'threshold_markers' &&
+                        symbologyDraft.style !== 'single';
+                      const showClasses = !isSingle;
                       const arcDef = activeDialogLayer.arcgisLayerDefinition ?? null;
                       const fieldsByLower = buildArcFieldsByLower(arcDef);
                       const fieldNm = symbologyDraft.field;
@@ -12858,10 +13233,23 @@ export default function SatelliteIntelligence() {
                           fill?: string;
                         }> = [];
                         if (!ctx) return items;
-                        const baseStroke = activeDialogLayer.color || '#22c55e';
-                        const baseWeight = 2;
+                        const baseStroke = siSymbologyAppearance.color || activeDialogLayer.color || '#22c55e';
+                        const baseWeight = siSymbologyAppearance.weight;
+                        const previewDash = strokeDashSvgFromStyle(siSymbologyAppearance.strokeStyle);
                         const kind: 'line' | 'point' | 'polygon' =
                           geometryKind === 'polygon' ? 'polygon' : geometryKind === 'point' ? 'point' : 'line';
+                        if (symbologyDraft.style === 'single') {
+                          const fill = siSymbologyAppearance.fillColor;
+                          items.push({
+                            label: 'Base symbol',
+                            kind,
+                            color: baseStroke,
+                            width: baseWeight,
+                            dash: previewDash || undefined,
+                            fill,
+                          });
+                          return items;
+                        }
                         if (symbologyDraft.style === 'unique') {
                           if (kind === 'line') {
                             const vals = ctx.categories.length ? ctx.categories : Object.keys(ctx.uniqueDashes);
@@ -12936,6 +13324,7 @@ export default function SatelliteIntelligence() {
                                     value={symbologyDraft.style}
                                     onChange={e => updateSymbologyDraft({ style: e.target.value as SymbologyStyle })}
                                   >
+                                    <option value="single">Location (single symbol)</option>
                                     <option value="unique">Types (unique symbols)</option>
                                     <option value="color">Counts and Amounts (color)</option>
                                     <option value="size">Counts and Amounts (size)</option>
@@ -12947,6 +13336,7 @@ export default function SatelliteIntelligence() {
                                 </div>
                               </div>
 
+                              {!isSingle ? (
                               <div className="gis-style-field">
                                 <div className="gis-style-label">{isUnique ? 'Attribute (categorical)' : 'Attribute (numeric)'}</div>
                                 <div className="gis-style-selectwrap">
@@ -12971,6 +13361,7 @@ export default function SatelliteIntelligence() {
                                   <i className="fa-solid fa-chevron-down" aria-hidden="true" />
                                 </div>
                               </div>
+                              ) : null}
 
                               {showColor ? (
                                 <div className="gis-style-field">
@@ -13050,6 +13441,178 @@ export default function SatelliteIntelligence() {
                             </div>
                           </div>
 
+                          <button
+                            type="button"
+                            className="gis-style-acc-trigger"
+                            onClick={() =>
+                              setSiStudioSections(s => {
+                                const n = { ...s, appearance: !s.appearance };
+                                saveSiStudioSectionPrefs(n);
+                                return n;
+                              })
+                            }
+                          >
+                            <i className={`fa-solid fa-chevron-${siStudioSections.appearance ? 'down' : 'right'}`} aria-hidden />
+                            <span>Symbol appearance (live map)</span>
+                          </button>
+                          {siStudioSections.appearance ? (
+                            <div className="gis-style-card" aria-label="Symbol appearance">
+                              <div className="gis-style-grid">
+                                <div className="gis-style-field">
+                                  <div className="gis-style-label">Outline color</div>
+                                  <input
+                                    className="gis-style-input"
+                                    type="color"
+                                    value={siSymbologyAppearance.color.startsWith('#') ? siSymbologyAppearance.color : '#15803d'}
+                                    onChange={e => updateSiSymbologyAppearance({ color: e.target.value })}
+                                    aria-label="Outline color"
+                                  />
+                                </div>
+                                <div className="gis-style-field">
+                                  <div className="gis-style-label">Fill color</div>
+                                  <input
+                                    className="gis-style-input"
+                                    type="color"
+                                    value={siSymbologyAppearance.fillColor.startsWith('#') ? siSymbologyAppearance.fillColor : '#22c55e'}
+                                    onChange={e => updateSiSymbologyAppearance({ fillColor: e.target.value })}
+                                    aria-label="Fill color"
+                                  />
+                                </div>
+                                <div className="gis-style-field">
+                                  <div className="gis-style-label">Stroke style</div>
+                                  <div className="gis-style-selectwrap">
+                                    <select
+                                      className="gis-style-select"
+                                      value={siSymbologyAppearance.strokeStyle}
+                                      onChange={e =>
+                                        updateSiSymbologyAppearance({ strokeStyle: e.target.value as SiSymbologyAppearance['strokeStyle'] })
+                                      }
+                                    >
+                                      <option value="solid">Solid</option>
+                                      <option value="dashed">Dashed</option>
+                                      <option value="dotted">Dotted</option>
+                                      <option value="dashdot">Dash / dot</option>
+                                    </select>
+                                    <i className="fa-solid fa-chevron-down" aria-hidden />
+                                  </div>
+                                </div>
+                                <div className="gis-style-field">
+                                  <div className="gis-style-label">Fill style</div>
+                                  <div className="gis-style-selectwrap">
+                                    <select
+                                      className="gis-style-select"
+                                      value={siSymbologyAppearance.fillStyle}
+                                      onChange={e =>
+                                        updateSiSymbologyAppearance({ fillStyle: e.target.value as SiSymbologyAppearance['fillStyle'] })
+                                      }
+                                    >
+                                      <option value="solid">Solid</option>
+                                      <option value="pattern">Pattern</option>
+                                      <option value="hatch">Hatch</option>
+                                      <option value="gradient">Gradient</option>
+                                    </select>
+                                    <i className="fa-solid fa-chevron-down" aria-hidden />
+                                  </div>
+                                </div>
+                                <div className="gis-style-field">
+                                  <div className="gis-style-label">Blend mode (stored)</div>
+                                  <div className="gis-style-selectwrap">
+                                    <select
+                                      className="gis-style-select"
+                                      value={siSymbologyAppearance.blendMode}
+                                      onChange={e =>
+                                        updateSiSymbologyAppearance({ blendMode: e.target.value as SiSymbologyAppearance['blendMode'] })
+                                      }
+                                    >
+                                      <option value="normal">Normal</option>
+                                      <option value="multiply">Multiply</option>
+                                      <option value="screen">Screen</option>
+                                      <option value="overlay">Overlay</option>
+                                      <option value="darken">Darken</option>
+                                      <option value="lighten">Lighten</option>
+                                    </select>
+                                    <i className="fa-solid fa-chevron-down" aria-hidden />
+                                  </div>
+                                  <div className="gis-style-hint">Vector blend is stored for export; Mapbox GL paints use opacity.</div>
+                                </div>
+                              </div>
+                              <div className="gis-style-slider-stack">
+                                <div className="gis-style-label">Layer opacity ({Math.round(siSymbologyAppearance.opacity * 100)}%)</div>
+                                <input
+                                  type="range"
+                                  min={5}
+                                  max={100}
+                                  value={Math.round(siSymbologyAppearance.opacity * 100)}
+                                  onChange={e => updateSiSymbologyAppearance({ opacity: Number(e.target.value) / 100 })}
+                                />
+                                <div className="gis-style-label">Polygon fill strength ({Math.round(siSymbologyAppearance.polygonFillAlpha * 100)}%)</div>
+                                <input
+                                  type="range"
+                                  min={0}
+                                  max={100}
+                                  value={Math.round(siSymbologyAppearance.polygonFillAlpha * 100)}
+                                  onChange={e => updateSiSymbologyAppearance({ polygonFillAlpha: Number(e.target.value) / 100 })}
+                                />
+                                <div className="gis-style-label">Outline width ({siSymbologyAppearance.weight.toFixed(1)} px)</div>
+                                <input
+                                  type="range"
+                                  min={5}
+                                  max={160}
+                                  value={Math.round(siSymbologyAppearance.weight * 10)}
+                                  onChange={e => updateSiSymbologyAppearance({ weight: Number(e.target.value) / 10 })}
+                                />
+                                <div className="gis-style-label">Point size ({siSymbologyAppearance.pointRadius}px)</div>
+                                <input
+                                  type="range"
+                                  min={3}
+                                  max={24}
+                                  value={siSymbologyAppearance.pointRadius}
+                                  onChange={e => updateSiSymbologyAppearance({ pointRadius: Number(e.target.value) })}
+                                />
+                                <div className="gis-style-label">Legend corner radius ({siSymbologyAppearance.previewCornerRadius}px)</div>
+                                <input
+                                  type="range"
+                                  min={0}
+                                  max={24}
+                                  value={siSymbologyAppearance.previewCornerRadius}
+                                  onChange={e => updateSiSymbologyAppearance({ previewCornerRadius: Number(e.target.value) })}
+                                />
+                              </div>
+                            </div>
+                          ) : null}
+
+                          <button
+                            type="button"
+                            className="gis-style-acc-trigger"
+                            onClick={() =>
+                              setSiStudioSections(s => {
+                                const n = { ...s, templates: !s.templates };
+                                saveSiStudioSectionPrefs(n);
+                                return n;
+                              })
+                            }
+                          >
+                            <i className={`fa-solid fa-chevron-${siStudioSections.templates ? 'down' : 'right'}`} aria-hidden />
+                            <span>Style templates</span>
+                          </button>
+                          {siStudioSections.templates ? (
+                            <div className="gis-style-card" aria-label="Presets">
+                              <div className="gis-style-preset-row" role="list">
+                                {SI_STYLE_PRESET_CHIPS.map(p => (
+                                  <button
+                                    key={p.id}
+                                    type="button"
+                                    className="gis-style-preset-chip"
+                                    role="listitem"
+                                    onClick={() => updateSiSymbologyAppearance({ ...p.patch })}
+                                  >
+                                    {p.label}
+                                  </button>
+                                ))}
+                              </div>
+                            </div>
+                          ) : null}
+
                           <div className="gis-style-card gis-style-card-legend">
                             <div className="gis-style-legend">
                               {legendItems.map((it, idx) => (
@@ -13067,7 +13630,16 @@ export default function SatelliteIntelligence() {
                                         strokeDasharray={it.dash || undefined}
                                       />
                                     ) : it.kind === 'polygon' ? (
-                                      <rect x="18" y="2" width="26" height="10" rx="3" fill={it.fill || it.color} stroke={it.color} strokeWidth="2" />
+                                      <rect
+                                        x="18"
+                                        y="2"
+                                        width="26"
+                                        height="10"
+                                        rx={Math.min(8, siSymbologyAppearance.previewCornerRadius)}
+                                        fill={it.fill || it.color}
+                                        stroke={it.color}
+                                        strokeWidth="2"
+                                      />
                                     ) : (
                                       <circle cx="31" cy="7" r="5" fill={it.fill || it.color} stroke={it.color} strokeWidth="2" />
                                     )}
@@ -13083,7 +13655,7 @@ export default function SatelliteIntelligence() {
                   )}
 
                   <div className="gis-style-footer">
-                    <button className="gis-btn" type="button" onClick={() => setActiveLayerActionDialog(null)}>
+                    <button className="gis-btn" type="button" onClick={() => cancelSiSymbologyDialog()}>
                       Cancel
                     </button>
                     <button className="gis-btn gis-btn-primary" type="button" onClick={() => void applySymbologyDraft()}>
@@ -13103,6 +13675,16 @@ export default function SatelliteIntelligence() {
                 </div>
               )}
             </div>
+            {activeLayerActionDialog.mode === 'table' ? (
+              <div
+                className="si-layer-action-modal-resize"
+                role="separator"
+                aria-orientation="horizontal"
+                aria-label="Resize table window"
+                title="Drag to resize"
+                onPointerDown={startSiLayerTableModalResize}
+              />
+            ) : null}
           </div>
         </div>
       ) : null}

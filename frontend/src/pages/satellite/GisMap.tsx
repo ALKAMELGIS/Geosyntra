@@ -390,8 +390,15 @@ const OSM_GLOBE_STYLE: any = {
 
 const safeMapboxId = (value: unknown) => String(value ?? 'layer').replace(/[^A-Za-z0-9_-]/g, '_').slice(0, 80)
 
-const GIS_LAYER_MENU_WIDTH = 220
-const GIS_LAYER_MENU_MAX_HEIGHT = 360
+const GIS_LAYER_MENU_WIDTH = 272
+const GIS_LAYER_MENU_MAX_HEIGHT = 520
+
+type GisLayerDialogState = null | {
+  mode: 'props' | 'table' | 'legend'
+  layerId: string
+  /** Props modal: metadata summary vs pop-up oriented copy. */
+  propsFocus?: 'metadata' | 'popup'
+}
 const DB_PLATFORM_OPTIONS = [
   'SQL Server',
   'BigQuery',
@@ -810,8 +817,8 @@ export default function GisMap() {
   const [openLayerMenuId, setOpenLayerMenuId] = useState<string | null>(null)
   const [layerMenuPos, setLayerMenuPos] = useState<null | { top: number; left: number; maxHeight: number }>(null)
   const layerMenuAnchorRef = useRef<HTMLButtonElement | null>(null)
-  const [layerDialog, setLayerDialog] = useState<null | { mode: 'props' | 'table' | 'legend'; layerId: string }>(null)
-  const layerDialogRef = useRef<null | { mode: 'props' | 'table' | 'legend'; layerId: string }>(null)
+  const [layerDialog, setLayerDialog] = useState<GisLayerDialogState>(null)
+  const layerDialogRef = useRef<GisLayerDialogState>(null)
   const [tableDockHeight, setTableDockHeight] = useState(320)
   const [tableDockCollapsed, setTableDockCollapsed] = useState(false)
   const [tableDockMinimized, setTableDockMinimized] = useState(false)
@@ -3987,6 +3994,44 @@ export default function GisMap() {
     setSymbologyDialog(null)
   }
 
+  const openLayerSymbology = (layer: LayerData) => {
+    const lid = String(layer.id)
+    const original = layer.symbology
+    let draft = normalizeSymbology(layer, original)
+    if (layer.source === 'arcgis' && draft.useArcGisOnline) {
+      const r = layer.arcgisRenderer ?? layer.arcgisLayerDefinition?.drawingInfo?.renderer
+      draft = normalizeSymbology(layer, { ...draft, ...inferVisualizationFromArcgisRenderer(r) })
+    }
+    const app0 = appearanceFromLayer(layer)
+    applyLayerSymbology(lid, draft)
+    applyLayerAppearance(lid, appearancePersisted(app0))
+    setSymbologyFillPreviewMode('solid')
+    setSymbologyStudioSections({ visualization: true, studio: true, legend: true })
+    setSymbologyDialog({
+      layerId: lid,
+      draft,
+      original,
+      originalAppearance: app0,
+      draftAppearance: app0,
+    })
+  }
+
+  const moveLayerDrawOrder = (layerId: string, dir: 'forward' | 'backward') => {
+    setLayers(prev => {
+      const idx = prev.findIndex(l => String(l.id) === layerId)
+      if (idx < 0) return prev
+      if (dir === 'forward' && idx >= prev.length - 1) return prev
+      if (dir === 'backward' && idx <= 0) return prev
+      const next = [...prev]
+      const j = dir === 'forward' ? idx + 1 : idx - 1
+      const a = next[idx]!
+      const b = next[j]!
+      next[idx] = b
+      next[j] = a
+      return next
+    })
+  }
+
   const saveSymbology = () => {
     setSymbologyDialog(null)
   }
@@ -6148,7 +6193,7 @@ export default function GisMap() {
                         {isMenuOpen ? (
                           createPortal(
                             <div
-                              className="gis-layer-menu-popover"
+                              className="gis-layer-menu-popover gis-layer-menu-popover--pro"
                               data-gis-layer-menu-floating="1"
                               role="menu"
                               aria-label={`Layer options menu for ${layer.name}`}
@@ -6165,6 +6210,15 @@ export default function GisMap() {
                                   : undefined
                               }
                             >
+                            {(() => {
+                              const stackIdx = layers.findIndex(l => String(l.id) === layerId)
+                              const canBringForward = stackIdx >= 0 && stackIdx < layers.length - 1
+                              const canSendBackward = stackIdx > 0
+                              const canTable = layer.type === 'geojson' && Boolean(layer.data) && !isTableLayer
+                              const canStyle = layer.type === 'geojson' && !isTableLayer
+                              const canRefresh = layer.source === 'arcgis' && Boolean(layer.url?.trim())
+                              return (
+                                <>
                             <button
                               className="gis-layer-menu-item"
                               type="button"
@@ -6178,17 +6232,162 @@ export default function GisMap() {
                               <span>Zoom to layer</span>
                             </button>
 
+                            <div className="gis-layer-menu-sep" role="separator" />
+
+                            <button
+                              className="gis-layer-menu-item"
+                              type="button"
+                              role="menuitem"
+                              disabled={!canTable}
+                              title={!canTable ? 'Available for feature layers with geometry' : undefined}
+                              onClick={() => {
+                                if (!canTable) return
+                                setOpenLayerMenuId(null)
+                                setTableDockMinimized(false)
+                                setLayerDialog({ mode: 'table', layerId })
+                                setTableDockCollapsed(false)
+                              }}
+                            >
+                              <i className="fa-solid fa-table-cells" aria-hidden="true" />
+                              <span>Attribute table</span>
+                            </button>
+
+                            <button
+                              className="gis-layer-menu-item"
+                              type="button"
+                              role="menuitem"
+                              disabled={!canStyle}
+                              title={!canStyle ? 'Symbology is available for vector feature layers' : undefined}
+                              onClick={() => {
+                                if (!canStyle) return
+                                setOpenLayerMenuId(null)
+                                openLayerSymbology(layer)
+                              }}
+                            >
+                              <i className="fa-solid fa-sliders" aria-hidden="true" />
+                              <span>Symbology</span>
+                            </button>
+
+                            <button
+                              className="gis-layer-menu-item"
+                              type="button"
+                              role="menuitem"
+                              disabled={!canStyle}
+                              title={!canStyle ? 'Legend is available for vector feature layers' : undefined}
+                              onClick={() => {
+                                if (!canStyle) return
+                                setOpenLayerMenuId(null)
+                                setLayerDialog({ mode: 'legend', layerId })
+                              }}
+                            >
+                              <i className="fa-solid fa-key" aria-hidden="true" />
+                              <span>Legend</span>
+                            </button>
+
+                            <div className="gis-layer-menu-sep" role="separator" />
+
                             <button
                               className="gis-layer-menu-item"
                               type="button"
                               role="menuitem"
                               onClick={() => {
                                 setOpenLayerMenuId(null)
-                                setLayerDialog({ mode: 'props', layerId })
+                                setLayerDialog({ mode: 'props', layerId, propsFocus: 'metadata' })
                               }}
                             >
                               <i className="fa-solid fa-circle-info" aria-hidden="true" />
-                              <span>Show properties</span>
+                              <span>Layer properties</span>
+                            </button>
+
+                            <button
+                              className="gis-layer-menu-item"
+                              type="button"
+                              role="menuitem"
+                              onClick={() => {
+                                setOpenLayerMenuId(null)
+                                setLayerDialog({ mode: 'props', layerId, propsFocus: 'popup' })
+                              }}
+                            >
+                              <i className="fa-solid fa-message" aria-hidden="true" />
+                              <span>Configure pop-ups</span>
+                            </button>
+
+                            <button
+                              className="gis-layer-menu-item"
+                              type="button"
+                              role="menuitem"
+                              onClick={() => {
+                                void (async () => {
+                                  setOpenLayerMenuId(null)
+                                  const cur = Math.round(
+                                    (typeof layer.opacity === 'number' && Number.isFinite(layer.opacity) ? layer.opacity : 1) * 100,
+                                  )
+                                  const next = await appPrompt('Layer opacity (0–100):', String(cur), {
+                                    title: 'Layer opacity',
+                                  })
+                                  if (next === null) return
+                                  const n = Math.max(0, Math.min(100, Math.round(Number(String(next).replace(/%/g, '').trim()))))
+                                  if (!Number.isFinite(n)) return
+                                  setLayers(prev =>
+                                    prev.map(l => (l.id === layer.id ? { ...l, opacity: n / 100 } : l)),
+                                  )
+                                })()
+                              }}
+                            >
+                              <i className="fa-solid fa-droplet" aria-hidden="true" />
+                              <span>Layer opacity…</span>
+                            </button>
+
+                            <div className="gis-layer-menu-sep" role="separator" />
+
+                            <button
+                              className="gis-layer-menu-item"
+                              type="button"
+                              role="menuitem"
+                              disabled={!canBringForward}
+                              title={!canBringForward ? 'Layer is already on top' : 'Draw this layer above the next one in the stack'}
+                              onClick={() => {
+                                if (!canBringForward) return
+                                setOpenLayerMenuId(null)
+                                moveLayerDrawOrder(layerId, 'forward')
+                              }}
+                            >
+                              <i className="fa-solid fa-arrow-up" aria-hidden="true" />
+                              <span>Bring forward (draw order)</span>
+                            </button>
+
+                            <button
+                              className="gis-layer-menu-item"
+                              type="button"
+                              role="menuitem"
+                              disabled={!canSendBackward}
+                              title={!canSendBackward ? 'Layer is already at the bottom' : 'Draw this layer below the previous one in the stack'}
+                              onClick={() => {
+                                if (!canSendBackward) return
+                                setOpenLayerMenuId(null)
+                                moveLayerDrawOrder(layerId, 'backward')
+                              }}
+                            >
+                              <i className="fa-solid fa-arrow-down" aria-hidden="true" />
+                              <span>Send backward (draw order)</span>
+                            </button>
+
+                            <div className="gis-layer-menu-sep" role="separator" />
+
+                            <button
+                              className="gis-layer-menu-item"
+                              type="button"
+                              role="menuitem"
+                              onClick={() => {
+                                setOpenLayerMenuId(null)
+                                void navigator.clipboard.writeText(layer.name).then(
+                                  () => setSelectionNotice('Layer name copied.'),
+                                  () => setSelectionNotice('Could not copy layer name.'),
+                                )
+                              }}
+                            >
+                              <i className="fa-regular fa-clone" aria-hidden="true" />
+                              <span>Copy layer name</span>
                             </button>
 
                             <div className="gis-layer-menu-sep" role="separator" />
@@ -6211,8 +6410,41 @@ export default function GisMap() {
                               }}
                             >
                               <i className="fa-solid fa-pen" aria-hidden="true" />
-                              <span>Rename</span>
+                              <span>Rename layer</span>
                             </button>
+
+                            <button
+                              className="gis-layer-menu-item"
+                              type="button"
+                              role="menuitem"
+                              disabled={!canRefresh}
+                              title={!canRefresh ? 'Only ArcGIS layers with a service URL can be refreshed' : 'Reload data from the service'}
+                              onClick={() => {
+                                if (!canRefresh) return
+                                setOpenLayerMenuId(null)
+                                void syncArcGisLayer(layer)
+                              }}
+                            >
+                              <i
+                                className={
+                                  syncingLayerKey === String(layer.id) ? 'fa-solid fa-arrows-rotate fa-spin' : 'fa-solid fa-arrows-rotate'
+                                }
+                                aria-hidden="true"
+                              />
+                              <span>Refresh layer data</span>
+                            </button>
+
+                            <button className="gis-layer-menu-item is-disabled" type="button" disabled aria-disabled="true" title="Planned">
+                              <i className="fa-solid fa-tag" aria-hidden="true" />
+                              <span>Labeling (Pro-style)</span>
+                            </button>
+
+                            <button className="gis-layer-menu-item is-disabled" type="button" disabled aria-disabled="true" title="Planned">
+                              <i className="fa-solid fa-filter" aria-hidden="true" />
+                              <span>Definition query…</span>
+                            </button>
+
+                            <div className="gis-layer-menu-sep" role="separator" />
 
                             <button
                               className="gis-layer-menu-item"
@@ -6269,19 +6501,6 @@ export default function GisMap() {
                               <span>Duplicate</span>
                             </button>
 
-                            <button
-                              className="gis-layer-menu-item danger"
-                              type="button"
-                              role="menuitem"
-                              onClick={() => {
-                                setOpenLayerMenuId(null)
-                                setLayers(prev => prev.filter(l => l.id !== layer.id))
-                              }}
-                            >
-                              <i className="fa-solid fa-trash-can" aria-hidden="true" />
-                              <span>Remove</span>
-                            </button>
-
                             <div className="gis-layer-menu-sep" role="separator" />
 
                             <button
@@ -6305,6 +6524,24 @@ export default function GisMap() {
                               <i className="fa-solid fa-layer-group" aria-hidden="true" />
                               <span>Group</span>
                             </button>
+
+                            <div className="gis-layer-menu-sep" role="separator" />
+
+                            <button
+                              className="gis-layer-menu-item danger"
+                              type="button"
+                              role="menuitem"
+                              onClick={() => {
+                                setOpenLayerMenuId(null)
+                                setLayers(prev => prev.filter(l => l.id !== layer.id))
+                              }}
+                            >
+                              <i className="fa-solid fa-trash-can" aria-hidden="true" />
+                              <span>Remove from map</span>
+                            </button>
+                                </>
+                              )
+                            })()}
                           </div>,
                             document.body,
                           )
@@ -6351,25 +6588,7 @@ export default function GisMap() {
                           className="gis-icon-btn"
                           type="button"
                           onClick={() => {
-                            const lid = String(layer.id)
-                            const original = layer.symbology
-                            let draft = normalizeSymbology(layer, original)
-                            if (layer.source === 'arcgis' && draft.useArcGisOnline) {
-                              const r = layer.arcgisRenderer ?? layer.arcgisLayerDefinition?.drawingInfo?.renderer
-                              draft = normalizeSymbology(layer, { ...draft, ...inferVisualizationFromArcgisRenderer(r) })
-                            }
-                            const app0 = appearanceFromLayer(layer)
-                            applyLayerSymbology(lid, draft)
-                            applyLayerAppearance(lid, appearancePersisted(app0))
-                            setSymbologyFillPreviewMode('solid')
-                            setSymbologyStudioSections({ visualization: true, studio: true, legend: true })
-                            setSymbologyDialog({
-                              layerId: lid,
-                              draft,
-                              original,
-                              originalAppearance: app0,
-                              draftAppearance: app0,
-                            })
+                            openLayerSymbology(layer)
                           }}
                           disabled={layer.type !== 'geojson'}
                           aria-label={`Symbology for ${layer.name}`}
@@ -7695,7 +7914,7 @@ export default function GisMap() {
           >
             <div className="gis-modal-header">
               <div className="gis-modal-title" id="gis-layer-dialog-title">
-                Show properties: {dialogLayer.name}
+                {layerDialog.propsFocus === 'popup' ? `Configure pop-ups: ${dialogLayer.name}` : `Layer properties: ${dialogLayer.name}`}
               </div>
               <button className="gis-sidebar-close" type="button" onClick={() => setLayerDialog(null)} aria-label="Close dialog">
                 <i className="fa-solid fa-xmark" aria-hidden="true" />
@@ -7703,6 +7922,12 @@ export default function GisMap() {
             </div>
 
             <div className="gis-modal-body">
+              {layerDialog.propsFocus === 'popup' ? (
+                <p className="gis-layer-popup-hint">
+                  Map pop-ups use feature attributes from this layer. Use the attribute table to inspect fields; a visual pop-up
+                  designer can be added in a future release.
+                </p>
+              ) : null}
               <pre className="gis-layer-code">
                 {JSON.stringify(
                   {
