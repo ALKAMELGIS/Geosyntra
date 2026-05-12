@@ -736,8 +736,8 @@ export function SatelliteContextualAnalysisDock(props: SatelliteContextualAnalys
               {isMap && processingDropdownOpen ? (
                 <div
                   ref={mapToolboxEmbedHostRef}
-                  className="si-sat-ctx-panel-body si-sat-ctx-panel-body--processing-embed-host"
-                  data-si-map-toolbox-embed-host=""
+                  className="si-sat-ctx-map-toolbox-host"
+                  data-si-map-toolbox-portal=""
                 />
               ) : (
                 <>

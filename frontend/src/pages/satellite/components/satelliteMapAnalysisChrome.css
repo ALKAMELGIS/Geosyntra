@@ -2485,7 +2485,8 @@ html[data-theme='light'] .si-map-analysis-tl-nudge:hover {
   margin-top: 12px;
 }
 
-.si-sat-ctx-panel-body--processing-embed-host {
+/* Map toolbox: portal mounts here — flush with dock chrome (no nested panel-body shell) */
+.si-sat-ctx-map-toolbox-host {
   flex: 1 1 auto;
   min-height: 0;
   display: flex;
@@ -2494,7 +2495,7 @@ html[data-theme='light'] .si-map-analysis-tl-nudge:hover {
   padding: 0;
 }
 
-.si-sat-ctx-panel-body--processing-embed-host .si-env-panel {
+.si-sat-ctx-map-toolbox-host .si-env-panel {
   flex: 1 1 auto;
   min-height: 0;
   display: flex;
@@ -2502,21 +2503,7 @@ html[data-theme='light'] .si-map-analysis-tl-nudge:hover {
   overflow: hidden;
 }
 
-/* Flat toolbox: drop nested “context card” chrome inside dock embed */
-.si-sat-ctx-panel-body--processing-embed-host .si-smart-proc__context {
-  border: none;
-  border-radius: 0;
-  padding: 8px 0 10px;
-  background: transparent;
-  box-shadow: none;
-}
-
-.si-sat-ctx-dock--light .si-sat-ctx-panel-body--processing-embed-host .si-smart-proc__context {
-  background: transparent;
-  border-color: transparent;
-}
-
-.si-sat-ctx-panel-body--processing-embed-host
+.si-sat-ctx-map-toolbox-host
   .si-env-panel.si-env-panel--satellite-toolbox.si-env-panel--single-surface
   > :not(.si-env-panel-header) {
   flex: 1 1 auto;
@@ -2532,9 +2519,9 @@ html[data-theme='light'] .si-map-analysis-tl-nudge:hover {
 
 .si-sat-ctx-panel.si-sat-ctx-panel--processing-embed-mode .si-sat-ctx-panel-header {
   flex-shrink: 0;
-  padding-top: 10px;
-  padding-bottom: 10px;
-  border-bottom-color: rgba(148, 163, 184, 0.14);
+  padding-top: 8px;
+  padding-bottom: 8px;
+  border-bottom-color: rgba(148, 163, 184, 0.12);
 }
 
 .si-smart-proc__context {

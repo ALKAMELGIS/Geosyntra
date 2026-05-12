@@ -2471,8 +2471,8 @@ html[data-theme='light'] .si-proc-mb-toggle {
   max-height: min(82vh, 760px);
 }
 
-/* Toolbox portal: flat surface inside dock host (no inner si-env-panel card chrome) */
-.si-sat-ctx-panel-body--processing-embed-host > .si-env-panel.si-env-panel--satellite-toolbox.si-env-panel--single-surface {
+/* Portal target: dock map-toolbox host — one continuous surface (no nested env panel card) */
+.si-sat-ctx-map-toolbox-host > .si-env-panel.si-env-panel--satellite-toolbox.si-env-panel--single-surface {
   position: relative !important;
   inset: auto !important;
   top: auto !important;
@@ -2483,37 +2483,34 @@ html[data-theme='light'] .si-proc-mb-toggle {
   z-index: 1;
   max-height: none;
   min-height: 0;
-  flex: 1 1 auto;
   display: flex;
   flex-direction: column;
+  flex: 1 1 auto;
   box-shadow: none !important;
   border-radius: 0 !important;
   border: none !important;
-  outline: none !important;
+  outline: none;
   background: transparent !important;
-  padding: 0 6px 10px !important;
-  border-top: none;
+  isolation: auto;
 }
 
-.si-sat-ctx-panel-body--processing-embed-host
-  > .si-env-panel.si-env-panel--satellite-toolbox.si-env-panel--single-surface.si-env-panel--explore-stac {
+.si-sat-ctx-map-toolbox-host > .si-env-panel.si-env-panel--satellite-toolbox.si-env-panel--single-surface.si-env-panel--explore-stac {
   max-height: none;
 }
 
 /* Duplicate title + close row: dock header already provides context and close */
-.si-sat-ctx-panel-body--processing-embed-host > .si-env-panel.si-env-panel--satellite-toolbox .si-env-panel-header {
+.si-sat-ctx-map-toolbox-host > .si-env-panel .si-env-panel-header {
   display: none !important;
 }
 
-.si-sat-ctx-panel-body--processing-embed-host
-  > .si-env-panel.si-env-panel--satellite-toolbox.si-env-panel--single-surface
-  > :not(.si-env-panel-header) {
-  padding: 6px 8px 10px !important;
+.si-sat-ctx-map-toolbox-host > .si-env-panel.si-env-panel--satellite-toolbox.si-env-panel--single-surface > :not(.si-env-panel-header) {
+  border-top: none;
+  padding-top: 0;
+  padding-inline: 10px;
+  padding-bottom: 10px;
 }
 
-html[data-theme='light']
-  .si-sat-ctx-panel-body--processing-embed-host
-  > .si-env-panel.si-env-panel--satellite-toolbox.si-env-panel--single-surface {
+html[data-theme='light'] .si-sat-ctx-map-toolbox-host > .si-env-panel.si-env-panel--satellite-toolbox.si-env-panel--single-surface {
   background: transparent !important;
 }
 

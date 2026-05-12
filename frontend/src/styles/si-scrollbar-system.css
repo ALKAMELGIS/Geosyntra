@@ -85,7 +85,7 @@ textarea::-webkit-scrollbar-thumb {
 .si-map-analysis-charts,
 .si-env-panel.si-env-panel--satellite-toolbox.si-env-panel--single-surface > :not(.si-env-panel-header),
 .si-sat-ctx-panel-body,
-.si-sat-ctx-panel-body--processing-embed-host,
+.si-sat-ctx-map-toolbox-host,
 .si-sat-ctx-panel-body-core,
 .gis-modal,
 .gis-modal-overlay,
