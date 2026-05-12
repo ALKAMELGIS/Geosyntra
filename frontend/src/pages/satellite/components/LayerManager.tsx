@@ -48,6 +48,12 @@ export interface LayerData {
   fillColor?: string;   // Fill color
   weight?: number;      // Stroke width
   strokeStyle?: 'solid' | 'dashed' | 'dotted' | 'dashdot';
+  /** Polygon fill strength 0–1 (multiplied by layer opacity). Default 0.35 when unset. */
+  polygonFillAlpha?: number;
+  /** Circle marker base radius for single-symbol points (px). */
+  pointRadius?: number;
+  /** Fill rendering intent; hatch/gradient are approximated on Leaflet paths (studio preview shows full effect). */
+  fillStyle?: 'solid' | 'pattern' | 'hatch' | 'gradient';
   symbology?: SymbologyConfig;
 }
 

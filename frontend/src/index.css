@@ -8858,8 +8858,18 @@ html[data-theme='dark'] .gis-domain-cell--dropdown.missing-description .gis-doma
   display: flex;
   flex-direction: column;
   border-radius: 16px;
-  border-color: rgba(226, 232, 240, 1);
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  background: rgba(255, 255, 255, 0.78);
+  backdrop-filter: blur(14px) saturate(1.35);
+  -webkit-backdrop-filter: blur(14px) saturate(1.35);
   box-shadow: 0 30px 90px rgba(15, 23, 42, 0.28);
+  transition: box-shadow 220ms ease, transform 220ms ease;
+}
+
+.gis-modal-overlay:has(> .gis-modal.gis-modal-styles) {
+  background: rgba(15, 23, 42, 0.42);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
 }
 
 .gis-modal.gis-modal-styles .gis-modal-body {
@@ -8867,7 +8877,7 @@ html[data-theme='dark'] .gis-domain-cell--dropdown.missing-description .gis-doma
   flex-direction: column;
   overflow: auto;
   padding: 16px;
-  background: linear-gradient(180deg, rgba(248, 250, 252, 1), rgba(255, 255, 255, 1));
+  background: linear-gradient(180deg, rgba(248, 250, 252, 0.55), rgba(255, 255, 255, 0.65));
 }
 
 .gis-style-subtitle {
@@ -9096,13 +9106,190 @@ html[data-theme='dark'] .gis-domain-cell--dropdown.missing-description .gis-doma
 }
 
 .gis-style-preview-box {
-  height: 56px;
+  min-height: 72px;
+  height: auto;
   border-radius: 12px;
   border: 1px solid rgba(226, 232, 240, 1);
   background: linear-gradient(180deg, rgba(248, 250, 252, 1), rgba(241, 245, 249, 0.8));
   padding: 0 8px;
   display: flex;
   align-items: center;
+}
+
+.gis-style-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.gis-style-toolbtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 12px;
+  border-radius: 999px;
+  border: 1px solid rgba(226, 232, 240, 1);
+  background: rgba(255, 255, 255, 0.85);
+  font-size: 12px;
+  font-weight: 750;
+  color: rgba(30, 41, 59, 0.95);
+  cursor: pointer;
+  transition: background-color 160ms ease, border-color 160ms ease, transform 140ms ease;
+}
+
+.gis-style-toolbtn:hover:not(:disabled) {
+  border-color: rgba(14, 165, 233, 0.45);
+  background: rgba(240, 249, 255, 0.95);
+}
+
+.gis-style-toolbtn:active:not(:disabled) {
+  transform: scale(0.98);
+}
+
+.gis-style-toolbtn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.gis-style-acc-trigger {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 12px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid rgba(226, 232, 240, 1);
+  background: rgba(255, 255, 255, 0.75);
+  font-size: 13px;
+  font-weight: 800;
+  color: rgba(30, 41, 59, 0.95);
+  cursor: pointer;
+  text-align: left;
+  transition: background-color 160ms ease, border-color 160ms ease;
+}
+
+.gis-style-acc-trigger:hover {
+  border-color: rgba(14, 165, 233, 0.35);
+  background: rgba(248, 250, 252, 1);
+}
+
+.gis-style-preset-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.gis-style-preset-chip {
+  padding: 6px 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(203, 213, 225, 1);
+  background: rgba(248, 250, 252, 1);
+  font-size: 11px;
+  font-weight: 800;
+  color: rgba(51, 65, 85, 1);
+  cursor: pointer;
+  transition: border-color 140ms ease, background-color 140ms ease;
+}
+
+.gis-style-preset-chip:hover {
+  border-color: rgba(14, 165, 233, 0.5);
+  background: rgba(224, 242, 254, 0.9);
+}
+
+.gis-style-preview-modes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+
+.gis-style-preview-mode {
+  padding: 5px 10px;
+  border-radius: 8px;
+  border: 1px solid rgba(226, 232, 240, 1);
+  background: rgba(255, 255, 255, 0.9);
+  font-size: 11px;
+  font-weight: 800;
+  color: rgba(71, 85, 105, 1);
+  cursor: pointer;
+  transition: border-color 140ms ease, background-color 140ms ease;
+}
+
+.gis-style-preview-mode.active {
+  border-color: rgba(14, 165, 233, 0.65);
+  background: rgba(224, 242, 254, 1);
+  color: rgba(12, 74, 110, 1);
+}
+
+.gis-style-preview-hint {
+  margin-top: 8px;
+  font-size: 11px;
+  font-weight: 650;
+  line-height: 1.45;
+  color: rgba(100, 116, 139, 0.95);
+}
+
+path.gis-path-blend--multiply {
+  mix-blend-mode: multiply;
+}
+path.gis-path-blend--screen {
+  mix-blend-mode: screen;
+}
+path.gis-path-blend--overlay {
+  mix-blend-mode: overlay;
+}
+path.gis-path-blend--darken {
+  mix-blend-mode: darken;
+}
+path.gis-path-blend--lighten {
+  mix-blend-mode: lighten;
+}
+
+@media (prefers-color-scheme: dark) {
+  .gis-modal-overlay:has(> .gis-modal.gis-modal-styles) {
+    background: rgba(2, 6, 23, 0.72);
+  }
+
+  .gis-modal.gis-modal-styles {
+    border-color: rgba(51, 65, 85, 0.55);
+    background: rgba(15, 23, 42, 0.82);
+    box-shadow: 0 30px 90px rgba(0, 0, 0, 0.55);
+  }
+
+  .gis-modal.gis-modal-styles .gis-modal-body {
+    background: linear-gradient(180deg, rgba(15, 23, 42, 0.55), rgba(30, 41, 59, 0.72));
+  }
+
+  .gis-style-subtitle,
+  .gis-style-panel-title,
+  .gis-style-acc-trigger,
+  .gis-style-toolbtn {
+    color: rgba(226, 232, 240, 0.96);
+  }
+
+  .gis-style-card {
+    border-color: rgba(51, 65, 85, 0.85);
+    background: rgba(15, 23, 42, 0.55);
+    box-shadow: 0 12px 34px rgba(0, 0, 0, 0.35);
+  }
+
+  .gis-style-hero {
+    border-color: rgba(51, 65, 85, 0.85);
+    background: rgba(15, 23, 42, 0.45);
+  }
+
+  .gis-style-preview-box {
+    border-color: rgba(51, 65, 85, 0.85);
+    background: linear-gradient(180deg, rgba(15, 23, 42, 0.65), rgba(30, 41, 59, 0.55));
+  }
+
+  .gis-style-footer {
+    background: rgba(15, 23, 42, 0.75);
+    border-top-color: rgba(51, 65, 85, 0.85);
+  }
 }
 
 .gis-style-legend {

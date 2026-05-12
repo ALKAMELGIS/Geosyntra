@@ -16,11 +16,13 @@ permissions:
 
 concurrency:
   group: pages
-  cancel-in-progress: false
+  # New push supersedes an in-flight deploy so the latest code reaches Pages sooner (safe: each run is a full build + one commit).
+  cancel-in-progress: true
 
 jobs:
   publish-to-main-root:
-    if: ${{ github.event_name == 'workflow_dispatch' || !contains(github.event.head_commit.message, '[pages-sync]') }}
+    # Only skip when the *bot* pushes the root SPA sync commit — avoids an infinite loop. User commits may mention [pages-sync] in the body without skipping deploy.
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event.pusher.name != 'github-actions[bot]' || !contains(github.event.head_commit.message, '[pages-sync]') }}
     runs-on: ubuntu-latest
     timeout-minutes: 25
     steps:
@@ -40,6 +42,9 @@ jobs:
       - run: npm ci --no-audit --no-fund
       - name: Build SPA for GitHub Pages (no local .env — safe for push protection)
         env:
+          GITHUB_SHA: ${{ github.sha }}
+          GITHUB_RUN_ID: ${{ github.run_id }}
+          GITHUB_RUN_ATTEMPT: ${{ github.run_attempt }}
           VITE_MAPBOX_TOKEN: ''
           VITE_GOOGLE_MAPS_API_KEY: ''
           VITE_ARCGIS_PORTAL_TOKEN: ''
@@ -81,4 +86,6 @@ jobs:
             echo "| App |"
             echo "| --- |"
             echo "| [https://alkamelgis.github.io/AgroCloud/#/](https://alkamelgis.github.io/AgroCloud/#/) |"
+            echo ""
+            echo "**Cache:** Hard refresh (Ctrl+F5) if the site looks stale. Each deploy writes a new agro-pages-build meta tag (run id + SHA) so index.html changes."
           } >> "$GITHUB_STEP_SUMMARY"

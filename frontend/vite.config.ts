@@ -98,7 +98,10 @@ function pagesBuildStamp(): Plugin {
     apply: 'build',
     transformIndexHtml(html) {
       if (html.includes('name="agro-pages-build"')) return html
-      const stamp = (process.env.GITHUB_SHA || '').trim() || `local-${Date.now()}`
+      const run = (process.env.GITHUB_RUN_ID || '').trim()
+      const attempt = (process.env.GITHUB_RUN_ATTEMPT || '').trim()
+      const sha = (process.env.GITHUB_SHA || '').trim()
+      const stamp = [run, attempt, sha].filter(Boolean).join('-') || `local-${Date.now()}`
       return html.replace(
         '<meta charset="UTF-8" />',
         `<meta charset="UTF-8" />\n    <meta name="agro-pages-build" content="${stamp}" />`,

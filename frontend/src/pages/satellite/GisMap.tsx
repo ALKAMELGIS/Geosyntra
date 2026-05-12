@@ -87,7 +87,83 @@ const GEO_AI_CHAT_PAGE_SIZE = 40
 type AddLayerTab = 'giscontent' | 'arcgis' | 'database' | 'upload' | 'url'
 type SymbologyStrokeStyle = 'solid' | 'dashed' | 'dotted' | 'dashdot'
 
+const GIS_STYLE_CLIPBOARD_LS = 'agri-gis-style-clipboard-v1'
+const GIS_STYLE_PREFS_LS = 'agri-gis-style-studio-prefs-v1'
+
+type GisFillStyle = 'solid' | 'pattern' | 'hatch' | 'gradient'
+
+type GisLayerAppearancePersisted = {
+  color: string
+  fillColor: string
+  weight: number
+  opacity: number
+  strokeStyle: SymbologyStrokeStyle
+  polygonFillAlpha: number
+  pointRadius: number
+  fillStyle: GisFillStyle
+  blendMode: NonNullable<LayerData['blendMode']>
+}
+
+type GisSymbologyAppearance = GisLayerAppearancePersisted & { previewCornerRadius: number }
+
 const clamp01 = (n: number) => Math.max(0, Math.min(1, n))
+
+const clampPolygonFillAlpha = (layer: LayerData) => {
+  const v = layer.polygonFillAlpha
+  return typeof v === 'number' && Number.isFinite(v) ? clamp01(v) : 0.35
+}
+
+const clampPointRadius = (layer: LayerData) => {
+  const v = layer.pointRadius
+  return typeof v === 'number' && Number.isFinite(v) ? Math.max(3, Math.min(24, v)) : 6
+}
+
+const defaultBlendMode = (): NonNullable<LayerData['blendMode']> => 'normal'
+
+const appearanceFromLayer = (layer: LayerData): GisSymbologyAppearance => ({
+  color: layer.color || '#22c55e',
+  fillColor: layer.fillColor || layer.color || '#22c55e',
+  weight: layer.weight ?? 2,
+  opacity: typeof layer.opacity === 'number' && Number.isFinite(layer.opacity) ? clamp01(layer.opacity) : 1,
+  strokeStyle: ((layer as any).strokeStyle as SymbologyStrokeStyle) || 'solid',
+  polygonFillAlpha: clampPolygonFillAlpha(layer),
+  pointRadius: clampPointRadius(layer),
+  fillStyle: ((layer as any).fillStyle as GisFillStyle) || 'solid',
+  blendMode: layer.blendMode ?? defaultBlendMode(),
+  previewCornerRadius: 8,
+})
+
+const layerAppearanceFingerprint = (layer: LayerData) =>
+  [
+    layer.color ?? '',
+    layer.fillColor ?? '',
+    String(layer.weight ?? ''),
+    String(layer.opacity ?? ''),
+    String(layer.polygonFillAlpha ?? ''),
+    String(layer.pointRadius ?? ''),
+    String((layer as any).strokeStyle ?? ''),
+    String((layer as any).fillStyle ?? ''),
+    String(layer.blendMode ?? ''),
+    layer.symbology ? JSON.stringify(layer.symbology) : '',
+    (layer as any).arcgisRenderer?.type ?? '',
+  ].join('~')
+
+const mapboxLineDashArray = (style?: string): number[] | undefined => {
+  if (style === 'dashed') return [6, 4]
+  if (style === 'dotted') return [2, 5]
+  if (style === 'dashdot') return [10, 4, 2, 4]
+  return undefined
+}
+
+const pathBlendClassName = (mode?: LayerData['blendMode']) =>
+  mode && mode !== 'normal' ? `gis-path-blend gis-path-blend--${mode}` : undefined
+
+const fillOpacityFactorForFillStyle = (fillStyle: GisFillStyle | undefined): number => {
+  if (fillStyle === 'pattern') return 0.92
+  if (fillStyle === 'hatch') return 0.88
+  if (fillStyle === 'gradient') return 0.9
+  return 1
+}
 
 const strokeDashFromStyle = (style?: string): string => {
   if (style === 'dashed') return '8 4'
@@ -95,6 +171,55 @@ const strokeDashFromStyle = (style?: string): string => {
   if (style === 'dashdot') return '12 4 2 4'
   return ''
 }
+
+type GisStyleClipboardV1 = { v: 1; appearance: GisLayerAppearancePersisted }
+
+function readGisStyleClipboard(): GisLayerAppearancePersisted | null {
+  try {
+    const raw = localStorage.getItem(GIS_STYLE_CLIPBOARD_LS)
+    if (!raw) return null
+    const j = JSON.parse(raw) as GisStyleClipboardV1
+    if (!j || j.v !== 1 || !j.appearance || typeof j.appearance !== 'object') return null
+    return j.appearance
+  } catch {
+    return null
+  }
+}
+
+function writeGisStyleClipboard(appearance: GisLayerAppearancePersisted) {
+  try {
+    const payload: GisStyleClipboardV1 = { v: 1, appearance }
+    localStorage.setItem(GIS_STYLE_CLIPBOARD_LS, JSON.stringify(payload))
+  } catch {
+    /* ignore quota */
+  }
+}
+
+function loadGisStudioPrefs(): Partial<{ visualization: boolean; studio: boolean; legend: boolean }> {
+  try {
+    const raw = localStorage.getItem(GIS_STYLE_PREFS_LS)
+    if (!raw) return {}
+    return JSON.parse(raw) as Partial<{ visualization: boolean; studio: boolean; legend: boolean }>
+  } catch {
+    return {}
+  }
+}
+
+function saveGisStudioPrefs(sections: { visualization: boolean; studio: boolean; legend: boolean }) {
+  try {
+    localStorage.setItem(GIS_STYLE_PREFS_LS, JSON.stringify(sections))
+  } catch {
+    /* ignore */
+  }
+}
+
+const GIS_STYLE_PRESETS: Array<{ id: string; label: string; patch: Partial<GisSymbologyAppearance> }> = [
+  { id: 'carto', label: 'Carto outline', patch: { strokeStyle: 'solid', weight: 2.5, polygonFillAlpha: 0.28, fillStyle: 'solid', blendMode: 'normal' } },
+  { id: 'soft', label: 'Soft fill', patch: { polygonFillAlpha: 0.5, weight: 1, opacity: 0.92, fillStyle: 'solid', blendMode: 'normal' } },
+  { id: 'survey', label: 'Survey dashed', patch: { strokeStyle: 'dashed', weight: 2, polygonFillAlpha: 0.22, fillStyle: 'pattern', blendMode: 'normal' } },
+  { id: 'bold', label: 'Bold lines', patch: { weight: 5, strokeStyle: 'solid', polygonFillAlpha: 0.4, pointRadius: 10, blendMode: 'normal' } },
+  { id: 'multiply', label: 'Multiply blend', patch: { blendMode: 'multiply', polygonFillAlpha: 0.45, fillStyle: 'solid' } },
+]
 
 function isGisMapFeatureCollectionData(x: unknown): boolean {
   return Boolean(
@@ -744,22 +869,19 @@ export default function GisMap() {
         layerId: string
         draft: Required<SymbologyConfig>
         original?: SymbologyConfig
-        originalAppearance: {
-          color: string
-          fillColor: string
-          weight: number
-          opacity: number
-          strokeStyle: SymbologyStrokeStyle
-        }
-        draftAppearance: {
-          color: string
-          fillColor: string
-          weight: number
-          opacity: number
-          strokeStyle: SymbologyStrokeStyle
-        }
+        originalAppearance: GisSymbologyAppearance
+        draftAppearance: GisSymbologyAppearance
       }
   >(null)
+  const [symbologyStudioSections, setSymbologyStudioSections] = useState(() => {
+    const p = loadGisStudioPrefs()
+    return {
+      visualization: p.visualization !== false,
+      studio: p.studio !== false,
+      legend: p.legend !== false,
+    }
+  })
+  const [symbologyFillPreviewMode, setSymbologyFillPreviewMode] = useState<'solid' | 'hatch' | 'gradient'>('solid')
   const swipeStartRef = useRef<{ x: number; y: number } | null>(null)
   const dragDepthRef = useRef(0)
   const fileInputRef = useRef<HTMLInputElement | null>(null)
@@ -1064,6 +1186,11 @@ export default function GisMap() {
           layer.fillColor ?? '',
           String(layer.weight ?? ''),
           String(layer.opacity ?? ''),
+          String(layer.polygonFillAlpha ?? ''),
+          String(layer.pointRadius ?? ''),
+          String((layer as any).strokeStyle ?? ''),
+          String((layer as any).fillStyle ?? ''),
+          String(layer.blendMode ?? ''),
           s,
           arcT,
         ].join('~'),
@@ -3687,25 +3814,33 @@ export default function GisMap() {
     const baseFill = layer.fillColor || layer.color || '#22c55e'
     const baseWeight = layer.weight ?? 2
     const baseOpacity = typeof layer.opacity === 'number' && Number.isFinite(layer.opacity) ? Math.max(0, Math.min(1, layer.opacity)) : 1
+    const fillFact = fillOpacityFactorForFillStyle((layer as any).fillStyle as GisFillStyle | undefined)
+    const polyFill = clampPolygonFillAlpha(layer) * baseOpacity * fillFact
     const geometryKind = getGeometryKind(feature?.geometry?.type)
     const ctx = symbologyContexts.get(String(layer.id))
+    const blendCn = pathBlendClassName(layer.blendMode)
     const base: any = {
       color: baseStroke,
       weight: baseWeight,
       opacity: baseOpacity,
       fillColor: baseFill,
-      fillOpacity: geometryKind === 'polygon' ? 0.35 * baseOpacity : geometryKind === 'point' ? 0.7 * baseOpacity : 0,
+      fillOpacity: geometryKind === 'polygon' ? polyFill : geometryKind === 'point' ? 0.7 * baseOpacity : 0,
       dashArray: strokeDashFromStyle((layer as any).strokeStyle),
+      className: blendCn,
     }
     if (geometryKind !== 'polygon') base.fillOpacity = 0
     if (!ctx || ctx.cfg.useArcGisOnline) {
       const arc = getArcGisPathStyleForFeature(layer, feature)
-      return arc ?? base
+      if (arc) {
+        const cn = [blendCn, (arc as any).className].filter(Boolean).join(' ')
+        return { ...base, ...arc, ...(cn ? { className: cn } : {}) }
+      }
+      return base
     }
 
     if (ctx.cfg.style === 'single') {
       if (geometryKind === 'line') return { ...base, fillOpacity: 0 }
-      if (geometryKind === 'polygon') return { ...base, fillColor: baseFill, fillOpacity: 0.35 * baseOpacity }
+      if (geometryKind === 'polygon') return { ...base, fillColor: baseFill, fillOpacity: polyFill }
       return base
     }
 
@@ -3717,7 +3852,7 @@ export default function GisMap() {
       }
       const fill = ctx.categoryColors[key] ?? ctx.otherColor
       const stroke = darkenColor(fill, 0.25)
-      if (geometryKind === 'polygon') return { ...base, color: stroke, fillColor: fill, fillOpacity: 0.35 * baseOpacity }
+      if (geometryKind === 'polygon') return { ...base, color: stroke, fillColor: fill, fillOpacity: polyFill }
       return { ...base, color: stroke, fillColor: fill, fillOpacity: 0 }
     }
 
@@ -3728,32 +3863,32 @@ export default function GisMap() {
     const classWidth = ctx.widths[idx] ?? baseWeight
 
     if (ctx.cfg.style === 'color') {
-      if (geometryKind === 'polygon') return { ...base, color: darkenColor(classColor, 0.25), fillColor: classColor, fillOpacity: 0.35 * baseOpacity }
+      if (geometryKind === 'polygon') return { ...base, color: darkenColor(classColor, 0.25), fillColor: classColor, fillOpacity: polyFill }
       if (geometryKind === 'line') return { ...base, color: classColor, fillOpacity: 0 }
       return base
     }
 
     if (ctx.cfg.style === 'size') {
-      if (geometryKind === 'polygon') return { ...base, weight: classWidth, fillColor: baseFill, fillOpacity: 0.35 * baseOpacity }
+      if (geometryKind === 'polygon') return { ...base, weight: classWidth, fillColor: baseFill, fillOpacity: polyFill }
       if (geometryKind === 'line') return { ...base, weight: classWidth, fillOpacity: 0 }
       return base
     }
 
     if (ctx.cfg.style === 'color_size') {
       if (geometryKind === 'polygon')
-        return { ...base, color: darkenColor(classColor, 0.25), fillColor: classColor, weight: classWidth, fillOpacity: 0.35 * baseOpacity }
+        return { ...base, color: darkenColor(classColor, 0.25), fillColor: classColor, weight: classWidth, fillOpacity: polyFill }
       if (geometryKind === 'line') return { ...base, color: classColor, weight: classWidth, fillOpacity: 0 }
       return base
     }
 
     if (ctx.cfg.style === 'dot_density') {
-      if (geometryKind === 'polygon') return { ...base, dashArray: ctx.dotDashes[idx] ?? '1 5', lineCap: 'round', fillColor: baseFill, fillOpacity: 0.35 * baseOpacity }
+      if (geometryKind === 'polygon') return { ...base, dashArray: ctx.dotDashes[idx] ?? '1 5', lineCap: 'round', fillColor: baseFill, fillOpacity: polyFill }
       if (geometryKind === 'line') return { ...base, dashArray: ctx.dotDashes[idx] ?? '1 5', lineCap: 'round', fillOpacity: 0 }
       return base
     }
 
     if (ctx.cfg.style === 'threshold_markers') {
-      if (geometryKind === 'polygon') return { ...base, fillColor: baseFill, fillOpacity: 0.35 * baseOpacity }
+      if (geometryKind === 'polygon') return { ...base, fillColor: baseFill, fillOpacity: polyFill }
       if (geometryKind === 'line') return { ...base, fillOpacity: 0 }
       return base
     }
@@ -3767,7 +3902,7 @@ export default function GisMap() {
     const baseWeight = layer.weight ?? 2
     const baseOpacity = typeof layer.opacity === 'number' && Number.isFinite(layer.opacity) ? Math.max(0, Math.min(1, layer.opacity)) : 1
     const ctx = symbologyContexts.get(String(layer.id))
-    let radius = 6
+    let radius = clampPointRadius(layer)
     let color = baseStroke
     let fillColor = baseFill
     let weight = baseWeight
@@ -3776,7 +3911,7 @@ export default function GisMap() {
 
     if (ctx && !ctx.cfg.useArcGisOnline) {
       if (ctx.cfg.style === 'single') {
-        return { radius, color, weight, opacity, fillColor, fillOpacity }
+        return { radius, color, weight, opacity, fillColor, fillOpacity, className: pathBlendClassName(layer.blendMode) }
       }
       if (ctx.cfg.style === 'unique') {
         const raw = ctx.cfg.field ? feature?.properties?.[ctx.cfg.field] : undefined
@@ -3784,7 +3919,7 @@ export default function GisMap() {
         const fill = ctx.categoryColors[key] ?? ctx.otherColor
         fillColor = fill
         color = darkenColor(fill, 0.25)
-        radius = 7
+        radius = Math.max(radius, 7)
       } else {
         const vRaw = ctx.cfg.field ? feature?.properties?.[ctx.cfg.field] : undefined
         const v = typeof vRaw === 'number' && Number.isFinite(vRaw) ? vRaw : null
@@ -3810,7 +3945,7 @@ export default function GisMap() {
       }
     }
 
-    return { radius, color, weight, opacity, fillColor, fillOpacity }
+    return { radius, color, weight, opacity, fillColor, fillOpacity, className: pathBlendClassName(layer.blendMode) }
   }
 
   const applyLayerSymbology = (layerId: string, next?: SymbologyConfig) => {
@@ -3819,10 +3954,7 @@ export default function GisMap() {
     )
   }
 
-  const applyLayerAppearance = (
-    layerId: string,
-    next: { color: string; fillColor: string; weight: number; opacity: number; strokeStyle: SymbologyStrokeStyle },
-  ) => {
+  const applyLayerAppearance = (layerId: string, next: GisLayerAppearancePersisted) => {
     setLayers(prev =>
       prev.map(l =>
         String(l.id) === layerId
@@ -3833,16 +3965,25 @@ export default function GisMap() {
               weight: Math.max(0.5, Math.min(16, next.weight)),
               opacity: clamp01(next.opacity),
               strokeStyle: next.strokeStyle,
+              polygonFillAlpha: clamp01(next.polygonFillAlpha),
+              pointRadius: Math.max(3, Math.min(24, next.pointRadius)),
+              fillStyle: next.fillStyle,
+              blendMode: next.blendMode,
             }
           : l,
       ),
     )
   }
 
+  const appearancePersisted = (a: GisSymbologyAppearance): GisLayerAppearancePersisted => {
+    const { previewCornerRadius: _pc, ...rest } = a
+    return rest
+  }
+
   const cancelSymbology = () => {
     if (!symbologyDialog) return
     applyLayerSymbology(symbologyDialog.layerId, symbologyDialog.original)
-    applyLayerAppearance(symbologyDialog.layerId, symbologyDialog.originalAppearance)
+    applyLayerAppearance(symbologyDialog.layerId, appearancePersisted(symbologyDialog.originalAppearance))
     setSymbologyDialog(null)
   }
 
@@ -3866,19 +4007,28 @@ export default function GisMap() {
     })
   }
 
-  const updateSymbologyAppearance = (
-    patch: Partial<{ color: string; fillColor: string; weight: number; opacity: number; strokeStyle: SymbologyStrokeStyle }>,
-  ) => {
+  const updateSymbologyAppearance = (patch: Partial<GisSymbologyAppearance>) => {
     setSymbologyDialog(prev => {
       if (!prev) return prev
-      const next = {
+      const merged: GisSymbologyAppearance = {
         ...prev.draftAppearance,
         ...patch,
       }
-      next.weight = Math.max(0.5, Math.min(16, Number.isFinite(next.weight) ? next.weight : 2))
-      next.opacity = clamp01(Number.isFinite(next.opacity) ? next.opacity : 1)
-      applyLayerAppearance(prev.layerId, next)
-      return { ...prev, draftAppearance: next }
+      merged.weight = Math.max(0.5, Math.min(16, Number.isFinite(merged.weight) ? merged.weight : 2))
+      merged.opacity = clamp01(Number.isFinite(merged.opacity) ? merged.opacity : 1)
+      merged.polygonFillAlpha = clamp01(Number.isFinite(merged.polygonFillAlpha) ? merged.polygonFillAlpha : 0.35)
+      merged.pointRadius = Math.max(3, Math.min(24, Number.isFinite(merged.pointRadius) ? merged.pointRadius : 6))
+      merged.previewCornerRadius = Math.max(0, Math.min(24, Number.isFinite(merged.previewCornerRadius) ? merged.previewCornerRadius : 8))
+      const fs = merged.fillStyle
+      merged.fillStyle =
+        fs === 'pattern' || fs === 'hatch' || fs === 'gradient' || fs === 'solid' ? fs : 'solid'
+      const bm = merged.blendMode
+      merged.blendMode =
+        bm === 'multiply' || bm === 'screen' || bm === 'overlay' || bm === 'darken' || bm === 'lighten' || bm === 'normal'
+          ? bm
+          : 'normal'
+      applyLayerAppearance(prev.layerId, appearancePersisted(merged))
+      return { ...prev, draftAppearance: merged }
     })
   }
 
@@ -6208,21 +6358,17 @@ export default function GisMap() {
                               const r = layer.arcgisRenderer ?? layer.arcgisLayerDefinition?.drawingInfo?.renderer
                               draft = normalizeSymbology(layer, { ...draft, ...inferVisualizationFromArcgisRenderer(r) })
                             }
-                            const baseAppearance = {
-                              color: layer.color || '#22c55e',
-                              fillColor: layer.fillColor || layer.color || '#22c55e',
-                              weight: layer.weight ?? 2,
-                              opacity: typeof layer.opacity === 'number' && Number.isFinite(layer.opacity) ? clamp01(layer.opacity) : 1,
-                              strokeStyle: ((layer as any).strokeStyle as SymbologyStrokeStyle) || 'solid',
-                            }
+                            const app0 = appearanceFromLayer(layer)
                             applyLayerSymbology(lid, draft)
-                            applyLayerAppearance(lid, baseAppearance)
+                            applyLayerAppearance(lid, appearancePersisted(app0))
+                            setSymbologyFillPreviewMode('solid')
+                            setSymbologyStudioSections({ visualization: true, studio: true, legend: true })
                             setSymbologyDialog({
                               layerId: lid,
                               draft,
                               original,
-                              originalAppearance: baseAppearance,
-                              draftAppearance: baseAppearance,
+                              originalAppearance: app0,
+                              draftAppearance: app0,
                             })
                           }}
                           disabled={layer.type !== 'geojson'}
@@ -6349,31 +6495,44 @@ export default function GisMap() {
                 {orderedLayers.map(layer => {
                   if (!layer.visible || layer.type !== 'geojson' || !layer.data) return null
                   const id = safeMapboxId(layer.id)
-                  const color = layer.color || '#22c55e'
+                  const stroke = layer.color || '#22c55e'
+                  const fill = layer.fillColor || stroke
+                  const op = typeof layer.opacity === 'number' && Number.isFinite(layer.opacity) ? clamp01(layer.opacity) : 1
+                  const polyA =
+                    clampPolygonFillAlpha(layer) * fillOpacityFactorForFillStyle((layer as any).fillStyle as GisFillStyle | undefined) * op
+                  const lw = Math.max(0.5, Math.min(16, layer.weight ?? 2))
+                  const dash = mapboxLineDashArray((layer as any).strokeStyle)
+                  const pr = clampPointRadius(layer)
+                  const linePaint: Record<string, unknown> = {
+                    'line-color': stroke,
+                    'line-opacity': op * 0.92,
+                    'line-width': ['interpolate', ['linear'], ['zoom'], 2, lw * 0.35, 10, lw * 0.85, 16, lw * 1.25],
+                  }
+                  if (dash) linePaint['line-dasharray'] = dash
                   return (
                     <Source key={`globe-source-${id}`} id={`globe-source-${id}`} type="geojson" data={layer.data as any} tolerance={0.8} buffer={64} maxzoom={14}>
                       <Layer
                         id={`globe-fill-${id}`}
                         type="fill"
                         filter={['in', ['geometry-type'], ['literal', ['Polygon', 'MultiPolygon']]] as any}
-                        paint={{ 'fill-color': color, 'fill-opacity': 0.34 }}
+                        paint={{ 'fill-color': fill, 'fill-opacity': polyA }}
                       />
                       <Layer
                         id={`globe-line-${id}`}
                         type="line"
                         filter={['in', ['geometry-type'], ['literal', ['LineString', 'MultiLineString', 'Polygon', 'MultiPolygon']]] as any}
-                        paint={{ 'line-color': color, 'line-opacity': 0.88, 'line-width': ['interpolate', ['linear'], ['zoom'], 2, 0.7, 10, 2.4, 16, 4] }}
+                        paint={linePaint as any}
                       />
                       <Layer
                         id={`globe-point-${id}`}
                         type="circle"
                         filter={['in', ['geometry-type'], ['literal', ['Point', 'MultiPoint']]] as any}
                         paint={{
-                          'circle-radius': ['interpolate', ['linear'], ['zoom'], 2, 2.2, 10, 5.5, 16, 9],
-                          'circle-color': color,
-                          'circle-stroke-color': '#ffffff',
-                          'circle-stroke-width': 1.2,
-                          'circle-opacity': 0.92,
+                          'circle-radius': ['interpolate', ['linear'], ['zoom'], 2, pr * 0.4, 10, pr * 0.95, 16, pr * 1.35],
+                          'circle-color': fill,
+                          'circle-stroke-color': stroke,
+                          'circle-stroke-width': Math.max(0.5, lw * 0.55),
+                          'circle-opacity': op * 0.92,
                         }}
                       />
                     </Source>
@@ -6440,7 +6599,7 @@ export default function GisMap() {
           {layers.map(layer =>
             layer.visible && layer.type === 'geojson' && layer.data ? (
               <GeoJSON
-                key={`${String(layer.id)}:${layer.symbology?.useArcGisOnline ? 'ag1' : 'ag0'}:${layer.symbology?.style ?? 's'}:${(layer.arcgisRenderer as any)?.type ?? 'nr'}`}
+                key={`gj:${String(layer.id)}:${layer.symbology?.useArcGisOnline ? 'ag1' : 'ag0'}:${layer.symbology?.style ?? 's'}:${(layer.arcgisRenderer as any)?.type ?? 'nr'}:${layerAppearanceFingerprint(layer)}`}
                 data={layer.data as any}
                 style={(feature: any) => getFeatureStyle(layer, feature)}
                 onEachFeature={(feature: any, ll: any) => {
@@ -8028,6 +8187,89 @@ export default function GisMap() {
                 </label>
               </div>
 
+              <div className="gis-style-toolbar" role="toolbar" aria-label="Style actions">
+                <button
+                  type="button"
+                  className="gis-style-toolbtn"
+                  onClick={() => {
+                    if (!symbologyDialog) return
+                    const layer = layers.find(l => String(l.id) === symbologyDialog.layerId)
+                    if (!layer) return
+                    const draft = normalizeSymbology(layer, symbologyDialog.original)
+                    applyLayerSymbology(symbologyDialog.layerId, draft)
+                    applyLayerAppearance(symbologyDialog.layerId, appearancePersisted(symbologyDialog.originalAppearance))
+                    setSymbologyDialog(prev => (prev ? { ...prev, draft, draftAppearance: { ...prev.originalAppearance } } : prev))
+                  }}
+                  disabled={symbologyDialog.draft.useArcGisOnline}
+                  title={
+                    symbologyDialog.draft.useArcGisOnline
+                      ? 'Unavailable while ArcGIS renderer is active'
+                      : 'Restore visualization and symbol properties from when this panel opened'
+                  }
+                >
+                  <i className="fa-solid fa-rotate-left" aria-hidden />
+                  Reset
+                </button>
+                <button
+                  type="button"
+                  className="gis-style-toolbtn"
+                  onClick={() => {
+                    if (!symbologyDialog) return
+                    writeGisStyleClipboard(appearancePersisted(symbologyDialog.draftAppearance))
+                  }}
+                  disabled={symbologyDialog.draft.useArcGisOnline}
+                  title="Copy symbol appearance to local storage"
+                >
+                  <i className="fa-solid fa-copy" aria-hidden />
+                  Copy style
+                </button>
+                <button
+                  type="button"
+                  className="gis-style-toolbtn"
+                  onClick={() => {
+                    if (!symbologyDialog) return
+                    const clip = readGisStyleClipboard()
+                    if (!clip) return
+                    updateSymbologyAppearance({
+                      ...clip,
+                      previewCornerRadius: symbologyDialog.draftAppearance.previewCornerRadius,
+                    })
+                  }}
+                  disabled={symbologyDialog.draft.useArcGisOnline}
+                  title="Paste symbol appearance from clipboard"
+                >
+                  <i className="fa-solid fa-paste" aria-hidden />
+                  Paste
+                </button>
+                <button
+                  type="button"
+                  className="gis-style-toolbtn"
+                  onClick={() => {
+                    if (!symbologyDialog) return
+                    const snap = appearancePersisted(symbologyDialog.draftAppearance)
+                    setLayers(prev => prev.map(l => (l.type === 'geojson' ? { ...l, ...snap } : l)))
+                  }}
+                  disabled={symbologyDialog.draft.useArcGisOnline}
+                  title="Apply current fill, outline, opacity, dash, and blend to every GeoJSON layer"
+                >
+                  <i className="fa-solid fa-layer-group" aria-hidden />
+                  Apply to all layers
+                </button>
+                <button
+                  type="button"
+                  className="gis-style-toolbtn"
+                  onClick={() => {
+                    if (!symbologyDialog) return
+                    setDrawingColor(symbologyDialog.draftAppearance.fillColor)
+                  }}
+                  disabled={symbologyDialog.draft.useArcGisOnline}
+                  title="Use current fill color for new AOI / draw shapes"
+                >
+                  <i className="fa-solid fa-pen-ruler" aria-hidden />
+                  Sync draw color
+                </button>
+              </div>
+
               {symbologyDialog.draft.useArcGisOnline ? (
                 <>
                   <div className="gis-style-info">
@@ -8193,6 +8435,21 @@ export default function GisMap() {
 
                   return (
                     <>
+                      <button
+                        type="button"
+                        className="gis-style-acc-trigger"
+                        onClick={() =>
+                          setSymbologyStudioSections(s => {
+                            const n = { ...s, visualization: !s.visualization }
+                            saveGisStudioPrefs(n)
+                            return n
+                          })
+                        }
+                      >
+                        <i className={`fa-solid fa-chevron-${symbologyStudioSections.visualization ? 'down' : 'right'}`} aria-hidden />
+                        <span>Visualization & classification</span>
+                      </button>
+                      {symbologyStudioSections.visualization ? (
                       <div className="gis-style-card">
                       <div className="gis-style-grid">
                         <div className="gis-style-field">
@@ -8309,9 +8566,37 @@ export default function GisMap() {
                         ) : null}
                       </div>
                       </div>
+                      ) : null}
 
+                      <button
+                        type="button"
+                        className="gis-style-acc-trigger"
+                        onClick={() =>
+                          setSymbologyStudioSections(s => {
+                            const n = { ...s, studio: !s.studio }
+                            saveGisStudioPrefs(n)
+                            return n
+                          })
+                        }
+                      >
+                        <i className={`fa-solid fa-chevron-${symbologyStudioSections.studio ? 'down' : 'right'}`} aria-hidden />
+                        <span>Symbol Style Studio</span>
+                      </button>
+                      {symbologyStudioSections.studio ? (
                       <div className="gis-style-card">
-                        <div className="gis-style-panel-title">Symbol Style Studio</div>
+                        <div className="gis-style-panel-title">Symbol appearance</div>
+                        <div className="gis-style-preset-row" role="list">
+                          {GIS_STYLE_PRESETS.map(p => (
+                            <button
+                              key={p.id}
+                              type="button"
+                              className="gis-style-preset-chip"
+                              onClick={() => updateSymbologyAppearance(p.patch)}
+                            >
+                              {p.label}
+                            </button>
+                          ))}
+                        </div>
                         <div className="gis-style-grid">
                           <div className="gis-style-field">
                             <div className="gis-style-label">Fill</div>
@@ -8322,7 +8607,45 @@ export default function GisMap() {
                             <input className="gis-style-input" type="color" value={appearance.color} onChange={(e) => updateSymbologyAppearance({ color: e.target.value })} />
                           </div>
                           <div className="gis-style-field">
-                            <div className="gis-style-label">Stroke Style</div>
+                            <div className="gis-style-label">Fill style (map)</div>
+                            <div className="gis-style-selectwrap">
+                              <select
+                                className="gis-style-select"
+                                value={appearance.fillStyle}
+                                onChange={(e) => updateSymbologyAppearance({ fillStyle: e.target.value as GisFillStyle })}
+                              >
+                                <option value="solid">Solid</option>
+                                <option value="pattern">Pattern</option>
+                                <option value="hatch">Hatch</option>
+                                <option value="gradient">Gradient</option>
+                              </select>
+                              <i className="fa-solid fa-chevron-down" aria-hidden="true" />
+                            </div>
+                          </div>
+                          <div className="gis-style-field">
+                            <div className="gis-style-label">Blend mode</div>
+                            <div className="gis-style-selectwrap">
+                              <select
+                                className="gis-style-select"
+                                value={appearance.blendMode}
+                                onChange={(e) =>
+                                  updateSymbologyAppearance({
+                                    blendMode: e.target.value as NonNullable<LayerData['blendMode']>,
+                                  })
+                                }
+                              >
+                                <option value="normal">Normal</option>
+                                <option value="multiply">Multiply</option>
+                                <option value="screen">Screen</option>
+                                <option value="overlay">Overlay</option>
+                                <option value="darken">Darken</option>
+                                <option value="lighten">Lighten</option>
+                              </select>
+                              <i className="fa-solid fa-chevron-down" aria-hidden="true" />
+                            </div>
+                          </div>
+                          <div className="gis-style-field">
+                            <div className="gis-style-label">Stroke style</div>
                             <div className="gis-style-selectwrap">
                               <select
                                 className="gis-style-select"
@@ -8361,16 +8684,96 @@ export default function GisMap() {
                               onChange={(e) => updateSymbologyAppearance({ opacity: 1 - Number(e.target.value) / 100 })}
                             />
                           </div>
+                          {geometryKind === 'polygon' || geometryKind === 'other' ? (
+                            <div className="gis-style-field">
+                              <div className="gis-style-label">Polygon fill strength ({Math.round(appearance.polygonFillAlpha * 100)}%)</div>
+                              <input
+                                className="gis-style-input"
+                                type="range"
+                                min={0}
+                                max={100}
+                                step={1}
+                                value={Math.round(appearance.polygonFillAlpha * 100)}
+                                onChange={(e) => updateSymbologyAppearance({ polygonFillAlpha: Number(e.target.value) / 100 })}
+                              />
+                            </div>
+                          ) : null}
+                          {geometryKind === 'point' || geometryKind === 'other' ? (
+                            <div className="gis-style-field">
+                              <div className="gis-style-label">Point size ({appearance.pointRadius}px)</div>
+                              <input
+                                className="gis-style-input"
+                                type="range"
+                                min={3}
+                                max={24}
+                                step={1}
+                                value={appearance.pointRadius}
+                                onChange={(e) => updateSymbologyAppearance({ pointRadius: Number(e.target.value) })}
+                              />
+                            </div>
+                          ) : null}
+                          {geometryKind === 'polygon' || geometryKind === 'other' ? (
+                            <div className="gis-style-field">
+                              <div className="gis-style-label">Preview corner radius ({appearance.previewCornerRadius}px)</div>
+                              <input
+                                className="gis-style-input"
+                                type="range"
+                                min={0}
+                                max={20}
+                                step={1}
+                                value={appearance.previewCornerRadius}
+                                onChange={(e) => updateSymbologyAppearance({ previewCornerRadius: Number(e.target.value) })}
+                              />
+                            </div>
+                          ) : null}
                           <div className="gis-style-field">
-                            <div className="gis-style-label">Symbol preview</div>
+                            <div className="gis-style-label">Live preview</div>
+                            <div className="gis-style-preview-modes" role="group" aria-label="Preview fill rendering">
+                              {(['solid', 'hatch', 'gradient'] as const).map(m => (
+                                <button
+                                  key={m}
+                                  type="button"
+                                  className={symbologyFillPreviewMode === m ? 'gis-style-preview-mode active' : 'gis-style-preview-mode'}
+                                  onClick={() => setSymbologyFillPreviewMode(m)}
+                                >
+                                  {m === 'solid' ? 'Solid' : m === 'hatch' ? 'Hatch' : 'Gradient'}
+                                </button>
+                              ))}
+                            </div>
                             <div className="gis-style-preview-box">
-                              <svg width="100%" height="56" viewBox="0 0 240 56" aria-hidden="true">
+                              {(() => {
+                                const pid = String(symbologyLayer.id).replace(/[^a-zA-Z0-9_-]/g, '_')
+                                const gid = `gisSymGrad-${pid}`
+                                const hid = `gisSymHatch-${pid}`
+                                let polyFillUrl = appearance.fillColor
+                                if (geometryKind === 'polygon' || geometryKind === 'other') {
+                                  if (symbologyFillPreviewMode === 'gradient') polyFillUrl = `url(#${gid})`
+                                  else if (symbologyFillPreviewMode === 'hatch') polyFillUrl = `url(#${hid})`
+                                }
+                                const pr = Math.max(4, Math.min(20, appearance.pointRadius))
+                                const rx = Math.max(0, Math.min(20, appearance.previewCornerRadius))
+                                return (
+                              <svg width="100%" height="72" viewBox="0 0 240 72" aria-hidden="true">
+                                <defs>
+                                  <linearGradient id={gid} x1="0" y1="0" x2="1" y2="1">
+                                    <stop offset="0%" stopColor={appearance.fillColor} stopOpacity="1" />
+                                    <stop offset="100%" stopColor={appearance.color} stopOpacity="0.95" />
+                                  </linearGradient>
+                                  <pattern id={hid} width="10" height="10" patternUnits="userSpaceOnUse">
+                                    <path
+                                      d="M0,10 L10,0 M-2,2 L2,-2 M8,12 L12,8"
+                                      stroke={appearance.color}
+                                      strokeWidth="1.2"
+                                      opacity="0.55"
+                                    />
+                                  </pattern>
+                                </defs>
                                 {geometryKind === 'line' ? (
                                   <line
                                     x1="14"
-                                    y1="28"
+                                    y1="36"
                                     x2="226"
-                                    y2="28"
+                                    y2="36"
                                     stroke={appearance.color}
                                     strokeWidth={Math.max(1, appearance.weight)}
                                     strokeDasharray={previewDash || undefined}
@@ -8380,21 +8783,22 @@ export default function GisMap() {
                                 ) : geometryKind === 'point' ? (
                                   <circle
                                     cx="120"
-                                    cy="28"
-                                    r={Math.max(6, Math.min(16, 4 + appearance.weight))}
+                                    cy="36"
+                                    r={pr}
                                     fill={appearance.fillColor}
                                     stroke={appearance.color}
-                                    strokeWidth={Math.max(1, appearance.weight * 0.6)}
+                                    strokeWidth={Math.max(1, appearance.weight * 0.55)}
                                     opacity={appearance.opacity}
                                   />
                                 ) : (
                                   <rect
-                                    x="72"
-                                    y="12"
-                                    width="96"
-                                    height="32"
-                                    rx="8"
-                                    fill={appearance.fillColor}
+                                    x="60"
+                                    y="14"
+                                    width="120"
+                                    height="44"
+                                    rx={rx}
+                                    ry={rx}
+                                    fill={polyFillUrl}
                                     stroke={appearance.color}
                                     strokeWidth={Math.max(1, appearance.weight)}
                                     strokeDasharray={previewDash || undefined}
@@ -8402,11 +8806,32 @@ export default function GisMap() {
                                   />
                                 )}
                               </svg>
+                                )
+                              })()}
+                            </div>
+                            <div className="gis-style-preview-hint">
+                              2D map uses Leaflet paths (live). 3D globe uses Mapbox paint. Hatch/gradient show fully here; on the map, hatch/gradient adjust fill weight slightly except in this preview.
                             </div>
                           </div>
                         </div>
                       </div>
+                      ) : null}
 
+                      <button
+                        type="button"
+                        className="gis-style-acc-trigger"
+                        onClick={() =>
+                          setSymbologyStudioSections(s => {
+                            const n = { ...s, legend: !s.legend }
+                            saveGisStudioPrefs(n)
+                            return n
+                          })
+                        }
+                      >
+                        <i className={`fa-solid fa-chevron-${symbologyStudioSections.legend ? 'down' : 'right'}`} aria-hidden />
+                        <span>Legend preview</span>
+                      </button>
+                      {symbologyStudioSections.legend ? (
                       <div className="gis-style-card gis-style-card-legend">
                       <div className="gis-style-legend">
                         {legendItems.map((it, idx) => (
@@ -8434,6 +8859,7 @@ export default function GisMap() {
                         ))}
                       </div>
                       </div>
+                      ) : null}
                     </>
                   )
                 })()
