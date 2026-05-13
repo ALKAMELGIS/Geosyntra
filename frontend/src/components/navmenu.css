@@ -134,14 +134,17 @@
   transform: none;
 }
 
+/* Subtle, neutral active highlight — no cyan/green glow.
+ * Uses the system primary token (silver in dark, deep slate in light) so the
+ * pill reads as a polished raised tile inside the nav glass surface. */
 .item.active, .subitem.active {
   background: var(--ds-color-primary-soft);
   color: var(--ds-color-primary);
   font-weight: 600;
   border-color: var(--ds-color-border-strong);
   box-shadow:
-    0 14px 34px rgba(2, 4, 12, 0.45),
-    0 0 18px rgba(34, 211, 238, 0.18);
+    0 1px 0 rgba(255, 255, 255, 0.06) inset,
+    0 8px 22px rgba(0, 0, 0, 0.30);
 }
 
 .icon {
@@ -817,28 +820,31 @@ html[data-theme="light"] .group-header:hover .icon {
     transform 180ms ease;
 }
 
+/* Top-nav pills (light-mode) — neutral hover lift, no indigo border. */
 .item:hover,
 .group-header:hover {
   background: linear-gradient(180deg, rgba(255, 255, 255, 1), rgba(241, 245, 249, 0.88));
-  border-color: rgba(91, 94, 239, 0.22);
+  border-color: rgba(15, 23, 42, 0.14);
   color: #0f172a;
   box-shadow:
     0 1px 0 rgba(255, 255, 255, 1) inset,
-    0 10px 26px rgba(15, 23, 42, 0.08);
+    0 10px 26px rgba(15, 23, 42, 0.06);
   transform: translateY(-0.5px);
 }
 
+/* Top-nav active pill (light-mode) — subtle slate-glass highlight, replaces
+ * the legacy mint-green (`rgba(236, 253, 245, …)` / `#047857`) accent. */
 .item.active,
 .subitem.active,
 .group:not(.open) > .group-header.active,
 .group.open > .group-header.active {
-  background: rgba(236, 253, 245, 0.96);
-  border-color: rgba(5, 150, 105, 0.24);
-  color: #047857;
-  font-weight: 750;
+  background: linear-gradient(180deg, rgba(15, 23, 42, 0.08), rgba(15, 23, 42, 0.03));
+  border-color: rgba(15, 23, 42, 0.18);
+  color: #1d2030;
+  font-weight: 700;
   box-shadow:
-    0 1px 0 rgba(255, 255, 255, 0.85) inset,
-    0 8px 22px rgba(5, 150, 105, 0.11);
+    0 1px 0 rgba(255, 255, 255, 0.95) inset,
+    0 6px 18px rgba(15, 23, 42, 0.08);
 }
 
 .item .label,
@@ -901,10 +907,11 @@ html[data-theme="light"] .group-header:hover .icon {
   font-size: 12.5px;
 }
 
+/* Sublist row hover (light-mode) — subtle slate wash, no mint-green tint. */
 .subitem:hover {
-  background: rgba(236, 253, 245, 0.76);
-  border-color: rgba(4, 120, 87, 0.12);
-  color: #064e3b;
+  background: rgba(15, 23, 42, 0.05);
+  border-color: rgba(15, 23, 42, 0.10);
+  color: #1d2030;
   box-shadow: none;
 }
 
@@ -1496,8 +1503,10 @@ html[data-theme="dark"] .nav-collapse-toggle:hover {
 
 html[data-theme="dark"] .navmenu .item.active,
 html[data-theme="dark"] .navmenu .subitem.active {
-  border-color: rgba(52, 211, 153, 0.32);
-  box-shadow: 0 10px 26px rgba(0, 0, 0, 0.22);
+  border-color: rgba(255, 255, 255, 0.20);
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.10) inset,
+    0 8px 22px rgba(0, 0, 0, 0.45);
 }
 
 html[data-theme="dark"] .navmenu .item,
@@ -1517,17 +1526,17 @@ html[data-theme="dark"] .navmenu .icon {
 
 html[data-theme="dark"] .navmenu .item:hover,
 html[data-theme="dark"] .navmenu .group-header:hover {
-  background: rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.08);
   color: var(--ds-color-text);
-  border-color: rgba(52, 211, 153, 0.22);
+  border-color: rgba(255, 255, 255, 0.18);
 }
 
 html[data-theme="dark"] .navmenu .item.active,
 html[data-theme="dark"] .navmenu .group:not(.open) > .group-header.active,
 html[data-theme="dark"] .navmenu .group.open > .group-header.active {
-  background: var(--ds-color-primary-soft);
-  border-color: rgba(52, 211, 153, 0.38);
-  color: var(--ds-color-primary);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.12), rgba(255, 255, 255, 0.04));
+  border-color: rgba(255, 255, 255, 0.22);
+  color: #ffffff;
 }
 
 html[data-theme="dark"] .navmenu .sublist {
@@ -1547,16 +1556,21 @@ html[data-theme="dark"] .navmenu .subitem .label {
 }
 
 html[data-theme="dark"] .navmenu .subitem:hover {
-  background: rgba(255, 255, 255, 0.07);
-  border-color: rgba(52, 211, 153, 0.2);
+  background: rgba(255, 255, 255, 0.06);
+  border-color: rgba(255, 255, 255, 0.16);
   color: var(--ds-color-text);
   box-shadow: none;
 }
 
+/* Sublist active row (dark-mode) — subtle white-glass tile, replaces the
+ * legacy emerald (`rgba(52, 211, 153, …)` border + green text) accent. */
 html[data-theme="dark"] .navmenu .subitem.active {
-  background: var(--ds-color-primary-soft);
-  color: var(--ds-color-primary);
-  border-color: rgba(52, 211, 153, 0.32);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.12), rgba(255, 255, 255, 0.04));
+  color: #ffffff;
+  border-color: rgba(255, 255, 255, 0.22);
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.08) inset,
+    0 6px 18px rgba(0, 0, 0, 0.45);
 }
 
 html[data-theme="dark"] .navmenu .group-header .label,
