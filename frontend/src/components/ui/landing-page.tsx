@@ -86,13 +86,19 @@ export interface ScrollGlobeProps {
 
 /**
  * Same coordinates the upstream bundle ships — hero pins the globe mid-right
- * at 1.4× so the headline gets room to breathe; innovation drops it small &
- * centred near the top; discovery throws it 90 % off-screen for half-bleed
- * effect; future centres a 1.8× mass behind the closing copy.
+ * at 0.85× (downsized from the upstream 1.4× so it fits visually in front
+ * of the new Spline robot's chest area, like the figure is holding it);
+ * innovation drops it small & centred near the top; discovery throws it
+ * 90 % off-screen for half-bleed effect; future centres a 1.8× mass behind
+ * the closing copy.
+ *
+ * Hero left position is nudged from 75 % → 71 % so the Globe centre
+ * aligns with the right-anchored Robot's chest centre on every breakpoint
+ * (Robot stage = `right: 0` + `width: min(58vw, 880px)` → centre ≈ 71vw).
  */
 const defaultGlobeConfig: { positions: ScrollGlobePosition[] } = {
   positions: [
-    { top: '50%', left: '75%', scale: 1.4 },
+    { top: '50%', left: '71%', scale: 0.85 },
     { top: '25%', left: '50%', scale: 0.9 },
     { top: '15%', left: '90%', scale: 2 },
     { top: '50%', left: '50%', scale: 1.8 },
@@ -129,10 +135,24 @@ export function ScrollGlobe({ sections, globeConfig = defaultGlobeConfig, classN
   const [activeSection, setActiveSection] = useState(0)
   const [scrollProgress, setScrollProgress] = useState(0)
   const [globeTransform, setGlobeTransform] = useState('')
+  /**
+   * Shared mouse-parallax offset for the Hero 3D stage.
+   *
+   * Both the Globe and the Spline robot consume this offset as the *first*
+   * transform in their composed transform string — meaning the parallax
+   * shift is applied in viewport space (after scale + position), so the
+   * pixel amount is identical for both layers regardless of their
+   * individual scales. This is what gives the user "حركة Parallax بنفس
+   * النسبة" — perfectly synchronized mouse drift, no visual separation.
+   *
+   * Range: x/y ∈ [-1, 1]. Multiplied by `PARALLAX_AMPLITUDE_PX` below.
+   */
+  const [mouseOffset, setMouseOffset] = useState<{ x: number; y: number }>({ x: 0, y: 0 })
   const containerRef = useRef<HTMLDivElement>(null)
   const sectionRefs = useRef<(HTMLElement | null)[]>([])
   const animationFrameId = useRef<number | undefined>(undefined)
   const scrollSourceRef = useRef<HTMLElement | Window | null>(null)
+  const reduceMotionRef = useRef(false)
 
   const calculatedPositions = useMemo(
     () =>
@@ -235,6 +255,71 @@ export function ScrollGlobe({ sections, globeConfig = defaultGlobeConfig, classN
     setGlobeTransform(initialTransform)
   }, [calculatedPositions])
 
+  /* Respect `prefers-reduced-motion`: skip mouse parallax updates entirely
+   * for users who opt out, so the Hero 3D stage stays still. The matchMedia
+   * subscription updates the ref live (no re-render needed in the listener). */
+  useEffect(() => {
+    if (typeof window === 'undefined' || !window.matchMedia) return
+    const mq = window.matchMedia('(prefers-reduced-motion: reduce)')
+    reduceMotionRef.current = mq.matches
+    const onChange = () => {
+      reduceMotionRef.current = mq.matches
+      if (mq.matches) setMouseOffset({ x: 0, y: 0 })
+    }
+    if (mq.addEventListener) mq.addEventListener('change', onChange)
+    else if ((mq as unknown as { addListener: (cb: () => void) => void }).addListener) {
+      ;(mq as unknown as { addListener: (cb: () => void) => void }).addListener(onChange)
+    }
+    return () => {
+      if (mq.removeEventListener) mq.removeEventListener('change', onChange)
+      else if ((mq as unknown as { removeListener: (cb: () => void) => void }).removeListener) {
+        ;(mq as unknown as { removeListener: (cb: () => void) => void }).removeListener(onChange)
+      }
+    }
+  }, [])
+
+  /* Mouse parallax — single rAF-throttled listener feeds the offset state
+   * that BOTH the Globe wrapper and the Robot wrapper consume below, so
+   * the two 3D layers translate together by the same pixel amount on every
+   * mouse move (the user's "نفس النسبة / دون انفصال بصري" requirement). */
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    let raf = 0
+    let lastX = 0
+    let lastY = 0
+    const flush = () => {
+      raf = 0
+      setMouseOffset({ x: lastX, y: lastY })
+    }
+    const onMove = (e: PointerEvent) => {
+      if (reduceMotionRef.current) return
+      const w = window.innerWidth || 1
+      const h = window.innerHeight || 1
+      lastX = (e.clientX / w - 0.5) * 2
+      lastY = (e.clientY / h - 0.5) * 2
+      if (!raf) raf = window.requestAnimationFrame(flush)
+    }
+    window.addEventListener('pointermove', onMove, { passive: true })
+    return () => {
+      window.removeEventListener('pointermove', onMove)
+      if (raf) cancelAnimationFrame(raf)
+    }
+  }, [])
+
+  /**
+   * Pixel amplitude of the shared parallax shift. Kept gentle (≈ 10 px max
+   * each axis) so the figure never wobbles in a way that competes with
+   * the Spline robot's own internal head/body sway — they compose, they
+   * don't fight.
+   */
+  const PARALLAX_AMPLITUDE_PX = 10
+  const parallaxX = mouseOffset.x * PARALLAX_AMPLITUDE_PX
+  const parallaxY = mouseOffset.y * PARALLAX_AMPLITUDE_PX
+  /* Identical translate string for both 3D layers — composed *first* in
+   * each layer's transform chain so the shift lives in viewport space
+   * (uniform pixel amount regardless of the layer's own scale). */
+  const sharedParallax = `translate3d(${parallaxX.toFixed(2)}px, ${parallaxY.toFixed(2)}px, 0)`
+
   return (
     /*
      * Outer ScrollGlobe shell — locked to the spec the user signed off on
@@ -329,20 +414,58 @@ export function ScrollGlobe({ sections, globeConfig = defaultGlobeConfig, classN
         <div className="absolute left-1/2 top-0 bottom-0 w-0.5 lg:w-px bg-gradient-to-b from-transparent via-primary/20 to-transparent -translate-x-1/2 -z-10" />
       </nav>
 
+      {/* ──────────────────────────────────────────────────────────────
+          Hero 3D stage — Spline robot (back) + Globe (front).
+
+          Both layers are FIXED at the document root so the section
+          stacking contexts (z-20) can't trap them, and they share the
+          same `sharedParallax` translate string applied as the *first*
+          transform → identical pixel-perfect mouse drift on both, no
+          visual separation. Robot also fades out in unison with the
+          Globe scroll animation when the user leaves Hero (matching
+          1400ms ease curve), so the two layers transition as one
+          integrated unit instead of one disappearing while the other
+          continues moving.
+
+          Layer hierarchy (back → front, per user spec):
+            Robot 3D            z-[8]
+            Globe 3D            z-10
+            UI overlay / nav    z-25  (right-rail nav, progress bar)
+            Section content     z-30  (Geosyntra title, Sparkles, CTAs)
+          ────────────────────────────────────────────────────────────── */}
+      {/* Robot — only meaningful in Hero, fades synchronously with the
+          Globe's scroll glide. `pointer-events-none` on the wrapper so
+          the figure never blocks page scrolling; the inner Spline canvas
+          re-enables pointer events for the built-in mouse parallax. */}
+      <div
+        aria-hidden
+        className="gs-hero-robot fixed inset-y-0 right-0 z-[8] hidden md:flex items-center justify-end pointer-events-none transition-opacity duration-[1400ms] ease-[cubic-bezier(0.23,1,0.32,1)] will-change-transform"
+        style={{
+          width: 'min(58vw, 880px)',
+          opacity: activeSection === 0 ? 1 : 0,
+          transform: sharedParallax,
+        }}
+      >
+        <div className="gs-hero-robot__stage relative w-full h-[80%] max-h-[78vh] mr-2 md:mr-6 lg:mr-10 xl:mr-14 pointer-events-auto">
+          <SplineScene scene={SPLINE_HERO_SCENE_URL} className="w-full h-full" />
+        </div>
+      </div>
+
       {/* The pinned globe layer. `transition-all 1400ms` does the heavy
           lifting — every scroll tick just sets a new `transform` string and
           the browser eases the change. The fade-down on the last section
-          lets the hero copy take focus while the globe sits as a backdrop. */}
+          lets the hero copy take focus while the globe sits as a backdrop.
+          `sharedParallax` is composed FIRST so the mouse drift is in
+          viewport pixels (identical amount as the robot regardless of
+          per-section globe scale). */}
       <div
         aria-hidden
         className="fixed z-10 pointer-events-none will-change-transform transition-all duration-[1400ms] ease-[cubic-bezier(0.23,1,0.32,1)]"
         style={{
-          transform: globeTransform,
+          transform: `${sharedParallax} ${globeTransform}`,
           /* Globe fades on the closing section (existing upstream rule).
-           * In the Hero (index 0) the Globe now sits *in front* of the
-           * Spline robot (robot at z-[5], Globe at z-10), so it reads as
-           * the Earth the figure is holding — full opacity restored so
-           * the sphere stays solid and luminous over the dark robot. */
+           * Hero stays at full opacity so the Earth reads as a solid
+           * sphere held by the robot behind it. */
           filter: `opacity(${activeSection === sections.length - 1 ? 0.4 : 0.92})`,
         }}
       >
@@ -371,51 +494,24 @@ export function ScrollGlobe({ sections, globeConfig = defaultGlobeConfig, classN
             sectionRefs.current[index] = el
           }}
           className={cn(
-            'relative min-h-screen flex flex-col justify-center px-4 sm:px-6 md:px-8 lg:px-12 z-20 py-12 sm:py-16 lg:py-20',
+            /* z-30 puts the section above both the Globe (z-10) and the
+               Robot (z-[8]) per the user's layer hierarchy:
+                 Geosyntra title + Sparkles → CTAs → Globe → Robot. */
+            'relative min-h-screen flex flex-col justify-center px-4 sm:px-6 md:px-8 lg:px-12 z-30 py-12 sm:py-16 lg:py-20',
             'w-full max-w-full overflow-hidden',
             section.align === 'center' && 'items-center text-center',
             section.align === 'right' && 'items-end text-right',
             section.align !== 'center' && section.align !== 'right' && 'items-start text-left',
           )}
         >
-          {/* Hero-only Spline robot — sits on the right of the Geosyntra
-              wordmark with built-in mouse parallax. Renders as an absolute
-              sibling of the text column so the inline content layout
-              (max-w-* + flex justify-center) stays untouched. Hidden below
-              md so the wordmark + sparkles + CTAs stay legible on phones
-              (the upstream landing reads as a single-column hero on small
-              screens). The Spline runtime tracks the cursor itself so no
-              extra wiring is needed.
-
-              Layering: `z-[5]` keeps the robot BEHIND the fixed Globe
-              layer (`z-10`) so the Earth reads as if floating in front
-              of the figure — the user's "as if he's holding the Earth"
-              composition. Text + CTAs stay above both at `z-20`. */}
-          {index === 0 && (
-            <div
-              className={cn(
-                'gs-hero-robot pointer-events-auto',
-                'absolute inset-y-0 right-0 z-[5]',
-                'hidden md:flex items-center justify-end',
-                'w-1/2 lg:w-[55%] xl:w-[58%]',
-                'pr-2 md:pr-6 lg:pr-10 xl:pr-14',
-              )}
-              aria-hidden
-            >
-              <div className="gs-hero-robot__stage relative w-full h-[80%] max-h-[78vh]">
-                <SplineScene scene={SPLINE_HERO_SCENE_URL} className="w-full h-full" />
-              </div>
-            </div>
-          )}
-
           <div
             className={cn(
               'w-full max-w-sm sm:max-w-lg md:max-w-2xl lg:max-w-4xl xl:max-w-5xl will-change-transform transition-all duration-700',
               'opacity-100 translate-y-0',
               /* Hero text column stays narrower on tablets/desktops so the
-                 right-side Spline robot has room to breathe. The non-hero
-                 sections keep their original generous widths. */
-              index === 0 && 'md:max-w-[44%] lg:max-w-[42%] xl:max-w-[40%] relative z-20',
+                 right-side Spline robot + Globe stage has room to breathe.
+                 The non-hero sections keep their original generous widths. */
+              index === 0 && 'md:max-w-[44%] lg:max-w-[42%] xl:max-w-[40%]',
             )}
           >
             <h1
