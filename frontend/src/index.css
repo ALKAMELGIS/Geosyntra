@@ -4856,11 +4856,15 @@ aside {
   outline-offset: 2px;
 }
 
-/* 3D Globe / 2D projection — anchored to map top-right (outside centered toolbar) */
+/* 3D Globe / 2D projection — anchored to the map's bottom-right corner,
+ * stacked directly above the zoom cluster (which sits at `bottom: 16px`
+ * and is ~108px tall: 3 × 34px + 1 × 6px gap). The 132px offset leaves a
+ * 12px breathing gap between the two controls so they read as a tidy
+ * vertical column, not a single long pill. */
 .gis-map-projection-float {
   position: absolute;
-  top: 16px;
   right: 16px;
+  bottom: max(132px, calc(env(safe-area-inset-bottom, 0px) + 132px));
   z-index: 718;
   pointer-events: auto;
 }
@@ -13421,5 +13425,133 @@ textarea {
 
 .gis-map-tool-surface__url-copy .fa-check {
   color: #6ee7b7;
+}
+
+/* ============================================================================
+ * Geosyntra · Map projection toggle (2D ⇄ 3D Globe) — Black Glass override.
+ *
+ * The base rules at lines 4400-4433 paint the floating toggle in the legacy
+ * emerald palette: a dark navy capsule with seafoam glyphs (`#a7f3d0`) and
+ * a milk-white active row whose icon flips to deep emerald (`#047857`). On
+ * the redesigned black-glass map this looks like a stranded mint widget
+ * pasted over the chrome.
+ *
+ * Re-skin to neutral One UI Glass tones: the capsule stays charcoal-glass
+ * but with white-glass borders, glyphs sit in soft silver, hover lifts to
+ * a brighter silver, and the active row uses a tonal silver-on-charcoal
+ * fill (subtle inset highlight) instead of pure white-on-emerald — so the
+ * "currently selected projection" reads as a polished, slightly raised
+ * tile inside the same dark capsule.
+ *
+ * The in-panel non-float variant (used inside the Settings tool surface,
+ * lines 4394-4398) is also flipped from mint to charcoal-glass so the
+ * panel matches the rest of the dark tool surfaces. The Lite Mode mirror
+ * lives in `styles/light-glass-theme.css`.
+ * ========================================================================== */
+
+/* Floating capsule on the map — replaces the navy-on-mint look. */
+.gis-map-projection-toggle--vertical.gis-map-projection-toggle--float {
+  width: 40px;
+  background:
+    linear-gradient(180deg, rgba(20, 20, 26, 0.62), rgba(10, 10, 14, 0.78));
+  border: 1px solid rgba(255, 255, 255, 0.10);
+  border-radius: 14px;
+  backdrop-filter: blur(20px) saturate(150%);
+  -webkit-backdrop-filter: blur(20px) saturate(150%);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.06),
+    0 10px 28px rgba(0, 0, 0, 0.55);
+}
+
+.gis-map-projection-toggle--float .gis-map-tool {
+  height: 40px;
+  background: transparent;
+  border: none;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  color: rgba(232, 232, 238, 0.92);
+  transition:
+    background 0.18s ease,
+    color 0.18s ease,
+    box-shadow 0.18s ease;
+}
+
+.gis-map-projection-toggle--float .gis-map-tool:last-child {
+  border-bottom: none;
+}
+
+.gis-map-projection-toggle--float .gis-map-tool i {
+  color: rgba(212, 212, 220, 0.85);
+  font-size: 13px;
+  transition: color 0.18s ease, transform 0.18s ease;
+}
+
+.gis-map-projection-toggle--float .gis-map-tool:hover:not(.active) {
+  background: rgba(255, 255, 255, 0.06);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.gis-map-projection-toggle--float .gis-map-tool:hover:not(.active) i {
+  color: #ffffff;
+  transform: scale(1.05);
+}
+
+.gis-map-projection-toggle--float .gis-map-tool.active {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.18), rgba(255, 255, 255, 0.06));
+  color: #ffffff;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.18),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.35);
+}
+
+.gis-map-projection-toggle--float .gis-map-tool.active i {
+  color: #ffffff;
+}
+
+.gis-map-projection-toggle--float .gis-map-tool:focus-visible {
+  outline: none;
+  box-shadow:
+    inset 0 0 0 2px rgba(255, 255, 255, 0.55),
+    inset 0 1px 0 rgba(255, 255, 255, 0.10);
+}
+
+/* In-panel (Settings) variant — was a mint capsule, now matches dark
+ * tool surfaces. */
+.gis-map-projection-toggle--vertical:not(.gis-map-projection-toggle--float) {
+  background:
+    linear-gradient(180deg, rgba(20, 20, 26, 0.55), rgba(14, 14, 18, 0.62));
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  backdrop-filter: blur(18px) saturate(140%);
+  -webkit-backdrop-filter: blur(18px) saturate(140%);
+}
+
+.gis-map-projection-toggle--vertical:not(.gis-map-projection-toggle--float) .gis-map-tool {
+  background: transparent;
+  color: rgba(244, 244, 248, 0.96);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.gis-map-projection-toggle--vertical:not(.gis-map-projection-toggle--float) .gis-map-tool i {
+  color: rgba(212, 212, 220, 0.82);
+}
+
+.gis-map-projection-toggle--vertical:not(.gis-map-projection-toggle--float) .gis-map-tool:hover:not(.active) {
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.gis-map-projection-toggle--vertical:not(.gis-map-projection-toggle--float) .gis-map-tool:hover:not(.active) i {
+  color: #ffffff;
+}
+
+.gis-map-projection-toggle--vertical:not(.gis-map-projection-toggle--float) .gis-map-tool.active {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.12), rgba(255, 255, 255, 0.04));
+  color: #ffffff;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.10);
+}
+
+.gis-map-projection-toggle--vertical:not(.gis-map-projection-toggle--float) .gis-map-tool.active i {
+  color: #ffffff;
 }
 
