@@ -4,7 +4,6 @@ import { AppDialogProvider } from './components/AppDialogProvider'
 import HeaderBar from './components/HeaderBar'
 import NavMenu from './components/NavMenu'
 import AppRoutes from './routes/AppRoutes'
-import PersistentGeosyntraDashboardEmbed from './components/PersistentGeosyntraDashboardEmbed'
 import { AuthProvider, useAuth } from './state/auth'
 import { LanguageProvider } from './lib/i18n'
 import { SystemSettingsProvider } from './store/SystemSettingsContext'
@@ -142,18 +141,11 @@ function AppShell() {
 
   const isOnLogin = location.pathname === '/login'
   const showChrome = !!user && !isOnLogin
-  const isGeosyntraDashboard = location.pathname === '/dashboards/geosyntra'
-  const isDevelopDashboard = location.pathname === '/dashboard/develop'
-  /** Operations nav group: irrigation, EC/pH, harvest, QHIS, production, fertigation records */
+  /** Fertigation records is the only remaining `/data/*` route — keep its tight layout class. */
   const isOperationsDataPage = location.pathname.startsWith('/data/')
-  /** Soil / weather / irrigation / camera API integration pages */
-  const isSensorsPage = location.pathname.startsWith('/sensors/')
   const mainContentClass = [
     'content',
-    isGeosyntraDashboard && 'content--geosyntra-dashboard',
-    isDevelopDashboard && 'content--develop-dashboard',
     isOperationsDataPage && 'content--operations-fit',
-    isSensorsPage && 'content--sensors-fit',
   ]
     .filter(Boolean)
     .join(' ')
@@ -176,7 +168,6 @@ function AppShell() {
         {showChrome ? <NavMenu onLogout={handleLogout} /> : null}
         <main className={mainContentClass}>
           <AppRoutes />
-          <PersistentGeosyntraDashboardEmbed />
         </main>
       </div>
     </>

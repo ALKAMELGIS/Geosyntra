@@ -66,57 +66,6 @@ export const NAV_HOME: NavLeafDef = {
 
 export const NAV_DEFAULT_GROUPS: NavGroupDef[] = [
   {
-    id: 'dashboard',
-    i18nKey: 'dashboard',
-    defaultIcon: 'fa-solid fa-chart-line',
-    headerClass: 'nav-header-dashboard',
-    children: [
-      {
-        id: 'dashboard-develop',
-        path: '/dashboard/develop',
-        i18nKey: 'developDashboard',
-        defaultIcon: 'fa-solid fa-grip',
-        subitemClass: 'nav-item-dashboard-edit',
-      },
-      {
-        id: 'dashboard-geosyntra',
-        path: '/dashboards/geosyntra',
-        i18nKey: 'geosyntraDashboard',
-        defaultIcon: 'fa-solid fa-chart-pie',
-        subitemClass: 'nav-item-dashboard-geosyntra',
-      },
-      {
-        id: 'dashboard-agro',
-        path: '/dashboards/agro-dashboard',
-        i18nKey: 'agroDashboard',
-        defaultIcon: 'fa-solid fa-seedling',
-        subitemClass: 'nav-item-dashboard-agro-dash',
-      },
-      {
-        id: 'dashboard-esri-app',
-        path: '/dashboards/esri-app',
-        i18nKey: 'esriApp',
-        defaultIcon: 'fa-solid fa-map-location-dot',
-        subitemClass: 'nav-item-dashboard-edit',
-      },
-    ],
-  },
-  {
-    id: 'geosyntraAi',
-    i18nKey: 'geosyntraAi',
-    defaultIcon: 'fa-solid fa-cloud-bolt',
-    headerClass: 'nav-header-geosyntra-ai',
-    children: [
-      {
-        id: 'geosyntra-chat',
-        path: '/dashboards/geosyntra-chat',
-        i18nKey: 'geosyntraChat',
-        defaultIcon: 'fa-solid fa-comments',
-        subitemClass: 'nav-item-geosyntra-chat',
-      },
-    ],
-  },
-  {
     id: 'satellite',
     i18nKey: 'satelliteImagery',
     defaultIcon: 'fa-solid fa-satellite-dish',
@@ -149,78 +98,6 @@ export const NAV_DEFAULT_GROUPS: NavGroupDef[] = [
         i18nKey: 'gisMap',
         defaultIcon: 'fa-solid fa-map-location-dot',
         subitemClass: 'nav-item-gis-map',
-      },
-    ],
-  },
-  {
-    id: 'data',
-    i18nKey: 'operations',
-    defaultIcon: 'fa-solid fa-screwdriver-wrench',
-    headerClass: 'nav-header-data',
-    children: [
-      {
-        id: 'data-irrigation',
-        path: '/data/irrigation',
-        i18nKey: 'irrigation',
-        defaultIcon: 'fa-solid fa-water',
-        subitemClass: 'nav-item-irrigation',
-      },
-      {
-        id: 'data-ec-ph',
-        path: '/data/ec-ph',
-        i18nKey: 'ecph',
-        defaultIcon: 'fa-solid fa-droplet',
-        subitemClass: 'nav-item-ec-ph',
-      },
-      {
-        id: 'data-harvest',
-        path: '/data/harvest',
-        i18nKey: 'harvest',
-        defaultIcon: 'fa-solid fa-tractor',
-        subitemClass: 'nav-item-harvest',
-      },
-      {
-        id: 'data-qhis',
-        path: '/data/qhis',
-        i18nKey: 'qhis',
-        defaultIcon: 'fa-solid fa-shield-halved',
-        subitemClass: 'nav-item-qhis',
-      },
-      {
-        id: 'data-production',
-        path: '/data/production',
-        i18nKey: 'productTracking',
-        defaultIcon: 'fa-solid fa-boxes-stacked',
-        subitemClass: 'nav-item-production',
-      },
-    ],
-  },
-  {
-    id: 'sensors',
-    i18nKey: 'sensors',
-    defaultIcon: 'fa-solid fa-microchip',
-    headerClass: 'nav-header-sensors',
-    children: [
-      {
-        id: 'sensors-soil',
-        path: '/sensors/soil',
-        i18nKey: 'soilSensors',
-        defaultIcon: 'fa-solid fa-seedling',
-        subitemClass: 'nav-item-sensor-soil',
-      },
-      {
-        id: 'sensors-weather',
-        path: '/sensors/weather',
-        i18nKey: 'weatherSensors',
-        defaultIcon: 'fa-solid fa-cloud-sun',
-        subitemClass: 'nav-item-sensor-weather',
-      },
-      {
-        id: 'sensors-irrigation',
-        path: '/sensors/irrigation',
-        i18nKey: 'irrigationSensors',
-        defaultIcon: 'fa-solid fa-faucet-drip',
-        subitemClass: 'nav-item-sensor-irrigation',
       },
     ],
   },
@@ -283,20 +160,16 @@ export const NAV_GROUP_IDS = NAV_DEFAULT_GROUPS.map(g => g.id)
 /** Default sublist row class per group — mirrors first leaf style so custom pages match the group visually */
 export function defaultSubitemClassForNavGroup(groupId: string): string {
   const map: Record<string, string> = {
-    dashboard: 'nav-item-dashboard-edit',
-    geosyntraAi: 'nav-item-geosyntra-chat',
     satellite: 'nav-item-indices',
-    data: 'nav-item-ec-ph',
-    sensors: 'nav-item-sensor-soil',
     master: 'nav-item-master',
     admin: 'nav-item-admin',
   }
-  return map[groupId] ?? 'nav-item-ec-ph'
+  return map[groupId] ?? 'nav-item-master'
 }
 
 export function normalizedNavGroupId(raw: string | undefined): string {
-  const id = String(raw ?? 'data').trim()
-  return NAV_GROUP_IDS.includes(id) ? id : 'data'
+  const id = String(raw ?? 'master').trim()
+  return NAV_GROUP_IDS.includes(id) ? id : 'master'
 }
 
 function sortByIdList<T extends { id: string }>(items: T[], order: string[]): T[] {

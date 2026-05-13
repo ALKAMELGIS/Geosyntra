@@ -351,17 +351,8 @@ export default function NavMenu({ onLogout }: NavMenuProps) {
       return path === n || path.startsWith(`${n}/`)
     })
     if (custom?.navGroupId) return custom.navGroupId
-    if (
-      path.startsWith('/dashboards/geosyntra-ai') ||
-      path.startsWith('/dashboards/geosyntra-chat') ||
-      path.startsWith('/dashboards/ai-agro-')
-    )
-      return 'geosyntraAi'
-    if (path.startsWith('/dashboard')) return 'dashboard'
     if (path.startsWith('/satellite-intelligence-workspace')) return 'satellite'
     if (path.startsWith('/satellite/')) return 'satellite'
-    if (path.startsWith('/data/')) return 'data'
-    if (path.startsWith('/sensors/')) return 'sensors'
     if (path.startsWith('/master/')) return 'master'
     if (path.startsWith('/admin/')) return 'admin'
     if (path.startsWith('/account/')) return 'account'

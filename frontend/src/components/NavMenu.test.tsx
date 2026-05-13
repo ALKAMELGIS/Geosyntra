@@ -63,12 +63,12 @@ describe('NavMenu vertical responsive', () => {
         </SystemSettingsProvider>
       </MemoryRouter>,
     )
-    const ops = screen.getByRole('button', { name: /operations/i })
-    expect(ops).toHaveAttribute('aria-expanded', 'false')
-    fireEvent.keyDown(ops, { key: 'Enter' })
-    expect(ops).toHaveAttribute('aria-expanded', 'true')
-    fireEvent.keyDown(ops, { key: 'Escape' })
-    expect(ops).toHaveAttribute('aria-expanded', 'false')
+    const masterData = screen.getByRole('button', { name: /master data/i })
+    expect(masterData).toHaveAttribute('aria-expanded', 'false')
+    fireEvent.keyDown(masterData, { key: 'Enter' })
+    expect(masterData).toHaveAttribute('aria-expanded', 'true')
+    fireEvent.keyDown(masterData, { key: 'Escape' })
+    expect(masterData).toHaveAttribute('aria-expanded', 'false')
   })
 
   it('keeps primary navigation expanded on mobile (no hamburger toggle)', () => {
@@ -98,25 +98,28 @@ describe('NavMenu vertical responsive', () => {
         </SystemSettingsProvider>
       </MemoryRouter>,
     )
-    const ops = screen.getByRole('button', { name: /operations/i })
-    fireEvent.click(ops)
-    expect(ops).toHaveAttribute('aria-expanded', 'true')
+    const masterData = screen.getByRole('button', { name: /master data/i })
+    fireEvent.click(masterData)
+    expect(masterData).toHaveAttribute('aria-expanded', 'true')
     fireEvent.touchStart(document.body)
-    expect(ops).toHaveAttribute('aria-expanded', 'false')
+    expect(masterData).toHaveAttribute('aria-expanded', 'false')
   })
 
-  it('renders GIS Intelligence AI group with chat link only', () => {
+  it('renders the Settings group with the system-settings leaf', () => {
     setViewport(1280)
     render(
-      <MemoryRouter future={routerFuture} initialEntries={['/dashboard/develop']}>
+      <MemoryRouter future={routerFuture} initialEntries={['/admin/system-settings']}>
         <SystemSettingsProvider>
           <NavMenu />
         </SystemSettingsProvider>
       </MemoryRouter>,
     )
-    const groupHeader = screen.getByRole('button', { name: /^gis intelligence ai$/i })
+    const groupHeader = screen.getByRole('button', { name: /^settings$/i })
     expect(groupHeader).toBeInTheDocument()
     fireEvent.click(groupHeader)
-    expect(screen.getByRole('link', { name: /geosyntra chat/i })).toHaveAttribute('href', '/dashboards/geosyntra-chat')
+    expect(screen.getByRole('link', { name: /system settings/i })).toHaveAttribute(
+      'href',
+      '/admin/system-settings',
+    )
   })
 })

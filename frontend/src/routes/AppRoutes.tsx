@@ -2,11 +2,8 @@ import { Suspense, lazy } from 'react'
 import { Navigate, Route, Routes } from 'react-router-dom'
 import { useSystemSettings } from '../store/SystemSettingsContext'
 import DynamicBindPage from '../pages/system/DynamicBindPage'
-import GeosyntraDashboard from '../pages/dashboards/GeosyntraDashboard'
+import Home from '../pages/Home'
 import Login from '../pages/Login'
-import DashboardOverview from '../pages/dashboards/Overview'
-import DevelopDashboard from '../pages/dashboards/DevelopDashboard'
-import AgroDashboard from '../pages/dashboards/AgroDashboard'
 const SatelliteIntelligence = lazy(() => import('../pages/satellite/SatelliteIntelligence'))
 const SatelliteIntelligenceWorkspace = lazy(
   () => import('@satellite-intelligence-workspace/SatelliteIntelligenceWorkspaceApp'),
@@ -17,10 +14,6 @@ const SatelliteIntelligenceWorkspaceApiTokens = lazy(
 const SatelliteMultidimensional = lazy(() => import('../pages/satellite/Multidimensional'))
 const GisMap = lazy(() => import('../pages/satellite/GisMap'))
 const DataEntryFertigationRecords = lazy(() => import('../pages/data-entry/FertigationRecords'))
-const DataEntryIrrigation = lazy(() => import('../pages/data-entry/Irrigation'))
-const DataEntryHarvest = lazy(() => import('../pages/data-entry/Harvest'))
-const DataEntryQHIS = lazy(() => import('../pages/data-entry/QHIS'))
-const DataEntryECPH = lazy(() => import('../pages/data-entry/EC'))
 const DataEntryRecipes = lazy(() => import('../pages/data-entry/Recipes'))
 const AccountProfile = lazy(() => import('../pages/account/Profile'))
 const AccountSettings = lazy(() => import('../pages/account/Settings'))
@@ -28,15 +21,9 @@ const MasterGisContent = lazy(() => import('../pages/master/GisContent'))
 const DashboardSettings = lazy(() => import('../pages/master/DashboardSettings'))
 const AdminUsers = lazy(() => import('../pages/admin/Users'))
 const AdminGitHub = lazy(() => import('../pages/admin/GitHubIntegration'))
-const DashboardAiChatbot = lazy(() => import('../pages/dashboards/AiChatbot'))
-const DashboardModel = lazy(() => import('../pages/dashboards/Model'))
-const GeosyntraAi = lazy(() => import('../pages/dashboards/GeosyntraAi'))
-const GeosyntraChat = lazy(() => import('../pages/dashboards/GeosyntraChat'))
-const EsriApp = lazy(() => import('../pages/dashboards/EsriApp'))
 const StyleGuide = lazy(() => import('../pages/StyleGuide'))
 const UsabilityTest = lazy(() => import('../pages/UsabilityTest'))
 const SystemSettings = lazy(() => import('../pages/admin/SystemSettings'))
-const SensorIntegrationPage = lazy(() => import('../pages/sensors/SensorIntegrationPage'))
 
 export default function AppRoutes() {
   const { settings } = useSystemSettings()
@@ -44,50 +31,27 @@ export default function AppRoutes() {
     <Suspense fallback={null}>
       <Routes>
         <Route path="/login" element={<Login />} />
-        <Route path="/" element={<Navigate to="/dashboards/agro-dashboard" replace />} />
+        <Route path="/" element={<Home />} />
         <Route path="/satellite" element={<Navigate to="/satellite/indices" replace />} />
         <Route path="/data/fertigation" element={<Navigate to="/data/fertigation-records" replace />} />
         <Route path="/data/fertigation-records" element={<DataEntryFertigationRecords />} />
-        <Route path="/data/irrigation" element={<DataEntryIrrigation />} />
-        <Route path="/data/harvest" element={<DataEntryHarvest />} />
-        <Route path="/data/qhis" element={<DataEntryQHIS />} />
-        <Route path="/data/production" element={<DataEntryHarvest />} />
-        <Route path="/data/ec-ph" element={<DataEntryECPH />} />
         <Route path="/data/recipes/:formSlug" element={<DataEntryRecipes />} />
         <Route path="/satellite/indices" element={<SatelliteIntelligence />} />
         <Route path="/satellite-intelligence-workspace" element={<SatelliteIntelligenceWorkspace />} />
         <Route path="/satellite-intelligence-workspace/api-token" element={<SatelliteIntelligenceWorkspaceApiTokens />} />
         <Route path="/satellite/multidimensional" element={<SatelliteMultidimensional />} />
         <Route path="/satellite/gis" element={<GisMap />} />
-        <Route path="/dashboards/overview" element={<DashboardOverview />} />
-        <Route path="/dashboards/plant-ai" element={<Navigate to="/dashboards/overview" replace />} />
-        <Route path="/dashboards/ai-chatbot" element={<DashboardAiChatbot />} />
-        <Route path="/dashboards/model" element={<DashboardModel />} />
-        <Route path="/dashboards/geosyntra" element={<GeosyntraDashboard />} />
-        <Route path="/dashboards/agro-cloud" element={<Navigate to="/dashboards/geosyntra" replace />} />
-        <Route path="/dashboards/agro-dashboard" element={<AgroDashboard />} />
-        <Route path="/dashboards/geosyntra-ai" element={<GeosyntraAi />} />
-        <Route path="/dashboards/ai-agro-cloud" element={<Navigate to="/dashboards/geosyntra-ai" replace />} />
-        <Route path="/dashboards/geosyntra-chat" element={<GeosyntraChat />} />
-        <Route path="/dashboards/ai-agro-chat" element={<Navigate to="/dashboards/geosyntra-chat" replace />} />
-        <Route path="/dashboards/esri-app" element={<EsriApp />} />
         <Route path="/master/gis-content" element={<MasterGisContent />} />
         <Route path="/master/dashboard-settings" element={<DashboardSettings />} />
         <Route path="/master/workflow-settings" element={<AccountSettings />} />
         <Route path="/account/profile" element={<AccountProfile />} />
         <Route path="/account/profile-user-management" element={<Navigate to="/account/profile" replace />} />
         <Route path="/account/settings" element={<AccountSettings />} />
-        <Route path="/sensors/gps" element={<Navigate to="/sensors/soil" replace />} />
-        <Route path="/sensors/camera" element={<Navigate to="/sensors/soil" replace />} />
-        <Route path="/sensors/:sensorKind" element={<SensorIntegrationPage />} />
         <Route path="/admin/users" element={<AdminUsers />} />
         <Route path="/admin/github" element={<AdminGitHub />} />
         <Route path="/admin/system-settings" element={<SystemSettings />} />
         <Route path="/style-guide" element={<StyleGuide />} />
         <Route path="/usability-test" element={<UsabilityTest />} />
-        <Route path="/dashboard/develop" element={<DevelopDashboard />} />
-        <Route path="/dashboards/geodash" element={<Navigate to="/dashboards/agro-dashboard" replace />} />
-        <Route path="/dashboard/design" element={<Navigate to="/dashboards/overview" replace />} />
         {settings.customPages
           .filter(p => p.visible && p.path.trim())
           .map(p => (
@@ -102,4 +66,3 @@ export default function AppRoutes() {
     </Suspense>
   )
 }
-

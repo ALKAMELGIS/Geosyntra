@@ -1,0 +1,10 @@
+/* Empty white home canvas. Keeps the main area blank without any tiles, hero, or background art. */
+.home-blank {
+  width: 100%;
+  min-height: 100%;
+  background: #ffffff;
+}
+
+html[data-theme='dark'] .home-blank {
+  background: #ffffff;
+}
