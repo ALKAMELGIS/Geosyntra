@@ -1,34 +1,28 @@
 {
-  "id": "geosyntra-platform",
-  "name": "Geosyntra Platform",
+  "id": "geosyntra",
+  "name": "Geosyntra · Geospatial AI",
   "short_name": "Geosyntra",
-  "description": "Enterprise geospatial intelligence — satellite imagery, GIS, and operational workflows.",
+  "description": "Geospatial AI platform for satellite intelligence, GIS, and operational workflows.",
   "start_url": "./#/",
   "scope": "./",
   "display": "standalone",
   "orientation": "any",
-  "background_color": "#0b1220",
-  "theme_color": "#047857",
+  "background_color": "#07080c",
+  "theme_color": "#0a0a10",
   "lang": "en",
   "dir": "auto",
   "icons": [
     {
       "src": "favicon.svg",
-      "sizes": "512x512",
+      "sizes": "any",
       "type": "image/svg+xml",
       "purpose": "any"
     },
     {
-      "src": "favicon.png",
-      "sizes": "192x192",
-      "type": "image/png",
-      "purpose": "any"
-    },
-    {
-      "src": "favicon.png",
-      "sizes": "512x512",
-      "type": "image/png",
-      "purpose": "any"
+      "src": "favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "maskable"
     }
   ]
 }
