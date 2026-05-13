@@ -49,10 +49,10 @@ export interface ScrollGlobeProps {
 
 const defaultGlobeConfig = {
   positions: [
-    { top: '50%', left: '75%', scale: 1.4 },
-    { top: '25%', left: '50%', scale: 0.9 },
-    { top: '15%', left: '90%', scale: 2 },
-    { top: '50%', left: '50%', scale: 1.8 },
+    { top: '50%', left: '78%', scale: 1.25 }, // hero — right side, eye level
+    { top: '22%', left: '50%', scale: 0.85 }, // innovation — top centre, smaller
+    { top: '50%', left: '94%', scale: 1.7 },  // discovery — right edge, half-bleed
+    { top: '50%', left: '50%', scale: 1.7 },  // future — full-centre backdrop
   ],
 }
 
@@ -347,31 +347,28 @@ export interface GlobeScrollDemoProps {
 }
 
 /**
- * Geosyntra-flavoured demo content for the ScrollGlobe.
- * Mirrors the upstream four-panel structure (Welcome / Innovation / Discovery / Future)
- * but the copy is tuned to the platform's GIS + AI + satellite story.
+ * Geosyntra-flavoured ScrollGlobe demo. Structure, copy length, and rhythm
+ * mirror the upstream 21st.dev "Explore Our World" landing page bundle so the
+ * narrative arc stays familiar (Welcome → Innovation → Discovery → Future).
+ * CTAs are wired to platform routes so the page becomes a real entry point
+ * rather than a pure marketing splash.
  */
 export default function GlobeScrollDemo({ onPrimaryAction, onSecondaryAction }: GlobeScrollDemoProps = {}) {
+  const primary = onPrimaryAction ?? (() => console.info('[home] primary CTA'))
+  const secondary = onSecondaryAction ?? (() => console.info('[home] secondary CTA'))
+
   const sections: ScrollGlobeSection[] = [
     {
       id: 'hero',
       badge: 'Welcome',
-      title: 'Geosyntra',
-      subtitle: 'AI Geospatial Platform',
+      title: 'Explore',
+      subtitle: 'Our World',
       description:
-        'Step into an immersive Earth observation workspace where satellite intelligence, GIS data, and AI agents move in concert. Watch the planet come alive as you scroll — every pixel is a story waiting to be queried.',
+        'Journey through an immersive experience where technology meets innovation. Watch as perspectives shift and possibilities unfold with every interaction, creating a symphony of digital artistry.',
       align: 'left',
       actions: [
-        {
-          label: 'Begin Journey',
-          variant: 'primary',
-          onClick: onPrimaryAction ?? (() => console.info('[home] begin journey clicked')),
-        },
-        {
-          label: 'Learn More',
-          variant: 'secondary',
-          onClick: onSecondaryAction ?? (() => console.info('[home] learn more clicked')),
-        },
+        { label: 'Begin Journey', variant: 'primary', onClick: primary },
+        { label: 'Learn More', variant: 'secondary', onClick: secondary },
       ],
     },
     {
@@ -379,29 +376,29 @@ export default function GlobeScrollDemo({ onPrimaryAction, onSecondaryAction }: 
       badge: 'Innovation',
       title: 'Connected Worldwide',
       description:
-        'From every farm, mine, and city, the Geosyntra layer fuses live sensors, satellite imagery, and field operations into a single decision-grade timeline. Every connection drives smarter, faster geospatial action.',
+        'From every corner of the globe, we witness the interconnected web of human achievement. Each connection represents progress, every interaction drives innovation forward into uncharted territories.',
       align: 'center',
     },
     {
       id: 'discovery',
       badge: 'Discovery',
       title: 'Expanding',
-      subtitle: 'AI Possibilities',
+      subtitle: 'Possibilities',
       description:
-        'Push past the atlas: ask the planet questions and get answers. Geosyntra blends multispectral analytics, vector reasoning, and conversational AI to surface insights that classical GIS can\'t.',
+        'As we push beyond familiar boundaries, new worlds of opportunity emerge from the horizon. What seemed impossible yesterday becomes tomorrow\'s foundation for extraordinary achievements.',
       align: 'left',
       features: [
         {
           title: 'Limitless Exploration',
-          description: 'Query any region across time, indices, and bands without leaving the canvas.',
+          description: 'Discover new dimensions of possibility and innovation.',
         },
         {
           title: 'Seamless Integration',
-          description: 'Tokens, layers, and dashboards stay in sync with the rest of the workspace.',
+          description: 'Where cutting-edge technology meets human intuition.',
         },
         {
-          title: 'Future-Ready Intelligence',
-          description: 'Built for tomorrow\'s missions — agriculture, climate, infrastructure, and beyond.',
+          title: 'Future-Ready Solutions',
+          description: 'Built for tomorrow\'s challenges and opportunities.',
         },
       ],
     },
@@ -411,27 +408,14 @@ export default function GlobeScrollDemo({ onPrimaryAction, onSecondaryAction }: 
       title: 'Our Shared',
       subtitle: 'Tomorrow',
       description:
-        'In this moment of unity, we see not just a planet, but a canvas of infinite human potential. Every connection represents hope, every model builds bridges to a more sustainable future.',
+        'In this moment of unity, we see not just a planet, but a canvas of infinite human potential. Every connection represents hope, every innovation builds bridges to our collective future of endless possibilities.',
       align: 'center',
       actions: [
-        {
-          label: 'Open Satellite Intelligence',
-          variant: 'primary',
-          onClick: onPrimaryAction ?? (() => console.info('[home] open SI clicked')),
-        },
-        {
-          label: 'Browse Platform',
-          variant: 'secondary',
-          onClick: onSecondaryAction ?? (() => console.info('[home] browse platform clicked')),
-        },
+        { label: 'Join the Movement', variant: 'primary', onClick: primary },
+        { label: 'Explore More', variant: 'secondary', onClick: secondary },
       ],
     },
   ]
 
-  return (
-    <ScrollGlobe
-      sections={sections}
-      className="bg-gradient-to-br from-background via-muted/15 to-background"
-    />
-  )
+  return <ScrollGlobe sections={sections} />
 }

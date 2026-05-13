@@ -1,55 +1,58 @@
 /**
  * Semantic HSL tokens consumed by Tailwind `theme.extend.colors` (background, primary, …).
- * Both light and dark palettes mirror the AI black-glass aesthetic from `index.css`:
- *   - dark  = midnight + electric cyan + indigo accent
- *   - light = soft milky white + cool cyan/violet accents
+ *
+ * Both palettes resolve to the Geosyntra pure black-glass aesthetic — neutral charcoal
+ * surfaces, white-glass borders, white/silver primary, no color cast at all. The product
+ * is dark-glass first; "light" mode just shifts to a slightly elevated midnight.
+ *
  * Channel triplets are required for `hsl(var(--token) / <alpha-value>)`.
  */
+
 :root {
-  --background: 222 67% 5%;
-  --foreground: 230 70% 96%;
-  --card: 224 35% 12%;
-  --card-foreground: 230 70% 96%;
-  --muted: 226 30% 18%;
-  --muted-foreground: 220 14% 70%;
-  --accent: 234 89% 74%;
-  --accent-foreground: 230 100% 98%;
-  --primary: 187 85% 53%;
-  --primary-foreground: 222 67% 6%;
-  --border: 226 30% 22%;
-  --input: 226 30% 22%;
-  --ring: 187 85% 53%;
+  --background: 230 20% 5%;            /* #07080c */
+  --foreground: 240 10% 94%;           /* #ececf2 */
+  --card: 230 14% 11%;                 /* #181820 */
+  --card-foreground: 240 10% 94%;
+  --muted: 230 10% 18%;                /* #2a2a30 */
+  --muted-foreground: 240 8% 70%;
+  --accent: 240 4% 65%;                /* neutral silver-gray */
+  --accent-foreground: 230 20% 5%;
+  --primary: 240 6% 88%;               /* white-ish silver */
+  --primary-foreground: 230 20% 5%;
+  --border: 230 10% 22%;
+  --input: 230 10% 22%;
+  --ring: 240 6% 88%;
 }
 
 html[data-theme='light'] {
-  /* Light mode is intentionally a softer midnight glass — never white. */
-  --background: 226 60% 7%;
-  --foreground: 230 70% 96%;
-  --card: 226 38% 14%;
-  --card-foreground: 230 70% 96%;
-  --muted: 226 30% 20%;
-  --muted-foreground: 220 16% 72%;
-  --accent: 234 89% 76%;
-  --accent-foreground: 230 100% 98%;
-  --primary: 187 85% 55%;
-  --primary-foreground: 226 60% 7%;
-  --border: 226 30% 24%;
-  --input: 226 30% 24%;
-  --ring: 187 85% 55%;
+  /* "Light" stays on the same black-glass identity, just one stop brighter. */
+  --background: 230 18% 7%;            /* #0a0b10 */
+  --foreground: 240 12% 96%;
+  --card: 230 14% 13%;
+  --card-foreground: 240 12% 96%;
+  --muted: 230 10% 22%;
+  --muted-foreground: 240 8% 75%;
+  --accent: 240 4% 70%;
+  --accent-foreground: 230 18% 7%;
+  --primary: 240 6% 92%;
+  --primary-foreground: 230 18% 7%;
+  --border: 230 10% 26%;
+  --input: 230 10% 26%;
+  --ring: 240 6% 92%;
 }
 
 html[data-theme='dark'] {
-  --background: 222 67% 5%;
-  --foreground: 230 70% 96%;
-  --card: 224 35% 12%;
-  --card-foreground: 230 70% 96%;
-  --muted: 226 30% 18%;
-  --muted-foreground: 220 14% 70%;
-  --accent: 234 89% 74%;
-  --accent-foreground: 230 100% 98%;
-  --primary: 187 85% 53%;
-  --primary-foreground: 222 67% 6%;
-  --border: 226 30% 22%;
-  --input: 226 30% 22%;
-  --ring: 187 85% 53%;
+  --background: 230 20% 5%;
+  --foreground: 240 10% 94%;
+  --card: 230 14% 11%;
+  --card-foreground: 240 10% 94%;
+  --muted: 230 10% 18%;
+  --muted-foreground: 240 8% 70%;
+  --accent: 240 4% 65%;
+  --accent-foreground: 230 20% 5%;
+  --primary: 240 6% 88%;
+  --primary-foreground: 230 20% 5%;
+  --border: 230 10% 22%;
+  --input: 230 10% 22%;
+  --ring: 240 6% 88%;
 }
