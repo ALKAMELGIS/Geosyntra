@@ -2736,3 +2736,558 @@ html[data-theme='light'] .si-map-analysis-tl-nudge:hover {
   line-height: 1.35;
   color: var(--si-ctx-muted);
 }
+
+/* ============================================================================
+ * Geosyntra · Map toolbox & analysis dock — One UI Glass redesign.
+ *
+ * Why this block lives at the bottom: the upstream `satelliteMapAnalysisChrome
+ * .css` ships an indigo-rail / green-active / violet-tab palette that pre-dates
+ * the Geosyntra pure black-glass identity. Refactoring 2,300+ inline
+ * declarations would explode the diff and risk regressions. Appending one
+ * cohesive override block instead lets us:
+ *   - retag every visible chrome element to the pure black-glass identity
+ *     (charcoal surfaces, white-silver rims, no green / violet / indigo cast),
+ *   - layer in modern glassmorphism polish (24px backdrop-blur + 140% saturate,
+ *     deep shadow, neon-thin rim, generous radii, glass scrollbars),
+ *   - keep hover / active / disabled states semantically distinct (lift +
+ *     soft glass for hover, white-glass glow ring for active, transparent
+ *     gray for disabled) — matching Samsung One UI Glass / VisionOS / ArcGIS
+ *     Online Modern UI / Cesium Enterprise reference UIs,
+ *   - leave every original rule untouched so future upstream merges stay
+ *     reviewable and a one-line revert restores the legacy theme.
+ *
+ * Spec sources: user request 2026-05-13 — "Black Glass One UI", floating
+ * glass panels with thin transparent borders + strong blur + soft shadow,
+ * 18-24px radius, animated accordions, glow active state, frosted overlay,
+ * unified per-state coloring.
+ * ========================================================================== */
+
+/* Token overrides — both palettes resolve to the same pure black-glass
+ * identity. The legacy `#22c55e` / `#059669` accent (green) is replaced with
+ * a neutral white-silver so the active glow reads as "polished glass" rather
+ * than "tagged emerald". */
+.si-sat-ctx-dock {
+  --si-ctx-bg: rgba(10, 10, 14, 0.72);
+  --si-ctx-bg2: rgba(255, 255, 255, 0.05);
+  --si-ctx-border: rgba(255, 255, 255, 0.10);
+  --si-ctx-text: #f4f4f8;
+  --si-ctx-muted: rgba(218, 218, 225, 0.78);
+  --si-ctx-accent: #f4f4f8;
+  --si-ctx-glow: rgba(255, 255, 255, 0.22);
+  --si-ctx-radius-lg: 22px;
+  --si-ctx-radius-md: 16px;
+  --si-ctx-radius-sm: 12px;
+  --si-ctx-shadow-float:
+    0 30px 80px rgba(0, 0, 0, 0.65),
+    0 8px 22px rgba(0, 0, 0, 0.55),
+    inset 0 1px 0 rgba(255, 255, 255, 0.06),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.04);
+}
+
+.si-sat-ctx-dock--light {
+  --si-ctx-bg: rgba(14, 14, 18, 0.78);
+  --si-ctx-bg2: rgba(255, 255, 255, 0.06);
+  --si-ctx-border: rgba(255, 255, 255, 0.12);
+  --si-ctx-text: #f4f4f8;
+  --si-ctx-muted: rgba(220, 220, 228, 0.82);
+  --si-ctx-accent: #f4f4f8;
+  --si-ctx-glow: rgba(255, 255, 255, 0.26);
+}
+
+/* Outer shell — true floating glass island. Strong blur + saturate gives the
+ * VisionOS-style frosted depth; the deep shadow lifts the panel off the map
+ * so it stops feeling like a flat sticker. */
+.si-sat-ctx-dock,
+.si-sat-ctx-dock--light {
+  border-radius: var(--si-ctx-radius-lg);
+  box-shadow: var(--si-ctx-shadow-float);
+}
+
+.si-sat-ctx-dock--map .si-sat-ctx-rail,
+.si-sat-ctx-dock--light .si-sat-ctx-rail {
+  background: linear-gradient(180deg, rgba(12, 12, 16, 0.72) 0%, rgba(8, 8, 12, 0.82) 100%);
+  border-color: var(--si-ctx-border);
+  backdrop-filter: blur(24px) saturate(140%);
+  -webkit-backdrop-filter: blur(24px) saturate(140%);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.06),
+    inset -1px 0 0 rgba(255, 255, 255, 0.03);
+}
+
+/* Embedded panel (the right-hand content column) — same glass treatment so
+ * the rail + panel read as one continuous floating surface. */
+.si-sat-ctx-dock--map .si-sat-ctx-panel,
+.si-sat-ctx-dock--light .si-sat-ctx-panel {
+  background: linear-gradient(180deg, rgba(14, 14, 18, 0.74) 0%, rgba(10, 10, 14, 0.82) 100%);
+  border-color: var(--si-ctx-border);
+  backdrop-filter: blur(24px) saturate(140%);
+  -webkit-backdrop-filter: blur(24px) saturate(140%);
+  border-radius: 0 var(--si-ctx-radius-lg) var(--si-ctx-radius-lg) 0;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.06),
+    inset 1px 0 0 rgba(255, 255, 255, 0.03);
+}
+
+.si-sat-ctx-dock--map[dir='rtl'] .si-sat-ctx-panel,
+.si-sat-ctx-dock--light[dir='rtl'] .si-sat-ctx-panel {
+  border-radius: var(--si-ctx-radius-lg) 0 0 var(--si-ctx-radius-lg);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.06),
+    inset -1px 0 0 rgba(255, 255, 255, 0.03);
+}
+
+/* Brand strip ("MAP TOOLBOX" / "CONTEXT") — green chip → silver glass chip,
+ * caps title shifts to a soft silver gradient so it reads "premium" not "alert". */
+.si-sat-ctx-rail-brand__mark,
+.si-sat-ctx-rail-brand--open .si-sat-ctx-rail-brand__mark,
+.si-sat-ctx-dock--light .si-sat-ctx-rail-brand__mark,
+.si-sat-ctx-dock--light .si-sat-ctx-rail-brand--open .si-sat-ctx-rail-brand__mark {
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.12), rgba(255, 255, 255, 0.04));
+  color: #f4f4f8;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.10),
+    0 4px 14px rgba(0, 0, 0, 0.45);
+}
+
+.si-sat-ctx-rail-brand__title,
+.si-sat-ctx-dock--light .si-sat-ctx-rail-brand__title {
+  background: linear-gradient(180deg, #ffffff 0%, #c8c8d0 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  -webkit-text-fill-color: transparent;
+  text-shadow: 0 1px 0 rgba(0, 0, 0, 0.4);
+}
+
+/* Per-tool tile (Add data / Layers / Explore STAC / Remote sensing / AI /
+ * Geo AI). Hover = soft white-glass lift, active = white-glass ring + glow. */
+.si-sat-ctx-rail-btn {
+  border-radius: var(--si-ctx-radius-sm);
+  transition:
+    background 0.22s cubic-bezier(0.22, 1, 0.36, 1),
+    border-color 0.22s ease,
+    color 0.22s ease,
+    transform 0.18s ease,
+    box-shadow 0.22s ease;
+}
+
+.si-sat-ctx-rail-btn i {
+  color: rgba(232, 232, 238, 0.92);
+  text-shadow: 0 1px 1px rgba(0, 0, 0, 0.5);
+}
+
+.si-sat-ctx-rail-btn:hover,
+.si-sat-ctx-dock--light .si-sat-ctx-rail-btn:hover {
+  background: rgba(255, 255, 255, 0.06);
+  border-color: rgba(255, 255, 255, 0.12);
+  color: #ffffff;
+  transform: translateY(-1px);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.45);
+}
+
+.si-sat-ctx-rail-btn:hover i {
+  color: #ffffff;
+}
+
+.si-sat-ctx-rail-btn--active,
+.si-sat-ctx-dock--light .si-sat-ctx-rail-btn--active {
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.14) 0%, rgba(255, 255, 255, 0.06) 100%);
+  border-color: rgba(255, 255, 255, 0.24);
+  color: #ffffff;
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.16),
+    inset 0 1px 0 rgba(255, 255, 255, 0.10),
+    0 0 0 1px rgba(255, 255, 255, 0.08),
+    0 0 22px var(--si-ctx-glow),
+    0 6px 18px rgba(0, 0, 0, 0.55);
+}
+
+.si-sat-ctx-rail-btn--active i {
+  color: #ffffff;
+  text-shadow: 0 0 10px rgba(255, 255, 255, 0.45);
+}
+
+.si-sat-ctx-rail-btn:disabled,
+.si-sat-ctx-rail-btn[aria-disabled='true'] {
+  opacity: 0.42;
+  color: rgba(160, 160, 170, 0.55);
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+  background: transparent;
+}
+
+.si-sat-ctx-rail-btn:focus-visible {
+  outline: 2px solid rgba(255, 255, 255, 0.55);
+  outline-offset: 2px;
+}
+
+/* "Add data" map-rail tile — same glass treatment, no special green/blue cast. */
+.si-sat-ctx-dock--map-toolbox .si-sat-ctx-rail-add-data.si-sat-ctx-rail-btn--map > i.fa-plus {
+  color: #f4f4f8;
+}
+
+/* Map-rail collapse / strip-show toggles — were emerald + violet pills.
+ * Now neutral glass chips. */
+.si-sat-ctx-rail-collapse--map.si-sat-ctx-rail-collapse--labeled,
+.si-sat-ctx-dock--light .si-sat-ctx-rail-collapse--map.si-sat-ctx-rail-collapse--labeled,
+.si-sat-ctx-dock--map-toolbox.si-sat-ctx-dock--rail-narrow .si-sat-ctx-rail-collapse--map,
+.si-sat-ctx-dock--light.si-sat-ctx-dock--map-toolbox.si-sat-ctx-dock--rail-narrow .si-sat-ctx-rail-collapse--map {
+  background: linear-gradient(160deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0.03));
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  color: rgba(244, 244, 248, 0.94);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.08),
+    0 2px 12px rgba(0, 0, 0, 0.45);
+}
+
+.si-sat-ctx-rail-strip-show,
+.si-sat-ctx-dock--light .si-sat-ctx-rail-strip-show {
+  background: linear-gradient(160deg, rgba(255, 255, 255, 0.10), rgba(255, 255, 255, 0.04));
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  color: #ffffff;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.10),
+    0 4px 14px rgba(0, 0, 0, 0.45);
+}
+
+.si-sat-ctx-rail-strip-show:hover {
+  background: linear-gradient(160deg, rgba(255, 255, 255, 0.16), rgba(255, 255, 255, 0.08));
+  border-color: rgba(255, 255, 255, 0.24);
+}
+
+.si-sat-ctx-rail-strip-show__label,
+.si-sat-ctx-dock--light .si-sat-ctx-rail-strip-show__label {
+  color: rgba(244, 244, 248, 0.96);
+  letter-spacing: 0.08em;
+}
+
+.si-sat-ctx-rail-strip-hide,
+.si-sat-ctx-dock--light .si-sat-ctx-rail-strip-hide {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: rgba(232, 232, 238, 0.86);
+}
+
+.si-sat-ctx-rail-strip-hide:hover {
+  background: rgba(255, 255, 255, 0.10);
+  border-color: rgba(255, 255, 255, 0.20);
+}
+
+/* Tabs (Main / Options) — was a violet `rgba(99, 102, 241, …)` pill.
+ * Now a clean white-glass pill. */
+.si-sat-ctx-tabs {
+  border-bottom-color: rgba(255, 255, 255, 0.08);
+}
+
+.si-sat-ctx-tab {
+  border-radius: 10px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: rgba(218, 218, 225, 0.78);
+  transition:
+    background 0.22s ease,
+    color 0.22s ease,
+    border-color 0.22s ease,
+    box-shadow 0.22s ease;
+}
+
+.si-sat-ctx-tab:hover {
+  color: #f4f4f8;
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.si-sat-ctx-tab--on {
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.16), rgba(255, 255, 255, 0.06));
+  color: #ffffff;
+  border-color: rgba(255, 255, 255, 0.22);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.10),
+    0 0 18px rgba(255, 255, 255, 0.12);
+}
+
+/* Panel header (the row that holds the title + small icon buttons) — green
+ * underline → neutral glass underline. */
+.si-sat-ctx-panel-header {
+  border-bottom-color: rgba(255, 255, 255, 0.08);
+}
+
+.si-sat-ctx-panel-kicker {
+  color: rgba(220, 220, 228, 0.7);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  font-weight: 800;
+}
+
+.si-sat-ctx-panel-title {
+  color: #f4f4f8;
+  letter-spacing: -0.01em;
+  font-weight: 700;
+}
+
+/* Header icon buttons (settings cog / column-layout / X) — uniform glass
+ * squircles matching the rest of the system. */
+.si-sat-ctx-icon-btn {
+  width: 32px;
+  height: 32px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: rgba(232, 232, 238, 0.88);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition:
+    background 0.18s ease,
+    border-color 0.18s ease,
+    color 0.18s ease,
+    transform 0.16s ease;
+}
+
+.si-sat-ctx-icon-btn:hover {
+  background: rgba(255, 255, 255, 0.10);
+  border-color: rgba(255, 255, 255, 0.22);
+  color: #ffffff;
+  transform: translateY(-1px);
+}
+
+.si-sat-ctx-icon-btn:focus-visible {
+  outline: 2px solid rgba(255, 255, 255, 0.55);
+  outline-offset: 2px;
+}
+
+/* Layer chip in the "ADDED LAYERS" list — was a green-rim active card.
+ * Now glass with a white-silver rim + subtle inner glow when active. */
+.si-map-analysis-layer-chip,
+.si-sat-ctx-dock--light .si-map-analysis-layer-chip {
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.10);
+  border-radius: 14px;
+  color: #f4f4f8;
+  transition:
+    background 0.22s ease,
+    border-color 0.22s ease,
+    box-shadow 0.22s ease;
+}
+
+.si-map-analysis-layer-chip:hover,
+.si-sat-ctx-dock--light .si-map-analysis-layer-chip:hover {
+  background: rgba(255, 255, 255, 0.07);
+  border-color: rgba(255, 255, 255, 0.18);
+}
+
+.si-map-analysis-layer-chip--active,
+.si-map-analysis-layer-chip.is-active,
+.si-map-analysis-layer-chip[data-active='true'] {
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.10), rgba(255, 255, 255, 0.04));
+  border-color: rgba(255, 255, 255, 0.22);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.10),
+    0 0 18px rgba(255, 255, 255, 0.10);
+}
+
+/* Chart card surface inside the dock body — same glass card treatment. */
+.si-map-analysis-chart-card,
+.si-sat-ctx-dock--light .si-map-analysis-chart-card {
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.10);
+  border-radius: var(--si-ctx-radius-md);
+}
+
+/* Smart Processing workflow (inside the toolbox panel) — neutralise the
+ * indigo / emerald accents on cat-toggles, chips, and tools. */
+.si-smart-proc__context,
+.si-sat-ctx-dock--light .si-smart-proc__context {
+  background: linear-gradient(165deg, rgba(255, 255, 255, 0.05), rgba(255, 255, 255, 0.02));
+  border-color: rgba(255, 255, 255, 0.10);
+}
+
+.si-smart-proc__cat-toggle,
+.si-sat-ctx-dock--light .si-smart-proc__cat-toggle {
+  background: rgba(255, 255, 255, 0.04);
+  border-color: rgba(255, 255, 255, 0.10);
+  color: #f4f4f8;
+  border-radius: 12px;
+  transition:
+    background 0.2s ease,
+    border-color 0.2s ease,
+    box-shadow 0.2s ease;
+}
+
+.si-smart-proc__cat-toggle:hover,
+.si-sat-ctx-dock--light .si-smart-proc__cat-toggle:hover {
+  background: rgba(255, 255, 255, 0.07);
+  border-color: rgba(255, 255, 255, 0.18);
+}
+
+.si-smart-proc__cat-toggle--on {
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.10), rgba(255, 255, 255, 0.04));
+  border-color: rgba(255, 255, 255, 0.22);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.10),
+    0 0 16px rgba(255, 255, 255, 0.08);
+}
+
+.si-smart-proc__chip,
+.si-sat-ctx-dock--light .si-smart-proc__chip {
+  background: rgba(255, 255, 255, 0.04);
+  border-color: rgba(255, 255, 255, 0.10);
+  color: #f4f4f8;
+  border-radius: 12px;
+  transition:
+    background 0.2s ease,
+    border-color 0.2s ease,
+    transform 0.14s ease;
+}
+
+.si-smart-proc__chip:hover {
+  background: rgba(255, 255, 255, 0.07);
+  border-color: rgba(255, 255, 255, 0.18);
+  transform: translateY(-1px);
+}
+
+.si-smart-proc__chip i,
+.si-sat-ctx-dock--light .si-smart-proc__chip i {
+  color: rgba(232, 232, 238, 0.92);
+}
+
+.si-smart-proc__tool,
+.si-sat-ctx-dock--light .si-smart-proc__tool {
+  background: rgba(255, 255, 255, 0.03);
+  border-color: rgba(255, 255, 255, 0.08);
+  color: #f4f4f8;
+  border-radius: 12px;
+  transition:
+    background 0.2s ease,
+    border-color 0.2s ease;
+}
+
+.si-smart-proc__tool:hover {
+  background: rgba(255, 255, 255, 0.06);
+  border-color: rgba(255, 255, 255, 0.18);
+}
+
+.si-smart-proc__tool i {
+  color: rgba(232, 232, 238, 0.88);
+}
+
+/* Toolbox option button + popup config select — neutralise the indigo +
+ * cyan/teal hints. */
+.si-sat-ctx-toolbox-opt-btn,
+.si-sat-ctx-dock--light .si-sat-ctx-toolbox-opt-btn {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: #f4f4f8;
+  border-radius: 12px;
+  transition:
+    background 0.18s ease,
+    border-color 0.18s ease;
+}
+
+.si-sat-ctx-toolbox-opt-btn:hover {
+  background: rgba(255, 255, 255, 0.10);
+  border-color: rgba(255, 255, 255, 0.22);
+}
+
+.si-sat-ctx-toolbox-opt-btn i,
+.si-sat-ctx-dock--light .si-sat-ctx-toolbox-opt-btn i {
+  color: rgba(232, 232, 238, 0.92);
+}
+
+.si-sat-ctx-dock--light .si-map-toolbox-layer-popup-cfg__field select,
+.si-map-toolbox-layer-popup-cfg__field select {
+  background: rgba(255, 255, 255, 0.05);
+  border-color: rgba(255, 255, 255, 0.14);
+  color: #f4f4f8;
+  border-radius: 10px;
+}
+
+.si-sat-ctx-dock--light .si-map-toolbox-layer-popup-cfg__btn,
+.si-map-toolbox-layer-popup-cfg__btn {
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.14), rgba(255, 255, 255, 0.06));
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  color: #ffffff;
+  border-radius: 10px;
+}
+
+/* Sub-nav back button (drill-in / drill-out within the dock) — neutral. */
+.si-sat-ctx-subnav,
+.si-sat-ctx-dock--light .si-sat-ctx-subnav {
+  border-bottom-color: rgba(255, 255, 255, 0.08);
+}
+
+.si-sat-ctx-subnav-back {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: rgba(232, 232, 238, 0.92);
+  border-radius: 10px;
+  transition:
+    background 0.18s ease,
+    border-color 0.18s ease;
+}
+
+.si-sat-ctx-subnav-back:hover {
+  background: rgba(255, 255, 255, 0.10);
+  border-color: rgba(255, 255, 255, 0.22);
+  color: #ffffff;
+}
+
+.si-sat-ctx-subnav-crumb {
+  color: rgba(220, 220, 228, 0.78);
+}
+
+/* Glass scrollbar — slim white-glass thumb on transparent track, used inside
+ * any element that scrolls within the dock body. Keeps the chrome cohesive
+ * with the rest of the panel instead of dropping back to native browser
+ * scrollbars (which look like grey blobs on the dark glass surface). */
+.si-sat-ctx-dock *::-webkit-scrollbar,
+.si-sat-ctx-dock--light *::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+.si-sat-ctx-dock *::-webkit-scrollbar-track,
+.si-sat-ctx-dock--light *::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.si-sat-ctx-dock *::-webkit-scrollbar-thumb,
+.si-sat-ctx-dock--light *::-webkit-scrollbar-thumb {
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.18), rgba(255, 255, 255, 0.08));
+  border-radius: 8px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+  transition: background 0.2s ease;
+}
+
+.si-sat-ctx-dock *::-webkit-scrollbar-thumb:hover,
+.si-sat-ctx-dock--light *::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.28), rgba(255, 255, 255, 0.14));
+  background-clip: padding-box;
+}
+
+.si-sat-ctx-dock,
+.si-sat-ctx-dock--light {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.20) transparent;
+}
+
+/* Reduced motion: kill hover lifts (the active glow stays — it's a state
+ * indicator, not a transition). */
+@media (prefers-reduced-motion: reduce) {
+  .si-sat-ctx-rail-btn,
+  .si-sat-ctx-icon-btn,
+  .si-sat-ctx-tab,
+  .si-smart-proc__chip,
+  .si-map-analysis-layer-chip {
+    transition: none !important;
+  }
+  .si-sat-ctx-rail-btn:hover,
+  .si-sat-ctx-icon-btn:hover,
+  .si-smart-proc__chip:hover {
+    transform: none !important;
+  }
+}
+
