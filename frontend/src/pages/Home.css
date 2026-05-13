@@ -23,3 +23,66 @@
 .home-landing .gs-scroll-globe section {
   background: transparent;
 }
+
+/*
+ * Hero brand mark — pearl-white glossy treatment.
+ *
+ * The base gradient (white → slate-200 → slate-400) is set inline via
+ * Tailwind on the wrapper. This block adds:
+ *   1. A second highlight band at 35–55% via `background-image` overlay,
+ *      simulating a soft sweep of cool light across the top of the
+ *      letters (the "wet pearl" reflection).
+ *   2. A faint outer glow via `drop-shadow` so the mark stays luminous
+ *      against the dark globe backdrop without becoming a glow blob.
+ *   3. A keyframed `gs-pearl-shimmer` that slowly drifts the highlight
+ *      band so the wordmark feels alive — disabled under
+ *      `prefers-reduced-motion`.
+ */
+.home-landing .gs-pearl-title {
+  background-image:
+    linear-gradient(135deg,
+      rgba(255, 255, 255, 0.95) 0%,
+      rgba(241, 245, 249, 1) 28%,
+      rgba(255, 255, 255, 0.98) 48%,
+      rgba(203, 213, 225, 0.95) 68%,
+      rgba(148, 163, 184, 0.85) 100%);
+  background-size: 200% 200%;
+  background-position: 50% 50%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  filter:
+    drop-shadow(0 0 18px rgba(255, 255, 255, 0.18))
+    drop-shadow(0 2px 14px rgba(148, 163, 184, 0.22));
+  animation: gs-pearl-shimmer 7s ease-in-out infinite;
+}
+
+@keyframes gs-pearl-shimmer {
+  0%, 100% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .home-landing .gs-pearl-title {
+    animation: none;
+  }
+}
+
+/* Lite Mode — pearl deepens to slate so the wordmark stays readable on a
+   bright frosted-white background. */
+html[data-theme='light'] .home-landing .gs-pearl-title {
+  background-image:
+    linear-gradient(135deg,
+      rgba(15, 23, 42, 0.96) 0%,
+      rgba(30, 41, 59, 0.92) 30%,
+      rgba(71, 85, 105, 0.95) 55%,
+      rgba(30, 41, 59, 0.96) 80%,
+      rgba(15, 23, 42, 0.98) 100%);
+  filter:
+    drop-shadow(0 1px 0 rgba(255, 255, 255, 0.5))
+    drop-shadow(0 6px 22px rgba(15, 23, 42, 0.18));
+}

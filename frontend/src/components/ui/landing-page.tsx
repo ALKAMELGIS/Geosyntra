@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import Globe from './globe'
+import { SparklesCore } from './sparkles'
 import { cn } from '@/lib/utils'
 
 /**
@@ -371,12 +372,56 @@ export function ScrollGlobe({ sections, globeConfig = defaultGlobeConfig, classN
                     {section.subtitle}
                   </div>
                 </div>
+              ) : index === 0 ? (
+                /*
+                 * Hero brand mark — Geosyntra in pearl-white glossy fill.
+                 * Stack:
+                 *   - Layered gradient (#fff → #cbd5e1 → #f8fafc → #94a3b8)
+                 *     clipped to text → simulates a polished pearl reflecting
+                 *     a soft cool light from the upper-left to the lower-right.
+                 *   - Soft drop-shadow halo via `gs-pearl-title` keeps the
+                 *     mark luminous against the dark globe backdrop without
+                 *     turning into a glow blob.
+                 */
+                <div className="gs-pearl-title bg-gradient-to-br from-white via-slate-200 to-slate-400 bg-clip-text text-transparent">
+                  {section.title}
+                </div>
               ) : (
                 <div className="bg-gradient-to-r from-foreground via-foreground to-foreground/80 bg-clip-text text-transparent">
                   {section.title}
                 </div>
               )}
             </h1>
+
+            {/*
+             * Sparkles bar — only for the Hero section. Mirrors the upstream
+             * Aceternity SparklesPreview demo (gradient lines + drifting
+             * starfield + radial mask) but neutralises the indigo / sky
+             * accents to a cool white-glass ramp so it stays inside the
+             * Geosyntra Black-Glass identity.
+             */}
+            {index === 0 && (
+              <div className="relative w-full max-w-[40rem] h-28 sm:h-36 -mt-2 mb-6 sm:mb-8 select-none">
+                <div className="absolute inset-x-[15%] top-0 h-[2px] w-[70%] bg-gradient-to-r from-transparent via-slate-200/80 to-transparent blur-sm" />
+                <div className="absolute inset-x-[15%] top-0 h-px w-[70%] bg-gradient-to-r from-transparent via-slate-100/90 to-transparent" />
+                <div className="absolute inset-x-[35%] top-0 h-[5px] w-[30%] bg-gradient-to-r from-transparent via-white/85 to-transparent blur-sm" />
+                <div className="absolute inset-x-[35%] top-0 h-px w-[30%] bg-gradient-to-r from-transparent via-white to-transparent" />
+
+                <SparklesCore
+                  background="transparent"
+                  minSize={0.4}
+                  maxSize={1}
+                  particleDensity={1200}
+                  className="w-full h-full"
+                  particleColor="#FFFFFF"
+                />
+
+                {/* Soft radial mask so the starfield bleeds out at the edges
+                    (no hard rectangle) and never paints over the description
+                    paragraph below. */}
+                <div className="pointer-events-none absolute inset-0 w-full h-full bg-background [mask-image:radial-gradient(380px_180px_at_top,transparent_18%,black)]" />
+              </div>
+            )}
 
             <div
               className={cn(
