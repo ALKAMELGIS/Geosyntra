@@ -498,10 +498,9 @@ export default function GlobeScrollDemo({
     {
       id: 'hero',
       badge: 'Welcome',
-      title: 'Explore',
-      subtitle: 'Our World',
+      title: 'Geosyntra',
       description:
-        'Journey through an immersive experience where technology meets innovation. Watch as perspectives shift and possibilities unfold with every interaction, creating a symphony of digital artistry.',
+        'Journey through an intelligent geospatial ecosystem where GIS, Remote Sensing, and smart technologies converge. Explore dynamic spatial insights, advanced analytics, and immersive digital experiences designed to transform data into intelligent decision-making.',
       align: 'left',
       actions: [
         { label: 'Begin Journey', variant: 'primary', onClick: primary },
