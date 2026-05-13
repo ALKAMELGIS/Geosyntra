@@ -1,5 +1,6 @@
 import { useNavigate } from 'react-router-dom'
 import LandingPage from '../components/ui/landing-page'
+import HeroThemeToggle from './components/HeroThemeToggle'
 import './Home.css'
 
 /**
@@ -40,6 +41,15 @@ export default function Home() {
         onPrimaryAction={() => navigate('/satellite/indices')}
         onSecondaryAction={() => navigate('/learn-more')}
       />
+      {/* Floating Dark/Light preview toggle — Home page only.
+       *   Lives outside <LandingPage /> so it isn't trapped inside
+       *   any per-section stacking context (the sections create
+       *   z-30 contexts that would otherwise pin the pill to a
+       *   single panel). Mounting it here keeps it `position: fixed`
+       *   relative to the viewport across every Hero / Innovation /
+       *   Discovery / Future scroll. The component owns its own
+       *   z-index (35) so it doesn't need any outer wrapper styling. */}
+      <HeroThemeToggle />
     </div>
   )
 }
