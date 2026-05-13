@@ -3,8 +3,6 @@ import { Navigate, Route, Routes } from 'react-router-dom'
 import { useSystemSettings } from '../store/SystemSettingsContext'
 import DynamicBindPage from '../pages/system/DynamicBindPage'
 import GeosyntraDashboard from '../pages/dashboards/GeosyntraDashboard'
-/** Eager-loaded: avoid full-route Suspense spinner on first paint / dashboard navigation */
-import Home from '../pages/Home'
 import Login from '../pages/Login'
 import DashboardOverview from '../pages/dashboards/Overview'
 import DevelopDashboard from '../pages/dashboards/DevelopDashboard'
@@ -46,7 +44,7 @@ export default function AppRoutes() {
     <Suspense fallback={null}>
       <Routes>
         <Route path="/login" element={<Login />} />
-        <Route path="/" element={<Home />} />
+        <Route path="/" element={<Navigate to="/dashboards/agro-dashboard" replace />} />
         <Route path="/satellite" element={<Navigate to="/satellite/indices" replace />} />
         <Route path="/data/fertigation" element={<Navigate to="/data/fertigation-records" replace />} />
         <Route path="/data/fertigation-records" element={<DataEntryFertigationRecords />} />

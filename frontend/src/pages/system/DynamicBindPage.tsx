@@ -1,5 +1,4 @@
 import { Suspense, lazy } from 'react'
-import Home from '../Home'
 import Overview from '../dashboards/Overview'
 
 const GisMap = lazy(() => import('../satellite/GisMap'))
@@ -14,17 +13,12 @@ function Placeholder({ title }: { title: string }) {
   )
 }
 
+/** `home` is preserved as a legacy value for stored CustomPageRecords; it now renders the placeholder. */
 export type BindTarget = 'placeholder' | 'home' | 'gis' | 'satellite-indices' | 'dashboards-overview'
 
 export default function DynamicBindPage({ bindTarget, title }: { bindTarget: BindTarget; title: string }) {
   const fb = <div style={{ padding: 16 }}>Loading…</div>
   switch (bindTarget) {
-    case 'home':
-      return (
-        <Suspense fallback={fb}>
-          <Home />
-        </Suspense>
-      )
     case 'gis':
       return (
         <Suspense fallback={fb}>
