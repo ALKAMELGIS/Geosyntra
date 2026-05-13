@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, useCallback, useMemo } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import Globe from './globe'
 import { cn } from '@/lib/utils'
 
@@ -13,17 +13,28 @@ import { cn } from '@/lib/utils'
  * → Future, the Earth glides + scales between four positions, producing the
  * "scroll-driven 3D landing" effect that defines the upstream design.
  *
- * Implementation notes:
- *  - Markup, class strings, and section rhythm intentionally mirror the
- *    upstream JSX so visual parity with the reference bundle is byte-tight.
- *  - The progress-bar/title/CTA gradients are the only deliberate deviation:
- *    upstream uses a blue ramp (`primary → blue-600 → blue-900`); we map that
- *    to the Geosyntra pure black-glass tokens (`primary → accent → accent/60`)
- *    so the chrome stays neutral white-silver as required by the brand.
- *  - The hosting page can pass `className` (e.g. the upstream
- *    `bg-gradient-to-br from-background via-muted/20 to-background` sweep)
- *    and `onPrimaryAction`/`onSecondaryAction` so each CTA wires to a real
- *    platform route instead of `console.log`.
+ * Geosyntra-specific deviations from the upstream snippet (kept narrow on
+ * purpose so visual parity stays byte-tight):
+ *
+ *  1. **Scroll-source detection** (this is the big one).
+ *     The upstream demo lives at the document root, so it can attach to
+ *     `window.scroll` and read `window.pageYOffset`. The Geosyntra app
+ *     mounts the Home page inside `<main class="content">` which itself
+ *     has `overflow-y: auto` (header + sidebar are pinned siblings). If we
+ *     listen to `window` here, the scroll event never fires and the globe
+ *     never moves. We therefore walk up the DOM at mount time, find the
+ *     first ancestor whose computed `overflow-y` is `auto` or `scroll`, and
+ *     attach to *that*. Falls through to `window` when run standalone (e.g.
+ *     a Storybook preview, or a route that lives in the document scroll).
+ *
+ *  2. The hosting page can pass `className` (e.g. the upstream
+ *     `bg-gradient-to-br from-background via-muted/20 to-background` sweep)
+ *     and `onPrimaryAction`/`onSecondaryAction` so each CTA wires to a real
+ *     platform route instead of the upstream `console.log`.
+ *
+ * Everything else — class strings, transition curves, section rhythm,
+ * description copy, progress-bar gradient, label fade — mirrors the bundle
+ * markup exactly so the page feels identical to the 21st.dev reference.
  */
 
 type SectionAlign = 'left' | 'center' | 'right'
@@ -68,7 +79,7 @@ export interface ScrollGlobeProps {
  * centred near the top; discovery throws it 90 % off-screen for half-bleed
  * effect; future centres a 1.8× mass behind the closing copy.
  */
-const defaultGlobeConfig = {
+const defaultGlobeConfig: { positions: ScrollGlobePosition[] } = {
   positions: [
     { top: '50%', left: '75%', scale: 1.4 },
     { top: '25%', left: '50%', scale: 0.9 },
@@ -79,6 +90,30 @@ const defaultGlobeConfig = {
 
 const parsePercent = (str: string): number => parseFloat(str.replace('%', ''))
 
+/**
+ * Walk up from `el` and return the first ancestor whose computed `overflow-y`
+ * is `auto` or `scroll` — i.e. the element that actually receives wheel /
+ * touchmove → scroll events when this region is scrolled. Falls back to
+ * `window` when nothing matches (page lives in the document scroll).
+ *
+ * We deliberately check `overflow-y` rather than the `overflow` shorthand:
+ * the Geosyntra `<main class="content">` sets `overflow-y: auto` +
+ * `overflow-x: hidden`, which would not match a strict `overflow: auto` test.
+ */
+function findScrollContainer(el: HTMLElement | null): HTMLElement | Window {
+  if (typeof window === 'undefined') return typeof globalThis !== 'undefined' ? (globalThis as unknown as Window) : (null as unknown as Window)
+  let node: HTMLElement | null = el?.parentElement ?? null
+  while (node && node !== document.body) {
+    const style = window.getComputedStyle(node)
+    if (style.overflowY === 'auto' || style.overflowY === 'scroll') return node
+    node = node.parentElement
+  }
+  return window
+}
+
+const isWindow = (target: HTMLElement | Window): target is Window =>
+  typeof window !== 'undefined' && target === window
+
 export function ScrollGlobe({ sections, globeConfig = defaultGlobeConfig, className }: ScrollGlobeProps) {
   const [activeSection, setActiveSection] = useState(0)
   const [scrollProgress, setScrollProgress] = useState(0)
@@ -86,6 +121,7 @@ export function ScrollGlobe({ sections, globeConfig = defaultGlobeConfig, classN
   const containerRef = useRef<HTMLDivElement>(null)
   const sectionRefs = useRef<(HTMLElement | null)[]>([])
   const animationFrameId = useRef<number | undefined>(undefined)
+  const scrollSourceRef = useRef<HTMLElement | Window | null>(null)
 
   const calculatedPositions = useMemo(
     () =>
@@ -101,17 +137,26 @@ export function ScrollGlobe({ sections, globeConfig = defaultGlobeConfig, classN
    * Direct scroll → globe-transform mapping (no easing on the value itself —
    * the smoothness comes from the 1.4 s CSS transition on the wrapper).
    *
-   * We intentionally read scroll metrics off the *parent* of the component if
-   * one exists, because the Geosyntra shell scrolls inside `<main>` rather
-   * than the document. Falls back to the document root when used standalone
-   * (e.g. inside a Storybook preview).
+   * Section detection uses `getBoundingClientRect()` which is viewport-
+   * relative, so it doesn't matter whether the scroller is `window` or an
+   * inner `<main>` — the section closest to the viewport vertical centre
+   * is always the active one.
    */
   const updateScrollPosition = useCallback(() => {
-    const scrollEl = containerRef.current?.parentElement ?? document.documentElement
-    const scrollTop = scrollEl.scrollTop || window.pageYOffset
-    const docHeight =
-      (scrollEl.scrollHeight || document.documentElement.scrollHeight) -
-      (scrollEl.clientHeight || window.innerHeight)
+    const source = scrollSourceRef.current
+    let scrollTop = 0
+    let scrollHeight = 0
+    let clientHeight = window.innerHeight
+    if (source && !isWindow(source)) {
+      scrollTop = source.scrollTop
+      scrollHeight = source.scrollHeight
+      clientHeight = source.clientHeight
+    } else {
+      scrollTop = window.pageYOffset || document.documentElement.scrollTop
+      scrollHeight = document.documentElement.scrollHeight
+      clientHeight = window.innerHeight
+    }
+    const docHeight = scrollHeight - clientHeight
     const progress = docHeight > 0 ? Math.min(Math.max(scrollTop / docHeight, 0), 1) : 0
     setScrollProgress(progress)
 
@@ -138,6 +183,12 @@ export function ScrollGlobe({ sections, globeConfig = defaultGlobeConfig, classN
   }, [calculatedPositions])
 
   useEffect(() => {
+    /* Find the real scroller once on mount. We do this lazily inside the
+     * effect (not at render time) so the DOM is fully wired up before we
+     * walk it. */
+    const source = findScrollContainer(containerRef.current)
+    scrollSourceRef.current = source
+
     let ticking = false
     const handleScroll = () => {
       if (ticking) return
@@ -147,17 +198,26 @@ export function ScrollGlobe({ sections, globeConfig = defaultGlobeConfig, classN
       })
       ticking = true
     }
-    const scrollTarget: Window | HTMLElement = containerRef.current?.parentElement ?? window
-    scrollTarget.addEventListener('scroll', handleScroll, { passive: true })
+
+    source.addEventListener('scroll', handleScroll, { passive: true })
     window.addEventListener('resize', handleScroll, { passive: true })
+    /* Two RAFs — one ticks immediately so the initial position is correct,
+     * the second covers the case where the scroller's `scrollHeight` is
+     * still settling (web fonts / images loading). */
     updateScrollPosition()
+    const settleTimer = window.setTimeout(updateScrollPosition, 60)
+
     return () => {
-      scrollTarget.removeEventListener('scroll', handleScroll)
+      source.removeEventListener('scroll', handleScroll)
       window.removeEventListener('resize', handleScroll)
       if (animationFrameId.current) cancelAnimationFrame(animationFrameId.current)
+      window.clearTimeout(settleTimer)
     }
   }, [updateScrollPosition])
 
+  /* When `calculatedPositions` changes (e.g. host page swaps `globeConfig`),
+   * jump the globe to the new hero position so it doesn't snap from a stale
+   * coordinate. */
   useEffect(() => {
     const initialPos = calculatedPositions[0]
     const initialTransform = `translate3d(${initialPos.left}vw, ${initialPos.top}vh, 0) translate3d(-50%, -50%, 0) scale3d(${initialPos.scale}, ${initialPos.scale}, 1)`
@@ -172,22 +232,27 @@ export function ScrollGlobe({ sections, globeConfig = defaultGlobeConfig, classN
         className,
       )}
     >
-      {/* Top progress hairline. Upstream goes blue; we keep neutral silver to
-          honor the Geosyntra pure black-glass identity. */}
+      {/* Top progress hairline — exact upstream gradient (primary → blue-600
+          → blue-900) and the matching cool drop-shadow. The landing page is
+          the only surface in the app that keeps the upstream blue cast; the
+          rest of the chrome (header, sidebar, panels) stays neutral
+          black-glass per the brand rules. */}
       <div className="fixed top-0 left-0 w-full h-0.5 bg-gradient-to-r from-border/20 via-border/40 to-border/20 z-50">
         <div
-          className="h-full bg-gradient-to-r from-primary via-accent to-accent/60 will-change-transform shadow-sm"
+          className="h-full bg-gradient-to-r from-primary via-blue-600 to-blue-900 will-change-transform shadow-sm"
           style={{
             transform: `scaleX(${scrollProgress})`,
             transformOrigin: 'left center',
             transition: 'transform 0.15s ease-out',
-            filter: 'drop-shadow(0 0 4px hsl(var(--primary) / 0.45))',
+            filter: 'drop-shadow(0 0 2px rgba(59, 130, 246, 0.3))',
           }}
         />
       </div>
 
-      {/* Right-rail navigation: dot per section + auto-fading label that
-          reveals on the active dot for ~2.2 s then drifts out. */}
+      {/* Right-rail navigation — dot per section, with a label that fades in
+          on the active dot for ~2.2 s and drifts out (Tailwind keyframe
+          `fadeOut` registered in `tailwind.config.js`). Click a dot to
+          smooth-scroll to that section. */}
       <nav
         aria-label="Section navigation"
         className="hidden sm:flex fixed right-2 sm:right-4 lg:right-8 top-1/2 -translate-y-1/2 z-40"
@@ -204,7 +269,7 @@ export function ScrollGlobe({ sections, globeConfig = defaultGlobeConfig, classN
                 )}
               >
                 <div className="flex items-center gap-1 sm:gap-1.5 lg:gap-2">
-                  <span className="w-1 sm:w-1.5 lg:w-2 h-1 sm:h-1.5 lg:h-2 rounded-full bg-primary animate-pulse" />
+                  <div className="w-1 sm:w-1.5 lg:w-2 h-1 sm:h-1.5 lg:h-2 rounded-full bg-primary animate-pulse" />
                   <span className="text-xs sm:text-sm lg:text-base">
                     {section.badge ?? `Section ${index + 1}`}
                   </span>
@@ -213,12 +278,17 @@ export function ScrollGlobe({ sections, globeConfig = defaultGlobeConfig, classN
 
               <button
                 type="button"
-                onClick={() =>
+                onClick={() => {
+                  /* Use `scrollIntoView` on the section element. Browsers
+                   * resolve smooth-scroll relative to the nearest scroll
+                   * container automatically, so this works whether the page
+                   * scrolls in `<main>` (Geosyntra shell) or `window`
+                   * (standalone preview). */
                   sectionRefs.current[index]?.scrollIntoView({
                     behavior: 'smooth',
                     block: 'center',
                   })
-                }
+                }}
                 className={cn(
                   'relative w-2 h-2 sm:w-2.5 sm:h-2.5 lg:w-3 lg:h-3 rounded-full border-2 transition-all duration-300 hover:scale-125',
                   'before:absolute before:inset-0 before:rounded-full before:transition-all before:duration-300',
@@ -236,8 +306,8 @@ export function ScrollGlobe({ sections, globeConfig = defaultGlobeConfig, classN
 
       {/* The pinned globe layer. `transition-all 1400ms` does the heavy
           lifting — every scroll tick just sets a new `transform` string and
-          the browser eases the change. The fade-down on the last section lets
-          the hero copy take focus while the globe sits as a backdrop. */}
+          the browser eases the change. The fade-down on the last section
+          lets the hero copy take focus while the globe sits as a backdrop. */}
       <div
         aria-hidden
         className="fixed z-10 pointer-events-none will-change-transform transition-all duration-[1400ms] ease-[cubic-bezier(0.23,1,0.32,1)]"
@@ -284,18 +354,18 @@ export function ScrollGlobe({ sections, globeConfig = defaultGlobeConfig, classN
               )}
             >
               {section.subtitle ? (
-                <span className="block space-y-1 sm:space-y-2">
-                  <span className="block bg-gradient-to-r from-foreground to-foreground/80 bg-clip-text text-transparent">
+                <div className="space-y-1 sm:space-y-2">
+                  <div className="bg-gradient-to-r from-foreground to-foreground/80 bg-clip-text text-transparent">
                     {section.title}
-                  </span>
-                  <span className="block text-muted-foreground/90 text-[0.6em] sm:text-[0.7em] font-medium tracking-wider">
+                  </div>
+                  <div className="text-muted-foreground/90 text-[0.6em] sm:text-[0.7em] font-medium tracking-wider">
                     {section.subtitle}
-                  </span>
-                </span>
+                  </div>
+                </div>
               ) : (
-                <span className="bg-gradient-to-r from-foreground via-foreground to-foreground/80 bg-clip-text text-transparent">
+                <div className="bg-gradient-to-r from-foreground via-foreground to-foreground/80 bg-clip-text text-transparent">
                   {section.title}
-                </span>
+                </div>
               )}
             </h1>
 
@@ -308,17 +378,17 @@ export function ScrollGlobe({ sections, globeConfig = defaultGlobeConfig, classN
               <p className="mb-3 sm:mb-4">{section.description}</p>
               {index === 0 && (
                 <div className="flex flex-wrap items-center gap-3 sm:gap-4 text-xs sm:text-sm text-muted-foreground/60 mt-4 sm:mt-6">
-                  <span className="flex items-center gap-1.5 sm:gap-2">
-                    <span className="w-1 h-1 rounded-full bg-primary animate-pulse" />
-                    Interactive Experience
-                  </span>
-                  <span className="flex items-center gap-1.5 sm:gap-2">
-                    <span
+                  <div className="flex items-center gap-1.5 sm:gap-2">
+                    <div className="w-1 h-1 rounded-full bg-primary animate-pulse" />
+                    <span>Interactive Experience</span>
+                  </div>
+                  <div className="flex items-center gap-1.5 sm:gap-2">
+                    <div
                       className="w-1 h-1 rounded-full bg-primary animate-pulse"
                       style={{ animationDelay: '0.5s' }}
                     />
-                    Scroll to Explore
-                  </span>
+                    <span>Scroll to Explore</span>
+                  </div>
                 </div>
               )}
             </div>
@@ -335,7 +405,7 @@ export function ScrollGlobe({ sections, globeConfig = defaultGlobeConfig, classN
                     style={{ animationDelay: `${featureIndex * 0.1}s` }}
                   >
                     <div className="flex items-start gap-3 sm:gap-4">
-                      <span className="w-1.5 sm:w-2 h-1.5 sm:h-2 rounded-full bg-primary/60 mt-1.5 sm:mt-2 group-hover:bg-primary transition-colors flex-shrink-0" />
+                      <div className="w-1.5 sm:w-2 h-1.5 sm:h-2 rounded-full bg-primary/60 mt-1.5 sm:mt-2 group-hover:bg-primary transition-colors flex-shrink-0" />
                       <div className="flex-1 space-y-1.5 sm:space-y-2 min-w-0">
                         <h3 className="font-semibold text-card-foreground text-base sm:text-lg">
                           {feature.title}
@@ -375,7 +445,7 @@ export function ScrollGlobe({ sections, globeConfig = defaultGlobeConfig, classN
                   >
                     <span className="relative z-10">{action.label}</span>
                     {action.variant === 'primary' && (
-                      <span
+                      <div
                         aria-hidden
                         className="absolute inset-0 rounded-lg sm:rounded-xl bg-gradient-to-r from-primary to-primary/80 opacity-0 group-hover:opacity-100 transition-opacity duration-300"
                       />
@@ -448,15 +518,15 @@ export default function GlobeScrollDemo({
       features: [
         {
           title: 'Limitless Exploration',
-          description: 'Discover new dimensions of possibility and innovation.',
+          description: 'Discover new dimensions of possibility and innovation',
         },
         {
           title: 'Seamless Integration',
-          description: 'Where cutting-edge technology meets human intuition.',
+          description: 'Where cutting-edge technology meets human intuition',
         },
         {
           title: 'Future-Ready Solutions',
-          description: "Built for tomorrow's challenges and opportunities.",
+          description: "Built for tomorrow's challenges and opportunities",
         },
       ],
     },
