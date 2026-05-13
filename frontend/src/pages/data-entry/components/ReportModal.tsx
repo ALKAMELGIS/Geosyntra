@@ -432,7 +432,7 @@ export const ReportModal: React.FC<ReportModalProps> = React.memo(({ isOpen, onC
                <i className="fa-solid fa-leaf"></i>
              </div>
              <div className="print-org-info">
-               <h1>Agro Cloud System</h1>
+               <h1>Geosyntra Platform</h1>
                <p>Advanced Agricultural Monitoring</p>
              </div>
            </div>
@@ -816,7 +816,7 @@ export const ReportModal: React.FC<ReportModalProps> = React.memo(({ isOpen, onC
                  </div>
                  <div className="footer-right">
                    <i className="fa-solid fa-leaf" style={{color: '#16a34a', marginRight: '8px'}}></i>
-                  <strong>Agro Cloud</strong>
+                  <strong>Geosyntra Platform</strong>
                    <span style={{color: '#64748b', fontSize: '10px', marginLeft: '4px'}}>Agricultural Data Monitoring</span>
                  </div>
                </div>

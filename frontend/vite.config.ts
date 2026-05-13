@@ -1,3 +1,4 @@
+import { createRequire } from 'node:module'
 import { readdir, readFile, writeFile } from 'node:fs/promises'
 import { dirname, extname, isAbsolute, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -14,6 +15,28 @@ const brotliAsync = promisify(brotliCompress)
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 
+/** External SIW module (copied Satellite Intelligence + isolated siw_* persistence). */
+const SATELLITE_INTELLIGENCE_WORKSPACE_SRC = resolve(
+  'C:/Users/mohamed.abass.WUSOOM/Downloads/Maps/GIS RS Intelligence Workspace/src',
+)
+
+/** SIW sources live outside Vite `root`; resolve bare imports from this frontend package's node_modules. */
+function satelliteIntelligenceWorkspaceDependencyResolve(): Plugin {
+  const require = createRequire(resolve(__dirname, 'package.json'))
+  return {
+    name: 'siw-external-node-resolve',
+    enforce: 'pre',
+    resolveId(id, importer) {
+      if (!importer?.includes('GIS RS Intelligence Workspace')) return null
+      if (id.startsWith('.') || id.startsWith('/') || id.startsWith('\0')) return null
+      try {
+        return require.resolve(id, { paths: [__dirname] })
+      } catch {
+        return null
+      }
+    },
+  }
+}
 const COMPRESSIBLE_EXTENSIONS = new Set([
   '.css',
   '.html',
@@ -64,7 +87,7 @@ function buildCompressionPlugin(): Plugin {
   }
 }
 
-/** Vite serves `base` with a trailing slash; `/AgroCloud` (no slash) returns 404. Browsers/bookmarks often omit it. */
+/** Vite serves `base` with a trailing slash; `/Geosyntra` (no slash) returns 404. Browsers/bookmarks often omit it. */
 function agroCloudBaseTrailingSlashRedirect(): Plugin {
   const baseWithSlash = appConfig.basePath
   const noTrailingSlash = baseWithSlash.replace(/\/$/, '')
@@ -124,8 +147,8 @@ function productionCanonicalLink(): Plugin {
 }
 
 /**
- * GitHub Pages: `/AgroCloud` (no trailing slash) and `/AgroCloud/` with empty hash break the HashRouter shell.
- * Normalize to `.../AgroCloud/#/` before the app bundle runs.
+ * GitHub Pages: `/Geosyntra` (no trailing slash) and `/Geosyntra/` with empty hash break the HashRouter shell.
+ * Normalize to `.../Geosyntra/#/` before the app bundle runs.
  */
 function ghPagesHashAndSlashRedirect(): Plugin {
   const base = appConfig.basePath
@@ -148,6 +171,7 @@ export default defineConfig({
   resolve: {
     alias: {
       '@': resolve(__dirname, 'src'),
+      '@satellite-intelligence-workspace': SATELLITE_INTELLIGENCE_WORKSPACE_SRC,
     },
   },
   build: {
@@ -157,6 +181,7 @@ export default defineConfig({
     },
   },
   plugins: [
+    satelliteIntelligenceWorkspaceDependencyResolve(),
     agroCloudBaseTrailingSlashRedirect(),
     pagesBuildStamp(),
     ghPagesHashAndSlashRedirect(),
@@ -170,9 +195,9 @@ export default defineConfig({
             devOptions: { enabled: false },
             includeAssets: ['favicon.svg', 'favicon.png', 'favicon-16x16.png', 'favicon-32x32.png'],
             manifest: {
-              name: 'Agri Cloud System',
-              short_name: 'AgriCloud',
-              description: 'Agricultural Management and Satellite Analysis System',
+              name: 'Geosyntra Platform',
+              short_name: 'Geosyntra',
+              description: 'Geospatial intelligence, satellite imagery, and operational GIS workflows',
               theme_color: '#ffffff',
               icons: [
                 {
@@ -203,6 +228,9 @@ export default defineConfig({
     port: 5173,
     host: true,
     strictPort: true,
+    fs: {
+      allow: [SATELLITE_INTELLIGENCE_WORKSPACE_SRC],
+    },
     headers: {
       'Cache-Control': 'no-store',
     },

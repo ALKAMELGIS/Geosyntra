@@ -29,9 +29,9 @@ const navTranslations = {
     closeMenu: 'Close navigation menu',
     dashboard: 'Dashboard',
     esriApp: 'Esri App',
-    agroCloudDashboard: 'Agro Cloud Dashboard',
+    agroCloudDashboard: 'Geosyntra Platform Dashboard',
     agroDashboard: 'Agro Dashboard',
-    aiAgroCloud: 'AI AgroCloud',
+    aiAgroCloud: 'GIS Intelligence AI',
     aiAgroChat: 'AI Agro-Chat',
     developDashboard: 'Develop Dashboard',
     ecph: 'EC/PH',
@@ -59,6 +59,8 @@ const navTranslations = {
     qhis: 'QHIS',
     satelliteImagery: 'Satellite Imagery',
     satelliteIntelligence: 'Satellite Intelligence',
+    satelliteIntelligenceWorkspace: 'SI Workspace',
+    satelliteIntelligenceWorkspaceApiTokens: 'SI Workspace — API tokens',
     sensors: 'Sensors',
     soilSensors: 'Soil Sensors',
     userManagement: 'User Management',
@@ -78,9 +80,9 @@ const navTranslations = {
     closeMenu: 'إغلاق قائمة التنقل',
     dashboard: 'لوحة التحكم',
     esriApp: 'تطبيق Esri',
-    agroCloudDashboard: 'لوحة Agro Cloud',
+    agroCloudDashboard: 'لوحة منصة الذكاء الجغرافي',
     agroDashboard: 'لوحة Agro',
-    aiAgroCloud: 'سحابة Agro الذكية',
+    aiAgroCloud: 'ذكاء GIS',
     aiAgroChat: 'محادثة Agro الذكية',
     developDashboard: 'تطوير لوحة التحكم',
     ecph: 'الملوحة والحموضة',
@@ -108,6 +110,8 @@ const navTranslations = {
     qhis: 'الجودة والسلامة',
     satelliteImagery: 'صور الأقمار الصناعية',
     satelliteIntelligence: 'التحليل الفضائي الذكي',
+    satelliteIntelligenceWorkspace: 'مساحة عمل التحليل الفضائي',
+    satelliteIntelligenceWorkspaceApiTokens: 'مساحة العمل — رموز API',
     sensors: 'الحساسات',
     soilSensors: 'حساسات التربة',
     userManagement: 'إدارة المستخدمين',
@@ -349,6 +353,7 @@ export default function NavMenu({ onLogout }: NavMenuProps) {
     if (custom?.navGroupId) return custom.navGroupId
     if (path.startsWith('/dashboards/ai-agro-')) return 'aiAgroCloud'
     if (path.startsWith('/dashboard')) return 'dashboard'
+    if (path.startsWith('/satellite-intelligence-workspace')) return 'satellite'
     if (path.startsWith('/satellite/')) return 'satellite'
     if (path.startsWith('/data/')) return 'data'
     if (path.startsWith('/sensors/')) return 'sensors'

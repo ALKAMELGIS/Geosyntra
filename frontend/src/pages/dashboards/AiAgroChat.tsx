@@ -144,7 +144,7 @@ export default function AiAgroChat() {
             <div className="aagc-titles">
               <h1 className="aagc-title">{ar ? 'محادثة Agro الذكية' : 'AI Agro-Chat'}</h1>
               <p className="aagc-sub">
-                <Link to="/dashboards/ai-agro-cloud">AI AgroCloud</Link>
+                <Link to="/dashboards/ai-agro-cloud">GIS Intelligence AI</Link>
                 {' · '}
                 {ar ? 'محتوى GIS' : 'GIS Content'}
               </p>

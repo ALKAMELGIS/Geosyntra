@@ -4707,7 +4707,7 @@ export default function GisMap() {
             </div>
             <div className="gis-geo-explorer-bubble">
               <p className="gis-geo-explorer-bubble-text">
-                Hello! Im Agro Cloud - GeoAI - Describe a place, upload an image, or ask for directions. When a location is
+                Hello! Im Geosyntra Platform - GeoAI - Describe a place, upload an image, or ask for directions. When a location is
                 clear, the map will fly there
               </p>
             </div>
@@ -5506,7 +5506,7 @@ export default function GisMap() {
               </div>
               <div className="gis-map-tool-surface__titles">
                 <span className="gis-map-tool-surface__kicker">Workspace</span>
-                <p className="gis-map-tool-surface__lede">Open other Agro Cloud modules without leaving the map context.</p>
+                <p className="gis-map-tool-surface__lede">Open other Geosyntra Platform modules without leaving the map context.</p>
               </div>
             </div>
             <div className="gis-map-tool-surface__list gis-map-tool-surface-app-links">

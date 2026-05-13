@@ -43,7 +43,7 @@ export const DEFAULT_SYSTEM_SETTINGS: SystemSettingsPersistedV1 = {
     backgroundImage: '',
   },
   headerSettings: {
-    logoText: 'Agro Cloud',
+    logoText: 'Geosyntra Platform',
     logoTextAr: 'أجرو كلاود',
     useProjectName: false,
     fontFamily: 'var(--ds-font-sans)',

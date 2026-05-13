@@ -52,7 +52,7 @@ export function GeoExplorerGeminiChatBody(props: GeoExplorerGeminiChatBodyProps)
             <i className="fa-solid fa-globe" />
           </div>
           <div className={`${pfx(cssPrefix, 'bubble')} ${pfx(cssPrefix, 'bubble--welcome')}`}>
-            Hello! Im Agro Cloud - GeoAI - Describe a place, upload an image, or ask for directions. When a location is
+            Hello! Im Geosyntra Platform - GeoAI - Describe a place, upload an image, or ask for directions. When a location is
             clear, the map will fly there
           </div>
         </div>

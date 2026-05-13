@@ -16,7 +16,7 @@ import {
 
 const CATEGORY_ORDER: FontCategoryId[] = ['design', 'system', 'modern', 'elegant', 'mono', 'arabic']
 
-const PREVIEW_SAMPLE = 'Agro Cloud · أجرو'
+const PREVIEW_SAMPLE = 'Geosyntra Platform · GIS'
 
 const GF_LINK_ID = 'hs-header-font-google-bundle'
 

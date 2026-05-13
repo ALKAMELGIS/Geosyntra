@@ -114,7 +114,7 @@ export default function Login() {
         id: createVerificationToken(),
         type: 'email_verification',
         to: targetEmail,
-        subject: 'Agro Cloud - Verify your email',
+        subject: `${appConfig.appName} - Verify your email`,
         body: `Verify your email to activate login:\n${verifyLink}`,
         createdAt: new Date().toISOString(),
       })
@@ -135,7 +135,7 @@ export default function Login() {
         body: JSON.stringify({
           email: targetEmail,
           verificationLink: verifyLink,
-          appName: 'Agro Cloud',
+          appName: appConfig.appName,
         }),
       })
       return { verifyLink, delivered: response.ok }
@@ -883,7 +883,7 @@ export default function Login() {
           <div className="login-logo-wrap">
             <img
               src="https://eliteprojects.ae/wp-content/uploads/2022/07/logo-retraced-white-03.png"
-              alt="Elite Agro Projects"
+              alt={appConfig.appName}
             />
           </div>
           <div className="login-leaf-badge">
@@ -899,7 +899,7 @@ export default function Login() {
               letterSpacing: '-0.03em'
             }}
           >
-            Agro Cloud
+            {appConfig.appName}
           </h1>
           <div
             style={{

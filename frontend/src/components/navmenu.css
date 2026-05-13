@@ -1610,7 +1610,7 @@ html[data-theme="dark"] .navmenu-sublist-title {
       0 12px 34px rgba(20, 184, 166, 0.14);
   }
 
-  /* AI AgroCloud */
+  /* GIS Intelligence AI */
   .navmenu .group:not(.open) > .group-header.active.nav-header-ai-agro-cloud,
   .navmenu .group.open > .group-header.active.nav-header-ai-agro-cloud {
     background: linear-gradient(180deg, rgba(236, 253, 245, 0.98), rgba(209, 250, 229, 0.88));

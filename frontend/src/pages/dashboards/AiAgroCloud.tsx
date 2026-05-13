@@ -48,7 +48,7 @@ export default function AiAgroCloud() {
               >
                 <i className="fa-solid fa-cloud-bolt" aria-hidden />
               </span>
-              <h2 id="aac-hub-title">{ar ? 'سحابة Agro الذكية' : 'AI AgroCloud'}</h2>
+              <h2 id="aac-hub-title">{ar ? 'ذكاء GIS' : 'GIS Intelligence AI'}</h2>
             </div>
             <button
               type="button"
@@ -64,7 +64,7 @@ export default function AiAgroCloud() {
             id="aac-hub-tiles"
             className={hubOpen ? 'sublist-page-area' : 'sublist-page-area sublist-page-area--closed'}
             role="region"
-            aria-label={ar ? 'روابط سحابة Agro' : 'AI AgroCloud links'}
+            aria-label={ar ? 'روابط ذكاء GIS' : 'GIS Intelligence AI links'}
             hidden={!hubOpen}
           >
             <div className="home-modern">

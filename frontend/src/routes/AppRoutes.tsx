@@ -10,6 +10,12 @@ import DashboardOverview from '../pages/dashboards/Overview'
 import DevelopDashboard from '../pages/dashboards/DevelopDashboard'
 import AgroDashboard from '../pages/dashboards/AgroDashboard'
 const SatelliteIntelligence = lazy(() => import('../pages/satellite/SatelliteIntelligence'))
+const SatelliteIntelligenceWorkspace = lazy(
+  () => import('@satellite-intelligence-workspace/SatelliteIntelligenceWorkspaceApp'),
+)
+const SatelliteIntelligenceWorkspaceApiTokens = lazy(
+  () => import('@satellite-intelligence-workspace/SiwApiTokenManagementPage'),
+)
 const SatelliteMultidimensional = lazy(() => import('../pages/satellite/Multidimensional'))
 const GisMap = lazy(() => import('../pages/satellite/GisMap'))
 const DataEntryFertigationRecords = lazy(() => import('../pages/data-entry/FertigationRecords'))
@@ -52,6 +58,8 @@ export default function AppRoutes() {
         <Route path="/data/ec-ph" element={<DataEntryECPH />} />
         <Route path="/data/recipes/:formSlug" element={<DataEntryRecipes />} />
         <Route path="/satellite/indices" element={<SatelliteIntelligence />} />
+        <Route path="/satellite-intelligence-workspace" element={<SatelliteIntelligenceWorkspace />} />
+        <Route path="/satellite-intelligence-workspace/api-token" element={<SatelliteIntelligenceWorkspaceApiTokens />} />
         <Route path="/satellite/multidimensional" element={<SatelliteMultidimensional />} />
         <Route path="/satellite/gis" element={<GisMap />} />
         <Route path="/dashboards/overview" element={<DashboardOverview />} />

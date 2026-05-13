@@ -372,7 +372,7 @@ app.get('/api/auth/events', (req, res) => {
 app.post('/api/auth/send-verification-email', async (req, res) => {
   const email = String(req.body?.email || '').trim()
   const verificationLink = String(req.body?.verificationLink || '').trim()
-  const appName = String(req.body?.appName || 'Agro Cloud').trim()
+  const appName = String(req.body?.appName || 'Geosyntra Platform').trim()
   if (!email || !verificationLink) {
     addAuthEvent('verification_email_failed', { email: email || undefined, reason: 'missing_payload' })
     return res.status(400).json({ error: 'email and verificationLink are required.' })
@@ -382,7 +382,7 @@ app.post('/api/auth/send-verification-email', async (req, res) => {
     return res.status(503).json({ error: 'SMTP is not configured on server.' })
   }
 
-  const safeName = appName || 'Agro Cloud'
+  const safeName = appName || 'Geosyntra Platform'
   const subject = `${safeName} - Confirm your email`
   const text = [
     `Welcome to ${safeName}.`,

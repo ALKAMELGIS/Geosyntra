@@ -1,7 +1,7 @@
 @echo off
 cd /d "%~dp0"
 echo ==========================================
-echo      Agri Cloud System - Dev Startup
+echo      GIS- Intelligence Platform - Dev Startup
 echo ==========================================
 echo.
 echo [1/3] Checking environment...

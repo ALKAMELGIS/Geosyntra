@@ -2221,7 +2221,7 @@ const DEFAULT_MPC_ACS_ZIP_PATH = 'C:\\Users\\mohamed.abass.WUSOOM\\Downloads\\AC
 
 /** Static welcome shown above the Gemini Geo AI thread (also used for clipboard copy). */
 const SI_GEO_AI_WELCOME_GEMINI_TEXT =
-  "Hello! I'm Agro Cloud - GeoAI - Describe a place, upload an image, or ask for directions.\nWhen a location is clear, the map will fly there.";
+  "Hello! I'm Geosyntra Platform - GeoAI - Describe a place, upload an image, or ask for directions.\nWhen a location is clear, the map will fly there.";
 
 /** Static welcome for Claude / DeepSeek data assistant tab. */
 const SI_GEO_AI_WELCOME_DATA_ASSISTANT_TEXT =

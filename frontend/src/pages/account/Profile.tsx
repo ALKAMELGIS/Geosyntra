@@ -134,7 +134,7 @@ function initialsFromName(name: string): string {
 }
 
 function gradientFromSeed(seed: string): [string, string] {
-  const src = seed || 'agro-cloud'
+  const src = seed || 'gis-intelligence-platform'
   let hash = 0
   for (let i = 0; i < src.length; i++) hash = (hash * 31 + src.charCodeAt(i)) | 0
   const hue = Math.abs(hash) % 360
@@ -445,7 +445,7 @@ export default function Profile() {
   )
 
   useEffect(() => {
-    document.title = `${text.myProfile} · Agro Cloud`
+    document.title = `${text.myProfile} · Geosyntra Platform`
   }, [text.myProfile])
 
   const openPersonalEdit = () => {

@@ -2,7 +2,7 @@ name: Deploy to GitHub Pages
 
 # CI builds the SPA with empty public env vars, copies frontend/dist to repo root on main,
 # then pushes [pages-sync]. GitHub Pages: Deploy from a branch → main → /(root).
-# Live app (HashRouter): https://alkamelgis.github.io/AgroCloud/#/
+# Live Geosyntra Platform app (HashRouter): https://alkamelgis.github.io/Geosyntra/#/
 #
 # Root SPA files are gitignored — never commit them from a local machine (local .env would embed secrets).
 on:
@@ -85,7 +85,7 @@ jobs:
             echo ""
             echo "| App |"
             echo "| --- |"
-            echo "| [https://alkamelgis.github.io/AgroCloud/#/](https://alkamelgis.github.io/AgroCloud/#/) |"
+            echo "| [https://alkamelgis.github.io/Geosyntra/#/](https://alkamelgis.github.io/Geosyntra/#/) |"
             echo ""
             echo "**Cache:** Hard refresh (Ctrl+F5) if the site looks stale. Each deploy writes a new agro-pages-build meta tag (run id + SHA) so index.html changes."
           } >> "$GITHUB_STEP_SUMMARY"

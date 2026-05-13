@@ -1,14 +1,14 @@
-# Agri Cloud — repository documentation
+# Geosyntra Platform — repository documentation
 
 > **GitHub Pages:** سير `deploy-pages.yml` يبني ثم يزامن `frontend/dist` إلى **جذر `main`** (`[pages-sync]`). الإعدادات: **Deploy from a branch** → **main** → **/**. مخرجات الجذر مُتجاهلة في git محلياً (`.gitignore`) — الالتزام من CI فقط.
 >
-> **رابط التشغيل (HashRouter):** https://alkamelgis.github.io/AgroCloud/#/
+> **رابط التشغيل (HashRouter):** https://alkamelgis.github.io/Geosyntra/#/
 >
 > **GitHub Pages:** `deploy-pages.yml` copies the build to **main** repo root. Pages: **main** / **(root)**. Root deploy outputs are **gitignored** locally; only CI commits them (avoids embedding local `.env` secrets).
 >
-> **App URL:** https://alkamelgis.github.io/AgroCloud/#/
+> **App URL:** https://alkamelgis.github.io/Geosyntra/#/
 
-Agri Cloud is a monorepo containing a React/Vite frontend and an Express backend.
+Geosyntra Platform is a monorepo containing a React/Vite frontend and an Express backend.
 
 ## Project Structure
 

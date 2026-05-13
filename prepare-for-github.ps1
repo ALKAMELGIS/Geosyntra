@@ -1,9 +1,9 @@
-# PowerShell script to prepare AgroCloud project for GitHub upload
+# PowerShell script to prepare Geosyntra Platform project for GitHub upload
 # Monorepo layout: frontend/ + backend/
 
-Write-Host "Preparing AgroCloud project for GitHub..." -ForegroundColor Green
+Write-Host "Preparing Geosyntra Platform project for GitHub..." -ForegroundColor Green
 
-$cleanDir = "AgroCloud-GitHub-Ready"
+$cleanDir = "Geosyntra-GitHub-Ready"
 if (Test-Path $cleanDir) {
     Remove-Item $cleanDir -Recurse -Force
 }

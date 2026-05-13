@@ -27,7 +27,7 @@ export default function DashboardSettings() {
       language === 'ar'
         ? {
             title: 'إعدادات لوحة التحكم',
-            lead: 'اضبط رابط لوحة ArcGIS المدمجة في صفحة «لوحة Agro Cloud». يُخزَّن الرابط في المتصفح فقط.',
+            lead: 'اضبط رابط لوحة ArcGIS المدمجة في صفحة «لوحة منصة الذكاء الجغرافي». يُخزَّن الرابط في المتصفح فقط.',
             urlLabel: 'رابط ArcGIS Dashboard',
             pinHeading: 'سلوك العرض',
             pinLabel: 'تثبيت اللوحة عند التنقل (بدون إعادة تحميل)',
@@ -50,7 +50,7 @@ export default function DashboardSettings() {
           }
         : {
             title: 'Dashboard Settings',
-            lead: 'Set the ArcGIS Dashboard URL embedded on the Agro Cloud Dashboard page. Stored in your browser only.',
+            lead: 'Set the ArcGIS Dashboard URL embedded on the Geosyntra Platform Dashboard page. Stored in your browser only.',
             urlLabel: 'ArcGIS Dashboard URL',
             pinHeading: 'Display behavior',
             pinLabel: 'Keep dashboard loaded when switching pages',

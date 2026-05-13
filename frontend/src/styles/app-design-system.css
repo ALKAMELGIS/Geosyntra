@@ -1,5 +1,5 @@
 /**
- * Agro Cloud — App shell & design system layer (2026)
+ * Geosyntra Platform — App shell & design system layer (2026)
  * Loaded after index.css. Uses existing --ds-* tokens; extends layout, motion, glass, toast, KPI.
  */
 
@@ -64,7 +64,7 @@ html {
   scroll-padding-bottom: max(16px, env(safe-area-inset-bottom, 0px));
 }
 
-/* Preserve legacy tinted mesh only on Agro Cloud Dashboard */
+/* Preserve legacy tinted mesh only on Geosyntra Platform Dashboard */
 .app-layout > .content.content--agro-cloud-dashboard {
   background-color: var(--ds-color-bg-dashboard, #eef7f1);
   background-image: var(--app-content-mesh);

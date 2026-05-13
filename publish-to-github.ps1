@@ -7,7 +7,7 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
-$HttpsOrigin = 'https://github.com/ALKAMELGIS/AgroCloud.git'
+$HttpsOrigin = 'https://github.com/ALKAMELGIS/Geosyntra.git'
 
 Write-Host "Configuring origin to HTTPS (add if missing, update if exists)..." -ForegroundColor Cyan
 $originExists = git remote get-url origin 2>$null

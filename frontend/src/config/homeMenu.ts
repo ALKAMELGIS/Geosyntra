@@ -23,7 +23,7 @@ export type MenuItem = {
 
 const GROUP_TITLE: Record<string, { en: string; ar: string }> = {
   dashboard: { en: 'Dashboard', ar: 'لوحة التحكم' },
-  aiAgroCloud: { en: 'AI AgroCloud', ar: 'سحابة Agro الذكية' },
+  aiAgroCloud: { en: 'GIS Intelligence AI', ar: 'ذكاء GIS' },
   satellite: { en: 'Satellite Imagery', ar: 'صور الأقمار الصناعية' },
   data: { en: 'Operations', ar: 'العمليات' },
   sensors: { en: 'Sensors', ar: 'الحساسات' },
@@ -33,7 +33,7 @@ const GROUP_TITLE: Record<string, { en: string; ar: string }> = {
 
 const LEAF_TITLE: Record<string, { en: string; ar: string }> = {
   developDashboard: { en: 'Develop Dashboard', ar: 'تطوير لوحة التحكم' },
-  agroCloudDashboard: { en: 'Agro Cloud Dashboard', ar: 'لوحة Agro Cloud' },
+  agroCloudDashboard: { en: 'Geosyntra Platform Dashboard', ar: 'لوحة منصة جيوسينترا' },
   agroDashboard: { en: 'Agro Dashboard', ar: 'لوحة Agro' },
   esriApp: { en: 'Esri App', ar: 'تطبيق Esri' },
   aiAgroChat: { en: 'AI Agro-Chat', ar: 'محادثة Agro الذكية' },

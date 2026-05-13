@@ -35,10 +35,18 @@ test-results/
 _restore_tmp_*/
 # Static GitHub Pages build output (may embed env secrets; regenerate in CI with secrets).
 AgroCloud-Pages-Upload/
+GISIntelligencePlatform-Pages-Upload/
+Geosyntra-Pages-Upload/
 # Duplicate export tree / archives (use prepare-for-github.ps1 locally; do not commit).
 AgroCloud-GitHub-Ready/
+GISIntelligencePlatform-GitHub-Ready/
+Geosyntra-GitHub-Ready/
 AgroCloud-GitHub-Ready.zip
+GISIntelligencePlatform-GitHub-Ready.zip
+Geosyntra-GitHub-Ready.zip
 AgroCloud-Pages-Upload.zip
+GISIntelligencePlatform-Pages-Upload.zip
+Geosyntra-Pages-Upload.zip
 
 backup_*.zip
 *.tmp

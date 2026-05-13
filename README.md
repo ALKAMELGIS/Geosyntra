@@ -1,10 +1,10 @@
-# Agro Cloud
+# Geosyntra Platform
 
-## [→ افتح التطبيق / Open the app ←](https://alkamelgis.github.io/AgroCloud/#/)
+## [→ افتح التطبيق / Open the app ←](https://alkamelgis.github.io/Geosyntra/#/)
 
 ### GitHub Pages
 
-الموقع: `https://alkamelgis.github.io/AgroCloud/#/` (HashRouter).
+الموقع: `https://alkamelgis.github.io/Geosyntra/#/` (HashRouter).
 
 سير العمل [Deploy to GitHub Pages](.github/workflows/deploy-pages.yml) يبني الواجهة بمتغيرات عامة فارغة ثم يُنسَخ المخرج إلى **جذر `main`** ويُدفع بـ `[pages-sync]`. في الإعدادات: **Deploy from a branch** → **`main`** → **`/(root)`**.
 

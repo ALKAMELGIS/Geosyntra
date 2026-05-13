@@ -1,4 +1,4 @@
-/** Embedded ArcGIS Dashboard URL for Agro Cloud — stored in localStorage (browser-only). */
+/** Embedded ArcGIS Dashboard URL for Geosyntra Platform — stored in localStorage (browser-only). */
 
 export const AGRO_CLOUD_DASHBOARD_STORAGE_KEY = 'agroCloudDashboardEmbedUrl_v1'
 

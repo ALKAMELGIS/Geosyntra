@@ -21,11 +21,11 @@ export default function AgroCloudDashboardFrame() {
     () =>
       language === 'ar'
         ? {
-            title: 'لوحة Agro Cloud',
+            title: 'لوحة منصة جيوسينترا',
             invalid: 'الرابط غير صالح (استخدم http/https)',
           }
         : {
-            title: 'Agro Cloud Dashboard',
+            title: 'Geosyntra Platform Dashboard',
             invalid: 'Invalid URL — use https://…',
           },
     [language],

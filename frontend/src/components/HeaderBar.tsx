@@ -20,9 +20,9 @@ export default function HeaderBar() {
     return settings.logoLight.trim() || settings.logoDark.trim() || DEFAULT_CENTER_LOGO
   }, [settings.themeMode, settings.logoLight, settings.logoDark])
   const logoText = useMemo(() => {
-    if (hs.useProjectName) return String(import.meta.env.VITE_APP_NAME || 'Agro Cloud')
+    if (hs.useProjectName) return String(import.meta.env.VITE_APP_NAME || 'Geosyntra Platform')
     if (language === 'ar' && hs.logoTextAr.trim()) return hs.logoTextAr.trim()
-    return hs.logoText.trim() || 'Agro Cloud'
+    return hs.logoText.trim() || 'Geosyntra Platform'
   }, [hs.logoText, hs.logoTextAr, hs.useProjectName, language])
   const headerStyle = useMemo(
     () =>
@@ -107,7 +107,7 @@ export default function HeaderBar() {
         <img
           className="brand-logo"
           src={centerLogoSrc}
-          alt="Elite Agro Projects"
+          alt={logoText}
           loading="lazy"
           decoding="async"
         />

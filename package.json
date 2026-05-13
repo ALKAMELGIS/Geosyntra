@@ -1,8 +1,8 @@
 {
-  "name": "agri-cloud",
+  "name": "geosyntra-platform",
   "private": true,
   "version": "0.1.0",
-  "description": "Agri Cloud — npm workspaces (frontend + backend)",
+  "description": "Geosyntra Platform — npm workspaces (frontend + backend)",
   "workspaces": [
     "frontend",
     "backend"

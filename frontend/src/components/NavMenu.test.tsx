@@ -105,7 +105,7 @@ describe('NavMenu vertical responsive', () => {
     expect(ops).toHaveAttribute('aria-expanded', 'false')
   })
 
-  it('renders AI AgroCloud group with chat link only', () => {
+  it('renders GIS Intelligence AI group with chat link only', () => {
     setViewport(1280)
     render(
       <MemoryRouter future={routerFuture} initialEntries={['/dashboard/develop']}>
@@ -114,7 +114,7 @@ describe('NavMenu vertical responsive', () => {
         </SystemSettingsProvider>
       </MemoryRouter>,
     )
-    const groupHeader = screen.getByRole('button', { name: /^ai agrocloud$/i })
+    const groupHeader = screen.getByRole('button', { name: /^gis intelligence ai$/i })
     expect(groupHeader).toBeInTheDocument()
     fireEvent.click(groupHeader)
     expect(screen.getByRole('link', { name: /ai agro-chat/i })).toHaveAttribute('href', '/dashboards/ai-agro-chat')

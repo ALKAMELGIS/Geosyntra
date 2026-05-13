@@ -29,7 +29,7 @@ const menuItems: MenuItem[] = [
     color: '#F97316',
     items: [
       { label: { en: 'Develop Dashboard', ar: 'تطوير لوحة التحكم' }, icon: 'fa-solid fa-grip', to: '/dashboard/develop' },
-      { label: { en: 'Agro Cloud Dashboard', ar: 'لوحة Agro Cloud' }, icon: 'fa-solid fa-chart-pie', to: '/dashboards/agro-cloud' },
+      { label: { en: 'Geosyntra Platform Dashboard', ar: 'لوحة منصة جيوسينترا' }, icon: 'fa-solid fa-chart-pie', to: '/dashboards/agro-cloud' },
       { label: { en: 'Agro Dashboard', ar: 'لوحة Agro' }, icon: 'fa-solid fa-seedling', to: '/dashboards/agro-dashboard' },
       { label: { en: 'Esri App', ar: 'تطبيق Esri' }, icon: 'fa-solid fa-map-location-dot', to: '/dashboards/esri-app' },
     ]
@@ -92,7 +92,7 @@ const menuItems: MenuItem[] = [
   },
   {
     id: 'aiAgroCloud',
-    label: { en: 'AI AgroCloud', ar: 'سحابة Agro الذكية' },
+    label: { en: 'GIS Intelligence AI', ar: 'ذكاء GIS' },
     icon: 'fa-solid fa-cloud-bolt',
     color: '#059669',
     to: '/dashboards/ai-agro-cloud',

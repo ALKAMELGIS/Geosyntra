@@ -77,7 +77,7 @@ export async function geocodePlaceCandidates(
       {
         headers: {
           'Accept-Language': 'en',
-          'User-Agent': 'AgroCloud-SatelliteIntelligence/1.0 (Geo Explorer fallback)',
+          'User-Agent': 'Geosyntra-SatelliteIntelligence/1.0 (Geo Explorer fallback)',
         },
       },
     )
@@ -218,7 +218,7 @@ export async function reverseGeocodeLngLat(
       {
         headers: {
           'Accept-Language': 'en',
-          'User-Agent': 'AgroCloud-SatelliteIntelligence/1.0 (Geo Explorer reverse)',
+          'User-Agent': 'Geosyntra-SatelliteIntelligence/1.0 (Geo Explorer reverse)',
         },
       },
     )

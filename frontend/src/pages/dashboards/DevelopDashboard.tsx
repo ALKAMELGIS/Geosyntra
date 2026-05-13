@@ -4285,7 +4285,7 @@ export default function DevelopDashboard() {
         <div className="ddb-topbar">
           <div className="ddb-brand">
             <h1>
-              <i className="fa-solid fa-chart-line" aria-hidden /> Agro Cloud Analytics
+              <i className="fa-solid fa-chart-line" aria-hidden /> Geosyntra Platform Analytics
             </h1>
           </div>
           <div className="ddb-topbar-tools" role="group" aria-label="Canvas layout and style tools">
