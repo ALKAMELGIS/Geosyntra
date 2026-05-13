@@ -4,6 +4,7 @@ import { useSystemSettings } from '../store/SystemSettingsContext'
 import DynamicBindPage from '../pages/system/DynamicBindPage'
 import Home from '../pages/Home'
 import Login from '../pages/Login'
+const LearnMore = lazy(() => import('../pages/LearnMore'))
 const SatelliteIntelligence = lazy(() => import('../pages/satellite/SatelliteIntelligence'))
 const SatelliteMultidimensional = lazy(() => import('../pages/satellite/Multidimensional'))
 const GisMap = lazy(() => import('../pages/satellite/GisMap'))
@@ -26,6 +27,7 @@ export default function AppRoutes() {
       <Routes>
         <Route path="/login" element={<Login />} />
         <Route path="/" element={<Home />} />
+        <Route path="/learn-more" element={<LearnMore />} />
         <Route path="/satellite" element={<Navigate to="/satellite/indices" replace />} />
         <Route path="/data/fertigation" element={<Navigate to="/data/fertigation-records" replace />} />
         <Route path="/data/fertigation-records" element={<DataEntryFertigationRecords />} />

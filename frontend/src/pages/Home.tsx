@@ -23,7 +23,7 @@ export default function Home() {
       <LandingPage
         className="bg-gradient-to-br from-background via-muted/20 to-background"
         onPrimaryAction={() => navigate('/satellite/indices')}
-        onSecondaryAction={() => navigate('/satellite/gis')}
+        onSecondaryAction={() => navigate('/learn-more')}
       />
     </div>
   )
