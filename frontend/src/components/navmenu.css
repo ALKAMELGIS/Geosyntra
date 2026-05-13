@@ -598,14 +598,13 @@ html[data-theme="light"] .group-header:hover .icon {
 .subitem:hover {
   color: var(--ds-color-text);
   background: linear-gradient(
-    135deg,
-    rgba(34, 211, 238, 0.10),
-    rgba(129, 140, 248, 0.08) 55%,
-    rgba(192, 132, 252, 0.07)
+    180deg,
+    rgba(255, 255, 255, 0.06),
+    rgba(255, 255, 255, 0.03)
   );
   box-shadow:
-    inset 0 0 0 1px rgba(34, 211, 238, 0.18),
-    0 10px 22px rgba(2, 4, 12, 0.45);
+    inset 0 0 0 1px rgba(255, 255, 255, 0.10),
+    0 10px 22px rgba(0, 0, 0, 0.50);
 }
 
 .item:focus,
@@ -871,17 +870,16 @@ html[data-theme="light"] .group-header:hover .icon {
   max-height: none;
   overflow: visible;
   padding: 10px;
-  border: 1px solid var(--ds-glass-border, rgba(129, 140, 248, 0.30));
+  border: 1px solid var(--ds-glass-border, rgba(255, 255, 255, 0.10));
   border-radius: 18px;
   background:
-    radial-gradient(120% 120% at 0% 0%, rgba(34, 211, 238, 0.10), transparent 55%),
-    radial-gradient(120% 120% at 100% 100%, rgba(192, 132, 252, 0.08), transparent 55%),
-    var(--ds-glass-bg, rgba(15, 18, 36, 0.72));
+    radial-gradient(140% 100% at 50% -20%, rgba(255, 255, 255, 0.06), transparent 55%),
+    var(--ds-glass-bg, rgba(14, 14, 18, 0.78));
   box-shadow:
-    0 28px 70px rgba(2, 4, 12, 0.55),
-    0 0 0 1px rgba(34, 211, 238, 0.10);
-  backdrop-filter: blur(22px) saturate(140%);
-  -webkit-backdrop-filter: blur(22px) saturate(140%);
+    0 28px 70px rgba(0, 0, 0, 0.65),
+    0 0 0 1px rgba(255, 255, 255, 0.04);
+  backdrop-filter: blur(22px) saturate(120%);
+  -webkit-backdrop-filter: blur(22px) saturate(120%);
   z-index: 2600;
 }
 
@@ -1800,21 +1798,20 @@ html[data-theme="dark"] .navmenu-sublist-title {
   }
 }
 
-/* Professional active-state refinement: cleaner, calmer, and stable on click */
+/* Professional active-state refinement: pure black-glass, no color tint. */
 .navmenu .group:not(.open) > .group-header.active,
 .navmenu .group.open > .group-header.active {
   background: linear-gradient(
-    135deg,
-    rgba(34, 211, 238, 0.18),
-    rgba(129, 140, 248, 0.14) 55%,
-    rgba(192, 132, 252, 0.12)
+    180deg,
+    rgba(255, 255, 255, 0.10),
+    rgba(255, 255, 255, 0.04)
   );
   color: var(--ds-color-text);
-  border-color: rgba(34, 211, 238, 0.40);
+  border-color: rgba(255, 255, 255, 0.20);
   box-shadow:
-    inset 3px 0 0 rgba(34, 211, 238, 0.8),
-    inset 0 0 0 1px rgba(129, 140, 248, 0.18),
-    0 8px 22px rgba(2, 4, 12, 0.55);
+    inset 3px 0 0 rgba(255, 255, 255, 0.80),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.08),
+    0 8px 22px rgba(0, 0, 0, 0.55);
   transform: none;
 }
 
@@ -1928,33 +1925,35 @@ html[data-theme='dark'] .navmenu .group > .group-header.active[class*='nav-heade
 
 .navmenu > .navmenu-list > .navmenu-li > .item .icon,
 .navmenu > .navmenu-list > .group > .group-header .icon {
-  width: 38px !important;
-  height: 38px !important;
-  flex: 0 0 38px !important;
-  font-size: 15px !important;
-  border-radius: 12px !important;
+  width: 40px !important;
+  height: 40px !important;
+  flex: 0 0 40px !important;
+  font-size: 15.5px !important;
+  border-radius: 13px !important;
   background:
-    radial-gradient(120% 80% at 50% 0%, rgba(255, 255, 255, 0.10), transparent 55%),
-    linear-gradient(180deg, #1c2143 0%, #0a0d22 60%, #06081a 100%) !important;
-  border: 1px solid rgba(99, 102, 241, 0.22) !important;
-  color: rgba(226, 232, 240, 0.90) !important;
+    radial-gradient(140% 90% at 50% -10%, rgba(255, 255, 255, 0.16), transparent 55%),
+    linear-gradient(180deg, rgba(28, 28, 32, 0.62) 0%, rgba(10, 10, 14, 0.72) 100%) !important;
+  border: 1px solid rgba(255, 255, 255, 0.10) !important;
+  color: rgba(232, 232, 238, 0.92) !important;
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.14),
     inset 0 -1px 2px rgba(0, 0, 0, 0.55),
-    0 6px 14px rgba(0, 0, 0, 0.45),
-    0 1px 2px rgba(0, 0, 0, 0.50) !important;
+    0 6px 16px rgba(0, 0, 0, 0.50),
+    0 1px 2px rgba(0, 0, 0, 0.55) !important;
+  backdrop-filter: blur(14px) saturate(120%) !important;
+  -webkit-backdrop-filter: blur(14px) saturate(120%) !important;
   transition:
-    transform 0.20s cubic-bezier(0.4, 0, 0.2, 1),
-    box-shadow 0.20s cubic-bezier(0.4, 0, 0.2, 1),
-    border-color 0.20s ease,
-    color 0.20s ease,
-    background 0.20s ease !important;
+    transform 0.22s cubic-bezier(0.4, 0, 0.2, 1),
+    box-shadow 0.22s cubic-bezier(0.4, 0, 0.2, 1),
+    border-color 0.22s ease,
+    color 0.22s ease,
+    background 0.22s ease !important;
   transform: none !important;
 }
 
 .navmenu > .navmenu-list > .navmenu-li > .item .icon i,
 .navmenu > .navmenu-list > .group > .group-header .icon i {
-  filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.55));
+  filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.65));
   text-shadow: none;
   font-size: 1em;
   line-height: 1;
@@ -1971,15 +1970,15 @@ html[data-theme='dark'] .navmenu .group > .group-header.active[class*='nav-heade
 .navmenu > .navmenu-list > .navmenu-li > .item:hover .icon,
 .navmenu > .navmenu-list > .group > .group-header:hover .icon {
   background:
-    radial-gradient(120% 80% at 50% 0%, rgba(255, 255, 255, 0.16), transparent 55%),
-    linear-gradient(180deg, #232a55 0%, #0c1028 60%, #07091e 100%) !important;
-  border-color: rgba(34, 211, 238, 0.55) !important;
-  color: rgba(241, 245, 255, 0.98) !important;
+    radial-gradient(140% 90% at 50% -10%, rgba(255, 255, 255, 0.22), transparent 55%),
+    linear-gradient(180deg, rgba(38, 38, 42, 0.66) 0%, rgba(14, 14, 18, 0.74) 100%) !important;
+  border-color: rgba(255, 255, 255, 0.20) !important;
+  color: rgba(244, 244, 248, 1) !important;
   box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.20),
+    inset 0 1px 0 rgba(255, 255, 255, 0.22),
     inset 0 -1px 2px rgba(0, 0, 0, 0.60),
-    0 10px 22px rgba(0, 0, 0, 0.55),
-    0 0 18px rgba(34, 211, 238, 0.22) !important;
+    0 10px 24px rgba(0, 0, 0, 0.60),
+    0 0 14px rgba(255, 255, 255, 0.06) !important;
   transform: translateY(-1.5px) !important;
 }
 
@@ -1996,15 +1995,15 @@ html[data-theme='dark'] .navmenu .group > .group-header.active[class*='nav-heade
 .navmenu > .navmenu-list > .group > .group-header.active .icon,
 .navmenu > .navmenu-list > .group.open > .group-header .icon {
   background:
-    radial-gradient(130% 90% at 50% 0%, rgba(255, 255, 255, 0.22), transparent 60%),
-    linear-gradient(180deg, #2a3372 0%, #0d1130 55%, #06081d 100%) !important;
-  border-color: rgba(34, 211, 238, 0.65) !important;
-  color: rgba(241, 245, 255, 1) !important;
+    radial-gradient(150% 100% at 50% -10%, rgba(255, 255, 255, 0.28), transparent 60%),
+    linear-gradient(180deg, rgba(46, 46, 52, 0.72) 0%, rgba(12, 12, 16, 0.80) 100%) !important;
+  border-color: rgba(255, 255, 255, 0.30) !important;
+  color: rgba(248, 248, 252, 1) !important;
   box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.26),
-    inset 0 -1px 2px rgba(0, 0, 0, 0.55),
-    0 12px 26px rgba(0, 0, 0, 0.60),
-    0 0 22px rgba(34, 211, 238, 0.32) !important;
+    inset 0 1px 0 rgba(255, 255, 255, 0.30),
+    inset 0 -1px 2px rgba(0, 0, 0, 0.60),
+    0 12px 28px rgba(0, 0, 0, 0.65),
+    0 0 18px rgba(255, 255, 255, 0.08) !important;
   transform: translateY(-1px) !important;
 }
 
@@ -2012,7 +2011,7 @@ html[data-theme='dark'] .navmenu .group > .group-header.active[class*='nav-heade
 .navmenu > .navmenu-list > .group > .group-header .navmenu-badge {
   top: -3px !important;
   right: -3px !important;
-  border: 2px solid var(--ds-color-bg, #04050b) !important;
+  border: 2px solid rgba(0, 0, 0, 0.85) !important;
   box-shadow: 0 4px 10px rgba(239, 68, 68, 0.45) !important;
 }
 
@@ -2024,25 +2023,27 @@ html[data-theme='dark'] .navmenu .group > .group-header.active[class*='nav-heade
   font-size: 13px !important;
   border-radius: 10px !important;
   background:
-    radial-gradient(120% 80% at 50% 0%, rgba(255, 255, 255, 0.10), transparent 55%),
-    linear-gradient(180deg, #1c2143 0%, #0a0d22 60%, #06081a 100%) !important;
-  border: 1px solid rgba(99, 102, 241, 0.22) !important;
-  color: rgba(226, 232, 240, 0.90) !important;
+    radial-gradient(140% 90% at 50% -10%, rgba(255, 255, 255, 0.14), transparent 55%),
+    linear-gradient(180deg, rgba(28, 28, 32, 0.62) 0%, rgba(10, 10, 14, 0.72) 100%) !important;
+  border: 1px solid rgba(255, 255, 255, 0.10) !important;
+  color: rgba(232, 232, 238, 0.92) !important;
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.12),
     inset 0 -1px 2px rgba(0, 0, 0, 0.50),
-    0 4px 10px rgba(0, 0, 0, 0.40) !important;
+    0 4px 10px rgba(0, 0, 0, 0.45) !important;
+  backdrop-filter: blur(10px) saturate(120%) !important;
+  -webkit-backdrop-filter: blur(10px) saturate(120%) !important;
 }
 
 .sublist .subitem:hover .icon,
 .sublist .subitem.active .icon {
-  border-color: rgba(34, 211, 238, 0.55) !important;
-  color: rgba(241, 245, 255, 0.98) !important;
+  border-color: rgba(255, 255, 255, 0.22) !important;
+  color: rgba(248, 248, 252, 1) !important;
   box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.18),
+    inset 0 1px 0 rgba(255, 255, 255, 0.20),
     inset 0 -1px 2px rgba(0, 0, 0, 0.55),
-    0 6px 14px rgba(0, 0, 0, 0.50),
-    0 0 14px rgba(34, 211, 238, 0.22) !important;
+    0 6px 14px rgba(0, 0, 0, 0.55),
+    0 0 12px rgba(255, 255, 255, 0.06) !important;
 }
 
 /* Compact rhythm: tighter gaps now that pills are square. */

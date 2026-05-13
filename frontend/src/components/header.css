@@ -3,31 +3,28 @@
   grid-template-columns: minmax(0, 240px) 1fr minmax(0, 240px);
   align-items: center;
   height: var(--header-height, 64px);
-  /* AI midnight glass: deep black with violet→cyan aurora and a faint top sheen. */
+  /* Pure black-glass — no color tint, just transparent depth. */
   background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.06) 0%, rgba(255, 255, 255, 0) 50%),
-    radial-gradient(620px 180px at 18% 0%, rgba(34, 211, 238, 0.22), transparent 65%),
-    radial-gradient(720px 200px at 82% 100%, rgba(129, 140, 248, 0.22), transparent 70%),
-    linear-gradient(135deg, #05060d 0%, #0b0f1f 55%, #08091a 100%);
-  background-color: rgba(5, 6, 13, 0.78);
-  color: rgba(238, 241, 255, 0.95);
+    linear-gradient(180deg, rgba(255, 255, 255, 0.04) 0%, rgba(255, 255, 255, 0) 60%),
+    linear-gradient(180deg, rgba(14, 14, 18, 0.72) 0%, rgba(8, 8, 12, 0.82) 100%);
+  background-color: rgba(8, 8, 12, 0.72);
+  color: rgba(238, 238, 244, 0.95);
   padding: var(--header-pad-y, 0) var(--header-pad-x, clamp(16px, 3vw, 28px));
   box-shadow:
-    0 24px 60px rgba(2, 4, 12, 0.55),
-    inset 0 1px 0 rgba(255, 255, 255, 0.10),
-    inset 0 -1px 0 rgba(34, 211, 238, 0.18);
+    0 24px 60px rgba(0, 0, 0, 0.60),
+    inset 0 1px 0 rgba(255, 255, 255, 0.06);
   /* Above nav (.navmenu ~1900) and map/Satellite Intelligence layers; below SI modals (~12k+) and app-dialog (~24k) */
   z-index: 11500;
   position: relative;
   flex-shrink: 0;
-  border-bottom: 1px solid rgba(129, 140, 248, 0.22);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
   overflow: hidden;
-  backdrop-filter: blur(var(--header-blur, 18px)) saturate(140%);
-  -webkit-backdrop-filter: blur(var(--header-blur, 18px)) saturate(140%);
+  backdrop-filter: blur(var(--header-blur, 22px)) saturate(120%);
+  -webkit-backdrop-filter: blur(var(--header-blur, 22px)) saturate(120%);
   transition: box-shadow 0.28s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
-/* Animated aurora streak — barely visible, gives the chrome a quiet "AI alive" pulse. */
+/* Subtle silver shimmer — no color, just a faint top sheen drifting slowly. */
 .geosyntra-header::before {
   content: '';
   position: absolute;
@@ -37,13 +34,13 @@
     linear-gradient(
       120deg,
       transparent 0%,
-      rgba(34, 211, 238, 0.10) 35%,
-      rgba(129, 140, 248, 0.10) 55%,
+      rgba(255, 255, 255, 0.05) 45%,
+      rgba(255, 255, 255, 0.03) 60%,
       transparent 100%
     );
   mix-blend-mode: screen;
-  opacity: 0.7;
-  animation: geosyntra-header-aurora 14s linear infinite;
+  opacity: 0.55;
+  animation: geosyntra-header-aurora 18s linear infinite;
 }
 
 @keyframes geosyntra-header-aurora {
@@ -88,8 +85,8 @@
   background: linear-gradient(
     90deg,
     transparent 0%,
-    rgba(34, 211, 238, 0.45) 25%,
-    rgba(129, 140, 248, 0.45) 75%,
+    rgba(255, 255, 255, 0.18) 25%,
+    rgba(255, 255, 255, 0.18) 75%,
     transparent 100%
   );
   pointer-events: none;
@@ -176,9 +173,7 @@
   transition: all 0.2s ease;
   position: relative;
   z-index: 1;
-  filter:
-    drop-shadow(0 9px 18px rgba(2, 4, 12, 0.55))
-    drop-shadow(0 0 18px rgba(34, 211, 238, 0.28));
+  filter: drop-shadow(0 9px 18px rgba(0, 0, 0, 0.55));
 }
 
 .brand-logo:hover {
@@ -211,9 +206,9 @@
 }
 
 .menu-btn {
-  background: rgba(255, 255, 255, 0.06);
-  border: 1px solid rgba(129, 140, 248, 0.28);
-  color: rgba(238, 241, 255, 0.95);
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.10);
+  color: rgba(238, 238, 244, 0.95);
   font-size: 13px;
   padding: 6px 14px;
   border-radius: 9999px;
@@ -225,23 +220,19 @@
   font-weight: 600;
   letter-spacing: 0.01em;
   backdrop-filter: blur(14px);
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.10),
-    0 0 0 1px rgba(34, 211, 238, 0.08);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
 }
 
 .menu-btn:hover {
-  background: rgba(34, 211, 238, 0.12);
-  border-color: rgba(34, 211, 238, 0.45);
+  background: rgba(255, 255, 255, 0.10);
+  border-color: rgba(255, 255, 255, 0.22);
   transform: translateY(-1px);
-  box-shadow:
-    0 12px 26px rgba(2, 4, 12, 0.45),
-    0 0 24px rgba(34, 211, 238, 0.20);
+  box-shadow: 0 12px 26px rgba(0, 0, 0, 0.50);
 }
 
 .menu-btn:active {
   transform: translateY(0);
-  background: rgba(129, 140, 248, 0.14);
+  background: rgba(255, 255, 255, 0.08);
 }
 
 .profile-icon {
@@ -257,11 +248,11 @@
   border-radius: 9999px;
   gap: 0;
   position: relative;
-  background: linear-gradient(135deg, var(--ai-grad-cyan, #22d3ee), var(--ai-grad-violet, #818cf8));
-  border: 1px solid rgba(129, 140, 248, 0.45);
+  background: linear-gradient(180deg, rgba(38, 38, 42, 0.78), rgba(14, 14, 18, 0.86));
+  border: 1px solid rgba(255, 255, 255, 0.12);
   box-shadow:
-    var(--ds-shadow-sm),
-    0 0 18px rgba(34, 211, 238, 0.28);
+    inset 0 1px 0 rgba(255, 255, 255, 0.10),
+    var(--ds-shadow-sm);
   transition: box-shadow 0.18s ease-out, transform 0.18s ease-out;
 }
 
@@ -272,10 +263,10 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  background: rgba(255,255,255,0.18);
-  color: #ffffff;
+  background: rgba(255, 255, 255, 0.10);
+  color: rgba(244, 244, 248, 0.95);
   font-size: 16px;
-  box-shadow: 0 0 0 rgba(0,0,0,0);
+  box-shadow: 0 0 0 rgba(0, 0, 0, 0);
   transition: transform 0.18s ease-out, box-shadow 0.18s ease-out;
 }
 
@@ -288,7 +279,7 @@
   transform: translateY(-0.5px) scale(1.03);
   box-shadow:
     0 6px 14px rgba(0, 0, 0, 0.7),
-    inset 0 0 0 1px rgba(34, 211, 238, 0.7);
+    inset 0 0 0 1px rgba(255, 255, 255, 0.30);
 }
 
 .profile-menu {
@@ -296,12 +287,12 @@
   right: 0;
   top: calc(100% + 8px);
   width: 200px;
-  background: var(--ds-glass-bg, rgba(15, 18, 36, 0.78));
-  border: 1px solid var(--ds-glass-border, rgba(129, 140, 248, 0.28));
+  background: var(--ds-glass-bg, rgba(14, 14, 18, 0.78));
+  border: 1px solid var(--ds-glass-border, rgba(255, 255, 255, 0.10));
   border-radius: 18px;
   box-shadow:
-    0 28px 70px rgba(2, 4, 12, 0.55),
-    0 0 0 1px rgba(34, 211, 238, 0.10);
+    0 28px 70px rgba(0, 0, 0, 0.65),
+    0 0 0 1px rgba(255, 255, 255, 0.04);
   padding: 8px;
   display: flex;
   flex-direction: column;

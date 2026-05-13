@@ -11,17 +11,17 @@
   --app-radius-2xl: 24px;
   --app-transition-fast: 0.15s cubic-bezier(0.4, 0, 0.2, 1);
   --app-transition-smooth: 0.28s cubic-bezier(0.22, 1, 0.36, 1);
-  --header-gradient-end: #0f3f2f;
-  --app-content-mesh: radial-gradient(1200px 600px at 10% -10%, rgba(4, 120, 87, 0.08), transparent 50%),
-    radial-gradient(900px 480px at 90% 0%, rgba(14, 165, 233, 0.06), transparent 45%),
-    radial-gradient(600px 400px at 50% 100%, rgba(168, 85, 247, 0.05), transparent 50%);
+  --header-gradient-end: #0a0b10;
+  --app-content-mesh:
+    radial-gradient(1200px 600px at 10% -10%, rgba(255, 255, 255, 0.04), transparent 50%),
+    radial-gradient(900px 480px at 90% 0%, rgba(255, 255, 255, 0.03), transparent 45%);
 }
 
 html[data-theme='dark'] {
-  --header-gradient-end: #022c22;
-  --app-content-mesh: radial-gradient(1200px 600px at 10% -10%, rgba(34, 197, 94, 0.12), transparent 50%),
-    radial-gradient(900px 480px at 90% 0%, rgba(56, 189, 248, 0.08), transparent 45%),
-    radial-gradient(600px 400px at 50% 100%, rgba(99, 102, 241, 0.06), transparent 50%);
+  --header-gradient-end: #07080c;
+  --app-content-mesh:
+    radial-gradient(1200px 600px at 10% -10%, rgba(255, 255, 255, 0.04), transparent 50%),
+    radial-gradient(900px 480px at 90% 0%, rgba(255, 255, 255, 0.03), transparent 45%);
 }
 
 html {
@@ -443,10 +443,10 @@ html[data-theme='dark'] .ds-modal {
   width: 40px;
   height: 40px;
   border-radius: 12px;
-  border: 1px solid var(--ds-glass-border, rgba(129, 140, 248, 0.30));
+  border: 1px solid var(--ds-glass-border, rgba(255, 255, 255, 0.12));
   background:
-    radial-gradient(120% 120% at 0% 0%, rgba(34, 211, 238, 0.16), transparent 55%),
-    var(--ds-glass-bg, rgba(15, 18, 36, 0.62));
+    radial-gradient(140% 90% at 50% -10%, rgba(255, 255, 255, 0.10), transparent 55%),
+    var(--ds-glass-bg, rgba(14, 14, 18, 0.62));
   color: var(--ds-color-text);
   display: inline-flex;
   align-items: center;
@@ -454,19 +454,21 @@ html[data-theme='dark'] .ds-modal {
   cursor: pointer;
   transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
   font-size: 15px;
-  backdrop-filter: blur(14px) saturate(140%);
-  -webkit-backdrop-filter: blur(14px) saturate(140%);
+  backdrop-filter: blur(14px) saturate(120%);
+  -webkit-backdrop-filter: blur(14px) saturate(120%);
   box-shadow:
-    inset 0 0 0 1px rgba(34, 211, 238, 0.10),
-    0 10px 26px rgba(2, 4, 12, 0.45);
+    inset 0 1px 0 rgba(255, 255, 255, 0.10),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.04),
+    0 10px 26px rgba(0, 0, 0, 0.50);
 }
 
 .back-btn:hover,
 .app-back-icon-btn:hover {
-  border-color: rgba(34, 211, 238, 0.55);
+  border-color: rgba(255, 255, 255, 0.22);
   box-shadow:
-    inset 0 0 0 1px rgba(34, 211, 238, 0.30),
-    0 14px 32px rgba(2, 4, 12, 0.55);
+    inset 0 1px 0 rgba(255, 255, 255, 0.16),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.10),
+    0 14px 32px rgba(0, 0, 0, 0.60);
   transform: translateX(-3px) translateY(-1px);
 }
 
@@ -477,7 +479,7 @@ html[data-theme='dark'] .ds-modal {
 
 .back-btn:focus-visible,
 .app-back-icon-btn:focus-visible {
-  outline: 2px solid rgba(34, 211, 238, 0.55);
+  outline: 2px solid rgba(255, 255, 255, 0.40);
   outline-offset: 2px;
 }
 
