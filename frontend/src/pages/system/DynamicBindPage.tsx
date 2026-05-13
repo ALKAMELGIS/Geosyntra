@@ -1,6 +1,10 @@
 import { Suspense, lazy } from 'react'
-import Overview from '../dashboards/Overview'
 
+/* All bind targets are now code-split — `DynamicBindPage` itself stays
+ * a static import so the entry bundle can resolve user-defined custom
+ * routes synchronously, but the actual page bodies (Overview / GIS /
+ * Satellite) are lazy() so they don't bloat the entry chunk. */
+const Overview = lazy(() => import('../dashboards/Overview'))
 const GisMap = lazy(() => import('../satellite/GisMap'))
 const SatelliteIntelligence = lazy(() => import('../satellite/SatelliteIntelligence'))
 

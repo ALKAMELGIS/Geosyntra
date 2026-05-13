@@ -1,7 +1,15 @@
+import { useEffect, startTransition } from 'react'
 import { useNavigate } from 'react-router-dom'
 import LandingPage from '../components/ui/landing-page'
 import HeroThemeToggle from './components/HeroThemeToggle'
+import { prefetchRoute } from '../routes/routePrefetch'
 import './Home.css'
+
+/* Routes the Home Hero CTAs jump to. We surface them as constants so
+ * the speculative prefetch list (below) and the runtime navigate
+ * callbacks stay in lock-step — change one, you change both. */
+const HERO_PRIMARY_PATH = '/satellite/indices'
+const HERO_SECONDARY_PATH = '/learn-more'
 
 /**
  * Home → 1:1 mount of the upstream 21st.dev `landing-page` bundle
@@ -19,6 +27,52 @@ import './Home.css'
  */
 export default function Home() {
   const navigate = useNavigate()
+
+  /* Speculative chunk warming — once the Hero has painted and the
+   * browser is idle, kick off the dynamic imports for the two CTA
+   * targets (Satellite Indices + Learn More). By the time the user
+   * actually clicks a button they both resolve from cache, so the
+   * navigation reads as instant instead of waiting for a 400 KB+
+   * chunk to download. `requestIdleCallback` defers the work past
+   * the first paint so it never competes with Hero animations.
+   * Falls back to `setTimeout(0)` on browsers without RIC (Safari). */
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    const ric =
+      (window as unknown as {
+        requestIdleCallback?: (cb: () => void, opts?: { timeout?: number }) => number
+        cancelIdleCallback?: (id: number) => void
+      }).requestIdleCallback ?? null
+    let id: number
+    if (ric) {
+      id = ric(
+        () => {
+          prefetchRoute(HERO_PRIMARY_PATH)
+          prefetchRoute(HERO_SECONDARY_PATH)
+        },
+        { timeout: 1500 },
+      )
+      return () => {
+        const cic = (window as unknown as { cancelIdleCallback?: (id: number) => void })
+          .cancelIdleCallback
+        if (cic) cic(id)
+      }
+    }
+    const tid = window.setTimeout(() => {
+      prefetchRoute(HERO_PRIMARY_PATH)
+      prefetchRoute(HERO_SECONDARY_PATH)
+    }, 600)
+    return () => window.clearTimeout(tid)
+  }, [])
+
+  /* `startTransition` lets React keep the current Hero responsive
+   * while the heavy lazy() route mounts in the background — no
+   * frame drop, no layout jank. The router's `v7_startTransition`
+   * flag does the same for declarative <Link> clicks; this covers
+   * the imperative `navigate()` path the CTAs use. */
+  const goPrimary = () => startTransition(() => navigate(HERO_PRIMARY_PATH))
+  const goSecondary = () => startTransition(() => navigate(HERO_SECONDARY_PATH))
+
   return (
     /*
      * Home wrapper — locked to the responsive spec the user signed off on
@@ -38,8 +92,8 @@ export default function Home() {
     <div className="home-landing min-h-screen w-full max-w-full flex flex-col">
       <LandingPage
         className="bg-gradient-to-br from-background via-muted/20 to-background"
-        onPrimaryAction={() => navigate('/satellite/indices')}
-        onSecondaryAction={() => navigate('/learn-more')}
+        onPrimaryAction={goPrimary}
+        onSecondaryAction={goSecondary}
       />
       {/* Floating Dark/Light preview toggle — Home page only.
        *   Lives outside <LandingPage /> so it isn't trapped inside

@@ -4,6 +4,7 @@ import './navmenu.css'
 import { hasPermission, normalizeRole, readCurrentUser } from '../lib/auth'
 import { useLanguage } from '../lib/i18n'
 import type { MergedGroup } from '../nav/navManifest'
+import { prefetchRoute } from '../routes/routePrefetch'
 import { normalizeAppPath } from '../services/settingsStorage'
 import { useMergedNavigation, useSystemSettings } from '../store/SystemSettingsContext'
 
@@ -234,6 +235,13 @@ export default function NavMenu({ onLogout }: NavMenuProps) {
             key={leaf.id}
             to={leaf.path}
             onClick={handleNavigate}
+            /* Warm the destination chunk on hover / focus so the
+             * subsequent click is essentially free (no network parse
+             * delay). `prefetchRoute` is fire-and-forget + memoised,
+             * so re-hovering is a no-op. */
+            onMouseEnter={() => prefetchRoute(leaf.path)}
+            onPointerEnter={() => prefetchRoute(leaf.path)}
+            onFocus={() => prefetchRoute(leaf.path)}
             className={({ isActive }) => (isActive ? `subitem active ${leaf.subitemClass}` : `subitem ${leaf.subitemClass}`)}
             ref={el => {
               if (ix === 0) groupFirstItemRefs.current[group.id] = el
@@ -733,6 +741,9 @@ export default function NavMenu({ onLogout }: NavMenuProps) {
             <NavLink
               to="/account/profile"
               onClick={handleNavigate}
+              onMouseEnter={() => prefetchRoute('/account/profile')}
+              onPointerEnter={() => prefetchRoute('/account/profile')}
+              onFocus={() => prefetchRoute('/account/profile')}
               className={({ isActive }) => (isActive ? 'subitem active nav-item-account' : 'subitem nav-item-account')}
               ref={el => {
                 groupFirstItemRefs.current.account = el
