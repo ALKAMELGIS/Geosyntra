@@ -1891,3 +1891,164 @@ html[data-theme='dark'] .navmenu .group > .group-header.active[class*='nav-heade
     inset 3px 0 0 rgba(56, 189, 248, 0.92),
     0 10px 24px rgba(0, 0, 0, 0.34) !important;
 }
+
+/* ====================================================================== *
+ * One UI Glass — Geosyntra primary nav icon pack                         *
+ * ---------------------------------------------------------------------- *
+ * - Top-level pills collapse to icon-only black-glass squircles.          *
+ * - Per-route hue tints are removed; every icon shares the same dark      *
+ *   glossy chip (no white surface, no neon, just embossed depth).         *
+ * - Subitem labels inside flyouts are preserved for clarity.              *
+ * - Hover & active add a subtle cyan inner rim + soft lift.               *
+ * ====================================================================== */
+
+.navmenu > .navmenu-list > .navmenu-li > .item,
+.navmenu > .navmenu-list > .group > .group-header {
+  width: 44px !important;
+  min-width: 44px !important;
+  max-width: 44px !important;
+  height: 44px !important;
+  min-height: 44px !important;
+  max-height: 44px !important;
+  padding: 0 !important;
+  gap: 0 !important;
+  border-radius: 14px !important;
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  justify-content: center !important;
+  overflow: visible !important;
+}
+
+.navmenu > .navmenu-list > .navmenu-li > .item .label,
+.navmenu > .navmenu-list > .group > .group-header .label,
+.navmenu > .navmenu-list > .group > .group-header .chev {
+  display: none !important;
+}
+
+.navmenu > .navmenu-list > .navmenu-li > .item .icon,
+.navmenu > .navmenu-list > .group > .group-header .icon {
+  width: 38px !important;
+  height: 38px !important;
+  flex: 0 0 38px !important;
+  font-size: 15px !important;
+  border-radius: 12px !important;
+  background:
+    radial-gradient(120% 80% at 50% 0%, rgba(255, 255, 255, 0.10), transparent 55%),
+    linear-gradient(180deg, #1c2143 0%, #0a0d22 60%, #06081a 100%) !important;
+  border: 1px solid rgba(99, 102, 241, 0.22) !important;
+  color: rgba(226, 232, 240, 0.90) !important;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.14),
+    inset 0 -1px 2px rgba(0, 0, 0, 0.55),
+    0 6px 14px rgba(0, 0, 0, 0.45),
+    0 1px 2px rgba(0, 0, 0, 0.50) !important;
+  transition:
+    transform 0.20s cubic-bezier(0.4, 0, 0.2, 1),
+    box-shadow 0.20s cubic-bezier(0.4, 0, 0.2, 1),
+    border-color 0.20s ease,
+    color 0.20s ease,
+    background 0.20s ease !important;
+  transform: none !important;
+}
+
+.navmenu > .navmenu-list > .navmenu-li > .item .icon i,
+.navmenu > .navmenu-list > .group > .group-header .icon i {
+  filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.55));
+  text-shadow: none;
+  font-size: 1em;
+  line-height: 1;
+}
+
+.navmenu > .navmenu-list > .navmenu-li > .item:hover,
+.navmenu > .navmenu-list > .group > .group-header:hover {
+  background: transparent !important;
+  border-color: transparent !important;
+  box-shadow: none !important;
+  transform: none !important;
+}
+
+.navmenu > .navmenu-list > .navmenu-li > .item:hover .icon,
+.navmenu > .navmenu-list > .group > .group-header:hover .icon {
+  background:
+    radial-gradient(120% 80% at 50% 0%, rgba(255, 255, 255, 0.16), transparent 55%),
+    linear-gradient(180deg, #232a55 0%, #0c1028 60%, #07091e 100%) !important;
+  border-color: rgba(34, 211, 238, 0.55) !important;
+  color: rgba(241, 245, 255, 0.98) !important;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.20),
+    inset 0 -1px 2px rgba(0, 0, 0, 0.60),
+    0 10px 22px rgba(0, 0, 0, 0.55),
+    0 0 18px rgba(34, 211, 238, 0.22) !important;
+  transform: translateY(-1.5px) !important;
+}
+
+.navmenu > .navmenu-list > .navmenu-li > .item.active,
+.navmenu > .navmenu-list > .group > .group-header.active,
+.navmenu > .navmenu-list > .group.open > .group-header {
+  background: transparent !important;
+  border-color: transparent !important;
+  color: inherit !important;
+  box-shadow: none !important;
+}
+
+.navmenu > .navmenu-list > .navmenu-li > .item.active .icon,
+.navmenu > .navmenu-list > .group > .group-header.active .icon,
+.navmenu > .navmenu-list > .group.open > .group-header .icon {
+  background:
+    radial-gradient(130% 90% at 50% 0%, rgba(255, 255, 255, 0.22), transparent 60%),
+    linear-gradient(180deg, #2a3372 0%, #0d1130 55%, #06081d 100%) !important;
+  border-color: rgba(34, 211, 238, 0.65) !important;
+  color: rgba(241, 245, 255, 1) !important;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.26),
+    inset 0 -1px 2px rgba(0, 0, 0, 0.55),
+    0 12px 26px rgba(0, 0, 0, 0.60),
+    0 0 22px rgba(34, 211, 238, 0.32) !important;
+  transform: translateY(-1px) !important;
+}
+
+/* Notification badge sits flush against the squircle. */
+.navmenu > .navmenu-list > .group > .group-header .navmenu-badge {
+  top: -3px !important;
+  right: -3px !important;
+  border: 2px solid var(--ds-color-bg, #04050b) !important;
+  box-shadow: 0 4px 10px rgba(239, 68, 68, 0.45) !important;
+}
+
+/* Subitem icons inside flyouts get the same chip treatment, just smaller. */
+.sublist .subitem .icon {
+  width: 32px !important;
+  height: 32px !important;
+  flex: 0 0 32px !important;
+  font-size: 13px !important;
+  border-radius: 10px !important;
+  background:
+    radial-gradient(120% 80% at 50% 0%, rgba(255, 255, 255, 0.10), transparent 55%),
+    linear-gradient(180deg, #1c2143 0%, #0a0d22 60%, #06081a 100%) !important;
+  border: 1px solid rgba(99, 102, 241, 0.22) !important;
+  color: rgba(226, 232, 240, 0.90) !important;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.12),
+    inset 0 -1px 2px rgba(0, 0, 0, 0.50),
+    0 4px 10px rgba(0, 0, 0, 0.40) !important;
+}
+
+.sublist .subitem:hover .icon,
+.sublist .subitem.active .icon {
+  border-color: rgba(34, 211, 238, 0.55) !important;
+  color: rgba(241, 245, 255, 0.98) !important;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.18),
+    inset 0 -1px 2px rgba(0, 0, 0, 0.55),
+    0 6px 14px rgba(0, 0, 0, 0.50),
+    0 0 14px rgba(34, 211, 238, 0.22) !important;
+}
+
+/* Compact rhythm: tighter gaps now that pills are square. */
+.navmenu > .navmenu-list {
+  gap: 8px !important;
+}
+.navmenu .navmenu-account {
+  margin-right: 14px !important;
+}

@@ -655,7 +655,7 @@ export default function NavMenu({ onLogout }: NavMenuProps) {
             }}
           >
             <span className="icon">
-              <i className="fa-solid fa-globe"></i>
+              <i className="fa-solid fa-language"></i>
             </span>
           </button>
           <div
@@ -722,7 +722,7 @@ export default function NavMenu({ onLogout }: NavMenuProps) {
             }}
           >
             <span className="icon">
-              <i className="fa-solid fa-user-astronaut"></i>
+              <i className="fa-solid fa-circle-user"></i>
             </span>
             <i className={`chev fa-solid ${openGroup === 'account' ? 'fa-chevron-down' : 'fa-chevron-right'}`}></i>
           </button>

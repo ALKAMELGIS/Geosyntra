@@ -66,7 +66,7 @@ export const NAV_DEFAULT_GROUPS: NavGroupDef[] = [
   {
     id: 'satellite',
     i18nKey: 'satelliteImagery',
-    defaultIcon: 'fa-solid fa-satellite-dish',
+    defaultIcon: 'fa-solid fa-satellite',
     headerClass: 'nav-header-satellite',
     children: [
       {
@@ -88,7 +88,7 @@ export const NAV_DEFAULT_GROUPS: NavGroupDef[] = [
   {
     id: 'master',
     i18nKey: 'masterData',
-    defaultIcon: 'fa-solid fa-gear',
+    defaultIcon: 'fa-solid fa-cubes',
     headerClass: 'nav-header-master',
     children: [
       {
@@ -117,7 +117,7 @@ export const NAV_DEFAULT_GROUPS: NavGroupDef[] = [
   {
     id: 'admin',
     i18nKey: 'admin',
-    defaultIcon: 'fa-solid fa-user-shield',
+    defaultIcon: 'fa-solid fa-shield-halved',
     headerClass: 'nav-header-admin',
     children: [
       {
