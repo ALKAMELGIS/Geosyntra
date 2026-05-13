@@ -23,8 +23,8 @@ export function sanitizeDirectoryRoleCatalog(raw: unknown): Role[] {
 
 export const DEFAULT_SYSTEM_SETTINGS: SystemSettingsPersistedV1 = {
   version: 1,
-  themeMode: 'system',
-  customPrimaryHex: '#047857',
+  themeMode: 'dark',
+  customPrimaryHex: '#22d3ee',
   logoLight: '',
   logoDark: '',
   logoIcon: '',

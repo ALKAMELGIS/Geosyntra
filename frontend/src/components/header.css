@@ -3,29 +3,57 @@
   grid-template-columns: minmax(0, 240px) 1fr minmax(0, 240px);
   align-items: center;
   height: var(--header-height, 64px);
+  /* AI midnight glass: deep black with violet→cyan aurora and a faint top sheen. */
   background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.09) 0%, rgba(255, 255, 255, 0) 45%),
-    linear-gradient(
-      135deg,
-      color-mix(in srgb, var(--ds-color-primary) 94%, #022c22) 0%,
-      var(--header-gradient-end, #0f3f2f) 48%,
-      color-mix(in srgb, var(--ds-color-primary) 72%, #020617) 100%
-    );
-  color: rgba(255, 255, 255, 0.94);
+    linear-gradient(180deg, rgba(255, 255, 255, 0.06) 0%, rgba(255, 255, 255, 0) 50%),
+    radial-gradient(620px 180px at 18% 0%, rgba(34, 211, 238, 0.22), transparent 65%),
+    radial-gradient(720px 200px at 82% 100%, rgba(129, 140, 248, 0.22), transparent 70%),
+    linear-gradient(135deg, #05060d 0%, #0b0f1f 55%, #08091a 100%);
+  background-color: rgba(5, 6, 13, 0.78);
+  color: rgba(238, 241, 255, 0.95);
   padding: var(--header-pad-y, 0) var(--header-pad-x, clamp(16px, 3vw, 28px));
   box-shadow:
-    0 20px 60px rgba(2, 6, 23, 0.22),
-    inset 0 1px 0 rgba(255, 255, 255, 0.18),
-    inset 0 -1px 0 rgba(2, 44, 34, 0.55);
+    0 24px 60px rgba(2, 4, 12, 0.55),
+    inset 0 1px 0 rgba(255, 255, 255, 0.10),
+    inset 0 -1px 0 rgba(34, 211, 238, 0.18);
   /* Above nav (.navmenu ~1900) and map/Satellite Intelligence layers; below SI modals (~12k+) and app-dialog (~24k) */
   z-index: 11500;
   position: relative;
   flex-shrink: 0;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.14);
+  border-bottom: 1px solid rgba(129, 140, 248, 0.22);
   overflow: hidden;
-  backdrop-filter: blur(var(--header-blur, 12px));
-  -webkit-backdrop-filter: blur(var(--header-blur, 12px));
+  backdrop-filter: blur(var(--header-blur, 18px)) saturate(140%);
+  -webkit-backdrop-filter: blur(var(--header-blur, 18px)) saturate(140%);
   transition: box-shadow 0.28s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* Animated aurora streak — barely visible, gives the chrome a quiet "AI alive" pulse. */
+.geosyntra-header::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    linear-gradient(
+      120deg,
+      transparent 0%,
+      rgba(34, 211, 238, 0.10) 35%,
+      rgba(129, 140, 248, 0.10) 55%,
+      transparent 100%
+    );
+  mix-blend-mode: screen;
+  opacity: 0.7;
+  animation: geosyntra-header-aurora 14s linear infinite;
+}
+
+@keyframes geosyntra-header-aurora {
+  0% { transform: translateX(-12%); }
+  50% { transform: translateX(12%); }
+  100% { transform: translateX(-12%); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .geosyntra-header::before { animation: none; }
 }
 
 .geosyntra-header--sticky {
@@ -57,7 +85,13 @@
   bottom: 0;
   display: block;
   height: 1px;
-  background: rgba(255, 255, 255, 0.22);
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(34, 211, 238, 0.45) 25%,
+    rgba(129, 140, 248, 0.45) 75%,
+    transparent 100%
+  );
   pointer-events: none;
 }
 
@@ -71,16 +105,20 @@
 
 .logo-icon {
   font-size: 16px;
-  color: rgba(255, 255, 255, 0.95);
+  color: rgba(238, 241, 255, 0.95);
   display: flex;
   align-items: center;
   justify-content: center;
   width: 36px;
   height: 36px;
-  background: rgba(255, 255, 255, 0.16);
+  background:
+    linear-gradient(155deg, rgba(34, 211, 238, 0.28), rgba(129, 140, 248, 0.22));
   border-radius: 14px;
-  border: 1px solid rgba(255, 255, 255, 0.26);
-  box-shadow: 0 14px 30px rgba(2, 6, 23, 0.24), inset 0 1px 0 rgba(255, 255, 255, 0.26);
+  border: 1px solid rgba(129, 140, 248, 0.45);
+  box-shadow:
+    0 14px 30px rgba(2, 4, 12, 0.55),
+    0 0 0 1px rgba(34, 211, 238, 0.15) inset,
+    inset 0 1px 0 rgba(255, 255, 255, 0.25);
   overflow: hidden;
 }
 
@@ -131,8 +169,8 @@ html[data-theme='dark'] .logo-text {
   position: relative;
   z-index: 1;
   filter:
-    drop-shadow(0 9px 18px rgba(2, 6, 23, 0.42))
-    drop-shadow(0 0 18px rgba(187, 247, 208, 0.24));
+    drop-shadow(0 9px 18px rgba(2, 4, 12, 0.55))
+    drop-shadow(0 0 18px rgba(34, 211, 238, 0.28));
 }
 
 .brand-logo:hover {
@@ -165,9 +203,9 @@ html[data-theme='dark'] .logo-text {
 }
 
 .menu-btn {
-  background: rgba(255, 255, 255, 0.14);
-  border: 1px solid rgba(255, 255, 255, 0.24);
-  color: rgba(255, 255, 255, 0.95);
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(129, 140, 248, 0.28);
+  color: rgba(238, 241, 255, 0.95);
   font-size: 13px;
   padding: 6px 14px;
   border-radius: 9999px;
@@ -179,18 +217,23 @@ html[data-theme='dark'] .logo-text {
   font-weight: 600;
   letter-spacing: 0.01em;
   backdrop-filter: blur(14px);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.16);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.10),
+    0 0 0 1px rgba(34, 211, 238, 0.08);
 }
 
 .menu-btn:hover {
-  background: rgba(255, 255, 255, 0.18);
+  background: rgba(34, 211, 238, 0.12);
+  border-color: rgba(34, 211, 238, 0.45);
   transform: translateY(-1px);
-  box-shadow: 0 12px 26px rgba(2, 6, 23, 0.28);
+  box-shadow:
+    0 12px 26px rgba(2, 4, 12, 0.45),
+    0 0 24px rgba(34, 211, 238, 0.20);
 }
 
 .menu-btn:active {
   transform: translateY(0);
-  background: rgba(255, 255, 255, 0.15);
+  background: rgba(129, 140, 248, 0.14);
 }
 
 .profile-icon {
@@ -206,9 +249,11 @@ html[data-theme='dark'] .logo-text {
   border-radius: 9999px;
   gap: 0;
   position: relative;
-  background: var(--ds-color-primary);
-  border: 1px solid rgba(22, 163, 74, 0.35);
-  box-shadow: var(--ds-shadow-sm);
+  background: linear-gradient(135deg, var(--ai-grad-cyan, #22d3ee), var(--ai-grad-violet, #818cf8));
+  border: 1px solid rgba(129, 140, 248, 0.45);
+  box-shadow:
+    var(--ds-shadow-sm),
+    0 0 18px rgba(34, 211, 238, 0.28);
   transition: box-shadow 0.18s ease-out, transform 0.18s ease-out;
 }
 
@@ -235,7 +280,7 @@ html[data-theme='dark'] .logo-text {
   transform: translateY(-0.5px) scale(1.03);
   box-shadow:
     0 6px 14px rgba(0, 0, 0, 0.7),
-    inset 0 0 0 1px rgba(34, 197, 94, 0.7);
+    inset 0 0 0 1px rgba(34, 211, 238, 0.7);
 }
 
 .profile-menu {
@@ -243,10 +288,12 @@ html[data-theme='dark'] .logo-text {
   right: 0;
   top: calc(100% + 8px);
   width: 200px;
-  background: rgba(255, 255, 255, 0.92);
-  border: 1px solid rgba(255, 255, 255, 0.78);
+  background: var(--ds-glass-bg, rgba(15, 18, 36, 0.78));
+  border: 1px solid var(--ds-glass-border, rgba(129, 140, 248, 0.28));
   border-radius: 18px;
-  box-shadow: 0 24px 70px rgba(15, 23, 42, 0.20);
+  box-shadow:
+    0 28px 70px rgba(2, 4, 12, 0.55),
+    0 0 0 1px rgba(34, 211, 238, 0.10);
   padding: 8px;
   display: flex;
   flex-direction: column;
@@ -254,7 +301,8 @@ html[data-theme='dark'] .logo-text {
   z-index: 100;
   transform-origin: top right;
   animation: menuSlideIn 0.2s ease-out;
-  backdrop-filter: blur(18px);
+  backdrop-filter: blur(22px) saturate(140%);
+  -webkit-backdrop-filter: blur(22px) saturate(140%);
 }
 
 @keyframes menuSlideIn {
