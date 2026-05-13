@@ -2,6 +2,12 @@ import './header.css'
 import { useEffect, useMemo, useRef, type CSSProperties } from 'react'
 import { useSystemSettings } from '../store/SystemSettingsContext'
 import { useLanguage } from '../lib/i18n'
+import {
+  GEOSYNTRA_BRAND_ICON_FALLBACK,
+  GEOSYNTRA_BRAND_LOGO_SVG,
+  GEOSYNTRA_BRAND_NAME,
+  GEOSYNTRA_BRAND_NAME_AR,
+} from '../lib/brand'
 
 /** No third-party default; use System Settings → logo URLs, or header shows text/icon only. */
 const DEFAULT_CENTER_LOGO = ''
@@ -21,9 +27,9 @@ export default function HeaderBar() {
     return settings.logoLight.trim() || settings.logoDark.trim() || DEFAULT_CENTER_LOGO.trim()
   }, [settings.themeMode, settings.logoLight, settings.logoDark])
   const logoText = useMemo(() => {
-    if (hs.useProjectName) return String(import.meta.env.VITE_APP_NAME || 'Geosyntra Platform')
-    if (language === 'ar' && hs.logoTextAr.trim()) return hs.logoTextAr.trim()
-    return hs.logoText.trim() || 'Geosyntra Platform'
+    if (hs.useProjectName) return String(import.meta.env.VITE_APP_NAME || GEOSYNTRA_BRAND_NAME)
+    if (language === 'ar') return hs.logoTextAr.trim() || GEOSYNTRA_BRAND_NAME_AR
+    return hs.logoText.trim() || GEOSYNTRA_BRAND_NAME
   }, [hs.logoText, hs.logoTextAr, hs.useProjectName, language])
   const headerStyle = useMemo(
     () =>
@@ -98,7 +104,11 @@ export default function HeaderBar() {
             ) : hs.logoSvg.trim().startsWith('<svg') ? (
               <span className="logo-icon__svg" aria-hidden dangerouslySetInnerHTML={{ __html: hs.logoSvg }} />
             ) : (
-              <i className={hs.iconClass || 'fa-solid fa-leaf'} />
+              <span
+                className="logo-icon__svg"
+                aria-hidden
+                dangerouslySetInnerHTML={{ __html: GEOSYNTRA_BRAND_LOGO_SVG }}
+              />
             )}
           </span>
         ) : null}

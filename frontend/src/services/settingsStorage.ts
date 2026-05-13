@@ -1,5 +1,14 @@
 import type { Role } from '../lib/auth'
 import { normalizeRole } from '../lib/auth'
+import {
+  GEOSYNTRA_BRAND_ICON_FALLBACK,
+  GEOSYNTRA_BRAND_LOGO_SVG,
+  GEOSYNTRA_BRAND_NAME,
+  GEOSYNTRA_BRAND_NAME_AR,
+  LEGACY_BRAND_ICON_CLASSES,
+  LEGACY_BRAND_NAME_PATTERN,
+  LEGACY_BRAND_NAME_PATTERN_AR,
+} from '../lib/brand'
 import type { CustomApiTokenSlot, CustomPageRecord, NavItemOverride, SystemSettingsPersistedV1 } from '../types/systemSettings'
 
 export const SETTINGS_STORAGE_KEY = 'agri_system_settings_v1'
@@ -19,6 +28,44 @@ export function sanitizeDirectoryRoleCatalog(raw: unknown): Role[] {
   }
   const out = DIRECTORY_ROLES_CANONICAL.filter(r => want.has(r))
   return out.length ? out : [...DIRECTORY_ROLES_CANONICAL]
+}
+
+/**
+ * Brand-name guard: any persisted English logo text that matches the legacy patterns
+ * (Agro Cloud, Agri Cloud, Geosyntra Platform, …) is overwritten with `Geosyntra` so
+ * existing users instantly see the new identity. Free-form custom names are preserved.
+ */
+function sanitizeBrandName(raw: unknown, fallback: string): string {
+  if (typeof raw !== 'string') return fallback
+  const trimmed = raw.trim()
+  if (!trimmed) return fallback
+  if (LEGACY_BRAND_NAME_PATTERN.test(trimmed)) return fallback
+  return trimmed.slice(0, 120)
+}
+
+function sanitizeBrandNameAr(raw: unknown, fallback: string): string {
+  if (typeof raw !== 'string') return fallback
+  const trimmed = raw.trim()
+  if (!trimmed) return fallback
+  if (LEGACY_BRAND_NAME_PATTERN_AR.test(trimmed)) return fallback
+  return trimmed.slice(0, 120)
+}
+
+function sanitizeBrandIconClass(raw: unknown, fallback: string): string {
+  if (typeof raw !== 'string') return fallback
+  const trimmed = raw.trim()
+  if (!trimmed) return fallback
+  if (LEGACY_BRAND_ICON_CLASSES.has(trimmed)) return fallback
+  return trimmed.slice(0, 120)
+}
+
+function sanitizeBrandLogoSvg(raw: unknown, fallback: string): string {
+  if (typeof raw !== 'string') return fallback
+  const trimmed = raw.trim()
+  if (!trimmed) return fallback
+  // Reject anything that does not look like a real `<svg>` payload (kills stray legacy strings).
+  if (!trimmed.startsWith('<svg')) return fallback
+  return trimmed.slice(0, 6000)
 }
 
 export const DEFAULT_SYSTEM_SETTINGS: SystemSettingsPersistedV1 = {
@@ -43,14 +90,14 @@ export const DEFAULT_SYSTEM_SETTINGS: SystemSettingsPersistedV1 = {
     backgroundImage: '',
   },
   headerSettings: {
-    logoText: 'Geosyntra Platform',
-    logoTextAr: 'جيوسينترا',
+    logoText: GEOSYNTRA_BRAND_NAME,
+    logoTextAr: GEOSYNTRA_BRAND_NAME_AR,
     useProjectName: false,
     fontFamily: 'var(--ds-font-sans)',
     fontSize: 18,
     fontWeight: 700,
-    textColorLight: '#0f172a',
-    textColorDark: '#f8fafc',
+    textColorLight: '#0b1220',
+    textColorDark: '#eef1ff',
     letterSpacing: -0.02,
     paddingX: 20,
     paddingY: 10,
@@ -62,11 +109,11 @@ export const DEFAULT_SYSTEM_SETTINGS: SystemSettingsPersistedV1 = {
     tabletShowLogoText: true,
     sticky: true,
     transparent: false,
-    blur: 12,
+    blur: 18,
     enableAnimation: true,
     autoResize: true,
-    iconClass: 'fa-solid fa-leaf',
-    logoSvg: '',
+    iconClass: GEOSYNTRA_BRAND_ICON_FALLBACK,
+    logoSvg: GEOSYNTRA_BRAND_LOGO_SVG,
     layoutPreset: 'default',
     autoSave: false,
   },
@@ -141,8 +188,8 @@ export function mergeWithDefaults(partial: Partial<SystemSettingsPersistedV1>): 
       backgroundImage: typeof homeRaw?.backgroundImage === 'string' ? homeRaw.backgroundImage : '',
     },
     headerSettings: {
-      logoText: typeof hdrRaw?.logoText === 'string' ? hdrRaw.logoText.slice(0, 120) : DEFAULT_SYSTEM_SETTINGS.headerSettings.logoText,
-      logoTextAr: typeof hdrRaw?.logoTextAr === 'string' ? hdrRaw.logoTextAr.slice(0, 120) : DEFAULT_SYSTEM_SETTINGS.headerSettings.logoTextAr,
+      logoText: sanitizeBrandName(hdrRaw?.logoText, DEFAULT_SYSTEM_SETTINGS.headerSettings.logoText),
+      logoTextAr: sanitizeBrandNameAr(hdrRaw?.logoTextAr, DEFAULT_SYSTEM_SETTINGS.headerSettings.logoTextAr),
       useProjectName: hdrRaw?.useProjectName === true,
       fontFamily: typeof hdrRaw?.fontFamily === 'string' && hdrRaw.fontFamily.trim() ? hdrRaw.fontFamily.trim().slice(0, 120) : DEFAULT_SYSTEM_SETTINGS.headerSettings.fontFamily,
       fontSize: Math.max(10, Math.min(42, Number(hdrRaw?.fontSize ?? DEFAULT_SYSTEM_SETTINGS.headerSettings.fontSize) || DEFAULT_SYSTEM_SETTINGS.headerSettings.fontSize)),
@@ -166,8 +213,8 @@ export function mergeWithDefaults(partial: Partial<SystemSettingsPersistedV1>): 
       blur: Math.max(0, Math.min(30, Number(hdrRaw?.blur ?? DEFAULT_SYSTEM_SETTINGS.headerSettings.blur) || DEFAULT_SYSTEM_SETTINGS.headerSettings.blur)),
       enableAnimation: hdrRaw?.enableAnimation !== false,
       autoResize: hdrRaw?.autoResize !== false,
-      iconClass: typeof hdrRaw?.iconClass === 'string' && hdrRaw.iconClass.trim() ? hdrRaw.iconClass.trim().slice(0, 120) : DEFAULT_SYSTEM_SETTINGS.headerSettings.iconClass,
-      logoSvg: typeof hdrRaw?.logoSvg === 'string' ? hdrRaw.logoSvg.slice(0, 4000) : '',
+      iconClass: sanitizeBrandIconClass(hdrRaw?.iconClass, DEFAULT_SYSTEM_SETTINGS.headerSettings.iconClass),
+      logoSvg: sanitizeBrandLogoSvg(hdrRaw?.logoSvg, DEFAULT_SYSTEM_SETTINGS.headerSettings.logoSvg),
       layoutPreset:
         hdrRaw?.layoutPreset === 'balanced' ||
         hdrRaw?.layoutPreset === 'branding' ||
