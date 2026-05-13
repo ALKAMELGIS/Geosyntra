@@ -10,6 +10,11 @@ import './styles/app-design-system.css'
 import './styles/dark-mode-unified.css'
 import './styles/si-scrollbar-system.css'
 import './styles/responsive-shell.css'
+/* Imported AFTER every other top-level stylesheet so the
+ * `html[data-theme="light"] …` overrides win on source order alone, even
+ * though their attribute-selector specificity already beats the dark base
+ * rules. Keeps the white-glass identity contained in one reviewable file. */
+import './styles/light-glass-theme.css'
 import { bootstrapMapboxAccessTokenPersistence } from './lib/mapboxAccessToken'
 
 const safeSessionGetItem = (key: string) => {

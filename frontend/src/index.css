@@ -113,37 +113,47 @@ html[data-theme="dark"] {
   }
 }
 
-/* "Light" AI mode: same AI black-glass surfaces as dark but slightly elevated tones,
-   never pure white. The product is dark-glass first; "Light" simply shifts to a softer
-   midnight palette so the picker still feels meaningful without ever serving white. */
+/* Lite Mode = Geosyntra White Glass.
+ *
+ * A first-class frosted-white identity that sits next to the dark-glass dark
+ * mode without ever reading as a "downgrade". Surfaces are translucent off
+ * -white, borders are soft cool-gray hairlines, shadows are light + diffuse
+ * (the Apple frosted UI / Samsung One UI Light / Windows Fluent White Glass
+ * playbook). Foreground stays at deep slate (`#1d2030`) rather than pure
+ * black so the type feels premium instead of CRT-harsh on the bright glass.
+ *
+ * `color-scheme: light` flips the native browser scrollbars / form controls
+ * to their light variants — without this the dark UA scrollbars would clash
+ * with the white panels.
+ */
 :root[data-theme="light"],
 html[data-theme="light"] {
-  color-scheme: dark;
-  --ds-color-bg: #0a0b10;
-  --ds-color-bg-dashboard: #0c0d12;
-  --ds-color-surface: rgba(22, 22, 28, 0.62);
-  --ds-color-surface-2: rgba(255, 255, 255, 0.05);
-  --ds-color-text: #f4f4f8;
-  --ds-color-text-muted: rgba(232, 232, 238, 0.70);
-  --ds-color-border: rgba(255, 255, 255, 0.10);
-  --ds-color-border-strong: rgba(255, 255, 255, 0.22);
+  color-scheme: light;
+  --ds-color-bg: #f6f8fc;
+  --ds-color-bg-dashboard: #eef2f8;
+  --ds-color-surface: rgba(255, 255, 255, 0.78);
+  --ds-color-surface-2: rgba(255, 255, 255, 0.55);
+  --ds-color-text: #1d2030;
+  --ds-color-text-muted: rgba(29, 32, 48, 0.62);
+  --ds-color-border: rgba(15, 23, 42, 0.08);
+  --ds-color-border-strong: rgba(15, 23, 42, 0.18);
 
-  --ds-color-primary: #f4f4f8;
-  --ds-color-primary-hover: #ffffff;
-  --ds-color-primary-soft: rgba(255, 255, 255, 0.12);
-  --ds-color-accent: #c4c4cc;
-  --ds-color-accent-soft: rgba(255, 255, 255, 0.10);
-  --ds-color-danger: #f87171;
-  --ds-color-warning: #fbbf24;
-  --ds-color-info: #d4d4dc;
+  --ds-color-primary: #1d2030;            /* deep slate — readable on white CTAs */
+  --ds-color-primary-hover: #0c0e1c;
+  --ds-color-primary-soft: rgba(29, 32, 48, 0.08);
+  --ds-color-accent: #4b5163;             /* mid-slate accent */
+  --ds-color-accent-soft: rgba(75, 81, 99, 0.10);
+  --ds-color-danger: #dc2626;
+  --ds-color-warning: #d97706;
+  --ds-color-info: #1d2030;
 
-  --ds-shadow-sm: 0 12px 28px rgba(0, 0, 0, 0.45);
-  --ds-shadow-md: 0 24px 56px rgba(0, 0, 0, 0.55);
-  --ds-shadow-lg: 0 32px 80px rgba(0, 0, 0, 0.62);
-  --ds-glass-bg: rgba(18, 18, 22, 0.62);
-  --ds-glass-border: rgba(255, 255, 255, 0.12);
+  --ds-shadow-sm: 0 4px 14px rgba(15, 23, 42, 0.06);
+  --ds-shadow-md: 0 12px 32px rgba(15, 23, 42, 0.08);
+  --ds-shadow-lg: 0 24px 60px rgba(15, 23, 42, 0.12);
+  --ds-glass-bg: rgba(255, 255, 255, 0.72);
+  --ds-glass-border: rgba(15, 23, 42, 0.08);
 
-  --ds-focus-ring: 0 0 0 3px rgba(255, 255, 255, 0.22);
+  --ds-focus-ring: 0 0 0 3px rgba(29, 32, 48, 0.18);
 }
 
 /* Pure black-glass ambient — barely there silver glow, no color tint. */
@@ -160,11 +170,14 @@ body::before {
   transition: opacity 0.4s ease;
 }
 
+/* Lite Mode aurora — bright frosted backdrop with soft cool highlights so the
+ * white-glass panels float over a base that has gentle depth (not flat). */
 html[data-theme="light"] body::before {
   background:
-    radial-gradient(1000px 600px at 10% -10%, rgba(255, 255, 255, 0.05), transparent 60%),
-    radial-gradient(900px 700px at 95% 0%, rgba(255, 255, 255, 0.04), transparent 65%),
-    linear-gradient(180deg, #0a0b10 0%, #0c0d12 55%, #0a0b10 100%);
+    radial-gradient(1100px 650px at 10% -8%, rgba(255, 255, 255, 0.95), transparent 60%),
+    radial-gradient(900px 700px at 92% 8%, rgba(220, 232, 246, 0.55), transparent 65%),
+    radial-gradient(1200px 700px at 50% 110%, rgba(225, 231, 240, 0.45), transparent 60%),
+    linear-gradient(180deg, #f6f8fc 0%, #eef2f8 55%, #f6f8fc 100%);
 }
 
 html, body, #root {
@@ -174,6 +187,28 @@ html, body, #root {
 }
 
 html, body { overflow-y: auto; }
+
+/*
+ * Smooth Dark ↔ Lite cross-fade for the document base.
+ *
+ * Only `html`, `body`, and the ambient aurora pseudo-element get the long
+ * 320ms color/background fade — these are the canvas underneath every panel.
+ * Per-component surfaces handle their own short hover transitions, and we
+ * intentionally do NOT add `transition-property` to `*` because that would
+ * either fight existing transitions (`transition: all 0.15s`) or animate
+ * properties that should snap (menu open / close, layout shifts, focus rings).
+ *
+ * `prefers-reduced-motion` skips the fade via the global override later in
+ * this file (`* { transition-duration: 0.01ms !important; }`).
+ */
+html,
+html body,
+html body::before {
+  transition:
+    background-color 320ms ease,
+    background-image 320ms ease,
+    color 320ms ease;
+}
 
 body.is-fullscreen {
   overflow: hidden;
