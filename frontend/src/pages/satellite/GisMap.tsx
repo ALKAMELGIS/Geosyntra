@@ -852,6 +852,11 @@ export default function GisMap() {
   const [draggingTableField, setDraggingTableField] = useState<string | null>(null)
   const [selectedFeatureKeys, setSelectedFeatureKeys] = useState<Set<string>>(() => new Set())
   const [selectionNotice, setSelectionNotice] = useState<string | null>(null)
+  /* `shareLinkCopied` is the inline confirmation flag for the Share popover's
+   * URL pill: it flips the copy glyph to a check + the label to "Copied" for
+   * ~1.6s so the user gets immediate feedback even if the global toast notice
+   * is hidden behind another panel. */
+  const [shareLinkCopied, setShareLinkCopied] = useState(false)
   const [gisBookmarks, setGisBookmarks] = useState<GisMapBookmark[]>(() => loadGisMapBookmarks())
   const mapSnapshotFileRef = useRef<HTMLInputElement | null>(null)
   const [featureDialog, setFeatureDialog] = useState<null | { layerId: string; featureKey: string; feature: any; layerName: string }>(null)
@@ -5570,33 +5575,53 @@ export default function GisMap() {
               </div>
               <div className="gis-map-tool-surface__titles">
                 <span className="gis-map-tool-surface__kicker">Share</span>
-                <p className="gis-map-tool-surface__lede">
-                  Copy the full URL of this map (same origin). Recipients see the same app route; layer state follows your
-                  app persistence rules.
-                </p>
+                <p className="gis-map-tool-surface__lede">Share this map view.</p>
               </div>
             </div>
-            <button
-              type="button"
-              className="gis-map-tool-surface__primary"
-              onClick={async () => {
-                try {
-                  await navigator.clipboard.writeText(window.location.href)
-                  setSelectionNotice('Map link copied to clipboard.')
-                } catch {
-                  setSelectionNotice('Could not copy link.')
-                }
-              }}
-            >
-              <i className="fa-solid fa-copy" aria-hidden="true" />
-              <span>Copy map link</span>
-            </button>
+            {/* Compact split-pill: anchor opens the URL in a new tab, the trailing
+             * icon button copies it. Two affordances, one chrome — replaces the
+             * old paragraph + standalone CTA combo so the panel reads as a
+             * single, professional widget. */}
+            <div className="gis-map-tool-surface__url" role="group" aria-label="Map link">
+              <a
+                className="gis-map-tool-surface__url-link"
+                href={typeof window !== 'undefined' ? window.location.href : '#'}
+                target="_blank"
+                rel="noopener noreferrer"
+                title={typeof window !== 'undefined' ? window.location.href : ''}
+              >
+                <i className="fa-solid fa-arrow-up-right-from-square" aria-hidden="true" />
+                <span className="gis-map-tool-surface__url-text">
+                  {typeof window !== 'undefined' ? window.location.href : ''}
+                </span>
+              </a>
+              <button
+                type="button"
+                className="gis-map-tool-surface__url-copy"
+                aria-label={shareLinkCopied ? 'Map link copied' : 'Copy map link'}
+                title={shareLinkCopied ? 'Copied!' : 'Copy link'}
+                onClick={async () => {
+                  try {
+                    await navigator.clipboard.writeText(window.location.href)
+                    setShareLinkCopied(true)
+                    setSelectionNotice('Map link copied to clipboard.')
+                    window.setTimeout(() => setShareLinkCopied(false), 1600)
+                  } catch {
+                    setSelectionNotice('Could not copy link.')
+                  }
+                }}
+              >
+                <i
+                  className={shareLinkCopied ? 'fa-solid fa-check' : 'fa-solid fa-copy'}
+                  aria-hidden="true"
+                />
+              </button>
+            </div>
             <p className="gis-map-tool-surface__footnote">
-              <i className="fa-solid fa-circle-info" aria-hidden="true" /> For iframe embedding, use{' '}
+              Need iframe?{' '}
               <button type="button" className="gis-map-tool-surface__linkish" onClick={() => setActiveMapTool('embedMap')}>
                 Embed map
-              </button>{' '}
-              in the toolbar.
+              </button>
             </p>
           </div>
         ) : activeMapTool === 'embedMap' ? (

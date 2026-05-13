@@ -1118,6 +1118,68 @@ html[data-theme='light'] .gis-map-tool-surface__linkish:hover {
   text-decoration-color: rgba(15, 23, 42, 0.85);
 }
 
+/* Share popover URL split-pill — White Glass mirror of the dark variant.
+ * Anchor + trailing copy/✓ button share one frosted-white capsule with a
+ * soft cool-gray hairline; hover lifts to a slightly brighter white. */
+html[data-theme='light'] .gis-map-tool-surface__url {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.95), rgba(248, 250, 253, 0.88));
+  border-color: var(--gs-lt-border);
+  box-shadow:
+    var(--gs-lt-shadow-sm),
+    inset 0 1px 0 rgba(255, 255, 255, 1);
+}
+
+html[data-theme='light'] .gis-map-tool-surface__url:hover {
+  border-color: var(--gs-lt-border-2);
+  box-shadow: var(--gs-lt-shadow-md);
+}
+
+html[data-theme='light'] .gis-map-tool-surface__url:focus-within {
+  border-color: var(--gs-lt-accent);
+  box-shadow:
+    var(--gs-lt-shadow-md),
+    0 0 0 3px var(--gs-lt-glow);
+}
+
+html[data-theme='light'] .gis-map-tool-surface__url-link {
+  color: var(--gs-lt-text);
+}
+
+html[data-theme='light'] .gis-map-tool-surface__url-link:hover,
+html[data-theme='light'] .gis-map-tool-surface__url-link:focus-visible {
+  background: rgba(15, 23, 42, 0.04);
+  color: #0a0c1a;
+}
+
+html[data-theme='light'] .gis-map-tool-surface__url-link i {
+  color: var(--gs-lt-text-muted);
+}
+
+html[data-theme='light'] .gis-map-tool-surface__url-link:hover i {
+  color: var(--gs-lt-accent);
+}
+
+html[data-theme='light'] .gis-map-tool-surface__url-copy {
+  background: rgba(15, 23, 42, 0.03);
+  color: var(--gs-lt-accent);
+  border-inline-start-color: var(--gs-lt-border);
+}
+
+html[data-theme='light'] .gis-map-tool-surface__url-copy:hover {
+  background: rgba(15, 23, 42, 0.07);
+  color: #0a0c1a;
+}
+
+html[data-theme='light'] .gis-map-tool-surface__url-copy:focus-visible {
+  background: rgba(15, 23, 42, 0.09);
+  color: #0a0c1a;
+}
+
+html[data-theme='light'] .gis-map-tool-surface__url-copy .fa-check {
+  color: #047857;
+}
+
 /* ----------------------------------------------------------------------------
  * 11. Disabled state — apply across all themed surfaces.
  * --------------------------------------------------------------------------*/
