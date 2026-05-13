@@ -4,6 +4,7 @@
  */
 import fs from 'node:fs'
 import path from 'node:path'
+import { link404ToGeosyntra } from './link-404-to-geosyntra.mjs'
 
 const root = process.cwd()
 
@@ -41,12 +42,15 @@ if (errors.length) {
 
 const distDir = path.join(root, 'frontend', 'dist')
 const shellHtml = html
-const notFoundPath = path.join(distDir, '404.html')
 const geosyntraShellPath = path.join(distDir, 'Geosyntra.html')
-/** GitHub Pages requires `404.html` for unknown paths; `Geosyntra.html` is the branded SPA shell copy. */
-fs.writeFileSync(notFoundPath, shellHtml)
 fs.writeFileSync(geosyntraShellPath, shellHtml)
-console.log('pages-dist-check: wrote frontend/dist/404.html and Geosyntra.html from index.html (SPA shell).')
+try {
+  link404ToGeosyntra(distDir)
+  console.log('pages-dist-check: Geosyntra.html written; 404.html is a hard link or symlink (single HTML blob).')
+} catch (e) {
+  console.error('pages-dist-check:', e?.message || e)
+  process.exit(1)
+}
 const nojekyllPath = path.join(distDir, '.nojekyll')
 if (!fs.existsSync(nojekyllPath)) {
   fs.writeFileSync(nojekyllPath, '')

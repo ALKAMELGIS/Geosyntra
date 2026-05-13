@@ -1,6 +1,6 @@
 # Geosyntra Platform — repository documentation
 
-> **GitHub Pages:** The `deploy-pages.yml` workflow builds the app and syncs `frontend/dist` to the **root of `main`** (commits tagged `[pages-sync]`). In **Settings → Pages**, set **Deploy from a branch** → **main** → **/(root)**. Root deploy outputs are **gitignored** locally; only CI should commit them (avoids embedding local `.env` secrets).
+> **GitHub Pages:** The `deploy-pages.yml` workflow builds the app and syncs `frontend/dist` to the **root of `main`** (commits tagged `[pages-sync]`). In **Settings → Pages**, set **Deploy from a branch** → **main** → **/(root)**. Root deploy outputs are **gitignored** locally; only CI should commit them (avoids embedding local `.env` secrets). The SPA fallback shell is **`Geosyntra.html`**; **`404.html`** is linked to it (hard link or symlink) so GitHub Pages can serve 404 routes without duplicating the HTML blob.
 >
 > **App URL (HashRouter):** https://alkamelgis.github.io/Geosyntra/#/
 

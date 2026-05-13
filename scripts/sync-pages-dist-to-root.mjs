@@ -6,6 +6,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import { execSync } from 'node:child_process'
+import { link404ToGeosyntra } from './link-404-to-geosyntra.mjs'
 
 const root = process.cwd()
 const dist = path.join(root, 'frontend', 'dist')
@@ -46,10 +47,17 @@ const entries = fs.readdirSync(dist, { withFileTypes: true })
 for (const ent of entries) {
   const from = path.join(dist, ent.name)
   const to = path.join(root, ent.name)
-  fs.cpSync(from, to, { recursive: true })
+  fs.cpSync(from, to, { recursive: true, dereference: false })
 }
 
-console.log('sync-pages-dist-to-root: copied', entries.map((e) => e.name).join(', '))
+try {
+  link404ToGeosyntra(root)
+} catch (e) {
+  console.error('sync-pages-dist-to-root: 404.html alias failed:', e?.message || e)
+  process.exit(1)
+}
+
+console.log('sync-pages-dist-to-root: copied', entries.map((e) => e.name).join(', '), '(404.html → Geosyntra.html hard link or symlink)')
 
 function gitStageDeploy() {
   const dirs = ['assets', 'avatars']

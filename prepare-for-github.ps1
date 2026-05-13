@@ -25,11 +25,11 @@ $filesToCopy = @(
     ".env.example",
     "docker-compose.yml",
     "Dockerfile",
-    "agro.json",
+    "geosyntra.json",
     "layer.json",
     "db_migration.sql",
     "test_stac.js",
-    "agro-structures-data-entry.html",
+    "geosyntra-structures-data-entry.html",
     "DataSource_Advanced_Layer_Technical_Docs.md"
 )
 
