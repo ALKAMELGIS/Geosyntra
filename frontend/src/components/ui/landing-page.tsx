@@ -318,13 +318,14 @@ export function ScrollGlobe({ sections, globeConfig = defaultGlobeConfig, classN
       >
         {/* Per-breakpoint scale-up of the upstream 250×250 globe so the
             sphere reads as the dominant visual on larger screens (≈ 375 px
-            on tablet, ≈ 500 px on desktop) while still fitting comfortably
-            on narrow phones. The per-section `scale3d(...)` set in
-            `defaultGlobeConfig.positions[].scale` multiplies on top of
-            this base, so the Hero (1.4×) renders at ≈ 700 px on lg —
-            matching the cinematic emphasis of the upstream demo without
-            distorting the shadow stack. */}
-        <div className="scale-100 sm:scale-150 lg:scale-[2]">
+            on tablet, ≈ 750 px on desktop, ≈ 875 px on 2xl) while still
+            fitting comfortably on narrow phones. The per-section
+            `scale3d(...)` set in `defaultGlobeConfig.positions[].scale`
+            multiplies on top of this base, so the Hero (1.4×) renders at
+            ≈ 1050 px on lg / ≈ 1225 px on 2xl — a true cinematic backdrop
+            that matches the upstream 21st.dev demo without distorting the
+            shadow stack. */}
+        <div className="scale-100 sm:scale-150 lg:scale-[3] 2xl:scale-[3.5]">
           <Globe />
         </div>
       </div>
