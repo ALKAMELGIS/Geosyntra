@@ -10680,3 +10680,398 @@ html[data-theme='light'] .si-env-panel--satellite-toolbox.si-env-panel--single-s
 html[data-theme='light'] .si-env-panel--satellite-toolbox.si-env-panel--single-surface .si-explore-view-results {
   color: #ecfdf5 !important;
 }
+
+/* ============================================================================
+ * Geosyntra · Add Source Data modal — Black Glass override.
+ *
+ * The legacy "Add Source Data" wizard at lines 1058-1820 of this file paints
+ * its shell, hero, options grid, icon chips, radios, focus rings, footer,
+ * tabs, dropzone, primary CTAs, banner, badges and Get-Data rows in a
+ * mixed violet (`#a5b4fc`, `rgba(99, 102, 241, …)`, `rgba(129, 140, 248, …)`)
+ * + emerald (`rgba(74, 222, 128, …)`, `#86efac`, `#4ade80`) palette. On the
+ * redesigned black-glass platform the screenshot reads as a stranded purple
+ * dialog with green halos — wrong identity for an enterprise GIS workspace.
+ *
+ * This block neutralises the entire `.si-add-layer-gis-overlay …` family to
+ * One UI Black Glass: charcoal-glass surfaces, white-glass borders, silver
+ * glyphs, white-on-charcoal active states. Every active/hover state that
+ * was emerald flips to silver/white; every violet icon chip flips to
+ * silver-on-charcoal. The dialog now feels like a polished sibling of the
+ * GIS map chrome rather than a leftover purple modal.
+ *
+ * The Lite Mode mirror lives in `styles/light-glass-theme.css`.
+ * ========================================================================== */
+
+/* Backdrop — slightly stronger blur, no violet tint. */
+.si-add-layer-gis-overlay.gis-modal-overlay {
+  background: rgba(0, 0, 0, 0.72) !important;
+  backdrop-filter: blur(22px) saturate(140%);
+  -webkit-backdrop-filter: blur(22px) saturate(140%);
+}
+
+/* Modal shell — was a navy/indigo gradient with a green halo + indigo border. */
+.si-add-layer-gis-overlay .si-add-source-modal.gis-modal.gis-modal-compact {
+  border: 1px solid rgba(255, 255, 255, 0.10);
+  background:
+    linear-gradient(168deg, rgba(14, 14, 18, 0.96) 0%, rgba(10, 10, 14, 0.98) 50%, rgba(14, 14, 18, 0.96) 100%);
+  color: rgba(244, 244, 248, 0.96);
+  box-shadow:
+    0 28px 72px rgba(0, 0, 0, 0.65),
+    0 0 0 1px rgba(255, 255, 255, 0.04),
+    inset 0 1px 0 rgba(255, 255, 255, 0.06);
+}
+
+.si-add-layer-gis-overlay .si-add-source-modal.ddb-add-source-modal--home.gis-modal-compact::before {
+  background:
+    radial-gradient(ellipse 110% 70% at 100% -5%, rgba(255, 255, 255, 0.06), transparent 55%),
+    radial-gradient(ellipse 90% 65% at -5% 105%, rgba(255, 255, 255, 0.04), transparent 50%);
+}
+
+/* Hero / head strip — was an indigo gradient. */
+.si-add-layer-gis-overlay .ddb-add-source-modal--home .gis-modal-compact-hero,
+.si-add-layer-gis-overlay .ddb-add-source-modal__head {
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06) !important;
+  background:
+    linear-gradient(118deg, rgba(20, 20, 26, 0.55) 0%, rgba(10, 10, 14, 0.35) 100%) !important;
+}
+
+.si-add-layer-gis-overlay .gis-modal-compact-hero-lead {
+  color: rgba(212, 212, 220, 0.78);
+}
+
+/* Back button (All options) — was indigo. */
+.si-add-layer-gis-overlay .ddb-add-source-back {
+  border: 1px solid rgba(255, 255, 255, 0.10);
+  background: rgba(255, 255, 255, 0.04);
+  color: rgba(232, 232, 238, 0.92);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+
+.si-add-layer-gis-overlay .ddb-add-source-back:hover {
+  background: rgba(255, 255, 255, 0.10);
+  border-color: rgba(255, 255, 255, 0.22);
+  color: #ffffff;
+}
+
+/* Options grid — option cards (radio + icon chip + title + sub). */
+.si-add-layer-gis-overlay .si-add-source-option {
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background:
+    linear-gradient(180deg, rgba(20, 20, 26, 0.55), rgba(14, 14, 18, 0.62));
+  color: rgba(244, 244, 248, 0.96);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.04),
+    0 1px 2px rgba(0, 0, 0, 0.45);
+  backdrop-filter: blur(18px) saturate(140%);
+  -webkit-backdrop-filter: blur(18px) saturate(140%);
+}
+
+.si-add-layer-gis-overlay .si-add-source-option:hover {
+  border-color: rgba(255, 255, 255, 0.18);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0.03));
+  box-shadow:
+    0 0 0 1px rgba(255, 255, 255, 0.08),
+    0 8px 22px rgba(0, 0, 0, 0.55);
+}
+
+.si-add-layer-gis-overlay .si-add-source-option:focus-visible {
+  border-color: rgba(255, 255, 255, 0.35);
+  box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.18);
+}
+
+.si-add-layer-gis-overlay .si-add-source-option.active {
+  border-color: rgba(255, 255, 255, 0.30);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.12), rgba(255, 255, 255, 0.04));
+  box-shadow:
+    0 0 0 1px rgba(255, 255, 255, 0.18),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+
+/* Radio dot — was emerald gradient. */
+.si-add-layer-gis-overlay .si-add-source-option-radio {
+  border-color: rgba(255, 255, 255, 0.30);
+  background: rgba(0, 0, 0, 0.45);
+}
+
+.si-add-layer-gis-overlay .si-add-source-option:hover .si-add-source-option-radio {
+  border-color: rgba(255, 255, 255, 0.55);
+}
+
+.si-add-layer-gis-overlay .si-add-source-option.active .si-add-source-option-radio {
+  border-color: #ffffff;
+}
+
+.si-add-layer-gis-overlay .si-add-source-option.active .si-add-source-option-radio::after {
+  background: linear-gradient(145deg, #ffffff, #d4d4dc);
+  box-shadow: 0 0 8px rgba(255, 255, 255, 0.45);
+}
+
+/* Icon chip — was the violet `rgba(99, 102, 241, …)` gradient. */
+.si-add-layer-gis-overlay .si-add-source-option-icon {
+  background: linear-gradient(155deg, rgba(255, 255, 255, 0.12) 0%, rgba(0, 0, 0, 0.55) 100%);
+  border-color: rgba(255, 255, 255, 0.16);
+  color: rgba(244, 244, 248, 0.96);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.10);
+}
+
+.si-add-layer-gis-overlay .si-add-source-option:hover .si-add-source-option-icon {
+  border-color: rgba(255, 255, 255, 0.30);
+  color: #ffffff;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.18),
+    0 8px 22px rgba(0, 0, 0, 0.55);
+}
+
+.si-add-layer-gis-overlay .si-add-source-option-main strong {
+  color: rgba(244, 244, 248, 0.98);
+}
+
+.si-add-layer-gis-overlay .si-add-source-option-main small {
+  color: rgba(196, 196, 206, 0.72);
+}
+
+/* Banner inside the GIS-list step — was a violet+green gradient. */
+.si-add-layer-gis-overlay .si-add-source-gis-banner {
+  background:
+    linear-gradient(105deg, rgba(20, 20, 26, 0.65) 0%, rgba(255, 255, 255, 0.04) 55%, rgba(10, 10, 14, 0.5) 100%);
+  border-color: rgba(255, 255, 255, 0.10);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
+}
+
+.si-add-layer-gis-overlay .si-add-source-gis-banner .ddb-add-source-gis-hint {
+  color: rgba(212, 212, 220, 0.85);
+}
+
+.si-add-layer-gis-overlay .si-add-source-gis-banner .ddb-add-source-gis-hint strong {
+  color: #ffffff;
+}
+
+/* Modal footer + Cancel pseudo-link button. */
+.si-add-layer-gis-overlay .gis-modal-footer {
+  background: rgba(0, 0, 0, 0.45) !important;
+  border-top: 1px solid rgba(255, 255, 255, 0.06) !important;
+}
+
+.si-add-layer-gis-overlay .gis-modal-footer .gis-link-btn {
+  border: 1px solid rgba(255, 255, 255, 0.12) !important;
+  background: rgba(255, 255, 255, 0.04) !important;
+  color: rgba(244, 244, 248, 0.96) !important;
+}
+
+.si-add-layer-gis-overlay .gis-modal-footer .gis-link-btn:hover {
+  background: rgba(255, 255, 255, 0.10) !important;
+  border-color: rgba(255, 255, 255, 0.25) !important;
+  color: #ffffff !important;
+}
+
+/* Wizard tabs (compact) — were emerald active state. */
+.si-add-layer-gis-overlay .gis-modal-compact-tabs {
+  background: rgba(0, 0, 0, 0.40) !important;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06) !important;
+}
+
+.si-add-layer-gis-overlay .gis-compact-tab {
+  background: rgba(255, 255, 255, 0.03) !important;
+  color: rgba(196, 196, 206, 0.78) !important;
+}
+
+.si-add-layer-gis-overlay .gis-compact-tab i {
+  color: rgba(196, 196, 206, 0.78) !important;
+}
+
+.si-add-layer-gis-overlay .gis-compact-tab:hover {
+  border-color: rgba(255, 255, 255, 0.18) !important;
+  color: #ffffff !important;
+}
+
+.si-add-layer-gis-overlay .gis-compact-tab:hover i {
+  color: #ffffff !important;
+}
+
+.si-add-layer-gis-overlay .gis-compact-tab.active {
+  color: #ffffff !important;
+  border-color: rgba(255, 255, 255, 0.25) !important;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.12), rgba(255, 255, 255, 0.04)) !important;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.10);
+}
+
+.si-add-layer-gis-overlay .gis-compact-tab.active i {
+  color: #ffffff !important;
+}
+
+/* Body / panels inside steps. */
+.si-add-layer-gis-overlay .gis-modal-compact .gis-modal-body {
+  background: rgba(0, 0, 0, 0.30) !important;
+  color: rgba(244, 244, 248, 0.96) !important;
+}
+
+.si-add-layer-gis-overlay .gis-modal-body > [role='tabpanel'] {
+  background: rgba(0, 0, 0, 0.30) !important;
+  border: 1px solid rgba(255, 255, 255, 0.06) !important;
+  color: rgba(244, 244, 248, 0.96) !important;
+}
+
+/* Inputs / selects — were indigo border + green focus. */
+.si-add-layer-gis-overlay .gis-input,
+.si-add-layer-gis-overlay .gis-select {
+  background: rgba(0, 0, 0, 0.55) !important;
+  border: 1px solid rgba(255, 255, 255, 0.10) !important;
+  color: rgba(244, 244, 248, 0.96) !important;
+}
+
+.si-add-layer-gis-overlay .gis-input::placeholder {
+  color: rgba(196, 196, 206, 0.55) !important;
+}
+
+.si-add-layer-gis-overlay .gis-input:focus-visible {
+  border-color: rgba(255, 255, 255, 0.45) !important;
+  box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.15) !important;
+}
+
+.si-add-layer-gis-overlay .gis-form-label,
+.si-add-layer-gis-overlay .gis-discover-meta {
+  color: rgba(212, 212, 220, 0.85) !important;
+}
+
+/* Outline + primary buttons — were emerald. */
+.si-add-layer-gis-overlay .gis-btn-outline {
+  border-color: rgba(255, 255, 255, 0.18) !important;
+  color: rgba(244, 244, 248, 0.96) !important;
+  background: rgba(255, 255, 255, 0.04) !important;
+}
+
+.si-add-layer-gis-overlay .gis-btn-outline:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.10) !important;
+  border-color: rgba(255, 255, 255, 0.30) !important;
+  color: #ffffff !important;
+}
+
+.si-add-layer-gis-overlay .gis-btn-primary-full {
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(218, 218, 225, 0.88)) !important;
+  border: 1px solid rgba(0, 0, 0, 0.45) !important;
+  color: #0a0a10 !important;
+  box-shadow:
+    0 10px 28px rgba(0, 0, 0, 0.55),
+    inset 0 1px 0 rgba(255, 255, 255, 0.85) !important;
+}
+
+.si-add-layer-gis-overlay .gis-btn-primary-full:hover:not(:disabled) {
+  filter: brightness(1.06);
+}
+
+.si-add-layer-gis-overlay .gis-modal-compact .gis-discovered-add {
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(218, 218, 225, 0.88)) !important;
+  border: 1px solid rgba(0, 0, 0, 0.45) !important;
+  color: #0a0a10 !important;
+}
+
+/* Dropzone — was a violet dashed box. */
+.si-add-layer-gis-overlay .gis-modal-compact .gis-dropzone {
+  border: 1px dashed rgba(255, 255, 255, 0.22) !important;
+  background: rgba(0, 0, 0, 0.35) !important;
+  color: rgba(212, 212, 220, 0.85) !important;
+}
+
+.si-add-layer-gis-overlay .gis-modal-compact .gis-dropzone:hover,
+.si-add-layer-gis-overlay .gis-modal-compact .gis-dropzone:focus-visible {
+  border-color: rgba(255, 255, 255, 0.45) !important;
+  background: rgba(255, 255, 255, 0.04) !important;
+}
+
+.si-add-layer-gis-overlay .gis-modal-compact .gis-dropzone-icon i {
+  color: rgba(232, 232, 238, 0.92) !important;
+}
+
+.si-add-layer-gis-overlay .gis-modal-compact .gis-dropzone.drag-over {
+  border-color: rgba(255, 255, 255, 0.65) !important;
+  background: rgba(255, 255, 255, 0.06) !important;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.18);
+}
+
+/* Get Data sub-step — was violet hero icons + green file-format chips. */
+.si-add-layer-gis-overlay .si-get-data-hero-icons {
+  color: rgba(232, 232, 238, 0.92);
+}
+
+.si-add-layer-gis-overlay .si-get-data-row {
+  border-color: rgba(255, 255, 255, 0.08);
+  background:
+    linear-gradient(180deg, rgba(20, 20, 26, 0.55), rgba(14, 14, 18, 0.62));
+}
+
+.si-add-layer-gis-overlay .si-get-data-row:hover {
+  border-color: rgba(255, 255, 255, 0.22);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0.03));
+}
+
+.si-add-layer-gis-overlay .si-get-data-row-icon {
+  background: rgba(255, 255, 255, 0.06);
+  color: rgba(244, 244, 248, 0.96);
+}
+
+.si-add-layer-gis-overlay .si-get-data-row-icon--excel,
+.si-add-layer-gis-overlay .si-get-data-row-icon--csv {
+  background: rgba(255, 255, 255, 0.10);
+  color: #ffffff;
+}
+
+.si-add-layer-gis-overlay .si-get-data-more-btn {
+  color: rgba(244, 244, 248, 0.96);
+}
+
+.si-add-layer-gis-overlay .si-get-data-more-btn:hover {
+  color: #ffffff;
+}
+
+.si-add-layer-gis-overlay .si-get-data-back {
+  border-color: rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.04);
+  color: rgba(244, 244, 248, 0.96);
+}
+
+.si-add-layer-gis-overlay .si-get-data-back:hover {
+  border-color: rgba(255, 255, 255, 0.30);
+  color: #ffffff;
+}
+
+/* GIS-content list rows + badges. */
+.si-add-layer-gis-overlay .ddb-gis-content-list {
+  border-color: rgba(255, 255, 255, 0.08);
+  background: rgba(0, 0, 0, 0.30);
+}
+
+.si-add-layer-gis-overlay .ddb-gis-content-row {
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.si-add-layer-gis-overlay .ddb-gis-badge {
+  border-color: rgba(255, 255, 255, 0.18);
+  color: rgba(244, 244, 248, 0.96);
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.si-add-layer-gis-overlay .ddb-gis-content-add-btn {
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(218, 218, 225, 0.88)) !important;
+  border: 1px solid rgba(0, 0, 0, 0.45) !important;
+  color: #0a0a10 !important;
+}
+
+/* Empty / loading / advanced — were violet/silver mix. */
+.si-add-layer-gis-overlay .ddb-add-source-loading,
+.si-add-layer-gis-overlay .ddb-add-source-empty {
+  background: rgba(0, 0, 0, 0.35);
+  border-color: rgba(255, 255, 255, 0.08);
+  color: rgba(212, 212, 220, 0.85);
+}
+
+.si-add-layer-gis-overlay .ddb-add-source-empty i {
+  color: rgba(196, 196, 206, 0.62);
+}
+
+.si-add-layer-gis-overlay .si-layer-advanced {
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(0, 0, 0, 0.35);
+}

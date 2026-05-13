@@ -1272,7 +1272,383 @@ html[data-theme='light'] .gis-map-projection-toggle--vertical:not(.gis-map-proje
 }
 
 /* ----------------------------------------------------------------------------
- * 12. Disabled state — apply across all themed surfaces.
+ * 12. Add Source Data modal — White Glass mirror.
+ *      The dark variant lives at the end of
+ *      `frontend/src/pages/satellite/SatelliteIntelligence.css`. This block
+ *      re-tones the entire `.si-add-layer-gis-overlay …` family for Lite
+ *      Mode: frosted-white shell, soft cool-gray hairlines, deep-slate
+ *      glyphs/text, white-on-slate active states. Same coverage as the
+ *      dark block (shell, hero/head, options grid, radios, icon chips,
+ *      hover/focus/active, footer + Cancel, tabs, body/panels, inputs,
+ *      buttons, dropzone, Get Data rows, GIS-content list, banner).
+ * --------------------------------------------------------------------------*/
+
+html[data-theme='light'] .si-add-layer-gis-overlay.gis-modal-overlay {
+  background: rgba(15, 23, 42, 0.42) !important;
+  backdrop-filter: blur(20px) saturate(140%);
+  -webkit-backdrop-filter: blur(20px) saturate(140%);
+}
+
+html[data-theme='light'] .si-add-layer-gis-overlay .si-add-source-modal.gis-modal.gis-modal-compact {
+  border: 1px solid var(--gs-lt-border);
+  background:
+    linear-gradient(168deg, rgba(255, 255, 255, 0.96) 0%, rgba(248, 250, 253, 0.96) 50%, rgba(255, 255, 255, 0.96) 100%);
+  color: var(--gs-lt-text);
+  box-shadow:
+    var(--gs-lt-shadow-lg),
+    inset 0 1px 0 rgba(255, 255, 255, 1);
+}
+
+html[data-theme='light'] .si-add-layer-gis-overlay .si-add-source-modal.ddb-add-source-modal--home.gis-modal-compact::before {
+  background:
+    radial-gradient(ellipse 110% 70% at 100% -5%, rgba(15, 23, 42, 0.06), transparent 55%),
+    radial-gradient(ellipse 90% 65% at -5% 105%, rgba(15, 23, 42, 0.05), transparent 50%);
+}
+
+html[data-theme='light'] .si-add-layer-gis-overlay .ddb-add-source-modal--home .gis-modal-compact-hero,
+html[data-theme='light'] .si-add-layer-gis-overlay .ddb-add-source-modal__head {
+  border-bottom: 1px solid var(--gs-lt-border) !important;
+  background:
+    linear-gradient(118deg, rgba(248, 250, 253, 0.85) 0%, rgba(255, 255, 255, 0.65) 100%) !important;
+}
+
+html[data-theme='light'] .si-add-layer-gis-overlay .gis-modal-compact-hero-title,
+html[data-theme='light'] .si-add-layer-gis-overlay .ddb-add-source-modal__head .gis-modal-compact-title,
+html[data-theme='light'] .si-add-layer-gis-overlay #si-layer-modal-title.gis-modal-compact-title,
+html[data-theme='light'] .si-add-layer-gis-overlay #si-layer-modal-title.gis-modal-compact-hero-title {
+  color: var(--gs-lt-text) !important;
+}
+
+html[data-theme='light'] .si-add-layer-gis-overlay .gis-modal-compact-hero-lead {
+  color: var(--gs-lt-text-muted);
+}
+
+html[data-theme='light'] .si-add-layer-gis-overlay .ddb-add-source-back {
+  border: 1px solid var(--gs-lt-border);
+  background: rgba(255, 255, 255, 0.85);
+  color: var(--gs-lt-text);
+  box-shadow: var(--gs-lt-shadow-sm);
+}
+
+html[data-theme='light'] .si-add-layer-gis-overlay .ddb-add-source-back:hover {
+  background: rgba(255, 255, 255, 1);
+  border-color: var(--gs-lt-border-2);
+  color: var(--gs-lt-accent);
+}
+
+/* Options grid */
+html[data-theme='light'] .si-add-layer-gis-overlay .si-add-source-option {
+  border: 1px solid var(--gs-lt-border);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.92), rgba(248, 250, 253, 0.85));
+  color: var(--gs-lt-text);
+  box-shadow:
+    var(--gs-lt-shadow-sm),
+    inset 0 1px 0 rgba(255, 255, 255, 1);
+}
+
+html[data-theme='light'] .si-add-layer-gis-overlay .si-add-source-option:hover {
+  border-color: var(--gs-lt-border-2);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 1), rgba(236, 241, 248, 0.92));
+  box-shadow:
+    var(--gs-lt-shadow-md),
+    inset 0 1px 0 rgba(255, 255, 255, 1);
+}
+
+html[data-theme='light'] .si-add-layer-gis-overlay .si-add-source-option:focus-visible {
+  border-color: var(--gs-lt-accent);
+  box-shadow: 0 0 0 2px var(--gs-lt-glow);
+}
+
+html[data-theme='light'] .si-add-layer-gis-overlay .si-add-source-option.active {
+  border-color: var(--gs-lt-border-2);
+  background:
+    linear-gradient(180deg, rgba(15, 23, 42, 0.06), rgba(15, 23, 42, 0.02));
+  box-shadow:
+    0 0 0 1px var(--gs-lt-border-2),
+    inset 0 1px 0 rgba(255, 255, 255, 0.95);
+}
+
+html[data-theme='light'] .si-add-layer-gis-overlay .si-add-source-option-radio {
+  border-color: rgba(15, 23, 42, 0.30);
+  background: rgba(255, 255, 255, 0.95);
+}
+
+html[data-theme='light'] .si-add-layer-gis-overlay .si-add-source-option:hover .si-add-source-option-radio {
+  border-color: var(--gs-lt-accent);
+}
+
+html[data-theme='light'] .si-add-layer-gis-overlay .si-add-source-option.active .si-add-source-option-radio {
+  border-color: var(--gs-lt-accent);
+}
+
+html[data-theme='light'] .si-add-layer-gis-overlay .si-add-source-option.active .si-add-source-option-radio::after {
+  background: linear-gradient(145deg, #1d2030, #0c0e1c);
+  box-shadow: 0 0 8px rgba(15, 23, 42, 0.20);
+}
+
+html[data-theme='light'] .si-add-layer-gis-overlay .si-add-source-option-icon {
+  background:
+    linear-gradient(155deg, rgba(255, 255, 255, 0.95), rgba(236, 241, 248, 0.78));
+  border-color: var(--gs-lt-border);
+  color: var(--gs-lt-accent);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.95);
+}
+
+html[data-theme='light'] .si-add-layer-gis-overlay .si-add-source-option:hover .si-add-source-option-icon {
+  border-color: var(--gs-lt-border-2);
+  color: #0a0c1a;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 1),
+    var(--gs-lt-shadow-md);
+}
+
+html[data-theme='light'] .si-add-layer-gis-overlay .si-add-source-option-main strong {
+  color: var(--gs-lt-text);
+}
+
+html[data-theme='light'] .si-add-layer-gis-overlay .si-add-source-option-main small {
+  color: var(--gs-lt-text-muted);
+}
+
+html[data-theme='light'] .si-add-layer-gis-overlay .si-add-source-gis-banner {
+  background:
+    linear-gradient(105deg, rgba(255, 255, 255, 0.95) 0%, rgba(248, 250, 253, 0.85) 55%, rgba(255, 255, 255, 0.92) 100%);
+  border-color: var(--gs-lt-border);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 1);
+}
+
+html[data-theme='light'] .si-add-layer-gis-overlay .si-add-source-gis-banner .ddb-add-source-gis-hint {
+  color: var(--gs-lt-text-muted);
+}
+
+html[data-theme='light'] .si-add-layer-gis-overlay .si-add-source-gis-banner .ddb-add-source-gis-hint strong {
+  color: var(--gs-lt-text);
+}
+
+/* Footer + Cancel */
+html[data-theme='light'] .si-add-layer-gis-overlay .gis-modal-footer {
+  background: rgba(248, 250, 253, 0.85) !important;
+  border-top: 1px solid var(--gs-lt-border) !important;
+}
+
+html[data-theme='light'] .si-add-layer-gis-overlay .gis-modal-footer .gis-link-btn {
+  border: 1px solid var(--gs-lt-border) !important;
+  background: rgba(255, 255, 255, 0.95) !important;
+  color: var(--gs-lt-text) !important;
+}
+
+html[data-theme='light'] .si-add-layer-gis-overlay .gis-modal-footer .gis-link-btn:hover {
+  background: rgba(255, 255, 255, 1) !important;
+  border-color: var(--gs-lt-border-2) !important;
+  color: var(--gs-lt-accent) !important;
+}
+
+/* Tabs */
+html[data-theme='light'] .si-add-layer-gis-overlay .gis-modal-compact-tabs {
+  background: rgba(248, 250, 253, 0.65) !important;
+  border-bottom: 1px solid var(--gs-lt-border) !important;
+}
+
+html[data-theme='light'] .si-add-layer-gis-overlay .gis-compact-tab {
+  background: rgba(255, 255, 255, 0.85) !important;
+  color: var(--gs-lt-text-muted) !important;
+}
+
+html[data-theme='light'] .si-add-layer-gis-overlay .gis-compact-tab i {
+  color: var(--gs-lt-text-muted) !important;
+}
+
+html[data-theme='light'] .si-add-layer-gis-overlay .gis-compact-tab:hover {
+  border-color: var(--gs-lt-border-2) !important;
+  color: var(--gs-lt-accent) !important;
+}
+
+html[data-theme='light'] .si-add-layer-gis-overlay .gis-compact-tab:hover i {
+  color: var(--gs-lt-accent) !important;
+}
+
+html[data-theme='light'] .si-add-layer-gis-overlay .gis-compact-tab.active {
+  color: #0a0c1a !important;
+  border-color: var(--gs-lt-border-2) !important;
+  background:
+    linear-gradient(180deg, rgba(15, 23, 42, 0.08), rgba(15, 23, 42, 0.02)) !important;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.95);
+}
+
+html[data-theme='light'] .si-add-layer-gis-overlay .gis-compact-tab.active i {
+  color: #0a0c1a !important;
+}
+
+/* Body / panels */
+html[data-theme='light'] .si-add-layer-gis-overlay .gis-modal-compact .gis-modal-body {
+  background: rgba(248, 250, 253, 0.55) !important;
+  color: var(--gs-lt-text) !important;
+}
+
+html[data-theme='light'] .si-add-layer-gis-overlay .gis-modal-body > [role='tabpanel'] {
+  background: rgba(255, 255, 255, 0.85) !important;
+  border: 1px solid var(--gs-lt-border) !important;
+  color: var(--gs-lt-text) !important;
+}
+
+/* Inputs */
+html[data-theme='light'] .si-add-layer-gis-overlay .gis-input,
+html[data-theme='light'] .si-add-layer-gis-overlay .gis-select {
+  background: rgba(255, 255, 255, 0.92) !important;
+  border: 1px solid var(--gs-lt-border) !important;
+  color: var(--gs-lt-text) !important;
+}
+
+html[data-theme='light'] .si-add-layer-gis-overlay .gis-input::placeholder {
+  color: rgba(29, 32, 48, 0.45) !important;
+}
+
+html[data-theme='light'] .si-add-layer-gis-overlay .gis-input:focus-visible {
+  border-color: var(--gs-lt-accent) !important;
+  box-shadow: 0 0 0 2px var(--gs-lt-glow) !important;
+}
+
+html[data-theme='light'] .si-add-layer-gis-overlay .gis-form-label,
+html[data-theme='light'] .si-add-layer-gis-overlay .gis-discover-meta {
+  color: var(--gs-lt-text-muted) !important;
+}
+
+/* Buttons */
+html[data-theme='light'] .si-add-layer-gis-overlay .gis-btn-outline {
+  border-color: var(--gs-lt-border) !important;
+  color: var(--gs-lt-text) !important;
+  background: rgba(255, 255, 255, 0.92) !important;
+}
+
+html[data-theme='light'] .si-add-layer-gis-overlay .gis-btn-outline:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 1) !important;
+  border-color: var(--gs-lt-border-2) !important;
+  color: var(--gs-lt-accent) !important;
+}
+
+html[data-theme='light'] .si-add-layer-gis-overlay .gis-btn-primary-full {
+  background: linear-gradient(145deg, #1d2030, #0c0e1c) !important;
+  border: 1px solid rgba(15, 23, 42, 0.45) !important;
+  color: #f6f8fc !important;
+  box-shadow:
+    var(--gs-lt-shadow-md),
+    inset 0 1px 0 rgba(255, 255, 255, 0.10) !important;
+}
+
+html[data-theme='light'] .si-add-layer-gis-overlay .gis-modal-compact .gis-discovered-add {
+  background: linear-gradient(145deg, #1d2030, #0c0e1c) !important;
+  border: 1px solid rgba(15, 23, 42, 0.45) !important;
+  color: #f6f8fc !important;
+}
+
+/* Dropzone */
+html[data-theme='light'] .si-add-layer-gis-overlay .gis-modal-compact .gis-dropzone {
+  border: 1px dashed var(--gs-lt-border-2) !important;
+  background: rgba(248, 250, 253, 0.65) !important;
+  color: var(--gs-lt-text-muted) !important;
+}
+
+html[data-theme='light'] .si-add-layer-gis-overlay .gis-modal-compact .gis-dropzone:hover,
+html[data-theme='light'] .si-add-layer-gis-overlay .gis-modal-compact .gis-dropzone:focus-visible {
+  border-color: var(--gs-lt-accent) !important;
+  background: rgba(255, 255, 255, 0.95) !important;
+}
+
+html[data-theme='light'] .si-add-layer-gis-overlay .gis-modal-compact .gis-dropzone-icon i {
+  color: var(--gs-lt-accent) !important;
+}
+
+html[data-theme='light'] .si-add-layer-gis-overlay .gis-modal-compact .gis-dropzone.drag-over {
+  border-color: var(--gs-lt-accent) !important;
+  background: rgba(255, 255, 255, 1) !important;
+  box-shadow: inset 0 0 0 1px var(--gs-lt-border-2);
+}
+
+/* Get Data */
+html[data-theme='light'] .si-add-layer-gis-overlay .si-get-data-hero-icons {
+  color: var(--gs-lt-accent);
+}
+
+html[data-theme='light'] .si-add-layer-gis-overlay .si-get-data-row {
+  border-color: var(--gs-lt-border);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.92), rgba(248, 250, 253, 0.85));
+}
+
+html[data-theme='light'] .si-add-layer-gis-overlay .si-get-data-row:hover {
+  border-color: var(--gs-lt-border-2);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 1), rgba(236, 241, 248, 0.92));
+}
+
+html[data-theme='light'] .si-add-layer-gis-overlay .si-get-data-row-icon,
+html[data-theme='light'] .si-add-layer-gis-overlay .si-get-data-row-icon--excel,
+html[data-theme='light'] .si-add-layer-gis-overlay .si-get-data-row-icon--csv {
+  background: rgba(15, 23, 42, 0.06);
+  color: var(--gs-lt-accent);
+}
+
+html[data-theme='light'] .si-add-layer-gis-overlay .si-get-data-more-btn {
+  color: var(--gs-lt-accent);
+}
+
+html[data-theme='light'] .si-add-layer-gis-overlay .si-get-data-more-btn:hover {
+  color: #0a0c1a;
+}
+
+html[data-theme='light'] .si-add-layer-gis-overlay .si-get-data-back {
+  border-color: var(--gs-lt-border);
+  background: rgba(255, 255, 255, 0.92);
+  color: var(--gs-lt-text);
+}
+
+html[data-theme='light'] .si-add-layer-gis-overlay .si-get-data-back:hover {
+  border-color: var(--gs-lt-border-2);
+  color: var(--gs-lt-accent);
+}
+
+/* GIS-content list rows */
+html[data-theme='light'] .si-add-layer-gis-overlay .ddb-gis-content-list {
+  border-color: var(--gs-lt-border);
+  background: rgba(255, 255, 255, 0.85);
+}
+
+html[data-theme='light'] .si-add-layer-gis-overlay .ddb-gis-content-row {
+  border-bottom: 1px solid var(--gs-lt-border);
+}
+
+html[data-theme='light'] .si-add-layer-gis-overlay .ddb-gis-badge {
+  border-color: var(--gs-lt-border-2);
+  color: var(--gs-lt-accent);
+  background: rgba(15, 23, 42, 0.06);
+}
+
+html[data-theme='light'] .si-add-layer-gis-overlay .ddb-gis-content-add-btn {
+  background: linear-gradient(145deg, #1d2030, #0c0e1c) !important;
+  border: 1px solid rgba(15, 23, 42, 0.45) !important;
+  color: #f6f8fc !important;
+}
+
+html[data-theme='light'] .si-add-layer-gis-overlay .ddb-add-source-loading,
+html[data-theme='light'] .si-add-layer-gis-overlay .ddb-add-source-empty {
+  background: rgba(248, 250, 253, 0.65);
+  border-color: var(--gs-lt-border);
+  color: var(--gs-lt-text-muted);
+}
+
+html[data-theme='light'] .si-add-layer-gis-overlay .ddb-add-source-empty i {
+  color: rgba(29, 32, 48, 0.45);
+}
+
+html[data-theme='light'] .si-add-layer-gis-overlay .si-layer-advanced {
+  border: 1px solid var(--gs-lt-border);
+  background: rgba(255, 255, 255, 0.85);
+}
+
+/* ----------------------------------------------------------------------------
+ * 13. Disabled state — apply across all themed surfaces.
  * --------------------------------------------------------------------------*/
 
 html[data-theme='light'] button:disabled,
