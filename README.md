@@ -1,27 +1,23 @@
 # Geosyntra Platform
 
-## [→ افتح التطبيق / Open the app ←](https://alkamelgis.github.io/Geosyntra/#/)
+## [Open the app](https://alkamelgis.github.io/Geosyntra/#/)
 
 ### GitHub Pages
 
-الموقع: `https://alkamelgis.github.io/Geosyntra/#/` (HashRouter).
+Live URL: `https://alkamelgis.github.io/Geosyntra/#/` (HashRouter).
 
-سير العمل [Deploy to GitHub Pages](.github/workflows/deploy-pages.yml) يبني الواجهة بمتغيرات عامة فارغة ثم يُنسَخ المخرج إلى **جذر `main`** ويُدفع بـ `[pages-sync]`. في الإعدادات: **Deploy from a branch** → **`main`** → **`/(root)`**.
+The [Deploy to GitHub Pages](.github/workflows/deploy-pages.yml) workflow builds the frontend with **empty** public environment variables, copies the output to the **`main` branch root**, and pushes with the `[pages-sync]` tag. In **Settings → Pages**, use **Deploy from a branch** → **`main`** → **`/(root)`**.
 
-**مهم:** ملفات `assets/` و`index.html` في الجذر مُدرجة في `.gitignore` — **لا تُلتقط من جهازك المحلي** (قد يُدمَج `.env` ويُرفض الدفع). التحديث يتم عبر **CI فقط**.
+**Important:** Root `assets/` and `index.html` are listed in `.gitignore` so they are **not** committed from your local machine (that avoids embedding local `.env` secrets and push-protection issues). Updates are applied **via CI only**.
 
-**إن ظهر 404 رغم وجود الملفات على `main`:** غالباً المصدر ما زال **GitHub Actions (workflow)** وليس نشراً من الفرع. سير النشر يشغّل `scripts/ensure-pages-legacy-main.mjs` لضبط **legacy + main + /**. إن رفض الـ API الرمز الافتراضي، أضف سر **`PAGES_ADMIN_TOKEN`** (صلاحية repo أو Administration+Contents).
+**404 even though files exist on `main`?** Pages may still be set to **GitHub Actions (workflow)** instead of branch publishing. The workflow runs `scripts/ensure-pages-legacy-main.mjs` to force **legacy + main + /(root)**. If the API rejects the default `GITHUB_TOKEN`, add a **`PAGES_ADMIN_TOKEN`** repository secret (repo admin scope with Contents).
 
-**English:** If you see **404** while `index.html` exists on `main`, Pages may still be on **workflow** artifact mode. The workflow runs `ensure-pages-legacy-main.mjs` to force **branch publish from main**. Add **`PAGES_ADMIN_TOKEN`** if the API rejects `GITHUB_TOKEN`.
+**Updates not live?**
 
-**تحديثات لا تظهر على الموقع؟**
-
-1. تأكد أن التعديل **مدمج على `main`** (وليس فرعاً فقط) وأن آخر دفع شغّل سير **Deploy to GitHub Pages** بنجاح في تبويب **Actions**.
-2. إذا كان السير أحمر أو لم يعمل: من **Actions** → **Deploy to GitHub Pages** → **Run workflow** (يدوي على `main`).
-3. الموقع الحي يقرأ **`index.html` و`assets/` في جذر الفرع `main`** بعد بناء CI — ليس من مجلد `frontend/src` مباشرة.
-4. جرّب **تحديثاً قاسياً** للصفحة (Ctrl+F5) أو نافذة خاصة؛ GitHub Pages يخزّن الملفات الثابتة أحياناً بقوة.
-5. لا تضع **`[pages-sync]`** في رسالة التزامك يدوياً إن كنت تتوقع تشغيل النشر (السير يتخطى الدفعات التي رسالتها تحتوي هذا النص لتجنب الحلقات).
-
-**Updates not live?** Merge to **`main`**, confirm **Actions** run is green, **Run workflow** if needed, hard refresh; live site is **CI-built root on `main`**, not raw `frontend/` source.
+1. Ensure changes are **merged to `main`** (not only a feature branch) and that the latest push produced a successful **Deploy to GitHub Pages** run in **Actions**.
+2. If the workflow failed or did not run: **Actions** → **Deploy to GitHub Pages** → **Run workflow** manually on **`main`**.
+3. The live site serves **`index.html` and `assets/` at the root of `main`** after the CI build — not directly from `frontend/src`.
+4. Try a **hard refresh** (Ctrl+F5) or a private window; GitHub Pages can cache static assets aggressively.
+5. Do **not** put **`[pages-sync]`** in your own commit message when you expect a deploy (the workflow skips commits whose message starts with that text to avoid infinite loops).
 
 **Documentation:** [REPOSITORY.md](REPOSITORY.md)

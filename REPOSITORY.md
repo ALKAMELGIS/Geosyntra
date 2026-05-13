@@ -1,12 +1,8 @@
 # Geosyntra Platform — repository documentation
 
-> **GitHub Pages:** سير `deploy-pages.yml` يبني ثم يزامن `frontend/dist` إلى **جذر `main`** (`[pages-sync]`). الإعدادات: **Deploy from a branch** → **main** → **/**. مخرجات الجذر مُتجاهلة في git محلياً (`.gitignore`) — الالتزام من CI فقط.
+> **GitHub Pages:** The `deploy-pages.yml` workflow builds the app and syncs `frontend/dist` to the **root of `main`** (commits tagged `[pages-sync]`). In **Settings → Pages**, set **Deploy from a branch** → **main** → **/(root)**. Root deploy outputs are **gitignored** locally; only CI should commit them (avoids embedding local `.env` secrets).
 >
-> **رابط التشغيل (HashRouter):** https://alkamelgis.github.io/Geosyntra/#/
->
-> **GitHub Pages:** `deploy-pages.yml` copies the build to **main** repo root. Pages: **main** / **(root)**. Root deploy outputs are **gitignored** locally; only CI commits them (avoids embedding local `.env` secrets).
->
-> **App URL:** https://alkamelgis.github.io/Geosyntra/#/
+> **App URL (HashRouter):** https://alkamelgis.github.io/Geosyntra/#/
 
 Geosyntra Platform is a monorepo containing a React/Vite frontend and an Express backend.
 
@@ -93,6 +89,6 @@ npm run test:e2e
 
 ## Notes
 
-- System settings are stored in browser localStorage under `agri_system_settings_v1`.
+- System settings are stored in browser `localStorage` (see `frontend/src/services/settingsStorage.ts` for the storage key).
 - Versioned backend routes are available under `/api/v1` and `/api/v2`.
 - Existing legacy API endpoints remain backward-compatible.
