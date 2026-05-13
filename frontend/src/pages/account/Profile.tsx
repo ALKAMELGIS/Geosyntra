@@ -15,6 +15,16 @@ import {
   writeProfileExtra,
   type ProfileExtra,
 } from '../../lib/userProfilePersistence'
+import GsIcon from '../../components/ui/GsIcon'
+
+/**
+ * Default cover bundled at `frontend/public/profile/cover-default.svg` —
+ * a futuristic GIS workspace scene (topographic contour lines, faint
+ * coordinate grid, soft horizon light, constellation of map nodes). Mounted
+ * as the hero background whenever the user has not uploaded a personal
+ * cover, so the profile never falls back to a flat dark slab.
+ */
+const DEFAULT_PROFILE_COVER = `${import.meta.env.BASE_URL ?? '/'}profile/cover-default.svg`
 
 type ManagementRecord = {
   id: number
@@ -654,7 +664,14 @@ export default function Profile() {
     }
   }, [])
 
-  const coverSrc = (coverDraft === undefined ? extra.coverDataUrl : coverDraft)?.trim?.() || ''
+  const userCoverSrc = (coverDraft === undefined ? extra.coverDataUrl : coverDraft)?.trim?.() || ''
+  const hasUserCover = userCoverSrc.length > 0
+  /**
+   * Effective cover for rendering — user cover when one is set, else the
+   * bundled "futuristic GIS workspace" SVG. The hero card is always painted
+   * with a cover image so the avatar + name never sit on a flat slab.
+   */
+  const coverSrc = hasUserCover ? userCoverSrc : DEFAULT_PROFILE_COVER
   const hasPendingCoverChange = coverDraft !== undefined
 
   return (
@@ -673,16 +690,16 @@ export default function Profile() {
           </div>
         ) : (
           <>
-            {/* Summary — optional LinkedIn-style cover behind hero */}
+            {/* Summary — futuristic GIS workspace cover behind hero. The cover
+                is always painted (user upload → bundled default SVG) and the
+                gradient is kept light enough that the scene stays fully
+                visible while the avatar + name + role copy remain readable
+                against the bottom edge. */}
             <section
-              className={`profile-card profile-card--hero profile-hero-row${coverSrc ? ' profile-card--hero-cover' : ''}${coverDropActive ? ' profile-card--cover-drop-active' : ''}`}
-              style={
-                coverSrc
-                  ? {
-                      backgroundImage: `linear-gradient(180deg, rgba(15, 23, 42, 0.25) 0%, rgba(15, 23, 42, 0.72) 100%), url(${coverSrc})`,
-                    }
-                  : undefined
-              }
+              className={`profile-card profile-card--hero profile-hero-row profile-card--hero-cover${hasUserCover ? ' profile-card--hero-cover-user' : ' profile-card--hero-cover-default'}${coverDropActive ? ' profile-card--cover-drop-active' : ''}`}
+              style={{
+                backgroundImage: `linear-gradient(180deg, rgba(7, 9, 18, 0.10) 0%, rgba(7, 9, 18, 0.55) 100%), url(${coverSrc})`,
+              }}
               onDragOver={e => {
                 e.preventDefault()
                 setCoverDropActive(true)
@@ -711,11 +728,11 @@ export default function Profile() {
                   aria-label={text.changeCoverPhoto}
                   title={text.changeCoverPhoto}
                 >
-                  <i className="fa-solid fa-image" aria-hidden />
+                  <GsIcon name="image-plus" />
                 </button>
-                {coverSrc ? (
+                {hasUserCover ? (
                   <button type="button" className="profile-hero-cover-btn profile-hero-cover-btn--ghost profile-hero-cover-btn--icon" onClick={removeCoverPhoto} aria-label={text.removeCoverPhoto} title={text.removeCoverPhoto}>
-                    <i className="fa-solid fa-xmark" aria-hidden />
+                    <GsIcon name="close" />
                   </button>
                 ) : null}
                 {hasPendingCoverChange ? (
@@ -726,7 +743,7 @@ export default function Profile() {
                     aria-label={text.applyCoverPhoto}
                     title={text.applyCoverPhoto}
                   >
-                    <i className="fa-solid fa-check" aria-hidden />
+                    <GsIcon name="check" />
                   </button>
                 ) : null}
               </div>
@@ -760,7 +777,7 @@ export default function Profile() {
                 </div>
                 <input ref={fileRef} type="file" accept="image/*" className="sr-only" onChange={onAvatarFile} aria-hidden />
                 <button type="button" className="profile-avatar-camera" onClick={() => fileRef.current?.click()} aria-label={text.changePhoto}>
-                  <i className="fa-solid fa-camera" aria-hidden />
+                  <GsIcon name="camera" size={16} />
                 </button>
               </div>
               <div className="profile-hero-text">
@@ -783,7 +800,7 @@ export default function Profile() {
                 <h3 className="profile-card-title">{text.personalInformation}</h3>
                 {!editingPersonal ? (
                   <button type="button" className="profile-btn-edit-primary" onClick={openPersonalEdit}>
-                    <i className="fa-solid fa-pencil" aria-hidden />
+                    <GsIcon name="pencil" size={15} />
                     {text.edit}
                   </button>
                 ) : null}
@@ -869,7 +886,7 @@ export default function Profile() {
                 <h3 className="profile-card-title">{text.address}</h3>
                 {!editingAddress ? (
                   <button type="button" className="profile-btn-edit-secondary" onClick={openAddressEdit}>
-                    <i className="fa-solid fa-pencil" aria-hidden />
+                    <GsIcon name="pencil" size={15} />
                     {text.edit}
                   </button>
                 ) : null}
@@ -986,59 +1003,127 @@ export default function Profile() {
               </section>
             </div>
 
-            <section className="profile-card profile-card--panel">
+            {/* Profile Settings — unified One UI Glass tile grid. Each tile
+                carries a leading icon, a clear hierarchy (eyebrow → title →
+                control), and a transparent glass surface that adapts to
+                Dark/Light themes. The grid auto-fits to keep tiles aligned
+                at every breakpoint. */}
+            <section className="profile-card profile-card--panel profile-card--settings">
               <div className="profile-card-head">
                 <h3 className="profile-card-title">{text.profileSettings}</h3>
               </div>
-              <div className="profile-mgmt-grid">
-                <div className="profile-field-cell">
-                  <div className="profile-field-label">{text.avatarManagement}</div>
-                  <div className="profile-settings-actions">
-                    <button type="button" className="profile-btn-edit-primary" onClick={() => fileRef.current?.click()}>
-                      <i className="fa-solid fa-camera" aria-hidden /> {text.changePhoto}
+              <div className="profile-settings-grid">
+                <div className="profile-settings-tile">
+                  <div className="profile-settings-tile__head">
+                    <span className="profile-settings-tile__icon" aria-hidden>
+                      <GsIcon name="camera" size={18} />
+                    </span>
+                    <div className="profile-settings-tile__heading">
+                      <div className="profile-settings-tile__eyebrow">{text.avatarManagement}</div>
+                      <div className="profile-settings-tile__title">{text.changePhoto}</div>
+                    </div>
+                  </div>
+                  <div className="profile-settings-tile__body">
+                    <button type="button" className="profile-btn-glass" onClick={() => fileRef.current?.click()}>
+                      <GsIcon name="camera" size={15} /> {text.changePhoto}
                     </button>
-                    {!avatarSrc ? <small>{text.smartFallback}</small> : null}
+                    {!avatarSrc ? <small className="profile-settings-tile__hint">{text.smartFallback}</small> : null}
                   </div>
                 </div>
-                <div className="profile-field-cell">
-                  <div className="profile-field-label">{text.coverCustomization}</div>
-                  <div className="profile-settings-actions">
-                    <button type="button" className="profile-btn-edit-secondary" onClick={() => coverFileRef.current?.click()}>
-                      <i className="fa-solid fa-image" aria-hidden /> {text.changeCoverPhoto}
+
+                <div className="profile-settings-tile">
+                  <div className="profile-settings-tile__head">
+                    <span className="profile-settings-tile__icon" aria-hidden>
+                      <GsIcon name="image-plus" size={18} />
+                    </span>
+                    <div className="profile-settings-tile__heading">
+                      <div className="profile-settings-tile__eyebrow">{text.coverCustomization}</div>
+                      <div className="profile-settings-tile__title">{text.changeCoverPhoto}</div>
+                    </div>
+                  </div>
+                  <div className="profile-settings-tile__body">
+                    <button type="button" className="profile-btn-glass" onClick={() => coverFileRef.current?.click()}>
+                      <GsIcon name="image-plus" size={15} /> {text.changeCoverPhoto}
                     </button>
-                    {coverSrc ? (
-                      <button type="button" className="profile-btn-cancel" onClick={removeCoverPhoto}>
-                        {text.removeCoverPhoto}
+                    {hasUserCover ? (
+                      <button type="button" className="profile-btn-glass profile-btn-glass--ghost" onClick={removeCoverPhoto}>
+                        <GsIcon name="trash" size={15} /> {text.removeCoverPhoto}
                       </button>
                     ) : null}
                   </div>
                 </div>
-                <div className="profile-field-cell">
-                  <div className="profile-field-label">{text.themePersonalization}</div>
-                  <div className="profile-theme-toggle">
-                    {([
-                      ['auto', text.autoTheme],
-                      ['light', text.lightTheme],
-                      ['dark', text.darkTheme],
-                    ] as const).map(([v, label]) => (
-                      <button
-                        key={v}
-                        type="button"
-                        className={`profile-theme-chip${(extra.profileTheme || 'auto') === v ? ' is-active' : ''}`}
-                        onClick={() => updateProfileFlags({ profileTheme: v })}
-                      >
-                        {label}
-                      </button>
-                    ))}
+
+                <div className="profile-settings-tile">
+                  <div className="profile-settings-tile__head">
+                    <span className="profile-settings-tile__icon" aria-hidden>
+                      <GsIcon name="paint-roller" size={18} />
+                    </span>
+                    <div className="profile-settings-tile__heading">
+                      <div className="profile-settings-tile__eyebrow">{text.themePersonalization}</div>
+                      <div className="profile-settings-tile__title">{text.profileTheme}</div>
+                    </div>
+                  </div>
+                  <div className="profile-settings-tile__body">
+                    <div className="profile-theme-toggle">
+                      {([
+                        ['auto', text.autoTheme, 'monitor'],
+                        ['light', text.lightTheme, 'sun'],
+                        ['dark', text.darkTheme, 'moon'],
+                      ] as const).map(([v, label, icon]) => (
+                        <button
+                          key={v}
+                          type="button"
+                          className={`profile-theme-chip${(extra.profileTheme || 'auto') === v ? ' is-active' : ''}`}
+                          onClick={() => updateProfileFlags({ profileTheme: v })}
+                        >
+                          <GsIcon name={icon} size={14} /> {label}
+                        </button>
+                      ))}
+                    </div>
                   </div>
                 </div>
-                <div className="profile-field-cell">
-                  <div className="profile-field-label">{text.privacyAccount}</div>
-                  <div className="profile-privacy-list">
-                    <label><input type="checkbox" checked={extra.profileIsPrivate === true} onChange={e => updateProfileFlags({ profileIsPrivate: e.target.checked })} /> {text.accountPrivate}</label>
-                    <label><input type="checkbox" checked={extra.hideEmailOnProfile === true} onChange={e => updateProfileFlags({ hideEmailOnProfile: e.target.checked })} /> {text.hideEmail}</label>
-                    <label><input type="checkbox" checked={extra.hidePhoneOnProfile === true} onChange={e => updateProfileFlags({ hidePhoneOnProfile: e.target.checked })} /> {text.hidePhone}</label>
-                    <label><input type="checkbox" checked={extra.allowActivityStatus !== false} onChange={e => updateProfileFlags({ allowActivityStatus: e.target.checked })} /> {text.activityStatus}</label>
+
+                <div className="profile-settings-tile">
+                  <div className="profile-settings-tile__head">
+                    <span className="profile-settings-tile__icon" aria-hidden>
+                      <GsIcon name="shield" size={18} />
+                    </span>
+                    <div className="profile-settings-tile__heading">
+                      <div className="profile-settings-tile__eyebrow">{text.privacyAccount}</div>
+                      <div className="profile-settings-tile__title">{text.accountPrivate}</div>
+                    </div>
+                  </div>
+                  <div className="profile-settings-tile__body">
+                    <ul className="profile-privacy-list">
+                      <li>
+                        <label>
+                          <input type="checkbox" checked={extra.profileIsPrivate === true} onChange={e => updateProfileFlags({ profileIsPrivate: e.target.checked })} />
+                          <span className="profile-privacy-list__icon" aria-hidden><GsIcon name="lock" size={14} /></span>
+                          <span>{text.accountPrivate}</span>
+                        </label>
+                      </li>
+                      <li>
+                        <label>
+                          <input type="checkbox" checked={extra.hideEmailOnProfile === true} onChange={e => updateProfileFlags({ hideEmailOnProfile: e.target.checked })} />
+                          <span className="profile-privacy-list__icon" aria-hidden><GsIcon name="mail" size={14} /></span>
+                          <span>{text.hideEmail}</span>
+                        </label>
+                      </li>
+                      <li>
+                        <label>
+                          <input type="checkbox" checked={extra.hidePhoneOnProfile === true} onChange={e => updateProfileFlags({ hidePhoneOnProfile: e.target.checked })} />
+                          <span className="profile-privacy-list__icon" aria-hidden><GsIcon name="phone" size={14} /></span>
+                          <span>{text.hidePhone}</span>
+                        </label>
+                      </li>
+                      <li>
+                        <label>
+                          <input type="checkbox" checked={extra.allowActivityStatus !== false} onChange={e => updateProfileFlags({ allowActivityStatus: e.target.checked })} />
+                          <span className="profile-privacy-list__icon" aria-hidden><GsIcon name="eye" size={14} /></span>
+                          <span>{text.activityStatus}</span>
+                        </label>
+                      </li>
+                    </ul>
                   </div>
                 </div>
               </div>
@@ -1055,7 +1140,7 @@ export default function Profile() {
                 onClick={stagePendingChanges}
                 disabled={!canApplyChanges}
               >
-                <i className="fa-solid fa-check" aria-hidden />
+                <GsIcon name="check" size={15} />
                 {text.apply}
               </button>
               <button
@@ -1064,7 +1149,7 @@ export default function Profile() {
                 onClick={confirmSaveStaged}
                 disabled={!canConfirmSave}
               >
-                <i className={`fa-solid ${saveState === 'saved' ? 'fa-circle-check' : 'fa-floppy-disk'}`} aria-hidden />
+                <GsIcon name={saveState === 'saved' ? 'check-circle' : 'save'} size={15} />
                 {saveState === 'saved' ? (language === 'ar' ? 'تم الحفظ' : 'Saved') : text.save}
               </button>
             </div>
