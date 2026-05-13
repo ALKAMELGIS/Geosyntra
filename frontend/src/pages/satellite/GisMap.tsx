@@ -23,6 +23,19 @@ import { FieldVisibilityControl } from './components/FieldVisibilityControl'
 import { GeoExplorerGeminiInputRow } from './components/GeoExplorerGeminiInputRow'
 import { MapPopup } from './components/MapPopup'
 import { DrawToolsController } from './components/DrawTools'
+import FieldsPanel from './components/fields/FieldsPanel'
+import SavedFieldsLayer from './components/fields/SavedFieldsLayer'
+import {
+  geodesicAreaHectares,
+  geometryBounds,
+  leafletLayerToPolygon,
+  loadSavedFields,
+  nextFieldColor,
+  nextFieldName,
+  persistSavedFields,
+  uuid,
+  type SavedField,
+} from './components/fields/fieldsStore'
 import { BasemapGallery, BasemapLayer, type BasemapType } from './components/BasemapGallery'
 import {
   buildBasemapCatalog,
@@ -314,6 +327,7 @@ type GisMapToolPanel =
   | 'apps'
   | 'embedMap'
   | 'shareMap'
+  | 'fields'
   | null
 type MapProjectionMode = 'globe' | '2d'
 type MeasurementMode = 'distance' | 'area' | 'features' | 'vertical' | 'direction' | 'offset' | 'angle'
@@ -858,6 +872,21 @@ export default function GisMap() {
    * is hidden behind another panel. */
   const [shareLinkCopied, setShareLinkCopied] = useState(false)
   const [gisBookmarks, setGisBookmarks] = useState<GisMapBookmark[]>(() => loadGisMapBookmarks())
+
+  /* Saved Fields (OneSoil-style AOI store) — every drawing the user finishes
+   * is persisted here with a name + crop slot + indices placeholder. The
+   * store is reconciled with `localStorage` (see persist `useEffect` below)
+   * and rendered both in the right-rail "Fields Data" panel and as a
+   * dedicated `<SavedFieldsLayer />` overlay on the 2D map. */
+  const [savedFields, setSavedFields] = useState<SavedField[]>(() => loadSavedFields())
+  const [selectedFieldId, setSelectedFieldId] = useState<string | null>(null)
+  const savedFieldsRef = useRef(savedFields)
+  useEffect(() => {
+    savedFieldsRef.current = savedFields
+  }, [savedFields])
+  useEffect(() => {
+    persistSavedFields(savedFields)
+  }, [savedFields])
   const mapSnapshotFileRef = useRef<HTMLInputElement | null>(null)
   const [featureDialog, setFeatureDialog] = useState<null | { layerId: string; featureKey: string; feature: any; layerName: string }>(null)
   const [drawingSelected, setDrawingSelected] = useState<any | null>(null)
@@ -4601,6 +4630,8 @@ export default function GisMap() {
         return 'Share map'
       case 'geoExplorer':
         return 'Geo AI chat'
+      case 'fields':
+        return 'Fields Data'
       default:
         return 'Tools'
     }
@@ -4622,7 +4653,8 @@ export default function GisMap() {
     activeMapTool === 'chart' ||
     activeMapTool === 'bookmarks' ||
     activeMapTool === 'shareMap' ||
-    activeMapTool === 'apps'
+    activeMapTool === 'apps' ||
+    activeMapTool === 'fields'
 
   /** Collapse only the white action column; keep `gis-sidebar-v-toolbar` rail and optional active tool state. */
   const closeAgolActionPane = () => {
@@ -5457,6 +5489,147 @@ export default function GisMap() {
               </div>
             )}
           </div>
+        ) : activeMapTool === 'fields' ? (
+          /* Fields Data — pure presentation; all CRUD lives in the parent
+           * so the Saved Fields map layer + the panel always read from
+           * the same source of truth. Zoom-to-field uses the existing
+           * `mapRef.fitBounds` helper (mirrors `zoomToDrawing`). */
+          <FieldsPanel
+            fields={savedFields}
+            selectedId={selectedFieldId}
+            drawingArmed={Boolean(drawingActiveTool)}
+            onSelectField={(id) => setSelectedFieldId(id)}
+            onZoomToField={(id) => {
+              const f = savedFields.find(x => x.id === id)
+              if (!f) return
+              const bounds = geometryBounds(f.geometry)
+              const m = mapRef.current
+              if (!m || !bounds) return
+              try {
+                if (typeof (m as any).flyToBounds === 'function') {
+                  ;(m as any).flyToBounds(bounds, { padding: [40, 40], duration: 0.6 })
+                } else {
+                  m.fitBounds(bounds, { padding: [40, 40] })
+                }
+              } catch {
+                /* ignore — bounds might be off-globe / invalid */
+              }
+            }}
+            onUpdateField={(id, patch) => {
+              setSavedFields(prev =>
+                prev.map(f =>
+                  f.id === id
+                    ? {
+                        ...f,
+                        ...patch,
+                        /* Recompute area only if geometry ever gets patched
+                         * (rename / crop edits don't touch geometry). */
+                        areaHectares: f.areaHectares ?? geodesicAreaHectares(f.geometry),
+                        updatedAt: new Date().toISOString(),
+                      }
+                    : f,
+                ),
+              )
+            }}
+            onDeleteField={(id) => {
+              setSavedFields(prev => prev.filter(f => f.id !== id))
+              if (selectedFieldId === id) setSelectedFieldId(null)
+              /* Best-effort: if the matching draw layer is still on the
+               * map, peel it off too so the user doesn't see a ghost
+               * polygon survive the delete. */
+              try {
+                const fg = drawingFeatureGroupRef.current
+                if (fg) {
+                  fg.eachLayer((layer: any) => {
+                    if (layer && layer.__geosyntraFieldId === id) {
+                      try {
+                        fg.removeLayer(layer)
+                      } catch {
+                        /* ignore */
+                      }
+                    }
+                  })
+                }
+              } catch {
+                /* ignore */
+              }
+            }}
+            onExportFieldGeoJSON={(id) => {
+              const f = savedFields.find(x => x.id === id)
+              if (!f) return
+              const fc: GeoJSON.FeatureCollection = {
+                type: 'FeatureCollection',
+                features: [
+                  {
+                    type: 'Feature',
+                    geometry: f.geometry,
+                    properties: {
+                      id: f.id,
+                      name: f.name,
+                      crop: f.crop ?? null,
+                      areaHectares: f.areaHectares,
+                      createdAt: f.createdAt,
+                      updatedAt: f.updatedAt,
+                      indices: f.indices ?? null,
+                    },
+                  },
+                ],
+              }
+              try {
+                const blob = new Blob([JSON.stringify(fc, null, 2)], { type: 'application/geo+json' })
+                const url = URL.createObjectURL(blob)
+                const a = document.createElement('a')
+                a.href = url
+                a.download = `${(f.name || 'field').replace(/[^a-z0-9-_]+/gi, '_')}.geojson`
+                document.body.appendChild(a)
+                a.click()
+                document.body.removeChild(a)
+                URL.revokeObjectURL(url)
+              } catch {
+                /* ignore — silent fallthrough so a blocked download
+                 * doesn't crash the panel */
+              }
+            }}
+            onExportAllGeoJSON={() => {
+              if (!savedFields.length) return
+              const fc: GeoJSON.FeatureCollection = {
+                type: 'FeatureCollection',
+                features: savedFields.map(f => ({
+                  type: 'Feature',
+                  geometry: f.geometry,
+                  properties: {
+                    id: f.id,
+                    name: f.name,
+                    crop: f.crop ?? null,
+                    areaHectares: f.areaHectares,
+                    createdAt: f.createdAt,
+                    updatedAt: f.updatedAt,
+                    indices: f.indices ?? null,
+                  },
+                })),
+              }
+              try {
+                const blob = new Blob([JSON.stringify(fc, null, 2)], { type: 'application/geo+json' })
+                const url = URL.createObjectURL(blob)
+                const a = document.createElement('a')
+                a.href = url
+                a.download = `geosyntra-fields-${Date.now()}.geojson`
+                document.body.appendChild(a)
+                a.click()
+                document.body.removeChild(a)
+                URL.revokeObjectURL(url)
+              } catch {
+                /* ignore */
+              }
+            }}
+            onStartDrawing={() => {
+              /* Best-effort: jump the user to the drawing modal where the
+               * polygon / rectangle / circle tools live. We don't auto-arm
+               * a specific tool because the user might want a different
+               * shape than the last one they used. */
+              setDrawingEditorOpen(true)
+            }}
+          />
         ) : activeMapTool === 'saveOpen' ? (
           <div className="gis-tool-saveopen">
             <p className="gis-tool-muted">
@@ -5705,6 +5878,26 @@ export default function GisMap() {
         >
           <i className="fa-solid fa-bookmark" aria-hidden="true" />
           <span className="gis-sidebar-rail-btn__label">Bookmarks</span>
+        </button>
+        {/* Fields Data — OneSoil-style AOI store. Auto-collects every
+         *  finished sketch from the drawing tools so the user can name,
+         *  group, compare, and export them per-field. The badge shows the
+         *  saved-fields count so the rail communicates "you already have
+         *  N fields" without forcing the panel open. */}
+        <button
+          type="button"
+          className={['gis-sidebar-rail-btn', activeMapTool === 'fields' ? 'gis-sidebar-rail-btn--active' : ''].filter(Boolean).join(' ')}
+          onClick={() => toggleMapTool('fields')}
+          title="Fields Data"
+          aria-label="Fields Data"
+        >
+          <i className="fa-solid fa-vector-square" aria-hidden="true" />
+          <span className="gis-sidebar-rail-btn__label">Fields</span>
+          {savedFields.length > 0 && (
+            <span className="gis-sidebar-rail-btn__badge" aria-hidden="true">
+              {savedFields.length}
+            </span>
+          )}
         </button>
         <button
           type="button"
@@ -6815,17 +7008,69 @@ export default function GisMap() {
             }}
             featureGroupRef={drawingFeatureGroupRef}
             shapeColor={drawingColor}
-            onAOICreated={() => {
+            onAOICreated={(layer: any) => {
               setDrawingDirty(true)
+              /* Auto-promote every finished AOI to a Saved Field. We
+               * convert the leaflet layer to a GeoJSON polygon (circles
+               * are polygonised at 64 segments inside `leafletLayerToPolygon`)
+               * and assign a name + color + area on the spot, mirroring
+               * OneSoil's "draw → save automatically" UX.
+               *
+               * The Field id is added as a custom prop on the layer so a
+               * later edit/delete pass can map it back. We also flip the
+               * right-rail to the Fields panel + select the new field so
+               * the user lands directly inside its analytics card. */
+              try {
+                const exported = leafletLayerToPolygon(layer)
+                if (!exported) return
+                const existing = savedFieldsRef.current
+                const id = uuid()
+                const now = new Date().toISOString()
+                const newField: SavedField = {
+                  id,
+                  name: nextFieldName(existing),
+                  color: nextFieldColor(existing.length),
+                  geometry: exported.geometry,
+                  areaHectares: exported.areaHectares,
+                  createdAt: now,
+                  updatedAt: now,
+                }
+                if (layer && typeof layer === 'object') {
+                  ;(layer as any).__geosyntraFieldId = id
+                }
+                setSavedFields(prev => [...prev, newField])
+                setSelectedFieldId(id)
+                setActiveMapTool('fields')
+                setAgolContentColumnOpen(true)
+              } catch {
+                /* never let the auto-save break the upstream draw flow */
+              }
             }}
             onSelectionChange={(layer) => {
               setDrawingSelected(layer)
               zoomToDrawing(layer)
+              /* If the user clicks an existing AOI we previously promoted
+               * to a Field, surface that Field in the panel for quick
+               * inspection / rename. */
+              const fieldId = layer && typeof layer === 'object' ? (layer as any).__geosyntraFieldId : undefined
+              if (typeof fieldId === 'string') setSelectedFieldId(fieldId)
             }}
             onDrawingChanged={(count) => {
               setDrawingCount(count)
               if (count === 0) setDrawingSelected(null)
               if (drawingIsEditing) setDrawingDirty(true)
+            }}
+          />
+          {/* Persisted Fields overlay — always renders alongside the
+           * draw tools so previously saved AOIs reappear when the user
+           * reopens the GIS Map after a refresh / new session. */}
+          <SavedFieldsLayer
+            fields={savedFields}
+            selectedId={selectedFieldId}
+            onSelectField={(id) => {
+              setSelectedFieldId(id)
+              setActiveMapTool('fields')
+              setAgolContentColumnOpen(true)
             }}
           />
           {layers.map((layer, layerStackIndex) =>

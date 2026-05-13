@@ -13709,6 +13709,616 @@ textarea {
 }
 
 /* ============================================================================
+ * Geosyntra · Fields Data — OneSoil-style AOI store, Black Glass identity.
+ *
+ * The "Fields Data" tool is the right-rail companion to the drawing tools:
+ * every finished AOI is auto-promoted to a `SavedField` (see
+ * `frontend/src/pages/satellite/components/fields/`), and this block styles
+ * the panel that lists / edits / deletes / exports those fields plus the
+ * permanent map labels for each saved polygon.
+ *
+ * Visual rules (mirrors the OneSoil reference shared by the user):
+ *   - Each list row is a horizontal card with a colored swatch on the
+ *     left, name + crop + area in the middle, and the saved date on the
+ *     right. The active card glows a thin ring in its own color.
+ *   - The rail icon shows a small numeric badge with the field count so
+ *     the user knows how many AOIs are saved without opening the panel.
+ *   - A pinned detail card sits below the list when a field is selected
+ *     (area, crop input, NDVI/NDWI/Moisture placeholders, actions).
+ *   - All chrome shares the existing `.gis-map-tool-surface*` shell, so
+ *     hover / focus / scroll behaviours match the Bookmarks panel.
+ *
+ * The Lite Mode mirror lives in `styles/light-glass-theme.css`.
+ * ========================================================================== */
+
+/* Rail-button numeric badge (shows field count). Lives in the bottom-right
+ * corner of the icon button; intentionally small (16px) so it doesn't
+ * overpower the icon glyph. */
+.gis-sidebar-rail-btn__badge {
+  position: absolute;
+  bottom: 2px;
+  right: 2px;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 800;
+  line-height: 16px;
+  text-align: center;
+  color: #0a0a10;
+  background: linear-gradient(145deg, #f8fafc, #cbd5e1);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.55), inset 0 1px 0 rgba(255, 255, 255, 0.65);
+  border: 1px solid rgba(0, 0, 0, 0.35);
+  pointer-events: none;
+}
+
+:root[dir='rtl'] .gis-sidebar-rail-btn__badge {
+  right: auto;
+  left: 2px;
+}
+
+/* The rail buttons are positioned content; ensure the badge anchors
+ * relative to the button. (Already `position: relative` in most rail
+ * sheets — re-asserting here is defensive.) */
+.gis-sidebar-rail-btn {
+  position: relative;
+}
+
+/* Panel body — sits inside `.gis-map-tool-surface`, so we only need to
+ * tighten the gap (the surface already supplies padding + flex column). */
+.gs-fields-panel {
+  gap: 12px;
+}
+
+/* "Draw new field" CTA — silver-glass pill that mirrors the chrome
+ * hierarchy of `.gis-map-tool-surface__primary` but with a subtle accent
+ * so it reads as the panel's primary entry point. */
+.gs-fields-cta {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  min-height: 38px;
+  padding: 0 14px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.16), rgba(255, 255, 255, 0.06));
+  color: rgba(244, 244, 248, 0.96);
+  font-size: 13px;
+  font-weight: 700;
+  font-family: inherit;
+  cursor: pointer;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.10);
+  transition: background 0.15s ease, border-color 0.15s ease, transform 0.12s ease;
+}
+
+.gs-fields-cta:hover:not(:disabled) {
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.22), rgba(255, 255, 255, 0.10));
+  border-color: rgba(255, 255, 255, 0.28);
+}
+
+.gs-fields-cta:active:not(:disabled) {
+  transform: translateY(1px);
+}
+
+.gs-fields-cta:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+/* Search row + summary chips */
+.gs-fields-summary {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.gs-fields-search {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 10px;
+  height: 34px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.10);
+  background: rgba(255, 255, 255, 0.04);
+  color: rgba(218, 218, 225, 0.88);
+}
+
+.gs-fields-search input {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  background: transparent;
+  outline: none;
+  color: rgba(244, 244, 248, 0.96);
+  font-family: inherit;
+  font-size: 12.5px;
+}
+
+.gs-fields-search input::placeholder {
+  color: rgba(180, 180, 195, 0.62);
+}
+
+.gs-fields-search:focus-within {
+  border-color: rgba(255, 255, 255, 0.24);
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.gs-fields-search__clear {
+  display: inline-grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 999px;
+  border: 0;
+  background: rgba(255, 255, 255, 0.08);
+  color: rgba(232, 232, 238, 0.85);
+  cursor: pointer;
+}
+
+.gs-fields-search__clear:hover {
+  background: rgba(255, 255, 255, 0.18);
+  color: #ffffff;
+}
+
+.gs-fields-summary__chips {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.gs-fields-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 9px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.10);
+  color: rgba(232, 232, 238, 0.92);
+}
+
+.gs-fields-chip strong {
+  font-weight: 800;
+  color: #ffffff;
+}
+
+.gs-fields-chip--muted {
+  color: rgba(204, 204, 212, 0.78);
+}
+
+/* Empty state */
+.gs-fields-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 28px 16px;
+  gap: 10px;
+  border-radius: 14px;
+  border: 1px dashed rgba(255, 255, 255, 0.14);
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.gs-fields-empty--filtered {
+  padding: 18px 16px;
+}
+
+.gs-fields-empty__icon {
+  display: inline-grid;
+  place-items: center;
+  width: 48px;
+  height: 48px;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.10);
+  color: rgba(232, 232, 238, 0.92);
+}
+
+.gs-fields-empty__title {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 800;
+  color: rgba(244, 244, 248, 0.96);
+}
+
+.gs-fields-empty__copy {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.5;
+  color: rgba(204, 204, 212, 0.78);
+}
+
+/* Field list */
+.gs-fields-list {
+  list-style: none;
+  margin: 0;
+  padding: 2px 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+  scrollbar-gutter: stable;
+}
+
+.gs-field-card {
+  position: relative;
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: stretch;
+  gap: 6px;
+  padding: 0;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: linear-gradient(180deg, rgba(20, 20, 26, 0.55), rgba(14, 14, 18, 0.62));
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  transition: border-color 0.18s ease, box-shadow 0.18s ease, transform 0.14s ease;
+  overflow: hidden;
+}
+
+.gs-field-card:hover {
+  border-color: rgba(255, 255, 255, 0.18);
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.55), inset 0 1px 0 rgba(255, 255, 255, 0.07);
+  transform: translateY(-1px);
+}
+
+.gs-field-card--selected {
+  border-color: var(--field-color, rgba(255, 255, 255, 0.6));
+  box-shadow: 0 8px 22px rgba(0, 0, 0, 0.55), 0 0 0 1px var(--field-color, rgba(255, 255, 255, 0.6)) inset;
+  background: linear-gradient(180deg, rgba(28, 28, 36, 0.78), rgba(18, 18, 24, 0.86));
+}
+
+.gs-field-card__body {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font-family: inherit;
+  cursor: pointer;
+  text-align: start;
+  width: 100%;
+  min-width: 0;
+}
+
+.gs-field-card__swatch {
+  flex: 0 0 auto;
+  width: 8px;
+  height: 36px;
+  border-radius: 4px;
+  background: var(--field-color, #22d3ee);
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.45);
+}
+
+.gs-field-card__main {
+  min-width: 0;
+  display: grid;
+  gap: 2px;
+}
+
+.gs-field-card__name {
+  font-size: 13px;
+  font-weight: 800;
+  color: rgba(244, 244, 248, 0.96);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.gs-field-card__sub {
+  font-size: 11px;
+  font-weight: 600;
+  color: rgba(204, 204, 212, 0.78);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.gs-field-card__date {
+  font-size: 11px;
+  font-weight: 600;
+  color: rgba(180, 180, 195, 0.65);
+  white-space: nowrap;
+}
+
+.gs-field-card__rename {
+  width: 100%;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 6px;
+  padding: 3px 6px;
+  font-size: 12.5px;
+  font-weight: 700;
+  font-family: inherit;
+  color: #ffffff;
+  outline: none;
+}
+
+.gs-field-card__rename:focus {
+  border-color: rgba(255, 255, 255, 0.32);
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.gs-field-card__actions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 8px 8px 8px 0;
+}
+
+:root[dir='rtl'] .gs-field-card__actions {
+  padding: 8px 0 8px 8px;
+}
+
+.gs-field-card__btn {
+  display: inline-grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.10);
+  background: rgba(255, 255, 255, 0.05);
+  color: rgba(232, 232, 238, 0.88);
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+}
+
+.gs-field-card__btn:hover {
+  background: rgba(255, 255, 255, 0.12);
+  border-color: rgba(255, 255, 255, 0.22);
+  color: #ffffff;
+}
+
+.gs-field-card__btn--danger:hover {
+  background: rgba(244, 63, 94, 0.20);
+  border-color: rgba(244, 63, 94, 0.55);
+  color: #fecdd3;
+}
+
+/* Selected-field detail card (pinned at the bottom of the panel) */
+.gs-field-detail {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px;
+  border-radius: 14px;
+  border: 1px solid rgba(255, 255, 255, 0.10);
+  background: linear-gradient(180deg, rgba(20, 20, 26, 0.75), rgba(12, 12, 18, 0.85));
+  box-shadow: 0 8px 22px rgba(0, 0, 0, 0.55), inset 0 1px 0 rgba(255, 255, 255, 0.05);
+}
+
+.gs-field-detail__head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.gs-field-detail__swatch {
+  width: 10px;
+  height: 10px;
+  border-radius: 999px;
+  background: var(--field-color, #22d3ee);
+  box-shadow: 0 0 8px var(--field-color, rgba(34, 211, 238, 0.6));
+}
+
+.gs-field-detail__title {
+  flex: 1;
+  font-size: 13px;
+  font-weight: 800;
+  color: rgba(244, 244, 248, 0.96);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.gs-field-detail__close {
+  display: inline-grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.10);
+  background: rgba(255, 255, 255, 0.05);
+  color: rgba(232, 232, 238, 0.88);
+  cursor: pointer;
+}
+
+.gs-field-detail__close:hover {
+  background: rgba(255, 255, 255, 0.12);
+  color: #ffffff;
+}
+
+.gs-field-detail__grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.gs-field-detail__stat {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.gs-field-detail__stat-label {
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: rgba(180, 180, 195, 0.78);
+}
+
+.gs-field-detail__stat strong {
+  font-size: 13px;
+  font-weight: 800;
+  color: #ffffff;
+}
+
+.gs-field-detail__field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.gs-field-detail__field span {
+  font-size: 10.5px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: rgba(180, 180, 195, 0.78);
+}
+
+.gs-field-detail__field input,
+.gs-field-detail__field textarea {
+  width: 100%;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.10);
+  background: rgba(255, 255, 255, 0.04);
+  color: #ffffff;
+  font-family: inherit;
+  font-size: 12.5px;
+  padding: 6px 10px;
+  outline: none;
+  resize: vertical;
+}
+
+.gs-field-detail__field input:focus,
+.gs-field-detail__field textarea:focus {
+  border-color: rgba(255, 255, 255, 0.24);
+  background: rgba(255, 255, 255, 0.07);
+}
+
+.gs-field-detail__indices {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.gs-field-index {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 10px 8px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.03);
+  text-align: center;
+}
+
+.gs-field-index__label {
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.10em;
+  color: rgba(180, 180, 195, 0.82);
+}
+
+.gs-field-index__value {
+  font-size: 16px;
+  font-weight: 900;
+  font-variant-numeric: tabular-nums;
+  color: #ffffff;
+}
+
+.gs-field-index__hint {
+  font-size: 10px;
+  font-weight: 600;
+  color: rgba(180, 180, 195, 0.60);
+}
+
+.gs-field-detail__actions {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.gs-field-detail__btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.05);
+  color: rgba(244, 244, 248, 0.96);
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.gs-field-detail__btn:hover {
+  background: rgba(255, 255, 255, 0.12);
+  border-color: rgba(255, 255, 255, 0.24);
+}
+
+/* Bottom utility row */
+.gs-fields-foot {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.gs-fields-foot__btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.10);
+  background: rgba(255, 255, 255, 0.04);
+  color: rgba(232, 232, 238, 0.88);
+  font-family: inherit;
+  font-size: 11.5px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.gs-fields-foot__btn:hover {
+  background: rgba(255, 255, 255, 0.10);
+  border-color: rgba(255, 255, 255, 0.22);
+  color: #ffffff;
+}
+
+/* Permanent map labels for saved fields — small frosted pill at the
+ * polygon centroid, painted by `<SavedFieldsLayer />` via Leaflet's
+ * `bindTooltip({ permanent: true, className: 'gs-field-label' })`. */
+.leaflet-tooltip.gs-field-label {
+  background: rgba(10, 10, 14, 0.78);
+  color: #ffffff;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 8px;
+  padding: 3px 8px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.55);
+  white-space: nowrap;
+}
+
+.leaflet-tooltip.gs-field-label::before {
+  /* Leaflet ships a small triangle pointer; hide it for the centered
+   * label so the pill renders as a clean rectangle. */
+  display: none;
+}
+
+/* ============================================================================
  * Geosyntra · GIS Map page canvas + floating tool popover — Black Glass.
  *
  * Two upstream rules were still leaking the legacy "spring mint" identity

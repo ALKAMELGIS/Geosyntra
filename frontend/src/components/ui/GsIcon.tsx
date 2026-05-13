@@ -48,6 +48,13 @@ export type GsIconName =
   | 'lock'
   | 'phone'
   | 'mail'
+  | 'layers'
+  | 'plus'
+  | 'search'
+  | 'x'
+  | 'map-pin'
+  | 'zoom-in'
+  | 'download'
 
 export interface GsIconProps extends Omit<SVGProps<SVGSVGElement>, 'name' | 'width' | 'height'> {
   name: GsIconName
@@ -193,6 +200,46 @@ const ICON_PATHS: Record<GsIconName, JSX.Element> = {
     <>
       <rect x="3" y="5.5" width="18" height="13" rx="2" />
       <path d="m4 7 7.3 5.5a1.5 1.5 0 0 0 1.8 0L20 7" />
+    </>
+  ),
+  layers: (
+    <>
+      <path d="m12 3.5 9 4.5-9 4.5-9-4.5 9-4.5Z" />
+      <path d="m3 12 9 4.5 9-4.5" />
+      <path d="m3 16.5 9 4.5 9-4.5" />
+    </>
+  ),
+  plus: <path d="M12 5v14M5 12h14" />,
+  search: (
+    <>
+      <circle cx="11" cy="11" r="6.5" />
+      <path d="m20 20-4.3-4.3" />
+    </>
+  ),
+  x: (
+    <>
+      <path d="M6 6 18 18" />
+      <path d="M18 6 6 18" />
+    </>
+  ),
+  'map-pin': (
+    <>
+      <path d="M12 21s7-6.2 7-12a7 7 0 1 0-14 0c0 5.8 7 12 7 12Z" />
+      <circle cx="12" cy="9.5" r="2.6" />
+    </>
+  ),
+  'zoom-in': (
+    <>
+      <circle cx="11" cy="11" r="6.5" />
+      <path d="m20 20-4.3-4.3" />
+      <path d="M11 8v6M8 11h6" />
+    </>
+  ),
+  download: (
+    <>
+      <path d="M12 4v11" />
+      <path d="m7 11 5 5 5-5" />
+      <path d="M5 19.5h14" />
     </>
   ),
 }
