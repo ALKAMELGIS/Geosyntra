@@ -1,36 +1,54 @@
 /**
- * Semantic HSL tokens for Tailwind `theme.extend.colors` (background, primary, …).
- * Values are channel triplets for `hsl(var(--token) / <alpha-value>)`.
- * Does not override existing app tokens elsewhere unless a utility reads these names.
+ * Semantic HSL tokens consumed by Tailwind `theme.extend.colors` (background, primary, …).
+ * Both light and dark palettes mirror the AI black-glass aesthetic from `index.css`:
+ *   - dark  = midnight + electric cyan + indigo accent
+ *   - light = soft milky white + cool cyan/violet accents
+ * Channel triplets are required for `hsl(var(--token) / <alpha-value>)`.
  */
 :root {
-  --background: 0 0% 100%;
-  --foreground: 222.2 84% 4.9%;
+  --background: 222 67% 5%;
+  --foreground: 230 70% 96%;
+  --card: 224 35% 12%;
+  --card-foreground: 230 70% 96%;
+  --muted: 226 30% 18%;
+  --muted-foreground: 220 14% 70%;
+  --accent: 234 89% 74%;
+  --accent-foreground: 230 100% 98%;
+  --primary: 187 85% 53%;
+  --primary-foreground: 222 67% 6%;
+  --border: 226 30% 22%;
+  --input: 226 30% 22%;
+  --ring: 187 85% 53%;
+}
+
+html[data-theme='light'] {
+  --background: 220 33% 98%;
+  --foreground: 224 47% 8%;
   --card: 0 0% 100%;
-  --card-foreground: 222.2 84% 4.9%;
-  --muted: 210 40% 96.1%;
-  --muted-foreground: 215.4 16.3% 46.9%;
-  --accent: 210 40% 96.1%;
-  --accent-foreground: 222.2 47.4% 11.2%;
-  --primary: 142.1 76.2% 36.3%;
-  --primary-foreground: 355.7 100% 97.3%;
-  --border: 214.3 31.8% 91.4%;
-  --input: 214.3 31.8% 91.4%;
-  --ring: 142.1 76.2% 36.3%;
+  --card-foreground: 224 47% 8%;
+  --muted: 220 25% 95%;
+  --muted-foreground: 220 14% 40%;
+  --accent: 234 70% 60%;
+  --accent-foreground: 230 100% 98%;
+  --primary: 191 91% 36%;
+  --primary-foreground: 0 0% 100%;
+  --border: 220 16% 88%;
+  --input: 220 16% 88%;
+  --ring: 191 91% 36%;
 }
 
 html[data-theme='dark'] {
-  --background: 222.2 84% 4.9%;
-  --foreground: 210 40% 98%;
-  --card: 222.2 84% 4.9%;
-  --card-foreground: 210 40% 98%;
-  --muted: 217.2 32.6% 17.5%;
-  --muted-foreground: 215 20.2% 65.1%;
-  --accent: 217.2 32.6% 17.5%;
-  --accent-foreground: 210 40% 98%;
-  --primary: 142.1 70.6% 45.3%;
-  --primary-foreground: 144.9 80.4% 10%;
-  --border: 217.2 32.6% 17.5%;
-  --input: 217.2 32.6% 17.5%;
-  --ring: 142.4 71.8% 29.2%;
+  --background: 222 67% 5%;
+  --foreground: 230 70% 96%;
+  --card: 224 35% 12%;
+  --card-foreground: 230 70% 96%;
+  --muted: 226 30% 18%;
+  --muted-foreground: 220 14% 70%;
+  --accent: 234 89% 74%;
+  --accent-foreground: 230 100% 98%;
+  --primary: 187 85% 53%;
+  --primary-foreground: 222 67% 6%;
+  --border: 226 30% 22%;
+  --input: 226 30% 22%;
+  --ring: 187 85% 53%;
 }

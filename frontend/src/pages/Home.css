@@ -1,10 +1,21 @@
-/* Empty white home canvas. Keeps the main area blank without any tiles, hero, or background art. */
-.home-blank {
+/**
+ * Home → AI 3D ScrollGlobe shell.
+ * The landing component owns its own min-h-screen sections; this wrapper just
+ * lets the globe run full-bleed inside the main content area.
+ */
+.home-landing {
+  position: relative;
   width: 100%;
   min-height: 100%;
-  background: #ffffff;
+  background: transparent;
 }
 
-html[data-theme='dark'] .home-blank {
-  background: #ffffff;
+.home-landing .gs-scroll-globe {
+  width: 100%;
+}
+
+/* The global aurora in `index.css` paints the body; keep individual sections
+   transparent so the globe + ambient layer stay visible underneath. */
+.home-landing .gs-scroll-globe section {
+  background: transparent;
 }
