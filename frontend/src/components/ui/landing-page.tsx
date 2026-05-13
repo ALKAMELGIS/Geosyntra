@@ -92,21 +92,47 @@ export interface ScrollGlobeProps {
  * 90 % off-screen for half-bleed effect; future centres a 1.8× mass behind
  * the closing copy.
  *
- * Hero left position evolution:
- *   75 % (upstream) → 71 % (geometric robot centre) → 66 % (visual fix
- *   per user feedback 2026-05-13: the Spline robot's body isn't centred
- *   inside its render box — the figure leans slightly right inside the
- *   stage — so the perceived chest centre sits a few percent left of the
- *   stage's geometric centre. 66 % lands the Earth visually on the
- *   robot's torso instead of its left hand).
+ * NOTE: the hero `left` value below is a *fallback* — at runtime
+ * `buildGlobeTransform` ignores it for the hero (idx 0) and instead pins
+ * the Globe to the Robot stage's exact horizontal centre via the CSS
+ * expression `calc(100vw - min(29vw, 440px))` (the stage is right-anchored
+ * with `width: min(58vw, 880px)`, so its centre = viewport-right − half-
+ * stage). This keeps the Globe on the Robot's chest on every breakpoint
+ * (small phone → 4K) instead of drifting around as a percentage of vw.
  */
 const defaultGlobeConfig: { positions: ScrollGlobePosition[] } = {
   positions: [
-    { top: '50%', left: '66%', scale: 0.85 },
+    { top: '50%', left: '71%', scale: 0.85 },
     { top: '25%', left: '50%', scale: 0.9 },
     { top: '15%', left: '90%', scale: 2 },
     { top: '50%', left: '50%', scale: 1.8 },
   ],
+}
+
+/**
+ * Compose the Globe wrapper transform string for a given section index.
+ *
+ * Hero (idx 0) uses a *right-anchored* `calc()` x-coordinate that mirrors
+ * the Robot stage's own anchoring (`right: 0`, `width: min(58vw, 880px)`)
+ * so the Globe's centre always lands on the Robot's chest no matter the
+ * viewport width. Other sections fall back to the upstream `left%/top%`
+ * vw/vh positioning for the cinematic glide between Innovation, Discovery
+ * and Future panels.
+ *
+ * Returned as a CSS transform string so the existing 1.4 s
+ * `transition: transform` on the wrapper still interpolates smoothly
+ * between sections (the browser resolves `calc(100vw - min(29vw, 440px))`
+ * to a concrete pixel value before interpolating to the next section's
+ * `${left}vw` value, so no layout discontinuity).
+ */
+function buildGlobeTransform(
+  idx: number,
+  pos: { top: number; left: number; scale: number },
+): string {
+  if (idx === 0) {
+    return `translate3d(calc(100vw - min(29vw, 440px)), ${pos.top}vh, 0) translate3d(-50%, -50%, 0) scale3d(${pos.scale}, ${pos.scale}, 1)`
+  }
+  return `translate3d(${pos.left}vw, ${pos.top}vh, 0) translate3d(-50%, -50%, 0) scale3d(${pos.scale}, ${pos.scale}, 1)`
 }
 
 const parsePercent = (str: string): number => parseFloat(str.replace('%', ''))
@@ -140,18 +166,29 @@ export function ScrollGlobe({ sections, globeConfig = defaultGlobeConfig, classN
   const [scrollProgress, setScrollProgress] = useState(0)
   const [globeTransform, setGlobeTransform] = useState('')
   /**
-   * Shared mouse-parallax offset for the Hero 3D stage.
+   * Mouse-parallax offset for the Spline robot — robot ONLY (per the
+   * user's "Parallax يجب أن تؤثر على الروبوت فقط" spec).
    *
-   * Both the Globe and the Spline robot consume this offset as the *first*
-   * transform in their composed transform string — meaning the parallax
-   * shift is applied in viewport space (after scale + position), so the
-   * pixel amount is identical for both layers regardless of their
-   * individual scales. This is what gives the user "حركة Parallax بنفس
-   * النسبة" — perfectly synchronized mouse drift, no visual separation.
+   * The Globe stays still (anchored on the Robot's chest) so the Earth
+   * reads as a solid object the figure is holding, not as a separate
+   * thing drifting in space. The robot still gets a subtle shift on
+   * pointer move so the figure feels alive and tracks the user.
    *
    * Range: x/y ∈ [-1, 1]. Multiplied by `PARALLAX_AMPLITUDE_PX` below.
    */
   const [mouseOffset, setMouseOffset] = useState<{ x: number; y: number }>({ x: 0, y: 0 })
+  /**
+   * Hero entrance choreography flag — flips ~700 ms after mount so the
+   * Robot can fade-in and *settle in place first*, then the Globe glides
+   * into the chest with its own delayed fade + scale-in. Matches the
+   * user's "يستقر الروبوت أولاً ثم تأتي الكرة إلى صدره" requirement.
+   *
+   * Initial render: Globe is fully transparent and slightly scaled-down
+   * (via the CSS `gs-hero-globe-arrival` keyframe). Once `globeArrived`
+   * is true, the Globe wrapper picks up its real opacity (gated on
+   * `activeSection`) and the entrance animation completes in one beat.
+   */
+  const [globeArrived, setGlobeArrived] = useState(false)
   const containerRef = useRef<HTMLDivElement>(null)
   const sectionRefs = useRef<(HTMLElement | null)[]>([])
   const animationFrameId = useRef<number | undefined>(undefined)
@@ -212,8 +249,7 @@ export function ScrollGlobe({ sections, globeConfig = defaultGlobeConfig, classN
 
     const idx = Math.min(newActiveSection, calculatedPositions.length - 1)
     const currentPos = calculatedPositions[idx]
-    const transform = `translate3d(${currentPos.left}vw, ${currentPos.top}vh, 0) translate3d(-50%, -50%, 0) scale3d(${currentPos.scale}, ${currentPos.scale}, 1)`
-    setGlobeTransform(transform)
+    setGlobeTransform(buildGlobeTransform(idx, currentPos))
     setActiveSection(idx)
   }, [calculatedPositions])
 
@@ -252,12 +288,34 @@ export function ScrollGlobe({ sections, globeConfig = defaultGlobeConfig, classN
 
   /* When `calculatedPositions` changes (e.g. host page swaps `globeConfig`),
    * jump the globe to the new hero position so it doesn't snap from a stale
-   * coordinate. */
+   * coordinate. Uses `buildGlobeTransform` so the hero gets its right-
+   * anchored calc() form (locked to the Robot stage centre) instead of a
+   * vw-based percentage. */
   useEffect(() => {
-    const initialPos = calculatedPositions[0]
-    const initialTransform = `translate3d(${initialPos.left}vw, ${initialPos.top}vh, 0) translate3d(-50%, -50%, 0) scale3d(${initialPos.scale}, ${initialPos.scale}, 1)`
-    setGlobeTransform(initialTransform)
+    setGlobeTransform(buildGlobeTransform(0, calculatedPositions[0]))
   }, [calculatedPositions])
+
+  /* Hero entrance choreography — robot first, globe second.
+   *
+   * 1. The Robot fades in immediately (its own CSS animation +
+   *    Suspense fallback take ~900 ms to settle).
+   * 2. After a 700 ms beat, we flip `globeArrived` → the Globe
+   *    wrapper transitions opacity 0 → 0.92 and scale 0.6 → 1.0,
+   *    arriving in front of the Robot's chest like the figure just
+   *    pulled it into view. `prefers-reduced-motion` short-circuits
+   *    the delay so accessibility users see the Globe immediately. */
+  useEffect(() => {
+    if (typeof window === 'undefined') {
+      setGlobeArrived(true)
+      return
+    }
+    if (window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) {
+      setGlobeArrived(true)
+      return
+    }
+    const t = window.setTimeout(() => setGlobeArrived(true), 700)
+    return () => window.clearTimeout(t)
+  }, [])
 
   /* Respect `prefers-reduced-motion`: skip mouse parallax updates entirely
    * for users who opt out, so the Hero 3D stage stays still. The matchMedia
@@ -311,18 +369,17 @@ export function ScrollGlobe({ sections, globeConfig = defaultGlobeConfig, classN
   }, [])
 
   /**
-   * Pixel amplitude of the shared parallax shift. Kept gentle (≈ 10 px max
-   * each axis) so the figure never wobbles in a way that competes with
-   * the Spline robot's own internal head/body sway — they compose, they
-   * don't fight.
+   * Pixel amplitude of the Robot's mouse parallax shift. Kept gentle
+   * (≈ 10 px max each axis) so the figure never wobbles in a way that
+   * competes with the Spline robot's own internal head/body sway — they
+   * compose, they don't fight. Applied to the Robot wrapper only; the
+   * Globe stays still on the Robot's chest so the Earth reads as a
+   * solid object the figure is holding.
    */
   const PARALLAX_AMPLITUDE_PX = 10
   const parallaxX = mouseOffset.x * PARALLAX_AMPLITUDE_PX
   const parallaxY = mouseOffset.y * PARALLAX_AMPLITUDE_PX
-  /* Identical translate string for both 3D layers — composed *first* in
-   * each layer's transform chain so the shift lives in viewport space
-   * (uniform pixel amount regardless of the layer's own scale). */
-  const sharedParallax = `translate3d(${parallaxX.toFixed(2)}px, ${parallaxY.toFixed(2)}px, 0)`
+  const robotParallax = `translate3d(${parallaxX.toFixed(2)}px, ${parallaxY.toFixed(2)}px, 0)`
 
   return (
     /*
@@ -422,19 +479,38 @@ export function ScrollGlobe({ sections, globeConfig = defaultGlobeConfig, classN
           Hero 3D stage — Spline robot (back) + Globe (front).
 
           Both layers are FIXED at the document root so the section
-          stacking contexts (z-20) can't trap them, and they share the
-          same `sharedParallax` translate string applied as the *first*
-          transform → identical pixel-perfect mouse drift on both, no
-          visual separation. Robot also fades out in unison with the
-          Globe scroll animation when the user leaves Hero (matching
-          1400ms ease curve), so the two layers transition as one
-          integrated unit instead of one disappearing while the other
-          continues moving.
+          stacking contexts (z-30) can't trap them.
+
+          Movement model (per the user's 2026-05-13 22:45 spec):
+            • Robot           gets the mouse-parallax shift (subtle drift
+                              with the cursor — figure feels alive).
+            • Globe           does NOT get parallax. It stays anchored
+                              dead-on the Robot's chest so the Earth
+                              reads as a solid sphere the figure is
+                              holding, not a separate object floating
+                              alongside it.
+
+          Entrance choreography:
+            • Robot           fades in immediately on mount (Spline +
+                              CSS animation handle the polish).
+            • Globe           waits ~700 ms (`globeArrived`), then
+                              transitions opacity 0 → 0.92 and `gs-hero-
+                              globe-arrival` keyframes the scale-in →
+                              "robot settles first, then the Earth
+                              arrives in its hands."
+
+          Hero positioning:
+            • Robot stage     `right: 0`, `width: min(58vw, 880px)` →
+                              centre x = `100vw - min(29vw, 440px)`.
+            • Globe (hero)    transform uses the *exact same* expression
+                              for its x-coordinate, so its centre lands
+                              squarely on the robot's chest on every
+                              breakpoint (small phone → 4K).
 
           Layer hierarchy (back → front, per user spec):
             Robot 3D            z-[8]
             Globe 3D            z-10
-            UI overlay / nav    z-25  (right-rail nav, progress bar)
+            UI overlay / nav    z-40  (right-rail nav, progress bar z-50)
             Section content     z-30  (Geosyntra title, Sparkles, CTAs)
           ────────────────────────────────────────────────────────────── */}
       {/* Robot — only meaningful in Hero, fades synchronously with the
@@ -447,7 +523,7 @@ export function ScrollGlobe({ sections, globeConfig = defaultGlobeConfig, classN
         style={{
           width: 'min(58vw, 880px)',
           opacity: activeSection === 0 ? 1 : 0,
-          transform: sharedParallax,
+          transform: robotParallax,
         }}
       >
         <div className="gs-hero-robot__stage relative w-full h-[80%] max-h-[78vh] mr-2 md:mr-6 lg:mr-10 xl:mr-14 pointer-events-auto">
@@ -456,34 +532,57 @@ export function ScrollGlobe({ sections, globeConfig = defaultGlobeConfig, classN
       </div>
 
       {/* The pinned globe layer. `transition-all 1400ms` does the heavy
-          lifting — every scroll tick just sets a new `transform` string and
-          the browser eases the change. The fade-down on the last section
-          lets the hero copy take focus while the globe sits as a backdrop.
-          `sharedParallax` is composed FIRST so the mouse drift is in
-          viewport pixels (identical amount as the robot regardless of
-          per-section globe scale). */}
+          lifting — every scroll tick just sets a new `transform` string
+          and the browser eases the change.
+            • In Hero (idx 0), `globeTransform` resolves to the
+              right-anchored calc() form (locked to the Robot stage
+              centre) so the Earth lands squarely on the figure's chest.
+            • Outside Hero, `globeTransform` falls back to the upstream
+              vw-based positioning so Innovation / Discovery / Future
+              keep their original cinematic glide.
+          Opacity gates on `globeArrived` for the entrance beat AND on
+          `activeSection === last` for the closing fade. */}
       <div
         aria-hidden
-        className="fixed z-10 pointer-events-none will-change-transform transition-all duration-[1400ms] ease-[cubic-bezier(0.23,1,0.32,1)]"
+        className="gs-hero-globe fixed z-10 pointer-events-none will-change-transform transition-all duration-[1400ms] ease-[cubic-bezier(0.23,1,0.32,1)]"
         style={{
-          transform: `${sharedParallax} ${globeTransform}`,
+          transform: globeTransform,
           /* Globe fades on the closing section (existing upstream rule).
-           * Hero stays at full opacity so the Earth reads as a solid
-           * sphere held by the robot behind it. */
-          filter: `opacity(${activeSection === sections.length - 1 ? 0.4 : 0.92})`,
+           * Hero opacity goes from 0 → 0.92 once the Robot settles
+           * (`globeArrived` flips ~700 ms after mount). */
+          opacity: globeArrived
+            ? activeSection === sections.length - 1
+              ? 0.4
+              : 0.92
+            : 0,
         }}
       >
-        {/* Per-breakpoint scale-up of the upstream 250×250 globe so the
-            sphere reads as the dominant visual on larger screens (≈ 375 px
-            on tablet, ≈ 750 px on desktop, ≈ 875 px on 2xl) while still
-            fitting comfortably on narrow phones. The per-section
-            `scale3d(...)` set in `defaultGlobeConfig.positions[].scale`
-            multiplies on top of this base, so the Hero (1.4×) renders at
-            ≈ 1050 px on lg / ≈ 1225 px on 2xl — a true cinematic backdrop
-            that matches the upstream 21st.dev demo without distorting the
-            shadow stack. */}
-        <div className="scale-100 sm:scale-150 lg:scale-[3] 2xl:scale-[3.5]">
-          <Globe />
+        {/* Entrance wrapper — owns the "Earth lands in the robot's hands"
+            scale-in animation. Lives in its own div so the Tailwind
+            per-breakpoint scale classes below don't fight the entrance
+            transform (each wrapper has its own composed transform that
+            multiplies into its descendants). Starts at scale 0.55 (small
+            seed, like the figure just opened its hands) and overshoots
+            slightly to 1.0 via the bouncy cubic curve below. */}
+        <div
+          className="gs-hero-globe__entrance"
+          style={{
+            transform: globeArrived ? 'scale(1)' : 'scale(0.55)',
+            transition:
+              'transform 1400ms cubic-bezier(0.18, 1.18, 0.32, 1)',
+            transformOrigin: 'center center',
+          }}
+        >
+          {/* Per-breakpoint scale-up of the upstream 250×250 globe so the
+              sphere reads as the dominant visual on larger screens
+              (≈ 375 px on tablet, ≈ 750 px on desktop, ≈ 875 px on 2xl)
+              while still fitting comfortably on narrow phones. The
+              per-section `scale3d(...)` set in
+              `defaultGlobeConfig.positions[].scale` multiplies on top
+              of this base. */}
+          <div className="scale-100 sm:scale-150 lg:scale-[3] 2xl:scale-[3.5]">
+            <Globe />
+          </div>
         </div>
       </div>
 
