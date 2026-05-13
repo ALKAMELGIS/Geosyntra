@@ -1,7 +1,17 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import Globe from './globe'
 import { SparklesCore } from './sparkles'
+import { SplineScene } from './spline-scene'
 import { cn } from '@/lib/utils'
+
+/**
+ * Spline scene URL — same interactive 3D robot the LearnMore hero uses
+ * (shipped by the 21st.dev integration brief). Lifting it into the Home
+ * hero gives the landing page a matching cinematic mark next to the
+ * Geosyntra wordmark, with built-in mouse parallax (the Spline runtime
+ * tracks the cursor itself — no extra wiring required).
+ */
+const SPLINE_HERO_SCENE_URL = 'https://prod.spline.design/kZDDjO5HuC9GJUM2/scene.splinecode'
 
 /**
  * ScrollGlobe — 1:1 port of the upstream landing-page bundle published at
@@ -328,7 +338,14 @@ export function ScrollGlobe({ sections, globeConfig = defaultGlobeConfig, classN
         className="fixed z-10 pointer-events-none will-change-transform transition-all duration-[1400ms] ease-[cubic-bezier(0.23,1,0.32,1)]"
         style={{
           transform: globeTransform,
-          filter: `opacity(${activeSection === sections.length - 1 ? 0.4 : 0.85})`,
+          /* Globe fades on the closing section (existing upstream rule) and
+           * also on the Hero (index 0) so the new Spline robot reads as the
+           * dominant figure on the right while the globe stays as a soft
+           * ambient backdrop. Innovation / Discovery sections keep the full
+           * 0.85 cinematic intensity. */
+          filter: `opacity(${
+            activeSection === 0 ? 0.32 : activeSection === sections.length - 1 ? 0.4 : 0.85
+          })`,
         }}
       >
         {/* Per-breakpoint scale-up of the upstream 250×250 globe so the
@@ -363,10 +380,39 @@ export function ScrollGlobe({ sections, globeConfig = defaultGlobeConfig, classN
             section.align !== 'center' && section.align !== 'right' && 'items-start text-left',
           )}
         >
+          {/* Hero-only Spline robot — sits on the right of the Geosyntra
+              wordmark with built-in mouse parallax. Renders as an absolute
+              sibling of the text column so the inline content layout
+              (max-w-* + flex justify-center) stays untouched. Hidden below
+              md so the wordmark + sparkles + CTAs stay legible on phones
+              (the upstream landing reads as a single-column hero on small
+              screens). The Spline runtime tracks the cursor itself so no
+              extra wiring is needed. */}
+          {index === 0 && (
+            <div
+              className={cn(
+                'gs-hero-robot pointer-events-auto',
+                'absolute inset-y-0 right-0 z-30',
+                'hidden md:flex items-center justify-end',
+                'w-1/2 lg:w-[55%] xl:w-[58%]',
+                'pr-2 md:pr-6 lg:pr-10 xl:pr-14',
+              )}
+              aria-hidden
+            >
+              <div className="gs-hero-robot__stage relative w-full h-[80%] max-h-[78vh]">
+                <SplineScene scene={SPLINE_HERO_SCENE_URL} className="w-full h-full" />
+              </div>
+            </div>
+          )}
+
           <div
             className={cn(
               'w-full max-w-sm sm:max-w-lg md:max-w-2xl lg:max-w-4xl xl:max-w-5xl will-change-transform transition-all duration-700',
               'opacity-100 translate-y-0',
+              /* Hero text column stays narrower on tablets/desktops so the
+                 right-side Spline robot has room to breathe. The non-hero
+                 sections keep their original generous widths. */
+              index === 0 && 'md:max-w-[44%] lg:max-w-[42%] xl:max-w-[40%] relative z-20',
             )}
           >
             <h1
