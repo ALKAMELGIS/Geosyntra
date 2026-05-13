@@ -80,6 +80,7 @@ export default function AppRoutes() {
         <Route path="/account/profile-user-management" element={<Navigate to="/account/profile" replace />} />
         <Route path="/account/settings" element={<AccountSettings />} />
         <Route path="/sensors/gps" element={<Navigate to="/sensors/soil" replace />} />
+        <Route path="/sensors/camera" element={<Navigate to="/sensors/soil" replace />} />
         <Route path="/sensors/:sensorKind" element={<SensorIntegrationPage />} />
         <Route path="/admin/users" element={<AdminUsers />} />
         <Route path="/admin/github" element={<AdminGitHub />} />
