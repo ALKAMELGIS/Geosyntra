@@ -15,7 +15,12 @@ const errors = []
 if (html.includes('/src/main.tsx')) {
   errors.push('dist/index.html still points to Vite dev entry (/src/main.tsx).')
 }
-if (!/assets\/index-[^"'\\s]+\.js/.test(html)) {
+/* The previous `[^"'\\s]+` pattern was double-escaping the whitespace class
+ * inside a regex literal — so it actually excluded the literal letter `s`,
+ * not whitespace. Local hashes like `index-DNeZeOVN.js` have no lowercase
+ * `s` and slipped through; CI built a hash that contained `s` and the
+ * sanity-check failed within sub-second timing. `\S+` is unambiguous. */
+if (!/assets\/index-\S+\.js/.test(html)) {
   errors.push('dist/index.html does not reference a built assets/index-*.js bundle.')
 }
 if (!/id=["']root["']/.test(html)) {
