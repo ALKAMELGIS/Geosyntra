@@ -21,10 +21,25 @@ export const GEOSYNTRA_BRAND_FULL_NAME = `${GEOSYNTRA_BRAND_NAME} · ${GEOSYNTRA
 export const GEOSYNTRA_BRAND_ICON_FALLBACK = 'fa-solid fa-hexagon-nodes'
 
 /**
- * AI-glass mark. Hexagon + stylized G + halo + two glow nodes; renders crisp at 36–64px.
- * Strokes use a cyan→indigo→violet gradient that matches the rest of the AI theme tokens.
+ * Geosyntra mark — minimal monochrome line work.
+ * Pure outline hexagon + stylized G + a single satellite orbital arc, all stroked
+ * with a soft white→silver→white glass gradient. No fills, no halo, no glow filters.
+ * Renders crisp from 24px chips to 256px hero usage.
  */
-export const GEOSYNTRA_BRAND_LOGO_SVG = `<svg viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Geosyntra Geospatial AI"><defs><linearGradient id="gs-stroke" x1="6" y1="6" x2="58" y2="58" gradientUnits="userSpaceOnUse"><stop offset="0%" stop-color="#5eead4"/><stop offset="50%" stop-color="#a5b4fc"/><stop offset="100%" stop-color="#f0abfc"/></linearGradient><radialGradient id="gs-halo" cx="32" cy="32" r="28" gradientUnits="userSpaceOnUse"><stop offset="0%" stop-color="#22d3ee" stop-opacity="0.55"/><stop offset="55%" stop-color="#818cf8" stop-opacity="0.22"/><stop offset="100%" stop-color="#c084fc" stop-opacity="0"/></radialGradient><filter id="gs-glow" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur in="SourceGraphic" stdDeviation="0.8" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter></defs><circle cx="32" cy="32" r="28" fill="url(#gs-halo)"/><path d="M32 5 L55.4 18.5 L55.4 45.5 L32 59 L8.6 45.5 L8.6 18.5 Z" fill="none" stroke="url(#gs-stroke)" stroke-width="2.6" stroke-linejoin="round" opacity="0.95"/><path d="M44 24 A12 12 0 1 0 44 40 L36 40 L36 32 L30 32" fill="none" stroke="url(#gs-stroke)" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round"/><ellipse cx="32" cy="32" rx="20" ry="6" fill="none" stroke="url(#gs-stroke)" stroke-width="1.1" opacity="0.5" transform="rotate(-22 32 32)"/><circle cx="55.4" cy="18.5" r="2.4" fill="#22d3ee" filter="url(#gs-glow)"/><circle cx="8.6" cy="45.5" r="2.0" fill="#c084fc" filter="url(#gs-glow)"/><circle cx="32" cy="59" r="1.8" fill="#818cf8" filter="url(#gs-glow)"/></svg>`
+export const GEOSYNTRA_BRAND_LOGO_SVG = `<svg viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Geosyntra Geospatial AI" fill="none"><defs><linearGradient id="gs-line" x1="0" y1="0" x2="64" y2="64" gradientUnits="userSpaceOnUse"><stop offset="0%" stop-color="#ffffff" stop-opacity="0.95"/><stop offset="50%" stop-color="#cbd5e1" stop-opacity="0.78"/><stop offset="100%" stop-color="#ffffff" stop-opacity="0.95"/></linearGradient></defs><path d="M32 6 L54.4 19 L54.4 45 L32 58 L9.6 45 L9.6 19 Z" stroke="url(#gs-line)" stroke-width="1.6" stroke-linejoin="round"/><path d="M42.4 23.5 A11.5 11.5 0 1 0 42.4 40.5 L34 40.5 L34 32 L28.6 32" stroke="url(#gs-line)" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/><ellipse cx="32" cy="32" rx="20" ry="5.6" stroke="url(#gs-line)" stroke-width="0.9" opacity="0.45" transform="rotate(-22 32 32)"/></svg>`
+
+/**
+ * Substrings that uniquely identify earlier brand-mark SVGs we shipped (each version had a
+ * distinct gradient / filter id). When `mergeWithDefaults` sees any of these in a persisted
+ * `logoSvg`, it overrides with the latest `GEOSYNTRA_BRAND_LOGO_SVG`. This guarantees the
+ * user always sees the current mark without nuking their other settings.
+ */
+export const LEGACY_BRAND_LOGO_SIGNATURES: readonly string[] = [
+  'gs-halo',
+  'gs-glow',
+  'gs-stroke',
+  'fa-solid fa-leaf',
+]
 
 /** Legacy product names users may have persisted in localStorage from older sessions. */
 export const LEGACY_BRAND_NAME_PATTERN =

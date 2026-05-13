@@ -6,6 +6,7 @@ import {
   GEOSYNTRA_BRAND_NAME,
   GEOSYNTRA_BRAND_NAME_AR,
   LEGACY_BRAND_ICON_CLASSES,
+  LEGACY_BRAND_LOGO_SIGNATURES,
   LEGACY_BRAND_NAME_PATTERN,
   LEGACY_BRAND_NAME_PATTERN_AR,
 } from '../lib/brand'
@@ -65,6 +66,10 @@ function sanitizeBrandLogoSvg(raw: unknown, fallback: string): string {
   if (!trimmed) return fallback
   // Reject anything that does not look like a real `<svg>` payload (kills stray legacy strings).
   if (!trimmed.startsWith('<svg')) return fallback
+  // Detect any earlier brand-mark SVG we shipped and migrate to the latest mark.
+  for (const sig of LEGACY_BRAND_LOGO_SIGNATURES) {
+    if (trimmed.includes(sig)) return fallback
+  }
   return trimmed.slice(0, 6000)
 }
 
@@ -94,11 +99,11 @@ export const DEFAULT_SYSTEM_SETTINGS: SystemSettingsPersistedV1 = {
     logoTextAr: GEOSYNTRA_BRAND_NAME_AR,
     useProjectName: false,
     fontFamily: 'var(--ds-font-sans)',
-    fontSize: 18,
-    fontWeight: 700,
-    textColorLight: '#0b1220',
+    fontSize: 19,
+    fontWeight: 300,
+    textColorLight: '#eef1ff',
     textColorDark: '#eef1ff',
-    letterSpacing: -0.02,
+    letterSpacing: 0.02,
     paddingX: 20,
     paddingY: 10,
     showLogoText: true,
@@ -193,10 +198,22 @@ export function mergeWithDefaults(partial: Partial<SystemSettingsPersistedV1>): 
       useProjectName: hdrRaw?.useProjectName === true,
       fontFamily: typeof hdrRaw?.fontFamily === 'string' && hdrRaw.fontFamily.trim() ? hdrRaw.fontFamily.trim().slice(0, 120) : DEFAULT_SYSTEM_SETTINGS.headerSettings.fontFamily,
       fontSize: Math.max(10, Math.min(42, Number(hdrRaw?.fontSize ?? DEFAULT_SYSTEM_SETTINGS.headerSettings.fontSize) || DEFAULT_SYSTEM_SETTINGS.headerSettings.fontSize)),
-      fontWeight: Math.max(300, Math.min(900, Number(hdrRaw?.fontWeight ?? DEFAULT_SYSTEM_SETTINGS.headerSettings.fontWeight) || DEFAULT_SYSTEM_SETTINGS.headerSettings.fontWeight)),
+      // Migrate the legacy bold default (700) to the new ultra-light default (300) so existing
+      // users instantly see the refined identity. Custom weights chosen by the user are preserved.
+      fontWeight: (() => {
+        const raw = Number(hdrRaw?.fontWeight ?? DEFAULT_SYSTEM_SETTINGS.headerSettings.fontWeight)
+          || DEFAULT_SYSTEM_SETTINGS.headerSettings.fontWeight
+        if (raw === 700) return DEFAULT_SYSTEM_SETTINGS.headerSettings.fontWeight
+        return Math.max(200, Math.min(900, raw))
+      })(),
       textColorLight: isHex(hdrRaw?.textColorLight, DEFAULT_SYSTEM_SETTINGS.headerSettings.textColorLight),
       textColorDark: isHex(hdrRaw?.textColorDark, DEFAULT_SYSTEM_SETTINGS.headerSettings.textColorDark),
-      letterSpacing: Math.max(-0.08, Math.min(0.2, Number(hdrRaw?.letterSpacing ?? DEFAULT_SYSTEM_SETTINGS.headerSettings.letterSpacing) || 0)),
+      // Migrate the legacy negative tracking default (-0.02) to the new airier 0.02.
+      letterSpacing: (() => {
+        const raw = Number(hdrRaw?.letterSpacing ?? DEFAULT_SYSTEM_SETTINGS.headerSettings.letterSpacing) || 0
+        if (raw === -0.02) return DEFAULT_SYSTEM_SETTINGS.headerSettings.letterSpacing
+        return Math.max(-0.08, Math.min(0.2, raw))
+      })(),
       paddingX: Math.max(0, Math.min(60, Number(hdrRaw?.paddingX ?? DEFAULT_SYSTEM_SETTINGS.headerSettings.paddingX) || DEFAULT_SYSTEM_SETTINGS.headerSettings.paddingX)),
       paddingY: Math.max(0, Math.min(24, Number(hdrRaw?.paddingY ?? DEFAULT_SYSTEM_SETTINGS.headerSettings.paddingY) || DEFAULT_SYSTEM_SETTINGS.headerSettings.paddingY)),
       showLogoText: hdrRaw?.showLogoText !== false,
