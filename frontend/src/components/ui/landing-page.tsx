@@ -92,13 +92,17 @@ export interface ScrollGlobeProps {
  * 90 % off-screen for half-bleed effect; future centres a 1.8× mass behind
  * the closing copy.
  *
- * Hero left position is nudged from 75 % → 71 % so the Globe centre
- * aligns with the right-anchored Robot's chest centre on every breakpoint
- * (Robot stage = `right: 0` + `width: min(58vw, 880px)` → centre ≈ 71vw).
+ * Hero left position evolution:
+ *   75 % (upstream) → 71 % (geometric robot centre) → 66 % (visual fix
+ *   per user feedback 2026-05-13: the Spline robot's body isn't centred
+ *   inside its render box — the figure leans slightly right inside the
+ *   stage — so the perceived chest centre sits a few percent left of the
+ *   stage's geometric centre. 66 % lands the Earth visually on the
+ *   robot's torso instead of its left hand).
  */
 const defaultGlobeConfig: { positions: ScrollGlobePosition[] } = {
   positions: [
-    { top: '50%', left: '71%', scale: 0.85 },
+    { top: '50%', left: '66%', scale: 0.85 },
     { top: '25%', left: '50%', scale: 0.9 },
     { top: '15%', left: '90%', scale: 2 },
     { top: '50%', left: '50%', scale: 1.8 },
