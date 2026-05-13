@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { motion, useReducedMotion } from 'framer-motion'
 import { Card } from '../components/ui/Card'
@@ -140,6 +140,20 @@ const AI_MODULES: AiModule[] = [
 
 const SCENE_URL = 'https://prod.spline.design/kZDDjO5HuC9GJUM2/scene.splinecode'
 
+/**
+ * Section list for the snap-dot rail (id matches the `<section id>`).
+ * Mirrors the topbar shortcut nav so the two stay in sync — change
+ * here, the topbar's `[label, id]` map below picks it up automatically.
+ */
+const SNAP_SECTIONS: ReadonlyArray<{ id: string; label: string }> = [
+  { id: 'hero', label: 'Hero' },
+  { id: 'about', label: 'About' },
+  { id: 'capabilities', label: 'Capabilities' },
+  { id: 'api', label: 'API' },
+  { id: 'dashboard', label: 'Dashboard' },
+  { id: 'ai', label: 'AI Modules' },
+] as const
+
 export default function LearnMore() {
   const navigate = useNavigate()
   const reduceMotion = useReducedMotion() ?? false
@@ -155,6 +169,50 @@ export default function LearnMore() {
     const target = rootRef.current?.querySelector(`#${id}`)
     if (target) target.scrollIntoView({ behavior: reduceMotion ? 'auto' : 'smooth', block: 'start' })
   }
+
+  /**
+   * Active-section tracking for the snap-dot rail.
+   *
+   * `IntersectionObserver` fires whenever a section crosses the
+   * viewport-centric horizontal band defined by `rootMargin`. We pin the
+   * observer's root to `.learn-more-page` (the actual scroller now that
+   * the page is a snap container) and use a tall negative top margin +
+   * negative bottom margin so only the section currently filling the
+   * middle slab of the viewport is reported as intersecting. Whichever
+   * section last intersected wins → its dot lights up.
+   *
+   * IO is *much* cheaper than wiring a `scroll` listener that walks
+   * `getBoundingClientRect()` every frame, and it stays robust if the
+   * page reflows (e.g. Spline scene loads late and the hero card grows).
+   */
+  const [activeSection, setActiveSection] = useState<string>('hero')
+  useEffect(() => {
+    const root = rootRef.current
+    if (!root) return
+    const sections = SNAP_SECTIONS.map(s => root.querySelector<HTMLElement>(`#${s.id}`)).filter(
+      (el): el is HTMLElement => el != null,
+    )
+    if (!sections.length) return
+    const observer = new IntersectionObserver(
+      entries => {
+        for (const entry of entries) {
+          if (entry.isIntersecting) {
+            setActiveSection(entry.target.id)
+          }
+        }
+      },
+      {
+        root,
+        /* Only count a section as "active" once it covers the middle 30%
+         * of the viewport — keeps the dot from flickering between two
+         * sections during the snap easing. */
+        rootMargin: '-35% 0px -35% 0px',
+        threshold: 0,
+      },
+    )
+    sections.forEach(s => observer.observe(s))
+    return () => observer.disconnect()
+  }, [])
 
   useEffect(() => {
     document.title = 'Learn More — Geosyntra'
@@ -178,6 +236,25 @@ export default function LearnMore() {
 
   return (
     <div className="learn-more-page" ref={rootRef}>
+      {/* Floating snap-dot rail — one dot per snap section, lights up
+       * the active one as the user pages through. Hidden on phones via
+       * the `lm-snap-dots` CSS rule (the topbar shortcuts cover that
+       * breakpoint). */}
+      <aside className="lm-snap-dots" aria-label="Section navigation">
+        {SNAP_SECTIONS.map(s => (
+          <button
+            key={s.id}
+            type="button"
+            className={`lm-snap-dot${activeSection === s.id ? ' lm-snap-dot--active' : ''}`}
+            aria-label={`Go to ${s.label}`}
+            aria-current={activeSection === s.id ? 'true' : undefined}
+            onClick={() => onCrumbClick(s.id)}
+          >
+            <span className="lm-snap-dot__label">{s.label}</span>
+          </button>
+        ))}
+      </aside>
+
       <header className="lm-topbar">
         <div className="lm-topbar__left">
           <button

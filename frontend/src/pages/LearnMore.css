@@ -22,16 +22,60 @@
   --lm-border-strong: rgba(255, 255, 255, 0.18);
   --lm-accent: rgba(255, 255, 255, 0.95);
   --lm-ease: cubic-bezier(0.22, 1, 0.36, 1);
+  /* Sticky topbar height — used as scroll-padding so snapped sections
+   * never get clipped underneath the pinned chrome. Tweak in one place. */
+  --lm-topbar-h: 88px;
 
   position: relative;
   width: 100%;
+  /* Become the scroll container ourselves so the page reads as a true
+   * cinematic Full-Page Scroll: each `.lm-section` snaps to the viewport
+   * start and the user steps from one screen to the next. The host
+   * `<main class="content">` has its own `overflow-y: auto`, but since
+   * we now own the scroll the parent scroller stays inert. */
+  height: 100%;
   min-height: 100%;
-  padding: clamp(16px, 2.4vw, 28px) clamp(14px, 2.4vw, 28px) clamp(36px, 5vw, 56px);
+  overflow-y: scroll;
+  overflow-x: hidden;
+  scroll-snap-type: y mandatory;
+  scroll-behavior: smooth;
+  scroll-padding-top: var(--lm-topbar-h);
+  /* Page-level padding lives on each section now so the snap math is
+   * deterministic; the outer wrapper stays at zero gutters. */
+  padding: 0;
   color: var(--lm-fg);
   background:
     radial-gradient(1200px 480px at 12% -8%, rgba(255, 255, 255, 0.05), transparent 65%),
     radial-gradient(900px 420px at 92% 6%, rgba(255, 255, 255, 0.04), transparent 68%),
     var(--lm-bg);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .learn-more-page {
+    scroll-behavior: auto;
+  }
+}
+
+/* ---------- Custom scrollbar — slim glass, fades into the dark page ---- */
+.learn-more-page::-webkit-scrollbar {
+  width: 8px;
+}
+
+.learn-more-page::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.learn-more-page::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.10);
+  border-radius: 999px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+  transition: background 0.2s ease;
+}
+
+.learn-more-page::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.22);
+  background-clip: padding-box;
 }
 
 /* ============================================================
@@ -73,13 +117,21 @@
   flex-wrap: wrap;
   gap: 12px 18px;
   padding: 10px 14px;
-  margin-bottom: clamp(18px, 2.6vw, 28px);
+  /* Sticky over the snap-scroll surface — stays pinned while sections
+   * cinematically snap underneath. `top: 12px` lets the page background
+   * peek above so the bar reads as a floating glass plate. The matching
+   * `--lm-topbar-h` on `.learn-more-page` reserves snap-padding so
+   * sections never tuck under the bar. */
+  position: sticky;
+  top: 12px;
+  z-index: 30;
+  margin: 16px clamp(14px, 2.4vw, 28px) 0;
   border-radius: 16px;
   border: 1px solid var(--lm-border);
-  background: var(--lm-surface);
-  backdrop-filter: blur(18px) saturate(1.3);
-  -webkit-backdrop-filter: blur(18px) saturate(1.3);
-  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.32), inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  background: linear-gradient(180deg, rgba(20, 24, 36, 0.78) 0%, rgba(14, 17, 26, 0.62) 100%);
+  backdrop-filter: blur(22px) saturate(1.4);
+  -webkit-backdrop-filter: blur(22px) saturate(1.4);
+  box-shadow: 0 14px 34px rgba(0, 0, 0, 0.38), inset 0 1px 0 rgba(255, 255, 255, 0.08);
 }
 
 .lm-topbar__left {
@@ -184,14 +236,51 @@
 }
 
 /* ============================================================
- * Section scaffolding
+ * Section scaffolding — Full-Page Scroll / Section Snapping
+ *
+ * Every section is its own viewport-sized stage. The scroller above
+ * (`.learn-more-page`) carries `scroll-snap-type: y mandatory`, so each
+ * `scroll-snap-align: start` here pulls the next section flush to the
+ * top (after `--lm-topbar-h` of pinned chrome). Internal layout is
+ * flex column so content stays vertically centred regardless of how
+ * tall the inner cards become.
  * ============================================================ */
 .lm-section {
-  margin-bottom: clamp(36px, 5vw, 64px);
+  position: relative;
+  min-height: 100vh;
+  /* Use dynamic viewport height when the browser supports it so mobile
+   * URL bars don't carve a stripe out of the section (Safari/Chrome
+   * collapse the bar mid-scroll, which inflates `vh`). */
+  min-height: 100dvh;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  /* Top padding accounts for the sticky topbar (~88px) so content sits
+   * comfortably below it; horizontal + bottom padding match the rest
+   * of the design system. */
+  padding:
+    calc(var(--lm-topbar-h) + clamp(20px, 3vw, 36px))
+    clamp(18px, 2.8vw, 36px)
+    clamp(36px, 5vw, 56px);
+  margin: 0;
+  scroll-snap-align: start;
+  scroll-snap-stop: always;
 }
 
 .lm-section--hero {
-  margin-bottom: clamp(48px, 6vw, 80px);
+  /* Hero gets zero extra top padding — the Spline robot wants every
+   * pixel of the viewport. We still reserve `--lm-topbar-h` so the
+   * floating topbar doesn't paint over the headline. */
+  padding-top: calc(var(--lm-topbar-h) + 12px);
+}
+
+/* Make the hero card actually fill the visible stage instead of the
+ * upstream fixed `h-[500px]`. */
+.lm-section--hero .lm-hero-card {
+  height: auto;
+  min-height: min(72vh, 720px);
+  max-height: calc(100vh - var(--lm-topbar-h) - 64px);
 }
 
 .lm-section-head {
@@ -886,5 +975,168 @@ html[data-theme='light'] .lm-dash-card {
   .lm-back-btn:hover,
   .lm-btn:hover {
     transform: none;
+  }
+}
+
+/* ============================================================
+ * Snap-Dots — right-rail navigation for Full-Page Scroll mode.
+ *
+ * Floats over `.learn-more-page` (the actual scroller) and tracks the
+ * active section via `IntersectionObserver` in `LearnMore.tsx`. Each
+ * dot is a tiny glass pill with a hover label that appears on focus
+ * or hover; clicking it smooth-scrolls the matching section into view.
+ * Hidden on phones — the topbar's text shortcuts cover that breakpoint.
+ * ============================================================ */
+.lm-snap-dots {
+  position: fixed;
+  right: clamp(14px, 2vw, 26px);
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 25;
+  display: none;
+  flex-direction: column;
+  gap: 14px;
+  padding: 12px 9px;
+  border-radius: 999px;
+  background: linear-gradient(180deg, rgba(20, 24, 36, 0.55) 0%, rgba(14, 17, 26, 0.40) 100%);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  backdrop-filter: blur(20px) saturate(140%);
+  -webkit-backdrop-filter: blur(20px) saturate(140%);
+  box-shadow: 0 14px 30px rgba(0, 0, 0, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.06);
+}
+
+@media (min-width: 768px) {
+  .lm-snap-dots {
+    display: flex;
+  }
+}
+
+.lm-snap-dot {
+  position: relative;
+  width: 10px;
+  height: 10px;
+  padding: 0;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* The visible dot (a pseudo-element so we get a hover hit area larger
+ * than the dot itself — easier to click without growing the rail). */
+.lm-snap-dot::before {
+  content: '';
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.18);
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  transition: transform 0.22s var(--lm-ease), background 0.22s ease, border-color 0.22s ease, box-shadow 0.22s ease;
+}
+
+.lm-snap-dot:hover::before {
+  background: rgba(255, 255, 255, 0.40);
+  border-color: rgba(255, 255, 255, 0.60);
+  transform: scale(1.25);
+}
+
+.lm-snap-dot--active::before {
+  background: rgba(255, 255, 255, 0.95);
+  border-color: rgba(255, 255, 255, 1);
+  transform: scale(1.4);
+  box-shadow:
+    0 0 0 4px rgba(255, 255, 255, 0.10),
+    0 0 12px rgba(255, 255, 255, 0.25);
+}
+
+/* Section label that drifts in from the dot — only shown on hover or
+ * when the dot is active. Mirrors the side-nav label on the Home page. */
+.lm-snap-dot__label {
+  position: absolute;
+  right: calc(100% + 12px);
+  top: 50%;
+  transform: translateY(-50%) translateX(8px);
+  padding: 5px 11px;
+  border-radius: 8px;
+  font-size: 11.5px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+  background: linear-gradient(180deg, rgba(20, 24, 36, 0.90) 0%, rgba(14, 17, 26, 0.78) 100%);
+  border: 1px solid rgba(255, 255, 255, 0.10);
+  color: rgba(241, 245, 249, 0.95);
+  box-shadow: 0 10px 22px rgba(0, 0, 0, 0.40);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.22s var(--lm-ease), transform 0.22s var(--lm-ease);
+}
+
+.lm-snap-dot:hover .lm-snap-dot__label,
+.lm-snap-dot:focus-visible .lm-snap-dot__label,
+.lm-snap-dot--active .lm-snap-dot__label {
+  opacity: 1;
+  transform: translateY(-50%) translateX(0);
+}
+
+/* RTL — flip the rail to the left edge so the labels still drift away
+ * from the page centre instead of disappearing off-canvas. */
+:root[dir='rtl'] .lm-snap-dots {
+  right: auto;
+  left: clamp(14px, 2vw, 26px);
+}
+
+:root[dir='rtl'] .lm-snap-dot__label {
+  right: auto;
+  left: calc(100% + 12px);
+  transform: translateY(-50%) translateX(-8px);
+}
+
+:root[dir='rtl'] .lm-snap-dot:hover .lm-snap-dot__label,
+:root[dir='rtl'] .lm-snap-dot:focus-visible .lm-snap-dot__label,
+:root[dir='rtl'] .lm-snap-dot--active .lm-snap-dot__label {
+  transform: translateY(-50%) translateX(0);
+}
+
+/* Lite-mode mirror — soft slate-glass pill with darker dots so they read
+ * on the frosted-white surface. */
+html[data-theme='light'] .lm-snap-dots {
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.78) 0%, rgba(255, 255, 255, 0.55) 100%);
+  border-color: rgba(15, 23, 42, 0.10);
+  box-shadow: 0 12px 26px rgba(15, 23, 42, 0.10), inset 0 1px 0 rgba(255, 255, 255, 0.95);
+}
+
+html[data-theme='light'] .lm-snap-dot::before {
+  background: rgba(15, 23, 42, 0.22);
+  border-color: rgba(15, 23, 42, 0.28);
+}
+
+html[data-theme='light'] .lm-snap-dot:hover::before {
+  background: rgba(15, 23, 42, 0.45);
+  border-color: rgba(15, 23, 42, 0.60);
+}
+
+html[data-theme='light'] .lm-snap-dot--active::before {
+  background: #0f172a;
+  border-color: #0f172a;
+  box-shadow:
+    0 0 0 4px rgba(15, 23, 42, 0.08),
+    0 0 10px rgba(15, 23, 42, 0.22);
+}
+
+html[data-theme='light'] .lm-snap-dot__label {
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.96) 0%, rgba(248, 250, 253, 0.88) 100%);
+  border-color: rgba(15, 23, 42, 0.10);
+  color: #0f172a;
+  box-shadow: 0 10px 22px rgba(15, 23, 42, 0.10);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lm-snap-dot::before,
+  .lm-snap-dot__label {
+    transition: none;
   }
 }
