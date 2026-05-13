@@ -174,7 +174,7 @@ html[data-theme='light'] .home-landing .gs-pearl-title {
   background:
     radial-gradient(ellipse 60% 55% at 50% 55%, rgba(255, 255, 255, 0.05) 0%, transparent 70%),
     radial-gradient(ellipse 80% 70% at 50% 60%, rgba(99, 102, 241, 0.04) 0%, transparent 80%);
-  animation: gs-hero-robot-fade 380ms ease-out both;
+  animation: gs-hero-robot-fade 240ms ease-out both;
 }
 
 @keyframes gs-hero-robot-fade {

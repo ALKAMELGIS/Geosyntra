@@ -168,12 +168,13 @@ export function ScrollGlobe({ sections, globeConfig = defaultGlobeConfig, classN
   const [scrollProgress, setScrollProgress] = useState(0)
   const [globeTransform, setGlobeTransform] = useState('')
   /**
-   * Hero entrance choreography flag — flips ~220 ms after mount so the
-   * Robot fades-in and *settles in place first*, then the Globe lands
-   * on its chest with the entrance scale-in. The Robot itself does
-   * NOT get a wrapper-level mouse parallax (per the user's request to
-   * keep its motion stable and let the Spline runtime handle the
-   * built-in head / body cursor tracking on its own).
+   * Hero entrance flag. Initial render paints the Globe at opacity 0 +
+   * scale 0.9 so the browser has *something* on screen the very first
+   * frame, then the *next* RAF flips this to `true` and the wrapper's
+   * 280 ms transition runs the joint opacity + scale beat. No setTimeout,
+   * no perceived loading phase — the whole Hero arrives in a single
+   * sub-half-second motion (per the user's "حركة واحدة سريعة لا تتجاوز
+   * 0.5 ثانية" directive).
    */
   const [globeArrived, setGlobeArrived] = useState(false)
   const containerRef = useRef<HTMLDivElement>(null)
@@ -281,8 +282,13 @@ export function ScrollGlobe({ sections, globeConfig = defaultGlobeConfig, classN
     setGlobeTransform(buildGlobeTransform(0, calculatedPositions[0]))
   }, [calculatedPositions])
 
-  /* Hero entrance choreography — robot first, globe second.
-   * Tightened to a single fast beat so the page reads as instant. */
+  /* Hero entrance — single instant beat. We paint frame 1 at opacity 0
+   * + scale 0.9 (just enough to give the transition something to lerp
+   * from), then on the very next animation frame flip to the final
+   * state. Total perceived delay = 1 frame (~16 ms) + the wrapper's
+   * 280 ms transition = ~300 ms. No setTimeout, no staggered choreo,
+   * nothing that reads as "loading". Reduced-motion users skip the
+   * lerp entirely and see the final state immediately. */
   useEffect(() => {
     if (typeof window === 'undefined') {
       setGlobeArrived(true)
@@ -292,15 +298,8 @@ export function ScrollGlobe({ sections, globeConfig = defaultGlobeConfig, classN
       setGlobeArrived(true)
       return
     }
-    const raf = window.requestAnimationFrame(() => {
-      const t = window.setTimeout(() => setGlobeArrived(true), 220)
-      ;(window as unknown as { __gsHeroArrivalTimer?: number }).__gsHeroArrivalTimer = t
-    })
-    return () => {
-      window.cancelAnimationFrame(raf)
-      const t = (window as unknown as { __gsHeroArrivalTimer?: number }).__gsHeroArrivalTimer
-      if (typeof t === 'number') window.clearTimeout(t)
-    }
+    const raf = window.requestAnimationFrame(() => setGlobeArrived(true))
+    return () => window.cancelAnimationFrame(raf)
   }, [])
 
 
@@ -417,10 +416,12 @@ export function ScrollGlobe({ sections, globeConfig = defaultGlobeConfig, classN
                               the figure's left embrace.
 
           Entrance choreography:
-            • Robot           fades in immediately on mount.
-            • Globe           waits ~220 ms (`globeArrived`), then
-                              transitions opacity 0 → 0.92 and scales
-                              0.6 → 1.0.
+            • Single fast beat, ≤ 0.5 s end-to-end. Robot fades in via
+              the CSS `gs-hero-robot-fade` keyframe (240 ms). Globe
+              flips on the very next RAF after mount and runs a 280 ms
+              opacity + 320 ms scale (0.9 → 1.0) transition jointly,
+              no setTimeout, no staggered delay. The whole Hero reads
+              as one instant motion — no perceived loading phase.
 
           Hero positioning:
             • Robot stage     `right: 0`, `width: min(58vw, 880px)` →
@@ -441,7 +442,7 @@ export function ScrollGlobe({ sections, globeConfig = defaultGlobeConfig, classN
           enables pointer events for the built-in mouse parallax. */}
       <div
         aria-hidden
-        className="gs-hero-robot fixed inset-y-0 right-0 z-[8] hidden md:flex items-center justify-end pointer-events-none transition-opacity duration-[700ms] ease-[cubic-bezier(0.23,1,0.32,1)]"
+        className="gs-hero-robot fixed inset-y-0 right-0 z-[8] hidden md:flex items-center justify-end pointer-events-none transition-opacity duration-[260ms] ease-out"
         style={{
           width: 'min(58vw, 880px)',
           opacity: activeSection === 0 ? 1 : 0,
@@ -452,9 +453,10 @@ export function ScrollGlobe({ sections, globeConfig = defaultGlobeConfig, classN
         </div>
       </div>
 
-      {/* The pinned globe layer. `transition-all 1400ms` does the heavy
-          lifting — every scroll tick just sets a new `transform` string
-          and the browser eases the change.
+      {/* The pinned globe layer. The wrapper transition is split into two
+          tracks so the *scroll glide* between sections still feels
+          cinematic (550 ms transform) but the *initial arrival* is over
+          quickly (280 ms opacity).
             • In Hero (idx 0), `globeTransform` resolves to the
               right-anchored calc() form (locked to the Robot stage
               centre) so the Earth lands squarely on the figure's chest.
@@ -465,7 +467,7 @@ export function ScrollGlobe({ sections, globeConfig = defaultGlobeConfig, classN
           `activeSection === last` for the closing fade. */}
       <div
         aria-hidden
-        className="gs-hero-globe fixed z-10 pointer-events-none will-change-transform transition-all duration-[700ms] ease-[cubic-bezier(0.23,1,0.32,1)]"
+        className="gs-hero-globe fixed z-10 pointer-events-none will-change-transform"
         style={{
           transform: globeTransform,
           opacity: globeArrived
@@ -473,14 +475,16 @@ export function ScrollGlobe({ sections, globeConfig = defaultGlobeConfig, classN
               ? 0.4
               : 0.92
             : 0,
+          transition:
+            'transform 550ms cubic-bezier(0.23, 1, 0.32, 1), opacity 280ms ease-out',
         }}
       >
         <div
           className="gs-hero-globe__entrance"
           style={{
-            transform: globeArrived ? 'scale(1)' : 'scale(0.6)',
+            transform: globeArrived ? 'scale(1)' : 'scale(0.9)',
             transition:
-              'transform 650ms cubic-bezier(0.18, 1.18, 0.32, 1)',
+              'transform 320ms cubic-bezier(0.23, 1, 0.32, 1)',
             transformOrigin: 'center center',
           }}
         >
