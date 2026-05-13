@@ -115,22 +115,24 @@ const defaultGlobeConfig: { positions: ScrollGlobePosition[] } = {
  * Hero (idx 0) uses a *right-anchored* `calc()` x-coordinate that mirrors
  * the Robot stage's own anchoring (`right: 0`, `width: min(58vw, 880px)`)
  * so the Globe's centre always lands on the Robot's chest no matter the
- * viewport width. Other sections fall back to the upstream `left%/top%`
- * vw/vh positioning for the cinematic glide between Innovation, Discovery
- * and Future panels.
+ * viewport width. A small `-1cm` (≈ 38 px) leftward nudge then shifts
+ * the Earth slightly off-centre so it sits inside the figure's left
+ * embrace instead of dead-on-axis — matches the "حرك الكرة يسار قليلاً
+ * 1 سم" tweak the user requested. Other sections fall back to the
+ * upstream `left%/top%` vw/vh positioning for the cinematic glide
+ * between Innovation, Discovery and Future panels.
  *
- * Returned as a CSS transform string so the existing 1.4 s
+ * Returned as a CSS transform string so the existing
  * `transition: transform` on the wrapper still interpolates smoothly
- * between sections (the browser resolves `calc(100vw - min(29vw, 440px))`
- * to a concrete pixel value before interpolating to the next section's
- * `${left}vw` value, so no layout discontinuity).
+ * between sections (the browser resolves the calc()s to pixel values
+ * before interpolating, so no layout discontinuity).
  */
 function buildGlobeTransform(
   idx: number,
   pos: { top: number; left: number; scale: number },
 ): string {
   if (idx === 0) {
-    return `translate3d(calc(100vw - min(29vw, 440px)), ${pos.top}vh, 0) translate3d(-50%, -50%, 0) scale3d(${pos.scale}, ${pos.scale}, 1)`
+    return `translate3d(calc(100vw - min(29vw, 440px) - 1cm), ${pos.top}vh, 0) translate3d(-50%, -50%, 0) scale3d(${pos.scale}, ${pos.scale}, 1)`
   }
   return `translate3d(${pos.left}vw, ${pos.top}vh, 0) translate3d(-50%, -50%, 0) scale3d(${pos.scale}, ${pos.scale}, 1)`
 }
@@ -166,34 +168,18 @@ export function ScrollGlobe({ sections, globeConfig = defaultGlobeConfig, classN
   const [scrollProgress, setScrollProgress] = useState(0)
   const [globeTransform, setGlobeTransform] = useState('')
   /**
-   * Mouse-parallax offset for the Spline robot — robot ONLY (per the
-   * user's "Parallax يجب أن تؤثر على الروبوت فقط" spec).
-   *
-   * The Globe stays still (anchored on the Robot's chest) so the Earth
-   * reads as a solid object the figure is holding, not as a separate
-   * thing drifting in space. The robot still gets a subtle shift on
-   * pointer move so the figure feels alive and tracks the user.
-   *
-   * Range: x/y ∈ [-1, 1]. Multiplied by `PARALLAX_AMPLITUDE_PX` below.
-   */
-  const [mouseOffset, setMouseOffset] = useState<{ x: number; y: number }>({ x: 0, y: 0 })
-  /**
-   * Hero entrance choreography flag — flips ~700 ms after mount so the
-   * Robot can fade-in and *settle in place first*, then the Globe glides
-   * into the chest with its own delayed fade + scale-in. Matches the
-   * user's "يستقر الروبوت أولاً ثم تأتي الكرة إلى صدره" requirement.
-   *
-   * Initial render: Globe is fully transparent and slightly scaled-down
-   * (via the CSS `gs-hero-globe-arrival` keyframe). Once `globeArrived`
-   * is true, the Globe wrapper picks up its real opacity (gated on
-   * `activeSection`) and the entrance animation completes in one beat.
+   * Hero entrance choreography flag — flips ~220 ms after mount so the
+   * Robot fades-in and *settles in place first*, then the Globe lands
+   * on its chest with the entrance scale-in. The Robot itself does
+   * NOT get a wrapper-level mouse parallax (per the user's request to
+   * keep its motion stable and let the Spline runtime handle the
+   * built-in head / body cursor tracking on its own).
    */
   const [globeArrived, setGlobeArrived] = useState(false)
   const containerRef = useRef<HTMLDivElement>(null)
   const sectionRefs = useRef<(HTMLElement | null)[]>([])
   const animationFrameId = useRef<number | undefined>(undefined)
   const scrollSourceRef = useRef<HTMLElement | Window | null>(null)
-  const reduceMotionRef = useRef(false)
 
   const calculatedPositions = useMemo(
     () =>
@@ -317,69 +303,6 @@ export function ScrollGlobe({ sections, globeConfig = defaultGlobeConfig, classN
     }
   }, [])
 
-  /* Respect `prefers-reduced-motion`: skip mouse parallax updates entirely
-   * for users who opt out, so the Hero 3D stage stays still. The matchMedia
-   * subscription updates the ref live (no re-render needed in the listener). */
-  useEffect(() => {
-    if (typeof window === 'undefined' || !window.matchMedia) return
-    const mq = window.matchMedia('(prefers-reduced-motion: reduce)')
-    reduceMotionRef.current = mq.matches
-    const onChange = () => {
-      reduceMotionRef.current = mq.matches
-      if (mq.matches) setMouseOffset({ x: 0, y: 0 })
-    }
-    if (mq.addEventListener) mq.addEventListener('change', onChange)
-    else if ((mq as unknown as { addListener: (cb: () => void) => void }).addListener) {
-      ;(mq as unknown as { addListener: (cb: () => void) => void }).addListener(onChange)
-    }
-    return () => {
-      if (mq.removeEventListener) mq.removeEventListener('change', onChange)
-      else if ((mq as unknown as { removeListener: (cb: () => void) => void }).removeListener) {
-        ;(mq as unknown as { removeListener: (cb: () => void) => void }).removeListener(onChange)
-      }
-    }
-  }, [])
-
-  /* Mouse parallax — single rAF-throttled listener feeds the offset state
-   * that BOTH the Globe wrapper and the Robot wrapper consume below, so
-   * the two 3D layers translate together by the same pixel amount on every
-   * mouse move (the user's "نفس النسبة / دون انفصال بصري" requirement). */
-  useEffect(() => {
-    if (typeof window === 'undefined') return
-    let raf = 0
-    let lastX = 0
-    let lastY = 0
-    const flush = () => {
-      raf = 0
-      setMouseOffset({ x: lastX, y: lastY })
-    }
-    const onMove = (e: PointerEvent) => {
-      if (reduceMotionRef.current) return
-      const w = window.innerWidth || 1
-      const h = window.innerHeight || 1
-      lastX = (e.clientX / w - 0.5) * 2
-      lastY = (e.clientY / h - 0.5) * 2
-      if (!raf) raf = window.requestAnimationFrame(flush)
-    }
-    window.addEventListener('pointermove', onMove, { passive: true })
-    return () => {
-      window.removeEventListener('pointermove', onMove)
-      if (raf) cancelAnimationFrame(raf)
-    }
-  }, [])
-
-  /**
-   * Pixel amplitude of the Robot's mouse parallax shift. Kept gentle
-   * (≈ 10 px max each axis) so the figure never wobbles in a way that
-   * competes with the Spline robot's own internal head/body sway — they
-   * compose, they don't fight. Applied to the Robot wrapper only; the
-   * Globe stays still on the Robot's chest so the Earth reads as a
-   * solid object the figure is holding.
-   */
-  const PARALLAX_AMPLITUDE_PX = 10
-  const parallaxX = mouseOffset.x * PARALLAX_AMPLITUDE_PX
-  const parallaxY = mouseOffset.y * PARALLAX_AMPLITUDE_PX
-  const robotParallax = `translate3d(${parallaxX.toFixed(2)}px, ${parallaxY.toFixed(2)}px, 0)`
 
   return (
     /*
@@ -481,31 +404,30 @@ export function ScrollGlobe({ sections, globeConfig = defaultGlobeConfig, classN
           Both layers are FIXED at the document root so the section
           stacking contexts (z-30) can't trap them.
 
-          Movement model (per the user's 2026-05-13 22:45 spec):
-            • Robot           gets the mouse-parallax shift (subtle drift
-                              with the cursor — figure feels alive).
-            • Globe           does NOT get parallax. It stays anchored
-                              dead-on the Robot's chest so the Earth
-                              reads as a solid sphere the figure is
-                              holding, not a separate object floating
-                              alongside it.
+          Movement model (current spec — 2026-05-14):
+            • Robot           NO wrapper-level parallax. The figure
+                              stays perfectly still positionally; the
+                              built-in Spline runtime keeps its own
+                              internal head + body cursor tracking, so
+                              the robot still "follows" the mouse with
+                              its eyes / pose without the wrapper ever
+                              shifting (no jitter, no drift).
+            • Globe           Anchored on the Robot's chest with a
+                              small leftward nudge so it sits inside
+                              the figure's left embrace.
 
           Entrance choreography:
-            • Robot           fades in immediately on mount (Spline +
-                              CSS animation handle the polish).
-            • Globe           waits ~700 ms (`globeArrived`), then
-                              transitions opacity 0 → 0.92 and `gs-hero-
-                              globe-arrival` keyframes the scale-in →
-                              "robot settles first, then the Earth
-                              arrives in its hands."
+            • Robot           fades in immediately on mount.
+            • Globe           waits ~220 ms (`globeArrived`), then
+                              transitions opacity 0 → 0.92 and scales
+                              0.6 → 1.0.
 
           Hero positioning:
             • Robot stage     `right: 0`, `width: min(58vw, 880px)` →
                               centre x = `100vw - min(29vw, 440px)`.
-            • Globe (hero)    transform uses the *exact same* expression
-                              for its x-coordinate, so its centre lands
-                              squarely on the robot's chest on every
-                              breakpoint (small phone → 4K).
+            • Globe (hero)    transform uses the same expression for
+                              its x-coordinate minus a 1 cm leftward
+                              nudge → sits in the figure's left embrace.
 
           Layer hierarchy (back → front, per user spec):
             Robot 3D            z-[8]
@@ -513,17 +435,16 @@ export function ScrollGlobe({ sections, globeConfig = defaultGlobeConfig, classN
             UI overlay / nav    z-40  (right-rail nav, progress bar z-50)
             Section content     z-30  (Geosyntra title, Sparkles, CTAs)
           ────────────────────────────────────────────────────────────── */}
-      {/* Robot — only meaningful in Hero, fades synchronously with the
-          Globe's scroll glide. `pointer-events-none` on the wrapper so
-          the figure never blocks page scrolling; the inner Spline canvas
-          re-enables pointer events for the built-in mouse parallax. */}
+      {/* Robot — only meaningful in Hero, fades when the user scrolls
+          past it. `pointer-events-none` on the wrapper so the figure
+          never blocks page scrolling; the inner Spline canvas re-
+          enables pointer events for the built-in mouse parallax. */}
       <div
         aria-hidden
-        className="gs-hero-robot fixed inset-y-0 right-0 z-[8] hidden md:flex items-center justify-end pointer-events-none transition-opacity duration-[700ms] ease-[cubic-bezier(0.23,1,0.32,1)] will-change-transform"
+        className="gs-hero-robot fixed inset-y-0 right-0 z-[8] hidden md:flex items-center justify-end pointer-events-none transition-opacity duration-[700ms] ease-[cubic-bezier(0.23,1,0.32,1)]"
         style={{
           width: 'min(58vw, 880px)',
           opacity: activeSection === 0 ? 1 : 0,
-          transform: robotParallax,
         }}
       >
         <div className="gs-hero-robot__stage relative w-full h-[80%] max-h-[78vh] mr-2 md:mr-6 lg:mr-10 xl:mr-14 pointer-events-auto">
