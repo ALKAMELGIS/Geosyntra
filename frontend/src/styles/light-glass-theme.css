@@ -70,31 +70,39 @@ html[data-theme='light'] {
  * 1. Header / topbar
  * --------------------------------------------------------------------------*/
 
-/* Topbar shell — was a `linear-gradient(...rgba(8,8,12), ...)` midnight band.
- * Now reads as a frosted snow strip with a faint cool wash at the leading
- * edge for depth. */
+/* Topbar shell — was a near-opaque snow band (≈ 80% white). Drop the fill
+ * to ≈ 38% so the page underneath shows through and the bar reads as a
+ * true frosted plate. The blur does the lifting; a faint top sheen keeps
+ * the glassy "lمعة" the user asked for. */
 html[data-theme='light'] .geosyntra-header {
   background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.82) 0%, rgba(248, 250, 253, 0.78) 100%);
-  border-bottom: 1px solid var(--gs-lt-border);
+    linear-gradient(180deg, rgba(255, 255, 255, 0.65) 0%, rgba(255, 255, 255, 0.10) 60%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.42) 0%, rgba(248, 250, 253, 0.32) 100%);
+  background-color: rgba(255, 255, 255, 0.32);
+  border-bottom: 1px solid rgba(15, 23, 42, 0.06);
   box-shadow:
-    var(--gs-lt-shadow-sm),
-    inset 0 -1px 0 rgba(15, 23, 42, 0.04);
-  backdrop-filter: blur(20px) saturate(140%);
-  -webkit-backdrop-filter: blur(20px) saturate(140%);
+    0 14px 38px rgba(15, 23, 42, 0.10),
+    inset 0 1px 0 rgba(255, 255, 255, 0.55),
+    inset 0 -1px 0 rgba(15, 23, 42, 0.03);
+  backdrop-filter: blur(28px) saturate(160%) brightness(1.02);
+  -webkit-backdrop-filter: blur(28px) saturate(160%) brightness(1.02);
 }
 
 /* Animated shimmer streak — silver in dark, soft slate in light so it doesn't
- * disappear into the white background. */
+ * disappear into the frosted background but stays elegant. */
 html[data-theme='light'] .geosyntra-header::before {
   background:
-    linear-gradient(90deg, transparent 0%, rgba(15, 23, 42, 0.06) 50%, transparent 100%);
+    linear-gradient(120deg, transparent 0%, rgba(15, 23, 42, 0.07) 45%, rgba(15, 23, 42, 0.04) 60%, transparent 100%);
+  mix-blend-mode: multiply;
+  opacity: 0.45;
 }
 
 /* Bottom hairline */
 html[data-theme='light'] .geosyntra-header::after {
   background:
-    linear-gradient(90deg, transparent 0%, rgba(15, 23, 42, 0.10) 50%, transparent 100%);
+    linear-gradient(90deg, transparent 0%, rgba(15, 23, 42, 0.18) 30%, rgba(15, 23, 42, 0.18) 70%, transparent 100%);
+  filter: blur(0.4px);
+  opacity: 0.7;
 }
 
 /* Brand logo wordmark — was white-silver vertical gradient on dark. Flip to
@@ -193,16 +201,37 @@ html[data-theme='light'] .profile-menu button:hover {
  * --------------------------------------------------------------------------*/
 
 /* Outer rail — was midnight `#0c0d12`. Flip to frosted snow with a hint of
- * cool depth. The collapse toggle, top brand and labels read off this. */
+ * cool depth, but keep it transparent enough that the page surface shows
+ * through (matching the more-translucent topbar). The collapse toggle,
+ * top brand and labels read off this. */
 html[data-theme='light'] .navmenu,
 html[data-theme='light'] aside.navmenu {
   background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.85) 0%, rgba(248, 250, 253, 0.92) 100%);
-  border-right: 1px solid var(--gs-lt-border);
+    linear-gradient(180deg, rgba(255, 255, 255, 0.55) 0%, rgba(255, 255, 255, 0.06) 60%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.36) 0%, rgba(248, 250, 253, 0.28) 100%);
+  background-color: rgba(255, 255, 255, 0.28);
+  border-right: 1px solid rgba(15, 23, 42, 0.05);
   color: var(--gs-lt-text);
-  box-shadow: 4px 0 20px rgba(15, 23, 42, 0.04);
-  backdrop-filter: blur(22px) saturate(140%);
-  -webkit-backdrop-filter: blur(22px) saturate(140%);
+  box-shadow:
+    0 12px 34px rgba(15, 23, 42, 0.08),
+    inset 0 1px 0 rgba(255, 255, 255, 0.55);
+  backdrop-filter: blur(28px) saturate(160%) brightness(1.02);
+  -webkit-backdrop-filter: blur(28px) saturate(160%) brightness(1.02);
+}
+
+/* Light-mode shimmer + hairline mirror for the horizontal navmenu (the
+ * dark-mode versions live in `navmenu.css`). */
+html[data-theme='light'] .navmenu::before {
+  background:
+    linear-gradient(120deg, transparent 0%, rgba(15, 23, 42, 0.06) 45%, rgba(15, 23, 42, 0.035) 60%, transparent 100%);
+  mix-blend-mode: multiply;
+  opacity: 0.5;
+}
+
+html[data-theme='light'] .navmenu::after {
+  background:
+    linear-gradient(90deg, transparent 0%, rgba(15, 23, 42, 0.16) 30%, rgba(15, 23, 42, 0.16) 70%, transparent 100%);
+  opacity: 0.7;
 }
 
 /* Group header (top-level menu rows: Satellite Imagery / Admin / etc.) */

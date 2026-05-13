@@ -745,7 +745,12 @@ html[data-theme="light"] .group-header:hover .icon {
   }
 }
 
-/* Horizontal professional navigation */
+/* Horizontal professional navigation — transparent glass with a subtle
+ * top sheen and a soft aurora drift, matching the Geosyntra header so the
+ * two bars read as one continuous glass plate. The bar drops the solid
+ * `--ds-color-surface` fill in favour of a layered translucent gradient
+ * (≈ 26% dark fill in dark mode, ≈ 50% white in light mode) and leans on
+ * an aggressive backdrop-blur for the actual depth. */
 .navmenu {
   width: 100%;
   height: auto;
@@ -758,11 +763,72 @@ html[data-theme="light"] .group-header:hover .icon {
   top: 0;
   z-index: 1900;
   border-right: 0;
-  border-bottom: 1px solid var(--ds-color-border);
-  background: var(--ds-color-surface);
-  box-shadow: 0 12px 34px rgba(15, 23, 42, 0.08);
-  backdrop-filter: blur(18px);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.06) 0%, rgba(255, 255, 255, 0) 55%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0) 70%, rgba(255, 255, 255, 0.02) 100%),
+    linear-gradient(180deg, rgba(12, 14, 20, 0.26) 0%, rgba(6, 8, 12, 0.34) 100%);
+  background-color: rgba(8, 10, 16, 0.24);
+  box-shadow:
+    0 14px 38px rgba(0, 0, 0, 0.34),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08),
+    inset 0 -1px 0 rgba(255, 255, 255, 0.02);
+  backdrop-filter: blur(28px) saturate(150%) brightness(1.04);
+  -webkit-backdrop-filter: blur(28px) saturate(150%) brightness(1.04);
   overflow: visible;
+}
+
+/* Subtle silver shimmer on the horizontal nav — same identity as
+ * `.geosyntra-header::before` so the two bars share one rhythm. */
+.navmenu::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  border-radius: inherit;
+  background:
+    linear-gradient(
+      120deg,
+      transparent 0%,
+      rgba(255, 255, 255, 0.075) 42%,
+      rgba(255, 255, 255, 0.045) 58%,
+      transparent 100%
+    );
+  mix-blend-mode: screen;
+  opacity: 0.6;
+  animation: geosyntra-header-aurora 20s linear infinite;
+  z-index: 0;
+}
+
+/* Hairline divider that fades at the edges — replaces the hard
+ * `border-bottom` so the bar feels like it dissolves into the page. */
+.navmenu::after {
+  content: '';
+  position: absolute;
+  left: 24px;
+  right: 24px;
+  bottom: 0;
+  height: 1px;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(255, 255, 255, 0.20) 30%,
+    rgba(255, 255, 255, 0.20) 70%,
+    transparent 100%
+  );
+  filter: blur(0.4px);
+  opacity: 0.8;
+  pointer-events: none;
+}
+
+/* All children sit above the shimmer pseudo-elements. */
+.navmenu > * {
+  position: relative;
+  z-index: 1;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .navmenu::before { animation: none; }
 }
 
 .nav-collapse-toggle {
