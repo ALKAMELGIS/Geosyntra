@@ -296,14 +296,7 @@ export function ScrollGlobe({ sections, globeConfig = defaultGlobeConfig, classN
   }, [calculatedPositions])
 
   /* Hero entrance choreography — robot first, globe second.
-   *
-   * 1. The Robot fades in immediately (its own CSS animation +
-   *    Suspense fallback take ~900 ms to settle).
-   * 2. After a 700 ms beat, we flip `globeArrived` → the Globe
-   *    wrapper transitions opacity 0 → 0.92 and scale 0.6 → 1.0,
-   *    arriving in front of the Robot's chest like the figure just
-   *    pulled it into view. `prefers-reduced-motion` short-circuits
-   *    the delay so accessibility users see the Globe immediately. */
+   * Tightened to a single fast beat so the page reads as instant. */
   useEffect(() => {
     if (typeof window === 'undefined') {
       setGlobeArrived(true)
@@ -313,8 +306,15 @@ export function ScrollGlobe({ sections, globeConfig = defaultGlobeConfig, classN
       setGlobeArrived(true)
       return
     }
-    const t = window.setTimeout(() => setGlobeArrived(true), 700)
-    return () => window.clearTimeout(t)
+    const raf = window.requestAnimationFrame(() => {
+      const t = window.setTimeout(() => setGlobeArrived(true), 220)
+      ;(window as unknown as { __gsHeroArrivalTimer?: number }).__gsHeroArrivalTimer = t
+    })
+    return () => {
+      window.cancelAnimationFrame(raf)
+      const t = (window as unknown as { __gsHeroArrivalTimer?: number }).__gsHeroArrivalTimer
+      if (typeof t === 'number') window.clearTimeout(t)
+    }
   }, [])
 
   /* Respect `prefers-reduced-motion`: skip mouse parallax updates entirely
@@ -519,7 +519,7 @@ export function ScrollGlobe({ sections, globeConfig = defaultGlobeConfig, classN
           re-enables pointer events for the built-in mouse parallax. */}
       <div
         aria-hidden
-        className="gs-hero-robot fixed inset-y-0 right-0 z-[8] hidden md:flex items-center justify-end pointer-events-none transition-opacity duration-[1400ms] ease-[cubic-bezier(0.23,1,0.32,1)] will-change-transform"
+        className="gs-hero-robot fixed inset-y-0 right-0 z-[8] hidden md:flex items-center justify-end pointer-events-none transition-opacity duration-[700ms] ease-[cubic-bezier(0.23,1,0.32,1)] will-change-transform"
         style={{
           width: 'min(58vw, 880px)',
           opacity: activeSection === 0 ? 1 : 0,
@@ -544,12 +544,9 @@ export function ScrollGlobe({ sections, globeConfig = defaultGlobeConfig, classN
           `activeSection === last` for the closing fade. */}
       <div
         aria-hidden
-        className="gs-hero-globe fixed z-10 pointer-events-none will-change-transform transition-all duration-[1400ms] ease-[cubic-bezier(0.23,1,0.32,1)]"
+        className="gs-hero-globe fixed z-10 pointer-events-none will-change-transform transition-all duration-[700ms] ease-[cubic-bezier(0.23,1,0.32,1)]"
         style={{
           transform: globeTransform,
-          /* Globe fades on the closing section (existing upstream rule).
-           * Hero opacity goes from 0 → 0.92 once the Robot settles
-           * (`globeArrived` flips ~700 ms after mount). */
           opacity: globeArrived
             ? activeSection === sections.length - 1
               ? 0.4
@@ -557,19 +554,12 @@ export function ScrollGlobe({ sections, globeConfig = defaultGlobeConfig, classN
             : 0,
         }}
       >
-        {/* Entrance wrapper — owns the "Earth lands in the robot's hands"
-            scale-in animation. Lives in its own div so the Tailwind
-            per-breakpoint scale classes below don't fight the entrance
-            transform (each wrapper has its own composed transform that
-            multiplies into its descendants). Starts at scale 0.55 (small
-            seed, like the figure just opened its hands) and overshoots
-            slightly to 1.0 via the bouncy cubic curve below. */}
         <div
           className="gs-hero-globe__entrance"
           style={{
-            transform: globeArrived ? 'scale(1)' : 'scale(0.55)',
+            transform: globeArrived ? 'scale(1)' : 'scale(0.6)',
             transition:
-              'transform 1400ms cubic-bezier(0.18, 1.18, 0.32, 1)',
+              'transform 650ms cubic-bezier(0.18, 1.18, 0.32, 1)',
             transformOrigin: 'center center',
           }}
         >
@@ -673,7 +663,7 @@ export function ScrollGlobe({ sections, globeConfig = defaultGlobeConfig, classN
                   background="transparent"
                   minSize={0.4}
                   maxSize={1}
-                  particleDensity={1200}
+                  particleDensity={520}
                   className="w-full h-full"
                   particleColor="#FFFFFF"
                 />

@@ -17,7 +17,7 @@ function Placeholder({ title }: { title: string }) {
 export type BindTarget = 'placeholder' | 'home' | 'gis' | 'satellite-indices' | 'dashboards-overview'
 
 export default function DynamicBindPage({ bindTarget, title }: { bindTarget: BindTarget; title: string }) {
-  const fb = <div style={{ padding: 16 }}>Loading…</div>
+  const fb = null
   switch (bindTarget) {
     case 'gis':
       return (

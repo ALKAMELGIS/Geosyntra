@@ -1,17 +1,14 @@
 import { Suspense, lazy } from 'react'
 
 /**
- * SplineScene — lazy wrapper around `@splinetool/react-spline`.
- *
- * The Spline runtime is heavy (1.4 MB+ gzipped), so we defer the chunk via
- * `React.lazy` + `<Suspense>`. While the scene streams, a soft skeleton
- * pulses in place so the host card never collapses to a 0×0 box.
- *
- * Used by the LearnMore hero to render the upstream interactive 3D robot
- * scene shipped by the 21st.dev integration brief
- * (`prod.spline.design/kZDDjO5HuC9GJUM2/scene.splinecode`).
+ * Eagerly start fetching the Spline runtime chunk at module-load time so
+ * the network roundtrip for the heavy `@splinetool/react-spline` bundle
+ * overlaps with React's first render — by the time `<SplineScene/>`
+ * actually mounts, the chunk is usually already in the browser cache.
+ * The `lazy()` call below reuses the same import so no double-fetch.
  */
-const Spline = lazy(() => import('@splinetool/react-spline'))
+const splineRuntime = import('@splinetool/react-spline')
+const Spline = lazy(() => splineRuntime)
 
 interface SplineSceneProps {
   scene: string
@@ -23,11 +20,9 @@ export function SplineScene({ scene, className }: SplineSceneProps) {
     <Suspense
       fallback={
         <div
-          className={`gs-spline-skeleton flex h-full w-full items-center justify-center ${className ?? ''}`}
+          className={`gs-spline-skeleton h-full w-full ${className ?? ''}`}
           aria-hidden
-        >
-          <div className="gs-spline-skeleton__pulse" />
-        </div>
+        />
       }
     >
       <Spline scene={scene} className={className} />

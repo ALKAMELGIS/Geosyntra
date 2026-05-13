@@ -50,7 +50,7 @@ export const SparklesCore = (props: ParticlesProps) => {
       controls.start({
         opacity: 1,
         transition: {
-          duration: 1,
+          duration: 0.4,
         },
       })
     }
@@ -74,7 +74,7 @@ export const SparklesCore = (props: ParticlesProps) => {
               enable: false,
               zIndex: 1,
             },
-            fpsLimit: 120,
+            fpsLimit: 60,
             interactivity: {
               events: {
                 onClick: {

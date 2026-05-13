@@ -78,33 +78,12 @@
   background-clip: padding-box;
 }
 
-/* ============================================================
- * Spline scene skeleton — soft pulse while the heavy runtime streams.
- * ============================================================ */
 .gs-spline-skeleton {
   position: relative;
 }
 
 .gs-spline-skeleton__pulse {
-  width: 56%;
-  height: 56%;
-  max-width: 320px;
-  max-height: 320px;
-  border-radius: 999px;
-  background: radial-gradient(circle at 32% 28%, rgba(255, 255, 255, 0.18), rgba(255, 255, 255, 0.02) 60%);
-  filter: blur(6px);
-  animation: gs-spline-pulse 1.8s ease-in-out infinite;
-}
-
-@keyframes gs-spline-pulse {
-  0%, 100% {
-    transform: scale(0.94);
-    opacity: 0.6;
-  }
-  50% {
-    transform: scale(1.04);
-    opacity: 1;
-  }
+  display: none;
 }
 
 /* ============================================================
@@ -965,11 +944,6 @@ html[data-theme='light'] .lm-dash-card {
  * Reduced motion — match the rest of the app's policy.
  * ============================================================ */
 @media (prefers-reduced-motion: reduce) {
-  .gs-spline-skeleton__pulse {
-    animation: none;
-    opacity: 0.5;
-  }
-
   .lm-cap-card:hover,
   .lm-ai-card:hover,
   .lm-back-btn:hover,
