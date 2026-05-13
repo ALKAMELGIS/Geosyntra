@@ -10,8 +10,8 @@
   position: relative;
 }
 
-.home-page--empty {
-  min-height: calc(100dvh - var(--header-height, 64px));
+.home-page.home-page--empty {
+  min-height: min(72vh, calc(100dvh - var(--header-height, 64px) - 40px));
 }
 
 .home-modern {

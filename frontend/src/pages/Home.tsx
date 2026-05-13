@@ -3,7 +3,7 @@ import './Home.css'
 import { useSystemSettingsOptional } from '@/store/SystemSettingsContext'
 
 /**
- * Intentionally empty home (`/`): navigation lives in the shell (header + sidebar).
+ * Home route (`/`) — empty canvas by product choice; navigation uses the primary sidebar.
  */
 export default function Home() {
   const systemSettings = useSystemSettingsOptional()
@@ -32,5 +32,5 @@ export default function Home() {
             }
           : {}
 
-  return <div className="page home-page home-page--empty" style={homeBackgroundStyle} />
+  return <div className="page home-page home-page--empty" style={homeBackgroundStyle} aria-label="Home" />
 }
