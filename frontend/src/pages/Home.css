@@ -11,6 +11,9 @@
 }
 
 .home-page.home-page--empty {
+  margin: 0;
+  max-width: none;
+  padding: 0;
   min-height: min(72vh, calc(100dvh - var(--header-height, 64px) - 40px));
 }
 
