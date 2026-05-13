@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { motion, useReducedMotion } from 'framer-motion'
-import { Card } from '../components/ui/card'
+import { Card } from '../components/ui/Card'
 import { SplineScene } from '../components/ui/spline-scene'
 import { Spotlight } from '../components/ui/spotlight'
 import GsIcon, { type GsIconName } from '../components/ui/GsIcon'
@@ -160,6 +160,12 @@ export default function LearnMore() {
     document.title = 'Learn More — Geosyntra'
   }, [])
 
+  /* Cubic bezier control points for the page-wide reveal easing. Hoisted
+   * + `as const` so TypeScript infers a fixed-length tuple instead of a
+   * generic `number[]` (which framer-motion v11+ rejects in
+   * `transition.ease`). */
+  const REVEAL_EASE = [0.22, 1, 0.36, 1] as const
+
   /** Stagger child reveal for `motion.section` blocks (degrades to instant for reduced motion). */
   const sectionMotion = reduceMotion
     ? {}
@@ -167,7 +173,7 @@ export default function LearnMore() {
         initial: { opacity: 0, y: 24 },
         whileInView: { opacity: 1, y: 0 },
         viewport: { once: true, amount: 0.15 },
-        transition: { duration: 0.55, ease: [0.22, 1, 0.36, 1] },
+        transition: { duration: 0.55, ease: REVEAL_EASE },
       }
 
   return (
@@ -314,7 +320,7 @@ export default function LearnMore() {
                     initial: { opacity: 0, y: 18 },
                     whileInView: { opacity: 1, y: 0 },
                     viewport: { once: true, amount: 0.25 },
-                    transition: { duration: 0.45, delay: i * 0.06, ease: [0.22, 1, 0.36, 1] },
+                    transition: { duration: 0.45, delay: i * 0.06, ease: REVEAL_EASE },
                   })}
             >
               <div className="lm-cap-card__icon" aria-hidden>
@@ -426,7 +432,7 @@ export default function LearnMore() {
                     initial: { opacity: 0, y: 16 },
                     whileInView: { opacity: 1, y: 0 },
                     viewport: { once: true, amount: 0.25 },
-                    transition: { duration: 0.45, delay: i * 0.08, ease: [0.22, 1, 0.36, 1] },
+                    transition: { duration: 0.45, delay: i * 0.08, ease: REVEAL_EASE },
                   })}
             >
               <div className="lm-ai-card__icon" aria-hidden>
