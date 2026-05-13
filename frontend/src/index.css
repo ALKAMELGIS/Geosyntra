@@ -13708,3 +13708,84 @@ textarea {
   border-left-color: rgba(255, 255, 255, 0.06);
 }
 
+/* ============================================================================
+ * Geosyntra · GIS Map page canvas + floating tool popover — Black Glass.
+ *
+ * Two upstream rules were still leaking the legacy "spring mint" identity
+ * inside the GIS Map workspace:
+ *
+ *   1. `.gis-map-page` carried `background: #edf7f1` — a pale mint slab
+ *      that framed the whole page and showed up as a light grey/white
+ *      strip wherever the rounded sidebar or map canvas didn't cover it
+ *      (visible at the page edges and on touch viewports where the rail
+ *      collapses into a drawer).
+ *   2. `.gis-map-tool-panel` carried `background: rgba(255, 255, 255, 0.94)`
+ *      — a white frosted card. The interior tool surfaces (Workspace
+ *      selector, Share, Apps grid) had already been re-skinned to black
+ *      glass earlier in this file (line 13216 onwards), but they were
+ *      sitting inside a white wrapper, which made the whole popover look
+ *      like a Lite Mode card stranded inside the dark app.
+ *
+ * Both wrappers now match the `.gis-sidebar` charcoal-glass tone so the
+ * GIS Map reads as a single, continuous Black Glass surface. The Lite
+ * Mode mirror lives in `styles/light-glass-theme.css` (search for
+ * `.gis-map-page` and `.gis-map-tool-panel` overrides).
+ * ========================================================================== */
+
+/* Page canvas — was the mint `#edf7f1`. Now a deep charcoal slab so the
+ * sidebar / rail / map canvas all sit on the same dark surface and no
+ * pale strip can show through at the gutter. */
+.gis-map-page {
+  background:
+    radial-gradient(1200px 600px at 12% -10%, rgba(40, 45, 60, 0.55), transparent 60%),
+    radial-gradient(1000px 500px at 95% 110%, rgba(28, 30, 42, 0.65), transparent 65%),
+    linear-gradient(180deg, rgba(8, 9, 14, 0.98), rgba(5, 6, 10, 1));
+}
+
+/* Floating tool popover (Workspace selector, Share card, Apps grid, etc.)
+ * — was a white frosted card. Now a charcoal-glass squircle with a
+ * white-glass hairline + tall outer shadow so it lifts off the map. */
+.gis-map-tool-panel {
+  background:
+    linear-gradient(180deg, rgba(20, 20, 26, 0.78), rgba(12, 12, 18, 0.86));
+  border-color: rgba(255, 255, 255, 0.10);
+  box-shadow:
+    0 24px 70px rgba(0, 0, 0, 0.65),
+    inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  backdrop-filter: blur(24px) saturate(150%);
+  -webkit-backdrop-filter: blur(24px) saturate(150%);
+}
+
+/* Sidebar-docked variant — same body, lighter border to fit inside the
+ * already-dark action pane (no second tall shadow). */
+.gis-sidebar-content-wrapper.gis-sidebar-tool-dock > .gis-map-tool-panel {
+  background:
+    linear-gradient(180deg, rgba(20, 20, 26, 0.55), rgba(12, 12, 18, 0.66));
+  border-color: rgba(255, 255, 255, 0.08);
+}
+
+/* Title strip + title text + hairline — were `#0f172a` slate text on a
+ * `rgba(15, 23, 42, 0.08)` border. Now silver-glass on a faint white
+ * hairline so the head doesn't read as a slate band. */
+.gis-map-tool-panel-head {
+  border-bottom-color: rgba(255, 255, 255, 0.08);
+}
+
+.gis-map-tool-panel-title {
+  color: rgba(244, 244, 248, 0.96);
+}
+
+/* Close pill in the panel head — was a solid `#ffffff` circle with slate
+ * glyph. Now a small white-glass squircle that matches the rail buttons. */
+.gis-map-tool-close {
+  background: rgba(255, 255, 255, 0.05);
+  border-color: rgba(255, 255, 255, 0.14);
+  color: rgba(232, 232, 238, 0.92);
+}
+
+.gis-map-tool-close:hover {
+  background: rgba(255, 255, 255, 0.10);
+  border-color: rgba(255, 255, 255, 0.22);
+  color: #ffffff;
+}
+

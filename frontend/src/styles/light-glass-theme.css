@@ -1657,3 +1657,62 @@ html[data-theme='light'] textarea:disabled {
   opacity: 0.45;
   cursor: not-allowed;
 }
+
+/* ----------------------------------------------------------------------------
+ * 14. GIS Map page canvas + floating tool popover — Lite Mode mirror.
+ *
+ * Counterparts of the Black-Glass overrides at the bottom of `index.css`
+ * (search for "Geosyntra · GIS Map page canvas + floating tool popover").
+ *
+ *   - `.gis-map-page` — page background was the legacy mint `#edf7f1`
+ *     even in Lite Mode. Swap it to the white-glass canvas tone so the
+ *     gutter around the rounded sidebar / map canvas matches the rest
+ *     of the Lite shell.
+ *   - `.gis-map-tool-panel` — was already white in the base sheet, but
+ *     the dark base (above) overrides it to charcoal-glass. Re-assert a
+ *     proper frosted-white card here so Lite Mode doesn't show the dark
+ *     panel through the white shell.
+ * --------------------------------------------------------------------------*/
+
+html[data-theme='light'] .gis-map-page {
+  background:
+    radial-gradient(1200px 600px at 12% -10%, rgba(226, 232, 240, 0.55), transparent 60%),
+    radial-gradient(1000px 500px at 95% 110%, rgba(214, 222, 235, 0.65), transparent 65%),
+    linear-gradient(180deg, var(--gs-lt-bg-canvas), #eef1f6);
+}
+
+html[data-theme='light'] .gis-map-tool-panel {
+  background: var(--gs-lt-bg-elev-2);
+  border-color: var(--gs-lt-border);
+  box-shadow: var(--gs-lt-shadow-lg);
+  backdrop-filter: blur(22px) saturate(140%);
+  -webkit-backdrop-filter: blur(22px) saturate(140%);
+}
+
+html[data-theme='light'] .gis-sidebar-content-wrapper.gis-sidebar-tool-dock > .gis-map-tool-panel {
+  background: var(--gs-lt-bg-elev-1);
+  border-color: var(--gs-lt-border);
+  box-shadow: none;
+  backdrop-filter: blur(18px) saturate(140%);
+  -webkit-backdrop-filter: blur(18px) saturate(140%);
+}
+
+html[data-theme='light'] .gis-map-tool-panel-head {
+  border-bottom-color: var(--gs-lt-border);
+}
+
+html[data-theme='light'] .gis-map-tool-panel-title {
+  color: var(--gs-lt-text);
+}
+
+html[data-theme='light'] .gis-map-tool-close {
+  background: rgba(255, 255, 255, 0.86);
+  border-color: var(--gs-lt-border);
+  color: var(--gs-lt-text-muted);
+}
+
+html[data-theme='light'] .gis-map-tool-close:hover {
+  background: #ffffff;
+  border-color: var(--gs-lt-border-2);
+  color: var(--gs-lt-text);
+}
