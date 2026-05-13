@@ -109,6 +109,18 @@
     drop-shadow(0 0 18px rgba(255, 255, 255, 0.18))
     drop-shadow(0 2px 14px rgba(148, 163, 184, 0.22));
   animation: gs-pearl-shimmer 7s ease-in-out infinite;
+  /* Visual lift + slight rightward nudge so the wordmark sits with more
+   * breathing room above the description and reads with every letter —
+   * including descenders like `y` and the `r` tail — fully clear of the
+   * baseline. clamp() makes the offset scale with viewport size (≈ 4-14px
+   * right on mobile→desktop, ≈ 6-14px up). `padding-bottom: 0.1em`
+   * guarantees the `-webkit-background-clip: text` mask never trims
+   * descenders even at the largest 2xl breakpoint where the font hits
+   * 8rem. `display: inline-block` is required so transform + padding
+   * apply cleanly to the gradient-clipped wordmark. */
+  display: inline-block;
+  padding-bottom: 0.1em;
+  transform: translate(clamp(4px, 0.6vw, 14px), clamp(-14px, -0.7vw, -6px));
 }
 
 @keyframes gs-pearl-shimmer {
