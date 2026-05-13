@@ -22,7 +22,8 @@ concurrency:
 jobs:
   publish-to-main-root:
     # Skip only the automated root sync commit from this workflow (avoids infinite loop). Do not skip user commits that merely mention [pages-sync] in the message body.
-    if: ${{ github.event_name == 'workflow_dispatch' || !startsWith(github.event.head_commit.message, 'chore(pages): sync SPA build to repo root') }}
+    # NOTE: must be wrapped in YAML double quotes — the literal "): " inside the message prefix breaks unquoted YAML scalar parsing.
+    if: "${{ github.event_name == 'workflow_dispatch' || !startsWith(github.event.head_commit.message, 'chore(pages): sync SPA build to repo root') }}"
     runs-on: ubuntu-latest
     timeout-minutes: 25
     steps:
