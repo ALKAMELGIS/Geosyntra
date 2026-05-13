@@ -1,5 +1,3 @@
-import { createRequire } from 'node:module'
-import { existsSync } from 'node:fs'
 import { readdir, readFile, writeFile } from 'node:fs/promises'
 import { dirname, extname, isAbsolute, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -16,41 +14,6 @@ const brotliAsync = promisify(brotliCompress)
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 
-/**
- * External SIW module (copied Satellite Intelligence + isolated siw_* persistence).
- * Override locally with `SIW_SRC` to point at any other checkout. CI and machines without the
- * external tree fall back to the in-repo stub at `src/satellite-intelligence-workspace-fallback`
- * so production builds succeed.
- */
-const SATELLITE_INTELLIGENCE_WORKSPACE_EXTERNAL_DEFAULT = 'C:/Users/mohamed.abass.WUSOOM/Downloads/Maps/GIS RS Intelligence Workspace/src'
-const SATELLITE_INTELLIGENCE_WORKSPACE_EXTERNAL = resolve(
-  process.env.SIW_SRC?.trim() || SATELLITE_INTELLIGENCE_WORKSPACE_EXTERNAL_DEFAULT,
-)
-const SATELLITE_INTELLIGENCE_WORKSPACE_FALLBACK = resolve(
-  __dirname,
-  'src/satellite-intelligence-workspace-fallback',
-)
-const SATELLITE_INTELLIGENCE_WORKSPACE_SRC = existsSync(SATELLITE_INTELLIGENCE_WORKSPACE_EXTERNAL)
-  ? SATELLITE_INTELLIGENCE_WORKSPACE_EXTERNAL
-  : SATELLITE_INTELLIGENCE_WORKSPACE_FALLBACK
-
-/** SIW sources live outside Vite `root`; resolve bare imports from this frontend package's node_modules. */
-function satelliteIntelligenceWorkspaceDependencyResolve(): Plugin {
-  const require = createRequire(resolve(__dirname, 'package.json'))
-  return {
-    name: 'siw-external-node-resolve',
-    enforce: 'pre',
-    resolveId(id, importer) {
-      if (!importer?.includes('GIS RS Intelligence Workspace')) return null
-      if (id.startsWith('.') || id.startsWith('/') || id.startsWith('\0')) return null
-      try {
-        return require.resolve(id, { paths: [__dirname] })
-      } catch {
-        return null
-      }
-    },
-  }
-}
 const COMPRESSIBLE_EXTENSIONS = new Set([
   '.css',
   '.html',
@@ -212,7 +175,6 @@ export default defineConfig({
   resolve: {
     alias: {
       '@': resolve(__dirname, 'src'),
-      '@satellite-intelligence-workspace': SATELLITE_INTELLIGENCE_WORKSPACE_SRC,
     },
   },
   build: {
@@ -222,7 +184,6 @@ export default defineConfig({
     },
   },
   plugins: [
-    satelliteIntelligenceWorkspaceDependencyResolve(),
     geosyntraBaseTrailingSlashRedirect(),
     pagesBuildStamp(),
     ghPagesHashAndSlashRedirect(),
@@ -270,9 +231,6 @@ export default defineConfig({
     port: 5173,
     host: true,
     strictPort: true,
-    fs: {
-      allow: [SATELLITE_INTELLIGENCE_WORKSPACE_SRC],
-    },
     headers: {
       'Cache-Control': 'no-store',
     },

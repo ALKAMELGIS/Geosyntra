@@ -59,8 +59,6 @@ const navTranslations = {
     qhis: 'QHIS',
     satelliteImagery: 'Satellite Imagery',
     satelliteIntelligence: 'Satellite Intelligence',
-    satelliteIntelligenceWorkspace: 'SI Workspace',
-    satelliteIntelligenceWorkspaceApiTokens: 'SI Workspace — API tokens',
     sensors: 'Sensors',
     soilSensors: 'Soil Sensors',
     userManagement: 'User Management',
@@ -110,8 +108,6 @@ const navTranslations = {
     qhis: 'الجودة والسلامة',
     satelliteImagery: 'صور الأقمار الصناعية',
     satelliteIntelligence: 'التحليل الفضائي الذكي',
-    satelliteIntelligenceWorkspace: 'مساحة عمل التحليل الفضائي',
-    satelliteIntelligenceWorkspaceApiTokens: 'مساحة العمل — رموز API',
     sensors: 'الحساسات',
     soilSensors: 'حساسات التربة',
     userManagement: 'إدارة المستخدمين',
@@ -351,7 +347,6 @@ export default function NavMenu({ onLogout }: NavMenuProps) {
       return path === n || path.startsWith(`${n}/`)
     })
     if (custom?.navGroupId) return custom.navGroupId
-    if (path.startsWith('/satellite-intelligence-workspace')) return 'satellite'
     if (path.startsWith('/satellite/')) return 'satellite'
     if (path.startsWith('/master/')) return 'master'
     if (path.startsWith('/admin/')) return 'admin'

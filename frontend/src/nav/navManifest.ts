@@ -15,8 +15,6 @@ export type NavTranslationKey =
   | 'geosyntraChat'
   | 'satelliteImagery'
   | 'satelliteIntelligence'
-  | 'satelliteIntelligenceWorkspace'
-  | 'satelliteIntelligenceWorkspaceApiTokens'
   | 'gisMap'
   | 'operations'
   | 'irrigation'
@@ -71,20 +69,6 @@ export const NAV_DEFAULT_GROUPS: NavGroupDef[] = [
     defaultIcon: 'fa-solid fa-satellite-dish',
     headerClass: 'nav-header-satellite',
     children: [
-      {
-        id: 'satellite-siw',
-        path: '/satellite-intelligence-workspace',
-        i18nKey: 'satelliteIntelligenceWorkspace',
-        defaultIcon: 'fa-solid fa-earth-americas',
-        subitemClass: 'nav-item-siw',
-      },
-      {
-        id: 'satellite-siw-api-token',
-        path: '/satellite-intelligence-workspace/api-token',
-        i18nKey: 'satelliteIntelligenceWorkspaceApiTokens',
-        defaultIcon: 'fa-solid fa-key',
-        subitemClass: 'nav-item-siw-token',
-      },
       {
         id: 'satellite-indices',
         path: '/satellite/indices',
