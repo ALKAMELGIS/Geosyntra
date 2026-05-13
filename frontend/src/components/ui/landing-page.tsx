@@ -673,7 +673,14 @@ export function ScrollGlobe({ sections, globeConfig = defaultGlobeConfig, classN
              * Geosyntra Black-Glass identity.
              */}
             {index === 0 && (
-              <div className="gs-hero-sparkle-bar relative w-full max-w-[40rem] h-28 sm:h-36 -mt-2 mb-6 sm:mb-8 select-none">
+              /* `mx-auto` centres the 40 rem sparkle strip inside the
+               * Hero content column so its horizontal centre lines up
+               * with the centre of the description paragraph that
+               * sits directly below it (the paragraph is `max-w-full`
+               * → its visual centre is the container centre, not the
+               * left edge). Matches the user's "حركها يمين قليلًا
+               * لتكون وسط النص الذي أسفلها بالضبط" tweak. */
+              <div className="gs-hero-sparkle-bar relative w-full max-w-[40rem] h-28 sm:h-36 -mt-2 mb-6 sm:mb-8 mx-auto select-none">
                 <div className="gs-hero-sparkle-line gs-hero-sparkle-line--soft absolute inset-x-[15%] top-0 h-[2px] w-[70%] bg-gradient-to-r from-transparent via-slate-200/80 to-transparent blur-sm" />
                 <div className="gs-hero-sparkle-line gs-hero-sparkle-line--hairline absolute inset-x-[15%] top-0 h-px w-[70%] bg-gradient-to-r from-transparent via-slate-100/90 to-transparent" />
                 <div className="gs-hero-sparkle-line gs-hero-sparkle-line--core-soft absolute inset-x-[35%] top-0 h-[5px] w-[30%] bg-gradient-to-r from-transparent via-white/85 to-transparent blur-sm" />
