@@ -338,14 +338,12 @@ export function ScrollGlobe({ sections, globeConfig = defaultGlobeConfig, classN
         className="fixed z-10 pointer-events-none will-change-transform transition-all duration-[1400ms] ease-[cubic-bezier(0.23,1,0.32,1)]"
         style={{
           transform: globeTransform,
-          /* Globe fades on the closing section (existing upstream rule) and
-           * also on the Hero (index 0) so the new Spline robot reads as the
-           * dominant figure on the right while the globe stays as a soft
-           * ambient backdrop. Innovation / Discovery sections keep the full
-           * 0.85 cinematic intensity. */
-          filter: `opacity(${
-            activeSection === 0 ? 0.32 : activeSection === sections.length - 1 ? 0.4 : 0.85
-          })`,
+          /* Globe fades on the closing section (existing upstream rule).
+           * In the Hero (index 0) the Globe now sits *in front* of the
+           * Spline robot (robot at z-[5], Globe at z-10), so it reads as
+           * the Earth the figure is holding — full opacity restored so
+           * the sphere stays solid and luminous over the dark robot. */
+          filter: `opacity(${activeSection === sections.length - 1 ? 0.4 : 0.92})`,
         }}
       >
         {/* Per-breakpoint scale-up of the upstream 250×250 globe so the
@@ -387,12 +385,17 @@ export function ScrollGlobe({ sections, globeConfig = defaultGlobeConfig, classN
               md so the wordmark + sparkles + CTAs stay legible on phones
               (the upstream landing reads as a single-column hero on small
               screens). The Spline runtime tracks the cursor itself so no
-              extra wiring is needed. */}
+              extra wiring is needed.
+
+              Layering: `z-[5]` keeps the robot BEHIND the fixed Globe
+              layer (`z-10`) so the Earth reads as if floating in front
+              of the figure — the user's "as if he's holding the Earth"
+              composition. Text + CTAs stay above both at `z-20`. */}
           {index === 0 && (
             <div
               className={cn(
                 'gs-hero-robot pointer-events-auto',
-                'absolute inset-y-0 right-0 z-30',
+                'absolute inset-y-0 right-0 z-[5]',
                 'hidden md:flex items-center justify-end',
                 'w-1/2 lg:w-[55%] xl:w-[58%]',
                 'pr-2 md:pr-6 lg:pr-10 xl:pr-14',
