@@ -477,11 +477,49 @@ export function ScrollGlobe({ sections, globeConfig = defaultGlobeConfig, classN
                               nudge → sits in the figure's left embrace.
 
           Layer hierarchy (back → front, per user spec):
+            Innovation Sparkles z-[5]  (full-bleed starfield, only
+                                        visible during the Innovation
+                                        section — sits BEHIND the
+                                        Globe so the Earth still pops)
             Robot 3D            z-[8]
             Globe 3D            z-10
             UI overlay / nav    z-40  (right-rail nav, progress bar z-50)
             Section content     z-30  (Geosyntra title, Sparkles, CTAs)
           ────────────────────────────────────────────────────────────── */}
+
+      {/* Innovation Sparkles — full-bleed starfield behind the Globe
+          for section index 1 only. Background is fully transparent
+          (no extra dark plate) so the existing page background shows
+          through unchanged; only the particles paint. The wrapper is
+          `position: fixed` at z-[5] so it sits BEHIND the Globe
+          (z-10) and the Robot (z-[8]) — the Earth therefore still
+          reads as the dominant mark in front of the starfield, with
+          the description text on top of everything (z-30).
+
+          Density tuned for full-viewport coverage (180 vs the Hero
+          bar's 520) so the starfield reads as a calm cosmic backdrop
+          rather than a noisy field. Particle colour uses the same
+          `particleColor` derived from the active theme so Light Mode
+          flips white → near-black automatically. */}
+      <div
+        aria-hidden
+        className="gs-innovation-sparkles fixed inset-0 z-[5] pointer-events-none"
+        style={{
+          opacity: activeSection === 1 ? 1 : 0,
+          transition: 'opacity 600ms cubic-bezier(0.23, 1, 0.32, 1)',
+        }}
+      >
+        <SparklesCore
+          background="transparent"
+          minSize={0.4}
+          maxSize={1.0}
+          particleDensity={180}
+          className="w-full h-full"
+          particleColor={particleColor}
+          speed={1.2}
+        />
+      </div>
+
       {/* Robot — only meaningful in Hero, fades when the user scrolls
           past it. `pointer-events-none` on the wrapper so the figure
           never blocks page scrolling; the inner Spline canvas re-
