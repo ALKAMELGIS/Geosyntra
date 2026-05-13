@@ -86,8 +86,6 @@ const menuItems: MenuItem[] = [
       { label: { en: 'Soil Sensors', ar: 'حساسات التربة' }, icon: 'fa-solid fa-seedling', to: '/sensors/soil' },
       { label: { en: 'Weather Sensors', ar: 'حساسات الطقس' }, icon: 'fa-solid fa-cloud-sun', to: '/sensors/weather' },
       { label: { en: 'Irrigation Sensors', ar: 'حساسات الري' }, icon: 'fa-solid fa-faucet-drip', to: '/sensors/irrigation' },
-      { label: { en: 'Camera', ar: 'الكاميرا' }, icon: 'fa-solid fa-camera', to: '/sensors/camera' },
-      { label: { en: 'GPS Vehicle Tracking', ar: 'تتبع مركبات GPS' }, icon: 'fa-solid fa-route', to: '/sensors/gps' },
     ]
   },
   {
@@ -96,20 +94,6 @@ const menuItems: MenuItem[] = [
     icon: 'fa-solid fa-cloud-bolt',
     color: '#059669',
     to: '/dashboards/geosyntra-ai',
-  },
-  {
-    id: 'camera-direct',
-    label: { en: 'Camera', ar: 'الكاميرا' },
-    icon: 'fa-solid fa-camera',
-    color: '#0EA5E9',
-    to: '/sensors/camera'
-  },
-  {
-    id: 'gps-direct',
-    label: { en: 'GPS Vehicle Tracking', ar: 'تتبع مركبات GPS' },
-    icon: 'fa-solid fa-route',
-    color: '#10B981',
-    to: '/sensors/gps'
   },
   {
     id: 'master',

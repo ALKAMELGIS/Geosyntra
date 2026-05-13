@@ -222,20 +222,6 @@ export const NAV_DEFAULT_GROUPS: NavGroupDef[] = [
         defaultIcon: 'fa-solid fa-faucet-drip',
         subitemClass: 'nav-item-sensor-irrigation',
       },
-      {
-        id: 'sensors-camera',
-        path: '/sensors/camera',
-        i18nKey: 'camera',
-        defaultIcon: 'fa-solid fa-camera',
-        subitemClass: 'nav-item-sensor-camera',
-      },
-      {
-        id: 'sensors-gps',
-        path: '/sensors/gps',
-        i18nKey: 'gpsVehicleTracking',
-        defaultIcon: 'fa-solid fa-route',
-        subitemClass: 'nav-item-sensor-gps',
-      },
     ],
   },
   {

@@ -39,7 +39,6 @@ const StyleGuide = lazy(() => import('../pages/StyleGuide'))
 const UsabilityTest = lazy(() => import('../pages/UsabilityTest'))
 const SystemSettings = lazy(() => import('../pages/admin/SystemSettings'))
 const SensorIntegrationPage = lazy(() => import('../pages/sensors/SensorIntegrationPage'))
-const GpsVehicleTracking = lazy(() => import('../pages/sensors/GpsVehicleTracking'))
 
 export default function AppRoutes() {
   const { settings } = useSystemSettings()
@@ -80,7 +79,7 @@ export default function AppRoutes() {
         <Route path="/account/profile" element={<AccountProfile />} />
         <Route path="/account/profile-user-management" element={<Navigate to="/account/profile" replace />} />
         <Route path="/account/settings" element={<AccountSettings />} />
-        <Route path="/sensors/gps" element={<GpsVehicleTracking />} />
+        <Route path="/sensors/gps" element={<Navigate to="/sensors/soil" replace />} />
         <Route path="/sensors/:sensorKind" element={<SensorIntegrationPage />} />
         <Route path="/admin/users" element={<AdminUsers />} />
         <Route path="/admin/github" element={<AdminGitHub />} />

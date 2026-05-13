@@ -18,7 +18,6 @@ const ACCENT_DARK: [number, number, number] = [6, 78, 59]
 const INK: [number, number, number] = [15, 23, 42]
 const MUTED: [number, number, number] = [100, 116, 139]
 const PAGE_MARGIN_MM = 12
-const ELITE_LOGO_URL = 'https://eliteprojects.ae/wp-content/uploads/2022/07/logo-retraced-white-03.png'
 
 function fmtNum(n: number): string {
   if (!Number.isFinite(n)) return '—'
@@ -426,29 +425,15 @@ export async function generateRecipeReportPdf(opts: {
       ? `أُنشئ ${dateIso}${periodLabel ? ` · ${periodLabel}` : ''}`
       : `Generated ${dateIso}${periodLabel ? ` · ${periodLabel}` : ''}`
 
-  let logoAdded = false
-  const logoImg = await fetchUrlAsImageDataUrl(ELITE_LOGO_URL)
   const headerBottomY = drawPdfHeaderBand(doc, pw, workflowTitle, subtitleMeta)
-  if (logoImg) {
-    try {
-      const lw = 42
-      const lh = 11
-      doc.addImage(logoImg.dataUrl, logoImg.format, m, 8, lw, lh)
-      logoAdded = true
-    } catch {
-      logoAdded = false
-    }
-  }
-  if (!logoAdded) {
-    doc.setFontSize(9)
-    doc.setTextColor(220, 252, 231)
-    doc.setFont('helvetica', 'bold')
-    doc.text('ELITE AGRO', m, 14)
-    doc.setFontSize(7)
-    doc.setFont('helvetica', 'normal')
-    doc.text('PROJECTS', m, 18)
-    doc.setTextColor(INK[0], INK[1], INK[2])
-  }
+  doc.setFontSize(10)
+  doc.setTextColor(220, 252, 231)
+  doc.setFont('helvetica', 'bold')
+  doc.text('Geosyntra Platform', m, 14)
+  doc.setFontSize(7)
+  doc.setFont('helvetica', 'normal')
+  doc.text('Geospatial intelligence', m, 18)
+  doc.setTextColor(INK[0], INK[1], INK[2])
 
   let y = headerBottomY + 2
 

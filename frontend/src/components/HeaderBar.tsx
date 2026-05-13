@@ -3,7 +3,8 @@ import { useEffect, useMemo, useRef, type CSSProperties } from 'react'
 import { useSystemSettings } from '../store/SystemSettingsContext'
 import { useLanguage } from '../lib/i18n'
 
-const DEFAULT_CENTER_LOGO = 'https://eliteprojects.ae/wp-content/uploads/2022/07/logo-retraced-white-03.png'
+/** No third-party default; use System Settings → logo URLs, or header shows text/icon only. */
+const DEFAULT_CENTER_LOGO = ''
 
 export default function HeaderBar() {
   const headerRef = useRef<HTMLElement | null>(null)
@@ -17,7 +18,7 @@ export default function HeaderBar() {
     const isDark = settings.themeMode === 'dark' || (settings.themeMode === 'system' && prefersDark)
     if (isDark && settings.logoDark.trim()) return settings.logoDark.trim()
     if (!isDark && settings.logoLight.trim()) return settings.logoLight.trim()
-    return settings.logoLight.trim() || settings.logoDark.trim() || DEFAULT_CENTER_LOGO
+    return settings.logoLight.trim() || settings.logoDark.trim() || DEFAULT_CENTER_LOGO.trim()
   }, [settings.themeMode, settings.logoLight, settings.logoDark])
   const logoText = useMemo(() => {
     if (hs.useProjectName) return String(import.meta.env.VITE_APP_NAME || 'Geosyntra Platform')
@@ -104,13 +105,15 @@ export default function HeaderBar() {
         {hs.showLogoText ? <span className="logo-text">{logoText}</span> : null}
       </div>
       <div className={`header-center${hs.showCenterLogo ? '' : ' header-center--hidden'}`}>
-        <img
-          className="brand-logo"
-          src={centerLogoSrc}
-          alt={logoText}
-          loading="lazy"
-          decoding="async"
-        />
+        {centerLogoSrc ? (
+          <img
+            className="brand-logo"
+            src={centerLogoSrc}
+            alt={logoText}
+            loading="lazy"
+            decoding="async"
+          />
+        ) : null}
       </div>
       <div className="header-right"></div>
     </header>

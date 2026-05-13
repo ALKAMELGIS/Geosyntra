@@ -47,8 +47,6 @@ const LEAF_TITLE: Record<string, { en: string; ar: string }> = {
   soilSensors: { en: 'Soil Sensors', ar: 'حساسات التربة' },
   weatherSensors: { en: 'Weather Sensors', ar: 'حساسات الطقس' },
   irrigationSensors: { en: 'Irrigation Sensors', ar: 'حساسات الري' },
-  camera: { en: 'Camera', ar: 'الكاميرا' },
-  gpsVehicleTracking: { en: 'GPS Vehicle Tracking', ar: 'تتبع مركبات GPS' },
   workflowDataSources: { en: 'Data Management', ar: 'إدارة البيانات' },
   dashboardSettings: { en: 'Dashboard Settings', ar: 'إعدادات لوحة التحكم' },
   gisContent: { en: 'GIS Content', ar: 'محتوى نظم المعلومات الجغرافية' },
@@ -95,22 +93,6 @@ const NAV_MENU_ITEMS: MenuItem[] = NAV_DEFAULT_GROUPS.map(menuItemFromNavGroup)
 /** Quick links not represented as top-level nav groups */
 export const HOME_QUICK_TILES: MenuItem[] = [
   {
-    id: 'camera',
-    labelEn: 'Camera',
-    labelAr: 'الكاميرا',
-    path: '/sensors/camera',
-    icon: 'fa-solid fa-camera',
-    badge: 'Open',
-  },
-  {
-    id: 'gps',
-    labelEn: 'GPS Vehicle Tracking',
-    labelAr: 'تتبع مركبات GPS',
-    path: '/sensors/gps',
-    icon: 'fa-solid fa-route',
-    badge: 'Open',
-  },
-  {
     id: 'account',
     labelEn: 'Account',
     labelAr: 'الحساب',
@@ -127,8 +109,6 @@ export const HOME_TILE_ORDER = [
   'data',
   'sensors',
   'geosyntraAi',
-  'camera',
-  'gps',
   'master',
   'admin',
   'account',

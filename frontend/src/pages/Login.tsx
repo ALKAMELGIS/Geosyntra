@@ -880,15 +880,9 @@ export default function Login() {
           }}
         >
         <div style={{ marginBottom: '20px', textAlign: 'center' }}>
-          <div className="login-logo-wrap">
-            <img
-              src="https://eliteprojects.ae/wp-content/uploads/2022/07/logo-retraced-white-03.png"
-              alt={appConfig.appName}
-            />
-          </div>
-          <div className="login-leaf-badge">
-            <div className="login-leaf-circle">
-              <i className="fa-solid fa-leaf"></i>
+          <div className="login-leaf-badge" style={{ marginBottom: '12px' }}>
+            <div className="login-leaf-circle" style={{ width: 56, height: 56, fontSize: '22px' }}>
+              <i className="fa-solid fa-globe" aria-hidden />
             </div>
           </div>
           <h1
