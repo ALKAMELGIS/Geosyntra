@@ -7754,6 +7754,68 @@ input.si-explore-date-input-linked[type='date'] {
   margin-bottom: 8px;
 }
 
+/* ────────────────────────────────────────────────────────────────────── *
+ * Fields Data — embedded panel inside the Remote Sensing column.
+ *
+ * The `FieldsPanel` component reuses the Black-Glass `gs-fields-*` /
+ * `gis-map-tool-surface` styles already shipped for the GIS Map page,
+ * but here it lives inside the narrower Remote Sensing column. We:
+ *   - cap the height (panel has its own internal scroll on the list)
+ *   - strip the outer card chrome (it sits *inside* an existing card)
+ *   - normalise paddings so the search / chips / list breathe in 280px
+ * ────────────────────────────────────────────────────────────────────── */
+.si-fields-data-section {
+  margin-top: 4px;
+}
+
+.si-fields-embed {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  /* Mobile / short viewports → trust the parent panel's scroll. Larger
+   * viewports → cap so the embedded list scrolls inside the panel and
+   * the rest of the Remote Sensing controls stay reachable above. */
+  max-height: min(58vh, 520px);
+  overflow: hidden;
+  border-radius: 12px;
+  border: 1px solid rgba(148, 163, 184, 0.1);
+  background: linear-gradient(180deg, rgba(15, 23, 42, 0.46) 0%, rgba(15, 23, 42, 0.18) 100%);
+  backdrop-filter: blur(14px) saturate(120%);
+  -webkit-backdrop-filter: blur(14px) saturate(120%);
+}
+
+.si-fields-embed > .gs-fields-panel,
+.si-fields-embed > .gs-fields-panel.gis-map-tool-surface {
+  background: transparent;
+  box-shadow: none;
+  border: none;
+  border-radius: 12px;
+  padding: 12px;
+  gap: 10px;
+  min-width: 0;
+  height: 100%;
+  overflow: auto;
+}
+
+/* Trim the panel header so it doesn't repeat the section's "Fields Data"
+ * kicker that sits directly above. */
+.si-fields-embed .gs-fields-panel__header,
+.si-fields-embed .gis-map-tool-surface__header {
+  padding: 4px 2px 0;
+}
+
+.si-fields-embed .gis-map-tool-surface__lede {
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+/* Light-mode mirror — the embed wrapper stays glassy white inside the
+ * lite Remote Sensing card. */
+html[data-theme='light'] .si-fields-embed {
+  border-color: rgba(15, 23, 42, 0.08);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.78) 0%, rgba(255, 255, 255, 0.5) 100%);
+}
+
 .si-field-analysis-map-tools-kicker {
   margin-bottom: 8px;
 }

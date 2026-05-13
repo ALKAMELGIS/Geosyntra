@@ -174,6 +174,16 @@ import {
   type MpcProcessResult,
   type MpcTemplateId,
 } from '../../lib/mpcPlanetaryApi';
+import FieldsPanel from './components/fields/FieldsPanel';
+import {
+  loadSavedFields,
+  persistSavedFields,
+  geodesicAreaHectares,
+  nextFieldColor,
+  nextFieldName,
+  uuid,
+  type SavedField,
+} from './components/fields/fieldsStore';
 
 const EMPTY_MAP_STYLE: any = {
   version: 8,
@@ -2504,6 +2514,26 @@ export default function SatelliteIntelligence() {
   const [multiAoiPopupIds, setMultiAoiPopupIds] = useState<string[]>([]);
   const [drawTargetMode, setDrawTargetMode] = useState<'aoi' | 'field'>('aoi');
   const drawTargetModeRef = useRef<'aoi' | 'field'>('aoi');
+  /* ────────────────────────────────────────────────────────────────────── *
+   * Geosyntra · Fields Data (OneSoil-style persistent AOI library)
+   *
+   * Every AOI committed via the Remote Sensing drawing tools (or imported
+   * via "Add Data Source (AOI)") is auto-promoted into a `SavedField` and
+   * surfaced in the Fields Data section of the Remote Sensing panel. The
+   * store is shared verbatim with `GisMap.tsx` (same `localStorage` key
+   * `geosyntra:fields:v1`) so the user sees one unified library across
+   * both pages. State + persistence mirror the GisMap implementation so a
+   * future PostGIS migration only has to swap two helpers.
+   * ────────────────────────────────────────────────────────────────────── */
+  const [savedFields, setSavedFields] = useState<SavedField[]>(() => loadSavedFields());
+  const savedFieldsRef = useRef<SavedField[]>(savedFields);
+  useEffect(() => {
+    savedFieldsRef.current = savedFields;
+  }, [savedFields]);
+  useEffect(() => {
+    persistSavedFields(savedFields);
+  }, [savedFields]);
+  const [selectedSavedFieldId, setSelectedSavedFieldId] = useState<string | null>(null);
   const [aoiFields, setAoiFields] = useState<SiAoiFieldRecord[]>([]);
   const aoiFieldsRef = useRef<SiAoiFieldRecord[]>([]);
   const [selectedFieldId, setSelectedFieldId] = useState<string | null>(null);
@@ -3548,7 +3578,198 @@ export default function SatelliteIntelligence() {
     setMapDrawTool('select');
     setMapDragPanEnabled(true);
     setFieldAnalysisStatus(`AOI loaded from "${layerName}". Added to Multi-AOI Workspace for independent analysis.`);
+    /* Mirror the OneSoil-style behaviour from GisMap: every imported AOI
+     * is auto-promoted to a Saved Field so the user can revisit it later
+     * (rename, set crop, export GeoJSON). Failures are swallowed — the
+     * primary upload flow must never break because of the field cache. */
+    try {
+      autoSaveFieldFromGeoJson(geojson, layerName);
+    } catch {
+      /* ignore — field cache is best-effort */
+    }
     return true;
+  };
+
+  /* ────────────────────────────────────────────────────────────────────── *
+   * Fields Data — auto-promote any committed AOI (drawn or uploaded) into
+   * a `SavedField`. Multi-polygon FeatureCollections are exploded into
+   * one field per polygon (matching `registerMultiAoiWorkspace`'s "one
+   * AOI per polygon" semantics). Returns the number of fields created.
+   * ────────────────────────────────────────────────────────────────────── */
+  const autoSaveFieldFromGeoJson = (geojson: any, sourceLabel: string): number => {
+    const polys = collectPolygonAoiFeatures(geojson);
+    if (!polys.length) return 0;
+    const now = new Date().toISOString();
+    let lastId: string | null = null;
+    setSavedFields(prev => {
+      const next = [...prev];
+      polys.forEach(feature => {
+        const geom = feature.geometry as SavedField['geometry'];
+        if (!geom || (geom.type !== 'Polygon' && geom.type !== 'MultiPolygon')) return;
+        const area = geodesicAreaHectares(geom);
+        const id = uuid();
+        lastId = id;
+        next.push({
+          id,
+          name: nextFieldName(next),
+          color: nextFieldColor(next.length),
+          geometry: geom,
+          areaHectares: area,
+          createdAt: now,
+          updatedAt: now,
+        });
+      });
+      return next;
+    });
+    if (lastId) setSelectedSavedFieldId(lastId);
+    setFieldAnalysisStatus(
+      polys.length === 1
+        ? `Saved "${sourceLabel}" to Fields Data (auto).`
+        : `Saved ${polys.length} fields from ${sourceLabel} to Fields Data.`,
+    );
+    return polys.length;
+  };
+
+  /* Compute a longitude/latitude bbox `[minLng, minLat, maxLng, maxLat]`
+   * from a GeoJSON Polygon or MultiPolygon. Used by `zoomToSavedField`
+   * (Mapbox `fitBounds` expects this shape, unlike Leaflet's
+   * `LatLngBounds`). */
+  const computeSavedFieldBbox = (geometry: SavedField['geometry']): [number, number, number, number] | null => {
+    let minLng = Infinity;
+    let minLat = Infinity;
+    let maxLng = -Infinity;
+    let maxLat = -Infinity;
+    const consume = (ring: GeoJSON.Position[]) => {
+      for (const [lng, lat] of ring) {
+        if (typeof lng !== 'number' || typeof lat !== 'number') continue;
+        if (lng < minLng) minLng = lng;
+        if (lat < minLat) minLat = lat;
+        if (lng > maxLng) maxLng = lng;
+        if (lat > maxLat) maxLat = lat;
+      }
+    };
+    try {
+      if (geometry.type === 'Polygon') {
+        for (const r of geometry.coordinates) consume(r);
+      } else if (geometry.type === 'MultiPolygon') {
+        for (const poly of geometry.coordinates) for (const r of poly) consume(r);
+      }
+    } catch {
+      return null;
+    }
+    if (!Number.isFinite(minLng) || !Number.isFinite(minLat)) return null;
+    return [minLng, minLat, maxLng, maxLat];
+  };
+
+  const zoomToSavedField = (id: string) => {
+    const f = savedFieldsRef.current.find(x => x.id === id);
+    if (!f) return;
+    const bbox = computeSavedFieldBbox(f.geometry);
+    if (!bbox) return;
+    const inst: any = mapRef.current?.getMap ? mapRef.current.getMap() : mapRef.current;
+    if (!inst || typeof inst.fitBounds !== 'function') return;
+    try {
+      inst.fitBounds(
+        [
+          [bbox[0], bbox[1]],
+          [bbox[2], bbox[3]],
+        ],
+        { padding: 64, duration: 600, maxZoom: 14 },
+      );
+    } catch {
+      /* ignore — bounds may be off-globe */
+    }
+  };
+
+  /* GeoJSON FeatureCollection of all saved fields, fed to the Mapbox
+   * `<Source>` rendered next to the live drawing layers. Recomputed only
+   * when `savedFields` changes (cheap O(n) projection — no geometry
+   * cloning). */
+  const savedFieldsFeatureCollection = useMemo<GeoJSON.FeatureCollection>(
+    () => ({
+      type: 'FeatureCollection',
+      features: savedFields.map(f => ({
+        type: 'Feature',
+        geometry: f.geometry,
+        properties: {
+          id: f.id,
+          name: f.name,
+          color: f.color,
+          area: f.areaHectares,
+        },
+      })),
+    }),
+    [savedFields],
+  );
+
+  const exportSavedFieldGeoJson = (id: string) => {
+    const f = savedFieldsRef.current.find(x => x.id === id);
+    if (!f) return;
+    const fc: GeoJSON.FeatureCollection = {
+      type: 'FeatureCollection',
+      features: [
+        {
+          type: 'Feature',
+          geometry: f.geometry,
+          properties: {
+            id: f.id,
+            name: f.name,
+            crop: f.crop ?? null,
+            areaHectares: f.areaHectares,
+            createdAt: f.createdAt,
+            updatedAt: f.updatedAt,
+            indices: f.indices ?? null,
+          },
+        },
+      ],
+    };
+    try {
+      const blob = new Blob([JSON.stringify(fc, null, 2)], { type: 'application/geo+json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${(f.name || 'field').replace(/[^a-z0-9-_]+/gi, '_')}.geojson`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch {
+      /* ignore — silent fallthrough so a blocked download doesn't crash the panel */
+    }
+  };
+
+  const exportAllSavedFieldsGeoJson = () => {
+    const all = savedFieldsRef.current;
+    if (!all.length) return;
+    const fc: GeoJSON.FeatureCollection = {
+      type: 'FeatureCollection',
+      features: all.map(f => ({
+        type: 'Feature',
+        geometry: f.geometry,
+        properties: {
+          id: f.id,
+          name: f.name,
+          crop: f.crop ?? null,
+          areaHectares: f.areaHectares,
+          createdAt: f.createdAt,
+          updatedAt: f.updatedAt,
+          indices: f.indices ?? null,
+        },
+      })),
+    };
+    try {
+      const blob = new Blob([JSON.stringify(fc, null, 2)], { type: 'application/geo+json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `geosyntra-fields-${new Date().toISOString().slice(0, 10)}.geojson`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch {
+      /* ignore */
+    }
   };
 
   const focusGeoJsonOnMap = (geojson: any) => {
@@ -7127,7 +7348,17 @@ export default function SatelliteIntelligence() {
     if (next && drawTargetModeRef.current === 'aoi') {
       setAoiFields([]);
       setSelectedFieldId(null);
-      registerMultiAoiWorkspace(next, `Drawn AOI ${multiAoiItems.length + 1}`, 'drawn', { setActiveFirst: true });
+      const drawnLabel = `Drawn AOI ${multiAoiItems.length + 1}`;
+      registerMultiAoiWorkspace(next, drawnLabel, 'drawn', { setActiveFirst: true });
+      /* Auto-save the drawn AOI as a Saved Field — mirrors the OneSoil
+       * flow: every finished sketch becomes a persistable field that
+       * survives a refresh and appears in the Fields Data section of
+       * the Remote Sensing panel. */
+      try {
+        autoSaveFieldFromGeoJson(next, drawnLabel);
+      } catch {
+        /* ignore — never break the upstream draw flow */
+      }
     }
     const cur = drawnGeometryRef.current;
     setGeomUndoStack(u => [...u, cur ? cloneDeep(cur) : null]);
@@ -9783,6 +10014,43 @@ export default function SatelliteIntelligence() {
                     <Layer id="si-aoi-fields-line" type="line" paint={aoiFieldsMapLinePaint as any} />
                   </Source>
                 ) : null}
+                {/* Saved Fields overlay — every committed AOI persists here
+                  * so the user can revisit / compare them across sessions.
+                  * Selected field gets a thicker stroke + opaque fill, all
+                  * others read as a quiet outline so the live drawing layer
+                  * stays visually dominant. */}
+                {isMapLoaded && savedFieldsFeatureCollection.features.length > 0 ? (
+                  <Source id="si-saved-fields-source" type="geojson" data={savedFieldsFeatureCollection as any}>
+                    <Layer
+                      id="si-saved-fields-fill"
+                      type="fill"
+                      filter={['in', ['geometry-type'], ['literal', ['Polygon', 'MultiPolygon']]]}
+                      paint={{
+                        'fill-color': ['coalesce', ['get', 'color'], '#22d3ee'] as any,
+                        'fill-opacity': [
+                          'case',
+                          ['==', ['get', 'id'], selectedSavedFieldId ?? ''],
+                          0.32,
+                          0.14,
+                        ] as any,
+                      }}
+                    />
+                    <Layer
+                      id="si-saved-fields-line"
+                      type="line"
+                      paint={{
+                        'line-color': ['coalesce', ['get', 'color'], '#22d3ee'] as any,
+                        'line-width': [
+                          'case',
+                          ['==', ['get', 'id'], selectedSavedFieldId ?? ''],
+                          3,
+                          1.4,
+                        ] as any,
+                        'line-opacity': 0.92,
+                      }}
+                    />
+                  </Source>
+                ) : null}
                 {isMapLoaded && multiAoiFeatureCollection.features.length > 0 ? (
                   <Source id="si-multi-aoi-source" type="geojson" data={multiAoiFeatureCollection as any}>
                     <Layer
@@ -11886,6 +12154,55 @@ export default function SatelliteIntelligence() {
                             </div>
                           </div>
                         </div>
+
+                        {/* Fields Data — OneSoil-style persistent AOI library.
+                          * Visible only when at least one field has been
+                          * captured (drawn or imported via "Add Data Source")
+                          * so it stays out of the way until it has something
+                          * to show. The embedded panel renders inside its
+                          * own scroll container with a height cap so it
+                          * never inflates the parent toolbox panel. */}
+                        {savedFields.length > 0 ? (
+                          <div className="si-field-analysis-section si-fields-data-section">
+                            <div className="si-field-analysis-kicker">
+                              Fields Data ({savedFields.length})
+                            </div>
+                            <div className="si-fields-embed">
+                              <FieldsPanel
+                                fields={savedFields}
+                                selectedId={selectedSavedFieldId}
+                                drawingArmed={mapDrawTool !== 'select'}
+                                onSelectField={id => setSelectedSavedFieldId(id)}
+                                onZoomToField={id => zoomToSavedField(id)}
+                                onUpdateField={(id, patch) => {
+                                  setSavedFields(prev =>
+                                    prev.map(f =>
+                                      f.id === id
+                                        ? {
+                                            ...f,
+                                            ...patch,
+                                            updatedAt: new Date().toISOString(),
+                                          }
+                                        : f,
+                                    ),
+                                  );
+                                }}
+                                onDeleteField={id => {
+                                  setSavedFields(prev => prev.filter(f => f.id !== id));
+                                  if (selectedSavedFieldId === id) setSelectedSavedFieldId(null);
+                                }}
+                                onExportFieldGeoJSON={id => exportSavedFieldGeoJson(id)}
+                                onExportAllGeoJSON={() => exportAllSavedFieldsGeoJson()}
+                                onStartDrawing={() => {
+                                  drawTargetModeRef.current = 'aoi';
+                                  setDrawTargetMode('aoi');
+                                  applyMapDrawTool('polygon');
+                                  setFieldAnalysisStatus('Draw a polygon on the map. It will save as a new field automatically.');
+                                }}
+                              />
+                            </div>
+                          </div>
+                        ) : null}
 
                         {fieldAnalysisStatus ? <p className="si-field-analysis-status">{fieldAnalysisStatus}</p> : null}
                       </div>
