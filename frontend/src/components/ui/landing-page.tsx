@@ -137,7 +137,12 @@ function buildGlobeTransform(
   pos: { top: number; left: number; scale: number },
 ): string {
   if (idx === 0) {
-    return `translate3d(calc(100vw - min(29vw, 440px)), ${pos.top}vh, 0) translate3d(-60%, -50%, 0) scale3d(${pos.scale}, ${pos.scale}, 1)`
+    /* `+ 0.5cm` on the y-axis nudges the Globe down to the figure's
+     * belly level (per the user's "نزل الكرة قليلاً 0.5 سم" tweak)
+     * without touching any other position math — the right-anchored
+     * x-coord, the (-60%, -50%) self-translate, and the per-section
+     * scale all stay exactly as before. */
+    return `translate3d(calc(100vw - min(29vw, 440px)), calc(${pos.top}vh + 0.5cm), 0) translate3d(-60%, -50%, 0) scale3d(${pos.scale}, ${pos.scale}, 1)`
   }
   return `translate3d(${pos.left}vw, ${pos.top}vh, 0) translate3d(-50%, -50%, 0) scale3d(${pos.scale}, ${pos.scale}, 1)`
 }
