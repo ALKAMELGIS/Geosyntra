@@ -316,7 +316,15 @@ export function ScrollGlobe({ sections, globeConfig = defaultGlobeConfig, classN
           filter: `opacity(${activeSection === sections.length - 1 ? 0.4 : 0.85})`,
         }}
       >
-        <div className="scale-75 sm:scale-90 lg:scale-100">
+        {/* Per-breakpoint scale-up of the upstream 250×250 globe so the
+            sphere reads as the dominant visual on larger screens (≈ 375 px
+            on tablet, ≈ 500 px on desktop) while still fitting comfortably
+            on narrow phones. The per-section `scale3d(...)` set in
+            `defaultGlobeConfig.positions[].scale` multiplies on top of
+            this base, so the Hero (1.4×) renders at ≈ 700 px on lg —
+            matching the cinematic emphasis of the upstream demo without
+            distorting the shadow stack. */}
+        <div className="scale-100 sm:scale-150 lg:scale-[2]">
           <Globe />
         </div>
       </div>
