@@ -327,14 +327,13 @@ html[data-theme='light'] .app-back-icon-btn:focus-visible {
  *    `index.css`, retoned for white glass.
  * --------------------------------------------------------------------------*/
 
-/* Outer shell */
+/* Outer shell — flat against the page edge (no curved corners, no halo). */
 html[data-theme='light'] .gis-sidebar {
+  border-radius: 0;
   background:
     linear-gradient(180deg, rgba(255, 255, 255, 0.86) 0%, rgba(248, 250, 253, 0.92) 100%);
   border: 1px solid var(--gs-lt-border);
-  box-shadow:
-    var(--gs-lt-shadow-md),
-    inset 0 1px 0 rgba(255, 255, 255, 0.92);
+  box-shadow: none;
   backdrop-filter: blur(22px) saturate(140%);
   -webkit-backdrop-filter: blur(22px) saturate(140%);
 }

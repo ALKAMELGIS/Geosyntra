@@ -13555,3 +13555,120 @@ textarea {
   color: #ffffff;
 }
 
+/* ============================================================================
+ * Geosyntra · GIS sidebar layout fixes — continuous Black Glass shell.
+ *
+ * The user reported "overlap, curves, gaps, panel inverted" in the GIS Map
+ * sidebar. Root causes:
+ *
+ * 1. `.gis-sidebar` (line 2811) carried a 24px `border-radius` + cool-gray
+ *    `#e2e8f0` border + drop shadow, which drew visible curved corners
+ *    cutting into the dark map chrome.
+ * 2. `.gis-sidebar-column--action-pane` (line 2849) painted a light
+ *    `#f1f4f8 → #eef2f7` gradient — the action pane rendered WHITE while
+ *    the rail and the map were charcoal-black, so the panel read as a
+ *    photographic negative ("Panel معكوس").
+ * 3. The collapsed bookstrip (line 2860) used a light `#eceff3` background
+ *    with slate text/chevron — same clash as the open pane.
+ * 4. `.gis-sidebar-action-pane__head` (line 2972) was solid `#ffffff`
+ *    with a slate `rgba(15, 23, 42, 0.08)` border-bottom — strip of pure
+ *    white at the top of the otherwise dark panel.
+ * 5. `.gis-sidebar-action-pane__close` + `--collapse` (lines 2998, 2951)
+ *    were a white pill / blue-tinted pill — the second visible "white
+ *    blob" the user pointed at next to the chevron.
+ * 6. `.gis-sidebar-inner--agol-action-bar .gis-sidebar-rail--agol`
+ *    (line 2838) used a hard `#e2e8f0` seam between rail and pane that
+ *    flashed as a thin white gap.
+ *
+ * Reskinned to a continuous Black Glass shell: no curves, no white blobs,
+ * no light pane bleed-through. The Lite Mode mirror already lives in
+ * `styles/light-glass-theme.css` (section 4) and stays untouched.
+ * ========================================================================== */
+
+/* No more rounded outer corners — the sidebar should sit flush against
+ * the map edge and meet the dark page background without a visible halo. */
+.gis-sidebar {
+  border-radius: 0;
+  border-color: rgba(255, 255, 255, 0.06);
+  background:
+    linear-gradient(180deg, rgba(14, 14, 18, 0.92), rgba(8, 8, 12, 0.96));
+  box-shadow: none;
+}
+
+/* Action-pane content column — was a light gray gradient
+ * (`#f1f4f8 → #eef2f7`); now matches the rail's charcoal-glass tone. */
+.gis-sidebar-column--action-pane {
+  background:
+    linear-gradient(180deg, rgba(14, 14, 18, 0.88), rgba(8, 8, 12, 0.94));
+}
+
+/* Collapsed "Power BI bookstrip" pane — was a milk-gray strip with slate
+ * text. Now a flush black-glass strip. */
+.gis-sidebar-column.gis-sidebar-column--action-pane.gis-sidebar-column--action-pane--collapsed {
+  background: rgba(10, 10, 14, 0.92);
+  border-left-color: rgba(255, 255, 255, 0.06);
+  box-shadow: inset 1px 0 0 rgba(255, 255, 255, 0.04);
+}
+
+:root[dir='rtl'] .gis-sidebar-column.gis-sidebar-column--action-pane.gis-sidebar-column--action-pane--collapsed {
+  border-right-color: rgba(255, 255, 255, 0.06);
+  box-shadow: inset -1px 0 0 rgba(255, 255, 255, 0.04);
+}
+
+.gis-pbi-bookstrip {
+  color: rgba(232, 232, 238, 0.92);
+}
+
+.gis-pbi-bookstrip:hover {
+  background: rgba(255, 255, 255, 0.06);
+  color: #ffffff;
+}
+
+.gis-pbi-bookstrip__chev {
+  color: rgba(212, 212, 220, 0.78);
+}
+
+.gis-pbi-bookstrip__label {
+  color: rgba(232, 232, 238, 0.92);
+}
+
+/* Action-pane head strip — was solid `#ffffff` with a slate border. */
+.gis-sidebar-action-pane__head {
+  background:
+    linear-gradient(180deg, rgba(20, 20, 26, 0.62), rgba(14, 14, 18, 0.78));
+  border-bottom-color: rgba(255, 255, 255, 0.06);
+}
+
+.gis-sidebar-action-pane__title {
+  color: rgba(244, 244, 248, 0.96);
+}
+
+/* Close / collapse pills inside the head — were a white pill (`__close`)
+ * and a blue-tinted pill (`__close--collapse`). Both now a charcoal-glass
+ * squircle that matches the rail buttons. */
+.gis-sidebar-action-pane__close,
+.gis-sidebar-action-pane__close--collapse {
+  background: rgba(255, 255, 255, 0.05);
+  border-color: rgba(255, 255, 255, 0.14);
+  color: rgba(232, 232, 238, 0.92);
+  box-shadow: none;
+}
+
+.gis-sidebar-action-pane__close:hover,
+.gis-sidebar-action-pane__close--collapse:hover {
+  background: rgba(255, 255, 255, 0.10);
+  border-color: rgba(255, 255, 255, 0.22);
+  color: #ffffff;
+}
+
+/* Seam between rail and action pane — was a hard `#e2e8f0` line that
+ * read as a thin white gap; now a faint white-glass hairline that
+ * disappears into the chrome. */
+.gis-sidebar-inner--agol-action-bar .gis-sidebar-rail--agol {
+  border-right-color: rgba(255, 255, 255, 0.06);
+}
+
+:root[dir='rtl'] .gis-sidebar-inner--agol-action-bar .gis-sidebar-rail--agol {
+  border-left-color: rgba(255, 255, 255, 0.06);
+}
+
