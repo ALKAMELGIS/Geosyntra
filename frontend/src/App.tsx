@@ -140,17 +140,31 @@ function AppShell() {
   }
 
   const isOnLogin = location.pathname === '/login'
-  const showChrome = !!user && !isOnLogin
+  /**
+   * Home (`/`) renders the upstream 21st.dev "Explore Our World" 3D ScrollGlobe
+   * landing page. The reference bundle takes over the entire viewport — no
+   * header, no side rail, no chrome — and the section navigation lives inside
+   * the landing component itself. Wrapping it in the app shell would compress
+   * the globe + sections inside the inner scroll area and break the 1:1
+   * design. We therefore drop chrome on the home route and let the landing
+   * page own the document scroll, matching the upstream demo byte-for-byte.
+   * Once the visitor hits a hero CTA they're routed into a real platform
+   * surface (Satellite Indices / GIS Map) where the chrome reappears.
+   */
+  const isOnHome = location.pathname === '/' || location.pathname === ''
+  const showChrome = !!user && !isOnLogin && !isOnHome
   /** Fertigation records is the only remaining `/data/*` route — keep its tight layout class. */
   const isOperationsDataPage = location.pathname.startsWith('/data/')
   const mainContentClass = [
     'content',
     isOperationsDataPage && 'content--operations-fit',
+    isOnHome && 'content--landing-fullbleed',
   ]
     .filter(Boolean)
     .join(' ')
 
   const layoutChromeClass = ['layout', 'layout-sidebar', 'app-layout'].join(' ')
+  const layoutShellClass = isOnHome ? 'layout layout--landing-fullbleed' : showChrome ? layoutChromeClass : 'layout'
 
   if (user && isOnLogin) {
     const from = (location.state as any)?.from?.pathname
@@ -164,7 +178,7 @@ function AppShell() {
   return (
     <>
       {showChrome ? <HeaderBar /> : null}
-      <div className={showChrome ? layoutChromeClass : 'layout'}>
+      <div className={layoutShellClass}>
         {showChrome ? <NavMenu onLogout={handleLogout} /> : null}
         <main className={mainContentClass}>
           <AppRoutes />

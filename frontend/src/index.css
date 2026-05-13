@@ -516,6 +516,42 @@ aside {
   height: 100%;
   overflow: hidden;
 }
+
+/*
+ * Home (`/`) — full-bleed Landing Page mode.
+ *
+ * The upstream 21st.dev "Explore Our World" 3D ScrollGlobe demo
+ * (https://cdn.21st.dev/m.umairwaheedansari/landing-page/default/bundle.1758288581464.html)
+ * runs at the document root with `window` as the scroll source. To match the
+ * reference 1:1 inside the Geosyntra shell we drop chrome on the home route
+ * (App.tsx) and let the landing page own the full viewport. The wrappers
+ * below pin the layout + main column to `100vw × 100dvh` so the four
+ * `min-h-screen` sections measure against the full window, the pinned
+ * `position: fixed` globe sits relative to the viewport, and `<main>` itself
+ * becomes the scroll container that ScrollGlobe attaches to via
+ * `findScrollContainer`. Result: identical visual rhythm to the upstream
+ * bundle, including the pinned section dots and progress hairline.
+ */
+.layout.layout--landing-fullbleed {
+  position: fixed;
+  inset: 0;
+  width: 100vw;
+  height: 100dvh;
+  min-height: 100dvh;
+  background: transparent;
+  overflow: hidden;
+  display: block;
+}
+
+.content.content--landing-fullbleed {
+  width: 100vw;
+  height: 100dvh;
+  min-height: 100dvh;
+  overflow-x: hidden;
+  overflow-y: auto;
+  scrollbar-gutter: auto;
+  background: transparent;
+}
 .page {
   height: 100%;
   width: 100%;

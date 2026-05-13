@@ -1,7 +1,11 @@
 /**
  * Home → AI 3D ScrollGlobe shell.
- * The landing component owns its own min-h-screen sections; this wrapper just
- * lets the globe run full-bleed inside the main content area.
+ *
+ * The landing page is mounted inside `<main class="content content--landing-fullbleed">`,
+ * which already pins to the full viewport (see `index.css`). This file just
+ * makes the inner wrapper transparent and unconstrained so the `min-h-screen`
+ * sections inside `<LandingPage />` measure against the full window — the
+ * same way the upstream 21st.dev bundle behaves at the document root.
  */
 .home-landing {
   position: relative;
