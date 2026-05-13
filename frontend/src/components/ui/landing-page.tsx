@@ -519,9 +519,20 @@ export function ScrollGlobe({ sections, globeConfig = defaultGlobeConfig, classN
           className={cn(
             /* z-30 puts the section above both the Globe (z-10) and the
                Robot (z-[8]) per the user's layer hierarchy:
-                 Geosyntra title + Sparkles → CTAs → Globe → Robot. */
+                 Geosyntra title + Sparkles → CTAs → Globe → Robot.
+
+               Pointer-events-none on the section root is critical: the
+               section element spans the FULL viewport width even though
+               the visible content column is constrained to ~40% on the
+               left. Without this, the section's empty right-half would
+               eat every mousemove / hover at z-30, blocking the Spline
+               robot (z-[8]) from receiving its built-in cursor parallax
+               (head turn, body sway, eye tracking). We then re-enable
+               pointer events on the inner content column below so the
+               h1, Sparkles, description and CTA buttons stay fully
+               interactive. */
             'relative min-h-screen flex flex-col justify-center px-4 sm:px-6 md:px-8 lg:px-12 z-30 py-12 sm:py-16 lg:py-20',
-            'w-full max-w-full overflow-hidden',
+            'w-full max-w-full overflow-hidden pointer-events-none',
             section.align === 'center' && 'items-center text-center',
             section.align === 'right' && 'items-end text-right',
             section.align !== 'center' && section.align !== 'right' && 'items-start text-left',
@@ -529,7 +540,7 @@ export function ScrollGlobe({ sections, globeConfig = defaultGlobeConfig, classN
         >
           <div
             className={cn(
-              'w-full max-w-sm sm:max-w-lg md:max-w-2xl lg:max-w-4xl xl:max-w-5xl will-change-transform transition-all duration-700',
+              'pointer-events-auto w-full max-w-sm sm:max-w-lg md:max-w-2xl lg:max-w-4xl xl:max-w-5xl will-change-transform transition-all duration-700',
               'opacity-100 translate-y-0',
               /* Hero text column stays narrower on tablets/desktops so the
                  right-side Spline robot + Globe stage has room to breathe.
