@@ -1,47 +1,41 @@
-import { useMemo, type CSSProperties } from 'react'
+import React from 'react'
 
 /**
- * Geosyntra Globe — 1:1 port of the upstream
- * `ruixen.ui/globe` component shipped with the 21st.dev landing-page bundle
- * (`bundle.1758288581464.html`). Same 250×250 footprint, identical shadow
- * stack, identical 7-star arrangement, identical `earthRotate 30s` keyframe.
+ * Geosyntra Globe — 1:1 port of the upstream `m.umairwaheedansari/landing-page`
+ * bundle (https://21st.dev/r/m.umairwaheedansari/landing-page).
  *
- * Two intentional deviations from the raw upstream snippet:
- *  - The Earth texture is loaded from the locally bundled
- *    `frontend/public/landing/globe.jpeg` (via `import.meta.env.BASE_URL`)
- *    instead of the third-party Cloudflare R2 bucket. Keeps the landing page
- *    self-contained, GitHub-Pages-friendly, and offline-capable.
- *  - Animations honor `prefers-reduced-motion` so the page degrades cleanly
- *    for accessibility users / battery-saver tabs.
+ * Why we keep the upstream R2 URL instead of bundling locally:
+ *   The previous local rewrite (`/landing/globe.jpeg` via
+ *   `import.meta.env.BASE_URL`) failed on GitHub Pages — the asset path
+ *   resolved through Vite's `base` indirection and rendered as a flat dark
+ *   blob (no Earth texture). Pulling the texture straight from the same
+ *   Cloudflare R2 bucket the upstream demo ships restores the cinematic
+ *   wrap (continents lit by the cyan inset, terminator on the right edge,
+ *   subtle outer glow) shown in the reference render. The bucket is the
+ *   shadcn-registry origin, so it carries the same uptime + caching as the
+ *   upstream component.
+ *
+ * The shadow stack is what creates the "planet from space" illusion:
+ *   - Outer 20px white halo  → atmospheric corona
+ *   - Cyan inset (-5px / -24px) on the upper-left → sun lighting
+ *   - Black inset (250px) on the right → terminator (planet's dark side)
+ *   - Black inset (150px) deeper inside the right hemisphere → core shadow
+ * Removing or rewriting any of these breaks the sphere illusion, so the
+ * stack is preserved verbatim from the upstream snippet.
  */
-export default function Globe() {
-  const globeUrl = useMemo(
-    () => `${import.meta.env.BASE_URL ?? '/'}landing/globe.jpeg`,
-    [],
-  )
-
-  const earthStyle = useMemo<CSSProperties>(
-    () => ({
-      backgroundImage: `url('${globeUrl}')`,
-      backgroundSize: 'cover',
-      backgroundPosition: 'left',
-      animation: 'earthRotate 30s linear infinite',
-    }),
-    [globeUrl],
-  )
-
+const Globe: React.FC = () => {
   return (
     <>
       <style>
         {`
           @keyframes earthRotate {
-            0%   { background-position: 0 0; }
+            0% { background-position: 0 0; }
             100% { background-position: 400px 0; }
           }
-          @keyframes twinkling      { 0%, 100% { opacity: 0.1; } 50% { opacity: 1; } }
-          @keyframes twinkling-slow { 0%, 100% { opacity: 0.1; } 50% { opacity: 1; } }
-          @keyframes twinkling-long { 0%, 100% { opacity: 0.1; } 50% { opacity: 1; } }
-          @keyframes twinkling-fast { 0%, 100% { opacity: 0.1; } 50% { opacity: 1; } }
+          @keyframes twinkling { 0%,100% { opacity:0.1; } 50% { opacity:1; } }
+          @keyframes twinkling-slow { 0%,100% { opacity:0.1; } 50% { opacity:1; } }
+          @keyframes twinkling-long { 0%,100% { opacity:0.1; } 50% { opacity:1; } }
+          @keyframes twinkling-fast { 0%,100% { opacity:0.1; } 50% { opacity:1; } }
           @media (prefers-reduced-motion: reduce) {
             .gs-globe-earth, .gs-globe-star { animation: none !important; }
           }
@@ -50,7 +44,13 @@ export default function Globe() {
       <div className="flex items-center justify-center h-screen">
         <div
           className="gs-globe-earth relative w-[250px] h-[250px] rounded-full overflow-hidden shadow-[0_0_20px_rgba(255,255,255,0.2),-5px_0_8px_#c3f4ff_inset,15px_2px_25px_#000_inset,-24px_-2px_34px_#c3f4ff99_inset,250px_0_44px_#00000066_inset,150px_0_38px_#000000aa_inset]"
-          style={earthStyle}
+          style={{
+            backgroundImage:
+              "url('https://pub-940ccf6255b54fa799a9b01050e6c227.r2.dev/globe.jpeg')",
+            backgroundSize: 'cover',
+            backgroundPosition: 'left',
+            animation: 'earthRotate 30s linear infinite',
+          }}
         >
           <div
             aria-hidden
@@ -92,3 +92,5 @@ export default function Globe() {
     </>
   )
 }
+
+export default Globe
