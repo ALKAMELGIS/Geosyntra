@@ -182,6 +182,25 @@ export function ScrollGlobe({ sections, globeConfig = defaultGlobeConfig, classN
    * 0.5 ثانية" directive).
    */
   const [globeArrived, setGlobeArrived] = useState(false)
+  /**
+   * Active theme — flips between `'dark'` and `'light'` based on the
+   * `<html data-theme>` attribute. Drives the `particleColor` for the
+   * Hero Sparkles bar so the starfield stays visible in both themes
+   * (white particles on dark, lacquered-black particles on white).
+   * MutationObserver keeps it in sync when the floating
+   * HeroThemeToggle (or the Settings page) flips the theme without
+   * a remount.
+   */
+  const [resolvedTheme, setResolvedTheme] = useState<'light' | 'dark'>(() => {
+    if (typeof document === 'undefined') return 'dark'
+    return document.documentElement.getAttribute('data-theme') === 'light' ? 'light' : 'dark'
+  })
+  /* Particle colour derived from the theme. The light-mode value is a
+   * deep slate / near-black (#0B1220) — high contrast on the frosted-
+   * white background and matches the lacquered black wordmark above
+   * the bar so the whole strip reads as one coherent dark mark in
+   * Light Mode. */
+  const particleColor = resolvedTheme === 'light' ? '#0B1220' : '#FFFFFF'
   const containerRef = useRef<HTMLDivElement>(null)
   const sectionRefs = useRef<(HTMLElement | null)[]>([])
   const animationFrameId = useRef<number | undefined>(undefined)
@@ -305,6 +324,23 @@ export function ScrollGlobe({ sections, globeConfig = defaultGlobeConfig, classN
     }
     const raf = window.requestAnimationFrame(() => setGlobeArrived(true))
     return () => window.cancelAnimationFrame(raf)
+  }, [])
+
+  /* Watch `<html data-theme>` for changes (Settings page, the floating
+   * HeroThemeToggle, system-preference flips when in `'system'` mode).
+   * The Sparkles particle colour and any other theme-derived visuals
+   * re-render when this state flips, so we stay in lockstep with the
+   * actual document state without depending on context wiring. */
+  useEffect(() => {
+    if (typeof document === 'undefined') return
+    const root = document.documentElement
+    const sync = () => {
+      setResolvedTheme(root.getAttribute('data-theme') === 'light' ? 'light' : 'dark')
+    }
+    sync()
+    const obs = new MutationObserver(sync)
+    obs.observe(root, { attributes: true, attributeFilter: ['data-theme'] })
+    return () => obs.disconnect()
   }, [])
 
 
@@ -594,11 +630,11 @@ export function ScrollGlobe({ sections, globeConfig = defaultGlobeConfig, classN
              * Geosyntra Black-Glass identity.
              */}
             {index === 0 && (
-              <div className="relative w-full max-w-[40rem] h-28 sm:h-36 -mt-2 mb-6 sm:mb-8 select-none">
-                <div className="absolute inset-x-[15%] top-0 h-[2px] w-[70%] bg-gradient-to-r from-transparent via-slate-200/80 to-transparent blur-sm" />
-                <div className="absolute inset-x-[15%] top-0 h-px w-[70%] bg-gradient-to-r from-transparent via-slate-100/90 to-transparent" />
-                <div className="absolute inset-x-[35%] top-0 h-[5px] w-[30%] bg-gradient-to-r from-transparent via-white/85 to-transparent blur-sm" />
-                <div className="absolute inset-x-[35%] top-0 h-px w-[30%] bg-gradient-to-r from-transparent via-white to-transparent" />
+              <div className="gs-hero-sparkle-bar relative w-full max-w-[40rem] h-28 sm:h-36 -mt-2 mb-6 sm:mb-8 select-none">
+                <div className="gs-hero-sparkle-line gs-hero-sparkle-line--soft absolute inset-x-[15%] top-0 h-[2px] w-[70%] bg-gradient-to-r from-transparent via-slate-200/80 to-transparent blur-sm" />
+                <div className="gs-hero-sparkle-line gs-hero-sparkle-line--hairline absolute inset-x-[15%] top-0 h-px w-[70%] bg-gradient-to-r from-transparent via-slate-100/90 to-transparent" />
+                <div className="gs-hero-sparkle-line gs-hero-sparkle-line--core-soft absolute inset-x-[35%] top-0 h-[5px] w-[30%] bg-gradient-to-r from-transparent via-white/85 to-transparent blur-sm" />
+                <div className="gs-hero-sparkle-line gs-hero-sparkle-line--core absolute inset-x-[35%] top-0 h-px w-[30%] bg-gradient-to-r from-transparent via-white to-transparent" />
 
                 <SparklesCore
                   background="transparent"
@@ -606,7 +642,7 @@ export function ScrollGlobe({ sections, globeConfig = defaultGlobeConfig, classN
                   maxSize={1}
                   particleDensity={520}
                   className="w-full h-full"
-                  particleColor="#FFFFFF"
+                  particleColor={particleColor}
                 />
 
                 {/* Soft radial mask so the starfield bleeds out at the edges

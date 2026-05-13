@@ -138,19 +138,118 @@
   }
 }
 
-/* Lite Mode — pearl deepens to slate so the wordmark stays readable on a
-   bright frosted-white background. */
+/* Lite Mode — pearl flips to lacquered black with a subtle silver
+ * sheen mid-stroke so the wordmark reads as a polished obsidian
+ * mark on the frosted-white background (the user's "أسود فاخر
+ * بارز ذو تباين عالٍ ولمسة لامعة خفيفة" brief).
+ *
+ * Stack:
+ *   1. Gradient is true near-black at both ends (#050810 / #0a0f1c)
+ *      with a slate-500 silver crease in the middle (~50%) — this
+ *      is the "polished metal" specular sweep that gives the
+ *      glossy hint without dropping contrast against the white
+ *      background.
+ *   2. Drop-shadow stack:
+ *        a. 0 1px 0 white         → bottom highlight (the "wet"
+ *                                    edge below each letter that
+ *                                    sells the lacquer look).
+ *        b. 0 0 1px deep navy     → ultra-tight rim that crisps the
+ *                                    text edges so they never look
+ *                                    fuzzy against the radial bloom
+ *                                    behind the Hero.
+ *        c. 0 8px 28px slate-900  → soft halo grounding the mark
+ *                                    on the page (depth, not glow).
+ *   3. The shimmer keyframe still drifts the gradient horizontally,
+ *      so the silver crease slowly sweeps across the wordmark for a
+ *      living "polished glass" feel.
+ */
 html[data-theme='light'] .home-landing .gs-pearl-title {
   background-image:
     linear-gradient(135deg,
-      rgba(15, 23, 42, 0.96) 0%,
-      rgba(30, 41, 59, 0.92) 30%,
-      rgba(71, 85, 105, 0.95) 55%,
-      rgba(30, 41, 59, 0.96) 80%,
-      rgba(15, 23, 42, 0.98) 100%);
+      rgba(5, 8, 16, 1) 0%,
+      rgba(15, 23, 42, 1) 22%,
+      rgba(51, 65, 85, 1) 50%,
+      rgba(15, 23, 42, 1) 78%,
+      rgba(5, 8, 16, 1) 100%);
   filter:
-    drop-shadow(0 1px 0 rgba(255, 255, 255, 0.5))
-    drop-shadow(0 6px 22px rgba(15, 23, 42, 0.18));
+    drop-shadow(0 1px 0 rgba(255, 255, 255, 0.85))
+    drop-shadow(0 0 1px rgba(15, 23, 42, 0.65))
+    drop-shadow(0 8px 28px rgba(15, 23, 42, 0.22));
+}
+
+/* ============================================================
+ * Light Mode — bring the body copy, eyebrow labels and feature
+ * descriptions inside the landing back to high-contrast obsidian
+ * black. Tailwind classes like `text-muted-foreground/80` resolve
+ * to a faded slate token in Light Mode that reads as low-contrast
+ * grey on the frosted-white background — the user explicitly
+ * asked for "ألوان سوداء فاخرة وبارزة ذات تباين عالٍ".
+ *
+ * We override per-class via the escaped-slash selector so we don't
+ * have to thread a new className through every child element.
+ * Specificity 0,2,2 (html attr + .home-landing + .text-... +
+ * type) easily beats Tailwind's 0,1,0 utility selector, no
+ * !important needed.
+ * ============================================================ */
+html[data-theme='light'] .home-landing .text-muted-foreground\/90,
+html[data-theme='light'] .home-landing .text-muted-foreground\/80 {
+  color: rgba(15, 23, 42, 0.92); /* slate-900 ≈ "rich black" */
+}
+
+html[data-theme='light'] .home-landing .text-muted-foreground\/60 {
+  color: rgba(30, 41, 59, 0.85); /* slate-800 — eyebrow labels */
+}
+
+/* Tighten any remaining muted-foreground spans (no opacity suffix). */
+html[data-theme='light'] .home-landing .text-muted-foreground {
+  color: rgba(15, 23, 42, 0.92);
+}
+
+/* ============================================================
+ * Light Mode — Sparkles divider strip.
+ *
+ * The four absolutely-positioned `<div>`s above the SparklesCore
+ * paint a narrow, fading hairline that simulates the soft cool
+ * light bar from which the particles fall. The gradients are
+ * white-on-transparent (designed for dark backgrounds) and
+ * disappear completely on white. We invert them to dark slate so
+ * the bar still reads as a polished glass strip in Light Mode.
+ *
+ * Each line carries a stable `gs-hero-sparkle-line--*` class set
+ * from `landing-page.tsx`, so the overrides target them directly
+ * without relying on Tailwind utility names that may change.
+ * ============================================================ */
+html[data-theme='light'] .home-landing .gs-hero-sparkle-line--soft {
+  background-image: linear-gradient(
+    to right,
+    transparent,
+    rgba(15, 23, 42, 0.55),
+    transparent
+  );
+}
+html[data-theme='light'] .home-landing .gs-hero-sparkle-line--hairline {
+  background-image: linear-gradient(
+    to right,
+    transparent,
+    rgba(15, 23, 42, 0.7),
+    transparent
+  );
+}
+html[data-theme='light'] .home-landing .gs-hero-sparkle-line--core-soft {
+  background-image: linear-gradient(
+    to right,
+    transparent,
+    rgba(15, 23, 42, 0.45),
+    transparent
+  );
+}
+html[data-theme='light'] .home-landing .gs-hero-sparkle-line--core {
+  background-image: linear-gradient(
+    to right,
+    transparent,
+    rgba(15, 23, 42, 0.85),
+    transparent
+  );
 }
 
 /* ============================================================
