@@ -114,13 +114,18 @@ const defaultGlobeConfig: { positions: ScrollGlobePosition[] } = {
  *
  * Hero (idx 0) uses a *right-anchored* `calc()` x-coordinate that mirrors
  * the Robot stage's own anchoring (`right: 0`, `width: min(58vw, 880px)`)
- * so the Globe's centre always lands on the Robot's chest no matter the
- * viewport width. A small `-1cm` (≈ 38 px) leftward nudge then shifts
- * the Earth slightly off-centre so it sits inside the figure's left
- * embrace instead of dead-on-axis — matches the "حرك الكرة يسار قليلاً
- * 1 سم" tweak the user requested. Other sections fall back to the
- * upstream `left%/top%` vw/vh positioning for the cinematic glide
- * between Innovation, Discovery and Future panels.
+ * so the anchor point sits on the Robot's chest centre no matter the
+ * viewport width. The self-translate is then `(-60%, -50%)` rather than
+ * the usual `(-50%, -50%)` — the extra `-10%` of own width is a small,
+ * *responsive* leftward nudge (scales naturally with the Globe's own
+ * size at every breakpoint) so the Earth lands inside the figure's
+ * left embrace instead of dead-on-axis. Matches the user's verbatim
+ * spec: `translate3d(calc(100vw - min(29vw, 440px)), 50vh, 0)
+ *        translate3d(-60%, -50%, 0) scale3d(0.85, 0.85, 1)`.
+ *
+ * Other sections fall back to the upstream `left%/top%` vw/vh
+ * positioning for the cinematic glide between Innovation, Discovery
+ * and Future panels (centred there with the standard `(-50%, -50%)`).
  *
  * Returned as a CSS transform string so the existing
  * `transition: transform` on the wrapper still interpolates smoothly
@@ -132,7 +137,7 @@ function buildGlobeTransform(
   pos: { top: number; left: number; scale: number },
 ): string {
   if (idx === 0) {
-    return `translate3d(calc(100vw - min(29vw, 440px) - 1cm), ${pos.top}vh, 0) translate3d(-50%, -50%, 0) scale3d(${pos.scale}, ${pos.scale}, 1)`
+    return `translate3d(calc(100vw - min(29vw, 440px)), ${pos.top}vh, 0) translate3d(-60%, -50%, 0) scale3d(${pos.scale}, ${pos.scale}, 1)`
   }
   return `translate3d(${pos.left}vw, ${pos.top}vh, 0) translate3d(-50%, -50%, 0) scale3d(${pos.scale}, ${pos.scale}, 1)`
 }
@@ -448,7 +453,7 @@ export function ScrollGlobe({ sections, globeConfig = defaultGlobeConfig, classN
           opacity: activeSection === 0 ? 1 : 0,
         }}
       >
-        <div className="gs-hero-robot__stage relative w-full h-[80%] max-h-[78vh] mr-2 md:mr-6 lg:mr-10 xl:mr-14 pointer-events-auto">
+        <div className="gs-hero-robot__stage relative w-full h-[72%] max-h-[68vh] mr-2 md:mr-6 lg:mr-10 xl:mr-14 pointer-events-auto">
           <SplineScene scene={SPLINE_HERO_SCENE_URL} className="w-full h-full" />
         </div>
       </div>

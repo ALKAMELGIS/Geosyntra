@@ -159,21 +159,24 @@ html[data-theme='light'] .home-landing .gs-pearl-title {
  *
  * The Spline runtime owns the mouse parallax internally, so the
  * stage just provides:
- *   1. A sized container — height capped to 78vh so the robot never
- *      escapes the hero viewport on tall monitors, width responsive
- *      via Tailwind classes set in `landing-page.tsx`.
- *   2. A soft radial bloom *behind* the figure that brightens the
- *      black-on-black case in dark mode and gives the robot a
- *      cinematic vignette without needing an extra DOM node.
- *   3. A dark glassy backdrop card *in light mode* — the dark robot
- *      would read as a flat blob on the frosted-white landing page,
- *      so we pin a midnight glass plate behind it (matching the
- *      `lm-hero-card` Lite-Mode-stays-dark trick).
+ *   1. A sized container — height capped via Tailwind classes set in
+ *      `landing-page.tsx` so the robot never escapes the hero
+ *      viewport on tall monitors.
+ *   2. A short fade-in animation so the figure doesn't pop on mount.
+ *
+ * NO background, NO border, NO border-radius, NO box-shadow on the
+ * stage in either Dark or Light Mode. The previous "midnight glass
+ * card" framing the figure read as a separate decorative box around
+ * the Hero, which the user explicitly asked to remove ("المربع
+ * الخارجي Hero الافضل حذفه دون حذف Hero"). The Spline scene now
+ * sits straight on the page background, edge-to-edge, with no
+ * visible plate behind it.
  * ============================================================ */
 .home-landing .gs-hero-robot__stage {
-  background:
-    radial-gradient(ellipse 60% 55% at 50% 55%, rgba(255, 255, 255, 0.05) 0%, transparent 70%),
-    radial-gradient(ellipse 80% 70% at 50% 60%, rgba(99, 102, 241, 0.04) 0%, transparent 80%);
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
   animation: gs-hero-robot-fade 240ms ease-out both;
 }
 
@@ -192,25 +195,15 @@ html[data-theme='light'] .home-landing .gs-pearl-title {
   }
 }
 
-/* Lite Mode — wrap the dark robot in a midnight glass plate so it
- * stays readable on the frosted-white landing background. Same trick
- * the LearnMore hero card uses to keep the Spline scene legible in
- * Lite Mode without re-authoring the upstream 3D asset. */
+/* Lite Mode — same frame-less treatment. The dark Spline figure
+ * reads fine against the frosted-white landing background without a
+ * midnight plate behind it (the head + torso provide enough contrast
+ * on their own), and dropping the plate matches the Dark Mode look
+ * 1:1 so the Hero stays consistent across themes. */
 html[data-theme='light'] .home-landing .gs-hero-robot__stage {
-  border-radius: clamp(20px, 2.5vw, 32px);
-  background:
-    radial-gradient(ellipse 60% 55% at 50% 55%, rgba(255, 255, 255, 0.06) 0%, transparent 72%),
-    linear-gradient(180deg, rgba(8, 11, 20, 0.92) 0%, rgba(12, 16, 28, 0.96) 100%);
-  border: 1px solid rgba(15, 23, 42, 0.10);
-  box-shadow:
-    0 28px 60px rgba(15, 23, 42, 0.18),
-    inset 0 1px 0 rgba(255, 255, 255, 0.06);
-  overflow: hidden;
-}
-
-/* The Spline canvas itself — make sure it inherits the rounded corners
- * of the lite-mode plate so the robot doesn't paint over the bevel. */
-html[data-theme='light'] .home-landing .gs-hero-robot__stage > div,
-html[data-theme='light'] .home-landing .gs-hero-robot__stage canvas {
-  border-radius: inherit;
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  overflow: visible;
 }
