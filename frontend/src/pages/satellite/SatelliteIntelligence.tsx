@@ -9337,6 +9337,62 @@ export default function SatelliteIntelligence() {
     );
   }, [customLayers, layerPopupCfgPickId]);
 
+  /**
+   * Map toolbox · Fields Data drawer content.
+   *
+   * Mirrors the GIS Map Fields drawer 1:1 — same `<FieldsPanel/>`
+   * component, same handlers, same OneSoil-style sidebar pattern. Lives
+   * here (and not inside Remote Sensing anymore) so the user can
+   * always reach saved fields from the main map toolbox rail icon,
+   * regardless of which processing tool is currently active.
+   *
+   * Memoized so the chrome only re-renders when the saved fields, the
+   * active drawing tool, or the selected field change — not on every
+   * panel scroll/resize tick.
+   */
+  const mapToolboxFieldsContent = useMemo(
+    () => (
+      <FieldsPanel
+        fields={savedFields}
+        selectedId={selectedSavedFieldId}
+        drawingArmed={mapDrawTool !== 'select'}
+        onSelectField={id => setSelectedSavedFieldId(id)}
+        onZoomToField={id => zoomToSavedField(id)}
+        onUpdateField={(id, patch) => {
+          setSavedFields(prev =>
+            prev.map(f =>
+              f.id === id
+                ? { ...f, ...patch, updatedAt: new Date().toISOString() }
+                : f,
+            ),
+          );
+        }}
+        onDeleteField={id => {
+          setSavedFields(prev => prev.filter(f => f.id !== id));
+          if (selectedSavedFieldId === id) setSelectedSavedFieldId(null);
+        }}
+        onExportFieldGeoJSON={id => exportSavedFieldGeoJson(id)}
+        onExportAllGeoJSON={() => exportAllSavedFieldsGeoJson()}
+        onStartDrawing={() => {
+          /* Arm polygon AOI drawing — the parent's draw-commit handler
+           * (`commitUserGeometry`) already hooks `drawTargetModeRef ===
+           * 'aoi'` to `autoSaveFieldFromGeoJson`, so the next finished
+           * sketch lands in the saved fields list automatically. */
+          drawTargetModeRef.current = 'aoi';
+          setDrawTargetMode('aoi');
+          applyMapDrawTool('polygon');
+          setFieldAnalysisStatus(
+            'Draw a polygon on the map. It will save as a new field automatically.',
+          );
+        }}
+      />
+    ),
+    /* eslint-disable-next-line react-hooks/exhaustive-deps -- the inline
+     * setters / refs / module functions referenced above are stable across
+     * renders; only the listed values affect what the panel renders. */
+    [savedFields, selectedSavedFieldId, mapDrawTool],
+  );
+
   const exploreSelectedCollectionsLabel = useMemo(() => {
     if (!exploreSelectedCollectionIds.length) return 'From selected collections';
     const preview = exploreSelectedCollectionIds.slice(0, 2).join(', ');
@@ -11029,6 +11085,8 @@ export default function SatelliteIntelligence() {
             geoAiFloatingOpen={geoAiFloatingOpen}
             onGeoAiFloatingRailToggle={onGeoAiFloatingRailToggle}
             onMapToolboxAddData={openAddLayerModal}
+            fieldsPanelContent={mapToolboxFieldsContent}
+            fieldsCount={savedFields.length}
           />
 
           {false && aoiHeatPointGeoJson?.features?.length ? (
@@ -12155,54 +12213,14 @@ export default function SatelliteIntelligence() {
                           </div>
                         </div>
 
-                        {/* Fields Data — OneSoil-style persistent AOI library.
-                          * Visible only when at least one field has been
-                          * captured (drawn or imported via "Add Data Source")
-                          * so it stays out of the way until it has something
-                          * to show. The embedded panel renders inside its
-                          * own scroll container with a height cap so it
-                          * never inflates the parent toolbox panel. */}
-                        {savedFields.length > 0 ? (
-                          <div className="si-field-analysis-section si-fields-data-section">
-                            <div className="si-field-analysis-kicker">
-                              Fields Data ({savedFields.length})
-                            </div>
-                            <div className="si-fields-embed">
-                              <FieldsPanel
-                                fields={savedFields}
-                                selectedId={selectedSavedFieldId}
-                                drawingArmed={mapDrawTool !== 'select'}
-                                onSelectField={id => setSelectedSavedFieldId(id)}
-                                onZoomToField={id => zoomToSavedField(id)}
-                                onUpdateField={(id, patch) => {
-                                  setSavedFields(prev =>
-                                    prev.map(f =>
-                                      f.id === id
-                                        ? {
-                                            ...f,
-                                            ...patch,
-                                            updatedAt: new Date().toISOString(),
-                                          }
-                                        : f,
-                                    ),
-                                  );
-                                }}
-                                onDeleteField={id => {
-                                  setSavedFields(prev => prev.filter(f => f.id !== id));
-                                  if (selectedSavedFieldId === id) setSelectedSavedFieldId(null);
-                                }}
-                                onExportFieldGeoJSON={id => exportSavedFieldGeoJson(id)}
-                                onExportAllGeoJSON={() => exportAllSavedFieldsGeoJson()}
-                                onStartDrawing={() => {
-                                  drawTargetModeRef.current = 'aoi';
-                                  setDrawTargetMode('aoi');
-                                  applyMapDrawTool('polygon');
-                                  setFieldAnalysisStatus('Draw a polygon on the map. It will save as a new field automatically.');
-                                }}
-                              />
-                            </div>
-                          </div>
-                        ) : null}
+                        {/* Fields Data drawer no longer lives inline here —
+                         *  it now opens from the main Map Toolbox rail
+                         *  (`fields` icon) as a sliding side panel, mirroring
+                         *  the GIS Map design. Saved fields still appear on
+                         *  the Mapbox map via `si-saved-fields-source` and the
+                         *  count is surfaced as a badge on the rail icon, so
+                         *  the user always knows it's there without
+                         *  cluttering the Remote Sensing tools card. */}
 
                         {fieldAnalysisStatus ? <p className="si-field-analysis-status">{fieldAnalysisStatus}</p> : null}
                       </div>

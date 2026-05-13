@@ -158,6 +158,11 @@ export type SatelliteMapAnalysisChromeProps = {
   onGeoAiFloatingRailToggle?: () => void;
   /** Map toolbox rail: opens add layer / data dialog (Satellite Intelligence). */
   onMapToolboxAddData?: () => void;
+  /** Pre-built `<FieldsPanel/>` JSX rendered when the user opens the new
+   *  Fields tool from the map toolbox rail (drawer pattern, mirrors GIS Map). */
+  fieldsPanelContent?: ReactNode;
+  /** Saved-fields count for the rail badge (0 hides the badge). */
+  fieldsCount?: number;
 };
 
 function sparkPath(values: number[], w: number, h: number): string {
@@ -215,6 +220,8 @@ export function SatelliteMapAnalysisChrome(props: SatelliteMapAnalysisChromeProp
     geoAiFloatingOpen = false,
     onGeoAiFloatingRailToggle,
     onMapToolboxAddData,
+    fieldsPanelContent,
+    fieldsCount = 0,
   } = props;
 
   const activeFull =
@@ -288,6 +295,8 @@ export function SatelliteMapAnalysisChrome(props: SatelliteMapAnalysisChromeProp
       geoAiFloatingOpen={geoAiFloatingOpen}
       onGeoAiFloatingRailToggle={onGeoAiFloatingRailToggle}
       onMapToolboxAddData={onMapToolboxAddData}
+      fieldsPanelContent={fieldsPanelContent}
+      fieldsCount={fieldsCount}
     />
   ) : null;
 

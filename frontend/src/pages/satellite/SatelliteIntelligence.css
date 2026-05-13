@@ -7755,65 +7755,99 @@ input.si-explore-date-input-linked[type='date'] {
 }
 
 /* ────────────────────────────────────────────────────────────────────── *
- * Fields Data — embedded panel inside the Remote Sensing column.
+ * Fields Data — sliding drawer inside the Map Toolbox.
  *
- * The `FieldsPanel` component reuses the Black-Glass `gs-fields-*` /
- * `gis-map-tool-surface` styles already shipped for the GIS Map page,
- * but here it lives inside the narrower Remote Sensing column. We:
- *   - cap the height (panel has its own internal scroll on the list)
- *   - strip the outer card chrome (it sits *inside* an existing card)
- *   - normalise paddings so the search / chips / list breathe in 280px
+ * The `<FieldsPanel/>` component (shared with the GIS Map) is now
+ * mounted inside the Map Toolbox dock, opened by the new "Fields"
+ * rail icon. The dock provides its own header / scroll container, so
+ * the host strips the panel's outer card chrome and lets it fill the
+ * available space — same approach the dock uses for the Layers tool.
+ *
+ * Two-axis scroll behaviour:
+ *   - Vertical : let the panel handle it (its list is internally scrollable
+ *                via the existing Black-Glass `gs-fields-panel__list`).
+ *   - Horizontal: hidden — the dock panel is narrow (260–560 px), and the
+ *                 Field cards rely on flex/wrap to stay within the column.
  * ────────────────────────────────────────────────────────────────────── */
-.si-fields-data-section {
-  margin-top: 4px;
-}
-
-.si-fields-embed {
+.si-sat-ctx-fields-host {
   display: flex;
   flex-direction: column;
   min-height: 0;
-  /* Mobile / short viewports → trust the parent panel's scroll. Larger
-   * viewports → cap so the embedded list scrolls inside the panel and
-   * the rest of the Remote Sensing controls stay reachable above. */
-  max-height: min(58vh, 520px);
+  height: 100%;
+  width: 100%;
   overflow: hidden;
-  border-radius: 12px;
-  border: 1px solid rgba(148, 163, 184, 0.1);
-  background: linear-gradient(180deg, rgba(15, 23, 42, 0.46) 0%, rgba(15, 23, 42, 0.18) 100%);
-  backdrop-filter: blur(14px) saturate(120%);
-  -webkit-backdrop-filter: blur(14px) saturate(120%);
 }
 
-.si-fields-embed > .gs-fields-panel,
-.si-fields-embed > .gs-fields-panel.gis-map-tool-surface {
+.si-sat-ctx-fields-host > .gs-fields-panel,
+.si-sat-ctx-fields-host > .gs-fields-panel.gis-map-tool-surface {
   background: transparent;
   box-shadow: none;
   border: none;
-  border-radius: 12px;
+  border-radius: 0;
   padding: 12px;
   gap: 10px;
   min-width: 0;
+  width: 100%;
   height: 100%;
-  overflow: auto;
+  overflow-y: auto;
+  overflow-x: hidden;
 }
 
-/* Trim the panel header so it doesn't repeat the section's "Fields Data"
- * kicker that sits directly above. */
-.si-fields-embed .gs-fields-panel__header,
-.si-fields-embed .gis-map-tool-surface__header {
-  padding: 4px 2px 0;
+/* Trim the panel's own header so it doesn't repeat the dock's
+ * "Fields Data" section title that already sits directly above. */
+.si-sat-ctx-fields-host .gs-fields-panel__header,
+.si-sat-ctx-fields-host .gis-map-tool-surface__header {
+  padding: 0 2px 4px;
 }
 
-.si-fields-embed .gis-map-tool-surface__lede {
+.si-sat-ctx-fields-host .gis-map-tool-surface__lede {
   font-size: 11px;
-  line-height: 1.4;
+  line-height: 1.45;
 }
 
-/* Light-mode mirror — the embed wrapper stays glassy white inside the
- * lite Remote Sensing card. */
-html[data-theme='light'] .si-fields-embed {
-  border-color: rgba(15, 23, 42, 0.08);
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.78) 0%, rgba(255, 255, 255, 0.5) 100%);
+/* ────────────────────────────────────────────────────────────────────── *
+ * Map toolbox rail badge — saved-fields counter on the Fields icon.
+ * Mirrors the GIS Map's `gis-sidebar-rail-btn__badge`: small pill, top
+ * right of the icon, accent-coloured so the user spots at a glance that
+ * fields exist without having to open the panel.
+ * ────────────────────────────────────────────────────────────────────── */
+.si-sat-ctx-rail-btn {
+  position: relative; /* anchor for the absolute badge below */
+}
+
+.si-sat-ctx-rail-btn__badge {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 5px;
+  border-radius: 999px;
+  background: linear-gradient(180deg, #38bdf8 0%, #0ea5e9 100%);
+  color: #ffffff;
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  line-height: 16px;
+  text-align: center;
+  pointer-events: none;
+  box-shadow:
+    0 0 0 1.5px rgba(8, 12, 22, 0.92),
+    0 6px 14px rgba(14, 165, 233, 0.35);
+}
+
+/* Wide rail (labels visible) → push the badge slightly inward so it sits
+ * neatly next to the icon column, not over the label text. */
+.si-sat-ctx-dock--rail-labeled .si-sat-ctx-rail-btn__badge {
+  top: 6px;
+  right: 8px;
+}
+
+/* Light Mode — keep the badge legible against the lighter rail glass. */
+html[data-theme='light'] .si-sat-ctx-rail-btn__badge {
+  box-shadow:
+    0 0 0 1.5px rgba(255, 255, 255, 0.96),
+    0 6px 14px rgba(14, 165, 233, 0.32);
 }
 
 .si-field-analysis-map-tools-kicker {

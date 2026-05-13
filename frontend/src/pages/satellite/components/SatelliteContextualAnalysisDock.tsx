@@ -14,6 +14,7 @@ export type SatelliteContextPanelId =
   | 'remote-sensing'
   | 'ai-detection-gis'
   | 'table-geo-ai'
+  | 'fields'
   | 'spatial'
   | 'aoi'
   | 'charts'
@@ -76,6 +77,22 @@ export type SatelliteContextualAnalysisDockProps = {
   onGeoAiFloatingRailToggle?: () => void;
   /** Map toolbox only: quick action above Layers — open add-data / add-layer flow. */
   onMapToolboxAddData?: () => void;
+  /**
+   * Fields Data — drawer content rendered when the user opens the new
+   * "Fields" tool from the map toolbox rail. Pre-built JSX (typically a
+   * `<FieldsPanel ... />`) so the dock stays presentational and the
+   * parent (Satellite Intelligence) keeps full ownership of the saved
+   * fields store + map sync. Mirrors the same docked pattern Layers
+   * uses (`mapToolboxLayersMain`).
+   */
+  fieldsPanelContent?: ReactNode;
+  /**
+   * Saved-fields count for the rail badge. Follows the same convention
+   * as the GIS Map's `gis-sidebar-rail-btn__badge`: only renders when > 0,
+   * so users see "you already have N fields" without needing to open the
+   * panel.
+   */
+  fieldsCount?: number;
 };
 
 const RAIL: Array<{ id: SatelliteContextPanelId; icon: string; label: string; title: string; hint: string }> = [
@@ -113,6 +130,17 @@ const RAIL: Array<{ id: SatelliteContextPanelId; icon: string; label: string; ti
     label: 'Geo AI',
     title: 'Geo AI',
     hint: 'Copilot, attributes, and SQL-style prompts.',
+  },
+  {
+    /* Fields Data — OneSoil-style AOI store. Same icon family ("vector
+     * square") the GIS Map sidebar rail uses for parity, and the panel
+     * mirrors that GIS Map design 1:1 so the user gets the same drawer
+     * experience across both surfaces. */
+    id: 'fields',
+    icon: 'fa-solid fa-vector-square',
+    label: 'Fields Data',
+    title: 'Fields Data',
+    hint: 'Saved AOIs from your drawing tools — analysis, comparison, export.',
   },
   {
     id: 'spatial',
@@ -178,9 +206,12 @@ const RAIL_MAP_TOOLBOX_IDS = new Set<SatelliteContextPanelId>([
   'remote-sensing',
   'ai-detection-gis',
   'table-geo-ai',
+  'fields',
 ]);
 
-/** Rail tools that open the floating processing stack instead of the docked panel. */
+/** Rail tools that open the floating processing stack instead of the docked
+ * panel. Fields is intentionally excluded — it slides open inside the
+ * dock's own panel (same drawer pattern as Layers / GIS Map's Fields). */
 const MAP_RAIL_FLOAT_IDS = new Set<SatelliteContextPanelId>([
   'explore-stac',
   'remote-sensing',
@@ -189,7 +220,7 @@ const MAP_RAIL_FLOAT_IDS = new Set<SatelliteContextPanelId>([
 
 const RAIL_GROUPS_MAP: SatelliteContextPanelId[][] = [
   ['layers', 'explore-stac', 'remote-sensing'],
-  ['ai-detection-gis', 'table-geo-ai'],
+  ['ai-detection-gis', 'fields', 'table-geo-ai'],
 ];
 
 const RAIL_BY_ID = RAIL.reduce(
@@ -246,6 +277,8 @@ export function SatelliteContextualAnalysisDock(props: SatelliteContextualAnalys
     geoAiFloatingOpen = false,
     onGeoAiFloatingRailToggle,
     onMapToolboxAddData,
+    fieldsPanelContent,
+    fieldsCount = 0,
   } = props;
 
   const [panelOpen, setPanelOpen] = useState(false);
@@ -584,6 +617,20 @@ export function SatelliteContextualAnalysisDock(props: SatelliteContextualAnalys
                       <span className="si-sat-ctx-rail-label-desc">{item.hint}</span>
                     </span>
                   ) : null}
+                  {/* Fields rail badge — same convention as the GIS Map's
+                   * `gis-sidebar-rail-btn__badge`: shows the saved-fields
+                   * count on the icon so the user knows "you already have
+                   * N fields" without opening the panel. Only renders for
+                   * the `fields` rail item and only when there's at least
+                   * one saved field. */}
+                  {item.id === 'fields' && fieldsCount > 0 ? (
+                    <span
+                      className="si-sat-ctx-rail-btn__badge"
+                      aria-label={`${fieldsCount} saved field${fieldsCount === 1 ? '' : 's'}`}
+                    >
+                      {fieldsCount > 99 ? '99+' : fieldsCount}
+                    </span>
+                  ) : null}
                 </button>
               );
             })}
@@ -797,6 +844,28 @@ export function SatelliteContextualAnalysisDock(props: SatelliteContextualAnalys
                 {innerTab === 'main' ? (
                   <>
                     {activeId === 'layers' && mapToolboxLayersMain}
+                    {/* Fields Data drawer — pure pass-through. The panel
+                     * itself (search, list, "+ Draw new field", per-field
+                     * cards, export) lives in `<FieldsPanel/>` rendered
+                     * by the parent (Satellite Intelligence) and handed
+                     * in via `fieldsPanelContent`. Wrapped in a thin
+                     * `si-sat-ctx-fields-host` so the existing dock body
+                     * scroll + theme rules wrap the panel cleanly without
+                     * the FieldsPanel needing its own outer chrome. */}
+                    {activeId === 'fields' && (
+                      <div className="si-sat-ctx-fields-host">
+                        {fieldsPanelContent ?? (
+                          <div className="si-sat-ctx-prose">
+                            <p>
+                              <strong>Fields Data</strong> is unavailable in this context.
+                            </p>
+                            <p className="si-sat-ctx-muted">
+                              Open the Satellite Intelligence map to draw and save fields.
+                            </p>
+                          </div>
+                        )}
+                      </div>
+                    )}
                     {activeId === 'spatial' && (
                       <div className="si-sat-ctx-prose">
                         <p>
