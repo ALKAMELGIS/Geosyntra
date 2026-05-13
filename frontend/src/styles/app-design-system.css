@@ -437,30 +437,36 @@ html[data-theme='dark'] .ds-modal {
   box-shadow: var(--ds-shadow-md);
 }
 
-/* Global square back control: light surface + dark chevron (all routes, incl. Users admin). */
+/* Global square back control: AI black-glass with cyan chevron (light + dark). */
 .back-btn,
 .app-back-icon-btn {
   width: 40px;
   height: 40px;
   border-radius: 12px;
-  border: 1px solid rgba(15, 23, 42, 0.12);
-  background: #ffffff;
-  color: rgba(15, 23, 42, 0.88);
+  border: 1px solid var(--ds-glass-border, rgba(129, 140, 248, 0.30));
+  background:
+    radial-gradient(120% 120% at 0% 0%, rgba(34, 211, 238, 0.16), transparent 55%),
+    var(--ds-glass-bg, rgba(15, 18, 36, 0.62));
+  color: var(--ds-color-text);
   display: inline-flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
   transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
   font-size: 15px;
-  box-shadow: 0 8px 22px rgba(15, 23, 42, 0.08);
+  backdrop-filter: blur(14px) saturate(140%);
+  -webkit-backdrop-filter: blur(14px) saturate(140%);
+  box-shadow:
+    inset 0 0 0 1px rgba(34, 211, 238, 0.10),
+    0 10px 26px rgba(2, 4, 12, 0.45);
 }
 
 .back-btn:hover,
 .app-back-icon-btn:hover {
-  background: #f8fafc;
-  color: #0f172a;
-  border-color: rgba(37, 99, 235, 0.35);
-  box-shadow: 0 12px 28px rgba(15, 23, 42, 0.12);
+  border-color: rgba(34, 211, 238, 0.55);
+  box-shadow:
+    inset 0 0 0 1px rgba(34, 211, 238, 0.30),
+    0 14px 32px rgba(2, 4, 12, 0.55);
   transform: translateX(-3px) translateY(-1px);
 }
 
@@ -471,24 +477,8 @@ html[data-theme='dark'] .ds-modal {
 
 .back-btn:focus-visible,
 .app-back-icon-btn:focus-visible {
-  outline: 2px solid rgba(37, 99, 235, 0.55);
+  outline: 2px solid rgba(34, 211, 238, 0.55);
   outline-offset: 2px;
-}
-
-html[data-theme='dark'] .back-btn,
-html[data-theme='dark'] .app-back-icon-btn {
-  background: #ffffff;
-  color: #0f172a;
-  border-color: rgba(255, 255, 255, 0.35);
-  box-shadow: 0 10px 26px rgba(0, 0, 0, 0.35);
-}
-
-html[data-theme='dark'] .back-btn:hover,
-html[data-theme='dark'] .app-back-icon-btn:hover {
-  background: #f1f5f9;
-  color: #020617;
-  border-color: rgba(96, 165, 250, 0.55);
-  box-shadow: 0 14px 32px rgba(0, 0, 0, 0.45);
 }
 
 @media (max-width: 640px) {
@@ -501,10 +491,6 @@ html[data-theme='dark'] .app-back-icon-btn:hover {
 
 /* Operations (/data/*): Fit layout — wide readable column (uses horizontal space without full-bleed stretch). */
 .content--operations-fit {
-  background-color: #ffffff;
-}
-
-html[data-theme='dark'] .content--operations-fit {
   background-color: var(--ds-color-bg);
 }
 

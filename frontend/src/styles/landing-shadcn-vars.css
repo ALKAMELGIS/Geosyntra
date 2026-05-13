@@ -22,19 +22,20 @@
 }
 
 html[data-theme='light'] {
-  --background: 220 33% 98%;
-  --foreground: 224 47% 8%;
-  --card: 0 0% 100%;
-  --card-foreground: 224 47% 8%;
-  --muted: 220 25% 95%;
-  --muted-foreground: 220 14% 40%;
-  --accent: 234 70% 60%;
+  /* Light mode is intentionally a softer midnight glass — never white. */
+  --background: 226 60% 7%;
+  --foreground: 230 70% 96%;
+  --card: 226 38% 14%;
+  --card-foreground: 230 70% 96%;
+  --muted: 226 30% 20%;
+  --muted-foreground: 220 16% 72%;
+  --accent: 234 89% 76%;
   --accent-foreground: 230 100% 98%;
-  --primary: 191 91% 36%;
-  --primary-foreground: 0 0% 100%;
-  --border: 220 16% 88%;
-  --input: 220 16% 88%;
-  --ring: 191 91% 36%;
+  --primary: 187 85% 55%;
+  --primary-foreground: 226 60% 7%;
+  --border: 226 30% 24%;
+  --input: 226 30% 24%;
+  --ring: 187 85% 55%;
 }
 
 html[data-theme='dark'] {

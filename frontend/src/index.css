@@ -113,35 +113,37 @@ html[data-theme="dark"] {
   }
 }
 
-/* Light AI glass: soft milky white over a faint cyan/violet aurora; readable for daytime. */
+/* "Light" AI mode: same AI black-glass surfaces as dark but slightly elevated tones,
+   never pure white. The product is dark-glass first; "Light" simply shifts to a softer
+   midnight palette so the picker still feels meaningful without ever serving white. */
 :root[data-theme="light"],
 html[data-theme="light"] {
-  color-scheme: light;
-  --ds-color-bg: #f4f6ff;
-  --ds-color-bg-dashboard: #eef2ff;
-  --ds-color-surface: rgba(255, 255, 255, 0.78);
-  --ds-color-surface-2: rgba(241, 245, 255, 0.74);
-  --ds-color-text: #0b1220;
-  --ds-color-text-muted: #475569;
-  --ds-color-border: rgba(15, 23, 42, 0.08);
-  --ds-color-border-strong: rgba(99, 102, 241, 0.22);
+  color-scheme: dark;
+  --ds-color-bg: #060920;
+  --ds-color-bg-dashboard: #080c25;
+  --ds-color-surface: rgba(20, 26, 50, 0.62);
+  --ds-color-surface-2: rgba(255, 255, 255, 0.055);
+  --ds-color-text: #f1f5ff;
+  --ds-color-text-muted: rgba(199, 210, 254, 0.74);
+  --ds-color-border: rgba(99, 102, 241, 0.18);
+  --ds-color-border-strong: rgba(34, 211, 238, 0.34);
 
-  --ds-color-primary: #0891b2;
-  --ds-color-primary-hover: #0e7490;
-  --ds-color-primary-soft: rgba(8, 145, 178, 0.12);
-  --ds-color-accent: #6366f1;
-  --ds-color-accent-soft: rgba(99, 102, 241, 0.12);
-  --ds-color-danger: #dc2626;
-  --ds-color-warning: #f59e0b;
-  --ds-color-info: #0284c7;
+  --ds-color-primary: #22d3ee;
+  --ds-color-primary-hover: #67e8f9;
+  --ds-color-primary-soft: rgba(34, 211, 238, 0.16);
+  --ds-color-accent: #a5b4fc;
+  --ds-color-accent-soft: rgba(165, 180, 252, 0.16);
+  --ds-color-danger: #f87171;
+  --ds-color-warning: #fbbf24;
+  --ds-color-info: #38bdf8;
 
-  --ds-shadow-sm: 0 10px 24px rgba(15, 23, 42, 0.08);
-  --ds-shadow-md: 0 22px 52px rgba(15, 23, 42, 0.14);
-  --ds-shadow-lg: 0 32px 80px rgba(15, 23, 42, 0.18);
-  --ds-glass-bg: rgba(255, 255, 255, 0.66);
-  --ds-glass-border: rgba(99, 102, 241, 0.22);
+  --ds-shadow-sm: 0 12px 28px rgba(2, 4, 12, 0.40);
+  --ds-shadow-md: 0 24px 56px rgba(2, 4, 12, 0.50);
+  --ds-shadow-lg: 0 32px 80px rgba(2, 4, 12, 0.58);
+  --ds-glass-bg: rgba(15, 18, 36, 0.62);
+  --ds-glass-border: rgba(129, 140, 248, 0.30);
 
-  --ds-focus-ring: 0 0 0 3px rgba(8, 145, 178, 0.28);
+  --ds-focus-ring: 0 0 0 3px rgba(34, 211, 238, 0.32);
 }
 
 /* Subtle, never-distracting AI ambient aurora behind the entire app. */
@@ -161,9 +163,10 @@ body::before {
 
 html[data-theme="light"] body::before {
   background:
-    radial-gradient(1000px 600px at 10% -10%, rgba(34, 211, 238, 0.12), transparent 60%),
-    radial-gradient(900px 700px at 95% 0%, rgba(129, 140, 248, 0.10), transparent 65%),
-    linear-gradient(180deg, #f3f5fc 0%, #eef1ff 60%, #f7f9ff 100%);
+    radial-gradient(1000px 600px at 10% -10%, rgba(34, 211, 238, 0.20), transparent 60%),
+    radial-gradient(900px 700px at 95% 0%, rgba(129, 140, 248, 0.18), transparent 65%),
+    radial-gradient(1200px 800px at 50% 110%, rgba(192, 132, 252, 0.10), transparent 70%),
+    linear-gradient(180deg, #050816 0%, #07091e 55%, #050816 100%);
 }
 
 html, body, #root {
