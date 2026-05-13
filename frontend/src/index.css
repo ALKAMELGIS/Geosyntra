@@ -13173,3 +13173,141 @@ textarea {
   outline-color: rgba(255, 255, 255, 0.55);
 }
 
+/* ============================================================================
+ * Geosyntra · GIS Map tool surfaces — Black Glass override.
+ *
+ * These are the floating panels that swap into the GIS Map's right-hand
+ * dock when a tool is opened (Workspace selector, Share, Embed, Bookmarks,
+ * Apps, Charts, etc.). The upstream rules at lines 5319-5747 lean on the
+ * legacy emerald palette (`#047857`, `#ecfdf5`, `rgba(4, 120, 87, ...)`)
+ * for icons, the primary CTA, footnote glyphs, and the inline "linkish"
+ * button — which makes the Workspace popover read as a green tagged widget
+ * stranded inside the otherwise pure-black-glass GIS panel.
+ *
+ * This block reskins the whole `.gis-map-tool-surface*` family to neutral
+ * Black-Glass One UI tones (charcoal surfaces, white-glass borders, white
+ * -silver glyphs) so the Workspace selector / Share card / Apps grid now
+ * feel like first-class siblings of the rail and action pane that frame
+ * them. Hover lifts use a soft white-glass background, primary CTAs use a
+ * silver gradient instead of emerald, and the "info" / "linkish" accents
+ * shift from green to silver.
+ *
+ * The mirror Light Mode variant lives in `styles/light-glass-theme.css`.
+ * ========================================================================== */
+
+/* Header icon chip — was a mint `#ecfdf5 → #ffffff` square with green glyph. */
+.gis-map-tool-surface__icon {
+  background: linear-gradient(145deg, rgba(255, 255, 255, 0.12), rgba(255, 255, 255, 0.04));
+  border-color: rgba(255, 255, 255, 0.16);
+  color: rgba(244, 244, 248, 0.96);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.10),
+    0 4px 12px rgba(0, 0, 0, 0.45);
+}
+
+.gis-map-tool-surface__kicker {
+  color: rgba(212, 212, 220, 0.82);
+}
+
+.gis-map-tool-surface__lede {
+  color: rgba(232, 232, 238, 0.82);
+}
+
+/* Primary CTA inside any tool surface — was the emerald
+ * `linear-gradient(#059669, #047857)` button with green focus ring. */
+.gis-map-tool-surface__primary {
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(218, 218, 225, 0.86));
+  color: #0a0a10;
+  border-color: rgba(0, 0, 0, 0.45);
+  box-shadow:
+    0 4px 14px rgba(0, 0, 0, 0.45),
+    inset 0 1px 0 rgba(255, 255, 255, 0.85);
+}
+
+.gis-map-tool-surface__primary:hover {
+  filter: brightness(1.05);
+  box-shadow:
+    0 6px 20px rgba(0, 0, 0, 0.55),
+    inset 0 1px 0 rgba(255, 255, 255, 0.9);
+}
+
+.gis-map-tool-surface__primary:focus-visible {
+  box-shadow:
+    0 0 0 3px rgba(255, 255, 255, 0.25),
+    0 6px 20px rgba(0, 0, 0, 0.55),
+    inset 0 1px 0 rgba(255, 255, 255, 0.9);
+}
+
+/* Workspace / Apps grid — each row is a link card to another module.
+ * Was a solid `#ffffff` row with a green hover halo + mint icon chip. */
+.gis-map-tool-surface-app-row {
+  background:
+    linear-gradient(180deg, rgba(20, 20, 26, 0.55), rgba(14, 14, 18, 0.62));
+  border-color: rgba(255, 255, 255, 0.08);
+  color: rgba(244, 244, 248, 0.96);
+  box-shadow:
+    0 1px 2px rgba(0, 0, 0, 0.45),
+    inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  backdrop-filter: blur(18px) saturate(140%);
+  -webkit-backdrop-filter: blur(18px) saturate(140%);
+}
+
+.gis-map-tool-surface-app-row:hover {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.10), rgba(255, 255, 255, 0.04));
+  border-color: rgba(255, 255, 255, 0.18);
+  box-shadow:
+    0 6px 18px rgba(0, 0, 0, 0.55),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+
+.gis-map-tool-surface-app-row__icon {
+  background: linear-gradient(145deg, rgba(255, 255, 255, 0.12), rgba(255, 255, 255, 0.04));
+  border-color: rgba(255, 255, 255, 0.14);
+  color: rgba(244, 244, 248, 0.96);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.08),
+    0 1px 3px rgba(0, 0, 0, 0.45);
+}
+
+.gis-map-tool-surface-app-row:hover .gis-map-tool-surface-app-row__icon {
+  background: linear-gradient(145deg, rgba(255, 255, 255, 0.18), rgba(255, 255, 255, 0.06));
+  border-color: rgba(255, 255, 255, 0.22);
+  color: #ffffff;
+}
+
+.gis-map-tool-surface-app-row__main strong {
+  color: rgba(244, 244, 248, 0.96);
+}
+
+.gis-map-tool-surface-app-row__main small {
+  color: rgba(204, 204, 212, 0.78);
+}
+
+.gis-map-tool-surface-app-row__chev {
+  color: rgba(212, 212, 220, 0.62);
+}
+
+.gis-map-tool-surface-app-row:hover .gis-map-tool-surface-app-row__chev {
+  color: rgba(244, 244, 248, 0.95);
+}
+
+/* Footnote + inline "linkish" pseudo-link — were the green tagged copy. */
+.gis-map-tool-surface__footnote {
+  color: rgba(204, 204, 212, 0.78);
+}
+
+.gis-map-tool-surface__footnote .fa-circle-info {
+  color: rgba(232, 232, 238, 0.65);
+}
+
+.gis-map-tool-surface__linkish {
+  color: rgba(244, 244, 248, 0.96);
+  text-decoration-color: rgba(244, 244, 248, 0.55);
+}
+
+.gis-map-tool-surface__linkish:hover {
+  color: #ffffff;
+  text-decoration-color: rgba(255, 255, 255, 0.85);
+}
+
