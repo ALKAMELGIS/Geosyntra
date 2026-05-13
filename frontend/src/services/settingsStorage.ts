@@ -1,6 +1,6 @@
 import type { Role } from '../lib/auth'
 import { normalizeRole } from '../lib/auth'
-import type { CustomApiTokenSlot, CustomPageRecord, SystemSettingsPersistedV1 } from '../types/systemSettings'
+import type { CustomApiTokenSlot, CustomPageRecord, NavItemOverride, SystemSettingsPersistedV1 } from '../types/systemSettings'
 
 export const SETTINGS_STORAGE_KEY = 'agri_system_settings_v1'
 
@@ -44,7 +44,7 @@ export const DEFAULT_SYSTEM_SETTINGS: SystemSettingsPersistedV1 = {
   },
   headerSettings: {
     logoText: 'Geosyntra Platform',
-    logoTextAr: 'أجرو كلاود',
+    logoTextAr: 'جيوسينترا',
     useProjectName: false,
     fontFamily: 'var(--ds-font-sans)',
     fontSize: 18,
@@ -104,11 +104,17 @@ export function mergeWithDefaults(partial: Partial<SystemSettingsPersistedV1>): 
   return {
     ...DEFAULT_SYSTEM_SETTINGS,
     ...partial,
-    navGroupOrder: Array.isArray(partial.navGroupOrder) ? partial.navGroupOrder : DEFAULT_SYSTEM_SETTINGS.navGroupOrder,
+    navGroupOrder: Array.isArray(partial.navGroupOrder)
+      ? migrateNavGroupOrderIds(partial.navGroupOrder as string[])
+      : DEFAULT_SYSTEM_SETTINGS.navGroupOrder,
     navItemOrders:
-      partial.navItemOrders && typeof partial.navItemOrders === 'object' ? { ...partial.navItemOrders } : {},
+      partial.navItemOrders && typeof partial.navItemOrders === 'object'
+        ? migrateNavItemOrders(partial.navItemOrders as Record<string, string[]>)
+        : {},
     navOverrides:
-      partial.navOverrides && typeof partial.navOverrides === 'object' ? { ...partial.navOverrides } : {},
+      partial.navOverrides && typeof partial.navOverrides === 'object'
+        ? migrateNavOverrides(partial.navOverrides as SystemSettingsPersistedV1['navOverrides'])
+        : {},
     customPages: Array.isArray(partial.customPages)
       ? partial.customPages.map(sanitizeCustomPage).filter(Boolean) as CustomPageRecord[]
       : [],
@@ -174,11 +180,41 @@ export function mergeWithDefaults(partial: Partial<SystemSettingsPersistedV1>): 
   }
 }
 
-const KNOWN_NAV_GROUP_IDS = ['dashboard', 'aiAgroCloud', 'satellite', 'data', 'sensors', 'master', 'admin'] as const
+const KNOWN_NAV_GROUP_IDS = ['dashboard', 'geosyntraAi', 'satellite', 'data', 'sensors', 'master', 'admin'] as const
+
+function migrateNavGroupIdString(id: string): string {
+  return id === 'aiAgroCloud' ? 'geosyntraAi' : id
+}
 
 function sanitizeNavGroupId(raw: unknown): string {
-  const id = String(raw ?? 'data').trim()
+  const id = migrateNavGroupIdString(String(raw ?? 'data').trim())
   return (KNOWN_NAV_GROUP_IDS as readonly string[]).includes(id) ? id : 'data'
+}
+
+function migrateNavGroupOrderIds(ids: string[]): string[] {
+  return ids.map(migrateNavGroupIdString)
+}
+
+function migrateNavItemOrders(raw: Record<string, string[]>): Record<string, string[]> {
+  const next: Record<string, string[]> = { ...raw }
+  if (next.aiAgroCloud && !next.geosyntraAi) {
+    next.geosyntraAi = next.aiAgroCloud.map(id => (id === 'ai-agro-chat' ? 'geosyntra-chat' : id))
+    delete next.aiAgroCloud
+  }
+  return next
+}
+
+function migrateNavOverrides(raw: SystemSettingsPersistedV1['navOverrides']): SystemSettingsPersistedV1['navOverrides'] {
+  const o: Record<string, NavItemOverride> = { ...raw }
+  const pairs: [string, string][] = [
+    ['ai-agro-chat', 'geosyntra-chat'],
+    ['dashboard-agro-cloud', 'dashboard-geosyntra'],
+    ['aiAgroCloud', 'geosyntraAi'],
+  ]
+  for (const [from, to] of pairs) {
+    if (o[from] && !o[to]) o[to] = o[from]
+  }
+  return o
 }
 
 function sanitizeCustomApiTokenSlot(raw: unknown): CustomApiTokenSlot | null {

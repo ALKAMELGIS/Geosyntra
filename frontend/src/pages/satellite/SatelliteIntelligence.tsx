@@ -89,7 +89,7 @@ import {
   siMapErrorSuggestsGlobeOrWebglFailure,
 } from '../../lib/siMapboxGlobeCompat';
 import { useOpenWeatherMapApiKey } from '../../hooks/useOpenWeatherMapApiKey';
-import { agroChatWithDeepSeek } from '../../lib/agroAiChat';
+import { geosyntraChatWithDeepSeek } from '../../lib/geosyntraAiChat';
 import {
   buildBasemapCatalog,
   catalogEntryById,
@@ -287,7 +287,7 @@ async function reverseLngLatForGeoAiDetails(
   try {
     const res = await fetch(
       `https://nominatim.openstreetmap.org/reverse?format=json&lat=${encodeURIComponent(String(lat))}&lon=${encodeURIComponent(String(lng))}&zoom=12&addressdetails=1`,
-      { headers: { 'Accept-Language': 'en', 'User-Agent': 'AgriCloud/1.0 (Geo AI reverse)' } },
+      { headers: { 'Accept-Language': 'en', 'User-Agent': 'Geosyntra/1.0 (Geo AI reverse)' } },
     );
     if (!res.ok) return {};
     const j = (await res.json()) as {
@@ -6993,7 +6993,7 @@ export default function SatelliteIntelligence() {
               .map(p => p.text)
               .join('\n'),
           }));
-          const reply = await agroChatWithDeepSeek({
+          const reply = await geosyntraChatWithDeepSeek({
             apiKey,
             system,
             turns,

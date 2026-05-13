@@ -12,7 +12,7 @@ if not exist node_modules (
 
 echo.
 echo [2/3] Starting Frontend + Backend (dev mode)...
-echo Frontend: http://localhost:5173/AgroCloud/
+echo Frontend: http://localhost:5173/Geosyntra/
 echo Backend : http://localhost:3001
 echo.
 echo [3/3] Running (auto dev watch)...

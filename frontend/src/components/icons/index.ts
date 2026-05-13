@@ -1,2 +1,2 @@
-export { AgriAppIcon } from './AgriAppIcon'
+export { GeosyntraAppIcon } from './GeosyntraAppIcon'
 

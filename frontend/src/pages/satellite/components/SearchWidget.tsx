@@ -59,7 +59,7 @@ export const SearchWidget: React.FC = () => {
         `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(searchTerm)}&limit=5`,
         {
           headers: {
-            'User-Agent': 'AgriCloudApp/1.0'
+            'User-Agent': 'GeosyntraApp/1.0'
           }
         }
       );

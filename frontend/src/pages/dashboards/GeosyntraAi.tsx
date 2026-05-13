@@ -1,12 +1,12 @@
 import { useState, type CSSProperties } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useLanguage } from '../../lib/i18n'
-import './AiAgroCloud.css'
+import './GeosyntraAi.css'
 
 /** Match Home → Satellite Imagery hub accent (violet tile header). */
 const HUB_ACCENT = '#8B5CF6'
 
-export default function AiAgroCloud() {
+export default function GeosyntraAi() {
   const { language } = useLanguage()
   const ar = language === 'ar'
   const navigate = useNavigate()
@@ -14,9 +14,9 @@ export default function AiAgroCloud() {
 
   const tiles = [
     {
-      to: '/dashboards/ai-agro-chat',
+      to: '/dashboards/geosyntra-chat',
       icon: 'fa-solid fa-comments',
-      title: ar ? 'محادثة Agro الذكية' : 'AI Agro-Chat',
+      title: ar ? 'محادثة جيوسينترا' : 'Geosyntra Chat',
       desc: ar
         ? 'اسأل عن الحقول والطبقات والجداول بناءً على محتوى GIS.'
         : 'Ask about fields, layers, and tables using your GIS Content data.',

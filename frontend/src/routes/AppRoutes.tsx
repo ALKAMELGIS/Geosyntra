@@ -2,7 +2,7 @@ import { Suspense, lazy } from 'react'
 import { Navigate, Route, Routes } from 'react-router-dom'
 import { useSystemSettings } from '../store/SystemSettingsContext'
 import DynamicBindPage from '../pages/system/DynamicBindPage'
-import AgroCloudDashboard from '../pages/dashboards/AgroCloudDashboard'
+import GeosyntraDashboard from '../pages/dashboards/GeosyntraDashboard'
 /** Eager-loaded: avoid full-route Suspense spinner on first paint / dashboard navigation */
 import Home from '../pages/Home'
 import Login from '../pages/Login'
@@ -32,8 +32,8 @@ const AdminUsers = lazy(() => import('../pages/admin/Users'))
 const AdminGitHub = lazy(() => import('../pages/admin/GitHubIntegration'))
 const DashboardAiChatbot = lazy(() => import('../pages/dashboards/AiChatbot'))
 const DashboardModel = lazy(() => import('../pages/dashboards/Model'))
-const AiAgroCloud = lazy(() => import('../pages/dashboards/AiAgroCloud'))
-const AiAgroChat = lazy(() => import('../pages/dashboards/AiAgroChat'))
+const GeosyntraAi = lazy(() => import('../pages/dashboards/GeosyntraAi'))
+const GeosyntraChat = lazy(() => import('../pages/dashboards/GeosyntraChat'))
 const EsriApp = lazy(() => import('../pages/dashboards/EsriApp'))
 const StyleGuide = lazy(() => import('../pages/StyleGuide'))
 const UsabilityTest = lazy(() => import('../pages/UsabilityTest'))
@@ -66,10 +66,13 @@ export default function AppRoutes() {
         <Route path="/dashboards/plant-ai" element={<Navigate to="/dashboards/overview" replace />} />
         <Route path="/dashboards/ai-chatbot" element={<DashboardAiChatbot />} />
         <Route path="/dashboards/model" element={<DashboardModel />} />
-        <Route path="/dashboards/agro-cloud" element={<AgroCloudDashboard />} />
+        <Route path="/dashboards/geosyntra" element={<GeosyntraDashboard />} />
+        <Route path="/dashboards/agro-cloud" element={<Navigate to="/dashboards/geosyntra" replace />} />
         <Route path="/dashboards/agro-dashboard" element={<AgroDashboard />} />
-        <Route path="/dashboards/ai-agro-cloud" element={<AiAgroCloud />} />
-        <Route path="/dashboards/ai-agro-chat" element={<AiAgroChat />} />
+        <Route path="/dashboards/geosyntra-ai" element={<GeosyntraAi />} />
+        <Route path="/dashboards/ai-agro-cloud" element={<Navigate to="/dashboards/geosyntra-ai" replace />} />
+        <Route path="/dashboards/geosyntra-chat" element={<GeosyntraChat />} />
+        <Route path="/dashboards/ai-agro-chat" element={<Navigate to="/dashboards/geosyntra-chat" replace />} />
         <Route path="/dashboards/esri-app" element={<EsriApp />} />
         <Route path="/master/gis-content" element={<MasterGisContent />} />
         <Route path="/master/dashboard-settings" element={<DashboardSettings />} />

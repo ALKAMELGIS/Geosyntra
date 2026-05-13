@@ -4,19 +4,19 @@ import { useLanguage } from '../../lib/i18n'
 import { useGeminiApiKey } from '../../hooks/useGeminiApiKey'
 import { useDeepseekApiKey } from '../../hooks/useDeepseekApiKey'
 import { buildGisContentLayersContext } from '../../lib/geoAiChatClaude'
-import { AGRO_AI_CHAT_SYSTEM, agroChatWithDeepSeek, agroChatWithGemini, type AgroChatTurn } from '../../lib/agroAiChat'
-import './AiAgroChat.css'
+import { GEOSYNTRA_AI_CHAT_SYSTEM, geosyntraChatWithDeepSeek, geosyntraChatWithGemini, type GeosyntraChatTurn } from '../../lib/geosyntraAiChat'
+import './GeosyntraChat.css'
 
 type Msg = { id: string; role: 'user' | 'assistant'; text: string }
 
 type Provider = 'gemini' | 'deepseek'
 
 const INTRO_EN =
-  "Hello! I'm AgriCloud AI Agro-Chat. For your saved GIS layers I prioritize GIS Content in this browser; for general topics (e.g. broad weather or definitions) I add clear, labeled general knowledge when your layers don't hold the answer."
+  "Hello! I'm Geosyntra AI. For your saved GIS layers I prioritize GIS Content in this browser; for general topics (e.g. broad weather or definitions) I add clear, labeled general knowledge when your layers don't hold the answer."
 const INTRO_AR =
-  'مرحباً! أنا محادثة AgriCloud الذكية. أبحث أولاً في بيانات طبقاتك المحفوظة (GIS Content)؛ وإن لم تكفِ، أضيف إجابة عامة من المعرفة العامة مع تصنيف واضح لرفع الدقة وتقليل اللبس.'
+  'مرحباً! أنا ذكاء جيوسينترا. أبحث أولاً في بيانات طبقاتك المحفوظة (GIS Content)؛ وإن لم تكفِ، أضيف إجابة عامة من المعرفة العامة مع تصنيف واضح لرفع الدقة وتقليل اللبس.'
 
-export default function AiAgroChat() {
+export default function GeosyntraChat() {
   const { language } = useLanguage()
   const ar = language === 'ar'
   const geminiKey = useGeminiApiKey()
@@ -88,7 +88,7 @@ export default function AiAgroChat() {
     setBusy(true)
 
     setMessages(prev => {
-      const priorTurns: AgroChatTurn[] = prev.map(m => ({ role: m.role, text: m.text }))
+      const priorTurns: GeosyntraChatTurn[] = prev.map(m => ({ role: m.role, text: m.text }))
       const historyWithUser: Msg[] = [...prev, { id: userId, role: 'user', text: trimmed }]
 
       queueMicrotask(async () => {
@@ -97,18 +97,18 @@ export default function AiAgroChat() {
           const uiLangLine = ar
             ? 'UI locale — reply language: **Arabic** for every assistant message (headings, bullets, and labels such as «من المعرفة العامة» where relevant).'
             : 'UI locale — reply language: **English** for every assistant message (headings, bullets, and labels such as "General:" where relevant).'
-          const system = `${AGRO_AI_CHAT_SYSTEM}\n\n${uiLangLine}\n\n---\nGIS CONTENT (browser snapshot — use first for layer-specific questions):\n${gisCtx}`
+          const system = `${GEOSYNTRA_AI_CHAT_SYSTEM}\n\n${uiLangLine}\n\n---\nGIS CONTENT (browser snapshot — use first for layer-specific questions):\n${gisCtx}`
 
           let reply: string
           if (provider === 'gemini') {
-            reply = await agroChatWithGemini({
+            reply = await geosyntraChatWithGemini({
               apiKey: key,
               systemInstruction: system,
               turns: priorTurns,
               userMessage: trimmed,
             })
           } else {
-            reply = await agroChatWithDeepSeek({
+            reply = await geosyntraChatWithDeepSeek({
               apiKey: key,
               system,
               turns: priorTurns,
@@ -142,9 +142,9 @@ export default function AiAgroChat() {
               <i className="fa-solid fa-seedling" />
             </div>
             <div className="aagc-titles">
-              <h1 className="aagc-title">{ar ? 'محادثة Agro الذكية' : 'AI Agro-Chat'}</h1>
+              <h1 className="aagc-title">{ar ? 'محادثة جيوسينترا' : 'Geosyntra Chat'}</h1>
               <p className="aagc-sub">
-                <Link to="/dashboards/ai-agro-cloud">GIS Intelligence AI</Link>
+                <Link to="/dashboards/geosyntra-ai">GIS Intelligence AI</Link>
                 {' · '}
                 {ar ? 'محتوى GIS' : 'GIS Content'}
               </p>

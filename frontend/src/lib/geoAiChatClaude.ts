@@ -66,7 +66,7 @@ export function summarizeGisLayer(l: LayerData): string {
   return `- ${l.name} (type=${l.type}, source=${l.source ?? 'n/a'}, visible=${l.visible}) fields=[${fields || '—'}]${sample}`
 }
 
-/** GIS Map / GIS Content layers only (IndexedDB), for AI Agro-Chat and similar. */
+/** GIS Map / GIS Content layers only (IndexedDB), for Geosyntra Chat and similar. */
 export async function buildGisContentLayersContext(maxChars = 40000): Promise<string> {
   try {
     const layers = await loadGisMapSavedLayers()

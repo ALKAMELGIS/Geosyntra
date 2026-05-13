@@ -1,16 +1,16 @@
 import * as React from 'react'
 
-type AgriAppIconId = 'dashboard' | 'satellite' | 'data' | 'sensors' | 'master' | 'admin'
+type GeosyntraAppIconId = 'dashboard' | 'satellite' | 'data' | 'sensors' | 'master' | 'admin'
 
-export function AgriAppIcon({ id, className }: { id: string; className?: string }) {
+export function GeosyntraAppIcon({ id, className }: { id: string; className?: string }) {
   const rid = React.useId()
-  const safeId = (id as AgriAppIconId) || 'dashboard'
+  const safeId = (id as GeosyntraAppIconId) || 'dashboard'
 
   switch (safeId) {
     case 'satellite':
       return (
         <svg
-          className={className ? `agri-app-svg ${className}` : 'agri-app-svg'}
+          className={className ? `geosyntra-app-svg ${className}` : 'geosyntra-app-svg'}
           width="40"
           height="40"
           viewBox="0 0 48 48"
@@ -57,7 +57,7 @@ export function AgriAppIcon({ id, className }: { id: string; className?: string 
     case 'data':
       return (
         <svg
-          className={className ? `agri-app-svg ${className}` : 'agri-app-svg'}
+          className={className ? `geosyntra-app-svg ${className}` : 'geosyntra-app-svg'}
           width="40"
           height="40"
           viewBox="0 0 48 48"
@@ -101,7 +101,7 @@ export function AgriAppIcon({ id, className }: { id: string; className?: string 
     case 'sensors':
       return (
         <svg
-          className={className ? `agri-app-svg ${className}` : 'agri-app-svg'}
+          className={className ? `geosyntra-app-svg ${className}` : 'geosyntra-app-svg'}
           width="40"
           height="40"
           viewBox="0 0 48 48"
@@ -141,7 +141,7 @@ export function AgriAppIcon({ id, className }: { id: string; className?: string 
     case 'master':
       return (
         <svg
-          className={className ? `agri-app-svg ${className}` : 'agri-app-svg'}
+          className={className ? `geosyntra-app-svg ${className}` : 'geosyntra-app-svg'}
           width="40"
           height="40"
           viewBox="0 0 48 48"
@@ -179,7 +179,7 @@ export function AgriAppIcon({ id, className }: { id: string; className?: string 
     case 'admin':
       return (
         <svg
-          className={className ? `agri-app-svg ${className}` : 'agri-app-svg'}
+          className={className ? `geosyntra-app-svg ${className}` : 'geosyntra-app-svg'}
           width="40"
           height="40"
           viewBox="0 0 48 48"
@@ -217,7 +217,7 @@ export function AgriAppIcon({ id, className }: { id: string; className?: string 
     default:
       return (
         <svg
-          className={className ? `agri-app-svg ${className}` : 'agri-app-svg'}
+          className={className ? `geosyntra-app-svg ${className}` : 'geosyntra-app-svg'}
           width="40"
           height="40"
           viewBox="0 0 48 48"

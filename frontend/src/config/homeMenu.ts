@@ -23,7 +23,7 @@ export type MenuItem = {
 
 const GROUP_TITLE: Record<string, { en: string; ar: string }> = {
   dashboard: { en: 'Dashboard', ar: 'لوحة التحكم' },
-  aiAgroCloud: { en: 'GIS Intelligence AI', ar: 'ذكاء GIS' },
+  geosyntraAi: { en: 'GIS Intelligence AI', ar: 'ذكاء GIS' },
   satellite: { en: 'Satellite Imagery', ar: 'صور الأقمار الصناعية' },
   data: { en: 'Operations', ar: 'العمليات' },
   sensors: { en: 'Sensors', ar: 'الحساسات' },
@@ -33,10 +33,10 @@ const GROUP_TITLE: Record<string, { en: string; ar: string }> = {
 
 const LEAF_TITLE: Record<string, { en: string; ar: string }> = {
   developDashboard: { en: 'Develop Dashboard', ar: 'تطوير لوحة التحكم' },
-  agroCloudDashboard: { en: 'Geosyntra Platform Dashboard', ar: 'لوحة منصة جيوسينترا' },
+  geosyntraDashboard: { en: 'Geosyntra Platform Dashboard', ar: 'لوحة منصة جيوسينترا' },
   agroDashboard: { en: 'Agro Dashboard', ar: 'لوحة Agro' },
   esriApp: { en: 'Esri App', ar: 'تطبيق Esri' },
-  aiAgroChat: { en: 'AI Agro-Chat', ar: 'محادثة Agro الذكية' },
+  geosyntraChat: { en: 'Geosyntra Chat', ar: 'محادثة جيوسينترا' },
   satelliteIntelligence: { en: 'Satellite Intelligence', ar: 'التحليل الفضائي الذكي' },
   gisMap: { en: 'GIS Map', ar: 'خريطة GIS' },
   irrigation: { en: 'Irrigation Scheduling', ar: 'جدولة الري' },
@@ -57,7 +57,7 @@ const LEAF_TITLE: Record<string, { en: string; ar: string }> = {
 }
 
 export function hubPathForGroupId(groupId: string, firstChildPath: string | undefined): string {
-  if (groupId === 'aiAgroCloud') return '/dashboards/ai-agro-cloud'
+  if (groupId === 'geosyntraAi') return '/dashboards/geosyntra-ai'
   if (groupId === 'dashboard') return '/dashboards/agro-dashboard'
   return firstChildPath ?? '/'
 }
@@ -126,7 +126,7 @@ export const HOME_TILE_ORDER = [
   'satellite',
   'data',
   'sensors',
-  'aiAgroCloud',
+  'geosyntraAi',
   'camera',
   'gps',
   'master',

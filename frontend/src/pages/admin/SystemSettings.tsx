@@ -1732,8 +1732,8 @@ export default function SystemSettings() {
               />
               <p className="sys-settings-panel__desc sys-settings-api-hint">
                 {language === 'ar'
-                  ? 'مفتاح Google AI (Gemini) لـ Geo Explorer ولمحادثة AI Agro-Chat عند اختيار وضع السحابة. يُستخدم فور الحفظ.'
-                  : 'Google AI (Gemini) key for Geo Explorer and for AI Agro-Chat when “Gemini (Cloud AI)” is selected. Used immediately after save.'}
+                  ? 'مفتاح Google AI (Gemini) لـ Geo Explorer ولمحادثة Geosyntra Chat عند اختيار وضع السحابة. يُستخدم فور الحفظ.'
+                  : 'Google AI (Gemini) key for Geo Explorer and for Geosyntra Chat when “Gemini (Cloud AI)” is selected. Used immediately after save.'}
               </p>
             </div>
 
@@ -1794,8 +1794,8 @@ export default function SystemSettings() {
               />
               <p className="sys-settings-panel__desc sys-settings-api-hint">
                 {language === 'ar'
-                  ? 'اختياري لمحادثة AI Agro-Chat عند اختيار DeepSeek. الطرف: api.deepseek.com.'
-                  : 'Optional: powers AI Agro-Chat when “DeepSeek” is selected. Endpoint: api.deepseek.com.'}
+                  ? 'اختياري لمحادثة Geosyntra Chat عند اختيار DeepSeek. الطرف: api.deepseek.com.'
+                  : 'Optional: powers Geosyntra Chat when “DeepSeek” is selected. Endpoint: api.deepseek.com.'}
               </p>
             </div>
 

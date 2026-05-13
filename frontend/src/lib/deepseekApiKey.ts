@@ -1,6 +1,6 @@
 /**
  * DeepSeek API key: build-time env and/or browser override (System Settings → API Tokens).
- * Used by AI Agro-Chat. Never commit real keys.
+ * Used by Geosyntra Chat. Never commit real keys.
  */
 
 export const DEEPSEEK_API_KEY_LS_KEY = 'agri_deepseek_api_key_v1'

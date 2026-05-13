@@ -1,20 +1,20 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useLanguage } from '../../lib/i18n'
 import {
-  AGRO_CLOUD_EMBED_CHANGED_EVENT,
-  readAgroCloudDashboardUrl,
-} from '../../lib/agroCloudDashboardStorage'
-import './AgroCloudDashboard.css'
+  GEOSYNTRA_DASHBOARD_EMBED_CHANGED_EVENT,
+  readGeosyntraDashboardUrl,
+} from '../../lib/geosyntraDashboardStorage'
+import './GeosyntraDashboard.css'
 
 /** Inline iframe when “pin dashboard” is off — remounts when leaving the route. */
-export default function AgroCloudDashboardFrame() {
+export default function GeosyntraDashboardFrame() {
   const { language } = useLanguage()
-  const [embedUrl, setEmbedUrl] = useState(readAgroCloudDashboardUrl)
+  const [embedUrl, setEmbedUrl] = useState(readGeosyntraDashboardUrl)
 
   useEffect(() => {
-    const sync = () => setEmbedUrl(readAgroCloudDashboardUrl())
-    window.addEventListener(AGRO_CLOUD_EMBED_CHANGED_EVENT, sync)
-    return () => window.removeEventListener(AGRO_CLOUD_EMBED_CHANGED_EVENT, sync)
+    const sync = () => setEmbedUrl(readGeosyntraDashboardUrl())
+    window.addEventListener(GEOSYNTRA_DASHBOARD_EMBED_CHANGED_EVENT, sync)
+    return () => window.removeEventListener(GEOSYNTRA_DASHBOARD_EMBED_CHANGED_EVENT, sync)
   }, [])
 
   const copy = useMemo(
@@ -34,12 +34,12 @@ export default function AgroCloudDashboardFrame() {
   const iframeSrc = embedUrl
 
   return (
-    <div className="page page-tight agro-cloud-page">
-      <div className="agro-cloud-frame-wrap">
+    <div className="page page-tight geosyntra-dashboard-page">
+      <div className="geosyntra-dashboard-frame-wrap">
         {iframeSrc ? (
           <iframe title={copy.title} src={iframeSrc} allowFullScreen referrerPolicy="strict-origin-when-cross-origin" />
         ) : (
-          <div className="agro-cloud-error">{copy.invalid}</div>
+          <div className="geosyntra-dashboard-error">{copy.invalid}</div>
         )}
       </div>
     </div>

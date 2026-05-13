@@ -253,9 +253,9 @@
   background: linear-gradient(155deg, rgba(13, 148, 136, 0.12), rgba(255, 255, 255, 0.94));
 }
 
-.nav-header-ai-agro-cloud .icon,
-.nav-item-ai-agro-cloud .icon,
-.nav-item-ai-agro-chat .icon {
+.nav-header-geosyntra-ai .icon,
+.nav-item-geosyntra-ai .icon,
+.nav-item-geosyntra-chat .icon {
   color: var(--c-admin);
   border-color: rgba(5, 150, 105, 0.26);
   background: linear-gradient(155deg, rgba(5, 150, 105, 0.13), rgba(255, 255, 255, 0.94));
@@ -1611,8 +1611,8 @@ html[data-theme="dark"] .navmenu-sublist-title {
   }
 
   /* GIS Intelligence AI */
-  .navmenu .group:not(.open) > .group-header.active.nav-header-ai-agro-cloud,
-  .navmenu .group.open > .group-header.active.nav-header-ai-agro-cloud {
+  .navmenu .group:not(.open) > .group-header.active.nav-header-geosyntra-ai,
+  .navmenu .group.open > .group-header.active.nav-header-geosyntra-ai {
     background: linear-gradient(180deg, rgba(236, 253, 245, 0.98), rgba(209, 250, 229, 0.88));
     border-color: rgba(5, 150, 105, 0.38);
     color: #047857;
@@ -1708,8 +1708,8 @@ html[data-theme="dark"] .navmenu-sublist-title {
       0 12px 36px rgba(13, 148, 136, 0.25);
   }
 
-  html[data-theme='dark'] .navmenu .group:not(.open) > .group-header.active.nav-header-ai-agro-cloud,
-  html[data-theme='dark'] .navmenu .group.open > .group-header.active.nav-header-ai-agro-cloud {
+  html[data-theme='dark'] .navmenu .group:not(.open) > .group-header.active.nav-header-geosyntra-ai,
+  html[data-theme='dark'] .navmenu .group.open > .group-header.active.nav-header-geosyntra-ai {
     background: linear-gradient(180deg, rgba(6, 78, 59, 0.55), rgba(4, 120, 87, 0.32));
     border-color: rgba(52, 211, 153, 0.42);
     color: #d1fae5;

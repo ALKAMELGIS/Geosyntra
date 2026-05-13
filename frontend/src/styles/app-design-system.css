@@ -65,13 +65,13 @@ html {
 }
 
 /* Preserve legacy tinted mesh only on Geosyntra Platform Dashboard */
-.app-layout > .content.content--agro-cloud-dashboard {
+.app-layout > .content.content--geosyntra-dashboard {
   background-color: var(--ds-color-bg-dashboard, #eef7f1);
   background-image: var(--app-content-mesh);
   background-attachment: fixed;
 }
 
-html[data-theme='dark'] .app-layout > .content.content--agro-cloud-dashboard {
+html[data-theme='dark'] .app-layout > .content.content--geosyntra-dashboard {
   background-color: var(--ds-color-bg);
 }
 

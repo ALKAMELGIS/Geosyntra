@@ -117,6 +117,6 @@ describe('NavMenu vertical responsive', () => {
     const groupHeader = screen.getByRole('button', { name: /^gis intelligence ai$/i })
     expect(groupHeader).toBeInTheDocument()
     fireEvent.click(groupHeader)
-    expect(screen.getByRole('link', { name: /ai agro-chat/i })).toHaveAttribute('href', '/dashboards/ai-agro-chat')
+    expect(screen.getByRole('link', { name: /geosyntra chat/i })).toHaveAttribute('href', '/dashboards/geosyntra-chat')
   })
 })

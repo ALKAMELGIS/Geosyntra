@@ -1,4 +1,4 @@
-.agro-cloud-page {
+.geosyntra-dashboard-page {
   display: flex;
   flex-direction: column;
   height: 100%;
@@ -7,14 +7,14 @@
   gap: 0;
 }
 
-.agro-cloud-frame-wrap {
+.geosyntra-dashboard-frame-wrap {
   flex: 1 1 auto;
   min-height: 0;
   position: relative;
   background: var(--ds-color-bg);
 }
 
-.agro-cloud-frame-wrap iframe {
+.geosyntra-dashboard-frame-wrap iframe {
   position: absolute;
   inset: 0;
   width: 100%;
@@ -22,15 +22,15 @@
   border: 0;
 }
 
-.agro-cloud-error {
+.geosyntra-dashboard-error {
   padding: 24px 16px;
   text-align: center;
   color: var(--ds-color-danger);
   font-size: 13px;
 }
 
-/* Keeps iframe mounted between navigations — see PersistentAgroCloudEmbed */
-.persistent-agro-cloud-layer {
+/* Keeps iframe mounted between navigations — see PersistentGeosyntraDashboardEmbed */
+.persistent-geosyntra-dashboard-layer {
   position: absolute;
   inset: 0;
   z-index: 5;
@@ -38,17 +38,17 @@
   background: var(--ds-color-bg);
 }
 
-.persistent-agro-cloud-layer:not(.persistent-agro-cloud-layer--active) {
+.persistent-geosyntra-dashboard-layer:not(.persistent-geosyntra-dashboard-layer--active) {
   opacity: 0;
   visibility: hidden;
   pointer-events: none;
 }
 
-.persistent-agro-cloud-layer-inner {
+.persistent-geosyntra-dashboard-layer-inner {
   height: 100%;
 }
 
-.agro-cloud-route-fill {
+.geosyntra-dashboard-route-fill {
   flex: 1 1 auto;
   min-height: min(480px, 70vh);
 }
@@ -58,13 +58,13 @@
  * keep desktop canvas dimensions, then scale down uniformly so internal widgets do not overlap.
  */
 @media (max-width: 900px) {
-  .agro-cloud-frame-wrap {
+  .geosyntra-dashboard-frame-wrap {
     overflow: auto;
     -webkit-overflow-scrolling: touch;
     background: #031b14;
   }
 
-  .agro-cloud-frame-wrap iframe {
+  .geosyntra-dashboard-frame-wrap iframe {
     position: relative;
     inset: auto;
     width: 1366px;
@@ -73,21 +73,21 @@
     transform: scale(calc((100vw - 20px) / 1366));
   }
 
-  .agro-cloud-page,
-  .persistent-agro-cloud-layer-inner {
+  .geosyntra-dashboard-page,
+  .persistent-geosyntra-dashboard-layer-inner {
     min-height: calc(820px * ((100vw - 20px) / 1366));
   }
 }
 
 @media (max-width: 480px) {
-  .agro-cloud-frame-wrap iframe {
+  .geosyntra-dashboard-frame-wrap iframe {
     width: 1280px;
     height: 780px;
     transform: scale(calc((100vw - 16px) / 1280));
   }
 
-  .agro-cloud-page,
-  .persistent-agro-cloud-layer-inner {
+  .geosyntra-dashboard-page,
+  .persistent-geosyntra-dashboard-layer-inner {
     min-height: calc(780px * ((100vw - 16px) / 1280));
   }
 }

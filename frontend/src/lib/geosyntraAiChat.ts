@@ -1,6 +1,6 @@
 import { geminiGenerateContent, type GeminiContent } from './geoExplorerGemini'
 
-export const AGRO_AI_CHAT_SYSTEM = `You are AgriCloud AI Agro-Chat — a professional assistant for agriculture, GIS-backed farm data, and clear explanations.
+export const GEOSYNTRA_AI_CHAT_SYSTEM = `You are Geosyntra AI — a professional assistant for agriculture, GIS-backed farm data, and clear explanations.
 
 A block titled "GIS Content" is appended below. It summarizes layers saved from GIS Map in this browser (names, fields, sample attributes, feature counts). Treat it as the authoritative source for anything that must match the user's actual stored layers.
 
@@ -23,9 +23,9 @@ If one part needs GIS (their fields, their site) and another part is general —
 - Prefer concise structure: short headings, bullets, brief paragraphs.  
 - **Reply language:** Follow the "UI locale — reply language" line appended immediately after this system block (English or Arabic per user app settings).`
 
-export type AgroChatTurn = { role: 'user' | 'assistant'; text: string }
+export type GeosyntraChatTurn = { role: 'user' | 'assistant'; text: string }
 
-function geminiContentsFromTurns(turns: AgroChatTurn[], userMessage: string): GeminiContent[] {
+function geminiContentsFromTurns(turns: GeosyntraChatTurn[], userMessage: string): GeminiContent[] {
   const rows: GeminiContent[] = turns.map(t => ({
     role: t.role === 'assistant' ? 'model' : 'user',
     parts: [{ text: t.text }],
@@ -34,10 +34,10 @@ function geminiContentsFromTurns(turns: AgroChatTurn[], userMessage: string): Ge
   return rows
 }
 
-export async function agroChatWithGemini(params: {
+export async function geosyntraChatWithGemini(params: {
   apiKey: string
   systemInstruction: string
-  turns: AgroChatTurn[]
+  turns: GeosyntraChatTurn[]
   userMessage: string
 }): Promise<string> {
   const { apiKey, systemInstruction, turns, userMessage } = params
@@ -50,10 +50,10 @@ export async function agroChatWithGemini(params: {
 
 const DEEPSEEK_MODEL = 'deepseek-chat'
 
-export async function agroChatWithDeepSeek(params: {
+export async function geosyntraChatWithDeepSeek(params: {
   apiKey: string
   system: string
-  turns: AgroChatTurn[]
+  turns: GeosyntraChatTurn[]
   userMessage: string
 }): Promise<string> {
   const { apiKey, system, turns, userMessage } = params

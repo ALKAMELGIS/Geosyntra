@@ -1,6 +1,6 @@
 /**
  * Fails CI if GitHub Pages would ship a stub index.html instead of the Vite app shell
- * (e.g. the old "Opening Agri Cloud…" bootstrap page without React bundles).
+ * (e.g. an old "Opening Agri Cloud…" / "Opening Geosyntra…" bootstrap page without React bundles).
  */
 import fs from 'node:fs'
 import path from 'node:path'
@@ -23,6 +23,7 @@ if (!/id=["']root["']/.test(html)) {
 const stubMarkers = [
   'boot-card',
   'Opening Agri Cloud',
+  'Opening Geosyntra',
   'boot-open-app',
   'published from the Vite build',
   'not this file',

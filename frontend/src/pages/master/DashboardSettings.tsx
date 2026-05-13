@@ -1,24 +1,23 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useLanguage } from '../../lib/i18n'
 import {
-  AGRO_CLOUD_EMBED_CHANGED_EVENT,
-  AGRO_CLOUD_KEEP_ALIVE_CHANGED_EVENT,
-  DEFAULT_AGRO_CLOUD_DASHBOARD_URL,
+  GEOSYNTRA_DASHBOARD_KEEP_ALIVE_CHANGED_EVENT,
+  DEFAULT_GEOSYNTRA_DASHBOARD_EMBED_URL,
   isValidEmbedUrl,
-  readAgroCloudDashboardUrl,
-  readAgroCloudKeepAlive,
-  resetAgroCloudDashboardUrl,
-  writeAgroCloudDashboardUrl,
-  writeAgroCloudKeepAlive,
-} from '../../lib/agroCloudDashboardStorage'
+  readGeosyntraDashboardUrl,
+  readGeosyntraDashboardKeepAlive,
+  resetGeosyntraDashboardUrl,
+  writeGeosyntraDashboardUrl,
+  writeGeosyntraDashboardKeepAlive,
+} from '../../lib/geosyntraDashboardStorage'
 import './dashboard-settings.css'
 
-const DASHBOARD_URL_PRESETS_LS = 'agro-cloud-dashboard-url-presets-v1'
+const DASHBOARD_URL_PRESETS_LS = 'geosyntra-dashboard-url-presets-v1'
 
 export default function DashboardSettings() {
   const { language } = useLanguage()
-  const [draft, setDraft] = useState(readAgroCloudDashboardUrl)
-  const [pinDashboard, setPinDashboard] = useState(readAgroCloudKeepAlive)
+  const [draft, setDraft] = useState(readGeosyntraDashboardUrl)
+  const [pinDashboard, setPinDashboard] = useState(readGeosyntraDashboardKeepAlive)
   const [savedUrls, setSavedUrls] = useState<string[]>([])
   const [flash, setFlash] = useState<string | null>(null)
 
@@ -75,13 +74,13 @@ export default function DashboardSettings() {
   )
 
   useEffect(() => {
-    setDraft(readAgroCloudDashboardUrl())
+    setDraft(readGeosyntraDashboardUrl())
   }, [])
 
   useEffect(() => {
-    const sync = () => setPinDashboard(readAgroCloudKeepAlive())
-    window.addEventListener(AGRO_CLOUD_KEEP_ALIVE_CHANGED_EVENT, sync)
-    return () => window.removeEventListener(AGRO_CLOUD_KEEP_ALIVE_CHANGED_EVENT, sync)
+    const sync = () => setPinDashboard(readGeosyntraDashboardKeepAlive())
+    window.addEventListener(GEOSYNTRA_DASHBOARD_KEEP_ALIVE_CHANGED_EVENT, sync)
+    return () => window.removeEventListener(GEOSYNTRA_DASHBOARD_KEEP_ALIVE_CHANGED_EVENT, sync)
   }, [])
 
   useEffect(() => {
@@ -111,7 +110,7 @@ export default function DashboardSettings() {
       return
     }
     try {
-      writeAgroCloudDashboardUrl(next)
+      writeGeosyntraDashboardUrl(next)
       setFlash(copy.saved)
     } catch {
       setFlash(copy.invalid)
@@ -119,9 +118,9 @@ export default function DashboardSettings() {
   }, [draft, copy.invalid, copy.saved])
 
   const handleReset = useCallback(() => {
-    setDraft(DEFAULT_AGRO_CLOUD_DASHBOARD_URL)
+    setDraft(DEFAULT_GEOSYNTRA_DASHBOARD_EMBED_URL)
     try {
-      resetAgroCloudDashboardUrl()
+      resetGeosyntraDashboardUrl()
       setFlash(copy.saved)
     } catch {
       setFlash(copy.invalid)
@@ -131,7 +130,7 @@ export default function DashboardSettings() {
   const handlePinChange = useCallback(
     (checked: boolean) => {
       setPinDashboard(checked)
-      writeAgroCloudKeepAlive(checked)
+      writeGeosyntraDashboardKeepAlive(checked)
       setFlash(copy.savedPin)
     },
     [copy.savedPin],
@@ -185,7 +184,7 @@ export default function DashboardSettings() {
           dir="ltr"
           spellCheck={false}
           autoComplete="off"
-          placeholder={DEFAULT_AGRO_CLOUD_DASHBOARD_URL}
+          placeholder={DEFAULT_GEOSYNTRA_DASHBOARD_EMBED_URL}
           value={draft}
           onChange={e => setDraft(e.target.value)}
         />
@@ -212,7 +211,7 @@ export default function DashboardSettings() {
           ) : (
             <>
               Embedded from{' '}
-              <a href={DEFAULT_AGRO_CLOUD_DASHBOARD_URL} target="_blank" rel="noreferrer">
+              <a href={DEFAULT_GEOSYNTRA_DASHBOARD_EMBED_URL} target="_blank" rel="noreferrer">
                 ArcGIS Dashboards (EAP)
               </a>
               . Change the URL above if your organization hosts a different dashboard.
@@ -265,8 +264,7 @@ export default function DashboardSettings() {
                   className="dashboard-settings-preset-link"
                   onClick={() => {
                     setDraft(url)
-                    writeAgroCloudDashboardUrl(url)
-                    window.dispatchEvent(new Event(AGRO_CLOUD_EMBED_CHANGED_EVENT))
+                    writeGeosyntraDashboardUrl(url)
                     setFlash(copy.saved)
                   }}
                   title={url}
@@ -279,8 +277,7 @@ export default function DashboardSettings() {
                     className="dashboard-settings-preset-btn"
                     onClick={() => {
                       setDraft(url)
-                      writeAgroCloudDashboardUrl(url)
-                      window.dispatchEvent(new Event(AGRO_CLOUD_EMBED_CHANGED_EVENT))
+                      writeGeosyntraDashboardUrl(url)
                       setFlash(copy.saved)
                     }}
                   >

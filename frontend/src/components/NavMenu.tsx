@@ -29,10 +29,10 @@ const navTranslations = {
     closeMenu: 'Close navigation menu',
     dashboard: 'Dashboard',
     esriApp: 'Esri App',
-    agroCloudDashboard: 'Geosyntra Platform Dashboard',
+    geosyntraDashboard: 'Geosyntra Platform Dashboard',
     agroDashboard: 'Agro Dashboard',
-    aiAgroCloud: 'GIS Intelligence AI',
-    aiAgroChat: 'AI Agro-Chat',
+    geosyntraAi: 'GIS Intelligence AI',
+    geosyntraChat: 'Geosyntra Chat',
     developDashboard: 'Develop Dashboard',
     ecph: 'EC/PH',
     english: 'English',
@@ -80,10 +80,10 @@ const navTranslations = {
     closeMenu: 'إغلاق قائمة التنقل',
     dashboard: 'لوحة التحكم',
     esriApp: 'تطبيق Esri',
-    agroCloudDashboard: 'لوحة منصة الذكاء الجغرافي',
+    geosyntraDashboard: 'لوحة منصة جيوسينترا',
     agroDashboard: 'لوحة Agro',
-    aiAgroCloud: 'ذكاء GIS',
-    aiAgroChat: 'محادثة Agro الذكية',
+    geosyntraAi: 'ذكاء GIS',
+    geosyntraChat: 'محادثة جيوسينترا',
     developDashboard: 'تطوير لوحة التحكم',
     ecph: 'الملوحة والحموضة',
     english: 'الإنجليزية',
@@ -140,7 +140,7 @@ export default function NavMenu({ onLogout }: NavMenuProps) {
   })
   const [openGroup, setOpenGroup] = useState<
     | 'dashboard'
-    | 'aiAgroCloud'
+    | 'geosyntraAi'
     | 'satellite'
     | 'data'
     | 'sensors'
@@ -351,7 +351,12 @@ export default function NavMenu({ onLogout }: NavMenuProps) {
       return path === n || path.startsWith(`${n}/`)
     })
     if (custom?.navGroupId) return custom.navGroupId
-    if (path.startsWith('/dashboards/ai-agro-')) return 'aiAgroCloud'
+    if (
+      path.startsWith('/dashboards/geosyntra-ai') ||
+      path.startsWith('/dashboards/geosyntra-chat') ||
+      path.startsWith('/dashboards/ai-agro-')
+    )
+      return 'geosyntraAi'
     if (path.startsWith('/dashboard')) return 'dashboard'
     if (path.startsWith('/satellite-intelligence-workspace')) return 'satellite'
     if (path.startsWith('/satellite/')) return 'satellite'

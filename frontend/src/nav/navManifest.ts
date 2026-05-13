@@ -9,10 +9,10 @@ export type NavTranslationKey =
   | 'dashboard'
   | 'esriApp'
   | 'developDashboard'
-  | 'agroCloudDashboard'
+  | 'geosyntraDashboard'
   | 'agroDashboard'
-  | 'aiAgroCloud'
-  | 'aiAgroChat'
+  | 'geosyntraAi'
+  | 'geosyntraChat'
   | 'satelliteImagery'
   | 'satelliteIntelligence'
   | 'satelliteIntelligenceWorkspace'
@@ -79,11 +79,11 @@ export const NAV_DEFAULT_GROUPS: NavGroupDef[] = [
         subitemClass: 'nav-item-dashboard-edit',
       },
       {
-        id: 'dashboard-agro-cloud',
-        path: '/dashboards/agro-cloud',
-        i18nKey: 'agroCloudDashboard',
+        id: 'dashboard-geosyntra',
+        path: '/dashboards/geosyntra',
+        i18nKey: 'geosyntraDashboard',
         defaultIcon: 'fa-solid fa-chart-pie',
-        subitemClass: 'nav-item-dashboard-agro',
+        subitemClass: 'nav-item-dashboard-geosyntra',
       },
       {
         id: 'dashboard-agro',
@@ -102,17 +102,17 @@ export const NAV_DEFAULT_GROUPS: NavGroupDef[] = [
     ],
   },
   {
-    id: 'aiAgroCloud',
-    i18nKey: 'aiAgroCloud',
+    id: 'geosyntraAi',
+    i18nKey: 'geosyntraAi',
     defaultIcon: 'fa-solid fa-cloud-bolt',
-    headerClass: 'nav-header-ai-agro-cloud',
+    headerClass: 'nav-header-geosyntra-ai',
     children: [
       {
-        id: 'ai-agro-chat',
-        path: '/dashboards/ai-agro-chat',
-        i18nKey: 'aiAgroChat',
+        id: 'geosyntra-chat',
+        path: '/dashboards/geosyntra-chat',
+        i18nKey: 'geosyntraChat',
         defaultIcon: 'fa-solid fa-comments',
-        subitemClass: 'nav-item-ai-agro-chat',
+        subitemClass: 'nav-item-geosyntra-chat',
       },
     ],
   },
@@ -298,7 +298,7 @@ export const NAV_GROUP_IDS = NAV_DEFAULT_GROUPS.map(g => g.id)
 export function defaultSubitemClassForNavGroup(groupId: string): string {
   const map: Record<string, string> = {
     dashboard: 'nav-item-dashboard-edit',
-    aiAgroCloud: 'nav-item-ai-agro-chat',
+    geosyntraAi: 'nav-item-geosyntra-chat',
     satellite: 'nav-item-indices',
     data: 'nav-item-ec-ph',
     sensors: 'nav-item-sensor-soil',

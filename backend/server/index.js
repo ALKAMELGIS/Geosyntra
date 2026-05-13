@@ -1148,7 +1148,7 @@ app.post('/api/gis/db/test', async (req, res) => {
 
 const SYSTEM_PROMPT = `
 **Role & Objective:**
-You are 'AgriCloud', an agricultural science assistant. Answer concisely with a short "Summary" followed by 1–2 brief next steps. Default to English. If the user's message is primarily Arabic or explicitly requests Arabic/translation, respond in Arabic.
+You are 'Geosyntra', an agricultural science assistant. Answer concisely with a short "Summary" followed by 1–2 brief next steps. Default to English. If the user's message is primarily Arabic or explicitly requests Arabic/translation, respond in Arabic.
 
 **Guidelines:**
 1. **Focus:** Prioritize crop physiology, soil science, irrigation, nutrition, plant pathology, entomology, and IPM.
@@ -1280,14 +1280,14 @@ function getSimulatedResponse(message, history = []) {
   // 0. Greetings/Identity (Static)
   if (lower.match(/^(hi|hello|hey|greetings)/)) {
     return chooseLang(
-      "Hello! I'm AgriCloud, ready to help you with your farming questions.",
+      "Hello! I'm Geosyntra, ready to help you with your farming questions.",
       "مرحبًا! أنا أجري كلاود، جاهز لمساعدتك في أسئلة الزراعة.",
       message
     )
   }
   if (lower.includes('who are you') || lower.includes('your name')) {
     return chooseLang(
-      "I am AgriCloud, an intelligent assistant designed to help farmers optimize their crops and manage resources.",
+      "I am Geosyntra, an intelligent assistant designed to help farmers optimize their crops and manage resources.",
       "أنا أجري كلاود، مساعد ذكي لمساعدة المزارعين على تحسين المحاصيل وإدارة الموارد.",
       message
     )
@@ -1398,7 +1398,7 @@ app.post('/api/ai/chat', async (req, res) => {
     // Immediate free-mode path
     if (modelProvider === 'simulated') {
       const simReply = image ? getSimulatedVisionResponse(message) : getSimulatedResponse(message, history)
-      res.json({ reply: formatReply(simReply), model: 'AgriCloud-Basic (Simulated)' })
+      res.json({ reply: formatReply(simReply), model: 'Geosyntra-Basic (Simulated)' })
       return
     }
     let messages = []
@@ -1500,7 +1500,7 @@ app.post('/api/ai/chat', async (req, res) => {
         if (!fallbackSuccess) {
             console.log("All APIs failed. Switching to Simulated AI Mode.")
             const simReply = getSimulatedResponse(message, history)
-            res.json({ reply: formatReply(simReply), model: 'AgriCloud-Basic (Simulated)' })
+            res.json({ reply: formatReply(simReply), model: 'Geosyntra-Basic (Simulated)' })
             return
         }
 

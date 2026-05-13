@@ -232,7 +232,7 @@
   color: rgb(var(--app-accent-rgb, 15 23 42));
 }
 
-.agri-app-svg {
+.geosyntra-app-svg {
   width: clamp(34px, 4.2vw, 40px);
   height: clamp(34px, 4.2vw, 40px);
   transform: translateZ(0);
@@ -241,7 +241,7 @@
   filter: drop-shadow(0 10px 16px rgba(0,0,0,0.16));
 }
 
-.app-icon-card:hover .agri-app-svg {
+.app-icon-card:hover .geosyntra-app-svg {
   transform: translateY(-1px) scale(1.03);
   filter: drop-shadow(0 12px 18px rgba(0,0,0,0.22));
 }
@@ -341,7 +341,7 @@
     font-size: clamp(22px, 2.8cqi, 28px);
   }
 
-  .agri-app-svg {
+  .geosyntra-app-svg {
     width: clamp(34px, 4.2cqi, 40px);
     height: clamp(34px, 4.2cqi, 40px);
   }

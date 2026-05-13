@@ -88,7 +88,7 @@ function buildCompressionPlugin(): Plugin {
 }
 
 /** Vite serves `base` with a trailing slash; `/Geosyntra` (no slash) returns 404. Browsers/bookmarks often omit it. */
-function agroCloudBaseTrailingSlashRedirect(): Plugin {
+function geosyntraBaseTrailingSlashRedirect(): Plugin {
   const baseWithSlash = appConfig.basePath
   const noTrailingSlash = baseWithSlash.replace(/\/$/, '')
   const redirect: (req: IncomingMessage, res: ServerResponse, next: () => void) => void = (req, res, next) => {
@@ -104,7 +104,7 @@ function agroCloudBaseTrailingSlashRedirect(): Plugin {
     res.end()
   }
   return {
-    name: 'agrocloud-base-trailing-slash',
+    name: 'geosyntra-base-trailing-slash',
     configureServer(s) {
       s.middlewares.use(redirect)
     },
@@ -182,7 +182,7 @@ export default defineConfig({
   },
   plugins: [
     satelliteIntelligenceWorkspaceDependencyResolve(),
-    agroCloudBaseTrailingSlashRedirect(),
+    geosyntraBaseTrailingSlashRedirect(),
     pagesBuildStamp(),
     ghPagesHashAndSlashRedirect(),
     productionCanonicalLink(),
