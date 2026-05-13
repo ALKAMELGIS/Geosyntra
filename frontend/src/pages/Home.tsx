@@ -19,7 +19,22 @@ import './Home.css'
 export default function Home() {
   const navigate = useNavigate()
   return (
-    <div className="home-landing">
+    /*
+     * Home wrapper — locked to the responsive spec the user signed off on
+     * (2026-05-13):
+     *   - `min-h-screen`               page is at least one full viewport tall
+     *   - `w-full max-w-full`          spans the parent without overflowing
+     *   - `flex flex-col`              children stack vertically
+     *
+     * Per-section padding (`px-4 sm:px-6 md:px-8 lg:px-12 py-12 sm:py-16
+     * lg:py-20`) lives on each `<section>` inside `<LandingPage />` so
+     * every scroll panel honours the same responsive ramp without
+     * double-padding the outer shell. Vertical centring of the panel
+     * content also lives inside each section (`justify-center`), so a
+     * 1920×1080 desktop renders ≈ 1824×920 of usable content area
+     * (1920 − 2 × 48 px horizontal, 1080 − 2 × 80 px vertical).
+     */
+    <div className="home-landing min-h-screen w-full max-w-full flex flex-col">
       <LandingPage
         className="bg-gradient-to-br from-background via-muted/20 to-background"
         onPrimaryAction={() => navigate('/satellite/indices')}

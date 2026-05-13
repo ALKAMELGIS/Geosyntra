@@ -226,10 +226,24 @@ export function ScrollGlobe({ sections, globeConfig = defaultGlobeConfig, classN
   }, [calculatedPositions])
 
   return (
+    /*
+     * Outer ScrollGlobe shell — locked to the spec the user signed off on
+     * (2026-05-13):
+     *   - `min-h-screen`               full viewport height (≥ 100vh)
+     *   - `w-full` + `max-w-full`      full width, never overflows parent
+     *   - `overflow-x-hidden`          guards the fixed-position globe from
+     *                                  triggering a horizontal scrollbar on
+     *                                  ultra-wide breakpoints
+     *
+     * Per-section padding (responsive `px-*` + `py-*`) lives on the
+     * `<section>` blocks below — adding it here would double-pad the
+     * sections and break the upstream globe-position math (which is keyed
+     * to vw/vh with no parent padding).
+     */
     <div
       ref={containerRef}
       className={cn(
-        'gs-scroll-globe relative w-full max-w-screen overflow-x-hidden min-h-screen bg-background text-foreground',
+        'gs-scroll-globe relative w-full max-w-full overflow-x-hidden min-h-screen bg-background text-foreground',
         className,
       )}
     >

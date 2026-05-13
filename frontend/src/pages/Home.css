@@ -10,12 +10,66 @@
 .home-landing {
   position: relative;
   width: 100%;
-  min-height: 100%;
+  max-width: 100%;
+  min-height: 100vh;
+  min-height: 100dvh;
   background: transparent;
 }
 
 .home-landing .gs-scroll-globe {
   width: 100%;
+  max-width: 100%;
+  min-height: 100vh;
+  min-height: 100dvh;
+}
+
+/*
+ * Locked-in responsive padding for every scroll panel inside the landing
+ * page. Mirrors the Tailwind utilities applied in `landing-page.tsx` so
+ * the spec survives even if a downstream consumer of `<LandingPage />`
+ * passes a `className` that strips the utility classes:
+ *
+ *   - Mobile  (default):  px-4 = 16px / py-12 = 48px
+ *   - sm      (≥ 640px):  px-6 = 24px / py-16 = 64px
+ *   - md      (≥ 768px):  px-8 = 32px
+ *   - lg      (≥1024px):  px-12 = 48px / py-20 = 80px
+ *
+ * `min-height: 100vh` ensures every section is at least one full viewport
+ * tall (so `justify-center` actually centres against the screen, not
+ * against a collapsed flex column).
+ */
+.home-landing .gs-scroll-globe section {
+  min-height: 100vh;
+  min-height: 100dvh;
+  padding-left: 16px;
+  padding-right: 16px;
+  padding-top: 48px;
+  padding-bottom: 48px;
+}
+
+@media (min-width: 640px) {
+  .home-landing .gs-scroll-globe section {
+    padding-left: 24px;
+    padding-right: 24px;
+    padding-top: 64px;
+    padding-bottom: 64px;
+  }
+}
+
+@media (min-width: 768px) {
+  .home-landing .gs-scroll-globe section {
+    padding-left: 32px;
+    padding-right: 32px;
+  }
+}
+
+@media (min-width: 1024px) {
+  .home-landing .gs-scroll-globe section {
+    padding-left: 48px;
+    padding-right: 48px;
+    padding-top: 80px;
+    padding-bottom: 80px;
+  }
 }
 
 /* The global aurora in `index.css` paints the body; keep individual sections
