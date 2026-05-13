@@ -269,7 +269,7 @@ export default function Users({ embedded }: { embedded?: boolean } = {}) {
   }
 
   const handleBack = () => {
-    navigate('/', { state: { openGroup: 'admin' } })
+    navigate('/')
   }
 
   const scanDuplicateAccounts = (showResultToast = false): string[] => {

@@ -1,6 +1,6 @@
 /**
  * Home hub tiles — aligned with `nav/navManifest` groups + quick links.
- * Static hub metadata (used by previews / tooling). The `/` route uses `pages/Home.tsx` classic grid.
+ * Static hub metadata (used by previews / tooling and `landing-page`). The `/` route renders an empty `Home.tsx` shell.
  */
 import { NAV_DEFAULT_GROUPS } from '@/nav/navManifest'
 

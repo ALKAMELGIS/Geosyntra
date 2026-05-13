@@ -219,7 +219,7 @@ export default function GitHubIntegration() {
           </div>
         </div>
         <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
-          <button type="button" className="ds-btn ds-btn-ghost" onClick={() => navigate('/', { state: { openGroup: 'admin' } })}>
+          <button type="button" className="ds-btn ds-btn-ghost" onClick={() => navigate('/')}>
             Back
           </button>
           {connected ? (

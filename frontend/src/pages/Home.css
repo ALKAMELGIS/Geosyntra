@@ -10,6 +10,10 @@
   position: relative;
 }
 
+.home-page--empty {
+  min-height: calc(100dvh - var(--header-height, 64px));
+}
+
 .home-modern {
   display: grid;
   gap: 18px;
