@@ -40,11 +40,13 @@ if (errors.length) {
 }
 
 const distDir = path.join(root, 'frontend', 'dist')
+const shellHtml = html
 const notFoundPath = path.join(distDir, '404.html')
-if (!fs.existsSync(notFoundPath)) {
-  fs.copyFileSync(indexPath, notFoundPath)
-  console.log('pages-dist-check: created frontend/dist/404.html from index.html (SPA fallback).')
-}
+const geosyntraShellPath = path.join(distDir, 'Geosyntra.html')
+/** GitHub Pages requires `404.html` for unknown paths; `Geosyntra.html` is the branded SPA shell copy. */
+fs.writeFileSync(notFoundPath, shellHtml)
+fs.writeFileSync(geosyntraShellPath, shellHtml)
+console.log('pages-dist-check: wrote frontend/dist/404.html and Geosyntra.html from index.html (SPA shell).')
 const nojekyllPath = path.join(distDir, '.nojekyll')
 if (!fs.existsSync(nojekyllPath)) {
   fs.writeFileSync(nojekyllPath, '')

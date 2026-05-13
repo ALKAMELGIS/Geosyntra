@@ -107,9 +107,9 @@ class AppErrorBoundary extends Component<{ children: JSX.Element }, { err: AppEr
     }
 
     return (
-      <div style={{ padding: 16, maxWidth: 900, margin: '0 auto' }}>
+      <div className="geosyntra-app-error">
         <div style={{ fontSize: 18, fontWeight: 700, marginBottom: 8 }}>حدث خطأ ومنع الصفحة من التحميل</div>
-        <div style={{ marginBottom: 12, color: '#444' }}>{message}</div>
+        <div style={{ marginBottom: 12, color: 'var(--ds-color-text-muted)' }}>{message}</div>
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 12 }}>
           <button type="button" className="gis-btn" onClick={() => window.location.reload()}>
             Reload
@@ -125,7 +125,7 @@ class AppErrorBoundary extends Component<{ children: JSX.Element }, { err: AppEr
           </button>
         </div>
         {this.state.err.details ? (
-          <pre style={{ background: '#f6f6f6', padding: 12, overflow: 'auto', whiteSpace: 'pre-wrap' }}>{this.state.err.details}</pre>
+          <pre style={{ padding: 12, overflow: 'auto', whiteSpace: 'pre-wrap' }}>{this.state.err.details}</pre>
         ) : null}
       </div>
     )

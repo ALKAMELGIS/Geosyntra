@@ -51,6 +51,60 @@ html {
   min-width: 0;
 }
 
+/* Enterprise GIS shell — frosted primary navigation (desktop) */
+@media (min-width: 769px) {
+  .layout.layout-sidebar.app-layout {
+    background: linear-gradient(
+      180deg,
+      color-mix(in srgb, var(--ds-color-bg) 96%, transparent) 0%,
+      var(--ds-color-bg) 55%,
+      color-mix(in srgb, var(--ds-color-bg) 92%, #0f172a 8%) 100%
+    );
+  }
+
+  html[data-theme='dark'] .layout.layout-sidebar.app-layout {
+    background: linear-gradient(180deg, #020617 0%, #0b1220 48%, #020617 100%);
+  }
+
+  .layout.layout-sidebar.app-layout > .navmenu {
+    background: color-mix(in srgb, var(--ds-color-surface) 80%, transparent);
+    backdrop-filter: blur(22px) saturate(1.22);
+    -webkit-backdrop-filter: blur(22px) saturate(1.22);
+    border-right: 1px solid color-mix(in srgb, var(--ds-color-border) 70%, transparent);
+    box-shadow:
+      10px 0 36px rgba(2, 6, 23, 0.07),
+      inset -1px 0 0 rgba(255, 255, 255, 0.06);
+  }
+
+  html[data-theme='dark'] .layout.layout-sidebar.app-layout > .navmenu {
+    box-shadow:
+      10px 0 42px rgba(0, 0, 0, 0.38),
+      inset -1px 0 0 rgba(255, 255, 255, 0.05);
+  }
+}
+
+.geosyntra-app-error {
+  max-width: min(560px, calc(100vw - 32px));
+  margin: clamp(20px, 4vh, 40px) auto;
+  padding: clamp(18px, 3.5vw, 26px);
+  border-radius: var(--app-radius-2xl);
+  background: color-mix(in srgb, var(--ds-color-surface) 88%, transparent);
+  backdrop-filter: blur(18px) saturate(1.12);
+  -webkit-backdrop-filter: blur(18px) saturate(1.12);
+  border: 1px solid var(--ds-color-border);
+  box-shadow: var(--ds-shadow-md), inset 0 1px 0 rgba(255, 255, 255, 0.42);
+}
+
+html[data-theme='dark'] .geosyntra-app-error {
+  box-shadow: var(--ds-shadow-md), inset 0 1px 0 rgba(255, 255, 255, 0.06);
+}
+
+.geosyntra-app-error pre {
+  background: color-mix(in srgb, var(--ds-color-surface-2) 90%, transparent) !important;
+  border: 1px solid var(--ds-color-border);
+  border-radius: 12px;
+}
+
 .app-layout > .content {
   background-color: var(--ds-color-bg);
   background-image: none;

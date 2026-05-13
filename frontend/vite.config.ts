@@ -65,7 +65,7 @@ function buildCompressionPlugin(): Plugin {
   }
 
   return {
-    name: 'agrocloud-compression',
+    name: 'geosyntra-compression',
     apply: 'build',
     configResolved(resolved) {
       config = resolved
@@ -117,18 +117,19 @@ function geosyntraBaseTrailingSlashRedirect(): Plugin {
 /** Unique per CI build so Pages index.html ETag changes and browsers/CDNs refetch the shell. */
 function pagesBuildStamp(): Plugin {
   return {
-    name: 'agri-pages-build-stamp',
+    name: 'geosyntra-pages-build-stamp',
     apply: 'build',
     transformIndexHtml(html) {
-      if (html.includes('name="agro-pages-build"')) return html
       const run = (process.env.GITHUB_RUN_ID || '').trim()
       const attempt = (process.env.GITHUB_RUN_ATTEMPT || '').trim()
       const sha = (process.env.GITHUB_SHA || '').trim()
       const stamp = [run, attempt, sha].filter(Boolean).join('-') || `local-${Date.now()}`
-      return html.replace(
-        '<meta charset="UTF-8" />',
-        `<meta charset="UTF-8" />\n    <meta name="agro-pages-build" content="${stamp}" />`,
-      )
+      const meta = `<meta name="geosyntra-pages-build" content="${stamp}" />`
+      if (html.includes('name="geosyntra-pages-build"')) return html
+      if (html.includes('name="agro-pages-build"')) {
+        return html.replace(/<meta name="agro-pages-build"[^>]*\/?>/, meta)
+      }
+      return html.replace('<meta charset="UTF-8" />', `<meta charset="UTF-8" />\n    ${meta}`)
     },
   }
 }
@@ -137,7 +138,7 @@ function pagesBuildStamp(): Plugin {
 function productionCanonicalLink(): Plugin {
   const href = appConfig.productionPublicUrl
   return {
-    name: 'agri-production-canonical',
+    name: 'geosyntra-production-canonical',
     apply: 'build',
     transformIndexHtml(html) {
       if (html.includes('rel="canonical"')) return html
@@ -154,14 +155,40 @@ function ghPagesHashAndSlashRedirect(): Plugin {
   const base = appConfig.basePath
   const withSlash = base.endsWith('/') ? base : `${base}/`
   const noSlash = withSlash.replace(/\/$/, '')
-  const marker = 'data-agro-gh-pages-redirect'
+  const marker = 'data-geosyntra-gh-pages-redirect'
   const snippet = `<script ${marker}="1">;(function(){try{var h=String(location.hostname||"");if(h.indexOf("github.io")===-1)return;var p=location.pathname||"";var ws=${JSON.stringify(withSlash)};var ns=${JSON.stringify(noSlash)};if(p===ns){location.replace(location.origin+ws+location.search+(location.hash&&location.hash.length>1?location.hash:"#/"));return;}if((p===ws||p===ns+"/")&&(!location.hash||location.hash==="#")){location.replace(location.origin+ws+location.search+"#/");}}catch(_){}})();</script>`
   return {
-    name: 'agro-gh-pages-hash-redirect',
+    name: 'geosyntra-gh-pages-hash-redirect',
     apply: 'build',
     transformIndexHtml(html) {
       if (html.includes(marker)) return html
-      return html.replace('<body>', `<body>\n    ${snippet}`)
+      let out = html.replace(/<script data-agro-gh-pages-redirect="1"[^>]*>[\s\S]*?<\/script>\s*/i, '')
+      out = out.replace(/<script data-geosyntra-gh-pages-redirect="1"[^>]*>[\s\S]*?<\/script>\s*/i, '')
+      return out.replace('<body>', `<body>\n    ${snippet}`)
+    },
+  }
+}
+
+/** Open Graph / Twitter cards for production shell (GitHub Pages + crawlers). */
+function geosyntraSocialMetaTags(): Plugin {
+  const title = appConfig.appName
+  const description =
+    'Geosyntra Platform — enterprise GIS, satellite intelligence, and operational geospatial workflows.'
+  const url = appConfig.productionPublicUrl.replace(/\/?$/, '/')
+  return {
+    name: 'geosyntra-social-meta',
+    apply: 'build',
+    transformIndexHtml(html) {
+      if (html.includes('property="og:title"')) return html
+      const block = `    <meta property="og:type" content="website" />
+    <meta property="og:title" content="${title}" />
+    <meta property="og:description" content="${description}" />
+    <meta property="og:url" content="${url}" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="${title}" />
+    <meta name="twitter:description" content="${description}" />
+`
+      return html.replace('</head>', `${block}  </head>`)
     },
   }
 }
@@ -186,6 +213,7 @@ export default defineConfig({
     pagesBuildStamp(),
     ghPagesHashAndSlashRedirect(),
     productionCanonicalLink(),
+    geosyntraSocialMetaTags(),
     react(),
     ...(process.env.ENABLE_PWA === 'true'
       ? [
@@ -198,7 +226,7 @@ export default defineConfig({
               name: 'Geosyntra Platform',
               short_name: 'Geosyntra',
               description: 'Geospatial intelligence, satellite imagery, and operational GIS workflows',
-              theme_color: '#ffffff',
+              theme_color: '#0b1220',
               icons: [
                 {
                   src: 'favicon.svg',

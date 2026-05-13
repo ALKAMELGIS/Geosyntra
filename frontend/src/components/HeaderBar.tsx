@@ -85,7 +85,7 @@ export default function HeaderBar() {
 
   return (
     <header
-      className={`agri-header agri-header--align-${hs.logoAlign}${hs.sticky ? ' agri-header--sticky' : ''}${hs.transparent ? ' agri-header--transparent' : ''}${hs.autoResize ? ' agri-header--auto-resize' : ''}${hs.mobileShowLogoText ? '' : ' agri-header--hide-mobile-text'}${hs.tabletShowLogoText ? '' : ' agri-header--hide-tablet-text'}`}
+      className={`geosyntra-header geosyntra-header--align-${hs.logoAlign}${hs.sticky ? ' geosyntra-header--sticky' : ''}${hs.transparent ? ' geosyntra-header--transparent' : ''}${hs.autoResize ? ' geosyntra-header--auto-resize' : ''}${hs.mobileShowLogoText ? '' : ' geosyntra-header--hide-mobile-text'}${hs.tabletShowLogoText ? '' : ' geosyntra-header--hide-tablet-text'}`}
       ref={headerRef}
       style={headerStyle}
     >

@@ -258,8 +258,8 @@ export default function SystemSettings() {
       setOpenWeatherMapApiKeyDraft(getOpenWeatherMapApiKeyBrowserOverride())
     }
     refreshApiDrafts()
-    window.addEventListener('agri-api-secrets-hydrated', refreshApiDrafts)
-    return () => window.removeEventListener('agri-api-secrets-hydrated', refreshApiDrafts)
+    window.addEventListener('geosyntra-api-secrets-hydrated', refreshApiDrafts)
+    return () => window.removeEventListener('geosyntra-api-secrets-hydrated', refreshApiDrafts)
   }, [tab])
 
   useEffect(() => {

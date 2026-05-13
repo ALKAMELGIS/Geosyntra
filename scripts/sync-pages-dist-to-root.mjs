@@ -15,6 +15,7 @@ const managedTopLevel = [
   'avatars',
   'index.html',
   '404.html',
+  'Geosyntra.html',
   '.nojekyll',
   'vite.svg',
   'robots.txt',

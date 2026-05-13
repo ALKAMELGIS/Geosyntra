@@ -5,7 +5,7 @@ import type { CustomApiTokenSlot, CustomPageRecord, NavItemOverride, SystemSetti
 export const SETTINGS_STORAGE_KEY = 'agri_system_settings_v1'
 
 /** Fired on the window after `saveSystemSettings` (same tab). Cross-tab still receives `storage`. */
-export const SYSTEM_SETTINGS_UPDATED_EVENT = 'agri-system-settings-updated'
+export const SYSTEM_SETTINGS_UPDATED_EVENT = 'geosyntra-system-settings-updated'
 
 /** Global role order — sign-up and directory pickers use a subset in this order. */
 export const DIRECTORY_ROLES_CANONICAL: readonly Role[] = ['Admin', 'Manager', 'Admin Manager', 'Editor', 'Viewer']

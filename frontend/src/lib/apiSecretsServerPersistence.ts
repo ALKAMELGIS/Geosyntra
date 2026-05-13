@@ -119,7 +119,7 @@ export async function hydrateBrowserApiSecretsFromServer(): Promise<boolean> {
     if (!data?.ok || !data.persisted || !data.secrets) return false
     applyPersistedApiSecretsToBrowser(data.secrets)
     if (typeof window !== 'undefined') {
-      window.dispatchEvent(new Event('agri-api-secrets-hydrated'))
+      window.dispatchEvent(new Event('geosyntra-api-secrets-hydrated'))
     }
     return true
   } catch {
@@ -153,7 +153,7 @@ export async function persistApiSecretsPatchToServer(patch: ApiSecretsClientPatc
     if (data?.ok && data.persisted && data.secrets) {
       applyPersistedApiSecretsToBrowser(data.secrets)
       if (typeof window !== 'undefined') {
-        window.dispatchEvent(new Event('agri-api-secrets-hydrated'))
+        window.dispatchEvent(new Event('geosyntra-api-secrets-hydrated'))
       }
     }
     return { ok: true }

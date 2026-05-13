@@ -1,14 +1,16 @@
-.agri-header {
+.geosyntra-header {
   display: grid;
   grid-template-columns: minmax(0, 240px) 1fr minmax(0, 240px);
   align-items: center;
   height: var(--header-height, 64px);
-  background: linear-gradient(
-    135deg,
-    color-mix(in srgb, var(--ds-color-primary) 94%, #022c22) 0%,
-    var(--header-gradient-end, #0f3f2f) 48%,
-    color-mix(in srgb, var(--ds-color-primary) 72%, #020617) 100%
-  );
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.09) 0%, rgba(255, 255, 255, 0) 45%),
+    linear-gradient(
+      135deg,
+      color-mix(in srgb, var(--ds-color-primary) 94%, #022c22) 0%,
+      var(--header-gradient-end, #0f3f2f) 48%,
+      color-mix(in srgb, var(--ds-color-primary) 72%, #020617) 100%
+    );
   color: rgba(255, 255, 255, 0.94);
   padding: var(--header-pad-y, 0) var(--header-pad-x, clamp(16px, 3vw, 28px));
   box-shadow:
@@ -26,20 +28,20 @@
   transition: box-shadow 0.28s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
-.agri-header--sticky {
+.geosyntra-header--sticky {
   position: sticky;
   top: 0;
 }
 
-.agri-header--transparent {
+.geosyntra-header--transparent {
   background: color-mix(in srgb, var(--ds-color-surface) 20%, transparent);
 }
 
-.agri-header--align-start {
+.geosyntra-header--align-start {
   grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(0, 220px);
 }
 
-.agri-header--align-center {
+.geosyntra-header--align-center {
   grid-template-columns: 1fr auto 1fr;
 }
 
@@ -47,7 +49,7 @@
   justify-content: center;
 }
 
-.agri-header::after {
+.geosyntra-header::after {
   content: '';
   position: absolute;
   left: 20px;
@@ -146,7 +148,7 @@ html[data-theme='dark'] .logo-text {
   z-index: 1;
 }
 
-:root[dir="rtl"] .agri-header {
+:root[dir="rtl"] .geosyntra-header {
   direction: rtl;
 }
 
@@ -282,12 +284,12 @@ html[data-theme='dark'] .logo-text {
 }
 
 @media (max-width: 980px) {
-  .agri-header {
+  .geosyntra-header {
     grid-template-columns: auto 1fr auto;
     padding: 0 14px;
   }
 
-  .agri-header--hide-tablet-text .logo-text {
+  .geosyntra-header--hide-tablet-text .logo-text {
     display: none;
   }
 
@@ -301,7 +303,7 @@ html[data-theme='dark'] .logo-text {
 }
 
 @media (max-width: 640px) {
-  .agri-header {
+  .geosyntra-header {
     grid-template-columns: 1fr auto;
     padding: 0 12px;
   }
@@ -310,7 +312,7 @@ html[data-theme='dark'] .logo-text {
     display: none;
   }
 
-  .agri-header--align-center .header-center {
+  .geosyntra-header--align-center .header-center {
     display: flex;
   }
 
@@ -325,7 +327,7 @@ html[data-theme='dark'] .logo-text {
 
 /* Responsive stabilization: keep brand logo visible on all screens */
 @media (max-width: 640px) {
-  .agri-header {
+  .geosyntra-header {
     grid-template-columns: minmax(0, 1fr);
     padding-inline: 10px;
     column-gap: 10px;
@@ -358,7 +360,7 @@ html[data-theme='dark'] .logo-text {
     line-height: 1;
   }
 
-  .agri-header--hide-mobile-text .logo-text {
+  .geosyntra-header--hide-mobile-text .logo-text {
     display: none;
   }
 
@@ -370,7 +372,7 @@ html[data-theme='dark'] .logo-text {
   }
 }
 
-.agri-header--auto-resize .logo-text {
+.geosyntra-header--auto-resize .logo-text {
   font-size: clamp(13px, 1.25vw, var(--header-logo-font-size, 18px));
 }
 

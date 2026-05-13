@@ -87,5 +87,7 @@ jobs:
             echo "| --- |"
             echo "| [https://alkamelgis.github.io/Geosyntra/#/](https://alkamelgis.github.io/Geosyntra/#/) |"
             echo ""
-            echo "**Cache:** Hard refresh (Ctrl+F5) if the site looks stale. Each deploy writes a new agro-pages-build meta tag (run id + SHA) so index.html changes."
+            echo "**إذا ظهرت صفحة GitHub «There isn't a GitHub Pages site here»:** في **Settings → Pages** اختر **Deploy from a branch** → **main** → **/(root)** (ليس «GitHub Actions» فقط). سكربت `ensure-pages-legacy-main.mjs` يحاول ضبط ذلك تلقائياً عند وجود صلاحية."
+            echo ""
+            echo "**Cache:** Hard refresh (Ctrl+F5) if the site looks stale. Each deploy writes a new geosyntra-pages-build meta tag (run id + SHA) so index.html changes."
           } >> "$GITHUB_STEP_SUMMARY"
