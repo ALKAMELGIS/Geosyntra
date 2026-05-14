@@ -177,7 +177,7 @@ function AppShell() {
 
   return (
     <>
-      {showChrome ? <HeaderBar /> : null}
+      {showChrome ? <HeaderBar onLogout={handleLogout} /> : null}
       <div className={layoutShellClass}>
         {showChrome ? <NavMenu onLogout={handleLogout} /> : null}
         <main className={mainContentClass}>

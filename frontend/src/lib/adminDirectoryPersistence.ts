@@ -4,7 +4,7 @@
  *
  * @see backend/server/adminDirectoryPersistence.js
  */
-import { AUDIT_LOG_STORAGE_KEY } from './audit'
+import { AUDIT_LOG_STORAGE_KEY } from './auditConstants'
 
 const ADMIN_USERS_KEY = 'adminUsers'
 const DEFAULT_DIRECTORY_API = '/api/v1/admin/directory'

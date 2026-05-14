@@ -7,93 +7,11 @@ import type { MergedGroup } from '../nav/navManifest'
 import { prefetchRoute } from '../routes/routePrefetch'
 import { normalizeAppPath } from '../services/settingsStorage'
 import { useMergedNavigation, useSystemSettings } from '../store/SystemSettingsContext'
+import { navTranslations } from './navTranslations'
 
 type NavMenuProps = {
   onLogout?: () => void
 }
-
-const navTranslations = {
-  en: {
-    account: 'Account',
-    admin: 'Settings',
-    arabic: 'Arabic',
-    camera: 'Camera',
-    closeMenu: 'Close navigation menu',
-    dashboard: 'Dashboard',
-    esriApp: 'Esri App',
-    geosyntraDashboard: 'Geosyntra Platform Dashboard',
-    agroDashboard: 'Agro Dashboard',
-    geosyntraAi: 'GIS Intelligence AI',
-    geosyntraChat: 'Geosyntra Chat',
-    developDashboard: 'Develop Dashboard',
-    ecph: 'EC/PH',
-    gisContent: 'GIS Content',
-    gisMap: 'GIS Map',
-    githubIntegration: 'GitHub Integration',
-    harvest: 'Harvest Logging',
-    home: 'Home',
-    irrigation: 'Irrigation Scheduling',
-    irrigationSensors: 'Irrigation Sensors',
-    logout: 'Logout',
-    masterData: 'Master Data',
-    openMenu: 'Open navigation menu',
-    operations: 'Operations',
-    productTracking: 'Product & Sales Tracking',
-    profile: 'Profile',
-    qhis: 'QHIS',
-    satelliteImagery: 'Satellite Imagery',
-    satelliteIntelligence: 'Satellite Intelligence',
-    sensors: 'Sensors',
-    soilSensors: 'Soil Sensors',
-    userManagement: 'User Management',
-    weatherSensors: 'Weather Sensors',
-    gpsVehicleTracking: 'GPS Vehicle Tracking',
-    workflowDataSources: 'Data Management',
-    dashboardSettings: 'Dashboard Settings',
-    systemSettings: 'System Settings',
-    customPage: 'Custom page',
-  },
-  ar: {
-    account: 'الحساب',
-    admin: 'الإعدادات',
-    arabic: 'العربية',
-    camera: 'الكاميرا',
-    closeMenu: 'إغلاق قائمة التنقل',
-    dashboard: 'لوحة التحكم',
-    esriApp: 'تطبيق Esri',
-    geosyntraDashboard: 'لوحة منصة جيوسينترا',
-    agroDashboard: 'لوحة Agro',
-    geosyntraAi: 'ذكاء GIS',
-    geosyntraChat: 'محادثة جيوسينترا',
-    developDashboard: 'تطوير لوحة التحكم',
-    ecph: 'الملوحة والحموضة',
-    gisContent: 'محتوى نظم المعلومات الجغرافية',
-    gisMap: 'خريطة GIS',
-    githubIntegration: 'تكامل GitHub',
-    harvest: 'تسجيل الحصاد',
-    home: 'الرئيسية',
-    irrigation: 'جدولة الري',
-    irrigationSensors: 'حساسات الري',
-    logout: 'تسجيل الخروج',
-    masterData: 'البيانات الرئيسية',
-    openMenu: 'فتح قائمة التنقل',
-    operations: 'العمليات',
-    productTracking: 'تتبع المنتجات والمبيعات',
-    profile: 'الملف الشخصي',
-    qhis: 'الجودة والسلامة',
-    satelliteImagery: 'صور الأقمار الصناعية',
-    satelliteIntelligence: 'التحليل الفضائي الذكي',
-    sensors: 'الحساسات',
-    soilSensors: 'حساسات التربة',
-    userManagement: 'إدارة المستخدمين',
-    weatherSensors: 'حساسات الطقس',
-    gpsVehicleTracking: 'تتبع مركبات GPS',
-    workflowDataSources: 'إدارة البيانات',
-    dashboardSettings: 'إعدادات لوحة التحكم',
-    systemSettings: 'إعدادات النظام',
-    customPage: 'صفحة مخصصة',
-  },
-} as const
 
 export default function NavMenu({ onLogout }: NavMenuProps) {
   const getViewport = (): 'desktop' | 'tablet' | 'mobile' => {
@@ -360,6 +278,10 @@ export default function NavMenu({ onLogout }: NavMenuProps) {
 
   const handleNavigate = () => {
     closeAll()
+  }
+
+  if (viewport !== 'mobile') {
+    return null
   }
 
   return (

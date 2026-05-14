@@ -1186,6 +1186,7 @@ export default function Users({ embedded }: { embedded?: boolean } = {}) {
                     <th className="admin-users__th admin-users__th--sort" onClick={() => handleSort('status')}>
                       Status
                     </th>
+                    <th className="admin-users__th">Verified</th>
                     <th className="admin-users__th admin-users__th--sort" onClick={() => handleSort('lastLogin')}>
                       Last Login
                     </th>
@@ -1207,6 +1208,13 @@ export default function Users({ embedded }: { embedded?: boolean } = {}) {
                         <td className="admin-users__td admin-users__td--strong">{user.email}</td>
                         <td className="admin-users__td">{renderRolePill(user.role)}</td>
                         <td className="admin-users__td">{renderStatusPill(user.status || 'Active')}</td>
+                        <td className="admin-users__td admin-users__td--muted">
+                          {user.emailVerified === true ? (
+                            <span className="admin-users__pill admin-users__pill--ok">Yes</span>
+                          ) : (
+                            <span className="admin-users__pill admin-users__pill--warn">No</span>
+                          )}
+                        </td>
                         <td className="admin-users__td admin-users__td--muted">{user.lastLogin || 'Never'}</td>
                         <td className="admin-users__td admin-users__td--actions">
                           <div className="admin-users__row-actions">

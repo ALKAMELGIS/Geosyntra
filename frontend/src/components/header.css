@@ -82,6 +82,19 @@
   grid-template-columns: 1fr auto 1fr;
 }
 
+/* Wider third column when the header hosts the primary icon rail */
+.geosyntra-header--with-primary-nav {
+  grid-template-columns: minmax(0, 240px) minmax(0, 1fr) minmax(200px, min(520px, 42vw));
+}
+
+.geosyntra-header--with-primary-nav.geosyntra-header--align-start {
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(200px, min(520px, 42vw));
+}
+
+.geosyntra-header--with-primary-nav.geosyntra-header--align-center {
+  grid-template-columns: minmax(0, 1fr) auto minmax(200px, min(520px, 42vw));
+}
+
 .header-left--center {
   justify-content: center;
 }

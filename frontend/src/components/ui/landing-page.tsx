@@ -510,7 +510,13 @@ export function ScrollGlobe({ sections, globeConfig = defaultGlobeConfig, classN
               )}
             >
               {section.subtitle && !welcomeVisualRhythm ? (
-                <div className="space-y-1 sm:space-y-2">
+                <div
+                  className={cn(
+                    'space-y-1 sm:space-y-2',
+                    section.align === 'center' && 'text-center',
+                    section.align === 'right' && 'text-right',
+                  )}
+                >
                   <div className="bg-gradient-to-r from-foreground to-foreground/80 bg-clip-text text-transparent">
                     {section.title}
                   </div>
@@ -740,7 +746,7 @@ export default function GlobeScrollDemo({
       subtitle: 'Tomorrow',
       description:
         'In this moment of unity, we see not just a planet, but a canvas of infinite human potential. Every connection represents hope, every innovation builds bridges to our collective future of endless possibilities.',
-      align: 'left',
+      align: 'center',
       actions: [
         { label: 'Join the Movement', variant: 'primary', onClick: primary },
         { label: 'Explore More', variant: 'secondary', onClick: secondary },

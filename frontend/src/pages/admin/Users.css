@@ -988,3 +988,31 @@ html[data-theme='dark'] .admin-users__mini-dialog {
 .admin-users__audit-muted {
   color: var(--au-muted) !important;
 }
+
+.admin-users__pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+.admin-users__pill--ok {
+  background: rgba(34, 197, 94, 0.15);
+  color: #15803d;
+}
+
+html[data-theme='dark'] .admin-users__pill--ok {
+  color: #86efac;
+}
+
+.admin-users__pill--warn {
+  background: rgba(251, 191, 36, 0.2);
+  color: #b45309;
+}
+
+html[data-theme='dark'] .admin-users__pill--warn {
+  color: #fcd34d;
+}

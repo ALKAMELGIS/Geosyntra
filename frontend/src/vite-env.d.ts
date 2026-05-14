@@ -10,8 +10,9 @@ interface ImportMetaEnv {
   /** Optional GET/PUT base for cross-device profile sync (default `/api/v1/account/profile-extra`). */
   readonly VITE_AGRI_USER_PROFILE_URL?: string
   readonly VITE_AGRI_USER_PROFILE_TOKEN?: string
-  /** Base URL for GeoDash FastAPI (e.g. http://localhost:8090) — no trailing slash */
-  readonly VITE_GEODASH_API_URL?: string
+  /** Optional OAuth redirect URLs (IdP / backend handles token exchange). */
+  readonly VITE_AUTH_GOOGLE_URL?: string
+  readonly VITE_AUTH_APPLE_URL?: string
 }
 
 declare global {

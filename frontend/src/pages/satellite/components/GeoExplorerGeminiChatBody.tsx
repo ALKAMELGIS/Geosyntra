@@ -2,8 +2,9 @@ import type { ChangeEvent, RefObject } from 'react'
 import type { GeoExplorerMessage } from '../../../lib/geoExplorerGemini'
 import { GeoExplorerGeminiInputRow } from './GeoExplorerGeminiInputRow'
 import { GeoExplorerGeminiMessageParts } from './GeoExplorerGeminiMessageParts'
+import type { GeoExplorerCssPrefix } from './geoExplorerCssPrefix'
 
-export type GeoExplorerCssPrefix = 'gis-geo-explorer' | 'si-geo-explorer'
+export type { GeoExplorerCssPrefix } from './geoExplorerCssPrefix'
 
 export type GeoExplorerGeminiChatBodyProps = {
   cssPrefix: GeoExplorerCssPrefix

@@ -1,7 +1,7 @@
 import type { GeoExplorerMapLink, GeoExplorerMessage, GeoExplorerPart } from '../../../lib/geoExplorerGemini'
 import { stripGeoExplorerBubbleDisplayText } from '../../../lib/geoExplorerGemini'
 import { splitTextIntoMarkdownSegments, type GeoMarkdownSegment } from '../../../lib/geoAiMarkdownTable'
-import type { GeoExplorerCssPrefix } from './GeoExplorerGeminiChatBody'
+import type { GeoExplorerCssPrefix } from './geoExplorerCssPrefix'
 import { GeoExplorerDynamicTable, type GeoExplorerMapAction } from './GeoExplorerDynamicTable'
 import { GeoAiEditQuestionTool } from './GeoAiEditQuestionTool'
 import { SiCopyTextButton } from './SiCopyTextButton'

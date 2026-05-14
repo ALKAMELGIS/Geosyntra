@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { useLocation } from 'react-router-dom'
+import './Login.css'
 import { normalizeEmail, normalizeRole, startSession } from '../lib/auth'
 import { pickDefaultAssignableRole, useDirectoryRoleCatalog } from '../lib/roleCatalog'
 import { hydrateProfileFromAdminUserRecord, hydrateProfileFromServer } from '../lib/userProfilePersistence'
@@ -34,6 +35,18 @@ const loginTranslations = {
       'If you forgot which email address you use for this account, contact your administrator.',
     forgotPasswordHelp:
       'Self-service password reset is not available here. Contact your administrator to reset your password.',
+    heroLine1: 'Geospatial intelligence,',
+    heroLine2: 'Designed for clarity.',
+    heroSub: 'Sign in to {name} — satellite intelligence, GIS, and operations in one workspace.',
+    continueWith: 'Or continue with',
+    emailPassword: 'Email & password',
+    oauthGoogle: 'Continue with Google',
+    oauthApple: 'Continue with Apple',
+    oauthNotConfigured:
+      'Single sign-on is not configured. Use email and password, or ask your administrator to enable OAuth (VITE_AUTH_GOOGLE_URL / VITE_AUTH_APPLE_URL).',
+    footerNote:
+      'Self-service sign-ups require email verification before login. Admins manage accounts, roles, and activation in User Management.',
+    signupVerifyHint: 'After sign up, check your inbox for a confirmation link before your first login.',
     roles: {
       Admin: 'Admin',
       Manager: 'Manager',
@@ -58,6 +71,18 @@ const loginTranslations = {
     forgotOr: 'أو',
     forgotUsernameHelp: 'إذا نسيت البريد الإلكتروني المستخدم لهذا الحساب، تواصل مع مسؤول النظام.',
     forgotPasswordHelp: 'استعادة كلمة المرور الذاتية غير متوفرة. تواصل مع مسؤول النظام لإعادة تعيين كلمة المرور.',
+    heroLine1: 'ذكاء مكاني،',
+    heroLine2: 'تصميم يوضح الصورة.',
+    heroSub: 'سجّل الدخول إلى {name} — التحليل الفضائي ونظم المعلومات الجغرافية والعمليات في منصة واحدة.',
+    continueWith: 'أو تابع باستخدام',
+    emailPassword: 'البريد وكلمة المرور',
+    oauthGoogle: 'المتابعة مع Google',
+    oauthApple: 'المتابعة مع Apple',
+    oauthNotConfigured:
+      'تسجيل الدخول الموحد غير مهيأ. استخدم البريد وكلمة المرور، أو اطلب من المسؤول تفعيل OAuth (VITE_AUTH_GOOGLE_URL / VITE_AUTH_APPLE_URL).',
+    footerNote:
+      'الحسابات الجديدة تبقى قيد التحقق حتى تأكيد البريد. يدير المسؤول الحسابات والأدوار والتفعيل من إدارة المستخدمين.',
+    signupVerifyHint: 'بعد إنشاء الحساب، راجع بريدك للرابط التأكيدي قبل أول تسجيل دخول.',
     roles: {
       Admin: 'مدير النظام',
       Manager: 'مدير',
@@ -83,7 +108,6 @@ export default function Login() {
   const [inviteToken, setInviteToken] = useState<string>('')
   const location = useLocation()
   const roleDropdownRef = useRef<HTMLDivElement | null>(null)
-  const loginBgVideoRef = useRef<HTMLVideoElement | null>(null)
   const [isRoleOpen, setIsRoleOpen] = useState(false)
   const [keepSignedIn, setKeepSignedIn] = useState(true)
   const mandatoryLoginSeeds = [
@@ -825,133 +849,84 @@ export default function Login() {
   }, [])
 
   useEffect(() => {
-    const el = loginBgVideoRef.current
-    if (!el) return
-    void el.play()?.catch(() => {})
-  }, [])
-
-  useEffect(() => {
     // Keep session persistence enabled by default for same-browser multi-tab/window continuity.
     if (mode === 'signin') setKeepSignedIn(true)
   }, [mode])
 
+  const googleAuthUrl =
+    typeof import.meta.env.VITE_AUTH_GOOGLE_URL === 'string' ? import.meta.env.VITE_AUTH_GOOGLE_URL.trim() : ''
+  const appleAuthUrl =
+    typeof import.meta.env.VITE_AUTH_APPLE_URL === 'string' ? import.meta.env.VITE_AUTH_APPLE_URL.trim() : ''
+
+  const onSsoGoogle = () => {
+    setError('')
+    if (googleAuthUrl) window.location.assign(googleAuthUrl)
+    else setInfo(text.oauthNotConfigured)
+  }
+
+  const onSsoApple = () => {
+    setError('')
+    if (appleAuthUrl) window.location.assign(appleAuthUrl)
+    else setInfo(text.oauthNotConfigured)
+  }
+
   return (
     <div className="login-page-root">
-      <div className="login-bg-video" aria-hidden="true">
-        <video
-          ref={loginBgVideoRef}
-          id="banner-two"
-          preload="metadata"
-          className="video-background"
-          poster="https://www.esri.com/content/dam/esrisites/en-us/parallax-gis/scene-poster.jpg"
-          muted
-          playsInline
-          autoPlay
-          loop
-        >
-          <source
-            media="(min-width: 1024px)"
-            src="https://www.esri.com/content/dam/esrisites/en-us/parallax-gis/wigis-scene-2-0521-large.mp4"
-            type="video/mp4"
-          />
-          <source
-            media="(min-width: 780px)"
-            src="https://www.esri.com/content/dam/esrisites/en-us/parallax-gis/wigis-scene-2-0521-large.mp4"
-            type="video/mp4"
-          />
-          <source
-            src="https://www.esri.com/content/dam/esrisites/en-us/parallax-gis/wigis-scene-2-0521-large.mp4"
-            type="video/mp4"
-          />
-        </video>
-      </div>
-      <div className="login-bg-overlay"></div>
+      <div className="login-bg-ambient" aria-hidden />
+      <div className="login-bg-overlay" aria-hidden />
       <div className="login-page-content">
-        <div
-          style={{
-            width: '100%',
-            maxWidth: '360px',
-            background: 'radial-gradient(circle at top, rgba(15,23,42,0.96), rgba(15,23,42,0.92))',
-            borderRadius: '18px',
-            padding: '24px 24px 22px',
-            boxShadow: '0 22px 70px rgba(15, 23, 42, 0.85)',
-            border: '1px solid rgba(148, 163, 184, 0.45)',
-            color: 'white'
-          }}
-        >
-        <div style={{ marginBottom: '20px', textAlign: 'center' }}>
-          <div className="login-leaf-badge" style={{ marginBottom: '12px' }}>
-            <div className="login-leaf-circle" style={{ width: 56, height: 56, fontSize: '22px' }}>
-              <i className="fa-solid fa-globe" aria-hidden />
-            </div>
+        <div className="login-page-shell">
+          <div className="login-hero">
+            <p className="login-hero__line1">{text.heroLine1}</p>
+            <p className="login-hero__line2">{text.heroLine2}</p>
+            <p className="login-hero__sub">{text.heroSub.replace('{name}', appConfig.appName)}</p>
           </div>
-          <h1
-            style={{
-              margin: 0,
-              fontSize: '18px',
-              fontWeight: 700,
-              letterSpacing: '-0.03em'
-            }}
-          >
-            {appConfig.appName}
-          </h1>
-          <div
-            style={{
-              marginTop: '14px',
-              display: 'inline-flex',
-              borderRadius: '999px',
-              padding: '2px',
-              background: 'rgba(15,23,42,0.9)',
-              border: '1px solid rgba(55, 65, 81, 0.9)'
-            }}
-          >
-            <button
-              type="button"
-              onClick={() => {
-                setMode('signin')
-                setError('')
-                  setInfo('')
-              }}
-              style={{
-                padding: '5px 14px',
-                borderRadius: '999px',
-                border: 'none',
-                fontSize: '12px',
-                fontWeight: 600,
-                cursor: 'pointer',
-                background: mode === 'signin' ? 'linear-gradient(135deg, #22c55e, #16a34a)' : 'transparent',
-                color: mode === 'signin' ? '#ecfdf5' : '#cbd5f5',
-                boxShadow: mode === 'signin' ? '0 8px 18px rgba(34,197,94,0.55)' : 'none',
-                transition: 'all 0.2s ease'
-              }}
-            >
-              {text.signIn}
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                setMode('signup')
-                setError('')
-                  setInfo('')
-              }}
-              style={{
-                padding: '5px 14px',
-                borderRadius: '999px',
-                border: 'none',
-                fontSize: '12px',
-                fontWeight: 600,
-                cursor: 'pointer',
-                background: mode === 'signup' ? 'linear-gradient(135deg, #22c55e, #16a34a)' : 'transparent',
-                color: mode === 'signup' ? '#ecfdf5' : '#cbd5f5',
-                boxShadow: mode === 'signup' ? '0 8px 18px rgba(34,197,94,0.55)' : 'none',
-                transition: 'all 0.2s ease'
-              }}
-            >
-              {text.signUp}
-            </button>
-          </div>
-        </div>
-        <form onSubmit={handleSubmit} autoComplete="off">
+          <div className="login-glass-card-wrap">
+            <div className="login-glass-card">
+              <div style={{ marginBottom: '20px', textAlign: 'center' }}>
+                <div className="login-leaf-badge" style={{ marginBottom: '12px' }}>
+                  <div className="login-leaf-circle" style={{ width: 56, height: 56, fontSize: '22px' }}>
+                    <i className="fa-solid fa-globe" aria-hidden />
+                  </div>
+                </div>
+                <h1 style={{ margin: 0, fontSize: '18px', fontWeight: 700, letterSpacing: '-0.03em' }}>{appConfig.appName}</h1>
+                <div className="login-mode-toggle" style={{ marginTop: '14px' }}>
+                  <button
+                    type="button"
+                    className={
+                      'login-mode-toggle__btn ' +
+                      (mode === 'signin' ? 'login-mode-toggle__btn--active' : 'login-mode-toggle__btn--idle')
+                    }
+                    onClick={() => {
+                      setMode('signin')
+                      setError('')
+                      setInfo('')
+                    }}
+                  >
+                    {text.signIn}
+                  </button>
+                  <button
+                    type="button"
+                    className={
+                      'login-mode-toggle__btn ' +
+                      (mode === 'signup' ? 'login-mode-toggle__btn--active' : 'login-mode-toggle__btn--idle')
+                    }
+                    onClick={() => {
+                      setMode('signup')
+                      setError('')
+                      setInfo('')
+                    }}
+                  >
+                    {text.signUp}
+                  </button>
+                </div>
+              </div>
+
+              <div className="login-divider">
+                <span>{text.emailPassword}</span>
+              </div>
+
+              <form onSubmit={handleSubmit} autoComplete="off">
           {mode === 'signup' && (
             <div
               style={{
@@ -1335,6 +1310,11 @@ export default function Login() {
               {error}
             </div>
           )}
+          {mode === 'signup' ? (
+            <p style={{ margin: '0 0 10px', fontSize: '11px', lineHeight: 1.45, color: 'rgba(148, 163, 184, 0.95)', textAlign: 'center' }}>
+              {text.signupVerifyHint}
+            </p>
+          ) : null}
           <div style={{ display: 'flex', justifyContent: 'center' }}>
             <button
               type="submit"
@@ -1366,7 +1346,25 @@ export default function Login() {
                   : text.createAccount}
             </button>
           </div>
-        </form>
+              </form>
+
+              <div className="login-divider" style={{ marginTop: '18px' }}>
+                <span>{text.continueWith}</span>
+              </div>
+              <div className="login-sso-row">
+                <button type="button" className="login-sso-btn login-sso-btn--google" onClick={onSsoGoogle}>
+                  <i className="fa-brands fa-google" aria-hidden />
+                  {text.oauthGoogle}
+                </button>
+                <button type="button" className="login-sso-btn login-sso-btn--apple" onClick={onSsoApple}>
+                  <i className="fa-brands fa-apple" aria-hidden />
+                  {text.oauthApple}
+                </button>
+              </div>
+
+              <p className="login-footer-note">{text.footerNote}</p>
+            </div>
+          </div>
         </div>
       </div>
     </div>

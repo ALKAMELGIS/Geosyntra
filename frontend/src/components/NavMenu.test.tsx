@@ -5,6 +5,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import { MemoryRouter } from 'react-router-dom'
 import { SystemSettingsProvider } from '../store/SystemSettingsContext'
 import NavMenu from './NavMenu'
+import PrimaryNavIcons from './PrimaryNavIcons'
 
 const routerFuture = { v7_relativeSplatPath: true, v7_startTransition: true } as const
 
@@ -15,12 +16,24 @@ function setViewport(width: number) {
 
 beforeEach(() => {
   localStorage.clear()
-  localStorage.setItem('currentUser', JSON.stringify({ role: 'Admin' }))
+  localStorage.setItem(
+    'currentUser',
+    JSON.stringify({
+      id: 1,
+      name: 'Test Admin',
+      email: 'admin@test.com',
+      role: 'Admin',
+    }),
+  )
   localStorage.setItem('appNotifications', JSON.stringify([]))
   Object.defineProperty(window, 'matchMedia', {
     writable: true,
     value: (query: string) => ({
-      matches: query.includes('max-width') ? window.innerWidth <= 768 : false,
+      matches: query.includes('(max-width: 767px)')
+        ? window.innerWidth <= 767
+        : query.includes('max-width')
+          ? window.innerWidth <= 768
+          : false,
       media: query,
       onchange: null,
       addEventListener: vi.fn(),
@@ -38,7 +51,7 @@ afterEach(() => {
 })
 
 describe('NavMenu vertical responsive', () => {
-  it('renders vertical nav semantics and ARIA in desktop viewport', () => {
+  it('does not render the mobile nav strip on desktop (primary nav lives in the header)', () => {
     setViewport(1280)
     render(
       <MemoryRouter future={routerFuture}>
@@ -47,27 +60,37 @@ describe('NavMenu vertical responsive', () => {
         </SystemSettingsProvider>
       </MemoryRouter>,
     )
-    const nav = screen.getByRole('navigation', { name: /primary/i })
-    expect(nav).toBeInTheDocument()
-    expect(nav).toHaveClass('navmenu')
-    expect(nav).toHaveAttribute('data-viewport', 'desktop')
-    expect(screen.getByRole('button', { name: /collapse navigation/i })).toBeInTheDocument()
+    expect(screen.queryByRole('navigation', { name: /^primary$/i })).not.toBeInTheDocument()
   })
 
-  it('opens and closes group with keyboard and keeps aria-expanded updated', () => {
+  it('renders header primary icon nav on desktop viewport', () => {
     setViewport(1280)
     render(
       <MemoryRouter future={routerFuture}>
         <SystemSettingsProvider>
-          <NavMenu />
+          <PrimaryNavIcons />
         </SystemSettingsProvider>
       </MemoryRouter>,
     )
-    const masterData = screen.getByRole('button', { name: /master data/i })
+    const nav = screen.getByRole('navigation', { name: /primary app navigation/i })
+    expect(nav).toBeInTheDocument()
+    expect(nav).toHaveClass('geosyntra-primary-nav')
+  })
+
+  it('opens and closes merged group popover with click and Escape', () => {
+    setViewport(1280)
+    render(
+      <MemoryRouter future={routerFuture}>
+        <SystemSettingsProvider>
+          <PrimaryNavIcons />
+        </SystemSettingsProvider>
+      </MemoryRouter>,
+    )
+    const masterData = screen.getByTitle(/master data/i)
     expect(masterData).toHaveAttribute('aria-expanded', 'false')
-    fireEvent.keyDown(masterData, { key: 'Enter' })
+    fireEvent.click(masterData)
     expect(masterData).toHaveAttribute('aria-expanded', 'true')
-    fireEvent.keyDown(masterData, { key: 'Escape' })
+    fireEvent.keyDown(window, { key: 'Escape' })
     expect(masterData).toHaveAttribute('aria-expanded', 'false')
   })
 
@@ -110,14 +133,14 @@ describe('NavMenu vertical responsive', () => {
     render(
       <MemoryRouter future={routerFuture} initialEntries={['/admin/system-settings']}>
         <SystemSettingsProvider>
-          <NavMenu />
+          <PrimaryNavIcons />
         </SystemSettingsProvider>
       </MemoryRouter>,
     )
     const groupHeader = screen.getByRole('button', { name: /^settings$/i })
     expect(groupHeader).toBeInTheDocument()
     fireEvent.click(groupHeader)
-    expect(screen.getByRole('link', { name: /system settings/i })).toHaveAttribute(
+    expect(screen.getByRole('menuitem', { name: /system settings/i })).toHaveAttribute(
       'href',
       '/admin/system-settings',
     )

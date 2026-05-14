@@ -1,5 +1,6 @@
 import './header.css'
 import { useEffect, useMemo, useRef, type CSSProperties } from 'react'
+import PrimaryNavIcons from './PrimaryNavIcons'
 import { useSystemSettings } from '../store/SystemSettingsContext'
 import { useLanguage } from '../lib/i18n'
 import {
@@ -12,7 +13,11 @@ import {
 /** No third-party default; use System Settings → logo URLs, or header shows text/icon only. */
 const DEFAULT_CENTER_LOGO = ''
 
-export default function HeaderBar() {
+type HeaderBarProps = {
+  onLogout?: () => void
+}
+
+export default function HeaderBar({ onLogout }: HeaderBarProps) {
   const headerRef = useRef<HTMLElement | null>(null)
   const { settings } = useSystemSettings()
   const { language } = useLanguage()
@@ -92,7 +97,7 @@ export default function HeaderBar() {
 
   return (
     <header
-      className={`geosyntra-header geosyntra-header--align-${hs.logoAlign}${hs.sticky ? ' geosyntra-header--sticky' : ''}${hs.transparent ? ' geosyntra-header--transparent' : ''}${hs.autoResize ? ' geosyntra-header--auto-resize' : ''}${hs.mobileShowLogoText ? '' : ' geosyntra-header--hide-mobile-text'}${hs.tabletShowLogoText ? '' : ' geosyntra-header--hide-tablet-text'}`}
+      className={`geosyntra-header geosyntra-header--with-primary-nav geosyntra-header--align-${hs.logoAlign}${hs.sticky ? ' geosyntra-header--sticky' : ''}${hs.transparent ? ' geosyntra-header--transparent' : ''}${hs.autoResize ? ' geosyntra-header--auto-resize' : ''}${hs.mobileShowLogoText ? '' : ' geosyntra-header--hide-mobile-text'}${hs.tabletShowLogoText ? '' : ' geosyntra-header--hide-tablet-text'}`}
       ref={headerRef}
       style={headerStyle}
     >
@@ -125,7 +130,9 @@ export default function HeaderBar() {
           />
         ) : null}
       </div>
-      <div className="header-right"></div>
+      <div className="header-right">
+        <PrimaryNavIcons onLogout={onLogout} />
+      </div>
     </header>
   )
 }

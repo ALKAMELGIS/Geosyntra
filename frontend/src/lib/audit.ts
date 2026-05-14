@@ -1,4 +1,7 @@
 import { readCurrentUser } from './auth'
+import { AUDIT_LOG_STORAGE_KEY } from './auditConstants'
+
+export { AUDIT_LOG_STORAGE_KEY }
 
 export type AuditEntry = {
   id: string
@@ -9,8 +12,6 @@ export type AuditEntry = {
   actorEmail?: string
   meta?: Record<string, unknown>
 }
-
-export const AUDIT_LOG_STORAGE_KEY = 'audit_log_v1'
 
 const normalizeEntry = (raw: unknown): AuditEntry | null => {
   if (!raw || typeof raw !== 'object') return null
