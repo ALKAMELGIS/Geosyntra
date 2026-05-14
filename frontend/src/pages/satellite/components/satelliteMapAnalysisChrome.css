@@ -702,12 +702,69 @@
   cursor: not-allowed;
 }
 
+.si-map-analysis-layer-more {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin-inline-start: 2px;
+  padding: 2px 4px 2px 8px;
+  border-radius: 999px;
+  border: 1px solid rgba(148, 163, 184, 0.22);
+  background: rgba(15, 23, 42, 0.45);
+}
+
+.si-map-analysis-layer-more-label {
+  font-size: 8px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: rgba(148, 163, 184, 0.88);
+  white-space: nowrap;
+}
+
+.si-map-analysis-layer-more-select {
+  font-size: 10px;
+  font-weight: 650;
+  padding: 5px 8px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(0, 0, 0, 0.32);
+  color: #e2e8f0;
+  cursor: pointer;
+  max-width: min(148px, 38vw);
+}
+
+.si-map-analysis-layer-more-select:focus {
+  outline: 2px solid rgba(99, 102, 241, 0.45);
+  outline-offset: 1px;
+}
+
+.si-map-analysis-layer-more-select option {
+  color: #0f172a;
+  background: #f8fafc;
+}
+
+.si-sat-ctx-dock--light .si-map-analysis-layer-more {
+  background: rgba(255, 255, 255, 0.75);
+  border-color: rgba(148, 163, 184, 0.35);
+}
+
+.si-sat-ctx-dock--light .si-map-analysis-layer-more-label {
+  color: rgba(71, 85, 105, 0.9);
+}
+
+.si-sat-ctx-dock--light .si-map-analysis-layer-more-select {
+  background: rgba(255, 255, 255, 0.92);
+  color: #0f172a;
+  border-color: rgba(148, 163, 184, 0.4);
+}
+
 .si-aoi-static-line-wrap {
   position: relative;
   display: flex;
   flex-direction: column;
-  height: 260px;
-  min-height: 220px;
+  height: 286px;
+  min-height: 228px;
   border-radius: 12px;
   padding: 8px 8px 4px;
   border: 1px solid rgba(148, 163, 184, 0.24);
@@ -720,8 +777,129 @@
   justify-content: space-between;
   gap: 8px;
   flex-shrink: 0;
-  padding: 0 2px 4px;
+  padding: 0 2px 2px;
   min-height: 28px;
+}
+
+.si-aoi-static-line-legend {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 12px;
+  flex-shrink: 0;
+  padding: 2px 2px 6px;
+  min-height: 26px;
+}
+
+.si-aoi-static-line-legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  border-radius: 8px;
+  padding: 1px 4px 1px 2px;
+  background: rgba(15, 23, 42, 0.35);
+  border: 1px solid rgba(148, 163, 184, 0.16);
+}
+
+.si-aoi-static-line-wrap--light .si-aoi-static-line-legend-item {
+  background: rgba(255, 255, 255, 0.65);
+  border-color: rgba(148, 163, 184, 0.35);
+}
+
+.si-aoi-static-line-legend-item--off {
+  opacity: 0.45;
+}
+
+.si-aoi-static-line-legend-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  padding: 2px 4px 2px 2px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  font: inherit;
+  max-width: min(160px, 42vw);
+}
+
+.si-aoi-static-line-legend-toggle:hover {
+  background: rgba(148, 163, 184, 0.12);
+}
+
+.si-aoi-static-line-wrap--light .si-aoi-static-line-legend-toggle:hover {
+  background: rgba(148, 163, 184, 0.18);
+}
+
+.si-aoi-static-line-legend-point {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  box-shadow: 0 0 0 1px rgba(15, 23, 42, 0.35);
+}
+
+.si-aoi-static-line-wrap--light .si-aoi-static-line-legend-point {
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.9);
+}
+
+.si-aoi-static-line-legend-label {
+  font-size: 11px;
+  font-weight: 650;
+  color: #e2e8f0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.si-aoi-static-line-wrap--light .si-aoi-static-line-legend-label {
+  color: #1e293b;
+}
+
+.si-aoi-static-line-legend-pick {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  flex-shrink: 0;
+  border-radius: 6px;
+  cursor: pointer;
+  color: rgba(148, 163, 184, 0.95);
+}
+
+.si-aoi-static-line-legend-pick:hover {
+  color: #a5b4fc;
+  background: rgba(99, 102, 241, 0.12);
+}
+
+.si-aoi-static-line-wrap--light .si-aoi-static-line-legend-pick {
+  color: #64748b;
+}
+
+.si-aoi-static-line-wrap--light .si-aoi-static-line-legend-pick:hover {
+  color: #4f46e5;
+  background: rgba(99, 102, 241, 0.1);
+}
+
+.si-aoi-static-line-legend-pick-input {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  cursor: pointer;
+  margin: 0;
+  padding: 0;
+  border: none;
+}
+
+.si-aoi-static-line-legend-pick-icon {
+  font-size: 11px;
+  pointer-events: none;
 }
 
 .si-aoi-static-chart-type {

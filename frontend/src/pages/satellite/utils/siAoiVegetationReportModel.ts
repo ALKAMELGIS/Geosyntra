@@ -6,16 +6,26 @@ import {
   staticAoiLayerMeanForWeek,
   type StaticAoiChartLayerId,
 } from './staticAoiMultiChartData';
+import {
+  SI_NDMI_CLASSIFICATION_STOPS,
+  SI_NDVI_CLASSIFICATION_STOPS,
+  SI_NDWI_CLASSIFICATION_STOPS,
+  type IndexRampStop,
+  siThinLegendSegments,
+} from '../../../lib/siWmsIndexClassificationRamp';
 
 export type SiAoiReportHealthKey = 'high' | 'medium' | 'low';
 
 export type SiAoiReportTimePoint = { date: string; value: number };
 
+export type SiAoiLegendBandCount = 5 | 10;
+
 export type SiAoiReportTableRow = {
-  key: SiAoiReportHealthKey;
+  key: string;
   labelEn: string;
   pct: number;
   areaKm2: number;
+  colorHex?: string;
 };
 
 /** Aggregated stats for one change-detection tile (from pixel grid inside AOI). */
@@ -129,6 +139,8 @@ export type SiAoiReportModel = {
   dataInsights: SiAoiDataInsightsBundle;
   /** Palette used for heatmaps, pie slices, and PDF legend (mirrors Symbology when passed into report build). */
   classificationPalette: SiAoiClassificationPalette;
+  /** Number of legend-aligned area classes (5 or 10) used for table + map overlay. */
+  legendBandCount: SiAoiLegendBandCount;
 };
 
 /** Bounding box [west, south, east, north] in WGS84 for map fit / grids. */
@@ -255,6 +267,148 @@ function hashStr(s: string): number {
     h = (Math.imul(31, h) + s.charCodeAt(i)) | 0;
   }
   return Math.abs(h);
+}
+
+/** Sentinel-style classified ramp stops for the static chart layer id (legend-aligned AOI report). */
+function stopsForStaticAoiIndex(indexId: StaticAoiChartLayerId): readonly IndexRampStop[] {
+  switch (indexId) {
+    case 'NDWI':
+      return SI_NDWI_CLASSIFICATION_STOPS;
+    case 'NDMI':
+      return SI_NDMI_CLASSIFICATION_STOPS;
+    case 'NDVI':
+    case 'SAVI':
+    case 'EVI':
+    case 'NDSI':
+      return SI_NDVI_CLASSIFICATION_STOPS;
+    case 'LST':
+      return [
+        [15, 0x312e81],
+        [20, 0x4338ca],
+        [24, 0x2563eb],
+        [28, 0x22c55e],
+        [32, 0xeab308],
+        [36, 0xf97316],
+        [40, 0xef4444],
+        [45, 0x7f1d1d],
+      ] as const;
+    default:
+      return SI_NDVI_CLASSIFICATION_STOPS;
+  }
+}
+
+function buildLegendBandTableRows(
+  indexId: StaticAoiChartLayerId,
+  aoiAreaKm2: number,
+  bandCount: SiAoiLegendBandCount,
+): SiAoiReportTableRow[] {
+  const stops = stopsForStaticAoiIndex(indexId);
+  const segments = siThinLegendSegments(stops, bandCount);
+  const weights = segments.map(seg => Math.max(1e-9, Math.abs(seg.to - seg.from)));
+  const sumW = weights.reduce((a, b) => a + b, 0) || 1;
+  return segments.map((seg, i) => {
+    const pct = (100 * weights[i]!) / sumW;
+    const a = Number(seg.from.toFixed(3));
+    const b = Number(seg.to.toFixed(3));
+    return {
+      key: `lb${i}`,
+      labelEn: `${a} – ${b}`,
+      pct,
+      areaKm2: (aoiAreaKm2 * pct) / 100,
+      colorHex: seg.color,
+    };
+  });
+}
+
+/** Pixel grid with class shares matching legend table rows (cumulative pct thresholds). */
+function buildWeightedClassPixelGrid(
+  geom: GeoJSON.Polygon | GeoJSON.MultiPolygon,
+  bounds: [number, number, number, number],
+  seed: string,
+  rows: SiAoiReportTableRow[],
+  maxFeatures = 2800,
+): GeoJSON.FeatureCollection {
+  const [w, s, e, n] = bounds;
+  const spanX = Math.max(1e-9, e - w);
+  const spanY = Math.max(1e-9, n - s);
+  const targetCells = 52;
+  const nx = Math.min(64, Math.max(24, Math.round((spanX / spanY) * targetCells)));
+  const ny = Math.min(64, Math.max(24, Math.round((spanY / spanX) * targetCells)));
+  const dx = spanX / nx;
+  const dy = spanY / ny;
+  const hx = dx * 0.45;
+  const hy = dy * 0.45;
+  const thresholds: number[] = [0];
+  let acc = 0;
+  for (const r of rows) {
+    acc += r.pct / 100;
+    thresholds.push(Math.min(1, acc));
+  }
+  if (thresholds[thresholds.length - 1]! < 1) thresholds[thresholds.length - 1] = 1;
+  const features: GeoJSON.Feature[] = [];
+  for (let i = 0; i < nx; i++) {
+    for (let j = 0; j < ny; j++) {
+      if (features.length >= maxFeatures) break;
+      const cx = w + (i + 0.5) * dx;
+      const cy = s + (j + 0.5) * dy;
+      if (!pointInPolygonGeometry(cx, cy, geom)) continue;
+      const u = (cellHash(cx, cy, seed) % 10000) / 10000;
+      let k = rows.length - 1;
+      for (let t = 0; t < rows.length; t++) {
+        if (u < thresholds[t + 1]!) {
+          k = t;
+          break;
+        }
+      }
+      const row = rows[k]!;
+      const fill = row.colorHex ?? '#22c55e';
+      const poly: GeoJSON.Polygon = {
+        type: 'Polygon',
+        coordinates: [
+          [
+            [cx - hx, cy - hy],
+            [cx + hx, cy - hy],
+            [cx + hx, cy + hy],
+            [cx - hx, cy + hy],
+            [cx - hx, cy - hy],
+          ],
+        ],
+      };
+      features.push({
+        type: 'Feature',
+        properties: { cls: row.key, fill, opacity: 0.5 },
+        geometry: poly,
+      });
+    }
+    if (features.length >= maxFeatures) break;
+  }
+  if (features.length === 0) {
+    const cx = (w + e) / 2;
+    const cy = (s + n) / 2;
+    if (pointInPolygonGeometry(cx, cy, geom) && rows.length) {
+      const row = rows[Math.floor(rows.length / 2)]!;
+      const fill = row.colorHex ?? '#22c55e';
+      const hx2 = spanX * 0.08;
+      const hy2 = spanY * 0.08;
+      features.push({
+        type: 'Feature',
+        properties: { cls: row.key, fill, opacity: 0.45 },
+        geometry: {
+          type: 'Polygon',
+          coordinates: [
+            [
+              [cx - hx2, cy - hy2],
+              [cx + hx2, cy - hy2],
+              [cx + hx2, cy + hy2],
+              [cx - hx2, cy + hy2],
+              [cx - hx2, cy - hy2],
+            ],
+          ],
+        },
+      });
+    }
+  }
+  return { type: 'FeatureCollection', features };
 }
 
 /** Semi-transparent square “pixels” clipped to AOI for classification overlay (client-side demo). */
@@ -536,9 +690,33 @@ export function buildSiAoiDataInsightsBundle(
       r.indexId === 'LST' ? Math.max(0, Math.min(1, (r.mean - 15) / 30)) : Math.max(0, Math.min(1, (r.mean + 1) / 2)),
   }));
 
-  const high = classificationRows.find(t => t.key === 'high')?.pct ?? 33;
-  const med = classificationRows.find(t => t.key === 'medium')?.pct ?? 34;
-  const low = classificationRows.find(t => t.key === 'low')?.pct ?? 33;
+  const high = classificationRows.find(t => t.key === 'high')?.pct;
+  const med = classificationRows.find(t => t.key === 'medium')?.pct;
+  const low = classificationRows.find(t => t.key === 'low')?.pct;
+  const pieSlices =
+    high != null && med != null && low != null
+      ? [
+          {
+            label: classificationRows.find(t => t.key === 'high')?.labelEn ?? 'High vigor',
+            pct: high,
+            color: palette.high,
+          },
+          {
+            label: classificationRows.find(t => t.key === 'medium')?.labelEn ?? 'Medium',
+            pct: med,
+            color: palette.medium,
+          },
+          {
+            label: classificationRows.find(t => t.key === 'low')?.labelEn ?? 'Low / stress',
+            pct: low,
+            color: palette.low,
+          },
+        ]
+      : classificationRows.map(r => ({
+          label: r.labelEn.length > 36 ? `${r.labelEn.slice(0, 34)}…` : r.labelEn,
+          pct: r.pct,
+          color: r.colorHex ?? palette.high,
+        }));
   const ndwi = indexRows.find(r => r.indexId === 'NDWI')!;
 
   return {
@@ -550,23 +728,7 @@ export function buildSiAoiDataInsightsBundle(
       heatRiskLabel,
       urbanExpansionPct: Number((Math.max(0, -vegChange) * 0.22 + 2.5).toFixed(1)),
       barSeries,
-      pieSlices: [
-        {
-          label: classificationRows.find(t => t.key === 'high')?.labelEn ?? 'High vigor',
-          pct: high,
-          color: palette.high,
-        },
-        {
-          label: classificationRows.find(t => t.key === 'medium')?.labelEn ?? 'Medium',
-          pct: med,
-          color: palette.medium,
-        },
-        {
-          label: classificationRows.find(t => t.key === 'low')?.labelEn ?? 'Low / stress',
-          pct: low,
-          color: palette.low,
-        },
-      ],
+      pieSlices,
       sparkNdvi: ndviVals,
     },
     executiveSummaryAi: null,
@@ -613,8 +775,21 @@ export function buildSiAoiVegetationReport(input: {
     temporalComposite: 'median' | 'max';
     crsNote?: string;
   };
+  /** Legend-aligned class count for the area table and map overlay (5 or 10). */
+  legendBandCount?: SiAoiLegendBandCount;
 }): SiAoiReportModel | null {
-  const { weekly, indexId, dateStart, dateEnd, aoiFeature, aoiName, processingContext, classificationPalette: paletteIn } = input;
+  const {
+    weekly,
+    indexId,
+    dateStart,
+    dateEnd,
+    aoiFeature,
+    aoiName,
+    processingContext,
+    classificationPalette: paletteIn,
+    legendBandCount: legendBandCountIn,
+  } = input;
+  const legendBandCount: SiAoiLegendBandCount = legendBandCountIn === 10 ? 10 : 5;
   const g = aoiFeature.geometry as { type?: string } | undefined;
   if (!g || (g.type !== 'Polygon' && g.type !== 'MultiPolygon')) return null;
 
@@ -637,27 +812,7 @@ export function buildSiAoiVegetationReport(input: {
   }));
 
   const mean = timeSeries.reduce((a, t) => a + t.value, 0) / Math.max(1, timeSeries.length);
-  const { high, med, low } = classifyHealthPercents(indexId, timeSeries);
-  const tableRows: SiAoiReportTableRow[] = [
-    {
-      key: 'high',
-      labelEn: 'High vegetation health',
-      pct: high,
-      areaKm2: (aoiAreaKm2 * high) / 100,
-    },
-    {
-      key: 'medium',
-      labelEn: 'Medium vegetation health',
-      pct: med,
-      areaKm2: (aoiAreaKm2 * med) / 100,
-    },
-    {
-      key: 'low',
-      labelEn: 'Low / degraded',
-      pct: low,
-      areaKm2: (aoiAreaKm2 * low) / 100,
-    },
-  ];
+  const tableRows = buildLegendBandTableRows(indexId, aoiAreaKm2, legendBandCount);
 
   const changeDetectionDates = buildChangeDetectionDates(timeSeries.map(t => t.date), 12);
   const seriesVals = timeSeries.map(s => s.value).filter(Number.isFinite);
@@ -694,7 +849,7 @@ export function buildSiAoiVegetationReport(input: {
 
   const heatmapCellsGeoJson =
     bounds && (g.type === 'Polygon' || g.type === 'MultiPolygon')
-      ? buildPixelClassificationGrid(g as GeoJSON.Polygon | GeoJSON.MultiPolygon, bounds, aoiKey, high, med, low, palette)
+      ? buildWeightedClassPixelGrid(g as GeoJSON.Polygon | GeoJSON.MultiPolygon, bounds, aoiKey, tableRows)
       : { type: 'FeatureCollection' as const, features: [] };
 
   const aoiOutlineGeoJson: GeoJSON.FeatureCollection = {
@@ -717,18 +872,15 @@ export function buildSiAoiVegetationReport(input: {
           }; CRS ${processingContext.crsNote ?? 'EPSG:4326 (WGS84 geographic)'}.`,
         ]
       : []),
-    'The temporal pattern indicates a general vegetation signal within the polygon boundary.',
-    'Health shares (high / medium / low) are heuristics derived from the index trajectory and range.',
+    `The temporal pattern indicates a general vegetation signal within the polygon boundary.`,
+    `Classification table and map overlay use ${legendBandCount} bands thinned from the same index legend ramp as the WMS classified view (by value-interval width, demo apportionment).`,
     stressNoteEn
       ? 'Alert: abrupt changes or outlier-like behaviour were flagged — confirm in the field if operational decisions depend on this view.'
       : 'No strong outlier pattern was flagged in this numeric sample.',
   ];
 
-  const analysisEn = `${opt.label} (${opt.subtitle}): with a period mean of ${meanStr} and variability across the displayed weeks, the AOI area is apportioned approximately ${high.toFixed(
-    1,
-  )}% high health, ${med.toFixed(1)}% medium, and ${low.toFixed(
-    1,
-  )}% low / degraded (illustrative client-side split). Replace with true zonal statistics from your backend for enterprise reporting.`;
+  const pctSummary = tableRows.map(r => `${r.pct.toFixed(1)}%`).join(' · ');
+  const analysisEn = `${opt.label} (${opt.subtitle}): period mean index ≈ ${meanStr}. AOI area shares across ${legendBandCount} legend-aligned bands: ${pctSummary}. This matches the classified ramp band widths (client-side demo until zonal statistics are connected).`;
 
   const dataInsights = buildSiAoiDataInsightsBundle(weeks, aoiKey, tableRows, palette);
 
@@ -749,6 +901,7 @@ export function buildSiAoiVegetationReport(input: {
     tableRows,
     dataInsights,
     classificationPalette: palette,
+    legendBandCount,
   };
 }
 
@@ -1272,7 +1425,7 @@ function buildAoiAnalysisPdfDocument(doc: jsPDF, report: SiAoiReportModel, opts:
       doc.setFontSize(10);
       doc.setFont('helvetica', 'bold');
       doc.setTextColor(15, 23, 42);
-      doc.text('AOI map (basemap + classification overlay)', margin, y);
+      doc.text('AOI map (basemap + classification + AOI outline)', margin, y);
       y += 12;
       doc.addImage(opts.aoiMapImageDataUrl, 'PNG', margin, y, textW, mapH, undefined, 'SLOW');
       y += mapH + 14;
@@ -1338,7 +1491,9 @@ function buildTimeSeriesChangeDetectionPdfDocument(doc: jsPDF, report: SiAoiRepo
     doc.setTextColor(51, 65, 85);
     const pal = report.classificationPalette;
     for (const row of report.tableRows) {
-      const col = row.key === 'high' ? pal.high : row.key === 'medium' ? pal.medium : pal.low;
+      const col =
+        row.colorHex ??
+        (row.key === 'high' ? pal.high : row.key === 'medium' ? pal.medium : pal.low);
       const [R, G, B] = hexToRgbTriplet(col);
       doc.setFillColor(R, G, B);
       doc.roundedRect(margin, yt - 5, 10, 10, 1, 1, 'F');

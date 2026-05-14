@@ -52,6 +52,22 @@
   border-bottom: 1px solid rgba(51, 65, 85, 0.55);
 }
 
+.si-wms-sym-pop__head--draggable {
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.si-wms-sym-pop--dragging .si-wms-sym-pop__head--draggable {
+  cursor: grabbing;
+}
+
+.si-wms-sym-pop--dragging {
+  transition: none !important;
+  animation: none !important;
+}
+
 .si-wms-sym-pop__titles h2 {
   margin: 0;
   font-size: 15px;

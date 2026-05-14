@@ -4,14 +4,12 @@ import {
   type AoiStaticExportLngLat,
   type AoiStaticMultiLayerLineChartDataset,
 } from './AoiStaticMultiLayerLineChart';
-import {
-  STATIC_AOI_CHART_LAYER_OPTIONS,
-  type StaticAoiChartLayerId,
-} from '../utils/staticAoiMultiChartData';
+import { StaticAoiComparisonLayerToolbar } from './StaticAoiComparisonLayerToolbar';
 import {
   AoiSpectralProfileMiniChart,
   type SiAoiSpectralProfileMini,
 } from './AoiSpectralProfileMiniChart';
+import type { StaticAoiChartLayerId } from '../utils/staticAoiMultiChartData';
 import './satelliteMapAnalysisChrome.css';
 
 function sparkPathForOverlay(values: number[], w: number, h: number): string {
@@ -206,25 +204,10 @@ export function SatelliteAoiStaticChartsMapOverlay({
       </div>
 
       <div className="si-map-analysis-charts-multiline">
-        <div className="si-map-analysis-layer-toolbar" role="group" aria-label="WMS comparison layers">
-          {STATIC_AOI_CHART_LAYER_OPTIONS.map(opt => {
-            const on = staticComparisonLayers.includes(opt.id);
-            const onlyOne = staticComparisonLayers.length <= 1;
-            return (
-              <button
-                key={opt.id}
-                type="button"
-                className={`si-map-analysis-layer-chip ${on ? 'si-map-analysis-layer-chip--on' : ''}`}
-                title={opt.subtitle}
-                aria-pressed={on}
-                disabled={on && onlyOne}
-                onClick={() => onStaticComparisonLayerToggle(opt.id)}
-              >
-                {opt.label}
-              </button>
-            );
-          })}
-        </div>
+        <StaticAoiComparisonLayerToolbar
+          staticComparisonLayers={staticComparisonLayers}
+          onStaticComparisonLayerToggle={onStaticComparisonLayerToggle}
+        />
         <AoiStaticMultiLayerLineChart
           title="Raster mean in AOI by week"
           labels={staticMultiLineLabels}

@@ -195,7 +195,6 @@ import {
   type MpcTemplateId,
 } from '../../lib/mpcPlanetaryApi';
 import FieldsPanel from './components/fields/FieldsPanel';
-import FieldDataSpectralControls from './components/fields/FieldDataSpectralControls';
 import {
   loadSavedFields,
   persistSavedFields,
@@ -206,7 +205,6 @@ import {
   nextFieldName,
   uuid,
   computeFieldSpectralIndices,
-  guessSpectralIndexIdFromLayerName,
   indexToVizUnit,
   type SavedField,
   type FieldGroup,
@@ -2032,22 +2030,69 @@ function siResolveWmsLayerForStackKey(
   }
 }
 
-/** Geodesic hectares → km² for AOI workspace cards. */
-function siFormatAreaKm2FromHectares(ha: number): string {
-  if (!Number.isFinite(ha) || ha <= 0) return '—';
-  const km2 = ha / 100;
-  if (km2 >= 1000) return `${km2.toFixed(1)} km²`;
-  if (km2 >= 1) return `${km2.toFixed(3)} km²`;
-  return `${km2.toFixed(4)} km²`;
+/** AOI area for map popups: geodesic hectares and square metres. */
+function SiAoiAreaHaSqm(props: { ha: number }) {
+  const { ha } = props;
+  if (!Number.isFinite(ha) || ha <= 0) {
+    return (
+      <span className="si-aoi-area-ha-sqm" dir="ltr">
+        —
+      </span>
+    );
+  }
+  const m2 = ha * 10000;
+  const haStr = ha >= 1000 ? ha.toFixed(1) : ha >= 100 ? ha.toFixed(2) : ha >= 1 ? ha.toFixed(3) : ha.toFixed(4);
+  let m2Str: string;
+  if (m2 >= 1_000_000) {
+    m2Str = Math.round(m2).toLocaleString('en-US');
+  } else if (m2 >= 10_000) {
+    m2Str = Math.round(m2).toLocaleString('en-US');
+  } else if (m2 >= 100) {
+    m2Str = (Math.round(m2 * 10) / 10).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 1 });
+  } else {
+    m2Str = (Math.round(m2 * 100) / 100).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 2 });
+  }
+  return (
+    <span className="si-aoi-area-ha-sqm" dir="ltr">
+      <span className="si-aoi-area-ha-sqm__ha">{haStr} ha</span>
+      <span className="si-aoi-area-ha-sqm__m2">{m2Str} m²</span>
+    </span>
+  );
 }
 
-/** Compact up/down cue next to placeholder zonal means (thresholds tuned for typical crop/water signals). */
+/** Three-tier spectral cue (green / orange / red) for AOI popup snapshot — heuristic thresholds per index. */
 type SiSpectralPopupMetric = 'ndvi' | 'ndwi' | 'savi';
+type SiSpectralSignalTier = 'good' | 'mid' | 'poor';
 
-function siSpectralPopupLocalTrend(metric: SiSpectralPopupMetric, value: number): 'up' | 'down' {
-  if (metric === 'ndvi') return value >= 0.35 ? 'up' : 'down';
-  if (metric === 'ndwi') return value >= 0 ? 'up' : 'down';
-  return value >= 0.25 ? 'up' : 'down';
+function siSpectralPopupSignal(
+  metric: SiSpectralPopupMetric,
+  value: number,
+): { tier: SiSpectralSignalTier; arrow: 'up' | 'down'; title: string } {
+  let hi: number;
+  let lo: number;
+  if (metric === 'ndwi') {
+    hi = 0.1;
+    lo = -0.12;
+  } else if (metric === 'savi') {
+    hi = 0.36;
+    lo = 0.18;
+  } else {
+    hi = 0.42;
+    lo = 0.26;
+  }
+  if (value >= hi) {
+    return { tier: 'good', arrow: 'up', title: 'Strong response for this index (healthy / wet signal).' };
+  }
+  if (value >= lo) {
+    const mid = (hi + lo) / 2;
+    const arrow = value >= mid ? 'up' : 'down';
+    return {
+      tier: 'mid',
+      arrow,
+      title: 'Moderate response — confirm with imagery and field context.',
+    };
+  }
+  return { tier: 'poor', arrow: 'down', title: 'Weak or stress-like signal for this index.' };
 }
 
 type SiSentinelRasterRunSpec = {
@@ -2727,6 +2772,7 @@ export default function SatelliteIntelligence() {
   const [drawnGeometry, setDrawnGeometry] = useState<any | null>(null);
   const [multiAoiItems, setMultiAoiItems] = useState<SiMultiAoiWorkspaceRow[]>([]);
   const [activeMultiAoiId, setActiveMultiAoiId] = useState<string | null>(null);
+  const [aoiLayerMenuOpenId, setAoiLayerMenuOpenId] = useState<string | null>(null);
   const [multiAoiPopupIds, setMultiAoiPopupIds] = useState<string[]>([]);
   const remoteSensingLayerOptionsRef = useRef<Array<{ id: string; label: string }>>([]);
   const [siAoiReportModalOpen, setSiAoiReportModalOpen] = useState(false);
@@ -2761,6 +2807,18 @@ export default function SatelliteIntelligence() {
   useEffect(() => {
     activeMultiAoiIdRef.current = activeMultiAoiId;
   }, [activeMultiAoiId]);
+
+  useEffect(() => {
+    if (!aoiLayerMenuOpenId) return;
+    const onDocMouseDown = (e: MouseEvent) => {
+      const t = e.target;
+      if (t instanceof Element && t.closest('.si-rs-aoi-layer-dd')) return;
+      setAoiLayerMenuOpenId(null);
+    };
+    document.addEventListener('mousedown', onDocMouseDown);
+    return () => document.removeEventListener('mousedown', onDocMouseDown);
+  }, [aoiLayerMenuOpenId]);
+
   useEffect(() => {
     persistSavedFields('satellite', savedFields);
   }, [savedFields]);
@@ -2773,19 +2831,6 @@ export default function SatelliteIntelligence() {
   /** Remote Sensing floating tools only — not the Fields Data rail (`fields` icon). */
   const [remoteSensingToolsUiTab, setRemoteSensingToolsUiTab] = useState<'main' | 'field'>('main');
   const [fieldSurfaceVizMetric, setFieldSurfaceVizMetric] = useState<FieldSurfaceVizMetric>('none');
-  /** Field Data dock — scene controls (independent from Remote Sensing). */
-  const [fieldDataImageryDate, setFieldDataImageryDate] = useState(() => new Date('2024-02-18T12:00:00'));
-  const [fieldDataWmsLayer, setFieldDataWmsLayer] = useState('');
-  const [fieldDataTimeSeriesStart, setFieldDataTimeSeriesStart] = useState('2023-11-18');
-  const [fieldDataTimeSeriesEnd, setFieldDataTimeSeriesEnd] = useState('2024-02-18');
-  const [fieldDataWmsOverlayVisible, setFieldDataWmsOverlayVisible] = useState(true);
-  const fieldDataSaveContextRef = useRef({
-    imageryDateIso: '2024-02-18',
-    timeSeriesStart: '2023-11-18',
-    timeSeriesEnd: '2024-02-18',
-    layerDisplay: '',
-    indexId: undefined as string | undefined,
-  });
   const [fieldGroups, setFieldGroups] = useState<FieldGroup[]>(() => loadFieldGroups('satellite'));
   const [fieldListGroupFilter, setFieldListGroupFilter] = useState<string | 'all'>('all');
   useEffect(() => {
@@ -2969,7 +3014,6 @@ export default function SatelliteIntelligence() {
   const mapDrawToolRef = useRef<MapDrawTool>('select');
   mapDrawToolRef.current = mapDrawTool;
   const fileInputRef = useRef<HTMLInputElement | null>(null);
-  const fieldDataFileInputRef = useRef<HTMLInputElement | null>(null);
   const geoExplorerMessagesRef = useRef<HTMLDivElement | null>(null);
   const geoAiClaudeMessagesRef = useRef<HTMLDivElement | null>(null);
   const geoAiDeepseekMessagesRef = useRef<HTMLDivElement | null>(null);
@@ -3875,55 +3919,37 @@ export default function SatelliteIntelligence() {
   };
 
   /* ────────────────────────────────────────────────────────────────────── *
-   * Fields Data — persist polygon features into `SavedField` rows (draw /
-   * import from the Field Data rail only). Multi-polygon FeatureCollections
-   * are exploded into one field per polygon.
+   * Fields Data — persist polygon features into `SavedField` rows (draw from
+   * the Fields Data panel). Multi-polygon FeatureCollections are exploded into
+   * one field per polygon.
    * ────────────────────────────────────────────────────────────────────── */
   const autoSaveFieldFromGeoJson = (
     geojson: any,
     sourceLabel: string,
     opts?: {
       libraryOrigin?: 'field-panel' | 'rs-workspace';
-      /** When set, snapshot / scene key use Field Data controls instead of Remote Sensing. */
-      fieldSpectralContext?: {
-        imageryDateIso: string;
-        timeSeriesStart: string;
-        timeSeriesEnd: string;
-        layerDisplay: string;
-        indexId?: string;
-      };
     },
   ): number => {
     const libraryOrigin = opts?.libraryOrigin ?? 'rs-workspace';
-    const fs = opts?.fieldSpectralContext;
     const polys = collectPolygonAoiFeatures(geojson);
     if (!polys.length) return 0;
     const now = new Date().toISOString();
     let lastId: string | null = null;
-    const layerSnapshot: SavedField['satelliteContext'] | undefined = fs
-      ? fs.layerDisplay || fs.indexId
-        ? {
-            layerName: fs.layerDisplay || String(fs.indexId ?? ''),
-            indexId: fs.indexId,
-            capturedAt: now,
-          }
-        : undefined
-      : (activeWmsLayer && activeWmsLayer.trim().length > 0) || selectedIndex
+    const layerSnapshot: SavedField['satelliteContext'] | undefined =
+      (activeWmsLayer && activeWmsLayer.trim().length > 0) || selectedIndex
         ? {
             layerName: (activeWmsLayer && activeWmsLayer.trim()) || String(selectedIndex),
             indexId: selectedIndex ? String(selectedIndex) : undefined,
             capturedAt: now,
           }
         : undefined;
-    const spectralSceneKey = fs
-      ? [fs.layerDisplay, String(fs.indexId ?? ''), fs.imageryDateIso, fs.timeSeriesStart, fs.timeSeriesEnd].join('|')
-      : [
-          (activeWmsLayer && activeWmsLayer.trim()) || String(selectedIndex ?? ''),
-          String(selectedIndex ?? ''),
-          selectedDate.toISOString().slice(0, 10),
-          timeSeriesStart ?? '',
-          timeSeriesEnd ?? '',
-        ].join('|');
+    const spectralSceneKey = [
+      (activeWmsLayer && activeWmsLayer.trim()) || String(selectedIndex ?? ''),
+      String(selectedIndex ?? ''),
+      selectedDate.toISOString().slice(0, 10),
+      timeSeriesStart ?? '',
+      timeSeriesEnd ?? '',
+    ].join('|');
     setSavedFields(prev => {
       const next = [...prev];
       polys.forEach(feature => {
@@ -3935,8 +3961,8 @@ export default function SatelliteIntelligence() {
         const indices = computeFieldSpectralIndices(
           { id, geometry: geom },
           {
-            layerKey: fs?.layerDisplay ?? layerSnapshot?.layerName ?? String(selectedIndex ?? ''),
-            indexKey: fs?.indexId ?? (selectedIndex ? String(selectedIndex) : undefined),
+            layerKey: layerSnapshot?.layerName ?? String(selectedIndex ?? ''),
+            indexKey: selectedIndex ? String(selectedIndex) : undefined,
             sceneKey: spectralSceneKey,
           },
         );
@@ -4186,49 +4212,6 @@ export default function SatelliteIntelligence() {
     }
   };
 
-  const importFieldDataAoiFromFile = async (file: File) => {
-    try {
-      setFieldAnalysisStatus('Reading file for Field Data…');
-      const parsed = await parseFile(file, { onProgress: () => {} });
-      if (parsed.type === 'table') {
-        setFieldAnalysisStatus(
-          'This CSV has no latitude/longitude columns for Field Data. Use GeoJSON, KML/KMZ, or SHP (.zip).',
-        );
-        return;
-      }
-      if (parsed.type === 'raster' || parsed.type === 'bim') {
-        setFieldAnalysisStatus(
-          'Field Data AOI supports vector polygons (GeoJSON, KML/KMZ, SHP). Use Remote Sensing import for rasters or IFC.',
-        );
-        return;
-      }
-      const geo = parsed.data;
-      if (!geo || typeof geo !== 'object') {
-        setFieldAnalysisStatus('Could not read geospatial data from file.');
-        return;
-      }
-      const featureCount = Array.isArray(geo.features) ? geo.features.length : 0;
-      if (!featureCount) {
-        setFieldAnalysisStatus('No drawable features found for Field Data.');
-        return;
-      }
-      const baseName = file.name.replace(/\.[^.]+$/, '');
-      const n = autoSaveFieldFromGeoJson(geo, baseName || file.name, {
-        libraryOrigin: 'field-panel',
-        fieldSpectralContext: { ...fieldDataSaveContextRef.current },
-      });
-      focusGeoJsonOnMap(geo);
-      if (n === 0) {
-        setFieldAnalysisStatus(
-          `Imported "${file.name}" but found no polygon areas for Field Data. Add polygons or draw a field.`,
-        );
-      }
-    } catch (err) {
-      console.error(err);
-      setFieldAnalysisStatus(err instanceof Error ? err.message : 'Field Data import failed.');
-    }
-  };
-
   const importAoiDataSourceFile = async (file: File) => {
     let rasterPreviewUrl: string | null = null;
     setSiUploadPhase('reading');
@@ -4395,13 +4378,6 @@ export default function SatelliteIntelligence() {
       `Ready: ${file.name} (${mb >= 0.01 ? mb.toFixed(2) : '<0.01'} MB). Click “Import to map” to add.`,
     );
     event.target.value = '';
-  };
-
-  const handleFieldDataAoiFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    event.target.value = '';
-    if (!file) return;
-    void importFieldDataAoiFromFile(file);
   };
 
   const openSiUploadFilePicker = () => {
@@ -7862,7 +7838,6 @@ export default function SatelliteIntelligence() {
       try {
         const n = autoSaveFieldFromGeoJson(next, 'Field Data draw', {
           libraryOrigin: 'field-panel',
-          fieldSpectralContext: { ...fieldDataSaveContextRef.current },
         });
         if (n === 0) {
           setFieldAnalysisStatus('Could not save field from drawing (invalid geometry).');
@@ -9611,40 +9586,24 @@ export default function SatelliteIntelligence() {
     return remoteSensingLayerOptions[0]?.id ?? '';
   }, [wmsLayer, remoteSensingLayerOptions]);
 
-  const fieldDataWmsLayerSelectValue = useMemo(() => {
-    const t = fieldDataWmsLayer.trim();
-    if (t && remoteSensingLayerOptions.some(l => l.id === t)) return t;
-    return remoteSensingLayerOptions[0]?.id ?? '';
-  }, [fieldDataWmsLayer, remoteSensingLayerOptions]);
-
-  useEffect(() => {
-    const lv = fieldDataWmsLayer.trim();
-    const resolvedId =
-      lv && remoteSensingLayerOptions.some(l => l.id === lv) ? lv : remoteSensingLayerOptions[0]?.id ?? '';
-    const label = remoteSensingLayerOptions.find(o => o.id === resolvedId)?.label ?? resolvedId ?? '';
-    const ids = Object.keys(ENVIRONMENTAL_INDICES) as EnvironmentalIndexId[];
-    const indexId =
-      resolvedId && ids.includes(resolvedId as EnvironmentalIndexId)
-        ? String(resolvedId)
-        : label
-          ? guessSpectralIndexIdFromLayerName(label)
-          : undefined;
-    fieldDataSaveContextRef.current = {
-      imageryDateIso: fieldDataImageryDate.toISOString().slice(0, 10),
-      timeSeriesStart: fieldDataTimeSeriesStart,
-      timeSeriesEnd: fieldDataTimeSeriesEnd,
-      layerDisplay: label || resolvedId,
-      indexId,
-    };
-  }, [
-    fieldDataImageryDate,
-    fieldDataTimeSeriesStart,
-    fieldDataTimeSeriesEnd,
-    fieldDataWmsLayer,
-    remoteSensingLayerOptions,
-  ]);
-
   const wmsDate = selectedDate.toISOString().split('T')[0];
+
+  /**
+   * Sentinel Hub WMS `TIME=` for map tiles: when weekly timeline chips exist, use that
+   * week's [startDate, endDate] so playback / chip scrubbing updates imagery; otherwise
+   * use the configured series range (or single imagery day).
+   */
+  const siWmsMapTimeExtent = useMemo(() => {
+    if (weeklyComposites.length > 0) {
+      const w =
+        weeklyComposites.find(x => wmsDate >= x.startDate && wmsDate <= x.endDate) ??
+        weeklyComposites[weeklyComposites.length - 1]!;
+      return { start: w.startDate, end: w.endDate };
+    }
+    const start = (timeSeriesStart && timeSeriesStart.trim()) || wmsDate;
+    const end = (timeSeriesEnd && timeSeriesEnd.trim()) || wmsDate;
+    return { start, end };
+  }, [weeklyComposites, wmsDate, timeSeriesStart, timeSeriesEnd]);
 
   const fieldSpectralSceneKey = useMemo(
     () =>
@@ -10284,35 +10243,12 @@ export default function SatelliteIntelligence() {
   );
 
   /**
-   * Map toolbox · Fields — Main tab: draw + spectral context + map tint.
+   * Map toolbox · Fields — Main tab: draw + map tint (spectral / scene strip removed).
    */
   const mapToolboxFieldsWorkspace = useMemo(
     () => (
       <FieldsPanel
         layout="workspace"
-        spectralStripSlot={
-          <FieldDataSpectralControls
-            imageryDateIso={fieldDataImageryDate.toISOString().split('T')[0]}
-            onImageryDateIsoChange={v => {
-              if (v) setFieldDataImageryDate(new Date(`${v}T12:00:00`));
-            }}
-            layerOptions={remoteSensingLayerOptions}
-            layerSelectValue={fieldDataWmsLayerSelectValue}
-            onLayerSelectChange={setFieldDataWmsLayer}
-            layersLoading={isLoadingLayers}
-            showLayerOnMap={fieldDataWmsOverlayVisible}
-            onShowLayerOnMapChange={setFieldDataWmsOverlayVisible}
-            resolvedLayerLabel={
-              remoteSensingLayerOptions.find(o => o.id === fieldDataWmsLayerSelectValue)?.label ??
-              fieldDataWmsLayerSelectValue
-            }
-            timeSeriesStart={fieldDataTimeSeriesStart}
-            timeSeriesEnd={fieldDataTimeSeriesEnd}
-            onTimeSeriesStartChange={setFieldDataTimeSeriesStart}
-            onTimeSeriesEndChange={setFieldDataTimeSeriesEnd}
-            onAddDataSourceClick={() => fieldDataFileInputRef.current?.click()}
-          />
-        }
         surfaceVizMetric={fieldSurfaceVizMetric}
         onSurfaceVizMetricChange={setFieldSurfaceVizMetric}
         fields={fieldDataLibraryFields}
@@ -10370,13 +10306,6 @@ export default function SatelliteIntelligence() {
       selectedSavedFieldId,
       fieldsPanelDrawArmed,
       fieldSurfaceVizMetric,
-      remoteSensingLayerOptions,
-      isLoadingLayers,
-      fieldDataImageryDate,
-      fieldDataWmsLayerSelectValue,
-      fieldDataWmsOverlayVisible,
-      fieldDataTimeSeriesStart,
-      fieldDataTimeSeriesEnd,
     ],
   );
 
@@ -10728,8 +10657,8 @@ export default function SatelliteIntelligence() {
 
   const wmsTileUrl = useMemo(() => {
     const safeLayer = encodeURIComponent(activeWmsLayer);
-    const start = timeSeriesStart || wmsDate;
-    const end = timeSeriesEnd || wmsDate;
+    const start = siWmsMapTimeExtent.start;
+    const end = siWmsMapTimeExtent.end;
     let url =
       `${wmsBaseUrl}?SERVICE=WMS&REQUEST=GetMap&VERSION=1.3.0` +
       `&LAYERS=${safeLayer}` +
@@ -10745,9 +10674,7 @@ export default function SatelliteIntelligence() {
     return url;
   }, [
     activeWmsLayer,
-    timeSeriesStart,
-    timeSeriesEnd,
-    wmsDate,
+    siWmsMapTimeExtent,
     cloudCoverage,
     wmsBaseUrl,
     sentinelHubWmsAoiClip.geometryWkt3857,
@@ -10825,8 +10752,8 @@ export default function SatelliteIntelligence() {
     };
 
     const out: SiSentinelRasterRunSpec[] = [];
-    const globalStart = timeSeriesStart || wmsDate;
-    const globalEnd = timeSeriesEnd || wmsDate;
+    const globalStart = siWmsMapTimeExtent.start;
+    const globalEnd = siWmsMapTimeExtent.end;
 
     const pushRun = (
       aoiId: string,
@@ -10893,9 +10820,7 @@ export default function SatelliteIntelligence() {
     multiAoiItems,
     remoteSensingLayerOptions,
     activeWmsLayer,
-    timeSeriesStart,
-    timeSeriesEnd,
-    wmsDate,
+    siWmsMapTimeExtent,
     cloudCoverage,
     wmsBaseUrl,
     symStopsForWmsLayerId,
@@ -11709,7 +11634,6 @@ export default function SatelliteIntelligence() {
                 const g = row.feature?.geometry as SavedField['geometry'] | undefined;
                 const areaHa =
                   g && (g.type === 'Polygon' || g.type === 'MultiPolygon') ? geodesicAreaHectares(g) : 0;
-                const areaLabel = siFormatAreaKm2FromHectares(areaHa);
                 const spectral = multiAoiSpectralIndicesById.get(row.id);
                 const spectralRows: Array<{ key: SiSpectralPopupMetric; label: string }> = [
                   { key: 'ndvi', label: 'NDVI' },
@@ -11739,8 +11663,8 @@ export default function SatelliteIntelligence() {
                       </div>
                       <div className="si-multi-aoi-popup__area">
                         <span className="si-multi-aoi-popup__area-label">Area</span>
-                        <span className="si-multi-aoi-popup__area-value" dir="ltr">
-                          {areaLabel}
+                        <span className="si-multi-aoi-popup__area-value">
+                          <SiAoiAreaHaSqm ha={areaHa} />
                         </span>
                       </div>
                       {spectral ? (
@@ -11750,27 +11674,23 @@ export default function SatelliteIntelligence() {
                             {spectralRows.map(({ key, label }) => {
                               const v = spectral[key];
                               if (typeof v !== 'number') return null;
-                              const tr = siSpectralPopupLocalTrend(key, v);
+                              const sig = siSpectralPopupSignal(key, v);
                               return (
                                 <li key={key} className="si-multi-aoi-popup__spectral-item">
                                   <span className="si-multi-aoi-popup__spectral-name">{label}</span>
-                                  <span className="si-multi-aoi-popup__spectral-value" dir="ltr">
+                                  <span
+                                    className={`si-multi-aoi-popup__spectral-value si-multi-aoi-popup__spectral-value--${sig.tier}`}
+                                    dir="ltr"
+                                  >
                                     <i
                                       className={
-                                        tr === 'up'
-                                          ? 'fa-solid fa-caret-up si-multi-aoi-popup__spectral-arr si-multi-aoi-popup__spectral-arr--up'
-                                          : 'fa-solid fa-caret-down si-multi-aoi-popup__spectral-arr si-multi-aoi-popup__spectral-arr--down'
+                                        sig.arrow === 'up'
+                                          ? 'fa-solid fa-caret-up si-multi-aoi-popup__spectral-arr'
+                                          : 'fa-solid fa-caret-down si-multi-aoi-popup__spectral-arr'
                                       }
                                       aria-hidden
                                     />
-                                    <span
-                                      className="si-multi-aoi-popup__spectral-num"
-                                      title={
-                                        tr === 'up'
-                                          ? 'Above typical baseline for this index (visual cue)'
-                                          : 'Below typical baseline for this index (visual cue)'
-                                      }
-                                    >
+                                    <span className="si-multi-aoi-popup__spectral-num" title={sig.title}>
                                       {v.toFixed(2)}
                                     </span>
                                   </span>
@@ -12697,14 +12617,6 @@ export default function SatelliteIntelligence() {
                 className="add-layer-input"
                 accept=".kml,.kmz,.zip,.geojson,.json,.csv,.tif,.tiff,.ifc,.gpx,.img,.vrt,.jp2,.ecw"
                 onChange={handleLayerFileChange}
-              />
-              <input
-                ref={fieldDataFileInputRef}
-                type="file"
-                className="add-layer-input"
-                accept=".kml,.kmz,.zip,.geojson,.json"
-                onChange={handleFieldDataAoiFileChange}
-                aria-label="Field Data AOI file upload"
               />
               <SatelliteMapProcessingOptionsPortal portalTarget={mapToolboxEmbedHost}>
                 {isLayerDropdownOpen ? (
@@ -13717,23 +13629,6 @@ export default function SatelliteIntelligence() {
                           </>
                         ) : (
                           <div className="si-field-analysis-section si-rs-field-tab-panel">
-                            <label className="gs-fields-viz-row si-rs-field-map-tint">
-                              <span className="gs-fields-viz-row__label">Map tint (all fields)</span>
-                              <select
-                                className="gs-fields-viz-row__select"
-                                value={fieldSurfaceVizMetric}
-                                aria-label="Field map tint metric"
-                                onChange={e => setFieldSurfaceVizMetric(e.target.value as FieldSurfaceVizMetric)}
-                              >
-                                <option value="none">Field colors</option>
-                                <option value="ndvi">NDVI</option>
-                                <option value="ndwi">NDWI</option>
-                                <option value="savi">SAVI</option>
-                                <option value="evi">EVI</option>
-                                <option value="moisture">Moisture</option>
-                                <option value="temperature">Temperature</option>
-                              </select>
-                            </label>
                             {multiAoiItems.length === 0 ? (
                               <p className="si-field-analysis-status">
                                 No workspace AOIs yet. Use <strong>Main</strong> to add a data source or draw an AOI,
@@ -13760,6 +13655,7 @@ export default function SatelliteIntelligence() {
                                       10,
                                     );
                                     const dateEndVal = (row.sentinelTimeEnd ?? timeSeriesEnd ?? wmsDate).slice(0, 10);
+                                    const layersOnCount = remoteSensingLayerOptions.reduce((n, o) => n + (vis[o.id] ? 1 : 0), 0);
                                     return (
                                       <li key={row.id} className="si-rs-aoi-workspace-card">
                                         <div className="si-rs-aoi-workspace-card__head">
@@ -13787,8 +13683,8 @@ export default function SatelliteIntelligence() {
                                           <div className="si-rs-aoi-context-grid si-rs-aoi-context-grid--compact">
                                             <div className="si-rs-aoi-context-cell si-rs-aoi-context-cell--wide">
                                               <span className="si-rs-aoi-context-k">Area</span>
-                                              <span className="si-rs-aoi-context-v" dir="ltr">
-                                                {siFormatAreaKm2FromHectares(areaHa)}
+                                              <span className="si-rs-aoi-context-v">
+                                                <SiAoiAreaHaSqm ha={areaHa} />
                                               </span>
                                             </div>
                                             <div className="si-rs-aoi-context-cell">
@@ -13839,47 +13735,80 @@ export default function SatelliteIntelligence() {
                                             <p className="si-field-analysis-status">No WMS layers loaded yet.</p>
                                           ) : (
                                             <div
-                                              className="si-rs-aoi-layer-list"
-                                              role="list"
-                                              aria-label="Sentinel Hub WMS layers for this AOI"
+                                              className={`si-rs-aoi-layer-dd${
+                                                aoiLayerMenuOpenId === row.id ? ' si-rs-aoi-layer-dd--open' : ''
+                                              }`}
                                             >
-                                              {remoteSensingLayerOptions.map(opt => {
-                                                const on = !!vis[opt.id];
-                                                return (
-                                                  <label
-                                                    key={`${row.id}-${opt.id}`}
-                                                    className="si-rs-aoi-layer-list__row"
-                                                    role="listitem"
-                                                    title={opt.id}
-                                                  >
-                                                    <input
-                                                      type="checkbox"
-                                                      checked={on}
-                                                      onChange={e => {
-                                                        const nextOn = e.target.checked;
-                                                        setMultiAoiItems(prev =>
-                                                          prev.map(r => {
-                                                            if (r.id !== row.id) return r;
-                                                            const base = siMigrateRasterStackVisible(
-                                                              r.rasterStackVisible,
-                                                              remoteSensingLayerOptions,
+                                              <button
+                                                type="button"
+                                                className="si-rs-aoi-layer-dd__trigger"
+                                                aria-expanded={aoiLayerMenuOpenId === row.id}
+                                                aria-haspopup="listbox"
+                                                onClick={() =>
+                                                  setAoiLayerMenuOpenId(prev => (prev === row.id ? null : row.id))
+                                                }
+                                              >
+                                                <span className="si-rs-aoi-layer-dd__trigger-text">
+                                                  <span className="si-rs-aoi-layer-dd__trigger-title">
+                                                    Sentinel Hub products
+                                                  </span>
+                                                  <span className="si-rs-aoi-layer-dd__trigger-meta">
+                                                    {layersOnCount} / {remoteSensingLayerOptions.length} on map
+                                                  </span>
+                                                </span>
+                                                <i className="fa-solid fa-chevron-down si-rs-aoi-layer-dd__chev" aria-hidden />
+                                              </button>
+                                              {aoiLayerMenuOpenId === row.id ? (
+                                                <div
+                                                  className="si-rs-aoi-layer-dd__panel"
+                                                  role="listbox"
+                                                  aria-label="Toggle Sentinel Hub layers for this AOI"
+                                                >
+                                                  {remoteSensingLayerOptions.map(opt => {
+                                                    const on = !!vis[opt.id];
+                                                    return (
+                                                      <label
+                                                        key={`${row.id}-${opt.id}`}
+                                                        className="si-rs-aoi-layer-dd__row"
+                                                        role="option"
+                                                        aria-selected={on}
+                                                        title={`${opt.label} — ${opt.id}`}
+                                                      >
+                                                        <input
+                                                          type="checkbox"
+                                                          checked={on}
+                                                          onChange={e => {
+                                                            const nextOn = e.target.checked;
+                                                            setMultiAoiItems(prev =>
+                                                              prev.map(r => {
+                                                                if (r.id !== row.id) return r;
+                                                                const base = siMigrateRasterStackVisible(
+                                                                  r.rasterStackVisible,
+                                                                  remoteSensingLayerOptions,
+                                                                );
+                                                                return {
+                                                                  ...r,
+                                                                  rasterStackVisible: {
+                                                                    ...base,
+                                                                    [opt.id]: nextOn,
+                                                                  },
+                                                                };
+                                                              }),
                                                             );
-                                                            return {
-                                                              ...r,
-                                                              rasterStackVisible: { ...base, [opt.id]: nextOn },
-                                                            };
-                                                          }),
-                                                        );
-                                                      }}
-                                                      aria-label={`${opt.label} for ${row.name}`}
-                                                    />
-                                                    <span className="si-rs-aoi-layer-list__label">{opt.label}</span>
-                                                    <span className="si-rs-aoi-layer-list__id" dir="ltr">
-                                                      {opt.id}
-                                                    </span>
-                                                  </label>
-                                                );
-                                              })}
+                                                          }}
+                                                          aria-label={`${opt.label} for ${row.name}`}
+                                                        />
+                                                        <span className="si-rs-aoi-layer-dd__row-body">
+                                                          <span className="si-rs-aoi-layer-dd__label">{opt.label}</span>
+                                                          <span className="si-rs-aoi-layer-dd__idmono" dir="ltr">
+                                                            {opt.id}
+                                                          </span>
+                                                        </span>
+                                                      </label>
+                                                    );
+                                                  })}
+                                                </div>
+                                              ) : null}
                                             </div>
                                           )}
                                           <p className="si-field-analysis-status si-rs-aoi-workspace-card__muted">

@@ -1,9 +1,8 @@
-import { useCallback, useEffect, useMemo, useRef } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { siStopsToVerticalCssGradient } from '../../../lib/siWmsIndexClassificationRamp';
 import type { IndexRampStop } from '../../../lib/siWmsIndexClassificationRamp';
 import {
-  SI_WMS_SYMBOLOGY_DEFAULT_UI,
   siSymbologyRampLabels,
   type SiSymbologyClassificationMode,
   type SiSymbologyRampPresetId,
@@ -40,6 +39,60 @@ export function SiWmsSymbologyPopup({
 }: SiWmsSymbologyPopupProps) {
   const popRef = useRef<HTMLDivElement | null>(null);
   const scrimRef = useRef<HTMLDivElement | null>(null);
+  const openCycleRef = useRef(0);
+
+  const clampPopPosition = useCallback((left: number, top: number) => {
+    const el = popRef.current;
+    if (!el) return { left, top };
+    const pad = 10;
+    const w = el.offsetWidth || 360;
+    const h = el.offsetHeight || 420;
+    const vw = window.innerWidth;
+    const vh = window.innerHeight;
+    const minVisible = 48;
+    const maxL = vw - minVisible;
+    const maxT = vh - minVisible;
+    return {
+      left: Math.min(maxL, Math.max(pad, left)),
+      top: Math.min(maxT, Math.max(pad, top)),
+    };
+  }, []);
+
+  const placePopFixed = useCallback(
+    (left: number, top: number) => {
+      const el = popRef.current;
+      if (!el) return;
+      const { left: L, top: T } = clampPopPosition(left, top);
+      el.style.left = `${L}px`;
+      el.style.top = `${T}px`;
+      el.style.right = 'auto';
+      el.style.bottom = 'auto';
+    },
+    [clampPopPosition],
+  );
+
+  /** Open anchored to the right (wide viewports) or horizontally centered (narrow), vertically centered. */
+  const placeInitialPop = useCallback(() => {
+    const el = popRef.current;
+    if (!el) return;
+    const pad = 16;
+    const w = el.offsetWidth || 360;
+    const h = el.offsetHeight || 420;
+    const vw = window.innerWidth;
+    const vh = window.innerHeight;
+    const useRight = vw >= 560;
+    let left: number;
+    if (useRight) {
+      left = vw - pad - w;
+    } else {
+      left = (vw - w) / 2;
+    }
+    let top = (vh - h) / 2;
+    if (anchor === 'map-dock') {
+      top -= Math.min(28, vh * 0.03);
+    }
+    placePopFixed(left, top);
+  }, [anchor, placePopFixed]);
 
   const gradient = useMemo(
     () => (previewStops && previewStops.length >= 2 ? siStopsToVerticalCssGradient(previewStops) : ''),
@@ -59,39 +112,59 @@ export function SiWmsSymbologyPopup({
     return () => document.removeEventListener('keydown', onDocKey);
   }, [onDocKey]);
 
+  useLayoutEffect(() => {
+    if (!open) return;
+    const id = ++openCycleRef.current;
+    const run = () => {
+      if (!open || openCycleRef.current !== id) return;
+      placeInitialPop();
+    };
+    requestAnimationFrame(() => requestAnimationFrame(run));
+  }, [open, anchor, placeInitialPop]);
+
+  const onHeaderPointerDown = useCallback(
+    (e: React.PointerEvent<HTMLElement>) => {
+      if (e.pointerType === 'mouse' && e.button !== 0) return;
+      if ((e.target as HTMLElement).closest('.si-wms-sym-pop__close')) return;
+      const el = popRef.current;
+      if (!el) return;
+      e.preventDefault();
+      const rect = el.getBoundingClientRect();
+      const startX = e.clientX;
+      const startY = e.clientY;
+      const startLeft = rect.left;
+      const startTop = rect.top;
+      el.classList.add('si-wms-sym-pop--dragging');
+
+      const onMove = (ev: PointerEvent) => {
+        placePopFixed(startLeft + (ev.clientX - startX), startTop + (ev.clientY - startY));
+      };
+
+      const onUp = () => {
+        window.removeEventListener('pointermove', onMove);
+        window.removeEventListener('pointerup', onUp);
+        window.removeEventListener('pointercancel', onUp);
+        popRef.current?.classList.remove('si-wms-sym-pop--dragging');
+      };
+
+      window.addEventListener('pointermove', onMove);
+      window.addEventListener('pointerup', onUp);
+      window.addEventListener('pointercancel', onUp);
+    },
+    [placePopFixed],
+  );
+
   useEffect(() => {
     if (!open) return;
-    const pop = popRef.current;
-    if (!pop) return;
-    const pad = 16;
-    const w = pop.offsetWidth || 360;
-    const h = pop.offsetHeight || 400;
-    if (anchor === 'map-dock') {
-      pop.style.right = `${pad}px`;
-      pop.style.bottom = `${pad + 52}px`;
-      pop.style.left = 'auto';
-      pop.style.top = 'auto';
-      return;
-    }
-    const host = document.querySelector('.si-map-analysis-toolbar--embedded') as HTMLElement | null;
-    if (host) {
-      const r = host.getBoundingClientRect();
-      let left = r.right - w - 4;
-      let top = r.bottom + 8;
-      if (left < pad) left = pad;
-      if (left + w > window.innerWidth - pad) left = window.innerWidth - pad - w;
-      if (top + h > window.innerHeight - pad) top = Math.max(pad, r.top - h - 8);
-      pop.style.left = `${left}px`;
-      pop.style.top = `${top}px`;
-      pop.style.right = 'auto';
-      pop.style.bottom = 'auto';
-    } else {
-      pop.style.right = `${pad}px`;
-      pop.style.bottom = `${pad + 72}px`;
-      pop.style.left = 'auto';
-      pop.style.top = 'auto';
-    }
-  }, [open, anchor, layerOptions.length, ui.numClasses, ui.opacity01, targetLayerId]);
+    const onResize = () => {
+      const el = popRef.current;
+      if (!el) return;
+      const r = el.getBoundingClientRect();
+      placePopFixed(r.left, r.top);
+    };
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
+  }, [open, placePopFixed]);
 
   if (!open || typeof document === 'undefined') return null;
 
@@ -115,12 +188,23 @@ export function SiWmsSymbologyPopup({
         aria-labelledby="si-wms-sym-title"
         onMouseDown={e => e.stopPropagation()}
       >
-        <header className="si-wms-sym-pop__head">
+        <header
+          className="si-wms-sym-pop__head si-wms-sym-pop__head--draggable"
+          onPointerDown={onHeaderPointerDown}
+          title="Drag to move"
+        >
           <div className="si-wms-sym-pop__titles">
             <h2 id="si-wms-sym-title">Symbology</h2>
             <p>Reclassify colors only — same index values; tiles refresh from Sentinel Hub.</p>
           </div>
-          <button type="button" className="si-wms-sym-pop__close" title="Close" aria-label="Close symbology" onClick={onClose}>
+          <button
+            type="button"
+            className="si-wms-sym-pop__close"
+            title="Close"
+            aria-label="Close symbology"
+            onPointerDown={e => e.stopPropagation()}
+            onClick={onClose}
+          >
             <i className="fa-solid fa-xmark" aria-hidden />
           </button>
         </header>

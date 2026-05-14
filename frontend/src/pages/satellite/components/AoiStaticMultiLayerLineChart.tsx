@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   Chart as ChartJS,
   type ChartOptions,
@@ -64,32 +64,39 @@ export type AoiStaticMultiLayerLineChartProps = {
 
 type StaticChartType = 'line' | 'bar' | 'scatter' | 'pie';
 
+const AOI_STATIC_CHART_COLOR_STORAGE_KEY = 'geosyntra-si-aoi-static-chart-colors-v1';
+
+function loadStoredIndexColors(): Record<string, string> {
+  if (typeof window === 'undefined') return {};
+  try {
+    const raw = localStorage.getItem(AOI_STATIC_CHART_COLOR_STORAGE_KEY);
+    if (!raw) return {};
+    const o = JSON.parse(raw) as unknown;
+    if (!o || typeof o !== 'object') return {};
+    return o as Record<string, string>;
+  } catch {
+    return {};
+  }
+}
+
+/** `#rgb` → `#rrggbb` for `<input type="color">`; fallback `#64748b`. */
+function toColorInputValue(cssHex: string): string {
+  const h = String(cssHex ?? '').trim();
+  if (!h.startsWith('#')) return '#64748b';
+  if (h.length === 4) {
+    const r = h[1]!;
+    const g = h[2]!;
+    const b = h[3]!;
+    return `#${r}${r}${g}${g}${b}${b}`;
+  }
+  if (h.length === 7) return h.toLowerCase();
+  return '#64748b';
+}
+
 function meanFinite(values: number[]): number {
   const xs = values.filter(v => typeof v === 'number' && Number.isFinite(v));
   if (!xs.length) return NaN;
   return xs.reduce((a, b) => a + b, 0) / xs.length;
-}
-
-function legendToggleHandler(
-  _evt: unknown,
-  legendItem: { datasetIndex?: number; index?: number },
-  legend: { chart?: ChartJS },
-) {
-  const chart = legend.chart;
-  if (!chart) return;
-  const t = String((chart.config as { type?: string }).type ?? '');
-  if (t === 'pie' || t === 'doughnut') {
-    const i = legendItem.index;
-    if (i == null) return;
-    chart.toggleDataVisibility(i);
-    chart.update();
-    return;
-  }
-  const ds = legendItem.datasetIndex;
-  if (ds == null) return;
-  const vis = chart.isDatasetVisible(ds);
-  chart.setDatasetVisibility(ds, !vis);
-  chart.update();
 }
 
 export function AoiStaticMultiLayerLineChart({
@@ -102,11 +109,55 @@ export function AoiStaticMultiLayerLineChart({
 }: AoiStaticMultiLayerLineChartProps) {
   const [chartTheme, setChartTheme] = useState<'dark' | 'light'>('dark');
   const [chartType, setChartType] = useState<StaticChartType>('line');
+  const [colorOverrides, setColorOverrides] = useState<Record<string, string>>(loadStoredIndexColors);
+  const [hiddenById, setHiddenById] = useState<Record<string, boolean>>({});
   const isLight = chartTheme === 'light';
   const titleColor = isLight ? '#0f172a' : '#e2e8f0';
   const labelColor = isLight ? '#334155' : '#cbd5e1';
   const tickColor = isLight ? '#475569' : '#94a3b8';
   const gridColor = isLight ? 'rgba(148, 163, 184, 0.2)' : 'rgba(148, 163, 184, 0.14)';
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(AOI_STATIC_CHART_COLOR_STORAGE_KEY, JSON.stringify(colorOverrides));
+    } catch {
+      /* ignore quota / private mode */
+    }
+  }, [colorOverrides]);
+
+  useEffect(() => {
+    const ids = new Set(datasets.map(d => d.id));
+    setHiddenById(prev => {
+      const next = { ...prev };
+      let changed = false;
+      for (const k of Object.keys(next)) {
+        if (!ids.has(k)) {
+          delete next[k];
+          changed = true;
+        }
+      }
+      return changed ? next : prev;
+    });
+  }, [datasets]);
+
+  const effectiveDatasets = useMemo(() => {
+    return datasets.map(ds => {
+      const rawBorder = colorOverrides[ds.id] ?? ds.borderColor;
+      const solid = toColorInputValue(rawBorder);
+      const backgroundColor =
+        solid.length === 7 && solid.startsWith('#') ? `${solid}22` : ds.backgroundColor;
+      return {
+        ...ds,
+        borderColor: solid,
+        backgroundColor,
+        hidden: hiddenById[ds.id] === true,
+      };
+    });
+  }, [datasets, colorOverrides, hiddenById]);
+
+  const toggleDatasetVisibility = useCallback((id: string) => {
+    setHiddenById(prev => ({ ...prev, [id]: !prev[id] }));
+  }, []);
 
   const zoomCfg =
     chartType === 'line'
@@ -127,7 +178,7 @@ export function AoiStaticMultiLayerLineChart({
   const lineBarData = useMemo(
     () => ({
       labels,
-      datasets: datasets.map(ds => ({
+      datasets: effectiveDatasets.map(ds => ({
         ...ds,
         fill: false,
         tension: 0.32,
@@ -137,30 +188,43 @@ export function AoiStaticMultiLayerLineChart({
         spanGaps: true,
       })),
     }),
-    [labels, datasets, chartType],
+    [labels, effectiveDatasets, chartType],
   );
 
-  const pieData = useMemo(
-    () => ({
-      labels: datasets.map(ds => ds.label),
+  const pieData = useMemo(() => {
+    const visible = effectiveDatasets.filter(ds => !ds.hidden);
+    if (!visible.length) {
+      return {
+        labels: ['—'],
+        datasets: [
+          {
+            data: [1],
+            backgroundColor: ['#475569'],
+            borderColor: ['#334155'],
+            borderWidth: 1,
+          },
+        ],
+      };
+    }
+    return {
+      labels: visible.map(ds => ds.label),
       datasets: [
         {
-          data: datasets.map(ds => {
+          data: visible.map(ds => {
             const m = meanFinite(ds.data);
             return Number.isFinite(m) ? m : 0;
           }),
-          backgroundColor: datasets.map(ds => ds.backgroundColor),
-          borderColor: datasets.map(ds => ds.borderColor),
+          backgroundColor: visible.map(ds => ds.backgroundColor),
+          borderColor: visible.map(ds => ds.borderColor),
           borderWidth: 1,
         },
       ],
-    }),
-    [datasets],
-  );
+    };
+  }, [effectiveDatasets]);
 
   const scatterTimeSeriesData = useMemo(
     () => ({
-      datasets: datasets.map(ds => ({
+      datasets: effectiveDatasets.map(ds => ({
         label: ds.label,
         data: labels.map((_, i) => {
           const y = ds.data[i];
@@ -171,16 +235,18 @@ export function AoiStaticMultiLayerLineChart({
         yAxisID: ds.yAxisID,
         pointRadius: 4,
         pointHoverRadius: 7,
+        hidden: ds.hidden,
       })),
     }),
-    [labels, datasets],
+    [labels, effectiveDatasets],
   );
 
-  /** First two comparison layers: X = layer A value, Y = layer B value per week (index vs index). */
+  /** First two visible comparison layers: X = layer A value, Y = layer B value per week (index vs index). */
   const scatterLayerCross = useMemo(() => {
-    if (datasets.length < 2 || !labels.length) return null;
-    const da = datasets[0]!;
-    const db = datasets[1]!;
+    const vis = effectiveDatasets.filter(ds => !ds.hidden);
+    if (vis.length < 2 || !labels.length) return null;
+    const da = vis[0]!;
+    const db = vis[1]!;
     const weekLabels: string[] = [];
     const pts: { x: number; y: number }[] = [];
     for (let i = 0; i < labels.length; i++) {
@@ -276,7 +342,7 @@ export function AoiStaticMultiLayerLineChart({
       },
     };
     return { data, options };
-  }, [datasets, labels, title, titleColor, labelColor, tickColor, gridColor, isLight]);
+  }, [effectiveDatasets, labels, title, titleColor, labelColor, tickColor, gridColor, isLight]);
 
   const cartesianOptions = useMemo(() => {
     const base = {
@@ -291,17 +357,7 @@ export function AoiStaticMultiLayerLineChart({
           font: { size: 13, weight: 600 },
           padding: { bottom: 8 },
         },
-        legend: {
-          position: 'top' as const,
-          labels: {
-            usePointStyle: true,
-            pointStyle: 'circle',
-            padding: 14,
-            color: labelColor,
-            font: { size: 11, weight: 600 },
-          },
-          onClick: legendToggleHandler,
-        },
+        legend: { display: false },
         tooltip: {
           mode: 'index' as const,
           intersect: false,
@@ -329,7 +385,7 @@ export function AoiStaticMultiLayerLineChart({
         yIndex: {
           type: 'linear' as const,
           position: 'left' as const,
-          display: datasets.some(d => d.yAxisID === 'yIndex'),
+          display: effectiveDatasets.some(d => d.yAxisID === 'yIndex'),
           stacked: false,
           title: {
             display: true,
@@ -345,7 +401,7 @@ export function AoiStaticMultiLayerLineChart({
         yLST: {
           type: 'linear' as const,
           position: 'right' as const,
-          display: hasLst && datasets.some(d => d.yAxisID === 'yLST'),
+          display: hasLst && effectiveDatasets.some(d => d.yAxisID === 'yLST'),
           title: {
             display: true,
             text: 'LST (°C)',
@@ -358,7 +414,7 @@ export function AoiStaticMultiLayerLineChart({
       },
     };
     return base;
-  }, [title, datasets, hasLst, titleColor, labelColor, tickColor, gridColor, isLight, zoomCfg]);
+  }, [title, effectiveDatasets, hasLst, titleColor, labelColor, tickColor, gridColor, isLight, zoomCfg]);
 
   const lineOptions = useMemo(() => cartesianOptions as ChartOptions<'line'>, [cartesianOptions]);
 
@@ -428,17 +484,7 @@ export function AoiStaticMultiLayerLineChart({
             font: { size: 12, weight: 600 },
             padding: { bottom: 8 },
           },
-          legend: {
-            position: 'right' as const,
-            labels: {
-              usePointStyle: true,
-              pointStyle: 'circle',
-              padding: 10,
-              color: labelColor,
-              font: { size: 11, weight: 600 },
-            },
-            onClick: legendToggleHandler,
-          },
+          legend: { display: false },
           tooltip: {
             backgroundColor: isLight ? 'rgba(255, 255, 255, 0.96)' : 'rgba(15, 23, 42, 0.92)',
             titleColor: isLight ? '#0f172a' : '#f1f5f9',
@@ -589,6 +635,43 @@ export function AoiStaticMultiLayerLineChart({
             <i className="fa-regular fa-file-excel" aria-hidden />
           </button>
         </div>
+      </div>
+      <div className="si-aoi-static-line-legend" role="list" aria-label="Indices and colors">
+        {effectiveDatasets.map(ds => {
+          const off = ds.hidden === true;
+          const swatchHex = toColorInputValue(ds.borderColor);
+          return (
+            <div
+              key={ds.id}
+              className={`si-aoi-static-line-legend-item${off ? ' si-aoi-static-line-legend-item--off' : ''}`}
+              role="listitem"
+            >
+              <button
+                type="button"
+                className="si-aoi-static-line-legend-toggle"
+                onClick={() => toggleDatasetVisibility(ds.id)}
+                aria-pressed={!off}
+                title={off ? 'Show series' : 'Hide series (click)'}
+              >
+                <span className="si-aoi-static-line-legend-point" style={{ background: ds.borderColor }} aria-hidden />
+                <span className="si-aoi-static-line-legend-label">{ds.label}</span>
+              </button>
+              <label className="si-aoi-static-line-legend-pick" title={`Color for ${ds.label}`}>
+                <input
+                  type="color"
+                  className="si-aoi-static-line-legend-pick-input"
+                  value={swatchHex}
+                  onChange={e => setColorOverrides(c => ({ ...c, [ds.id]: e.target.value }))}
+                  onClick={e => e.stopPropagation()}
+                  aria-label={`Pick color for ${ds.label}`}
+                />
+                <span className="si-aoi-static-line-legend-pick-icon" aria-hidden>
+                  <i className="fa-solid fa-palette" />
+                </span>
+              </label>
+            </div>
+          );
+        })}
       </div>
       <div className="si-aoi-static-line-chart-host">
         {chartType === 'line' ? (

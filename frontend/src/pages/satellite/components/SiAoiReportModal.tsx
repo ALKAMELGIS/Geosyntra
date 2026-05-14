@@ -25,11 +25,13 @@ import {
   siAoiReportFeatureBBoxLngLat,
   type SiAoiChangeDetectionSlot,
   type SiAoiClassificationPalette,
+  type SiAoiLegendBandCount,
   type SiAoiPdfExportMode,
   type SiAoiReportModel,
 } from '../utils/siAoiVegetationReportModel';
 import { fetchSiAoiReportExecutiveSummaryFromGemini } from '../utils/siAoiReportGemini';
 import { SiAoiReportDataInsightsSection } from './SiAoiReportDataInsights';
+import { SiAoiReportPixelScatterBlock } from './SiAoiReportPixelScatterBlock';
 import './SiAoiReportModal.css';
 
 ChartJS.register(
@@ -269,6 +271,8 @@ export function SiAoiReportModal({
   const [cloudCoverMaxPct, setCloudCoverMaxPct] = useState(defaultCloudCoverPct);
   const [temporalComposite, setTemporalComposite] = useState<'median' | 'max'>('median');
   const [analysisMapReady, setAnalysisMapReady] = useState(false);
+  const [legendBandCount, setLegendBandCount] = useState<SiAoiLegendBandCount>(5);
+  const [scatterPanelOpen, setScatterPanelOpen] = useState(false);
   const [report, setReport] = useState<SiAoiReportModel | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [exportBusy, setExportBusy] = useState(false);
@@ -277,6 +281,9 @@ export function SiAoiReportModal({
     mode?: SiAoiPdfExportMode;
   }>({ phase: 'idle' });
   const mapRef = useRef<MapRef | null>(null);
+  const lastBuildInputRef = useRef<Omit<Parameters<typeof buildSiAoiVegetationReport>[0], 'legendBandCount'> | null>(
+    null,
+  );
   const chartHostId = 'si-aoi-report-chart-host';
   const chartExportHostId = 'si-aoi-report-chart-host-export';
   const changeCellCaptureRefs = useRef<(SiAoiChangeMapCellHandle | null)[]>([]);
@@ -299,6 +306,9 @@ export function SiAoiReportModal({
     setCloudCoverMaxPct(defaultCloudCoverPct);
     setTemporalComposite('median');
     setAnalysisMapReady(false);
+    setLegendBandCount(5);
+    setScatterPanelOpen(false);
+    lastBuildInputRef.current = null;
   }, [open, timeSeriesStart, timeSeriesEnd, defaultIndexId, preferredAoiId, aoiOptions, defaultCloudCoverPct]);
 
   useEffect(() => {
@@ -335,6 +345,10 @@ export function SiAoiReportModal({
     };
   }, [open, report, step, geminiApiKey]);
 
+  useEffect(() => {
+    setScatterPanelOpen(false);
+  }, [report]);
+
   const selectedFeature = useMemo(
     () => aoiOptions.find(o => o.id === selectedAoiId)?.feature ?? null,
     [aoiOptions, selectedAoiId],
@@ -345,6 +359,8 @@ export function SiAoiReportModal({
     [aoiOptions, selectedAoiId],
   );
 
+  const weeklyMeansForScatter = useMemo(() => weeklyComposites.map(w => w.mean), [weeklyComposites]);
+
   const onGenerate = useCallback(() => {
     setErr(null);
     const aoiFeature = selectedFeature;
@@ -352,7 +368,7 @@ export function SiAoiReportModal({
       setErr('Select an AOI.');
       return;
     }
-    const built = buildSiAoiVegetationReport({
+    const snap = {
       weekly: weeklyComposites,
       indexId,
       dateStart: dateStart.trim(),
@@ -365,6 +381,11 @@ export function SiAoiReportModal({
         temporalComposite,
         crsNote: 'EPSG:4326 (WGS84)',
       },
+    };
+    lastBuildInputRef.current = snap;
+    const built = buildSiAoiVegetationReport({
+      ...snap,
+      legendBandCount,
     });
     if (!built) {
       setErr('AOI geometry must be a Polygon or MultiPolygon.');
@@ -373,7 +394,27 @@ export function SiAoiReportModal({
     setReport(built);
     setReportView('analysis');
     setStep('preview');
-  }, [weeklyComposites, indexId, dateStart, dateEnd, selectedFeature, selectedName, cloudCoverMaxPct, temporalComposite, classificationPaletteProp]);
+  }, [
+    weeklyComposites,
+    indexId,
+    dateStart,
+    dateEnd,
+    selectedFeature,
+    selectedName,
+    cloudCoverMaxPct,
+    temporalComposite,
+    classificationPaletteProp,
+    legendBandCount,
+  ]);
+
+  const applyLegendBandCount = useCallback((next: SiAoiLegendBandCount) => {
+    const snap = lastBuildInputRef.current;
+    if (!snap) return;
+    setLegendBandCount(next);
+    setAnalysisMapReady(false);
+    const built = buildSiAoiVegetationReport({ ...snap, legendBandCount: next });
+    if (built) setReport(built);
+  }, []);
 
   const mapInitialView = useMemo(() => {
     if (!report) return { longitude: 46.7, latitude: 24.7, zoom: 10 };
@@ -406,8 +447,23 @@ export function SiAoiReportModal({
     const map = mapRef.current?.getMap?.();
     if (!map) return;
     const arm = () => setAnalysisMapReady(true);
-    if (map.isStyleLoaded?.()) arm();
-    else map.once('style.load', arm);
+    if (map.isStyleLoaded?.()) {
+      arm();
+      try {
+        map.once('idle', arm);
+      } catch {
+        /* ignore */
+      }
+    } else {
+      map.once('style.load', () => {
+        arm();
+        try {
+          map.once('idle', arm);
+        } catch {
+          /* ignore */
+        }
+      });
+    }
   }, []);
 
   useEffect(() => {
@@ -720,7 +776,10 @@ export function SiAoiReportModal({
                 <button
                   type="button"
                   className="si-aoi-report-btn si-aoi-report-btn--ghost"
-                  onClick={() => setStep('configure')}
+                  onClick={() => {
+                    setStep('configure');
+                    setLegendBandCount(5);
+                  }}
                 >
                   Back to setup
                 </button>
@@ -805,12 +864,38 @@ export function SiAoiReportModal({
                   </div>
 
                   <div className="si-aoi-report-card">
-                    <h3>Health and area classification</h3>
+                    <h3>Legend-aligned area classification</h3>
+                    <p className="si-aoi-report-analysis si-aoi-report-analysis--compact">
+                      Shares follow the WMS index ramp band widths (thinned to {report.legendBandCount} classes). Switch
+                      bands to match the 5- or 10-step legend used in the main map.
+                    </p>
+                    <div className="si-aoi-report-legend-bands" role="group" aria-label="Legend class count">
+                      <span className="si-aoi-report-legend-bands__label">Legend classes</span>
+                      <label>
+                        <input
+                          type="radio"
+                          name="si-aoi-legend-bands"
+                          checked={legendBandCount === 5}
+                          onChange={() => applyLegendBandCount(5)}
+                        />
+                        5 classes
+                      </label>
+                      <label>
+                        <input
+                          type="radio"
+                          name="si-aoi-legend-bands"
+                          checked={legendBandCount === 10}
+                          onChange={() => applyLegendBandCount(10)}
+                        />
+                        10 classes
+                      </label>
+                    </div>
                     <div className="si-aoi-report-table-wrap">
                       <table className="si-aoi-report-table">
                         <thead>
                           <tr>
-                            <th>Class</th>
+                            <th aria-hidden />
+                            <th>Class (index range)</th>
                             <th>Area (km²)</th>
                             <th>Share %</th>
                           </tr>
@@ -818,6 +903,21 @@ export function SiAoiReportModal({
                         <tbody>
                           {report.tableRows.map(row => (
                             <tr key={row.key}>
+                              <td className="si-aoi-report-table__swatch-cell">
+                                <span
+                                  className="si-aoi-report-table__swatch"
+                                  style={{
+                                    background:
+                                      row.colorHex ??
+                                      (row.key === 'high'
+                                        ? report.classificationPalette.high
+                                        : row.key === 'medium'
+                                          ? report.classificationPalette.medium
+                                          : report.classificationPalette.low),
+                                  }}
+                                  aria-hidden
+                                />
+                              </td>
                               <td>{row.labelEn}</td>
                               <td>{row.areaKm2.toFixed(3)}</td>
                               <td>{row.pct.toFixed(1)}</td>
@@ -828,6 +928,34 @@ export function SiAoiReportModal({
                     </div>
                   </div>
 
+                  <div className="si-aoi-report-card si-aoi-report-card--scatter">
+                    <div className="si-aoi-report-scatter-head">
+                      <button
+                        type="button"
+                        className={`si-aoi-report-scatter-icon-btn${scatterPanelOpen ? ' si-aoi-report-scatter-icon-btn--on' : ''}`}
+                        aria-expanded={scatterPanelOpen}
+                        aria-controls="si-aoi-report-scatter-panel"
+                        id="si-aoi-report-scatter-toggle"
+                        title="Scatter: AOI grid cells — report index (X) vs another index (Y) with OLS line and R²"
+                        onClick={() => setScatterPanelOpen(v => !v)}
+                      >
+                        <i className="fa-solid fa-chart-scatter" aria-hidden />
+                      </button>
+                      <h3>Pixel scatter</h3>
+                    </div>
+                    {!scatterPanelOpen ? (
+                      <p className="si-aoi-report-analysis si-aoi-report-analysis--compact si-aoi-report-scatter-teaser">
+                        Tap the scatter icon to plot sampled AOI cells: <strong>{report.indexLabel}</strong> on the
+                        horizontal axis versus a second index on the vertical axis, with a linear fit and{' '}
+                        <strong>R²</strong> (demo client-side values).
+                      </p>
+                    ) : (
+                      <div id="si-aoi-report-scatter-panel" className="si-aoi-report-scatter-panel">
+                        <SiAoiReportPixelScatterBlock report={report} weeklyMeans={weeklyMeansForScatter} />
+                      </div>
+                    )}
+                  </div>
+
                   <div className="si-aoi-report-card">
                     <h3>Timeline</h3>
                     <div className="si-aoi-report-chart-wrap" id={chartHostId}>
@@ -836,13 +964,13 @@ export function SiAoiReportModal({
                   </div>
 
                   <div className="si-aoi-report-card">
-                    <h3>AOI map — basemap + classification overlay</h3>
+                    <h3>AOI map — basemap + classification + AOI + legend</h3>
                     {!mapOk ? (
                       <p className="si-aoi-report-analysis">A Mapbox token is required to display the map.</p>
                     ) : (
                       <div className="si-aoi-report-map-wrap">
                         <MapGL
-                          key={`si-aoi-analysis-${report.dateStart}-${report.dateEnd}-${report.indexId}-${report.aoiName}`}
+                          key={`si-aoi-analysis-${report.dateStart}-${report.dateEnd}-${report.indexId}-${report.aoiName}-${report.legendBandCount}`}
                           ref={mapRef}
                           mapboxAccessToken={mapboxToken}
                           mapStyle={reportMapStyle as string | StyleSpecification}
@@ -852,12 +980,21 @@ export function SiAoiReportModal({
                             pitch: 0,
                           }}
                           style={{ width: '100%', height: '100%' }}
-                          reuseMaps
+                          reuseMaps={false}
+                          interactive={false}
+                          attributionControl={false}
                           onLoad={onAnalysisMapLoad}
                         >
                           {analysisMapReady ? (
                             <>
                               <NavigationControl position="top-right" showCompass={false} />
+                              <Source id="si-report-aoi-halo" type="geojson" data={report.aoiOutlineGeoJson}>
+                                <Layer
+                                  id="si-report-aoi-halo-fill"
+                                  type="fill"
+                                  paint={{ 'fill-color': '#0f172a', 'fill-opacity': 0.06 }}
+                                />
+                              </Source>
                               <Source id="si-report-heatmap-cells" type="geojson" data={report.heatmapCellsGeoJson}>
                                 <Layer
                                   id="si-report-heatmap-fill"
@@ -892,11 +1029,12 @@ export function SiAoiReportModal({
                             className="si-aoi-report-legend-swatch"
                             style={{
                               background:
-                                row.key === 'high'
+                                row.colorHex ??
+                                (row.key === 'high'
                                   ? report.classificationPalette.high
                                   : row.key === 'medium'
                                     ? report.classificationPalette.medium
-                                    : report.classificationPalette.low,
+                                    : report.classificationPalette.low),
                             }}
                           />
                           {row.labelEn}

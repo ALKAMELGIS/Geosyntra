@@ -6,10 +6,8 @@ import {
   AoiSpectralProfileMiniChart,
   type SiAoiSpectralProfileMini,
 } from './AoiSpectralProfileMiniChart';
-import {
-  STATIC_AOI_CHART_LAYER_OPTIONS,
-  type StaticAoiChartLayerId,
-} from '../utils/staticAoiMultiChartData';
+import { StaticAoiComparisonLayerToolbar } from './StaticAoiComparisonLayerToolbar';
+import type { StaticAoiChartLayerId } from '../utils/staticAoiMultiChartData';
 import type { SmartProcessingSectionId } from './SmartProcessingWorkflowPanel';
 
 export type SatelliteContextPanelId =
@@ -979,25 +977,10 @@ export function SatelliteContextualAnalysisDock(props: SatelliteContextualAnalys
                           <p className="si-sat-ctx-muted">
                             {indexLabel} · AOI-scoped timeline. Toggle comparison indices below.
                           </p>
-                          <div className="si-map-analysis-layer-toolbar" role="group" aria-label="WMS comparison layers">
-                            {STATIC_AOI_CHART_LAYER_OPTIONS.map(opt => {
-                              const on = staticComparisonLayers.includes(opt.id);
-                              const onlyOne = staticComparisonLayers.length <= 1;
-                              return (
-                                <button
-                                  key={opt.id}
-                                  type="button"
-                                  className={`si-map-analysis-layer-chip ${on ? 'si-map-analysis-layer-chip--on' : ''}`}
-                                  title={opt.subtitle}
-                                  aria-pressed={on}
-                                  disabled={on && onlyOne}
-                                  onClick={() => onStaticComparisonLayerToggle?.(opt.id)}
-                                >
-                                  {opt.label}
-                                </button>
-                              );
-                            })}
-                          </div>
+                          <StaticAoiComparisonLayerToolbar
+                            staticComparisonLayers={staticComparisonLayers}
+                            onStaticComparisonLayerToggle={id => onStaticComparisonLayerToggle?.(id)}
+                          />
                           <AoiStaticMultiLayerLineChart
                             title="Raster mean in AOI by week"
                             labels={staticMultiLineLabels}
@@ -1176,7 +1159,7 @@ export function SatelliteContextualAnalysisDock(props: SatelliteContextualAnalys
                     : activeId === 'layers' && isMap
                       ? 'Main: add layers and actions. Options: open STAC / RS / AI, and configure per-layer identify popups.'
                       : activeId === 'fields' && isMap
-                        ? 'Main: scene controls + draw fields. Field Data tab: groups, list, exports.'
+                        ? 'Main: draw fields and map tint. Field Data tab: groups, list, exports.'
                         : 'Drag the inner edge to resize. Click the active tool again to collapse.'}
                 </span>
               </footer>

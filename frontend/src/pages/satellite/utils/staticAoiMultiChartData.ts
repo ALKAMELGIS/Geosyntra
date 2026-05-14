@@ -36,6 +36,19 @@ export const STATIC_AOI_CHART_LAYER_OPTIONS: Array<{
   { id: 'LST', label: 'LST', subtitle: 'Land surface temperature (°C)', range: [15, 45] },
 ];
 
+/**
+ * Primary toolbar chips (NDVI … LST). Any layer in {@link STATIC_AOI_CHART_LAYER_OPTIONS}
+ * not listed here appears after LST in the “More indices” dropdown (and as a chip when active).
+ */
+export const STATIC_AOI_CHART_LAYER_INLINE_IDS: StaticAoiChartLayerId[] = [
+  'NDVI',
+  'NDWI',
+  'NDMI',
+  'SAVI',
+  'EVI',
+  'LST',
+];
+
 export function defaultStaticAoiComparisonLayers(): StaticAoiChartLayerId[] {
   return ['NDVI', 'NDWI', 'EVI'];
 }
