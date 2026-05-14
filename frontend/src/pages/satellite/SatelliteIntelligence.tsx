@@ -66,7 +66,7 @@ import {
   GEO_AI_CHAT_SYSTEM_BASE,
   type GeoAiChatTurn,
 } from '../../lib/geoAiChatClaude';
-import { appConfirm, appPrompt } from '../../lib/appDialog';
+import { appConfirm, appPrompt, appAlert } from '../../lib/appDialog';
 import { loadGisMapSavedLayers } from '../../lib/gisMapLayerStore';
 import { computeStableGisFeatureKey } from '../../lib/gisFeatureStableKey';
 import { satelliteCustomLayersToGeoAiLayers } from '../../lib/geoAiMapLayerSources';
@@ -150,6 +150,7 @@ import type { AoiStaticMultiLayerLineChartDataset } from './components/AoiStatic
 import { SatelliteMapAnalysisChrome, type MapToolboxNavigateHandler } from './components/SatelliteMapAnalysisChrome';
 import { SatelliteGeoAiFloatingWidget } from './components/SatelliteGeoAiFloatingWidget';
 import { SatelliteAoiStaticChartsMapOverlay } from './components/SatelliteAoiStaticChartsMapOverlay';
+import { SiAoiReportModal } from './components/SiAoiReportModal';
 import { SatelliteMapProcessingOptionsPortal } from './components/SatelliteMapProcessingOptionsPortal';
 import { SiGeoAiInspectPopupBody } from './components/SiGeoAiInspectPopupBody';
 import { SiLayerPopupConfigurator } from './components/SiLayerPopupConfigurator';
@@ -166,7 +167,9 @@ import {
 import {
   buildStaticAoiMultiChartDatasets,
   defaultStaticAoiComparisonLayers,
+  formatStaticChartWeekLabel,
   sortStaticAoiChartLayerIds,
+  staticAoiLayerMeanForWeek,
   type StaticAoiChartLayerId,
 } from './utils/staticAoiMultiChartData';
 import {
@@ -187,7 +190,6 @@ import {
   nextFieldName,
   uuid,
   computeFieldSpectralIndices,
-  formatArea,
   guessSpectralIndexIdFromLayerName,
   indexToVizUnit,
   type SavedField,
@@ -1851,6 +1853,131 @@ const POLYGON_VERTEX_SNAP_PX = 20;
  */
 const WMS_AOI_INDEX_VISIBILITY_MIN: number | null = null;
 
+/** Per–workspace AOI: logical Sentinel products mapped to WMS layer names from GetCapabilities. */
+type SiAoiRasterStackKey = 'ndvi' | 'ndwi' | 'true_color' | 'false_color' | 'soil_index';
+
+type SiMultiAoiWorkspaceRow = {
+  id: string;
+  name: string;
+  feature: GeoJSON.Feature;
+  source: 'drawn' | 'upload' | 'layer';
+  color: string;
+  analysis?: { mean: number; min: number; max: number; trend: 'up' | 'down' | 'flat' };
+  rasterStackVisible?: Partial<Record<SiAoiRasterStackKey, boolean>>;
+  /** Optional YYYY-MM-DD; unset inherits global time-series / imagery date. */
+  sentinelTimeStart?: string;
+  sentinelTimeEnd?: string;
+};
+
+const SI_AOI_RASTER_STACK_ORDER: readonly SiAoiRasterStackKey[] = [
+  'ndvi',
+  'ndwi',
+  'true_color',
+  'false_color',
+  'soil_index',
+] as const;
+
+const SI_AOI_RASTER_STACK_LABELS: Record<SiAoiRasterStackKey, string> = {
+  ndvi: 'NDVI',
+  ndwi: 'NDWI',
+  true_color: 'True Color',
+  false_color: 'False Color',
+  soil_index: 'Soil Index',
+};
+
+const SI_DEFAULT_AOI_RASTER_VISIBILITY: Record<SiAoiRasterStackKey, boolean> = {
+  ndvi: true,
+  ndwi: false,
+  true_color: false,
+  false_color: false,
+  soil_index: false,
+};
+
+function siMergedAoiRasterVisibility(
+  partial: Partial<Record<SiAoiRasterStackKey, boolean>> | undefined,
+): Record<SiAoiRasterStackKey, boolean> {
+  return {
+    ndvi: partial?.ndvi ?? SI_DEFAULT_AOI_RASTER_VISIBILITY.ndvi,
+    ndwi: partial?.ndwi ?? SI_DEFAULT_AOI_RASTER_VISIBILITY.ndwi,
+    true_color: partial?.true_color ?? SI_DEFAULT_AOI_RASTER_VISIBILITY.true_color,
+    false_color: partial?.false_color ?? SI_DEFAULT_AOI_RASTER_VISIBILITY.false_color,
+    soil_index: partial?.soil_index ?? SI_DEFAULT_AOI_RASTER_VISIBILITY.soil_index,
+  };
+}
+
+function siResolveWmsLayerForStackKey(
+  key: SiAoiRasterStackKey,
+  options: { id: string; label: string }[],
+): string | null {
+  if (!options.length) return null;
+  const u = (s: string) => s.toUpperCase();
+  const pick = (pred: (id: string, label: string) => boolean) => {
+    for (const o of options) {
+      if (pred(o.id, o.label)) return o.id;
+    }
+    return null;
+  };
+  switch (key) {
+    case 'ndvi':
+      return pick((id, label) => u(label).includes('NDVI') || u(id).includes('NDVI'));
+    case 'ndwi':
+      return (
+        pick((id, label) => u(label).includes('NDWI') || u(id).includes('NDWI')) ||
+        pick((id, label) => u(label).includes('MNDWI') || u(label).includes('WATER'))
+      );
+    case 'true_color':
+      return (
+        pick((id, label) => u(label).includes('TRUE') && u(label).includes('COLOR')) ||
+        pick((id, label) => u(label).includes('NATURAL')) ||
+        pick((id, label) => /TRUE.?COLOR/i.test(label))
+      );
+    case 'false_color':
+      return (
+        pick((id, label) => u(label).includes('FALSE') && u(label).includes('COLOR')) ||
+        pick((id, label) => u(label).includes('FALSE') && u(label).includes('INFRARED')) ||
+        pick((id, label) => u(label).includes('SWIR') && u(label).includes('FALSE'))
+      );
+    case 'soil_index':
+      return (
+        pick((id, label) => u(label).includes('SOIL')) ||
+        pick((id, label) => u(label).includes('BSI')) ||
+        pick((id, label) => u(id).includes('SOIL'))
+      );
+    default:
+      return null;
+  }
+}
+
+/** Geodesic hectares → km² for AOI workspace cards. */
+function siFormatAreaKm2FromHectares(ha: number): string {
+  if (!Number.isFinite(ha) || ha <= 0) return '—';
+  const km2 = ha / 100;
+  if (km2 >= 1000) return `${km2.toFixed(1)} km²`;
+  if (km2 >= 1) return `${km2.toFixed(3)} km²`;
+  return `${km2.toFixed(4)} km²`;
+}
+
+/** Compact up/down cue next to placeholder zonal means (thresholds tuned for typical crop/water signals). */
+type SiSpectralPopupMetric = 'ndvi' | 'ndwi' | 'savi';
+
+function siSpectralPopupLocalTrend(metric: SiSpectralPopupMetric, value: number): 'up' | 'down' {
+  if (metric === 'ndvi') return value >= 0.35 ? 'up' : 'down';
+  if (metric === 'ndwi') return value >= 0 ? 'up' : 'down';
+  return value >= 0.25 ? 'up' : 'down';
+}
+
+type SiSentinelRasterRunSpec = {
+  aoiId: string;
+  stackKey: string;
+  wmsLayerId: string;
+  timeStart: string;
+  timeEnd: string;
+  tileUrl: string;
+  bounds: [number, number, number, number] | null;
+  clip: { geometryWkt3857: string | null; evalscriptB64: string | null };
+  ready: boolean;
+};
+
 const DEFAULT_DRAW_STYLE: DrawStyleConfig = {
   strokeColor: '#4ade80',
   fillColor: '#22c55e',
@@ -2511,38 +2638,35 @@ export default function SatelliteIntelligence() {
   const [polylineStart, setPolylineStart] = useState<[number, number] | null>(null);
   const [polygonRing, setPolygonRing] = useState<[number, number][]>([]);
   const [drawnGeometry, setDrawnGeometry] = useState<any | null>(null);
-  const [multiAoiItems, setMultiAoiItems] = useState<
-    Array<{
-      id: string;
-      name: string;
-      feature: GeoJSON.Feature;
-      source: 'drawn' | 'upload' | 'layer';
-      color: string;
-      analysis?: { mean: number; min: number; max: number; trend: 'up' | 'down' | 'flat' };
-    }>
-  >([]);
+  const [multiAoiItems, setMultiAoiItems] = useState<SiMultiAoiWorkspaceRow[]>([]);
   const [activeMultiAoiId, setActiveMultiAoiId] = useState<string | null>(null);
   const [multiAoiPopupIds, setMultiAoiPopupIds] = useState<string[]>([]);
+  const [siAoiReportModalOpen, setSiAoiReportModalOpen] = useState(false);
   const multiAoiItemsRef = useRef(multiAoiItems);
   const activeMultiAoiIdRef = useRef(activeMultiAoiId);
   const [drawTargetMode, setDrawTargetMode] = useState<'aoi' | 'field'>('aoi');
   const drawTargetModeRef = useRef<'aoi' | 'field'>('aoi');
   /* ────────────────────────────────────────────────────────────────────── *
-   * Geosyntra · Fields Data (OneSoil-style persistent AOI library)
+   * Geosyntra · Fields Data (OneSoil-style persistent field library)
    *
-   * Every AOI committed via the Remote Sensing drawing tools (or imported
-   * via "Add Data Source (AOI)") is auto-promoted into a `SavedField` and
-   * surfaced in the Fields Data section of the Remote Sensing panel.
+   * Saved fields are created only from the Field Data panel (draw, import,
+   * edit) — not from Remote Sensing AOI commits. RS workspace geometry stays
+   * on the analysis / multi-AOI stack only.
    * Persistence is **scoped to Satellite Intelligence** (`loadSavedFields('satellite')`)
    * so the GIS Map field library never shares `localStorage` with this page.
-   * State + persistence mirror the GisMap implementation so a future PostGIS
-   * migration only has to swap the helpers in `fieldsStore.ts`.
    * ────────────────────────────────────────────────────────────────────── */
-  const [savedFields, setSavedFields] = useState<SavedField[]>(() => loadSavedFields('satellite'));
+  const [savedFields, setSavedFields] = useState<SavedField[]>(() =>
+    loadSavedFields('satellite').filter(f => f.libraryOrigin !== 'rs-workspace'),
+  );
   const savedFieldsRef = useRef<SavedField[]>(savedFields);
   useEffect(() => {
     savedFieldsRef.current = savedFields;
   }, [savedFields]);
+  /** Field Data library only — never mirror Remote Sensing workspace (`rs-workspace`) rows. */
+  const fieldDataLibraryFields = useMemo(
+    () => savedFields.filter(f => f.libraryOrigin !== 'rs-workspace'),
+    [savedFields],
+  );
   useEffect(() => {
     multiAoiItemsRef.current = multiAoiItems;
   }, [multiAoiItems]);
@@ -2556,6 +2680,8 @@ export default function SatelliteIntelligence() {
   /** True only while a sketch was armed from the Fields Data panel — keeps
    *  the panel's Glass toolbar from mirroring Remote Sensing draw tools. */
   const [fieldsPanelDrawArmed, setFieldsPanelDrawArmed] = useState(false);
+  const fieldsPanelDrawArmedRef = useRef(false);
+  fieldsPanelDrawArmedRef.current = fieldsPanelDrawArmed;
   /** Remote Sensing floating tools only — not the Fields Data rail (`fields` icon). */
   const [remoteSensingToolsUiTab, setRemoteSensingToolsUiTab] = useState<'main' | 'field'>('main');
   const [fieldSurfaceVizMetric, setFieldSurfaceVizMetric] = useState<FieldSurfaceVizMetric>('none');
@@ -3629,6 +3755,7 @@ export default function SatelliteIntelligence() {
           feature: ft as GeoJSON.Feature,
           source,
           color: nextMultiAoiColor(next.length),
+          rasterStackVisible: { ...SI_DEFAULT_AOI_RASTER_VISIBILITY },
         });
       }
       return next;
@@ -3651,29 +3778,13 @@ export default function SatelliteIntelligence() {
     setMapDrawTool('select');
     setMapDragPanEnabled(true);
     setFieldAnalysisStatus(`AOI loaded from "${layerName}". Added to Multi-AOI Workspace for independent analysis.`);
-    /* Mirror the OneSoil-style behaviour from GisMap: every imported AOI
-     * is auto-promoted to a Saved Field so the user can revisit it later
-     * (rename, set crop, export GeoJSON). Failures are swallowed — the
-     * primary upload flow must never break because of the field cache. */
-    try {
-      autoSaveFieldFromGeoJson(geojson, layerName, { libraryOrigin: 'rs-workspace' });
-    } catch {
-      /* ignore — field cache is best-effort */
-    }
     return true;
   };
 
   /* ────────────────────────────────────────────────────────────────────── *
-   * Fields Data — auto-promote any committed AOI (drawn or uploaded) into
-   * a `SavedField`. Multi-polygon FeatureCollections are exploded into
-   * one field per polygon (matching `registerMultiAoiWorkspace`'s "one
-   * AOI per polygon" semantics). Returns the number of fields created.
-   *
-   * Each saved field captures a snapshot of the active Satellite layer
-   * (`activeWmsLayer`) and the resolved environmental index id
-   * (`selectedIndex`) at save-time, so the analytics dock can later
-   * show "this field was captured under the NDVI scene" and a future
-   * worker can re-fetch the same WMS tile to compute zonal stats.
+   * Fields Data — persist polygon features into `SavedField` rows (draw /
+   * import from the Field Data rail only). Multi-polygon FeatureCollections
+   * are exploded into one field per polygon.
    * ────────────────────────────────────────────────────────────────────── */
   const autoSaveFieldFromGeoJson = (
     geojson: any,
@@ -3811,14 +3922,11 @@ export default function SatelliteIntelligence() {
     }
   };
 
-  /* GeoJSON FeatureCollection of all saved fields, fed to the Mapbox
-   * `<Source>` rendered next to the live drawing layers. Recomputed only
-   * when `savedFields` changes (cheap O(n) projection — no geometry
-   * cloning). */
+  /* GeoJSON FeatureCollection for the Field Data library map tint (excludes RS workspace mirror rows). */
   const savedFieldsFeatureCollection = useMemo<GeoJSON.FeatureCollection>(
     () => ({
       type: 'FeatureCollection',
-      features: savedFields.map(f => ({
+      features: fieldDataLibraryFields.map(f => ({
         type: 'Feature',
         geometry: f.geometry,
         properties: {
@@ -3830,7 +3938,7 @@ export default function SatelliteIntelligence() {
         },
       })),
     }),
-    [savedFields, fieldSurfaceVizMetric],
+    [fieldDataLibraryFields, fieldSurfaceVizMetric],
   );
 
   const savedFieldsFillPaint = useMemo(
@@ -3873,8 +3981,8 @@ export default function SatelliteIntelligence() {
 
   /**
    * AOIs that receive an independent Sentinel WMS stack: live workspace rows plus
-   * persisted Fields (excluding field-panel-only). Deduped by geometry fingerprint
-   * so reload + session stay aligned (Multi-Job binding).
+   * any legacy `rs-workspace` rows still in persisted state (deduped by fingerprint).
+   * Field Data library rows (`field-panel` / untagged) are excluded here.
    */
   const siWmsRasterAoiFeatureRows = useMemo(() => {
     const rows: Array<{ aoiId: string; feature: GeoJSON.Feature }> = [];
@@ -3885,7 +3993,7 @@ export default function SatelliteIntelligence() {
       rows.push({ aoiId: row.id, feature: row.feature });
     }
     for (const sf of savedFields) {
-      if (sf.libraryOrigin === 'field-panel') continue;
+      if (sf.libraryOrigin !== 'rs-workspace') continue;
       const feature: GeoJSON.Feature = {
         type: 'Feature',
         geometry: sf.geometry,
@@ -6477,6 +6585,7 @@ export default function SatelliteIntelligence() {
   }) {
     if (!drawnGeometry) {
       setFieldAnalysisStatus('Draw AOI first, then press Run Analysis.');
+      pendingFieldsOnlyCommitRef.current = false;
       setMapDrawTool('polygon');
       return;
     }
@@ -7655,7 +7764,7 @@ export default function SatelliteIntelligence() {
   };
 
   const commitUserGeometry = (next: any | null) => {
-    if (next && pendingFieldsOnlyCommitRef.current) {
+    if (next && pendingFieldsOnlyCommitRef.current && fieldsPanelDrawArmedRef.current) {
       pendingFieldsOnlyCommitRef.current = false;
       try {
         const n = autoSaveFieldFromGeoJson(next, 'Field Data draw', {
@@ -7679,15 +7788,6 @@ export default function SatelliteIntelligence() {
       setSelectedFieldId(null);
       const drawnLabel = `Drawn AOI ${multiAoiItems.length + 1}`;
       registerMultiAoiWorkspace(next, drawnLabel, 'drawn', { setActiveFirst: true });
-      /* Auto-save the drawn AOI as a Saved Field — mirrors the OneSoil
-       * flow: every finished sketch becomes a persistable field that
-       * survives a refresh and appears in the Fields Data section of
-       * the Remote Sensing panel. */
-      try {
-        autoSaveFieldFromGeoJson(next, drawnLabel, { libraryOrigin: 'rs-workspace' });
-      } catch {
-        /* ignore — never break the upstream draw flow */
-      }
     }
     const cur = drawnGeometryRef.current;
     setGeomUndoStack(u => [...u, cur ? cloneDeep(cur) : null]);
@@ -7806,6 +7906,12 @@ export default function SatelliteIntelligence() {
       setGeomRedoStack([]);
     }
     recomputeDrawnAoiStats(after);
+    const activeAoiId = activeMultiAoiIdRef.current;
+    if (activeAoiId && after && (after as GeoJSON.Feature).type === 'Feature') {
+      setMultiAoiItems(prev =>
+        prev.map(r => (r.id === activeAoiId ? { ...r, feature: after as GeoJSON.Feature } : r)),
+      );
+    }
   };
 
   const commitUserGeometryRef = useRef(commitUserGeometry);
@@ -8008,6 +8114,15 @@ export default function SatelliteIntelligence() {
       circleRefineDraft != null ||
       polylineStart != null;
 
+    const fieldsOnlySketch = fieldsPanelDrawArmed && hasSketch;
+    if (fieldsOnlySketch) {
+      setFieldAnalysisStatus(
+        'Field Data has an active map sketch. Finish or cancel it with Esc from the map, or use the Field Data panel — Remote Sensing Clear only affects the RS workspace.',
+      );
+      setDrawVisualOpacity(1);
+      return;
+    }
+
     if (hasSketch) {
       cancelCurrentDrawing();
       setDrawVisualOpacity(1);
@@ -8058,7 +8173,7 @@ export default function SatelliteIntelligence() {
     }
 
     const hasVisual =
-      drawnGeometry != null || aoiFields.length > 0 || mapDrawTool !== 'select';
+      drawnGeometry != null || aoiFields.length > 0 || (!fieldsPanelDrawArmed && mapDrawTool !== 'select');
 
     const finish = () => {
       clearAllAoiDrawing();
@@ -8101,6 +8216,7 @@ export default function SatelliteIntelligence() {
     circleRefineDraft,
     polylineStart,
     mapDrawTool,
+    fieldsPanelDrawArmed,
   ]);
 
   const handleMapPointerDown = (evt: any) => {
@@ -9298,43 +9414,6 @@ export default function SatelliteIntelligence() {
     [activeWmsLayer, selectedIndex, wmsDate, timeSeriesStart, timeSeriesEnd],
   );
 
-  const rsToolsActiveAoiRow = useMemo(
-    () => (activeMultiAoiId ? multiAoiItems.find(r => r.id === activeMultiAoiId) ?? null : null),
-    [activeMultiAoiId, multiAoiItems],
-  );
-
-  const rsToolsActiveAoiSavedField = useMemo(() => {
-    const row = rsToolsActiveAoiRow;
-    if (!row) return null;
-    const fp = fingerprintFeatureGeometry(row.feature);
-    if (!fp) return null;
-    return (
-      savedFields.find(f => {
-        if (f.libraryOrigin === 'field-panel') return false;
-        return (
-          fingerprintFeatureGeometry({ type: 'Feature', geometry: f.geometry, properties: {} }) === fp
-        );
-      }) ?? null
-    );
-  }, [rsToolsActiveAoiRow, savedFields]);
-
-  const rsToolsActiveAoiIndices = useMemo(() => {
-    const row = rsToolsActiveAoiRow;
-    if (!row) return null;
-    const g = row.feature?.geometry as SavedField['geometry'] | undefined;
-    if (!g || (g.type !== 'Polygon' && g.type !== 'MultiPolygon')) return null;
-    const persisted = rsToolsActiveAoiSavedField?.indices;
-    if (persisted) return persisted;
-    return computeFieldSpectralIndices(
-      { id: row.id, geometry: g },
-      {
-        layerKey: (activeWmsLayer && activeWmsLayer.trim()) || String(selectedIndex ?? ''),
-        indexKey: selectedIndex ? String(selectedIndex) : undefined,
-        sceneKey: fieldSpectralSceneKey,
-      },
-    );
-  }, [rsToolsActiveAoiRow, rsToolsActiveAoiSavedField, activeWmsLayer, selectedIndex, fieldSpectralSceneKey]);
-
   useEffect(() => {
     setSavedFields(prev => {
       if (!prev.length) return prev;
@@ -9352,6 +9431,53 @@ export default function SatelliteIntelligence() {
     });
   }, [fieldSpectralSceneKey, activeWmsLayer, selectedIndex]);
 
+  /** Per–workspace AOI spectral means for map popups (matches sidebar logic before snapshot moved to markers). */
+  const multiAoiSpectralIndicesById = useMemo(() => {
+    const m = new Map<string, { ndvi?: number; ndwi?: number; savi?: number }>();
+    for (const row of multiAoiItems) {
+      const g = row.feature?.geometry as SavedField['geometry'] | undefined;
+      if (!g || (g.type !== 'Polygon' && g.type !== 'MultiPolygon')) continue;
+      const fpRow = fingerprintFeatureGeometry(row.feature);
+      const rowSaved =
+        fpRow == null
+          ? null
+          : (savedFields.find(f => {
+              if (f.libraryOrigin === 'field-panel') return false;
+              return (
+                fingerprintFeatureGeometry({
+                  type: 'Feature',
+                  geometry: f.geometry,
+                  properties: {},
+                }) === fpRow
+              );
+            }) ?? null);
+      const indices =
+        rowSaved?.indices ??
+        computeFieldSpectralIndices(
+          { id: row.id, geometry: g },
+          {
+            layerKey:
+              siResolveWmsLayerForStackKey('ndvi', remoteSensingLayerOptions) ?? activeWmsLayer ?? '',
+            indexKey: selectedIndex ? String(selectedIndex) : undefined,
+            sceneKey: `${fieldSpectralSceneKey}|${row.id}|${row.sentinelTimeStart ?? ''}|${row.sentinelTimeEnd ?? ''}`,
+          },
+        );
+      m.set(row.id, {
+        ndvi: typeof indices.ndvi === 'number' ? indices.ndvi : undefined,
+        ndwi: typeof indices.ndwi === 'number' ? indices.ndwi : undefined,
+        savi: typeof indices.savi === 'number' ? indices.savi : undefined,
+      });
+    }
+    return m;
+  }, [
+    multiAoiItems,
+    savedFields,
+    remoteSensingLayerOptions,
+    activeWmsLayer,
+    selectedIndex,
+    fieldSpectralSceneKey,
+  ]);
+
   const sentinelVisible = isWmsOverlayVisible && !!activeWmsLayer;
   const normalizedDrawnAoiGeometry = useMemo(() => getDrawnGeometry(drawnGeometry), [drawnGeometry]);
   /** True when the Remote Sensing WMS stack should paint: workspace AOIs, persisted RS fields, or a lone legacy sketch. */
@@ -9359,7 +9485,7 @@ export default function SatelliteIntelligence() {
     if (multiAoiItems.length > 0) return multiAoiItems.some(r => !!getDrawnGeometry(r.feature));
     if (
       savedFields.some(sf => {
-        if (sf.libraryOrigin === 'field-panel') return false;
+        if (sf.libraryOrigin !== 'rs-workspace') return false;
         return !!getDrawnGeometry({ type: 'Feature', geometry: sf.geometry, properties: {} } as any);
       })
     )
@@ -9907,7 +10033,7 @@ export default function SatelliteIntelligence() {
         }
         surfaceVizMetric={fieldSurfaceVizMetric}
         onSurfaceVizMetricChange={setFieldSurfaceVizMetric}
-        fields={savedFields}
+        fields={fieldDataLibraryFields}
         selectedId={selectedSavedFieldId}
         drawingArmed={fieldsPanelDrawArmed}
         onSelectField={id => setSelectedSavedFieldId(id)}
@@ -9958,7 +10084,7 @@ export default function SatelliteIntelligence() {
     ),
     /* eslint-disable-next-line react-hooks/exhaustive-deps */
     [
-      savedFields,
+      fieldDataLibraryFields,
       selectedSavedFieldId,
       fieldsPanelDrawArmed,
       fieldSurfaceVizMetric,
@@ -9984,7 +10110,7 @@ export default function SatelliteIntelligence() {
         onSelectGroup={setFieldListGroupFilter}
         onAddFieldGroup={addFieldGroup}
         onDeleteFieldGroup={deleteFieldGroup}
-        fields={savedFields}
+        fields={fieldDataLibraryFields}
         selectedId={selectedSavedFieldId}
         drawingArmed={fieldsPanelDrawArmed}
         onSelectField={id => setSelectedSavedFieldId(id)}
@@ -10006,7 +10132,7 @@ export default function SatelliteIntelligence() {
       />
     ),
     /* eslint-disable-next-line react-hooks/exhaustive-deps */
-    [savedFields, selectedSavedFieldId, fieldsPanelDrawArmed, fieldGroups, fieldListGroupFilter, addFieldGroup, deleteFieldGroup],
+    [fieldDataLibraryFields, selectedSavedFieldId, fieldsPanelDrawArmed, fieldGroups, fieldListGroupFilter, addFieldGroup, deleteFieldGroup],
   );
 
   const exploreSelectedCollectionsLabel = useMemo(() => {
@@ -10077,6 +10203,39 @@ export default function SatelliteIntelligence() {
     [pivotChartRows],
   );
 
+  /** Saved / AOI sketch fields: synthetic mean for primary comparison layer at the timeline week matching the map date. */
+  const staticAoiFieldComparison = useMemo(() => {
+    if (!weeklyComposites.length) {
+      return { rows: [] as Array<{ name: string; value: number }>, subtitle: '' };
+    }
+    const iso = selectedDate.toISOString().split('T')[0];
+    let weekIdx = weeklyComposites.findIndex(w => iso >= w.startDate && iso <= w.endDate);
+    if (weekIdx < 0) weekIdx = weeklyComposites.length - 1;
+    const w = weeklyComposites[weekIdx]!;
+    const n = weeklyComposites.length;
+    const primaryLayer = (staticChartComparisonLayers[0] ?? 'NDVI') as StaticAoiChartLayerId;
+    const rows: Array<{ name: string; value: number }> = [];
+
+    for (const f of savedFields) {
+      const gt = f.geometry?.type;
+      if (gt !== 'Polygon' && gt !== 'MultiPolygon') continue;
+      const v = staticAoiLayerMeanForWeek(primaryLayer, weekIdx, n, `sat-field:${f.id}`, w.mean);
+      rows.push({ name: (f.name && f.name.trim()) || f.id, value: v });
+    }
+    for (const af of aoiFields) {
+      const gt = af.geometry?.type;
+      if (gt !== 'Polygon' && gt !== 'MultiPolygon') continue;
+      const v = staticAoiLayerMeanForWeek(primaryLayer, weekIdx, n, `sat-aoif:${af.id}`, w.mean);
+      rows.push({ name: af.name, value: v });
+    }
+
+    const weekLabel = formatStaticChartWeekLabel(w.startDate);
+    return {
+      rows: rows.slice(0, 14),
+      subtitle: `${primaryLayer} · ${weekLabel}`,
+    };
+  }, [weeklyComposites, selectedDate, staticChartComparisonLayers, savedFields, aoiFields]);
+
   const satelliteWeeklyMeans = useMemo(() => weeklyComposites.map(w => w.mean), [weeklyComposites]);
 
   const staticAoiChartAoiKey = useMemo(() => {
@@ -10123,6 +10282,36 @@ export default function SatelliteIntelligence() {
     });
   }, []);
 
+  const siAoiReportAoiOptions = useMemo(() => {
+    if (multiAoiItems.length) {
+      return multiAoiItems.map(r => ({ id: r.id, name: r.name, feature: r.feature as GeoJSON.Feature }));
+    }
+    if (drawnGeometry?.geometry) {
+      return [{ id: '__drawn', name: 'منطقة الرسم الحالية', feature: drawnGeometry as GeoJSON.Feature }];
+    }
+    return [] as Array<{ id: string; name: string; feature: GeoJSON.Feature }>;
+  }, [multiAoiItems, drawnGeometry]);
+
+  const siAoiReportDefaultIndex = useMemo(
+    () => (staticChartComparisonLayers[0] ?? 'NDVI') as StaticAoiChartLayerId,
+    [staticChartComparisonLayers],
+  );
+
+  const siAoiReportPreferredAoiId = useMemo(() => {
+    if (multiAoiItems.length) return activeMultiAoiId;
+    return drawnGeometry?.geometry ? '__drawn' : null;
+  }, [multiAoiItems.length, activeMultiAoiId, drawnGeometry?.geometry]);
+
+  const openSiAoiVegetationReport = useCallback(() => {
+    if (!multiAoiItems.length && !drawnGeometry?.geometry) {
+      void appAlert('ارسم منطقة اهتمام أو أضف AOI إلى مساحة العمل قبل توليد التقرير.', {
+        title: 'Generate report',
+      });
+      return;
+    }
+    setSiAoiReportModalOpen(true);
+  }, [multiAoiItems.length, drawnGeometry]);
+
   const satelliteActiveChipId = useMemo(() => {
     if (!weeklyComposites.length) return null;
     const iso = selectedDate.toISOString().split('T')[0];
@@ -10146,32 +10335,38 @@ export default function SatelliteIntelligence() {
     if (w) applySelectedDate(new Date(`${w.startDate}T12:00:00`));
   };
 
-  const satelliteToolbarTool: 'rectangle' | 'polygon' | 'circle' | 'select' =
-    mapDrawTool === 'rectangle' || mapDrawTool === 'polygon' || mapDrawTool === 'circle' || mapDrawTool === 'select'
+  const satelliteToolbarTool: 'rectangle' | 'polygon' | 'circle' | 'select' = fieldsPanelDrawArmed
+    ? 'select'
+    : mapDrawTool === 'rectangle' || mapDrawTool === 'polygon' || mapDrawTool === 'circle' || mapDrawTool === 'select'
       ? mapDrawTool
       : 'select';
 
-  const satelliteHasClearableDrawing = useMemo(
-    () =>
+  const satelliteHasClearableDrawing = useMemo(() => {
+    const rsInFlightSketch =
+      !fieldsPanelDrawArmed &&
+      (rectCirclePreview != null ||
+        polygonRing.length > 0 ||
+        circleRefineDraft != null ||
+        polylineStart != null);
+    const rsToolActive = !fieldsPanelDrawArmed && mapDrawTool !== 'select';
+    return (
       drawnGeometry != null ||
       aoiFields.length > 0 ||
       multiAoiItems.length > 0 ||
-      rectCirclePreview != null ||
-      polygonRing.length > 0 ||
-      circleRefineDraft != null ||
-      polylineStart != null ||
-      mapDrawTool !== 'select',
-    [
-      drawnGeometry,
-      aoiFields.length,
-      multiAoiItems.length,
-      rectCirclePreview,
-      polygonRing.length,
-      circleRefineDraft,
-      polylineStart,
-      mapDrawTool,
-    ],
-  );
+      rsInFlightSketch ||
+      rsToolActive
+    );
+  }, [
+    fieldsPanelDrawArmed,
+    drawnGeometry,
+    aoiFields.length,
+    multiAoiItems.length,
+    rectCirclePreview,
+    polygonRing.length,
+    circleRefineDraft,
+    polylineStart,
+    mapDrawTool,
+  ]);
 
   /** Sentinel Hub: GEOMETRY (3857 WKT) + EVALSCRIPT (RGBA, alpha = dataMask × optional index mask). */
   const sentinelHubWmsAoiClip = useMemo(
@@ -10245,61 +10440,109 @@ export default function SatelliteIntelligence() {
     !!normalizedDrawnAoiGeometry &&
     (!!wmsRasterAoiBoundsLngLat || !!sentinelHubWmsAoiClip.geometryWkt3857);
 
-  /** One Sentinel Hub WMS raster source per AOI geometry (independent GEOMETRY, bounds, tile URL). */
-  const siMultiSentinelRasterRuns = useMemo(() => {
+  /**
+   * Per–AOI Sentinel stack: one WMS raster source per (AOI id, logical stack key).
+   * `null` means legacy single-drawn AOI path; a non-null array (possibly empty) means multi-AOI mode.
+   */
+  const siMultiSentinelRasterRuns = useMemo((): SiSentinelRasterRunSpec[] | null => {
     if (siWmsRasterAoiFeatureRows.length === 0) return null;
-    const safeLayer = encodeURIComponent(activeWmsLayer);
-    const start = timeSeriesStart || wmsDate;
-    const end = timeSeriesEnd || wmsDate;
-    const prefix =
-      `${wmsBaseUrl}?SERVICE=WMS&REQUEST=GetMap&VERSION=1.3.0` +
-      `&LAYERS=${safeLayer}` +
-      `&BBOX={bbox-epsg-3857}&CRS=EPSG:3857` +
-      `&FORMAT=image/png&TRANSPARENT=true&WIDTH=512&HEIGHT=512` +
-      `&TIME=${start}/${end}&MAXCC=${cloudCoverage}&SHOWLOGO=false&WARNINGS=true`;
 
-    return siWmsRasterAoiFeatureRows.map(({ aoiId, feature }) => {
-      const clip = buildSentinelHubWmsAoiClip(feature, activeWmsLayer, {
+    const buildBounds = (feature: GeoJSON.Feature): [number, number, number, number] | null => {
+      const normalized = getDrawnGeometry(feature);
+      if (!normalized) return null;
+      const raw =
+        getGeoJsonBounds({
+          type: 'Feature',
+          geometry: normalized,
+          properties: {},
+        } as any) ?? getGeoJsonBounds(feature as any);
+      if (!raw) return null;
+      let [w, s, e, n] = raw;
+      if (![w, s, e, n].every(Number.isFinite)) return null;
+      const eps = 1e-4;
+      if (e <= w) {
+        const c = (w + e) / 2;
+        w = c - eps;
+        e = c + eps;
+      }
+      if (n <= s) {
+        const c = (s + n) / 2;
+        s = c - eps;
+        n = c + eps;
+      }
+      const padX = Math.max((e - w) * 0.02, 1e-6);
+      const padY = Math.max((n - s) * 0.02, 1e-6);
+      return [w - padX, s - padY, e + padX, n + padY];
+    };
+
+    const out: SiSentinelRasterRunSpec[] = [];
+    const globalStart = timeSeriesStart || wmsDate;
+    const globalEnd = timeSeriesEnd || wmsDate;
+
+    const pushRun = (
+      aoiId: string,
+      stackKey: string,
+      wmsLayerId: string,
+      feature: GeoJSON.Feature,
+      timeStart: string,
+      timeEnd: string,
+    ) => {
+      if (!wmsLayerId) return;
+      const clip = buildSentinelHubWmsAoiClip(feature, wmsLayerId, {
         indexVisibilityMin: WMS_AOI_INDEX_VISIBILITY_MIN,
       });
-      let url = prefix;
+      const bounds = buildBounds(feature);
+      const normalized = getDrawnGeometry(feature);
+      const safeLayer = encodeURIComponent(wmsLayerId);
+      let url =
+        `${wmsBaseUrl}?SERVICE=WMS&REQUEST=GetMap&VERSION=1.3.0` +
+        `&LAYERS=${safeLayer}` +
+        `&BBOX={bbox-epsg-3857}&CRS=EPSG:3857` +
+        `&FORMAT=image/png&TRANSPARENT=true&WIDTH=512&HEIGHT=512` +
+        `&TIME=${timeStart}/${timeEnd}&MAXCC=${cloudCoverage}&SHOWLOGO=false&WARNINGS=true`;
       if (clip.geometryWkt3857) url += `&GEOMETRY=${encodeURIComponent(clip.geometryWkt3857)}`;
       if (clip.evalscriptB64) url += `&EVALSCRIPT=${encodeURIComponent(clip.evalscriptB64)}`;
-
-      const normalized = getDrawnGeometry(feature);
-      let bounds: [number, number, number, number] | null = null;
-      if (normalized) {
-        const raw =
-          getGeoJsonBounds({
-            type: 'Feature',
-            geometry: normalized,
-            properties: {},
-          } as any) ?? getGeoJsonBounds(feature as any);
-        if (raw) {
-          let [w, s, e, n] = raw;
-          if ([w, s, e, n].every(Number.isFinite)) {
-            const eps = 1e-4;
-            if (e <= w) {
-              const c = (w + e) / 2;
-              w = c - eps;
-              e = c + eps;
-            }
-            if (n <= s) {
-              const c = (s + n) / 2;
-              s = c - eps;
-              n = c + eps;
-            }
-            const padX = Math.max((e - w) * 0.02, 1e-6);
-            const padY = Math.max((n - s) * 0.02, 1e-6);
-            bounds = [w - padX, s - padY, e + padX, n + padY];
-          }
-        }
-      }
       const ready = !!normalized && (!!bounds || !!clip.geometryWkt3857);
-      return { aoiId, tileUrl: url, bounds, clip, ready };
-    });
+      out.push({
+        aoiId,
+        stackKey,
+        wmsLayerId,
+        timeStart,
+        timeEnd,
+        tileUrl: url,
+        bounds,
+        clip,
+        ready,
+      });
+    };
+
+    for (const { aoiId, feature } of siWmsRasterAoiFeatureRows) {
+      if (aoiId.startsWith('sf-')) {
+        if (!activeWmsLayer) continue;
+        pushRun(aoiId, '__legacy__', activeWmsLayer, feature, globalStart, globalEnd);
+        continue;
+      }
+
+      const row = multiAoiItems.find(r => r.id === aoiId);
+      if (!row) continue;
+
+      const vis = siMergedAoiRasterVisibility(row.rasterStackVisible);
+      const t0 = (row.sentinelTimeStart && row.sentinelTimeStart.trim()) || globalStart;
+      const t1 = (row.sentinelTimeEnd && row.sentinelTimeEnd.trim()) || globalEnd;
+
+      for (const stackKey of SI_AOI_RASTER_STACK_ORDER) {
+        if (!vis[stackKey]) continue;
+        const wmsId = siResolveWmsLayerForStackKey(stackKey, remoteSensingLayerOptions);
+        if (!wmsId) continue;
+        pushRun(aoiId, stackKey, wmsId, feature, t0, t1);
+      }
+    }
+
+    return out;
   }, [
     siWmsRasterAoiFeatureRows,
+    multiAoiItems,
+    remoteSensingLayerOptions,
     activeWmsLayer,
     timeSeriesStart,
     timeSeriesEnd,
@@ -10318,10 +10561,10 @@ export default function SatelliteIntelligence() {
     if (!map?.isStyleLoaded?.()) return;
     const sync = () => {
       try {
-        if (siMultiSentinelRasterRuns?.length) {
+        if (siMultiSentinelRasterRuns != null) {
           for (const spec of siMultiSentinelRasterRuns) {
             if (!spec.ready) continue;
-            const src = map.getSource(`si-sentinel-src-${spec.aoiId}`) as
+            const src = map.getSource(`si-sentinel-src-${spec.aoiId}-${spec.stackKey}`) as
               | { setBounds?: (b: [number, number, number, number] | null) => void }
               | null;
             if (src && typeof src.setBounds === 'function') src.setBounds(spec.bounds ?? null);
@@ -10972,18 +11215,18 @@ export default function SatelliteIntelligence() {
 
             {isMapLoaded &&
               sentinelVisible &&
-              siMultiSentinelRasterRuns &&
+              siMultiSentinelRasterRuns != null &&
               siMultiSentinelRasterRuns.filter(s => s.ready).map(spec => (
                 <Source
-                  key={`si-sentinel-${spec.aoiId}-${activeWmsLayer}-${wmsDate}-${spec.bounds?.join(',') ?? 'nb'}-${spec.clip.geometryWkt3857 ? 'g1' : 'g0'}-${spec.clip.evalscriptB64 ? 'e1' : 'e0'}`}
-                  id={`si-sentinel-src-${spec.aoiId}`}
+                  key={`si-sentinel-${spec.aoiId}-${spec.stackKey}-${spec.wmsLayerId}-${spec.timeStart}-${spec.timeEnd}-${spec.bounds?.join(',') ?? 'nb'}-${spec.clip.geometryWkt3857 ? 'g1' : 'g0'}-${spec.clip.evalscriptB64 ? 'e1' : 'e0'}`}
+                  id={`si-sentinel-src-${spec.aoiId}-${spec.stackKey}`}
                   type="raster"
                   tiles={[spec.tileUrl]}
                   tileSize={512}
                   bounds={spec.bounds ?? undefined}
                 >
                   <Layer
-                    id={`si-sentinel-layer-${spec.aoiId}`}
+                    id={`si-sentinel-layer-${spec.aoiId}-${spec.stackKey}`}
                     type="raster"
                     paint={{
                       'raster-opacity':
@@ -10994,7 +11237,7 @@ export default function SatelliteIntelligence() {
                 </Source>
               ))}
 
-            {isMapLoaded && sentinelVisible && !siMultiSentinelRasterRuns && drawnAoiWmsClipReady && (
+            {isMapLoaded && sentinelVisible && siMultiSentinelRasterRuns === null && drawnAoiWmsClipReady && (
               <Source
                 key={`sentinel-${activeWmsLayer}-${wmsDate}-${wmsRasterAoiBoundsLngLat?.join(',') ?? 'world'}-${sentinelHubWmsAoiClip.geometryWkt3857 ? 'g1' : 'g0'}-${sentinelHubWmsAoiClip.evalscriptB64 ? 'e1' : 'e0'}`}
                 id="sentinel-source"
@@ -11110,6 +11353,16 @@ export default function SatelliteIntelligence() {
                 if (!row) return null;
                 const c = getGeoJsonCentroid(row.feature);
                 if (!Array.isArray(c) || c.length < 2) return null;
+                const g = row.feature?.geometry as SavedField['geometry'] | undefined;
+                const areaHa =
+                  g && (g.type === 'Polygon' || g.type === 'MultiPolygon') ? geodesicAreaHectares(g) : 0;
+                const areaLabel = siFormatAreaKm2FromHectares(areaHa);
+                const spectral = multiAoiSpectralIndicesById.get(row.id);
+                const spectralRows: Array<{ key: SiSpectralPopupMetric; label: string }> = [
+                  { key: 'ndvi', label: 'NDVI' },
+                  { key: 'ndwi', label: 'NDWI' },
+                  { key: 'savi', label: 'SAVI' },
+                ];
                 return (
                   <Marker key={`si-multi-aoi-popup-${pid}`} longitude={c[0]} latitude={c[1]} anchor="bottom">
                     <div className="si-multi-aoi-popup" onClick={e => e.stopPropagation()} onPointerDown={e => e.stopPropagation()}>
@@ -11124,17 +11377,46 @@ export default function SatelliteIntelligence() {
                         </button>
                       </div>
                       <div className="si-multi-aoi-popup__row">
-                        <span>Source</span>
-                        <em>{row.source}</em>
+                        <span>Area</span>
+                        <em dir="ltr">{areaLabel}</em>
                       </div>
-                      <div className="si-multi-aoi-popup__row">
-                        <span>Mean</span>
-                        <em>{row.analysis ? row.analysis.mean.toFixed(3) : '—'}</em>
-                      </div>
-                      <div className="si-multi-aoi-popup__row">
-                        <span>Range</span>
-                        <em>{row.analysis ? `${row.analysis.min.toFixed(3)} .. ${row.analysis.max.toFixed(3)}` : '—'}</em>
-                      </div>
+                      {spectral ? (
+                        <div className="si-multi-aoi-popup__spectral" aria-label="Spectral snapshot">
+                          <div className="si-multi-aoi-popup__spectral-title">Spectral snapshot</div>
+                          <div className="si-multi-aoi-popup__spectral-grid">
+                            {spectralRows.map(({ key, label }) => {
+                              const v = spectral[key];
+                              if (typeof v !== 'number') return null;
+                              const tr = siSpectralPopupLocalTrend(key, v);
+                              return (
+                                <div key={key} className="si-multi-aoi-popup__spectral-cell">
+                                  <span className="si-multi-aoi-popup__spectral-k">{label}</span>
+                                  <span className="si-multi-aoi-popup__spectral-v" dir="ltr">
+                                    <i
+                                      className={
+                                        tr === 'up'
+                                          ? 'fa-solid fa-caret-up si-multi-aoi-popup__spectral-arr si-multi-aoi-popup__spectral-arr--up'
+                                          : 'fa-solid fa-caret-down si-multi-aoi-popup__spectral-arr si-multi-aoi-popup__spectral-arr--down'
+                                      }
+                                      aria-hidden
+                                    />
+                                    <span
+                                      className="si-multi-aoi-popup__spectral-num"
+                                      title={
+                                        tr === 'up'
+                                          ? 'Above typical baseline for this index (visual cue)'
+                                          : 'Below typical baseline for this index (visual cue)'
+                                      }
+                                    >
+                                      {v.toFixed(2)}
+                                    </span>
+                                  </span>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      ) : null}
                     </div>
                   </Marker>
                 );
@@ -11330,6 +11612,9 @@ export default function SatelliteIntelligence() {
             staticChartExportLngLatPerRow={staticAoiChartExportLngLatPerRow}
             weeklyMeans={satelliteWeeklyMeans}
             pivotBars={satellitePivotBars}
+            fieldComparisonBars={staticAoiFieldComparison.rows}
+            fieldComparisonSubtitle={staticAoiFieldComparison.subtitle}
+            onRequestGenerateReport={openSiAoiVegetationReport}
           />
 
           <SatelliteGeoAiFloatingWidget
@@ -11812,6 +12097,8 @@ export default function SatelliteIntelligence() {
             onToggleStaticCharts={() => setMapStaticChartsOpen(o => !o)}
             weeklyMeans={satelliteWeeklyMeans}
             pivotBars={satellitePivotBars}
+            fieldComparisonBars={staticAoiFieldComparison.rows}
+            fieldComparisonSubtitle={staticAoiFieldComparison.subtitle}
             indexLabel={selectedIndexConfig.label}
             staticMultiLineLabels={staticAoiMultiLineData.labels}
             staticMultiLineDatasets={staticAoiMultiLineData.datasets}
@@ -11821,6 +12108,7 @@ export default function SatelliteIntelligence() {
             onStaticComparisonLayerToggle={handleStaticComparisonLayerToggle}
             mapRef={mapRef}
             mapLoaded={isMapLoaded}
+            onRequestGenerateReport={openSiAoiVegetationReport}
             onProcessingWorkflowNavigate={onProcessingWorkflowNavigateMapToolbox}
             processingDropdownOpen={isLayerDropdownOpen}
             processingEmbedSection={isLayerDropdownOpen ? expandedEnvSection : null}
@@ -11833,7 +12121,19 @@ export default function SatelliteIntelligence() {
             onMapToolboxAddData={openAddLayerModal}
             fieldsPanelWorkspaceContent={mapToolboxFieldsWorkspace}
             fieldsPanelLibraryContent={mapToolboxFieldsLibrary}
-            fieldsCount={savedFields.length}
+            fieldsCount={fieldDataLibraryFields.length}
+          />
+
+          <SiAoiReportModal
+            open={siAoiReportModalOpen}
+            onClose={() => setSiAoiReportModalOpen(false)}
+            weeklyComposites={weeklyComposites}
+            timeSeriesStart={timeSeriesStart}
+            timeSeriesEnd={timeSeriesEnd}
+            defaultIndexId={siAoiReportDefaultIndex}
+            aoiOptions={siAoiReportAoiOptions}
+            mapboxToken={mapboxToken}
+            preferredAoiId={siAoiReportPreferredAoiId}
           />
 
           {false && aoiHeatPointGeoJson?.features?.length ? (
@@ -12882,36 +13182,36 @@ export default function SatelliteIntelligence() {
                             >
                               <button
                                 type="button"
-                                className={`si-map-analysis-tool${mapDrawTool === 'rectangle' ? ' si-map-analysis-tool--on' : ''}`}
+                                className={`si-map-analysis-tool${!fieldsPanelDrawArmed && mapDrawTool === 'rectangle' ? ' si-map-analysis-tool--on' : ''}`}
                                 title="Rectangle AOI"
-                                aria-pressed={mapDrawTool === 'rectangle'}
+                                aria-pressed={!fieldsPanelDrawArmed && mapDrawTool === 'rectangle'}
                                 onClick={() => applyMapDrawTool('rectangle')}
                               >
                                 <i className="fa-regular fa-square" aria-hidden />
                               </button>
                               <button
                                 type="button"
-                                className={`si-map-analysis-tool${mapDrawTool === 'polygon' ? ' si-map-analysis-tool--on' : ''}`}
+                                className={`si-map-analysis-tool${!fieldsPanelDrawArmed && mapDrawTool === 'polygon' ? ' si-map-analysis-tool--on' : ''}`}
                                 title="Polygon AOI"
-                                aria-pressed={mapDrawTool === 'polygon'}
+                                aria-pressed={!fieldsPanelDrawArmed && mapDrawTool === 'polygon'}
                                 onClick={() => applyMapDrawTool('polygon')}
                               >
                                 <i className="fa-solid fa-draw-polygon" aria-hidden />
                               </button>
                               <button
                                 type="button"
-                                className={`si-map-analysis-tool${mapDrawTool === 'circle' ? ' si-map-analysis-tool--on' : ''}`}
+                                className={`si-map-analysis-tool${!fieldsPanelDrawArmed && mapDrawTool === 'circle' ? ' si-map-analysis-tool--on' : ''}`}
                                 title="Circle AOI"
-                                aria-pressed={mapDrawTool === 'circle'}
+                                aria-pressed={!fieldsPanelDrawArmed && mapDrawTool === 'circle'}
                                 onClick={() => applyMapDrawTool('circle')}
                               >
                                 <i className="fa-regular fa-circle" aria-hidden />
                               </button>
                               <button
                                 type="button"
-                                className={`si-map-analysis-tool${mapDrawTool === 'select' ? ' si-map-analysis-tool--on' : ''}`}
+                                className={`si-map-analysis-tool${!fieldsPanelDrawArmed && mapDrawTool === 'select' ? ' si-map-analysis-tool--on' : ''}`}
                                 title={drawnGeometry ? 'Select / edit AOI' : 'Select'}
-                                aria-pressed={mapDrawTool === 'select'}
+                                aria-pressed={!fieldsPanelDrawArmed && mapDrawTool === 'select'}
                                 onClick={() => applyMapDrawTool('select')}
                               >
                                 <i className="fa-solid fa-arrow-pointer" aria-hidden />
@@ -13003,11 +13303,23 @@ export default function SatelliteIntelligence() {
                           </>
                         ) : (
                           <div className="si-field-analysis-section si-rs-field-tab-panel">
-                            <p className="si-rs-field-tab-lede">
-                              Per-AOI workspace for this Remote Sensing session — Sentinel context and spectral snapshot
-                              per area. Separate from the <strong>Fields Data</strong> panel on the map rail (library,
-                              groups, exports).
-                            </p>
+                            <label className="gs-fields-viz-row si-rs-field-map-tint">
+                              <span className="gs-fields-viz-row__label">Map tint (all fields)</span>
+                              <select
+                                className="gs-fields-viz-row__select"
+                                value={fieldSurfaceVizMetric}
+                                aria-label="Field map tint metric"
+                                onChange={e => setFieldSurfaceVizMetric(e.target.value as FieldSurfaceVizMetric)}
+                              >
+                                <option value="none">Field colors</option>
+                                <option value="ndvi">NDVI</option>
+                                <option value="ndwi">NDWI</option>
+                                <option value="savi">SAVI</option>
+                                <option value="evi">EVI</option>
+                                <option value="moisture">Moisture</option>
+                                <option value="temperature">Temperature</option>
+                              </select>
+                            </label>
                             {multiAoiItems.length === 0 ? (
                               <p className="si-field-analysis-status">
                                 No workspace AOIs yet. Use <strong>Main</strong> to add a data source or draw an AOI,
@@ -13016,86 +13328,146 @@ export default function SatelliteIntelligence() {
                             ) : (
                               <>
                                 <div className="si-field-analysis-kicker">Workspace AOIs</div>
-                                <ul className="si-rs-aoi-pick-list" aria-label="Workspace AOIs">
-                                  {multiAoiItems.map(row => (
-                                    <li key={row.id}>
-                                      <button
-                                        type="button"
-                                        className={
-                                          'si-rs-aoi-pick-btn' +
-                                          (activeMultiAoiId === row.id ? ' si-rs-aoi-pick-btn--on' : '')
-                                        }
-                                        onClick={() => setActiveMultiAoiId(row.id)}
-                                        aria-pressed={activeMultiAoiId === row.id}
-                                      >
-                                        <span
-                                          className="si-rs-aoi-pick-dot"
-                                          style={{ background: row.color }}
-                                          aria-hidden
-                                        />
-                                        <span className="si-rs-aoi-pick-label">{row.name}</span>
-                                      </button>
-                                    </li>
-                                  ))}
-                                </ul>
-                                {rsToolsActiveAoiRow ? (
-                                  <>
-                                    <div className="si-field-analysis-kicker">Active AOI — Sentinel context</div>
-                                    <div className="si-rs-aoi-context-grid">
-                                      <div className="si-rs-aoi-context-cell">
-                                        <span className="si-rs-aoi-context-k">Imagery date</span>
-                                        <span className="si-rs-aoi-context-v">{wmsDate}</span>
-                                      </div>
-                                      <div className="si-rs-aoi-context-cell">
-                                        <span className="si-rs-aoi-context-k">Layer</span>
-                                        <span className="si-rs-aoi-context-v">
-                                          {remoteSensingLayerOptions.find(o => o.id === wmsLayerSelectValue)?.label ??
-                                            activeWmsLayer ??
-                                            selectedIndexConfig.label}
-                                        </span>
-                                      </div>
-                                      <div className="si-rs-aoi-context-cell si-rs-aoi-context-cell--wide">
-                                        <span className="si-rs-aoi-context-k">Area</span>
-                                        <span className="si-rs-aoi-context-v">
-                                          {formatArea(
-                                            geodesicAreaHectares(
-                                              rsToolsActiveAoiRow.feature.geometry as SavedField['geometry'],
-                                            ),
-                                          )}
-                                        </span>
-                                      </div>
-                                    </div>
-                                    {rsToolsActiveAoiIndices ? (
-                                      <>
-                                        <div className="si-field-analysis-kicker">Spectral snapshot</div>
-                                        <div className="si-rs-aoi-metrics" aria-label="Spectral indices">
-                                          {typeof rsToolsActiveAoiIndices.ndvi === 'number' ? (
-                                            <div className="si-rs-aoi-metric">
-                                              <span>NDVI</span>
-                                              <strong>{rsToolsActiveAoiIndices.ndvi.toFixed(2)}</strong>
-                                            </div>
-                                          ) : null}
-                                          {typeof rsToolsActiveAoiIndices.ndwi === 'number' ? (
-                                            <div className="si-rs-aoi-metric">
-                                              <span>NDWI</span>
-                                              <strong>{rsToolsActiveAoiIndices.ndwi.toFixed(2)}</strong>
-                                            </div>
-                                          ) : null}
-                                          {typeof rsToolsActiveAoiIndices.savi === 'number' ? (
-                                            <div className="si-rs-aoi-metric">
-                                              <span>SAVI</span>
-                                              <strong>{rsToolsActiveAoiIndices.savi.toFixed(2)}</strong>
-                                            </div>
-                                          ) : null}
+                                <ul className="si-rs-aoi-workspace-list" aria-label="Workspace AOIs">
+                                  {multiAoiItems.map(row => {
+                                    const vis = siMergedAoiRasterVisibility(row.rasterStackVisible);
+                                    const g = row.feature?.geometry as SavedField['geometry'] | undefined;
+                                    const areaHa =
+                                      g && (g.type === 'Polygon' || g.type === 'MultiPolygon')
+                                        ? geodesicAreaHectares(g)
+                                        : 0;
+                                    const dateStartVal = (row.sentinelTimeStart ?? timeSeriesStart ?? wmsDate).slice(
+                                      0,
+                                      10,
+                                    );
+                                    const dateEndVal = (row.sentinelTimeEnd ?? timeSeriesEnd ?? wmsDate).slice(0, 10);
+                                    return (
+                                      <li key={row.id} className="si-rs-aoi-workspace-card">
+                                        <div className="si-rs-aoi-workspace-card__head">
+                                          <button
+                                            type="button"
+                                            className={
+                                              'si-rs-aoi-pick-btn' +
+                                              (activeMultiAoiId === row.id ? ' si-rs-aoi-pick-btn--on' : '')
+                                            }
+                                            onClick={() => {
+                                              setActiveMultiAoiId(row.id);
+                                              updateDrawnStats(row.feature);
+                                            }}
+                                            aria-pressed={activeMultiAoiId === row.id}
+                                          >
+                                            <span
+                                              className="si-rs-aoi-pick-dot"
+                                              style={{ background: row.color }}
+                                              aria-hidden
+                                            />
+                                            <span className="si-rs-aoi-pick-label">{row.name}</span>
+                                          </button>
                                         </div>
-                                      </>
-                                    ) : (
-                                      <p className="si-field-analysis-status">
-                                        No polygon geometry available for a spectral snapshot on this AOI.
-                                      </p>
-                                    )}
-                                  </>
-                                ) : null}
+                                        <div className="si-rs-aoi-workspace-card__body">
+                                          <div className="si-rs-aoi-context-grid si-rs-aoi-context-grid--compact">
+                                            <div className="si-rs-aoi-context-cell si-rs-aoi-context-cell--wide">
+                                              <span className="si-rs-aoi-context-k">Area</span>
+                                              <span className="si-rs-aoi-context-v" dir="ltr">
+                                                {siFormatAreaKm2FromHectares(areaHa)}
+                                              </span>
+                                            </div>
+                                            <div className="si-rs-aoi-context-cell">
+                                              <label className="si-rs-aoi-date-lbl" htmlFor={`si-rs-aoi-ts-${row.id}`}>
+                                                Time start
+                                              </label>
+                                              <input
+                                                id={`si-rs-aoi-ts-${row.id}`}
+                                                className="si-rs-aoi-date-input"
+                                                type="date"
+                                                value={dateStartVal}
+                                                onChange={e => {
+                                                  const v = e.target.value;
+                                                  setMultiAoiItems(prev =>
+                                                    prev.map(r =>
+                                                      r.id === row.id ? { ...r, sentinelTimeStart: v || undefined } : r,
+                                                    ),
+                                                  );
+                                                }}
+                                                aria-label={`Sentinel time range start for ${row.name}`}
+                                              />
+                                            </div>
+                                            <div className="si-rs-aoi-context-cell">
+                                              <label className="si-rs-aoi-date-lbl" htmlFor={`si-rs-aoi-te-${row.id}`}>
+                                                Time end
+                                              </label>
+                                              <input
+                                                id={`si-rs-aoi-te-${row.id}`}
+                                                className="si-rs-aoi-date-input"
+                                                type="date"
+                                                value={dateEndVal}
+                                                onChange={e => {
+                                                  const v = e.target.value;
+                                                  setMultiAoiItems(prev =>
+                                                    prev.map(r =>
+                                                      r.id === row.id ? { ...r, sentinelTimeEnd: v || undefined } : r,
+                                                    ),
+                                                  );
+                                                }}
+                                                aria-label={`Sentinel time range end for ${row.name}`}
+                                              />
+                                            </div>
+                                          </div>
+                                          <div className="si-field-analysis-kicker si-rs-aoi-stack-kicker">
+                                            Layer control (this AOI only)
+                                          </div>
+                                          <div className="si-rs-aoi-layer-stack" role="group" aria-label="Raster stack">
+                                            {SI_AOI_RASTER_STACK_ORDER.map(stackKey => {
+                                              const wmsMatch = siResolveWmsLayerForStackKey(
+                                                stackKey,
+                                                remoteSensingLayerOptions,
+                                              );
+                                              const disabled = !wmsMatch;
+                                              return (
+                                                <label
+                                                  key={`${row.id}-${stackKey}`}
+                                                  className={
+                                                    'si-rs-aoi-layer-toggle' +
+                                                    (disabled ? ' si-rs-aoi-layer-toggle--disabled' : '')
+                                                  }
+                                                  title={
+                                                    disabled
+                                                      ? 'No matching Sentinel WMS layer in GetCapabilities for this product.'
+                                                      : wmsMatch
+                                                  }
+                                                >
+                                                  <input
+                                                    type="checkbox"
+                                                    checked={vis[stackKey]}
+                                                    disabled={disabled}
+                                                    onChange={e => {
+                                                      const on = e.target.checked;
+                                                      setMultiAoiItems(prev =>
+                                                        prev.map(r => {
+                                                          if (r.id !== row.id) return r;
+                                                          const nextVis = {
+                                                            ...siMergedAoiRasterVisibility(r.rasterStackVisible),
+                                                            [stackKey]: on,
+                                                          };
+                                                          return { ...r, rasterStackVisible: nextVis };
+                                                        }),
+                                                      );
+                                                    }}
+                                                    aria-label={`${SI_AOI_RASTER_STACK_LABELS[stackKey]} for ${row.name}`}
+                                                  />
+                                                  <span>{SI_AOI_RASTER_STACK_LABELS[stackKey]}</span>
+                                                </label>
+                                              );
+                                            })}
+                                          </div>
+                                          <p className="si-field-analysis-status si-rs-aoi-workspace-card__muted">
+                                            NDVI / NDWI / SAVI means and trend cues appear on the map popup for this AOI.
+                                          </p>
+                                        </div>
+                                      </li>
+                                    );
+                                  })}
+                                </ul>
                               </>
                             )}
                           </div>

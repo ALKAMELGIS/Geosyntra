@@ -43,6 +43,8 @@ export type SatelliteMapAnalysisToolbarProps = {
   /** Optional — enriches embedded contextual Stats tab */
   weeklyMeans?: number[];
   pivotBars?: Array<{ name: string; value: number }>;
+  fieldComparisonBars?: Array<{ name: string; value: number }>;
+  fieldComparisonSubtitle?: string;
   indexLabel?: string;
   staticComparisonLayers?: StaticAoiChartLayerId[];
   onStaticComparisonLayerToggle?: (id: StaticAoiChartLayerId) => void;
@@ -51,6 +53,7 @@ export type SatelliteMapAnalysisToolbarProps = {
   staticMultiLineHasLst?: boolean;
   /** One WGS84 point per timeline row for CSV export (inside AOI when polygon). */
   staticChartExportLngLatPerRow?: AoiStaticExportLngLat[];
+  onRequestGenerateReport?: () => void;
 };
 
 export function SatelliteMapAnalysisToolbar({
@@ -66,6 +69,8 @@ export function SatelliteMapAnalysisToolbar({
   className = '',
   weeklyMeans = [],
   pivotBars = [],
+  fieldComparisonBars,
+  fieldComparisonSubtitle = '',
   indexLabel = '',
   staticComparisonLayers = [],
   onStaticComparisonLayerToggle,
@@ -73,6 +78,7 @@ export function SatelliteMapAnalysisToolbar({
   staticMultiLineDatasets = [],
   staticMultiLineHasLst = false,
   staticChartExportLngLatPerRow,
+  onRequestGenerateReport,
 }: SatelliteMapAnalysisToolbarProps) {
   return (
     <SatelliteContextualAnalysisDock
@@ -88,6 +94,8 @@ export function SatelliteMapAnalysisToolbar({
       chartsCompact={chartsCompact}
       weeklyMeans={weeklyMeans}
       pivotBars={pivotBars}
+      fieldComparisonBars={fieldComparisonBars}
+      fieldComparisonSubtitle={fieldComparisonSubtitle}
       indexLabel={indexLabel}
       staticMultiLineLabels={staticMultiLineLabels}
       staticMultiLineDatasets={staticMultiLineDatasets}
@@ -95,6 +103,7 @@ export function SatelliteMapAnalysisToolbar({
       staticChartExportLngLatPerRow={staticChartExportLngLatPerRow}
       staticComparisonLayers={staticComparisonLayers}
       onStaticComparisonLayerToggle={onStaticComparisonLayerToggle}
+      onRequestGenerateReport={onRequestGenerateReport}
     />
   );
 }
@@ -123,6 +132,8 @@ export type SatelliteMapAnalysisChromeProps = {
   /** Sparkline means (0–1 normalized optional) */
   weeklyMeans: number[];
   pivotBars: Array<{ name: string; value: number }>;
+  fieldComparisonBars?: Array<{ name: string; value: number }>;
+  fieldComparisonSubtitle?: string;
   indexLabel: string;
   /** Multi-layer temporal line chart (WMS-style indices). */
   staticMultiLineLabels: string[];
@@ -131,6 +142,7 @@ export type SatelliteMapAnalysisChromeProps = {
   staticChartExportLngLatPerRow?: AoiStaticExportLngLat[];
   staticComparisonLayers: StaticAoiChartLayerId[];
   onStaticComparisonLayerToggle: (id: StaticAoiChartLayerId) => void;
+  onRequestGenerateReport?: () => void;
   /** With `mapLoaded`, portals the contextual dock into `mapboxgl-canvas-container` for a true in-map overlay. */
   mapRef?: RefObject<any>;
   mapLoaded?: boolean;
@@ -203,6 +215,8 @@ export function SatelliteMapAnalysisChrome(props: SatelliteMapAnalysisChromeProp
     onToggleStaticCharts,
     weeklyMeans,
     pivotBars,
+    fieldComparisonBars,
+    fieldComparisonSubtitle = '',
     indexLabel,
     staticMultiLineLabels,
     staticMultiLineDatasets,
@@ -210,6 +224,7 @@ export function SatelliteMapAnalysisChrome(props: SatelliteMapAnalysisChromeProp
     staticChartExportLngLatPerRow,
     staticComparisonLayers,
     onStaticComparisonLayerToggle,
+    onRequestGenerateReport,
     mapRef,
     mapLoaded = false,
     showMapToolbox = true,
@@ -287,8 +302,11 @@ export function SatelliteMapAnalysisChrome(props: SatelliteMapAnalysisChromeProp
       staticChartExportLngLatPerRow={staticChartExportLngLatPerRow}
       staticComparisonLayers={staticComparisonLayers}
       onStaticComparisonLayerToggle={onStaticComparisonLayerToggle}
+      onRequestGenerateReport={onRequestGenerateReport}
       weeklyMeans={weeklyMeans}
       pivotBars={pivotBars}
+      fieldComparisonBars={fieldComparisonBars}
+      fieldComparisonSubtitle={fieldComparisonSubtitle}
       sparkPathBuilder={sparkPath}
       onProcessingWorkflowNavigate={onProcessingWorkflowNavigate}
       processingDropdownOpen={processingDropdownOpen}

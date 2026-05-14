@@ -46,6 +46,9 @@ export type SatelliteContextualAnalysisDockProps = {
   onStaticComparisonLayerToggle?: (id: StaticAoiChartLayerId) => void;
   weeklyMeans?: number[];
   pivotBars?: Array<{ name: string; value: number }>;
+  /** When set (e.g. saved fields + AOI sketch fields), Stats bar chart compares fields for primary layer + selected week. */
+  fieldComparisonBars?: Array<{ name: string; value: number }>;
+  fieldComparisonSubtitle?: string;
   sparkPathBuilder?: (values: number[], w: number, h: number) => string;
   /** Map toolbox: opens the same processing stack as Satellite Intelligence (no reload). */
   onProcessingWorkflowNavigate?: (sectionId: SmartProcessingSectionId, meta?: { fromDockOptions?: boolean }) => void;
@@ -100,6 +103,7 @@ export type SatelliteContextualAnalysisDockProps = {
    * panel.
    */
   fieldsCount?: number;
+  onRequestGenerateReport?: () => void;
 };
 
 const RAIL: Array<{ id: SatelliteContextPanelId; icon: string; label: string; title: string; hint: string }> = [
@@ -273,6 +277,8 @@ export function SatelliteContextualAnalysisDock(props: SatelliteContextualAnalys
     onStaticComparisonLayerToggle,
     weeklyMeans = [],
     pivotBars = [],
+    fieldComparisonBars,
+    fieldComparisonSubtitle = '',
     sparkPathBuilder = defaultSparkPath,
     onProcessingWorkflowNavigate,
     processingDropdownOpen = false,
@@ -288,6 +294,7 @@ export function SatelliteContextualAnalysisDock(props: SatelliteContextualAnalys
     fieldsPanelLibraryContent,
     fieldsPanelContent,
     fieldsCount = 0,
+    onRequestGenerateReport,
   } = props;
 
   const [panelOpen, setPanelOpen] = useState(false);
@@ -519,7 +526,11 @@ export function SatelliteContextualAnalysisDock(props: SatelliteContextualAnalys
     if (row) return row.label;
     return 'Processing';
   }, [processingEmbedSection]);
-  const maxPivot = pivotBars.length ? Math.max(...pivotBars.map(p => Math.abs(p.value))) : 1;
+  const fieldOrPivotBars = useMemo(
+    () => (fieldComparisonBars?.length ? fieldComparisonBars : pivotBars),
+    [fieldComparisonBars, pivotBars],
+  );
+  const maxBar = fieldOrPivotBars.length ? Math.max(...fieldOrPivotBars.map(p => Math.abs(p.value)), 1e-9) : 1;
 
   const isMap = isMapVariant;
   const mapPanelCollapsed = isMap && mapStripHidden;
@@ -981,6 +992,7 @@ export function SatelliteContextualAnalysisDock(props: SatelliteContextualAnalys
                             datasets={staticMultiLineDatasets}
                             hasLst={staticMultiLineHasLst}
                             exportLngLatPerRow={staticChartExportLngLatPerRow}
+                            onRequestGenerateReport={onRequestGenerateReport}
                           />
                         </div>
                       ))}
@@ -998,15 +1010,22 @@ export function SatelliteContextualAnalysisDock(props: SatelliteContextualAnalys
                           </svg>
                         </div>
                         <div className="si-map-analysis-chart-card">
-                          <div className="si-map-analysis-chart-kicker">Fields (bar)</div>
+                          <div className="si-map-analysis-chart-kicker">
+                            {fieldComparisonBars?.length ? 'Fields (bar)' : 'Fields / pivots (bar)'}
+                          </div>
+                          {fieldComparisonBars?.length && fieldComparisonSubtitle ? (
+                            <p className="si-sat-ctx-muted" style={{ margin: '0 0 6px', fontSize: 10 }}>
+                              {fieldComparisonSubtitle}
+                            </p>
+                          ) : null}
                           <div className="si-map-analysis-bars">
-                            {pivotBars.slice(0, 8).map(row => (
+                            {fieldOrPivotBars.slice(0, 8).map(row => (
                               <div key={row.name} className="si-map-analysis-bar-row">
                                 <span className="si-map-analysis-bar-name">{row.name}</span>
                                 <div className="si-map-analysis-bar-track">
                                   <span
                                     className="si-map-analysis-bar-fill"
-                                    style={{ width: `${Math.min(100, (Math.abs(row.value) / maxPivot) * 100)}%` }}
+                                    style={{ width: `${Math.min(100, (Math.abs(row.value) / maxBar) * 100)}%` }}
                                   />
                                 </div>
                                 <span className="si-map-analysis-bar-val">{row.value.toFixed(2)}</span>
@@ -1017,7 +1036,7 @@ export function SatelliteContextualAnalysisDock(props: SatelliteContextualAnalys
                         <div className="si-map-analysis-chart-card si-map-analysis-chart-card--pie">
                           <div className="si-map-analysis-chart-kicker">Mix (pie)</div>
                           <div className="si-map-analysis-pie-wrap">
-                            {pivotBars.slice(0, 6).map((row, i, arr) => {
+                            {fieldOrPivotBars.slice(0, 6).map((row, i, arr) => {
                               const sum = arr.reduce((s, x) => s + Math.abs(x.value), 0) || 1;
                               const pct = (Math.abs(row.value) / sum) * 100;
                               const hue = 140 + i * 28;

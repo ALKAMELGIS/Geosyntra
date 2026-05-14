@@ -35,6 +35,10 @@ export type SatelliteAoiStaticChartsMapOverlayProps = {
   staticChartExportLngLatPerRow?: AoiStaticExportLngLat[];
   weeklyMeans: number[];
   pivotBars: Array<{ name: string; value: number }>;
+  /** Saved / AOI sketch fields — when non-empty, replaces pivot rows in the Fields bar card. */
+  fieldComparisonBars?: Array<{ name: string; value: number }>;
+  fieldComparisonSubtitle?: string;
+  onRequestGenerateReport?: () => void;
 };
 
 function clampPanelTranslate(el: HTMLDivElement, x: number, y: number): { x: number; y: number } {
@@ -67,8 +71,12 @@ export function SatelliteAoiStaticChartsMapOverlay({
   staticChartExportLngLatPerRow,
   weeklyMeans,
   pivotBars,
+  fieldComparisonBars,
+  fieldComparisonSubtitle = '',
+  onRequestGenerateReport,
 }: SatelliteAoiStaticChartsMapOverlayProps) {
-  const maxPivot = pivotBars.length ? Math.max(...pivotBars.map(p => Math.abs(p.value))) : 1;
+  const barRows = fieldComparisonBars?.length ? fieldComparisonBars : pivotBars;
+  const maxBar = barRows.length ? Math.max(...barRows.map(p => Math.abs(p.value)), 1e-9) : 1;
   const panelRef = useRef<HTMLDivElement | null>(null);
   const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
   const dragOffsetRef = useRef(dragOffset);
@@ -177,7 +185,8 @@ export function SatelliteAoiStaticChartsMapOverlay({
         <div className="si-map-analysis-charts-head-text">
           <div className="si-map-analysis-charts-title">AOI static charts</div>
           <div className="si-map-analysis-charts-subtitle">
-            {indexLabel} · multi-layer timeline (sample). Legend click toggles lines; wheel zooms X.
+            {indexLabel} · multi-layer timeline (sample). Legend toggles lines; wheel zooms X. Scatter compares the{' '}
+            <strong>first two</strong> layer chips (Y vs X) by week; Fields bar uses the first chip + map date week.
           </div>
         </div>
         <button
@@ -217,6 +226,7 @@ export function SatelliteAoiStaticChartsMapOverlay({
           datasets={staticMultiLineDatasets}
           hasLst={staticMultiLineHasLst}
           exportLngLatPerRow={staticChartExportLngLatPerRow}
+          onRequestGenerateReport={onRequestGenerateReport}
         />
       </div>
 
@@ -233,15 +243,22 @@ export function SatelliteAoiStaticChartsMapOverlay({
           </svg>
         </div>
         <div className="si-map-analysis-chart-card">
-          <div className="si-map-analysis-chart-kicker">Fields (bar)</div>
+          <div className="si-map-analysis-chart-kicker">
+            {fieldComparisonBars?.length ? 'Fields (bar)' : 'Fields / pivots (bar)'}
+          </div>
+          {fieldComparisonBars?.length && fieldComparisonSubtitle ? (
+            <p className="si-map-analysis-charts-subtitle si-map-analysis-charts-subtitle--tight">
+              {fieldComparisonSubtitle}
+            </p>
+          ) : null}
           <div className="si-map-analysis-bars">
-            {pivotBars.slice(0, 8).map(row => (
+            {barRows.slice(0, 8).map(row => (
               <div key={row.name} className="si-map-analysis-bar-row">
                 <span className="si-map-analysis-bar-name">{row.name}</span>
                 <div className="si-map-analysis-bar-track">
                   <span
                     className="si-map-analysis-bar-fill"
-                    style={{ width: `${Math.min(100, (Math.abs(row.value) / maxPivot) * 100)}%` }}
+                    style={{ width: `${Math.min(100, (Math.abs(row.value) / maxBar) * 100)}%` }}
                   />
                 </div>
                 <span className="si-map-analysis-bar-val">{row.value.toFixed(2)}</span>
@@ -252,7 +269,7 @@ export function SatelliteAoiStaticChartsMapOverlay({
         <div className="si-map-analysis-chart-card si-map-analysis-chart-card--pie">
           <div className="si-map-analysis-chart-kicker">Mix (pie)</div>
           <div className="si-map-analysis-pie-wrap">
-            {pivotBars.slice(0, 6).map((row, i, arr) => {
+            {barRows.slice(0, 6).map((row, i, arr) => {
               const sum = arr.reduce((s, x) => s + Math.abs(x.value), 0) || 1;
               const pct = (Math.abs(row.value) / sum) * 100;
               const hue = 140 + i * 28;

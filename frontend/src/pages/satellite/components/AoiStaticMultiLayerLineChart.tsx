@@ -58,6 +58,8 @@ export type AoiStaticMultiLayerLineChartProps = {
   hasLst: boolean;
   /** One WGS84 point per timeline row for CSV export (inside AOI when provided). */
   exportLngLatPerRow?: AoiStaticExportLngLat[];
+  /** Satellite Intelligence: open AOI vegetation report configuration. */
+  onRequestGenerateReport?: () => void;
 };
 
 type StaticChartType = 'line' | 'bar' | 'scatter' | 'pie';
@@ -96,6 +98,7 @@ export function AoiStaticMultiLayerLineChart({
   datasets,
   hasLst,
   exportLngLatPerRow,
+  onRequestGenerateReport,
 }: AoiStaticMultiLayerLineChartProps) {
   const [chartTheme, setChartTheme] = useState<'dark' | 'light'>('dark');
   const [chartType, setChartType] = useState<StaticChartType>('line');
@@ -155,7 +158,7 @@ export function AoiStaticMultiLayerLineChart({
     [datasets],
   );
 
-  const scatterData = useMemo(
+  const scatterTimeSeriesData = useMemo(
     () => ({
       datasets: datasets.map(ds => ({
         label: ds.label,
@@ -172,6 +175,108 @@ export function AoiStaticMultiLayerLineChart({
     }),
     [labels, datasets],
   );
+
+  /** First two comparison layers: X = layer A value, Y = layer B value per week (index vs index). */
+  const scatterLayerCross = useMemo(() => {
+    if (datasets.length < 2 || !labels.length) return null;
+    const da = datasets[0]!;
+    const db = datasets[1]!;
+    const weekLabels: string[] = [];
+    const pts: { x: number; y: number }[] = [];
+    for (let i = 0; i < labels.length; i++) {
+      const x = da.data[i];
+      const y = db.data[i];
+      if (typeof x === 'number' && typeof y === 'number' && Number.isFinite(x) && Number.isFinite(y)) {
+        pts.push({ x, y });
+        weekLabels.push(labels[i] ?? '');
+      }
+    }
+    if (!pts.length) return null;
+    const xLst = da.yAxisID === 'yLST';
+    const yLst = db.yAxisID === 'yLST';
+    const data = {
+      datasets: [
+        {
+          label: `${db.label} vs ${da.label}`,
+          data: pts,
+          borderColor: db.borderColor,
+          backgroundColor: db.backgroundColor || `${db.borderColor}44`,
+          pointRadius: 5,
+          pointHoverRadius: 8,
+        },
+      ],
+    };
+    const tipBg = isLight ? 'rgba(255, 255, 255, 0.96)' : 'rgba(15, 23, 42, 0.92)';
+    const zoomCross = {
+      pan: { enabled: true, mode: 'xy' as const },
+      limits: { x: { minRange: 0.02 }, y: { minRange: 0.02 } },
+      zoom: { wheel: { enabled: true }, pinch: { enabled: true }, mode: 'xy' as const },
+    };
+    const options: ChartOptions<'scatter'> = {
+      responsive: true,
+      maintainAspectRatio: false,
+      interaction: { mode: 'nearest' as const, intersect: false },
+      plugins: {
+        title: {
+          display: true,
+          text: `${title} · scatter: ${db.label} vs ${da.label} (by week)`,
+          color: titleColor,
+          font: { size: 12, weight: 600 },
+          padding: { bottom: 6 },
+        },
+        legend: { display: false },
+        tooltip: {
+          mode: 'nearest' as const,
+          intersect: false,
+          backgroundColor: tipBg,
+          titleColor: isLight ? '#0f172a' : '#f1f5f9',
+          bodyColor: isLight ? '#1e293b' : '#e2e8f0',
+          borderColor: isLight ? 'rgba(148, 163, 184, 0.45)' : 'rgba(148, 163, 184, 0.35)',
+          borderWidth: 1,
+          padding: 10,
+          callbacks: {
+            title(items: Array<{ dataIndex?: number }>) {
+              const ix = items[0]?.dataIndex;
+              return ix != null && weekLabels[ix!] != null ? String(weekLabels[ix!]) : '';
+            },
+            label(ctx: { parsed: { x: number; y: number } }) {
+              return [`${da.label}: ${ctx.parsed.x}`, `${db.label}: ${ctx.parsed.y}`];
+            },
+          },
+        },
+        zoom: zoomCross,
+      },
+      scales: {
+        x: {
+          type: 'linear' as const,
+          display: true,
+          title: {
+            display: true,
+            text: `${da.label}${xLst ? ' (°C)' : ''}`,
+            color: labelColor,
+            font: { size: 11, weight: 600 },
+          },
+          grid: { color: gridColor },
+          ticks: { color: tickColor },
+          ...(xLst ? { suggestedMin: 10, suggestedMax: 50 } : { suggestedMin: -1, suggestedMax: 1 }),
+        },
+        y: {
+          type: 'linear' as const,
+          display: true,
+          title: {
+            display: true,
+            text: `${db.label}${yLst ? ' (°C)' : ''}`,
+            color: labelColor,
+            font: { size: 11, weight: 600 },
+          },
+          grid: { color: gridColor },
+          ticks: { color: tickColor },
+          ...(yLst ? { suggestedMin: 10, suggestedMax: 50 } : { suggestedMin: -1, suggestedMax: 1 }),
+        },
+      },
+    };
+    return { data, options };
+  }, [datasets, labels, title, titleColor, labelColor, tickColor, gridColor, isLight]);
 
   const cartesianOptions = useMemo(() => {
     const base = {
@@ -383,11 +488,15 @@ export function AoiStaticMultiLayerLineChart({
   }, [labels, datasets, exportLngLatPerRow]);
 
   const onGenerateReport = useCallback(() => {
+    if (onRequestGenerateReport) {
+      onRequestGenerateReport();
+      return;
+    }
     void appAlert(
       'Report generation is not connected to a backend yet. Use CSV export to download the timeline with Longitude and Latitude for each row.',
       { title: 'Generate report' },
     );
-  }, []);
+  }, [onRequestGenerateReport]);
 
   if (!labels.length || !datasets.length) {
     return (
@@ -431,6 +540,16 @@ export function AoiStaticMultiLayerLineChart({
             </button>
             <button
               type="button"
+              className={`si-aoi-static-chart-type-icon${chartType === 'scatter' ? ' si-aoi-static-chart-type-icon--active' : ''}`}
+              aria-label="Scatter plot: compare two index layers"
+              aria-pressed={chartType === 'scatter'}
+              title="Scatter (1st vs 2nd layer chip, by week)"
+              onClick={() => setChartType('scatter')}
+            >
+              <i className="fa-solid fa-chart-scatter" aria-hidden />
+            </button>
+            <button
+              type="button"
               className={`si-aoi-static-chart-type-icon${chartType === 'pie' ? ' si-aoi-static-chart-type-icon--active' : ''}`}
               aria-label="Pie chart"
               aria-pressed={chartType === 'pie'}
@@ -438,16 +557,6 @@ export function AoiStaticMultiLayerLineChart({
               onClick={() => setChartType('pie')}
             >
               <i className="fa-solid fa-chart-pie" aria-hidden />
-            </button>
-            <button
-              type="button"
-              className={`si-aoi-static-chart-type-icon${chartType === 'scatter' ? ' si-aoi-static-chart-type-icon--active' : ''}`}
-              aria-label="Scatter plot"
-              aria-pressed={chartType === 'scatter'}
-              title="Scatter"
-              onClick={() => setChartType('scatter')}
-            >
-              <i className="fa-solid fa-braille" aria-hidden />
             </button>
           </div>
         </div>
@@ -487,7 +596,11 @@ export function AoiStaticMultiLayerLineChart({
         ) : chartType === 'bar' ? (
           <Bar key={chartKey} data={lineBarData} options={barOptions} />
         ) : chartType === 'scatter' ? (
-          <Scatter key={chartKey} data={scatterData} options={scatterOptions} />
+          <Scatter
+            key={chartKey}
+            data={scatterLayerCross ? scatterLayerCross.data : scatterTimeSeriesData}
+            options={scatterLayerCross ? scatterLayerCross.options : scatterOptions}
+          />
         ) : (
           <Pie key={chartKey} data={pieData} options={pieOptions} />
         )}
