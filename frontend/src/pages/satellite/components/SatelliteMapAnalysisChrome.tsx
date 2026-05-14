@@ -8,6 +8,7 @@ import {
   type StaticAoiChartLayerId,
 } from '../utils/staticAoiMultiChartData';
 import { SatelliteContextualAnalysisDock } from './SatelliteContextualAnalysisDock';
+import type { SiAoiSpectralProfileMini } from './AoiSpectralProfileMiniChart';
 import type { SmartProcessingSectionId } from './SmartProcessingWorkflowPanel';
 
 /** Optional metadata when opening a processing section from the map toolbox. */
@@ -45,6 +46,7 @@ export type SatelliteMapAnalysisToolbarProps = {
   pivotBars?: Array<{ name: string; value: number }>;
   fieldComparisonBars?: Array<{ name: string; value: number }>;
   fieldComparisonSubtitle?: string;
+  spectralProfile?: SiAoiSpectralProfileMini | null;
   indexLabel?: string;
   staticComparisonLayers?: StaticAoiChartLayerId[];
   onStaticComparisonLayerToggle?: (id: StaticAoiChartLayerId) => void;
@@ -71,6 +73,7 @@ export function SatelliteMapAnalysisToolbar({
   pivotBars = [],
   fieldComparisonBars,
   fieldComparisonSubtitle = '',
+  spectralProfile = null,
   indexLabel = '',
   staticComparisonLayers = [],
   onStaticComparisonLayerToggle,
@@ -96,6 +99,7 @@ export function SatelliteMapAnalysisToolbar({
       pivotBars={pivotBars}
       fieldComparisonBars={fieldComparisonBars}
       fieldComparisonSubtitle={fieldComparisonSubtitle}
+      spectralProfile={spectralProfile}
       indexLabel={indexLabel}
       staticMultiLineLabels={staticMultiLineLabels}
       staticMultiLineDatasets={staticMultiLineDatasets}
@@ -134,6 +138,7 @@ export type SatelliteMapAnalysisChromeProps = {
   pivotBars: Array<{ name: string; value: number }>;
   fieldComparisonBars?: Array<{ name: string; value: number }>;
   fieldComparisonSubtitle?: string;
+  spectralProfile?: SiAoiSpectralProfileMini | null;
   indexLabel: string;
   /** Multi-layer temporal line chart (WMS-style indices). */
   staticMultiLineLabels: string[];
@@ -217,6 +222,7 @@ export function SatelliteMapAnalysisChrome(props: SatelliteMapAnalysisChromeProp
     pivotBars,
     fieldComparisonBars,
     fieldComparisonSubtitle = '',
+    spectralProfile = null,
     indexLabel,
     staticMultiLineLabels,
     staticMultiLineDatasets,
@@ -307,6 +313,7 @@ export function SatelliteMapAnalysisChrome(props: SatelliteMapAnalysisChromeProp
       pivotBars={pivotBars}
       fieldComparisonBars={fieldComparisonBars}
       fieldComparisonSubtitle={fieldComparisonSubtitle}
+      spectralProfile={spectralProfile}
       sparkPathBuilder={sparkPath}
       onProcessingWorkflowNavigate={onProcessingWorkflowNavigate}
       processingDropdownOpen={processingDropdownOpen}

@@ -8,6 +8,10 @@ import {
   STATIC_AOI_CHART_LAYER_OPTIONS,
   type StaticAoiChartLayerId,
 } from '../utils/staticAoiMultiChartData';
+import {
+  AoiSpectralProfileMiniChart,
+  type SiAoiSpectralProfileMini,
+} from './AoiSpectralProfileMiniChart';
 import './satelliteMapAnalysisChrome.css';
 
 function sparkPathForOverlay(values: number[], w: number, h: number): string {
@@ -34,10 +38,11 @@ export type SatelliteAoiStaticChartsMapOverlayProps = {
   staticMultiLineHasLst: boolean;
   staticChartExportLngLatPerRow?: AoiStaticExportLngLat[];
   weeklyMeans: number[];
-  pivotBars: Array<{ name: string; value: number }>;
-  /** Saved / AOI sketch fields — when non-empty, replaces pivot rows in the Fields bar card. */
+  /** Drawn AOI + sketch fields + saved polygons — primary bar source (no pivot fallback). */
   fieldComparisonBars?: Array<{ name: string; value: number }>;
   fieldComparisonSubtitle?: string;
+  /** Pixel-ordered samples when MPC grid exists; else six optical indices for the map week. */
+  spectralProfile?: SiAoiSpectralProfileMini | null;
   onRequestGenerateReport?: () => void;
 };
 
@@ -70,12 +75,12 @@ export function SatelliteAoiStaticChartsMapOverlay({
   staticMultiLineHasLst,
   staticChartExportLngLatPerRow,
   weeklyMeans,
-  pivotBars,
   fieldComparisonBars,
   fieldComparisonSubtitle = '',
+  spectralProfile = null,
   onRequestGenerateReport,
 }: SatelliteAoiStaticChartsMapOverlayProps) {
-  const barRows = fieldComparisonBars?.length ? fieldComparisonBars : pivotBars;
+  const barRows = fieldComparisonBars ?? [];
   const maxBar = barRows.length ? Math.max(...barRows.map(p => Math.abs(p.value)), 1e-9) : 1;
   const panelRef = useRef<HTMLDivElement | null>(null);
   const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
@@ -242,32 +247,46 @@ export function SatelliteAoiStaticChartsMapOverlay({
             />
           </svg>
         </div>
-        <div className="si-map-analysis-chart-card">
-          <div className="si-map-analysis-chart-kicker">
-            {fieldComparisonBars?.length ? 'Fields (bar)' : 'Fields / pivots (bar)'}
+        {spectralProfile ? (
+          <div className="si-map-analysis-chart-card si-map-analysis-chart-card--spectral">
+            <AoiSpectralProfileMiniChart profile={spectralProfile} />
           </div>
-          {fieldComparisonBars?.length && fieldComparisonSubtitle ? (
+        ) : null}
+        <div className="si-map-analysis-chart-card">
+          <div className="si-map-analysis-chart-kicker">AOI layers (bar)</div>
+          {fieldComparisonSubtitle ? (
             <p className="si-map-analysis-charts-subtitle si-map-analysis-charts-subtitle--tight">
               {fieldComparisonSubtitle}
             </p>
           ) : null}
-          <div className="si-map-analysis-bars">
-            {barRows.slice(0, 8).map(row => (
-              <div key={row.name} className="si-map-analysis-bar-row">
-                <span className="si-map-analysis-bar-name">{row.name}</span>
-                <div className="si-map-analysis-bar-track">
-                  <span
-                    className="si-map-analysis-bar-fill"
-                    style={{ width: `${Math.min(100, (Math.abs(row.value) / maxBar) * 100)}%` }}
-                  />
+          {barRows.length === 0 ? (
+            <p className="si-map-analysis-charts-subtitle si-map-analysis-charts-subtitle--tight">
+              Draw a polygon AOI to list sketch and inner field means for the selected map week.
+            </p>
+          ) : (
+            <div className="si-map-analysis-bars">
+              {barRows.slice(0, 8).map(row => (
+                <div key={row.name} className="si-map-analysis-bar-row">
+                  <span className="si-map-analysis-bar-name">{row.name}</span>
+                  <div className="si-map-analysis-bar-track">
+                    <span
+                      className="si-map-analysis-bar-fill"
+                      style={{ width: `${Math.min(100, (Math.abs(row.value) / maxBar) * 100)}%` }}
+                    />
+                  </div>
+                  <span className="si-map-analysis-bar-val">{row.value.toFixed(2)}</span>
                 </div>
-                <span className="si-map-analysis-bar-val">{row.value.toFixed(2)}</span>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          )}
         </div>
         <div className="si-map-analysis-chart-card si-map-analysis-chart-card--pie">
-          <div className="si-map-analysis-chart-kicker">Mix (pie)</div>
+          <div className="si-map-analysis-chart-kicker">AOI mix (pie)</div>
+          {barRows.length === 0 ? (
+            <p className="si-map-analysis-charts-subtitle si-map-analysis-charts-subtitle--tight">
+              No AOI rows yet — pie shares follow the same values as the bar list.
+            </p>
+          ) : null}
           <div className="si-map-analysis-pie-wrap">
             {barRows.slice(0, 6).map((row, i, arr) => {
               const sum = arr.reduce((s, x) => s + Math.abs(x.value), 0) || 1;

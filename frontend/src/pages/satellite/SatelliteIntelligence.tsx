@@ -175,6 +175,7 @@ import {
   siAoiFieldsToFeatureCollection,
 } from '../../lib/siAoiFields';
 import {
+  STATIC_AOI_CHART_LAYER_OPTIONS,
   buildStaticAoiMultiChartDatasets,
   defaultStaticAoiComparisonLayers,
   formatStaticChartWeekLabel,
@@ -10236,7 +10237,16 @@ export default function SatelliteIntelligence() {
     [pivotChartRows],
   );
 
-  /** Saved / AOI sketch fields: synthetic mean for primary comparison layer at the timeline week matching the map date. */
+  const staticAoiChartAoiKey = useMemo(() => {
+    if (!drawnGeometry) return null;
+    try {
+      return JSON.stringify(drawnGeometry);
+    } catch {
+      return 'aoi';
+    }
+  }, [drawnGeometry]);
+
+  /** Saved / AOI sketch fields + whole drawn AOI: same engine as multi-layer chart (no pivot placeholders). */
   const staticAoiFieldComparison = useMemo(() => {
     if (!weeklyComposites.length) {
       return { rows: [] as Array<{ name: string; value: number }>, subtitle: '' };
@@ -10248,6 +10258,16 @@ export default function SatelliteIntelligence() {
     const n = weeklyComposites.length;
     const primaryLayer = (staticChartComparisonLayers[0] ?? 'NDVI') as StaticAoiChartLayerId;
     const rows: Array<{ name: string; value: number }> = [];
+
+    const sketchGeomType = drawnGeometry?.geometry?.type;
+    if (
+      staticAoiChartAoiKey &&
+      drawnGeometry &&
+      (sketchGeomType === 'Polygon' || sketchGeomType === 'MultiPolygon')
+    ) {
+      const v = staticAoiLayerMeanForWeek(primaryLayer, weekIdx, n, staticAoiChartAoiKey, w.mean);
+      rows.push({ name: 'Drawn AOI', value: v });
+    }
 
     for (const f of savedFields) {
       const gt = f.geometry?.type;
@@ -10267,18 +10287,17 @@ export default function SatelliteIntelligence() {
       rows: rows.slice(0, 14),
       subtitle: `${primaryLayer} · ${weekLabel}`,
     };
-  }, [weeklyComposites, selectedDate, staticChartComparisonLayers, savedFields, aoiFields]);
+  }, [
+    weeklyComposites,
+    selectedDate,
+    staticChartComparisonLayers,
+    savedFields,
+    aoiFields,
+    drawnGeometry,
+    staticAoiChartAoiKey,
+  ]);
 
   const satelliteWeeklyMeans = useMemo(() => weeklyComposites.map(w => w.mean), [weeklyComposites]);
-
-  const staticAoiChartAoiKey = useMemo(() => {
-    if (!drawnGeometry) return null;
-    try {
-      return JSON.stringify(drawnGeometry);
-    } catch {
-      return 'aoi';
-    }
-  }, [drawnGeometry]);
 
   const staticAoiMultiLineData = useMemo(() => {
     if (!weeklyComposites.length) {
@@ -10299,6 +10318,54 @@ export default function SatelliteIntelligence() {
       hasLst: staticChartComparisonLayers.includes('LST'),
     };
   }, [weeklyComposites, staticChartComparisonLayers, staticAoiChartAoiKey]);
+
+  const staticAoiSpectralProfile = useMemo(() => {
+    const fc = aoiHeatPointGeoJson as GeoJSON.FeatureCollection | null | undefined;
+    if (fc?.features?.length) {
+      const vals = fc.features
+        .map(f => (f.properties as { value?: number } | null | undefined)?.value)
+        .filter((v): v is number => typeof v === 'number' && Number.isFinite(v));
+      if (vals.length >= 6) {
+        vals.sort((a, b) => a - b);
+        const target = 72;
+        const step = Math.max(1, Math.ceil(vals.length / target));
+        const sampled: number[] = [];
+        for (let i = 0; i < vals.length; i += step) sampled.push(vals[i]!);
+        const yMin = Math.min(...sampled);
+        const yMax = Math.max(...sampled);
+        return {
+          mode: 'pixels' as const,
+          values: sampled,
+          labels: [] as string[],
+          yMin,
+          yMax,
+          subtitle: `${selectedIndex} · ${vals.length} AOI samples (ordered)`,
+        };
+      }
+    }
+    if (!weeklyComposites.length) return null;
+    const iso = selectedDate.toISOString().split('T')[0];
+    let weekIdx = weeklyComposites.findIndex(w => iso >= w.startDate && iso <= w.endDate);
+    if (weekIdx < 0) weekIdx = weeklyComposites.length - 1;
+    const w = weeklyComposites[weekIdx]!;
+    const n = weeklyComposites.length;
+    const aoiKey = staticAoiChartAoiKey;
+    const opticalDefs = STATIC_AOI_CHART_LAYER_OPTIONS.filter(o => o.id !== 'LST');
+    const labels = opticalDefs.map(o => o.label);
+    const values = opticalDefs.map(o => staticAoiLayerMeanForWeek(o.id, weekIdx, n, aoiKey, w.mean));
+    const yMin = Math.min(...values);
+    const yMax = Math.max(...values);
+    return {
+      mode: 'indices' as const,
+      values,
+      labels,
+      yMin,
+      yMax,
+      subtitle: aoiKey
+        ? `Six optical indices · ${formatStaticChartWeekLabel(w.startDate)} · AOI-tied mix`
+        : `Draw an AOI to fingerprint indices · ${formatStaticChartWeekLabel(w.startDate)}`,
+    };
+  }, [aoiHeatPointGeoJson, selectedIndex, weeklyComposites, selectedDate, staticAoiChartAoiKey]);
 
   const staticAoiChartExportLngLatPerRow = useMemo(
     () => buildStaticAoiExportLngLatPerRow(drawnGeometry, staticAoiMultiLineData.labels.length),
@@ -11847,9 +11914,9 @@ export default function SatelliteIntelligence() {
             staticMultiLineHasLst={staticAoiMultiLineData.hasLst}
             staticChartExportLngLatPerRow={staticAoiChartExportLngLatPerRow}
             weeklyMeans={satelliteWeeklyMeans}
-            pivotBars={satellitePivotBars}
             fieldComparisonBars={staticAoiFieldComparison.rows}
             fieldComparisonSubtitle={staticAoiFieldComparison.subtitle}
+            spectralProfile={staticAoiSpectralProfile}
             onRequestGenerateReport={openSiAoiVegetationReport}
           />
 
@@ -12336,6 +12403,7 @@ export default function SatelliteIntelligence() {
             pivotBars={satellitePivotBars}
             fieldComparisonBars={staticAoiFieldComparison.rows}
             fieldComparisonSubtitle={staticAoiFieldComparison.subtitle}
+            spectralProfile={staticAoiSpectralProfile}
             indexLabel={selectedIndexConfig.label}
             staticMultiLineLabels={staticAoiMultiLineData.labels}
             staticMultiLineDatasets={staticAoiMultiLineData.datasets}

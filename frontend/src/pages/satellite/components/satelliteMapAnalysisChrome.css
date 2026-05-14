@@ -745,10 +745,18 @@ html[data-theme='light'] .si-map-analysis-tl-nudge:hover {
   max-height: min(72vh, 640px);
   overflow: auto;
   border-radius: 16px;
-  border: 1px solid rgba(148, 163, 184, 0.2);
-  background: rgba(15, 23, 42, 0.92);
-  backdrop-filter: blur(12px);
-  box-shadow: 0 22px 60px rgba(0, 0, 0, 0.45);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: linear-gradient(
+    165deg,
+    rgba(12, 12, 14, 0.94) 0%,
+    rgba(22, 22, 26, 0.9) 45%,
+    rgba(8, 8, 10, 0.96) 100%
+  );
+  backdrop-filter: blur(20px) saturate(1.12);
+  -webkit-backdrop-filter: blur(20px) saturate(1.12);
+  box-shadow:
+    0 26px 64px rgba(0, 0, 0, 0.58),
+    inset 0 1px 0 rgba(255, 255, 255, 0.06);
   pointer-events: auto;
   /* Opacity-only entrance so inline translate() for drag is never overridden */
   animation: si-map-ch-in 0.35s ease;
@@ -769,7 +777,7 @@ html[data-theme='light'] .si-map-analysis-tl-nudge:hover {
   justify-content: space-between;
   gap: 10px;
   padding: 12px 14px;
-  border-bottom: 1px solid rgba(148, 163, 184, 0.14);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
   cursor: grab;
   user-select: none;
   touch-action: none;
@@ -819,7 +827,7 @@ html[data-theme='light'] .si-map-analysis-tl-nudge:hover {
 
 .si-map-analysis-charts-multiline {
   padding: 10px 14px 8px;
-  border-bottom: 1px solid rgba(148, 163, 184, 0.12);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
 }
 
 .si-map-analysis-layer-toolbar {
@@ -834,9 +842,9 @@ html[data-theme='light'] .si-map-analysis-tl-nudge:hover {
   font-weight: 700;
   padding: 6px 10px;
   border-radius: 999px;
-  border: 1px solid rgba(148, 163, 184, 0.25);
-  background: rgba(15, 23, 42, 0.55);
-  color: #cbd5e1;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(0, 0, 0, 0.32);
+  color: #e2e8f0;
   cursor: pointer;
   transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
 }
@@ -1041,8 +1049,13 @@ html[data-theme='light'] .si-map-analysis-tl-nudge:hover {
 .si-map-analysis-chart-card {
   padding: 10px 12px;
   border-radius: 12px;
-  border: 1px solid rgba(148, 163, 184, 0.14);
-  background: rgba(30, 41, 59, 0.55);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(0, 0, 0, 0.28);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+
+.si-map-analysis-chart-card--spectral {
+  padding-top: 8px;
 }
 
 .si-map-analysis-chart-kicker {
@@ -1091,7 +1104,7 @@ html[data-theme='light'] .si-map-analysis-tl-nudge:hover {
 .si-map-analysis-bar-track {
   height: 8px;
   border-radius: 999px;
-  background: rgba(15, 23, 42, 0.65);
+  background: rgba(0, 0, 0, 0.45);
   overflow: hidden;
 }
 
