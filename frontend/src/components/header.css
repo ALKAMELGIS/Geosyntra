@@ -20,12 +20,13 @@
     0 1px 0 rgba(255, 255, 255, 0.04),
     inset 0 1px 0 rgba(255, 255, 255, 0.10),
     inset 0 -1px 0 rgba(255, 255, 255, 0.025);
-  /* Above nav (.navmenu ~1900) and map/Satellite Intelligence layers; below SI modals (~12k+) and app-dialog (~24k) */
+  /* Above nav (.navmenu ~1900) and map/SI layers; below SI modals (~12k+) and app-dialog (~24k).
+   * overflow: visible — icon-rail popovers extend below the bar; overflow:hidden clipped them. */
   z-index: 11500;
   position: relative;
   flex-shrink: 0;
   border-bottom: 1px solid rgba(255, 255, 255, 0.05);
-  overflow: hidden;
+  overflow: visible;
   /* Push blur higher to compensate for the lower fill opacity — the
    * glass effect comes almost entirely from the backdrop now. */
   backdrop-filter: blur(var(--header-blur, 30px)) saturate(150%) brightness(1.04);
@@ -213,7 +214,8 @@
   justify-content: flex-end;
   align-items: center;
   position: relative;
-  z-index: 1;
+  z-index: 2;
+  overflow: visible;
 }
 
 :root[dir="rtl"] .geosyntra-header {

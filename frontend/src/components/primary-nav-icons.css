@@ -8,6 +8,9 @@
   justify-content: flex-end;
   gap: 8px;
   min-width: 0;
+  position: relative;
+  z-index: 2;
+  overflow: visible;
 }
 
 .geosyntra-primary-nav__link {
@@ -83,6 +86,13 @@
   position: relative;
   display: flex;
   flex: 0 0 auto;
+  overflow: visible;
+  z-index: 1;
+}
+
+/* Open popover paints above sibling icon tiles */
+.geosyntra-primary-nav__slot:has(.geosyntra-primary-nav__popover--open) {
+  z-index: 30;
 }
 
 .geosyntra-primary-nav__slot--account {

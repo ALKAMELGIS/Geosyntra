@@ -49,6 +49,8 @@ html {
 /* Main content: neutral by default (no mesh). */
 .app-layout {
   min-width: 0;
+  position: relative;
+  z-index: 0;
 }
 
 /* Enterprise GIS shell — frosted primary navigation (desktop) */
