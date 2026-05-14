@@ -7,6 +7,7 @@ import React, {
   useCallback,
   useDeferredValue,
 } from 'react';
+import { motion } from 'framer-motion';
 import MapGL, { Source, Layer, NavigationControl, Marker } from 'react-map-gl/mapbox';
 import 'mapbox-gl/dist/mapbox-gl.css';
 import './SatelliteIntelligence.css';
@@ -81,6 +82,14 @@ import {
   sampleGeoAiMapSelectionLinks,
   stableFeatureLinkKey,
 } from '../../lib/geoAiLinkedSelection';
+import { SiRasterSymbologyDrawer, type SiRasterSymbologyLayerOption } from './components/SiRasterSymbologyDrawer';
+import {
+  siRasterSymbologyBuildPreviewGrid,
+  siRasterSymbologyDefaultState,
+  siRasterSymbologyFillColorExpr,
+  siRasterSymbologyRecomputeClasses,
+  type SiRasterSymbologyState,
+} from './utils/siRasterSymbologyModel';
 import { SI_GEO_AI_MAP_SELECTION_PAINT } from './siGeoAiMapSelectionPaint';
 import { runGeoAiStatsCommand, type GeoAiMapFirstSelection } from '../../lib/geoAiStatsEngine';
 import { resolveGeoAiPinFromUserTextAndReply } from '../../lib/geoAiResolveMapCoords';
@@ -2431,6 +2440,8 @@ export default function SatelliteIntelligence() {
   const [showFieldBoundaries, setShowFieldBoundaries] = useState(true);
   const [showProductivityZones, setShowProductivityZones] = useState(false);
   const [fieldAnalysisStatus, setFieldAnalysisStatus] = useState('');
+  const [siRsSymbologyDrawerOpen, setSiRsSymbologyDrawerOpen] = useState(false);
+  const [siRsSymbologyByAoi, setSiRsSymbologyByAoi] = useState<Record<string, SiRasterSymbologyState>>({});
   const [wmsLayers, setWmsLayers] = useState<WmsLayerInfo[]>([]);
   const [isLoadingLayers, setIsLoadingLayers] = useState(false);
   const [isLayerDropdownOpen, setIsLayerDropdownOpen] = useState(false);
@@ -10312,6 +10323,157 @@ export default function SatelliteIntelligence() {
     setSiAoiReportModalOpen(true);
   }, [multiAoiItems.length, drawnGeometry]);
 
+  const siRsSymbologyAoiKey = useMemo(() => {
+    if (multiAoiItems.length) return activeMultiAoiId || multiAoiItems[0]?.id || '';
+    return drawnGeometry?.geometry ? '__drawn' : '';
+  }, [multiAoiItems, activeMultiAoiId, drawnGeometry?.geometry]);
+
+  const siRsSymbologyTargetFeature = useMemo((): GeoJSON.Feature | null => {
+    if (multiAoiItems.length) {
+      const id = activeMultiAoiId || multiAoiItems[0]?.id;
+      const row = multiAoiItems.find(r => r.id === id);
+      if (row?.feature) return row.feature as GeoJSON.Feature;
+    }
+    return (drawnGeometry as GeoJSON.Feature | null) ?? null;
+  }, [multiAoiItems, activeMultiAoiId, drawnGeometry]);
+
+  const siRsSymbologyLayerOptions = useMemo((): SiRasterSymbologyLayerOption[] => {
+    const base = remoteSensingLayerOptions.map(o => ({ id: o.id, label: o.label, group: 'Sentinel WMS' as string }));
+    const extras: SiRasterSymbologyLayerOption[] = [
+      { id: '__heatmap_preview', label: 'Classified heatmap preview (grid)', group: 'Analysis' },
+      { id: '__timeseries_signal', label: 'Time-series signal (composite)', group: 'Time series' },
+      { id: '__change_detection', label: 'Change detection (active context)', group: 'Change detection' },
+      { id: '__elevation_style', label: 'Elevation / terrain style proxy', group: 'Terrain' },
+      { id: '__ai_detection', label: 'AI detection confidence style', group: 'AI' },
+    ];
+    return [...extras, ...base];
+  }, [remoteSensingLayerOptions]);
+
+  const siRsSymbologyDomain = useMemo(() => {
+    const cfg = selectedIndexConfig;
+    let minV = cfg.range[0];
+    let maxV = cfg.range[1];
+    if (drawnStats) {
+      minV = Math.max(minV, Math.min(maxV, drawnStats.min));
+      maxV = Math.max(minV, Math.min(maxV, drawnStats.max));
+    }
+    const sm = mpcProcessResult?.statistics?.min;
+    const sx = mpcProcessResult?.statistics?.max;
+    if (Number.isFinite(sm) && Number.isFinite(sx) && sx > sm) {
+      minV = sm as number;
+      maxV = sx as number;
+    }
+    if (!Number.isFinite(minV) || !Number.isFinite(maxV) || maxV <= minV) {
+      minV = cfg.range[0];
+      maxV = cfg.range[1];
+    }
+    return { min: minV, max: maxV };
+  }, [selectedIndexConfig, drawnStats, mpcProcessResult]);
+
+  const siRsSymbologySampleValues = useMemo(() => {
+    if (weeklyComposites.length) return weeklyComposites.map(w => w.mean);
+    const { min, max } = siRsSymbologyDomain;
+    return Array.from({ length: 80 }, (_, i) => min + ((max - min) * (i + 0.5)) / 80);
+  }, [weeklyComposites, siRsSymbologyDomain]);
+
+  const siRsSymbologyStats = useMemo(() => {
+    if (drawnStats) return { mean: drawnStats.mean, std: drawnStats.std };
+    return null;
+  }, [drawnStats]);
+
+  const siRsSymbologyStateResolved = useMemo(() => {
+    const key = siRsSymbologyAoiKey || '__pending';
+    const raw = siRsSymbologyByAoi[key];
+    if (raw?.classes?.length) return raw;
+    const layer0 = wmsLayerSelectValue || remoteSensingLayerOptions[0]?.id || '__heatmap_preview';
+    return siRasterSymbologyRecomputeClasses(siRasterSymbologyDefaultState(layer0), siRsSymbologyDomain.min, siRsSymbologyDomain.max, siRsSymbologySampleValues, siRsSymbologyStats);
+  }, [
+    siRsSymbologyByAoi,
+    siRsSymbologyAoiKey,
+    wmsLayerSelectValue,
+    remoteSensingLayerOptions,
+    siRsSymbologyDomain.min,
+    siRsSymbologyDomain.max,
+    siRsSymbologySampleValues,
+    siRsSymbologyStats,
+  ]);
+
+  const setSiRsSymbologyStateResolved = useCallback(
+    (next: SiRasterSymbologyState) => {
+      const key = siRsSymbologyAoiKey || '__pending';
+      setSiRsSymbologyByAoi(prev => ({ ...prev, [key]: next }));
+    },
+    [siRsSymbologyAoiKey],
+  );
+
+  const siRsSymbologyOnSyncMapLayer = useCallback((layerId: string) => {
+    if (layerId.startsWith('__')) return;
+    setWmsLayer(layerId);
+    const ids = Object.keys(ENVIRONMENTAL_INDICES) as EnvironmentalIndexId[];
+    if (ids.includes(layerId as EnvironmentalIndexId)) setSelectedIndex(layerId as EnvironmentalIndexId);
+  }, []);
+
+  const siRsSymbologyExportPng = useCallback(() => {
+    const map = mapRef.current?.getMap?.() ?? mapRef.current;
+    const canvas = map?.getCanvas?.() as HTMLCanvasElement | undefined;
+    if (!canvas?.toDataURL) {
+      void appAlert('Map is not ready yet. Wait for the map to finish loading, then try again.', { title: 'Export PNG' });
+      return;
+    }
+    const a = document.createElement('a');
+    a.href = canvas.toDataURL('image/png');
+    a.download = `symbology-map-${Date.now()}.png`;
+    a.click();
+  }, []);
+
+  const siRsSymbologyGrid = useMemo(
+    () =>
+      siRasterSymbologyBuildPreviewGrid(
+        siRsSymbologyTargetFeature,
+        `${siRsSymbologyAoiKey}:${siRsSymbologyStateResolved.targetLayerId}`,
+        mpcProcessResult?.statistics?.min ?? null,
+        mpcProcessResult?.statistics?.max ?? null,
+        drawnStats?.min ?? null,
+        drawnStats?.max ?? null,
+      ),
+    [
+      siRsSymbologyTargetFeature,
+      siRsSymbologyAoiKey,
+      siRsSymbologyStateResolved.targetLayerId,
+      mpcProcessResult,
+      drawnStats,
+    ],
+  );
+
+  const siRsSymbologyFillExpr = useMemo(
+    () => siRasterSymbologyFillColorExpr(siRsSymbologyStateResolved.classes),
+    [siRsSymbologyStateResolved.classes],
+  );
+
+  useEffect(() => {
+    if (!siRsSymbologyAoiKey) return;
+    setSiRsSymbologyByAoi(prev => {
+      if (prev[siRsSymbologyAoiKey]?.classes?.length) return prev;
+      const layer0 = wmsLayerSelectValue || remoteSensingLayerOptions[0]?.id || '__heatmap_preview';
+      const st = siRasterSymbologyRecomputeClasses(
+        siRasterSymbologyDefaultState(layer0),
+        siRsSymbologyDomain.min,
+        siRsSymbologyDomain.max,
+        siRsSymbologySampleValues,
+        siRsSymbologyStats,
+      );
+      return { ...prev, [siRsSymbologyAoiKey]: st };
+    });
+  }, [
+    siRsSymbologyAoiKey,
+    wmsLayerSelectValue,
+    remoteSensingLayerOptions,
+    siRsSymbologyDomain.min,
+    siRsSymbologyDomain.max,
+    siRsSymbologySampleValues,
+    siRsSymbologyStats,
+  ]);
+
   const satelliteActiveChipId = useMemo(() => {
     if (!weeklyComposites.length) return null;
     const iso = selectedDate.toISOString().split('T')[0];
@@ -11171,6 +11333,24 @@ export default function SatelliteIntelligence() {
                   </Source>
                 ) : null}
 
+                {isMapLoaded &&
+                siRsSymbologyGrid.features.length > 0 &&
+                siRsSymbologyStateResolved.showOnMap &&
+                siRsSymbologyStateResolved.classes.length > 0 ? (
+                  <Source id="si-rs-symbology-preview-src" type="geojson" data={siRsSymbologyGrid as any}>
+                    <Layer
+                      id="si-rs-symbology-preview-fill"
+                      type="fill"
+                      paint={{
+                        'fill-color': siRsSymbologyFillExpr as any,
+                        'fill-opacity': siRsSymbologyStateResolved.opacity,
+                        'fill-outline-color': 'rgba(0,0,0,0)',
+                        'fill-antialias': false,
+                      }}
+                    />
+                  </Source>
+                ) : null}
+
                 {editHandlesGeoJson ? (
                   <Source id="si-edit-handles" type="geojson" data={editHandlesGeoJson as any}>
                     <Layer
@@ -11365,33 +11545,43 @@ export default function SatelliteIntelligence() {
                 ];
                 return (
                   <Marker key={`si-multi-aoi-popup-${pid}`} longitude={c[0]} latitude={c[1]} anchor="bottom">
-                    <div className="si-multi-aoi-popup" onClick={e => e.stopPropagation()} onPointerDown={e => e.stopPropagation()}>
+                    <motion.div
+                      className="si-multi-aoi-popup"
+                      onClick={e => e.stopPropagation()}
+                      onPointerDown={e => e.stopPropagation()}
+                      initial={{ opacity: 0, y: 8, scale: 0.98 }}
+                      animate={{ opacity: 1, y: 0, scale: 1 }}
+                      transition={{ type: 'spring', stiffness: 420, damping: 32 }}
+                    >
                       <div className="si-multi-aoi-popup__head">
-                        <strong>{row.name}</strong>
+                        <strong className="si-multi-aoi-popup__title">{row.name}</strong>
                         <button
                           type="button"
+                          className="si-multi-aoi-popup__close"
                           onClick={() => setMultiAoiPopupIds(prev => prev.filter(x => x !== pid))}
                           aria-label="Close AOI popup"
                         >
-                          ×
+                          <i className="fa-solid fa-xmark" aria-hidden />
                         </button>
                       </div>
-                      <div className="si-multi-aoi-popup__row">
-                        <span>Area</span>
-                        <em dir="ltr">{areaLabel}</em>
+                      <div className="si-multi-aoi-popup__area">
+                        <span className="si-multi-aoi-popup__area-label">Area</span>
+                        <span className="si-multi-aoi-popup__area-value" dir="ltr">
+                          {areaLabel}
+                        </span>
                       </div>
                       {spectral ? (
                         <div className="si-multi-aoi-popup__spectral" aria-label="Spectral snapshot">
-                          <div className="si-multi-aoi-popup__spectral-title">Spectral snapshot</div>
-                          <div className="si-multi-aoi-popup__spectral-grid">
+                          <div className="si-multi-aoi-popup__spectral-kicker">Spectral snapshot</div>
+                          <ul className="si-multi-aoi-popup__spectral-list" role="list">
                             {spectralRows.map(({ key, label }) => {
                               const v = spectral[key];
                               if (typeof v !== 'number') return null;
                               const tr = siSpectralPopupLocalTrend(key, v);
                               return (
-                                <div key={key} className="si-multi-aoi-popup__spectral-cell">
-                                  <span className="si-multi-aoi-popup__spectral-k">{label}</span>
-                                  <span className="si-multi-aoi-popup__spectral-v" dir="ltr">
+                                <li key={key} className="si-multi-aoi-popup__spectral-item">
+                                  <span className="si-multi-aoi-popup__spectral-name">{label}</span>
+                                  <span className="si-multi-aoi-popup__spectral-value" dir="ltr">
                                     <i
                                       className={
                                         tr === 'up'
@@ -11411,13 +11601,13 @@ export default function SatelliteIntelligence() {
                                       {v.toFixed(2)}
                                     </span>
                                   </span>
-                                </div>
+                                </li>
                               );
                             })}
-                          </div>
+                          </ul>
                         </div>
                       ) : null}
-                    </div>
+                    </motion.div>
                   </Marker>
                 );
               })}
@@ -13301,6 +13491,34 @@ export default function SatelliteIntelligence() {
                         {/* Fields Data lives on the map rail only — not duplicated in Remote Sensing tools. */}
 
                         {fieldAnalysisStatus ? <p className="si-field-analysis-status">{fieldAnalysisStatus}</p> : null}
+                        <div className="si-rs-sym-fab-row" aria-label="Raster symbology tools">
+                          <button
+                            type="button"
+                            className="si-rs-sym-opener"
+                            title="Reclassify / symbology (palette, layers, sliders)"
+                            aria-label="Open reclassify and symbology panel"
+                            disabled={!siRsSymbologyAoiKey}
+                            onClick={() => setSiRsSymbologyDrawerOpen(true)}
+                          >
+                            <i className="fa-solid fa-palette" aria-hidden />
+                            <i className="fa-solid fa-sliders si-rs-sym-opener__sub" aria-hidden />
+                          </button>
+                          <span className="si-rs-sym-fab-hint">Reclassify · Symbology</span>
+                        </div>
+                        <SiRasterSymbologyDrawer
+                          open={siRsSymbologyDrawerOpen}
+                          onClose={() => setSiRsSymbologyDrawerOpen(false)}
+                          hasAoi={Boolean(siRsSymbologyAoiKey)}
+                          layerOptions={siRsSymbologyLayerOptions}
+                          domain={siRsSymbologyDomain}
+                          stats={siRsSymbologyStats}
+                          sampleValues={siRsSymbologySampleValues}
+                          value={siRsSymbologyStateResolved}
+                          onChange={setSiRsSymbologyStateResolved}
+                          onSyncMapLayer={siRsSymbologyOnSyncMapLayer}
+                          onExportPng={siRsSymbologyExportPng}
+                          onOpenPdfReport={openSiAoiVegetationReport}
+                        />
                           </>
                         ) : (
                           <div className="si-field-analysis-section si-rs-field-tab-panel">

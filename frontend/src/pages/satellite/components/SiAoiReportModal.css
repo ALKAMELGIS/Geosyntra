@@ -11,6 +11,7 @@
 }
 
 .si-aoi-report-modal {
+  position: relative;
   width: min(960px, 100%);
   max-height: min(92vh, 900px);
   display: flex;
@@ -319,10 +320,139 @@
   position: relative;
 }
 
+.si-aoi-report-change-cell__stats {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 6px 12px;
+  padding: 5px 8px 4px;
+  font-size: 0.62rem;
+  font-weight: 600;
+  color: #e2e8f0;
+  letter-spacing: 0.02em;
+  border-top: 1px solid rgba(148, 163, 184, 0.18);
+}
+
+.si-aoi-report-change-cell__stats-mean {
+  color: #86efac;
+}
+
+.si-aoi-report-change-cell__stats-hml {
+  color: #cbd5e1;
+  font-weight: 500;
+}
+
+.si-aoi-report-change-cell__stats-px {
+  color: #94a3b8;
+  font-weight: 500;
+}
+
 .si-aoi-report-change-cell__hint {
   flex-shrink: 0;
   padding: 4px 8px 6px;
   font-size: 0.65rem;
   color: #94a3b8;
   border-top: 1px solid rgba(148, 163, 184, 0.15);
+}
+
+/* ── PDF export preview / busy (inside modal, above body scroll) ── */
+.si-aoi-report-export-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  background: rgba(2, 6, 23, 0.72);
+  backdrop-filter: blur(6px);
+  pointer-events: auto;
+}
+
+.si-aoi-report-export-overlay--busy {
+  background: rgba(15, 23, 42, 0.82);
+}
+
+.si-aoi-report-export-card {
+  width: min(420px, 100%);
+  border-radius: 14px;
+  border: 1px solid rgba(148, 163, 184, 0.35);
+  background: linear-gradient(165deg, #0f172a 0%, #1e1b4b 100%);
+  color: #e2e8f0;
+  padding: 20px 22px 18px;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.45);
+}
+
+.si-aoi-report-export-card__title {
+  margin: 0 0 10px;
+  font-size: 1.05rem;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: #f8fafc;
+}
+
+.si-aoi-report-export-card__mode {
+  margin: 0 0 12px;
+  font-size: 0.88rem;
+  line-height: 1.45;
+  color: #cbd5e1;
+}
+
+.si-aoi-report-export-card__list {
+  margin: 0 0 16px;
+  padding-left: 1.1rem;
+  font-size: 0.8rem;
+  line-height: 1.55;
+  color: #94a3b8;
+}
+
+.si-aoi-report-export-card__list li {
+  margin-bottom: 6px;
+}
+
+.si-aoi-report-export-card__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  justify-content: flex-end;
+}
+
+.si-aoi-report-export-busy {
+  text-align: center;
+  padding: 28px 32px;
+  border-radius: 16px;
+  border: 1px solid rgba(52, 211, 153, 0.25);
+  background: rgba(15, 23, 42, 0.92);
+  min-width: 260px;
+}
+
+.si-aoi-report-export-busy__spinner {
+  width: 44px;
+  height: 44px;
+  margin: 0 auto 14px;
+  border-radius: 50%;
+  border: 3px solid rgba(148, 163, 184, 0.25);
+  border-top-color: #34d399;
+  animation: si-aoi-export-spin 0.85s linear infinite;
+}
+
+.si-aoi-report-export-busy__title {
+  margin: 0 0 6px;
+  font-size: 1rem;
+  font-weight: 650;
+  color: #f8fafc;
+}
+
+.si-aoi-report-export-busy__sub {
+  margin: 0;
+  font-size: 0.82rem;
+  color: #94a3b8;
+}
+
+@keyframes si-aoi-export-spin {
+  to {
+    transform: rotate(360deg);
+  }
 }

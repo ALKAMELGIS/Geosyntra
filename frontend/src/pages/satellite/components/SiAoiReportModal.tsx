@@ -22,6 +22,8 @@ import {
   buildSiAoiVegetationReport,
   exportSiAoiVegetationReportPdf,
   siAoiReportFeatureBBoxLngLat,
+  type SiAoiChangeDetectionSlot,
+  type SiAoiPdfExportMode,
   type SiAoiReportModel,
 } from '../utils/siAoiVegetationReportModel';
 import './SiAoiReportModal.css';
@@ -38,22 +40,41 @@ ChartJS.register(
   Filler,
 );
 
+/** Upscale canvas for sharper PDF raster (viewer scales down; avoids soft chart export). */
+function captureCanvasHiRes(source: HTMLCanvasElement, scale = 2): string {
+  const w = source.width;
+  const h = source.height;
+  if (!w || !h) return source.toDataURL('image/png');
+  const c = document.createElement('canvas');
+  c.width = Math.round(w * scale);
+  c.height = Math.round(h * scale);
+  const ctx = c.getContext('2d');
+  if (!ctx) return source.toDataURL('image/png');
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = 'high';
+  ctx.setTransform(scale, 0, 0, scale, 0, 0);
+  ctx.drawImage(source, 0, 0);
+  return c.toDataURL('image/png');
+}
+
 type SiAoiChangeMapCellProps = {
   slotIdx: number;
-  date: string;
+  slot: SiAoiChangeDetectionSlot;
   mapboxToken?: string;
   mapStyle: string | StyleSpecification;
   aoiOutline: GeoJSON.FeatureCollection;
   fitBounds: [[number, number], [number, number]];
+  indexId: StaticAoiChartLayerId;
 };
 
 function SiAoiChangeMapCell({
   slotIdx,
-  date,
+  slot,
   mapboxToken,
   mapStyle,
   aoiOutline,
   fitBounds,
+  indexId,
 }: SiAoiChangeMapCellProps) {
   const innerRef = useRef<MapRef | null>(null);
 
@@ -73,14 +94,15 @@ function SiAoiChangeMapCell({
       else map?.once('load', runFit);
     }, 60);
     return () => window.clearTimeout(t);
-  }, [fitBounds, date, slotIdx]);
+  }, [fitBounds, slot.date, slotIdx]);
 
   const cx = (fitBounds[0][0] + fitBounds[1][0]) / 2;
   const cy = (fitBounds[0][1] + fitBounds[1][1]) / 2;
+  const meanStr = indexId === 'LST' ? slot.stats.indexMean.toFixed(1) : slot.stats.indexMean.toFixed(3);
 
   return (
     <div className="si-aoi-report-change-cell">
-      <div className="si-aoi-report-change-cell__banner">{date}</div>
+      <div className="si-aoi-report-change-cell__banner">{slot.date}</div>
       <div className="si-aoi-report-change-cell__map">
         <MapGL
           ref={innerRef}
@@ -92,16 +114,45 @@ function SiAoiChangeMapCell({
           interactive={false}
           attributionControl={false}
         >
-          <Source id={`si-cd-aoi-${slotIdx}`} type="geojson" data={aoiOutline}>
+          <Source id={`si-cd-aoi-base-${slotIdx}`} type="geojson" data={aoiOutline}>
             <Layer
-              id={`si-cd-aoi-line-${slotIdx}`}
+              id={`si-cd-aoi-base-fill-${slotIdx}`}
+              type="fill"
+              paint={{ 'fill-color': '#020617', 'fill-opacity': 0.08 }}
+            />
+          </Source>
+          <Source id={`si-cd-hm-${slotIdx}`} type="geojson" data={slot.heatmapCellsGeoJson}>
+            <Layer
+              id={`si-cd-hm-fill-${slotIdx}`}
+              type="fill"
+              paint={{
+                'fill-color': ['coalesce', ['get', 'fill'], '#22c55e'],
+                'fill-opacity': ['coalesce', ['get', 'opacity'], 0.44],
+              }}
+            />
+          </Source>
+          <Source id={`si-cd-aoi-line-${slotIdx}`} type="geojson" data={aoiOutline}>
+            <Layer
+              id={`si-cd-aoi-line-layer-${slotIdx}`}
               type="line"
-              paint={{ 'line-color': '#38bdf8', 'line-width': 2 }}
+              layout={{ 'line-join': 'round', 'line-cap': 'round' }}
+              paint={{ 'line-color': '#38bdf8', 'line-width': 2.5, 'line-opacity': 1 }}
             />
           </Source>
         </MapGL>
       </div>
-      <div className="si-aoi-report-change-cell__hint">Basemap + AOI (scene overlay when connected)</div>
+      <div className="si-aoi-report-change-cell__stats" dir="ltr">
+        <span className="si-aoi-report-change-cell__stats-mean">μ {meanStr}</span>
+        <span className="si-aoi-report-change-cell__stats-hml">
+          H {slot.stats.highPct.toFixed(0)}% · M {slot.stats.medPct.toFixed(0)}% · L {slot.stats.lowPct.toFixed(0)}%
+        </span>
+        <span className="si-aoi-report-change-cell__stats-px">{slot.stats.pixelCount} px</span>
+      </div>
+      <div className="si-aoi-report-change-cell__hint">
+        {slot.dataSource === 'stac-scene'
+          ? 'STAC-backed scene + index heatmap (clipped to AOI).'
+          : 'Basemap + per-date index heatmap (AOI-clipped). Attach STAC for true scenes.'}
+      </div>
     </div>
   );
 }
@@ -141,8 +192,13 @@ export function SiAoiReportModal({
   const [report, setReport] = useState<SiAoiReportModel | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [exportBusy, setExportBusy] = useState(false);
+  const [exportUi, setExportUi] = useState<{
+    phase: 'idle' | 'preview' | 'busy';
+    mode?: SiAoiPdfExportMode;
+  }>({ phase: 'idle' });
   const mapRef = useRef<MapRef | null>(null);
   const chartHostId = 'si-aoi-report-chart-host';
+  const mapOk = Boolean(mapboxToken?.trim());
 
   useEffect(() => {
     if (!open) return;
@@ -157,6 +213,7 @@ export function SiAoiReportModal({
     const pref = preferredAoiId && ids.has(preferredAoiId) ? preferredAoiId : aoiOptions[0]?.id ?? '';
     setSelectedAoiId(pref);
     setReportView('analysis');
+    setExportUi({ phase: 'idle' });
   }, [open, timeSeriesStart, timeSeriesEnd, defaultIndexId, preferredAoiId, aoiOptions]);
 
   const selectedFeature = useMemo(
@@ -270,28 +327,81 @@ export function SiAoiReportModal({
         x: { ticks: { color: '#94a3b8', maxRotation: 45 }, grid: { color: 'rgba(148,163,184,0.12)' } },
         y: { ticks: { color: '#94a3b8' }, grid: { color: 'rgba(148,163,184,0.12)' } },
       },
+      devicePixelRatio: Math.min(2.5, typeof window !== 'undefined' ? window.devicePixelRatio || 2 : 2),
     }),
     [report],
   );
 
-  const onExportPdf = useCallback(() => {
+  const openExportPreview = useCallback(() => {
     if (!report) return;
+    setErr(null);
+    const mode: SiAoiPdfExportMode =
+      reportView === 'analysis' ? 'AOI_ANALYSIS' : 'TIME_SERIES_CHANGE_DETECTION';
+    setExportUi({ phase: 'preview', mode });
+  }, [report, reportView]);
+
+  const cancelExportPreview = useCallback(() => {
+    setExportUi({ phase: 'idle' });
+  }, []);
+
+  const confirmExportPdf = useCallback(async () => {
+    if (!report || !exportUi.mode) return;
+    const mode = exportUi.mode;
+    setExportUi({ phase: 'busy', mode });
     setExportBusy(true);
+    await new Promise<void>(r => requestAnimationFrame(() => r()));
+    await new Promise<void>(r => setTimeout(r, 80));
     try {
-      let dataUrl: string | null = null;
-      const el = document.querySelector(`#${chartHostId} canvas`);
-      if (el instanceof HTMLCanvasElement) {
-        dataUrl = el.toDataURL('image/png');
+      let chartImageDataUrl: string | null = null;
+      const chartEl = document.querySelector(`#${chartHostId} canvas`);
+      if (chartEl instanceof HTMLCanvasElement) {
+        chartImageDataUrl = captureCanvasHiRes(chartEl, 2);
       }
-      exportSiAoiVegetationReportPdf(report, dataUrl);
+
+      let aoiMapImageDataUrl: string | null = null;
+      if (mode === 'AOI_ANALYSIS' && mapOk) {
+        const map = mapRef.current?.getMap?.();
+        if (map) {
+          await new Promise<void>(resolve => {
+            let settled = false;
+            const finish = () => {
+              if (settled) return;
+              settled = true;
+              resolve();
+            };
+            try {
+              map.once('idle', finish);
+            } catch {
+              finish();
+            }
+            window.setTimeout(finish, 2200);
+          });
+          try {
+            const canvas = map.getCanvas?.();
+            if (canvas instanceof HTMLCanvasElement) {
+              aoiMapImageDataUrl = captureCanvasHiRes(canvas, 2);
+            }
+          } catch {
+            /* ignore */
+          }
+        }
+      }
+
+      exportSiAoiVegetationReportPdf(report, {
+        mode,
+        chartImageDataUrl,
+        aoiMapImageDataUrl,
+      });
+    } catch (e) {
+      console.error(e);
+      setErr('PDF export failed. If the AOI map is missing, open the “AOI analysis” tab and try again.');
     } finally {
       setExportBusy(false);
+      setExportUi({ phase: 'idle' });
     }
-  }, [report]);
+  }, [report, exportUi.mode, mapOk, chartHostId]);
 
   if (!open) return null;
-
-  const mapOk = Boolean(mapboxToken?.trim());
 
   return (
     <div
@@ -377,7 +487,12 @@ export function SiAoiReportModal({
                 >
                   Back to setup
                 </button>
-                <button type="button" className="si-aoi-report-btn" onClick={onExportPdf} disabled={exportBusy}>
+                <button
+                  type="button"
+                  className="si-aoi-report-btn"
+                  onClick={openExportPreview}
+                  disabled={!report || exportUi.phase === 'busy'}
+                >
                   Export PDF
                 </button>
                 <button type="button" className="si-aoi-report-btn si-aoi-report-btn--ghost" onClick={onClose}>
@@ -410,23 +525,24 @@ export function SiAoiReportModal({
                 <div className="si-aoi-report-card">
                   <h3>Time series change detection map</h3>
                   <p className="si-aoi-report-analysis">
-                    Twelve map tiles (3 columns × 4 rows) sampled across the timeline. Each tile uses the same basemap
-                    style as the main Satellite view, with the AOI outline. Connect your STAC or tile service to render
-                    true per-date imagery in every cell.
+                    Twelve tiles (3×4): each week gets its own AOI-clipped pixel classification heatmap and
+                    statistics, driven by the selected index timeline. Basemap matches the main Satellite view;
+                    connect STAC to swap the basemap layer for true acquisition-date imagery per cell.
                   </p>
                   {!mapOk || !changeFitBounds ? (
                     <p className="si-aoi-report-analysis">A Mapbox token is required to render the map grid.</p>
                   ) : (
                     <div className="si-aoi-report-change-grid">
-                      {report.changeDetectionDates.map((dt, idx) => (
+                      {report.changeDetectionSlots.map((slot, idx) => (
                         <SiAoiChangeMapCell
-                          key={`${dt}-${idx}`}
+                          key={`${slot.date}-${idx}`}
                           slotIdx={idx}
-                          date={dt}
+                          slot={slot}
                           mapboxToken={mapboxToken}
                           mapStyle={reportMapStyle}
                           aoiOutline={report.aoiOutlineGeoJson}
                           fitBounds={changeFitBounds}
+                          indexId={report.indexId}
                         />
                       ))}
                     </div>
@@ -513,7 +629,8 @@ export function SiAoiReportModal({
                             <Layer
                               id="si-report-aoi-line"
                               type="line"
-                              paint={{ 'line-color': '#38bdf8', 'line-width': 2 }}
+                              layout={{ 'line-join': 'round', 'line-cap': 'round' }}
+                              paint={{ 'line-color': '#38bdf8', 'line-width': 2.5, 'line-opacity': 1 }}
                             />
                           </Source>
                         </MapGL>
@@ -546,6 +663,74 @@ export function SiAoiReportModal({
             </div>
           ) : null}
         </div>
+
+        {exportUi.phase === 'preview' && exportUi.mode ? (
+          <div
+            className="si-aoi-report-export-overlay"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="si-aoi-export-preview-title"
+            onMouseDown={e => {
+              if (e.target === e.currentTarget) cancelExportPreview();
+            }}
+          >
+            <div className="si-aoi-report-export-card">
+              <h3 id="si-aoi-export-preview-title" className="si-aoi-report-export-card__title">
+                Export preview
+              </h3>
+              <p className="si-aoi-report-export-card__mode">
+                {exportUi.mode === 'AOI_ANALYSIS' ? (
+                  <>
+                    <strong>AOI analysis</strong> — single-map enterprise PDF
+                  </>
+                ) : (
+                  <>
+                    <strong>Time series change detection</strong> — full 3×4 grid PDF
+                  </>
+                )}
+              </p>
+              <ul className="si-aoi-report-export-card__list">
+                {exportUi.mode === 'AOI_ANALYSIS' ? (
+                  <>
+                    <li>Executive summary, scientific analysis, and stress notes (vector text)</li>
+                    <li>Health classification table with crisp borders</li>
+                    <li>Index timeline chart (high-DPI raster from the chart canvas)</li>
+                    <li>
+                      AOI basemap + classification snapshot when the <strong>AOI analysis</strong> tab is active
+                      (switch tabs before generating if the map is hidden)
+                    </li>
+                  </>
+                ) : (
+                  <>
+                    <li>Cover band with AOI, index, and period metadata</li>
+                    <li>All twelve timestamps with per-date statistics (vector text)</li>
+                    <li>Optimized for print — no mixed AOI / timeline map on this export</li>
+                  </>
+                )}
+              </ul>
+              <div className="si-aoi-report-export-card__actions">
+                <button type="button" className="si-aoi-report-btn si-aoi-report-btn--ghost" onClick={cancelExportPreview}>
+                  Cancel
+                </button>
+                <button type="button" className="si-aoi-report-btn" onClick={() => void confirmExportPdf()}>
+                  Generate PDF
+                </button>
+              </div>
+            </div>
+          </div>
+        ) : null}
+
+        {exportUi.phase === 'busy' ? (
+          <div className="si-aoi-report-export-overlay si-aoi-report-export-overlay--busy" aria-live="polite">
+            <div className="si-aoi-report-export-busy">
+              <div className="si-aoi-report-export-busy__spinner" aria-hidden />
+              <p className="si-aoi-report-export-busy__title">Preparing PDF</p>
+              <p className="si-aoi-report-export-busy__sub">
+                Composing {exportUi.mode === 'AOI_ANALYSIS' ? 'AOI analysis' : 'time series change detection'} layout…
+              </p>
+            </div>
+          </div>
+        ) : null}
       </div>
     </div>
   );

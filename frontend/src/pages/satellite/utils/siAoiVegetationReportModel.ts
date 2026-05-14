@@ -18,6 +18,33 @@ export type SiAoiReportTableRow = {
   areaKm2: number;
 };
 
+/** Aggregated stats for one change-detection tile (from pixel grid inside AOI). */
+export type SiAoiChangeSlotStats = {
+  indexMean: number;
+  indexMin: number;
+  indexMax: number;
+  pixelCount: number;
+  highPct: number;
+  medPct: number;
+  lowPct: number;
+};
+
+/**
+ * One timeline column: independent synthetic analysis for that date until STAC
+ * scene URLs are supplied (`dataSource` + optional `sceneThumbUrl`).
+ */
+export type SiAoiChangeDetectionSlot = {
+  date: string;
+  /** Index value for this week from the same engine as the main chart. */
+  indexMean: number;
+  /** AOI-clipped pixel classification heatmap for this timestamp only. */
+  heatmapCellsGeoJson: GeoJSON.FeatureCollection;
+  stats: SiAoiChangeSlotStats;
+  dataSource: 'client-synthetic' | 'stac-scene';
+  /** Optional true-colour or analysis preview when wired to STAC. */
+  sceneThumbUrl?: string;
+};
+
 export type SiAoiReportModel = {
   indexId: StaticAoiChartLayerId;
   indexLabel: string;
@@ -32,8 +59,8 @@ export type SiAoiReportModel = {
   /** Small square polygons inside the AOI — transparent classification “pixels” for map overlay. */
   heatmapCellsGeoJson: GeoJSON.FeatureCollection;
   aoiOutlineGeoJson: GeoJSON.FeatureCollection;
-  /** Up to 12 ISO dates for change-detection map grid (evenly sampled from the series). */
-  changeDetectionDates: string[];
+  /** Twelve independent temporal slots (3×4 grid): heatmap + stats per date. */
+  changeDetectionSlots: SiAoiChangeDetectionSlot[];
   tableRows: SiAoiReportTableRow[];
 };
 
@@ -155,6 +182,14 @@ function syntheticWeeksBetween(
   return out;
 }
 
+function hashStr(s: string): number {
+  let h = 0;
+  for (let i = 0; i < s.length; i++) {
+    h = (Math.imul(31, h) + s.charCodeAt(i)) | 0;
+  }
+  return Math.abs(h);
+}
+
 /** Semi-transparent square “pixels” clipped to AOI for classification overlay (client-side demo). */
 function buildPixelClassificationGrid(
   geom: GeoJSON.Polygon | GeoJSON.MultiPolygon,
@@ -163,6 +198,7 @@ function buildPixelClassificationGrid(
   pHigh: number,
   pMed: number,
   pLow: number,
+  maxFeatures = 2800,
 ): GeoJSON.FeatureCollection {
   const [w, s, e, n] = bounds;
   const spanX = Math.max(1e-9, e - w);
@@ -177,7 +213,7 @@ function buildPixelClassificationGrid(
   const th1 = pHigh / 100;
   const th2 = (pHigh + pMed) / 100;
   const features: GeoJSON.Feature[] = [];
-  const cap = 2800;
+  const cap = maxFeatures;
   for (let i = 0; i < nx; i++) {
     for (let j = 0; j < ny; j++) {
       if (features.length >= cap) break;
@@ -213,15 +249,12 @@ function buildPixelClassificationGrid(
   return { type: 'FeatureCollection', features };
 }
 
-function classifyHealthPercents(
+/** Per-timestamp classification shares from that week’s index mean + full-series spread. */
+function classifyPercentsFromMeanAndSpread(
   indexId: StaticAoiChartLayerId,
-  series: SiAoiReportTimePoint[],
+  mean: number,
+  spread: number,
 ): { high: number; med: number; low: number } {
-  const vals = series.map(s => s.value).filter(Number.isFinite);
-  if (!vals.length) return { high: 34, med: 33, low: 33 };
-  const mean = vals.reduce((a, b) => a + b, 0) / vals.length;
-  const min = Math.min(...vals);
-  const spread = Math.max(...vals) - min;
   let high = 40;
   let med = 35;
   let low = 25;
@@ -257,6 +290,99 @@ function classifyHealthPercents(
     med: (100 * med) / sum,
     low: (100 * low) / sum,
   };
+}
+
+function aggregateSlotStats(
+  features: GeoJSON.Feature[],
+  indexMean: number,
+  indexId: StaticAoiChartLayerId,
+  date: string,
+): SiAoiChangeSlotStats {
+  let nh = 0;
+  let nm = 0;
+  let nl = 0;
+  for (const f of features) {
+    const cls = (f.properties as { cls?: string } | undefined)?.cls;
+    if (cls === 'high') nh += 1;
+    else if (cls === 'medium') nm += 1;
+    else nl += 1;
+  }
+  const n = nh + nm + nl || 1;
+  const meta = STATIC_AOI_CHART_LAYER_OPTIONS.find(o => o.id === indexId) ?? STATIC_AOI_CHART_LAYER_OPTIONS[0]!;
+  const [r0, r1] = meta.range;
+  const j = (hashStr(`${date}|${indexId}`) % 500) / 10000;
+  const rawMin = indexMean - 0.15 - j;
+  const rawMax = indexMean + 0.13 + j * 0.8;
+  const indexMin = Math.max(r0, Math.min(r1, Math.min(rawMin, rawMax)));
+  const indexMax = Math.max(r0, Math.min(r1, Math.max(rawMin, rawMax)));
+  return {
+    indexMean,
+    indexMin,
+    indexMax,
+    pixelCount: features.length,
+    highPct: (100 * nh) / n,
+    medPct: (100 * nm) / n,
+    lowPct: (100 * nl) / n,
+  };
+}
+
+function valueForChangeSlotDate(date: string, timeSeries: SiAoiReportTimePoint[]): number {
+  if (!date || date === '—') return 0;
+  const exact = timeSeries.find(t => t.date === date);
+  if (exact) return exact.value;
+  const target = Date.parse(`${date}T12:00:00Z`);
+  if (Number.isNaN(target)) return timeSeries[0]?.value ?? 0;
+  let best = timeSeries[0]?.value ?? 0;
+  let bestDiff = Infinity;
+  for (const t of timeSeries) {
+    const d = Math.abs(Date.parse(`${t.date}T12:00:00Z`) - target);
+    if (d < bestDiff) {
+      bestDiff = d;
+      best = t.value;
+    }
+  }
+  return best;
+}
+
+function buildChangeDetectionSlots(input: {
+  dates: string[];
+  timeSeries: SiAoiReportTimePoint[];
+  indexId: StaticAoiChartLayerId;
+  geom: GeoJSON.Polygon | GeoJSON.MultiPolygon;
+  bounds: [number, number, number, number];
+  aoiKey: string;
+  /** Full-series spread for classification rule parity with summary table. */
+  seriesSpread: number;
+}): SiAoiChangeDetectionSlot[] {
+  const { dates, timeSeries, indexId, geom, bounds, aoiKey, seriesSpread } = input;
+  const out: SiAoiChangeDetectionSlot[] = [];
+  const maxPerTile = 1100;
+  for (const date of dates) {
+    const indexMean = valueForChangeSlotDate(date, timeSeries);
+    const { high, med, low } = classifyPercentsFromMeanAndSpread(indexId, indexMean, seriesSpread);
+    const seed = `${aoiKey}|${date}|${indexId}`;
+    const heatmapCellsGeoJson = buildPixelClassificationGrid(geom, bounds, seed, high, med, low, maxPerTile);
+    const stats = aggregateSlotStats(heatmapCellsGeoJson.features, indexMean, indexId, date);
+    out.push({
+      date,
+      indexMean,
+      heatmapCellsGeoJson,
+      stats,
+      dataSource: 'client-synthetic',
+    });
+  }
+  return out;
+}
+
+function classifyHealthPercents(
+  indexId: StaticAoiChartLayerId,
+  series: SiAoiReportTimePoint[],
+): { high: number; med: number; low: number } {
+  const vals = series.map(s => s.value).filter(Number.isFinite);
+  if (!vals.length) return { high: 34, med: 33, low: 33 };
+  const mean = vals.reduce((a, b) => a + b, 0) / vals.length;
+  const spread = Math.max(...vals) - Math.min(...vals);
+  return classifyPercentsFromMeanAndSpread(indexId, mean, spread);
 }
 
 function detectStressEn(indexId: StaticAoiChartLayerId, series: SiAoiReportTimePoint[]): string | null {
@@ -352,7 +478,38 @@ export function buildSiAoiVegetationReport(input: {
     },
   ];
 
+  const changeDetectionDates = buildChangeDetectionDates(timeSeries.map(t => t.date), 12);
+  const seriesVals = timeSeries.map(s => s.value).filter(Number.isFinite);
+  const seriesSpread = seriesVals.length ? Math.max(...seriesVals) - Math.min(...seriesVals) : 0;
+
   const bounds = siAoiReportFeatureBBoxLngLat(aoiFeature);
+  const changeDetectionSlots: SiAoiChangeDetectionSlot[] =
+    bounds && (g.type === 'Polygon' || g.type === 'MultiPolygon')
+      ? buildChangeDetectionSlots({
+          dates: changeDetectionDates,
+          timeSeries,
+          indexId,
+          geom: g as GeoJSON.Polygon | GeoJSON.MultiPolygon,
+          bounds,
+          aoiKey,
+          seriesSpread,
+        })
+      : changeDetectionDates.map(date => ({
+          date,
+          indexMean: valueForChangeSlotDate(date, timeSeries),
+          heatmapCellsGeoJson: { type: 'FeatureCollection' as const, features: [] },
+          stats: {
+            indexMean: valueForChangeSlotDate(date, timeSeries),
+            indexMin: valueForChangeSlotDate(date, timeSeries),
+            indexMax: valueForChangeSlotDate(date, timeSeries),
+            pixelCount: 0,
+            highPct: 0,
+            medPct: 0,
+            lowPct: 0,
+          },
+          dataSource: 'client-synthetic' as const,
+        }));
+
   const heatmapCellsGeoJson =
     bounds && (g.type === 'Polygon' || g.type === 'MultiPolygon')
       ? buildPixelClassificationGrid(g as GeoJSON.Polygon | GeoJSON.MultiPolygon, bounds, aoiKey, high, med, low)
@@ -382,8 +539,6 @@ export function buildSiAoiVegetationReport(input: {
     1,
   )}% low / degraded (illustrative client-side split). Replace with true zonal statistics from your backend for enterprise reporting.`;
 
-  const changeDetectionDates = buildChangeDetectionDates(timeSeries.map(t => t.date), 12);
-
   return {
     indexId,
     indexLabel: opt.label,
@@ -397,66 +552,124 @@ export function buildSiAoiVegetationReport(input: {
     timeSeries,
     heatmapCellsGeoJson,
     aoiOutlineGeoJson,
-    changeDetectionDates,
+    changeDetectionSlots,
     tableRows,
   };
 }
 
-function addChangeDetectionPageGrid(doc: jsPDF, dates: string[], margin: number) {
-  doc.addPage();
-  let y = margin;
-  doc.setFontSize(14);
-  doc.setTextColor(15, 23, 42);
-  doc.text('Time Series Change Detection Map', margin, y);
-  y += 22;
-  doc.setFontSize(9);
-  doc.setTextColor(71, 85, 105);
-  const note = doc.splitTextToSize(
-    'Twelve snapshot slots (3 × 4) for the analysis window. Connect STAC / your imagery pipeline to render true per-date rasters; this PDF lists dates and placeholders only.',
-    520,
-  );
-  doc.text(note, margin, y);
-  y += note.length * 11 + 14;
+export type SiAoiPdfExportMode = 'AOI_ANALYSIS' | 'TIME_SERIES_CHANGE_DETECTION';
 
+export type SiAoiPdfExportOptions = {
+  mode: SiAoiPdfExportMode;
+  /** Timeline chart raster (use 2× canvas for sharp PDF). */
+  chartImageDataUrl?: string | null;
+  /** Main AOI analysis map snapshot (AOI_ANALYSIS mode only). */
+  aoiMapImageDataUrl?: string | null;
+};
+
+function addChangeDetectionPageGrid(
+  doc: jsPDF,
+  slots: SiAoiChangeDetectionSlot[],
+  indexLabel: string,
+  margin: number,
+  opts?: { insertPageBreakBefore?: boolean; startY?: number; compactHeader?: boolean },
+) {
+  const insertBreak = opts?.insertPageBreakBefore !== false;
+  if (insertBreak) doc.addPage();
+  let y = opts?.startY ?? margin;
+  if (!opts?.compactHeader) {
+    doc.setFontSize(14);
+    doc.setTextColor(15, 23, 42);
+    doc.text('Time Series Change Detection Map', margin, y);
+    y += 20;
+    doc.setFontSize(8.5);
+    doc.setTextColor(71, 85, 105);
+    const hdr = doc.splitTextToSize(
+      `Per-date ${indexLabel}: AOI-clipped pixel classification, class shares, and index range per tile (vector text). Client-side preview until STAC scene URLs are attached per timestamp.`,
+      520,
+    );
+    doc.text(hdr, margin, y);
+    y += hdr.length * 10 + 12;
+  }
   const cols = 3;
   const rows = 4;
-  const gap = 10;
+  const gap = 8;
   const usableW = 520;
-  const usableH = 620 - y;
+  const usableH = Math.max(280, 700 - y - margin);
   const cellW = (usableW - gap * (cols - 1)) / cols;
   const cellH = (usableH - gap * (rows - 1)) / rows;
 
   for (let r = 0; r < rows; r++) {
     for (let c = 0; c < cols; c++) {
       const idx = r * cols + c;
-      const dt = dates[idx] ?? '—';
+      const slot = slots[idx];
       const x = margin + c * (cellW + gap);
       const yy = y + r * (cellH + gap);
       doc.setDrawColor(148, 163, 184);
-      doc.setLineWidth(0.6);
-      doc.roundedRect(x, yy, cellW, cellH, 4, 4, 'S');
-      doc.setFillColor(241, 245, 249);
-      doc.roundedRect(x + 2, yy + 2, cellW - 4, cellH - 4, 3, 3, 'F');
-      doc.setFontSize(10);
-      doc.setTextColor(30, 41, 59);
-      doc.text(dt, x + 8, yy + 18);
-      doc.setFontSize(8);
+      doc.setLineWidth(0.55);
+      doc.roundedRect(x, yy, cellW, cellH, 3, 3, 'S');
+      doc.setFillColor(248, 250, 252);
+      doc.roundedRect(x + 1.5, yy + 1.5, cellW - 3, cellH - 3, 2, 2, 'F');
+      if (!slot) continue;
+      let ly = yy + 12;
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(8.5);
+      doc.setTextColor(15, 23, 42);
+      doc.text(slot.date, x + 6, ly);
+      ly += 11;
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(7);
+      doc.setTextColor(51, 65, 85);
+      doc.text(
+        `${indexLabel} mean ${slot.stats.indexMean.toFixed(3)}   range ${slot.stats.indexMin.toFixed(2)}–${slot.stats.indexMax.toFixed(2)}`,
+        x + 6,
+        ly,
+      );
+      ly += 9;
+      doc.text(
+        `Class H/M/L: ${slot.stats.highPct.toFixed(0)} / ${slot.stats.medPct.toFixed(0)} / ${slot.stats.lowPct.toFixed(0)} %`,
+        x + 6,
+        ly,
+      );
+      ly += 9;
+      doc.text(`AOI pixels: ${slot.stats.pixelCount}`, x + 6, ly);
+      ly += 9;
+      doc.setFontSize(6.5);
       doc.setTextColor(100, 116, 139);
-      const cap = doc.splitTextToSize('AOI + basemap + scene (integrate imagery service).', cellW - 16);
-      doc.text(cap, x + 8, yy + 32);
+      const src =
+        slot.dataSource === 'stac-scene' ? 'STAC scene' : 'Synthetic timeline (connect STAC for true imagery)';
+      const srcLines = doc.splitTextToSize(src, cellW - 12);
+      doc.text(srcLines, x + 6, ly);
     }
   }
 }
 
-export function exportSiAoiVegetationReportPdf(report: SiAoiReportModel, chartImageDataUrl?: string | null) {
-  const doc = new jsPDF({ unit: 'pt', format: 'a4' });
+/**
+ * AOI-only PDF: narrative, table, high-res chart + optional map snapshot. No timeline grid page.
+ */
+function buildAoiAnalysisPdfDocument(
+  doc: jsPDF,
+  report: SiAoiReportModel,
+  chartImageDataUrl?: string | null,
+  aoiMapImageDataUrl?: string | null,
+) {
   const margin = 48;
   let y = margin;
 
-  doc.setFontSize(16);
+  const pageW = doc.internal.pageSize.getWidth();
+  doc.setFillColor(15, 23, 42);
+  doc.rect(0, 0, pageW, 44, 'F');
+  doc.setTextColor(248, 250, 252);
+  doc.setFontSize(15);
+  doc.setFont('helvetica', 'bold');
+  doc.text('AOI analysis report', margin, 28);
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(9);
+  doc.setTextColor(203, 213, 225);
+  doc.text('Geosyntra · Satellite intelligence (export)', margin, 40);
+
+  y = 58;
   doc.setTextColor(15, 23, 42);
-  doc.text('AOI Vegetation Intelligence Report', margin, y);
-  y += 28;
   doc.setFontSize(10);
   doc.text(`AOI: ${report.aoiName}`, margin, y);
   y += 14;
@@ -466,7 +679,9 @@ export function exportSiAoiVegetationReportPdf(report: SiAoiReportModel, chartIm
   y += 22;
 
   doc.setFontSize(11);
+  doc.setFont('helvetica', 'bold');
   doc.text('Executive summary', margin, y);
+  doc.setFont('helvetica', 'normal');
   y += 16;
   doc.setFontSize(9);
   report.summaryLinesEn.forEach(line => {
@@ -477,7 +692,9 @@ export function exportSiAoiVegetationReportPdf(report: SiAoiReportModel, chartIm
   y += 8;
 
   doc.setFontSize(11);
+  doc.setFont('helvetica', 'bold');
   doc.text('Scientific analysis', margin, y);
+  doc.setFont('helvetica', 'normal');
   y += 14;
   doc.setFontSize(9);
   const analysisWrap = doc.splitTextToSize(report.analysisEn, 520);
@@ -495,30 +712,92 @@ export function exportSiAoiVegetationReportPdf(report: SiAoiReportModel, chartIm
     startY: y,
     head: [['Class', 'Area (km²)', 'Share %']],
     body: report.tableRows.map(r => [r.labelEn, r.areaKm2.toFixed(3), r.pct.toFixed(1)]),
-    styles: { fontSize: 9 },
-    headStyles: { fillColor: [22, 101, 52] },
+    styles: { fontSize: 9, cellPadding: 3.5, lineColor: [226, 232, 240], lineWidth: 0.25 },
+    headStyles: { fillColor: [21, 128, 61], textColor: 255, fontStyle: 'bold' },
+    alternateRowStyles: { fillColor: [248, 250, 252] },
   });
-  y = (doc as any).lastAutoTable.finalY + 16;
+  y = (doc as any).lastAutoTable.finalY + 18;
 
   if (chartImageDataUrl) {
     try {
-      doc.addImage(chartImageDataUrl, 'PNG', margin, y, 520, 200);
-      y += 216;
+      const chartH = 210;
+      doc.setFontSize(10);
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(15, 23, 42);
+      doc.text('Index timeline', margin, y);
+      y += 12;
+      doc.addImage(chartImageDataUrl, 'PNG', margin, y, 520, chartH, undefined, 'SLOW');
+      y += chartH + 14;
     } catch {
       /* ignore chart embed */
     }
   }
 
+  if (aoiMapImageDataUrl) {
+    try {
+      const mapH = 200;
+      if (y + mapH > doc.internal.pageSize.getHeight() - margin) {
+        doc.addPage();
+        y = margin;
+      }
+      doc.setFontSize(10);
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(15, 23, 42);
+      doc.text('AOI map (basemap + classification overlay)', margin, y);
+      y += 12;
+      doc.addImage(aoiMapImageDataUrl, 'PNG', margin, y, 520, mapH, undefined, 'SLOW');
+      y += mapH + 14;
+    } catch {
+      /* ignore map embed */
+    }
+  }
+
+  doc.setFont('helvetica', 'normal');
   doc.setFontSize(8);
-  doc.setTextColor(120);
-  doc.text(
-    'Map overlay: semi-transparent pixel-style classification grid clipped to the AOI (demo). Basemap in the app should match your active Satellite Intelligence style.',
-    margin,
-    Math.min(y, 740),
+  doc.setTextColor(100, 116, 139);
+  const foot = doc.splitTextToSize(
+    'Raster figures embed at 2× resolution where available; vector text and table geometry stay sharp in PDF viewers. For acquisition-true imagery, connect STAC in the main Satellite workspace.',
+    520,
   );
+  if (y + foot.length * 10 > doc.internal.pageSize.getHeight() - margin) {
+    doc.addPage();
+    y = margin;
+  }
+  doc.text(foot, margin, y);
+}
 
-  addChangeDetectionPageGrid(doc, report.changeDetectionDates, margin);
+function buildTimeSeriesChangeDetectionPdfDocument(doc: jsPDF, report: SiAoiReportModel) {
+  const margin = 48;
+  const pageW = doc.internal.pageSize.getWidth();
+  doc.setFillColor(15, 23, 42);
+  doc.rect(0, 0, pageW, 52, 'F');
+  doc.setTextColor(248, 250, 252);
+  doc.setFontSize(15);
+  doc.setFont('helvetica', 'bold');
+  doc.text('Time series change detection', margin + 6, 26);
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(9);
+  doc.setTextColor(203, 213, 225);
+  doc.text(`${report.indexLabel} · ${report.aoiName}`, margin + 6, 40);
+  doc.text(`Period ${report.dateStart} .. ${report.dateEnd}   ·   AOI area ${report.aoiAreaKm2.toFixed(3)} km²`, margin + 6, 50);
 
+  addChangeDetectionPageGrid(doc, report.changeDetectionSlots, report.indexLabel, margin, {
+    insertPageBreakBefore: false,
+    startY: 62,
+    compactHeader: true,
+  });
+}
+
+export function exportSiAoiVegetationReportPdf(report: SiAoiReportModel, options: SiAoiPdfExportOptions) {
+  const doc = new jsPDF({ unit: 'pt', format: 'a4', compress: true });
   const stamp = new Date().toISOString().replace(/[:.]/g, '-');
-  doc.save(`aoi-vegetation-report-${stamp}.pdf`);
+
+  if (options.mode === 'TIME_SERIES_CHANGE_DETECTION') {
+    buildTimeSeriesChangeDetectionPdfDocument(doc, report);
+    doc.save(`aoi-timeseries-change-detection-${stamp}.pdf`);
+    return;
+  }
+
+  buildAoiAnalysisPdfDocument(doc, report, options.chartImageDataUrl, options.aoiMapImageDataUrl);
+  doc.save(`aoi-analysis-report-${stamp}.pdf`);
 }
