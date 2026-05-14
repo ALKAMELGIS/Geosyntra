@@ -436,12 +436,12 @@ export function ScrollGlobe({ sections, globeConfig = defaultGlobeConfig, classN
         >
           {/* Per-breakpoint scale-up of the upstream 250×250 globe so the
               sphere reads as the dominant visual on larger screens
-              (≈ 375 px on tablet, ≈ 750 px on desktop, ≈ 875 px on 2xl)
+              (≈ 410 px on phone, ≈ 640 px on tablet, ≈ 860 px on desktop, ≈ 1040 px on 2xl)
               while still fitting comfortably on narrow phones. The
               per-section `scale3d(...)` set in
               `defaultGlobeConfig.positions[].scale` multiplies on top
               of this base. */}
-          <div className="scale-100 sm:scale-150 lg:scale-[3] 2xl:scale-[3.5]">
+          <div className="scale-110 sm:scale-[1.72] lg:scale-[3.45] 2xl:scale-[4.15]">
             <Globe />
           </div>
         </div>
