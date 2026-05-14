@@ -669,7 +669,7 @@ export default function Login() {
             }
             hydrateProfileFromAdminUserRecord(recoveredBase as Record<string, unknown>)
             startSession(recoveredAuthUser, { persist: keepSignedIn })
-            void hydrateProfileFromServer(emailTrimmed)
+            void hydrateProfileFromServer(emailTrimmed).catch(() => {})
             logLoginAttempt('success', 'mandatory_account_password_self_healed', emailTrimmed)
             setError('')
             return
@@ -749,7 +749,7 @@ export default function Login() {
         }
         hydrateProfileFromAdminUserRecord(mergedUser as Record<string, unknown>)
         startSession(authUser, { persist: keepSignedIn })
-        void hydrateProfileFromServer(emailTrimmed)
+        void hydrateProfileFromServer(emailTrimmed).catch(() => {})
         logLoginAttempt('success', 'authenticated', emailTrimmed)
       }
     } finally {

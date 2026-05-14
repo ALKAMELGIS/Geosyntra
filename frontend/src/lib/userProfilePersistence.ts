@@ -145,10 +145,14 @@ export async function pullProfileExtraFromServer(email: string): Promise<Profile
 }
 
 export async function hydrateProfileFromServer(email: string): Promise<void> {
-  const remote = await pullProfileExtraFromServer(email)
-  if (remote && Object.keys(remote).length) {
-    mergeExternalProfileIntoCache(email, remote)
-    syncProfileExtraToAdminDirectory(profileStorageKey(email), readProfileExtra(email))
+  try {
+    const remote = await pullProfileExtraFromServer(email)
+    if (remote && Object.keys(remote).length) {
+      mergeExternalProfileIntoCache(email, remote)
+      syncProfileExtraToAdminDirectory(profileStorageKey(email), readProfileExtra(email))
+    }
+  } catch {
+    /* Corrupt adminUsers JSON / storage — must never reject into Login's fire-and-forget caller. */
   }
 }
 

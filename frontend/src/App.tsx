@@ -14,6 +14,23 @@ type AppErrorState = {
   details?: string
 } | null
 
+/** CDN / ad-block / corp proxy fetch failures often surface as `unhandledrejection` from third-party runtimes — not fatal for the shell. */
+function isBenignUnhandledFetchFailure(reason: unknown): boolean {
+  const text =
+    reason instanceof Error
+      ? `${reason.name}: ${reason.message}`
+      : typeof reason === 'string'
+        ? reason
+        : ''
+  const t = text.toLowerCase()
+  return (
+    t.includes('failed to fetch') ||
+    t.includes('load failed') ||
+    t.includes('networkerror when attempting to fetch') ||
+    t.includes('network request failed')
+  )
+}
+
 class AppErrorBoundary extends Component<{ children: JSX.Element }, { err: AppErrorState }> {
   state: { err: AppErrorState } = { err: null }
   private onUnhandledRejection?: (e: PromiseRejectionEvent) => void
@@ -34,9 +51,18 @@ class AppErrorBoundary extends Component<{ children: JSX.Element }, { err: AppEr
   componentDidMount() {
     if (typeof window === 'undefined') return
     this.onUnhandledRejection = (e) => {
-      const reason = (e as any).reason
+      const reason = (e as PromiseRejectionEvent).reason
       const msg = reason instanceof Error ? reason.message : typeof reason === 'string' ? reason : ''
       if (msg.includes('Style is not done loading')) return
+      if (isBenignUnhandledFetchFailure(reason)) {
+        try {
+          e.preventDefault()
+        } catch {
+          /* ignore */
+        }
+        console.warn('[AppErrorBoundary] ignored optional-network rejection (CDN/Spline/tiles/etc.)', reason)
+        return
+      }
       const details = reason instanceof Error ? reason.stack : undefined
       this.setState({ err: { error: reason ?? e, kind: 'window', details } })
       try {
