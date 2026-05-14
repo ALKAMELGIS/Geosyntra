@@ -1,13 +1,17 @@
-import { Suspense, lazy } from 'react'
+import { Suspense, lazy, memo } from 'react'
 
 /**
  * Eagerly start fetching the Spline runtime chunk at module-load time so
- * the network roundtrip for the heavy `@splinetool/react-spline` bundle
- * overlaps with React's first render — by the time `<SplineScene/>`
- * actually mounts, the chunk is usually already in the browser cache.
- * The `lazy()` call below reuses the same import so no double-fetch.
+ * the network roundtrip overlaps with first paint. Rejections are handled so
+ * a blocked CDN / flaky network never becomes `unhandledrejection` (GitHub Pages).
  */
-const splineRuntime = import('@splinetool/react-spline')
+const splineRuntime = import('@splinetool/react-spline').catch((err) => {
+  console.warn('[SplineScene] @splinetool/react-spline chunk failed to load', err)
+  return {
+    default: () => <div className="gs-spline-skeleton h-full w-full" aria-hidden />,
+  } as unknown as Awaited<typeof import('@splinetool/react-spline')>
+})
+
 const Spline = lazy(() => splineRuntime)
 
 interface SplineSceneProps {
@@ -15,7 +19,7 @@ interface SplineSceneProps {
   className?: string
 }
 
-export function SplineScene({ scene, className }: SplineSceneProps) {
+function SplineSceneInner({ scene, className }: SplineSceneProps) {
   return (
     <Suspense
       fallback={
@@ -29,3 +33,5 @@ export function SplineScene({ scene, className }: SplineSceneProps) {
     </Suspense>
   )
 }
+
+export const SplineScene = memo(SplineSceneInner)

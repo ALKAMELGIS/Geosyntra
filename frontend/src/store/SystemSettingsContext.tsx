@@ -103,9 +103,13 @@ export function SystemSettingsProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     let cancelled = false
-    void hydrateBrowserApiSecretsFromServer().then(() => {
-      if (cancelled) return
-    })
+    void hydrateBrowserApiSecretsFromServer()
+      .then(() => {
+        if (cancelled) return
+      })
+      .catch(() => {
+        /* static hosts / offline — hydration is optional */
+      })
     return () => {
       cancelled = true
     }
