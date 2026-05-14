@@ -75,6 +75,10 @@ export const GEO_EXPLORER_LAYER_RULES = `LAYER DATA rules (when "LAYER DATA" / l
 - **MAP_QUERY:** Only when a single feature match is evident from LAYER DATA or the user gave explicit coordinates. Never output MAP_QUERY for a "best guess" world city when the user asked about layer data that is missing.
 - **General questions:** If there is no layer tie, answer from general knowledge; MAP_QUERY only when a single global place is clearly intended.`;
 
+/** Framing for multi-step coordinates + buffer + RS pipelines (Satellite Intelligence client execution). */
+export const GEO_AI_SPATIAL_WORKFLOW_AGENT_APPEND = `### Spatial reasoning agent (Satellite Intelligence)
+When the user combines explicit coordinates with buffers, Sentinel/NDVI/NDWI/classification, or sequential remote-sensing language **without** loaded vector attribute tables, behave as a **GIS + RS workflow planner**, not only a chatbot. The host may materialize geometry client-side (pins, polygon buffers, AOI registration, clipped WMS). Acknowledge those steps in order, state assumptions (imagery dates, cloud cover, classification thresholds), and use MAP_QUERY when a single WGS84 anchor is primary. Do not answer solely with “no layer records” when coordinates and RS verbs are explicit unless there is truly no spatial anchor.`;
+
 /** Shipped with Geo AI when a map pin / anchor exists — keeps follow-ups coherent and ties weather to coordinates. */
 export const GEO_EXPLORER_SESSION_AND_WEATHER = `Session continuity & weather (read carefully when the next blocks appear):
 - If a "### SESSION MAP ANCHOR" section is present, those coordinates are the app’s current map focus (pin or last explicit MAP_QUERY). Short follow-ups (“same place”, “here”, “that farm”, “weather there”, Arabic equivalents) refer to THIS anchor unless the user clearly names a different place or layer.

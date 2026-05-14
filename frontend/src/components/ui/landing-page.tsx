@@ -81,7 +81,7 @@ export interface ScrollGlobeProps {
 const defaultGlobeConfig: { positions: ScrollGlobePosition[] } = {
   positions: [
     { top: '50%', left: '71%', scale: 0.85 },
-    { top: '25%', left: '50%', scale: 0.9 },
+    { top: '22%', left: '50%', scale: 0.9 },
     { top: '15%', left: '90%', scale: 2 },
     { top: '50%', left: '50%', scale: 1.8 },
   ],
@@ -454,6 +454,8 @@ export function ScrollGlobe({ sections, globeConfig = defaultGlobeConfig, classN
       {sections.map((section, index) => {
         /** Welcome + Innovation share the same hero rhythm (pearl title, sparkle bar, lede, micro-hints); alignment follows `section.align`. */
         const welcomeVisualRhythm = index === 0 || index === 1
+        /** Innovation beat: globe sits at viewport center (`defaultGlobeConfig` index 1); stack copy under it as one caption column. */
+        const innovationGlobeStack = section.id === 'innovation'
         return (
         <section
           key={section.id}
@@ -463,18 +465,26 @@ export function ScrollGlobe({ sections, globeConfig = defaultGlobeConfig, classN
           className={cn(
             /* z-30 above the fixed Globe (z-10). Section root is pointer-events-none
                so empty viewport area does not steal hovers; inner column re-enables. */
-            'relative min-h-screen flex flex-col justify-center px-4 sm:px-6 md:px-8 lg:px-12 z-30 py-12 sm:py-16 lg:py-20',
+            'relative min-h-screen flex flex-col px-4 sm:px-6 md:px-8 lg:px-12 z-30 py-12 sm:py-16 lg:py-20',
             'w-full max-w-full overflow-hidden pointer-events-none',
-            section.align === 'center' && 'items-center text-center',
-            section.align === 'right' && 'items-end text-right',
-            section.align !== 'center' && section.align !== 'right' && 'items-start text-left',
+            innovationGlobeStack &&
+              'justify-start items-center text-center pt-[clamp(7.5rem,38vh,20rem)] sm:pt-[clamp(8.5rem,42vh,23rem)] md:pt-[clamp(9.5rem,46vh,26rem)] lg:pt-[clamp(10rem,48vh,28rem)]',
+            !innovationGlobeStack && 'justify-center',
+            !innovationGlobeStack && section.align === 'center' && 'items-center text-center',
+            !innovationGlobeStack && section.align === 'right' && 'items-end text-right',
+            !innovationGlobeStack && section.align !== 'center' && section.align !== 'right' && 'items-start text-left',
           )}
         >
           <div
             className={cn(
-              'pointer-events-auto w-full max-w-sm sm:max-w-lg md:max-w-2xl lg:max-w-4xl xl:max-w-5xl will-change-transform transition-all duration-700',
+              'pointer-events-auto w-full will-change-transform transition-all duration-700',
               'opacity-100 translate-y-0',
-              section.align === 'center' && 'mx-auto',
+              innovationGlobeStack && 'max-w-xl sm:max-w-2xl md:max-w-2xl lg:max-w-3xl mx-auto',
+              !innovationGlobeStack &&
+                cn(
+                  'max-w-sm sm:max-w-lg md:max-w-2xl lg:max-w-4xl xl:max-w-5xl',
+                  section.align === 'center' && 'mx-auto',
+                ),
             )}
           >
             <h1
@@ -483,7 +493,7 @@ export function ScrollGlobe({ sections, globeConfig = defaultGlobeConfig, classN
                 welcomeVisualRhythm
                   ? cn(
                       'text-3xl sm:text-4xl md:text-5xl lg:text-6xl xl:text-7xl 2xl:text-8xl w-full',
-                      section.align === 'center' ? 'text-center' : 'text-left',
+                      section.align === 'right' ? 'text-right' : 'text-center',
                     )
                   : 'text-2xl sm:text-3xl md:text-4xl lg:text-5xl xl:text-6xl 2xl:text-7xl',
               )}
@@ -519,7 +529,7 @@ export function ScrollGlobe({ sections, globeConfig = defaultGlobeConfig, classN
               <div
                 className={cn(
                   'gs-hero-sparkle-bar relative w-full max-w-[40rem] -mt-2 mb-6 sm:mb-8 select-none',
-                  section.align === 'center' ? 'mx-auto' : 'mr-auto',
+                  section.align === 'right' ? 'ml-auto' : 'mx-auto',
                   index === 0 ? 'h-28 sm:h-36' : 'h-24 sm:h-32',
                 )}
               >
@@ -544,7 +554,9 @@ export function ScrollGlobe({ sections, globeConfig = defaultGlobeConfig, classN
             <div
               className={cn(
                 'text-muted-foreground/80 leading-relaxed mb-8 sm:mb-10 text-base sm:text-lg lg:text-xl font-light',
-                section.align === 'center' ? 'max-w-full mx-auto text-center' : 'max-w-full text-left',
+                section.align === 'center' || innovationGlobeStack
+                  ? 'max-w-full mx-auto text-center'
+                  : 'max-w-full text-left',
               )}
             >
               <p className="mb-3 sm:mb-4">{section.description}</p>
@@ -552,7 +564,7 @@ export function ScrollGlobe({ sections, globeConfig = defaultGlobeConfig, classN
                 <div
                   className={cn(
                     'flex flex-wrap items-center gap-3 sm:gap-4 text-xs sm:text-sm text-muted-foreground/60 mt-4 sm:mt-6',
-                    section.align === 'center' ? 'justify-center' : 'justify-start',
+                    section.align === 'center' || innovationGlobeStack ? 'justify-center' : 'justify-start',
                   )}
                 >
                   <div className="flex items-center gap-1.5 sm:gap-2">
@@ -682,7 +694,7 @@ export default function GlobeScrollDemo({
       title: 'Connected Worldwide',
       description:
         'From every corner of the globe, we witness the interconnected web of human achievement. Each connection represents progress, every interaction drives innovation forward into uncharted territories.',
-      align: 'left',
+      align: 'center',
     },
     {
       id: 'discovery',

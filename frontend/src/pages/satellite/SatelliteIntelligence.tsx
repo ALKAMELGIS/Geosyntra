@@ -82,6 +82,7 @@ import {
 } from '../../lib/geoAiLinkedSelection';
 import { SI_GEO_AI_MAP_SELECTION_PAINT } from './siGeoAiMapSelectionPaint';
 import { runGeoAiStatsCommand, type GeoAiMapFirstSelection } from '../../lib/geoAiStatsEngine';
+import { planSatelliteSpatialWorkflow } from '../../lib/geoAiSatelliteSpatialWorkflow';
 import { resolveGeoAiPinFromUserTextAndReply } from '../../lib/geoAiResolveMapCoords';
 import { buildGeoAiFullWeatherSessionAppend } from '../../lib/geoAiWeatherContext';
 import {
@@ -1432,7 +1433,8 @@ function siIdentifyLayerIsSkippable(layerId: string): boolean {
   if (layerId.startsWith('si-geo-ai-sel-')) return true;
   if (layerId.startsWith('si-draw-draft')) return true;
   if (layerId.startsWith('si-edit-handles')) return true;
-  if (layerId === 'sentinel-layer' || layerId === 'si-stac-thumb-layer') return true;
+  if (layerId === 'sentinel-layer' || layerId.startsWith('si-sentinel-layer-') || layerId === 'si-stac-thumb-layer')
+    return true;
   if (layerId === 'background') return true;
   return false;
 }
@@ -2704,6 +2706,17 @@ export default function SatelliteIntelligence() {
   const geoAiSuppressPopupsUntilRef = useRef(0);
   const geoExplorerFileInputRef = useRef<HTMLInputElement | null>(null);
   const geoExplorerInFlightRef = useRef(false);
+  /** Geo AI spatial workflow — AOI helpers are defined later; Gemini pipeline invokes them via refs. */
+  const geoAiSpatialWorkflowRegisterAoiRef = useRef<
+    | null
+    | ((
+        geojson: any,
+        layerName: string,
+        source: 'drawn' | 'upload' | 'layer',
+        opts?: { setActiveFirst?: boolean },
+      ) => number)
+  >(null);
+  const geoAiSpatialWorkflowUpdateDrawnRef = useRef<null | ((geometry: any | null) => void)>(null);
   const [geoAiModelTab, setGeoAiModelTab] = useState<'gemini' | 'claude' | 'deepseek'>('gemini');
   const [geoAiChatMessages, setGeoAiChatMessages] = useState<GeoExplorerMessage[]>([]);
   const [geoAiClaudeVisibleCount, setGeoAiClaudeVisibleCount] = useState(GEO_AI_CHAT_PAGE_SIZE);
@@ -2999,6 +3012,106 @@ export default function SatelliteIntelligence() {
             return;
           }
         }
+        if (trimmed) {
+          const wf = planSatelliteSpatialWorkflow(trimmed);
+          if (wf.kind === 'run') {
+            const rid =
+              typeof crypto !== 'undefined' && 'randomUUID' in crypto ? crypto.randomUUID() : `geoai-${Date.now()}`;
+            const pointLayerId = `geoai-pt-${rid}`;
+            const addLayers: CustomLayer[] = [
+              {
+                id: pointLayerId,
+                name: 'Geo AI — site',
+                geojson: {
+                  type: 'FeatureCollection',
+                  features: [
+                    {
+                      type: 'Feature',
+                      properties: { name: 'Geo AI anchor', source: 'geo-ai-workflow' },
+                      geometry: { type: 'Point', coordinates: [wf.lng, wf.lat] },
+                    },
+                  ],
+                },
+                visible: true,
+                source: 'api',
+                ephemeral: true,
+                color: '#38bdf8',
+              },
+            ];
+            if (wf.bufferRing && wf.bufferKm != null) {
+              addLayers.push({
+                id: `geoai-buf-${rid}`,
+                name: `Geo AI — ${wf.bufferKm} km buffer`,
+                geojson: {
+                  type: 'FeatureCollection',
+                  features: [
+                    {
+                      type: 'Feature',
+                      properties: { source: 'geo-ai-workflow', radiusKm: wf.bufferKm },
+                      geometry: { type: 'Polygon', coordinates: [wf.bufferRing] },
+                    },
+                  ],
+                },
+                visible: true,
+                source: 'api',
+                ephemeral: true,
+                color: '#22c55e',
+                polygonFillAlpha: 0.22,
+              });
+              const bufferFeature = {
+                type: 'Feature' as const,
+                properties: { name: `Geo AI ${wf.bufferKm} km buffer` },
+                geometry: { type: 'Polygon' as const, coordinates: [wf.bufferRing] },
+              };
+              const regAoi = geoAiSpatialWorkflowRegisterAoiRef.current;
+              const updDrawn = geoAiSpatialWorkflowUpdateDrawnRef.current;
+              if (regAoi && updDrawn) {
+                regAoi(bufferFeature, `Geo AI buffer (${wf.bufferKm} km)`, 'drawn', { setActiveFirst: true });
+                updDrawn(bufferFeature as any);
+              }
+            } else {
+              geoAiSpatialWorkflowUpdateDrawnRef.current?.({
+                type: 'Feature',
+                properties: {},
+                geometry: { type: 'Point', coordinates: [wf.lng, wf.lat] },
+              } as any);
+            }
+            setCustomLayers(prev => [...prev, ...addLayers]);
+            if (wf.wantsNdvi && wmsLayers.length) {
+              const allowed = wmsLayers.filter(
+                l => !REMOTE_SENSING_HIDDEN_LAYER_IDS.has(String(l.name || '').trim().toUpperCase()),
+              );
+              const ndviPick =
+                allowed.find(l => /ndvi/i.test(l.name))?.name ??
+                allowed.find(l => /vegetation|savi|green|color/i.test(l.name))?.name;
+              if (ndviPick) setWmsLayer(ndviPick);
+              setIsWmsOverlayVisible(true);
+            }
+            setGeoAiPinLngLat([wf.lng, wf.lat]);
+            setViewState(vs => ({
+              ...vs,
+              longitude: wf.lng,
+              latitude: wf.lat,
+              zoom: Math.max(wf.bufferKm != null ? 11 : 13.25, typeof vs.zoom === 'number' ? vs.zoom : 2),
+              pitch: is3DView ? Math.max(typeof vs.pitch === 'number' ? vs.pitch : 0, 42) : vs.pitch ?? 0,
+              bearing: typeof vs.bearing === 'number' ? vs.bearing : 0,
+            }));
+            const midWf =
+              typeof crypto !== 'undefined' && 'randomUUID' in crypto ? crypto.randomUUID() : `geo-s-${Date.now()}`;
+            setGeoExplorerMessages(h => [...h, { id: midWf, role: 'model', parts: [{ type: 'text', text: wf.reply }] }]);
+            setGeoAiInspectCard({
+              title: 'Geo AI workflow',
+              rows: [
+                { label: 'Longitude', value: wf.lng.toFixed(6) },
+                { label: 'Latitude', value: wf.lat.toFixed(6) },
+                ...(wf.bufferKm != null ? [{ label: 'Buffer', value: `${wf.bufferKm} km` }] : []),
+              ],
+              lng: wf.lng,
+              lat: wf.lat,
+            });
+            return;
+          }
+        }
         let developAppend = '';
         try {
           const raw =
@@ -3087,6 +3200,7 @@ export default function SatelliteIntelligence() {
       geoAiPinLngLat,
       geoAiInspectCard,
       is3DView,
+      wmsLayers,
     ],
   );
 
@@ -3634,6 +3748,7 @@ export default function SatelliteIntelligence() {
     }
     return polys.length;
   };
+  geoAiSpatialWorkflowRegisterAoiRef.current = registerMultiAoiWorkspace;
 
   const applyUploadedAoiToAnalysis = (geojson: any, layerName: string) => {
     const feature = pickFirstPolygonAoiFeature(geojson);
@@ -6746,6 +6861,7 @@ export default function SatelliteIntelligence() {
     setDrawnGeometry(geometry);
     recomputeDrawnAoiStats(geometry);
   };
+  geoAiSpatialWorkflowUpdateDrawnRef.current = updateDrawnStats;
 
   const removeMultiAoiById = useCallback(
     (aoiId: string) => {
@@ -9284,7 +9400,12 @@ export default function SatelliteIntelligence() {
 
   const sentinelVisible = isWmsOverlayVisible && !!activeWmsLayer;
   const normalizedDrawnAoiGeometry = useMemo(() => getDrawnGeometry(drawnGeometry), [drawnGeometry]);
-  const sentinelAoiVisible = sentinelVisible && !!normalizedDrawnAoiGeometry;
+  /** True when the Remote Sensing WMS stack should paint: any workspace AOI or a lone legacy sketch. */
+  const hasAnyAoiGeometryForSentinel = useMemo(() => {
+    if (multiAoiItems.length > 0) return multiAoiItems.some(r => !!getDrawnGeometry(r.feature));
+    return !!normalizedDrawnAoiGeometry;
+  }, [multiAoiItems, normalizedDrawnAoiGeometry]);
+  const sentinelAoiVisible = sentinelVisible && hasAnyAoiGeometryForSentinel;
   const activeBasemapId = useMemo(() => resolveBasemapId(basemapId), [basemapId]);
   const currentBasemapEntry = useMemo(() => {
     return (
@@ -9352,7 +9473,12 @@ export default function SatelliteIntelligence() {
       {
         id: 'sentinel-wms',
         label: activeWmsLayer || 'Remote sensing layer',
-        meta: drawnGeometry ? 'Index raster (AOI clip)' : 'Index raster (draw AOI first)',
+        meta:
+          multiAoiItems.length > 1
+            ? `Index raster · ${multiAoiItems.length} AOIs (independent WMS per AOI)`
+            : drawnGeometry || multiAoiItems.length > 0
+              ? 'Index raster (AOI clip)'
+              : 'Index raster (draw AOI first)',
         visible: sentinelAoiVisible,
         toggleable: true,
         actionable: false,
@@ -9413,6 +9539,7 @@ export default function SatelliteIntelligence() {
       sentinelVisible,
       stacMapThumb,
       stacMapThumbLabel,
+      multiAoiItems.length,
     ],
   );
 
@@ -10157,17 +10284,93 @@ export default function SatelliteIntelligence() {
     !!normalizedDrawnAoiGeometry &&
     (!!wmsRasterAoiBoundsLngLat || !!sentinelHubWmsAoiClip.geometryWkt3857);
 
+  /** One Sentinel Hub WMS raster source per workspace AOI (independent GEOMETRY, bounds, tile URL). */
+  const siMultiSentinelRasterRuns = useMemo(() => {
+    if (multiAoiItems.length === 0) return null;
+    const safeLayer = encodeURIComponent(activeWmsLayer);
+    const start = timeSeriesStart || wmsDate;
+    const end = timeSeriesEnd || wmsDate;
+    const prefix =
+      `${wmsBaseUrl}?SERVICE=WMS&REQUEST=GetMap&VERSION=1.3.0` +
+      `&LAYERS=${safeLayer}` +
+      `&BBOX={bbox-epsg-3857}&CRS=EPSG:3857` +
+      `&FORMAT=image/png&TRANSPARENT=true&WIDTH=512&HEIGHT=512` +
+      `&TIME=${start}/${end}&MAXCC=${cloudCoverage}&SHOWLOGO=false&WARNINGS=true`;
+
+    return multiAoiItems.map(row => {
+      const clip = buildSentinelHubWmsAoiClip(row.feature, activeWmsLayer, {
+        indexVisibilityMin: WMS_AOI_INDEX_VISIBILITY_MIN,
+      });
+      let url = prefix;
+      if (clip.geometryWkt3857) url += `&GEOMETRY=${encodeURIComponent(clip.geometryWkt3857)}`;
+      if (clip.evalscriptB64) url += `&EVALSCRIPT=${encodeURIComponent(clip.evalscriptB64)}`;
+
+      const normalized = getDrawnGeometry(row.feature);
+      let bounds: [number, number, number, number] | null = null;
+      if (normalized) {
+        const raw =
+          getGeoJsonBounds({
+            type: 'Feature',
+            geometry: normalized,
+            properties: {},
+          } as any) ?? getGeoJsonBounds(row.feature as any);
+        if (raw) {
+          let [w, s, e, n] = raw;
+          if ([w, s, e, n].every(Number.isFinite)) {
+            const eps = 1e-4;
+            if (e <= w) {
+              const c = (w + e) / 2;
+              w = c - eps;
+              e = c + eps;
+            }
+            if (n <= s) {
+              const c = (s + n) / 2;
+              s = c - eps;
+              n = c + eps;
+            }
+            const padX = Math.max((e - w) * 0.02, 1e-6);
+            const padY = Math.max((n - s) * 0.02, 1e-6);
+            bounds = [w - padX, s - padY, e + padX, n + padY];
+          }
+        }
+      }
+      const ready = !!normalized && (!!bounds || !!clip.geometryWkt3857);
+      return { aoiId: row.id, tileUrl: url, bounds, clip, ready };
+    });
+  }, [
+    multiAoiItems,
+    activeWmsLayer,
+    timeSeriesStart,
+    timeSeriesEnd,
+    wmsDate,
+    cloudCoverage,
+    wmsBaseUrl,
+  ]);
+
   /**
    * react-map-gl <Source> does not apply standalone `bounds` updates (see updateSource in library).
    * Sync Mapbox RasterTileSource.setBounds after mount so AOI clipping always matches the sketch.
    */
   useLayoutEffect(() => {
-    if (!isMapLoaded || !sentinelAoiVisible) return;
+    if (!isMapLoaded || !sentinelVisible) return;
     const map = mapRef.current?.getMap?.() ?? mapRef.current;
     if (!map?.isStyleLoaded?.()) return;
     const sync = () => {
       try {
-        const src = map.getSource('sentinel-source') as { setBounds?: (b: [number, number, number, number] | null) => void } | null;
+        if (siMultiSentinelRasterRuns?.length) {
+          for (const spec of siMultiSentinelRasterRuns) {
+            if (!spec.ready) continue;
+            const src = map.getSource(`si-sentinel-src-${spec.aoiId}`) as
+              | { setBounds?: (b: [number, number, number, number] | null) => void }
+              | null;
+            if (src && typeof src.setBounds === 'function') src.setBounds(spec.bounds ?? null);
+          }
+          return;
+        }
+        if (!sentinelAoiVisible) return;
+        const src = map.getSource('sentinel-source') as
+          | { setBounds?: (b: [number, number, number, number] | null) => void }
+          | null;
         if (!src || typeof src.setBounds !== 'function') return;
         src.setBounds(wmsRasterAoiBoundsLngLat ?? null);
       } catch {
@@ -10180,7 +10383,17 @@ export default function SatelliteIntelligence() {
       window.clearTimeout(t);
       map.off('idle', sync);
     };
-  }, [isMapLoaded, sentinelAoiVisible, wmsRasterAoiBoundsLngLat, wmsTileUrl, activeWmsLayer, wmsDate, drawnGeometry]);
+  }, [
+    isMapLoaded,
+    sentinelVisible,
+    sentinelAoiVisible,
+    siMultiSentinelRasterRuns,
+    wmsRasterAoiBoundsLngLat,
+    wmsTileUrl,
+    activeWmsLayer,
+    wmsDate,
+    drawnGeometry,
+  ]);
 
   const circleRefineHud = useMemo(() => {
     if (!circleRefineDraft || mapDrawTool !== 'circle') return null;
@@ -10796,7 +11009,31 @@ export default function SatelliteIntelligence() {
               </Source>
             )}
 
-            {isMapLoaded && sentinelAoiVisible && drawnAoiWmsClipReady && (
+            {isMapLoaded &&
+              sentinelVisible &&
+              siMultiSentinelRasterRuns &&
+              siMultiSentinelRasterRuns.filter(s => s.ready).map(spec => (
+                <Source
+                  key={`si-sentinel-${spec.aoiId}-${activeWmsLayer}-${wmsDate}-${spec.bounds?.join(',') ?? 'nb'}-${spec.clip.geometryWkt3857 ? 'g1' : 'g0'}-${spec.clip.evalscriptB64 ? 'e1' : 'e0'}`}
+                  id={`si-sentinel-src-${spec.aoiId}`}
+                  type="raster"
+                  tiles={[spec.tileUrl]}
+                  tileSize={512}
+                  bounds={spec.bounds ?? undefined}
+                >
+                  <Layer
+                    id={`si-sentinel-layer-${spec.aoiId}`}
+                    type="raster"
+                    paint={{
+                      'raster-opacity':
+                        (spec.clip.evalscriptB64 ? 1 : 0.85) * (spec.bounds ? drawVisualOpacity : 1),
+                      'raster-fade-duration': 0,
+                    }}
+                  />
+                </Source>
+              ))}
+
+            {isMapLoaded && sentinelVisible && !siMultiSentinelRasterRuns && drawnAoiWmsClipReady && (
               <Source
                 key={`sentinel-${activeWmsLayer}-${wmsDate}-${wmsRasterAoiBoundsLngLat?.join(',') ?? 'world'}-${sentinelHubWmsAoiClip.geometryWkt3857 ? 'g1' : 'g0'}-${sentinelHubWmsAoiClip.evalscriptB64 ? 'e1' : 'e0'}`}
                 id="sentinel-source"
@@ -10812,7 +11049,7 @@ export default function SatelliteIntelligence() {
                     'raster-opacity':
                       (sentinelHubWmsAoiClip.evalscriptB64 ? 1 : 0.85) *
                       (drawnGeometry != null && wmsRasterAoiBoundsLngLat ? drawVisualOpacity : 1),
-                    'raster-fade-duration': 0
+                    'raster-fade-duration': 0,
                   }}
                 />
               </Source>

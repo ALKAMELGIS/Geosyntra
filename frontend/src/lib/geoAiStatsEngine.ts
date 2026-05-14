@@ -4,6 +4,7 @@ import { extractGeoExplorerLayerHint, geoAiFeatureCentroid, normalizeLayerName }
 import { computeStableGisFeatureKey } from './gisFeatureStableKey'
 import { featureIntersectsMask, featureWithinMask } from './geoAiGeoJsonSpatial'
 import { evalWhereExpr, extractWhereFromQuery, hasSqlWhereIntent } from './geoAiSqlWhere'
+import { spatialWorkflowOverridesTabularStats } from './geoAiSatelliteSpatialWorkflow'
 
 type GeoFeature = { id?: unknown; properties?: Record<string, unknown>; geometry?: { type?: string; coordinates?: unknown } }
 
@@ -419,6 +420,7 @@ export function runGeoAiStatsCommand(query: string, layers: GeoAiMapLayer[]): Ge
 
   const scope = collectScope(q, layers)
   if (!scope.features.length) {
+    if (spatialWorkflowOverridesTabularStats(q)) return null
     return { handled: true, reply: 'No loaded layer records are available for statistical analysis right now.' }
   }
 

@@ -15,6 +15,7 @@ import {
   GEO_AI_COPILOT_RULES,
   GEO_EXPLORER_LAYER_RULES,
   GEO_EXPLORER_SYSTEM_PROMPT,
+  GEO_AI_SPATIAL_WORKFLOW_AGENT_APPEND,
   geminiGenerateContent,
   messagesToGeminiContents,
   parseMapQueryLngLat,
@@ -169,7 +170,7 @@ export async function runGeoExplorerGeminiTurn(
   const editInPlaceNote = questionEditInPlace
     ? `\n\n### In-place question refinement\nThe user edited their latest question in the same thread (no new chat). Prior assistant replies after that question are not in this history. Answer only the **updated** wording: apply new field/layer/selection/stat instructions concisely. Skip greetings, recap, and generic onboarding.`
     : ''
-  const systemInstruction = `${GEO_EXPLORER_SYSTEM_PROMPT}\n\n${GEO_AI_COPILOT_RULES}\n\n${GEO_EXPLORER_LAYER_RULES}${sessionWeatherBlocks}${resolvedFeatureAppend}\n\n---\n${addedLayersHeading}\n${addedBlock}\n\n${gisBlock}${editInPlaceNote}${tail}`
+  const systemInstruction = `${GEO_EXPLORER_SYSTEM_PROMPT}\n\n${GEO_AI_COPILOT_RULES}\n\n${GEO_EXPLORER_LAYER_RULES}\n\n${GEO_AI_SPATIAL_WORKFLOW_AGENT_APPEND}${sessionWeatherBlocks}${resolvedFeatureAppend}\n\n---\n${addedLayersHeading}\n${addedBlock}\n\n${gisBlock}${editInPlaceNote}${tail}`
 
   let reply = await geminiGenerateContent({
     apiKey,
