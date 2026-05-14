@@ -2531,13 +2531,13 @@ export default function SatelliteIntelligence() {
    *
    * Every AOI committed via the Remote Sensing drawing tools (or imported
    * via "Add Data Source (AOI)") is auto-promoted into a `SavedField` and
-   * surfaced in the Fields Data section of the Remote Sensing panel. The
-   * store is shared verbatim with `GisMap.tsx` (same `localStorage` key
-   * `geosyntra:fields:v1`) so the user sees one unified library across
-   * both pages. State + persistence mirror the GisMap implementation so a
-   * future PostGIS migration only has to swap two helpers.
+   * surfaced in the Fields Data section of the Remote Sensing panel.
+   * Persistence is **scoped to Satellite Intelligence** (`loadSavedFields('satellite')`)
+   * so the GIS Map field library never shares `localStorage` with this page.
+   * State + persistence mirror the GisMap implementation so a future PostGIS
+   * migration only has to swap the helpers in `fieldsStore.ts`.
    * ────────────────────────────────────────────────────────────────────── */
-  const [savedFields, setSavedFields] = useState<SavedField[]>(() => loadSavedFields());
+  const [savedFields, setSavedFields] = useState<SavedField[]>(() => loadSavedFields('satellite'));
   const savedFieldsRef = useRef<SavedField[]>(savedFields);
   useEffect(() => {
     savedFieldsRef.current = savedFields;
@@ -2549,7 +2549,7 @@ export default function SatelliteIntelligence() {
     activeMultiAoiIdRef.current = activeMultiAoiId;
   }, [activeMultiAoiId]);
   useEffect(() => {
-    persistSavedFields(savedFields);
+    persistSavedFields('satellite', savedFields);
   }, [savedFields]);
   const [selectedSavedFieldId, setSelectedSavedFieldId] = useState<string | null>(null);
   /** True only while a sketch was armed from the Fields Data panel — keeps
@@ -2569,10 +2569,10 @@ export default function SatelliteIntelligence() {
     layerDisplay: '',
     indexId: undefined as string | undefined,
   });
-  const [fieldGroups, setFieldGroups] = useState<FieldGroup[]>(() => loadFieldGroups());
+  const [fieldGroups, setFieldGroups] = useState<FieldGroup[]>(() => loadFieldGroups('satellite'));
   const [fieldListGroupFilter, setFieldListGroupFilter] = useState<string | 'all'>('all');
   useEffect(() => {
-    persistFieldGroups(fieldGroups);
+    persistFieldGroups('satellite', fieldGroups);
   }, [fieldGroups]);
   const [aoiFields, setAoiFields] = useState<SiAoiFieldRecord[]>([]);
   const aoiFieldsRef = useRef<SiAoiFieldRecord[]>([]);

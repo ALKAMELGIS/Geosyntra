@@ -882,24 +882,25 @@ export default function GisMap() {
 
   /* Saved Fields (OneSoil-style AOI store) — every drawing the user finishes
    * is persisted here with a name + crop slot + indices placeholder. The
-   * store is reconciled with `localStorage` (see persist `useEffect` below)
-   * and rendered both in the right-rail "Fields Data" panel and as a
+   * store is reconciled with `localStorage` under the **GIS Map** scope
+   * (`geosyntra:fields:gis:v1`, independent from Satellite Intelligence) and
+   * rendered both in the right-rail "Fields Data" panel and as a
    * dedicated `<SavedFieldsLayer />` overlay on the 2D map. */
-  const [savedFields, setSavedFields] = useState<SavedField[]>(() => loadSavedFields())
+  const [savedFields, setSavedFields] = useState<SavedField[]>(() => loadSavedFields('gis'))
   const [selectedFieldId, setSelectedFieldId] = useState<string | null>(null)
   const savedFieldsRef = useRef(savedFields)
   useEffect(() => {
     savedFieldsRef.current = savedFields
   }, [savedFields])
   useEffect(() => {
-    persistSavedFields(savedFields)
+    persistSavedFields('gis', savedFields)
   }, [savedFields])
   const [fieldDataUiTab, setFieldDataUiTab] = useState<'main' | 'fieldData'>('main')
   const [fieldSurfaceVizMetric, setFieldSurfaceVizMetric] = useState<FieldSurfaceVizMetric>('none')
-  const [fieldGroups, setFieldGroups] = useState<FieldGroup[]>(() => loadFieldGroups())
+  const [fieldGroups, setFieldGroups] = useState<FieldGroup[]>(() => loadFieldGroups('gis'))
   const [fieldListGroupFilter, setFieldListGroupFilter] = useState<string | 'all'>('all')
   useEffect(() => {
-    persistFieldGroups(fieldGroups)
+    persistFieldGroups('gis', fieldGroups)
   }, [fieldGroups])
   const mapSnapshotFileRef = useRef<HTMLInputElement | null>(null)
   const [featureDialog, setFeatureDialog] = useState<null | { layerId: string; featureKey: string; feature: any; layerName: string }>(null)

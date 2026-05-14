@@ -8,7 +8,12 @@
  * Storage strategy
  * ----------------
  * v1 ships **localStorage-only** persistence so the feature is fully
- * functional without a backend round-trip. The shape (`SavedField`) is
+ * functional without a backend round-trip. **GIS Map** and **Satellite
+ * Intelligence** use separate keys (`geosyntra:fields:gis:v1` vs
+ * `geosyntra:fields:satellite:v1`) so field libraries never leak across
+ * pages. A one-time migration copies the legacy unified key into both
+ * scopes, then removes it.
+ * The shape (`SavedField`) is
  * intentionally a superset of what a future PostGIS table will need so a
  * server-backed migration can ship later without rewriting the UI:
  *
@@ -36,8 +41,19 @@ import L from 'leaflet'
  * Constants
  * ────────────────────────────────────────────────────────────────────────── */
 
+/** Legacy unified key — migrated once into scoped keys; do not write here anymore. */
 export const FIELDS_STORAGE_KEY = 'geosyntra:fields:v1'
+export const FIELDS_STORAGE_KEY_GIS = 'geosyntra:fields:gis:v1'
+export const FIELDS_STORAGE_KEY_SATELLITE = 'geosyntra:fields:satellite:v1'
+const FIELDS_SCOPE_SPLIT_MARKER = 'geosyntra:fields:scope-split:v1'
+
 export const FIELD_GROUPS_STORAGE_KEY = 'geosyntra:field-groups:v1'
+export const FIELD_GROUPS_STORAGE_KEY_GIS = 'geosyntra:field-groups:gis:v1'
+export const FIELD_GROUPS_STORAGE_KEY_SATELLITE = 'geosyntra:field-groups:satellite:v1'
+const FIELD_GROUPS_SCOPE_SPLIT_MARKER = 'geosyntra:field-groups:scope-split:v1'
+
+/** Which app surface owns a field library in `localStorage`. */
+export type FieldsPersistenceScope = 'gis' | 'satellite'
 
 /** How saved fields are tinted on the map from per-field spectral snapshots. */
 export type FieldSurfaceVizMetric =
@@ -149,7 +165,7 @@ export function guessSpectralIndexIdFromLayerName(layerName: string): string | u
 
 /**
  * GIS Map (Leaflet) — capture which imagery layer was on top when the user
- * saved a field, so `SavedField.satelliteContext` matches Satellite Intelligence.
+ * saved a field, so `SavedField.satelliteContext` records the basemap context.
  */
 export function snapshotFieldSatelliteFromGisContext(
   topVisibleLayerName: string | undefined,
@@ -213,10 +229,72 @@ export function uuid(): string {
  * Storage
  * ────────────────────────────────────────────────────────────────────────── */
 
-export function loadSavedFields(): SavedField[] {
-  if (typeof window === 'undefined') return []
+function fieldsStorageKeyForScope(scope: FieldsPersistenceScope): string {
+  return scope === 'gis' ? FIELDS_STORAGE_KEY_GIS : FIELDS_STORAGE_KEY_SATELLITE
+}
+
+function fieldGroupsStorageKeyForScope(scope: FieldsPersistenceScope): string {
+  return scope === 'gis' ? FIELD_GROUPS_STORAGE_KEY_GIS : FIELD_GROUPS_STORAGE_KEY_SATELLITE
+}
+
+/** Copy legacy unified blobs into both page scopes once, then drop legacy. */
+function migrateLegacyFieldsScopeSplitOnce(): void {
+  if (typeof window === 'undefined') return
   try {
-    const raw = window.localStorage.getItem(FIELDS_STORAGE_KEY)
+    if (window.localStorage.getItem(FIELDS_SCOPE_SPLIT_MARKER)) return
+    const legacyRaw = window.localStorage.getItem(FIELDS_STORAGE_KEY)
+    if (!legacyRaw) {
+      window.localStorage.setItem(FIELDS_SCOPE_SPLIT_MARKER, '1')
+      return
+    }
+    if (!window.localStorage.getItem(FIELDS_STORAGE_KEY_GIS)) {
+      window.localStorage.setItem(FIELDS_STORAGE_KEY_GIS, legacyRaw)
+    }
+    if (!window.localStorage.getItem(FIELDS_STORAGE_KEY_SATELLITE)) {
+      window.localStorage.setItem(FIELDS_STORAGE_KEY_SATELLITE, legacyRaw)
+    }
+    window.localStorage.removeItem(FIELDS_STORAGE_KEY)
+    window.localStorage.setItem(FIELDS_SCOPE_SPLIT_MARKER, '1')
+  } catch {
+    try {
+      window.localStorage.setItem(FIELDS_SCOPE_SPLIT_MARKER, '1')
+    } catch {
+      /* ignore */
+    }
+  }
+}
+
+function migrateLegacyFieldGroupsScopeSplitOnce(): void {
+  if (typeof window === 'undefined') return
+  try {
+    if (window.localStorage.getItem(FIELD_GROUPS_SCOPE_SPLIT_MARKER)) return
+    const legacyRaw = window.localStorage.getItem(FIELD_GROUPS_STORAGE_KEY)
+    if (!legacyRaw) {
+      window.localStorage.setItem(FIELD_GROUPS_SCOPE_SPLIT_MARKER, '1')
+      return
+    }
+    if (!window.localStorage.getItem(FIELD_GROUPS_STORAGE_KEY_GIS)) {
+      window.localStorage.setItem(FIELD_GROUPS_STORAGE_KEY_GIS, legacyRaw)
+    }
+    if (!window.localStorage.getItem(FIELD_GROUPS_STORAGE_KEY_SATELLITE)) {
+      window.localStorage.setItem(FIELD_GROUPS_STORAGE_KEY_SATELLITE, legacyRaw)
+    }
+    window.localStorage.removeItem(FIELD_GROUPS_STORAGE_KEY)
+    window.localStorage.setItem(FIELD_GROUPS_SCOPE_SPLIT_MARKER, '1')
+  } catch {
+    try {
+      window.localStorage.setItem(FIELD_GROUPS_SCOPE_SPLIT_MARKER, '1')
+    } catch {
+      /* ignore */
+    }
+  }
+}
+
+export function loadSavedFields(scope: FieldsPersistenceScope): SavedField[] {
+  if (typeof window === 'undefined') return []
+  migrateLegacyFieldsScopeSplitOnce()
+  try {
+    const raw = window.localStorage.getItem(fieldsStorageKeyForScope(scope))
     if (!raw) return []
     const parsed = JSON.parse(raw)
     if (!Array.isArray(parsed)) return []
@@ -232,19 +310,21 @@ export function loadSavedFields(): SavedField[] {
   }
 }
 
-export function persistSavedFields(fields: SavedField[]): void {
+export function persistSavedFields(scope: FieldsPersistenceScope, fields: SavedField[]): void {
   if (typeof window === 'undefined') return
+  migrateLegacyFieldsScopeSplitOnce()
   try {
-    window.localStorage.setItem(FIELDS_STORAGE_KEY, JSON.stringify(fields))
+    window.localStorage.setItem(fieldsStorageKeyForScope(scope), JSON.stringify(fields))
   } catch {
     /* localStorage can fail in private mode / quota-exceeded — silent. */
   }
 }
 
-export function loadFieldGroups(): FieldGroup[] {
+export function loadFieldGroups(scope: FieldsPersistenceScope): FieldGroup[] {
   if (typeof window === 'undefined') return []
+  migrateLegacyFieldGroupsScopeSplitOnce()
   try {
-    const raw = window.localStorage.getItem(FIELD_GROUPS_STORAGE_KEY)
+    const raw = window.localStorage.getItem(fieldGroupsStorageKeyForScope(scope))
     if (!raw) return []
     const parsed = JSON.parse(raw)
     if (!Array.isArray(parsed)) return []
@@ -256,10 +336,11 @@ export function loadFieldGroups(): FieldGroup[] {
   }
 }
 
-export function persistFieldGroups(groups: FieldGroup[]): void {
+export function persistFieldGroups(scope: FieldsPersistenceScope, groups: FieldGroup[]): void {
   if (typeof window === 'undefined') return
+  migrateLegacyFieldGroupsScopeSplitOnce()
   try {
-    window.localStorage.setItem(FIELD_GROUPS_STORAGE_KEY, JSON.stringify(groups))
+    window.localStorage.setItem(fieldGroupsStorageKeyForScope(scope), JSON.stringify(groups))
   } catch {
     /* ignore */
   }
