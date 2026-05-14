@@ -44,7 +44,7 @@ import {
 interface FieldsPanelProps {
   /** `full` = legacy single column; `workspace` / `library` split the dock. */
   layout?: 'full' | 'workspace' | 'library'
-  /** Optional slot above drawing tools (e.g. `<FieldDataContextStrip/>`). */
+  /** Optional slot above drawing tools (Field Data scene controls — flat stack). */
   spectralStripSlot?: React.ReactNode
   surfaceVizMetric?: FieldSurfaceVizMetric
   onSurfaceVizMetricChange?: (metric: FieldSurfaceVizMetric) => void

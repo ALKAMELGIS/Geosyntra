@@ -451,7 +451,10 @@ export function ScrollGlobe({ sections, globeConfig = defaultGlobeConfig, classN
           moves between them, and each carries an alignment + optional
           features/actions slot so the host page can compose new narratives
           without touching the component. */}
-      {sections.map((section, index) => (
+      {sections.map((section, index) => {
+        /** Welcome + Innovation share the same centered “hero rhythm” (pearl title, sparkle bar, lede, micro-hints). */
+        const welcomeVisualRhythm = index === 0 || index === 1
+        return (
         <section
           key={section.id}
           ref={el => {
@@ -471,17 +474,18 @@ export function ScrollGlobe({ sections, globeConfig = defaultGlobeConfig, classN
             className={cn(
               'pointer-events-auto w-full max-w-sm sm:max-w-lg md:max-w-2xl lg:max-w-4xl xl:max-w-5xl will-change-transform transition-all duration-700',
               'opacity-100 translate-y-0',
+              (welcomeVisualRhythm || section.align === 'center') && 'mx-auto',
             )}
           >
             <h1
               className={cn(
                 'font-bold mb-6 sm:mb-8 leading-[1.1] tracking-tight',
-                index === 0
+                welcomeVisualRhythm
                   ? 'text-3xl sm:text-4xl md:text-5xl lg:text-6xl xl:text-7xl 2xl:text-8xl text-center w-full'
                   : 'text-2xl sm:text-3xl md:text-4xl lg:text-5xl xl:text-6xl 2xl:text-7xl',
               )}
             >
-              {section.subtitle ? (
+              {section.subtitle && !welcomeVisualRhythm ? (
                 <div className="space-y-1 sm:space-y-2">
                   <div className="bg-gradient-to-r from-foreground to-foreground/80 bg-clip-text text-transparent">
                     {section.title}
@@ -490,16 +494,10 @@ export function ScrollGlobe({ sections, globeConfig = defaultGlobeConfig, classN
                     {section.subtitle}
                   </div>
                 </div>
-              ) : index === 0 ? (
+              ) : welcomeVisualRhythm ? (
                 /*
-                 * Hero brand mark — Geosyntra in pearl-white glossy fill.
-                 * Stack:
-                 *   - Layered gradient (#fff → #cbd5e1 → #f8fafc → #94a3b8)
-                 *     clipped to text → simulates a polished pearl reflecting
-                 *     a soft cool light from the upper-left to the lower-right.
-                 *   - Soft drop-shadow halo via `gs-pearl-title` keeps the
-                 *     mark luminous against the dark globe backdrop without
-                 *     turning into a glow blob.
+                 * Pearl wordmark — Welcome (Geosyntra) + Innovation headline share
+                 * the same luminous treatment (`Home.css` → `.gs-pearl-title`).
                  */
                 <div className="gs-pearl-title bg-gradient-to-br from-white via-slate-200 to-slate-400 bg-clip-text text-transparent">
                   {section.title}
@@ -512,21 +510,15 @@ export function ScrollGlobe({ sections, globeConfig = defaultGlobeConfig, classN
             </h1>
 
             {/*
-             * Sparkles bar — only for the Hero section. Mirrors the upstream
-             * Aceternity SparklesPreview demo (gradient lines + drifting
-             * starfield + radial mask) but neutralises the indigo / sky
-             * accents to a cool white-glass ramp so it stays inside the
-             * Geosyntra Black-Glass identity.
+             * Sparkles bar — Welcome + Innovation (matches centered hero spec).
              */}
-            {index === 0 && (
-              /* `mx-auto` centres the 40 rem sparkle strip inside the
-               * Hero content column so its horizontal centre lines up
-               * with the centre of the description paragraph that
-               * sits directly below it (the paragraph is `max-w-full`
-               * → its visual centre is the container centre, not the
-               * left edge). Matches the user's "حركها يمين قليلًا
-               * لتكون وسط النص الذي أسفلها بالضبط" tweak. */
-              <div className="gs-hero-sparkle-bar relative w-full max-w-[40rem] h-28 sm:h-36 -mt-2 mb-6 sm:mb-8 mx-auto select-none">
+            {welcomeVisualRhythm && (
+              <div
+                className={cn(
+                  'gs-hero-sparkle-bar relative w-full max-w-[40rem] -mt-2 mb-6 sm:mb-8 mx-auto select-none',
+                  index === 0 ? 'h-28 sm:h-36' : 'h-24 sm:h-32',
+                )}
+              >
                 <div className="gs-hero-sparkle-line gs-hero-sparkle-line--soft absolute inset-x-[15%] top-0 h-[2px] w-[70%] bg-gradient-to-r from-transparent via-slate-200/80 to-transparent blur-sm" />
                 <div className="gs-hero-sparkle-line gs-hero-sparkle-line--hairline absolute inset-x-[15%] top-0 h-px w-[70%] bg-gradient-to-r from-transparent via-slate-100/90 to-transparent" />
                 <div className="gs-hero-sparkle-line gs-hero-sparkle-line--core-soft absolute inset-x-[35%] top-0 h-[5px] w-[30%] bg-gradient-to-r from-transparent via-white/85 to-transparent blur-sm" />
@@ -536,14 +528,11 @@ export function ScrollGlobe({ sections, globeConfig = defaultGlobeConfig, classN
                   background="transparent"
                   minSize={0.4}
                   maxSize={1}
-                  particleDensity={520}
+                  particleDensity={index === 0 ? 520 : 400}
                   className="w-full h-full"
                   particleColor={particleColor}
                 />
 
-                {/* Soft radial mask so the starfield bleeds out at the edges
-                    (no hard rectangle) and never paints over the description
-                    paragraph below. */}
                 <div className="pointer-events-none absolute inset-0 w-full h-full bg-background [mask-image:radial-gradient(380px_180px_at_top,transparent_18%,black)]" />
               </div>
             )}
@@ -552,15 +541,11 @@ export function ScrollGlobe({ sections, globeConfig = defaultGlobeConfig, classN
               className={cn(
                 'text-muted-foreground/80 leading-relaxed mb-8 sm:mb-10 text-base sm:text-lg lg:text-xl font-light',
                 section.align === 'center' ? 'max-w-full mx-auto text-center' : 'max-w-full',
-                /* Hero: keep the lede centred under the wordmark + Sparkles
-                 * strip so the optical axis reads as one column (the user
-                 * asked to nudge the title right to align with the body —
-                 * centring both is the cleanest way to hit that). */
-                index === 0 && 'text-center',
+                welcomeVisualRhythm && 'text-center max-w-full mx-auto',
               )}
             >
               <p className="mb-3 sm:mb-4">{section.description}</p>
-              {index === 0 && (
+              {welcomeVisualRhythm && (
                 <div className="flex flex-wrap items-center justify-center gap-3 sm:gap-4 text-xs sm:text-sm text-muted-foreground/60 mt-4 sm:mt-6">
                   <div className="flex items-center gap-1.5 sm:gap-2">
                     <div className="w-1 h-1 rounded-full bg-primary animate-pulse" />
@@ -611,7 +596,7 @@ export function ScrollGlobe({ sections, globeConfig = defaultGlobeConfig, classN
                   section.align === 'center' && 'justify-center',
                   section.align === 'right' && 'justify-end',
                   (!section.align || section.align === 'left') && 'justify-start',
-                  index === 0 && 'justify-center',
+                  welcomeVisualRhythm && 'justify-center',
                 )}
               >
                 {section.actions.map((action, actionIndex) => (
@@ -641,7 +626,8 @@ export function ScrollGlobe({ sections, globeConfig = defaultGlobeConfig, classN
             )}
           </div>
         </section>
-      ))}
+        )
+      })}
     </div>
   )
 }
@@ -677,7 +663,7 @@ export default function GlobeScrollDemo({
       title: 'Geosyntra',
       description:
         'Journey through an intelligent geospatial ecosystem where GIS, Remote Sensing, and smart technologies converge. Explore dynamic spatial insights, advanced analytics, and immersive digital experiences designed to transform data into intelligent decision-making.',
-      align: 'left',
+      align: 'center',
       actions: [
         { label: 'Begin Journey', variant: 'primary', onClick: primary },
         { label: 'Learn More', variant: 'secondary', onClick: secondary },

@@ -175,7 +175,7 @@ import {
   type MpcTemplateId,
 } from '../../lib/mpcPlanetaryApi';
 import FieldsPanel from './components/fields/FieldsPanel';
-import FieldDataContextStrip from './components/fields/FieldDataContextStrip';
+import FieldDataSpectralControls from './components/fields/FieldDataSpectralControls';
 import {
   loadSavedFields,
   persistSavedFields,
@@ -186,6 +186,7 @@ import {
   nextFieldName,
   uuid,
   computeFieldSpectralIndices,
+  guessSpectralIndexIdFromLayerName,
   indexToVizUnit,
   type SavedField,
   type FieldGroup,
@@ -2553,6 +2554,19 @@ export default function SatelliteIntelligence() {
    *  the panel's Glass toolbar from mirroring Remote Sensing draw tools. */
   const [fieldsPanelDrawArmed, setFieldsPanelDrawArmed] = useState(false);
   const [fieldSurfaceVizMetric, setFieldSurfaceVizMetric] = useState<FieldSurfaceVizMetric>('none');
+  /** Field Data dock — scene controls (independent from Remote Sensing). */
+  const [fieldDataImageryDate, setFieldDataImageryDate] = useState(() => new Date('2024-02-18T12:00:00'));
+  const [fieldDataWmsLayer, setFieldDataWmsLayer] = useState('');
+  const [fieldDataTimeSeriesStart, setFieldDataTimeSeriesStart] = useState('2023-11-18');
+  const [fieldDataTimeSeriesEnd, setFieldDataTimeSeriesEnd] = useState('2024-02-18');
+  const [fieldDataWmsOverlayVisible, setFieldDataWmsOverlayVisible] = useState(true);
+  const fieldDataSaveContextRef = useRef({
+    imageryDateIso: '2024-02-18',
+    timeSeriesStart: '2023-11-18',
+    timeSeriesEnd: '2024-02-18',
+    layerDisplay: '',
+    indexId: undefined as string | undefined,
+  });
   const [fieldGroups, setFieldGroups] = useState<FieldGroup[]>(() => loadFieldGroups());
   const [fieldListGroupFilter, setFieldListGroupFilter] = useState<string | 'all'>('all');
   useEffect(() => {
@@ -2736,6 +2750,7 @@ export default function SatelliteIntelligence() {
   const mapDrawToolRef = useRef<MapDrawTool>('select');
   mapDrawToolRef.current = mapDrawTool;
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const fieldDataFileInputRef = useRef<HTMLInputElement | null>(null);
   const geoExplorerMessagesRef = useRef<HTMLDivElement | null>(null);
   const geoAiClaudeMessagesRef = useRef<HTMLDivElement | null>(null);
   const geoAiDeepseekMessagesRef = useRef<HTMLDivElement | null>(null);
@@ -3658,32 +3673,48 @@ export default function SatelliteIntelligence() {
   const autoSaveFieldFromGeoJson = (
     geojson: any,
     sourceLabel: string,
-    opts?: { libraryOrigin?: 'field-panel' | 'rs-workspace' },
+    opts?: {
+      libraryOrigin?: 'field-panel' | 'rs-workspace';
+      /** When set, snapshot / scene key use Field Data controls instead of Remote Sensing. */
+      fieldSpectralContext?: {
+        imageryDateIso: string;
+        timeSeriesStart: string;
+        timeSeriesEnd: string;
+        layerDisplay: string;
+        indexId?: string;
+      };
+    },
   ): number => {
     const libraryOrigin = opts?.libraryOrigin ?? 'rs-workspace';
+    const fs = opts?.fieldSpectralContext;
     const polys = collectPolygonAoiFeatures(geojson);
     if (!polys.length) return 0;
     const now = new Date().toISOString();
     let lastId: string | null = null;
-    /* Snapshot the current Satellite layer / index so the saved field
-     * remembers which spectral surface produced it. Both refs are
-     * read once before the setState call so a re-render mid-save
-     * can't drift the captured value. */
-    const layerSnapshot: SavedField['satelliteContext'] | undefined =
-      (activeWmsLayer && activeWmsLayer.trim().length > 0) || selectedIndex
+    const layerSnapshot: SavedField['satelliteContext'] | undefined = fs
+      ? fs.layerDisplay || fs.indexId
+        ? {
+            layerName: fs.layerDisplay || String(fs.indexId ?? ''),
+            indexId: fs.indexId,
+            capturedAt: now,
+          }
+        : undefined
+      : (activeWmsLayer && activeWmsLayer.trim().length > 0) || selectedIndex
         ? {
             layerName: (activeWmsLayer && activeWmsLayer.trim()) || String(selectedIndex),
             indexId: selectedIndex ? String(selectedIndex) : undefined,
             capturedAt: now,
           }
         : undefined;
-    const spectralSceneKey = [
-      (activeWmsLayer && activeWmsLayer.trim()) || String(selectedIndex ?? ''),
-      String(selectedIndex ?? ''),
-      selectedDate.toISOString().slice(0, 10),
-      timeSeriesStart ?? '',
-      timeSeriesEnd ?? '',
-    ].join('|');
+    const spectralSceneKey = fs
+      ? [fs.layerDisplay, String(fs.indexId ?? ''), fs.imageryDateIso, fs.timeSeriesStart, fs.timeSeriesEnd].join('|')
+      : [
+          (activeWmsLayer && activeWmsLayer.trim()) || String(selectedIndex ?? ''),
+          String(selectedIndex ?? ''),
+          selectedDate.toISOString().slice(0, 10),
+          timeSeriesStart ?? '',
+          timeSeriesEnd ?? '',
+        ].join('|');
     setSavedFields(prev => {
       const next = [...prev];
       polys.forEach(feature => {
@@ -3695,8 +3726,8 @@ export default function SatelliteIntelligence() {
         const indices = computeFieldSpectralIndices(
           { id, geometry: geom },
           {
-            layerKey: layerSnapshot?.layerName ?? String(selectedIndex ?? ''),
-            indexKey: selectedIndex ? String(selectedIndex) : undefined,
+            layerKey: fs?.layerDisplay ?? layerSnapshot?.layerName ?? String(selectedIndex ?? ''),
+            indexKey: fs?.indexId ?? (selectedIndex ? String(selectedIndex) : undefined),
             sceneKey: spectralSceneKey,
           },
         );
@@ -3921,6 +3952,49 @@ export default function SatelliteIntelligence() {
     }
   };
 
+  const importFieldDataAoiFromFile = async (file: File) => {
+    try {
+      setFieldAnalysisStatus('Reading file for Field Data…');
+      const parsed = await parseFile(file, { onProgress: () => {} });
+      if (parsed.type === 'table') {
+        setFieldAnalysisStatus(
+          'This CSV has no latitude/longitude columns for Field Data. Use GeoJSON, KML/KMZ, or SHP (.zip).',
+        );
+        return;
+      }
+      if (parsed.type === 'raster' || parsed.type === 'bim') {
+        setFieldAnalysisStatus(
+          'Field Data AOI supports vector polygons (GeoJSON, KML/KMZ, SHP). Use Remote Sensing import for rasters or IFC.',
+        );
+        return;
+      }
+      const geo = parsed.data;
+      if (!geo || typeof geo !== 'object') {
+        setFieldAnalysisStatus('Could not read geospatial data from file.');
+        return;
+      }
+      const featureCount = Array.isArray(geo.features) ? geo.features.length : 0;
+      if (!featureCount) {
+        setFieldAnalysisStatus('No drawable features found for Field Data.');
+        return;
+      }
+      const baseName = file.name.replace(/\.[^.]+$/, '');
+      const n = autoSaveFieldFromGeoJson(geo, baseName || file.name, {
+        libraryOrigin: 'field-panel',
+        fieldSpectralContext: { ...fieldDataSaveContextRef.current },
+      });
+      focusGeoJsonOnMap(geo);
+      if (n === 0) {
+        setFieldAnalysisStatus(
+          `Imported "${file.name}" but found no polygon areas for Field Data. Add polygons or draw a field.`,
+        );
+      }
+    } catch (err) {
+      console.error(err);
+      setFieldAnalysisStatus(err instanceof Error ? err.message : 'Field Data import failed.');
+    }
+  };
+
   const importAoiDataSourceFile = async (file: File) => {
     let rasterPreviewUrl: string | null = null;
     setSiUploadPhase('reading');
@@ -4087,6 +4161,13 @@ export default function SatelliteIntelligence() {
       `Ready: ${file.name} (${mb >= 0.01 ? mb.toFixed(2) : '<0.01'} MB). Click “Import to map” to add.`,
     );
     event.target.value = '';
+  };
+
+  const handleFieldDataAoiFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    if (!file) return;
+    void importFieldDataAoiFromFile(file);
   };
 
   const openSiUploadFilePicker = () => {
@@ -7544,7 +7625,10 @@ export default function SatelliteIntelligence() {
     if (next && pendingFieldsOnlyCommitRef.current) {
       pendingFieldsOnlyCommitRef.current = false;
       try {
-        const n = autoSaveFieldFromGeoJson(next, 'Field Data draw', { libraryOrigin: 'field-panel' });
+        const n = autoSaveFieldFromGeoJson(next, 'Field Data draw', {
+          libraryOrigin: 'field-panel',
+          fieldSpectralContext: { ...fieldDataSaveContextRef.current },
+        });
         if (n === 0) {
           setFieldAnalysisStatus('Could not save field from drawing (invalid geometry).');
         }
@@ -9134,6 +9218,39 @@ export default function SatelliteIntelligence() {
     return remoteSensingLayerOptions[0]?.id ?? '';
   }, [wmsLayer, remoteSensingLayerOptions]);
 
+  const fieldDataWmsLayerSelectValue = useMemo(() => {
+    const t = fieldDataWmsLayer.trim();
+    if (t && remoteSensingLayerOptions.some(l => l.id === t)) return t;
+    return remoteSensingLayerOptions[0]?.id ?? '';
+  }, [fieldDataWmsLayer, remoteSensingLayerOptions]);
+
+  useEffect(() => {
+    const lv = fieldDataWmsLayer.trim();
+    const resolvedId =
+      lv && remoteSensingLayerOptions.some(l => l.id === lv) ? lv : remoteSensingLayerOptions[0]?.id ?? '';
+    const label = remoteSensingLayerOptions.find(o => o.id === resolvedId)?.label ?? resolvedId ?? '';
+    const ids = Object.keys(ENVIRONMENTAL_INDICES) as EnvironmentalIndexId[];
+    const indexId =
+      resolvedId && ids.includes(resolvedId as EnvironmentalIndexId)
+        ? String(resolvedId)
+        : label
+          ? guessSpectralIndexIdFromLayerName(label)
+          : undefined;
+    fieldDataSaveContextRef.current = {
+      imageryDateIso: fieldDataImageryDate.toISOString().slice(0, 10),
+      timeSeriesStart: fieldDataTimeSeriesStart,
+      timeSeriesEnd: fieldDataTimeSeriesEnd,
+      layerDisplay: label || resolvedId,
+      indexId,
+    };
+  }, [
+    fieldDataImageryDate,
+    fieldDataTimeSeriesStart,
+    fieldDataTimeSeriesEnd,
+    fieldDataWmsLayer,
+    remoteSensingLayerOptions,
+  ]);
+
   const wmsDate = selectedDate.toISOString().split('T')[0];
 
   const fieldSpectralSceneKey = useMemo(
@@ -9151,14 +9268,17 @@ export default function SatelliteIntelligence() {
   useEffect(() => {
     setSavedFields(prev => {
       if (!prev.length) return prev;
-      return prev.map(f => ({
-        ...f,
-        indices: computeFieldSpectralIndices(f, {
-          layerKey: (activeWmsLayer && activeWmsLayer.trim()) || String(selectedIndex ?? ''),
-          indexKey: selectedIndex ? String(selectedIndex) : undefined,
-          sceneKey: fieldSpectralSceneKey,
-        }),
-      }));
+      return prev.map(f => {
+        if (f.libraryOrigin === 'field-panel') return f;
+        return {
+          ...f,
+          indices: computeFieldSpectralIndices(f, {
+            layerKey: (activeWmsLayer && activeWmsLayer.trim()) || String(selectedIndex ?? ''),
+            indexKey: selectedIndex ? String(selectedIndex) : undefined,
+            sceneKey: fieldSpectralSceneKey,
+          }),
+        };
+      });
     });
   }, [fieldSpectralSceneKey, activeWmsLayer, selectedIndex]);
 
@@ -9675,13 +9795,26 @@ export default function SatelliteIntelligence() {
       <FieldsPanel
         layout="workspace"
         spectralStripSlot={
-          <FieldDataContextStrip
-            variant="satellite"
-            imageryDateLabel={selectedDate.toISOString().slice(0, 10)}
-            layerLabel={activeWmsLayer || selectedIndexConfig.label}
-            timeRangeLabel={`${timeSeriesStart} → ${timeSeriesEnd}`}
-            onOpenRemoteSensing={() => onProcessingWorkflowNavigateMapToolbox('remote-sensing')}
-            onOpenTimelineCharts={() => setMapStaticChartsOpen(o => !o)}
+          <FieldDataSpectralControls
+            imageryDateIso={fieldDataImageryDate.toISOString().split('T')[0]}
+            onImageryDateIsoChange={v => {
+              if (v) setFieldDataImageryDate(new Date(`${v}T12:00:00`));
+            }}
+            layerOptions={remoteSensingLayerOptions}
+            layerSelectValue={fieldDataWmsLayerSelectValue}
+            onLayerSelectChange={setFieldDataWmsLayer}
+            layersLoading={isLoadingLayers}
+            showLayerOnMap={fieldDataWmsOverlayVisible}
+            onShowLayerOnMapChange={setFieldDataWmsOverlayVisible}
+            resolvedLayerLabel={
+              remoteSensingLayerOptions.find(o => o.id === fieldDataWmsLayerSelectValue)?.label ??
+              fieldDataWmsLayerSelectValue
+            }
+            timeSeriesStart={fieldDataTimeSeriesStart}
+            timeSeriesEnd={fieldDataTimeSeriesEnd}
+            onTimeSeriesStartChange={setFieldDataTimeSeriesStart}
+            onTimeSeriesEndChange={setFieldDataTimeSeriesEnd}
+            onAddDataSourceClick={() => fieldDataFileInputRef.current?.click()}
           />
         }
         surfaceVizMetric={fieldSurfaceVizMetric}
@@ -9741,11 +9874,13 @@ export default function SatelliteIntelligence() {
       selectedSavedFieldId,
       fieldsPanelDrawArmed,
       fieldSurfaceVizMetric,
-      selectedDate,
-      activeWmsLayer,
-      selectedIndexConfig.label,
-      timeSeriesStart,
-      timeSeriesEnd,
+      remoteSensingLayerOptions,
+      isLoadingLayers,
+      fieldDataImageryDate,
+      fieldDataWmsLayerSelectValue,
+      fieldDataWmsOverlayVisible,
+      fieldDataTimeSeriesStart,
+      fieldDataTimeSeriesEnd,
     ],
   );
 
@@ -11656,6 +11791,14 @@ export default function SatelliteIntelligence() {
                 className="add-layer-input"
                 accept=".kml,.kmz,.zip,.geojson,.json,.csv,.tif,.tiff,.ifc,.gpx,.img,.vrt,.jp2,.ecw"
                 onChange={handleLayerFileChange}
+              />
+              <input
+                ref={fieldDataFileInputRef}
+                type="file"
+                className="add-layer-input"
+                accept=".kml,.kmz,.zip,.geojson,.json"
+                onChange={handleFieldDataAoiFileChange}
+                aria-label="Field Data AOI file upload"
               />
               <SatelliteMapProcessingOptionsPortal portalTarget={mapToolboxEmbedHost}>
                 {isLayerDropdownOpen ? (

@@ -1131,7 +1131,7 @@ export function SatelliteContextualAnalysisDock(props: SatelliteContextualAnalys
                     : activeId === 'layers' && isMap
                       ? 'Main: add layers and actions. Options: open STAC / RS / AI, and configure per-layer identify popups.'
                       : activeId === 'fields' && isMap
-                        ? 'Main: draw fields + spectral link. Field Data: groups, list, exports.'
+                        ? 'Main: scene controls + draw fields. Field Data tab: groups, list, exports.'
                         : 'Drag the inner edge to resize. Click the active tool again to collapse.'}
                 </span>
               </footer>
