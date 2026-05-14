@@ -1,4 +1,4 @@
-import { Component } from 'react'
+import { Component, useEffect, type ErrorInfo } from 'react'
 import { HashRouter, Navigate, useLocation } from 'react-router-dom'
 import { AppDialogProvider } from './components/AppDialogProvider'
 import HeaderBar from './components/HeaderBar'
@@ -8,31 +8,32 @@ import { AuthProvider, useAuth } from './state/auth'
 import { LanguageProvider } from './lib/i18n'
 import { SystemSettingsProvider } from './store/SystemSettingsContext'
 
-type AppErrorState = {
-  error: unknown
-  kind: 'render'
-  details?: string
-} | null
+type AppErrorState = { error: unknown; details?: string } | null
 
 /**
- * React error boundary only — no global `window` listeners.
- * Listening to `unhandledrejection` / `error` was turning CDN, ad-block, and flaky
- * network failures (often "Failed to fetch") into a full-screen fatal state unrelated
- * to app logic. Third-party runtimes (maps, Spline, particles) must not own the shell.
+ * React error boundary only — never hijack `window` / `unhandledrejection` for full-screen UI.
+ * Third-party CDN / map / WASM code often emits fetch failures that are unrelated to the app shell;
+ * mapping those to a fatal overlay caused repeat "Failed to fetch" black screens on GitHub Pages.
  */
 class AppErrorBoundary extends Component<{ children: JSX.Element }, { err: AppErrorState }> {
   state: { err: AppErrorState } = { err: null }
 
   static getDerivedStateFromError(error: unknown) {
-    const details = error instanceof Error && typeof error.stack === 'string' ? error.stack : undefined
-    return { err: { error, kind: 'render' as const, details } }
+    return { err: { error } }
   }
 
-  componentDidCatch(error: unknown) {
+  componentDidCatch(error: unknown, errorInfo: ErrorInfo) {
     try {
       const message = error instanceof Error ? error.message : String(error)
-      console.error('[AppErrorBoundary]', message, error)
+      console.error('[AppErrorBoundary]', message, error, errorInfo)
     } catch {
+      /* ignore */
+    }
+    const stack = error instanceof Error ? error.stack : undefined
+    const comp = errorInfo?.componentStack
+    const details = [stack, comp].filter(Boolean).join('\n\n')
+    if (details) {
+      this.setState((s) => (s.err ? { err: { ...s.err, details } } : s))
     }
   }
 
