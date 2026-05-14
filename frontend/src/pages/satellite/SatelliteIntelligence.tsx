@@ -9643,6 +9643,12 @@ export default function SatelliteIntelligence() {
     ],
   );
 
+  /** AOI key for Sentinel raster symbology — must be declared before any UI memo that reads it (TDZ-safe). */
+  const siRsSymbologyAoiKey = useMemo(() => {
+    if (multiAoiItems.length) return activeMultiAoiId || multiAoiItems[0]?.id || '';
+    return drawnGeometry?.geometry ? '__drawn' : '';
+  }, [multiAoiItems, activeMultiAoiId, drawnGeometry?.geometry]);
+
   /** Shared “Main tools” layers UI: Added layers list (map toolbox Main + Processing Options). */
   const layersEnvMainTools = useMemo(
     () => (
@@ -9965,8 +9971,7 @@ export default function SatelliteIntelligence() {
       stacMapThumb,
       syncingLayerId,
       zoomToCustomLayerExtent,
-      activeMultiAoiId,
-      drawnGeometry,
+      siRsSymbologyAoiKey,
     ],
   );
 
@@ -10411,11 +10416,6 @@ export default function SatelliteIntelligence() {
     }
     setSiAoiReportModalOpen(true);
   }, [multiAoiItems.length, drawnGeometry]);
-
-  const siRsSymbologyAoiKey = useMemo(() => {
-    if (multiAoiItems.length) return activeMultiAoiId || multiAoiItems[0]?.id || '';
-    return drawnGeometry?.geometry ? '__drawn' : '';
-  }, [multiAoiItems, activeMultiAoiId, drawnGeometry?.geometry]);
 
   const siRsSymbologyTargetFeature = useMemo((): GeoJSON.Feature | null => {
     if (multiAoiItems.length) {
