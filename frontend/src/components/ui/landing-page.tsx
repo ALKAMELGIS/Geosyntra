@@ -452,7 +452,7 @@ export function ScrollGlobe({ sections, globeConfig = defaultGlobeConfig, classN
           features/actions slot so the host page can compose new narratives
           without touching the component. */}
       {sections.map((section, index) => {
-        /** Welcome + Innovation share the same centered “hero rhythm” (pearl title, sparkle bar, lede, micro-hints). */
+        /** Welcome + Innovation share the same hero rhythm (pearl title, sparkle bar, lede, micro-hints); alignment follows `section.align`. */
         const welcomeVisualRhythm = index === 0 || index === 1
         return (
         <section
@@ -474,14 +474,17 @@ export function ScrollGlobe({ sections, globeConfig = defaultGlobeConfig, classN
             className={cn(
               'pointer-events-auto w-full max-w-sm sm:max-w-lg md:max-w-2xl lg:max-w-4xl xl:max-w-5xl will-change-transform transition-all duration-700',
               'opacity-100 translate-y-0',
-              (welcomeVisualRhythm || section.align === 'center') && 'mx-auto',
+              section.align === 'center' && 'mx-auto',
             )}
           >
             <h1
               className={cn(
                 'font-bold mb-6 sm:mb-8 leading-[1.1] tracking-tight',
                 welcomeVisualRhythm
-                  ? 'text-3xl sm:text-4xl md:text-5xl lg:text-6xl xl:text-7xl 2xl:text-8xl text-center w-full'
+                  ? cn(
+                      'text-3xl sm:text-4xl md:text-5xl lg:text-6xl xl:text-7xl 2xl:text-8xl w-full',
+                      section.align === 'center' ? 'text-center' : 'text-left',
+                    )
                   : 'text-2xl sm:text-3xl md:text-4xl lg:text-5xl xl:text-6xl 2xl:text-7xl',
               )}
             >
@@ -515,7 +518,8 @@ export function ScrollGlobe({ sections, globeConfig = defaultGlobeConfig, classN
             {welcomeVisualRhythm && (
               <div
                 className={cn(
-                  'gs-hero-sparkle-bar relative w-full max-w-[40rem] -mt-2 mb-6 sm:mb-8 mx-auto select-none',
+                  'gs-hero-sparkle-bar relative w-full max-w-[40rem] -mt-2 mb-6 sm:mb-8 select-none',
+                  section.align === 'center' ? 'mx-auto' : 'mr-auto',
                   index === 0 ? 'h-28 sm:h-36' : 'h-24 sm:h-32',
                 )}
               >
@@ -540,13 +544,17 @@ export function ScrollGlobe({ sections, globeConfig = defaultGlobeConfig, classN
             <div
               className={cn(
                 'text-muted-foreground/80 leading-relaxed mb-8 sm:mb-10 text-base sm:text-lg lg:text-xl font-light',
-                section.align === 'center' ? 'max-w-full mx-auto text-center' : 'max-w-full',
-                welcomeVisualRhythm && 'text-center max-w-full mx-auto',
+                section.align === 'center' ? 'max-w-full mx-auto text-center' : 'max-w-full text-left',
               )}
             >
               <p className="mb-3 sm:mb-4">{section.description}</p>
               {welcomeVisualRhythm && (
-                <div className="flex flex-wrap items-center justify-center gap-3 sm:gap-4 text-xs sm:text-sm text-muted-foreground/60 mt-4 sm:mt-6">
+                <div
+                  className={cn(
+                    'flex flex-wrap items-center gap-3 sm:gap-4 text-xs sm:text-sm text-muted-foreground/60 mt-4 sm:mt-6',
+                    section.align === 'center' ? 'justify-center' : 'justify-start',
+                  )}
+                >
                   <div className="flex items-center gap-1.5 sm:gap-2">
                     <div className="w-1 h-1 rounded-full bg-primary animate-pulse" />
                     <span>Interactive Experience</span>
@@ -596,7 +604,6 @@ export function ScrollGlobe({ sections, globeConfig = defaultGlobeConfig, classN
                   section.align === 'center' && 'justify-center',
                   section.align === 'right' && 'justify-end',
                   (!section.align || section.align === 'left') && 'justify-start',
-                  welcomeVisualRhythm && 'justify-center',
                 )}
               >
                 {section.actions.map((action, actionIndex) => (
@@ -663,7 +670,7 @@ export default function GlobeScrollDemo({
       title: 'Geosyntra',
       description:
         'Journey through an intelligent geospatial ecosystem where GIS, Remote Sensing, and smart technologies converge. Explore dynamic spatial insights, advanced analytics, and immersive digital experiences designed to transform data into intelligent decision-making.',
-      align: 'center',
+      align: 'left',
       actions: [
         { label: 'Begin Journey', variant: 'primary', onClick: primary },
         { label: 'Learn More', variant: 'secondary', onClick: secondary },
@@ -675,7 +682,7 @@ export default function GlobeScrollDemo({
       title: 'Connected Worldwide',
       description:
         'From every corner of the globe, we witness the interconnected web of human achievement. Each connection represents progress, every interaction drives innovation forward into uncharted territories.',
-      align: 'center',
+      align: 'left',
     },
     {
       id: 'discovery',
@@ -707,7 +714,7 @@ export default function GlobeScrollDemo({
       subtitle: 'Tomorrow',
       description:
         'In this moment of unity, we see not just a planet, but a canvas of infinite human potential. Every connection represents hope, every innovation builds bridges to our collective future of endless possibilities.',
-      align: 'center',
+      align: 'left',
       actions: [
         { label: 'Join the Movement', variant: 'primary', onClick: primary },
         { label: 'Explore More', variant: 'secondary', onClick: secondary },
