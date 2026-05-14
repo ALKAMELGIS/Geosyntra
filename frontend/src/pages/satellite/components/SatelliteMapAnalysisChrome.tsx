@@ -336,6 +336,7 @@ export function SatelliteMapAnalysisChrome(props: SatelliteMapAnalysisChromeProp
     <>
       {timelineVisible && weeklyChips.length > 0 ? (
         <div className="si-map-analysis-timeline" role="region" aria-label="Imagery timeline">
+          <span className="si-map-analysis-timeline-eyebrow">Timeline</span>
           <div className="si-map-analysis-timeline-inner si-map-analysis-timeline-inner--eo">
             <div className="si-map-analysis-timeline-transport">
               <button

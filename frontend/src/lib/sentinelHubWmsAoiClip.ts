@@ -4,6 +4,15 @@
  * @see https://www.sentinel-hub.com/faq/how-can-i-clip-image-specific-polygon/
  */
 
+import {
+  SI_EVI_CLASSIFICATION_STOPS,
+  SI_GNDVI_CLASSIFICATION_STOPS,
+  SI_NDMI_CLASSIFICATION_STOPS,
+  SI_NDVI_CLASSIFICATION_STOPS,
+  SI_NDWI_CLASSIFICATION_STOPS,
+  siRampStopsToEvalScriptArrayLiteral,
+} from './siWmsIndexClassificationRamp';
+
 export type WmsAoiEvalProfile =
   | 'native'
   | 'true_color'
@@ -130,6 +139,32 @@ export function inferWmsEvalProfile(layerName: string): WmsAoiEvalProfile {
   return 'native';
 }
 
+/** Shared piecewise-linear ramp (Sentinel Hub V3 process API JS). */
+const EVAL_CLASSIFIED_RAMP_HELPERS = `
+function __hexRgb(h) {
+  return [((h >> 16) & 255) / 255.0, ((h >> 8) & 255) / 255.0, (h & 255) / 255.0];
+}
+function __lerp3(a, b, t) {
+  return [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t];
+}
+function __rampRgb(t, stops) {
+  var n = stops.length;
+  if (t <= stops[0][0]) return __hexRgb(stops[0][1]);
+  if (t >= stops[n - 1][0]) return __hexRgb(stops[n - 1][1]);
+  for (var i = 1; i < n; i++) {
+    if (t <= stops[i][0]) {
+      var t0 = stops[i - 1][0];
+      var t1 = stops[i][0];
+      var f = (t - t0) / (t1 - t0 + 1e-12);
+      if (f < 0) f = 0;
+      if (f > 1) f = 1;
+      return __lerp3(__hexRgb(stops[i - 1][1]), __hexRgb(stops[i][1]), f);
+    }
+  }
+  return __hexRgb(stops[n - 1][1]);
+}
+`;
+
 function buildEvalscriptV3(profile: WmsAoiEvalProfile, indexVisibilityMin: number | null): string {
   const thr =
     indexVisibilityMin != null && Number.isFinite(indexVisibilityMin)
@@ -177,57 +212,27 @@ function evaluatePixel(s) {
     s.dataMask
   ];
 }`;
-    case 'ndvi':
+    case 'ndvi': {
+      const stops = siRampStopsToEvalScriptArrayLiteral(SI_NDVI_CLASSIFICATION_STOPS);
       return `//VERSION=3
 function setup() {
   return {
-    input: ["B02", "B03", "B04", "B08", "dataMask"],
+    input: ["B04", "B08", "dataMask"],
     output: { bands: 4, sampleType: "AUTO" }
   };
 }
+${EVAL_CLASSIFIED_RAMP_HELPERS}
 function evaluatePixel(s) {
   var d = s.B08 + s.B04;
-  var ndvi = d > 1e-6 ? (s.B08 - s.B04) / d : 0;
-  ${alphaFromIndex('ndvi')}
-  var v = Math.max(0, Math.min(1, (ndvi + 0.2) / 1.2));
-  return [
-    Math.max(0, Math.min(1, 0.92 - v * 0.7)),
-    Math.max(0, Math.min(1, 0.2 + v * 0.8)),
-    Math.max(0, Math.min(1, 0.08 + (1 - v) * 0.25)),
-    __a
-  ];
+  var idx = d > 1e-6 ? (s.B08 - s.B04) / d : -1;
+  ${alphaFromIndex('idx')}
+  var stops = ${stops};
+  var c = __rampRgb(idx, stops);
+  return [c[0], c[1], c[2], __a];
 }`;
-    case 'gndvi':
-      return `//VERSION=3
-function setup() {
-  return {
-    input: ["B02", "B03", "B04", "B08", "dataMask"],
-    output: { bands: 4, sampleType: "AUTO" }
-  };
-}
-function evaluatePixel(s) {
-  var d = s.B08 + s.B03;
-  var gndvi = d > 1e-6 ? (s.B08 - s.B03) / d : 0;
-  ${alphaFromIndex('gndvi')}
-  var v = Math.max(0, Math.min(1, (gndvi + 0.12) / 1.24));
-  return [v, v, v, __a];
-}`;
-    case 'ndmi':
-      return `//VERSION=3
-function setup() {
-  return {
-    input: ["B04", "B08", "B11", "dataMask"],
-    output: { bands: 4, sampleType: "AUTO" }
-  };
-}
-function evaluatePixel(s) {
-  var d = s.B08 + s.B11;
-  var ndmi = d > 1e-6 ? (s.B08 - s.B11) / d : 0;
-  ${alphaFromIndex('ndmi')}
-  var v = Math.max(0, Math.min(1, (ndmi + 0.35) / 1.3));
-  return [v, v * 0.85, 1 - v * 0.45, __a];
-}`;
-    case 'ndwi':
+    }
+    case 'gndvi': {
+      const stops = siRampStopsToEvalScriptArrayLiteral(SI_GNDVI_CLASSIFICATION_STOPS);
       return `//VERSION=3
 function setup() {
   return {
@@ -235,14 +240,56 @@ function setup() {
     output: { bands: 4, sampleType: "AUTO" }
   };
 }
+${EVAL_CLASSIFIED_RAMP_HELPERS}
 function evaluatePixel(s) {
   var d = s.B08 + s.B03;
-  var ndwi = d > 1e-6 ? (s.B03 - s.B08) / d : 0;
-  ${alphaFromIndex('ndwi')}
-  var v = Math.max(0, Math.min(1, (ndwi + 0.35) / 1.2));
-  return [v * 0.35, v * 0.75, 0.92 - v * 0.35, __a];
+  var idx = d > 1e-6 ? (s.B08 - s.B03) / d : -1;
+  ${alphaFromIndex('idx')}
+  var stops = ${stops};
+  var c = __rampRgb(idx, stops);
+  return [c[0], c[1], c[2], __a];
 }`;
-    case 'evi':
+    }
+    case 'ndmi': {
+      const stops = siRampStopsToEvalScriptArrayLiteral(SI_NDMI_CLASSIFICATION_STOPS);
+      return `//VERSION=3
+function setup() {
+  return {
+    input: ["B04", "B08", "B11", "dataMask"],
+    output: { bands: 4, sampleType: "AUTO" }
+  };
+}
+${EVAL_CLASSIFIED_RAMP_HELPERS}
+function evaluatePixel(s) {
+  var d = s.B08 + s.B11;
+  var idx = d > 1e-6 ? (s.B08 - s.B11) / d : -1;
+  ${alphaFromIndex('idx')}
+  var stops = ${stops};
+  var c = __rampRgb(idx, stops);
+  return [c[0], c[1], c[2], __a];
+}`;
+    }
+    case 'ndwi': {
+      const stops = siRampStopsToEvalScriptArrayLiteral(SI_NDWI_CLASSIFICATION_STOPS);
+      return `//VERSION=3
+function setup() {
+  return {
+    input: ["B03", "B08", "dataMask"],
+    output: { bands: 4, sampleType: "AUTO" }
+  };
+}
+${EVAL_CLASSIFIED_RAMP_HELPERS}
+function evaluatePixel(s) {
+  var d = s.B08 + s.B03;
+  var idx = d > 1e-6 ? (s.B03 - s.B08) / d : -1;
+  ${alphaFromIndex('idx')}
+  var stops = ${stops};
+  var c = __rampRgb(idx, stops);
+  return [c[0], c[1], c[2], __a];
+}`;
+    }
+    case 'evi': {
+      const stops = siRampStopsToEvalScriptArrayLiteral(SI_EVI_CLASSIFICATION_STOPS);
       return `//VERSION=3
 function setup() {
   return {
@@ -250,12 +297,17 @@ function setup() {
     output: { bands: 4, sampleType: "AUTO" }
   };
 }
+${EVAL_CLASSIFIED_RAMP_HELPERS}
 function evaluatePixel(s) {
-  var evi = 2.5 * ((s.B08 - s.B04) / (s.B08 + 6 * s.B04 - 7.5 * s.B02 + 1));
-  ${alphaFromIndex('evi')}
-  var v = Math.max(0, Math.min(1, (evi + 0.2) / 1.4));
-  return [v * 0.9, v, v * 0.55, __a];
+  var den = s.B08 + 6 * s.B04 - 7.5 * s.B02 + 1;
+  var raw = den > 1e-6 ? 2.5 * ((s.B08 - s.B04) / den) : 0;
+  var idx = raw < -1 ? -1 : (raw > 1 ? 1 : raw);
+  ${alphaFromIndex('idx')}
+  var stops = ${stops};
+  var c = __rampRgb(idx, stops);
+  return [c[0], c[1], c[2], __a];
 }`;
+    }
     default:
       return buildEvalscriptV3('generic_rgb', null);
   }

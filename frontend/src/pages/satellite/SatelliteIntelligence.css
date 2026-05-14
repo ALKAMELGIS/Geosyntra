@@ -909,6 +909,116 @@ main.content > .si-page {
   flex: 0 0 12px;
 }
 
+/* Sentinel Hub WMS index (NDVI / NDWI / …) — sits bottom-left, above Mapbox zoom + logo stack. */
+.si-wms-index-class-legend {
+  position: absolute;
+  left: max(16px, env(safe-area-inset-left, 0px));
+  bottom: max(228px, env(safe-area-inset-bottom, 0px) + 196px);
+  z-index: 135;
+  min-width: 200px;
+  max-width: min(300px, 52vw);
+  padding: 11px 13px 12px;
+  border-radius: 14px;
+  border: 1px solid rgba(148, 163, 184, 0.28);
+  background: linear-gradient(155deg, rgba(15, 23, 42, 0.72) 0%, rgba(2, 6, 23, 0.88) 100%);
+  box-shadow:
+    0 0 0 1px rgba(255, 255, 255, 0.04) inset,
+    0 18px 40px rgba(2, 6, 23, 0.55),
+    0 0 32px rgba(34, 197, 94, 0.08);
+  backdrop-filter: blur(12px) saturate(1.2);
+  color: #e2e8f0;
+  pointer-events: none;
+}
+
+.si-wms-index-class-legend__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 6px;
+}
+
+.si-wms-index-class-legend__title {
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  color: #f8fafc;
+  line-height: 1.25;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.si-wms-index-class-legend__badge {
+  flex-shrink: 0;
+  font-size: 9px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  padding: 3px 7px;
+  border-radius: 999px;
+  color: #bbf7d0;
+  background: rgba(22, 163, 74, 0.22);
+  border: 1px solid rgba(74, 222, 128, 0.35);
+}
+
+.si-wms-index-class-legend__hint {
+  margin: 0 0 10px;
+  font-size: 10px;
+  line-height: 1.4;
+  color: #94a3b8;
+}
+
+.si-wms-index-class-legend__body {
+  display: flex;
+  gap: 12px;
+  align-items: stretch;
+}
+
+.si-wms-index-class-legend__bar {
+  width: 14px;
+  min-height: 120px;
+  border-radius: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.12);
+  flex-shrink: 0;
+}
+
+.si-wms-index-class-legend__rows {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  max-height: 168px;
+  overflow-y: auto;
+  padding-right: 2px;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(148, 163, 184, 0.45) transparent;
+}
+
+.si-wms-index-class-legend__row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 10px;
+  line-height: 1.35;
+  color: #cbd5e1;
+}
+
+.si-wms-index-class-legend__swatch {
+  width: 11px;
+  height: 11px;
+  border-radius: 3px;
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  flex: 0 0 11px;
+}
+
+.si-wms-index-class-legend__range {
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.01em;
+}
+
 .si-map-analysis-pill {
   position: absolute;
   left: 16px;

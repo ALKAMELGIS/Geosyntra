@@ -49,7 +49,7 @@ import { getArcgisPortalToken } from '../../lib/arcgisPortalToken';
 import { getMapboxAccessToken } from '../../lib/mapboxAccessToken';
 import { subscribeSentinelHubAccessToken } from '../../lib/sentinelHubAccessToken';
 import { getSentinelHubWmsBaseUrl, subscribeSentinelHubWmsInstance } from '../../lib/sentinelHubWmsInstance';
-import { buildSentinelHubWmsAoiClip, getDrawnGeometry } from '../../lib/sentinelHubWmsAoiClip';
+import { buildSentinelHubWmsAoiClip, getDrawnGeometry, inferWmsEvalProfile } from '../../lib/sentinelHubWmsAoiClip';
 import {
   GEO_AI_COPILOT_RULES,
   GEO_AI_SPATIAL_WORKFLOW_AGENT_APPEND,
@@ -83,6 +83,10 @@ import {
   stableFeatureLinkKey,
 } from '../../lib/geoAiLinkedSelection';
 import { SiRasterSymbologyDrawer, type SiRasterSymbologyLayerOption } from './components/SiRasterSymbologyDrawer';
+import {
+  SiWmsIndexClassificationLegend,
+  siIsWmsClassifiedWmsProfile,
+} from './components/SiWmsIndexClassificationLegend';
 import {
   siRasterSymbologyBuildPreviewGrid,
   siRasterSymbologyDefaultState,
@@ -9506,6 +9510,13 @@ export default function SatelliteIntelligence() {
     return !!normalizedDrawnAoiGeometry;
   }, [multiAoiItems, savedFields, normalizedDrawnAoiGeometry]);
   const sentinelAoiVisible = sentinelVisible && hasAnyAoiGeometryForSentinel;
+  const wmsClassifiedLegend = useMemo(() => {
+    const p = inferWmsEvalProfile(activeWmsLayer || '');
+    if (!siIsWmsClassifiedWmsProfile(p)) return null;
+    const label =
+      remoteSensingLayerOptions.find(o => o.id === activeWmsLayer)?.label?.trim() || activeWmsLayer || p.toUpperCase();
+    return { profile: p, label };
+  }, [activeWmsLayer, remoteSensingLayerOptions]);
   const activeBasemapId = useMemo(() => resolveBasemapId(basemapId), [basemapId]);
   const currentBasemapEntry = useMemo(() => {
     return (
@@ -11825,6 +11836,10 @@ export default function SatelliteIntelligence() {
             {/* Mapbox zoom + compass — bottom-left, stacked above the Mapbox logo / attribution strip. */}
             {isMapLoaded ? <NavigationControl position="bottom-left" visualizePitch /> : null}
           </MapGL>
+
+          {isMapLoaded && sentinelAoiVisible && wmsClassifiedLegend ? (
+            <SiWmsIndexClassificationLegend profile={wmsClassifiedLegend.profile} layerLabel={wmsClassifiedLegend.label} />
+          ) : null}
 
           {isMapLoaded && geoAiPopupMode === 'side' && geoAiInspectPopups.length > 0 ? (
             <div className="si-geo-ai-inspect-side-stack" role="region" aria-label="Geo AI attribute inspector">
