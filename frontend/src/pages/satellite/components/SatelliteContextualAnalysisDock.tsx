@@ -110,6 +110,8 @@ export type SatelliteContextualAnalysisDockProps = {
    */
   fieldsCount?: number;
   onRequestGenerateReport?: () => void;
+  /** Map toolbox rail: optional symbology shortcut (parent supplies a small icon button). */
+  mapSymbologyToolbarSlot?: ReactNode;
 };
 
 const RAIL: Array<{ id: SatelliteContextPanelId; icon: string; label: string; title: string; hint: string }> = [
@@ -302,6 +304,7 @@ export function SatelliteContextualAnalysisDock(props: SatelliteContextualAnalys
     fieldsPanelContent,
     fieldsCount = 0,
     onRequestGenerateReport,
+    mapSymbologyToolbarSlot,
   } = props;
 
   const [panelOpen, setPanelOpen] = useState(false);
@@ -663,6 +666,11 @@ export function SatelliteContextualAnalysisDock(props: SatelliteContextualAnalys
             ) : null}
           </Fragment>
         ))}
+        {isMap && mapSymbologyToolbarSlot ? (
+          <div className="si-sat-ctx-rail-sym-wrap" role="group" aria-label="Symbology">
+            {mapSymbologyToolbarSlot}
+          </div>
+        ) : null}
         <div className="si-sat-ctx-rail-spacer" aria-hidden />
         <div className={'si-sat-ctx-rail-footer' + (isMap ? ' si-sat-ctx-rail-footer--map' : '')}>
           {isMap && mapStripHidden ? (

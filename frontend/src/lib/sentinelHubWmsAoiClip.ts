@@ -10,6 +10,7 @@ import {
   SI_NDMI_CLASSIFICATION_STOPS,
   SI_NDVI_CLASSIFICATION_STOPS,
   SI_NDWI_CLASSIFICATION_STOPS,
+  type IndexRampStop,
   siRampStopsToEvalScriptArrayLiteral,
 } from './siWmsIndexClassificationRamp';
 
@@ -28,6 +29,11 @@ export type WmsAoiEvalProfile =
 export type BuildSentinelHubWmsAoiClipOptions = {
   /** When set (0–1), multiply alpha by (index >= minIndex) for index-style profiles (e.g. NDVI). Ignored for RGB-only profiles. */
   indexVisibilityMin?: number | null;
+  /**
+   * Optional piecewise ramp for classified index profiles (same index math; different colors only).
+   * Must be at least two ascending stops; otherwise defaults apply.
+   */
+  classifiedStopsOverride?: readonly IndexRampStop[] | null;
 };
 
 const MAX_WKT_CHARS = 5600;
@@ -131,10 +137,15 @@ export function inferWmsEvalProfile(layerName: string): WmsAoiEvalProfile {
   const u = String(layerName || '').toUpperCase();
   if (u.includes('GNDVI')) return 'gndvi';
   if (u.includes('NDRE') || u.includes('BSI')) return 'native';
+  // Thermal / SAR products — not NDVI-classified custom scripts (avoid false "vegetation" ramps).
+  if (u.includes('LST') || u.includes('LAND SURFACE') || u.includes('THERMAL') || u.includes('TEMPERATURE')) return 'native';
+  if (u.includes('SAR') && !u.includes('SAVI')) return 'native';
+  if (u.includes('SAVI')) return 'native';
+  // Water / moisture before generic NDVI — many catalog names list multiple indices (e.g. "NDVI_NDWI").
+  if (u.includes('NDWI') || u.includes('MNDWI') || u.includes('WATER')) return 'ndwi';
+  if (u.includes('NDMI') || u.includes('MOISTURE')) return 'ndmi';
   if (u.includes('NDVI')) return 'ndvi';
   if (u.includes('EVI') && !u.includes('NEVI')) return 'evi';
-  if (u.includes('NDMI') || u.includes('MOISTURE')) return 'ndmi';
-  if (u.includes('NDWI') || u.includes('MNDWI') || u.includes('WATER')) return 'ndwi';
   if (u.includes('SWIR') && !u.includes('FALSE')) return 'swir';
   if (u.includes('FALSE') || u.includes('COLOR_INFRARED')) return 'false_color';
   if (u.includes('TRUE') || u.includes('NATURAL') || u.includes('RGB')) return 'true_color';
@@ -167,7 +178,19 @@ function __rampRgb(t, stops) {
 }
 `;
 
-function buildEvalscriptV3(profile: WmsAoiEvalProfile, indexVisibilityMin: number | null): string {
+function classifiedStopsLiteral(
+  override: readonly IndexRampStop[] | null | undefined,
+  fallback: readonly IndexRampStop[],
+): string {
+  const use = override && override.length >= 2 ? override : fallback;
+  return siRampStopsToEvalScriptArrayLiteral(use);
+}
+
+function buildEvalscriptV3(
+  profile: WmsAoiEvalProfile,
+  indexVisibilityMin: number | null,
+  classifiedStopsOverride: readonly IndexRampStop[] | null,
+): string {
   const thr =
     indexVisibilityMin != null && Number.isFinite(indexVisibilityMin)
       ? Math.max(0, Math.min(1, indexVisibilityMin))
@@ -231,7 +254,7 @@ function evaluatePixel(s) {
   ];
 }`;
     case 'ndvi': {
-      const stops = siRampStopsToEvalScriptArrayLiteral(SI_NDVI_CLASSIFICATION_STOPS);
+      const stops = classifiedStopsLiteral(classifiedStopsOverride, SI_NDVI_CLASSIFICATION_STOPS);
       return `//VERSION=3
 function setup() {
   return {
@@ -250,7 +273,7 @@ function evaluatePixel(s) {
 }`;
     }
     case 'gndvi': {
-      const stops = siRampStopsToEvalScriptArrayLiteral(SI_GNDVI_CLASSIFICATION_STOPS);
+      const stops = classifiedStopsLiteral(classifiedStopsOverride, SI_GNDVI_CLASSIFICATION_STOPS);
       return `//VERSION=3
 function setup() {
   return {
@@ -269,7 +292,7 @@ function evaluatePixel(s) {
 }`;
     }
     case 'ndmi': {
-      const stops = siRampStopsToEvalScriptArrayLiteral(SI_NDMI_CLASSIFICATION_STOPS);
+      const stops = classifiedStopsLiteral(classifiedStopsOverride, SI_NDMI_CLASSIFICATION_STOPS);
       return `//VERSION=3
 function setup() {
   return {
@@ -288,7 +311,7 @@ function evaluatePixel(s) {
 }`;
     }
     case 'ndwi': {
-      const stops = siRampStopsToEvalScriptArrayLiteral(SI_NDWI_CLASSIFICATION_STOPS);
+      const stops = classifiedStopsLiteral(classifiedStopsOverride, SI_NDWI_CLASSIFICATION_STOPS);
       return `//VERSION=3
 function setup() {
   return {
@@ -307,7 +330,7 @@ function evaluatePixel(s) {
 }`;
     }
     case 'evi': {
-      const stops = siRampStopsToEvalScriptArrayLiteral(SI_EVI_CLASSIFICATION_STOPS);
+      const stops = classifiedStopsLiteral(classifiedStopsOverride, SI_EVI_CLASSIFICATION_STOPS);
       return `//VERSION=3
 function setup() {
   return {
@@ -327,7 +350,7 @@ function evaluatePixel(s) {
 }`;
     }
     default:
-      return buildEvalscriptV3('generic_rgb', null);
+      return buildEvalscriptV3('generic_rgb', indexVisibilityMin, null);
   }
 }
 
@@ -371,7 +394,8 @@ export function buildSentinelHubWmsAoiClip(
 
   const profile = inferWmsEvalProfile(layerName);
   const indexMin = options?.indexVisibilityMin ?? null;
-  const evalPlain = buildEvalscriptV3(profile, indexMin);
+  const classifiedStopsOverride = options?.classifiedStopsOverride ?? null;
+  const evalPlain = buildEvalscriptV3(profile, indexMin, classifiedStopsOverride);
   let evalscriptB64: string | null = evalPlain ? evalscriptToBase64Param(evalPlain) : null;
 
   const outerRings: [number, number][][] = [];

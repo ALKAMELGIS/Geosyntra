@@ -6,6 +6,7 @@ import {
   SI_NDMI_CLASSIFICATION_STOPS,
   SI_NDVI_CLASSIFICATION_STOPS,
   SI_NDWI_CLASSIFICATION_STOPS,
+  type IndexRampStop,
   siStopsToVerticalCssGradient,
   siThinLegendSegments,
 } from '../../../lib/siWmsIndexClassificationRamp'
@@ -106,6 +107,8 @@ export type SiWmsIndexClassificationLegendProps = {
   layerLabel: string
   context: SiWmsSpectralLegendContext
   maxRows?: number
+  /** When set (≥2 stops), legend + ramp reflect user symbology instead of service defaults. */
+  classifiedStopsOverride?: readonly IndexRampStop[] | null
 }
 
 export function SiWmsIndexClassificationLegend({
@@ -113,6 +116,7 @@ export function SiWmsIndexClassificationLegend({
   layerLabel,
   context,
   maxRows = 10,
+  classifiedStopsOverride = null,
 }: SiWmsIndexClassificationLegendProps) {
   const compositeKey =
     profile === 'true_color' || profile === 'false_color' || profile === 'swir' || profile === 'generic_rgb'
@@ -120,7 +124,11 @@ export function SiWmsIndexClassificationLegend({
       : null
   const composite = compositeKey ? COMPOSITE_RGB[compositeKey] : null
 
-  const classifiedStops = isClassifiedProfile(profile) ? stopsForClassified(profile) : null
+  const classifiedStops = isClassifiedProfile(profile)
+    ? classifiedStopsOverride && classifiedStopsOverride.length >= 2
+      ? classifiedStopsOverride
+      : stopsForClassified(profile)
+    : null
   const gradient = useMemo(
     () => (classifiedStops ? siStopsToVerticalCssGradient(classifiedStops) : ''),
     [classifiedStops],
@@ -201,8 +209,9 @@ export function SiWmsIndexClassificationLegend({
       ) : classifiedStops ? (
         <>
           <p className="si-wms-index-class-legend__hint">
-            Piecewise classified ramp — value bands match the AOI WMS evalscript. Temporal line shows the chart week
-            overlapping the imagery date (min / mean / max from the time-series chip).
+            {classifiedStopsOverride && classifiedStopsOverride.length >= 2
+              ? 'Custom symbology — bands follow your ramp; index values are unchanged.'
+              : 'Piecewise classified ramp — value bands match the AOI WMS evalscript. Temporal line shows the chart week overlapping the imagery date (min / mean / max from the time-series chip).'}
           </p>
           <div className="si-wms-index-class-legend__body">
             <div className="si-wms-index-class-legend__bar" style={{ backgroundImage: gradient }} aria-hidden />

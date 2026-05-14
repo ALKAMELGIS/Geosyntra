@@ -183,6 +183,8 @@ export type SatelliteMapAnalysisChromeProps = {
   fieldsPanelContent?: ReactNode;
   /** Saved-fields count for the rail badge (0 hides the badge). */
   fieldsCount?: number;
+  /** Map toolbox rail: quick open for WMS symbology (classified ramp). */
+  mapSymbologyToolbarSlot?: ReactNode;
 };
 
 function sparkPath(values: number[], w: number, h: number): string {
@@ -248,6 +250,7 @@ export function SatelliteMapAnalysisChrome(props: SatelliteMapAnalysisChromeProp
     fieldsPanelLibraryContent,
     fieldsPanelContent,
     fieldsCount = 0,
+    mapSymbologyToolbarSlot,
   } = props;
 
   const activeFull =
@@ -329,6 +332,7 @@ export function SatelliteMapAnalysisChrome(props: SatelliteMapAnalysisChromeProp
       fieldsPanelLibraryContent={fieldsPanelLibraryContent}
       fieldsPanelContent={fieldsPanelContent}
       fieldsCount={fieldsCount}
+      mapSymbologyToolbarSlot={mapSymbologyToolbarSlot}
     />
   ) : null;
 
