@@ -12,21 +12,12 @@ type NavMenuProps = {
   onLogout?: () => void
 }
 
-type AppNotification = {
-  id: number
-  title: string
-  body: string
-  at: string
-  read: boolean
-}
-
 const navTranslations = {
   en: {
     account: 'Account',
     admin: 'Settings',
     arabic: 'Arabic',
     camera: 'Camera',
-    clearAll: 'Clear all',
     closeMenu: 'Close navigation menu',
     dashboard: 'Dashboard',
     esriApp: 'Esri App',
@@ -36,7 +27,6 @@ const navTranslations = {
     geosyntraChat: 'Geosyntra Chat',
     developDashboard: 'Develop Dashboard',
     ecph: 'EC/PH',
-    english: 'English',
     gisContent: 'GIS Content',
     gisMap: 'GIS Map',
     githubIntegration: 'GitHub Integration',
@@ -44,15 +34,8 @@ const navTranslations = {
     home: 'Home',
     irrigation: 'Irrigation Scheduling',
     irrigationSensors: 'Irrigation Sensors',
-    language: 'Language',
-    theme: 'Theme',
-    lightMode: 'Light Mode',
-    darkMode: 'Dark Mode',
-    systemTheme: 'System Theme',
     logout: 'Logout',
     masterData: 'Master Data',
-    noNotifications: 'No notifications',
-    notifications: 'Notifications',
     openMenu: 'Open navigation menu',
     operations: 'Operations',
     productTracking: 'Product & Sales Tracking',
@@ -75,7 +58,6 @@ const navTranslations = {
     admin: 'الإعدادات',
     arabic: 'العربية',
     camera: 'الكاميرا',
-    clearAll: 'مسح الكل',
     closeMenu: 'إغلاق قائمة التنقل',
     dashboard: 'لوحة التحكم',
     esriApp: 'تطبيق Esri',
@@ -85,7 +67,6 @@ const navTranslations = {
     geosyntraChat: 'محادثة جيوسينترا',
     developDashboard: 'تطوير لوحة التحكم',
     ecph: 'الملوحة والحموضة',
-    english: 'الإنجليزية',
     gisContent: 'محتوى نظم المعلومات الجغرافية',
     gisMap: 'خريطة GIS',
     githubIntegration: 'تكامل GitHub',
@@ -93,15 +74,8 @@ const navTranslations = {
     home: 'الرئيسية',
     irrigation: 'جدولة الري',
     irrigationSensors: 'حساسات الري',
-    language: 'اللغة',
-    theme: 'المظهر',
-    lightMode: 'الوضع الفاتح',
-    darkMode: 'الوضع الداكن',
-    systemTheme: 'نسق النظام',
     logout: 'تسجيل الخروج',
     masterData: 'البيانات الرئيسية',
-    noNotifications: 'لا توجد إشعارات',
-    notifications: 'الإشعارات',
     openMenu: 'فتح قائمة التنقل',
     operations: 'العمليات',
     productTracking: 'تتبع المنتجات والمبيعات',
@@ -136,19 +110,7 @@ export default function NavMenu({ onLogout }: NavMenuProps) {
     return localStorage.getItem('navCollapsed') === 'true'
   })
   const [openGroup, setOpenGroup] = useState<
-    | 'dashboard'
-    | 'geosyntraAi'
-    | 'satellite'
-    | 'data'
-    | 'sensors'
-    | 'master'
-    | 'admin'
-    | 'notifications'
-    | 'theme'
-    | 'language'
-    | 'account'
-    | string
-    | null
+    'dashboard' | 'geosyntraAi' | 'satellite' | 'data' | 'sensors' | 'master' | 'admin' | 'account' | string | null
   >(null)
   const location = useLocation()
   const navRef = useRef<HTMLElement | null>(null)
@@ -156,34 +118,17 @@ export default function NavMenu({ onLogout }: NavMenuProps) {
   const groupHeaderRefs = useRef<Record<string, HTMLButtonElement | null>>({})
   const groupFirstItemRefs = useRef<Record<string, HTMLElement | null>>({})
 
-  const { language, setLanguage } = useLanguage()
-
-  const [notifications, setNotifications] = useState<AppNotification[]>(() => {
-    const stored = typeof window !== 'undefined' ? localStorage.getItem('appNotifications') : null
-    if (stored) {
-      try {
-        const parsed = JSON.parse(stored)
-        if (Array.isArray(parsed)) return parsed as AppNotification[]
-      } catch {
-      }
-    }
-    return [
-      { id: Date.now() - 2, title: 'Welcome', body: 'Your account is ready.', at: new Date().toLocaleString(), read: false },
-      { id: Date.now() - 1, title: 'Tip', body: 'Use Settings → User Management to manage users.', at: new Date().toLocaleString(), read: false }
-    ]
-  })
+  const { language } = useLanguage()
 
   const role = normalizeRole(readCurrentUser()?.role)
 
   const canSeeMaster = true
   const canSeeAdmin = hasPermission('admin.users.manage', role)
 
-  const unreadCount = useMemo(() => notifications.filter(n => !n.read).length, [notifications])
   const t = navTranslations[language]
 
   const { home: mergedHome, groups: mergedGroups } = useMergedNavigation()
   const { settings: systemSettings } = useSystemSettings()
-  const { setSettings } = useSystemSettings()
 
   const navLabel = (leaf: { i18nKey: keyof typeof navTranslations.en; labelEn: string; labelAr: string }) => {
     if (language === 'ar') return leaf.labelAr || t[leaf.i18nKey]
@@ -284,17 +229,6 @@ export default function NavMenu({ onLogout }: NavMenuProps) {
   useEffect(() => {
     setOpenGroup(null)
   }, [location.pathname])
-
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
-      localStorage.setItem('appNotifications', JSON.stringify(notifications))
-    }
-  }, [notifications])
-
-  useEffect(() => {
-    if (openGroup !== 'notifications') return
-    setNotifications(prev => prev.map(n => (n.read ? n : { ...n, read: true })))
-  }, [openGroup])
 
   useEffect(() => {
     if (typeof document === 'undefined') return
@@ -477,234 +411,10 @@ export default function NavMenu({ onLogout }: NavMenuProps) {
 
         <li
           className={
-            openGroup === 'notifications'
-              ? 'group open navmenu-account navmenu-utility navmenu-utility-first'
-              : 'group navmenu-account navmenu-utility navmenu-utility-first'
+            openGroup === 'account'
+              ? 'group open navmenu-utility navmenu-utility-first navmenu-utility-last'
+              : 'group navmenu-utility navmenu-utility-first navmenu-utility-last'
           }
-          ref={el => {
-            groupContainerRefs.current.notifications = el
-          }}
-        >
-          <button
-            className="group-header nav-header-notifications navmenu-icon-only"
-            type="button"
-            aria-haspopup="true"
-            aria-label={t.notifications}
-            aria-expanded={openGroup === 'notifications'}
-            aria-controls="nav-group-notifications"
-            title={t.notifications}
-            onClick={() => toggleGroup('notifications')}
-            onMouseEnter={() => {
-              if (flyoutMode) positionFlyout('notifications')
-            }}
-            onFocus={() => {
-              if (flyoutMode) positionFlyout('notifications')
-            }}
-            onKeyDown={onGroupKeyDown('notifications')}
-            ref={el => {
-              groupHeaderRefs.current.notifications = el
-            }}
-          >
-            <span className="icon">
-              <i className="fa-solid fa-bell"></i>
-            </span>
-            {unreadCount > 0 && <span className="navmenu-badge">{unreadCount > 99 ? '99+' : unreadCount}</span>}
-          </button>
-          <div
-            id="nav-group-notifications"
-            className={openGroup === 'notifications' ? 'sublist open' : 'sublist'}
-          >
-            <div className="navmenu-sublist-title">{t.notifications}</div>
-            {notifications.length ? (
-              <>
-                {notifications.slice(0, 6).map((n, idx) => (
-                  <button
-                    key={n.id}
-                    type="button"
-                    className="subitem nav-item-notifications"
-                    onClick={() => {
-                      setNotifications(prev => prev.map(p => (p.id === n.id ? { ...p, read: true } : p)))
-                      setOpenGroup(null)
-                    }}
-                    ref={el => {
-                      if (idx === 0) groupFirstItemRefs.current.notifications = el
-                    }}
-                  >
-                    <span className="icon">
-                      <i className="fa-solid fa-circle-info"></i>
-                    </span>
-                    <span className="label">
-                      <span className="navmenu-subitem-title">{n.title}</span>
-                      <span className="navmenu-subitem-meta">{n.at}</span>
-                    </span>
-                  </button>
-                ))}
-                <button
-                  type="button"
-                  className="subitem nav-item-notifications"
-                  onClick={() => setNotifications([])}
-                >
-                  <span className="icon">
-                    <i className="fa-solid fa-trash"></i>
-                  </span>
-                  <span className="label">{t.clearAll}</span>
-                </button>
-              </>
-            ) : (
-              <div className="navmenu-sublist-empty">{t.noNotifications}</div>
-            )}
-          </div>
-        </li>
-
-        <li
-          className={openGroup === 'theme' ? 'group open navmenu-utility' : 'group navmenu-utility'}
-          ref={el => {
-            groupContainerRefs.current.theme = el
-          }}
-        >
-          <button
-            className="group-header nav-header-theme navmenu-icon-only"
-            type="button"
-            aria-haspopup="true"
-            aria-label={t.theme}
-            aria-expanded={openGroup === 'theme'}
-            aria-controls="nav-group-theme"
-            title={t.theme}
-            onClick={() => toggleGroup('theme')}
-            onMouseEnter={() => {
-              if (flyoutMode) positionFlyout('theme')
-            }}
-            onFocus={() => {
-              if (flyoutMode) positionFlyout('theme')
-            }}
-            onKeyDown={onGroupKeyDown('theme')}
-            ref={el => {
-              groupHeaderRefs.current.theme = el
-            }}
-          >
-            <span className="icon">
-              <i className={systemSettings.themeMode === 'dark' ? 'fa-solid fa-moon' : systemSettings.themeMode === 'system' ? 'fa-solid fa-desktop' : 'fa-solid fa-sun'}></i>
-            </span>
-          </button>
-          <div
-            id="nav-group-theme"
-            className={openGroup === 'theme' ? 'sublist open' : 'sublist'}
-          >
-            <div className="navmenu-sublist-title">{t.theme}</div>
-            <button
-              type="button"
-              className={systemSettings.themeMode === 'dark' ? 'subitem active nav-item-theme' : 'subitem nav-item-theme'}
-              onClick={() => {
-                setSettings({ ...systemSettings, themeMode: 'dark' })
-                setOpenGroup(null)
-              }}
-              ref={el => {
-                groupFirstItemRefs.current.theme = el
-              }}
-            >
-              <span className="icon">
-                <i className="fa-solid fa-moon"></i>
-              </span>
-              <span className="label">{t.darkMode}</span>
-            </button>
-            <button
-              type="button"
-              className={systemSettings.themeMode === 'light' ? 'subitem active nav-item-theme' : 'subitem nav-item-theme'}
-              onClick={() => {
-                setSettings({ ...systemSettings, themeMode: 'light' })
-                setOpenGroup(null)
-              }}
-            >
-              <span className="icon">
-                <i className="fa-solid fa-sun"></i>
-              </span>
-              <span className="label">{t.lightMode}</span>
-            </button>
-            <button
-              type="button"
-              className={systemSettings.themeMode === 'system' ? 'subitem active nav-item-theme' : 'subitem nav-item-theme'}
-              onClick={() => {
-                setSettings({ ...systemSettings, themeMode: 'system' })
-                setOpenGroup(null)
-              }}
-            >
-              <span className="icon">
-                <i className="fa-solid fa-desktop"></i>
-              </span>
-              <span className="label">{t.systemTheme}</span>
-            </button>
-          </div>
-        </li>
-
-        <li
-          className={openGroup === 'language' ? 'group open navmenu-utility' : 'group navmenu-utility'}
-          ref={el => {
-            groupContainerRefs.current.language = el
-          }}
-        >
-          <button
-            className="group-header nav-header-language navmenu-icon-only"
-            type="button"
-            aria-haspopup="true"
-            aria-label={t.language}
-            aria-expanded={openGroup === 'language'}
-            aria-controls="nav-group-language"
-            title={t.language}
-            onClick={() => toggleGroup('language')}
-            onMouseEnter={() => {
-              if (flyoutMode) positionFlyout('language')
-            }}
-            onFocus={() => {
-              if (flyoutMode) positionFlyout('language')
-            }}
-            onKeyDown={onGroupKeyDown('language')}
-            ref={el => {
-              groupHeaderRefs.current.language = el
-            }}
-          >
-            <span className="icon">
-              <i className="fa-solid fa-language"></i>
-            </span>
-          </button>
-          <div
-            id="nav-group-language"
-            className={openGroup === 'language' ? 'sublist open' : 'sublist'}
-          >
-            <div className="navmenu-sublist-title">{t.language}</div>
-            <button
-              type="button"
-              className={language === 'en' ? 'subitem active nav-item-language' : 'subitem nav-item-language'}
-              onClick={() => {
-                setLanguage('en')
-                setOpenGroup(null)
-              }}
-              ref={el => {
-                groupFirstItemRefs.current.language = el
-              }}
-            >
-              <span className="icon">
-                <i className="fa-solid fa-language"></i>
-              </span>
-              <span className="label">{t.english}</span>
-            </button>
-            <button
-              type="button"
-              className={language === 'ar' ? 'subitem active nav-item-language' : 'subitem nav-item-language'}
-              onClick={() => {
-                setLanguage('ar')
-                setOpenGroup(null)
-              }}
-            >
-              <span className="icon">
-                <i className="fa-solid fa-language"></i>
-              </span>
-              <span className="label">{t.arabic}</span>
-            </button>
-          </div>
-        </li>
-
-        <li
-          className={openGroup === 'account' ? 'group open navmenu-utility navmenu-utility-last' : 'group navmenu-utility navmenu-utility-last'}
           ref={el => {
             groupContainerRefs.current.account = el
           }}
