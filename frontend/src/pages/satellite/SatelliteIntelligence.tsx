@@ -187,6 +187,7 @@ import {
   nextFieldName,
   uuid,
   computeFieldSpectralIndices,
+  formatArea,
   guessSpectralIndexIdFromLayerName,
   indexToVizUnit,
   type SavedField,
@@ -2555,6 +2556,8 @@ export default function SatelliteIntelligence() {
   /** True only while a sketch was armed from the Fields Data panel — keeps
    *  the panel's Glass toolbar from mirroring Remote Sensing draw tools. */
   const [fieldsPanelDrawArmed, setFieldsPanelDrawArmed] = useState(false);
+  /** Remote Sensing floating tools only — not the Fields Data rail (`fields` icon). */
+  const [remoteSensingToolsUiTab, setRemoteSensingToolsUiTab] = useState<'main' | 'field'>('main');
   const [fieldSurfaceVizMetric, setFieldSurfaceVizMetric] = useState<FieldSurfaceVizMetric>('none');
   /** Field Data dock — scene controls (independent from Remote Sensing). */
   const [fieldDataImageryDate, setFieldDataImageryDate] = useState(() => new Date('2024-02-18T12:00:00'));
@@ -9295,6 +9298,43 @@ export default function SatelliteIntelligence() {
     [activeWmsLayer, selectedIndex, wmsDate, timeSeriesStart, timeSeriesEnd],
   );
 
+  const rsToolsActiveAoiRow = useMemo(
+    () => (activeMultiAoiId ? multiAoiItems.find(r => r.id === activeMultiAoiId) ?? null : null),
+    [activeMultiAoiId, multiAoiItems],
+  );
+
+  const rsToolsActiveAoiSavedField = useMemo(() => {
+    const row = rsToolsActiveAoiRow;
+    if (!row) return null;
+    const fp = fingerprintFeatureGeometry(row.feature);
+    if (!fp) return null;
+    return (
+      savedFields.find(f => {
+        if (f.libraryOrigin === 'field-panel') return false;
+        return (
+          fingerprintFeatureGeometry({ type: 'Feature', geometry: f.geometry, properties: {} }) === fp
+        );
+      }) ?? null
+    );
+  }, [rsToolsActiveAoiRow, savedFields]);
+
+  const rsToolsActiveAoiIndices = useMemo(() => {
+    const row = rsToolsActiveAoiRow;
+    if (!row) return null;
+    const g = row.feature?.geometry as SavedField['geometry'] | undefined;
+    if (!g || (g.type !== 'Polygon' && g.type !== 'MultiPolygon')) return null;
+    const persisted = rsToolsActiveAoiSavedField?.indices;
+    if (persisted) return persisted;
+    return computeFieldSpectralIndices(
+      { id: row.id, geometry: g },
+      {
+        layerKey: (activeWmsLayer && activeWmsLayer.trim()) || String(selectedIndex ?? ''),
+        indexKey: selectedIndex ? String(selectedIndex) : undefined,
+        sceneKey: fieldSpectralSceneKey,
+      },
+    );
+  }, [rsToolsActiveAoiRow, rsToolsActiveAoiSavedField, activeWmsLayer, selectedIndex, fieldSpectralSceneKey]);
+
   useEffect(() => {
     setSavedFields(prev => {
       if (!prev.length) return prev;
@@ -12707,6 +12747,35 @@ export default function SatelliteIntelligence() {
                           </button>
                         </div>
 
+                        <div className="gis-fields-dock__tabs si-rs-tools-tabs" role="tablist" aria-label="Remote sensing tools">
+                          <button
+                            type="button"
+                            role="tab"
+                            aria-selected={remoteSensingToolsUiTab === 'main'}
+                            className={
+                              'gis-fields-dock__tab' +
+                              (remoteSensingToolsUiTab === 'main' ? ' gis-fields-dock__tab--on' : '')
+                            }
+                            onClick={() => setRemoteSensingToolsUiTab('main')}
+                          >
+                            Main
+                          </button>
+                          <button
+                            type="button"
+                            role="tab"
+                            aria-selected={remoteSensingToolsUiTab === 'field'}
+                            className={
+                              'gis-fields-dock__tab' +
+                              (remoteSensingToolsUiTab === 'field' ? ' gis-fields-dock__tab--on' : '')
+                            }
+                            onClick={() => setRemoteSensingToolsUiTab('field')}
+                          >
+                            Field
+                          </button>
+                        </div>
+
+                        {remoteSensingToolsUiTab === 'main' ? (
+                          <>
                         <div className="si-field-analysis-section">
                           <div className="si-field-analysis-kicker">Imagery date</div>
                           <label className="si-field-analysis-field">
@@ -12928,16 +12997,109 @@ export default function SatelliteIntelligence() {
                           </div>
                         </div>
 
-                        {/* Fields Data drawer no longer lives inline here —
-                         *  it now opens from the main Map Toolbox rail
-                         *  (`fields` icon) as a sliding side panel, mirroring
-                         *  the GIS Map design. Saved fields still appear on
-                         *  the Mapbox map via `si-saved-fields-source` and the
-                         *  count is surfaced as a badge on the rail icon, so
-                         *  the user always knows it's there without
-                         *  cluttering the Remote Sensing tools card. */}
+                        {/* Fields Data lives on the map rail only — not duplicated in Remote Sensing tools. */}
 
                         {fieldAnalysisStatus ? <p className="si-field-analysis-status">{fieldAnalysisStatus}</p> : null}
+                          </>
+                        ) : (
+                          <div className="si-field-analysis-section si-rs-field-tab-panel">
+                            <p className="si-rs-field-tab-lede">
+                              Per-AOI workspace for this Remote Sensing session — Sentinel context and spectral snapshot
+                              per area. Separate from the <strong>Fields Data</strong> panel on the map rail (library,
+                              groups, exports).
+                            </p>
+                            {multiAoiItems.length === 0 ? (
+                              <p className="si-field-analysis-status">
+                                No workspace AOIs yet. Use <strong>Main</strong> to add a data source or draw an AOI,
+                                then return here.
+                              </p>
+                            ) : (
+                              <>
+                                <div className="si-field-analysis-kicker">Workspace AOIs</div>
+                                <ul className="si-rs-aoi-pick-list" aria-label="Workspace AOIs">
+                                  {multiAoiItems.map(row => (
+                                    <li key={row.id}>
+                                      <button
+                                        type="button"
+                                        className={
+                                          'si-rs-aoi-pick-btn' +
+                                          (activeMultiAoiId === row.id ? ' si-rs-aoi-pick-btn--on' : '')
+                                        }
+                                        onClick={() => setActiveMultiAoiId(row.id)}
+                                        aria-pressed={activeMultiAoiId === row.id}
+                                      >
+                                        <span
+                                          className="si-rs-aoi-pick-dot"
+                                          style={{ background: row.color }}
+                                          aria-hidden
+                                        />
+                                        <span className="si-rs-aoi-pick-label">{row.name}</span>
+                                      </button>
+                                    </li>
+                                  ))}
+                                </ul>
+                                {rsToolsActiveAoiRow ? (
+                                  <>
+                                    <div className="si-field-analysis-kicker">Active AOI — Sentinel context</div>
+                                    <div className="si-rs-aoi-context-grid">
+                                      <div className="si-rs-aoi-context-cell">
+                                        <span className="si-rs-aoi-context-k">Imagery date</span>
+                                        <span className="si-rs-aoi-context-v">{wmsDate}</span>
+                                      </div>
+                                      <div className="si-rs-aoi-context-cell">
+                                        <span className="si-rs-aoi-context-k">Layer</span>
+                                        <span className="si-rs-aoi-context-v">
+                                          {remoteSensingLayerOptions.find(o => o.id === wmsLayerSelectValue)?.label ??
+                                            activeWmsLayer ??
+                                            selectedIndexConfig.label}
+                                        </span>
+                                      </div>
+                                      <div className="si-rs-aoi-context-cell si-rs-aoi-context-cell--wide">
+                                        <span className="si-rs-aoi-context-k">Area</span>
+                                        <span className="si-rs-aoi-context-v">
+                                          {formatArea(
+                                            geodesicAreaHectares(
+                                              rsToolsActiveAoiRow.feature.geometry as SavedField['geometry'],
+                                            ),
+                                          )}
+                                        </span>
+                                      </div>
+                                    </div>
+                                    {rsToolsActiveAoiIndices ? (
+                                      <>
+                                        <div className="si-field-analysis-kicker">Spectral snapshot</div>
+                                        <div className="si-rs-aoi-metrics" aria-label="Spectral indices">
+                                          {typeof rsToolsActiveAoiIndices.ndvi === 'number' ? (
+                                            <div className="si-rs-aoi-metric">
+                                              <span>NDVI</span>
+                                              <strong>{rsToolsActiveAoiIndices.ndvi.toFixed(2)}</strong>
+                                            </div>
+                                          ) : null}
+                                          {typeof rsToolsActiveAoiIndices.ndwi === 'number' ? (
+                                            <div className="si-rs-aoi-metric">
+                                              <span>NDWI</span>
+                                              <strong>{rsToolsActiveAoiIndices.ndwi.toFixed(2)}</strong>
+                                            </div>
+                                          ) : null}
+                                          {typeof rsToolsActiveAoiIndices.savi === 'number' ? (
+                                            <div className="si-rs-aoi-metric">
+                                              <span>SAVI</span>
+                                              <strong>{rsToolsActiveAoiIndices.savi.toFixed(2)}</strong>
+                                            </div>
+                                          ) : null}
+                                        </div>
+                                      </>
+                                    ) : (
+                                      <p className="si-field-analysis-status">
+                                        No polygon geometry available for a spectral snapshot on this AOI.
+                                      </p>
+                                    )}
+                                  </>
+                                ) : null}
+                              </>
+                            )}
+                          </div>
+                        )}
                       </div>
                     )}
                     {expandedEnvSection === 'ai-detection-gis' && (

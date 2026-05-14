@@ -7974,6 +7974,157 @@ html[data-theme='light'] .si-sat-ctx-rail-btn__badge {
   text-overflow: ellipsis;
 }
 
+/* Remote Sensing tools — Main / Field (isolated from Fields Data rail) */
+.si-rs-tools-tabs {
+  margin: 0 0 12px;
+  flex-shrink: 0;
+}
+
+.si-rs-field-tab-panel {
+  padding-top: 2px;
+}
+
+.si-rs-field-tab-lede {
+  margin: 0 0 12px;
+  font-size: 12px;
+  line-height: 1.5;
+  color: rgba(148, 163, 184, 0.95);
+  font-weight: 500;
+}
+
+.si-rs-field-tab-lede strong {
+  color: #e2e8f0;
+  font-weight: 750;
+}
+
+.si-rs-aoi-pick-list {
+  list-style: none;
+  margin: 0 0 14px;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.si-rs-aoi-pick-btn {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  text-align: left;
+  border-radius: 10px;
+  border: 1px solid rgba(148, 163, 184, 0.22);
+  background: rgba(15, 23, 42, 0.45);
+  color: #e2e8f0;
+  font-size: 12px;
+  font-weight: 650;
+  padding: 10px 12px;
+  cursor: pointer;
+  font-family: inherit;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+
+.si-rs-aoi-pick-btn:hover {
+  border-color: rgba(74, 222, 128, 0.35);
+  background: rgba(22, 101, 52, 0.15);
+}
+
+.si-rs-aoi-pick-btn--on {
+  border-color: rgba(74, 222, 128, 0.55);
+  background: rgba(22, 101, 52, 0.22);
+  box-shadow: inset 0 0 0 1px rgba(74, 222, 128, 0.12);
+}
+
+.si-rs-aoi-pick-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 999px;
+  flex-shrink: 0;
+  box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.35);
+}
+
+.si-rs-aoi-pick-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.si-rs-aoi-context-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.si-rs-aoi-context-cell {
+  border-radius: 10px;
+  border: 1px solid rgba(148, 163, 184, 0.18);
+  background: rgba(15, 23, 42, 0.5);
+  padding: 8px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.si-rs-aoi-context-cell--wide {
+  grid-column: 1 / -1;
+}
+
+.si-rs-aoi-context-k {
+  font-size: 10px;
+  font-weight: 750;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: rgba(148, 163, 184, 0.9);
+}
+
+.si-rs-aoi-context-v {
+  font-size: 12px;
+  font-weight: 650;
+  color: #f1f5f9;
+  word-break: break-word;
+}
+
+.si-rs-aoi-metrics {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.si-rs-aoi-metric {
+  border-radius: 10px;
+  border: 1px solid rgba(74, 222, 128, 0.22);
+  background: rgba(22, 101, 52, 0.12);
+  padding: 8px 8px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  align-items: center;
+  text-align: center;
+}
+
+.si-rs-aoi-metric span {
+  font-size: 10px;
+  font-weight: 750;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: rgba(148, 163, 184, 0.95);
+}
+
+.si-rs-aoi-metric strong {
+  font-size: 14px;
+  font-weight: 800;
+  color: #86efac;
+}
+
+@media (max-width: 420px) {
+  .si-rs-aoi-metrics {
+    grid-template-columns: 1fr;
+  }
+}
+
 .si-rs-actions--export {
   margin-top: 4px;
 }
