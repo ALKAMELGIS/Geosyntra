@@ -2,7 +2,7 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="geosyntra-pages-build" content="25843852532-1-8db3ddbc2254c33bb4ef8970d77640da6988bbf6" />
+    <meta name="geosyntra-pages-build" content="25845043665-1-7b868fd928bbb21362f2d71c6deee7e5818e88c6" />
     <!-- Avoid stale GitHub Pages / SW shell (old "Opening…" bootstrap) being shown from disk cache. -->
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
     <meta http-equiv="Pragma" content="no-cache" />
@@ -23,55 +23,30 @@
           var regsP = hasSW
             ? navigator.serviceWorker.getRegistrations().catch(function () { return [] })
             : Promise.resolve([])
-          regsP
-            .then(function (regs) {
-              var hasAny = (regs && regs.length > 0) || hadController
-              if (!hasAny) return undefined
-              var unregisters = (regs || []).map(function (r) {
-                try {
-                  return r.unregister()
-                } catch (_) {
-                  return Promise.resolve(false)
-                }
-              })
-              var cacheCleanup = hasCaches
-                ? caches
-                    .keys()
-                    .then(function (keys) {
-                      return Promise.all(
-                        (keys || []).map(function (k) {
-                          try {
-                            return caches.delete(k)
-                          } catch (_) {
-                            return Promise.resolve(false)
-                          }
-                        }),
-                      )
-                    })
-                    .catch(function () {
-                      return []
-                    })
-                : Promise.resolve([])
-              return Promise.all([Promise.all(unregisters), cacheCleanup])
-                .then(function () {
-                  if (alreadyPurged) return
-                  try {
-                    sessionStorage.setItem(KEY, '1')
-                  } catch (_) {}
-                  try {
-                    var url = location.pathname + location.search + (location.hash || '')
-                    window.location.replace(url)
-                  } catch (_) {
-                    try {
-                      window.location.reload()
-                    } catch (__) {}
-                  }
-                })
-                .catch(function () {
-                  /* Never let SW/cache teardown rejections kill the SPA shell (GitHub Pages, strict privacy, flaky networks). */
-                })
+          regsP.then(function (regs) {
+            var hasAny = (regs && regs.length > 0) || hadController
+            if (!hasAny) return
+            var unregisters = (regs || []).map(function (r) {
+              try { return r.unregister() } catch (_) { return Promise.resolve(false) }
             })
-            .catch(function () {})
+            var cacheCleanup = hasCaches
+              ? caches.keys().then(function (keys) {
+                  return Promise.all((keys || []).map(function (k) {
+                    try { return caches.delete(k) } catch (_) { return Promise.resolve(false) }
+                  }))
+                }).catch(function () { return [] })
+              : Promise.resolve([])
+            Promise.all([Promise.all(unregisters), cacheCleanup]).then(function () {
+              if (alreadyPurged) return
+              try { sessionStorage.setItem(KEY, '1') } catch (_) {}
+              try {
+                var url = location.pathname + location.search + (location.hash || '')
+                window.location.replace(url)
+              } catch (_) {
+                try { window.location.reload() } catch (__) {}
+              }
+            })
+          })
         } catch (_) {}
       })()
     </script>
@@ -100,8 +75,14 @@
       href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&family=Inter:wght@400;500;600;700;800&display=swap"
       rel="stylesheet"
     />
-    <script type="module" crossorigin src="/Geosyntra/assets/index-CU8MAoT1.js"></script>
-    <link rel="stylesheet" crossorigin href="/Geosyntra/assets/index-7PJnzKvv.css">
+    <link
+      rel="preload"
+      as="fetch"
+      crossorigin="anonymous"
+      href="https://prod.spline.design/kZDDjO5HuC9GJUM2/scene.splinecode"
+    />
+    <script type="module" crossorigin src="/Geosyntra/assets/index-B_xufnAf.js"></script>
+    <link rel="stylesheet" crossorigin href="/Geosyntra/assets/index-27mxbNTJ.css">
       <link rel="canonical" href="https://alkamelgis.github.io/Geosyntra/" />
       <meta property="og:type" content="website" />
     <meta property="og:title" content="Geosyntra Platform" />
