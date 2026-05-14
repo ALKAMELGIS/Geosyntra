@@ -141,11 +141,15 @@ function AppShell() {
 
   const isOnLogin = location.pathname === '/login'
   /**
-   * Home (`/`) is a chromeless full-viewport route: no header or sidebar so the
-   * signed-in user gets a focused entry hub. The layout uses
-   * `layout--landing-fullbleed` + `content--landing-fullbleed` so `<main>` fills
-   * the window and scrolls independently (same shell contract as the old
-   * marketing landing, now replaced by a lightweight `Home.tsx`).
+   * Home (`/`) renders the upstream 21st.dev "Explore Our World" 3D ScrollGlobe
+   * landing page. The reference bundle takes over the entire viewport — no
+   * header, no side rail, no chrome — and the section navigation lives inside
+   * the landing component itself. Wrapping it in the app shell would compress
+   * the globe + sections inside the inner scroll area and break the 1:1
+   * design. We therefore drop chrome on the home route and let the landing
+   * page own the document scroll, matching the upstream demo byte-for-byte.
+   * Once the visitor hits a hero CTA they're routed into a real platform
+   * surface (Satellite Indices / GIS Map) where the chrome reappears.
    */
   const isOnHome = location.pathname === '/' || location.pathname === ''
   const showChrome = !!user && !isOnLogin && !isOnHome

@@ -2,7 +2,6 @@ import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { motion, useReducedMotion } from 'framer-motion'
 import { Card } from '../components/ui/Card'
-import { SplineScene } from '../components/ui/spline-scene'
 import { Spotlight } from '../components/ui/spotlight'
 import GsIcon, { type GsIconName } from '../components/ui/GsIcon'
 import './LearnMore.css'
@@ -14,9 +13,8 @@ import './LearnMore.css'
  * Anatomy (top → bottom, smooth-scroll between sections via the breadcrumb):
  *   1. Crumb + back affordance    — keeps the page rooted in the app shell
  *      instead of feeling like a marketing redirect.
- *   2. Hero (Spline 3D + Spotlight) — interactive visual handed in by the
- *      21st.dev brief; uses the upstream robot scene so the page reads as
- *      "AI platform" the moment it loads.
+ *   2. Hero (Spotlight + copy) — glass card with the platform headline
+ *      and primary CTAs.
  *   3. About                       — short pitch, mirrors the Home hero
  *      copy + adds the platform mission.
  *   4. Capabilities grid           — 6 GIS / RS / AI capability tiles, each
@@ -138,8 +136,6 @@ const AI_MODULES: AiModule[] = [
   },
 ]
 
-const SCENE_URL = 'https://prod.spline.design/kZDDjO5HuC9GJUM2/scene.splinecode'
-
 /**
  * Section list for the snap-dot rail (id matches the `<section id>`).
  * Mirrors the topbar shortcut nav so the two stay in sync — change
@@ -183,7 +179,7 @@ export default function LearnMore() {
    *
    * IO is *much* cheaper than wiring a `scroll` listener that walks
    * `getBoundingClientRect()` every frame, and it stays robust if the
-   * page reflows (e.g. Spline scene loads late and the hero card grows).
+   * page reflows (e.g. web fonts or images loading).
    */
   const [activeSection, setActiveSection] = useState<string>('hero')
   useEffect(() => {
@@ -298,17 +294,16 @@ export default function LearnMore() {
         </nav>
       </header>
 
-      {/* === Hero — Spline robot + Spotlight (1:1 with the 21st.dev brief) === */}
+      {/* === Hero — Spotlight + copy === */}
       <motion.section
         id="hero"
         className="lm-section lm-section--hero"
         {...sectionMotion}
       >
-        <Card className="lm-hero-card relative w-full h-[500px] overflow-hidden">
+        <Card className="lm-hero-card relative w-full min-h-[420px] md:min-h-[500px] overflow-hidden">
           <Spotlight className="-top-40 left-0 md:left-60 md:-top-20" size={500} />
 
-          <div className="flex h-full flex-col md:flex-row">
-            <div className="flex-1 p-8 md:p-12 relative z-10 flex flex-col justify-center">
+          <div className="relative z-10 flex h-full min-h-[inherit] flex-col justify-center p-8 md:p-12 max-w-3xl">
               <span className="lm-hero-eyebrow">Geosyntra Platform</span>
               <h1 className="lm-hero-title">
                 <span className="lm-hero-title__line">Geospatial Intelligence,</span>
@@ -338,11 +333,6 @@ export default function LearnMore() {
                 </button>
               </div>
             </div>
-
-            <div className="flex-1 relative min-h-[280px] md:min-h-0">
-              <SplineScene scene={SCENE_URL} className="w-full h-full" />
-            </div>
-          </div>
         </Card>
       </motion.section>
 

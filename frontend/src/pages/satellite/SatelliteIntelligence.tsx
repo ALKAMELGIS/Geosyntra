@@ -2744,6 +2744,8 @@ export default function SatelliteIntelligence() {
   const geoAiDeepseekLoadOlderRef = useRef<{ top: number; height: number } | null>(null);
   const netfloraUploadInputRef = useRef<HTMLInputElement | null>(null);
   const skipNextMapClickRef = useRef(false);
+  /** Field Data panel: next finished sketch is saved as a library field only (no RS AOI / multi-AOI). */
+  const pendingFieldsOnlyCommitRef = useRef(false);
   /** Shift+drag (primary button): orbit camera bearing/pitch without stealing polygon vertex drag. */
   const siCameraOrbitDragRef = useRef<{
     startX: number;
@@ -3634,7 +3636,7 @@ export default function SatelliteIntelligence() {
      * (rename, set crop, export GeoJSON). Failures are swallowed — the
      * primary upload flow must never break because of the field cache. */
     try {
-      autoSaveFieldFromGeoJson(geojson, layerName);
+      autoSaveFieldFromGeoJson(geojson, layerName, { libraryOrigin: 'rs-workspace' });
     } catch {
       /* ignore — field cache is best-effort */
     }
@@ -3653,7 +3655,12 @@ export default function SatelliteIntelligence() {
    * show "this field was captured under the NDVI scene" and a future
    * worker can re-fetch the same WMS tile to compute zonal stats.
    * ────────────────────────────────────────────────────────────────────── */
-  const autoSaveFieldFromGeoJson = (geojson: any, sourceLabel: string): number => {
+  const autoSaveFieldFromGeoJson = (
+    geojson: any,
+    sourceLabel: string,
+    opts?: { libraryOrigin?: 'field-panel' | 'rs-workspace' },
+  ): number => {
+    const libraryOrigin = opts?.libraryOrigin ?? 'rs-workspace';
     const polys = collectPolygonAoiFeatures(geojson);
     if (!polys.length) return 0;
     const now = new Date().toISOString();
@@ -3703,6 +3710,7 @@ export default function SatelliteIntelligence() {
           updatedAt: now,
           satelliteContext: layerSnapshot,
           indices,
+          libraryOrigin,
         });
       });
       return next;
@@ -6673,7 +6681,12 @@ export default function SatelliteIntelligence() {
       const idsToDrop =
         fp != null
           ? savedFieldsRef.current
-              .filter(f => fingerprintFeatureGeometry({ type: 'Feature', geometry: f.geometry, properties: {} }) === fp)
+              .filter(f => {
+                if (f.libraryOrigin === 'field-panel') return false;
+                return (
+                  fingerprintFeatureGeometry({ type: 'Feature', geometry: f.geometry, properties: {} }) === fp
+                );
+              })
               .map(f => f.id)
           : [];
 
@@ -7528,6 +7541,18 @@ export default function SatelliteIntelligence() {
   };
 
   const commitUserGeometry = (next: any | null) => {
+    if (next && pendingFieldsOnlyCommitRef.current) {
+      pendingFieldsOnlyCommitRef.current = false;
+      try {
+        const n = autoSaveFieldFromGeoJson(next, 'Field Data draw', { libraryOrigin: 'field-panel' });
+        if (n === 0) {
+          setFieldAnalysisStatus('Could not save field from drawing (invalid geometry).');
+        }
+      } catch {
+        setFieldAnalysisStatus('Could not save field from drawing.');
+      }
+      return;
+    }
     if (next && drawTargetModeRef.current === 'field') {
       tryAddFieldFromFeature(next);
       return;
@@ -7542,7 +7567,7 @@ export default function SatelliteIntelligence() {
        * survives a refresh and appears in the Fields Data section of
        * the Remote Sensing panel. */
       try {
-        autoSaveFieldFromGeoJson(next, drawnLabel);
+        autoSaveFieldFromGeoJson(next, drawnLabel, { libraryOrigin: 'rs-workspace' });
       } catch {
         /* ignore — never break the upstream draw flow */
       }
@@ -7734,6 +7759,7 @@ export default function SatelliteIntelligence() {
   const applyMapDrawTool = (tool: MapDrawTool, opts?: { fromFieldsPanel?: boolean }) => {
     if (!opts?.fromFieldsPanel) {
       setFieldsPanelDrawArmed(false);
+      pendingFieldsOnlyCommitRef.current = false;
     }
     dragRectCircleRef.current = null;
     polygonRingSketchDragRef.current = null;
@@ -7798,6 +7824,7 @@ export default function SatelliteIntelligence() {
 
   /** Abort current sketch (draft only); keeps committed AOI on the map. */
   const cancelCurrentDrawing = useCallback(() => {
+    pendingFieldsOnlyCommitRef.current = false;
     dragRectCircleRef.current = null;
     polygonRingSketchDragRef.current = null;
     circleRefineInteractionRef.current = null;
@@ -9678,15 +9705,17 @@ export default function SatelliteIntelligence() {
         onExportFieldGeoJSON={id => exportSavedFieldGeoJson(id)}
         onExportAllGeoJSON={() => exportAllSavedFieldsGeoJson()}
         onStartDrawing={shape => {
+          pendingFieldsOnlyCommitRef.current = true;
           drawTargetModeRef.current = 'aoi';
           setDrawTargetMode('aoi');
           applyMapDrawTool(shape, { fromFieldsPanel: true });
           setFieldAnalysisStatus(
-            `Draw a ${shape} on the map. It will save as a new field automatically.`,
+            `Draw a ${shape} on the map. It saves to Field Data only and does not change the Remote Sensing AOI.`,
           );
         }}
         onEditSelected={() => {
           if (!selectedSavedFieldId) return;
+          pendingFieldsOnlyCommitRef.current = false;
           drawTargetModeRef.current = 'aoi';
           setDrawTargetMode('aoi');
           applyMapDrawTool('polygon', { fromFieldsPanel: true });
@@ -10141,6 +10170,7 @@ export default function SatelliteIntelligence() {
             }}
             mapStyle={effectiveMapStyle}
             mapboxAccessToken={mapboxAccessTokenForMap}
+            logoPosition="bottom-left"
             projection={{ name: 'globe' }}
             renderWorldCopies={false}
             dragRotate
@@ -10874,11 +10904,8 @@ export default function SatelliteIntelligence() {
               </Marker>
             ))}
 
-            {/* Mapbox zoom + compass cluster — pinned to the top-left of the
-                map canvas (below the global `--map-controls-top-offset`) so it
-                stays on the physical left edge and never stacks against the
-                right-hand toolbox / Fields dock / layer rail. */}
-            {isMapLoaded ? <NavigationControl position="top-left" visualizePitch /> : null}
+            {/* Mapbox zoom + compass — bottom-left, stacked above the Mapbox logo / attribution strip. */}
+            {isMapLoaded ? <NavigationControl position="bottom-left" visualizePitch /> : null}
           </MapGL>
 
           {isMapLoaded && geoAiPopupMode === 'side' && geoAiInspectPopups.length > 0 ? (

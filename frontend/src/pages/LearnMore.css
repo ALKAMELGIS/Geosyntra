@@ -78,14 +78,6 @@
   background-clip: padding-box;
 }
 
-.gs-spline-skeleton {
-  position: relative;
-}
-
-.gs-spline-skeleton__pulse {
-  display: none;
-}
-
 /* ============================================================
  * Top bar — Back button + breadcrumb on the left, section nav on the right.
  * ============================================================ */
@@ -248,9 +240,7 @@
 }
 
 .lm-section--hero {
-  /* Hero gets zero extra top padding — the Spline robot wants every
-   * pixel of the viewport. We still reserve `--lm-topbar-h` so the
-   * floating topbar doesn't paint over the headline. */
+  /* Reserve `--lm-topbar-h` so the floating topbar doesn't cover the headline. */
   padding-top: calc(var(--lm-topbar-h) + 12px);
 }
 
@@ -300,7 +290,7 @@
 }
 
 /* ============================================================
- * Hero card — Spline + Spotlight + copy
+ * Hero card — Spotlight + copy
  * ============================================================ */
 .lm-hero-card {
   position: relative;
@@ -869,8 +859,7 @@ html[data-theme='light'] .lm-section-eyebrow {
 
 html[data-theme='light'] .lm-hero-card {
   background: linear-gradient(180deg, rgba(15, 19, 30, 0.94) 0%, rgba(15, 19, 30, 0.84) 100%);
-  /* Hero stays dark in Lite Mode for the Spline scene to read — same trick
-     Apple uses on light marketing pages with embedded 3D / video stages. */
+  /* Hero card stays a dark stage in Lite Mode so Spotlight + headline contrast stays strong. */
   color: #ffffff;
 }
 

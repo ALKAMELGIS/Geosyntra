@@ -64,27 +64,103 @@
   }
 }
 
-/* Section switch — compact select (replaces the former segmented icon tab strip). */
-.sys-settings-nav {
+/* Segmented tabs — glass strip */
+.sys-settings-tabs {
   flex-shrink: 0;
-  display: flex;
+  display: inline-flex;
   flex-wrap: wrap;
-  align-items: center;
-  gap: 10px 14px;
-  margin-bottom: 20px;
+  gap: 4px;
+  padding: 5px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--ds-color-surface) 88%, transparent);
+  border: 1px solid var(--sys-border);
+  box-shadow: var(--ds-shadow-sm);
+  backdrop-filter: blur(8px);
+  margin-bottom: 24px;
 }
 
-.sys-settings-nav__label {
+.sys-settings-tab {
+  border: none;
+  cursor: pointer;
+  padding: 10px 16px;
+  border-radius: 999px;
   font-size: 0.8125rem;
   font-weight: 600;
+  color: var(--ds-color-text);
+  background: transparent;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  transition: transform 0.12s ease, background 0.15s ease, color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.sys-settings-tab:not(.sys-settings-tab--active) {
   color: var(--ds-color-text-muted);
 }
 
-.sys-settings-nav__select {
-  min-width: min(100%, 260px);
-  max-width: 420px;
-  flex: 1 1 auto;
-  padding-block: 10px;
+.sys-settings-tab__icon {
+  font-size: 0.95rem;
+  opacity: 0.88;
+  color: inherit;
+}
+
+.sys-settings-tab:hover:not(.sys-settings-tab--active) {
+  color: var(--ds-color-text);
+  background: color-mix(in srgb, var(--ds-color-surface) 90%, var(--ds-color-bg));
+}
+
+html[data-theme='dark'] .sys-settings-tab:hover:not(.sys-settings-tab--active) {
+  background: rgba(255, 255, 255, 0.09);
+}
+
+/* Solid primary — invalid color-mix (e.g. 108%) was producing near-white fills with white text */
+.sys-settings-tab--active {
+  color: #fff;
+  background: var(--ds-color-primary);
+  box-shadow: 0 6px 18px color-mix(in srgb, var(--ds-color-primary) 38%, transparent);
+}
+
+.sys-settings-tab--active .sys-settings-tab__icon {
+  opacity: 1;
+  color: inherit;
+}
+
+.sys-settings-tab--active:hover {
+  color: #fff;
+  background: var(--ds-color-primary-hover);
+  filter: none;
+}
+
+@media (max-width: 720px) {
+  .sys-settings-tabs {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 6px;
+    padding: 8px;
+    width: 100%;
+    max-width: 100%;
+    box-sizing: border-box;
+    border-radius: 14px;
+  }
+
+  .sys-settings-tab {
+    width: 100%;
+    justify-content: center;
+    border-radius: 10px;
+    padding: 10px 8px;
+    font-size: 0.75rem;
+    gap: 6px;
+  }
+
+  .sys-settings-tab__icon {
+    font-size: 0.88rem;
+  }
+}
+
+@media (max-width: 420px) {
+  .sys-settings-tabs {
+    grid-template-columns: 1fr;
+  }
 }
 
 /* API Tokens tab — wider shell so three token cards fit comfortably per row */

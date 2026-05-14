@@ -184,6 +184,13 @@ export interface SavedField {
   /** Active Satellite layer / index at the time of save. Optional
    *  so older persisted fields stay backwards-compatible. */
   satelliteContext?: FieldSatelliteContext
+  /**
+   * Where the row was created on Satellite Intelligence. `field-panel`
+   * rows stay in the library when a Remote Sensing multi-AOI is removed;
+   * `rs-workspace` (default for new auto-saves) may still be pruned with
+   * the matching workspace AOI.
+   */
+  libraryOrigin?: 'field-panel' | 'rs-workspace'
 }
 
 /* ────────────────────────────────────────────────────────────────────────── *

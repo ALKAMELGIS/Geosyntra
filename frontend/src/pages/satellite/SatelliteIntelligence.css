@@ -833,16 +833,36 @@ main.content > .si-page {
   direction: ltr;
 }
 
-/* Match horizontal inset to `.si-map-floating-controls` (24px) so zoom/compass
-   aligns with Search + Basemap stack — was 10px and sat visually “ahead” of the row. */
+/* Top-left reserved for any future controls; keep physical LTR edge. */
 .si-map-container .mapboxgl-ctrl-top-left {
   left: max(24px, env(safe-area-inset-left, 0px)) !important;
   right: auto !important;
 }
 
+/* Zoom / compass: bottom-left, aligned with floating chrome; stacked above Mapbox logo + attribution. */
 .si-map-container .mapboxgl-ctrl-bottom-left {
   left: max(24px, env(safe-area-inset-left, 0px)) !important;
   right: auto !important;
+  top: auto !important;
+  bottom: max(8px, env(safe-area-inset-bottom, 0px)) !important;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.si-map-container .mapboxgl-ctrl-bottom-left .mapboxgl-ctrl-group:has(.mapboxgl-ctrl-zoom-in) {
+  order: 1;
+}
+
+.si-map-container .mapboxgl-ctrl-bottom-left .mapboxgl-ctrl-logo {
+  order: 2;
+  margin: 0;
+}
+
+.si-map-container .mapboxgl-ctrl-bottom-left .mapboxgl-ctrl-attrib {
+  order: 3;
+  margin: 0;
 }
 
 .si-aoi-class-legend {
