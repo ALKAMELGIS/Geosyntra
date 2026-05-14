@@ -62,6 +62,8 @@ export interface FieldDrawingModuleProps {
   onDelete: () => void
   /** Commit the current draft / lock in the active edit. */
   onSave: () => void
+  /** Open spectral / timeline charts for the active field workspace (optional). */
+  onOpenSpectralCharts?: () => void
   /** True when the host has a saved field selected — controls
    *  whether Edit / Delete / Save can fire. */
   hasSelection: boolean
@@ -172,6 +174,26 @@ function DeleteGlyph({ size = 16 }: { size?: number }) {
   )
 }
 
+function SpectralChartsGlyph({ size = 16 }: { size?: number }) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={1.6}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d="M12 3v18" />
+      <path d="M5 14c2.5-1 4.5-4 7-4s4.5 3 7 4" />
+      <path d="M5 10c2.5 1 4.5 4 7 4s4.5-3 7-4" />
+    </svg>
+  )
+}
+
 function SaveGlyph({ size = 16 }: { size?: number }) {
   return (
     <svg
@@ -198,6 +220,7 @@ export default function FieldDrawingModule({
   onEdit,
   onDelete,
   onSave,
+  onOpenSpectralCharts,
   hasSelection,
   isDrawingArmed,
 }: FieldDrawingModuleProps) {
@@ -262,6 +285,23 @@ export default function FieldDrawingModule({
       {/* Vertical hairline separator — visually splits "what to draw"
           from "what to do with it" so the row reads in two passes. */}
       <span className="gs-field-draw-module__sep" aria-hidden="true" />
+
+      {onOpenSpectralCharts ? (
+        <>
+          <div className="gs-field-draw-module__group gs-field-draw-module__group--charts">
+            <button
+              type="button"
+              className="gs-field-draw-tool gs-field-draw-tool--charts"
+              aria-label="Spectral charts and timeline"
+              title="Open charts / timeline for fields"
+              onClick={onOpenSpectralCharts}
+            >
+              <SpectralChartsGlyph size={16} />
+            </button>
+          </div>
+          <span className="gs-field-draw-module__sep" aria-hidden="true" />
+        </>
+      ) : null}
 
       {/* Action triggers — operate on the currently selected field. */}
       <div className="gs-field-draw-module__group gs-field-draw-module__group--actions">

@@ -36,30 +36,14 @@ export const SparklesCore = (props: ParticlesProps) => {
   const { id, className, background, minSize, maxSize, speed, particleColor, particleDensity } =
     props
   const [init, setInit] = useState(false)
-  const controls = useAnimation()
-
   useEffect(() => {
-    let cancelled = false
-    void initParticlesEngine(async engine => {
+    initParticlesEngine(async engine => {
       await loadSlim(engine)
+    }).then(() => {
+      setInit(true)
     })
-      .then(() => {
-        if (!cancelled) setInit(true)
-      })
-      .catch((err) => {
-        /* CDN/offline/ad-block can make tsparticles WASM/engine init fail — must not reject unhandled or the app shell dies. */
-        console.warn('[SparklesCore] tsparticles engine init failed (hero continues without starfield)', err)
-        if (!cancelled) {
-          void controls.start({
-            opacity: 1,
-            transition: { duration: 0.35 },
-          })
-        }
-      })
-    return () => {
-      cancelled = true
-    }
-  }, [controls])
+  }, [])
+  const controls = useAnimation()
 
   const particlesLoaded = async (container?: Container) => {
     if (container) {

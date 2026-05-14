@@ -306,3 +306,16 @@ html[data-theme='light'] .home-landing .gs-hero-robot__stage {
   box-shadow: none;
   overflow: visible;
 }
+
+/* Outer robot column + globe stack — no “stage card” frame on Home Hero. */
+.home-landing .gs-hero-robot {
+  border: none;
+  outline: none;
+  box-shadow: none;
+}
+
+.home-landing .gs-hero-globe__entrance {
+  border: none !important;
+  outline: none !important;
+  box-shadow: none !important;
+}

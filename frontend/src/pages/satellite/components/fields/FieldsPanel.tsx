@@ -28,7 +28,7 @@
  * inside the panel for the entire draw → save → analyse loop.
  */
 
-import { useMemo, useState } from 'react'
+import { useId, useMemo, useState } from 'react'
 import GsIcon from '../../../../components/ui/GsIcon'
 import { appConfirm } from '../../../../lib/appDialog'
 import FieldDrawingModule, { type FieldDrawShape } from './FieldDrawingModule'
@@ -36,15 +36,31 @@ import {
   CROP_PRESETS,
   formatArea,
   formatShortDate,
+  type FieldGroup,
+  type FieldSurfaceVizMetric,
   type SavedField,
 } from './fieldsStore'
 
 interface FieldsPanelProps {
+  /** `full` = legacy single column; `workspace` / `library` split the dock. */
+  layout?: 'full' | 'workspace' | 'library'
+  /** Optional slot above drawing tools (e.g. `<FieldDataContextStrip/>`). */
+  spectralStripSlot?: React.ReactNode
+  surfaceVizMetric?: FieldSurfaceVizMetric
+  onSurfaceVizMetricChange?: (metric: FieldSurfaceVizMetric) => void
+  fieldGroups?: FieldGroup[]
+  selectedGroupId?: string | 'all'
+  onSelectGroup?: (id: string | 'all') => void
+  onAddFieldGroup?: () => void
+  onDeleteFieldGroup?: (id: string) => void
   fields: SavedField[]
   selectedId: string | null
   onSelectField: (id: string | null) => void
   onZoomToField: (id: string) => void
-  onUpdateField: (id: string, patch: Partial<Pick<SavedField, 'name' | 'crop' | 'notes' | 'color'>>) => void
+  onUpdateField: (
+    id: string,
+    patch: Partial<Pick<SavedField, 'name' | 'crop' | 'notes' | 'color' | 'groupId'>>,
+  ) => void
   onDeleteField: (id: string) => void
   onExportFieldGeoJSON: (id: string) => void
   onExportAllGeoJSON: () => void
@@ -52,20 +68,30 @@ interface FieldsPanelProps {
    *  is responsible for routing this to its underlying draw layer
    *  (Mapbox handlers / Leaflet-Draw) so Fields and Remote Sensing
    *  stay isolated above this boundary. */
-  onStartDrawing: (shape: FieldDrawShape) => void
+  /** Arm the map's drawing pipeline with the given shape (workspace / full only). */
+  onStartDrawing?: (shape: FieldDrawShape) => void
   /** Re-arm the draw pipeline in "edit existing" mode for the
    *  currently selected field. */
   onEditSelected?: () => void
   /** Commit / lock-in the in-flight draft (no-op when the host
    *  already auto-saves on geometry close). */
   onSaveDraft?: () => void
-  /** True when the parent has the active drawing tool armed. Lets the
-   *  module render the "armed" pulse on the active shape and the CTA
-   *  show its in-progress copy. */
+  /** True when the parent has the active drawing tool armed. */
   drawingArmed: boolean
+  /** Opens map / timeline charts (Satellite Intelligence). */
+  onOpenSpectralCharts?: () => void
 }
 
 export default function FieldsPanel({
+  layout = 'full',
+  spectralStripSlot,
+  surfaceVizMetric = 'none',
+  onSurfaceVizMetricChange,
+  fieldGroups = [],
+  selectedGroupId = 'all',
+  onSelectGroup,
+  onAddFieldGroup,
+  onDeleteFieldGroup,
   fields,
   selectedId,
   onSelectField,
@@ -78,7 +104,9 @@ export default function FieldsPanel({
   onEditSelected,
   onSaveDraft,
   drawingArmed,
+  onOpenSpectralCharts,
 }: FieldsPanelProps) {
+  const cropListId = useId()
   const [query, setQuery] = useState('')
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editingName, setEditingName] = useState('')
@@ -89,13 +117,17 @@ export default function FieldsPanel({
   const [activeShape, setActiveShape] = useState<FieldDrawShape>('polygon')
 
   const filteredFields = useMemo(() => {
+    let list = fields
+    if (selectedGroupId !== 'all') {
+      list = list.filter(f => f.groupId === selectedGroupId)
+    }
     const q = query.trim().toLowerCase()
-    if (!q) return fields
-    return fields.filter(f => {
+    if (!q) return list
+    return list.filter(f => {
       const haystack = `${f.name} ${f.crop ?? ''} ${f.notes ?? ''}`.toLowerCase()
       return haystack.includes(q)
     })
-  }, [fields, query])
+  }, [fields, query, selectedGroupId])
 
   const selectedField = useMemo(
     () => (selectedId ? fields.find(f => f.id === selectedId) ?? null : null),
@@ -121,57 +153,144 @@ export default function FieldsPanel({
     setEditingName('')
   }
 
-  return (
-    <div className="gs-fields-panel gs-fields-panel--no-header gis-map-tool-surface">
-      {/* Self-contained drawing module — fully isolated from the
-          Remote Sensing toolbar. Owns its own shape selection state
-          and routes user intent through the two callback props. */}
-      <FieldDrawingModule
-        activeShape={activeShape}
-        isDrawingArmed={drawingArmed}
-        hasSelection={Boolean(selectedId)}
-        onSelectShape={shape => setActiveShape(shape)}
-        onEdit={() => onEditSelected?.()}
-        onDelete={() => {
-          if (!selectedId) return
-          const target = fields.find(f => f.id === selectedId)
-          if (!target) return
-          void appConfirm(
-            `The field "${target.name}", its boundary, and any saved metadata will be permanently removed.`,
-            {
-              title: 'Delete this field?',
-              confirmLabel: 'Delete field',
-              cancelLabel: 'Keep it',
-              danger: true,
-            },
-          ).then(ok => {
-            if (ok) onDeleteField(target.id)
-          })
-        }}
-        onSave={() => onSaveDraft?.()}
-      />
+  const showWorkspace = layout !== 'library'
+  const showLibrary = layout !== 'workspace'
 
-      {/* Primary CTA — arms the host map's drawing pipeline with the
-          shape currently selected in the module above. Disabled while
-          a sketch is in flight so users can't double-arm. */}
-      <button
-        type="button"
-        className="gs-fields-cta"
-        onClick={() => onStartDrawing(activeShape)}
-        disabled={drawingArmed}
-        title={
-          drawingArmed
-            ? 'Finish the current sketch first'
-            : `Draw a ${activeShape} on the map and save it as a new field`
-        }
-      >
-        <GsIcon name="plus" size={16} />
-        <span>
-          {drawingArmed
-            ? 'Finish current sketch on the map…'
-            : 'Add Draw New Field'}
-        </span>
-      </button>
+  return (
+    <div
+      className={[
+        'gs-fields-panel',
+        'gs-fields-panel--no-header',
+        'gis-map-tool-surface',
+        layout !== 'full' ? `gs-fields-panel--layout-${layout}` : '',
+      ]
+        .filter(Boolean)
+        .join(' ')}
+    >
+      {showWorkspace ? (
+        <>
+          {spectralStripSlot}
+          <FieldDrawingModule
+            activeShape={activeShape}
+            isDrawingArmed={drawingArmed}
+            hasSelection={Boolean(selectedId)}
+            onSelectShape={shape => setActiveShape(shape)}
+            onOpenSpectralCharts={onOpenSpectralCharts}
+            onEdit={() => onEditSelected?.()}
+            onDelete={() => {
+              if (!selectedId) return
+              const target = fields.find(f => f.id === selectedId)
+              if (!target) return
+              void appConfirm(
+                `The field "${target.name}", its boundary, and any saved metadata will be permanently removed.`,
+                {
+                  title: 'Delete this field?',
+                  confirmLabel: 'Delete field',
+                  cancelLabel: 'Keep it',
+                  danger: true,
+                },
+              ).then(ok => {
+                if (ok) onDeleteField(target.id)
+              })
+            }}
+            onSave={() => onSaveDraft?.()}
+          />
+
+          {onSurfaceVizMetricChange ? (
+            <label className="gs-fields-viz-row">
+              <span className="gs-fields-viz-row__label">Map tint (all fields)</span>
+              <select
+                className="gs-fields-viz-row__select"
+                value={surfaceVizMetric}
+                aria-label="Field map tint metric"
+                onChange={e => onSurfaceVizMetricChange(e.target.value as FieldSurfaceVizMetric)}
+              >
+                <option value="none">Field colors</option>
+                <option value="ndvi">NDVI</option>
+                <option value="ndwi">NDWI</option>
+                <option value="savi">SAVI</option>
+                <option value="evi">EVI</option>
+                <option value="moisture">Moisture</option>
+                <option value="temperature">Temperature</option>
+              </select>
+            </label>
+          ) : null}
+
+          <button
+            type="button"
+            className="gs-fields-cta"
+            onClick={() => onStartDrawing?.(activeShape)}
+            disabled={drawingArmed}
+            title={
+              drawingArmed
+                ? 'Finish the current sketch first'
+                : `Draw a ${activeShape} on the map and save it as a new field`
+            }
+          >
+            <GsIcon name="plus" size={16} />
+            <span>
+              {drawingArmed ? 'Finish current sketch on the map…' : 'Add Draw New Field'}
+            </span>
+          </button>
+        </>
+      ) : null}
+
+      {showLibrary ? (
+        <>
+          {(onAddFieldGroup || fieldGroups.length > 0) && (
+            <div className="gs-fields-groups" role="navigation" aria-label="Field groups">
+              <div className="gs-fields-groups__scroll">
+                <button
+                  type="button"
+                  className={
+                    'gs-fields-group-chip' + (selectedGroupId === 'all' ? ' gs-fields-group-chip--on' : '')
+                  }
+                  onClick={() => onSelectGroup?.('all')}
+                >
+                  All
+                </button>
+                {fieldGroups.map(g => (
+                  <span key={g.id} className="gs-fields-group-chip-wrap">
+                    <button
+                      type="button"
+                      className={
+                        'gs-fields-group-chip' +
+                        (selectedGroupId === g.id ? ' gs-fields-group-chip--on' : '')
+                      }
+                      onClick={() => onSelectGroup?.(g.id)}
+                    >
+                      {g.name}
+                    </button>
+                    {onDeleteFieldGroup ? (
+                      <button
+                        type="button"
+                        className="gs-fields-group-chip__del"
+                        aria-label={`Delete group ${g.name}`}
+                        title="Remove group"
+                        onClick={() => {
+                          void appConfirm(`Remove the group "${g.name}"? Fields become ungrouped.`, {
+                            title: 'Delete group?',
+                            confirmLabel: 'Delete',
+                            cancelLabel: 'Cancel',
+                            danger: true,
+                          }).then(ok => {
+                            if (ok) onDeleteFieldGroup(g.id)
+                          })
+                        }}
+                      >
+                        <GsIcon name="x" size={10} />
+                      </button>
+                    ) : null}
+                  </span>
+                ))}
+                {onAddFieldGroup ? (
+                  <button type="button" className="gs-fields-group-chip gs-fields-group-chip--add" onClick={onAddFieldGroup}>
+                    + Group
+                  </button>
+                ) : null}
+              </div>
+            </div>
+          )}
 
       {/* Search + summary strip — total area helps the user grok scale at a
           glance without opening every card. */}
@@ -385,12 +504,12 @@ export default function FieldsPanel({
             <span>Crop</span>
             <input
               type="text"
-              list="gs-fields-crop-presets"
+              list={cropListId}
               value={selectedField.crop ?? ''}
               placeholder="e.g. Wheat, Corn / Maize…"
               onChange={e => onUpdateField(selectedField.id, { crop: e.target.value })}
             />
-            <datalist id="gs-fields-crop-presets">
+            <datalist id={cropListId}>
               {CROP_PRESETS.map(preset => (
                 <option key={preset} value={preset} />
               ))}
@@ -407,21 +526,47 @@ export default function FieldsPanel({
             />
           </label>
 
-          {/* Indices preview. We deliberately surface them as
-              "Pending — connect a satellite scene" rather than fake
-              numbers, because the actual NDVI/NDWI/Moisture pipeline lives
-              in the Satellite Intelligence module and isn't wired through
-              the Fields store yet. The shape stays so a future commit can
-              just populate `field.indices` and these read live. */}
-          <div className="gs-field-detail__indices">
-            {(['ndvi', 'ndwi', 'moisture'] as const).map(key => {
+          {fieldGroups.length > 0 ? (
+            <label className="gs-field-detail__field">
+              <span>Group</span>
+              <select
+                value={selectedField.groupId ?? ''}
+                onChange={e =>
+                  onUpdateField(selectedField.id, {
+                    groupId: e.target.value ? e.target.value : undefined,
+                  })
+                }
+              >
+                <option value="">Ungrouped</option>
+                {fieldGroups.map(g => (
+                  <option key={g.id} value={g.id}>
+                    {g.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+          ) : null}
+
+          <div className="gs-field-detail__indices gs-field-detail__indices--wide">
+            {(
+              [
+                { key: 'ndvi' as const, label: 'NDVI' },
+                { key: 'ndwi' as const, label: 'NDWI' },
+                { key: 'savi' as const, label: 'SAVI' },
+                { key: 'evi' as const, label: 'EVI' },
+                { key: 'moisture' as const, label: 'Moisture' },
+                { key: 'temperature' as const, label: 'Temp °C' },
+              ] as const
+            ).map(({ key, label }) => {
               const value = selectedField.indices?.[key]
+              const display =
+                typeof value === 'number' ? (key === 'temperature' ? value.toFixed(1) : value.toFixed(2)) : '—'
               return (
                 <div key={key} className="gs-field-index">
-                  <span className="gs-field-index__label">{key.toUpperCase()}</span>
-                  <strong className="gs-field-index__value">{typeof value === 'number' ? value.toFixed(2) : '—'}</strong>
+                  <span className="gs-field-index__label">{label}</span>
+                  <strong className="gs-field-index__value">{display}</strong>
                   <span className="gs-field-index__hint">
-                    {typeof value === 'number' ? 'last sync' : 'pending sync'}
+                    {typeof value === 'number' ? 'synced' : 'pending'}
                   </span>
                 </div>
               )
@@ -461,6 +606,9 @@ export default function FieldsPanel({
           </button>
         </div>
       )}
+
+        </>
+      ) : null}
 
     </div>
   )

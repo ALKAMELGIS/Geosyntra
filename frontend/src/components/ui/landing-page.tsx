@@ -147,6 +147,40 @@ function buildGlobeTransform(
   return `translate3d(${pos.left}vw, ${pos.top}vh, 0) translate3d(-50%, -50%, 0) scale3d(${pos.scale}, ${pos.scale}, 1)`
 }
 
+/** One easing curve for every hero + globe beat (GPU-friendly `transform` / `opacity` only). */
+const HERO_MOTION_EASE_CSS = 'cubic-bezier(0.23, 1, 0.32, 1)'
+
+/**
+ * Sequenced hero timeline (ms from first frame). Globe motion intentionally
+ * starts only after chrome so the 3D Earth never steals focus from copy/CTAs.
+ */
+const HERO_TIMELINE_MS = {
+  title: 200,
+  sparkles: 440,
+  lede: 640,
+  buttons: 880,
+  robot: 1220,
+  chrome: 1580,
+  globe: 1920,
+} as const
+
+const HERO_GLOBE_HUG_MS = 880
+
+/** If the rAF clock stalls (Low Power / background tab), force the hero unlocked so copy + globe never stay blank. */
+const HERO_TIMELINE_FAILSAFE_MS = HERO_TIMELINE_MS.globe + 2000
+
+function resolveHeroTimelineStep(elapsedMs: number, reducedMotion: boolean): number {
+  if (reducedMotion) return 7
+  if (elapsedMs >= HERO_TIMELINE_MS.globe) return 7
+  if (elapsedMs >= HERO_TIMELINE_MS.chrome) return 6
+  if (elapsedMs >= HERO_TIMELINE_MS.robot) return 5
+  if (elapsedMs >= HERO_TIMELINE_MS.buttons) return 4
+  if (elapsedMs >= HERO_TIMELINE_MS.lede) return 3
+  if (elapsedMs >= HERO_TIMELINE_MS.sparkles) return 2
+  if (elapsedMs >= HERO_TIMELINE_MS.title) return 1
+  return 0
+}
+
 const parsePercent = (str: string): number => parseFloat(str.replace('%', ''))
 
 /**
@@ -178,15 +212,21 @@ export function ScrollGlobe({ sections, globeConfig = defaultGlobeConfig, classN
   const [scrollProgress, setScrollProgress] = useState(0)
   const [globeTransform, setGlobeTransform] = useState('')
   /**
-   * Hero entrance flag. Initial render paints the Globe at opacity 0 +
-   * scale 0.9 so the browser has *something* on screen the very first
-   * frame, then the *next* RAF flips this to `true` and the wrapper's
-   * 280 ms transition runs the joint opacity + scale beat. No setTimeout,
-   * no perceived loading phase — the whole Hero arrives in a single
-   * sub-half-second motion (per the user's "حركة واحدة سريعة لا تتجاوز
-   * 0.5 ثانية" directive).
+   * Sequenced hero entrance (0 → 7). Drives title → sparkles → lede → buttons
+   * → robot mount → chrome (progress + rail) → globe hug — one rAF clock so
+   * we never spam React renders (only updates when the integer step changes).
    */
-  const [globeArrived, setGlobeArrived] = useState(false)
+  const [heroStep, setHeroStep] = useState(0)
+  /** Inner translate/scale for the “globe drifts into the embrace” beat (hero only). */
+  const [globeInnerPose, setGlobeInnerPose] = useState<'idle' | 'intro' | 'hug'>('idle')
+  const globeHugStartedRef = useRef(false)
+  const heroTimelineRafRef = useRef<number | undefined>(undefined)
+  const heroTimelineStartRef = useRef<number | null>(null)
+  const lastScrollPaintRef = useRef<{ progress: number; idx: number; transform: string }>({
+    progress: -1,
+    idx: -1,
+    transform: '',
+  })
   /**
    * Active theme — flips between `'dark'` and `'light'` based on the
    * `<html data-theme>` attribute. Drives the `particleColor` for the
@@ -246,7 +286,6 @@ export function ScrollGlobe({ sections, globeConfig = defaultGlobeConfig, classN
     }
     const docHeight = scrollHeight - clientHeight
     const progress = docHeight > 0 ? Math.min(Math.max(scrollTop / docHeight, 0), 1) : 0
-    setScrollProgress(progress)
 
     const viewportCenter = window.innerHeight / 2
     let newActiveSection = 0
@@ -265,8 +304,18 @@ export function ScrollGlobe({ sections, globeConfig = defaultGlobeConfig, classN
 
     const idx = Math.min(newActiveSection, calculatedPositions.length - 1)
     const currentPos = calculatedPositions[idx]
-    setGlobeTransform(buildGlobeTransform(idx, currentPos))
-    setActiveSection(idx)
+    const nextTransform = buildGlobeTransform(idx, currentPos)
+    const last = lastScrollPaintRef.current
+    if (last.progress !== progress) {
+      setScrollProgress(progress)
+      last.progress = progress
+    }
+    if (last.idx !== idx || last.transform !== nextTransform) {
+      setGlobeTransform(nextTransform)
+      setActiveSection(idx)
+      last.idx = idx
+      last.transform = nextTransform
+    }
   }, [calculatedPositions])
 
   useEffect(() => {
@@ -279,11 +328,11 @@ export function ScrollGlobe({ sections, globeConfig = defaultGlobeConfig, classN
     let ticking = false
     const handleScroll = () => {
       if (ticking) return
+      ticking = true
       animationFrameId.current = window.requestAnimationFrame(() => {
         updateScrollPosition()
         ticking = false
       })
-      ticking = true
     }
 
     source.addEventListener('scroll', handleScroll, { passive: true })
@@ -311,25 +360,97 @@ export function ScrollGlobe({ sections, globeConfig = defaultGlobeConfig, classN
     setGlobeTransform(buildGlobeTransform(0, calculatedPositions[0]))
   }, [calculatedPositions])
 
-  /* Hero entrance — single instant beat. We paint frame 1 at opacity 0
-   * + scale 0.9 (just enough to give the transition something to lerp
-   * from), then on the very next animation frame flip to the final
-   * state. Total perceived delay = 1 frame (~16 ms) + the wrapper's
-   * 280 ms transition = ~300 ms. No setTimeout, no staggered choreo,
-   * nothing that reads as "loading". Reduced-motion users skip the
-   * lerp entirely and see the final state immediately. */
+  const heroReveal = useCallback(
+    (minStep: number) => ({
+      opacity: heroStep >= minStep ? 1 : 0,
+      transform: `translate3d(0, ${heroStep >= minStep ? 0 : 20}px, 0)`,
+      transition: `opacity 400ms ${HERO_MOTION_EASE_CSS}, transform 560ms ${HERO_MOTION_EASE_CSS}`,
+      pointerEvents: heroStep >= minStep ? ('auto' as const) : ('none' as const),
+      /* Do not use `visibility: hidden` here — it can prevent gradient-clipped
+       * titles (`background-clip: text`) from painting after reveal on some
+       * WebKit builds; opacity + pointer-events is enough for the stagger. */
+    }),
+    [heroStep],
+  )
+
+  /* Hero timeline — one `requestAnimationFrame` loop, step bumps only when
+   * thresholds cross (≤ 8 React updates total). */
   useEffect(() => {
     if (typeof window === 'undefined') {
-      setGlobeArrived(true)
+      setHeroStep(7)
+      setGlobeInnerPose('hug')
       return
     }
-    if (window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) {
-      setGlobeArrived(true)
+    const reduced = Boolean(window.matchMedia?.('(prefers-reduced-motion: reduce)').matches)
+    if (reduced) {
+      setHeroStep(7)
+      setGlobeInnerPose('hug')
+      globeHugStartedRef.current = true
       return
     }
-    const raf = window.requestAnimationFrame(() => setGlobeArrived(true))
-    return () => window.cancelAnimationFrame(raf)
+
+    heroTimelineStartRef.current = performance.now()
+    let lastStep = -1
+    const tick = (now: number) => {
+      const t0 = heroTimelineStartRef.current ?? now
+      const elapsed = now - t0
+      const step = resolveHeroTimelineStep(elapsed, false)
+      if (step !== lastStep) {
+        lastStep = step
+        setHeroStep(step)
+      }
+      if (step < 7) {
+        heroTimelineRafRef.current = window.requestAnimationFrame(tick)
+      }
+    }
+    /* One synchronous evaluation so `lastStep` / first `setHeroStep` run in
+     * this commit; `tick` schedules the next frame when step < 7. */
+    tick(performance.now())
+    return () => {
+      if (heroTimelineRafRef.current != null) window.cancelAnimationFrame(heroTimelineRafRef.current)
+    }
   }, [])
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    if (window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) return
+    const id = window.setTimeout(() => {
+      setHeroStep(s => (s < 7 ? 7 : s))
+    }, HERO_TIMELINE_FAILSAFE_MS)
+    return () => window.clearTimeout(id)
+  }, [])
+
+  /* Globe “hug” — paint one frame at the raised pose, then flip to the chest
+   * pose on the next compositor frame so the browser can interpolate a single
+   * smooth `transform` segment (same easing as the rest of the hero). */
+  useEffect(() => {
+    if (heroStep < 7) return
+    if (globeHugStartedRef.current) return
+    if (typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) {
+      setGlobeInnerPose('hug')
+      globeHugStartedRef.current = true
+      return
+    }
+    globeHugStartedRef.current = true
+    setGlobeInnerPose('intro')
+    let id2: number | undefined
+    const id1 = window.requestAnimationFrame(() => {
+      id2 = window.requestAnimationFrame(() => {
+        setGlobeInnerPose('hug')
+      })
+    })
+    return () => {
+      window.cancelAnimationFrame(id1)
+      if (id2 != null) window.cancelAnimationFrame(id2)
+    }
+  }, [heroStep])
+
+  useEffect(() => {
+    if (activeSection !== 0) {
+      setGlobeInnerPose('idle')
+      globeHugStartedRef.current = false
+    }
+  }, [activeSection])
 
   /* Watch `<html data-theme>` for changes (Settings page, the floating
    * HeroThemeToggle, system-preference flips when in `'system'` mode).
@@ -376,7 +497,14 @@ export function ScrollGlobe({ sections, globeConfig = defaultGlobeConfig, classN
           the only surface in the app that keeps the upstream blue cast; the
           rest of the chrome (header, sidebar, panels) stays neutral
           black-glass per the brand rules. */}
-      <div className="fixed top-0 left-0 w-full h-0.5 bg-gradient-to-r from-border/20 via-border/40 to-border/20 z-50">
+      <div
+        className="fixed top-0 left-0 w-full h-0.5 bg-gradient-to-r from-border/20 via-border/40 to-border/20 z-50"
+        style={{
+          opacity: heroStep >= 6 ? 1 : 0,
+          transition: `opacity 520ms ${HERO_MOTION_EASE_CSS}`,
+          pointerEvents: heroStep >= 6 ? 'auto' : 'none',
+        }}
+      >
         <div
           className="h-full bg-gradient-to-r from-primary via-blue-600 to-blue-900 will-change-transform shadow-sm"
           style={{
@@ -395,6 +523,11 @@ export function ScrollGlobe({ sections, globeConfig = defaultGlobeConfig, classN
       <nav
         aria-label="Section navigation"
         className="hidden sm:flex fixed right-2 sm:right-4 lg:right-8 top-1/2 -translate-y-1/2 z-40"
+        style={{
+          opacity: heroStep >= 6 ? 1 : 0,
+          transition: `opacity 520ms ${HERO_MOTION_EASE_CSS}`,
+          pointerEvents: heroStep >= 6 ? 'auto' : 'none',
+        }}
       >
         <div className="space-y-3 sm:space-y-4 lg:space-y-6">
           {sections.map((section, index) => (
@@ -461,13 +594,16 @@ export function ScrollGlobe({ sections, globeConfig = defaultGlobeConfig, classN
                               small leftward nudge so it sits inside
                               the figure's left embrace.
 
-          Entrance choreography:
-            • Single fast beat, ≤ 0.5 s end-to-end. Robot fades in via
-              the CSS `gs-hero-robot-fade` keyframe (240 ms). Globe
-              flips on the very next RAF after mount and runs a 280 ms
-              opacity + 320 ms scale (0.9 → 1.0) transition jointly,
-              no setTimeout, no staggered delay. The whole Hero reads
-              as one instant motion — no perceived loading phase.
+          Entrance choreography (sequenced RAF timeline — 2026-05-14):
+            • Title → Sparkles bar → lede → CTAs fade/slide in first
+              (shared cubic-bezier, transform+opacity only).
+            • Robot (Spline) mounts only after CTAs so the heavy WebGL
+              chunk never competes with the text pass.
+            • Progress hairline + right-rail nav fade in next.
+            • Globe texture + hug motion starts last: opacity first,
+              then one translate/scale segment into the chest pose
+              (880 ms, same easing) — never runs before the copy/CTA
+              beats finish.
 
           Hero positioning:
             • Robot stage     `right: 0`, `width: min(58vw, 880px)` →
@@ -526,51 +662,66 @@ export function ScrollGlobe({ sections, globeConfig = defaultGlobeConfig, classN
           enables pointer events for the built-in mouse parallax. */}
       <div
         aria-hidden
-        className="gs-hero-robot fixed inset-y-0 right-0 z-[8] hidden md:flex items-center justify-end pointer-events-none transition-opacity duration-[260ms] ease-out"
+        className="gs-hero-robot fixed inset-y-0 right-0 z-[8] hidden md:flex items-center justify-end pointer-events-none"
         style={{
           width: 'min(58vw, 880px)',
-          opacity: activeSection === 0 ? 1 : 0,
+          opacity: activeSection === 0 && heroStep >= 5 ? 1 : 0,
+          transition: `opacity 560ms ${HERO_MOTION_EASE_CSS}`,
         }}
       >
         <div className="gs-hero-robot__stage relative w-full h-[72%] max-h-[68vh] mr-2 md:mr-6 lg:mr-10 xl:mr-14 pointer-events-auto">
-          <SplineScene scene={SPLINE_HERO_SCENE_URL} className="w-full h-full" />
+          {heroStep >= 5 ? (
+            <SplineScene scene={SPLINE_HERO_SCENE_URL} className="w-full h-full" />
+          ) : (
+            <div className="gs-spline-skeleton h-full w-full min-h-[200px]" aria-hidden />
+          )}
         </div>
       </div>
 
-      {/* The pinned globe layer. The wrapper transition is split into two
-          tracks so the *scroll glide* between sections still feels
-          cinematic (550 ms transform) but the *initial arrival* is over
-          quickly (280 ms opacity).
-            • In Hero (idx 0), `globeTransform` resolves to the
-              right-anchored calc() form (locked to the Robot stage
-              centre) so the Earth lands squarely on the figure's chest.
-            • Outside Hero, `globeTransform` falls back to the upstream
-              vw-based positioning so Innovation / Discovery / Future
-              keep their original cinematic glide.
-          Opacity gates on `globeArrived` for the entrance beat AND on
-          `activeSection === last` for the closing fade. */}
+      {/* The pinned globe layer. Scroll-driven `transform` stays on the outer
+          shell; the inner shell runs the post-hero “hug” choreography only
+          while section 0 is active so Innovation→Future keeps the upstream
+          glide without carrying hero-only offsets. */}
       <div
         aria-hidden
         className="gs-hero-globe fixed z-10 pointer-events-none will-change-transform"
         style={{
           transform: globeTransform,
-          opacity: globeArrived
-            ? activeSection === sections.length - 1
-              ? 0.4
-              : 0.92
-            : 0,
-          transition:
-            'transform 550ms cubic-bezier(0.23, 1, 0.32, 1), opacity 280ms ease-out',
+          opacity:
+            activeSection === 0 && heroStep < 7
+              ? 0
+              : activeSection === sections.length - 1
+                ? 0.4
+                : 0.92,
+          transition: `transform 550ms ${HERO_MOTION_EASE_CSS}, opacity 480ms ${HERO_MOTION_EASE_CSS}`,
         }}
       >
         <div
           className="gs-hero-globe__entrance"
-          style={{
-            transform: globeArrived ? 'scale(1)' : 'scale(0.9)',
-            transition:
-              'transform 320ms cubic-bezier(0.23, 1, 0.32, 1)',
-            transformOrigin: 'center center',
-          }}
+          style={(() => {
+            const reducedMotion =
+              typeof window !== 'undefined' &&
+              Boolean(window.matchMedia?.('(prefers-reduced-motion: reduce)').matches)
+            if (activeSection !== 0 || heroStep < 7) {
+              return {
+                transform: 'translate3d(0, 0, 0) scale3d(1, 1, 1)',
+                transition: 'none',
+                transformOrigin: 'center center',
+              } as const
+            }
+            if (globeInnerPose !== 'hug') {
+              return {
+                transform: 'translate3d(0, -6vh, 0) scale3d(0.93, 0.93, 1)',
+                transition: 'none',
+                transformOrigin: 'center center',
+              } as const
+            }
+            return {
+              transform: 'translate3d(0, 0, 0) scale3d(1, 1, 1)',
+              transition: reducedMotion ? 'none' : `transform ${HERO_GLOBE_HUG_MS}ms ${HERO_MOTION_EASE_CSS}`,
+              transformOrigin: 'center center',
+            } as const
+          })()}
         >
           {/* Per-breakpoint scale-up of the upstream 250×250 globe so the
               sphere reads as the dominant visual on larger screens
@@ -580,7 +731,7 @@ export function ScrollGlobe({ sections, globeConfig = defaultGlobeConfig, classN
               `defaultGlobeConfig.positions[].scale` multiplies on top
               of this base. */}
           <div className="scale-100 sm:scale-150 lg:scale-[3] 2xl:scale-[3.5]">
-            <Globe />
+            {activeSection !== 0 || heroStep >= 7 ? <Globe /> : null}
           </div>
         </div>
       </div>
@@ -619,14 +770,15 @@ export function ScrollGlobe({ sections, globeConfig = defaultGlobeConfig, classN
         >
           <div
             className={cn(
-              'pointer-events-auto w-full max-w-sm sm:max-w-lg md:max-w-2xl lg:max-w-4xl xl:max-w-5xl will-change-transform transition-all duration-700',
-              'opacity-100 translate-y-0',
+              'pointer-events-auto w-full max-w-sm sm:max-w-lg md:max-w-2xl lg:max-w-4xl xl:max-w-5xl',
+              index !== 0 && 'will-change-transform transition-all duration-700 opacity-100 translate-y-0',
               /* Hero text column stays narrower on tablets/desktops so the
                  right-side Spline robot + Globe stage has room to breathe.
                  The non-hero sections keep their original generous widths. */
               index === 0 && 'md:max-w-[44%] lg:max-w-[42%] xl:max-w-[40%]',
             )}
           >
+            <div style={index === 0 ? heroReveal(1) : ({ display: 'contents' } as const)}>
             <h1
               className={cn(
                 'font-bold mb-6 sm:mb-8 leading-[1.1] tracking-tight',
@@ -664,6 +816,7 @@ export function ScrollGlobe({ sections, globeConfig = defaultGlobeConfig, classN
                 </div>
               )}
             </h1>
+            </div>
 
             {/*
              * Sparkles bar — only for the Hero section. Mirrors the upstream
@@ -680,20 +833,27 @@ export function ScrollGlobe({ sections, globeConfig = defaultGlobeConfig, classN
                * → its visual centre is the container centre, not the
                * left edge). Matches the user's "حركها يمين قليلًا
                * لتكون وسط النص الذي أسفلها بالضبط" tweak. */
-              <div className="gs-hero-sparkle-bar relative w-full max-w-[40rem] h-28 sm:h-36 -mt-2 mb-6 sm:mb-8 mx-auto select-none">
+              <div
+                className="gs-hero-sparkle-bar relative w-full max-w-[40rem] h-28 sm:h-36 -mt-2 mb-6 sm:mb-8 mx-auto select-none"
+                style={heroReveal(2)}
+              >
                 <div className="gs-hero-sparkle-line gs-hero-sparkle-line--soft absolute inset-x-[15%] top-0 h-[2px] w-[70%] bg-gradient-to-r from-transparent via-slate-200/80 to-transparent blur-sm" />
                 <div className="gs-hero-sparkle-line gs-hero-sparkle-line--hairline absolute inset-x-[15%] top-0 h-px w-[70%] bg-gradient-to-r from-transparent via-slate-100/90 to-transparent" />
                 <div className="gs-hero-sparkle-line gs-hero-sparkle-line--core-soft absolute inset-x-[35%] top-0 h-[5px] w-[30%] bg-gradient-to-r from-transparent via-white/85 to-transparent blur-sm" />
                 <div className="gs-hero-sparkle-line gs-hero-sparkle-line--core absolute inset-x-[35%] top-0 h-px w-[30%] bg-gradient-to-r from-transparent via-white to-transparent" />
 
-                <SparklesCore
-                  background="transparent"
-                  minSize={0.4}
-                  maxSize={1}
-                  particleDensity={520}
-                  className="w-full h-full"
-                  particleColor={particleColor}
-                />
+                {heroStep >= 2 ? (
+                  <SparklesCore
+                    background="transparent"
+                    minSize={0.4}
+                    maxSize={1}
+                    particleDensity={520}
+                    className="w-full h-full"
+                    particleColor={particleColor}
+                  />
+                ) : (
+                  <div className="h-full w-full" aria-hidden />
+                )}
 
                 {/* Soft radial mask so the starfield bleeds out at the edges
                     (no hard rectangle) and never paints over the description
@@ -712,6 +872,7 @@ export function ScrollGlobe({ sections, globeConfig = defaultGlobeConfig, classN
                  * centring both is the cleanest way to hit that). */
                 index === 0 && 'text-center',
               )}
+              style={index === 0 ? heroReveal(3) : undefined}
             >
               <p className="mb-3 sm:mb-4">{section.description}</p>
               {index === 0 && (
@@ -758,41 +919,74 @@ export function ScrollGlobe({ sections, globeConfig = defaultGlobeConfig, classN
               </div>
             )}
 
-            {section.actions && (
-              <div
-                className={cn(
-                  'flex flex-col sm:flex-row flex-wrap gap-3 sm:gap-4',
-                  section.align === 'center' && 'justify-center',
-                  section.align === 'right' && 'justify-end',
-                  (!section.align || section.align === 'left') && 'justify-start',
-                  index === 0 && 'justify-center',
-                )}
-              >
-                {section.actions.map((action, actionIndex) => (
-                  <button
-                    key={action.label}
-                    type="button"
-                    onClick={action.onClick}
+            {section.actions &&
+              (index === 0 ? (
+                <div style={heroReveal(4)}>
+                  <div
                     className={cn(
-                      'group relative px-6 sm:px-8 py-3 sm:py-4 rounded-lg sm:rounded-xl font-medium transition-all duration-300 hover:scale-[1.02] active:scale-[0.98] text-sm sm:text-base',
-                      'hover:shadow-lg focus:outline-none focus:ring-2 focus:ring-primary/20 w-full sm:w-auto',
-                      action.variant === 'primary'
-                        ? 'bg-primary text-primary-foreground hover:bg-primary/90 shadow-lg shadow-primary/20 hover:shadow-primary/30'
-                        : 'border-2 border-border/60 bg-background/50 backdrop-blur-sm hover:bg-accent/50 hover:border-primary/30 text-foreground',
+                      'flex flex-col sm:flex-row flex-wrap gap-3 sm:gap-4',
+                      'justify-center',
                     )}
-                    style={{ animationDelay: `${actionIndex * 0.1 + 0.2}s` }}
                   >
-                    <span className="relative z-10">{action.label}</span>
-                    {action.variant === 'primary' && (
-                      <div
-                        aria-hidden
-                        className="absolute inset-0 rounded-lg sm:rounded-xl bg-gradient-to-r from-primary to-primary/80 opacity-0 group-hover:opacity-100 transition-opacity duration-300"
-                      />
-                    )}
-                  </button>
-                ))}
-              </div>
-            )}
+                    {section.actions.map((action, actionIndex) => (
+                      <button
+                        key={action.label}
+                        type="button"
+                        onClick={action.onClick}
+                        className={cn(
+                          'group relative px-6 sm:px-8 py-3 sm:py-4 rounded-lg sm:rounded-xl font-medium transition-all duration-300 hover:scale-[1.02] active:scale-[0.98] text-sm sm:text-base',
+                          'hover:shadow-lg focus:outline-none focus:ring-2 focus:ring-primary/20 w-full sm:w-auto',
+                          action.variant === 'primary'
+                            ? 'bg-primary text-primary-foreground hover:bg-primary/90 shadow-lg shadow-primary/20 hover:shadow-primary/30'
+                            : 'border-2 border-border/60 bg-background/50 backdrop-blur-sm hover:bg-accent/50 hover:border-primary/30 text-foreground',
+                        )}
+                        style={{ animationDelay: `${actionIndex * 0.1 + 0.2}s` }}
+                      >
+                        <span className="relative z-10">{action.label}</span>
+                        {action.variant === 'primary' && (
+                          <div
+                            aria-hidden
+                            className="absolute inset-0 rounded-lg sm:rounded-xl bg-gradient-to-r from-primary to-primary/80 opacity-0 group-hover:opacity-100 transition-opacity duration-300"
+                          />
+                        )}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              ) : (
+                <div
+                  className={cn(
+                    'flex flex-col sm:flex-row flex-wrap gap-3 sm:gap-4',
+                    section.align === 'center' && 'justify-center',
+                    section.align === 'right' && 'justify-end',
+                    (!section.align || section.align === 'left') && 'justify-start',
+                  )}
+                >
+                  {section.actions.map((action, actionIndex) => (
+                    <button
+                      key={action.label}
+                      type="button"
+                      onClick={action.onClick}
+                      className={cn(
+                        'group relative px-6 sm:px-8 py-3 sm:py-4 rounded-lg sm:rounded-xl font-medium transition-all duration-300 hover:scale-[1.02] active:scale-[0.98] text-sm sm:text-base',
+                        'hover:shadow-lg focus:outline-none focus:ring-2 focus:ring-primary/20 w-full sm:w-auto',
+                        action.variant === 'primary'
+                          ? 'bg-primary text-primary-foreground hover:bg-primary/90 shadow-lg shadow-primary/20 hover:shadow-primary/30'
+                          : 'border-2 border-border/60 bg-background/50 backdrop-blur-sm hover:bg-accent/50 hover:border-primary/30 text-foreground',
+                      )}
+                      style={{ animationDelay: `${actionIndex * 0.1 + 0.2}s` }}
+                    >
+                      <span className="relative z-10">{action.label}</span>
+                      {action.variant === 'primary' && (
+                        <div
+                          aria-hidden
+                          className="absolute inset-0 rounded-lg sm:rounded-xl bg-gradient-to-r from-primary to-primary/80 opacity-0 group-hover:opacity-100 transition-opacity duration-300"
+                        />
+                      )}
+                    </button>
+                  ))}
+                </div>
+              ))}
           </div>
         </section>
       ))}

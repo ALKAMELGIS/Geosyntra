@@ -1,4 +1,4 @@
-import { Component, useEffect, type ErrorInfo } from 'react'
+import { Component, useEffect } from 'react'
 import { HashRouter, Navigate, useLocation } from 'react-router-dom'
 import { AppDialogProvider } from './components/AppDialogProvider'
 import HeaderBar from './components/HeaderBar'
@@ -8,33 +8,61 @@ import { AuthProvider, useAuth } from './state/auth'
 import { LanguageProvider } from './lib/i18n'
 import { SystemSettingsProvider } from './store/SystemSettingsContext'
 
-type AppErrorState = { error: unknown; details?: string } | null
+type AppErrorState = {
+  error: unknown
+  kind: 'render' | 'window'
+  details?: string
+} | null
 
-/**
- * React error boundary only — never hijack `window` / `unhandledrejection` for full-screen UI.
- * Third-party CDN / map / WASM code often emits fetch failures that are unrelated to the app shell;
- * mapping those to a fatal overlay caused repeat "Failed to fetch" black screens on GitHub Pages.
- */
 class AppErrorBoundary extends Component<{ children: JSX.Element }, { err: AppErrorState }> {
   state: { err: AppErrorState } = { err: null }
+  private onUnhandledRejection?: (e: PromiseRejectionEvent) => void
+  private onErrorEvent?: (e: ErrorEvent) => void
 
   static getDerivedStateFromError(error: unknown) {
-    return { err: { error } }
+    return { err: { error, kind: 'render' as const } }
   }
 
-  componentDidCatch(error: unknown, errorInfo: ErrorInfo) {
+  componentDidCatch(error: unknown) {
     try {
       const message = error instanceof Error ? error.message : String(error)
-      console.error('[AppErrorBoundary]', message, error, errorInfo)
+      console.error('[AppErrorBoundary]', message, error)
     } catch {
-      /* ignore */
     }
-    const stack = error instanceof Error ? error.stack : undefined
-    const comp = errorInfo?.componentStack
-    const details = [stack, comp].filter(Boolean).join('\n\n')
-    if (details) {
-      this.setState((s) => (s.err ? { err: { ...s.err, details } } : s))
+  }
+
+  componentDidMount() {
+    if (typeof window === 'undefined') return
+    this.onUnhandledRejection = (e) => {
+      const reason = (e as any).reason
+      const msg = reason instanceof Error ? reason.message : typeof reason === 'string' ? reason : ''
+      if (msg.includes('Style is not done loading')) return
+      const details = reason instanceof Error ? reason.stack : undefined
+      this.setState({ err: { error: reason ?? e, kind: 'window', details } })
+      try {
+        console.error('[unhandledrejection]', reason)
+      } catch {
+      }
     }
+    this.onErrorEvent = (e) => {
+      const err = e?.error
+      const msg = err instanceof Error ? err.message : typeof err === 'string' ? err : String(e?.message ?? '')
+      if (msg.includes('Style is not done loading')) return
+      const details = typeof e?.error?.stack === 'string' ? e.error.stack : undefined
+      this.setState({ err: { error: e.error ?? e.message, kind: 'window', details } })
+      try {
+        console.error('[window.error]', e.error ?? e.message)
+      } catch {
+      }
+    }
+    window.addEventListener('unhandledrejection', this.onUnhandledRejection)
+    window.addEventListener('error', this.onErrorEvent)
+  }
+
+  componentWillUnmount() {
+    if (typeof window === 'undefined') return
+    if (this.onUnhandledRejection) window.removeEventListener('unhandledrejection', this.onUnhandledRejection)
+    if (this.onErrorEvent) window.removeEventListener('error', this.onErrorEvent)
   }
 
   render() {

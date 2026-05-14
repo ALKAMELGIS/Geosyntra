@@ -37,6 +37,23 @@ import L from 'leaflet'
  * ────────────────────────────────────────────────────────────────────────── */
 
 export const FIELDS_STORAGE_KEY = 'geosyntra:fields:v1'
+export const FIELD_GROUPS_STORAGE_KEY = 'geosyntra:field-groups:v1'
+
+/** How saved fields are tinted on the map from per-field spectral snapshots. */
+export type FieldSurfaceVizMetric =
+  | 'none'
+  | 'ndvi'
+  | 'ndwi'
+  | 'savi'
+  | 'evi'
+  | 'moisture'
+  | 'temperature'
+
+export interface FieldGroup {
+  id: string
+  name: string
+  createdAt: string
+}
 
 /**
  * Round-robin palette for new fields. Picked to read clearly on top of
@@ -87,7 +104,11 @@ export const CROP_PRESETS = [
 export interface FieldIndices {
   ndvi?: number
   ndwi?: number
+  savi?: number
+  evi?: number
   moisture?: number
+  /** Degrees Celsius — LST-style proxy until a thermal service is wired. */
+  temperature?: number
   /** ISO timestamp of when the indices were last computed. */
   computedAt?: string
 }
@@ -114,12 +135,46 @@ export interface FieldSatelliteContext {
   capturedAt: string
 }
 
+/** Best-effort map a visible layer / WMS title to a known spectral index id. */
+export function guessSpectralIndexIdFromLayerName(layerName: string): string | undefined {
+  const n = layerName.toLowerCase()
+  if (n.includes('ndvi')) return 'NDVI'
+  if (n.includes('ndwi')) return 'NDWI'
+  if (n.includes('ndmi') || (n.includes('moisture') && !n.includes('false color'))) return 'MOISTURE'
+  if (n.includes('swir')) return 'SWIR'
+  if (n.includes('evi')) return 'EVI'
+  if (n.includes('savi')) return 'SAVI'
+  return undefined
+}
+
+/**
+ * GIS Map (Leaflet) — capture which imagery layer was on top when the user
+ * saved a field, so `SavedField.satelliteContext` matches Satellite Intelligence.
+ */
+export function snapshotFieldSatelliteFromGisContext(
+  topVisibleLayerName: string | undefined,
+  basemapFallbackLabel: string,
+  capturedAt: string,
+): FieldSatelliteContext | undefined {
+  const raw =
+    (topVisibleLayerName && topVisibleLayerName.trim()) ||
+    (basemapFallbackLabel && basemapFallbackLabel.trim())
+  if (!raw) return undefined
+  return {
+    layerName: raw,
+    indexId: guessSpectralIndexIdFromLayerName(raw),
+    capturedAt,
+  }
+}
+
 export interface SavedField {
   id: string
   name: string
   crop?: string
   notes?: string
   color: string
+  /** Optional workspace folder for the Field Data library tab. */
+  groupId?: string
   /** GeoJSON Polygon or MultiPolygon (always wrapped in a Feature for round-trip). */
   geometry: GeoJSON.Polygon | GeoJSON.MultiPolygon
   areaHectares: number
@@ -179,15 +234,134 @@ export function persistSavedFields(fields: SavedField[]): void {
   }
 }
 
-/* ────────────────────────────────────────────────────────────────────────── *
- * Geometry helpers
- *
- * `L.GeometryUtil.geodesicArea` is shipped by `leaflet-draw` (already a
- * project dependency) and computes m² on a sphere from a `LatLng[]`. We
- * expose a `geodesicAreaHectares` shortcut that handles both Leaflet
- * layers and raw GeoJSON polygons so the panel can display areas for
- * imported / sketched / DB-loaded fields uniformly.
- * ────────────────────────────────────────────────────────────────────────── */
+export function loadFieldGroups(): FieldGroup[] {
+  if (typeof window === 'undefined') return []
+  try {
+    const raw = window.localStorage.getItem(FIELD_GROUPS_STORAGE_KEY)
+    if (!raw) return []
+    const parsed = JSON.parse(raw)
+    if (!Array.isArray(parsed)) return []
+    return parsed.filter(
+      (g: any) => g && typeof g === 'object' && typeof g.id === 'string' && typeof g.name === 'string',
+    ) as FieldGroup[]
+  } catch {
+    return []
+  }
+}
+
+export function persistFieldGroups(groups: FieldGroup[]): void {
+  if (typeof window === 'undefined') return
+  try {
+    window.localStorage.setItem(FIELD_GROUPS_STORAGE_KEY, JSON.stringify(groups))
+  } catch {
+    /* ignore */
+  }
+}
+
+function hashStringToUint32(input: string): number {
+  let h = 2166136261 >>> 0
+  for (let i = 0; i < input.length; i++) {
+    h ^= input.charCodeAt(i)
+    h = Math.imul(h, 16777619) >>> 0
+  }
+  return h >>> 0
+}
+
+function mulberry32(seed: number): () => number {
+  let a = seed >>> 0
+  return () => {
+    a = (a + 0x6d2b79f5) >>> 0
+    let t = a
+    t = Math.imul(t ^ (t >>> 15), t | 1)
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61)
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296
+  }
+}
+
+/** Rough centroid in WGS84 [lng, lat] for zonal-style seeding (not survey-grade). */
+export function polygonGeometryCentroid(geometry: SavedField['geometry']): [number, number] | null {
+  try {
+    const rings: GeoJSON.Position[][] = []
+    if (geometry.type === 'Polygon') {
+      const outer = geometry.coordinates[0]
+      if (outer?.length) rings.push(outer)
+    } else {
+      const first = geometry.coordinates[0]?.[0]
+      if (first?.length) rings.push(first)
+    }
+    const ring = rings[0]
+    if (!ring || ring.length < 2) return null
+    let sx = 0
+    let sy = 0
+    let n = 0
+    for (const p of ring) {
+      const lng = p[0]
+      const lat = p[1]
+      if (typeof lng !== 'number' || typeof lat !== 'number') continue
+      sx += lng
+      sy += lat
+      n += 1
+    }
+    if (!n) return null
+    return [sx / n, sy / n]
+  } catch {
+    return null
+  }
+}
+
+export type FieldSpectralContextInput = {
+  layerKey: string
+  indexKey?: string
+  /** Any string that changes when the scene / timeline window changes. */
+  sceneKey: string
+}
+
+/**
+ * Deterministic per-field spectral snapshot from geometry + scene context.
+ * Values are plausible stand-ins until real zonal stats are wired to WMS/STAC.
+ */
+export function computeFieldSpectralIndices(
+  field: Pick<SavedField, 'id' | 'geometry'>,
+  ctx: FieldSpectralContextInput,
+): FieldIndices {
+  const c = polygonGeometryCentroid(field.geometry)
+  const cx = c?.[0] ?? 0
+  const cy = c?.[1] ?? 0
+  const seedBase = hashStringToUint32(
+    `${field.id}|${ctx.layerKey}|${ctx.indexKey ?? ''}|${ctx.sceneKey}|${cx.toFixed(5)}|${cy.toFixed(5)}`,
+  )
+  const rnd = mulberry32(seedBase)
+  const ndvi = -0.15 + rnd() * 1.05
+  const ndwi = -0.4 + rnd() * 0.9
+  const savi = -0.1 + rnd() * 0.85
+  const evi = -0.05 + rnd() * 0.75
+  const moisture = 0.08 + rnd() * 0.62
+  const temperature = 18 + rnd() * 16
+  return {
+    ndvi,
+    ndwi,
+    savi,
+    evi,
+    moisture,
+    temperature,
+    computedAt: new Date().toISOString(),
+  }
+}
+
+/** 0–1 ramp for Mapbox `interpolate` paint (NDVI-style metrics). */
+export function indexToVizUnit(metric: FieldSurfaceVizMetric, indices: FieldIndices | undefined): number {
+  if (!indices) return 0.45
+  if (metric === 'ndvi' && typeof indices.ndvi === 'number') return Math.max(0, Math.min(1, (indices.ndvi + 1) / 2))
+  if (metric === 'ndwi' && typeof indices.ndwi === 'number') return Math.max(0, Math.min(1, (indices.ndwi + 1) / 2))
+  if (metric === 'savi' && typeof indices.savi === 'number') return Math.max(0, Math.min(1, (indices.savi + 0.2) / 1.1))
+  if (metric === 'evi' && typeof indices.evi === 'number') return Math.max(0, Math.min(1, (indices.evi + 0.2) / 1))
+  if (metric === 'moisture' && typeof indices.moisture === 'number')
+    return Math.max(0, Math.min(1, indices.moisture))
+  if (metric === 'temperature' && typeof indices.temperature === 'number')
+    return Math.max(0, Math.min(1, (indices.temperature - 10) / 35))
+  return 0.45
+}
+
 
 type LeafletGeometryUtil = {
   geodesicArea: (latLngs: L.LatLng[]) => number

@@ -1,13 +1,19 @@
-/* Placeholder when Spline is skipped (static hosts) or fails — keeps layout without remote fetch. */
-.gs-spline-skeleton {
-  position: relative;
-  min-height: 120px;
-  border-radius: 16px;
-  background: linear-gradient(
-    135deg,
-    rgba(15, 23, 42, 0.55) 0%,
-    rgba(30, 41, 59, 0.42) 50%,
-    rgba(15, 23, 42, 0.55) 100%
-  );
-  border: 1px solid rgba(148, 163, 184, 0.12);
+/**
+ * Strip default Spline / runtime wrapper chrome (border, rounded plate,
+ * drop shadow) so the scene sits flush on the page background — Home Hero
+ * + Learn More hero both use `<SplineScene/>`.
+ */
+.gs-spline-frameless,
+.gs-spline-frameless > * {
+  border: none !important;
+  outline: none !important;
+  box-shadow: none !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+}
+
+.gs-spline-frameless canvas {
+  border: none !important;
+  outline: none !important;
+  background: transparent !important;
 }

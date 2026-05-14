@@ -63,6 +63,20 @@
   flex: 0 0 auto;
 }
 
+.gs-field-draw-module__group--charts {
+  flex: 0 0 auto;
+}
+
+.gs-field-draw-tool--charts {
+  border-color: rgba(99, 102, 241, 0.35);
+  background: rgba(79, 70, 229, 0.12);
+}
+
+.gs-field-draw-tool--charts:hover {
+  border-color: rgba(165, 180, 252, 0.55);
+  box-shadow: 0 0 0 1px rgba(129, 140, 248, 0.25);
+}
+
 /* Vertical hairline that visually segments the row. Pure CSS — no
  * extra DOM weight, sized to match the button height. */
 .gs-field-draw-module__sep {

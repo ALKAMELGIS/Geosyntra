@@ -158,8 +158,11 @@ export type SatelliteMapAnalysisChromeProps = {
   onGeoAiFloatingRailToggle?: () => void;
   /** Map toolbox rail: opens add layer / data dialog (Satellite Intelligence). */
   onMapToolboxAddData?: () => void;
-  /** Pre-built `<FieldsPanel/>` JSX rendered when the user opens the new
-   *  Fields tool from the map toolbox rail (drawer pattern, mirrors GIS Map). */
+  /** Fields → Main tab: drawing + spectral strip. */
+  fieldsPanelWorkspaceContent?: ReactNode;
+  /** Fields → Field Data tab: library + groups. */
+  fieldsPanelLibraryContent?: ReactNode;
+  /** @deprecated Use `fieldsPanelWorkspaceContent` + `fieldsPanelLibraryContent`. */
   fieldsPanelContent?: ReactNode;
   /** Saved-fields count for the rail badge (0 hides the badge). */
   fieldsCount?: number;
@@ -220,6 +223,8 @@ export function SatelliteMapAnalysisChrome(props: SatelliteMapAnalysisChromeProp
     geoAiFloatingOpen = false,
     onGeoAiFloatingRailToggle,
     onMapToolboxAddData,
+    fieldsPanelWorkspaceContent,
+    fieldsPanelLibraryContent,
     fieldsPanelContent,
     fieldsCount = 0,
   } = props;
@@ -295,6 +300,8 @@ export function SatelliteMapAnalysisChrome(props: SatelliteMapAnalysisChromeProp
       geoAiFloatingOpen={geoAiFloatingOpen}
       onGeoAiFloatingRailToggle={onGeoAiFloatingRailToggle}
       onMapToolboxAddData={onMapToolboxAddData}
+      fieldsPanelWorkspaceContent={fieldsPanelWorkspaceContent}
+      fieldsPanelLibraryContent={fieldsPanelLibraryContent}
       fieldsPanelContent={fieldsPanelContent}
       fieldsCount={fieldsCount}
     />

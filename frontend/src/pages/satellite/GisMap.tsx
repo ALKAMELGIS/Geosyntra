@@ -24,17 +24,24 @@ import { GeoExplorerGeminiInputRow } from './components/GeoExplorerGeminiInputRo
 import { MapPopup } from './components/MapPopup'
 import { DrawToolsController } from './components/DrawTools'
 import FieldsPanel from './components/fields/FieldsPanel'
+import FieldDataContextStrip from './components/fields/FieldDataContextStrip'
 import SavedFieldsLayer from './components/fields/SavedFieldsLayer'
 import {
   geodesicAreaHectares,
   geometryBounds,
   leafletLayerToPolygon,
   loadSavedFields,
+  loadFieldGroups,
+  persistFieldGroups,
   nextFieldColor,
   nextFieldName,
   persistSavedFields,
+  snapshotFieldSatelliteFromGisContext,
+  computeFieldSpectralIndices,
   uuid,
   type SavedField,
+  type FieldGroup,
+  type FieldSurfaceVizMetric,
 } from './components/fields/fieldsStore'
 import { BasemapGallery, BasemapLayer, type BasemapType } from './components/BasemapGallery'
 import {
@@ -67,7 +74,7 @@ import {
   type GeoExplorerMessage,
   type GeoExplorerPart,
 } from '../../lib/geoExplorerGemini'
-import { appAlert, appPrompt } from '../../lib/appDialog'
+import { appAlert, appPrompt, appConfirm } from '../../lib/appDialog'
 import { DEVELOP_DATA_CONTEXT_LS_KEY } from '../../lib/geoAiChatClaude'
 import {
   arcLegendLabelForFieldValue,
@@ -887,9 +894,20 @@ export default function GisMap() {
   useEffect(() => {
     persistSavedFields(savedFields)
   }, [savedFields])
+  const [fieldDataUiTab, setFieldDataUiTab] = useState<'main' | 'fieldData'>('main')
+  const [fieldSurfaceVizMetric, setFieldSurfaceVizMetric] = useState<FieldSurfaceVizMetric>('none')
+  const [fieldGroups, setFieldGroups] = useState<FieldGroup[]>(() => loadFieldGroups())
+  const [fieldListGroupFilter, setFieldListGroupFilter] = useState<string | 'all'>('all')
+  useEffect(() => {
+    persistFieldGroups(fieldGroups)
+  }, [fieldGroups])
   const mapSnapshotFileRef = useRef<HTMLInputElement | null>(null)
   const [featureDialog, setFeatureDialog] = useState<null | { layerId: string; featureKey: string; feature: any; layerName: string }>(null)
   const [drawingSelected, setDrawingSelected] = useState<any | null>(null)
+  const drawingSelectedRef = useRef<any | null>(null)
+  useEffect(() => {
+    drawingSelectedRef.current = drawingSelected
+  }, [drawingSelected])
   const [drawingCount, setDrawingCount] = useState(0)
   const [drawingColor, setDrawingColor] = useState('#10b981')
   const [drawingActiveTool, setDrawingActiveTool] = useState<string | null>(null)
@@ -1149,6 +1167,68 @@ export default function GisMap() {
       }),
     [orderedLayers],
   )
+
+  const gisFieldSpectralSceneKey = useMemo(() => {
+    const vis = orderedLayers
+      .filter(l => l.visible)
+      .map(l => l.name)
+      .join('|')
+    return `${vis}|${selectedBasemap}`
+  }, [orderedLayers, selectedBasemap])
+
+  useEffect(() => {
+    setSavedFields(prev => {
+      if (!prev.length) return prev
+      const top = orderedLayers.find(l => l.visible && typeof l.name === 'string' && l.name.trim().length > 0)
+      const basemapId = resolveBasemapId(selectedBasemap)
+      const token = (mapboxAccessToken || getMapboxAccessToken() || '').trim()
+      const cat = buildBasemapCatalog(token)
+      const basemapEntry =
+        catalogEntryById(cat, basemapId) ??
+        catalogEntryById(cat, token ? DEFAULT_BASEMAP_ID : DEFAULT_BASEMAP_ID_NO_MAPBOX)
+      const basemapLabel = (basemapEntry?.label && basemapEntry.label.trim()) || basemapId
+      const layerKey = (top?.name && top.name.trim()) || basemapLabel
+      return prev.map(f => ({
+        ...f,
+        indices: computeFieldSpectralIndices(f, {
+          layerKey,
+          sceneKey: gisFieldSpectralSceneKey,
+        }),
+      }))
+    })
+  }, [gisFieldSpectralSceneKey, orderedLayers, selectedBasemap, mapboxAccessToken])
+
+  const addFieldGroupGis = useCallback(async () => {
+    const name = await appPrompt('New group name', `Group ${fieldGroups.length + 1}`, { title: 'Field group' })
+    if (name == null || !String(name).trim()) return
+    const trimmed = String(name).trim()
+    setFieldGroups(g => [...g, { id: uuid(), name: trimmed, createdAt: new Date().toISOString() }])
+  }, [fieldGroups.length])
+
+  const deleteFieldGroupGis = useCallback((gid: string) => {
+    setFieldGroups(g => g.filter(x => x.id !== gid))
+    setSavedFields(prev => prev.map(f => (f.groupId === gid ? { ...f, groupId: undefined } : f)))
+    setFieldListGroupFilter(cur => (cur === gid ? 'all' : cur))
+  }, [])
+
+  const gisFieldsContextStrip = useMemo(() => {
+    const topVis = orderedLayers.find(l => l.visible && typeof l.name === 'string' && l.name.trim().length > 0)
+    const basemapId = resolveBasemapId(selectedBasemap)
+    const token = (mapboxAccessToken || getMapboxAccessToken() || '').trim()
+    const cat = buildBasemapCatalog(token)
+    const basemapEntry =
+      catalogEntryById(cat, basemapId) ??
+      catalogEntryById(cat, token ? DEFAULT_BASEMAP_ID : DEFAULT_BASEMAP_ID_NO_MAPBOX)
+    const basemapLabel = (basemapEntry?.label && basemapEntry.label.trim()) || basemapId
+    return (
+      <FieldDataContextStrip
+        variant="gis"
+        imageryDateLabel={new Date().toISOString().slice(0, 10)}
+        layerLabel={topVis?.name ?? basemapLabel}
+        timeRangeLabel="Layer stack (visible)"
+      />
+    )
+  }, [orderedLayers, selectedBasemap, mapboxAccessToken])
 
   useEffect(() => {
     persistGisMapBookmarks(gisBookmarks)
@@ -5490,11 +5570,39 @@ export default function GisMap() {
             )}
           </div>
         ) : activeMapTool === 'fields' ? (
+          <div className="gis-fields-dock">
+            <div className="gis-fields-dock__tabs" role="tablist" aria-label="Fields">
+              <button
+                type="button"
+                role="tab"
+                aria-selected={fieldDataUiTab === 'main'}
+                className={'gis-fields-dock__tab' + (fieldDataUiTab === 'main' ? ' gis-fields-dock__tab--on' : '')}
+                onClick={() => setFieldDataUiTab('main')}
+              >
+                Main
+              </button>
+              <button
+                type="button"
+                role="tab"
+                aria-selected={fieldDataUiTab === 'fieldData'}
+                className={
+                  'gis-fields-dock__tab' + (fieldDataUiTab === 'fieldData' ? ' gis-fields-dock__tab--on' : '')
+                }
+                onClick={() => setFieldDataUiTab('fieldData')}
+              >
+                Field Data
+              </button>
+            </div>
+            {fieldDataUiTab === 'main' ? (
           /* Fields Data — pure presentation; all CRUD lives in the parent
            * so the Saved Fields map layer + the panel always read from
            * the same source of truth. Zoom-to-field uses the existing
            * `mapRef.fitBounds` helper (mirrors `zoomToDrawing`). */
           <FieldsPanel
+            layout="workspace"
+            spectralStripSlot={gisFieldsContextStrip}
+            surfaceVizMetric={fieldSurfaceVizMetric}
+            onSurfaceVizMetricChange={setFieldSurfaceVizMetric}
             fields={savedFields}
             selectedId={selectedFieldId}
             drawingArmed={Boolean(drawingActiveTool)}
@@ -5571,6 +5679,7 @@ export default function GisMap() {
                       createdAt: f.createdAt,
                       updatedAt: f.updatedAt,
                       indices: f.indices ?? null,
+                      satelliteContext: f.satelliteContext ?? null,
                     },
                   },
                 ],
@@ -5605,6 +5714,7 @@ export default function GisMap() {
                     createdAt: f.createdAt,
                     updatedAt: f.updatedAt,
                     indices: f.indices ?? null,
+                    satelliteContext: f.satelliteContext ?? null,
                   },
                 })),
               }
@@ -5639,6 +5749,10 @@ export default function GisMap() {
                * until the user explicitly deletes it). */
               setDrawingActiveTool('polygon')
             }}
+            onOpenSpectralCharts={() => {
+              setActiveMapTool('geoExplorer')
+              setAgolContentColumnOpen(true)
+            }}
             onSaveDraft={() => {
               /* Auto-save runs on `onAOICreated`; this just bumps
                * `updatedAt` so the user gets a confirmation cue. */
@@ -5649,6 +5763,144 @@ export default function GisMap() {
               )
             }}
           />
+            ) : (
+          <FieldsPanel
+            layout="library"
+            fieldGroups={fieldGroups}
+            selectedGroupId={fieldListGroupFilter}
+            onSelectGroup={setFieldListGroupFilter}
+            onAddFieldGroup={addFieldGroupGis}
+            onDeleteFieldGroup={deleteFieldGroupGis}
+            fields={savedFields}
+            selectedId={selectedFieldId}
+            drawingArmed={Boolean(drawingActiveTool)}
+            onSelectField={(id) => setSelectedFieldId(id)}
+            onZoomToField={(id) => {
+              const f = savedFields.find(x => x.id === id)
+              if (!f) return
+              const bounds = geometryBounds(f.geometry)
+              const m = mapRef.current
+              if (!m || !bounds) return
+              try {
+                if (typeof (m as any).flyToBounds === 'function') {
+                  ;(m as any).flyToBounds(bounds, { padding: [40, 40], duration: 0.6 })
+                } else {
+                  m.fitBounds(bounds, { padding: [40, 40] })
+                }
+              } catch {
+                /* ignore */
+              }
+            }}
+            onUpdateField={(id, patch) => {
+              setSavedFields(prev =>
+                prev.map(f =>
+                  f.id === id
+                    ? {
+                        ...f,
+                        ...patch,
+                        areaHectares: f.areaHectares ?? geodesicAreaHectares(f.geometry),
+                        updatedAt: new Date().toISOString(),
+                      }
+                    : f,
+                ),
+              )
+            }}
+            onDeleteField={(id) => {
+              setSavedFields(prev => prev.filter(f => f.id !== id))
+              if (selectedFieldId === id) setSelectedFieldId(null)
+              try {
+                const fg = drawingFeatureGroupRef.current
+                if (fg) {
+                  fg.eachLayer((layer: any) => {
+                    if (layer && layer.__geosyntraFieldId === id) {
+                      try {
+                        fg.removeLayer(layer)
+                      } catch {
+                        /* ignore */
+                      }
+                    }
+                  })
+                }
+              } catch {
+                /* ignore */
+              }
+            }}
+            onExportFieldGeoJSON={(id) => {
+              const f = savedFields.find(x => x.id === id)
+              if (!f) return
+              const fc: GeoJSON.FeatureCollection = {
+                type: 'FeatureCollection',
+                features: [
+                  {
+                    type: 'Feature',
+                    geometry: f.geometry,
+                    properties: {
+                      id: f.id,
+                      name: f.name,
+                      crop: f.crop ?? null,
+                      areaHectares: f.areaHectares,
+                      createdAt: f.createdAt,
+                      updatedAt: f.updatedAt,
+                      indices: f.indices ?? null,
+                      satelliteContext: f.satelliteContext ?? null,
+                    },
+                  },
+                ],
+              }
+              try {
+                const blob = new Blob([JSON.stringify(fc, null, 2)], { type: 'application/geo+json' })
+                const url = URL.createObjectURL(blob)
+                const a = document.createElement('a')
+                a.href = url
+                a.download = `${(f.name || 'field').replace(/[^a-z0-9-_]+/gi, '_')}.geojson`
+                document.body.appendChild(a)
+                a.click()
+                document.body.removeChild(a)
+                URL.revokeObjectURL(url)
+              } catch {
+                /* ignore */
+              }
+            }}
+            onExportAllGeoJSON={() => {
+              if (!savedFields.length) return
+              const fc: GeoJSON.FeatureCollection = {
+                type: 'FeatureCollection',
+                features: savedFields.map(f => ({
+                  type: 'Feature',
+                  geometry: f.geometry,
+                  properties: {
+                    id: f.id,
+                    name: f.name,
+                    crop: f.crop ?? null,
+                    areaHectares: f.areaHectares,
+                    createdAt: f.createdAt,
+                    updatedAt: f.updatedAt,
+                    indices: f.indices ?? null,
+                    satelliteContext: f.satelliteContext ?? null,
+                  },
+                })),
+              }
+              try {
+                const blob = new Blob([JSON.stringify(fc, null, 2)], { type: 'application/geo+json' })
+                const url = URL.createObjectURL(blob)
+                const a = document.createElement('a')
+                a.href = url
+                a.download = `geosyntra-fields-${Date.now()}.geojson`
+                document.body.appendChild(a)
+                a.click()
+                document.body.removeChild(a)
+                URL.revokeObjectURL(url)
+              } catch {
+                /* ignore */
+              }
+            }}
+            onOpenSpectralCharts={() => {
+              setActiveMapTool('geoExplorer')
+              setAgolContentColumnOpen(true)
+            }}
+          />
+            )}
+          </div>
         ) : activeMapTool === 'saveOpen' ? (
           <div className="gis-tool-saveopen">
             <p className="gis-tool-muted">
@@ -7030,6 +7282,25 @@ export default function GisMap() {
             }}
             featureGroupRef={drawingFeatureGroupRef}
             shapeColor={drawingColor}
+            selectedLayerRef={drawingSelectedRef}
+            onClearShapes={({ fg, selected }) => {
+              const layer = selected ?? drawingSelectedRef.current
+              if (!fg || !layer) return false
+              try {
+                const cm = (layer as any).centerMarker
+                if (cm) fg.removeLayer(cm)
+                fg.removeLayer(layer)
+                const fieldId = (layer as any).__geosyntraFieldId
+                if (typeof fieldId === 'string') {
+                  setSavedFields(prev => prev.filter(f => f.id !== fieldId))
+                  setSelectedFieldId(cur => (cur === fieldId ? null : cur))
+                }
+                setDrawingSelected(null)
+                return true
+              } catch {
+                return false
+              }
+            }}
             onAOICreated={(layer: any) => {
               setDrawingDirty(true)
               /* Auto-promote every finished AOI to a Saved Field. We
@@ -7048,6 +7319,30 @@ export default function GisMap() {
                 const existing = savedFieldsRef.current
                 const id = uuid()
                 const now = new Date().toISOString()
+                const topVis = orderedLayers.find(
+                  l => l.visible && typeof l.name === 'string' && l.name.trim().length > 0,
+                )
+                const basemapId = resolveBasemapId(selectedBasemap)
+                const token = (mapboxAccessToken || getMapboxAccessToken() || '').trim()
+                const cat = buildBasemapCatalog(token)
+                const basemapEntry =
+                  catalogEntryById(cat, basemapId) ??
+                  catalogEntryById(cat, token ? DEFAULT_BASEMAP_ID : DEFAULT_BASEMAP_ID_NO_MAPBOX)
+                const basemapLabel = (basemapEntry?.label && basemapEntry.label.trim()) || basemapId
+                const satelliteContext = snapshotFieldSatelliteFromGisContext(
+                  topVis?.name,
+                  basemapLabel,
+                  now,
+                )
+                const spectralSceneKey = [topVis?.name ?? '', basemapLabel, now].join('|')
+                const indices = computeFieldSpectralIndices(
+                  { id, geometry: exported.geometry },
+                  {
+                    layerKey: satelliteContext?.layerName ?? basemapLabel,
+                    indexKey: satelliteContext?.indexId,
+                    sceneKey: spectralSceneKey,
+                  },
+                )
                 const newField: SavedField = {
                   id,
                   name: nextFieldName(existing),
@@ -7056,6 +7351,8 @@ export default function GisMap() {
                   areaHectares: exported.areaHectares,
                   createdAt: now,
                   updatedAt: now,
+                  satelliteContext,
+                  indices,
                 }
                 if (layer && typeof layer === 'object') {
                   ;(layer as any).__geosyntraFieldId = id
@@ -7089,6 +7386,7 @@ export default function GisMap() {
           <SavedFieldsLayer
             fields={savedFields}
             selectedId={selectedFieldId}
+            surfaceVizMetric={fieldSurfaceVizMetric}
             onSelectField={(id) => {
               setSelectedFieldId(id)
               setActiveMapTool('fields')

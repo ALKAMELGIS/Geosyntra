@@ -65,7 +65,7 @@ import {
   GEO_AI_CHAT_SYSTEM_BASE,
   type GeoAiChatTurn,
 } from '../../lib/geoAiChatClaude';
-import { appConfirm } from '../../lib/appDialog';
+import { appConfirm, appPrompt } from '../../lib/appDialog';
 import { loadGisMapSavedLayers } from '../../lib/gisMapLayerStore';
 import { computeStableGisFeatureKey } from '../../lib/gisFeatureStableKey';
 import { satelliteCustomLayersToGeoAiLayers } from '../../lib/geoAiMapLayerSources';
@@ -175,14 +175,21 @@ import {
   type MpcTemplateId,
 } from '../../lib/mpcPlanetaryApi';
 import FieldsPanel from './components/fields/FieldsPanel';
+import FieldDataContextStrip from './components/fields/FieldDataContextStrip';
 import {
   loadSavedFields,
   persistSavedFields,
+  loadFieldGroups,
+  persistFieldGroups,
   geodesicAreaHectares,
   nextFieldColor,
   nextFieldName,
   uuid,
+  computeFieldSpectralIndices,
+  indexToVizUnit,
   type SavedField,
+  type FieldGroup,
+  type FieldSurfaceVizMetric,
 } from './components/fields/fieldsStore';
 
 const EMPTY_MAP_STYLE: any = {
@@ -2512,6 +2519,8 @@ export default function SatelliteIntelligence() {
   >([]);
   const [activeMultiAoiId, setActiveMultiAoiId] = useState<string | null>(null);
   const [multiAoiPopupIds, setMultiAoiPopupIds] = useState<string[]>([]);
+  const multiAoiItemsRef = useRef(multiAoiItems);
+  const activeMultiAoiIdRef = useRef(activeMultiAoiId);
   const [drawTargetMode, setDrawTargetMode] = useState<'aoi' | 'field'>('aoi');
   const drawTargetModeRef = useRef<'aoi' | 'field'>('aoi');
   /* ────────────────────────────────────────────────────────────────────── *
@@ -2531,9 +2540,24 @@ export default function SatelliteIntelligence() {
     savedFieldsRef.current = savedFields;
   }, [savedFields]);
   useEffect(() => {
+    multiAoiItemsRef.current = multiAoiItems;
+  }, [multiAoiItems]);
+  useEffect(() => {
+    activeMultiAoiIdRef.current = activeMultiAoiId;
+  }, [activeMultiAoiId]);
+  useEffect(() => {
     persistSavedFields(savedFields);
   }, [savedFields]);
   const [selectedSavedFieldId, setSelectedSavedFieldId] = useState<string | null>(null);
+  /** True only while a sketch was armed from the Fields Data panel — keeps
+   *  the panel's Glass toolbar from mirroring Remote Sensing draw tools. */
+  const [fieldsPanelDrawArmed, setFieldsPanelDrawArmed] = useState(false);
+  const [fieldSurfaceVizMetric, setFieldSurfaceVizMetric] = useState<FieldSurfaceVizMetric>('none');
+  const [fieldGroups, setFieldGroups] = useState<FieldGroup[]>(() => loadFieldGroups());
+  const [fieldListGroupFilter, setFieldListGroupFilter] = useState<string | 'all'>('all');
+  useEffect(() => {
+    persistFieldGroups(fieldGroups);
+  }, [fieldGroups]);
   const [aoiFields, setAoiFields] = useState<SiAoiFieldRecord[]>([]);
   const aoiFieldsRef = useRef<SiAoiFieldRecord[]>([]);
   const [selectedFieldId, setSelectedFieldId] = useState<string | null>(null);
@@ -3530,6 +3554,33 @@ export default function SatelliteIntelligence() {
     return out;
   };
 
+  /** Stable geometry fingerprint for matching a workspace AOI to an auto-saved field. */
+  const fingerprintAoiGeometry = (geometry: any): string | null => {
+    if (!geometry || (geometry.type !== 'Polygon' && geometry.type !== 'MultiPolygon')) return null;
+    try {
+      const r = (n: unknown) => (typeof n === 'number' && Number.isFinite(n) ? Number(n.toFixed(6)) : 0);
+      const normPt = (p: unknown[]) => [r(p[0]), r(p[1])];
+      const normRing = (ring: unknown[][]) => ring.map(normPt);
+      if (geometry.type === 'Polygon') {
+        return JSON.stringify(geometry.coordinates.map(normRing));
+      }
+      return JSON.stringify(geometry.coordinates.map((poly: unknown[][]) => poly.map(normRing)));
+    } catch {
+      return null;
+    }
+  };
+
+  const fingerprintFeatureGeometry = (featureLike: any): string | null => {
+    const g = featureLike?.geometry ?? featureLike;
+    return fingerprintAoiGeometry(g);
+  };
+
+  const featureGeometriesMatch = (a: any, b: any): boolean => {
+    const fa = fingerprintFeatureGeometry(a);
+    const fb = fingerprintFeatureGeometry(b);
+    return fa != null && fb != null && fa === fb;
+  };
+
   const nextMultiAoiColor = (idx: number): string => {
     const palette = ['#22c55e', '#0ea5e9', '#a855f7', '#f59e0b', '#ef4444', '#14b8a6', '#f97316'];
     return palette[idx % palette.length] ?? '#22c55e';
@@ -3619,6 +3670,13 @@ export default function SatelliteIntelligence() {
             capturedAt: now,
           }
         : undefined;
+    const spectralSceneKey = [
+      (activeWmsLayer && activeWmsLayer.trim()) || String(selectedIndex ?? ''),
+      String(selectedIndex ?? ''),
+      selectedDate.toISOString().slice(0, 10),
+      timeSeriesStart ?? '',
+      timeSeriesEnd ?? '',
+    ].join('|');
     setSavedFields(prev => {
       const next = [...prev];
       polys.forEach(feature => {
@@ -3627,6 +3685,14 @@ export default function SatelliteIntelligence() {
         const area = geodesicAreaHectares(geom);
         const id = uuid();
         lastId = id;
+        const indices = computeFieldSpectralIndices(
+          { id, geometry: geom },
+          {
+            layerKey: layerSnapshot?.layerName ?? String(selectedIndex ?? ''),
+            indexKey: selectedIndex ? String(selectedIndex) : undefined,
+            sceneKey: spectralSceneKey,
+          },
+        );
         next.push({
           id,
           name: nextFieldName(next),
@@ -3636,6 +3702,7 @@ export default function SatelliteIntelligence() {
           createdAt: now,
           updatedAt: now,
           satelliteContext: layerSnapshot,
+          indices,
         });
       });
       return next;
@@ -3715,10 +3782,49 @@ export default function SatelliteIntelligence() {
           name: f.name,
           color: f.color,
           area: f.areaHectares,
+          vizVal: indexToVizUnit(fieldSurfaceVizMetric, f.indices),
         },
       })),
     }),
-    [savedFields],
+    [savedFields, fieldSurfaceVizMetric],
+  );
+
+  const savedFieldsFillPaint = useMemo(
+    () =>
+      fieldSurfaceVizMetric === 'none'
+        ? ({
+            'fill-color': ['coalesce', ['get', 'color'], '#22d3ee'] as any,
+            'fill-opacity': [
+              'case',
+              ['==', ['get', 'id'], selectedSavedFieldId ?? ''],
+              0.32,
+              0.14,
+            ] as any,
+          } as const)
+        : ({
+            'fill-color': [
+              'interpolate',
+              ['linear'],
+              ['get', 'vizVal'],
+              0,
+              '#450a0a',
+              0.35,
+              '#f97316',
+              0.55,
+              '#eab308',
+              0.75,
+              '#22c55e',
+              1,
+              '#052e16',
+            ] as any,
+            'fill-opacity': [
+              'case',
+              ['==', ['get', 'id'], selectedSavedFieldId ?? ''],
+              0.42,
+              0.28,
+            ] as any,
+          } as const),
+    [fieldSurfaceVizMetric, selectedSavedFieldId],
   );
 
   const exportSavedFieldGeoJson = (id: string) => {
@@ -6552,6 +6658,68 @@ export default function SatelliteIntelligence() {
     recomputeDrawnAoiStats(geometry);
   };
 
+  const removeMultiAoiById = useCallback(
+    (aoiId: string) => {
+      const prev = multiAoiItemsRef.current;
+      const row = prev.find(x => x.id === aoiId);
+      if (!row) return;
+
+      const next = prev.filter(x => x.id !== aoiId);
+      const fp = fingerprintFeatureGeometry(row.feature);
+      const curActive = activeMultiAoiIdRef.current;
+      const activeWasDeleted = curActive === aoiId;
+      const nextActiveId = activeWasDeleted ? (next[0]?.id ?? null) : curActive;
+
+      const idsToDrop =
+        fp != null
+          ? savedFieldsRef.current
+              .filter(f => fingerprintFeatureGeometry({ type: 'Feature', geometry: f.geometry, properties: {} }) === fp)
+              .map(f => f.id)
+          : [];
+
+      setMultiAoiItems(next);
+      setMultiAoiPopupIds(p => p.filter(x => x !== aoiId));
+      setActiveMultiAoiId(nextActiveId);
+
+      if (idsToDrop.length) {
+        setSavedFields(sf => sf.filter(f => !idsToDrop.includes(f.id)));
+        setSelectedSavedFieldId(cur => (cur && idsToDrop.includes(cur) ? null : cur));
+      }
+
+      const drawn = drawnGeometryRef.current;
+      const removedMatchesDrawn = featureGeometriesMatch(drawn, row.feature);
+      const reanchor = activeWasDeleted || removedMatchesDrawn;
+
+      if (reanchor) {
+        const anchorRow = nextActiveId ? next.find(x => x.id === nextActiveId) : null;
+        if (anchorRow) {
+          updateDrawnStats(anchorRow.feature);
+        } else {
+          updateDrawnStats(null);
+        }
+        setWeeklyComposites([]);
+        setMpcProcessResult(null);
+        setIsTimelinePlaying(false);
+        setFieldTimelineSessionActive(false);
+        clearStacMapThumb();
+        setAoiFields([]);
+        setSelectedFieldId(null);
+      }
+
+      const anchorName = nextActiveId ? next.find(x => x.id === nextActiveId)?.name : null;
+      setFieldAnalysisStatus(
+        next.length === 0
+          ? 'All drawn AOIs cleared from the workspace.'
+          : activeWasDeleted
+            ? anchorName
+              ? `Removed ${row.name}. Active AOI: ${anchorName}.`
+              : `Removed ${row.name}.`
+            : `Removed ${row.name} from the workspace.`,
+      );
+    },
+    [clearStacMapThumb],
+  );
+
   const multiAoiFeatureCollection = useMemo(
     () => ({
       type: 'FeatureCollection',
@@ -7563,7 +7731,10 @@ export default function SatelliteIntelligence() {
     return () => window.removeEventListener('keydown', onKey);
   }, [mapDrawTool]);
 
-  const applyMapDrawTool = (tool: MapDrawTool) => {
+  const applyMapDrawTool = (tool: MapDrawTool, opts?: { fromFieldsPanel?: boolean }) => {
+    if (!opts?.fromFieldsPanel) {
+      setFieldsPanelDrawArmed(false);
+    }
     dragRectCircleRef.current = null;
     polygonRingSketchDragRef.current = null;
     circleRefineInteractionRef.current = null;
@@ -7578,6 +7749,9 @@ export default function SatelliteIntelligence() {
     setCircleRefineActiveHandle(null);
     setShowEditHandles(tool === 'select' && !!drawnGeometryRef.current);
     setMapDrawTool(tool);
+    if (opts?.fromFieldsPanel && tool !== 'select') {
+      setFieldsPanelDrawArmed(true);
+    }
     if (tool === 'rectangle' || tool === 'box_select' || tool === 'circle') {
       setMapDragPanEnabled(false);
     } else if (tool === 'polygon') {
@@ -7586,6 +7760,12 @@ export default function SatelliteIntelligence() {
       setMapDragPanEnabled(true);
     }
   };
+
+  /* Any code path that returns the map to `select` ends a Fields-armed sketch
+   * (including Esc / commit handlers that call `setMapDrawTool` directly). */
+  useEffect(() => {
+    if (mapDrawTool === 'select') setFieldsPanelDrawArmed(false);
+  }, [mapDrawTool]);
 
   /** Undo last vertex / click while drawing (polygon, polyline start, or in-progress box/circle drag). */
   const removeLastDrawPoint = () => {
@@ -7666,18 +7846,75 @@ export default function SatelliteIntelligence() {
     setShowEditHandles(false);
     setMapDragPanEnabled(true);
     setExploreExtentMode(prev => (prev === 'drawn' ? 'default' : prev));
-  }, []);
+    setMultiAoiItems([]);
+    setActiveMultiAoiId(null);
+    setMultiAoiPopupIds([]);
+    setWeeklyComposites([]);
+    setMpcProcessResult(null);
+    setIsTimelinePlaying(false);
+    setFieldTimelineSessionActive(false);
+    clearStacMapThumb();
+  }, [clearStacMapThumb]);
 
   /** Fade AOI sketch + clipped raster overlay, then purge geometry and restore pan (basemap / vector layers unchanged). */
   const clearSatelliteDrawingWithFade = useCallback(() => {
-    const hasVisual =
-      drawnGeometry != null ||
-      aoiFields.length > 0 ||
+    const hasSketch =
       rectCirclePreview != null ||
       polygonRing.length > 0 ||
       circleRefineDraft != null ||
-      polylineStart != null ||
-      mapDrawTool !== 'select';
+      polylineStart != null;
+
+    if (hasSketch) {
+      cancelCurrentDrawing();
+      setDrawVisualOpacity(1);
+      return;
+    }
+
+    const items = multiAoiItemsRef.current;
+    const activeId = activeMultiAoiIdRef.current;
+
+    if (items.length > 0 && activeId) {
+      const row = items.find(x => x.id === activeId);
+      if (row) {
+        const runRemove = () => {
+          removeMultiAoiById(activeId);
+          setDrawVisualOpacity(1);
+        };
+
+        if (drawFadeRafRef.current != null) {
+          cancelAnimationFrame(drawFadeRafRef.current);
+          drawFadeRafRef.current = null;
+        }
+
+        const start = performance.now();
+        const duration = 280;
+
+        const tick = (now: number) => {
+          const t = Math.min(1, (now - start) / duration);
+          const eased = 1 - t * t;
+          setDrawVisualOpacity(eased);
+          if (t < 1) {
+            drawFadeRafRef.current = requestAnimationFrame(tick);
+          } else {
+            drawFadeRafRef.current = null;
+            runRemove();
+          }
+        };
+        drawFadeRafRef.current = requestAnimationFrame(tick);
+        return;
+      }
+    }
+
+    if (items.length > 0 && !activeId) {
+      setFieldAnalysisStatus(
+        'Select a drawn AOI on the map (it shows a glow when active), then tap Clear drawing to remove only that AOI.',
+      );
+      setDrawVisualOpacity(1);
+      return;
+    }
+
+    const hasVisual =
+      drawnGeometry != null || aoiFields.length > 0 || mapDrawTool !== 'select';
 
     const finish = () => {
       clearAllAoiDrawing();
@@ -7685,7 +7922,7 @@ export default function SatelliteIntelligence() {
     };
 
     if (!hasVisual) {
-      finish();
+      setDrawVisualOpacity(1);
       return;
     }
 
@@ -7710,7 +7947,9 @@ export default function SatelliteIntelligence() {
     };
     drawFadeRafRef.current = requestAnimationFrame(tick);
   }, [
+    cancelCurrentDrawing,
     clearAllAoiDrawing,
+    removeMultiAoiById,
     drawnGeometry,
     aoiFields.length,
     rectCirclePreview,
@@ -8242,6 +8481,7 @@ export default function SatelliteIntelligence() {
     if (multiAoiItems.length > 0) {
       ids.push(
         'si-multi-aoi-fill',
+        'si-multi-aoi-line-glow',
         'si-multi-aoi-line',
         'si-multi-aoi-cluster',
         'si-multi-aoi-cluster-count',
@@ -8359,6 +8599,7 @@ export default function SatelliteIntelligence() {
               setMultiAoiPopupIds(prev => (prev.includes(aoiId) ? prev : [...prev, aoiId]));
               const row = multiAoiItems.find(x => x.id === aoiId);
               if (row) {
+                updateDrawnStats(row.feature);
                 const msg = row.analysis
                   ? `Selected ${row.name}: mean ${row.analysis.mean.toFixed(3)}, min ${row.analysis.min.toFixed(3)}, max ${row.analysis.max.toFixed(3)}`
                   : `Selected ${row.name}. Run Multi-AOI analysis for independent metrics.`;
@@ -8867,6 +9108,33 @@ export default function SatelliteIntelligence() {
   }, [wmsLayer, remoteSensingLayerOptions]);
 
   const wmsDate = selectedDate.toISOString().split('T')[0];
+
+  const fieldSpectralSceneKey = useMemo(
+    () =>
+      [
+        activeWmsLayer ?? '',
+        String(selectedIndex ?? ''),
+        wmsDate,
+        timeSeriesStart ?? '',
+        timeSeriesEnd ?? '',
+      ].join('|'),
+    [activeWmsLayer, selectedIndex, wmsDate, timeSeriesStart, timeSeriesEnd],
+  );
+
+  useEffect(() => {
+    setSavedFields(prev => {
+      if (!prev.length) return prev;
+      return prev.map(f => ({
+        ...f,
+        indices: computeFieldSpectralIndices(f, {
+          layerKey: (activeWmsLayer && activeWmsLayer.trim()) || String(selectedIndex ?? ''),
+          indexKey: selectedIndex ? String(selectedIndex) : undefined,
+          sceneKey: fieldSpectralSceneKey,
+        }),
+      }));
+    });
+  }, [fieldSpectralSceneKey, activeWmsLayer, selectedIndex]);
+
   const sentinelVisible = isWmsOverlayVisible && !!activeWmsLayer;
   const normalizedDrawnAoiGeometry = useMemo(() => getDrawnGeometry(drawnGeometry), [drawnGeometry]);
   const sentinelAoiVisible = sentinelVisible && !!normalizedDrawnAoiGeometry;
@@ -9356,33 +9624,50 @@ export default function SatelliteIntelligence() {
     );
   }, [customLayers, layerPopupCfgPickId]);
 
+  const addFieldGroup = useCallback(async () => {
+    const name = await appPrompt('New group name', `Group ${fieldGroups.length + 1}`, { title: 'Field group' });
+    if (name == null || !String(name).trim()) return;
+    const trimmed = String(name).trim();
+    setFieldGroups(g => [...g, { id: uuid(), name: trimmed, createdAt: new Date().toISOString() }]);
+  }, [fieldGroups.length]);
+
+  const deleteFieldGroup = useCallback(
+    (gid: string) => {
+      setFieldGroups(g => g.filter(x => x.id !== gid));
+      setSavedFields(prev => prev.map(f => (f.groupId === gid ? { ...f, groupId: undefined } : f)));
+      setFieldListGroupFilter(cur => (cur === gid ? 'all' : cur));
+    },
+    [],
+  );
+
   /**
-   * Map toolbox · Fields Data drawer content.
-   *
-   * Mirrors the GIS Map Fields drawer 1:1 — same `<FieldsPanel/>`
-   * component, same handlers, same OneSoil-style sidebar pattern. Lives
-   * here (and not inside Remote Sensing anymore) so the user can
-   * always reach saved fields from the main map toolbox rail icon,
-   * regardless of which processing tool is currently active.
-   *
-   * Memoized so the chrome only re-renders when the saved fields, the
-   * active drawing tool, or the selected field change — not on every
-   * panel scroll/resize tick.
+   * Map toolbox · Fields — Main tab: draw + spectral context + map tint.
    */
-  const mapToolboxFieldsContent = useMemo(
+  const mapToolboxFieldsWorkspace = useMemo(
     () => (
       <FieldsPanel
+        layout="workspace"
+        spectralStripSlot={
+          <FieldDataContextStrip
+            variant="satellite"
+            imageryDateLabel={selectedDate.toISOString().slice(0, 10)}
+            layerLabel={activeWmsLayer || selectedIndexConfig.label}
+            timeRangeLabel={`${timeSeriesStart} → ${timeSeriesEnd}`}
+            onOpenRemoteSensing={() => onProcessingWorkflowNavigateMapToolbox('remote-sensing')}
+            onOpenTimelineCharts={() => setMapStaticChartsOpen(o => !o)}
+          />
+        }
+        surfaceVizMetric={fieldSurfaceVizMetric}
+        onSurfaceVizMetricChange={setFieldSurfaceVizMetric}
         fields={savedFields}
         selectedId={selectedSavedFieldId}
-        drawingArmed={mapDrawTool !== 'select'}
+        drawingArmed={fieldsPanelDrawArmed}
         onSelectField={id => setSelectedSavedFieldId(id)}
         onZoomToField={id => zoomToSavedField(id)}
         onUpdateField={(id, patch) => {
           setSavedFields(prev =>
             prev.map(f =>
-              f.id === id
-                ? { ...f, ...patch, updatedAt: new Date().toISOString() }
-                : f,
+              f.id === id ? { ...f, ...patch, updatedAt: new Date().toISOString() } : f,
             ),
           );
         }}
@@ -9393,36 +9678,21 @@ export default function SatelliteIntelligence() {
         onExportFieldGeoJSON={id => exportSavedFieldGeoJson(id)}
         onExportAllGeoJSON={() => exportAllSavedFieldsGeoJson()}
         onStartDrawing={shape => {
-          /* Arm the AOI draw pipeline with the shape the user picked
-           * inside the Fields drawing module. Routes through the
-           * 'aoi' branch of `commitUserGeometry`, which calls
-           * `autoSaveFieldFromGeoJson` — so the next finished sketch
-           * lands in the saved fields list automatically with the
-           * active satellite layer captured as `satelliteContext`. */
           drawTargetModeRef.current = 'aoi';
           setDrawTargetMode('aoi');
-          applyMapDrawTool(shape);
+          applyMapDrawTool(shape, { fromFieldsPanel: true });
           setFieldAnalysisStatus(
             `Draw a ${shape} on the map. It will save as a new field automatically.`,
           );
         }}
         onEditSelected={() => {
-          /* Re-arm a polygon draw so the user can sketch a corrected
-           * boundary. The next commit replaces the selected field's
-           * geometry rather than appending a new entry. */
           if (!selectedSavedFieldId) return;
           drawTargetModeRef.current = 'aoi';
           setDrawTargetMode('aoi');
-          applyMapDrawTool('polygon');
-          setFieldAnalysisStatus(
-            'Sketch a new boundary to replace the selected field.',
-          );
+          applyMapDrawTool('polygon', { fromFieldsPanel: true });
+          setFieldAnalysisStatus('Sketch a new boundary to replace the selected field.');
         }}
         onSaveDraft={() => {
-          /* Auto-save already runs when a sketch closes, so this is a
-           * confirmation cue for the user rather than a code path. We
-           * surface a status line and bump `updatedAt` on the active
-           * field so the UI reflects the manual save. */
           if (!selectedSavedFieldId) {
             setFieldAnalysisStatus('Pick a field first, then press Save to lock in changes.');
             return;
@@ -9433,12 +9703,58 @@ export default function SatelliteIntelligence() {
           );
           setFieldAnalysisStatus('Field saved.');
         }}
+        onOpenSpectralCharts={() => setMapStaticChartsOpen(o => !o)}
       />
     ),
-    /* eslint-disable-next-line react-hooks/exhaustive-deps -- the inline
-     * setters / refs / module functions referenced above are stable across
-     * renders; only the listed values affect what the panel renders. */
-    [savedFields, selectedSavedFieldId, mapDrawTool],
+    /* eslint-disable-next-line react-hooks/exhaustive-deps */
+    [
+      savedFields,
+      selectedSavedFieldId,
+      fieldsPanelDrawArmed,
+      fieldSurfaceVizMetric,
+      selectedDate,
+      activeWmsLayer,
+      selectedIndexConfig.label,
+      timeSeriesStart,
+      timeSeriesEnd,
+    ],
+  );
+
+  /**
+   * Map toolbox · Fields — Field Data tab: groups + list + detail + export.
+   */
+  const mapToolboxFieldsLibrary = useMemo(
+    () => (
+      <FieldsPanel
+        layout="library"
+        fieldGroups={fieldGroups}
+        selectedGroupId={fieldListGroupFilter}
+        onSelectGroup={setFieldListGroupFilter}
+        onAddFieldGroup={addFieldGroup}
+        onDeleteFieldGroup={deleteFieldGroup}
+        fields={savedFields}
+        selectedId={selectedSavedFieldId}
+        drawingArmed={fieldsPanelDrawArmed}
+        onSelectField={id => setSelectedSavedFieldId(id)}
+        onZoomToField={id => zoomToSavedField(id)}
+        onUpdateField={(id, patch) => {
+          setSavedFields(prev =>
+            prev.map(f =>
+              f.id === id ? { ...f, ...patch, updatedAt: new Date().toISOString() } : f,
+            ),
+          );
+        }}
+        onDeleteField={id => {
+          setSavedFields(prev => prev.filter(f => f.id !== id));
+          if (selectedSavedFieldId === id) setSelectedSavedFieldId(null);
+        }}
+        onExportFieldGeoJSON={id => exportSavedFieldGeoJson(id)}
+        onExportAllGeoJSON={() => exportAllSavedFieldsGeoJson()}
+        onOpenSpectralCharts={() => setMapStaticChartsOpen(o => !o)}
+      />
+    ),
+    /* eslint-disable-next-line react-hooks/exhaustive-deps */
+    [savedFields, selectedSavedFieldId, fieldsPanelDrawArmed, fieldGroups, fieldListGroupFilter, addFieldGroup, deleteFieldGroup],
   );
 
   const exploreSelectedCollectionsLabel = useMemo(() => {
@@ -9587,12 +9903,22 @@ export default function SatelliteIntelligence() {
     () =>
       drawnGeometry != null ||
       aoiFields.length > 0 ||
+      multiAoiItems.length > 0 ||
       rectCirclePreview != null ||
       polygonRing.length > 0 ||
       circleRefineDraft != null ||
       polylineStart != null ||
       mapDrawTool !== 'select',
-    [drawnGeometry, aoiFields.length, rectCirclePreview, polygonRing.length, circleRefineDraft, polylineStart, mapDrawTool],
+    [
+      drawnGeometry,
+      aoiFields.length,
+      multiAoiItems.length,
+      rectCirclePreview,
+      polygonRing.length,
+      circleRefineDraft,
+      polylineStart,
+      mapDrawTool,
+    ],
   );
 
   /** Sentinel Hub: GEOMETRY (3857 WKT) + EVALSCRIPT (RGBA, alpha = dataMask × optional index mask). */
@@ -10129,15 +10455,7 @@ export default function SatelliteIntelligence() {
                       id="si-saved-fields-fill"
                       type="fill"
                       filter={['in', ['geometry-type'], ['literal', ['Polygon', 'MultiPolygon']]]}
-                      paint={{
-                        'fill-color': ['coalesce', ['get', 'color'], '#22d3ee'] as any,
-                        'fill-opacity': [
-                          'case',
-                          ['==', ['get', 'id'], selectedSavedFieldId ?? ''],
-                          0.32,
-                          0.14,
-                        ] as any,
-                      }}
+                      paint={savedFieldsFillPaint as any}
                     />
                     <Layer
                       id="si-saved-fields-line"
@@ -10166,18 +10484,34 @@ export default function SatelliteIntelligence() {
                         'fill-opacity': [
                           'case',
                           ['==', ['get', 'isActive'], 1],
-                          0.26,
+                          0.38,
                           0.12,
                         ] as any,
+                      }}
+                    />
+                    <Layer
+                      id="si-multi-aoi-line-glow"
+                      type="line"
+                      filter={['all', ['in', ['geometry-type'], ['literal', ['Polygon', 'MultiPolygon']]], ['==', ['get', 'isActive'], 1]]}
+                      paint={{
+                        'line-color': '#7dd3fc',
+                        'line-width': 10,
+                        'line-blur': 3.2,
+                        'line-opacity': 0.42,
                       }}
                     />
                     <Layer
                       id="si-multi-aoi-line"
                       type="line"
                       paint={{
-                        'line-color': ['coalesce', ['get', 'aoiColor'], '#22c55e'] as any,
-                        'line-width': ['case', ['==', ['get', 'isActive'], 1], 3, 1.6] as any,
-                        'line-opacity': 0.95,
+                        'line-color': [
+                          'case',
+                          ['==', ['get', 'isActive'], 1],
+                          '#e0f2fe',
+                          ['coalesce', ['get', 'aoiColor'], '#22c55e'],
+                        ] as any,
+                        'line-width': ['case', ['==', ['get', 'isActive'], 1], 4.2, 1.6] as any,
+                        'line-opacity': 0.96,
                         'line-dasharray': [2.4, 1.4],
                       }}
                     />
@@ -10540,10 +10874,11 @@ export default function SatelliteIntelligence() {
               </Marker>
             ))}
 
-            {/* Mapbox zoom + compass cluster — pinned to the bottom-left so
-                it never overlaps the right-hand panels (Fields Data dock,
-                Layer dropdown, contextual analysis). */}
-            {isMapLoaded ? <NavigationControl position="bottom-left" visualizePitch /> : null}
+            {/* Mapbox zoom + compass cluster — pinned to the top-left of the
+                map canvas (below the global `--map-controls-top-offset`) so it
+                stays on the physical left edge and never stacks against the
+                right-hand toolbox / Fields dock / layer rail. */}
+            {isMapLoaded ? <NavigationControl position="top-left" visualizePitch /> : null}
           </MapGL>
 
           {isMapLoaded && geoAiPopupMode === 'side' && geoAiInspectPopups.length > 0 ? (
@@ -11136,7 +11471,8 @@ export default function SatelliteIntelligence() {
             geoAiFloatingOpen={geoAiFloatingOpen}
             onGeoAiFloatingRailToggle={onGeoAiFloatingRailToggle}
             onMapToolboxAddData={openAddLayerModal}
-            fieldsPanelContent={mapToolboxFieldsContent}
+            fieldsPanelWorkspaceContent={mapToolboxFieldsWorkspace}
+            fieldsPanelLibraryContent={mapToolboxFieldsLibrary}
             fieldsCount={savedFields.length}
           />
 

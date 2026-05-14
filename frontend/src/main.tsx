@@ -64,27 +64,19 @@ if (typeof window !== 'undefined' && 'serviceWorker' in navigator) {
           .catch(() => false)
       : Promise.resolve(false)
 
-  Promise.all([unregisterPromise, clearCachePromise])
-    .then(([hadRegs]) => {
-      if (canReload && (hadRegs || hadController)) {
-        safeSessionSetItem(resetKey, '1')
-        // Avoid full reload on login route — visible flash / double "rerun" on http://127.0.0.1:5173/Geosyntra/#/login
-        const hash = typeof window.location.hash === 'string' ? window.location.hash : ''
-        const onLoginRoute = /^#\/login(\?|$|\/)/i.test(hash)
-        if (!onLoginRoute) {
-          window.location.reload()
-        }
-        return
+  Promise.all([unregisterPromise, clearCachePromise]).then(([hadRegs]) => {
+    if (canReload && (hadRegs || hadController)) {
+      safeSessionSetItem(resetKey, '1')
+      // Avoid full reload on login route — visible flash / double "rerun" on http://127.0.0.1:5173/Geosyntra/#/login
+      const hash = typeof window.location.hash === 'string' ? window.location.hash : ''
+      const onLoginRoute = /^#\/login(\?|$|\/)/i.test(hash)
+      if (!onLoginRoute) {
+        window.location.reload()
       }
-      if (typeof sessionStorage !== 'undefined') safeSessionRemoveItem(resetKey)
-    })
-    .catch(() => {
-      try {
-        safeSessionRemoveItem(resetKey)
-      } catch {
-        /* ignore */
-      }
-    })
+      return
+    }
+    if (typeof sessionStorage !== 'undefined') safeSessionRemoveItem(resetKey)
+  })
 }
 
 // Ensure Mapbox token is durable across rebuild/update cycles.

@@ -10,37 +10,44 @@
  *     12 % fill so the satellite imagery underneath stays legible.
  *   - The currently-selected field gets a 3 px stroke + 22 % fill +
  *     dashed outer halo so it pops above the others.
+ *   - Optional `surfaceVizMetric` tints every field from its spectral
+ *     snapshot (`indices`) so multiple AOIs read as independent analyses.
  *   - A small floating label (field name + area) lives at the polygon
  *     centroid via `bindTooltip({ permanent: true })`.
  *   - Clicking any polygon promotes it to the active selection — the
  *     parent panel then opens its analytics card.
- *
- * Why a child of `MapView` and not its own React component tree?
- * --------------------------------------------------------------
- * `react-leaflet` v4 exposes `useMap()` so child components can wire up
- * Leaflet layers without leaking refs into the parent. We mount a single
- * `L.GeoJSON` layer and reconcile it whenever `fields` / `selectedId`
- * change — far cheaper than rebuilding a layer per field.
  */
 
 import { useEffect, useMemo, useRef } from 'react'
 import { useMap } from 'react-leaflet'
 import L from 'leaflet'
-import type { SavedField } from './fieldsStore'
-import { formatArea } from './fieldsStore'
+import type { FieldSurfaceVizMetric, SavedField } from './fieldsStore'
+import { formatArea, indexToVizUnit } from './fieldsStore'
 
 interface SavedFieldsLayerProps {
   fields: SavedField[]
   selectedId: string | null
+  surfaceVizMetric?: FieldSurfaceVizMetric
   onSelectField: (id: string) => void
 }
 
-export default function SavedFieldsLayer({ fields, selectedId, onSelectField }: SavedFieldsLayerProps) {
+function vizColor(v: number): string {
+  const x = Math.max(0, Math.min(1, v))
+  if (x < 0.35) return `rgb(${69 + Math.round(x * 80)}, ${10 + Math.round(x * 40)}, ${10 + Math.round(x * 30)})`
+  if (x < 0.55) return `rgb(${220 + Math.round((x - 0.35) * 40)}, ${115 + Math.round((x - 0.35) * 80)}, ${38})`
+  if (x < 0.75) return `rgb(${234 - Math.round((x - 0.55) * 40)}, ${179 + Math.round((x - 0.55) * 40)}, ${8})`
+  return `rgb(${34 + Math.round((1 - x) * 40)}, ${197 - Math.round((1 - x) * 60)}, ${94})`
+}
+
+export default function SavedFieldsLayer({
+  fields,
+  selectedId,
+  surfaceVizMetric = 'none',
+  onSelectField,
+}: SavedFieldsLayerProps) {
   const map = useMap()
   const layerRef = useRef<L.GeoJSON | null>(null)
 
-  /* Build a stable feature collection. Memo guards against the parent
-   * re-rendering (e.g. on every keystroke in the search box). */
   const featureCollection = useMemo<GeoJSON.FeatureCollection>(
     () => ({
       type: 'FeatureCollection',
@@ -53,15 +60,13 @@ export default function SavedFieldsLayer({ fields, selectedId, onSelectField }: 
           color: f.color,
           areaHectares: f.areaHectares,
           crop: f.crop ?? '',
+          vizVal: indexToVizUnit(surfaceVizMetric, f.indices),
         },
       })),
     }),
-    [fields],
+    [fields, surfaceVizMetric],
   )
 
-  /* (Re)create the layer whenever the field list changes. We *replace*
-   * the layer rather than mutate it because L.GeoJSON doesn't expose a
-   * clean "update features in place" API and the field count is small. */
   useEffect(() => {
     if (!map) return
 
@@ -76,14 +81,16 @@ export default function SavedFieldsLayer({ fields, selectedId, onSelectField }: 
 
     const layer = L.geoJSON(featureCollection, {
       style: feature => {
-        const props = (feature?.properties ?? {}) as { id: string; color: string }
+        const props = (feature?.properties ?? {}) as { id: string; color: string; vizVal?: number }
         const isSelected = props.id === selectedId
+        const useViz = surfaceVizMetric !== 'none' && typeof props.vizVal === 'number'
+        const fillCol = useViz ? vizColor(props.vizVal as number) : props.color || '#22d3ee'
         return {
           color: props.color || '#22d3ee',
           weight: isSelected ? 3 : 2,
           opacity: isSelected ? 1 : 0.92,
-          fillColor: props.color || '#22d3ee',
-          fillOpacity: isSelected ? 0.22 : 0.12,
+          fillColor: fillCol,
+          fillOpacity: useViz ? (isSelected ? 0.42 : 0.28) : isSelected ? 0.22 : 0.12,
           dashArray: isSelected ? undefined : undefined,
           interactive: true,
         }
@@ -94,9 +101,6 @@ export default function SavedFieldsLayer({ fields, selectedId, onSelectField }: 
           name: string
           areaHectares: number
         }
-        /* Permanent tooltip = always-on label. Direction `center` keeps it
-         * inside the polygon. The label is plain text — markup escapes
-         * are handled by Leaflet. */
         leafletLayer.bindTooltip(`${props.name} · ${formatArea(props.areaHectares)}`, {
           permanent: true,
           direction: 'center',
@@ -104,8 +108,6 @@ export default function SavedFieldsLayer({ fields, selectedId, onSelectField }: 
           opacity: 0.95,
         })
         leafletLayer.on('click', e => {
-          /* Stop propagation so clicking a saved field doesn't also fire
-           * the map's "click empty area" handler (used for picking). */
           L.DomEvent.stopPropagation(e as unknown as Event)
           onSelectField(props.id)
         })
@@ -125,7 +127,7 @@ export default function SavedFieldsLayer({ fields, selectedId, onSelectField }: 
       }
       layerRef.current = null
     }
-  }, [map, featureCollection, selectedId, onSelectField])
+  }, [map, featureCollection, selectedId, onSelectField, surfaceVizMetric])
 
   return null
 }

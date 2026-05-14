@@ -14,6 +14,9 @@ interface DrawToolsControllerProps {
   onSelectionChange?: (layer: any | null) => void;
   onDrawingChanged?: (count: number) => void;
   shapeColor?: string;
+  /** When the trash tool runs: return true if the host handled removal (e.g. selected shape only). */
+  onClearShapes?: (ctx: { fg: L.FeatureGroup | null; selected: any | null }) => boolean;
+  selectedLayerRef?: React.MutableRefObject<any | null>;
 }
 
 export const DrawToolsController: React.FC<DrawToolsControllerProps> = ({
@@ -23,7 +26,9 @@ export const DrawToolsController: React.FC<DrawToolsControllerProps> = ({
   onAOICreated,
   onSelectionChange,
   onDrawingChanged,
-  shapeColor
+  shapeColor,
+  onClearShapes,
+  selectedLayerRef,
 }) => {
   const map = useMap();
   const drawControlRef = useRef<any>(null);
@@ -256,13 +261,18 @@ export const DrawToolsController: React.FC<DrawToolsControllerProps> = ({
         activeDrawerRef.current = deleter;
         editModeRef.current = 'delete';
     } else if (activeTool === 'delete') {
-        featureGroupRef.current?.clearLayers();
-        emitCount();
-        onToolActivate(null);
+      const fg = featureGroupRef.current;
+      const selected = selectedLayerRef?.current ?? null;
+      const handled = onClearShapes?.({ fg, selected: selected ?? null });
+      if (!handled && fg) {
+        fg.clearLayers();
+      }
+      emitCount();
+      onToolActivate(null);
     }
 
     return () => cleanupDrawer();
-  }, [map, activeTool, onToolActivate, featureGroupRef, shapeColor]);
+  }, [map, activeTool, onToolActivate, featureGroupRef, shapeColor, onClearShapes, selectedLayerRef]);
 
   // Cleanup on unmount
   useEffect(() => {

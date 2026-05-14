@@ -1,67 +1,38 @@
-import { Component, Suspense, lazy, memo, type ReactNode } from 'react'
+import { Suspense, lazy } from 'react'
 import './spline-scene.css'
 
 /**
- * GitHub Pages (and similar static hosts): remote `prod.spline.design` scene
- * fetch often fails (CORS/proxy/adblock) and react-spline throws into the root
- * error boundary. Skip loading the Spline runtime entirely — hero keeps layout.
+ * Eagerly start fetching the Spline runtime chunk at module-load time so
+ * the network roundtrip for the heavy `@splinetool/react-spline` bundle
+ * overlaps with React's first render — by the time `<SplineScene/>`
+ * actually mounts, the chunk is usually already in the browser cache.
+ * The `lazy()` call below reuses the same import so no double-fetch.
  */
-function isStaticGitHubPagesHost(): boolean {
-  return typeof window !== 'undefined' && window.location.hostname.endsWith('github.io')
-}
-
-class SplineErrorBoundary extends Component<
-  { children: ReactNode; fallback: ReactNode },
-  { hasError: boolean }
-> {
-  state = { hasError: false }
-
-  static getDerivedStateFromError(): { hasError: boolean } {
-    return { hasError: true }
-  }
-
-  componentDidCatch(error: unknown): void {
-    console.warn('[SplineScene] runtime error; showing placeholder', error)
-  }
-
-  render(): ReactNode {
-    if (this.state.hasError) return this.props.fallback
-    return this.props.children
-  }
-}
-
-const Spline = lazy(async () => {
-  try {
-    return await import('@splinetool/react-spline')
-  } catch (err) {
-    console.warn('[SplineScene] @splinetool/react-spline chunk failed to load', err)
-    const Fallback = () => <div className="gs-spline-skeleton h-full w-full" aria-hidden />
-    return {
-      default: Fallback as unknown as React.ComponentType<{ scene: string; className?: string }>,
-    }
-  }
-})
+const splineRuntime = import('@splinetool/react-spline')
+const Spline = lazy(() => splineRuntime)
 
 interface SplineSceneProps {
   scene: string
   className?: string
 }
 
-function SplineFallback({ className }: { className?: string }) {
-  return <div className={`gs-spline-skeleton h-full w-full ${className ?? ''}`} aria-hidden />
-}
-
-function SplineSceneInner({ scene, className }: SplineSceneProps) {
-  const fallback = <SplineFallback className={className} />
-  if (isStaticGitHubPagesHost()) return fallback
-
+export function SplineScene({ scene, className }: SplineSceneProps) {
   return (
-    <SplineErrorBoundary key={scene} fallback={fallback}>
-      <Suspense fallback={fallback}>
-        <Spline scene={scene} className={className} />
-      </Suspense>
-    </SplineErrorBoundary>
+    <Suspense
+      fallback={
+        <div
+          className={`gs-spline-frameless gs-spline-skeleton h-full w-full min-h-0 ${className ?? ''}`}
+          aria-hidden
+        />
+      }
+    >
+      <div className="gs-spline-frameless h-full w-full min-h-0">
+        <Spline
+          scene={scene}
+          className={className}
+          style={{ border: 'none', outline: 'none', background: 'transparent' }}
+        />
+      </div>
+    </Suspense>
   )
 }
-
-export const SplineScene = memo(SplineSceneInner)

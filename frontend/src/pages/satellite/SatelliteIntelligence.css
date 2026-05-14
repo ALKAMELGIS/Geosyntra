@@ -826,6 +826,25 @@ main.content > .si-page {
   background: transparent;
 }
 
+/* Mapbox (+/−/compass): force physical left edge on Satellite Intelligence.
+ * `direction: ltr` prevents any RTL ancestor from mirroring corner classes
+ * into the right-rail overlap zone. `left` nudge respects safe-area insets. */
+.si-map-container .mapboxgl-control-container {
+  direction: ltr;
+}
+
+/* Match horizontal inset to `.si-map-floating-controls` (24px) so zoom/compass
+   aligns with Search + Basemap stack — was 10px and sat visually “ahead” of the row. */
+.si-map-container .mapboxgl-ctrl-top-left {
+  left: max(24px, env(safe-area-inset-left, 0px)) !important;
+  right: auto !important;
+}
+
+.si-map-container .mapboxgl-ctrl-bottom-left {
+  left: max(24px, env(safe-area-inset-left, 0px)) !important;
+  right: auto !important;
+}
+
 .si-aoi-class-legend {
   position: absolute;
   left: 16px;

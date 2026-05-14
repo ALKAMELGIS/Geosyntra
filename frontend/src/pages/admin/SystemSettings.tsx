@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { appConfirm } from '../../lib/appDialog'
 import { useLocation } from 'react-router-dom'
 import * as yup from 'yup'
-import { useLanguage } from '../../lib/i18n'
+import { useLanguage, type AppLanguage } from '../../lib/i18n'
 import { hasPermission, normalizeRole, readCurrentUser } from '../../lib/auth'
 import { NAV_DEFAULT_GROUPS, NAV_GROUP_IDS } from '../../nav/navManifest'
 import {
@@ -79,14 +79,33 @@ const CUSTOM_API_SLOT_ICONS = [
 ] as const
 
 const SETTINGS_TABS = [
-  { id: 'theme' as const, label: 'Theme', icon: 'fa-solid fa-palette' },
-  { id: 'header-settings' as const, label: 'Header Settings', icon: 'fa-solid fa-window-maximize' },
-  { id: 'logos' as const, label: 'Logos', icon: 'fa-solid fa-image' },
-  { id: 'nav' as const, label: 'Navigation', icon: 'fa-solid fa-bars-staggered' },
-  { id: 'pages' as const, label: 'Pages', icon: 'fa-solid fa-layer-group' },
-  { id: 'signup-roles' as const, label: 'Sign-up & roles', icon: 'fa-solid fa-user-plus' },
-  { id: 'api-tokens' as const, label: 'API Tokens', icon: 'fa-solid fa-key' },
-]
+  { id: 'theme' as const, label: 'Theme' },
+  { id: 'header-settings' as const, label: 'Header Settings' },
+  { id: 'logos' as const, label: 'Logos' },
+  { id: 'nav' as const, label: 'Navigation' },
+  { id: 'pages' as const, label: 'Pages' },
+  { id: 'signup-roles' as const, label: 'Sign-up & roles' },
+  { id: 'api-tokens' as const, label: 'API Tokens' },
+] as const
+
+type SystemSettingsTabId = (typeof SETTINGS_TABS)[number]['id']
+
+function systemSettingsTabLabel(id: SystemSettingsTabId, language: AppLanguage): string {
+  if (language === 'ar') {
+    const ar: Record<SystemSettingsTabId, string> = {
+      theme: 'المظهر',
+      'header-settings': 'إعدادات الشريط العلوي',
+      logos: 'الشعارات',
+      nav: 'التنقل',
+      pages: 'الصفحات',
+      'signup-roles': 'التسجيل والأدوار',
+      'api-tokens': 'رموز API',
+    }
+    return ar[id]
+  }
+  const row = SETTINGS_TABS.find(t => t.id === id)
+  return row?.label ?? id
+}
 
 const themeSchema = yup.object({
   themeMode: yup.string().oneOf(['light', 'dark', 'custom', 'system']).required(),
@@ -158,9 +177,7 @@ function ApiTokenMergeField({
 export default function SystemSettings() {
   const { draft, setDraft, settings, setSettings, saveDraft, cancelDraft, resetToDefaults, pushToast } = useSystemSettings()
   const { language } = useLanguage()
-  const [tab, setTab] = useState<
-    'theme' | 'header-settings' | 'logos' | 'nav' | 'pages' | 'signup-roles' | 'api-tokens'
-  >('theme')
+  const [tab, setTab] = useState<SystemSettingsTabId>('theme')
   const [mapboxTokenDraft, setMapboxTokenDraft] = useState('')
   const [arcgisTokenDraft, setArcgisTokenDraft] = useState('')
   const [sentinelHubInstanceDraft, setSentinelHubInstanceDraft] = useState('')
@@ -673,26 +690,23 @@ export default function SystemSettings() {
   return (
     <div className="gis-page-padding sys-settings">
       <div className="sys-settings-shell">
-        <div className="sys-settings-tabs" role="tablist" aria-label="Settings sections">
-          {SETTINGS_TABS.map(({ id, label, icon }) => (
-            <button
-              key={id}
-              type="button"
-              role="tab"
-              aria-selected={tab === id}
-              className={`sys-settings-tab ${tab === id ? 'sys-settings-tab--active' : ''}`}
-              onClick={() => setTab(id)}
-            >
-              <span className="sys-settings-tab__icon" aria-hidden>
-                <i className={icon} />
-              </span>
-              {id === 'api-tokens' && language === 'ar'
-                ? 'رموز API'
-                : id === 'signup-roles' && language === 'ar'
-                  ? 'التسجيل والأدوار'
-                  : label}
-            </button>
-          ))}
+        <div className="sys-settings-nav" dir={language === 'ar' ? 'rtl' : 'ltr'}>
+          <label htmlFor="sys-settings-section" className="sys-settings-nav__label">
+            {language === 'ar' ? 'القسم' : 'Section'}
+          </label>
+          <select
+            id="sys-settings-section"
+            className="gis-input sys-settings-nav__select"
+            value={tab}
+            aria-label={language === 'ar' ? 'اختر قسم الإعدادات' : 'Choose a settings section'}
+            onChange={e => setTab(e.target.value as SystemSettingsTabId)}
+          >
+            {SETTINGS_TABS.map(({ id }) => (
+              <option key={id} value={id}>
+                {systemSettingsTabLabel(id, language)}
+              </option>
+            ))}
+          </select>
         </div>
 
       <section className="sys-settings-panel sys-settings-panel--unified">

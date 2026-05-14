@@ -78,12 +78,19 @@ export type SatelliteContextualAnalysisDockProps = {
   /** Map toolbox only: quick action above Layers — open add-data / add-layer flow. */
   onMapToolboxAddData?: () => void;
   /**
-   * Fields Data — drawer content rendered when the user opens the new
-   * "Fields" tool from the map toolbox rail. Pre-built JSX (typically a
-   * `<FieldsPanel ... />`) so the dock stays presentational and the
-   * parent (Satellite Intelligence) keeps full ownership of the saved
-   * fields store + map sync. Mirrors the same docked pattern Layers
-   * uses (`mapToolboxLayersMain`).
+   * Fields Data — Main tab: drawing workspace + spectral context (parent
+   * supplies memoized `<FieldsPanel layout="workspace" …/>`).
+   */
+  fieldsPanelWorkspaceContent?: ReactNode;
+  /**
+   * Fields Data → Field Data tab: library, groups, list (parent supplies
+   * `<FieldsPanel layout="library" …/>`). Falls back to `fieldsPanelContent`
+   * when omitted for backwards compatibility.
+   */
+  fieldsPanelLibraryContent?: ReactNode;
+  /**
+   * @deprecated Prefer `fieldsPanelWorkspaceContent` + `fieldsPanelLibraryContent`.
+   * When the new slots are omitted, this still renders on the Main tab only.
    */
   fieldsPanelContent?: ReactNode;
   /**
@@ -277,6 +284,8 @@ export function SatelliteContextualAnalysisDock(props: SatelliteContextualAnalys
     geoAiFloatingOpen = false,
     onGeoAiFloatingRailToggle,
     onMapToolboxAddData,
+    fieldsPanelWorkspaceContent,
+    fieldsPanelLibraryContent,
     fieldsPanelContent,
     fieldsCount = 0,
   } = props;
@@ -805,7 +814,7 @@ export function SatelliteContextualAnalysisDock(props: SatelliteContextualAnalys
                       className={'si-sat-ctx-tab' + (innerTab === 'options' ? ' si-sat-ctx-tab--on' : '')}
                       onClick={() => setInnerTab('options')}
                     >
-                      Options
+                      {activeId === 'fields' ? 'Field Data' : 'Options'}
                     </button>
                   </div>
 
@@ -854,7 +863,8 @@ export function SatelliteContextualAnalysisDock(props: SatelliteContextualAnalys
                      * the FieldsPanel needing its own outer chrome. */}
                     {activeId === 'fields' && (
                       <div className="si-sat-ctx-fields-host">
-                        {fieldsPanelContent ?? (
+                        {fieldsPanelWorkspaceContent ??
+                          fieldsPanelContent ?? (
                           <div className="si-sat-ctx-prose">
                             <p>
                               <strong>Fields Data</strong> is unavailable in this context.
@@ -1051,7 +1061,16 @@ export function SatelliteContextualAnalysisDock(props: SatelliteContextualAnalys
                   </>
                 ) : (
                   <div className="si-sat-ctx-prose">
-                    {activeId === 'layers' && isMap && onProcessingWorkflowNavigate ? (
+                    {activeId === 'fields' ? (
+                      <div className="si-sat-ctx-fields-host">
+                        {fieldsPanelLibraryContent ??
+                          fieldsPanelContent ?? (
+                          <div className="si-sat-ctx-prose">
+                            <p className="si-sat-ctx-muted">Field library is not configured.</p>
+                          </div>
+                        )}
+                      </div>
+                    ) : activeId === 'layers' && isMap && onProcessingWorkflowNavigate ? (
                       <div className="si-sat-ctx-layers-options-stack">
                         <div className="si-sat-ctx-subnav" role="navigation" aria-label="Layers options navigation">
                           <button
@@ -1111,7 +1130,9 @@ export function SatelliteContextualAnalysisDock(props: SatelliteContextualAnalys
                     ? 'Polygon: Shift constrains angles · Circle: Enter commits · Clear restores pan.'
                     : activeId === 'layers' && isMap
                       ? 'Main: add layers and actions. Options: open STAC / RS / AI, and configure per-layer identify popups.'
-                      : 'Drag the inner edge to resize. Click the active tool again to collapse.'}
+                      : activeId === 'fields' && isMap
+                        ? 'Main: draw fields + spectral link. Field Data: groups, list, exports.'
+                        : 'Drag the inner edge to resize. Click the active tool again to collapse.'}
                 </span>
               </footer>
             </>
