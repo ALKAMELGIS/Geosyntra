@@ -1,4 +1,4 @@
-import { Component, useEffect } from 'react'
+import { Component } from 'react'
 import { HashRouter, Navigate, useLocation } from 'react-router-dom'
 import { AppDialogProvider } from './components/AppDialogProvider'
 import HeaderBar from './components/HeaderBar'
@@ -10,34 +10,22 @@ import { SystemSettingsProvider } from './store/SystemSettingsContext'
 
 type AppErrorState = {
   error: unknown
-  kind: 'render' | 'window'
+  kind: 'render'
   details?: string
 } | null
 
-/** CDN / ad-block / corp proxy fetch failures often surface as `unhandledrejection` from third-party runtimes — not fatal for the shell. */
-function isBenignUnhandledFetchFailure(reason: unknown): boolean {
-  const text =
-    reason instanceof Error
-      ? `${reason.name}: ${reason.message}`
-      : typeof reason === 'string'
-        ? reason
-        : ''
-  const t = text.toLowerCase()
-  return (
-    t.includes('failed to fetch') ||
-    t.includes('load failed') ||
-    t.includes('networkerror when attempting to fetch') ||
-    t.includes('network request failed')
-  )
-}
-
+/**
+ * React error boundary only — no global `window` listeners.
+ * Listening to `unhandledrejection` / `error` was turning CDN, ad-block, and flaky
+ * network failures (often "Failed to fetch") into a full-screen fatal state unrelated
+ * to app logic. Third-party runtimes (maps, Spline, particles) must not own the shell.
+ */
 class AppErrorBoundary extends Component<{ children: JSX.Element }, { err: AppErrorState }> {
   state: { err: AppErrorState } = { err: null }
-  private onUnhandledRejection?: (e: PromiseRejectionEvent) => void
-  private onErrorEvent?: (e: ErrorEvent) => void
 
   static getDerivedStateFromError(error: unknown) {
-    return { err: { error, kind: 'render' as const } }
+    const details = error instanceof Error && typeof error.stack === 'string' ? error.stack : undefined
+    return { err: { error, kind: 'render' as const, details } }
   }
 
   componentDidCatch(error: unknown) {
@@ -46,49 +34,6 @@ class AppErrorBoundary extends Component<{ children: JSX.Element }, { err: AppEr
       console.error('[AppErrorBoundary]', message, error)
     } catch {
     }
-  }
-
-  componentDidMount() {
-    if (typeof window === 'undefined') return
-    this.onUnhandledRejection = (e) => {
-      const reason = (e as PromiseRejectionEvent).reason
-      const msg = reason instanceof Error ? reason.message : typeof reason === 'string' ? reason : ''
-      if (msg.includes('Style is not done loading')) return
-      if (isBenignUnhandledFetchFailure(reason)) {
-        try {
-          e.preventDefault()
-        } catch {
-          /* ignore */
-        }
-        console.warn('[AppErrorBoundary] ignored optional-network rejection (CDN/Spline/tiles/etc.)', reason)
-        return
-      }
-      const details = reason instanceof Error ? reason.stack : undefined
-      this.setState({ err: { error: reason ?? e, kind: 'window', details } })
-      try {
-        console.error('[unhandledrejection]', reason)
-      } catch {
-      }
-    }
-    this.onErrorEvent = (e) => {
-      const err = e?.error
-      const msg = err instanceof Error ? err.message : typeof err === 'string' ? err : String(e?.message ?? '')
-      if (msg.includes('Style is not done loading')) return
-      const details = typeof e?.error?.stack === 'string' ? e.error.stack : undefined
-      this.setState({ err: { error: e.error ?? e.message, kind: 'window', details } })
-      try {
-        console.error('[window.error]', e.error ?? e.message)
-      } catch {
-      }
-    }
-    window.addEventListener('unhandledrejection', this.onUnhandledRejection)
-    window.addEventListener('error', this.onErrorEvent)
-  }
-
-  componentWillUnmount() {
-    if (typeof window === 'undefined') return
-    if (this.onUnhandledRejection) window.removeEventListener('unhandledrejection', this.onUnhandledRejection)
-    if (this.onErrorEvent) window.removeEventListener('error', this.onErrorEvent)
   }
 
   render() {
