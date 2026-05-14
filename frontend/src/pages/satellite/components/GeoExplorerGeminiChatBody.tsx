@@ -52,8 +52,7 @@ export function GeoExplorerGeminiChatBody(props: GeoExplorerGeminiChatBodyProps)
             <i className="fa-solid fa-globe" />
           </div>
           <div className={`${pfx(cssPrefix, 'bubble')} ${pfx(cssPrefix, 'bubble--welcome')}`}>
-            Hello! Im Geosyntra Platform - GeoAI - Describe a place, upload an image, or ask for directions. When a location is
-            clear, the map will fly there
+            Hello! I'm Geosyntra Geo AI — a <strong>spatial reasoning agent</strong> for this map. Ask for places, directions, imagery, or multi-step GIS / Sentinel workflows (points, buffers, NDVI…). When a location is clear, the map will fly there.
           </div>
         </div>
         {messages.map(msg => (

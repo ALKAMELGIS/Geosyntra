@@ -51,6 +51,7 @@ import { getSentinelHubWmsBaseUrl, subscribeSentinelHubWmsInstance } from '../..
 import { buildSentinelHubWmsAoiClip, getDrawnGeometry } from '../../lib/sentinelHubWmsAoiClip';
 import {
   GEO_AI_COPILOT_RULES,
+  GEO_AI_SPATIAL_WORKFLOW_AGENT_APPEND,
   lastMapQueryCoordsFromMessages,
   lastMapQueryCoordsFromSimpleChatHistory,
   replaceUserMessageText,
@@ -82,7 +83,6 @@ import {
 } from '../../lib/geoAiLinkedSelection';
 import { SI_GEO_AI_MAP_SELECTION_PAINT } from './siGeoAiMapSelectionPaint';
 import { runGeoAiStatsCommand, type GeoAiMapFirstSelection } from '../../lib/geoAiStatsEngine';
-import { planSatelliteSpatialWorkflow } from '../../lib/geoAiSatelliteSpatialWorkflow';
 import { resolveGeoAiPinFromUserTextAndReply } from '../../lib/geoAiResolveMapCoords';
 import { buildGeoAiFullWeatherSessionAppend } from '../../lib/geoAiWeatherContext';
 import {
@@ -2706,17 +2706,6 @@ export default function SatelliteIntelligence() {
   const geoAiSuppressPopupsUntilRef = useRef(0);
   const geoExplorerFileInputRef = useRef<HTMLInputElement | null>(null);
   const geoExplorerInFlightRef = useRef(false);
-  /** Geo AI spatial workflow — AOI helpers are defined later; Gemini pipeline invokes them via refs. */
-  const geoAiSpatialWorkflowRegisterAoiRef = useRef<
-    | null
-    | ((
-        geojson: any,
-        layerName: string,
-        source: 'drawn' | 'upload' | 'layer',
-        opts?: { setActiveFirst?: boolean },
-      ) => number)
-  >(null);
-  const geoAiSpatialWorkflowUpdateDrawnRef = useRef<null | ((geometry: any | null) => void)>(null);
   const [geoAiModelTab, setGeoAiModelTab] = useState<'gemini' | 'claude' | 'deepseek'>('gemini');
   const [geoAiChatMessages, setGeoAiChatMessages] = useState<GeoExplorerMessage[]>([]);
   const [geoAiClaudeVisibleCount, setGeoAiClaudeVisibleCount] = useState(GEO_AI_CHAT_PAGE_SIZE);
@@ -3012,106 +3001,6 @@ export default function SatelliteIntelligence() {
             return;
           }
         }
-        if (trimmed) {
-          const wf = planSatelliteSpatialWorkflow(trimmed);
-          if (wf.kind === 'run') {
-            const rid =
-              typeof crypto !== 'undefined' && 'randomUUID' in crypto ? crypto.randomUUID() : `geoai-${Date.now()}`;
-            const pointLayerId = `geoai-pt-${rid}`;
-            const addLayers: CustomLayer[] = [
-              {
-                id: pointLayerId,
-                name: 'Geo AI — site',
-                geojson: {
-                  type: 'FeatureCollection',
-                  features: [
-                    {
-                      type: 'Feature',
-                      properties: { name: 'Geo AI anchor', source: 'geo-ai-workflow' },
-                      geometry: { type: 'Point', coordinates: [wf.lng, wf.lat] },
-                    },
-                  ],
-                },
-                visible: true,
-                source: 'api',
-                ephemeral: true,
-                color: '#38bdf8',
-              },
-            ];
-            if (wf.bufferRing && wf.bufferKm != null) {
-              addLayers.push({
-                id: `geoai-buf-${rid}`,
-                name: `Geo AI — ${wf.bufferKm} km buffer`,
-                geojson: {
-                  type: 'FeatureCollection',
-                  features: [
-                    {
-                      type: 'Feature',
-                      properties: { source: 'geo-ai-workflow', radiusKm: wf.bufferKm },
-                      geometry: { type: 'Polygon', coordinates: [wf.bufferRing] },
-                    },
-                  ],
-                },
-                visible: true,
-                source: 'api',
-                ephemeral: true,
-                color: '#22c55e',
-                polygonFillAlpha: 0.22,
-              });
-              const bufferFeature = {
-                type: 'Feature' as const,
-                properties: { name: `Geo AI ${wf.bufferKm} km buffer` },
-                geometry: { type: 'Polygon' as const, coordinates: [wf.bufferRing] },
-              };
-              const regAoi = geoAiSpatialWorkflowRegisterAoiRef.current;
-              const updDrawn = geoAiSpatialWorkflowUpdateDrawnRef.current;
-              if (regAoi && updDrawn) {
-                regAoi(bufferFeature, `Geo AI buffer (${wf.bufferKm} km)`, 'drawn', { setActiveFirst: true });
-                updDrawn(bufferFeature as any);
-              }
-            } else {
-              geoAiSpatialWorkflowUpdateDrawnRef.current?.({
-                type: 'Feature',
-                properties: {},
-                geometry: { type: 'Point', coordinates: [wf.lng, wf.lat] },
-              } as any);
-            }
-            setCustomLayers(prev => [...prev, ...addLayers]);
-            if (wf.wantsNdvi && wmsLayers.length) {
-              const allowed = wmsLayers.filter(
-                l => !REMOTE_SENSING_HIDDEN_LAYER_IDS.has(String(l.name || '').trim().toUpperCase()),
-              );
-              const ndviPick =
-                allowed.find(l => /ndvi/i.test(l.name))?.name ??
-                allowed.find(l => /vegetation|savi|green|color/i.test(l.name))?.name;
-              if (ndviPick) setWmsLayer(ndviPick);
-              setIsWmsOverlayVisible(true);
-            }
-            setGeoAiPinLngLat([wf.lng, wf.lat]);
-            setViewState(vs => ({
-              ...vs,
-              longitude: wf.lng,
-              latitude: wf.lat,
-              zoom: Math.max(wf.bufferKm != null ? 11 : 13.25, typeof vs.zoom === 'number' ? vs.zoom : 2),
-              pitch: is3DView ? Math.max(typeof vs.pitch === 'number' ? vs.pitch : 0, 42) : vs.pitch ?? 0,
-              bearing: typeof vs.bearing === 'number' ? vs.bearing : 0,
-            }));
-            const midWf =
-              typeof crypto !== 'undefined' && 'randomUUID' in crypto ? crypto.randomUUID() : `geo-s-${Date.now()}`;
-            setGeoExplorerMessages(h => [...h, { id: midWf, role: 'model', parts: [{ type: 'text', text: wf.reply }] }]);
-            setGeoAiInspectCard({
-              title: 'Geo AI workflow',
-              rows: [
-                { label: 'Longitude', value: wf.lng.toFixed(6) },
-                { label: 'Latitude', value: wf.lat.toFixed(6) },
-                ...(wf.bufferKm != null ? [{ label: 'Buffer', value: `${wf.bufferKm} km` }] : []),
-              ],
-              lng: wf.lng,
-              lat: wf.lat,
-            });
-            return;
-          }
-        }
         let developAppend = '';
         try {
           const raw =
@@ -3200,7 +3089,6 @@ export default function SatelliteIntelligence() {
       geoAiPinLngLat,
       geoAiInspectCard,
       is3DView,
-      wmsLayers,
     ],
   );
 
@@ -3748,7 +3636,6 @@ export default function SatelliteIntelligence() {
     }
     return polys.length;
   };
-  geoAiSpatialWorkflowRegisterAoiRef.current = registerMultiAoiWorkspace;
 
   const applyUploadedAoiToAnalysis = (geojson: any, layerName: string) => {
     const feature = pickFirstPolygonAoiFeature(geojson);
@@ -6861,7 +6748,6 @@ export default function SatelliteIntelligence() {
     setDrawnGeometry(geometry);
     recomputeDrawnAoiStats(geometry);
   };
-  geoAiSpatialWorkflowUpdateDrawnRef.current = updateDrawnStats;
 
   const removeMultiAoiById = useCallback(
     (aoiId: string) => {
@@ -7483,7 +7369,7 @@ export default function SatelliteIntelligence() {
             openWeatherApiKey,
             mapPopup: null,
           });
-          const system = `${GEO_AI_CHAT_SYSTEM_BASE}\n\n---\n## Geo AI Copilot mission\n${GEO_AI_COPILOT_RULES}${weatherAppend}\n\n---\nDATA CONTEXT (authoritative for this session turn):\n${dataCtx}`;
+          const system = `${GEO_AI_CHAT_SYSTEM_BASE}\n\n---\n## Geo AI Copilot mission\n${GEO_AI_COPILOT_RULES}\n\n${GEO_AI_SPATIAL_WORKFLOW_AGENT_APPEND}${weatherAppend}\n\n---\nDATA CONTEXT (authoritative for this session turn):\n${dataCtx}`;
           const turns: GeoAiChatTurn[] = prior.map(m => ({
             role: m.role === 'user' ? 'user' : 'assistant',
             text: m.parts
@@ -7603,7 +7489,7 @@ export default function SatelliteIntelligence() {
             openWeatherApiKey,
             mapPopup: null,
           });
-          const system = `${GEO_AI_CHAT_SYSTEM_BASE}\n\n---\n## Geo AI Copilot mission\n${GEO_AI_COPILOT_RULES}${weatherAppendDs}\n\n---\nDATA CONTEXT (authoritative for this session turn):\n${dataCtx}`;
+          const system = `${GEO_AI_CHAT_SYSTEM_BASE}\n\n---\n## Geo AI Copilot mission\n${GEO_AI_COPILOT_RULES}\n\n${GEO_AI_SPATIAL_WORKFLOW_AGENT_APPEND}${weatherAppendDs}\n\n---\nDATA CONTEXT (authoritative for this session turn):\n${dataCtx}`;
           const turns: GeoAiChatTurn[] = prior.map(m => ({
             role: m.role === 'user' ? 'user' : 'assistant',
             text: m.parts
