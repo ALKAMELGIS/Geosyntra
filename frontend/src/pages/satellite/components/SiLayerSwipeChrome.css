@@ -1,0 +1,171 @@
+/* Layer swipe: dual clipped MapGL panes + HUD (Satellite Intelligence) */
+
+.si-layer-swipe-stack {
+  position: relative;
+  flex: 1;
+  height: 100%;
+  width: 100%;
+  min-height: 0;
+}
+
+.si-layer-swipe-pane {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+}
+
+.si-layer-swipe-pane .mapboxgl-map {
+  width: 100%;
+  height: 100%;
+}
+
+.si-layer-swipe-chrome {
+  position: absolute;
+  inset: 0;
+  z-index: 12;
+  pointer-events: none;
+}
+
+.si-layer-swipe-chrome__hud {
+  pointer-events: auto;
+  position: absolute;
+  top: 12px;
+  left: 50%;
+  transform: translateX(-50%);
+  min-width: 220px;
+  max-width: min(420px, 92vw);
+  padding: 10px 12px 12px;
+  border-radius: 12px;
+  background: rgba(15, 23, 42, 0.72);
+  border: 1px solid rgba(148, 163, 184, 0.28);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.35);
+  backdrop-filter: blur(10px);
+}
+
+.si-layer-swipe-chrome__row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+
+.si-layer-swipe-chrome__kicker {
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: rgba(248, 250, 252, 0.88);
+}
+
+.si-layer-swipe-chrome__close {
+  border: none;
+  background: rgba(30, 41, 59, 0.65);
+  color: #e2e8f0;
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.si-layer-swipe-chrome__close:hover {
+  background: rgba(51, 65, 85, 0.85);
+}
+
+.si-layer-swipe-chrome__hint {
+  margin: 0;
+  font-size: 11px;
+  line-height: 1.45;
+  color: rgba(226, 232, 240, 0.78);
+}
+
+.si-layer-swipe-chrome__picks {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.si-layer-swipe-chrome__pick {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.si-layer-swipe-chrome__pick-label {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: rgba(148, 163, 184, 0.95);
+}
+
+.si-layer-swipe-chrome__select {
+  font-size: 11px;
+  border-radius: 8px;
+  border: 1px solid rgba(100, 116, 139, 0.45);
+  background: rgba(2, 6, 23, 0.55);
+  color: #f8fafc;
+  padding: 6px 8px;
+}
+
+.si-layer-swipe-chrome__legend {
+  margin: 8px 0 0;
+  font-size: 10px;
+  color: rgba(226, 232, 240, 0.82);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.si-layer-swipe-chrome__legend-sep {
+  opacity: 0.45;
+}
+
+.si-layer-swipe-chrome__bar {
+  position: absolute;
+  inset: 0;
+  pointer-events: auto;
+  cursor: ew-resize;
+}
+
+.si-layer-swipe-chrome__bar-track {
+  display: none;
+}
+
+.si-layer-swipe-chrome__handle {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 28px;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.si-layer-swipe-chrome__grip {
+  width: 3px;
+  height: 44px;
+  border-radius: 999px;
+  background: linear-gradient(180deg, #4ade80, #22c55e);
+  box-shadow: 0 0 0 1px rgba(15, 23, 42, 0.55), 0 6px 18px rgba(34, 197, 94, 0.35);
+}
+
+.si-layer-swipe-chrome__line {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  transform: translateX(-1px);
+  background: rgba(248, 250, 252, 0.55);
+  box-shadow: 0 0 12px rgba(0, 0, 0, 0.35);
+  pointer-events: none;
+}
+
+.si-sat-ctx-rail-sym-tool--swipe {
+  margin-inline-end: 6px;
+}

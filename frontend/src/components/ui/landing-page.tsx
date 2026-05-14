@@ -475,7 +475,7 @@ export function ScrollGlobe({ sections, globeConfig = defaultGlobeConfig, classN
             'w-full max-w-full overflow-hidden pointer-events-none',
             innovationGlobeStack && 'justify-center items-center text-center min-h-[100dvh]',
             welcomeHeroAnchorTop &&
-              'justify-start pt-[calc(clamp(2.75rem,9vh,6rem)+2cm+0.75rem+1.5rem+0.85rem)] sm:pt-[calc(clamp(3.25rem,11vh,7rem)+2cm+0.75rem+1.5rem+0.85rem)] md:pt-[calc(clamp(3.5rem,12vh,7.75rem)+2cm+0.75rem+1.5rem+0.85rem)] lg:pt-[calc(clamp(3.75rem,13vh,8.5rem)+2cm+0.75rem+1.75rem+0.85rem)]',
+              'justify-start pt-[calc(clamp(2.75rem,9vh,6rem)+2cm+0.75rem+1.5rem+0.85rem+2.5cm)] sm:pt-[calc(clamp(3.25rem,11vh,7rem)+2cm+0.75rem+1.5rem+0.85rem+2.5cm)] md:pt-[calc(clamp(3.5rem,12vh,7.75rem)+2cm+0.75rem+1.5rem+0.85rem+2.5cm)] lg:pt-[calc(clamp(3.75rem,13vh,8.5rem)+2cm+0.75rem+1.75rem+0.85rem+2.5cm)]',
             !innovationGlobeStack && !welcomeHeroAnchorTop && 'justify-center',
             !innovationGlobeStack && section.align === 'center' && 'items-center text-center',
             !innovationGlobeStack && section.align === 'right' && 'items-end text-right',

@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { SiChatAiAgentIcon } from './SiChatAiAgentIcon';
 
 /** Sections that map to the existing environment / Processing Options stack in Satellite Intelligence. */
 export type SmartProcessingSectionId =
@@ -197,7 +198,7 @@ export function SmartProcessingWorkflowPanel(props: SmartProcessingWorkflowPanel
                 title={l.label}
                 onClick={() => onNavigateSection(l.id)}
               >
-                <i className={l.icon} aria-hidden />
+                {l.id === 'table-geo-ai' ? <SiChatAiAgentIcon size="chip" /> : <i className={l.icon} aria-hidden />}
                 <span>{l.label}</span>
               </button>
             ))}

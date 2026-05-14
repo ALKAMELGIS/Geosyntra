@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { SiChatAiAgentIcon } from './SiChatAiAgentIcon';
 
 export type SatelliteProcessingEnvSection =
   | 'layers'
@@ -184,7 +185,7 @@ export function SatelliteSmartProcessingPanel(props: SatelliteSmartProcessingPan
             </li>
             <li>
               <button type="button" className="si-sat-smart-proc__btn" onClick={() => onOpenEnvSection('table-geo-ai')}>
-                <i className="fa-solid fa-comments" aria-hidden />
+                <SiChatAiAgentIcon size="chip" />
                 <span>
                   <strong>Geo AI</strong>
                   <small>Chat, map links, popups</small>

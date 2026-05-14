@@ -9,6 +9,7 @@ import {
 import { StaticAoiComparisonLayerToolbar } from './StaticAoiComparisonLayerToolbar';
 import type { StaticAoiChartLayerId } from '../utils/staticAoiMultiChartData';
 import type { SmartProcessingSectionId } from './SmartProcessingWorkflowPanel';
+import { SiChatAiAgentIcon } from './SiChatAiAgentIcon';
 
 export type SatelliteContextPanelId =
   | 'layers'
@@ -246,7 +247,14 @@ const RAIL_BY_ID = RAIL.reduce(
     return acc
   },
   {} as Record<SatelliteContextPanelId, (typeof RAIL)[number]>,
-)
+);
+
+function SatelliteDockRailGlyph({ id, icon }: { id: SatelliteContextPanelId; icon: string }) {
+  if (id === 'table-geo-ai') {
+    return <SiChatAiAgentIcon size="rail" />;
+  }
+  return <i className={icon} aria-hidden />;
+}
 
 function defaultSparkPath(values: number[], w: number, h: number): string {
   if (!values.length) return '';
@@ -630,7 +638,7 @@ export function SatelliteContextualAnalysisDock(props: SatelliteContextualAnalys
                   aria-pressed={railPressed}
                   onClick={() => toggleRail(item.id)}
                 >
-                  <i className={item.icon} aria-hidden />
+                  <SatelliteDockRailGlyph id={item.id} icon={item.icon} />
                   {isMap ? (
                     <span className="si-sat-ctx-rail-label" aria-hidden={!railWide}>
                       <span className="si-sat-ctx-rail-label-title">{item.label}</span>
@@ -863,7 +871,7 @@ export function SatelliteContextualAnalysisDock(props: SatelliteContextualAnalys
                               aria-pressed={launcherPressed}
                               onClick={() => toggleRail(item.id)}
                             >
-                              <i className={item.icon} aria-hidden />
+                              <SatelliteDockRailGlyph id={item.id} icon={item.icon} />
                               <span className="si-sat-ctx-analysis-launcher-label">{item.label}</span>
                             </button>
                           );

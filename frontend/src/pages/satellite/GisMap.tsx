@@ -23,6 +23,7 @@ import { FieldVisibilityControl } from './components/FieldVisibilityControl'
 import { GeoExplorerGeminiInputRow } from './components/GeoExplorerGeminiInputRow'
 import { MapPopup } from './components/MapPopup'
 import { DrawToolsController } from './components/DrawTools'
+import { SiChatAiAgentIcon } from './components/SiChatAiAgentIcon'
 import FieldsPanel from './components/fields/FieldsPanel'
 import FieldDataContextStrip from './components/fields/FieldDataContextStrip'
 import SavedFieldsLayer from './components/fields/SavedFieldsLayer'
@@ -7502,7 +7503,7 @@ export default function GisMap() {
             title="Geo AI chat"
             aria-label="Geo AI chat"
           >
-            <i className="fa-solid fa-comments" aria-hidden="true" />
+            <SiChatAiAgentIcon size="rail" />
           </button>
         </div>
         {quickSearchOpen ? (
@@ -7650,7 +7651,7 @@ export default function GisMap() {
               aria-label="Geo Explorer chat"
               aria-pressed={activeMapTool === 'geoExplorer'}
             >
-              <i className="fa-solid fa-comments" aria-hidden="true" />
+              <SiChatAiAgentIcon size="rail" />
               <span>Chat</span>
             </button>
           </div>

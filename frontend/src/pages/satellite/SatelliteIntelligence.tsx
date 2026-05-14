@@ -1,4 +1,5 @@
 import React, {
+  Fragment,
   useState,
   useMemo,
   useRef,
@@ -8,7 +9,7 @@ import React, {
   useDeferredValue,
 } from 'react';
 import { motion } from 'framer-motion';
-import MapGL, { Source, Layer, NavigationControl, Marker } from 'react-map-gl/mapbox';
+import MapGL, { Source, Layer, Marker } from 'react-map-gl/mapbox';
 import 'mapbox-gl/dist/mapbox-gl.css';
 import './SatelliteIntelligence.css';
 import '../dashboards/develop-dashboard.css';
@@ -162,6 +163,11 @@ import { GeoExplorerGeminiMessageParts } from './components/GeoExplorerGeminiMes
 import { SiCopyTextButton } from './components/SiCopyTextButton';
 import type { AoiStaticMultiLayerLineChartDataset } from './components/AoiStaticMultiLayerLineChart';
 import { SatelliteMapAnalysisChrome, type MapToolboxNavigateHandler } from './components/SatelliteMapAnalysisChrome';
+import { SiWmsSentinelSwipeContext } from './components/SiWmsSentinelSwipeContext';
+import { SiSwipePeekMapContext } from './components/SiSwipePeekMapContext';
+import { SiSentinelHubRasterLayers, type SiSentinelHubRasterRunLite } from './components/SiSentinelHubRasterLayers';
+import { SiMapNavigationGate } from './components/SiMapNavigationGate';
+import { SiLayerSwipeChrome } from './components/SiLayerSwipeChrome';
 import { SatelliteGeoAiFloatingWidget } from './components/SatelliteGeoAiFloatingWidget';
 import { SatelliteAoiStaticChartsMapOverlay } from './components/SatelliteAoiStaticChartsMapOverlay';
 import { SiAoiReportModal } from './components/SiAoiReportModal';
@@ -2998,6 +3004,11 @@ export default function SatelliteIntelligence() {
   const exploreCatalogSigRef = useRef('');
   const searchRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<any | null>(null);
+  const siSwipePeekMapRef = useRef<any | null>(null);
+  const [siLayerSwipeOpen, setSiLayerSwipeOpen] = useState(false);
+  const [siLayerSwipeSplit, setSiLayerSwipeSplit] = useState(50);
+  const [siLayerSwipeLeftId, setSiLayerSwipeLeftId] = useState('');
+  const [siLayerSwipeRightId, setSiLayerSwipeRightId] = useState('');
   /** One-shot fallback to Mercator when Globe/WebGL errors (e.g. some Edge + GPU combos). */
   const siGlobeWebglFailoverRef = useRef(false);
   const siTableFeatureKeyCacheRef = useRef<Map<object, string>>(new Map());
@@ -10826,6 +10837,38 @@ export default function SatelliteIntelligence() {
     symStopsForWmsLayerId,
   ]);
 
+  const siLayerSwipeCapable = useMemo(
+    () =>
+      siMultiSentinelRasterRuns === null &&
+      drawnAoiWmsClipReady &&
+      sentinelVisible &&
+      !!activeWmsLayer &&
+      remoteSensingLayerOptions.length > 0,
+    [
+      siMultiSentinelRasterRuns,
+      drawnAoiWmsClipReady,
+      sentinelVisible,
+      activeWmsLayer,
+      remoteSensingLayerOptions.length,
+    ],
+  );
+
+  useEffect(() => {
+    const opts = remoteSensingLayerOptions;
+    if (!opts.length) return;
+    const pickNdvi = () => opts.find(o => o.id.toUpperCase().includes('NDVI'))?.id ?? opts[0]!.id;
+    setSiLayerSwipeLeftId(prev => (prev && opts.some(o => o.id === prev) ? prev : pickNdvi()));
+    setSiLayerSwipeRightId(prev => {
+      if (prev && opts.some(o => o.id === prev)) return prev;
+      if (activeWmsLayer && opts.some(o => o.id === activeWmsLayer)) return activeWmsLayer;
+      return opts[0]!.id;
+    });
+  }, [remoteSensingLayerOptions, activeWmsLayer]);
+
+  useEffect(() => {
+    if (!siLayerSwipeCapable && siLayerSwipeOpen) setSiLayerSwipeOpen(false);
+  }, [siLayerSwipeCapable, siLayerSwipeOpen]);
+
   /**
    * react-map-gl <Source> does not apply standalone `bounds` updates (see updateSource in library).
    * Sync Mapbox RasterTileSource.setBounds after mount so AOI clipping always matches the sketch.
@@ -10834,12 +10877,12 @@ export default function SatelliteIntelligence() {
     if (!isMapLoaded || !sentinelVisible) return;
     const map = mapRef.current?.getMap?.() ?? mapRef.current;
     if (!map?.isStyleLoaded?.()) return;
-    const sync = () => {
+    const syncOne = (m: any) => {
       try {
         if (siMultiSentinelRasterRuns != null) {
           for (const spec of siMultiSentinelRasterRuns) {
             if (!spec.ready) continue;
-            const src = map.getSource(`si-sentinel-src-${spec.aoiId}-${spec.stackKey}`) as
+            const src = m.getSource(`si-sentinel-src-${spec.aoiId}-${spec.stackKey}`) as
               | { setBounds?: (b: [number, number, number, number] | null) => void }
               | null;
             if (src && typeof src.setBounds === 'function') src.setBounds(spec.bounds ?? null);
@@ -10847,13 +10890,20 @@ export default function SatelliteIntelligence() {
           return;
         }
         if (!sentinelAoiVisible) return;
-        const src = map.getSource('sentinel-source') as
+        const src = m.getSource('sentinel-source') as
           | { setBounds?: (b: [number, number, number, number] | null) => void }
           | null;
         if (!src || typeof src.setBounds !== 'function') return;
         src.setBounds(wmsRasterAoiBoundsLngLat ?? null);
       } catch {
         /* ignore map/source race during style rebuild */
+      }
+    };
+    const sync = () => {
+      syncOne(map);
+      if (siLayerSwipeOpen && siLayerSwipeCapable) {
+        const m2 = siSwipePeekMapRef.current?.getMap?.() ?? siSwipePeekMapRef.current;
+        if (m2 && m2 !== map && m2.isStyleLoaded?.()) syncOne(m2);
       }
     };
     const t = window.setTimeout(sync, 0);
@@ -10872,6 +10922,8 @@ export default function SatelliteIntelligence() {
     activeWmsLayer,
     wmsDate,
     drawnGeometry,
+    siLayerSwipeOpen,
+    siLayerSwipeCapable,
   ]);
 
   const circleRefineHud = useMemo(() => {
@@ -10921,127 +10973,8 @@ export default function SatelliteIntelligence() {
     return `${polygonRing.length} vertices — Shift for 15° edges, drag green dots, Backspace or Ctrl+Z undoes last point, Enter to finish.`;
   }, [mapDrawTool, polygonRing.length, polygonClosingSnap]);
 
-  return (
-    <div className="si-page">
-      <div className="si-main-content">
-        {/* Map viewport: MapGL fills this box; timeline chrome below (in-map toolbox rail disabled). */}
-        <div
-          className={`si-map-container${
-            ['point', 'polyline', 'polygon', 'rectangle', 'circle'].includes(mapDrawTool)
-              ? ' si-map-container--drawing'
-              : ''
-          }`}
-          title={siMapDrawingTitle || undefined}
-        >
-          {(circleRadiusM !== null && rectCirclePreview?.kind === 'circle') ||
-          circleRefineHud ||
-          drawAssistHint ||
-          (mapDrawTool === 'polygon' && polygonSketchHudText) ? (
-            <div className="si-draw-live-hud" aria-live="polite">
-              {circleRadiusM !== null && rectCirclePreview?.kind === 'circle' ? (
-                <span className="si-draw-live-hud-radius">
-                  Radius:{' '}
-                  {circleRadiusM < 1000
-                    ? `${Math.round(circleRadiusM)} m`
-                    : `${(circleRadiusM / 1000).toFixed(2)} km`}
-                </span>
-              ) : null}
-              {circleRefineHud ? (
-                <span className="si-draw-live-hud-metrics">
-                  <span className="si-draw-live-hud-radius">
-                    R{' '}
-                    {circleRefineHud.radiusM < 1000
-                      ? `${Math.round(circleRefineHud.radiusM)} m`
-                      : `${(circleRefineHud.radiusM / 1000).toFixed(2)} km`}
-                  </span>
-                  <span className="si-draw-live-hud-sep" aria-hidden>
-                    ·
-                  </span>
-                  <span>
-                    D{' '}
-                    {circleRefineHud.diameterM < 1000
-                      ? `${Math.round(circleRefineHud.diameterM)} m`
-                      : `${(circleRefineHud.diameterM / 1000).toFixed(2)} km`}
-                  </span>
-                  <span className="si-draw-live-hud-sep" aria-hidden>
-                    ·
-                  </span>
-                  <span>
-                    A{' '}
-                    {circleRefineHud.areaHa < 100
-                      ? `${circleRefineHud.areaHa.toFixed(2)} ha`
-                      : `${(circleRefineHud.areaHa / 100).toFixed(2)} km²`}
-                  </span>
-                </span>
-              ) : null}
-              {drawAssistHint || polygonSketchHudText ? (
-                <span className="si-draw-live-hud-hint">{drawAssistHint || polygonSketchHudText}</span>
-              ) : null}
-            </div>
-          ) : null}
-          <MapGL
-            key={`si-map-globe:${mapboxAccessTokenForMap ? 'token' : 'no-token'}`}
-            ref={mapRef}
-            {...viewState}
-            onMove={evt => setViewState(evt.viewState)}
-            onMouseDown={handleMapPointerDown}
-            onMouseMove={handleMapPointerMove}
-            onTouchStart={handleMapPointerDown}
-            onTouchMove={handleMapPointerMove}
-            onClick={evt => handleMapClickDraw(evt.lngLat.lng, evt.lngLat.lat, evt.originalEvent ?? undefined)}
-            onContextMenu={handleMapContextMenu}
-            style={{
-              width: '100%',
-              height: '100%',
-              cursor: siMapCursor,
-            }}
-            mapStyle={effectiveMapStyle}
-            mapboxAccessToken={mapboxAccessTokenForMap}
-            logoPosition="bottom-left"
-            projection={{ name: 'globe' }}
-            renderWorldCopies={false}
-            dragRotate
-            pitchWithRotate
-            touchPitch
-            touchZoomRotate
-            minPitch={0}
-            maxPitch={78}
-            doubleClickZoom
-            scrollZoom
-            fog={{ 'range': [0.5, 10], 'color': '#020617', 'horizon-blend': 0.1 }}
-            onError={(e: any) => {
-              const message = e?.error?.message || '';
-              const url = e?.error?.url || '';
-              const status = e?.error?.status;
-
-              if (
-                message.includes('ERR_ABORTED') ||
-                status === 0 ||
-                url.includes('api.mapbox.com/v4/mapbox.satellite') ||
-                url.includes('services.sentinel-hub.com/ogc/wms')
-              ) {
-                return;
-              }
-              const lowerMessage = String(message || '').toLowerCase();
-              if (
-                !siGlobeWebglFailoverRef.current &&
-                (siMapErrorSuggestsGlobeOrWebglFailure(String(message)) ||
-                  lowerMessage.includes('access token') ||
-                  lowerMessage.includes('mapbox'))
-              ) {
-                siGlobeWebglFailoverRef.current = true;
-                setIs3DView(true);
-                setStacStatus('Map detected a rendering issue and is retrying in 3D Globe mode.');
-                return;
-              }
-              console.warn('Map Error:', e);
-            }}
-            onStyleData={() => siForceGlobeProjection()}
-            onLoad={() => {
-              setIsMapLoaded(true);
-              siForceGlobeProjection();
-            }}
-          >
+  const renderSiMapInterior = () => (
+    <>
             {isMapLoaded ? (
               <>
                 {customLayers.map(layer => {
@@ -11488,54 +11421,23 @@ export default function SatelliteIntelligence() {
               </Source>
             )}
 
-            {isMapLoaded &&
-              sentinelVisible &&
-              siMultiSentinelRasterRuns != null &&
-              siMultiSentinelRasterRuns.filter(s => s.ready).map(spec => (
-                <Source
-                  key={`si-sentinel-${spec.aoiId}-${spec.stackKey}-${spec.wmsLayerId}-${spec.timeStart}-${spec.timeEnd}-${spec.bounds?.join(',') ?? 'nb'}-${spec.clip.geometryWkt3857 ? 'g1' : 'g0'}-${siWmsEvalscriptKeyPart(spec.clip.evalscriptB64)}`}
-                  id={`si-sentinel-src-${spec.aoiId}-${spec.stackKey}`}
-                  type="raster"
-                  tiles={[spec.tileUrl]}
-                  tileSize={512}
-                  bounds={spec.bounds ?? undefined}
-                >
-                  <Layer
-                    id={`si-sentinel-layer-${spec.aoiId}-${spec.stackKey}`}
-                    type="raster"
-                    paint={{
-                      'raster-opacity':
-                        (spec.clip.evalscriptB64 ? 1 : 0.85) *
-                        (spec.bounds ? drawVisualOpacity : 1) *
-                        symOpacityForWmsLayerId(spec.wmsLayerId),
-                      'raster-fade-duration': 0,
-                    }}
-                  />
-                </Source>
-              ))}
-
-            {isMapLoaded && sentinelVisible && siMultiSentinelRasterRuns === null && drawnAoiWmsClipReady && (
-              <Source
-                key={`sentinel-${activeWmsLayer}-${wmsDate}-${wmsRasterAoiBoundsLngLat?.join(',') ?? 'world'}-${sentinelHubWmsAoiClip.geometryWkt3857 ? 'g1' : 'g0'}-${siWmsEvalscriptKeyPart(sentinelHubWmsAoiClip.evalscriptB64)}`}
-                id="sentinel-source"
-                type="raster"
-                tiles={[wmsTileUrl]}
-                tileSize={512}
-                bounds={wmsRasterAoiBoundsLngLat ?? undefined}
-              >
-                <Layer
-                  id="sentinel-layer"
-                  type="raster"
-                  paint={{
-                    'raster-opacity':
-                      (sentinelHubWmsAoiClip.evalscriptB64 ? 1 : 0.85) *
-                      (drawnGeometry != null && wmsRasterAoiBoundsLngLat ? drawVisualOpacity : 1) *
-                      symOpacityForWmsLayerId(activeWmsLayer || ''),
-                    'raster-fade-duration': 0,
-                  }}
-                />
-              </Source>
-            )}
+            <SiSentinelHubRasterLayers
+              isMapLoaded={isMapLoaded}
+              sentinelVisible={sentinelVisible}
+              drawnGeometry={drawnGeometry}
+              activeWmsLayer={activeWmsLayer}
+              siMultiSentinelRasterRuns={siMultiSentinelRasterRuns as SiSentinelHubRasterRunLite[] | null}
+              drawnAoiWmsClipReady={drawnAoiWmsClipReady}
+              wmsRasterAoiBoundsLngLat={wmsRasterAoiBoundsLngLat}
+              drawVisualOpacity={drawVisualOpacity}
+              symOpacityForWmsLayerId={symOpacityForWmsLayerId}
+              symStopsForWmsLayerId={symStopsForWmsLayerId}
+              wmsDate={wmsDate}
+              siWmsMapTimeExtent={siWmsMapTimeExtent}
+              cloudCoverage={cloudCoverage}
+              wmsBaseUrl={wmsBaseUrl}
+              evalscriptKeyPart={siWmsEvalscriptKeyPart}
+            />
 
             {isMapLoaded && stacMapThumb && isStacThumbVisible && (
               <Source
@@ -11803,8 +11705,308 @@ export default function SatelliteIntelligence() {
             ))}
 
             {/* Mapbox zoom + compass — bottom-left, stacked above the Mapbox logo / attribution strip. */}
-            {isMapLoaded ? <NavigationControl position="bottom-left" visualizePitch /> : null}
-          </MapGL>
+            <SiMapNavigationGate isMapLoaded={isMapLoaded} />
+    </>
+  );
+
+  return (
+    <div className="si-page">
+      <div className="si-main-content">
+        {/* Map viewport: MapGL fills this box; timeline chrome below (in-map toolbox rail disabled). */}
+        <div
+          className={`si-map-container${
+            ['point', 'polyline', 'polygon', 'rectangle', 'circle'].includes(mapDrawTool)
+              ? ' si-map-container--drawing'
+              : ''
+          }`}
+          title={siMapDrawingTitle || undefined}
+        >
+          {(circleRadiusM !== null && rectCirclePreview?.kind === 'circle') ||
+          circleRefineHud ||
+          drawAssistHint ||
+          (mapDrawTool === 'polygon' && polygonSketchHudText) ? (
+            <div className="si-draw-live-hud" aria-live="polite">
+              {circleRadiusM !== null && rectCirclePreview?.kind === 'circle' ? (
+                <span className="si-draw-live-hud-radius">
+                  Radius:{' '}
+                  {circleRadiusM < 1000
+                    ? `${Math.round(circleRadiusM)} m`
+                    : `${(circleRadiusM / 1000).toFixed(2)} km`}
+                </span>
+              ) : null}
+              {circleRefineHud ? (
+                <span className="si-draw-live-hud-metrics">
+                  <span className="si-draw-live-hud-radius">
+                    R{' '}
+                    {circleRefineHud.radiusM < 1000
+                      ? `${Math.round(circleRefineHud.radiusM)} m`
+                      : `${(circleRefineHud.radiusM / 1000).toFixed(2)} km`}
+                  </span>
+                  <span className="si-draw-live-hud-sep" aria-hidden>
+                    ·
+                  </span>
+                  <span>
+                    D{' '}
+                    {circleRefineHud.diameterM < 1000
+                      ? `${Math.round(circleRefineHud.diameterM)} m`
+                      : `${(circleRefineHud.diameterM / 1000).toFixed(2)} km`}
+                  </span>
+                  <span className="si-draw-live-hud-sep" aria-hidden>
+                    ·
+                  </span>
+                  <span>
+                    A{' '}
+                    {circleRefineHud.areaHa < 100
+                      ? `${circleRefineHud.areaHa.toFixed(2)} ha`
+                      : `${(circleRefineHud.areaHa / 100).toFixed(2)} km²`}
+                  </span>
+                </span>
+              ) : null}
+              {drawAssistHint || polygonSketchHudText ? (
+                <span className="si-draw-live-hud-hint">{drawAssistHint || polygonSketchHudText}</span>
+              ) : null}
+            </div>
+          ) : null}
+          {siLayerSwipeOpen && siLayerSwipeCapable ? (
+            <div className="si-layer-swipe-stack" data-si-layer-swipe="">
+              <SiWmsSentinelSwipeContext.Provider value={siLayerSwipeRightId}>
+                <SiSwipePeekMapContext.Provider value={false}>
+                  <div
+                    className="si-layer-swipe-pane si-layer-swipe-pane--under"
+                    style={{ clipPath: 'inset(0 0 0 ' + siLayerSwipeSplit + '%)' }}
+                  >
+                    <MapGL
+                      key={`si-map-globe-swipe-r:${mapboxAccessTokenForMap ? 'token' : 'no-token'}`}
+                      ref={mapRef}
+            {...viewState}
+            onMove={evt => setViewState(evt.viewState)}
+            onMouseDown={handleMapPointerDown}
+            onMouseMove={handleMapPointerMove}
+            onTouchStart={handleMapPointerDown}
+            onTouchMove={handleMapPointerMove}
+            onClick={evt => handleMapClickDraw(evt.lngLat.lng, evt.lngLat.lat, evt.originalEvent ?? undefined)}
+            onContextMenu={handleMapContextMenu}
+            style={{
+              width: '100%',
+              height: '100%',
+              cursor: siMapCursor,
+            }}
+            mapStyle={effectiveMapStyle}
+            mapboxAccessToken={mapboxAccessTokenForMap}
+            logoPosition="bottom-left"
+            projection={{ name: 'globe' }}
+            renderWorldCopies={false}
+            dragRotate
+            pitchWithRotate
+            touchPitch
+            touchZoomRotate
+            minPitch={0}
+            maxPitch={78}
+            doubleClickZoom
+            scrollZoom
+            fog={{ 'range': [0.5, 10], 'color': '#020617', 'horizon-blend': 0.1 }}
+            onError={(e: any) => {
+              const message = e?.error?.message || '';
+              const url = e?.error?.url || '';
+              const status = e?.error?.status;
+
+              if (
+                message.includes('ERR_ABORTED') ||
+                status === 0 ||
+                url.includes('api.mapbox.com/v4/mapbox.satellite') ||
+                url.includes('services.sentinel-hub.com/ogc/wms')
+              ) {
+                return;
+              }
+              const lowerMessage = String(message || '').toLowerCase();
+              if (
+                !siGlobeWebglFailoverRef.current &&
+                (siMapErrorSuggestsGlobeOrWebglFailure(String(message)) ||
+                  lowerMessage.includes('access token') ||
+                  lowerMessage.includes('mapbox'))
+              ) {
+                siGlobeWebglFailoverRef.current = true;
+                setIs3DView(true);
+                setStacStatus('Map detected a rendering issue and is retrying in 3D Globe mode.');
+                return;
+              }
+              console.warn('Map Error:', e);
+            }}
+            onStyleData={() => siForceGlobeProjection()}
+            onLoad={() => {
+              setIsMapLoaded(true);
+              siForceGlobeProjection();
+            }}
+          >
+
+            {renderSiMapInterior()}
+                    </MapGL>
+                  </div>
+                </SiSwipePeekMapContext.Provider>
+              </SiWmsSentinelSwipeContext.Provider>
+              <SiWmsSentinelSwipeContext.Provider value={siLayerSwipeLeftId}>
+                <SiSwipePeekMapContext.Provider value={true}>
+                  <div
+                    className="si-layer-swipe-pane si-layer-swipe-pane--over"
+                    style={{ clipPath: 'inset(0 ' + (100 - siLayerSwipeSplit) + '% 0 0)', pointerEvents: 'none' }}
+                  >
+                    <MapGL
+                      key={`si-map-globe-swipe-l:${mapboxAccessTokenForMap ? 'token' : 'no-token'}`}
+                      ref={siSwipePeekMapRef}
+                      interactive={false}
+            {...viewState}
+            onMove={evt => setViewState(evt.viewState)}
+            onMouseDown={handleMapPointerDown}
+            onMouseMove={handleMapPointerMove}
+            onTouchStart={handleMapPointerDown}
+            onTouchMove={handleMapPointerMove}
+            onClick={evt => handleMapClickDraw(evt.lngLat.lng, evt.lngLat.lat, evt.originalEvent ?? undefined)}
+            onContextMenu={handleMapContextMenu}
+            style={{
+              width: '100%',
+              height: '100%',
+              cursor: siMapCursor,
+            }}
+            mapStyle={effectiveMapStyle}
+            mapboxAccessToken={mapboxAccessTokenForMap}
+            logoPosition="bottom-left"
+            projection={{ name: 'globe' }}
+            renderWorldCopies={false}
+            dragRotate
+            pitchWithRotate
+            touchPitch
+            touchZoomRotate
+            minPitch={0}
+            maxPitch={78}
+            doubleClickZoom
+            scrollZoom
+            fog={{ 'range': [0.5, 10], 'color': '#020617', 'horizon-blend': 0.1 }}
+            onError={(e: any) => {
+              const message = e?.error?.message || '';
+              const url = e?.error?.url || '';
+              const status = e?.error?.status;
+
+              if (
+                message.includes('ERR_ABORTED') ||
+                status === 0 ||
+                url.includes('api.mapbox.com/v4/mapbox.satellite') ||
+                url.includes('services.sentinel-hub.com/ogc/wms')
+              ) {
+                return;
+              }
+              const lowerMessage = String(message || '').toLowerCase();
+              if (
+                !siGlobeWebglFailoverRef.current &&
+                (siMapErrorSuggestsGlobeOrWebglFailure(String(message)) ||
+                  lowerMessage.includes('access token') ||
+                  lowerMessage.includes('mapbox'))
+              ) {
+                siGlobeWebglFailoverRef.current = true;
+                setIs3DView(true);
+                setStacStatus('Map detected a rendering issue and is retrying in 3D Globe mode.');
+                return;
+              }
+              console.warn('Map Error:', e);
+            }}
+            onStyleData={() => siForceGlobeProjection()}
+            onLoad={() => {
+              setIsMapLoaded(true);
+              siForceGlobeProjection();
+            }}
+          >
+
+            {renderSiMapInterior()}
+                    </MapGL>
+                  </div>
+                </SiSwipePeekMapContext.Provider>
+              </SiWmsSentinelSwipeContext.Provider>
+              <SiLayerSwipeChrome
+                open={siLayerSwipeOpen}
+                splitPct={siLayerSwipeSplit}
+                onSplitPct={setSiLayerSwipeSplit}
+                leftLayerId={siLayerSwipeLeftId}
+                rightLayerId={siLayerSwipeRightId}
+                onLeftLayerId={setSiLayerSwipeLeftId}
+                onRightLayerId={setSiLayerSwipeRightId}
+                layerOptions={remoteSensingLayerOptions}
+                onClose={() => setSiLayerSwipeOpen(false)}
+                disabled={!siLayerSwipeCapable}
+                disabledHint="Swipe compare needs a single committed AOI (not multi-AOI workspace stacks) and visible Sentinel layers."
+              />
+            </div>
+          ) : (
+            <SiWmsSentinelSwipeContext.Provider value={null}>
+              <SiSwipePeekMapContext.Provider value={false}>
+                <MapGL
+                  key={`si-map-globe:${mapboxAccessTokenForMap ? 'token' : 'no-token'}`}
+                  ref={mapRef}
+            {...viewState}
+            onMove={evt => setViewState(evt.viewState)}
+            onMouseDown={handleMapPointerDown}
+            onMouseMove={handleMapPointerMove}
+            onTouchStart={handleMapPointerDown}
+            onTouchMove={handleMapPointerMove}
+            onClick={evt => handleMapClickDraw(evt.lngLat.lng, evt.lngLat.lat, evt.originalEvent ?? undefined)}
+            onContextMenu={handleMapContextMenu}
+            style={{
+              width: '100%',
+              height: '100%',
+              cursor: siMapCursor,
+            }}
+            mapStyle={effectiveMapStyle}
+            mapboxAccessToken={mapboxAccessTokenForMap}
+            logoPosition="bottom-left"
+            projection={{ name: 'globe' }}
+            renderWorldCopies={false}
+            dragRotate
+            pitchWithRotate
+            touchPitch
+            touchZoomRotate
+            minPitch={0}
+            maxPitch={78}
+            doubleClickZoom
+            scrollZoom
+            fog={{ 'range': [0.5, 10], 'color': '#020617', 'horizon-blend': 0.1 }}
+            onError={(e: any) => {
+              const message = e?.error?.message || '';
+              const url = e?.error?.url || '';
+              const status = e?.error?.status;
+
+              if (
+                message.includes('ERR_ABORTED') ||
+                status === 0 ||
+                url.includes('api.mapbox.com/v4/mapbox.satellite') ||
+                url.includes('services.sentinel-hub.com/ogc/wms')
+              ) {
+                return;
+              }
+              const lowerMessage = String(message || '').toLowerCase();
+              if (
+                !siGlobeWebglFailoverRef.current &&
+                (siMapErrorSuggestsGlobeOrWebglFailure(String(message)) ||
+                  lowerMessage.includes('access token') ||
+                  lowerMessage.includes('mapbox'))
+              ) {
+                siGlobeWebglFailoverRef.current = true;
+                setIs3DView(true);
+                setStacStatus('Map detected a rendering issue and is retrying in 3D Globe mode.');
+                return;
+              }
+              console.warn('Map Error:', e);
+            }}
+            onStyleData={() => siForceGlobeProjection()}
+            onLoad={() => {
+              setIsMapLoaded(true);
+              siForceGlobeProjection();
+            }}
+          >
+
+            {renderSiMapInterior()}
+                </MapGL>
+              </SiSwipePeekMapContext.Provider>
+            </SiWmsSentinelSwipeContext.Provider>
+          )}
+
 
           {isMapLoaded && sentinelVisible && wmsSpectralLegend ? (
             <SiWmsIndexClassificationLegend
@@ -12417,22 +12619,47 @@ export default function SatelliteIntelligence() {
             fieldsPanelLibraryContent={mapToolboxFieldsLibrary}
             fieldsCount={fieldDataLibraryFields.length}
             mapSymbologyToolbarSlot={
-              <button
-                type="button"
-                className={
-                  'si-sat-ctx-rail-sym-tool' +
-                  (siWmsSymbologyChrome.open && siWmsSymbologyChrome.anchor === 'map-dock'
-                    ? ' si-sat-ctx-rail-sym-tool--on'
-                    : '')
-                }
-                title="Symbology — classified layer colors"
-                aria-pressed={siWmsSymbologyChrome.open && siWmsSymbologyChrome.anchor === 'map-dock'}
-                aria-label="Open symbology"
-                disabled={siWmsSymbologyLayerPickOptions.length === 0}
-                onClick={() => toggleWmsSymbology('map-dock')}
-              >
-                <i className="fa-solid fa-palette" aria-hidden />
-              </button>
+              <Fragment>
+                <button
+                  type="button"
+                  className={
+                    'si-sat-ctx-rail-sym-tool si-sat-ctx-rail-sym-tool--swipe' +
+                    (siLayerSwipeOpen && siLayerSwipeCapable ? ' si-sat-ctx-rail-sym-tool--on' : '')
+                  }
+                  title={
+                    siLayerSwipeCapable
+                      ? siLayerSwipeOpen
+                        ? 'Exit layer swipe compare'
+                        : 'Layer swipe — compare two Sentinel products side by side'
+                      : 'Layer swipe — use a single AOI workspace (not multi-AOI stacks) with Sentinel visible'
+                  }
+                  aria-pressed={siLayerSwipeOpen && siLayerSwipeCapable}
+                  aria-label="Layer swipe compare"
+                  disabled={!siLayerSwipeCapable}
+                  onClick={() => {
+                    if (!siLayerSwipeCapable) return;
+                    setSiLayerSwipeOpen(o => !o);
+                  }}
+                >
+                  <i className="fa-solid fa-arrows-left-right" aria-hidden />
+                </button>
+                <button
+                  type="button"
+                  className={
+                    'si-sat-ctx-rail-sym-tool' +
+                    (siWmsSymbologyChrome.open && siWmsSymbologyChrome.anchor === 'map-dock'
+                      ? ' si-sat-ctx-rail-sym-tool--on'
+                      : '')
+                  }
+                  title="Symbology — classified layer colors"
+                  aria-pressed={siWmsSymbologyChrome.open && siWmsSymbologyChrome.anchor === 'map-dock'}
+                  aria-label="Open symbology"
+                  disabled={siWmsSymbologyLayerPickOptions.length === 0}
+                  onClick={() => toggleWmsSymbology('map-dock')}
+                >
+                  <i className="fa-solid fa-palette" aria-hidden />
+                </button>
+              </Fragment>
             }
           />
 
@@ -13555,6 +13782,23 @@ export default function SatelliteIntelligence() {
                                 onClick={() => setMapStaticChartsOpen(o => !o)}
                               >
                                 <i className="fa-solid fa-chart-pie" aria-hidden />
+                              </button>
+                              <button
+                                type="button"
+                                className={`si-map-analysis-tool${siLayerSwipeOpen && siLayerSwipeCapable ? ' si-map-analysis-tool--on' : ''}`}
+                                title={
+                                  siLayerSwipeCapable
+                                    ? siLayerSwipeOpen
+                                      ? 'Exit layer swipe'
+                                      : 'Layer swipe compare'
+                                    : 'Layer swipe (needs single AOI + Sentinel)'
+                                }
+                                aria-pressed={siLayerSwipeOpen && siLayerSwipeCapable}
+                                aria-label="Layer swipe compare"
+                                disabled={!siLayerSwipeCapable}
+                                onClick={() => siLayerSwipeCapable && setSiLayerSwipeOpen(o => !o)}
+                              >
+                                <i className="fa-solid fa-arrows-left-right" aria-hidden />
                               </button>
                               <SiWmsSymbologyToolbarIconButton
                                 variant="embedded"
