@@ -4,25 +4,34 @@
  * Architecture
  * ------------
  * Pure presentation. All field state (CRUD + selection) is owned by
- * `GisMap.tsx` so the panel can be remounted without losing data and so
- * the Saved Fields map layer reads from the exact same source of truth.
+ * the host page (`GisMap.tsx` or `SatelliteIntelligence.tsx`) so the
+ * panel can be remounted without losing data and so the Saved Fields
+ * map layer reads from the exact same source of truth.
  *
- * Layout (mirrors the user's reference screenshot)
- * ------------------------------------------------
- *   1. Sticky header  — title, count, "+ Draw new field" CTA
- *   2. Search bar     — filters by name + crop
- *   3. Empty state    — friendly hint when no fields exist
- *   4. Field list     — scrollable, OneSoil-style card per field
- *   5. Detail card    — pinned to the bottom when a field is selected,
- *                       shows area / crop / NDVI placeholders / actions
+ * Layout (post-redesign · no top-of-panel "Fields Data" lede)
+ * ------------------------------------------------------------
+ *   1. Drawing module — horizontal Glass toolbar (Polygon / Rectangle /
+ *                       Circle / Edit / Delete / Save) — fully isolated
+ *                       from the Remote Sensing toolbar.
+ *   2. Primary CTA    — "Add Draw New Field" arms the map with the
+ *                       currently-selected shape from (1).
+ *   3. Search + chips — name/crop filter + count + total area.
+ *   4. Empty state    — friendly hint when no fields exist.
+ *   5. Field list     — scrollable, OneSoil-style card per field.
+ *   6. Detail card    — pinned to the bottom when a field is selected,
+ *                       shows area / crop / NDVI placeholders / linked
+ *                       satellite layer / actions.
  *
- * The panel runs inside the existing `gis-map-tool-surface` shell so the
- * Black-Glass styling from `index.css` (and the Lite Mode mirror) covers
- * the chrome automatically — only field-specific elements need new CSS.
+ * The header strip (icon + "Fields Data" + lede) was deliberately
+ * removed in this revision per the redesign brief — the freed
+ * vertical space now hosts the drawing module so the user can stay
+ * inside the panel for the entire draw → save → analyse loop.
  */
 
 import { useMemo, useState } from 'react'
 import GsIcon from '../../../../components/ui/GsIcon'
+import { appConfirm } from '../../../../lib/appDialog'
+import FieldDrawingModule, { type FieldDrawShape } from './FieldDrawingModule'
 import {
   CROP_PRESETS,
   formatArea,
@@ -39,9 +48,20 @@ interface FieldsPanelProps {
   onDeleteField: (id: string) => void
   onExportFieldGeoJSON: (id: string) => void
   onExportAllGeoJSON: () => void
-  onStartDrawing: () => void
-  /** True when the parent has the active drawing tool armed. Lets the CTA
-   *  render the helper hint instead of restarting the draw flow. */
+  /** Arm the map's drawing pipeline with the given shape. The host
+   *  is responsible for routing this to its underlying draw layer
+   *  (Mapbox handlers / Leaflet-Draw) so Fields and Remote Sensing
+   *  stay isolated above this boundary. */
+  onStartDrawing: (shape: FieldDrawShape) => void
+  /** Re-arm the draw pipeline in "edit existing" mode for the
+   *  currently selected field. */
+  onEditSelected?: () => void
+  /** Commit / lock-in the in-flight draft (no-op when the host
+   *  already auto-saves on geometry close). */
+  onSaveDraft?: () => void
+  /** True when the parent has the active drawing tool armed. Lets the
+   *  module render the "armed" pulse on the active shape and the CTA
+   *  show its in-progress copy. */
   drawingArmed: boolean
 }
 
@@ -55,11 +75,18 @@ export default function FieldsPanel({
   onExportFieldGeoJSON,
   onExportAllGeoJSON,
   onStartDrawing,
+  onEditSelected,
+  onSaveDraft,
   drawingArmed,
 }: FieldsPanelProps) {
   const [query, setQuery] = useState('')
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editingName, setEditingName] = useState('')
+  /* Selected drawing shape for the next "Add Draw New Field" press.
+   * Owned here (not in the host) so the toolbar stays self-contained
+   * and never fights the Remote Sensing draw mode for the same key
+   * in parent state. */
+  const [activeShape, setActiveShape] = useState<FieldDrawShape>('polygon')
 
   const filteredFields = useMemo(() => {
     const q = query.trim().toLowerCase()
@@ -95,30 +122,55 @@ export default function FieldsPanel({
   }
 
   return (
-    <div className="gs-fields-panel gis-map-tool-surface">
-      <header className="gs-fields-panel__header gis-map-tool-surface__header">
-        <div className="gis-map-tool-surface__icon" aria-hidden="true">
-          <GsIcon name="layers" size={20} />
-        </div>
-        <div className="gis-map-tool-surface__titles">
-          <span className="gis-map-tool-surface__kicker">Fields Data</span>
-          <p className="gis-map-tool-surface__lede">
-            Saved AOIs from your drawing tools — every field stays here for analysis, comparison, and export.
-          </p>
-        </div>
-      </header>
+    <div className="gs-fields-panel gs-fields-panel--no-header gis-map-tool-surface">
+      {/* Self-contained drawing module — fully isolated from the
+          Remote Sensing toolbar. Owns its own shape selection state
+          and routes user intent through the two callback props. */}
+      <FieldDrawingModule
+        activeShape={activeShape}
+        isDrawingArmed={drawingArmed}
+        hasSelection={Boolean(selectedId)}
+        onSelectShape={shape => setActiveShape(shape)}
+        onEdit={() => onEditSelected?.()}
+        onDelete={() => {
+          if (!selectedId) return
+          const target = fields.find(f => f.id === selectedId)
+          if (!target) return
+          void appConfirm(
+            `The field "${target.name}", its boundary, and any saved metadata will be permanently removed.`,
+            {
+              title: 'Delete this field?',
+              confirmLabel: 'Delete field',
+              cancelLabel: 'Keep it',
+              danger: true,
+            },
+          ).then(ok => {
+            if (ok) onDeleteField(target.id)
+          })
+        }}
+        onSave={() => onSaveDraft?.()}
+      />
 
-      {/* "+ Draw new field" CTA — disabled & shows a hint while the user is
-          mid-draw so they don't accidentally re-arm the tool. */}
+      {/* Primary CTA — arms the host map's drawing pipeline with the
+          shape currently selected in the module above. Disabled while
+          a sketch is in flight so users can't double-arm. */}
       <button
         type="button"
         className="gs-fields-cta"
-        onClick={onStartDrawing}
+        onClick={() => onStartDrawing(activeShape)}
         disabled={drawingArmed}
-        title={drawingArmed ? 'Finish the current sketch first' : 'Open the drawing tools'}
+        title={
+          drawingArmed
+            ? 'Finish the current sketch first'
+            : `Draw a ${activeShape} on the map and save it as a new field`
+        }
       >
         <GsIcon name="plus" size={16} />
-        <span>{drawingArmed ? 'Finish current sketch on the map…' : 'Draw new field'}</span>
+        <span>
+          {drawingArmed
+            ? 'Finish current sketch on the map…'
+            : 'Add Draw New Field'}
+        </span>
       </button>
 
       {/* Search + summary strip — total area helps the user grok scale at a
@@ -244,9 +296,17 @@ export default function FieldsPanel({
                     title="Delete field"
                     aria-label={`Delete ${field.name}`}
                     onClick={() => {
-                      if (typeof window !== 'undefined' && window.confirm(`Delete "${field.name}"? This cannot be undone.`)) {
-                        onDeleteField(field.id)
-                      }
+                      void appConfirm(
+                        `The field "${field.name}", its boundary, and any saved metadata will be permanently removed.`,
+                        {
+                          title: 'Delete this field?',
+                          confirmLabel: 'Delete field',
+                          cancelLabel: 'Keep it',
+                          danger: true,
+                        },
+                      ).then(ok => {
+                        if (ok) onDeleteField(field.id)
+                      })
                     }}
                   >
                     <GsIcon name="trash" size={13} />
@@ -293,6 +353,30 @@ export default function FieldsPanel({
               <strong>{formatShortDate(selectedField.updatedAt)}</strong>
             </div>
           </div>
+
+          {/* Linked Satellite layer chip — surfaces the WMS layer /
+              spectral index that was active at save-time so the user
+              can tell at a glance which scene this field's analytics
+              were captured under (e.g. "NDVI · May 13, 2026"). The
+              chip stays hidden for legacy fields persisted before this
+              context was tracked. */}
+          {selectedField.satelliteContext && (
+            <div className="gs-field-detail__satlink" role="status">
+              <span className="gs-field-detail__satlink-dot" aria-hidden="true" />
+              <span className="gs-field-detail__satlink-label">Linked layer</span>
+              <strong className="gs-field-detail__satlink-value">
+                {selectedField.satelliteContext.layerName}
+                {selectedField.satelliteContext.indexId &&
+                selectedField.satelliteContext.indexId !==
+                  selectedField.satelliteContext.layerName
+                  ? ` · ${selectedField.satelliteContext.indexId}`
+                  : ''}
+              </strong>
+              <span className="gs-field-detail__satlink-when">
+                {formatShortDate(selectedField.satelliteContext.capturedAt)}
+              </span>
+            </div>
+          )}
 
           {/* Crop selector — list-of-presets + free-text fallback. We use a
               datalist so the user can either pick a known crop or type a
@@ -377,6 +461,7 @@ export default function FieldsPanel({
           </button>
         </div>
       )}
+
     </div>
   )
 }

@@ -631,7 +631,7 @@ export function ScrollGlobe({ sections, globeConfig = defaultGlobeConfig, classN
               className={cn(
                 'font-bold mb-6 sm:mb-8 leading-[1.1] tracking-tight',
                 index === 0
-                  ? 'text-3xl sm:text-4xl md:text-5xl lg:text-6xl xl:text-7xl 2xl:text-8xl'
+                  ? 'text-3xl sm:text-4xl md:text-5xl lg:text-6xl xl:text-7xl 2xl:text-8xl text-center w-full'
                   : 'text-2xl sm:text-3xl md:text-4xl lg:text-5xl xl:text-6xl 2xl:text-7xl',
               )}
             >
@@ -706,11 +706,16 @@ export function ScrollGlobe({ sections, globeConfig = defaultGlobeConfig, classN
               className={cn(
                 'text-muted-foreground/80 leading-relaxed mb-8 sm:mb-10 text-base sm:text-lg lg:text-xl font-light',
                 section.align === 'center' ? 'max-w-full mx-auto text-center' : 'max-w-full',
+                /* Hero: keep the lede centred under the wordmark + Sparkles
+                 * strip so the optical axis reads as one column (the user
+                 * asked to nudge the title right to align with the body —
+                 * centring both is the cleanest way to hit that). */
+                index === 0 && 'text-center',
               )}
             >
               <p className="mb-3 sm:mb-4">{section.description}</p>
               {index === 0 && (
-                <div className="flex flex-wrap items-center gap-3 sm:gap-4 text-xs sm:text-sm text-muted-foreground/60 mt-4 sm:mt-6">
+                <div className="flex flex-wrap items-center justify-center gap-3 sm:gap-4 text-xs sm:text-sm text-muted-foreground/60 mt-4 sm:mt-6">
                   <div className="flex items-center gap-1.5 sm:gap-2">
                     <div className="w-1 h-1 rounded-full bg-primary animate-pulse" />
                     <span>Interactive Experience</span>
@@ -760,6 +765,7 @@ export function ScrollGlobe({ sections, globeConfig = defaultGlobeConfig, classN
                   section.align === 'center' && 'justify-center',
                   section.align === 'right' && 'justify-end',
                   (!section.align || section.align === 'left') && 'justify-start',
+                  index === 0 && 'justify-center',
                 )}
               >
                 {section.actions.map((action, actionIndex) => (

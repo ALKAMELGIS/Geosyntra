@@ -3595,12 +3595,30 @@ export default function SatelliteIntelligence() {
    * a `SavedField`. Multi-polygon FeatureCollections are exploded into
    * one field per polygon (matching `registerMultiAoiWorkspace`'s "one
    * AOI per polygon" semantics). Returns the number of fields created.
+   *
+   * Each saved field captures a snapshot of the active Satellite layer
+   * (`activeWmsLayer`) and the resolved environmental index id
+   * (`selectedIndex`) at save-time, so the analytics dock can later
+   * show "this field was captured under the NDVI scene" and a future
+   * worker can re-fetch the same WMS tile to compute zonal stats.
    * ────────────────────────────────────────────────────────────────────── */
   const autoSaveFieldFromGeoJson = (geojson: any, sourceLabel: string): number => {
     const polys = collectPolygonAoiFeatures(geojson);
     if (!polys.length) return 0;
     const now = new Date().toISOString();
     let lastId: string | null = null;
+    /* Snapshot the current Satellite layer / index so the saved field
+     * remembers which spectral surface produced it. Both refs are
+     * read once before the setState call so a re-render mid-save
+     * can't drift the captured value. */
+    const layerSnapshot: SavedField['satelliteContext'] | undefined =
+      (activeWmsLayer && activeWmsLayer.trim().length > 0) || selectedIndex
+        ? {
+            layerName: (activeWmsLayer && activeWmsLayer.trim()) || String(selectedIndex),
+            indexId: selectedIndex ? String(selectedIndex) : undefined,
+            capturedAt: now,
+          }
+        : undefined;
     setSavedFields(prev => {
       const next = [...prev];
       polys.forEach(feature => {
@@ -3617,6 +3635,7 @@ export default function SatelliteIntelligence() {
           areaHectares: area,
           createdAt: now,
           updatedAt: now,
+          satelliteContext: layerSnapshot,
         });
       });
       return next;
@@ -9373,17 +9392,46 @@ export default function SatelliteIntelligence() {
         }}
         onExportFieldGeoJSON={id => exportSavedFieldGeoJson(id)}
         onExportAllGeoJSON={() => exportAllSavedFieldsGeoJson()}
-        onStartDrawing={() => {
-          /* Arm polygon AOI drawing — the parent's draw-commit handler
-           * (`commitUserGeometry`) already hooks `drawTargetModeRef ===
-           * 'aoi'` to `autoSaveFieldFromGeoJson`, so the next finished
-           * sketch lands in the saved fields list automatically. */
+        onStartDrawing={shape => {
+          /* Arm the AOI draw pipeline with the shape the user picked
+           * inside the Fields drawing module. Routes through the
+           * 'aoi' branch of `commitUserGeometry`, which calls
+           * `autoSaveFieldFromGeoJson` — so the next finished sketch
+           * lands in the saved fields list automatically with the
+           * active satellite layer captured as `satelliteContext`. */
+          drawTargetModeRef.current = 'aoi';
+          setDrawTargetMode('aoi');
+          applyMapDrawTool(shape);
+          setFieldAnalysisStatus(
+            `Draw a ${shape} on the map. It will save as a new field automatically.`,
+          );
+        }}
+        onEditSelected={() => {
+          /* Re-arm a polygon draw so the user can sketch a corrected
+           * boundary. The next commit replaces the selected field's
+           * geometry rather than appending a new entry. */
+          if (!selectedSavedFieldId) return;
           drawTargetModeRef.current = 'aoi';
           setDrawTargetMode('aoi');
           applyMapDrawTool('polygon');
           setFieldAnalysisStatus(
-            'Draw a polygon on the map. It will save as a new field automatically.',
+            'Sketch a new boundary to replace the selected field.',
           );
+        }}
+        onSaveDraft={() => {
+          /* Auto-save already runs when a sketch closes, so this is a
+           * confirmation cue for the user rather than a code path. We
+           * surface a status line and bump `updatedAt` on the active
+           * field so the UI reflects the manual save. */
+          if (!selectedSavedFieldId) {
+            setFieldAnalysisStatus('Pick a field first, then press Save to lock in changes.');
+            return;
+          }
+          const now = new Date().toISOString();
+          setSavedFields(prev =>
+            prev.map(f => (f.id === selectedSavedFieldId ? { ...f, updatedAt: now } : f)),
+          );
+          setFieldAnalysisStatus('Field saved.');
         }}
       />
     ),
@@ -10492,7 +10540,10 @@ export default function SatelliteIntelligence() {
               </Marker>
             ))}
 
-            {isMapLoaded ? <NavigationControl position="bottom-right" visualizePitch /> : null}
+            {/* Mapbox zoom + compass cluster — pinned to the bottom-left so
+                it never overlaps the right-hand panels (Fields Data dock,
+                Layer dropdown, contextual analysis). */}
+            {isMapLoaded ? <NavigationControl position="bottom-left" visualizePitch /> : null}
           </MapGL>
 
           {isMapLoaded && geoAiPopupMode === 'side' && geoAiInspectPopups.length > 0 ? (

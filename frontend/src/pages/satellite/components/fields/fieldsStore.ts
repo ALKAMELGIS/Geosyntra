@@ -92,6 +92,28 @@ export interface FieldIndices {
   computedAt?: string
 }
 
+/**
+ * Snapshot of which Satellite layer / spectral index was active at
+ * the moment the field was drawn or last edited. Lets the UI show
+ * "this field was captured under the NDVI scene from May 2026" and
+ * lets a future analytics worker re-fetch the same WMS tile to
+ * compute zonal stats for the field's geometry.
+ */
+export interface FieldSatelliteContext {
+  /** Raw WMS layer name picked from the Layer dropdown
+   *  (e.g. `NDVI`, `Sentinel Hub WMS`, `False color`). */
+  layerName: string
+  /** Resolved environmental index id when the layer maps to one
+   *  of the platform's known indices (NDVI / NDWI / MOISTURE / SWIR
+   *  / etc.). */
+  indexId?: string
+  /** Optional human-friendly date for the satellite scene (when
+   *  the host knows it — e.g. acquisition date of a Sentinel pass). */
+  sceneDate?: string
+  /** ISO timestamp of when the snapshot was taken (server time). */
+  capturedAt: string
+}
+
 export interface SavedField {
   id: string
   name: string
@@ -104,6 +126,9 @@ export interface SavedField {
   createdAt: string
   updatedAt: string
   indices?: FieldIndices
+  /** Active Satellite layer / index at the time of save. Optional
+   *  so older persisted fields stay backwards-compatible. */
+  satelliteContext?: FieldSatelliteContext
 }
 
 /* ────────────────────────────────────────────────────────────────────────── *

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
+import GsIcon, { type GsIconName } from './ui/GsIcon'
 import {
   registerAppDialogImpl,
   type AppDialogAlertOptions,
@@ -153,6 +154,29 @@ export function AppDialogProvider({ children }: { children: ReactNode }) {
     else dialog.complete(null)
   }
 
+  /* Pick the medallion glyph based on the dialog's intent. Confirm
+   * + danger renders the trash icon (the only destructive trigger
+   * we surface today); other variants get a softer cue so the
+   * dialog still feels intentional without alarming the user. */
+  const medallionIcon: GsIconName | null = dialog
+    ? dialog.kind === 'confirm'
+      ? dialog.danger
+        ? 'trash'
+        : 'check-circle'
+      : dialog.kind === 'alert'
+        ? 'shield'
+        : 'pencil'
+    : null
+
+  /* `data-variant` drives the colour theming in `app-dialog.css`
+   * so we don't need three separate JSX trees for danger / info /
+   * prompt — keeps the markup small and the styling declarative. */
+  const variantAttr = dialog
+    ? dialog.kind === 'confirm' && dialog.danger
+      ? 'danger'
+      : dialog.kind
+    : undefined
+
   return (
     <>
       {children}
@@ -164,23 +188,37 @@ export function AppDialogProvider({ children }: { children: ReactNode }) {
         >
           <div
             className="ds-modal app-dialog-modal"
-            role="dialog"
+            data-variant={variantAttr}
+            role={dialog.kind === 'confirm' && dialog.danger ? 'alertdialog' : 'dialog'}
             aria-modal="true"
             aria-labelledby="app-dialog-title"
+            aria-describedby="app-dialog-message"
             onMouseDown={e => e.stopPropagation()}
           >
-            <div className="ds-modal-header">
-              <span id="app-dialog-title" className="ds-modal-title app-dialog-title">
+            {/* Top accent ribbon — purely decorative, themed via
+                the `data-variant` attribute. */}
+            <span className="app-dialog-accent" aria-hidden="true" />
+
+            <div className="app-dialog-content">
+              {medallionIcon ? (
+                <div className="app-dialog-medallion" aria-hidden="true">
+                  <GsIcon name={medallionIcon} size={22} />
+                </div>
+              ) : null}
+
+              <h2 id="app-dialog-title" className="app-dialog-title">
                 {dialog.title}
-              </span>
-            </div>
-            <div className="ds-modal-body">
-              <p className="app-dialog-message">{dialog.message}</p>
+              </h2>
+
+              <p id="app-dialog-message" className="app-dialog-message">
+                {dialog.message}
+              </p>
+
               {dialog.kind === 'prompt' ? (
                 <input
                   ref={promptInputRef}
                   type="text"
-                  className="ds-input app-dialog-input"
+                  className="app-dialog-input"
                   defaultValue={dialog.defaultValue}
                   aria-label={dialog.message}
                   onKeyDown={e => {
@@ -193,16 +231,23 @@ export function AppDialogProvider({ children }: { children: ReactNode }) {
                 />
               ) : null}
             </div>
-            <div className="ds-modal-actions app-dialog-actions">
+
+            <div className="app-dialog-actions">
               {dialog.kind === 'confirm' ? (
                 <>
-                  <button type="button" className="app-dialog-btn" onClick={() => dialog.complete(false)}>
+                  <button
+                    type="button"
+                    className="app-dialog-btn app-dialog-btn--cancel"
+                    onClick={() => dialog.complete(false)}
+                  >
                     {dialog.cancelLabel}
                   </button>
                   <button
                     type="button"
                     className={
-                      dialog.danger ? 'app-dialog-btn app-dialog-btn--danger' : 'app-dialog-btn app-dialog-btn--primary'
+                      dialog.danger
+                        ? 'app-dialog-btn app-dialog-btn--danger'
+                        : 'app-dialog-btn app-dialog-btn--primary'
                     }
                     onClick={() => dialog.complete(true)}
                   >
@@ -210,12 +255,20 @@ export function AppDialogProvider({ children }: { children: ReactNode }) {
                   </button>
                 </>
               ) : dialog.kind === 'alert' ? (
-                <button type="button" className="app-dialog-btn app-dialog-btn--primary" onClick={() => dialog.complete()}>
+                <button
+                  type="button"
+                  className="app-dialog-btn app-dialog-btn--primary"
+                  onClick={() => dialog.complete()}
+                >
                   {dialog.okLabel}
                 </button>
               ) : (
                 <>
-                  <button type="button" className="app-dialog-btn" onClick={() => dialog.complete(null)}>
+                  <button
+                    type="button"
+                    className="app-dialog-btn app-dialog-btn--cancel"
+                    onClick={() => dialog.complete(null)}
+                  >
                     {dialog.cancelLabel}
                   </button>
                   <button

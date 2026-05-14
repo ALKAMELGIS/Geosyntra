@@ -5622,12 +5622,31 @@ export default function GisMap() {
                 /* ignore */
               }
             }}
-            onStartDrawing={() => {
-              /* Best-effort: jump the user to the drawing modal where the
-               * polygon / rectangle / circle tools live. We don't auto-arm
-               * a specific tool because the user might want a different
-               * shape than the last one they used. */
-              setDrawingEditorOpen(true)
+            onStartDrawing={(shape) => {
+              /* Arm the Leaflet-Draw pipeline with the shape the user
+               * picked inside the Fields drawing module. The
+               * `DrawToolsController` reacts to `drawingActiveTool`
+               * and creates a fresh `L.Draw.Polygon|Rectangle|Circle`
+               * — the next finished sketch fires `onAOICreated`,
+               * which appends a new SavedField. */
+              setDrawingActiveTool(shape)
+            }}
+            onEditSelected={() => {
+              if (!selectedFieldId) return
+              /* Re-arm a polygon draw — the user can sketch a new
+               * boundary that visually replaces the existing field
+               * (the old polygon stays in the saved fields list
+               * until the user explicitly deletes it). */
+              setDrawingActiveTool('polygon')
+            }}
+            onSaveDraft={() => {
+              /* Auto-save runs on `onAOICreated`; this just bumps
+               * `updatedAt` so the user gets a confirmation cue. */
+              if (!selectedFieldId) return
+              const now = new Date().toISOString()
+              setSavedFields(prev =>
+                prev.map(f => (f.id === selectedFieldId ? { ...f, updatedAt: now } : f)),
+              )
             }}
           />
         ) : activeMapTool === 'saveOpen' ? (
@@ -6928,7 +6947,10 @@ export default function GisMap() {
           >
             {globeLoaded ? (
               <>
-                <NavigationControl position="bottom-right" visualizePitch />
+                {/* Mapbox zoom + compass cluster — pinned to the bottom-left so
+                    it never overlaps the right-hand panels (Fields Data drawer,
+                    Bookmarks, contextual layers). */}
+                <NavigationControl position="bottom-left" visualizePitch />
                 {orderedLayers.map(layer => {
                   if (!layer.visible || layer.type !== 'geojson' || !layer.data) return null
                   const id = safeMapboxId(layer.id)
