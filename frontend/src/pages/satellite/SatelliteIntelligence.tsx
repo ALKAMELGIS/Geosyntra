@@ -3868,6 +3868,34 @@ export default function SatelliteIntelligence() {
     [fieldSurfaceVizMetric, selectedSavedFieldId],
   );
 
+  /**
+   * AOIs that receive an independent Sentinel WMS stack: live workspace rows plus
+   * persisted Fields (excluding field-panel-only). Deduped by geometry fingerprint
+   * so reload + session stay aligned (Multi-Job binding).
+   */
+  const siWmsRasterAoiFeatureRows = useMemo(() => {
+    const rows: Array<{ aoiId: string; feature: GeoJSON.Feature }> = [];
+    const seen = new Set<string>();
+    for (const row of multiAoiItems) {
+      const fp = fingerprintFeatureGeometry(row.feature);
+      if (fp) seen.add(fp);
+      rows.push({ aoiId: row.id, feature: row.feature });
+    }
+    for (const sf of savedFields) {
+      if (sf.libraryOrigin === 'field-panel') continue;
+      const feature: GeoJSON.Feature = {
+        type: 'Feature',
+        geometry: sf.geometry,
+        properties: { id: sf.id, name: sf.name },
+      };
+      const fp = fingerprintFeatureGeometry(feature);
+      if (fp && seen.has(fp)) continue;
+      if (fp) seen.add(fp);
+      rows.push({ aoiId: `sf-${sf.id}`, feature });
+    }
+    return rows;
+  }, [multiAoiItems, savedFields]);
+
   const exportSavedFieldGeoJson = (id: string) => {
     const f = savedFieldsRef.current.find(x => x.id === id);
     if (!f) return;
@@ -9286,11 +9314,18 @@ export default function SatelliteIntelligence() {
 
   const sentinelVisible = isWmsOverlayVisible && !!activeWmsLayer;
   const normalizedDrawnAoiGeometry = useMemo(() => getDrawnGeometry(drawnGeometry), [drawnGeometry]);
-  /** True when the Remote Sensing WMS stack should paint: any workspace AOI or a lone legacy sketch. */
+  /** True when the Remote Sensing WMS stack should paint: workspace AOIs, persisted RS fields, or a lone legacy sketch. */
   const hasAnyAoiGeometryForSentinel = useMemo(() => {
     if (multiAoiItems.length > 0) return multiAoiItems.some(r => !!getDrawnGeometry(r.feature));
+    if (
+      savedFields.some(sf => {
+        if (sf.libraryOrigin === 'field-panel') return false;
+        return !!getDrawnGeometry({ type: 'Feature', geometry: sf.geometry, properties: {} } as any);
+      })
+    )
+      return true;
     return !!normalizedDrawnAoiGeometry;
-  }, [multiAoiItems, normalizedDrawnAoiGeometry]);
+  }, [multiAoiItems, savedFields, normalizedDrawnAoiGeometry]);
   const sentinelAoiVisible = sentinelVisible && hasAnyAoiGeometryForSentinel;
   const activeBasemapId = useMemo(() => resolveBasemapId(basemapId), [basemapId]);
   const currentBasemapEntry = useMemo(() => {
@@ -9360,9 +9395,9 @@ export default function SatelliteIntelligence() {
         id: 'sentinel-wms',
         label: activeWmsLayer || 'Remote sensing layer',
         meta:
-          multiAoiItems.length > 1
-            ? `Index raster · ${multiAoiItems.length} AOIs (independent WMS per AOI)`
-            : drawnGeometry || multiAoiItems.length > 0
+          siWmsRasterAoiFeatureRows.length > 1
+            ? `Index raster · ${siWmsRasterAoiFeatureRows.length} AOIs (independent WMS per AOI)`
+            : drawnGeometry || siWmsRasterAoiFeatureRows.length > 0
               ? 'Index raster (AOI clip)'
               : 'Index raster (draw AOI first)',
         visible: sentinelAoiVisible,
@@ -9425,7 +9460,7 @@ export default function SatelliteIntelligence() {
       sentinelVisible,
       stacMapThumb,
       stacMapThumbLabel,
-      multiAoiItems.length,
+      siWmsRasterAoiFeatureRows.length,
     ],
   );
 
@@ -10170,9 +10205,9 @@ export default function SatelliteIntelligence() {
     !!normalizedDrawnAoiGeometry &&
     (!!wmsRasterAoiBoundsLngLat || !!sentinelHubWmsAoiClip.geometryWkt3857);
 
-  /** One Sentinel Hub WMS raster source per workspace AOI (independent GEOMETRY, bounds, tile URL). */
+  /** One Sentinel Hub WMS raster source per AOI geometry (independent GEOMETRY, bounds, tile URL). */
   const siMultiSentinelRasterRuns = useMemo(() => {
-    if (multiAoiItems.length === 0) return null;
+    if (siWmsRasterAoiFeatureRows.length === 0) return null;
     const safeLayer = encodeURIComponent(activeWmsLayer);
     const start = timeSeriesStart || wmsDate;
     const end = timeSeriesEnd || wmsDate;
@@ -10183,15 +10218,15 @@ export default function SatelliteIntelligence() {
       `&FORMAT=image/png&TRANSPARENT=true&WIDTH=512&HEIGHT=512` +
       `&TIME=${start}/${end}&MAXCC=${cloudCoverage}&SHOWLOGO=false&WARNINGS=true`;
 
-    return multiAoiItems.map(row => {
-      const clip = buildSentinelHubWmsAoiClip(row.feature, activeWmsLayer, {
+    return siWmsRasterAoiFeatureRows.map(({ aoiId, feature }) => {
+      const clip = buildSentinelHubWmsAoiClip(feature, activeWmsLayer, {
         indexVisibilityMin: WMS_AOI_INDEX_VISIBILITY_MIN,
       });
       let url = prefix;
       if (clip.geometryWkt3857) url += `&GEOMETRY=${encodeURIComponent(clip.geometryWkt3857)}`;
       if (clip.evalscriptB64) url += `&EVALSCRIPT=${encodeURIComponent(clip.evalscriptB64)}`;
 
-      const normalized = getDrawnGeometry(row.feature);
+      const normalized = getDrawnGeometry(feature);
       let bounds: [number, number, number, number] | null = null;
       if (normalized) {
         const raw =
@@ -10199,7 +10234,7 @@ export default function SatelliteIntelligence() {
             type: 'Feature',
             geometry: normalized,
             properties: {},
-          } as any) ?? getGeoJsonBounds(row.feature as any);
+          } as any) ?? getGeoJsonBounds(feature as any);
         if (raw) {
           let [w, s, e, n] = raw;
           if ([w, s, e, n].every(Number.isFinite)) {
@@ -10221,10 +10256,10 @@ export default function SatelliteIntelligence() {
         }
       }
       const ready = !!normalized && (!!bounds || !!clip.geometryWkt3857);
-      return { aoiId: row.id, tileUrl: url, bounds, clip, ready };
+      return { aoiId, tileUrl: url, bounds, clip, ready };
     });
   }, [
-    multiAoiItems,
+    siWmsRasterAoiFeatureRows,
     activeWmsLayer,
     timeSeriesStart,
     timeSeriesEnd,
