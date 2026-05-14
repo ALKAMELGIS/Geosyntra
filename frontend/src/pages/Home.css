@@ -1,321 +1,50 @@
 /**
- * Home → AI 3D ScrollGlobe shell.
- *
- * The landing page is mounted inside `<main class="content content--landing-fullbleed">`,
- * which already pins to the full viewport (see `index.css`). This file just
- * makes the inner wrapper transparent and unconstrained so the `min-h-screen`
- * sections inside `<LandingPage />` measure against the full window — the
- * same way the upstream 21st.dev bundle behaves at the document root.
+ * Home (`/`) — minimal dashboard hub (no 3D hero, no framed stage).
  */
-.home-landing {
-  position: relative;
+.home-dashboard {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: min(100vh, 100dvh);
+  box-sizing: border-box;
+}
+
+.home-dashboard__inner {
   width: 100%;
-  max-width: 100%;
-  min-height: 100vh;
-  min-height: 100dvh;
-  background: transparent;
+  max-width: 40rem;
+  text-align: center;
 }
 
-.home-landing .gs-scroll-globe {
-  width: 100%;
-  max-width: 100%;
-  min-height: 100vh;
-  min-height: 100dvh;
+.home-dashboard__title {
+  margin: 0 0 0.35em;
+  font-size: clamp(1.75rem, 4vw, 2.5rem);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: var(--ds-color-text);
 }
 
-/*
- * Locked-in responsive padding for every scroll panel inside the landing
- * page. Mirrors the Tailwind utilities applied in `landing-page.tsx` so
- * the spec survives even if a downstream consumer of `<LandingPage />`
- * passes a `className` that strips the utility classes:
- *
- *   - Mobile  (default):  px-4 = 16px / py-12 = 48px
- *   - sm      (≥ 640px):  px-6 = 24px / py-16 = 64px
- *   - md      (≥ 768px):  px-8 = 32px
- *   - lg      (≥1024px):  px-12 = 48px / py-20 = 80px
- *
- * `min-height: 100vh` ensures every section is at least one full viewport
- * tall (so `justify-center` actually centres against the screen, not
- * against a collapsed flex column).
- */
-.home-landing .gs-scroll-globe section {
-  min-height: 100vh;
-  min-height: 100dvh;
-  padding-left: 16px;
-  padding-right: 16px;
-  padding-top: 48px;
-  padding-bottom: 48px;
+.home-dashboard__subtitle {
+  margin: 0 0 0.75em;
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--ds-color-text-muted);
 }
 
-@media (min-width: 640px) {
-  .home-landing .gs-scroll-globe section {
-    padding-left: 24px;
-    padding-right: 24px;
-    padding-top: 64px;
-    padding-bottom: 64px;
-  }
+.home-dashboard__lede {
+  margin: 0 0 1.75em;
+  font-size: 0.9375rem;
+  line-height: 1.6;
+  color: var(--ds-color-text-muted);
 }
 
-@media (min-width: 768px) {
-  .home-landing .gs-scroll-globe section {
-    padding-left: 32px;
-    padding-right: 32px;
-  }
+.home-dashboard__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  justify-content: center;
 }
 
-@media (min-width: 1024px) {
-  .home-landing .gs-scroll-globe section {
-    padding-left: 48px;
-    padding-right: 48px;
-    padding-top: 80px;
-    padding-bottom: 80px;
-  }
-}
-
-/* The global aurora in `index.css` paints the body; keep individual sections
-   transparent so the globe + ambient layer stay visible underneath. */
-.home-landing .gs-scroll-globe section {
-  background: transparent;
-}
-
-/*
- * Hero brand mark — pearl-white glossy treatment.
- *
- * The base gradient (white → slate-200 → slate-400) is set inline via
- * Tailwind on the wrapper. This block adds:
- *   1. A second highlight band at 35–55% via `background-image` overlay,
- *      simulating a soft sweep of cool light across the top of the
- *      letters (the "wet pearl" reflection).
- *   2. A faint outer glow via `drop-shadow` so the mark stays luminous
- *      against the dark globe backdrop without becoming a glow blob.
- *   3. A keyframed `gs-pearl-shimmer` that slowly drifts the highlight
- *      band so the wordmark feels alive — disabled under
- *      `prefers-reduced-motion`.
- */
-.home-landing .gs-pearl-title {
-  background-image:
-    linear-gradient(135deg,
-      rgba(255, 255, 255, 0.95) 0%,
-      rgba(241, 245, 249, 1) 28%,
-      rgba(255, 255, 255, 0.98) 48%,
-      rgba(203, 213, 225, 0.95) 68%,
-      rgba(148, 163, 184, 0.85) 100%);
-  background-size: 200% 200%;
-  background-position: 50% 50%;
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
-  filter:
-    drop-shadow(0 0 18px rgba(255, 255, 255, 0.18))
-    drop-shadow(0 2px 14px rgba(148, 163, 184, 0.22));
-  animation: gs-pearl-shimmer 7s ease-in-out infinite;
-  /* Visual lift on the Y axis so descenders stay clear of the Sparkles
-   * strip. `padding-bottom: 0.1em` keeps `-webkit-background-clip: text`
-   * from trimming tails at the largest breakpoints. `display: inline-block`
-   * is required so transform applies cleanly to the gradient-clipped
-   * wordmark; the Hero h1 uses `text-center` so the mark centres over the
-   * body copy below. */
-  display: inline-block;
-  padding-bottom: 0.1em;
-  /* Vertical lift only — horizontal nudge removed so `text-center` on
-   * the Hero h1 aligns the wordmark with the lede + Sparkles strip
-   * (user asked to shift right to sit centred over the body copy). */
-  transform: translateY(clamp(-14px, -0.7vw, -6px));
-}
-
-@keyframes gs-pearl-shimmer {
-  0%, 100% {
-    background-position: 0% 50%;
-  }
-  50% {
-    background-position: 100% 50%;
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .home-landing .gs-pearl-title {
-    animation: none;
-  }
-}
-
-/* Lite Mode — pearl flips to lacquered black with a subtle silver
- * sheen mid-stroke so the wordmark reads as a polished obsidian
- * mark on the frosted-white background (the user's "أسود فاخر
- * بارز ذو تباين عالٍ ولمسة لامعة خفيفة" brief).
- *
- * Stack:
- *   1. Gradient is true near-black at both ends (#050810 / #0a0f1c)
- *      with a slate-500 silver crease in the middle (~50%) — this
- *      is the "polished metal" specular sweep that gives the
- *      glossy hint without dropping contrast against the white
- *      background.
- *   2. Drop-shadow stack:
- *        a. 0 1px 0 white         → bottom highlight (the "wet"
- *                                    edge below each letter that
- *                                    sells the lacquer look).
- *        b. 0 0 1px deep navy     → ultra-tight rim that crisps the
- *                                    text edges so they never look
- *                                    fuzzy against the radial bloom
- *                                    behind the Hero.
- *        c. 0 8px 28px slate-900  → soft halo grounding the mark
- *                                    on the page (depth, not glow).
- *   3. The shimmer keyframe still drifts the gradient horizontally,
- *      so the silver crease slowly sweeps across the wordmark for a
- *      living "polished glass" feel.
- */
-html[data-theme='light'] .home-landing .gs-pearl-title {
-  background-image:
-    linear-gradient(135deg,
-      rgba(5, 8, 16, 1) 0%,
-      rgba(15, 23, 42, 1) 22%,
-      rgba(51, 65, 85, 1) 50%,
-      rgba(15, 23, 42, 1) 78%,
-      rgba(5, 8, 16, 1) 100%);
-  filter:
-    drop-shadow(0 1px 0 rgba(255, 255, 255, 0.85))
-    drop-shadow(0 0 1px rgba(15, 23, 42, 0.65))
-    drop-shadow(0 8px 28px rgba(15, 23, 42, 0.22));
-}
-
-/* ============================================================
- * Light Mode — bring the body copy, eyebrow labels and feature
- * descriptions inside the landing back to high-contrast obsidian
- * black. Tailwind classes like `text-muted-foreground/80` resolve
- * to a faded slate token in Light Mode that reads as low-contrast
- * grey on the frosted-white background — the user explicitly
- * asked for "ألوان سوداء فاخرة وبارزة ذات تباين عالٍ".
- *
- * We override per-class via the escaped-slash selector so we don't
- * have to thread a new className through every child element.
- * Specificity 0,2,2 (html attr + .home-landing + .text-... +
- * type) easily beats Tailwind's 0,1,0 utility selector, no
- * !important needed.
- * ============================================================ */
-html[data-theme='light'] .home-landing .text-muted-foreground\/90,
-html[data-theme='light'] .home-landing .text-muted-foreground\/80 {
-  color: rgba(15, 23, 42, 0.92); /* slate-900 ≈ "rich black" */
-}
-
-html[data-theme='light'] .home-landing .text-muted-foreground\/60 {
-  color: rgba(30, 41, 59, 0.85); /* slate-800 — eyebrow labels */
-}
-
-/* Tighten any remaining muted-foreground spans (no opacity suffix). */
-html[data-theme='light'] .home-landing .text-muted-foreground {
-  color: rgba(15, 23, 42, 0.92);
-}
-
-/* ============================================================
- * Light Mode — Sparkles divider strip.
- *
- * The four absolutely-positioned `<div>`s above the SparklesCore
- * paint a narrow, fading hairline that simulates the soft cool
- * light bar from which the particles fall. The gradients are
- * white-on-transparent (designed for dark backgrounds) and
- * disappear completely on white. We invert them to dark slate so
- * the bar still reads as a polished glass strip in Light Mode.
- *
- * Each line carries a stable `gs-hero-sparkle-line--*` class set
- * from `landing-page.tsx`, so the overrides target them directly
- * without relying on Tailwind utility names that may change.
- * ============================================================ */
-html[data-theme='light'] .home-landing .gs-hero-sparkle-line--soft {
-  background-image: linear-gradient(
-    to right,
-    transparent,
-    rgba(15, 23, 42, 0.55),
-    transparent
-  );
-}
-html[data-theme='light'] .home-landing .gs-hero-sparkle-line--hairline {
-  background-image: linear-gradient(
-    to right,
-    transparent,
-    rgba(15, 23, 42, 0.7),
-    transparent
-  );
-}
-html[data-theme='light'] .home-landing .gs-hero-sparkle-line--core-soft {
-  background-image: linear-gradient(
-    to right,
-    transparent,
-    rgba(15, 23, 42, 0.45),
-    transparent
-  );
-}
-html[data-theme='light'] .home-landing .gs-hero-sparkle-line--core {
-  background-image: linear-gradient(
-    to right,
-    transparent,
-    rgba(15, 23, 42, 0.85),
-    transparent
-  );
-}
-
-/* ============================================================
- * Hero Spline robot — interactive 3D figure on the right of the
- * Geosyntra wordmark, lifted from the LearnMore brief.
- *
- * The Spline runtime owns the mouse parallax internally, so the
- * stage just provides:
- *   1. A sized container — height capped via Tailwind classes set in
- *      `landing-page.tsx` so the robot never escapes the hero
- *      viewport on tall monitors.
- *   2. A short fade-in animation so the figure doesn't pop on mount.
- *
- * NO background, NO border, NO border-radius, NO box-shadow on the
- * stage in either Dark or Light Mode. The previous "midnight glass
- * card" framing the figure read as a separate decorative box around
- * the Hero, which the user explicitly asked to remove ("المربع
- * الخارجي Hero الافضل حذفه دون حذف Hero"). The Spline scene now
- * sits straight on the page background, edge-to-edge, with no
- * visible plate behind it.
- * ============================================================ */
-.home-landing .gs-hero-robot__stage {
-  background: transparent;
-  border: 0;
-  border-radius: 0;
-  box-shadow: none;
-  animation: gs-hero-robot-fade 240ms ease-out both;
-}
-
-@keyframes gs-hero-robot-fade {
-  from {
-    opacity: 0;
-  }
-  to {
-    opacity: 1;
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .home-landing .gs-hero-robot__stage {
-    animation: none;
-  }
-}
-
-/* Lite Mode — same frame-less treatment. The dark Spline figure
- * reads fine against the frosted-white landing background without a
- * midnight plate behind it (the head + torso provide enough contrast
- * on their own), and dropping the plate matches the Dark Mode look
- * 1:1 so the Hero stays consistent across themes. */
-html[data-theme='light'] .home-landing .gs-hero-robot__stage {
-  background: transparent;
-  border: 0;
-  border-radius: 0;
-  box-shadow: none;
-  overflow: visible;
-}
-
-/* Outer robot column + globe stack — no “stage card” frame on Home Hero. */
-.home-landing .gs-hero-robot {
-  border: none;
-  outline: none;
-  box-shadow: none;
-}
-
-.home-landing .gs-hero-globe__entrance {
-  border: none !important;
-  outline: none !important;
-  box-shadow: none !important;
+.home-dashboard__actions .gis-btn {
+  min-width: 10rem;
 }
