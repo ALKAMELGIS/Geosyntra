@@ -555,8 +555,14 @@ export function buildSiAoiVegetationReport(input: {
   dateEnd: string;
   aoiFeature: GeoJSON.Feature;
   aoiName: string;
+  /** Optional RS processing narrative appended to the executive summary block. */
+  processingContext?: {
+    cloudCoverMaxPct: number;
+    temporalComposite: 'median' | 'max';
+    crsNote?: string;
+  };
 }): SiAoiReportModel | null {
-  const { weekly, indexId, dateStart, dateEnd, aoiFeature, aoiName } = input;
+  const { weekly, indexId, dateStart, dateEnd, aoiFeature, aoiName, processingContext } = input;
   const g = aoiFeature.geometry as { type?: string } | undefined;
   if (!g || (g.type !== 'Polygon' && g.type !== 'MultiPolygon')) return null;
 
@@ -647,6 +653,15 @@ export function buildSiAoiVegetationReport(input: {
   const summaryLinesEn = [
     `Area of interest "${aoiName}" was analyzed using ${opt.label} between ${dateStart} and ${dateEnd}.`,
     `Period mean index ≈ ${meanStr} (client-side demo values tied to the timeline until a zonal-stats service is connected).`,
+    ...(processingContext
+      ? [
+          `RS processing context: cloud screening ≤ ${processingContext.cloudCoverMaxPct}% (MAXCC-style cap for ordering / metadata); temporal stack: ${
+            processingContext.temporalComposite === 'median'
+              ? 'median-of-weekly composites (robust to short spikes)'
+              : 'weekly maximum composite (stress / peak signal emphasis)'
+          }; CRS ${processingContext.crsNote ?? 'EPSG:4326 (WGS84 geographic)'}.`,
+        ]
+      : []),
     'The temporal pattern indicates a general vegetation signal within the polygon boundary.',
     'Health shares (high / medium / low) are heuristics derived from the index trajectory and range.',
     stressNoteEn

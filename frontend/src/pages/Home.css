@@ -169,6 +169,11 @@
   transform: translateY(clamp(-14px, -0.7vw, -6px));
 }
 
+/* Hero only — nudge pearl + sparkles block slightly lower vs. viewport top */
+.home-landing .gs-scroll-globe section#hero .gs-pearl-title {
+  transform: translateY(clamp(-8px, -0.45vw, -2px));
+}
+
 @keyframes gs-pearl-shimmer {
   0%, 100% {
     background-position: 0% 50%;

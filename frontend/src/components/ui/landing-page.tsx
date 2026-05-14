@@ -455,7 +455,7 @@ export function ScrollGlobe({ sections, globeConfig = defaultGlobeConfig, classN
           features/actions slot so the host page can compose new narratives
           without touching the component. */}
       {sections.map((section, index) => {
-        /** Welcome + Innovation share the same hero rhythm (pearl title, sparkle bar, lede, micro-hints); alignment follows `section.align`. */
+        /** Welcome + Innovation share pearl title + micro-hints; sparkle bar is hero-only (Innovation uses global starfield). */
         const welcomeVisualRhythm = index === 0 || index === 1
         /** Innovation: fixed globe + copy share one vertical/horizontal center (globe z-10, copy z-30). */
         const innovationGlobeStack = section.id === 'innovation'
@@ -475,7 +475,7 @@ export function ScrollGlobe({ sections, globeConfig = defaultGlobeConfig, classN
             'w-full max-w-full overflow-hidden pointer-events-none',
             innovationGlobeStack && 'justify-center items-center text-center min-h-[100dvh]',
             welcomeHeroAnchorTop &&
-              'justify-start pt-[calc(clamp(2.75rem,9vh,6rem)+2cm+0.75rem)] sm:pt-[calc(clamp(3.25rem,11vh,7rem)+2cm+0.75rem)] md:pt-[calc(clamp(3.5rem,12vh,7.75rem)+2cm+0.75rem)] lg:pt-[calc(clamp(3.75rem,13vh,8.5rem)+2cm+0.75rem)]',
+              'justify-start pt-[calc(clamp(2.75rem,9vh,6rem)+2cm+0.75rem+1.5rem)] sm:pt-[calc(clamp(3.25rem,11vh,7rem)+2cm+0.75rem+1.5rem)] md:pt-[calc(clamp(3.5rem,12vh,7.75rem)+2cm+0.75rem+1.5rem)] lg:pt-[calc(clamp(3.75rem,13vh,8.5rem)+2cm+0.75rem+1.75rem)]',
             !innovationGlobeStack && !welcomeHeroAnchorTop && 'justify-center',
             !innovationGlobeStack && section.align === 'center' && 'items-center text-center',
             !innovationGlobeStack && section.align === 'right' && 'items-end text-right',
@@ -501,7 +501,9 @@ export function ScrollGlobe({ sections, globeConfig = defaultGlobeConfig, classN
                 innovationGlobeStack && 'gs-innovation-headline',
                 welcomeVisualRhythm
                   ? cn(
-                      'text-3xl sm:text-4xl md:text-5xl lg:text-6xl xl:text-7xl 2xl:text-8xl w-full',
+                      index === 0
+                        ? 'text-4xl sm:text-5xl md:text-6xl lg:text-7xl xl:text-8xl 2xl:text-9xl w-full'
+                        : 'text-3xl sm:text-4xl md:text-5xl lg:text-6xl xl:text-7xl 2xl:text-8xl w-full',
                       section.align === 'right' ? 'text-right' : 'text-center',
                     )
                   : 'text-2xl sm:text-3xl md:text-4xl lg:text-5xl xl:text-6xl 2xl:text-7xl',
@@ -532,14 +534,15 @@ export function ScrollGlobe({ sections, globeConfig = defaultGlobeConfig, classN
             </h1>
 
             {/*
-             * Sparkles bar — Welcome + Innovation (matches centered hero spec).
+             * Sparkles bar — Welcome (hero) only. Innovation uses the full-viewport
+             * starfield layer (`gs-innovation-sparkles`) behind the globe; a second
+             * sparkle bar here duplicated a large hit-target rectangle (tsparticles canvas).
              */}
-            {welcomeVisualRhythm && (
+            {welcomeVisualRhythm && section.id === 'hero' && (
               <div
                 className={cn(
-                  'gs-hero-sparkle-bar relative w-full max-w-[40rem] -mt-2 mb-6 sm:mb-8 select-none',
+                  'gs-hero-sparkle-bar relative w-full max-w-[44rem] -mt-2 mb-6 sm:mb-8 select-none h-32 sm:h-40',
                   section.align === 'right' ? 'ml-auto' : 'mx-auto',
-                  index === 0 ? 'h-28 sm:h-36' : 'h-24 sm:h-32',
                 )}
               >
                 <div className="gs-hero-sparkle-line gs-hero-sparkle-line--soft absolute inset-x-[15%] top-0 h-[2px] w-[70%] bg-gradient-to-r from-transparent via-slate-200/80 to-transparent blur-sm" />
@@ -551,7 +554,7 @@ export function ScrollGlobe({ sections, globeConfig = defaultGlobeConfig, classN
                   background="transparent"
                   minSize={0.4}
                   maxSize={1}
-                  particleDensity={index === 0 ? 520 : 400}
+                  particleDensity={580}
                   className="w-full h-full"
                   particleColor={particleColor}
                 />

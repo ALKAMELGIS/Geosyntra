@@ -3190,6 +3190,17 @@ html[data-theme='light'] .si-env-layer-options-menu__item > i {
   overflow: visible;
 }
 
+.si-env-layer-actions--wms {
+  border-top-color: rgba(52, 211, 153, 0.22);
+}
+
+.si-env-layer-actions-wms-hint {
+  font-size: 10px;
+  font-weight: 650;
+  color: #86efac;
+  letter-spacing: 0.03em;
+}
+
 .si-env-layer-action-btn {
   width: 20px;
   height: 20px;

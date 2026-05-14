@@ -80,11 +80,16 @@ function SiAoiChangeMapCell({
   indexId,
 }: SiAoiChangeMapCellProps) {
   const innerRef = useRef<MapRef | null>(null);
+  const [mapLayersReady, setMapLayersReady] = useState(false);
+
+  useEffect(() => {
+    setMapLayersReady(false);
+  }, [slot.date, slotIdx, mapStyle]);
 
   useEffect(() => {
     const runFit = () => {
       const map = innerRef.current?.getMap?.();
-      if (!map) return;
+      if (!map || !map.isStyleLoaded?.()) return;
       try {
         map.fitBounds(fitBounds, { padding: 8, duration: 0, maxZoom: 15 });
       } catch {
@@ -93,11 +98,20 @@ function SiAoiChangeMapCell({
     };
     const t = window.setTimeout(() => {
       const map = innerRef.current?.getMap?.();
-      if (map?.isStyleLoaded?.()) runFit();
-      else map?.once('load', runFit);
+      if (!map) return;
+      if (map.isStyleLoaded?.()) runFit();
+      else map.once('style.load', runFit);
     }, 60);
     return () => window.clearTimeout(t);
-  }, [fitBounds, slot.date, slotIdx]);
+  }, [fitBounds, slot.date, slotIdx, mapLayersReady]);
+
+  const onInnerMapLoad = useCallback(() => {
+    const map = innerRef.current?.getMap?.();
+    if (!map) return;
+    const arm = () => setMapLayersReady(true);
+    if (map.isStyleLoaded?.()) arm();
+    else map.once('style.load', arm);
+  }, []);
 
   const cx = (fitBounds[0][0] + fitBounds[1][0]) / 2;
   const cy = (fitBounds[0][1] + fitBounds[1][1]) / 2;
@@ -133,32 +147,37 @@ function SiAoiChangeMapCell({
           reuseMaps
           interactive={false}
           attributionControl={false}
+          onLoad={onInnerMapLoad}
         >
-          <Source id={`si-cd-aoi-base-${slotIdx}`} type="geojson" data={aoiOutline}>
-            <Layer
-              id={`si-cd-aoi-base-fill-${slotIdx}`}
-              type="fill"
-              paint={{ 'fill-color': '#020617', 'fill-opacity': 0.08 }}
-            />
-          </Source>
-          <Source id={`si-cd-hm-${slotIdx}`} type="geojson" data={slot.heatmapCellsGeoJson}>
-            <Layer
-              id={`si-cd-hm-fill-${slotIdx}`}
-              type="fill"
-              paint={{
-                'fill-color': ['coalesce', ['get', 'fill'], '#22c55e'],
-                'fill-opacity': ['coalesce', ['get', 'opacity'], 0.44],
-              }}
-            />
-          </Source>
-          <Source id={`si-cd-aoi-line-${slotIdx}`} type="geojson" data={aoiOutline}>
-            <Layer
-              id={`si-cd-aoi-line-layer-${slotIdx}`}
-              type="line"
-              layout={{ 'line-join': 'round', 'line-cap': 'round' }}
-              paint={{ 'line-color': '#38bdf8', 'line-width': 2.5, 'line-opacity': 1 }}
-            />
-          </Source>
+          {mapLayersReady ? (
+            <>
+              <Source id={`si-cd-aoi-base-${slotIdx}`} type="geojson" data={aoiOutline}>
+                <Layer
+                  id={`si-cd-aoi-base-fill-${slotIdx}`}
+                  type="fill"
+                  paint={{ 'fill-color': '#020617', 'fill-opacity': 0.08 }}
+                />
+              </Source>
+              <Source id={`si-cd-hm-${slotIdx}`} type="geojson" data={slot.heatmapCellsGeoJson}>
+                <Layer
+                  id={`si-cd-hm-fill-${slotIdx}`}
+                  type="fill"
+                  paint={{
+                    'fill-color': ['coalesce', ['get', 'fill'], '#22c55e'],
+                    'fill-opacity': ['coalesce', ['get', 'opacity'], 0.44],
+                  }}
+                />
+              </Source>
+              <Source id={`si-cd-aoi-line-${slotIdx}`} type="geojson" data={aoiOutline}>
+                <Layer
+                  id={`si-cd-aoi-line-layer-${slotIdx}`}
+                  type="line"
+                  layout={{ 'line-join': 'round', 'line-cap': 'round' }}
+                  paint={{ 'line-color': '#38bdf8', 'line-width': 2.5, 'line-opacity': 1 }}
+                />
+              </Source>
+            </>
+          ) : null}
         </MapGL>
       </div>
       <div className="si-aoi-report-change-cell__stats" dir="ltr">
@@ -189,6 +208,8 @@ export type SiAoiReportModalProps = {
   preferredAoiId?: string | null;
   /** Match the main Satellite Intelligence basemap (overlays only on top in the report map). */
   reportMapStyle?: string | StyleSpecification;
+  /** Sentinel / WMS MAXCC-style cap shown in the report (metadata). */
+  defaultCloudCoverPct?: number;
 };
 
 export function SiAoiReportModal({
@@ -202,6 +223,7 @@ export function SiAoiReportModal({
   mapboxToken,
   preferredAoiId,
   reportMapStyle = 'mapbox://styles/mapbox/satellite-streets-v12',
+  defaultCloudCoverPct = 25,
 }: SiAoiReportModalProps) {
   const geminiApiKey = useGeminiApiKey();
   const [geminiSummary, setGeminiSummary] = useState<string | null>(null);
@@ -213,6 +235,9 @@ export function SiAoiReportModal({
   const [dateStart, setDateStart] = useState(timeSeriesStart);
   const [dateEnd, setDateEnd] = useState(timeSeriesEnd);
   const [selectedAoiId, setSelectedAoiId] = useState('');
+  const [cloudCoverMaxPct, setCloudCoverMaxPct] = useState(defaultCloudCoverPct);
+  const [temporalComposite, setTemporalComposite] = useState<'median' | 'max'>('median');
+  const [analysisMapReady, setAnalysisMapReady] = useState(false);
   const [report, setReport] = useState<SiAoiReportModel | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [exportBusy, setExportBusy] = useState(false);
@@ -238,7 +263,10 @@ export function SiAoiReportModal({
     setSelectedAoiId(pref);
     setReportView('analysis');
     setExportUi({ phase: 'idle' });
-  }, [open, timeSeriesStart, timeSeriesEnd, defaultIndexId, preferredAoiId, aoiOptions]);
+    setCloudCoverMaxPct(defaultCloudCoverPct);
+    setTemporalComposite('median');
+    setAnalysisMapReady(false);
+  }, [open, timeSeriesStart, timeSeriesEnd, defaultIndexId, preferredAoiId, aoiOptions, defaultCloudCoverPct]);
 
   useEffect(() => {
     if (!open || !report || step !== 'preview') return;
@@ -298,6 +326,11 @@ export function SiAoiReportModal({
       dateEnd: dateEnd.trim(),
       aoiFeature,
       aoiName: selectedName || 'AOI',
+      processingContext: {
+        cloudCoverMaxPct: cloudCoverMaxPct,
+        temporalComposite,
+        crsNote: 'EPSG:4326 (WGS84)',
+      },
     });
     if (!built) {
       setErr('AOI geometry must be a Polygon or MultiPolygon.');
@@ -306,7 +339,7 @@ export function SiAoiReportModal({
     setReport(built);
     setReportView('analysis');
     setStep('preview');
-  }, [weeklyComposites, indexId, dateStart, dateEnd, selectedFeature, selectedName]);
+  }, [weeklyComposites, indexId, dateStart, dateEnd, selectedFeature, selectedName, cloudCoverMaxPct, temporalComposite]);
 
   const mapInitialView = useMemo(() => {
     if (!report) return { longitude: 46.7, latitude: 24.7, zoom: 10 };
@@ -332,12 +365,26 @@ export function SiAoiReportModal({
   }, [report]);
 
   useEffect(() => {
-    if (!open || !report || !mapRef.current || reportView !== 'analysis') return;
+    setAnalysisMapReady(false);
+  }, [report, reportView]);
+
+  const onAnalysisMapLoad = useCallback(() => {
+    const map = mapRef.current?.getMap?.();
+    if (!map) return;
+    const arm = () => setAnalysisMapReady(true);
+    if (map.isStyleLoaded?.()) arm();
+    else map.once('style.load', arm);
+  }, []);
+
+  useEffect(() => {
+    if (!open || !report || reportView !== 'analysis' || !analysisMapReady) return;
+    const map = mapRef.current?.getMap?.();
+    if (!map || !map.isStyleLoaded?.()) return;
+    const f = report.aoiOutlineGeoJson.features[0];
+    const b = f ? siAoiReportFeatureBBoxLngLat(f) : null;
+    if (!b) return;
     const t = window.setTimeout(() => {
-      const map = mapRef.current?.getMap?.();
-      const f = report.aoiOutlineGeoJson.features[0];
-      const b = f ? siAoiReportFeatureBBoxLngLat(f) : null;
-      if (map && b) {
+      try {
         map.fitBounds(
           [
             [b[0], b[1]],
@@ -345,10 +392,12 @@ export function SiAoiReportModal({
           ],
           { padding: 36, duration: 500, maxZoom: 14 },
         );
+      } catch {
+        /* ignore */
       }
-    }, 80);
+    }, 40);
     return () => window.clearTimeout(t);
-  }, [open, report, reportView]);
+  }, [open, report, reportView, analysisMapReady]);
 
   const lineData = useMemo(() => {
     if (!report) return null;
@@ -434,6 +483,17 @@ export function SiAoiReportModal({
       if (mode === 'AOI_ANALYSIS' && mapOk) {
         const map = mapRef.current?.getMap?.();
         if (map) {
+          if (!map.isStyleLoaded?.()) {
+            await new Promise<void>(resolve => {
+              const done = () => resolve();
+              try {
+                map.once('style.load', done);
+              } catch {
+                done();
+              }
+              window.setTimeout(done, 4000);
+            });
+          }
           await new Promise<void>(resolve => {
             let settled = false;
             const finish = () => {
@@ -442,7 +502,8 @@ export function SiAoiReportModal({
               resolve();
             };
             try {
-              map.once('idle', finish);
+              if (map.isStyleLoaded?.()) map.once('idle', finish);
+              else finish();
             } catch {
               finish();
             }
@@ -450,7 +511,7 @@ export function SiAoiReportModal({
           });
           try {
             const canvas = map.getCanvas?.();
-            if (canvas instanceof HTMLCanvasElement) {
+            if (canvas instanceof HTMLCanvasElement && map.isStyleLoaded?.()) {
               aoiMapImageDataUrl = captureCanvasHiRes(canvas, 2);
             }
           } catch {
@@ -497,9 +558,10 @@ export function SiAoiReportModal({
               Vegetation cover report (AOI)
             </h2>
             <p className="si-aoi-report-modal__sub">
-              Choose index, date range, and AOI. The report includes an English summary, health table, timeline chart,
-              the same basemap as the main map with a transparent pixel-style classification overlay, and a 3×4 change
-              map grid. PDF export is English-only and adds a second page for the time-series layout.
+              Configure spectral index, acquisition window, cloud cap, temporal composite, and AOI. The preview bundles
+              an English narrative, health table, timeline, AOI basemap with transparent class-style overlay, and a 3×4
+              change-detection grid. PDF export is English-only; switch to <strong>AOI analysis</strong> before export to
+              include the main map snapshot. Maps wait for the basemap style to finish loading to avoid Mapbox errors.
             </p>
           </div>
           <button type="button" className="si-aoi-report-modal__close" aria-label="Close" onClick={onClose}>
@@ -538,6 +600,26 @@ export function SiAoiReportModal({
                       </option>
                     ))}
                   </select>
+                </label>
+                <label>
+                  Max cloud (%)
+                  <input
+                    type="number"
+                    min={0}
+                    max={100}
+                    step={1}
+                    value={cloudCoverMaxPct}
+                    onChange={e => setCloudCoverMaxPct(Math.min(100, Math.max(0, Number(e.target.value) || 0)))}
+                  />
+                  <span className="si-aoi-report-field-hint">Metadata / RS context (aligns with WMS MAXCC ordering).</span>
+                </label>
+                <label>
+                  Temporal composite
+                  <select value={temporalComposite} onChange={e => setTemporalComposite(e.target.value as 'median' | 'max')}>
+                    <option value="median">Weekly median (stable signal)</option>
+                    <option value="max">Weekly maximum (stress / peak emphasis)</option>
+                  </select>
+                  <span className="si-aoi-report-field-hint">Narrative label for the report; timeline uses your field timeline until zonal stats API is wired.</span>
                 </label>
               </div>
               {err ? <p className="si-aoi-report-err">{err}</p> : null}
@@ -674,6 +756,7 @@ export function SiAoiReportModal({
                     ) : (
                       <div className="si-aoi-report-map-wrap">
                         <MapGL
+                          key={`si-aoi-analysis-${report.dateStart}-${report.dateEnd}-${report.indexId}-${report.aoiName}`}
                           ref={mapRef}
                           mapboxAccessToken={mapboxToken}
                           mapStyle={reportMapStyle as string | StyleSpecification}
@@ -684,26 +767,31 @@ export function SiAoiReportModal({
                           }}
                           style={{ width: '100%', height: '100%' }}
                           reuseMaps
+                          onLoad={onAnalysisMapLoad}
                         >
-                          <NavigationControl position="top-right" showCompass={false} />
-                          <Source id="si-report-heatmap-cells" type="geojson" data={report.heatmapCellsGeoJson}>
-                            <Layer
-                              id="si-report-heatmap-fill"
-                              type="fill"
-                              paint={{
-                                'fill-color': ['coalesce', ['get', 'fill'], '#22c55e'],
-                                'fill-opacity': ['coalesce', ['get', 'opacity'], 0.42],
-                              }}
-                            />
-                          </Source>
-                          <Source id="si-report-aoi" type="geojson" data={report.aoiOutlineGeoJson}>
-                            <Layer
-                              id="si-report-aoi-line"
-                              type="line"
-                              layout={{ 'line-join': 'round', 'line-cap': 'round' }}
-                              paint={{ 'line-color': '#38bdf8', 'line-width': 2.5, 'line-opacity': 1 }}
-                            />
-                          </Source>
+                          {analysisMapReady ? (
+                            <>
+                              <NavigationControl position="top-right" showCompass={false} />
+                              <Source id="si-report-heatmap-cells" type="geojson" data={report.heatmapCellsGeoJson}>
+                                <Layer
+                                  id="si-report-heatmap-fill"
+                                  type="fill"
+                                  paint={{
+                                    'fill-color': ['coalesce', ['get', 'fill'], '#22c55e'],
+                                    'fill-opacity': ['coalesce', ['get', 'opacity'], 0.42],
+                                  }}
+                                />
+                              </Source>
+                              <Source id="si-report-aoi" type="geojson" data={report.aoiOutlineGeoJson}>
+                                <Layer
+                                  id="si-report-aoi-line"
+                                  type="line"
+                                  layout={{ 'line-join': 'round', 'line-cap': 'round' }}
+                                  paint={{ 'line-color': '#38bdf8', 'line-width': 2.5, 'line-opacity': 1 }}
+                                />
+                              </Source>
+                            </>
+                          ) : null}
                         </MapGL>
                       </div>
                     )}

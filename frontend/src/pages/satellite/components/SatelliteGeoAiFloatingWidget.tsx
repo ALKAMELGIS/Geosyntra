@@ -1,8 +1,9 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import './satelliteGeoAiFloatingWidget.css';
 
-const STORAGE_KEY = 'si-sat-geo-ai-widget-pos-v1';
-const STORAGE_SIZE_KEY = 'si-sat-geo-ai-widget-size-v1';
+const STORAGE_KEY = 'si-sat-geo-ai-widget-pos-v2';
+const STORAGE_SIZE_KEY = 'si-sat-geo-ai-widget-size-v2';
 
 type StoredPos = { x: number; y: number };
 type StoredSize = { w: number; h: number };
@@ -13,9 +14,9 @@ function clamp(n: number, min: number, max: number) {
 }
 
 function defaultSize(): StoredSize {
-  if (typeof window === 'undefined') return { w: 400, h: 520 };
-  const w = Math.min(400, window.innerWidth - 28);
-  const h = Math.min(560, Math.max(320, Math.round(window.innerHeight * 0.56)));
+  if (typeof window === 'undefined') return { w: 340, h: 440 };
+  const w = Math.min(360, Math.max(300, window.innerWidth - 48));
+  const h = Math.min(520, Math.max(300, Math.round(window.innerHeight * 0.46)));
   return { w, h };
 }
 
@@ -92,8 +93,8 @@ export type SatelliteGeoAiFloatingWidgetProps = {
   onRequestClose: () => void;
   children: React.ReactNode;
   /**
-   * When true (default), expanded panel docks to the viewport right edge as a tall “insight rail”
-   * so the map remains the dominant canvas — Spatial Experience layout (phase 1).
+   * When true, expanded panel docks to the viewport right edge as a tall “insight rail”.
+   * Default compact helper mode uses a left-anchored floating panel instead.
    */
   spatialWorkspace?: boolean;
 };
@@ -104,7 +105,7 @@ export function SatelliteGeoAiFloatingWidget({
   onToggleExpanded,
   onRequestClose,
   children,
-  spatialWorkspace = true,
+  spatialWorkspace = false,
 }: SatelliteGeoAiFloatingWidgetProps) {
   const rootRef = useRef<HTMLDivElement | null>(null);
   const dragRef = useRef<{
@@ -113,7 +114,7 @@ export function SatelliteGeoAiFloatingWidget({
     startY: number;
     originX: number;
     originY: number;
-    target: 'fab' | 'header';
+    target: 'fab' | 'panel';
     moved: number;
   } | null>(null);
 
@@ -142,6 +143,7 @@ export function SatelliteGeoAiFloatingWidget({
   const [dragging, setDragging] = useState(false);
   const [resizing, setResizing] = useState(false);
   const spatialDockSnapDoneRef = useRef(false);
+  const helperDockSnapDoneRef = useRef(false);
 
   useEffect(() => {
     const stored = readStoredPos();
@@ -154,11 +156,13 @@ export function SatelliteGeoAiFloatingWidget({
       if (!el) return next;
       const w = size.w;
       const h = size.h;
-      const margin = 8;
-      const maxX = Math.max(margin, window.innerWidth - w - margin);
-      const maxY = Math.max(margin, window.innerHeight - h - margin);
-      const minX = margin - w + 56;
-      const minY = margin - h + 56;
+      const marginX = 12;
+      const marginTop = 52;
+      const marginBottom = Math.max(72, 96);
+      const maxX = Math.max(marginX, window.innerWidth - w - marginX);
+      const maxY = Math.max(marginTop, window.innerHeight - h - marginBottom);
+      const minX = marginX - w + 48;
+      const minY = marginTop - h + 48;
       return {
         x: clamp(next.x, minX, maxX),
         y: clamp(next.y, minY, maxY),
@@ -177,22 +181,48 @@ export function SatelliteGeoAiFloatingWidget({
   }, []);
 
   useEffect(() => {
-    if (!open) spatialDockSnapDoneRef.current = false;
+    if (!open) {
+      spatialDockSnapDoneRef.current = false;
+      helperDockSnapDoneRef.current = false;
+    }
   }, [open]);
 
-  /** First time Geo AI opens in a session: dock the insight rail to the right (map stays dominant). */
+  /** First expand in a session: optional dock (spatial = right rail; helper = compact left if no saved pos). */
   useEffect(() => {
-    if (!open || !expanded || !spatialWorkspace || spatialDockSnapDoneRef.current) return;
-    spatialDockSnapDoneRef.current = true;
+    if (!open || !expanded) return;
+
+    if (spatialWorkspace) {
+      if (!spatialDockSnapDoneRef.current) {
+        spatialDockSnapDoneRef.current = true;
+        const tid = window.setTimeout(() => {
+          const mx = maxPanelSize();
+          const targetH = Math.min(Math.max(420, Math.round(window.innerHeight * 0.88)), mx.h);
+          const targetW = Math.min(Math.max(360, Math.min(440, Math.round(window.innerWidth * 0.42))), mx.w);
+          const sz = clampSize({ w: targetW, h: targetH });
+          const margin = 14;
+          const anchorLeft = 20;
+          const targetX = Math.max(anchorLeft, window.innerWidth - sz.w - margin - anchorLeft);
+          const nextPos = clampOffsetToViewport({ x: targetX, y: 56 }, sz);
+          setPanelSize(sz);
+          setOffset(nextPos);
+          writeStoredSize(sz);
+          writeStoredPos(nextPos);
+        }, 0);
+        return () => window.clearTimeout(tid);
+      }
+      return undefined;
+    }
+
+    if (helperDockSnapDoneRef.current) return undefined;
+    helperDockSnapDoneRef.current = true;
+    if (readStoredPos() !== null) return undefined;
+
     const tid = window.setTimeout(() => {
       const mx = maxPanelSize();
-      const targetH = Math.min(Math.max(420, Math.round(window.innerHeight * 0.88)), mx.h);
-      const targetW = Math.min(Math.max(360, Math.min(440, Math.round(window.innerWidth * 0.42))), mx.w);
+      const targetW = Math.min(Math.max(300, Math.round(window.innerWidth * 0.34)), Math.min(380, mx.w));
+      const targetH = Math.min(Math.max(320, Math.round(window.innerHeight * 0.5)), Math.min(520, mx.h));
       const sz = clampSize({ w: targetW, h: targetH });
-      const margin = 14;
-      const anchorLeft = 20;
-      const targetX = Math.max(anchorLeft, window.innerWidth - sz.w - margin - anchorLeft);
-      const nextPos = clampOffsetToViewport({ x: targetX, y: 56 }, sz);
+      const nextPos = clampOffsetToViewport({ x: 0, y: 0 }, sz);
       setPanelSize(sz);
       setOffset(nextPos);
       writeStoredSize(sz);
@@ -220,7 +250,7 @@ export function SatelliteGeoAiFloatingWidget({
     [offset.x, offset.y],
   );
 
-  const onPointerDownHeader = useCallback(
+  const onPointerDownPanelMove = useCallback(
     (e: React.PointerEvent) => {
       if (e.button !== 0) return;
       const target = e.target as HTMLElement | null;
@@ -232,7 +262,7 @@ export function SatelliteGeoAiFloatingWidget({
         startY: e.clientY,
         originX: offset.x,
         originY: offset.y,
-        target: 'header',
+        target: 'panel',
         moved: 0,
       };
       (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
@@ -444,8 +474,6 @@ export function SatelliteGeoAiFloatingWidget({
 
   const resizeHandles: Array<{ id: ResizeHandleId; className: string; label: string }> = useMemo(
     () => [
-      { id: 'n', className: 'si-geo-ai-float-resize-handle si-geo-ai-float-resize-handle--n', label: 'Resize height from top' },
-      { id: 's', className: 'si-geo-ai-float-resize-handle si-geo-ai-float-resize-handle--s', label: 'Resize height from bottom' },
       { id: 'e', className: 'si-geo-ai-float-resize-handle si-geo-ai-float-resize-handle--e', label: 'Resize width from end' },
       { id: 'w', className: 'si-geo-ai-float-resize-handle si-geo-ai-float-resize-handle--w', label: 'Resize width from start' },
       { id: 'ne', className: 'si-geo-ai-float-resize-handle si-geo-ai-float-resize-handle--ne', label: 'Resize corner' },
@@ -456,9 +484,9 @@ export function SatelliteGeoAiFloatingWidget({
     [],
   );
 
-  if (!open) return null;
+  if (!open || typeof document === 'undefined') return null;
 
-  return (
+  const shell = (
     <div
       ref={rootRef}
       className={[
@@ -487,11 +515,11 @@ export function SatelliteGeoAiFloatingWidget({
               .join(' ')}
             style={panelStyle}
           >
-            <div className="si-geo-ai-float-head" onPointerDown={onPointerDownHeader}>
+            <div className="si-geo-ai-float-head" onPointerDown={onPointerDownPanelMove}>
               <div className="si-geo-ai-float-head-text">
                 <div className="si-geo-ai-float-title">Geo AI Exploration</div>
                 <div className="si-geo-ai-float-sub">
-                  {spatialWorkspace ? 'Spatial workspace · map-centric canvas' : 'Map-linked AI'}
+                  {spatialWorkspace ? 'Spatial workspace · map-centric canvas' : 'Chat helper · drag edges'}
                 </div>
               </div>
               <div className="si-geo-ai-float-actions">
@@ -521,7 +549,25 @@ export function SatelliteGeoAiFloatingWidget({
                 </button>
               </div>
             </div>
+            <div
+              className="si-geo-ai-float-drag-rail"
+              onPointerDown={onPointerDownPanelMove}
+              title="Drag to move"
+              aria-label="Drag to move Geo AI panel"
+            />
             <div className="si-geo-ai-float-body">{children}</div>
+            <div
+              className="si-geo-ai-float-edge-drag si-geo-ai-float-edge-drag--left"
+              onPointerDown={onPointerDownPanelMove}
+              aria-hidden
+              title="Drag to move"
+            />
+            <div
+              className="si-geo-ai-float-edge-drag si-geo-ai-float-edge-drag--right"
+              onPointerDown={onPointerDownPanelMove}
+              aria-hidden
+              title="Drag to move"
+            />
             {resizeHandles.map(h => (
               <button
                 key={h.id}
@@ -537,19 +583,20 @@ export function SatelliteGeoAiFloatingWidget({
           <button
             type="button"
             className="si-geo-ai-float-fab"
-            title="Geo AI Exploration — map-linked intelligence"
+            title="Geo AI — tap to open assistant (drag to move)"
             aria-expanded={expanded}
-            aria-label="Geo AI Exploration"
+            aria-label="Geo AI assistant"
             onPointerDown={onPointerDownFab}
           >
-            <span className="si-geo-ai-float-fab-label">Geo AI Exploration</span>
+            <span className="si-geo-ai-float-fab-label">Geo AI assistant</span>
             <span className="si-geo-ai-float-fab-mark" aria-hidden>
-              <i className="fa-solid fa-globe si-geo-ai-float-fab-mark-back" />
-              <i className="fa-solid fa-layer-group si-geo-ai-float-fab-mark-front" />
+              <i className="fa-solid fa-wand-magic-sparkles si-geo-ai-float-fab-mark-front" />
             </span>
           </button>
         )}
       </div>
     </div>
   );
+
+  return createPortal(shell, document.body);
 }

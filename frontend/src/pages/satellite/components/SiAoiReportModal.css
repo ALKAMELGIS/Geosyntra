@@ -6,8 +6,8 @@
   align-items: center;
   justify-content: center;
   padding: 16px;
-  background: rgba(15, 23, 42, 0.72);
-  backdrop-filter: blur(4px);
+  background: rgba(0, 0, 0, 0.52);
+  backdrop-filter: blur(16px) saturate(1.15);
 }
 
 .si-aoi-report-modal {
@@ -17,10 +17,15 @@
   display: flex;
   flex-direction: column;
   border-radius: 14px;
-  border: 1px solid rgba(148, 163, 184, 0.35);
-  background: linear-gradient(165deg, #0f172a 0%, #1e1b4b 55%, #0f172a 100%);
-  color: #e2e8f0;
-  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.45);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: linear-gradient(
+    165deg,
+    rgba(14, 14, 16, 0.94) 0%,
+    rgba(26, 26, 30, 0.9) 42%,
+    rgba(10, 10, 12, 0.96) 100%
+  );
+  color: #e8e8ec;
+  box-shadow: 0 28px 72px rgba(0, 0, 0, 0.62), inset 0 1px 0 rgba(255, 255, 255, 0.06);
   overflow: hidden;
 }
 
@@ -30,7 +35,7 @@
   justify-content: space-between;
   gap: 12px;
   padding: 16px 18px 12px;
-  border-bottom: 1px solid rgba(148, 163, 184, 0.2);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.07);
 }
 
 .si-aoi-report-modal__title {
@@ -43,7 +48,7 @@
 .si-aoi-report-modal__sub {
   margin: 4px 0 0;
   font-size: 0.78rem;
-  color: #94a3b8;
+  color: rgba(226, 232, 240, 0.72);
   line-height: 1.35;
 }
 
@@ -52,14 +57,14 @@
   width: 36px;
   height: 36px;
   border-radius: 10px;
-  border: 1px solid rgba(148, 163, 184, 0.35);
-  background: rgba(15, 23, 42, 0.6);
-  color: #e2e8f0;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.06);
+  color: #f1f5f9;
   cursor: pointer;
 }
 
 .si-aoi-report-modal__close:hover {
-  background: rgba(30, 41, 59, 0.85);
+  background: rgba(255, 255, 255, 0.1);
 }
 
 .si-aoi-report-modal__body {
@@ -82,15 +87,26 @@
   font-size: 0.72rem;
   text-transform: uppercase;
   letter-spacing: 0.06em;
-  color: #94a3b8;
+  color: rgba(203, 213, 225, 0.75);
+}
+
+.si-aoi-report-field-hint {
+  display: block;
+  margin-top: 2px;
+  font-size: 0.68rem;
+  font-weight: 400;
+  text-transform: none;
+  letter-spacing: 0.01em;
+  line-height: 1.35;
+  color: rgba(148, 163, 184, 0.85);
 }
 
 .si-aoi-report-form input,
 .si-aoi-report-form select {
   border-radius: 10px;
-  border: 1px solid rgba(148, 163, 184, 0.35);
-  background: rgba(15, 23, 42, 0.75);
-  color: #f1f5f9;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(0, 0, 0, 0.35);
+  color: #f8fafc;
   padding: 9px 10px;
   font-size: 0.9rem;
 }
@@ -123,13 +139,13 @@
 }
 
 .si-aoi-report-btn--ghost {
-  border-color: rgba(148, 163, 184, 0.4);
-  background: rgba(30, 41, 59, 0.55);
-  color: #e2e8f0;
+  border-color: rgba(255, 255, 255, 0.14);
+  background: rgba(255, 255, 255, 0.06);
+  color: #f1f5f9;
 }
 
 .si-aoi-report-btn--ghost:hover:not(:disabled) {
-  background: rgba(51, 65, 85, 0.75);
+  background: rgba(255, 255, 255, 0.1);
 }
 
 .si-aoi-report-err {
@@ -151,8 +167,8 @@
 
 .si-aoi-report-card {
   border-radius: 12px;
-  border: 1px solid rgba(148, 163, 184, 0.22);
-  background: rgba(15, 23, 42, 0.55);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(0, 0, 0, 0.28);
   padding: 12px 14px;
 }
 
@@ -265,9 +281,9 @@
 
 .si-aoi-report-view-tab {
   border-radius: 10px;
-  border: 1px solid rgba(148, 163, 184, 0.35);
-  background: rgba(15, 23, 42, 0.55);
-  color: #cbd5e1;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(0, 0, 0, 0.32);
+  color: #e2e8f0;
   padding: 8px 14px;
   font-size: 0.82rem;
   font-weight: 600;
@@ -275,7 +291,7 @@
 }
 
 .si-aoi-report-view-tab:hover {
-  background: rgba(30, 41, 59, 0.75);
+  background: rgba(255, 255, 255, 0.06);
 }
 
 .si-aoi-report-view-tab--active {
@@ -294,9 +310,9 @@
 .si-aoi-report-change-cell {
   position: relative;
   border-radius: 10px;
-  border: 1px solid rgba(148, 163, 184, 0.28);
+  border: 1px solid rgba(255, 255, 255, 0.08);
   overflow: hidden;
-  background: rgba(15, 23, 42, 0.65);
+  background: rgba(0, 0, 0, 0.38);
   min-height: 148px;
   display: flex;
   flex-direction: column;
@@ -380,11 +396,11 @@
 .si-aoi-report-export-card {
   width: min(420px, 100%);
   border-radius: 14px;
-  border: 1px solid rgba(148, 163, 184, 0.35);
-  background: linear-gradient(165deg, #0f172a 0%, #1e1b4b 100%);
-  color: #e2e8f0;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: linear-gradient(165deg, rgba(16, 16, 18, 0.95) 0%, rgba(28, 28, 32, 0.92) 100%);
+  color: #e8e8ec;
   padding: 20px 22px 18px;
-  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.45);
+  box-shadow: 0 24px 56px rgba(0, 0, 0, 0.55), inset 0 1px 0 rgba(255, 255, 255, 0.05);
 }
 
 .si-aoi-report-export-card__title {

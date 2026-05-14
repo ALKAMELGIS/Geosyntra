@@ -35,6 +35,8 @@ export type SiRasterSymbologyClassRow = {
   label: string;
 };
 
+export type SiRasterSymbologyVizMode = 'classes' | 'heatmap';
+
 export type SiRasterSymbologyState = {
   method: SiRasterSymbologyMethod;
   classCount: number;
@@ -45,6 +47,13 @@ export type SiRasterSymbologyState = {
   classes: SiRasterSymbologyClassRow[];
   targetLayerId: string;
   showOnMap: boolean;
+  /** Classes = stepped breaks on raw `v`. Heatmap = continuous ramp on clamped raw `v` (same value field). */
+  vizMode: SiRasterSymbologyVizMode;
+  /**
+   * When false, no classified overlay is drawn on the map (index/WMS stays raw).
+   * Set true only after the user runs Reclassify → Run/Apply; further edits update the overlay live.
+   */
+  reclassifyApplied?: boolean;
 };
 
 const RAMP_PRESETS: Record<Exclude<SiRasterSymbologyRampId, 'custom'>, string[]> = {
@@ -302,6 +311,8 @@ export function siRasterSymbologyDefaultState(targetLayerId: string): SiRasterSy
     classes: [],
     targetLayerId,
     showOnMap: true,
+    vizMode: 'classes',
+    reclassifyApplied: false,
   };
 }
 
@@ -314,6 +325,25 @@ export function siRasterSymbologyFillColorExpr(classes: SiRasterSymbologyClassRo
   const expr: unknown[] = ['step', v, classes[0]!.color];
   for (let i = 1; i < classes.length; i++) {
     expr.push(classes[i]!.min, classes[i]!.color);
+  }
+  return expr;
+}
+
+/** Continuous ramp on AOI cell property `v`, clamped to [minV, maxV] — same raw field as class mode. */
+export function siRasterSymbologyFillHeatmapExpr(
+  minV: number,
+  maxV: number,
+  rampId: SiRasterSymbologyRampId,
+  custom: [string, string, string],
+): unknown[] | string {
+  if (!Number.isFinite(minV) || !Number.isFinite(maxV) || maxV <= minV) return 'rgba(0,0,0,0)';
+  const stops = siRasterSymbologyRampColors(rampId, custom, 7);
+  const vClamped: unknown[] = ['max', minV, ['min', maxV, ['get', 'v']]];
+  const span = maxV - minV;
+  const t: unknown[] = ['/', ['-', vClamped, minV], span];
+  const expr: unknown[] = ['interpolate', ['linear'], t, 0, stops[0]!];
+  for (let i = 1; i < stops.length; i++) {
+    expr.push(i / (stops.length - 1), stops[i]!);
   }
   return expr;
 }
@@ -346,6 +376,7 @@ export function siRasterSymbologyBuildPreviewGrid(
   drawnMin: number | null,
   drawnMax: number | null,
 ): GeoJSON.FeatureCollection {
+  void seed;
   if (!feature?.geometry) return { type: 'FeatureCollection', features: [] };
   const geom = feature.geometry;
   if (geom.type !== 'Polygon' && geom.type !== 'MultiPolygon') {
@@ -375,32 +406,31 @@ export function siRasterSymbologyBuildPreviewGrid(
     maxV = fallbackMax;
   }
   const span = maxV - minV;
-  const meanV = (minV + maxV) / 2;
-  const seedN = seed.split('').reduce((acc, ch) => acc + ch.charCodeAt(0), 0);
-  const features: GeoJSON.Feature[] = [];
+  const insideCells: Array<{ w: number; e: number; s: number; n: number }> = [];
   for (let yy = 0; yy < rows; yy += 1) {
     for (let xx = 0; xx < cols; xx += 1) {
       const cx = west + (xx + 0.5) * dx;
       const cy = south + (yy + 0.5) * dy;
       if (!pointInAoiGeometryLngLat(cx, cy, geom)) continue;
-      const gx = (xx + 0.5) / cols;
-      const gy = (yy + 0.5) / rows;
-      const wave =
-        Math.sin((xx + seedN * 0.01) * 0.9) * 0.12 + Math.cos((yy + seedN * 0.02) * 0.85) * 0.1;
-      const gradient = gx * 0.55 + gy * 0.35 + wave;
-      const normalized = clamp01(gradient);
-      const v =
-        minV + normalized * span * 0.82 + (meanV - minV) * 0.18 * (1 - Math.abs(normalized - 0.5) * 0.4);
       const w = west + xx * dx;
       const e = west + (xx + 1) * dx;
       const s = south + yy * dy;
       const n = south + (yy + 1) * dy;
-      features.push({
-        type: 'Feature',
-        properties: { v: Number(v.toFixed(5)) },
-        geometry: cellPolygon(w, s, e, n),
-      });
+      insideCells.push({ w, e, s, n });
     }
+  }
+  const nCells = insideCells.length;
+  const features: GeoJSON.Feature[] = [];
+  for (let i = 0; i < nCells; i++) {
+    const cell = insideCells[i]!;
+    /** Uniform quantiles in raw index range [minV,maxV] — one value per visible cell, no synthetic texture. */
+    const u = nCells <= 1 ? 0.5 : (i + 0.5) / nCells;
+    const v = minV + u * span;
+    features.push({
+      type: 'Feature',
+      properties: { v: Number(v.toFixed(6)) },
+      geometry: cellPolygon(cell.w, cell.s, cell.e, cell.n),
+    });
   }
   return { type: 'FeatureCollection', features };
 }
