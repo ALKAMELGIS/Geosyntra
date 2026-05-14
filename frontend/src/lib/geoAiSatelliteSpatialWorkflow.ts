@@ -1,8 +1,10 @@
 /**
  * Satellite Intelligence — Geo AI: defer tabular vector stats when the user is
  * clearly asking for a coordinate-driven RS / GIS workflow (buffers, Sentinel,
- * indices, classification). Lets Gemini / Claude / DeepSeek answer with MAP_QUERY
- * and a staged plan instead of the generic “no layer records” short-circuit.
+ * indices, classification), **map-only follow-ups** (“show on map”, “confirm … map”),
+ * or **open-data / population / admin-boundary** phrasing. Lets Gemini / Claude /
+ * DeepSeek answer with MAP_QUERY and a staged plan instead of the generic
+ * “no layer records” short-circuit.
  */
 
 /** Two decimal numbers that can be read as WGS84 (lng,lat) in either order. */
@@ -39,12 +41,34 @@ function messageImpliesRemoteSensingOrBufferWorkflow(q: string): boolean {
   )
 }
 
+/** Map-only follow-ups (“show on map”, “confirm … map”) — no coords; still defer tabular stats so the LLM can plan MAP_QUERY / anchors. */
+function explicitMapVisualizationDeferStats(q: string): boolean {
+  const t = q.trim()
+  if (t.length < 10) return false
+  return (
+    /\b(show\s+me\s+on\s+the\s+map|show\s+me\s+on\s+map|display\s+on\s+the\s+map|display\s+on\s+map|on\s+the\s+map|on\s+map\b|visualize\s+on\s+map|pin\s+on\s+map)\b/i.test(
+      t,
+    ) || /\bconfirm\b[\s\S]{0,48}\bmap\b/i.test(t)
+  )
+}
+
+/** Population / global admin / open-data phrasing — defer to LLM workflow instead of empty-layer short-circuit. */
+function externalDatasetWorkflowDeferStats(q: string): boolean {
+  const t = q.trim()
+  if (t.length < 28) return false
+  return /\b(population\s+density|worldpop|gpw|geoboundaries|natural\s+earth|openstreetmap|\bosm\b|country\s+boundary|admin\s+boundary|choropleth|demographic|classify\s+into\s+\d+|jenks|quantile\s+bin)\b/i.test(
+    t,
+  )
+}
+
 /**
  * When true, `runGeoAiStatsCommand` should **not** return the empty-vector fallback
  * (“No loaded layer records…”) so the LLM path can run with full spatial context.
  */
 export function spatialWorkflowOverridesTabularStats(query: string): boolean {
   const q = query.trim()
+  if (explicitMapVisualizationDeferStats(q)) return true
+  if (externalDatasetWorkflowDeferStats(q)) return true
   if (q.length < 24) return false
   if (!messageHasDecimalDegreePair(q)) return false
   return messageImpliesRemoteSensingOrBufferWorkflow(q)

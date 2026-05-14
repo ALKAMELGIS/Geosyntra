@@ -76,12 +76,15 @@ export interface ScrollGlobeProps {
 
 /**
  * Globe positions per section (viewport % + scale). Hero keeps the globe
- * mid-right; other beats match the upstream scroll choreography.
+ * mid-right; Innovation pins the globe to the viewport center behind the
+ * centered copy; Discovery uses a larger scale — Welcome uses a similar visual
+ * weight (~1.9 vs 2) without changing its anchor coordinates.
  */
 const defaultGlobeConfig: { positions: ScrollGlobePosition[] } = {
   positions: [
-    { top: '50%', left: '71%', scale: 0.85 },
-    { top: '22%', left: '50%', scale: 0.9 },
+    { top: '50%', left: '71%', scale: 1.88 },
+    /** Innovation: globe centered on viewport so it sits behind the vertically centered copy block. */
+    { top: '50%', left: '50%', scale: 0.88 },
     { top: '15%', left: '90%', scale: 2 },
     { top: '50%', left: '50%', scale: 1.8 },
   ],
@@ -454,13 +457,14 @@ export function ScrollGlobe({ sections, globeConfig = defaultGlobeConfig, classN
       {sections.map((section, index) => {
         /** Welcome + Innovation share the same hero rhythm (pearl title, sparkle bar, lede, micro-hints); alignment follows `section.align`. */
         const welcomeVisualRhythm = index === 0 || index === 1
-        /** Innovation beat: globe sits at viewport center (`defaultGlobeConfig` index 1); stack copy under it as one caption column. */
+        /** Innovation: fixed globe + copy share one vertical/horizontal center (globe z-10, copy z-30). */
         const innovationGlobeStack = section.id === 'innovation'
         /** Welcome hero — anchor copy toward the top so it scrolls out before Innovation fills the viewport (avoids hero bleed on section 2). */
         const welcomeHeroAnchorTop = section.id === 'hero'
         return (
         <section
           key={section.id}
+          id={section.id}
           ref={el => {
             sectionRefs.current[index] = el
           }}
@@ -469,10 +473,9 @@ export function ScrollGlobe({ sections, globeConfig = defaultGlobeConfig, classN
                so empty viewport area does not steal hovers; inner column re-enables. */
             'relative min-h-screen flex flex-col px-4 sm:px-6 md:px-8 lg:px-12 z-30 py-12 sm:py-16 lg:py-20',
             'w-full max-w-full overflow-hidden pointer-events-none',
-            innovationGlobeStack &&
-              'justify-start items-center text-center pt-[clamp(7.5rem,38vh,20rem)] sm:pt-[clamp(8.5rem,42vh,23rem)] md:pt-[clamp(9.5rem,46vh,26rem)] lg:pt-[clamp(10rem,48vh,28rem)]',
+            innovationGlobeStack && 'justify-center items-center text-center min-h-[100dvh]',
             welcomeHeroAnchorTop &&
-              'justify-start pt-[calc(clamp(2.25rem,8vh,5.5rem)+2cm)] sm:pt-[calc(clamp(2.75rem,10vh,6.5rem)+2cm)] md:pt-[calc(clamp(3rem,11vh,7.25rem)+2cm)] lg:pt-[calc(clamp(3.25rem,12vh,8rem)+2cm)]',
+              'justify-start pt-[calc(clamp(2.75rem,9vh,6rem)+2cm+0.75rem)] sm:pt-[calc(clamp(3.25rem,11vh,7rem)+2cm+0.75rem)] md:pt-[calc(clamp(3.5rem,12vh,7.75rem)+2cm+0.75rem)] lg:pt-[calc(clamp(3.75rem,13vh,8.5rem)+2cm+0.75rem)]',
             !innovationGlobeStack && !welcomeHeroAnchorTop && 'justify-center',
             !innovationGlobeStack && section.align === 'center' && 'items-center text-center',
             !innovationGlobeStack && section.align === 'right' && 'items-end text-right',
@@ -483,7 +486,8 @@ export function ScrollGlobe({ sections, globeConfig = defaultGlobeConfig, classN
             className={cn(
               'pointer-events-auto w-full will-change-transform transition-all duration-700',
               'opacity-100 translate-y-0',
-              innovationGlobeStack && 'max-w-xl sm:max-w-2xl md:max-w-2xl lg:max-w-3xl mx-auto',
+              innovationGlobeStack &&
+                'max-w-xl sm:max-w-2xl md:max-w-2xl lg:max-w-3xl mx-auto relative z-10 flex flex-col items-center',
               !innovationGlobeStack &&
                 cn(
                   'max-w-sm sm:max-w-lg md:max-w-2xl lg:max-w-4xl xl:max-w-5xl',
@@ -494,6 +498,7 @@ export function ScrollGlobe({ sections, globeConfig = defaultGlobeConfig, classN
             <h1
               className={cn(
                 'font-bold mb-6 sm:mb-8 leading-[1.1] tracking-tight',
+                innovationGlobeStack && 'gs-innovation-headline',
                 welcomeVisualRhythm
                   ? cn(
                       'text-3xl sm:text-4xl md:text-5xl lg:text-6xl xl:text-7xl 2xl:text-8xl w-full',

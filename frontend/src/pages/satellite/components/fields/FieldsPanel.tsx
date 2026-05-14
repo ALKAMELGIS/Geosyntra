@@ -332,8 +332,8 @@ export default function FieldsPanel({
           </div>
           <h4 className="gs-fields-empty__title">No fields saved yet</h4>
           <p className="gs-fields-empty__copy">
-            Use the drawing tools (polygon, rectangle, or circle) to sketch an area on the map. Each AOI you finish is
-            saved here automatically as a Field — with its area, date, and a slot for crop / NDVI metadata.
+            Use the Field Data drawing bar above (polygon, rectangle, or circle), then <strong>Add Draw New Field</strong> to
+            sketch on the map. Finished shapes are saved here only — they do not create or replace the Remote Sensing workspace AOI.
           </p>
         </div>
       ) : filteredFields.length === 0 ? (

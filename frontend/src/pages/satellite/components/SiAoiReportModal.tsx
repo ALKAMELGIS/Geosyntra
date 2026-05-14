@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import MapGL, { Layer, NavigationControl, Source, type MapRef } from 'react-map-gl/mapbox';
+import type { StyleSpecification } from 'mapbox-gl';
 import {
   Chart as ChartJS,
   CategoryScale,
@@ -37,6 +38,74 @@ ChartJS.register(
   Filler,
 );
 
+type SiAoiChangeMapCellProps = {
+  slotIdx: number;
+  date: string;
+  mapboxToken?: string;
+  mapStyle: string | StyleSpecification;
+  aoiOutline: GeoJSON.FeatureCollection;
+  fitBounds: [[number, number], [number, number]];
+};
+
+function SiAoiChangeMapCell({
+  slotIdx,
+  date,
+  mapboxToken,
+  mapStyle,
+  aoiOutline,
+  fitBounds,
+}: SiAoiChangeMapCellProps) {
+  const innerRef = useRef<MapRef | null>(null);
+
+  useEffect(() => {
+    const runFit = () => {
+      const map = innerRef.current?.getMap?.();
+      if (!map) return;
+      try {
+        map.fitBounds(fitBounds, { padding: 8, duration: 0, maxZoom: 15 });
+      } catch {
+        /* ignore */
+      }
+    };
+    const t = window.setTimeout(() => {
+      const map = innerRef.current?.getMap?.();
+      if (map?.isStyleLoaded?.()) runFit();
+      else map?.once('load', runFit);
+    }, 60);
+    return () => window.clearTimeout(t);
+  }, [fitBounds, date, slotIdx]);
+
+  const cx = (fitBounds[0][0] + fitBounds[1][0]) / 2;
+  const cy = (fitBounds[0][1] + fitBounds[1][1]) / 2;
+
+  return (
+    <div className="si-aoi-report-change-cell">
+      <div className="si-aoi-report-change-cell__banner">{date}</div>
+      <div className="si-aoi-report-change-cell__map">
+        <MapGL
+          ref={innerRef}
+          mapboxAccessToken={mapboxToken}
+          mapStyle={mapStyle as string | StyleSpecification}
+          initialViewState={{ longitude: cx, latitude: cy, zoom: 11, bearing: 0, pitch: 0 }}
+          style={{ width: '100%', height: '100%' }}
+          reuseMaps
+          interactive={false}
+          attributionControl={false}
+        >
+          <Source id={`si-cd-aoi-${slotIdx}`} type="geojson" data={aoiOutline}>
+            <Layer
+              id={`si-cd-aoi-line-${slotIdx}`}
+              type="line"
+              paint={{ 'line-color': '#38bdf8', 'line-width': 2 }}
+            />
+          </Source>
+        </MapGL>
+      </div>
+      <div className="si-aoi-report-change-cell__hint">Basemap + AOI (scene overlay when connected)</div>
+    </div>
+  );
+}
+
 export type SiAoiReportModalProps = {
   open: boolean;
   onClose: () => void;
@@ -47,6 +116,8 @@ export type SiAoiReportModalProps = {
   aoiOptions: Array<{ id: string; name: string; feature: GeoJSON.Feature }>;
   mapboxToken?: string;
   preferredAoiId?: string | null;
+  /** Match the main Satellite Intelligence basemap (overlays only on top in the report map). */
+  reportMapStyle?: string | StyleSpecification;
 };
 
 export function SiAoiReportModal({
@@ -59,8 +130,10 @@ export function SiAoiReportModal({
   aoiOptions,
   mapboxToken,
   preferredAoiId,
+  reportMapStyle = 'mapbox://styles/mapbox/satellite-streets-v12',
 }: SiAoiReportModalProps) {
   const [step, setStep] = useState<'configure' | 'preview'>('configure');
+  const [reportView, setReportView] = useState<'analysis' | 'change'>('analysis');
   const [indexId, setIndexId] = useState<StaticAoiChartLayerId>(defaultIndexId);
   const [dateStart, setDateStart] = useState(timeSeriesStart);
   const [dateEnd, setDateEnd] = useState(timeSeriesEnd);
@@ -83,6 +156,7 @@ export function SiAoiReportModal({
     const ids = new Set(aoiOptions.map(o => o.id));
     const pref = preferredAoiId && ids.has(preferredAoiId) ? preferredAoiId : aoiOptions[0]?.id ?? '';
     setSelectedAoiId(pref);
+    setReportView('analysis');
   }, [open, timeSeriesStart, timeSeriesEnd, defaultIndexId, preferredAoiId, aoiOptions]);
 
   const selectedFeature = useMemo(
@@ -99,7 +173,7 @@ export function SiAoiReportModal({
     setErr(null);
     const aoiFeature = selectedFeature;
     if (!aoiFeature) {
-      setErr('اختر منطقة AOI.');
+      setErr('Select an AOI.');
       return;
     }
     const built = buildSiAoiVegetationReport({
@@ -111,10 +185,11 @@ export function SiAoiReportModal({
       aoiName: selectedName || 'AOI',
     });
     if (!built) {
-      setErr('الهندسة الحالية يجب أن تكون Polygon أو MultiPolygon.');
+      setErr('AOI geometry must be a Polygon or MultiPolygon.');
       return;
     }
     setReport(built);
+    setReportView('analysis');
     setStep('preview');
   }, [weeklyComposites, indexId, dateStart, dateEnd, selectedFeature, selectedName]);
 
@@ -130,8 +205,19 @@ export function SiAoiReportModal({
     return { longitude: cx, latitude: cy, zoom };
   }, [report]);
 
+  const changeFitBounds = useMemo((): [[number, number], [number, number]] | null => {
+    if (!report) return null;
+    const f = report.aoiOutlineGeoJson.features[0];
+    const b = f ? siAoiReportFeatureBBoxLngLat(f) : null;
+    if (!b) return null;
+    return [
+      [b[0], b[1]],
+      [b[2], b[3]],
+    ];
+  }, [report]);
+
   useEffect(() => {
-    if (!open || !report || !mapRef.current) return;
+    if (!open || !report || !mapRef.current || reportView !== 'analysis') return;
     const t = window.setTimeout(() => {
       const map = mapRef.current?.getMap?.();
       const f = report.aoiOutlineGeoJson.features[0];
@@ -147,7 +233,7 @@ export function SiAoiReportModal({
       }
     }, 80);
     return () => window.clearTimeout(t);
-  }, [open, report]);
+  }, [open, report, reportView]);
 
   const lineData = useMemo(() => {
     if (!report) return null;
@@ -225,14 +311,15 @@ export function SiAoiReportModal({
         <div className="si-aoi-report-modal__head">
           <div>
             <h2 id="si-aoi-report-modal-title" className="si-aoi-report-modal__title">
-              تقرير الغطاء النباتي (AOI)
+              Vegetation cover report (AOI)
             </h2>
             <p className="si-aoi-report-modal__sub">
-              اختر المؤشر والفترة والـ AOI، ثم راجع الملخص والجداول والمخطط والخريطة. التصدير PDF يتضمن المخطط عند
-              توفره؛ طبقات الخريطة توضيحية داخل مربع الإحاطة حتى ربط إحصاء زوني.
+              Choose index, date range, and AOI. The report includes an English summary, health table, timeline chart,
+              the same basemap as the main map with a transparent pixel-style classification overlay, and a 3×4 change
+              map grid. PDF export is English-only and adds a second page for the time-series layout.
             </p>
           </div>
-          <button type="button" className="si-aoi-report-modal__close" aria-label="إغلاق" onClick={onClose}>
+          <button type="button" className="si-aoi-report-modal__close" aria-label="Close" onClick={onClose}>
             <i className="fa-solid fa-xmark" aria-hidden />
           </button>
         </div>
@@ -242,7 +329,7 @@ export function SiAoiReportModal({
             <>
               <div className="si-aoi-report-form">
                 <label>
-                  المؤشر (Index)
+                  Index
                   <select value={indexId} onChange={e => setIndexId(e.target.value as StaticAoiChartLayerId)}>
                     {STATIC_AOI_CHART_LAYER_OPTIONS.map(o => (
                       <option key={o.id} value={o.id}>
@@ -252,11 +339,11 @@ export function SiAoiReportModal({
                   </select>
                 </label>
                 <label>
-                  تاريخ البداية
+                  Start date
                   <input type="date" value={dateStart.slice(0, 10)} onChange={e => setDateStart(e.target.value)} />
                 </label>
                 <label>
-                  تاريخ النهاية
+                  End date
                   <input type="date" value={dateEnd.slice(0, 10)} onChange={e => setDateEnd(e.target.value)} />
                 </label>
                 <label>
@@ -273,10 +360,10 @@ export function SiAoiReportModal({
               {err ? <p className="si-aoi-report-err">{err}</p> : null}
               <div className="si-aoi-report-actions">
                 <button type="button" className="si-aoi-report-btn" onClick={onGenerate} disabled={!aoiOptions.length}>
-                  توليد التقرير
+                  Generate report
                 </button>
                 <button type="button" className="si-aoi-report-btn si-aoi-report-btn--ghost" onClick={onClose}>
-                  إلغاء
+                  Cancel
                 </button>
               </div>
             </>
@@ -288,129 +375,174 @@ export function SiAoiReportModal({
                   className="si-aoi-report-btn si-aoi-report-btn--ghost"
                   onClick={() => setStep('configure')}
                 >
-                  العودة للإعداد
+                  Back to setup
                 </button>
                 <button type="button" className="si-aoi-report-btn" onClick={onExportPdf} disabled={exportBusy}>
-                  تصدير PDF
+                  Export PDF
                 </button>
                 <button type="button" className="si-aoi-report-btn si-aoi-report-btn--ghost" onClick={onClose}>
-                  إغلاق
+                  Close
                 </button>
               </div>
 
-              <div className="si-aoi-report-card">
-                <h3>ملخص وتفسير</h3>
-                <ul className="si-aoi-report-summary" dir="rtl">
-                  {report.summaryLinesAr.map((line, i) => (
-                    <li key={i}>{line}</li>
-                  ))}
-                </ul>
+              <div className="si-aoi-report-view-tabs" role="tablist" aria-label="Report sections">
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={reportView === 'analysis'}
+                  className={`si-aoi-report-view-tab${reportView === 'analysis' ? ' si-aoi-report-view-tab--active' : ''}`}
+                  onClick={() => setReportView('analysis')}
+                >
+                  AOI analysis
+                </button>
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={reportView === 'change'}
+                  className={`si-aoi-report-view-tab${reportView === 'change' ? ' si-aoi-report-view-tab--active' : ''}`}
+                  onClick={() => setReportView('change')}
+                >
+                  Time series change detection
+                </button>
               </div>
 
-              <div className="si-aoi-report-card">
-                <h3>تحليل علمي</h3>
-                <p className="si-aoi-report-analysis" dir="rtl">
-                  {report.analysisAr}
-                </p>
-                {report.stressNoteAr ? (
-                  <div className="si-aoi-report-stress" dir="rtl">
-                    {report.stressNoteAr}
-                  </div>
-                ) : null}
-              </div>
-
-              <div className="si-aoi-report-card">
-                <h3>تصنيف الصحة والمساحة</h3>
-                <div className="si-aoi-report-table-wrap">
-                  <table className="si-aoi-report-table">
-                    <thead>
-                      <tr>
-                        <th>الفئة</th>
-                        <th>المساحة (كم²)</th>
-                        <th>النسبة %</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {report.tableRows.map(row => (
-                        <tr key={row.key}>
-                          <td dir="rtl">{row.labelAr}</td>
-                          <td>{row.areaKm2.toFixed(3)}</td>
-                          <td>{row.pct.toFixed(1)}</td>
-                        </tr>
+              {reportView === 'change' ? (
+                <div className="si-aoi-report-card">
+                  <h3>Time series change detection map</h3>
+                  <p className="si-aoi-report-analysis">
+                    Twelve map tiles (3 columns × 4 rows) sampled across the timeline. Each tile uses the same basemap
+                    style as the main Satellite view, with the AOI outline. Connect your STAC or tile service to render
+                    true per-date imagery in every cell.
+                  </p>
+                  {!mapOk || !changeFitBounds ? (
+                    <p className="si-aoi-report-analysis">A Mapbox token is required to render the map grid.</p>
+                  ) : (
+                    <div className="si-aoi-report-change-grid">
+                      {report.changeDetectionDates.map((dt, idx) => (
+                        <SiAoiChangeMapCell
+                          key={`${dt}-${idx}`}
+                          slotIdx={idx}
+                          date={dt}
+                          mapboxToken={mapboxToken}
+                          mapStyle={reportMapStyle}
+                          aoiOutline={report.aoiOutlineGeoJson}
+                          fitBounds={changeFitBounds}
+                        />
                       ))}
-                    </tbody>
-                  </table>
+                    </div>
+                  )}
                 </div>
-              </div>
-
-              <div className="si-aoi-report-card">
-                <h3>المخطط الزمني</h3>
-                <div className="si-aoi-report-chart-wrap" id={chartHostId}>
-                  {lineData ? <Line data={lineData} options={lineOptions as any} /> : null}
-                </div>
-              </div>
-
-              <div className="si-aoi-report-card">
-                <h3>خريطة فئات داخل الـ AOI</h3>
-                {!mapOk ? (
-                  <p className="si-aoi-report-analysis">يتطلب رمز Mapbox لعرض الخريطة.</p>
-                ) : (
-                  <div className="si-aoi-report-map-wrap">
-                    <MapGL
-                      ref={mapRef}
-                      mapboxAccessToken={mapboxToken}
-                      mapStyle="mapbox://styles/mapbox/dark-v11"
-                      initialViewState={{
-                        ...mapInitialView,
-                        bearing: 0,
-                        pitch: 0,
-                      }}
-                      style={{ width: '100%', height: '100%' }}
-                      reuseMaps
-                    >
-                      <NavigationControl position="top-right" showCompass={false} />
-                      <Source id="si-report-zones" type="geojson" data={report.mapZonesGeoJson}>
-                        <Layer
-                          id="si-report-zones-fill"
-                          type="fill"
-                          paint={{
-                            'fill-color': ['coalesce', ['get', 'fill'], '#15803d'],
-                            'fill-opacity': 0.42,
-                          }}
-                        />
-                      </Source>
-                      <Source id="si-report-aoi" type="geojson" data={report.aoiOutlineGeoJson}>
-                        <Layer
-                          id="si-report-aoi-line"
-                          type="line"
-                          paint={{ 'line-color': '#38bdf8', 'line-width': 2 }}
-                        />
-                      </Source>
-                    </MapGL>
+              ) : (
+                <>
+                  <div className="si-aoi-report-card">
+                    <h3>Executive summary</h3>
+                    <ul className="si-aoi-report-summary">
+                      {report.summaryLinesEn.map((line, i) => (
+                        <li key={i}>{line}</li>
+                      ))}
+                    </ul>
                   </div>
-                )}
-                <div className="si-aoi-report-map-legend">
-                  <span>
-                    <span className="si-aoi-report-legend-swatch" style={{ background: '#15803d' }} />
-                    High vegetation health
-                  </span>
-                  <span>
-                    <span className="si-aoi-report-legend-swatch" style={{ background: '#ca8a04' }} />
-                    Medium vegetation health
-                  </span>
-                  <span>
-                    <span className="si-aoi-report-legend-swatch" style={{ background: '#991b1b' }} />
-                    Low / degraded
-                  </span>
-                  <span>
-                    <span
-                      className="si-aoi-report-legend-swatch"
-                      style={{ background: '#38bdf8', border: '1px solid #334155' }}
-                    />
-                    AOI outline
-                  </span>
-                </div>
-              </div>
+
+                  <div className="si-aoi-report-card">
+                    <h3>Scientific analysis</h3>
+                    <p className="si-aoi-report-analysis">{report.analysisEn}</p>
+                    {report.stressNoteEn ? <div className="si-aoi-report-stress">{report.stressNoteEn}</div> : null}
+                  </div>
+
+                  <div className="si-aoi-report-card">
+                    <h3>Health and area classification</h3>
+                    <div className="si-aoi-report-table-wrap">
+                      <table className="si-aoi-report-table">
+                        <thead>
+                          <tr>
+                            <th>Class</th>
+                            <th>Area (km²)</th>
+                            <th>Share %</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {report.tableRows.map(row => (
+                            <tr key={row.key}>
+                              <td>{row.labelEn}</td>
+                              <td>{row.areaKm2.toFixed(3)}</td>
+                              <td>{row.pct.toFixed(1)}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+
+                  <div className="si-aoi-report-card">
+                    <h3>Timeline</h3>
+                    <div className="si-aoi-report-chart-wrap" id={chartHostId}>
+                      {lineData ? <Line data={lineData} options={lineOptions as any} /> : null}
+                    </div>
+                  </div>
+
+                  <div className="si-aoi-report-card">
+                    <h3>AOI map — basemap + classification overlay</h3>
+                    {!mapOk ? (
+                      <p className="si-aoi-report-analysis">A Mapbox token is required to display the map.</p>
+                    ) : (
+                      <div className="si-aoi-report-map-wrap">
+                        <MapGL
+                          ref={mapRef}
+                          mapboxAccessToken={mapboxToken}
+                          mapStyle={reportMapStyle as string | StyleSpecification}
+                          initialViewState={{
+                            ...mapInitialView,
+                            bearing: 0,
+                            pitch: 0,
+                          }}
+                          style={{ width: '100%', height: '100%' }}
+                          reuseMaps
+                        >
+                          <NavigationControl position="top-right" showCompass={false} />
+                          <Source id="si-report-heatmap-cells" type="geojson" data={report.heatmapCellsGeoJson}>
+                            <Layer
+                              id="si-report-heatmap-fill"
+                              type="fill"
+                              paint={{
+                                'fill-color': ['coalesce', ['get', 'fill'], '#22c55e'],
+                                'fill-opacity': ['coalesce', ['get', 'opacity'], 0.42],
+                              }}
+                            />
+                          </Source>
+                          <Source id="si-report-aoi" type="geojson" data={report.aoiOutlineGeoJson}>
+                            <Layer
+                              id="si-report-aoi-line"
+                              type="line"
+                              paint={{ 'line-color': '#38bdf8', 'line-width': 2 }}
+                            />
+                          </Source>
+                        </MapGL>
+                      </div>
+                    )}
+                    <div className="si-aoi-report-map-legend">
+                      <span>
+                        <span className="si-aoi-report-legend-swatch" style={{ background: '#22c55e' }} />
+                        High vegetation health
+                      </span>
+                      <span>
+                        <span className="si-aoi-report-legend-swatch" style={{ background: '#eab308' }} />
+                        Medium vegetation health
+                      </span>
+                      <span>
+                        <span className="si-aoi-report-legend-swatch" style={{ background: '#ef4444' }} />
+                        Low / degraded
+                      </span>
+                      <span>
+                        <span
+                          className="si-aoi-report-legend-swatch"
+                          style={{ background: '#38bdf8', border: '1px solid #334155' }}
+                        />
+                        AOI outline
+                      </span>
+                    </div>
+                  </div>
+                </>
+              )}
             </div>
           ) : null}
         </div>

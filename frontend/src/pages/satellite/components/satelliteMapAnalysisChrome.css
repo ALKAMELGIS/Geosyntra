@@ -813,6 +813,10 @@ html[data-theme='light'] .si-map-analysis-tl-nudge:hover {
   line-height: 1.35;
 }
 
+.si-map-analysis-charts-subtitle--tight {
+  margin: 0 0 6px;
+}
+
 .si-map-analysis-charts-multiline {
   padding: 10px 14px 8px;
   border-bottom: 1px solid rgba(148, 163, 184, 0.12);

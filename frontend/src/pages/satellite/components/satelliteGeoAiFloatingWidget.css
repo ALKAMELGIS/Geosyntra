@@ -450,6 +450,88 @@
   display: none !important;
 }
 
+/* ─── Spatial Experience Engine (phase 1): map-centric canvas + right insight rail ─── */
+.si-geo-ai-float--spatial-workspace {
+  z-index: 135;
+  perspective: 1400px;
+  perspective-origin: 72% 42%;
+}
+
+.si-geo-ai-float--spatial-workspace .si-geo-ai-float-inner {
+  align-items: flex-end;
+  filter: drop-shadow(0 28px 55px rgba(0, 0, 0, 0.58));
+}
+
+.si-geo-ai-float-panel--spatial-workspace {
+  transform-style: preserve-3d;
+  animation: si-geo-ai-spatial-in 0.42s cubic-bezier(0.23, 1, 0.32, 1);
+  border-color: rgba(129, 140, 248, 0.32);
+  background: linear-gradient(
+    155deg,
+    rgba(15, 23, 42, 0.93) 0%,
+    rgba(17, 24, 39, 0.9) 42%,
+    rgba(30, 27, 75, 0.88) 100%
+  );
+  box-shadow:
+    0 36px 90px rgba(0, 0, 0, 0.58),
+    0 0 0 1px rgba(99, 102, 241, 0.14),
+    inset 0 1px 0 rgba(255, 255, 255, 0.07);
+}
+
+.si-geo-ai-float-panel--spatial-workspace::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  z-index: 0;
+  background: radial-gradient(120% 85% at 0% 18%, rgba(52, 211, 153, 0.09), transparent 58%);
+}
+
+@keyframes si-geo-ai-spatial-in {
+  from {
+    opacity: 0;
+    transform: translate3d(36px, 18px, -48px) rotateY(-7deg);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0) rotateY(0deg);
+  }
+}
+
+.si-geo-ai-float-panel--spatial-workspace.si-geo-ai-float-panel--dragging,
+.si-geo-ai-float-panel--spatial-workspace.si-geo-ai-float-panel--resizing {
+  animation: none;
+}
+
+.si-geo-ai-float--spatial-workspace .si-geo-ai-float-head,
+.si-geo-ai-float--spatial-workspace .si-geo-ai-float-body {
+  position: relative;
+  z-index: 1;
+}
+
+.si-geo-ai-float--spatial-workspace .si-geo-ai-float-sub {
+  font-size: 10px;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: rgba(199, 210, 254, 0.95);
+}
+
+.si-geo-ai-float--spatial-workspace .si-geo-explorer-messages .si-geo-explorer-bubble {
+  transition: transform 0.22s ease, box-shadow 0.22s ease;
+}
+
+.si-geo-ai-float--spatial-workspace .si-geo-explorer-messages .si-geo-explorer-bubble:hover {
+  transform: translate3d(-5px, 0, 3px);
+  box-shadow: 0 14px 32px rgba(0, 0, 0, 0.38);
+}
+
+.si-geo-ai-float--spatial-workspace .si-geo-explorer-composer-surface {
+  border-radius: 14px;
+  border-color: rgba(129, 140, 248, 0.28);
+  box-shadow: 0 -10px 36px rgba(0, 0, 0, 0.32);
+}
+
 @media (max-width: 520px) {
   .si-geo-ai-float {
     inset-inline-start: 12px;

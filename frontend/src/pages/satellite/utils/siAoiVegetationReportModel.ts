@@ -14,7 +14,6 @@ export type SiAoiReportTimePoint = { date: string; value: number };
 export type SiAoiReportTableRow = {
   key: SiAoiReportHealthKey;
   labelEn: string;
-  labelAr: string;
   pct: number;
   areaKm2: number;
 };
@@ -26,16 +25,19 @@ export type SiAoiReportModel = {
   dateStart: string;
   dateEnd: string;
   aoiAreaKm2: number;
-  summaryLinesAr: string[];
-  analysisAr: string;
-  tableRows: SiAoiReportTableRow[];
-  stressNoteAr: string | null;
+  summaryLinesEn: string[];
+  analysisEn: string;
+  stressNoteEn: string | null;
   timeSeries: SiAoiReportTimePoint[];
-  mapZonesGeoJson: GeoJSON.FeatureCollection;
+  /** Small square polygons inside the AOI — transparent classification “pixels” for map overlay. */
+  heatmapCellsGeoJson: GeoJSON.FeatureCollection;
   aoiOutlineGeoJson: GeoJSON.FeatureCollection;
+  /** Up to 12 ISO dates for change-detection map grid (evenly sampled from the series). */
+  changeDetectionDates: string[];
+  tableRows: SiAoiReportTableRow[];
 };
 
-/** Bounding box [west, south, east, north] in WGS84 for map fit / zone stripes. */
+/** Bounding box [west, south, east, north] in WGS84 for map fit / grids. */
 export function siAoiReportFeatureBBoxLngLat(geojson: GeoJSON.Feature): [number, number, number, number] | null {
   const points: [number, number][] = [];
   const walkCoords = (coords: unknown) => {
@@ -58,8 +60,8 @@ export function siAoiReportFeatureBBoxLngLat(geojson: GeoJSON.Feature): [number,
     walkCoords((g as GeoJSON.Polygon).coordinates);
   }
   if (points.length === 0) return null;
-  let [minX, minY] = points[0];
-  let [maxX, maxY] = points[0];
+  let [minX, minY] = points[0]!;
+  let [maxX, maxY] = points[0]!;
   for (let i = 1; i < points.length; i++) {
     const [x, y] = points[i]!;
     if (x < minX) minX = x;
@@ -68,6 +70,54 @@ export function siAoiReportFeatureBBoxLngLat(geojson: GeoJSON.Feature): [number,
     if (y > maxY) maxY = y;
   }
   return [minX, minY, maxX, maxY];
+}
+
+function pointInRing(lng: number, lat: number, ring: number[][]): boolean {
+  if (ring.length < 3) return false;
+  let inside = false;
+  for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+    const xi = ring[i]![0];
+    const yi = ring[i]![1];
+    const xj = ring[j]![0];
+    const yj = ring[j]![1];
+    const crosses = yi > lat !== yj > lat;
+    if (!crosses) continue;
+    const xInt = ((xj - xi) * (lat - yi)) / (yj - yi || 1e-12) + xi;
+    if (lng < xInt) inside = !inside;
+  }
+  return inside;
+}
+
+function pointInPolygonGeometry(lng: number, lat: number, g: GeoJSON.Polygon | GeoJSON.MultiPolygon): boolean {
+  if (g.type === 'Polygon') {
+    const outer = g.coordinates[0];
+    if (!outer || !pointInRing(lng, lat, outer)) return false;
+    for (let h = 1; h < g.coordinates.length; h++) {
+      const hole = g.coordinates[h];
+      if (hole && pointInRing(lng, lat, hole)) return false;
+    }
+    return true;
+  }
+  for (const poly of g.coordinates) {
+    const outer = poly[0];
+    if (!outer || !pointInRing(lng, lat, outer)) continue;
+    let inHole = false;
+    for (let h = 1; h < poly.length; h++) {
+      const hole = poly[h];
+      if (hole && pointInRing(lng, lat, hole)) inHole = true;
+    }
+    if (!inHole) return true;
+  }
+  return false;
+}
+
+function cellHash(lng: number, lat: number, seed: string): number {
+  const s = `${seed}|${lng.toFixed(6)}|${lat.toFixed(6)}`;
+  let h = 0;
+  for (let i = 0; i < s.length; i++) {
+    h = (Math.imul(31, h) + s.charCodeAt(i)) | 0;
+  }
+  return Math.abs(h) % 10000;
 }
 
 function weeksOverlappingRange(
@@ -105,46 +155,62 @@ function syntheticWeeksBetween(
   return out;
 }
 
-function buildZoneStripesInBounds(
+/** Semi-transparent square “pixels” clipped to AOI for classification overlay (client-side demo). */
+function buildPixelClassificationGrid(
+  geom: GeoJSON.Polygon | GeoJSON.MultiPolygon,
   bounds: [number, number, number, number],
+  seed: string,
   pHigh: number,
   pMed: number,
   pLow: number,
 ): GeoJSON.FeatureCollection {
   const [w, s, e, n] = bounds;
-  const dy = n - s;
-  let y0 = s;
-  const zones: GeoJSON.Feature[] = [];
-  const push = (zone: SiAoiReportHealthKey, pct: number, fill: string) => {
-    const h = (dy * pct) / 100;
-    const y1 = y0 + h;
-    const poly: GeoJSON.Polygon = {
-      type: 'Polygon',
-      coordinates: [
-        [
-          [w, y0],
-          [e, y0],
-          [e, y1],
-          [w, y1],
-          [w, y0],
+  const spanX = Math.max(1e-9, e - w);
+  const spanY = Math.max(1e-9, n - s);
+  const targetCells = 52;
+  const nx = Math.min(64, Math.max(24, Math.round((spanX / spanY) * targetCells)));
+  const ny = Math.min(64, Math.max(24, Math.round((spanY / spanX) * targetCells)));
+  const dx = spanX / nx;
+  const dy = spanY / ny;
+  const hx = dx * 0.45;
+  const hy = dy * 0.45;
+  const th1 = pHigh / 100;
+  const th2 = (pHigh + pMed) / 100;
+  const features: GeoJSON.Feature[] = [];
+  const cap = 2800;
+  for (let i = 0; i < nx; i++) {
+    for (let j = 0; j < ny; j++) {
+      if (features.length >= cap) break;
+      const cx = w + (i + 0.5) * dx;
+      const cy = s + (j + 0.5) * dy;
+      if (!pointInPolygonGeometry(cx, cy, geom)) continue;
+      const u = (cellHash(cx, cy, seed) % 10000) / 10000;
+      let cls: SiAoiReportHealthKey;
+      if (u < th1) cls = 'high';
+      else if (u < th2) cls = 'medium';
+      else cls = 'low';
+      const fill = cls === 'high' ? '#22c55e' : cls === 'medium' ? '#eab308' : '#ef4444';
+      const poly: GeoJSON.Polygon = {
+        type: 'Polygon',
+        coordinates: [
+          [
+            [cx - hx, cy - hy],
+            [cx + hx, cy - hy],
+            [cx + hx, cy + hy],
+            [cx - hx, cy + hy],
+            [cx - hx, cy - hy],
+          ],
         ],
-      ],
-    };
-    zones.push({
-      type: 'Feature',
-      properties: { zone, health: zone, fill, pct: Number(pct.toFixed(1)) },
-      geometry: poly,
-    });
-    y0 = y1;
-  };
-  const sum = pHigh + pMed + pLow || 1;
-  const h = (100 * pHigh) / sum;
-  const m = (100 * pMed) / sum;
-  const l = (100 * pLow) / sum;
-  push('low', l, '#991b1b');
-  push('medium', m, '#ca8a04');
-  push('high', h, '#15803d');
-  return { type: 'FeatureCollection', features: zones };
+      };
+      features.push({
+        type: 'Feature',
+        properties: { cls, fill, opacity: 0.42 },
+        geometry: poly,
+      });
+    }
+    if (features.length >= cap) break;
+  }
+  return { type: 'FeatureCollection', features };
 }
 
 function classifyHealthPercents(
@@ -185,15 +251,15 @@ function classifyHealthPercents(
       low -= 2;
     }
   }
-  const s = high + med + low;
+  const sum = high + med + low;
   return {
-    high: (100 * high) / s,
-    med: (100 * med) / s,
-    low: (100 * low) / s,
+    high: (100 * high) / sum,
+    med: (100 * med) / sum,
+    low: (100 * low) / sum,
   };
 }
 
-function detectStressAr(indexId: StaticAoiChartLayerId, series: SiAoiReportTimePoint[]): string | null {
+function detectStressEn(indexId: StaticAoiChartLayerId, series: SiAoiReportTimePoint[]): string | null {
   const vals = series.map(s => s.value);
   if (vals.length < 2) return null;
   const min = Math.min(...vals);
@@ -202,17 +268,38 @@ function detectStressAr(indexId: StaticAoiChartLayerId, series: SiAoiReportTimeP
     maxDrop = Math.max(maxDrop, vals[i - 1]! - vals[i]!);
   }
   if (indexId !== 'LST' && (min < 0.12 || maxDrop > 0.18)) {
-    return 'يُرصد احتمال إجهاد نباتي أو تراجع حاد في المؤشر خلال الفترة؛ يُنصح بمراجعة مشاهد ميدانية ومقارنة مع مناطق مرجعية.'
+    return 'Possible vegetation stress or a sharp index drop was detected in this window — validate with field checks and reference areas.';
   }
   if (indexId === 'LST' && min > 38) {
-    return 'ارتفاع محتمل في درجة حرارة الغطاء قد يرتبط بضغط حراري؛ راقب توقيت الري وحالة التربة.'
+    return 'Elevated canopy temperature may indicate heat stress — review irrigation timing and soil moisture.';
   }
   return null;
 }
 
+function buildChangeDetectionDates(weekDates: string[], max = 12): string[] {
+  const uniq = [...new Set(weekDates)].sort();
+  if (uniq.length === 0) {
+    return Array.from({ length: max }, () => '—');
+  }
+  if (uniq.length >= max) {
+    const out: string[] = [];
+    for (let i = 0; i < max; i++) {
+      const idx = Math.round((i / (max - 1)) * (uniq.length - 1));
+      out.push(uniq[idx]!);
+    }
+    return out;
+  }
+  const out = [...uniq];
+  const last = uniq[uniq.length - 1]!;
+  while (out.length < max) {
+    out.push(last);
+  }
+  return out.slice(0, max);
+}
+
 /**
- * Builds a client-side AOI vegetation report (sample analytics) aligned with the static chart synthetic engine.
- * Replace with API-backed zonal stats when a backend is available.
+ * Client-side AOI vegetation report (demo analytics) aligned with the static chart engine.
+ * Replace with API-backed zonal stats for production.
  */
 export function buildSiAoiVegetationReport(input: {
   weekly: Array<{ startDate: string; endDate: string; mean: number }>;
@@ -248,54 +335,54 @@ export function buildSiAoiVegetationReport(input: {
     {
       key: 'high',
       labelEn: 'High vegetation health',
-      labelAr: 'صحة نباتية عالية',
       pct: high,
       areaKm2: (aoiAreaKm2 * high) / 100,
     },
     {
       key: 'medium',
       labelEn: 'Medium vegetation health',
-      labelAr: 'صحة نباتية متوسطة',
       pct: med,
       areaKm2: (aoiAreaKm2 * med) / 100,
     },
     {
       key: 'low',
       labelEn: 'Low / degraded',
-      labelAr: 'منخفضة / متدهورة',
       pct: low,
       areaKm2: (aoiAreaKm2 * low) / 100,
     },
   ];
 
   const bounds = siAoiReportFeatureBBoxLngLat(aoiFeature);
-  const mapZonesGeoJson = bounds
-    ? buildZoneStripesInBounds(bounds, high, med, low)
-    : { type: 'FeatureCollection' as const, features: [] };
+  const heatmapCellsGeoJson =
+    bounds && (g.type === 'Polygon' || g.type === 'MultiPolygon')
+      ? buildPixelClassificationGrid(g as GeoJSON.Polygon | GeoJSON.MultiPolygon, bounds, aoiKey, high, med, low)
+      : { type: 'FeatureCollection' as const, features: [] };
 
   const aoiOutlineGeoJson: GeoJSON.FeatureCollection = {
     type: 'FeatureCollection',
     features: [aoiFeature as GeoJSON.Feature],
   };
 
-  const stressNoteAr = detectStressAr(indexId, timeSeries);
+  const stressNoteEn = detectStressEn(indexId, timeSeries);
 
   const meanStr = mean.toFixed(3);
-  const summaryLinesAr = [
-    `تم تحليل منطقة الاهتمام «${aoiName}» باستخدام مؤشر ${opt.label} بين ${dateStart} و${dateEnd}.`,
-    `متوسط المؤشر على مستوى الفترة ≈ ${meanStr} (قيم تجريبية مرتبطة بالمخطط الزمني حتى ربط الخادم).`,
-    'يُظهر التوزيع الزمني اتجاهاً عاماً لحالة الغطاء النباتي داخل حدود المضلع.',
-    'فئات الصحة (عالية / متوسطة / منخفضة) تُقدَّر نسبياً من شكل السلسلة الزمنية ونطاق المؤشر.',
-    stressNoteAr
-      ? 'تنبيه: رُصدت قيم شاذة أو تغيرات حادة تستدعي تدقيقاً ميدانياً.'
-      : 'لم تُسجَّل مؤشرات شاذة قوية ضمن هذه العينة الرقمية.',
+  const summaryLinesEn = [
+    `Area of interest "${aoiName}" was analyzed using ${opt.label} between ${dateStart} and ${dateEnd}.`,
+    `Period mean index ≈ ${meanStr} (client-side demo values tied to the timeline until a zonal-stats service is connected).`,
+    'The temporal pattern indicates a general vegetation signal within the polygon boundary.',
+    'Health shares (high / medium / low) are heuristics derived from the index trajectory and range.',
+    stressNoteEn
+      ? 'Alert: abrupt changes or outlier-like behaviour were flagged — confirm in the field if operational decisions depend on this view.'
+      : 'No strong outlier pattern was flagged in this numeric sample.',
   ];
 
-  const analysisAr = `تحليل مؤشر ${opt.label}: ${opt.subtitle}. بناءً على المتوسط ${meanStr} والتباين خلال الأسابيع المعروضة، تُصنَّف مساحة المضلع تقريبياً إلى صحة عالية (${high.toFixed(
+  const analysisEn = `${opt.label} (${opt.subtitle}): with a period mean of ${meanStr} and variability across the displayed weeks, the AOI area is apportioned approximately ${high.toFixed(
     1,
-  )}%) ومتوسطة (${med.toFixed(1)}%) ومنخفضة (${low.toFixed(
+  )}% high health, ${med.toFixed(1)}% medium, and ${low.toFixed(
     1,
-  )}%). هذه النتائج مولَّدة على العميل للعرض التجريبي ويجب استبدالها بإحصاءات زونية حقيقية عند الاتصال بالخدمة الخلفية.`;
+  )}% low / degraded (illustrative client-side split). Replace with true zonal statistics from your backend for enterprise reporting.`;
+
+  const changeDetectionDates = buildChangeDetectionDates(timeSeries.map(t => t.date), 12);
 
   return {
     indexId,
@@ -304,14 +391,61 @@ export function buildSiAoiVegetationReport(input: {
     dateStart,
     dateEnd,
     aoiAreaKm2,
-    summaryLinesAr,
-    analysisAr,
-    tableRows,
-    stressNoteAr,
+    summaryLinesEn,
+    analysisEn,
+    stressNoteEn,
     timeSeries,
-    mapZonesGeoJson,
+    heatmapCellsGeoJson,
     aoiOutlineGeoJson,
+    changeDetectionDates,
+    tableRows,
   };
+}
+
+function addChangeDetectionPageGrid(doc: jsPDF, dates: string[], margin: number) {
+  doc.addPage();
+  let y = margin;
+  doc.setFontSize(14);
+  doc.setTextColor(15, 23, 42);
+  doc.text('Time Series Change Detection Map', margin, y);
+  y += 22;
+  doc.setFontSize(9);
+  doc.setTextColor(71, 85, 105);
+  const note = doc.splitTextToSize(
+    'Twelve snapshot slots (3 × 4) for the analysis window. Connect STAC / your imagery pipeline to render true per-date rasters; this PDF lists dates and placeholders only.',
+    520,
+  );
+  doc.text(note, margin, y);
+  y += note.length * 11 + 14;
+
+  const cols = 3;
+  const rows = 4;
+  const gap = 10;
+  const usableW = 520;
+  const usableH = 620 - y;
+  const cellW = (usableW - gap * (cols - 1)) / cols;
+  const cellH = (usableH - gap * (rows - 1)) / rows;
+
+  for (let r = 0; r < rows; r++) {
+    for (let c = 0; c < cols; c++) {
+      const idx = r * cols + c;
+      const dt = dates[idx] ?? '—';
+      const x = margin + c * (cellW + gap);
+      const yy = y + r * (cellH + gap);
+      doc.setDrawColor(148, 163, 184);
+      doc.setLineWidth(0.6);
+      doc.roundedRect(x, yy, cellW, cellH, 4, 4, 'S');
+      doc.setFillColor(241, 245, 249);
+      doc.roundedRect(x + 2, yy + 2, cellW - 4, cellH - 4, 3, 3, 'F');
+      doc.setFontSize(10);
+      doc.setTextColor(30, 41, 59);
+      doc.text(dt, x + 8, yy + 18);
+      doc.setFontSize(8);
+      doc.setTextColor(100, 116, 139);
+      const cap = doc.splitTextToSize('AOI + basemap + scene (integrate imagery service).', cellW - 16);
+      doc.text(cap, x + 8, yy + 32);
+    }
+  }
 }
 
 export function exportSiAoiVegetationReportPdf(report: SiAoiReportModel, chartImageDataUrl?: string | null) {
@@ -320,7 +454,8 @@ export function exportSiAoiVegetationReportPdf(report: SiAoiReportModel, chartIm
   let y = margin;
 
   doc.setFontSize(16);
-  doc.text('AOI vegetation report (sample analytics)', margin, y);
+  doc.setTextColor(15, 23, 42);
+  doc.text('AOI Vegetation Intelligence Report', margin, y);
   y += 28;
   doc.setFontSize(10);
   doc.text(`AOI: ${report.aoiName}`, margin, y);
@@ -331,23 +466,30 @@ export function exportSiAoiVegetationReportPdf(report: SiAoiReportModel, chartIm
   y += 22;
 
   doc.setFontSize(11);
-  doc.text('Summary (preview — Arabic in web UI)', margin, y);
+  doc.text('Executive summary', margin, y);
   y += 16;
   doc.setFontSize(9);
-  report.summaryLinesAr.forEach(line => {
+  report.summaryLinesEn.forEach(line => {
     const wrapped = doc.splitTextToSize(line, 520);
     doc.text(wrapped, margin, y);
     y += wrapped.length * 11 + 4;
   });
   y += 8;
 
-  doc.setFontSize(10);
-  const analysisEn = doc.splitTextToSize(
-    'Scientific note: values are client-side placeholders tied to the AOI static chart engine. Connect a zonal-stats API for operational reporting.',
-    520,
-  );
-  doc.text(analysisEn, margin, y);
-  y += analysisEn.length * 11 + 12;
+  doc.setFontSize(11);
+  doc.text('Scientific analysis', margin, y);
+  y += 14;
+  doc.setFontSize(9);
+  const analysisWrap = doc.splitTextToSize(report.analysisEn, 520);
+  doc.text(analysisWrap, margin, y);
+  y += analysisWrap.length * 11 + 6;
+  if (report.stressNoteEn) {
+    doc.setTextColor(154, 52, 18);
+    const st = doc.splitTextToSize(`Stress note: ${report.stressNoteEn}`, 520);
+    doc.text(st, margin, y);
+    y += st.length * 11 + 8;
+    doc.setTextColor(15, 23, 42);
+  }
 
   autoTable(doc, {
     startY: y,
@@ -369,7 +511,13 @@ export function exportSiAoiVegetationReportPdf(report: SiAoiReportModel, chartIm
 
   doc.setFontSize(8);
   doc.setTextColor(120);
-  doc.text('Map: classified bands are illustrative within the AOI bounding box.', margin, Math.min(y, 760));
+  doc.text(
+    'Map overlay: semi-transparent pixel-style classification grid clipped to the AOI (demo). Basemap in the app should match your active Satellite Intelligence style.',
+    margin,
+    Math.min(y, 740),
+  );
+
+  addChangeDetectionPageGrid(doc, report.changeDetectionDates, margin);
 
   const stamp = new Date().toISOString().replace(/[:.]/g, '-');
   doc.save(`aoi-vegetation-report-${stamp}.pdf`);

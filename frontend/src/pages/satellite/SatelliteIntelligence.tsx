@@ -10287,7 +10287,7 @@ export default function SatelliteIntelligence() {
       return multiAoiItems.map(r => ({ id: r.id, name: r.name, feature: r.feature as GeoJSON.Feature }));
     }
     if (drawnGeometry?.geometry) {
-      return [{ id: '__drawn', name: 'منطقة الرسم الحالية', feature: drawnGeometry as GeoJSON.Feature }];
+      return [{ id: '__drawn', name: 'Current drawn AOI', feature: drawnGeometry as GeoJSON.Feature }];
     }
     return [] as Array<{ id: string; name: string; feature: GeoJSON.Feature }>;
   }, [multiAoiItems, drawnGeometry]);
@@ -10304,7 +10304,7 @@ export default function SatelliteIntelligence() {
 
   const openSiAoiVegetationReport = useCallback(() => {
     if (!multiAoiItems.length && !drawnGeometry?.geometry) {
-      void appAlert('ارسم منطقة اهتمام أو أضف AOI إلى مساحة العمل قبل توليد التقرير.', {
+      void appAlert('Draw an area of interest on the map or add an AOI to the workspace before generating the report.', {
         title: 'Generate report',
       });
       return;
@@ -12134,6 +12134,7 @@ export default function SatelliteIntelligence() {
             aoiOptions={siAoiReportAoiOptions}
             mapboxToken={mapboxToken}
             preferredAoiId={siAoiReportPreferredAoiId}
+            reportMapStyle={effectiveMapStyle}
           />
 
           {false && aoiHeatPointGeoJson?.features?.length ? (
