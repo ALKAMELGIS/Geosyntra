@@ -456,6 +456,8 @@ export function ScrollGlobe({ sections, globeConfig = defaultGlobeConfig, classN
         const welcomeVisualRhythm = index === 0 || index === 1
         /** Innovation beat: globe sits at viewport center (`defaultGlobeConfig` index 1); stack copy under it as one caption column. */
         const innovationGlobeStack = section.id === 'innovation'
+        /** Welcome hero — anchor copy toward the top so it scrolls out before Innovation fills the viewport (avoids hero bleed on section 2). */
+        const welcomeHeroAnchorTop = section.id === 'hero'
         return (
         <section
           key={section.id}
@@ -469,7 +471,9 @@ export function ScrollGlobe({ sections, globeConfig = defaultGlobeConfig, classN
             'w-full max-w-full overflow-hidden pointer-events-none',
             innovationGlobeStack &&
               'justify-start items-center text-center pt-[clamp(7.5rem,38vh,20rem)] sm:pt-[clamp(8.5rem,42vh,23rem)] md:pt-[clamp(9.5rem,46vh,26rem)] lg:pt-[clamp(10rem,48vh,28rem)]',
-            !innovationGlobeStack && 'justify-center',
+            welcomeHeroAnchorTop &&
+              'justify-start pt-[clamp(2.25rem,8vh,5.5rem)] sm:pt-[clamp(2.75rem,10vh,6.5rem)] md:pt-[clamp(3rem,11vh,7.25rem)] lg:pt-[clamp(3.25rem,12vh,8rem)]',
+            !innovationGlobeStack && !welcomeHeroAnchorTop && 'justify-center',
             !innovationGlobeStack && section.align === 'center' && 'items-center text-center',
             !innovationGlobeStack && section.align === 'right' && 'items-end text-right',
             !innovationGlobeStack && section.align !== 'center' && section.align !== 'right' && 'items-start text-left',
