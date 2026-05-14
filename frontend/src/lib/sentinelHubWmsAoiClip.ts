@@ -17,6 +17,7 @@ export type WmsAoiEvalProfile =
   | 'native'
   | 'true_color'
   | 'false_color'
+  | 'swir'
   | 'ndvi'
   | 'gndvi'
   | 'ndmi'
@@ -134,7 +135,8 @@ export function inferWmsEvalProfile(layerName: string): WmsAoiEvalProfile {
   if (u.includes('EVI') && !u.includes('NEVI')) return 'evi';
   if (u.includes('NDMI') || u.includes('MOISTURE')) return 'ndmi';
   if (u.includes('NDWI') || u.includes('MNDWI') || u.includes('WATER')) return 'ndwi';
-  if (u.includes('FALSE') || u.includes('SWIR') || u.includes('COLOR_INFRARED')) return 'false_color';
+  if (u.includes('SWIR') && !u.includes('FALSE')) return 'swir';
+  if (u.includes('FALSE') || u.includes('COLOR_INFRARED')) return 'false_color';
   if (u.includes('TRUE') || u.includes('NATURAL') || u.includes('RGB')) return 'true_color';
   return 'native';
 }
@@ -209,6 +211,22 @@ function evaluatePixel(s) {
     Math.max(0, Math.min(1, s.B08 * 2.5)),
     Math.max(0, Math.min(1, s.B04 * 2.5)),
     Math.max(0, Math.min(1, s.B03 * 2.5)),
+    s.dataMask
+  ];
+}`;
+    case 'swir':
+      return `//VERSION=3
+function setup() {
+  return {
+    input: ["B02", "B04", "B8A", "B12", "dataMask"],
+    output: { bands: 4, sampleType: "AUTO" }
+  };
+}
+function evaluatePixel(s) {
+  return [
+    Math.max(0, Math.min(1, s.B12 * 2.5)),
+    Math.max(0, Math.min(1, s.B8A * 2.5)),
+    Math.max(0, Math.min(1, s.B04 * 2.5)),
     s.dataMask
   ];
 }`;

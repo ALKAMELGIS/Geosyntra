@@ -962,6 +962,113 @@ main.content > .si-page {
   border: 1px solid rgba(74, 222, 128, 0.35);
 }
 
+.si-wms-index-class-legend__badge--composite {
+  color: #bae6fd;
+  background: rgba(14, 165, 233, 0.2);
+  border-color: rgba(56, 189, 248, 0.38);
+}
+
+.si-wms-index-class-legend__live {
+  margin: 0 0 8px;
+  padding: 7px 9px;
+  border-radius: 10px;
+  background: rgba(0, 0, 0, 0.28);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.si-wms-index-class-legend__live-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 6px 10px;
+  font-size: 10px;
+  line-height: 1.35;
+}
+
+.si-wms-index-class-legend__live-k {
+  flex: 0 0 auto;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  font-size: 8px;
+  color: #94a3b8;
+}
+
+.si-wms-index-class-legend__live-v {
+  flex: 1 1 auto;
+  font-variant-numeric: tabular-nums;
+  color: #e2e8f0;
+  font-weight: 650;
+  min-width: 0;
+}
+
+.si-wms-index-class-legend__live-playing {
+  flex: 0 0 auto;
+  font-size: 8px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  padding: 2px 6px;
+  border-radius: 999px;
+  color: #a5f3fc;
+  background: rgba(6, 182, 212, 0.2);
+  border: 1px solid rgba(34, 211, 238, 0.35);
+  animation: si-wms-legend-pulse 1.4s ease-in-out infinite;
+}
+
+@keyframes si-wms-legend-pulse {
+  0%,
+  100% {
+    opacity: 0.85;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+.si-wms-index-class-legend__live-row--stats .si-wms-index-class-legend__live-v {
+  font-size: 9px;
+  font-weight: 600;
+  color: #cbd5e1;
+}
+
+.si-wms-index-class-legend__stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  font-size: 9px;
+  font-variant-numeric: tabular-nums;
+  color: #a5b4fc;
+  font-weight: 700;
+  padding-top: 2px;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+  margin-top: 2px;
+}
+
+.si-wms-index-class-legend__body--composite {
+  align-items: stretch;
+}
+
+.si-wms-index-class-legend__composite-strip {
+  display: flex;
+  width: 14px;
+  min-height: 120px;
+  flex-direction: column;
+  border-radius: 6px;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  flex-shrink: 0;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.12);
+}
+
+.si-wms-index-class-legend__composite-seg {
+  flex: 1;
+  min-height: 0;
+}
+
 .si-wms-index-class-legend__hint {
   margin: 0 0 10px;
   font-size: 10px;
@@ -3298,17 +3405,6 @@ html[data-theme='light'] .si-env-layer-options-menu__item > i {
   width: 100%;
   flex-wrap: wrap;
   overflow: visible;
-}
-
-.si-env-layer-actions--wms {
-  border-top-color: rgba(52, 211, 153, 0.22);
-}
-
-.si-env-layer-actions-wms-hint {
-  font-size: 10px;
-  font-weight: 650;
-  color: #86efac;
-  letter-spacing: 0.03em;
 }
 
 .si-env-layer-action-btn {
@@ -8038,83 +8134,6 @@ html[data-theme='light'] .si-sat-ctx-rail-btn__badge {
   line-height: 1.4;
 }
 
-.si-rs-sym-panel-bar {
-  margin-top: 10px;
-  min-width: 0;
-}
-
-.si-rs-sym-panel-toggle {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  width: 100%;
-  box-sizing: border-box;
-  padding: 10px 12px;
-  border-radius: 12px;
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  background: linear-gradient(145deg, rgba(30, 41, 59, 0.75), rgba(15, 23, 42, 0.65));
-  color: #e2e8f0;
-  cursor: pointer;
-  text-align: left;
-  font: inherit;
-  transition: border-color 0.18s ease, box-shadow 0.18s ease, background 0.18s ease;
-}
-
-.si-rs-sym-panel-toggle:hover:not(:disabled) {
-  border-color: rgba(34, 211, 153, 0.4);
-  box-shadow: 0 6px 20px rgba(34, 197, 94, 0.12);
-}
-
-.si-rs-sym-panel-toggle--on {
-  border-color: rgba(34, 211, 153, 0.45);
-  background: linear-gradient(145deg, rgba(22, 78, 58, 0.35), rgba(15, 23, 42, 0.85));
-}
-
-.si-rs-sym-panel-toggle:disabled {
-  opacity: 0.45;
-  cursor: not-allowed;
-}
-
-.si-rs-sym-panel-toggle__ico {
-  position: relative;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 40px;
-  height: 40px;
-  flex-shrink: 0;
-  border-radius: 10px;
-  background: rgba(0, 0, 0, 0.25);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-}
-
-.si-rs-sym-panel-toggle__ico > .fa-palette {
-  font-size: 17px;
-}
-
-.si-rs-sym-panel-toggle__sub {
-  position: absolute;
-  right: 4px;
-  bottom: 4px;
-  font-size: 10px;
-  opacity: 0.95;
-}
-
-.si-rs-sym-panel-toggle__txt {
-  flex: 1 1 auto;
-  min-width: 0;
-  font-size: 13px;
-  font-weight: 650;
-  letter-spacing: 0.01em;
-  color: #f1f5f9;
-}
-
-.si-rs-sym-panel-toggle__chev {
-  flex-shrink: 0;
-  font-size: 12px;
-  color: #94a3b8;
-}
-
 .si-multi-aoi-popup {
   min-width: 240px;
   max-width: min(300px, calc(100vw - 24px));
@@ -8465,6 +8484,66 @@ html[data-theme='light'] .si-sat-ctx-rail-btn__badge {
 .si-rs-aoi-layer-toggle--disabled {
   opacity: 0.45;
   cursor: not-allowed;
+}
+
+.si-rs-aoi-layer-list {
+  max-height: min(52vh, 320px);
+  overflow-y: auto;
+  margin-bottom: 10px;
+  padding: 8px;
+  border-radius: 12px;
+  border: 1px solid rgba(148, 163, 184, 0.2);
+  background: linear-gradient(165deg, rgba(2, 6, 23, 0.55), rgba(15, 23, 42, 0.42));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  backdrop-filter: blur(10px) saturate(1.1);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(148, 163, 184, 0.45) transparent;
+}
+
+.si-rs-aoi-layer-list__row {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 8px 10px;
+  padding: 7px 9px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  background: rgba(0, 0, 0, 0.2);
+  cursor: pointer;
+  user-select: none;
+  transition:
+    background 0.15s ease,
+    border-color 0.15s ease;
+}
+
+.si-rs-aoi-layer-list__row:hover {
+  background: rgba(255, 255, 255, 0.06);
+  border-color: rgba(148, 163, 184, 0.22);
+}
+
+.si-rs-aoi-layer-list__row input {
+  accent-color: #38bdf8;
+}
+
+.si-rs-aoi-layer-list__label {
+  font-size: 11px;
+  font-weight: 650;
+  color: #e2e8f0;
+  line-height: 1.3;
+  min-width: 0;
+}
+
+.si-rs-aoi-layer-list__id {
+  font-size: 9px;
+  font-weight: 600;
+  color: rgba(148, 163, 184, 0.85);
+  max-width: 38%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .si-rs-aoi-workspace-card__muted {

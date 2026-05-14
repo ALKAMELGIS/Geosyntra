@@ -31,18 +31,17 @@ export const SI_NDVI_CLASSIFICATION_STOPS: readonly IndexRampStop[] = [
   [1, 0x004400],
 ] as const
 
-/** NDWI (McFeeters): dry / bare → mixed → open water (blue ramp). */
+/**
+ * NDWI (McFeeters, B03/B08) — Sentinel Hub custom-script style ramp:
+ * vegetation / dry → neutral → open water (see Sentinel-2 index scripts).
+ * @see https://custom-scripts.sentinel-hub.com/custom-scripts/sentinel/sentinel-2/#popular-rgb-composites
+ */
 export const SI_NDWI_CLASSIFICATION_STOPS: readonly IndexRampStop[] = [
-  [-1.0, 0x1a0f0a],
-  [-0.6, 0x4a2c1a],
-  [-0.3, 0x8b5a2b],
-  [-0.1, 0xc4a574],
-  [0.0, 0xe8e2c6],
-  [0.15, 0xb8dce8],
-  [0.35, 0x5fa8d3],
-  [0.55, 0x2a78b8],
-  [0.75, 0x154f8f],
-  [1.0, 0x0a2542],
+  [-1.0, 0x004000],
+  [-0.8, 0x008000],
+  [0, 0xffffff],
+  [0.8, 0x0000cc],
+  [1.0, 0x000066],
 ] as const
 
 /** GNDVI — same vegetation semantics as NDVI ramp. */
