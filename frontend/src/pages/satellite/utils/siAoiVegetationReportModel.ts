@@ -75,6 +75,39 @@ export type SiAoiDataInsightsBundle = {
   executiveSummaryAi: string | null;
 };
 
+/** Colours for the three-class AOI heatmap / legend (aligned with Symbology ramp when provided). */
+export type SiAoiClassificationPalette = {
+  high: string;
+  medium: string;
+  low: string;
+  aoiOutline: string;
+};
+
+export const DEFAULT_SI_AOI_CLASSIFICATION_PALETTE: SiAoiClassificationPalette = {
+  high: '#22c55e',
+  medium: '#eab308',
+  low: '#ef4444',
+  aoiOutline: '#38bdf8',
+};
+
+/**
+ * Derive high / medium / low class colours from WMS symbology ramp stops (low index → first stop, high → last).
+ */
+export function siAoiPaletteFromIndexRampStops(
+  stops: ReadonlyArray<readonly [number, number]> | null | undefined,
+): SiAoiClassificationPalette | undefined {
+  if (!stops || stops.length < 2) return undefined;
+  const sorted = [...stops].sort((a, b) => a[0] - b[0]);
+  const toCss = (rgbInt: number) => {
+    const u = rgbInt >>> 0;
+    return `#${(u & 0xffffff).toString(16).padStart(6, '0')}`;
+  };
+  const low = toCss(sorted[0]![1]);
+  const high = toCss(sorted[sorted.length - 1]![1]);
+  const medium = toCss(sorted[Math.floor((sorted.length - 1) / 2)]![1]);
+  return { low, medium, high, aoiOutline: DEFAULT_SI_AOI_CLASSIFICATION_PALETTE.aoiOutline };
+}
+
 export type SiAoiReportModel = {
   indexId: StaticAoiChartLayerId;
   indexLabel: string;
@@ -94,6 +127,8 @@ export type SiAoiReportModel = {
   tableRows: SiAoiReportTableRow[];
   /** Enterprise dashboard payload (indices table + KPIs + chart series). */
   dataInsights: SiAoiDataInsightsBundle;
+  /** Palette used for heatmaps, pie slices, and PDF legend (mirrors Symbology when passed into report build). */
+  classificationPalette: SiAoiClassificationPalette;
 };
 
 /** Bounding box [west, south, east, north] in WGS84 for map fit / grids. */
@@ -230,6 +265,7 @@ function buildPixelClassificationGrid(
   pHigh: number,
   pMed: number,
   pLow: number,
+  palette: SiAoiClassificationPalette,
   maxFeatures = 2800,
 ): GeoJSON.FeatureCollection {
   const [w, s, e, n] = bounds;
@@ -257,7 +293,7 @@ function buildPixelClassificationGrid(
       if (u < th1) cls = 'high';
       else if (u < th2) cls = 'medium';
       else cls = 'low';
-      const fill = cls === 'high' ? '#22c55e' : cls === 'medium' ? '#eab308' : '#ef4444';
+      const fill = cls === 'high' ? palette.high : cls === 'medium' ? palette.medium : palette.low;
       const poly: GeoJSON.Polygon = {
         type: 'Polygon',
         coordinates: [
@@ -385,15 +421,16 @@ function buildChangeDetectionSlots(input: {
   aoiKey: string;
   /** Full-series spread for classification rule parity with summary table. */
   seriesSpread: number;
+  palette: SiAoiClassificationPalette;
 }): SiAoiChangeDetectionSlot[] {
-  const { dates, timeSeries, indexId, geom, bounds, aoiKey, seriesSpread } = input;
+  const { dates, timeSeries, indexId, geom, bounds, aoiKey, seriesSpread, palette } = input;
   const out: SiAoiChangeDetectionSlot[] = [];
   const maxPerTile = 1100;
   for (const date of dates) {
     const indexMean = valueForChangeSlotDate(date, timeSeries);
     const { high, med, low } = classifyPercentsFromMeanAndSpread(indexId, indexMean, seriesSpread);
     const seed = `${aoiKey}|${date}|${indexId}`;
-    const heatmapCellsGeoJson = buildPixelClassificationGrid(geom, bounds, seed, high, med, low, maxPerTile);
+    const heatmapCellsGeoJson = buildPixelClassificationGrid(geom, bounds, seed, high, med, low, palette, maxPerTile);
     const stats = aggregateSlotStats(heatmapCellsGeoJson.features, indexMean, indexId, date);
     out.push({
       date,
@@ -461,6 +498,7 @@ export function buildSiAoiDataInsightsBundle(
   weeks: Array<{ startDate: string; endDate: string; mean: number }>,
   aoiKey: string,
   classificationRows: SiAoiReportTableRow[],
+  palette: SiAoiClassificationPalette,
 ): SiAoiDataInsightsBundle {
   const n = Math.max(1, weeks.length);
   const ids: SiAoiIndexInsightId[] = ['NDVI', 'NDWI', 'SAVI', 'LST'];
@@ -513,9 +551,21 @@ export function buildSiAoiDataInsightsBundle(
       urbanExpansionPct: Number((Math.max(0, -vegChange) * 0.22 + 2.5).toFixed(1)),
       barSeries,
       pieSlices: [
-        { label: 'High vigor', pct: high, color: '#16a34a' },
-        { label: 'Medium', pct: med, color: '#ca8a04' },
-        { label: 'Low / stress', pct: low, color: '#dc2626' },
+        {
+          label: classificationRows.find(t => t.key === 'high')?.labelEn ?? 'High vigor',
+          pct: high,
+          color: palette.high,
+        },
+        {
+          label: classificationRows.find(t => t.key === 'medium')?.labelEn ?? 'Medium',
+          pct: med,
+          color: palette.medium,
+        },
+        {
+          label: classificationRows.find(t => t.key === 'low')?.labelEn ?? 'Low / stress',
+          pct: low,
+          color: palette.low,
+        },
       ],
       sparkNdvi: ndviVals,
     },
@@ -555,6 +605,8 @@ export function buildSiAoiVegetationReport(input: {
   dateEnd: string;
   aoiFeature: GeoJSON.Feature;
   aoiName: string;
+  /** Optional override merged onto default class colours (from Symbology ramp). */
+  classificationPalette?: Partial<SiAoiClassificationPalette>;
   /** Optional RS processing narrative appended to the executive summary block. */
   processingContext?: {
     cloudCoverMaxPct: number;
@@ -562,9 +614,11 @@ export function buildSiAoiVegetationReport(input: {
     crsNote?: string;
   };
 }): SiAoiReportModel | null {
-  const { weekly, indexId, dateStart, dateEnd, aoiFeature, aoiName, processingContext } = input;
+  const { weekly, indexId, dateStart, dateEnd, aoiFeature, aoiName, processingContext, classificationPalette: paletteIn } = input;
   const g = aoiFeature.geometry as { type?: string } | undefined;
   if (!g || (g.type !== 'Polygon' && g.type !== 'MultiPolygon')) return null;
+
+  const palette: SiAoiClassificationPalette = { ...DEFAULT_SI_AOI_CLASSIFICATION_PALETTE, ...paletteIn };
 
   const areaHa = geodesicAreaHectares(aoiFeature.geometry as any);
   const aoiAreaKm2 = areaHa / 100;
@@ -620,6 +674,7 @@ export function buildSiAoiVegetationReport(input: {
           bounds,
           aoiKey,
           seriesSpread,
+          palette,
         })
       : changeDetectionDates.map(date => ({
           date,
@@ -639,7 +694,7 @@ export function buildSiAoiVegetationReport(input: {
 
   const heatmapCellsGeoJson =
     bounds && (g.type === 'Polygon' || g.type === 'MultiPolygon')
-      ? buildPixelClassificationGrid(g as GeoJSON.Polygon | GeoJSON.MultiPolygon, bounds, aoiKey, high, med, low)
+      ? buildPixelClassificationGrid(g as GeoJSON.Polygon | GeoJSON.MultiPolygon, bounds, aoiKey, high, med, low, palette)
       : { type: 'FeatureCollection' as const, features: [] };
 
   const aoiOutlineGeoJson: GeoJSON.FeatureCollection = {
@@ -649,7 +704,7 @@ export function buildSiAoiVegetationReport(input: {
 
   const stressNoteEn = detectStressEn(indexId, timeSeries);
 
-  const meanStr = mean.toFixed(3);
+  const meanStr = indexId === 'LST' ? mean.toFixed(1) : mean.toFixed(3);
   const summaryLinesEn = [
     `Area of interest "${aoiName}" was analyzed using ${opt.label} between ${dateStart} and ${dateEnd}.`,
     `Period mean index ≈ ${meanStr} (client-side demo values tied to the timeline until a zonal-stats service is connected).`,
@@ -675,7 +730,7 @@ export function buildSiAoiVegetationReport(input: {
     1,
   )}% low / degraded (illustrative client-side split). Replace with true zonal statistics from your backend for enterprise reporting.`;
 
-  const dataInsights = buildSiAoiDataInsightsBundle(weeks, aoiKey, tableRows);
+  const dataInsights = buildSiAoiDataInsightsBundle(weeks, aoiKey, tableRows, palette);
 
   return {
     indexId,
@@ -693,6 +748,7 @@ export function buildSiAoiVegetationReport(input: {
     changeDetectionSlots,
     tableRows,
     dataInsights,
+    classificationPalette: palette,
   };
 }
 
@@ -700,10 +756,12 @@ export type SiAoiPdfExportMode = 'AOI_ANALYSIS' | 'TIME_SERIES_CHANGE_DETECTION'
 
 export type SiAoiPdfExportOptions = {
   mode: SiAoiPdfExportMode;
-  /** Timeline chart raster (use 2× canvas for sharp PDF). */
+  /** Timeline chart raster (optional; primary timeline in AOI PDF is vector). */
   chartImageDataUrl?: string | null;
-  /** Main AOI analysis map snapshot (AOI_ANALYSIS mode only). */
+  /** Main AOI analysis map snapshot. */
   aoiMapImageDataUrl?: string | null;
+  /** Per-slot map captures for the 3×4 change-detection grid (same order as `changeDetectionSlots`). */
+  changeSlotMapImageDataUrls?: (string | null | undefined)[] | null;
   /** Optional Gemini executive summary (plain text) for the Data & Insights PDF block. */
   executiveSummaryAi?: string | null;
 };
@@ -713,21 +771,28 @@ function addChangeDetectionPageGrid(
   slots: SiAoiChangeDetectionSlot[],
   indexLabel: string,
   margin: number,
-  opts?: { insertPageBreakBefore?: boolean; startY?: number; compactHeader?: boolean },
+  opts?: {
+    insertPageBreakBefore?: boolean;
+    startY?: number;
+    compactHeader?: boolean;
+    slotMapImages?: (string | null | undefined)[] | null;
+    indexId?: StaticAoiChartLayerId;
+  },
 ) {
+  const textW = doc.internal.pageSize.getWidth() - margin * 2;
   const insertBreak = opts?.insertPageBreakBefore !== false;
   if (insertBreak) doc.addPage();
   let y = opts?.startY ?? margin;
   if (!opts?.compactHeader) {
     doc.setFontSize(14);
     doc.setTextColor(15, 23, 42);
-    doc.text('Time Series Change Detection Map', margin, y);
+    doc.text('Time series change detection', margin, y);
     y += 20;
     doc.setFontSize(8.5);
     doc.setTextColor(71, 85, 105);
     const hdr = doc.splitTextToSize(
-      `Per-date ${indexLabel}: AOI-clipped pixel classification, class shares, and index range per tile (vector text). Client-side preview until STAC scene URLs are attached per timestamp.`,
-      520,
+      `Per-date ${indexLabel}: AOI-clipped classification overlay and class shares per tile. Map thumbnails embed when captured from the report preview.`,
+      textW,
     );
     doc.text(hdr, margin, y);
     y += hdr.length * 10 + 12;
@@ -735,10 +800,12 @@ function addChangeDetectionPageGrid(
   const cols = 3;
   const rows = 4;
   const gap = 8;
-  const usableW = 520;
+  const usableW = textW;
   const usableH = Math.max(280, 700 - y - margin);
   const cellW = (usableW - gap * (cols - 1)) / cols;
   const cellH = (usableH - gap * (rows - 1)) / rows;
+  const fmtMean = (v: number) => (opts?.indexId === 'LST' ? v.toFixed(1) : v.toFixed(3));
+  const fmtBound = (v: number) => (opts?.indexId === 'LST' ? v.toFixed(1) : v.toFixed(2));
 
   for (let r = 0; r < rows; r++) {
     for (let c = 0; c < cols; c++) {
@@ -752,17 +819,27 @@ function addChangeDetectionPageGrid(
       doc.setFillColor(248, 250, 252);
       doc.roundedRect(x + 1.5, yy + 1.5, cellW - 3, cellH - 3, 2, 2, 'F');
       if (!slot) continue;
-      let ly = yy + 12;
+      let ly = yy + 11;
       doc.setFont('helvetica', 'bold');
       doc.setFontSize(8.5);
       doc.setTextColor(15, 23, 42);
       doc.text(slot.date, x + 6, ly);
-      ly += 11;
+      ly += 10;
+      const thumb = opts?.slotMapImages?.[idx];
+      const imgH = Math.min(76, Math.max(36, cellH - 62));
+      if (thumb && String(thumb).startsWith('data:image')) {
+        try {
+          doc.addImage(thumb, 'PNG', x + 4, ly, cellW - 8, imgH, undefined, 'SLOW');
+        } catch {
+          /* ignore bad snapshot */
+        }
+        ly += imgH + 4;
+      }
       doc.setFont('helvetica', 'normal');
       doc.setFontSize(7);
       doc.setTextColor(51, 65, 85);
       doc.text(
-        `${indexLabel} mean ${slot.stats.indexMean.toFixed(3)}   range ${slot.stats.indexMin.toFixed(2)}–${slot.stats.indexMax.toFixed(2)}`,
+        `${indexLabel} mean ${fmtMean(slot.stats.indexMean)}   range ${fmtBound(slot.stats.indexMin)}–${fmtBound(slot.stats.indexMax)}`,
         x + 6,
         ly,
       );
@@ -797,6 +874,169 @@ function pdfEnsureSpace(doc: jsPDF, y: number, margin: number, need: number): nu
   return y;
 }
 
+function normalizeExecSummaryPdfText(raw: string): string {
+  let s = raw.replace(/[\u00a0\u1680\u2000-\u200a\u202f\u205f\u3000\ufeff]/g, ' ');
+  s = s.replace(/\s+/g, ' ').trim();
+  return s;
+}
+
+function hexToRgbTriplet(hex: string): [number, number, number] {
+  const m = /^#?([0-9a-fA-F]{6})$/.exec(hex.trim());
+  if (!m) return [34, 197, 94];
+  const n = parseInt(m[1]!, 16);
+  return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+}
+
+function timelineAccentRgb(indexId: StaticAoiChartLayerId): [number, number, number] {
+  switch (indexId) {
+    case 'NDWI':
+      return [59, 130, 246];
+    case 'SAVI':
+      return [202, 138, 4];
+    case 'LST':
+      return [249, 115, 22];
+    default:
+      return [16, 185, 129];
+  }
+}
+
+/** Vector timeline (axes + polyline + markers) for sharp PDF output. */
+function drawIndexTimelineVectorPdf(
+  doc: jsPDF,
+  series: SiAoiReportTimePoint[],
+  indexId: StaticAoiChartLayerId,
+  x: number,
+  yTop: number,
+  w: number,
+  h: number,
+) {
+  const pts = series.filter(p => Number.isFinite(p.value));
+  if (pts.length < 2) return;
+  const vals = pts.map(p => p.value);
+  let vMin = Math.min(...vals);
+  let vMax = Math.max(...vals);
+  const pad = Math.max(1e-6, (vMax - vMin) * 0.1);
+  vMin -= pad;
+  vMax += pad;
+  const span = Math.max(1e-6, vMax - vMin);
+  const padL = 36;
+  const padR = 10;
+  const padT = 14;
+  const padB = 30;
+  const innerX = x + padL;
+  const innerW = Math.max(40, w - padL - padR);
+  const innerY = yTop + padT;
+  const innerH = Math.max(40, h - padT - padB);
+  const [acR, acG, acB] = timelineAccentRgb(indexId);
+
+  doc.setDrawColor(203, 213, 225);
+  doc.setLineWidth(0.4);
+  doc.roundedRect(x, yTop, w, h, 3, 3, 'S');
+
+  const gridLines = 4;
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(6.5);
+  doc.setTextColor(100, 116, 139);
+  for (let g = 0; g <= gridLines; g++) {
+    const t = g / gridLines;
+    const yy = innerY + innerH * (1 - t);
+    doc.setDrawColor(241, 245, 249);
+    doc.line(innerX, yy, innerX + innerW, yy);
+    const tickVal = vMin + t * span;
+    const lab = indexId === 'LST' ? tickVal.toFixed(1) : tickVal.toFixed(2);
+    doc.text(lab, x + 4, yy + 2);
+  }
+
+  const px = (i: number) => innerX + (i / Math.max(1, pts.length - 1)) * innerW;
+  const py = (v: number) => innerY + innerH - ((v - vMin) / span) * innerH;
+
+  doc.setDrawColor(acR, acG, acB);
+  doc.setLineWidth(1.05);
+  for (let i = 1; i < pts.length; i++) {
+    doc.line(px(i - 1), py(pts[i - 1]!.value), px(i), py(pts[i]!.value));
+  }
+
+  doc.setFillColor(acR, acG, acB);
+  for (let i = 0; i < pts.length; i++) {
+    doc.circle(px(i), py(pts[i]!.value), 1.35, 'F');
+  }
+
+  const labelSlots = Math.min(4, pts.length);
+  doc.setFontSize(6.2);
+  doc.setTextColor(71, 85, 105);
+  for (let i = 0; i < labelSlots; i++) {
+    const idx = Math.round((i / Math.max(1, labelSlots - 1)) * (pts.length - 1));
+    const lab = pts[idx]!.date.slice(0, 10);
+    const tx = px(idx);
+    const lx = Math.min(innerX + innerW - 44, Math.max(innerX + 2, tx - 18));
+    doc.text(lab, lx, innerY + innerH + 12);
+  }
+}
+
+function drawPieSlicesPdf(
+  doc: jsPDF,
+  slices: Array<{ label: string; pct: number; color: string }>,
+  cx: number,
+  cy: number,
+  r: number,
+) {
+  const total = slices.reduce((a, s) => a + Math.max(0, s.pct), 0) || 1;
+  let a0 = -Math.PI / 2;
+  const segs = 22;
+  for (const s of slices) {
+    const sweep = (Math.max(0, s.pct) / total) * Math.PI * 2;
+    const a1 = a0 + sweep;
+    const [R, G, B] = hexToRgbTriplet(s.color);
+    doc.setFillColor(R, G, B);
+    for (let k = 0; k < segs; k++) {
+      const t0 = a0 + (sweep * k) / segs;
+      const t1 = a0 + (sweep * (k + 1)) / segs;
+      doc.triangle(
+        cx,
+        cy,
+        cx + r * Math.cos(t0),
+        cy + r * Math.sin(t0),
+        cx + r * Math.cos(t1),
+        cy + r * Math.sin(t1),
+        'F',
+      );
+    }
+    a0 = a1;
+  }
+  doc.setDrawColor(226, 232, 240);
+  doc.setLineWidth(0.45);
+  doc.circle(cx, cy, r, 'S');
+}
+
+function drawBarSeriesPdf(
+  doc: jsPDF,
+  series: Array<{ id: string; label: string; valueNorm: number }>,
+  x: number,
+  yTop: number,
+  w: number,
+  h: number,
+) {
+  const n = series.length || 1;
+  const rowH = h / n;
+  const barX = x + 72;
+  const barW = w - 78;
+  doc.setDrawColor(226, 232, 240);
+  doc.setLineWidth(0.3);
+  doc.roundedRect(x, yTop, w, h, 2, 2, 'S');
+  for (let i = 0; i < series.length; i++) {
+    const s = series[i]!;
+    const yy = yTop + i * rowH + 4;
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(7);
+    doc.setTextColor(51, 65, 85);
+    doc.text(s.label, x + 4, yy + rowH * 0.45);
+    const t = Math.max(0, Math.min(1, s.valueNorm));
+    const [R, G, B] = hexToRgbTriplet('#0f766e');
+    doc.setFillColor(R, G, B);
+    doc.roundedRect(barX, yy, Math.max(1.5, t * barW), rowH - 8, 1, 1, 'F');
+  }
+}
+
 function drawNdviSparklinePdf(doc: jsPDF, vals: number[], x: number, yTop: number, w: number, h: number) {
   const xs = vals.filter(Number.isFinite);
   if (xs.length < 2) return;
@@ -819,10 +1059,12 @@ function drawNdviSparklinePdf(doc: jsPDF, vals: number[], x: number, yTop: numbe
 function appendDataInsightsPdf(doc: jsPDF, report: SiAoiReportModel, opts: SiAoiPdfExportOptions, margin: number, y0: number): number {
   let y = y0;
   const di = report.dataInsights;
-  const execText =
+  const textW = doc.internal.pageSize.getWidth() - margin * 2;
+  const rawExec =
     (opts.executiveSummaryAi && opts.executiveSummaryAi.trim()) ||
     (di.executiveSummaryAi && di.executiveSummaryAi.trim()) ||
     report.summaryLinesEn.join(' ');
+  const execText = normalizeExecSummaryPdfText(rawExec);
 
   y = pdfEnsureSpace(doc, y, margin, 72);
   doc.setFontSize(12);
@@ -833,15 +1075,15 @@ function appendDataInsightsPdf(doc: jsPDF, report: SiAoiReportModel, opts: SiAoi
 
   doc.setFontSize(9);
   doc.setFont('helvetica', 'bold');
-  doc.text('1. Executive summary (AI-assisted)', margin, y);
+  doc.text('1. Executive summary', margin, y);
   y += 12;
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(8.5);
   doc.setTextColor(51, 65, 85);
-  const execWrap = doc.splitTextToSize(execText, 520);
-  y = pdfEnsureSpace(doc, y, margin, execWrap.length * 10 + 6);
-  doc.text(execWrap, margin, y);
-  y += execWrap.length * 10 + 14;
+  const execWrap = doc.splitTextToSize(execText, textW);
+  y = pdfEnsureSpace(doc, y, margin, execWrap.length * 11 + 8);
+  doc.text(execWrap, margin, y, { maxWidth: textW, lineHeightFactor: 1.18 });
+  y += execWrap.length * 11 + 14;
 
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(9);
@@ -897,22 +1139,52 @@ function appendDataInsightsPdf(doc: jsPDF, report: SiAoiReportModel, opts: SiAoi
     `Urban expansion proxy: ${d.urbanExpansionPct.toFixed(1)} % (heuristic from NDVI trend)`,
   ];
   for (const line of kpis) {
-    const w = doc.splitTextToSize(line, 520);
+    const w = doc.splitTextToSize(line, textW);
     y = pdfEnsureSpace(doc, y, margin, w.length * 10 + 4);
-    doc.text(w, margin, y);
+    doc.text(w, margin, y, { maxWidth: textW, lineHeightFactor: 1.15 });
     y += w.length * 10 + 2;
   }
   y += 8;
 
   doc.setFont('helvetica', 'bold');
   doc.setTextColor(15, 23, 42);
-  doc.text('NDVI trend (vector polyline)', margin, y);
+  doc.text('4. Index comparison (bars)', margin, y);
+  y += 10;
+  y = pdfEnsureSpace(doc, y, margin, 118);
+  drawBarSeriesPdf(doc, d.barSeries, margin, y, textW, 108);
+  y += 116;
+
+  doc.setFont('helvetica', 'bold');
+  doc.text('5. Class distribution (pie)', margin, y);
+  y += 10;
+  y = pdfEnsureSpace(doc, y, margin, 120);
+  const pieR = 46;
+  const pieCx = margin + pieR + 6;
+  const pieCy = y + pieR + 4;
+  drawPieSlicesPdf(doc, d.pieSlices, pieCx, pieCy, pieR);
+  const pieLegendX = margin + pieR * 2 + 28;
+  let lyLeg = y + 18;
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(8);
+  doc.setTextColor(51, 65, 85);
+  for (const sl of d.pieSlices) {
+    const [R, G, B] = hexToRgbTriplet(sl.color);
+    doc.setFillColor(R, G, B);
+    doc.roundedRect(pieLegendX, lyLeg - 5, 9, 9, 1, 1, 'F');
+    doc.text(`${sl.label}: ${sl.pct.toFixed(1)}%`, pieLegendX + 14, lyLeg + 2);
+    lyLeg += 14;
+  }
+  y += pieR * 2 + 24;
+
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(15, 23, 42);
+  doc.text('6. NDVI trend (sparkline)', margin, y);
   y += 10;
   y = pdfEnsureSpace(doc, y, margin, 52);
   doc.setDrawColor(226, 232, 240);
   doc.setLineWidth(0.35);
-  doc.roundedRect(margin, y, 240, 44, 2, 2, 'S');
-  drawNdviSparklinePdf(doc, d.sparkNdvi, margin + 6, y + 6, 228, 32);
+  doc.roundedRect(margin, y, Math.min(320, textW), 44, 2, 2, 'S');
+  drawNdviSparklinePdf(doc, d.sparkNdvi, margin + 6, y + 6, Math.min(308, textW - 12), 32);
   y += 52;
 
   return y;
@@ -923,6 +1195,7 @@ function appendDataInsightsPdf(doc: jsPDF, report: SiAoiReportModel, opts: SiAoi
  */
 function buildAoiAnalysisPdfDocument(doc: jsPDF, report: SiAoiReportModel, opts: SiAoiPdfExportOptions) {
   const margin = 48;
+  const textW = doc.internal.pageSize.getWidth() - margin * 2;
   let y = margin;
 
   const pageW = doc.internal.pageSize.getWidth();
@@ -956,13 +1229,13 @@ function buildAoiAnalysisPdfDocument(doc: jsPDF, report: SiAoiReportModel, opts:
   doc.setFont('helvetica', 'normal');
   y += 14;
   doc.setFontSize(9);
-  const analysisWrap = doc.splitTextToSize(report.analysisEn, 520);
-  doc.text(analysisWrap, margin, y);
+  const analysisWrap = doc.splitTextToSize(report.analysisEn, textW);
+  doc.text(analysisWrap, margin, y, { maxWidth: textW, lineHeightFactor: 1.18 });
   y += analysisWrap.length * 11 + 6;
   if (report.stressNoteEn) {
     doc.setTextColor(154, 52, 18);
-    const st = doc.splitTextToSize(`Stress note: ${report.stressNoteEn}`, 520);
-    doc.text(st, margin, y);
+    const st = doc.splitTextToSize(`Stress note: ${report.stressNoteEn}`, textW);
+    doc.text(st, margin, y, { maxWidth: textW, lineHeightFactor: 1.18 });
     y += st.length * 11 + 8;
     doc.setTextColor(15, 23, 42);
   }
@@ -977,20 +1250,16 @@ function buildAoiAnalysisPdfDocument(doc: jsPDF, report: SiAoiReportModel, opts:
   });
   y = (doc as any).lastAutoTable.finalY + 18;
 
-  if (opts.chartImageDataUrl) {
-    try {
-      const chartH = 200;
-      y = pdfEnsureSpace(doc, y, margin, chartH + 24);
-      doc.setFontSize(10);
-      doc.setFont('helvetica', 'bold');
-      doc.setTextColor(15, 23, 42);
-      doc.text('Index timeline', margin, y);
-      y += 12;
-      doc.addImage(opts.chartImageDataUrl, 'PNG', margin, y, 520, chartH, undefined, 'SLOW');
-      y += chartH + 14;
-    } catch {
-      /* ignore chart embed */
-    }
+  if (report.timeSeries.length >= 2) {
+    const tlH = 168;
+    y = pdfEnsureSpace(doc, y, margin, tlH + 28);
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(15, 23, 42);
+    doc.text(`${report.indexLabel} timeline`, margin, y);
+    y += 14;
+    drawIndexTimelineVectorPdf(doc, report.timeSeries, report.indexId, margin, y, textW, tlH);
+    y += tlH + 12;
   }
 
   if (opts.aoiMapImageDataUrl) {
@@ -1005,7 +1274,7 @@ function buildAoiAnalysisPdfDocument(doc: jsPDF, report: SiAoiReportModel, opts:
       doc.setTextColor(15, 23, 42);
       doc.text('AOI map (basemap + classification overlay)', margin, y);
       y += 12;
-      doc.addImage(opts.aoiMapImageDataUrl, 'PNG', margin, y, 520, mapH, undefined, 'SLOW');
+      doc.addImage(opts.aoiMapImageDataUrl, 'PNG', margin, y, textW, mapH, undefined, 'SLOW');
       y += mapH + 14;
     } catch {
       /* ignore map embed */
@@ -1016,14 +1285,14 @@ function buildAoiAnalysisPdfDocument(doc: jsPDF, report: SiAoiReportModel, opts:
   doc.setFontSize(8);
   doc.setTextColor(100, 116, 139);
   const foot = doc.splitTextToSize(
-    'Raster figures embed at 2× resolution where available; vector text and table geometry stay sharp in PDF viewers. For acquisition-true imagery, connect STAC in the main Satellite workspace.',
-    520,
+    'Raster map figures embed at 2× resolution when captured from the live preview. Timeline and chart geometry in this export are vector paths for sharp printing. For acquisition-true imagery, connect STAC in the main Satellite workspace.',
+    textW,
   );
   if (y + foot.length * 10 > doc.internal.pageSize.getHeight() - margin) {
     doc.addPage();
     y = margin;
   }
-  doc.text(foot, margin, y);
+  doc.text(foot, margin, y, { maxWidth: textW, lineHeightFactor: 1.15 });
 }
 
 function buildTimeSeriesChangeDetectionPdfDocument(doc: jsPDF, report: SiAoiReportModel, opts: SiAoiPdfExportOptions) {
@@ -1045,7 +1314,42 @@ function buildTimeSeriesChangeDetectionPdfDocument(doc: jsPDF, report: SiAoiRepo
     insertPageBreakBefore: false,
     startY: 62,
     compactHeader: true,
+    slotMapImages: opts.changeSlotMapImageDataUrls,
+    indexId: report.indexId,
   });
+
+  if (report.timeSeries.length >= 2) {
+    doc.addPage();
+    const textW = pageW - margin * 2;
+    let yt = margin;
+    doc.setFontSize(12);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(15, 23, 42);
+    doc.text(`${report.indexLabel} timeline`, margin, yt);
+    yt += 22;
+    drawIndexTimelineVectorPdf(doc, report.timeSeries, report.indexId, margin, yt, textW, 150);
+    yt += 162;
+    doc.setFontSize(9);
+    doc.setFont('helvetica', 'bold');
+    doc.text('Classification legend', margin, yt);
+    yt += 14;
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(8);
+    doc.setTextColor(51, 65, 85);
+    const pal = report.classificationPalette;
+    for (const row of report.tableRows) {
+      const col = row.key === 'high' ? pal.high : row.key === 'medium' ? pal.medium : pal.low;
+      const [R, G, B] = hexToRgbTriplet(col);
+      doc.setFillColor(R, G, B);
+      doc.roundedRect(margin, yt - 5, 10, 10, 1, 1, 'F');
+      doc.text(`${row.labelEn} (${row.pct.toFixed(1)}%)`, margin + 16, yt + 3);
+      yt += 18;
+    }
+    const [rA, gA, bA] = hexToRgbTriplet(pal.aoiOutline);
+    doc.setFillColor(rA, gA, bA);
+    doc.roundedRect(margin, yt - 5, 10, 10, 1, 1, 'F');
+    doc.text('AOI outline', margin + 16, yt + 3);
+  }
 
   doc.addPage();
   let y = margin;

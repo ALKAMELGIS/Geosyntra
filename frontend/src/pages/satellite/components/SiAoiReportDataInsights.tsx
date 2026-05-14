@@ -173,7 +173,7 @@ export function SiAoiReportDataInsightsSection({
 
       <section className="si-aoi-insights__block" aria-labelledby="si-aoi-insights-exec">
         <h4 id="si-aoi-insights-exec" className="si-aoi-insights__block-title">
-          1. Executive summary (Gemini)
+          1. Executive summary
         </h4>
         {geminiLoading ? <p className="si-aoi-insights__muted">Refining with Gemini… (baseline summary shown below)</p> : null}
         {geminiError ? <p className="si-aoi-insights__err">{geminiError}</p> : null}

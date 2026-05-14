@@ -50,6 +50,7 @@ import { getMapboxAccessToken } from '../../lib/mapboxAccessToken';
 import { subscribeSentinelHubAccessToken } from '../../lib/sentinelHubAccessToken';
 import { getSentinelHubWmsBaseUrl, subscribeSentinelHubWmsInstance } from '../../lib/sentinelHubWmsInstance';
 import { buildSentinelHubWmsAoiClip, getDrawnGeometry, inferWmsEvalProfile } from '../../lib/sentinelHubWmsAoiClip';
+import type { IndexRampStop } from '../../lib/siWmsIndexClassificationRamp';
 import {
   GEO_AI_COPILOT_RULES,
   GEO_AI_SPATIAL_WORKFLOW_AGENT_APPEND,
@@ -83,6 +84,17 @@ import {
   stableFeatureLinkKey,
 } from '../../lib/geoAiLinkedSelection';
 import { SiWmsIndexClassificationLegend, siWmsShowsSpectralLegend } from './components/SiWmsIndexClassificationLegend';
+import {
+  SiWmsSymbologyPopup,
+  SiWmsSymbologyToolbarIconButton,
+} from './components/SiWmsSymbologyPopup';
+import {
+  SI_WMS_SYMBOLOGY_DEFAULT_UI,
+  siAutoRampPresetForLayerName,
+  siComputeSymbologyStops,
+  siWmsSymbologySupportsLayer,
+  type SiWmsSymbologyUiState,
+} from './utils/siWmsSymbologyModel';
 import { SI_GEO_AI_MAP_SELECTION_PAINT } from './siGeoAiMapSelectionPaint';
 import { runGeoAiStatsCommand, type GeoAiMapFirstSelection } from '../../lib/geoAiStatsEngine';
 import { resolveGeoAiPinFromUserTextAndReply } from '../../lib/geoAiResolveMapCoords';
@@ -153,6 +165,7 @@ import { SatelliteMapAnalysisChrome, type MapToolboxNavigateHandler } from './co
 import { SatelliteGeoAiFloatingWidget } from './components/SatelliteGeoAiFloatingWidget';
 import { SatelliteAoiStaticChartsMapOverlay } from './components/SatelliteAoiStaticChartsMapOverlay';
 import { SiAoiReportModal } from './components/SiAoiReportModal';
+import { siAoiPaletteFromIndexRampStops } from './utils/siAoiVegetationReportModel';
 import { SatelliteMapProcessingOptionsPortal } from './components/SatelliteMapProcessingOptionsPortal';
 import { SiGeoAiInspectPopupBody } from './components/SiGeoAiInspectPopupBody';
 import { SiLayerPopupConfigurator } from './components/SiLayerPopupConfigurator';
@@ -1880,7 +1893,15 @@ const SI_AOI_RASTER_STACK_ORDER: readonly SiAoiRasterStackKey[] = [
   'soil_index',
 ] as const;
 
-/** Mapbox source id segment: WMS layer names may contain spaces/slashes. */
+/** Mapbox source id segment (WMS names); plus evalscript hash for <Source key> tile cache bust. */
+function siWmsEvalscriptKeyPart(b64: string | null | undefined): string {
+  if (!b64?.length) return 'e0';
+  let h = 2166136261 >>> 0;
+  const stride = Math.max(1, Math.floor(b64.length / 3000));
+  for (let i = 0; i < b64.length; i += stride) h = Math.imul(h ^ b64.charCodeAt(i), 16777619) >>> 0;
+  return `e${b64.length}_${(h >>> 0).toString(36)}`;
+}
+
 function siSafeWmsStackKey(wmsLayerId: string): string {
   const s = wmsLayerId.trim() || 'layer';
   return s.replace(/[^a-zA-Z0-9_-]+/g, '_').slice(0, 96);
@@ -1891,6 +1912,21 @@ function siDefaultAoiRasterVisibilityByWmsLayers(options: { id: string; label: s
   const ndvi = options.find(o => /\bndvi\b/i.test(o.label) || /\bndvi\b/i.test(o.id));
   if (ndvi) return { [ndvi.id]: true };
   return { [options[0]!.id]: true };
+}
+
+/** Prefer the current RS layer id when present; otherwise NDVI-first default. */
+function siInitialAoiRasterStackVisible(
+  options: { id: string; label: string }[],
+  preferredLayerId: string,
+): Partial<Record<string, boolean>> {
+  if (!options.length) return {};
+  const p = preferredLayerId.trim();
+  if (p && options.some(o => o.id === p)) {
+    const out: Partial<Record<string, boolean>> = {};
+    for (const o of options) out[o.id] = o.id === p;
+    return out;
+  }
+  return siDefaultAoiRasterVisibilityByWmsLayers(options);
 }
 
 function siIsLegacyRasterStackKeys(p: object): boolean {
@@ -1939,6 +1975,18 @@ function siMergedAoiLayerVisibility(
     }
   }
   return vis;
+}
+
+/** True when merged visibility is exactly the default single NDVI-on stack (implicit or explicit). */
+function siVisIsDefaultNdviSingleton(
+  merged: Record<string, boolean>,
+  layerIds: string[],
+  options: { id: string; label: string }[],
+): boolean {
+  const onLayers = layerIds.filter(lid => merged[lid]);
+  if (onLayers.length !== 1) return false;
+  const ndvi = options.find(o => /\bndvi\b/i.test(o.label) || /\bndvi\b/i.test(o.id));
+  return !!ndvi && onLayers[0] === ndvi.id;
 }
 
 function siResolveWmsLayerForStackKey(
@@ -2440,6 +2488,9 @@ export default function SatelliteIntelligence() {
   }, []);
 
   const [wmsLayer, setWmsLayer] = useState('');
+  /** Latest RS layer id for AOI registration (align initial raster stack with sidebar). */
+  const wmsLayerForAoiRasterDefaultRef = useRef('');
+  wmsLayerForAoiRasterDefaultRef.current = wmsLayer.trim();
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [isMapLoaded, setIsMapLoaded] = useState(false);
   const [layerPopupCfgPickId, setLayerPopupCfgPickId] = useState<string | null>(null);
@@ -3792,7 +3843,12 @@ export default function SatelliteIntelligence() {
           feature: ft as GeoJSON.Feature,
           source,
           color: nextMultiAoiColor(next.length),
-          rasterStackVisible: { ...siDefaultAoiRasterVisibilityByWmsLayers(remoteSensingLayerOptionsRef.current) },
+          rasterStackVisible: {
+            ...siInitialAoiRasterStackVisible(
+              remoteSensingLayerOptionsRef.current,
+              wmsLayerForAoiRasterDefaultRef.current,
+            ),
+          },
         });
       }
       return next;
@@ -9430,6 +9486,125 @@ export default function SatelliteIntelligence() {
   }, [visibleWmsLayers]);
   remoteSensingLayerOptionsRef.current = remoteSensingLayerOptions;
 
+  /** Sentinel WMS classified-layer symbology (color ramp via evalscript stops only). */
+  const [siWmsSymbologyChrome, setSiWmsSymbologyChrome] = useState<{
+    open: boolean;
+    anchor: 'toolbar-embedded' | 'map-dock';
+  }>({ open: false, anchor: 'toolbar-embedded' });
+  const [siWmsSymbologyTargetLayerId, setSiWmsSymbologyTargetLayerId] = useState('');
+  const [siWmsSymbologyByLayer, setSiWmsSymbologyByLayer] = useState<Record<string, Partial<SiWmsSymbologyUiState>>>({});
+
+  const toggleWmsSymbology = useCallback((anchor: 'toolbar-embedded' | 'map-dock') => {
+    setSiWmsSymbologyChrome(s => {
+      if (!s.open) return { open: true, anchor };
+      if (s.anchor === anchor) return { ...s, open: false };
+      return { open: true, anchor };
+    });
+  }, []);
+
+  const siWmsSymbologyLayerPickOptions = useMemo(
+    () => remoteSensingLayerOptions.filter(o => siWmsSymbologySupportsLayer(o.id)).map(o => ({ id: o.id, label: o.label })),
+    [remoteSensingLayerOptions],
+  );
+
+  const symStopsForWmsLayerId = useCallback(
+    (layerId: string): readonly IndexRampStop[] | null => {
+      if (!layerId || !siWmsSymbologySupportsLayer(layerId)) return null;
+      const part = siWmsSymbologyByLayer[layerId];
+      if (!part || Object.keys(part).length === 0) return null;
+      const ui: SiWmsSymbologyUiState = { ...SI_WMS_SYMBOLOGY_DEFAULT_UI, ...part };
+      const s = siComputeSymbologyStops(layerId, ui);
+      return s && s.length >= 2 ? s : null;
+    },
+    [siWmsSymbologyByLayer],
+  );
+
+  const symOpacityForWmsLayerId = useCallback(
+    (layerId: string): number => {
+      const o = siWmsSymbologyByLayer[layerId]?.opacity01;
+      return o != null && Number.isFinite(o) ? o : 1;
+    },
+    [siWmsSymbologyByLayer],
+  );
+
+  useEffect(() => {
+    if (!siWmsSymbologyChrome.open) return;
+    const opts = siWmsSymbologyLayerPickOptions;
+    if (!opts.length) {
+      setSiWmsSymbologyTargetLayerId('');
+      return;
+    }
+    setSiWmsSymbologyTargetLayerId(prev => {
+      if (prev && opts.some(o => o.id === prev)) return prev;
+      if (activeWmsLayer && opts.some(o => o.id === activeWmsLayer)) return activeWmsLayer;
+      return opts[0]!.id;
+    });
+  }, [siWmsSymbologyChrome.open, siWmsSymbologyLayerPickOptions, activeWmsLayer]);
+
+  const siWmsSymbologyPopupMergedUi = useMemo((): SiWmsSymbologyUiState => {
+    const id = siWmsSymbologyTargetLayerId;
+    if (!id) return SI_WMS_SYMBOLOGY_DEFAULT_UI;
+    return { ...SI_WMS_SYMBOLOGY_DEFAULT_UI, ...siWmsSymbologyByLayer[id] };
+  }, [siWmsSymbologyTargetLayerId, siWmsSymbologyByLayer]);
+
+  const siWmsSymbologyPreviewStops = useMemo(() => {
+    const id = siWmsSymbologyTargetLayerId;
+    if (!id || !siWmsSymbologySupportsLayer(id)) return null;
+    return siComputeSymbologyStops(id, siWmsSymbologyPopupMergedUi);
+  }, [siWmsSymbologyTargetLayerId, siWmsSymbologyPopupMergedUi]);
+
+  const siWmsSymbologyUiPatch = useCallback(
+    (patch: Partial<SiWmsSymbologyUiState>) => {
+      const id = siWmsSymbologyTargetLayerId;
+      if (!id) return;
+      setSiWmsSymbologyByLayer(prev => ({ ...prev, [id]: { ...prev[id], ...patch } }));
+    },
+    [siWmsSymbologyTargetLayerId],
+  );
+
+  const siWmsSymbologyResetTargetLayer = useCallback(() => {
+    const id = siWmsSymbologyTargetLayerId;
+    if (!id) return;
+    setSiWmsSymbologyByLayer(prev => {
+      const n = { ...prev };
+      delete n[id];
+      return n;
+    });
+  }, [siWmsSymbologyTargetLayerId]);
+
+  /** Main RS layer: if stack is still default NDVI-only, follow the picker (solo layer). Otherwise only ensure the picked layer is on — AOI list keeps independent toggles. */
+  useEffect(() => {
+    const id = activeWmsLayer?.trim();
+    if (!id) return;
+    const layerIds = remoteSensingLayerOptions.map(o => o.id);
+    if (!layerIds.length || !layerIds.includes(id)) return;
+    setMultiAoiItems(prev => {
+      if (!prev.length) return prev;
+      let changed = false;
+      const next = prev.map(row => {
+        const merged = siMergedAoiLayerVisibility(row.rasterStackVisible, layerIds, remoteSensingLayerOptions);
+        if (siVisIsDefaultNdviSingleton(merged, layerIds, remoteSensingLayerOptions)) {
+          const desired: Partial<Record<string, boolean>> = {};
+          for (const lid of layerIds) desired[lid] = lid === id;
+          let same = true;
+          for (const lid of layerIds) {
+            if (!!merged[lid] !== !!desired[lid]) {
+              same = false;
+              break;
+            }
+          }
+          if (same) return row;
+          changed = true;
+          return { ...row, rasterStackVisible: desired };
+        }
+        if (merged[id] === true) return row;
+        changed = true;
+        return { ...row, rasterStackVisible: { ...merged, [id]: true } };
+      });
+      return changed ? next : prev;
+    });
+  }, [activeWmsLayer, remoteSensingLayerOptions]);
+
   const wmsLayerSelectValue = useMemo(() => {
     const t = wmsLayer.trim();
     if (t && remoteSensingLayerOptions.some(l => l.id === t)) return t;
@@ -10546,8 +10721,9 @@ export default function SatelliteIntelligence() {
     () =>
       buildSentinelHubWmsAoiClip(drawnGeometry, activeWmsLayer, {
         indexVisibilityMin: WMS_AOI_INDEX_VISIBILITY_MIN,
+        classifiedStopsOverride: symStopsForWmsLayerId(activeWmsLayer || ''),
       }),
-    [drawnGeometry, activeWmsLayer],
+    [drawnGeometry, activeWmsLayer, symStopsForWmsLayerId],
   );
 
   const wmsTileUrl = useMemo(() => {
@@ -10663,6 +10839,7 @@ export default function SatelliteIntelligence() {
       if (!wmsLayerId) return;
       const clip = buildSentinelHubWmsAoiClip(feature, wmsLayerId, {
         indexVisibilityMin: WMS_AOI_INDEX_VISIBILITY_MIN,
+        classifiedStopsOverride: symStopsForWmsLayerId(wmsLayerId),
       });
       const bounds = buildBounds(feature);
       const normalized = getDrawnGeometry(feature);
@@ -10721,6 +10898,7 @@ export default function SatelliteIntelligence() {
     wmsDate,
     cloudCoverage,
     wmsBaseUrl,
+    symStopsForWmsLayerId,
   ]);
 
   /**
@@ -11390,7 +11568,7 @@ export default function SatelliteIntelligence() {
               siMultiSentinelRasterRuns != null &&
               siMultiSentinelRasterRuns.filter(s => s.ready).map(spec => (
                 <Source
-                  key={`si-sentinel-${spec.aoiId}-${spec.stackKey}-${spec.wmsLayerId}-${spec.timeStart}-${spec.timeEnd}-${spec.bounds?.join(',') ?? 'nb'}-${spec.clip.geometryWkt3857 ? 'g1' : 'g0'}-${spec.clip.evalscriptB64 ? 'e1' : 'e0'}`}
+                  key={`si-sentinel-${spec.aoiId}-${spec.stackKey}-${spec.wmsLayerId}-${spec.timeStart}-${spec.timeEnd}-${spec.bounds?.join(',') ?? 'nb'}-${spec.clip.geometryWkt3857 ? 'g1' : 'g0'}-${siWmsEvalscriptKeyPart(spec.clip.evalscriptB64)}`}
                   id={`si-sentinel-src-${spec.aoiId}-${spec.stackKey}`}
                   type="raster"
                   tiles={[spec.tileUrl]}
@@ -11402,7 +11580,9 @@ export default function SatelliteIntelligence() {
                     type="raster"
                     paint={{
                       'raster-opacity':
-                        (spec.clip.evalscriptB64 ? 1 : 0.85) * (spec.bounds ? drawVisualOpacity : 1),
+                        (spec.clip.evalscriptB64 ? 1 : 0.85) *
+                        (spec.bounds ? drawVisualOpacity : 1) *
+                        symOpacityForWmsLayerId(spec.wmsLayerId),
                       'raster-fade-duration': 0,
                     }}
                   />
@@ -11411,7 +11591,7 @@ export default function SatelliteIntelligence() {
 
             {isMapLoaded && sentinelVisible && siMultiSentinelRasterRuns === null && drawnAoiWmsClipReady && (
               <Source
-                key={`sentinel-${activeWmsLayer}-${wmsDate}-${wmsRasterAoiBoundsLngLat?.join(',') ?? 'world'}-${sentinelHubWmsAoiClip.geometryWkt3857 ? 'g1' : 'g0'}-${sentinelHubWmsAoiClip.evalscriptB64 ? 'e1' : 'e0'}`}
+                key={`sentinel-${activeWmsLayer}-${wmsDate}-${wmsRasterAoiBoundsLngLat?.join(',') ?? 'world'}-${sentinelHubWmsAoiClip.geometryWkt3857 ? 'g1' : 'g0'}-${siWmsEvalscriptKeyPart(sentinelHubWmsAoiClip.evalscriptB64)}`}
                 id="sentinel-source"
                 type="raster"
                 tiles={[wmsTileUrl]}
@@ -11424,7 +11604,8 @@ export default function SatelliteIntelligence() {
                   paint={{
                     'raster-opacity':
                       (sentinelHubWmsAoiClip.evalscriptB64 ? 1 : 0.85) *
-                      (drawnGeometry != null && wmsRasterAoiBoundsLngLat ? drawVisualOpacity : 1),
+                      (drawnGeometry != null && wmsRasterAoiBoundsLngLat ? drawVisualOpacity : 1) *
+                      symOpacityForWmsLayerId(activeWmsLayer || ''),
                     'raster-fade-duration': 0,
                   }}
                 />
@@ -11710,6 +11891,7 @@ export default function SatelliteIntelligence() {
               profile={wmsSpectralLegend.profile}
               layerLabel={wmsSpectralLegend.label}
               context={wmsSpectralLegend.context}
+              classifiedStopsOverride={symStopsForWmsLayerId(activeWmsLayer || '')}
             />
           ) : null}
 
@@ -12314,6 +12496,24 @@ export default function SatelliteIntelligence() {
             fieldsPanelWorkspaceContent={mapToolboxFieldsWorkspace}
             fieldsPanelLibraryContent={mapToolboxFieldsLibrary}
             fieldsCount={fieldDataLibraryFields.length}
+            mapSymbologyToolbarSlot={
+              <button
+                type="button"
+                className={
+                  'si-sat-ctx-rail-sym-tool' +
+                  (siWmsSymbologyChrome.open && siWmsSymbologyChrome.anchor === 'map-dock'
+                    ? ' si-sat-ctx-rail-sym-tool--on'
+                    : '')
+                }
+                title="Symbology — classified layer colors"
+                aria-pressed={siWmsSymbologyChrome.open && siWmsSymbologyChrome.anchor === 'map-dock'}
+                aria-label="Open symbology"
+                disabled={siWmsSymbologyLayerPickOptions.length === 0}
+                onClick={() => toggleWmsSymbology('map-dock')}
+              >
+                <i className="fa-solid fa-palette" aria-hidden />
+              </button>
+            }
           />
 
           <SiAoiReportModal
@@ -12328,6 +12528,20 @@ export default function SatelliteIntelligence() {
             preferredAoiId={siAoiReportPreferredAoiId}
             reportMapStyle={effectiveMapStyle}
             defaultCloudCoverPct={cloudCoverage}
+            classificationPalette={siAoiPaletteFromIndexRampStops(symStopsForWmsLayerId(activeWmsLayer || '') ?? undefined)}
+          />
+
+          <SiWmsSymbologyPopup
+            open={siWmsSymbologyChrome.open}
+            anchor={siWmsSymbologyChrome.anchor}
+            onClose={() => setSiWmsSymbologyChrome(s => ({ ...s, open: false }))}
+            layerOptions={siWmsSymbologyLayerPickOptions}
+            targetLayerId={siWmsSymbologyTargetLayerId}
+            onTargetLayerId={setSiWmsSymbologyTargetLayerId}
+            ui={siWmsSymbologyPopupMergedUi}
+            onUiChange={siWmsSymbologyUiPatch}
+            previewStops={siWmsSymbologyPreviewStops}
+            onResetLayer={siWmsSymbologyResetTargetLayer}
           />
 
           {false && aoiHeatPointGeoJson?.features?.length ? (
@@ -13430,6 +13644,12 @@ export default function SatelliteIntelligence() {
                               >
                                 <i className="fa-solid fa-chart-pie" aria-hidden />
                               </button>
+                              <SiWmsSymbologyToolbarIconButton
+                                variant="embedded"
+                                disabled={siWmsSymbologyLayerPickOptions.length === 0}
+                                pressed={siWmsSymbologyChrome.open && siWmsSymbologyChrome.anchor === 'toolbar-embedded'}
+                                onClick={() => toggleWmsSymbology('toolbar-embedded')}
+                              />
                             </div>
                           </div>
                           <div className="si-rs-actions si-rs-actions--compact">
@@ -13664,7 +13884,9 @@ export default function SatelliteIntelligence() {
                                           )}
                                           <p className="si-field-analysis-status si-rs-aoi-workspace-card__muted">
                                             Toggle any product from GetCapabilities; each checked layer renders its own
-                                            clipped WMS stack for this AOI. Popup cues follow NDVI / NDWI / SAVI when
+                                            clipped WMS stack for this AOI. The <strong>Main</strong> layer picker also
+                                            turns on that product here (and replaces the default NDVI-only stack until
+                                            you customize checkboxes). Popup cues follow NDVI / NDWI / SAVI when
                                             available.
                                           </p>
                                         </div>

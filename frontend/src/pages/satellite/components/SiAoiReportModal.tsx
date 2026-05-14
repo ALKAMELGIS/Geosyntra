@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState, forwardRef } from 'react';
 import MapGL, { Layer, NavigationControl, Source, type MapRef } from 'react-map-gl/mapbox';
 import type { StyleSpecification } from 'mapbox-gl';
 import { useGeminiApiKey } from '../../../hooks/useGeminiApiKey';
@@ -24,6 +24,7 @@ import {
   exportSiAoiVegetationReportPdf,
   siAoiReportFeatureBBoxLngLat,
   type SiAoiChangeDetectionSlot,
+  type SiAoiClassificationPalette,
   type SiAoiPdfExportMode,
   type SiAoiReportModel,
 } from '../utils/siAoiVegetationReportModel';
@@ -60,6 +61,10 @@ function captureCanvasHiRes(source: HTMLCanvasElement, scale = 2): string {
   return c.toDataURL('image/png');
 }
 
+export type SiAoiChangeMapCellHandle = {
+  captureMapPngDataUrl: (scale?: number) => string | null;
+};
+
 type SiAoiChangeMapCellProps = {
   slotIdx: number;
   slot: SiAoiChangeDetectionSlot;
@@ -68,19 +73,36 @@ type SiAoiChangeMapCellProps = {
   aoiOutline: GeoJSON.FeatureCollection;
   fitBounds: [[number, number], [number, number]];
   indexId: StaticAoiChartLayerId;
+  classificationPalette: SiAoiClassificationPalette;
 };
 
-function SiAoiChangeMapCell({
-  slotIdx,
-  slot,
-  mapboxToken,
-  mapStyle,
-  aoiOutline,
-  fitBounds,
-  indexId,
-}: SiAoiChangeMapCellProps) {
+const SiAoiChangeMapCell = forwardRef<SiAoiChangeMapCellHandle, SiAoiChangeMapCellProps>(function SiAoiChangeMapCell(
+  { slotIdx, slot, mapboxToken, mapStyle, aoiOutline, fitBounds, indexId, classificationPalette },
+  ref,
+) {
   const innerRef = useRef<MapRef | null>(null);
   const [mapLayersReady, setMapLayersReady] = useState(false);
+
+  useImperativeHandle(
+    ref,
+    () => ({
+      captureMapPngDataUrl(scale = 2) {
+        const map = innerRef.current?.getMap?.();
+        if (!map || !map.isStyleLoaded?.()) return null;
+        try {
+          map.triggerRepaint?.();
+          const canvas = map.getCanvas?.();
+          if (canvas instanceof HTMLCanvasElement && canvas.width > 2 && canvas.height > 2) {
+            return captureCanvasHiRes(canvas, scale);
+          }
+        } catch {
+          /* ignore */
+        }
+        return null;
+      },
+    }),
+    [],
+  );
 
   useEffect(() => {
     setMapLayersReady(false);
@@ -122,15 +144,15 @@ function SiAoiChangeMapCell({
       <div className="si-aoi-report-change-cell__banner">{slot.date}</div>
       <div className="si-aoi-report-change-cell__legend" aria-hidden>
         <div className="si-aoi-report-change-cell__legend-row">
-          <span className="si-aoi-report-change-cell__legend-swatch" style={{ background: '#22c55e' }} />
+          <span className="si-aoi-report-change-cell__legend-swatch" style={{ background: classificationPalette.high }} />
           H
         </div>
         <div className="si-aoi-report-change-cell__legend-row">
-          <span className="si-aoi-report-change-cell__legend-swatch" style={{ background: '#eab308' }} />
+          <span className="si-aoi-report-change-cell__legend-swatch" style={{ background: classificationPalette.medium }} />
           M
         </div>
         <div className="si-aoi-report-change-cell__legend-row">
-          <span className="si-aoi-report-change-cell__legend-swatch" style={{ background: '#ef4444' }} />
+          <span className="si-aoi-report-change-cell__legend-swatch" style={{ background: classificationPalette.low }} />
           L
         </div>
         <div className="si-aoi-report-change-cell__legend-row" style={{ marginTop: 3, opacity: 0.92 }}>
@@ -173,7 +195,11 @@ function SiAoiChangeMapCell({
                   id={`si-cd-aoi-line-layer-${slotIdx}`}
                   type="line"
                   layout={{ 'line-join': 'round', 'line-cap': 'round' }}
-                  paint={{ 'line-color': '#38bdf8', 'line-width': 2.5, 'line-opacity': 1 }}
+                  paint={{
+                    'line-color': classificationPalette.aoiOutline,
+                    'line-width': 2.5,
+                    'line-opacity': 1,
+                  }}
                 />
               </Source>
             </>
@@ -194,7 +220,9 @@ function SiAoiChangeMapCell({
       </div>
     </div>
   );
-}
+});
+
+SiAoiChangeMapCell.displayName = 'SiAoiChangeMapCell';
 
 export type SiAoiReportModalProps = {
   open: boolean;
@@ -210,6 +238,8 @@ export type SiAoiReportModalProps = {
   reportMapStyle?: string | StyleSpecification;
   /** Sentinel / WMS MAXCC-style cap shown in the report (metadata). */
   defaultCloudCoverPct?: number;
+  /** Optional class colours from WMS symbology (merged when building the report heatmaps). */
+  classificationPalette?: Partial<SiAoiClassificationPalette>;
 };
 
 export function SiAoiReportModal({
@@ -224,6 +254,7 @@ export function SiAoiReportModal({
   preferredAoiId,
   reportMapStyle = 'mapbox://styles/mapbox/satellite-streets-v12',
   defaultCloudCoverPct = 25,
+  classificationPalette: classificationPaletteProp,
 }: SiAoiReportModalProps) {
   const geminiApiKey = useGeminiApiKey();
   const [geminiSummary, setGeminiSummary] = useState<string | null>(null);
@@ -247,6 +278,8 @@ export function SiAoiReportModal({
   }>({ phase: 'idle' });
   const mapRef = useRef<MapRef | null>(null);
   const chartHostId = 'si-aoi-report-chart-host';
+  const chartExportHostId = 'si-aoi-report-chart-host-export';
+  const changeCellCaptureRefs = useRef<(SiAoiChangeMapCellHandle | null)[]>([]);
   const mapOk = Boolean(mapboxToken?.trim());
 
   useEffect(() => {
@@ -326,6 +359,7 @@ export function SiAoiReportModal({
       dateEnd: dateEnd.trim(),
       aoiFeature,
       aoiName: selectedName || 'AOI',
+      classificationPalette: classificationPaletteProp,
       processingContext: {
         cloudCoverMaxPct: cloudCoverMaxPct,
         temporalComposite,
@@ -339,7 +373,7 @@ export function SiAoiReportModal({
     setReport(built);
     setReportView('analysis');
     setStep('preview');
-  }, [weeklyComposites, indexId, dateStart, dateEnd, selectedFeature, selectedName, cloudCoverMaxPct, temporalComposite]);
+  }, [weeklyComposites, indexId, dateStart, dateEnd, selectedFeature, selectedName, cloudCoverMaxPct, temporalComposite, classificationPaletteProp]);
 
   const mapInitialView = useMemo(() => {
     if (!report) return { longitude: 46.7, latitude: 24.7, zoom: 10 };
@@ -470,17 +504,51 @@ export function SiAoiReportModal({
     const mode = exportUi.mode;
     setExportUi({ phase: 'busy', mode });
     setExportBusy(true);
+    const sleep = (ms: number) => new Promise<void>(r => window.setTimeout(r, ms));
+
     await new Promise<void>(r => requestAnimationFrame(() => r()));
-    await new Promise<void>(r => setTimeout(r, 80));
+    await sleep(80);
+
     try {
+      if (mapOk) {
+        if (mode === 'AOI_ANALYSIS') {
+          setReportView('analysis');
+          await sleep(550);
+          for (let i = 0; i < 50; i++) {
+            await sleep(100);
+            const m = mapRef.current?.getMap?.();
+            if (m?.isStyleLoaded?.()) break;
+          }
+        } else {
+          setReportView('change');
+          await sleep(900);
+          for (let i = 0; i < 55; i++) {
+            await sleep(140);
+            const n = report.changeDetectionSlots.length;
+            const filled = changeCellCaptureRefs.current.slice(0, n).filter(Boolean).length;
+            if (filled >= Math.min(12, n) && i > 12) break;
+          }
+          await sleep(350);
+        }
+      }
+
+      await new Promise<void>(r => requestAnimationFrame(() => r()));
+
       let chartImageDataUrl: string | null = null;
-      const chartEl = document.querySelector(`#${chartHostId} canvas`);
-      if (chartEl instanceof HTMLCanvasElement) {
+      const chartExportEl = document.querySelector(`#${chartExportHostId} canvas`);
+      const chartMainEl = document.querySelector(`#${chartHostId} canvas`);
+      const chartEl =
+        chartExportEl instanceof HTMLCanvasElement
+          ? chartExportEl
+          : chartMainEl instanceof HTMLCanvasElement
+            ? chartMainEl
+            : null;
+      if (chartEl) {
         chartImageDataUrl = captureCanvasHiRes(chartEl, 2);
       }
 
       let aoiMapImageDataUrl: string | null = null;
-      if (mode === 'AOI_ANALYSIS' && mapOk) {
+      if (mapOk && mode === 'AOI_ANALYSIS') {
         const map = mapRef.current?.getMap?.();
         if (map) {
           if (!map.isStyleLoaded?.()) {
@@ -491,7 +559,7 @@ export function SiAoiReportModal({
               } catch {
                 done();
               }
-              window.setTimeout(done, 4000);
+              window.setTimeout(done, 5000);
             });
           }
           await new Promise<void>(resolve => {
@@ -502,16 +570,17 @@ export function SiAoiReportModal({
               resolve();
             };
             try {
+              map.triggerRepaint?.();
               if (map.isStyleLoaded?.()) map.once('idle', finish);
               else finish();
             } catch {
               finish();
             }
-            window.setTimeout(finish, 2200);
+            window.setTimeout(finish, 4800);
           });
           try {
             const canvas = map.getCanvas?.();
-            if (canvas instanceof HTMLCanvasElement && map.isStyleLoaded?.()) {
+            if (canvas instanceof HTMLCanvasElement && canvas.width > 4 && canvas.height > 4 && map.isStyleLoaded?.()) {
               aoiMapImageDataUrl = captureCanvasHiRes(canvas, 2);
             }
           } catch {
@@ -520,20 +589,33 @@ export function SiAoiReportModal({
         }
       }
 
+      let changeSlotMapImageDataUrls: (string | null)[] | null = null;
+      if (mapOk && mode === 'TIME_SERIES_CHANGE_DETECTION') {
+        const urls: (string | null)[] = [];
+        for (let i = 0; i < report.changeDetectionSlots.length; i++) {
+          await sleep(35);
+          urls.push(changeCellCaptureRefs.current[i]?.captureMapPngDataUrl(2) ?? null);
+        }
+        changeSlotMapImageDataUrls = urls;
+      }
+
       exportSiAoiVegetationReportPdf(report, {
         mode,
         chartImageDataUrl,
         aoiMapImageDataUrl,
+        changeSlotMapImageDataUrls,
         executiveSummaryAi: geminiSummary?.trim() || undefined,
       });
     } catch (e) {
       console.error(e);
-      setErr('PDF export failed. If the AOI map is missing, open the “AOI analysis” tab and try again.');
+      setErr(
+        'PDF export failed. Ensure a Mapbox token is set, wait for maps to finish loading, then try again (export briefly switches to the tab needed for snapshots).',
+      );
     } finally {
       setExportBusy(false);
       setExportUi({ phase: 'idle' });
     }
-  }, [report, exportUi.mode, mapOk, chartHostId, geminiSummary]);
+  }, [report, exportUi.mode, mapOk, chartHostId, chartExportHostId, geminiSummary]);
 
   if (!open) return null;
 
@@ -697,6 +779,9 @@ export function SiAoiReportModal({
                     <div className="si-aoi-report-change-grid">
                       {report.changeDetectionSlots.map((slot, idx) => (
                         <SiAoiChangeMapCell
+                          ref={el => {
+                            changeCellCaptureRefs.current[idx] = el;
+                          }}
                           key={`${slot.date}-${idx}`}
                           slotIdx={idx}
                           slot={slot}
@@ -705,6 +790,7 @@ export function SiAoiReportModal({
                           aoiOutline={report.aoiOutlineGeoJson}
                           fitBounds={changeFitBounds}
                           indexId={report.indexId}
+                          classificationPalette={report.classificationPalette}
                         />
                       ))}
                     </div>
@@ -787,7 +873,11 @@ export function SiAoiReportModal({
                                   id="si-report-aoi-line"
                                   type="line"
                                   layout={{ 'line-join': 'round', 'line-cap': 'round' }}
-                                  paint={{ 'line-color': '#38bdf8', 'line-width': 2.5, 'line-opacity': 1 }}
+                                  paint={{
+                                    'line-color': report.classificationPalette.aoiOutline,
+                                    'line-width': 2.5,
+                                    'line-opacity': 1,
+                                  }}
                                 />
                               </Source>
                             </>
@@ -796,22 +886,29 @@ export function SiAoiReportModal({
                       </div>
                     )}
                     <div className="si-aoi-report-map-legend">
-                      <span>
-                        <span className="si-aoi-report-legend-swatch" style={{ background: '#22c55e' }} />
-                        High vegetation health
-                      </span>
-                      <span>
-                        <span className="si-aoi-report-legend-swatch" style={{ background: '#eab308' }} />
-                        Medium vegetation health
-                      </span>
-                      <span>
-                        <span className="si-aoi-report-legend-swatch" style={{ background: '#ef4444' }} />
-                        Low / degraded
-                      </span>
+                      {report.tableRows.map(row => (
+                        <span key={row.key}>
+                          <span
+                            className="si-aoi-report-legend-swatch"
+                            style={{
+                              background:
+                                row.key === 'high'
+                                  ? report.classificationPalette.high
+                                  : row.key === 'medium'
+                                    ? report.classificationPalette.medium
+                                    : report.classificationPalette.low,
+                            }}
+                          />
+                          {row.labelEn}
+                        </span>
+                      ))}
                       <span>
                         <span
                           className="si-aoi-report-legend-swatch"
-                          style={{ background: '#38bdf8', border: '1px solid #334155' }}
+                          style={{
+                            background: report.classificationPalette.aoiOutline,
+                            border: '1px solid #334155',
+                          }}
                         />
                         AOI outline
                       </span>
@@ -823,6 +920,21 @@ export function SiAoiReportModal({
           ) : null}
         </div>
 
+        {report && step === 'preview' && lineData ? (
+          <div className="si-aoi-report-chart-export-host" aria-hidden>
+            <div id={chartExportHostId} className="si-aoi-report-chart-export-host__inner">
+              <Line
+                data={lineData}
+                options={
+                  {
+                    ...(lineOptions as Record<string, unknown>),
+                    animation: false,
+                  } as any
+                }
+              />
+            </div>
+          </div>
+        ) : null}
         {exportUi.phase === 'preview' && exportUi.mode ? (
           <div
             className="si-aoi-report-export-overlay"
@@ -851,21 +963,28 @@ export function SiAoiReportModal({
               <ul className="si-aoi-report-export-card__list">
                 {exportUi.mode === 'AOI_ANALYSIS' ? (
                   <>
-                    <li>Data &amp; insights: index statistics table, KPI dashboard, SVG mini-charts, and Gemini executive text when a key is configured (vector text)</li>
+                    <li>
+                      Data &amp; insights: index statistics, KPIs, vector pie and bar charts, NDVI sparkline, and optional
+                      Gemini executive text when a key is configured
+                    </li>
                     <li>Scientific analysis and stress notes (vector text)</li>
                     <li>Health classification table with crisp borders</li>
-                    <li>Index timeline chart (high-DPI raster from the chart canvas)</li>
+                    <li>Vector index timeline titled with the selected layer (for example, NDVI timeline)</li>
                     <li>
-                      AOI basemap + classification snapshot when the <strong>AOI analysis</strong> tab is active
-                      (switch tabs before generating if the map is hidden)
+                      AOI basemap + classification snapshot; export briefly opens the <strong>AOI analysis</strong> tab so
+                      the map canvas is ready
                     </li>
                   </>
                 ) : (
                   <>
                     <li>Cover band with AOI, index, and period metadata</li>
-                    <li>All twelve timestamps with per-date statistics (vector text)</li>
-                    <li>Data &amp; insights appendix (index table, KPIs, sparkline, Gemini text when available)</li>
-                    <li>Optimized for print — no mixed AOI / timeline map on this export</li>
+                    <li>
+                      3×4 grid with per-date map thumbnails (when Mapbox is available), class shares, and index range per
+                      tile
+                    </li>
+                    <li>Vector timeline page plus classification legend aligned with Symbology colours</li>
+                    <li>Data &amp; insights appendix (index table, KPIs, pie, bars, sparkline, Gemini text when available)</li>
+                    <li>Export briefly opens the <strong>Time series change detection</strong> tab to capture grid maps</li>
                   </>
                 )}
               </ul>
