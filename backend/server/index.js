@@ -69,6 +69,60 @@ registerAdminDirectoryPersistence(app, {
   accessToken: process.env.AGRI_ADMIN_DIRECTORY_TOKEN,
 })
 
+/**
+ * Google OAuth code → ID token (server-side secret). SPA calls this after
+ * `oauth-return.html` forwards `?code` to `/#/login`.
+ *
+ * Env: GOOGLE_OAUTH_CLIENT_ID, GOOGLE_OAUTH_CLIENT_SECRET, GOOGLE_OAUTH_REDIRECT_URI
+ * (redirect URI must match the value sent to accounts.google.com).
+ */
+app.post('/api/auth/google/exchange', async (req, res) => {
+  try {
+    const code = String(req.body?.code || '').trim()
+    const redirectUri = String(req.body?.redirect_uri || process.env.GOOGLE_OAUTH_REDIRECT_URI || '').trim()
+    const clientId = String(process.env.GOOGLE_OAUTH_CLIENT_ID || '').trim()
+    const clientSecret = String(process.env.GOOGLE_OAUTH_CLIENT_SECRET || '').trim()
+    if (!code || !clientId || !clientSecret || !redirectUri) {
+      return res.status(400).json({ ok: false, error: 'oauth_google_missing_config_or_code' })
+    }
+    const body = new URLSearchParams({
+      code,
+      client_id: clientId,
+      client_secret: clientSecret,
+      redirect_uri: redirectUri,
+      grant_type: 'authorization_code',
+    })
+    const tokenRes = await fetch('https://oauth2.googleapis.com/token', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: body.toString(),
+    })
+    const json = await tokenRes.json().catch(() => ({}))
+    if (!tokenRes.ok) {
+      return res.status(401).json({ ok: false, error: 'google_token_failed', detail: json })
+    }
+    const idToken = typeof json.id_token === 'string' ? json.id_token : ''
+    if (!idToken) {
+      return res.status(401).json({ ok: false, error: 'google_no_id_token', detail: json })
+    }
+    const parts = idToken.split('.')
+    if (parts.length < 2) {
+      return res.status(401).json({ ok: false, error: 'google_id_token_malformed' })
+    }
+    const b64 = parts[1].replace(/-/g, '+').replace(/_/g, '/')
+    const pad = b64.length % 4 === 0 ? '' : '='.repeat(4 - (b64.length % 4))
+    const payload = JSON.parse(Buffer.from(b64 + pad, 'base64').toString('utf8'))
+    const email = String(payload.email || '').trim().toLowerCase()
+    const name = String(payload.name || payload.given_name || email || 'User').trim()
+    if (!email) {
+      return res.status(401).json({ ok: false, error: 'google_email_missing' })
+    }
+    return res.json({ ok: true, email, name, sub: String(payload.sub || '') })
+  } catch (e) {
+    return res.status(500).json({ ok: false, error: 'oauth_google_server_error' })
+  }
+})
+
 app.get('*', (req, res, next) => {
   try {
     if (req.method !== 'GET') return next()

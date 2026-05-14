@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
-import { useLocation } from 'react-router-dom'
+import { useLocation, useNavigate } from 'react-router-dom'
 import LoginGlslHillsBackground from './login/LoginGlslHillsBackground'
+import { LoginCanvasGlobe } from './login/LoginCanvasGlobe'
 import './Login.css'
 import { normalizeEmail, normalizeRole, startSession } from '../lib/auth'
 import { pickDefaultAssignableRole, useDirectoryRoleCatalog } from '../lib/roleCatalog'
@@ -8,6 +9,16 @@ import { hydrateProfileFromAdminUserRecord, hydrateProfileFromServer } from '../
 import { appendAuditLog } from '../lib/audit'
 import { useLanguage } from '../lib/i18n'
 import { appConfig } from '../../config/app'
+import { GEOSYNTRA_BRAND_LOGO_SVG, GEOSYNTRA_BRAND_NAME } from '../lib/brand'
+import {
+  clearOAuthHandshake,
+  exchangeGoogleAuthCode,
+  getGoogleOAuthRedirectUri,
+  readStoredOAuthProvider,
+  readStoredOAuthState,
+  resolveAppleAuthorizationUrl,
+  resolveGoogleAuthorizationUrl,
+} from '../lib/oauthSignIn'
 
 type AuthUser = {
   id: number
@@ -44,7 +55,11 @@ const loginTranslations = {
     oauthGoogle: 'Continue with Google',
     oauthApple: 'Continue with Apple',
     oauthNotConfigured:
-      'Single sign-on is not configured. Use email and password, or ask your administrator to enable OAuth (VITE_AUTH_GOOGLE_URL / VITE_AUTH_APPLE_URL).',
+      'OAuth is not configured. For Google: set VITE_AUTH_GOOGLE_CLIENT_ID (redirect uses oauth-return.html) and run the API with GOOGLE_OAUTH_CLIENT_ID + GOOGLE_OAUTH_CLIENT_SECRET, or set VITE_AUTH_GOOGLE_URL. For Apple: set VITE_AUTH_APPLE_CLIENT_ID or VITE_AUTH_APPLE_URL.',
+    oauthGoogleFailed: 'Google sign-in could not be completed.',
+    oauthAppleNeedsServer:
+      'Apple sign-in returned a code. Use a full VITE_AUTH_APPLE_URL from your IdP, or implement Apple token exchange on the server.',
+    oauthSessionExpired: 'Sign-in session expired. Please try again.',
     footerNote:
       'Self-service sign-ups require email verification before login. Admins manage accounts, roles, and activation in User Management.',
     signupVerifyHint: 'After sign up, check your inbox for a confirmation link before your first login.',
@@ -80,7 +95,11 @@ const loginTranslations = {
     oauthGoogle: 'المتابعة مع Google',
     oauthApple: 'المتابعة مع Apple',
     oauthNotConfigured:
-      'تسجيل الدخول الموحد غير مهيأ. استخدم البريد وكلمة المرور، أو اطلب من المسؤول تفعيل OAuth (VITE_AUTH_GOOGLE_URL / VITE_AUTH_APPLE_URL).',
+      'تسجيل الدخول الموحد غير مهيأ. لـ Google: عيّن VITE_AUTH_GOOGLE_CLIENT_ID (مع خادم API و GOOGLE_OAUTH_CLIENT_SECRET) أو VITE_AUTH_GOOGLE_URL. لـ Apple: عيّن VITE_AUTH_APPLE_CLIENT_ID أو VITE_AUTH_APPLE_URL.',
+    oauthGoogleFailed: 'تعذر إكمال تسجيل الدخول عبر Google.',
+    oauthAppleNeedsServer:
+      'أعاد Apple رمزاً. استخدم VITE_AUTH_APPLE_URL كاملاً من مزود الهوية، أو أضف تبادل الرمز على الخادم.',
+    oauthSessionExpired: 'انتهت جلسة تسجيل الدخول. أعد المحاولة.',
     footerNote:
       'الحسابات الجديدة تبقى قيد التحقق حتى تأكيد البريد. يدير المسؤول الحسابات والأدوار والتفعيل من إدارة المستخدمين.',
     signupVerifyHint: 'بعد إنشاء الحساب، راجع بريدك للرابط التأكيدي قبل أول تسجيل دخول.',
@@ -97,6 +116,7 @@ const loginTranslations = {
 export default function Login() {
   const { language } = useLanguage()
   const text = loginTranslations[language]
+  const navigate = useNavigate()
   const signupRoleCatalog = useDirectoryRoleCatalog()
   const [mode, setMode] = useState<'signin' | 'signup'>('signin')
   const [email, setEmail] = useState('')
@@ -784,6 +804,128 @@ export default function Login() {
 
   useEffect(() => {
     const params = new URLSearchParams(location.search)
+    const oauthCode = params.get('code')
+    const oauthState = params.get('state')
+    const oauthError = params.get('error') || params.get('error_description')
+
+    if (oauthError) {
+      setError(decodeURIComponent(oauthError.replace(/\+/g, ' ')))
+      clearOAuthHandshake()
+      navigate('/login', { replace: true })
+      return
+    }
+
+    if (oauthCode && oauthState) {
+      const expected = readStoredOAuthState()
+      const provider = readStoredOAuthProvider()
+      if (!expected || oauthState !== expected) {
+        setError(text.oauthSessionExpired)
+        clearOAuthHandshake()
+        navigate('/login', { replace: true })
+        return
+      }
+
+      let cancelled = false
+      void (async () => {
+        if (provider === 'google') {
+          const redirect = getGoogleOAuthRedirectUri()
+          const result = await exchangeGoogleAuthCode(oauthCode, redirect)
+          if (cancelled) return
+          clearOAuthHandshake()
+          navigate('/login', { replace: true })
+          if (!result.ok || !result.email) {
+            setError(`${text.oauthGoogleFailed}${result.error ? ` (${result.error})` : ''}`)
+            return
+          }
+          const emailKey = normalizeEmail(result.email)
+          const users = readAdminUsersFromStorage()
+          const normalized = normalizeAdminUsers(users)
+          const idx = normalized.findIndex(u => normalizeEmail((u as any)?.email) === emailKey)
+          const displayName = (result.name || result.email).trim()
+          if (idx >= 0) {
+            const u = normalized[idx] as any
+            const merged = {
+              ...u,
+              name: displayName || u.name,
+              lastLogin: new Date().toLocaleString(),
+            }
+            const next = [...normalized]
+            next[idx] = merged
+            persistAdminUsers(next, { mergeWithCurrent: false })
+            const authUser: AuthUser = {
+              id: typeof merged.id === 'number' ? merged.id : Date.now(),
+              name: String(merged.name || merged.email),
+              email: String(merged.email || '').trim(),
+              role: normalizeRole(merged.role),
+              scope: merged.scope ? String(merged.scope) : undefined,
+            }
+            hydrateProfileFromAdminUserRecord(merged as Record<string, unknown>)
+            startSession(authUser, { persist: keepSignedIn })
+            void hydrateProfileFromServer(emailKey).catch(() => {})
+            logLoginAttempt('success', 'oauth_google', emailKey)
+            appendAuditLog({
+              entity: 'auth',
+              action: 'login_success',
+              entityId: emailKey,
+              actorEmail: emailKey,
+              meta: { via: 'oauth_google' },
+            })
+            setError('')
+            setInfo('')
+            return
+          }
+          const newRow = {
+            id: Date.now() + Math.floor(Math.random() * 1000),
+            name: displayName,
+            email: result.email.trim(),
+            role: 'Viewer',
+            status: 'Active',
+            lastLogin: new Date().toLocaleString(),
+            emailVerified: true,
+            passwordHash: await hashPassword(`oauth:google:${emailKey}:${Date.now()}`),
+          }
+          persistAdminUsers([...normalized, newRow], { mergeWithCurrent: false })
+          hydrateProfileFromAdminUserRecord(newRow as Record<string, unknown>)
+          startSession(
+            {
+              id: newRow.id,
+              name: newRow.name,
+              email: newRow.email,
+              role: 'Viewer',
+            },
+            { persist: keepSignedIn },
+          )
+          void hydrateProfileFromServer(emailKey).catch(() => {})
+          logLoginAttempt('success', 'oauth_google_new_user', emailKey)
+          appendAuditLog({
+            entity: 'auth',
+            action: 'login_success',
+            entityId: emailKey,
+            actorEmail: emailKey,
+            meta: { via: 'oauth_google', created: true },
+          })
+          setError('')
+          setInfo('')
+          return
+        }
+
+        if (provider === 'apple') {
+          clearOAuthHandshake()
+          navigate('/login', { replace: true })
+          setError('')
+          setInfo(text.oauthAppleNeedsServer)
+          return
+        }
+
+        clearOAuthHandshake()
+        navigate('/login', { replace: true })
+      })()
+
+      return () => {
+        cancelled = true
+      }
+    }
+
     const invite = params.get('invite')
     const token = params.get('token')
     const emailParam = params.get('email')
@@ -835,7 +977,7 @@ export default function Login() {
     } catch {
       setError('Invalid or expired verification link.')
     }
-  }, [location.search])
+  }, [location.search, navigate, text.oauthAppleNeedsServer, text.oauthGoogleFailed, text.oauthSessionExpired, keepSignedIn])
 
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
@@ -854,20 +996,19 @@ export default function Login() {
     if (mode === 'signin') setKeepSignedIn(true)
   }, [mode])
 
-  const googleAuthUrl =
-    typeof import.meta.env.VITE_AUTH_GOOGLE_URL === 'string' ? import.meta.env.VITE_AUTH_GOOGLE_URL.trim() : ''
-  const appleAuthUrl =
-    typeof import.meta.env.VITE_AUTH_APPLE_URL === 'string' ? import.meta.env.VITE_AUTH_APPLE_URL.trim() : ''
-
   const onSsoGoogle = () => {
     setError('')
-    if (googleAuthUrl) window.location.assign(googleAuthUrl)
+    setInfo('')
+    const url = resolveGoogleAuthorizationUrl()
+    if (url) window.location.assign(url)
     else setInfo(text.oauthNotConfigured)
   }
 
   const onSsoApple = () => {
     setError('')
-    if (appleAuthUrl) window.location.assign(appleAuthUrl)
+    setInfo('')
+    const url = resolveAppleAuthorizationUrl()
+    if (url) window.location.assign(url)
     else setInfo(text.oauthNotConfigured)
   }
 
@@ -881,19 +1022,34 @@ export default function Login() {
       <div className="login-page-content">
         <div className="login-page-shell">
           <div className="login-hero">
-            <p className="login-hero__line1">{text.heroLine1}</p>
-            <p className="login-hero__line2">{text.heroLine2}</p>
-            <p className="login-hero__sub">{text.heroSub.replace('{name}', appConfig.appName)}</p>
+            <div className="login-hero__copy">
+              <p className="login-hero__line1">{text.heroLine1}</p>
+              <p className="login-hero__line2">{text.heroLine2}</p>
+              <p className="login-hero__sub">{text.heroSub.replace('{name}', GEOSYNTRA_BRAND_NAME)}</p>
+            </div>
+            <div className="login-hero-globe" aria-hidden>
+              <LoginCanvasGlobe
+                size={560}
+                dotColor="rgba(100, 200, 255, ALPHA)"
+                arcColor="rgba(56, 189, 248, 0.48)"
+                markerColor="rgba(165, 243, 252, 1)"
+                autoRotateSpeed={0.00185}
+              />
+            </div>
           </div>
           <div className="login-glass-card-wrap">
             <div className="login-glass-card">
               <div className="login-card-header">
                 <div className="login-leaf-badge">
                   <div className="login-leaf-circle login-leaf-circle--hero">
-                    <i className="fa-solid fa-globe" aria-hidden />
+                    <span
+                      className="login-brand-mark"
+                      aria-hidden
+                      dangerouslySetInnerHTML={{ __html: GEOSYNTRA_BRAND_LOGO_SVG }}
+                    />
                   </div>
                 </div>
-                <h1 className="login-card-title">{appConfig.appName}</h1>
+                <h1 className="login-card-title">{GEOSYNTRA_BRAND_NAME}</h1>
                 <div className="login-mode-toggle">
                   <button
                     type="button"

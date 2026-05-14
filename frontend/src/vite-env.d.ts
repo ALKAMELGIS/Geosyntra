@@ -13,6 +13,13 @@ interface ImportMetaEnv {
   /** Optional OAuth redirect URLs (IdP / backend handles token exchange). */
   readonly VITE_AUTH_GOOGLE_URL?: string
   readonly VITE_AUTH_APPLE_URL?: string
+  /** Build Google authorize URL when `VITE_AUTH_GOOGLE_URL` is unset (uses `public/oauth-return.html` as redirect). */
+  readonly VITE_AUTH_GOOGLE_CLIENT_ID?: string
+  readonly VITE_AUTH_GOOGLE_REDIRECT_URI?: string
+  readonly VITE_AUTH_APPLE_CLIENT_ID?: string
+  readonly VITE_AUTH_APPLE_REDIRECT_URI?: string
+  /** API origin for `POST /api/auth/google/exchange` when the SPA is not same-origin (e.g. `http://localhost:3001`). */
+  readonly VITE_API_BASE_URL?: string
 }
 
 declare global {
