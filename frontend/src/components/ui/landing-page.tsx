@@ -566,6 +566,8 @@ export function ScrollGlobe({ sections, globeConfig = defaultGlobeConfig, classN
                 section.align === 'center' || innovationGlobeStack
                   ? 'max-w-full mx-auto text-center'
                   : 'max-w-full text-left',
+                /* Welcome hero — extra vertical gap (~3 cm) below the sparkle bar before lede + CTAs. */
+                section.id === 'hero' && 'mt-[3cm]',
               )}
             >
               <p className="mb-3 sm:mb-4">{section.description}</p>

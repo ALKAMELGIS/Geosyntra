@@ -45,6 +45,36 @@ export type SiAoiChangeDetectionSlot = {
   sceneThumbUrl?: string;
 };
 
+export type SiAoiIndexInsightId = 'NDVI' | 'NDWI' | 'SAVI' | 'LST';
+
+export type SiAoiIndexTableRow = {
+  indexId: SiAoiIndexInsightId;
+  label: string;
+  min: number;
+  max: number;
+  mean: number;
+  std: number;
+  status: 'Healthy' | 'Moderate' | 'Risk';
+};
+
+export type SiAoiDashboardMetrics = {
+  ndviAvg: number;
+  ndwiStatusLabel: string;
+  vegChangePct: number;
+  heatRiskLabel: string;
+  urbanExpansionPct: number;
+  barSeries: Array<{ id: string; label: string; valueNorm: number }>;
+  pieSlices: Array<{ label: string; pct: number; color: string }>;
+  sparkNdvi: number[];
+};
+
+export type SiAoiDataInsightsBundle = {
+  indexRows: SiAoiIndexTableRow[];
+  dashboard: SiAoiDashboardMetrics;
+  /** Reserved for client-side Gemini fill; PDF may override via export options. */
+  executiveSummaryAi: string | null;
+};
+
 export type SiAoiReportModel = {
   indexId: StaticAoiChartLayerId;
   indexLabel: string;
@@ -62,6 +92,8 @@ export type SiAoiReportModel = {
   /** Twelve independent temporal slots (3×4 grid): heatmap + stats per date. */
   changeDetectionSlots: SiAoiChangeDetectionSlot[];
   tableRows: SiAoiReportTableRow[];
+  /** Enterprise dashboard payload (indices table + KPIs + chart series). */
+  dataInsights: SiAoiDataInsightsBundle;
 };
 
 /** Bounding box [west, south, east, north] in WGS84 for map fit / grids. */
@@ -402,6 +434,95 @@ function detectStressEn(indexId: StaticAoiChartLayerId, series: SiAoiReportTimeP
   return null;
 }
 
+function stdDevPopulation(vals: number[]): number {
+  const v = vals.filter(Number.isFinite);
+  if (v.length < 2) return 0;
+  const m = v.reduce((a, b) => a + b, 0) / v.length;
+  return Math.sqrt(v.reduce((a, x) => a + (x - m) ** 2, 0) / v.length);
+}
+
+function classifyInsightStatus(id: SiAoiIndexInsightId, mean: number): 'Healthy' | 'Moderate' | 'Risk' {
+  if (id === 'LST') {
+    if (mean <= 28) return 'Healthy';
+    if (mean <= 32) return 'Moderate';
+    return 'Risk';
+  }
+  if (id === 'NDWI') {
+    if (mean >= -0.08) return 'Healthy';
+    if (mean >= -0.28) return 'Moderate';
+    return 'Risk';
+  }
+  if (mean >= 0.38) return 'Healthy';
+  if (mean >= 0.22) return 'Moderate';
+  return 'Risk';
+}
+
+export function buildSiAoiDataInsightsBundle(
+  weeks: Array<{ startDate: string; endDate: string; mean: number }>,
+  aoiKey: string,
+  classificationRows: SiAoiReportTableRow[],
+): SiAoiDataInsightsBundle {
+  const n = Math.max(1, weeks.length);
+  const ids: SiAoiIndexInsightId[] = ['NDVI', 'NDWI', 'SAVI', 'LST'];
+  const indexRows: SiAoiIndexTableRow[] = ids.map(id => {
+    const vals = weeks.map((w, i) => staticAoiLayerMeanForWeek(id, i, n, aoiKey, w.mean));
+    const min = Math.min(...vals);
+    const max = Math.max(...vals);
+    const mean = vals.reduce((a, b) => a + b, 0) / vals.length;
+    const std = stdDevPopulation(vals);
+    const meta = STATIC_AOI_CHART_LAYER_OPTIONS.find(o => o.id === id)!;
+    return {
+      indexId: id,
+      label: meta.label,
+      min,
+      max,
+      mean,
+      std,
+      status: classifyInsightStatus(id, mean),
+    };
+  });
+
+  const ndviVals = weeks.map((w, i) => staticAoiLayerMeanForWeek('NDVI', i, n, aoiKey, w.mean));
+  const vegChange =
+    ndviVals.length >= 2
+      ? ((ndviVals[ndviVals.length - 1]! - ndviVals[0]!) / Math.max(0.06, Math.abs(ndviVals[0]!))) * 100
+      : 0;
+
+  const lstMean = indexRows.find(r => r.indexId === 'LST')!.mean;
+  const heatRiskLabel = lstMean > 33 ? 'High' : lstMean > 28 ? 'Moderate' : 'Low';
+
+  const barSeries = indexRows.map(r => ({
+    id: r.indexId,
+    label: r.label,
+    valueNorm:
+      r.indexId === 'LST' ? Math.max(0, Math.min(1, (r.mean - 15) / 30)) : Math.max(0, Math.min(1, (r.mean + 1) / 2)),
+  }));
+
+  const high = classificationRows.find(t => t.key === 'high')?.pct ?? 33;
+  const med = classificationRows.find(t => t.key === 'medium')?.pct ?? 34;
+  const low = classificationRows.find(t => t.key === 'low')?.pct ?? 33;
+  const ndwi = indexRows.find(r => r.indexId === 'NDWI')!;
+
+  return {
+    indexRows,
+    dashboard: {
+      ndviAvg: indexRows.find(r => r.indexId === 'NDVI')!.mean,
+      ndwiStatusLabel: ndwi.status,
+      vegChangePct: Number(Math.max(-99, Math.min(99, vegChange)).toFixed(1)),
+      heatRiskLabel,
+      urbanExpansionPct: Number((Math.max(0, -vegChange) * 0.22 + 2.5).toFixed(1)),
+      barSeries,
+      pieSlices: [
+        { label: 'High vigor', pct: high, color: '#16a34a' },
+        { label: 'Medium', pct: med, color: '#ca8a04' },
+        { label: 'Low / stress', pct: low, color: '#dc2626' },
+      ],
+      sparkNdvi: ndviVals,
+    },
+    executiveSummaryAi: null,
+  };
+}
+
 function buildChangeDetectionDates(weekDates: string[], max = 12): string[] {
   const uniq = [...new Set(weekDates)].sort();
   if (uniq.length === 0) {
@@ -539,6 +660,8 @@ export function buildSiAoiVegetationReport(input: {
     1,
   )}% low / degraded (illustrative client-side split). Replace with true zonal statistics from your backend for enterprise reporting.`;
 
+  const dataInsights = buildSiAoiDataInsightsBundle(weeks, aoiKey, tableRows);
+
   return {
     indexId,
     indexLabel: opt.label,
@@ -554,6 +677,7 @@ export function buildSiAoiVegetationReport(input: {
     aoiOutlineGeoJson,
     changeDetectionSlots,
     tableRows,
+    dataInsights,
   };
 }
 
@@ -565,6 +689,8 @@ export type SiAoiPdfExportOptions = {
   chartImageDataUrl?: string | null;
   /** Main AOI analysis map snapshot (AOI_ANALYSIS mode only). */
   aoiMapImageDataUrl?: string | null;
+  /** Optional Gemini executive summary (plain text) for the Data & Insights PDF block. */
+  executiveSummaryAi?: string | null;
 };
 
 function addChangeDetectionPageGrid(
@@ -644,15 +770,143 @@ function addChangeDetectionPageGrid(
   }
 }
 
+function pdfPageBottom(doc: jsPDF, margin: number) {
+  return doc.internal.pageSize.getHeight() - margin;
+}
+
+function pdfEnsureSpace(doc: jsPDF, y: number, margin: number, need: number): number {
+  if (y + need > pdfPageBottom(doc, margin)) {
+    doc.addPage();
+    return margin;
+  }
+  return y;
+}
+
+function drawNdviSparklinePdf(doc: jsPDF, vals: number[], x: number, yTop: number, w: number, h: number) {
+  const xs = vals.filter(Number.isFinite);
+  if (xs.length < 2) return;
+  const lo = Math.min(...xs);
+  const hi = Math.max(...xs);
+  const span = Math.max(1e-6, hi - lo);
+  doc.setDrawColor(22, 163, 74);
+  doc.setLineWidth(0.7);
+  for (let i = 1; i < xs.length; i++) {
+    const t0 = (i - 1) / (xs.length - 1);
+    const t1 = i / (xs.length - 1);
+    const px0 = x + t0 * w;
+    const px1 = x + t1 * w;
+    const py0 = yTop + h - ((xs[i - 1]! - lo) / span) * h;
+    const py1 = yTop + h - ((xs[i]! - lo) / span) * h;
+    doc.line(px0, py0, px1, py1);
+  }
+}
+
+function appendDataInsightsPdf(doc: jsPDF, report: SiAoiReportModel, opts: SiAoiPdfExportOptions, margin: number, y0: number): number {
+  let y = y0;
+  const di = report.dataInsights;
+  const execText =
+    (opts.executiveSummaryAi && opts.executiveSummaryAi.trim()) ||
+    (di.executiveSummaryAi && di.executiveSummaryAi.trim()) ||
+    report.summaryLinesEn.join(' ');
+
+  y = pdfEnsureSpace(doc, y, margin, 72);
+  doc.setFontSize(12);
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(15, 23, 42);
+  doc.text('Data & insights', margin, y);
+  y += 18;
+
+  doc.setFontSize(9);
+  doc.setFont('helvetica', 'bold');
+  doc.text('1. Executive summary (AI-assisted)', margin, y);
+  y += 12;
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(8.5);
+  doc.setTextColor(51, 65, 85);
+  const execWrap = doc.splitTextToSize(execText, 520);
+  y = pdfEnsureSpace(doc, y, margin, execWrap.length * 10 + 6);
+  doc.text(execWrap, margin, y);
+  y += execWrap.length * 10 + 14;
+
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(9);
+  doc.setTextColor(15, 23, 42);
+  doc.text('2. Index data (NDVI / NDWI / SAVI / LST)', margin, y);
+  y += 12;
+
+  const fmt = (id: SiAoiIndexInsightId, v: number) => (id === 'LST' ? v.toFixed(2) : v.toFixed(3));
+
+  autoTable(doc, {
+    startY: y,
+    head: [['Index', 'Min', 'Max', 'Mean', 'Std dev', 'Status']],
+    body: di.indexRows.map(r => [
+      r.label,
+      fmt(r.indexId, r.min),
+      fmt(r.indexId, r.max),
+      fmt(r.indexId, r.mean),
+      fmt(r.indexId, r.std),
+      r.status,
+    ]),
+    styles: { fontSize: 8.5, cellPadding: 3, lineColor: [226, 232, 240], lineWidth: 0.25, textColor: [30, 41, 59] },
+    headStyles: { fillColor: [21, 94, 50], textColor: 255, fontStyle: 'bold' },
+    alternateRowStyles: { fillColor: [248, 250, 252] },
+    columnStyles: {
+      5: { cellWidth: 58 },
+    },
+    didParseCell: (data: any) => {
+      if (data.section === 'body' && data.column.index === 5) {
+        const s = String(data.cell.raw ?? '');
+        if (s === 'Healthy') data.cell.styles.fillColor = [220, 252, 231];
+        else if (s === 'Moderate') data.cell.styles.fillColor = [254, 249, 195];
+        else if (s === 'Risk') data.cell.styles.fillColor = [254, 226, 226];
+      }
+    },
+  });
+  y = (doc as any).lastAutoTable.finalY + 16;
+
+  const d = di.dashboard;
+  y = pdfEnsureSpace(doc, y, margin, 120);
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(9);
+  doc.setTextColor(15, 23, 42);
+  doc.text('3. AOI summary dashboard (KPIs)', margin, y);
+  y += 12;
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(8.5);
+  doc.setTextColor(51, 65, 85);
+  const kpis = [
+    `NDVI average: ${d.ndviAvg.toFixed(3)}`,
+    `NDWI status class: ${d.ndwiStatusLabel}`,
+    `Vegetation change (period): ${d.vegChangePct >= 0 ? '+' : ''}${d.vegChangePct.toFixed(1)} %`,
+    `Heat risk (LST-based): ${d.heatRiskLabel}`,
+    `Urban expansion proxy: ${d.urbanExpansionPct.toFixed(1)} % (heuristic from NDVI trend)`,
+  ];
+  for (const line of kpis) {
+    const w = doc.splitTextToSize(line, 520);
+    y = pdfEnsureSpace(doc, y, margin, w.length * 10 + 4);
+    doc.text(w, margin, y);
+    y += w.length * 10 + 2;
+  }
+  y += 8;
+
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(15, 23, 42);
+  doc.text('NDVI trend (vector polyline)', margin, y);
+  y += 10;
+  y = pdfEnsureSpace(doc, y, margin, 52);
+  doc.setDrawColor(226, 232, 240);
+  doc.setLineWidth(0.35);
+  doc.roundedRect(margin, y, 240, 44, 2, 2, 'S');
+  drawNdviSparklinePdf(doc, d.sparkNdvi, margin + 6, y + 6, 228, 32);
+  y += 52;
+
+  return y;
+}
+
 /**
  * AOI-only PDF: narrative, table, high-res chart + optional map snapshot. No timeline grid page.
  */
-function buildAoiAnalysisPdfDocument(
-  doc: jsPDF,
-  report: SiAoiReportModel,
-  chartImageDataUrl?: string | null,
-  aoiMapImageDataUrl?: string | null,
-) {
+function buildAoiAnalysisPdfDocument(doc: jsPDF, report: SiAoiReportModel, opts: SiAoiPdfExportOptions) {
   const margin = 48;
   let y = margin;
 
@@ -678,18 +932,8 @@ function buildAoiAnalysisPdfDocument(
   doc.text(`AOI area: ${report.aoiAreaKm2.toFixed(3)} km²`, margin, y);
   y += 22;
 
-  doc.setFontSize(11);
-  doc.setFont('helvetica', 'bold');
-  doc.text('Executive summary', margin, y);
-  doc.setFont('helvetica', 'normal');
-  y += 16;
-  doc.setFontSize(9);
-  report.summaryLinesEn.forEach(line => {
-    const wrapped = doc.splitTextToSize(line, 520);
-    doc.text(wrapped, margin, y);
-    y += wrapped.length * 11 + 4;
-  });
-  y += 8;
+  y = appendDataInsightsPdf(doc, report, opts, margin, y);
+  y += 10;
 
   doc.setFontSize(11);
   doc.setFont('helvetica', 'bold');
@@ -718,24 +962,25 @@ function buildAoiAnalysisPdfDocument(
   });
   y = (doc as any).lastAutoTable.finalY + 18;
 
-  if (chartImageDataUrl) {
+  if (opts.chartImageDataUrl) {
     try {
-      const chartH = 210;
+      const chartH = 200;
+      y = pdfEnsureSpace(doc, y, margin, chartH + 24);
       doc.setFontSize(10);
       doc.setFont('helvetica', 'bold');
       doc.setTextColor(15, 23, 42);
       doc.text('Index timeline', margin, y);
       y += 12;
-      doc.addImage(chartImageDataUrl, 'PNG', margin, y, 520, chartH, undefined, 'SLOW');
+      doc.addImage(opts.chartImageDataUrl, 'PNG', margin, y, 520, chartH, undefined, 'SLOW');
       y += chartH + 14;
     } catch {
       /* ignore chart embed */
     }
   }
 
-  if (aoiMapImageDataUrl) {
+  if (opts.aoiMapImageDataUrl) {
     try {
-      const mapH = 200;
+      const mapH = 190;
       if (y + mapH > doc.internal.pageSize.getHeight() - margin) {
         doc.addPage();
         y = margin;
@@ -745,7 +990,7 @@ function buildAoiAnalysisPdfDocument(
       doc.setTextColor(15, 23, 42);
       doc.text('AOI map (basemap + classification overlay)', margin, y);
       y += 12;
-      doc.addImage(aoiMapImageDataUrl, 'PNG', margin, y, 520, mapH, undefined, 'SLOW');
+      doc.addImage(opts.aoiMapImageDataUrl, 'PNG', margin, y, 520, mapH, undefined, 'SLOW');
       y += mapH + 14;
     } catch {
       /* ignore map embed */
@@ -766,7 +1011,7 @@ function buildAoiAnalysisPdfDocument(
   doc.text(foot, margin, y);
 }
 
-function buildTimeSeriesChangeDetectionPdfDocument(doc: jsPDF, report: SiAoiReportModel) {
+function buildTimeSeriesChangeDetectionPdfDocument(doc: jsPDF, report: SiAoiReportModel, opts: SiAoiPdfExportOptions) {
   const margin = 48;
   const pageW = doc.internal.pageSize.getWidth();
   doc.setFillColor(15, 23, 42);
@@ -786,6 +1031,15 @@ function buildTimeSeriesChangeDetectionPdfDocument(doc: jsPDF, report: SiAoiRepo
     startY: 62,
     compactHeader: true,
   });
+
+  doc.addPage();
+  let y = margin;
+  doc.setFontSize(12);
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(15, 23, 42);
+  doc.text('Data & insights (appendix)', margin, y);
+  y += 20;
+  appendDataInsightsPdf(doc, report, opts, margin, y);
 }
 
 export function exportSiAoiVegetationReportPdf(report: SiAoiReportModel, options: SiAoiPdfExportOptions) {
@@ -793,11 +1047,11 @@ export function exportSiAoiVegetationReportPdf(report: SiAoiReportModel, options
   const stamp = new Date().toISOString().replace(/[:.]/g, '-');
 
   if (options.mode === 'TIME_SERIES_CHANGE_DETECTION') {
-    buildTimeSeriesChangeDetectionPdfDocument(doc, report);
+    buildTimeSeriesChangeDetectionPdfDocument(doc, report, options);
     doc.save(`aoi-timeseries-change-detection-${stamp}.pdf`);
     return;
   }
 
-  buildAoiAnalysisPdfDocument(doc, report, options.chartImageDataUrl, options.aoiMapImageDataUrl);
+  buildAoiAnalysisPdfDocument(doc, report, options);
   doc.save(`aoi-analysis-report-${stamp}.pdf`);
 }

@@ -13491,19 +13491,28 @@ export default function SatelliteIntelligence() {
                         {/* Fields Data lives on the map rail only — not duplicated in Remote Sensing tools. */}
 
                         {fieldAnalysisStatus ? <p className="si-field-analysis-status">{fieldAnalysisStatus}</p> : null}
-                        <div className="si-rs-sym-fab-row" aria-label="Raster symbology tools">
+                        <div className="si-rs-sym-panel-bar">
                           <button
                             type="button"
-                            className="si-rs-sym-opener"
-                            title="Reclassify / symbology (palette, layers, sliders)"
-                            aria-label="Open reclassify and symbology panel"
+                            className={
+                              'si-rs-sym-panel-toggle' +
+                              (siRsSymbologyDrawerOpen ? ' si-rs-sym-panel-toggle--on' : '')
+                            }
+                            title={siRsSymbologyDrawerOpen ? 'Hide symbology tools' : 'Show symbology tools'}
+                            aria-expanded={siRsSymbologyDrawerOpen}
                             disabled={!siRsSymbologyAoiKey}
-                            onClick={() => setSiRsSymbologyDrawerOpen(true)}
+                            onClick={() => setSiRsSymbologyDrawerOpen(v => !v)}
                           >
-                            <i className="fa-solid fa-palette" aria-hidden />
-                            <i className="fa-solid fa-sliders si-rs-sym-opener__sub" aria-hidden />
+                            <span className="si-rs-sym-panel-toggle__ico" aria-hidden>
+                              <i className="fa-solid fa-palette" />
+                              <i className="fa-solid fa-sliders si-rs-sym-panel-toggle__sub" />
+                            </span>
+                            <span className="si-rs-sym-panel-toggle__txt">Reclassify &amp; symbology</span>
+                            <i
+                              className={`fa-solid si-rs-sym-panel-toggle__chev ${siRsSymbologyDrawerOpen ? 'fa-chevron-up' : 'fa-chevron-down'}`}
+                              aria-hidden
+                            />
                           </button>
-                          <span className="si-rs-sym-fab-hint">Reclassify · Symbology</span>
                         </div>
                         <SiRasterSymbologyDrawer
                           open={siRsSymbologyDrawerOpen}

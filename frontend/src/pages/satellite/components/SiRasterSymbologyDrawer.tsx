@@ -1,5 +1,4 @@
 import React, { useMemo, useState } from 'react';
-import { AnimatePresence, motion } from 'framer-motion';
 import { appAlert, appPrompt } from '../../../lib/appDialog';
 import {
   type SiRasterSymbologyClassRow,
@@ -178,36 +177,21 @@ export const SiRasterSymbologyDrawer: React.FC<SiRasterSymbologyDrawerProps> = (
     );
   };
 
+  if (!open) return null;
+
   return (
-    <AnimatePresence>
-      {open ? (
-        <>
-          <motion.button
-            type="button"
-            className="si-rs-sym-drawer__scrim"
-            aria-label="Close symbology panel"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.22 }}
-            onClick={onClose}
-          />
-          <motion.aside
-            className="si-rs-sym-drawer"
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="si-rs-sym-drawer-title"
-            initial={{ x: 420, opacity: 0 }}
-            animate={{ x: 0, opacity: 1 }}
-            exit={{ x: 420, opacity: 0 }}
-            transition={{ type: 'spring', stiffness: 420, damping: 38 }}
-          >
+    <aside
+      id="si-rs-sym-inline-panel"
+      className="si-rs-sym-drawer si-rs-sym-drawer--inline"
+      role="region"
+      aria-labelledby="si-rs-sym-drawer-title"
+    >
             <header className="si-rs-sym-drawer__head">
               <div>
-                <div className="si-rs-sym-drawer__eyebrow">Remote sensing</div>
                 <h2 id="si-rs-sym-drawer-title" className="si-rs-sym-drawer__title">
-                  Reclassify & symbology
+                  Reclassify &amp; symbology
                 </h2>
+                <p className="si-rs-sym-drawer__tagline">Layer, breaks, and ramp — preview updates on the map.</p>
               </div>
               <button type="button" className="si-rs-sym-drawer__icon-btn" onClick={onClose} aria-label="Close">
                 <i className="fa-solid fa-xmark" aria-hidden />
@@ -220,7 +204,7 @@ export const SiRasterSymbologyDrawer: React.FC<SiRasterSymbologyDrawerProps> = (
 
             <div className="si-rs-sym-drawer__body">
               <label className="si-rs-sym-field">
-                <span>Active raster / analysis layer</span>
+                <span>Layer</span>
                 <select
                   value={value.targetLayerId}
                   onChange={e => {
@@ -239,7 +223,7 @@ export const SiRasterSymbologyDrawer: React.FC<SiRasterSymbologyDrawerProps> = (
               </label>
 
               <label className="si-rs-sym-field">
-                <span>Classification method</span>
+                <span>Method</span>
                 <select value={value.method} onChange={e => recompute({ method: e.target.value as SiRasterSymbologyMethod })}>
                   {methodChoices.map(m => (
                     <option key={m.id} value={m.id}>
@@ -250,7 +234,7 @@ export const SiRasterSymbologyDrawer: React.FC<SiRasterSymbologyDrawerProps> = (
               </label>
 
               <label className="si-rs-sym-field">
-                <span>Number of classes ({value.classCount})</span>
+                <span>Classes ({value.classCount})</span>
                 <input
                   type="range"
                   min={2}
@@ -261,7 +245,7 @@ export const SiRasterSymbologyDrawer: React.FC<SiRasterSymbologyDrawerProps> = (
               </label>
 
               <label className="si-rs-sym-field">
-                <span>Color ramp</span>
+                <span>Ramp</span>
                 <select
                   value={value.rampId}
                   onChange={e => {
@@ -306,7 +290,7 @@ export const SiRasterSymbologyDrawer: React.FC<SiRasterSymbologyDrawerProps> = (
               ) : null}
 
               <label className="si-rs-sym-field">
-                <span>Overlay opacity ({Math.round(value.opacity * 100)}%)</span>
+                <span>Opacity ({Math.round(value.opacity * 100)}%)</span>
                 <input
                   type="range"
                   min={10}
@@ -322,92 +306,83 @@ export const SiRasterSymbologyDrawer: React.FC<SiRasterSymbologyDrawerProps> = (
                   checked={value.showOnMap}
                   onChange={e => onChange({ ...value, showOnMap: e.target.checked })}
                 />
-                <span>Live preview on map (GPU / WebGL fill grid)</span>
+                <span>Live map preview</span>
               </label>
-
-              <div className="si-rs-sym-legend">
-                <div className="si-rs-sym-legend__title">Legend</div>
-                <ul>
-                  {value.classes.map(c => (
-                    <li key={c.id}>
-                      <span className="si-rs-sym-legend__swatch" style={{ background: c.color, opacity: value.opacity }} />
-                      <span className="si-rs-sym-legend__txt">
-                        <strong>{c.label}</strong>
-                        <span className="si-rs-sym-legend__range">
-                          {c.min.toFixed(3)} – {c.max.toFixed(3)}
-                        </span>
-                      </span>
-                    </li>
-                  ))}
-                </ul>
-              </div>
 
               <div className="si-rs-sym-table-wrap">
                 <div className="si-rs-sym-table__head">
-                  <span>Classes</span>
+                  <span>Class breaks</span>
                   <button type="button" className="si-rs-sym-text-btn" onClick={addRow}>
                     + Add class
                   </button>
                 </div>
-                <table className="si-rs-sym-table">
-                  <thead>
-                    <tr>
-                      <th>Min</th>
-                      <th>Max</th>
-                      <th>Color</th>
-                      <th>Label</th>
-                      <th />
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {value.classes.map(row => (
-                      <tr key={row.id}>
-                        <td>
+                <div className="si-rs-sym-class-list">
+                  {value.classes.map((row, idx) => (
+                    <div key={row.id} className="si-rs-sym-class-card">
+                      <div className="si-rs-sym-class-card__top">
+                        <span className="si-rs-sym-class-card__badge" title="Class order">
+                          {idx + 1}
+                        </span>
+                        <div className="si-rs-sym-class-card__breaks">
+                          <label className="si-rs-sym-class-card__lbl">
+                            <span>Min</span>
+                            <input
+                              className="si-rs-sym-num"
+                              type="number"
+                              step="0.001"
+                              value={row.min}
+                              onChange={e => updateRow(row.id, { min: Number(e.target.value) })}
+                            />
+                          </label>
+                          <label className="si-rs-sym-class-card__lbl">
+                            <span>Max</span>
+                            <input
+                              className="si-rs-sym-num"
+                              type="number"
+                              step="0.001"
+                              value={row.max}
+                              onChange={e => updateRow(row.id, { max: Number(e.target.value) })}
+                            />
+                          </label>
+                        </div>
+                        <label className="si-rs-sym-class-card__color-wrap">
+                          <span className="si-rs-sym-sr-only">Color</span>
                           <input
-                            className="si-rs-sym-num"
-                            type="number"
-                            step="0.001"
-                            value={row.min}
-                            onChange={e => updateRow(row.id, { min: Number(e.target.value) })}
+                            type="color"
+                            className="si-rs-sym-class-card__color"
+                            value={row.color}
+                            onChange={e => updateRow(row.id, { color: e.target.value })}
+                            aria-label={`Color for class ${idx + 1}`}
                           />
-                        </td>
-                        <td>
-                          <input
-                            className="si-rs-sym-num"
-                            type="number"
-                            step="0.001"
-                            value={row.max}
-                            onChange={e => updateRow(row.id, { max: Number(e.target.value) })}
-                          />
-                        </td>
-                        <td>
-                          <input type="color" value={row.color} onChange={e => updateRow(row.id, { color: e.target.value })} />
-                        </td>
-                        <td>
-                          <input
-                            className="si-rs-sym-label"
-                            type="text"
-                            value={row.label}
-                            onChange={e => updateRow(row.id, { label: e.target.value })}
-                          />
-                        </td>
-                        <td>
-                          <button
-                            type="button"
-                            className="si-rs-sym-icon-danger"
-                            aria-label="Remove class"
-                            disabled={value.classes.length <= 2}
-                            onClick={() => removeRow(row.id)}
-                          >
-                            <i className="fa-solid fa-trash" aria-hidden />
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+                        </label>
+                        <button
+                          type="button"
+                          className="si-rs-sym-icon-danger"
+                          aria-label="Remove class"
+                          disabled={value.classes.length <= 2}
+                          onClick={() => removeRow(row.id)}
+                        >
+                          <i className="fa-solid fa-trash" aria-hidden />
+                        </button>
+                      </div>
+                      <label className="si-rs-sym-class-card__lbl si-rs-sym-class-card__lbl--full">
+                        <span>Label</span>
+                        <input
+                          className="si-rs-sym-label si-rs-sym-label--block"
+                          type="text"
+                          value={row.label}
+                          onChange={e => updateRow(row.id, { label: e.target.value })}
+                          spellCheck={false}
+                        />
+                      </label>
+                      <div className="si-rs-sym-class-card__range-hint" dir="ltr">
+                        {row.min.toFixed(3)} – {row.max.toFixed(3)}
+                      </div>
+                    </div>
+                  ))}
+                </div>
                 <p className="si-rs-sym-footnote">
-                  Editing the table switches to <strong>Manual breaks</strong>. Choose another method to regenerate breaks.
+                  Editing breaks uses <strong>Manual</strong> mode. Pick another method above to recompute automatically.
                 </p>
               </div>
 
@@ -458,9 +433,6 @@ export const SiRasterSymbologyDrawer: React.FC<SiRasterSymbologyDrawerProps> = (
                 </div>
               </div>
             </div>
-          </motion.aside>
-        </>
-      ) : null}
-    </AnimatePresence>
+    </aside>
   );
 };

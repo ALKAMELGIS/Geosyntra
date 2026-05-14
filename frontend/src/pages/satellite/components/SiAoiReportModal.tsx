@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import MapGL, { Layer, NavigationControl, Source, type MapRef } from 'react-map-gl/mapbox';
 import type { StyleSpecification } from 'mapbox-gl';
+import { useGeminiApiKey } from '../../../hooks/useGeminiApiKey';
 import {
   Chart as ChartJS,
   CategoryScale,
@@ -26,6 +27,8 @@ import {
   type SiAoiPdfExportMode,
   type SiAoiReportModel,
 } from '../utils/siAoiVegetationReportModel';
+import { fetchSiAoiReportExecutiveSummaryFromGemini } from '../utils/siAoiReportGemini';
+import { SiAoiReportDataInsightsSection } from './SiAoiReportDataInsights';
 import './SiAoiReportModal.css';
 
 ChartJS.register(
@@ -103,6 +106,23 @@ function SiAoiChangeMapCell({
   return (
     <div className="si-aoi-report-change-cell">
       <div className="si-aoi-report-change-cell__banner">{slot.date}</div>
+      <div className="si-aoi-report-change-cell__legend" aria-hidden>
+        <div className="si-aoi-report-change-cell__legend-row">
+          <span className="si-aoi-report-change-cell__legend-swatch" style={{ background: '#22c55e' }} />
+          H
+        </div>
+        <div className="si-aoi-report-change-cell__legend-row">
+          <span className="si-aoi-report-change-cell__legend-swatch" style={{ background: '#eab308' }} />
+          M
+        </div>
+        <div className="si-aoi-report-change-cell__legend-row">
+          <span className="si-aoi-report-change-cell__legend-swatch" style={{ background: '#ef4444' }} />
+          L
+        </div>
+        <div className="si-aoi-report-change-cell__legend-row" style={{ marginTop: 3, opacity: 0.92 }}>
+          {indexId}
+        </div>
+      </div>
       <div className="si-aoi-report-change-cell__map">
         <MapGL
           ref={innerRef}
@@ -183,6 +203,10 @@ export function SiAoiReportModal({
   preferredAoiId,
   reportMapStyle = 'mapbox://styles/mapbox/satellite-streets-v12',
 }: SiAoiReportModalProps) {
+  const geminiApiKey = useGeminiApiKey();
+  const [geminiSummary, setGeminiSummary] = useState<string | null>(null);
+  const [geminiLoading, setGeminiLoading] = useState(false);
+  const [geminiErr, setGeminiErr] = useState<string | null>(null);
   const [step, setStep] = useState<'configure' | 'preview'>('configure');
   const [reportView, setReportView] = useState<'analysis' | 'change'>('analysis');
   const [indexId, setIndexId] = useState<StaticAoiChartLayerId>(defaultIndexId);
@@ -215,6 +239,40 @@ export function SiAoiReportModal({
     setReportView('analysis');
     setExportUi({ phase: 'idle' });
   }, [open, timeSeriesStart, timeSeriesEnd, defaultIndexId, preferredAoiId, aoiOptions]);
+
+  useEffect(() => {
+    if (!open || !report || step !== 'preview') return;
+    let cancelled = false;
+    const key = geminiApiKey.trim();
+    if (!key) {
+      setGeminiSummary(null);
+      setGeminiErr(null);
+      setGeminiLoading(false);
+      return;
+    }
+    setGeminiLoading(true);
+    setGeminiErr(null);
+    void (async () => {
+      try {
+        const text = await fetchSiAoiReportExecutiveSummaryFromGemini({
+          apiKey: key,
+          report,
+          insights: report.dataInsights,
+        });
+        if (cancelled) return;
+        setGeminiSummary(text);
+      } catch (e) {
+        if (cancelled) return;
+        setGeminiErr((e as Error)?.message ?? 'Gemini summary unavailable.');
+        setGeminiSummary(null);
+      } finally {
+        if (!cancelled) setGeminiLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [open, report, step, geminiApiKey]);
 
   const selectedFeature = useMemo(
     () => aoiOptions.find(o => o.id === selectedAoiId)?.feature ?? null,
@@ -314,17 +372,31 @@ export function SiAoiReportModal({
     () => ({
       responsive: true,
       maintainAspectRatio: false,
+      layout: {
+        padding: { top: 8, right: 10, bottom: 28, left: 10 },
+      },
       plugins: {
-        legend: { labels: { color: '#cbd5e1' } },
+        legend: { labels: { color: '#cbd5e1', boxWidth: 10, font: { size: 11 } } },
         title: {
           display: true,
           text: `${report?.indexLabel ?? ''} — ${report?.dateStart ?? ''} … ${report?.dateEnd ?? ''}`,
           color: '#e2e8f0',
           font: { size: 12 },
+          padding: { bottom: 6 },
         },
       },
       scales: {
-        x: { ticks: { color: '#94a3b8', maxRotation: 45 }, grid: { color: 'rgba(148,163,184,0.12)' } },
+        x: {
+          ticks: {
+            color: '#94a3b8',
+            maxRotation: 35,
+            minRotation: 0,
+            autoSkip: true,
+            maxTicksLimit: 8,
+            font: { size: 10 },
+          },
+          grid: { color: 'rgba(148,163,184,0.12)' },
+        },
         y: { ticks: { color: '#94a3b8' }, grid: { color: 'rgba(148,163,184,0.12)' } },
       },
       devicePixelRatio: Math.min(2.5, typeof window !== 'undefined' ? window.devicePixelRatio || 2 : 2),
@@ -391,6 +463,7 @@ export function SiAoiReportModal({
         mode,
         chartImageDataUrl,
         aoiMapImageDataUrl,
+        executiveSummaryAi: geminiSummary?.trim() || undefined,
       });
     } catch (e) {
       console.error(e);
@@ -399,7 +472,7 @@ export function SiAoiReportModal({
       setExportBusy(false);
       setExportUi({ phase: 'idle' });
     }
-  }, [report, exportUi.mode, mapOk, chartHostId]);
+  }, [report, exportUi.mode, mapOk, chartHostId, geminiSummary]);
 
   if (!open) return null;
 
@@ -500,6 +573,13 @@ export function SiAoiReportModal({
                 </button>
               </div>
 
+              <SiAoiReportDataInsightsSection
+                report={report}
+                geminiSummary={geminiSummary}
+                geminiLoading={geminiLoading}
+                geminiError={geminiErr}
+              />
+
               <div className="si-aoi-report-view-tabs" role="tablist" aria-label="Report sections">
                 <button
                   type="button"
@@ -550,15 +630,6 @@ export function SiAoiReportModal({
                 </div>
               ) : (
                 <>
-                  <div className="si-aoi-report-card">
-                    <h3>Executive summary</h3>
-                    <ul className="si-aoi-report-summary">
-                      {report.summaryLinesEn.map((line, i) => (
-                        <li key={i}>{line}</li>
-                      ))}
-                    </ul>
-                  </div>
-
                   <div className="si-aoi-report-card">
                     <h3>Scientific analysis</h3>
                     <p className="si-aoi-report-analysis">{report.analysisEn}</p>
@@ -692,7 +763,8 @@ export function SiAoiReportModal({
               <ul className="si-aoi-report-export-card__list">
                 {exportUi.mode === 'AOI_ANALYSIS' ? (
                   <>
-                    <li>Executive summary, scientific analysis, and stress notes (vector text)</li>
+                    <li>Data &amp; insights: index statistics table, KPI dashboard, SVG mini-charts, and Gemini executive text when a key is configured (vector text)</li>
+                    <li>Scientific analysis and stress notes (vector text)</li>
                     <li>Health classification table with crisp borders</li>
                     <li>Index timeline chart (high-DPI raster from the chart canvas)</li>
                     <li>
@@ -704,6 +776,7 @@ export function SiAoiReportModal({
                   <>
                     <li>Cover band with AOI, index, and period metadata</li>
                     <li>All twelve timestamps with per-date statistics (vector text)</li>
+                    <li>Data &amp; insights appendix (index table, KPIs, sparkline, Gemini text when available)</li>
                     <li>Optimized for print — no mixed AOI / timeline map on this export</li>
                   </>
                 )}
