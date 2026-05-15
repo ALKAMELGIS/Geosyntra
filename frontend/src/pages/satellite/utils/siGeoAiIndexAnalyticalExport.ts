@@ -235,12 +235,17 @@ const XLSX_FMT_SHARE = '0.############################'
 const XLSX_FMT_SPECTRAL = '0.############################'
 
 /**
- * Full-decimal text for Excel cells where NumberFormat can still collapse tiny values in some viewers.
- * Keeps JS double string form (including scientific for subnormals) — no clipping to 0.
+ * Full-fidelity text for Excel cells: avoids General/percent formats that show tiny |−1…1| values as 0.00.
+ * Prefers up to 17 significant digits; if locale would collapse a non-zero value to "0", keep `String(v)`.
  */
 function excelDecimalText(v: number): string {
   if (!Number.isFinite(v)) return ''
-  return String(v)
+  if (v === 0 || Object.is(v, -0)) return '0'
+  const raw = String(v)
+  if (!/[eE]/.test(raw)) return raw
+  const loc = v.toLocaleString('en-US', { maximumSignificantDigits: 17, useGrouping: false })
+  if (v !== 0 && Number(loc) === 0) return raw
+  return loc
 }
 
 function applyNumberFormatsToDataRows(
@@ -282,10 +287,7 @@ function formatSummaryAoiSheet(ws: XLSX.WorkSheet) {
     const a = ws[XLSX.utils.encode_cell({ r, c: 0 })] as XLSX.CellObject | undefined
     if (a?.v === 'Class distribution (primary index)') {
       for (let rr = r + 1; rr <= range.e.r; rr++) {
-        applyNumberFormatsToDataRows(ws, rr, [
-          { c: 1, z: XLSX_FMT_INT },
-          { c: 3, z: XLSX_FMT_INT },
-        ])
+        applyNumberFormatsToDataRows(ws, rr, [{ c: 1, z: XLSX_FMT_INT }])
       }
       break
     }
@@ -294,14 +296,13 @@ function formatSummaryAoiSheet(ws: XLSX.WorkSheet) {
     const metric = ws[XLSX.utils.encode_cell({ r, c: 1 })] as XLSX.CellObject | undefined
     const val = ws[XLSX.utils.encode_cell({ r, c: 2 })] as XLSX.CellObject | undefined
     const m = metric?.v
-    if (
-      (m === 'min' || m === 'max' || m === 'mean' || m === 'std_dev') &&
-      val &&
-      val.t === 'n' &&
-      typeof val.v === 'number' &&
-      Number.isFinite(val.v)
-    ) {
-      val.z = XLSX_FMT_SPECTRAL
+    if (m === 'min' || m === 'max' || m === 'mean' || m === 'std_dev') {
+      if (!val) continue
+      if (val.t === 'n' && typeof val.v === 'number' && Number.isFinite(val.v)) {
+        val.z = XLSX_FMT_SPECTRAL
+      } else if (typeof val.v === 'string') {
+        val.z = '@'
+      }
     }
   }
   const scalarPairs: Array<[label: string, col: number]> = [
@@ -392,8 +393,8 @@ export function buildGeoAiIndexAnalyticalWorkbook(opts: {
     row.push(pt != null && Number.isFinite(pt.lng) ? Number(pt.lng).toFixed(6) : '');
     row.push(pt != null && Number.isFinite(pt.lat) ? Number(pt.lat).toFixed(6) : '');
     for (const ds of datasets) {
-      const v = ds.data[i];
-      row.push(Number.isFinite(v) ? Number(v) : '')
+      const v = ds.data[i]
+      row.push(Number.isFinite(v) ? excelDecimalText(Number(v)) : '')
     }
     chartRows.push(row);
   }
@@ -447,16 +448,16 @@ export function buildGeoAiIndexAnalyticalWorkbook(opts: {
     const ck = cellKeyForPixel(aoiKey, p.lng, p.lat);
     const row: (string | number)[] = [pid, Number(p.lat.toFixed(6)), Number(p.lng.toFixed(6))];
     for (const d of valueDatasets) {
-      const v = staticAoiLayerMeanForWeek(d.id as StaticAoiChartLayerId, weekIdx, nWeeks, ck, anchor);
-      row.push(v);
-      perIndexCols[d.id]!.push(v);
+      const v = staticAoiLayerMeanForWeek(d.id as StaticAoiChartLayerId, weekIdx, nWeeks, ck, anchor)
+      row.push(Number.isFinite(v) ? excelDecimalText(v) : '')
+      perIndexCols[d.id]!.push(v)
     }
     rawRows.push(row);
 
     const pv = staticAoiLayerMeanForWeek(primaryId as StaticAoiChartLayerId, weekIdx, nWeeks, ck, anchor);
     primaryValues.push(pv);
     const cls = classifyValue(pv, primaryLegend);
-    classifiedRows.push([pid, Number(p.lat.toFixed(6)), Number(p.lng.toFixed(6)), pv, cls.id, cls.name]);
+    classifiedRows.push([pid, Number(p.lat.toFixed(6)), Number(p.lng.toFixed(6)), excelDecimalText(pv), cls.id, cls.name]);
     pid++;
   }
 
@@ -468,8 +469,7 @@ export function buildGeoAiIndexAnalyticalWorkbook(opts: {
   }
   {
     const wsCls = XLSX.utils.aoa_to_sheet(classifiedRows)
-    wsCls['!cols'] = [10, 14, 14, 20, 10, 44].map(wch => ({ wch }))
-    applyNumberFormatsToDataRows(wsCls, 1, [{ c: 3, z: XLSX_FMT_SPECTRAL }])
+    wsCls['!cols'] = [10, 14, 14, 22, 10, 44].map(wch => ({ wch }))
     XLSX.utils.book_append_sheet(wb, wsCls, 'Data_Classified')
   }
 
@@ -498,10 +498,10 @@ export function buildGeoAiIndexAnalyticalWorkbook(opts: {
     const mx = Math.max(...finite);
     const mean = finite.reduce((a, b) => a + b, 0) / finite.length;
     const sd = stdDevPop(finite);
-    summaryLines.push([`Index ${d.label}`, 'min', mn]);
-    summaryLines.push(['', 'max', mx]);
-    summaryLines.push(['', 'mean', mean]);
-    summaryLines.push(['', 'std_dev', Number.isFinite(sd) ? sd : '']);
+    summaryLines.push([`Index ${d.label}`, 'min', excelDecimalText(mn)])
+    summaryLines.push(['', 'max', excelDecimalText(mx)])
+    summaryLines.push(['', 'mean', excelDecimalText(mean)])
+    summaryLines.push(['', 'std_dev', Number.isFinite(sd) ? excelDecimalText(sd) : ''])
     summaryLines.push([]);
   }
 
@@ -520,7 +520,7 @@ export function buildGeoAiIndexAnalyticalWorkbook(opts: {
       '',
       cid,
       name,
-      n,
+      String(n),
       typeof areaM2 === 'number' && Number.isFinite(areaM2) ? excelDecimalText(areaM2) : areaM2,
     ])
   }
@@ -538,20 +538,17 @@ export function buildGeoAiIndexAnalyticalWorkbook(opts: {
     const n = vals.length;
     const pct = total > 0 ? (100 * n) / total : 0;
     const mnc = vals.length ? vals.reduce((a, b) => a + b, 0) / vals.length : NaN;
-    // Pct / mean as text so Excel never collapses small |−1…1| or tiny % shares to “0.00”.
+    // Pct / mean / counts as text so Excel never collapses small |−1…1| values or tiny % shares to “0.00”.
     classStats.push([
       c.id,
       c.label,
-      n,
+      String(n),
       excelDecimalText(pct),
       vals.length && Number.isFinite(mnc) ? excelDecimalText(mnc) : '',
-    ]);
+    ])
   }
   appendSheetWithColWidths(wb, classStats, 'Class_Statistics', [14, 56, 16, 28, 36], ws =>
-    applyNumberFormatsToDataRows(ws, 1, [
-      { c: 0, z: XLSX_FMT_INT },
-      { c: 2, z: XLSX_FMT_INT },
-    ]),
+    applyNumberFormatsToDataRows(ws, 1, [{ c: 0, z: XLSX_FMT_INT }]),
   )
 
   return wb;
