@@ -147,14 +147,24 @@ export async function persistApiSecretsPatchToServer(patch: ApiSecretsClientPatc
       return { ok: false, error: data?.error || res.statusText }
     }
     /**
+     * PUT must return a persisted snapshot; otherwise the write did not land (wrong host, HTML error page,
+     * or API not registered). Do not report success — that made vault saves look "permanent" while only localStorage updated.
+     */
+    if (!data?.ok || !data.persisted || !data.secrets) {
+      return {
+        ok: false,
+        error:
+          data?.error ||
+          'API secrets endpoint returned no persisted snapshot (run the Node backend, enable the /api proxy, or set VITE_AGRI_API_SECRETS_URL).',
+      }
+    }
+    /**
      * Authoritative copy lives on disk (`agri_api_secrets.json` or `AGRI_API_SECRETS_FILE`);
      * merge the returned snapshot into this browser so tokens match the server for any device/browser.
      */
-    if (data?.ok && data.persisted && data.secrets) {
-      applyPersistedApiSecretsToBrowser(data.secrets)
-      if (typeof window !== 'undefined') {
-        window.dispatchEvent(new Event('geosyntra-api-secrets-hydrated'))
-      }
+    applyPersistedApiSecretsToBrowser(data.secrets)
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new Event('geosyntra-api-secrets-hydrated'))
     }
     return { ok: true }
   } catch (e) {

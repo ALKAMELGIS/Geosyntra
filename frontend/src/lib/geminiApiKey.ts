@@ -1,6 +1,6 @@
 /**
- * Google Gemini API key: build-time env and/or browser override (System Settings → API Tokens).
- * Used by Satellite Intelligence → Table Geo AI (Geo Explorer). Never commit real keys.
+ * Google Gemini API key: build-time env and/or vault mirror in localStorage (System Settings → API Tokens).
+ * When the Node backend is reachable, keys persist in `agri_api_secrets.json` (or `AGRI_API_SECRETS_FILE`) and hydrate into the browser on load.
  */
 
 export const GEMINI_API_KEY_LS_KEY = 'agri_gemini_api_key_v1'
@@ -12,7 +12,7 @@ function envGeminiKey(): string {
   return typeof raw === 'string' ? raw.trim() : ''
 }
 
-/** Value saved only in this browser (admin API Tokens → Gemini API). */
+/** Value mirrored in this browser; may have been synced from the server API vault. */
 export function getGeminiApiKeyBrowserOverride(): string {
   if (typeof window === 'undefined') return ''
   try {

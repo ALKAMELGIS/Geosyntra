@@ -143,15 +143,12 @@ export default function HeaderBar({ onLogout }: HeaderBarProps) {
           {canOpenApiVault ? (
             <Link
               to="/admin/system-settings?tab=api-tokens"
-              className={`header-api-vault-pill${vaultLinkActive ? ' header-api-vault-pill--active' : ''}`}
+              className={`header-api-vault-link${vaultLinkActive ? ' header-api-vault-link--active' : ''}`}
               title={language === 'ar' ? 'خزنة API — إدارة الأسرار والنسخ الاحتياطي' : 'API Vault — secrets & encrypted backup'}
               aria-label={language === 'ar' ? 'فتح خزنة API في إعدادات النظام' : 'Open API Vault in system settings'}
             >
-              <span className="header-api-vault-pill__thumb" aria-hidden>
+              <span className="header-api-vault-link__glass" aria-hidden>
                 <i className="fa-solid fa-shield-halved" />
-              </span>
-              <span className="header-api-vault-pill__label">
-                {language === 'ar' ? 'خزنة API' : 'API Vault'}
               </span>
             </Link>
           ) : null}

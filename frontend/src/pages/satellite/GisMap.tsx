@@ -86,6 +86,7 @@ import { loadGisMapSavedLayers } from '../../lib/gisMapLayerStore'
 import { gisLayerDataToGeoAiLayers } from '../../lib/geoAiMapLayerSources'
 import { geoExplorerTargetZoomForPinSource, runGeoExplorerGeminiTurn } from '../../lib/runGeoExplorerGeminiTurn'
 import { runGeoAiStatsCommand, type GeoAiMapFirstSelection } from '../../lib/geoAiStatsEngine'
+import { tryGeoAiBufferSpatialAction } from '../../lib/geoAiSpatialActions'
 import {
   findLngLatFromLayerQuery,
   GEO_EXPLORER_MIN_LAYER_PIN_SCORE,
@@ -2815,6 +2816,38 @@ export default function GisMap() {
             return
           }
         }
+        if (!skipLocalStatsBecausePendingImage && trimmed) {
+          const buf = tryGeoAiBufferSpatialAction({
+            query: trimmed,
+            pinLngLat: geoExplorerAnchor,
+            lastMapQueryCoords: lastMapQueryCoordsFromMessages(coordsSourceMessages),
+          })
+          if (buf.handled) {
+            const mid =
+              typeof crypto !== 'undefined' && 'randomUUID' in crypto ? crypto.randomUUID() : `geo-b-${Date.now()}`
+            if (!buf.ok) {
+              setGeoExplorerMessages(h => [...h, { id: mid, role: 'model', parts: [{ type: 'text', text: buf.reply }] }])
+            } else {
+              const layerId = `geoai:${newGisImportId()}`
+              setLayers(prev => [
+                ...prev,
+                {
+                  id: layerId,
+                  name: buf.layerName,
+                  type: 'geojson',
+                  source: 'upload',
+                  visible: true,
+                  opacity: 1,
+                  data: buf.featureCollection,
+                },
+              ])
+              setGeoExplorerAnchor(buf.center)
+              setGeoExplorerMessages(h => [...h, { id: mid, role: 'model', parts: [{ type: 'text', text: buf.reply }] }])
+              queueMicrotask(() => zoomToFeatures(buf.featureCollection.features as any[]))
+            }
+            return
+          }
+        }
         let developAppend = ''
         try {
           const raw =
@@ -2902,6 +2935,7 @@ export default function GisMap() {
       geoExplorerAnchor,
       mapProjectionMode,
       mapPopup,
+      setLayers,
     ],
   )
 
@@ -2913,7 +2947,7 @@ export default function GisMap() {
       const apiKey = geminiApiKey.trim()
       if (!apiKey) {
         setGeoExplorerChatError(
-          'Add a Gemini API key: System Settings → API Tokens → Gemini API (saved in this browser), or set VITE_GEMINI_API_KEY at build time. Never commit keys to Git.',
+          'Add a Gemini API key: System Settings → API Tokens → Gemini API (saved to the server vault when the Node API is running, and mirrored in this browser), or set VITE_GEMINI_API_KEY at build time. Never commit keys to Git.',
         )
         return
       }
@@ -2953,7 +2987,7 @@ export default function GisMap() {
     const apiKey = geminiApiKey.trim()
     if (!apiKey) {
       setGeoExplorerChatError(
-        'Add a Gemini API key: System Settings → API Tokens → Gemini API (saved in this browser), or set VITE_GEMINI_API_KEY at build time. Never commit keys to Git.',
+        'Add a Gemini API key: System Settings → API Tokens → Gemini API (saved to the server vault when the Node API is running, and mirrored in this browser), or set VITE_GEMINI_API_KEY at build time. Never commit keys to Git.',
       )
       return
     }

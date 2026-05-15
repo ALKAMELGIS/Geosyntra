@@ -153,6 +153,8 @@ export default function PrimaryNavIcons({ onLogout }: PrimaryNavIconsProps) {
                   key={leaf.id}
                   to={leaf.path}
                   role="menuitem"
+                  title={navLabel(leaf)}
+                  aria-label={navLabel(leaf)}
                   className={({ isActive }) =>
                     `geosyntra-primary-nav__popitem${isActive ? ' geosyntra-primary-nav__popitem--active' : ''}`
                   }
@@ -166,7 +168,6 @@ export default function PrimaryNavIcons({ onLogout }: PrimaryNavIconsProps) {
                   <span className="geosyntra-primary-nav__popicon" aria-hidden>
                     <i className={leaf.iconClass} />
                   </span>
-                  <span>{navLabel(leaf)}</span>
                 </NavLink>
               ))}
             </div>
@@ -205,6 +206,8 @@ export default function PrimaryNavIcons({ onLogout }: PrimaryNavIconsProps) {
           <NavLink
             to="/account/profile"
             role="menuitem"
+            title={t.profile}
+            aria-label={t.profile}
             className={({ isActive }) =>
               `geosyntra-primary-nav__popitem${isActive ? ' geosyntra-primary-nav__popitem--active' : ''}`
             }
@@ -216,11 +219,12 @@ export default function PrimaryNavIcons({ onLogout }: PrimaryNavIconsProps) {
             <span className="geosyntra-primary-nav__popicon" aria-hidden>
               <i className="fa-solid fa-user-gear" />
             </span>
-            <span>{t.profile}</span>
           </NavLink>
           <button
             type="button"
             role="menuitem"
+            title={t.logout}
+            aria-label={t.logout}
             className="geosyntra-primary-nav__popitem geosyntra-primary-nav__popitem--btn"
             onClick={() => {
               closePopover()
@@ -231,7 +235,6 @@ export default function PrimaryNavIcons({ onLogout }: PrimaryNavIconsProps) {
             <span className="geosyntra-primary-nav__popicon" aria-hidden>
               <i className="fa-solid fa-arrow-right-from-bracket" />
             </span>
-            <span>{t.logout}</span>
           </button>
         </div>
       </div>

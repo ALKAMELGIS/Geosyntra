@@ -106,11 +106,13 @@ type ApiTokenMergeFieldProps = {
   onChange: (next: string) => void
   placeholder: string
   password?: boolean
-  onSave: () => void | Promise<void>
+  /** Per-field save (check) button; vault tab uses bulk save only. */
+  showSaveButton?: boolean
+  onSave?: () => void | Promise<void>
   onClear: () => void | Promise<void>
-  saveAria: string
+  saveAria?: string
   clearAria: string
-  saveTitle: string
+  saveTitle?: string
   clearTitle: string
   actionsGroupLabel: string
 }
@@ -146,6 +148,7 @@ function ApiTokenMergeField({
   onChange,
   placeholder,
   password,
+  showSaveButton = false,
   onSave,
   onClear,
   saveAria,
@@ -172,9 +175,11 @@ function ApiTokenMergeField({
             onChange={e => onChange(e.target.value)}
           />
           <div className="sys-api-token-actions" role="group" aria-label={actionsGroupLabel}>
-            <button type="button" className="sys-api-icon-btn sys-api-icon-btn--primary" onClick={onSave} title={saveTitle} aria-label={saveAria}>
-              <i className="fa-solid fa-check" aria-hidden />
-            </button>
+            {showSaveButton && onSave ? (
+              <button type="button" className="sys-api-icon-btn sys-api-icon-btn--primary" onClick={onSave} title={saveTitle} aria-label={saveAria}>
+                <i className="fa-solid fa-check" aria-hidden />
+              </button>
+            ) : null}
             <button type="button" className="sys-api-icon-btn sys-api-icon-btn--ghost" onClick={onClear} title={clearTitle} aria-label={clearAria}>
               <i className="fa-regular fa-trash-can" aria-hidden />
             </button>
@@ -186,7 +191,8 @@ function ApiTokenMergeField({
 }
 
 export default function SystemSettings() {
-  const { draft, setDraft, settings, setSettings, saveDraft, cancelDraft, resetToDefaults, pushToast } = useSystemSettings()
+  const { draft, setDraft, settings, setSettings, saveDraft, cancelDraft, resetToDefaults, pushToast } =
+    useSystemSettings()
   const { language } = useLanguage()
   const [tab, setTab] = useState<
     'theme' | 'header-settings' | 'logos' | 'nav' | 'pages' | 'signup-roles' | 'api-tokens'
@@ -217,6 +223,7 @@ export default function SystemSettings() {
   const [pageGroupFilter, setPageGroupFilter] = useState<'all' | string>('all')
   const vaultImportRef = useRef<HTMLInputElement>(null)
   const [vaultServerReachable, setVaultServerReachable] = useState<boolean | null>(null)
+  const [savingAllVaultSecrets, setSavingAllVaultSecrets] = useState(false)
   const [vaultHealth, setVaultHealth] = useState<
     Partial<Record<BuiltinSecretKey | `custom:${string}`, VaultHealthUi>>
   >({})
@@ -370,15 +377,16 @@ export default function SystemSettings() {
       ...(addApiForm.placeholderAr.trim() ? { placeholderAr: addApiForm.placeholderAr.trim() } : {}),
       iconClass: addApiForm.iconClass || 'fa-solid fa-key',
     }
-    setDraft(d => ({ ...d, customApiTokenSlots: [...d.customApiTokenSlots, slot] }))
+    const nextSlots = [...draft.customApiTokenSlots, slot]
+    setSettings({ ...draft, customApiTokenSlots: nextSlots })
     setCustomUserTokenDrafts(p => ({ ...p, [id]: '' }))
     setAddApiModalOpen(false)
     resetAddApiForm()
     pushToast(
       'success',
-      language === 'ar' ? 'تمت الإضافة. احفظ الإعدادات لتثبيت البطاقة.' : 'Added. Save settings to persist this entry.',
+      language === 'ar' ? 'تمت الإضافة وحفظ تخطيط البطاقات.' : 'Added and card layout saved.',
     )
-  }, [addApiForm, language, pushToast, resetAddApiForm, setDraft])
+  }, [addApiForm, draft, language, pushToast, resetAddApiForm, setSettings])
 
   const removeCustomApiSlot = useCallback(
     async (slotId: string) => {
@@ -396,7 +404,8 @@ export default function SystemSettings() {
       if (!ok) return
       clearUserApiTokenValue(slotId)
       void persistApiSecretsPatchToServer({ customSlots: { [slotId]: '' } })
-      setDraft(d => ({ ...d, customApiTokenSlots: d.customApiTokenSlots.filter(s => s.id !== slotId) }))
+      const nextSlots = draft.customApiTokenSlots.filter(s => s.id !== slotId)
+      setSettings({ ...draft, customApiTokenSlots: nextSlots })
       setCustomUserTokenDrafts(p => {
         const next = { ...p }
         delete next[slotId]
@@ -404,7 +413,7 @@ export default function SystemSettings() {
       })
       pushToast('success', language === 'ar' ? 'تمت الإزالة.' : 'Removed.')
     },
-    [language, pushToast, setDraft],
+    [draft, language, pushToast, setSettings],
   )
 
   const buildVaultExportPayload = useCallback(() => {
@@ -460,6 +469,85 @@ export default function SystemSettings() {
       language === 'ar' ? 'اكتملت الفحوصات المتاحة من المتصفح.' : 'Finished browser-side checks where supported.',
     )
   }, [language, pushToast])
+
+  const saveAllApiVaultSecrets = useCallback(async () => {
+    if (savingAllVaultSecrets) return
+    setSavingAllVaultSecrets(true)
+    try {
+      const mapbox = mapboxTokenDraft.trim()
+      const arcgis = arcgisTokenDraft.trim()
+      const openWeather = openWeatherMapApiKeyDraft.trim()
+      const sentinelAccess = sentinelAccessDraft.trim()
+      const sentinelInstance = sentinelHubInstanceDraft.trim()
+      const gemini = geminiApiKeyDraft.trim()
+      const claude = claudeApiKeyDraft.trim()
+      const deepseek = deepseekApiKeyDraft.trim()
+
+      persistMapboxAccessTokenInBrowser(mapboxTokenDraft)
+      persistArcgisPortalTokenInBrowser(arcgisTokenDraft)
+      persistOpenWeatherMapApiKeyInBrowser(openWeatherMapApiKeyDraft)
+      persistSentinelHubAccessTokenInBrowser(sentinelAccessDraft)
+      persistSentinelHubWmsInstanceIdInBrowser(sentinelHubInstanceDraft)
+      persistGeminiApiKeyInBrowser(geminiApiKeyDraft)
+      persistClaudeApiKeyInBrowser(claudeApiKeyDraft)
+      persistDeepseekApiKeyInBrowser(deepseekApiKeyDraft)
+
+      const customSlots: Record<string, string> = {}
+      for (const slot of draft.customApiTokenSlots) {
+        const raw = customUserTokenDrafts[slot.id] ?? ''
+        customSlots[slot.id] = raw.trim()
+        persistUserApiTokenValue(slot.id, raw)
+      }
+
+      const r = await persistApiSecretsPatchToServer({
+        mapboxToken: mapbox,
+        arcgisPortalToken: arcgis,
+        openWeatherMapApiKey: openWeather,
+        sentinelHubAccessToken: sentinelAccess,
+        sentinelHubWmsInstanceId: sentinelInstance,
+        geminiApiKey: gemini,
+        claudeApiKey: claude,
+        deepseekApiKey: deepseek,
+        customSlots,
+      })
+
+      if (r.ok) {
+        setVaultServerReachable(true)
+        pushToast(
+          'success',
+          language === 'ar'
+            ? 'تم حفظ جميع رموز API في المتصفح وعلى خادم الأسرار (ملف agri_api_secrets.json عند تشغيل Node API).'
+            : 'All API tokens were saved in this browser and on the secrets API (agri_api_secrets.json on the Node server).',
+        )
+      } else {
+        setVaultServerReachable(false)
+        const detail = 'error' in r && r.error ? ` ${r.error}` : ''
+        pushToast(
+          'error',
+          (language === 'ar'
+            ? 'تعذّر تحديث خادم الأسرار. تأكد من تشغيل الـ API ووكيل ‎/api‎.'
+            : 'Secrets server was not updated. Run the Node API and ensure /api is reachable.') + detail,
+        )
+      }
+      window.dispatchEvent(new Event('geosyntra-api-secrets-hydrated'))
+    } finally {
+      setSavingAllVaultSecrets(false)
+    }
+  }, [
+    savingAllVaultSecrets,
+    mapboxTokenDraft,
+    arcgisTokenDraft,
+    openWeatherMapApiKeyDraft,
+    sentinelAccessDraft,
+    sentinelHubInstanceDraft,
+    geminiApiKeyDraft,
+    claudeApiKeyDraft,
+    deepseekApiKeyDraft,
+    customUserTokenDrafts,
+    draft.customApiTokenSlots,
+    language,
+    pushToast,
+  ])
 
   const handleExportVaultEncrypted = useCallback(async () => {
     const title = language === 'ar' ? 'تصدير النسخة المشفرة' : 'Export encrypted vault backup'
@@ -1627,6 +1715,27 @@ export default function SystemSettings() {
               </div>
             </div>
             <div className="sys-api-vault-hero__actions">
+              <button
+                type="button"
+                className="sys-api-vault-btn sys-api-vault-btn--primary"
+                disabled={savingAllVaultSecrets}
+                onClick={() => void saveAllApiVaultSecrets()}
+                title={
+                  language === 'ar'
+                    ? 'يكتب كل الحقول أدناه إلى المتصفح وملف أسرار الخادم دفعة واحدة'
+                    : 'Writes every field below to this browser and the server secrets file in one request'
+                }
+                aria-label={language === 'ar' ? 'حفظ جميع رموز API على الخادم' : 'Save all API tokens to server'}
+              >
+                <i className={`fa-solid ${savingAllVaultSecrets ? 'fa-spinner fa-spin' : 'fa-cloud-arrow-up'}`} aria-hidden />
+                {savingAllVaultSecrets
+                  ? language === 'ar'
+                    ? 'جاري الحفظ…'
+                    : 'Saving…'
+                  : language === 'ar'
+                    ? 'حفظ كل الأسرار'
+                    : 'Save all tokens'}
+              </button>
               <button type="button" className="sys-api-vault-btn sys-api-vault-btn--ghost" onClick={() => void runVaultValidateAll()}>
                 <i className="fa-solid fa-stethoscope" aria-hidden />
                 {language === 'ar' ? 'فحص مباشر' : 'Live validate'}
@@ -1660,8 +1769,8 @@ export default function SystemSettings() {
               </h3>
               <p className="sys-api-vault-usage-banner">
                 {language === 'ar'
-                  ? 'مراقبة الحصص والفوترة تتم من لوحات المزوّد. هنا نعرض صحة الاتصال عندما يدعم المتصفح فحصاً آمناً دون تسريب المفتاح.'
-                  : 'Quota and billing live in each provider’s console. This vault shows connection health when the browser can safely probe without exposing secrets.'}
+                  ? 'عدّل الحقول ثم اضغط «حفظ كل الأسرار» لمزامنة المتصفح وخادم الأسرار. زر المسح يزيل القيمة فوراً من المتصفح والخادم. مراقبة الحصص من لوحات المزوّد.'
+                  : 'Edit the fields, then use “Save all tokens” to sync this browser and the secrets API. Clear (trash) removes a value immediately from browser and server. Quota and billing live in each provider’s console.'}
               </p>
             </div>
             <div className="sys-api-tokens-grid">
@@ -1702,29 +1811,12 @@ export default function SystemSettings() {
                 onChange={setMapboxTokenDraft}
                 placeholder={language === 'ar' ? 'pk.eyJ1I…' : 'pk.eyJ1I…'}
                 password
-                onSave={async () => {
-                  const trimmed = mapboxTokenDraft.trim()
-                  persistMapboxAccessTokenInBrowser(mapboxTokenDraft)
-                  const r = await persistApiSecretsPatchToServer({ mapboxToken: trimmed })
-                  pushToast(
-                    'success',
-                    r.ok
-                      ? language === 'ar'
-                        ? 'تم حفظ مفتاح Mapbox على الخادم والمتصفح.'
-                        : 'Mapbox token saved on server and in this browser.'
-                      : language === 'ar'
-                        ? 'حُفظ في المتصفح؛ تعذّر تحديث الخادم (تأكد من تشغيل API).'
-                        : 'Saved in this browser; server copy not updated (is the API running?).',
-                  )
-                  void refreshVaultHealthKey('mapboxToken', trimmed)
-                  window.dispatchEvent(new Event('geosyntra-api-secrets-hydrated'))
-                }}
                 onClear={async () => {
                   persistMapboxAccessTokenInBrowser('')
                   setMapboxTokenDraft('')
                   const r = await persistApiSecretsPatchToServer({ mapboxToken: '' })
                   pushToast(
-                    'success',
+                    r.ok ? 'success' : 'error',
                     r.ok
                       ? language === 'ar'
                         ? 'أُزيل مفتاح Mapbox من الخادم والمتصفح.'
@@ -1736,16 +1828,14 @@ export default function SystemSettings() {
                   void refreshVaultHealthKey('mapboxToken', '')
                   window.dispatchEvent(new Event('geosyntra-api-secrets-hydrated'))
                 }}
-                saveTitle={language === 'ar' ? 'حفظ' : 'Save'}
                 clearTitle={language === 'ar' ? 'مسح' : 'Clear'}
-                saveAria={language === 'ar' ? 'حفظ مفتاح Mapbox' : 'Save Mapbox token'}
                 clearAria={language === 'ar' ? 'مسح مفتاح Mapbox' : 'Clear Mapbox token'}
                 actionsGroupLabel={language === 'ar' ? 'إجراءات مفتاح Mapbox' : 'Mapbox token actions'}
               />
               <p className="sys-settings-panel__desc sys-settings-api-hint">
                 {language === 'ar'
-                  ? 'مطلوب لـ Mapbox GL (خرائط الاستخبارات والـ Globe). بعد الحفظ تُحدَّث الخرائط فوراً.'
-                  : 'Required for Mapbox GL (Satellite intelligence & globe). Maps refresh after save.'}
+                  ? 'مطلوب لـ Mapbox GL (خرائط الاستخبارات والـ Globe). تُحدَّث الخرائط بعد «حفظ كل الأسرار».'
+                  : 'Required for Mapbox GL (Satellite intelligence & globe). Maps refresh after “Save all tokens.”'}
               </p>
             </div>
 
@@ -1784,29 +1874,12 @@ export default function SystemSettings() {
                 onChange={setArcgisTokenDraft}
                 placeholder={language === 'ar' ? 'رمز REST أو OAuth…' : 'REST or OAuth token…'}
                 password
-                onSave={async () => {
-                  const trimmed = arcgisTokenDraft.trim()
-                  persistArcgisPortalTokenInBrowser(arcgisTokenDraft)
-                  const r = await persistApiSecretsPatchToServer({ arcgisPortalToken: trimmed })
-                  pushToast(
-                    'success',
-                    r.ok
-                      ? language === 'ar'
-                        ? 'تم حفظ رمز ArcGIS على الخادم والمتصفح.'
-                        : 'ArcGIS token saved on server and in this browser.'
-                      : language === 'ar'
-                        ? 'حُفظ في المتصفح؛ تعذّر تحديث الخادم.'
-                        : 'Saved in this browser; server copy not updated.',
-                  )
-                  void refreshVaultHealthKey('arcgisPortalToken', trimmed)
-                  window.dispatchEvent(new Event('geosyntra-api-secrets-hydrated'))
-                }}
                 onClear={async () => {
                   persistArcgisPortalTokenInBrowser('')
                   setArcgisTokenDraft('')
                   const r = await persistApiSecretsPatchToServer({ arcgisPortalToken: '' })
                   pushToast(
-                    'success',
+                    r.ok ? 'success' : 'error',
                     r.ok
                       ? language === 'ar'
                         ? 'أُزيل رمز ArcGIS من الخادم والمتصفح.'
@@ -1818,9 +1891,7 @@ export default function SystemSettings() {
                   void refreshVaultHealthKey('arcgisPortalToken', '')
                   window.dispatchEvent(new Event('geosyntra-api-secrets-hydrated'))
                 }}
-                saveTitle={language === 'ar' ? 'حفظ' : 'Save'}
                 clearTitle={language === 'ar' ? 'مسح' : 'Clear'}
-                saveAria={language === 'ar' ? 'حفظ رمز ArcGIS' : 'Save ArcGIS token'}
                 clearAria={language === 'ar' ? 'مسح رمز ArcGIS' : 'Clear ArcGIS token'}
                 actionsGroupLabel={language === 'ar' ? 'إجراءات رمز ArcGIS' : 'ArcGIS token actions'}
               />
@@ -1868,31 +1939,12 @@ export default function SystemSettings() {
                 onChange={setOpenWeatherMapApiKeyDraft}
                 placeholder={language === 'ar' ? 'مفتاح API…' : 'API key…'}
                 password
-                onSave={async () => {
-                  const trimmed = openWeatherMapApiKeyDraft.trim()
-                  persistOpenWeatherMapApiKeyInBrowser(openWeatherMapApiKeyDraft)
-                  const r = await persistApiSecretsPatchToServer({
-                    openWeatherMapApiKey: trimmed,
-                  })
-                  pushToast(
-                    'success',
-                    r.ok
-                      ? language === 'ar'
-                        ? 'تم حفظ مفتاح OpenWeather على الخادم والمتصفح.'
-                        : 'OpenWeatherMap API key saved on server and in this browser.'
-                      : language === 'ar'
-                        ? 'حُفظ في المتصفح؛ تعذّر تحديث الخادم.'
-                        : 'Saved in this browser; server copy not updated.',
-                  )
-                  void refreshVaultHealthKey('openWeatherMapApiKey', trimmed)
-                  window.dispatchEvent(new Event('geosyntra-api-secrets-hydrated'))
-                }}
                 onClear={async () => {
                   persistOpenWeatherMapApiKeyInBrowser('')
                   setOpenWeatherMapApiKeyDraft('')
                   const r = await persistApiSecretsPatchToServer({ openWeatherMapApiKey: '' })
                   pushToast(
-                    'success',
+                    r.ok ? 'success' : 'error',
                     r.ok
                       ? language === 'ar'
                         ? 'أُزيل مفتاح OpenWeather من الخادم والمتصفح.'
@@ -1904,9 +1956,7 @@ export default function SystemSettings() {
                   void refreshVaultHealthKey('openWeatherMapApiKey', '')
                   window.dispatchEvent(new Event('geosyntra-api-secrets-hydrated'))
                 }}
-                saveTitle={language === 'ar' ? 'حفظ' : 'Save'}
                 clearTitle={language === 'ar' ? 'مسح' : 'Clear'}
-                saveAria={language === 'ar' ? 'حفظ مفتاح OpenWeatherMap' : 'Save OpenWeatherMap API key'}
                 clearAria={language === 'ar' ? 'مسح مفتاح OpenWeatherMap' : 'Clear OpenWeatherMap API key'}
                 actionsGroupLabel={
                   language === 'ar' ? 'إجراءات مفتاح OpenWeatherMap' : 'OpenWeatherMap API key actions'
@@ -1973,29 +2023,12 @@ export default function SystemSettings() {
                 onChange={setSentinelAccessDraft}
                 placeholder={language === 'ar' ? 'OAuth / Process API…' : 'OAuth / Process API…'}
                 password
-                onSave={async () => {
-                  const trimmed = sentinelAccessDraft.trim()
-                  persistSentinelHubAccessTokenInBrowser(sentinelAccessDraft)
-                  const r = await persistApiSecretsPatchToServer({ sentinelHubAccessToken: trimmed })
-                  pushToast(
-                    'success',
-                    r.ok
-                      ? language === 'ar'
-                        ? 'تم حفظ رمز Sentinel Hub على الخادم والمتصفح.'
-                        : 'Sentinel Hub access token saved on server and in this browser.'
-                      : language === 'ar'
-                        ? 'حُفظ في المتصفح؛ تعذّر تحديث الخادم.'
-                        : 'Saved in this browser; server copy not updated.',
-                  )
-                  void refreshVaultHealthKey('sentinelHubAccessToken', trimmed)
-                  window.dispatchEvent(new Event('geosyntra-api-secrets-hydrated'))
-                }}
                 onClear={async () => {
                   persistSentinelHubAccessTokenInBrowser('')
                   setSentinelAccessDraft('')
                   const r = await persistApiSecretsPatchToServer({ sentinelHubAccessToken: '' })
                   pushToast(
-                    'success',
+                    r.ok ? 'success' : 'error',
                     r.ok
                       ? language === 'ar'
                         ? 'أُزيل رمز Sentinel من الخادم والمتصفح.'
@@ -2007,9 +2040,7 @@ export default function SystemSettings() {
                   void refreshVaultHealthKey('sentinelHubAccessToken', '')
                   window.dispatchEvent(new Event('geosyntra-api-secrets-hydrated'))
                 }}
-                saveTitle={language === 'ar' ? 'حفظ' : 'Save'}
                 clearTitle={language === 'ar' ? 'مسح' : 'Clear'}
-                saveAria={language === 'ar' ? 'حفظ رمز وصول Sentinel Hub' : 'Save Sentinel Hub access token'}
                 clearAria={language === 'ar' ? 'مسح رمز وصول Sentinel Hub' : 'Clear Sentinel Hub access token'}
                 actionsGroupLabel={language === 'ar' ? 'إجراءات رمز Sentinel' : 'Sentinel Hub access token actions'}
               />
@@ -2037,29 +2068,12 @@ export default function SystemSettings() {
                 value={sentinelHubInstanceDraft}
                 onChange={setSentinelHubInstanceDraft}
                 placeholder="7b6554b7-76f2-483e-a06d-90053e49f462"
-                onSave={async () => {
-                  const trimmed = sentinelHubInstanceDraft.trim()
-                  persistSentinelHubWmsInstanceIdInBrowser(sentinelHubInstanceDraft)
-                  const r = await persistApiSecretsPatchToServer({ sentinelHubWmsInstanceId: trimmed })
-                  pushToast(
-                    'success',
-                    r.ok
-                      ? language === 'ar'
-                        ? 'تم حفظ معرّف Sentinel Hub على الخادم والمتصفح.'
-                        : 'Sentinel Hub WMS instance ID saved on server and in this browser.'
-                      : language === 'ar'
-                        ? 'حُفظ في المتصفح؛ تعذّر تحديث الخادم.'
-                        : 'Saved in this browser; server copy not updated.',
-                  )
-                  void refreshVaultHealthKey('sentinelHubWmsInstanceId', trimmed)
-                  window.dispatchEvent(new Event('geosyntra-api-secrets-hydrated'))
-                }}
                 onClear={async () => {
                   persistSentinelHubWmsInstanceIdInBrowser('')
                   setSentinelHubInstanceDraft('')
                   const r = await persistApiSecretsPatchToServer({ sentinelHubWmsInstanceId: '' })
                   pushToast(
-                    'success',
+                    r.ok ? 'success' : 'error',
                     r.ok
                       ? language === 'ar'
                         ? 'أُزيل معرّف Sentinel Hub من الخادم والمتصفح.'
@@ -2071,9 +2085,7 @@ export default function SystemSettings() {
                   void refreshVaultHealthKey('sentinelHubWmsInstanceId', '')
                   window.dispatchEvent(new Event('geosyntra-api-secrets-hydrated'))
                 }}
-                saveTitle={language === 'ar' ? 'حفظ' : 'Save'}
                 clearTitle={language === 'ar' ? 'مسح' : 'Clear'}
-                saveAria={language === 'ar' ? 'حفظ معرّف Sentinel Hub' : 'Save Sentinel Hub instance ID'}
                 clearAria={language === 'ar' ? 'مسح معرّف Sentinel Hub' : 'Clear Sentinel Hub instance ID'}
                 actionsGroupLabel={language === 'ar' ? 'إجراءات معرّف WMS' : 'Sentinel Hub WMS instance actions'}
               />
@@ -2121,29 +2133,12 @@ export default function SystemSettings() {
                 onChange={setGeminiApiKeyDraft}
                 placeholder={language === 'ar' ? 'مفتاح Google AI…' : 'Google AI API key…'}
                 password
-                onSave={async () => {
-                  const trimmed = geminiApiKeyDraft.trim()
-                  persistGeminiApiKeyInBrowser(geminiApiKeyDraft)
-                  const r = await persistApiSecretsPatchToServer({ geminiApiKey: trimmed })
-                  pushToast(
-                    'success',
-                    r.ok
-                      ? language === 'ar'
-                        ? 'تم حفظ مفتاح Gemini على الخادم والمتصفح.'
-                        : 'Gemini API key saved on server and in this browser.'
-                      : language === 'ar'
-                        ? 'حُفظ في المتصفح؛ تعذّر تحديث الخادم.'
-                        : 'Saved in this browser; server copy not updated.',
-                  )
-                  void refreshVaultHealthKey('geminiApiKey', trimmed)
-                  window.dispatchEvent(new Event('geosyntra-api-secrets-hydrated'))
-                }}
                 onClear={async () => {
                   persistGeminiApiKeyInBrowser('')
                   setGeminiApiKeyDraft('')
                   const r = await persistApiSecretsPatchToServer({ geminiApiKey: '' })
                   pushToast(
-                    'success',
+                    r.ok ? 'success' : 'error',
                     r.ok
                       ? language === 'ar'
                         ? 'أُزيل مفتاح Gemini من الخادم والمتصفح.'
@@ -2155,16 +2150,14 @@ export default function SystemSettings() {
                   void refreshVaultHealthKey('geminiApiKey', '')
                   window.dispatchEvent(new Event('geosyntra-api-secrets-hydrated'))
                 }}
-                saveTitle={language === 'ar' ? 'حفظ' : 'Save'}
                 clearTitle={language === 'ar' ? 'مسح' : 'Clear'}
-                saveAria={language === 'ar' ? 'حفظ مفتاح Gemini API' : 'Save Gemini API key'}
                 clearAria={language === 'ar' ? 'مسح مفتاح Gemini API' : 'Clear Gemini API key'}
                 actionsGroupLabel={language === 'ar' ? 'إجراءات مفتاح Gemini' : 'Gemini API key actions'}
               />
               <p className="sys-settings-panel__desc sys-settings-api-hint">
                 {language === 'ar'
-                  ? 'مفتاح Google AI (Gemini) لـ Geo Explorer ولمحادثة Geosyntra Chat عند اختيار وضع السحابة. يُستخدم فور الحفظ.'
-                  : 'Google AI (Gemini) key for Geo Explorer and for Geosyntra Chat when “Gemini (Cloud AI)” is selected. Used immediately after save.'}
+                  ? 'مفتاح Google AI (Gemini) لـ Geo Explorer ولمحادثة Geosyntra Chat عند اختيار وضع السحابة. يُفعّل بعد «حفظ كل الأسرار».'
+                  : 'Google AI (Gemini) key for Geo Explorer and for Geosyntra Chat when “Gemini (Cloud AI)” is selected. Applies after “Save all tokens.”'}
               </p>
             </div>
 
@@ -2205,29 +2198,12 @@ export default function SystemSettings() {
                 onChange={setDeepseekApiKeyDraft}
                 placeholder={language === 'ar' ? 'sk-…' : 'sk-…'}
                 password
-                onSave={async () => {
-                  const trimmed = deepseekApiKeyDraft.trim()
-                  persistDeepseekApiKeyInBrowser(deepseekApiKeyDraft)
-                  const r = await persistApiSecretsPatchToServer({ deepseekApiKey: trimmed })
-                  pushToast(
-                    'success',
-                    r.ok
-                      ? language === 'ar'
-                        ? 'تم حفظ مفتاح DeepSeek على الخادم والمتصفح.'
-                        : 'DeepSeek API key saved on server and in this browser.'
-                      : language === 'ar'
-                        ? 'حُفظ في المتصفح؛ تعذّر تحديث الخادم.'
-                        : 'Saved in this browser; server copy not updated.',
-                  )
-                  void refreshVaultHealthKey('deepseekApiKey', trimmed)
-                  window.dispatchEvent(new Event('geosyntra-api-secrets-hydrated'))
-                }}
                 onClear={async () => {
                   persistDeepseekApiKeyInBrowser('')
                   setDeepseekApiKeyDraft('')
                   const r = await persistApiSecretsPatchToServer({ deepseekApiKey: '' })
                   pushToast(
-                    'success',
+                    r.ok ? 'success' : 'error',
                     r.ok
                       ? language === 'ar'
                         ? 'أُزيل مفتاح DeepSeek من الخادم والمتصفح.'
@@ -2239,9 +2215,7 @@ export default function SystemSettings() {
                   void refreshVaultHealthKey('deepseekApiKey', '')
                   window.dispatchEvent(new Event('geosyntra-api-secrets-hydrated'))
                 }}
-                saveTitle={language === 'ar' ? 'حفظ' : 'Save'}
                 clearTitle={language === 'ar' ? 'مسح' : 'Clear'}
-                saveAria={language === 'ar' ? 'حفظ مفتاح DeepSeek' : 'Save DeepSeek API key'}
                 clearAria={language === 'ar' ? 'مسح مفتاح DeepSeek' : 'Clear DeepSeek API key'}
                 actionsGroupLabel={language === 'ar' ? 'إجراءات مفتاح DeepSeek' : 'DeepSeek API key actions'}
               />
@@ -2289,29 +2263,12 @@ export default function SystemSettings() {
                 onChange={setClaudeApiKeyDraft}
                 placeholder={language === 'ar' ? 'sk-ant-api03-…' : 'sk-ant-api03-…'}
                 password
-                onSave={async () => {
-                  const trimmed = claudeApiKeyDraft.trim()
-                  persistClaudeApiKeyInBrowser(claudeApiKeyDraft)
-                  const r = await persistApiSecretsPatchToServer({ claudeApiKey: trimmed })
-                  pushToast(
-                    'success',
-                    r.ok
-                      ? language === 'ar'
-                        ? 'تم حفظ مفتاح Claude على الخادم والمتصفح.'
-                        : 'Claude API key saved on server and in this browser.'
-                      : language === 'ar'
-                        ? 'حُفظ في المتصفح؛ تعذّر تحديث الخادم.'
-                        : 'Saved in this browser; server copy not updated.',
-                  )
-                  void refreshVaultHealthKey('claudeApiKey', trimmed)
-                  window.dispatchEvent(new Event('geosyntra-api-secrets-hydrated'))
-                }}
                 onClear={async () => {
                   persistClaudeApiKeyInBrowser('')
                   setClaudeApiKeyDraft('')
                   const r = await persistApiSecretsPatchToServer({ claudeApiKey: '' })
                   pushToast(
-                    'success',
+                    r.ok ? 'success' : 'error',
                     r.ok
                       ? language === 'ar'
                         ? 'أُزيل مفتاح Claude من الخادم والمتصفح.'
@@ -2323,16 +2280,14 @@ export default function SystemSettings() {
                   void refreshVaultHealthKey('claudeApiKey', '')
                   window.dispatchEvent(new Event('geosyntra-api-secrets-hydrated'))
                 }}
-                saveTitle={language === 'ar' ? 'حفظ' : 'Save'}
                 clearTitle={language === 'ar' ? 'مسح' : 'Clear'}
-                saveAria={language === 'ar' ? 'حفظ مفتاح Claude API' : 'Save Claude API key'}
                 clearAria={language === 'ar' ? 'مسح مفتاح Claude API' : 'Clear Claude API key'}
                 actionsGroupLabel={language === 'ar' ? 'إجراءات مفتاح Claude' : 'Claude API key actions'}
               />
               <p className="sys-settings-panel__desc sys-settings-api-hint">
                 {language === 'ar'
-                  ? 'يُفعّل Geo AI Chat في استخبارات الأقمار: يفسّر الطبقات والحقول بناءً على ما هو محفوظ في GIS Map (GIS Content) ولقطة بيانات لوحة التطوير → Data فقط، دون اختلاق قيم.'
-                  : 'Powers Geo AI Chat in Satellite Intelligence: answers use only GIS Map saved layers (GIS Content) plus the Develop Dashboard → Data snapshot—no invented field values. Save the key here or use VITE_CLAUDE_API_KEY at build time.'}
+                  ? 'يُفعّل Geo AI Chat في استخبارات الأقمار: يفسّر الطبقات والحقول بناءً على ما هو محفوظ في GIS Map (GIS Content) ولقطة بيانات لوحة التطوير → Data فقط، دون اختلاق قيم. استخدم «حفظ كل الأسرار» أو VITE_CLAUDE_API_KEY.'
+                  : 'Powers Geo AI Chat in Satellite Intelligence: answers use only GIS Map saved layers (GIS Content) plus the Develop Dashboard → Data snapshot—no invented field values. Use “Save all tokens” or VITE_CLAUDE_API_KEY at build time.'}
               </p>
             </div>
 
@@ -2372,28 +2327,12 @@ export default function SystemSettings() {
                     }
                     placeholder={ph || (language === 'ar' ? '••••••••' : '••••••••')}
                     password
-                    onSave={async () => {
-                      const v = customUserTokenDrafts[slot.id] ?? ''
-                      persistUserApiTokenValue(slot.id, v)
-                      const r = await persistApiSecretsPatchToServer({ customSlots: { [slot.id]: v.trim() } })
-                      pushToast(
-                        'success',
-                        r.ok
-                          ? language === 'ar'
-                            ? 'تم الحفظ على الخادم والمتصفح.'
-                            : 'Saved on server and in this browser.'
-                          : language === 'ar'
-                            ? 'حُفظ في المتصفح؛ تعذّر تحديث الخادم.'
-                            : 'Saved in this browser; server copy not updated.',
-                      )
-                      window.dispatchEvent(new Event('geosyntra-api-secrets-hydrated'))
-                    }}
                     onClear={async () => {
                       persistUserApiTokenValue(slot.id, '')
                       setCustomUserTokenDrafts(p => ({ ...p, [slot.id]: '' }))
                       const r = await persistApiSecretsPatchToServer({ customSlots: { [slot.id]: '' } })
                       pushToast(
-                        'success',
+                        r.ok ? 'success' : 'error',
                         r.ok
                           ? language === 'ar'
                             ? 'تم المسح من الخادم والمتصفح.'
@@ -2404,9 +2343,7 @@ export default function SystemSettings() {
                       )
                       window.dispatchEvent(new Event('geosyntra-api-secrets-hydrated'))
                     }}
-                    saveTitle={language === 'ar' ? 'حفظ' : 'Save'}
                     clearTitle={language === 'ar' ? 'مسح' : 'Clear'}
-                    saveAria={language === 'ar' ? 'حفظ السر' : 'Save secret'}
                     clearAria={language === 'ar' ? 'مسح السر' : 'Clear secret'}
                     actionsGroupLabel={language === 'ar' ? 'إجراءات السر' : 'Secret actions'}
                   />
@@ -2414,72 +2351,6 @@ export default function SystemSettings() {
               )
             })}
           </div>
-          </section>
-
-          <section
-            className="sys-api-section sys-api-section--settings-toolbar"
-            aria-label={language === 'ar' ? 'إجراءات حفظ إعدادات النظام' : 'System settings save actions'}
-            dir={language === 'ar' ? 'rtl' : 'ltr'}
-          >
-            <div className="sys-api-settings-toolbar">
-              <div
-                role="status"
-                className={`sys-api-settings-toolbar__status${settingsDirty ? ' sys-api-settings-toolbar__status--dirty' : ''}`}
-                title={
-                  settingsDirty
-                    ? language === 'ar'
-                      ? 'تغييرات غير محفوظة في إعدادات النظام (السمات، التنقل، البطاقات…)'
-                      : 'Unsaved system settings (theme, navigation, cards…)'
-                    : language === 'ar'
-                      ? 'لا توجد تغييرات معلّقة على إعدادات النظام'
-                      : 'No pending system settings changes'
-                }
-                aria-label={
-                  settingsDirty
-                    ? language === 'ar'
-                      ? 'تغييرات غير محفوظة في إعدادات النظام'
-                      : 'Unsaved system settings'
-                    : language === 'ar'
-                      ? 'لا توجد تغييرات معلّقة'
-                      : 'No pending changes'
-                }
-              >
-                <i
-                  className={settingsDirty ? 'fa-solid fa-pen-to-square' : 'fa-solid fa-circle-check'}
-                  aria-hidden
-                />
-              </div>
-              <div className="sys-api-settings-toolbar__actions" role="group" aria-label={language === 'ar' ? 'أدوات الحفظ' : 'Save tools'}>
-                <button
-                  type="button"
-                  className="sys-api-icon-btn sys-api-icon-btn--primary sys-api-icon-btn--toolbar"
-                  onClick={() => void handleSave()}
-                  title={language === 'ar' ? 'حفظ إعدادات النظام (السمات، التنقل، تعريف بطاقات API…)' : 'Save system settings (theme, nav, API card definitions…)'}
-                  aria-label={language === 'ar' ? 'حفظ إعدادات النظام' : 'Save system settings'}
-                >
-                  <i className="fa-solid fa-floppy-disk" aria-hidden />
-                </button>
-                <button
-                  type="button"
-                  className="sys-api-icon-btn sys-api-icon-btn--toolbar sys-api-icon-btn--toolbar-muted"
-                  onClick={handleCancel}
-                  disabled={!settingsDirty}
-                  title={language === 'ar' ? 'تجاهل التعديلات واسترجاع آخر نسخة محفوظة' : 'Discard edits and reload last saved'}
-                  aria-label={language === 'ar' ? 'تجاهل التغييرات' : 'Discard changes'}
-                >
-                  <i className="fa-solid fa-ban" aria-hidden />
-                </button>
-                <button
-                  type="button"
-                  className="sys-api-icon-btn sys-api-icon-btn--toolbar sys-api-icon-btn--danger-outline"
-                  onClick={() => setConfirmReset(true)}
-                  title={language === 'ar' ? 'استعادة إعدادات المصنع' : 'Restore factory defaults'}
-                  aria-label={language === 'ar' ? 'استعادة الافتراضي' : 'Reset to defaults'}
-                >
-                  <i className="fa-solid fa-rotate-left" aria-hidden />
-                </button>
-              </div>
-            </div>
           </section>
         </div>
       ) : null}
@@ -2506,8 +2377,8 @@ export default function SystemSettings() {
             </h2>
             <p className="sys-api-modal__lead">
               {language === 'ar'
-                ? 'أنشئ بطاقة جديدة (اسم، وصف، تسمية الحقل). القيمة السرية تُحفظ لاحقاً عبر زر الحفظ بجانب الحقل.'
-                : 'Create a new card (name, description, field label). Save the secret later with the check button next to the input.'}
+                ? 'أنشئ بطاقة جديدة (اسم، وصف، تسمية الحقل). أدخل السر ثم استخدم «حفظ كل الأسرار» في أعلى الصفحة.'
+                : 'Create a new card (name, description, field label). Enter the secret, then use “Save all tokens” at the top of this page.'}
             </p>
             <div className="sys-api-modal__grid">
               <label className="sys-api-modal__field">

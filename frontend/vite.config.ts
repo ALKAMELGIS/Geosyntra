@@ -252,5 +252,16 @@ export default defineConfig({
     headers: {
       'Cache-Control': 'no-store',
     },
+    // Match dev server so `npm run preview` + Node API still persist API vault to agri_api_secrets.json.
+    proxy: {
+      '/api': {
+        target: 'http://localhost:3001',
+        changeOrigin: true,
+      },
+      '/ws': {
+        target: 'ws://localhost:3002',
+        ws: true,
+      },
+    },
   }
 })

@@ -636,6 +636,17 @@ html[data-theme="light"] .group-header:hover .icon {
   box-shadow: 0 4px 10px rgba(15, 23, 42, 0.06);
 }
 
+/* Mobile primary strip: leaf links are icon-only; center under pill headers */
+.navmenu.navmenu-open .subitem,
+.navmenu.navmenu-open .navmenu-li > .item {
+  justify-content: center;
+  gap: 0;
+}
+
+.navmenu.navmenu-open .navmenu-li > .item {
+  padding-inline: 10px;
+}
+
 /* Chevron */
 .chev {
   margin-left: auto;

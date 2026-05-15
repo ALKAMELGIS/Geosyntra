@@ -97,6 +97,8 @@ export default function NavMenu({ onLogout }: NavMenuProps) {
           <NavLink
             key={leaf.id}
             to={leaf.path}
+            title={navLabel(leaf)}
+            aria-label={navLabel(leaf)}
             onClick={handleNavigate}
             /* Warm the destination chunk on hover / focus so the
              * subsequent click is essentially free (no network parse
@@ -113,7 +115,6 @@ export default function NavMenu({ onLogout }: NavMenuProps) {
             <span className="icon">
               <i className={leaf.iconClass}></i>
             </span>
-            <span className="label">{navLabel(leaf)}</span>
           </NavLink>
         ))}
       </div>
@@ -314,13 +315,14 @@ export default function NavMenu({ onLogout }: NavMenuProps) {
           <li className="navmenu-li">
             <NavLink
               to="/"
+              title={navLabel(mergedHome)}
+              aria-label={navLabel(mergedHome)}
               onClick={handleNavigate}
               className={({ isActive }) => (isActive ? 'item active nav-item-home' : 'item nav-item-home')}
             >
               <span className="icon">
                 <i className={mergedHome.iconClass}></i>
               </span>
-              <span className="label">{navLabel(mergedHome)}</span>
             </NavLink>
           </li>
         ) : null}
@@ -372,6 +374,8 @@ export default function NavMenu({ onLogout }: NavMenuProps) {
           >
             <NavLink
               to="/account/profile"
+              title={t.profile}
+              aria-label={t.profile}
               onClick={handleNavigate}
               onMouseEnter={() => prefetchRoute('/account/profile')}
               onPointerEnter={() => prefetchRoute('/account/profile')}
@@ -384,11 +388,12 @@ export default function NavMenu({ onLogout }: NavMenuProps) {
               <span className="icon">
                 <i className="fa-solid fa-user-gear"></i>
               </span>
-              <span className="label">{t.profile}</span>
             </NavLink>
             <button
               className="subitem nav-item-account"
               type="button"
+              title={t.logout}
+              aria-label={t.logout}
               onClick={() => {
                 closeAll()
                 if (onLogout) {
@@ -401,7 +406,6 @@ export default function NavMenu({ onLogout }: NavMenuProps) {
               <span className="icon">
                 <i className="fa-solid fa-arrow-right-from-bracket"></i>
               </span>
-              <span className="label">{t.logout}</span>
             </button>
           </div>
         </li>

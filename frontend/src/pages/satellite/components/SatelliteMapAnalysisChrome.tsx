@@ -185,8 +185,6 @@ export type SatelliteMapAnalysisChromeProps = {
   fieldsCount?: number;
   /** Map toolbox rail: quick open for WMS symbology (classified ramp). */
   mapSymbologyToolbarSlot?: ReactNode;
-  /** Map toolbox: layer swipe panel (beside rail; no on-map divider handle). */
-  mapToolboxLayerSwipeSlot?: ReactNode;
   /** Spectral / WMS legend on map — toggled from toolbox rail when a legend exists. */
   mapSpectralLegendAvailable?: boolean;
   mapSpectralLegendOpen?: boolean;
@@ -257,7 +255,6 @@ export function SatelliteMapAnalysisChrome(props: SatelliteMapAnalysisChromeProp
     fieldsPanelContent,
     fieldsCount = 0,
     mapSymbologyToolbarSlot,
-    mapToolboxLayerSwipeSlot,
     mapSpectralLegendAvailable = false,
     mapSpectralLegendOpen = false,
     onToggleMapSpectralLegend,
@@ -359,7 +356,6 @@ export function SatelliteMapAnalysisChrome(props: SatelliteMapAnalysisChromeProp
       fieldsPanelContent={fieldsPanelContent}
       fieldsCount={fieldsCount}
       mapSymbologyToolbarSlot={mapSymbologyToolbarSlot}
-      mapToolboxLayerSwipeSlot={mapToolboxLayerSwipeSlot}
       mapSpectralLegendAvailable={mapSpectralLegendAvailable}
       mapSpectralLegendOpen={mapSpectralLegendOpen}
       onToggleMapSpectralLegend={onToggleMapSpectralLegend}

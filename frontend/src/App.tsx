@@ -167,8 +167,8 @@ function AppShell() {
   const layoutShellClass = isOnHome ? 'layout layout--landing-fullbleed' : showChrome ? layoutChromeClass : 'layout'
 
   if (user && isOnLogin) {
-    const from = (location.state as any)?.from?.pathname
-    return <Navigate to={typeof from === 'string' && from ? from : '/'} replace />
+    // Always land on Home after sign-in (ignore deep-link `from` saved when redirecting to /login).
+    return <Navigate to="/" replace />
   }
 
   if (!user && !isOnLogin) {

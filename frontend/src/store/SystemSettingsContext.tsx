@@ -103,15 +103,27 @@ export function SystemSettingsProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     let cancelled = false
-    void hydrateBrowserApiSecretsFromServer()
-      .then(() => {
-        if (cancelled) return
-      })
-      .catch(() => {
-        /* static hosts / offline — hydration is optional */
-      })
+    const run = () => {
+      void hydrateBrowserApiSecretsFromServer()
+        .then(() => {
+          if (cancelled) return
+        })
+        .catch(() => {
+          /* static hosts / offline — hydration is optional */
+        })
+    }
+    run()
+    const onVis = () => {
+      if (typeof document !== 'undefined' && document.visibilityState === 'visible') run()
+    }
+    if (typeof document !== 'undefined') {
+      document.addEventListener('visibilitychange', onVis)
+    }
     return () => {
       cancelled = true
+      if (typeof document !== 'undefined') {
+        document.removeEventListener('visibilitychange', onVis)
+      }
     }
   }, [])
 

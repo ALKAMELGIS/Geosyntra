@@ -111,8 +111,6 @@ export type SatelliteContextualAnalysisDockProps = {
   onRequestGenerateReport?: () => void;
   /** Map toolbox rail: optional symbology shortcut (parent supplies a small icon button). */
   mapSymbologyToolbarSlot?: ReactNode;
-  /** Map toolbox: layer swipe controls (flyout beside rail; no on-map divider handle). */
-  mapToolboxLayerSwipeSlot?: ReactNode;
   /** When true, map toolbox shows a rail control to toggle the on-map spectral / WMS legend overlay. */
   mapSpectralLegendAvailable?: boolean;
   /** Parent-owned visibility for the spectral legend card on the map canvas. */
@@ -315,7 +313,6 @@ export function SatelliteContextualAnalysisDock(props: SatelliteContextualAnalys
     fieldsCount = 0,
     onRequestGenerateReport,
     mapSymbologyToolbarSlot,
-    mapToolboxLayerSwipeSlot,
     mapSpectralLegendAvailable = false,
     mapSpectralLegendOpen = false,
     onToggleMapSpectralLegend,
@@ -719,11 +716,6 @@ export function SatelliteContextualAnalysisDock(props: SatelliteContextualAnalys
               </span>
             ) : null}
           </button>
-        ) : null}
-        {isMap && mapToolboxLayerSwipeSlot ? (
-          <div className="si-sat-ctx-rail-swipe-slot" role="region" aria-label="Layer swipe compare">
-            {mapToolboxLayerSwipeSlot}
-          </div>
         ) : null}
         <div className="si-sat-ctx-rail-spacer" aria-hidden />
         <div className={'si-sat-ctx-rail-footer' + (isMap ? ' si-sat-ctx-rail-footer--map' : '')}>

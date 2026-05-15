@@ -105,7 +105,7 @@
   position: absolute;
   top: calc(100% + 8px);
   inset-inline-end: 0;
-  min-width: 220px;
+  min-width: 52px;
   max-width: min(92vw, 280px);
   padding: 6px;
   border-radius: 14px;
@@ -141,8 +141,9 @@
 .geosyntra-primary-nav__popitem {
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 9px 11px;
+  justify-content: center;
+  gap: 0;
+  padding: 6px 8px;
   border-radius: 10px;
   text-decoration: none;
   color: rgba(226, 232, 240, 0.95);
@@ -165,20 +166,20 @@
 
 .geosyntra-primary-nav__popitem--btn {
   width: 100%;
-  text-align: start;
+  text-align: center;
   background: transparent;
   cursor: pointer;
   font: inherit;
 }
 
 .geosyntra-primary-nav__popicon {
-  width: 28px;
-  height: 28px;
-  border-radius: 8px;
+  width: 34px;
+  height: 34px;
+  border-radius: 9px;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 12px;
+  font-size: 14px;
   background: rgba(255, 255, 255, 0.06);
   color: rgba(248, 250, 252, 0.92);
 }

@@ -3,7 +3,7 @@ import { useLocation, useNavigate } from 'react-router-dom'
 import LoginGlslHillsBackground from './login/LoginGlslHillsBackground'
 import { LoginCanvasGlobe } from './login/LoginCanvasGlobe'
 import './Login.css'
-import { normalizeEmail, normalizeRole, startSession } from '../lib/auth'
+import { normalizeEmail, normalizeRole, startSession, type Role } from '../lib/auth'
 import { pickDefaultAssignableRole, useDirectoryRoleCatalog } from '../lib/roleCatalog'
 import { hydrateProfileFromAdminUserRecord, hydrateProfileFromServer } from '../lib/userProfilePersistence'
 import { appendAuditLog } from '../lib/audit'
@@ -14,6 +14,8 @@ import {
   clearOAuthHandshake,
   exchangeGoogleAuthCode,
   getGoogleOAuthRedirectUri,
+  isAppleOAuthConfigured,
+  isGoogleOAuthConfigured,
   readStoredOAuthProvider,
   readStoredOAuthState,
   resolveAppleAuthorizationUrl,
@@ -47,15 +49,10 @@ const loginTranslations = {
       'If you forgot which email address you use for this account, contact your administrator.',
     forgotPasswordHelp:
       'Self-service password reset is not available here. Contact your administrator to reset your password.',
-    heroLine1: 'Geospatial intelligence,',
-    heroLine2: 'Designed for clarity.',
-    heroSub: 'Sign in to {name} — satellite intelligence, GIS, and operations in one workspace.',
     continueWith: 'Or continue with',
     emailPassword: 'Email & password',
     oauthGoogle: 'Continue with Google',
     oauthApple: 'Continue with Apple',
-    oauthNotConfigured:
-      'OAuth is not configured. For Google: set VITE_AUTH_GOOGLE_CLIENT_ID (redirect uses oauth-return.html) and run the API with GOOGLE_OAUTH_CLIENT_ID + GOOGLE_OAUTH_CLIENT_SECRET, or set VITE_AUTH_GOOGLE_URL. For Apple: set VITE_AUTH_APPLE_CLIENT_ID or VITE_AUTH_APPLE_URL.',
     oauthGoogleFailed: 'Google sign-in could not be completed.',
     oauthAppleNeedsServer:
       'Apple sign-in returned a code. Use a full VITE_AUTH_APPLE_URL from your IdP, or implement Apple token exchange on the server.',
@@ -87,15 +84,10 @@ const loginTranslations = {
     forgotOr: 'أو',
     forgotUsernameHelp: 'إذا نسيت البريد الإلكتروني المستخدم لهذا الحساب، تواصل مع مسؤول النظام.',
     forgotPasswordHelp: 'استعادة كلمة المرور الذاتية غير متوفرة. تواصل مع مسؤول النظام لإعادة تعيين كلمة المرور.',
-    heroLine1: 'ذكاء مكاني،',
-    heroLine2: 'تصميم يوضح الصورة.',
-    heroSub: 'سجّل الدخول إلى {name} — التحليل الفضائي ونظم المعلومات الجغرافية والعمليات في منصة واحدة.',
     continueWith: 'أو تابع باستخدام',
     emailPassword: 'البريد وكلمة المرور',
     oauthGoogle: 'المتابعة مع Google',
     oauthApple: 'المتابعة مع Apple',
-    oauthNotConfigured:
-      'تسجيل الدخول الموحد غير مهيأ. لـ Google: عيّن VITE_AUTH_GOOGLE_CLIENT_ID (مع خادم API و GOOGLE_OAUTH_CLIENT_SECRET) أو VITE_AUTH_GOOGLE_URL. لـ Apple: عيّن VITE_AUTH_APPLE_CLIENT_ID أو VITE_AUTH_APPLE_URL.',
     oauthGoogleFailed: 'تعذر إكمال تسجيل الدخول عبر Google.',
     oauthAppleNeedsServer:
       'أعاد Apple رمزاً. استخدم VITE_AUTH_APPLE_URL كاملاً من مزود الهوية، أو أضف تبادل الرمز على الخادم.',
@@ -116,6 +108,9 @@ const loginTranslations = {
 export default function Login() {
   const { language } = useLanguage()
   const text = loginTranslations[language]
+  const googleOauthConfigured = isGoogleOAuthConfigured()
+  const appleOauthConfigured = isAppleOAuthConfigured()
+  const showOAuthSection = googleOauthConfigured || appleOauthConfigured
   const navigate = useNavigate()
   const signupRoleCatalog = useDirectoryRoleCatalog()
   const [mode, setMode] = useState<'signin' | 'signup'>('signin')
@@ -501,10 +496,21 @@ export default function Login() {
     try {
       // Do not hard-force roles by email; always respect the saved account role.
       const roleOverrideForEmail = (_value: unknown): string | null => null
-      const roleOrder = ['Viewer', 'Editor', 'Admin Manager', 'Admin', 'Manager'] as const
-      const roleRank = (r: unknown) => roleOrder.indexOf(normalizeRole(r))
+      const ROLE_RANK: Record<Role, number> = {
+        Viewer: 0,
+        User: 1,
+        Editor: 2,
+        Analyst: 3,
+        Manager: 4,
+        'Admin Manager': 5,
+        Admin: 6,
+      }
+      const roleRank = (r: unknown) => ROLE_RANK[normalizeRole(r)] ?? 0
       const bestRole = (roles: unknown[]) =>
-        roles.reduce((best, r) => (roleRank(r) > roleRank(best) ? normalizeRole(r) : normalizeRole(best)), 'Viewer' as string)
+        roles.reduce(
+          (best, r) => (roleRank(r) > roleRank(best) ? normalizeRole(r) : normalizeRole(best)),
+          'Viewer' as Role,
+        )
 
       const stored = localStorage.getItem('adminUsers')
       let users: any[] = []
@@ -1001,7 +1007,6 @@ export default function Login() {
     setInfo('')
     const url = resolveGoogleAuthorizationUrl()
     if (url) window.location.assign(url)
-    else setInfo(text.oauthNotConfigured)
   }
 
   const onSsoApple = () => {
@@ -1009,7 +1014,6 @@ export default function Login() {
     setInfo('')
     const url = resolveAppleAuthorizationUrl()
     if (url) window.location.assign(url)
-    else setInfo(text.oauthNotConfigured)
   }
 
   return (
@@ -1022,11 +1026,6 @@ export default function Login() {
       <div className="login-page-content">
         <div className="login-page-shell">
           <div className="login-hero">
-            <div className="login-hero__copy">
-              <p className="login-hero__line1">{text.heroLine1}</p>
-              <p className="login-hero__line2">{text.heroLine2}</p>
-              <p className="login-hero__sub">{text.heroSub.replace('{name}', GEOSYNTRA_BRAND_NAME)}</p>
-            </div>
             <div className="login-hero-globe" aria-hidden>
               <LoginCanvasGlobe
                 size={560}
@@ -1230,19 +1229,27 @@ export default function Login() {
           </div>
               </form>
 
-              <div className="login-divider login-divider--spaced">
-                <span>{text.continueWith}</span>
-              </div>
-              <div className="login-sso-row">
-                <button type="button" className="login-sso-btn login-sso-btn--google" onClick={onSsoGoogle}>
-                  <i className="fa-brands fa-google" aria-hidden />
-                  {text.oauthGoogle}
-                </button>
-                <button type="button" className="login-sso-btn login-sso-btn--apple" onClick={onSsoApple}>
-                  <i className="fa-brands fa-apple" aria-hidden />
-                  {text.oauthApple}
-                </button>
-              </div>
+              {showOAuthSection ? (
+                <>
+                  <div className="login-divider login-divider--spaced">
+                    <span>{text.continueWith}</span>
+                  </div>
+                  <div className="login-sso-row">
+                    {googleOauthConfigured ? (
+                      <button type="button" className="login-sso-btn login-sso-btn--google" onClick={onSsoGoogle}>
+                        <i className="fa-brands fa-google" aria-hidden />
+                        {text.oauthGoogle}
+                      </button>
+                    ) : null}
+                    {appleOauthConfigured ? (
+                      <button type="button" className="login-sso-btn login-sso-btn--apple" onClick={onSsoApple}>
+                        <i className="fa-brands fa-apple" aria-hidden />
+                        {text.oauthApple}
+                      </button>
+                    ) : null}
+                  </div>
+                </>
+              ) : null}
 
               <p className="login-footer-note">{text.footerNote}</p>
             </div>

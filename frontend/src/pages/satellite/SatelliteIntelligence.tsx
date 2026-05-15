@@ -95,6 +95,11 @@ import {
 } from './utils/siWmsSymbologyModel';
 import { SI_GEO_AI_MAP_SELECTION_PAINT } from './siGeoAiMapSelectionPaint';
 import { runGeoAiStatsCommand, type GeoAiMapFirstSelection } from '../../lib/geoAiStatsEngine';
+import { tryGeoAiBufferSpatialAction, fitMapboxMapToFeatureCollection } from '../../lib/geoAiSpatialActions';
+import {
+  tryGeoAiRemoteSensingToolboxAction,
+  type GeoAiRsToolboxResult,
+} from '../../lib/geoAiRemoteSensingToolbox';
 import { resolveGeoAiPinFromUserTextAndReply } from '../../lib/geoAiResolveMapCoords';
 import { buildGeoAiFullWeatherSessionAppend } from '../../lib/geoAiWeatherContext';
 import {
@@ -164,11 +169,15 @@ import { SiWmsSentinelSwipeContext } from './components/SiWmsSentinelSwipeContex
 import { SiSwipePeekMapContext } from './components/SiSwipePeekMapContext';
 import { SiSentinelHubRasterLayers, type SiSentinelHubRasterRunLite } from './components/SiSentinelHubRasterLayers';
 import { SiMapNavigationGate } from './components/SiMapNavigationGate';
-import { SiLayerSwipeChrome, type SiLayerSwipeStyleKind } from './components/SiLayerSwipeChrome';
 import { SatelliteGeoAiFloatingWidget } from './components/SatelliteGeoAiFloatingWidget';
 import { SatelliteAoiStaticChartsMapOverlay } from './components/SatelliteAoiStaticChartsMapOverlay';
 import { SiAoiReportModal } from './components/SiAoiReportModal';
 import { siAoiPaletteFromIndexRampStops } from './utils/siAoiVegetationReportModel';
+import {
+  captureMapboxCanvasPng,
+  waitForMapboxIdle,
+  type SiLiveMapSnapshotCapture,
+} from './utils/siMapViewerSnapshot';
 import { SatelliteMapProcessingOptionsPortal } from './components/SatelliteMapProcessingOptionsPortal';
 import { SiGeoAiInspectPopupBody } from './components/SiGeoAiInspectPopupBody';
 import { SiLayerPopupConfigurator } from './components/SiLayerPopupConfigurator';
@@ -2786,6 +2795,7 @@ export default function SatelliteIntelligence() {
   const [aoiLayerMenuOpenId, setAoiLayerMenuOpenId] = useState<string | null>(null);
   const [multiAoiPopupIds, setMultiAoiPopupIds] = useState<string[]>([]);
   const remoteSensingLayerOptionsRef = useRef<Array<{ id: string; label: string }>>([]);
+  const applyGeoAiRsToolboxRef = useRef<(r: Extract<GeoAiRsToolboxResult, { handled: true; ok: true }>) => void>(() => {});
   const [siAoiReportModalOpen, setSiAoiReportModalOpen] = useState(false);
   const multiAoiItemsRef = useRef(multiAoiItems);
   const activeMultiAoiIdRef = useRef(activeMultiAoiId);
@@ -2823,7 +2833,7 @@ export default function SatelliteIntelligence() {
     if (!aoiLayerMenuOpenId) return;
     const onDocMouseDown = (e: MouseEvent) => {
       const t = e.target;
-      if (t instanceof Element && t.closest('.si-rs-aoi-layer-dd')) return;
+      if (t instanceof Element && t.closest('.si-rs-aoi-layer-opt')) return;
       setAoiLayerMenuOpenId(null);
     };
     document.addEventListener('mousedown', onDocMouseDown);
@@ -2941,10 +2951,6 @@ export default function SatelliteIntelligence() {
 
   const [geoExplorerMessages, setGeoExplorerMessages] = useState<GeoExplorerMessage[]>([]);
   const [geoExplorerVisibleCount, setGeoExplorerVisibleCount] = useState(GEO_AI_CHAT_PAGE_SIZE);
-  const [geoAiSmartSuggestionsEnabled, setGeoAiSmartSuggestionsEnabled] = useState(() => {
-    if (typeof window === 'undefined') return true;
-    return window.localStorage.getItem('geo_ai_smart_suggestions_enabled_v1') !== '0';
-  });
   const [geoExplorerDraft, setGeoExplorerDraft] = useState('');
   const [geoExplorerPendingImage, setGeoExplorerPendingImage] = useState<{
     mime: string;
@@ -3008,32 +3014,6 @@ export default function SatelliteIntelligence() {
   const exploreCatalogSigRef = useRef('');
   const searchRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<any | null>(null);
-  const siSwipePeekMapRef = useRef<any | null>(null);
-  const [siLayerSwipeOpen, setSiLayerSwipeOpen] = useState(false);
-  const [siLayerSwipeSplit, setSiLayerSwipeSplit] = useState(50);
-  const [siLayerSwipeLeftId, setSiLayerSwipeLeftId] = useState('');
-  const [siLayerSwipeRightId, setSiLayerSwipeRightId] = useState('');
-  const [siLayerSwipeStyle, setSiLayerSwipeStyle] = useState<SiLayerSwipeStyleKind>(() => {
-    try {
-      const v = localStorage.getItem('si-layer-swipe-style');
-      if (v === 'horizontal-bar' || v === 'spyglass' || v === 'vertical-bar') return v;
-    } catch {
-      /* ignore */
-    }
-    return 'vertical-bar';
-  });
-  const [siLayerSwipeBarColor, setSiLayerSwipeBarColor] = useState(() => {
-    try {
-      const v = localStorage.getItem('si-layer-swipe-bar-color');
-      if (v && /^#[0-9A-Fa-f]{6}$/i.test(v)) return v;
-    } catch {
-      /* ignore */
-    }
-    return '#f8fafc';
-  });
-  const [siLayerSpyXPct, setSiLayerSpyXPct] = useState(50);
-  const [siLayerSpyYPct, setSiLayerSpyYPct] = useState(50);
-  const [siLayerSpyRadiusPct, setSiLayerSpyRadiusPct] = useState(22);
   /** One-shot fallback to Mercator when Globe/WebGL errors (e.g. some Edge + GPU combos). */
   const siGlobeWebglFailoverRef = useRef(false);
   const siTableFeatureKeyCacheRef = useRef<Map<object, string>>(new Map());
@@ -3298,6 +3278,58 @@ export default function SatelliteIntelligence() {
             return;
           }
         }
+        if (!skipLocalStatsBecausePendingImage && trimmed) {
+          const buf = tryGeoAiBufferSpatialAction({
+            query: trimmed,
+            pinLngLat: geoAiPinLngLat,
+            lastMapQueryCoords: lastMapQueryCoordsFromMessages(coordsSourceMessages),
+          });
+          if (buf.handled) {
+            const mid =
+              typeof crypto !== 'undefined' && 'randomUUID' in crypto ? crypto.randomUUID() : `geo-b-${Date.now()}`;
+            if (!buf.ok) {
+              setGeoExplorerMessages(h => [...h, { id: mid, role: 'model', parts: [{ type: 'text', text: buf.reply }] }]);
+            } else {
+              const layerId = `custom-${Date.now()}-geoai-buffer`;
+              setCustomLayers(prev => [
+                ...prev,
+                {
+                  id: layerId,
+                  name: buf.layerName,
+                  geojson: buf.featureCollection,
+                  visible: true,
+                  source: 'api',
+                  color: '#9333ea',
+                  fillColor: '#c084fc',
+                  polygonFillAlpha: 0.28,
+                  weight: 2,
+                },
+              ]);
+              setGeoAiPinLngLat(buf.center);
+              setGeoAiInspectCard(null);
+              setGeoExplorerMessages(h => [...h, { id: mid, role: 'model', parts: [{ type: 'text', text: buf.reply }] }]);
+              queueMicrotask(() => fitMapboxMapToFeatureCollection(mapRef, buf.featureCollection));
+            }
+            return;
+          }
+        }
+        if (!skipLocalStatsBecausePendingImage && trimmed) {
+          const rsTb = tryGeoAiRemoteSensingToolboxAction({
+            query: trimmed,
+            layerOptions: remoteSensingLayerOptionsRef.current,
+          });
+          if (rsTb.handled) {
+            const mid =
+              typeof crypto !== 'undefined' && 'randomUUID' in crypto ? crypto.randomUUID() : `geo-rs-${Date.now()}`;
+            if (!rsTb.ok) {
+              setGeoExplorerMessages(h => [...h, { id: mid, role: 'model', parts: [{ type: 'text', text: rsTb.reply }] }]);
+            } else {
+              applyGeoAiRsToolboxRef.current(rsTb);
+              setGeoExplorerMessages(h => [...h, { id: mid, role: 'model', parts: [{ type: 'text', text: rsTb.reply }] }]);
+            }
+            return;
+          }
+        }
         let developAppend = '';
         try {
           const raw =
@@ -3386,6 +3418,7 @@ export default function SatelliteIntelligence() {
       geoAiPinLngLat,
       geoAiInspectCard,
       is3DView,
+      mapRef,
     ],
   );
 
@@ -3397,7 +3430,7 @@ export default function SatelliteIntelligence() {
       const apiKey = geminiApiKey.trim();
       if (!apiKey) {
         setGeoExplorerChatError(
-          'Add a Gemini API key: System Settings → API Tokens → Gemini API (saved in this browser), or set VITE_GEMINI_API_KEY at build time. Never commit keys to Git.',
+          'Add a Gemini API key: System Settings → API Tokens → Gemini API (saved to the server vault when the Node API is running, and mirrored in this browser), or set VITE_GEMINI_API_KEY at build time. Never commit keys to Git.',
         );
         return;
       }
@@ -3468,11 +3501,6 @@ export default function SatelliteIntelligence() {
     if (!el || geoAiDeepseekLoadOlderRef.current) return;
     if (el.scrollHeight - el.scrollTop - el.clientHeight <= 56) el.scrollTop = el.scrollHeight;
   }, [geoDeepseekChatMessages.length, geoDeepseekBusy]);
-
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
-    window.localStorage.setItem('geo_ai_smart_suggestions_enabled_v1', geoAiSmartSuggestionsEnabled ? '1' : '0');
-  }, [geoAiSmartSuggestionsEnabled]);
 
   const geoAiSuggestContext = useMemo(() => {
     const allLayers = satelliteCustomLayersToGeoAiLayers(customLayers);
@@ -7331,7 +7359,7 @@ export default function SatelliteIntelligence() {
     const apiKey = geminiApiKey.trim();
     if (!apiKey) {
       setGeoExplorerChatError(
-        'Add a Gemini API key: System Settings → API Tokens → Gemini API (saved in this browser), or set VITE_GEMINI_API_KEY at build time. Never commit keys to Git.'
+        'Add a Gemini API key: System Settings → API Tokens → Gemini API (saved to the server vault when the Node API is running, and mirrored in this browser), or set VITE_GEMINI_API_KEY at build time. Never commit keys to Git.'
       );
       return;
     }
@@ -7587,6 +7615,54 @@ export default function SatelliteIntelligence() {
             }
             return;
           }
+          const buf = tryGeoAiBufferSpatialAction({
+            query: trimmed,
+            pinLngLat: geoAiPinLngLat,
+            lastMapQueryCoords: lastMapQueryCoordsFromMessages(historyWithUser),
+          });
+          if (buf.handled) {
+            const aid =
+              typeof crypto !== 'undefined' && 'randomUUID' in crypto ? crypto.randomUUID() : `gaic-b-${Date.now()}`;
+            if (!buf.ok) {
+              setGeoAiChatMessages(h => [...h, { id: aid, role: 'model', parts: [{ type: 'text', text: buf.reply }] }]);
+            } else {
+              const layerId = `custom-${Date.now()}-geoai-buffer`;
+              setCustomLayers(prev => [
+                ...prev,
+                {
+                  id: layerId,
+                  name: buf.layerName,
+                  geojson: buf.featureCollection,
+                  visible: true,
+                  source: 'api',
+                  color: '#9333ea',
+                  fillColor: '#c084fc',
+                  polygonFillAlpha: 0.28,
+                  weight: 2,
+                },
+              ]);
+              setGeoAiPinLngLat(buf.center);
+              setGeoAiInspectCard(null);
+              setGeoAiChatMessages(h => [...h, { id: aid, role: 'model', parts: [{ type: 'text', text: buf.reply }] }]);
+              queueMicrotask(() => fitMapboxMapToFeatureCollection(mapRef, buf.featureCollection));
+            }
+            return;
+          }
+          const rsTb = tryGeoAiRemoteSensingToolboxAction({
+            query: trimmed,
+            layerOptions: remoteSensingLayerOptionsRef.current,
+          });
+          if (rsTb.handled) {
+            const mid =
+              typeof crypto !== 'undefined' && 'randomUUID' in crypto ? crypto.randomUUID() : `gaic-rs-${Date.now()}`;
+            if (!rsTb.ok) {
+              setGeoAiChatMessages(h => [...h, { id: mid, role: 'model', parts: [{ type: 'text', text: rsTb.reply }] }]);
+            } else {
+              applyGeoAiRsToolboxRef.current(rsTb);
+              setGeoAiChatMessages(h => [...h, { id: mid, role: 'model', parts: [{ type: 'text', text: rsTb.reply }] }]);
+            }
+            return;
+          }
           const dataCtx = await buildGeoAiDataContext(undefined, {
             satelliteLayers: satelliteCustomLayersToGeoAiLayers(customLayers),
           });
@@ -7653,6 +7729,7 @@ export default function SatelliteIntelligence() {
     openWeatherApiKey,
     geoAiPinLngLat,
     geoAiInspectCard,
+    mapRef,
   ]);
 
   const sendGeoDeepseekChat = useCallback((voiceOverrideText?: string) => {
@@ -7703,6 +7780,54 @@ export default function SatelliteIntelligence() {
             setGeoDeepseekChatMessages(h => [...h, { id: aid, role: 'model', parts }]);
             if (localStats.mapFirstSync?.selections?.length) {
               queueMicrotask(() => applySatelliteGeoAiMapFirstSync(localStats.mapFirstSync!.selections));
+            }
+            return;
+          }
+          const buf = tryGeoAiBufferSpatialAction({
+            query: trimmed,
+            pinLngLat: geoAiPinLngLat,
+            lastMapQueryCoords: lastMapQueryCoordsFromMessages(historyWithUser),
+          });
+          if (buf.handled) {
+            const aid =
+              typeof crypto !== 'undefined' && 'randomUUID' in crypto ? crypto.randomUUID() : `gds-b-${Date.now()}`;
+            if (!buf.ok) {
+              setGeoDeepseekChatMessages(h => [...h, { id: aid, role: 'model', parts: [{ type: 'text', text: buf.reply }] }]);
+            } else {
+              const layerId = `custom-${Date.now()}-geoai-buffer`;
+              setCustomLayers(prev => [
+                ...prev,
+                {
+                  id: layerId,
+                  name: buf.layerName,
+                  geojson: buf.featureCollection,
+                  visible: true,
+                  source: 'api',
+                  color: '#9333ea',
+                  fillColor: '#c084fc',
+                  polygonFillAlpha: 0.28,
+                  weight: 2,
+                },
+              ]);
+              setGeoAiPinLngLat(buf.center);
+              setGeoAiInspectCard(null);
+              setGeoDeepseekChatMessages(h => [...h, { id: aid, role: 'model', parts: [{ type: 'text', text: buf.reply }] }]);
+              queueMicrotask(() => fitMapboxMapToFeatureCollection(mapRef, buf.featureCollection));
+            }
+            return;
+          }
+          const rsTb = tryGeoAiRemoteSensingToolboxAction({
+            query: trimmed,
+            layerOptions: remoteSensingLayerOptionsRef.current,
+          });
+          if (rsTb.handled) {
+            const mid =
+              typeof crypto !== 'undefined' && 'randomUUID' in crypto ? crypto.randomUUID() : `gds-rs-${Date.now()}`;
+            if (!rsTb.ok) {
+              setGeoDeepseekChatMessages(h => [...h, { id: mid, role: 'model', parts: [{ type: 'text', text: rsTb.reply }] }]);
+            } else {
+              applyGeoAiRsToolboxRef.current(rsTb);
+              setGeoDeepseekChatMessages(h => [...h, { id: mid, role: 'model', parts: [{ type: 'text', text: rsTb.reply }] }]);
             }
             return;
           }
@@ -7773,6 +7898,7 @@ export default function SatelliteIntelligence() {
     openWeatherApiKey,
     geoAiPinLngLat,
     geoAiInspectCard,
+    mapRef,
   ]);
 
   const onGeoExplorerAttachChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
@@ -8113,6 +8239,63 @@ export default function SatelliteIntelligence() {
       setMapDragPanEnabled(true);
     }
   };
+
+  const applyGeoAiRemoteSensingToolboxOk = useCallback(
+    (result: Extract<GeoAiRsToolboxResult, { handled: true; ok: true }>) => {
+      for (const ef of result.effects) {
+        switch (ef.kind) {
+          case 'setWmsLayer':
+            setWmsLayer(ef.layerId);
+            break;
+          case 'setImageryDate':
+            setSelectedDate(new Date(`${ef.iso}T12:00:00`));
+            break;
+          case 'setTimeSeriesRange':
+            setTimeSeriesStart(ef.start);
+            setTimeSeriesEnd(ef.end);
+            break;
+          case 'setWmsOverlayVisible':
+            setIsWmsOverlayVisible(ef.visible);
+            break;
+          case 'setDrawTool':
+            applyMapDrawTool(ef.tool);
+            break;
+          case 'generateTimeline':
+            generateFieldAnalysisTimeline();
+            break;
+          case 'stopTimeline':
+            stopFieldAnalysisTimeline();
+            break;
+          case 'openAoiDataUpload':
+            openAoiDataSourceUploader();
+            break;
+          case 'openExploreStacFromRemoteSensing':
+            openExploreStacFromSource();
+            break;
+          case 'setStaticChartsOpen':
+            setMapStaticChartsOpen(ef.open);
+            break;
+          case 'focusRemoteSensingPanel':
+            setExpandedEnvSection('remote-sensing');
+            break;
+          case 'runRemoteSensingAnalysis':
+            void runRsAnalysisFromAssistant({});
+            break;
+          default:
+            break;
+        }
+      }
+    },
+    [
+      applyMapDrawTool,
+      generateFieldAnalysisTimeline,
+      openAoiDataSourceUploader,
+      openExploreStacFromSource,
+      runRsAnalysisFromAssistant,
+      stopFieldAnalysisTimeline,
+    ],
+  );
+  applyGeoAiRsToolboxRef.current = applyGeoAiRemoteSensingToolboxOk;
 
   /* Any code path that returns the map to `select` ends a Fields-armed sketch
    * (including Esc / commit handlers that call `setMapDrawTool` directly). */
@@ -10522,6 +10705,30 @@ export default function SatelliteIntelligence() {
     setSiAoiReportModalOpen(true);
   }, [multiAoiItems.length, drawnGeometry]);
 
+  const selectedDateRef = useRef(selectedDate);
+  selectedDateRef.current = selectedDate;
+
+  const captureLiveMapSnapshot = useCallback<SiLiveMapSnapshotCapture>(async opts => {
+    const map = mapRef.current?.getMap?.() ?? mapRef.current;
+    if (!map) return null;
+    const prev = selectedDateRef.current;
+    const target = opts?.date?.trim().slice(0, 10);
+    try {
+      if (target) {
+        setSelectedDate(new Date(`${target}T12:00:00`));
+        await new Promise<void>(resolve => {
+          requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
+        });
+        await new Promise<void>(resolve => window.setTimeout(resolve, 320));
+      }
+      await waitForMapboxIdle(map, target ? 9000 : 6200);
+      await new Promise<void>(resolve => requestAnimationFrame(() => resolve()));
+      return captureMapboxCanvasPng(map, opts?.scale ?? 2);
+    } finally {
+      if (target) setSelectedDate(prev);
+    }
+  }, []);
+
   const satelliteActiveChipId = useMemo(() => {
     if (!weeklyComposites.length) return null;
     const iso = selectedDate.toISOString().split('T')[0];
@@ -10759,78 +10966,6 @@ export default function SatelliteIntelligence() {
     symStopsForWmsLayerId,
   ]);
 
-  const siLayerSwipeCapable = useMemo(
-    () =>
-      siMultiSentinelRasterRuns === null &&
-      drawnAoiWmsClipReady &&
-      sentinelVisible &&
-      !!activeWmsLayer &&
-      remoteSensingLayerOptions.length > 0,
-    [
-      siMultiSentinelRasterRuns,
-      drawnAoiWmsClipReady,
-      sentinelVisible,
-      activeWmsLayer,
-      remoteSensingLayerOptions.length,
-    ],
-  );
-
-  useEffect(() => {
-    const opts = remoteSensingLayerOptions;
-    if (!opts.length) return;
-    const pickNdvi = () => opts.find(o => o.id.toUpperCase().includes('NDVI'))?.id ?? opts[0]!.id;
-    setSiLayerSwipeLeftId(prev => (prev && opts.some(o => o.id === prev) ? prev : pickNdvi()));
-    setSiLayerSwipeRightId(prev => {
-      if (prev && opts.some(o => o.id === prev)) return prev;
-      if (activeWmsLayer && opts.some(o => o.id === activeWmsLayer)) return activeWmsLayer;
-      return opts[0]!.id;
-    });
-  }, [remoteSensingLayerOptions, activeWmsLayer]);
-
-  useEffect(() => {
-    if (!siLayerSwipeCapable && siLayerSwipeOpen) setSiLayerSwipeOpen(false);
-  }, [siLayerSwipeCapable, siLayerSwipeOpen]);
-
-  useEffect(() => {
-    try {
-      localStorage.setItem('si-layer-swipe-style', siLayerSwipeStyle);
-    } catch {
-      /* ignore */
-    }
-  }, [siLayerSwipeStyle]);
-
-  useEffect(() => {
-    try {
-      localStorage.setItem('si-layer-swipe-bar-color', siLayerSwipeBarColor);
-    } catch {
-      /* ignore */
-    }
-  }, [siLayerSwipeBarColor]);
-
-  const siSwipeClips = useMemo(() => {
-    const sp = siLayerSwipeSplit;
-    if (siLayerSwipeStyle === 'vertical-bar') {
-      return { under: `inset(0 0 0 ${sp}%)`, over: `inset(0 ${100 - sp}% 0 0)` };
-    }
-    if (siLayerSwipeStyle === 'horizontal-bar') {
-      return { under: `inset(${sp}% 0 0 0)`, over: `inset(0 0 ${100 - sp}% 0)` };
-    }
-    const r = Math.min(45, Math.max(8, siLayerSpyRadiusPct));
-    const x = Math.min(95, Math.max(5, siLayerSpyXPct));
-    const y = Math.min(95, Math.max(5, siLayerSpyYPct));
-    return { under: 'inset(0)', over: `circle(${r}% at ${x}% ${y}%)` };
-  }, [siLayerSwipeStyle, siLayerSwipeSplit, siLayerSpyRadiusPct, siLayerSpyXPct, siLayerSpyYPct]);
-
-  const swapSiLayerSwipeDirection = useCallback(() => {
-    const l = siLayerSwipeLeftId;
-    const r = siLayerSwipeRightId;
-    setSiLayerSwipeLeftId(r);
-    setSiLayerSwipeRightId(l);
-    if (siLayerSwipeStyle !== 'spyglass') {
-      setSiLayerSwipeSplit(s => 100 - s);
-    }
-  }, [siLayerSwipeLeftId, siLayerSwipeRightId, siLayerSwipeStyle]);
-
   /**
    * react-map-gl <Source> does not apply standalone `bounds` updates (see updateSource in library).
    * Sync Mapbox RasterTileSource.setBounds after mount so AOI clipping always matches the sketch.
@@ -10863,10 +10998,6 @@ export default function SatelliteIntelligence() {
     };
     const sync = () => {
       syncOne(map);
-      if (siLayerSwipeOpen && siLayerSwipeCapable) {
-        const m2 = siSwipePeekMapRef.current?.getMap?.() ?? siSwipePeekMapRef.current;
-        if (m2 && m2 !== map && m2.isStyleLoaded?.()) syncOne(m2);
-      }
     };
     const t = window.setTimeout(sync, 0);
     map.once('idle', sync);
@@ -10884,8 +11015,6 @@ export default function SatelliteIntelligence() {
     activeWmsLayer,
     wmsDate,
     drawnGeometry,
-    siLayerSwipeOpen,
-    siLayerSwipeCapable,
   ]);
 
   const circleRefineHud = useMemo(() => {
@@ -11761,186 +11890,7 @@ export default function SatelliteIntelligence() {
               ) : null}
             </div>
           ) : null}
-          {siLayerSwipeOpen && siLayerSwipeCapable ? (
-            <div className="si-layer-swipe-stack" data-si-layer-swipe="">
-              <SiWmsSentinelSwipeContext.Provider value={siLayerSwipeRightId}>
-                <SiSwipePeekMapContext.Provider value={false}>
-                  <div
-                    className="si-layer-swipe-pane si-layer-swipe-pane--under"
-                    style={{ clipPath: siSwipeClips.under }}
-                  >
-                    <MapGL
-                      key={`si-map-globe-swipe-r:${mapboxAccessTokenForMap ? 'token' : 'no-token'}`}
-                      ref={mapRef}
-            {...viewState}
-            onMove={evt => setViewState(evt.viewState)}
-            onMouseDown={handleMapPointerDown}
-            onMouseMove={handleMapPointerMove}
-            onTouchStart={handleMapPointerDown}
-            onTouchMove={handleMapPointerMove}
-            onClick={evt => handleMapClickDraw(evt.lngLat.lng, evt.lngLat.lat, evt.originalEvent ?? undefined)}
-            onContextMenu={handleMapContextMenu}
-            style={{
-              width: '100%',
-              height: '100%',
-              cursor: siMapCursor,
-            }}
-            mapStyle={effectiveMapStyle}
-            mapboxAccessToken={mapboxAccessTokenForMap}
-            logoPosition="bottom-left"
-            projection={{ name: 'globe' }}
-            renderWorldCopies={false}
-            dragRotate
-            pitchWithRotate
-            touchPitch
-            touchZoomRotate
-            minPitch={0}
-            maxPitch={78}
-            doubleClickZoom
-            scrollZoom
-            fog={{ 'range': [0.5, 10], 'color': '#020617', 'horizon-blend': 0.1 }}
-            onError={(e: any) => {
-              const message = e?.error?.message || '';
-              const url = e?.error?.url || '';
-              const status = e?.error?.status;
 
-              if (
-                message.includes('ERR_ABORTED') ||
-                status === 0 ||
-                url.includes('api.mapbox.com/v4/mapbox.satellite') ||
-                url.includes('services.sentinel-hub.com/ogc/wms')
-              ) {
-                return;
-              }
-              const lowerMessage = String(message || '').toLowerCase();
-              if (
-                !siGlobeWebglFailoverRef.current &&
-                (siMapErrorSuggestsGlobeOrWebglFailure(String(message)) ||
-                  lowerMessage.includes('access token') ||
-                  lowerMessage.includes('mapbox'))
-              ) {
-                siGlobeWebglFailoverRef.current = true;
-                setIs3DView(true);
-                setStacStatus('Map detected a rendering issue and is retrying in 3D Globe mode.');
-                return;
-              }
-              console.warn('Map Error:', e);
-            }}
-            onStyleData={() => siForceGlobeProjection()}
-            onLoad={() => {
-              setIsMapLoaded(true);
-              siForceGlobeProjection();
-            }}
-          >
-
-            {renderSiMapInterior()}
-                    </MapGL>
-                  </div>
-                </SiSwipePeekMapContext.Provider>
-              </SiWmsSentinelSwipeContext.Provider>
-              <SiWmsSentinelSwipeContext.Provider value={siLayerSwipeLeftId}>
-                <SiSwipePeekMapContext.Provider value={true}>
-                  <div
-                    className="si-layer-swipe-pane si-layer-swipe-pane--over"
-                    style={{ clipPath: siSwipeClips.over, pointerEvents: 'none' }}
-                  >
-                    <MapGL
-                      key={`si-map-globe-swipe-l:${mapboxAccessTokenForMap ? 'token' : 'no-token'}`}
-                      ref={siSwipePeekMapRef}
-                      interactive={false}
-            {...viewState}
-            onMove={evt => setViewState(evt.viewState)}
-            onMouseDown={handleMapPointerDown}
-            onMouseMove={handleMapPointerMove}
-            onTouchStart={handleMapPointerDown}
-            onTouchMove={handleMapPointerMove}
-            onClick={evt => handleMapClickDraw(evt.lngLat.lng, evt.lngLat.lat, evt.originalEvent ?? undefined)}
-            onContextMenu={handleMapContextMenu}
-            style={{
-              width: '100%',
-              height: '100%',
-              cursor: siMapCursor,
-            }}
-            mapStyle={effectiveMapStyle}
-            mapboxAccessToken={mapboxAccessTokenForMap}
-            logoPosition="bottom-left"
-            projection={{ name: 'globe' }}
-            renderWorldCopies={false}
-            dragRotate
-            pitchWithRotate
-            touchPitch
-            touchZoomRotate
-            minPitch={0}
-            maxPitch={78}
-            doubleClickZoom
-            scrollZoom
-            fog={{ 'range': [0.5, 10], 'color': '#020617', 'horizon-blend': 0.1 }}
-            onError={(e: any) => {
-              const message = e?.error?.message || '';
-              const url = e?.error?.url || '';
-              const status = e?.error?.status;
-
-              if (
-                message.includes('ERR_ABORTED') ||
-                status === 0 ||
-                url.includes('api.mapbox.com/v4/mapbox.satellite') ||
-                url.includes('services.sentinel-hub.com/ogc/wms')
-              ) {
-                return;
-              }
-              const lowerMessage = String(message || '').toLowerCase();
-              if (
-                !siGlobeWebglFailoverRef.current &&
-                (siMapErrorSuggestsGlobeOrWebglFailure(String(message)) ||
-                  lowerMessage.includes('access token') ||
-                  lowerMessage.includes('mapbox'))
-              ) {
-                siGlobeWebglFailoverRef.current = true;
-                setIs3DView(true);
-                setStacStatus('Map detected a rendering issue and is retrying in 3D Globe mode.');
-                return;
-              }
-              console.warn('Map Error:', e);
-            }}
-            onStyleData={() => siForceGlobeProjection()}
-            onLoad={() => {
-              setIsMapLoaded(true);
-              siForceGlobeProjection();
-            }}
-          >
-
-            {renderSiMapInterior()}
-                    </MapGL>
-                  </div>
-                </SiSwipePeekMapContext.Provider>
-              </SiWmsSentinelSwipeContext.Provider>
-              {siLayerSwipeStyle === 'vertical-bar' ? (
-                <div
-                  className="si-layer-swipe-divider si-layer-swipe-divider--v"
-                  style={{ left: `${siLayerSwipeSplit}%`, background: siLayerSwipeBarColor }}
-                  aria-hidden
-                />
-              ) : siLayerSwipeStyle === 'horizontal-bar' ? (
-                <div
-                  className="si-layer-swipe-divider si-layer-swipe-divider--h"
-                  style={{ top: `${siLayerSwipeSplit}%`, background: siLayerSwipeBarColor }}
-                  aria-hidden
-                />
-              ) : (
-                <div
-                  className="si-layer-swipe-spy-ring"
-                  style={{
-                    left: `${siLayerSpyXPct}%`,
-                    top: `${siLayerSpyYPct}%`,
-                    width: `${Math.min(85, Math.max(12, siLayerSpyRadiusPct * 2.1))}vmin`,
-                    height: `${Math.min(85, Math.max(12, siLayerSpyRadiusPct * 2.1))}vmin`,
-                    borderColor: siLayerSwipeBarColor,
-                  }}
-                  aria-hidden
-                />
-              )}
-            </div>
-          ) : (
             <SiWmsSentinelSwipeContext.Provider value={null}>
               <SiSwipePeekMapContext.Provider value={false}>
                 <MapGL
@@ -12011,7 +11961,6 @@ export default function SatelliteIntelligence() {
                 </MapGL>
               </SiSwipePeekMapContext.Provider>
             </SiWmsSentinelSwipeContext.Provider>
-          )}
 
 
           {isMapLoaded && sentinelVisible && wmsSpectralLegend && mapSpectralLegendOpen ? (
@@ -12175,15 +12124,6 @@ export default function SatelliteIntelligence() {
                               <button
                                 type="button"
                                 className="si-geo-explorer-icon-btn"
-                                onClick={() => setGeoAiSmartSuggestionsEnabled(v => !v)}
-                                aria-label={geoAiSmartSuggestionsEnabled ? 'Disable smart suggestions' : 'Enable smart suggestions'}
-                                title={geoAiSmartSuggestionsEnabled ? 'Smart Suggestions: on' : 'Smart Suggestions: off'}
-                              >
-                                <i className="fa-solid fa-wand-magic-sparkles" aria-hidden />
-                              </button>
-                              <button
-                                type="button"
-                                className="si-geo-explorer-icon-btn"
                                 onClick={clearCurrentGeoAiPanel}
                                 aria-label="Clear chat"
                                 title="Clear chat"
@@ -12334,7 +12274,7 @@ export default function SatelliteIntelligence() {
                                 availableFields={geoAiSuggestContext.fields}
                                 availableNumericFields={geoAiSuggestContext.numericFields}
                                 availableGeometryOps={geoAiSuggestContext.geometryOps}
-                                smartSuggestionsEnabled={geoAiSmartSuggestionsEnabled}
+                                smartSuggestionsEnabled={false}
                               />
                             </>
                           ) : null}
@@ -12486,7 +12426,7 @@ export default function SatelliteIntelligence() {
                                 availableFields={geoAiSuggestContext.fields}
                                 availableNumericFields={geoAiSuggestContext.numericFields}
                                 availableGeometryOps={geoAiSuggestContext.geometryOps}
-                                smartSuggestionsEnabled={geoAiSmartSuggestionsEnabled}
+                                smartSuggestionsEnabled={false}
                               />
                               <p className="si-geo-explorer-footnote">
                                 {geoAiModelTab === 'claude' ? (
@@ -12628,74 +12568,20 @@ export default function SatelliteIntelligence() {
             onGeoAiFloatingRailToggle={onGeoAiFloatingRailToggle}
             onMapToolboxAddData={openAddLayerModal}
             mapSymbologyToolbarSlot={
-              <Fragment>
-                <button
-                  type="button"
-                  className={
-                    'si-sat-ctx-rail-sym-tool si-sat-ctx-rail-sym-tool--swipe' +
-                    (siLayerSwipeOpen && siLayerSwipeCapable ? ' si-sat-ctx-rail-sym-tool--on' : '')
-                  }
-                  title={
-                    siLayerSwipeCapable
-                      ? siLayerSwipeOpen
-                        ? 'Exit layer swipe compare'
-                        : 'Layer swipe — compare two Sentinel products side by side'
-                      : 'Layer swipe — use a single AOI workspace (not multi-AOI stacks) with Sentinel visible'
-                  }
-                  aria-pressed={siLayerSwipeOpen && siLayerSwipeCapable}
-                  aria-label="Layer swipe compare"
-                  disabled={!siLayerSwipeCapable}
-                  onClick={() => {
-                    if (!siLayerSwipeCapable) return;
-                    setSiLayerSwipeOpen(o => !o);
-                  }}
-                >
-                  <i className="fa-solid fa-arrows-left-right" aria-hidden />
-                </button>
-                <button
-                  type="button"
-                  className={
-                    'si-sat-ctx-rail-sym-tool' +
-                    (siWmsSymbologyChrome.open ? ' si-sat-ctx-rail-sym-tool--on' : '')
-                  }
-                  title="Symbology — classified layer colors"
-                  aria-pressed={siWmsSymbologyChrome.open}
-                  aria-label="Open symbology"
-                  disabled={siWmsSymbologyLayerPickOptions.length === 0}
-                  onClick={() => toggleWmsSymbology()}
-                >
-                  <i className="fa-solid fa-palette" aria-hidden />
-                </button>
-              </Fragment>
-            }
-            mapToolboxLayerSwipeSlot={
-              siLayerSwipeOpen && siLayerSwipeCapable ? (
-                <SiLayerSwipeChrome
-                  layout="toolbox"
-                  open
-                  splitPct={siLayerSwipeSplit}
-                  onSplitPct={setSiLayerSwipeSplit}
-                  leftLayerId={siLayerSwipeLeftId}
-                  rightLayerId={siLayerSwipeRightId}
-                  onLeftLayerId={setSiLayerSwipeLeftId}
-                  onRightLayerId={setSiLayerSwipeRightId}
-                  layerOptions={remoteSensingLayerOptions}
-                  onClose={() => setSiLayerSwipeOpen(false)}
-                  disabled={false}
-                  disabledHint="Layer swipe — use a single AOI workspace (not multi-AOI stacks) with Sentinel visible."
-                  swipeStyle={siLayerSwipeStyle}
-                  onSwipeStyle={setSiLayerSwipeStyle}
-                  onSwapDirection={swapSiLayerSwipeDirection}
-                  barColor={siLayerSwipeBarColor}
-                  onBarColor={setSiLayerSwipeBarColor}
-                  spyXPct={siLayerSpyXPct}
-                  spyYPct={siLayerSpyYPct}
-                  spyRadiusPct={siLayerSpyRadiusPct}
-                  onSpyXPct={setSiLayerSpyXPct}
-                  onSpyYPct={setSiLayerSpyYPct}
-                  onSpyRadiusPct={setSiLayerSpyRadiusPct}
-                />
-              ) : null
+              <button
+                type="button"
+                className={
+                  'si-sat-ctx-rail-sym-tool' +
+                  (siWmsSymbologyChrome.open ? ' si-sat-ctx-rail-sym-tool--on' : '')
+                }
+                title="Symbology — classified layer colors"
+                aria-pressed={siWmsSymbologyChrome.open}
+                aria-label="Open symbology"
+                disabled={siWmsSymbologyLayerPickOptions.length === 0}
+                onClick={() => toggleWmsSymbology()}
+              >
+                <i className="fa-solid fa-palette" aria-hidden />
+              </button>
             }
             mapSpectralLegendAvailable={Boolean(wmsSpectralLegend && sentinelVisible)}
             mapSpectralLegendOpen={mapSpectralLegendOpen}
@@ -12715,6 +12601,7 @@ export default function SatelliteIntelligence() {
             reportMapStyle={effectiveMapStyle}
             defaultCloudCoverPct={cloudCoverage}
             classificationPalette={siAoiPaletteFromIndexRampStops(symStopsForWmsLayerId(activeWmsLayer || '') ?? undefined)}
+            captureLiveMapSnapshot={captureLiveMapSnapshot}
           />
 
           <SiWmsSymbologyPopup
@@ -13821,23 +13708,6 @@ export default function SatelliteIntelligence() {
                               >
                                 <i className="fa-solid fa-chart-pie" aria-hidden />
                               </button>
-                              <button
-                                type="button"
-                                className={`si-map-analysis-tool${siLayerSwipeOpen && siLayerSwipeCapable ? ' si-map-analysis-tool--on' : ''}`}
-                                title={
-                                  siLayerSwipeCapable
-                                    ? siLayerSwipeOpen
-                                      ? 'Exit layer swipe'
-                                      : 'Layer swipe compare'
-                                    : 'Layer swipe (needs single AOI + Sentinel)'
-                                }
-                                aria-pressed={siLayerSwipeOpen && siLayerSwipeCapable}
-                                aria-label="Layer swipe compare"
-                                disabled={!siLayerSwipeCapable}
-                                onClick={() => siLayerSwipeCapable && setSiLayerSwipeOpen(o => !o)}
-                              >
-                                <i className="fa-solid fa-arrows-left-right" aria-hidden />
-                              </button>
                             </div>
                           </div>
                           <div className="si-rs-actions si-rs-actions--compact">
@@ -13931,7 +13801,16 @@ export default function SatelliteIntelligence() {
                                       10,
                                     );
                                     const dateEndVal = (row.sentinelTimeEnd ?? timeSeriesEnd ?? wmsDate).slice(0, 10);
-                                    const layersOnCount = remoteSensingLayerOptions.reduce((n, o) => n + (vis[o.id] ? 1 : 0), 0);
+                                    const activeLayerLabels = remoteSensingLayerOptions
+                                      .filter(o => vis[o.id])
+                                      .map(o => o.label.trim() || o.id);
+                                    const layerSummaryTitle = activeLayerLabels.join(', ') || '';
+                                    const layerSummaryText =
+                                      activeLayerLabels.length === 0
+                                        ? 'None on map — open Options to choose products'
+                                        : activeLayerLabels.length <= 2
+                                          ? activeLayerLabels.join(' · ')
+                                          : `${activeLayerLabels.slice(0, 2).join(' · ')} · +${activeLayerLabels.length - 2}`;
                                     return (
                                       <li key={row.id} className="si-rs-aoi-workspace-card">
                                         <div className="si-rs-aoi-workspace-card__head">
@@ -14011,89 +13890,111 @@ export default function SatelliteIntelligence() {
                                             <p className="si-field-analysis-status">No WMS layers loaded yet.</p>
                                           ) : (
                                             <div
-                                              className={`si-rs-aoi-layer-dd${
-                                                aoiLayerMenuOpenId === row.id ? ' si-rs-aoi-layer-dd--open' : ''
-                                              }`}
+                                              className={
+                                                'si-rs-aoi-layer-opt' +
+                                                (aoiLayerMenuOpenId === row.id ? ' si-rs-aoi-layer-opt--open' : '')
+                                              }
                                             >
-                                              <button
-                                                type="button"
-                                                className="si-rs-aoi-layer-dd__trigger"
-                                                aria-expanded={aoiLayerMenuOpenId === row.id}
-                                                aria-haspopup="listbox"
-                                                onClick={() =>
-                                                  setAoiLayerMenuOpenId(prev => (prev === row.id ? null : row.id))
-                                                }
-                                              >
-                                                <span className="si-rs-aoi-layer-dd__trigger-text">
-                                                  <span className="si-rs-aoi-layer-dd__trigger-title">
-                                                    Sentinel Hub products
+                                              <div className="si-rs-aoi-layer-opt__bar">
+                                                <div className="si-rs-aoi-layer-opt__summary">
+                                                  <span className="si-rs-aoi-layer-opt__kicker">Layer options</span>
+                                                  <span
+                                                    className="si-rs-aoi-layer-opt__value"
+                                                    title={layerSummaryTitle || undefined}
+                                                    dir="auto"
+                                                  >
+                                                    {layerSummaryText}
                                                   </span>
-                                                  <span className="si-rs-aoi-layer-dd__trigger-meta">
-                                                    {layersOnCount} / {remoteSensingLayerOptions.length} on map
-                                                  </span>
-                                                </span>
-                                                <i className="fa-solid fa-chevron-down si-rs-aoi-layer-dd__chev" aria-hidden />
-                                              </button>
+                                                </div>
+                                                <button
+                                                  type="button"
+                                                  className="si-rs-aoi-layer-opt__btn"
+                                                  aria-expanded={aoiLayerMenuOpenId === row.id}
+                                                  aria-haspopup="dialog"
+                                                  aria-controls={`si-rs-aoi-layer-pop-${row.id}`}
+                                                  onClick={() =>
+                                                    setAoiLayerMenuOpenId(prev => (prev === row.id ? null : row.id))
+                                                  }
+                                                >
+                                                  <i className="fa-solid fa-sliders" aria-hidden />
+                                                  <span>Options</span>
+                                                </button>
+                                              </div>
                                               {aoiLayerMenuOpenId === row.id ? (
                                                 <div
-                                                  className="si-rs-aoi-layer-dd__panel"
-                                                  role="listbox"
-                                                  aria-label="Toggle Sentinel Hub layers for this AOI"
+                                                  id={`si-rs-aoi-layer-pop-${row.id}`}
+                                                  className="si-rs-aoi-layer-opt__popover"
+                                                  role="dialog"
+                                                  aria-label={`Sentinel Hub products for ${row.name}`}
+                                                  onClick={e => e.stopPropagation()}
+                                                  onPointerDown={e => e.stopPropagation()}
                                                 >
-                                                  {remoteSensingLayerOptions.map(opt => {
-                                                    const on = !!vis[opt.id];
-                                                    return (
-                                                      <label
-                                                        key={`${row.id}-${opt.id}`}
-                                                        className="si-rs-aoi-layer-dd__row"
-                                                        role="option"
-                                                        aria-selected={on}
-                                                        title={`${opt.label} — ${opt.id}`}
-                                                      >
-                                                        <input
-                                                          type="checkbox"
-                                                          checked={on}
-                                                          onChange={e => {
-                                                            const nextOn = e.target.checked;
-                                                            setMultiAoiItems(prev =>
-                                                              prev.map(r => {
-                                                                if (r.id !== row.id) return r;
-                                                                const base = siMigrateRasterStackVisible(
-                                                                  r.rasterStackVisible,
-                                                                  remoteSensingLayerOptions,
-                                                                );
-                                                                return {
-                                                                  ...r,
-                                                                  rasterStackVisible: {
-                                                                    ...base,
-                                                                    [opt.id]: nextOn,
-                                                                  },
-                                                                };
-                                                              }),
-                                                            );
-                                                          }}
-                                                          aria-label={`${opt.label} for ${row.name}`}
-                                                        />
-                                                        <span className="si-rs-aoi-layer-dd__row-body">
-                                                          <span className="si-rs-aoi-layer-dd__label">{opt.label}</span>
-                                                          <span className="si-rs-aoi-layer-dd__idmono" dir="ltr">
-                                                            {opt.id}
+                                                  <div className="si-rs-aoi-layer-opt__popover-head">
+                                                    <span>Sentinel Hub products</span>
+                                                    <button
+                                                      type="button"
+                                                      className="si-rs-aoi-layer-opt__popover-x"
+                                                      aria-label="Close layer options"
+                                                      onClick={() => setAoiLayerMenuOpenId(null)}
+                                                    >
+                                                      ×
+                                                    </button>
+                                                  </div>
+                                                  <div
+                                                    className="si-rs-aoi-layer-opt__popover-scroll"
+                                                    role="listbox"
+                                                    aria-label="Toggle layers for this AOI"
+                                                  >
+                                                    {remoteSensingLayerOptions.map(opt => {
+                                                      const on = !!vis[opt.id];
+                                                      return (
+                                                        <label
+                                                          key={`${row.id}-${opt.id}`}
+                                                          className="si-rs-aoi-layer-opt__row"
+                                                          role="option"
+                                                          aria-selected={on}
+                                                          title={`${opt.label} — ${opt.id}`}
+                                                        >
+                                                          <input
+                                                            type="checkbox"
+                                                            checked={on}
+                                                            onChange={e => {
+                                                              const nextOn = e.target.checked;
+                                                              setMultiAoiItems(prev =>
+                                                                prev.map(r => {
+                                                                  if (r.id !== row.id) return r;
+                                                                  const base = siMigrateRasterStackVisible(
+                                                                    r.rasterStackVisible,
+                                                                    remoteSensingLayerOptions,
+                                                                  );
+                                                                  return {
+                                                                    ...r,
+                                                                    rasterStackVisible: {
+                                                                      ...base,
+                                                                      [opt.id]: nextOn,
+                                                                    },
+                                                                  };
+                                                                }),
+                                                              );
+                                                            }}
+                                                            aria-label={`${opt.label} for ${row.name}`}
+                                                          />
+                                                          <span className="si-rs-aoi-layer-opt__row-body">
+                                                            <span className="si-rs-aoi-layer-opt__label">
+                                                              {opt.label}
+                                                            </span>
+                                                            <span className="si-rs-aoi-layer-opt__idmono" dir="ltr">
+                                                              {opt.id}
+                                                            </span>
                                                           </span>
-                                                        </span>
-                                                      </label>
-                                                    );
-                                                  })}
+                                                        </label>
+                                                      );
+                                                    })}
+                                                  </div>
                                                 </div>
                                               ) : null}
                                             </div>
                                           )}
-                                          <p className="si-field-analysis-status si-rs-aoi-workspace-card__muted">
-                                            Toggle any product from GetCapabilities; each checked layer renders its own
-                                            clipped WMS stack for this AOI. The <strong>Main</strong> layer picker also
-                                            turns on that product here (and replaces the default NDVI-only stack until
-                                            you customize checkboxes). Popup cues follow NDVI / NDWI / SAVI when
-                                            available.
-                                          </p>
                                         </div>
                                       </li>
                                     );

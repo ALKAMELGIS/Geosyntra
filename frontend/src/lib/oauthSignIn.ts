@@ -61,6 +61,18 @@ export function clearOAuthHandshake() {
   }
 }
 
+/** Whether Google SSO is wired in env (full authorize URL or OAuth web client id). */
+export function isGoogleOAuthConfigured(): boolean {
+  if (String(import.meta.env.VITE_AUTH_GOOGLE_URL ?? '').trim()) return true
+  return Boolean(String(import.meta.env.VITE_AUTH_GOOGLE_CLIENT_ID ?? '').trim())
+}
+
+/** Whether Apple SSO is wired in env (full authorize URL or Services ID). */
+export function isAppleOAuthConfigured(): boolean {
+  if (String(import.meta.env.VITE_AUTH_APPLE_URL ?? '').trim()) return true
+  return Boolean(String(import.meta.env.VITE_AUTH_APPLE_CLIENT_ID ?? '').trim())
+}
+
 /** Full IdP authorize URL, or built from `VITE_AUTH_GOOGLE_CLIENT_ID`. */
 export function resolveGoogleAuthorizationUrl(): string | null {
   const full = String(import.meta.env.VITE_AUTH_GOOGLE_URL ?? '').trim()

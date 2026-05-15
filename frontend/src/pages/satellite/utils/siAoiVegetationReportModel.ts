@@ -320,23 +320,52 @@ function buildLegendBandTableRows(
   });
 }
 
+/** Sample up to `maxFeatures` cells evenly from all in-AOI grid centers (avoids left-half-only caps). */
+function sampleAoiGridCells(
+  geom: GeoJSON.Polygon | GeoJSON.MultiPolygon,
+  bounds: [number, number, number, number],
+  nx: number,
+  ny: number,
+  maxFeatures: number,
+): Array<{ cx: number; cy: number }> {
+  const [w, s, e, n] = bounds;
+  const spanX = Math.max(1e-9, e - w);
+  const spanY = Math.max(1e-9, n - s);
+  const dx = spanX / nx;
+  const dy = spanY / ny;
+  const candidates: Array<{ cx: number; cy: number }> = [];
+  for (let i = 0; i < nx; i++) {
+    for (let j = 0; j < ny; j++) {
+      const cx = w + (i + 0.5) * dx;
+      const cy = s + (j + 0.5) * dy;
+      if (pointInPolygonGeometry(cx, cy, geom)) candidates.push({ cx, cy });
+    }
+  }
+  if (candidates.length <= maxFeatures) return candidates;
+  const stride = candidates.length / maxFeatures;
+  const out: Array<{ cx: number; cy: number }> = [];
+  for (let k = 0; k < maxFeatures; k++) {
+    out.push(candidates[Math.min(candidates.length - 1, Math.floor(k * stride))]!);
+  }
+  return out;
+}
+
 /** Pixel grid with class shares matching legend table rows (cumulative pct thresholds). */
 function buildWeightedClassPixelGrid(
   geom: GeoJSON.Polygon | GeoJSON.MultiPolygon,
   bounds: [number, number, number, number],
   seed: string,
   rows: SiAoiReportTableRow[],
-  maxFeatures = 2800,
+  maxFeatures = 3200,
 ): GeoJSON.FeatureCollection {
   const [w, s, e, n] = bounds;
   const spanX = Math.max(1e-9, e - w);
   const spanY = Math.max(1e-9, n - s);
-  const targetCells = 52;
-  const nx = Math.min(64, Math.max(24, Math.round((spanX / spanY) * targetCells)));
-  const ny = Math.min(64, Math.max(24, Math.round((spanY / spanX) * targetCells)));
+  const targetCells = 56;
+  const nx = Math.min(72, Math.max(28, Math.round((spanX / spanY) * targetCells)));
+  const ny = Math.min(72, Math.max(28, Math.round((spanY / spanX) * targetCells)));
   const dx = spanX / nx;
   const dy = spanY / ny;
-  /** Half-cell extent so polygons tessellate (no deliberate gaps / “checkerboard” seams). */
   const hx = dx * 0.5;
   const hy = dy * 0.5;
   const thresholds: number[] = [0];
@@ -346,24 +375,23 @@ function buildWeightedClassPixelGrid(
     thresholds.push(Math.min(1, acc));
   }
   if (thresholds[thresholds.length - 1]! < 1) thresholds[thresholds.length - 1] = 1;
+  const cells = sampleAoiGridCells(geom, bounds, nx, ny, maxFeatures);
   const features: GeoJSON.Feature[] = [];
-  for (let i = 0; i < nx; i++) {
-    for (let j = 0; j < ny; j++) {
-      if (features.length >= maxFeatures) break;
-      const cx = w + (i + 0.5) * dx;
-      const cy = s + (j + 0.5) * dy;
-      if (!pointInPolygonGeometry(cx, cy, geom)) continue;
-      const u = (cellHash(cx, cy, seed) % 10000) / 10000;
-      let k = rows.length - 1;
-      for (let t = 0; t < rows.length; t++) {
-        if (u < thresholds[t + 1]!) {
-          k = t;
-          break;
-        }
+  for (const { cx, cy } of cells) {
+    const u = (cellHash(cx, cy, seed) % 10000) / 10000;
+    let k = rows.length - 1;
+    for (let t = 0; t < rows.length; t++) {
+      if (u < thresholds[t + 1]!) {
+        k = t;
+        break;
       }
-      const row = rows[k]!;
-      const fill = row.colorHex ?? '#22c55e';
-      const poly: GeoJSON.Polygon = {
+    }
+    const row = rows[k]!;
+    const fill = row.colorHex ?? '#22c55e';
+    features.push({
+      type: 'Feature',
+      properties: { cls: row.key, fill, opacity: 0.52 },
+      geometry: {
         type: 'Polygon',
         coordinates: [
           [
@@ -374,16 +402,10 @@ function buildWeightedClassPixelGrid(
             [cx - hx, cy - hy],
           ],
         ],
-      };
-      features.push({
-        type: 'Feature',
-        properties: { cls: row.key, fill, opacity: 0.5 },
-        geometry: poly,
-      });
-    }
-    if (features.length >= maxFeatures) break;
+      },
+    });
   }
-  if (features.length === 0) {
+  if (features.length === 0 && rows.length) {
     const cx = (w + e) / 2;
     const cy = (s + n) / 2;
     if (pointInPolygonGeometry(cx, cy, geom) && rows.length) {
@@ -417,60 +439,10 @@ function buildPixelClassificationGrid(
   geom: GeoJSON.Polygon | GeoJSON.MultiPolygon,
   bounds: [number, number, number, number],
   seed: string,
-  pHigh: number,
-  pMed: number,
-  pLow: number,
-  palette: SiAoiClassificationPalette,
-  maxFeatures = 2800,
+  rows: SiAoiReportTableRow[],
+  maxFeatures = 3200,
 ): GeoJSON.FeatureCollection {
-  const [w, s, e, n] = bounds;
-  const spanX = Math.max(1e-9, e - w);
-  const spanY = Math.max(1e-9, n - s);
-  const targetCells = 52;
-  const nx = Math.min(64, Math.max(24, Math.round((spanX / spanY) * targetCells)));
-  const ny = Math.min(64, Math.max(24, Math.round((spanY / spanX) * targetCells)));
-  const dx = spanX / nx;
-  const dy = spanY / ny;
-  /** Half-cell extent so polygons tessellate (no deliberate gaps / “checkerboard” seams). */
-  const hx = dx * 0.5;
-  const hy = dy * 0.5;
-  const th1 = pHigh / 100;
-  const th2 = (pHigh + pMed) / 100;
-  const features: GeoJSON.Feature[] = [];
-  const cap = maxFeatures;
-  for (let i = 0; i < nx; i++) {
-    for (let j = 0; j < ny; j++) {
-      if (features.length >= cap) break;
-      const cx = w + (i + 0.5) * dx;
-      const cy = s + (j + 0.5) * dy;
-      if (!pointInPolygonGeometry(cx, cy, geom)) continue;
-      const u = (cellHash(cx, cy, seed) % 10000) / 10000;
-      let cls: SiAoiReportHealthKey;
-      if (u < th1) cls = 'high';
-      else if (u < th2) cls = 'medium';
-      else cls = 'low';
-      const fill = cls === 'high' ? palette.high : cls === 'medium' ? palette.medium : palette.low;
-      const poly: GeoJSON.Polygon = {
-        type: 'Polygon',
-        coordinates: [
-          [
-            [cx - hx, cy - hy],
-            [cx + hx, cy - hy],
-            [cx + hx, cy + hy],
-            [cx - hx, cy + hy],
-            [cx - hx, cy - hy],
-          ],
-        ],
-      };
-      features.push({
-        type: 'Feature',
-        properties: { cls, fill, opacity: 0.42 },
-        geometry: poly,
-      });
-    }
-    if (features.length >= cap) break;
-  }
-  return { type: 'FeatureCollection', features };
+  return buildWeightedClassPixelGrid(geom, bounds, seed, rows, maxFeatures);
 }
 
 /** Per-timestamp classification shares from that week’s index mean + full-series spread. */
@@ -521,17 +493,19 @@ function aggregateSlotStats(
   indexMean: number,
   indexId: StaticAoiChartLayerId,
   date: string,
+  bandRows: SiAoiReportTableRow[],
 ): SiAoiChangeSlotStats {
-  let nh = 0;
-  let nm = 0;
-  let nl = 0;
+  const counts = new Map<string, number>();
+  for (const row of bandRows) counts.set(row.key, 0);
   for (const f of features) {
-    const cls = (f.properties as { cls?: string } | undefined)?.cls;
-    if (cls === 'high') nh += 1;
-    else if (cls === 'medium') nm += 1;
-    else nl += 1;
+    const cls = String((f.properties as { cls?: string } | undefined)?.cls ?? '');
+    counts.set(cls, (counts.get(cls) ?? 0) + 1);
   }
-  const n = nh + nm + nl || 1;
+  const n = features.length || 1;
+  const sorted = [...bandRows].sort((a, b) => (counts.get(b.key) ?? 0) - (counts.get(a.key) ?? 0));
+  const top = sorted[0];
+  const second = sorted[1];
+  const third = sorted[2];
   const meta = STATIC_AOI_CHART_LAYER_OPTIONS.find(o => o.id === indexId) ?? STATIC_AOI_CHART_LAYER_OPTIONS[0]!;
   const [r0, r1] = meta.range;
   const j = (hashStr(`${date}|${indexId}`) % 500) / 10000;
@@ -544,9 +518,9 @@ function aggregateSlotStats(
     indexMin,
     indexMax,
     pixelCount: features.length,
-    highPct: (100 * nh) / n,
-    medPct: (100 * nm) / n,
-    lowPct: (100 * nl) / n,
+    highPct: top ? (100 * (counts.get(top.key) ?? 0)) / n : 0,
+    medPct: second ? (100 * (counts.get(second.key) ?? 0)) / n : 0,
+    lowPct: third ? (100 * (counts.get(third.key) ?? 0)) / n : 0,
   };
 }
 
@@ -575,19 +549,23 @@ function buildChangeDetectionSlots(input: {
   geom: GeoJSON.Polygon | GeoJSON.MultiPolygon;
   bounds: [number, number, number, number];
   aoiKey: string;
-  /** Full-series spread for classification rule parity with summary table. */
   seriesSpread: number;
-  palette: SiAoiClassificationPalette;
+  tableRows: SiAoiReportTableRow[];
 }): SiAoiChangeDetectionSlot[] {
-  const { dates, timeSeries, indexId, geom, bounds, aoiKey, seriesSpread, palette } = input;
+  const { dates, timeSeries, indexId, geom, bounds, aoiKey, seriesSpread, tableRows } = input;
   const out: SiAoiChangeDetectionSlot[] = [];
-  const maxPerTile = 1100;
+  const maxPerTile = 3200;
   for (const date of dates) {
     const indexMean = valueForChangeSlotDate(date, timeSeries);
-    const { high, med, low } = classifyPercentsFromMeanAndSpread(indexId, indexMean, seriesSpread);
+    const shiftedRows = tableRows.map((row, i) => {
+      const wobble = ((hashStr(`${date}|${indexId}|${i}`) % 200) - 100) / 800;
+      return { ...row, pct: Math.max(0.5, row.pct + wobble * seriesSpread) };
+    });
+    const sum = shiftedRows.reduce((a, r) => a + r.pct, 0) || 1;
+    const normRows = shiftedRows.map(r => ({ ...r, pct: (100 * r.pct) / sum }));
     const seed = `${aoiKey}|${date}|${indexId}`;
-    const heatmapCellsGeoJson = buildPixelClassificationGrid(geom, bounds, seed, high, med, low, palette, maxPerTile);
-    const stats = aggregateSlotStats(heatmapCellsGeoJson.features, indexMean, indexId, date);
+    const heatmapCellsGeoJson = buildPixelClassificationGrid(geom, bounds, seed, normRows, maxPerTile);
+    const stats = aggregateSlotStats(heatmapCellsGeoJson.features, indexMean, indexId, date, normRows);
     out.push({
       date,
       indexMean,
@@ -831,7 +809,7 @@ export function buildSiAoiVegetationReport(input: {
           bounds,
           aoiKey,
           seriesSpread,
-          palette,
+          tableRows,
         })
       : changeDetectionDates.map(date => ({
           date,
@@ -949,8 +927,7 @@ function addChangeDetectionPageGrid(
       `Per-date ${indexLabel}: AOI-clipped classification overlay and class shares per tile. Map thumbnails embed when captured from the report preview.`,
       textW,
     );
-    doc.text(hdr, margin, y);
-    y += hdr.length * 10 + 12;
+    y = pdfTextBodyLines(doc, hdr, margin, y, 10 / 8.5) + 12;
   }
   const cols = 3;
   const rows = 4;
@@ -1000,7 +977,7 @@ function addChangeDetectionPageGrid(
       );
       ly += 9;
       doc.text(
-        `Class H/M/L: ${slot.stats.highPct.toFixed(0)} / ${slot.stats.medPct.toFixed(0)} / ${slot.stats.lowPct.toFixed(0)} %`,
+        `Top classes: ${slot.stats.highPct.toFixed(0)}% · ${slot.stats.medPct.toFixed(0)}% · ${slot.stats.lowPct.toFixed(0)}%`,
         x + 6,
         ly,
       );
@@ -1012,7 +989,7 @@ function addChangeDetectionPageGrid(
       const src =
         slot.dataSource === 'stac-scene' ? 'STAC scene' : 'Synthetic timeline (connect STAC for true imagery)';
       const srcLines = doc.splitTextToSize(src, cellW - 12);
-      doc.text(srcLines, x + 6, ly);
+      pdfTextBodyLines(doc, srcLines, x + 6, ly, 9 / 6.5);
     }
   }
 }
@@ -1035,9 +1012,24 @@ function normalizeExecSummaryPdfText(raw: string): string {
   return s;
 }
 
+/** Plain executive summary for PDF/DOCX exports (Gemini override → stored → summary lines). */
+export function getSiAoiExportExecutiveSummaryText(
+  report: SiAoiReportModel,
+  executiveSummaryAi?: string | null,
+): string {
+  const di = report.dataInsights;
+  const raw =
+    (executiveSummaryAi && executiveSummaryAi.trim()) ||
+    (di.executiveSummaryAi && di.executiveSummaryAi.trim()) ||
+    report.summaryLinesEn.join(' ');
+  return normalizeExecSummaryPdfText(raw);
+}
+
 /**
  * jsPDF: never pass `maxWidth` together with an array from `splitTextToSize` — it
  * letter-spreads each line to fill the width (broken “A r e a …” rendering).
+ * Also avoid `doc.text(string[], …, options)` — some builds still stretch glyphs;
+ * draw one line per call with char spacing reset.
  */
 function pdfTextBodyLines(
   doc: jsPDF,
@@ -1047,8 +1039,20 @@ function pdfTextBodyLines(
   lineHeightFactor: number,
 ): number {
   if (!lines.length) return yTop;
-  doc.text(lines, x, yTop, { lineHeightFactor, align: 'left' });
-  return yTop + lines.length * doc.getFontSize() * lineHeightFactor;
+  try {
+    doc.setCharSpace(0);
+  } catch {
+    /* ignore */
+  }
+  const fs = doc.getFontSize();
+  const step = fs * lineHeightFactor;
+  let y = yTop;
+  for (const raw of lines) {
+    const line = String(raw);
+    doc.text(line, x, y);
+    y += step;
+  }
+  return y;
 }
 
 function pdfInitBodyTypography(doc: jsPDF) {
@@ -1239,11 +1243,7 @@ function appendDataInsightsPdf(doc: jsPDF, report: SiAoiReportModel, opts: SiAoi
   const di = report.dataInsights;
   const textW = doc.internal.pageSize.getWidth() - margin * 2;
   const bodyLh = 1.36;
-  const rawExec =
-    (opts.executiveSummaryAi && opts.executiveSummaryAi.trim()) ||
-    (di.executiveSummaryAi && di.executiveSummaryAi.trim()) ||
-    report.summaryLinesEn.join(' ');
-  const execText = normalizeExecSummaryPdfText(rawExec);
+  const execText = getSiAoiExportExecutiveSummaryText(report, opts.executiveSummaryAi);
 
   y = pdfEnsureSpace(doc, y, margin, 72);
   doc.setFontSize(13);
@@ -1363,7 +1363,8 @@ function appendDataInsightsPdf(doc: jsPDF, report: SiAoiReportModel, opts: SiAoi
     doc.setFillColor(R, G, B);
     doc.roundedRect(pieLegendX, lyLeg - 4, 8, 8, 1, 1, 'F');
     const labLines = doc.splitTextToSize(`${sl.label}: ${sl.pct.toFixed(1)}%`, legendTextW);
-    doc.text(labLines, pieLegendX + 12, lyLeg + 2, { lineHeightFactor: 1.28, align: 'left' });
+    const legStart = lyLeg + 2;
+    pdfTextBodyLines(doc, labLines, pieLegendX + 12, legStart, 1.28);
     lyLeg += Math.max(13, labLines.length * 9.5);
   }
   y = rowTop + chartRowH + 24;

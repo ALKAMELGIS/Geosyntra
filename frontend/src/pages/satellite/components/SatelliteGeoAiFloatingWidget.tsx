@@ -566,7 +566,6 @@ export function SatelliteGeoAiFloatingWidget({
             <div
               className="si-geo-ai-float-drag-rail"
               onPointerDown={onPointerDownPanelMove}
-              title="Drag to move"
               aria-label="Drag to move Geo AI panel"
             />
             <div className="si-geo-ai-float-body">{children}</div>
@@ -574,13 +573,11 @@ export function SatelliteGeoAiFloatingWidget({
               className="si-geo-ai-float-edge-drag si-geo-ai-float-edge-drag--left"
               onPointerDown={onPointerDownPanelMove}
               aria-hidden
-              title="Drag to move"
             />
             <div
               className="si-geo-ai-float-edge-drag si-geo-ai-float-edge-drag--right"
               onPointerDown={onPointerDownPanelMove}
               aria-hidden
-              title="Drag to move"
             />
             {resizeHandles.map(h => (
               <button
