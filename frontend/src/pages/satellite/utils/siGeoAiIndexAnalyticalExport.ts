@@ -267,6 +267,22 @@ function applyNumberFormatsToDataRows(
   }
 }
 
+/** Force literal text cells so Excel never re-interprets tiny % / spectral strings as rounded numbers. */
+function forceCellsPlainText(ws: XLSX.WorkSheet, headerRowCount: number, cols: number[]) {
+  const ref = ws['!ref']
+  if (!ref) return
+  const range = XLSX.utils.decode_range(ref)
+  for (let r = headerRowCount; r <= range.e.r; r++) {
+    for (const c of cols) {
+      const addr = XLSX.utils.encode_cell({ r, c })
+      const cell = ws[addr] as XLSX.CellObject | undefined
+      if (!cell || cell.v === '' || cell.v == null) continue
+      const text = String(cell.v)
+      ws[addr] = { t: 's', v: text, z: '@' } as XLSX.CellObject
+    }
+  }
+}
+
 /** Spectral columns from `startCol` through last column, for each data row under the header. */
 function applySpectralFormatsFromColumn(ws: XLSX.WorkSheet, headerRowCount: number, startCol: number) {
   const ref = ws['!ref']
@@ -286,9 +302,15 @@ function formatSummaryAoiSheet(ws: XLSX.WorkSheet) {
   for (let r = 0; r <= range.e.r; r++) {
     const a = ws[XLSX.utils.encode_cell({ r, c: 0 })] as XLSX.CellObject | undefined
     if (a?.v === 'Class distribution (primary index)') {
-      for (let rr = r + 1; rr <= range.e.r; rr++) {
-        applyNumberFormatsToDataRows(ws, rr, [{ c: 1, z: XLSX_FMT_INT }])
+      const dataStart = r + 1
+      for (let rr = dataStart; rr <= range.e.r; rr++) {
+        const addr = XLSX.utils.encode_cell({ r: rr, c: 1 })
+        const cell = ws[addr] as XLSX.CellObject | undefined
+        if (cell && cell.t === 'n' && typeof cell.v === 'number' && Number.isFinite(cell.v)) {
+          cell.z = XLSX_FMT_INT
+        }
       }
+      forceCellsPlainText(ws, dataStart, [3, 4])
       break
     }
   }
@@ -538,18 +560,19 @@ export function buildGeoAiIndexAnalyticalWorkbook(opts: {
     const n = vals.length;
     const pct = total > 0 ? (100 * n) / total : 0;
     const mnc = vals.length ? vals.reduce((a, b) => a + b, 0) / vals.length : NaN;
-    // Pct / mean / counts as text so Excel never collapses small |−1…1| values or tiny % shares to “0.00”.
+    // Pct / mean / counts as text + post-pass `forceCellsPlainText` so Excel never collapses tiny % or |−1…1| means to “0.00”.
     classStats.push([
       c.id,
       c.label,
       String(n),
-      excelDecimalText(pct),
+      `${excelDecimalText(pct)} %`,
       vals.length && Number.isFinite(mnc) ? excelDecimalText(mnc) : '',
     ])
   }
-  appendSheetWithColWidths(wb, classStats, 'Class_Statistics', [14, 56, 16, 28, 36], ws =>
-    applyNumberFormatsToDataRows(ws, 1, [{ c: 0, z: XLSX_FMT_INT }]),
-  )
+  appendSheetWithColWidths(wb, classStats, 'Class_Statistics', [14, 56, 18, 30, 38], ws => {
+    applyNumberFormatsToDataRows(ws, 1, [{ c: 0, z: XLSX_FMT_INT }])
+    forceCellsPlainText(ws, 1, [2, 3, 4])
+  })
 
   return wb;
 }
@@ -557,5 +580,5 @@ export function buildGeoAiIndexAnalyticalWorkbook(opts: {
 export function downloadGeoAiIndexAnalyticalReportXlsx(opts: Parameters<typeof buildGeoAiIndexAnalyticalWorkbook>[0]) {
   const wb = buildGeoAiIndexAnalyticalWorkbook(opts);
   const stamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
-  XLSX.writeFile(wb, `GeoAI Index Analytical Report ${stamp}.xlsx`, { bookType: 'xlsx', cellStyles: true } as XLSX.WritingOptions)
+  XLSX.writeFile(wb, `GeoAI Index Analytical Report ${stamp}.xlsx`)
 }
