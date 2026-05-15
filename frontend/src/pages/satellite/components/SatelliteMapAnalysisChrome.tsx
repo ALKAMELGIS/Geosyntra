@@ -1,5 +1,5 @@
 import './satelliteMapAnalysisChrome.css';
-import { useLayoutEffect, useMemo, useRef, type ReactNode, type RefObject } from 'react';
+import { useCallback, useLayoutEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from 'react';
 import type {
   AoiStaticExportLngLat,
   AoiStaticMultiLayerLineChartDataset,
@@ -7,6 +7,7 @@ import type {
 import {
   type StaticAoiChartLayerId,
 } from '../utils/staticAoiMultiChartData';
+import type { SiGeoAiIndexAnalyticalExportContext } from '../utils/siGeoAiIndexAnalyticalExport';
 import { SatelliteContextualAnalysisDock } from './SatelliteContextualAnalysisDock';
 import type { SiAoiSpectralProfileMini } from './AoiSpectralProfileMiniChart';
 import type { SmartProcessingSectionId } from './SmartProcessingWorkflowPanel';
@@ -18,6 +19,35 @@ export type MapToolboxNavigateHandler = (
   meta?: MapToolboxNavigateMeta,
 ) => void;
 import { MapToolsDock } from './MapToolsDock';
+
+const SI_MAP_TIMELINE_OFFSET_LS = 'si-sat-map-timeline-offset-v1';
+
+function readStoredTimelineOffset(): { x: number; y: number } {
+  if (typeof window === 'undefined') return { x: 0, y: 0 };
+  try {
+    const raw = localStorage.getItem(SI_MAP_TIMELINE_OFFSET_LS);
+    if (!raw) return { x: 0, y: 0 };
+    const o = JSON.parse(raw) as { x?: unknown; y?: unknown };
+    const x = Number(o.x);
+    const y = Number(o.y);
+    if (!Number.isFinite(x) || !Number.isFinite(y)) return { x: 0, y: 0 };
+    return { x, y };
+  } catch {
+    return { x: 0, y: 0 };
+  }
+}
+
+function clampTimelineOffset(x: number, y: number): { x: number; y: number } {
+  if (typeof window === 'undefined') return { x, y };
+  const vw = window.innerWidth;
+  const vh = window.innerHeight;
+  const maxX = Math.min(440, vw * 0.46);
+  const maxY = Math.min(360, vh * 0.42);
+  return {
+    x: Math.max(-maxX, Math.min(maxX, x)),
+    y: Math.max(-maxY, Math.min(maxY, y)),
+  };
+}
 
 export type TimelineChip = {
   id: string;
@@ -53,8 +83,9 @@ export type SatelliteMapAnalysisToolbarProps = {
   staticMultiLineLabels?: string[];
   staticMultiLineDatasets?: AoiStaticMultiLayerLineChartDataset[];
   staticMultiLineHasLst?: boolean;
-  /** One WGS84 point per timeline row for CSV export (inside AOI when polygon). */
+  /** One WGS84 point per timeline row for chart export (inside AOI when polygon). */
   staticChartExportLngLatPerRow?: AoiStaticExportLngLat[];
+  geoAiIndexAnalyticalExportContext?: SiGeoAiIndexAnalyticalExportContext | null;
   onRequestGenerateReport?: () => void;
 };
 
@@ -81,6 +112,7 @@ export function SatelliteMapAnalysisToolbar({
   staticMultiLineDatasets = [],
   staticMultiLineHasLst = false,
   staticChartExportLngLatPerRow,
+  geoAiIndexAnalyticalExportContext = null,
   onRequestGenerateReport,
 }: SatelliteMapAnalysisToolbarProps) {
   return (
@@ -105,6 +137,7 @@ export function SatelliteMapAnalysisToolbar({
       staticMultiLineDatasets={staticMultiLineDatasets}
       staticMultiLineHasLst={staticMultiLineHasLst}
       staticChartExportLngLatPerRow={staticChartExportLngLatPerRow}
+      geoAiIndexAnalyticalExportContext={geoAiIndexAnalyticalExportContext}
       staticComparisonLayers={staticComparisonLayers}
       onStaticComparisonLayerToggle={onStaticComparisonLayerToggle}
       onRequestGenerateReport={onRequestGenerateReport}
@@ -145,6 +178,7 @@ export type SatelliteMapAnalysisChromeProps = {
   staticMultiLineDatasets: AoiStaticMultiLayerLineChartDataset[];
   staticMultiLineHasLst: boolean;
   staticChartExportLngLatPerRow?: AoiStaticExportLngLat[];
+  geoAiIndexAnalyticalExportContext?: SiGeoAiIndexAnalyticalExportContext | null;
   staticComparisonLayers: StaticAoiChartLayerId[];
   onStaticComparisonLayerToggle: (id: StaticAoiChartLayerId) => void;
   onRequestGenerateReport?: () => void;
@@ -206,7 +240,11 @@ function sparkPath(values: number[], w: number, h: number): string {
 
 export function SatelliteMapAnalysisChrome(props: SatelliteMapAnalysisChromeProps) {
   const chipStripRef = useRef<HTMLDivElement | null>(null);
+  const timelineOffsetRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
+  const [timelineOffset, setTimelineOffset] = useState(readStoredTimelineOffset);
+  const [timelineDragging, setTimelineDragging] = useState(false);
 
+  timelineOffsetRef.current = timelineOffset;
   const {
     weeklyChips,
     activeChipId,
@@ -234,6 +272,7 @@ export function SatelliteMapAnalysisChrome(props: SatelliteMapAnalysisChromeProp
     staticMultiLineDatasets,
     staticMultiLineHasLst,
     staticChartExportLngLatPerRow,
+    geoAiIndexAnalyticalExportContext = null,
     staticComparisonLayers,
     onStaticComparisonLayerToggle,
     onRequestGenerateReport,
@@ -287,6 +326,49 @@ export function SatelliteMapAnalysisChrome(props: SatelliteMapAnalysisChromeProp
     return `${Math.round(x)}×`;
   }, [timelinePlaybackMs]);
 
+  const onTimelineDragHandlePointerDown = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
+    if (e.pointerType === 'mouse' && e.button !== 0) return;
+    e.preventDefault();
+    const cur = timelineOffsetRef.current;
+    const start = { ox: cur.x, oy: cur.y, cx: e.clientX, cy: e.clientY };
+    setTimelineDragging(true);
+    const handle = e.currentTarget;
+    try {
+      handle.setPointerCapture(e.pointerId);
+    } catch {
+      /* ignore */
+    }
+
+    const onMove = (ev: PointerEvent) => {
+      setTimelineOffset(clampTimelineOffset(start.ox + (ev.clientX - start.cx), start.oy + (ev.clientY - start.cy)));
+    };
+
+    const finish = (ev: PointerEvent) => {
+      window.removeEventListener('pointermove', onMove);
+      window.removeEventListener('pointerup', finish);
+      window.removeEventListener('pointercancel', finish);
+      try {
+        handle.releasePointerCapture(ev.pointerId);
+      } catch {
+        /* ignore */
+      }
+      setTimelineDragging(false);
+      setTimelineOffset(prev => {
+        const c = clampTimelineOffset(prev.x, prev.y);
+        try {
+          localStorage.setItem(SI_MAP_TIMELINE_OFFSET_LS, JSON.stringify(c));
+        } catch {
+          /* ignore */
+        }
+        return c;
+      });
+    };
+
+    window.addEventListener('pointermove', onMove);
+    window.addEventListener('pointerup', finish);
+    window.addEventListener('pointercancel', finish);
+  }, []);
+
   useLayoutEffect(() => {
     if (!activeChipId || !chipStripRef.current) return;
     const strip = chipStripRef.current;
@@ -332,6 +414,7 @@ export function SatelliteMapAnalysisChrome(props: SatelliteMapAnalysisChromeProp
       staticMultiLineDatasets={staticMultiLineDatasets}
       staticMultiLineHasLst={staticMultiLineHasLst}
       staticChartExportLngLatPerRow={staticChartExportLngLatPerRow}
+      geoAiIndexAnalyticalExportContext={geoAiIndexAnalyticalExportContext}
       staticComparisonLayers={staticComparisonLayers}
       onStaticComparisonLayerToggle={onStaticComparisonLayerToggle}
       onRequestGenerateReport={onRequestGenerateReport}
@@ -365,8 +448,25 @@ export function SatelliteMapAnalysisChrome(props: SatelliteMapAnalysisChromeProp
   return (
     <>
       {timelineVisible && weeklyChips.length > 0 ? (
-        <div className="si-map-analysis-timeline" role="region" aria-label="Imagery timeline">
-          <span className="si-map-analysis-timeline-eyebrow">Timeline</span>
+        <div
+          className={['si-map-analysis-timeline', timelineDragging ? 'si-map-analysis-timeline--dragging' : '']
+            .filter(Boolean)
+            .join(' ')}
+          role="region"
+          aria-label="Imagery timeline"
+          style={{
+            transform: `translate(calc(-50% + ${timelineOffset.x}px), ${timelineOffset.y}px)`,
+          }}
+        >
+          <div
+            className="si-map-analysis-timeline-drag"
+            onPointerDown={onTimelineDragHandlePointerDown}
+            title="Drag to move timeline"
+            aria-grabbed={timelineDragging}
+          >
+            <i className="fa-solid fa-grip-lines si-map-analysis-timeline-drag-icon" aria-hidden />
+            <span className="si-map-analysis-timeline-drag-label">Timeline</span>
+          </div>
           <div className="si-map-analysis-timeline-inner si-map-analysis-timeline-inner--eo">
             <div className="si-map-analysis-timeline-transport">
               <button

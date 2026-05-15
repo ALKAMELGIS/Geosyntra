@@ -20,6 +20,10 @@ import {
 import zoomPlugin from 'chartjs-plugin-zoom';
 import { Bar, Line, Pie, Scatter } from 'react-chartjs-2';
 import { appAlert } from '../../../lib/appDialog';
+import {
+  downloadGeoAiIndexAnalyticalReportXlsx,
+  type SiGeoAiIndexAnalyticalExportContext,
+} from '../utils/siGeoAiIndexAnalyticalExport';
 
 ChartJS.register(
   CategoryScale,
@@ -60,6 +64,8 @@ export type AoiStaticMultiLayerLineChartProps = {
   exportLngLatPerRow?: AoiStaticExportLngLat[];
   /** Satellite Intelligence: open AOI vegetation report configuration. */
   onRequestGenerateReport?: () => void;
+  /** When set with polygon AOI + weekly timeline, Excel export adds Data_Raw / Data_Classified / Summary / Class stats. */
+  geoAiIndexAnalyticalExportContext?: SiGeoAiIndexAnalyticalExportContext | null;
 };
 
 type StaticChartType = 'line' | 'bar' | 'scatter' | 'pie';
@@ -106,6 +112,7 @@ export function AoiStaticMultiLayerLineChart({
   hasLst,
   exportLngLatPerRow,
   onRequestGenerateReport,
+  geoAiIndexAnalyticalExportContext = null,
 }: AoiStaticMultiLayerLineChartProps) {
   const [chartTheme, setChartTheme] = useState<'dark' | 'light'>('dark');
   const [chartType, setChartType] = useState<StaticChartType>('line');
@@ -500,38 +507,19 @@ export function AoiStaticMultiLayerLineChart({
   );
 
   const exportChartToExcel = useCallback(() => {
-    const escapeCsv = (value: string | number) => {
-      const raw = String(value ?? '');
-      if (/[",\n]/.test(raw)) return `"${raw.replace(/"/g, '""')}"`;
-      return raw;
-    };
-
-    const header = ['Date', 'Longitude', 'Latitude', ...datasets.map(ds => ds.label)];
-    const lines = [header.map(escapeCsv).join(',')];
-    for (let i = 0; i < labels.length; i++) {
-      const row: string[] = [labels[i] ?? ''];
-      const pt = exportLngLatPerRow?.[i];
-      row.push(pt != null && Number.isFinite(pt.lng) ? Number(pt.lng).toFixed(6) : '');
-      row.push(pt != null && Number.isFinite(pt.lat) ? Number(pt.lat).toFixed(6) : '');
-      for (const ds of datasets) {
-        const v = ds.data[i];
-        row.push(Number.isFinite(v) ? Number(v).toFixed(4) : '');
-      }
-      lines.push(row.map(escapeCsv).join(','));
-    }
-
-    const csv = lines.join('\n');
-    const stamp = new Date().toISOString().replace(/[:.]/g, '-');
-    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `aoi-chart-${stamp}.csv`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-  }, [labels, datasets, exportLngLatPerRow]);
+    downloadGeoAiIndexAnalyticalReportXlsx({
+      chartTitle: title,
+      labels,
+      datasets: datasets.map(ds => ({
+        id: ds.id,
+        label: ds.label,
+        data: ds.data,
+        yAxisID: ds.yAxisID,
+      })),
+      exportLngLatPerRow,
+      analytics: geoAiIndexAnalyticalExportContext,
+    });
+  }, [title, labels, datasets, exportLngLatPerRow, geoAiIndexAnalyticalExportContext]);
 
   const onGenerateReport = useCallback(() => {
     if (onRequestGenerateReport) {
@@ -539,7 +527,7 @@ export function AoiStaticMultiLayerLineChart({
       return;
     }
     void appAlert(
-      'Report generation is not connected to a backend yet. Use CSV export to download the timeline with Longitude and Latitude for each row.',
+      'Report generation is not connected to a backend yet. Use Export to Excel to download the multi-sheet GeoAI workbook (timeline + pixel analytics when an AOI polygon is loaded).',
       { title: 'Generate report' },
     );
   }, [onRequestGenerateReport]);
@@ -628,8 +616,8 @@ export function AoiStaticMultiLayerLineChart({
           <button
             type="button"
             className="si-aoi-static-line-theme-toggle"
-            aria-label="Export chart to Excel"
-            title="Export chart to Excel (.csv)"
+            aria-label="Export GeoAI Index Analytical Report to Excel"
+            title="Export GeoAI Index Analytical Report (.xlsx — Chart_Data + AOI pixel sheets)"
             onClick={exportChartToExcel}
           >
             <i className="fa-regular fa-file-excel" aria-hidden />

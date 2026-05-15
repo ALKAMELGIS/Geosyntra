@@ -49,7 +49,11 @@
         } catch (_) {}
       })()
     </script>
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <!-- initial-scale=1 + viewport-fit for notched devices; interactive-widget so mobile keyboards resize layout (GIS panels reflow); no maximum-scale so users can pinch-zoom for accessibility -->
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content"
+    />
     <meta name="color-scheme" content="dark light" />
     <meta name="theme-color" media="(prefers-color-scheme: light)" content="#22d3ee" />
     <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#05060d" />

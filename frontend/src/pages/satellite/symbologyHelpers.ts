@@ -160,6 +160,32 @@ const jenksBreaks = (data: number[], nClasses: number) => {
   return breaks;
 };
 
+export function coerceSymbologyColorRamp(raw: unknown): SymbologyColorRamp {
+  const allowed: SymbologyColorRamp[] = [
+    'viridis',
+    'blues',
+    'greens',
+    'plasma',
+    'magma',
+    'turbo',
+    'inferno',
+    'cividis',
+    'spectral',
+    'earth',
+    'gray',
+  ];
+  return allowed.includes(raw as SymbologyColorRamp) ? (raw as SymbologyColorRamp) : 'viridis';
+}
+
+export function coerceSymbologyMethod(raw: unknown): SymbologyClassMethod {
+  if (raw === 'jenks' || raw === 'quantile' || raw === 'equal_interval' || raw === 'standard_deviation' || raw === 'manual') {
+    return raw;
+  }
+  if (raw === 'natural-breaks' || raw === 'natural_breaks') return 'jenks';
+  if (raw === 'equal-interval') return 'equal_interval';
+  return 'jenks';
+}
+
 export function computeBreaks(values: number[], classes: number, method: SymbologyClassMethod) {
   const cleaned = values.filter(v => Number.isFinite(v));
   if (cleaned.length === 0) return [0, 0];
@@ -168,7 +194,7 @@ export function computeBreaks(values: number[], classes: number, method: Symbolo
   const min = sorted[0];
   const max = sorted[sorted.length - 1];
   if (min === max) return Array.from({ length: k + 1 }, (_, i) => (i === 0 ? min : max));
-  if (method === 'equal_interval') {
+  if (method === 'equal_interval' || method === 'manual') {
     const step = (max - min) / k;
     return Array.from({ length: k + 1 }, (_, i) => (i === k ? max : min + step * i));
   }
@@ -176,6 +202,29 @@ export function computeBreaks(values: number[], classes: number, method: Symbolo
     const out: number[] = [min];
     for (let i = 1; i < k; i += 1) out.push(quantileAt(sorted, i / k));
     out.push(max);
+    return out;
+  }
+  if (method === 'standard_deviation') {
+    const mean = cleaned.reduce((a, x) => a + x, 0) / cleaned.length;
+    const variance = cleaned.reduce((a, x) => a + (x - mean) ** 2, 0) / cleaned.length;
+    const sd = Math.sqrt(Math.max(variance, 0)) || Math.abs(max - min) * 0.001 || 1e-9;
+    const low = Math.max(min, mean - 2 * sd);
+    const high = Math.min(max, mean + 2 * sd);
+    if (!(high > low)) return jenksBreaks(sorted, k);
+    const step = (high - low) / k;
+    const out: number[] = [min];
+    for (let i = 1; i < k; i += 1) {
+      const v = low + step * i;
+      out.push(Math.min(max, Math.max(min, v)));
+    }
+    out.push(max);
+    for (let i = 1; i < out.length; i += 1) {
+      if (out[i]! <= out[i - 1]!) {
+        out[i] = Math.min(max, out[i - 1]! + (Math.abs(max - min) || 1) * 1e-6);
+      }
+    }
+    out[0] = min;
+    out[out.length - 1] = max;
     return out;
   }
   return jenksBreaks(sorted, k);
@@ -193,6 +242,16 @@ const getRampStops = (ramp: SymbologyColorRamp) => {
       return ['#000004', '#3b0f70', '#8c2981', '#de4968', '#fe9f6d', '#fcfdbf'];
     case 'turbo':
       return ['#30123b', '#3b4cc0', '#26a6d1', '#3de07e', '#f9e721', '#f20c0c'];
+    case 'inferno':
+      return ['#000004', '#420a68', '#932667', '#dd513a', '#fca50a', '#fcffa4'];
+    case 'cividis':
+      return ['#00224e', '#123570', '#3e4989', '#6788be', '#8fc8dc', '#eae29d'];
+    case 'spectral':
+      return ['#5e4fa2', '#3288bd', '#66c2a5', '#fee08b', '#f46d43', '#9e0142'];
+    case 'earth':
+      return ['#2c1158', '#4d2f89', '#7a5195', '#b3688f', '#e5988c', '#f6cdb0'];
+    case 'gray':
+      return ['#f8fafc', '#cbd5e1', '#94a3b8', '#64748b', '#334155', '#0f172a'];
     case 'viridis':
     default:
       return ['#440154', '#3b528b', '#21918c', '#5ec962', '#fde725'];
@@ -291,8 +350,8 @@ export function normalizeSymbologyForLayer(
     style,
     field,
     classes: clampInt(typeof cfg?.classes === 'number' ? cfg.classes : style === 'unique' ? 12 : 5, 2, 12),
-    method: (cfg?.method as SymbologyClassMethod) || 'jenks',
-    colorRamp: (cfg?.colorRamp as SymbologyColorRamp) || 'viridis',
+    method: coerceSymbologyMethod(cfg?.method),
+    colorRamp: coerceSymbologyColorRamp(cfg?.colorRamp),
     threshold: typeof cfg?.threshold === 'number' && Number.isFinite(cfg.threshold) ? cfg.threshold : Number.NaN,
   };
   return next;

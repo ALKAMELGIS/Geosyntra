@@ -198,9 +198,16 @@ html[data-theme='dark'] .ds-surface {
 /* KPI grid (dashboard) */
 .ds-kpi-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-  gap: clamp(14px, 2vw, 20px);
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 160px), 1fr));
+  gap: clamp(12px, 2vw, 20px);
   margin-bottom: var(--ds-space-6);
+}
+
+@media (min-width: 768px) {
+  .ds-kpi-grid {
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: clamp(14px, 2vw, 20px);
+  }
 }
 
 .ds-kpi-card {
@@ -269,12 +276,14 @@ html[data-theme='dark'] .ds-surface {
 /* Dashboard chart shell */
 .ds-chart-shell {
   border-radius: var(--app-radius-xl);
-  padding: var(--ds-space-5);
+  padding: clamp(var(--ds-space-3), 2.5vw, var(--ds-space-5));
   background: var(--ds-color-surface);
   border: 1px solid var(--ds-color-border);
   box-shadow: var(--ds-shadow-sm);
   margin-bottom: var(--ds-space-6);
-  min-height: 280px;
+  min-height: min(280px, 42vh);
+  min-width: 0;
+  max-width: 100%;
 }
 
 .ds-chart-shell h2 {
@@ -287,7 +296,10 @@ html[data-theme='dark'] .ds-surface {
 
 .ds-chart-inner {
   position: relative;
-  height: min(320px, 42vh);
+  width: 100%;
+  min-height: min(280px, 38vh);
+  height: clamp(200px, 42vh, 420px);
+  max-height: min(420px, 52dvh);
 }
 
 /* Skeleton */

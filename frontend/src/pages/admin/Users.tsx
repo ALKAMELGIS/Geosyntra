@@ -16,6 +16,8 @@ import {
   fetchAdminDirectoryStats,
   type AdminDirectoryStats,
   flushAdminDirectoryToServer,
+  mergeAdminUsersPreservingLocalSecrets,
+  nextAdminUserId,
   pullAdminDirectoryFromServer,
   scheduleAdminDirectorySync,
 } from '../../lib/adminDirectoryPersistence'
@@ -34,6 +36,7 @@ type User = {
   hasPassword?: boolean
   emailVerified?: boolean
   verificationToken?: string
+  profileExtra?: Record<string, unknown>
 }
 
 type SortKey = keyof Pick<User, 'name' | 'email' | 'role' | 'scope' | 'status' | 'lastLogin' | 'createdAt'>
@@ -173,6 +176,7 @@ export default function Users({ embedded }: { embedded?: boolean } = {}) {
     const email = String(raw.email || '').trim()
     if (!email) return null
     const id = typeof raw.id === 'number' ? raw.id : Number(raw.id || 0)
+    if (!Number.isFinite(id) || id <= 0) return null
     let status = String(raw.status || 'Active')
     if (status === 'Inactive') status = 'Suspended'
     if (status === 'Invited') status = 'Pending'
@@ -180,7 +184,7 @@ export default function Users({ embedded }: { embedded?: boolean } = {}) {
     const passwordHash =
       typeof raw.passwordHash === 'string' && raw.passwordHash.length > 0 ? raw.passwordHash : undefined
     return {
-      id: Number.isFinite(id) && id > 0 ? id : Date.now(),
+      id,
       name: String(raw.name || email),
       email,
       role: normalizeRole(raw.role),
@@ -193,6 +197,10 @@ export default function Users({ embedded }: { embedded?: boolean } = {}) {
       hasPassword: hasPasswordRemote || Boolean(passwordHash),
       emailVerified: typeof raw.emailVerified === 'boolean' ? raw.emailVerified : undefined,
       verificationToken: typeof raw.verificationToken === 'string' ? raw.verificationToken : undefined,
+      profileExtra:
+        raw.profileExtra && typeof raw.profileExtra === 'object'
+          ? (raw.profileExtra as Record<string, unknown>)
+          : undefined,
     }
   }
 
@@ -358,12 +366,23 @@ export default function Users({ embedded }: { embedded?: boolean } = {}) {
     let cancelled = false
     ;(async () => {
       let loadedUsers: User[] = []
+      let prevLocal: unknown[] = []
+      try {
+        const rawPrev = localStorage.getItem('adminUsers')
+        if (rawPrev) {
+          const parsedPrev = JSON.parse(rawPrev)
+          if (Array.isArray(parsedPrev)) prevLocal = parsedPrev
+        }
+      } catch {
+        prevLocal = []
+      }
       const remote = await pullAdminDirectoryFromServer()
       if (cancelled) return
 
       if (remote && Array.isArray(remote.users) && remote.users.length > 0) {
         try {
-          const normalized = remote.users.map(normalizeUser).filter(Boolean) as User[]
+          const mergedRaw = mergeAdminUsersPreservingLocalSecrets(prevLocal, remote.users)
+          const normalized = mergedRaw.map(normalizeUser).filter(Boolean) as User[]
           setDuplicateEmailKeys(detectDuplicateEmailKeys(normalized))
           loadedUsers = consolidateUsersByEmail(normalized)
           localStorage.setItem('adminUsers', JSON.stringify(loadedUsers))
@@ -401,7 +420,10 @@ export default function Users({ embedded }: { embedded?: boolean } = {}) {
             const exists = loadedUsers.some(u => normalizeEmail(u.email) === normalizeEmail(parsedCurrent.email))
             if (!exists) {
               const seededUser: User = {
-                id: parsedCurrent.id || Date.now(),
+                id:
+                  typeof parsedCurrent.id === 'number' && parsedCurrent.id > 0
+                    ? parsedCurrent.id
+                    : nextAdminUserId(loadedUsers as unknown[]),
                 name: parsedCurrent.name || parsedCurrent.email,
                 email: String(parsedCurrent.email).trim(),
                 role: normalizeRole(parsedCurrent.role),
@@ -590,7 +612,7 @@ export default function Users({ embedded }: { embedded?: boolean } = {}) {
             : String(Date.now())
           : undefined
       const user: User = {
-        id: Date.now(),
+        id: nextAdminUserId(users as unknown[]),
         name: nextName,
         email: nextEmail,
         role: normalizeRole(creatingRole),

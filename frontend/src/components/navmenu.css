@@ -1,5 +1,4 @@
 :root {
-  --header-height: 64px;
   --topnav-height: 56px;
   --nav-width: 280px;
   --nav-width-collapsed: 74px;
@@ -699,7 +698,7 @@ html[data-theme="light"] .group-header:hover .icon {
   }
 
   .navmenu.navmenu-open .navmenu-list {
-    max-height: calc(100dvh - var(--header-height) - 60px);
+    max-height: calc(100dvh - var(--header-stack-height) - 60px);
     overflow: visible;
     opacity: 1;
     visibility: visible;

@@ -9,6 +9,8 @@
   --text: #e6ecff;
   --sidebar-width: 260px;
   --header-height: 64px;
+  /** Total chrome height under `viewport-fit=cover` (notch / Dynamic Island). */
+  --header-stack-height: calc(var(--header-height) + env(safe-area-inset-top, 0px));
   --map-controls-top-offset: 72px;
 
   --ds-font-sans: Inter, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol";
@@ -73,6 +75,27 @@
   --ds-space-8: 32px;
 
   --ds-focus-ring: 0 0 0 3px rgba(255, 255, 255, 0.22);
+}
+
+/* Viewport-aware shell: tighter header on phones / small tablets; map chrome offset tracks header */
+@media (max-width: 767px) {
+  :root {
+    --header-height: 56px;
+    --map-controls-top-offset: 62px;
+  }
+}
+
+@media (min-width: 768px) and (max-width: 1023px) {
+  :root {
+    --header-height: 58px;
+    --map-controls-top-offset: 68px;
+  }
+}
+
+@media (min-width: 1024px) and (max-width: 1279px) {
+  :root {
+    --map-controls-top-offset: 70px;
+  }
 }
 
 /* Explicit dark theme = same pure black-glass palette. */
@@ -463,15 +486,15 @@ a:focus-visible {
 
 .layout {
   display: flex;
-  height: calc(100dvh - var(--header-height));
-  min-height: calc(100dvh - var(--header-height));
+  height: calc(100dvh - var(--header-stack-height));
+  min-height: calc(100dvh - var(--header-stack-height));
   background: transparent;
 }
 
 .layout.layout-topnav {
   flex-direction: column;
-  height: calc(100dvh - var(--header-height) - var(--topnav-height));
-  min-height: calc(100dvh - var(--header-height) - var(--topnav-height));
+  height: calc(100dvh - var(--header-stack-height) - var(--topnav-height));
+  min-height: calc(100dvh - var(--header-stack-height) - var(--topnav-height));
 }
 
 .layout.layout-sidebar {
@@ -1499,19 +1522,19 @@ aside {
 
 /* Responsive adjustments for layout height on smaller devices */
 @media (max-width: 1440px) {
-  .layout { height: calc(100dvh - var(--header-height)); }
+  .layout { height: calc(100dvh - var(--header-stack-height)); }
 }
 @media (max-width: 1024px) {
-  .layout { height: calc(100dvh - var(--header-height)); }
+  .layout { height: calc(100dvh - var(--header-stack-height)); }
 }
 @media (max-width: 768px) {
-  .layout { height: calc(100dvh - var(--header-height)); }
+  .layout { height: calc(100dvh - var(--header-stack-height)); }
 }
 @media (max-width: 375px) {
-  .layout { height: calc(100dvh - var(--header-height)); }
+  .layout { height: calc(100dvh - var(--header-stack-height)); }
 }
 @media (max-width: 320px) {
-  .layout { height: calc(100dvh - var(--header-height)); }
+  .layout { height: calc(100dvh - var(--header-stack-height)); }
 }
 
 .db-page {
@@ -4173,6 +4196,31 @@ aside {
 .gis-map-canvas.projection-globe .mapboxgl-ctrl-bottom-left {
   left: max(16px, env(safe-area-inset-left, 0px)) !important;
   right: auto !important;
+}
+
+/* GIS Map: Mapbox inserts wordmark before nav in DOM — flex `order` keeps +/−/compass above logo. */
+.gis-map-canvas .mapboxgl-ctrl-bottom-left {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+}
+
+.gis-map-canvas .mapboxgl-ctrl-bottom-left > .mapboxgl-ctrl.mapboxgl-ctrl-group,
+.gis-map-canvas .mapboxgl-ctrl-bottom-left > .mapboxgl-ctrl-group {
+  order: 1;
+}
+
+.gis-map-canvas .mapboxgl-ctrl-bottom-left > .mapboxgl-ctrl.mapboxgl-ctrl-attrib,
+.gis-map-canvas .mapboxgl-ctrl-bottom-left > .mapboxgl-ctrl-attrib {
+  order: 5;
+  margin: 0;
+}
+
+.gis-map-canvas .mapboxgl-ctrl-bottom-left > a.mapboxgl-ctrl-logo,
+.gis-map-canvas .mapboxgl-ctrl-bottom-left > .mapboxgl-ctrl-logo {
+  order: 10;
+  margin: 0;
 }
 
 .gis-map-canvas.projection-globe > .leaflet-container {
@@ -7390,10 +7438,14 @@ button.gis-tool-list-row--action:hover {
 }
 
 .gis-layer-table-wrap {
-  border: 1px solid rgba(226, 232, 240, 1);
+  border: 1px solid var(--ds-color-border);
   border-radius: 12px;
   overflow: auto;
   max-height: 420px;
+  color: var(--ds-color-text);
+  background: color-mix(in srgb, var(--ds-color-surface) 65%, transparent);
+  backdrop-filter: blur(calc(var(--ds-glass-blur) * 0.7));
+  -webkit-backdrop-filter: blur(calc(var(--ds-glass-blur) * 0.7));
   -ms-overflow-style: none;
   scrollbar-width: none;
 }
@@ -7408,9 +7460,9 @@ button.gis-tool-list-row--action:hover {
   container-name: gis-layer-table-meta;
   padding: 8px 10px;
   font-size: 11px;
-  color: rgba(100, 116, 139, 1);
-  border-bottom: 1px solid rgba(226, 232, 240, 1);
-  background: rgba(248, 250, 252, 1);
+  color: var(--ds-color-text-muted);
+  border-bottom: 1px solid var(--ds-color-border);
+  background: color-mix(in srgb, var(--ds-color-surface) 75%, transparent);
   display: flex;
   flex-direction: column;
   align-items: stretch;
@@ -7439,6 +7491,7 @@ button.gis-tool-list-row--action:hover {
 .gis-layer-table-metatext {
   font-weight: 800;
   min-width: 0;
+  color: var(--ds-color-text);
 }
 
 .gis-table-controls {
@@ -7458,10 +7511,10 @@ button.gis-tool-list-row--action:hover {
   grid-template-columns: max-content minmax(0, 1fr);
   align-items: center;
   gap: 10px 14px;
-  border: 1px solid rgba(203, 213, 225, 0.95);
+  border: 1px solid var(--ds-color-border);
   border-radius: 14px;
-  background: rgba(255, 255, 255, 0.96);
-  color: rgba(15, 23, 42, 0.78);
+  background: var(--ds-color-surface-2);
+  color: var(--ds-color-text);
   font-size: 12px;
   font-weight: 900;
   padding: 0 14px;
@@ -7479,7 +7532,7 @@ button.gis-tool-list-row--action:hover {
 
 .gis-table-domain-toggle span {
   flex: 0 0 auto;
-  color: rgba(15, 23, 42, 0.90);
+  color: var(--ds-color-text);
   letter-spacing: 0.01em;
   overflow: visible;
   text-overflow: clip;
@@ -7492,7 +7545,7 @@ button.gis-tool-list-row--action:hover {
   border: 0;
   outline: 0;
   background: transparent;
-  color: rgba(15, 23, 42, 0.86);
+  color: var(--ds-color-text);
   font: inherit;
   line-height: 34px;
   padding-block: 0;
@@ -7525,8 +7578,8 @@ button.gis-tool-list-row--action:hover {
   gap: 10px;
   flex-wrap: wrap;
   padding: 8px 10px;
-  border-bottom: 1px solid rgba(226, 232, 240, 1);
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(248, 250, 252, 0.92));
+  border-bottom: 1px solid var(--ds-color-border);
+  background: color-mix(in srgb, var(--ds-color-surface) 70%, transparent);
   min-width: 0;
 }
 
@@ -7540,10 +7593,10 @@ button.gis-tool-list-row--action:hover {
   flex: 1 1 200px;
   max-width: min(100%, 420px);
   padding: 0 12px;
-  border: 1px solid rgba(203, 213, 225, 0.9);
+  border: 1px solid var(--ds-color-border);
   border-radius: 12px;
-  background: rgba(255, 255, 255, 0.96);
-  color: rgba(51, 65, 85, 0.9);
+  background: var(--ds-color-surface-2);
+  color: var(--ds-color-text);
   font-size: 12px;
   font-weight: 900;
   white-space: nowrap;
@@ -7551,7 +7604,7 @@ button.gis-tool-list-row--action:hover {
 }
 
 .gis-table-advanced-controls label span {
-  color: rgba(15, 23, 42, 0.84);
+  color: var(--ds-color-text);
   overflow: visible;
   text-overflow: clip;
 }
@@ -7565,7 +7618,7 @@ button.gis-tool-list-row--action:hover {
   border: 0;
   outline: 0;
   background: transparent;
-  color: rgba(15, 23, 42, 0.88);
+  color: var(--ds-color-text);
   font: inherit;
   line-height: 34px;
   padding-block: 0;
@@ -7578,10 +7631,10 @@ button.gis-tool-list-row--action:hover {
 
 .gis-table-filter-clear {
   min-height: 30px;
-  border: 1px solid rgba(16, 185, 129, 0.26);
+  border: 1px solid color-mix(in srgb, var(--ds-color-accent) 35%, transparent);
   border-radius: 10px;
-  background: rgba(236, 253, 245, 0.95);
-  color: rgba(6, 95, 70, 0.95);
+  background: var(--ds-color-primary-soft);
+  color: var(--ds-color-text);
   font-size: 11px;
   font-weight: 900;
   padding: 0 11px;
@@ -7589,7 +7642,7 @@ button.gis-tool-list-row--action:hover {
 }
 
 .gis-table-filter-clear:hover {
-  background: rgba(209, 250, 229, 0.98);
+  background: color-mix(in srgb, var(--ds-color-accent) 14%, transparent);
 }
 
 @media (max-width: 1180px) {
@@ -7628,7 +7681,7 @@ button.gis-tool-list-row--action:hover {
 }
 
 .gis-table-column-label .fa-grip-vertical {
-  color: rgba(100, 116, 139, 0.52);
+  color: var(--ds-color-text-muted);
   font-size: 10px;
 }
 
@@ -7650,10 +7703,10 @@ button.gis-tool-list-row--action:hover {
   height: 18px;
   display: inline-grid;
   place-items: center;
-  border: 1px solid rgba(203, 213, 225, 0.88);
+  border: 1px solid var(--ds-color-border);
   border-radius: 6px;
-  background: rgba(255, 255, 255, 0.96);
-  color: rgba(51, 65, 85, 0.92);
+  background: var(--ds-color-surface-2);
+  color: var(--ds-color-text);
   cursor: pointer;
 }
 
@@ -7672,8 +7725,8 @@ button.gis-tool-list-row--action:hover {
 }
 
 .gis-table-column-dragging {
-  background: rgba(209, 250, 229, 0.88) !important;
-  color: rgba(6, 95, 70, 1) !important;
+  background: color-mix(in srgb, var(--ds-color-accent) 22%, transparent) !important;
+  color: var(--ds-color-text) !important;
 }
 
 .gis-domain-cell {
@@ -7714,16 +7767,10 @@ button.gis-tool-list-row--action:hover {
   line-height: 1.35;
   padding: 6px 28px 6px 10px;
   border-radius: 10px;
-  border: 1px solid rgba(15, 23, 42, 0.12);
-  background: rgba(255, 255, 255, 0.98);
-  color: #064e3b;
+  border: 1px solid var(--ds-color-border);
+  background: var(--ds-color-surface-2);
+  color: var(--ds-color-text);
   cursor: default;
-}
-
-html[data-theme='dark'] .gis-domain-select {
-  background: rgba(15, 23, 42, 0.92);
-  border-color: rgba(148, 163, 184, 0.35);
-  color: rgba(167, 243, 208, 0.96);
 }
 
 .gis-domain-cell--dropdown.missing-description .gis-domain-select {
@@ -7745,17 +7792,19 @@ html[data-theme='dark'] .gis-domain-cell--dropdown.missing-description .gis-doma
   width: 100%;
   border-collapse: collapse;
   font-size: 11px;
+  color: var(--ds-color-text);
 }
 
 .gis-layer-table th,
 .gis-layer-table td {
   padding: 8px 10px;
-  border-bottom: 1px solid rgba(226, 232, 240, 1);
+  border-bottom: 1px solid var(--ds-color-border);
   white-space: nowrap;
   max-width: 260px;
   overflow: hidden;
   text-overflow: ellipsis;
   vertical-align: top;
+  color: var(--ds-color-text);
 }
 
 .gis-layer-table tbody tr {
@@ -7763,16 +7812,16 @@ html[data-theme='dark'] .gis-domain-cell--dropdown.missing-description .gis-doma
 }
 
 .gis-layer-table tbody tr:hover {
-  background: rgba(2, 132, 199, 0.06);
+  background: var(--ds-color-primary-soft);
 }
 
 .gis-layer-table th {
-  background: rgba(255, 255, 255, 1);
+  background: color-mix(in srgb, var(--ds-color-surface-2) 90%, transparent);
   position: sticky;
   top: 0;
   z-index: 1;
   font-weight: 700;
-  color: rgba(15, 23, 42, 0.75);
+  color: var(--ds-color-text);
 }
 
 .gis-layer-toggle {
@@ -7792,7 +7841,7 @@ html[data-theme='dark'] .gis-domain-cell--dropdown.missing-description .gis-doma
 .gis-layer-name {
   font-size: 13px;
   font-weight: 850;
-  color: #0f172a;
+  color: var(--ds-color-text);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -7813,9 +7862,9 @@ html[data-theme='dark'] .gis-domain-cell--dropdown.missing-description .gis-doma
   justify-content: flex-end;
   padding: 4px;
   border-radius: 12px;
-  border: 1px solid rgba(226, 232, 240, 1);
-  background: rgba(248, 250, 252, 1);
-  box-shadow: 0 1px 0 rgba(15, 23, 42, 0.04);
+  border: 1px solid var(--ds-color-border);
+  background: color-mix(in srgb, var(--ds-color-surface) 80%, transparent);
+  box-shadow: var(--ds-shadow-sm);
   max-width: 100%;
   overflow-x: auto;
   overscroll-behavior-x: contain;
@@ -7832,7 +7881,8 @@ html[data-theme='dark'] .gis-domain-cell--dropdown.missing-description .gis-doma
   width: 34px;
   height: 34px;
   border-radius: 8px;
-  border-color: rgba(226, 232, 240, 1);
+  border-color: var(--ds-color-border);
+  color: var(--ds-color-text);
 }
 
 .gis-layer-actions .gis-icon-btn i {
@@ -7898,9 +7948,12 @@ html[data-theme='dark'] .gis-domain-cell--dropdown.missing-description .gis-doma
   display: flex;
   flex-direction: column;
   border-radius: 14px;
-  border: 1px solid var(--ds-color-border);
-  background: var(--ds-color-surface);
-  box-shadow: 0 24px 64px rgba(15, 23, 42, 0.18);
+  border: 1px solid var(--ds-glass-border);
+  background: var(--ds-glass-bg);
+  backdrop-filter: blur(var(--ds-glass-blur));
+  -webkit-backdrop-filter: blur(var(--ds-glass-blur));
+  box-shadow: var(--ds-shadow-lg);
+  color: var(--ds-color-text);
   overflow: hidden;
   min-height: 180px;
   max-height: calc(100% - 24px);
@@ -7914,7 +7967,11 @@ html[data-theme='dark'] .gis-domain-cell--dropdown.missing-description .gis-doma
 .gis-table-dock-resize {
   height: 10px;
   cursor: ns-resize;
-  background: linear-gradient(to bottom, rgba(226, 232, 240, 0.9), rgba(255, 255, 255, 0));
+  background: linear-gradient(
+    to bottom,
+    color-mix(in srgb, var(--ds-color-border-strong) 50%, transparent),
+    transparent
+  );
 }
 
 .gis-table-dock-header {
@@ -7922,8 +7979,8 @@ html[data-theme='dark'] .gis-domain-cell--dropdown.missing-description .gis-doma
   align-items: center;
   gap: 10px;
   padding: 10px 12px;
-  border-bottom: 1px solid rgba(15, 23, 42, 0.06);
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.98) 0%, rgba(248, 250, 252, 0.96) 100%);
+  border-bottom: 1px solid var(--ds-color-border);
+  background: color-mix(in srgb, var(--ds-color-surface) 55%, transparent);
 }
 
 .gis-table-dock-title {
@@ -7934,14 +7991,14 @@ html[data-theme='dark'] .gis-domain-cell--dropdown.missing-description .gis-doma
   font-size: 12px;
   font-weight: 650;
   letter-spacing: 0.01em;
-  color: rgba(15, 23, 42, 0.88);
+  color: var(--ds-color-text);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
 .gis-table-dock-title i {
-  color: rgba(13, 148, 136, 0.85);
+  color: var(--ds-color-accent);
   width: 28px;
   height: 28px;
   display: inline-flex;
@@ -7950,14 +8007,14 @@ html[data-theme='dark'] .gis-domain-cell--dropdown.missing-description .gis-doma
   font-size: 14px;
   line-height: 1;
   border-radius: 10px;
-  background: rgba(13, 148, 136, 0.08);
-  border: 1px solid rgba(13, 148, 136, 0.12);
+  background: var(--ds-color-primary-soft);
+  border: 1px solid var(--ds-color-border);
 }
 
 .gis-table-dock-meta {
   margin-left: auto;
   font-size: 11px;
-  color: rgba(100, 116, 139, 1);
+  color: var(--ds-color-text-muted);
   white-space: nowrap;
 }
 
@@ -7973,7 +8030,7 @@ html[data-theme='dark'] .gis-domain-cell--dropdown.missing-description .gis-doma
   border-radius: 13px;
   border: 0;
   background: transparent;
-  color: rgba(15, 23, 42, 0.7);
+  color: var(--ds-color-text);
   cursor: pointer;
   display: inline-flex;
   align-items: center;
@@ -7981,7 +8038,7 @@ html[data-theme='dark'] .gis-domain-cell--dropdown.missing-description .gis-doma
 }
 
 .gis-table-dock-close:hover {
-  background: rgba(226, 232, 240, 1);
+  background: var(--ds-color-primary-soft);
 }
 
 .gis-table-dock-collapse {
@@ -7990,7 +8047,7 @@ html[data-theme='dark'] .gis-domain-cell--dropdown.missing-description .gis-doma
   border-radius: 13px;
   border: 0;
   background: transparent;
-  color: rgba(15, 23, 42, 0.65);
+  color: var(--ds-color-text-muted);
   cursor: pointer;
   display: inline-flex;
   align-items: center;
@@ -8004,7 +8061,7 @@ html[data-theme='dark'] .gis-domain-cell--dropdown.missing-description .gis-doma
 }
 
 .gis-table-dock-collapse:hover {
-  background: rgba(226, 232, 240, 1);
+  background: var(--ds-color-primary-soft);
 }
 
 .gis-table-dock-collapse:disabled {
@@ -8021,6 +8078,7 @@ html[data-theme='dark'] .gis-domain-cell--dropdown.missing-description .gis-doma
   min-height: 0;
   padding: 10px;
   overflow: hidden;
+  color: var(--ds-color-text);
 }
 
 .gis-table-dock-layout {
@@ -8050,7 +8108,7 @@ html[data-theme='dark'] .gis-domain-cell--dropdown.missing-description .gis-doma
   gap: 2px;
   padding: 2px 2px 8px;
   margin-bottom: 4px;
-  border-bottom: 1px solid rgba(148, 163, 184, 0.28);
+  border-bottom: 1px solid var(--ds-color-border);
 }
 
 .gis-workspace-sidebar.collapsed .gis-workspace-sidebar__scope {
@@ -8062,13 +8120,13 @@ html[data-theme='dark'] .gis-domain-cell--dropdown.missing-description .gis-doma
   font-weight: 900;
   letter-spacing: 0.12em;
   text-transform: uppercase;
-  color: rgba(13, 148, 136, 0.95);
+  color: var(--ds-color-text-muted);
 }
 
 .gis-workspace-sidebar__scope-hint {
   font-size: 11px;
   font-weight: 650;
-  color: rgba(71, 85, 105, 0.88);
+  color: var(--ds-color-text-muted);
 }
 
 .gis-workspace-sidebar__tools {
@@ -8090,7 +8148,7 @@ html[data-theme='dark'] .gis-domain-cell--dropdown.missing-description .gis-doma
   flex-direction: column;
   gap: 8px;
   margin-top: 4px;
-  border-top: 1px solid rgba(148, 163, 184, 0.22);
+  border-top: 1px solid var(--ds-color-border);
   transition: opacity 0.2s ease, max-height 0.22s ease;
 }
 
@@ -8105,9 +8163,9 @@ html[data-theme='dark'] .gis-domain-cell--dropdown.missing-description .gis-doma
 
 .gis-workspace-acc {
   border-radius: 12px;
-  border: 1px solid rgba(203, 213, 225, 0.85);
-  background: rgba(255, 255, 255, 0.72);
-  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.65) inset;
+  border: 1px solid var(--ds-color-border);
+  background: color-mix(in srgb, var(--ds-color-surface-2) 88%, transparent);
+  box-shadow: inset 0 1px 0 color-mix(in srgb, var(--ds-color-text) 6%, transparent);
   overflow: hidden;
 }
 
@@ -8120,7 +8178,7 @@ html[data-theme='dark'] .gis-domain-cell--dropdown.missing-description .gis-doma
   font-weight: 850;
   letter-spacing: 0.04em;
   text-transform: uppercase;
-  color: rgba(15, 23, 42, 0.78);
+  color: var(--ds-color-text);
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -8136,8 +8194,8 @@ html[data-theme='dark'] .gis-domain-cell--dropdown.missing-description .gis-doma
   content: '';
   width: 7px;
   height: 7px;
-  border-right: 2px solid rgba(100, 116, 139, 0.75);
-  border-bottom: 2px solid rgba(100, 116, 139, 0.75);
+  border-right: 2px solid var(--ds-color-text-muted);
+  border-bottom: 2px solid var(--ds-color-text-muted);
   transform: rotate(45deg);
   transition: transform 0.2s ease;
   flex-shrink: 0;
@@ -8148,14 +8206,14 @@ html[data-theme='dark'] .gis-domain-cell--dropdown.missing-description .gis-doma
 }
 
 .gis-workspace-acc__summary:hover {
-  background: rgba(241, 245, 249, 0.95);
-  color: rgba(13, 148, 136, 0.95);
+  background: var(--ds-color-primary-soft);
+  color: var(--ds-color-text);
 }
 
 .gis-workspace-acc__body {
   padding: 0 8px 10px;
-  border-top: 1px solid rgba(226, 232, 240, 0.95);
-  background: rgba(248, 250, 252, 0.55);
+  border-top: 1px solid var(--ds-color-border);
+  background: color-mix(in srgb, var(--ds-color-surface) 50%, transparent);
 }
 
 .gis-workspace-acc__body--stack {
@@ -8167,7 +8225,7 @@ html[data-theme='dark'] .gis-domain-cell--dropdown.missing-description .gis-doma
 .gis-workspace-acc__body--prose {
   font-size: 11px;
   line-height: 1.45;
-  color: rgba(71, 85, 105, 0.92);
+  color: var(--ds-color-text-muted);
 }
 
 .gis-workspace-acc__body--prose p {
@@ -8233,15 +8291,15 @@ html[data-theme='dark'] .gis-domain-cell--dropdown.missing-description .gis-doma
 .gis-table-dock-sidebar {
   width: 210px;
   flex: 0 0 auto;
-  border-inline-end: 1px solid rgba(15, 23, 42, 0.06);
+  border-inline-end: 1px solid var(--ds-color-border);
   padding: 8px 12px 8px 8px;
   display: flex;
   flex-direction: column;
   gap: 5px;
   min-height: 0;
   border-radius: 14px;
-  background: linear-gradient(165deg, rgba(255, 255, 255, 0.55) 0%, rgba(241, 245, 249, 0.75) 100%);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.65);
+  background: color-mix(in srgb, var(--ds-color-surface) 72%, transparent);
+  box-shadow: inset 0 1px 0 color-mix(in srgb, var(--ds-color-text) 5%, transparent);
   transition: width 220ms cubic-bezier(0.2, 0.8, 0.2, 1), padding 220ms cubic-bezier(0.2, 0.8, 0.2, 1);
   will-change: width;
 }
@@ -8258,6 +8316,12 @@ html[data-theme='dark'] .gis-domain-cell--dropdown.missing-description .gis-doma
   align-items: center;
 }
 
+.gis-table-dock-sidebar.collapsed .gis-table-tooltext {
+  max-width: 0;
+  opacity: 0;
+  transform: translateX(-6px);
+}
+
 .gis-table-tooltext {
   display: inline-block;
   max-width: 220px;
@@ -8269,23 +8333,17 @@ html[data-theme='dark'] .gis-domain-cell--dropdown.missing-description .gis-doma
   font-size: 12px;
   font-weight: 600;
   letter-spacing: 0.01em;
-  color: rgba(51, 65, 85, 0.92);
+  color: var(--ds-color-text);
   transition: max-width 200ms cubic-bezier(0.2, 0.8, 0.2, 1), opacity 160ms ease, transform 200ms ease, color 0.18s ease;
-}
-
-.gis-table-dock-sidebar.collapsed .gis-table-tooltext {
-  max-width: 0;
-  opacity: 0;
-  transform: translateX(-6px);
 }
 
 .gis-table-toolbtn {
   height: 38px;
   padding: 0 11px;
   border-radius: 12px;
-  border: 1px solid rgba(15, 23, 42, 0.07);
-  background: rgba(255, 255, 255, 0.72);
-  color: rgba(15, 23, 42, 0.82);
+  border: 1px solid var(--ds-color-border);
+  background: var(--ds-color-surface-2);
+  color: var(--ds-color-text);
   cursor: pointer;
   display: inline-flex;
   align-items: center;
@@ -8293,7 +8351,7 @@ html[data-theme='dark'] .gis-domain-cell--dropdown.missing-description .gis-doma
   font-size: 12px;
   justify-content: flex-start;
   width: 100%;
-  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+  box-shadow: var(--ds-shadow-sm);
   transition: background 0.18s ease, border-color 0.18s ease, box-shadow 0.2s ease, color 0.18s ease, transform 0.14s ease;
 }
 
@@ -8306,41 +8364,26 @@ html[data-theme='dark'] .gis-domain-cell--dropdown.missing-description .gis-doma
   justify-content: center;
   font-size: 13px;
   line-height: 1;
-  color: rgba(71, 85, 105, 0.92);
+  color: var(--ds-color-text-muted);
   transition: color 0.18s ease, transform 0.14s ease;
 }
 
-.gis-table-dock-sidebar.collapsed .gis-table-toolbtn {
-  padding: 0;
-  width: 40px;
-  min-width: 40px;
-  height: 40px;
-  justify-content: center;
-  align-self: center;
-  border-radius: 12px;
-}
-
 .gis-table-toolbtn:hover:not(:disabled) {
-  background: rgba(255, 255, 255, 0.95);
-  border-color: rgba(13, 148, 136, 0.22);
-  box-shadow: 0 6px 18px rgba(15, 23, 42, 0.07);
+  background: var(--ds-color-primary-soft);
+  border-color: var(--ds-color-border-strong);
+  box-shadow: var(--ds-shadow-md);
 }
 
 .gis-table-toolbtn:hover:not(:disabled) i {
-  color: rgba(13, 148, 136, 0.95);
+  color: var(--ds-color-text);
 }
 
 .gis-table-toolbtn:hover:not(:disabled) .gis-table-tooltext {
-  color: rgba(15, 23, 42, 0.92);
+  color: var(--ds-color-text);
 }
 
 .gis-table-toolbtn:active:not(:disabled) {
   transform: scale(0.985);
-}
-
-.gis-table-toolbtn:focus-visible {
-  outline: 2px solid rgba(13, 148, 136, 0.45);
-  outline-offset: 2px;
 }
 
 .gis-table-toolbtn:disabled {
@@ -8359,17 +8402,32 @@ html[data-theme='dark'] .gis-domain-cell--dropdown.missing-description .gis-doma
   align-self: center;
 }
 
+.gis-table-dock-sidebar.collapsed .gis-table-toolbtn {
+  padding: 0;
+  width: 40px;
+  min-width: 40px;
+  height: 40px;
+  justify-content: center;
+  align-self: center;
+  border-radius: 12px;
+}
+
 .gis-table-dock-sidebar.collapsed .gis-table-toolbtn--icon-only {
   width: 40px;
   min-width: 40px;
   max-width: 40px;
 }
 
+.gis-table-toolbtn:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--ds-color-accent) 55%, transparent);
+  outline-offset: 2px;
+}
+
 .gis-table-toolsep {
   height: 1px;
   margin: 7px 6px;
   border: 0;
-  background: linear-gradient(90deg, transparent, rgba(148, 163, 184, 0.42), transparent);
+  background: linear-gradient(90deg, transparent, var(--ds-color-border-strong), transparent);
 }
 
 .gis-table-dock-sidebar.collapsed .gis-table-toolsep {
@@ -8404,13 +8462,13 @@ html[data-theme='dark'] .gis-domain-cell--dropdown.missing-description .gis-doma
 }
 
 .gis-table-dock-table::-webkit-scrollbar-thumb {
-  background: rgba(148, 163, 184, 0.7);
+  background: color-mix(in srgb, var(--ds-color-text-muted) 55%, transparent);
   border-radius: 999px;
-  border: 2px solid rgba(248, 250, 252, 1);
+  border: 2px solid color-mix(in srgb, var(--ds-color-surface) 90%, transparent);
 }
 
 .gis-table-dock-table::-webkit-scrollbar-track {
-  background: rgba(248, 250, 252, 1);
+  background: color-mix(in srgb, var(--ds-color-surface) 40%, transparent);
 }
 
 .gis-layer-table-select {
@@ -8431,9 +8489,9 @@ html[data-theme='dark'] .gis-domain-cell--dropdown.missing-description .gis-doma
   width: 36px;
   height: 36px;
   border-radius: 13px;
-  border: 1px solid rgba(226, 232, 240, 1);
-  background: rgba(255, 255, 255, 1);
-  color: rgba(15, 23, 42, 0.7);
+  border: 1px solid var(--ds-color-border);
+  background: var(--ds-color-surface-2);
+  color: var(--ds-color-text);
   cursor: pointer;
   display: inline-flex;
   align-items: center;
@@ -8446,11 +8504,11 @@ html[data-theme='dark'] .gis-domain-cell--dropdown.missing-description .gis-doma
 }
 
 .gis-table-rowbtn:hover {
-  background: rgba(248, 250, 252, 1);
+  background: var(--ds-color-primary-soft);
 }
 
 .gis-row-selected {
-  background: rgba(37, 99, 235, 0.06);
+  background: color-mix(in srgb, var(--ds-color-accent) 12%, transparent);
 }
 
 .gis-table-dock.collapsed {
@@ -9942,23 +10000,23 @@ path.gis-path-blend--lighten {
   }
 }
 
-.gis-modal-compact .gis-discovered {
+.gis-modal-compact:not(.si-add-source-modal) .gis-discovered {
   display: grid;
   gap: 10px;
 }
 
-.gis-modal-compact .gis-discovered-title {
+.gis-modal-compact:not(.si-add-source-modal) .gis-discovered-title {
   font-size: 12px;
   font-weight: 600;
   color: rgba(15, 23, 42, 1);
 }
 
-.gis-modal-compact .gis-discovered-list {
+.gis-modal-compact:not(.si-add-source-modal) .gis-discovered-list {
   display: grid;
   gap: 8px;
 }
 
-.gis-modal-compact .gis-discovered-row {
+.gis-modal-compact:not(.si-add-source-modal) .gis-discovered-row {
   display: flex;
   align-items: center;
   gap: 10px;
@@ -9969,7 +10027,7 @@ path.gis-path-blend--lighten {
   min-width: 0;
 }
 
-.gis-modal-compact .gis-discovered-name {
+.gis-modal-compact:not(.si-add-source-modal) .gis-discovered-name {
   flex: 1;
   min-width: 0;
   font-size: 12px;
@@ -9979,7 +10037,7 @@ path.gis-path-blend--lighten {
   text-overflow: ellipsis;
 }
 
-.gis-modal-compact .gis-discovered-add {
+.gis-modal-compact:not(.si-add-source-modal) .gis-discovered-add {
   height: 32px;
   padding: 0 12px;
   border-radius: 10px;
@@ -9992,17 +10050,17 @@ path.gis-path-blend--lighten {
   flex-shrink: 0;
 }
 
-.gis-modal-compact .gis-discovered-add:hover {
+.gis-modal-compact:not(.si-add-source-modal) .gis-discovered-add:hover {
   background: rgba(22, 163, 74, 0.12);
   border-color: rgba(22, 163, 74, 0.5);
 }
 
-.gis-modal-compact .gis-discovered-add:disabled {
+.gis-modal-compact:not(.si-add-source-modal) .gis-discovered-add:disabled {
   opacity: 0.6;
   cursor: not-allowed;
 }
 
-.gis-modal-compact .gis-discover-panel {
+.gis-modal-compact:not(.si-add-source-modal) .gis-discover-panel {
   position: relative;
   display: grid;
   gap: 10px;
@@ -10015,7 +10073,7 @@ path.gis-path-blend--lighten {
   box-shadow: 0 12px 28px rgba(15, 23, 42, 0.06);
 }
 
-.gis-modal-compact .gis-discover-panel::before {
+.gis-modal-compact:not(.si-add-source-modal) .gis-discover-panel::before {
   content: "";
   position: absolute;
   left: 12px;
@@ -10026,7 +10084,7 @@ path.gis-path-blend--lighten {
   background: linear-gradient(90deg, rgba(22, 163, 74, 0.85), rgba(34, 197, 94, 0.35));
 }
 
-.gis-modal-compact .gis-discover-meta {
+.gis-modal-compact:not(.si-add-source-modal) .gis-discover-meta {
   justify-self: flex-start;
   font-size: 10px;
   font-weight: 800;
@@ -11434,7 +11492,7 @@ path.gis-path-blend--lighten {
   }
 
   .gis-map-canvas {
-    min-height: calc(100dvh - var(--header-height) - 88px);
+    min-height: calc(100dvh - var(--header-stack-height) - 88px);
   }
 }
 

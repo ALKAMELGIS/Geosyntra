@@ -4,6 +4,7 @@
  *
  * @see backend/server/adminDirectoryPersistence.js
  */
+import { normalizeEmail } from './auth'
 import { AUDIT_LOG_STORAGE_KEY } from './auditConstants'
 
 const ADMIN_USERS_KEY = 'adminUsers'
@@ -132,4 +133,95 @@ export async function flushAdminDirectoryToServer(): Promise<boolean> {
   const users = readUsersFromStorage()
   const auditLog = readAuditFromStorage()
   return pushAdminDirectoryToServer(users, auditLog)
+}
+
+/** Next stable numeric id for a new directory row (max existing + 1). */
+export function nextAdminUserId(existing: unknown[]): number {
+  let max = 0
+  for (const row of Array.isArray(existing) ? existing : []) {
+    const id = Number((row as { id?: unknown })?.id)
+    if (Number.isFinite(id) && id > max) max = id
+  }
+  return max + 1
+}
+
+/**
+ * Merge a server directory snapshot (passwords stripped → `hasPassword`) into locally cached
+ * `adminUsers` without dropping `passwordHash`, `verificationToken`, or `profileExtra`.
+ */
+export function mergeAdminUsersPreservingLocalSecrets(
+  previous: unknown[],
+  remoteUsers: unknown[],
+): unknown[] {
+  const prevList = Array.isArray(previous) ? previous : []
+  const prevById = new Map<number, Record<string, unknown>>()
+  const prevByEmail = new Map<string, Record<string, unknown>>()
+  for (const raw of prevList) {
+    if (!raw || typeof raw !== 'object') continue
+    const r = raw as Record<string, unknown>
+    const id = Number(r.id)
+    const em = normalizeEmail(typeof r.email === 'string' ? r.email : '')
+    if (Number.isFinite(id) && id > 0) prevById.set(id, r)
+    if (em) prevByEmail.set(em, r)
+  }
+
+  const remoteById = new Set<number>()
+  const merged: unknown[] = []
+
+  for (const raw of Array.isArray(remoteUsers) ? remoteUsers : []) {
+    if (!raw || typeof raw !== 'object') continue
+    const remote = raw as Record<string, unknown>
+    const id = Number(remote.id)
+    if (!Number.isFinite(id) || id <= 0) continue
+    const em = normalizeEmail(typeof remote.email === 'string' ? String(remote.email) : '')
+    const local = (em && prevByEmail.get(em)) || prevById.get(id) || {}
+    const next: Record<string, unknown> = { ...local, ...remote }
+
+    const prevHash = typeof local.passwordHash === 'string' ? local.passwordHash.trim() : ''
+    const nextHash = typeof next.passwordHash === 'string' ? String(next.passwordHash).trim() : ''
+    if (!nextHash && prevHash) next.passwordHash = prevHash
+
+    const prevTok =
+      typeof local.verificationToken === 'string' ? String(local.verificationToken) : ''
+    const nextTok =
+      typeof next.verificationToken === 'string' ? String(next.verificationToken) : ''
+    if (!nextTok && prevTok) next.verificationToken = prevTok
+
+    const prevPe = local.profileExtra
+    if (prevPe && typeof prevPe === 'object' && (!next.profileExtra || typeof next.profileExtra !== 'object')) {
+      next.profileExtra = prevPe
+    } else if (
+      prevPe &&
+      typeof prevPe === 'object' &&
+      next.profileExtra &&
+      typeof next.profileExtra === 'object'
+    ) {
+      next.profileExtra = { ...(prevPe as object), ...(next.profileExtra as object) }
+    }
+
+    if (typeof next.passwordHash === 'string' && next.passwordHash.length > 0) {
+      next.hasPassword = true
+    }
+
+    merged.push(next)
+    remoteById.add(id)
+  }
+
+  for (const raw of prevList) {
+    if (!raw || typeof raw !== 'object') continue
+    const r = raw as Record<string, unknown>
+    const id = Number(r.id)
+    const em = normalizeEmail(typeof r.email === 'string' ? String(r.email) : '')
+    if (!Number.isFinite(id) || id <= 0) continue
+    if (remoteById.has(id)) continue
+    const stillOnServer = (Array.isArray(remoteUsers) ? remoteUsers : []).some(x => {
+      if (!x || typeof x !== 'object') return false
+      const o = x as Record<string, unknown>
+      return normalizeEmail(String(o.email || '')) === em && em.length > 0
+    })
+    if (!stillOnServer) merged.push(r)
+  }
+
+  merged.sort((a, b) => Number((a as { id?: unknown }).id) - Number((b as { id?: unknown }).id))
+  return merged
 }

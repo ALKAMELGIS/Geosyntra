@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react'
+import React, { useCallback, useMemo, useRef, useState } from 'react'
 import type { WmsAoiEvalProfile } from '../../../lib/sentinelHubWmsAoiClip'
 import {
   SI_EVI_CLASSIFICATION_STOPS,
@@ -10,6 +10,35 @@ import {
   siStopsToVerticalCssGradient,
   siThinLegendSegments,
 } from '../../../lib/siWmsIndexClassificationRamp'
+
+const SI_WMS_LEGEND_OFFSET_LS = 'si-wms-spectral-legend-offset-v1'
+
+function readStoredLegendOffset(): { x: number; y: number } {
+  if (typeof window === 'undefined') return { x: 0, y: 0 }
+  try {
+    const raw = localStorage.getItem(SI_WMS_LEGEND_OFFSET_LS)
+    if (!raw) return { x: 0, y: 0 }
+    const o = JSON.parse(raw) as { x?: unknown; y?: unknown }
+    const x = Number(o.x)
+    const y = Number(o.y)
+    if (!Number.isFinite(x) || !Number.isFinite(y)) return { x: 0, y: 0 }
+    return { x, y }
+  } catch {
+    return { x: 0, y: 0 }
+  }
+}
+
+function clampLegendOffset(x: number, y: number): { x: number; y: number } {
+  if (typeof window === 'undefined') return { x, y }
+  const vw = window.innerWidth
+  const vh = window.innerHeight
+  const maxX = Math.min(280, vw * 0.4)
+  const maxY = Math.min(320, vh * 0.45)
+  return {
+    x: Math.max(-maxX, Math.min(maxX, x)),
+    y: Math.max(-maxY, Math.min(maxY, y)),
+  }
+}
 
 /** Indices rendered with a scalar classified ramp (matches WMS evalscript). */
 const CLASSIFIED_PROFILES: readonly WmsAoiEvalProfile[] = ['ndvi', 'ndwi', 'gndvi', 'ndmi', 'evi']
@@ -118,6 +147,53 @@ export function SiWmsIndexClassificationLegend({
   maxRows = 10,
   classifiedStopsOverride = null,
 }: SiWmsIndexClassificationLegendProps) {
+  const offsetRef = useRef(readStoredLegendOffset())
+  const [legendOffset, setLegendOffset] = useState(offsetRef.current)
+  const [legendDragging, setLegendDragging] = useState(false)
+  offsetRef.current = legendOffset
+
+  const onLegendHeadPointerDown = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
+    if (e.pointerType === 'mouse' && e.button !== 0) return
+    e.preventDefault()
+    const start = { ox: offsetRef.current.x, oy: offsetRef.current.y, cx: e.clientX, cy: e.clientY }
+    setLegendDragging(true)
+    const head = e.currentTarget
+    try {
+      head.setPointerCapture(e.pointerId)
+    } catch {
+      /* ignore */
+    }
+
+    const onMove = (ev: PointerEvent) => {
+      setLegendOffset(clampLegendOffset(start.ox + (ev.clientX - start.cx), start.oy + (ev.clientY - start.cy)))
+    }
+
+    const finish = (ev: PointerEvent) => {
+      window.removeEventListener('pointermove', onMove)
+      window.removeEventListener('pointerup', finish)
+      window.removeEventListener('pointercancel', finish)
+      try {
+        head.releasePointerCapture(ev.pointerId)
+      } catch {
+        /* ignore */
+      }
+      setLegendDragging(false)
+      setLegendOffset(prev => {
+        const c = clampLegendOffset(prev.x, prev.y)
+        try {
+          localStorage.setItem(SI_WMS_LEGEND_OFFSET_LS, JSON.stringify(c))
+        } catch {
+          /* ignore */
+        }
+        return c
+      })
+    }
+
+    window.addEventListener('pointermove', onMove)
+    window.addEventListener('pointerup', finish)
+    window.addEventListener('pointercancel', finish)
+  }, [])
+
   const compositeKey =
     profile === 'true_color' || profile === 'false_color' || profile === 'swir' || profile === 'generic_rgb'
       ? profile
@@ -146,8 +222,21 @@ export function SiWmsIndexClassificationLegend({
   const badge = composite ? composite.badge : 'Classified'
 
   return (
-    <div className="si-wms-index-class-legend" dir="ltr" role="region" aria-label="Spectral layer legend">
-      <div className="si-wms-index-class-legend__head">
+    <div
+      className={`si-wms-index-class-legend${legendDragging ? ' si-wms-index-class-legend--dragging' : ''}`}
+      dir="ltr"
+      role="region"
+      aria-label="Spectral layer legend"
+      style={{ transform: `translate(${legendOffset.x}px, ${legendOffset.y}px)` }}
+    >
+      <div
+        className="si-wms-index-class-legend__head si-wms-index-class-legend__head--draggable"
+        onPointerDown={onLegendHeadPointerDown}
+        title="Drag header to move legend"
+      >
+        <span className="si-wms-index-class-legend__drag-icon" aria-hidden>
+          <i className="fa-solid fa-grip-lines" />
+        </span>
         <span className="si-wms-index-class-legend__title">{layerLabel}</span>
         <span className={`si-wms-index-class-legend__badge${composite ? ' si-wms-index-class-legend__badge--composite' : ''}`}>{badge}</span>
       </div>

@@ -116,6 +116,7 @@ function jsonPublicSnapshot(filePath) {
     hasPassword: Boolean(u.passwordHash),
     oauthGoogleLinked: Boolean(u.oauthGoogleSub),
     oauthAppleLinked: Boolean(u.oauthAppleSub),
+    ...(u.profileExtra && typeof u.profileExtra === 'object' ? { profileExtra: u.profileExtra } : {}),
   }))
   return { ...data, users }
 }

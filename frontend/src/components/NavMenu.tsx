@@ -135,8 +135,13 @@ export default function NavMenu({ onLogout }: NavMenuProps) {
     }
     update()
     window.addEventListener('resize', update)
+    const vv = window.visualViewport
+    vv?.addEventListener('resize', update)
+    vv?.addEventListener('scroll', update)
     return () => {
       window.removeEventListener('resize', update)
+      vv?.removeEventListener('resize', update)
+      vv?.removeEventListener('scroll', update)
     }
   }, [])
 

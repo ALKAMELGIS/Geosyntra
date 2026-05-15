@@ -3,6 +3,7 @@
  * so the same account can hydrate on another device when the API is available.
  */
 import { normalizeEmail } from './auth'
+import { scheduleAdminDirectorySync } from './adminDirectoryPersistence'
 
 export const USER_PROFILES_STORAGE_KEY = 'user_profiles_v1'
 
@@ -111,6 +112,7 @@ function syncProfileExtraToAdminDirectory(normalizedEmailKey: string, profile: P
   if (changed) {
     localStorage.setItem('adminUsers', JSON.stringify(next))
     window.dispatchEvent(new Event('storage'))
+    scheduleAdminDirectorySync()
   }
 }
 

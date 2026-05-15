@@ -1571,6 +1571,46 @@ html[data-theme='light'] .si-add-layer-gis-overlay .gis-modal-compact .gis-disco
   color: #f6f8fc !important;
 }
 
+html[data-theme='light'] .si-add-layer-gis-overlay .si-smart-url-panel {
+  border-color: var(--gs-lt-border) !important;
+  background: rgba(255, 255, 255, 0.72) !important;
+  box-shadow: var(--gs-lt-shadow-md), inset 0 1px 0 rgba(255, 255, 255, 0.85);
+}
+
+html[data-theme='light'] .si-add-layer-gis-overlay .si-smart-url-panel--drop {
+  border-color: var(--gs-lt-accent) !important;
+}
+
+html[data-theme='light'] .si-add-layer-gis-overlay .si-smart-url-badge {
+  border-color: var(--gs-lt-border-2) !important;
+  background: rgba(248, 250, 253, 0.85) !important;
+  color: var(--gs-lt-text) !important;
+}
+
+html[data-theme='light'] .si-add-layer-gis-overlay .si-smart-url-preview {
+  color: var(--gs-lt-text-muted) !important;
+}
+
+html[data-theme='light'] .si-add-layer-gis-overlay .gis-modal-compact .gis-discover-panel {
+  background: rgba(255, 255, 255, 0.78) !important;
+  border-color: var(--gs-lt-border) !important;
+}
+
+html[data-theme='light'] .si-add-layer-gis-overlay .gis-modal-compact .gis-discovered-row {
+  background: rgba(248, 250, 253, 0.92) !important;
+  border-color: var(--gs-lt-border-2) !important;
+}
+
+html[data-theme='light'] .si-add-layer-gis-overlay .gis-modal-compact .gis-discovered-name {
+  color: var(--gs-lt-text) !important;
+}
+
+html[data-theme='light'] .si-add-layer-gis-overlay .gis-discover-meta {
+  color: var(--gs-lt-text) !important;
+  background: rgba(248, 250, 253, 0.95) !important;
+  border-color: var(--gs-lt-border-2) !important;
+}
+
 /* Dropzone */
 html[data-theme='light'] .si-add-layer-gis-overlay .gis-modal-compact .gis-dropzone {
   border: 1px dashed var(--gs-lt-border-2) !important;

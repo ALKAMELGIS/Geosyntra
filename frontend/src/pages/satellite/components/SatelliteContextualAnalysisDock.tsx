@@ -8,6 +8,7 @@ import {
 } from './AoiSpectralProfileMiniChart';
 import { StaticAoiComparisonLayerToolbar } from './StaticAoiComparisonLayerToolbar';
 import type { StaticAoiChartLayerId } from '../utils/staticAoiMultiChartData';
+import type { SiGeoAiIndexAnalyticalExportContext } from '../utils/siGeoAiIndexAnalyticalExport';
 import type { SmartProcessingSectionId } from './SmartProcessingWorkflowPanel';
 import { SiChatAiAgentIcon } from './SiChatAiAgentIcon';
 
@@ -45,6 +46,8 @@ export type SatelliteContextualAnalysisDockProps = {
   staticMultiLineDatasets?: AoiStaticMultiLayerLineChartDataset[];
   staticMultiLineHasLst?: boolean;
   staticChartExportLngLatPerRow?: AoiStaticExportLngLat[];
+  /** Polygon AOI + weekly means — enables multi-sheet GeoAI Excel export from the static chart. */
+  geoAiIndexAnalyticalExportContext?: SiGeoAiIndexAnalyticalExportContext | null;
   staticComparisonLayers?: StaticAoiChartLayerId[];
   onStaticComparisonLayerToggle?: (id: StaticAoiChartLayerId) => void;
   weeklyMeans?: number[];
@@ -289,6 +292,7 @@ export function SatelliteContextualAnalysisDock(props: SatelliteContextualAnalys
     staticMultiLineDatasets = [],
     staticMultiLineHasLst = false,
     staticChartExportLngLatPerRow,
+    geoAiIndexAnalyticalExportContext = null,
     staticComparisonLayers = [],
     onStaticComparisonLayerToggle,
     weeklyMeans = [],
@@ -1040,6 +1044,7 @@ export function SatelliteContextualAnalysisDock(props: SatelliteContextualAnalys
                             hasLst={staticMultiLineHasLst}
                             exportLngLatPerRow={staticChartExportLngLatPerRow}
                             onRequestGenerateReport={onRequestGenerateReport}
+                            geoAiIndexAnalyticalExportContext={geoAiIndexAnalyticalExportContext}
                           />
                         </div>
                       ))}

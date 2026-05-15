@@ -24,4 +24,13 @@
   --ds-layout-page-pad: clamp(12px, 2.2vw, 24px);
   --ds-layout-max-prose: 65ch;
   --ds-layout-max-wide: 80rem;
+
+  /* Breakpoint tokens (for calc() / documentation; mirrors tailwind.config.js) */
+  --bp-sm: 640px;
+  --bp-md: 768px;
+  --bp-lg: 1024px;
+  --bp-xl: 1280px;
+  --bp-2xl: 1536px;
+  --bp-3xl: 1920px;
+  --bp-4xl: 2560px;
 }

@@ -7,6 +7,7 @@ import { normalizeEmail, normalizeRole, startSession, type Role } from '../lib/a
 import { pickDefaultAssignableRole, useDirectoryRoleCatalog } from '../lib/roleCatalog'
 import { hydrateProfileFromAdminUserRecord, hydrateProfileFromServer } from '../lib/userProfilePersistence'
 import { appendAuditLog } from '../lib/audit'
+import { scheduleAdminDirectorySync } from '../lib/adminDirectoryPersistence'
 import { useLanguage } from '../lib/i18n'
 import { appConfig } from '../../config/app'
 import { GEOSYNTRA_BRAND_NAME } from '../lib/brand'
@@ -332,6 +333,7 @@ export default function Login() {
     const current = mergeWithCurrent ? readAdminUsersFromStorage() : []
     const normalized = normalizeAdminUsers([...(Array.isArray(current) ? current : []), ...(Array.isArray(nextUsers) ? nextUsers : [])])
     localStorage.setItem('adminUsers', JSON.stringify(normalized))
+    scheduleAdminDirectorySync()
     return normalized
   }
 

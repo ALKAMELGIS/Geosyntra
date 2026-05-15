@@ -136,6 +136,8 @@ import type { SymbologyClassMethod, SymbologyColorRamp, SymbologyConfig, Symbolo
 import {
   buildSymbologyContext,
   clampInt,
+  coerceSymbologyColorRamp,
+  coerceSymbologyMethod,
   darkenColor,
   describeArcGisRendererVisualization,
   getGeoJsonFields,
@@ -200,6 +202,7 @@ import {
   staticAoiLayerMeanForWeek,
   type StaticAoiChartLayerId,
 } from './utils/staticAoiMultiChartData';
+import type { SiGeoAiIndexAnalyticalExportContext } from './utils/siGeoAiIndexAnalyticalExport';
 import {
   getAnalysisEngineBaseUrl,
   mpcProcess,
@@ -1254,21 +1257,16 @@ function migrateStoredSymbology(raw: unknown): SymbologyConfig | undefined {
   let colorRamp: SymbologyColorRamp | undefined;
   if (cr === 'green') colorRamp = 'greens';
   else if (cr === 'warm') colorRamp = 'magma';
-  else if (cr === 'viridis' || cr === 'blues' || cr === 'greens' || cr === 'plasma' || cr === 'magma' || cr === 'turbo') {
-    colorRamp = cr;
-  }
+  else if (typeof cr === 'string') colorRamp = coerceSymbologyColorRamp(cr);
   let style = o.style;
-  if (style === 'single') style = 'color';
   if (style === 'classified') style = 'unique';
-  let method = o.method;
-  if (method === 'natural-breaks') method = 'jenks';
-  if (method === 'equal-interval') method = 'equal_interval';
+  const method = coerceSymbologyMethod(o.method);
   const out: SymbologyConfig = {};
   if (typeof o.useArcGisOnline === 'boolean') out.useArcGisOnline = o.useArcGisOnline;
   if (typeof style === 'string') out.style = style as SymbologyStyle;
   if (typeof o.field === 'string') out.field = o.field;
   if (typeof o.classes === 'number') out.classes = o.classes;
-  if (typeof method === 'string') out.method = method as SymbologyClassMethod;
+  out.method = method;
   if (colorRamp) out.colorRamp = colorRamp;
   if (typeof o.threshold === 'number') out.threshold = o.threshold;
   return Object.keys(out).length ? out : undefined;
@@ -1635,7 +1633,43 @@ type SiSymbologyDraft = Required<SymbologyConfig> & { arcgisMaxCategories: numbe
 
 type SiBakeRamp = SymbologyColorRamp | 'service';
 
-type AddLayerTab = 'giscontent' | 'arcgis' | 'upload' | 'database' | 'url' | 'raster';
+type AddLayerTab = 'giscontent' | 'fromurl' | 'upload' | 'database';
+
+/** Heuristic for unified “paste URL” flow: ArcGIS REST vs raster endpoints vs generic file/GeoJSON URLs. */
+function detectSiSmartUrlKind(raw: string): 'arcgis' | 'vector' | 'raster' {
+  const s = raw.trim();
+  if (!s) return 'vector';
+  const lower = s.toLowerCase();
+  if (
+    /\.(tif|tiff|jp2)([?#]|$)/i.test(lower) ||
+    /imageserver/i.test(lower) ||
+    /\/wms(\/|\?|$)/i.test(lower) ||
+    /\/wmts(\/|\?|$)/i.test(lower) ||
+    /cloudoptimizedgeotiff|\/cog\//i.test(lower)
+  ) {
+    return 'raster';
+  }
+  if (/featureserver|mapserver/i.test(lower)) return 'arcgis';
+  return 'vector';
+}
+
+function parseDroppedUrlData(dt: DataTransfer): string | null {
+  const fromUri = dt
+    .getData('text/uri-list')
+    ?.split('\n')
+    .map(s => s.trim())
+    .find(line => line && !line.startsWith('#'));
+  const raw =
+    fromUri ||
+    dt
+      .getData('text/plain')
+      ?.split(/[\s\n]+/)
+      .map(s => s.trim())
+      .find(s => /^https?:\/\//i.test(s));
+  if (!raw) return null;
+  const u = raw.replace(/\r/g, '');
+  return /^https?:\/\//i.test(u) ? u : null;
+}
 
 type SiGetDataPickAction =
   | { kind: 'tab'; tab: AddLayerTab; presetRemoteUrl?: string; statusHint?: string }
@@ -1742,7 +1776,7 @@ const SI_GET_DATA_COMMON_SOURCES: SiGetDataSourceEntry[] = [
     title: 'Web',
     description: 'Anonymous HTTP — GeoJSON, ZIP, KML, or other file URLs.',
     iconClass: 'fa-solid fa-globe',
-    action: { kind: 'tab', tab: 'url', statusHint: 'Paste a direct https URL to GeoJSON, ZIP (shapefile/KMZ), or KML.' },
+    action: { kind: 'tab', tab: 'fromurl', statusHint: 'Paste a direct https URL — GeoJSON, ZIP (shapefile/KMZ), or KML.' },
   },
   {
     id: 'odata',
@@ -1751,9 +1785,9 @@ const SI_GET_DATA_COMMON_SOURCES: SiGetDataSourceEntry[] = [
     iconClass: 'fa-solid fa-table-list',
     action: {
       kind: 'tab',
-      tab: 'url',
+      tab: 'fromurl',
       presetRemoteUrl: 'https://services.odata.org/V4/TripPinServiceRW/',
-      statusHint: 'OData: URL tab opened — replace with your $metadata root or file export URL when supported.',
+      statusHint: 'OData: URL field prefilled — replace with your $metadata root or file export URL when supported.',
     },
   },
   {
@@ -1761,14 +1795,14 @@ const SI_GET_DATA_COMMON_SOURCES: SiGetDataSourceEntry[] = [
     title: 'REST API (JSON)',
     description: 'GET endpoint returning GeoJSON or downloadable JSON — same as From URL.',
     iconClass: 'fa-solid fa-code',
-    action: { kind: 'tab', tab: 'url', statusHint: 'REST JSON: use From URL with a stable GeoJSON or file endpoint.' },
+    action: { kind: 'tab', tab: 'fromurl', statusHint: 'REST JSON: paste a stable GeoJSON or file endpoint URL.' },
   },
   {
     id: 'geotiff-url',
     title: 'Raster / GeoTIFF (URL)',
     description: 'GeoTIFF, image service, or tile endpoint path.',
     iconClass: 'fa-regular fa-image',
-    action: { kind: 'tab', tab: 'raster', statusHint: 'Raster URL: paste path or HTTPS URL to GeoTIFF / image service.' },
+    action: { kind: 'tab', tab: 'fromurl', statusHint: 'Raster: paste HTTPS GeoTIFF, image service, or tile endpoint URL.' },
   },
   {
     id: 'shapefile',
@@ -1782,14 +1816,14 @@ const SI_GET_DATA_COMMON_SOURCES: SiGetDataSourceEntry[] = [
     title: 'KML / KMZ',
     description: 'Google Earth / OGC KML — upload or URL.',
     iconClass: 'fa-solid fa-location-dot',
-    action: { kind: 'tab', tab: 'upload', statusHint: 'KML/KMZ: use Upload, or paste a .kml/.kmz URL under From URL.' },
+    action: { kind: 'tab', tab: 'upload', statusHint: 'KML/KMZ: use Upload, or paste a .kml/.kmz URL under Add from URL.' },
   },
   {
     id: 'arcgis',
     title: 'ArcGIS Feature Service',
     description: 'FeatureServer layer URL — discover and add layers.',
     iconClass: 'fa-solid fa-link',
-    action: { kind: 'tab', tab: 'arcgis', statusHint: 'ArcGIS: paste Feature Service URL, then Connect & Discover.' },
+    action: { kind: 'tab', tab: 'fromurl', statusHint: 'ArcGIS: paste Feature or Map Service URL, then Connect & Discover.' },
   },
   {
     id: 'gis-map',
@@ -2219,9 +2253,37 @@ const SI_SYMBOLOGY_BAKE_RAMPS: Record<SymbologyColorRamp, string[]> = {
   plasma: ['#0d0887', '#7e03a8', '#cc4778', '#f89540', '#f0f921'],
   magma: ['#000004', '#3b0f70', '#8c2981', '#de4968', '#fe9f6d', '#fcfdbf'],
   turbo: ['#30123b', '#3b4cc0', '#26a6d1', '#3de07e', '#f9e721', '#f20c0c'],
+  inferno: ['#000004', '#420a68', '#932667', '#dd513a', '#fca50a', '#fcffa4'],
+  cividis: ['#00224e', '#123570', '#3e4989', '#6788be', '#8fc8dc', '#eae29d'],
+  spectral: ['#5e4fa2', '#3288bd', '#66c2a5', '#fee08b', '#f46d43', '#9e0142'],
+  earth: ['#2c1158', '#4d2f89', '#7a5195', '#b3688f', '#e5988c', '#f6cdb0'],
+  gray: ['#f8fafc', '#cbd5e1', '#94a3b8', '#64748b', '#334155', '#0f172a'],
 };
 
-const SI_STYLE_PRESET_CHIPS: Array<{ id: string; label: string; patch: Partial<SiLayerAppearancePersisted> }> = [
+type SiStylePresetChip = {
+  id: string;
+  label: string;
+  patch: Partial<SiLayerAppearancePersisted>;
+  /** When set, updates symbology draft (e.g. disable ArcGIS Online renderer for uniform outline-only). */
+  symbologyPatch?: Partial<Pick<SymbologyConfig, 'useArcGisOnline' | 'style'>>;
+};
+
+const SI_STYLE_PRESET_CHIPS: SiStylePresetChip[] = [
+  {
+    id: 'outline-only',
+    label: 'Outline only (no fill)',
+    symbologyPatch: { useArcGisOnline: false, style: 'single' },
+    patch: {
+      strokeStyle: 'solid',
+      weight: 2,
+      polygonFillAlpha: 0,
+      fillStyle: 'solid',
+      blendMode: 'normal',
+      opacity: 1,
+      color: '#dc2626',
+      fillColor: '#dc2626',
+    },
+  },
   { id: 'carto', label: 'Carto outline', patch: { strokeStyle: 'solid', weight: 2.5, polygonFillAlpha: 0.28, fillStyle: 'solid', blendMode: 'normal' } },
   { id: 'soft', label: 'Soft fill', patch: { polygonFillAlpha: 0.5, weight: 1, opacity: 0.92, fillStyle: 'solid', blendMode: 'normal' } },
   { id: 'survey', label: 'Survey dashed', patch: { strokeStyle: 'dashed', weight: 2, polygonFillAlpha: 0.22, fillStyle: 'pattern', blendMode: 'normal' } },
@@ -2683,11 +2745,10 @@ export default function SatelliteIntelligence() {
   const [isStacThumbVisible, setIsStacThumbVisible] = useState(true);
   const [stacMapThumbLabel, setStacMapThumbLabel] = useState('');
   const [isAddLayerModalOpen, setIsAddLayerModalOpen] = useState(false);
-  /** Home = pick source; gis-list = full-screen GIS Content step (like Develop); source-forms = ArcGIS / upload / URL / database. */
+  /** Home = pick source; gis-list = GIS Content step; source-forms = Add from URL / upload / Get Data. */
   const [siAddLayerWizard, setSiAddLayerWizard] = useState<'home' | 'gis-list' | 'source-forms'>('home');
   const [addLayerTab, setAddLayerTab] = useState<AddLayerTab>('giscontent');
   const [addLayerUrl, setAddLayerUrl] = useState('');
-  const [addLayerRemoteUrl, setAddLayerRemoteUrl] = useState('');
   const [addLayerToken, setAddLayerToken] = useState(() => (typeof window !== 'undefined' ? getArcgisPortalToken() : ''));
   const [addLayerName, setAddLayerName] = useState('');
   const [addLayerStatus, setAddLayerStatus] = useState('');
@@ -2695,6 +2756,7 @@ export default function SatelliteIntelligence() {
   const [siUploadPhase, setSiUploadPhase] = useState<'idle' | 'reading' | 'processing' | 'completed' | 'failed'>('idle');
   const [siUploadProgressPct, setSiUploadProgressPct] = useState(0);
   const [siUploadDropActive, setSiUploadDropActive] = useState(false);
+  const [siSmartUrlDropActive, setSiSmartUrlDropActive] = useState(false);
   const [isConnectingLayer, setIsConnectingLayer] = useState(false);
   const [discoveredArcgisLayers, setDiscoveredArcgisLayers] = useState<Array<{ id: number; name: string; url: string; kind: 'layer' | 'table'; geometryType?: string }>>([]);
   const [selectedDiscoveredArcgisUrl, setSelectedDiscoveredArcgisUrl] = useState('');
@@ -2761,7 +2823,9 @@ export default function SatelliteIntelligence() {
   const [dbName, setDbName] = useState('');
   const [dbConnectionFileName, setDbConnectionFileName] = useState('');
   const [siGetDataStep, setSiGetDataStep] = useState<'menu' | 'sql'>('menu');
+  const [siSymbologyPresetQuery, setSiSymbologyPresetQuery] = useState('');
   const prevAddLayerTabForGetDataRef = useRef<AddLayerTab | null>(null);
+  const smartUrlKind = useMemo(() => detectSiSmartUrlKind(addLayerUrl), [addLayerUrl]);
   const clearStacMapThumb = useCallback(() => {
     setStacMapThumb(prev => {
       revokeStacMapOverlayBlob(prev?.url);
@@ -4522,11 +4586,12 @@ export default function SatelliteIntelligence() {
     setSiUploadPhase('idle');
     setSiUploadProgressPct(0);
     setSiUploadDropActive(false);
+    setSiSmartUrlDropActive(false);
     setSiAddLayerWizard('home');
     setAddLayerTab('giscontent');
     setDiscoveredArcgisLayers([]);
     setSelectedDiscoveredArcgisUrl('');
-    setAddLayerRemoteUrl('');
+    setAddLayerUrl('');
     setGisContentCandidates([]);
     setAddingGisContentCandidateId(null);
     setIsAddLayerModalOpen(true);
@@ -4548,6 +4613,7 @@ export default function SatelliteIntelligence() {
     setSiUploadPhase('idle');
     setSiUploadProgressPct(0);
     setSiUploadDropActive(false);
+    setSiSmartUrlDropActive(false);
     setDiscoveredArcgisLayers([]);
     setSelectedDiscoveredArcgisUrl('');
     setAddingGisContentCandidateId(null);
@@ -4561,6 +4627,7 @@ export default function SatelliteIntelligence() {
     setSiUploadPhase('idle');
     setSiUploadProgressPct(0);
     setSiUploadDropActive(false);
+    setSiSmartUrlDropActive(false);
     setAddingGisContentCandidateId(null);
   };
 
@@ -4624,7 +4691,7 @@ export default function SatelliteIntelligence() {
   const importArcgisFeatureLayer = async () => {
     const raw = addLayerUrl.trim();
     if (!raw) {
-      setAddLayerStatus('Enter ArcGIS Feature Service URL.');
+      setAddLayerStatus('Enter an ArcGIS Feature or Map service URL.');
       return;
     }
     let baseUrl = raw;
@@ -4775,7 +4842,7 @@ export default function SatelliteIntelligence() {
   };
 
   const importRemoteUrlLayer = async () => {
-    const raw = addLayerRemoteUrl.trim();
+    const raw = addLayerUrl.trim();
     if (!raw) {
       setAddLayerStatus('Enter a remote URL (GeoJSON/ZIP/KML or Raster/Image service endpoint).');
       return;
@@ -4816,7 +4883,7 @@ export default function SatelliteIntelligence() {
         ]);
         setAddLayerStatus(`Imported remote GeoTIFF: ${parsed.filename}`);
         setAddLayerName('');
-        setAddLayerRemoteUrl('');
+        setAddLayerUrl('');
         setIsAddLayerModalOpen(false);
         focusGeoJsonOnMap(outline);
         return;
@@ -4835,7 +4902,7 @@ export default function SatelliteIntelligence() {
       ]);
       setAddLayerStatus(`Imported remote layer: ${parsed.filename}`);
       setAddLayerName('');
-      setAddLayerRemoteUrl('');
+      setAddLayerUrl('');
       setIsAddLayerModalOpen(false);
       focusGeoJsonOnMap(parsed.data);
     } catch (e) {
@@ -4852,6 +4919,13 @@ export default function SatelliteIntelligence() {
       setSiGetDataStep('menu');
     }
   }, [addLayerTab]);
+
+  useEffect(() => {
+    if (detectSiSmartUrlKind(addLayerUrl) !== 'arcgis') {
+      setDiscoveredArcgisLayers([]);
+      setSelectedDiscoveredArcgisUrl('');
+    }
+  }, [addLayerUrl]);
 
   const applySiGetDataPick = (item: SiGetDataSourceEntry) => {
     const a = item.action;
@@ -4873,8 +4947,8 @@ export default function SatelliteIntelligence() {
     }
     if (a.kind === 'tab') {
       setAddLayerTab(a.tab);
-      if (a.presetRemoteUrl !== undefined) setAddLayerRemoteUrl(a.presetRemoteUrl);
-      else if (a.tab === 'upload' || a.tab === 'arcgis' || a.tab === 'raster') setAddLayerRemoteUrl('');
+      if (a.presetRemoteUrl !== undefined) setAddLayerUrl(a.presetRemoteUrl);
+      else if (a.tab === 'upload' || a.tab === 'fromurl') setAddLayerUrl('');
       setAddLayerStatus(a.statusHint ?? '');
     }
   };
@@ -5173,7 +5247,10 @@ export default function SatelliteIntelligence() {
         colorRamp: normalized.colorRamp,
         threshold: normalized.threshold,
       };
-      setCustomLayers(prev => prev.map(l => (l.id === lid ? { ...l, symbology: symSave } : l)));
+      const honorAg = Boolean(canUse && symSave.useArcGisOnline);
+      setCustomLayers(prev =>
+        prev.map(l => (l.id === lid ? { ...l, symbology: symSave, useArcGisSymbology: honorAg } : l)),
+      );
       return;
     }
     const normalized = normalizeSymbologyForLayer(layer.geojson, layer.source, symbologyDraft, canUse);
@@ -5193,6 +5270,7 @@ export default function SatelliteIntelligence() {
           ? {
               ...l,
               symbology: symSave,
+              useArcGisSymbology: false,
               color: ap.color,
               fillColor: ap.fillColor,
               weight: ap.weight,
@@ -5215,6 +5293,7 @@ export default function SatelliteIntelligence() {
     }
     siStyleSessionBackupRef.current = null;
     siSymbologyLiveLayerIdRef.current = null;
+    setSiSymbologyPresetQuery('');
     setActiveLayerActionDialog(null);
   }, []);
 
@@ -5615,6 +5694,7 @@ export default function SatelliteIntelligence() {
       return;
     }
     if (action === 'symbology') {
+      setSiSymbologyPresetQuery('');
       setActiveLayerActionDialog({ mode: 'symbology', layerId });
       return;
     }
@@ -10045,7 +10125,7 @@ export default function SatelliteIntelligence() {
             },
           ]
         : []),
-      ...customLayers.map(layer => {
+      ...customLayers.map((layer, customLayerIndex) => {
         const featureCount = Array.isArray(layer.geojson?.features) ? layer.geojson.features.length : 0;
         const lower = layer.name.toLowerCase();
         const isUploadAoiLayer =
@@ -10071,6 +10151,7 @@ export default function SatelliteIntelligence() {
           toggleable: true,
           actionable: true,
           sourceLayerId: layer.id,
+          customLayerIndex,
           supportsAoiEdit: isUploadAoiLayer,
           supportsRename: true,
           onToggle: () => toggleCustomLayerVisibility(layer.id, !layer.visible),
@@ -10149,6 +10230,36 @@ export default function SatelliteIntelligence() {
                   </div>
                   {'actionable' in layer && layer.actionable && 'sourceLayerId' in layer && layer.sourceLayerId ? (
                     <div className="si-env-layer-actions">
+                      {'customLayerIndex' in layer && typeof layer.customLayerIndex === 'number' ? (
+                        <div className="si-env-layer-order-pair" role="group" aria-label="Layer list order">
+                          <button
+                            type="button"
+                            className="si-env-layer-order-btn"
+                            title="Move up in layer list"
+                            aria-label={`Move ${layer.label} up in list`}
+                            disabled={layer.customLayerIndex <= 0}
+                            onClick={e => {
+                              e.stopPropagation();
+                              moveCustomLayerInStack(layer.sourceLayerId!, -1);
+                            }}
+                          >
+                            Move up
+                          </button>
+                          <button
+                            type="button"
+                            className="si-env-layer-order-btn"
+                            title="Move down in layer list"
+                            aria-label={`Move ${layer.label} down in list`}
+                            disabled={layer.customLayerIndex >= customLayers.length - 1}
+                            onClick={e => {
+                              e.stopPropagation();
+                              moveCustomLayerInStack(layer.sourceLayerId!, 1);
+                            }}
+                          >
+                            Move down
+                          </button>
+                        </div>
+                      ) : null}
                       {'supportsAoiEdit' in layer && layer.supportsAoiEdit ? (
                         <button
                           type="button"
@@ -10664,6 +10775,23 @@ export default function SatelliteIntelligence() {
     () => buildStaticAoiExportLngLatPerRow(drawnGeometry, staticAoiMultiLineData.labels.length),
     [drawnGeometry, staticAoiMultiLineData.labels.length, staticAoiChartAoiKey],
   );
+
+  const siGeoAiIndexAnalyticalExportContext = useMemo((): SiGeoAiIndexAnalyticalExportContext | null => {
+    if (!weeklyComposites.length) return null;
+    const gt = drawnGeometry?.geometry?.type;
+    if (!drawnGeometry || (gt !== 'Polygon' && gt !== 'MultiPolygon')) return null;
+    return {
+      aoiKey: staticAoiChartAoiKey,
+      weekly: weeklyComposites.map(w => ({
+        weekIndex: w.weekIndex,
+        startDate: w.startDate,
+        endDate: w.endDate,
+        mean: w.mean,
+      })),
+      selectedDateIso: selectedDate.toISOString().split('T')[0] ?? '',
+      drawnFeature: drawnGeometry as GeoJSON.Feature,
+    };
+  }, [weeklyComposites, drawnGeometry, staticAoiChartAoiKey, selectedDate]);
 
   const handleStaticComparisonLayerToggle = useCallback((id: StaticAoiChartLayerId) => {
     setStaticChartComparisonLayers(prev => {
@@ -12059,6 +12187,7 @@ export default function SatelliteIntelligence() {
             staticMultiLineDatasets={staticAoiMultiLineData.datasets}
             staticMultiLineHasLst={staticAoiMultiLineData.hasLst}
             staticChartExportLngLatPerRow={staticAoiChartExportLngLatPerRow}
+            geoAiIndexAnalyticalExportContext={siGeoAiIndexAnalyticalExportContext}
             weeklyMeans={satelliteWeeklyMeans}
             fieldComparisonBars={staticAoiFieldComparison.rows}
             fieldComparisonSubtitle={staticAoiFieldComparison.subtitle}
@@ -12552,6 +12681,7 @@ export default function SatelliteIntelligence() {
             staticMultiLineDatasets={staticAoiMultiLineData.datasets}
             staticMultiLineHasLst={staticAoiMultiLineData.hasLst}
             staticChartExportLngLatPerRow={staticAoiChartExportLngLatPerRow}
+            geoAiIndexAnalyticalExportContext={siGeoAiIndexAnalyticalExportContext}
             staticComparisonLayers={staticChartComparisonLayers}
             onStaticComparisonLayerToggle={handleStaticComparisonLayerToggle}
             mapRef={mapRef}
@@ -14128,9 +14258,9 @@ export default function SatelliteIntelligence() {
                       icon: 'fa-solid fa-layer-group',
                     },
                     {
-                      id: 'arcgis' as AddLayerTab,
-                      title: 'Provide an ArcGIS Server layer URL',
-                      sub: 'Connect to a feature service and pick a layer or table.',
+                      id: 'fromurl' as AddLayerTab,
+                      title: 'Add from URL',
+                      sub: 'ArcGIS Feature/Map services, GeoJSON, KML, ZIP, GeoTIFF, or image services — paste one link; detection and import follow automatically.',
                       icon: 'fa-solid fa-link',
                     },
                     {
@@ -14138,18 +14268,6 @@ export default function SatelliteIntelligence() {
                       title: 'Upload a file',
                       sub: 'GeoJSON, KML, KMZ, Shapefile (zip), CSV with coordinates, and more.',
                       icon: 'fa-solid fa-file-arrow-up',
-                    },
-                    {
-                      id: 'url' as AddLayerTab,
-                      title: 'From URL',
-                      sub: 'Remote GeoJSON / ZIP / KML.',
-                      icon: 'fa-solid fa-globe',
-                    },
-                    {
-                      id: 'raster' as AddLayerTab,
-                      title: 'Raster path / URL',
-                      sub: 'GeoTIFF/Image Service path or remote raster URL.',
-                      icon: 'fa-regular fa-image',
                     },
                     {
                       id: 'database' as AddLayerTab,
@@ -14260,10 +14378,10 @@ export default function SatelliteIntelligence() {
                   <button
                     type="button"
                     role="tab"
-                    aria-selected={addLayerTab === 'arcgis'}
-                    className={(addLayerTab === 'arcgis' ? 'gis-compact-tab active' : 'gis-compact-tab') + ' gis-compact-tab--icon'}
-                    title="ArcGIS Feature Service"
-                    onClick={() => setAddLayerTab('arcgis')}
+                    aria-selected={addLayerTab === 'fromurl'}
+                    className={(addLayerTab === 'fromurl' ? 'gis-compact-tab active' : 'gis-compact-tab') + ' gis-compact-tab--icon'}
+                    title="Add from URL (ArcGIS, GeoJSON, raster…)"
+                    onClick={() => setAddLayerTab('fromurl')}
                   >
                     <i className="fa-solid fa-link" aria-hidden />
                   </button>
@@ -14280,26 +14398,6 @@ export default function SatelliteIntelligence() {
                   <button
                     type="button"
                     role="tab"
-                    aria-selected={addLayerTab === 'url'}
-                    className={(addLayerTab === 'url' ? 'gis-compact-tab active' : 'gis-compact-tab') + ' gis-compact-tab--icon'}
-                    title="From URL"
-                    onClick={() => setAddLayerTab('url')}
-                  >
-                    <i className="fa-solid fa-globe" aria-hidden />
-                  </button>
-                  <button
-                    type="button"
-                    role="tab"
-                    aria-selected={addLayerTab === 'raster'}
-                    className={(addLayerTab === 'raster' ? 'gis-compact-tab active' : 'gis-compact-tab') + ' gis-compact-tab--icon'}
-                    title="Raster path / URL"
-                    onClick={() => setAddLayerTab('raster')}
-                  >
-                    <i className="fa-regular fa-image" aria-hidden />
-                  </button>
-                  <button
-                    type="button"
-                    role="tab"
                     aria-selected={addLayerTab === 'database'}
                     className={(addLayerTab === 'database' ? 'gis-compact-tab active' : 'gis-compact-tab') + ' gis-compact-tab--icon'}
                     title="Get data"
@@ -14309,77 +14407,172 @@ export default function SatelliteIntelligence() {
                   </button>
                 </div>
                 <div className="gis-modal-body">
-              {addLayerTab === 'arcgis' ? (
-                <div key="arcgis" role="tabpanel" aria-label="ArcGIS Feature Service">
-                  <input
-                    type="url"
-                    className="gis-input"
-                    placeholder="Feature Service URL"
-                    value={addLayerUrl}
-                    onChange={e => setAddLayerUrl(e.target.value)}
-                    autoComplete="off"
-                  />
-                  <input
-                    type="text"
-                    className="gis-input"
-                    placeholder="Token / API Key (optional)"
-                    value={addLayerToken}
-                    onChange={e => setAddLayerToken(e.target.value)}
-                    autoComplete="off"
-                  />
-                  <input
-                    type="text"
-                    className="gis-input"
-                    placeholder="Layer Name (optional)"
-                    value={addLayerName}
-                    onChange={e => setAddLayerName(e.target.value)}
-                    autoComplete="off"
-                  />
-                  <button type="button" className="gis-btn-outline" onClick={importArcgisFeatureLayer} disabled={isConnectingLayer}>
-                    <i className="fa-solid fa-link" aria-hidden /> {isConnectingLayer ? 'Connecting...' : 'Connect & Discover Layers'}
-                  </button>
-                  {discoveredArcgisLayers.length > 0 ? (
-                    <div className="gis-discover-panel" aria-label="Discovered layers">
-                      <div className="gis-discover-meta">FOUND {discoveredArcgisLayers.length} LAYER/TABLE(S):</div>
-                      <div className="gis-form-field">
-                        <div className="gis-form-label">Select Layer</div>
-                        <div className="gis-select-wrap">
-                        <select
-                            className="gis-input gis-select"
-                          value={selectedDiscoveredArcgisUrl}
-                          onChange={e => {
-                            const next = e.target.value;
-                            setSelectedDiscoveredArcgisUrl(next);
-                            const found = discoveredArcgisLayers.find(l => l.url === next);
-                            if (found && !addLayerName.trim()) setAddLayerName(found.name);
-                          }}
-                            aria-label="Select discovered layer"
-                        >
-                          {discoveredArcgisLayers.map(l => (
-                            <option key={l.url} value={l.url}>
-                              {l.kind === 'table' ? `${l.name} (Table)` : l.geometryType ? `${l.name} (${l.geometryType})` : l.name}
-                            </option>
-                          ))}
-                        </select>
-                          <i className="fa-solid fa-chevron-down" aria-hidden />
-                      </div>
-                      </div>
-                      <div className="gis-discovered-row">
-                        <span className="gis-discovered-name">
-                          {discoveredArcgisLayers.find(l => l.url === selectedDiscoveredArcgisUrl)?.name || 'Selected layer'}
-                        </span>
-                        <button
-                          type="button"
-                          className="gis-discovered-add"
-                          onClick={addSelectedDiscoveredArcgisLayer}
-                          disabled={!selectedDiscoveredArcgisUrl || isAddingDiscoveredArcgisLayer}
-                        >
-                          {isAddingDiscoveredArcgisLayer ? 'Adding…' : 'Add'}
-                        </button>
-                      </div>
+              {addLayerTab === 'fromurl' ? (
+                <motion.div
+                  key="fromurl"
+                  role="tabpanel"
+                  aria-label="Add from URL"
+                  initial={{ opacity: 0, y: 6 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.18 }}
+                >
+                  <div
+                    className={`si-smart-url-panel${siSmartUrlDropActive ? ' si-smart-url-panel--drop' : ''}`}
+                    onDragEnter={e => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      setSiSmartUrlDropActive(true);
+                    }}
+                    onDragLeave={e => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      if (e.currentTarget === e.target) setSiSmartUrlDropActive(false);
+                    }}
+                    onDragOver={e => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                    }}
+                    onDrop={e => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      setSiSmartUrlDropActive(false);
+                      const dropped = parseDroppedUrlData(e.dataTransfer);
+                      if (dropped) {
+                        setAddLayerUrl(dropped);
+                        setAddLayerStatus('URL detected from drop — confirm the type chip, then connect or import.');
+                      } else {
+                        setAddLayerStatus('Drop a copied https link onto this panel (or paste into the field).');
+                      }
+                    }}
+                  >
+                    <div className="si-smart-url-detect-row" aria-live="polite">
+                      <span className={`si-smart-url-badge si-smart-url-badge--${smartUrlKind}`}>
+                        <i
+                          className={
+                            smartUrlKind === 'arcgis'
+                              ? 'fa-solid fa-server'
+                              : smartUrlKind === 'raster'
+                                ? 'fa-regular fa-image'
+                                : 'fa-solid fa-vector-square'
+                          }
+                          aria-hidden
+                        />
+                        {smartUrlKind === 'arcgis'
+                          ? 'ArcGIS REST'
+                          : smartUrlKind === 'raster'
+                            ? 'Raster / tiles'
+                            : 'Vector / file'}
+                      </span>
+                      <span className="si-smart-url-preview">
+                        {smartUrlKind === 'arcgis'
+                          ? 'Feature or Map service — Connect, then choose a layer or table.'
+                          : smartUrlKind === 'raster'
+                            ? 'GeoTIFF, image service, or OGC endpoint — import builds a map-ready footprint when needed.'
+                            : 'GeoJSON, zipped shapefile/KML/KMZ, or other hosted spatial files.'}
+                      </span>
                     </div>
-                  ) : null}
-                </div>
+                    <div className="gis-form-field">
+                      <div className="gis-form-label">URL</div>
+                      <input
+                        type="url"
+                        className="gis-input"
+                        placeholder="https://… (FeatureServer, GeoJSON, GeoTIFF, …)"
+                        value={addLayerUrl}
+                        onChange={e => setAddLayerUrl(e.target.value)}
+                        autoComplete="off"
+                      />
+                    </div>
+                    {smartUrlKind === 'arcgis' ? (
+                      <div className="gis-form-field">
+                        <div className="gis-form-label">Token / API key (optional)</div>
+                        <input
+                          type="text"
+                          className="gis-input"
+                          placeholder="Token / API Key (optional)"
+                          value={addLayerToken}
+                          onChange={e => setAddLayerToken(e.target.value)}
+                          autoComplete="off"
+                        />
+                      </div>
+                    ) : null}
+                    <div className="gis-form-field">
+                      <div className="gis-form-label">Display name (optional)</div>
+                      <input
+                        type="text"
+                        className="gis-input"
+                        placeholder="Layer name on map"
+                        value={addLayerName}
+                        onChange={e => setAddLayerName(e.target.value)}
+                        autoComplete="off"
+                      />
+                    </div>
+                    {smartUrlKind === 'arcgis' ? (
+                      <button
+                        type="button"
+                        className="gis-btn-outline"
+                        onClick={importArcgisFeatureLayer}
+                        disabled={isConnectingLayer || !addLayerUrl.trim()}
+                      >
+                        <i className="fa-solid fa-link" aria-hidden /> {isConnectingLayer ? 'Connecting…' : 'Connect & Discover Layers'}
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        className="gis-btn-primary-full"
+                        onClick={() => void importRemoteUrlLayer()}
+                        disabled={isImportingRemoteLayer || !addLayerUrl.trim()}
+                      >
+                        <i className="fa-solid fa-cloud-arrow-down" aria-hidden />{' '}
+                        {isImportingRemoteLayer
+                          ? 'Importing…'
+                          : smartUrlKind === 'raster'
+                            ? 'Import raster from URL'
+                            : 'Import from URL'}
+                      </button>
+                    )}
+                    {smartUrlKind === 'arcgis' && discoveredArcgisLayers.length > 0 ? (
+                      <div className="gis-discover-panel" aria-label="Discovered layers">
+                        <div className="gis-discover-meta">FOUND {discoveredArcgisLayers.length} LAYER/TABLE(S):</div>
+                        <div className="gis-form-field">
+                          <div className="gis-form-label">Select layer</div>
+                          <div className="gis-select-wrap">
+                            <select
+                              className="gis-input gis-select"
+                              value={selectedDiscoveredArcgisUrl}
+                              onChange={e => {
+                                const next = e.target.value;
+                                setSelectedDiscoveredArcgisUrl(next);
+                                const found = discoveredArcgisLayers.find(l => l.url === next);
+                                if (found && !addLayerName.trim()) setAddLayerName(found.name);
+                              }}
+                              aria-label="Select discovered layer"
+                            >
+                              {discoveredArcgisLayers.map(l => (
+                                <option key={l.url} value={l.url}>
+                                  {l.kind === 'table' ? `${l.name} (Table)` : l.geometryType ? `${l.name} (${l.geometryType})` : l.name}
+                                </option>
+                              ))}
+                            </select>
+                            <i className="fa-solid fa-chevron-down" aria-hidden />
+                          </div>
+                        </div>
+                        <div className="gis-discovered-row">
+                          <span className="gis-discovered-name">
+                            {discoveredArcgisLayers.find(l => l.url === selectedDiscoveredArcgisUrl)?.name || 'Selected layer'}
+                          </span>
+                          <button
+                            type="button"
+                            className="gis-discovered-add"
+                            onClick={addSelectedDiscoveredArcgisLayer}
+                            disabled={!selectedDiscoveredArcgisUrl || isAddingDiscoveredArcgisLayer}
+                          >
+                            {isAddingDiscoveredArcgisLayer ? 'Adding…' : 'Add'}
+                          </button>
+                        </div>
+                      </div>
+                    ) : null}
+                  </div>
+                </motion.div>
               ) : addLayerTab === 'database' ? (
                 <div key="database" role="tabpanel" aria-label="Get data">
                   {siGetDataStep === 'menu' ? (
@@ -14424,7 +14617,7 @@ export default function SatelliteIntelligence() {
                           className="si-get-data-more-btn"
                           onClick={() => {
                             setAddLayerTab('upload');
-                            setAddLayerStatus('More spatial formats: use Upload, From URL, Raster, or ArcGIS tabs in the bar above.');
+                            setAddLayerStatus('More spatial formats: use Upload or Add from URL in the tab bar above.');
                           }}
                         >
                           More… <span className="si-get-data-more-hint">(all GIS / BIM upload formats)</span>
@@ -14513,33 +14706,6 @@ export default function SatelliteIntelligence() {
                       </button>
                     </>
                   )}
-                </div>
-              ) : addLayerTab === 'url' || addLayerTab === 'raster' ? (
-                <div key="url" role="tabpanel" aria-label="Remote URL">
-                  <input
-                    type="url"
-                    className="gis-input"
-                    placeholder={
-                      addLayerTab === 'raster'
-                        ? 'Raster path / URL (GeoTIFF, Image Service, tile endpoint)'
-                        : 'https://.../layer.geojson or .zip'
-                    }
-                    value={addLayerRemoteUrl}
-                    onChange={e => setAddLayerRemoteUrl(e.target.value)}
-                    autoComplete="off"
-                  />
-                  <input
-                    type="text"
-                    className="gis-input"
-                    placeholder="Layer Name (optional)"
-                    value={addLayerName}
-                    onChange={e => setAddLayerName(e.target.value)}
-                    autoComplete="off"
-                  />
-                  <button type="button" className="gis-btn-primary-full" onClick={() => void importRemoteUrlLayer()} disabled={isImportingRemoteLayer}>
-                    <i className="fa-solid fa-cloud-arrow-down" aria-hidden />{' '}
-                    {isImportingRemoteLayer ? 'Importing…' : addLayerTab === 'raster' ? 'Import Raster path / URL' : 'Import from URL'}
-                  </button>
                 </div>
               ) : (
                 <div key="upload" role="tabpanel" aria-label="Upload file">
@@ -14660,7 +14826,11 @@ export default function SatelliteIntelligence() {
       ) : null}
       {activeLayerActionDialog && activeDialogLayer ? (
         <div
-          className="si-layer-action-modal-overlay"
+          className={
+            activeLayerActionDialog.mode === 'symbology'
+              ? 'si-layer-action-modal-overlay si-layer-action-modal-overlay--symbology-studio'
+              : 'si-layer-action-modal-overlay'
+          }
           role="dialog"
           aria-modal="true"
           aria-labelledby="si-layer-action-title"
@@ -14674,7 +14844,7 @@ export default function SatelliteIntelligence() {
           <div
             className={
               activeLayerActionDialog.mode === 'symbology'
-                ? 'si-layer-action-modal gis-modal gis-modal-styles'
+                ? 'si-layer-action-modal si-layer-action-modal--symbology-studio gis-modal gis-modal-styles'
                 : `si-layer-action-modal${activeLayerActionDialog.mode === 'table' ? ' si-layer-action-modal--gis-table' : ''}`
             }
             style={activeLayerActionDialog.mode === 'table' ? { height: siLayerTableModalHeight } : undefined}
@@ -14687,7 +14857,7 @@ export default function SatelliteIntelligence() {
                     <i className="fa-solid fa-palette" />
                   </div>
                   <div className="gis-modal-title" id="si-layer-action-title">
-                    Styles - {activeDialogLayer.name}
+                    Symbology — {activeDialogLayer.name}
                   </div>
                 </div>
                 <button
@@ -14718,7 +14888,13 @@ export default function SatelliteIntelligence() {
                 </button>
               </div>
             )}
-            <div className={activeLayerActionDialog.mode === 'symbology' ? 'gis-modal-body' : 'si-layer-action-modal-body'}>
+            <div
+              className={
+                activeLayerActionDialog.mode === 'symbology'
+                  ? 'gis-modal-body si-symbology-studio-body'
+                  : 'si-layer-action-modal-body'
+              }
+            >
               {activeLayerActionDialog.mode === 'table' ? (
                 activeLayerColumns.length ? (
                   <div
@@ -15113,7 +15289,24 @@ export default function SatelliteIntelligence() {
                   <p className="si-layer-action-empty">No attributes found for this layer.</p>
                 )
               ) : activeLayerActionDialog.mode === 'symbology' ? (
-                <>
+                <motion.div
+                  className="si-symbology-studio"
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.22, ease: [0.22, 1, 0.36, 1] }}
+                >
+                  {activeDialogLayer.renderMode === 'raster' ? (
+                    <div className="si-symbology-raster-banner" role="status">
+                      <i className="fa-regular fa-image" aria-hidden />
+                      <div>
+                        <strong>Raster layer</strong>
+                        <span>
+                          Pixel display uses the imagery pipeline. Adjust transparency below; advanced raster color ramps are available on
+                          dedicated WMS / index layers. Vector symbology here affects outline or companion GeoJSON only.
+                        </span>
+                      </div>
+                    </div>
+                  ) : null}
                   <div className="gis-style-hero">
                     <div className="gis-style-subtitle">Choose an attribute and visualization style. Preview updates live on the map.</div>
                     <label
@@ -15248,6 +15441,33 @@ export default function SatelliteIntelligence() {
                       Sync draw colors
                     </button>
                   </div>
+
+                  {!symbologyDraft.useArcGisOnline ? (
+                    <div className="si-symbology-vv-row" aria-label="Active visual variables">
+                      <span className="si-symbology-vv-pill">
+                        <i className="fa-solid fa-draw-polygon" aria-hidden />
+                        {siSymbologyCtx?.geometryKind === 'point'
+                          ? 'Points'
+                          : siSymbologyCtx?.geometryKind === 'line'
+                            ? 'Lines'
+                            : siSymbologyCtx?.geometryKind === 'polygon'
+                              ? 'Polygons'
+                              : 'Features'}
+                      </span>
+                      {symbologyDraft.style === 'color' ||
+                      symbologyDraft.style === 'color_size' ||
+                      symbologyDraft.style === 'unique' ? (
+                        <span className="si-symbology-vv-pill si-symbology-vv-pill--accent">Color</span>
+                      ) : null}
+                      {symbologyDraft.style === 'size' || symbologyDraft.style === 'color_size' ? (
+                        <span className="si-symbology-vv-pill si-symbology-vv-pill--accent">Size</span>
+                      ) : null}
+                      <span className="si-symbology-vv-pill">Transparency</span>
+                      <span className="si-symbology-catalog-hint">
+                        Roadmap: heat map, charts, dictionary renderer, halo &amp; rotation on GL symbols, and interactive class breaks.
+                      </span>
+                    </div>
+                  ) : null}
 
                   {symbologyDraft.useArcGisOnline ? (
                     <>
@@ -15433,22 +15653,26 @@ export default function SatelliteIntelligence() {
                           <div className="gis-style-card">
                             <div className="gis-style-grid">
                               <div className="gis-style-field">
-                                <div className="gis-style-label">Style</div>
+                                <div className="gis-style-label">Primary symbology</div>
                                 <div className="gis-style-selectwrap">
                                   <select
                                     className="gis-style-select"
                                     value={symbologyDraft.style}
                                     onChange={e => updateSymbologyDraft({ style: e.target.value as SymbologyStyle })}
                                   >
-                                    <option value="single">Location (single symbol)</option>
-                                    <option value="unique">Types (unique symbols)</option>
-                                    <option value="color">Counts and Amounts (color)</option>
-                                    <option value="size">Counts and Amounts (size)</option>
-                                    <option value="color_size">Counts and Amounts (color + size)</option>
-                                    <option value="dot_density">Dot density</option>
-                                    <option value="threshold_markers">Single symbol + threshold markers</option>
+                                    <option value="single">Single symbol</option>
+                                    <option value="unique">Unique values</option>
+                                    <option value="color">Graduated colors</option>
+                                    <option value="size">Graduated symbols (size)</option>
+                                    <option value="color_size">Graduated colors + size</option>
+                                    <option value="dot_density">Dot density (line)</option>
+                                    <option value="threshold_markers">Threshold markers</option>
                                   </select>
                                   <i className="fa-solid fa-chevron-down" aria-hidden="true" />
+                                </div>
+                                <div className="si-symbology-catalog-hint si-symbology-catalog-hint--tight">
+                                  Full engine parity with ArcGIS Pro (heat map, charts, dictionary, bivariate, unclassed colors) ships incrementally on
+                                  this renderer core.
                                 </div>
                               </div>
 
@@ -15488,12 +15712,23 @@ export default function SatelliteIntelligence() {
                                       value={symbologyDraft.colorRamp}
                                       onChange={e => updateSymbologyDraft({ colorRamp: e.target.value as SymbologyColorRamp })}
                                     >
-                                      <option value="viridis">Viridis</option>
-                                      <option value="blues">Blues</option>
-                                      <option value="greens">Greens</option>
-                                      <option value="plasma">Plasma</option>
-                                      <option value="magma">Magma</option>
-                                      <option value="turbo">Turbo</option>
+                                      <optgroup label="Perceptual / scientific">
+                                        <option value="viridis">Viridis</option>
+                                        <option value="cividis">Cividis</option>
+                                        <option value="plasma">Plasma</option>
+                                        <option value="magma">Magma</option>
+                                        <option value="inferno">Inferno</option>
+                                        <option value="turbo">Turbo</option>
+                                      </optgroup>
+                                      <optgroup label="Single-hue &amp; terrain">
+                                        <option value="blues">Blues</option>
+                                        <option value="greens">Greens</option>
+                                        <option value="earth">Earth (terrain)</option>
+                                        <option value="gray">Gray</option>
+                                      </optgroup>
+                                      <optgroup label="Diverging">
+                                        <option value="spectral">Spectral (diverging)</option>
+                                      </optgroup>
                                     </select>
                                     <i className="fa-solid fa-chevron-down" aria-hidden="true" />
                                   </div>
@@ -15522,19 +15757,26 @@ export default function SatelliteIntelligence() {
 
                               {showMethod ? (
                                 <div className="gis-style-field">
-                                  <div className="gis-style-label">Method</div>
+                                  <div className="gis-style-label">Classification method</div>
                                   <div className="gis-style-selectwrap">
                                     <select
                                       className="gis-style-select"
                                       value={symbologyDraft.method}
                                       onChange={e => updateSymbologyDraft({ method: e.target.value as SymbologyClassMethod })}
                                     >
-                                      <option value="jenks">Natural breaks</option>
+                                      <option value="jenks">Natural breaks (Jenks)</option>
                                       <option value="quantile">Quantile</option>
                                       <option value="equal_interval">Equal interval</option>
+                                      <option value="standard_deviation">Standard deviation</option>
+                                      <option value="manual">Manual (equal interval bins)</option>
                                     </select>
                                     <i className="fa-solid fa-chevron-down" aria-hidden="true" />
                                   </div>
+                                  {symbologyDraft.method === 'manual' ? (
+                                    <div className="si-symbology-method-hint">
+                                      Manual class breaks editor is planned; bins follow equal interval across the attribute range.
+                                    </div>
+                                  ) : null}
                                 </div>
                               ) : null}
 
@@ -15713,19 +15955,41 @@ export default function SatelliteIntelligence() {
                           </button>
                           {siStudioSections.templates ? (
                             <div className="gis-style-card" aria-label="Presets">
+                              <div className="gis-style-panel-title">Symbol gallery — quick presets</div>
+                              <div className="si-symbology-preset-search-wrap">
+                                <i className="fa-solid fa-magnifying-glass" aria-hidden />
+                                <input
+                                  type="search"
+                                  className="si-symbology-preset-search"
+                                  placeholder="Search presets…"
+                                  value={siSymbologyPresetQuery}
+                                  onChange={e => setSiSymbologyPresetQuery(e.target.value)}
+                                  aria-label="Filter style presets"
+                                />
+                              </div>
                               <div className="gis-style-preset-row" role="list">
-                                {SI_STYLE_PRESET_CHIPS.map(p => (
+                                {SI_STYLE_PRESET_CHIPS.filter(p =>
+                                  p.label.toLowerCase().includes(siSymbologyPresetQuery.trim().toLowerCase()),
+                                ).map(p => (
                                   <button
                                     key={p.id}
                                     type="button"
                                     className="gis-style-preset-chip"
                                     role="listitem"
-                                    onClick={() => updateSiSymbologyAppearance({ ...p.patch })}
+                                    onClick={() => {
+                                      if (p.symbologyPatch) updateSymbologyDraft(p.symbologyPatch);
+                                      updateSiSymbologyAppearance({ ...p.patch });
+                                    }}
                                   >
                                     {p.label}
                                   </button>
                                 ))}
                               </div>
+                              {SI_STYLE_PRESET_CHIPS.every(p =>
+                                !p.label.toLowerCase().includes(siSymbologyPresetQuery.trim().toLowerCase()),
+                              ) ? (
+                                <p className="si-symbology-preset-empty">No presets match that search.</p>
+                              ) : null}
                             </div>
                           ) : null}
 
@@ -15778,7 +16042,7 @@ export default function SatelliteIntelligence() {
                       Save Style
                     </button>
                   </div>
-                </>
+                </motion.div>
               ) : (
                 <div className="si-layer-action-legend">
                   <div className="si-layer-action-legend-row">

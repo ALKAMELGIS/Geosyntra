@@ -10,6 +10,7 @@ import {
   type SiAoiSpectralProfileMini,
 } from './AoiSpectralProfileMiniChart';
 import type { StaticAoiChartLayerId } from '../utils/staticAoiMultiChartData';
+import type { SiGeoAiIndexAnalyticalExportContext } from '../utils/siGeoAiIndexAnalyticalExport';
 import './satelliteMapAnalysisChrome.css';
 
 function sparkPathForOverlay(values: number[], w: number, h: number): string {
@@ -35,6 +36,7 @@ export type SatelliteAoiStaticChartsMapOverlayProps = {
   staticMultiLineDatasets: AoiStaticMultiLayerLineChartDataset[];
   staticMultiLineHasLst: boolean;
   staticChartExportLngLatPerRow?: AoiStaticExportLngLat[];
+  geoAiIndexAnalyticalExportContext?: SiGeoAiIndexAnalyticalExportContext | null;
   weeklyMeans: number[];
   /** Drawn AOI + sketch fields + saved polygons — primary bar source (no pivot fallback). */
   fieldComparisonBars?: Array<{ name: string; value: number }>;
@@ -72,6 +74,7 @@ export function SatelliteAoiStaticChartsMapOverlay({
   staticMultiLineDatasets,
   staticMultiLineHasLst,
   staticChartExportLngLatPerRow,
+  geoAiIndexAnalyticalExportContext = null,
   weeklyMeans,
   fieldComparisonBars,
   fieldComparisonSubtitle = '',
@@ -215,6 +218,7 @@ export function SatelliteAoiStaticChartsMapOverlay({
           hasLst={staticMultiLineHasLst}
           exportLngLatPerRow={staticChartExportLngLatPerRow}
           onRequestGenerateReport={onRequestGenerateReport}
+          geoAiIndexAnalyticalExportContext={geoAiIndexAnalyticalExportContext}
         />
       </div>
 

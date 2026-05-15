@@ -87,11 +87,17 @@ export function createSqliteAdminDirectoryStore(dbPath) {
     CREATE INDEX IF NOT EXISTS idx_admin_login_at ON admin_login_history(at);
   `)
 
+  try {
+    db.exec(`ALTER TABLE admin_users ADD COLUMN profile_extra TEXT`)
+  } catch {
+    /* column already exists */
+  }
+
   const selUsers = db.prepare(
     `SELECT id, email, name, role, status, scope, managed_by_id AS managedById, last_login AS lastLogin,
             password_hash AS passwordHash, email_verified AS emailVerified, verification_token AS verificationToken,
             oauth_google_sub AS oauthGoogleSub, oauth_apple_sub AS oauthAppleSub,
-            created_at AS createdAt, updated_at AS updatedAt
+            created_at AS createdAt, updated_at AS updatedAt, profile_extra AS profileExtraRaw
      FROM admin_users ORDER BY id ASC`,
   )
   const selAudit = db.prepare(
@@ -103,10 +109,10 @@ export function createSqliteAdminDirectoryStore(dbPath) {
   const upsertUser = db.prepare(`
     INSERT INTO admin_users (
       id, email, name, role, status, scope, managed_by_id, last_login, password_hash,
-      email_verified, verification_token, oauth_google_sub, oauth_apple_sub, created_at, updated_at
+      email_verified, verification_token, oauth_google_sub, oauth_apple_sub, profile_extra, created_at, updated_at
     ) VALUES (
       @id, @email, @name, @role, @status, @scope, @managedById, @lastLogin, @passwordHash,
-      @emailVerified, @verificationToken, @oauthGoogleSub, @oauthAppleSub, @createdAt, @updatedAt
+      @emailVerified, @verificationToken, @oauthGoogleSub, @oauthAppleSub, @profileExtra, @createdAt, @updatedAt
     )
     ON CONFLICT(id) DO UPDATE SET
       email = excluded.email,
@@ -121,9 +127,35 @@ export function createSqliteAdminDirectoryStore(dbPath) {
       verification_token = COALESCE(excluded.verification_token, admin_users.verification_token),
       oauth_google_sub = COALESCE(excluded.oauth_google_sub, admin_users.oauth_google_sub),
       oauth_apple_sub = COALESCE(excluded.oauth_apple_sub, admin_users.oauth_apple_sub),
+      profile_extra = CASE
+        WHEN excluded.profile_extra IS NOT NULL AND excluded.profile_extra != ''
+        THEN excluded.profile_extra
+        ELSE admin_users.profile_extra
+      END,
       created_at = COALESCE(admin_users.created_at, excluded.created_at),
       updated_at = excluded.updated_at
   `)
+
+  function parseProfileExtra(raw) {
+    if (raw == null || raw === '') return undefined
+    if (typeof raw === 'object') return raw
+    try {
+      return JSON.parse(String(raw))
+    } catch {
+      return undefined
+    }
+  }
+
+  function profileExtraToSql(v) {
+    if (v == null) return null
+    if (typeof v === 'string') return v.trim() ? v : null
+    try {
+      const s = JSON.stringify(v)
+      return s === '{}' ? null : s
+    } catch {
+      return null
+    }
+  }
 
   function rowToUser(r) {
     return {
@@ -141,6 +173,7 @@ export function createSqliteAdminDirectoryStore(dbPath) {
       verificationToken: r.verificationToken || undefined,
       oauthGoogleSub: r.oauthGoogleSub || undefined,
       oauthAppleSub: r.oauthAppleSub || undefined,
+      profileExtra: parseProfileExtra(r.profileExtraRaw),
     }
   }
 
@@ -160,6 +193,7 @@ export function createSqliteAdminDirectoryStore(dbPath) {
       hasPassword: Boolean(u.passwordHash),
       oauthGoogleLinked: Boolean(u.oauthGoogleSub),
       oauthAppleLinked: Boolean(u.oauthAppleSub),
+      ...(u.profileExtra && typeof u.profileExtra === 'object' ? { profileExtra: u.profileExtra } : {}),
     }
   }
 
@@ -237,6 +271,7 @@ export function createSqliteAdminDirectoryStore(dbPath) {
         const oauthGoogleSub = u.oauthGoogleSub != null ? String(u.oauthGoogleSub) : null
         const oauthAppleSub = u.oauthAppleSub != null ? String(u.oauthAppleSub) : null
         const createdAt = u.createdAt ? String(u.createdAt) : ts
+        const profileExtra = profileExtraToSql(u.profileExtra)
         upsertUser.run({
           id,
           email,
@@ -251,6 +286,7 @@ export function createSqliteAdminDirectoryStore(dbPath) {
           verificationToken,
           oauthGoogleSub,
           oauthAppleSub,
+          profileExtra,
           createdAt,
           updatedAt: ts,
         })
@@ -299,6 +335,7 @@ export function createSqliteAdminDirectoryStore(dbPath) {
         const oauthGoogleSub = u.oauthGoogleSub != null ? String(u.oauthGoogleSub) : null
         const oauthAppleSub = u.oauthAppleSub != null ? String(u.oauthAppleSub) : null
         const createdAt = u.createdAt ? String(u.createdAt) : ts
+        const profileExtra = profileExtraToSql(u.profileExtra)
         upsertUser.run({
           id,
           email,
@@ -313,6 +350,7 @@ export function createSqliteAdminDirectoryStore(dbPath) {
           verificationToken,
           oauthGoogleSub,
           oauthAppleSub,
+          profileExtra,
           createdAt,
           updatedAt: ts,
         })

@@ -5,7 +5,7 @@
   z-index: 95;
   left: 50%;
   bottom: 118px;
-  transform: translateX(-50%);
+  /* transform set inline (translate + user drag offset) */
   width: min(96vw, 840px);
   pointer-events: auto;
   contain: layout style;
@@ -32,12 +32,48 @@
 @keyframes si-map-tl-in {
   from {
     opacity: 0;
-    transform: translateX(-50%) translateY(12px);
   }
   to {
     opacity: 1;
-    transform: translateX(-50%) translateY(0);
   }
+}
+
+.si-map-analysis-timeline-drag {
+  align-self: stretch;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 4px 10px 2px;
+  margin: 0 -6px;
+  border-radius: 10px;
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+  color: rgba(248, 250, 252, 0.52);
+  text-shadow: 0 1px 14px rgba(0, 0, 0, 0.55);
+}
+
+.si-map-analysis-timeline-drag:hover {
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.si-map-analysis-timeline-drag .si-map-analysis-timeline-drag-icon {
+  font-size: 11px;
+  opacity: 0.65;
+  letter-spacing: 0;
+}
+
+.si-map-analysis-timeline-drag-label {
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+}
+
+.si-map-analysis-timeline--dragging .si-map-analysis-timeline-inner {
+  pointer-events: none;
+  opacity: 0.92;
 }
 
 .si-map-analysis-timeline-eyebrow {

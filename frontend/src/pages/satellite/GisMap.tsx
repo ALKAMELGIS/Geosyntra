@@ -19,6 +19,7 @@ import MapboxMap, { Layer, NavigationControl, Source } from 'react-map-gl/mapbox
 import 'mapbox-gl/dist/mapbox-gl.css'
 import MapView from '../../components/MapView'
 import type { LayerData, SymbologyClassMethod, SymbologyColorRamp, SymbologyConfig, SymbologyStyle } from './components/LayerManager'
+import { coerceSymbologyColorRamp, coerceSymbologyMethod, computeBreaks } from './symbologyHelpers'
 import { FieldVisibilityControl } from './components/FieldVisibilityControl'
 import { GeoExplorerGeminiInputRow } from './components/GeoExplorerGeminiInputRow'
 import { MapPopup } from './components/MapPopup'
@@ -3372,8 +3373,8 @@ export default function GisMap() {
       style,
       field,
       classes: clampInt(typeof cfg?.classes === 'number' ? cfg.classes : style === 'unique' ? 12 : 5, 2, 12),
-      method: (cfg?.method as SymbologyClassMethod) || 'jenks',
-      colorRamp: (cfg?.colorRamp as SymbologyColorRamp) || 'viridis',
+      method: coerceSymbologyMethod(cfg?.method),
+      colorRamp: coerceSymbologyColorRamp(cfg?.colorRamp),
       threshold: typeof cfg?.threshold === 'number' && Number.isFinite(cfg.threshold) ? cfg.threshold : Number.NaN,
     }
     if (!baseUseArcGisOnline) next.useArcGisOnline = false
@@ -3442,6 +3443,16 @@ export default function GisMap() {
         return ['#000004', '#3b0f70', '#8c2981', '#de4968', '#fe9f6d', '#fcfdbf']
       case 'turbo':
         return ['#30123b', '#3b4cc0', '#26a6d1', '#3de07e', '#f9e721', '#f20c0c']
+      case 'inferno':
+        return ['#000004', '#420a68', '#932667', '#dd513a', '#fca50a', '#fcffa4']
+      case 'cividis':
+        return ['#00224e', '#123570', '#3e4989', '#6788be', '#8fc8dc', '#eae29d']
+      case 'spectral':
+        return ['#5e4fa2', '#3288bd', '#66c2a5', '#fee08b', '#f46d43', '#9e0142']
+      case 'earth':
+        return ['#2c1158', '#4d2f89', '#7a5195', '#b3688f', '#e5988c', '#f6cdb0']
+      case 'gray':
+        return ['#f8fafc', '#cbd5e1', '#94a3b8', '#64748b', '#334155', '#0f172a']
       case 'viridis':
       default:
         return ['#440154', '#3b528b', '#21918c', '#5ec962', '#fde725']
@@ -3473,78 +3484,6 @@ export default function GisMap() {
     const a = sorted[base]
     const b = sorted[Math.min(sorted.length - 1, base + 1)]
     return lerp(a, b, rest)
-  }
-
-  const jenksBreaks = (data: number[], nClasses: number) => {
-    const sorted = [...data].filter(v => Number.isFinite(v)).sort((a, b) => a - b)
-    if (sorted.length === 0) return [0, 0]
-    const k = clampInt(nClasses, 2, 12)
-    const n = sorted.length
-    const mat1: number[][] = Array.from({ length: n + 1 }, () => Array(k + 1).fill(0))
-    const mat2: number[][] = Array.from({ length: n + 1 }, () => Array(k + 1).fill(0))
-    for (let i = 1; i <= k; i += 1) {
-      mat1[0][i] = 1
-      mat2[0][i] = 0
-      for (let j = 1; j <= n; j += 1) mat2[j][i] = Infinity
-    }
-    let v = 0
-    for (let l = 1; l <= n; l += 1) {
-      let s1 = 0
-      let s2 = 0
-      let w = 0
-      for (let m = 1; m <= l; m += 1) {
-        const i3 = l - m + 1
-        const val = sorted[i3 - 1]
-        s2 += val * val
-        s1 += val
-        w += 1
-        v = s2 - (s1 * s1) / w
-        const i4 = i3 - 1
-        if (i4 !== 0) {
-          for (let j = 2; j <= k; j += 1) {
-            if (mat2[l][j] >= v + mat2[i4][j - 1]) {
-              mat1[l][j] = i3
-              mat2[l][j] = v + mat2[i4][j - 1]
-            }
-          }
-        }
-      }
-      mat1[l][1] = 1
-      mat2[l][1] = v
-    }
-    const breaks: number[] = Array(k + 1).fill(0)
-    breaks[k] = sorted[n - 1]
-    breaks[0] = sorted[0]
-    let countK = k
-    let kIdx = n
-    while (countK > 1) {
-      const id = mat1[kIdx][countK] - 1
-      breaks[countK - 1] = sorted[id]
-      kIdx = mat1[kIdx][countK] - 1
-      countK -= 1
-    }
-    return breaks
-  }
-
-  const computeBreaks = (values: number[], classes: number, method: SymbologyClassMethod) => {
-    const cleaned = values.filter(v => Number.isFinite(v))
-    if (cleaned.length === 0) return [0, 0]
-    const k = clampInt(classes, 2, 12)
-    const sorted = [...cleaned].sort((a, b) => a - b)
-    const min = sorted[0]
-    const max = sorted[sorted.length - 1]
-    if (min === max) return Array.from({ length: k + 1 }, (_, i) => (i === 0 ? min : max))
-    if (method === 'equal_interval') {
-      const step = (max - min) / k
-      return Array.from({ length: k + 1 }, (_, i) => (i === k ? max : min + step * i))
-    }
-    if (method === 'quantile') {
-      const out: number[] = [min]
-      for (let i = 1; i < k; i += 1) out.push(quantileAt(sorted, i / k))
-      out.push(max)
-      return out
-    }
-    return jenksBreaks(sorted, k)
   }
 
   const getClassIndex = (value: number, breaks: number[]) => {
@@ -9355,6 +9294,11 @@ export default function GisMap() {
                                 <option value="plasma">Plasma</option>
                                 <option value="magma">Magma</option>
                                 <option value="turbo">Turbo</option>
+                                <option value="inferno">Inferno</option>
+                                <option value="cividis">Cividis</option>
+                                <option value="spectral">Spectral</option>
+                                <option value="earth">Earth</option>
+                                <option value="gray">Gray</option>
                               </select>
                               <i className="fa-solid fa-chevron-down" aria-hidden="true" />
                             </div>
@@ -9390,9 +9334,11 @@ export default function GisMap() {
                                 value={symbologyDialog.draft.method}
                                 onChange={(e) => updateSymbologyDraft({ method: e.target.value as SymbologyClassMethod })}
                               >
-                                <option value="jenks">Natural breaks</option>
+                                <option value="jenks">Natural breaks (Jenks)</option>
                                 <option value="quantile">Quantile</option>
                                 <option value="equal_interval">Equal interval</option>
+                                <option value="standard_deviation">Standard deviation</option>
+                                <option value="manual">Manual (equal interval)</option>
                               </select>
                               <i className="fa-solid fa-chevron-down" aria-hidden="true" />
                             </div>

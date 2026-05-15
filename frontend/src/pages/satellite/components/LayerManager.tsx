@@ -10,9 +10,26 @@ export type SymbologyStyle =
   | 'dot_density'
   | 'threshold_markers';
 
-export type SymbologyClassMethod = 'jenks' | 'quantile' | 'equal_interval';
+export type SymbologyClassMethod =
+  | 'jenks'
+  | 'quantile'
+  | 'equal_interval'
+  | 'standard_deviation'
+  /** Same numeric bins as equal interval today; interactive break editor is planned. */
+  | 'manual';
 
-export type SymbologyColorRamp = 'viridis' | 'blues' | 'greens' | 'plasma' | 'magma' | 'turbo';
+export type SymbologyColorRamp =
+  | 'viridis'
+  | 'blues'
+  | 'greens'
+  | 'plasma'
+  | 'magma'
+  | 'turbo'
+  | 'inferno'
+  | 'cividis'
+  | 'spectral'
+  | 'earth'
+  | 'gray';
 
 export interface SymbologyConfig {
   useArcGisOnline?: boolean;

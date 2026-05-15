@@ -839,7 +839,9 @@ main.content > .si-page {
   right: auto !important;
 }
 
-/* Zoom / compass: bottom-left — navigation first, then Mapbox logo, then attribution text. */
+/* Zoom / compass: bottom-left — stack is flex column: lower `order` = higher on screen.
+ * Mapbox inserts the wordmark before the nav control in the DOM; bump logo to last so
+ * +/−/compass stay above “mapbox” (attrib chip sits between, like default Mapbox). */
 .si-map-container .mapboxgl-ctrl-bottom-left {
   left: max(24px, env(safe-area-inset-left, 0px)) !important;
   right: auto !important;
@@ -851,27 +853,30 @@ main.content > .si-page {
   gap: 6px;
 }
 
-/* Bundled +/−/compass (react-map-gl NavigationControl) — order 1 so it sits above logo + attribution. */
-.si-map-container .mapboxgl-ctrl-bottom-left .mapboxgl-ctrl-group {
+/* Navigation bundle — top of stack */
+.si-map-container .mapboxgl-ctrl-bottom-left > .mapboxgl-ctrl.mapboxgl-ctrl-group,
+.si-map-container .mapboxgl-ctrl-bottom-left > .mapboxgl-ctrl-group {
   order: 1;
   border-radius: 10px;
   overflow: hidden;
-  background: rgba(255, 255, 255, 0.92);
-  box-shadow:
-    0 0 0 1px rgba(15, 23, 42, 0.08),
-    0 4px 14px rgba(2, 6, 23, 0.14);
-  backdrop-filter: blur(8px);
+  background: #ffffff;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.1);
+  backdrop-filter: none;
 }
 
-.si-map-container .mapboxgl-ctrl-bottom-left .mapboxgl-ctrl-logo {
-  order: 2;
+/* Attribution (compact “i” / text) — between nav and wordmark */
+.si-map-container .mapboxgl-ctrl-bottom-left > .mapboxgl-ctrl.mapboxgl-ctrl-attrib,
+.si-map-container .mapboxgl-ctrl-bottom-left > .mapboxgl-ctrl-attrib {
+  order: 5;
+  margin: 0;
+}
+
+/* Mapbox wordmark — last (closest to map bottom), matches default Mapbox feel */
+.si-map-container .mapboxgl-ctrl-bottom-left > a.mapboxgl-ctrl-logo,
+.si-map-container .mapboxgl-ctrl-bottom-left > .mapboxgl-ctrl-logo {
+  order: 10;
   margin: 0;
   filter: drop-shadow(0 1px 2px rgba(2, 6, 23, 0.55));
-}
-
-.si-map-container .mapboxgl-ctrl-bottom-left .mapboxgl-ctrl-attrib {
-  order: 3;
-  margin: 0;
 }
 
 .si-map-container .mapboxgl-ctrl-bottom-left .mapboxgl-ctrl-group > button {
@@ -965,7 +970,7 @@ main.content > .si-page {
     0 0 32px rgba(34, 197, 94, 0.08);
   backdrop-filter: blur(12px) saturate(1.2);
   color: #e2e8f0;
-  pointer-events: none;
+  pointer-events: auto;
 }
 
 .si-wms-index-class-legend__head {
@@ -974,6 +979,41 @@ main.content > .si-page {
   justify-content: space-between;
   gap: 10px;
   margin-bottom: 6px;
+}
+
+.si-wms-index-class-legend__head--draggable {
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+  margin: -4px -6px 2px;
+  padding: 4px 6px;
+  border-radius: 10px;
+}
+
+.si-wms-index-class-legend__head--draggable:active {
+  cursor: grabbing;
+}
+
+.si-wms-index-class-legend__drag-icon {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  color: rgba(148, 163, 184, 0.85);
+  font-size: 11px;
+}
+
+.si-wms-index-class-legend--dragging .si-wms-index-class-legend__live,
+.si-wms-index-class-legend--dragging .si-wms-index-class-legend__hint,
+.si-wms-index-class-legend--dragging .si-wms-index-class-legend__body {
+  pointer-events: none;
+  opacity: 0.94;
+}
+
+.si-wms-index-class-legend__head--draggable .si-wms-index-class-legend__title {
+  flex: 1;
+  min-width: 0;
 }
 
 .si-wms-index-class-legend__title {
@@ -3445,6 +3485,54 @@ html[data-theme='light'] .si-env-layer-options-menu__item > i {
   overflow: visible;
 }
 
+.si-env-layer-order-pair {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  flex-shrink: 0;
+  margin-inline-end: 2px;
+}
+
+.si-env-layer-order-btn {
+  appearance: none;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(0, 0, 0, 0.28);
+  color: rgba(248, 250, 252, 0.92);
+  font-size: 8px;
+  font-weight: 750;
+  letter-spacing: 0.02em;
+  line-height: 1.15;
+  padding: 3px 5px;
+  min-width: 0;
+  min-height: 0;
+  height: auto;
+  border-radius: 5px;
+  cursor: pointer;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  transition:
+    background 0.14s ease,
+    border-color 0.14s ease,
+    color 0.14s ease,
+    opacity 0.14s ease;
+}
+
+.si-env-layer-order-btn:hover:not(:disabled) {
+  background: rgba(0, 0, 0, 0.44);
+  border-color: rgba(255, 255, 255, 0.16);
+  color: #ffffff;
+}
+
+.si-env-layer-order-btn:focus-visible {
+  outline: none;
+  border-color: rgba(147, 197, 253, 0.45);
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.22);
+}
+
+.si-env-layer-order-btn:disabled {
+  opacity: 0.36;
+  cursor: not-allowed;
+}
+
 .si-env-layer-action-btn {
   width: 20px;
   height: 20px;
@@ -3511,7 +3599,7 @@ html[data-theme='light'] .si-env-layer-options-menu__item > i {
   position: fixed;
   inset: 0;
   z-index: 12500;
-  background: rgba(2, 6, 23, 0.52);
+  background: color-mix(in srgb, var(--ds-color-bg) 58%, transparent);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -3523,9 +3611,12 @@ html[data-theme='light'] .si-env-layer-options-menu__item > i {
   max-height: min(82vh, 760px);
   overflow: hidden;
   border-radius: 16px;
-  border: 1px solid rgba(148, 163, 184, 0.35);
-  background: #f8fafc;
-  box-shadow: 0 24px 70px rgba(2, 6, 23, 0.42);
+  border: 1px solid var(--ds-glass-border);
+  background: var(--ds-glass-bg);
+  backdrop-filter: blur(var(--ds-glass-blur));
+  -webkit-backdrop-filter: blur(var(--ds-glass-blur));
+  box-shadow: var(--ds-shadow-lg);
+  color: var(--ds-color-text);
 }
 
 .si-layer-action-modal--gis-table {
@@ -3555,20 +3646,29 @@ html[data-theme='light'] .si-env-layer-options-menu__item > i {
   height: 10px;
   cursor: ns-resize;
   touch-action: none;
-  background: linear-gradient(to bottom, rgba(226, 232, 240, 0.95), rgba(148, 163, 184, 0.45));
-  border-top: 1px solid rgba(148, 163, 184, 0.35);
+  background: linear-gradient(
+    to bottom,
+    color-mix(in srgb, var(--ds-color-border-strong) 55%, transparent),
+    color-mix(in srgb, var(--ds-color-surface) 40%, transparent)
+  );
+  border-top: 1px solid var(--ds-color-border);
 }
 
 .si-layer-action-modal-resize:hover {
-  background: linear-gradient(to bottom, rgba(56, 189, 248, 0.35), rgba(34, 197, 94, 0.28));
+  background: linear-gradient(
+    to bottom,
+    color-mix(in srgb, var(--ds-color-accent) 28%, transparent),
+    color-mix(in srgb, var(--ds-color-primary-soft) 65%, transparent)
+  );
 }
 
 .si-layer-action-modal-table-title {
   width: 34px;
   height: 34px;
   border-radius: 10px;
-  background: rgba(34, 197, 94, 0.16);
-  color: #15803d;
+  background: color-mix(in srgb, var(--ds-color-accent) 18%, transparent);
+  color: var(--ds-color-text);
+  border: 1px solid var(--ds-color-border);
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -3578,13 +3678,13 @@ html[data-theme='light'] .si-env-layer-options-menu__item > i {
 .si-table-modal-subheader {
   padding-bottom: 8px;
   margin-bottom: 4px;
-  border-bottom: 1px solid rgba(148, 163, 184, 0.22);
+  border-bottom: 1px solid var(--ds-color-border);
 }
 
 .si-table-modal-meta {
   font-size: 12px;
   font-weight: 700;
-  color: #475569;
+  color: var(--ds-color-text-muted);
 }
 
 .si-layer-action-modal--gis-table .si-layer-action-table-wrap {
@@ -3595,7 +3695,7 @@ html[data-theme='light'] .si-env-layer-options-menu__item > i {
 
 .si-layer-action-modal-header {
   padding: 12px 14px;
-  border-bottom: 1px solid rgba(148, 163, 184, 0.26);
+  border-bottom: 1px solid var(--ds-color-border);
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -3605,7 +3705,7 @@ html[data-theme='light'] .si-env-layer-options-menu__item > i {
 .si-layer-action-modal-header h3 {
   margin: 0;
   font-size: 15px;
-  color: #0f172a;
+  color: var(--ds-color-text);
   display: inline-flex;
   align-items: center;
   gap: 10px;
@@ -3615,13 +3715,19 @@ html[data-theme='light'] .si-env-layer-options-menu__item > i {
   width: 28px;
   height: 28px;
   border-radius: 8px;
-  border: 1px solid rgba(148, 163, 184, 0.4);
-  background: #ffffff;
-  color: #334155;
+  border: 1px solid var(--ds-color-border);
+  background: var(--ds-color-surface-2);
+  color: var(--ds-color-text);
+}
+
+.si-layer-action-close:hover {
+  background: var(--ds-color-primary-soft);
+  border-color: var(--ds-color-border-strong);
 }
 
 .si-layer-action-modal-body {
   padding: 12px;
+  color: var(--ds-color-text);
 }
 
 .si-layer-action-table-layout {
@@ -3662,9 +3768,11 @@ html[data-theme='light'] .si-env-layer-options-menu__item > i {
 }
 
 .si-layer-action-table-tools {
-  border: 1px solid rgba(148, 163, 184, 0.3);
+  border: 1px solid var(--ds-color-border);
   border-radius: 10px;
-  background: #f8fafc;
+  background: color-mix(in srgb, var(--ds-color-surface) 72%, transparent);
+  backdrop-filter: blur(calc(var(--ds-glass-blur) * 0.85));
+  -webkit-backdrop-filter: blur(calc(var(--ds-glass-blur) * 0.85));
   padding: 8px;
   display: grid;
   align-content: start;
@@ -3672,10 +3780,10 @@ html[data-theme='light'] .si-env-layer-options-menu__item > i {
 }
 
 .si-layer-action-table-tools button {
-  border: 1px solid rgba(203, 213, 225, 0.9);
+  border: 1px solid var(--ds-color-border);
   border-radius: 8px;
-  background: #ffffff;
-  color: #334155;
+  background: var(--ds-color-surface-2);
+  color: var(--ds-color-text);
   min-height: 34px;
   font-size: 12px;
   display: inline-flex;
@@ -3683,6 +3791,11 @@ html[data-theme='light'] .si-env-layer-options-menu__item > i {
   justify-content: flex-start;
   gap: 8px;
   padding: 0 10px;
+}
+
+.si-layer-action-table-tools button:hover:not(:disabled) {
+  background: var(--ds-color-primary-soft);
+  border-color: var(--ds-color-border-strong);
 }
 
 .si-layer-action-table-main {
@@ -3700,9 +3813,11 @@ html[data-theme='light'] .si-env-layer-options-menu__item > i {
   max-height: 55vh;
   overflow-x: auto;
   overflow-y: auto;
-  border: 1px solid rgba(148, 163, 184, 0.32);
+  border: 1px solid var(--ds-color-border);
   border-radius: 10px;
-  background: #ffffff;
+  background: color-mix(in srgb, var(--ds-color-surface) 80%, transparent);
+  backdrop-filter: blur(calc(var(--ds-glass-blur) * 0.75));
+  -webkit-backdrop-filter: blur(calc(var(--ds-glass-blur) * 0.75));
 }
 
 .si-layer-action-table {
@@ -3710,20 +3825,26 @@ html[data-theme='light'] .si-env-layer-options-menu__item > i {
   min-width: 100%;
   border-collapse: collapse;
   font-size: 12px;
+  color: var(--ds-color-text);
 }
 
 .si-layer-action-table th,
 .si-layer-action-table td {
   padding: 8px 10px;
-  border-bottom: 1px solid rgba(226, 232, 240, 0.95);
+  border-bottom: 1px solid var(--ds-color-border);
   text-align: left;
   white-space: nowrap;
+  color: var(--ds-color-text);
 }
 
 .si-layer-action-table th {
-  background: #f1f5f9;
+  background: color-mix(in srgb, var(--ds-color-surface-2) 88%, transparent);
   font-weight: 700;
-  color: #334155;
+  color: var(--ds-color-text);
+}
+
+.si-layer-action-table tbody tr:hover {
+  background: var(--ds-color-primary-soft);
 }
 
 .si-layer-action-form {
@@ -3942,9 +4063,9 @@ html[data-theme='light'] .si-env-layer-options-menu__item > i {
 
 .si-layer-action-footer-btn {
   border-radius: 10px;
-  border: 1px solid rgba(148, 163, 184, 0.45);
-  background: #ffffff;
-  color: #334155;
+  border: 1px solid var(--ds-color-border);
+  background: var(--ds-color-surface-2);
+  color: var(--ds-color-text);
   min-height: 36px;
   padding: 0 14px;
   font-size: 13px;
@@ -3964,7 +4085,7 @@ html[data-theme='light'] .si-env-layer-options-menu__item > i {
 
 .si-layer-action-field span {
   font-size: 12px;
-  color: #475569;
+  color: var(--ds-color-text-muted);
   font-weight: 700;
 }
 
@@ -3980,7 +4101,7 @@ html[data-theme='light'] .si-env-layer-options-menu__item > i {
 .si-layer-action-empty {
   margin: 0;
   font-size: 12px;
-  color: #64748b;
+  color: var(--ds-color-text-muted);
 }
 
 .si-layer-action-legend {
@@ -4008,6 +4129,314 @@ html[data-theme='light'] .si-env-layer-options-menu__item > i {
   height: 28px;
   border-radius: 8px;
   border: 1px solid rgba(15, 23, 42, 0.16);
+}
+
+/* ---------------------------------------------------------------------------
+ * Symbology studio — ArcGIS Pro–inspired dark glass (Satellite Intelligence)
+ * -------------------------------------------------------------------------- */
+.si-layer-action-modal-overlay--symbology-studio {
+  background: rgba(0, 0, 0, 0.62) !important;
+  backdrop-filter: blur(18px) saturate(140%);
+  -webkit-backdrop-filter: blur(18px) saturate(140%);
+  padding: clamp(12px, 3vw, 28px);
+}
+
+.si-layer-action-modal--symbology-studio {
+  width: min(920px, 100%) !important;
+  max-height: min(88vh, 900px) !important;
+  border-radius: 18px !important;
+  border: 1px solid rgba(255, 255, 255, 0.12) !important;
+  background:
+    linear-gradient(165deg, rgba(18, 18, 24, 0.92) 0%, rgba(8, 8, 12, 0.96) 55%, rgba(14, 14, 20, 0.94) 100%) !important;
+  box-shadow:
+    0 32px 90px rgba(0, 0, 0, 0.65),
+    0 0 0 1px rgba(255, 255, 255, 0.04),
+    inset 0 1px 0 rgba(255, 255, 255, 0.07) !important;
+  color: rgba(244, 244, 248, 0.95);
+  overflow: hidden;
+}
+
+.si-layer-action-modal--symbology-studio .gis-modal-header {
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08) !important;
+  background: linear-gradient(118deg, rgba(28, 28, 36, 0.55) 0%, rgba(12, 12, 16, 0.35) 100%) !important;
+}
+
+.si-layer-action-modal--symbology-studio .gis-modal-title {
+  color: rgba(248, 248, 252, 0.98) !important;
+  letter-spacing: 0.01em;
+}
+
+.si-layer-action-modal--symbology-studio .gis-sidebar-close {
+  border: 1px solid rgba(255, 255, 255, 0.14) !important;
+  background: rgba(255, 255, 255, 0.05) !important;
+  color: rgba(248, 250, 252, 0.92) !important;
+}
+
+.si-layer-action-modal--symbology-studio .gis-sidebar-close:hover {
+  background: rgba(255, 255, 255, 0.12) !important;
+  border-color: rgba(255, 255, 255, 0.28) !important;
+}
+
+.si-symbology-studio-body {
+  padding: 14px 16px 18px !important;
+  overflow: auto;
+  scrollbar-gutter: stable;
+}
+
+.si-symbology-studio .gis-style-hero {
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 14px;
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.05), rgba(255, 255, 255, 0.02));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
+}
+
+.si-symbology-studio .gis-style-subtitle {
+  color: rgba(212, 212, 220, 0.88) !important;
+}
+
+.si-symbology-studio .gis-style-check span {
+  color: rgba(244, 244, 248, 0.94);
+}
+
+.si-symbology-studio .gis-style-toolbar {
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 14px;
+  background: rgba(0, 0, 0, 0.28);
+  padding: 8px;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.si-symbology-studio .gis-style-toolbtn {
+  border-radius: 999px !important;
+  border: 1px solid rgba(255, 255, 255, 0.12) !important;
+  background: rgba(255, 255, 255, 0.05) !important;
+  color: rgba(244, 244, 248, 0.94) !important;
+}
+
+.si-symbology-studio .gis-style-toolbtn:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.12) !important;
+  border-color: rgba(255, 255, 255, 0.28) !important;
+}
+
+.si-symbology-studio .gis-style-toolbtn:disabled {
+  opacity: 0.45 !important;
+}
+
+.si-symbology-raster-banner {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  padding: 12px 14px;
+  margin-bottom: 12px;
+  border-radius: 14px;
+  border: 1px solid rgba(251, 191, 36, 0.35);
+  background: linear-gradient(120deg, rgba(180, 83, 9, 0.22), rgba(12, 10, 8, 0.55));
+  color: rgba(254, 243, 199, 0.95);
+}
+
+.si-symbology-raster-banner i {
+  margin-top: 2px;
+  opacity: 0.95;
+}
+
+.si-symbology-raster-banner strong {
+  display: block;
+  font-size: 13px;
+  margin-bottom: 4px;
+}
+
+.si-symbology-raster-banner span {
+  font-size: 12px;
+  line-height: 1.45;
+  color: rgba(254, 229, 180, 0.9);
+}
+
+.si-symbology-vv-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin: 10px 0 14px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px dashed rgba(255, 255, 255, 0.16);
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.si-symbology-vv-pill {
+  font-size: 11px;
+  font-weight: 750;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  padding: 5px 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: rgba(226, 232, 240, 0.9);
+  background: rgba(15, 23, 42, 0.45);
+}
+
+.si-symbology-vv-pill--accent {
+  border-color: rgba(125, 211, 252, 0.45);
+  background: rgba(14, 116, 144, 0.28);
+  color: #e0f2fe;
+}
+
+.si-symbology-catalog-hint {
+  flex: 1 1 220px;
+  min-width: 0;
+  font-size: 11px;
+  line-height: 1.45;
+  color: rgba(186, 198, 214, 0.78);
+}
+
+.si-symbology-catalog-hint--tight {
+  margin-top: 8px;
+  flex: unset;
+  width: 100%;
+}
+
+.si-symbology-method-hint {
+  margin-top: 8px;
+  font-size: 11px;
+  line-height: 1.45;
+  color: rgba(186, 198, 214, 0.82);
+}
+
+.si-symbology-studio .gis-style-info {
+  border-color: rgba(255, 255, 255, 0.12) !important;
+  background: rgba(255, 255, 255, 0.04) !important;
+  color: rgba(226, 232, 240, 0.9) !important;
+}
+
+.si-symbology-studio .gis-style-card {
+  border: 1px solid rgba(255, 255, 255, 0.1) !important;
+  background: linear-gradient(180deg, rgba(22, 22, 30, 0.72), rgba(10, 10, 14, 0.78)) !important;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.05),
+    0 14px 40px rgba(0, 0, 0, 0.35) !important;
+  backdrop-filter: blur(16px) saturate(140%);
+  -webkit-backdrop-filter: blur(16px) saturate(140%);
+}
+
+.si-symbology-studio .gis-style-card-legend {
+  border-color: rgba(255, 255, 255, 0.1) !important;
+}
+
+.si-symbology-studio .gis-style-label {
+  color: rgba(203, 213, 225, 0.88) !important;
+}
+
+.si-symbology-studio .gis-style-readonly {
+  color: rgba(248, 250, 252, 0.94) !important;
+  border-color: rgba(255, 255, 255, 0.1) !important;
+  background: rgba(0, 0, 0, 0.35) !important;
+}
+
+.si-symbology-studio .gis-style-select,
+.si-symbology-studio .gis-style-input {
+  border-color: rgba(255, 255, 255, 0.14) !important;
+  background: rgba(0, 0, 0, 0.35) !important;
+  color: rgba(248, 250, 252, 0.96) !important;
+}
+
+.si-symbology-studio .gis-style-selectwrap > i {
+  color: rgba(226, 232, 240, 0.75) !important;
+}
+
+.si-symbology-studio .gis-style-acc-trigger {
+  border: 1px solid rgba(255, 255, 255, 0.1) !important;
+  background: rgba(255, 255, 255, 0.04) !important;
+  color: rgba(244, 244, 248, 0.95) !important;
+}
+
+.si-symbology-studio .gis-style-hint {
+  color: rgba(186, 198, 214, 0.78) !important;
+}
+
+.si-symbology-studio .gis-style-slider-stack input[type='range'] {
+  accent-color: #7dd3fc;
+}
+
+.si-symbology-studio .gis-style-legend-text {
+  color: rgba(241, 245, 249, 0.92) !important;
+}
+
+.si-symbology-studio .gis-style-footer {
+  border-top: 1px solid rgba(255, 255, 255, 0.08) !important;
+  background: linear-gradient(180deg, rgba(12, 12, 16, 0.2), rgba(8, 8, 12, 0.55)) !important;
+  padding-top: 14px !important;
+  margin-top: 14px !important;
+}
+
+.si-symbology-studio .gis-btn {
+  border: 1px solid rgba(255, 255, 255, 0.16) !important;
+  background: rgba(255, 255, 255, 0.06) !important;
+  color: rgba(248, 250, 252, 0.95) !important;
+  border-radius: 999px !important;
+}
+
+.si-symbology-studio .gis-btn:hover {
+  background: rgba(255, 255, 255, 0.12) !important;
+}
+
+.si-symbology-studio .gis-btn-primary {
+  border: 1px solid rgba(125, 211, 252, 0.45) !important;
+  background: linear-gradient(180deg, rgba(224, 242, 254, 0.95), rgba(125, 211, 252, 0.55)) !important;
+  color: #0a0a10 !important;
+  font-weight: 750 !important;
+}
+
+.si-symbology-studio .gis-btn-primary:hover {
+  filter: brightness(1.04);
+}
+
+.si-symbology-preset-search-wrap {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 10px;
+  padding: 8px 10px;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(0, 0, 0, 0.28);
+  color: rgba(226, 232, 240, 0.75);
+}
+
+.si-symbology-preset-search {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  outline: none;
+  background: transparent;
+  color: rgba(248, 250, 252, 0.96);
+  font-size: 13px;
+}
+
+.si-symbology-preset-search::placeholder {
+  color: rgba(148, 163, 184, 0.75);
+}
+
+.si-symbology-preset-empty {
+  margin: 4px 0 0;
+  font-size: 12px;
+  color: rgba(186, 198, 214, 0.78);
+}
+
+.si-symbology-studio .gis-style-preset-chip {
+  border-color: rgba(255, 255, 255, 0.14) !important;
+  background: rgba(255, 255, 255, 0.05) !important;
+  color: rgba(248, 250, 252, 0.94) !important;
+}
+
+.si-symbology-studio .gis-style-preset-chip:hover {
+  border-color: rgba(125, 211, 252, 0.45) !important;
+  background: rgba(14, 116, 144, 0.25) !important;
+}
+
+.si-symbology-studio .gis-style-panel-title {
+  color: rgba(248, 250, 252, 0.96) !important;
+  margin-bottom: 8px;
 }
 
 @media (max-width: 900px) {
@@ -11069,6 +11498,32 @@ html[data-theme='light'] .si-sat-ctx-rail-btn__badge {
   transform: translateY(-1px);
 }
 
+.si-env-panel.si-env-panel--satellite-toolbox.si-env-panel--single-surface .si-env-layer-order-btn,
+.si-sat-ctx-panel-body .si-map-toolbox-layers-card .si-env-layer-order-btn {
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(0, 0, 0, 0.22);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+
+.si-env-panel.si-env-panel--satellite-toolbox.si-env-panel--single-surface .si-env-layer-order-btn:hover:not(:disabled),
+.si-sat-ctx-panel-body .si-map-toolbox-layers-card .si-env-layer-order-btn:hover:not(:disabled) {
+  background: rgba(0, 0, 0, 0.38);
+  transform: none;
+}
+
+html[data-theme='light'] .si-env-panel.si-env-panel--satellite-toolbox.si-env-panel--single-surface .si-env-layer-order-btn,
+html[data-theme='light'] .si-sat-ctx-panel-body .si-map-toolbox-layers-card .si-env-layer-order-btn {
+  border-color: rgba(15, 23, 42, 0.12);
+  background: rgba(15, 23, 42, 0.07);
+  color: #0f172a;
+}
+
+html[data-theme='light'] .si-env-panel.si-env-panel--satellite-toolbox.si-env-panel--single-surface .si-env-layer-order-btn:hover:not(:disabled),
+html[data-theme='light'] .si-sat-ctx-panel-body .si-map-toolbox-layers-card .si-env-layer-order-btn:hover:not(:disabled) {
+  background: rgba(15, 23, 42, 0.12);
+  color: #020617;
+}
+
 .si-env-panel.si-env-panel--satellite-toolbox.si-env-panel--single-surface .si-env-layer-list {
   border: none;
   background: rgba(148, 163, 184, 0.04);
@@ -12007,6 +12462,112 @@ html[data-theme='light'] .si-env-panel--satellite-toolbox.si-env-panel--single-s
   background: linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(218, 218, 225, 0.88)) !important;
   border: 1px solid rgba(0, 0, 0, 0.45) !important;
   color: #0a0a10 !important;
+}
+
+.si-add-layer-gis-overlay .si-smart-url-panel {
+  display: grid;
+  gap: 12px;
+  padding: 14px;
+  border-radius: 14px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: linear-gradient(165deg, rgba(22, 22, 28, 0.55), rgba(10, 10, 14, 0.65));
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.05),
+    0 12px 36px rgba(0, 0, 0, 0.35);
+  backdrop-filter: blur(18px) saturate(150%);
+  -webkit-backdrop-filter: blur(18px) saturate(150%);
+  min-width: 0;
+  transition:
+    border-color 0.2s ease,
+    box-shadow 0.2s ease;
+}
+
+.si-add-layer-gis-overlay .si-smart-url-panel--drop {
+  border-color: rgba(255, 255, 255, 0.38) !important;
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.12),
+    0 0 0 1px rgba(255, 255, 255, 0.1),
+    0 18px 48px rgba(0, 0, 0, 0.45) !important;
+}
+
+.si-add-layer-gis-overlay .si-smart-url-detect-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+
+.si-add-layer-gis-overlay .si-smart-url-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 750;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: rgba(255, 255, 255, 0.06);
+  color: rgba(244, 244, 248, 0.96);
+  white-space: nowrap;
+}
+
+.si-add-layer-gis-overlay .si-smart-url-badge i {
+  font-size: 13px;
+  opacity: 0.9;
+}
+
+.si-add-layer-gis-overlay .si-smart-url-badge--arcgis {
+  border-color: rgba(125, 211, 252, 0.35);
+  background: rgba(14, 116, 144, 0.22);
+}
+
+.si-add-layer-gis-overlay .si-smart-url-badge--raster {
+  border-color: rgba(251, 191, 36, 0.35);
+  background: rgba(180, 83, 9, 0.18);
+}
+
+.si-add-layer-gis-overlay .si-smart-url-badge--vector {
+  border-color: rgba(167, 139, 250, 0.35);
+  background: rgba(109, 40, 217, 0.16);
+}
+
+.si-add-layer-gis-overlay .si-smart-url-preview {
+  flex: 1 1 220px;
+  min-width: 0;
+  font-size: 12px;
+  line-height: 1.45;
+  color: rgba(212, 212, 220, 0.78);
+}
+
+@media (max-width: 560px) {
+  .si-add-layer-gis-overlay .si-smart-url-detect-row {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+}
+
+.si-add-layer-gis-overlay .gis-modal-compact .gis-discover-panel {
+  background: linear-gradient(180deg, rgba(18, 18, 22, 0.72), rgba(10, 10, 14, 0.88)) !important;
+  border: 1px solid rgba(255, 255, 255, 0.1) !important;
+  backdrop-filter: blur(16px) saturate(140%);
+  -webkit-backdrop-filter: blur(16px) saturate(140%);
+}
+
+.si-add-layer-gis-overlay .gis-modal-compact .gis-discovered-row {
+  border: 1px solid rgba(255, 255, 255, 0.12) !important;
+  background: rgba(255, 255, 255, 0.05) !important;
+}
+
+.si-add-layer-gis-overlay .gis-modal-compact .gis-discovered-name {
+  color: rgba(244, 244, 248, 0.96) !important;
+}
+
+.si-add-layer-gis-overlay .gis-discover-meta {
+  color: rgba(244, 244, 248, 0.92) !important;
+  background: rgba(255, 255, 255, 0.08) !important;
+  border-color: rgba(255, 255, 255, 0.14) !important;
 }
 
 /* Dropzone — was a violet dashed box. */
