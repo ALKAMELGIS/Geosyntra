@@ -227,12 +227,12 @@ function resolveWeekIndex(weekly: SiGeoAiWeeklyLite[], selectedIso: string): num
 
 const MAX_GRID_CELLS = 9000;
 
-/** Integer counts — avoids Excel showing 0 as 0.00 under a two-decimal column style. */
+/** Integer counts (whole pixels). */
 const XLSX_FMT_INT = '0'
-/** Fractional % of AOI (0–100); many optional decimals so tiny shares are not masked. */
-const XLSX_FMT_SHARE = '0.############################'
-/** Spectral / index values in roughly −1…1 (or LST °C): full double precision in Excel (~15 digits). */
-const XLSX_FMT_SPECTRAL = '0.############################'
+/** % of AOI (0–100 as a plain number, not Excel’s built-in % type) — long fraction so tiny shares are visible. */
+const XLSX_FMT_SHARE = '0.00000000000000'
+/** Spectral / index (−1…1, LST °C, etc.): long fixed fraction; avoids Excel “General” rounding tiny values in display. */
+const XLSX_FMT_SPECTRAL = '0.00000000000000'
 
 function applyNumberFormatsToDataRows(
   ws: XLSX.WorkSheet,
@@ -522,17 +522,17 @@ export function buildGeoAiIndexAnalyticalWorkbook(opts: {
       return classifyValue(v, primaryLegend).id === c.id;
     });
     const n = vals.length;
-    const pct = (100 * n) / total;
+    const pct = total > 0 ? (100 * n) / total : 0;
     const mnc = vals.length ? vals.reduce((a, b) => a + b, 0) / vals.length : NaN;
     classStats.push([c.id, c.label, n, pct, Number.isFinite(mnc) ? mnc : '']);
   }
-  appendSheetWithColWidths(wb, classStats, 'Class_Statistics', [12, 52, 14, 22, 28], ws =>
+  appendSheetWithColWidths(wb, classStats, 'Class_Statistics', [14, 54, 18, 26, 32], ws =>
     applyNumberFormatsToDataRows(ws, 1, [
       { c: 0, z: XLSX_FMT_INT },
       { c: 2, z: XLSX_FMT_INT },
       { c: 3, z: XLSX_FMT_SHARE },
       { c: 4, z: XLSX_FMT_SPECTRAL },
-    ]),
+    ])
   )
 
   return wb;
