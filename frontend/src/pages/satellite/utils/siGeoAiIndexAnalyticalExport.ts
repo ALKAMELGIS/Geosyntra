@@ -227,10 +227,104 @@ function resolveWeekIndex(weekly: SiGeoAiWeeklyLite[], selectedIso: string): num
 
 const MAX_GRID_CELLS = 9000;
 
+/** Integer counts — avoids Excel showing 0 as 0.00 under a two-decimal column style. */
+const XLSX_FMT_INT = '0'
+/** Fractional % of AOI (0–100); many optional decimals so tiny shares are not masked. */
+const XLSX_FMT_SHARE = '0.############################'
+/** Spectral / index values in roughly −1…1 (or LST °C): full double precision in Excel (~15 digits). */
+const XLSX_FMT_SPECTRAL = '0.############################'
+
+function applyNumberFormatsToDataRows(
+  ws: XLSX.WorkSheet,
+  headerRowCount: number,
+  specs: Array<{ c: number; z: string }>,
+) {
+  const ref = ws['!ref']
+  if (!ref) return
+  const range = XLSX.utils.decode_range(ref)
+  for (let r = headerRowCount; r <= range.e.r; r++) {
+    for (const { c, z } of specs) {
+      const addr = XLSX.utils.encode_cell({ r, c })
+      const cell = ws[addr] as XLSX.CellObject | undefined
+      if (cell && cell.t === 'n' && typeof cell.v === 'number' && Number.isFinite(cell.v)) {
+        cell.z = z
+      }
+    }
+  }
+}
+
+/** Spectral columns from `startCol` through last column, for each data row under the header. */
+function applySpectralFormatsFromColumn(ws: XLSX.WorkSheet, headerRowCount: number, startCol: number) {
+  const ref = ws['!ref']
+  if (!ref) return
+  const range = XLSX.utils.decode_range(ref)
+  const specs: Array<{ c: number; z: string }> = []
+  for (let c = startCol; c <= range.e.c; c++) {
+    specs.push({ c, z: XLSX_FMT_SPECTRAL })
+  }
+  applyNumberFormatsToDataRows(ws, headerRowCount, specs)
+}
+
+function formatSummaryAoiSheet(ws: XLSX.WorkSheet) {
+  const ref = ws['!ref']
+  if (!ref) return
+  const range = XLSX.utils.decode_range(ref)
+  for (let r = 0; r <= range.e.r; r++) {
+    const a = ws[XLSX.utils.encode_cell({ r, c: 0 })] as XLSX.CellObject | undefined
+    if (a?.v === 'Class distribution (primary index)') {
+      for (let rr = r + 1; rr <= range.e.r; rr++) {
+        applyNumberFormatsToDataRows(ws, rr, [
+          { c: 1, z: XLSX_FMT_INT },
+          { c: 3, z: XLSX_FMT_INT },
+          { c: 4, z: XLSX_FMT_SPECTRAL },
+        ])
+      }
+      break
+    }
+  }
+  for (let r = 0; r <= range.e.r; r++) {
+    const metric = ws[XLSX.utils.encode_cell({ r, c: 1 })] as XLSX.CellObject | undefined
+    const val = ws[XLSX.utils.encode_cell({ r, c: 2 })] as XLSX.CellObject | undefined
+    const m = metric?.v
+    if (
+      (m === 'min' || m === 'max' || m === 'mean' || m === 'std_dev') &&
+      val &&
+      val.t === 'n' &&
+      typeof val.v === 'number' &&
+      Number.isFinite(val.v)
+    ) {
+      val.z = XLSX_FMT_SPECTRAL
+    }
+  }
+  const scalarPairs: Array<[label: string, col: number]> = [
+    ['AOI area (approx, m²)', 1],
+    ['Approx. mean pixel footprint (m²)', 1],
+    ['Sampled interior pixels', 1],
+  ]
+  for (const [label, col] of scalarPairs) {
+    for (let r = 0; r <= range.e.r; r++) {
+      const lab = ws[XLSX.utils.encode_cell({ r, c: 0 })] as XLSX.CellObject | undefined
+      if (lab?.v !== label) continue
+      const vcell = ws[XLSX.utils.encode_cell({ r, c: col })] as XLSX.CellObject | undefined
+      if (vcell && vcell.t === 'n' && typeof vcell.v === 'number' && Number.isFinite(vcell.v)) {
+        vcell.z = XLSX_FMT_SPECTRAL
+      }
+      break
+    }
+  }
+}
+
 /** Excel preserves ~15 significant digits for numbers; avoid toFixed / Math.round on spectral stats. */
-function appendSheetWithColWidths(wb: XLSX.WorkBook, rows: (string | number)[][], sheetName: string, colWidths: number[]) {
+function appendSheetWithColWidths(
+  wb: XLSX.WorkBook,
+  rows: (string | number)[][],
+  sheetName: string,
+  colWidths: number[],
+  post?: (ws: XLSX.WorkSheet) => void,
+) {
   const ws = XLSX.utils.aoa_to_sheet(rows)
   ws['!cols'] = colWidths.map(wch => ({ wch }))
+  post?.(ws)
   XLSX.utils.book_append_sheet(wb, ws, sheetName)
 }
 
@@ -295,7 +389,13 @@ export function buildGeoAiIndexAnalyticalWorkbook(opts: {
     }
     chartRows.push(row);
   }
-  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(chartRows), 'Chart_Data');
+  {
+    const wsChart = XLSX.utils.aoa_to_sheet(chartRows)
+    const chartColW = [14, 14, 14, ...datasets.map(() => 14)]
+    wsChart['!cols'] = chartColW.map(wch => ({ wch }))
+    applySpectralFormatsFromColumn(wsChart, 1, 3)
+    XLSX.utils.book_append_sheet(wb, wsChart, 'Chart_Data')
+  }
 
   const weekly = analytics?.weekly ?? [];
   const drawn = analytics?.drawnFeature;
@@ -352,8 +452,18 @@ export function buildGeoAiIndexAnalyticalWorkbook(opts: {
     pid++;
   }
 
-  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(rawRows), 'Data_Raw');
-  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(classifiedRows), 'Data_Classified');
+  {
+    const wsRaw = XLSX.utils.aoa_to_sheet(rawRows)
+    wsRaw['!cols'] = rawHeader.map((_, i) => ({ wch: i < 3 ? 12 : 16 }))
+    applySpectralFormatsFromColumn(wsRaw, 1, 3)
+    XLSX.utils.book_append_sheet(wb, wsRaw, 'Data_Raw')
+  }
+  {
+    const wsCls = XLSX.utils.aoa_to_sheet(classifiedRows)
+    wsCls['!cols'] = [10, 14, 14, 20, 10, 44]
+    applyNumberFormatsToDataRows(wsCls, 1, [{ c: 3, z: XLSX_FMT_SPECTRAL }])
+    XLSX.utils.book_append_sheet(wb, wsCls, 'Data_Classified')
+  }
 
   const aoiAreaM2 = featureAoiAreaSqMeters(drawn);
   const approxM2PerPixel = grid.length > 0 ? aoiAreaM2 / grid.length : 0;
@@ -401,7 +511,7 @@ export function buildGeoAiIndexAnalyticalWorkbook(opts: {
     summaryLines.push(['', cid, name, n, areaM2]);
   }
 
-  appendSheetWithColWidths(wb, summaryLines, 'Summary_AOI', [44, 12, 48, 14, 18, 22])
+  appendSheetWithColWidths(wb, summaryLines, 'Summary_AOI', [44, 12, 48, 14, 22, 24], formatSummaryAoiSheet)
 
   const classStatsHeader = ['Class ID', 'Class name', 'Pixel count', 'Pct of AOI (%)', 'Mean index in class'];
   const classStats: (string | number)[][] = [classStatsHeader];
@@ -416,7 +526,14 @@ export function buildGeoAiIndexAnalyticalWorkbook(opts: {
     const mnc = vals.length ? vals.reduce((a, b) => a + b, 0) / vals.length : NaN;
     classStats.push([c.id, c.label, n, pct, Number.isFinite(mnc) ? mnc : '']);
   }
-  appendSheetWithColWidths(wb, classStats, 'Class_Statistics', [10, 44, 14, 18, 22])
+  appendSheetWithColWidths(wb, classStats, 'Class_Statistics', [12, 52, 14, 22, 28], ws =>
+    applyNumberFormatsToDataRows(ws, 1, [
+      { c: 0, z: XLSX_FMT_INT },
+      { c: 2, z: XLSX_FMT_INT },
+      { c: 3, z: XLSX_FMT_SHARE },
+      { c: 4, z: XLSX_FMT_SPECTRAL },
+    ]),
+  )
 
   return wb;
 }
