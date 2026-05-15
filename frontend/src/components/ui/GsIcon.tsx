@@ -19,7 +19,7 @@ import type { CSSProperties, SVGProps } from 'react'
  *       parent button picks, so dark/light themes "just work" without
  *       per-icon overrides.
  *     - No baked-in colors / shadows — wrap the icon in a `gs-icon-glass-*`
- *       chip when a glass surround is needed (see Profile.css overrides).
+ *       chip when a glass surround is needed (see shared nav / shell styles).
  *
  *   Adding new glyphs: append a new entry to `ICON_PATHS` keyed by the
  *   semantic name. Keep paths inside the 24×24 viewport with a 2-3px inset

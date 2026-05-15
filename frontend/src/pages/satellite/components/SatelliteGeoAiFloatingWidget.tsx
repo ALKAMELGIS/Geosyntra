@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
+import { AGENT_CHAT_PANEL_TITLE } from '../../../lib/agentChatCopy';
 import './satelliteGeoAiFloatingWidget.css';
 
 const STORAGE_KEY = 'si-sat-geo-ai-widget-pos-v2';
@@ -502,7 +503,7 @@ export function SatelliteGeoAiFloatingWidget({
         .join(' ')}
       style={transformStyle}
       role="region"
-      aria-label="Geo AI Exploration"
+      aria-label={AGENT_CHAT_PANEL_TITLE}
     >
       <div className="si-geo-ai-float-inner">
         {expanded ? (
@@ -521,7 +522,7 @@ export function SatelliteGeoAiFloatingWidget({
             <div className="si-geo-ai-float-head" onPointerDown={onPointerDownPanelMove}>
               <div className="si-geo-ai-float-head-main">
                 <div className="si-geo-ai-float-head-text">
-                  <div className="si-geo-ai-float-title">Geo AI Exploration</div>
+                  <div className="si-geo-ai-float-title">{AGENT_CHAT_PANEL_TITLE}</div>
                   {spatialWorkspace ? (
                     <div className="si-geo-ai-float-sub">Spatial workspace · map-centric canvas</div>
                   ) : null}
@@ -541,7 +542,7 @@ export function SatelliteGeoAiFloatingWidget({
                   type="button"
                   className="si-geo-ai-float-icon-btn"
                   title="Minimize"
-                  aria-label="Minimize Geo AI"
+                  aria-label={`Minimize ${AGENT_CHAT_PANEL_TITLE}`}
                   onClick={ev => {
                     ev.stopPropagation();
                     onToggleExpanded();
@@ -553,7 +554,7 @@ export function SatelliteGeoAiFloatingWidget({
                   type="button"
                   className="si-geo-ai-float-icon-btn"
                   title="Close"
-                  aria-label="Close Geo AI"
+                  aria-label={`Close ${AGENT_CHAT_PANEL_TITLE}`}
                   onClick={ev => {
                     ev.stopPropagation();
                     onRequestClose();
@@ -566,7 +567,7 @@ export function SatelliteGeoAiFloatingWidget({
             <div
               className="si-geo-ai-float-drag-rail"
               onPointerDown={onPointerDownPanelMove}
-              aria-label="Drag to move Geo AI panel"
+              aria-label={`Drag to move ${AGENT_CHAT_PANEL_TITLE} panel`}
             />
             <div className="si-geo-ai-float-body">{children}</div>
             <div
@@ -594,12 +595,12 @@ export function SatelliteGeoAiFloatingWidget({
           <button
             type="button"
             className="si-geo-ai-float-fab"
-            title="Geo AI — tap to open assistant (drag to move)"
+            title={`${AGENT_CHAT_PANEL_TITLE} — tap to open (drag to move)`}
             aria-expanded={expanded}
-            aria-label="Geo AI assistant"
+            aria-label={`${AGENT_CHAT_PANEL_TITLE} assistant`}
             onPointerDown={onPointerDownFab}
           >
-            <span className="si-geo-ai-float-fab-label">Geo AI assistant</span>
+            <span className="si-geo-ai-float-fab-label">{AGENT_CHAT_PANEL_TITLE}</span>
             <span className="si-geo-ai-float-fab-mark" aria-hidden>
               <i className="fa-solid fa-wand-magic-sparkles si-geo-ai-float-fab-mark-front" />
             </span>

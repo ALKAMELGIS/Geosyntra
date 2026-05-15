@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { AppLanguage } from '../../../lib/i18n'
 import type { HeaderSettings, ThemeMode } from '../../../types/systemSettings'
+import { GEOSYNTRA_BRAND_NAME, GEOSYNTRA_BRAND_NAME_AR } from '../../../lib/brand'
 import { HeaderFontStackPicker } from './HeaderFontStackPicker'
 import './header-settings-panel.css'
 
@@ -61,8 +62,7 @@ function HeaderLivePreview({
   viewport: 'desktop' | 'tablet' | 'mobile'
   language: AppLanguage
 }) {
-  const displayText =
-    language === 'ar' && (hs.logoTextAr ?? '').trim() ? hs.logoTextAr : hs.logoText || 'Your brand'
+  const displayText = language === 'ar' ? GEOSYNTRA_BRAND_NAME_AR : GEOSYNTRA_BRAND_NAME
 
   const color = previewTheme === 'dark' ? hs.textColorDark : hs.textColorLight
 
@@ -329,7 +329,7 @@ export function HeaderSettingsPanel({
           key: 'useProjectName' as const,
           icon: 'fa-solid fa-link',
           label: 'Project',
-          tip: 'Link the logo to the configured project name route.',
+          tip: 'Unused: the header wordmark is always Geosyntra.',
           checked: hs.useProjectName,
         },
         {
@@ -356,7 +356,7 @@ export function HeaderSettingsPanel({
         <div className="hs-field hs-cell-span-6">
           <div className="hs-field__label-row">
             <label htmlFor="hs-logo-en">Logo EN</label>
-            <Tip text="English title shown by default in LTR locales." />
+            <Tip text="The live header always shows Geosyntra; this value is kept for records / export only." />
           </div>
           <input
             id="hs-logo-en"
@@ -368,7 +368,7 @@ export function HeaderSettingsPanel({
         <div className="hs-field hs-cell-span-6">
           <div className="hs-field__label-row">
             <label htmlFor="hs-logo-ar">Logo AR</label>
-            <Tip text="Arabic wordmark when the UI language is Arabic." />
+            <Tip text="The live header always shows جيوسينترا when Arabic is active; this field is kept for records / export only." />
           </div>
           <input
             id="hs-logo-ar"

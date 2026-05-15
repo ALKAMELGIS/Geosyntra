@@ -138,6 +138,10 @@ export const startSession = (user: Partial<CurrentUser> | null, options?: StartS
   }
 }
 
+import { ALL_GEO_PERMISSIONS, hasGeoCapability, type GeoPermission } from './geoEnterpriseUserModel'
+
+const GEO_PERMISSION_SET = new Set<string>(ALL_GEO_PERMISSIONS)
+
 const roleAllows = (role: Role, permission: string): boolean => {
   if (role === 'Admin') return true
   if (permission === 'dataSource.update') return role === 'Manager'
@@ -148,6 +152,9 @@ const roleAllows = (role: Role, permission: string): boolean => {
 }
 
 export const hasPermission = (permission: string, roleValue: unknown): boolean => {
+  if (GEO_PERMISSION_SET.has(permission)) {
+    return hasGeoCapability(permission as GeoPermission, roleValue)
+  }
   const role = normalizeRole(roleValue)
   return roleAllows(role, permission)
 }

@@ -7,7 +7,7 @@
  *
  * Why this matters:
  *   • Without prefetch, the first click on a heavy route (GisMap,
- *     SatelliteIntelligence, Profile, …) pays the full network +
+ *     SatelliteIntelligence, …) pays the full network +
  *     parse + compile cost on the critical path → the user sees a
  *     blank shell for the duration of the chunk download.
  *   • With prefetch on intent (≈ 80–250 ms before click on average),
@@ -38,7 +38,6 @@ const ROUTE_FACTORIES: Record<string, RouteFactory> = {
   '/satellite/gis': () => import('../pages/satellite/GisMap'),
   '/data/fertigation-records': () => import('../pages/data-entry/FertigationRecords'),
   '/data/recipes': () => import('../pages/data-entry/Recipes'),
-  '/account/profile': () => import('../pages/account/Profile'),
   '/master/gis-content': () => import('../pages/master/GisContent'),
   '/admin/users': () => import('../pages/admin/Users'),
   '/admin/github': () => import('../pages/admin/GitHubIntegration'),

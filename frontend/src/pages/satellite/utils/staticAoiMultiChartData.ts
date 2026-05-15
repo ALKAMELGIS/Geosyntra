@@ -97,8 +97,8 @@ export function staticAoiLayerMeanForWeek(
       ? 24 + seasonal * 11 + phase * 4
       : range[0] + span * (0.38 + mix * 0.32 + phase * 0.08);
   const v = base + aoiNoise(aoiKey, layerId, weekIdx);
-  if (layerId === 'LST') return Number(Math.max(range[0], Math.min(range[1], v)).toFixed(2));
-  return Number(Math.max(range[0], Math.min(range[1], v)).toFixed(3));
+  /** Keep full float precision in band; avoid toFixed collapsing small spectral values to 0. */
+  return Math.max(range[0], Math.min(range[1], v));
 }
 
 export function formatStaticChartWeekLabel(isoDate: string): string {

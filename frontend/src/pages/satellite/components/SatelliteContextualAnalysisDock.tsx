@@ -153,9 +153,9 @@ const RAIL: Array<{ id: SatelliteContextPanelId; icon: string; label: string; ti
   {
     id: 'table-geo-ai',
     icon: 'fa-solid fa-comments',
-    label: 'Geo AI',
-    title: 'Geo AI',
-    hint: 'Copilot, attributes, and SQL-style prompts.',
+    label: 'Agent Chat',
+    title: 'Agent Chat',
+    hint: 'Spatial copilot, attributes, and SQL-style prompts.',
   },
   {
     /* Fields Data — OneSoil-style AOI store. Same icon family ("vector
@@ -1121,9 +1121,9 @@ export function SatelliteContextualAnalysisDock(props: SatelliteContextualAnalys
                     {activeId === 'weather' && (
                       <div className="si-sat-ctx-prose">
                         <p>
-                          <strong>Weather data</strong> is attached to Geo AI context when API keys are configured (OpenWeather).
+                          <strong>Weather data</strong> is attached to Agent Chat context when API keys are configured (OpenWeather).
                         </p>
-                        <p className="si-sat-ctx-muted">Use Geo AI prompts for forecasts near the map pin or AOI centroid.</p>
+                        <p className="si-sat-ctx-muted">Use Agent Chat prompts for forecasts near the map pin or AOI centroid.</p>
                       </div>
                     )}
                     {activeId === 'raster' && (
@@ -1137,7 +1137,7 @@ export function SatelliteContextualAnalysisDock(props: SatelliteContextualAnalys
                     {activeId === 'feature' && (
                       <div className="si-sat-ctx-prose">
                         <p>
-                          <strong>Feature information</strong> appears when you identify a vector feature or use Geo AI table map
+                          <strong>Feature information</strong> appears when you identify a vector feature or use Agent Chat table map
                           links.
                         </p>
                         <p className="si-sat-ctx-muted">Select a feature on the map or open the attribute table from Layers.</p>

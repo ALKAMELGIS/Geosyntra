@@ -1,8 +1,10 @@
 import type { ChangeEvent, RefObject } from 'react'
+import { AGENT_CHAT_WELCOME_EXPLORER } from '../../../lib/agentChatCopy'
 import type { GeoExplorerMessage } from '../../../lib/geoExplorerGemini'
 import { GeoExplorerGeminiInputRow } from './GeoExplorerGeminiInputRow'
 import { GeoExplorerGeminiMessageParts } from './GeoExplorerGeminiMessageParts'
 import type { GeoExplorerCssPrefix } from './geoExplorerCssPrefix'
+import './geoAgentChat.css'
 
 export type { GeoExplorerCssPrefix } from './geoExplorerCssPrefix'
 
@@ -47,13 +49,13 @@ export function GeoExplorerGeminiChatBody(props: GeoExplorerGeminiChatBodyProps)
 
   return (
     <>
-      <div className={pfx(cssPrefix, 'messages')}>
+      <div className={`${pfx(cssPrefix, 'messages')} geo-agent-chat`}>
         <div className={`${pfx(cssPrefix, 'row')} ${pfx(cssPrefix, 'row--model')}`}>
           <div className={pfx(cssPrefix, 'avatar')} aria-hidden>
             <i className="fa-solid fa-globe" />
           </div>
           <div className={`${pfx(cssPrefix, 'bubble')} ${pfx(cssPrefix, 'bubble--welcome')}`}>
-            Hello! I'm Geosyntra Geo AI — a <strong>spatial reasoning agent</strong> for this map. Ask for places, directions, imagery, or multi-step GIS / Sentinel workflows (points, buffers, NDVI…). When a location is clear, the map will fly there.
+            <p className={pfx(cssPrefix, 'bubble-text')}>{AGENT_CHAT_WELCOME_EXPLORER}</p>
           </div>
         </div>
         {messages.map(msg => (

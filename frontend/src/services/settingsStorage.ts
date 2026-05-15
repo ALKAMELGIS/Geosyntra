@@ -33,13 +33,14 @@ export function sanitizeDirectoryRoleCatalog(raw: unknown): Role[] {
 
 /**
  * Brand-name guard: any persisted English logo text that matches the legacy patterns
- * (Agro Cloud, Agri Cloud, Geosyntra Platform, …) is overwritten with `Geosyntra` so
- * existing users instantly see the new identity. Free-form custom names are preserved.
+ * (Agro Cloud, Agri Cloud, Geosyntra Platform, …) or contains "AECOM" is overwritten with
+ * `Geosyntra` so existing users instantly see the product identity. Other custom names are preserved.
  */
 function sanitizeBrandName(raw: unknown, fallback: string): string {
   if (typeof raw !== 'string') return fallback
   const trimmed = raw.trim()
   if (!trimmed) return fallback
+  if (/aecom/i.test(trimmed)) return fallback
   if (LEGACY_BRAND_NAME_PATTERN.test(trimmed)) return fallback
   return trimmed.slice(0, 120)
 }
@@ -48,6 +49,7 @@ function sanitizeBrandNameAr(raw: unknown, fallback: string): string {
   if (typeof raw !== 'string') return fallback
   const trimmed = raw.trim()
   if (!trimmed) return fallback
+  if (/aecom/i.test(trimmed)) return fallback
   if (LEGACY_BRAND_NAME_PATTERN_AR.test(trimmed)) return fallback
   return trimmed.slice(0, 120)
 }

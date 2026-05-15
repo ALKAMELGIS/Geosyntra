@@ -28,7 +28,7 @@ const QUICK_LINKS: Array<{ id: SmartProcessingSectionId; icon: string; label: st
   { id: 'explore-stac', icon: 'fa-solid fa-magnifying-glass-chart', label: 'Explore STAC' },
   { id: 'remote-sensing', icon: 'fa-solid fa-satellite-dish', label: 'Remote sensing' },
   { id: 'ai-detection-gis', icon: 'fa-solid fa-magnifying-glass-location', label: 'AI Detection in GIS' },
-  { id: 'table-geo-ai', icon: 'fa-solid fa-comments', label: 'Geo AI' },
+  { id: 'table-geo-ai', icon: 'fa-solid fa-comments', label: 'Agent Chat' },
 ];
 
 const WORKFLOW_ROWS: Array<{
@@ -40,13 +40,13 @@ const WORKFLOW_ROWS: Array<{
   {
     cat: 'selection',
     title: 'Selection & queries',
-    subtitle: 'Map-backed selection with Geo AI stats where applicable.',
+    subtitle: 'Map-backed selection with Agent Chat stats where applicable.',
     tools: [
       {
         id: 'sel-attr',
         icon: 'fa-solid fa-table-list',
         label: 'Select by attributes',
-        hint: 'Opens Geo AI / tabular workflows for attribute-driven filters.',
+        hint: 'Opens Agent Chat / tabular workflows for attribute-driven filters.',
         target: 'table-geo-ai',
       },
       {
@@ -60,7 +60,7 @@ const WORKFLOW_ROWS: Array<{
         id: 'sql',
         icon: 'fa-solid fa-code',
         label: 'SQL query builder',
-        hint: 'Structured filters via Geo AI (SQL-style WHERE in prompts).',
+        hint: 'Structured filters via Agent Chat (SQL-style WHERE in prompts).',
         target: 'table-geo-ai',
       },
     ],
@@ -87,7 +87,7 @@ const WORKFLOW_ROWS: Array<{
       {
         id: 'ai',
         icon: 'fa-solid fa-robot',
-        label: 'Geo AI & copilot',
+        label: 'Agent Chat & copilot',
         hint: 'Natural language and semi-structured geospatial requests.',
         target: 'table-geo-ai',
       },

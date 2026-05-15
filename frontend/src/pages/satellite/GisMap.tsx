@@ -100,6 +100,8 @@ import {
   type GisChartPanelConfig,
 } from '../../lib/gisMapChartPanelConfig'
 import './gisGeoExplorerPanel.css'
+import './components/geoAgentChat.css'
+import { AGENT_CHAT_PANEL_TITLE, AGENT_CHAT_WELCOME_EXPLORER } from '../../lib/agentChatCopy'
 import { GisGeoExplorerChartConfig } from './components/GisGeoExplorerChartConfig'
 import { GeoExplorerGeminiMessageParts } from './components/GeoExplorerGeminiMessageParts'
 import { SiCopyTextButton } from './components/SiCopyTextButton'
@@ -4684,7 +4686,7 @@ export default function GisMap() {
       case 'shareMap':
         return 'Share map'
       case 'geoExplorer':
-        return 'Geo AI chat'
+        return 'Agent Chat'
       case 'fields':
         return 'Fields Data'
       default:
@@ -4746,7 +4748,7 @@ export default function GisMap() {
     <div className="gis-geo-explorer-root">
       <div className="gis-geo-explorer">
         <div className="gis-geo-explorer-header">
-          <h2 className="gis-geo-explorer-title">Geo Explorer</h2>
+          <h2 className="gis-geo-explorer-title">{AGENT_CHAT_PANEL_TITLE}</h2>
           <div className="gis-geo-explorer-header-actions">
             <button
               type="button"
@@ -4782,7 +4784,7 @@ export default function GisMap() {
           onChange={setGisChartPanelConfig}
           onOpenCharts={() => setActiveMapTool('chart')}
         />
-        <div className="gis-geo-explorer-messages" ref={geoExplorerMessagesRef} onScroll={onGeoExplorerMessagesScroll}>
+        <div className="gis-geo-explorer-messages geo-agent-chat" ref={geoExplorerMessagesRef} onScroll={onGeoExplorerMessagesScroll}>
           {geoExplorerHasOlderMessages ? (
             <button
               type="button"
@@ -4797,11 +4799,8 @@ export default function GisMap() {
             <div className="gis-geo-explorer-avatar" aria-hidden>
               <i className="fa-solid fa-globe" />
             </div>
-            <div className="gis-geo-explorer-bubble">
-              <p className="gis-geo-explorer-bubble-text">
-                Hello! I&apos;m Geo-AI Geosyntra — Describe a place, upload an image, or ask for directions. When a location is clear,
-                the map will fly there.
-              </p>
+            <div className="gis-geo-explorer-bubble gis-geo-explorer-bubble--welcome">
+              <p className="gis-geo-explorer-bubble-text">{AGENT_CHAT_WELCOME_EXPLORER}</p>
             </div>
           </div>
           {visibleGeoExplorerMessages.map(msg => (
@@ -4866,7 +4865,7 @@ export default function GisMap() {
           pendingImage={geoExplorerPendingImage}
           fileInputRef={geoExplorerFileInputRef}
           onAttachChange={onGeoExplorerAttachChange}
-          textareaAriaLabel="Geo Explorer message"
+          textareaAriaLabel="Agent Chat message"
           availableLayers={geoAiSuggestContext.layers}
           availableFields={geoAiSuggestContext.fields}
           availableNumericFields={geoAiSuggestContext.numericFields}
@@ -4889,7 +4888,7 @@ export default function GisMap() {
           maxHeight: geoExplorerPopoverLayout.maxHeight,
         }}
         role="dialog"
-        aria-label="Geo AI chat"
+        aria-label="Agent Chat"
       >
         <div className="gis-map-tool-panel gis-map-tool-panel--geo-explorer">{geoExplorerToolBody}</div>
       </div>
@@ -5144,7 +5143,7 @@ export default function GisMap() {
                 <span className="gis-map-tool-surface__kicker">Layer summary</span>
                 <p className="gis-map-tool-surface__lede">
                   Relative feature counts per vector layer. Image services are shown with zero features. Adjust sort and
-                  chart type in <strong>Geo AI chat</strong> → Configure chart.
+                  chart type in <strong>Agent Chat</strong> → Configure chart.
                 </p>
               </div>
             </div>
@@ -7469,8 +7468,8 @@ export default function GisMap() {
               geoExplorerAnchorSourceRef.current = 'quick'
               setActiveMapTool(prev => (prev === 'geoExplorer' ? null : 'geoExplorer'))
             }}
-            title="Geo AI chat"
-            aria-label="Geo AI chat"
+            title="Agent Chat"
+            aria-label="Agent Chat"
           >
             <SiChatAiAgentIcon size="rail" />
           </button>
@@ -7616,8 +7615,8 @@ export default function GisMap() {
                 geoExplorerAnchorSourceRef.current = 'toolbar'
                 toggleMapTool('geoExplorer')
               }}
-              title="Geo Explorer (Gemini chat)"
-              aria-label="Geo Explorer chat"
+              title="Agent Chat (Gemini)"
+              aria-label="Agent Chat"
               aria-pressed={activeMapTool === 'geoExplorer'}
             >
               <SiChatAiAgentIcon size="rail" />

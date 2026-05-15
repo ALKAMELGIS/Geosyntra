@@ -203,23 +203,6 @@ export default function PrimaryNavIcons({ onLogout }: PrimaryNavIconsProps) {
           role="menu"
           hidden={openGroupId !== 'account'}
         >
-          <NavLink
-            to="/account/profile"
-            role="menuitem"
-            title={t.profile}
-            aria-label={t.profile}
-            className={({ isActive }) =>
-              `geosyntra-primary-nav__popitem${isActive ? ' geosyntra-primary-nav__popitem--active' : ''}`
-            }
-            onClick={closePopover}
-            onMouseEnter={() => prefetchRoute('/account/profile')}
-            onPointerEnter={() => prefetchRoute('/account/profile')}
-            onFocus={() => prefetchRoute('/account/profile')}
-          >
-            <span className="geosyntra-primary-nav__popicon" aria-hidden>
-              <i className="fa-solid fa-user-gear" />
-            </span>
-          </NavLink>
           <button
             type="button"
             role="menuitem"

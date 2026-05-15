@@ -176,8 +176,7 @@ import { SatelliteAoiStaticChartsMapOverlay } from './components/SatelliteAoiSta
 import { SiAoiReportModal } from './components/SiAoiReportModal';
 import { siAoiPaletteFromIndexRampStops } from './utils/siAoiVegetationReportModel';
 import {
-  captureMapboxCanvasPng,
-  waitForMapboxIdle,
+  captureMapboxCanvasWhenReady,
   type SiLiveMapSnapshotCapture,
 } from './utils/siMapViewerSnapshot';
 import { SatelliteMapProcessingOptionsPortal } from './components/SatelliteMapProcessingOptionsPortal';
@@ -10847,11 +10846,16 @@ export default function SatelliteIntelligence() {
         await new Promise<void>(resolve => {
           requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
         });
-        await new Promise<void>(resolve => window.setTimeout(resolve, 320));
+        await new Promise<void>(resolve => window.setTimeout(resolve, 280));
       }
-      await waitForMapboxIdle(map, target ? 9000 : 6200);
-      await new Promise<void>(resolve => requestAnimationFrame(() => resolve()));
-      return captureMapboxCanvasPng(map, opts?.scale ?? 2);
+      const scale = opts?.scale ?? 2;
+      const idleMs = target ? 8200 : 5600;
+      const tilesMs = target ? 3200 : 2400;
+      return await captureMapboxCanvasWhenReady(map, {
+        scale,
+        idleTimeoutMs: idleMs,
+        tilesTimeoutMs: tilesMs,
+      });
     } finally {
       if (target) setSelectedDate(prev);
     }
@@ -12039,6 +12043,7 @@ export default function SatelliteIntelligence() {
             }}
             mapStyle={effectiveMapStyle}
             mapboxAccessToken={mapboxAccessTokenForMap}
+            preserveDrawingBuffer
             logoPosition="bottom-left"
             projection={{ name: 'globe' }}
             renderWorldCopies={false}

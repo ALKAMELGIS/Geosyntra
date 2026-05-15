@@ -146,7 +146,7 @@ export function GeoExplorerGeminiInputRow(props: GeoExplorerGeminiInputRowProps)
     textareaAriaLabel,
     showAttach = true,
     enableVoice = true,
-    placeholder = 'Describe a place, ask for directions, or plan a trip…',
+    placeholder = 'Message the Geosyntra agent — places, directions, imagery, or map tasks…',
     availableFields = [],
     availableNumericFields = [],
     availableLayers = [],

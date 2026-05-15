@@ -48,7 +48,7 @@ export function SatelliteSmartProcessingPanel(props: SatelliteSmartProcessingPan
         <div className="si-sat-smart-proc__hero-k">GIS workflow</div>
         <h3 className="si-sat-smart-proc__hero-title">Smart processing</h3>
         <p className="si-sat-smart-proc__hero-desc">
-          Map-connected actions update charts and Geo AI context immediately — no page reload.
+          Map-connected actions update charts and Agent Chat context immediately — no page reload.
         </p>
         {layerContextHint ? (
           <p className="si-sat-smart-proc__ctx" title={layerContextHint}>
@@ -137,7 +137,7 @@ export function SatelliteSmartProcessingPanel(props: SatelliteSmartProcessingPan
                 <i className="fa-solid fa-wand-magic-sparkles" aria-hidden />
                 <span>
                   <strong>AI processing</strong>
-                  <small>Geo AI reasoning on map context</small>
+                  <small>Agent Chat reasoning on map context</small>
                 </span>
               </button>
             </li>
@@ -166,7 +166,7 @@ export function SatelliteSmartProcessingPanel(props: SatelliteSmartProcessingPan
             </li>
             <li>
               <p className="si-sat-smart-proc__hint">
-                Use the <strong>AOI sketch</strong> tool on the rail for rectangle, polygon, circle, and select — drawing updates stats and Geo AI without reload.
+                Use the <strong>AOI sketch</strong> tool on the rail for rectangle, polygon, circle, and select — drawing updates stats and Agent Chat without reload.
               </p>
             </li>
           </ul>
@@ -187,7 +187,7 @@ export function SatelliteSmartProcessingPanel(props: SatelliteSmartProcessingPan
               <button type="button" className="si-sat-smart-proc__btn" onClick={() => onOpenEnvSection('table-geo-ai')}>
                 <SiChatAiAgentIcon size="chip" />
                 <span>
-                  <strong>Geo AI</strong>
+                  <strong>Agent Chat</strong>
                   <small>Chat, map links, popups</small>
                 </span>
               </button>

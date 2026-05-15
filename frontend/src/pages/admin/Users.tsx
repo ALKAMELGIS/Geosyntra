@@ -21,6 +21,24 @@ import {
   pullAdminDirectoryFromServer,
   scheduleAdminDirectorySync,
 } from '../../lib/adminDirectoryPersistence'
+import {
+  buildDisplayName,
+  defaultEnterpriseProfile,
+  directoryRoleFromEnterpriseRole,
+  enterpriseRoleFromDirectoryRole,
+  ENTERPRISE_ROLE_LABELS,
+  ENTERPRISE_ROLE_SHORT,
+  generateGeoApiKey,
+  GEO_PERMISSION_LABELS,
+  listGeoPermissionsForEnterpriseRole,
+  mergeProfileExtraWithEnterprise,
+  readEnterpriseProfile,
+  SUBSCRIPTION_DEFAULTS,
+  SUBSCRIPTION_PLAN_LABELS,
+  type EnterpriseAccessRole,
+  type GeoEnterpriseProfileV1,
+  type SubscriptionPlanId,
+} from '../../lib/geoEnterpriseUserModel'
 
 type User = {
   id: number
@@ -44,6 +62,100 @@ type SortKey = keyof Pick<User, 'name' | 'email' | 'role' | 'scope' | 'status' |
 type SortConfig = {
   key: SortKey
   direction: 'asc' | 'desc'
+}
+
+type UserModalFormState = {
+  firstName: string
+  lastName: string
+  email: string
+  phone: string
+  country: string
+  organization: string
+  password: string
+  role: string
+  enterpriseRole: EnterpriseAccessRole
+  subscriptionPlan: SubscriptionPlanId
+  subscriptionExpiresAt: string
+  workspaceLabel: string
+  scope: string
+  managedById: number | ''
+  status: string
+  lastLogin: string
+  regenerateApiKey: boolean
+}
+
+function splitDisplayNameForForm(fullName: string, geo: GeoEnterpriseProfileV1 | null): Pick<UserModalFormState, 'firstName' | 'lastName'> {
+  if (geo?.firstName?.trim() || geo?.lastName?.trim()) {
+    return { firstName: geo.firstName.trim(), lastName: geo.lastName.trim() }
+  }
+  const t = fullName.trim()
+  if (!t) return { firstName: '', lastName: '' }
+  const parts = t.split(/\s+/).filter(Boolean)
+  if (parts.length === 1) return { firstName: parts[0]!, lastName: '' }
+  return { firstName: parts[0]!, lastName: parts.slice(1).join(' ') }
+}
+
+function emptyUserModalForm(pickedRole: string): UserModalFormState {
+  const r = normalizeRole(pickedRole)
+  return {
+    firstName: '',
+    lastName: '',
+    email: '',
+    phone: '',
+    country: '',
+    organization: '',
+    password: '',
+    role: r,
+    enterpriseRole: enterpriseRoleFromDirectoryRole(r),
+    subscriptionPlan: 'free',
+    subscriptionExpiresAt: '',
+    workspaceLabel: 'Primary workspace',
+    scope: '',
+    managedById: '',
+    status: 'Active',
+    lastLogin: 'Never',
+    regenerateApiKey: false,
+  }
+}
+
+function composeGeoEnterpriseProfile(args: {
+  existing?: User | null
+  form: UserModalFormState
+  isNew: boolean
+  newApiKeyFull?: string
+}): GeoEnterpriseProfileV1 {
+  const prev = args.existing ? readEnterpriseProfile(args.existing.profileExtra) : null
+  const plan = args.form.subscriptionPlan
+  const q = SUBSCRIPTION_DEFAULTS[plan]
+  const wid = args.isNew ? undefined : prev?.workspaceId
+  const base = defaultEnterpriseProfile({
+    ...(prev ?? {}),
+    subscriptionPlan: plan,
+    workspaceId: wid,
+    firstName: args.form.firstName.trim(),
+    lastName: args.form.lastName.trim(),
+    phone: args.form.phone.trim(),
+    country: args.form.country.trim(),
+    organization: args.form.organization.trim(),
+    enterpriseRole: args.form.enterpriseRole,
+    workspaceLabel: args.form.workspaceLabel.trim() || 'Primary workspace',
+    monthlyAnalysisQuota: q.monthlyAnalysisQuota,
+    exportLimitMb: q.exportLimitMb,
+    storageLimitMb: q.storageLimitMb,
+    apiCallsLimit: q.apiCallsLimit,
+    subscriptionExpiresAt: args.form.subscriptionExpiresAt.trim(),
+    usedAnalysisCount: prev?.usedAnalysisCount ?? 0,
+    usedExportCount: prev?.usedExportCount ?? 0,
+    usedApiCalls: prev?.usedApiCalls ?? 0,
+  })
+  if (args.newApiKeyFull) {
+    return {
+      ...base,
+      apiKeySuffix: args.newApiKeyFull.slice(-8),
+      apiKeyCreatedAt: new Date().toISOString(),
+    }
+  }
+  return base
 }
 
 function adminUserInitials(name: string): string {
@@ -93,16 +205,7 @@ export default function Users({ embedded }: { embedded?: boolean } = {}) {
   const [editingId, setEditingId] = useState<number | null>(null)
 
   const [isModalOpen, setIsModalOpen] = useState(false)
-  const [newUser, setNewUser] = useState({
-    name: '',
-    email: '',
-    password: '',
-    role: 'Viewer',
-    scope: '',
-    managedById: '' as number | '',
-    status: 'Active',
-    lastLogin: 'Never'
-  })
+  const [newUser, setNewUser] = useState<UserModalFormState>(() => emptyUserModalForm('Viewer'))
   const [searchTerm, setSearchTerm] = useState('')
   const [roleFilter, setRoleFilter] = useState<string>('All')
   const [statusFilter, setStatusFilter] = useState<string>('All')
@@ -139,6 +242,11 @@ export default function Users({ embedded }: { embedded?: boolean } = {}) {
     return rolesForUserModal(adminPickerRoles, existing)
   }, [adminPickerRoles, editingId, users])
 
+  const enterpriseRolePickerOptions = useMemo(() => {
+    const order: EnterpriseAccessRole[] = ['SUPER_ADMIN', 'ADMIN', 'ANALYST', 'VIEWER', 'CLIENT']
+    return order.filter(er => modalRoleOptions.includes(directoryRoleFromEnterpriseRole(er)))
+  }, [modalRoleOptions])
+
   useEffect(() => {
     setBatchRole(prev => {
       const n = normalizeRole(prev)
@@ -151,7 +259,8 @@ export default function Users({ embedded }: { embedded?: boolean } = {}) {
     setNewUser(prev => {
       const n = normalizeRole(prev.role)
       if (modalRoleOptions.includes(n)) return prev
-      return { ...prev, role: pickDefaultAssignableRole(modalRoleOptions) }
+      const pr = pickDefaultAssignableRole(modalRoleOptions)
+      return { ...prev, role: pr, enterpriseRole: enterpriseRoleFromDirectoryRole(pr) }
     })
   }, [modalRoleOptions])
 
@@ -492,12 +601,16 @@ export default function Users({ embedded }: { embedded?: boolean } = {}) {
       appendUserAudit('unauthorized_create', undefined, { reason: 'no_permission' })
       return
     }
-    const nextName = newUser.name.trim()
     const nextEmail = newUser.email.trim()
-    if (!nextName || !nextEmail) {
-      showToast('Name and email are required.', 'error')
+    if (!nextEmail) {
+      showToast('Email is required.', 'error')
       return
     }
+    if (!newUser.firstName.trim() && !newUser.lastName.trim()) {
+      showToast('Enter at least a first name or a last name.', 'error')
+      return
+    }
+    const nextDisplay = buildDisplayName(newUser.firstName, newUser.lastName, nextEmail)
     if (!validateEmail(nextEmail)) {
       showToast('Email format is invalid.', 'error')
       return
@@ -508,8 +621,9 @@ export default function Users({ embedded }: { embedded?: boolean } = {}) {
       return
     }
 
-    const roleNorm = normalizeRole(newUser.role)
-    if (!modalRoleOptions.includes(roleNorm)) {
+    const dirMapped = directoryRoleFromEnterpriseRole(newUser.enterpriseRole)
+    const pickedDir = normalizeRole(modalRoleOptions.includes(dirMapped) ? dirMapped : newUser.role)
+    if (!modalRoleOptions.includes(pickedDir)) {
       showToast('Selected role is not allowed by the system role catalog.', 'error')
       return
     }
@@ -535,11 +649,11 @@ export default function Users({ embedded }: { embedded?: boolean } = {}) {
         existing.hasPassword === true ||
         (typeof existing.passwordHash === 'string' && existing.passwordHash.length > 0)
 
-      const nextRole = isAdminManager && existing.role === 'Admin Manager' ? existing.role : newUser.role
+      const nextRole = isAdminManager && existing.role === 'Admin Manager' ? existing.role : pickedDir
       const nextScope =
         isAdminManager
           ? String(currentUser?.scope || existing.scope || '')
-          : newUser.role === 'Admin Manager'
+          : pickedDir === 'Admin Manager'
             ? newUser.scope.trim()
             : newUser.scope.trim()
       const nextManagedById =
@@ -556,12 +670,25 @@ export default function Users({ embedded }: { embedded?: boolean } = {}) {
         return
       }
 
+      const newKeyFull = newUser.regenerateApiKey ? generateGeoApiKey().full : undefined
+      const geo = composeGeoEnterpriseProfile({
+        existing,
+        form: newUser,
+        isNew: false,
+        newApiKeyFull: newKeyFull,
+      })
+      const extraBase =
+        existing.profileExtra && typeof existing.profileExtra === 'object'
+          ? { ...(existing.profileExtra as Record<string, unknown>) }
+          : {}
+      const profileExtra = mergeProfileExtraWithEnterprise(extraBase, geo)
+
       setUsers(prev =>
         prev.map(user =>
           user.id === editingId
             ? {
                 ...user,
-                name: nextName,
+                name: nextDisplay,
                 email: nextEmail,
                 role: normalizeRole(nextRole),
                 scope: nextScope || undefined,
@@ -570,18 +697,37 @@ export default function Users({ embedded }: { embedded?: boolean } = {}) {
                 lastLogin: newUser.lastLogin || user.lastLogin || 'Never',
                 passwordHash,
                 hasPassword: nextHasPassword,
+                profileExtra,
               }
             : user
         )
       )
-      appendUserAudit('update', { id: String(existing.id), email: newUser.email }, { role: nextRole, scope: nextScope, managedById: nextManagedById })
+      appendUserAudit('update', { id: String(existing.id), email: newUser.email }, {
+        role: nextRole,
+        scope: nextScope,
+        managedById: nextManagedById,
+        enterpriseRole: newUser.enterpriseRole,
+        plan: newUser.subscriptionPlan,
+      })
       showToast('User updated.', 'success')
+      if (newKeyFull) {
+        showToast(`New API key (copy now): ${newKeyFull}`, 'info')
+        try {
+          await navigator.clipboard?.writeText?.(newKeyFull)
+        } catch {
+          /* ignore */
+        }
+      }
     } else {
       if (newUser.password && newUser.password.length < 8) {
         showToast('Password must be at least 8 characters.', 'error')
         return
       }
-      const creatingRole = isAdminManager ? (newUser.role === 'Editor' || newUser.role === 'Viewer' || newUser.role === 'User' ? newUser.role : 'Viewer') : newUser.role
+      const creatingRole = isAdminManager
+        ? pickedDir === 'Editor' || pickedDir === 'Viewer' || pickedDir === 'User'
+          ? pickedDir
+          : 'Viewer'
+        : pickedDir
 
       const creatingScope =
         isAdminManager
@@ -611,9 +757,17 @@ export default function Users({ embedded }: { embedded?: boolean } = {}) {
             ? window.crypto.randomUUID()
             : String(Date.now())
           : undefined
+      const apiKeyFull = generateGeoApiKey().full
+      const geo = composeGeoEnterpriseProfile({
+        existing: null,
+        form: newUser,
+        isNew: true,
+        newApiKeyFull: apiKeyFull,
+      })
+      const profileExtra = mergeProfileExtraWithEnterprise({}, geo)
       const user: User = {
         id: nextAdminUserId(users as unknown[]),
-        name: nextName,
+        name: nextDisplay,
         email: nextEmail,
         role: normalizeRole(creatingRole),
         scope: creatingScope || undefined,
@@ -624,33 +778,40 @@ export default function Users({ embedded }: { embedded?: boolean } = {}) {
         passwordHash,
         hasPassword,
         emailVerified: hasPassword ? true : false,
-        verificationToken
+        verificationToken,
+        profileExtra,
       }
       setUsers([...users, user])
-      appendUserAudit(hasPassword ? 'create' : 'invite', { id: String(user.id), email: user.email }, { role: creatingRole, scope: creatingScope, managedById: creatingManagedById })
+      appendUserAudit(hasPassword ? 'create' : 'invite', { id: String(user.id), email: user.email }, {
+        role: creatingRole,
+        scope: creatingScope,
+        managedById: creatingManagedById,
+        enterpriseRole: newUser.enterpriseRole,
+        plan: newUser.subscriptionPlan,
+        workspaceId: geo.workspaceId,
+      })
       if (hasPassword) {
         showToast('User created.', 'success')
+        showToast(`API key (copy now): ${apiKeyFull}`, 'info')
+        try {
+          await navigator.clipboard?.writeText?.(apiKeyFull)
+        } catch {
+          /* ignore */
+        }
       } else {
         const base = typeof window !== 'undefined' ? window.location.origin : ''
         const inviteLink = `${base}/login?invite=1&token=${encodeURIComponent(verificationToken || '')}&email=${encodeURIComponent(user.email)}`
         showToast(`Invite link generated for ${user.email}.`, 'success')
         try {
           navigator.clipboard?.writeText?.(inviteLink)
-        } catch {}
+        } catch {
+          /* ignore */
+        }
       }
     }
     setIsModalOpen(false)
     setEditingId(null)
-    setNewUser({
-      name: '',
-      email: '',
-      password: '',
-      role: pickDefaultAssignableRole(adminPickerRoles),
-      scope: '',
-      managedById: '',
-      status: 'Active',
-      lastLogin: 'Never',
-    })
+    setNewUser(emptyUserModalForm(pickDefaultAssignableRole(adminPickerRoles)))
     setCurrentPage(1)
   }
 
@@ -693,15 +854,27 @@ export default function Users({ embedded }: { embedded?: boolean } = {}) {
       appendUserAudit('unauthorized_update', { id: String(user.id), email: user.email }, { reason: 'scope_or_hierarchy' })
       return
     }
+    const geo = readEnterpriseProfile(user.profileExtra)
+    const { firstName, lastName } = splitDisplayNameForForm(user.name, geo)
     setNewUser({
-      name: user.name,
+      ...emptyUserModalForm(user.role),
+      firstName,
+      lastName,
       email: user.email,
       password: '',
       role: user.role,
+      enterpriseRole: geo?.enterpriseRole ?? enterpriseRoleFromDirectoryRole(user.role),
+      subscriptionPlan: geo?.subscriptionPlan ?? 'free',
+      subscriptionExpiresAt: geo?.subscriptionExpiresAt ?? '',
+      workspaceLabel: geo?.workspaceLabel ?? 'Primary workspace',
+      phone: geo?.phone ?? '',
+      country: geo?.country ?? '',
+      organization: geo?.organization ?? '',
       scope: String(user.scope || ''),
       managedById: typeof user.managedById === 'number' ? user.managedById : '',
       status: user.status,
-      lastLogin: user.lastLogin || 'Never'
+      lastLogin: user.lastLogin || 'Never',
+      regenerateApiKey: false,
     })
     setEditingId(user.id)
     setIsModalOpen(true)
@@ -943,6 +1116,15 @@ export default function Users({ embedded }: { embedded?: boolean } = {}) {
     <span className={`admin-users-pill admin-users-pill--role admin-users-pill--role-${roleSlug(role)}`}>{role}</span>
   )
 
+  const renderPlanPill = (plan: SubscriptionPlanId) => (
+    <span className={`admin-users-pill admin-users-pill--plan admin-users-pill--plan-${plan}`}>
+      {SUBSCRIPTION_PLAN_LABELS[plan]}
+    </span>
+  )
+
+  const subscriptionPlanForUser = (u: User): SubscriptionPlanId =>
+    readEnterpriseProfile(u.profileExtra)?.subscriptionPlan ?? 'free'
+
   const hasUsers = filteredAndSorted.length > 0
 
   const auditEntries = useMemo(() => {
@@ -957,6 +1139,13 @@ export default function Users({ embedded }: { embedded?: boolean } = {}) {
 
   const canAddUser = canManageUsers
   const canSeeAudit = canManageUsers
+
+  const modalExistingUser = editingId !== null ? users.find(u => u.id === editingId) : null
+  const modalGeoSnapshot = readEnterpriseProfile(modalExistingUser?.profileExtra)
+  const quotaLimits = SUBSCRIPTION_DEFAULTS[newUser.subscriptionPlan]
+  const usedAnalysis = modalGeoSnapshot?.usedAnalysisCount ?? 0
+  const usedExport = modalGeoSnapshot?.usedExportCount ?? 0
+  const usedApi = modalGeoSnapshot?.usedApiCalls ?? 0
 
   if (!canManageUsers) {
     return (
@@ -1032,14 +1221,9 @@ export default function Users({ embedded }: { embedded?: boolean } = {}) {
               setEditingId(null)
               const baseScope = isAdminManager ? String(currentUser?.scope || '') : ''
               setNewUser({
-                name: '',
-                email: '',
-                password: '',
-                role: pickDefaultAssignableRole(adminPickerRoles),
+                ...emptyUserModalForm(pickDefaultAssignableRole(adminPickerRoles)),
                 scope: baseScope,
                 managedById: isAdminManager && typeof currentUser?.id === 'number' ? currentUser.id : '',
-                status: 'Active',
-                lastLogin: 'Never',
               })
               setIsModalOpen(true)
             }}
@@ -1188,7 +1372,8 @@ export default function Users({ embedded }: { embedded?: boolean } = {}) {
                           <div className="admin-users__cell-email">{user.email}</div>
                         </div>
                       </div>
-                      <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+                      <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+                        {renderPlanPill(subscriptionPlanForUser(user))}
                         {renderRolePill(user.role)}
                         {renderStatusPill(user.status || 'Active')}
                       </div>
@@ -1281,6 +1466,7 @@ export default function Users({ embedded }: { embedded?: boolean } = {}) {
                     <th className="admin-users__th admin-users__th--sort" onClick={() => handleSort('role')}>
                       Role
                     </th>
+                    <th className="admin-users__th">Plan</th>
                     <th className="admin-users__th admin-users__th--sort" onClick={() => handleSort('status')}>
                       Status
                     </th>
@@ -1308,6 +1494,7 @@ export default function Users({ embedded }: { embedded?: boolean } = {}) {
                         <td className="admin-users__td admin-users__td--strong">{user.name}</td>
                         <td className="admin-users__td admin-users__td--strong">{user.email}</td>
                         <td className="admin-users__td">{renderRolePill(user.role)}</td>
+                        <td className="admin-users__td">{renderPlanPill(subscriptionPlanForUser(user))}</td>
                         <td className="admin-users__td">{renderStatusPill(user.status || 'Active')}</td>
                         <td className="admin-users__td admin-users__td--muted">{formatDirectoryDate(user.createdAt)}</td>
                         <td className="admin-users__td admin-users__td--muted">
@@ -1418,17 +1605,23 @@ export default function Users({ embedded }: { embedded?: boolean } = {}) {
           onClick={() => setIsModalOpen(false)}
         >
           <div
-            className="users-modal-dialog"
+            className="users-modal-dialog users-modal-dialog--enterprise"
             role="dialog"
             aria-modal="true"
             aria-labelledby="users-modal-heading"
             onClick={e => e.stopPropagation()}
           >
-            <div className="users-modal-header">
-              <h2 className="users-modal-title" id="users-modal-heading">
-                <i className="fa-solid fa-user-plus" style={{ color: '#047857' }}></i>
-                {editingId !== null ? 'Edit User' : 'Add New User'}
-              </h2>
+            <div className="users-modal-header users-modal-header--enterprise">
+              <div>
+                <p className="users-modal-kicker">GeoAI Directory</p>
+                <h2 className="users-modal-title" id="users-modal-heading">
+                  <i className="fa-solid fa-user-plus" aria-hidden></i>
+                  {editingId !== null ? 'Edit member' : 'Add member'}
+                </h2>
+                <p className="users-modal-sub">
+                  Identity, RBAC, subscription quotas, workspace, and API access — aligned with your GeoAI deployment.
+                </p>
+              </div>
               <button
                 type="button"
                 onClick={() => setIsModalOpen(false)}
@@ -1440,149 +1633,358 @@ export default function Users({ embedded }: { embedded?: boolean } = {}) {
             </div>
 
             <div className="users-modal-body">
-              <form
-                onSubmit={handleAddUser}
-                style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}
-              >
-                <div className="ec-grid-2-col-wide">
-                  <div className="ec-input-group">
-                    <label className="ec-label">Name *</label>
-                    <input
-                      type="text"
-                      required
-                      value={newUser.name}
-                      onChange={e => setNewUser({ ...newUser, name: e.target.value })}
-                      className="ec-input"
-                    />
+              <form onSubmit={handleAddUser} className="users-modal-form">
+                <section className="users-modal-section">
+                  <div className="users-modal-section-head">
+                    <span className="users-modal-section-icon" aria-hidden>
+                      <i className="fa-regular fa-id-card"></i>
+                    </span>
+                    <div>
+                      <h3 className="users-modal-section-title">Identity</h3>
+                      <p className="users-modal-section-desc">Legal name, contact, and organization context.</p>
+                    </div>
                   </div>
-
-                  <div className="ec-input-group">
-                    <label className="ec-label">Email *</label>
-                    <input
-                      type="email"
-                      required
-                      value={newUser.email}
-                      onChange={e => setNewUser({ ...newUser, email: e.target.value })}
-                      className="ec-input"
-                    />
+                  <div className="ec-grid-2-col-wide users-modal-grid">
+                    <div className="ec-input-group">
+                      <label className="ec-label">First name</label>
+                      <input
+                        type="text"
+                        value={newUser.firstName}
+                        onChange={e => setNewUser({ ...newUser, firstName: e.target.value })}
+                        className="ec-input"
+                        autoComplete="given-name"
+                      />
+                    </div>
+                    <div className="ec-input-group">
+                      <label className="ec-label">Last name</label>
+                      <input
+                        type="text"
+                        value={newUser.lastName}
+                        onChange={e => setNewUser({ ...newUser, lastName: e.target.value })}
+                        className="ec-input"
+                        autoComplete="family-name"
+                      />
+                    </div>
+                    <div className="ec-input-group">
+                      <label className="ec-label">Email *</label>
+                      <input
+                        type="email"
+                        required
+                        value={newUser.email}
+                        onChange={e => setNewUser({ ...newUser, email: e.target.value })}
+                        className="ec-input"
+                        autoComplete="email"
+                      />
+                    </div>
+                    <div className="ec-input-group">
+                      <label className="ec-label">Phone</label>
+                      <input
+                        type="tel"
+                        value={newUser.phone}
+                        onChange={e => setNewUser({ ...newUser, phone: e.target.value })}
+                        className="ec-input"
+                        autoComplete="tel"
+                      />
+                    </div>
+                    <div className="ec-input-group">
+                      <label className="ec-label">Country</label>
+                      <input
+                        type="text"
+                        value={newUser.country}
+                        onChange={e => setNewUser({ ...newUser, country: e.target.value })}
+                        className="ec-input"
+                        autoComplete="country-name"
+                      />
+                    </div>
+                    <div className="ec-input-group">
+                      <label className="ec-label">Organization</label>
+                      <input
+                        type="text"
+                        value={newUser.organization}
+                        onChange={e => setNewUser({ ...newUser, organization: e.target.value })}
+                        className="ec-input"
+                        placeholder="Company or team"
+                      />
+                    </div>
                   </div>
+                </section>
 
-                  <div className="ec-input-group" style={{ gridColumn: '1 / -1' }}>
+                <section className="users-modal-section">
+                  <div className="users-modal-section-head">
+                    <span className="users-modal-section-icon" aria-hidden>
+                      <i className="fa-solid fa-lock"></i>
+                    </span>
+                    <div>
+                      <h3 className="users-modal-section-title">Security</h3>
+                      <p className="users-modal-section-desc">Password setup or invite-only onboarding.</p>
+                    </div>
+                  </div>
+                  <div className="ec-input-group users-modal-full">
                     <label className="ec-label">Password</label>
                     <input
                       type="password"
                       value={newUser.password}
                       onChange={e => setNewUser({ ...newUser, password: e.target.value })}
                       className="ec-input"
+                      autoComplete="new-password"
                     />
-                    <span
-                      style={{
-                        fontSize: '0.7rem',
-                        color: 'var(--ec-text-secondary)',
-                        marginTop: '0.25rem'
-                      }}
-                    >
-                      Must be at least 8 characters. Leave blank to send an invite link.
+                    <span className="users-modal-hint">
+                      At least 8 characters. Leave blank to issue an invite link instead of a password.
                     </span>
                   </div>
+                </section>
 
-                  <div className="ec-input-group">
-                    <label className="ec-label">Role</label>
-                    <select
-                      value={newUser.role}
-                      onChange={e => setNewUser({ ...newUser, role: e.target.value })}
-                      className="ec-input"
-                    >
-                      {modalRoleOptions.map(r => (
-                        <option key={r} value={r}>
-                          {r}
-                        </option>
-                      ))}
-                    </select>
+                <section className="users-modal-section">
+                  <div className="users-modal-section-head">
+                    <span className="users-modal-section-icon" aria-hidden>
+                      <i className="fa-solid fa-shield-halved"></i>
+                    </span>
+                    <div>
+                      <h3 className="users-modal-section-title">Access &amp; directory</h3>
+                      <p className="users-modal-section-desc">Maps to your existing directory roles for authentication.</p>
+                    </div>
                   </div>
-
-                  <div className="ec-input-group">
-                    <label className="ec-label">Scope</label>
-                    <input
-                      type="text"
-                      value={newUser.scope}
-                      onChange={e => setNewUser({ ...newUser, scope: e.target.value })}
-                      placeholder={isAdminManager ? String(currentUser?.scope || '') : 'Region / Department'}
-                      className="ec-input"
-                      list="user-scope-options"
-                      disabled={isAdminManager}
-                    />
-                    <datalist id="user-scope-options">
-                      {knownScopes.map(s => (
-                        <option key={s} value={s} />
-                      ))}
-                    </datalist>
-                  </div>
-
-                  <div className="ec-input-group">
-                    <label className="ec-label">Managed By</label>
-                    <select
-                      value={typeof newUser.managedById === 'number' ? String(newUser.managedById) : ''}
-                      onChange={e => {
-                        const v = e.target.value ? Number(e.target.value) : ''
-                        setNewUser(prev => {
-                          const mgr = typeof v === 'number' ? users.find(u => u.id === v) : null
-                          const nextScope = String(prev.scope || '').trim() ? prev.scope : String(mgr?.scope || '')
-                          return { ...prev, managedById: v, scope: nextScope }
-                        })
-                      }}
-                      className="ec-input"
-                      disabled={isAdminManager || !(newUser.role === 'Editor' || newUser.role === 'Viewer' || newUser.role === 'User') || !isSuperManager}
-                    >
-                      <option value="">—</option>
-                      {users
-                        .filter(u => u.role === 'Admin Manager')
-                        .map(u => (
-                          <option key={u.id} value={String(u.id)}>
-                            {u.name} {u.scope ? `(${u.scope})` : ''}
+                  <div className="ec-grid-2-col-wide users-modal-grid">
+                    {enterpriseRolePickerOptions.length ? (
+                      <div className="ec-input-group">
+                        <label className="ec-label">Enterprise role (RBAC)</label>
+                        <select
+                          value={newUser.enterpriseRole}
+                          onChange={e => {
+                            const enterpriseRole = e.target.value as EnterpriseAccessRole
+                            const dir = directoryRoleFromEnterpriseRole(enterpriseRole)
+                            setNewUser(prev => ({
+                              ...prev,
+                              enterpriseRole,
+                              role: modalRoleOptions.includes(dir) ? dir : prev.role,
+                            }))
+                          }}
+                          className="ec-input"
+                        >
+                          {enterpriseRolePickerOptions.map(er => (
+                            <option key={er} value={er}>
+                              {ENTERPRISE_ROLE_SHORT[er]} — {ENTERPRISE_ROLE_LABELS[er]}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    ) : null}
+                    <div className="ec-input-group">
+                      <label className="ec-label">Directory role</label>
+                      <select
+                        value={newUser.role}
+                        onChange={e => {
+                          const role = e.target.value
+                          setNewUser({
+                            ...newUser,
+                            role,
+                            enterpriseRole: enterpriseRoleFromDirectoryRole(role),
+                          })
+                        }}
+                        className="ec-input"
+                      >
+                        {modalRoleOptions.map(r => (
+                          <option key={r} value={r}>
+                            {r}
                           </option>
                         ))}
-                    </select>
+                      </select>
+                    </div>
+                    <div className="ec-input-group">
+                      <label className="ec-label">Scope</label>
+                      <input
+                        type="text"
+                        value={newUser.scope}
+                        onChange={e => setNewUser({ ...newUser, scope: e.target.value })}
+                        placeholder={isAdminManager ? String(currentUser?.scope || '') : 'Region / Department'}
+                        className="ec-input"
+                        list="user-scope-options"
+                        disabled={isAdminManager}
+                      />
+                      <datalist id="user-scope-options">
+                        {knownScopes.map(s => (
+                          <option key={s} value={s} />
+                        ))}
+                      </datalist>
+                    </div>
+                    <div className="ec-input-group">
+                      <label className="ec-label">Managed by</label>
+                      <select
+                        value={typeof newUser.managedById === 'number' ? String(newUser.managedById) : ''}
+                        onChange={e => {
+                          const v = e.target.value ? Number(e.target.value) : ''
+                          setNewUser(prev => {
+                            const mgr = typeof v === 'number' ? users.find(u => u.id === v) : null
+                            const nextScope = String(prev.scope || '').trim() ? prev.scope : String(mgr?.scope || '')
+                            return { ...prev, managedById: v, scope: nextScope }
+                          })
+                        }}
+                        className="ec-input"
+                        disabled={
+                          isAdminManager ||
+                          !(newUser.role === 'Editor' || newUser.role === 'Viewer' || newUser.role === 'User') ||
+                          !isSuperManager
+                        }
+                      >
+                        <option value="">—</option>
+                        {users
+                          .filter(u => u.role === 'Admin Manager')
+                          .map(u => (
+                            <option key={u.id} value={String(u.id)}>
+                              {u.name} {u.scope ? `(${u.scope})` : ''}
+                            </option>
+                          ))}
+                      </select>
+                    </div>
+                    <div className="ec-input-group">
+                      <label className="ec-label">Status</label>
+                      <select
+                        value={newUser.status}
+                        onChange={e => setNewUser({ ...newUser, status: e.target.value })}
+                        className="ec-input"
+                      >
+                        <option value="Active">Active</option>
+                        <option value="Pending">Pending</option>
+                        <option value="Suspended">Suspended</option>
+                      </select>
+                    </div>
+                    <div className="ec-input-group">
+                      <label className="ec-label">Last login</label>
+                      <input
+                        type="text"
+                        value={newUser.lastLogin}
+                        onChange={e => setNewUser({ ...newUser, lastLogin: e.target.value })}
+                        placeholder="Never"
+                        className="ec-input"
+                      />
+                    </div>
                   </div>
-
-                  <div className="ec-input-group">
-                    <label className="ec-label">Status</label>
-                    <select
-                      value={newUser.status}
-                      onChange={e => setNewUser({ ...newUser, status: e.target.value })}
-                      className="ec-input"
-                    >
-                      <option value="Active">Active</option>
-                      <option value="Pending">Pending</option>
-                      <option value="Suspended">Suspended</option>
-                    </select>
+                  <div className="users-modal-perm-preview">
+                    <span className="users-modal-perm-preview-label">Capabilities for this enterprise role</span>
+                    <div className="users-modal-perm-chips">
+                      {listGeoPermissionsForEnterpriseRole(newUser.enterpriseRole).map(p => (
+                        <span key={p} className="users-modal-perm-chip" title={GEO_PERMISSION_LABELS[p]}>
+                          {GEO_PERMISSION_LABELS[p]}
+                        </span>
+                      ))}
+                    </div>
                   </div>
+                </section>
 
-                  <div className="ec-input-group">
-                    <label className="ec-label">Last Login</label>
-                    <input
-                      type="text"
-                      value={newUser.lastLogin}
-                      onChange={e => setNewUser({ ...newUser, lastLogin: e.target.value })}
-                      placeholder="Never"
-                      className="ec-input"
-                    />
+                <section className="users-modal-section">
+                  <div className="users-modal-section-head">
+                    <span className="users-modal-section-icon" aria-hidden>
+                      <i className="fa-solid fa-layer-group"></i>
+                    </span>
+                    <div>
+                      <h3 className="users-modal-section-title">Plan, workspace &amp; usage</h3>
+                      <p className="users-modal-section-desc">Subscription tier, isolated workspace, and tracked consumption.</p>
+                    </div>
                   </div>
-                </div>
+                  <div className="ec-grid-2-col-wide users-modal-grid">
+                    <div className="ec-input-group">
+                      <label className="ec-label">Subscription plan</label>
+                      <select
+                        value={newUser.subscriptionPlan}
+                        onChange={e =>
+                          setNewUser({ ...newUser, subscriptionPlan: e.target.value as SubscriptionPlanId })
+                        }
+                        className="ec-input"
+                      >
+                        {(Object.keys(SUBSCRIPTION_PLAN_LABELS) as SubscriptionPlanId[]).map(pid => (
+                          <option key={pid} value={pid}>
+                            {SUBSCRIPTION_PLAN_LABELS[pid]}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <div className="ec-input-group">
+                      <label className="ec-label">Plan expiry (ISO date)</label>
+                      <input
+                        type="text"
+                        value={newUser.subscriptionExpiresAt}
+                        onChange={e => setNewUser({ ...newUser, subscriptionExpiresAt: e.target.value })}
+                        className="ec-input"
+                        placeholder="Optional e.g. 2027-01-01"
+                      />
+                    </div>
+                    <div className="ec-input-group users-modal-full">
+                      <label className="ec-label">Workspace label</label>
+                      <input
+                        type="text"
+                        value={newUser.workspaceLabel}
+                        onChange={e => setNewUser({ ...newUser, workspaceLabel: e.target.value })}
+                        className="ec-input"
+                      />
+                      {modalGeoSnapshot?.workspaceId ? (
+                        <span className="users-modal-hint">Workspace ID: {modalGeoSnapshot.workspaceId}</span>
+                      ) : (
+                        <span className="users-modal-hint">A workspace ID is generated automatically on first save.</span>
+                      )}
+                    </div>
+                  </div>
+                  <div className="users-modal-quota-grid" aria-label="Quota usage">
+                    <div className="users-modal-quota-card">
+                      <div className="users-modal-quota-label">GeoAI analyses / mo</div>
+                      <div className="users-modal-quota-value">
+                        {usedAnalysis} / {quotaLimits.monthlyAnalysisQuota}
+                      </div>
+                    </div>
+                    <div className="users-modal-quota-card">
+                      <div className="users-modal-quota-label">Exports</div>
+                      <div className="users-modal-quota-value">
+                        {usedExport} (limit {quotaLimits.exportLimitMb} MB / cycle)
+                      </div>
+                    </div>
+                    <div className="users-modal-quota-card">
+                      <div className="users-modal-quota-label">API calls / mo</div>
+                      <div className="users-modal-quota-value">
+                        {usedApi} / {quotaLimits.apiCallsLimit}
+                      </div>
+                    </div>
+                    <div className="users-modal-quota-card">
+                      <div className="users-modal-quota-label">Storage cap</div>
+                      <div className="users-modal-quota-value">{quotaLimits.storageLimitMb} MB</div>
+                    </div>
+                  </div>
+                </section>
 
-                <div className="users-modal-footer">
-                  <button
-                    type="button"
-                    className="ec-btn ec-btn-secondary"
-                    onClick={() => setIsModalOpen(false)}
-                  >
+                <section className="users-modal-section">
+                  <div className="users-modal-section-head">
+                    <span className="users-modal-section-icon" aria-hidden>
+                      <i className="fa-solid fa-key"></i>
+                    </span>
+                    <div>
+                      <h3 className="users-modal-section-title">API key</h3>
+                      <p className="users-modal-section-desc">Programmatic access with scoped permissions (client-side preview).</p>
+                    </div>
+                  </div>
+                  <div className="users-modal-api-row">
+                    <div>
+                      <div className="users-modal-api-label">Masked suffix</div>
+                      <code className="users-modal-api-code">
+                        {editingId !== null ? (modalGeoSnapshot?.apiKeySuffix ? `…${modalGeoSnapshot.apiKeySuffix}` : '—') : 'Generated on create'}
+                      </code>
+                    </div>
+                    {editingId !== null ? (
+                      <label className="users-modal-check">
+                        <input
+                          type="checkbox"
+                          checked={newUser.regenerateApiKey}
+                          onChange={e => setNewUser({ ...newUser, regenerateApiKey: e.target.checked })}
+                        />
+                        Regenerate on save (copy from toast)
+                      </label>
+                    ) : null}
+                  </div>
+                </section>
+
+                <div className="users-modal-footer users-modal-footer--split">
+                  <button type="button" className="ec-btn ec-btn-secondary" onClick={() => setIsModalOpen(false)}>
                     Cancel
                   </button>
-                  <button
-                    type="submit"
-                    className="ec-btn ec-btn-primary"
-                  >
-                    {editingId !== null ? 'Save Changes' : 'Add user'}
+                  <button type="submit" className="ec-btn ec-btn-primary users-modal-submit">
+                    {editingId !== null ? 'Save changes' : 'Create member'}
                   </button>
                 </div>
               </form>

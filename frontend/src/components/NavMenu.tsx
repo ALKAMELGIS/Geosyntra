@@ -377,28 +377,14 @@ export default function NavMenu({ onLogout }: NavMenuProps) {
             id="nav-group-account"
             className={openGroup === 'account' ? 'sublist open' : 'sublist'}
           >
-            <NavLink
-              to="/account/profile"
-              title={t.profile}
-              aria-label={t.profile}
-              onClick={handleNavigate}
-              onMouseEnter={() => prefetchRoute('/account/profile')}
-              onPointerEnter={() => prefetchRoute('/account/profile')}
-              onFocus={() => prefetchRoute('/account/profile')}
-              className={({ isActive }) => (isActive ? 'subitem active nav-item-account' : 'subitem nav-item-account')}
-              ref={el => {
-                groupFirstItemRefs.current.account = el
-              }}
-            >
-              <span className="icon">
-                <i className="fa-solid fa-user-gear"></i>
-              </span>
-            </NavLink>
             <button
               className="subitem nav-item-account"
               type="button"
               title={t.logout}
               aria-label={t.logout}
+              ref={el => {
+                groupFirstItemRefs.current.account = el
+              }}
               onClick={() => {
                 closeAll()
                 if (onLogout) {

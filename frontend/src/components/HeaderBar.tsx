@@ -39,11 +39,10 @@ export default function HeaderBar({ onLogout }: HeaderBarProps) {
     if (!isDark && settings.logoLight.trim()) return settings.logoLight.trim()
     return settings.logoLight.trim() || settings.logoDark.trim() || DEFAULT_CENTER_LOGO.trim()
   }, [settings.themeMode, settings.logoLight, settings.logoDark])
-  const logoText = useMemo(() => {
-    if (hs.useProjectName) return String(import.meta.env.VITE_APP_NAME || GEOSYNTRA_BRAND_NAME)
-    if (language === 'ar') return hs.logoTextAr.trim() || GEOSYNTRA_BRAND_NAME_AR
-    return hs.logoText.trim() || GEOSYNTRA_BRAND_NAME
-  }, [hs.logoText, hs.logoTextAr, hs.useProjectName, language])
+  const logoText = useMemo(
+    () => (language === 'ar' ? GEOSYNTRA_BRAND_NAME_AR : GEOSYNTRA_BRAND_NAME),
+    [language],
+  )
   const headerStyle = useMemo(
     () =>
       ({
