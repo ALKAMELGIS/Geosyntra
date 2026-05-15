@@ -236,20 +236,23 @@ const XLSX_FMT_SPECTRAL = '0.############################'
 
 /**
  * Full-fidelity text for Excel cells: avoids General/percent formats that show tiny |−1…1| values as 0.00.
- * Uses up to 17 significant / 16 fraction digits; if locale would collapse a non-zero value to "0", keep `String(v)`.
+ * Keeps IEEE doubles readable without clipping negatives or sub-1 spectral values to “0”.
  */
 function excelDecimalText(v: number): string {
   if (!Number.isFinite(v)) return ''
   if (v === 0 || Object.is(v, -0)) return '0'
   const raw = String(v)
+  if (/[eE]/.test(raw)) {
+    const expanded = v.toLocaleString('en-US', { useGrouping: false, maximumFractionDigits: 20 })
+    if (v !== 0 && (expanded === '0' || expanded === '-0')) return raw
+    return expanded
+  }
   const localized = v.toLocaleString('en-US', {
     maximumSignificantDigits: 17,
     maximumFractionDigits: 16,
     useGrouping: false,
   })
-  if (v !== 0 && Math.abs(Number.parseFloat(localized.replace(/,/g, ''))) === 0) {
-    return raw
-  }
+  if (v !== 0 && (localized === '0' || localized === '-0')) return raw
   return localized
 }
 
@@ -582,18 +585,18 @@ export function buildGeoAiIndexAnalyticalWorkbook(opts: {
     const n = vals.length;
     const pct = total > 0 ? (100 * n) / total : 0;
     const mnc = vals.length ? vals.reduce((a, b) => a + b, 0) / vals.length : NaN;
-    // Pct / mean / counts as text + post-pass so Excel never collapses tiny % or |−1…1| means to “0.00”.
+    // All value columns as explicit text (@) so Excel never rounds tiny % or spectral means to “0.00”.
+    // Pct is 0–100 with header “Pct of AOI (%)” — do not embed “%” in the cell (avoids locale/parse quirks).
     classStats.push([
-      c.id,
+      String(c.id),
       c.label,
       String(n),
-      `${excelDecimalText(pct)}%`,
+      excelDecimalText(pct),
       vals.length && Number.isFinite(mnc) ? excelDecimalText(mnc) : '',
     ])
   }
   appendSheetWithColWidths(wb, classStats, 'Class_Statistics', [14, 56, 18, 34, 40], ws => {
-    applyNumberFormatsToDataRows(ws, 1, [{ c: 0, z: XLSX_FMT_INT }])
-    forceCellsPlainText(ws, 1, [2, 3, 4])
+    forceCellsPlainText(ws, 1, [0, 1, 2, 3, 4])
   })
 
   return wb;
