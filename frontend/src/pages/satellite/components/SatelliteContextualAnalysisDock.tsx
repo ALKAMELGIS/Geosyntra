@@ -111,6 +111,13 @@ export type SatelliteContextualAnalysisDockProps = {
   onRequestGenerateReport?: () => void;
   /** Map toolbox rail: optional symbology shortcut (parent supplies a small icon button). */
   mapSymbologyToolbarSlot?: ReactNode;
+  /** Map toolbox: layer swipe controls (flyout beside rail; no on-map divider handle). */
+  mapToolboxLayerSwipeSlot?: ReactNode;
+  /** When true, map toolbox shows a rail control to toggle the on-map spectral / WMS legend overlay. */
+  mapSpectralLegendAvailable?: boolean;
+  /** Parent-owned visibility for the spectral legend card on the map canvas. */
+  mapSpectralLegendOpen?: boolean;
+  onToggleMapSpectralLegend?: () => void;
 };
 
 const RAIL: Array<{ id: SatelliteContextPanelId; icon: string; label: string; title: string; hint: string }> = [
@@ -158,7 +165,7 @@ const RAIL: Array<{ id: SatelliteContextPanelId; icon: string; label: string; ti
     icon: 'fa-solid fa-vector-square',
     label: 'Fields Data',
     title: 'Fields Data',
-    hint: 'Saved AOIs from your drawing tools — analysis, comparison, export.',
+    hint: '',
   },
   {
     id: 'spatial',
@@ -224,12 +231,9 @@ const RAIL_MAP_TOOLBOX_IDS = new Set<SatelliteContextPanelId>([
   'remote-sensing',
   'ai-detection-gis',
   'table-geo-ai',
-  'fields',
 ]);
 
-/** Rail tools that open the floating processing stack instead of the docked
- * panel. Fields is intentionally excluded — it slides open inside the
- * dock's own panel (same drawer pattern as Layers / GIS Map's Fields). */
+/** Rail tools that open the floating processing stack instead of the docked panel. */
 const MAP_RAIL_FLOAT_IDS = new Set<SatelliteContextPanelId>([
   'explore-stac',
   'remote-sensing',
@@ -238,7 +242,7 @@ const MAP_RAIL_FLOAT_IDS = new Set<SatelliteContextPanelId>([
 
 const RAIL_GROUPS_MAP: SatelliteContextPanelId[][] = [
   ['layers', 'explore-stac', 'remote-sensing'],
-  ['ai-detection-gis', 'fields', 'table-geo-ai'],
+  ['ai-detection-gis', 'table-geo-ai'],
 ];
 
 const RAIL_BY_ID = RAIL.reduce(
@@ -270,7 +274,7 @@ function defaultSparkPath(values: number[], w: number, h: number): string {
 }
 
 export function SatelliteContextualAnalysisDock(props: SatelliteContextualAnalysisDockProps) {
-  const { direction } = useLanguage();
+  const { direction, language } = useLanguage();
   const {
     variant,
     className = '',
@@ -311,6 +315,10 @@ export function SatelliteContextualAnalysisDock(props: SatelliteContextualAnalys
     fieldsCount = 0,
     onRequestGenerateReport,
     mapSymbologyToolbarSlot,
+    mapToolboxLayerSwipeSlot,
+    mapSpectralLegendAvailable = false,
+    mapSpectralLegendOpen = false,
+    onToggleMapSpectralLegend,
   } = props;
 
   const [panelOpen, setPanelOpen] = useState(false);
@@ -564,7 +572,7 @@ export function SatelliteContextualAnalysisDock(props: SatelliteContextualAnalys
     .join(' ');
 
   const railHintTitle = (item: (typeof RAIL)[number]) =>
-    railWide ? item.title : `${item.title} — ${item.hint}`;
+    railWide ? item.title : item.hint ? `${item.title} — ${item.hint}` : item.title;
 
   return (
     <div className={rootClass} role="presentation" dir={direction}>
@@ -642,12 +650,12 @@ export function SatelliteContextualAnalysisDock(props: SatelliteContextualAnalys
                   {isMap ? (
                     <span className="si-sat-ctx-rail-label" aria-hidden={!railWide}>
                       <span className="si-sat-ctx-rail-label-title">{item.label}</span>
-                      <span className="si-sat-ctx-rail-label-desc">{item.hint}</span>
+                      {item.hint ? <span className="si-sat-ctx-rail-label-desc">{item.hint}</span> : null}
                     </span>
                   ) : railWide ? (
                     <span className="si-sat-ctx-rail-label">
                       <span className="si-sat-ctx-rail-label-title">{item.label}</span>
-                      <span className="si-sat-ctx-rail-label-desc">{item.hint}</span>
+                      {item.hint ? <span className="si-sat-ctx-rail-label-desc">{item.hint}</span> : null}
                     </span>
                   ) : null}
                   {/* Fields rail badge — same convention as the GIS Map's
@@ -675,6 +683,46 @@ export function SatelliteContextualAnalysisDock(props: SatelliteContextualAnalys
         {isMap && mapSymbologyToolbarSlot ? (
           <div className="si-sat-ctx-rail-sym-wrap" role="group" aria-label="Symbology">
             {mapSymbologyToolbarSlot}
+          </div>
+        ) : null}
+        {isMap && mapSpectralLegendAvailable && onToggleMapSpectralLegend ? (
+          <button
+            type="button"
+            className={
+              'si-sat-ctx-rail-btn si-sat-ctx-rail-btn--map si-sat-ctx-rail-btn--legend-tool' +
+              (railWide ? ' si-sat-ctx-rail-btn--row si-sat-ctx-rail-btn--map-expanded' : '') +
+              (isMap && !railWide ? ' si-sat-ctx-rail-btn--map-collapsed' : '') +
+              (mapSpectralLegendOpen ? ' si-sat-ctx-rail-btn--active' : '')
+            }
+            title={
+              language === 'ar'
+                ? mapSpectralLegendOpen
+                  ? 'إخفاء وسيلة الإيضاح على الخريطة'
+                  : 'إظهار وسيلة الإيضاح (طبقات WMS / RGB)'
+                : mapSpectralLegendOpen
+                  ? 'Hide legend overlay on map'
+                  : 'Show legend — WMS / RGB layer symbology on map'
+            }
+            aria-label={language === 'ar' ? 'تبديل وسيلة الإيضاح على الخريطة' : 'Toggle map legend overlay'}
+            aria-pressed={mapSpectralLegendOpen}
+            onClick={() => onToggleMapSpectralLegend()}
+          >
+            <span className="si-sat-ctx-rail-legend-glyph" aria-hidden>
+              <i className="fa-solid fa-book-atlas" />
+            </span>
+            {isMap ? (
+              <span className="si-sat-ctx-rail-label" aria-hidden={!railWide}>
+                <span className="si-sat-ctx-rail-label-title">{language === 'ar' ? 'إيضاح' : 'Legend'}</span>
+                <span className="si-sat-ctx-rail-label-desc">
+                  {language === 'ar' ? 'عرض مفتاح الطبقة على الخريطة' : 'Layer key on map'}
+                </span>
+              </span>
+            ) : null}
+          </button>
+        ) : null}
+        {isMap && mapToolboxLayerSwipeSlot ? (
+          <div className="si-sat-ctx-rail-swipe-slot" role="region" aria-label="Layer swipe compare">
+            {mapToolboxLayerSwipeSlot}
           </div>
         ) : null}
         <div className="si-sat-ctx-rail-spacer" aria-hidden />

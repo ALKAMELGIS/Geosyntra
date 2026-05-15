@@ -185,6 +185,12 @@ export type SatelliteMapAnalysisChromeProps = {
   fieldsCount?: number;
   /** Map toolbox rail: quick open for WMS symbology (classified ramp). */
   mapSymbologyToolbarSlot?: ReactNode;
+  /** Map toolbox: layer swipe panel (beside rail; no on-map divider handle). */
+  mapToolboxLayerSwipeSlot?: ReactNode;
+  /** Spectral / WMS legend on map — toggled from toolbox rail when a legend exists. */
+  mapSpectralLegendAvailable?: boolean;
+  mapSpectralLegendOpen?: boolean;
+  onToggleMapSpectralLegend?: () => void;
 };
 
 function sparkPath(values: number[], w: number, h: number): string {
@@ -251,6 +257,10 @@ export function SatelliteMapAnalysisChrome(props: SatelliteMapAnalysisChromeProp
     fieldsPanelContent,
     fieldsCount = 0,
     mapSymbologyToolbarSlot,
+    mapToolboxLayerSwipeSlot,
+    mapSpectralLegendAvailable = false,
+    mapSpectralLegendOpen = false,
+    onToggleMapSpectralLegend,
   } = props;
 
   const activeFull =
@@ -291,7 +301,23 @@ export function SatelliteMapAnalysisChrome(props: SatelliteMapAnalysisChromeProp
     if (!chip) return;
     const reduceMotion =
       typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
-    chip.scrollIntoView({ block: 'nearest', inline: 'center', behavior: reduceMotion ? 'auto' : 'smooth' });
+
+    /**
+     * Avoid `scrollIntoView({ inline: 'center' })` on chips: during playback it can
+     * scroll the *document* horizontally and expose a black gutter beside the map toolbox.
+     * Only adjust the chip strip's scrollLeft.
+     */
+    const stripRect = strip.getBoundingClientRect();
+    const chipRect = chip.getBoundingClientRect();
+    const targetCenter = chipRect.left + chipRect.width / 2;
+    const stripCenter = stripRect.left + stripRect.width / 2;
+    const delta = targetCenter - stripCenter;
+    const maxScroll = Math.max(0, strip.scrollWidth - strip.clientWidth);
+    const nextLeft = Math.max(0, Math.min(strip.scrollLeft + delta, maxScroll));
+    strip.scrollTo({
+      left: nextLeft,
+      behavior: reduceMotion ? 'auto' : 'smooth',
+    });
   }, [activeChipId, weeklyChips.length]);
 
   const contextualDock = showMapToolbox ? (
@@ -333,6 +359,10 @@ export function SatelliteMapAnalysisChrome(props: SatelliteMapAnalysisChromeProp
       fieldsPanelContent={fieldsPanelContent}
       fieldsCount={fieldsCount}
       mapSymbologyToolbarSlot={mapSymbologyToolbarSlot}
+      mapToolboxLayerSwipeSlot={mapToolboxLayerSwipeSlot}
+      mapSpectralLegendAvailable={mapSpectralLegendAvailable}
+      mapSpectralLegendOpen={mapSpectralLegendOpen}
+      onToggleMapSpectralLegend={onToggleMapSpectralLegend}
     />
   ) : null;
 

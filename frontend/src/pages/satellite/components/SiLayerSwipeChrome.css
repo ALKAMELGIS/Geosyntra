@@ -42,6 +42,11 @@
   backdrop-filter: blur(10px);
 }
 
+/* Map toolbox flyout: square corners (90°) to match dock chrome. */
+.si-layer-swipe-chrome--toolbox .si-layer-swipe-chrome__hud--toolbox {
+  border-radius: 0;
+}
+
 .si-layer-swipe-chrome__row {
   display: flex;
   align-items: center;
@@ -168,4 +173,198 @@
 
 .si-sat-ctx-rail-sym-tool--swipe {
   margin-inline-end: 6px;
+}
+
+/* Toolbox layout: controls live on the Map toolbox flyout (no map-edge line/handle). */
+.si-layer-swipe-chrome--toolbox {
+  position: relative;
+  inset: auto;
+  z-index: 1;
+  pointer-events: auto;
+}
+
+.si-layer-swipe-chrome--toolbox .si-layer-swipe-chrome__hud--toolbox {
+  position: relative;
+  top: auto;
+  left: auto;
+  transform: none;
+  min-width: 0;
+  max-width: none;
+  border-radius: 0;
+}
+
+.si-layer-swipe-chrome__styles {
+  margin: 0 0 10px;
+  padding: 8px 8px 6px;
+  border: 1px solid rgba(148, 163, 184, 0.22);
+  border-radius: 0;
+  background: rgba(2, 6, 23, 0.35);
+}
+
+.si-layer-swipe-chrome__styles-legend {
+  padding: 0 0 6px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: rgba(148, 163, 184, 0.95);
+}
+
+.si-layer-swipe-chrome__style-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: rgba(248, 250, 252, 0.92);
+  margin: 0 0 6px;
+  cursor: pointer;
+}
+
+.si-layer-swipe-chrome__style-row:last-child {
+  margin-bottom: 0;
+}
+
+.si-layer-swipe-chrome__style-row input {
+  flex-shrink: 0;
+}
+
+.si-layer-swipe-chrome__tool-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.si-layer-swipe-chrome__btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  padding: 8px 10px;
+  border-radius: 0;
+  border: 1px solid rgba(148, 163, 184, 0.35);
+  background: rgba(30, 41, 59, 0.55);
+  color: #f8fafc;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.si-layer-swipe-chrome__btn:hover {
+  border-color: rgba(129, 140, 248, 0.45);
+  background: rgba(51, 65, 85, 0.65);
+}
+
+.si-layer-swipe-chrome__color-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.si-layer-swipe-chrome__color-label {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: rgba(148, 163, 184, 0.95);
+}
+
+.si-layer-swipe-chrome__color-inputs {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.si-layer-swipe-chrome__color-well {
+  width: 36px;
+  height: 28px;
+  padding: 0;
+  border: 1px solid rgba(148, 163, 184, 0.35);
+  border-radius: 0;
+  background: transparent;
+  cursor: pointer;
+}
+
+.si-layer-swipe-chrome__color-hex {
+  flex: 1;
+  min-width: 0;
+  font-size: 12px;
+  font-family: ui-monospace, monospace;
+  padding: 6px 8px;
+  border-radius: 0;
+  border: 1px solid rgba(100, 116, 139, 0.45);
+  background: rgba(2, 6, 23, 0.55);
+  color: #f8fafc;
+}
+
+.si-layer-swipe-chrome__spy-tools {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.si-layer-swipe-chrome__picks--toolbox {
+  grid-template-columns: 1fr;
+}
+
+.si-layer-swipe-chrome--toolbox .si-layer-swipe-chrome__select {
+  border-radius: 0;
+}
+
+.si-layer-swipe-chrome--toolbox .si-layer-swipe-chrome__close {
+  border-radius: 0;
+}
+
+.si-layer-swipe-chrome__split-tool {
+  margin-top: 10px;
+  padding: 0 2px 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.si-layer-swipe-chrome__split-label {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: rgba(148, 163, 184, 0.95);
+}
+
+.si-layer-swipe-chrome__range {
+  width: 100%;
+  accent-color: #22c55e;
+}
+
+/* On-map guides (divider / spy frame) — no drag handle; controls live in Map toolbox. */
+.si-layer-swipe-divider {
+  position: absolute;
+  z-index: 10;
+  pointer-events: none;
+}
+
+.si-layer-swipe-divider--v {
+  top: 0;
+  bottom: 0;
+  width: 3px;
+  transform: translateX(-50%);
+}
+
+.si-layer-swipe-divider--h {
+  left: 0;
+  right: 0;
+  height: 3px;
+  transform: translateY(-50%);
+}
+
+.si-layer-swipe-spy-ring {
+  position: absolute;
+  z-index: 10;
+  pointer-events: none;
+  border-style: solid;
+  border-width: 3px;
+  border-radius: 50%;
+  box-sizing: border-box;
+  transform: translate(-50%, -50%);
 }

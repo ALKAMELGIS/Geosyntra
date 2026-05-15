@@ -246,7 +246,7 @@
 .si-geo-ai-float-head {
   flex-shrink: 0;
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   justify-content: space-between;
   gap: 10px;
   padding: 12px 14px 10px;
@@ -254,6 +254,76 @@
   cursor: grab;
   user-select: none;
   touch-action: none;
+}
+
+.si-geo-ai-float-head-main {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  flex: 1;
+}
+
+.si-geo-ai-float-head-slot {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+}
+
+.si-geo-ai-float-model-icon-tabs {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.si-geo-ai-float-model-icon-tab {
+  position: relative;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  border: 1px solid rgba(148, 163, 184, 0.35);
+  background: rgba(15, 23, 42, 0.65);
+  color: #cbd5e1;
+  font-size: 12px;
+  line-height: 1;
+  cursor: pointer;
+  transition:
+    border-color 0.15s ease,
+    color 0.15s ease,
+    background 0.15s ease,
+    box-shadow 0.15s ease;
+}
+
+.si-geo-ai-float-model-icon-tab:hover {
+  border-color: rgba(167, 139, 250, 0.5);
+  color: #f8fafc;
+}
+
+.si-geo-ai-float-model-icon-tab--active {
+  border-color: rgba(167, 139, 250, 0.85);
+  background: rgba(88, 28, 135, 0.35);
+  color: #faf5ff;
+  box-shadow: 0 0 0 1px rgba(167, 139, 250, 0.2);
+}
+
+.si-geo-ai-float-model-icon-tab .fa-brands {
+  font-size: 13px;
+}
+
+.si-geo-ai-float-sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
 }
 
 .si-geo-ai-float-head:active {
@@ -307,6 +377,7 @@
   flex-direction: column;
   gap: 2px;
   min-width: 0;
+  flex: 1;
 }
 
 .si-geo-ai-float-title {
@@ -381,10 +452,6 @@
   min-height: 0;
   max-height: none;
   gap: 8px;
-}
-
-.si-geo-ai-float-body .si-geo-ai-model-tabs {
-  flex-shrink: 0;
 }
 
 .si-geo-ai-float-body .si-geo-explorer-messages {

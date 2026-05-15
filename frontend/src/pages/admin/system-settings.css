@@ -1,4 +1,4 @@
-/* System Settings — modern layout (tabs, panels, drag lists, uploads) */
+/* System Settings — layout (section picker, panels, drag lists, uploads) */
 
 .sys-settings {
   --sys-radius: 16px;
@@ -64,102 +64,47 @@
   }
 }
 
-/* Segmented tabs — glass strip */
-.sys-settings-tabs {
+/* Section switcher — flat row (replaces pill tab strip). */
+.sys-settings-section-picker {
   flex-shrink: 0;
-  display: inline-flex;
+  display: flex;
   flex-wrap: wrap;
-  gap: 4px;
-  padding: 5px;
-  border-radius: 999px;
-  background: color-mix(in srgb, var(--ds-color-surface) 88%, transparent);
-  border: 1px solid var(--sys-border);
-  box-shadow: var(--ds-shadow-sm);
-  backdrop-filter: blur(8px);
-  margin-bottom: 24px;
-}
-
-.sys-settings-tab {
-  border: none;
-  cursor: pointer;
-  padding: 10px 16px;
-  border-radius: 999px;
-  font-size: 0.8125rem;
-  font-weight: 600;
-  color: var(--ds-color-text);
-  background: transparent;
-  display: inline-flex;
   align-items: center;
-  gap: 8px;
-  transition: transform 0.12s ease, background 0.15s ease, color 0.15s ease, box-shadow 0.15s ease;
+  gap: 12px 16px;
+  margin-bottom: 24px;
+  padding: 12px 14px;
+  border-radius: 0;
+  border: 1px solid var(--sys-border);
+  background: var(--ds-color-surface);
+  box-sizing: border-box;
 }
 
-.sys-settings-tab:not(.sys-settings-tab--active) {
-  color: var(--ds-color-text-muted);
+.sys-settings-section-picker__label {
+  font-size: 0.8125rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--sys-muted);
 }
 
-.sys-settings-tab__icon {
-  font-size: 0.95rem;
-  opacity: 0.88;
-  color: inherit;
+.sys-settings-section-picker__select {
+  flex: 1 1 220px;
+  min-width: min(100%, 220px);
+  max-width: 480px;
+  border-radius: 0;
+  padding: 10px 12px;
+  font-size: 0.9375rem;
+  font-weight: 600;
 }
 
-.sys-settings-tab:hover:not(.sys-settings-tab--active) {
-  color: var(--ds-color-text);
-  background: color-mix(in srgb, var(--ds-color-surface) 90%, var(--ds-color-bg));
-}
-
-html[data-theme='dark'] .sys-settings-tab:hover:not(.sys-settings-tab--active) {
-  background: rgba(255, 255, 255, 0.09);
-}
-
-/* Solid primary — invalid color-mix (e.g. 108%) was producing near-white fills with white text */
-.sys-settings-tab--active {
-  color: #fff;
-  background: var(--ds-color-primary);
-  box-shadow: 0 6px 18px color-mix(in srgb, var(--ds-color-primary) 38%, transparent);
-}
-
-.sys-settings-tab--active .sys-settings-tab__icon {
-  opacity: 1;
-  color: inherit;
-}
-
-.sys-settings-tab--active:hover {
-  color: #fff;
-  background: var(--ds-color-primary-hover);
-  filter: none;
-}
-
-@media (max-width: 720px) {
-  .sys-settings-tabs {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 6px;
-    padding: 8px;
-    width: 100%;
-    max-width: 100%;
-    box-sizing: border-box;
-    border-radius: 14px;
+@media (max-width: 520px) {
+  .sys-settings-section-picker {
+    flex-direction: column;
+    align-items: stretch;
   }
 
-  .sys-settings-tab {
-    width: 100%;
-    justify-content: center;
-    border-radius: 10px;
-    padding: 10px 8px;
-    font-size: 0.75rem;
-    gap: 6px;
-  }
-
-  .sys-settings-tab__icon {
-    font-size: 0.88rem;
-  }
-}
-
-@media (max-width: 420px) {
-  .sys-settings-tabs {
-    grid-template-columns: 1fr;
+  .sys-settings-section-picker__select {
+    max-width: none;
   }
 }
 
@@ -1591,4 +1536,292 @@ html[data-theme='dark'] .sys-settings-tab:hover:not(.sys-settings-tab--active) {
   height: 1.05rem;
   accent-color: var(--ds-color-primary);
   cursor: pointer;
+}
+
+/* —— API Vault (enterprise GIS secrets shell) —— */
+.sys-api-vault-file-input {
+  position: absolute;
+  width: 0;
+  height: 0;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.sys-api-tab--vault .sys-api-hero,
+.sys-api-tab--vault .sys-api-tokens-card {
+  border-radius: 4px;
+}
+
+.sys-api-tab--vault .sys-api-tokens-card {
+  animation: sysApiVaultCardIn 0.48s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.sys-api-vault-hero {
+  align-items: stretch;
+  animation: sysApiVaultHeroIn 0.55s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@keyframes sysApiVaultHeroIn {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.sys-api-vault-hero__lead {
+  margin: 0;
+  max-width: 72ch;
+  font-size: 0.88rem;
+  line-height: 1.55;
+  color: var(--ds-color-text-muted, var(--sys-muted));
+}
+
+.sys-api-vault-hero__meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.sys-api-vault-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  border-radius: 3px;
+  font-size: 0.76rem;
+  font-weight: 700;
+  border: 1px solid color-mix(in srgb, var(--sys-border) 88%, transparent);
+  background: color-mix(in srgb, var(--ds-color-surface) 88%, var(--ds-color-bg));
+  color: var(--ds-color-text-muted, var(--sys-muted));
+}
+
+.sys-api-vault-pill--ok {
+  border-color: color-mix(in srgb, #22c55e 42%, var(--sys-border));
+  color: #4ade80;
+}
+
+.sys-api-vault-pill--warn {
+  border-color: color-mix(in srgb, #f59e0b 45%, var(--sys-border));
+  color: #fbbf24;
+}
+
+.sys-api-vault-pill--idle {
+  opacity: 0.92;
+}
+
+.sys-api-vault-pill--muted {
+  opacity: 0.88;
+}
+
+.sys-api-vault-hero__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+  justify-content: flex-end;
+}
+
+:root[dir='rtl'] .sys-api-vault-hero__actions {
+  justify-content: flex-start;
+}
+
+.sys-api-vault-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  border-radius: 3px;
+  font-size: 0.82rem;
+  font-weight: 700;
+  cursor: pointer;
+  border: 1px solid color-mix(in srgb, var(--sys-border) 90%, transparent);
+  background: color-mix(in srgb, var(--ds-color-surface) 92%, var(--ds-color-bg));
+  color: var(--ds-color-text);
+  transition:
+    transform 0.16s ease,
+    border-color 0.18s ease,
+    box-shadow 0.2s ease;
+}
+
+.sys-api-vault-btn:hover {
+  transform: translateY(-1px);
+  border-color: color-mix(in srgb, var(--ds-color-primary) 35%, var(--sys-border));
+  box-shadow: 0 6px 18px color-mix(in srgb, var(--ds-color-text) 6%, transparent);
+}
+
+.sys-api-vault-btn--ghost {
+  background: color-mix(in srgb, var(--ds-color-bg) 55%, var(--ds-color-surface));
+}
+
+.sys-api-vault-btn--primary {
+  border: none;
+  color: #fff;
+  background: linear-gradient(165deg, var(--ds-color-primary), color-mix(in srgb, var(--ds-color-primary) 78%, #0f172a));
+  box-shadow: 0 6px 18px color-mix(in srgb, var(--ds-color-primary) 28%, transparent);
+}
+
+.sys-api-vault-add {
+  border-radius: 4px !important;
+}
+
+.sys-api-vault-section-head {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.sys-api-vault-usage-banner {
+  margin: 0;
+  font-size: 0.82rem;
+  line-height: 1.5;
+  color: var(--ds-color-text-muted, var(--sys-muted));
+}
+
+.sys-api-tab--vault .sys-api-tokens-grid > .sys-api-tokens-card:nth-child(1) {
+  animation-delay: 0.03s;
+}
+.sys-api-tab--vault .sys-api-tokens-grid > .sys-api-tokens-card:nth-child(2) {
+  animation-delay: 0.06s;
+}
+.sys-api-tab--vault .sys-api-tokens-grid > .sys-api-tokens-card:nth-child(3) {
+  animation-delay: 0.09s;
+}
+.sys-api-tab--vault .sys-api-tokens-grid > .sys-api-tokens-card:nth-child(4) {
+  animation-delay: 0.12s;
+}
+.sys-api-tab--vault .sys-api-tokens-grid > .sys-api-tokens-card:nth-child(5) {
+  animation-delay: 0.15s;
+}
+.sys-api-tab--vault .sys-api-tokens-grid > .sys-api-tokens-card:nth-child(6) {
+  animation-delay: 0.18s;
+}
+.sys-api-tab--vault .sys-api-tokens-grid > .sys-api-tokens-card:nth-child(7) {
+  animation-delay: 0.21s;
+}
+.sys-api-tab--vault .sys-api-tokens-grid > .sys-api-tokens-card:nth-child(8) {
+  animation-delay: 0.24s;
+}
+.sys-api-tab--vault .sys-api-tokens-grid > .sys-api-tokens-card:nth-child(9) {
+  animation-delay: 0.27s;
+}
+.sys-api-tab--vault .sys-api-tokens-grid > .sys-api-tokens-card:nth-child(10) {
+  animation-delay: 0.3s;
+}
+
+@keyframes sysApiVaultCardIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.sys-api-vault-card-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+
+.sys-api-vault-card-head--wrap {
+  flex-wrap: wrap;
+}
+
+.sys-api-vault-dual-health {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px 20px;
+  align-items: center;
+}
+
+.sys-api-vault-dual-health__cell {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.sys-api-vault-dual-health__lbl {
+  font-size: 0.65rem;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ds-color-text-muted, var(--sys-muted));
+}
+
+.sys-api-vault-targets {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.sys-api-vault-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 3px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  border: 1px solid color-mix(in srgb, var(--sys-border) 88%, transparent);
+  background: color-mix(in srgb, var(--ds-color-bg) 35%, var(--ds-color-surface));
+  color: var(--ds-color-text-muted, var(--sys-muted));
+}
+
+.sys-api-vault-health {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  max-width: min(100%, 220px);
+}
+
+.sys-api-vault-health__dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 2px;
+  flex-shrink: 0;
+  background: color-mix(in srgb, var(--ds-color-text-muted, #94a3b8) 85%, var(--ds-color-bg));
+}
+
+.sys-api-vault-health__text {
+  line-height: 1.25;
+  color: var(--ds-color-text-muted, var(--sys-muted));
+}
+
+.sys-api-vault-health--ok .sys-api-vault-health__dot {
+  background: #22c55e;
+  box-shadow: 0 0 0 3px color-mix(in srgb, #22c55e 22%, transparent);
+}
+
+.sys-api-vault-health--ok .sys-api-vault-health__text {
+  color: #86efac;
+}
+
+.sys-api-vault-health--err .sys-api-vault-health__dot {
+  background: #ef4444;
+  box-shadow: 0 0 0 3px color-mix(in srgb, #ef4444 22%, transparent);
+}
+
+.sys-api-vault-health--err .sys-api-vault-health__text {
+  color: #fca5a5;
+}
+
+.sys-api-vault-health--skip .sys-api-vault-health__dot {
+  background: #94a3b8;
+}
+
+.sys-api-vault-health--idle .sys-api-vault-health__dot {
+  background: #64748b;
 }

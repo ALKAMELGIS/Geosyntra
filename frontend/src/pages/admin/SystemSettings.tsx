@@ -1,6 +1,6 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
-import { appConfirm } from '../../lib/appDialog'
-import { useLocation } from 'react-router-dom'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { appAlert, appConfirm, appPrompt } from '../../lib/appDialog'
+import { useLocation, useSearchParams } from 'react-router-dom'
 import * as yup from 'yup'
 import { useLanguage } from '../../lib/i18n'
 import { hasPermission, normalizeRole, readCurrentUser } from '../../lib/auth'
@@ -51,7 +51,13 @@ import {
   getOpenWeatherMapApiKeyBrowserOverride,
   persistOpenWeatherMapApiKeyInBrowser,
 } from '../../lib/openWeatherMapApiKey'
-import { persistApiSecretsPatchToServer } from '../../lib/apiSecretsServerPersistence'
+import {
+  hydrateBrowserApiSecretsFromServer,
+  persistApiSecretsPatchToServer,
+  type BuiltinSecretKey,
+} from '../../lib/apiSecretsServerPersistence'
+import { decryptVaultBlob, downloadBinaryFile, encryptVaultJson } from '../../lib/apiVaultCrypto'
+import { runBuiltinVaultLiveCheck } from '../../lib/apiVaultValidation'
 
 const PAGE_ICON_PRESETS = [
   'fa-solid fa-file',
@@ -85,7 +91,7 @@ const SETTINGS_TABS = [
   { id: 'nav' as const, label: 'Navigation', icon: 'fa-solid fa-bars-staggered' },
   { id: 'pages' as const, label: 'Pages', icon: 'fa-solid fa-layer-group' },
   { id: 'signup-roles' as const, label: 'Sign-up & roles', icon: 'fa-solid fa-user-plus' },
-  { id: 'api-tokens' as const, label: 'API Tokens', icon: 'fa-solid fa-key' },
+  { id: 'api-tokens' as const, label: 'API Vault', icon: 'fa-solid fa-shield-halved' },
 ]
 
 const themeSchema = yup.object({
@@ -107,6 +113,30 @@ type ApiTokenMergeFieldProps = {
   saveTitle: string
   clearTitle: string
   actionsGroupLabel: string
+}
+
+type VaultHealthUi = 'ok' | 'error' | 'idle' | 'skipped'
+
+function VaultHealthBadge({ status, language }: { status: VaultHealthUi | undefined; language: 'ar' | 'en' }) {
+  const ar = language === 'ar'
+  let cls = 'sys-api-vault-health sys-api-vault-health--idle'
+  let label = ar ? 'لم يُفحص بعد' : 'Not checked yet'
+  if (status === 'ok') {
+    cls = 'sys-api-vault-health sys-api-vault-health--ok'
+    label = ar ? 'متصل / صالح' : 'Healthy'
+  } else if (status === 'error') {
+    cls = 'sys-api-vault-health sys-api-vault-health--err'
+    label = ar ? 'فشل الفحص' : 'Check failed'
+  } else if (status === 'skipped') {
+    cls = 'sys-api-vault-health sys-api-vault-health--skip'
+    label = ar ? 'لا فحص خارجي (CORS)' : 'No browser probe (CORS)'
+  }
+  return (
+    <span className={cls} title={label}>
+      <span className="sys-api-vault-health__dot" aria-hidden />
+      <span className="sys-api-vault-health__text">{label}</span>
+    </span>
+  )
 }
 
 function ApiTokenMergeField({
@@ -185,10 +215,16 @@ export default function SystemSettings() {
   const [confirmReset, setConfirmReset] = useState(false)
   const [pageQuery, setPageQuery] = useState('')
   const [pageGroupFilter, setPageGroupFilter] = useState<'all' | string>('all')
+  const vaultImportRef = useRef<HTMLInputElement>(null)
+  const [vaultServerReachable, setVaultServerReachable] = useState<boolean | null>(null)
+  const [vaultHealth, setVaultHealth] = useState<
+    Partial<Record<BuiltinSecretKey | `custom:${string}`, VaultHealthUi>>
+  >({})
   const [navPickGroup, setNavPickGroup] = useState<string>(
     () => NAV_DEFAULT_GROUPS.find(g => g.id !== 'data')?.id ?? 'dashboard',
   )
   const location = useLocation()
+  const [searchParams] = useSearchParams()
 
   const role = normalizeRole(readCurrentUser()?.role)
 
@@ -197,6 +233,11 @@ export default function SystemSettings() {
   useEffect(() => {
     setDraft(settings)
   }, [location.pathname, setDraft, settings])
+
+  useEffect(() => {
+    const t = searchParams.get('tab')
+    if (t === 'api-tokens') setTab('api-tokens')
+  }, [searchParams])
 
   useEffect(() => {
     applyThemeToDocument(draft)
@@ -276,6 +317,18 @@ export default function SystemSettings() {
     })
   }, [tab, draft.customApiTokenSlots])
 
+  useEffect(() => {
+    if (tab !== 'api-tokens') return
+    let cancelled = false
+    void (async () => {
+      const ok = await hydrateBrowserApiSecretsFromServer()
+      if (!cancelled) setVaultServerReachable(ok)
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [tab])
+
   const resetAddApiForm = useCallback(() => {
     setAddApiForm({
       title: '',
@@ -352,6 +405,191 @@ export default function SystemSettings() {
       pushToast('success', language === 'ar' ? 'تمت الإزالة.' : 'Removed.')
     },
     [language, pushToast, setDraft],
+  )
+
+  const buildVaultExportPayload = useCallback(() => {
+    const customSlots: Record<string, string> = {}
+    for (const slot of draft.customApiTokenSlots) {
+      customSlots[slot.id] = getUserApiTokenValue(slot.id)
+    }
+    return {
+      v: 1 as const,
+      exportedAt: new Date().toISOString(),
+      builtin: {
+        mapboxToken: getMapboxAccessTokenBrowserOverride(),
+        arcgisPortalToken: getArcgisPortalTokenBrowserOverride(),
+        openWeatherMapApiKey: getOpenWeatherMapApiKeyBrowserOverride(),
+        sentinelHubAccessToken: getSentinelHubAccessTokenBrowserOverride(),
+        sentinelHubWmsInstanceId: getSentinelHubWmsInstanceIdBrowserOverride(),
+        geminiApiKey: getGeminiApiKeyBrowserOverride(),
+        claudeApiKey: getClaudeApiKeyBrowserOverride(),
+        deepseekApiKey: getDeepseekApiKeyBrowserOverride(),
+      },
+      customSlots,
+    }
+  }, [draft.customApiTokenSlots])
+
+  const refreshVaultHealthKey = useCallback(async (key: BuiltinSecretKey, value: string) => {
+    const r = await runBuiltinVaultLiveCheck(key, value)
+    const ui: VaultHealthUi = r === 'ok' ? 'ok' : r === 'error' ? 'error' : r === 'skipped' ? 'skipped' : 'idle'
+    setVaultHealth(h => ({
+      ...h,
+      [key]: ui,
+    }))
+  }, [])
+
+  const runVaultValidateAll = useCallback(async () => {
+    const entries: [BuiltinSecretKey, () => string][] = [
+      ['mapboxToken', getMapboxAccessTokenBrowserOverride],
+      ['arcgisPortalToken', getArcgisPortalTokenBrowserOverride],
+      ['openWeatherMapApiKey', getOpenWeatherMapApiKeyBrowserOverride],
+      ['sentinelHubAccessToken', getSentinelHubAccessTokenBrowserOverride],
+      ['sentinelHubWmsInstanceId', getSentinelHubWmsInstanceIdBrowserOverride],
+      ['geminiApiKey', getGeminiApiKeyBrowserOverride],
+      ['claudeApiKey', getClaudeApiKeyBrowserOverride],
+      ['deepseekApiKey', getDeepseekApiKeyBrowserOverride],
+    ]
+    const next: Partial<Record<BuiltinSecretKey | `custom:${string}`, VaultHealthUi>> = {}
+    for (const [key, getV] of entries) {
+      const r = await runBuiltinVaultLiveCheck(key, getV())
+      next[key] = r === 'ok' ? 'ok' : r === 'error' ? 'error' : r === 'skipped' ? 'skipped' : 'idle'
+    }
+    setVaultHealth(h => ({ ...h, ...next }))
+    pushToast(
+      'success',
+      language === 'ar' ? 'اكتملت الفحوصات المتاحة من المتصفح.' : 'Finished browser-side checks where supported.',
+    )
+  }, [language, pushToast])
+
+  const handleExportVaultEncrypted = useCallback(async () => {
+    const title = language === 'ar' ? 'تصدير النسخة المشفرة' : 'Export encrypted vault backup'
+    const pass = await appPrompt(
+      language === 'ar'
+        ? 'عبارة مرور قوية (لا تُسجّل في السجلات):'
+        : 'Choose a strong passphrase (never written to app logs by this UI):',
+      '',
+      { title, confirmLabel: language === 'ar' ? 'متابعة' : 'Continue' },
+    )
+    if (pass === null) return
+    if (pass.length < 10) {
+      void appAlert(language === 'ar' ? 'استخدم 10 أحرف على الأقل.' : 'Use at least 10 characters.', { title })
+      return
+    }
+    const pass2 = await appPrompt(
+      language === 'ar' ? 'أعد كتابة عبارة المرور:' : 'Re-enter passphrase to confirm:',
+      '',
+      { title },
+    )
+    if (pass2 === null || pass2 !== pass) {
+      void appAlert(language === 'ar' ? 'كلمات المرور غير متطابقة.' : 'Passphrases do not match.', { title })
+      return
+    }
+    try {
+      const payload = buildVaultExportPayload()
+      const buf = await encryptVaultJson(pass, JSON.stringify(payload))
+      downloadBinaryFile(`geosyntra-api-vault-${new Date().toISOString().slice(0, 10)}.bin`, buf)
+      pushToast(
+        'success',
+        language === 'ar' ? 'جُهزت نسخة مشفرة للتنزيل.' : 'Encrypted backup file downloaded.',
+      )
+    } catch {
+      pushToast('error', language === 'ar' ? 'فشل التشفير.' : 'Encryption failed.')
+    }
+  }, [buildVaultExportPayload, language, pushToast])
+
+  const onVaultImportFileChange = useCallback(
+    async (e: React.ChangeEvent<HTMLInputElement>) => {
+      const f = e.target.files?.[0]
+      e.target.value = ''
+      if (!f) return
+      const ok = await appConfirm(
+        language === 'ar'
+          ? 'استيراد هذه النسخة سيكتب فوق الأسرار الحالية في هذا المتصفح ويحاول مزامنتها مع الخادم. متابعة؟'
+          : 'This import overwrites secrets in this browser and attempts to sync them to the server API. Continue?',
+        { title: language === 'ar' ? 'استعادة' : 'Restore', danger: true },
+      )
+      if (!ok) return
+      const pass = await appPrompt(
+        language === 'ar' ? 'عبارة مرور النسخة الاحتياطية:' : 'Enter backup passphrase:',
+        '',
+        { title: language === 'ar' ? 'فك التشفير' : 'Decrypt' },
+      )
+      if (pass === null) return
+      try {
+        const buf = await f.arrayBuffer()
+        const json = await decryptVaultBlob(pass, buf)
+        const data = JSON.parse(json) as {
+          v?: number
+          builtin?: Partial<Record<BuiltinSecretKey, string>>
+          customSlots?: Record<string, string>
+        }
+        if (data.v !== 1 || !data.builtin || typeof data.builtin !== 'object') {
+          throw new Error('bad payload')
+        }
+        const b = data.builtin
+        persistMapboxAccessTokenInBrowser(typeof b.mapboxToken === 'string' ? b.mapboxToken : '')
+        persistArcgisPortalTokenInBrowser(typeof b.arcgisPortalToken === 'string' ? b.arcgisPortalToken : '')
+        persistOpenWeatherMapApiKeyInBrowser(typeof b.openWeatherMapApiKey === 'string' ? b.openWeatherMapApiKey : '')
+        persistSentinelHubAccessTokenInBrowser(typeof b.sentinelHubAccessToken === 'string' ? b.sentinelHubAccessToken : '')
+        persistSentinelHubWmsInstanceIdInBrowser(typeof b.sentinelHubWmsInstanceId === 'string' ? b.sentinelHubWmsInstanceId : '')
+        persistGeminiApiKeyInBrowser(typeof b.geminiApiKey === 'string' ? b.geminiApiKey : '')
+        persistClaudeApiKeyInBrowser(typeof b.claudeApiKey === 'string' ? b.claudeApiKey : '')
+        persistDeepseekApiKeyInBrowser(typeof b.deepseekApiKey === 'string' ? b.deepseekApiKey : '')
+        const customSlots =
+          data.customSlots && typeof data.customSlots === 'object'
+            ? (data.customSlots as Record<string, string>)
+            : undefined
+        if (customSlots) {
+          for (const [slotId, val] of Object.entries(customSlots)) {
+            persistUserApiTokenValue(slotId, typeof val === 'string' ? val : '')
+          }
+        }
+        setMapboxTokenDraft(getMapboxAccessTokenBrowserOverride())
+        setArcgisTokenDraft(getArcgisPortalTokenBrowserOverride())
+        setOpenWeatherMapApiKeyDraft(getOpenWeatherMapApiKeyBrowserOverride())
+        setSentinelAccessDraft(getSentinelHubAccessTokenBrowserOverride())
+        setSentinelHubInstanceDraft(getSentinelHubWmsInstanceIdBrowserOverride())
+        setGeminiApiKeyDraft(getGeminiApiKeyBrowserOverride())
+        setClaudeApiKeyDraft(getClaudeApiKeyBrowserOverride())
+        setDeepseekApiKeyDraft(getDeepseekApiKeyBrowserOverride())
+        if (customSlots) {
+          setCustomUserTokenDrafts(prev => {
+            const next = { ...prev }
+            for (const [k, v] of Object.entries(customSlots)) {
+              next[k] = typeof v === 'string' ? v : ''
+            }
+            return next
+          })
+        }
+        const r = await persistApiSecretsPatchToServer({
+          mapboxToken: typeof b.mapboxToken === 'string' ? b.mapboxToken : '',
+          arcgisPortalToken: typeof b.arcgisPortalToken === 'string' ? b.arcgisPortalToken : '',
+          openWeatherMapApiKey: typeof b.openWeatherMapApiKey === 'string' ? b.openWeatherMapApiKey : '',
+          sentinelHubAccessToken: typeof b.sentinelHubAccessToken === 'string' ? b.sentinelHubAccessToken : '',
+          sentinelHubWmsInstanceId: typeof b.sentinelHubWmsInstanceId === 'string' ? b.sentinelHubWmsInstanceId : '',
+          geminiApiKey: typeof b.geminiApiKey === 'string' ? b.geminiApiKey : '',
+          claudeApiKey: typeof b.claudeApiKey === 'string' ? b.claudeApiKey : '',
+          deepseekApiKey: typeof b.deepseekApiKey === 'string' ? b.deepseekApiKey : '',
+          ...(customSlots ? { customSlots } : {}),
+        })
+        window.dispatchEvent(new Event('geosyntra-api-secrets-hydrated'))
+        setVaultServerReachable(r.ok)
+        pushToast(
+          r.ok ? 'success' : 'error',
+          r.ok
+            ? language === 'ar'
+              ? 'تم الاستيراد والمزامنة.'
+              : 'Vault restored and synced where possible.'
+            : language === 'ar'
+              ? 'تم الاستيراد للمتصفح؛ تعذّر تحديث الخادم.'
+              : 'Imported into this browser; server API was not updated.',
+        )
+        void runVaultValidateAll()
+      } catch {
+        pushToast('error', language === 'ar' ? 'فشل فك التشفير أو تنسيق الملف.' : 'Decrypt failed or file is invalid.')
+      }
+    },
+    [language, pushToast, runVaultValidateAll],
   )
 
   const pageSchema = useMemo(
@@ -673,26 +911,38 @@ export default function SystemSettings() {
   return (
     <div className="gis-page-padding sys-settings">
       <div className="sys-settings-shell">
-        <div className="sys-settings-tabs" role="tablist" aria-label="Settings sections">
-          {SETTINGS_TABS.map(({ id, label, icon }) => (
-            <button
-              key={id}
-              type="button"
-              role="tab"
-              aria-selected={tab === id}
-              className={`sys-settings-tab ${tab === id ? 'sys-settings-tab--active' : ''}`}
-              onClick={() => setTab(id)}
-            >
-              <span className="sys-settings-tab__icon" aria-hidden>
-                <i className={icon} />
-              </span>
-              {id === 'api-tokens' && language === 'ar'
-                ? 'رموز API'
-                : id === 'signup-roles' && language === 'ar'
-                  ? 'التسجيل والأدوار'
-                  : label}
-            </button>
-          ))}
+        <div className="sys-settings-section-picker">
+          <label className="sys-settings-section-picker__label" htmlFor="sys-settings-section">
+            {language === 'ar' ? 'القسم' : 'Section'}
+          </label>
+          <select
+            id="sys-settings-section"
+            className="gis-input sys-settings-section-picker__select"
+            value={tab}
+            onChange={e =>
+              setTab(
+                e.target.value as
+                  | 'theme'
+                  | 'header-settings'
+                  | 'logos'
+                  | 'nav'
+                  | 'pages'
+                  | 'signup-roles'
+                  | 'api-tokens',
+              )
+            }
+            aria-label={language === 'ar' ? 'اختر قسم الإعدادات' : 'Choose settings section'}
+          >
+            {SETTINGS_TABS.map(({ id, label }) => (
+              <option key={id} value={id}>
+                {id === 'api-tokens' && language === 'ar'
+                  ? 'خزنة API'
+                  : id === 'signup-roles' && language === 'ar'
+                    ? 'التسجيل والأدوار'
+                    : label}
+              </option>
+            ))}
+          </select>
         </div>
 
       <section className="sys-settings-panel sys-settings-panel--unified">
@@ -1330,41 +1580,109 @@ export default function SystemSettings() {
       ) : null}
 
       {tab === 'api-tokens' ? (
-        <div className="sys-settings-tab-pane sys-api-tab">
-          <header className="sys-api-hero">
+        <div className="sys-settings-tab-pane sys-api-tab sys-api-tab--vault">
+          <input
+            ref={vaultImportRef}
+            type="file"
+            accept=".bin,application/octet-stream"
+            className="sys-api-vault-file-input"
+            aria-hidden
+            tabIndex={-1}
+            onChange={onVaultImportFileChange}
+          />
+          <header className="sys-api-hero sys-api-vault-hero">
             <div className="sys-api-hero__text">
               <h2 className="sys-api-hero__title">
                 <span className="sys-api-hero__title-icon" aria-hidden>
-                  <i className="fa-solid fa-key" />
+                  <i className="fa-solid fa-shield-halved" />
                 </span>
-                {language === 'ar' ? 'رموز API' : 'API Tokens'}
+                {language === 'ar' ? 'خزنة API' : 'API Vault'}
               </h2>
+              <p className="sys-api-vault-hero__lead">
+                {language === 'ar'
+                  ? 'طبقة أسرار موحّدة: تُحفظ محلياً في المتصفح وتُزامن مع واجهة أسرار الخادم عند توفرها. النسخ الاحتياطي المشفّر لا يُعرض المفاتيح في السجلات. بعد إعادة التشغيل أو النشر، تُستعاد الأسرار من الخادم أو من النسخة الاحتياطية دون مسح تلقائي.'
+                  : 'Unified secrets layer: stored in this browser and merged to the server secrets API when reachable. Encrypted backups never print keys into logs. After restarts or deploys, credentials hydrate from disk or backup—nothing is wiped automatically.'}
+              </p>
+              <div className="sys-api-vault-hero__meta">
+                <span
+                  className={`sys-api-vault-pill${vaultServerReachable === true ? ' sys-api-vault-pill--ok' : vaultServerReachable === false ? ' sys-api-vault-pill--warn' : ' sys-api-vault-pill--idle'}`}
+                >
+                  <i className="fa-solid fa-server" aria-hidden />
+                  {vaultServerReachable === true
+                    ? language === 'ar'
+                      ? 'خادم الأسرار متاح'
+                      : 'Secrets API online'
+                    : vaultServerReachable === false
+                      ? language === 'ar'
+                        ? 'خادم الأسرار غير متاح (وضع متصفح فقط)'
+                        : 'Secrets API offline (browser-only)'
+                      : language === 'ar'
+                        ? 'جارٍ التحقق…'
+                        : 'Checking server…'}
+                </span>
+                <span className="sys-api-vault-pill sys-api-vault-pill--muted">
+                  <i className="fa-solid fa-lock" aria-hidden />
+                  {language === 'ar' ? 'AES-GCM للنسخ الاحتياطي' : 'AES-GCM backup'}
+                </span>
+              </div>
             </div>
-            <button
-              type="button"
-              className="sys-api-add-btn"
-              onClick={() => {
-                resetAddApiForm()
-                setAddApiModalOpen(true)
-              }}
-            >
-              <i className="fa-solid fa-plus" aria-hidden />
-              {language === 'ar' ? 'إضافة رموز API' : 'Add API Tokens'}
-            </button>
+            <div className="sys-api-vault-hero__actions">
+              <button type="button" className="sys-api-vault-btn sys-api-vault-btn--ghost" onClick={() => void runVaultValidateAll()}>
+                <i className="fa-solid fa-stethoscope" aria-hidden />
+                {language === 'ar' ? 'فحص مباشر' : 'Live validate'}
+              </button>
+              <button type="button" className="sys-api-vault-btn sys-api-vault-btn--ghost" onClick={() => vaultImportRef.current?.click()}>
+                <i className="fa-solid fa-file-import" aria-hidden />
+                {language === 'ar' ? 'استعادة مشفّرة' : 'Restore backup'}
+              </button>
+              <button type="button" className="sys-api-vault-btn sys-api-vault-btn--primary" onClick={() => void handleExportVaultEncrypted()}>
+                <i className="fa-solid fa-download" aria-hidden />
+                {language === 'ar' ? 'نسخة احتياطية' : 'Encrypted export'}
+              </button>
+              <button
+                type="button"
+                className="sys-api-add-btn sys-api-vault-add"
+                onClick={() => {
+                  resetAddApiForm()
+                  setAddApiModalOpen(true)
+                }}
+              >
+                <i className="fa-solid fa-plus" aria-hidden />
+                {language === 'ar' ? 'تكامل مخصص' : 'Custom integration'}
+              </button>
+            </div>
           </header>
 
           <section className="sys-api-section" aria-labelledby="sys-api-built-in-heading">
-            <div className="sys-api-section__head">
+            <div className="sys-api-section__head sys-api-vault-section-head">
               <h3 id="sys-api-built-in-heading" className="sys-api-section__title">
                 {language === 'ar' ? 'التكاملات المدمجة' : 'Built-in integrations'}
               </h3>
+              <p className="sys-api-vault-usage-banner">
+                {language === 'ar'
+                  ? 'مراقبة الحصص والفوترة تتم من لوحات المزوّد. هنا نعرض صحة الاتصال عندما يدعم المتصفح فحصاً آمناً دون تسريب المفتاح.'
+                  : 'Quota and billing live in each provider’s console. This vault shows connection health when the browser can safely probe without exposing secrets.'}
+              </p>
             </div>
-          <div className="sys-api-tokens-grid">
+            <div className="sys-api-tokens-grid">
             <div className="sys-api-tokens-card">
-              <h3 className="sys-settings-panel__title sys-settings-api-h3">
-                <i className="fa-solid fa-map" aria-hidden />
-                Mapbox
-              </h3>
+              <div className="sys-api-vault-card-head">
+                <h3 className="sys-settings-panel__title sys-settings-api-h3">
+                  <i className="fa-solid fa-map" aria-hidden />
+                  Mapbox
+                </h3>
+                <VaultHealthBadge status={vaultHealth.mapboxToken} language={language} />
+              </div>
+              <div className="sys-api-vault-targets" aria-hidden>
+                <span className="sys-api-vault-chip">
+                  <i className="fa-solid fa-window-maximize" aria-hidden />
+                  {language === 'ar' ? 'متصفح' : 'Browser'}
+                </span>
+                <span className="sys-api-vault-chip">
+                  <i className="fa-solid fa-server" aria-hidden />
+                  {language === 'ar' ? 'خادم' : 'Server'}
+                </span>
+              </div>
               {mapboxTokenFromEnv ? (
                 <p className="sys-settings-panel__desc sys-settings-api-envnote">
                   <strong>{language === 'ar' ? 'متاح من البناء:' : 'Available from build:'}</strong>{' '}
@@ -1375,14 +1693,19 @@ export default function SystemSettings() {
               ) : null}
               <ApiTokenMergeField
                 id="sys-mapbox-token"
-                label={language === 'ar' ? 'مفتاح Mapbox (المتصفح + الخادم)' : 'Mapbox token (browser + server)'}
+                label={
+                  language === 'ar'
+                    ? 'مفتاح Mapbox — صف موحّد (متصفح + خادم)'
+                    : 'Mapbox token — unified vault row (browser + server)'
+                }
                 value={mapboxTokenDraft}
                 onChange={setMapboxTokenDraft}
                 placeholder={language === 'ar' ? 'pk.eyJ1I…' : 'pk.eyJ1I…'}
                 password
                 onSave={async () => {
+                  const trimmed = mapboxTokenDraft.trim()
                   persistMapboxAccessTokenInBrowser(mapboxTokenDraft)
-                  const r = await persistApiSecretsPatchToServer({ mapboxToken: mapboxTokenDraft.trim() })
+                  const r = await persistApiSecretsPatchToServer({ mapboxToken: trimmed })
                   pushToast(
                     'success',
                     r.ok
@@ -1393,6 +1716,8 @@ export default function SystemSettings() {
                         ? 'حُفظ في المتصفح؛ تعذّر تحديث الخادم (تأكد من تشغيل API).'
                         : 'Saved in this browser; server copy not updated (is the API running?).',
                   )
+                  void refreshVaultHealthKey('mapboxToken', trimmed)
+                  window.dispatchEvent(new Event('geosyntra-api-secrets-hydrated'))
                 }}
                 onClear={async () => {
                   persistMapboxAccessTokenInBrowser('')
@@ -1408,6 +1733,8 @@ export default function SystemSettings() {
                         ? 'أُزيل من المتصفح؛ تعذّر تحديث الخادم.'
                         : 'Cleared in this browser; server copy may still exist until API is reachable.',
                   )
+                  void refreshVaultHealthKey('mapboxToken', '')
+                  window.dispatchEvent(new Event('geosyntra-api-secrets-hydrated'))
                 }}
                 saveTitle={language === 'ar' ? 'حفظ' : 'Save'}
                 clearTitle={language === 'ar' ? 'مسح' : 'Clear'}
@@ -1423,10 +1750,23 @@ export default function SystemSettings() {
             </div>
 
             <div className="sys-api-tokens-card">
-              <h3 className="sys-settings-panel__title sys-settings-api-h3">
-                <i className="fa-solid fa-globe" aria-hidden />
-                ArcGIS API
-              </h3>
+              <div className="sys-api-vault-card-head">
+                <h3 className="sys-settings-panel__title sys-settings-api-h3">
+                  <i className="fa-solid fa-globe" aria-hidden />
+                  ArcGIS API
+                </h3>
+                <VaultHealthBadge status={vaultHealth.arcgisPortalToken} language={language} />
+              </div>
+              <div className="sys-api-vault-targets" aria-hidden>
+                <span className="sys-api-vault-chip">
+                  <i className="fa-solid fa-window-maximize" aria-hidden />
+                  {language === 'ar' ? 'متصفح' : 'Browser'}
+                </span>
+                <span className="sys-api-vault-chip">
+                  <i className="fa-solid fa-server" aria-hidden />
+                  {language === 'ar' ? 'خادم' : 'Server'}
+                </span>
+              </div>
               {arcgisTokenFromEnv ? (
                 <p className="sys-settings-panel__desc sys-settings-api-envnote">
                   <strong>{language === 'ar' ? 'نشط من البناء:' : 'Active from build:'}</strong>{' '}
@@ -1435,14 +1775,19 @@ export default function SystemSettings() {
               ) : null}
               <ApiTokenMergeField
                 id="sys-arcgis-token"
-                label={language === 'ar' ? 'رمز ArcGIS / Portal (المتصفح + الخادم)' : 'ArcGIS / Portal token (browser + server)'}
+                label={
+                  language === 'ar'
+                    ? 'رمز ArcGIS / Portal — صف موحّد (متصفح + خادم)'
+                    : 'ArcGIS / Portal token — unified vault row (browser + server)'
+                }
                 value={arcgisTokenDraft}
                 onChange={setArcgisTokenDraft}
                 placeholder={language === 'ar' ? 'رمز REST أو OAuth…' : 'REST or OAuth token…'}
                 password
                 onSave={async () => {
+                  const trimmed = arcgisTokenDraft.trim()
                   persistArcgisPortalTokenInBrowser(arcgisTokenDraft)
-                  const r = await persistApiSecretsPatchToServer({ arcgisPortalToken: arcgisTokenDraft.trim() })
+                  const r = await persistApiSecretsPatchToServer({ arcgisPortalToken: trimmed })
                   pushToast(
                     'success',
                     r.ok
@@ -1453,6 +1798,8 @@ export default function SystemSettings() {
                         ? 'حُفظ في المتصفح؛ تعذّر تحديث الخادم.'
                         : 'Saved in this browser; server copy not updated.',
                   )
+                  void refreshVaultHealthKey('arcgisPortalToken', trimmed)
+                  window.dispatchEvent(new Event('geosyntra-api-secrets-hydrated'))
                 }}
                 onClear={async () => {
                   persistArcgisPortalTokenInBrowser('')
@@ -1468,6 +1815,8 @@ export default function SystemSettings() {
                         ? 'أُزيل من المتصفح؛ تعذّر تحديث الخادم.'
                         : 'Cleared in this browser; server may be unchanged until API is reachable.',
                   )
+                  void refreshVaultHealthKey('arcgisPortalToken', '')
+                  window.dispatchEvent(new Event('geosyntra-api-secrets-hydrated'))
                 }}
                 saveTitle={language === 'ar' ? 'حفظ' : 'Save'}
                 clearTitle={language === 'ar' ? 'مسح' : 'Clear'}
@@ -1483,10 +1832,23 @@ export default function SystemSettings() {
             </div>
 
             <div className="sys-api-tokens-card">
-              <h3 className="sys-settings-panel__title sys-settings-api-h3">
-                <i className="fa-solid fa-cloud-sun" aria-hidden />
-                Open Weather Map
-              </h3>
+              <div className="sys-api-vault-card-head">
+                <h3 className="sys-settings-panel__title sys-settings-api-h3">
+                  <i className="fa-solid fa-cloud-sun" aria-hidden />
+                  Open Weather Map
+                </h3>
+                <VaultHealthBadge status={vaultHealth.openWeatherMapApiKey} language={language} />
+              </div>
+              <div className="sys-api-vault-targets" aria-hidden>
+                <span className="sys-api-vault-chip">
+                  <i className="fa-solid fa-window-maximize" aria-hidden />
+                  {language === 'ar' ? 'متصفح' : 'Browser'}
+                </span>
+                <span className="sys-api-vault-chip">
+                  <i className="fa-solid fa-server" aria-hidden />
+                  {language === 'ar' ? 'خادم' : 'Server'}
+                </span>
+              </div>
               {openWeatherMapApiKeyFromEnv ? (
                 <p className="sys-settings-panel__desc sys-settings-api-envnote">
                   <strong>{language === 'ar' ? 'متاح من البناء:' : 'Available from build:'}</strong>{' '}
@@ -1499,17 +1861,18 @@ export default function SystemSettings() {
                 id="sys-openweathermap-api-key"
                 label={
                   language === 'ar'
-                    ? 'مفتاح OpenWeatherMap API (المتصفح + الخادم)'
-                    : 'OpenWeatherMap API key (browser + server)'
+                    ? 'مفتاح OpenWeatherMap — صف موحّد (متصفح + خادم)'
+                    : 'OpenWeatherMap API key — unified vault row (browser + server)'
                 }
                 value={openWeatherMapApiKeyDraft}
                 onChange={setOpenWeatherMapApiKeyDraft}
                 placeholder={language === 'ar' ? 'مفتاح API…' : 'API key…'}
                 password
                 onSave={async () => {
+                  const trimmed = openWeatherMapApiKeyDraft.trim()
                   persistOpenWeatherMapApiKeyInBrowser(openWeatherMapApiKeyDraft)
                   const r = await persistApiSecretsPatchToServer({
-                    openWeatherMapApiKey: openWeatherMapApiKeyDraft.trim(),
+                    openWeatherMapApiKey: trimmed,
                   })
                   pushToast(
                     'success',
@@ -1521,6 +1884,8 @@ export default function SystemSettings() {
                         ? 'حُفظ في المتصفح؛ تعذّر تحديث الخادم.'
                         : 'Saved in this browser; server copy not updated.',
                   )
+                  void refreshVaultHealthKey('openWeatherMapApiKey', trimmed)
+                  window.dispatchEvent(new Event('geosyntra-api-secrets-hydrated'))
                 }}
                 onClear={async () => {
                   persistOpenWeatherMapApiKeyInBrowser('')
@@ -1536,6 +1901,8 @@ export default function SystemSettings() {
                         ? 'أُزيل من المتصفح؛ تعذّر تحديث الخادم.'
                         : 'Cleared in this browser; server may be unchanged until API is reachable.',
                   )
+                  void refreshVaultHealthKey('openWeatherMapApiKey', '')
+                  window.dispatchEvent(new Event('geosyntra-api-secrets-hydrated'))
                 }}
                 saveTitle={language === 'ar' ? 'حفظ' : 'Save'}
                 clearTitle={language === 'ar' ? 'مسح' : 'Clear'}
@@ -1553,10 +1920,34 @@ export default function SystemSettings() {
             </div>
 
             <div id="sentinel-api-tokens" className="sys-api-tokens-card sys-api-tokens-card--wide">
-              <h3 className="sys-settings-panel__title sys-settings-api-h3">
-                <i className="fa-solid fa-satellite" aria-hidden />
-                {language === 'ar' ? 'رموز Sentinel API' : 'Sentinel API tokens'}
-              </h3>
+              <div className="sys-api-vault-card-head sys-api-vault-card-head--wrap">
+                <h3 className="sys-settings-panel__title sys-settings-api-h3">
+                  <i className="fa-solid fa-satellite" aria-hidden />
+                  {language === 'ar' ? 'رموز Sentinel API' : 'Sentinel API tokens'}
+                </h3>
+                <div className="sys-api-vault-dual-health">
+                  <div className="sys-api-vault-dual-health__cell">
+                    <span className="sys-api-vault-dual-health__lbl">
+                      {language === 'ar' ? 'الوصول' : 'Access'}
+                    </span>
+                    <VaultHealthBadge status={vaultHealth.sentinelHubAccessToken} language={language} />
+                  </div>
+                  <div className="sys-api-vault-dual-health__cell">
+                    <span className="sys-api-vault-dual-health__lbl">WMS</span>
+                    <VaultHealthBadge status={vaultHealth.sentinelHubWmsInstanceId} language={language} />
+                  </div>
+                </div>
+              </div>
+              <div className="sys-api-vault-targets" aria-hidden>
+                <span className="sys-api-vault-chip">
+                  <i className="fa-solid fa-window-maximize" aria-hidden />
+                  {language === 'ar' ? 'متصفح' : 'Browser'}
+                </span>
+                <span className="sys-api-vault-chip">
+                  <i className="fa-solid fa-server" aria-hidden />
+                  {language === 'ar' ? 'خادم' : 'Server'}
+                </span>
+              </div>
               <p className="sys-settings-panel__desc sys-settings-api-envnote sys-settings-api-lead">
                 {language === 'ar'
                   ? 'رمز وصول Sentinel Hub (اختياري) ثم معرّف مثيل WMS لطبقات Sentinel-2.'
@@ -1573,14 +1964,19 @@ export default function SystemSettings() {
               ) : null}
               <ApiTokenMergeField
                 id="sys-sentinel-hub-access"
-                label={language === 'ar' ? 'رمز وصول Sentinel Hub (المتصفح + الخادم)' : 'Sentinel Hub access token (browser + server)'}
+                label={
+                  language === 'ar'
+                    ? 'رمز وصول Sentinel Hub — صف موحّد (متصفح + خادم)'
+                    : 'Sentinel Hub access token — unified vault row (browser + server)'
+                }
                 value={sentinelAccessDraft}
                 onChange={setSentinelAccessDraft}
                 placeholder={language === 'ar' ? 'OAuth / Process API…' : 'OAuth / Process API…'}
                 password
                 onSave={async () => {
+                  const trimmed = sentinelAccessDraft.trim()
                   persistSentinelHubAccessTokenInBrowser(sentinelAccessDraft)
-                  const r = await persistApiSecretsPatchToServer({ sentinelHubAccessToken: sentinelAccessDraft.trim() })
+                  const r = await persistApiSecretsPatchToServer({ sentinelHubAccessToken: trimmed })
                   pushToast(
                     'success',
                     r.ok
@@ -1591,6 +1987,8 @@ export default function SystemSettings() {
                         ? 'حُفظ في المتصفح؛ تعذّر تحديث الخادم.'
                         : 'Saved in this browser; server copy not updated.',
                   )
+                  void refreshVaultHealthKey('sentinelHubAccessToken', trimmed)
+                  window.dispatchEvent(new Event('geosyntra-api-secrets-hydrated'))
                 }}
                 onClear={async () => {
                   persistSentinelHubAccessTokenInBrowser('')
@@ -1606,6 +2004,8 @@ export default function SystemSettings() {
                         ? 'أُزيل من المتصفح؛ تعذّر تحديث الخادم.'
                         : 'Cleared in this browser; server may be unchanged until API is reachable.',
                   )
+                  void refreshVaultHealthKey('sentinelHubAccessToken', '')
+                  window.dispatchEvent(new Event('geosyntra-api-secrets-hydrated'))
                 }}
                 saveTitle={language === 'ar' ? 'حفظ' : 'Save'}
                 clearTitle={language === 'ar' ? 'مسح' : 'Clear'}
@@ -1629,13 +2029,18 @@ export default function SystemSettings() {
               ) : null}
               <ApiTokenMergeField
                 id="sys-sentinel-hub-instance"
-                label={language === 'ar' ? 'معرّف مثيل WMS (المتصفح + الخادم)' : 'WMS instance ID (browser + server)'}
+                label={
+                  language === 'ar'
+                    ? 'معرّف مثيل WMS — صف موحّد (متصفح + خادم)'
+                    : 'WMS instance ID — unified vault row (browser + server)'
+                }
                 value={sentinelHubInstanceDraft}
                 onChange={setSentinelHubInstanceDraft}
                 placeholder="7b6554b7-76f2-483e-a06d-90053e49f462"
                 onSave={async () => {
+                  const trimmed = sentinelHubInstanceDraft.trim()
                   persistSentinelHubWmsInstanceIdInBrowser(sentinelHubInstanceDraft)
-                  const r = await persistApiSecretsPatchToServer({ sentinelHubWmsInstanceId: sentinelHubInstanceDraft.trim() })
+                  const r = await persistApiSecretsPatchToServer({ sentinelHubWmsInstanceId: trimmed })
                   pushToast(
                     'success',
                     r.ok
@@ -1646,6 +2051,8 @@ export default function SystemSettings() {
                         ? 'حُفظ في المتصفح؛ تعذّر تحديث الخادم.'
                         : 'Saved in this browser; server copy not updated.',
                   )
+                  void refreshVaultHealthKey('sentinelHubWmsInstanceId', trimmed)
+                  window.dispatchEvent(new Event('geosyntra-api-secrets-hydrated'))
                 }}
                 onClear={async () => {
                   persistSentinelHubWmsInstanceIdInBrowser('')
@@ -1661,6 +2068,8 @@ export default function SystemSettings() {
                         ? 'أُزيل من المتصفح؛ تعذّر تحديث الخادم.'
                         : 'Cleared in this browser; server may be unchanged until API is reachable.',
                   )
+                  void refreshVaultHealthKey('sentinelHubWmsInstanceId', '')
+                  window.dispatchEvent(new Event('geosyntra-api-secrets-hydrated'))
                 }}
                 saveTitle={language === 'ar' ? 'حفظ' : 'Save'}
                 clearTitle={language === 'ar' ? 'مسح' : 'Clear'}
@@ -1676,10 +2085,23 @@ export default function SystemSettings() {
             </div>
 
             <div className="sys-api-tokens-card">
-              <h3 className="sys-settings-panel__title sys-settings-api-h3">
-                <i className="fa-solid fa-wand-magic-sparkles" aria-hidden />
-                {language === 'ar' ? 'Google Gemini (السحابة)' : 'Google Gemini (Cloud AI)'}
-              </h3>
+              <div className="sys-api-vault-card-head">
+                <h3 className="sys-settings-panel__title sys-settings-api-h3">
+                  <i className="fa-solid fa-wand-magic-sparkles" aria-hidden />
+                  {language === 'ar' ? 'Google Gemini (السحابة)' : 'Google Gemini (Cloud AI)'}
+                </h3>
+                <VaultHealthBadge status={vaultHealth.geminiApiKey} language={language} />
+              </div>
+              <div className="sys-api-vault-targets" aria-hidden>
+                <span className="sys-api-vault-chip">
+                  <i className="fa-solid fa-window-maximize" aria-hidden />
+                  {language === 'ar' ? 'متصفح' : 'Browser'}
+                </span>
+                <span className="sys-api-vault-chip">
+                  <i className="fa-solid fa-server" aria-hidden />
+                  {language === 'ar' ? 'خادم' : 'Server'}
+                </span>
+              </div>
               {geminiApiKeyFromEnv ? (
                 <p className="sys-settings-panel__desc sys-settings-api-envnote">
                   <strong>{language === 'ar' ? 'نشط من البناء:' : 'Active from build:'}</strong>{' '}
@@ -1690,14 +2112,19 @@ export default function SystemSettings() {
               ) : null}
               <ApiTokenMergeField
                 id="sys-gemini-api-key"
-                label={language === 'ar' ? 'مفتاح Gemini API (المتصفح + الخادم)' : 'Gemini API key (browser + server)'}
+                label={
+                  language === 'ar'
+                    ? 'مفتاح Gemini API — صف موحّد (متصفح + خادم)'
+                    : 'Gemini API key — unified vault row (browser + server)'
+                }
                 value={geminiApiKeyDraft}
                 onChange={setGeminiApiKeyDraft}
                 placeholder={language === 'ar' ? 'مفتاح Google AI…' : 'Google AI API key…'}
                 password
                 onSave={async () => {
+                  const trimmed = geminiApiKeyDraft.trim()
                   persistGeminiApiKeyInBrowser(geminiApiKeyDraft)
-                  const r = await persistApiSecretsPatchToServer({ geminiApiKey: geminiApiKeyDraft.trim() })
+                  const r = await persistApiSecretsPatchToServer({ geminiApiKey: trimmed })
                   pushToast(
                     'success',
                     r.ok
@@ -1708,6 +2135,8 @@ export default function SystemSettings() {
                         ? 'حُفظ في المتصفح؛ تعذّر تحديث الخادم.'
                         : 'Saved in this browser; server copy not updated.',
                   )
+                  void refreshVaultHealthKey('geminiApiKey', trimmed)
+                  window.dispatchEvent(new Event('geosyntra-api-secrets-hydrated'))
                 }}
                 onClear={async () => {
                   persistGeminiApiKeyInBrowser('')
@@ -1723,6 +2152,8 @@ export default function SystemSettings() {
                         ? 'أُزيل من المتصفح؛ تعذّر تحديث الخادم.'
                         : 'Cleared in this browser; server may be unchanged until API is reachable.',
                   )
+                  void refreshVaultHealthKey('geminiApiKey', '')
+                  window.dispatchEvent(new Event('geosyntra-api-secrets-hydrated'))
                 }}
                 saveTitle={language === 'ar' ? 'حفظ' : 'Save'}
                 clearTitle={language === 'ar' ? 'مسح' : 'Clear'}
@@ -1738,10 +2169,23 @@ export default function SystemSettings() {
             </div>
 
             <div className="sys-api-tokens-card">
-              <h3 className="sys-settings-panel__title sys-settings-api-h3">
-                <i className="fa-solid fa-bolt" aria-hidden />
-                {language === 'ar' ? 'واجهة DeepSeek API' : 'DeepSeek API'}
-              </h3>
+              <div className="sys-api-vault-card-head">
+                <h3 className="sys-settings-panel__title sys-settings-api-h3">
+                  <i className="fa-solid fa-bolt" aria-hidden />
+                  {language === 'ar' ? 'واجهة DeepSeek API' : 'DeepSeek API'}
+                </h3>
+                <VaultHealthBadge status={vaultHealth.deepseekApiKey} language={language} />
+              </div>
+              <div className="sys-api-vault-targets" aria-hidden>
+                <span className="sys-api-vault-chip">
+                  <i className="fa-solid fa-window-maximize" aria-hidden />
+                  {language === 'ar' ? 'متصفح' : 'Browser'}
+                </span>
+                <span className="sys-api-vault-chip">
+                  <i className="fa-solid fa-server" aria-hidden />
+                  {language === 'ar' ? 'خادم' : 'Server'}
+                </span>
+              </div>
               {deepseekApiKeyFromEnv ? (
                 <p className="sys-settings-panel__desc sys-settings-api-envnote">
                   <strong>{language === 'ar' ? 'نشط من البناء:' : 'Active from build:'}</strong>{' '}
@@ -1752,14 +2196,19 @@ export default function SystemSettings() {
               ) : null}
               <ApiTokenMergeField
                 id="sys-deepseek-api-key"
-                label={language === 'ar' ? 'مفتاح DeepSeek API (المتصفح + الخادم)' : 'DeepSeek API key (browser + server)'}
+                label={
+                  language === 'ar'
+                    ? 'مفتاح DeepSeek API — صف موحّد (متصفح + خادم)'
+                    : 'DeepSeek API key — unified vault row (browser + server)'
+                }
                 value={deepseekApiKeyDraft}
                 onChange={setDeepseekApiKeyDraft}
                 placeholder={language === 'ar' ? 'sk-…' : 'sk-…'}
                 password
                 onSave={async () => {
+                  const trimmed = deepseekApiKeyDraft.trim()
                   persistDeepseekApiKeyInBrowser(deepseekApiKeyDraft)
-                  const r = await persistApiSecretsPatchToServer({ deepseekApiKey: deepseekApiKeyDraft.trim() })
+                  const r = await persistApiSecretsPatchToServer({ deepseekApiKey: trimmed })
                   pushToast(
                     'success',
                     r.ok
@@ -1770,6 +2219,8 @@ export default function SystemSettings() {
                         ? 'حُفظ في المتصفح؛ تعذّر تحديث الخادم.'
                         : 'Saved in this browser; server copy not updated.',
                   )
+                  void refreshVaultHealthKey('deepseekApiKey', trimmed)
+                  window.dispatchEvent(new Event('geosyntra-api-secrets-hydrated'))
                 }}
                 onClear={async () => {
                   persistDeepseekApiKeyInBrowser('')
@@ -1785,6 +2236,8 @@ export default function SystemSettings() {
                         ? 'أُزيل من المتصفح؛ تعذّر تحديث الخادم.'
                         : 'Cleared in this browser; server may be unchanged until API is reachable.',
                   )
+                  void refreshVaultHealthKey('deepseekApiKey', '')
+                  window.dispatchEvent(new Event('geosyntra-api-secrets-hydrated'))
                 }}
                 saveTitle={language === 'ar' ? 'حفظ' : 'Save'}
                 clearTitle={language === 'ar' ? 'مسح' : 'Clear'}
@@ -1800,10 +2253,23 @@ export default function SystemSettings() {
             </div>
 
             <div className="sys-api-tokens-card sys-api-tokens-card--wide">
-              <h3 className="sys-settings-panel__title sys-settings-api-h3">
-                <i className="fa-solid fa-robot" aria-hidden />
-                {language === 'ar' ? 'Claude API (Anthropic)' : 'Claude API (Anthropic)'}
-              </h3>
+              <div className="sys-api-vault-card-head">
+                <h3 className="sys-settings-panel__title sys-settings-api-h3">
+                  <i className="fa-solid fa-robot" aria-hidden />
+                  {language === 'ar' ? 'Claude API (Anthropic)' : 'Claude API (Anthropic)'}
+                </h3>
+                <VaultHealthBadge status={vaultHealth.claudeApiKey} language={language} />
+              </div>
+              <div className="sys-api-vault-targets" aria-hidden>
+                <span className="sys-api-vault-chip">
+                  <i className="fa-solid fa-window-maximize" aria-hidden />
+                  {language === 'ar' ? 'متصفح' : 'Browser'}
+                </span>
+                <span className="sys-api-vault-chip">
+                  <i className="fa-solid fa-server" aria-hidden />
+                  {language === 'ar' ? 'خادم' : 'Server'}
+                </span>
+              </div>
               {claudeApiKeyFromEnv ? (
                 <p className="sys-settings-panel__desc sys-settings-api-envnote">
                   <strong>{language === 'ar' ? 'نشط من البناء:' : 'Active from build:'}</strong>{' '}
@@ -1814,14 +2280,19 @@ export default function SystemSettings() {
               ) : null}
               <ApiTokenMergeField
                 id="sys-claude-api-key"
-                label={language === 'ar' ? 'مفتاح Claude API (المتصفح + الخادم)' : 'Claude API key (browser + server)'}
+                label={
+                  language === 'ar'
+                    ? 'مفتاح Claude API — صف موحّد (متصفح + خادم)'
+                    : 'Claude API key — unified vault row (browser + server)'
+                }
                 value={claudeApiKeyDraft}
                 onChange={setClaudeApiKeyDraft}
                 placeholder={language === 'ar' ? 'sk-ant-api03-…' : 'sk-ant-api03-…'}
                 password
                 onSave={async () => {
+                  const trimmed = claudeApiKeyDraft.trim()
                   persistClaudeApiKeyInBrowser(claudeApiKeyDraft)
-                  const r = await persistApiSecretsPatchToServer({ claudeApiKey: claudeApiKeyDraft.trim() })
+                  const r = await persistApiSecretsPatchToServer({ claudeApiKey: trimmed })
                   pushToast(
                     'success',
                     r.ok
@@ -1832,6 +2303,8 @@ export default function SystemSettings() {
                         ? 'حُفظ في المتصفح؛ تعذّر تحديث الخادم.'
                         : 'Saved in this browser; server copy not updated.',
                   )
+                  void refreshVaultHealthKey('claudeApiKey', trimmed)
+                  window.dispatchEvent(new Event('geosyntra-api-secrets-hydrated'))
                 }}
                 onClear={async () => {
                   persistClaudeApiKeyInBrowser('')
@@ -1847,6 +2320,8 @@ export default function SystemSettings() {
                         ? 'أُزيل من المتصفح؛ تعذّر تحديث الخادم.'
                         : 'Cleared in this browser; server may be unchanged until API is reachable.',
                   )
+                  void refreshVaultHealthKey('claudeApiKey', '')
+                  window.dispatchEvent(new Event('geosyntra-api-secrets-hydrated'))
                 }}
                 saveTitle={language === 'ar' ? 'حفظ' : 'Save'}
                 clearTitle={language === 'ar' ? 'مسح' : 'Clear'}
@@ -1911,6 +2386,7 @@ export default function SystemSettings() {
                             ? 'حُفظ في المتصفح؛ تعذّر تحديث الخادم.'
                             : 'Saved in this browser; server copy not updated.',
                       )
+                      window.dispatchEvent(new Event('geosyntra-api-secrets-hydrated'))
                     }}
                     onClear={async () => {
                       persistUserApiTokenValue(slot.id, '')
@@ -1926,6 +2402,7 @@ export default function SystemSettings() {
                             ? 'أُزيل من المتصفح؛ تعذّر تحديث الخادم.'
                             : 'Cleared in this browser; server may be unchanged until API is reachable.',
                       )
+                      window.dispatchEvent(new Event('geosyntra-api-secrets-hydrated'))
                     }}
                     saveTitle={language === 'ar' ? 'حفظ' : 'Save'}
                     clearTitle={language === 'ar' ? 'مسح' : 'Clear'}

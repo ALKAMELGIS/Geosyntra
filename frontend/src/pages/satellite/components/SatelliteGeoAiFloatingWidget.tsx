@@ -92,6 +92,8 @@ export type SatelliteGeoAiFloatingWidgetProps = {
   onToggleExpanded: () => void;
   onRequestClose: () => void;
   children: React.ReactNode;
+  /** Optional controls rendered in the panel title row (e.g. model picker icons). */
+  floatHeadExtra?: React.ReactNode;
   /**
    * When true, expanded panel docks to the viewport right edge as a tall “insight rail”.
    * Default compact helper mode uses a left-anchored floating panel instead.
@@ -105,6 +107,7 @@ export function SatelliteGeoAiFloatingWidget({
   onToggleExpanded,
   onRequestClose,
   children,
+  floatHeadExtra,
   spatialWorkspace = false,
 }: SatelliteGeoAiFloatingWidgetProps) {
   const rootRef = useRef<HTMLDivElement | null>(null);
@@ -516,11 +519,22 @@ export function SatelliteGeoAiFloatingWidget({
             style={panelStyle}
           >
             <div className="si-geo-ai-float-head" onPointerDown={onPointerDownPanelMove}>
-              <div className="si-geo-ai-float-head-text">
-                <div className="si-geo-ai-float-title">Geo AI Exploration</div>
-                <div className="si-geo-ai-float-sub">
-                  {spatialWorkspace ? 'Spatial workspace · map-centric canvas' : 'Chat helper · drag edges'}
+              <div className="si-geo-ai-float-head-main">
+                <div className="si-geo-ai-float-head-text">
+                  <div className="si-geo-ai-float-title">Geo AI Exploration</div>
+                  {spatialWorkspace ? (
+                    <div className="si-geo-ai-float-sub">Spatial workspace · map-centric canvas</div>
+                  ) : null}
                 </div>
+                {floatHeadExtra ? (
+                  <div
+                    className="si-geo-ai-float-head-slot"
+                    onPointerDown={e => e.stopPropagation()}
+                    onClick={e => e.stopPropagation()}
+                  >
+                    {floatHeadExtra}
+                  </div>
+                ) : null}
               </div>
               <div className="si-geo-ai-float-actions">
                 <button

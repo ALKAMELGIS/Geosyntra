@@ -167,7 +167,7 @@ import { SiWmsSentinelSwipeContext } from './components/SiWmsSentinelSwipeContex
 import { SiSwipePeekMapContext } from './components/SiSwipePeekMapContext';
 import { SiSentinelHubRasterLayers, type SiSentinelHubRasterRunLite } from './components/SiSentinelHubRasterLayers';
 import { SiMapNavigationGate } from './components/SiMapNavigationGate';
-import { SiLayerSwipeChrome } from './components/SiLayerSwipeChrome';
+import { SiLayerSwipeChrome, type SiLayerSwipeStyleKind } from './components/SiLayerSwipeChrome';
 import { SatelliteGeoAiFloatingWidget } from './components/SatelliteGeoAiFloatingWidget';
 import { SatelliteAoiStaticChartsMapOverlay } from './components/SatelliteAoiStaticChartsMapOverlay';
 import { SiAoiReportModal } from './components/SiAoiReportModal';
@@ -200,7 +200,6 @@ import {
   type MpcProcessResult,
   type MpcTemplateId,
 } from '../../lib/mpcPlanetaryApi';
-import FieldsPanel from './components/fields/FieldsPanel';
 import {
   loadSavedFields,
   persistSavedFields,
@@ -2036,12 +2035,12 @@ function siResolveWmsLayerForStackKey(
   }
 }
 
-/** AOI area for map popups: geodesic hectares and square metres. */
+/** AOI / popup area: geodesic hectares + square metres with explicit unit names. */
 function SiAoiAreaHaSqm(props: { ha: number }) {
   const { ha } = props;
-  if (!Number.isFinite(ha) || ha <= 0) {
+  if (!Number.isFinite(ha) || ha < 0) {
     return (
-      <span className="si-aoi-area-ha-sqm" dir="ltr">
+      <span className="si-aoi-area-ha-sqm si-aoi-area-ha-sqm--empty" dir="ltr" title="Area not available for this geometry">
         —
       </span>
     );
@@ -2060,8 +2059,14 @@ function SiAoiAreaHaSqm(props: { ha: number }) {
   }
   return (
     <span className="si-aoi-area-ha-sqm" dir="ltr">
-      <span className="si-aoi-area-ha-sqm__ha">{haStr} ha</span>
-      <span className="si-aoi-area-ha-sqm__m2">{m2Str} m²</span>
+      <span className="si-aoi-area-ha-sqm__ha">
+        <span className="si-aoi-area-ha-sqm__num">{haStr}</span> ha{' '}
+        <span className="si-aoi-area-ha-sqm__unit">(Hectares)</span>
+      </span>
+      <span className="si-aoi-area-ha-sqm__m2">
+        <span className="si-aoi-area-ha-sqm__num">{m2Str}</span> m²{' '}
+        <span className="si-aoi-area-ha-sqm__unit">(SqM)</span>
+      </span>
     </span>
   );
 }
@@ -2504,7 +2509,7 @@ const DEFAULT_MPC_ACS_ZIP_PATH = 'C:\\Users\\mohamed.abass.WUSOOM\\Downloads\\AC
 
 /** Static welcome shown above the Gemini Geo AI thread (also used for clipboard copy). */
 const SI_GEO_AI_WELCOME_GEMINI_TEXT =
-  "Hello! I'm Geosyntra Platform - GeoAI - Describe a place, upload an image, or ask for directions.\nWhen a location is clear, the map will fly there.";
+  "Hello! I'm Geo-AI Geosyntra — Describe a place, upload an image, or ask for directions.\nWhen a location is clear, the map will fly there.";
 
 /** Static welcome for Claude / DeepSeek data assistant tab. */
 const SI_GEO_AI_WELCOME_DATA_ASSISTANT_TEXT =
@@ -2609,6 +2614,8 @@ export default function SatelliteIntelligence() {
     });
   }, []);
   const [mapStaticChartsOpen, setMapStaticChartsOpen] = useState(false);
+  /** On-map spectral / WMS legend card — off until user toggles from map toolbox rail. */
+  const [mapSpectralLegendOpen, setMapSpectralLegendOpen] = useState(false);
   const [staticChartComparisonLayers, setStaticChartComparisonLayers] = useState<StaticAoiChartLayerId[]>(() =>
     defaultStaticAoiComparisonLayers(),
   );
@@ -2829,12 +2836,11 @@ export default function SatelliteIntelligence() {
     persistSavedFields('satellite', savedFields);
   }, [savedFields]);
   const [selectedSavedFieldId, setSelectedSavedFieldId] = useState<string | null>(null);
-  /** True only while a sketch was armed from the Fields Data panel — keeps
-   *  the panel's Glass toolbar from mirroring Remote Sensing draw tools. */
+  /** True only while a sketch was armed from a Fields-only draw path (map Fields panel removed). */
   const [fieldsPanelDrawArmed, setFieldsPanelDrawArmed] = useState(false);
   const fieldsPanelDrawArmedRef = useRef(false);
   fieldsPanelDrawArmedRef.current = fieldsPanelDrawArmed;
-  /** Remote Sensing floating tools only — not the Fields Data rail (`fields` icon). */
+  /** Remote Sensing stack: Main vs Field workspace tab. */
   const [remoteSensingToolsUiTab, setRemoteSensingToolsUiTab] = useState<'main' | 'field'>('main');
   const [fieldSurfaceVizMetric, setFieldSurfaceVizMetric] = useState<FieldSurfaceVizMetric>('none');
   const [fieldGroups, setFieldGroups] = useState<FieldGroup[]>(() => loadFieldGroups('satellite'));
@@ -3009,6 +3015,27 @@ export default function SatelliteIntelligence() {
   const [siLayerSwipeSplit, setSiLayerSwipeSplit] = useState(50);
   const [siLayerSwipeLeftId, setSiLayerSwipeLeftId] = useState('');
   const [siLayerSwipeRightId, setSiLayerSwipeRightId] = useState('');
+  const [siLayerSwipeStyle, setSiLayerSwipeStyle] = useState<SiLayerSwipeStyleKind>(() => {
+    try {
+      const v = localStorage.getItem('si-layer-swipe-style');
+      if (v === 'horizontal-bar' || v === 'spyglass' || v === 'vertical-bar') return v;
+    } catch {
+      /* ignore */
+    }
+    return 'vertical-bar';
+  });
+  const [siLayerSwipeBarColor, setSiLayerSwipeBarColor] = useState(() => {
+    try {
+      const v = localStorage.getItem('si-layer-swipe-bar-color');
+      if (v && /^#[0-9A-Fa-f]{6}$/i.test(v)) return v;
+    } catch {
+      /* ignore */
+    }
+    return '#f8fafc';
+  });
+  const [siLayerSpyXPct, setSiLayerSpyXPct] = useState(50);
+  const [siLayerSpyYPct, setSiLayerSpyYPct] = useState(50);
+  const [siLayerSpyRadiusPct, setSiLayerSpyRadiusPct] = useState(22);
   /** One-shot fallback to Mercator when Globe/WebGL errors (e.g. some Edge + GPU combos). */
   const siGlobeWebglFailoverRef = useRef(false);
   const siTableFeatureKeyCacheRef = useRef<Map<object, string>>(new Map());
@@ -9745,6 +9772,9 @@ export default function SatelliteIntelligence() {
     timeSeriesEnd,
     isTimelinePlaying,
   ]);
+  useEffect(() => {
+    if (!wmsSpectralLegend) setMapSpectralLegendOpen(false);
+  }, [wmsSpectralLegend]);
   const activeBasemapId = useMemo(() => resolveBasemapId(basemapId), [basemapId]);
   const currentBasemapEntry = useMemo(() => {
     return (
@@ -10251,110 +10281,6 @@ export default function SatelliteIntelligence() {
       setFieldListGroupFilter(cur => (cur === gid ? 'all' : cur));
     },
     [],
-  );
-
-  /**
-   * Map toolbox · Fields — Main tab: draw + map tint (spectral / scene strip removed).
-   */
-  const mapToolboxFieldsWorkspace = useMemo(
-    () => (
-      <FieldsPanel
-        layout="workspace"
-        surfaceVizMetric={fieldSurfaceVizMetric}
-        onSurfaceVizMetricChange={setFieldSurfaceVizMetric}
-        fields={fieldDataLibraryFields}
-        selectedId={selectedSavedFieldId}
-        drawingArmed={fieldsPanelDrawArmed}
-        onSelectField={id => setSelectedSavedFieldId(id)}
-        onZoomToField={id => zoomToSavedField(id)}
-        onUpdateField={(id, patch) => {
-          setSavedFields(prev =>
-            prev.map(f =>
-              f.id === id ? { ...f, ...patch, updatedAt: new Date().toISOString() } : f,
-            ),
-          );
-        }}
-        onDeleteField={id => {
-          setSavedFields(prev => prev.filter(f => f.id !== id));
-          if (selectedSavedFieldId === id) setSelectedSavedFieldId(null);
-        }}
-        onExportFieldGeoJSON={id => exportSavedFieldGeoJson(id)}
-        onExportAllGeoJSON={() => exportAllSavedFieldsGeoJson()}
-        onStartDrawing={shape => {
-          pendingFieldsOnlyCommitRef.current = true;
-          drawTargetModeRef.current = 'aoi';
-          setDrawTargetMode('aoi');
-          applyMapDrawTool(shape, { fromFieldsPanel: true });
-          setFieldAnalysisStatus(
-            `Draw a ${shape} on the map. It saves to Field Data only and does not change the Remote Sensing AOI.`,
-          );
-        }}
-        onEditSelected={() => {
-          if (!selectedSavedFieldId) return;
-          pendingFieldsOnlyCommitRef.current = false;
-          drawTargetModeRef.current = 'aoi';
-          setDrawTargetMode('aoi');
-          applyMapDrawTool('polygon', { fromFieldsPanel: true });
-          setFieldAnalysisStatus('Sketch a new boundary to replace the selected field.');
-        }}
-        onSaveDraft={() => {
-          if (!selectedSavedFieldId) {
-            setFieldAnalysisStatus('Pick a field first, then press Save to lock in changes.');
-            return;
-          }
-          const now = new Date().toISOString();
-          setSavedFields(prev =>
-            prev.map(f => (f.id === selectedSavedFieldId ? { ...f, updatedAt: now } : f)),
-          );
-          setFieldAnalysisStatus('Field saved.');
-        }}
-        onOpenSpectralCharts={() => setMapStaticChartsOpen(o => !o)}
-      />
-    ),
-    /* eslint-disable-next-line react-hooks/exhaustive-deps */
-    [
-      fieldDataLibraryFields,
-      selectedSavedFieldId,
-      fieldsPanelDrawArmed,
-      fieldSurfaceVizMetric,
-    ],
-  );
-
-  /**
-   * Map toolbox · Fields — Field Data tab: groups + list + detail + export.
-   */
-  const mapToolboxFieldsLibrary = useMemo(
-    () => (
-      <FieldsPanel
-        layout="library"
-        fieldGroups={fieldGroups}
-        selectedGroupId={fieldListGroupFilter}
-        onSelectGroup={setFieldListGroupFilter}
-        onAddFieldGroup={addFieldGroup}
-        onDeleteFieldGroup={deleteFieldGroup}
-        fields={fieldDataLibraryFields}
-        selectedId={selectedSavedFieldId}
-        drawingArmed={fieldsPanelDrawArmed}
-        onSelectField={id => setSelectedSavedFieldId(id)}
-        onZoomToField={id => zoomToSavedField(id)}
-        onUpdateField={(id, patch) => {
-          setSavedFields(prev =>
-            prev.map(f =>
-              f.id === id ? { ...f, ...patch, updatedAt: new Date().toISOString() } : f,
-            ),
-          );
-        }}
-        onDeleteField={id => {
-          setSavedFields(prev => prev.filter(f => f.id !== id));
-          if (selectedSavedFieldId === id) setSelectedSavedFieldId(null);
-        }}
-        onExportFieldGeoJSON={id => exportSavedFieldGeoJson(id)}
-        onExportAllGeoJSON={() => exportAllSavedFieldsGeoJson()}
-        onOpenSpectralCharts={() => setMapStaticChartsOpen(o => !o)}
-      />
-    ),
-    /* eslint-disable-next-line react-hooks/exhaustive-deps */
-    [fieldDataLibraryFields, selectedSavedFieldId, fieldsPanelDrawArmed, fieldGroups, fieldListGroupFilter, addFieldGroup, deleteFieldGroup],
   );
 
   const exploreSelectedCollectionsLabel = useMemo(() => {
@@ -10868,6 +10794,46 @@ export default function SatelliteIntelligence() {
   useEffect(() => {
     if (!siLayerSwipeCapable && siLayerSwipeOpen) setSiLayerSwipeOpen(false);
   }, [siLayerSwipeCapable, siLayerSwipeOpen]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('si-layer-swipe-style', siLayerSwipeStyle);
+    } catch {
+      /* ignore */
+    }
+  }, [siLayerSwipeStyle]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('si-layer-swipe-bar-color', siLayerSwipeBarColor);
+    } catch {
+      /* ignore */
+    }
+  }, [siLayerSwipeBarColor]);
+
+  const siSwipeClips = useMemo(() => {
+    const sp = siLayerSwipeSplit;
+    if (siLayerSwipeStyle === 'vertical-bar') {
+      return { under: `inset(0 0 0 ${sp}%)`, over: `inset(0 ${100 - sp}% 0 0)` };
+    }
+    if (siLayerSwipeStyle === 'horizontal-bar') {
+      return { under: `inset(${sp}% 0 0 0)`, over: `inset(0 0 ${100 - sp}% 0)` };
+    }
+    const r = Math.min(45, Math.max(8, siLayerSpyRadiusPct));
+    const x = Math.min(95, Math.max(5, siLayerSpyXPct));
+    const y = Math.min(95, Math.max(5, siLayerSpyYPct));
+    return { under: 'inset(0)', over: `circle(${r}% at ${x}% ${y}%)` };
+  }, [siLayerSwipeStyle, siLayerSwipeSplit, siLayerSpyRadiusPct, siLayerSpyXPct, siLayerSpyYPct]);
+
+  const swapSiLayerSwipeDirection = useCallback(() => {
+    const l = siLayerSwipeLeftId;
+    const r = siLayerSwipeRightId;
+    setSiLayerSwipeLeftId(r);
+    setSiLayerSwipeRightId(l);
+    if (siLayerSwipeStyle !== 'spyglass') {
+      setSiLayerSwipeSplit(s => 100 - s);
+    }
+  }, [siLayerSwipeLeftId, siLayerSwipeRightId, siLayerSwipeStyle]);
 
   /**
    * react-map-gl <Source> does not apply standalone `bounds` updates (see updateSource in library).
@@ -11564,7 +11530,7 @@ export default function SatelliteIntelligence() {
                         </button>
                       </div>
                       <div className="si-multi-aoi-popup__area">
-                        <span className="si-multi-aoi-popup__area-label">Area</span>
+                        <span className="si-multi-aoi-popup__area-label">Total area</span>
                         <span className="si-multi-aoi-popup__area-value">
                           <SiAoiAreaHaSqm ha={areaHa} />
                         </span>
@@ -11773,7 +11739,7 @@ export default function SatelliteIntelligence() {
                 <SiSwipePeekMapContext.Provider value={false}>
                   <div
                     className="si-layer-swipe-pane si-layer-swipe-pane--under"
-                    style={{ clipPath: 'inset(0 0 0 ' + siLayerSwipeSplit + '%)' }}
+                    style={{ clipPath: siSwipeClips.under }}
                   >
                     <MapGL
                       key={`si-map-globe-swipe-r:${mapboxAccessTokenForMap ? 'token' : 'no-token'}`}
@@ -11848,7 +11814,7 @@ export default function SatelliteIntelligence() {
                 <SiSwipePeekMapContext.Provider value={true}>
                   <div
                     className="si-layer-swipe-pane si-layer-swipe-pane--over"
-                    style={{ clipPath: 'inset(0 ' + (100 - siLayerSwipeSplit) + '% 0 0)', pointerEvents: 'none' }}
+                    style={{ clipPath: siSwipeClips.over, pointerEvents: 'none' }}
                   >
                     <MapGL
                       key={`si-map-globe-swipe-l:${mapboxAccessTokenForMap ? 'token' : 'no-token'}`}
@@ -11920,19 +11886,31 @@ export default function SatelliteIntelligence() {
                   </div>
                 </SiSwipePeekMapContext.Provider>
               </SiWmsSentinelSwipeContext.Provider>
-              <SiLayerSwipeChrome
-                open={siLayerSwipeOpen}
-                splitPct={siLayerSwipeSplit}
-                onSplitPct={setSiLayerSwipeSplit}
-                leftLayerId={siLayerSwipeLeftId}
-                rightLayerId={siLayerSwipeRightId}
-                onLeftLayerId={setSiLayerSwipeLeftId}
-                onRightLayerId={setSiLayerSwipeRightId}
-                layerOptions={remoteSensingLayerOptions}
-                onClose={() => setSiLayerSwipeOpen(false)}
-                disabled={!siLayerSwipeCapable}
-                disabledHint="Swipe compare needs a single committed AOI (not multi-AOI workspace stacks) and visible Sentinel layers."
-              />
+              {siLayerSwipeStyle === 'vertical-bar' ? (
+                <div
+                  className="si-layer-swipe-divider si-layer-swipe-divider--v"
+                  style={{ left: `${siLayerSwipeSplit}%`, background: siLayerSwipeBarColor }}
+                  aria-hidden
+                />
+              ) : siLayerSwipeStyle === 'horizontal-bar' ? (
+                <div
+                  className="si-layer-swipe-divider si-layer-swipe-divider--h"
+                  style={{ top: `${siLayerSwipeSplit}%`, background: siLayerSwipeBarColor }}
+                  aria-hidden
+                />
+              ) : (
+                <div
+                  className="si-layer-swipe-spy-ring"
+                  style={{
+                    left: `${siLayerSpyXPct}%`,
+                    top: `${siLayerSpyYPct}%`,
+                    width: `${Math.min(85, Math.max(12, siLayerSpyRadiusPct * 2.1))}vmin`,
+                    height: `${Math.min(85, Math.max(12, siLayerSpyRadiusPct * 2.1))}vmin`,
+                    borderColor: siLayerSwipeBarColor,
+                  }}
+                  aria-hidden
+                />
+              )}
             </div>
           ) : (
             <SiWmsSentinelSwipeContext.Provider value={null}>
@@ -12008,7 +11986,7 @@ export default function SatelliteIntelligence() {
           )}
 
 
-          {isMapLoaded && sentinelVisible && wmsSpectralLegend ? (
+          {isMapLoaded && sentinelVisible && wmsSpectralLegend && mapSpectralLegendOpen ? (
             <SiWmsIndexClassificationLegend
               profile={wmsSpectralLegend.profile}
               layerLabel={wmsSpectralLegend.label}
@@ -12120,6 +12098,46 @@ export default function SatelliteIntelligence() {
               setGeoAiFloatingOpen(false);
               setGeoAiFloatingExpanded(false);
             }}
+            floatHeadExtra={
+              <div className="si-geo-ai-float-model-icon-tabs" role="tablist" aria-label="AI model">
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={geoAiModelTab === 'claude'}
+                  className={`si-geo-ai-float-model-icon-tab${geoAiModelTab === 'claude' ? ' si-geo-ai-float-model-icon-tab--active' : ''}`}
+                  title="Claude"
+                  onPointerDown={e => e.stopPropagation()}
+                  onClick={() => setGeoAiModelTab('claude')}
+                >
+                  <i className="fa-solid fa-feather-pointed" aria-hidden />
+                  <span className="si-geo-ai-float-sr-only">Claude</span>
+                </button>
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={geoAiModelTab === 'deepseek'}
+                  className={`si-geo-ai-float-model-icon-tab${geoAiModelTab === 'deepseek' ? ' si-geo-ai-float-model-icon-tab--active' : ''}`}
+                  title="DeepSeek"
+                  onPointerDown={e => e.stopPropagation()}
+                  onClick={() => setGeoAiModelTab('deepseek')}
+                >
+                  <i className="fa-solid fa-bolt" aria-hidden />
+                  <span className="si-geo-ai-float-sr-only">DeepSeek</span>
+                </button>
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={geoAiModelTab === 'gemini'}
+                  className={`si-geo-ai-float-model-icon-tab${geoAiModelTab === 'gemini' ? ' si-geo-ai-float-model-icon-tab--active' : ''}`}
+                  title="Gemini"
+                  onPointerDown={e => e.stopPropagation()}
+                  onClick={() => setGeoAiModelTab('gemini')}
+                >
+                  <i className="fa-brands fa-google" aria-hidden />
+                  <span className="si-geo-ai-float-sr-only">Gemini</span>
+                </button>
+              </div>
+            }
           >
                       <div className="si-geo-explorer-root si-geo-explorer-root--unified">
                         <div className="si-env-section-card si-geo-explorer">
@@ -12172,36 +12190,6 @@ export default function SatelliteIntelligence() {
                               </label>
                             </div>
                           </div>
-                          <div className="si-geo-ai-model-tabs" role="tablist" aria-label="AI model">
-                            <button
-                              type="button"
-                              role="tab"
-                              aria-selected={geoAiModelTab === 'claude'}
-                              className={`si-geo-ai-model-tab${geoAiModelTab === 'claude' ? ' si-geo-ai-model-tab--active' : ''}`}
-                              onClick={() => setGeoAiModelTab('claude')}
-                            >
-                              Claude
-                            </button>
-                            <button
-                              type="button"
-                              role="tab"
-                              aria-selected={geoAiModelTab === 'deepseek'}
-                              className={`si-geo-ai-model-tab${geoAiModelTab === 'deepseek' ? ' si-geo-ai-model-tab--active' : ''}`}
-                              onClick={() => setGeoAiModelTab('deepseek')}
-                            >
-                              DeepSeek
-                            </button>
-                            <button
-                              type="button"
-                              role="tab"
-                              aria-selected={geoAiModelTab === 'gemini'}
-                              className={`si-geo-ai-model-tab${geoAiModelTab === 'gemini' ? ' si-geo-ai-model-tab--active' : ''}`}
-                              onClick={() => setGeoAiModelTab('gemini')}
-                            >
-                              Gemini
-                            </button>
-                          </div>
-
                           {geoAiModelTab === 'gemini' ? (
                             <>
                               <div
@@ -12320,10 +12308,6 @@ export default function SatelliteIntelligence() {
                                 availableGeometryOps={geoAiSuggestContext.geometryOps}
                                 smartSuggestionsEnabled={geoAiSmartSuggestionsEnabled}
                               />
-                              <p className="si-geo-explorer-footnote">
-                                Powered by Google Gemini. Set <code>VITE_GEMINI_API_KEY</code> or save under System Settings →
-                                API Tokens → Gemini API. Do not commit keys.
-                              </p>
                             </>
                           ) : null}
 
@@ -12615,9 +12599,6 @@ export default function SatelliteIntelligence() {
             geoAiFloatingOpen={geoAiFloatingOpen}
             onGeoAiFloatingRailToggle={onGeoAiFloatingRailToggle}
             onMapToolboxAddData={openAddLayerModal}
-            fieldsPanelWorkspaceContent={mapToolboxFieldsWorkspace}
-            fieldsPanelLibraryContent={mapToolboxFieldsLibrary}
-            fieldsCount={fieldDataLibraryFields.length}
             mapSymbologyToolbarSlot={
               <Fragment>
                 <button
@@ -12661,6 +12642,38 @@ export default function SatelliteIntelligence() {
                 </button>
               </Fragment>
             }
+            mapToolboxLayerSwipeSlot={
+              siLayerSwipeOpen && siLayerSwipeCapable ? (
+                <SiLayerSwipeChrome
+                  layout="toolbox"
+                  open
+                  splitPct={siLayerSwipeSplit}
+                  onSplitPct={setSiLayerSwipeSplit}
+                  leftLayerId={siLayerSwipeLeftId}
+                  rightLayerId={siLayerSwipeRightId}
+                  onLeftLayerId={setSiLayerSwipeLeftId}
+                  onRightLayerId={setSiLayerSwipeRightId}
+                  layerOptions={remoteSensingLayerOptions}
+                  onClose={() => setSiLayerSwipeOpen(false)}
+                  disabled={false}
+                  disabledHint="Layer swipe — use a single AOI workspace (not multi-AOI stacks) with Sentinel visible."
+                  swipeStyle={siLayerSwipeStyle}
+                  onSwipeStyle={setSiLayerSwipeStyle}
+                  onSwapDirection={swapSiLayerSwipeDirection}
+                  barColor={siLayerSwipeBarColor}
+                  onBarColor={setSiLayerSwipeBarColor}
+                  spyXPct={siLayerSpyXPct}
+                  spyYPct={siLayerSpyYPct}
+                  spyRadiusPct={siLayerSpyRadiusPct}
+                  onSpyXPct={setSiLayerSpyXPct}
+                  onSpyYPct={setSiLayerSpyYPct}
+                  onSpyRadiusPct={setSiLayerSpyRadiusPct}
+                />
+              ) : null
+            }
+            mapSpectralLegendAvailable={Boolean(wmsSpectralLegend && sentinelVisible)}
+            mapSpectralLegendOpen={mapSpectralLegendOpen}
+            onToggleMapSpectralLegend={() => setMapSpectralLegendOpen(o => !o)}
           />
 
           <SiAoiReportModal
@@ -13867,7 +13880,7 @@ export default function SatelliteIntelligence() {
                           </div>
                         </div>
 
-                        {/* Fields Data lives on the map rail only — not duplicated in Remote Sensing tools. */}
+                        {/* Fields Data map-rail entry removed — persisted fields still render on the map when present. */}
 
                         {fieldAnalysisStatus ? <p className="si-field-analysis-status">{fieldAnalysisStatus}</p> : null}
                           </>
@@ -13926,7 +13939,7 @@ export default function SatelliteIntelligence() {
                                         <div className="si-rs-aoi-workspace-card__body">
                                           <div className="si-rs-aoi-context-grid si-rs-aoi-context-grid--compact">
                                             <div className="si-rs-aoi-context-cell si-rs-aoi-context-cell--wide">
-                                              <span className="si-rs-aoi-context-k">Area</span>
+                                              <span className="si-rs-aoi-context-k">Total area</span>
                                               <span className="si-rs-aoi-context-v">
                                                 <SiAoiAreaHaSqm ha={areaHa} />
                                               </span>

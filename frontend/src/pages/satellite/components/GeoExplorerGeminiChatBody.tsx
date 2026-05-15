@@ -26,7 +26,7 @@ function pfx(prefix: GeoExplorerCssPrefix, part: string): string {
 }
 
 /**
- * Shared Gemini Geo AI / Geo Explorer chat UI (messages, input, attach, footnote).
+ * Shared Gemini Geo AI / Geo Explorer chat UI (messages, input, attach).
  * Parent supplies layout chrome (header, tabs, close) and `cssPrefix` for GIS vs Satellite stylesheets.
  */
 export function GeoExplorerGeminiChatBody(props: GeoExplorerGeminiChatBodyProps) {
@@ -104,10 +104,6 @@ export function GeoExplorerGeminiChatBody(props: GeoExplorerGeminiChatBodyProps)
         onAttachChange={onAttachChange}
         textareaAriaLabel={textareaAriaLabel}
       />
-      <p className={pfx(cssPrefix, 'footnote')}>
-        Powered by Google Gemini. Set <code>VITE_GEMINI_API_KEY</code> or save under System Settings → API Tokens → Gemini
-        API. Do not commit keys.
-      </p>
     </>
   )
 }

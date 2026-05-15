@@ -9,7 +9,7 @@ import { hydrateProfileFromAdminUserRecord, hydrateProfileFromServer } from '../
 import { appendAuditLog } from '../lib/audit'
 import { useLanguage } from '../lib/i18n'
 import { appConfig } from '../../config/app'
-import { GEOSYNTRA_BRAND_LOGO_SVG, GEOSYNTRA_BRAND_NAME } from '../lib/brand'
+import { GEOSYNTRA_BRAND_NAME } from '../lib/brand'
 import {
   clearOAuthHandshake,
   exchangeGoogleAuthCode,
@@ -1040,15 +1040,6 @@ export default function Login() {
           <div className="login-glass-card-wrap">
             <div className="login-glass-card">
               <div className="login-card-header">
-                <div className="login-leaf-badge">
-                  <div className="login-leaf-circle login-leaf-circle--hero">
-                    <span
-                      className="login-brand-mark"
-                      aria-hidden
-                      dangerouslySetInnerHTML={{ __html: GEOSYNTRA_BRAND_LOGO_SVG }}
-                    />
-                  </div>
-                </div>
                 <h1 className="login-card-title">{GEOSYNTRA_BRAND_NAME}</h1>
                 <div className="login-mode-toggle">
                   <button

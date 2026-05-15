@@ -63,8 +63,265 @@ function captureCanvasHiRes(source: HTMLCanvasElement, scale = 2): string {
   return c.toDataURL('image/png');
 }
 
+function loadImageElement(src: string): Promise<HTMLImageElement> {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    img.onload = () => resolve(img);
+    img.onerror = () => reject(new Error('map snapshot image decode failed'));
+    img.src = src;
+  });
+}
+
+function fillRoundRect(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, rad: number) {
+  const r = Math.min(rad, w / 2, h / 2);
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.lineTo(x + w - r, y);
+  ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+  ctx.lineTo(x + w, y + h - r);
+  ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+  ctx.lineTo(x + r, y + h);
+  ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+  ctx.lineTo(x, y + r);
+  ctx.quadraticCurveTo(x, y, x + r, y);
+  ctx.closePath();
+  ctx.fill();
+}
+
+type SiPdfLngLatBounds = { west: number; south: number; east: number; north: number };
+
+function siPdfBoundsFromFeatureCollection(fc: GeoJSON.FeatureCollection): SiPdfLngLatBounds | null {
+  const f = fc.features?.[0];
+  if (!f) return null;
+  const b = siAoiReportFeatureBBoxLngLat(f);
+  if (!b) return null;
+  return { west: b[0], south: b[1], east: b[2], north: b[3] };
+}
+
+function siPdfBoundsFromFitBounds(fit: [[number, number], [number, number]]): SiPdfLngLatBounds {
+  const lngs = [fit[0][0], fit[1][0]];
+  const lats = [fit[0][1], fit[1][1]];
+  return {
+    west: Math.min(...lngs),
+    east: Math.max(...lngs),
+    south: Math.min(...lats),
+    north: Math.max(...lats),
+  };
+}
+
+function approxGroundSpanMeters(b: SiPdfLngLatBounds): number {
+  const midLatRad = ((b.south + b.north) / 2) * (Math.PI / 180);
+  const mLat = 111_320 * Math.max(1e-9, b.north - b.south);
+  const mLng = 111_320 * Math.max(0.05, Math.cos(midLatRad)) * Math.max(1e-9, b.east - b.west);
+  return Math.max(mLat, mLng) * 0.92;
+}
+
+function pickScaleBarLength(visibleM: number): { meters: number; label: string } {
+  const raw = Math.max(visibleM / 4.5, 10);
+  const exp = Math.floor(Math.log10(raw));
+  const base = 10 ** exp;
+  const n = raw / base;
+  const step = n <= 1 ? 1 : n <= 2 ? 2 : n <= 5 ? 5 : 10;
+  const meters = step * base;
+  if (meters >= 1000) {
+    const km = meters / 1000;
+    const label = Number.isInteger(km) ? `${km} km` : `${km.toFixed(1)} km`;
+    return { meters, label };
+  }
+  return { meters, label: `${Math.round(meters)} m` };
+}
+
+/** North arrow + approximate ground scale (from AOI / fit bounds vs map width). */
+function drawNorthArrowAndScaleOnMapCanvas(
+  ctx: CanvasRenderingContext2D,
+  mapW: number,
+  mapH: number,
+  bounds: SiPdfLngLatBounds | null,
+) {
+  const visibleM = bounds ? approxGroundSpanMeters(bounds) : 5000;
+  const { meters, label } = pickScaleBarLength(visibleM);
+  const barPx = Math.min(mapW * 0.32, Math.max(64, (meters / visibleM) * mapW * 0.88));
+  const pad = 11;
+  const sbW = Math.min(barPx + 54, mapW - pad * 2);
+  const sbH = 36;
+  const yCard = mapH - pad - sbH;
+  ctx.save();
+  ctx.fillStyle = 'rgba(2, 6, 23, 0.58)';
+  fillRoundRect(ctx, pad, yCard, sbW, sbH, 8);
+  ctx.strokeStyle = 'rgba(248, 250, 252, 0.92)';
+  ctx.lineWidth = 2;
+  const bx0 = pad + 10;
+  const yLine = yCard + 14;
+  ctx.beginPath();
+  ctx.moveTo(bx0, yLine);
+  ctx.lineTo(bx0 + barPx, yLine);
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.moveTo(bx0, yLine - 4);
+  ctx.lineTo(bx0, yLine + 4);
+  ctx.moveTo(bx0 + barPx, yLine - 4);
+  ctx.lineTo(bx0 + barPx, yLine + 4);
+  ctx.stroke();
+  ctx.fillStyle = '#f1f5f9';
+  ctx.font = '600 11px system-ui, "Segoe UI", sans-serif';
+  ctx.textBaseline = 'bottom';
+  ctx.fillText(label, bx0, yLine - 6);
+  ctx.font = '500 9px system-ui, "Segoe UI", sans-serif';
+  ctx.fillStyle = 'rgba(226, 232, 240, 0.88)';
+  ctx.fillText('Scale (approx.)', bx0, yCard + sbH - 7);
+
+  const nx = pad + 23;
+  const ny = pad + 34;
+  ctx.fillStyle = 'rgba(2, 6, 23, 0.58)';
+  fillRoundRect(ctx, pad, pad, 46, 54, 8);
+  ctx.fillStyle = '#f8fafc';
+  ctx.beginPath();
+  ctx.moveTo(nx, ny - 18);
+  ctx.lineTo(nx - 11, ny + 8);
+  ctx.lineTo(nx + 11, ny + 8);
+  ctx.closePath();
+  ctx.fill();
+  ctx.strokeStyle = 'rgba(148, 163, 184, 0.95)';
+  ctx.lineWidth = 1.25;
+  ctx.stroke();
+  ctx.font = '700 12px system-ui, "Segoe UI", sans-serif';
+  ctx.textAlign = 'center';
+  ctx.fillStyle = '#e2e8f0';
+  ctx.fillText('N', nx, pad + 16);
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'alphabetic';
+  ctx.restore();
+}
+
+function colorForReportTableRow(row: SiAoiReportModel['tableRows'][number], palette: SiAoiClassificationPalette): string {
+  return (
+    row.colorHex ??
+    (row.key === 'high' ? palette.high : row.key === 'medium' ? palette.medium : row.key === 'low' ? palette.low : '#94a3b8')
+  );
+}
+
+/** Embeds the same legend band strip as the HTML preview into one PNG for PDF export. */
+async function compositeAoiAnalysisMapWithLegendPng(
+  mapPngDataUrl: string,
+  report: SiAoiReportModel,
+  mapLngLatBounds: SiPdfLngLatBounds | null,
+): Promise<string> {
+  try {
+    const img = await loadImageElement(mapPngDataUrl);
+    const w = img.naturalWidth || img.width;
+    const h = img.naturalHeight || img.height;
+    if (!w || !h) return mapPngDataUrl;
+    const strip = Math.round(Math.min(88, Math.max(42, w * 0.09)));
+    const c = document.createElement('canvas');
+    c.width = w;
+    c.height = h + strip;
+    const ctx = c.getContext('2d');
+    if (!ctx) return mapPngDataUrl;
+    ctx.fillStyle = '#020617';
+    ctx.fillRect(0, 0, w, h + strip);
+    ctx.drawImage(img, 0, 0);
+    drawNorthArrowAndScaleOnMapCanvas(ctx, w, h, mapLngLatBounds);
+    ctx.fillStyle = 'rgba(15, 23, 42, 0.94)';
+    ctx.fillRect(0, h, w, strip);
+
+    type Item = { label: string; color: string };
+    const items: Item[] = report.tableRows.map(r => ({
+      label: r.labelEn,
+      color: colorForReportTableRow(r, report.classificationPalette),
+    }));
+    items.push({ label: 'AOI outline', color: report.classificationPalette.aoiOutline });
+
+    const pad = Math.round(strip * 0.22);
+    const sw = Math.round(strip * 0.36);
+    let fontPx = Math.round(Math.max(10, Math.min(17, strip * 0.3)));
+    const gapAfterSw = 6;
+    const gapBetween = 12;
+    for (let attempt = 0; attempt < 10; attempt++) {
+      ctx.font = `500 ${fontPx}px system-ui, "Segoe UI", sans-serif`;
+      let tw = pad * 2 + items.length * sw + items.length * gapAfterSw;
+      for (const it of items) tw += ctx.measureText(it.label).width + gapBetween;
+      if (tw <= w || fontPx <= 9) break;
+      fontPx -= 1;
+    }
+    ctx.textBaseline = 'middle';
+    let x = pad;
+    const cy = h + strip / 2;
+    for (const it of items) {
+      ctx.fillStyle = it.color;
+      ctx.fillRect(x, cy - sw / 2, sw, sw);
+      x += sw + gapAfterSw;
+      ctx.fillStyle = '#e2e8f0';
+      ctx.fillText(it.label, x, cy);
+      x += ctx.measureText(it.label).width + gapBetween;
+      if (x > w - pad) break;
+    }
+    return c.toDataURL('image/png');
+  } catch {
+    return mapPngDataUrl;
+  }
+}
+
+/** Embeds the floating H/M/L + index legend (HTML in preview) into the map snapshot for PDF. */
+async function compositeChangeCellLegendPng(
+  mapPngDataUrl: string,
+  palette: SiAoiClassificationPalette,
+  indexId: StaticAoiChartLayerId,
+  mapLngLatBounds: SiPdfLngLatBounds | null,
+): Promise<string> {
+  try {
+    const img = await loadImageElement(mapPngDataUrl);
+    const w = img.naturalWidth || img.width;
+    const h = img.naturalHeight || img.height;
+    if (!w || !h) return mapPngDataUrl;
+    const pad = Math.round(Math.max(6, w * 0.014));
+    const cardW = Math.round(Math.min(w * 0.4, Math.max(104, w * 0.28)));
+    const cardH = Math.round(Math.min(h * 0.4, Math.max(76, h * 0.26)));
+    const x0 = w - cardW - pad;
+    const y0 = h - cardH - pad;
+    const c = document.createElement('canvas');
+    c.width = w;
+    c.height = h;
+    const ctx = c.getContext('2d');
+    if (!ctx) return mapPngDataUrl;
+    ctx.drawImage(img, 0, 0);
+    drawNorthArrowAndScaleOnMapCanvas(ctx, w, h, mapLngLatBounds);
+    ctx.save();
+    ctx.fillStyle = 'rgba(2, 6, 23, 0.82)';
+    fillRoundRect(ctx, x0, y0, cardW, cardH, 10);
+    const inset = Math.round(cardW * 0.1);
+    let y = y0 + inset + 2;
+    const rowH = (cardH - inset * 2 - 4) / 4;
+    const fontLabel = Math.max(11, Math.round(rowH * 0.62));
+    const fontIdx = Math.max(10, Math.round(rowH * 0.52));
+    const sw = Math.round(rowH * 0.55);
+    const rows: [string, string][] = [
+      ['H', palette.high],
+      ['M', palette.medium],
+      ['L', palette.low],
+    ];
+    ctx.textBaseline = 'middle';
+    for (const [lab, col] of rows) {
+      ctx.fillStyle = col;
+      ctx.fillRect(x0 + inset, y - sw / 2, sw, sw);
+      ctx.fillStyle = '#f8fafc';
+      ctx.font = `600 ${fontLabel}px system-ui, "Segoe UI", sans-serif`;
+      ctx.fillText(lab, x0 + inset + sw + 8, y);
+      y += rowH;
+    }
+    ctx.fillStyle = 'rgba(248, 250, 252, 0.92)';
+    ctx.font = `500 ${fontIdx}px system-ui, "Segoe UI", sans-serif`;
+    ctx.fillText(String(indexId), x0 + inset, y0 + cardH - inset - 2);
+    ctx.restore();
+    return c.toDataURL('image/png');
+  } catch {
+    return mapPngDataUrl;
+  }
+}
+
 export type SiAoiChangeMapCellHandle = {
-  captureMapPngDataUrl: (scale?: number) => string | null;
+  /** WebGL-safe capture after idle + legend composited to match on-screen preview. */
+  captureMapPngForExport: (scale?: number) => Promise<string | null>;
 };
 
 type SiAoiChangeMapCellProps = {
@@ -88,14 +345,35 @@ const SiAoiChangeMapCell = forwardRef<SiAoiChangeMapCellHandle, SiAoiChangeMapCe
   useImperativeHandle(
     ref,
     () => ({
-      captureMapPngDataUrl(scale = 2) {
+      async captureMapPngForExport(scale = 2) {
         const map = innerRef.current?.getMap?.();
         if (!map || !map.isStyleLoaded?.()) return null;
         try {
           map.triggerRepaint?.();
+          await new Promise<void>(resolve => {
+            let done = false;
+            const fin = () => {
+              if (done) return;
+              done = true;
+              resolve();
+            };
+            try {
+              map.once('idle', fin);
+            } catch {
+              fin();
+            }
+            window.setTimeout(fin, 4200);
+          });
+          await new Promise<void>(r => requestAnimationFrame(() => r()));
           const canvas = map.getCanvas?.();
           if (canvas instanceof HTMLCanvasElement && canvas.width > 2 && canvas.height > 2) {
-            return captureCanvasHiRes(canvas, scale);
+            const raw = captureCanvasHiRes(canvas, scale);
+            return await compositeChangeCellLegendPng(
+              raw,
+              classificationPalette,
+              indexId,
+              siPdfBoundsFromFitBounds(fitBounds),
+            );
           }
         } catch {
           /* ignore */
@@ -103,7 +381,7 @@ const SiAoiChangeMapCell = forwardRef<SiAoiChangeMapCellHandle, SiAoiChangeMapCe
         return null;
       },
     }),
-    [],
+    [classificationPalette, indexId, fitBounds],
   );
 
   useEffect(() => {
@@ -171,6 +449,7 @@ const SiAoiChangeMapCell = forwardRef<SiAoiChangeMapCellHandle, SiAoiChangeMapCe
           reuseMaps
           interactive={false}
           attributionControl={false}
+          preserveDrawingBuffer
           onLoad={onInnerMapLoad}
         >
           {mapLayersReady ? (
@@ -637,7 +916,9 @@ export function SiAoiReportModal({
           try {
             const canvas = map.getCanvas?.();
             if (canvas instanceof HTMLCanvasElement && canvas.width > 4 && canvas.height > 4 && map.isStyleLoaded?.()) {
-              aoiMapImageDataUrl = captureCanvasHiRes(canvas, 2);
+              const raw = captureCanvasHiRes(canvas, 2);
+              const mapLngBounds = siPdfBoundsFromFeatureCollection(report.aoiOutlineGeoJson);
+              aoiMapImageDataUrl = await compositeAoiAnalysisMapWithLegendPng(raw, report, mapLngBounds);
             }
           } catch {
             /* ignore */
@@ -650,7 +931,7 @@ export function SiAoiReportModal({
         const urls: (string | null)[] = [];
         for (let i = 0; i < report.changeDetectionSlots.length; i++) {
           await sleep(35);
-          urls.push(changeCellCaptureRefs.current[i]?.captureMapPngDataUrl(2) ?? null);
+          urls.push((await changeCellCaptureRefs.current[i]?.captureMapPngForExport(2)) ?? null);
         }
         changeSlotMapImageDataUrls = urls;
       }
@@ -983,6 +1264,7 @@ export function SiAoiReportModal({
                           reuseMaps={false}
                           interactive={false}
                           attributionControl={false}
+                          preserveDrawingBuffer
                           onLoad={onAnalysisMapLoad}
                         >
                           {analysisMapReady ? (

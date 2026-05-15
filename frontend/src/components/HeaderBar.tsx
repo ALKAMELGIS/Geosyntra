@@ -1,8 +1,10 @@
 import './header.css'
 import { useEffect, useMemo, useRef, type CSSProperties } from 'react'
+import { Link, useLocation, useSearchParams } from 'react-router-dom'
 import PrimaryNavIcons from './PrimaryNavIcons'
 import { useSystemSettings } from '../store/SystemSettingsContext'
 import { useLanguage } from '../lib/i18n'
+import { hasPermission, normalizeRole, readCurrentUser } from '../lib/auth'
 import {
   GEOSYNTRA_BRAND_ICON_FALLBACK,
   GEOSYNTRA_BRAND_LOGO_SVG,
@@ -19,8 +21,14 @@ type HeaderBarProps = {
 
 export default function HeaderBar({ onLogout }: HeaderBarProps) {
   const headerRef = useRef<HTMLElement | null>(null)
+  const location = useLocation()
+  const [searchParams] = useSearchParams()
   const { settings } = useSystemSettings()
   const { language } = useLanguage()
+  const role = normalizeRole(readCurrentUser()?.role)
+  const canOpenApiVault = hasPermission('admin.users.manage', role)
+  const vaultLinkActive =
+    location.pathname === '/admin/system-settings' && searchParams.get('tab') === 'api-tokens'
   const logoIconSrc = settings.logoIcon.trim()
   const hs = settings.headerSettings
 
@@ -131,7 +139,24 @@ export default function HeaderBar({ onLogout }: HeaderBarProps) {
         ) : null}
       </div>
       <div className="header-right">
-        <PrimaryNavIcons onLogout={onLogout} />
+        <div className="header-right__cluster">
+          {canOpenApiVault ? (
+            <Link
+              to="/admin/system-settings?tab=api-tokens"
+              className={`header-api-vault-pill${vaultLinkActive ? ' header-api-vault-pill--active' : ''}`}
+              title={language === 'ar' ? 'خزنة API — إدارة الأسرار والنسخ الاحتياطي' : 'API Vault — secrets & encrypted backup'}
+              aria-label={language === 'ar' ? 'فتح خزنة API في إعدادات النظام' : 'Open API Vault in system settings'}
+            >
+              <span className="header-api-vault-pill__thumb" aria-hidden>
+                <i className="fa-solid fa-shield-halved" />
+              </span>
+              <span className="header-api-vault-pill__label">
+                {language === 'ar' ? 'خزنة API' : 'API Vault'}
+              </span>
+            </Link>
+          ) : null}
+          <PrimaryNavIcons onLogout={onLogout} />
+        </div>
       </div>
     </header>
   )

@@ -497,7 +497,8 @@ export function ScrollGlobe({ sections, globeConfig = defaultGlobeConfig, classN
           >
             <h1
               className={cn(
-                'font-bold mb-6 sm:mb-8 leading-[1.1] tracking-tight',
+                'font-bold leading-[1.1] tracking-tight',
+                welcomeVisualRhythm && section.id === 'hero' ? 'mb-3 sm:mb-4' : 'mb-6 sm:mb-8',
                 innovationGlobeStack && 'gs-innovation-headline',
                 welcomeVisualRhythm
                   ? cn(
@@ -547,7 +548,7 @@ export function ScrollGlobe({ sections, globeConfig = defaultGlobeConfig, classN
             {welcomeVisualRhythm && section.id === 'hero' && (
               <div
                 className={cn(
-                  'gs-hero-sparkle-bar relative w-full max-w-[44rem] -mt-2 mb-6 sm:mb-8 select-none h-32 sm:h-40',
+                  'gs-hero-sparkle-bar relative w-full max-w-[44rem] mt-1 sm:mt-2 mb-4 sm:mb-5 select-none h-28 sm:h-36',
                   section.align === 'right' ? 'ml-auto' : 'mx-auto',
                 )}
               >
@@ -575,8 +576,8 @@ export function ScrollGlobe({ sections, globeConfig = defaultGlobeConfig, classN
                 section.align === 'center' || innovationGlobeStack
                   ? 'max-w-full mx-auto text-center'
                   : 'max-w-full text-left',
-                /* Welcome hero — extra vertical gap (~3 cm) below the sparkle bar before lede + CTAs. */
-                section.id === 'hero' && 'mt-[3cm]',
+                /* Welcome hero — tight band above lede + CTAs (sparkle strip sits just above body copy). */
+                section.id === 'hero' && 'mt-8 sm:mt-10 md:mt-12',
               )}
             >
               <p className="mb-3 sm:mb-4">{section.description}</p>

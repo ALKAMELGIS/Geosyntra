@@ -8237,6 +8237,21 @@ html[data-theme='light'] .si-sat-ctx-rail-btn__badge {
   color: #bae6fd;
 }
 
+.si-aoi-area-ha-sqm__num {
+  font-weight: 700;
+}
+
+.si-aoi-area-ha-sqm__unit {
+  font-size: 10px;
+  font-weight: 600;
+  color: rgba(186, 230, 253, 0.72);
+  letter-spacing: 0.02em;
+}
+
+.si-aoi-area-ha-sqm--empty {
+  color: rgba(148, 163, 184, 0.95);
+}
+
 .si-aoi-area-ha-sqm__m2 {
   font-size: 11px;
   font-weight: 600;
@@ -8728,6 +8743,10 @@ html[data-theme='light'] .si-sat-ctx-rail-btn__badge {
   font-size: 11px;
   font-weight: 600;
   color: rgba(226, 232, 240, 0.88);
+}
+
+.si-rs-aoi-context-cell--wide .si-aoi-area-ha-sqm__unit {
+  color: rgba(226, 232, 240, 0.72);
 }
 
 .si-rs-aoi-metrics {

@@ -4826,8 +4826,8 @@ export default function GisMap() {
             </div>
             <div className="gis-geo-explorer-bubble">
               <p className="gis-geo-explorer-bubble-text">
-                Hello! Im Geosyntra Platform - GeoAI - Describe a place, upload an image, or ask for directions. When a location is
-                clear, the map will fly there
+                Hello! I&apos;m Geo-AI Geosyntra — Describe a place, upload an image, or ask for directions. When a location is clear,
+                the map will fly there.
               </p>
             </div>
           </div>
@@ -4900,10 +4900,6 @@ export default function GisMap() {
           availableGeometryOps={geoAiSuggestContext.geometryOps}
           smartSuggestionsEnabled={geoAiSmartSuggestionsEnabled}
         />
-        <p className="gis-geo-explorer-footnote">
-          Powered by Google Gemini. Set <code>VITE_GEMINI_API_KEY</code> or save under System Settings → API Tokens → Gemini
-          API. Do not commit keys.
-        </p>
       </div>
     </div>
   )
@@ -6139,7 +6135,7 @@ export default function GisMap() {
           title="Legend"
           aria-label="Legend"
         >
-          <i className="fa-solid fa-list-ul" aria-hidden="true" />
+          <i className="fa-solid fa-book-atlas" aria-hidden="true" />
           <span className="gis-sidebar-rail-btn__label">Legend</span>
         </button>
         <button
@@ -7620,7 +7616,7 @@ export default function GisMap() {
               <span>BaseMap</span>
             </button>
             <button className={activeMapTool === 'legend' ? 'gis-map-tool active' : 'gis-map-tool'} type="button" onClick={() => toggleMapTool('legend')} title="Legend" aria-label="Legend">
-              <i className="fa-solid fa-list" aria-hidden="true" />
+              <i className="fa-solid fa-book-atlas" aria-hidden="true" />
               <span>Legend</span>
             </button>
             <button className={activeMapTool === 'chart' ? 'gis-map-tool active' : 'gis-map-tool'} type="button" onClick={() => toggleMapTool('chart')} title="Chart" aria-label="Chart">
