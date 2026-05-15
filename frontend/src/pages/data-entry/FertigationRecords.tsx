@@ -1,7 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
 import { DataSourceFieldsPanel, type DataSourceFormState } from './components/datasourcefieldspanel'
-import { canManageDataSourceSettings } from '../../lib/auth'
 import { FertigationReportModal } from './components/FertigationReportModal'
 import './EC.css'
 
@@ -43,10 +41,7 @@ const writeJson = (key: string, value: unknown) => {
 }
 
 export default function FertigationRecords() {
-  const navigate = useNavigate()
-  const canManageSettings = useMemo(() => canManageDataSourceSettings(), [])
   const [, setDataSourceState] = useState<DataSourceFormState>({ sourceIds: [], selectedFieldsBySource: {}, valuesBySource: {} })
-  const [isOpeningSettings, setIsOpeningSettings] = useState(false)
 
   const [records, setRecords] = useState<FertigationEntry[]>(() => readJson<FertigationEntry[]>(STORAGE_KEY, []))
   const [isReportOpen, setIsReportOpen] = useState(false)
@@ -102,25 +97,8 @@ export default function FertigationRecords() {
                 <i className="fa-solid fa-circle-info" style={{ color: 'var(--ec-primary)' }}></i>
                 Basic Information
               </div>
-              <div className="ec-card-subtitle-small">Configured in Settings (Manager and Admin only)</div>
+              <div className="ec-card-subtitle-small">Link layers and fields using the data source panel below.</div>
             </div>
-            {canManageSettings ? (
-              <div className="ec-card-header-actions">
-                <button
-                  type="button"
-                  className="ec-icon-btn"
-                  aria-label="Open data source settings"
-                  title="Settings"
-                  disabled={isOpeningSettings}
-                  onClick={() => {
-                    setIsOpeningSettings(true)
-                    navigate('/master/workflow-settings?form=Fertigation')
-                  }}
-                >
-                  <i className={isOpeningSettings ? 'fa-solid fa-spinner fa-spin' : 'fa-solid fa-gear'}></i>
-                </button>
-              </div>
-            ) : null}
           </div>
           <div className="ec-card-body">
             <DataSourceFieldsPanel formKey="Fertigation" mode="fill" variant="embedded" onChange={setDataSourceState} />

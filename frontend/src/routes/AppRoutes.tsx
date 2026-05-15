@@ -11,9 +11,7 @@ const GisMap = lazy(() => import('../pages/satellite/GisMap'))
 const DataEntryFertigationRecords = lazy(() => import('../pages/data-entry/FertigationRecords'))
 const DataEntryRecipes = lazy(() => import('../pages/data-entry/Recipes'))
 const AccountProfile = lazy(() => import('../pages/account/Profile'))
-const AccountSettings = lazy(() => import('../pages/account/Settings'))
 const MasterGisContent = lazy(() => import('../pages/master/GisContent'))
-const DashboardSettings = lazy(() => import('../pages/master/DashboardSettings'))
 const AdminUsers = lazy(() => import('../pages/admin/Users'))
 const AdminGitHub = lazy(() => import('../pages/admin/GitHubIntegration'))
 const StyleGuide = lazy(() => import('../pages/StyleGuide'))
@@ -36,11 +34,11 @@ export default function AppRoutes() {
         <Route path="/satellite/multidimensional" element={<SatelliteMultidimensional />} />
         <Route path="/satellite/gis" element={<GisMap />} />
         <Route path="/master/gis-content" element={<MasterGisContent />} />
-        <Route path="/master/dashboard-settings" element={<DashboardSettings />} />
-        <Route path="/master/workflow-settings" element={<AccountSettings />} />
+        <Route path="/master/dashboard-settings" element={<Navigate to="/" replace />} />
+        <Route path="/master/workflow-settings" element={<Navigate to="/" replace />} />
         <Route path="/account/profile" element={<AccountProfile />} />
         <Route path="/account/profile-user-management" element={<Navigate to="/account/profile" replace />} />
-        <Route path="/account/settings" element={<AccountSettings />} />
+        <Route path="/account/settings" element={<Navigate to="/" replace />} />
         <Route path="/admin/users" element={<AdminUsers />} />
         <Route path="/admin/github" element={<AdminGitHub />} />
         <Route path="/admin/system-settings" element={<SystemSettings />} />
