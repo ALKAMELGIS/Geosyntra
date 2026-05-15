@@ -229,10 +229,19 @@ const MAX_GRID_CELLS = 9000;
 
 /** Integer counts (whole pixels). */
 const XLSX_FMT_INT = '0'
-/** % of AOI (0–100 as a plain number, not Excel’s built-in % type) — long fraction so tiny shares are visible. */
-const XLSX_FMT_SHARE = '0.00000000000000'
-/** Spectral / index (−1…1, LST °C, etc.): long fixed fraction; avoids Excel “General” rounding tiny values in display. */
-const XLSX_FMT_SPECTRAL = '0.00000000000000'
+/** % of AOI (0–100 as a plain number, not Excel’s built-in % type) — many fraction digits so tiny shares stay visible. */
+const XLSX_FMT_SHARE = '0.############################'
+/** Spectral / index (−1…1, LST °C, etc.): many optional fraction digits (negative values keep leading “-”). */
+const XLSX_FMT_SPECTRAL = '0.############################'
+
+/**
+ * Full-decimal text for Excel cells where NumberFormat can still collapse tiny values in some viewers.
+ * Keeps JS double string form (including scientific for subnormals) — no clipping to 0.
+ */
+function excelDecimalText(v: number): string {
+  if (!Number.isFinite(v)) return ''
+  return String(v)
+}
 
 function applyNumberFormatsToDataRows(
   ws: XLSX.WorkSheet,
@@ -276,7 +285,6 @@ function formatSummaryAoiSheet(ws: XLSX.WorkSheet) {
         applyNumberFormatsToDataRows(ws, rr, [
           { c: 1, z: XLSX_FMT_INT },
           { c: 3, z: XLSX_FMT_INT },
-          { c: 4, z: XLSX_FMT_SPECTRAL },
         ])
       }
       break
@@ -460,7 +468,7 @@ export function buildGeoAiIndexAnalyticalWorkbook(opts: {
   }
   {
     const wsCls = XLSX.utils.aoa_to_sheet(classifiedRows)
-    wsCls['!cols'] = [10, 14, 14, 20, 10, 44]
+    wsCls['!cols'] = [10, 14, 14, 20, 10, 44].map(wch => ({ wch }))
     applyNumberFormatsToDataRows(wsCls, 1, [{ c: 3, z: XLSX_FMT_SPECTRAL }])
     XLSX.utils.book_append_sheet(wb, wsCls, 'Data_Classified')
   }
@@ -508,7 +516,13 @@ export function buildGeoAiIndexAnalyticalWorkbook(opts: {
   }
   for (const [cid, { name, n }] of [...counts.entries()].sort((a, b) => a[0] - b[0])) {
     const areaM2 = approxM2PerPixel > 0 ? n * approxM2PerPixel : ''
-    summaryLines.push(['', cid, name, n, areaM2]);
+    summaryLines.push([
+      '',
+      cid,
+      name,
+      n,
+      typeof areaM2 === 'number' && Number.isFinite(areaM2) ? excelDecimalText(areaM2) : areaM2,
+    ])
   }
 
   appendSheetWithColWidths(wb, summaryLines, 'Summary_AOI', [44, 12, 48, 14, 22, 24], formatSummaryAoiSheet)
@@ -524,15 +538,20 @@ export function buildGeoAiIndexAnalyticalWorkbook(opts: {
     const n = vals.length;
     const pct = total > 0 ? (100 * n) / total : 0;
     const mnc = vals.length ? vals.reduce((a, b) => a + b, 0) / vals.length : NaN;
-    classStats.push([c.id, c.label, n, pct, Number.isFinite(mnc) ? mnc : '']);
+    // Pct / mean as text so Excel never collapses small |−1…1| or tiny % shares to “0.00”.
+    classStats.push([
+      c.id,
+      c.label,
+      n,
+      excelDecimalText(pct),
+      vals.length && Number.isFinite(mnc) ? excelDecimalText(mnc) : '',
+    ]);
   }
-  appendSheetWithColWidths(wb, classStats, 'Class_Statistics', [14, 54, 18, 26, 32], ws =>
+  appendSheetWithColWidths(wb, classStats, 'Class_Statistics', [14, 56, 16, 28, 36], ws =>
     applyNumberFormatsToDataRows(ws, 1, [
       { c: 0, z: XLSX_FMT_INT },
       { c: 2, z: XLSX_FMT_INT },
-      { c: 3, z: XLSX_FMT_SHARE },
-      { c: 4, z: XLSX_FMT_SPECTRAL },
-    ])
+    ]),
   )
 
   return wb;
@@ -541,5 +560,5 @@ export function buildGeoAiIndexAnalyticalWorkbook(opts: {
 export function downloadGeoAiIndexAnalyticalReportXlsx(opts: Parameters<typeof buildGeoAiIndexAnalyticalWorkbook>[0]) {
   const wb = buildGeoAiIndexAnalyticalWorkbook(opts);
   const stamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
-  XLSX.writeFile(wb, `GeoAI Index Analytical Report ${stamp}.xlsx`);
+  XLSX.writeFile(wb, `GeoAI Index Analytical Report ${stamp}.xlsx`, { bookType: 'xlsx', cellStyles: true } as XLSX.WritingOptions)
 }
