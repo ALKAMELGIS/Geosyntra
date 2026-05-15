@@ -13,6 +13,8 @@ import {
 import { readProfileExtra } from '../../lib/userProfilePersistence'
 import { appendAuditLog, AUDIT_LOG_STORAGE_KEY, readAuditLog } from '../../lib/audit'
 import {
+  fetchAdminDirectoryStats,
+  type AdminDirectoryStats,
   flushAdminDirectoryToServer,
   pullAdminDirectoryFromServer,
   scheduleAdminDirectorySync,
@@ -27,12 +29,14 @@ type User = {
   managedById?: number
   status: string
   lastLogin: string
+  createdAt?: string
   passwordHash?: string
-   emailVerified?: boolean
-   verificationToken?: string
+  hasPassword?: boolean
+  emailVerified?: boolean
+  verificationToken?: string
 }
 
-type SortKey = keyof Pick<User, 'name' | 'email' | 'role' | 'scope' | 'status' | 'lastLogin'>
+type SortKey = keyof Pick<User, 'name' | 'email' | 'role' | 'scope' | 'status' | 'lastLogin' | 'createdAt'>
 
 type SortConfig = {
   key: SortKey
@@ -53,6 +57,12 @@ function adminAvatarFallbackBg(seed: string): string {
   for (let i = 0; i < s.length; i++) hash = (hash * 31 + s.charCodeAt(i)) | 0
   const hue = Math.abs(hash) % 360
   return `linear-gradient(145deg, hsl(${hue} 52% 44%), hsl(${(hue + 42) % 360} 56% 50%))`
+}
+
+function formatDirectoryDate(iso?: string): string {
+  if (!iso) return '—'
+  const d = new Date(iso)
+  return Number.isFinite(d.getTime()) ? d.toLocaleString() : '—'
 }
 
 function AdminUserAvatar({ email, name, large }: { email: string; name: string; large?: boolean }) {
@@ -102,6 +112,7 @@ export default function Users({ embedded }: { embedded?: boolean } = {}) {
   const [batchRole, setBatchRole] = useState<string>('Viewer')
   const [isNarrow, setIsNarrow] = useState(false)
   const [duplicateEmailKeys, setDuplicateEmailKeys] = useState<string[]>([])
+  const [directoryStats, setDirectoryStats] = useState<AdminDirectoryStats | null>(null)
   const directoryHydratedRef = useRef(false)
 
   const currentUser = useMemo(() => readCurrentUser(), [])
@@ -162,6 +173,12 @@ export default function Users({ embedded }: { embedded?: boolean } = {}) {
     const email = String(raw.email || '').trim()
     if (!email) return null
     const id = typeof raw.id === 'number' ? raw.id : Number(raw.id || 0)
+    let status = String(raw.status || 'Active')
+    if (status === 'Inactive') status = 'Suspended'
+    if (status === 'Invited') status = 'Pending'
+    const hasPasswordRemote = raw.hasPassword === true
+    const passwordHash =
+      typeof raw.passwordHash === 'string' && raw.passwordHash.length > 0 ? raw.passwordHash : undefined
     return {
       id: Number.isFinite(id) && id > 0 ? id : Date.now(),
       name: String(raw.name || email),
@@ -169,16 +186,19 @@ export default function Users({ embedded }: { embedded?: boolean } = {}) {
       role: normalizeRole(raw.role),
       scope: raw.scope ? String(raw.scope).trim() || undefined : undefined,
       managedById: typeof raw.managedById === 'number' ? raw.managedById : undefined,
-      status: String(raw.status || 'Active'),
+      status,
       lastLogin: String(raw.lastLogin || 'Never'),
-      passwordHash: typeof raw.passwordHash === 'string' ? raw.passwordHash : undefined,
+      createdAt: typeof raw.createdAt === 'string' ? raw.createdAt : undefined,
+      passwordHash,
+      hasPassword: hasPasswordRemote || Boolean(passwordHash),
       emailVerified: typeof raw.emailVerified === 'boolean' ? raw.emailVerified : undefined,
       verificationToken: typeof raw.verificationToken === 'string' ? raw.verificationToken : undefined,
     }
   }
 
   const scoreUserQuality = (u: User): number => {
-    const hasPassword = typeof u.passwordHash === 'string' && u.passwordHash.length > 0 ? 8 : 0
+    const hasPassword =
+      u.hasPassword === true || (typeof u.passwordHash === 'string' && u.passwordHash.length > 0) ? 8 : 0
     const verified = u.emailVerified === true ? 4 : 0
     const active = String(u.status || '').toLowerCase() === 'active' ? 2 : 0
     const hasLastLogin = String(u.lastLogin || '').toLowerCase() !== 'never' ? 1 : 0
@@ -256,7 +276,7 @@ export default function Users({ embedded }: { embedded?: boolean } = {}) {
       if (currentUser?.email && u.email.toLowerCase() === currentUser.email.toLowerCase()) return true
       const scopeOk = String(u.scope || '') === String(currentUser?.scope || '')
       const managedOk = typeof u.managedById === 'number' && typeof currentUser?.id === 'number' && u.managedById === currentUser.id
-      const roleOk = u.role === 'Editor' || u.role === 'Viewer'
+      const roleOk = u.role === 'Editor' || u.role === 'Viewer' || u.role === 'User'
       return scopeOk && managedOk && roleOk
     }
     return false
@@ -411,6 +431,9 @@ export default function Users({ embedded }: { embedded?: boolean } = {}) {
       }
 
       directoryHydratedRef.current = true
+      void fetchAdminDirectoryStats().then(s => {
+        if (!cancelled && s) setDirectoryStats(s)
+      })
     })()
     return () => {
       cancelled = true
@@ -485,6 +508,10 @@ export default function Users({ embedded }: { embedded?: boolean } = {}) {
         return
       }
       const passwordHash = newUser.password ? await hashPassword(newUser.password) : existing.passwordHash
+      const nextHasPassword =
+        Boolean(newUser.password) ||
+        existing.hasPassword === true ||
+        (typeof existing.passwordHash === 'string' && existing.passwordHash.length > 0)
 
       const nextRole = isAdminManager && existing.role === 'Admin Manager' ? existing.role : newUser.role
       const nextScope =
@@ -519,7 +546,8 @@ export default function Users({ embedded }: { embedded?: boolean } = {}) {
                 managedById: nextManagedById,
                 status: newUser.status,
                 lastLogin: newUser.lastLogin || user.lastLogin || 'Never',
-                passwordHash
+                passwordHash,
+                hasPassword: nextHasPassword,
               }
             : user
         )
@@ -531,7 +559,7 @@ export default function Users({ embedded }: { embedded?: boolean } = {}) {
         showToast('Password must be at least 8 characters.', 'error')
         return
       }
-      const creatingRole = isAdminManager ? (newUser.role === 'Editor' || newUser.role === 'Viewer' ? newUser.role : 'Viewer') : newUser.role
+      const creatingRole = isAdminManager ? (newUser.role === 'Editor' || newUser.role === 'Viewer' || newUser.role === 'User' ? newUser.role : 'Viewer') : newUser.role
 
       const creatingScope =
         isAdminManager
@@ -568,9 +596,11 @@ export default function Users({ embedded }: { embedded?: boolean } = {}) {
         role: normalizeRole(creatingRole),
         scope: creatingScope || undefined,
         managedById: creatingManagedById,
-        status: hasPassword ? newUser.status : 'Invited',
+        status: hasPassword ? newUser.status : 'Pending',
         lastLogin: newUser.lastLogin || 'Never',
+        createdAt: new Date().toISOString(),
         passwordHash,
+        hasPassword,
         emailVerified: hasPassword ? true : false,
         verificationToken
       }
@@ -607,7 +637,7 @@ export default function Users({ embedded }: { embedded?: boolean } = {}) {
     if (!target) return
     if (!canDeleteUser(target)) {
       showToast('Unauthorized.', 'error')
-      appendUserAudit('unauthorized_delete', { id: String(target.id), email: target.email }, { reason: 'scope_or_hierarchy' })
+      appendUserAudit('unauthorized_suspend', { id: String(target.id), email: target.email }, { reason: 'scope_or_hierarchy' })
       return
     }
     setConfirmDeleteId(id)
@@ -619,13 +649,13 @@ export default function Users({ embedded }: { embedded?: boolean } = {}) {
     if (target) {
       if (!canDeleteUser(target)) {
         showToast('Unauthorized.', 'error')
-        appendUserAudit('unauthorized_delete', { id: String(target.id), email: target.email }, { reason: 'scope_or_hierarchy' })
+        appendUserAudit('unauthorized_suspend', { id: String(target.id), email: target.email }, { reason: 'scope_or_hierarchy' })
         setConfirmDeleteId(null)
         return
       }
-      setUsers(prev => prev.filter(u => u.id !== confirmDeleteId))
-      appendUserAudit('delete', { id: String(target.id), email: target.email })
-      showToast('User deleted.', 'success')
+      setUsers(prev => prev.map(u => (u.id === confirmDeleteId ? { ...u, status: 'Suspended' } : u)))
+      appendUserAudit('suspend', { id: String(target.id), email: target.email })
+      showToast('Account suspended. Records are retained on the server.', 'success')
     }
     setConfirmDeleteId(null)
   }
@@ -676,13 +706,13 @@ export default function Users({ embedded }: { embedded?: boolean } = {}) {
         u.id === user.id
           ? {
               ...u,
-              status: u.status === 'Active' ? 'Inactive' : 'Active'
+              status: u.status === 'Active' ? 'Suspended' : 'Active'
             }
           : u
       )
     )
-    appendUserAudit(user.status === 'Active' ? 'deactivate' : 'activate', { id: String(user.id), email: user.email })
-    showToast(user.status === 'Active' ? 'User deactivated.' : 'User activated.', 'success')
+    appendUserAudit(user.status === 'Active' ? 'suspend' : 'activate', { id: String(user.id), email: user.email })
+    showToast(user.status === 'Active' ? 'User suspended.' : 'User activated.', 'success')
   }
 
   const handleImpersonate = (user: User) => {
@@ -730,7 +760,7 @@ export default function Users({ embedded }: { embedded?: boolean } = {}) {
         if (me && u.email.toLowerCase() === me) return true
         const scopeOk = String(u.scope || '') === scope
         const managedOk = typeof u.managedById === 'number' && typeof currentUser?.id === 'number' && u.managedById === currentUser.id
-        const roleOk = u.role === 'Editor' || u.role === 'Viewer'
+        const roleOk = u.role === 'Editor' || u.role === 'Viewer' || u.role === 'User'
         return scopeOk && managedOk && roleOk
       })
     }
@@ -752,13 +782,14 @@ export default function Users({ embedded }: { embedded?: boolean } = {}) {
       showToast('No users to export.', 'info')
       return
     }
-    const headers = ['Name', 'Email', 'Role', 'Scope', 'Status', 'Last Login', 'Managed By Id']
+    const headers = ['Name', 'Email', 'Role', 'Scope', 'Status', 'Created', 'Last Login', 'Managed By Id']
     const rows = list.map(u => [
       u.name,
       u.email,
       u.role,
       u.scope || '',
       u.status,
+      u.createdAt || '',
       u.lastLogin || 'Never',
       typeof u.managedById === 'number' ? String(u.managedById) : ''
     ])
@@ -784,13 +815,26 @@ export default function Users({ embedded }: { embedded?: boolean } = {}) {
         user.name.toLowerCase().includes(term) ||
         user.email.toLowerCase().includes(term)
       const matchesRole = roleFilter === 'All' || user.role === roleFilter
-      const matchesStatus = statusFilter === 'All' || user.status === statusFilter
+      const st = user.status
+      const matchesStatus =
+        statusFilter === 'All' ||
+        st === statusFilter ||
+        (statusFilter === 'Suspended' && st === 'Inactive') ||
+        (statusFilter === 'Pending' && st === 'Invited') ||
+        (statusFilter === 'Inactive' && st === 'Inactive') ||
+        (statusFilter === 'Invited' && st === 'Invited')
       return matchesSearch && matchesRole && matchesStatus
     })
     if (sortConfig) {
       result = [...result].sort((a, b) => {
-        const aValue = a[sortConfig.key] || ''
-        const bValue = b[sortConfig.key] || ''
+        let aValue: string | number = a[sortConfig.key] ?? ''
+        let bValue: string | number = b[sortConfig.key] ?? ''
+        if (sortConfig.key === 'createdAt') {
+          const ta = Date.parse(String(a.createdAt || ''))
+          const tb = Date.parse(String(b.createdAt || ''))
+          aValue = Number.isFinite(ta) ? ta : 0
+          bValue = Number.isFinite(tb) ? tb : 0
+        }
         if (aValue < bValue) return sortConfig.direction === 'asc' ? -1 : 1
         if (aValue > bValue) return sortConfig.direction === 'asc' ? 1 : -1
         return 0
@@ -842,7 +886,7 @@ export default function Users({ embedded }: { embedded?: boolean } = {}) {
     }
 
     if (batchAction === 'enable' || batchAction === 'disable') {
-      const nextStatus = batchAction === 'enable' ? 'Active' : 'Inactive'
+      const nextStatus = batchAction === 'enable' ? 'Active' : 'Suspended'
       setUsers(prev => prev.map(u => (manageable.some(m => m.id === u.id) ? { ...u, status: nextStatus } : u)))
       manageable.forEach(u => appendUserAudit('status_change', { id: String(u.id), email: u.email }, { to: nextStatus }))
       showToast(`Status updated for ${manageable.length} users.`, 'success')
@@ -985,6 +1029,37 @@ export default function Users({ embedded }: { embedded?: boolean } = {}) {
         </div>
       </div>
 
+      {directoryStats ? (
+        <div className="admin-users__stats" aria-label="Directory statistics">
+          <div className="admin-users__stat-card">
+            <div className="admin-users__stat-label">Total accounts</div>
+            <div className="admin-users__stat-value">{directoryStats.totalUsers}</div>
+            {directoryStats.storage ? <div className="admin-users__stat-sub">Backend: {directoryStats.storage}</div> : null}
+          </div>
+          <div className="admin-users__stat-card">
+            <div className="admin-users__stat-label">Verified email</div>
+            <div className="admin-users__stat-value">{directoryStats.verifiedUsers}</div>
+            <div className="admin-users__stat-sub">Confirmed addresses</div>
+          </div>
+          <div className="admin-users__stat-card">
+            <div className="admin-users__stat-label">Logins (7d)</div>
+            <div className="admin-users__stat-value">
+              {directoryStats.loginsLast7Days == null ? '—' : directoryStats.loginsLast7Days}
+            </div>
+            <div className="admin-users__stat-sub">SQLite login ledger</div>
+          </div>
+          <div className="admin-users__stat-card">
+            <div className="admin-users__stat-label">Roles in use</div>
+            <div className="admin-users__stat-value" style={{ fontSize: 13, fontWeight: 600, lineHeight: 1.35 }}>
+              {Object.entries(directoryStats.byRole)
+                .slice(0, 4)
+                .map(([k, v]) => `${k}: ${v}`)
+                .join(' · ') || '—'}
+            </div>
+          </div>
+        </div>
+      ) : null}
+
       <div className="admin-users__filters">
         <input
           type="text"
@@ -1021,9 +1096,10 @@ export default function Users({ embedded }: { embedded?: boolean } = {}) {
         >
           <option value="All">All Statuses</option>
           <option value="Active">Active</option>
-          <option value="Inactive">Inactive</option>
           <option value="Suspended">Suspended</option>
-          <option value="Invited">Invited</option>
+          <option value="Pending">Pending</option>
+          <option value="Inactive">Inactive (legacy)</option>
+          <option value="Invited">Invited (legacy)</option>
           <option value="Deleted">Deleted</option>
         </select>
       </div>
@@ -1122,7 +1198,7 @@ export default function Users({ embedded }: { embedded?: boolean } = {}) {
                           className={
                             'admin-users__icon-btn admin-users__icon-btn--danger' + (canDeleteUser(user) ? '' : ' admin-users__icon-btn--disabled')
                           }
-                          title={canDeleteUser(user) ? 'Delete' : 'Not allowed'}
+                          title={canDeleteUser(user) ? 'Suspend account' : 'Not allowed'}
                           onClick={() => handleRequestDelete(user.id)}
                           disabled={!canDeleteUser(user)}
                         >
@@ -1140,7 +1216,7 @@ export default function Users({ embedded }: { embedded?: boolean } = {}) {
                         <button
                           type="button"
                           className={'admin-users__icon-btn admin-users__icon-btn--toggle' + (manageable ? '' : ' admin-users__icon-btn--disabled')}
-                          title={user.status === 'Active' ? 'Deactivate User' : 'Activate User'}
+                          title={user.status === 'Active' ? 'Suspend access' : 'Activate user'}
                           onClick={() => handleToggleStatus(user)}
                           disabled={!manageable}
                         >
@@ -1186,6 +1262,9 @@ export default function Users({ embedded }: { embedded?: boolean } = {}) {
                     <th className="admin-users__th admin-users__th--sort" onClick={() => handleSort('status')}>
                       Status
                     </th>
+                    <th className="admin-users__th admin-users__th--sort" onClick={() => handleSort('createdAt')}>
+                      Created
+                    </th>
                     <th className="admin-users__th">Verified</th>
                     <th className="admin-users__th admin-users__th--sort" onClick={() => handleSort('lastLogin')}>
                       Last Login
@@ -1208,6 +1287,7 @@ export default function Users({ embedded }: { embedded?: boolean } = {}) {
                         <td className="admin-users__td admin-users__td--strong">{user.email}</td>
                         <td className="admin-users__td">{renderRolePill(user.role)}</td>
                         <td className="admin-users__td">{renderStatusPill(user.status || 'Active')}</td>
+                        <td className="admin-users__td admin-users__td--muted">{formatDirectoryDate(user.createdAt)}</td>
                         <td className="admin-users__td admin-users__td--muted">
                           {user.emailVerified === true ? (
                             <span className="admin-users__pill admin-users__pill--ok">Yes</span>
@@ -1243,7 +1323,7 @@ export default function Users({ embedded }: { embedded?: boolean } = {}) {
                                 'admin-users__icon-btn admin-users__icon-btn--danger' +
                                 (canDeleteUser(user) ? '' : ' admin-users__icon-btn--disabled')
                               }
-                              title={canDeleteUser(user) ? 'Delete' : 'Not allowed'}
+                              title={canDeleteUser(user) ? 'Suspend account' : 'Not allowed'}
                               onClick={() => handleRequestDelete(user.id)}
                               disabled={!canDeleteUser(user)}
                             >
@@ -1261,7 +1341,7 @@ export default function Users({ embedded }: { embedded?: boolean } = {}) {
                             <button
                               type="button"
                               className={'admin-users__icon-btn admin-users__icon-btn--toggle' + (manageable ? '' : ' admin-users__icon-btn--disabled')}
-                              title={user.status === 'Active' ? 'Deactivate User' : 'Activate User'}
+                              title={user.status === 'Active' ? 'Suspend access' : 'Activate user'}
                               onClick={() => handleToggleStatus(user)}
                               disabled={!manageable}
                             >
@@ -1430,7 +1510,7 @@ export default function Users({ embedded }: { embedded?: boolean } = {}) {
                         })
                       }}
                       className="ec-input"
-                      disabled={isAdminManager || !(newUser.role === 'Editor' || newUser.role === 'Viewer') || !isSuperManager}
+                      disabled={isAdminManager || !(newUser.role === 'Editor' || newUser.role === 'Viewer' || newUser.role === 'User') || !isSuperManager}
                     >
                       <option value="">—</option>
                       {users
@@ -1451,7 +1531,7 @@ export default function Users({ embedded }: { embedded?: boolean } = {}) {
                       className="ec-input"
                     >
                       <option value="Active">Active</option>
-                      <option value="Inactive">Inactive</option>
+                      <option value="Pending">Pending</option>
                       <option value="Suspended">Suspended</option>
                     </select>
                   </div>
@@ -1493,17 +1573,17 @@ export default function Users({ embedded }: { embedded?: boolean } = {}) {
         <div className="ec-modal-overlay ec-modal-active admin-users__mini-overlay" role="presentation">
           <div className="ec-modal admin-users__mini-dialog" role="dialog" aria-modal="true" aria-labelledby="users-delete-heading">
             <h2 id="users-delete-heading" className="admin-users__mini-title">
-              Confirm Delete
+              Suspend account
             </h2>
             <p className="admin-users__mini-text">
-              Are you sure you want to delete this user? This action cannot be undone.
+              This marks the account as Suspended. Directory records are kept on the server and are not destroyed.
             </p>
             <div className="admin-users__mini-actions">
               <button type="button" className="admin-users__mini-btn admin-users__mini-btn--cancel" onClick={() => setConfirmDeleteId(null)}>
                 Cancel
               </button>
               <button type="button" className="admin-users__mini-btn admin-users__mini-btn--danger" onClick={handleConfirmDelete}>
-                Delete
+                Suspend
               </button>
             </div>
           </div>

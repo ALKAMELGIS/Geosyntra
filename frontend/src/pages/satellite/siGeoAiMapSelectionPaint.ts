@@ -1,16 +1,16 @@
 /**
  * Mapbox GL paint for Geo AI ↔ table linked selection.
- * Kept in sync visually with `.si-page` / `--si-geo-*` tokens in SatelliteIntelligence.css (violet slate, not orange).
+ * Cyan-forward so it matches live AOI draw chrome (not legacy green).
  */
 export const SI_GEO_AI_MAP_SELECTION_PAINT = {
-  fillColor: '#6d28d9',
-  fillOpacity: 0.1,
-  lineColor: '#c4b5fd',
-  lineWidth: 2,
-  lineOpacity: 0.72,
+  fillColor: '#22d3ee',
+  fillOpacity: 0.08,
+  lineColor: '#a5f3fc',
+  lineWidth: 2.25,
+  lineOpacity: 0.88,
   pointRadius: 8,
-  pointColor: 'rgba(124, 58, 237, 0.38)',
-  pointOpacity: 0.72,
+  pointColor: 'rgba(34, 211, 238, 0.45)',
+  pointOpacity: 0.82,
   pointStrokeWidth: 1.5,
-  pointStrokeColor: 'rgba(237, 233, 254, 0.55)',
+  pointStrokeColor: 'rgba(224, 242, 254, 0.75)',
 } as const

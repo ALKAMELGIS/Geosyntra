@@ -34,7 +34,7 @@ export function filterDirectoryRolesForSuperPicker(catalog: Role[]): Role[] {
 
 /** Admin Manager (and other non-super directory admins): Editor + Viewer only, intersected with catalog. */
 export function filterDirectoryRolesForScopedPicker(catalog: Role[]): Role[] {
-  return catalog.filter(r => r === 'Editor' || r === 'Viewer')
+  return catalog.filter(r => r === 'Editor' || r === 'Viewer' || r === 'User')
 }
 
 export function filterDirectoryRolesForAdminPicker(catalog: Role[], isSuperManager: boolean, isAdminManager: boolean): Role[] {

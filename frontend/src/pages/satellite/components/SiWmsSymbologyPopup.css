@@ -211,6 +211,75 @@
   border: 1px dashed rgba(71, 85, 105, 0.65);
 }
 
+.si-wms-sym-field-hint {
+  margin: -2px 0 8px;
+  font-size: 10px;
+  line-height: 1.35;
+  color: #94a3b8;
+}
+
+.si-wms-sym-ramp-swatches {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.si-wms-sym-ramp-swatch {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 5px;
+  padding: 6px 6px 7px;
+  border-radius: 10px;
+  border: 1px solid rgba(51, 65, 85, 0.75);
+  background: rgba(2, 6, 23, 0.45);
+  color: #cbd5e1;
+  cursor: pointer;
+  text-align: left;
+  transition:
+    border-color 0.15s ease,
+    background 0.15s ease,
+    box-shadow 0.15s ease;
+}
+
+.si-wms-sym-ramp-swatch:hover:not(:disabled) {
+  border-color: rgba(34, 211, 153, 0.45);
+  background: rgba(15, 23, 42, 0.65);
+}
+
+.si-wms-sym-ramp-swatch:disabled {
+  opacity: 0.42;
+  cursor: not-allowed;
+}
+
+.si-wms-sym-ramp-swatch--active {
+  border-color: rgba(167, 139, 250, 0.75);
+  background: rgba(88, 28, 135, 0.22);
+  box-shadow: 0 0 0 1px rgba(167, 139, 250, 0.18);
+}
+
+.si-wms-sym-ramp-swatch__bar {
+  height: 40px;
+  width: 100%;
+  border-radius: 7px;
+  border: 1px solid rgba(15, 23, 42, 0.9);
+  background-color: #0f172a;
+  background-size: 100% 100%;
+  background-repeat: no-repeat;
+}
+
+.si-wms-sym-ramp-swatch__cap {
+  font-size: 9px;
+  font-weight: 650;
+  line-height: 1.25;
+  color: #e2e8f0;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  word-break: break-word;
+}
+
 .si-wms-sym-foot {
   display: flex;
   gap: 8px;

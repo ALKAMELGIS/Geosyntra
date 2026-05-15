@@ -85,10 +85,7 @@ import {
   stableFeatureLinkKey,
 } from '../../lib/geoAiLinkedSelection';
 import { SiWmsIndexClassificationLegend, siWmsShowsSpectralLegend } from './components/SiWmsIndexClassificationLegend';
-import {
-  SiWmsSymbologyPopup,
-  SiWmsSymbologyToolbarIconButton,
-} from './components/SiWmsSymbologyPopup';
+import { SiWmsSymbologyPopup } from './components/SiWmsSymbologyPopup';
 import {
   SI_WMS_SYMBOLOGY_DEFAULT_UI,
   siAutoRampPresetForLayerName,
@@ -2119,11 +2116,12 @@ type SiSentinelRasterRunSpec = {
 };
 
 const DEFAULT_DRAW_STYLE: DrawStyleConfig = {
-  strokeColor: '#4ade80',
-  fillColor: '#22c55e',
-  strokeWidth: 3,
-  fillOpacity: 0.28,
-  pointRadius: 11,
+  /** Edge-first AOI preview: bright cyan rim, barely-there cool fill (not solid green). */
+  strokeColor: '#67e8f9',
+  fillColor: '#22d3ee',
+  strokeWidth: 2.75,
+  fillOpacity: 0.07,
+  pointRadius: 10,
 };
 
 interface PivotFeature {
@@ -8833,7 +8831,12 @@ export default function SatelliteIntelligence() {
       ids.push('si-stac-footprints-fill', 'si-stac-footprints-line');
     }
     if (drawnGeometry) {
-      ids.push('drawn-index-geometry-fill', 'drawn-index-geometry-line', 'drawn-index-geometry-point');
+      ids.push(
+        'drawn-index-geometry-fill',
+        'drawn-index-geometry-line-glow',
+        'drawn-index-geometry-line',
+        'drawn-index-geometry-point',
+      );
     }
     if (aoiFields.length > 0) {
       ids.push('si-aoi-fields-fill', 'si-aoi-fields-line');
@@ -9500,19 +9503,12 @@ export default function SatelliteIntelligence() {
   remoteSensingLayerOptionsRef.current = remoteSensingLayerOptions;
 
   /** Sentinel WMS classified-layer symbology (color ramp via evalscript stops only). */
-  const [siWmsSymbologyChrome, setSiWmsSymbologyChrome] = useState<{
-    open: boolean;
-    anchor: 'toolbar-embedded' | 'map-dock';
-  }>({ open: false, anchor: 'toolbar-embedded' });
+  const [siWmsSymbologyChrome, setSiWmsSymbologyChrome] = useState<{ open: boolean }>({ open: false });
   const [siWmsSymbologyTargetLayerId, setSiWmsSymbologyTargetLayerId] = useState('');
   const [siWmsSymbologyByLayer, setSiWmsSymbologyByLayer] = useState<Record<string, Partial<SiWmsSymbologyUiState>>>({});
 
-  const toggleWmsSymbology = useCallback((anchor: 'toolbar-embedded' | 'map-dock') => {
-    setSiWmsSymbologyChrome(s => {
-      if (!s.open) return { open: true, anchor };
-      if (s.anchor === anchor) return { ...s, open: false };
-      return { open: true, anchor };
-    });
+  const toggleWmsSymbology = useCallback(() => {
+    setSiWmsSymbologyChrome(s => ({ open: !s.open }));
   }, []);
 
   const siWmsSymbologyLayerPickOptions = useMemo(
@@ -11091,7 +11087,28 @@ export default function SatelliteIntelligence() {
                       filter={['==', ['geometry-type'], 'Polygon']}
                       paint={{
                         'fill-color': drawStyle.fillColor,
-                        'fill-opacity': Math.min(0.45, drawStyle.fillOpacity + 0.12) * drawVisualOpacity,
+                        'fill-opacity': Math.min(0.12, drawStyle.fillOpacity + 0.03) * drawVisualOpacity,
+                      }}
+                    />
+                    <Layer
+                      id="si-draw-draft-outline-glow"
+                      type="line"
+                      filter={['==', ['geometry-type'], 'Polygon']}
+                      paint={{
+                        'line-color': '#38bdf8',
+                        'line-width': 9,
+                        'line-blur': 2.8,
+                        'line-opacity': 0.22 * drawVisualOpacity,
+                      }}
+                    />
+                    <Layer
+                      id="si-draw-draft-outline"
+                      type="line"
+                      filter={['==', ['geometry-type'], 'Polygon']}
+                      paint={{
+                        'line-color': drawStyle.strokeColor,
+                        'line-width': drawStyle.strokeWidth,
+                        'line-opacity': 0.95 * drawVisualOpacity,
                       }}
                     />
                     <Layer
@@ -11114,7 +11131,7 @@ export default function SatelliteIntelligence() {
                       type="line"
                       filter={['==', ['get', 'draftRole'], 'closeHint']}
                       paint={{
-                        'line-color': '#4ade80',
+                        'line-color': '#a5f3fc',
                         'line-width': Math.max(2, drawStyle.strokeWidth),
                         'line-dasharray': [1, 2],
                         'line-opacity': 0.95 * drawVisualOpacity,
@@ -11143,13 +11160,13 @@ export default function SatelliteIntelligence() {
                           'match',
                           ['get', 'draftRole'],
                           'circleCenter',
-                          '#fbbf24',
+                          '#fef08a',
                           'circleCardinal',
-                          '#86efac',
-                          '#bbf7d0',
+                          '#a5f3fc',
+                          '#e0f2fe',
                         ] as any,
                         'circle-stroke-width': 2,
-                        'circle-stroke-color': '#14532d',
+                        'circle-stroke-color': '#0c4a6e',
                         'circle-opacity': drawVisualOpacity,
                         'circle-stroke-opacity': drawVisualOpacity,
                       }}
@@ -11184,7 +11201,7 @@ export default function SatelliteIntelligence() {
                       filter={['==', ['geometry-type'], 'Polygon']}
                       paint={{
                         'fill-color': drawStyle.fillColor,
-                        'fill-opacity': drawStyle.fillOpacity * drawVisualOpacity,
+                        'fill-opacity': Math.min(0.14, drawStyle.fillOpacity + 0.04) * drawVisualOpacity,
                       }}
                     />
                   </Source>
@@ -11426,6 +11443,17 @@ export default function SatelliteIntelligence() {
 
             {isMapLoaded && drawnGeometry ? (
               <Source id="drawn-index-geometry-outline-source" type="geojson" data={drawnGeometry as any}>
+                <Layer
+                  id="drawn-index-geometry-line-glow"
+                  type="line"
+                  filter={['in', ['geometry-type'], ['literal', ['LineString', 'Polygon']]]}
+                  paint={{
+                    'line-color': '#38bdf8',
+                    'line-width': 10,
+                    'line-blur': 2.8,
+                    'line-opacity': 0.2 * drawVisualOpacity,
+                  }}
+                />
                 <Layer
                   id="drawn-index-geometry-line"
                   type="line"
@@ -11670,7 +11698,7 @@ export default function SatelliteIntelligence() {
               </Marker>
             ))}
 
-            {/* Mapbox zoom + compass — bottom-left, stacked above the Mapbox logo / attribution strip. */}
+            {/* Mapbox zoom + compass — bottom-left; CSS stacks logo + attribution below the control. */}
             <SiMapNavigationGate isMapLoaded={isMapLoaded} />
     </>
   );
@@ -12628,15 +12656,13 @@ export default function SatelliteIntelligence() {
                   type="button"
                   className={
                     'si-sat-ctx-rail-sym-tool' +
-                    (siWmsSymbologyChrome.open && siWmsSymbologyChrome.anchor === 'map-dock'
-                      ? ' si-sat-ctx-rail-sym-tool--on'
-                      : '')
+                    (siWmsSymbologyChrome.open ? ' si-sat-ctx-rail-sym-tool--on' : '')
                   }
                   title="Symbology — classified layer colors"
-                  aria-pressed={siWmsSymbologyChrome.open && siWmsSymbologyChrome.anchor === 'map-dock'}
+                  aria-pressed={siWmsSymbologyChrome.open}
                   aria-label="Open symbology"
                   disabled={siWmsSymbologyLayerPickOptions.length === 0}
-                  onClick={() => toggleWmsSymbology('map-dock')}
+                  onClick={() => toggleWmsSymbology()}
                 >
                   <i className="fa-solid fa-palette" aria-hidden />
                 </button>
@@ -12693,8 +12719,7 @@ export default function SatelliteIntelligence() {
 
           <SiWmsSymbologyPopup
             open={siWmsSymbologyChrome.open}
-            anchor={siWmsSymbologyChrome.anchor}
-            onClose={() => setSiWmsSymbologyChrome(s => ({ ...s, open: false }))}
+            onClose={() => setSiWmsSymbologyChrome({ open: false })}
             layerOptions={siWmsSymbologyLayerPickOptions}
             targetLayerId={siWmsSymbologyTargetLayerId}
             onTargetLayerId={setSiWmsSymbologyTargetLayerId}
@@ -13813,12 +13838,6 @@ export default function SatelliteIntelligence() {
                               >
                                 <i className="fa-solid fa-arrows-left-right" aria-hidden />
                               </button>
-                              <SiWmsSymbologyToolbarIconButton
-                                variant="embedded"
-                                disabled={siWmsSymbologyLayerPickOptions.length === 0}
-                                pressed={siWmsSymbologyChrome.open && siWmsSymbologyChrome.anchor === 'toolbar-embedded'}
-                                onClick={() => toggleWmsSymbology('toolbar-embedded')}
-                              />
                             </div>
                           </div>
                           <div className="si-rs-actions si-rs-actions--compact">

@@ -80,6 +80,43 @@ export async function pushAdminDirectoryToServer(users: unknown[], auditLog: unk
   }
 }
 
+export type AdminDirectoryStats = {
+  ok?: boolean
+  storage?: string
+  totalUsers: number
+  verifiedUsers: number
+  loginsLast7Days: number | null
+  byRole: Record<string, number>
+  byStatus: Record<string, number>
+}
+
+function adminDirectoryStatsUrl(): string {
+  const base = adminDirectoryApiBase().replace(/\/$/, '')
+  return `${base}/stats`
+}
+
+export async function fetchAdminDirectoryStats(): Promise<AdminDirectoryStats | null> {
+  try {
+    const res = await fetch(adminDirectoryStatsUrl(), {
+      method: 'GET',
+      headers: { ...adminDirectoryAuthHeaders() },
+    })
+    if (!res.ok) return null
+    const data = (await res.json()) as AdminDirectoryStats & { ok?: boolean }
+    if (!data || data.ok === false) return null
+    return {
+      totalUsers: Number(data.totalUsers) || 0,
+      verifiedUsers: Number(data.verifiedUsers) || 0,
+      loginsLast7Days: data.loginsLast7Days == null ? null : Number(data.loginsLast7Days),
+      byRole: data.byRole && typeof data.byRole === 'object' ? data.byRole : {},
+      byStatus: data.byStatus && typeof data.byStatus === 'object' ? data.byStatus : {},
+      storage: data.storage,
+    }
+  } catch {
+    return null
+  }
+}
+
 let syncTimer: number | null = null
 
 /** Debounced full snapshot sync (reads latest localStorage). */

@@ -28,6 +28,12 @@ const ADMIN_DIRECTORY_FILE = envAdminDirPath
     ? envAdminDirPath
     : path.join(SERVER_DIR, envAdminDirPath)
   : path.join(SERVER_DIR, 'agri_admin_directory.json')
+const envUserDbPath = process.env.AGRI_USER_DB_PATH?.trim()
+const USER_DB_FILE = envUserDbPath
+  ? path.isAbsolute(envUserDbPath)
+    ? envUserDbPath
+    : path.join(SERVER_DIR, envUserDbPath)
+  : ''
 /** Repository root (parent of `frontend/` and `backend/`). */
 const REPO_ROOT = path.join(SERVER_DIR, '..', '..')
 /** Vite production output (`npm run build` in `frontend/`). Override with AGRI_FRONTEND_DIST. */
@@ -67,6 +73,7 @@ registerUserProfilePersistence(app, {
 registerAdminDirectoryPersistence(app, {
   filePath: ADMIN_DIRECTORY_FILE,
   accessToken: process.env.AGRI_ADMIN_DIRECTORY_TOKEN,
+  sqlitePath: USER_DB_FILE || undefined,
 })
 
 /**
@@ -120,6 +127,46 @@ app.post('/api/auth/google/exchange', async (req, res) => {
     return res.json({ ok: true, email, name, sub: String(payload.sub || '') })
   } catch (e) {
     return res.status(500).json({ ok: false, error: 'oauth_google_server_error' })
+  }
+})
+
+/**
+ * Apple Sign In — validate `identity_token` (JWT) when APPLE_OAUTH_CLIENT_ID is set.
+ * Configure Services ID / bundle id as audience. Returns email when present in token claims.
+ */
+app.post('/api/auth/apple/exchange', async (req, res) => {
+  try {
+    const audience = String(process.env.APPLE_OAUTH_CLIENT_ID || '').trim()
+    const identityToken = String(req.body?.identity_token || req.body?.id_token || '').trim()
+    if (!audience || !identityToken) {
+      return res.status(400).json({ ok: false, error: 'apple_oauth_missing_config_or_token' })
+    }
+    const parts = identityToken.split('.')
+    if (parts.length < 2) {
+      return res.status(400).json({ ok: false, error: 'apple_token_malformed' })
+    }
+    const b64 = parts[1].replace(/-/g, '+').replace(/_/g, '/')
+    const pad = b64.length % 4 === 0 ? '' : '='.repeat(4 - (b64.length % 4))
+    const payload = JSON.parse(Buffer.from(b64 + pad, 'base64').toString('utf8'))
+    const audOk = payload.aud === audience || (Array.isArray(payload.aud) && payload.aud.includes(audience))
+    if (!audOk) {
+      return res.status(401).json({ ok: false, error: 'apple_audience_mismatch' })
+    }
+    const now = Math.floor(Date.now() / 1000)
+    if (typeof payload.exp === 'number' && payload.exp < now) {
+      return res.status(401).json({ ok: false, error: 'apple_token_expired' })
+    }
+    const sub = String(payload.sub || '')
+    const email = String(payload.email || '').trim().toLowerCase()
+    return res.json({
+      ok: true,
+      sub,
+      email: email || null,
+      email_verified: Boolean(payload.email_verified),
+      is_private_email: email.endsWith('@privaterelay.appleid.com'),
+    })
+  } catch (e) {
+    return res.status(500).json({ ok: false, error: 'oauth_apple_server_error' })
   }
 })
 

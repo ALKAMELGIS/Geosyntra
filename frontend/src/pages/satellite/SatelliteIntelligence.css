@@ -839,7 +839,7 @@ main.content > .si-page {
   right: auto !important;
 }
 
-/* Zoom / compass: bottom-left, aligned with floating chrome; stacked above Mapbox logo + attribution. */
+/* Zoom / compass: bottom-left — navigation first, then Mapbox logo, then attribution text. */
 .si-map-container .mapboxgl-ctrl-bottom-left {
   left: max(24px, env(safe-area-inset-left, 0px)) !important;
   right: auto !important;
@@ -848,21 +848,59 @@ main.content > .si-page {
   display: flex;
   flex-direction: column;
   align-items: flex-start;
-  gap: 8px;
+  gap: 6px;
 }
 
-.si-map-container .mapboxgl-ctrl-bottom-left .mapboxgl-ctrl-group:has(.mapboxgl-ctrl-zoom-in) {
+/* Bundled +/−/compass (react-map-gl NavigationControl) — order 1 so it sits above logo + attribution. */
+.si-map-container .mapboxgl-ctrl-bottom-left .mapboxgl-ctrl-group {
   order: 1;
+  border-radius: 10px;
+  overflow: hidden;
+  background: rgba(255, 255, 255, 0.92);
+  box-shadow:
+    0 0 0 1px rgba(15, 23, 42, 0.08),
+    0 4px 14px rgba(2, 6, 23, 0.14);
+  backdrop-filter: blur(8px);
 }
 
 .si-map-container .mapboxgl-ctrl-bottom-left .mapboxgl-ctrl-logo {
   order: 2;
   margin: 0;
+  filter: drop-shadow(0 1px 2px rgba(2, 6, 23, 0.55));
 }
 
 .si-map-container .mapboxgl-ctrl-bottom-left .mapboxgl-ctrl-attrib {
   order: 3;
   margin: 0;
+}
+
+.si-map-container .mapboxgl-ctrl-bottom-left .mapboxgl-ctrl-group > button {
+  width: 28px;
+  height: 28px;
+  padding: 0;
+}
+
+.si-map-container .mapboxgl-ctrl-bottom-left .mapboxgl-ctrl-group > button + button {
+  border-top-color: rgba(15, 23, 42, 0.1);
+}
+
+.si-map-container .mapboxgl-ctrl-bottom-left .mapboxgl-ctrl-icon {
+  width: 18px;
+  height: 18px;
+}
+
+.si-map-container .mapboxgl-ctrl-bottom-left .mapboxgl-ctrl-attrib.mapboxgl-compact {
+  font-size: 11px;
+  line-height: 1.25;
+  border-radius: 8px;
+  background: rgba(2, 6, 23, 0.42);
+  color: #f8fafc;
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.06) inset;
+}
+
+.si-map-container .mapboxgl-ctrl-bottom-left .mapboxgl-ctrl-attrib.mapboxgl-compact .mapboxgl-ctrl-attrib-inner,
+.si-map-container .mapboxgl-ctrl-bottom-left .mapboxgl-ctrl-attrib.mapboxgl-compact a {
+  color: inherit;
 }
 
 .si-aoi-class-legend {
@@ -2134,7 +2172,7 @@ main.content > .si-page {
   padding: 12px;
   border-radius: 18px;
   background: linear-gradient(165deg, rgba(15, 23, 42, 0.95), rgba(2, 6, 23, 0.88));
-  border: 1px solid rgba(52, 211, 153, 0.18);
+  border: 1px solid rgba(56, 189, 248, 0.22);
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
 }
 
@@ -2165,16 +2203,16 @@ main.content > .si-page {
 
 .si-drawtool:hover {
   transform: translateY(-1px);
-  border-color: rgba(52, 211, 153, 0.35);
+  border-color: rgba(56, 189, 248, 0.38);
 }
 
 .si-drawtool.active {
-  border-color: rgba(74, 222, 128, 0.75);
-  background: linear-gradient(155deg, rgba(22, 163, 74, 0.42), rgba(15, 23, 42, 0.92));
+  border-color: rgba(103, 232, 249, 0.65);
+  background: linear-gradient(155deg, rgba(8, 47, 73, 0.55), rgba(15, 23, 42, 0.92));
   box-shadow:
-    0 0 0 1px rgba(52, 211, 153, 0.35),
-    0 10px 24px rgba(22, 101, 52, 0.28);
-  color: #ffffff;
+    0 0 0 1px rgba(125, 211, 252, 0.35),
+    0 8px 22px rgba(14, 116, 144, 0.22);
+  color: #f0f9ff;
 }
 
 .si-drawtool--clear {

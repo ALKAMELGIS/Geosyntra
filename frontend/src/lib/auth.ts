@@ -1,4 +1,4 @@
-export type Role = 'Admin' | 'Manager' | 'Admin Manager' | 'Editor' | 'Viewer'
+export type Role = 'Admin' | 'Manager' | 'Admin Manager' | 'Analyst' | 'Editor' | 'Viewer' | 'User'
 
 export type CurrentUser = {
   id: number
@@ -26,6 +26,8 @@ export const normalizeRole = (value: unknown): Role => {
   if (raw === 'admin manager' || raw === 'admin_manager' || raw === 'admin-manager') return 'Admin Manager'
   if (raw === 'editor') return 'Editor'
   if (raw === 'viewer') return 'Viewer'
+  if (raw === 'analyst') return 'Analyst'
+  if (raw === 'user') return 'User'
   if (raw.includes('admin') && raw.includes('manager')) return 'Admin Manager'
   return 'Viewer'
 }
@@ -139,7 +141,9 @@ export const startSession = (user: Partial<CurrentUser> | null, options?: StartS
 const roleAllows = (role: Role, permission: string): boolean => {
   if (role === 'Admin') return true
   if (permission === 'dataSource.update') return role === 'Manager'
-  if (permission === 'admin.users.manage') return role === 'Manager' || role === 'Admin Manager'
+  if (permission === 'admin.users.manage') {
+    return role === 'Manager' || role === 'Admin Manager' || role === 'Analyst'
+  }
   return false
 }
 

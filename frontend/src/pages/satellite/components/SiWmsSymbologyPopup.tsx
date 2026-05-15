@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import { siStopsToVerticalCssGradient } from '../../../lib/siWmsIndexClassificationRamp';
 import type { IndexRampStop } from '../../../lib/siWmsIndexClassificationRamp';
 import {
+  SI_SYM_PRESET_STOPS,
   siSymbologyRampLabels,
   type SiSymbologyClassificationMode,
   type SiSymbologyRampPresetId,
@@ -22,7 +23,6 @@ export type SiWmsSymbologyPopupProps = {
   onUiChange: (patch: Partial<SiWmsSymbologyUiState>) => void;
   previewStops: readonly IndexRampStop[] | null;
   onResetLayer: () => void;
-  anchor?: 'toolbar-embedded' | 'map-dock';
 };
 
 export function SiWmsSymbologyPopup({
@@ -35,7 +35,6 @@ export function SiWmsSymbologyPopup({
   onUiChange,
   previewStops,
   onResetLayer,
-  anchor = 'toolbar-embedded',
 }: SiWmsSymbologyPopupProps) {
   const popRef = useRef<HTMLDivElement | null>(null);
   const scrimRef = useRef<HTMLDivElement | null>(null);
@@ -88,11 +87,9 @@ export function SiWmsSymbologyPopup({
       left = (vw - w) / 2;
     }
     let top = (vh - h) / 2;
-    if (anchor === 'map-dock') {
-      top -= Math.min(28, vh * 0.03);
-    }
+    top -= Math.min(28, vh * 0.03);
     placePopFixed(left, top);
-  }, [anchor, placePopFixed]);
+  }, [placePopFixed]);
 
   const gradient = useMemo(
     () => (previewStops && previewStops.length >= 2 ? siStopsToVerticalCssGradient(previewStops) : ''),
@@ -120,7 +117,7 @@ export function SiWmsSymbologyPopup({
       placeInitialPop();
     };
     requestAnimationFrame(() => requestAnimationFrame(run));
-  }, [open, anchor, placeInitialPop]);
+  }, [open, placeInitialPop]);
 
   const onHeaderPointerDown = useCallback(
     (e: React.PointerEvent<HTMLElement>) => {
@@ -241,6 +238,40 @@ export function SiWmsSymbologyPopup({
                 </option>
               ))}
             </select>
+          </div>
+
+          <div className="si-wms-sym-field">
+            <label id="si-wms-sym-palette-swatches">Palette colors</label>
+            <p className="si-wms-sym-field-hint" id="si-wms-sym-palette-swatches-hint">
+              Tap a swatch to apply that ramp (turns off Auto scientific).
+            </p>
+            <div
+              className="si-wms-sym-ramp-swatches"
+              role="group"
+              aria-labelledby="si-wms-sym-palette-swatches"
+              aria-describedby="si-wms-sym-palette-swatches-hint"
+            >
+              {rampLabels.map(r => {
+                const stops = SI_SYM_PRESET_STOPS[r.id];
+                const grad = stops.length >= 2 ? siStopsToVerticalCssGradient(stops) : '';
+                const selected = !ui.autoScientific && ui.rampPreset === r.id;
+                return (
+                  <button
+                    key={r.id}
+                    type="button"
+                    className={'si-wms-sym-ramp-swatch' + (selected ? ' si-wms-sym-ramp-swatch--active' : '')}
+                    disabled={ui.autoScientific}
+                    title={r.label}
+                    aria-pressed={selected}
+                    aria-label={r.label}
+                    onClick={() => onUiChange({ rampPreset: r.id, autoScientific: false })}
+                  >
+                    <span className="si-wms-sym-ramp-swatch__bar" style={{ backgroundImage: grad }} aria-hidden />
+                    <span className="si-wms-sym-ramp-swatch__cap">{r.label}</span>
+                  </button>
+                );
+              })}
+            </div>
           </div>
 
           <div className="si-wms-sym-row">

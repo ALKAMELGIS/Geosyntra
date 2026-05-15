@@ -806,7 +806,11 @@ export function SatelliteContextualAnalysisDock(props: SatelliteContextualAnalys
 
       <div
         className="si-sat-ctx-panel-wrap"
-        style={panelLayoutOpen ? { width: panelWidth, flexBasis: panelWidth } : { width: 0, flexBasis: 0 }}
+        style={
+          panelLayoutOpen
+            ? { width: panelWidth, flexBasis: panelWidth, minWidth: 0 }
+            : { width: 0, flexBasis: 0, minWidth: 0, maxWidth: 0 }
+        }
         aria-hidden={!panelLayoutOpen}
       >
         <aside
