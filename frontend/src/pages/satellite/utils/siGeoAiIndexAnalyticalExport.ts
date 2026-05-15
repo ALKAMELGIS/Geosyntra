@@ -227,6 +227,13 @@ function resolveWeekIndex(weekly: SiGeoAiWeeklyLite[], selectedIso: string): num
 
 const MAX_GRID_CELLS = 9000;
 
+/** Excel preserves ~15 significant digits for numbers; avoid toFixed / Math.round on spectral stats. */
+function appendSheetWithColWidths(wb: XLSX.WorkBook, rows: (string | number)[][], sheetName: string, colWidths: number[]) {
+  const ws = XLSX.utils.aoa_to_sheet(rows)
+  ws['!cols'] = colWidths.map(wch => ({ wch }))
+  XLSX.utils.book_append_sheet(wb, ws, sheetName)
+}
+
 function buildInteriorGrid(feature: GeoJSON.Feature, maxCells: number): { lng: number; lat: number }[] {
   const bounds = getFeatureLngLatBounds(feature);
   const geom = feature.geometry;
@@ -284,7 +291,7 @@ export function buildGeoAiIndexAnalyticalWorkbook(opts: {
     row.push(pt != null && Number.isFinite(pt.lat) ? Number(pt.lat).toFixed(6) : '');
     for (const ds of datasets) {
       const v = ds.data[i];
-      row.push(Number.isFinite(v) ? Number(v).toFixed(4) : '');
+      row.push(Number.isFinite(v) ? Number(v) : '')
     }
     chartRows.push(row);
   }
@@ -358,8 +365,8 @@ export function buildGeoAiIndexAnalyticalWorkbook(opts: {
     ['Report title', chartTitle],
     ['Primary index (classification)', primaryId],
     ['Week window', wk ? `${wk.startDate} → ${wk.endDate}` : ''],
-    ['AOI area (approx, m²)', Number.isFinite(aoiAreaM2) ? Math.round(aoiAreaM2) : ''],
-    ['Approx. mean pixel footprint (m²)', approxM2PerPixel > 0 ? approxM2PerPixel.toFixed(2) : ''],
+    ['AOI area (approx, m²)', Number.isFinite(aoiAreaM2) ? aoiAreaM2 : ''],
+    ['Approx. mean pixel footprint (m²)', approxM2PerPixel > 0 ? approxM2PerPixel : ''],
     ['Sampled interior pixels', grid.length],
     ['Note', 'Pixel values use the same deterministic demo engine as the on-map AOI chart; connect Sentinel Hub statistics for production.'],
     [],
@@ -375,8 +382,8 @@ export function buildGeoAiIndexAnalyticalWorkbook(opts: {
     const sd = stdDevPop(finite);
     summaryLines.push([`Index ${d.label}`, 'min', mn]);
     summaryLines.push(['', 'max', mx]);
-    summaryLines.push(['', 'mean', Number(mean.toFixed(4))]);
-    summaryLines.push(['', 'std_dev', Number.isFinite(sd) ? Number(sd.toFixed(4)) : '']);
+    summaryLines.push(['', 'mean', mean]);
+    summaryLines.push(['', 'std_dev', Number.isFinite(sd) ? sd : '']);
     summaryLines.push([]);
   }
 
@@ -390,12 +397,13 @@ export function buildGeoAiIndexAnalyticalWorkbook(opts: {
     else counts.set(id, { name: 'Other', n: 1 });
   }
   for (const [cid, { name, n }] of [...counts.entries()].sort((a, b) => a[0] - b[0])) {
-    summaryLines.push(['', cid, name, n, approxM2PerPixel > 0 ? Math.round(n * approxM2PerPixel) : '']);
+    const areaM2 = approxM2PerPixel > 0 ? n * approxM2PerPixel : ''
+    summaryLines.push(['', cid, name, n, areaM2]);
   }
 
-  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(summaryLines), 'Summary_AOI');
+  appendSheetWithColWidths(wb, summaryLines, 'Summary_AOI', [44, 12, 48, 14, 18, 22])
 
-  const classStatsHeader = ['Class ID', 'Class name', 'Pixel count', 'Pct of AOI pixels', 'Mean index in class'];
+  const classStatsHeader = ['Class ID', 'Class name', 'Pixel count', 'Pct of AOI (%)', 'Mean index in class'];
   const classStats: (string | number)[][] = [classStatsHeader];
   const total = Math.max(1, primaryValues.length);
   for (const c of primaryLegend) {
@@ -406,9 +414,9 @@ export function buildGeoAiIndexAnalyticalWorkbook(opts: {
     const n = vals.length;
     const pct = (100 * n) / total;
     const mnc = vals.length ? vals.reduce((a, b) => a + b, 0) / vals.length : NaN;
-    classStats.push([c.id, c.label, n, `${pct.toFixed(2)}%`, Number.isFinite(mnc) ? Number(mnc.toFixed(4)) : '']);
+    classStats.push([c.id, c.label, n, pct, Number.isFinite(mnc) ? mnc : '']);
   }
-  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(classStats), 'Class_Statistics');
+  appendSheetWithColWidths(wb, classStats, 'Class_Statistics', [10, 44, 14, 18, 22])
 
   return wb;
 }
