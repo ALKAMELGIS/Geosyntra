@@ -373,9 +373,10 @@ function formatSummaryAoiSheet(ws: XLSX.WorkSheet) {
     for (let r = 0; r <= range.e.r; r++) {
       const lab = ws[XLSX.utils.encode_cell({ r, c: 0 })] as XLSX.CellObject | undefined
       if (lab?.v !== label) continue
-      const vcell = ws[XLSX.utils.encode_cell({ r, c: col })] as XLSX.CellObject | undefined
+      const addrV = XLSX.utils.encode_cell({ r, c: col })
+      const vcell = ws[addrV] as XLSX.CellObject | undefined
       if (vcell && vcell.t === 'n' && typeof vcell.v === 'number' && Number.isFinite(vcell.v)) {
-        vcell.z = XLSX_FMT_SPECTRAL
+        ws[addrV] = { t: 's', v: excelDecimalText(vcell.v), z: '@' } as XLSX.CellObject
       } else if (vcell && typeof vcell.v === 'string') {
         vcell.z = '@'
       }
@@ -608,7 +609,7 @@ export function buildGeoAiIndexAnalyticalWorkbook(opts: {
     const areaM2 = approxM2PerPixel > 0 ? n * approxM2PerPixel : ''
     summaryLines.push([
       '',
-      cid,
+      String(cid),
       name,
       String(n),
       typeof areaM2 === 'number' && Number.isFinite(areaM2) ? excelDecimalText(areaM2) : areaM2,
