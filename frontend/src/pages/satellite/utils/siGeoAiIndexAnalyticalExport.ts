@@ -246,7 +246,12 @@ function excelDecimalText(v: number): string {
   // Spectral band and other sub-unit magnitudes: prefer full significant digits before locale rounding.
   if (abs > 0 && abs <= 1) {
     const p = v.toPrecision(17)
-    if (p !== '0' && p !== '-0' && !/[eE]/.test(p)) return p
+    if (p !== '0' && p !== '-0') {
+      if (!/[eE]/.test(p)) return p
+      const expanded = v.toLocaleString('en-US', { useGrouping: false, maximumFractionDigits: 20 })
+      if (v !== 0 && (expanded === '0' || expanded === '-0')) return p
+      return expanded
+    }
   }
   if (/[eE]/.test(raw)) {
     const expanded = v.toLocaleString('en-US', { useGrouping: false, maximumFractionDigits: 20 })
@@ -618,8 +623,8 @@ export function buildGeoAiIndexAnalyticalWorkbook(opts: {
     ])
   }
   appendSheetWithColWidths(wb, classStats, 'Class_Statistics', [14, 62, 16, 28, 24, 36], ws => {
-    applyNumberFormatsToDataRows(ws, 1, [{ c: 0, z: XLSX_FMT_INT }])
-    forceCellsPlainText(ws, 1, [1, 2, 3, 4, 5])
+    // Entire data block as literal text so Excel never re-parses tiny % / fraction / spectral means as rounded numbers.
+    forceCellsPlainText(ws, 1, [0, 1, 2, 3, 4, 5])
   })
 
   return wb;
