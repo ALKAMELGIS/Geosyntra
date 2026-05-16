@@ -72,6 +72,17 @@
   }
 }
 
+/* Welcome hero — keep copy band clear of the globe after its right/up nudge. */
+@media (min-width: 1024px) {
+  .home-landing .gs-scroll-globe section#hero > .pointer-events-auto {
+    max-width: 38rem;
+  }
+
+  .home-landing .gs-scroll-globe section#hero .text-muted-foreground\/80 {
+    max-width: 34rem;
+  }
+}
+
 /* Welcome (first) panel — nudge the whole hero block slightly down from the top edge. */
 .home-landing .gs-scroll-globe section:first-of-type {
   padding-top: calc(48px + 2rem + 0.65rem);

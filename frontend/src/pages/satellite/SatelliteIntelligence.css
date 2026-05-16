@@ -13010,3 +13010,45 @@ html[data-theme='light'] .si-env-panel--satellite-toolbox.si-env-panel--single-s
   border: 1px solid rgba(255, 255, 255, 0.08);
   background: rgba(0, 0, 0, 0.35);
 }
+
+/* Map toolbox · Remote sensing — strict 90° controls (no corner rounding) */
+.si-sat-ctx-map-toolbox-host .gis-fields-dock__tabs,
+.si-sat-ctx-map-toolbox-host .gis-fields-dock__tab,
+.si-sat-ctx-map-toolbox-host .si-field-analysis-close,
+.si-sat-ctx-map-toolbox-host .si-field-analysis-field input[type='date'],
+.si-sat-ctx-map-toolbox-host .si-field-analysis-select,
+.si-sat-ctx-map-toolbox-host .si-field-analysis-timeline-btn,
+.si-sat-ctx-map-toolbox-host .si-field-analysis-aoi-upload-btn,
+.si-sat-ctx-map-toolbox-host .si-field-analysis-layer-visibility,
+.si-sat-ctx-map-toolbox-host .si-rs-aoi-pick-btn,
+.si-sat-ctx-map-toolbox-host .si-map-analysis-toolbar.si-map-analysis-toolbar--embedded,
+.si-sat-ctx-map-toolbox-host .si-map-analysis-toolbar--embedded .si-map-analysis-tool,
+.si-sat-ctx-map-toolbox-host .si-env-section-tabs button,
+.si-sat-ctx-map-toolbox-host .si-env-toolbox-back,
+.si-sat-ctx-map-toolbox-host .si-env-toolbox-nav button {
+  border-radius: 0 !important;
+}
+
+.si-sat-ctx-map-toolbox-host .si-field-analysis-switch .slider.round,
+.si-sat-ctx-map-toolbox-host .si-field-analysis-switch .slider.round:before {
+  border-radius: 0 !important;
+}
+
+.si-sat-ctx-map-toolbox-host
+  .si-env-panel.si-env-panel--satellite-toolbox.si-env-panel--single-surface
+  .si-field-analysis-close,
+.si-sat-ctx-map-toolbox-host
+  .si-env-panel.si-env-panel--satellite-toolbox.si-env-panel--single-surface
+  .si-field-analysis-field
+  input[type='date'],
+.si-sat-ctx-map-toolbox-host
+  .si-env-panel.si-env-panel--satellite-toolbox.si-env-panel--single-surface
+  .si-field-analysis-select,
+.si-sat-ctx-map-toolbox-host
+  .si-env-panel.si-env-panel--satellite-toolbox.si-env-panel--single-surface
+  .si-field-analysis-aoi-upload-btn,
+.si-sat-ctx-map-toolbox-host
+  .si-env-panel.si-env-panel--satellite-toolbox.si-env-panel--single-surface
+  .si-field-analysis-timeline-btn {
+  border-radius: 0 !important;
+}

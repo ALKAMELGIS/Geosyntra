@@ -3,7 +3,7 @@
  * Directory `role` (Admin / Manager / Analyst / …) stays the source of truth for legacy auth;
  * enterprise fields extend UX, quotas, and future RBAC checks.
  */
-import type { Role } from './auth'
+import type { Role } from './authTypes'
 
 export const GEO_ENTERPRISE_PROFILE_KEY = 'geoEnterpriseV1' as const
 

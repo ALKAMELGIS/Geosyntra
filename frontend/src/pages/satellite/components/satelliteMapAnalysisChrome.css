@@ -3648,3 +3648,51 @@
   font-size: 14px;
 }
 
+/* Map toolbox: sharp 90° panel shell (no outer rounding) */
+.si-sat-ctx-dock--map-toolbox {
+  --si-ctx-radius-lg: 0;
+  --si-ctx-radius-md: 0;
+  --si-ctx-radius-sm: 0;
+}
+
+.si-sat-ctx-dock--map-toolbox .si-sat-ctx-panel,
+.si-sat-ctx-dock--map-toolbox[dir='rtl'] .si-sat-ctx-panel,
+.si-sat-ctx-dock--map.si-sat-ctx-dock--map-toolbox .si-sat-ctx-panel,
+.si-sat-ctx-dock--map.si-sat-ctx-dock--map-toolbox[dir='rtl'] .si-sat-ctx-panel,
+.si-sat-ctx-dock--map-toolbox.si-sat-ctx-dock--embedded .si-sat-ctx-panel,
+.si-sat-ctx-dock--map-toolbox.si-sat-ctx-dock--embedded[dir='rtl'] .si-sat-ctx-panel {
+  border-radius: 0 !important;
+}
+
+.si-sat-ctx-dock--map-toolbox .si-sat-ctx-rail,
+.si-sat-ctx-dock--map-toolbox.si-sat-ctx-dock--map-tall .si-sat-ctx-rail,
+.si-sat-ctx-dock--map.si-sat-ctx-dock--map-toolbox.si-sat-ctx-dock--map-tall .si-sat-ctx-rail,
+.si-sat-ctx-dock--map-toolbox[dir='rtl'] .si-sat-ctx-rail,
+.si-sat-ctx-dock--map.si-sat-ctx-dock--map-toolbox[dir='rtl'] .si-sat-ctx-rail {
+  border-radius: 0 !important;
+  border-start-end-radius: 0 !important;
+  border-end-end-radius: 0 !important;
+  border-start-start-radius: 0 !important;
+  border-end-start-radius: 0 !important;
+}
+
+.si-sat-ctx-dock--map-toolbox .si-sat-ctx-panel-header .si-sat-ctx-icon-btn,
+.si-sat-ctx-dock--map-toolbox .si-sat-ctx-tab,
+.si-sat-ctx-dock--map-toolbox .si-sat-ctx-rail-btn {
+  border-radius: 0;
+}
+
+@media (max-width: 900px) {
+  .si-sat-ctx-dock--map.si-sat-ctx-dock--map-toolbox .si-sat-ctx-panel {
+    border-radius: 0 !important;
+  }
+
+  .si-sat-ctx-dock--map.si-sat-ctx-dock--map-toolbox.si-sat-ctx-dock--map-tall .si-sat-ctx-rail {
+    border-radius: 0 !important;
+    border-start-end-radius: 0 !important;
+    border-end-end-radius: 0 !important;
+    border-start-start-radius: 0 !important;
+    border-end-start-radius: 0 !important;
+  }
+}
+

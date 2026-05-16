@@ -6,7 +6,7 @@ import {
   writeApiTokenSecret,
 } from '../../../lib/apiIntegrationTokens'
 import { fetchSentinelHubWmsLayers } from '../../../lib/sentinelHubWmsCapabilities'
-import { resolveSentinelHubInstanceId } from '../../../lib/sentinelHubIntegrationSync'
+import { resolveSentinelHubInstanceId } from '../../../lib/sentinelHubResolve'
 import { persistSentinelHubWmsInstanceIdInBrowser } from '../../../lib/sentinelHubWmsInstance'
 import type { ProviderId } from './types'
 import type { AuthType } from './types'

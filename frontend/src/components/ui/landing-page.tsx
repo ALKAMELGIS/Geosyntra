@@ -82,7 +82,8 @@ export interface ScrollGlobeProps {
  */
 const defaultGlobeConfig: { positions: ScrollGlobePosition[] } = {
   positions: [
-    { top: '50%', left: '71%', scale: 1.88 },
+    /** Welcome — nudged right/up (~2cm lift at 1080p) and slightly larger for title balance. */
+    { top: '43%', left: '74%', scale: 1.96 },
     /** Innovation: globe centered on viewport so it sits behind the vertically centered copy block. */
     { top: '50%', left: '50%', scale: 0.88 },
     { top: '15%', left: '90%', scale: 2 },

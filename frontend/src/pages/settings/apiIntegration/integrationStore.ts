@@ -9,7 +9,6 @@ import {
 import type { ApiTokenTypeId } from '../../../lib/apiIntegrationTypes'
 import { providerFromLegacyTypeId } from './providers/registry'
 import type { AuthType, IntegrationDraft, IntegrationEnvironment, IntegrationRecord, IntegrationStatus, ProviderId } from './types'
-import { applyActiveSentinelHubFromIntegrations } from '../../../lib/sentinelHubIntegrationSync'
 import { getProvider } from './providers/registry'
 
 const META_KEY = 'geosyntra_api_integrations_meta_v2'
@@ -132,7 +131,9 @@ export function saveIntegrationRecord(
   }
   setIntegrationMeta(row.id, meta)
   if (draft.providerId === 'sentinel_hub' && draft.active) {
-    applyActiveSentinelHubFromIntegrations()
+    void import('../../../lib/sentinelHubIntegrationSync').then(m =>
+      m.applyActiveSentinelHubFromIntegrations(),
+    )
   }
   return toIntegrationRecord(row)
 }

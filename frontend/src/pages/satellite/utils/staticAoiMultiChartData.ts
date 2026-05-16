@@ -4,109 +4,25 @@
  * With a polygon feature, values are zonal pixel means (aligned with Excel export / popups).
  */
 import { computeAoiZonalWeeklyMeans } from './siAoiZonalStats';
+import { formatStaticChartWeekLabel, staticAoiLayerMeanForWeek } from './staticAoiLayerSynthetic';
 
-export type WeeklyCompositeLite = {
-  weekIndex: number;
-  startDate: string;
-  endDate: string;
-  mean: number;
-};
+export type {
+  StaticAoiChartLayerId,
+  WeeklyCompositeLite,
+} from './staticAoiChartTypes';
+export {
+  STATIC_AOI_CHART_LAYER_OPTIONS,
+  STATIC_AOI_CHART_LAYER_INLINE_IDS,
+  defaultStaticAoiComparisonLayers,
+  sortStaticAoiChartLayerIds,
+} from './staticAoiChartTypes';
+export { formatStaticChartWeekLabel, staticAoiLayerMeanForWeek } from './staticAoiLayerSynthetic';
 
-export type StaticAoiChartLayerId =
-  | 'NDVI'
-  | 'NDWI'
-  | 'NDMI'
-  | 'EVI'
-  | 'SAVI'
-  | 'NDSI'
-  | 'LST';
-
-export const STATIC_AOI_CHART_LAYER_OPTIONS: Array<{
-  id: StaticAoiChartLayerId;
-  label: string;
-  subtitle: string;
-  range: [number, number];
-}> = [
-  { id: 'NDVI', label: 'NDVI', subtitle: 'Vegetation (NIR / red)', range: [-1, 1] },
-  { id: 'NDWI', label: 'NDWI', subtitle: 'Water / moisture (green–NIR)', range: [-1, 1] },
-  { id: 'NDMI', label: 'NDMI', subtitle: 'Soil / canopy moisture (NIR–SWIR)', range: [-1, 1] },
-  { id: 'SAVI', label: 'SAVI', subtitle: 'Soil-adjusted vegetation', range: [-1, 1] },
-  { id: 'EVI', label: 'EVI', subtitle: 'Enhanced vegetation', range: [-1, 1] },
-  { id: 'NDSI', label: 'NDSI', subtitle: 'Snow / bright surfaces', range: [-1, 1] },
-  { id: 'LST', label: 'LST', subtitle: 'Land surface temperature (°C)', range: [15, 45] },
-];
-
-/**
- * Primary toolbar chips (NDVI … LST). Any layer in {@link STATIC_AOI_CHART_LAYER_OPTIONS}
- * not listed here appears after LST in the “More indices” dropdown (and as a chip when active).
- */
-export const STATIC_AOI_CHART_LAYER_INLINE_IDS: StaticAoiChartLayerId[] = [
-  'NDVI',
-  'NDWI',
-  'NDMI',
-  'SAVI',
-  'EVI',
-  'LST',
-];
-
-export function defaultStaticAoiComparisonLayers(): StaticAoiChartLayerId[] {
-  return ['NDVI', 'NDWI', 'EVI'];
-}
-
-export function sortStaticAoiChartLayerIds(ids: StaticAoiChartLayerId[]): StaticAoiChartLayerId[] {
-  const order = STATIC_AOI_CHART_LAYER_OPTIONS.map(o => o.id);
-  return [...ids].sort((a, b) => order.indexOf(a) - order.indexOf(b));
-}
-
-function simpleHash(s: string): number {
-  let h = 0;
-  for (let i = 0; i < s.length; i++) {
-    h = (Math.imul(31, h) + s.charCodeAt(i)) | 0;
-  }
-  return Math.abs(h);
-}
-
-function aoiNoise(aoiKey: string | null, layerId: string, weekIdx: number): number {
-  const n = simpleHash(`${aoiKey ?? 'world'}|${layerId}|${weekIdx}`) % 2000;
-  return n / 10000 - 0.1;
-}
+import type { StaticAoiChartLayerId, WeeklyCompositeLite } from './staticAoiChartTypes';
+import { STATIC_AOI_CHART_LAYER_OPTIONS } from './staticAoiChartTypes';
 
 function metaFor(layerId: string) {
   return STATIC_AOI_CHART_LAYER_OPTIONS.find(o => o.id === layerId) ?? STATIC_AOI_CHART_LAYER_OPTIONS[0]!;
-}
-
-/** Per-layer weekly mean in physical range for that index (sample trajectory). */
-export function staticAoiLayerMeanForWeek(
-  layerId: string,
-  weekIdx: number,
-  totalWeeks: number,
-  aoiKey: string | null,
-  anchorWeeklyMean: number,
-): number {
-  const { range } = metaFor(layerId);
-  const span = range[1] - range[0];
-  const seasonal = Math.sin((weekIdx / Math.max(1, totalWeeks - 1)) * Math.PI);
-  const phase = (simpleHash(layerId) % 23) / 120;
-  const anchor01 =
-    layerId === 'LST'
-      ? (anchorWeeklyMean - 15) / 30
-      : Math.max(0, Math.min(1, (anchorWeeklyMean - range[0]) / (span || 1)));
-  const mix = 0.55 * seasonal + 0.45 * (anchor01 * 2 - 1) * 0.35;
-  const base =
-    layerId === 'LST'
-      ? 24 + seasonal * 11 + phase * 4
-      : range[0] + span * (0.38 + mix * 0.32 + phase * 0.08);
-  const v = base + aoiNoise(aoiKey, layerId, weekIdx);
-  if (!Number.isFinite(v)) return range[0] + span / 2;
-  /** LST stays within the configured °C band; spectral indices keep full float (no clamp to ±1). */
-  if (layerId === 'LST') return Math.max(range[0], Math.min(range[1], v));
-  return v;
-}
-
-export function formatStaticChartWeekLabel(isoDate: string): string {
-  const d = new Date(`${isoDate}T12:00:00Z`);
-  if (Number.isNaN(d.getTime())) return isoDate.slice(5);
-  return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: '2-digit' });
 }
 
 const DATASET_COLORS = ['#4f46e5', '#0d9488', '#ca8a04', '#b91c1c', '#7c3aed', '#15803d', '#0369a1'];

@@ -185,7 +185,7 @@ import {
   type SiTimelineTransitionMode,
 } from './utils/useSiWmsTimelineCrossfade';
 import { SiAoiZonalPopupBody } from './components/SiAoiZonalPopupBody';
-import type { StaticAoiChartLayerId } from './utils/staticAoiMultiChartData';
+import { cn } from '../../lib/utils';
 import { SatelliteMapProcessingOptionsPortal } from './components/SatelliteMapProcessingOptionsPortal';
 import { SiGeoAiInspectPopupBody } from './components/SiGeoAiInspectPopupBody';
 import { SiLayerPopupConfigurator } from './components/SiLayerPopupConfigurator';
@@ -9726,6 +9726,15 @@ export default function SatelliteIntelligence() {
     return drawnGeometry;
   }, [multiAoiItems, activeMultiAoiId, drawnGeometry]);
 
+  const staticAoiChartAoiKey = useMemo(() => {
+    if (!drawnGeometry) return null;
+    try {
+      return JSON.stringify(drawnGeometry);
+    } catch {
+      return 'aoi';
+    }
+  }, [drawnGeometry]);
+
   const popupZonalLayerIds = useMemo((): StaticAoiChartLayerId[] => {
     const ids = new Set<StaticAoiChartLayerId>(['NDVI', 'NDWI', 'SAVI', ...staticChartComparisonLayers]);
     return sortStaticAoiChartLayerIds([...ids]);
@@ -10402,15 +10411,6 @@ export default function SatelliteIntelligence() {
     () => pivotChartRows.map(r => ({ name: r.name, value: r.value })),
     [pivotChartRows],
   );
-
-  const staticAoiChartAoiKey = useMemo(() => {
-    if (!drawnGeometry) return null;
-    try {
-      return JSON.stringify(drawnGeometry);
-    } catch {
-      return 'aoi';
-    }
-  }, [drawnGeometry]);
 
   /** Saved / AOI sketch fields + whole drawn AOI: same engine as multi-layer chart (no pivot placeholders). */
   const staticAoiFieldComparison = useMemo(() => {

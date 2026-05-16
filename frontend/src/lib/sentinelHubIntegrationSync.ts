@@ -2,32 +2,36 @@
  * Applies active Sentinel Hub API Manager integration credentials to browser storage
  * (WMS instance UUID + OAuth token) so Satellite Intelligence can load layers.
  */
-import { listIntegrationRecords } from '../pages/settings/apiIntegration/integrationStore'
-import { loadVaultSecret } from '../pages/settings/apiIntegration/vaultBridge'
+import { listApiIntegrations } from './apiIntegrationsStore'
+import { readApiTokenSecret } from './apiIntegrationTokens'
+import { providerFromLegacyTypeId } from '../pages/settings/apiIntegration/providers/registry'
+import type { ProviderId } from '../pages/settings/apiIntegration/types'
 import { persistSentinelHubAccessTokenInBrowser } from './sentinelHubAccessToken'
 import {
   getSentinelHubWmsInstanceIdBrowserOverride,
   persistSentinelHubWmsInstanceIdInBrowser,
 } from './sentinelHubWmsInstance'
+import { resolveSentinelHubInstanceId } from './sentinelHubResolve'
 
 export { SENTINEL_HUB_PUBLIC_DATA_INSTANCE_ID } from './sentinelHubWmsInstance'
+export { extractUuid, resolveSentinelHubInstanceId } from './sentinelHubResolve'
 
-const UUID_RE =
-  /[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}/i
+const INTEGRATION_META_KEY = 'geosyntra_api_integrations_meta_v2'
 
-export function extractUuid(text: string): string | null {
-  const m = text.trim().match(UUID_RE)
-  return m ? m[0].toLowerCase() : null
+type IntegrationMetaLite = {
+  providerId?: ProviderId
+  config?: Record<string, string>
 }
 
-export function resolveSentinelHubInstanceId(
-  config: Record<string, string>,
-  name = '',
-  notes = '',
-): string {
-  const fromConfig = (config.instanceId ?? '').trim()
-  if (fromConfig) return fromConfig
-  return extractUuid(name) || extractUuid(notes) || ''
+function readIntegrationMetaMap(): Record<string, IntegrationMetaLite> {
+  if (typeof window === 'undefined') return {}
+  try {
+    const raw = window.localStorage.getItem(INTEGRATION_META_KEY)
+    if (!raw) return {}
+    return JSON.parse(raw) as Record<string, IntegrationMetaLite>
+  } catch {
+    return {}
+  }
 }
 
 export type ApplySentinelHubResult = {
@@ -41,7 +45,20 @@ export function applyActiveSentinelHubFromIntegrations(): ApplySentinelHubResult
   const empty: ApplySentinelHubResult = { applied: false, instanceId: '', tokenApplied: false }
   if (typeof window === 'undefined') return empty
 
-  const records = listIntegrationRecords()
+  const meta = readIntegrationMetaMap()
+  const records = listApiIntegrations()
+    .map(row => {
+      const m = meta[row.id]
+      const providerId = (m?.providerId ?? providerFromLegacyTypeId(row.typeId)) as ProviderId
+      return {
+        active: row.active,
+        providerId,
+        config: m?.config ?? {},
+        name: row.name,
+        notes: row.notes ?? '',
+        updatedAt: row.updatedAt,
+      }
+    })
     .filter(r => r.active && r.providerId === 'sentinel_hub')
     .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())
 
@@ -51,7 +68,7 @@ export function applyActiveSentinelHubFromIntegrations(): ApplySentinelHubResult
 
     persistSentinelHubWmsInstanceIdInBrowser(instanceId)
 
-    const token = loadVaultSecret('sentinel_hub').trim()
+    const token = readApiTokenSecret('sentinelHubAccessToken').trim()
     if (token) persistSentinelHubAccessTokenInBrowser(token)
 
     return { applied: true, instanceId, tokenApplied: Boolean(token) }

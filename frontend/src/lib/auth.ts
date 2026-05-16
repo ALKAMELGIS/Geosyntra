@@ -1,36 +1,9 @@
-export type Role = 'Admin' | 'Manager' | 'Admin Manager' | 'Analyst' | 'Editor' | 'Viewer' | 'User'
+import { ALL_GEO_PERMISSIONS, hasGeoCapability, type GeoPermission } from './geoEnterpriseUserModel'
+import type { CurrentUser, Role } from './authTypes'
+import { normalizeEmail, normalizeRole } from './authTypes'
 
-export type CurrentUser = {
-  id: number
-  name: string
-  email: string
-  role: Role | string
-  scope?: string
-  managedById?: number
-}
-
-export const normalizeEmail = (value: unknown): string => {
-  let v = String(value ?? '')
-  try {
-    v = v.normalize('NFKC')
-  } catch {
-  }
-  return v.replace(/[\u200B-\u200D\uFEFF]/g, '').trim().toLowerCase()
-}
-
-export const normalizeRole = (value: unknown): Role => {
-  const raw = String(value ?? '').trim().toLowerCase()
-  if (!raw) return 'Viewer'
-  if (raw === 'admin') return 'Admin'
-  if (raw === 'manager') return 'Manager'
-  if (raw === 'admin manager' || raw === 'admin_manager' || raw === 'admin-manager') return 'Admin Manager'
-  if (raw === 'editor') return 'Editor'
-  if (raw === 'viewer') return 'Viewer'
-  if (raw === 'analyst') return 'Analyst'
-  if (raw === 'user') return 'User'
-  if (raw.includes('admin') && raw.includes('manager')) return 'Admin Manager'
-  return 'Viewer'
-}
+export type { Role, CurrentUser } from './authTypes'
+export { normalizeEmail, normalizeRole } from './authTypes'
 
 const CURRENT_USER_KEY = 'currentUser'
 const SESSION_TTL_MS = 1000 * 60 * 60 * 24 * 30
@@ -135,10 +108,9 @@ export const startSession = (user: Partial<CurrentUser> | null, options?: StartS
     }
     window.dispatchEvent(new Event('storage'))
   } catch {
+    /* ignore */
   }
 }
-
-import { ALL_GEO_PERMISSIONS, hasGeoCapability, type GeoPermission } from './geoEnterpriseUserModel'
 
 const GEO_PERMISSION_SET = new Set<string>(ALL_GEO_PERMISSIONS)
 

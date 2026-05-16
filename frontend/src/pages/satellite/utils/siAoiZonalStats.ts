@@ -3,11 +3,8 @@
  * Pixel values use the same engine as {@link staticAoiLayerMeanForWeek} / GeoAI export sheets.
  */
 import { pointInPolygonGeometry } from '../drawingUtils';
-import {
-  staticAoiLayerMeanForWeek,
-  type StaticAoiChartLayerId,
-  type WeeklyCompositeLite,
-} from './staticAoiMultiChartData';
+import { staticAoiLayerMeanForWeek } from './staticAoiLayerSynthetic';
+import type { StaticAoiChartLayerId, WeeklyCompositeLite } from './staticAoiChartTypes';
 
 export const SI_AOI_MAX_GRID_CELLS = 9000;
 const R_EARTH_M = 6371000;
