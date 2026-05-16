@@ -34,6 +34,8 @@ export type NavTranslationKey =
   | 'userManagement'
   | 'githubIntegration'
   | 'systemSettings'
+  | 'apiIntegrations'
+  | 'settings'
   | 'customPage'
 
 export type NavLeafDef = {
@@ -61,6 +63,21 @@ export const NAV_HOME: NavLeafDef = {
 }
 
 export const NAV_DEFAULT_GROUPS: NavGroupDef[] = [
+  {
+    id: 'settings',
+    i18nKey: 'settings',
+    defaultIcon: 'fa-solid fa-gear',
+    headerClass: 'nav-header-settings',
+    children: [
+      {
+        id: 'api-integrations',
+        path: '/settings/api-integrations',
+        i18nKey: 'apiIntegrations',
+        defaultIcon: 'fa-solid fa-key',
+        subitemClass: 'nav-item-api-integrations',
+      },
+    ],
+  },
   {
     id: 'satellite',
     i18nKey: 'satelliteImagery',
@@ -91,6 +108,7 @@ export const NAV_GROUP_IDS = NAV_DEFAULT_GROUPS.map(g => g.id)
 /** Default sublist row class per group — mirrors first leaf style so custom pages match the group visually */
 export function defaultSubitemClassForNavGroup(groupId: string): string {
   const map: Record<string, string> = {
+    settings: 'nav-item-api-integrations',
     satellite: 'nav-item-indices',
   }
   return map[groupId] ?? 'nav-item-indices'
