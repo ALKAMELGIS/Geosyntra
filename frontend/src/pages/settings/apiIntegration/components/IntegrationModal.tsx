@@ -142,7 +142,7 @@ export function IntegrationModal({ open, record, onClose, onSaved }: Props) {
         ...secrets,
       })
       if (!vaultResult.ok) {
-        setSaveError(vaultResult.error)
+        setSaveError('error' in vaultResult ? vaultResult.error : 'Failed to store secret')
         return
       }
       saveIntegrationRecord({ ...draft, status }, secrets)

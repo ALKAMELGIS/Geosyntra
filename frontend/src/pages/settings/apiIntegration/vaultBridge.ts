@@ -49,7 +49,13 @@ export async function testVaultConnection(
   if (vaultTypeId) {
     if (inline) {
       const write = await writeApiTokenSecret(vaultTypeId, inline)
-      if (!write.ok) return { ok: false, message: write.error, latencyMs: 0 }
+      if (!write.ok) {
+        return {
+          ok: false,
+          message: 'error' in write ? write.error : 'Failed to store secret',
+          latencyMs: 0,
+        }
+      }
     }
     const tokenValue = inline || readApiTokenSecret(vaultTypeId)
     const test = await testApiTokenSecret(vaultTypeId, tokenValue)

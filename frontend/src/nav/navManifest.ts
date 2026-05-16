@@ -73,7 +73,7 @@ export const NAV_DEFAULT_GROUPS: NavGroupDef[] = [
         id: 'api-integrations',
         path: '/settings/api-integrations',
         i18nKey: 'apiIntegrations',
-        defaultIcon: 'fa-solid fa-plug',
+        defaultIcon: 'fa-solid fa-key',
         subitemClass: 'nav-item-api-integrations',
       },
     ],

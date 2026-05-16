@@ -2,7 +2,7 @@ import type { AuthType, ProviderConfig, ProviderId } from '../types'
 
 const SECRET = true
 
-function fields(...defs: Parameters<typeof field>[]): ReturnType<typeof field>[] {
+function fields(...defs: import('../types').TokenFieldDef[]): import('../types').TokenFieldDef[] {
   return defs
 }
 
