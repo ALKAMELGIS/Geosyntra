@@ -581,7 +581,11 @@ export function SatelliteMapAnalysisChrome(props: SatelliteMapAnalysisChromeProp
                 className={`si-map-analysis-tl-play ${timelinePlaying ? 'si-map-analysis-tl-play--on' : ''}`}
                 aria-label={timelinePlaying ? 'Pause timeline' : 'Play timeline'}
                 aria-pressed={timelinePlaying}
-                onClick={onTogglePlay}
+                onClick={e => {
+                  e.stopPropagation();
+                  onTogglePlay();
+                }}
+                onPointerDown={e => e.stopPropagation()}
               >
                 <i className={timelinePlaying ? 'fa-solid fa-pause' : 'fa-solid fa-play'} aria-hidden />
               </button>

@@ -2689,10 +2689,20 @@ export default function SatelliteIntelligence() {
   const [weeklyComposites, setWeeklyComposites] = useState<WeeklyComposite[]>([]);
   const weeklyTimelineIndex = useMemo(() => buildWeeklyTimelineIndex(weeklyComposites), [weeklyComposites]);
   const timelinePlayWeekIdxRef = useRef(0);
+  const timelineIntervalRef = useRef<ReturnType<typeof window.setInterval> | null>(null);
+  const weeklyTimelineIndexRef = useRef(weeklyTimelineIndex);
+  weeklyTimelineIndexRef.current = weeklyTimelineIndex;
   const isTimelinePlayingRef = useRef(false);
   const selectedDateRef = useRef(selectedDate);
   isTimelinePlayingRef.current = isTimelinePlaying;
   selectedDateRef.current = selectedDate;
+
+  const timelinePlaybackIntervalMs = useMemo(() => {
+    const fadePad =
+      timelineTransitionMode === 'smooth' ? Math.min(280, Math.round(SI_WMS_CROSSFADE_MS * 0.55)) : 0;
+    return Math.max(280, timelinePlaybackMs + fadePad);
+  }, [timelinePlaybackMs, timelineTransitionMode]);
+
   const [zonalStatsAnchorIso, setZonalStatsAnchorIso] = useState(() =>
     selectedDate.toISOString().split('T')[0],
   );
@@ -2701,30 +2711,18 @@ export default function SatelliteIntelligence() {
     setZonalStatsAnchorIso(selectedDate.toISOString().split('T')[0]);
   }, [isTimelinePlaying, selectedDate]);
 
-  const pauseTimelinePlayback = useCallback(() => {
-    timelinePlaybackArmedRef.current = false;
-    setIsTimelinePlaying(false);
+  const clearTimelinePlaybackInterval = useCallback(() => {
+    if (timelineIntervalRef.current != null) {
+      window.clearInterval(timelineIntervalRef.current);
+      timelineIntervalRef.current = null;
+    }
   }, []);
 
-  const startTimelinePlayback = useCallback(() => {
-    if (!weeklyTimelineIndex?.weeks.length) return;
-    timelinePlaybackArmedRef.current = true;
-    timelinePlayWeekIdxRef.current = weeklyTimelineIndex.pickWeekIdx(
-      selectedDateRef.current.toISOString().split('T')[0],
-    );
-    setIsTimelinePlaying(true);
-  }, [weeklyTimelineIndex]);
-
-  const toggleTimelinePlayback = useCallback(() => {
-    if (isTimelinePlaying) pauseTimelinePlayback();
-    else startTimelinePlayback();
-  }, [isTimelinePlaying, pauseTimelinePlayback, startTimelinePlayback]);
-
-  useEffect(() => {
-    if (isTimelinePlaying && !timelinePlaybackArmedRef.current) {
-      setIsTimelinePlaying(false);
-    }
-  }, [isTimelinePlaying]);
+  const pauseTimelinePlayback = useCallback(() => {
+    timelinePlaybackArmedRef.current = false;
+    clearTimelinePlaybackInterval();
+    setIsTimelinePlaying(false);
+  }, [clearTimelinePlaybackInterval]);
 
   /** True only after the user (or RS Run path) successfully builds the field timeline — drives Generate ⟷ Stop label. */
   const [fieldTimelineSessionActive, setFieldTimelineSessionActive] = useState(false);
@@ -3605,6 +3603,76 @@ export default function SatelliteIntelligence() {
     setTimeSeriesStart(prev => (prev && iso < prev ? iso : prev || iso));
     setTimeSeriesEnd(prev => (prev && iso > prev ? iso : prev || iso));
   }, []);
+
+  const advanceTimelinePlaybackStep = useCallback(() => {
+    if (!timelinePlaybackArmedRef.current || !isTimelinePlayingRef.current) {
+      pauseTimelinePlayback();
+      return;
+    }
+    const idx = weeklyTimelineIndexRef.current;
+    if (!idx?.weeks.length) {
+      pauseTimelinePlayback();
+      return;
+    }
+    const nextIdx = idx.nextWeekIdx(timelinePlayWeekIdxRef.current);
+    timelinePlayWeekIdxRef.current = nextIdx;
+    const w = idx.weeks[nextIdx]!;
+    applySelectedDate(new Date(`${w.startDate}T12:00:00`), { expandRange: false });
+  }, [applySelectedDate, pauseTimelinePlayback]);
+
+  const startTimelinePlayback = useCallback(() => {
+    const idx = weeklyTimelineIndexRef.current;
+    if (!idx?.weeks.length) return;
+    clearTimelinePlaybackInterval();
+    timelinePlaybackArmedRef.current = true;
+    timelinePlayWeekIdxRef.current = idx.pickWeekIdx(selectedDateRef.current.toISOString().split('T')[0]);
+    setIsTimelinePlaying(true);
+  }, [clearTimelinePlaybackInterval]);
+
+  const toggleTimelinePlayback = useCallback(() => {
+    if (isTimelinePlayingRef.current) pauseTimelinePlayback();
+    else startTimelinePlayback();
+  }, [pauseTimelinePlayback, startTimelinePlayback]);
+
+  /** Never leave a zombie interval after HMR or armed/play desync. */
+  useEffect(() => {
+    if (isTimelinePlaying && !timelinePlaybackArmedRef.current) {
+      pauseTimelinePlayback();
+    }
+  }, [isTimelinePlaying, pauseTimelinePlayback]);
+
+  useEffect(() => {
+    pauseTimelinePlayback();
+    return () => pauseTimelinePlayback();
+  }, [pauseTimelinePlayback]);
+
+  useEffect(() => {
+    if (weeklyComposites.length === 0 && isTimelinePlayingRef.current) {
+      pauseTimelinePlayback();
+    }
+  }, [weeklyComposites.length, pauseTimelinePlayback]);
+
+  /** Restart interval when speed changes during playback. */
+  useEffect(() => {
+    if (!isTimelinePlaying || !timelinePlaybackArmedRef.current) return;
+    clearTimelinePlaybackInterval();
+    timelineIntervalRef.current = window.setInterval(() => {
+      advanceTimelinePlaybackStep();
+    }, timelinePlaybackIntervalMs);
+    return clearTimelinePlaybackInterval;
+  }, [
+    timelinePlaybackIntervalMs,
+    isTimelinePlaying,
+    clearTimelinePlaybackInterval,
+    advanceTimelinePlaybackStep,
+  ]);
+
+  useEffect(() => {
+    if (isTimelinePlayingRef.current || !weeklyTimelineIndex) return;
+    timelinePlayWeekIdxRef.current = weeklyTimelineIndex.pickWeekIdx(
+      selectedDate.toISOString().split('T')[0],
+    );
+  }, [selectedDate, weeklyTimelineIndex]);
 
   const getGeoJsonBounds = (geojson: any): [number, number, number, number] | null => {
     const points: [number, number][] = [];
@@ -9421,39 +9489,6 @@ export default function SatelliteIntelligence() {
       downloadTextFile('aoi-sketch.kml', featureToKml(drawnGeometry), 'application/vnd.google-earth.kml+xml');
     }
   };
-
-  /** Timeline playback: prefer generated weekly composites; fallback to rolling 14-day strip */
-  const timelinePlaybackIntervalMs = useMemo(() => {
-    const fadePad =
-      timelineTransitionMode === 'smooth' ? Math.min(280, Math.round(SI_WMS_CROSSFADE_MS * 0.55)) : 0;
-    return Math.max(280, timelinePlaybackMs + fadePad);
-  }, [timelinePlaybackMs, timelineTransitionMode]);
-
-  useEffect(() => {
-    if (!isTimelinePlaying || !timelinePlaybackArmedRef.current) return;
-
-    if (weeklyTimelineIndex) {
-      const interval = window.setInterval(() => {
-        const nextIdx = weeklyTimelineIndex.nextWeekIdx(timelinePlayWeekIdxRef.current);
-        timelinePlayWeekIdxRef.current = nextIdx;
-        const w = weeklyTimelineIndex.weeks[nextIdx]!;
-        applySelectedDate(new Date(`${w.startDate}T12:00:00`), { expandRange: false });
-      }, timelinePlaybackIntervalMs);
-      return () => window.clearInterval(interval);
-    }
-
-    if (weeklyComposites.length > 0 || !dates.length) return;
-
-    const fallbackMs = Math.max(220, Math.round(timelinePlaybackIntervalMs * 0.9));
-    const interval = window.setInterval(() => {
-      let index = dates.findIndex(d => d.full.toDateString() === selectedDateRef.current.toDateString());
-      if (index === -1) index = 0;
-      index = (index + 1) % dates.length;
-      applySelectedDate(dates[index]!.full, { expandRange: false });
-    }, fallbackMs);
-
-    return () => window.clearInterval(interval);
-  }, [isTimelinePlaying, weeklyTimelineIndex, weeklyComposites.length, dates, timelinePlaybackIntervalMs, applySelectedDate]);
 
   useEffect(() => {
     const iso = selectedDate.toISOString().split('T')[0];
