@@ -16,9 +16,9 @@ export const homeSaasContent = {
   signInLabel: 'Sign in' as ReactNode,
   startLabel: 'Try for free' as ReactNode,
   navItems: [
-    { id: 'platform', href: '#/learn-more', label: 'Platform' as ReactNode },
+    { id: 'platform', href: '#innovation', label: 'Platform' as ReactNode },
     { id: 'pricing', href: `#${SAAS_ROUTES.billingPricing}`, label: 'Pricing' as ReactNode },
-    { id: 'about', href: '#/learn-more', label: 'About' as ReactNode },
+    { id: 'about', href: '#discovery', label: 'About' as ReactNode },
   ],
   hero: {
     lineBefore: 'Geo-intelligence built for',

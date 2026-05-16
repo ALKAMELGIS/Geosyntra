@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type MouseEvent, type ReactNode } from 'react'
 import { cn } from '../../lib/utils'
 import './saas-entry-shell.css'
 
@@ -63,12 +63,25 @@ function SaasButton({ size = 'sm', variant = 'primary', className, children, onC
   )
 }
 
-function SaasNavigation({
+export type SaasNavigationProps = Pick<SaasEntryShellProps, 'brand' | 'brandHref' | 'navItems' | 'signInAction'> & {
+  className?: string
+  /** When set, brand click scrolls to this in-page section instead of navigating away. */
+  brandScrollTargetId?: string
+}
+
+export function SaasNavigation({
   brand,
   brandHref = '/',
   navItems = [],
   signInAction,
-}: Pick<SaasEntryShellProps, 'brand' | 'brandHref' | 'navItems' | 'signInAction'>) {
+  className,
+  brandScrollTargetId,
+}: SaasNavigationProps) {
+  const onBrandClick = (e: MouseEvent<HTMLAnchorElement>) => {
+    if (!brandScrollTargetId) return
+    e.preventDefault()
+    document.getElementById(brandScrollTargetId)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  }
   const [menuOpen, setMenuOpen] = useState(false)
   const menuRef = useRef<HTMLDivElement | null>(null)
   const triggerRef = useRef<HTMLButtonElement | null>(null)
@@ -94,9 +107,13 @@ function SaasNavigation({
   }, [menuOpen])
 
   return (
-    <nav className="saas-entry__nav" aria-label="Entry navigation">
+    <nav className={cn('saas-entry__nav', className)} aria-label="Entry navigation">
       <div className="saas-entry__nav-inner">
-        <a href={brandHref} className="saas-entry__brand">
+        <a
+          href={brandScrollTargetId ? `#${brandScrollTargetId}` : brandHref}
+          className="saas-entry__brand"
+          onClick={onBrandClick}
+        >
           {brand}
         </a>
 

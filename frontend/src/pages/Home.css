@@ -7,6 +7,70 @@
  * sections inside `<LandingPage />` measure against the full window — the
  * same way the upstream 21st.dev bundle behaves at the document root.
  */
+/* ── Merged Home: SaaS panel + ScrollGlobe browse panels ── */
+.home-merged {
+  width: 100%;
+  max-width: 100%;
+  min-height: 100vh;
+  min-height: 100dvh;
+}
+
+.home-merged__nav {
+  z-index: 55;
+}
+
+.home-merged--browse .home-merged__nav {
+  border-bottom-color: rgba(255, 255, 255, 0.08);
+  background: color-mix(in srgb, hsl(222 47% 6%) 72%, transparent);
+}
+
+.home-merged--browse .home-merged__nav .saas-entry__brand,
+.home-merged--browse .home-merged__nav .saas-entry__nav-link {
+  color: rgba(248, 250, 252, 0.92);
+}
+
+.home-merged--browse .home-merged__nav .saas-entry__nav-link {
+  color: rgba(148, 163, 184, 0.95);
+}
+
+.home-merged--browse .home-merged__nav .saas-entry__nav-link:hover {
+  color: rgba(248, 250, 252, 1);
+}
+
+.home-merged--browse .home-merged__nav .saas-entry__btn--primary {
+  background: rgba(248, 250, 252, 0.95);
+  color: hsl(222 47% 8%);
+}
+
+.home-merged-saas {
+  padding-top: 5.5rem;
+  padding-bottom: 3rem;
+  background: hsl(var(--background, 0 0% 100%));
+}
+
+.home-merged-saas__inner {
+  max-width: 56rem;
+  margin: 0 auto;
+  padding: 0 1rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+}
+
+.home-merged-saas__scroll-hint {
+  margin: 2.5rem 0 0;
+  font-size: 0.8125rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: hsl(var(--muted-foreground, 0 0% 45%));
+  opacity: 0.85;
+}
+
+.home-merged--browse .home-merged-saas {
+  background: transparent;
+}
+
 .home-saas-entry {
   width: 100%;
   max-width: 100%;

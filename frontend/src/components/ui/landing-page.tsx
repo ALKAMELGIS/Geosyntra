@@ -68,10 +68,19 @@ export interface ScrollGlobePosition {
   scale: number
 }
 
+export interface ScrollGlobeLeadingNav {
+  id: string
+  badge: string
+}
+
 export interface ScrollGlobeProps {
   sections: ScrollGlobeSection[]
   globeConfig?: { positions: ScrollGlobePosition[] }
   className?: string
+  /** Full-viewport SaaS / signup panel before the globe narrative sections. */
+  leadingSection?: React.ReactNode
+  leadingSectionNav?: ScrollGlobeLeadingNav
+  onActiveSectionChange?: (index: number) => void
 }
 
 /**
@@ -122,7 +131,17 @@ function findScrollContainer(el: HTMLElement | null): HTMLElement | Window {
 const isWindow = (target: HTMLElement | Window): target is Window =>
   typeof window !== 'undefined' && target === window
 
-export function ScrollGlobe({ sections, globeConfig = defaultGlobeConfig, className }: ScrollGlobeProps) {
+export function ScrollGlobe({
+  sections,
+  globeConfig = defaultGlobeConfig,
+  className,
+  leadingSection,
+  leadingSectionNav,
+  onActiveSectionChange,
+}: ScrollGlobeProps) {
+  const hasLeading = Boolean(leadingSection)
+  const innovationSparkleIndex = hasLeading ? 2 : 1
+  const lastSectionIndex = hasLeading ? sections.length : sections.length - 1
   const [activeSection, setActiveSection] = useState(0)
   const [scrollProgress, setScrollProgress] = useState(0)
   const [globeTransform, setGlobeTransform] = useState('')
@@ -159,6 +178,7 @@ export function ScrollGlobe({ sections, globeConfig = defaultGlobeConfig, classN
   const sectionRefs = useRef<(HTMLElement | null)[]>([])
   const animationFrameId = useRef<number | undefined>(undefined)
   const scrollSourceRef = useRef<HTMLElement | Window | null>(null)
+  const activeSectionNotifyRef = useRef(0)
 
   const calculatedPositions = useMemo(
     () =>
@@ -212,11 +232,16 @@ export function ScrollGlobe({ sections, globeConfig = defaultGlobeConfig, classN
       }
     })
 
-    const idx = Math.min(newActiveSection, calculatedPositions.length - 1)
+    const globeIdx = hasLeading ? Math.max(0, newActiveSection - 1) : newActiveSection
+    const idx = Math.min(globeIdx, calculatedPositions.length - 1)
     const currentPos = calculatedPositions[idx]
     setGlobeTransform(buildGlobeTransform(currentPos))
-    setActiveSection(idx)
-  }, [calculatedPositions])
+    setActiveSection(newActiveSection)
+    if (activeSectionNotifyRef.current !== newActiveSection) {
+      activeSectionNotifyRef.current = newActiveSection
+      onActiveSectionChange?.(newActiveSection)
+    }
+  }, [calculatedPositions, hasLeading, onActiveSectionChange])
 
   useEffect(() => {
     /* Find the real scroller once on mount. We do this lazily inside the
@@ -313,6 +338,7 @@ export function ScrollGlobe({ sections, globeConfig = defaultGlobeConfig, classN
       ref={containerRef}
       className={cn(
         'gs-scroll-globe relative w-full max-w-full overflow-x-hidden min-h-screen bg-background text-foreground',
+        hasLeading && 'gs-scroll-globe--with-leading',
         className,
       )}
     >
@@ -321,7 +347,12 @@ export function ScrollGlobe({ sections, globeConfig = defaultGlobeConfig, classN
           the only surface in the app that keeps the upstream blue cast; the
           rest of the chrome (header, sidebar, panels) stays neutral
           black-glass per the brand rules. */}
-      <div className="fixed top-0 left-0 w-full h-0.5 bg-gradient-to-r from-border/20 via-border/40 to-border/20 z-50">
+      <div
+        className={cn(
+          'fixed left-0 w-full h-0.5 bg-gradient-to-r from-border/20 via-border/40 to-border/20 z-[45]',
+          hasLeading ? 'top-16' : 'top-0',
+        )}
+      >
         <div
           className="h-full bg-gradient-to-r from-primary via-blue-600 to-blue-900 will-change-transform shadow-sm"
           style={{
@@ -342,21 +373,28 @@ export function ScrollGlobe({ sections, globeConfig = defaultGlobeConfig, classN
         className="hidden sm:flex fixed right-2 sm:right-4 lg:right-8 top-1/2 -translate-y-1/2 z-40"
       >
         <div className="space-y-3 sm:space-y-4 lg:space-y-6">
-          {sections.map((section, index) => (
-            <div key={section.id} className="relative group">
+          {[
+            ...(leadingSectionNav
+              ? [{ key: leadingSectionNav.id, badge: leadingSectionNav.badge, scrollIndex: 0 }]
+              : []),
+            ...sections.map((section, index) => ({
+              key: section.id,
+              badge: section.badge ?? `Section ${index + 1}`,
+              scrollIndex: hasLeading ? index + 1 : index,
+            })),
+          ].map(entry => (
+            <div key={entry.key} className="relative group">
               <div
                 className={cn(
                   'nav-label absolute right-5 sm:right-6 lg:right-8 top-1/2 -translate-y-1/2',
                   'px-2 sm:px-3 lg:px-4 py-1 sm:py-1.5 lg:py-2 rounded-md sm:rounded-lg text-xs sm:text-sm font-medium whitespace-nowrap',
                   'bg-background/95 backdrop-blur-md border border-border/60 shadow-xl z-50',
-                  activeSection === index ? 'animate-fadeOut' : 'opacity-0',
+                  activeSection === entry.scrollIndex ? 'animate-fadeOut' : 'opacity-0',
                 )}
               >
                 <div className="flex items-center gap-1 sm:gap-1.5 lg:gap-2">
                   <div className="w-1 sm:w-1.5 lg:w-2 h-1 sm:h-1.5 lg:h-2 rounded-full bg-primary animate-pulse" />
-                  <span className="text-xs sm:text-sm lg:text-base">
-                    {section.badge ?? `Section ${index + 1}`}
-                  </span>
+                  <span className="text-xs sm:text-sm lg:text-base">{entry.badge}</span>
                 </div>
               </div>
 
@@ -368,7 +406,7 @@ export function ScrollGlobe({ sections, globeConfig = defaultGlobeConfig, classN
                    * container automatically, so this works whether the page
                    * scrolls in `<main>` (Geosyntra shell) or `window`
                    * (standalone preview). */
-                  sectionRefs.current[index]?.scrollIntoView({
+                  sectionRefs.current[entry.scrollIndex]?.scrollIntoView({
                     behavior: 'smooth',
                     block: 'center',
                   })
@@ -376,11 +414,11 @@ export function ScrollGlobe({ sections, globeConfig = defaultGlobeConfig, classN
                 className={cn(
                   'relative w-2 h-2 sm:w-2.5 sm:h-2.5 lg:w-3 lg:h-3 rounded-full border-2 transition-all duration-300 hover:scale-125',
                   'before:absolute before:inset-0 before:rounded-full before:transition-all before:duration-300',
-                  activeSection === index
+                  activeSection === entry.scrollIndex
                     ? 'bg-primary border-primary shadow-lg before:animate-ping before:bg-primary/20'
                     : 'bg-transparent border-muted-foreground/40 hover:border-primary/60 hover:bg-primary/10',
                 )}
-                aria-label={`Go to ${section.badge ?? `section ${index + 1}`}`}
+                aria-label={`Go to ${entry.badge}`}
               />
             </div>
           ))}
@@ -399,7 +437,7 @@ export function ScrollGlobe({ sections, globeConfig = defaultGlobeConfig, classN
         aria-hidden
         className="gs-innovation-sparkles fixed inset-0 z-[5] pointer-events-none"
         style={{
-          opacity: activeSection === 1 ? 1 : 0,
+          opacity: activeSection === innovationSparkleIndex ? 1 : 0,
           transition: 'opacity 600ms cubic-bezier(0.23, 1, 0.32, 1)',
         }}
       >
@@ -420,8 +458,8 @@ export function ScrollGlobe({ sections, globeConfig = defaultGlobeConfig, classN
         className="gs-hero-globe fixed z-10 pointer-events-none will-change-transform"
         style={{
           transform: globeTransform,
-          opacity: globeArrived
-            ? activeSection === sections.length - 1
+          opacity: globeArrived && (!hasLeading || activeSection > 0)
+            ? activeSection === lastSectionIndex
               ? 0.4
               : 0.92
             : 0,
@@ -455,6 +493,17 @@ export function ScrollGlobe({ sections, globeConfig = defaultGlobeConfig, classN
           moves between them, and each carries an alignment + optional
           features/actions slot so the host page can compose new narratives
           without touching the component. */}
+      {leadingSection ? (
+        <section
+          id={leadingSectionNav?.id ?? 'start'}
+          ref={el => {
+            sectionRefs.current[0] = el
+          }}
+          className="home-merged-saas relative z-30 min-h-screen min-h-[100dvh] w-full max-w-full flex flex-col justify-center pointer-events-none"
+        >
+          <div className="pointer-events-auto w-full">{leadingSection}</div>
+        </section>
+      ) : null}
       {sections.map((section, index) => {
         /** Welcome + Innovation share pearl title + micro-hints; sparkle bar is hero-only (Innovation uses global starfield). */
         const welcomeVisualRhythm = index === 0 || index === 1
@@ -467,7 +516,7 @@ export function ScrollGlobe({ sections, globeConfig = defaultGlobeConfig, classN
           key={section.id}
           id={section.id}
           ref={el => {
-            sectionRefs.current[index] = el
+            sectionRefs.current[hasLeading ? index + 1 : index] = el
           }}
           className={cn(
             /* z-30 above the fixed Globe (z-10). Section root is pointer-events-none
