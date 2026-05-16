@@ -12,9 +12,9 @@ export function validateUrl(value: string): FieldValidation {
 export function validateMapboxToken(value: string): FieldValidation {
   const v = value.trim()
   if (!v) return { level: 'idle' }
-  if (/^pk\./.test(v)) return { level: 'success', message: 'Public token (pk)' }
-  if (/^sk\./.test(v)) return { level: 'warning', message: 'Secret token (sk) — restrict exposure' }
-  return { level: 'error', message: 'Expected pk.* or sk.* prefix' }
+  if (/^pk\./.test(v)) return { level: 'success', message: 'Public token (pk.)' }
+  if (/^sk\./.test(v)) return { level: 'warning', message: 'Secret token (sk.) — keep private' }
+  return { level: 'success', message: 'Token set' }
 }
 
 export function validateOpenAiKey(value: string): FieldValidation {
@@ -39,7 +39,10 @@ export function validateField(
   return { level: 'idle' }
 }
 
-export function validateIntegrationDraft(draft: IntegrationDraft): ValidationResult {
+export function validateIntegrationDraft(
+  draft: IntegrationDraft,
+  secrets: Record<string, string> = {},
+): ValidationResult {
   const provider = getProvider(draft.providerId)
   const fields = getFieldsForAuth(provider, draft.authType)
   const fieldResults: Record<string, FieldValidation> = {}
@@ -56,7 +59,8 @@ export function validateIntegrationDraft(draft: IntegrationDraft): ValidationRes
   }
 
   for (const f of fields) {
-    const val = draft.config[f.id] ?? ''
+    const isSecret = Boolean(f.secret || f.kind === 'password')
+    const val = (isSecret ? secrets[f.id] : draft.config[f.id]) ?? ''
     if (f.required && !val.trim()) {
       valid = false
       fieldResults[f.id] = { level: 'error', message: 'Required' }

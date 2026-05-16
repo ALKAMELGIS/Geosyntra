@@ -1,5 +1,5 @@
 import { AnimatePresence, motion } from 'framer-motion'
-import type { AuthType, ProviderId, TokenFieldDef } from '../types'
+import type { AuthType, TokenFieldDef } from '../types'
 import type { FieldValidation } from '../types'
 import { SecureTokenInput } from './SecureTokenInput'
 
@@ -34,34 +34,41 @@ export function DynamicAuthFields({
   onCopy,
   displayValue,
 }: Props) {
+  const showAuthPicker = authOptions.length > 1
+  const singleColumn = fields.length <= 2
+
   return (
-    <div>
-      <div className="api-integ-tw-field mb-4 max-w-xs">
-        <label className="api-integ-tw-label" htmlFor="auth-type-select">
-          Auth Type
-        </label>
-        <select
-          id="auth-type-select"
-          className="api-integ-tw-input"
-          value={authType}
-          onChange={e => onAuthTypeChange(e.target.value as AuthType)}
-        >
-          {authOptions.map(o => (
-            <option key={o.id} value={o.id}>
-              {o.label}
-            </option>
-          ))}
-        </select>
-      </div>
+    <motion.div className="api-integ-auth-fields">
+      {showAuthPicker ? (
+        <div className="api-integ-tw-field api-integ-auth-fields__auth-type">
+          <label className="api-integ-tw-label" htmlFor="auth-type-select">
+            Connection type
+          </label>
+          <select
+            id="auth-type-select"
+            className="api-integ-tw-input"
+            value={authType}
+            onChange={e => onAuthTypeChange(e.target.value as AuthType)}
+          >
+            {authOptions.map(o => (
+              <option key={o.id} value={o.id}>
+                {o.label}
+              </option>
+            ))}
+          </select>
+        </div>
+      ) : null}
 
       <AnimatePresence mode="wait">
         <motion.div
           key={fields.map(f => f.id).join(',')}
-          initial={{ opacity: 0, y: 8 }}
+          initial={{ opacity: 0, y: 6 }}
           animate={{ opacity: 1, y: 0 }}
-          exit={{ opacity: 0, y: -6 }}
-          transition={{ duration: 0.2 }}
-          className="grid gap-3 sm:grid-cols-2"
+          exit={{ opacity: 0, y: -4 }}
+          transition={{ duration: 0.18 }}
+          className={
+            singleColumn ? 'api-integ-auth-fields__grid api-integ-auth-fields__grid--single' : 'api-integ-auth-fields__grid'
+          }
         >
           {fields.map(field => {
             const isSecret = Boolean(field.secret || field.kind === 'password')
@@ -82,6 +89,6 @@ export function DynamicAuthFields({
           })}
         </motion.div>
       </AnimatePresence>
-    </div>
+    </motion.div>
   )
 }

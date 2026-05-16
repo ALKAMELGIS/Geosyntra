@@ -27,19 +27,18 @@ const PROVIDERS: ProviderConfig[] = [
     description: 'Vector tiles, styles, and geocoding APIs.',
     capabilities: ['Tiles', 'Geocoding', 'Directions'],
     defaultBaseUrl: 'https://api.mapbox.com',
-    authTypes: ['api_key', 'bearer'],
+    authTypes: ['api_key'],
     defaultAuthType: 'api_key',
     vaultTypeId: 'mapboxToken',
     fieldsByAuth: {
       api_key: fields(
-        field('accessToken', 'Mapbox Token', { required: true, secret: SECRET, kind: 'password', hint: 'pk.* or sk.*' }),
-        field('publicToken', 'Public Token', { secret: SECRET, kind: 'password' }),
-        field('secretToken', 'Secret Token', { secret: SECRET, kind: 'password' }),
-        field('username', 'Username'),
-        field('styleUrl', 'Style URL', { kind: 'url', placeholder: 'mapbox://styles/...' }),
-        field('tilesApiUrl', 'Tiles API URL', { kind: 'url' }),
+        field('accessToken', 'Access token', {
+          required: true,
+          secret: SECRET,
+          kind: 'password',
+          hint: 'mapbox.com → Account → Access tokens',
+        }),
       ),
-      bearer: fields(field('accessToken', 'Bearer Token', { required: true, secret: SECRET, kind: 'password' })),
     },
   },
   {
@@ -51,22 +50,17 @@ const PROVIDERS: ProviderConfig[] = [
     capabilities: ['Portal', 'Feature layers', 'OAuth2'],
     defaultBaseUrl: 'https://www.arcgis.com',
     authTypes: ['api_key', 'oauth2', 'client_credentials', 'username_password'],
-    defaultAuthType: 'oauth2',
+    defaultAuthType: 'api_key',
     vaultTypeId: 'arcgisPortalToken',
     fieldsByAuth: {
       api_key: fields(
-        field('portalUrl', 'Portal URL', { kind: 'url', required: true }),
-        field('apiKey', 'ArcGIS API Key', { required: true, secret: SECRET, kind: 'password' }),
+        field('portalUrl', 'Portal URL', { kind: 'url', placeholder: 'https://www.arcgis.com' }),
+        field('apiKey', 'ArcGIS API key', { required: true, secret: SECRET, kind: 'password' }),
       ),
       oauth2: fields(
-        field('portalUrl', 'Portal URL', { kind: 'url', required: true }),
+        field('portalUrl', 'Portal URL', { kind: 'url', placeholder: 'https://www.arcgis.com' }),
         field('clientId', 'Client ID', { required: true }),
-        field('clientSecret', 'Client Secret', { required: true, secret: SECRET, kind: 'password' }),
-        field('redirectUrl', 'OAuth Redirect URL', { kind: 'url' }),
-        field('apiKey', 'ArcGIS API Key', { secret: SECRET, kind: 'password' }),
-        field('username', 'Username'),
-        field('password', 'Password', { secret: SECRET, kind: 'password' }),
-        field('tokenExpiration', 'Token Expiration (min)', { kind: 'number' }),
+        field('clientSecret', 'Client secret', { required: true, secret: SECRET, kind: 'password' }),
       ),
       client_credentials: fields(
         field('portalUrl', 'Portal URL', { kind: 'url', required: true }),
@@ -155,11 +149,9 @@ const PROVIDERS: ProviderConfig[] = [
     vaultTypeId: 'sentinelHubAccessToken',
     fieldsByAuth: {
       oauth2: fields(
-        field('clientId', 'OAuth Client ID', { required: true }),
-        field('clientSecret', 'OAuth Client Secret', { required: true, secret: SECRET, kind: 'password' }),
-        field('instanceId', 'Instance ID', { required: true }),
-        field('wmsUrl', 'WMS URL', { kind: 'url' }),
-        field('processingApiUrl', 'Processing API URL', { kind: 'url' }),
+        field('clientId', 'Client ID', { required: true }),
+        field('clientSecret', 'Client secret', { required: true, secret: SECRET, kind: 'password' }),
+        field('instanceId', 'Instance ID', { required: true, hint: 'Sentinel Hub dashboard → User settings' }),
       ),
       client_credentials: fields(
         field('clientId', 'Client ID', { required: true }),
@@ -307,11 +299,7 @@ const PROVIDERS: ProviderConfig[] = [
     vaultTypeId: 'openaiApiKey',
     fieldsByAuth: {
       api_key: fields(
-        field('apiKey', 'API Key', { required: true, secret: SECRET, kind: 'password' }),
-        field('organizationId', 'Organization ID'),
-        field('projectId', 'Project ID'),
-        field('baseUrl', 'Base URL', { kind: 'url' }),
-        field('model', 'Default Model', { placeholder: 'gpt-4o' }),
+        field('apiKey', 'API key', { required: true, secret: SECRET, kind: 'password' }),
       ),
       bearer: fields(field('accessToken', 'Bearer Token', { required: true, secret: SECRET, kind: 'password' })),
     },
@@ -328,13 +316,10 @@ const PROVIDERS: ProviderConfig[] = [
     defaultAuthType: 'api_key',
     vaultTypeId: 'claudeApiKey',
     fieldsByAuth: {
-      api_key: fields(
-        field('apiKey', 'API Key', { required: true, secret: SECRET, kind: 'password' }),
-        field('baseUrl', 'Base URL', { kind: 'url' }),
-      ),
+      api_key: fields(field('apiKey', 'API key', { required: true, secret: SECRET, kind: 'password' })),
       custom_header: fields(
-        field('headerName', 'Header Name', { required: true, placeholder: 'x-api-key' }),
-        field('headerValue', 'Header Value', { required: true, secret: SECRET, kind: 'password' }),
+        field('headerName', 'Header name', { required: true, placeholder: 'x-api-key' }),
+        field('headerValue', 'Header value', { required: true, secret: SECRET, kind: 'password' }),
       ),
     },
   },

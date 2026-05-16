@@ -18,9 +18,6 @@ import { useProviderConfig } from '../hooks/useProviderConfig'
 import { useSecureTokens } from '../hooks/useSecureTokens'
 import { ConnectionTester } from './ConnectionTester'
 import { DynamicAuthFields } from './DynamicAuthFields'
-import { FormSection } from './FormSection'
-import { IntegrationStatusBadge } from './IntegrationStatusBadge'
-import { LiveStatusPanel } from './LiveStatusPanel'
 import { ProviderSelector } from './ProviderSelector'
 
 type Props = {
@@ -66,14 +63,14 @@ export function IntegrationModal({ open, record, onClose, onSaved }: Props) {
   const [saveError, setSaveError] = useState<string | null>(null)
   const [advancedOpen, setAdvancedOpen] = useState(false)
 
-  const { provider, authOptions, fields, dataMappingFields, capabilities, defaultBaseUrl } =
+  const { provider, authOptions, fields, dataMappingFields, defaultBaseUrl } =
     useProviderConfig(draft.providerId, draft.authType)
   const { secrets, setSecret, revealed, toggleReveal, copySecret, displayValue } = useSecureTokens(
     draft.providerId,
   )
-  const { result, fieldLevel, isValid } = useIntegrationValidation(draft)
+  const { fieldLevel, isValid } = useIntegrationValidation(draft, secrets)
   const { status, message, latencyMs, testing, runTest, reset } = useConnectionTest()
-  const { lastSavedAt, saving, discardDraft } = useAutoSave(draft, open && !record?.id)
+  const { discardDraft } = useAutoSave(draft, open && !record?.id)
 
   useEffect(() => {
     if (!open) return
@@ -104,6 +101,7 @@ export function IntegrationModal({ open, record, onClose, onSaved }: Props) {
       integrationType: p.label,
       provider: p.label,
       baseUrl: p.defaultBaseUrl ?? prev.baseUrl,
+      name: prev.name.trim() || `${p.label}`,
     }))
     const vault = loadVaultSecret(providerId)
     if (vault) setSecret(primarySecretKey(providerId, p.defaultAuthType), vault)
@@ -157,12 +155,6 @@ export function IntegrationModal({ open, record, onClose, onSaved }: Props) {
     }
   }
 
-  const autoSaveLabel = saving
-    ? 'Saving draft…'
-    : lastSavedAt
-      ? `Draft saved ${lastSavedAt.toLocaleTimeString()}`
-      : null
-
   const hasCredentials =
     Object.values(secrets).some(v => v.trim()) ||
     Object.values(draft.config).some(v => v.trim() && v !== '__vault__') ||
@@ -186,66 +178,83 @@ export function IntegrationModal({ open, record, onClose, onSaved }: Props) {
             role="dialog"
             aria-modal="true"
             aria-labelledby="integration-modal-title"
-            className="api-integ-modal api-integ-modal--enterprise"
+            className="api-integ-modal api-integ-modal--simple"
             initial={{ opacity: 0, y: 16, scale: 0.98 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 12, scale: 0.98 }}
             transition={{ type: 'spring', stiffness: 380, damping: 32 }}
           >
-            <header className="api-integ-modal__head api-integ-modal__head--enterprise">
-              <div className="flex min-w-0 items-start gap-3">
-                <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-violet-500/25 bg-violet-500/15">
-                  <i className={cn(provider.iconClass, 'text-lg text-violet-300')} aria-hidden />
-                </span>
-                <div className="min-w-0">
-                  <h2 id="integration-modal-title" className="api-integ-modal__title truncate">
-                    {record ? 'Edit API Integration' : 'Add API Integration'}
-                  </h2>
-                  <p className="mt-0.5 truncate text-xs text-white/45">{provider.label}</p>
-                </div>
+            <header className="api-integ-modal__head api-integ-modal__head--simple">
+              <div className="api-integ-modal__head-main">
+                <h2 id="integration-modal-title" className="api-integ-modal__title">
+                  {record ? 'Edit integration' : 'Add integration'}
+                </h2>
+                <p className="api-integ-modal__lead">{provider.description}</p>
               </div>
-              <div className="flex shrink-0 flex-col items-end gap-2 sm:flex-row sm:items-center">
-                <IntegrationStatusBadge status={status} />
-                {draft.lastCheckedAt ? (
-                  <span className="text-[0.65rem] text-white/35">
-                    {new Date(draft.lastCheckedAt).toLocaleTimeString()}
-                  </span>
-                ) : null}
-                <button
-                  type="button"
-                  className="api-integ-tw-icon-btn ml-1"
-                  onClick={onClose}
-                  disabled={busy}
-                  aria-label="Close"
-                >
-                  <i className="fa-solid fa-xmark" aria-hidden />
-                </button>
-              </div>
+              <button
+                type="button"
+                className="api-integ-modal__close"
+                onClick={onClose}
+                disabled={busy}
+                aria-label="Close"
+              >
+                <i className="fa-solid fa-xmark" aria-hidden />
+              </button>
             </header>
 
-            <div className="api-integ-modal__body api-integ-modal__body--split">
-              <div className="api-integ-modal__form-col">
-                <FormSection title="Configuration">
-                  <div className="grid gap-3 sm:grid-cols-2">
-                    <div className="api-integ-tw-field sm:col-span-1">
-                      <label className="api-integ-tw-label" htmlFor="integ-name">
-                        Name *
-                      </label>
-                      <input
-                        id="integ-name"
-                        className={cn(
-                          'api-integ-tw-input',
-                          fieldLevel._name?.level === 'error' && 'border-red-500/50',
-                        )}
-                        value={draft.name}
-                        onChange={e => patch('name', e.target.value)}
-                        autoComplete="off"
-                      />
-                    </div>
-                    <ProviderSelector value={draft.providerId} onChange={onProviderChange} />
-                  </div>
+            <div className="api-integ-modal__body api-integ-modal__body--simple">
+              <ProviderSelector value={draft.providerId} onChange={onProviderChange} />
 
-                  <div className="mt-3 grid gap-3 sm:grid-cols-2">
+              <div className="api-integ-tw-field">
+                <label className="api-integ-tw-label" htmlFor="integ-name">
+                  Display name *
+                </label>
+                <input
+                  id="integ-name"
+                  className={cn('api-integ-tw-input', fieldLevel._name?.level === 'error' && 'api-integ-tw-input--error')}
+                  value={draft.name}
+                  onChange={e => patch('name', e.target.value)}
+                  placeholder={provider.label}
+                  autoComplete="off"
+                />
+              </div>
+
+              <section className="api-integ-modal__credentials" aria-labelledby="integ-creds-title">
+                <h3 id="integ-creds-title" className="api-integ-modal__section-title">
+                  Credentials
+                </h3>
+                <p className="api-integ-modal__section-hint">Stored securely in your browser — not logged.</p>
+                <DynamicAuthFields
+                  authType={draft.authType}
+                  authOptions={authOptions}
+                  fields={fields}
+                  config={draft.config}
+                  secrets={secrets}
+                  revealed={revealed}
+                  fieldValidation={fieldLevel}
+                  onAuthTypeChange={onAuthTypeChange}
+                  onConfigChange={(id, v) =>
+                    setDraft(prev => ({ ...prev, config: { ...prev.config, [id]: v } }))
+                  }
+                  onSecretChange={setSecret}
+                  onToggleReveal={toggleReveal}
+                  onCopy={copySecret}
+                  displayValue={displayValue}
+                />
+              </section>
+
+              <div className="api-integ-modal__advanced">
+                <button
+                  type="button"
+                  className="api-integ-modal__advanced-toggle"
+                  aria-expanded={advancedOpen}
+                  onClick={() => setAdvancedOpen(o => !o)}
+                >
+                  <i className={cn('fa-solid', advancedOpen ? 'fa-chevron-up' : 'fa-chevron-down')} aria-hidden />
+                  Optional settings
+                </button>
+                {advancedOpen ? (
+                  <div className="api-integ-modal__advanced-panel">
                     <div className="api-integ-tw-field">
                       <label className="api-integ-tw-label" htmlFor="integ-env">
                         Environment
@@ -263,115 +272,33 @@ export function IntegrationModal({ open, record, onClose, onSaved }: Props) {
                         ))}
                       </select>
                     </div>
-                    <div className="api-integ-tw-field">
-                      <label className="api-integ-tw-label" htmlFor="integ-type-label">
-                        Integration Type
-                      </label>
-                      <input
-                        id="integ-type-label"
-                        className="api-integ-tw-input"
-                        value={draft.integrationType}
-                        onChange={e => patch('integrationType', e.target.value)}
-                      />
-                    </div>
-                  </div>
-
-                  <div className="mt-3 grid gap-3 sm:grid-cols-2">
-                    <div className="api-integ-tw-field">
-                      <label className="api-integ-tw-label" htmlFor="integ-provider-label">
-                        Provider label
-                      </label>
-                      <input
-                        id="integ-provider-label"
-                        className="api-integ-tw-input"
-                        value={draft.provider}
-                        onChange={e => patch('provider', e.target.value)}
-                      />
-                    </div>
-                    <div className="api-integ-tw-field">
-                      <label className="api-integ-tw-label" htmlFor="integ-poll">
-                        Polling Interval (min)
-                      </label>
-                      <input
-                        id="integ-poll"
-                        type="number"
-                        min={1}
-                        className="api-integ-tw-input"
-                        value={draft.pollingMinutes}
-                        onChange={e =>
-                          patch('pollingMinutes', Math.max(1, Number.parseInt(e.target.value, 10) || 60))
-                        }
-                      />
-                    </div>
-                  </div>
-
-                  <div className="api-integ-tw-field mt-3">
-                    <label className="api-integ-tw-label" htmlFor="integ-base">
-                      Base URL {provider.defaultBaseUrl ? '' : '(optional)'}
-                    </label>
-                    <input
-                      id="integ-base"
-                      className="api-integ-tw-input"
-                      value={draft.baseUrl}
-                      placeholder={defaultBaseUrl ?? 'https://api.example.com'}
-                      onChange={e => patch('baseUrl', e.target.value)}
-                      autoComplete="off"
-                    />
-                  </div>
-                </FormSection>
-
-                <FormSection
-                  title="Authentication"
-                  subtitle="Credentials are stored in the vault and never logged."
-                >
-                  <DynamicAuthFields
-                    authType={draft.authType}
-                    authOptions={authOptions}
-                    fields={fields}
-                    config={draft.config}
-                    secrets={secrets}
-                    revealed={revealed}
-                    fieldValidation={fieldLevel}
-                    onAuthTypeChange={onAuthTypeChange}
-                    onConfigChange={(id, v) =>
-                      setDraft(prev => ({ ...prev, config: { ...prev.config, [id]: v } }))
-                    }
-                    onSecretChange={setSecret}
-                    onToggleReveal={toggleReveal}
-                    onCopy={copySecret}
-                    displayValue={displayValue}
-                  />
-                </FormSection>
-
-                {dataMappingFields?.length ? (
-                  <FormSection
-                    title="Data mapping"
-                    subtitle="API response path → weather log field (dot notation)"
-                  >
-                    <button
-                      type="button"
-                      className="mb-2 text-xs text-violet-300/80 hover:text-violet-200"
-                      onClick={() => setAdvancedOpen(o => !o)}
-                    >
-                      <i className={cn('fa-solid mr-1', advancedOpen ? 'fa-chevron-up' : 'fa-chevron-down')} aria-hidden />
-                      {advancedOpen ? 'Hide' : 'Show'} field mapping
-                    </button>
-                    <AnimatePresence>
-                      {advancedOpen ? (
-                        <motion.div
-                          initial={{ height: 0, opacity: 0 }}
-                          animate={{ height: 'auto', opacity: 1 }}
-                          exit={{ height: 0, opacity: 0 }}
-                          className="grid gap-2 overflow-hidden sm:grid-cols-2"
-                        >
+                    {provider.defaultBaseUrl ? (
+                      <div className="api-integ-tw-field">
+                        <label className="api-integ-tw-label" htmlFor="integ-base">
+                          API base URL
+                        </label>
+                        <input
+                          id="integ-base"
+                          className="api-integ-tw-input"
+                          value={draft.baseUrl}
+                          placeholder={defaultBaseUrl ?? ''}
+                          onChange={e => patch('baseUrl', e.target.value)}
+                          autoComplete="off"
+                        />
+                      </div>
+                    ) : null}
+                    {dataMappingFields?.length ? (
+                      <div className="api-integ-modal__mapping">
+                        <p className="api-integ-tw-label">Weather field mapping</p>
+                        <div className="api-integ-modal__mapping-grid">
                           {dataMappingFields.map(f => (
                             <div key={f.id} className="api-integ-tw-field">
-                              <label className="api-integ-tw-label" htmlFor={`map-${f.id}`}>
+                              <label className="api-integ-tw-label api-integ-tw-label--plain" htmlFor={`map-${f.id}`}>
                                 {f.label}
                               </label>
                               <input
                                 id={`map-${f.id}`}
-                                className="api-integ-tw-input font-mono text-xs"
+                                className="api-integ-tw-input"
                                 placeholder={f.placeholder}
                                 value={draft.dataMapping[f.id] ?? ''}
                                 onChange={e =>
@@ -383,38 +310,41 @@ export function IntegrationModal({ open, record, onClose, onSaved }: Props) {
                               />
                             </div>
                           ))}
-                        </motion.div>
-                      ) : null}
-                    </AnimatePresence>
-                  </FormSection>
-                ) : null}
-
-                {saveError ? (
-                  <p className="api-integ-status api-integ-status--err" role="alert">
-                    {saveError}
-                  </p>
+                        </div>
+                      </div>
+                    ) : null}
+                  </div>
                 ) : null}
               </div>
 
-              <LiveStatusPanel
-                draft={draft}
-                connectionStatus={status}
-                connectionMessage={message}
-                latencyMs={latencyMs ?? draft.latencyMs}
-                autoSaveLabel={autoSaveLabel}
-                capabilities={capabilities}
-                isValid={isValid}
-              />
+              {message ? (
+                <p
+                  className={cn(
+                    'api-integ-modal__status-msg',
+                    status === 'connected' && 'api-integ-modal__status-msg--ok',
+                  )}
+                  role="status"
+                >
+                  {message}
+                  {latencyMs != null ? ` (${latencyMs} ms)` : ''}
+                </p>
+              ) : null}
+
+              {saveError ? (
+                <p className="api-integ-status api-integ-status--err" role="alert">
+                  {saveError}
+                </p>
+              ) : null}
             </div>
 
-            <footer className="api-integ-modal__foot api-integ-modal__foot--sticky">
+            <footer className="api-integ-modal__foot api-integ-modal__foot--simple">
               <label className="api-integ-check">
                 <input
                   type="checkbox"
                   checked={draft.active}
                   onChange={e => patch('active', e.target.checked)}
                 />
-                Active (enable automatic polling)
+                Enable this integration
               </label>
               <ConnectionTester testing={testing} disabled={busy} onTest={() => void handleTest()} />
               <div className="api-integ-modal__foot-actions">

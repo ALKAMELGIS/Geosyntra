@@ -4,17 +4,17 @@ import { validateIntegrationDraft } from '../providers/validate'
 
 const DEBOUNCE_MS = 320
 
-export function useIntegrationValidation(draft: IntegrationDraft) {
-  const [debounced, setDebounced] = useState(draft)
-  const [result, setResult] = useState<ValidationResult>(() => validateIntegrationDraft(draft))
+export function useIntegrationValidation(draft: IntegrationDraft, secrets: Record<string, string>) {
+  const [debounced, setDebounced] = useState({ draft, secrets })
+  const [result, setResult] = useState<ValidationResult>(() => validateIntegrationDraft(draft, secrets))
 
   useEffect(() => {
-    const t = window.setTimeout(() => setDebounced(draft), DEBOUNCE_MS)
+    const t = window.setTimeout(() => setDebounced({ draft, secrets }), DEBOUNCE_MS)
     return () => window.clearTimeout(t)
-  }, [draft])
+  }, [draft, secrets])
 
   useEffect(() => {
-    setResult(validateIntegrationDraft(debounced))
+    setResult(validateIntegrationDraft(debounced.draft, debounced.secrets))
   }, [debounced])
 
   const fieldLevel = useMemo(() => result.fields, [result.fields])
