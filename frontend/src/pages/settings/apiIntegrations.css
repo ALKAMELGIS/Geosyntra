@@ -666,15 +666,24 @@ html[data-theme='light'] .api-integ-tw-input {
   color: var(--gs-lt-text, #1d2030);
 }
 
-/* ΓöÇΓöÇ API Manager list layout (reference mock ΓÇö cards + tabs on app content surface) ΓöÇΓöÇ */
+/* API Manager — light reference layout (list cards + pill tabs) */
 
 .api-manager-page {
+  --api-mgr-bg: #ffffff;
+  --api-mgr-text: #0f172a;
+  --api-mgr-muted: #64748b;
+  --api-mgr-border: #e2e8f0;
+  --api-mgr-surface: #ffffff;
+  --api-mgr-surface-muted: #f1f5f9;
   display: grid;
-  gap: 22px;
-  max-width: 980px;
+  gap: 20px;
+  max-width: 920px;
   margin: 0 auto;
-  padding: 4px 4px 28px;
+  padding: clamp(12px, 2vw, 20px) clamp(8px, 2vw, 16px) 32px;
   box-sizing: border-box;
+  color: var(--api-mgr-text);
+  background: var(--api-mgr-bg);
+  border-radius: 16px;
 }
 
 .api-manager-page__header {
@@ -685,43 +694,23 @@ html[data-theme='light'] .api-integ-tw-input {
   flex-wrap: wrap;
 }
 
-.api-manager-page__brand {
-  display: flex;
-  align-items: flex-start;
-  gap: 14px;
-  min-width: 0;
-}
-
-.api-manager-page__icon {
-  width: 42px;
-  height: 42px;
-  border-radius: 12px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-  font-size: 17px;
-  color: var(--ds-color-text-muted, #64748b);
-  background: var(--ds-color-surface-muted, #f8fafc);
-  border: 1px solid var(--ds-color-border, #e2e8f0);
-}
-
 .api-manager-page__titles {
   min-width: 0;
 }
 
 .api-manager-page__title {
   margin: 0;
-  font-size: clamp(1.45rem, 2.4vw, 1.65rem);
+  font-size: clamp(1.5rem, 2.5vw, 1.75rem);
   font-weight: 800;
   letter-spacing: -0.02em;
-  color: var(--ds-color-text, #0f172a);
+  color: var(--api-mgr-text);
 }
 
 .api-manager-page__subtitle {
   margin: 6px 0 0;
-  font-size: 0.92rem;
-  color: var(--ds-color-text-muted, #64748b);
+  font-size: 0.95rem;
+  line-height: 1.45;
+  color: var(--api-mgr-muted);
 }
 
 .api-manager-page__add-btn {
@@ -729,33 +718,58 @@ html[data-theme='light'] .api-integ-tw-input {
   align-items: center;
   gap: 8px;
   white-space: nowrap;
+  padding: 10px 16px;
+  border: none;
+  border-radius: 8px;
+  font: inherit;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: #ffffff;
+  background: #0f172a;
+  cursor: pointer;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.12);
+  transition:
+    background 0.16s ease,
+    transform 0.14s ease,
+    box-shadow 0.16s ease;
+}
+
+.api-manager-page__add-btn:hover {
+  background: #1e293b;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.18);
+}
+
+.api-manager-page__add-btn:focus-visible {
+  outline: 2px solid #334155;
+  outline-offset: 2px;
 }
 
 .api-manager-page__add-btn i {
-  font-size: 14px;
+  font-size: 13px;
 }
 
 .api-manager-tabs {
-  display: flex;
+  display: inline-flex;
   flex-wrap: wrap;
-  gap: 4px;
-  padding: 4px;
+  gap: 2px;
+  padding: 3px;
   width: fit-content;
   max-width: 100%;
-  border-radius: 12px;
-  border: 1px solid var(--ds-color-border, #e2e8f0);
-  background: var(--ds-color-surface-muted, #f1f5f9);
+  border-radius: 999px;
+  border: 1px solid var(--api-mgr-border);
+  background: var(--api-mgr-surface-muted);
 }
 
 .api-manager-tabs__trigger {
   border: none;
   background: transparent;
-  color: var(--ds-color-text-muted, #64748b);
+  color: var(--api-mgr-muted);
   font: inherit;
-  font-size: 0.88rem;
+  font-size: 0.875rem;
   font-weight: 600;
-  padding: 8px 14px;
-  border-radius: 8px;
+  padding: 8px 16px;
+  border-radius: 999px;
   cursor: pointer;
   transition:
     background 0.16s ease,
@@ -764,14 +778,13 @@ html[data-theme='light'] .api-integ-tw-input {
 }
 
 .api-manager-tabs__trigger:hover {
-  color: var(--ds-color-text, #334155);
-  background: rgba(255, 255, 255, 0.65);
+  color: #334155;
 }
 
 .api-manager-tabs__trigger--active {
-  color: var(--ds-color-text, #0f172a);
-  background: var(--ds-color-surface, #ffffff);
-  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.1);
+  color: var(--api-mgr-text);
+  background: var(--api-mgr-surface);
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.08);
 }
 
 .api-manager-list {
@@ -781,9 +794,10 @@ html[data-theme='light'] .api-integ-tw-input {
 
 .api-manager-list__empty {
   margin: 0;
-  padding: 18px 16px;
+  padding: 20px 16px;
   font-size: 0.92rem;
-  color: var(--ds-color-text-muted, #64748b);
+  color: var(--api-mgr-muted);
+  text-align: center;
 }
 
 .api-manager-row {
@@ -792,11 +806,10 @@ html[data-theme='light'] .api-integ-tw-input {
   justify-content: space-between;
   gap: 14px;
   flex-wrap: wrap;
-  padding: 14px 16px;
-  border-radius: 12px;
-  border: 1px solid var(--ds-color-border, #e2e8f0);
-  background: var(--ds-color-surface, #ffffff);
-  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+  padding: 14px 18px;
+  border-radius: 10px;
+  border: 1px solid var(--api-mgr-border);
+  background: var(--api-mgr-surface);
 }
 
 .api-manager-row__info {
@@ -807,40 +820,62 @@ html[data-theme='light'] .api-integ-tw-input {
 }
 
 .api-manager-row__key {
-  width: 38px;
-  height: 38px;
-  border-radius: 10px;
+  width: auto;
+  height: auto;
+  padding: 0;
+  border: none;
+  background: transparent;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
-  color: var(--ds-color-text-muted, #64748b);
-  background: var(--ds-color-surface-muted, #f8fafc);
-  border: 1px solid var(--ds-color-border, #e2e8f0);
+  color: #94a3b8;
 }
 
 .api-manager-row__key i {
-  font-size: 15px;
+  font-size: 18px;
+  font-weight: 300;
 }
 
 .api-manager-row__name {
   margin: 0;
-  font-size: 0.98rem;
-  font-weight: 650;
-  color: var(--ds-color-text, #0f172a);
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--api-mgr-text);
 }
 
 .api-manager-row__type {
   margin: 2px 0 0;
-  font-size: 0.82rem;
-  color: var(--ds-color-text-muted, #64748b);
+  font-size: 0.84rem;
+  color: var(--api-mgr-muted);
 }
 
 .api-manager-row__actions {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 12px;
   flex-shrink: 0;
+}
+
+.api-manager-row__toolbar {
+  display: inline-flex;
+  align-items: stretch;
+  border-radius: 8px;
+  border: 1px solid var(--api-mgr-border);
+  overflow: hidden;
+  background: var(--api-mgr-surface);
+}
+
+.api-manager-row__toolbar .api-manager-icon-btn {
+  width: 36px;
+  height: 36px;
+  border: none;
+  border-radius: 0;
+  border-inline-end: 1px solid var(--api-mgr-border);
+}
+
+.api-manager-row__toolbar .api-manager-icon-btn:last-child {
+  border-inline-end: none;
 }
 
 .api-manager-badge {
@@ -865,9 +900,9 @@ html[data-theme='light'] .api-integ-tw-input {
   height: 34px;
   padding: 0;
   border-radius: 8px;
-  border: 1px solid var(--ds-color-border, #e2e8f0);
-  background: var(--ds-color-surface, #ffffff);
-  color: var(--ds-color-text, #334155);
+  border: 1px solid var(--api-mgr-border);
+  background: var(--api-mgr-surface);
+  color: #334155;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -879,8 +914,12 @@ html[data-theme='light'] .api-integ-tw-input {
 }
 
 .api-manager-icon-btn:hover {
-  background: var(--ds-color-surface-muted, #f8fafc);
+  background: #f8fafc;
   border-color: #cbd5e1;
+}
+
+.api-manager-row__toolbar .api-manager-icon-btn:hover {
+  background: #f8fafc;
 }
 
 .api-manager-icon-btn i {
@@ -898,89 +937,32 @@ html[data-theme='light'] .api-integ-tw-input {
   border-color: #b91c1c;
 }
 
-.api-manager-form-card {
-  padding: 18px 20px;
-  border-radius: 12px;
-  border: 1px solid var(--ds-color-border, #e2e8f0);
-  background: var(--ds-color-surface, #ffffff);
-  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
-}
-
-.api-manager-form-card__title {
-  margin: 0;
-  font-size: 1rem;
-  font-weight: 700;
-  color: var(--ds-color-text, #0f172a);
-}
-
-.api-manager-form-card__hint {
-  margin: 8px 0 14px;
-  font-size: 0.88rem;
-  color: var(--ds-color-text-muted, #64748b);
-  line-height: 1.45;
-}
-
-.api-manager-form-card__fields {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 12px;
-  margin-bottom: 14px;
-}
-
-.api-manager-form-card__field--wide {
-  grid-column: 1 / -1;
-}
-
-.api-manager-form-card__field--ghost {
-  height: 40px;
-  border-radius: 10px;
-  border: 1px dashed var(--ds-color-border, #e2e8f0);
-  background: var(--ds-color-surface-muted, #f8fafc);
-}
-
-html[data-theme='dark'] .api-manager-badge--active {
-  background: rgba(255, 255, 255, 0.92);
-  color: #0f172a;
-}
-
-html[data-theme='dark'] .api-manager-badge--inactive {
-  background: rgba(255, 255, 255, 0.1);
-  color: rgba(212, 212, 220, 0.85);
-}
-
-html[data-theme='dark'] .api-manager-row,
-html[data-theme='dark'] .api-manager-form-card {
-  background: rgba(255, 255, 255, 0.04);
-  border-color: rgba(255, 255, 255, 0.1);
-}
-
-html[data-theme='dark'] .api-manager-row__key {
-  background: rgba(255, 255, 255, 0.06);
-  border-color: rgba(255, 255, 255, 0.12);
-}
-
-html[data-theme='dark'] .api-manager-icon-btn {
-  background: rgba(255, 255, 255, 0.05);
-  border-color: rgba(255, 255, 255, 0.14);
-  color: rgba(232, 232, 238, 0.92);
-}
-
-html[data-theme='dark'] .api-manager-tabs {
-  background: rgba(255, 255, 255, 0.06);
-  border-color: rgba(255, 255, 255, 0.1);
-}
-
-html[data-theme='dark'] .api-manager-tabs__trigger--active {
-  background: rgba(255, 255, 255, 0.12);
-  color: #ffffff;
+/* Keep reference light UI even when the app shell is in dark mode */
+html[data-theme='dark'] .api-manager-page {
+  --api-mgr-bg: #ffffff;
+  --api-mgr-text: #0f172a;
+  --api-mgr-muted: #64748b;
+  --api-mgr-border: #e2e8f0;
+  --api-mgr-surface: #ffffff;
+  --api-mgr-surface-muted: #f1f5f9;
 }
 
 @media (max-width: 640px) {
-  .api-manager-form-card__fields {
-    grid-template-columns: 1fr;
+  .api-manager-page__header {
+    flex-direction: column;
+    align-items: stretch;
   }
 
-  .api-manager-form-card__field--wide {
-    grid-column: auto;
+  .api-manager-page__add-btn {
+    justify-content: center;
+  }
+
+  .api-manager-row {
+    align-items: flex-start;
+  }
+
+  .api-manager-row__actions {
+    width: 100%;
+    justify-content: space-between;
   }
 }

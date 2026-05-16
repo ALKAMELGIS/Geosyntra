@@ -1,5 +1,4 @@
 ﻿import { useCallback, useMemo, useState } from 'react'
-import { motion } from 'framer-motion'
 import { useLanguage } from '../../lib/i18n'
 import { IntegrationModal } from './apiIntegration/components/IntegrationModal'
 import {
@@ -47,15 +46,11 @@ export default function ApiIntegrations() {
   const copy = ar
     ? {
         title: 'مدير API',
-        subtitle: 'إدارة التكاملات والمفاتيح السرية بأمان — تفعّل Satellite Intelligence وخريطة GIS',
+        subtitle: 'إدارة التكاملات والمفاتيح السرية بأمان',
         addApi: 'إضافة API',
         tabs: { all: 'الكل', map: 'خرائط', ai: 'ذكاء اصطناعي', satellite: 'أقمار صناعية' },
         typePrefix: 'النوع:',
-        addNew: 'إضافة API جديد',
-        addHint:
-          'افتح معالج التكامل لاختيار المزوّد (Mapbox، ArcGIS، Sentinel Hub، Gemini…) وحفظ المفاتيح لتفعيل الخرائط والأدوات.',
-        openWizard: 'فتح معالج التكامل',
-        test: 'اختبار',
+        edit: 'تعديل',
         settings: 'إعدادات',
         delete: 'حذف',
         active: 'نشط',
@@ -65,15 +60,11 @@ export default function ApiIntegrations() {
       }
     : {
         title: 'API Manager',
-        subtitle: 'Manage all integrations & secrets securely — powers Satellite Intelligence & GIS Map',
+        subtitle: 'Manage all integrations & secrets securely',
         addApi: 'Add API',
         tabs: { all: 'All', map: 'Map APIs', ai: 'AI APIs', satellite: 'Satellite' },
         typePrefix: 'Type:',
-        addNew: 'Add New API',
-        addHint:
-          'Open the integration wizard to pick a provider (Mapbox, ArcGIS, Sentinel Hub, Gemini…) and store keys to enable maps and tools.',
-        openWizard: 'Open integration wizard',
-        test: 'Test connection',
+        edit: 'Edit',
         settings: 'Settings',
         delete: 'Delete',
         active: 'Active',
@@ -111,29 +102,19 @@ export default function ApiIntegrations() {
   }
 
   return (
-    <motion.div
-      className="api-manager-page"
-      initial={{ opacity: 0, y: 8 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.28, ease: 'easeOut' }}
-    >
+    <div className="api-manager-page">
       <header className="api-manager-page__header">
-        <motion.div className="api-manager-page__brand">
-          <span className="api-manager-page__icon" aria-hidden>
-            <i className="fa-solid fa-key" />
-          </span>
-          <motion.div className="api-manager-page__titles">
-            <h1 className="api-manager-page__title">{copy.title}</h1>
-            <p className="api-manager-page__subtitle">{copy.subtitle}</p>
-          </motion.div>
-        </motion.div>
-        <button type="button" className="api-integ-btn api-integ-btn--primary api-manager-page__add-btn" onClick={openCreate}>
+        <div className="api-manager-page__titles">
+          <h1 className="api-manager-page__title">{copy.title}</h1>
+          <p className="api-manager-page__subtitle">{copy.subtitle}</p>
+        </div>
+        <button type="button" className="api-manager-page__add-btn" onClick={openCreate}>
           <i className="fa-solid fa-plus" aria-hidden />
           {copy.addApi}
         </button>
       </header>
 
-      <motion.div className="api-manager-tabs" role="tablist" aria-label={ar ? 'تصفية التكاملات' : 'Filter integrations'}>
+      <div className="api-manager-tabs" role="tablist" aria-label={ar ? 'تصفية التكاملات' : 'Filter integrations'}>
         {(
           [
             ['all', copy.tabs.all],
@@ -155,22 +136,15 @@ export default function ApiIntegrations() {
             {label}
           </button>
         ))}
-      </motion.div>
+      </div>
 
-      <motion.div className="api-manager-list" role="tabpanel" layout>
+      <div className="api-manager-list" role="tabpanel">
         {filtered.length === 0 ? (
           <p className="api-manager-list__empty">{copy.empty}</p>
         ) : (
-          filtered.map((row, idx) => (
-            <motion.article
-              key={row.id}
-              className="api-manager-row"
-              initial={{ opacity: 0, y: 6 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.03 * idx }}
-              whileHover={{ scale: 1.006 }}
-            >
-              <motion.div className="api-manager-row__info" whileHover={{ x: 2 }}>
+          filtered.map(row => (
+            <article key={row.id} className="api-manager-row">
+              <div className="api-manager-row__info">
                 <span className="api-manager-row__key" aria-hidden>
                   <i className="fa-solid fa-key" />
                 </span>
@@ -180,9 +154,9 @@ export default function ApiIntegrations() {
                     {copy.typePrefix} {displayType(getProvider(row.providerId).category)}
                   </p>
                 </div>
-              </motion.div>
+              </div>
 
-              <motion.div className="api-manager-row__actions">
+              <div className="api-manager-row__actions">
                 <span
                   className={[
                     'api-manager-badge',
@@ -192,65 +166,42 @@ export default function ApiIntegrations() {
                   {row.active ? copy.active : copy.inactive}
                 </span>
 
-                <button
-                  type="button"
-                  className="api-manager-icon-btn"
-                  title={copy.test}
-                  aria-label={copy.test}
-                  onClick={() => openEdit(row)}
-                >
-                  <i className="fa-solid fa-flask" aria-hidden />
-                </button>
-                <button
-                  type="button"
-                  className="api-manager-icon-btn"
-                  title={copy.settings}
-                  aria-label={copy.settings}
-                  onClick={() => openEdit(row)}
-                >
-                  <i className="fa-solid fa-gear" aria-hidden />
-                </button>
-                <button
-                  type="button"
-                  className="api-manager-icon-btn api-manager-icon-btn--danger"
-                  title={copy.delete}
-                  aria-label={copy.delete}
-                  onClick={() => remove(row.id)}
-                >
-                  <i className="fa-solid fa-trash" aria-hidden />
-                </button>
-              </motion.div>
-            </motion.article>
+                <div className="api-manager-row__toolbar" role="group" aria-label={ar ? 'إجراءات' : 'Actions'}>
+                  <button
+                    type="button"
+                    className="api-manager-icon-btn"
+                    title={copy.edit}
+                    aria-label={copy.edit}
+                    onClick={() => openEdit(row)}
+                  >
+                    <i className="fa-solid fa-pencil" aria-hidden />
+                  </button>
+                  <button
+                    type="button"
+                    className="api-manager-icon-btn"
+                    title={copy.settings}
+                    aria-label={copy.settings}
+                    onClick={() => openEdit(row)}
+                  >
+                    <i className="fa-solid fa-gear" aria-hidden />
+                  </button>
+                  <button
+                    type="button"
+                    className="api-manager-icon-btn api-manager-icon-btn--danger"
+                    title={copy.delete}
+                    aria-label={copy.delete}
+                    onClick={() => remove(row.id)}
+                  >
+                    <i className="fa-solid fa-trash" aria-hidden />
+                  </button>
+                </div>
+              </div>
+            </article>
           ))
         )}
-      </motion.div>
-
-      <motion.section
-        className="api-manager-form-card"
-        id="api-integrations-add-form"
-        initial={{ opacity: 0, y: 8 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.1 }}
-      >
-        <h2 className="api-manager-form-card__title">{copy.addNew}</h2>
-        <p className="api-manager-form-card__hint">{copy.addHint}</p>
-        <div className="api-manager-form-card__fields" aria-hidden>
-          <div className="api-manager-form-card__field api-manager-form-card__field--ghost" />
-          <motion.div
-            className="api-manager-form-card__field api-manager-form-card__field--ghost"
-            whileHover={{ scale: 1.01 }}
-          />
-          <motion.div
-            className="api-manager-form-card__field api-manager-form-card__field--ghost api-manager-form-card__field--wide"
-            whileHover={{ scale: 1.01 }}
-          />
-        </div>
-        <button type="button" className="api-integ-btn api-integ-btn--primary" onClick={openCreate}>
-          {copy.openWizard}
-        </button>
-      </motion.section>
+      </div>
 
       <IntegrationModal open={modalOpen} record={editing} onClose={closeModal} onSaved={refresh} />
-    </motion.div>
+    </div>
   )
 }
