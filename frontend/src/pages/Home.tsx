@@ -7,8 +7,7 @@ import { HomeSaasHero } from './home/HomeSaasHero'
 import './Home.css'
 
 /**
- * Home — SaaS entry surface (replaces legacy marketing landing + /login redirect).
- * Shell has no marketing copy; strings and hero body are injected from `homeSaasContent` / `HomeSaasHero`.
+ * Home — SaaS entry surface: shell is layout-only; copy and hero live in `homeSaasContent`.
  */
 export default function Home() {
   const navigate = useNavigate()
@@ -19,7 +18,7 @@ export default function Home() {
     <div className="home-saas-entry min-h-screen w-full max-w-full">
       <SaasEntryShell
         brand={homeSaasContent.brand}
-        brandHref={SAAS_ROUTES.home}
+        brandHref="#/"
         navItems={homeSaasContent.navItems}
         signInAction={{
           label: homeSaasContent.signInLabel,
@@ -28,10 +27,11 @@ export default function Home() {
         }}
         hero={
           <HomeSaasHero
+            copy={homeSaasContent.hero}
             startAction={{
               label: homeSaasContent.startLabel,
               onClick: () => go(SAAS_ROUTES.onboardingTrialStart),
-              'aria-label': 'Continue to onboarding',
+              'aria-label': 'Start free trial',
             }}
           />
         }
