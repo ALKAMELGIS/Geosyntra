@@ -243,16 +243,20 @@ function excelDecimalText(v: number): string {
   if (v === 0 || Object.is(v, -0)) return '0'
   const raw = String(v)
   if (/[eE]/.test(raw)) {
-    const expanded = v.toLocaleString('en-US', { useGrouping: false, maximumFractionDigits: 20 })
+    const expanded = v.toLocaleString('en-US', { useGrouping: false, maximumFractionDigits: 21 })
     if (v !== 0 && (expanded === '0' || expanded === '-0')) return raw
     return expanded
   }
   const localized = v.toLocaleString('en-US', {
     maximumSignificantDigits: 17,
-    maximumFractionDigits: 16,
+    maximumFractionDigits: 21,
     useGrouping: false,
   })
-  if (v !== 0 && (localized === '0' || localized === '-0')) return raw
+  if (v !== 0 && (localized === '0' || localized === '-0')) {
+    const prec = v.toPrecision(17)
+    if (prec !== '0' && prec !== '-0') return prec
+    return raw
+  }
   return localized
 }
 
@@ -595,7 +599,7 @@ export function buildGeoAiIndexAnalyticalWorkbook(opts: {
       vals.length && Number.isFinite(mnc) ? excelDecimalText(mnc) : '',
     ])
   }
-  appendSheetWithColWidths(wb, classStats, 'Class_Statistics', [14, 56, 18, 34, 40], ws => {
+  appendSheetWithColWidths(wb, classStats, 'Class_Statistics', [14, 58, 18, 30, 38], ws => {
     forceCellsPlainText(ws, 1, [0, 1, 2, 3, 4])
   })
 
