@@ -537,7 +537,7 @@ export function SatelliteMapAnalysisChrome(props: SatelliteMapAnalysisChromeProp
       {timelineVisible && weeklyChips.length > 0 ? (
         <div
           ref={timelineShellRef}
-          className={['si-map-analysis-timeline', timelineDragging ? 'si-map-analysis-timeline--dragging' : '']
+          className={['si-map-analysis-timeline si-timeline', timelineDragging ? 'si-map-analysis-timeline--dragging' : '']
             .filter(Boolean)
             .join(' ')}
           role="region"
@@ -578,6 +578,7 @@ export function SatelliteMapAnalysisChrome(props: SatelliteMapAnalysisChromeProp
               </button>
               <button
                 type="button"
+                data-si-timeline-play
                 className={`si-map-analysis-tl-play ${timelinePlaying ? 'si-map-analysis-tl-play--on' : ''}`}
                 aria-label={timelinePlaying ? 'Pause timeline' : 'Play timeline'}
                 aria-pressed={timelinePlaying}

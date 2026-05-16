@@ -22,16 +22,36 @@ export function collectAoiRings(geom: GeoJSON.Geometry): number[][][] {
   return rings;
 }
 
+export type SiAoiProjectedRing = { x: number; y: number }[];
+
 function projectRing(
   map: MapboxMap,
   ring: number[][],
   sx: number,
   sy: number,
-): { x: number; y: number }[] {
+): SiAoiProjectedRing {
   return ring.map(([lng, lat]) => {
     const p = map.project([lng, lat]);
     return { x: p.x * sx, y: p.y * sy };
   });
+}
+
+/** Project AOI rings once while the map is frozen — avoids outline drift during async capture. */
+export function projectAoiRingsForSnapshot(
+  map: MapboxMap,
+  aoiFeature: GeoJSON.Feature,
+  imageScale = 1,
+): SiAoiProjectedRing[] {
+  const geom = aoiFeature.geometry;
+  if (!geom) return [];
+  const rings = collectAoiRings(geom);
+  const canvas = map.getCanvas();
+  const mapW = canvas.width;
+  const mapH = canvas.height;
+  if (!mapW || !mapH) return [];
+  const sx = imageScale;
+  const sy = imageScale;
+  return rings.map(ring => projectRing(map, ring, sx, sy));
 }
 
 function traceRingPath(ctx: CanvasRenderingContext2D, pts: { x: number; y: number }[]) {
@@ -58,7 +78,15 @@ export async function clipMapSnapshotToAoiFeature(
   map: MapboxMap,
   pngDataUrl: string,
   aoiFeature: GeoJSON.Feature,
-  opts?: { outlineColor?: string; outsideFill?: string },
+  opts?: {
+    outlineColor?: string;
+    outsideFill?: string;
+    /** Pre-projected rings at capture scale — do not call `map.project` again. */
+    projectedRings?: SiAoiProjectedRing[];
+    /** AOI outline is already painted on the map canvas — skip second stroke. */
+    skipOutlineStroke?: boolean;
+    imageScale?: number;
+  },
 ): Promise<string> {
   const geom = aoiFeature.geometry;
   if (!geom) return pngDataUrl;
@@ -76,6 +104,10 @@ export async function clipMapSnapshotToAoiFeature(
 
     const sx = imgW / mapW;
     const sy = imgH / mapH;
+    const projected =
+      opts?.projectedRings ??
+      rings.map(ring => projectRing(map, ring, sx, sy));
+
     const c = document.createElement('canvas');
     c.width = imgW;
     c.height = imgH;
@@ -87,23 +119,24 @@ export async function clipMapSnapshotToAoiFeature(
 
     ctx.save();
     ctx.beginPath();
-    for (const ring of rings) {
-      traceRingPath(ctx, projectRing(map, ring, sx, sy));
+    for (const pts of projected) {
+      traceRingPath(ctx, pts);
     }
     ctx.clip('evenodd');
     ctx.drawImage(img, 0, 0, imgW, imgH);
     ctx.restore();
 
-    const outline = opts?.outlineColor ?? 'rgba(34, 197, 94, 0.95)';
-    ctx.strokeStyle = outline;
-    ctx.lineWidth = Math.max(2, Math.round(imgW * 0.0035));
-    ctx.lineJoin = 'round';
-    for (const ring of rings) {
-      const pts = projectRing(map, ring, sx, sy);
-      if (!pts.length) continue;
-      ctx.beginPath();
-      traceRingPath(ctx, pts);
-      ctx.stroke();
+    if (!opts?.skipOutlineStroke) {
+      const outline = opts?.outlineColor ?? 'rgba(34, 197, 94, 0.95)';
+      ctx.strokeStyle = outline;
+      ctx.lineWidth = Math.max(2, Math.round(imgW * 0.0035));
+      ctx.lineJoin = 'round';
+      for (const pts of projected) {
+        if (!pts.length) continue;
+        ctx.beginPath();
+        traceRingPath(ctx, pts);
+        ctx.stroke();
+      }
     }
 
     return c.toDataURL('image/png');

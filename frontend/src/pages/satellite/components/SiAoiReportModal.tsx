@@ -543,7 +543,7 @@ export function SiAoiReportModal({
         const raw = await captureLiveMapSnapshot({
           freezeViewport: true,
           scale: 3,
-          profile: 'fast',
+          profile: 'quality',
           aoiFeature: aoiFeat,
         });
         if (!raw) return;
@@ -675,7 +675,7 @@ export function SiAoiReportModal({
         mapPng = await captureLiveMapSnapshot({
           date: slot.date,
           scale: 3,
-          profile: 'fast',
+          profile: 'quality',
           ...liveSnapshotAoiOpts,
           skipTimelineRestore: i < slots.length - 1,
         });
@@ -919,7 +919,7 @@ export function SiAoiReportModal({
           const raw = await captureLiveMapSnapshot({
             freezeViewport: true,
             scale: 3,
-            profile: 'fast',
+            profile: 'quality',
             ...liveSnapshotAoiOpts,
           });
           if (raw) {

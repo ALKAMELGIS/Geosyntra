@@ -1,0 +1,11 @@
+/* Freeze map chrome while report snapshot is in progress */
+body.si-map-capture-frozen .si-map-analysis-timeline,
+body.si-map-capture-frozen .si-map-analysis-timeline-transport,
+body.si-map-capture-frozen [data-si-timeline-play] {
+  pointer-events: none !important;
+  opacity: 0.72;
+}
+
+body.si-map-capture-frozen .mapboxgl-canvas {
+  will-change: auto;
+}

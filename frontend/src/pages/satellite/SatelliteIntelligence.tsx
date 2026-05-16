@@ -13,6 +13,7 @@ import { motion } from 'framer-motion';
 import MapGL, { Source, Layer, Marker } from 'react-map-gl/mapbox';
 import 'mapbox-gl/dist/mapbox-gl.css';
 import './SatelliteIntelligence.css';
+import './utils/siMapCaptureSession.css';
 import '../dashboards/develop-dashboard.css';
 import { parseFile, parseRemoteUrlAsFile } from '../../utils/FileLoader';
 import type { RasterMapCoordinates } from '../../utils/FileLoader';
@@ -179,6 +180,7 @@ import { SatelliteAoiStaticChartsMapOverlay } from './components/SatelliteAoiSta
 import { SiAoiReportModal } from './components/SiAoiReportModal';
 import { siAoiPaletteFromIndexRampStops, siAoiReportFeatureBBoxLngLat } from './utils/siAoiVegetationReportModel';
 import { captureSiReportMapSnapshot } from './utils/siReportMapSnapshotEngine';
+import { isSiMapCaptureSessionActive } from './utils/siMapCaptureSession';
 import type { SiLiveMapSnapshotCapture } from './utils/siMapViewerSnapshot';
 import type { SiGeoAiIndexAnalyticalExportContext } from './utils/siGeoAiIndexAnalyticalExport';
 import {
@@ -3588,6 +3590,7 @@ export default function SatelliteIntelligence() {
   }, [customLayers]);
 
   const applySelectedDate = useCallback((date: Date, opts?: { expandRange?: boolean }) => {
+    if (isSiMapCaptureSessionActive()) return;
     const iso = date.toISOString().split('T')[0];
     const expandRange = opts?.expandRange !== false;
     startTransition(() => {
@@ -3599,6 +3602,7 @@ export default function SatelliteIntelligence() {
   }, []);
 
   const advanceTimelinePlaybackStep = useCallback(() => {
+    if (isSiMapCaptureSessionActive()) return;
     if (!timelinePlaybackArmedRef.current || !isTimelinePlayingRef.current) {
       pauseTimelinePlayback();
       return;
@@ -10709,8 +10713,9 @@ export default function SatelliteIntelligence() {
       return;
     }
     pauseTimelinePlayback();
+    clearTimelinePlaybackInterval();
     startTransition(() => setSiAoiReportModalOpen(true));
-  }, [multiAoiItems.length, drawnGeometry, pauseTimelinePlayback]);
+  }, [multiAoiItems.length, drawnGeometry, pauseTimelinePlayback, clearTimelinePlaybackInterval]);
 
   const liveSnapshotAoiFeature = useMemo((): GeoJSON.Feature | null => {
     if (multiAoiItems.length && activeMultiAoiId) {
@@ -10755,7 +10760,7 @@ export default function SatelliteIntelligence() {
           fitBounds: fit ?? undefined,
           aoiFeature: aoiFeature ?? undefined,
           scale: opts?.scale ?? 3,
-          profile: freeze ? 'fast' : (opts?.profile ?? 'balanced'),
+          profile: freeze ? 'quality' : (opts?.profile ?? 'balanced'),
           outlineColor: 'rgba(34, 197, 94, 0.95)',
         });
       } catch {
@@ -11894,7 +11899,10 @@ export default function SatelliteIntelligence() {
             key={`si-map-globe:${mapboxAccessTokenForMap ? 'token' : 'no-token'}`}
             ref={mapRef}
             {...viewState}
-            onMove={evt => setViewState(evt.viewState)}
+            onMove={evt => {
+              if (isSiMapCaptureSessionActive()) return;
+              setViewState(evt.viewState);
+            }}
             onMouseDown={handleMapPointerDown}
             onMouseMove={handleMapPointerMove}
             onTouchStart={handleMapPointerDown}

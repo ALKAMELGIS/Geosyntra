@@ -81,6 +81,75 @@ export function flushMapboxPaint(): Promise<void> {
   });
 }
 
+/** Wait for the next Mapbox GL paint (basemap + rasters committed to the WebGL buffer). */
+export function waitForNextMapRender(map: MapboxMap, timeoutMs = 6000): Promise<void> {
+  return new Promise(resolve => {
+    let done = false;
+    const finish = () => {
+      if (done) return;
+      done = true;
+      try {
+        map.off('render', onRender);
+      } catch {
+        /* ignore */
+      }
+      resolve();
+    };
+    const onRender = () => finish();
+    try {
+      map.on('render', onRender);
+      map.triggerRepaint?.();
+    } catch {
+      finish();
+      return;
+    }
+    window.setTimeout(finish, timeoutMs);
+  });
+}
+
+function listStyleSourceIds(map: MapboxMap): string[] {
+  try {
+    const sources = map.getStyle()?.sources ?? {};
+    return Object.keys(sources);
+  } catch {
+    return [];
+  }
+}
+
+/** Poll until raster sources (basemap + WMS) report loaded, then idle + tiles. */
+export async function waitForAllMapSourcesReady(map: MapboxMap, timeoutMs = 9000): Promise<void> {
+  const rasterIds = listStyleSourceIds(map).filter(id => {
+    try {
+      const t = map.getStyle()?.sources?.[id] as { type?: string } | undefined;
+      return t?.type === 'raster';
+    } catch {
+      return false;
+    }
+  });
+  const t0 = typeof performance !== 'undefined' ? performance.now() : Date.now();
+  const poll = async (): Promise<void> => {
+    const elapsed = (typeof performance !== 'undefined' ? performance.now() : Date.now()) - t0;
+    if (elapsed >= timeoutMs) return;
+    const ready =
+      rasterIds.length === 0 ||
+      rasterIds.every(id => {
+        try {
+          return map.isSourceLoaded(id);
+        } catch {
+          return true;
+        }
+      });
+    if (ready) return;
+    await new Promise<void>(r => window.setTimeout(r, 48));
+    return poll();
+  };
+  await poll();
+  await waitForMapboxIdle(map, Math.min(5000, timeoutMs));
+  await waitForMapboxTilesPainted(map, Math.min(4500, timeoutMs));
+  await waitForNextMapRender(map, Math.min(4000, timeoutMs));
+  await flushMapboxPaint();
+}
+
 /**
  * Idle → tiles loaded → repaint → rAF (×2 passes), then PNG. Use for AOI report / export snapshots.
  */
@@ -105,6 +174,9 @@ export function captureMapboxCanvasPng(map: MapboxMap, scale = 2): string | null
     const w = canvas.width;
     const h = canvas.height;
     const s = Math.min(4, Math.max(1, scale));
+    if (s <= 1) {
+      return canvas.toDataURL('image/png');
+    }
     const c = document.createElement('canvas');
     c.width = Math.round(w * s);
     c.height = Math.round(h * s);
