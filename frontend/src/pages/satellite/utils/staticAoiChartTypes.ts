@@ -46,3 +46,13 @@ export function sortStaticAoiChartLayerIds(ids: StaticAoiChartLayerId[]): Static
   const order = STATIC_AOI_CHART_LAYER_OPTIONS.map(o => o.id);
   return [...ids].sort((a, b) => order.indexOf(a) - order.indexOf(b));
 }
+
+/** Stable AOI fingerprint for charts / zonal stats (pure — no hook ordering hazards). */
+export function getStaticAoiChartAoiKey(drawnGeometry: unknown): string | null {
+  if (!drawnGeometry) return null;
+  try {
+    return JSON.stringify(drawnGeometry);
+  } catch {
+    return 'aoi';
+  }
+}

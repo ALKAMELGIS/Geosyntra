@@ -204,6 +204,7 @@ import {
   buildStaticAoiMultiChartDatasets,
   defaultStaticAoiComparisonLayers,
   formatStaticChartWeekLabel,
+  getStaticAoiChartAoiKey,
   sortStaticAoiChartLayerIds,
   staticAoiLayerMeanForWeek,
   type StaticAoiChartLayerId,
@@ -2821,6 +2822,7 @@ export default function SatelliteIntelligence() {
   const [polylineStart, setPolylineStart] = useState<[number, number] | null>(null);
   const [polygonRing, setPolygonRing] = useState<[number, number][]>([]);
   const [drawnGeometry, setDrawnGeometry] = useState<any | null>(null);
+  const staticAoiChartAoiKey = getStaticAoiChartAoiKey(drawnGeometry);
   const [multiAoiItems, setMultiAoiItems] = useState<SiMultiAoiWorkspaceRow[]>([]);
   const [activeMultiAoiId, setActiveMultiAoiId] = useState<string | null>(null);
   const [aoiLayerMenuOpenId, setAoiLayerMenuOpenId] = useState<string | null>(null);
@@ -9725,15 +9727,6 @@ export default function SatelliteIntelligence() {
     }
     return drawnGeometry;
   }, [multiAoiItems, activeMultiAoiId, drawnGeometry]);
-
-  const staticAoiChartAoiKey = useMemo(() => {
-    if (!drawnGeometry) return null;
-    try {
-      return JSON.stringify(drawnGeometry);
-    } catch {
-      return 'aoi';
-    }
-  }, [drawnGeometry]);
 
   const popupZonalLayerIds = useMemo((): StaticAoiChartLayerId[] => {
     const ids = new Set<StaticAoiChartLayerId>(['NDVI', 'NDWI', 'SAVI', ...staticChartComparisonLayers]);

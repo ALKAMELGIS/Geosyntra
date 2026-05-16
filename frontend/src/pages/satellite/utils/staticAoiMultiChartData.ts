@@ -14,6 +14,7 @@ export {
   STATIC_AOI_CHART_LAYER_OPTIONS,
   STATIC_AOI_CHART_LAYER_INLINE_IDS,
   defaultStaticAoiComparisonLayers,
+  getStaticAoiChartAoiKey,
   sortStaticAoiChartLayerIds,
 } from './staticAoiChartTypes';
 export { formatStaticChartWeekLabel, staticAoiLayerMeanForWeek } from './staticAoiLayerSynthetic';
