@@ -404,9 +404,15 @@ html[data-theme='light'] .gis-pbi-bookstrip:focus-visible {
   outline-color: var(--gs-lt-glow);
 }
 
-html[data-theme='light'] .gis-pbi-bookstrip__chev,
 html[data-theme='light'] .gis-pbi-bookstrip__label {
   color: rgba(29, 32, 48, 0.78);
+}
+
+html[data-theme='light'] .gis-pbi-bookstrip__chev {
+  background: rgba(255, 255, 255, 0.95);
+  border-color: var(--gs-lt-border);
+  color: var(--gs-lt-text);
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.06);
 }
 
 /* Action pane header */

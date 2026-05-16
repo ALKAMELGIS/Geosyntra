@@ -2825,18 +2825,38 @@ aside {
   z-index: 1;
 }
 
-.gis-pbi-bookstrip__chev {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 10px;
-  line-height: 1;
-  opacity: 0.72;
-  color: #475569;
+.gis-sidebar-chevron-icon {
+  display: block;
+  flex-shrink: 0;
+  width: 16px;
+  height: 16px;
+  margin: 0 auto;
+  color: currentColor;
+  shape-rendering: geometricPrecision;
 }
 
-.gis-pbi-bookstrip__chev i {
-  font-size: 11px;
+.gis-sidebar-chevron-icon__arm {
+  vector-effect: non-scaling-stroke;
+}
+
+.gis-pbi-bookstrip__chev {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  flex-shrink: 0;
+  border-radius: 8px;
+  border: 1px solid rgba(148, 163, 184, 0.35);
+  background: rgba(255, 255, 255, 0.88);
+  color: #334155;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.08);
+}
+
+.gis-pbi-bookstrip__chev .gis-sidebar-chevron-icon {
+  width: 14px;
+  height: 14px;
+  margin: 0;
 }
 
 :root[dir='rtl'] .gis-pbi-bookstrip__chev {
@@ -2874,13 +2894,19 @@ aside {
   box-shadow: 0 1px 2px rgba(15, 23, 42, 0.08);
 }
 
+.gis-sidebar-action-pane__close--collapse .gis-sidebar-chevron-icon {
+  width: 14px;
+  height: 14px;
+  margin: 0;
+}
+
 .gis-sidebar-action-pane__close--collapse:hover {
   color: #1d4ed8;
   border-color: rgba(37, 99, 235, 0.45);
   background: #ffffff;
 }
 
-:root[dir='rtl'] .gis-sidebar-action-pane__close--collapse i {
+:root[dir='rtl'] .gis-sidebar-action-pane__close--collapse .gis-sidebar-chevron-icon {
   transform: scaleX(-1);
 }
 
@@ -3479,6 +3505,7 @@ aside {
   min-height: 36px;
   margin: 0 auto;
   padding: 6px 8px;
+  overflow: hidden;
   border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 10px;
   background: #1a1736;
@@ -3492,10 +3519,11 @@ aside {
     border-color 0.16s ease;
 }
 
-.gis-sidebar-rail-expand-toggle i {
-  font-size: 15px;
-  letter-spacing: -0.06em;
-  opacity: 0.95;
+.gis-sidebar-rail-expand-toggle .gis-sidebar-chevron-icon {
+  width: 15px;
+  height: 15px;
+  margin: 0;
+  opacity: 0.96;
 }
 
 .gis-sidebar-rail-expand-toggle:hover {
@@ -3509,7 +3537,7 @@ aside {
   outline-offset: 1px;
 }
 
-:root[dir='rtl'] .gis-sidebar-rail-expand-toggle i {
+:root[dir='rtl'] .gis-sidebar-rail-expand-toggle .gis-sidebar-chevron-icon {
   transform: scaleX(-1);
 }
 
@@ -4198,29 +4226,25 @@ aside {
   right: auto !important;
 }
 
-/* GIS Map: Mapbox inserts wordmark before nav in DOM — flex `order` keeps +/−/compass above logo. */
+/* GIS Map: Mapbox DOM is logo → attrib → nav; column-reverse stacks +/−/compass on top, wordmark below. */
 .gis-map-canvas .mapboxgl-ctrl-bottom-left {
-  display: flex;
-  flex-direction: column;
+  display: flex !important;
+  flex-direction: column-reverse;
   align-items: flex-start;
   gap: 6px;
 }
 
-.gis-map-canvas .mapboxgl-ctrl-bottom-left > .mapboxgl-ctrl.mapboxgl-ctrl-group,
-.gis-map-canvas .mapboxgl-ctrl-bottom-left > .mapboxgl-ctrl-group {
-  order: 1;
-}
-
 .gis-map-canvas .mapboxgl-ctrl-bottom-left > .mapboxgl-ctrl.mapboxgl-ctrl-attrib,
 .gis-map-canvas .mapboxgl-ctrl-bottom-left > .mapboxgl-ctrl-attrib {
-  order: 5;
   margin: 0;
 }
 
 .gis-map-canvas .mapboxgl-ctrl-bottom-left > a.mapboxgl-ctrl-logo,
-.gis-map-canvas .mapboxgl-ctrl-bottom-left > .mapboxgl-ctrl-logo {
-  order: 10;
+.gis-map-canvas .mapboxgl-ctrl-bottom-left > .mapboxgl-ctrl-logo,
+.gis-map-canvas .mapboxgl-ctrl-bottom-left a.mapboxgl-ctrl-logo {
+  position: static !important;
   margin: 0;
+  float: none !important;
 }
 
 .gis-map-canvas.projection-globe > .leaflet-container {
@@ -12881,9 +12905,15 @@ textarea {
   outline-color: rgba(255, 255, 255, 0.45);
 }
 
-.gis-pbi-bookstrip__chev,
 .gis-pbi-bookstrip__label {
   color: rgba(212, 212, 220, 0.85);
+}
+
+.gis-pbi-bookstrip__chev {
+  background: rgba(255, 255, 255, 0.06);
+  border-color: rgba(255, 255, 255, 0.14);
+  color: rgba(232, 232, 238, 0.94);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
 }
 
 /* Action-pane header — was solid `#ffffff` row. Now translucent black-glass. */
@@ -13581,8 +13611,17 @@ textarea {
   color: #ffffff;
 }
 
+.gis-pbi-bookstrip:hover .gis-pbi-bookstrip__chev {
+  background: rgba(255, 255, 255, 0.10);
+  border-color: rgba(255, 255, 255, 0.22);
+  color: #ffffff;
+}
+
 .gis-pbi-bookstrip__chev {
-  color: rgba(212, 212, 220, 0.78);
+  background: rgba(255, 255, 255, 0.06);
+  border-color: rgba(255, 255, 255, 0.14);
+  color: rgba(232, 232, 238, 0.94);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
 }
 
 .gis-pbi-bookstrip__label {

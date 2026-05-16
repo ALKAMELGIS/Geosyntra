@@ -23,6 +23,7 @@ import { coerceSymbologyColorRamp, coerceSymbologyMethod, computeBreaks } from '
 import { FieldVisibilityControl } from './components/FieldVisibilityControl'
 import { GeoExplorerGeminiInputRow } from './components/GeoExplorerGeminiInputRow'
 import { MapPopup } from './components/MapPopup'
+import { GisSidebarChevronIcon } from './components/GisSidebarChevronIcon'
 import { DrawToolsController } from './components/DrawTools'
 import { SiChatAiAgentIcon } from './components/SiChatAiAgentIcon'
 import FieldsPanel from './components/fields/FieldsPanel'
@@ -6262,9 +6263,9 @@ export default function GisMap() {
                       aria-label={agolRailCompact ? 'Expand toolbar' : 'Collapse toolbar'}
                       aria-expanded={!agolRailCompact}
                     >
-                      <i
-                        className={agolRailCompact ? 'fa-solid fa-angles-right' : 'fa-solid fa-angles-left'}
-                        aria-hidden="true"
+                      <GisSidebarChevronIcon
+                        kind="double"
+                        direction={agolRailCompact ? 'right' : 'left'}
                       />
                     </button>
                   </div>
@@ -6289,7 +6290,7 @@ export default function GisMap() {
                   title="Expand"
                 >
                   <span className="gis-pbi-bookstrip__chev" aria-hidden="true">
-                    <i className="fa-solid fa-angles-right" />
+                    <GisSidebarChevronIcon kind="single" direction="right" />
                   </span>
                   <span className="gis-pbi-bookstrip__label">Layers</span>
                 </button>
@@ -6310,7 +6311,7 @@ export default function GisMap() {
                     aria-label="Collapse Layers panel"
                     title="Collapse"
                   >
-                    <i className="fa-solid fa-angles-left" aria-hidden="true" />
+                    <GisSidebarChevronIcon kind="double" direction="left" />
                   </button>
                 </div>
               ) : null}
@@ -7104,6 +7105,7 @@ export default function GisMap() {
             style={{ width: '100%', height: '100%' }}
             mapStyle={globeMapStyle}
             mapboxAccessToken={mapboxAccessToken || undefined}
+            logoPosition="bottom-left"
             projection={{ name: 'globe' }}
             renderWorldCopies={false}
             dragRotate
