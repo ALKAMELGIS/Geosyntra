@@ -83,43 +83,6 @@ export const NAV_DEFAULT_GROUPS: NavGroupDef[] = [
       },
     ],
   },
-  {
-    id: 'master',
-    i18nKey: 'masterData',
-    defaultIcon: 'fa-solid fa-cubes',
-    headerClass: 'nav-header-master',
-    children: [
-      {
-        id: 'master-gis',
-        path: '/master/gis-content',
-        i18nKey: 'gisContent',
-        defaultIcon: 'fa-solid fa-map',
-        subitemClass: 'nav-item-master',
-      },
-    ],
-  },
-  {
-    id: 'admin',
-    i18nKey: 'admin',
-    defaultIcon: 'fa-solid fa-shield-halved',
-    headerClass: 'nav-header-admin',
-    children: [
-      {
-        id: 'admin-users',
-        path: '/admin/users',
-        i18nKey: 'userManagement',
-        defaultIcon: 'fa-solid fa-users',
-        subitemClass: 'nav-item-admin',
-      },
-      {
-        id: 'admin-system-settings',
-        path: '/admin/system-settings',
-        i18nKey: 'systemSettings',
-        defaultIcon: 'fa-solid fa-sliders',
-        subitemClass: 'nav-item-admin-system',
-      },
-    ],
-  },
 ]
 
 /** Stable ids for sidebar groups — matches `nav-group-${id}` in NavMenu */
@@ -129,15 +92,13 @@ export const NAV_GROUP_IDS = NAV_DEFAULT_GROUPS.map(g => g.id)
 export function defaultSubitemClassForNavGroup(groupId: string): string {
   const map: Record<string, string> = {
     satellite: 'nav-item-indices',
-    master: 'nav-item-master',
-    admin: 'nav-item-admin',
   }
-  return map[groupId] ?? 'nav-item-master'
+  return map[groupId] ?? 'nav-item-indices'
 }
 
 export function normalizedNavGroupId(raw: string | undefined): string {
-  const id = String(raw ?? 'master').trim()
-  return NAV_GROUP_IDS.includes(id) ? id : 'master'
+  const id = String(raw ?? 'satellite').trim()
+  return NAV_GROUP_IDS.includes(id) ? id : 'satellite'
 }
 
 function sortByIdList<T extends { id: string }>(items: T[], order: string[]): T[] {

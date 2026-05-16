@@ -10,12 +10,9 @@ const SatelliteMultidimensional = lazy(() => import('../pages/satellite/Multidim
 const GisMap = lazy(() => import('../pages/satellite/GisMap'))
 const DataEntryFertigationRecords = lazy(() => import('../pages/data-entry/FertigationRecords'))
 const DataEntryRecipes = lazy(() => import('../pages/data-entry/Recipes'))
-const MasterGisContent = lazy(() => import('../pages/master/GisContent'))
-const AdminUsers = lazy(() => import('../pages/admin/Users'))
 const AdminGitHub = lazy(() => import('../pages/admin/GitHubIntegration'))
 const StyleGuide = lazy(() => import('../pages/StyleGuide'))
 const UsabilityTest = lazy(() => import('../pages/UsabilityTest'))
-const SystemSettings = lazy(() => import('../pages/admin/SystemSettings'))
 
 export default function AppRoutes() {
   const { settings } = useSystemSettings()
@@ -32,15 +29,15 @@ export default function AppRoutes() {
         <Route path="/satellite/indices" element={<SatelliteIntelligence />} />
         <Route path="/satellite/multidimensional" element={<SatelliteMultidimensional />} />
         <Route path="/satellite/gis" element={<GisMap />} />
-        <Route path="/master/gis-content" element={<MasterGisContent />} />
+        <Route path="/master/gis-content" element={<Navigate to="/" replace />} />
         <Route path="/master/dashboard-settings" element={<Navigate to="/" replace />} />
         <Route path="/master/workflow-settings" element={<Navigate to="/" replace />} />
         <Route path="/account/profile" element={<Navigate to="/" replace />} />
         <Route path="/account/profile-user-management" element={<Navigate to="/" replace />} />
         <Route path="/account/settings" element={<Navigate to="/" replace />} />
-        <Route path="/admin/users" element={<AdminUsers />} />
+        <Route path="/admin/users" element={<Navigate to="/" replace />} />
+        <Route path="/admin/system-settings" element={<Navigate to="/" replace />} />
         <Route path="/admin/github" element={<AdminGitHub />} />
-        <Route path="/admin/system-settings" element={<SystemSettings />} />
         <Route path="/style-guide" element={<StyleGuide />} />
         <Route path="/usability-test" element={<UsabilityTest />} />
         {settings.customPages

@@ -86,12 +86,12 @@ describe('NavMenu vertical responsive', () => {
         </SystemSettingsProvider>
       </MemoryRouter>,
     )
-    const masterData = screen.getByTitle(/master data/i)
-    expect(masterData).toHaveAttribute('aria-expanded', 'false')
-    fireEvent.click(masterData)
-    expect(masterData).toHaveAttribute('aria-expanded', 'true')
+    const satellite = screen.getByTitle(/satellite imagery/i)
+    expect(satellite).toHaveAttribute('aria-expanded', 'false')
+    fireEvent.click(satellite)
+    expect(satellite).toHaveAttribute('aria-expanded', 'true')
     fireEvent.keyDown(window, { key: 'Escape' })
-    expect(masterData).toHaveAttribute('aria-expanded', 'false')
+    expect(satellite).toHaveAttribute('aria-expanded', 'false')
   })
 
   it('keeps primary navigation expanded on mobile (no hamburger toggle)', () => {
@@ -121,28 +121,10 @@ describe('NavMenu vertical responsive', () => {
         </SystemSettingsProvider>
       </MemoryRouter>,
     )
-    const masterData = screen.getByRole('button', { name: /master data/i })
-    fireEvent.click(masterData)
-    expect(masterData).toHaveAttribute('aria-expanded', 'true')
+    const satellite = screen.getByRole('button', { name: /satellite imagery/i })
+    fireEvent.click(satellite)
+    expect(satellite).toHaveAttribute('aria-expanded', 'true')
     fireEvent.touchStart(document.body)
-    expect(masterData).toHaveAttribute('aria-expanded', 'false')
-  })
-
-  it('renders the Settings group with the system-settings leaf', () => {
-    setViewport(1280)
-    render(
-      <MemoryRouter future={routerFuture} initialEntries={['/admin/system-settings']}>
-        <SystemSettingsProvider>
-          <PrimaryNavIcons />
-        </SystemSettingsProvider>
-      </MemoryRouter>,
-    )
-    const groupHeader = screen.getByRole('button', { name: /^settings$/i })
-    expect(groupHeader).toBeInTheDocument()
-    fireEvent.click(groupHeader)
-    expect(screen.getByRole('menuitem', { name: /system settings/i })).toHaveAttribute(
-      'href',
-      '/admin/system-settings',
-    )
+    expect(satellite).toHaveAttribute('aria-expanded', 'false')
   })
 })

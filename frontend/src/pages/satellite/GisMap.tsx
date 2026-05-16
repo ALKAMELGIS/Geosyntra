@@ -5910,12 +5910,6 @@ export default function GisMap() {
                 <i className="fa-solid fa-globe" aria-hidden="true" />
               </button>
             </div>
-            <p className="gis-tool-muted" style={{ marginTop: 12 }}>
-              Workspace configuration (themes, API tokens, navigation) lives in system settings.
-            </p>
-            <a className="gis-btn" href="/admin/system-settings" style={{ display: 'inline-flex', justifyContent: 'center', width: '100%' }}>
-              Open system settings
-            </a>
           </div>
         ) : activeMapTool === 'apps' ? (
           <div className="gis-tool-apps gis-map-tool-surface">
@@ -5956,26 +5950,6 @@ export default function GisMap() {
                 <span className="gis-map-tool-surface-app-row__main">
                   <strong>GIS Map</strong>
                   <small>This page</small>
-                </span>
-                <i className="fa-solid fa-chevron-right gis-map-tool-surface-app-row__chev" aria-hidden="true" />
-              </a>
-              <a className="gis-map-tool-surface-app-row" href="/master/gis-content">
-                <span className="gis-map-tool-surface-app-row__icon" aria-hidden="true">
-                  <i className="fa-solid fa-layer-group" />
-                </span>
-                <span className="gis-map-tool-surface-app-row__main">
-                  <strong>GIS Content</strong>
-                  <small>Catalog &amp; published layers</small>
-                </span>
-                <i className="fa-solid fa-chevron-right gis-map-tool-surface-app-row__chev" aria-hidden="true" />
-              </a>
-              <a className="gis-map-tool-surface-app-row" href="/admin/system-settings">
-                <span className="gis-map-tool-surface-app-row__icon" aria-hidden="true">
-                  <i className="fa-solid fa-gear" />
-                </span>
-                <span className="gis-map-tool-surface-app-row__main">
-                  <strong>System settings</strong>
-                  <small>Tokens, theme, APIs</small>
                 </span>
                 <i className="fa-solid fa-chevron-right gis-map-tool-surface-app-row__chev" aria-hidden="true" />
               </a>

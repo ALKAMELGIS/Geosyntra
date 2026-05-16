@@ -246,15 +246,17 @@ export function mergeWithDefaults(partial: Partial<SystemSettingsPersistedV1>): 
   }
 }
 
-const KNOWN_NAV_GROUP_IDS = ['dashboard', 'geosyntraAi', 'satellite', 'data', 'sensors', 'master', 'admin'] as const
+const KNOWN_NAV_GROUP_IDS = ['dashboard', 'geosyntraAi', 'satellite', 'data', 'sensors'] as const
 
 function migrateNavGroupIdString(id: string): string {
-  return id === 'aiAgroCloud' ? 'geosyntraAi' : id
+  if (id === 'aiAgroCloud') return 'geosyntraAi'
+  if (id === 'master' || id === 'admin') return 'satellite'
+  return id
 }
 
 function sanitizeNavGroupId(raw: unknown): string {
-  const id = migrateNavGroupIdString(String(raw ?? 'data').trim())
-  return (KNOWN_NAV_GROUP_IDS as readonly string[]).includes(id) ? id : 'data'
+  const id = migrateNavGroupIdString(String(raw ?? 'satellite').trim())
+  return (KNOWN_NAV_GROUP_IDS as readonly string[]).includes(id) ? id : 'satellite'
 }
 
 function migrateNavGroupOrderIds(ids: string[]): string[] {
