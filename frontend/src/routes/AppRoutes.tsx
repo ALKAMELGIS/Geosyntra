@@ -11,7 +11,6 @@ const GisMap = lazy(() => import('../pages/satellite/GisMap'))
 const DataEntryFertigationRecords = lazy(() => import('../pages/data-entry/FertigationRecords'))
 const DataEntryRecipes = lazy(() => import('../pages/data-entry/Recipes'))
 const AdminGitHub = lazy(() => import('../pages/admin/GitHubIntegration'))
-const ApiIntegrations = lazy(() => import('../pages/settings/ApiIntegrations'))
 const StyleGuide = lazy(() => import('../pages/StyleGuide'))
 const UsabilityTest = lazy(() => import('../pages/UsabilityTest'))
 
@@ -39,7 +38,7 @@ export default function AppRoutes() {
         <Route path="/admin/users" element={<Navigate to="/" replace />} />
         <Route path="/admin/system-settings" element={<Navigate to="/" replace />} />
         <Route path="/admin/github" element={<AdminGitHub />} />
-        <Route path="/settings/api-integrations" element={<ApiIntegrations />} />
+        <Route path="/settings/api-integrations" element={<Navigate to="/" replace />} />
         <Route path="/style-guide" element={<StyleGuide />} />
         <Route path="/usability-test" element={<UsabilityTest />} />
         {settings.customPages
