@@ -486,3 +486,72 @@
     gap: 8px;
   }
 }
+
+/* API Manager — direct shortcut in header-right__cluster (matches primary-nav glass tiles). */
+.geosyntra-header-api-manager-btn {
+  width: 40px;
+  height: 40px;
+  border-radius: 11px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  color: rgba(244, 244, 250, 0.94);
+  background: linear-gradient(165deg, rgba(255, 255, 255, 0.09) 0%, rgba(255, 255, 255, 0.02) 45%, rgba(0, 0, 0, 0.22) 100%);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.08) inset,
+    0 10px 28px rgba(0, 0, 0, 0.35);
+  backdrop-filter: blur(14px) saturate(1.15);
+  -webkit-backdrop-filter: blur(14px) saturate(1.15);
+  text-decoration: none;
+  transition:
+    transform 0.18s ease,
+    box-shadow 0.2s ease,
+    border-color 0.2s ease,
+    background 0.2s ease,
+    color 0.16s ease;
+}
+
+.geosyntra-header-api-manager-btn:hover {
+  transform: translateY(-1px);
+  color: #ffffff;
+  border-color: rgba(255, 255, 255, 0.2);
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.12) inset,
+    0 14px 36px rgba(0, 0, 0, 0.45);
+}
+
+.geosyntra-header-api-manager-btn--active {
+  border-color: rgba(56, 189, 248, 0.45);
+  color: #ffffff;
+  box-shadow:
+    0 0 0 1px rgba(56, 189, 248, 0.2),
+    0 1px 0 rgba(255, 255, 255, 0.1) inset,
+    0 8px 26px rgba(14, 165, 233, 0.22);
+}
+
+.geosyntra-header-api-manager-btn:focus-visible {
+  outline: 2px solid rgba(56, 189, 248, 0.55);
+  outline-offset: 2px;
+}
+
+.geosyntra-header-api-manager-btn i {
+  font-size: 15px;
+}
+
+html[data-theme='light'] .geosyntra-header-api-manager-btn {
+  color: rgba(15, 23, 42, 0.88);
+  background: linear-gradient(165deg, rgba(255, 255, 255, 0.92) 0%, rgba(248, 250, 252, 0.85) 100%);
+  border-color: rgba(15, 23, 42, 0.12);
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.9) inset,
+    0 8px 20px rgba(15, 23, 42, 0.08);
+}
+
+html[data-theme='light'] .geosyntra-header-api-manager-btn--active {
+  border-color: rgba(37, 99, 235, 0.45);
+  box-shadow:
+    0 0 0 1px rgba(37, 99, 235, 0.15),
+    0 8px 22px rgba(37, 99, 235, 0.12);
+}
