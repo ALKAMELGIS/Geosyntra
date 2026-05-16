@@ -536,26 +536,14 @@ export function SiAoiReportModal({
   const prefetchAnalysisSnapshot = useCallback(
     async (built: SiAoiReportModel) => {
       if (!captureLiveMapSnapshot) return;
-      const fitBounds = (() => {
-        const f = built.aoiOutlineGeoJson.features[0];
-        const b = f ? siAoiReportFeatureBBoxLngLat(f) : null;
-        if (!b) return undefined;
-        return [
-          [b[0], b[1]],
-          [b[2], b[3]],
-        ] as [[number, number], [number, number]];
-      })();
       const aoiFeat = built.aoiOutlineGeoJson.features[0];
-      const snapDate =
-        built.timeSeries[built.timeSeries.length - 1]?.date?.slice(0, 10) ?? built.dateEnd.slice(0, 10);
       setAnalysisSnapshotLoading(true);
       setAnalysisLiveSnapshot(null);
       try {
         const raw = await captureLiveMapSnapshot({
-          date: snapDate,
+          freezeViewport: true,
           scale: 3,
-          profile: 'balanced',
-          fitBounds,
+          profile: 'fast',
           aoiFeature: aoiFeat,
         });
         if (!raw) return;
@@ -605,7 +593,11 @@ export function SiAoiReportModal({
     setReport(built);
     setReportView('analysis');
     setStep('preview');
-    void prefetchAnalysisSnapshot(built);
+    window.requestAnimationFrame(() => {
+      window.requestAnimationFrame(() => {
+        void prefetchAnalysisSnapshot(built);
+      });
+    });
   }, [
     weeklyComposites,
     indexId,
@@ -666,26 +658,26 @@ export function SiAoiReportModal({
     return siAoiReportFeatureBBoxLngLat(reportAoiFeature);
   }, [reportAoiFeature]);
 
-  const liveSnapshotCaptureOpts = useMemo(
-    () =>
-      changeFitBounds && reportAoiFeature
-        ? { fitBounds: changeFitBounds, aoiFeature: reportAoiFeature }
-        : undefined,
-    [changeFitBounds, reportAoiFeature],
+  const liveSnapshotAoiOpts = useMemo(
+    () => (reportAoiFeature ? { aoiFeature: reportAoiFeature } : undefined),
+    [reportAoiFeature],
   );
 
   const captureAllChangeSnapshots = useCallback(async (): Promise<(string | null)[]> => {
     if (!report || !changeFitBounds || !reportAoiBounds) return [];
     const bounds = siPdfBoundsFromFitBounds(changeFitBounds);
     const urls: (string | null)[] = [];
-    for (const slot of report.changeDetectionSlots) {
+    const slots = report.changeDetectionSlots;
+    for (let i = 0; i < slots.length; i++) {
+      const slot = slots[i]!;
       let mapPng: string | null = null;
       if (captureLiveMapSnapshot) {
         mapPng = await captureLiveMapSnapshot({
           date: slot.date,
           scale: 3,
           profile: 'fast',
-          ...liveSnapshotCaptureOpts,
+          ...liveSnapshotAoiOpts,
+          skipTimelineRestore: i < slots.length - 1,
         });
       }
       if (!mapPng && slot.heatmapCellsGeoJson.features.length) {
@@ -715,7 +707,7 @@ export function SiAoiReportModal({
     report,
     changeFitBounds,
     reportAoiBounds,
-    liveSnapshotCaptureOpts,
+    liveSnapshotAoiOpts,
   ]);
 
   useEffect(() => {
@@ -924,12 +916,11 @@ export function SiAoiReportModal({
         if (analysisLiveSnapshot) {
           aoiMapImageDataUrl = analysisLiveSnapshot;
         } else if (liveMapCaptureOk && captureLiveMapSnapshot) {
-          const snapDate =
-            report.timeSeries[report.timeSeries.length - 1]?.date?.slice(0, 10) ?? report.dateEnd.slice(0, 10);
           const raw = await captureLiveMapSnapshot({
-            date: snapDate,
+            freezeViewport: true,
             scale: 3,
-            ...liveSnapshotCaptureOpts,
+            profile: 'fast',
+            ...liveSnapshotAoiOpts,
           });
           if (raw) {
             aoiMapImageDataUrl = await compositeAoiAnalysisMapWithLegendPng(
@@ -1052,14 +1043,14 @@ export function SiAoiReportModal({
     changeSlotSnapshots,
     captureLiveMapSnapshot,
     captureAllChangeSnapshots,
-    liveSnapshotCaptureOpts,
+    liveSnapshotAoiOpts,
   ]);
 
   if (!open) return null;
 
   return (
     <div
-      className="si-aoi-report-modal-backdrop"
+      className="si-aoi-report-modal-backdrop si-aoi-report-modal-backdrop--open"
       role="presentation"
       onMouseDown={e => {
         if (e.target === e.currentTarget) onClose();

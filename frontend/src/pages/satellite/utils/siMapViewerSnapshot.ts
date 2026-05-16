@@ -130,6 +130,13 @@ export type SiLiveMapSnapshotOptions = {
   aoiFeature?: GeoJSON.Feature;
   /** Capture readiness profile (default balanced). */
   profile?: 'fast' | 'balanced' | 'quality';
+  /**
+   * Capture the current map frame only — no timeline date jump, no fitBounds.
+   * Use for report preview so the live viewer and snapshot stay aligned.
+   */
+  freezeViewport?: boolean;
+  /** When shifting `date` for multi-frame capture, skip restoring the viewer date until the last call. */
+  skipTimelineRestore?: boolean;
 };
 
 export type SiLiveMapSnapshotCapture = (opts?: SiLiveMapSnapshotOptions) => Promise<string | null>;

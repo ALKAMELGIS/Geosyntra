@@ -28,6 +28,8 @@ export type SiReportMapSnapshotRequest = {
   profile?: SiReportMapSnapshotProfile;
   /** Called when `date` differs from the viewer — must update WMS/time and resolve when scheduled. */
   applyDate?: (iso: string) => void | Promise<void>;
+  /** Current viewer frame only (no timeline / camera changes). */
+  freezeViewport?: boolean;
 };
 
 /** Briefly hide the report modal so the live Mapbox canvas keeps painting (avoids throttled blank frames). */
@@ -166,7 +168,8 @@ export async function captureSiReportMapSnapshot(
   map: MapboxMap,
   opts?: SiReportMapSnapshotRequest,
 ): Promise<string | null> {
-  const profile = opts?.profile ?? 'balanced';
+  const freeze = opts?.freezeViewport === true;
+  const profile = freeze ? 'fast' : (opts?.profile ?? 'balanced');
   const preset = PROFILE_PRESETS[profile];
   const scale = Math.min(4, Math.max(2, opts?.scale ?? 3));
 
@@ -174,7 +177,7 @@ export async function captureSiReportMapSnapshot(
 
   setReportMapCaptureMode(true);
   try {
-    if (opts?.fitBounds) {
+    if (!freeze && opts?.fitBounds) {
       try {
         fitMapToLngLatBounds(map, opts.fitBounds, 56);
         await waitForReportMapFrame(map, profile);
@@ -183,11 +186,11 @@ export async function captureSiReportMapSnapshot(
       }
     }
 
-    if (opts?.date && opts.applyDate) {
+    if (!freeze && opts?.date && opts.applyDate) {
       await Promise.resolve(opts.applyDate(opts.date.slice(0, 10)));
       await new Promise<void>(r => window.setTimeout(r, preset.dateSettleMs));
       await waitForReportMapFrame(map, profile);
-    } else if (!opts?.fitBounds) {
+    } else {
       await waitForReportMapFrame(map, profile);
     }
 

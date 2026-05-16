@@ -10708,8 +10708,9 @@ export default function SatelliteIntelligence() {
       });
       return;
     }
-    setSiAoiReportModalOpen(true);
-  }, [multiAoiItems.length, drawnGeometry]);
+    pauseTimelinePlayback();
+    startTransition(() => setSiAoiReportModalOpen(true));
+  }, [multiAoiItems.length, drawnGeometry, pauseTimelinePlayback]);
 
   const liveSnapshotAoiFeature = useMemo((): GeoJSON.Feature | null => {
     if (multiAoiItems.length && activeMultiAoiId) {
@@ -10735,27 +10736,33 @@ export default function SatelliteIntelligence() {
       const map = getMapInstance();
       if (!map || !isMapLoaded) return null;
       pauseTimelinePlayback();
+      const freeze = opts?.freezeViewport === true;
       const restoreIso = selectedDate.toISOString().split('T')[0];
       const targetIso = opts?.date?.slice(0, 10);
-      const fit = opts?.fitBounds ?? liveSnapshotFitBounds;
+      const fit = freeze ? undefined : (opts?.fitBounds ?? liveSnapshotFitBounds);
       const aoiFeature = opts?.aoiFeature ?? liveSnapshotAoiFeature;
+      const shouldShiftDate = !freeze && Boolean(targetIso && targetIso !== restoreIso);
+      const skipRestore = opts?.skipTimelineRestore === true;
       try {
         return await captureSiReportMapSnapshot(map, {
-          date: targetIso && targetIso !== restoreIso ? targetIso : undefined,
-          applyDate: iso => {
-            applySelectedDate(new Date(`${iso}T12:00:00`));
-          },
+          freezeViewport: freeze,
+          date: shouldShiftDate ? targetIso : undefined,
+          applyDate: shouldShiftDate
+            ? iso => {
+                applySelectedDate(new Date(`${iso}T12:00:00`), { expandRange: false });
+              }
+            : undefined,
           fitBounds: fit ?? undefined,
           aoiFeature: aoiFeature ?? undefined,
           scale: opts?.scale ?? 3,
-          profile: opts?.profile ?? 'balanced',
+          profile: freeze ? 'fast' : (opts?.profile ?? 'balanced'),
           outlineColor: 'rgba(34, 197, 94, 0.95)',
         });
       } catch {
         return null;
       } finally {
-        if (targetIso && targetIso !== restoreIso) {
-          applySelectedDate(new Date(`${restoreIso}T12:00:00`));
+        if (shouldShiftDate && !skipRestore) {
+          applySelectedDate(new Date(`${restoreIso}T12:00:00`), { expandRange: false });
         }
       }
     },
@@ -12399,21 +12406,23 @@ export default function SatelliteIntelligence() {
             onToggleMapSpectralLegend={() => setMapSpectralLegendOpen(o => !o)}
           />
 
-          <SiAoiReportModal
-            open={siAoiReportModalOpen}
-            onClose={() => setSiAoiReportModalOpen(false)}
-            weeklyComposites={weeklyComposites}
-            timeSeriesStart={timeSeriesStart}
-            timeSeriesEnd={timeSeriesEnd}
-            defaultIndexId={siAoiReportDefaultIndex}
-            aoiOptions={siAoiReportAoiOptions}
-            mapboxToken={mapboxToken}
-            preferredAoiId={siAoiReportPreferredAoiId}
-            reportMapStyle={effectiveMapStyle}
-            defaultCloudCoverPct={cloudCoverage}
-            classificationPalette={siAoiPaletteFromIndexRampStops(symStopsForWmsLayerId(activeWmsLayer || '') ?? undefined)}
-            captureLiveMapSnapshot={captureLiveMapSnapshot}
-          />
+          {siAoiReportModalOpen ? (
+            <SiAoiReportModal
+              open
+              onClose={() => setSiAoiReportModalOpen(false)}
+              weeklyComposites={weeklyComposites}
+              timeSeriesStart={timeSeriesStart}
+              timeSeriesEnd={timeSeriesEnd}
+              defaultIndexId={siAoiReportDefaultIndex}
+              aoiOptions={siAoiReportAoiOptions}
+              mapboxToken={mapboxToken}
+              preferredAoiId={siAoiReportPreferredAoiId}
+              reportMapStyle={effectiveMapStyle}
+              defaultCloudCoverPct={cloudCoverage}
+              classificationPalette={siAoiPaletteFromIndexRampStops(symStopsForWmsLayerId(activeWmsLayer || '') ?? undefined)}
+              captureLiveMapSnapshot={captureLiveMapSnapshot}
+            />
+          ) : null}
 
           <SiWmsSymbologyPopup
             open={siWmsSymbologyChrome.open}
