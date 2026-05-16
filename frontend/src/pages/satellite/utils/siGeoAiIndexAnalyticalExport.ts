@@ -338,18 +338,31 @@ function formatSummaryAoiSheet(ws: XLSX.WorkSheet) {
       break
     }
   }
+  const spectralMetricRows: number[] = []
   for (let r = 0; r <= range.e.r; r++) {
     const metric = ws[XLSX.utils.encode_cell({ r, c: 1 })] as XLSX.CellObject | undefined
     const val = ws[XLSX.utils.encode_cell({ r, c: 2 })] as XLSX.CellObject | undefined
     const m = metric?.v
     if (m === 'min' || m === 'max' || m === 'mean' || m === 'std_dev') {
       if (!val) continue
+      spectralMetricRows.push(r)
       if (val.t === 'n' && typeof val.v === 'number' && Number.isFinite(val.v)) {
         val.z = XLSX_FMT_SPECTRAL
       } else if (typeof val.v === 'string') {
         val.z = '@'
       }
     }
+  }
+  // Literal text for index stats so Excel never rounds tiny |−1…1| values to “0.00” on open.
+  for (const r of spectralMetricRows) {
+    const addr = XLSX.utils.encode_cell({ r, c: 2 })
+    const cell = ws[addr] as XLSX.CellObject | undefined
+    if (!cell || cell.v === '' || cell.v == null) continue
+    const repr =
+      cell.t === 's' && typeof cell.v === 'string'
+        ? cell.v
+        : excelDecimalText(typeof cell.v === 'number' ? cell.v : Number(cell.v))
+    ws[addr] = { t: 's', v: repr, z: '@' } as XLSX.CellObject
   }
   const scalarPairs: Array<[label: string, col: number]> = [
     ['AOI area (approx, m²)', 1],
