@@ -1,5 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import Globe from './globe'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { SparklesCore } from './sparkles'
 import { cn } from '@/lib/utils'
 
@@ -9,10 +8,8 @@ import { cn } from '@/lib/utils'
  * https://cdn.21st.dev/m.umairwaheedansari/landing-page/default/bundle.1758288581464.html
  * ).
  *
- * The component pins the `<Globe />` mark to viewport coordinates that change
- * per section — as the user scrolls between Welcome → Innovation → Discovery
- * → Future, the Earth glides + scales between four positions, producing the
- * "scroll-driven 3D landing" effect that defines the upstream design.
+ * Scroll-driven section panels (Welcome → Innovation → Discovery → Future)
+ * with progress rail, sparkles, and theme-aware particle colour.
  *
  * Geosyntra-specific deviations from the upstream snippet (kept narrow on
  * purpose so visual parity stays byte-tight):
@@ -22,8 +19,7 @@ import { cn } from '@/lib/utils'
  *     `window.scroll` and read `window.pageYOffset`. The Geosyntra app
  *     mounts the Home page inside `<main class="content">` which itself
  *     has `overflow-y: auto` (header + sidebar are pinned siblings). If we
- *     listen to `window` here, the scroll event never fires and the globe
- *     never moves. We therefore walk up the DOM at mount time, find the
+ *     listen to `window` here, the scroll event never fires. We therefore walk up the DOM at mount time, find the
  *     first ancestor whose computed `overflow-y` is `auto` or `scroll`, and
  *     attach to *that*. Falls through to `window` when run standalone (e.g.
  *     a Storybook preview, or a route that lives in the document scroll).
@@ -75,30 +71,6 @@ export interface ScrollGlobeProps {
 }
 
 /**
- * Globe positions per section (viewport % + scale). Hero keeps the globe
- * mid-right; Innovation pins the globe to the viewport center behind the
- * centered copy; Discovery uses a larger scale — Welcome uses a similar visual
- * weight (~1.9 vs 2) without changing its anchor coordinates.
- */
-const defaultGlobeConfig: { positions: ScrollGlobePosition[] } = {
-  positions: [
-    /** Welcome — nudged right/up (~2cm lift at 1080p) and slightly larger for title balance. */
-    { top: '43%', left: '74%', scale: 1.96 },
-    /** Innovation: globe centered on viewport so it sits behind the vertically centered copy block. */
-    { top: '50%', left: '50%', scale: 0.88 },
-    { top: '15%', left: '90%', scale: 2 },
-    { top: '50%', left: '50%', scale: 1.8 },
-  ],
-}
-
-/** CSS transform for the pinned globe from section vw/vh + scale. */
-function buildGlobeTransform(pos: { top: number; left: number; scale: number }): string {
-  return `translate3d(${pos.left}vw, ${pos.top}vh, 0) translate3d(-50%, -50%, 0) scale3d(${pos.scale}, ${pos.scale}, 1)`
-}
-
-const parsePercent = (str: string): number => parseFloat(str.replace('%', ''))
-
-/**
  * Walk up from `el` and return the first ancestor whose computed `overflow-y`
  * is `auto` or `scroll` — i.e. the element that actually receives wheel /
  * touchmove → scroll events when this region is scrolled. Falls back to
@@ -122,20 +94,9 @@ function findScrollContainer(el: HTMLElement | null): HTMLElement | Window {
 const isWindow = (target: HTMLElement | Window): target is Window =>
   typeof window !== 'undefined' && target === window
 
-export function ScrollGlobe({ sections, globeConfig = defaultGlobeConfig, className }: ScrollGlobeProps) {
+export function ScrollGlobe({ sections, className }: ScrollGlobeProps) {
   const [activeSection, setActiveSection] = useState(0)
   const [scrollProgress, setScrollProgress] = useState(0)
-  const [globeTransform, setGlobeTransform] = useState('')
-  /**
-   * Hero entrance flag. Initial render paints the Globe at opacity 0 +
-   * scale 0.9 so the browser has *something* on screen the very first
-   * frame, then the *next* RAF flips this to `true` and the wrapper's
-   * 280 ms transition runs the joint opacity + scale beat. No setTimeout,
-   * no perceived loading phase — the whole Hero arrives in a single
-   * sub-half-second motion (per the user's "حركة واحدة سريعة لا تتجاوز
-   * 0.5 ثانية" directive).
-   */
-  const [globeArrived, setGlobeArrived] = useState(false)
   /**
    * Active theme — flips between `'dark'` and `'light'` based on the
    * `<html data-theme>` attribute. Drives the `particleColor` for the
@@ -160,20 +121,7 @@ export function ScrollGlobe({ sections, globeConfig = defaultGlobeConfig, classN
   const animationFrameId = useRef<number | undefined>(undefined)
   const scrollSourceRef = useRef<HTMLElement | Window | null>(null)
 
-  const calculatedPositions = useMemo(
-    () =>
-      globeConfig.positions.map(pos => ({
-        top: parsePercent(pos.top),
-        left: parsePercent(pos.left),
-        scale: pos.scale,
-      })),
-    [globeConfig.positions],
-  )
-
   /**
-   * Direct scroll → globe-transform mapping (no easing on the value itself —
-   * the smoothness comes from the 1.4 s CSS transition on the wrapper).
-   *
    * Section detection uses `getBoundingClientRect()` which is viewport-
    * relative, so it doesn't matter whether the scroller is `window` or an
    * inner `<main>` — the section closest to the viewport vertical centre
@@ -212,11 +160,8 @@ export function ScrollGlobe({ sections, globeConfig = defaultGlobeConfig, classN
       }
     })
 
-    const idx = Math.min(newActiveSection, calculatedPositions.length - 1)
-    const currentPos = calculatedPositions[idx]
-    setGlobeTransform(buildGlobeTransform(currentPos))
-    setActiveSection(idx)
-  }, [calculatedPositions])
+    setActiveSection(newActiveSection)
+  }, [])
 
   useEffect(() => {
     /* Find the real scroller once on mount. We do this lazily inside the
@@ -250,31 +195,6 @@ export function ScrollGlobe({ sections, globeConfig = defaultGlobeConfig, classN
       window.clearTimeout(settleTimer)
     }
   }, [updateScrollPosition])
-
-  /* When `calculatedPositions` changes, sync the globe transform. */
-  useEffect(() => {
-    setGlobeTransform(buildGlobeTransform(calculatedPositions[0]))
-  }, [calculatedPositions])
-
-  /* Hero entrance — single instant beat. We paint frame 1 at opacity 0
-   * + scale 0.9 (just enough to give the transition something to lerp
-   * from), then on the very next animation frame flip to the final
-   * state. Total perceived delay = 1 frame (~16 ms) + the wrapper's
-   * 280 ms transition = ~300 ms. No setTimeout, no staggered choreo,
-   * nothing that reads as "loading". Reduced-motion users skip the
-   * lerp entirely and see the final state immediately. */
-  useEffect(() => {
-    if (typeof window === 'undefined') {
-      setGlobeArrived(true)
-      return
-    }
-    if (window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) {
-      setGlobeArrived(true)
-      return
-    }
-    const raf = window.requestAnimationFrame(() => setGlobeArrived(true))
-    return () => window.cancelAnimationFrame(raf)
-  }, [])
 
   /* Watch `<html data-theme>` for changes (Settings page, the floating
    * HeroThemeToggle, system-preference flips when in `'system'` mode).
@@ -388,13 +308,7 @@ export function ScrollGlobe({ sections, globeConfig = defaultGlobeConfig, classN
         <div className="absolute left-1/2 top-0 bottom-0 w-0.5 lg:w-px bg-gradient-to-b from-transparent via-primary/20 to-transparent -translate-x-1/2 -z-10" />
       </nav>
 
-      {/* ──────────────────────────────────────────────────────────────
-          Fixed layers: Innovation starfield (z-[5]) → Globe (z-10).
-          Section panels sit above at z-30; nav at z-40.
-          ────────────────────────────────────────────────────────────── */}
-
-      {/* Innovation Sparkles — full-bleed starfield behind the Globe for
-          section index 1 only. */}
+      {/* Innovation Sparkles — full-bleed starfield for section index 1 only. */}
       <div
         aria-hidden
         className="gs-innovation-sparkles fixed inset-0 z-[5] pointer-events-none"
@@ -414,43 +328,6 @@ export function ScrollGlobe({ sections, globeConfig = defaultGlobeConfig, classN
         />
       </div>
 
-      {/* Pinned globe — scroll-driven positions from `globeConfig`. */}
-      <div
-        aria-hidden
-        className="gs-hero-globe fixed z-10 pointer-events-none will-change-transform"
-        style={{
-          transform: globeTransform,
-          opacity: globeArrived
-            ? activeSection === sections.length - 1
-              ? 0.4
-              : 0.92
-            : 0,
-          transition:
-            'transform 550ms cubic-bezier(0.23, 1, 0.32, 1), opacity 280ms ease-out',
-        }}
-      >
-        <div
-          className="gs-hero-globe__entrance"
-          style={{
-            transform: globeArrived ? 'scale(1)' : 'scale(0.9)',
-            transition:
-              'transform 320ms cubic-bezier(0.23, 1, 0.32, 1)',
-            transformOrigin: 'center center',
-          }}
-        >
-          {/* Per-breakpoint scale-up of the upstream 250×250 globe so the
-              sphere reads as the dominant visual on larger screens
-              (≈ 410 px on phone, ≈ 640 px on tablet, ≈ 860 px on desktop, ≈ 1040 px on 2xl)
-              while still fitting comfortably on narrow phones. The
-              per-section `scale3d(...)` set in
-              `defaultGlobeConfig.positions[].scale` multiplies on top
-              of this base. */}
-          <div className="scale-110 sm:scale-[1.72] lg:scale-[3.45] 2xl:scale-[4.15]">
-            <Globe />
-          </div>
-        </div>
-      </div>
-
       {/* Section panels — each `min-h-screen` so a single scroll-snap step
           moves between them, and each carries an alignment + optional
           features/actions slot so the host page can compose new narratives
@@ -458,10 +335,7 @@ export function ScrollGlobe({ sections, globeConfig = defaultGlobeConfig, classN
       {sections.map((section, index) => {
         /** Welcome + Innovation share pearl title + micro-hints; sparkle bar is hero-only (Innovation uses global starfield). */
         const welcomeVisualRhythm = index === 0 || index === 1
-        /** Innovation: fixed globe + copy share one vertical/horizontal center (globe z-10, copy z-30). */
-        const innovationGlobeStack = section.id === 'innovation'
-        /** Welcome hero — anchor copy toward the top so it scrolls out before Innovation fills the viewport (avoids hero bleed on section 2). */
-        const welcomeHeroAnchorTop = section.id === 'hero'
+        const innovationCentered = section.id === 'innovation'
         return (
         <section
           key={section.id}
@@ -470,26 +344,21 @@ export function ScrollGlobe({ sections, globeConfig = defaultGlobeConfig, classN
             sectionRefs.current[index] = el
           }}
           className={cn(
-            /* z-30 above the fixed Globe (z-10). Section root is pointer-events-none
-               so empty viewport area does not steal hovers; inner column re-enables. */
             'relative min-h-screen flex flex-col px-4 sm:px-6 md:px-8 lg:px-12 z-30 py-12 sm:py-16 lg:py-20',
-            'w-full max-w-full overflow-hidden pointer-events-none',
-            innovationGlobeStack && 'justify-center items-center text-center min-h-[100dvh]',
-            welcomeHeroAnchorTop &&
-              'justify-start pt-[calc(clamp(2.75rem,9vh,6rem)+2cm+0.75rem+1.5rem+0.85rem+2.5cm)] sm:pt-[calc(clamp(3.25rem,11vh,7rem)+2cm+0.75rem+1.5rem+0.85rem+2.5cm)] md:pt-[calc(clamp(3.5rem,12vh,7.75rem)+2cm+0.75rem+1.5rem+0.85rem+2.5cm)] lg:pt-[calc(clamp(3.75rem,13vh,8.5rem)+2cm+0.75rem+1.75rem+0.85rem+2.5cm)]',
-            !innovationGlobeStack && !welcomeHeroAnchorTop && 'justify-center',
-            !innovationGlobeStack && section.align === 'center' && 'items-center text-center',
-            !innovationGlobeStack && section.align === 'right' && 'items-end text-right',
-            !innovationGlobeStack && section.align !== 'center' && section.align !== 'right' && 'items-start text-left',
+            'w-full max-w-full overflow-hidden pointer-events-none justify-center',
+            innovationCentered && 'items-center text-center min-h-[100dvh]',
+            !innovationCentered && section.align === 'center' && 'items-center text-center',
+            !innovationCentered && section.align === 'right' && 'items-end text-right',
+            !innovationCentered && section.align !== 'center' && section.align !== 'right' && 'items-start text-left',
           )}
         >
           <div
             className={cn(
               'pointer-events-auto w-full will-change-transform transition-all duration-700',
               'opacity-100 translate-y-0',
-              innovationGlobeStack &&
+              innovationCentered &&
                 'max-w-xl sm:max-w-2xl md:max-w-2xl lg:max-w-3xl mx-auto relative z-10 flex flex-col items-center',
-              !innovationGlobeStack &&
+              !innovationCentered &&
                 cn(
                   'max-w-sm sm:max-w-lg md:max-w-2xl lg:max-w-4xl xl:max-w-5xl',
                   section.align === 'center' && 'mx-auto',
@@ -500,7 +369,7 @@ export function ScrollGlobe({ sections, globeConfig = defaultGlobeConfig, classN
               className={cn(
                 'font-bold leading-[1.1] tracking-tight',
                 welcomeVisualRhythm && section.id === 'hero' ? 'mb-3 sm:mb-4' : 'mb-6 sm:mb-8',
-                innovationGlobeStack && 'gs-innovation-headline',
+                innovationCentered && 'gs-innovation-headline',
                 welcomeVisualRhythm
                   ? cn(
                       index === 0
@@ -543,8 +412,8 @@ export function ScrollGlobe({ sections, globeConfig = defaultGlobeConfig, classN
 
             {/*
              * Sparkles bar — Welcome (hero) only. Innovation uses the full-viewport
-             * starfield layer (`gs-innovation-sparkles`) behind the globe; a second
-             * sparkle bar here duplicated a large hit-target rectangle (tsparticles canvas).
+             * starfield layer (`gs-innovation-sparkles`); a second sparkle bar here
+             * duplicated a large hit-target rectangle (tsparticles canvas).
              */}
             {welcomeVisualRhythm && section.id === 'hero' && (
               <div
@@ -574,7 +443,7 @@ export function ScrollGlobe({ sections, globeConfig = defaultGlobeConfig, classN
             <div
               className={cn(
                 'text-muted-foreground/80 leading-relaxed mb-8 sm:mb-10 text-base sm:text-lg lg:text-xl font-light',
-                section.align === 'center' || innovationGlobeStack
+                section.align === 'center' || innovationCentered
                   ? 'max-w-full mx-auto text-center'
                   : 'max-w-full text-left',
                 /* Welcome hero — tight band above lede + CTAs (sparkle strip sits just above body copy). */
@@ -586,7 +455,7 @@ export function ScrollGlobe({ sections, globeConfig = defaultGlobeConfig, classN
                 <div
                   className={cn(
                     'flex flex-wrap items-center gap-3 sm:gap-4 text-xs sm:text-sm text-muted-foreground/60 mt-4 sm:mt-6',
-                    section.align === 'center' || innovationGlobeStack ? 'justify-center' : 'justify-start',
+                    section.align === 'center' || innovationCentered ? 'justify-center' : 'justify-start',
                   )}
                 >
                   <div className="flex items-center gap-1.5 sm:gap-2">

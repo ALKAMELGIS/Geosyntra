@@ -72,17 +72,6 @@
   }
 }
 
-/* Welcome hero — keep copy band clear of the globe after its right/up nudge. */
-@media (min-width: 1024px) {
-  .home-landing .gs-scroll-globe section#hero > .pointer-events-auto {
-    max-width: 38rem;
-  }
-
-  .home-landing .gs-scroll-globe section#hero .text-muted-foreground\/80 {
-    max-width: 34rem;
-  }
-}
-
 /* Welcome (first) panel — nudge the whole hero block slightly down from the top edge. */
 .home-landing .gs-scroll-globe section:first-of-type {
   padding-top: calc(48px + 2rem + 0.65rem);
@@ -130,7 +119,7 @@
 }
 
 /* The global aurora in `index.css` paints the body; keep individual sections
-   transparent so the globe + ambient layer stay visible underneath. */
+   transparent so the ambient layer stays visible underneath. */
 .home-landing .gs-scroll-globe section {
   background: transparent;
 }
@@ -144,7 +133,7 @@
  *      simulating a soft sweep of cool light across the top of the
  *      letters (the "wet pearl" reflection).
  *   2. A faint outer glow via `drop-shadow` so the mark stays luminous
- *      against the dark globe backdrop without becoming a glow blob.
+ *      against the dark backdrop without becoming a glow blob.
  *   3. A keyframed `gs-pearl-shimmer` that slowly drifts the highlight
  *      band so the wordmark feels alive — disabled under
  *      `prefers-reduced-motion`.

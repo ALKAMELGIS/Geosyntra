@@ -1,11 +1,17 @@
-import type { ReactNode } from 'react';
-import type { SiAoiZonalAnalytics } from '../utils/siAoiZonalStats';
+﻿import type { ReactNode } from 'react';
+import type {
+  SiAoiIndexHealthBreakdown,
+  SiAoiIndexHealthRow,
+  SiAoiZonalAnalytics,
+  SiAoiZonalIndexStats,
+} from '../utils/siAoiZonalStats';
 import { roundIndexDisplay } from '../utils/siAoiZonalStats';
 import type { StaticAoiChartLayerId } from '../utils/staticAoiMultiChartData';
 import { STATIC_AOI_CHART_LAYER_OPTIONS } from '../utils/staticAoiMultiChartData';
 
 export type SiAoiZonalPopupBodyProps = {
   analytics: SiAoiZonalAnalytics | null;
+  indexHealth: SiAoiIndexHealthBreakdown | null;
   highlightLayers?: StaticAoiChartLayerId[];
   areaDisplay: ReactNode;
 };
@@ -17,14 +23,38 @@ function formatResolution(m: number | null): string {
   return `${m.toFixed(2)} m`;
 }
 
+function formatHa(n: number): string {
+  if (!Number.isFinite(n) || n <= 0) return '0';
+  if (n >= 1000) return n.toLocaleString('en-US', { maximumFractionDigits: 0 });
+  if (n >= 10) return n.toLocaleString('en-US', { maximumFractionDigits: 1 });
+  return n.toLocaleString('en-US', { maximumFractionDigits: 2 });
+}
+
+function spectralValueToneClass(row: SiAoiIndexHealthRow): string {
+  if (row.tone === 'high') return 'si-multi-aoi-popup__spectral-value--good';
+  if (row.tone === 'medium') return 'si-multi-aoi-popup__spectral-value--mid';
+  return 'si-multi-aoi-popup__spectral-value--poor';
+}
+
 export function SiAoiZonalPopupBody({
   analytics,
+  indexHealth,
   highlightLayers = ['NDVI', 'NDWI', 'SAVI'],
   areaDisplay,
 }: SiAoiZonalPopupBodyProps) {
-  const layers = highlightLayers
-    .map(id => STATIC_AOI_CHART_LAYER_OPTIONS.find(o => o.id === id))
-    .filter(Boolean);
+  const spectralRows: Array<{
+    opt: (typeof STATIC_AOI_CHART_LAYER_OPTIONS)[number];
+    st: SiAoiZonalIndexStats;
+  }> = [];
+
+  for (const id of highlightLayers) {
+    const opt = STATIC_AOI_CHART_LAYER_OPTIONS.find(o => o.id === id);
+    const st = analytics?.indices[id];
+    if (opt && st) spectralRows.push({ opt, st });
+  }
+
+  const healthRows = indexHealth?.rows ?? [];
+  const healthLayerId = indexHealth?.layerId;
 
   return (
     <>
@@ -60,31 +90,75 @@ export function SiAoiZonalPopupBody({
         </div>
       </div>
 
-      {layers.length > 0 ? (
+      {healthRows.length > 0 ? (
+        <div className="si-multi-aoi-popup__spectral" aria-label="Index analysis">
+          <div className="si-multi-aoi-popup__spectral-kicker">
+            Index analysis
+            {indexHealth ? (
+              <span className="si-multi-aoi-popup__spectral-sub">
+                {' '}
+                · {indexHealth.layerLabel} mean {roundIndexDisplay(indexHealth.primaryMean, healthLayerId)}
+              </span>
+            ) : null}
+          </div>
+          <ul className="si-multi-aoi-popup__spectral-list" role="list">
+            {[...healthRows].reverse().map(row => (
+              <li key={row.band} className="si-multi-aoi-popup__spectral-item">
+                <span className="si-multi-aoi-popup__spectral-name">
+                  <span
+                    className="si-multi-aoi-popup__spectral-swatch"
+                    style={{ backgroundColor: row.color }}
+                    aria-hidden
+                  />
+                  {row.label}
+                </span>
+                <span
+                  className={`si-multi-aoi-popup__spectral-value ${spectralValueToneClass(row)}`}
+                  dir="ltr"
+                >
+                  <span className="si-multi-aoi-popup__spectral-num">
+                    {row.pct.toFixed(1)}%
+                  </span>
+                  <span className="si-multi-aoi-popup__spectral-arr" aria-hidden>
+                    ·
+                  </span>
+                  <span className="si-multi-aoi-popup__spectral-num">{formatHa(row.areaHa)} ha</span>
+                  <span className="si-multi-aoi-popup__spectral-arr" aria-hidden>
+                    ·
+                  </span>
+                  <span className="si-multi-aoi-popup__spectral-num">
+                    μ {roundIndexDisplay(row.meanIndex, healthLayerId)}
+                  </span>
+                </span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
+
+      {spectralRows.length > 0 ? (
         <div className="si-multi-aoi-popup__spectral" aria-label="Index zonal statistics">
           <div className="si-multi-aoi-popup__spectral-kicker">Index statistics (AOI mean)</div>
-          <ul className="si-multi-aoi-popup__spectral-list si-multi-aoi-popup__spectral-list--detailed" role="list">
-            {layers.map(opt => {
-              if (!opt) return null;
-              const st = analytics?.indices[opt.id];
-              if (!st) return null;
-              return (
-                <li key={opt.id} className="si-multi-aoi-popup__index-block">
-                  <div className="si-multi-aoi-popup__index-head">{opt.label}</div>
-                  <div className="si-multi-aoi-popup__index-grid">
-                    <span>
-                      <em>Mean</em> {roundIndexDisplay(st.mean, opt.id)}
-                    </span>
-                    <span>
-                      <em>Min</em> {roundIndexDisplay(st.min, opt.id)}
-                    </span>
-                    <span>
-                      <em>Max</em> {roundIndexDisplay(st.max, opt.id)}
-                    </span>
-                  </div>
-                </li>
-              );
-            })}
+          <ul
+            className="si-multi-aoi-popup__spectral-list si-multi-aoi-popup__spectral-list--detailed"
+            role="list"
+          >
+            {spectralRows.map(({ opt, st }) => (
+              <li key={opt.id} className="si-multi-aoi-popup__index-block">
+                <div className="si-multi-aoi-popup__index-head">{opt.label}</div>
+                <div className="si-multi-aoi-popup__index-grid">
+                  <span>
+                    <em>Mean</em> {roundIndexDisplay(st.mean, opt.id)}
+                  </span>
+                  <span>
+                    <em>Min</em> {roundIndexDisplay(st.min, opt.id)}
+                  </span>
+                  <span>
+                    <em>Max</em> {roundIndexDisplay(st.max, opt.id)}
+                  </span>
+                </div>
+              </li>
+            ))}
           </ul>
         </div>
       ) : null}

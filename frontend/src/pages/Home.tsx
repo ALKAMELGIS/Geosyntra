@@ -16,7 +16,7 @@ const HERO_SECONDARY_PATH = '/learn-more'
  * (https://21st.dev/r/m.umairwaheedansari/landing-page).
  *
  * Mirrors the upstream `Demo.tsx` (`<Component />`) one-liner — the entire
- * landing experience (4 sections, pinned globe, right-rail nav, progress
+ * landing experience (4 sections, right-rail nav, progress
  * hairline) lives inside `<LandingPage />`. The host shell (App.tsx) drops
  * chrome on `/` so this component owns the full viewport, matching the
  * reference bundle byte-for-byte.

@@ -1169,7 +1169,8 @@ main.content > .si-page {
   min-width: 0;
   min-height: 0;
   display: flex;
-  flex-direction: column;
+  /* Match gradient bar: low index at bottom, high at top (`siStopsToVerticalCssGradient`). */
+  flex-direction: column-reverse;
   gap: 5px;
   max-height: 168px;
   overflow-y: auto;
@@ -8868,6 +8869,23 @@ html[data-theme='light'] .si-sat-ctx-rail-btn__badge {
   margin-bottom: 8px;
 }
 
+.si-multi-aoi-popup__spectral-sub {
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  text-transform: none;
+  color: rgba(148, 163, 184, 0.85);
+}
+
+.si-multi-aoi-popup__spectral-swatch {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+  margin-right: 8px;
+  vertical-align: middle;
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.12);
+}
+
 .si-multi-aoi-popup__spectral-list {
   list-style: none;
   margin: 0;
@@ -8894,6 +8912,8 @@ html[data-theme='light'] .si-sat-ctx-rail-btn__badge {
 }
 
 .si-multi-aoi-popup__spectral-name {
+  display: inline-flex;
+  align-items: center;
   flex-shrink: 0;
   font-size: 12px;
   font-weight: 700;

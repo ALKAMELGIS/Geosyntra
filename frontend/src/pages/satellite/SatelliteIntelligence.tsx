@@ -177,7 +177,14 @@ import {
   type SiLiveMapSnapshotCapture,
 } from './utils/siMapViewerSnapshot';
 import type { SiGeoAiIndexAnalyticalExportContext } from './utils/siGeoAiIndexAnalyticalExport';
-import { computeAoiZonalAnalytics, type SiAoiZonalAnalytics } from './utils/siAoiZonalStats';
+import {
+  computeAoiIndexHealthBreakdown,
+  computeAoiZonalAnalytics,
+  inferStaticAoiChartLayerFromWmsName,
+  resolveAoiZonalWeekContext,
+  type SiAoiIndexHealthBreakdown,
+  type SiAoiZonalAnalytics,
+} from './utils/siAoiZonalStats';
 import {
   SI_WMS_CROSSFADE_MS,
   loadTimelineTransitionMode,
@@ -9736,23 +9743,14 @@ export default function SatelliteIntelligence() {
   /** Zonal pixel stats for workspace AOI popups / sidebar (same engine as Excel export). */
   const multiAoiZonalById = useMemo(() => {
     const m = new Map<string, SiAoiZonalAnalytics>();
-    if (!weeklyComposites.length) return m;
     const globalIso = selectedDate.toISOString().split('T')[0];
-    let defaultWeekIdx = weeklyComposites.findIndex(
-      w => globalIso >= w.startDate.slice(0, 10) && globalIso <= w.endDate.slice(0, 10),
-    );
-    if (defaultWeekIdx < 0) defaultWeekIdx = weeklyComposites.length - 1;
-    const n = weeklyComposites.length;
+    const activeLayerId = inferStaticAoiChartLayerFromWmsName(activeWmsLayer || '');
 
     for (const row of multiAoiItems) {
       const g = row.feature?.geometry;
       if (!g || (g.type !== 'Polygon' && g.type !== 'MultiPolygon')) continue;
       const rowDate = (row.sentinelTimeEnd ?? row.sentinelTimeStart ?? globalIso).slice(0, 10);
-      let weekIdx = weeklyComposites.findIndex(
-        w => rowDate >= w.startDate.slice(0, 10) && rowDate <= w.endDate.slice(0, 10),
-      );
-      if (weekIdx < 0) weekIdx = defaultWeekIdx;
-      const anchor = weeklyComposites[weekIdx]!.mean;
+      const weekCtx = resolveAoiZonalWeekContext(weeklyComposites, globalIso, rowDate, activeLayerId);
       let aoiKey: string | null = staticAoiChartAoiKey;
       try {
         aoiKey = JSON.stringify(row.feature);
@@ -9763,15 +9761,43 @@ export default function SatelliteIntelligence() {
         feature: row.feature,
         aoiKey,
         layerIds: popupZonalLayerIds,
-        weekIdx,
-        nWeeks: n,
-        anchorWeeklyMean: anchor,
-        analysisDateIso: rowDate,
+        weekIdx: weekCtx.weekIdx,
+        nWeeks: weekCtx.nWeeks,
+        anchorWeeklyMean: weekCtx.anchorWeeklyMean,
+        analysisDateIso: weekCtx.analysisDateIso,
       });
       if (analytics) m.set(row.id, analytics);
     }
     return m;
-  }, [multiAoiItems, weeklyComposites, selectedDate, staticAoiChartAoiKey, popupZonalLayerIds]);
+  }, [multiAoiItems, weeklyComposites, selectedDate, staticAoiChartAoiKey, popupZonalLayerIds, activeWmsLayer]);
+
+  /** Active-index tertiles (High / Medium / Low) per workspace AOI for map popups. */
+  const multiAoiIndexHealthById = useMemo(() => {
+    const m = new Map<string, SiAoiIndexHealthBreakdown>();
+    const globalIso = selectedDate.toISOString().split('T')[0];
+    const activeLayerId = inferStaticAoiChartLayerFromWmsName(activeWmsLayer || '');
+
+    for (const row of multiAoiItems) {
+      const g = row.feature?.geometry;
+      if (!g || (g.type !== 'Polygon' && g.type !== 'MultiPolygon')) continue;
+      const rowDate = (row.sentinelTimeEnd ?? row.sentinelTimeStart ?? globalIso).slice(0, 10);
+      const weekCtx = resolveAoiZonalWeekContext(weeklyComposites, globalIso, rowDate, activeLayerId);
+      let aoiKey: string | null = staticAoiChartAoiKey;
+      try {
+        aoiKey = JSON.stringify(row.feature);
+      } catch {
+        aoiKey = row.id;
+      }
+      const health = computeAoiIndexHealthBreakdown({
+        feature: row.feature,
+        aoiKey,
+        layerId: activeLayerId,
+        weekCtx,
+      });
+      if (health) m.set(row.id, health);
+    }
+    return m;
+  }, [multiAoiItems, weeklyComposites, selectedDate, staticAoiChartAoiKey, activeWmsLayer]);
 
   const sentinelVisible = isWmsOverlayVisible && !!activeWmsLayer;
   const normalizedDrawnAoiGeometry = useMemo(() => getDrawnGeometry(drawnGeometry), [drawnGeometry]);
@@ -11554,6 +11580,7 @@ export default function SatelliteIntelligence() {
                 if (!Array.isArray(c) || c.length < 2) return null;
                 const g = row.feature?.geometry as SavedField['geometry'] | undefined;
                 const zonal = multiAoiZonalById.get(row.id);
+                const indexHealth = multiAoiIndexHealthById.get(row.id) ?? null;
                 const areaHa = zonal?.areaHa ?? (g ? geodesicAreaHectares(g) : 0);
                 return (
                   <Marker key={`si-multi-aoi-popup-${pid}`} longitude={c[0]} latitude={c[1]} anchor="bottom">
@@ -11578,6 +11605,7 @@ export default function SatelliteIntelligence() {
                       </div>
                       <SiAoiZonalPopupBody
                         analytics={zonal ?? null}
+                        indexHealth={indexHealth}
                         highlightLayers={['NDVI', 'NDWI', 'SAVI']}
                         areaDisplay={<SiAoiAreaHaSqm ha={areaHa} />}
                       />

@@ -4,6 +4,7 @@
  */
 import { pointInPolygonGeometry } from '../drawingUtils';
 import { staticAoiLayerMeanForWeek } from './staticAoiLayerSynthetic';
+import { STATIC_AOI_CHART_LAYER_OPTIONS } from './staticAoiChartTypes';
 import type { StaticAoiChartLayerId, WeeklyCompositeLite } from './staticAoiChartTypes';
 
 export const SI_AOI_MAX_GRID_CELLS = 9000;
@@ -254,4 +255,173 @@ export function roundIndexDisplay(v: number, layerId?: string): string {
   if (!Number.isFinite(v)) return '—';
   if (layerId === 'LST') return v.toFixed(1);
   return v.toFixed(2);
+}
+
+export type SiAoiIndexHealthBand = 'high' | 'medium' | 'low';
+
+export type SiAoiIndexHealthRow = {
+  band: SiAoiIndexHealthBand;
+  label: string;
+  pct: number;
+  areaHa: number;
+  areaKm2: number;
+  meanIndex: number;
+  color: string;
+  tone: 'high' | 'medium' | 'low';
+};
+
+export type SiAoiIndexHealthBreakdown = {
+  layerId: StaticAoiChartLayerId;
+  layerLabel: string;
+  primaryMean: number;
+  rows: SiAoiIndexHealthRow[];
+};
+
+export type SiAoiZonalWeekContext = {
+  weekIdx: number;
+  nWeeks: number;
+  anchorWeeklyMean: number;
+  analysisDateIso: string;
+};
+
+const INDEX_HEALTH_PALETTE: Record<SiAoiIndexHealthBand, string> = {
+  high: '#22c55e',
+  medium: '#eab308',
+  low: '#ef4444',
+};
+
+function metaForLayer(layerId: StaticAoiChartLayerId) {
+  return STATIC_AOI_CHART_LAYER_OPTIONS.find(o => o.id === layerId) ?? STATIC_AOI_CHART_LAYER_OPTIONS[0]!;
+}
+
+/** Map active WMS / index name to chart layer id (popup + zonal engine). */
+export function inferStaticAoiChartLayerFromWmsName(layerName: string): StaticAoiChartLayerId {
+  const u = layerName.trim().toUpperCase();
+  if (u.includes('LST') || u.includes('TEMP')) return 'LST';
+  if (u.includes('NDWI') || u.includes('MNDWI')) return 'NDWI';
+  if (u.includes('NDMI') || u.includes('MOISTURE')) return 'NDMI';
+  if (u.includes('EVI') && !u.includes('NEVI')) return 'EVI';
+  if (u.includes('SAVI')) return 'SAVI';
+  if (u.includes('NDSI') || u.includes('SNOW')) return 'NDSI';
+  if (u.includes('NDVI') || u.includes('GNDVI') || u.includes('NDRE') || u.includes('NBR')) return 'NDVI';
+  return 'NDVI';
+}
+
+export function defaultAnchorMeanForLayer(layerId: StaticAoiChartLayerId): number {
+  const { range } = metaForLayer(layerId);
+  if (layerId === 'LST') return (range[0] + range[1]) / 2;
+  return range[0] + (range[1] - range[0]) * 0.45;
+}
+
+/** Week anchor for zonal stats — works with or without a built timeline. */
+export function resolveAoiZonalWeekContext(
+  weekly: readonly WeeklyCompositeLite[],
+  selectedDateIso: string,
+  rowDateIso?: string | null,
+  layerId?: StaticAoiChartLayerId,
+): SiAoiZonalWeekContext {
+  const analysisDateIso = (rowDateIso ?? selectedDateIso).slice(0, 10);
+  if (!weekly.length) {
+    return {
+      weekIdx: 0,
+      nWeeks: 1,
+      anchorWeeklyMean: layerId ? defaultAnchorMeanForLayer(layerId) : 0.45,
+      analysisDateIso,
+    };
+  }
+  const n = weekly.length;
+  let weekIdx = weekly.findIndex(
+    w => analysisDateIso >= w.startDate.slice(0, 10) && analysisDateIso <= w.endDate.slice(0, 10),
+  );
+  if (weekIdx < 0) {
+    weekIdx = weekly.findIndex(
+      w => selectedDateIso.slice(0, 10) >= w.startDate.slice(0, 10) && selectedDateIso.slice(0, 10) <= w.endDate.slice(0, 10),
+    );
+  }
+  if (weekIdx < 0) weekIdx = n - 1;
+  return {
+    weekIdx,
+    nWeeks: n,
+    anchorWeeklyMean: weekly[weekIdx]!.mean,
+    analysisDateIso,
+  };
+}
+
+function percentile(sorted: number[], p: number): number {
+  if (!sorted.length) return NaN;
+  const t = (sorted.length - 1) * p;
+  const lo = Math.floor(t);
+  const hi = Math.ceil(t);
+  if (lo === hi) return sorted[lo]!;
+  const w = t - lo;
+  return sorted[lo]! * (1 - w) + sorted[hi]! * w;
+}
+
+/** AOI pixel tertiles for the active index layer (same grid engine as zonal stats / export). */
+export function computeAoiIndexHealthBreakdown(opts: {
+  feature: GeoJSON.Feature;
+  aoiKey: string | null;
+  layerId: StaticAoiChartLayerId;
+  weekCtx: SiAoiZonalWeekContext;
+  palette?: Partial<Record<SiAoiIndexHealthBand, string>>;
+}): SiAoiIndexHealthBreakdown | null {
+  const geom = opts.feature.geometry;
+  if (!geom || (geom.type !== 'Polygon' && geom.type !== 'MultiPolygon')) return null;
+
+  const grid = buildAoiInteriorGrid(opts.feature);
+  if (!grid.length) return null;
+
+  const { weekIdx, nWeeks, anchorWeeklyMean } = opts.weekCtx;
+  const vals: number[] = [];
+  for (const p of grid) {
+    const ck = cellKeyForPixel(opts.aoiKey, p.lng, p.lat);
+    const v = staticAoiLayerMeanForWeek(opts.layerId, weekIdx, nWeeks, ck, anchorWeeklyMean);
+    if (Number.isFinite(v)) vals.push(v);
+  }
+  if (!vals.length) return null;
+
+  const sorted = [...vals].sort((a, b) => a - b);
+  const p33 = percentile(sorted, 1 / 3);
+  const p66 = percentile(sorted, 2 / 3);
+  const areaM2 = geometryAoiAreaSqMeters(geom);
+  const areaHa = areaM2 / 10_000;
+  const areaPerPx = areaHa / vals.length;
+
+  const bands: SiAoiIndexHealthBand[] = ['low', 'medium', 'high'];
+  const counts: Record<SiAoiIndexHealthBand, number> = { low: 0, medium: 0, high: 0 };
+  const sums: Record<SiAoiIndexHealthBand, number> = { low: 0, medium: 0, high: 0 };
+
+  for (const v of vals) {
+    let band: SiAoiIndexHealthBand = 'high';
+    if (v <= p33) band = 'low';
+    else if (v <= p66) band = 'medium';
+    counts[band] += 1;
+    sums[band] += v;
+  }
+
+  const palette = { ...INDEX_HEALTH_PALETTE, ...opts.palette };
+  const rows: SiAoiIndexHealthRow[] = bands.map(band => {
+    const n = counts[band];
+    const pct = (100 * n) / vals.length;
+    return {
+      band,
+      label: band === 'high' ? 'High' : band === 'medium' ? 'Medium' : 'Low',
+      pct,
+      areaHa: areaPerPx * n,
+      areaKm2: (areaPerPx * n) / 100,
+      meanIndex: n > 0 ? sums[band] / n : NaN,
+      color: palette[band],
+      tone: band,
+    };
+  });
+
+  const meta = metaForLayer(opts.layerId);
+  const primaryMean = vals.reduce((a, b) => a + b, 0) / vals.length;
+
+  return {
+    layerId: opts.layerId,
+    layerLabel: meta.label,
+    primaryMean,
+    rows,
+  };
 }
