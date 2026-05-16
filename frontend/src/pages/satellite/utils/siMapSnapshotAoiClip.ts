@@ -40,7 +40,8 @@ function projectRing(
 export function projectAoiRingsForSnapshot(
   map: MapboxMap,
   aoiFeature: GeoJSON.Feature,
-  imageScale = 1,
+  outputScaleX = 1,
+  outputScaleY = outputScaleX,
 ): SiAoiProjectedRing[] {
   const geom = aoiFeature.geometry;
   if (!geom) return [];
@@ -49,9 +50,7 @@ export function projectAoiRingsForSnapshot(
   const mapW = canvas.width;
   const mapH = canvas.height;
   if (!mapW || !mapH) return [];
-  const sx = imageScale;
-  const sy = imageScale;
-  return rings.map(ring => projectRing(map, ring, sx, sy));
+  return rings.map(ring => projectRing(map, ring, outputScaleX, outputScaleY));
 }
 
 function traceRingPath(ctx: CanvasRenderingContext2D, pts: { x: number; y: number }[]) {
@@ -139,6 +138,39 @@ export async function clipMapSnapshotToAoiFeature(
       }
     }
 
+    return c.toDataURL('image/png');
+  } catch {
+    return pngDataUrl;
+  }
+}
+
+/** Full-frame snapshot with AOI outline only (basemap + index visible everywhere). */
+export async function outlineAoiOnSnapshotPng(
+  pngDataUrl: string,
+  projectedRings: SiAoiProjectedRing[],
+  opts?: { outlineColor?: string },
+): Promise<string> {
+  if (!projectedRings.length) return pngDataUrl;
+  try {
+    const img = await loadImageElement(pngDataUrl);
+    const imgW = img.naturalWidth || img.width;
+    const imgH = img.naturalHeight || img.height;
+    const c = document.createElement('canvas');
+    c.width = imgW;
+    c.height = imgH;
+    const ctx = c.getContext('2d');
+    if (!ctx) return pngDataUrl;
+    ctx.drawImage(img, 0, 0, imgW, imgH);
+    const outline = opts?.outlineColor ?? 'rgba(34, 197, 94, 0.95)';
+    ctx.strokeStyle = outline;
+    ctx.lineWidth = Math.max(2, Math.round(imgW * 0.0035));
+    ctx.lineJoin = 'round';
+    for (const pts of projectedRings) {
+      if (!pts.length) continue;
+      ctx.beginPath();
+      traceRingPath(ctx, pts);
+      ctx.stroke();
+    }
     return c.toDataURL('image/png');
   } catch {
     return pngDataUrl;

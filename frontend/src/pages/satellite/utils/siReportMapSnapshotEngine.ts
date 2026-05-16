@@ -1,13 +1,16 @@
 import type { Map as MapboxMap } from 'mapbox-gl';
+import type { SiAoiProjectedRing } from './siMapSnapshotAoiClip';
 import {
   clipMapSnapshotToAoiFeature,
   fitMapToLngLatBounds,
+  outlineAoiOnSnapshotPng,
   projectAoiRingsForSnapshot,
 } from './siMapSnapshotAoiClip';
-import { runSiMapCaptureSession } from './siMapCaptureSession';
+import { enforceSiFrozenMapViewport, runSiMapCaptureSession } from './siMapCaptureSession';
 import {
   captureMapboxCanvasPng,
   flushMapboxPaint,
+  isSnapshotCanvasLikelyHasBasemap,
   waitForAllMapSourcesReady,
   waitForMapboxIdle,
   waitForMapboxTilesPainted,
@@ -56,8 +59,8 @@ const PROFILE_PRESETS: Record<
     sourcesTimeoutMs: 12000,
     wmsWaitMs: 7500,
     dateSettleMs: 360,
-    rasterFadeSettleMs: 640,
-    maxAttempts: 4,
+    rasterFadeSettleMs: 720,
+    maxAttempts: 5,
   },
 };
 
@@ -70,6 +73,8 @@ export type SiReportMapSnapshotRequest = {
   profile?: SiReportMapSnapshotProfile;
   applyDate?: (iso: string) => void | Promise<void>;
   freezeViewport?: boolean;
+  /** Full frame vs circular AOI mask (default: mask only when not freezing). */
+  maskToAoi?: boolean;
 };
 
 export function setReportMapCaptureMode(active: boolean): void {
@@ -83,6 +88,7 @@ export function setReportMapCaptureMode(active: boolean): void {
 export function prepareMapboxMapForSnapshot(map: MapboxMap): boolean {
   try {
     map.resize();
+    enforceSiFrozenMapViewport(map);
     map.triggerRepaint?.();
   } catch {
     /* ignore */
@@ -115,6 +121,7 @@ export async function waitForWmsRasterSourcesReady(map: MapboxMap, timeoutMs: nu
   if (!ids.length) return;
   const t0 = typeof performance !== 'undefined' ? performance.now() : Date.now();
   const poll = async (): Promise<void> => {
+    enforceSiFrozenMapViewport(map);
     const elapsed = (typeof performance !== 'undefined' ? performance.now() : Date.now()) - t0;
     if (elapsed >= timeoutMs) return;
     const ready = ids.every(id => {
@@ -165,8 +172,10 @@ async function waitForReportMapFrame(
   profile: SiReportMapSnapshotProfile,
 ): Promise<void> {
   const p = PROFILE_PRESETS[profile];
+  enforceSiFrozenMapViewport(map);
   await new Promise<void>(r => window.setTimeout(r, p.rasterFadeSettleMs));
   for (let i = 0; i < p.idlePasses; i++) {
+    enforceSiFrozenMapViewport(map);
     await waitForAllMapSourcesReady(map, p.sourcesTimeoutMs);
     await waitForMapboxIdle(map, p.idleTimeoutMs);
     await waitForMapboxTilesPainted(map, p.tilesTimeoutMs);
@@ -178,24 +187,48 @@ async function waitForReportMapFrame(
     }
     await waitForNextMapRender(map, Math.min(5000, p.idleTimeoutMs));
     await flushMapboxPaint();
+    enforceSiFrozenMapViewport(map);
   }
 }
 
-async function tryCaptureFrame(map: MapboxMap, scale: number): Promise<string | null> {
-  await waitForNextMapRender(map, 4000);
+type CaptureFrameResult = {
+  png: string;
+  projectedRings?: SiAoiProjectedRing[];
+  scaleX: number;
+  scaleY: number;
+};
+
+async function tryCaptureFrame(
+  map: MapboxMap,
+  scale: number,
+  aoiFeature?: GeoJSON.Feature,
+): Promise<CaptureFrameResult | null> {
+  enforceSiFrozenMapViewport(map);
+  await waitForNextMapRender(map, 5000);
   await flushMapboxPaint();
+  enforceSiFrozenMapViewport(map);
+
+  const canvas = map.getCanvas();
+  const mapW = canvas.width;
+  const mapH = canvas.height;
+  if (!mapW || !mapH) return null;
+
+  const scaleX = scale;
+  const scaleY = scale;
+  const projectedRings =
+    aoiFeature?.geometry != null
+      ? projectAoiRingsForSnapshot(map, aoiFeature, scaleX, scaleY)
+      : undefined;
+
   const png = captureMapboxCanvasPng(map, scale);
   if (!png || png.length < 800) return null;
-  try {
-    const canvas = map.getCanvas?.();
-    if (canvas instanceof HTMLCanvasElement) {
-      const blank = isSnapshotCanvasLikelyBlank(canvas);
-      if (blank === true) return null;
-    }
-  } catch {
-    /* ignore */
-  }
-  return png;
+
+  const blank = isSnapshotCanvasLikelyBlank(canvas);
+  if (blank === true) return null;
+  const hasBasemap = isSnapshotCanvasLikelyHasBasemap(canvas);
+  if (hasBasemap === false) return null;
+
+  return { png, projectedRings, scaleX, scaleY };
 }
 
 export async function captureSiReportMapSnapshot(
@@ -205,7 +238,9 @@ export async function captureSiReportMapSnapshot(
   const freeze = opts?.freezeViewport === true;
   const profile = freeze ? 'quality' : (opts?.profile ?? 'balanced');
   const preset = PROFILE_PRESETS[profile];
-  const scale = Math.min(4, Math.max(2, opts?.scale ?? 3));
+  const maskToAoi = opts?.maskToAoi ?? !freeze;
+  /** Native canvas resolution = WYSIWYG with the live viewer (no upscale drift). */
+  const scale = freeze ? 1 : Math.min(4, Math.max(2, opts?.scale ?? 3));
 
   if (!prepareMapboxMapForSnapshot(map)) return null;
 
@@ -229,30 +264,31 @@ export async function captureSiReportMapSnapshot(
         await waitForReportMapFrame(map, profile);
       }
 
-      const projectedRings =
-        opts?.aoiFeature?.geometry != null
-          ? projectAoiRingsForSnapshot(map, opts.aoiFeature, scale)
-          : undefined;
-
-      let raw: string | null = null;
+      let captured: CaptureFrameResult | null = null;
       for (let attempt = 0; attempt < preset.maxAttempts; attempt++) {
         if (attempt > 0) {
           await waitForReportMapFrame(map, profile);
         }
-        raw = await tryCaptureFrame(map, scale);
-        if (raw) break;
+        captured = await tryCaptureFrame(map, scale, opts?.aoiFeature);
+        if (captured) break;
       }
-      if (!raw) return null;
+      if (!captured) return null;
 
-      if (opts?.aoiFeature?.geometry) {
-        return await clipMapSnapshotToAoiFeature(map, raw, opts.aoiFeature, {
-          outlineColor: opts.outlineColor ?? 'rgba(34, 197, 94, 0.95)',
-          projectedRings,
-          skipOutlineStroke: true,
-          imageScale: scale,
-        });
+      const { png: raw, projectedRings } = captured;
+      if (!opts?.aoiFeature?.geometry) return raw;
+
+      const outline = opts.outlineColor ?? 'rgba(34, 197, 94, 0.95)';
+      if (!maskToAoi) {
+        return projectedRings?.length
+          ? await outlineAoiOnSnapshotPng(raw, projectedRings, { outlineColor: outline })
+          : raw;
       }
-      return raw;
+
+      return await clipMapSnapshotToAoiFeature(map, raw, opts.aoiFeature, {
+        outlineColor: outline,
+        projectedRings,
+        skipOutlineStroke: true,
+      });
     } finally {
       setReportMapCaptureMode(false);
     }

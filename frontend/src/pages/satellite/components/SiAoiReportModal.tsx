@@ -542,7 +542,7 @@ export function SiAoiReportModal({
       try {
         const raw = await captureLiveMapSnapshot({
           freezeViewport: true,
-          scale: 3,
+          maskToAoi: false,
           profile: 'quality',
           aoiFeature: aoiFeat,
         });
@@ -918,7 +918,7 @@ export function SiAoiReportModal({
         } else if (liveMapCaptureOk && captureLiveMapSnapshot) {
           const raw = await captureLiveMapSnapshot({
             freezeViewport: true,
-            scale: 3,
+            maskToAoi: false,
             profile: 'quality',
             ...liveSnapshotAoiOpts,
           });

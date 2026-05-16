@@ -1,4 +1,5 @@
 import type { Map as MapboxMap } from 'mapbox-gl';
+import { enforceSiFrozenMapViewport } from './siMapCaptureSession';
 
 /** Wait until Mapbox GL finishes rendering tiles + layers (or timeout). */
 export function waitForMapboxIdle(map: MapboxMap, timeoutMs = 5200): Promise<void> {
@@ -117,7 +118,35 @@ function listStyleSourceIds(map: MapboxMap): string[] {
 }
 
 /** Poll until raster sources (basemap + WMS) report loaded, then idle + tiles. */
+/** Corners + center must show non-black pixels (basemap painted). */
+export function isSnapshotCanvasLikelyHasBasemap(canvas: HTMLCanvasElement): boolean | null {
+  try {
+    const ctx = canvas.getContext('2d', { willReadFrequently: true });
+    if (!ctx) return null;
+    const w = canvas.width;
+    const h = canvas.height;
+    if (w < 8 || h < 8) return false;
+    const points = [
+      [w * 0.12, h * 0.12],
+      [w * 0.88, h * 0.12],
+      [w * 0.12, h * 0.88],
+      [w * 0.88, h * 0.88],
+      [w * 0.5, h * 0.5],
+    ];
+    let bright = 0;
+    for (const [x, y] of points) {
+      const d = ctx.getImageData(Math.floor(x), Math.floor(y), 1, 1).data;
+      const luma = 0.299 * d[0]! + 0.587 * d[1]! + 0.114 * d[2]!;
+      if (luma > 22) bright++;
+    }
+    return bright >= 3;
+  } catch {
+    return null;
+  }
+}
+
 export async function waitForAllMapSourcesReady(map: MapboxMap, timeoutMs = 9000): Promise<void> {
+  enforceSiFrozenMapViewport(map);
   const rasterIds = listStyleSourceIds(map).filter(id => {
     try {
       const t = map.getStyle()?.sources?.[id] as { type?: string } | undefined;
@@ -209,6 +238,11 @@ export type SiLiveMapSnapshotOptions = {
   freezeViewport?: boolean;
   /** When shifting `date` for multi-frame capture, skip restoring the viewer date until the last call. */
   skipTimelineRestore?: boolean;
+  /**
+   * When false, export the full map frame (basemap + index) and draw AOI outline only.
+   * Avoids black letterboxing outside the AOI mask in reports.
+   */
+  maskToAoi?: boolean;
 };
 
 export type SiLiveMapSnapshotCapture = (opts?: SiLiveMapSnapshotOptions) => Promise<string | null>;

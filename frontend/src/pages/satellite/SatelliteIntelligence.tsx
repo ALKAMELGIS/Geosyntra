@@ -10751,6 +10751,7 @@ export default function SatelliteIntelligence() {
       try {
         return await captureSiReportMapSnapshot(map, {
           freezeViewport: freeze,
+          maskToAoi: opts?.maskToAoi ?? (freeze ? false : true),
           date: shouldShiftDate ? targetIso : undefined,
           applyDate: shouldShiftDate
             ? iso => {
@@ -10759,7 +10760,7 @@ export default function SatelliteIntelligence() {
             : undefined,
           fitBounds: fit ?? undefined,
           aoiFeature: aoiFeature ?? undefined,
-          scale: opts?.scale ?? 3,
+          scale: freeze ? 1 : (opts?.scale ?? 3),
           profile: freeze ? 'quality' : (opts?.profile ?? 'balanced'),
           outlineColor: 'rgba(34, 197, 94, 0.95)',
         });

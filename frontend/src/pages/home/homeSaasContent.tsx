@@ -21,9 +21,9 @@ export const homeSaasContent = {
     { id: 'about', href: '#discovery', label: 'About' as ReactNode },
   ],
   hero: {
-    lineBefore: 'Geo-intelligence built for',
-    accent: 'your AOIs',
-    lineAfter: 'and field teams',
+    lineBefore: 'Geosyntra built for',
+    accent: 'spatial intelligence',
+    lineAfter: 'without limits',
     subtitle:
       'Draw areas of interest on the map, run Sentinel NDVI timelines, and export two-page scientific reports — clarity and trust without extra GIS overhead.',
   } satisfies HomeSaasHeroCopy,
