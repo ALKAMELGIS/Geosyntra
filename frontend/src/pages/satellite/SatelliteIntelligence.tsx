@@ -48,7 +48,8 @@ import { useClaudeApiKey } from '../../hooks/useClaudeApiKey';
 import { useDeepseekApiKey } from '../../hooks/useDeepseekApiKey';
 import { getArcgisPortalToken } from '../../lib/arcgisPortalToken';
 import { getMapboxAccessToken } from '../../lib/mapboxAccessToken';
-import { subscribeSentinelHubAccessToken } from '../../lib/sentinelHubAccessToken';
+import { getSentinelHubAccessToken, subscribeSentinelHubAccessToken } from '../../lib/sentinelHubAccessToken';
+import { fetchSentinelHubWmsLayers } from '../../lib/sentinelHubWmsCapabilities';
 import { getSentinelHubWmsBaseUrl, subscribeSentinelHubWmsInstance } from '../../lib/sentinelHubWmsInstance';
 import { buildSentinelHubWmsAoiClip, getDrawnGeometry, inferWmsEvalProfile } from '../../lib/sentinelHubWmsAoiClip';
 import type { IndexRampStop } from '../../lib/siWmsIndexClassificationRamp';
@@ -2534,6 +2535,16 @@ export default function SatelliteIntelligence() {
 
   const [sentinelWmsRev, setSentinelWmsRev] = useState(0);
   const wmsBaseUrl = useMemo(() => getSentinelHubWmsBaseUrl(), [sentinelWmsRev]);
+  const sentinelHubAccessToken = useMemo(() => getSentinelHubAccessToken(), [sentinelWmsRev]);
+
+  const sentinelHubTransformRequest = useCallback(
+    (url: string, resourceType: string) => {
+      if (resourceType === 'Tile' && url.includes('services.sentinel-hub.com') && sentinelHubAccessToken) {
+        return { url, headers: { Authorization: `Bearer ${sentinelHubAccessToken}` } };
+      }
+    },
+    [sentinelHubAccessToken],
+  );
 
   useEffect(() => {
     const bump = () => setSentinelWmsRev(r => r + 1);
@@ -9379,42 +9390,24 @@ export default function SatelliteIntelligence() {
   }, [timeSeriesStart, timeSeriesEnd]);
 
   useEffect(() => {
+    let cancelled = false;
     const loadLayers = async () => {
       setIsLoadingLayers(true);
       try {
-        const response = await fetch(`${wmsBaseUrl}?SERVICE=WMS&REQUEST=GetCapabilities`);
-        if (response.ok) {
-          const text = await response.text();
-          const parser = new DOMParser();
-          const xml = parser.parseFromString(text, 'application/xml');
-          const nodes = Array.from(xml.getElementsByTagName('Layer'));
-          const parsed: WmsLayerInfo[] = [];
-          nodes.forEach(node => {
-            const nameNode = node.getElementsByTagName('Name')[0];
-            if (!nameNode) return;
-            const titleNode = node.getElementsByTagName('Title')[0];
-            const name = nameNode.textContent || '';
-            let title = (titleNode?.textContent || name).trim();
-            if (name === 'NDWI' && /Moisture Index \(NDWI\)/i.test(title)) title = 'NDWI';
-            if (name && !parsed.some(l => l.name === name)) {
-              parsed.push({ name, title });
-            }
-          });
-          if (parsed.length > 0) {
-            setWmsLayers(parsed);
-            return;
-          }
-        }
-        setWmsLayers([]);
+        const parsed = await fetchSentinelHubWmsLayers();
+        if (!cancelled) setWmsLayers(parsed);
       } catch (error) {
         console.error('Failed to load WMS layers', error);
-        setWmsLayers([]);
+        if (!cancelled) setWmsLayers([]);
       } finally {
-        setIsLoadingLayers(false);
+        if (!cancelled) setIsLoadingLayers(false);
       }
     };
-    loadLayers();
-  }, [wmsBaseUrl]);
+    void loadLayers();
+    return () => {
+      cancelled = true;
+    };
+  }, [wmsBaseUrl, sentinelWmsRev]);
 
   /** Keep WMS layer name aligned with layers returned for the configured Sentinel Hub instance. */
   useEffect(() => {
@@ -11649,6 +11642,7 @@ export default function SatelliteIntelligence() {
             }}
             mapStyle={effectiveMapStyle}
             mapboxAccessToken={mapboxAccessTokenForMap}
+            transformRequest={sentinelHubTransformRequest}
             logoPosition="bottom-left"
             projection={{ name: 'globe' }}
             renderWorldCopies={false}

@@ -5,7 +5,10 @@ import {
   testApiTokenSecret,
   writeApiTokenSecret,
 } from '../../../lib/apiIntegrationTokens'
+import { fetchSentinelHubWmsLayers } from '../../../lib/sentinelHubWmsCapabilities'
+import { persistSentinelHubWmsInstanceIdInBrowser } from '../../../lib/sentinelHubWmsInstance'
 import type { ProviderId } from './types'
+import type { AuthType } from './types'
 import { getProvider } from './providers/registry'
 import { primarySecretKey } from './providers/validate'
 
@@ -43,6 +46,41 @@ export async function persistVaultSecret(
   return writeApiTokenSecret(vaultTypeId, value)
 }
 
+export async function persistProviderVault(
+  providerId: ProviderId,
+  authType: AuthType,
+  config: Record<string, string>,
+  secrets: Record<string, string>,
+): Promise<
+  { ok: true; synced?: boolean; warning?: string } | { ok: false; error: string }
+> {
+  const merged = { ...config, ...secrets }
+
+  if (providerId === 'sentinel_hub') {
+    const token = (merged.accessToken ?? '').trim()
+    const instanceId = (merged.instanceId ?? '').trim()
+    if (!token) return { ok: false, error: 'OAuth access token is required' }
+    if (!instanceId) {
+      return { ok: false, error: 'WMS instance ID is required for Sentinel Hub layers' }
+    }
+
+    const tokenResult = await writeApiTokenSecret('sentinelHubAccessToken', token)
+    if (!tokenResult.ok) {
+      return { ok: false, error: 'error' in tokenResult ? tokenResult.error : 'Failed to store token' }
+    }
+
+    persistSentinelHubWmsInstanceIdInBrowser(instanceId)
+
+    return {
+      ok: true,
+      synced: tokenResult.synced,
+      warning: tokenResult.warning,
+    }
+  }
+
+  return persistVaultSecret(providerId, authType, merged)
+}
+
 export async function testVaultConnection(
   providerId: ProviderId,
   authType: import('./types').AuthType,
@@ -53,6 +91,29 @@ export async function testVaultConnection(
   const vaultTypeId = getProvider(providerId).vaultTypeId
   const key = primarySecretKey(providerId, authType)
   const inline = config[key]?.trim()
+
+  if (providerId === 'sentinel_hub') {
+    const token = (config.accessToken ?? inline ?? '').trim()
+    const instanceId = (config.instanceId ?? '').trim()
+    if (!token) {
+      return { ok: false, message: 'OAuth access token is required', latencyMs: 0 }
+    }
+    if (!instanceId) {
+      return { ok: false, message: 'WMS instance ID is required', latencyMs: 0 }
+    }
+    if (inline) await writeApiTokenSecret('sentinelHubAccessToken', token)
+    persistSentinelHubWmsInstanceIdInBrowser(instanceId)
+    const layers = await fetchSentinelHubWmsLayers()
+    const latencyMs = Math.round(performance.now() - start)
+    if (layers.length > 0) {
+      return { ok: true, message: `Connected — ${layers.length} WMS layers`, latencyMs }
+    }
+    return {
+      ok: false,
+      message: 'Could not load WMS layers — check token and instance ID',
+      latencyMs,
+    }
+  }
 
   if (vaultTypeId) {
     if (inline) {

@@ -144,21 +144,33 @@ const PROVIDERS: ProviderConfig[] = [
     description: 'EO processing, WMS, and OAuth APIs.',
     capabilities: ['WMS', 'Processing API', 'OAuth2'],
     defaultBaseUrl: 'https://services.sentinel-hub.com',
-    authTypes: ['oauth2', 'client_credentials', 'api_key'],
-    defaultAuthType: 'oauth2',
+    authTypes: ['api_key', 'oauth2', 'client_credentials'],
+    defaultAuthType: 'api_key',
     vaultTypeId: 'sentinelHubAccessToken',
     fieldsByAuth: {
+      api_key: fields(
+        field('accessToken', 'OAuth access token', {
+          required: true,
+          secret: SECRET,
+          kind: 'password',
+          hint: 'Sentinel Hub → User settings → OAuth client → access token',
+        }),
+        field('instanceId', 'WMS instance ID', {
+          required: true,
+          placeholder: 'xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx',
+          hint: 'User settings → OGC (WMS) instance UUID — required for Layer list',
+        }),
+      ),
       oauth2: fields(
         field('clientId', 'Client ID', { required: true }),
         field('clientSecret', 'Client secret', { required: true, secret: SECRET, kind: 'password' }),
-        field('instanceId', 'Instance ID', { required: true, hint: 'Sentinel Hub dashboard → User settings' }),
+        field('instanceId', 'WMS instance ID', { required: true, hint: 'User settings → OGC instance UUID' }),
       ),
       client_credentials: fields(
         field('clientId', 'Client ID', { required: true }),
         field('clientSecret', 'Client Secret', { required: true, secret: SECRET, kind: 'password' }),
-        field('instanceId', 'Instance ID', { required: true }),
+        field('instanceId', 'WMS instance ID', { required: true }),
       ),
-      api_key: fields(field('accessToken', 'Access Token', { required: true, secret: SECRET, kind: 'password' })),
     },
   },
   {

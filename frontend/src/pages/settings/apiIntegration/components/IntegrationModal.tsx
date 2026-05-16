@@ -10,7 +10,8 @@ import {
   emptyDraft,
   saveIntegrationRecord,
 } from '../integrationStore'
-import { loadVaultSecret, persistVaultSecret } from '../vaultBridge'
+import { getSentinelHubWmsInstanceIdBrowserOverride } from '../../../../lib/sentinelHubWmsInstance'
+import { loadVaultSecret, persistProviderVault } from '../vaultBridge'
 import { useAutoSave } from '../hooks/useAutoSave'
 import { useConnectionTest } from '../hooks/useConnectionTest'
 import { useIntegrationValidation } from '../hooks/useIntegrationValidation'
@@ -78,9 +79,17 @@ export function IntegrationModal({ open, record, onClose, onSaved }: Props) {
     if (!open) return
     if (record) {
       const next = sanitizeIntegrationDraft(recordToDraft(record))
-      setDraft(next)
+      const instanceId =
+        next.providerId === 'sentinel_hub'
+          ? next.config.instanceId?.trim() || getSentinelHubWmsInstanceIdBrowserOverride()
+          : ''
+      setDraft(
+        instanceId
+          ? { ...next, config: { ...next.config, instanceId } }
+          : next,
+      )
       const vault = loadVaultSecret(record.providerId)
-      const key = primarySecretKey(record.providerId, 'api_key')
+      const key = primarySecretKey(record.providerId, record.authType)
       if (vault) setSecret(key, vault)
     } else {
       setDraft(sanitizeIntegrationDraft(emptyDraft('mapbox')))
@@ -144,10 +153,7 @@ export function IntegrationModal({ open, record, onClose, onSaved }: Props) {
     setBusy(true)
     setSaveError(null)
     try {
-      const vaultResult = await persistVaultSecret(draft.providerId, draft.authType, {
-        ...draft.config,
-        ...cleanSecrets,
-      })
+      const vaultResult = await persistProviderVault(draft.providerId, draft.authType, draft.config, cleanSecrets)
       if (!vaultResult.ok) {
         setSaveError('error' in vaultResult ? vaultResult.error : 'Failed to store secret')
         return
