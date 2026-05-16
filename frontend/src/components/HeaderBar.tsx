@@ -1,13 +1,9 @@
 import './header.css'
 import { useEffect, useMemo, useRef, type CSSProperties } from 'react'
-import { NavLink } from 'react-router-dom'
 import PrimaryNavIcons from './PrimaryNavIcons'
-import { navTranslations } from './navTranslations'
-import { prefetchRoute } from '../routes/routePrefetch'
 import { useSystemSettings } from '../store/SystemSettingsContext'
 import { useLanguage } from '../lib/i18n'
 import {
-  GEOSYNTRA_BRAND_ICON_FALLBACK,
   GEOSYNTRA_BRAND_LOGO_SVG,
   GEOSYNTRA_BRAND_NAME,
   GEOSYNTRA_BRAND_NAME_AR,
@@ -38,7 +34,6 @@ export default function HeaderBar({ onLogout }: HeaderBarProps) {
     () => (language === 'ar' ? GEOSYNTRA_BRAND_NAME_AR : GEOSYNTRA_BRAND_NAME),
     [language],
   )
-  const apiManagerTitle = navTranslations[language].apiIntegrations
   const headerStyle = useMemo(
     () =>
       ({
@@ -134,21 +129,7 @@ export default function HeaderBar({ onLogout }: HeaderBarProps) {
         ) : null}
       </div>
       <div className="header-right">
-        <div className="header-right__cluster">
-          <NavLink
-            to="/settings/api-integrations"
-            className={({ isActive }) =>
-              `geosyntra-header-api-manager-btn${isActive ? ' geosyntra-header-api-manager-btn--active' : ''}`
-            }
-            title={apiManagerTitle}
-            aria-label={apiManagerTitle}
-            onMouseEnter={() => prefetchRoute('/settings/api-integrations')}
-            onFocus={() => prefetchRoute('/settings/api-integrations')}
-          >
-            <i className="fa-solid fa-key" aria-hidden />
-          </NavLink>
-          <PrimaryNavIcons onLogout={onLogout} />
-        </div>
+        <PrimaryNavIcons onLogout={onLogout} />
       </div>
     </header>
   )

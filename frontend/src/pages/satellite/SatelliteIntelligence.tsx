@@ -165,8 +165,6 @@ import {
   writeSiStyleClipboard,
 } from './siSymbolStyleStudio';
 import { FieldVisibilityControl } from './components/FieldVisibilityControl';
-import { GeoExplorerGeminiInputRow } from './components/GeoExplorerGeminiInputRow';
-import { GeoExplorerGeminiMessageParts } from './components/GeoExplorerGeminiMessageParts';
 import { SiCopyTextButton } from './components/SiCopyTextButton';
 import type { AoiStaticMultiLayerLineChartDataset } from './components/AoiStaticMultiLayerLineChart';
 import { SatelliteMapAnalysisChrome, type MapToolboxNavigateHandler } from './components/SatelliteMapAnalysisChrome';
@@ -174,6 +172,8 @@ import { SiAoiWorkspaceLayerPicker } from './components/SiAoiWorkspaceLayerPicke
 import { SiSentinelHubRasterLayers, type SiSentinelHubRasterRunLite } from './components/SiSentinelHubRasterLayers';
 import { SiMapNavigationGate } from './components/SiMapNavigationGate';
 import { SatelliteGeoAiFloatingWidget } from './components/SatelliteGeoAiFloatingWidget';
+import { SiGeoExplorerChatPanel } from './components/SiGeoExplorerChatPanel';
+import { SiGeoAiModelSettings } from './components/SiGeoAiModelSettings';
 import { SatelliteAoiStaticChartsMapOverlay } from './components/SatelliteAoiStaticChartsMapOverlay';
 import { SiAoiReportModal } from './components/SiAoiReportModal';
 import { siAoiPaletteFromIndexRampStops, siAoiReportFeatureBBoxLngLat } from './utils/siAoiVegetationReportModel';
@@ -12027,52 +12027,13 @@ export default function SatelliteIntelligence() {
               setGeoAiFloatingOpen(false);
               setGeoAiFloatingExpanded(false);
             }}
-            floatHeadExtra={
-              <div className="si-geo-ai-float-model-icon-tabs" role="tablist" aria-label="AI model">
-                <button
-                  type="button"
-                  role="tab"
-                  aria-selected={geoAiModelTab === 'claude'}
-                  className={`si-geo-ai-float-model-icon-tab${geoAiModelTab === 'claude' ? ' si-geo-ai-float-model-icon-tab--active' : ''}`}
-                  title="Claude"
-                  onPointerDown={e => e.stopPropagation()}
-                  onClick={() => setGeoAiModelTab('claude')}
-                >
-                  <i className="fa-solid fa-feather-pointed" aria-hidden />
-                  <span className="si-geo-ai-float-sr-only">Claude</span>
-                </button>
-                <button
-                  type="button"
-                  role="tab"
-                  aria-selected={geoAiModelTab === 'deepseek'}
-                  className={`si-geo-ai-float-model-icon-tab${geoAiModelTab === 'deepseek' ? ' si-geo-ai-float-model-icon-tab--active' : ''}`}
-                  title="DeepSeek"
-                  onPointerDown={e => e.stopPropagation()}
-                  onClick={() => setGeoAiModelTab('deepseek')}
-                >
-                  <i className="fa-solid fa-bolt" aria-hidden />
-                  <span className="si-geo-ai-float-sr-only">DeepSeek</span>
-                </button>
-                <button
-                  type="button"
-                  role="tab"
-                  aria-selected={geoAiModelTab === 'gemini'}
-                  className={`si-geo-ai-float-model-icon-tab${geoAiModelTab === 'gemini' ? ' si-geo-ai-float-model-icon-tab--active' : ''}`}
-                  title="Gemini"
-                  onPointerDown={e => e.stopPropagation()}
-                  onClick={() => setGeoAiModelTab('gemini')}
-                >
-                  <i className="fa-brands fa-google" aria-hidden />
-                  <span className="si-geo-ai-float-sr-only">Gemini</span>
-                </button>
-              </div>
-            }
           >
                       <div className="si-geo-explorer-root si-geo-explorer-root--unified">
                         <div className="si-env-section-card si-geo-explorer">
                           <div className="si-geo-explorer-header">
                             <h2 className="si-geo-explorer-title">Geo AI Exploration</h2>
                             <div className="si-geo-explorer-header-actions">
+                              <SiGeoAiModelSettings value={geoAiModelTab} onChange={setGeoAiModelTab} />
                               <button
                                 type="button"
                                 className="si-geo-explorer-icon-btn"
@@ -12120,289 +12081,135 @@ export default function SatelliteIntelligence() {
                             </div>
                           </div>
                           {geoAiModelTab === 'gemini' ? (
-                            <>
-                              <div
-                                className="si-geo-explorer-messages"
-                                ref={geoExplorerMessagesRef}
-                                onScroll={() => {
-                                  const el = geoExplorerMessagesRef.current;
-                                  if (!el || !geoExplorerHasOlderMessages) return;
-                                  if (el.scrollTop <= 24) loadOlderGeoExplorerMessages();
-                                }}
-                              >
-                                {geoExplorerHasOlderMessages ? (
-                                  <button
-                                    type="button"
-                                    className="si-geo-explorer-load-more"
-                                    onClick={loadOlderGeoExplorerMessages}
-                                    aria-label="Load older messages"
-                                  >
-                                    Load earlier messages
-                                  </button>
-                                ) : null}
-                                <div className="si-geo-explorer-row si-geo-explorer-row--model">
-                                  <div className="si-geo-explorer-avatar" aria-hidden>
-                                    <i className="fa-solid fa-globe" />
-                                  </div>
-                                  <div className="si-geo-explorer-bubble">
-                                    <div className="si-geo-explorer-bubble-with-copy">
-                                      <p className="si-geo-explorer-bubble-text">{SI_GEO_AI_WELCOME_GEMINI_TEXT}</p>
-                                      <SiCopyTextButton
-                                        text={SI_GEO_AI_WELCOME_GEMINI_TEXT}
-                                        className="si-geo-explorer-bubble-copy-btn"
-                                        title="Copy intro"
-                                        ariaLabel="Copy welcome text"
-                                        variant="compact"
-                                      />
-                                    </div>
-                                  </div>
-                                </div>
-                                {visibleGeoExplorerMessages.map(msg => (
-                                  <div
-                                    key={msg.id}
-                                    className={`si-geo-explorer-row si-geo-explorer-row--${msg.role}`}
-                                  >
-                                    {msg.role === 'model' ? (
-                                      <div className="si-geo-explorer-avatar" aria-hidden>
-                                        <i className="fa-solid fa-wand-magic-sparkles" />
-                                      </div>
-                                    ) : null}
-                                    <div className="si-geo-explorer-bubble">
-                                      <GeoExplorerGeminiMessageParts
-                                        msg={msg}
-                                        cssPrefix="si-geo-explorer"
-                                        onTableMapAction={onSiGeoAiTableMapAction}
-                                        onTableBatchZoom={onGeoAiTableBatchZoom}
-                                        onSaveEditedUserMessage={saveEditedGeoExplorerGeminiQuestion}
-                                        onSendEditedToComposer={setGeoExplorerDraft}
-                                        suggestLayers={geoAiSuggestContext.layers}
-                                        suggestFields={geoAiSuggestContext.fields}
-                                        suggestNumericFields={geoAiSuggestContext.numericFields}
-                                        onTableSelectionLinksChange={onGeoAiTableSelectionSync}
-                                        mapFocusFeatureKey={geoAiTableMapFocusKey}
-                                        onTableQuerySelectApplied={onGeoAiQuerySelectApplied}
-                                      />
-                                    </div>
-                                  </div>
-                                ))}
-                                {geoExplorerBusy ? (
-                                  <div className="si-geo-explorer-row si-geo-explorer-row--model">
-                                    <div className="si-geo-explorer-avatar" aria-hidden>
-                                      <i className="fa-solid fa-wand-magic-sparkles" />
-                                    </div>
-                                    <div className="si-geo-explorer-bubble si-geo-explorer-bubble--typing">
-                                      <i className="fa-solid fa-spinner fa-spin" aria-hidden />{' '}
-                                      {geoExplorerAwaitKind === 'edit' ? 'Updating…' : 'Thinking…'}
-                                    </div>
-                                  </div>
-                                ) : null}
-                              </div>
-                                {geoExplorerChatError ? (
-                                <div className="si-geo-explorer-error-row">
-                                  <p className="si-geo-explorer-error">{geoExplorerChatError}</p>
-                                  <SiCopyTextButton
-                                    text={geoExplorerChatError}
-                                    className="si-geo-explorer-error-copy-btn"
-                                    title="Copy error message"
-                                    ariaLabel="Copy error text"
-                                    variant="compact"
-                                  />
-                                </div>
-                              ) : null}
-                              {geoExplorerPendingImage ? (
-                                <p className="si-geo-explorer-pending-img">
-                                  <i className="fa-solid fa-image" aria-hidden /> Image ready to send
-                                  <button
-                                    type="button"
-                                    className="si-geo-explorer-linkish"
-                                    onClick={() => setGeoExplorerPendingImage(null)}
-                                  >
-                                    Remove
-                                  </button>
-                                </p>
-                              ) : null}
-                              <GeoExplorerGeminiInputRow
-                                cssPrefix="si-geo-explorer"
-                                draft={geoExplorerDraft}
-                                onDraftChange={setGeoExplorerDraft}
-                                onSend={sendGeoExplorerChat}
-                                busy={geoExplorerBusy}
-                                pendingImage={geoExplorerPendingImage}
-                                fileInputRef={geoExplorerFileInputRef}
-                                onAttachChange={onGeoExplorerAttachChange}
-                                textareaAriaLabel="Geo AI Gemini message"
-                                availableLayers={geoAiSuggestContext.layers}
-                                availableFields={geoAiSuggestContext.fields}
-                                availableNumericFields={geoAiSuggestContext.numericFields}
-                                availableGeometryOps={geoAiSuggestContext.geometryOps}
-                                smartSuggestionsEnabled={geoAiSmartSuggestionsEnabled}
-                              />
-                            </>
+                            <SiGeoExplorerChatPanel
+                              messagesRef={geoExplorerMessagesRef}
+                              hasOlderMessages={geoExplorerHasOlderMessages}
+                              onLoadOlder={loadOlderGeoExplorerMessages}
+                              onScrollNearTop={() => {
+                                if (geoExplorerHasOlderMessages) loadOlderGeoExplorerMessages();
+                              }}
+                              welcomeText={SI_GEO_AI_WELCOME_GEMINI_TEXT}
+                              welcomeAvatarIcon="fa-solid fa-globe"
+                              modelAvatarIcon="fa-solid fa-wand-magic-sparkles"
+                              messages={visibleGeoExplorerMessages}
+                              busy={geoExplorerBusy}
+                              typingLabel={geoExplorerAwaitKind === 'edit' ? 'Updating…' : 'Thinking…'}
+                              error={geoExplorerChatError}
+                              draft={geoExplorerDraft}
+                              onDraftChange={setGeoExplorerDraft}
+                              onSend={sendGeoExplorerChat}
+                              pendingImage={geoExplorerPendingImage}
+                              onClearPendingImage={() => setGeoExplorerPendingImage(null)}
+                              fileInputRef={geoExplorerFileInputRef}
+                              onAttachChange={onGeoExplorerAttachChange}
+                              textareaAriaLabel="Geo AI Gemini message"
+                              smartSuggestionsEnabled={geoAiSmartSuggestionsEnabled}
+                              availableLayers={geoAiSuggestContext.layers}
+                              availableFields={geoAiSuggestContext.fields}
+                              availableNumericFields={geoAiSuggestContext.numericFields}
+                              availableGeometryOps={geoAiSuggestContext.geometryOps}
+                              messagePartsProps={{
+                                onTableMapAction: onSiGeoAiTableMapAction,
+                                onTableBatchZoom: onGeoAiTableBatchZoom,
+                                onSaveEditedUserMessage: saveEditedGeoExplorerGeminiQuestion,
+                                onSendEditedToComposer: setGeoExplorerDraft,
+                                suggestLayers: geoAiSuggestContext.layers,
+                                suggestFields: geoAiSuggestContext.fields,
+                                suggestNumericFields: geoAiSuggestContext.numericFields,
+                                onTableSelectionLinksChange: onGeoAiTableSelectionSync,
+                                mapFocusFeatureKey: geoAiTableMapFocusKey,
+                                onTableQuerySelectApplied: onGeoAiQuerySelectApplied,
+                              }}
+                            />
                           ) : null}
 
                           {geoAiModelTab === 'claude' || geoAiModelTab === 'deepseek' ? (
-                            <>
-                              <div
-                                className="si-geo-explorer-messages"
-                                ref={geoAiModelTab === 'claude' ? geoAiClaudeMessagesRef : geoAiDeepseekMessagesRef}
-                                onScroll={() => {
-                                  const isClaude = geoAiModelTab === 'claude';
-                                  const el = isClaude ? geoAiClaudeMessagesRef.current : geoAiDeepseekMessagesRef.current;
-                                  const hasOlder = isClaude ? geoAiClaudeHasOlderMessages : geoAiDeepseekHasOlderMessages;
-                                  if (!el || !hasOlder) return;
-                                  if (el.scrollTop <= 24) {
-                                    if (isClaude) loadOlderGeoAiClaudeMessages();
-                                    else loadOlderGeoAiDeepseekMessages();
-                                  }
-                                }}
-                              >
-                                {(geoAiModelTab === 'claude' ? geoAiClaudeHasOlderMessages : geoAiDeepseekHasOlderMessages) ? (
-                                  <button
-                                    type="button"
-                                    className="si-geo-explorer-load-more"
-                                    onClick={() => {
-                                      if (geoAiModelTab === 'claude') loadOlderGeoAiClaudeMessages();
-                                      else loadOlderGeoAiDeepseekMessages();
-                                    }}
-                                    aria-label="Load older messages"
-                                  >
-                                    Load earlier messages
-                                  </button>
-                                ) : null}
-                                <div className="si-geo-explorer-row si-geo-explorer-row--model">
-                                  <div className="si-geo-explorer-avatar" aria-hidden>
-                                    <i className="fa-solid fa-database" />
-                                  </div>
-                                  <div className="si-geo-explorer-bubble">
-                                    <div className="si-geo-explorer-bubble-with-copy">
-                                      <p className="si-geo-explorer-bubble-text">{SI_GEO_AI_WELCOME_DATA_ASSISTANT_TEXT}</p>
-                                      <SiCopyTextButton
-                                        text={SI_GEO_AI_WELCOME_DATA_ASSISTANT_TEXT}
-                                        className="si-geo-explorer-bubble-copy-btn"
-                                        title="Copy intro"
-                                        ariaLabel="Copy welcome text"
-                                        variant="compact"
-                                      />
-                                    </div>
-                                  </div>
-                                </div>
-                                {(geoAiModelTab === 'claude' ? visibleGeoAiClaudeMessages : visibleGeoAiDeepseekMessages).map(msg => (
-                                  <div
-                                    key={msg.id}
-                                    className={`si-geo-explorer-row si-geo-explorer-row--${
-                                      msg.role === 'user' ? 'user' : 'model'
-                                    }`}
-                                  >
-                                    {msg.role === 'model' ? (
-                                      <div className="si-geo-explorer-avatar" aria-hidden>
-                                        <i className="fa-solid fa-robot" />
-                                      </div>
-                                    ) : null}
-                                    <div className="si-geo-explorer-bubble">
-                                      <GeoExplorerGeminiMessageParts
-                                        msg={msg}
-                                        cssPrefix="si-geo-explorer"
-                                        onTableMapAction={onSiGeoAiTableMapAction}
-                                        onTableBatchZoom={onGeoAiTableBatchZoom}
-                                        onUpdateUserMessage={(messageId, nextText) => {
-                                          const setter =
-                                            geoAiModelTab === 'claude' ? setGeoAiChatMessages : setGeoDeepseekChatMessages;
-                                          setter(prev =>
-                                            prev.map(m =>
-                                              m.id === messageId && m.role === 'user'
-                                                ? replaceUserMessageText(m, nextText)
-                                                : m,
-                                            ),
-                                          );
-                                        }}
-                                        onSendEditedToComposer={
-                                          geoAiModelTab === 'claude' ? setGeoAiDraft : setGeoDeepseekDraft
-                                        }
-                                        suggestLayers={geoAiSuggestContext.layers}
-                                        suggestFields={geoAiSuggestContext.fields}
-                                        suggestNumericFields={geoAiSuggestContext.numericFields}
-                                        onTableSelectionLinksChange={onGeoAiTableSelectionSync}
-                                        mapFocusFeatureKey={geoAiTableMapFocusKey}
-                                        onTableQuerySelectApplied={onGeoAiQuerySelectApplied}
-                                      />
-                                    </div>
-                                  </div>
-                                ))}
-                                {(geoAiModelTab === 'claude' ? geoAiBusy : geoDeepseekBusy) ? (
-                                  <div className="si-geo-explorer-row si-geo-explorer-row--model">
-                                    <div className="si-geo-explorer-avatar" aria-hidden>
-                                      <i className="fa-solid fa-robot" />
-                                    </div>
-                                    <div className="si-geo-explorer-bubble si-geo-explorer-bubble--typing">
-                                      <i className="fa-solid fa-spinner fa-spin" aria-hidden /> Thinking…
-                                    </div>
-                                  </div>
-                                ) : null}
-                              </div>
-                              {geoAiModelTab === 'claude' && geoAiChatError ? (
-                                <div className="si-geo-explorer-error-row">
-                                  <p className="si-geo-explorer-error">{geoAiChatError}</p>
-                                  <SiCopyTextButton
-                                    text={geoAiChatError}
-                                    className="si-geo-explorer-error-copy-btn"
-                                    title="Copy error message"
-                                    ariaLabel="Copy error text"
-                                    variant="compact"
-                                  />
-                                </div>
-                              ) : null}
-                              {geoAiModelTab === 'deepseek' && geoDeepseekChatError ? (
-                                <div className="si-geo-explorer-error-row">
-                                  <p className="si-geo-explorer-error">{geoDeepseekChatError}</p>
-                                  <SiCopyTextButton
-                                    text={geoDeepseekChatError}
-                                    className="si-geo-explorer-error-copy-btn"
-                                    title="Copy error message"
-                                    ariaLabel="Copy error text"
-                                    variant="compact"
-                                  />
-                                </div>
-                              ) : null}
-                              <GeoExplorerGeminiInputRow
-                                cssPrefix="si-geo-explorer"
-                                draft={geoAiModelTab === 'claude' ? geoAiDraft : geoDeepseekDraft}
-                                onDraftChange={v =>
-                                  geoAiModelTab === 'claude' ? setGeoAiDraft(v) : setGeoDeepseekDraft(v)
+                            <SiGeoExplorerChatPanel
+                              messagesRef={geoAiModelTab === 'claude' ? geoAiClaudeMessagesRef : geoAiDeepseekMessagesRef}
+                              hasOlderMessages={
+                                geoAiModelTab === 'claude' ? geoAiClaudeHasOlderMessages : geoAiDeepseekHasOlderMessages
+                              }
+                              onLoadOlder={() => {
+                                if (geoAiModelTab === 'claude') loadOlderGeoAiClaudeMessages();
+                                else loadOlderGeoAiDeepseekMessages();
+                              }}
+                              onScrollNearTop={() => {
+                                const isClaude = geoAiModelTab === 'claude';
+                                const hasOlder = isClaude ? geoAiClaudeHasOlderMessages : geoAiDeepseekHasOlderMessages;
+                                if (hasOlder) {
+                                  if (isClaude) loadOlderGeoAiClaudeMessages();
+                                  else loadOlderGeoAiDeepseekMessages();
                                 }
-                                onSend={t =>
-                                  geoAiModelTab === 'claude' ? sendGeoAiChat(t) : sendGeoDeepseekChat(t)
-                                }
-                                busy={geoAiModelTab === 'claude' ? geoAiBusy : geoDeepseekBusy}
-                                pendingImage={null}
-                                showAttach={false}
-                                placeholder={
-                                  geoAiModelTab === 'claude'
-                                    ? 'e.g. List layer names and fields from the attached GIS / Develop data…'
-                                    : 'e.g. Summarize saved layers and Develop Dashboard fields (same context as Claude)…'
-                                }
-                                textareaAriaLabel={
-                                  geoAiModelTab === 'claude' ? 'Geo AI Claude message' : 'Geo AI DeepSeek message'
-                                }
-                                availableLayers={geoAiSuggestContext.layers}
-                                availableFields={geoAiSuggestContext.fields}
-                                availableNumericFields={geoAiSuggestContext.numericFields}
-                                availableGeometryOps={geoAiSuggestContext.geometryOps}
-                                smartSuggestionsEnabled={geoAiSmartSuggestionsEnabled}
-                              />
-                              <p className="si-geo-explorer-footnote">
-                                {geoAiModelTab === 'claude' ? (
-                                  <>
-                                    Powered by Anthropic Claude. Set <code>VITE_CLAUDE_API_KEY</code> or System Settings → API
-                                    Tokens → Claude API. Context is rebuilt each send from GIS Content + Develop Dashboard Data.
-                                  </>
-                                ) : (
-                                  <>
-                                    Powered by DeepSeek. Set <code>VITE_DEEPSEEK_API_KEY</code> or System Settings → API Tokens
-                                    → DeepSeek. Same GIS + Develop context as Claude; rebuilt each send.
-                                  </>
-                                )}
-                              </p>
-                            </>
+                              }}
+                              welcomeText={SI_GEO_AI_WELCOME_DATA_ASSISTANT_TEXT}
+                              welcomeAvatarIcon="fa-solid fa-database"
+                              modelAvatarIcon="fa-solid fa-robot"
+                              messages={
+                                geoAiModelTab === 'claude' ? visibleGeoAiClaudeMessages : visibleGeoAiDeepseekMessages
+                              }
+                              busy={geoAiModelTab === 'claude' ? geoAiBusy : geoDeepseekBusy}
+                              error={geoAiModelTab === 'claude' ? geoAiChatError : geoDeepseekChatError}
+                              draft={geoAiModelTab === 'claude' ? geoAiDraft : geoDeepseekDraft}
+                              onDraftChange={v =>
+                                geoAiModelTab === 'claude' ? setGeoAiDraft(v) : setGeoDeepseekDraft(v)
+                              }
+                              onSend={t =>
+                                geoAiModelTab === 'claude' ? sendGeoAiChat(t) : sendGeoDeepseekChat(t)
+                              }
+                              pendingImage={null}
+                              showAttach={false}
+                              placeholder={
+                                geoAiModelTab === 'claude'
+                                  ? 'e.g. List layer names and fields from the attached GIS / Develop data…'
+                                  : 'e.g. Summarize saved layers and Develop Dashboard fields (same context as Claude)…'
+                              }
+                              textareaAriaLabel={
+                                geoAiModelTab === 'claude' ? 'Geo AI Claude message' : 'Geo AI DeepSeek message'
+                              }
+                              smartSuggestionsEnabled={geoAiSmartSuggestionsEnabled}
+                              availableLayers={geoAiSuggestContext.layers}
+                              availableFields={geoAiSuggestContext.fields}
+                              availableNumericFields={geoAiSuggestContext.numericFields}
+                              availableGeometryOps={geoAiSuggestContext.geometryOps}
+                              messagePartsProps={{
+                                onTableMapAction: onSiGeoAiTableMapAction,
+                                onTableBatchZoom: onGeoAiTableBatchZoom,
+                                onUpdateUserMessage: (messageId, nextText) => {
+                                  const setter =
+                                    geoAiModelTab === 'claude' ? setGeoAiChatMessages : setGeoDeepseekChatMessages;
+                                  setter(prev =>
+                                    prev.map(m =>
+                                      m.id === messageId && m.role === 'user'
+                                        ? replaceUserMessageText(m, nextText)
+                                        : m,
+                                    ),
+                                  );
+                                },
+                                onSendEditedToComposer:
+                                  geoAiModelTab === 'claude' ? setGeoAiDraft : setGeoDeepseekDraft,
+                                suggestLayers: geoAiSuggestContext.layers,
+                                suggestFields: geoAiSuggestContext.fields,
+                                suggestNumericFields: geoAiSuggestContext.numericFields,
+                                onTableSelectionLinksChange: onGeoAiTableSelectionSync,
+                                mapFocusFeatureKey: geoAiTableMapFocusKey,
+                                onTableQuerySelectApplied: onGeoAiQuerySelectApplied,
+                              }}
+                              footnote={
+                                <p className="si-geo-explorer-footnote">
+                                  {geoAiModelTab === 'claude' ? (
+                                    <>
+                                      Powered by Anthropic Claude. Set <code>VITE_CLAUDE_API_KEY</code> or System Settings → API
+                                      Tokens → Claude API. Context is rebuilt each send from GIS Content + Develop Dashboard Data.
+                                    </>
+                                  ) : (
+                                    <>
+                                      Powered by DeepSeek. Set <code>VITE_DEEPSEEK_API_KEY</code> or System Settings → API Tokens
+                                      → DeepSeek. Same GIS + Develop context as Claude; rebuilt each send.
+                                    </>
+                                  )}
+                                </p>
+                              }
+                            />
                           ) : null}
                           {geoAiPopupMode === 'docked' && geoAiInspectPopups.length > 0 ? (
                             <div className="si-geo-ai-inspect-dock-panel" role="region" aria-label="Identify — docked">
