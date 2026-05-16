@@ -21,6 +21,28 @@ export function waitForMapboxIdle(map: MapboxMap, timeoutMs = 5200): Promise<voi
 }
 
 /**
+ * WMS / raster overlays often need more than one idle pass before the canvas is complete.
+ */
+export async function waitForMapboxStableFrame(
+  map: MapboxMap,
+  opts?: { idlePasses?: number; idleTimeoutMs?: number; tilesTimeoutMs?: number },
+): Promise<void> {
+  const passes = Math.max(1, opts?.idlePasses ?? 2);
+  const idleTimeout = opts?.idleTimeoutMs ?? 7200;
+  const tilesTimeout = opts?.tilesTimeoutMs ?? 4200;
+  for (let i = 0; i < passes; i++) {
+    await waitForMapboxIdle(map, idleTimeout);
+    await waitForMapboxTilesPainted(map, tilesTimeout);
+    try {
+      map.triggerRepaint?.();
+    } catch {
+      /* ignore */
+    }
+    await flushMapboxPaint();
+  }
+}
+
+/**
  * After idle, wait until `areTilesLoaded()` is true (Mapbox GL 2.2+ / 3.x) so WMS/raster
  * overlays are present before `toDataURL`. Short-poll with a tight cap to avoid long exports.
  */
@@ -60,23 +82,18 @@ export function flushMapboxPaint(): Promise<void> {
 }
 
 /**
- * Idle → tiles loaded → repaint → rAF, then PNG. Use for AOI report / export snapshots.
+ * Idle → tiles loaded → repaint → rAF (×2 passes), then PNG. Use for AOI report / export snapshots.
  */
 export async function captureMapboxCanvasWhenReady(
   map: MapboxMap,
-  opts?: { scale?: number; idleTimeoutMs?: number; tilesTimeoutMs?: number },
+  opts?: { scale?: number; idleTimeoutMs?: number; tilesTimeoutMs?: number; idlePasses?: number },
 ): Promise<string | null> {
-  const scale = opts?.scale ?? 2;
-  const idleTimeout = opts?.idleTimeoutMs ?? 6200;
-  const tilesTimeout = opts?.tilesTimeoutMs ?? 2800;
-  await waitForMapboxIdle(map, idleTimeout);
-  await waitForMapboxTilesPainted(map, tilesTimeout);
-  try {
-    map.triggerRepaint?.();
-  } catch {
-    /* ignore */
-  }
-  await flushMapboxPaint();
+  const scale = Math.min(4, Math.max(1, opts?.scale ?? 2));
+  await waitForMapboxStableFrame(map, {
+    idlePasses: opts?.idlePasses ?? 2,
+    idleTimeoutMs: opts?.idleTimeoutMs ?? 9000,
+    tilesTimeoutMs: opts?.tilesTimeoutMs ?? 5500,
+  });
   return captureMapboxCanvasPng(map, scale);
 }
 
@@ -87,15 +104,15 @@ export function captureMapboxCanvasPng(map: MapboxMap, scale = 2): string | null
     if (!(canvas instanceof HTMLCanvasElement) || canvas.width < 4 || canvas.height < 4) return null;
     const w = canvas.width;
     const h = canvas.height;
+    const s = Math.min(4, Math.max(1, scale));
     const c = document.createElement('canvas');
-    c.width = Math.round(w * scale);
-    c.height = Math.round(h * scale);
+    c.width = Math.round(w * s);
+    c.height = Math.round(h * s);
     const ctx = c.getContext('2d');
     if (!ctx) return canvas.toDataURL('image/png');
     ctx.imageSmoothingEnabled = true;
     ctx.imageSmoothingQuality = 'high';
-    ctx.setTransform(scale, 0, 0, scale, 0, 0);
-    ctx.drawImage(canvas, 0, 0);
+    ctx.drawImage(canvas, 0, 0, c.width, c.height);
     return c.toDataURL('image/png');
   } catch {
     return null;
@@ -105,6 +122,7 @@ export function captureMapboxCanvasPng(map: MapboxMap, scale = 2): string | null
 export type SiLiveMapSnapshotOptions = {
   /** ISO date (YYYY-MM-DD) — parent should apply WMS / timeline before capture. */
   date?: string;
+  /** Output scale factor 1–4 (device pixel ratio is already on the map canvas). */
   scale?: number;
 };
 

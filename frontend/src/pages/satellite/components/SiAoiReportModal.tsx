@@ -687,7 +687,7 @@ export function SiAoiReportModal({
     const bounds = siPdfBoundsFromFitBounds(changeFitBounds);
     const urls: (string | null)[] = [];
     for (const slot of report.changeDetectionSlots) {
-      const raw = await captureLiveMapSnapshot({ date: slot.date, scale: 2 });
+      const raw = await captureLiveMapSnapshot({ date: slot.date, scale: 3 });
       urls.push(
         raw
           ? await compositeChangeCellLegendPng(
@@ -732,7 +732,7 @@ export function SiAoiReportModal({
       report.timeSeries[report.timeSeries.length - 1]?.date?.slice(0, 10) ?? report.dateEnd.slice(0, 10);
     void (async () => {
       try {
-        const raw = await captureLiveMapSnapshot({ date: snapDate, scale: 2 });
+        const raw = await captureLiveMapSnapshot({ date: snapDate, scale: 3 });
         if (cancelled || !raw) return;
         const withLegend = await compositeAoiAnalysisMapWithLegendPng(
           raw,
@@ -917,7 +917,7 @@ export function SiAoiReportModal({
         } else if (liveMapCaptureOk && captureLiveMapSnapshot) {
           const snapDate =
             report.timeSeries[report.timeSeries.length - 1]?.date?.slice(0, 10) ?? report.dateEnd.slice(0, 10);
-          const raw = await captureLiveMapSnapshot({ date: snapDate, scale: 2 });
+          const raw = await captureLiveMapSnapshot({ date: snapDate, scale: 3 });
           if (raw) {
             aoiMapImageDataUrl = await compositeAoiAnalysisMapWithLegendPng(
               raw,
@@ -1443,7 +1443,7 @@ export function SiAoiReportModal({
                 {exportUi.mode === 'AOI_ANALYSIS' ? (
                   <>
                     <li>
-                      Data &amp; insights: index statistics, KPIs, vector pie and bar charts, NDVI sparkline, and optional
+                      Data &amp; insights: index statistics, KPIs, vector pie and bar charts, and optional
                       Gemini executive text when a key is configured
                     </li>
                     <li>Scientific analysis and stress notes (vector text)</li>

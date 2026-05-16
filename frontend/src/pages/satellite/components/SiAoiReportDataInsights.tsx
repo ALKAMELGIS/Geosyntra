@@ -81,38 +81,6 @@ function SvgLandPie({ slices }: { slices: SiAoiDashboardMetrics['pieSlices'] }) 
   );
 }
 
-function SvgNdviSparkline({ values }: { values: number[] }) {
-  const w = 320;
-  const h = 72;
-  const pad = 6;
-  const xs = values.filter(Number.isFinite);
-  if (xs.length < 2) {
-    return (
-      <svg className="si-aoi-insights__svg" viewBox={`0 0 ${w} ${h}`} width="100%" height={h}>
-        <text x={12} y={40} fill="#64748b" fontSize={11}>
-          No NDVI series
-        </text>
-      </svg>
-    );
-  }
-  const lo = Math.min(...xs);
-  const hi = Math.max(...xs);
-  const span = Math.max(1e-6, hi - lo);
-  const pts = xs
-    .map((v, i) => {
-      const x = pad + (i / (xs.length - 1)) * (w - pad * 2);
-      const y = pad + (1 - (v - lo) / span) * (h - pad * 2);
-      return `${x},${y}`;
-    })
-    .join(' ');
-  return (
-    <svg className="si-aoi-insights__svg" viewBox={`0 0 ${w} ${h}`} width="100%" height={h} aria-label="NDVI trend sparkline">
-      <rect x={0} y={0} width={w} height={h} fill="rgba(15,23,42,0.35)" rx={8} />
-      <polyline fill="none" stroke="#34d399" strokeWidth={2.2} points={pts} strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
-  );
-}
-
 export type SiAoiReportDataInsightsSectionProps = {
   report: SiAoiReportModel;
   geminiSummary: string | null;
@@ -288,10 +256,6 @@ export function SiAoiReportDataInsightsSection({
           <div className="si-aoi-insights__chart-cell">
             <span className="si-aoi-insights__chart-cap">Vigor distribution (pie, SVG)</span>
             <SvgLandPie slices={d.pieSlices} />
-          </div>
-          <div className="si-aoi-insights__chart-cell si-aoi-insights__chart-cell--wide">
-            <span className="si-aoi-insights__chart-cap">NDVI trend (sparkline, SVG)</span>
-            <SvgNdviSparkline values={d.sparkNdvi} />
           </div>
         </div>
       </section>

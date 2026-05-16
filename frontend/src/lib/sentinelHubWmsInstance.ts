@@ -7,8 +7,14 @@ export const SENTINEL_HUB_WMS_INSTANCE_LS_KEY = 'agri_sentinel_hub_wms_instance_
 
 const SENTINEL_HUB_WMS_INSTANCE_EVENT = 'agri-sentinel-hub-wms-instance-changed'
 
-/** Default demo instance (public OGC WMS); replace in production via env or settings. */
-export const SENTINEL_HUB_WMS_DEFAULT_INSTANCE_ID = '7b6554b7-76f2-483e-a06d-90053e49f462'
+/** Sentinel Hub → Configurations → "Public Data (featured collections)". */
+export const SENTINEL_HUB_PUBLIC_DATA_INSTANCE_ID = '60de79ca-16a7-4afd-bcbd-0261bf0156fa'
+
+/** Default WMS instance when none is saved in API Manager. */
+export const SENTINEL_HUB_WMS_DEFAULT_INSTANCE_ID = SENTINEL_HUB_PUBLIC_DATA_INSTANCE_ID
+
+/** Former built-in default — GetCapabilities returns 403; migrate away automatically. */
+const DEPRECATED_WMS_INSTANCE_IDS = new Set(['7b6554b7-76f2-483e-a06d-90053e49f462'])
 
 function envInstanceId(): string {
   const raw = import.meta.env.VITE_SENTINEL_HUB_WMS_INSTANCE_ID
@@ -19,7 +25,12 @@ export function getSentinelHubWmsInstanceIdBrowserOverride(): string {
   if (typeof window === 'undefined') return ''
   try {
     const raw = window.localStorage.getItem(SENTINEL_HUB_WMS_INSTANCE_LS_KEY)
-    return typeof raw === 'string' ? raw.trim() : ''
+    const id = typeof raw === 'string' ? raw.trim() : ''
+    if (id && DEPRECATED_WMS_INSTANCE_IDS.has(id.toLowerCase())) {
+      persistSentinelHubWmsInstanceIdInBrowser(SENTINEL_HUB_PUBLIC_DATA_INSTANCE_ID)
+      return SENTINEL_HUB_PUBLIC_DATA_INSTANCE_ID
+    }
+    return id
   } catch {
     return ''
   }

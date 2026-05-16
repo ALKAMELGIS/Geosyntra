@@ -145,6 +145,8 @@ export function SatelliteMapAnalysisToolbar({
   );
 }
 
+export type SiTimelineTransitionMode = 'step' | 'smooth';
+
 export type SatelliteMapAnalysisChromeProps = {
   weeklyChips: TimelineChip[];
   activeChipId: string | null;
@@ -157,6 +159,9 @@ export type SatelliteMapAnalysisChromeProps = {
   timelinePlaybackMs?: number;
   /** Cycle playback speed (parent owns state). */
   onCycleTimelineSpeed?: () => void;
+  /** `step` = instant WMS swap; `smooth` = crossfade between dates. */
+  timelineTransitionMode?: SiTimelineTransitionMode;
+  onTimelineTransitionModeChange?: (mode: SiTimelineTransitionMode) => void;
   mapTool: 'rectangle' | 'polygon' | 'circle' | 'select' | string;
   onMapTool: (tool: 'rectangle' | 'polygon' | 'circle' | 'select') => void;
   hasClearableDrawing?: boolean;
@@ -255,6 +260,8 @@ export function SatelliteMapAnalysisChrome(props: SatelliteMapAnalysisChromeProp
     timelineVisible,
     timelinePlaybackMs = 1400,
     onCycleTimelineSpeed,
+    timelineTransitionMode = 'smooth',
+    onTimelineTransitionModeChange,
     mapTool,
     onMapTool,
     hasClearableDrawing = false,
@@ -560,17 +567,45 @@ export function SatelliteMapAnalysisChrome(props: SatelliteMapAnalysisChromeProp
                   {activeFull || '—'}
                 </time>
               </div>
-              {onCycleTimelineSpeed ? (
-                <button
-                  type="button"
-                  className="si-map-analysis-tl-speed"
-                  title={`Playback interval ${timelinePlaybackMs} ms — click to change speed`}
-                  aria-label={`Playback speed ${playbackSpeedLabel}, click to cycle`}
-                  onClick={onCycleTimelineSpeed}
-                >
-                  {playbackSpeedLabel}
-                </button>
-              ) : null}
+              <div className="si-map-analysis-timeline-meta-actions">
+                {onTimelineTransitionModeChange ? (
+                  <div
+                    className="si-map-analysis-tl-transition"
+                    role="group"
+                    aria-label="Map transition mode"
+                  >
+                    <button
+                      type="button"
+                      className={`si-map-analysis-tl-transition-btn ${timelineTransitionMode === 'step' ? 'si-map-analysis-tl-transition-btn--on' : ''}`}
+                      aria-pressed={timelineTransitionMode === 'step'}
+                      title="Step — instant update per date (legacy flicker)"
+                      onClick={() => onTimelineTransitionModeChange('step')}
+                    >
+                      Step
+                    </button>
+                    <button
+                      type="button"
+                      className={`si-map-analysis-tl-transition-btn ${timelineTransitionMode === 'smooth' ? 'si-map-analysis-tl-transition-btn--on' : ''}`}
+                      aria-pressed={timelineTransitionMode === 'smooth'}
+                      title="Smooth — crossfade between timeline dates"
+                      onClick={() => onTimelineTransitionModeChange('smooth')}
+                    >
+                      Smooth
+                    </button>
+                  </div>
+                ) : null}
+                {onCycleTimelineSpeed ? (
+                  <button
+                    type="button"
+                    className="si-map-analysis-tl-speed"
+                    title={`Playback interval ${timelinePlaybackMs} ms — click to change speed`}
+                    aria-label={`Playback speed ${playbackSpeedLabel}, click to cycle`}
+                    onClick={onCycleTimelineSpeed}
+                  >
+                    {playbackSpeedLabel}
+                  </button>
+                ) : null}
+              </div>
             </div>
           </div>
         </div>

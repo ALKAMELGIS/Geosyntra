@@ -10,6 +10,11 @@ import {
   emptyDraft,
   saveIntegrationRecord,
 } from '../integrationStore'
+import {
+  applyActiveSentinelHubFromIntegrations,
+  resolveSentinelHubInstanceId,
+  SENTINEL_HUB_PUBLIC_DATA_INSTANCE_ID,
+} from '../../../../lib/sentinelHubIntegrationSync'
 import { getSentinelHubWmsInstanceIdBrowserOverride } from '../../../../lib/sentinelHubWmsInstance'
 import { loadVaultSecret, persistProviderVault } from '../vaultBridge'
 import { useAutoSave } from '../hooks/useAutoSave'
@@ -20,6 +25,7 @@ import { useSecureTokens } from '../hooks/useSecureTokens'
 import { ConnectionTester } from './ConnectionTester'
 import { DynamicAuthFields } from './DynamicAuthFields'
 import { ProviderSelector } from './ProviderSelector'
+import { SelectMenu } from './SelectMenu'
 import { sanitizeIntegrationDraft, stripLegacyMapboxSecrets } from '../sanitizeDraft'
 
 type Props = {
@@ -81,7 +87,9 @@ export function IntegrationModal({ open, record, onClose, onSaved }: Props) {
       const next = sanitizeIntegrationDraft(recordToDraft(record))
       const instanceId =
         next.providerId === 'sentinel_hub'
-          ? next.config.instanceId?.trim() || getSentinelHubWmsInstanceIdBrowserOverride()
+          ? next.config.instanceId?.trim() ||
+            getSentinelHubWmsInstanceIdBrowserOverride() ||
+            SENTINEL_HUB_PUBLIC_DATA_INSTANCE_ID
           : ''
       setDraft(
         instanceId
@@ -106,8 +114,8 @@ export function IntegrationModal({ open, record, onClose, onSaved }: Props) {
 
   const onProviderChange = (providerId: ProviderId) => {
     const p = getProvider(providerId)
-    setDraft(prev =>
-      sanitizeIntegrationDraft({
+    setDraft(prev => {
+      const next = sanitizeIntegrationDraft({
         ...prev,
         providerId,
         authType: p.defaultAuthType,
@@ -115,8 +123,14 @@ export function IntegrationModal({ open, record, onClose, onSaved }: Props) {
         provider: p.label,
         baseUrl: p.defaultBaseUrl ?? prev.baseUrl,
         name: prev.name.trim() || `${p.label}`,
-      }),
-    )
+      })
+      if (providerId !== 'sentinel_hub') return next
+      const instanceId =
+        next.config.instanceId?.trim() ||
+        getSentinelHubWmsInstanceIdBrowserOverride() ||
+        SENTINEL_HUB_PUBLIC_DATA_INSTANCE_ID
+      return { ...next, config: { ...next.config, instanceId } }
+    })
     const vault = loadVaultSecret(providerId)
     if (vault) setSecret(primarySecretKey(providerId, p.defaultAuthType), vault)
     reset()
@@ -153,12 +167,25 @@ export function IntegrationModal({ open, record, onClose, onSaved }: Props) {
     setBusy(true)
     setSaveError(null)
     try {
-      const vaultResult = await persistProviderVault(draft.providerId, draft.authType, draft.config, cleanSecrets)
+      const instanceId = resolveSentinelHubInstanceId(draft.config, draft.name, draft.notes)
+      const configForSave =
+        draft.providerId === 'sentinel_hub' && instanceId
+          ? { ...draft.config, instanceId }
+          : draft.config
+
+      const vaultResult = await persistProviderVault(
+        draft.providerId,
+        draft.authType,
+        configForSave,
+        cleanSecrets,
+        { name: draft.name, notes: draft.notes },
+      )
       if (!vaultResult.ok) {
         setSaveError('error' in vaultResult ? vaultResult.error : 'Failed to store secret')
         return
       }
-      saveIntegrationRecord({ ...draft, status }, cleanSecrets)
+      saveIntegrationRecord({ ...draft, config: configForSave, status }, cleanSecrets)
+      applyActiveSentinelHubFromIntegrations()
       discardDraft()
       clearDraft()
       onSaved(vaultResult.warning)
@@ -272,23 +299,13 @@ export function IntegrationModal({ open, record, onClose, onSaved }: Props) {
                 </button>
                 {advancedOpen ? (
                   <div className="api-integ-modal__advanced-panel">
-                    <div className="api-integ-tw-field">
-                      <label className="api-integ-tw-label" htmlFor="integ-env">
-                        Environment
-                      </label>
-                      <select
-                        id="integ-env"
-                        className="api-integ-tw-input"
-                        value={draft.environment}
-                        onChange={e => patch('environment', e.target.value as IntegrationEnvironment)}
-                      >
-                        {ENV_OPTIONS.map(o => (
-                          <option key={o.value} value={o.value}>
-                            {o.label}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
+                    <SelectMenu
+                      label="Environment"
+                      id="integ-env"
+                      value={draft.environment}
+                      options={ENV_OPTIONS.map(o => ({ value: o.value, label: o.label }))}
+                      onChange={v => patch('environment', v as IntegrationEnvironment)}
+                    />
                     {provider.defaultBaseUrl ? (
                       <div className="api-integ-tw-field">
                         <label className="api-integ-tw-label" htmlFor="integ-base">

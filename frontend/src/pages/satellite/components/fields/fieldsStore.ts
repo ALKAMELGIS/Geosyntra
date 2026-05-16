@@ -36,6 +36,7 @@
  */
 
 import L from 'leaflet'
+import { geometryAoiAreaSqMeters } from '../../utils/siAoiZonalStats'
 
 /* ────────────────────────────────────────────────────────────────────────── *
  * Constants
@@ -466,21 +467,26 @@ function ringToLatLngs(ring: GeoJSON.Position[]): L.LatLng[] {
 }
 
 export function geodesicAreaHectares(geometry: SavedField['geometry']): number {
-  const util = getGeometryUtil()
-  if (!util) return 0
   let m2 = 0
-  try {
-    if (geometry.type === 'Polygon') {
-      const outer = geometry.coordinates[0]
-      if (outer && outer.length >= 3) m2 = util.geodesicArea(ringToLatLngs(outer))
-    } else if (geometry.type === 'MultiPolygon') {
-      for (const poly of geometry.coordinates) {
-        const outer = poly[0]
-        if (outer && outer.length >= 3) m2 += util.geodesicArea(ringToLatLngs(outer))
+  const util = getGeometryUtil()
+  if (util) {
+    try {
+      if (geometry.type === 'Polygon') {
+        const outer = geometry.coordinates[0]
+        if (outer && outer.length >= 3) m2 = util.geodesicArea(ringToLatLngs(outer))
+      } else if (geometry.type === 'MultiPolygon') {
+        for (const poly of geometry.coordinates) {
+          const outer = poly[0]
+          if (outer && outer.length >= 3) m2 += util.geodesicArea(ringToLatLngs(outer))
+        }
       }
+    } catch {
+      m2 = 0
     }
-  } catch {
-    return 0
+  }
+  if (m2 <= 0) {
+    // Mapbox Satellite Intelligence does not load leaflet-draw GeometryUtil — pure-JS fallback.
+    m2 = geometryAoiAreaSqMeters(geometry)
   }
   return Math.max(0, m2 / 10_000)
 }

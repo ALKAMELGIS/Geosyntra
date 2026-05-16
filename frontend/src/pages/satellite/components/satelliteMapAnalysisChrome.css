@@ -421,6 +421,48 @@
   text-align: right;
 }
 
+.si-map-analysis-timeline-meta-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 6px;
+  width: 100%;
+}
+
+.si-map-analysis-tl-transition {
+  display: inline-flex;
+  align-items: stretch;
+  border-radius: 999px;
+  padding: 2px;
+  gap: 2px;
+  background: rgba(0, 0, 0, 0.35);
+  box-shadow: inset 0 0 0 1px var(--si-tl-edge);
+}
+
+.si-map-analysis-tl-transition-btn {
+  border: none;
+  border-radius: 999px;
+  padding: 4px 9px;
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  cursor: pointer;
+  color: var(--si-tl-muted);
+  background: transparent;
+  transition: background 0.18s ease, color 0.18s ease, box-shadow 0.18s ease;
+}
+
+.si-map-analysis-tl-transition-btn:hover {
+  color: #f0f9ff;
+}
+
+.si-map-analysis-tl-transition-btn--on {
+  color: #f8fafc;
+  background: rgba(125, 211, 252, 0.22);
+  box-shadow: inset 0 0 0 1px rgba(125, 211, 252, 0.35);
+}
+
 .si-map-analysis-tl-speed {
   border: none;
   border-radius: 999px;

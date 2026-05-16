@@ -157,8 +157,11 @@ const PROVIDERS: ProviderConfig[] = [
         }),
         field('instanceId', 'WMS instance ID', {
           required: true,
-          placeholder: 'xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx',
-          hint: 'User settings → OGC (WMS) instance UUID — required for Layer list',
+          placeholder: '60de79ca-16a7-4afd-bcbd-0261bf0156fa',
+          hint: 'Configurations page → copy the configuration UUID (not the display name).',
+          pattern:
+            /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i,
+          patternMessage: 'Enter the configuration UUID from Sentinel Hub',
         }),
       ),
       oauth2: fields(

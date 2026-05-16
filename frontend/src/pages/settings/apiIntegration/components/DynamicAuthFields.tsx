@@ -2,6 +2,7 @@ import { AnimatePresence, motion } from 'framer-motion'
 import type { AuthType, TokenFieldDef } from '../types'
 import type { FieldValidation } from '../types'
 import { SecureTokenInput } from './SecureTokenInput'
+import { SelectMenu } from './SelectMenu'
 
 type Props = {
   authType: AuthType
@@ -40,23 +41,13 @@ export function DynamicAuthFields({
   return (
     <motion.div className="api-integ-auth-fields">
       {showAuthPicker ? (
-        <div className="api-integ-tw-field api-integ-auth-fields__auth-type">
-          <label className="api-integ-tw-label" htmlFor="auth-type-select">
-            Connection type
-          </label>
-          <select
-            id="auth-type-select"
-            className="api-integ-tw-input"
-            value={authType}
-            onChange={e => onAuthTypeChange(e.target.value as AuthType)}
-          >
-            {authOptions.map(o => (
-              <option key={o.id} value={o.id}>
-                {o.label}
-              </option>
-            ))}
-          </select>
-        </div>
+        <SelectMenu
+          label="Connection type"
+          id="auth-type-select"
+          value={authType}
+          options={authOptions.map(o => ({ value: o.id, label: o.label }))}
+          onChange={v => onAuthTypeChange(v as AuthType)}
+        />
       ) : null}
 
       <AnimatePresence mode="wait">

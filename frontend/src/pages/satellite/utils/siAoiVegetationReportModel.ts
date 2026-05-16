@@ -14,6 +14,32 @@ import {
   siThinLegendSegments,
 } from '../../../lib/siWmsIndexClassificationRamp';
 
+/** Fit PNG into a box without stretching (letterbox centering). */
+function pdfEmbedPngFit(
+  doc: jsPDF,
+  dataUrl: string,
+  x: number,
+  y: number,
+  maxW: number,
+  maxH: number,
+): { w: number; h: number } {
+  try {
+    const props = doc.getImageProperties(dataUrl);
+    const ratio = props.width / Math.max(1, props.height);
+    let w = maxW;
+    let h = w / ratio;
+    if (h > maxH) {
+      h = maxH;
+      w = h * ratio;
+    }
+    const ox = x + (maxW - w) / 2;
+    doc.addImage(dataUrl, 'PNG', ox, y, w, h, undefined, 'FAST');
+    return { w, h };
+  } catch {
+    return { w: 0, h: 0 };
+  }
+}
+
 export type SiAoiReportHealthKey = 'high' | 'medium' | 'low';
 
 export type SiAoiReportTimePoint = { date: string; value: number };
@@ -960,12 +986,8 @@ function addChangeDetectionPageGrid(
       const thumb = opts?.slotMapImages?.[idx];
       const imgH = Math.min(76, Math.max(36, cellH - 62));
       if (thumb && String(thumb).startsWith('data:image')) {
-        try {
-          doc.addImage(thumb, 'PNG', x + 4, ly, cellW - 8, imgH, undefined, 'SLOW');
-        } catch {
-          /* ignore bad snapshot */
-        }
-        ly += imgH + 4;
+        const fitted = pdfEmbedPngFit(doc, thumb, x + 4, ly, cellW - 8, imgH);
+        if (fitted.h > 0) ly += fitted.h + 4;
       }
       doc.setFont('helvetica', 'normal');
       doc.setFontSize(7);
@@ -1447,8 +1469,8 @@ function buildAoiAnalysisPdfDocument(doc: jsPDF, report: SiAoiReportModel, opts:
 
   if (opts.aoiMapImageDataUrl) {
     try {
-      const mapH = 204;
-      if (y + mapH > doc.internal.pageSize.getHeight() - margin) {
+      const maxMapH = 240;
+      if (y + maxMapH > doc.internal.pageSize.getHeight() - margin) {
         doc.addPage();
         y = margin;
       }
@@ -1457,8 +1479,8 @@ function buildAoiAnalysisPdfDocument(doc: jsPDF, report: SiAoiReportModel, opts:
       doc.setTextColor(15, 23, 42);
       doc.text('AOI map — basemap, classification, AOI, north, scale, legend', margin, y);
       y += 12;
-      doc.addImage(opts.aoiMapImageDataUrl, 'PNG', margin, y, textW, mapH, undefined, 'SLOW');
-      y += mapH + 14;
+      const fitted = pdfEmbedPngFit(doc, opts.aoiMapImageDataUrl, margin, y, textW, maxMapH);
+      y += (fitted.h > 0 ? fitted.h : maxMapH) + 14;
     } catch {
       /* ignore map embed */
     }

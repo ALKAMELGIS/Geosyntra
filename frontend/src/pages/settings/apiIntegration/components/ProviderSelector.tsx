@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useId, useMemo, useRef, useState } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
 import { cn } from '../../../../lib/utils'
 import type { ProviderId } from '../types'
@@ -10,8 +10,11 @@ type Props = {
 }
 
 export function ProviderSelector({ value, onChange }: Props) {
+  const autoId = useId()
+  const triggerId = `provider-selector-${autoId}`
   const [open, setOpen] = useState(false)
   const [query, setQuery] = useState('')
+  const rootRef = useRef<HTMLDivElement>(null)
   const selected = PROVIDER_REGISTRY[value]
 
   const filtered = useMemo(() => {
@@ -33,70 +36,83 @@ export function ProviderSelector({ value, onChange }: Props) {
     return next
   }, [query])
 
+  useEffect(() => {
+    if (!open) return
+    const onDoc = (e: MouseEvent) => {
+      if (!rootRef.current?.contains(e.target as Node)) setOpen(false)
+    }
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setOpen(false)
+    }
+    document.addEventListener('mousedown', onDoc)
+    document.addEventListener('keydown', onKey)
+    return () => {
+      document.removeEventListener('mousedown', onDoc)
+      document.removeEventListener('keydown', onKey)
+    }
+  }, [open])
+
   return (
-    <div className="relative">
-      <label className="api-integ-tw-label" htmlFor="provider-selector-trigger">
+    <div ref={rootRef} className="api-integ-dd api-integ-dd--provider">
+      <label className="api-integ-tw-label" htmlFor={triggerId}>
         Provider
       </label>
       <button
-        id="provider-selector-trigger"
+        id={triggerId}
         type="button"
-        className="api-integ-tw-input flex w-full items-center justify-between gap-2 text-left"
-        onClick={() => setOpen(o => !o)}
+        className={cn('api-integ-dd__trigger', open && 'api-integ-dd__trigger--open')}
         aria-expanded={open}
         aria-haspopup="listbox"
+        onClick={() => setOpen(o => !o)}
       >
-        <span className="flex min-w-0 items-center gap-2">
-          <i className={cn(selected.iconClass, 'text-violet-400/90')} aria-hidden />
-          <span className="truncate">{selected.label}</span>
+        <span className="api-integ-dd__trigger-leading">
+          <span className="api-integ-dd__icon-wrap" aria-hidden>
+            <i className={selected.iconClass} />
+          </span>
+          <span className="api-integ-dd__trigger-value">{selected.label}</span>
         </span>
-        <i className={cn('fa-solid fa-chevron-down text-xs text-white/40 transition', open && 'rotate-180')} aria-hidden />
+        <i className={cn('fa-solid fa-chevron-down api-integ-dd__chevron', open && 'api-integ-dd__chevron--open')} aria-hidden />
       </button>
 
       <AnimatePresence>
         {open ? (
-          <>
-            <button
-              type="button"
-              className="fixed inset-0 z-[60] cursor-default bg-transparent"
-              aria-label="Close provider list"
-              onClick={() => setOpen(false)}
-            />
-            <motion.div
-              initial={{ opacity: 0, y: -6, scale: 0.98 }}
-              animate={{ opacity: 1, y: 0, scale: 1 }}
-              exit={{ opacity: 0, y: -4, scale: 0.98 }}
-              transition={{ duration: 0.16 }}
-              className="absolute left-0 right-0 z-[70] mt-1 max-h-72 overflow-hidden rounded-xl border border-white/10 bg-[rgba(12,14,20,0.96)] shadow-glass backdrop-blur-xl"
-              role="listbox"
-            >
-              <div className="border-b border-white/10 p-2">
-                <input
-                  className="api-integ-tw-input w-full py-1.5 text-sm"
-                  placeholder="Search providers…"
-                  value={query}
-                  onChange={e => setQuery(e.target.value)}
-                  autoFocus
-                />
-              </div>
-              <div className="max-h-56 overflow-y-auto p-1 si-scrollbar">
-                {(Object.keys(filtered) as (keyof typeof filtered)[]).map(cat => {
-                  const items = filtered[cat]
-                  if (!items.length) return null
-                  return (
-                    <div key={cat} className="mb-1">
-                      <p className="px-2 py-1 text-[0.6rem] font-semibold uppercase tracking-wider text-white/35">
-                        {CATEGORY_LABELS[cat]}
-                      </p>
-                      {items.map(p => (
+          <motion.div
+            className="api-integ-dd__panel api-integ-dd__panel--provider"
+            role="listbox"
+            initial={{ opacity: 0, y: -8, scale: 0.98 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: -6, scale: 0.99 }}
+            transition={{ duration: 0.22, ease: [0.22, 1, 0.36, 1] }}
+          >
+            <div className="api-integ-dd__search-wrap">
+              <i className="fa-solid fa-magnifying-glass api-integ-dd__search-icon" aria-hidden />
+              <input
+                className="api-integ-dd__search"
+                placeholder="Search providers…"
+                value={query}
+                onChange={e => setQuery(e.target.value)}
+                autoFocus
+                aria-label="Search providers"
+              />
+            </div>
+            <div className="api-integ-dd__scroll si-scrollbar">
+              {(Object.keys(filtered) as (keyof typeof filtered)[]).map(cat => {
+                const items = filtered[cat]
+                if (!items.length) return null
+                return (
+                  <div key={cat} className="api-integ-dd__group">
+                    <p className="api-integ-dd__group-label">{CATEGORY_LABELS[cat]}</p>
+                    {items.map(p => {
+                      const isSelected = p.id === value
+                      return (
                         <button
                           key={p.id}
                           type="button"
                           role="option"
-                          aria-selected={p.id === value}
+                          aria-selected={isSelected}
                           className={cn(
-                            'flex w-full items-start gap-2 rounded-lg px-2 py-2 text-left text-sm transition hover:bg-white/8',
-                            p.id === value && 'bg-violet-500/15 text-violet-100',
+                            'api-integ-dd__option api-integ-dd__option--rich',
+                            isSelected && 'api-integ-dd__option--selected',
                           )}
                           onClick={() => {
                             onChange(p.id)
@@ -104,19 +120,24 @@ export function ProviderSelector({ value, onChange }: Props) {
                             setQuery('')
                           }}
                         >
-                          <i className={cn(p.iconClass, 'mt-0.5 w-4 text-violet-400/80')} aria-hidden />
-                          <span>
-                            <span className="block font-medium">{p.label}</span>
-                            <span className="block text-[0.68rem] text-white/40">{p.description}</span>
+                          <span className="api-integ-dd__icon-wrap api-integ-dd__icon-wrap--sm" aria-hidden>
+                            <i className={p.iconClass} />
                           </span>
+                          <span className="api-integ-dd__option-body">
+                            <span className="api-integ-dd__option-label">{p.label}</span>
+                            <span className="api-integ-dd__option-desc">{p.description}</span>
+                          </span>
+                          {isSelected ? (
+                            <i className="fa-solid fa-check api-integ-dd__option-check" aria-hidden />
+                          ) : null}
                         </button>
-                      ))}
-                    </div>
-                  )
-                })}
-              </div>
-            </motion.div>
-          </>
+                      )
+                    })}
+                  </div>
+                )
+              })}
+            </div>
+          </motion.div>
         ) : null}
       </AnimatePresence>
     </div>

@@ -507,6 +507,7 @@ export function AoiStaticMultiLayerLineChart({
   );
 
   const exportChartToExcel = useCallback(() => {
+    const primaryDs = datasets[0];
     downloadGeoAiIndexAnalyticalReportXlsx({
       chartTitle: title,
       labels,
@@ -518,6 +519,8 @@ export function AoiStaticMultiLayerLineChart({
       })),
       exportLngLatPerRow,
       analytics: geoAiIndexAnalyticalExportContext,
+      layerName: geoAiIndexAnalyticalExportContext?.layerName ?? primaryDs?.label ?? primaryDs?.id,
+      aoiName: geoAiIndexAnalyticalExportContext?.aoiName ?? 'AOI',
     });
   }, [title, labels, datasets, exportLngLatPerRow, geoAiIndexAnalyticalExportContext]);
 
@@ -617,7 +620,7 @@ export function AoiStaticMultiLayerLineChart({
             type="button"
             className="si-aoi-static-line-theme-toggle"
             aria-label="Export GeoAI Index Analytical Report to Excel"
-            title="Export GeoAI Index Analytical Report (.xlsx — Chart_Data + AOI pixel sheets)"
+            title="Export GeoSyntra workbook (.xlsx — Chart_Data, Data_Raw, Data_Classified, Summary_AOI, Class_Statistics, PG)"
             onClick={exportChartToExcel}
           >
             <i className="fa-regular fa-file-excel" aria-hidden />

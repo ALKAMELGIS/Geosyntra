@@ -63,6 +63,26 @@ function fmtBound(indexId: StaticAoiChartLayerId, v: number) {
   return indexId === 'LST' ? v.toFixed(1) : v.toFixed(2);
 }
 
+function fitRasterBox(naturalW: number, naturalH: number, maxW: number, maxH: number) {
+  const ratio = naturalW / Math.max(1, naturalH);
+  let width = maxW;
+  let height = width / ratio;
+  if (height > maxH) {
+    height = maxH;
+    width = height * ratio;
+  }
+  return { width: Math.round(width), height: Math.round(height) };
+}
+
+function loadImageNaturalSize(dataUrl: string): Promise<{ w: number; h: number }> {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => resolve({ w: img.naturalWidth, h: img.naturalHeight });
+    img.onerror = () => reject(new Error('image load failed'));
+    img.src = dataUrl;
+  });
+}
+
 function imageParagraph(dataUrl: string | null | undefined, width: number, height: number): Paragraph {
   if (!dataUrl || !dataUrl.startsWith('data:image')) {
     return new Paragraph({
@@ -85,6 +105,23 @@ function imageParagraph(dataUrl: string | null | undefined, width: number, heigh
     return new Paragraph({
       children: [new TextRun({ text: '(Image embed failed)', italics: true, color: '666666' })],
     });
+  }
+}
+
+async function imageParagraphFit(
+  dataUrl: string | null | undefined,
+  maxW: number,
+  maxH: number,
+): Promise<Paragraph> {
+  if (!dataUrl || !dataUrl.startsWith('data:image')) {
+    return imageParagraph(null, maxW, maxH);
+  }
+  try {
+    const { w, h } = await loadImageNaturalSize(dataUrl);
+    const box = fitRasterBox(w, h, maxW, maxH);
+    return imageParagraph(dataUrl, box.width, box.height);
+  } catch {
+    return imageParagraph(dataUrl, maxW, maxH);
   }
 }
 
@@ -183,7 +220,7 @@ function appendixBlocks(report: SiAoiReportModel, opts: SiAoiPdfExportOptions): 
   ];
 }
 
-function changeDetectionGridTable(report: SiAoiReportModel, opts: SiAoiPdfExportOptions): Table {
+async function changeDetectionGridTable(report: SiAoiReportModel, opts: SiAoiPdfExportOptions): Promise<Table> {
   const slots = report.changeDetectionSlots.slice(0, 12);
   const imgs = opts.changeSlotMapImageDataUrls ?? [];
   const rows: TableRow[] = [];
@@ -202,7 +239,7 @@ function changeDetectionGridTable(report: SiAoiReportModel, opts: SiAoiPdfExport
             new Paragraph({
               children: [new TextRun({ text: slot.date, bold: true })],
             }),
-            imageParagraph(imgs[idx], 200, 112),
+            await imageParagraphFit(imgs[idx], 200, 112),
             new Paragraph({
               children: [
                 new TextRun(
@@ -243,7 +280,7 @@ function legendParagraphs(report: SiAoiReportModel): DocBlock[] {
   ];
 }
 
-function buildAoiAnalysisDocxChildren(report: SiAoiReportModel, opts: SiAoiPdfExportOptions): DocBlock[] {
+async function buildAoiAnalysisDocxChildren(report: SiAoiReportModel, opts: SiAoiPdfExportOptions): Promise<DocBlock[]> {
   const out: DocBlock[] = [
     p('AOI analysis report', { bold: true, heading: HeadingLevel.TITLE }),
     p(`Geosyntra · Satellite intelligence · ${report.legendBandCount}-band legend`),
@@ -273,7 +310,7 @@ function buildAoiAnalysisDocxChildren(report: SiAoiReportModel, opts: SiAoiPdfEx
   }
   if (opts.aoiMapImageDataUrl) {
     out.push(p('AOI map snapshot', { bold: true, heading: HeadingLevel.HEADING_2 }));
-    out.push(imageParagraph(opts.aoiMapImageDataUrl, 560, 315));
+    out.push(await imageParagraphFit(opts.aoiMapImageDataUrl, 560, 315));
   }
   out.push(
     new Paragraph({
@@ -290,13 +327,13 @@ function buildAoiAnalysisDocxChildren(report: SiAoiReportModel, opts: SiAoiPdfEx
   return out;
 }
 
-function buildChangeDetectionDocxChildren(report: SiAoiReportModel, opts: SiAoiPdfExportOptions): DocBlock[] {
+async function buildChangeDetectionDocxChildren(report: SiAoiReportModel, opts: SiAoiPdfExportOptions): Promise<DocBlock[]> {
   const out: DocBlock[] = [
     p('Time series change detection', { bold: true, heading: HeadingLevel.TITLE }),
     p(`${report.indexLabel} · ${report.aoiName}`, { bold: true }),
     p(`Period ${report.dateStart} … ${report.dateEnd}   ·   AOI area ${report.aoiAreaKm2.toFixed(3)} km²`),
     p('Per-date map grid (live viewer snapshots)', { bold: true, heading: HeadingLevel.HEADING_1 }),
-    changeDetectionGridTable(report, opts),
+    await changeDetectionGridTable(report, opts),
     p(`${report.indexLabel} timeline`, { bold: true, heading: HeadingLevel.HEADING_1 }),
     opts.chartImageDataUrl
       ? imageParagraph(opts.chartImageDataUrl, 560, 280)
@@ -312,8 +349,8 @@ function buildChangeDetectionDocxChildren(report: SiAoiReportModel, opts: SiAoiP
 export async function exportSiAoiVegetationReportDocx(report: SiAoiReportModel, options: SiAoiPdfExportOptions) {
   const children =
     options.mode === 'TIME_SERIES_CHANGE_DETECTION'
-      ? buildChangeDetectionDocxChildren(report, options)
-      : buildAoiAnalysisDocxChildren(report, options);
+      ? await buildChangeDetectionDocxChildren(report, options)
+      : await buildAoiAnalysisDocxChildren(report, options);
 
   const doc = new Document({
     sections: [

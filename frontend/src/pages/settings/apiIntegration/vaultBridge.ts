@@ -6,6 +6,7 @@ import {
   writeApiTokenSecret,
 } from '../../../lib/apiIntegrationTokens'
 import { fetchSentinelHubWmsLayers } from '../../../lib/sentinelHubWmsCapabilities'
+import { resolveSentinelHubInstanceId } from '../../../lib/sentinelHubIntegrationSync'
 import { persistSentinelHubWmsInstanceIdInBrowser } from '../../../lib/sentinelHubWmsInstance'
 import type { ProviderId } from './types'
 import type { AuthType } from './types'
@@ -51,6 +52,7 @@ export async function persistProviderVault(
   authType: AuthType,
   config: Record<string, string>,
   secrets: Record<string, string>,
+  context?: { name?: string; notes?: string },
 ): Promise<
   { ok: true; synced?: boolean; warning?: string } | { ok: false; error: string }
 > {
@@ -58,7 +60,7 @@ export async function persistProviderVault(
 
   if (providerId === 'sentinel_hub') {
     const token = (merged.accessToken ?? '').trim()
-    const instanceId = (merged.instanceId ?? '').trim()
+    const instanceId = resolveSentinelHubInstanceId(merged, context?.name, context?.notes)
     if (!token) return { ok: false, error: 'OAuth access token is required' }
     if (!instanceId) {
       return { ok: false, error: 'WMS instance ID is required for Sentinel Hub layers' }
@@ -94,7 +96,7 @@ export async function testVaultConnection(
 
   if (providerId === 'sentinel_hub') {
     const token = (config.accessToken ?? inline ?? '').trim()
-    const instanceId = (config.instanceId ?? '').trim()
+    const instanceId = resolveSentinelHubInstanceId(config)
     if (!token) {
       return { ok: false, message: 'OAuth access token is required', latencyMs: 0 }
     }

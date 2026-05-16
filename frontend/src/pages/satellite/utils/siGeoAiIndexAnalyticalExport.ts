@@ -25,11 +25,30 @@ export type SiGeoAiChartDatasetLite = {
 
 export type SiGeoAiIndexAnalyticalExportContext = {
   aoiKey: string | null;
+  /** Display name for Excel filename and PG sheet. */
+  aoiName?: string | null;
+  /** Active / primary layer label for Excel filename. */
+  layerName?: string | null;
   weekly: SiGeoAiWeeklyLite[];
   selectedDateIso: string;
   /** GeoJSON Feature with Polygon or MultiPolygon geometry */
   drawnFeature: GeoJSON.Feature | null;
 };
+
+/** Safe segment for `[Layer]_[AOI]_GeoSyntra.xlsx` filenames. */
+export function sanitizeGeoSyntraExportName(name = ''): string {
+  const s = String(name)
+    .replace(/[<>:"/\\|?*]+/g, '')
+    .replace(/\s+/g, '_')
+    .replace(/_+/g, '_')
+    .replace(/^_+|_+$/g, '')
+    .trim();
+  return s || 'Export';
+}
+
+export function buildGeoSyntraExcelFileName(layerName: string, aoiName: string): string {
+  return `${sanitizeGeoSyntraExportName(layerName)}_${sanitizeGeoSyntraExportName(aoiName)}_GeoSyntra.xlsx`;
+}
 
 export type LegendClass = { id: number; min: number; max: number; label: string };
 
@@ -228,48 +247,25 @@ function resolveWeekIndex(weekly: SiGeoAiWeeklyLite[], selectedIso: string): num
 const MAX_GRID_CELLS = 9000;
 
 /** Integer counts (whole pixels). */
-const XLSX_FMT_INT = '0'
-/** % of AOI (0–100 as a plain number, not Excel’s built-in % type) — many fraction digits so tiny shares stay visible. */
-const XLSX_FMT_SHARE = '0.############################'
-/** Spectral / index (−1…1, LST °C, etc.): many optional fraction digits (negative values keep leading “-”). */
-const XLSX_FMT_SPECTRAL = '0.############################'
+const XLSX_FMT_INT = '0';
+/** Index / spectral / stats — two decimal places (keeps sign for negatives). */
+const XLSX_FMT_INDEX = '0.00';
+/** WGS84 coordinates in export tables. */
+const XLSX_FMT_COORD = '0.000000';
 
-/**
- * Full-fidelity text for Excel cells: avoids General/percent formats that show tiny |−1…1| values as 0.00.
- * Keeps IEEE doubles readable without clipping negatives or sub-1 spectral values to “0”.
- */
-function excelDecimalText(v: number): string {
-  if (!Number.isFinite(v)) return ''
-  if (v === 0 || Object.is(v, -0)) return '0'
-  const raw = String(v)
-  const abs = Math.abs(v)
-  // Spectral band and other sub-unit magnitudes: prefer full significant digits before locale rounding.
-  if (abs > 0 && abs <= 1) {
-    const p = v.toPrecision(17)
-    if (p !== '0' && p !== '-0') {
-      if (!/[eE]/.test(p)) return p
-      const expanded = v.toLocaleString('en-US', { useGrouping: false, maximumFractionDigits: 20 })
-      if (v !== 0 && (expanded === '0' || expanded === '-0')) return p
-      return expanded
-    }
-  }
-  if (/[eE]/.test(raw)) {
-    const expanded = v.toLocaleString('en-US', { useGrouping: false, maximumFractionDigits: 20 })
-    if (v !== 0 && (expanded === '0' || expanded === '-0')) return raw
-    return expanded
-  }
-  const localized = v.toLocaleString('en-US', {
-    maximumSignificantDigits: 17,
-    /** Excel/Intl cap ~20 fraction digits; enough for spectral −1…1 without collapsing to “0”. */
-    maximumFractionDigits: 20,
-    useGrouping: false,
-  })
-  if (v !== 0 && (localized === '0' || localized === '-0')) {
-    const prec = v.toPrecision(17)
-    if (prec !== '0' && prec !== '-0') return prec
-    return raw
-  }
-  return localized
+function roundIndex2(v: number): number {
+  if (!Number.isFinite(v)) return NaN;
+  return Math.round(v * 100) / 100;
+}
+
+function indexExportValue(v: number): number | '' {
+  if (!Number.isFinite(v)) return '';
+  return roundIndex2(v);
+}
+
+function coordExportValue(v: number): number | '' {
+  if (!Number.isFinite(v)) return '';
+  return Math.round(v * 1_000_000) / 1_000_000;
 }
 
 function applyNumberFormatsToDataRows(
@@ -291,98 +287,141 @@ function applyNumberFormatsToDataRows(
   }
 }
 
-/** Force literal text cells so Excel never re-interprets tiny % / spectral strings as rounded numbers. */
-function forceCellsPlainText(ws: XLSX.WorkSheet, headerRowCount: number, cols: number[]) {
-  const ref = ws['!ref']
-  if (!ref) return
-  const range = XLSX.utils.decode_range(ref)
+/** Index columns from `startCol` through last column — numeric cells with `0.00`. */
+function applyIndexFormatsFromColumn(ws: XLSX.WorkSheet, headerRowCount: number, startCol: number) {
+  const ref = ws['!ref'];
+  if (!ref) return;
+  const range = XLSX.utils.decode_range(ref);
+  const specs: Array<{ c: number; z: string }> = [];
+  for (let c = startCol; c <= range.e.c; c++) {
+    specs.push({ c, z: XLSX_FMT_INDEX });
+  }
+  applyNumberFormatsToDataRows(ws, headerRowCount, specs);
   for (let r = headerRowCount; r <= range.e.r; r++) {
-    for (const c of cols) {
-      const addr = XLSX.utils.encode_cell({ r, c })
-      const cell = ws[addr] as XLSX.CellObject | undefined
-      if (!cell || cell.v === '' || cell.v == null) continue
-      const text = String(cell.v)
-      ws[addr] = { t: 's', v: text, z: '@' } as XLSX.CellObject
+    for (let c = startCol; c <= range.e.c; c++) {
+      const addr = XLSX.utils.encode_cell({ r, c });
+      const cell = ws[addr] as XLSX.CellObject | undefined;
+      if (cell?.t === 'n' && typeof cell.v === 'number' && Number.isFinite(cell.v)) {
+        cell.v = roundIndex2(cell.v);
+        cell.z = XLSX_FMT_INDEX;
+      }
     }
   }
 }
 
-/** Spectral columns from `startCol` through last column, for each data row under the header. */
-function applySpectralFormatsFromColumn(ws: XLSX.WorkSheet, headerRowCount: number, startCol: number) {
-  const ref = ws['!ref']
-  if (!ref) return
-  const range = XLSX.utils.decode_range(ref)
-  const specs: Array<{ c: number; z: string }> = []
-  for (let c = startCol; c <= range.e.c; c++) {
-    specs.push({ c, z: XLSX_FMT_SPECTRAL })
-  }
-  applyNumberFormatsToDataRows(ws, headerRowCount, specs)
+function applyCoordFormats(ws: XLSX.WorkSheet, headerRowCount: number, lngCol: number, latCol: number) {
+  applyNumberFormatsToDataRows(ws, headerRowCount, [
+    { c: lngCol, z: XLSX_FMT_COORD },
+    { c: latCol, z: XLSX_FMT_COORD },
+  ]);
 }
 
 function formatSummaryAoiSheet(ws: XLSX.WorkSheet) {
-  const ref = ws['!ref']
-  if (!ref) return
-  const range = XLSX.utils.decode_range(ref)
+  const ref = ws['!ref'];
+  if (!ref) return;
+  const range = XLSX.utils.decode_range(ref);
   for (let r = 0; r <= range.e.r; r++) {
-    const a = ws[XLSX.utils.encode_cell({ r, c: 0 })] as XLSX.CellObject | undefined
+    const a = ws[XLSX.utils.encode_cell({ r, c: 0 })] as XLSX.CellObject | undefined;
     if (a?.v === 'Class distribution (primary index)') {
-      const dataStart = r + 1
+      const dataStart = r + 1;
       for (let rr = dataStart; rr <= range.e.r; rr++) {
-        const addr = XLSX.utils.encode_cell({ r: rr, c: 1 })
-        const cell = ws[addr] as XLSX.CellObject | undefined
+        const addr = XLSX.utils.encode_cell({ r: rr, c: 1 });
+        const cell = ws[addr] as XLSX.CellObject | undefined;
         if (cell && cell.t === 'n' && typeof cell.v === 'number' && Number.isFinite(cell.v)) {
-          cell.z = XLSX_FMT_INT
+          cell.z = XLSX_FMT_INT;
+        }
+        const areaAddr = XLSX.utils.encode_cell({ r: rr, c: 4 });
+        const areaCell = ws[areaAddr] as XLSX.CellObject | undefined;
+        if (areaCell?.t === 'n' && typeof areaCell.v === 'number' && Number.isFinite(areaCell.v)) {
+          areaCell.v = roundIndex2(areaCell.v);
+          areaCell.z = XLSX_FMT_INDEX;
         }
       }
-      forceCellsPlainText(ws, dataStart, [1, 2, 3, 4])
-      break
+      break;
     }
   }
-  const spectralMetricRows: number[] = []
   for (let r = 0; r <= range.e.r; r++) {
-    const metric = ws[XLSX.utils.encode_cell({ r, c: 1 })] as XLSX.CellObject | undefined
-    const val = ws[XLSX.utils.encode_cell({ r, c: 2 })] as XLSX.CellObject | undefined
-    const m = metric?.v
+    const metric = ws[XLSX.utils.encode_cell({ r, c: 1 })] as XLSX.CellObject | undefined;
+    const val = ws[XLSX.utils.encode_cell({ r, c: 2 })] as XLSX.CellObject | undefined;
+    const m = metric?.v;
     if (m === 'min' || m === 'max' || m === 'mean' || m === 'std_dev') {
-      if (!val) continue
-      spectralMetricRows.push(r)
+      if (!val) continue;
       if (val.t === 'n' && typeof val.v === 'number' && Number.isFinite(val.v)) {
-        val.z = XLSX_FMT_SPECTRAL
-      } else if (typeof val.v === 'string') {
-        val.z = '@'
+        val.v = roundIndex2(val.v);
+        val.z = XLSX_FMT_INDEX;
+      }
+    }
+    const lab = ws[XLSX.utils.encode_cell({ r, c: 0 })] as XLSX.CellObject | undefined;
+    if (
+      lab?.v === 'AOI area (approx, m²)' ||
+      lab?.v === 'Approx. mean pixel footprint (m²)'
+    ) {
+      const vcell = ws[XLSX.utils.encode_cell({ r, c: 1 })] as XLSX.CellObject | undefined;
+      if (vcell?.t === 'n' && typeof vcell.v === 'number' && Number.isFinite(vcell.v)) {
+        vcell.v = roundIndex2(vcell.v);
+        vcell.z = XLSX_FMT_INDEX;
       }
     }
   }
-  // Literal text for index stats so Excel never rounds tiny |−1…1| values to “0.00” on open.
-  for (const r of spectralMetricRows) {
-    const addr = XLSX.utils.encode_cell({ r, c: 2 })
-    const cell = ws[addr] as XLSX.CellObject | undefined
-    if (!cell || cell.v === '' || cell.v == null) continue
-    const repr =
-      cell.t === 's' && typeof cell.v === 'string'
-        ? cell.v
-        : excelDecimalText(typeof cell.v === 'number' ? cell.v : Number(cell.v))
-    ws[addr] = { t: 's', v: repr, z: '@' } as XLSX.CellObject
-  }
-  const scalarPairs: Array<[label: string, col: number]> = [
-    ['AOI area (approx, m²)', 1],
-    ['Approx. mean pixel footprint (m²)', 1],
-    ['Sampled interior pixels', 1],
-  ]
-  for (const [label, col] of scalarPairs) {
-    for (let r = 0; r <= range.e.r; r++) {
-      const lab = ws[XLSX.utils.encode_cell({ r, c: 0 })] as XLSX.CellObject | undefined
-      if (lab?.v !== label) continue
-      const addrV = XLSX.utils.encode_cell({ r, c: col })
-      const vcell = ws[addrV] as XLSX.CellObject | undefined
-      if (vcell && vcell.t === 'n' && typeof vcell.v === 'number' && Number.isFinite(vcell.v)) {
-        ws[addrV] = { t: 's', v: excelDecimalText(vcell.v), z: '@' } as XLSX.CellObject
-      } else if (vcell && typeof vcell.v === 'string') {
-        vcell.z = '@'
+}
+
+function formatClassStatisticsSheet(ws: XLSX.WorkSheet) {
+  const ref = ws['!ref'];
+  if (!ref) return;
+  const headerRowCount = 1;
+  applyNumberFormatsToDataRows(ws, headerRowCount, [
+    { c: 2, z: XLSX_FMT_INT },
+    { c: 3, z: XLSX_FMT_INDEX },
+    { c: 4, z: XLSX_FMT_INDEX },
+    { c: 5, z: XLSX_FMT_INDEX },
+  ]);
+  const range = XLSX.utils.decode_range(ref);
+  for (let r = headerRowCount; r <= range.e.r; r++) {
+    for (const c of [3, 4, 5]) {
+      const addr = XLSX.utils.encode_cell({ r, c });
+      const cell = ws[addr] as XLSX.CellObject | undefined;
+      if (cell?.t === 'n' && typeof cell.v === 'number' && Number.isFinite(cell.v)) {
+        cell.v = roundIndex2(cell.v);
+        cell.z = XLSX_FMT_INDEX;
       }
-      break
     }
   }
+}
+
+function appendPgSheet(wb: XLSX.WorkBook, rows: (string | number)[][]) {
+  appendSheetWithColWidths(wb, rows, 'PG', [36, 56]);
+}
+
+function buildPgSheetRows(opts: {
+  chartTitle: string;
+  primaryId: string;
+  layerName: string;
+  aoiName: string;
+  weekLabel: string;
+  gridCount: number;
+  bounds: [number, number, number, number] | null;
+  valueDatasetLabels: string[];
+  note: string;
+}): (string | number)[][] {
+  const b = opts.bounds;
+  return [
+    ['Pixel grid (PG) — GeoSyntra export metadata'],
+    [],
+    ['Report title', opts.chartTitle],
+    ['Layer / primary index', opts.layerName || opts.primaryId],
+    ['AOI name', opts.aoiName],
+    ['Week window', opts.weekLabel],
+    ['Sampled interior pixels', opts.gridCount],
+    ['AOI west (°)', b ? coordExportValue(b[0]) : ''],
+    ['AOI south (°)', b ? coordExportValue(b[1]) : ''],
+    ['AOI east (°)', b ? coordExportValue(b[2]) : ''],
+    ['AOI north (°)', b ? coordExportValue(b[3]) : ''],
+    ['Exported index columns', opts.valueDatasetLabels.join(', ') || '—'],
+    ['Index value format', '0.00 (two decimals, sign preserved)'],
+    ['Export UTC', new Date().toISOString()],
+    [],
+    ['Note', opts.note],
+  ];
 }
 
 /** Prefer wider columns for Class_Statistics / Summary tables so Excel does not clip headers or long spectral strings. */
@@ -455,37 +494,38 @@ export function buildGeoAiIndexAnalyticalWorkbook(opts: {
   datasets: SiGeoAiChartDatasetLite[];
   exportLngLatPerRow?: { lng: number; lat: number }[] | undefined;
   analytics: SiGeoAiIndexAnalyticalExportContext | null | undefined;
+  layerName?: string;
+  aoiName?: string;
 }): XLSX.WorkBook {
   const { chartTitle, labels, datasets, exportLngLatPerRow, analytics } = opts;
   const wb = XLSX.utils.book_new();
+  const layerName =
+    opts.layerName?.trim() ||
+    analytics?.layerName?.trim() ||
+    pickPrimaryDatasetId(datasets) ||
+    'Layer';
+  const aoiName = opts.aoiName?.trim() || analytics?.aoiName?.trim() || 'AOI';
 
   const chartHeader = ['Date', 'Longitude', 'Latitude', ...datasets.map(ds => ds.label)];
   const chartRows: (string | number)[][] = [chartHeader];
   for (let i = 0; i < labels.length; i++) {
     const row: (string | number)[] = [labels[i] ?? ''];
     const pt = exportLngLatPerRow?.[i];
-    row.push(pt != null && Number.isFinite(pt.lng) ? Number(pt.lng).toFixed(6) : '');
-    row.push(pt != null && Number.isFinite(pt.lat) ? Number(pt.lat).toFixed(6) : '');
+    row.push(pt != null && Number.isFinite(pt.lng) ? coordExportValue(pt.lng) : '');
+    row.push(pt != null && Number.isFinite(pt.lat) ? coordExportValue(pt.lat) : '');
     for (const ds of datasets) {
-      const v = ds.data[i]
-      row.push(Number.isFinite(v) ? excelDecimalText(Number(v)) : '')
+      const v = ds.data[i];
+      row.push(Number.isFinite(v) ? indexExportValue(Number(v)) : '');
     }
     chartRows.push(row);
   }
   {
-    const wsChart = XLSX.utils.aoa_to_sheet(chartRows)
-    const chartColW = [14, 14, 14, ...datasets.map(() => 18)]
-    wsChart['!cols'] = chartColW.map(wch => ({ wch }))
-    applySpectralFormatsFromColumn(wsChart, 1, 3)
-    const specColCount = Math.max(0, datasets.length)
-    if (specColCount > 0) {
-      forceCellsPlainText(
-        wsChart,
-        1,
-        Array.from({ length: specColCount }, (_, i) => 3 + i),
-      )
-    }
-    XLSX.utils.book_append_sheet(wb, wsChart, 'Chart_Data')
+    const wsChart = XLSX.utils.aoa_to_sheet(chartRows);
+    const chartColW = [14, 14, 14, ...datasets.map(() => 18)];
+    wsChart['!cols'] = chartColW.map(wch => ({ wch }));
+    applyCoordFormats(wsChart, 1, 1, 2);
+    if (datasets.length > 0) applyIndexFormatsFromColumn(wsChart, 1, 3);
+    XLSX.utils.book_append_sheet(wb, wsChart, 'Chart_Data');
   }
 
   const weekly = analytics?.weekly ?? [];
@@ -494,18 +534,32 @@ export function buildGeoAiIndexAnalyticalWorkbook(opts: {
   const weekIdx = resolveWeekIndex(weekly, analytics?.selectedDateIso ?? '');
   const nWeeks = Math.max(1, weekly.length);
   const anchor = weekly[weekIdx]?.mean ?? 0.45;
+  const wk = weekly[weekIdx];
+  const weekLabel = wk ? `${wk.startDate} → ${wk.endDate}` : '';
+  const primaryIdEarly = pickPrimaryDatasetId(datasets);
 
   if (!drawn?.geometry || weekly.length === 0) {
-    const note = [
-      ['Note'],
-      [
-        'Draw a closed polygon or multi-polygon AOI and ensure the weekly timeline is loaded to populate Data_Raw, Data_Classified, Summary_AOI, and Class_Statistics.',
-      ],
-    ];
+    const noteText =
+      'Draw a closed polygon or multi-polygon AOI and ensure the weekly timeline is loaded to populate Data_Raw, Data_Classified, Summary_AOI, and Class_Statistics.';
+    const note = [['Note'], [noteText]];
     XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(note), 'Data_Raw');
     XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([['See Data_Raw note']]), 'Data_Classified');
     XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([['See Data_Raw note']]), 'Summary_AOI');
     XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([['See Data_Raw note']]), 'Class_Statistics');
+    appendPgSheet(
+      wb,
+      buildPgSheetRows({
+        chartTitle,
+        primaryId: primaryIdEarly,
+        layerName,
+        aoiName,
+        weekLabel,
+        gridCount: 0,
+        bounds: null,
+        valueDatasetLabels: datasets.map(d => d.label),
+        note: noteText,
+      }),
+    );
     return wb;
   }
 
@@ -528,45 +582,45 @@ export function buildGeoAiIndexAnalyticalWorkbook(opts: {
 
   for (const p of grid) {
     const ck = cellKeyForPixel(aoiKey, p.lng, p.lat);
-    const row: (string | number)[] = [pid, Number(p.lat.toFixed(6)), Number(p.lng.toFixed(6))];
+    const row: (string | number)[] = [pid, coordExportValue(p.lat), coordExportValue(p.lng)];
     for (const d of valueDatasets) {
-      const v = staticAoiLayerMeanForWeek(d.id as StaticAoiChartLayerId, weekIdx, nWeeks, ck, anchor)
-      row.push(Number.isFinite(v) ? excelDecimalText(v) : '')
-      perIndexCols[d.id]!.push(v)
+      const v = staticAoiLayerMeanForWeek(d.id as StaticAoiChartLayerId, weekIdx, nWeeks, ck, anchor);
+      row.push(indexExportValue(v));
+      perIndexCols[d.id]!.push(v);
     }
     rawRows.push(row);
 
     const pv = staticAoiLayerMeanForWeek(primaryId as StaticAoiChartLayerId, weekIdx, nWeeks, ck, anchor);
     primaryValues.push(pv);
     const cls = classifyValue(pv, primaryLegend);
-    classifiedRows.push([pid, Number(p.lat.toFixed(6)), Number(p.lng.toFixed(6)), excelDecimalText(pv), String(cls.id), cls.name]);
+    classifiedRows.push([
+      pid,
+      coordExportValue(p.lat),
+      coordExportValue(p.lng),
+      indexExportValue(pv),
+      String(cls.id),
+      cls.name,
+    ]);
     pid++;
   }
 
   {
-    const wsRaw = XLSX.utils.aoa_to_sheet(rawRows)
-    wsRaw['!cols'] = rawHeader.map((_, i) => ({ wch: i < 3 ? 12 : 16 }))
-    applySpectralFormatsFromColumn(wsRaw, 1, 3)
-    const nSpec = valueDatasets.length
-    if (nSpec > 0) {
-      forceCellsPlainText(
-        wsRaw,
-        1,
-        Array.from({ length: nSpec }, (_, i) => 3 + i),
-      )
-    }
-    XLSX.utils.book_append_sheet(wb, wsRaw, 'Data_Raw')
+    const wsRaw = XLSX.utils.aoa_to_sheet(rawRows);
+    wsRaw['!cols'] = rawHeader.map((_, i) => ({ wch: i < 3 ? 12 : 16 }));
+    applyCoordFormats(wsRaw, 1, 2, 1);
+    if (valueDatasets.length > 0) applyIndexFormatsFromColumn(wsRaw, 1, 3);
+    XLSX.utils.book_append_sheet(wb, wsRaw, 'Data_Raw');
   }
   {
-    const wsCls = XLSX.utils.aoa_to_sheet(classifiedRows)
-    wsCls['!cols'] = [10, 14, 14, 26, 10, 48].map(wch => ({ wch }))
-    forceCellsPlainText(wsCls, 1, [3])
-    XLSX.utils.book_append_sheet(wb, wsCls, 'Data_Classified')
+    const wsCls = XLSX.utils.aoa_to_sheet(classifiedRows);
+    wsCls['!cols'] = [10, 14, 14, 26, 10, 48].map(wch => ({ wch }));
+    applyCoordFormats(wsCls, 1, 2, 1);
+    applyIndexFormatsFromColumn(wsCls, 1, 3);
+    XLSX.utils.book_append_sheet(wb, wsCls, 'Data_Classified');
   }
 
   const aoiAreaM2 = featureAoiAreaSqMeters(drawn);
   const approxM2PerPixel = grid.length > 0 ? aoiAreaM2 / grid.length : 0;
-  const wk = weekly[weekIdx];
 
   const summaryLines: (string | number)[][] = [
     ['GeoAI Index Analytical Report — AOI summary'],
@@ -574,8 +628,8 @@ export function buildGeoAiIndexAnalyticalWorkbook(opts: {
     ['Report title', chartTitle],
     ['Primary index (classification)', primaryId],
     ['Week window', wk ? `${wk.startDate} → ${wk.endDate}` : ''],
-    ['AOI area (approx, m²)', Number.isFinite(aoiAreaM2) ? excelDecimalText(aoiAreaM2) : ''],
-    ['Approx. mean pixel footprint (m²)', approxM2PerPixel > 0 ? excelDecimalText(approxM2PerPixel) : ''],
+    ['AOI area (approx, m²)', Number.isFinite(aoiAreaM2) ? roundIndex2(aoiAreaM2) : ''],
+    ['Approx. mean pixel footprint (m²)', approxM2PerPixel > 0 ? roundIndex2(approxM2PerPixel) : ''],
     ['Sampled interior pixels', grid.length],
     ['Note', 'Pixel values use the same deterministic demo engine as the on-map AOI chart; connect Sentinel Hub statistics for production.'],
     [],
@@ -589,10 +643,10 @@ export function buildGeoAiIndexAnalyticalWorkbook(opts: {
     const mx = Math.max(...finite);
     const mean = finite.reduce((a, b) => a + b, 0) / finite.length;
     const sd = stdDevPop(finite);
-    summaryLines.push([`Index ${d.label}`, 'min', excelDecimalText(mn)])
-    summaryLines.push(['', 'max', excelDecimalText(mx)])
-    summaryLines.push(['', 'mean', excelDecimalText(mean)])
-    summaryLines.push(['', 'std_dev', Number.isFinite(sd) ? excelDecimalText(sd) : ''])
+    summaryLines.push([`Index ${d.label}`, 'min', indexExportValue(mn)]);
+    summaryLines.push(['', 'max', indexExportValue(mx)]);
+    summaryLines.push(['', 'mean', indexExportValue(mean)]);
+    summaryLines.push(['', 'std_dev', Number.isFinite(sd) ? indexExportValue(sd) : '']);
     summaryLines.push([]);
   }
 
@@ -612,7 +666,7 @@ export function buildGeoAiIndexAnalyticalWorkbook(opts: {
       String(cid),
       name,
       String(n),
-      typeof areaM2 === 'number' && Number.isFinite(areaM2) ? excelDecimalText(areaM2) : areaM2,
+      typeof areaM2 === 'number' && Number.isFinite(areaM2) ? roundIndex2(areaM2) : areaM2,
     ])
   }
 
@@ -642,28 +696,47 @@ export function buildGeoAiIndexAnalyticalWorkbook(opts: {
     classStats.push([
       String(c.id),
       c.label,
-      String(n),
-      excelDecimalText(pct),
-      excelDecimalText(share),
-      vals.length && Number.isFinite(mnc) ? excelDecimalText(mnc) : '',
-    ])
+      n,
+      indexExportValue(pct),
+      indexExportValue(share),
+      vals.length && Number.isFinite(mnc) ? indexExportValue(mnc) : '',
+    ]);
   }
   appendSheetWithColWidths(
     wb,
     classStats,
     'Class_Statistics',
     classStatsHeader.map((_, c) => columnCharWidthFromRows(classStats, c, 12, 64)),
-    ws => {
-      // Entire data block as literal text so Excel never re-parses tiny % / fraction / spectral means as rounded numbers.
-      forceCellsPlainText(ws, 1, [0, 1, 2, 3, 4, 5])
-    },
-  )
+    formatClassStatisticsSheet,
+  );
+
+  const bounds = getFeatureLngLatBounds(drawn);
+  appendPgSheet(
+    wb,
+    buildPgSheetRows({
+      chartTitle,
+      primaryId,
+      layerName,
+      aoiName,
+      weekLabel: wk ? `${wk.startDate} → ${wk.endDate}` : weekLabel,
+      gridCount: grid.length,
+      bounds,
+      valueDatasetLabels: valueDatasets.map(d => d.label),
+      note: 'Pixel values use the same deterministic demo engine as the on-map AOI chart; connect Sentinel Hub statistics for production.',
+    }),
+  );
 
   return wb;
 }
 
 export function downloadGeoAiIndexAnalyticalReportXlsx(opts: Parameters<typeof buildGeoAiIndexAnalyticalWorkbook>[0]) {
   const wb = buildGeoAiIndexAnalyticalWorkbook(opts);
-  const stamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
-  XLSX.writeFile(wb, `GeoAI Index Analytical Report ${stamp}.xlsx`)
+  const primaryId = pickPrimaryDatasetId(opts.datasets);
+  const layerName =
+    opts.layerName?.trim() ||
+    opts.analytics?.layerName?.trim() ||
+    opts.datasets.find(d => d.id === primaryId)?.label ||
+    primaryId;
+  const aoiName = opts.aoiName?.trim() || opts.analytics?.aoiName?.trim() || 'AOI';
+  XLSX.writeFile(wb, buildGeoSyntraExcelFileName(layerName, aoiName));
 }

@@ -1,9 +1,9 @@
 /**
  * AOI static multi-layer chart: builds per-week synthetic means per analysis layer
  * for temporal comparison (same timeline as {@link WeeklyComposite} strip).
- * Values are sample-quality signals derived from week index + AOI fingerprint so
- * the chart reacts when the AOI changes; wire a backend stats endpoint later for production means.
+ * With a polygon feature, values are zonal pixel means (aligned with Excel export / popups).
  */
+import { computeAoiZonalWeeklyMeans } from './siAoiZonalStats';
 
 export type WeeklyCompositeLite = {
   weekIndex: number;
@@ -115,6 +115,8 @@ export function buildStaticAoiMultiChartDatasets(
   weekly: WeeklyCompositeLite[],
   layerIds: StaticAoiChartLayerId[],
   aoiKey: string | null,
+  /** When set, weekly means are zonal pixel averages (matches Excel / popups). */
+  aoiFeature?: GeoJSON.Feature | null,
 ): {
   labels: string[];
   datasets: Array<{
@@ -131,10 +133,25 @@ export function buildStaticAoiMultiChartDatasets(
   }
   const n = weekly.length;
   const labels = weekly.map(w => formatStaticChartWeekLabel(w.startDate));
+  const useZonal =
+    aoiFeature?.geometry &&
+    (aoiFeature.geometry.type === 'Polygon' || aoiFeature.geometry.type === 'MultiPolygon');
+  let zonalByLayer: Partial<Record<StaticAoiChartLayerId, number[]>> | null = null;
+  if (useZonal && aoiFeature) {
+    zonalByLayer = {};
+    for (const id of layerIds) {
+      zonalByLayer[id] = computeAoiZonalWeeklyMeans(aoiFeature, aoiKey, id, weekly);
+    }
+  }
   const datasets = layerIds.map((id, di) => {
     const opt = metaFor(id);
     const color = DATASET_COLORS[di % DATASET_COLORS.length]!;
-    const data = weekly.map((w, i) => staticAoiLayerMeanForWeek(id, i, n, aoiKey, w.mean));
+    const zonalSeries = zonalByLayer?.[id];
+    const data = weekly.map((w, i) => {
+      const z = zonalSeries?.[i];
+      if (typeof z === 'number' && Number.isFinite(z)) return z;
+      return staticAoiLayerMeanForWeek(id, i, n, aoiKey, w.mean);
+    });
     return {
       id,
       label: opt.label,
