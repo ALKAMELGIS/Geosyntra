@@ -249,13 +249,14 @@ function excelDecimalText(v: number): string {
     if (p !== '0' && p !== '-0' && !/[eE]/.test(p)) return p
   }
   if (/[eE]/.test(raw)) {
-    const expanded = v.toLocaleString('en-US', { useGrouping: false, maximumFractionDigits: 21 })
+    const expanded = v.toLocaleString('en-US', { useGrouping: false, maximumFractionDigits: 20 })
     if (v !== 0 && (expanded === '0' || expanded === '-0')) return raw
     return expanded
   }
   const localized = v.toLocaleString('en-US', {
     maximumSignificantDigits: 17,
-    maximumFractionDigits: 21,
+    /** Excel/Intl cap ~20 fraction digits; enough for spectral −1…1 without collapsing to “0”. */
+    maximumFractionDigits: 20,
     useGrouping: false,
   })
   if (v !== 0 && (localized === '0' || localized === '-0')) {
@@ -440,7 +441,7 @@ export function buildGeoAiIndexAnalyticalWorkbook(opts: {
   }
   {
     const wsChart = XLSX.utils.aoa_to_sheet(chartRows)
-    const chartColW = [14, 14, 14, ...datasets.map(() => 16)]
+    const chartColW = [14, 14, 14, ...datasets.map(() => 18)]
     wsChart['!cols'] = chartColW.map(wch => ({ wch }))
     applySpectralFormatsFromColumn(wsChart, 1, 3)
     const specColCount = Math.max(0, datasets.length)
@@ -589,7 +590,7 @@ export function buildGeoAiIndexAnalyticalWorkbook(opts: {
     'Class name',
     'Pixel count',
     'Pct of AOI (%)',
-    'Share n/N',
+    'AOI fraction (0–1)',
     'Mean index in class',
   ];
   const classStats: (string | number)[][] = [classStatsHeader];
@@ -604,7 +605,7 @@ export function buildGeoAiIndexAnalyticalWorkbook(opts: {
     const share = total > 0 ? n / total : 0;
     const mnc = vals.length ? vals.reduce((a, b) => a + b, 0) / vals.length : NaN;
     // All value columns as explicit text (@) so Excel never rounds tiny %, shares, or |−1…1| means to “0.00”.
-    // “Pct of AOI (%)” is 0–100; do not embed “%” in the cell (avoids locale/parse quirks). “Share n/N” is 0…1.
+    // “Pct of AOI (%)” is 0–100; do not embed “%” in the cell (avoids locale/parse quirks). “AOI fraction (0–1)” is n/total.
     classStats.push([
       String(c.id),
       c.label,
