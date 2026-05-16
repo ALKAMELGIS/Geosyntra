@@ -334,7 +334,7 @@ function formatSummaryAoiSheet(ws: XLSX.WorkSheet) {
           cell.z = XLSX_FMT_INT
         }
       }
-      forceCellsPlainText(ws, dataStart, [3, 4])
+      forceCellsPlainText(ws, dataStart, [1, 2, 3, 4])
       break
     }
   }
