@@ -1,4 +1,4 @@
-/* Glossy Chat AI agent icon (Geo AI entry points) */
+/* Agent Chat icon — bubble + neural agent core */
 
 .si-chat-ai-agent-icon-wrap {
   display: inline-flex;
@@ -11,74 +11,69 @@
 }
 
 .si-chat-ai-agent-icon-wrap--rail {
-  width: 17px;
-  height: 17px;
+  width: 18px;
+  height: 18px;
 }
 
 .si-chat-ai-agent-icon-wrap--chip {
-  width: 15px;
-  height: 15px;
+  width: 16px;
+  height: 16px;
 }
 
 .si-chat-ai-agent-icon__svg {
   width: 100%;
   height: 100%;
   display: block;
-  filter: drop-shadow(0 0 3px rgba(167, 139, 250, 0.55)) drop-shadow(0 1px 2px rgba(15, 23, 42, 0.55));
+  filter: drop-shadow(0 0 4px rgba(129, 140, 248, 0.45)) drop-shadow(0 1px 2px rgba(15, 23, 42, 0.4));
 }
 
 @media (prefers-reduced-motion: no-preference) {
-  .si-chat-ai-agent-icon__spark--a {
-    animation: si-chat-ai-agent-spark-a 2.2s ease-in-out infinite;
+  .si-chat-ai-agent-icon__core {
+    animation: si-chat-ai-agent-core-pulse 2.8s ease-in-out infinite;
   }
 
-  .si-chat-ai-agent-icon__spark--b {
-    animation: si-chat-ai-agent-spark-b 2.6s ease-in-out infinite;
+  .si-chat-ai-agent-icon__spark {
+    animation: si-chat-ai-agent-spark-glow 2.4s ease-in-out infinite;
   }
 
-  .si-chat-ai-agent-icon__spark--c {
-    animation: si-chat-ai-agent-spark-c 2s ease-in-out infinite;
+  .si-chat-ai-agent-icon__node--t {
+    animation: si-chat-ai-agent-node-t 2.2s ease-in-out infinite;
   }
 
-  .si-chat-ai-agent-icon__svg {
-    animation: si-chat-ai-agent-icon-shimmer 3.2s ease-in-out infinite;
+  .si-chat-ai-agent-icon__node--l {
+    animation: si-chat-ai-agent-node-l 2.5s ease-in-out infinite;
+  }
+
+  .si-chat-ai-agent-icon__node--r {
+    animation: si-chat-ai-agent-node-r 2.5s ease-in-out infinite;
   }
 }
 
-@keyframes si-chat-ai-agent-icon-shimmer {
-  0%,
-  100% {
-    filter: drop-shadow(0 0 3px rgba(167, 139, 250, 0.55)) drop-shadow(0 1px 2px rgba(15, 23, 42, 0.55)) brightness(1);
-  }
-  50% {
-    filter: drop-shadow(0 0 7px rgba(196, 181, 253, 0.65)) drop-shadow(0 0 12px rgba(56, 189, 248, 0.28))
-      drop-shadow(0 1px 2px rgba(15, 23, 42, 0.55)) brightness(1.08);
-  }
-}
-
-@keyframes si-chat-ai-agent-spark-a {
+@keyframes si-chat-ai-agent-core-pulse {
   0%,
   100% {
     opacity: 1;
+    transform: scale(1);
+    transform-origin: 11.5px 9.75px;
   }
   50% {
-    opacity: 0.72;
+    opacity: 0.92;
+    transform: scale(1.06);
+    transform-origin: 11.5px 9.75px;
   }
 }
 
-@keyframes si-chat-ai-agent-spark-b {
+@keyframes si-chat-ai-agent-spark-glow {
   0%,
   100% {
     opacity: 0.88;
-    transform: translate(0, 0);
   }
   50% {
     opacity: 1;
-    transform: translate(-0.15px, -0.35px);
   }
 }
 
-@keyframes si-chat-ai-agent-spark-c {
+@keyframes si-chat-ai-agent-node-t {
   0%,
   100% {
     opacity: 0.85;
@@ -88,14 +83,34 @@
   }
 }
 
+@keyframes si-chat-ai-agent-node-l {
+  0%,
+  100% {
+    opacity: 0.72;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+@keyframes si-chat-ai-agent-node-r {
+  0%,
+  100% {
+    opacity: 0.72;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
 .si-sat-ctx-rail-btn:hover .si-chat-ai-agent-icon__svg,
 .si-sat-ctx-rail-btn--active .si-chat-ai-agent-icon__svg {
-  filter: drop-shadow(0 0 6px rgba(196, 181, 253, 0.75)) drop-shadow(0 0 14px rgba(56, 189, 248, 0.35))
-    drop-shadow(0 1px 2px rgba(15, 23, 42, 0.45));
+  filter: drop-shadow(0 0 7px rgba(165, 180, 252, 0.7)) drop-shadow(0 0 12px rgba(56, 189, 248, 0.32))
+    drop-shadow(0 1px 2px rgba(15, 23, 42, 0.35));
 }
 
 .si-sat-ctx-dock--light .si-chat-ai-agent-icon__svg {
-  filter: drop-shadow(0 0 3px rgba(79, 70, 229, 0.35)) drop-shadow(0 1px 1px rgba(15, 23, 42, 0.12));
+  filter: drop-shadow(0 0 3px rgba(99, 102, 241, 0.38)) drop-shadow(0 1px 1px rgba(15, 23, 42, 0.1));
 }
 
 .si-sat-ctx-analysis-launcher-btn .si-chat-ai-agent-icon-wrap {
@@ -104,8 +119,8 @@
 }
 
 .si-smart-proc__chip .si-chat-ai-agent-icon-wrap {
-  width: 15px;
-  height: 15px;
+  width: 16px;
+  height: 16px;
 }
 
 .si-sat-smart-proc__btn .si-chat-ai-agent-icon-wrap {

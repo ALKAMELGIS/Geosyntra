@@ -8,15 +8,14 @@ export type SiChatAiAgentIconProps = {
 };
 
 /**
- * Custom “Chat AI agent” mark: speech bubble + sparkles, glossy indigo–violet gradients.
- * Replaces generic chat bubbles for Geo AI entry points.
+ * Agent Chat mark — speech bubble + neural agent core (spatial copilot entry points).
  */
 export function SiChatAiAgentIcon({ className = '', size = 'default' }: SiChatAiAgentIconProps) {
   const raw = useId().replace(/[^a-zA-Z0-9]/g, '');
-  const gBubble = `si-cai-b-${raw}`;
-  const gShine = `si-cai-s-${raw}`;
-  const gSpark = `si-cai-p-${raw}`;
-  const gSpark2 = `si-cai-p2-${raw}`;
+  const gShell = `si-cai-shell-${raw}`;
+  const gCore = `si-cai-core-${raw}`;
+  const gSpark = `si-cai-spark-${raw}`;
+  const gShine = `si-cai-shine-${raw}`;
 
   const sizeClass =
     size === 'rail' ? 'si-chat-ai-agent-icon-wrap--rail' : size === 'chip' ? 'si-chat-ai-agent-icon-wrap--chip' : '';
@@ -25,61 +24,62 @@ export function SiChatAiAgentIcon({ className = '', size = 'default' }: SiChatAi
     <span className={['si-chat-ai-agent-icon-wrap', sizeClass, className].filter(Boolean).join(' ')} aria-hidden>
       <svg className="si-chat-ai-agent-icon__svg" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
         <defs>
-          <linearGradient id={gBubble} x1="3" y1="2" x2="21" y2="20" gradientUnits="userSpaceOnUse">
-            <stop stopColor="#4338ca" />
-            <stop offset="0.42" stopColor="#7c3aed" />
-            <stop offset="1" stopColor="#1d4ed8" />
+          <linearGradient id={gShell} x1="4" y1="3" x2="20" y2="18" gradientUnits="userSpaceOnUse">
+            <stop stopColor="#6366f1" />
+            <stop offset="0.45" stopColor="#8b5cf6" />
+            <stop offset="1" stopColor="#2563eb" />
           </linearGradient>
-          <linearGradient id={gShine} x1="6" y1="4" x2="14" y2="12" gradientUnits="userSpaceOnUse">
-            <stop stopColor="#ffffff" stopOpacity="0.58" />
-            <stop offset="0.38" stopColor="#ffffff" stopOpacity="0.14" />
-            <stop offset="1" stopColor="#ffffff" stopOpacity="0" />
-          </linearGradient>
-          <linearGradient id={gSpark} x1="15" y1="4" x2="21" y2="11" gradientUnits="userSpaceOnUse">
-            <stop stopColor="#faf5ff" />
-            <stop offset="0.45" stopColor="#e9d5ff" />
+          <radialGradient id={gCore} cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(11.5 9.75) scale(3.2)">
+            <stop stopColor="#f5f3ff" />
+            <stop offset="0.45" stopColor="#c4b5fd" />
             <stop offset="1" stopColor="#38bdf8" />
+          </radialGradient>
+          <linearGradient id={gSpark} x1="15" y1="4" x2="19.5" y2="9" gradientUnits="userSpaceOnUse">
+            <stop stopColor="#ffffff" />
+            <stop offset="0.5" stopColor="#e9d5ff" />
+            <stop offset="1" stopColor="#7dd3fc" />
           </linearGradient>
-          <linearGradient id={gSpark2} x1="16" y1="12" x2="20" y2="17" gradientUnits="userSpaceOnUse">
-            <stop stopColor="#fef9c3" />
-            <stop offset="1" stopColor="#f0abfc" />
+          <linearGradient id={gShine} x1="6" y1="5" x2="14" y2="11" gradientUnits="userSpaceOnUse">
+            <stop stopColor="#ffffff" stopOpacity="0.55" />
+            <stop offset="1" stopColor="#ffffff" stopOpacity="0" />
           </linearGradient>
         </defs>
 
+        {/* Chat bubble — wide silhouette reads clearly at rail size */}
         <path
-          d="M6.2 4.2C5.4 4.9 5 5.9 5 7v8.2c0 1.7 1.3 3.1 3 3.1h1.9l2.1 3.2c.2.3.6.3.8 0l2-3.2H16c1.7 0 3-1.4 3-3.1V7c0-1.8-1.3-3.1-3-3.1H9.2c-.9 0-1.7.3-2.3.9Z"
-          fill={`url(#${gBubble})`}
-          stroke="rgba(255,255,255,0.28)"
-          strokeWidth="0.55"
-        />
-
-        <ellipse cx="11" cy="8.5" rx="5.2" ry="3.6" fill={`url(#${gShine})`} />
-
-        <circle cx="9.2" cy="10.2" r="0.85" fill="rgba(15,23,42,0.52)" />
-        <circle cx="13.2" cy="10.2" r="0.85" fill="rgba(15,23,42,0.52)" />
-        <path
-          d="M9.4 12.4c.8.6 1.9.9 3 .5"
-          stroke="rgba(15,23,42,0.38)"
-          strokeWidth="0.65"
-          strokeLinecap="round"
-          fill="none"
+          className="si-chat-ai-agent-icon__bubble"
+          d="M5.1 5.25h12.3c1.15 0 2.08.93 2.08 2.08v5.34c0 1.15-.93 2.08-2.08 2.08h-4.85l-2.95 3.35.95-3.35H5.1c-1.15 0-2.08-.93-2.08-2.08V7.33c0-1.15.93-2.08 2.08-2.08Z"
+          fill={`url(#${gShell})`}
+          stroke="rgba(255,255,255,0.32)"
+          strokeWidth="0.5"
+          strokeLinejoin="round"
         />
 
         <path
-          d="M17.8 5.2l.35 1.05 1.05.35-1.05.35-.35 1.05-.35-1.05-1.05-.35 1.05-.35.35-1.05Z"
+          d="M6.2 6.4h9.8c.55 0 1 .45 1 1v3.2c0 .55-.45 1-1 1H9.6l-1.55 1.75.5-1.75H6.2c-.55 0-1-.45-1-1V7.4c0-.55.45-1 1-1Z"
+          fill={`url(#${gShine})`}
+          opacity="0.42"
+        />
+
+        {/* Agent nucleus */}
+        <circle className="si-chat-ai-agent-icon__core" cx="11.5" cy="9.75" r="2.05" fill={`url(#${gCore})`} />
+        <circle cx="11.5" cy="9.75" r="2.05" fill="none" stroke="rgba(255,255,255,0.35)" strokeWidth="0.45" />
+
+        {/* Neural links — symmetric agent mesh */}
+        <g className="si-chat-ai-agent-icon__mesh" stroke="rgba(255,255,255,0.72)" strokeWidth="0.55" strokeLinecap="round">
+          <path d="M11.5 7.35v1.05" />
+          <path d="M9.55 10.85l.92-.67" />
+          <path d="M13.45 10.85l-.92-.67" />
+        </g>
+        <circle className="si-chat-ai-agent-icon__node si-chat-ai-agent-icon__node--t" cx="11.5" cy="7.1" r="0.55" fill="#f8fafc" />
+        <circle className="si-chat-ai-agent-icon__node si-chat-ai-agent-icon__node--l" cx="9.15" cy="11.35" r="0.5" fill="#e0e7ff" />
+        <circle className="si-chat-ai-agent-icon__node si-chat-ai-agent-icon__node--r" cx="13.85" cy="11.35" r="0.5" fill="#e0e7ff" />
+
+        {/* AI sparkle — copilot accent */}
+        <path
+          className="si-chat-ai-agent-icon__spark"
+          d="M17.1 4.65l.32.94.94.32-.94.32-.32.94-.32-.94-.94-.32.94-.32.32-.94Z"
           fill={`url(#${gSpark})`}
-          className="si-chat-ai-agent-icon__spark si-chat-ai-agent-icon__spark--a"
-        />
-        <path
-          d="M19.2 12.5l.28.82.82.28-.82.28-.28.82-.28-.82-.82-.28.82-.28.28-.82Z"
-          fill={`url(#${gSpark2})`}
-          className="si-chat-ai-agent-icon__spark si-chat-ai-agent-icon__spark--b"
-        />
-        <path
-          d="M14.4 3.6l.22.68.68.22-.68.22-.22.68-.22-.68-.68-.22.68-.22.22-.68Z"
-          fill="#f8fafc"
-          opacity="0.92"
-          className="si-chat-ai-agent-icon__spark si-chat-ai-agent-icon__spark--c"
         />
       </svg>
     </span>

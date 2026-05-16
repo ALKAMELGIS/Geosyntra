@@ -1,6 +1,8 @@
 import './header.css'
 import { useEffect, useMemo, useRef, type CSSProperties } from 'react'
+import { NavLink, useLocation } from 'react-router-dom'
 import PrimaryNavIcons from './PrimaryNavIcons'
+import { prefetchRoute } from '../routes/routePrefetch'
 import { useSystemSettings } from '../store/SystemSettingsContext'
 import { useLanguage } from '../lib/i18n'
 import {
@@ -19,8 +21,11 @@ type HeaderBarProps = {
 
 export default function HeaderBar({ onLogout }: HeaderBarProps) {
   const headerRef = useRef<HTMLElement | null>(null)
+  const location = useLocation()
   const { settings } = useSystemSettings()
   const { language } = useLanguage()
+  const settingsActive =
+    location.pathname === '/settings/api-integrations' || location.pathname.startsWith('/settings/')
   const logoIconSrc = settings.logoIcon.trim()
   const hs = settings.headerSettings
 
@@ -131,6 +136,20 @@ export default function HeaderBar({ onLogout }: HeaderBarProps) {
       </div>
       <div className="header-right">
         <div className="header-right__cluster">
+          <NavLink
+            to="/settings/api-integrations"
+            className={() =>
+              ['geosyntra-header-settings-btn', settingsActive ? 'geosyntra-header-settings-btn--active' : '']
+                .filter(Boolean)
+                .join(' ')
+            }
+            title={language === 'ar' ? 'الإعدادات — تكاملات API' : 'Settings — API Integrations'}
+            aria-label={language === 'ar' ? 'الإعدادات' : 'Settings'}
+            onMouseEnter={() => prefetchRoute('/settings/api-integrations')}
+            onFocus={() => prefetchRoute('/settings/api-integrations')}
+          >
+            <i className="fa-solid fa-gear" aria-hidden />
+          </NavLink>
           <PrimaryNavIcons onLogout={onLogout} />
         </div>
       </div>

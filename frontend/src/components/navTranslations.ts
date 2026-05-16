@@ -34,6 +34,8 @@ export const navTranslations = {
     weatherSensors: 'Weather Sensors',
     gpsVehicleTracking: 'GPS Vehicle Tracking',
     systemSettings: 'System Settings',
+    settings: 'Settings',
+    apiIntegrations: 'API Integrations',
     customPage: 'Custom page',
   },
   ar: {
@@ -71,6 +73,8 @@ export const navTranslations = {
     weatherSensors: 'حساسات الطقس',
     gpsVehicleTracking: 'تتبع مركبات GPS',
     systemSettings: 'إعدادات النظام',
+    settings: 'الإعدادات',
+    apiIntegrations: 'تكاملات API',
     customPage: 'صفحة مخصصة',
   },
 } as const

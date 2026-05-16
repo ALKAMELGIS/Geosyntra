@@ -64,6 +64,7 @@ export default function PrimaryNavIcons({ onLogout }: PrimaryNavIconsProps) {
     if (custom?.navGroupId) return custom.navGroupId
     if (path.startsWith('/satellite/')) return 'satellite'
     if (path.startsWith('/master/')) return 'master'
+    if (path.startsWith('/settings/')) return 'settings'
     if (path.startsWith('/admin/')) return 'admin'
     if (path.startsWith('/account/')) return 'account'
     return null
