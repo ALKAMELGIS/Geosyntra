@@ -10,12 +10,26 @@ export type GisSidebarChevronIconProps = {
 /** Shared stroke — equal weight for every chevron arm. */
 const STROKE = 1.75
 
-/**
- * Right-pointing chevrons in a tight 16×16 box.
- * Double pair: identical width/height and even 1.75u gap between the two « arms.
- */
-const SINGLE_RIGHT = 'M5.25 3.75 L9.5 8 L5.25 12.25'
-const DOUBLE_RIGHT = ['M2.75 3.75 L6.5 8 L2.75 12.25', 'M8.25 3.75 L12 8 L8.25 12.25'] as const
+/** 16×16 viewBox; chevrons centered on y = 8. */
+const Y_TOP = 3.75
+const Y_MID = 8
+const Y_BOTTOM = 12.25
+
+/** Arm width and inter-arm gap — chosen so 2×arm + gap + 2×margin = 16. */
+const ARM_W = 3.5
+const ARM_GAP = 1.75
+const SIDE_MARGIN = (16 - (2 * ARM_W + ARM_GAP)) / 2
+
+function chevronPath(backX: number): string {
+  const tipX = backX + ARM_W
+  return `M${backX} ${Y_TOP} L${tipX} ${Y_MID} L${backX} ${Y_BOTTOM}`
+}
+
+const SINGLE_RIGHT = chevronPath((16 - ARM_W) / 2)
+const DOUBLE_RIGHT = [
+  chevronPath(SIDE_MARGIN),
+  chevronPath(SIDE_MARGIN + ARM_W + ARM_GAP),
+] as const
 
 /**
  * Custom sidebar chevrons (» / « / ›) — one SVG, optically balanced double stroke.
@@ -45,9 +59,9 @@ export function GisSidebarChevronIcon({
       fill="none"
       xmlns="http://www.w3.org/2000/svg"
       aria-hidden
-      overflow="hidden"
+      overflow="visible"
     >
-      <g transform={mirror ? 'translate(16 0) scale(-1 1)' : undefined}>
+      <g transform={mirror ? 'matrix(-1 0 0 1 16 0)' : undefined}>
         {paths.map((d, i) => (
           <path
             key={i}
