@@ -242,6 +242,12 @@ function excelDecimalText(v: number): string {
   if (!Number.isFinite(v)) return ''
   if (v === 0 || Object.is(v, -0)) return '0'
   const raw = String(v)
+  const abs = Math.abs(v)
+  // Spectral band and other sub-unit magnitudes: prefer full significant digits before locale rounding.
+  if (abs > 0 && abs <= 1) {
+    const p = v.toPrecision(17)
+    if (p !== '0' && p !== '-0' && !/[eE]/.test(p)) return p
+  }
   if (/[eE]/.test(raw)) {
     const expanded = v.toLocaleString('en-US', { useGrouping: false, maximumFractionDigits: 21 })
     if (v !== 0 && (expanded === '0' || expanded === '-0')) return raw
@@ -499,7 +505,7 @@ export function buildGeoAiIndexAnalyticalWorkbook(opts: {
     const pv = staticAoiLayerMeanForWeek(primaryId as StaticAoiChartLayerId, weekIdx, nWeeks, ck, anchor);
     primaryValues.push(pv);
     const cls = classifyValue(pv, primaryLegend);
-    classifiedRows.push([pid, Number(p.lat.toFixed(6)), Number(p.lng.toFixed(6)), excelDecimalText(pv), cls.id, cls.name]);
+    classifiedRows.push([pid, Number(p.lat.toFixed(6)), Number(p.lng.toFixed(6)), excelDecimalText(pv), String(cls.id), cls.name]);
     pid++;
   }
 
@@ -578,7 +584,14 @@ export function buildGeoAiIndexAnalyticalWorkbook(opts: {
 
   appendSheetWithColWidths(wb, summaryLines, 'Summary_AOI', [44, 12, 48, 14, 22, 24], formatSummaryAoiSheet)
 
-  const classStatsHeader = ['Class ID', 'Class name', 'Pixel count', 'Pct of AOI (%)', 'Mean index in class'];
+  const classStatsHeader = [
+    'Class ID',
+    'Class name',
+    'Pixel count',
+    'Pct of AOI (%)',
+    'Share n/N',
+    'Mean index in class',
+  ];
   const classStats: (string | number)[][] = [classStatsHeader];
   const total = Math.max(1, primaryValues.length);
   for (const c of primaryLegend) {
@@ -588,19 +601,21 @@ export function buildGeoAiIndexAnalyticalWorkbook(opts: {
     });
     const n = vals.length;
     const pct = total > 0 ? (100 * n) / total : 0;
+    const share = total > 0 ? n / total : 0;
     const mnc = vals.length ? vals.reduce((a, b) => a + b, 0) / vals.length : NaN;
-    // All value columns as explicit text (@) so Excel never rounds tiny % or spectral means to “0.00”.
-    // Pct is 0–100 with header “Pct of AOI (%)” — do not embed “%” in the cell (avoids locale/parse quirks).
+    // All value columns as explicit text (@) so Excel never rounds tiny %, shares, or |−1…1| means to “0.00”.
+    // “Pct of AOI (%)” is 0–100; do not embed “%” in the cell (avoids locale/parse quirks). “Share n/N” is 0…1.
     classStats.push([
       String(c.id),
       c.label,
       String(n),
       excelDecimalText(pct),
+      excelDecimalText(share),
       vals.length && Number.isFinite(mnc) ? excelDecimalText(mnc) : '',
     ])
   }
-  appendSheetWithColWidths(wb, classStats, 'Class_Statistics', [14, 58, 18, 30, 38], ws => {
-    forceCellsPlainText(ws, 1, [0, 1, 2, 3, 4])
+  appendSheetWithColWidths(wb, classStats, 'Class_Statistics', [14, 62, 16, 28, 24, 36], ws => {
+    forceCellsPlainText(ws, 1, [0, 1, 2, 3, 4, 5])
   })
 
   return wb;
