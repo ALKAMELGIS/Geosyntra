@@ -179,7 +179,7 @@ export default function ApiIntegrations() {
                   <p className="api-manager-row__type">
                     {copy.typePrefix} {displayType(getProvider(row.providerId).category)}
                   </p>
-                </motion.div>
+                </div>
               </motion.div>
 
               <motion.div className="api-manager-row__actions">
