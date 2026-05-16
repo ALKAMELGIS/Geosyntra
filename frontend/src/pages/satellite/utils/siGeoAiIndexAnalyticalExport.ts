@@ -358,6 +358,8 @@ function formatSummaryAoiSheet(ws: XLSX.WorkSheet) {
       const vcell = ws[XLSX.utils.encode_cell({ r, c: col })] as XLSX.CellObject | undefined
       if (vcell && vcell.t === 'n' && typeof vcell.v === 'number' && Number.isFinite(vcell.v)) {
         vcell.z = XLSX_FMT_SPECTRAL
+      } else if (vcell && typeof vcell.v === 'string') {
+        vcell.z = '@'
       }
       break
     }
@@ -541,8 +543,8 @@ export function buildGeoAiIndexAnalyticalWorkbook(opts: {
     ['Report title', chartTitle],
     ['Primary index (classification)', primaryId],
     ['Week window', wk ? `${wk.startDate} → ${wk.endDate}` : ''],
-    ['AOI area (approx, m²)', Number.isFinite(aoiAreaM2) ? aoiAreaM2 : ''],
-    ['Approx. mean pixel footprint (m²)', approxM2PerPixel > 0 ? approxM2PerPixel : ''],
+    ['AOI area (approx, m²)', Number.isFinite(aoiAreaM2) ? excelDecimalText(aoiAreaM2) : ''],
+    ['Approx. mean pixel footprint (m²)', approxM2PerPixel > 0 ? excelDecimalText(approxM2PerPixel) : ''],
     ['Sampled interior pixels', grid.length],
     ['Note', 'Pixel values use the same deterministic demo engine as the on-map AOI chart; connect Sentinel Hub statistics for production.'],
     [],
@@ -607,7 +609,7 @@ export function buildGeoAiIndexAnalyticalWorkbook(opts: {
     // All value columns as explicit text (@) so Excel never rounds tiny %, shares, or |−1…1| means to “0.00”.
     // “Pct of AOI (%)” is 0–100; do not embed “%” in the cell (avoids locale/parse quirks). “AOI fraction (0–1)” is n/total.
     classStats.push([
-      String(c.id),
+      c.id,
       c.label,
       String(n),
       excelDecimalText(pct),
@@ -616,7 +618,8 @@ export function buildGeoAiIndexAnalyticalWorkbook(opts: {
     ])
   }
   appendSheetWithColWidths(wb, classStats, 'Class_Statistics', [14, 62, 16, 28, 24, 36], ws => {
-    forceCellsPlainText(ws, 1, [0, 1, 2, 3, 4, 5])
+    applyNumberFormatsToDataRows(ws, 1, [{ c: 0, z: XLSX_FMT_INT }])
+    forceCellsPlainText(ws, 1, [1, 2, 3, 4, 5])
   })
 
   return wb;
