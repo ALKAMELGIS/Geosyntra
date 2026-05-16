@@ -85,10 +85,14 @@ export function useSiWmsTimelineCrossfade(targetExtent: WmsTimeExtent, mode: SiT
       blendRef.current = 0;
 
       const t0 = performance.now();
+      let lastBlendEmit = 0;
       const tick = (now: number) => {
         const p = smoothstep((now - t0) / SI_WMS_CROSSFADE_MS);
-        setBlend(p);
         blendRef.current = p;
+        if (now - lastBlendEmit >= 32 || p >= 1) {
+          lastBlendEmit = now;
+          setBlend(p);
+        }
         if (p < 1) {
           animRef.current = requestAnimationFrame(tick);
         } else {

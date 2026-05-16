@@ -33,6 +33,11 @@ import {
 import { exportSiAoiVegetationReportDocx } from '../utils/siAoiVegetationReportDocx';
 import { fetchSiAoiReportExecutiveSummaryFromGemini } from '../utils/siAoiReportGemini';
 import type { SiLiveMapSnapshotCapture } from '../utils/siMapViewerSnapshot';
+import {
+  compositeMapWithBottomLegendStrip,
+  legendItemsFromTableRows,
+  renderAoiHeatmapSlotPng,
+} from '../utils/siAoiReportSlotMapRender';
 import { SiAoiReportDataInsightsSection } from './SiAoiReportDataInsights';
 import { SiAoiReportPixelScatterBlock } from './SiAoiReportPixelScatterBlock';
 import './SiAoiReportModal.css';
@@ -64,16 +69,6 @@ function captureCanvasHiRes(source: HTMLCanvasElement, scale = 2): string {
   ctx.setTransform(scale, 0, 0, scale, 0, 0);
   ctx.drawImage(source, 0, 0);
   return c.toDataURL('image/png');
-}
-
-function loadImageElement(src: string): Promise<HTMLImageElement> {
-  return new Promise((resolve, reject) => {
-    const img = new Image();
-    img.crossOrigin = 'anonymous';
-    img.onload = () => resolve(img);
-    img.onerror = () => reject(new Error('map snapshot image decode failed'));
-    img.src = src;
-  });
 }
 
 function fillRoundRect(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, rad: number) {
@@ -210,62 +205,13 @@ async function compositeAoiAnalysisMapWithLegendPng(
   report: SiAoiReportModel,
   mapLngLatBounds: SiPdfLngLatBounds | null,
 ): Promise<string> {
-  try {
-    const img = await loadImageElement(mapPngDataUrl);
-    const w = img.naturalWidth || img.width;
-    const h = img.naturalHeight || img.height;
-    if (!w || !h) return mapPngDataUrl;
-    const strip = Math.round(Math.min(88, Math.max(42, w * 0.09)));
-    const c = document.createElement('canvas');
-    c.width = w;
-    c.height = h + strip;
-    const ctx = c.getContext('2d');
-    if (!ctx) return mapPngDataUrl;
-    ctx.fillStyle = '#020617';
-    ctx.fillRect(0, 0, w, h + strip);
-    ctx.drawImage(img, 0, 0);
+  const items = legendItemsFromTableRows(report.tableRows, report.classificationPalette);
+  return compositeMapWithBottomLegendStrip(mapPngDataUrl, items, (ctx, w, h) => {
     drawNorthArrowAndScaleOnMapCanvas(ctx, w, h, mapLngLatBounds);
-    ctx.fillStyle = 'rgba(15, 23, 42, 0.94)';
-    ctx.fillRect(0, h, w, strip);
-
-    type Item = { label: string; color: string };
-    const items: Item[] = report.tableRows.map(r => ({
-      label: r.labelEn,
-      color: colorForReportTableRow(r, report.classificationPalette),
-    }));
-    items.push({ label: 'AOI outline', color: report.classificationPalette.aoiOutline });
-
-    const pad = Math.round(strip * 0.22);
-    const sw = Math.round(strip * 0.36);
-    let fontPx = Math.round(Math.max(10, Math.min(17, strip * 0.3)));
-    const gapAfterSw = 6;
-    const gapBetween = 12;
-    for (let attempt = 0; attempt < 10; attempt++) {
-      ctx.font = `500 ${fontPx}px system-ui, "Segoe UI", sans-serif`;
-      let tw = pad * 2 + items.length * sw + items.length * gapAfterSw;
-      for (const it of items) tw += ctx.measureText(it.label).width + gapBetween;
-      if (tw <= w || fontPx <= 9) break;
-      fontPx -= 1;
-    }
-    ctx.textBaseline = 'middle';
-    let x = pad;
-    const cy = h + strip / 2;
-    for (const it of items) {
-      ctx.fillStyle = it.color;
-      ctx.fillRect(x, cy - sw / 2, sw, sw);
-      x += sw + gapAfterSw;
-      ctx.fillStyle = '#e2e8f0';
-      ctx.fillText(it.label, x, cy);
-      x += ctx.measureText(it.label).width + gapBetween;
-      if (x > w - pad) break;
-    }
-    return c.toDataURL('image/png');
-  } catch {
-    return mapPngDataUrl;
-  }
+  });
 }
 
-/** Embeds legend-aligned index bands (5 or 10 classes) into the live map snapshot for PDF / preview. */
+/** Embeds legend-aligned index bands below the live map snapshot for PDF / preview. */
 async function compositeChangeCellLegendPng(
   mapPngDataUrl: string,
   tableRows: SiAoiReportTableRow[],
@@ -273,55 +219,48 @@ async function compositeChangeCellLegendPng(
   indexId: StaticAoiChartLayerId,
   mapLngLatBounds: SiPdfLngLatBounds | null,
 ): Promise<string> {
-  try {
-    const img = await loadImageElement(mapPngDataUrl);
-    const w = img.naturalWidth || img.width;
-    const h = img.naturalHeight || img.height;
-    if (!w || !h) return mapPngDataUrl;
-    const pad = Math.round(Math.max(6, w * 0.014));
-    const rowCount = tableRows.length + 1;
-    const cardW = Math.round(Math.min(w * 0.46, Math.max(112, w * 0.32)));
-    const cardH = Math.round(Math.min(h * 0.58, Math.max(88, rowCount * 13 + 28)));
-    const x0 = w - cardW - pad;
-    const y0 = h - cardH - pad;
-    const c = document.createElement('canvas');
-    c.width = w;
-    c.height = h;
-    const ctx = c.getContext('2d');
-    if (!ctx) return mapPngDataUrl;
-    ctx.drawImage(img, 0, 0);
+  const items = legendItemsFromTableRows(tableRows, palette, indexId);
+  return compositeMapWithBottomLegendStrip(mapPngDataUrl, items, (ctx, w, h) => {
     drawNorthArrowAndScaleOnMapCanvas(ctx, w, h, mapLngLatBounds);
-    ctx.save();
-    ctx.fillStyle = 'rgba(2, 6, 23, 0.84)';
-    fillRoundRect(ctx, x0, y0, cardW, cardH, 10);
-    const inset = Math.round(cardW * 0.09);
-    const rowH = (cardH - inset * 2 - 6) / rowCount;
-    const fontLabel = Math.max(8, Math.round(rowH * 0.58));
-    const sw = Math.round(Math.min(rowH * 0.62, 12));
-    let y = y0 + inset + rowH / 2;
-    ctx.textBaseline = 'middle';
-    for (const row of tableRows) {
-      const col = colorForReportTableRow(row, palette);
-      ctx.fillStyle = col;
-      ctx.fillRect(x0 + inset, y - sw / 2, sw, sw);
-      ctx.fillStyle = '#f8fafc';
-      ctx.font = `500 ${fontLabel}px system-ui, "Segoe UI", sans-serif`;
-      const label = row.labelEn.length > 22 ? `${row.labelEn.slice(0, 20)}…` : row.labelEn;
-      ctx.fillText(label, x0 + inset + sw + 6, y);
-      y += rowH;
-    }
-    ctx.fillStyle = 'rgba(248, 250, 252, 0.92)';
-    ctx.font = `600 ${Math.max(9, fontLabel)}px system-ui, "Segoe UI", sans-serif`;
-    ctx.fillText(String(indexId), x0 + inset, y);
-    ctx.restore();
-    return c.toDataURL('image/png');
-  } catch {
-    return mapPngDataUrl;
-  }
+  });
 }
 
 function rowSwatchColor(row: SiAoiReportTableRow, palette: SiAoiClassificationPalette): string {
   return colorForReportTableRow(row, palette);
+}
+
+function SiAoiMapLegendBar({
+  tableRows,
+  palette,
+  indexId,
+}: {
+  tableRows: SiAoiReportTableRow[];
+  palette: SiAoiClassificationPalette;
+  indexId?: StaticAoiChartLayerId;
+}) {
+  return (
+    <div className="si-aoi-report-map-legend-bar" aria-label="Map legend">
+      {tableRows.map(row => (
+        <span key={row.key} className="si-aoi-report-map-legend-bar__item">
+          <span
+            className="si-aoi-report-map-legend-bar__swatch"
+            style={{ background: rowSwatchColor(row, palette) }}
+            aria-hidden
+          />
+          <span className="si-aoi-report-map-legend-bar__label">{row.labelEn}</span>
+        </span>
+      ))}
+      <span className="si-aoi-report-map-legend-bar__item">
+        <span
+          className="si-aoi-report-map-legend-bar__swatch"
+          style={{ background: palette.aoiOutline }}
+          aria-hidden
+        />
+        <span className="si-aoi-report-map-legend-bar__label">AOI outline</span>
+      </span>
+      {indexId ? <span className="si-aoi-report-map-legend-bar__index">{indexId}</span> : null}
+    </div>
+  );
 }
 
 function SiAoiReportLegendTable({
@@ -412,20 +351,6 @@ function SiAoiChangeMapCell({
   return (
     <div className="si-aoi-report-change-cell">
       <div className="si-aoi-report-change-cell__banner">{slot.date}</div>
-      <div className="si-aoi-report-change-cell__legend" aria-hidden>
-        {tableRows.map(row => (
-          <div key={row.key} className="si-aoi-report-change-cell__legend-row">
-            <span
-              className="si-aoi-report-change-cell__legend-swatch"
-              style={{ background: rowSwatchColor(row, classificationPalette) }}
-            />
-            {row.labelEn}
-          </div>
-        ))}
-        <div className="si-aoi-report-change-cell__legend-row" style={{ marginTop: 3, opacity: 0.92 }}>
-          {indexId}
-        </div>
-      </div>
       <div className="si-aoi-report-change-cell__map">
         {snapshotLoading && !snapshotUrl ? (
           <div className="si-aoi-report-change-cell__map-placeholder">Capturing live map…</div>
@@ -450,9 +375,9 @@ function SiAoiChangeMapCell({
         </span>
         <span className="si-aoi-report-change-cell__stats-px">{slot.stats.pixelCount} px</span>
       </div>
-      <div className="si-aoi-report-change-cell__hint">
-        Live Map Viewer snapshot (WMS raster, symbology, AOI). Date stepped per tile.
-      </div>
+      {!snapshotUrl ? (
+        <SiAoiMapLegendBar tableRows={tableRows} palette={classificationPalette} indexId={indexId} />
+      ) : null}
     </div>
   );
 }
@@ -682,16 +607,49 @@ export function SiAoiReportModal({
     ];
   }, [report]);
 
+  const reportAoiFeature = useMemo(
+    () => report?.aoiOutlineGeoJson.features[0] ?? null,
+    [report],
+  );
+
+  const reportAoiBounds = useMemo((): [number, number, number, number] | null => {
+    if (!reportAoiFeature) return null;
+    return siAoiReportFeatureBBoxLngLat(reportAoiFeature);
+  }, [reportAoiFeature]);
+
+  const liveSnapshotCaptureOpts = useMemo(
+    () =>
+      changeFitBounds && reportAoiFeature
+        ? { fitBounds: changeFitBounds, aoiFeature: reportAoiFeature }
+        : undefined,
+    [changeFitBounds, reportAoiFeature],
+  );
+
   const captureAllChangeSnapshots = useCallback(async (): Promise<(string | null)[]> => {
-    if (!captureLiveMapSnapshot || !report || !changeFitBounds) return [];
+    if (!report || !changeFitBounds || !reportAoiBounds) return [];
     const bounds = siPdfBoundsFromFitBounds(changeFitBounds);
     const urls: (string | null)[] = [];
     for (const slot of report.changeDetectionSlots) {
-      const raw = await captureLiveMapSnapshot({ date: slot.date, scale: 3 });
+      let mapPng: string | null = null;
+      if (captureLiveMapSnapshot) {
+        mapPng = await captureLiveMapSnapshot({
+          date: slot.date,
+          scale: 3,
+          ...liveSnapshotCaptureOpts,
+        });
+      }
+      if (!mapPng && slot.heatmapCellsGeoJson.features.length) {
+        mapPng = await renderAoiHeatmapSlotPng(
+          slot.heatmapCellsGeoJson,
+          report.aoiOutlineGeoJson,
+          reportAoiBounds,
+          report.classificationPalette.aoiOutline,
+        );
+      }
       urls.push(
-        raw
+        mapPng
           ? await compositeChangeCellLegendPng(
-              raw,
+              mapPng,
               report.tableRows,
               report.classificationPalette,
               report.indexId,
@@ -699,12 +657,19 @@ export function SiAoiReportModal({
             )
           : null,
       );
+      await new Promise<void>(r => window.setTimeout(r, 60));
     }
     return urls;
-  }, [captureLiveMapSnapshot, report, changeFitBounds]);
+  }, [
+    captureLiveMapSnapshot,
+    report,
+    changeFitBounds,
+    reportAoiBounds,
+    liveSnapshotCaptureOpts,
+  ]);
 
   useEffect(() => {
-    if (!open || !report || reportView !== 'change' || !captureLiveMapSnapshot || !changeFitBounds) {
+    if (!open || !report || reportView !== 'change' || !changeFitBounds) {
       return;
     }
     let cancelled = false;
@@ -721,7 +686,7 @@ export function SiAoiReportModal({
     return () => {
       cancelled = true;
     };
-  }, [open, report, reportView, captureLiveMapSnapshot, changeFitBounds, captureAllChangeSnapshots]);
+  }, [open, report, reportView, changeFitBounds, captureAllChangeSnapshots]);
 
   useEffect(() => {
     if (!open || !report || reportView !== 'analysis' || !captureLiveMapSnapshot) return;
@@ -732,7 +697,11 @@ export function SiAoiReportModal({
       report.timeSeries[report.timeSeries.length - 1]?.date?.slice(0, 10) ?? report.dateEnd.slice(0, 10);
     void (async () => {
       try {
-        const raw = await captureLiveMapSnapshot({ date: snapDate, scale: 3 });
+        const raw = await captureLiveMapSnapshot({
+          date: snapDate,
+          scale: 3,
+          ...liveSnapshotCaptureOpts,
+        });
         if (cancelled || !raw) return;
         const withLegend = await compositeAoiAnalysisMapWithLegendPng(
           raw,
@@ -747,7 +716,7 @@ export function SiAoiReportModal({
     return () => {
       cancelled = true;
     };
-  }, [open, report, reportView, captureLiveMapSnapshot, legendBandCount]);
+  }, [open, report, reportView, captureLiveMapSnapshot, legendBandCount, liveSnapshotCaptureOpts]);
 
   useEffect(() => {
     setAnalysisMapReady(false);
@@ -917,7 +886,11 @@ export function SiAoiReportModal({
         } else if (liveMapCaptureOk && captureLiveMapSnapshot) {
           const snapDate =
             report.timeSeries[report.timeSeries.length - 1]?.date?.slice(0, 10) ?? report.dateEnd.slice(0, 10);
-          const raw = await captureLiveMapSnapshot({ date: snapDate, scale: 3 });
+          const raw = await captureLiveMapSnapshot({
+            date: snapDate,
+            scale: 3,
+            ...liveSnapshotCaptureOpts,
+          });
           if (raw) {
             aoiMapImageDataUrl = await compositeAoiAnalysisMapWithLegendPng(
               raw,
@@ -1020,6 +993,7 @@ export function SiAoiReportModal({
     changeSlotSnapshots,
     captureLiveMapSnapshot,
     captureAllChangeSnapshots,
+    liveSnapshotCaptureOpts,
   ]);
 
   if (!open) return null;
@@ -1185,8 +1159,8 @@ export function SiAoiReportModal({
                   <div className="si-aoi-report-card">
                     <h3>Time series change detection map</h3>
                     <p className="si-aoi-report-analysis">
-                      Twelve tiles (3×4): each date captures a snapshot from the live Map Viewer (WMS raster,
-                      symbology, opacity, AOI outline) while stepping the timeline date per cell.
+                      Twelve tiles (3×4): each date captures the live Map Viewer (WMS symbology clipped to the AOI
+                      boundary) with the classification legend printed below the map.
                     </p>
                     {!liveMapCaptureOk ? (
                       <p className="si-aoi-report-analysis">
@@ -1312,7 +1286,7 @@ export function SiAoiReportModal({
                                 <Layer
                                   id="si-report-aoi-halo-fill"
                                   type="fill"
-                                  paint={{ 'fill-color': '#0f172a', 'fill-opacity': 0.06 }}
+                                  paint={{ 'fill-color': '#0f172a', 'fill-opacity': 0 }}
                                 />
                               </Source>
                               <Source id="si-report-heatmap-cells" type="geojson" data={report.heatmapCellsGeoJson}>

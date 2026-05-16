@@ -7,6 +7,7 @@ import React, {
   useLayoutEffect,
   useCallback,
   useDeferredValue,
+  startTransition,
 } from 'react';
 import { motion } from 'framer-motion';
 import MapGL, { Source, Layer, Marker } from 'react-map-gl/mapbox';
@@ -98,7 +99,11 @@ import {
   siWmsSymbologySupportsLayer,
   type SiWmsSymbologyUiState,
 } from './utils/siWmsSymbologyModel';
-import { SI_GEO_AI_MAP_SELECTION_PAINT } from './siGeoAiMapSelectionPaint';
+import {
+  SI_AOI_MAP_OUTLINE_LINE_PAINT,
+  SI_AOI_MAP_OUTLINE_ONLY_FILL_PAINT,
+  SI_GEO_AI_MAP_SELECTION_PAINT,
+} from './siGeoAiMapSelectionPaint';
 import { runGeoAiStatsCommand, type GeoAiMapFirstSelection } from '../../lib/geoAiStatsEngine';
 import { resolveGeoAiPinFromUserTextAndReply } from '../../lib/geoAiResolveMapCoords';
 import { buildGeoAiFullWeatherSessionAppend } from '../../lib/geoAiWeatherContext';
@@ -171,9 +176,14 @@ import { SiMapNavigationGate } from './components/SiMapNavigationGate';
 import { SatelliteGeoAiFloatingWidget } from './components/SatelliteGeoAiFloatingWidget';
 import { SatelliteAoiStaticChartsMapOverlay } from './components/SatelliteAoiStaticChartsMapOverlay';
 import { SiAoiReportModal } from './components/SiAoiReportModal';
-import { siAoiPaletteFromIndexRampStops } from './utils/siAoiVegetationReportModel';
+import { siAoiPaletteFromIndexRampStops, siAoiReportFeatureBBoxLngLat } from './utils/siAoiVegetationReportModel';
+import {
+  clipMapSnapshotToAoiFeature,
+  fitMapToLngLatBounds,
+} from './utils/siMapSnapshotAoiClip';
 import {
   captureMapboxCanvasWhenReady,
+  waitForMapboxStableFrame,
   type SiLiveMapSnapshotCapture,
 } from './utils/siMapViewerSnapshot';
 import type { SiGeoAiIndexAnalyticalExportContext } from './utils/siGeoAiIndexAnalyticalExport';
@@ -191,6 +201,7 @@ import {
   saveTimelineTransitionMode,
   type SiTimelineTransitionMode,
 } from './utils/useSiWmsTimelineCrossfade';
+import { buildWeeklyTimelineIndex } from './utils/siTimelineWeekIndex';
 import { SiAoiZonalPopupBody } from './components/SiAoiZonalPopupBody';
 import { cn } from '../../lib/utils';
 import { SatelliteMapProcessingOptionsPortal } from './components/SatelliteMapProcessingOptionsPortal';
@@ -2144,7 +2155,7 @@ const DEFAULT_DRAW_STYLE: DrawStyleConfig = {
   strokeColor: '#4ade80',
   fillColor: '#22c55e',
   strokeWidth: 3,
-  fillOpacity: 0.28,
+  fillOpacity: 0,
   pointRadius: 11,
 };
 
@@ -2643,8 +2654,10 @@ export default function SatelliteIntelligence() {
   const [is3DView, setIs3DView] = useState(() => true);
   const [cloudCoverage, setCloudCoverage] = useState(20);
   const [isTimelinePlaying, setIsTimelinePlaying] = useState(false);
+  /** Set only when the user presses Play on the map timeline — blocks accidental auto-advance. */
+  const timelinePlaybackArmedRef = useRef(false);
   /** Interval for timeline auto-advance (ms); user cycles via map timeline control. */
-  const [timelinePlaybackMs, setTimelinePlaybackMs] = useState(1400);
+  const [timelinePlaybackMs, setTimelinePlaybackMs] = useState(1200);
   const [timelineTransitionMode, setTimelineTransitionMode] = useState<SiTimelineTransitionMode>(() =>
     loadTimelineTransitionMode(),
   );
@@ -2674,6 +2687,45 @@ export default function SatelliteIntelligence() {
   }, [selectedIndex]);
   const [selectedPivotId, setSelectedPivotId] = useState('all');
   const [weeklyComposites, setWeeklyComposites] = useState<WeeklyComposite[]>([]);
+  const weeklyTimelineIndex = useMemo(() => buildWeeklyTimelineIndex(weeklyComposites), [weeklyComposites]);
+  const timelinePlayWeekIdxRef = useRef(0);
+  const isTimelinePlayingRef = useRef(false);
+  const selectedDateRef = useRef(selectedDate);
+  isTimelinePlayingRef.current = isTimelinePlaying;
+  selectedDateRef.current = selectedDate;
+  const [zonalStatsAnchorIso, setZonalStatsAnchorIso] = useState(() =>
+    selectedDate.toISOString().split('T')[0],
+  );
+  useEffect(() => {
+    if (isTimelinePlaying) return;
+    setZonalStatsAnchorIso(selectedDate.toISOString().split('T')[0]);
+  }, [isTimelinePlaying, selectedDate]);
+
+  const pauseTimelinePlayback = useCallback(() => {
+    timelinePlaybackArmedRef.current = false;
+    setIsTimelinePlaying(false);
+  }, []);
+
+  const startTimelinePlayback = useCallback(() => {
+    if (!weeklyTimelineIndex?.weeks.length) return;
+    timelinePlaybackArmedRef.current = true;
+    timelinePlayWeekIdxRef.current = weeklyTimelineIndex.pickWeekIdx(
+      selectedDateRef.current.toISOString().split('T')[0],
+    );
+    setIsTimelinePlaying(true);
+  }, [weeklyTimelineIndex]);
+
+  const toggleTimelinePlayback = useCallback(() => {
+    if (isTimelinePlaying) pauseTimelinePlayback();
+    else startTimelinePlayback();
+  }, [isTimelinePlaying, pauseTimelinePlayback, startTimelinePlayback]);
+
+  useEffect(() => {
+    if (isTimelinePlaying && !timelinePlaybackArmedRef.current) {
+      setIsTimelinePlaying(false);
+    }
+  }, [isTimelinePlaying]);
+
   /** True only after the user (or RS Run path) successfully builds the field timeline — drives Generate ⟷ Stop label. */
   const [fieldTimelineSessionActive, setFieldTimelineSessionActive] = useState(false);
   const [stacItems, setStacItems] = useState<any[]>([]);
@@ -3543,12 +3595,16 @@ export default function SatelliteIntelligence() {
     };
   }, [customLayers]);
 
-  const applySelectedDate = (date: Date) => {
+  const applySelectedDate = useCallback((date: Date, opts?: { expandRange?: boolean }) => {
     const iso = date.toISOString().split('T')[0];
-    setSelectedDate(date);
+    const expandRange = opts?.expandRange !== false;
+    startTransition(() => {
+      setSelectedDate(date);
+    });
+    if (!expandRange) return;
     setTimeSeriesStart(prev => (prev && iso < prev ? iso : prev || iso));
     setTimeSeriesEnd(prev => (prev && iso > prev ? iso : prev || iso));
-  };
+  }, []);
 
   const getGeoJsonBounds = (geojson: any): [number, number, number, number] | null => {
     const points: [number, number][] = [];
@@ -4122,15 +4178,7 @@ export default function SatelliteIntelligence() {
   const savedFieldsFillPaint = useMemo(
     () =>
       fieldSurfaceVizMetric === 'none'
-        ? ({
-            'fill-color': ['coalesce', ['get', 'color'], '#22d3ee'] as any,
-            'fill-opacity': [
-              'case',
-              ['==', ['get', 'id'], selectedSavedFieldId ?? ''],
-              0.32,
-              0.14,
-            ] as any,
-          } as const)
+        ? SI_AOI_MAP_OUTLINE_ONLY_FILL_PAINT
         : ({
             'fill-color': [
               'interpolate',
@@ -5887,17 +5935,18 @@ export default function SatelliteIntelligence() {
       setFieldTimelineSessionActive(false);
       return;
     }
+    pauseTimelinePlayback();
     setWeeklyComposites(synthetic);
     setFieldTimelineSessionActive(true);
-    setFieldAnalysisStatus(`Timeline ready: ${synthetic.length} week(s) for ${selectedIndexConfig.label}.`);
+    setFieldAnalysisStatus(`Timeline ready: ${synthetic.length} week(s) for ${selectedIndexConfig.label}. Tap Play on the map timeline to animate.`);
   };
 
   const stopFieldAnalysisTimeline = useCallback(() => {
-    setIsTimelinePlaying(false);
+    pauseTimelinePlayback();
     setWeeklyComposites([]);
     setFieldTimelineSessionActive(false);
     setFieldAnalysisStatus('Timeline stopped. Adjust the date range and tap Generate timeline to start again.');
-  }, []);
+  }, [pauseTimelinePlayback]);
 
   useEffect(() => {
     if (weeklyComposites.length === 0) setFieldTimelineSessionActive(false);
@@ -6023,6 +6072,7 @@ export default function SatelliteIntelligence() {
       const data = await response.json();
       const features = Array.isArray(data?.features) ? data.features : [];
       setStacItems(features);
+      pauseTimelinePlayback();
       setWeeklyComposites(synthesizeWeeklyComposites(features.length));
       clearStacMapThumb();
       setExploreResultsPage(0);
@@ -6045,6 +6095,7 @@ export default function SatelliteIntelligence() {
       setStacStatus(`تم تحميل ${features.length} عنصر STAC (نطاق: ${aoiHint}). الاتصال: ${stacConnection.connectionName}.`);
     } catch (error) {
       setStacItems([]);
+      pauseTimelinePlayback();
       setWeeklyComposites(synthesizeWeeklyComposites(0));
       setStacStatus(error instanceof Error ? error.message : 'STAC search failed.');
     } finally {
@@ -7063,7 +7114,7 @@ export default function SatelliteIntelligence() {
         }
         setWeeklyComposites([]);
         setMpcProcessResult(null);
-        setIsTimelinePlaying(false);
+        pauseTimelinePlayback();
         setFieldTimelineSessionActive(false);
         clearStacMapThumb();
         setAoiFields([]);
@@ -7081,7 +7132,7 @@ export default function SatelliteIntelligence() {
             : `Removed ${row.name} from the workspace.`,
       );
     },
-    [clearStacMapThumb],
+    [clearStacMapThumb, pauseTimelinePlayback],
   );
 
   const multiAoiFeatureCollection = useMemo(
@@ -8228,10 +8279,10 @@ export default function SatelliteIntelligence() {
     setMultiAoiPopupIds([]);
     setWeeklyComposites([]);
     setMpcProcessResult(null);
-    setIsTimelinePlaying(false);
+    pauseTimelinePlayback();
     setFieldTimelineSessionActive(false);
     clearStacMapThumb();
-  }, [clearStacMapThumb]);
+  }, [clearStacMapThumb, pauseTimelinePlayback]);
 
   /** Fade AOI sketch + clipped raster overlay, then purge geometry and restore pan (basemap / vector layers unchanged). */
   const clearSatelliteDrawingWithFade = useCallback(() => {
@@ -9332,10 +9383,9 @@ export default function SatelliteIntelligence() {
   const aoiFieldsMapFillPaint = useMemo(
     () =>
       ({
-        'fill-color': ['get', 'fillColor'],
-        'fill-opacity': ['*', ['coalesce', ['get', 'fillOpacity'], 0.35], drawVisualOpacity],
+        ...SI_AOI_MAP_OUTLINE_ONLY_FILL_PAINT,
       }) as Record<string, unknown>,
-    [drawVisualOpacity],
+    [],
   );
 
   const restoreDrawWorkspace = () => {
@@ -9374,54 +9424,36 @@ export default function SatelliteIntelligence() {
 
   /** Timeline playback: prefer generated weekly composites; fallback to rolling 14-day strip */
   const timelinePlaybackIntervalMs = useMemo(() => {
-    const base =
-      timelineTransitionMode === 'smooth' ? timelinePlaybackMs + SI_WMS_CROSSFADE_MS : timelinePlaybackMs;
-    return Math.max(320, base);
+    const fadePad =
+      timelineTransitionMode === 'smooth' ? Math.min(280, Math.round(SI_WMS_CROSSFADE_MS * 0.55)) : 0;
+    return Math.max(280, timelinePlaybackMs + fadePad);
   }, [timelinePlaybackMs, timelineTransitionMode]);
 
   useEffect(() => {
-    if (!isTimelinePlaying) return;
+    if (!isTimelinePlaying || !timelinePlaybackArmedRef.current) return;
 
-    if (weeklyComposites.length > 0) {
-      const interval = setInterval(() => {
-        setSelectedDate(prev => {
-          const iso = prev.toISOString().split('T')[0];
-          let idx = weeklyComposites.findIndex(w => iso >= w.startDate && iso <= w.endDate);
-          if (idx < 0) idx = 0;
-          idx = (idx + 1) % weeklyComposites.length;
-          const w = weeklyComposites[idx];
-          const d = new Date(`${w.startDate}T12:00:00`);
-          const iso2 = d.toISOString().split('T')[0];
-          setTimeSeriesStart(ps => (ps && iso2 < ps ? iso2 : ps || iso2));
-          setTimeSeriesEnd(pe => (pe && iso2 > pe ? iso2 : pe || iso2));
-          return d;
-        });
+    if (weeklyTimelineIndex) {
+      const interval = window.setInterval(() => {
+        const nextIdx = weeklyTimelineIndex.nextWeekIdx(timelinePlayWeekIdxRef.current);
+        timelinePlayWeekIdxRef.current = nextIdx;
+        const w = weeklyTimelineIndex.weeks[nextIdx]!;
+        applySelectedDate(new Date(`${w.startDate}T12:00:00`), { expandRange: false });
       }, timelinePlaybackIntervalMs);
-      return () => clearInterval(interval);
+      return () => window.clearInterval(interval);
     }
 
-    if (!dates.length) return;
+    if (weeklyComposites.length > 0 || !dates.length) return;
 
-    const fallbackMs =
-      timelineTransitionMode === 'smooth'
-        ? timelinePlaybackIntervalMs
-        : Math.max(200, Math.round(timelinePlaybackMs * 0.85));
-
-    const interval = setInterval(() => {
-      setSelectedDate(prev => {
-        let index = dates.findIndex(d => d.full.toDateString() === prev.toDateString());
-        if (index === -1) index = 0;
-        index = (index + 1) % dates.length;
-        const next = dates[index].full;
-        const iso = next.toISOString().split('T')[0];
-        setTimeSeriesStart(ps => (ps && iso < ps ? iso : ps || iso));
-        setTimeSeriesEnd(pe => (pe && iso > pe ? iso : pe || iso));
-        return next;
-      });
+    const fallbackMs = Math.max(220, Math.round(timelinePlaybackIntervalMs * 0.9));
+    const interval = window.setInterval(() => {
+      let index = dates.findIndex(d => d.full.toDateString() === selectedDateRef.current.toDateString());
+      if (index === -1) index = 0;
+      index = (index + 1) % dates.length;
+      applySelectedDate(dates[index]!.full, { expandRange: false });
     }, fallbackMs);
 
-    return () => clearInterval(interval);
-  }, [isTimelinePlaying, weeklyComposites, dates, timelinePlaybackMs, timelinePlaybackIntervalMs, timelineTransitionMode]);
+    return () => window.clearInterval(interval);
+  }, [isTimelinePlaying, weeklyTimelineIndex, weeklyComposites.length, dates, timelinePlaybackIntervalMs, applySelectedDate]);
 
   useEffect(() => {
     const iso = selectedDate.toISOString().split('T')[0];
@@ -9687,16 +9719,14 @@ export default function SatelliteIntelligence() {
    * use the configured series range (or single imagery day).
    */
   const siWmsMapTimeExtent = useMemo(() => {
-    if (weeklyComposites.length > 0) {
-      const w =
-        weeklyComposites.find(x => wmsDate >= x.startDate && wmsDate <= x.endDate) ??
-        weeklyComposites[weeklyComposites.length - 1]!;
+    if (weeklyTimelineIndex) {
+      const w = weeklyTimelineIndex.pickWeek(wmsDate);
       return { start: w.startDate, end: w.endDate };
     }
     const start = (timeSeriesStart && timeSeriesStart.trim()) || wmsDate;
     const end = (timeSeriesEnd && timeSeriesEnd.trim()) || wmsDate;
     return { start, end };
-  }, [weeklyComposites, wmsDate, timeSeriesStart, timeSeriesEnd]);
+  }, [weeklyTimelineIndex, wmsDate, timeSeriesStart, timeSeriesEnd]);
 
   const fieldSpectralSceneKey = useMemo(
     () =>
@@ -9711,6 +9741,7 @@ export default function SatelliteIntelligence() {
   );
 
   useEffect(() => {
+    if (isTimelinePlayingRef.current) return;
     setSavedFields(prev => {
       if (!prev.length) return prev;
       return prev.map(f => {
@@ -9725,7 +9756,7 @@ export default function SatelliteIntelligence() {
         };
       });
     });
-  }, [fieldSpectralSceneKey, activeWmsLayer, selectedIndex]);
+  }, [fieldSpectralSceneKey, activeWmsLayer, selectedIndex, isTimelinePlaying]);
 
   const staticAoiChartFeature = useMemo(() => {
     if (multiAoiItems.length) {
@@ -9743,7 +9774,7 @@ export default function SatelliteIntelligence() {
   /** Zonal pixel stats for workspace AOI popups / sidebar (same engine as Excel export). */
   const multiAoiZonalById = useMemo(() => {
     const m = new Map<string, SiAoiZonalAnalytics>();
-    const globalIso = selectedDate.toISOString().split('T')[0];
+    const globalIso = zonalStatsAnchorIso;
     const activeLayerId = inferStaticAoiChartLayerFromWmsName(activeWmsLayer || '');
 
     for (const row of multiAoiItems) {
@@ -9769,12 +9800,12 @@ export default function SatelliteIntelligence() {
       if (analytics) m.set(row.id, analytics);
     }
     return m;
-  }, [multiAoiItems, weeklyComposites, selectedDate, staticAoiChartAoiKey, popupZonalLayerIds, activeWmsLayer]);
+  }, [multiAoiItems, weeklyComposites, zonalStatsAnchorIso, staticAoiChartAoiKey, popupZonalLayerIds, activeWmsLayer]);
 
   /** Active-index tertiles (High / Medium / Low) per workspace AOI for map popups. */
   const multiAoiIndexHealthById = useMemo(() => {
     const m = new Map<string, SiAoiIndexHealthBreakdown>();
-    const globalIso = selectedDate.toISOString().split('T')[0];
+    const globalIso = zonalStatsAnchorIso;
     const activeLayerId = inferStaticAoiChartLayerFromWmsName(activeWmsLayer || '');
 
     for (const row of multiAoiItems) {
@@ -9797,7 +9828,7 @@ export default function SatelliteIntelligence() {
       if (health) m.set(row.id, health);
     }
     return m;
-  }, [multiAoiItems, weeklyComposites, selectedDate, staticAoiChartAoiKey, activeWmsLayer]);
+  }, [multiAoiItems, weeklyComposites, zonalStatsAnchorIso, staticAoiChartAoiKey, activeWmsLayer]);
 
   const sentinelVisible = isWmsOverlayVisible && !!activeWmsLayer;
   const normalizedDrawnAoiGeometry = useMemo(() => getDrawnGeometry(drawnGeometry), [drawnGeometry]);
@@ -10651,26 +10682,66 @@ export default function SatelliteIntelligence() {
     setSiAoiReportModalOpen(true);
   }, [multiAoiItems.length, drawnGeometry]);
 
+  const liveSnapshotAoiFeature = useMemo((): GeoJSON.Feature | null => {
+    if (multiAoiItems.length && activeMultiAoiId) {
+      const row = multiAoiItems.find(r => r.id === activeMultiAoiId);
+      return (row?.feature as GeoJSON.Feature) ?? null;
+    }
+    return drawnGeometry?.geometry ? (drawnGeometry as GeoJSON.Feature) : null;
+  }, [multiAoiItems, activeMultiAoiId, drawnGeometry]);
+
+  const liveSnapshotFitBounds = useMemo((): [[number, number], [number, number]] | null => {
+    if (!liveSnapshotAoiFeature) return null;
+    const b = siAoiReportFeatureBBoxLngLat(liveSnapshotAoiFeature);
+    if (!b) return null;
+    return [
+      [b[0], b[1]],
+      [b[2], b[3]],
+    ];
+  }, [liveSnapshotAoiFeature]);
+
   /** PNG from the live Map Viewer canvas (WMS symbology, AOI, basemap) — not the report fallback grid. */
   const captureLiveMapSnapshot = useCallback<SiLiveMapSnapshotCapture>(
     async opts => {
       const map = getMapInstance();
       if (!map || !isMapLoaded) return null;
+      pauseTimelinePlayback();
       const restoreIso = selectedDate.toISOString().split('T')[0];
       const targetIso = opts?.date?.slice(0, 10);
+      const fit = opts?.fitBounds ?? liveSnapshotFitBounds;
+      const aoiFeature = opts?.aoiFeature ?? liveSnapshotAoiFeature;
       try {
         if (targetIso && targetIso !== restoreIso) {
           applySelectedDate(new Date(`${targetIso}T12:00:00`));
           await new Promise<void>(r => requestAnimationFrame(() => requestAnimationFrame(() => r())));
-          await new Promise<void>(r => window.setTimeout(r, 140));
+          await new Promise<void>(r => window.setTimeout(r, 280));
+        }
+        if (fit) {
+          try {
+            fitMapToLngLatBounds(map, fit, 56);
+            await waitForMapboxStableFrame(map, {
+              idlePasses: targetIso ? 3 : 2,
+              idleTimeoutMs: 9000,
+              tilesTimeoutMs: 6000,
+            });
+          } catch {
+            /* ignore fit errors */
+          }
         }
         const scale = Math.min(4, Math.max(1, opts?.scale ?? 2));
-        return await captureMapboxCanvasWhenReady(map, {
+        const raw = await captureMapboxCanvasWhenReady(map, {
           scale,
           idlePasses: targetIso ? 3 : 2,
-          idleTimeoutMs: 10_000,
-          tilesTimeoutMs: 6500,
+          idleTimeoutMs: 11_000,
+          tilesTimeoutMs: 7200,
         });
+        if (!raw) return null;
+        if (aoiFeature?.geometry) {
+          return await clipMapSnapshotToAoiFeature(map, raw, aoiFeature, {
+            outlineColor: 'rgba(34, 197, 94, 0.95)',
+          });
+        }
+        return raw;
       } catch {
         return null;
       } finally {
@@ -10679,24 +10750,28 @@ export default function SatelliteIntelligence() {
         }
       }
     },
-    [isMapLoaded, selectedDate],
+    [
+      isMapLoaded,
+      selectedDate,
+      applySelectedDate,
+      pauseTimelinePlayback,
+      liveSnapshotFitBounds,
+      liveSnapshotAoiFeature,
+    ],
   );
 
   const satelliteActiveChipId = useMemo(() => {
-    if (!weeklyComposites.length) return null;
-    const iso = selectedDate.toISOString().split('T')[0];
-    const hit =
-      weeklyComposites.find(w => iso >= w.startDate && iso <= w.endDate) ?? weeklyComposites[0];
-    return `w-${hit.weekIndex}-${hit.startDate}`;
-  }, [weeklyComposites, selectedDate]);
+    if (!weeklyTimelineIndex) return null;
+    const w = weeklyTimelineIndex.pickWeek(selectedDate.toISOString().split('T')[0]);
+    return `w-${w.weekIndex}-${w.startDate}`;
+  }, [weeklyTimelineIndex, selectedDate]);
 
   const handleSatelliteTimelineStep = (dir: -1 | 1) => {
-    if (!weeklyComposites.length) return;
-    const iso = selectedDate.toISOString().split('T')[0];
-    let i = weeklyComposites.findIndex(w => iso >= w.startDate && iso <= w.endDate);
-    if (i < 0) i = 0;
-    i = (i + dir + weeklyComposites.length) % weeklyComposites.length;
-    const w = weeklyComposites[i];
+    if (!weeklyTimelineIndex) return;
+    const i = weeklyTimelineIndex.pickWeekIdx(selectedDate.toISOString().split('T')[0]);
+    const next =
+      (i + dir + weeklyTimelineIndex.weeks.length) % weeklyTimelineIndex.weeks.length;
+    const w = weeklyTimelineIndex.weeks[next]!;
     applySelectedDate(new Date(`${w.startDate}T12:00:00`));
   };
 
@@ -11167,10 +11242,7 @@ export default function SatelliteIntelligence() {
                       id="si-draw-draft-fill"
                       type="fill"
                       filter={['==', ['geometry-type'], 'Polygon']}
-                      paint={{
-                        'fill-color': drawStyle.fillColor,
-                        'fill-opacity': Math.min(0.45, drawStyle.fillOpacity + 0.12) * drawVisualOpacity,
-                      }}
+                      paint={SI_AOI_MAP_OUTLINE_ONLY_FILL_PAINT as any}
                     />
                     <Layer
                       id="si-draw-draft-line"
@@ -11260,10 +11332,7 @@ export default function SatelliteIntelligence() {
                       id="drawn-index-geometry-fill"
                       type="fill"
                       filter={['==', ['geometry-type'], 'Polygon']}
-                      paint={{
-                        'fill-color': drawStyle.fillColor,
-                        'fill-opacity': drawStyle.fillOpacity * drawVisualOpacity,
-                      }}
+                      paint={SI_AOI_MAP_OUTLINE_ONLY_FILL_PAINT as any}
                     />
                   </Source>
                 )}
@@ -11313,15 +11382,7 @@ export default function SatelliteIntelligence() {
                       id="si-multi-aoi-fill"
                       type="fill"
                       filter={['in', ['geometry-type'], ['literal', ['Polygon', 'MultiPolygon']]]}
-                      paint={{
-                        'fill-color': ['coalesce', ['get', 'aoiColor'], '#22c55e'] as any,
-                        'fill-opacity': [
-                          'case',
-                          ['==', ['get', 'isActive'], 1],
-                          0.38,
-                          0.12,
-                        ] as any,
-                      }}
+                      paint={SI_AOI_MAP_OUTLINE_ONLY_FILL_PAINT as any}
                     />
                     <Layer
                       id="si-multi-aoi-line-glow"
@@ -11341,12 +11402,16 @@ export default function SatelliteIntelligence() {
                         'line-color': [
                           'case',
                           ['==', ['get', 'isActive'], 1],
-                          '#e0f2fe',
-                          ['coalesce', ['get', 'aoiColor'], '#22c55e'],
+                          SI_AOI_MAP_OUTLINE_LINE_PAINT.activeColor,
+                          ['coalesce', ['get', 'aoiColor'], SI_AOI_MAP_OUTLINE_LINE_PAINT.inactiveColor],
                         ] as any,
-                        'line-width': ['case', ['==', ['get', 'isActive'], 1], 4.2, 1.6] as any,
-                        'line-opacity': 0.96,
-                        'line-dasharray': [2.4, 1.4],
+                        'line-width': [
+                          'case',
+                          ['==', ['get', 'isActive'], 1],
+                          SI_AOI_MAP_OUTLINE_LINE_PAINT.activeWidth,
+                          SI_AOI_MAP_OUTLINE_LINE_PAINT.inactiveWidth,
+                        ] as any,
+                        'line-opacity': SI_AOI_MAP_OUTLINE_LINE_PAINT.lineOpacity,
                       }}
                     />
                   </Source>
@@ -11388,11 +11453,17 @@ export default function SatelliteIntelligence() {
                       type="circle"
                       filter={['!', ['has', 'point_count']]}
                       paint={{
-                        'circle-color': ['coalesce', ['get', 'aoiColor'], '#22c55e'] as any,
-                        'circle-stroke-color': '#ecfeff',
-                        'circle-stroke-width': 1.5,
-                        'circle-radius': ['case', ['==', ['get', 'isActive'], 1], 7.5, 5.5] as any,
-                        'circle-opacity': 0.96,
+                        'circle-color': 'rgba(0,0,0,0)',
+                        'circle-stroke-color': [
+                          'case',
+                          ['==', ['get', 'isActive'], 1],
+                          SI_AOI_MAP_OUTLINE_LINE_PAINT.activeColor,
+                          ['coalesce', ['get', 'aoiColor'], SI_AOI_MAP_OUTLINE_LINE_PAINT.inactiveColor],
+                        ] as any,
+                        'circle-stroke-width': ['case', ['==', ['get', 'isActive'], 1], 2.5, 2] as any,
+                        'circle-radius': ['case', ['==', ['get', 'isActive'], 1], 6, 4.5] as any,
+                        'circle-opacity': 0,
+                        'circle-stroke-opacity': SI_AOI_MAP_OUTLINE_LINE_PAINT.lineOpacity,
                       }}
                     />
                   </Source>
@@ -11526,10 +11597,10 @@ export default function SatelliteIntelligence() {
                   filter={['==', ['geometry-type'], 'Point']}
                   paint={{
                     'circle-radius': drawStyle.pointRadius,
-                    'circle-color': drawStyle.fillColor,
-                    'circle-opacity': Math.min(1, drawStyle.fillOpacity + 0.55) * drawVisualOpacity,
+                    'circle-color': 'rgba(0,0,0,0)',
+                    'circle-opacity': 0,
                     'circle-stroke-color': drawStyle.strokeColor,
-                    'circle-stroke-width': Math.max(1, drawStyle.strokeWidth / 2),
+                    'circle-stroke-width': Math.max(2, drawStyle.strokeWidth),
                     'circle-stroke-opacity': drawVisualOpacity,
                   }}
                 />
@@ -12420,7 +12491,7 @@ export default function SatelliteIntelligence() {
             activeChipId={satelliteActiveChipId}
             onPickChip={handleSatelliteChipPick}
             timelinePlaying={isTimelinePlaying}
-            onTogglePlay={() => setIsTimelinePlaying(p => !p)}
+            onTogglePlay={toggleTimelinePlayback}
             onStep={handleSatelliteTimelineStep}
             timelineVisible={weeklyComposites.length > 0}
             timelinePlaybackMs={timelinePlaybackMs}

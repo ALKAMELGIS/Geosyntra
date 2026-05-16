@@ -124,6 +124,10 @@ export type SiLiveMapSnapshotOptions = {
   date?: string;
   /** Output scale factor 1–4 (device pixel ratio is already on the map canvas). */
   scale?: number;
+  /** Fit viewport to AOI bounds before capture (lng/lat corners). */
+  fitBounds?: [[number, number], [number, number]];
+  /** Clip raster to this AOI feature after capture (requires map projection at capture time). */
+  aoiFeature?: GeoJSON.Feature;
 };
 
 export type SiLiveMapSnapshotCapture = (opts?: SiLiveMapSnapshotOptions) => Promise<string | null>;

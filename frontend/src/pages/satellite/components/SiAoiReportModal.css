@@ -453,12 +453,54 @@
   font-weight: 500;
 }
 
-.si-aoi-report-change-cell__hint {
+.si-aoi-report-map-legend-bar {
   flex-shrink: 0;
-  padding: 4px 8px 6px;
-  font-size: 0.65rem;
-  color: #94a3b8;
-  border-top: 1px solid rgba(148, 163, 184, 0.15);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 4px 10px;
+  padding: 5px 8px 6px;
+  font-size: 0.58rem;
+  font-weight: 600;
+  color: #e2e8f0;
+  background: rgba(15, 23, 42, 0.92);
+  border-top: 1px solid rgba(148, 163, 184, 0.2);
+  line-height: 1.25;
+}
+
+.si-aoi-report-map-legend-bar__item {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  max-width: 100%;
+}
+
+.si-aoi-report-map-legend-bar__swatch {
+  width: 9px;
+  height: 9px;
+  border-radius: 2px;
+  flex-shrink: 0;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+.si-aoi-report-map-legend-bar__label {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 7.5rem;
+}
+
+.si-aoi-report-map-legend-bar__index {
+  margin-left: auto;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 0.56rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: #cbd5e1;
+  background: rgba(30, 41, 59, 0.9);
+  border: 1px solid rgba(148, 163, 184, 0.35);
 }
 
 /* ── PDF export preview / busy (inside modal, above body scroll) ── */
