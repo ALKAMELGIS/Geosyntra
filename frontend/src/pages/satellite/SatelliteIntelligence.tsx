@@ -100,6 +100,7 @@ import {
   type SiWmsSymbologyUiState,
 } from './utils/siWmsSymbologyModel';
 import {
+  SI_AOI_DRAW_DRAFT_OUTLINE_PAINT,
   SI_AOI_MAP_OUTLINE_LINE_PAINT,
   SI_AOI_MAP_OUTLINE_ONLY_FILL_PAINT,
   SI_GEO_AI_MAP_SELECTION_PAINT,
@@ -177,15 +178,8 @@ import { SiGeoAiModelSettings } from './components/SiGeoAiModelSettings';
 import { SatelliteAoiStaticChartsMapOverlay } from './components/SatelliteAoiStaticChartsMapOverlay';
 import { SiAoiReportModal } from './components/SiAoiReportModal';
 import { siAoiPaletteFromIndexRampStops, siAoiReportFeatureBBoxLngLat } from './utils/siAoiVegetationReportModel';
-import {
-  clipMapSnapshotToAoiFeature,
-  fitMapToLngLatBounds,
-} from './utils/siMapSnapshotAoiClip';
-import {
-  captureMapboxCanvasWhenReady,
-  waitForMapboxStableFrame,
-  type SiLiveMapSnapshotCapture,
-} from './utils/siMapViewerSnapshot';
+import { captureSiReportMapSnapshot } from './utils/siReportMapSnapshotEngine';
+import type { SiLiveMapSnapshotCapture } from './utils/siMapViewerSnapshot';
 import type { SiGeoAiIndexAnalyticalExportContext } from './utils/siGeoAiIndexAnalyticalExport';
 import {
   computeAoiIndexHealthBreakdown,
@@ -10746,37 +10740,17 @@ export default function SatelliteIntelligence() {
       const fit = opts?.fitBounds ?? liveSnapshotFitBounds;
       const aoiFeature = opts?.aoiFeature ?? liveSnapshotAoiFeature;
       try {
-        if (targetIso && targetIso !== restoreIso) {
-          applySelectedDate(new Date(`${targetIso}T12:00:00`));
-          await new Promise<void>(r => requestAnimationFrame(() => requestAnimationFrame(() => r())));
-          await new Promise<void>(r => window.setTimeout(r, 280));
-        }
-        if (fit) {
-          try {
-            fitMapToLngLatBounds(map, fit, 56);
-            await waitForMapboxStableFrame(map, {
-              idlePasses: targetIso ? 3 : 2,
-              idleTimeoutMs: 9000,
-              tilesTimeoutMs: 6000,
-            });
-          } catch {
-            /* ignore fit errors */
-          }
-        }
-        const scale = Math.min(4, Math.max(1, opts?.scale ?? 2));
-        const raw = await captureMapboxCanvasWhenReady(map, {
-          scale,
-          idlePasses: targetIso ? 3 : 2,
-          idleTimeoutMs: 11_000,
-          tilesTimeoutMs: 7200,
+        return await captureSiReportMapSnapshot(map, {
+          date: targetIso && targetIso !== restoreIso ? targetIso : undefined,
+          applyDate: iso => {
+            applySelectedDate(new Date(`${iso}T12:00:00`));
+          },
+          fitBounds: fit ?? undefined,
+          aoiFeature: aoiFeature ?? undefined,
+          scale: opts?.scale ?? 3,
+          profile: opts?.profile ?? 'balanced',
+          outlineColor: 'rgba(34, 197, 94, 0.95)',
         });
-        if (!raw) return null;
-        if (aoiFeature?.geometry) {
-          return await clipMapSnapshotToAoiFeature(map, raw, aoiFeature, {
-            outlineColor: 'rgba(34, 197, 94, 0.95)',
-          });
-        }
-        return raw;
       } catch {
         return null;
       } finally {
@@ -11276,8 +11250,38 @@ export default function SatelliteIntelligence() {
                     <Layer
                       id="si-draw-draft-fill"
                       type="fill"
-                      filter={['==', ['geometry-type'], 'Polygon']}
-                      paint={SI_AOI_MAP_OUTLINE_ONLY_FILL_PAINT as any}
+                      filter={['in', ['geometry-type'], ['literal', ['Polygon', 'MultiPolygon']]]}
+                      paint={{
+                        'fill-color': drawStyle.strokeColor,
+                        'fill-opacity': SI_AOI_DRAW_DRAFT_OUTLINE_PAINT.fillOpacity * drawVisualOpacity,
+                      }}
+                    />
+                    <Layer
+                      id="si-draw-draft-polygon-glow"
+                      type="line"
+                      filter={['in', ['geometry-type'], ['literal', ['Polygon', 'MultiPolygon']]]}
+                      paint={{
+                        'line-color': drawStyle.strokeColor,
+                        'line-width': Math.max(
+                          drawStyle.strokeWidth + SI_AOI_DRAW_DRAFT_OUTLINE_PAINT.glowWidthExtra,
+                          SI_AOI_DRAW_DRAFT_OUTLINE_PAINT.minLineWidth + 2,
+                        ),
+                        'line-blur': SI_AOI_DRAW_DRAFT_OUTLINE_PAINT.glowBlur,
+                        'line-opacity': SI_AOI_DRAW_DRAFT_OUTLINE_PAINT.glowOpacity * drawVisualOpacity,
+                      }}
+                    />
+                    <Layer
+                      id="si-draw-draft-polygon-outline"
+                      type="line"
+                      filter={['in', ['geometry-type'], ['literal', ['Polygon', 'MultiPolygon']]]}
+                      paint={{
+                        'line-color': SI_AOI_DRAW_DRAFT_OUTLINE_PAINT.lineHighlight,
+                        'line-width': Math.max(
+                          drawStyle.strokeWidth + SI_AOI_DRAW_DRAFT_OUTLINE_PAINT.lineWidthExtra,
+                          SI_AOI_DRAW_DRAFT_OUTLINE_PAINT.minLineWidth,
+                        ),
+                        'line-opacity': drawVisualOpacity,
+                      }}
                     />
                     <Layer
                       id="si-draw-draft-line"
@@ -11289,9 +11293,8 @@ export default function SatelliteIntelligence() {
                       ]}
                       paint={{
                         'line-color': drawStyle.strokeColor,
-                        'line-width': drawStyle.strokeWidth,
-                        'line-dasharray': [2, 2],
-                        'line-opacity': 0.9 * drawVisualOpacity,
+                        'line-width': Math.max(2.5, drawStyle.strokeWidth),
+                        'line-opacity': 0.95 * drawVisualOpacity,
                       }}
                     />
                     <Layer

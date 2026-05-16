@@ -128,6 +128,8 @@ export type SiLiveMapSnapshotOptions = {
   fitBounds?: [[number, number], [number, number]];
   /** Clip raster to this AOI feature after capture (requires map projection at capture time). */
   aoiFeature?: GeoJSON.Feature;
+  /** Capture readiness profile (default balanced). */
+  profile?: 'fast' | 'balanced' | 'quality';
 };
 
 export type SiLiveMapSnapshotCapture = (opts?: SiLiveMapSnapshotOptions) => Promise<string | null>;

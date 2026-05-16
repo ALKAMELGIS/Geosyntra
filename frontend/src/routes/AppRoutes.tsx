@@ -3,7 +3,11 @@ import { Navigate, Route, Routes } from 'react-router-dom'
 import { useSystemSettings } from '../store/SystemSettingsContext'
 import DynamicBindPage from '../pages/system/DynamicBindPage'
 import Home from '../pages/Home'
-import Login from '../pages/Login'
+import AuthLoginPage from '../pages/app/auth/AuthLoginPage'
+import AuthRegisterPage from '../pages/app/auth/AuthRegisterPage'
+import PricingPage from '../pages/app/billing/PricingPage'
+import TrialStartPage from '../pages/app/onboarding/TrialStartPage'
+import { SAAS_ROUTES } from '../lib/saasRoutes'
 const LearnMore = lazy(() => import('../pages/LearnMore'))
 const SatelliteIntelligence = lazy(() => import('../pages/satellite/SatelliteIntelligence'))
 const SatelliteMultidimensional = lazy(() => import('../pages/satellite/Multidimensional'))
@@ -20,8 +24,12 @@ export default function AppRoutes() {
   return (
     <Suspense fallback={null}>
       <Routes>
-        <Route path="/login" element={<Login />} />
         <Route path="/" element={<Home />} />
+        <Route path={SAAS_ROUTES.authLogin} element={<AuthLoginPage />} />
+        <Route path={SAAS_ROUTES.authRegister} element={<AuthRegisterPage />} />
+        <Route path={SAAS_ROUTES.billingPricing} element={<PricingPage />} />
+        <Route path={SAAS_ROUTES.onboardingTrialStart} element={<TrialStartPage />} />
+        <Route path="/login" element={<Navigate to={SAAS_ROUTES.authLogin} replace />} />
         <Route path="/learn-more" element={<LearnMore />} />
         <Route path="/satellite" element={<Navigate to="/satellite/indices" replace />} />
         <Route path="/data/fertigation" element={<Navigate to="/data/fertigation-records" replace />} />

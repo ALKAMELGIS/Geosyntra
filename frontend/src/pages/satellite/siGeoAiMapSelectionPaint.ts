@@ -28,3 +28,14 @@ export const SI_AOI_MAP_OUTLINE_LINE_PAINT = {
   inactiveWidth: 2.1,
   lineOpacity: 0.96,
 } as const
+
+/** In-progress AOI sketch (rectangle / circle / polygon) — high contrast on imagery. */
+export const SI_AOI_DRAW_DRAFT_OUTLINE_PAINT = {
+  fillOpacity: 0.14,
+  glowOpacity: 0.48,
+  glowBlur: 2.8,
+  glowWidthExtra: 6,
+  lineHighlight: '#f0fdf4',
+  lineWidthExtra: 1.25,
+  minLineWidth: 3.75,
+} as const

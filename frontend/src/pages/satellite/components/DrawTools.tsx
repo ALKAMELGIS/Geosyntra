@@ -217,9 +217,9 @@ export const DrawToolsController: React.FC<DrawToolsControllerProps> = ({
         const shapeOptions = {
           color: shapeColor || '#10b981',
           weight: 4,
-          opacity: 0.8,
-          fillOpacity: 0.2,
-          clickable: true
+          opacity: 1,
+          fillOpacity: 0.12,
+          clickable: true,
         };
 
         let drawer;

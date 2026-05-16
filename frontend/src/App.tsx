@@ -4,6 +4,7 @@ import { AppDialogProvider } from './components/AppDialogProvider'
 import HeaderBar from './components/HeaderBar'
 import NavMenu from './components/NavMenu'
 import AppRoutes from './routes/AppRoutes'
+import { isSaasAuthPath, isSaasPublicPath, SAAS_ROUTES } from './lib/saasRoutes'
 import { AuthProvider, useAuth } from './state/auth'
 import { LanguageProvider } from './lib/i18n'
 import { SystemSettingsProvider } from './store/SystemSettingsContext'
@@ -139,20 +140,11 @@ function AppShell() {
     logout()
   }
 
-  const isOnLogin = location.pathname === '/login'
-  /**
-   * Home (`/`) renders the upstream 21st.dev "Explore Our World" 3D ScrollGlobe
-   * landing page. The reference bundle takes over the entire viewport — no
-   * header, no side rail, no chrome — and the section navigation lives inside
-   * the landing component itself. Wrapping it in the app shell would compress
-   * the globe + sections inside the inner scroll area and break the 1:1
-   * design. We therefore drop chrome on the home route and let the landing
-   * page own the document scroll, matching the upstream demo byte-for-byte.
-   * Once the visitor hits a hero CTA they're routed into a real platform
-   * surface (Satellite Indices / GIS Map) where the chrome reappears.
-   */
+  const isOnAuth = isSaasAuthPath(location.pathname)
+  /** Home + SaaS public surfaces render without app chrome (full-bleed entry). */
   const isOnHome = location.pathname === '/' || location.pathname === ''
-  const showChrome = !!user && !isOnLogin && !isOnHome
+  const isPublicSurface = isSaasPublicPath(location.pathname)
+  const showChrome = !!user && !isOnAuth && !isPublicSurface
   /** Fertigation records is the only remaining `/data/*` route — keep its tight layout class. */
   const isOperationsDataPage = location.pathname.startsWith('/data/')
   const mainContentClass = [
@@ -166,13 +158,12 @@ function AppShell() {
   const layoutChromeClass = ['layout', 'layout-sidebar', 'app-layout'].join(' ')
   const layoutShellClass = isOnHome ? 'layout layout--landing-fullbleed' : showChrome ? layoutChromeClass : 'layout'
 
-  if (user && isOnLogin) {
-    // Always land on Home after sign-in (ignore deep-link `from` saved when redirecting to /login).
-    return <Navigate to="/" replace />
+  if (user && isOnAuth) {
+    return <Navigate to={SAAS_ROUTES.dashboardDefault} replace />
   }
 
-  if (!user && !isOnLogin) {
-    return <Navigate to="/login" replace state={{ from: location }} />
+  if (!user && !isPublicSurface) {
+    return <Navigate to={SAAS_ROUTES.authLogin} replace state={{ from: location }} />
   }
 
   return (

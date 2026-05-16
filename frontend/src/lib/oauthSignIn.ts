@@ -6,7 +6,7 @@ function normalizedBasePath(): string {
 
 /**
  * Google OAuth redirect URI (no `#` fragment — Google rejects fragments).
- * Static `public/oauth-return.html` forwards `?code&state` to `/#/login?…`.
+ * Static `public/oauth-return.html` forwards `?code&state` to `/#/app/auth/login?…`.
  */
 export function getGoogleOAuthRedirectUri(): string {
   const custom = String(import.meta.env.VITE_AUTH_GOOGLE_REDIRECT_URI ?? '').trim()

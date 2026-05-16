@@ -1,16 +1,17 @@
 import { useEffect, useRef, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
-import LoginGlslHillsBackground from './login/LoginGlslHillsBackground'
-import { LoginCanvasGlobe } from './login/LoginCanvasGlobe'
-import './Login.css'
-import { normalizeEmail, normalizeRole, startSession, type Role } from '../lib/auth'
-import { pickDefaultAssignableRole, useDirectoryRoleCatalog } from '../lib/roleCatalog'
-import { hydrateProfileFromAdminUserRecord, hydrateProfileFromServer } from '../lib/userProfilePersistence'
-import { appendAuditLog } from '../lib/audit'
-import { scheduleAdminDirectorySync } from '../lib/adminDirectoryPersistence'
-import { useLanguage } from '../lib/i18n'
-import { appConfig } from '../../config/app'
-import { GEOSYNTRA_BRAND_NAME } from '../lib/brand'
+import LoginGlslHillsBackground from './LoginGlslHillsBackground'
+import { LoginCanvasGlobe } from './LoginCanvasGlobe'
+import { SAAS_ROUTES } from '../../../lib/saasRoutes'
+import './auth-login.css'
+import { normalizeEmail, normalizeRole, startSession, type Role } from '../../../lib/auth'
+import { pickDefaultAssignableRole, useDirectoryRoleCatalog } from '../../../lib/roleCatalog'
+import { hydrateProfileFromAdminUserRecord, hydrateProfileFromServer } from '../../../lib/userProfilePersistence'
+import { appendAuditLog } from '../../../lib/audit'
+import { scheduleAdminDirectorySync } from '../../../lib/adminDirectoryPersistence'
+import { useLanguage } from '../../../lib/i18n'
+import { appConfig } from '../../../../config/app'
+import { GEOSYNTRA_BRAND_NAME } from '../../../lib/brand'
 import {
   clearOAuthHandshake,
   exchangeGoogleAuthCode,
@@ -21,7 +22,7 @@ import {
   readStoredOAuthState,
   resolveAppleAuthorizationUrl,
   resolveGoogleAuthorizationUrl,
-} from '../lib/oauthSignIn'
+} from '../../../lib/oauthSignIn'
 
 type AuthUser = {
   id: number
@@ -106,7 +107,7 @@ const loginTranslations = {
   },
 } as const
 
-export default function Login() {
+export default function AuthLoginPage() {
   const { language } = useLanguage()
   const text = loginTranslations[language]
   const googleOauthConfigured = isGoogleOAuthConfigured()
@@ -147,7 +148,7 @@ export default function Login() {
       const envBase = typeof import.meta !== 'undefined' && import.meta.env?.BASE_URL ? import.meta.env.BASE_URL : appConfig.basePath
       const basePath = String(envBase || '/')
       const normalizedBasePath = `/${basePath.replace(/^\/+|\/+$/g, '')}/`
-      const verifyLink = `${baseOrigin}${normalizedBasePath}#/login?verify=${encodeURIComponent(verificationToken)}`
+      const verifyLink = `${baseOrigin}${normalizedBasePath}#${SAAS_ROUTES.authLogin}?verify=${encodeURIComponent(verificationToken)}`
       const raw = localStorage.getItem('emailOutbox')
       const outbox = raw ? (JSON.parse(raw) as any[]) : []
       const next = Array.isArray(outbox) ? outbox : []
@@ -819,7 +820,7 @@ export default function Login() {
     if (oauthError) {
       setError(decodeURIComponent(oauthError.replace(/\+/g, ' ')))
       clearOAuthHandshake()
-      navigate('/login', { replace: true })
+      navigate(SAAS_ROUTES.authLogin, { replace: true })
       return
     }
 
@@ -829,7 +830,7 @@ export default function Login() {
       if (!expected || oauthState !== expected) {
         setError(text.oauthSessionExpired)
         clearOAuthHandshake()
-        navigate('/login', { replace: true })
+        navigate(SAAS_ROUTES.authLogin, { replace: true })
         return
       }
 
@@ -840,7 +841,7 @@ export default function Login() {
           const result = await exchangeGoogleAuthCode(oauthCode, redirect)
           if (cancelled) return
           clearOAuthHandshake()
-          navigate('/login', { replace: true })
+          navigate(SAAS_ROUTES.authLogin, { replace: true })
           if (!result.ok || !result.email) {
             setError(`${text.oauthGoogleFailed}${result.error ? ` (${result.error})` : ''}`)
             return
@@ -919,14 +920,14 @@ export default function Login() {
 
         if (provider === 'apple') {
           clearOAuthHandshake()
-          navigate('/login', { replace: true })
+          navigate(SAAS_ROUTES.authLogin, { replace: true })
           setError('')
           setInfo(text.oauthAppleNeedsServer)
           return
         }
 
         clearOAuthHandshake()
-        navigate('/login', { replace: true })
+        navigate(SAAS_ROUTES.authLogin, { replace: true })
       })()
 
       return () => {
@@ -1003,6 +1004,12 @@ export default function Login() {
     // Keep session persistence enabled by default for same-browser multi-tab/window continuity.
     if (mode === 'signin') setKeepSignedIn(true)
   }, [mode])
+
+  useEffect(() => {
+    if (location.pathname === SAAS_ROUTES.authRegister) {
+      setMode('signup')
+    }
+  }, [location.pathname])
 
   const onSsoGoogle = () => {
     setError('')

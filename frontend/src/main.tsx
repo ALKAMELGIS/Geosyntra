@@ -69,7 +69,7 @@ if (typeof window !== 'undefined' && 'serviceWorker' in navigator) {
       safeSessionSetItem(resetKey, '1')
       // Avoid full reload on login route — visible flash / double "rerun" on http://127.0.0.1:5173/Geosyntra/#/login
       const hash = typeof window.location.hash === 'string' ? window.location.hash : ''
-      const onLoginRoute = /^#\/login(\?|$|\/)/i.test(hash)
+      const onLoginRoute = /^#\/(?:app\/auth\/(?:login|register)|login)(?:\?|$|\/)/i.test(hash)
       if (!onLoginRoute) {
         window.location.reload()
       }

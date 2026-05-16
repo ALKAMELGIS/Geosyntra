@@ -7,6 +7,15 @@
  * sections inside `<LandingPage />` measure against the full window — the
  * same way the upstream 21st.dev bundle behaves at the document root.
  */
+.home-saas-entry {
+  width: 100%;
+  max-width: 100%;
+}
+
+.home-saas-hero__lead {
+  margin-bottom: 1.5rem;
+}
+
 .home-landing {
   position: relative;
   width: 100%;

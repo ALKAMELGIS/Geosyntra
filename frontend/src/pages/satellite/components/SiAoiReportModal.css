@@ -1,3 +1,14 @@
+/** During live-map capture, hide the dialog so Mapbox keeps painting the main viewer. */
+body.si-report-map-capture-active .si-aoi-report-modal-backdrop {
+  background: rgba(2, 6, 23, 0.42);
+  pointer-events: none;
+}
+
+body.si-report-map-capture-active .si-aoi-report-modal {
+  visibility: hidden;
+  pointer-events: none;
+}
+
 .si-aoi-report-modal-backdrop {
   position: fixed;
   inset: 0;
@@ -297,6 +308,11 @@
   overflow: hidden;
 }
 
+.si-aoi-report-map-retry {
+  margin-top: 4px;
+  font-size: 0.78rem;
+}
+
 .si-aoi-report-map-wrap {
   position: relative;
   height: 280px;
@@ -415,8 +431,10 @@
 .si-aoi-report-change-cell__map-placeholder {
   flex: 1;
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
+  gap: 10px;
   min-height: 120px;
   padding: 12px;
   text-align: center;

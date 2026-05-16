@@ -533,6 +533,45 @@ export function SiAoiReportModal({
 
   const weeklyMeansForScatter = useMemo(() => weeklyComposites.map(w => w.mean), [weeklyComposites]);
 
+  const prefetchAnalysisSnapshot = useCallback(
+    async (built: SiAoiReportModel) => {
+      if (!captureLiveMapSnapshot) return;
+      const fitBounds = (() => {
+        const f = built.aoiOutlineGeoJson.features[0];
+        const b = f ? siAoiReportFeatureBBoxLngLat(f) : null;
+        if (!b) return undefined;
+        return [
+          [b[0], b[1]],
+          [b[2], b[3]],
+        ] as [[number, number], [number, number]];
+      })();
+      const aoiFeat = built.aoiOutlineGeoJson.features[0];
+      const snapDate =
+        built.timeSeries[built.timeSeries.length - 1]?.date?.slice(0, 10) ?? built.dateEnd.slice(0, 10);
+      setAnalysisSnapshotLoading(true);
+      setAnalysisLiveSnapshot(null);
+      try {
+        const raw = await captureLiveMapSnapshot({
+          date: snapDate,
+          scale: 3,
+          profile: 'balanced',
+          fitBounds,
+          aoiFeature: aoiFeat,
+        });
+        if (!raw) return;
+        const withLegend = await compositeAoiAnalysisMapWithLegendPng(
+          raw,
+          built,
+          siPdfBoundsFromFeatureCollection(built.aoiOutlineGeoJson),
+        );
+        setAnalysisLiveSnapshot(withLegend);
+      } finally {
+        setAnalysisSnapshotLoading(false);
+      }
+    },
+    [captureLiveMapSnapshot],
+  );
+
   const onGenerate = useCallback(() => {
     setErr(null);
     const aoiFeature = selectedFeature;
@@ -566,6 +605,7 @@ export function SiAoiReportModal({
     setReport(built);
     setReportView('analysis');
     setStep('preview');
+    void prefetchAnalysisSnapshot(built);
   }, [
     weeklyComposites,
     indexId,
@@ -577,6 +617,7 @@ export function SiAoiReportModal({
     temporalComposite,
     classificationPaletteProp,
     legendBandCount,
+    prefetchAnalysisSnapshot,
   ]);
 
   const applyLegendBandCount = useCallback((next: SiAoiLegendBandCount) => {
@@ -584,9 +625,13 @@ export function SiAoiReportModal({
     if (!snap) return;
     setLegendBandCount(next);
     setAnalysisMapReady(false);
+    setAnalysisLiveSnapshot(null);
     const built = buildSiAoiVegetationReport({ ...snap, legendBandCount: next });
-    if (built) setReport(built);
-  }, []);
+    if (built) {
+      setReport(built);
+      void prefetchAnalysisSnapshot(built);
+    }
+  }, [prefetchAnalysisSnapshot]);
 
   const mapInitialView = useMemo(() => {
     if (!report) return { longitude: 46.7, latitude: 24.7, zoom: 10 };
@@ -639,6 +684,7 @@ export function SiAoiReportModal({
         mapPng = await captureLiveMapSnapshot({
           date: slot.date,
           scale: 3,
+          profile: 'fast',
           ...liveSnapshotCaptureOpts,
         });
       }
@@ -692,35 +738,25 @@ export function SiAoiReportModal({
     };
   }, [open, report, reportView, changeFitBounds, captureAllChangeSnapshots]);
 
+  const retryAnalysisMapSnapshot = useCallback(() => {
+    if (!report) return;
+    void prefetchAnalysisSnapshot(report);
+  }, [report, prefetchAnalysisSnapshot]);
+
   useEffect(() => {
     if (!open || !report || reportView !== 'analysis' || !captureLiveMapSnapshot) return;
-    let cancelled = false;
-    setAnalysisSnapshotLoading(true);
-    setAnalysisLiveSnapshot(null);
-    const snapDate =
-      report.timeSeries[report.timeSeries.length - 1]?.date?.slice(0, 10) ?? report.dateEnd.slice(0, 10);
-    void (async () => {
-      try {
-        const raw = await captureLiveMapSnapshot({
-          date: snapDate,
-          scale: 3,
-          ...liveSnapshotCaptureOpts,
-        });
-        if (cancelled || !raw) return;
-        const withLegend = await compositeAoiAnalysisMapWithLegendPng(
-          raw,
-          report,
-          siPdfBoundsFromFeatureCollection(report.aoiOutlineGeoJson),
-        );
-        if (!cancelled) setAnalysisLiveSnapshot(withLegend);
-      } finally {
-        if (!cancelled) setAnalysisSnapshotLoading(false);
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [open, report, reportView, captureLiveMapSnapshot, legendBandCount, liveSnapshotCaptureOpts]);
+    if (analysisLiveSnapshot || analysisSnapshotLoading) return;
+    retryAnalysisMapSnapshot();
+  }, [
+    open,
+    report,
+    reportView,
+    captureLiveMapSnapshot,
+    legendBandCount,
+    analysisLiveSnapshot,
+    analysisSnapshotLoading,
+    retryAnalysisMapSnapshot,
+  ]);
 
   useEffect(() => {
     setAnalysisMapReady(false);
@@ -1278,7 +1314,16 @@ export function SiAoiReportModal({
                           />
                         ) : null}
                         {!analysisSnapshotLoading && !analysisLiveSnapshot ? (
-                          <div className="si-aoi-report-change-cell__map-placeholder">Live map snapshot unavailable</div>
+                          <div className="si-aoi-report-change-cell__map-placeholder">
+                            Live map snapshot unavailable. Keep NDVI/WMS visible on the main map, then retry.
+                            <button
+                              type="button"
+                              className="si-aoi-report-btn si-aoi-report-btn--ghost si-aoi-report-map-retry"
+                              onClick={retryAnalysisMapSnapshot}
+                            >
+                              Retry capture
+                            </button>
+                          </div>
                         ) : null}
                       </div>
                     ) : !mapOk ? (
