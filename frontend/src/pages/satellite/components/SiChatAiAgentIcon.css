@@ -1,4 +1,4 @@
-/* Agent Chat icon — bubble + neural agent core */
+/* Agent Chat icon — refined bubble + AI agent core */
 
 .si-chat-ai-agent-icon-wrap {
   display: inline-flex;
@@ -24,28 +24,25 @@
   width: 100%;
   height: 100%;
   display: block;
-  filter: drop-shadow(0 0 4px rgba(129, 140, 248, 0.45)) drop-shadow(0 1px 2px rgba(15, 23, 42, 0.4));
+  filter: drop-shadow(0 1px 2px rgba(15, 23, 42, 0.35)) drop-shadow(0 0 6px rgba(99, 102, 241, 0.28));
 }
 
 @media (prefers-reduced-motion: no-preference) {
   .si-chat-ai-agent-icon__core {
-    animation: si-chat-ai-agent-core-pulse 2.8s ease-in-out infinite;
+    animation: si-chat-ai-agent-core-pulse 3s ease-in-out infinite;
   }
 
   .si-chat-ai-agent-icon__spark {
-    animation: si-chat-ai-agent-spark-glow 2.4s ease-in-out infinite;
+    animation: si-chat-ai-agent-spark-glow 2.6s ease-in-out infinite;
   }
 
   .si-chat-ai-agent-icon__node--t {
-    animation: si-chat-ai-agent-node-t 2.2s ease-in-out infinite;
+    animation: si-chat-ai-agent-node-t 2.4s ease-in-out infinite;
   }
 
-  .si-chat-ai-agent-icon__node--l {
-    animation: si-chat-ai-agent-node-l 2.5s ease-in-out infinite;
-  }
-
+  .si-chat-ai-agent-icon__node--l,
   .si-chat-ai-agent-icon__node--r {
-    animation: si-chat-ai-agent-node-r 2.5s ease-in-out infinite;
+    animation: si-chat-ai-agent-node-lr 2.7s ease-in-out infinite;
   }
 }
 
@@ -53,20 +50,16 @@
   0%,
   100% {
     opacity: 1;
-    transform: scale(1);
-    transform-origin: 11.5px 9.75px;
   }
   50% {
-    opacity: 0.92;
-    transform: scale(1.06);
-    transform-origin: 11.5px 9.75px;
+    opacity: 0.88;
   }
 }
 
 @keyframes si-chat-ai-agent-spark-glow {
   0%,
   100% {
-    opacity: 0.88;
+    opacity: 0.82;
   }
   50% {
     opacity: 1;
@@ -76,27 +69,17 @@
 @keyframes si-chat-ai-agent-node-t {
   0%,
   100% {
-    opacity: 0.85;
+    opacity: 0.8;
   }
   50% {
     opacity: 1;
   }
 }
 
-@keyframes si-chat-ai-agent-node-l {
+@keyframes si-chat-ai-agent-node-lr {
   0%,
   100% {
-    opacity: 0.72;
-  }
-  50% {
-    opacity: 1;
-  }
-}
-
-@keyframes si-chat-ai-agent-node-r {
-  0%,
-  100% {
-    opacity: 0.72;
+    opacity: 0.68;
   }
   50% {
     opacity: 1;
@@ -105,12 +88,12 @@
 
 .si-sat-ctx-rail-btn:hover .si-chat-ai-agent-icon__svg,
 .si-sat-ctx-rail-btn--active .si-chat-ai-agent-icon__svg {
-  filter: drop-shadow(0 0 7px rgba(165, 180, 252, 0.7)) drop-shadow(0 0 12px rgba(56, 189, 248, 0.32))
-    drop-shadow(0 1px 2px rgba(15, 23, 42, 0.35));
+  filter: drop-shadow(0 0 8px rgba(129, 140, 248, 0.55)) drop-shadow(0 0 14px rgba(34, 211, 238, 0.28))
+    drop-shadow(0 1px 2px rgba(15, 23, 42, 0.3));
 }
 
 .si-sat-ctx-dock--light .si-chat-ai-agent-icon__svg {
-  filter: drop-shadow(0 0 3px rgba(99, 102, 241, 0.38)) drop-shadow(0 1px 1px rgba(15, 23, 42, 0.1));
+  filter: drop-shadow(0 0 4px rgba(99, 102, 241, 0.32)) drop-shadow(0 1px 1px rgba(15, 23, 42, 0.08));
 }
 
 .si-sat-ctx-analysis-launcher-btn .si-chat-ai-agent-icon-wrap {
