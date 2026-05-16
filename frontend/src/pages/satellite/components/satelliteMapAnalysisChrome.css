@@ -3571,17 +3571,6 @@
   border-radius: 0 !important;
 }
 
-/* Layer swipe: full control panel flies out from the toolbox rail (no on-map divider / drag handle). */
-.si-sat-ctx-dock--map-toolbox .si-sat-ctx-rail-swipe-slot {
-  position: absolute;
-  inset-inline-end: 100%;
-  top: 48px;
-  width: min(288px, calc(100vw - 96px));
-  margin-inline-end: 8px;
-  z-index: 98;
-  pointer-events: auto;
-}
-
 /* Map toolbox — spectral / WMS legend rail control (atlas glyph) */
 .si-sat-ctx-rail-btn--legend-tool .si-sat-ctx-rail-legend-glyph {
   width: 36px;

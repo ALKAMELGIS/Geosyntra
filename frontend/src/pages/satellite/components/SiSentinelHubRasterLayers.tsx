@@ -1,8 +1,7 @@
-import { useContext, useMemo } from 'react';
+import { useMemo } from 'react';
 import { Layer, Source } from 'react-map-gl/mapbox';
 import { buildSentinelHubWmsAoiClip } from '../../../lib/sentinelHubWmsAoiClip';
 import type { IndexRampStop } from '../../../lib/siWmsIndexClassificationRamp';
-import { SiWmsSentinelSwipeContext } from './SiWmsSentinelSwipeContext';
 
 export type SiSentinelHubRasterRunLite = {
   aoiId: string;
@@ -60,7 +59,7 @@ function buildLegacyWmsTileUrl(
 }
 
 /**
- * Sentinel Hub WMS raster tiles: multi-AOI stack (unchanged) + legacy single AOI (respects swipe context override).
+ * Sentinel Hub WMS raster tiles: multi-AOI stack (unchanged) + legacy single AOI.
  */
 export function SiSentinelHubRasterLayers(props: SiSentinelHubRasterLayersProps) {
   const {
@@ -81,9 +80,7 @@ export function SiSentinelHubRasterLayers(props: SiSentinelHubRasterLayersProps)
     evalscriptKeyPart,
   } = props;
 
-  const swipeOverride = useContext(SiWmsSentinelSwipeContext);
-  const effectiveLegacyWms =
-    swipeOverride && String(swipeOverride).trim().length > 0 ? String(swipeOverride).trim() : activeWmsLayer;
+  const effectiveLegacyWms = activeWmsLayer;
 
   const legacyClip = useMemo(
     () =>
