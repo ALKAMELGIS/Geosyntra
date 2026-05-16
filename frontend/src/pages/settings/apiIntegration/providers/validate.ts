@@ -29,7 +29,7 @@ export function validateField(
   fieldId: string,
   value: string,
 ): FieldValidation {
-  if (providerId === 'mapbox' && (fieldId === 'accessToken' || fieldId === 'publicToken' || fieldId === 'secretToken')) {
+  if (providerId === 'mapbox' && fieldId === 'accessToken') {
     return validateMapboxToken(value)
   }
   if (providerId === 'openai' && fieldId === 'apiKey') return validateOpenAiKey(value)

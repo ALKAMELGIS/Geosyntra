@@ -32,11 +32,11 @@ const PROVIDERS: ProviderConfig[] = [
     vaultTypeId: 'mapboxToken',
     fieldsByAuth: {
       api_key: fields(
-        field('accessToken', 'Access token', {
+        field('accessToken', 'Mapbox token', {
           required: true,
           secret: SECRET,
           kind: 'password',
-          hint: 'mapbox.com → Account → Access tokens',
+          hint: 'One token from mapbox.com → Account → Access tokens (pk. or sk.)',
         }),
       ),
     },

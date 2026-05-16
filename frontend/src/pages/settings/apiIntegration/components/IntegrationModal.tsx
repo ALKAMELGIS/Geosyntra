@@ -19,6 +19,7 @@ import { useSecureTokens } from '../hooks/useSecureTokens'
 import { ConnectionTester } from './ConnectionTester'
 import { DynamicAuthFields } from './DynamicAuthFields'
 import { ProviderSelector } from './ProviderSelector'
+import { sanitizeIntegrationDraft, stripLegacyMapboxSecrets } from '../sanitizeDraft'
 
 type Props = {
   open: boolean
@@ -68,19 +69,21 @@ export function IntegrationModal({ open, record, onClose, onSaved }: Props) {
   const { secrets, setSecret, revealed, toggleReveal, copySecret, displayValue } = useSecureTokens(
     draft.providerId,
   )
-  const { fieldLevel, isValid } = useIntegrationValidation(draft, secrets)
+  const cleanSecrets = draft.providerId === 'mapbox' ? stripLegacyMapboxSecrets(secrets) : secrets
+  const { fieldLevel, isValid } = useIntegrationValidation(draft, cleanSecrets)
   const { status, message, latencyMs, testing, runTest, reset } = useConnectionTest()
   const { discardDraft } = useAutoSave(draft, open && !record?.id)
 
   useEffect(() => {
     if (!open) return
     if (record) {
-      setDraft(recordToDraft(record))
+      const next = sanitizeIntegrationDraft(recordToDraft(record))
+      setDraft(next)
       const vault = loadVaultSecret(record.providerId)
-      const key = primarySecretKey(record.providerId, record.authType)
+      const key = primarySecretKey(record.providerId, 'api_key')
       if (vault) setSecret(key, vault)
     } else {
-      setDraft(emptyDraft('mapbox'))
+      setDraft(sanitizeIntegrationDraft(emptyDraft('mapbox')))
     }
     setSaveError(null)
     reset()
@@ -94,15 +97,17 @@ export function IntegrationModal({ open, record, onClose, onSaved }: Props) {
 
   const onProviderChange = (providerId: ProviderId) => {
     const p = getProvider(providerId)
-    setDraft(prev => ({
-      ...prev,
-      providerId,
-      authType: p.defaultAuthType,
-      integrationType: p.label,
-      provider: p.label,
-      baseUrl: p.defaultBaseUrl ?? prev.baseUrl,
-      name: prev.name.trim() || `${p.label}`,
-    }))
+    setDraft(prev =>
+      sanitizeIntegrationDraft({
+        ...prev,
+        providerId,
+        authType: p.defaultAuthType,
+        integrationType: p.label,
+        provider: p.label,
+        baseUrl: p.defaultBaseUrl ?? prev.baseUrl,
+        name: prev.name.trim() || `${p.label}`,
+      }),
+    )
     const vault = loadVaultSecret(providerId)
     if (vault) setSecret(primarySecretKey(providerId, p.defaultAuthType), vault)
     reset()
@@ -118,7 +123,7 @@ export function IntegrationModal({ open, record, onClose, onSaved }: Props) {
       authType: draft.authType,
       baseUrl: draft.baseUrl,
       config: draft.config,
-      secrets,
+      secrets: cleanSecrets,
     })
     const now = new Date().toISOString()
     setDraft(prev => ({
@@ -137,13 +142,13 @@ export function IntegrationModal({ open, record, onClose, onSaved }: Props) {
     try {
       const vaultResult = await persistVaultSecret(draft.providerId, draft.authType, {
         ...draft.config,
-        ...secrets,
+        ...cleanSecrets,
       })
       if (!vaultResult.ok) {
         setSaveError('error' in vaultResult ? vaultResult.error : 'Failed to store secret')
         return
       }
-      saveIntegrationRecord({ ...draft, status }, secrets)
+      saveIntegrationRecord({ ...draft, status }, cleanSecrets)
       discardDraft()
       clearDraft()
       onSaved()
@@ -156,7 +161,7 @@ export function IntegrationModal({ open, record, onClose, onSaved }: Props) {
   }
 
   const hasCredentials =
-    Object.values(secrets).some(v => v.trim()) ||
+    Object.values(cleanSecrets).some(v => v.trim()) ||
     Object.values(draft.config).some(v => v.trim() && v !== '__vault__') ||
     Boolean(record?.id)
   const canSave = isValid && draft.name.trim().length > 0 && hasCredentials
