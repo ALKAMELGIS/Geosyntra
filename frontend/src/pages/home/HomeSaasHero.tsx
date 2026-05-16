@@ -22,24 +22,29 @@ export function HomeSaasHero({ copy, preface, startAction }: HomeSaasHeroProps) 
         {copy.lineBefore}
         <br />
         <span className="home-saas-hero__accent-block">
-          <span className="home-saas-hero__accent">{copy.accent}</span>
-          <svg
-            className="home-saas-hero__underline"
-            viewBox="0 0 170 30"
-            fill="none"
-            xmlns="http://www.w3.org/2000/svg"
-            preserveAspectRatio="none"
-            aria-hidden
-          >
-            <path
-              d="M2 9C32.8203 5.34032 108.769 -0.881146 166 3.51047"
-              stroke="currentColor"
-              strokeWidth="6"
-              strokeLinecap="round"
+          <span className="home-saas-hero__accent-marked">
+            <span className="home-saas-hero__accent">{copy.accentHighlight}</span>
+            <svg
+              className="home-saas-hero__underline"
+              viewBox="0 0 96 18"
               fill="none"
-              opacity="0.9"
-            />
-          </svg>
+              xmlns="http://www.w3.org/2000/svg"
+              preserveAspectRatio="none"
+              aria-hidden
+            >
+              <path
+                className="home-saas-hero__underline-path"
+                pathLength={1}
+                d="M2 10C30 6.5 62 5.5 92 8.5"
+                stroke="currentColor"
+                strokeWidth="2.5"
+                strokeLinecap="round"
+                fill="none"
+                opacity="0.88"
+              />
+            </svg>
+          </span>
+          <span className="home-saas-hero__accent-remainder">{copy.accentRemainder}</span>
         </span>{' '}
         {copy.lineAfter}
       </h1>

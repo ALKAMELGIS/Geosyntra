@@ -219,7 +219,7 @@ export function SiWmsIndexClassificationLegend({
       ? `${context.seriesStartIso} → ${context.seriesEndIso}`
       : null
 
-  const badge = composite ? composite.badge : 'Classified'
+  const badge = composite ? composite.badge : 'Scientific'
 
   return (
     <div

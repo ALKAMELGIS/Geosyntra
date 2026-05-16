@@ -5,7 +5,10 @@ import { SAAS_ROUTES } from '../../lib/saasRoutes'
 /** Hero headline split for accent + hand-drawn underline (injected into HomeSaasHero). */
 export type HomeSaasHeroCopy = {
   lineBefore: ReactNode
-  accent: ReactNode
+  /** Word under the animated underline (e.g. "Spatial"). */
+  accentHighlight: ReactNode
+  /** Rest of the accent phrase after the highlight (e.g. " intelligence"). */
+  accentRemainder: ReactNode
   lineAfter: ReactNode
   subtitle: ReactNode
 }
@@ -22,9 +25,10 @@ export const homeSaasContent = {
   ],
   hero: {
     lineBefore: 'Geosyntra built for',
-    accent: 'spatial intelligence',
+    accentHighlight: 'Spatial',
+    accentRemainder: ' intelligence',
     lineAfter: 'without limits',
     subtitle:
-      'Draw areas of interest on the map, run Sentinel NDVI timelines, and export two-page scientific reports — clarity and trust without extra GIS overhead.',
+      'Geosyntra redefines satellite intelligence — transforming raw imagery into high-fidelity, actionable spatial insights through advanced analytics, precision change detection, and publication-ready scientific reporting, all without operational complexity.',
   } satisfies HomeSaasHeroCopy,
 } as const

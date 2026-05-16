@@ -31,6 +31,8 @@ type SiSentinelHubRasterLayersProps = {
   wmsDate: string;
   siWmsMapTimeExtent: { start: string; end: string };
   timelineTransitionMode: SiTimelineTransitionMode;
+  /** When false, raster remounts instantly on date change (no cached previous frame). */
+  isTimelinePlaying?: boolean;
   cloudCoverage: number;
   wmsBaseUrl: string;
   evalscriptKeyPart: (b64: string | null | undefined) => string;
@@ -93,12 +95,14 @@ export function SiSentinelHubRasterLayers(props: SiSentinelHubRasterLayersProps)
     symStopsForWmsLayerId,
     siWmsMapTimeExtent,
     timelineTransitionMode,
+    isTimelinePlaying = false,
     cloudCoverage,
     wmsBaseUrl,
     evalscriptKeyPart,
   } = props;
 
   const smooth = timelineTransitionMode === 'smooth';
+  const timeKey = `${siWmsMapTimeExtent.start}-${siWmsMapTimeExtent.end}`;
   const effectiveLegacyWms = activeWmsLayer;
 
   const legacyClip = useMemo(
@@ -131,7 +135,9 @@ export function SiSentinelHubRasterLayers(props: SiSentinelHubRasterLayersProps)
   );
 
   const captureFrozen = isSiTimelinePlaybackBlocked();
-  const rasterFadeMs = captureFrozen ? 0 : smooth ? Math.min(420, SI_WMS_CROSSFADE_MS) : 0;
+  /** Crossfade only during smooth playback; manual / last frame always instant. */
+  const rasterFadeMs =
+    captureFrozen || !isTimelinePlaying || !smooth ? 0 : Math.min(420, SI_WMS_CROSSFADE_MS);
 
   return (
     <>
@@ -140,9 +146,7 @@ export function SiSentinelHubRasterLayers(props: SiSentinelHubRasterLayersProps)
         siMultiSentinelRasterRuns != null &&
         siMultiSentinelRasterRuns.filter(s => s.ready).map(spec => {
           const stackKey = `${spec.aoiId}-${spec.stackKey}-${spec.wmsLayerId}-${spec.bounds?.join(',') ?? 'nb'}-${spec.clip.geometryWkt3857 ? 'g1' : 'g0'}-${evalscriptKeyPart(spec.clip.evalscriptB64)}`;
-          const sourceKey = smooth
-            ? stackKey
-            : `${stackKey}-${spec.timeStart}-${spec.timeEnd}`;
+          const sourceKey = `${stackKey}-${spec.timeStart}-${spec.timeEnd}`;
           const opacity =
             (spec.clip.evalscriptB64 ? 1 : 0.85) * (spec.bounds ? drawVisualOpacity : 1) * symOpacityForWmsLayerId(spec.wmsLayerId);
 
@@ -169,11 +173,7 @@ export function SiSentinelHubRasterLayers(props: SiSentinelHubRasterLayersProps)
 
       {isMapLoaded && sentinelVisible && siMultiSentinelRasterRuns === null && drawnAoiWmsClipReady ? (
         <Source
-          key={
-            smooth
-              ? `sentinel-${legacyStackKey}`
-              : `sentinel-${legacyStackKey}-${siWmsMapTimeExtent.start}-${siWmsMapTimeExtent.end}`
-          }
+          key={`sentinel-${legacyStackKey}-${timeKey}`}
           id="sentinel-source"
           type="raster"
           tiles={[legacyTileUrl]}

@@ -102,12 +102,18 @@
 }
 
 .home-saas-hero__accent-block {
+  display: inline;
+  white-space: normal;
+}
+
+.home-saas-hero__accent-marked {
   position: relative;
   display: inline-block;
 }
 
-.home-saas-hero__accent {
-  display: inline-block;
+.home-saas-hero__accent,
+.home-saas-hero__accent-remainder {
+  display: inline;
   font-size: clamp(2.25rem, 5.5vw, 4.25rem);
   font-weight: 400;
   letter-spacing: -0.03em;
@@ -118,9 +124,23 @@
   left: 0;
   width: 100%;
   top: 100%;
-  margin-top: -5px;
+  margin-top: -3px;
+  height: 0.55em;
   pointer-events: none;
   color: hsl(var(--foreground, 0 0% 9%));
+  overflow: visible;
+}
+
+.home-saas-hero__underline-path {
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+  animation: home-saas-underline-draw 0.95s cubic-bezier(0.33, 1, 0.68, 1) 0.4s both;
+}
+
+@keyframes home-saas-underline-draw {
+  to {
+    stroke-dashoffset: 0;
+  }
 }
 
 .home-saas-hero__subtitle {
@@ -165,6 +185,11 @@
 @media (prefers-reduced-motion: reduce) {
   .home-saas-hero__anim {
     animation: none;
+  }
+
+  .home-saas-hero__underline-path {
+    animation: none;
+    stroke-dashoffset: 0;
   }
 }
 

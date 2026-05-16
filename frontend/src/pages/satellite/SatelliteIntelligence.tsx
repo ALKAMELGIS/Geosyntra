@@ -89,6 +89,8 @@ import {
   stableFeatureLinkKey,
 } from '../../lib/geoAiLinkedSelection';
 import { SiWmsIndexClassificationLegend, siWmsShowsSpectralLegend } from './components/SiWmsIndexClassificationLegend';
+import { SiWmsLiveLayerLegend } from './components/SiWmsLiveLayerLegend';
+import { mergeSymbologyUi, siWmsResolveLegendDisplayMode } from './utils/siWmsLegendMode';
 import {
   SiWmsSymbologyPopup,
   SiWmsSymbologyToolbarIconButton,
@@ -201,6 +203,7 @@ import {
   type SiTimelineTransitionMode,
 } from './utils/useSiWmsTimelineCrossfade';
 import { buildWeeklyTimelineIndex } from './utils/siTimelineWeekIndex';
+import { dateToTimelineIso, timelineDateFromIso } from './utils/siTimelineDate';
 import { SiAoiZonalPopupBody } from './components/SiAoiZonalPopupBody';
 import { cn } from '../../lib/utils';
 import { SatelliteMapProcessingOptionsPortal } from './components/SatelliteMapProcessingOptionsPortal';
@@ -2687,6 +2690,7 @@ export default function SatelliteIntelligence() {
   const [selectedPivotId, setSelectedPivotId] = useState('all');
   const [weeklyComposites, setWeeklyComposites] = useState<WeeklyComposite[]>([]);
   const weeklyTimelineIndex = useMemo(() => buildWeeklyTimelineIndex(weeklyComposites), [weeklyComposites]);
+  const [activeWeekIdx, setActiveWeekIdx] = useState(0);
   const timelinePlayWeekIdxRef = useRef(0);
   const timelineIntervalRef = useRef<ReturnType<typeof window.setInterval> | null>(null);
   const weeklyTimelineIndexRef = useRef(weeklyTimelineIndex);
@@ -3592,17 +3596,29 @@ export default function SatelliteIntelligence() {
     };
   }, [customLayers]);
 
-  const applySelectedDate = useCallback((date: Date, opts?: { expandRange?: boolean }) => {
-    if (isSiViewportChangeBlocked()) return;
-    const iso = date.toISOString().split('T')[0];
-    const expandRange = opts?.expandRange !== false;
-    startTransition(() => {
+  const applySelectedDate = useCallback(
+    (date: Date, opts?: { expandRange?: boolean; weekIdx?: number }) => {
+      if (isSiViewportChangeBlocked()) return;
+      const iso = dateToTimelineIso(date);
+      const expandRange = opts?.expandRange !== false;
+      const idx = weeklyTimelineIndexRef.current;
+      if (idx?.weeks.length) {
+        const wIdx =
+          typeof opts?.weekIdx === 'number' &&
+          opts.weekIdx >= 0 &&
+          opts.weekIdx < idx.weeks.length
+            ? opts.weekIdx
+            : idx.pickWeekIdx(iso);
+        timelinePlayWeekIdxRef.current = wIdx;
+        setActiveWeekIdx(wIdx);
+      }
       setSelectedDate(date);
-    });
-    if (!expandRange) return;
-    setTimeSeriesStart(prev => (prev && iso < prev ? iso : prev || iso));
-    setTimeSeriesEnd(prev => (prev && iso > prev ? iso : prev || iso));
-  }, []);
+      if (!expandRange) return;
+      setTimeSeriesStart(prev => (prev && iso < prev ? iso : prev || iso));
+      setTimeSeriesEnd(prev => (prev && iso > prev ? iso : prev || iso));
+    },
+    [],
+  );
 
   const advanceTimelinePlaybackStep = useCallback(() => {
     if (isSiTimelinePlaybackBlocked()) return;
@@ -3618,7 +3634,7 @@ export default function SatelliteIntelligence() {
     const nextIdx = idx.nextWeekIdx(timelinePlayWeekIdxRef.current);
     timelinePlayWeekIdxRef.current = nextIdx;
     const w = idx.weeks[nextIdx]!;
-    applySelectedDate(new Date(`${w.startDate}T12:00:00`), { expandRange: false });
+    applySelectedDate(timelineDateFromIso(w.startDate), { expandRange: false, weekIdx: nextIdx });
   }, [applySelectedDate, pauseTimelinePlayback]);
 
   const startTimelinePlayback = useCallback(() => {
@@ -3626,7 +3642,9 @@ export default function SatelliteIntelligence() {
     if (!idx?.weeks.length) return;
     clearTimelinePlaybackInterval();
     timelinePlaybackArmedRef.current = true;
-    timelinePlayWeekIdxRef.current = idx.pickWeekIdx(selectedDateRef.current.toISOString().split('T')[0]);
+    const wIdx = idx.pickWeekIdx(dateToTimelineIso(selectedDateRef.current));
+    timelinePlayWeekIdxRef.current = wIdx;
+    setActiveWeekIdx(wIdx);
     setIsTimelinePlaying(true);
   }, [clearTimelinePlaybackInterval]);
 
@@ -3684,10 +3702,20 @@ export default function SatelliteIntelligence() {
 
   useEffect(() => {
     if (isTimelinePlayingRef.current || !weeklyTimelineIndex) return;
-    timelinePlayWeekIdxRef.current = weeklyTimelineIndex.pickWeekIdx(
-      selectedDate.toISOString().split('T')[0],
-    );
+    const wIdx = weeklyTimelineIndex.pickWeekIdx(dateToTimelineIso(selectedDate));
+    timelinePlayWeekIdxRef.current = wIdx;
+    setActiveWeekIdx(wIdx);
   }, [selectedDate, weeklyTimelineIndex]);
+
+  useEffect(() => {
+    if (!weeklyTimelineIndex?.weeks.length) {
+      setActiveWeekIdx(0);
+      return;
+    }
+    setActiveWeekIdx(prev =>
+      prev >= weeklyTimelineIndex.weeks.length ? weeklyTimelineIndex.weeks.length - 1 : prev,
+    );
+  }, [weeklyTimelineIndex]);
 
   const getGeoJsonBounds = (geojson: any): [number, number, number, number] | null => {
     const points: [number, number][] = [];
@@ -5970,8 +5998,8 @@ export default function SatelliteIntelligence() {
       if (weekEnd > end) weekEnd.setTime(end.getTime());
       windows.push({
         weekIndex,
-        startDate: weekStart.toISOString().split('T')[0],
-        endDate: weekEnd.toISOString().split('T')[0],
+        startDate: dateToTimelineIso(weekStart),
+        endDate: dateToTimelineIso(weekEnd),
         label: `W${String(weekIndex).padStart(2, '0')} ${weekStart.toLocaleDateString('en-GB', { day: '2-digit', month: 'short' })}`,
       });
       cursor.setDate(cursor.getDate() + 7);
@@ -6021,6 +6049,11 @@ export default function SatelliteIntelligence() {
     pauseTimelinePlayback();
     setWeeklyComposites(synthetic);
     setFieldTimelineSessionActive(true);
+    const last = synthetic[synthetic.length - 1]!;
+    applySelectedDate(timelineDateFromIso(last.startDate), {
+      expandRange: false,
+      weekIdx: synthetic.length - 1,
+    });
     setFieldAnalysisStatus(`Timeline ready: ${synthetic.length} week(s) for ${selectedIndexConfig.label}. Tap Play on the map timeline to animate.`);
   };
 
@@ -9761,7 +9794,7 @@ export default function SatelliteIntelligence() {
     return remoteSensingLayerOptions[0]?.id ?? '';
   }, [wmsLayer, remoteSensingLayerOptions]);
 
-  const wmsDate = selectedDate.toISOString().split('T')[0];
+  const wmsDate = dateToTimelineIso(selectedDate);
 
   /**
    * Sentinel Hub WMS `TIME=` for map tiles: when weekly timeline chips exist, use that
@@ -9770,13 +9803,14 @@ export default function SatelliteIntelligence() {
    */
   const siWmsMapTimeExtent = useMemo(() => {
     if (weeklyTimelineIndex) {
-      const w = weeklyTimelineIndex.pickWeek(wmsDate);
+      const w =
+        weeklyTimelineIndex.weeks[activeWeekIdx] ?? weeklyTimelineIndex.pickWeek(wmsDate);
       return { start: w.startDate, end: w.endDate };
     }
     const start = (timeSeriesStart && timeSeriesStart.trim()) || wmsDate;
     const end = (timeSeriesEnd && timeSeriesEnd.trim()) || wmsDate;
     return { start, end };
-  }, [weeklyTimelineIndex, wmsDate, timeSeriesStart, timeSeriesEnd]);
+  }, [weeklyTimelineIndex, activeWeekIdx, wmsDate, timeSeriesStart, timeSeriesEnd]);
 
   const fieldSpectralSceneKey = useMemo(
     () =>
@@ -9933,9 +9967,31 @@ export default function SatelliteIntelligence() {
     timeSeriesEnd,
     isTimelinePlaying,
   ]);
+
+  const wmsLegendDisplayMode = useMemo(
+    () =>
+      siWmsResolveLegendDisplayMode({
+        profile: inferWmsEvalProfile(activeWmsLayer || ''),
+        layerId: activeWmsLayer || '',
+        sentinelVisible,
+        hasAoiGeometry: hasAnyAoiGeometryForSentinel,
+        symbologyPartial: activeWmsLayer ? siWmsSymbologyByLayer[activeWmsLayer] : undefined,
+      }),
+    [activeWmsLayer, sentinelVisible, hasAnyAoiGeometryForSentinel, siWmsSymbologyByLayer],
+  );
+
+  const activeWmsSymbologyUi = useMemo(
+    () => mergeSymbologyUi(activeWmsLayer ? siWmsSymbologyByLayer[activeWmsLayer] : undefined),
+    [activeWmsLayer, siWmsSymbologyByLayer],
+  );
+
   useEffect(() => {
-    if (!wmsSpectralLegend) setMapSpectralLegendOpen(false);
-  }, [wmsSpectralLegend]);
+    if (wmsLegendDisplayMode === 'none') {
+      setMapSpectralLegendOpen(false);
+      return;
+    }
+    setMapSpectralLegendOpen(true);
+  }, [wmsLegendDisplayMode, activeWmsSymbologyUi.autoScientific]);
   const activeBasemapId = useMemo(() => resolveBasemapId(basemapId), [basemapId]);
   const currentBasemapEntry = useMemo(() => {
     return (
@@ -10759,7 +10815,7 @@ export default function SatelliteIntelligence() {
       if (!map || !isMapLoaded) return null;
       const freeze = opts?.freezeViewport === true;
       const exportFast = opts?.captureMode === 'export-fast' || !freeze;
-      const restoreIso = selectedDate.toISOString().split('T')[0];
+      const restoreIso = dateToTimelineIso(selectedDate);
       const targetIso = opts?.date?.slice(0, 10);
       const fit = freeze || exportFast ? undefined : (opts?.fitBounds ?? liveSnapshotFitBounds);
       const aoiFeature = opts?.aoiFeature ?? liveSnapshotAoiFeature;
@@ -10776,7 +10832,7 @@ export default function SatelliteIntelligence() {
           date: shouldShiftDate ? targetIso : undefined,
           applyDate: shouldShiftDate
             ? iso => {
-                applySelectedDate(new Date(`${iso}T12:00:00`), { expandRange: false });
+                applySelectedDate(timelineDateFromIso(iso), { expandRange: false });
               }
             : undefined,
           fitBounds: fit ?? undefined,
@@ -10788,7 +10844,7 @@ export default function SatelliteIntelligence() {
         return null;
       } finally {
         if (shouldShiftDate && !skipRestore) {
-          applySelectedDate(new Date(`${restoreIso}T12:00:00`), { expandRange: false });
+          applySelectedDate(timelineDateFromIso(restoreIso), { expandRange: false });
         }
         if (opts?.resumeTimeline !== false) {
           resumeTimelineAfterSnapshot();
@@ -10808,22 +10864,26 @@ export default function SatelliteIntelligence() {
 
   const satelliteActiveChipId = useMemo(() => {
     if (!weeklyTimelineIndex) return null;
-    const w = weeklyTimelineIndex.pickWeek(selectedDate.toISOString().split('T')[0]);
+    const w =
+      weeklyTimelineIndex.weeks[activeWeekIdx] ??
+      weeklyTimelineIndex.pickWeek(dateToTimelineIso(selectedDate));
     return `w-${w.weekIndex}-${w.startDate}`;
-  }, [weeklyTimelineIndex, selectedDate]);
+  }, [weeklyTimelineIndex, activeWeekIdx, selectedDate]);
 
   const handleSatelliteTimelineStep = (dir: -1 | 1) => {
     if (!weeklyTimelineIndex) return;
-    const i = weeklyTimelineIndex.pickWeekIdx(selectedDate.toISOString().split('T')[0]);
+    const i = weeklyTimelineIndex.pickWeekIdx(dateToTimelineIso(selectedDate));
     const next =
       (i + dir + weeklyTimelineIndex.weeks.length) % weeklyTimelineIndex.weeks.length;
     const w = weeklyTimelineIndex.weeks[next]!;
-    applySelectedDate(new Date(`${w.startDate}T12:00:00`));
+    applySelectedDate(timelineDateFromIso(w.startDate), { expandRange: false, weekIdx: next });
   };
 
   const handleSatelliteChipPick = (id: string) => {
-    const w = weeklyComposites.find(x => `w-${x.weekIndex}-${x.startDate}` === id);
-    if (w) applySelectedDate(new Date(`${w.startDate}T12:00:00`));
+    const idx = weeklyComposites.findIndex(x => `w-${x.weekIndex}-${x.startDate}` === id);
+    if (idx < 0) return;
+    const w = weeklyComposites[idx]!;
+    applySelectedDate(timelineDateFromIso(w.startDate), { expandRange: false, weekIdx: idx });
   };
 
   const satelliteToolbarTool: 'rectangle' | 'polygon' | 'circle' | 'select' = fieldsPanelDrawArmed
@@ -11625,6 +11685,7 @@ export default function SatelliteIntelligence() {
               wmsDate={wmsDate}
               siWmsMapTimeExtent={siWmsMapTimeExtent}
               timelineTransitionMode={timelineTransitionMode}
+              isTimelinePlaying={isTimelinePlaying}
               cloudCoverage={cloudCoverage}
               wmsBaseUrl={wmsBaseUrl}
               evalscriptKeyPart={siWmsEvalscriptKeyPart}
@@ -11992,12 +12053,28 @@ export default function SatelliteIntelligence() {
             {renderSiMapInterior()}
               </MapGL>
 
-          {isMapLoaded && sentinelVisible && wmsSpectralLegend && mapSpectralLegendOpen ? (
+          {isMapLoaded &&
+          mapSpectralLegendOpen &&
+          wmsSpectralLegend &&
+          wmsLegendDisplayMode === 'scientific' ? (
             <SiWmsIndexClassificationLegend
               profile={wmsSpectralLegend.profile}
               layerLabel={wmsSpectralLegend.label}
               context={wmsSpectralLegend.context}
               classifiedStopsOverride={symStopsForWmsLayerId(activeWmsLayer || '')}
+            />
+          ) : null}
+          {isMapLoaded &&
+          mapSpectralLegendOpen &&
+          wmsSpectralLegend &&
+          wmsLegendDisplayMode === 'live' ? (
+            <SiWmsLiveLayerLegend
+              profile={wmsSpectralLegend.profile}
+              layerId={activeWmsLayer || ''}
+              layerLabel={wmsSpectralLegend.label}
+              context={wmsSpectralLegend.context}
+              symbologyUi={activeWmsSymbologyUi}
+              symbologyPartial={activeWmsLayer ? siWmsSymbologyByLayer[activeWmsLayer] : undefined}
             />
           ) : null}
 
@@ -12434,7 +12511,7 @@ export default function SatelliteIntelligence() {
                 <i className="fa-solid fa-palette" aria-hidden />
               </button>
             }
-            mapSpectralLegendAvailable={Boolean(wmsSpectralLegend && sentinelVisible)}
+            mapSpectralLegendAvailable={wmsLegendDisplayMode !== 'none' && sentinelVisible}
             mapSpectralLegendOpen={mapSpectralLegendOpen}
             onToggleMapSpectralLegend={() => setMapSpectralLegendOpen(o => !o)}
           />

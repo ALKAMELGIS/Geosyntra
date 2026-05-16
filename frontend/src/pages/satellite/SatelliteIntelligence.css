@@ -1012,6 +1012,43 @@ main.content > .si-page {
   min-width: 0;
 }
 
+.si-wms-index-class-legend--live {
+  min-width: 168px;
+  max-width: min(240px, 44vw);
+  padding: 10px 12px 11px;
+  box-shadow:
+    0 0 0 1px rgba(255, 255, 255, 0.04) inset,
+    0 14px 32px rgba(2, 6, 23, 0.5);
+}
+
+.si-wms-index-class-legend__badge--live {
+  background: rgba(56, 189, 248, 0.18);
+  color: #7dd3fc;
+  border: 1px solid rgba(56, 189, 248, 0.35);
+}
+
+.si-wms-index-class-legend__badge:not(.si-wms-index-class-legend__badge--live):not(.si-wms-index-class-legend__badge--composite) {
+  background: rgba(34, 197, 94, 0.16);
+  color: #86efac;
+  border: 1px solid rgba(34, 197, 94, 0.32);
+}
+
+.si-wms-index-class-legend__hint--live {
+  margin-bottom: 8px;
+  font-size: 10px;
+  line-height: 1.4;
+}
+
+.si-wms-index-class-legend__body--live {
+  margin-top: 2px;
+}
+
+.si-wms-index-class-legend__body--live .si-wms-index-class-legend__bar {
+  min-height: 72px;
+  width: 28px;
+  border-radius: 6px;
+}
+
 .si-wms-index-class-legend__title {
   font-size: 12px;
   font-weight: 800;
