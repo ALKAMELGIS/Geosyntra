@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { appConfirm } from '../../lib/appDialog'
-import { useLocation } from 'react-router-dom'
+import { useLocation, useSearchParams } from 'react-router-dom'
 import * as yup from 'yup'
 import { useLanguage } from '../../lib/i18n'
 import { hasPermission, normalizeRole, readCurrentUser } from '../../lib/auth'
@@ -56,6 +56,7 @@ export default function SystemSettings() {
     () => NAV_DEFAULT_GROUPS.find(g => g.id !== 'data')?.id ?? 'dashboard',
   )
   const location = useLocation()
+  const [searchParams, setSearchParams] = useSearchParams()
 
   const role = normalizeRole(readCurrentUser()?.role)
 
@@ -64,6 +65,15 @@ export default function SystemSettings() {
   useEffect(() => {
     setDraft(settings)
   }, [location.pathname, setDraft, settings])
+
+  /** API Vault tab removed — old header/deep links with ?tab=api-tokens land on Theme. */
+  useEffect(() => {
+    if (searchParams.get('tab') !== 'api-tokens') return
+    const next = new URLSearchParams(searchParams)
+    next.delete('tab')
+    setSearchParams(next, { replace: true })
+    setTab('theme')
+  }, [searchParams, setSearchParams])
 
   useEffect(() => {
     applyThemeToDocument(draft)
