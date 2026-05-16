@@ -923,6 +923,8 @@ export type SiAoiPdfExportOptions = {
   changeSlotMapImageDataUrls?: (string | null | undefined)[] | null;
   /** Optional Gemini executive summary (plain text) for the Data & Insights PDF block. */
   executiveSummaryAi?: string | null;
+  /** Five interpretation bullets (Gemini or client fallback) for page 3. */
+  interpretationPoints?: string[] | null;
 };
 
 function addChangeDetectionPageGrid(
@@ -1090,6 +1092,49 @@ function pdfInitBodyTypography(doc: jsPDF) {
   }
 }
 
+/** Normalize Unicode punctuation for Helvetica PDF output (avoids missing glyphs / odd spacing). */
+export function pdfSafeText(raw: string): string {
+  return String(raw ?? '')
+    .replace(/[\u00a0\u1680\u2000-\u200a\u202f\u205f\u3000\ufeff]/g, ' ')
+    .replace(/[\u2013\u2014\u2212]/g, '-')
+    .replace(/\u00b7/g, ', ')
+    .replace(/[\u2018\u2019]/g, "'")
+    .replace(/[\u201c\u201d]/g, '"')
+    .replace(/\u2026/g, '...')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function healthTierForBandIndex(i: number, total: number): 'High' | 'Medium' | 'Low' {
+  if (total <= 1) return 'Medium';
+  const t = (i + 0.5) / total;
+  if (t >= 0.67) return 'High';
+  if (t >= 0.34) return 'Medium';
+  return 'Low';
+}
+
+/** Client-side interpretation bullets when Gemini is unavailable. */
+export function buildFallbackInterpretationPoints(report: SiAoiReportModel): string[] {
+  const di = report.dataInsights;
+  const mean =
+    report.timeSeries.length > 0
+      ? report.timeSeries.reduce((a, t) => a + t.value, 0) / report.timeSeries.length
+      : 0;
+  const meanStr = report.indexId === 'LST' ? mean.toFixed(1) : mean.toFixed(3);
+  const top = [...report.tableRows].sort((a, b) => b.pct - a.pct)[0];
+  const lowBand = [...report.tableRows].sort((a, b) => a.pct - b.pct)[0];
+  const veg = di.dashboard.vegChangePct;
+  return [
+    `${report.indexLabel} period mean (${meanStr}) across ${report.dateStart} to ${report.dateEnd} frames the dominant signal inside "${report.aoiName}" (${report.aoiAreaKm2.toFixed(2)} km2).`,
+    `The largest class share (${top?.pct.toFixed(1) ?? '0'}%, range ${pdfSafeText(top?.labelEn ?? '-')}) controls ${top?.areaKm2.toFixed(2) ?? '0'} km2 and should be treated as the primary management stratum.`,
+    `Low-cover classes (e.g. ${pdfSafeText(lowBand?.labelEn ?? 'lower bins')}, ${lowBand?.pct.toFixed(1) ?? '0'}%) concentrate ${lowBand?.areaKm2.toFixed(2) ?? '0'} km2; verify with field plots if operational decisions depend on bare or stressed patches.`,
+    `Multi-index context: NDVI avg ${di.dashboard.ndviAvg.toFixed(3)}, NDWI status ${di.dashboard.ndwiStatusLabel}, LST heat risk ${di.dashboard.heatRiskLabel}; vegetation trend ${veg >= 0 ? '+' : ''}${veg.toFixed(1)}% over the window.`,
+    report.stressNoteEn
+      ? `Stress alert: ${pdfSafeText(report.stressNoteEn)} Prioritize ground truthing and reference polygons before irrigation or input changes.`
+      : `No acute stress pattern was flagged in the numeric sample; continue routine monitoring and align inputs with the dominant class trajectory.`,
+  ];
+}
+
 function hexToRgbTriplet(hex: string): [number, number, number] {
   const m = /^#?([0-9a-fA-F]{6})$/.exec(hex.trim());
   if (!m) return [34, 197, 94];
@@ -1216,6 +1261,67 @@ function drawPieSlicesPdf(
   doc.setDrawColor(226, 232, 240);
   doc.setLineWidth(0.45);
   doc.circle(cx, cy, r, 'S');
+}
+
+/** Class share bars (colored per legend band) for page 1 of the scientific GIS report. */
+function drawClassComparisonBarsPdf(
+  doc: jsPDF,
+  rows: SiAoiReportTableRow[],
+  indexLabel: string,
+  x: number,
+  yTop: number,
+  w: number,
+  h: number,
+) {
+  const n = rows.length || 1;
+  const padT = 8;
+  const padB = 22;
+  const rowH = (h - padT - padB) / n;
+  const labelColW = Math.min(108, Math.max(72, w * 0.34));
+  const barX = x + labelColW + 6;
+  const barW = Math.max(48, w - labelColW - 52);
+  const maxPct = Math.max(1, ...rows.map(r => r.pct));
+
+  doc.setDrawColor(226, 232, 240);
+  doc.setLineWidth(0.35);
+  doc.roundedRect(x, yTop, w, h, 4, 4, 'S');
+
+  for (let i = 0; i < rows.length; i++) {
+    const row = rows[i]!;
+    const yy = yTop + padT + i * rowH + 2;
+    const tier = healthTierForBandIndex(i, rows.length);
+    const [R, G, B] = hexToRgbTriplet(row.colorHex ?? '#22c55e');
+
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(7);
+    doc.setTextColor(71, 85, 105);
+    doc.text(`${i + 1}.`, x + 5, yy + rowH * 0.42);
+
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(7);
+    const lab = pdfSafeText(row.labelEn);
+    const labLines = doc.splitTextToSize(lab, labelColW - 18);
+    pdfTextBodyLines(doc, labLines.slice(0, 1), x + 14, yy + 4, 1.15);
+
+    doc.setFontSize(6.5);
+    doc.setTextColor(100, 116, 139);
+    doc.text(tier, x + 14, yy + rowH * 0.62);
+
+    const t = Math.max(0.04, row.pct / maxPct);
+    doc.setFillColor(R, G, B);
+    doc.roundedRect(barX, yy + 2, Math.max(2, t * barW), rowH - 8, 1.5, 1.5, 'F');
+
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(7.5);
+    doc.setTextColor(15, 23, 42);
+    const stat = `${row.pct.toFixed(1)}%  |  ${row.areaKm2.toFixed(2)} km2`;
+    doc.text(stat, barX + t * barW + 5, yy + rowH * 0.48);
+  }
+
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(6.5);
+  doc.setTextColor(100, 116, 139);
+  doc.text(pdfSafeText(`${indexLabel} class area shares (High / Medium / Low by index range)`), x + 6, yTop + h - 8);
 }
 
 function drawBarSeriesPdf(
@@ -1394,112 +1500,271 @@ function appendDataInsightsPdf(doc: jsPDF, report: SiAoiReportModel, opts: SiAoi
   return y;
 }
 
-/**
- * AOI-only PDF: narrative, table, high-res chart + optional map snapshot. No timeline grid page.
- */
-function buildAoiAnalysisPdfDocument(doc: jsPDF, report: SiAoiReportModel, opts: SiAoiPdfExportOptions) {
-  const margin = 48;
-  const textW = doc.internal.pageSize.getWidth() - margin * 2;
-  let y = margin;
-
+function drawPdfReportBanner(doc: jsPDF, title: string, subtitle: string, margin: number) {
   const pageW = doc.internal.pageSize.getWidth();
   doc.setFillColor(15, 23, 42);
-  doc.rect(0, 0, pageW, 44, 'F');
+  doc.rect(0, 0, pageW, 50, 'F');
   doc.setTextColor(248, 250, 252);
-  doc.setFontSize(15);
+  doc.setFontSize(14);
   doc.setFont('helvetica', 'bold');
-  doc.text('AOI analysis report', margin, 28);
+  doc.text(pdfSafeText(title), margin, 26);
   doc.setFont('helvetica', 'normal');
-  doc.setFontSize(9);
+  doc.setFontSize(8.5);
   doc.setTextColor(203, 213, 225);
-  doc.text('Geosyntra · Satellite intelligence (export)', margin, 40);
+  doc.text(pdfSafeText(subtitle), margin, 40);
+}
 
-  y = 58;
+function scientificTableBody(report: SiAoiReportModel): string[][] {
+  const n = report.tableRows.length;
+  return report.tableRows.map((row, i) => [
+    String(i + 1),
+    healthTierForBandIndex(i, n),
+    pdfSafeText(row.labelEn),
+    `${row.areaKm2.toFixed(3)} km2`,
+    `${row.pct.toFixed(1)}%`,
+  ]);
+}
+
+/**
+ * Scientific GIS report — page 1: bars + table + stress; page 2: map; page 3: interpretation.
+ */
+function buildAoiAnalysisPdfDocument(doc: jsPDF, report: SiAoiReportModel, opts: SiAoiPdfExportOptions) {
+  const margin = 44;
+  const textW = doc.internal.pageSize.getWidth() - margin * 2;
+  const pageH = doc.internal.pageSize.getHeight();
+  const bodyLh = 1.32;
+
+  drawPdfReportBanner(
+    doc,
+    'Scientific GIS report (AOI)',
+    `Geosyntra Satellite Intelligence  |  ${pdfSafeText(report.aoiName)}`,
+    margin,
+  );
+
+  let y = 62;
   doc.setTextColor(15, 23, 42);
-  doc.setFontSize(10);
-  doc.text(`AOI: ${report.aoiName}`, margin, y);
-  y += 14;
-  doc.text(`Index: ${report.indexLabel}   Period: ${report.dateStart} .. ${report.dateEnd}`, margin, y);
-  y += 14;
-  doc.text(`AOI area: ${report.aoiAreaKm2.toFixed(3)} km²`, margin, y);
-  y += 22;
-
-  y = appendDataInsightsPdf(doc, report, opts, margin, y);
-  y += 10;
-
-  doc.setFontSize(11);
-  doc.setFont('helvetica', 'bold');
-  doc.text('Scientific analysis', margin, y);
   doc.setFont('helvetica', 'normal');
-  y += 15;
   doc.setFontSize(9);
-  const analysisLh = 1.36;
-  const analysisWrap = doc.splitTextToSize(report.analysisEn, textW);
-  y = pdfEnsureSpace(doc, y, margin, analysisWrap.length * doc.getFontSize() * analysisLh + 12);
-  y = pdfTextBodyLines(doc, analysisWrap, margin, y, analysisLh) + 10;
-  if (report.stressNoteEn) {
-    doc.setTextColor(154, 52, 18);
-    const st = doc.splitTextToSize(`Stress note: ${report.stressNoteEn}`, textW);
-    y = pdfEnsureSpace(doc, y, margin, st.length * doc.getFontSize() * analysisLh + 12);
-    y = pdfTextBodyLines(doc, st, margin, y, analysisLh) + 12;
-    doc.setTextColor(15, 23, 42);
+  const meta = [
+    `Index: ${pdfSafeText(report.indexLabel)}`,
+    `Period: ${report.dateStart} to ${report.dateEnd}`,
+    `AOI area: ${report.aoiAreaKm2.toFixed(3)} km2`,
+    `Legend bands: ${report.legendBandCount}`,
+  ];
+  for (const line of meta) {
+    doc.text(pdfSafeText(line), margin, y);
+    y += 12;
   }
+  y += 6;
+
+  const mean =
+    report.timeSeries.length > 0
+      ? report.timeSeries.reduce((a, t) => a + t.value, 0) / report.timeSeries.length
+      : 0;
+  const meanStr = report.indexId === 'LST' ? mean.toFixed(2) : mean.toFixed(3);
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(9.5);
+  doc.text('Index comparison (class bars)', margin, y);
+  y += 12;
+  const barH = Math.min(132, Math.max(72, report.tableRows.length * 17 + 28));
+  drawClassComparisonBarsPdf(doc, report.tableRows, report.indexLabel, margin, y, textW, barH);
+  y += barH + 14;
+
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(9.5);
+  doc.setTextColor(15, 23, 42);
+  doc.text('Scientific analysis table', margin, y);
+  y += 4;
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(8);
+  doc.setTextColor(71, 85, 105);
+  doc.text(
+    pdfSafeText(
+      `${report.indexLabel} period mean ~ ${meanStr}. Shares by classified index range inside the AOI.`,
+    ),
+    margin,
+    y + 10,
+  );
+  y += 20;
 
   autoTable(doc, {
     startY: y,
-    head: [['Class', 'Area (km²)', 'Share %']],
-    body: report.tableRows.map(r => [r.labelEn, r.areaKm2.toFixed(3), r.pct.toFixed(1)]),
-    styles: { fontSize: 9, cellPadding: 3.5, lineColor: [226, 232, 240], lineWidth: 0.25 },
-    headStyles: { fillColor: [21, 128, 61], textColor: 255, fontStyle: 'bold' },
+    margin: { left: margin, right: margin },
+    tableWidth: textW,
+    head: [['Class No', 'Class name', 'Index value', 'Area', 'Share %']],
+    body: scientificTableBody(report),
+    styles: {
+      font: 'helvetica',
+      fontSize: 8,
+      cellPadding: { top: 3, right: 4, bottom: 3, left: 4 },
+      lineColor: [226, 232, 240],
+      lineWidth: 0.25,
+      textColor: [30, 41, 59],
+      overflow: 'linebreak',
+      cellWidth: 'wrap',
+    },
+    headStyles: {
+      fillColor: [21, 94, 50],
+      textColor: 255,
+      fontStyle: 'bold',
+      fontSize: 8,
+    },
+    columnStyles: {
+      0: { cellWidth: 42, halign: 'center' },
+      1: { cellWidth: 62, halign: 'center' },
+      2: { cellWidth: 72 },
+      3: { cellWidth: 68, halign: 'right' },
+      4: { cellWidth: 48, halign: 'right' },
+    },
     alternateRowStyles: { fillColor: [248, 250, 252] },
+    didParseCell: (data: any) => {
+      if (data.section !== 'body' || data.column.index !== 1) return;
+      const tier = String(data.cell.raw ?? '');
+      if (tier === 'High') data.cell.styles.fillColor = [220, 252, 231];
+      else if (tier === 'Medium') data.cell.styles.fillColor = [254, 249, 195];
+      else if (tier === 'Low') data.cell.styles.fillColor = [254, 226, 226];
+    },
+    showHead: 'everyPage',
+    rowPageBreak: 'avoid',
   });
-  y = (doc as any).lastAutoTable.finalY + 18;
+  y = (doc as any).lastAutoTable.finalY + 12;
 
-  if (report.timeSeries.length >= 2) {
-    const tlH = 168;
-    y = pdfEnsureSpace(doc, y, margin, tlH + 28);
-    doc.setFontSize(10);
-    doc.setFont('helvetica', 'bold');
-    doc.setTextColor(15, 23, 42);
-    doc.text(`${report.indexLabel} timeline`, margin, y);
-    y += 14;
-    drawIndexTimelineVectorPdf(doc, report.timeSeries, report.indexId, margin, y, textW, tlH);
-    y += tlH + 12;
-  }
+  const topRow = report.tableRows.length
+    ? [...report.tableRows].sort((a, b) => b.pct - a.pct)[0]
+    : null;
+  const stressText = report.stressNoteEn
+    ? pdfSafeText(`Stress note: ${report.stressNoteEn}`)
+    : pdfSafeText(
+        `Stress note: No strong stress pattern was flagged in this sample; continue routine monitoring aligned with the dominant class share (${topRow?.pct.toFixed(1) ?? '0'}%).`,
+      );
 
-  if (opts.aoiMapImageDataUrl) {
-    try {
-      const maxMapH = 240;
-      if (y + maxMapH > doc.internal.pageSize.getHeight() - margin) {
-        doc.addPage();
-        y = margin;
-      }
-      doc.setFontSize(10);
-      doc.setFont('helvetica', 'bold');
-      doc.setTextColor(15, 23, 42);
-      doc.text('AOI map — basemap, classification, AOI, north, scale, legend', margin, y);
-      y += 12;
-      const fitted = pdfEmbedPngFit(doc, opts.aoiMapImageDataUrl, margin, y, textW, maxMapH);
-      y += (fitted.h > 0 ? fitted.h : maxMapH) + 14;
-    } catch {
-      /* ignore map embed */
-    }
-  }
-
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(8.5);
-  doc.setTextColor(100, 116, 139);
-  const foot = doc.splitTextToSize(
-    'Raster map figures embed at 2× resolution when captured from the live preview. Timeline and chart geometry in this export are vector paths for sharp printing. For acquisition-true imagery, connect STAC in the main Satellite workspace.',
-    textW,
-  );
-  const footLh = 1.34;
-  const footH = foot.length * doc.getFontSize() * footLh + 8;
-  if (y + footH > doc.internal.pageSize.getHeight() - margin) {
+  if (y + 48 > pageH - margin) {
     doc.addPage();
     y = margin;
   }
-  pdfTextBodyLines(doc, foot, margin, y, footLh);
+  doc.setFillColor(254, 242, 242);
+  doc.setDrawColor(248, 113, 113);
+  doc.setLineWidth(0.4);
+  const stressLines = doc.splitTextToSize(stressText, textW - 16);
+  const boxH = stressLines.length * 9.5 * bodyLh + 14;
+  doc.roundedRect(margin, y, textW, boxH, 4, 4, 'FD');
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(8.5);
+  doc.setTextColor(153, 27, 27);
+  pdfTextBodyLines(doc, stressLines, margin + 8, y + 12, bodyLh);
+  y += boxH + 10;
+
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(7.5);
+  doc.setTextColor(100, 116, 139);
+  const brief = doc.splitTextToSize(pdfSafeText(report.analysisEn), textW);
+  if (y + brief.length * 8 * bodyLh < pageH - margin - 8) {
+    pdfTextBodyLines(doc, brief.slice(0, 3), margin, y, bodyLh);
+  }
+
+  doc.addPage();
+  y = margin;
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(12);
+  doc.setTextColor(15, 23, 42);
+  doc.text('AOI map output', margin, y);
+  y += 10;
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(8);
+  doc.setTextColor(71, 85, 105);
+  doc.text(
+    pdfSafeText(
+      'Live Map Viewer snapshot: basemap, WMS classification, AOI clip, north arrow, scale, and legend strip.',
+    ),
+    margin,
+    y + 2,
+  );
+  y += 22;
+
+  const mapBoxH = pageH - y - margin;
+  if (opts.aoiMapImageDataUrl && String(opts.aoiMapImageDataUrl).startsWith('data:image')) {
+    try {
+      const fitted = pdfEmbedPngFit(doc, opts.aoiMapImageDataUrl, margin, y, textW, mapBoxH);
+      if (fitted.h < 1) {
+        doc.setFontSize(9);
+        doc.setTextColor(148, 163, 184);
+        doc.text('Map snapshot unavailable. Regenerate the report preview with the map loaded.', margin, y + 40);
+      }
+    } catch {
+      doc.setFontSize(9);
+      doc.setTextColor(148, 163, 184);
+      doc.text('Map embed failed. Capture the live map from the report preview and export again.', margin, y + 40);
+    }
+  } else {
+    doc.setDrawColor(203, 213, 225);
+    doc.setLineWidth(0.5);
+    doc.roundedRect(margin, y, textW, Math.min(mapBoxH, 320), 6, 6, 'S');
+    doc.setFontSize(9);
+    doc.setTextColor(148, 163, 184);
+    doc.text('No map image was captured. Open AOI analysis in the report preview before PDF export.', margin + 12, y + 48);
+  }
+
+  const points =
+    opts.interpretationPoints?.filter(p => p?.trim()).slice(0, 5) ??
+    buildFallbackInterpretationPoints(report);
+
+  doc.addPage();
+  y = margin;
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(12);
+  doc.setTextColor(15, 23, 42);
+  doc.text('Interpretation and recommendations', margin, y);
+  y += 16;
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(8.5);
+  doc.setTextColor(71, 85, 105);
+  const intro = doc.splitTextToSize(
+    pdfSafeText(
+      `Analytical points derived from ${report.indexLabel}, class area shares, and period statistics for ${report.aoiName}.`,
+    ),
+    textW,
+  );
+  y = pdfTextBodyLines(doc, intro, margin, y, bodyLh) + 10;
+
+  doc.setFontSize(9);
+  doc.setTextColor(30, 41, 59);
+  for (let i = 0; i < points.length; i++) {
+    const pt = pdfSafeText(points[i]!);
+    const lines = doc.splitTextToSize(`${i + 1}. ${pt}`, textW - 12);
+    y = pdfEnsureSpace(doc, y, margin, lines.length * 11 * bodyLh + 8);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(21, 94, 50);
+    doc.text(String(i + 1), margin, y);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(30, 41, 59);
+    y = pdfTextBodyLines(doc, lines, margin + 14, y, bodyLh) + 8;
+  }
+
+  if (opts.executiveSummaryAi?.trim()) {
+    y = pdfEnsureSpace(doc, y, margin, 40);
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(9.5);
+    doc.setTextColor(15, 23, 42);
+    doc.text('Executive summary (AI-assisted)', margin, y);
+    y += 12;
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(8.5);
+    doc.setTextColor(51, 65, 85);
+    const exec = doc.splitTextToSize(pdfSafeText(getSiAoiExportExecutiveSummaryText(report, opts.executiveSummaryAi)), textW);
+    y = pdfTextBodyLines(doc, exec, margin, y, bodyLh) + 8;
+  }
+
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(7.5);
+  doc.setTextColor(148, 163, 184);
+  const foot = doc.splitTextToSize(
+    pdfSafeText(
+      'Scientific GIS report. Vector charts and tables use Helvetica-compatible text. Map raster from live preview at up to 2x resolution. Connect STAC for acquisition-true imagery.',
+    ),
+    textW,
+  );
+  y = pdfEnsureSpace(doc, y, margin, foot.length * 8);
+  pdfTextBodyLines(doc, foot, margin, y, 1.28);
 }
 
 function buildTimeSeriesChangeDetectionPdfDocument(doc: jsPDF, report: SiAoiReportModel, opts: SiAoiPdfExportOptions) {

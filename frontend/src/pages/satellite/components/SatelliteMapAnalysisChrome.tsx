@@ -20,7 +20,18 @@ export type MapToolboxNavigateHandler = (
 ) => void;
 import { MapToolsDock } from './MapToolsDock';
 
+const SI_MAP_TIMELINE_POS_LS = 'si-sat-map-timeline-pos-v2';
 const SI_MAP_TIMELINE_OFFSET_LS = 'si-sat-map-timeline-offset-v1';
+
+type TimelineViewportPos = { left: number; top: number };
+
+function defaultTimelineViewportPos(): TimelineViewportPos {
+  if (typeof window === 'undefined') return { left: 480, top: 520 };
+  return {
+    left: window.innerWidth * 0.5,
+    top: Math.max(72, window.innerHeight - 148),
+  };
+}
 
 function readStoredTimelineOffset(): { x: number; y: number } {
   if (typeof window === 'undefined') return { x: 0, y: 0 };
@@ -37,16 +48,46 @@ function readStoredTimelineOffset(): { x: number; y: number } {
   }
 }
 
-function clampTimelineOffset(x: number, y: number): { x: number; y: number } {
-  if (typeof window === 'undefined') return { x, y };
-  const vw = window.innerWidth;
-  const vh = window.innerHeight;
-  const maxX = Math.min(440, vw * 0.46);
-  const maxY = Math.min(360, vh * 0.42);
+function readStoredTimelinePos(): TimelineViewportPos {
+  if (typeof window === 'undefined') return defaultTimelineViewportPos();
+  try {
+    const raw = localStorage.getItem(SI_MAP_TIMELINE_POS_LS);
+    if (raw) {
+      const o = JSON.parse(raw) as { left?: unknown; top?: unknown };
+      const left = Number(o.left);
+      const top = Number(o.top);
+      if (Number.isFinite(left) && Number.isFinite(top)) return { left, top };
+    }
+  } catch {
+    /* ignore */
+  }
+  const legacy = readStoredTimelineOffset();
+  const base = defaultTimelineViewportPos();
+  return { left: base.left + legacy.x, top: base.top + legacy.y };
+}
+
+function clampTimelinePos(
+  left: number,
+  top: number,
+  size?: { width: number; height: number },
+): TimelineViewportPos {
+  if (typeof window === 'undefined') return { left, top };
+  const pad = 14;
+  const w = size?.width ?? 720;
+  const h = size?.height ?? 118;
+  const halfW = w / 2;
   return {
-    x: Math.max(-maxX, Math.min(maxX, x)),
-    y: Math.max(-maxY, Math.min(maxY, y)),
+    left: Math.max(pad + halfW, Math.min(window.innerWidth - pad - halfW, left)),
+    top: Math.max(pad, Math.min(window.innerHeight - pad - h, top)),
   };
+}
+
+/** Compact range labels on the scrub rail (avoids crowding full ISO strings). */
+function formatTimelineScrubDate(iso: string): string {
+  if (!iso) return '—';
+  const s = iso.slice(0, 10);
+  if (s.length < 10) return s;
+  return s.slice(5);
 }
 
 export type TimelineChip = {
@@ -245,11 +286,12 @@ function sparkPath(values: number[], w: number, h: number): string {
 
 export function SatelliteMapAnalysisChrome(props: SatelliteMapAnalysisChromeProps) {
   const chipStripRef = useRef<HTMLDivElement | null>(null);
-  const timelineOffsetRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
-  const [timelineOffset, setTimelineOffset] = useState(readStoredTimelineOffset);
+  const timelineShellRef = useRef<HTMLDivElement | null>(null);
+  const timelinePosRef = useRef<TimelineViewportPos>(readStoredTimelinePos);
+  const [timelinePos, setTimelinePos] = useState<TimelineViewportPos>(readStoredTimelinePos);
   const [timelineDragging, setTimelineDragging] = useState(false);
 
-  timelineOffsetRef.current = timelineOffset;
+  timelinePosRef.current = timelinePos;
   const {
     weeklyChips,
     activeChipId,
@@ -322,8 +364,10 @@ export function SatelliteMapAnalysisChrome(props: SatelliteMapAnalysisChromeProp
     return activeIndex / (weeklyChips.length - 1);
   }, [weeklyChips.length, activeIndex]);
 
-  const rangeStartLabel = weeklyChips[0]?.fullDate ?? '';
-  const rangeEndLabel = weeklyChips[weeklyChips.length - 1]?.fullDate ?? '';
+  const rangeStartLabel = formatTimelineScrubDate(weeklyChips[0]?.fullDate ?? '');
+  const rangeEndLabel = formatTimelineScrubDate(weeklyChips[weeklyChips.length - 1]?.fullDate ?? '');
+  const rangeStartTitle = weeklyChips[0]?.fullDate ?? '';
+  const rangeEndTitle = weeklyChips[weeklyChips.length - 1]?.fullDate ?? '';
 
   const playbackSpeedLabel = useMemo(() => {
     const base = 1400;
@@ -333,48 +377,84 @@ export function SatelliteMapAnalysisChrome(props: SatelliteMapAnalysisChromeProp
     return `${Math.round(x)}×`;
   }, [timelinePlaybackMs]);
 
-  const onTimelineDragHandlePointerDown = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
-    if (e.pointerType === 'mouse' && e.button !== 0) return;
-    e.preventDefault();
-    const cur = timelineOffsetRef.current;
-    const start = { ox: cur.x, oy: cur.y, cx: e.clientX, cy: e.clientY };
-    setTimelineDragging(true);
-    const handle = e.currentTarget;
+  const persistTimelinePos = useCallback((pos: TimelineViewportPos) => {
     try {
-      handle.setPointerCapture(e.pointerId);
+      localStorage.setItem(SI_MAP_TIMELINE_POS_LS, JSON.stringify(pos));
     } catch {
       /* ignore */
     }
+  }, []);
 
-    const onMove = (ev: PointerEvent) => {
-      setTimelineOffset(clampTimelineOffset(start.ox + (ev.clientX - start.cx), start.oy + (ev.clientY - start.cy)));
+  const measureTimelineSize = useCallback(() => {
+    const el = timelineShellRef.current;
+    if (!el) return { width: 720, height: 118 };
+    const r = el.getBoundingClientRect();
+    return { width: r.width || 720, height: r.height || 118 };
+  }, []);
+
+  useLayoutEffect(() => {
+    const onResize = () => {
+      setTimelinePos(prev => clampTimelinePos(prev.left, prev.top, measureTimelineSize()));
     };
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
+  }, [measureTimelineSize]);
 
-    const finish = (ev: PointerEvent) => {
-      window.removeEventListener('pointermove', onMove);
-      window.removeEventListener('pointerup', finish);
-      window.removeEventListener('pointercancel', finish);
+  const onTimelineDragHandlePointerDown = useCallback(
+    (e: React.PointerEvent<HTMLDivElement>) => {
+      if (e.pointerType === 'mouse' && e.button !== 0) return;
+      e.preventDefault();
+      e.stopPropagation();
+      const cur = timelinePosRef.current;
+      const start = { left: cur.left, top: cur.top, cx: e.clientX, cy: e.clientY };
+      setTimelineDragging(true);
+      const handle = e.currentTarget;
       try {
-        handle.releasePointerCapture(ev.pointerId);
+        handle.setPointerCapture(e.pointerId);
       } catch {
         /* ignore */
       }
-      setTimelineDragging(false);
-      setTimelineOffset(prev => {
-        const c = clampTimelineOffset(prev.x, prev.y);
+
+      const onMove = (ev: PointerEvent) => {
+        const size = measureTimelineSize();
+        setTimelinePos(
+          clampTimelinePos(
+            start.left + (ev.clientX - start.cx),
+            start.top + (ev.clientY - start.cy),
+            size,
+          ),
+        );
+      };
+
+      const finish = (ev: PointerEvent) => {
+        window.removeEventListener('pointermove', onMove);
+        window.removeEventListener('pointerup', finish);
+        window.removeEventListener('pointercancel', finish);
         try {
-          localStorage.setItem(SI_MAP_TIMELINE_OFFSET_LS, JSON.stringify(c));
+          handle.releasePointerCapture(ev.pointerId);
         } catch {
           /* ignore */
         }
-        return c;
-      });
-    };
+        setTimelineDragging(false);
+        setTimelinePos(prev => {
+          const c = clampTimelinePos(prev.left, prev.top, measureTimelineSize());
+          persistTimelinePos(c);
+          return c;
+        });
+      };
 
-    window.addEventListener('pointermove', onMove);
-    window.addEventListener('pointerup', finish);
-    window.addEventListener('pointercancel', finish);
-  }, []);
+      window.addEventListener('pointermove', onMove);
+      window.addEventListener('pointerup', finish);
+      window.addEventListener('pointercancel', finish);
+    },
+    [measureTimelineSize, persistTimelinePos],
+  );
+
+  const onTimelineDragHandleDoubleClick = useCallback(() => {
+    const c = defaultTimelineViewportPos();
+    setTimelinePos(c);
+    persistTimelinePos(c);
+  }, [persistTimelinePos]);
 
   useLayoutEffect(() => {
     if (!activeChipId || !chipStripRef.current) return;
@@ -456,25 +536,37 @@ export function SatelliteMapAnalysisChrome(props: SatelliteMapAnalysisChromeProp
     <>
       {timelineVisible && weeklyChips.length > 0 ? (
         <div
+          ref={timelineShellRef}
           className={['si-map-analysis-timeline', timelineDragging ? 'si-map-analysis-timeline--dragging' : '']
             .filter(Boolean)
             .join(' ')}
           role="region"
           aria-label="Imagery timeline"
           style={{
-            transform: `translate(calc(-50% + ${timelineOffset.x}px), ${timelineOffset.y}px)`,
+            left: timelinePos.left,
+            top: timelinePos.top,
           }}
         >
           <div
             className="si-map-analysis-timeline-drag"
             onPointerDown={onTimelineDragHandlePointerDown}
-            title="Drag to move timeline"
+            onDoubleClick={onTimelineDragHandleDoubleClick}
+            title="Drag to move · double-click to reset position"
             aria-grabbed={timelineDragging}
           >
             <i className="fa-solid fa-grip-lines si-map-analysis-timeline-drag-icon" aria-hidden />
             <span className="si-map-analysis-timeline-drag-label">Timeline</span>
           </div>
           <div className="si-map-analysis-timeline-inner si-map-analysis-timeline-inner--eo">
+            <button
+              type="button"
+              className="si-map-analysis-timeline-grip"
+              aria-label="Drag timeline"
+              onPointerDown={onTimelineDragHandlePointerDown}
+              onDoubleClick={onTimelineDragHandleDoubleClick}
+            >
+              <i className="fa-solid fa-grip-vertical" aria-hidden />
+            </button>
             <div className="si-map-analysis-timeline-transport">
               <button
                 type="button"
@@ -535,7 +627,7 @@ export function SatelliteMapAnalysisChrome(props: SatelliteMapAnalysisChromeProp
                   <i className="fa-solid fa-chevron-left" aria-hidden />
                 </button>
                 <div className="si-map-analysis-timeline-scrub-core">
-                  <span className="si-map-analysis-timeline-range-edge" title={rangeStartLabel}>
+                  <span className="si-map-analysis-timeline-range-edge" title={rangeStartTitle}>
                     {rangeStartLabel || '—'}
                   </span>
                   <div className="si-map-analysis-timeline-progress-track" aria-hidden>
@@ -545,7 +637,7 @@ export function SatelliteMapAnalysisChrome(props: SatelliteMapAnalysisChromeProp
                       style={{ transform: `scaleX(${timelineProgress})` }}
                     />
                   </div>
-                  <span className="si-map-analysis-timeline-range-edge" title={rangeEndLabel}>
+                  <span className="si-map-analysis-timeline-range-edge" title={rangeEndTitle}>
                     {rangeEndLabel || '—'}
                   </span>
                 </div>

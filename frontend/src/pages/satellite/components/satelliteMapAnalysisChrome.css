@@ -1,32 +1,32 @@
 /* Floating analysis UX on Satellite Intelligence map — minimal, map-anchored */
 
 .si-map-analysis-timeline {
-  position: absolute;
+  position: fixed;
   z-index: 95;
-  left: 50%;
-  bottom: 118px;
-  /* transform set inline (translate + user drag offset) */
-  width: min(96vw, 840px);
+  /* left / top set inline — draggable anywhere on the viewport */
+  transform: translateX(-50%);
+  width: min(96vw, 920px);
   pointer-events: auto;
   contain: layout style;
-  overscroll-behavior-x: contain;
+  overscroll-behavior: contain;
   display: flex;
   flex-direction: column;
-  align-items: center;
-  gap: 7px;
+  align-items: stretch;
+  gap: 6px;
   animation: si-map-tl-in 0.38s cubic-bezier(0.22, 1, 0.36, 1);
-  /* Refined glass timeline: neutral black glass + single cool accent (time / play) */
-  --si-tl-glass: rgba(8, 10, 14, 0.62);
-  --si-tl-glass-deep: rgba(4, 6, 10, 0.78);
-  --si-tl-edge: rgba(255, 255, 255, 0.09);
-  --si-tl-edge-strong: rgba(255, 255, 255, 0.14);
-  --si-tl-text: #e8eef7;
-  --si-tl-muted: rgba(203, 213, 225, 0.72);
-  --si-tl-accent: #7dd3fc;
-  --si-tl-accent-dim: rgba(125, 211, 252, 0.22);
-  --si-tl-accent-glow: rgba(56, 189, 248, 0.35);
-  --si-tl-fill-a: rgba(71, 85, 105, 0.45);
-  --si-tl-fill-b: rgba(125, 211, 252, 0.75);
+  filter: drop-shadow(0 20px 48px rgba(0, 0, 0, 0.42));
+  /* Luxe glass — slightly transparent over the map */
+  --si-tl-glass: rgba(10, 12, 18, 0.48);
+  --si-tl-glass-deep: rgba(4, 6, 12, 0.58);
+  --si-tl-edge: rgba(255, 255, 255, 0.1);
+  --si-tl-edge-strong: rgba(255, 255, 255, 0.16);
+  --si-tl-text: #f1f5f9;
+  --si-tl-muted: rgba(226, 232, 240, 0.78);
+  --si-tl-accent: #93ddff;
+  --si-tl-accent-dim: rgba(147, 221, 255, 0.2);
+  --si-tl-accent-glow: rgba(56, 189, 248, 0.32);
+  --si-tl-fill-a: rgba(71, 85, 105, 0.42);
+  --si-tl-fill-b: rgba(125, 211, 252, 0.72);
 }
 
 @keyframes si-map-tl-in {
@@ -66,14 +66,22 @@
 
 .si-map-analysis-timeline-drag-label {
   font-size: 9px;
-  font-weight: 800;
-  letter-spacing: 0.22em;
+  font-weight: 750;
+  letter-spacing: 0.2em;
   text-transform: uppercase;
+  line-height: 1;
+}
+
+.si-map-analysis-timeline--dragging {
+  cursor: grabbing;
 }
 
 .si-map-analysis-timeline--dragging .si-map-analysis-timeline-inner {
   pointer-events: none;
-  opacity: 0.92;
+  opacity: 0.9;
+  box-shadow:
+    0 0 0 1px rgba(125, 211, 252, 0.22) inset,
+    0 28px 64px rgba(0, 0, 0, 0.5);
 }
 
 .si-map-analysis-timeline-eyebrow {
@@ -92,21 +100,59 @@
 .si-map-analysis-timeline-inner {
   position: relative;
   align-self: stretch;
-  display: flex;
-  align-items: stretch;
-  gap: 14px;
-  padding: 11px 16px 12px;
+  display: grid;
+  grid-template-columns: auto auto minmax(0, 1fr) auto;
+  align-items: center;
+  column-gap: 12px;
+  row-gap: 0;
+  padding: 10px 14px 10px 10px;
   border-radius: 999px;
-  background: linear-gradient(165deg, var(--si-tl-glass) 0%, var(--si-tl-glass-deep) 52%, rgba(2, 4, 8, 0.88) 100%);
+  background: linear-gradient(
+    165deg,
+    var(--si-tl-glass) 0%,
+    var(--si-tl-glass-deep) 48%,
+    rgba(2, 4, 10, 0.52) 100%
+  );
   border: 1px solid var(--si-tl-edge);
   box-shadow:
-    0 0 0 1px rgba(0, 0, 0, 0.45) inset,
-    0 1px 0 rgba(255, 255, 255, 0.06) inset,
-    0 24px 56px rgba(0, 0, 0, 0.55),
-    0 0 40px rgba(0, 0, 0, 0.25);
+    0 0 0 1px rgba(0, 0, 0, 0.35) inset,
+    0 1px 0 rgba(255, 255, 255, 0.07) inset,
+    0 18px 44px rgba(0, 0, 0, 0.38);
   outline: none;
-  backdrop-filter: blur(22px) saturate(1.15);
-  -webkit-backdrop-filter: blur(22px) saturate(1.15);
+  backdrop-filter: blur(26px) saturate(1.2);
+  -webkit-backdrop-filter: blur(26px) saturate(1.2);
+}
+
+.si-map-analysis-timeline-grip {
+  grid-column: 1;
+  flex-shrink: 0;
+  width: 22px;
+  height: 44px;
+  margin: 0;
+  padding: 0;
+  border: none;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.04);
+  color: rgba(248, 250, 252, 0.45);
+  cursor: grab;
+  touch-action: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  box-shadow: inset 0 0 0 1px var(--si-tl-edge);
+  transition:
+    color 0.16s ease,
+    background 0.16s ease;
+}
+
+.si-map-analysis-timeline-grip:hover {
+  color: rgba(248, 250, 252, 0.82);
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.si-map-analysis-timeline--dragging .si-map-analysis-timeline-grip {
+  cursor: grabbing;
 }
 
 /* Subtle “temporal axis” highlight along the top edge */
@@ -128,14 +174,14 @@
 }
 
 .si-map-analysis-timeline-transport {
+  grid-column: 2;
   display: inline-flex;
   align-items: center;
   gap: 5px;
   flex-shrink: 0;
-  align-self: center;
   padding: 4px;
   border-radius: 999px;
-  background: rgba(0, 0, 0, 0.28);
+  background: rgba(0, 0, 0, 0.22);
   box-shadow: inset 0 0 0 1px var(--si-tl-edge);
 }
 
@@ -208,15 +254,15 @@
 }
 
 .si-map-analysis-timeline-track-wrap {
-  flex: 1;
+  grid-column: 3;
   min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  min-height: 0;
+  gap: 7px;
   justify-content: center;
   position: relative;
-  padding-top: 2px;
+  padding-block: 1px;
+  overflow: hidden;
 }
 
 .si-map-analysis-timeline-chips {
@@ -255,11 +301,14 @@
   color: var(--si-tl-muted);
   font-size: 10px;
   font-weight: 650;
-  letter-spacing: 0.04em;
+  letter-spacing: 0.03em;
+  line-height: 1.2;
   font-variant-numeric: tabular-nums;
-  padding: 5px 10px;
+  padding: 5px 9px;
+  min-height: 24px;
   border-radius: 999px;
   cursor: pointer;
+  white-space: nowrap;
   box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.06);
   transition:
     background 0.18s ease,
@@ -322,16 +371,16 @@
 }
 
 .si-map-analysis-timeline-range-edge {
-  flex: 0 1 76px;
+  flex: 0 0 42px;
   font-size: 9px;
   font-weight: 700;
   font-variant-numeric: tabular-nums;
-  letter-spacing: 0.03em;
+  letter-spacing: 0.02em;
+  line-height: 1.2;
   color: var(--si-tl-muted);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  opacity: 0.98;
 }
 
 .si-map-analysis-timeline-range-edge:first-child {
@@ -378,54 +427,60 @@
 }
 
 .si-map-analysis-timeline-meta {
+  grid-column: 4;
   flex-shrink: 0;
   display: flex;
   flex-direction: column;
   align-items: flex-end;
   justify-content: center;
-  gap: 6px;
-  min-width: 112px;
-  max-width: min(34vw, 210px);
-  padding-inline-start: 14px;
+  gap: 5px;
+  min-width: 118px;
+  max-width: min(36vw, 220px);
+  padding-inline-start: 12px;
   border-inline-start: 1px solid var(--si-tl-edge);
+  overflow: hidden;
 }
 
 .si-map-analysis-timeline-date-block {
   display: flex;
   flex-direction: column;
   align-items: flex-end;
-  gap: 3px;
+  gap: 2px;
   min-width: 0;
   width: 100%;
 }
 
 .si-map-analysis-timeline-date-label {
   font-size: 8px;
-  font-weight: 800;
-  letter-spacing: 0.12em;
+  font-weight: 750;
+  letter-spacing: 0.14em;
   text-transform: uppercase;
+  line-height: 1.1;
   color: var(--si-tl-muted);
 }
 
 .si-map-analysis-timeline-date {
   margin: 0;
   font-size: 12px;
-  font-weight: 800;
+  font-weight: 750;
   font-variant-numeric: tabular-nums;
-  letter-spacing: -0.02em;
+  letter-spacing: -0.01em;
+  line-height: 1.2;
   color: var(--si-tl-text);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  width: 100%;
+  max-width: 100%;
   text-align: right;
 }
 
 .si-map-analysis-timeline-meta-actions {
   display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: 6px;
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 5px;
   width: 100%;
 }
 
@@ -496,49 +551,59 @@
 
 /* Timeline: same dark glass on light/dark app themes — it floats over satellite imagery. */
 
-@media (max-width: 640px) {
+@media (max-width: 720px) {
   .si-map-analysis-timeline {
-    width: min(96vw, 100%);
-    bottom: 108px;
+    width: min(94vw, 100%);
   }
 
   .si-map-analysis-timeline-inner {
+    display: flex;
     flex-wrap: wrap;
-    border-radius: 20px;
+    align-items: center;
+    border-radius: 22px;
     row-gap: 10px;
+    padding: 10px 12px;
   }
 
-  .si-map-analysis-timeline-track-wrap {
-    order: 3;
-    flex: 1 1 100%;
-    width: 100%;
+  .si-map-analysis-timeline-grip {
+    display: none;
+  }
+
+  .si-map-analysis-timeline-transport {
+    order: 1;
   }
 
   .si-map-analysis-timeline-meta {
     order: 2;
     flex: 1 1 auto;
     flex-direction: row;
+    flex-wrap: wrap;
     align-items: center;
-    justify-content: space-between;
+    justify-content: flex-end;
+    gap: 8px;
     max-width: none;
-    width: auto;
     min-width: 0;
     padding-inline-start: 10px;
     border-inline-start: 1px solid var(--si-tl-edge);
-    margin-inline-start: auto;
   }
 
   .si-map-analysis-timeline-date-block {
     align-items: flex-start;
-    text-align: left;
+    flex: 1 1 120px;
   }
 
   .si-map-analysis-timeline-date {
     text-align: left;
   }
 
-  .si-map-analysis-timeline-transport {
-    order: 1;
+  .si-map-analysis-timeline-meta-actions {
+    flex: 0 0 auto;
+  }
+
+  .si-map-analysis-timeline-track-wrap {
+    order: 3;
+    flex: 1 1 100%;
+    width: 100%;
   }
 }
 

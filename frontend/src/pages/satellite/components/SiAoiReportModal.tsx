@@ -20,6 +20,7 @@ import {
   type StaticAoiChartLayerId,
 } from '../utils/staticAoiMultiChartData';
 import {
+  buildFallbackInterpretationPoints,
   buildSiAoiVegetationReport,
   exportSiAoiVegetationReportPdf,
   siAoiReportFeatureBBoxLngLat,
@@ -31,7 +32,10 @@ import {
   type SiAoiReportTableRow,
 } from '../utils/siAoiVegetationReportModel';
 import { exportSiAoiVegetationReportDocx } from '../utils/siAoiVegetationReportDocx';
-import { fetchSiAoiReportExecutiveSummaryFromGemini } from '../utils/siAoiReportGemini';
+import {
+  fetchSiAoiReportExecutiveSummaryFromGemini,
+  fetchSiAoiReportInterpretationFromGemini,
+} from '../utils/siAoiReportGemini';
 import type { SiLiveMapSnapshotCapture } from '../utils/siMapViewerSnapshot';
 import {
   compositeMapWithBottomLegendStrip,
@@ -954,6 +958,23 @@ export function SiAoiReportModal({
         }
       }
 
+      let interpretationPoints: string[] | null = null;
+      const geminiKey = geminiApiKey.trim();
+      if (geminiKey && mode === 'AOI_ANALYSIS') {
+        try {
+          interpretationPoints = await fetchSiAoiReportInterpretationFromGemini({
+            apiKey: geminiKey,
+            report,
+            insights: report.dataInsights,
+          });
+        } catch {
+          interpretationPoints = null;
+        }
+      }
+      if (!interpretationPoints?.length) {
+        interpretationPoints = buildFallbackInterpretationPoints(report);
+      }
+
       if (format === 'pdf') {
         exportSiAoiVegetationReportPdf(report, {
           mode,
@@ -961,6 +982,7 @@ export function SiAoiReportModal({
           aoiMapImageDataUrl,
           changeSlotMapImageDataUrls,
           executiveSummaryAi: geminiSummary?.trim() || undefined,
+          interpretationPoints,
         });
       } else {
         await exportSiAoiVegetationReportDocx(report, {
@@ -989,6 +1011,7 @@ export function SiAoiReportModal({
     chartHostId,
     chartExportHostId,
     geminiSummary,
+    geminiApiKey,
     analysisLiveSnapshot,
     changeSlotSnapshots,
     captureLiveMapSnapshot,
