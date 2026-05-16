@@ -180,7 +180,10 @@ import { SatelliteAoiStaticChartsMapOverlay } from './components/SatelliteAoiSta
 import { SiAoiReportModal } from './components/SiAoiReportModal';
 import { siAoiPaletteFromIndexRampStops, siAoiReportFeatureBBoxLngLat } from './utils/siAoiVegetationReportModel';
 import { captureSiReportMapSnapshot } from './utils/siReportMapSnapshotEngine';
-import { isSiMapCaptureSessionActive } from './utils/siMapCaptureSession';
+import {
+  isSiTimelinePlaybackBlocked,
+  isSiViewportChangeBlocked,
+} from './utils/siMapCaptureSession';
 import type { SiLiveMapSnapshotCapture } from './utils/siMapViewerSnapshot';
 import type { SiGeoAiIndexAnalyticalExportContext } from './utils/siGeoAiIndexAnalyticalExport';
 import {
@@ -3590,7 +3593,7 @@ export default function SatelliteIntelligence() {
   }, [customLayers]);
 
   const applySelectedDate = useCallback((date: Date, opts?: { expandRange?: boolean }) => {
-    if (isSiMapCaptureSessionActive()) return;
+    if (isSiViewportChangeBlocked()) return;
     const iso = date.toISOString().split('T')[0];
     const expandRange = opts?.expandRange !== false;
     startTransition(() => {
@@ -3602,7 +3605,7 @@ export default function SatelliteIntelligence() {
   }, []);
 
   const advanceTimelinePlaybackStep = useCallback(() => {
-    if (isSiMapCaptureSessionActive()) return;
+    if (isSiTimelinePlaybackBlocked()) return;
     if (!timelinePlaybackArmedRef.current || !isTimelinePlayingRef.current) {
       pauseTimelinePlayback();
       return;
@@ -3626,6 +3629,20 @@ export default function SatelliteIntelligence() {
     timelinePlayWeekIdxRef.current = idx.pickWeekIdx(selectedDateRef.current.toISOString().split('T')[0]);
     setIsTimelinePlaying(true);
   }, [clearTimelinePlaybackInterval]);
+
+  const timelineWasPlayingBeforeSnapshotRef = useRef(false);
+
+  const pauseTimelineForSnapshot = useCallback(() => {
+    timelineWasPlayingBeforeSnapshotRef.current = isTimelinePlayingRef.current;
+    pauseTimelinePlayback();
+  }, [pauseTimelinePlayback]);
+
+  const resumeTimelineAfterSnapshot = useCallback(() => {
+    if (timelineWasPlayingBeforeSnapshotRef.current) {
+      startTimelinePlayback();
+    }
+    timelineWasPlayingBeforeSnapshotRef.current = false;
+  }, [startTimelinePlayback, pauseTimelinePlayback]);
 
   const toggleTimelinePlayback = useCallback(() => {
     if (isTimelinePlayingRef.current) pauseTimelinePlayback();
@@ -10740,18 +10757,22 @@ export default function SatelliteIntelligence() {
     async opts => {
       const map = getMapInstance();
       if (!map || !isMapLoaded) return null;
-      pauseTimelinePlayback();
       const freeze = opts?.freezeViewport === true;
+      const exportFast = opts?.captureMode === 'export-fast' || !freeze;
       const restoreIso = selectedDate.toISOString().split('T')[0];
       const targetIso = opts?.date?.slice(0, 10);
-      const fit = freeze ? undefined : (opts?.fitBounds ?? liveSnapshotFitBounds);
+      const fit = freeze || exportFast ? undefined : (opts?.fitBounds ?? liveSnapshotFitBounds);
       const aoiFeature = opts?.aoiFeature ?? liveSnapshotAoiFeature;
       const shouldShiftDate = !freeze && Boolean(targetIso && targetIso !== restoreIso);
       const skipRestore = opts?.skipTimelineRestore === true;
+      if (opts?.pauseTimeline !== false) {
+        pauseTimelineForSnapshot();
+      }
       try {
         return await captureSiReportMapSnapshot(map, {
           freezeViewport: freeze,
-          maskToAoi: opts?.maskToAoi ?? (freeze ? false : true),
+          captureMode: opts?.captureMode ?? (freeze ? 'export-quality' : 'export-fast'),
+          maskToAoi: opts?.maskToAoi ?? false,
           date: shouldShiftDate ? targetIso : undefined,
           applyDate: shouldShiftDate
             ? iso => {
@@ -10760,8 +10781,7 @@ export default function SatelliteIntelligence() {
             : undefined,
           fitBounds: fit ?? undefined,
           aoiFeature: aoiFeature ?? undefined,
-          scale: freeze ? 1 : (opts?.scale ?? 3),
-          profile: freeze ? 'quality' : (opts?.profile ?? 'balanced'),
+          scale: 1,
           outlineColor: 'rgba(34, 197, 94, 0.95)',
         });
       } catch {
@@ -10770,13 +10790,17 @@ export default function SatelliteIntelligence() {
         if (shouldShiftDate && !skipRestore) {
           applySelectedDate(new Date(`${restoreIso}T12:00:00`), { expandRange: false });
         }
+        if (opts?.resumeTimeline !== false) {
+          resumeTimelineAfterSnapshot();
+        }
       }
     },
     [
       isMapLoaded,
       selectedDate,
       applySelectedDate,
-      pauseTimelinePlayback,
+      pauseTimelineForSnapshot,
+      resumeTimelineAfterSnapshot,
       liveSnapshotFitBounds,
       liveSnapshotAoiFeature,
     ],
@@ -11901,7 +11925,7 @@ export default function SatelliteIntelligence() {
             ref={mapRef}
             {...viewState}
             onMove={evt => {
-              if (isSiMapCaptureSessionActive()) return;
+              if (isSiViewportChangeBlocked()) return;
               setViewState(evt.viewState);
             }}
             onMouseDown={handleMapPointerDown}

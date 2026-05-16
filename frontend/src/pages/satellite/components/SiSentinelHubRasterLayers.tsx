@@ -2,7 +2,7 @@ import { useMemo } from 'react';
 import { Layer, Source } from 'react-map-gl/mapbox';
 import { buildSentinelHubWmsAoiClip } from '../../../lib/sentinelHubWmsAoiClip';
 import type { IndexRampStop } from '../../../lib/siWmsIndexClassificationRamp';
-import { isSiMapCaptureSessionActive } from '../utils/siMapCaptureSession';
+import { isSiTimelinePlaybackBlocked } from '../utils/siMapCaptureSession';
 import { SI_WMS_CROSSFADE_MS, type SiTimelineTransitionMode } from '../utils/useSiWmsTimelineCrossfade';
 
 export type SiSentinelHubRasterRunLite = {
@@ -130,7 +130,7 @@ export function SiSentinelHubRasterLayers(props: SiSentinelHubRasterLayersProps)
     legacySymOpacity,
   );
 
-  const captureFrozen = isSiMapCaptureSessionActive();
+  const captureFrozen = isSiTimelinePlaybackBlocked();
   const rasterFadeMs = captureFrozen ? 0 : smooth ? Math.min(420, SI_WMS_CROSSFADE_MS) : 0;
 
   return (

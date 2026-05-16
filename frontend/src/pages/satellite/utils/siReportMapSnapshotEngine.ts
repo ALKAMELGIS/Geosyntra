@@ -6,63 +6,17 @@ import {
   outlineAoiOnSnapshotPng,
   projectAoiRingsForSnapshot,
 } from './siMapSnapshotAoiClip';
-import { enforceSiFrozenMapViewport, runSiMapCaptureSession } from './siMapCaptureSession';
+import { runLightSnapshotLock } from './siMapCaptureSession';
 import {
   captureMapboxCanvasPng,
   flushMapboxPaint,
   isSnapshotCanvasLikelyHasBasemap,
-  waitForAllMapSourcesReady,
-  waitForMapboxIdle,
-  waitForMapboxTilesPainted,
-  waitForNextMapRender,
+  waitForVisibleMapLayersReady,
 } from './siMapViewerSnapshot';
 
 export type SiReportMapSnapshotProfile = 'fast' | 'balanced' | 'quality';
 
-const PROFILE_PRESETS: Record<
-  SiReportMapSnapshotProfile,
-  {
-    idlePasses: number;
-    idleTimeoutMs: number;
-    tilesTimeoutMs: number;
-    sourcesTimeoutMs: number;
-    wmsWaitMs: number;
-    dateSettleMs: number;
-    rasterFadeSettleMs: number;
-    maxAttempts: number;
-  }
-> = {
-  fast: {
-    idlePasses: 1,
-    idleTimeoutMs: 2800,
-    tilesTimeoutMs: 2200,
-    sourcesTimeoutMs: 5000,
-    wmsWaitMs: 2800,
-    dateSettleMs: 200,
-    rasterFadeSettleMs: 480,
-    maxAttempts: 4,
-  },
-  balanced: {
-    idlePasses: 2,
-    idleTimeoutMs: 5200,
-    tilesTimeoutMs: 3800,
-    sourcesTimeoutMs: 8000,
-    wmsWaitMs: 4500,
-    dateSettleMs: 280,
-    rasterFadeSettleMs: 560,
-    maxAttempts: 3,
-  },
-  quality: {
-    idlePasses: 3,
-    idleTimeoutMs: 10000,
-    tilesTimeoutMs: 6500,
-    sourcesTimeoutMs: 12000,
-    wmsWaitMs: 7500,
-    dateSettleMs: 360,
-    rasterFadeSettleMs: 720,
-    maxAttempts: 5,
-  },
-};
+export type SiReportCaptureMode = 'export-fast' | 'export-quality';
 
 export type SiReportMapSnapshotRequest = {
   date?: string;
@@ -73,8 +27,8 @@ export type SiReportMapSnapshotRequest = {
   profile?: SiReportMapSnapshotProfile;
   applyDate?: (iso: string) => void | Promise<void>;
   freezeViewport?: boolean;
-  /** Full frame vs circular AOI mask (default: mask only when not freezing). */
   maskToAoi?: boolean;
+  captureMode?: SiReportCaptureMode;
 };
 
 export function setReportMapCaptureMode(active: boolean): void {
@@ -85,59 +39,6 @@ export function setReportMapCaptureMode(active: boolean): void {
   }
 }
 
-export function prepareMapboxMapForSnapshot(map: MapboxMap): boolean {
-  try {
-    map.resize();
-    enforceSiFrozenMapViewport(map);
-    map.triggerRepaint?.();
-  } catch {
-    /* ignore */
-  }
-  try {
-    const canvas = map.getCanvas?.();
-    if (!(canvas instanceof HTMLCanvasElement)) return false;
-    return canvas.width >= 8 && canvas.height >= 8;
-  } catch {
-    return false;
-  }
-}
-
-function listRasterSourceIds(map: MapboxMap): string[] {
-  try {
-    const sources = map.getStyle()?.sources ?? {};
-    return Object.keys(sources).filter(id => {
-      const t = (sources as Record<string, { type?: string }>)[id]?.type;
-      return t === 'raster';
-    });
-  } catch {
-    return [];
-  }
-}
-
-export async function waitForWmsRasterSourcesReady(map: MapboxMap, timeoutMs: number): Promise<void> {
-  const ids = listRasterSourceIds(map).filter(
-    id => id.includes('sentinel') || id.startsWith('si-sentinel'),
-  );
-  if (!ids.length) return;
-  const t0 = typeof performance !== 'undefined' ? performance.now() : Date.now();
-  const poll = async (): Promise<void> => {
-    enforceSiFrozenMapViewport(map);
-    const elapsed = (typeof performance !== 'undefined' ? performance.now() : Date.now()) - t0;
-    if (elapsed >= timeoutMs) return;
-    const ready = ids.every(id => {
-      try {
-        return map.isSourceLoaded(id);
-      } catch {
-        return true;
-      }
-    });
-    if (ready) return;
-    await new Promise<void>(r => window.setTimeout(r, 56));
-    return poll();
-  };
-  await poll();
-}
-
 export function isSnapshotCanvasLikelyBlank(canvas: HTMLCanvasElement): boolean | null {
   try {
     const ctx = canvas.getContext('2d', { willReadFrequently: true });
@@ -145,152 +46,166 @@ export function isSnapshotCanvasLikelyBlank(canvas: HTMLCanvasElement): boolean 
     const w = canvas.width;
     const h = canvas.height;
     if (w < 8 || h < 8) return true;
-    const samples = 49;
     let sum = 0;
-    let sumSq = 0;
     let maxLuma = 0;
-    for (let i = 0; i < samples; i++) {
-      const x = Math.floor(((i % 7) + 0.5) * (w / 7));
-      const y = Math.floor((Math.floor(i / 7) + 0.5) * (h / 7));
+    for (let i = 0; i < 25; i++) {
+      const x = Math.floor(((i % 5) + 0.5) * (w / 5));
+      const y = Math.floor((Math.floor(i / 5) + 0.5) * (h / 5));
       const d = ctx.getImageData(x, y, 1, 1).data;
       const luma = 0.299 * d[0]! + 0.587 * d[1]! + 0.114 * d[2]!;
       sum += luma;
-      sumSq += luma * luma;
       maxLuma = Math.max(maxLuma, luma);
     }
-    const mean = sum / samples;
-    const variance = sumSq / samples - mean * mean;
+    const mean = sum / 25;
     if (maxLuma < 18 && mean < 12) return true;
-    return mean < 10 && variance < 90;
+    return mean < 8;
   } catch {
     return null;
   }
 }
 
-async function waitForReportMapFrame(
-  map: MapboxMap,
-  profile: SiReportMapSnapshotProfile,
-): Promise<void> {
-  const p = PROFILE_PRESETS[profile];
-  enforceSiFrozenMapViewport(map);
-  await new Promise<void>(r => window.setTimeout(r, p.rasterFadeSettleMs));
-  for (let i = 0; i < p.idlePasses; i++) {
-    enforceSiFrozenMapViewport(map);
-    await waitForAllMapSourcesReady(map, p.sourcesTimeoutMs);
-    await waitForMapboxIdle(map, p.idleTimeoutMs);
-    await waitForMapboxTilesPainted(map, p.tilesTimeoutMs);
-    await waitForWmsRasterSourcesReady(map, p.wmsWaitMs);
-    try {
-      map.triggerRepaint?.();
-    } catch {
-      /* ignore */
-    }
-    await waitForNextMapRender(map, Math.min(5000, p.idleTimeoutMs));
-    await flushMapboxPaint();
-    enforceSiFrozenMapViewport(map);
+function prepareCanvasForExport(map: MapboxMap): boolean {
+  try {
+    const canvas = map.getCanvas?.();
+    return canvas instanceof HTMLCanvasElement && canvas.width >= 8 && canvas.height >= 8;
+  } catch {
+    return false;
   }
 }
 
 type CaptureFrameResult = {
   png: string;
   projectedRings?: SiAoiProjectedRing[];
-  scaleX: number;
-  scaleY: number;
 };
 
-async function tryCaptureFrame(
+async function captureCurrentCanvasFrame(
   map: MapboxMap,
   scale: number,
   aoiFeature?: GeoJSON.Feature,
+  opts?: { requireBasemap?: boolean },
 ): Promise<CaptureFrameResult | null> {
-  enforceSiFrozenMapViewport(map);
-  await waitForNextMapRender(map, 5000);
   await flushMapboxPaint();
-  enforceSiFrozenMapViewport(map);
 
   const canvas = map.getCanvas();
-  const mapW = canvas.width;
-  const mapH = canvas.height;
-  if (!mapW || !mapH) return null;
+  if (!canvas.width || !canvas.height) return null;
 
-  const scaleX = scale;
-  const scaleY = scale;
   const projectedRings =
-    aoiFeature?.geometry != null
-      ? projectAoiRingsForSnapshot(map, aoiFeature, scaleX, scaleY)
-      : undefined;
+    aoiFeature?.geometry != null ? projectAoiRingsForSnapshot(map, aoiFeature, scale, scale) : undefined;
 
   const png = captureMapboxCanvasPng(map, scale);
   if (!png || png.length < 800) return null;
 
-  const blank = isSnapshotCanvasLikelyBlank(canvas);
-  if (blank === true) return null;
-  const hasBasemap = isSnapshotCanvasLikelyHasBasemap(canvas);
-  if (hasBasemap === false) return null;
+  if (isSnapshotCanvasLikelyBlank(canvas) === true) return null;
+  if (opts?.requireBasemap !== false && isSnapshotCanvasLikelyHasBasemap(canvas) === false) {
+    return null;
+  }
 
-  return { png, projectedRings, scaleX, scaleY };
+  return { png, projectedRings };
+}
+
+function finishAoiSnapshot(
+  map: MapboxMap,
+  raw: string,
+  aoiFeature: GeoJSON.Feature,
+  projectedRings: SiAoiProjectedRing[] | undefined,
+  maskToAoi: boolean,
+  outlineColor: string,
+): Promise<string> {
+  if (!maskToAoi) {
+    return projectedRings?.length
+      ? outlineAoiOnSnapshotPng(raw, projectedRings, { outlineColor })
+      : Promise.resolve(raw);
+  }
+  return clipMapSnapshotToAoiFeature(map, raw, aoiFeature, {
+    outlineColor,
+    projectedRings,
+    skipOutlineStroke: true,
+  });
+}
+
+async function captureExportFast(map: MapboxMap, opts: SiReportMapSnapshotRequest): Promise<string | null> {
+  const scale = 1;
+  const maskToAoi = opts.maskToAoi ?? false;
+  const outline = opts.outlineColor ?? 'rgba(34, 197, 94, 0.95)';
+  const needsDate = Boolean(opts.date && opts.applyDate);
+
+  return runLightSnapshotLock(async () => {
+    setReportMapCaptureMode(true);
+    try {
+      if (!prepareCanvasForExport(map)) return null;
+
+      if (opts.fitBounds) {
+        try {
+          fitMapToLngLatBounds(map, opts.fitBounds, 56);
+          await waitForVisibleMapLayersReady(map, { timeoutMs: 700, wmsTimeoutMs: 550 });
+        } catch {
+          /* ignore */
+        }
+      }
+
+      if (needsDate && opts.date && opts.applyDate) {
+        await Promise.resolve(opts.applyDate(opts.date.slice(0, 10)));
+        await waitForVisibleMapLayersReady(map, { timeoutMs: 650, wmsTimeoutMs: 520 });
+      } else {
+        await waitForVisibleMapLayersReady(map, { timeoutMs: 280, wmsTimeoutMs: 200 });
+      }
+
+      const captured = await captureCurrentCanvasFrame(map, scale, opts.aoiFeature, {
+        requireBasemap: !needsDate,
+      });
+      if (!captured) return null;
+
+      if (!opts.aoiFeature?.geometry) return captured.png;
+      return finishAoiSnapshot(map, captured.png, opts.aoiFeature, captured.projectedRings, maskToAoi, outline);
+    } finally {
+      setReportMapCaptureMode(false);
+    }
+  });
+}
+
+async function captureExportQuality(map: MapboxMap, opts: SiReportMapSnapshotRequest): Promise<string | null> {
+  const scale = 1;
+  const maskToAoi = opts.maskToAoi ?? false;
+  const outline = opts.outlineColor ?? 'rgba(34, 197, 94, 0.95)';
+
+  return runLightSnapshotLock(async () => {
+    setReportMapCaptureMode(true);
+    try {
+      if (!prepareCanvasForExport(map)) return null;
+      await waitForVisibleMapLayersReady(map, { timeoutMs: 1100, wmsTimeoutMs: 900 });
+
+      let captured = await captureCurrentCanvasFrame(map, scale, opts.aoiFeature);
+      if (!captured) {
+        await waitForVisibleMapLayersReady(map, { timeoutMs: 500, wmsTimeoutMs: 400 });
+        captured = await captureCurrentCanvasFrame(map, scale, opts.aoiFeature);
+      }
+      if (!captured) return null;
+
+      if (!opts.aoiFeature?.geometry) return captured.png;
+      return finishAoiSnapshot(map, captured.png, opts.aoiFeature, captured.projectedRings, maskToAoi, outline);
+    } finally {
+      setReportMapCaptureMode(false);
+    }
+  });
 }
 
 export async function captureSiReportMapSnapshot(
   map: MapboxMap,
   opts?: SiReportMapSnapshotRequest,
 ): Promise<string | null> {
-  const freeze = opts?.freezeViewport === true;
-  const profile = freeze ? 'quality' : (opts?.profile ?? 'balanced');
-  const preset = PROFILE_PRESETS[profile];
-  const maskToAoi = opts?.maskToAoi ?? !freeze;
-  /** Native canvas resolution = WYSIWYG with the live viewer (no upscale drift). */
-  const scale = freeze ? 1 : Math.min(4, Math.max(2, opts?.scale ?? 3));
+  const mode: SiReportCaptureMode =
+    opts?.captureMode ?? (opts?.freezeViewport ? 'export-quality' : 'export-fast');
 
-  if (!prepareMapboxMapForSnapshot(map)) return null;
+  if (mode === 'export-quality' && opts?.freezeViewport) {
+    return captureExportQuality(map, opts);
+  }
+  return captureExportFast(map, opts ?? {});
+}
 
-  return runSiMapCaptureSession(map, async () => {
-    setReportMapCaptureMode(true);
-    try {
-      if (!freeze && opts?.fitBounds) {
-        try {
-          fitMapToLngLatBounds(map, opts.fitBounds, 56);
-          await waitForReportMapFrame(map, profile);
-        } catch {
-          /* ignore fit */
-        }
-      }
+export async function waitForWmsRasterSourcesReady(map: MapboxMap, timeoutMs: number): Promise<void> {
+  await waitForVisibleMapLayersReady(map, { wmsTimeoutMs: timeoutMs, timeoutMs: Math.min(900, timeoutMs) });
+}
 
-      if (!freeze && opts?.date && opts.applyDate) {
-        await Promise.resolve(opts.applyDate(opts.date.slice(0, 10)));
-        await new Promise<void>(r => window.setTimeout(r, preset.dateSettleMs));
-        await waitForReportMapFrame(map, profile);
-      } else {
-        await waitForReportMapFrame(map, profile);
-      }
-
-      let captured: CaptureFrameResult | null = null;
-      for (let attempt = 0; attempt < preset.maxAttempts; attempt++) {
-        if (attempt > 0) {
-          await waitForReportMapFrame(map, profile);
-        }
-        captured = await tryCaptureFrame(map, scale, opts?.aoiFeature);
-        if (captured) break;
-      }
-      if (!captured) return null;
-
-      const { png: raw, projectedRings } = captured;
-      if (!opts?.aoiFeature?.geometry) return raw;
-
-      const outline = opts.outlineColor ?? 'rgba(34, 197, 94, 0.95)';
-      if (!maskToAoi) {
-        return projectedRings?.length
-          ? await outlineAoiOnSnapshotPng(raw, projectedRings, { outlineColor: outline })
-          : raw;
-      }
-
-      return await clipMapSnapshotToAoiFeature(map, raw, opts.aoiFeature, {
-        outlineColor: outline,
-        projectedRings,
-        skipOutlineStroke: true,
-      });
-    } finally {
-      setReportMapCaptureMode(false);
-    }
-  });
+export function prepareMapboxMapForSnapshot(map: MapboxMap): boolean {
+  return prepareCanvasForExport(map);
 }

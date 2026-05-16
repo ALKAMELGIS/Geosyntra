@@ -542,8 +542,8 @@ export function SiAoiReportModal({
       try {
         const raw = await captureLiveMapSnapshot({
           freezeViewport: true,
+          captureMode: 'export-quality',
           maskToAoi: false,
-          profile: 'quality',
           aoiFeature: aoiFeat,
         });
         if (!raw) return;
@@ -674,10 +674,12 @@ export function SiAoiReportModal({
       if (captureLiveMapSnapshot) {
         mapPng = await captureLiveMapSnapshot({
           date: slot.date,
-          scale: 3,
-          profile: 'quality',
+          captureMode: 'export-fast',
+          maskToAoi: false,
           ...liveSnapshotAoiOpts,
           skipTimelineRestore: i < slots.length - 1,
+          pauseTimeline: i === 0,
+          resumeTimeline: i === slots.length - 1,
         });
       }
       if (!mapPng && slot.heatmapCellsGeoJson.features.length) {
@@ -699,7 +701,7 @@ export function SiAoiReportModal({
             )
           : null,
       );
-      await new Promise<void>(r => window.setTimeout(r, 60));
+      await new Promise<void>(r => window.setTimeout(r, 16));
     }
     return urls;
   }, [
@@ -918,8 +920,8 @@ export function SiAoiReportModal({
         } else if (liveMapCaptureOk && captureLiveMapSnapshot) {
           const raw = await captureLiveMapSnapshot({
             freezeViewport: true,
+            captureMode: 'export-quality',
             maskToAoi: false,
-            profile: 'quality',
             ...liveSnapshotAoiOpts,
           });
           if (raw) {

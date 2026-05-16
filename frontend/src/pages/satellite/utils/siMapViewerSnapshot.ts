@@ -1,5 +1,5 @@
 import type { Map as MapboxMap } from 'mapbox-gl';
-import { enforceSiFrozenMapViewport } from './siMapCaptureSession';
+import { enforceSiFrozenMapViewport, isSiViewportChangeBlocked } from './siMapCaptureSession';
 
 /** Wait until Mapbox GL finishes rendering tiles + layers (or timeout). */
 export function waitForMapboxIdle(map: MapboxMap, timeoutMs = 5200): Promise<void> {
@@ -145,8 +145,50 @@ export function isSnapshotCanvasLikelyHasBasemap(canvas: HTMLCanvasElement): boo
   }
 }
 
+/** Visible WMS / index overlays only — short poll, no basemap reload, no off-viewport tiles. */
+export async function waitForVisibleMapLayersReady(
+  map: MapboxMap,
+  opts?: { timeoutMs?: number; wmsTimeoutMs?: number },
+): Promise<void> {
+  const timeoutMs = opts?.timeoutMs ?? 900;
+  const wmsTimeoutMs = opts?.wmsTimeoutMs ?? 700;
+  const wmsIds = listStyleSourceIds(map).filter(
+    id => id.includes('sentinel') || id.startsWith('si-sentinel'),
+  );
+  const t0 = typeof performance !== 'undefined' ? performance.now() : Date.now();
+  const pollWms = async (): Promise<void> => {
+    const elapsed = (typeof performance !== 'undefined' ? performance.now() : Date.now()) - t0;
+    if (elapsed >= wmsTimeoutMs || !wmsIds.length) return;
+    const ready = wmsIds.every(id => {
+      try {
+        return map.isSourceLoaded(id);
+      } catch {
+        return true;
+      }
+    });
+    if (ready) return;
+    await new Promise<void>(r => window.setTimeout(r, 40));
+    return pollWms();
+  };
+  await pollWms();
+  const areTilesLoaded = (map as unknown as { areTilesLoaded?: () => boolean }).areTilesLoaded;
+  if (typeof areTilesLoaded === 'function') {
+    const t1 = typeof performance !== 'undefined' ? performance.now() : Date.now();
+    while ((typeof performance !== 'undefined' ? performance.now() : Date.now()) - t1 < Math.min(500, timeoutMs)) {
+      try {
+        if (areTilesLoaded.call(map)) break;
+      } catch {
+        break;
+      }
+      await new Promise<void>(r => window.setTimeout(r, 36));
+    }
+  }
+  await waitForNextMapRender(map, Math.min(420, timeoutMs));
+  await flushMapboxPaint();
+}
+
 export async function waitForAllMapSourcesReady(map: MapboxMap, timeoutMs = 9000): Promise<void> {
-  enforceSiFrozenMapViewport(map);
+  if (isSiViewportChangeBlocked()) enforceSiFrozenMapViewport(map);
   const rasterIds = listStyleSourceIds(map).filter(id => {
     try {
       const t = map.getStyle()?.sources?.[id] as { type?: string } | undefined;
@@ -243,6 +285,15 @@ export type SiLiveMapSnapshotOptions = {
    * Avoids black letterboxing outside the AOI mask in reports.
    */
   maskToAoi?: boolean;
+  /**
+   * `export-fast` — canvas grab + visible WMS wait (change detection).
+   * `export-quality` — one extra visible-layer pass (single AOI); still no full freeze.
+   */
+  captureMode?: 'export-fast' | 'export-quality';
+  /** Default true — set false when parent already paused timeline for a batch. */
+  pauseTimeline?: boolean;
+  /** Default true — set false between change-detection slots. */
+  resumeTimeline?: boolean;
 };
 
 export type SiLiveMapSnapshotCapture = (opts?: SiLiveMapSnapshotOptions) => Promise<string | null>;

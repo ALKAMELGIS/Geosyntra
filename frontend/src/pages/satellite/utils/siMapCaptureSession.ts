@@ -1,9 +1,7 @@
 import type { Map as MapboxMap } from 'mapbox-gl';
 
-export type SiMapCaptureSessionState = {
-  active: boolean;
-  startedAt: number;
-};
+/** `timeline` = block playback ticks only; `full` = legacy hard freeze (avoid in change-detection). */
+export type SiSnapshotLockLevel = 'none' | 'timeline' | 'full';
 
 export type SiFrozenMapViewport = {
   center: [number, number];
@@ -12,18 +10,32 @@ export type SiFrozenMapViewport = {
   pitch: number;
 };
 
-let session: SiMapCaptureSessionState = { active: false, startedAt: 0 };
+let lockLevel: SiSnapshotLockLevel = 'none';
 let frozenViewport: SiFrozenMapViewport | null = null;
 
+export function getSiSnapshotLockLevel(): SiSnapshotLockLevel {
+  return lockLevel;
+}
+
+/** Blocks timeline interval steps — not explicit date/WMS updates from capture. */
+export function isSiTimelinePlaybackBlocked(): boolean {
+  return lockLevel === 'timeline' || lockLevel === 'full';
+}
+
+/** Blocks camera moves / jumpTo during capture (full freeze only). */
+export function isSiViewportChangeBlocked(): boolean {
+  return lockLevel === 'full';
+}
+
+/** @deprecated Prefer isSiTimelinePlaybackBlocked — kept for raster fade=0 hook. */
 export function isSiMapCaptureSessionActive(): boolean {
-  return session.active;
+  return lockLevel !== 'none';
 }
 
 export function getSiFrozenMapViewport(): SiFrozenMapViewport | null {
   return frozenViewport;
 }
 
-/** Snapshot current camera — call once at capture start. */
 export function pinSiFrozenMapViewport(map: MapboxMap): SiFrozenMapViewport {
   const c = map.getCenter();
   const pinned: SiFrozenMapViewport = {
@@ -36,10 +48,9 @@ export function pinSiFrozenMapViewport(map: MapboxMap): SiFrozenMapViewport {
   return pinned;
 }
 
-/** Re-apply pinned camera (no animation) so tiles/WMS stay aligned with the frozen frame. */
 export function enforceSiFrozenMapViewport(map: MapboxMap): void {
   const v = frozenViewport;
-  if (!v) return;
+  if (!v || lockLevel !== 'full') return;
   try {
     map.jumpTo({
       center: v.center,
@@ -53,8 +64,19 @@ export function enforceSiFrozenMapViewport(map: MapboxMap): void {
   }
 }
 
-export function beginSiMapCaptureSession(map?: MapboxMap | null): void {
-  session = { active: true, startedAt: Date.now() };
+/** Light lock — pause timeline ticks; keep current canvas / cached tiles. */
+export function beginLightSnapshotLock(): void {
+  lockLevel = 'timeline';
+  try {
+    document.body.classList.add('si-map-capture-light');
+  } catch {
+    /* ignore */
+  }
+}
+
+/** Full freeze — only for rare quality paths; slow on time-series batches. */
+export function beginFullSnapshotLock(map?: MapboxMap | null): void {
+  lockLevel = 'full';
   if (map) {
     try {
       map.stop?.();
@@ -63,11 +85,6 @@ export function beginSiMapCaptureSession(map?: MapboxMap | null): void {
     }
     pinSiFrozenMapViewport(map);
     enforceSiFrozenMapViewport(map);
-    try {
-      map.triggerRepaint?.();
-    } catch {
-      /* ignore */
-    }
   }
   try {
     document.body.classList.add('si-map-capture-frozen');
@@ -76,24 +93,30 @@ export function beginSiMapCaptureSession(map?: MapboxMap | null): void {
   }
 }
 
-export function endSiMapCaptureSession(): void {
-  session = { active: false, startedAt: 0 };
+export function endSnapshotLock(): void {
+  lockLevel = 'none';
   frozenViewport = null;
   try {
-    document.body.classList.remove('si-map-capture-frozen');
+    document.body.classList.remove('si-map-capture-light', 'si-map-capture-frozen');
   } catch {
     /* ignore */
   }
 }
 
-export async function runSiMapCaptureSession<T>(
-  map: MapboxMap | null | undefined,
-  work: () => Promise<T>,
-): Promise<T> {
-  beginSiMapCaptureSession(map ?? undefined);
+export async function runLightSnapshotLock<T>(work: () => Promise<T>): Promise<T> {
+  beginLightSnapshotLock();
   try {
     return await work();
   } finally {
-    endSiMapCaptureSession();
+    endSnapshotLock();
+  }
+}
+
+export async function runFullSnapshotLock<T>(map: MapboxMap | null | undefined, work: () => Promise<T>): Promise<T> {
+  beginFullSnapshotLock(map ?? undefined);
+  try {
+    return await work();
+  } finally {
+    endSnapshotLock();
   }
 }
