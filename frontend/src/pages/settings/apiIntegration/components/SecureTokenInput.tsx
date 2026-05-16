@@ -48,7 +48,7 @@ export function SecureTokenInput({
           id={`field-${field.id}`}
           type={inputType}
           className={cn('api-integ-tw-input pr-20', isSecret && !revealed && 'tracking-widest')}
-          value={isSecret && !revealed && value ? displayValue : value}
+          value={value}
           placeholder={field.placeholder}
           onChange={e => onChange(e.target.value)}
           autoComplete="off"

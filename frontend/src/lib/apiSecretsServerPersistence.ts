@@ -127,7 +127,9 @@ export async function hydrateBrowserApiSecretsFromServer(): Promise<boolean> {
   }
 }
 
-export type PersistApiSecretsResult = { ok: true } | { ok: false; error: string }
+export type PersistApiSecretsResult =
+  | { ok: true; synced?: boolean; warning?: string }
+  | { ok: false; error: string }
 
 export async function persistApiSecretsPatchToServer(patch: ApiSecretsClientPatch): Promise<PersistApiSecretsResult> {
   try {

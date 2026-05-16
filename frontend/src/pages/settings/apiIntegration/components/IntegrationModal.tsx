@@ -4,7 +4,7 @@ import { createPortal } from 'react-dom'
 import { cn } from '../../../../lib/utils'
 import type { AuthType, IntegrationDraft, IntegrationEnvironment, IntegrationRecord, ProviderId } from '../types'
 import { getProvider } from '../providers/registry'
-import { primarySecretKey } from '../providers/validate'
+import { primarySecretKey, validateIntegrationDraft } from '../providers/validate'
 import {
   clearDraft,
   emptyDraft,
@@ -25,7 +25,7 @@ type Props = {
   open: boolean
   record: IntegrationRecord | null
   onClose: () => void
-  onSaved: () => void
+  onSaved: (warning?: string) => void
 }
 
 const ENV_OPTIONS: { value: IntegrationEnvironment; label: string }[] = [
@@ -136,7 +136,11 @@ export function IntegrationModal({ open, record, onClose, onSaved }: Props) {
   }
 
   const handleSave = async () => {
-    if (!isValid) return
+    const validation = validateIntegrationDraft(draft, cleanSecrets)
+    if (!validation.valid) {
+      setSaveError('Complete required fields before saving.')
+      return
+    }
     setBusy(true)
     setSaveError(null)
     try {
@@ -151,7 +155,7 @@ export function IntegrationModal({ open, record, onClose, onSaved }: Props) {
       saveIntegrationRecord({ ...draft, status }, cleanSecrets)
       discardDraft()
       clearDraft()
-      onSaved()
+      onSaved(vaultResult.warning)
       onClose()
     } catch (e) {
       setSaveError(e instanceof Error ? e.message : 'Save failed')
@@ -160,7 +164,9 @@ export function IntegrationModal({ open, record, onClose, onSaved }: Props) {
     }
   }
 
+  const secretKey = primarySecretKey(draft.providerId, draft.authType)
   const hasCredentials =
+    Boolean(cleanSecrets[secretKey]?.trim()) ||
     Object.values(cleanSecrets).some(v => v.trim()) ||
     Object.values(draft.config).some(v => v.trim() && v !== '__vault__') ||
     Boolean(record?.id)

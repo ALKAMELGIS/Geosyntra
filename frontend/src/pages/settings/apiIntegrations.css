@@ -475,6 +475,20 @@
   color: var(--ds-color-danger, #f87171);
 }
 
+.api-integ-status--warn {
+  color: #fbbf24;
+}
+
+.api-manager-page__notice {
+  margin: 0 0 12px;
+  padding: 10px 14px;
+  border-radius: 10px;
+  border: 1px solid rgba(251, 191, 36, 0.35);
+  background: rgba(251, 191, 36, 0.1);
+  font-size: 13px;
+  color: #92400e;
+}
+
 .api-integ-status--muted {
   color: var(--ds-color-text-muted);
 }

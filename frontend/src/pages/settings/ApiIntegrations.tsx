@@ -40,6 +40,7 @@ export default function ApiIntegrations() {
   const [tab, setTab] = useState<TabId>('all')
   const [modalOpen, setModalOpen] = useState(false)
   const [editing, setEditing] = useState<IntegrationRecord | null>(null)
+  const [saveNotice, setSaveNotice] = useState<string | null>(null)
 
   const refresh = useCallback(() => setRows(listIntegrationRecords()), [])
 
@@ -57,6 +58,7 @@ export default function ApiIntegrations() {
         inactive: 'غير نشط',
         empty: 'لا توجد تكاملات في هذا القسم.',
         removeConfirm: 'إزالة هذا التكامل؟ تبقى الرموز في الخزنة حتى تُمسح يدوياً.',
+        savedLocalOnly: 'تم حفظ التكامل. الرمز محفوظ في هذا المتصفح فقط (المزامنة مع الخادم غير متاحة على هذا الموقع).',
       }
     : {
         title: 'API Manager',
@@ -71,6 +73,8 @@ export default function ApiIntegrations() {
         inactive: 'Inactive',
         empty: 'No integrations in this section.',
         removeConfirm: 'Remove this integration? Stored tokens remain in the vault until cleared manually.',
+        savedLocalOnly:
+          'Integration saved. Token stored in this browser only (server sync is not available on this host).',
       }
 
   const filtered = useMemo(() => {
@@ -103,6 +107,12 @@ export default function ApiIntegrations() {
 
   return (
     <div className="api-manager-page">
+      {saveNotice ? (
+        <p className="api-manager-page__notice" role="status">
+          {saveNotice}
+        </p>
+      ) : null}
+
       <header className="api-manager-page__header">
         <div className="api-manager-page__titles">
           <h1 className="api-manager-page__title">{copy.title}</h1>
@@ -201,7 +211,15 @@ export default function ApiIntegrations() {
         )}
       </div>
 
-      <IntegrationModal open={modalOpen} record={editing} onClose={closeModal} onSaved={refresh} />
+      <IntegrationModal
+        open={modalOpen}
+        record={editing}
+        onClose={closeModal}
+        onSaved={warning => {
+          refresh()
+          setSaveNotice(warning ? copy.savedLocalOnly : null)
+        }}
+      />
     </div>
   )
 }

@@ -59,14 +59,27 @@ export async function writeApiTokenSecret(
   const def = defFor(typeId)
   if (!def) return { ok: false, error: 'Unknown token type' }
   const trimmed = value.trim()
+  if (!trimmed) return { ok: false, error: 'Empty secret value' }
 
   if (def.kind === 'builtin') {
     BUILTIN_PERSIST[def.builtinKey](trimmed)
-    return persistApiSecretsPatchToServer({ [def.builtinKey]: trimmed })
+  } else {
+    persistUserApiTokenValue(def.slotId, trimmed)
   }
 
-  persistUserApiTokenValue(def.slotId, trimmed)
-  return persistApiSecretsPatchToServer({ customSlots: { [def.slotId]: trimmed } })
+  const server = await persistApiSecretsPatchToServer(
+    def.kind === 'builtin'
+      ? { [def.builtinKey]: trimmed }
+      : { customSlots: { [def.slotId]: trimmed } },
+  )
+  if (server.ok) return { ok: true, synced: true }
+  return {
+    ok: true,
+    synced: false,
+    warning:
+      server.error ||
+      'Token saved in this browser only (server sync unavailable on this host).',
+  }
 }
 
 export async function testApiTokenSecret(typeId: ApiTokenTypeId, value: string) {

@@ -26,12 +26,20 @@ export async function persistVaultSecret(
   providerId: ProviderId,
   authType: import('./types').AuthType,
   config: Record<string, string>,
-): Promise<{ ok: true } | { ok: false; error: string }> {
+): Promise<
+  { ok: true; synced?: boolean; warning?: string } | { ok: false; error: string }
+> {
   const vaultTypeId = getProvider(providerId).vaultTypeId
-  if (!vaultTypeId) return { ok: true }
+  if (!vaultTypeId) return { ok: true, synced: true }
   const key = primarySecretKey(providerId, authType)
-  const value = config[key] ?? Object.values(config).find(v => v.trim()) ?? ''
-  if (!value.trim()) return { ok: false, error: 'No secret value to store' }
+  const value =
+    config[key]?.trim() ||
+    Object.entries(config)
+      .filter(([k]) => !k.startsWith('_'))
+      .map(([, v]) => v.trim())
+      .find(Boolean) ||
+    ''
+  if (!value) return { ok: false, error: 'No secret value to store' }
   return writeApiTokenSecret(vaultTypeId, value)
 }
 
