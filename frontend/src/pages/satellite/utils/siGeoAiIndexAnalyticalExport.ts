@@ -371,6 +371,18 @@ function formatSummaryAoiSheet(ws: XLSX.WorkSheet) {
   }
 }
 
+/** Prefer wider columns for Class_Statistics / Summary tables so Excel does not clip headers or long spectral strings. */
+function columnCharWidthFromRows(rows: (string | number)[][], colIndex: number, minWch: number, maxWch: number): number {
+  let w = minWch
+  for (const row of rows) {
+    const cell = row[colIndex]
+    if (cell == null) continue
+    const len = String(cell).length
+    w = Math.max(w, Math.min(maxWch, len + 2))
+  }
+  return w
+}
+
 /** Excel preserves ~15 significant digits for numbers; avoid toFixed / Math.round on spectral stats. */
 function appendSheetWithColWidths(
   wb: XLSX.WorkBook,
@@ -614,7 +626,7 @@ export function buildGeoAiIndexAnalyticalWorkbook(opts: {
     // All value columns as explicit text (@) so Excel never rounds tiny %, shares, or |−1…1| means to “0.00”.
     // “Pct of AOI (%)” is 0–100; do not embed “%” in the cell (avoids locale/parse quirks). “AOI fraction (0–1)” is n/total.
     classStats.push([
-      c.id,
+      String(c.id),
       c.label,
       String(n),
       excelDecimalText(pct),
@@ -622,10 +634,16 @@ export function buildGeoAiIndexAnalyticalWorkbook(opts: {
       vals.length && Number.isFinite(mnc) ? excelDecimalText(mnc) : '',
     ])
   }
-  appendSheetWithColWidths(wb, classStats, 'Class_Statistics', [14, 62, 16, 28, 24, 36], ws => {
-    // Entire data block as literal text so Excel never re-parses tiny % / fraction / spectral means as rounded numbers.
-    forceCellsPlainText(ws, 1, [0, 1, 2, 3, 4, 5])
-  })
+  appendSheetWithColWidths(
+    wb,
+    classStats,
+    'Class_Statistics',
+    classStatsHeader.map((_, c) => columnCharWidthFromRows(classStats, c, 12, 64)),
+    ws => {
+      // Entire data block as literal text so Excel never re-parses tiny % / fraction / spectral means as rounded numbers.
+      forceCellsPlainText(ws, 1, [0, 1, 2, 3, 4, 5])
+    },
+  )
 
   return wb;
 }
