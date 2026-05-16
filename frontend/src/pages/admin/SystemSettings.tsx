@@ -37,6 +37,7 @@ const SETTINGS_TABS = [
   { id: 'nav' as const, label: 'Navigation', icon: 'fa-solid fa-bars-staggered' },
   { id: 'pages' as const, label: 'Pages', icon: 'fa-solid fa-layer-group' },
   { id: 'signup-roles' as const, label: 'Sign-up & roles', icon: 'fa-solid fa-user-plus' },
+  { id: 'api-tokens' as const, label: 'API Vault', icon: 'fa-solid fa-shield-halved' },
 ]
 
 const themeSchema = yup.object({
@@ -48,7 +49,9 @@ export default function SystemSettings() {
   const { draft, setDraft, settings, setSettings, saveDraft, cancelDraft, resetToDefaults, pushToast } =
     useSystemSettings()
   const { language } = useLanguage()
-  const [tab, setTab] = useState<'theme' | 'header-settings' | 'logos' | 'nav' | 'pages' | 'signup-roles'>('theme')
+  const [tab, setTab] = useState<
+    'theme' | 'header-settings' | 'logos' | 'nav' | 'pages' | 'signup-roles' | 'api-tokens'
+  >('theme')
   const [confirmReset, setConfirmReset] = useState(false)
   const [pageQuery, setPageQuery] = useState('')
   const [pageGroupFilter, setPageGroupFilter] = useState<'all' | string>('all')
@@ -66,13 +69,12 @@ export default function SystemSettings() {
     setDraft(settings)
   }, [location.pathname, setDraft, settings])
 
-  /** API Vault tab removed — old header/deep links with ?tab=api-tokens land on Theme. */
   useEffect(() => {
     if (searchParams.get('tab') !== 'api-tokens') return
+    setTab('api-tokens')
     const next = new URLSearchParams(searchParams)
     next.delete('tab')
     setSearchParams(next, { replace: true })
-    setTab('theme')
   }, [searchParams, setSearchParams])
 
   useEffect(() => {
@@ -420,14 +422,21 @@ export default function SystemSettings() {
                   | 'logos'
                   | 'nav'
                   | 'pages'
-                  | 'signup-roles',
+                  | 'signup-roles'
+                  | 'api-tokens',
               )
             }
             aria-label={language === 'ar' ? 'اختر قسم الإعدادات' : 'Choose settings section'}
           >
             {SETTINGS_TABS.map(({ id, label }) => (
               <option key={id} value={id}>
-                {language === 'ar' ? (id === 'signup-roles' ? 'التسجيل والأدوار' : label) : label}
+                {language === 'ar'
+                  ? id === 'signup-roles'
+                    ? 'التسجيل والأدوار'
+                    : id === 'api-tokens'
+                      ? 'خزنة API'
+                      : label
+                  : label}
               </option>
             ))}
           </select>
@@ -1014,6 +1023,13 @@ export default function SystemSettings() {
         </div>
       ) : null}
 
+      {tab === 'api-tokens' ? (
+        <div
+          className="sys-settings-tab-pane sys-settings-tab-pane--empty"
+          role="region"
+          aria-label={language === 'ar' ? 'خزنة API' : 'API Vault'}
+        />
+      ) : null}
       {tab === 'signup-roles' ? (
         <div className="sys-settings-tab-pane">
           <div className="sys-settings-panel__head">

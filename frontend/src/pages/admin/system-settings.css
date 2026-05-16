@@ -64,6 +64,11 @@
   }
 }
 
+/* API Vault — intentionally empty (integrations removed). */
+.sys-settings-tab-pane--empty {
+  min-height: 48px;
+}
+
 /* Section switcher — flat row (replaces pill tab strip). */
 .sys-settings-section-picker {
   flex-shrink: 0;
