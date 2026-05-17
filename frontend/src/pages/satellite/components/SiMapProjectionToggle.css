@@ -1,14 +1,29 @@
-/* Bottom-left stack: above Mapbox logo + NavigationControl (bottom-left). */
+/* Bottom-right on map canvas (GIS Map projection float pattern). */
 .si-map-projection-float {
   position: absolute;
-  left: max(12px, env(safe-area-inset-left, 0px));
+  right: max(12px, env(safe-area-inset-right, 0px));
+  left: auto;
   bottom: max(118px, calc(env(safe-area-inset-bottom, 0px) + 118px));
   z-index: 720;
   pointer-events: auto;
   display: flex;
   flex-direction: column;
   align-items: flex-start;
-  gap: 8px;
+  gap: 6px;
+}
+
+:root[dir='rtl'] .si-map-projection-float {
+  right: auto;
+  left: max(12px, env(safe-area-inset-left, 0px));
+}
+
+.si-map-projection-label {
+  margin: 0 0 2px 2px;
+  color: rgba(226, 232, 240, 0.88);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  text-shadow: 0 1px 3px rgba(2, 6, 23, 0.65);
 }
 
 .si-map-projection-toggle.gis-map-projection-toggle--float {
