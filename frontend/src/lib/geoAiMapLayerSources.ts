@@ -2,7 +2,7 @@
  * Map Geo AI vector sources (GIS Map layers + Satellite custom layers) to GeoAiMapLayer for prompts & lookup.
  */
 
-import type { LayerData } from '../pages/satellite/components/LayerManager'
+import type { LayerData } from '../pages/satellite/layerTypes'
 import type { GeoAiMapLayer } from './geoExplorerLayerContext'
 
 export function gisLayerDataToGeoAiLayers(layers: LayerData[]): GeoAiMapLayer[] {

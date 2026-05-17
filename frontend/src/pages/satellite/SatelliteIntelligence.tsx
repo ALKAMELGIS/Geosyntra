@@ -79,7 +79,7 @@ import { appConfirm, appPrompt, appAlert } from '../../lib/appDialog';
 import { loadGisMapSavedLayers } from '../../lib/gisMapLayerStore';
 import { computeStableGisFeatureKey } from '../../lib/gisFeatureStableKey';
 import { satelliteCustomLayersToGeoAiLayers } from '../../lib/geoAiMapLayerSources';
-import { geoExplorerTargetZoomForPinSource, runGeoExplorerGeminiTurn } from '../../lib/runGeoExplorerGeminiTurn';
+import { geoExplorerTargetZoomForPinSource } from '../../lib/geoExplorerMapZoom';
 import { pickGeoAiHumanPlaceFields, type GeoAiMapLayer } from '../../lib/geoExplorerLayerContext';
 import { buildGeoAiInspectCardContent, type SiPopupInspectPayload } from '../../lib/siLayerPopupInspect';
 import { normalizeSiLayerPopupConfig, type SiLayerPopupConfig } from '../../lib/siLayerPopupConfig';
@@ -120,7 +120,6 @@ import {
   siMapErrorSuggestsGlobeOrWebglFailure,
 } from '../../lib/siMapboxGlobeCompat';
 import { useOpenWeatherMapApiKey } from '../../hooks/useOpenWeatherMapApiKey';
-import { geosyntraChatWithDeepSeek } from '../../lib/geosyntraAiChat';
 import {
   buildBasemapCatalog,
   catalogEntryById,
@@ -198,7 +197,9 @@ import {
   type SiMapProjectionMode,
 } from './utils/siMapProjectionTerrain';
 import { SatelliteGeoAiFloatingWidget } from './components/SatelliteGeoAiFloatingWidget';
-import { SiGeoExplorerChatPanel } from './components/SiGeoExplorerChatPanel';
+const SiGeoExplorerChatPanel = lazy(() =>
+  import('./components/SiGeoExplorerChatPanel').then(m => ({ default: m.SiGeoExplorerChatPanel })),
+);
 import { SiGeoAiModelSettings } from './components/SiGeoAiModelSettings';
 import { SatelliteAoiStaticChartsMapOverlay } from './components/SatelliteAoiStaticChartsMapOverlay';
 import { SatelliteAoiLiveChartsMapOverlay } from './components/SatelliteAoiLiveChartsMapOverlay';
@@ -3474,6 +3475,7 @@ export default function SatelliteIntelligence() {
         } catch {
           /* ignore */
         }
+        const { runGeoExplorerGeminiTurn } = await import('../../lib/runGeoExplorerGeminiTurn');
         const result = await runGeoExplorerGeminiTurn({
           apiKey,
           historyWithUser,
@@ -8171,6 +8173,7 @@ export default function SatelliteIntelligence() {
               .map(p => p.text)
               .join('\n'),
           }));
+          const { geosyntraChatWithDeepSeek } = await import('../../lib/geosyntraAiChat');
           const reply = await geosyntraChatWithDeepSeek({
             apiKey,
             system,
@@ -12944,6 +12947,7 @@ export default function SatelliteIntelligence() {
                             </div>
                           </div>
                           {geoAiModelTab === 'gemini' ? (
+                            <Suspense fallback={<div className="si-geo-explorer-chat-loading">Loading Geo AI…</div>}>
                             <SiGeoExplorerChatPanel
                               messagesRef={geoExplorerMessagesRef}
                               hasOlderMessages={geoExplorerHasOlderMessages}
@@ -12986,9 +12990,11 @@ export default function SatelliteIntelligence() {
                                 onTableQuerySelectApplied: onGeoAiQuerySelectApplied,
                               }}
                             />
+                            </Suspense>
                           ) : null}
 
                           {geoAiModelTab === 'claude' || geoAiModelTab === 'deepseek' ? (
+                            <Suspense fallback={<div className="si-geo-explorer-chat-loading">Loading Geo AI…</div>}>
                             <SiGeoExplorerChatPanel
                               messagesRef={geoAiModelTab === 'claude' ? geoAiClaudeMessagesRef : geoAiDeepseekMessagesRef}
                               hasOlderMessages={
@@ -13077,6 +13083,7 @@ export default function SatelliteIntelligence() {
                                 </p>
                               }
                             />
+                            </Suspense>
                           ) : null}
                           {geoAiPopupMode === 'docked' && geoAiInspectPopups.length > 0 ? (
                             <div className="si-geo-ai-inspect-dock-panel" role="region" aria-label="Identify — docked">

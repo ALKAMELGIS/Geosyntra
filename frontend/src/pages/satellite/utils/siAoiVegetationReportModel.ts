@@ -865,8 +865,6 @@ export function buildSiAoiVegetationReport(input: {
   };
 }
 
-export { buildFallbackInterpretationPoints } from './siAoiVegetationReportModelPdf';
-
 export type SiAoiPdfExportMode = 'AOI_ANALYSIS' | 'TIME_SERIES_CHANGE_DETECTION';
 
 export type SiAoiPdfExportOptions = {

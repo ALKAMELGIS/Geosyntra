@@ -1,4 +1,4 @@
-import type { LayerData } from '../pages/satellite/components/LayerManager'
+import type { LayerData } from '../pages/satellite/layerTypes'
 
 const DB_NAME = 'GisMapStore'
 const STORE_NAME = 'layers'

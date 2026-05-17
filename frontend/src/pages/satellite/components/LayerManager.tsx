@@ -1,78 +1,14 @@
 import React from 'react';
 import { appPrompt } from '../../../lib/appDialog';
+import type { LayerData } from '../layerTypes';
 
-export type SymbologyStyle =
-  | 'single'
-  | 'unique'
-  | 'color'
-  | 'size'
-  | 'color_size'
-  | 'dot_density'
-  | 'threshold_markers';
-
-export type SymbologyClassMethod =
-  | 'jenks'
-  | 'quantile'
-  | 'equal_interval'
-  | 'standard_deviation'
-  /** Same numeric bins as equal interval today; interactive break editor is planned. */
-  | 'manual';
-
-export type SymbologyColorRamp =
-  | 'viridis'
-  | 'blues'
-  | 'greens'
-  | 'plasma'
-  | 'magma'
-  | 'turbo'
-  | 'inferno'
-  | 'cividis'
-  | 'spectral'
-  | 'earth'
-  | 'gray';
-
-export interface SymbologyConfig {
-  useArcGisOnline?: boolean;
-  style?: SymbologyStyle;
-  field?: string;
-  classes?: number;
-  method?: SymbologyClassMethod;
-  colorRamp?: SymbologyColorRamp;
-  threshold?: number;
-}
-
-export interface LayerData {
-  id: number | string;
-  name: string;
-  type: 'geojson' | 'wms' | 'tile' | 'image';
-  source?: 'arcgis' | 'upload' | 'url';
-  visible: boolean;
-  opacity: number;
-  data?: any; // GeoJSON data or other source info
-  url?: string;
-  authToken?: string;
-  arcgisLayerDefinition?: any;
-  arcgisRenderer?: any;
-  arcgisLabelingInfo?: any;
-  arcgisPortalItemId?: string;
-  arcgisStyleUrl?: string;
-  group?: string;
-  blendMode?: 'normal' | 'multiply' | 'screen' | 'overlay' | 'darken' | 'lighten';
-  minZoom?: number;
-  maxZoom?: number;
-  bbox?: [number, number, number, number]; // [minX, minY, maxX, maxY]
-  color?: string;       // Stroke color
-  fillColor?: string;   // Fill color
-  weight?: number;      // Stroke width
-  strokeStyle?: 'solid' | 'dashed' | 'dotted' | 'dashdot';
-  /** Polygon fill strength 0–1 (multiplied by layer opacity). Default 0.35 when unset. */
-  polygonFillAlpha?: number;
-  /** Circle marker base radius for single-symbol points (px). */
-  pointRadius?: number;
-  /** Fill rendering intent; hatch/gradient are approximated on Leaflet paths (studio preview shows full effect). */
-  fillStyle?: 'solid' | 'pattern' | 'hatch' | 'gradient';
-  symbology?: SymbologyConfig;
-}
+export type {
+  SymbologyStyle,
+  SymbologyClassMethod,
+  SymbologyColorRamp,
+  SymbologyConfig,
+  LayerData,
+} from '../layerTypes';
 
 interface LayerManagerProps {
   layers: LayerData[];

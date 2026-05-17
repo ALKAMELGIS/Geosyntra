@@ -9,7 +9,6 @@ import {
 } from '../utils/staticAoiMultiChartData';
 import { AoiStaticMultiLayerLineChart } from './AoiStaticMultiLayerLineChart';
 import {
-  buildFallbackInterpretationPoints,
   buildSiAoiVegetationReport,
   siAoiReportFeatureBBoxLngLat,
   type SiAoiChangeDetectionSlot,
@@ -22,6 +21,7 @@ import {
   DEFAULT_SI_AOI_REPORT_STYLE_MODE,
   SI_AOI_REPORT_STYLE_MODE_OPTIONS,
 } from '../utils/siAoiVegetationReportModel';
+import { buildFallbackInterpretationPoints } from '../utils/siAoiReportInterpretation';
 import { exportSiAoiVegetationReportPdf } from '../utils/siAoiVegetationReportPdfExport';
 import { exportSiAoiVegetationReportDocx } from '../utils/siAoiVegetationReportDocx';
 import {

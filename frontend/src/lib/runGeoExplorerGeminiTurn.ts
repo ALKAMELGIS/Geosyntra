@@ -42,6 +42,10 @@ import {
   spatialLang,
   userExplicitlyRequestedMapNavigation,
 } from './geoExplorerSpatialGate'
+import type { GeoExplorerGeminiPinSource } from './geoExplorerMapZoom'
+
+export type { GeoExplorerGeminiPinSource } from './geoExplorerMapZoom'
+export { geoExplorerTargetZoomForPinSource } from './geoExplorerMapZoom'
 
 function haversineKm(a: [number, number], b: [number, number]): number {
   const R = 6371
@@ -54,8 +58,6 @@ function haversineKm(a: [number, number], b: [number, number]): number {
     Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLng / 2) * Math.sin(dLng / 2)
   return 2 * R * Math.asin(Math.min(1, Math.sqrt(s)))
 }
-
-export type GeoExplorerGeminiPinSource = 'map_query' | 'layer' | 'geocode'
 
 export type GeoExplorerGeminiMapEffect = {
   coords: [number, number]
@@ -300,10 +302,4 @@ export async function runGeoExplorerGeminiTurn(
       replyText,
     },
   }
-}
-
-export function geoExplorerTargetZoomForPinSource(pinSource: GeoExplorerGeminiPinSource): number {
-  if (pinSource === 'layer') return 17
-  if (pinSource === 'map_query') return 15.75
-  return 13.65
 }

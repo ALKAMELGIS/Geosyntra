@@ -182,6 +182,28 @@ export default defineConfig({
     modulePreload: {
       polyfill: false,
     },
+    rollupOptions: {
+      output: {
+        manualChunks(id) {
+          if (!id.includes('node_modules')) {
+            if (id.includes('GeoExplorerDynamicTable') || id.includes('GeoExplorerGeminiMessageParts')) {
+              return 'geo-explorer-table'
+            }
+            if (id.includes('siAoiVegetationReportModelPdf') || id.includes('jspdf')) {
+              return 'aoi-report-pdf'
+            }
+            if (id.includes('runGeoExplorerGeminiTurn') || id.includes('geoExplorerGemini')) {
+              return 'geo-explorer-gemini'
+            }
+            return undefined
+          }
+          if (id.includes('mapbox-gl')) return 'mapbox-gl'
+          if (id.includes('jspdf')) return 'jspdf'
+          if (id.includes('xlsx')) return 'xlsx'
+          if (id.includes('chart.js') || id.includes('react-chartjs')) return 'chartjs'
+        },
+      },
+    },
   },
   plugins: [
     geosyntraBaseTrailingSlashRedirect(),

@@ -4,7 +4,7 @@
 
 import { formatFeaturePropertiesForGeoAi, type ArcgisLayerDefLite } from './arcgisAttributeDisplay'
 import { loadGisMapSavedLayers } from './gisMapLayerStore'
-import type { LayerData } from '../pages/satellite/components/LayerManager'
+import type { LayerData } from '../pages/satellite/layerTypes'
 import { buildLayerIdValueCatalogSnippet, summarizeGeoAiMapLayers } from './geoExplorerLayerContext'
 import type { GeoAiMapLayer } from './geoExplorerLayerContext'
 
