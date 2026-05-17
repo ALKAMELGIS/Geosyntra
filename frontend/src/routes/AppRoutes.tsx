@@ -14,6 +14,9 @@ const DataEntryFertigationRecords = lazy(() => import('../pages/data-entry/Ferti
 const DataEntryRecipes = lazy(() => import('../pages/data-entry/Recipes'))
 const AdminGitHub = lazy(() => import('../pages/admin/GitHubIntegration'))
 const ApiIntegrations = lazy(() => import('../pages/settings/ApiIntegrations'))
+const AdminLayout = lazy(() => import('../pages/admin/AdminLayout'))
+const AdminDashboardPage = lazy(() => import('../pages/admin/AdminDashboardPage'))
+const AdminUsersPage = lazy(() => import('../pages/admin/AdminUsersPage'))
 const StyleGuide = lazy(() => import('../pages/StyleGuide'))
 const UsabilityTest = lazy(() => import('../pages/UsabilityTest'))
 const VerifyEmailPage = lazy(() => import('../pages/app/auth/VerifyEmailPage'))
@@ -42,12 +45,16 @@ export default function AppRoutes() {
         <Route path="/master/dashboard-settings" element={<Navigate to="/" replace />} />
         <Route path="/master/workflow-settings" element={<Navigate to="/" replace />} />
         <Route path="/account/profile" element={<Navigate to="/" replace />} />
-        <Route path="/account/profile-user-management" element={<Navigate to="/" replace />} />
+        <Route path="/account/profile-user-management" element={<Navigate to="/settings/admin/users" replace />} />
         <Route path="/account/settings" element={<Navigate to="/" replace />} />
-        <Route path="/admin/users" element={<Navigate to="/" replace />} />
+        <Route path="/admin/users" element={<Navigate to="/settings/admin/users" replace />} />
         <Route path="/admin/system-settings" element={<Navigate to="/" replace />} />
         <Route path="/admin/github" element={<AdminGitHub />} />
         <Route path="/settings/api-integrations" element={<ApiIntegrations />} />
+        <Route path="/settings/admin" element={<AdminLayout />}>
+          <Route index element={<AdminDashboardPage />} />
+          <Route path="users" element={<AdminUsersPage />} />
+        </Route>
         <Route path="/style-guide" element={<StyleGuide />} />
         <Route path="/usability-test" element={<UsabilityTest />} />
         {settings.customPages

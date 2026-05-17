@@ -7,6 +7,13 @@ import {
   isAuthApiConfigured,
   type PublicAuthUser,
 } from './authApi'
+import {
+  buildLocalVerificationLink,
+  createVerificationToken,
+  isStaticLocalAuthMode,
+  resendLocalVerification,
+  verifyEmailWithLocalToken,
+} from './localAuthVerification'
 
 export type HomeAuthResult =
   | { ok: true; user: CurrentUser }
@@ -38,7 +45,8 @@ function syncPublicUserToAdminDirectory(user: PublicAuthUser, passwordHash?: str
     name: user.name,
     email,
     role: user.role || 'Viewer',
-    status: 'Active',
+    status: user.emailVerified ? 'Active' : 'Pending Verification',
+    plan: 'Trial',
     emailVerified: user.emailVerified,
     lastLogin: new Date().toISOString(),
     ...(passwordHash ? { passwordHash } : {}),
@@ -86,27 +94,41 @@ async function homeSignUpLocal(input: {
   const password = input.password.trim()
   const name = input.name.trim()
   const users = readAdminUsers()
-  if (users.some(u => normalizeEmail(String(u.email ?? '')) === email)) {
+  const existing = users.find(u => normalizeEmail(String(u.email ?? '')) === email)
+  if (existing) {
+    if (existing.emailVerified === false) {
+      return {
+        ok: false,
+        error: 'This email is awaiting verification. Open your inbox or use Resend below on the sign-in tab.',
+      }
+    }
     return { ok: false, error: 'An account with this email already exists. Sign in instead.' }
   }
   const passwordHash = await sha256Hex(password)
   const parts = name.split(/\s+/)
   const id = Date.now()
+  const token = createVerificationToken()
   users.push({
     id,
     name,
     email,
     role: 'Viewer',
-    status: 'Active',
-    emailVerified: true,
+    status: 'Pending Verification',
+    plan: 'Trial',
+    emailVerified: false,
+    verificationToken: token,
+    createdAt: new Date().toISOString(),
     lastLogin: 'Never',
     passwordHash,
     profileExtra: { firstName: parts[0] ?? '', lastName: parts.slice(1).join(' ') },
   })
   writeAdminUsers(users)
-  const user: CurrentUser = { id, name, email, role: 'Viewer' }
-  startSession(user, { persist: true })
-  return { ok: true, user }
+  return {
+    ok: true,
+    needsVerification: true,
+    email,
+    devVerificationLink: buildLocalVerificationLink(token),
+  }
 }
 
 async function homeSignInLocal(input: {
@@ -119,6 +141,16 @@ async function homeSignInLocal(input: {
   const users = readAdminUsers()
   const match = users.find(u => normalizeEmail(String(u.email ?? '')) === email)
   if (!match) return { ok: false, error: 'No account found for this email.' }
+  if (match.emailVerified === false) {
+    return {
+      ok: false,
+      needsVerification: true,
+      error: 'Please verify your email before signing in. Check your inbox for the activation link.',
+    }
+  }
+  if (match.status === 'Suspended') {
+    return { ok: false, error: 'This account is suspended. Contact your administrator.' }
+  }
   const storedHash = String(match.passwordHash ?? '').trim()
   if (!storedHash || storedHash !== passwordHash) {
     return { ok: false, error: 'Incorrect password.' }
@@ -196,6 +228,20 @@ export async function completeVerifiedSignIn(user: PublicAuthUser): Promise<Home
   startSession(current, { persist: true })
   return { ok: true, user: current }
 }
+
+export async function verifyEmailLocal(
+  token: string,
+): Promise<{ ok: true; user: PublicAuthUser } | { ok: false; error: string }> {
+  return verifyEmailWithLocalToken(token, readAdminUsers, writeAdminUsers)
+}
+
+export function resendVerificationLocal(
+  email: string,
+): { ok: true; devVerificationLink: string } | { ok: false; error: string } {
+  return resendLocalVerification(email, readAdminUsers, writeAdminUsers)
+}
+
+export { isStaticLocalAuthMode }
 
 export function displayFirstName(user: CurrentUser | null): string {
   if (!user) return ''

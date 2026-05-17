@@ -76,6 +76,13 @@ export const NAV_DEFAULT_GROUPS: NavGroupDef[] = [
         defaultIcon: 'fa-solid fa-key',
         subitemClass: 'nav-item-api-integrations',
       },
+      {
+        id: 'admin-console',
+        path: '/settings/admin',
+        i18nKey: 'userManagement',
+        defaultIcon: 'fa-solid fa-users-gear',
+        subitemClass: 'nav-item-user-management',
+      },
     ],
   },
   {

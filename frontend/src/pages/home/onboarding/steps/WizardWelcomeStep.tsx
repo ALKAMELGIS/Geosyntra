@@ -4,9 +4,11 @@ import {
   homeOAuthSignIn,
   homeSignIn,
   homeSignUp,
+  isStaticLocalAuthMode,
+  resendVerificationLocal,
   type OAuthProvider,
 } from '../../../../lib/onboarding/localAuth'
-import { apiResendVerification } from '../../../../lib/onboarding/authApi'
+import { apiResendVerification, isAuthApiConfigured } from '../../../../lib/onboarding/authApi'
 import { SaasButton } from '../../../../components/saas/SaasEntryShell'
 import { useAuth } from '../../../../state/auth'
 import { useHomeOnboarding } from '../HomeOnboardingContext'
@@ -103,7 +105,9 @@ export function WizardWelcomeStep() {
     setInfo('')
     setBusy(true)
     try {
-      const result = await apiResendVerification(pendingEmail)
+      const result = isAuthApiConfigured()
+        ? await apiResendVerification(pendingEmail)
+        : resendVerificationLocal(pendingEmail)
       if (!result.ok) {
         setError(result.error)
         return
@@ -111,7 +115,11 @@ export function WizardWelcomeStep() {
       setResendIn(RESEND_SECONDS)
       if (result.devVerificationLink) {
         setDevLink(result.devVerificationLink)
-        setInfo('Development mode: use the verification link below.')
+        setInfo(
+          isStaticLocalAuthMode()
+            ? 'This site runs without a mail server on GitHub Pages — open the verification link below.'
+            : 'Development mode: use the verification link below.',
+        )
       } else {
         setInfo('Verification email sent. Check your inbox.')
       }
@@ -176,8 +184,17 @@ export function WizardWelcomeStep() {
               </motion.div>
               <h3 className="home-wizard-check-email__title">Check your email</h3>
               <p className="home-wizard-check-email__text">
-                We sent a verification link to <strong>{pendingEmail}</strong>. Open it to activate your account,
-                then return here to sign in and choose your plan.
+                {isStaticLocalAuthMode() ? (
+                  <>
+                    Confirm <strong>{pendingEmail}</strong> using the verification link below (required on this
+                    demo deployment). After activation, sign in and continue to your plan.
+                  </>
+                ) : (
+                  <>
+                    We sent a verification link to <strong>{pendingEmail}</strong>. Open it to activate your
+                    account, then return here to sign in and choose your plan.
+                  </>
+                )}
               </p>
               {devLink ? (
                 <p className="home-wizard-check-email__dev">

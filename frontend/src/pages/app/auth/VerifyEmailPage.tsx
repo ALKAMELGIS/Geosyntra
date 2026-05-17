@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { motion } from 'framer-motion'
-import { apiVerifyEmail } from '../../../lib/onboarding/authApi'
-import { completeVerifiedSignIn } from '../../../lib/onboarding/localAuth'
+import { apiVerifyEmail, isAuthApiConfigured } from '../../../lib/onboarding/authApi'
+import { completeVerifiedSignIn, verifyEmailLocal } from '../../../lib/onboarding/localAuth'
 import { redirectToHomeWizard } from '../../../lib/homeWizardEntry'
 import { useAuth } from '../../../state/auth'
 import { SaasButton } from '../../../components/saas/SaasEntryShell'
@@ -23,8 +23,12 @@ export default function VerifyEmailPage() {
     }
     let cancelled = false
     ;(async () => {
-      const result = await apiVerifyEmail(token)
+      let result = isAuthApiConfigured() ? await apiVerifyEmail(token) : await verifyEmailLocal(token)
       if (cancelled) return
+      if (!result.ok && isAuthApiConfigured()) {
+        const local = await verifyEmailLocal(token)
+        if (local.ok) result = local
+      }
       if (!result.ok) {
         setStatus('error')
         setMessage(result.error)
