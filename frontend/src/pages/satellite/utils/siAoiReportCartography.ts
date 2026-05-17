@@ -1,9 +1,17 @@
 import type jsPDF from 'jspdf';
+import {
+  siAoiReportFeatureBBoxLngLat,
+  siPdfBoundsFromFitBounds,
+  type SiPdfLngLatBounds,
+} from './siAoiReportGeo';
 import type {
   SiAoiClassificationPalette,
   SiAoiReportCartographyInput,
   SiAoiReportTableRow,
 } from './siAoiReportCartographyTypes';
+
+export type { SiPdfLngLatBounds } from './siAoiReportGeo';
+export { siPdfBoundsFromFitBounds } from './siAoiReportGeo';
 
 function pdfSafeText(raw: string): string {
   return String(raw ?? '')
@@ -18,57 +26,12 @@ function pdfSafeText(raw: string): string {
     .trim();
 }
 
-function featureBBoxLngLat(geojson: GeoJSON.Feature): [number, number, number, number] | null {
-  const points: [number, number][] = [];
-  const walkCoords = (coords: unknown) => {
-    if (!coords) return;
-    const c = coords as unknown;
-    if (typeof c === 'object' && c !== null && 'length' in c && typeof (c as number[])[0] === 'number') {
-      const arr = c as number[];
-      if (arr.length >= 2 && typeof arr[0] === 'number' && typeof arr[1] === 'number') {
-        points.push([arr[0], arr[1]]);
-        return;
-      }
-    }
-    if (Array.isArray(c)) c.forEach(walkCoords);
-  };
-  const g = geojson.geometry;
-  if (!g) return null;
-  if (g.type === 'Polygon' || g.type === 'MultiPolygon') {
-    walkCoords((g as GeoJSON.Polygon).coordinates);
-  }
-  if (points.length === 0) return null;
-  let [minX, minY] = points[0]!;
-  let [maxX, maxY] = points[0]!;
-  for (let i = 1; i < points.length; i++) {
-    const [x, y] = points[i]!;
-    if (x < minX) minX = x;
-    if (y < minY) minY = y;
-    if (x > maxX) maxX = x;
-    if (y > maxY) maxY = y;
-  }
-  return [minX, minY, maxX, maxY];
-}
-
-export type SiPdfLngLatBounds = { west: number; south: number; east: number; north: number };
-
 export function siPdfBoundsFromFeatureCollection(fc: GeoJSON.FeatureCollection): SiPdfLngLatBounds | null {
   const f = fc.features?.[0];
   if (!f) return null;
-  const b = featureBBoxLngLat(f);
+  const b = siAoiReportFeatureBBoxLngLat(f);
   if (!b) return null;
   return { west: b[0], south: b[1], east: b[2], north: b[3] };
-}
-
-export function siPdfBoundsFromFitBounds(fit: [[number, number], [number, number]]): SiPdfLngLatBounds {
-  const lngs = [fit[0][0], fit[1][0]];
-  const lats = [fit[0][1], fit[1][1]];
-  return {
-    west: Math.min(...lngs),
-    east: Math.max(...lngs),
-    south: Math.min(...lats),
-    north: Math.max(...lats),
-  };
 }
 
 export function approxGroundSpanMeters(b: SiPdfLngLatBounds): number {

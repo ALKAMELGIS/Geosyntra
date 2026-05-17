@@ -1,5 +1,7 @@
 import React, {
   Fragment,
+  Suspense,
+  lazy,
   useState,
   useMemo,
   useRef,
@@ -201,7 +203,9 @@ import { SiGeoAiModelSettings } from './components/SiGeoAiModelSettings';
 import { SatelliteAoiStaticChartsMapOverlay } from './components/SatelliteAoiStaticChartsMapOverlay';
 import { SatelliteAoiLiveChartsMapOverlay } from './components/SatelliteAoiLiveChartsMapOverlay';
 import { buildLiveAoiMapChartSnapshot } from './utils/liveAoiMapChartSnapshot';
-import { SiAoiReportModal } from './components/SiAoiReportModal';
+const SiAoiReportModal = lazy(() =>
+  import('./components/SiAoiReportModal').then(m => ({ default: m.SiAoiReportModal })),
+);
 import { SiMapPrintModal } from './components/SiMapPrintModal';
 import {
   SiMapSwipeComparePane,
@@ -214,8 +218,11 @@ import {
   SI_MAP_SWIPE_DEFAULT_NORM,
   type SiMapSwipeMode,
 } from './utils/siMapSwipeTypes';
-import { siPdfBoundsFromFitBounds } from './utils/siAoiReportCartography';
-import { siAoiPaletteFromIndexRampStops, siAoiReportFeatureBBoxLngLat } from './utils/siAoiVegetationReportModel';
+import {
+  siAoiPaletteFromIndexRampStops,
+  siAoiReportFeatureBBoxLngLat,
+  siPdfBoundsFromFitBounds,
+} from './utils/siAoiReportGeo';
 import { siWmsLegendRowsFromStops } from './utils/siWmsSpectralClassification';
 import { captureSiReportMapSnapshot } from './utils/siReportMapSnapshotEngine';
 import {
@@ -13227,22 +13234,24 @@ export default function SatelliteIntelligence() {
           />
 
           {siAoiReportModalOpen ? (
-            <SiAoiReportModal
-              open
-              onClose={() => setSiAoiReportModalOpen(false)}
-              weeklyComposites={weeklyComposites}
-              timeSeriesStart={timeSeriesStart}
-              timeSeriesEnd={timeSeriesEnd}
-              defaultIndexId={siAoiReportDefaultIndex}
-              aoiOptions={siAoiReportAoiOptions}
-              mapboxToken={mapboxToken}
-              preferredAoiId={siAoiReportPreferredAoiId}
-              reportMapStyle={effectiveMapStyle}
-              defaultCloudCoverPct={cloudCoverage}
-              classificationPalette={siAoiPaletteFromIndexRampStops(symStopsForWmsLayerId(activeWmsLayer || '') ?? undefined)}
-              captureLiveMapSnapshot={captureLiveMapSnapshot}
-              satelliteProviderLabel={satelliteProviderLabel}
-            />
+            <Suspense fallback={null}>
+              <SiAoiReportModal
+                open
+                onClose={() => setSiAoiReportModalOpen(false)}
+                weeklyComposites={weeklyComposites}
+                timeSeriesStart={timeSeriesStart}
+                timeSeriesEnd={timeSeriesEnd}
+                defaultIndexId={siAoiReportDefaultIndex}
+                aoiOptions={siAoiReportAoiOptions}
+                mapboxToken={mapboxToken}
+                preferredAoiId={siAoiReportPreferredAoiId}
+                reportMapStyle={effectiveMapStyle}
+                defaultCloudCoverPct={cloudCoverage}
+                classificationPalette={siAoiPaletteFromIndexRampStops(symStopsForWmsLayerId(activeWmsLayer || '') ?? undefined)}
+                captureLiveMapSnapshot={captureLiveMapSnapshot}
+                satelliteProviderLabel={satelliteProviderLabel}
+              />
+            </Suspense>
           ) : null}
 
           <SiMapPrintModal

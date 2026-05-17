@@ -44,7 +44,7 @@ export function WizardLaunchStep() {
         ))}
       </ul>
       <SaasButton size="lg" variant="primary" onClick={enterWorkspace}>
-        Enter dashboard now
+        Enter Satellite Intelligence
       </SaasButton>
     </div>
   )

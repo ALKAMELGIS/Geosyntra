@@ -10,6 +10,10 @@ function authApiBase(): string {
   return String(import.meta.env.VITE_API_BASE_URL ?? '').trim().replace(/\/+$/, '')
 }
 
+export function isAuthApiConfigured(): boolean {
+  return Boolean(authApiBase())
+}
+
 async function authFetch<T>(path: string, init?: RequestInit): Promise<{ ok: boolean; status: number; data: T }> {
   const base = authApiBase()
   const url = `${base}${path}`

@@ -102,9 +102,9 @@
   transform-style: preserve-3d;
 }
 
-/* Home Start — optical center: nudge globe 3cm left (texture/lighting reads right of 50%). */
+/* Home Start — optical center: nudge globe left (texture/lighting reads right of 50%). */
 .home-landing .gs-scroll-globe--home-integrated .gs-hero-globe {
-  translate: -3cm 0;
+  translate: -7cm 0;
 }
 
 .gs-hero-globe__parallax {

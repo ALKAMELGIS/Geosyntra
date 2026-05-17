@@ -14,6 +14,7 @@ import type { BillingPlanId } from '../../../lib/onboarding/pricingPlans'
 import { activateWorkspaceForUser, processMockPayment } from '../../../lib/onboarding/activateWorkspace'
 import { createStripeCheckout, isStripeConfigured } from '../../../lib/onboarding/stripeClient'
 import { readWorkspaceState, trialDaysRemaining } from '../../../lib/onboarding/workspaceState'
+import { SAAS_ROUTES } from '../../../lib/saasRoutes'
 import type { WizardOpenOptions, WizardStep } from './homeOnboarding.types'
 
 type HomeOnboardingContextValue = {
@@ -37,7 +38,7 @@ type HomeOnboardingContextValue = {
 
 const HomeOnboardingContext = createContext<HomeOnboardingContextValue | null>(null)
 
-const DASHBOARD_PATH = '/satellite/indices'
+const SATELLITE_INTELLIGENCE_PATH = SAAS_ROUTES.dashboardDefault
 
 function normalizeStep(step?: WizardOpenOptions['step']): WizardStep {
   if (step === 'auth') return 'welcome'
@@ -80,7 +81,7 @@ export function HomeOnboardingProvider({ children }: { children: ReactNode }) {
       const u = readCurrentUser()
       const ws = u ? readWorkspaceState(u.email) : null
       if (ws?.workspaceReady) {
-        navigate(DASHBOARD_PATH)
+        navigate(SATELLITE_INTELLIGENCE_PATH)
         return
       }
       const requested = normalizeStep(opts?.step)
@@ -144,7 +145,7 @@ export function HomeOnboardingProvider({ children }: { children: ReactNode }) {
 
   const enterWorkspace = useCallback(() => {
     closeWizard()
-    navigate(DASHBOARD_PATH)
+    navigate(SATELLITE_INTELLIGENCE_PATH)
   }, [closeWizard, navigate])
 
   const value = useMemo<HomeOnboardingContextValue>(

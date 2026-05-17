@@ -4,6 +4,7 @@ import {
   apiLogin,
   apiOAuthUpsert,
   apiRegister,
+  isAuthApiConfigured,
   type PublicAuthUser,
 } from './authApi'
 
@@ -59,6 +60,81 @@ function toCurrentUser(user: PublicAuthUser): CurrentUser {
   }
 }
 
+async function sha256Hex(value: string): Promise<string> {
+  const enc = new TextEncoder().encode(value)
+  const buf = await crypto.subtle.digest('SHA-256', enc)
+  return Array.from(new Uint8Array(buf))
+    .map(b => b.toString(16).padStart(2, '0'))
+    .join('')
+}
+
+function shouldUseLocalAuthFallback(apiError: string): boolean {
+  if (isAuthApiConfigured()) return false
+  if (apiError.includes('Cannot reach the auth server')) return true
+  if (apiError === 'Registration failed.' || apiError === 'Sign in failed.') return true
+  if (apiError.includes('Incorrect email or password')) return false
+  return true
+}
+
+/** GitHub Pages / static hosting — no `/api` backend; persist account in localStorage. */
+async function homeSignUpLocal(input: {
+  name: string
+  email: string
+  password: string
+}): Promise<HomeAuthResult> {
+  const email = normalizeEmail(input.email)
+  const password = input.password.trim()
+  const name = input.name.trim()
+  const users = readAdminUsers()
+  if (users.some(u => normalizeEmail(String(u.email ?? '')) === email)) {
+    return { ok: false, error: 'An account with this email already exists. Sign in instead.' }
+  }
+  const passwordHash = await sha256Hex(password)
+  const parts = name.split(/\s+/)
+  const id = Date.now()
+  users.push({
+    id,
+    name,
+    email,
+    role: 'Viewer',
+    status: 'Active',
+    emailVerified: true,
+    lastLogin: 'Never',
+    passwordHash,
+    profileExtra: { firstName: parts[0] ?? '', lastName: parts.slice(1).join(' ') },
+  })
+  writeAdminUsers(users)
+  const user: CurrentUser = { id, name, email, role: 'Viewer' }
+  startSession(user, { persist: true })
+  return { ok: true, user }
+}
+
+async function homeSignInLocal(input: {
+  email: string
+  password: string
+}): Promise<HomeAuthResult> {
+  const email = normalizeEmail(input.email)
+  const password = input.password.trim()
+  const passwordHash = await sha256Hex(password)
+  const users = readAdminUsers()
+  const match = users.find(u => normalizeEmail(String(u.email ?? '')) === email)
+  if (!match) return { ok: false, error: 'No account found for this email.' }
+  const storedHash = String(match.passwordHash ?? '').trim()
+  if (!storedHash || storedHash !== passwordHash) {
+    return { ok: false, error: 'Incorrect password.' }
+  }
+  const user: CurrentUser = {
+    id: typeof match.id === 'number' ? match.id : Date.now(),
+    name: String(match.name ?? email),
+    email,
+    role: normalizeRole(match.role),
+  }
+  match.lastLogin = new Date().toISOString()
+  writeAdminUsers(users)
+  startSession(user, { persist: true })
+  return { ok: true, user }
+}
+
 export async function homeSignUp(input: {
   name: string
   email: string
@@ -73,7 +149,12 @@ export async function homeSignUp(input: {
   if (!name) return { ok: false, error: 'Enter your full name.' }
 
   const result = await apiRegister({ name, email, password })
-  if (!result.ok) return result
+  if (!result.ok) {
+    if (shouldUseLocalAuthFallback(result.error)) {
+      return homeSignUpLocal({ name, email, password })
+    }
+    return result
+  }
 
   return {
     ok: true,
@@ -93,6 +174,9 @@ export async function homeSignIn(input: {
 
   const result = await apiLogin({ email, password })
   if (!result.ok) {
+    if (!result.needsVerification && shouldUseLocalAuthFallback(result.error)) {
+      return homeSignInLocal({ email, password })
+    }
     return {
       ok: false,
       error: result.error,

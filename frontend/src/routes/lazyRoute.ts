@@ -21,16 +21,27 @@ export function lazyRoute<T extends ComponentType<unknown>>(
   factory: () => Promise<{ default: T }>,
 ): LazyExoticComponent<T> {
   return lazy(() =>
-    factory().catch((err: unknown) => {
-      if (typeof window === 'undefined' || !isRecoverableChunkError(err)) throw err
-      try {
-        if (sessionStorage.getItem(CHUNK_RELOAD_SESSION_KEY) === '1') throw err
-        sessionStorage.setItem(CHUNK_RELOAD_SESSION_KEY, '1')
-      } catch {
-        throw err
-      }
-      window.location.reload()
-      return new Promise<{ default: T }>(() => {})
-    }),
+    factory()
+      .then(mod => {
+        try {
+          sessionStorage.removeItem(CHUNK_RELOAD_SESSION_KEY)
+        } catch {
+          /* ignore */
+        }
+        return mod
+      })
+      .catch((err: unknown) => {
+        if (typeof window === 'undefined' || !isRecoverableChunkError(err)) throw err
+        try {
+          if (sessionStorage.getItem(CHUNK_RELOAD_SESSION_KEY) === '1') throw err
+          sessionStorage.setItem(CHUNK_RELOAD_SESSION_KEY, '1')
+        } catch {
+          throw err
+        }
+        const url = new URL(window.location.href)
+        url.searchParams.set('_chunk', String(Date.now()))
+        window.location.replace(url.toString())
+        return new Promise<{ default: T }>(() => {})
+      }),
   )
 }
