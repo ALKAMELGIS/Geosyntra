@@ -8,8 +8,8 @@ import {
   SI_NDWI_CLASSIFICATION_STOPS,
   type IndexRampStop,
   siStopsToVerticalCssGradient,
-  siThinLegendSegments,
 } from '../../../lib/siWmsIndexClassificationRamp'
+import { SI_WMS_SPECTRAL_CLASS_COUNT, siWmsLegendRowsFromStops } from '../utils/siWmsSpectralClassification'
 
 const SI_WMS_LEGEND_OFFSET_LS = 'si-wms-spectral-legend-offset-v1'
 
@@ -41,7 +41,16 @@ function clampLegendOffset(x: number, y: number): { x: number; y: number } {
 }
 
 /** Indices rendered with a scalar classified ramp (matches WMS evalscript). */
-const CLASSIFIED_PROFILES: readonly WmsAoiEvalProfile[] = ['ndvi', 'ndwi', 'gndvi', 'ndmi', 'evi']
+const CLASSIFIED_PROFILES: readonly WmsAoiEvalProfile[] = [
+  'ndvi',
+  'ndwi',
+  'gndvi',
+  'ndmi',
+  'evi',
+  'savi',
+  'ndbi',
+  'lst',
+]
 
 export function siWmsShowsSpectralLegend(profile: WmsAoiEvalProfile): profile is Exclude<WmsAoiEvalProfile, 'native'> {
   return profile !== 'native'
@@ -63,6 +72,12 @@ function stopsForClassified(profile: (typeof CLASSIFIED_PROFILES)[number]) {
       return SI_NDMI_CLASSIFICATION_STOPS
     case 'evi':
       return SI_EVI_CLASSIFICATION_STOPS
+    case 'savi':
+      return SI_NDVI_CLASSIFICATION_STOPS
+    case 'ndbi':
+      return SI_NDWI_CLASSIFICATION_STOPS
+    case 'lst':
+      return SI_NDMI_CLASSIFICATION_STOPS
     default:
       return SI_NDVI_CLASSIFICATION_STOPS
   }
@@ -144,7 +159,7 @@ export function SiWmsIndexClassificationLegend({
   profile,
   layerLabel,
   context,
-  maxRows = 10,
+  maxRows = SI_WMS_SPECTRAL_CLASS_COUNT,
   classifiedStopsOverride = null,
 }: SiWmsIndexClassificationLegendProps) {
   const offsetRef = useRef(readStoredLegendOffset())
@@ -210,9 +225,9 @@ export function SiWmsIndexClassificationLegend({
     [classifiedStops],
   )
   const rows = useMemo(
-    () => (classifiedStops ? siThinLegendSegments(classifiedStops, maxRows) : []),
+    () => (classifiedStops ? siWmsLegendRowsFromStops(classifiedStops, maxRows) : []),
     [classifiedStops, maxRows],
-  )
+  );
 
   const seriesLine =
     context.seriesStartIso && context.seriesEndIso
@@ -299,8 +314,8 @@ export function SiWmsIndexClassificationLegend({
         <>
           <p className="si-wms-index-class-legend__hint">
             {classifiedStopsOverride && classifiedStopsOverride.length >= 2
-              ? 'Custom symbology — bands follow your ramp; index values are unchanged.'
-              : 'Piecewise classified ramp — value bands match the AOI WMS evalscript. Temporal line shows the chart week overlapping the imagery date (min / mean / max from the time-series chip).'}
+              ? `Custom symbology — ${maxRows} classes; bands match the AOI WMS evalscript exactly.`
+              : `Spectral classification — ${maxRows} classes by layer type; colors and ranges match the map tiles and export.`}
           </p>
           <div className="si-wms-index-class-legend__body">
             <div className="si-wms-index-class-legend__bar" style={{ backgroundImage: gradient }} aria-hidden />

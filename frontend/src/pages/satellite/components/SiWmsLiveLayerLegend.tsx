@@ -2,6 +2,7 @@ import { useCallback, useMemo, useRef, useState, type PointerEvent as ReactPoint
 import type { WmsAoiEvalProfile } from '../../../lib/sentinelHubWmsAoiClip';
 import { siStopsToVerticalCssGradient } from '../../../lib/siWmsIndexClassificationRamp';
 import { mergeSymbologyUi, siWmsLiveLegendStops, type SiWmsSymbologyUiState } from '../utils/siWmsLegendMode';
+import { SI_WMS_SPECTRAL_CLASS_COUNT, siWmsLegendRowsFromStops } from '../utils/siWmsSpectralClassification';
 import type { SiWmsSpectralLegendContext } from './SiWmsIndexClassificationLegend';
 
 const SI_WMS_LIVE_LEGEND_OFFSET_LS = 'si-wms-live-legend-offset-v1';
@@ -103,6 +104,10 @@ export function SiWmsLiveLayerLegend({
     [layerId, ui, symbologyPartial],
   );
   const gradient = useMemo(() => (liveStops ? siStopsToVerticalCssGradient(liveStops) : ''), [liveStops]);
+  const classRows = useMemo(
+    () => siWmsLegendRowsFromStops(liveStops, SI_WMS_SPECTRAL_CLASS_COUNT),
+    [liveStops],
+  );
 
   const seriesLine =
     context.seriesStartIso && context.seriesEndIso
@@ -151,12 +156,22 @@ export function SiWmsLiveLayerLegend({
       <p className="si-wms-index-class-legend__hint si-wms-index-class-legend__hint--live">
         {isComposite
           ? 'RGB composite — band colors as rendered on the map.'
-          : 'Layer preview — enable Auto scientific in Symbology for full AOI classification legend.'}
+          : `Live layer — ${SI_WMS_SPECTRAL_CLASS_COUNT}-class spectral ramp by index type; matches map tiles inside AOI.`}
       </p>
 
-      {!isComposite && gradient ? (
-        <div className="si-wms-index-class-legend__body si-wms-index-class-legend__body--live">
+      {!isComposite && gradient && classRows.length > 0 ? (
+        <div className="si-wms-index-class-legend__body">
           <div className="si-wms-index-class-legend__bar" style={{ backgroundImage: gradient }} aria-hidden />
+          <div className="si-wms-index-class-legend__rows">
+            {classRows.map((row, i) => (
+              <div key={`${row.from}-${row.to}-${i}`} className="si-wms-index-class-legend__row">
+                <span className="si-wms-index-class-legend__swatch" style={{ background: row.color }} />
+                <span className="si-wms-index-class-legend__range">
+                  {row.from.toFixed(3)} – {row.to.toFixed(3)}
+                </span>
+              </div>
+            ))}
+          </div>
         </div>
       ) : null}
     </div>

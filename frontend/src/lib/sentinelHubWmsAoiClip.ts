@@ -24,6 +24,9 @@ export type WmsAoiEvalProfile =
   | 'ndmi'
   | 'ndwi'
   | 'evi'
+  | 'savi'
+  | 'ndbi'
+  | 'lst'
   | 'generic_rgb';
 
 export type BuildSentinelHubWmsAoiClipOptions = {
@@ -136,11 +139,11 @@ function multiPolygon3857Wkt(rings: [number, number][][]): string {
 export function inferWmsEvalProfile(layerName: string): WmsAoiEvalProfile {
   const u = String(layerName || '').toUpperCase();
   if (u.includes('GNDVI')) return 'gndvi';
-  if (u.includes('NDRE') || u.includes('BSI')) return 'native';
-  // Thermal / SAR products — not NDVI-classified custom scripts (avoid false "vegetation" ramps).
-  if (u.includes('LST') || u.includes('LAND SURFACE') || u.includes('THERMAL') || u.includes('TEMPERATURE')) return 'native';
+  if (u.includes('NDRE')) return 'native';
+  if (u.includes('LST') || u.includes('LAND SURFACE') || u.includes('THERMAL') || u.includes('TEMPERATURE')) return 'lst';
   if (u.includes('SAR') && !u.includes('SAVI')) return 'native';
-  if (u.includes('SAVI')) return 'native';
+  if (u.includes('SAVI')) return 'savi';
+  if (u.includes('NDBI') || u.includes('URBAN') || (u.includes('BSI') && !u.includes('NDVI'))) return 'ndbi';
   // Water / moisture before generic NDVI — many catalog names list multiple indices (e.g. "NDVI_NDWI").
   if (u.includes('NDWI') || u.includes('MNDWI') || u.includes('WATER')) return 'ndwi';
   if (u.includes('NDMI') || u.includes('MOISTURE')) return 'ndmi';
@@ -343,6 +346,64 @@ function evaluatePixel(s) {
   var den = s.B08 + 6 * s.B04 - 7.5 * s.B02 + 1;
   var raw = den > 1e-6 ? 2.5 * ((s.B08 - s.B04) / den) : 0;
   var idx = raw < -1 ? -1 : (raw > 1 ? 1 : raw);
+  ${alphaFromIndex('idx')}
+  var stops = ${stops};
+  var c = __rampRgb(idx, stops);
+  return [c[0], c[1], c[2], __a];
+}`;
+    }
+    case 'savi': {
+      const stops = classifiedStopsLiteral(classifiedStopsOverride, SI_NDVI_CLASSIFICATION_STOPS);
+      return `//VERSION=3
+function setup() {
+  return {
+    input: ["B04", "B08", "dataMask"],
+    output: { bands: 4, sampleType: "AUTO" }
+  };
+}
+${EVAL_CLASSIFIED_RAMP_HELPERS}
+function evaluatePixel(s) {
+  var d = s.B08 + s.B04 + 0.5;
+  var idx = d > 1e-6 ? 1.5 * (s.B08 - s.B04) / d : -1;
+  ${alphaFromIndex('idx')}
+  var stops = ${stops};
+  var c = __rampRgb(idx, stops);
+  return [c[0], c[1], c[2], __a];
+}`;
+    }
+    case 'ndbi': {
+      const stops = classifiedStopsLiteral(classifiedStopsOverride, SI_NDWI_CLASSIFICATION_STOPS);
+      return `//VERSION=3
+function setup() {
+  return {
+    input: ["B08", "B11", "dataMask"],
+    output: { bands: 4, sampleType: "AUTO" }
+  };
+}
+${EVAL_CLASSIFIED_RAMP_HELPERS}
+function evaluatePixel(s) {
+  var d = s.B11 + s.B08;
+  var idx = d > 1e-6 ? (s.B11 - s.B08) / d : -1;
+  ${alphaFromIndex('idx')}
+  var stops = ${stops};
+  var c = __rampRgb(idx, stops);
+  return [c[0], c[1], c[2], __a];
+}`;
+    }
+    case 'lst': {
+      const stops = classifiedStopsLiteral(classifiedStopsOverride, SI_NDMI_CLASSIFICATION_STOPS);
+      return `//VERSION=3
+function setup() {
+  return {
+    input: ["B11", "B12", "dataMask"],
+    output: { bands: 4, sampleType: "AUTO" }
+  };
+}
+${EVAL_CLASSIFIED_RAMP_HELPERS}
+function evaluatePixel(s) {
+  var idx = (s.B11 - 0.15) * 3.5;
+  if (idx < -1) idx = -1;
+  if (idx > 1) idx = 1;
   ${alphaFromIndex('idx')}
   var stops = ${stops};
   var c = __rampRgb(idx, stops);

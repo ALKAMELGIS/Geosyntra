@@ -23,7 +23,7 @@ export type SiWmsSymbologyUiState = {
 export const SI_WMS_SYMBOLOGY_DEFAULT_UI: SiWmsSymbologyUiState = {
   rampPreset: 'vegetation',
   classificationType: 'quantitative',
-  numClasses: 9,
+  numClasses: 10,
   opacity01: 1,
   autoScientific: true,
 };
@@ -83,7 +83,16 @@ export const SI_SYM_PRESET_STOPS: Record<SiSymbologyRampPresetId, readonly Index
 
 export function siWmsSymbologySupportsLayer(layerName: string): boolean {
   const p = inferWmsEvalProfile(layerName);
-  return p === 'ndvi' || p === 'ndwi' || p === 'gndvi' || p === 'ndmi' || p === 'evi';
+  return (
+    p === 'ndvi' ||
+    p === 'ndwi' ||
+    p === 'gndvi' ||
+    p === 'ndmi' ||
+    p === 'evi' ||
+    p === 'savi' ||
+    p === 'ndbi' ||
+    p === 'lst'
+  );
 }
 
 export function siWmsDefaultStopsForProfile(profile: WmsAoiEvalProfile): readonly IndexRampStop[] | null {
@@ -98,6 +107,12 @@ export function siWmsDefaultStopsForProfile(profile: WmsAoiEvalProfile): readonl
       return SI_NDMI_CLASSIFICATION_STOPS;
     case 'evi':
       return SI_EVI_CLASSIFICATION_STOPS;
+    case 'savi':
+      return SI_NDVI_CLASSIFICATION_STOPS;
+    case 'ndbi':
+      return SI_NDWI_CLASSIFICATION_STOPS;
+    case 'lst':
+      return SI_NDMI_CLASSIFICATION_STOPS;
     default:
       return null;
   }
@@ -108,7 +123,9 @@ export function siAutoRampPresetForLayerName(layerName: string): SiSymbologyRamp
   if (u.includes('NDWI') || u.includes('MNDWI') || u.includes('WATER')) return 'water';
   if (u.includes('LST') || u.includes('TEMP') || u.includes('THERMAL')) return 'thermal';
   if (u.includes('BSI') || u.includes('SOIL') || u.includes('SAR')) return 'soil';
-  if (u.includes('NDVI') || u.includes('GNDVI') || u.includes('EVI') || u.includes('SAVI')) return 'vegetation';
+  if (u.includes('SAVI')) return 'vegetation';
+  if (u.includes('NDBI') || u.includes('URBAN') || u.includes('BUILT')) return 'soil';
+  if (u.includes('NDVI') || u.includes('GNDVI') || u.includes('EVI')) return 'vegetation';
   return 'vegetation';
 }
 
@@ -197,11 +214,13 @@ export function siComputeSymbologyStops(layerName: string, ui: SiWmsSymbologyUiS
     ? siAutoRampPresetForLayerName(layerName)
     : ui.rampPreset;
   const ramp = SI_SYM_PRESET_STOPS[effectivePreset];
-  const n = Number.isFinite(ui.numClasses) ? ui.numClasses : SI_WMS_SYMBOLOGY_DEFAULT_UI.numClasses;
+  const classCount = Number.isFinite(ui.numClasses) ? ui.numClasses : SI_WMS_SYMBOLOGY_DEFAULT_UI.numClasses;
+  const k = Math.max(3, Math.min(16, Math.round(classCount)));
   if (ui.classificationType === 'qualitative') {
-    return buildQualitativeStops(tMin, tMax, n);
+    return buildQualitativeStops(tMin, tMax, k);
   }
-  return buildQuantitativeStops(base, ramp, n);
+  /** N classes ⇒ N+1 thresholds so legend shows N intervals matching map ramp. */
+  return buildQuantitativeStops(base, ramp, k + 1);
 }
 
 export function siSymbologyRampLabels(): { id: SiSymbologyRampPresetId; label: string }[] {

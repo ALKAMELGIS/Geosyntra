@@ -102,6 +102,7 @@ import {
   siWmsSymbologySupportsLayer,
   type SiWmsSymbologyUiState,
 } from './utils/siWmsSymbologyModel';
+import { siWmsResolveCanonicalStops } from './utils/siWmsSpectralClassification';
 import {
   SI_AOI_DRAW_DRAFT_OUTLINE_PAINT,
   SI_AOI_MAP_OUTLINE_LINE_PAINT,
@@ -9651,12 +9652,7 @@ export default function SatelliteIntelligence() {
 
   const symStopsForWmsLayerId = useCallback(
     (layerId: string): readonly IndexRampStop[] | null => {
-      if (!layerId || !siWmsSymbologySupportsLayer(layerId)) return null;
-      const part = siWmsSymbologyByLayer[layerId];
-      if (!part || Object.keys(part).length === 0) return null;
-      const ui: SiWmsSymbologyUiState = { ...SI_WMS_SYMBOLOGY_DEFAULT_UI, ...part };
-      const s = siComputeSymbologyStops(layerId, ui);
-      return s && s.length >= 2 ? s : null;
+      return siWmsResolveCanonicalStops(layerId, siWmsSymbologyByLayer[layerId]);
     },
     [siWmsSymbologyByLayer],
   );
@@ -9692,8 +9688,8 @@ export default function SatelliteIntelligence() {
   const siWmsSymbologyPreviewStops = useMemo(() => {
     const id = siWmsSymbologyTargetLayerId;
     if (!id || !siWmsSymbologySupportsLayer(id)) return null;
-    return siComputeSymbologyStops(id, siWmsSymbologyPopupMergedUi);
-  }, [siWmsSymbologyTargetLayerId, siWmsSymbologyPopupMergedUi]);
+    return siWmsResolveCanonicalStops(id, siWmsSymbologyByLayer[id]);
+  }, [siWmsSymbologyTargetLayerId, siWmsSymbologyByLayer, siWmsSymbologyPopupMergedUi]);
 
   const siWmsSymbologyUiPatch = useCallback(
     (patch: Partial<SiWmsSymbologyUiState>) => {
