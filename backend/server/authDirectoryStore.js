@@ -3,9 +3,26 @@
  */
 import fs from 'fs'
 import path from 'path'
-import { createHash, randomBytes } from 'crypto'
+import { createHash } from 'crypto'
 import bcrypt from 'bcryptjs'
 import { createSqliteAdminDirectoryStore } from './sqliteAdminDirectoryStore.js'
+import {
+  generateVerificationToken,
+  isVerificationExpired,
+  verificationExpiresAt,
+} from './authVerification.js'
+
+function appendAuditEntry(auditLog, entry) {
+  const row = {
+    at: new Date().toISOString(),
+    actor: entry.actor ?? null,
+    action: String(entry.action || 'event'),
+    target: entry.target ?? null,
+    details: entry.details ?? undefined,
+  }
+  const next = [...(Array.isArray(auditLog) ? auditLog : []), row]
+  return next.slice(-80000)
+}
 
 function normalizeEmail(e) {
   return String(e || '').trim().toLowerCase()
@@ -102,6 +119,7 @@ export function createAuthDirectoryStore(opts) {
     const selByEmail = db.prepare(
       `SELECT id, email, name, role, status, scope, managed_by_id AS managedById, last_login AS lastLogin,
               password_hash AS passwordHash, email_verified AS emailVerified, verification_token AS verificationToken,
+              verification_token_expires AS verificationTokenExpires,
               oauth_google_sub AS oauthGoogleSub, oauth_apple_sub AS oauthAppleSub,
               created_at AS createdAt, updated_at AS updatedAt, profile_extra AS profileExtraRaw
        FROM admin_users WHERE email = ? COLLATE NOCASE LIMIT 1`,
@@ -109,6 +127,7 @@ export function createAuthDirectoryStore(opts) {
     const selByToken = db.prepare(
       `SELECT id, email, name, role, status, scope, managed_by_id AS managedById, last_login AS lastLogin,
               password_hash AS passwordHash, email_verified AS emailVerified, verification_token AS verificationToken,
+              verification_token_expires AS verificationTokenExpires,
               oauth_google_sub AS oauthGoogleSub, oauth_apple_sub AS oauthAppleSub,
               created_at AS createdAt, updated_at AS updatedAt, profile_extra AS profileExtraRaw
        FROM admin_users WHERE verification_token = ? LIMIT 1`,
@@ -135,6 +154,7 @@ export function createAuthDirectoryStore(opts) {
         passwordHash: r.passwordHash || undefined,
         emailVerified: Boolean(r.emailVerified),
         verificationToken: r.verificationToken || undefined,
+        verificationTokenExpires: r.verificationTokenExpires || undefined,
         oauthGoogleSub: r.oauthGoogleSub || undefined,
         oauthAppleSub: r.oauthAppleSub || undefined,
         createdAt: r.createdAt,
@@ -167,49 +187,74 @@ export function createAuthDirectoryStore(opts) {
         if (selByEmail.get(em)) return { ok: false, error: 'email_exists' }
         const id = Number(maxId.get()?.m || 0) + 1
         const ts = new Date().toISOString()
-        const token = randomBytes(32).toString('hex')
+        const token = generateVerificationToken()
+        const expires = verificationExpiresAt()
         const user = {
           id,
           email: em,
           name: String(name || em).trim(),
           role: 'Viewer',
-          status: 'Active',
+          status: 'Pending Verification',
           lastLogin: 'Never',
           passwordHash: hashPassword(password),
           emailVerified: false,
           verificationToken: token,
+          verificationTokenExpires: expires,
           createdAt: ts,
           profileExtra: profileExtra || {},
         }
         const dir = sqlite.readDirectory()
-        sqlite.writeDirectory({ users: [...dir.users, user], auditLog: dir.auditLog })
-        return { ok: true, user, verificationToken: token }
+        const auditLog = appendAuditEntry(dir.auditLog, {
+          actor: em,
+          action: 'user_registered',
+          target: em,
+          details: { status: 'Pending Verification' },
+        })
+        sqlite.writeDirectory({ users: [...dir.users, user], auditLog })
+        return { ok: true, user, verificationToken: token, verificationTokenExpires: expires }
       },
       verifyEmailByToken(token) {
         const u = rowToUser(selByToken.get(String(token || '').trim()))
         if (!u || !u.verificationToken) return { ok: false, error: 'invalid_token' }
+        if (isVerificationExpired(u.verificationTokenExpires)) {
+          return { ok: false, error: 'token_expired' }
+        }
         const dir = sqlite.readDirectory()
         const users = dir.users.map(row => {
           if (row.id !== u.id) return row
           return {
             ...row,
             emailVerified: true,
+            status: 'Active',
             verificationToken: null,
+            verificationTokenExpires: null,
             updatedAt: new Date().toISOString(),
           }
         })
-        sqlite.writeDirectory({ users, auditLog: dir.auditLog })
+        const auditLog = appendAuditEntry(dir.auditLog, {
+          actor: u.email,
+          action: 'email_verified',
+          target: u.email,
+        })
+        sqlite.writeDirectory({ users, auditLog })
         const verified = { ...u, emailVerified: true, verificationToken: undefined }
         return { ok: true, user: verified, publicUser: publicUser(verified) }
       },
-      setVerificationToken(email, token) {
+      setVerificationToken(email, token, expiresAt) {
         const em = normalizeEmail(email)
         const dir = sqlite.readDirectory()
         let found = false
+        const expires = expiresAt || verificationExpiresAt()
         const users = dir.users.map(row => {
           if (normalizeEmail(row.email) !== em) return row
           found = true
-          return { ...row, verificationToken: token, emailVerified: false }
+          return {
+            ...row,
+            verificationToken: token,
+            verificationTokenExpires: expires,
+            emailVerified: false,
+            status: 'Pending Verification',
+          }
         })
         if (!found) return { ok: false, error: 'not_found' }
         sqlite.writeDirectory({ users, auditLog: dir.auditLog })
@@ -287,45 +332,75 @@ export function createAuthDirectoryStore(opts) {
       const { data } = readJsonStore(jsonFilePath)
       const em = normalizeEmail(email)
       if (data.users.some(u => normalizeEmail(u.email) === em)) return { ok: false, error: 'email_exists' }
-      const token = randomBytes(32).toString('hex')
+      const token = generateVerificationToken()
+      const expires = verificationExpiresAt()
       const user = {
         id: nextUserId(data.users),
         email: em,
         name: String(name || em).trim(),
         role: 'Viewer',
-        status: 'Active',
+        status: 'Pending Verification',
         lastLogin: 'Never',
         passwordHash: hashPassword(password),
         emailVerified: false,
         verificationToken: token,
+        verificationTokenExpires: expires,
         createdAt: new Date().toISOString(),
         profileExtra: profileExtra || {},
       }
-      writeJsonStore(jsonFilePath, { ...data, users: [...data.users, user] })
-      return { ok: true, user, verificationToken: token }
+      const auditLog = appendAuditEntry(data.auditLog, {
+        actor: em,
+        action: 'user_registered',
+        target: em,
+        details: { status: 'Pending Verification' },
+      })
+      writeJsonStore(jsonFilePath, { ...data, users: [...data.users, user], auditLog })
+      return { ok: true, user, verificationToken: token, verificationTokenExpires: expires }
     },
     verifyEmailByToken(token) {
       const { data } = readJsonStore(jsonFilePath)
       const t = String(token || '').trim()
       const idx = data.users.findIndex(u => String(u.verificationToken || '') === t)
       if (idx < 0) return { ok: false, error: 'invalid_token' }
-      const u = { ...data.users[idx], emailVerified: true, verificationToken: null }
+      const prev = data.users[idx]
+      if (isVerificationExpired(prev.verificationTokenExpires)) {
+        return { ok: false, error: 'token_expired' }
+      }
+      const u = {
+        ...prev,
+        emailVerified: true,
+        status: 'Active',
+        verificationToken: null,
+        verificationTokenExpires: null,
+      }
       const users = [...data.users]
       users[idx] = u
-      writeJsonStore(jsonFilePath, { ...data, users })
+      const auditLog = appendAuditEntry(data.auditLog, {
+        actor: u.email,
+        action: 'email_verified',
+        target: u.email,
+      })
+      writeJsonStore(jsonFilePath, { ...data, users, auditLog })
       return {
         ok: true,
         user: u,
         publicUser: { id: u.id, name: u.name, email: u.email, role: u.role, emailVerified: true },
       }
     },
-    setVerificationToken(email, token) {
+    setVerificationToken(email, token, expiresAt) {
       const { data } = readJsonStore(jsonFilePath)
       const em = normalizeEmail(email)
       const idx = data.users.findIndex(u => normalizeEmail(u.email) === em)
       if (idx < 0) return { ok: false, error: 'not_found' }
+      const expires = expiresAt || verificationExpiresAt()
       const users = [...data.users]
-      users[idx] = { ...users[idx], verificationToken: token, emailVerified: false }
+      users[idx] = {
+        ...users[idx],
+        verificationToken: token,
+        verificationTokenExpires: expires,
+        emailVerified: false,
+        status: 'Pending Verification',
+      }
       writeJsonStore(jsonFilePath, { ...data, users })
       return { ok: true }
     },

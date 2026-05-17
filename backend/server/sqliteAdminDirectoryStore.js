@@ -92,10 +92,16 @@ export function createSqliteAdminDirectoryStore(dbPath) {
   } catch {
     /* column already exists */
   }
+  try {
+    db.exec(`ALTER TABLE admin_users ADD COLUMN verification_token_expires TEXT`)
+  } catch {
+    /* column already exists */
+  }
 
   const selUsers = db.prepare(
     `SELECT id, email, name, role, status, scope, managed_by_id AS managedById, last_login AS lastLogin,
             password_hash AS passwordHash, email_verified AS emailVerified, verification_token AS verificationToken,
+            verification_token_expires AS verificationTokenExpires,
             oauth_google_sub AS oauthGoogleSub, oauth_apple_sub AS oauthAppleSub,
             created_at AS createdAt, updated_at AS updatedAt, profile_extra AS profileExtraRaw
      FROM admin_users ORDER BY id ASC`,
@@ -109,10 +115,12 @@ export function createSqliteAdminDirectoryStore(dbPath) {
   const upsertUser = db.prepare(`
     INSERT INTO admin_users (
       id, email, name, role, status, scope, managed_by_id, last_login, password_hash,
-      email_verified, verification_token, oauth_google_sub, oauth_apple_sub, profile_extra, created_at, updated_at
+      email_verified, verification_token, verification_token_expires,
+      oauth_google_sub, oauth_apple_sub, profile_extra, created_at, updated_at
     ) VALUES (
       @id, @email, @name, @role, @status, @scope, @managedById, @lastLogin, @passwordHash,
-      @emailVerified, @verificationToken, @oauthGoogleSub, @oauthAppleSub, @profileExtra, @createdAt, @updatedAt
+      @emailVerified, @verificationToken, @verificationTokenExpires,
+      @oauthGoogleSub, @oauthAppleSub, @profileExtra, @createdAt, @updatedAt
     )
     ON CONFLICT(id) DO UPDATE SET
       email = excluded.email,
@@ -125,6 +133,7 @@ export function createSqliteAdminDirectoryStore(dbPath) {
       password_hash = COALESCE(excluded.password_hash, admin_users.password_hash),
       email_verified = excluded.email_verified,
       verification_token = COALESCE(excluded.verification_token, admin_users.verification_token),
+      verification_token_expires = COALESCE(excluded.verification_token_expires, admin_users.verification_token_expires),
       oauth_google_sub = COALESCE(excluded.oauth_google_sub, admin_users.oauth_google_sub),
       oauth_apple_sub = COALESCE(excluded.oauth_apple_sub, admin_users.oauth_apple_sub),
       profile_extra = CASE
@@ -171,6 +180,7 @@ export function createSqliteAdminDirectoryStore(dbPath) {
       passwordHash: r.passwordHash || undefined,
       emailVerified: Boolean(r.emailVerified),
       verificationToken: r.verificationToken || undefined,
+      verificationTokenExpires: r.verificationTokenExpires || undefined,
       oauthGoogleSub: r.oauthGoogleSub || undefined,
       oauthAppleSub: r.oauthAppleSub || undefined,
       profileExtra: parseProfileExtra(r.profileExtraRaw),
@@ -268,6 +278,8 @@ export function createSqliteAdminDirectoryStore(dbPath) {
         const passwordHash = u.passwordHash != null ? maybeHashPassword(u.passwordHash) : null
         const emailVerified = u.emailVerified === true ? 1 : 0
         const verificationToken = u.verificationToken != null ? String(u.verificationToken) : null
+        const verificationTokenExpires =
+          u.verificationTokenExpires != null ? String(u.verificationTokenExpires) : null
         const oauthGoogleSub = u.oauthGoogleSub != null ? String(u.oauthGoogleSub) : null
         const oauthAppleSub = u.oauthAppleSub != null ? String(u.oauthAppleSub) : null
         const createdAt = u.createdAt ? String(u.createdAt) : ts
@@ -284,6 +296,7 @@ export function createSqliteAdminDirectoryStore(dbPath) {
           passwordHash,
           emailVerified,
           verificationToken,
+          verificationTokenExpires,
           oauthGoogleSub,
           oauthAppleSub,
           profileExtra,
@@ -332,6 +345,8 @@ export function createSqliteAdminDirectoryStore(dbPath) {
         const passwordHash = u.passwordHash != null ? maybeHashPassword(u.passwordHash) : null
         const emailVerified = u.emailVerified === true ? 1 : 0
         const verificationToken = u.verificationToken != null ? String(u.verificationToken) : null
+        const verificationTokenExpires =
+          u.verificationTokenExpires != null ? String(u.verificationTokenExpires) : null
         const oauthGoogleSub = u.oauthGoogleSub != null ? String(u.oauthGoogleSub) : null
         const oauthAppleSub = u.oauthAppleSub != null ? String(u.oauthAppleSub) : null
         const createdAt = u.createdAt ? String(u.createdAt) : ts
@@ -348,6 +363,7 @@ export function createSqliteAdminDirectoryStore(dbPath) {
           passwordHash,
           emailVerified,
           verificationToken,
+          verificationTokenExpires,
           oauthGoogleSub,
           oauthAppleSub,
           profileExtra,

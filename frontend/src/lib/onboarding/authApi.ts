@@ -35,7 +35,7 @@ export async function apiRegister(input: {
   password: string
 }): Promise<
   | { ok: true; needsVerification: true; email: string; devVerificationLink?: string }
-  | { ok: false; error: string }
+  | { ok: false; error: string; needsVerification?: boolean; email?: string }
 > {
   const { ok, status, data } = await authFetch<{
     ok?: boolean
@@ -55,6 +55,15 @@ export async function apiRegister(input: {
       devVerificationLink: data.devVerificationLink,
     }
   }
+  if (data.error === 'email_exists_unverified') {
+    return {
+      ok: false,
+      needsVerification: true,
+      error:
+        data.message ||
+        'This email is awaiting verification. Check your inbox or resend the activation email.',
+    }
+  }
   if (status === 409 || data.error === 'email_exists') {
     return { ok: false, error: 'An account with this email already exists. Sign in instead.' }
   }
@@ -64,7 +73,7 @@ export async function apiRegister(input: {
       error: data.details || 'Could not send verification email. Try again later.',
     }
   }
-  if (data.error === 'smtp_not_configured') {
+  if (data.error === 'email_not_configured' || data.error === 'smtp_not_configured') {
     return { ok: false, error: data.message || 'Email verification is not configured on the server.' }
   }
   if (status === 0 || data.error === 'network_error') {
@@ -102,20 +111,29 @@ export async function apiLogin(input: {
 
 export async function apiResendVerification(email: string): Promise<
   | { ok: true; devVerificationLink?: string }
-  | { ok: false; error: string }
+  | { ok: false; error: string; retryAfterSec?: number }
 > {
-  const { ok, data } = await authFetch<{
+  const { ok, status, data } = await authFetch<{
     ok?: boolean
     devVerificationLink?: string
     error?: string
     details?: string
     message?: string
+    retryAfterSec?: number
   }>('/api/auth/resend-verification', {
     method: 'POST',
     body: JSON.stringify({ email }),
   })
   if (ok && data.ok) {
     return { ok: true, devVerificationLink: data.devVerificationLink }
+  }
+  if (status === 429 || data.error === 'resend_cooldown') {
+    const sec = Number(data.retryAfterSec) || 60
+    return {
+      ok: false,
+      error: data.message || `Please wait ${sec}s before resending.`,
+      retryAfterSec: sec,
+    }
   }
   if (data.error === 'already_verified') {
     return { ok: false, error: 'This email is already verified. You can sign in.' }
@@ -124,16 +142,31 @@ export async function apiResendVerification(email: string): Promise<
 }
 
 export async function apiVerifyEmail(token: string): Promise<
-  { ok: true; user: PublicAuthUser } | { ok: false; error: string }
+  { ok: true; user: PublicAuthUser } | { ok: false; error: string; expired?: boolean }
 > {
-  const { ok, data } = await authFetch<{ ok?: boolean; user?: PublicAuthUser; error?: string }>(
-    `/api/auth/verify-email?token=${encodeURIComponent(token)}`,
-    { method: 'GET' },
-  )
+  const { ok, data } = await authFetch<{
+    ok?: boolean
+    user?: PublicAuthUser
+    error?: string
+    message?: string
+  }>(`/api/auth/verify-email?token=${encodeURIComponent(token)}`, { method: 'GET' })
   if (ok && data.ok && data.user) {
     return { ok: true, user: data.user }
   }
-  return { ok: false, error: data.error === 'invalid_token' ? 'This verification link is invalid or expired.' : 'Verification failed.' }
+  if (data.error === 'token_expired') {
+    return {
+      ok: false,
+      expired: true,
+      error: data.message || 'This verification link has expired. Request a new email.',
+    }
+  }
+  return {
+    ok: false,
+    error:
+      data.error === 'invalid_token'
+        ? data.message || 'This verification link is invalid or expired.'
+        : data.message || 'Verification failed.',
+  }
 }
 
 export async function apiOAuthUpsert(input: {

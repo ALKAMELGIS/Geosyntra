@@ -14,12 +14,12 @@ import {
 
 type DocBlock = Paragraph | Table;
 import type { StaticAoiChartLayerId } from './staticAoiMultiChartData';
-import {
-  getSiAoiExportExecutiveSummaryText,
-  type SiAoiIndexInsightId,
-  type SiAoiPdfExportOptions,
-  type SiAoiReportModel,
+import type {
+  SiAoiIndexInsightId,
+  SiAoiPdfExportOptions,
+  SiAoiReportModel,
 } from './siAoiVegetationReportModel';
+import { getSiAoiExportExecutiveSummaryText } from './siAoiVegetationReportModelPdf';
 import { siAoiReportStyleModePdfLabels } from './siAoiReportStyleMode';
 
 function dataUrlToUint8Array(dataUrl: string): Uint8Array {

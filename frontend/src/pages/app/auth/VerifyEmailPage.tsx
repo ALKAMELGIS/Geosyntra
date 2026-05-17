@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { motion } from 'framer-motion'
-import { apiVerifyEmail, isAuthApiConfigured } from '../../../lib/onboarding/authApi'
+import { apiResendVerification, apiVerifyEmail, isAuthApiConfigured } from '../../../lib/onboarding/authApi'
 import { completeVerifiedSignIn, verifyEmailLocal } from '../../../lib/onboarding/localAuth'
 import { redirectToHomeWizard } from '../../../lib/homeWizardEntry'
 import { useAuth } from '../../../state/auth'
@@ -12,8 +12,10 @@ export default function VerifyEmailPage() {
   const [params] = useSearchParams()
   const { login } = useAuth()
   const token = String(params.get('token') || '').trim()
-  const [status, setStatus] = useState<'loading' | 'success' | 'error'>('loading')
+  const [status, setStatus] = useState<'loading' | 'success' | 'error' | 'expired'>('loading')
   const [message, setMessage] = useState('')
+  const [resendEmail, setResendEmail] = useState('')
+  const [resendBusy, setResendBusy] = useState(false)
 
   useEffect(() => {
     if (!token) {
@@ -30,6 +32,11 @@ export default function VerifyEmailPage() {
         if (local.ok) result = local
       }
       if (!result.ok) {
+        if ('expired' in result && result.expired) {
+          setStatus('expired')
+          setMessage(result.error)
+          return
+        }
         setStatus('error')
         setMessage(result.error)
         return
@@ -51,6 +58,28 @@ export default function VerifyEmailPage() {
       cancelled = true
     }
   }, [token, login])
+
+  const resend = async () => {
+    const email = resendEmail.trim()
+    if (!email) {
+      setMessage('Enter your email to resend the verification link.')
+      return
+    }
+    setResendBusy(true)
+    try {
+      const result = isAuthApiConfigured()
+        ? await apiResendVerification(email)
+        : { ok: false as const, error: 'Configure VITE_API_BASE_URL or use the link from sign up.' }
+      if (!result.ok) {
+        setMessage(result.error)
+        return
+      }
+      setMessage('Verification email sent. Check your inbox.')
+      setStatus('error')
+    } finally {
+      setResendBusy(false)
+    }
+  }
 
   return (
     <div className="home-verify-email">
@@ -85,6 +114,26 @@ export default function VerifyEmailPage() {
             </motion.span>
             <h1>Email verified</h1>
             <p>{message}</p>
+          </>
+        ) : null}
+        {status === 'expired' ? (
+          <>
+            <h1>Link expired</h1>
+            <p className="home-wizard-form__error">{message}</p>
+            <label className="home-wizard-form__label" htmlFor="verify-resend-email">
+              Email
+            </label>
+            <input
+              id="verify-resend-email"
+              className="home-wizard-form__input"
+              type="email"
+              value={resendEmail}
+              onChange={e => setResendEmail(e.target.value)}
+              placeholder="you@company.com"
+            />
+            <SaasButton size="lg" variant="primary" disabled={resendBusy} onClick={() => void resend()}>
+              Resend verification email
+            </SaasButton>
           </>
         ) : null}
         {status === 'error' ? (

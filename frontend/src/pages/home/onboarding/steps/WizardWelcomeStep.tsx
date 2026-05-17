@@ -70,6 +70,11 @@ export function WizardWelcomeStep() {
       if (mode === 'signup') {
         const result = await homeSignUp({ name, email, password })
         if (!result.ok) {
+          if ('needsVerification' in result && result.needsVerification) {
+            showCheckEmail(normalizeEmailInput(email))
+            setInfo('error' in result ? result.error : '')
+            return
+          }
           setError('error' in result ? result.error : 'Sign up failed.')
           return
         }
@@ -110,6 +115,9 @@ export function WizardWelcomeStep() {
         : resendVerificationLocal(pendingEmail)
       if (!result.ok) {
         setError(result.error)
+        if ('retryAfterSec' in result && result.retryAfterSec) {
+          setResendIn(result.retryAfterSec)
+        }
         return
       }
       setResendIn(RESEND_SECONDS)

@@ -265,8 +265,6 @@ registerAuthRoutes(app, {
   sqlitePath: USER_DB_FILE || undefined,
   appOrigin: APP_ORIGIN,
   appBasePath: APP_BASE_PATH,
-  hasSmtpConfig,
-  sendMail,
   addAuthEvent,
 })
 

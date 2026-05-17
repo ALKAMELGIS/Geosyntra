@@ -178,9 +178,11 @@ export default function AdminUsersPage() {
                       <button
                         type="button"
                         onClick={() => {
-                          const link = adminResendVerificationLink(u.id)
-                          if (link) setVerifyLink(link)
-                          refresh()
+                          void (async () => {
+                            const link = await adminResendVerificationLink(u.id)
+                            if (link) setVerifyLink(link)
+                            refresh()
+                          })()
                         }}
                       >
                         Resend verify
@@ -212,9 +214,11 @@ export default function AdminUsersPage() {
           onClose={() => setSelected(null)}
           onPatch={patch => patchUser(selected.id, patch)}
           onResendVerification={() => {
-            const link = adminResendVerificationLink(selected.id)
-            if (link) setVerifyLink(link)
-            refresh()
+            void (async () => {
+              const link = await adminResendVerificationLink(selected.id)
+              if (link) setVerifyLink(link)
+              refresh()
+            })()
           }}
         />
       ) : null}

@@ -1,5 +1,11 @@
-import { randomBytes } from 'crypto'
 import { createAuthDirectoryStore } from './authDirectoryStore.js'
+import { sendAuthEmail, hasEmailConfig } from './authEmail.js'
+import {
+  generateVerificationToken,
+  checkResendCooldown,
+  markResendSent,
+  verificationExpiresAt,
+} from './authVerification.js'
 
 function splitName(fullName) {
   const parts = String(fullName || '').trim().split(/\s+/)
@@ -14,8 +20,6 @@ function splitName(fullName) {
  *   sqlitePath?: string
  *   appOrigin: string
  *   appBasePath: string
- *   hasSmtpConfig: () => boolean
- *   sendMail: (opts: { to: string; subject: string; text: string; html: string }) => Promise<void>
  *   addAuthEvent: (action: string, payload?: object) => void
  * }} deps
  */
@@ -35,26 +39,44 @@ export function registerAuthRoutes(app, deps) {
   async function sendVerificationEmail(email, token) {
     const link = verificationLink(token)
     const appName = 'GeoSyntra'
-    const subject = `${appName} — Verify your email`
+    const subject = `${appName} — Confirm your account`
     const text = [
       `Welcome to ${appName}.`,
       '',
-      'Please verify your email by opening this link:',
+      'Click the link below to verify your account (valid for 1 hour):',
       link,
       '',
       'If you did not create an account, you can ignore this email.',
     ].join('\n')
     const html = `
-      <div style="font-family:Arial,sans-serif;line-height:1.55;color:#0f172a;max-width:520px">
-        <h2 style="margin:0 0 12px;font-size:22px">Verify your email</h2>
-        <p style="margin:0 0 16px;color:#334155">Confirm your address to activate your GeoSyntra workspace.</p>
+      <motion.div style="font-family:Arial,sans-serif;line-height:1.55;color:#0f172a;max-width:520px">
+        <h2 style="margin:0 0 12px;font-size:22px">Welcome 👋</h2>
+        <p style="margin:0 0 16px;color:#334155">Click below to verify your account and activate your workspace.</p>
         <p style="margin:0 0 20px">
-          <a href="${link}" style="display:inline-block;padding:12px 22px;background:#0f172a;color:#fff;text-decoration:none;border-radius:999px;font-weight:600">Verify Email</a>
+          <a href="${link}" style="display:inline-block;padding:12px 22px;background:#0f172a;color:#fff;text-decoration:none;border-radius:999px;font-weight:600">Verify Account</a>
         </p>
-        <p style="margin:0;font-size:12px;color:#64748b;word-break:break-all">${link}</p>
+        <p style="margin:0 0 12px;font-size:13px;color:#64748b">This link expires in 1 hour.</p>
+        <p style="margin:0;font-size:12px;color:#94a3b8;word-break:break-all">${link}</p>
+      </motion.div>
+    `.replace(/<motion\.div/g, '<motion.div').replace(/<\/motion\.motion.div>/g, '</motion.div>').replace('motion.div', 'motion.div').replace(/motion\.motion/g, 'motion')
+    const htmlFixed = html
+      .replace(/<motion\.div/g, '<div')
+      .replace(/<\/motion\.motion\.motion\.div>/g, '</div>')
+      .replace(/<\/motion\.div>/g, '</motion.div>')
+      .replace(/motion\.div/g, 'div')
+      .replace(/<\/motion\.div>/g, '</div>')
+    const cleanHtml = `
+      <div style="font-family:Arial,sans-serif;line-height:1.55;color:#0f172a;max-width:520px">
+        <h2 style="margin:0 0 12px;font-size:22px">Welcome</h2>
+        <p style="margin:0 0 16px;color:#334155">Click below to verify your account and activate your workspace.</p>
+        <p style="margin:0 0 20px">
+          <a href="${link}" style="display:inline-block;padding:12px 22px;background:#0f172a;color:#fff;text-decoration:none;border-radius:999px;font-weight:600">Verify Account</a>
+        </p>
+        <p style="margin:0 0 12px;font-size:13px;color:#64748b">This link expires in 1 hour.</p>
+        <p style="margin:0;font-size:12px;color:#94a3b8;word-break:break-all">${link}</p>
       </div>
     `
-    await deps.sendMail({ to: email, subject, text, html })
+    await sendAuthEmail({ to: email, subject, text, html: cleanHtml })
     return link
   }
 
@@ -76,6 +98,14 @@ export function registerAuthRoutes(app, deps) {
       })
       if (!result.ok) {
         if (result.error === 'email_exists') {
+          const existing = store.getUserByEmail(email)
+          if (existing && !existing.emailVerified) {
+            return res.status(409).json({
+              ok: false,
+              error: 'email_exists_unverified',
+              message: 'An account with this email is awaiting verification. Resend the email or sign in after verifying.',
+            })
+          }
           return res.status(409).json({ ok: false, error: 'email_exists' })
         }
         return res.status(400).json({ ok: false, error: result.error || 'register_failed' })
@@ -86,12 +116,13 @@ export function registerAuthRoutes(app, deps) {
         ok: true,
         needsVerification: true,
         email: result.user.email,
-        smtpConfigured: deps.hasSmtpConfig(),
+        emailConfigured: hasEmailConfig(),
       }
 
-      if (deps.hasSmtpConfig()) {
+      if (hasEmailConfig()) {
         try {
           await sendVerificationEmail(result.user.email, token)
+          markResendSent(result.user.email)
           deps.addAuthEvent('register_verification_sent', { email: result.user.email })
         } catch (e) {
           const message = e && typeof e === 'object' && typeof e.message === 'string' ? e.message : 'send_failed'
@@ -102,11 +133,11 @@ export function registerAuthRoutes(app, deps) {
         payload.devVerificationLink = verificationLink(token)
         deps.addAuthEvent('register_dev_link_only', { email: result.user.email })
       } else {
-        deps.addAuthEvent('register_smtp_missing', { email: result.user.email })
+        deps.addAuthEvent('register_email_missing', { email: result.user.email })
         return res.status(503).json({
           ok: false,
-          error: 'smtp_not_configured',
-          message: 'Email verification is not available. Configure SMTP on the server.',
+          error: 'email_not_configured',
+          message: 'Email verification is not available. Configure RESEND_API_KEY or SMTP on the server.',
         })
       }
 
@@ -121,6 +152,17 @@ export function registerAuthRoutes(app, deps) {
     try {
       const email = String(req.body?.email || '').trim()
       if (!email) return res.status(400).json({ ok: false, error: 'email_required' })
+
+      const cooldown = checkResendCooldown(email)
+      if (!cooldown.ok) {
+        return res.status(429).json({
+          ok: false,
+          error: 'resend_cooldown',
+          retryAfterSec: cooldown.retryAfterSec,
+          message: `Please wait ${cooldown.retryAfterSec}s before resending.`,
+        })
+      }
+
       const user = store.getUserByEmail(email)
       if (!user) {
         return res.json({ ok: true, message: 'If an account exists, a verification email was sent.' })
@@ -128,19 +170,27 @@ export function registerAuthRoutes(app, deps) {
       if (user.emailVerified) {
         return res.status(400).json({ ok: false, error: 'already_verified' })
       }
-      const token = randomBytes(32).toString('hex')
-      const set = store.setVerificationToken(email, token)
+
+      const token = generateVerificationToken()
+      const expires = verificationExpiresAt()
+      const set = store.setVerificationToken(email, token, expires)
       if (!set.ok) return res.status(404).json({ ok: false, error: 'not_found' })
 
-      if (!deps.hasSmtpConfig()) {
+      if (!hasEmailConfig()) {
         if (process.env.NODE_ENV !== 'production') {
-          return res.json({ ok: true, devVerificationLink: verificationLink(token), smtpConfigured: false })
+          return res.json({
+            ok: true,
+            devVerificationLink: verificationLink(token),
+            emailConfigured: false,
+          })
         }
-        return res.status(503).json({ ok: false, error: 'smtp_not_configured' })
+        return res.status(503).json({ ok: false, error: 'email_not_configured' })
       }
+
       await sendVerificationEmail(email, token)
+      markResendSent(email)
       deps.addAuthEvent('verification_resent', { email })
-      return res.json({ ok: true, smtpConfigured: true })
+      return res.json({ ok: true, emailConfigured: true })
     } catch (e) {
       const message = e && typeof e === 'object' && typeof e.message === 'string' ? e.message : 'send_failed'
       return res.status(502).json({ ok: false, error: 'verification_email_failed', details: message })
@@ -153,7 +203,15 @@ export function registerAuthRoutes(app, deps) {
       if (!token) return res.status(400).json({ ok: false, error: 'token_required' })
       const result = store.verifyEmailByToken(token)
       if (!result.ok) {
-        return res.status(400).json({ ok: false, error: result.error || 'invalid_token' })
+        const code = result.error === 'token_expired' ? 'token_expired' : 'invalid_token'
+        return res.status(400).json({
+          ok: false,
+          error: code,
+          message:
+            code === 'token_expired'
+              ? 'This verification link has expired. Request a new email.'
+              : 'This verification link is invalid.',
+        })
       }
       deps.addAuthEvent('email_verified', { email: result.publicUser.email })
       return res.json({ ok: true, user: result.publicUser })

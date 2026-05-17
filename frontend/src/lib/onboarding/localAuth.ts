@@ -12,6 +12,7 @@ import {
   createVerificationToken,
   isStaticLocalAuthMode,
   resendLocalVerification,
+  verificationExpiresAt,
   verifyEmailWithLocalToken,
 } from './localAuthVerification'
 
@@ -81,6 +82,7 @@ function shouldUseLocalAuthFallback(apiError: string): boolean {
   if (apiError.includes('Cannot reach the auth server')) return true
   if (apiError === 'Registration failed.' || apiError === 'Sign in failed.') return true
   if (apiError.includes('Incorrect email or password')) return false
+  if (apiError.includes('already exists')) return false
   return true
 }
 
@@ -117,6 +119,7 @@ async function homeSignUpLocal(input: {
     plan: 'Trial',
     emailVerified: false,
     verificationToken: token,
+    verificationTokenExpires: verificationExpiresAt(),
     createdAt: new Date().toISOString(),
     lastLogin: 'Never',
     passwordHash,
@@ -182,6 +185,9 @@ export async function homeSignUp(input: {
 
   const result = await apiRegister({ name, email, password })
   if (!result.ok) {
+    if (result.needsVerification) {
+      return { ok: true, needsVerification: true, email }
+    }
     if (shouldUseLocalAuthFallback(result.error)) {
       return homeSignUpLocal({ name, email, password })
     }

@@ -1,5 +1,10 @@
 import { normalizeEmail } from '../auth'
-import { buildLocalVerificationLink, createVerificationToken } from '../onboarding/localAuthVerification'
+import {
+  buildLocalVerificationLink,
+  createVerificationToken,
+  verificationExpiresAt,
+} from '../onboarding/localAuthVerification'
+import { apiResendVerification, isAuthApiConfigured } from '../onboarding/authApi'
 import {
   mergeAdminUsersPreservingLocalSecrets,
   nextAdminUserId,
@@ -153,13 +158,19 @@ export function isValidAdminStatus(status: string): status is AdminUserStatus {
   return status === 'Active' || status === 'Suspended' || status === 'Pending Verification'
 }
 
-/** Admin action: regenerate verification token and return link (static / demo hosting). */
-export function adminResendVerificationLink(id: number): string | null {
+/** Admin action: resend verification (API email when configured, else local dev link). */
+export async function adminResendVerificationLink(id: number): Promise<string | null> {
   const user = getAdminUserById(id)
   if (!user) return null
+  if (isAuthApiConfigured()) {
+    const result = await apiResendVerification(user.email)
+    if (!result.ok) return null
+    return result.devVerificationLink ?? null
+  }
   const token = createVerificationToken()
   updateAdminUser(id, {
     verificationToken: token,
+    verificationTokenExpires: verificationExpiresAt(),
     emailVerified: false,
     status: 'Pending Verification',
   })

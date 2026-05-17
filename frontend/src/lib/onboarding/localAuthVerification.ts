@@ -7,10 +7,23 @@ export function isStaticLocalAuthMode(): boolean {
   return !isAuthApiConfigured()
 }
 
+export const LOCAL_VERIFICATION_TTL_MS = 60 * 60 * 1000
+
 export function createVerificationToken(): string {
-  const bytes = new Uint8Array(24)
+  const bytes = new Uint8Array(32)
   crypto.getRandomValues(bytes)
   return Array.from(bytes, b => b.toString(16).padStart(2, '0')).join('')
+}
+
+export function verificationExpiresAt(fromMs = Date.now()): string {
+  return new Date(fromMs + LOCAL_VERIFICATION_TTL_MS).toISOString()
+}
+
+export function isVerificationExpired(expiresAt: unknown): boolean {
+  if (!expiresAt) return false
+  const t = Date.parse(String(expiresAt))
+  if (!Number.isFinite(t)) return false
+  return t <= Date.now()
 }
 
 /** Hash-router link for static hosting (no SMTP). Shown in check-email UI for demo/Pages. */
@@ -44,9 +57,13 @@ export function verifyEmailWithLocalToken(
     return { ok: false, error: 'This verification link is invalid or expired.' }
   }
   const row = { ...users[idx]! }
+  if (isVerificationExpired(row.verificationTokenExpires)) {
+    return { ok: false, error: 'This verification link has expired. Request a new email.' }
+  }
   row.emailVerified = true
   row.status = 'Active'
   delete row.verificationToken
+  delete row.verificationTokenExpires
   users[idx] = row
   writeUsers(users)
   return { ok: true, user: adminRowToPublicUser(row) }
@@ -67,6 +84,7 @@ export function resendLocalVerification(
   }
   const token = createVerificationToken()
   row.verificationToken = token
+  row.verificationTokenExpires = verificationExpiresAt()
   row.status = 'Pending Verification'
   users[idx] = row
   writeUsers(users)
