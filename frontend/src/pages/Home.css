@@ -107,15 +107,19 @@
     linear-gradient(180deg, rgba(2, 6, 14, 0.28) 0%, rgba(2, 6, 14, 0.72) 55%, rgba(2, 6, 14, 0.94) 100%);
 }
 
-/* Hero (section 0) — full globe clarity: no radial scrim, blur, or dimming */
+/* Hero (0) + Welcome (1) — full globe clarity: no radial scrim, blur, or dimming */
 .home-landing .gs-scroll-globe--home-integrated[data-active-section='0'] .gs-hero-globe-gradient,
-.home-landing .gs-scroll-globe--leading-clear[data-active-section='0'] .gs-hero-globe-gradient {
+.home-landing .gs-scroll-globe--home-integrated[data-active-section='1'] .gs-hero-globe-gradient,
+.home-landing .gs-scroll-globe--leading-clear[data-active-section='0'] .gs-hero-globe-gradient,
+.home-landing .gs-scroll-globe--leading-clear[data-active-section='1'] .gs-hero-globe-gradient {
   opacity: 0 !important;
   visibility: hidden;
 }
 
 .home-landing .gs-scroll-globe--home-integrated[data-active-section='0'] .gs-hero-globe,
-.home-landing .gs-scroll-globe--leading-clear[data-active-section='0'] .gs-hero-globe {
+.home-landing .gs-scroll-globe--home-integrated[data-active-section='1'] .gs-hero-globe,
+.home-landing .gs-scroll-globe--leading-clear[data-active-section='0'] .gs-hero-globe,
+.home-landing .gs-scroll-globe--leading-clear[data-active-section='1'] .gs-hero-globe {
   opacity: 1 !important;
   filter: none !important;
 }
@@ -176,7 +180,8 @@
     opacity: var(--gs-hero-globe-opacity, 1);
   }
 
-  .home-landing .gs-scroll-globe--home-integrated[data-active-section='0'] .gs-hero-globe {
+  .home-landing .gs-scroll-globe--home-integrated[data-active-section='0'] .gs-hero-globe,
+  .home-landing .gs-scroll-globe--home-integrated[data-active-section='1'] .gs-hero-globe {
     --gs-hero-globe-opacity: 1;
   }
 
@@ -184,7 +189,8 @@
     transform: scale(0.92);
   }
 
-  .home-landing .gs-scroll-globe--home-integrated[data-active-section='0'] .gs-hero-globe__scale {
+  .home-landing .gs-scroll-globe--home-integrated[data-active-section='0'] .gs-hero-globe__scale,
+  .home-landing .gs-scroll-globe--home-integrated[data-active-section='1'] .gs-hero-globe__scale {
     transform: scale(1.05);
   }
 }

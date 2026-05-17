@@ -130,7 +130,8 @@ export function useScrollGlobeMotion(
         const wRect = welcomeEl.getBoundingClientRect()
         const vh = window.innerHeight || 1
         leadT = Math.min(Math.max(1 - Math.abs(wRect.top + wRect.height / 2 - viewportCenter) / (vh * 0.5), 0), 1)
-        camera = lerpGlobePosition(resolved.leading, resolved.positions[0]!, 1 - leadT)
+        const welcomePos = resolved.positions[0]!
+        camera = leadT >= 0.9 ? welcomePos : lerpGlobePosition(resolved.leading, welcomePos, leadT)
       } else {
         const globeIdx = Math.max(0, newActiveSection - 1)
         const idx = Math.min(globeIdx, resolved.positions.length - 1)
@@ -147,10 +148,13 @@ export function useScrollGlobeMotion(
     activeSectionRef.current = newActiveSection
 
     const onLeading = hasLeading && newActiveSection === 0
+    const onWelcome = hasLeading && newActiveSection === 1
     const nearLeading = hasLeading && newActiveSection <= 1
     const heroClear = leadingGlobeClear && onLeading
+    const welcomeClear = leadingGlobeClear && onWelcome && leadT >= 0.85
+    const globeVisualClear = heroClear || welcomeClear
     setHeroStarsOpacity(nearLeading ? Math.max(0.35, 1 - leadT * 0.55) : 0)
-    setHeroOverlayOpacity(heroClear ? 0 : onLeading ? 1 : nearLeading ? Math.max(0, 1 - leadT) : 0)
+    setHeroOverlayOpacity(globeVisualClear ? 0 : onLeading ? 1 : nearLeading ? Math.max(0, 1 - leadT) : 0)
 
     setGlobeOpacity(
       resolveGlobeOpacity({
@@ -163,8 +167,8 @@ export function useScrollGlobeMotion(
         leadingGlobeClear,
       }),
     )
-    setHeroScrimBlur(heroClear ? 0 : resolveHeroScrimBlur(leadT))
-    setHeroGlobeBlur(heroClear ? 0 : resolveHeroGlobeBlur(leadT))
+    setHeroScrimBlur(globeVisualClear ? 0 : resolveHeroScrimBlur(leadT))
+    setHeroGlobeBlur(globeVisualClear ? 0 : resolveHeroGlobeBlur(leadT))
 
     if (activeSectionNotifyRef.current !== newActiveSection) {
       activeSectionNotifyRef.current = newActiveSection

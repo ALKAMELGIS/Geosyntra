@@ -17,6 +17,7 @@ import HeroThemeToggle from './components/HeroThemeToggle'
 import { homeSaasContent } from './home/homeSaasContent'
 
 import { buildHomeGlobeSections } from './home/homeGlobeContent'
+import { HOME_SCROLL_GLOBE_CONFIG } from './home/homeGlobeConfig'
 
 import { HomeSaasHero } from './home/HomeSaasHero'
 
@@ -252,6 +253,8 @@ function HomePageContent() {
         className="gs-scroll-globe--home-integrated"
 
         sections={globeSections}
+
+        globeConfig={HOME_SCROLL_GLOBE_CONFIG}
 
         leadingSection={leadingSection}
 
