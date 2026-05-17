@@ -13,7 +13,7 @@ import {
   resolveGeoAiWeatherFactsCoords,
   type WeatherFactsCoordResolution,
 } from './geoAiWeatherEngine'
-import { GEO_EXPLORER_SESSION_AND_WEATHER } from './geoExplorerGemini'
+import { GEO_EXPLORER_SESSION_AND_WEATHER } from './geoExplorerContracts'
 import {
   buildOpenMeteoContextBlock,
   buildSessionAnchorBlock,

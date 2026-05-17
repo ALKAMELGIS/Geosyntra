@@ -3,7 +3,7 @@
  * Mirrors the coordinate preference rules in runGeoExplorerGeminiTurn (layer hint vs MAP_QUERY).
  */
 
-import { parseMapQueryLngLat } from './geoExplorerGemini'
+import { parseMapQueryLngLat } from './geoExplorerContracts'
 import {
   extractGeoExplorerLayerHint,
   findLngLatFromLayerQuery,

@@ -1,4 +1,4 @@
-import type { GeoExplorerDataTablePayload, GeoExplorerDataTableRow, GeoExplorerMapLink } from './geoExplorerGemini'
+import type { GeoExplorerDataTablePayload, GeoExplorerDataTableRow, GeoExplorerMapLink } from './geoExplorerContracts'
 import type { GeoAiMapLayer } from './geoExplorerLayerContext'
 import { extractGeoExplorerLayerHint, geoAiFeatureCentroid, normalizeLayerName } from './geoExplorerLayerContext'
 import { computeStableGisFeatureKey } from './gisFeatureStableKey'
