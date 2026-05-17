@@ -1,0 +1,183 @@
+/* Map-only swipe compare — scoped to si-map-container; no global layout changes. */
+
+.si-map-swipe-compare-pane {
+  position: absolute;
+  inset: 0;
+  z-index: 12;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+.si-map-swipe-compare-pane .mapboxgl-map {
+  width: 100%;
+  height: 100%;
+}
+
+.si-map-swipe-widget {
+  position: absolute;
+  inset: 0;
+  z-index: 14;
+  pointer-events: none;
+}
+
+.si-map-swipe-widget__labels {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.si-map-swipe-widget__label {
+  position: absolute;
+  padding: 4px 10px;
+  border-radius: 8px;
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: #f8fafc;
+  background: rgba(15, 23, 42, 0.72);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  box-shadow: 0 8px 20px rgba(2, 6, 23, 0.35);
+}
+
+.si-map-swipe-widget__label--base {
+  left: 12px;
+  top: 12px;
+}
+
+.si-map-swipe-widget__label--compare {
+  right: 12px;
+  bottom: 12px;
+}
+
+.si-map-swipe-toolbar {
+  position: absolute;
+  left: 50%;
+  top: max(12px, env(safe-area-inset-top, 0px));
+  transform: translateX(-50%);
+  display: flex;
+  gap: 4px;
+  padding: 4px;
+  border-radius: 14px;
+  pointer-events: auto;
+  background: rgba(15, 23, 42, 0.72);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow:
+    0 12px 32px rgba(2, 6, 23, 0.45),
+    inset 0 1px 0 rgba(255, 255, 255, 0.1);
+  backdrop-filter: blur(16px) saturate(140%);
+  -webkit-backdrop-filter: blur(16px) saturate(140%);
+}
+
+.si-map-swipe-toolbar__btn {
+  width: 36px;
+  height: 36px;
+  border: none;
+  border-radius: 10px;
+  background: transparent;
+  color: #cbd5e1;
+  cursor: pointer;
+  display: grid;
+  place-items: center;
+  transition:
+    background 0.15s ease,
+    color 0.15s ease;
+}
+
+.si-map-swipe-toolbar__btn:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: #f1f5f9;
+}
+
+.si-map-swipe-toolbar__btn--on {
+  background: rgba(56, 189, 248, 0.22);
+  color: #7dd3fc;
+  box-shadow: inset 0 0 0 1px rgba(56, 189, 248, 0.35);
+}
+
+.si-map-swipe-divider {
+  position: absolute;
+  pointer-events: auto;
+  touch-action: none;
+  z-index: 2;
+}
+
+.si-map-swipe-divider--vertical {
+  top: 0;
+  bottom: 0;
+  width: 3px;
+  margin-left: -1.5px;
+  background: rgba(255, 255, 255, 0.92);
+  box-shadow:
+    0 0 0 1px rgba(15, 23, 42, 0.35),
+    0 0 18px rgba(255, 255, 255, 0.25);
+  cursor: ew-resize;
+}
+
+.si-map-swipe-divider--horizontal {
+  left: 0;
+  right: 0;
+  height: 3px;
+  margin-top: -1.5px;
+  background: rgba(255, 255, 255, 0.92);
+  box-shadow:
+    0 0 0 1px rgba(15, 23, 42, 0.35),
+    0 0 18px rgba(255, 255, 255, 0.25);
+  cursor: ns-resize;
+}
+
+.si-map-swipe-divider__handle {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  font-size: 0.75rem;
+  color: #0f172a;
+  background: #f8fafc;
+  border: 2px solid rgba(15, 23, 42, 0.2);
+  box-shadow: 0 8px 22px rgba(2, 6, 23, 0.4);
+}
+
+.si-map-swipe-spyglass {
+  position: absolute;
+  border-radius: 50%;
+  border: 3px solid rgba(255, 255, 255, 0.95);
+  box-shadow:
+    0 0 0 1px rgba(15, 23, 42, 0.4),
+    0 12px 36px rgba(2, 6, 23, 0.45);
+  pointer-events: none;
+}
+
+.si-map-swipe-spyglass-drag {
+  position: absolute;
+  width: 48px;
+  height: 48px;
+  margin-left: -24px;
+  margin-top: -24px;
+  border-radius: 50%;
+  pointer-events: auto;
+  touch-action: none;
+  cursor: grab;
+  z-index: 3;
+}
+
+.si-map-swipe-spyglass-drag:active {
+  cursor: grabbing;
+}
+
+.si-sat-ctx-rail-btn--swipe-tool .si-sat-ctx-rail-swipe-glyph {
+  display: grid;
+  place-items: center;
+  font-size: 0.95rem;
+}
+
+.si-sat-ctx-rail-btn--swipe-tool.si-sat-ctx-rail-btn--active {
+  color: #7dd3fc;
+}

@@ -270,6 +270,9 @@ export type SatelliteMapAnalysisChromeProps = {
   mapSpectralLegendAvailable?: boolean;
   mapSpectralLegendOpen?: boolean;
   onToggleMapSpectralLegend?: () => void;
+  mapSwipeAvailable?: boolean;
+  mapSwipeActive?: boolean;
+  onToggleMapSwipe?: () => void;
 };
 
 function sparkPath(values: number[], w: number, h: number): string {
@@ -348,6 +351,9 @@ export function SatelliteMapAnalysisChrome(props: SatelliteMapAnalysisChromeProp
     mapSpectralLegendAvailable = false,
     mapSpectralLegendOpen = false,
     onToggleMapSpectralLegend,
+    mapSwipeAvailable = false,
+    mapSwipeActive = false,
+    onToggleMapSwipe,
   } = props;
 
   const activeFull =
@@ -531,6 +537,9 @@ export function SatelliteMapAnalysisChrome(props: SatelliteMapAnalysisChromeProp
       mapSpectralLegendAvailable={mapSpectralLegendAvailable}
       mapSpectralLegendOpen={mapSpectralLegendOpen}
       onToggleMapSpectralLegend={onToggleMapSpectralLegend}
+      mapSwipeAvailable={mapSwipeAvailable}
+      mapSwipeActive={mapSwipeActive}
+      onToggleMapSwipe={onToggleMapSwipe}
     />
   ) : null;
 

@@ -202,6 +202,17 @@ import { SatelliteAoiLiveChartsMapOverlay } from './components/SatelliteAoiLiveC
 import { buildLiveAoiMapChartSnapshot } from './utils/liveAoiMapChartSnapshot';
 import { SiAoiReportModal } from './components/SiAoiReportModal';
 import { SiMapPrintModal } from './components/SiMapPrintModal';
+import {
+  SiMapSwipeComparePane,
+  buildSiMapSwipeCompareTileUrl,
+} from './components/SiMapSwipeComparePane';
+import { SiMapSwipeWidget } from './components/SiMapSwipeWidget';
+import { buildSiMapSwipeClipPath } from './utils/siMapSwipeClipPath';
+import { resolveSiMapSwipeCompareTimeExtent } from './utils/siMapSwipeCompareExtent';
+import {
+  SI_MAP_SWIPE_DEFAULT_NORM,
+  type SiMapSwipeMode,
+} from './utils/siMapSwipeTypes';
 import { siPdfBoundsFromFitBounds } from './utils/siAoiReportCartography';
 import { siAoiPaletteFromIndexRampStops, siAoiReportFeatureBBoxLngLat } from './utils/siAoiVegetationReportModel';
 import { siWmsLegendRowsFromStops } from './utils/siWmsSpectralClassification';
@@ -2743,6 +2754,9 @@ export default function SatelliteIntelligence() {
   const [mapStaticChartsOpen, setMapStaticChartsOpen] = useState(false);
   /** On-map spectral / WMS legend card — off until user toggles from map toolbox rail. */
   const [mapSpectralLegendOpen, setMapSpectralLegendOpen] = useState(false);
+  const [mapSwipeActive, setMapSwipeActive] = useState(false);
+  const [mapSwipeMode, setMapSwipeMode] = useState<SiMapSwipeMode>('vertical');
+  const [mapSwipeNorm, setMapSwipeNorm] = useState(SI_MAP_SWIPE_DEFAULT_NORM);
   const [staticChartComparisonLayers, setStaticChartComparisonLayers] = useState<StaticAoiChartLayerId[]>(() =>
     defaultStaticAoiComparisonLayers(),
   );
@@ -10089,6 +10103,24 @@ export default function SatelliteIntelligence() {
     return wmsTimeExtentForWeek({ startDate: start, endDate: end }, wmsDate, seriesOpts);
   }, [weeklyTimelineIndex, wmsDate, timeSeriesStart, timeSeriesEnd]);
 
+  const siWmsSwipeCompareTimeExtent = useMemo(
+    () =>
+      resolveSiMapSwipeCompareTimeExtent(wmsDate, weeklyTimelineIndex, -1, {
+        seriesStartIso: timeSeriesStart,
+        seriesEndIso: timeSeriesEnd,
+      }),
+    [wmsDate, weeklyTimelineIndex, timeSeriesStart, timeSeriesEnd],
+  );
+
+  const mapSwipeClipPath = useMemo(
+    () => buildSiMapSwipeClipPath(mapSwipeMode, mapSwipeNorm.x, mapSwipeNorm.y),
+    [mapSwipeMode, mapSwipeNorm.x, mapSwipeNorm.y],
+  );
+
+  useEffect(() => {
+    if (!sentinelVisible && mapSwipeActive) setMapSwipeActive(false);
+  }, [sentinelVisible, mapSwipeActive]);
+
   const fieldSpectralSceneKey = useMemo(
     () =>
       [
@@ -11663,6 +11695,53 @@ export default function SatelliteIntelligence() {
     satelliteProviderId,
   ]);
 
+  const siSwipeCompareTileUrl = useMemo(() => {
+    if (!activeWmsLayer || !drawnAoiWmsClipReady) return null;
+    return buildSiMapSwipeCompareTileUrl(
+      activeWmsLayer,
+      sentinelHubWmsAoiClip,
+      wmsBaseUrl,
+      siWmsSwipeCompareTimeExtent,
+      cloudCoverage,
+    );
+  }, [
+    activeWmsLayer,
+    drawnAoiWmsClipReady,
+    sentinelHubWmsAoiClip,
+    wmsBaseUrl,
+    siWmsSwipeCompareTimeExtent,
+    cloudCoverage,
+  ]);
+
+  const siSwipeCompareMultiRuns = useMemo((): SiSentinelHubRasterRunLite[] | null => {
+    if (siMultiSentinelRasterRuns == null) return null;
+    const cs = siWmsSwipeCompareTimeExtent.start;
+    const ce = siWmsSwipeCompareTimeExtent.end;
+    const timeParam = `&TIME=${cs}/${ce}`;
+    return siMultiSentinelRasterRuns.map(r => ({
+      ...r,
+      timeStart: cs,
+      timeEnd: ce,
+      tileUrl: r.tileUrl.replace(/&TIME=[^&]+/, timeParam),
+    }));
+  }, [siMultiSentinelRasterRuns, siWmsSwipeCompareTimeExtent]);
+
+  const mapSwipeLegacyOpacity = useMemo(() => {
+    const sym = symOpacityForWmsLayerId(activeWmsLayer || '');
+    return (
+      (sentinelHubWmsAoiClip.evalscriptB64 ? 1 : 0.85) *
+      (drawnGeometry != null && wmsRasterAoiBoundsLngLat ? drawVisualOpacity : 1) *
+      sym
+    );
+  }, [
+    activeWmsLayer,
+    sentinelHubWmsAoiClip.evalscriptB64,
+    drawnGeometry,
+    wmsRasterAoiBoundsLngLat,
+    drawVisualOpacity,
+    symOpacityForWmsLayerId,
+  ]);
+
   /**
    * react-map-gl <Source> does not apply standalone `bounds` updates (see updateSource in library).
    * Sync Mapbox RasterTileSource.setBounds after mount so AOI clipping always matches the sketch.
@@ -12635,6 +12714,33 @@ export default function SatelliteIntelligence() {
             {renderSiMapInterior()}
               </MapGL>
 
+          {isMapLoaded && mapSwipeActive && sentinelVisible && drawnAoiWmsClipReady ? (
+            <>
+              <SiMapSwipeComparePane
+                viewState={viewState}
+                clipPath={mapSwipeClipPath}
+                mapStyle={effectiveMapStyle}
+                mapboxAccessToken={mapboxAccessTokenForMap}
+                transformRequest={sentinelHubTransformRequest}
+                projectionMode={mapProjectionMode}
+                compareTileUrl={siSwipeCompareTileUrl}
+                compareBounds={wmsRasterAoiBoundsLngLat}
+                compareOpacity={mapSwipeLegacyOpacity}
+                multiRuns={siSwipeCompareMultiRuns}
+                evalscriptKeyPart={siWmsEvalscriptKeyPart}
+              />
+              <SiMapSwipeWidget
+                active
+                mode={mapSwipeMode}
+                norm={mapSwipeNorm}
+                onNormChange={setMapSwipeNorm}
+                onModeChange={setMapSwipeMode}
+                currentLabel={`Current · ${siWmsMapTimeExtent.start}`}
+                compareLabel={`Compare · ${siWmsSwipeCompareTimeExtent.start}`}
+              />
+            </>
+          ) : null}
+
           {isMapLoaded &&
           mapSpectralLegendOpen &&
           wmsSpectralLegend &&
@@ -13114,6 +13220,9 @@ export default function SatelliteIntelligence() {
             mapSpectralLegendAvailable={wmsLegendDisplayMode !== 'none' && sentinelVisible}
             mapSpectralLegendOpen={mapSpectralLegendOpen}
             onToggleMapSpectralLegend={() => setMapSpectralLegendOpen(o => !o)}
+            mapSwipeAvailable={sentinelVisible && drawnAoiWmsClipReady}
+            mapSwipeActive={mapSwipeActive}
+            onToggleMapSwipe={() => setMapSwipeActive(o => !o)}
           />
 
           {siAoiReportModalOpen ? (

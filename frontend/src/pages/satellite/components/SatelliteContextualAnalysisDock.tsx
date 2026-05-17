@@ -120,6 +120,10 @@ export type SatelliteContextualAnalysisDockProps = {
   /** Parent-owned visibility for the spectral legend card on the map canvas. */
   mapSpectralLegendOpen?: boolean;
   onToggleMapSpectralLegend?: () => void;
+  /** Layer swipe compare — map canvas only. */
+  mapSwipeAvailable?: boolean;
+  mapSwipeActive?: boolean;
+  onToggleMapSwipe?: () => void;
 };
 
 const RAIL: Array<{ id: SatelliteContextPanelId; icon: string; label: string; title: string; hint: string }> = [
@@ -322,6 +326,9 @@ export function SatelliteContextualAnalysisDock(props: SatelliteContextualAnalys
     mapSpectralLegendAvailable = false,
     mapSpectralLegendOpen = false,
     onToggleMapSpectralLegend,
+    mapSwipeAvailable = false,
+    mapSwipeActive = false,
+    onToggleMapSwipe,
   } = props;
 
   const [panelOpen, setPanelOpen] = useState(false);
@@ -718,6 +725,41 @@ export function SatelliteContextualAnalysisDock(props: SatelliteContextualAnalys
                 <span className="si-sat-ctx-rail-label-title">{language === 'ar' ? 'إيضاح' : 'Legend'}</span>
                 <span className="si-sat-ctx-rail-label-desc">
                   {language === 'ar' ? 'عرض مفتاح الطبقة على الخريطة' : 'Layer key on map'}
+                </span>
+              </span>
+            ) : null}
+          </button>
+        ) : null}
+        {isMap && mapSwipeAvailable && onToggleMapSwipe ? (
+          <button
+            type="button"
+            className={
+              'si-sat-ctx-rail-btn si-sat-ctx-rail-btn--map si-sat-ctx-rail-btn--swipe-tool' +
+              (railWide ? ' si-sat-ctx-rail-btn--row si-sat-ctx-rail-btn--map-expanded' : '') +
+              (isMap && !railWide ? ' si-sat-ctx-rail-btn--map-collapsed' : '') +
+              (mapSwipeActive ? ' si-sat-ctx-rail-btn--active' : '')
+            }
+            title={
+              language === 'ar'
+                ? mapSwipeActive
+                  ? 'إيقاف مقارنة السحب'
+                  : 'مقارنة الطبقات — سحب عمودي / أفقي / عدسة'
+                : mapSwipeActive
+                  ? 'Turn off layer swipe compare'
+                  : 'Layer swipe — vertical, horizontal, spyglass'
+            }
+            aria-label={language === 'ar' ? 'مقارنة السحب على الخريطة' : 'Toggle layer swipe on map'}
+            aria-pressed={mapSwipeActive}
+            onClick={() => onToggleMapSwipe()}
+          >
+            <span className="si-sat-ctx-rail-swipe-glyph" aria-hidden>
+              <i className="fa-solid fa-columns" />
+            </span>
+            {isMap ? (
+              <span className="si-sat-ctx-rail-label" aria-hidden={!railWide}>
+                <span className="si-sat-ctx-rail-label-title">{language === 'ar' ? 'سحب' : 'Swipe'}</span>
+                <span className="si-sat-ctx-rail-label-desc">
+                  {language === 'ar' ? 'مقارنة التواريخ على الخريطة' : 'Compare imagery on map'}
                 </span>
               </span>
             ) : null}
