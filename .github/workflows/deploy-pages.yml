@@ -26,11 +26,14 @@ jobs:
     if: "${{ github.event_name == 'workflow_dispatch' || !startsWith(github.event.head_commit.message, 'chore(pages): sync SPA build to repo root') }}"
     runs-on: ubuntu-latest
     timeout-minutes: 25
+    permissions:
+      contents: write
+      pages: write
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-          token: ${{ secrets.GITHUB_TOKEN }}
+          persist-credentials: true
       - name: Force Pages to serve files from main (not Actions artifact)
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -57,10 +60,14 @@ jobs:
           VITE_DEEPSEEK_API_KEY: ''
         run: npm run build
       - name: Prepare Pages dist + sanity-check
-        run: node scripts/pages-dist-check.mjs
-      - name: Sync dist to repository root and push main
         run: |
-          set -euo pipefail
+          node scripts/pages-dist-check.mjs
+          node scripts/verify-pages-bundle-no-secrets.mjs
+      - name: Sync dist to repository root and push main
+        env:
+          BRANCH: ${{ github.ref_name }}
+        run: |
+          set -euxo pipefail
           node scripts/sync-pages-dist-to-root.mjs --git-add
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
@@ -69,12 +76,17 @@ jobs:
             exit 0
           fi
           git commit -m "chore(pages): sync SPA build to repo root [pages-sync]"
+          git config pull.rebase false
           for attempt in 1 2 3; do
-            git pull --rebase origin "${GITHUB_REF_NAME}" && git push origin "HEAD:${GITHUB_REF_NAME}" && exit 0
-            echo "Push attempt ${attempt} failed; retrying in 5s..."
-            sleep 5
+            if git pull origin "${BRANCH}" --no-edit && git push origin "HEAD:${BRANCH}"; then
+              echo "pages-sync pushed on attempt ${attempt}"
+              exit 0
+            fi
+            echo "::warning::Push attempt ${attempt} failed"
+            git status
+            sleep 8
           done
-          echo "::error::Failed to push pages-sync commit after 3 attempts"
+          echo "::error::Failed to push pages-sync commit. Check branch protection allows github-actions[bot] to push to main."
           exit 1
       - name: Re-assert legacy Pages after push (GitHub may reset source)
         env:
