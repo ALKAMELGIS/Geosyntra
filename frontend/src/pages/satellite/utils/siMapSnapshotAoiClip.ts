@@ -24,15 +24,34 @@ export function collectAoiRings(geom: GeoJSON.Geometry): number[][][] {
 
 export type SiAoiProjectedRing = { x: number; y: number }[];
 
+/**
+ * Mapbox `map.project` returns CSS pixels; the WebGL canvas backing store is
+ * `clientWidth × devicePixelRatio`. Snapshot PNGs must scale lng/lat → pixels
+ * with `outputImageWidth / clientWidth` (not `outputWidth / canvas.width`).
+ */
+export function snapshotImagePixelScale(
+  map: MapboxMap,
+  outputImageWidth: number,
+  outputImageHeight: number,
+): { scaleX: number; scaleY: number } {
+  const container = map.getContainer();
+  const cssW = container?.clientWidth || outputImageWidth || 1;
+  const cssH = container?.clientHeight || outputImageHeight || 1;
+  return {
+    scaleX: outputImageWidth / Math.max(1, cssW),
+    scaleY: outputImageHeight / Math.max(1, cssH),
+  };
+}
+
 function projectRing(
   map: MapboxMap,
   ring: number[][],
-  sx: number,
-  sy: number,
+  scaleX: number,
+  scaleY: number,
 ): SiAoiProjectedRing {
   return ring.map(([lng, lat]) => {
     const p = map.project([lng, lat]);
-    return { x: p.x * sx, y: p.y * sy };
+    return { x: p.x * scaleX, y: p.y * scaleY };
   });
 }
 
@@ -40,8 +59,8 @@ function projectRing(
 export function projectAoiRingsForSnapshot(
   map: MapboxMap,
   aoiFeature: GeoJSON.Feature,
-  outputScaleX = 1,
-  outputScaleY = outputScaleX,
+  outputImageWidth?: number,
+  outputImageHeight?: number,
 ): SiAoiProjectedRing[] {
   const geom = aoiFeature.geometry;
   if (!geom) return [];
@@ -50,7 +69,10 @@ export function projectAoiRingsForSnapshot(
   const mapW = canvas.width;
   const mapH = canvas.height;
   if (!mapW || !mapH) return [];
-  return rings.map(ring => projectRing(map, ring, outputScaleX, outputScaleY));
+  const targetW = outputImageWidth ?? mapW;
+  const targetH = outputImageHeight ?? mapH;
+  const { scaleX, scaleY } = snapshotImagePixelScale(map, targetW, targetH);
+  return rings.map(ring => projectRing(map, ring, scaleX, scaleY));
 }
 
 function traceRingPath(ctx: CanvasRenderingContext2D, pts: { x: number; y: number }[]) {
@@ -101,11 +123,9 @@ export async function clipMapSnapshotToAoiFeature(
     const imgH = img.naturalHeight || img.height;
     if (!mapW || !mapH || !imgW || !imgH) return pngDataUrl;
 
-    const sx = imgW / mapW;
-    const sy = imgH / mapH;
+    const { scaleX, scaleY } = snapshotImagePixelScale(map, imgW, imgH);
     const projected =
-      opts?.projectedRings ??
-      rings.map(ring => projectRing(map, ring, sx, sy));
+      opts?.projectedRings ?? rings.map(ring => projectRing(map, ring, scaleX, scaleY));
 
     const c = document.createElement('canvas');
     c.width = imgW;

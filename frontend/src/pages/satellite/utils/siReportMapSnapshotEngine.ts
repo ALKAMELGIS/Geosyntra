@@ -89,8 +89,10 @@ async function captureCurrentCanvasFrame(
   const canvas = map.getCanvas();
   if (!canvas.width || !canvas.height) return null;
 
+  const imgW = scale <= 1 ? canvas.width : Math.round(canvas.width * scale);
+  const imgH = scale <= 1 ? canvas.height : Math.round(canvas.height * scale);
   const projectedRings =
-    aoiFeature?.geometry != null ? projectAoiRingsForSnapshot(map, aoiFeature, scale, scale) : undefined;
+    aoiFeature?.geometry != null ? projectAoiRingsForSnapshot(map, aoiFeature, imgW, imgH) : undefined;
 
   const png = captureMapboxCanvasPng(map, scale);
   if (!png || png.length < 800) return null;
