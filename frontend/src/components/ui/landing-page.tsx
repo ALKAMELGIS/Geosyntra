@@ -91,6 +91,8 @@ export interface ScrollGlobeProps {
   leadingSection?: React.ReactNode
   leadingSectionNav?: ScrollGlobeLeadingNav
   onActiveSectionChange?: (index: number) => void
+  /** SaaS hero only — crisp centered globe without scrim/gradient/blur. */
+  leadingGlobeClear?: boolean
 }
 
 export function ScrollGlobe({
@@ -100,6 +102,7 @@ export function ScrollGlobe({
   leadingSection,
   leadingSectionNav,
   onActiveSectionChange,
+  leadingGlobeClear = false,
 }: ScrollGlobeProps) {
   const hasLeading = Boolean(leadingSection)
   const innovationSparkleIndex = hasLeading ? 2 : 1
@@ -123,6 +126,7 @@ export function ScrollGlobe({
     sectionCount,
     globeConfig,
     onActiveSectionChange,
+    leadingGlobeClear,
   })
   /**
    * Active theme — flips between `'dark'` and `'light'` based on the
@@ -179,9 +183,11 @@ export function ScrollGlobe({
      */
     <div
       ref={containerRef}
+      data-active-section={activeSection}
       className={cn(
         'gs-scroll-globe relative w-full max-w-full overflow-x-hidden min-h-screen text-foreground',
         hasLeading ? 'gs-scroll-globe--with-leading bg-transparent' : 'bg-background',
+        leadingGlobeClear ? 'gs-scroll-globe--leading-clear' : null,
         className,
       )}
     >
@@ -379,9 +385,9 @@ export function ScrollGlobe({
           }}
           className="home-merged-saas gs-hero-leading-panel relative z-30 min-h-screen min-h-[100dvh] w-full max-w-full flex flex-col justify-center pointer-events-none"
           style={
-            {
-              '--gs-hero-scrim-blur': `${heroScrimBlur}px`,
-            } as React.CSSProperties
+            leadingGlobeClear
+              ? undefined
+              : ({ '--gs-hero-scrim-blur': `${heroScrimBlur}px` } as React.CSSProperties)
           }
         >
           <motion.div className="pointer-events-auto w-full">{leadingSection}</motion.div>

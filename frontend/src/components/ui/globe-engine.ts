@@ -95,8 +95,12 @@ export function resolveGlobeOpacity(opts: {
   globeArrived: boolean
   reduceMotion: boolean
   mobileReduced: boolean
+  leadingGlobeClear?: boolean
 }): number {
   if (!opts.globeArrived) return 0
+  if (opts.leadingGlobeClear && opts.hasLeading && opts.activeSection === 0) {
+    return opts.mobileReduced ? 0.96 : 1
+  }
   if (opts.reduceMotion) return opts.hasLeading && opts.activeSection === 0 ? 0.82 : 0.92
 
   let opacity = 0.92

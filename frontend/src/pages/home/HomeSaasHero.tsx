@@ -22,7 +22,6 @@ export type HomeSaasHeroProps = {
 export function HomeSaasHero({ copy, preface, startAction, secondaryAction }: HomeSaasHeroProps) {
   return (
     <div className="home-saas-hero home-saas-hero--globe">
-      <div className="home-saas-hero__scrim" aria-hidden />
       <motion.div className="home-saas-hero__content">
       {preface ? <div className="home-saas-hero__preface">{preface}</div> : null}
 

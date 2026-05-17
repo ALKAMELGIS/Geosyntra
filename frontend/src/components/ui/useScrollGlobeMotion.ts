@@ -17,6 +17,8 @@ export type UseScrollGlobeMotionOpts = {
   sectionCount: number
   globeConfig?: ScrollGlobeGlobeConfig
   onActiveSectionChange?: (index: number) => void
+  /** Home SaaS hero — full-opacity centered globe, no scrim blur or gradient overlay. */
+  leadingGlobeClear?: boolean
 }
 
 function findScrollContainer(el: HTMLElement | null): HTMLElement | Window {
@@ -38,7 +40,13 @@ export function useScrollGlobeMotion(
   sectionRefs: React.MutableRefObject<(HTMLElement | null)[]>,
   opts: UseScrollGlobeMotionOpts,
 ) {
-  const { hasLeading, sectionCount, globeConfig = DEFAULT_SCROLL_GLOBE_CONFIG, onActiveSectionChange } = opts
+  const {
+    hasLeading,
+    sectionCount,
+    globeConfig = DEFAULT_SCROLL_GLOBE_CONFIG,
+    onActiveSectionChange,
+    leadingGlobeClear = false,
+  } = opts
 
   const resolved = useMemo(() => resolveGlobeConfig(globeConfig), [globeConfig])
   const lastSectionIndex = hasLeading ? sectionCount : Math.max(0, sectionCount - 1)
@@ -106,7 +114,11 @@ export function useScrollGlobeMotion(
     if (hasLeading) {
       const leadingEl = sectionRefs.current[0]
       const welcomeEl = sectionRefs.current[1]
-      if (newActiveSection === 0 && leadingEl) {
+      if (leadingGlobeClear && newActiveSection === 0) {
+        camera = resolved.leading
+        leadT = 0
+        scrollDriftY = 0
+      } else if (newActiveSection === 0 && leadingEl) {
         const rect = leadingEl.getBoundingClientRect()
         const vh = window.innerHeight || 1
         leadT = Math.min(Math.max((vh * 0.42 - rect.top) / (vh * 0.78), 0), 1)
@@ -134,8 +146,9 @@ export function useScrollGlobeMotion(
 
     const onLeading = hasLeading && newActiveSection === 0
     const nearLeading = hasLeading && newActiveSection <= 1
+    const heroClear = leadingGlobeClear && onLeading
     setHeroStarsOpacity(nearLeading ? Math.max(0.35, 1 - leadT * 0.55) : 0)
-    setHeroOverlayOpacity(onLeading ? 1 : nearLeading ? Math.max(0, 1 - leadT) : 0)
+    setHeroOverlayOpacity(heroClear ? 0 : onLeading ? 1 : nearLeading ? Math.max(0, 1 - leadT) : 0)
 
     setGlobeOpacity(
       resolveGlobeOpacity({
@@ -145,16 +158,17 @@ export function useScrollGlobeMotion(
         globeArrived: globeArrivedRef.current,
         reduceMotion: reduceMotionRef.current,
         mobileReduced: mobileReducedRef.current,
+        leadingGlobeClear,
       }),
     )
-    setHeroScrimBlur(resolveHeroScrimBlur(leadT))
-    setHeroGlobeBlur(resolveHeroGlobeBlur(leadT))
+    setHeroScrimBlur(heroClear ? 0 : resolveHeroScrimBlur(leadT))
+    setHeroGlobeBlur(heroClear ? 0 : resolveHeroGlobeBlur(leadT))
 
     if (activeSectionNotifyRef.current !== newActiveSection) {
       activeSectionNotifyRef.current = newActiveSection
       onActiveSectionChange?.(newActiveSection)
     }
-  }, [hasLeading, lastSectionIndex, resolved, sectionRefs, onActiveSectionChange])
+  }, [hasLeading, lastSectionIndex, resolved, sectionRefs, onActiveSectionChange, leadingGlobeClear])
 
   useEffect(() => {
     globeArrivedRef.current = globeArrived

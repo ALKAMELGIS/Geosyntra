@@ -257,6 +257,8 @@ function HomePageContent() {
 
         leadingSectionNav={{ id: 'start', badge: 'Start' }}
 
+        leadingGlobeClear
+
         onActiveSectionChange={index => setBrowseMode(index > 0)}
 
       />
