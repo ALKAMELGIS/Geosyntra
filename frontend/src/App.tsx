@@ -163,7 +163,13 @@ function AppShell() {
   }
 
   if (!user && !isPublicSurface) {
-    return <Navigate to={SAAS_ROUTES.authLogin} replace state={{ from: location }} />
+    return (
+      <Navigate
+        to={{ pathname: SAAS_ROUTES.home, search: '?start=1&wizard=auth&mode=signin' }}
+        replace
+        state={{ from: location }}
+      />
+    )
   }
 
   return (

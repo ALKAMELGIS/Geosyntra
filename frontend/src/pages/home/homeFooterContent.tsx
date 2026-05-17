@@ -19,7 +19,7 @@ export const homeFooterColumns: HomeFooterColumn[] = [
       { href: '#innovation', label: 'Earth Observation' },
       { href: '#discovery', label: 'AOI & Analytics' },
       { href: '#future', label: 'Scientific Reporting' },
-      { href: SAAS_ROUTES.onboardingTrialStart, label: 'Start free trial' },
+      { href: '#get-started', label: 'Start free trial' },
     ],
   },
   {
@@ -36,7 +36,7 @@ export const homeFooterColumns: HomeFooterColumn[] = [
     title: 'Resources',
     links: [
       { href: '/learn-more', label: 'Documentation' },
-      { href: SAAS_ROUTES.billingPricing, label: 'Pricing' },
+      { href: '#pricing', label: 'Pricing' },
       { href: '#start', label: 'Getting started' },
       { href: '#hero', label: 'Platform tour' },
       { href: 'mailto:support@geosyntra.com', label: 'Contact support' },
