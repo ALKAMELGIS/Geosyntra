@@ -3,10 +3,7 @@ import { Navigate, Route, Routes } from 'react-router-dom'
 import { useSystemSettings } from '../store/SystemSettingsContext'
 import DynamicBindPage from '../pages/system/DynamicBindPage'
 import Home from '../pages/Home'
-import AuthLoginPage from '../pages/app/auth/AuthLoginPage'
-import AuthRegisterPage from '../pages/app/auth/AuthRegisterPage'
-import PricingPage from '../pages/app/billing/PricingPage'
-import TrialStartPage from '../pages/app/onboarding/TrialStartPage'
+import { HomeWizardRedirect } from '../pages/home/HomeWizardRedirect'
 import { SAAS_ROUTES } from '../lib/saasRoutes'
 const LearnMore = lazy(() => import('../pages/LearnMore'))
 const SatelliteIntelligence = lazy(() => import('../pages/satellite/SatelliteIntelligence'))
@@ -25,11 +22,11 @@ export default function AppRoutes() {
     <Suspense fallback={null}>
       <Routes>
         <Route path="/" element={<Home />} />
-        <Route path={SAAS_ROUTES.authLogin} element={<AuthLoginPage />} />
-        <Route path={SAAS_ROUTES.authRegister} element={<AuthRegisterPage />} />
-        <Route path={SAAS_ROUTES.billingPricing} element={<PricingPage />} />
-        <Route path={SAAS_ROUTES.onboardingTrialStart} element={<TrialStartPage />} />
-        <Route path="/login" element={<Navigate to={SAAS_ROUTES.authLogin} replace />} />
+        <Route path={SAAS_ROUTES.authLogin} element={<HomeWizardRedirect authMode="signin" />} />
+        <Route path={SAAS_ROUTES.authRegister} element={<HomeWizardRedirect authMode="signup" />} />
+        <Route path={SAAS_ROUTES.billingPricing} element={<HomeWizardRedirect wizard="pricing" />} />
+        <Route path={SAAS_ROUTES.onboardingTrialStart} element={<HomeWizardRedirect wizard="pricing" />} />
+        <Route path="/login" element={<HomeWizardRedirect authMode="signin" />} />
         <Route path="/learn-more" element={<LearnMore />} />
         <Route path="/satellite" element={<Navigate to="/satellite/indices" replace />} />
         <Route path="/data/fertigation" element={<Navigate to="/data/fertigation-records" replace />} />

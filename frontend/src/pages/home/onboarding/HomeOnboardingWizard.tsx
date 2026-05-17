@@ -2,18 +2,19 @@ import { AnimatePresence, motion } from 'framer-motion'
 import { PaymentSheet } from './PaymentSheet'
 import { useHomeOnboarding } from './HomeOnboardingContext'
 import { WizardAuthStep } from './steps/WizardAuthStep'
+import { WizardIdentityStep } from './steps/WizardIdentityStep'
 import { WizardPricingStep } from './steps/WizardPricingStep'
 import { WizardActivationStep } from './steps/WizardActivationStep'
 import { WizardLaunchStep } from './steps/WizardLaunchStep'
 import '../home-onboarding.css'
 
-const STEPS = ['auth', 'pricing', 'activation', 'launch'] as const
+const STEPS = ['auth', 'identity', 'pricing', 'activation', 'launch'] as const
 
 export function HomeOnboardingWizard() {
   const { open, step, closeWizard, paymentOpen, selectedPlanId, closePayment, completePayment } =
     useHomeOnboarding()
 
-  const stepIndex = STEPS.indexOf(step as (typeof STEPS)[number])
+  const stepIndex = Math.max(0, STEPS.indexOf(step as (typeof STEPS)[number]))
 
   return (
     <>
@@ -53,6 +54,11 @@ export function HomeOnboardingWizard() {
                   {step === 'auth' ? (
                     <motion.div key="auth" initial={{ opacity: 0, x: 12 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -12 }}>
                       <WizardAuthStep />
+                    </motion.div>
+                  ) : null}
+                  {step === 'identity' ? (
+                    <motion.div key="identity" initial={{ opacity: 0, x: 12 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -12 }}>
+                      <WizardIdentityStep />
                     </motion.div>
                   ) : null}
                   {step === 'pricing' ? (

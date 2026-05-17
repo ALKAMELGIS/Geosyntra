@@ -1,13 +1,9 @@
-import { useAuth } from '../../../../state/auth'
 import { getPricingPlan, type BillingPlanId } from '../../../../lib/onboarding/pricingPlans'
-import { displayFirstName } from '../../../../lib/onboarding/localAuth'
 import { PricingCards } from '../PricingCards'
 import { useHomeOnboarding } from '../HomeOnboardingContext'
 
 export function WizardPricingStep() {
-  const { openPayment, runActivation, setStep, selectedPlanId, selectPlan } = useHomeOnboarding()
-  const { user } = useAuth()
-  const first = displayFirstName(user)
+  const { openPayment, runActivation, selectedPlanId, selectPlan } = useHomeOnboarding()
 
   const handleGetStarted = (planId: BillingPlanId) => {
     selectPlan(planId)
@@ -26,11 +22,11 @@ export function WizardPricingStep() {
 
   return (
     <div className="home-wizard-step home-wizard-step--pricing">
-      <p className="home-wizard-step__eyebrow">Step 2 · Plans</p>
-      <h2 className="home-wizard-step__title">
-        Hello {first} <span aria-hidden>👋</span>
-      </h2>
-      <p className="home-wizard-step__lede">Choose how you want to run GeoSyntra. You can change plans anytime.</p>
+      <p className="home-wizard-step__eyebrow">Step 3 · Pricing</p>
+      <h2 className="home-wizard-step__title">Choose your plan</h2>
+      <p className="home-wizard-step__lede">
+        Same plans as always — pick one and continue. Payment opens right here for paid tiers.
+      </p>
       {selectedPlanId === 'trial' ? (
         <p className="home-wizard-trial-badge">Free Trial · 14 days active after activation</p>
       ) : null}

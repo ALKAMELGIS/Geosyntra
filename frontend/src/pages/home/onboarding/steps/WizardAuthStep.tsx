@@ -1,18 +1,34 @@
-import { useState } from 'react'
-import { homeSignIn, homeSignUp } from '../../../../lib/onboarding/localAuth'
+import { useEffect, useState } from 'react'
+import { homeOAuthSignIn, homeSignIn, homeSignUp, type OAuthProvider } from '../../../../lib/onboarding/localAuth'
 import { SaasButton } from '../../../../components/saas/SaasEntryShell'
 import { useAuth } from '../../../../state/auth'
 import { useHomeOnboarding } from '../HomeOnboardingContext'
 
+const OAUTH: { id: OAuthProvider; label: string; icon: string }[] = [
+  { id: 'google', label: 'Google', icon: 'fa-brands fa-google' },
+  { id: 'apple', label: 'Apple', icon: 'fa-brands fa-apple' },
+  { id: 'github', label: 'GitHub', icon: 'fa-brands fa-github' },
+]
+
 export function WizardAuthStep() {
   const { login } = useAuth()
-  const { setStep, refreshWorkspace } = useHomeOnboarding()
-  const [mode, setMode] = useState<'signup' | 'signin'>('signup')
+  const { setStep, refreshWorkspace, authMode, setAuthMode } = useHomeOnboarding()
+  const [mode, setMode] = useState<'signup' | 'signin'>(authMode)
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
+
+  useEffect(() => {
+    setMode(authMode)
+  }, [authMode])
+
+  const afterAuth = (user: Parameters<typeof login>[0]) => {
+    login(user)
+    refreshWorkspace()
+    setStep('identity')
+  }
 
   const submit = async () => {
     setError('')
@@ -26,27 +42,65 @@ export function WizardAuthStep() {
         setError(result.error)
         return
       }
-      login(result.user)
-      refreshWorkspace()
-      setStep('pricing')
+      afterAuth(result.user)
     } finally {
       setBusy(false)
     }
   }
 
+  const oauth = async (provider: OAuthProvider) => {
+    setError('')
+    setBusy(true)
+    try {
+      const result = await homeOAuthSignIn(provider)
+      if (!result.ok) {
+        setError(result.error)
+        return
+      }
+      afterAuth(result.user)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const switchMode = (next: 'signup' | 'signin') => {
+    setMode(next)
+    setAuthMode(next)
+  }
+
   return (
     <div className="home-wizard-step home-wizard-step--auth">
-      <p className="home-wizard-step__eyebrow">Step 1 · Account</p>
-      <h2 className="home-wizard-step__title">{mode === 'signup' ? 'Create your workspace' : 'Welcome back'}</h2>
+      <p className="home-wizard-step__eyebrow">Step 1 · Authentication</p>
+      <h2 className="home-wizard-step__title">{mode === 'signup' ? 'Create your account' : 'Sign in'}</h2>
       <p className="home-wizard-step__lede">
-        One account for Layer Live, GeoAI, and publication-ready reporting — no page redirects.
+        Email, password, or social — your workspace session starts here. Everything else happens in this
+        wizard.
+      </p>
+
+      <div className="home-wizard-oauth" role="group" aria-label="Social sign in">
+        {OAUTH.map(p => (
+          <button
+            key={p.id}
+            type="button"
+            className="home-wizard-oauth__btn"
+            disabled={busy}
+            onClick={() => void oauth(p.id)}
+          >
+            <i className={p.icon} aria-hidden />
+            {p.label}
+          </button>
+        ))}
+      </div>
+
+      <p className="home-wizard-oauth__sep">
+        <span>or continue with email</span>
       </p>
 
       <div className="home-wizard-tabs" role="tablist">
-        <button type="button" role="tab" aria-selected={mode === 'signup'} onClick={() => setMode('signup')}>
+        <button type="button" role="tab" aria-selected={mode === 'signup'} onClick={() => switchMode('signup')}>
           Sign up
         </button>
-        <button type="button" role="tab" aria-selected={mode === 'signin'} onClick={() => setMode('signin')}>
+        <button type="button" role="tab" aria-selected={mode === 'signin'} onClick={() => switchMode('signin')}>
           Sign in
         </button>
       </div>
@@ -79,8 +133,8 @@ export function WizardAuthStep() {
           />
         </label>
         {error ? <p className="home-wizard-form__error">{error}</p> : null}
-        <SaasButton size="lg" variant="primary" className="home-wizard-form__submit" onClick={() => void submit()}>
-          {busy ? 'Please wait…' : mode === 'signup' ? 'Continue' : 'Sign in & continue'}
+        <SaasButton size="lg" variant="primary" className="home-wizard-form__submit" onClick={() => void submit()} disabled={busy}>
+          {busy ? 'Please wait…' : mode === 'signup' ? 'Create account' : 'Sign in'}
         </SaasButton>
       </form>
     </div>

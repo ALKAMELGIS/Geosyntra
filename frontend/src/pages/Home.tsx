@@ -63,7 +63,19 @@ function HomePageContent() {
 
   const goSecondary = useCallback(() => go(HERO_SECONDARY_PATH), [go])
 
-  const goSignIn = useCallback(() => openWizard({ step: user ? 'pricing' : 'auth' }), [openWizard, user])
+  const goSignIn = useCallback(
+    () => openWizard({ step: user ? 'identity' : 'auth', authMode: 'signin' }),
+    [openWizard, user],
+  )
+
+  const getStarted = useCallback(() => {
+    const ws = user ? readWorkspaceState(user.email) : null
+    if (ws?.workspaceReady) {
+      go(HERO_PRIMARY_PATH)
+      return
+    }
+    openWizard({ step: user ? 'pricing' : 'auth', authMode: 'signup' })
+  }, [openWizard, user, go])
 
 
 
@@ -79,7 +91,7 @@ function HomePageContent() {
 
     }
 
-    openWizard({ step: user ? 'pricing' : 'auth', planId: 'trial' })
+    openWizard({ step: user ? 'identity' : 'auth', planId: 'trial', authMode: 'signup' })
 
   }, [openWizard, user, go])
 
@@ -111,14 +123,30 @@ function HomePageContent() {
     if (scrollTarget && scrollTarget !== 'get-started') {
       window.requestAnimationFrame(() => scrollToInPageSection(`#${scrollTarget}`))
     }
-    if (
-      repairedId === 'get-started' ||
-      window.location.hash === '#get-started' ||
-      new URLSearchParams(window.location.search).get('start') === '1'
-    ) {
+    const qs = new URLSearchParams(window.location.search)
+    const wizard = qs.get('wizard')
+    const mode = qs.get('mode')
+    if (qs.get('start') === '1' || wizard) {
+      if (wizard === 'pricing') {
+        openWizard({ step: user ? 'pricing' : 'auth', authMode: 'signup' })
+      } else if (mode === 'signin') {
+        openWizard({ step: user ? 'identity' : 'auth', authMode: 'signin' })
+      } else {
+        startBuilding()
+      }
+      if (qs.has('start') || qs.has('wizard')) {
+        try {
+          window.history.replaceState({}, '', `${window.location.pathname}${window.location.hash}`)
+        } catch {
+          /* ignore */
+        }
+      }
+      return
+    }
+    if (repairedId === 'get-started' || window.location.hash === '#get-started') {
       startBuilding()
     }
-  }, [startBuilding])
+  }, [startBuilding, openWizard, user])
 
   useEffect(() => {
 
@@ -159,15 +187,15 @@ function HomePageContent() {
         copy={homeSaasContent.hero}
 
         startAction={{
-
           label: homeSaasContent.startLabel,
-
           onClick: startBuilding,
-
           'aria-label': 'Start building with GeoSyntra',
-
         }}
-
+        secondaryAction={{
+          label: homeSaasContent.getStartedLabel,
+          onClick: getStarted,
+          'aria-label': 'Get started with GeoSyntra',
+        }}
       />
 
       <p className="home-merged-saas__scroll-hint" aria-hidden>

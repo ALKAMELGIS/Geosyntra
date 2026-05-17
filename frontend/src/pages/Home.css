@@ -264,6 +264,14 @@
   color: hsl(var(--muted-foreground, 0 0% 45%));
 }
 
+.home-saas-hero__cta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+}
+
 .home-saas-hero__cta .saas-entry__btn--lg {
   min-height: 3rem;
   padding-left: 2rem;

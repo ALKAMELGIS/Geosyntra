@@ -17,7 +17,8 @@ export type HomeSaasHeroCopy = {
 export const homeSaasContent = {
   brand: GEOSYNTRA_BRAND_NAME as ReactNode,
   signInLabel: 'Sign in' as ReactNode,
-  startLabel: 'Try for free' as ReactNode,
+  startLabel: 'Start Building' as ReactNode,
+  getStartedLabel: 'Get Started' as ReactNode,
   navItems: [
     { id: 'platform', href: '#innovation', label: 'Platform' as ReactNode },
     { id: 'pricing', href: '#pricing', label: 'Pricing' as ReactNode },

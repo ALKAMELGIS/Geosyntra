@@ -34,18 +34,19 @@ export function HomeUserStatusBar() {
     if (workspaceReady || ws?.workspaceReady) {
       enterWorkspace()
     } else {
-      openWizard({ step: 'pricing' })
+      openWizard({ step: 'identity' })
     }
   }
 
   if (!ws && !workspaceReady) {
     return (
       <div className="home-user-status">
+        <span className="home-user-status__live" title="Live session" aria-hidden />
         <div className="home-user-status__text">
           <span className="home-user-status__welcome">Welcome, {headerName || first}</span>
-          <span className="home-user-status__meta">Complete setup to enter workspace</span>
+          <span className="home-user-status__meta">Live session · finish setup</span>
         </div>
-        <SaasButton size="sm" variant="primary" className="home-user-status__enter" onClick={() => openWizard({ step: 'pricing' })}>
+        <SaasButton size="sm" variant="primary" className="home-user-status__enter" onClick={() => openWizard({ step: 'identity' })}>
           Continue
         </SaasButton>
       </div>
@@ -57,8 +58,9 @@ export function HomeUserStatusBar() {
 
   return (
     <div className="home-user-status">
+      <span className="home-user-status__live" title="Live session" aria-hidden />
       <div className="home-user-status__text">
-        <span className="home-user-status__welcome">Welcome back, {first}</span>
+        <span className="home-user-status__welcome">Welcome, {first}</span>
         <span className="home-user-status__meta">
           {isTrial && days != null
             ? `Trial Active · ${days} day${days === 1 ? '' : 's'} left`

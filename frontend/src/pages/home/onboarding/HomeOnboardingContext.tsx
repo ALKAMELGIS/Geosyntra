@@ -19,6 +19,7 @@ import type { WizardOpenOptions, WizardStep } from './homeOnboarding.types'
 type HomeOnboardingContextValue = {
   open: boolean
   step: WizardStep
+  authMode: 'signup' | 'signin'
   selectedPlanId: BillingPlanId | null
   paymentOpen: boolean
   workspaceReady: boolean
@@ -26,6 +27,7 @@ type HomeOnboardingContextValue = {
   openWizard: (opts?: WizardOpenOptions) => void
   closeWizard: () => void
   setStep: (step: WizardStep) => void
+  setAuthMode: (mode: 'signup' | 'signin') => void
   selectPlan: (planId: BillingPlanId) => void
   openPayment: (planId: BillingPlanId) => void
   closePayment: () => void
@@ -43,6 +45,7 @@ export function HomeOnboardingProvider({ children }: { children: ReactNode }) {
   const navigate = useNavigate()
   const [open, setOpen] = useState(false)
   const [step, setStep] = useState<WizardStep>('auth')
+  const [authMode, setAuthMode] = useState<'signup' | 'signin'>('signup')
   const [selectedPlanId, setSelectedPlanId] = useState<BillingPlanId | null>('trial')
   const [paymentOpen, setPaymentOpen] = useState(false)
   const [workspaceTick, setWorkspaceTick] = useState(0)
@@ -77,8 +80,9 @@ export function HomeOnboardingProvider({ children }: { children: ReactNode }) {
         navigate(DASHBOARD_PATH)
         return
       }
-      const initialStep: WizardStep = opts?.step ?? (u ? 'pricing' : 'auth')
+      const initialStep: WizardStep = opts?.step ?? (u ? 'identity' : 'auth')
       setStep(initialStep)
+      if (opts?.authMode) setAuthMode(opts.authMode)
       if (opts?.planId) setSelectedPlanId(opts.planId)
       setPaymentOpen(false)
       setOpen(true)
@@ -146,6 +150,7 @@ export function HomeOnboardingProvider({ children }: { children: ReactNode }) {
     () => ({
       open,
       step,
+      authMode,
       selectedPlanId,
       paymentOpen,
       workspaceReady,
@@ -153,6 +158,7 @@ export function HomeOnboardingProvider({ children }: { children: ReactNode }) {
       openWizard,
       closeWizard,
       setStep,
+      setAuthMode,
       selectPlan,
       openPayment,
       closePayment,
@@ -164,6 +170,7 @@ export function HomeOnboardingProvider({ children }: { children: ReactNode }) {
     [
       open,
       step,
+      authMode,
       selectedPlanId,
       paymentOpen,
       workspaceReady,

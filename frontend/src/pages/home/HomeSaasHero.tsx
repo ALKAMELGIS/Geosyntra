@@ -12,9 +12,14 @@ export type HomeSaasHeroProps = {
     onClick: () => void
     'aria-label'?: string
   }
+  secondaryAction?: {
+    label: ReactNode
+    onClick: () => void
+    'aria-label'?: string
+  }
 }
 
-export function HomeSaasHero({ copy, preface, startAction }: HomeSaasHeroProps) {
+export function HomeSaasHero({ copy, preface, startAction, secondaryAction }: HomeSaasHeroProps) {
   return (
     <div className="home-saas-hero home-saas-hero--globe">
       <div className="home-saas-hero__scrim" aria-hidden />
@@ -63,6 +68,16 @@ export function HomeSaasHero({ copy, preface, startAction }: HomeSaasHeroProps) 
         >
           {startAction.label}
         </SaasButton>
+        {secondaryAction ? (
+          <SaasButton
+            size="lg"
+            variant="ghost"
+            onClick={secondaryAction.onClick}
+            aria-label={secondaryAction['aria-label']}
+          >
+            {secondaryAction.label}
+          </SaasButton>
+        ) : null}
       </div>
       </motion.div>
     </div>

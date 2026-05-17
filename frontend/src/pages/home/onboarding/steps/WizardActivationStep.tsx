@@ -1,17 +1,17 @@
 import { motion } from 'framer-motion'
 
 const LINES = [
-  'Securing your workspace…',
-  'Provisioning Layer Live sync…',
-  'Loading Sentinel & Planet catalogs…',
-  'Starting GeoAI engine…',
+  'Loading GeoSyntra Workspace…',
+  'Initializing Spatial Layers…',
+  'Loading Satellite Data (Sentinel / Planet)…',
+  'Starting AI Engine…',
 ]
 
 export function WizardActivationStep() {
   return (
     <div className="home-wizard-step home-wizard-step--activation">
-      <p className="home-wizard-step__eyebrow">Step 3 · Activation</p>
-      <h2 className="home-wizard-step__title">Preparing GeoSyntra</h2>
+      <p className="home-wizard-step__eyebrow">Step 5 · Workspace</p>
+      <h2 className="home-wizard-step__title">Launching your workspace</h2>
       <ul className="home-wizard-activation-list">
         {LINES.map((line, i) => (
           <motion.li

@@ -115,3 +115,40 @@ export function displayHeaderName(user: CurrentUser | null): string {
   const first = displayFirstName(user)
   return first ? first.toLocaleUpperCase('en-US') : ''
 }
+
+export type OAuthProvider = 'google' | 'apple' | 'github'
+
+/** Sandbox OAuth — creates a session like email signup until real IdP is wired. */
+export async function homeOAuthSignIn(provider: OAuthProvider): Promise<HomeAuthResult> {
+  const label = provider === 'google' ? 'Google' : provider === 'apple' ? 'Apple' : 'GitHub'
+  const email = `${provider}.user@geosyntra.demo`
+  const users = readAdminUsers()
+  let match = users.find(u => normalizeEmail(String(u.email ?? '')) === email)
+  if (!match) {
+    const id = Date.now()
+    match = {
+      id,
+      name: `${label} User`,
+      email,
+      role: 'Viewer',
+      status: 'Active',
+      emailVerified: true,
+      lastLogin: new Date().toISOString(),
+      passwordHash: '',
+      profileExtra: { firstName: label, lastName: 'User', oauthProvider: provider },
+    }
+    users.push(match)
+    writeAdminUsers(users)
+  } else {
+    match.lastLogin = new Date().toISOString()
+    writeAdminUsers(users)
+  }
+  const user: CurrentUser = {
+    id: typeof match.id === 'number' ? match.id : Date.now(),
+    name: String(match.name ?? `${label} User`),
+    email,
+    role: normalizeRole(match.role),
+  }
+  startSession(user, { persist: true })
+  return { ok: true, user }
+}
