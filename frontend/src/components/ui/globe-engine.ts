@@ -14,7 +14,8 @@ export type ScrollGlobeGlobeConfig = {
 }
 
 export const DEFAULT_SCROLL_GLOBE_CONFIG: ScrollGlobeGlobeConfig = {
-  leading: { top: '50%', left: '50%', scale: 1.92 },
+  /** Same visual mass as Welcome (#hero) — centered behind SaaS copy */
+  leading: { top: '50%', left: '50%', scale: 1.96 },
   positions: [
     { top: '43%', left: '74%', scale: 1.96 },
     { top: '50%', left: '50%', scale: 0.88 },
@@ -110,4 +111,9 @@ export function resolveGlobeOpacity(opts: {
 
 export function resolveHeroScrimBlur(leadingScrollT: number): number {
   return 10 + leadingScrollT * 6
+}
+
+/** Subtle defocus on the globe when leaving the hero (scroll handoff). */
+export function resolveHeroGlobeBlur(leadingScrollT: number): number {
+  return leadingScrollT * 2.8
 }

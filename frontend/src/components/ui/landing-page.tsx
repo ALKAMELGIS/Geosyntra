@@ -117,6 +117,7 @@ export function ScrollGlobe({
     heroStarsOpacity,
     heroOverlayOpacity,
     heroScrimBlur,
+    heroGlobeBlur,
   } = useScrollGlobeMotion(containerRef, sectionRefs, {
     hasLeading,
     sectionCount,
@@ -179,8 +180,8 @@ export function ScrollGlobe({
     <div
       ref={containerRef}
       className={cn(
-        'gs-scroll-globe relative w-full max-w-full overflow-x-hidden min-h-screen bg-background text-foreground',
-        hasLeading && 'gs-scroll-globe--with-leading',
+        'gs-scroll-globe relative w-full max-w-full overflow-x-hidden min-h-screen text-foreground',
+        hasLeading ? 'gs-scroll-globe--with-leading bg-transparent' : 'bg-background',
         className,
       )}
     >
@@ -335,7 +336,12 @@ export function ScrollGlobe({
         style={{
           transform: globeTransform,
           opacity: globeArrived ? globeOpacity : 0,
-          transition: `${GLOBE_MOTION.transformTransition}, ${GLOBE_MOTION.opacityTransition}`,
+          top: 0,
+          left: 0,
+          width: 0,
+          height: 0,
+          filter: heroGlobeBlur > 0.05 ? `blur(${heroGlobeBlur}px)` : undefined,
+          transition: `${GLOBE_MOTION.transformTransition}, ${GLOBE_MOTION.opacityTransition}, ${GLOBE_MOTION.filterTransition}`,
         }}
       >
         <div
@@ -354,7 +360,7 @@ export function ScrollGlobe({
             transition={{ duration: 0.32, ease: [0.23, 1, 0.32, 1] }}
             style={{ transformOrigin: 'center center' }}
           >
-            <motion.div className="scale-110 sm:scale-[1.72] lg:scale-[3.45] 2xl:scale-[4.15]">
+            <motion.div className="gs-hero-globe__scale scale-110 sm:scale-[1.72] lg:scale-[3.45] 2xl:scale-[4.15]">
               <Globe />
             </motion.div>
           </motion.div>

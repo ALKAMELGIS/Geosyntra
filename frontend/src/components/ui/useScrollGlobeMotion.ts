@@ -7,6 +7,7 @@ import {
   lerpGlobePosition,
   resolveGlobeConfig,
   resolveGlobeOpacity,
+  resolveHeroGlobeBlur,
   resolveHeroScrimBlur,
   type ScrollGlobeGlobeConfig,
 } from './globe-engine'
@@ -49,10 +50,11 @@ export function useScrollGlobeMotion(
   const parallaxElRef = useRef<HTMLDivElement | null>(null)
   const [globeArrived, setGlobeArrived] = useState(false)
   const [leadingScrollT, setLeadingScrollT] = useState(0)
-  const [heroStarsOpacity, setHeroStarsOpacity] = useState(0)
-  const [heroOverlayOpacity, setHeroOverlayOpacity] = useState(0)
-  const [globeOpacity, setGlobeOpacity] = useState(0)
+  const [heroStarsOpacity, setHeroStarsOpacity] = useState(() => (hasLeading ? 0.85 : 0))
+  const [heroOverlayOpacity, setHeroOverlayOpacity] = useState(() => (hasLeading ? 1 : 0))
+  const [globeOpacity, setGlobeOpacity] = useState(() => (hasLeading ? 0.9 : 0))
   const [heroScrimBlur, setHeroScrimBlur] = useState(10)
+  const [heroGlobeBlur, setHeroGlobeBlur] = useState(0)
 
   const scrollSourceRef = useRef<HTMLElement | Window | null>(null)
   const animationFrameId = useRef<number | undefined>(undefined)
@@ -146,6 +148,7 @@ export function useScrollGlobeMotion(
       }),
     )
     setHeroScrimBlur(resolveHeroScrimBlur(leadT))
+    setHeroGlobeBlur(resolveHeroGlobeBlur(leadT))
 
     if (activeSectionNotifyRef.current !== newActiveSection) {
       activeSectionNotifyRef.current = newActiveSection
@@ -255,6 +258,7 @@ export function useScrollGlobeMotion(
     heroStarsOpacity,
     heroOverlayOpacity,
     heroScrimBlur,
+    heroGlobeBlur,
     leadingScrollT,
     lastSectionIndex,
   }

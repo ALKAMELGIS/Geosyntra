@@ -53,7 +53,7 @@ function HomePageContent() {
 
   const { openWizard } = useHomeOnboarding()
 
-  const [browseMode, setBrowseMode] = useState(true)
+  const [browseMode, setBrowseMode] = useState(false)
 
 
 
@@ -222,7 +222,7 @@ function HomePageContent() {
 
       <ScrollGlobe
 
-        className="bg-gradient-to-br from-background via-muted/20 to-background"
+        className="gs-scroll-globe--home-integrated"
 
         sections={globeSections}
 

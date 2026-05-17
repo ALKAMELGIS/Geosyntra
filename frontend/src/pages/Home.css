@@ -72,10 +72,34 @@
 }
 
 /* Integrated globe — SaaS hero (leading panel) */
+.home-landing .gs-scroll-globe--home-integrated,
+.home-landing .gs-scroll-globe.gs-scroll-globe--with-leading {
+  background: transparent !important;
+}
+
+.gs-hero-globe {
+  top: 0;
+  left: 0;
+  width: 0;
+  height: 0;
+  contain: layout style;
+  transform-style: preserve-3d;
+}
+
+.gs-hero-globe__parallax {
+  transform-style: preserve-3d;
+  backface-visibility: hidden;
+  will-change: transform;
+}
+
+.gs-hero-globe__scale {
+  will-change: transform;
+}
+
 .gs-hero-globe-gradient {
   background:
-    radial-gradient(ellipse 72% 58% at 50% 42%, transparent 0%, rgba(2, 6, 14, 0.55) 48%, rgba(2, 6, 14, 0.92) 100%),
-    linear-gradient(180deg, rgba(2, 6, 14, 0.35) 0%, rgba(2, 6, 14, 0.78) 55%, rgba(2, 6, 14, 0.95) 100%);
+    radial-gradient(ellipse 68% 52% at 50% 44%, transparent 0%, rgba(2, 6, 14, 0.42) 42%, rgba(2, 6, 14, 0.88) 100%),
+    linear-gradient(180deg, rgba(2, 6, 14, 0.28) 0%, rgba(2, 6, 14, 0.72) 55%, rgba(2, 6, 14, 0.94) 100%);
 }
 
 .gs-scroll-globe--with-leading .home-merged-saas,
@@ -131,8 +155,16 @@
 }
 
 @media (max-width: 767px) {
+  .gs-scroll-globe--with-leading .gs-hero-globe {
+    --gs-hero-globe-opacity: 0.72;
+  }
+
   .gs-hero-globe {
     opacity: var(--gs-hero-globe-opacity, 1);
+  }
+
+  .gs-hero-globe__scale {
+    transform: scale(0.92);
   }
 
   .home-saas-hero__scrim {
