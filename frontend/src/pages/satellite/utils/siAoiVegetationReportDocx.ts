@@ -285,6 +285,9 @@ async function buildAoiAnalysisDocxChildren(report: SiAoiReportModel, opts: SiAo
     p('AOI analysis report', { bold: true, heading: HeadingLevel.TITLE }),
     p(`Geosyntra · Satellite intelligence · ${report.legendBandCount}-band legend`),
     p(`AOI: ${report.aoiName}`, { bold: true }),
+    ...(report.satelliteProviderName?.trim()
+      ? [p(`Satellite provider: ${report.satelliteProviderName.trim()}`)]
+      : []),
     p(`Index: ${report.indexLabel}   Period: ${report.dateStart} … ${report.dateEnd}`),
     p(`AOI area: ${report.aoiAreaKm2.toFixed(3)} km²`),
     ...appendixBlocks(report, opts),

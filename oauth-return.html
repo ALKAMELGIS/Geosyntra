@@ -1,0 +1,19 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Geosyntra — Sign-in</title>
+  </head>
+  <body>
+    <p style="font-family: system-ui, sans-serif; color: #64748b; padding: 24px">Redirecting…</p>
+    <script>
+      ;(function () {
+        var path = window.location.pathname || ''
+        var base = path.replace(/\/oauth-return\.html$/i, '') || ''
+        var q = window.location.search || ''
+        window.location.replace(window.location.origin + base + '/#/login' + q)
+      })()
+    </script>
+  </body>
+</html>

@@ -180,6 +180,8 @@ import { SatelliteGeoAiFloatingWidget } from './components/SatelliteGeoAiFloatin
 import { SiGeoExplorerChatPanel } from './components/SiGeoExplorerChatPanel';
 import { SiGeoAiModelSettings } from './components/SiGeoAiModelSettings';
 import { SatelliteAoiStaticChartsMapOverlay } from './components/SatelliteAoiStaticChartsMapOverlay';
+import { SatelliteAoiLiveChartsMapOverlay } from './components/SatelliteAoiLiveChartsMapOverlay';
+import { buildLiveAoiMapChartSnapshot } from './utils/liveAoiMapChartSnapshot';
 import { SiAoiReportModal } from './components/SiAoiReportModal';
 import { siAoiPaletteFromIndexRampStops, siAoiReportFeatureBBoxLngLat } from './utils/siAoiVegetationReportModel';
 import { captureSiReportMapSnapshot } from './utils/siReportMapSnapshotEngine';
@@ -205,6 +207,25 @@ import {
 } from './utils/useSiWmsTimelineCrossfade';
 import { buildWeeklyTimelineIndex } from './utils/siTimelineWeekIndex';
 import { dateToTimelineIso, timelineDateFromIso } from './utils/siTimelineDate';
+import type { SmartSuggestionsContext } from './utils/smartSuggestionsEngine';
+import type { SmartSuggestionActionPayload } from './components/smart-suggestions/smart-suggestions-panel';
+import { SiSatelliteProviderSelect } from './components/SiSatelliteProviderSelect';
+import {
+  getSatelliteProvider,
+  type SatelliteProviderId,
+} from './utils/satellite/provider-capabilities';
+import {
+  buildProviderLayerOptions,
+  resolveWmsLayerIdForOption,
+} from './utils/satellite/provider-layer-mapper';
+import { buildProviderRendererProfile, providerCacheEpochKey } from './utils/satellite/provider-renderer';
+import {
+  applySatelliteProviderSwitch,
+  createSatelliteProviderSwitchActions,
+  loadStoredSatelliteCollectionId,
+  loadStoredSatelliteProviderId,
+  persistSatelliteCollectionId,
+} from './utils/satellite/satellite-provider-manager';
 import { SiAoiZonalPopupBody } from './components/SiAoiZonalPopupBody';
 import { cn } from '../../lib/utils';
 import { SatelliteMapProcessingOptionsPortal } from './components/SatelliteMapProcessingOptionsPortal';
@@ -2572,6 +2593,11 @@ export default function SatelliteIntelligence() {
   });
 
   const [sentinelWmsRev, setSentinelWmsRev] = useState(0);
+  const [satelliteProviderId, setSatelliteProviderId] = useState<SatelliteProviderId>(loadStoredSatelliteProviderId);
+  const [satelliteCollectionId, setSatelliteCollectionId] = useState(() =>
+    loadStoredSatelliteCollectionId(loadStoredSatelliteProviderId()),
+  );
+  const [providerCacheEpoch, setProviderCacheEpoch] = useState(0);
   const wmsBaseUrl = useMemo(() => getSentinelHubWmsBaseUrl(), [sentinelWmsRev]);
   const sentinelHubAccessToken = useMemo(() => getSentinelHubAccessToken(), [sentinelWmsRev]);
 
@@ -9604,30 +9630,29 @@ export default function SatelliteIntelligence() {
     [wmsLayers],
   );
 
+  const providerFilteredLayerOptions = useMemo(
+    () => buildProviderLayerOptions(satelliteProviderId, wmsLayers, REMOTE_SENSING_HIDDEN_LAYER_IDS),
+    [satelliteProviderId, wmsLayers, providerCacheEpoch],
+  );
+
+  const remoteSensingLayerOptions = useMemo(
+    () => providerFilteredLayerOptions.map(o => ({ id: o.id, label: o.label })),
+    [providerFilteredLayerOptions],
+  );
+  remoteSensingLayerOptionsRef.current = remoteSensingLayerOptions;
+
   const activeWmsLayer = useMemo(() => {
     const t = wmsLayer.trim();
-    if (t && visibleWmsLayers.some(l => l.name === t)) return t;
+    const opt =
+      providerFilteredLayerOptions.find(o => o.id === t || o.catalogId === t) ??
+      providerFilteredLayerOptions[0];
+    const resolved = resolveWmsLayerIdForOption(opt, wmsLayers);
+    if (resolved && visibleWmsLayers.some(l => l.name === resolved)) return resolved;
     const first = visibleWmsLayers.find(l => l.name.trim().length > 0)?.name.trim() ?? '';
     if (first) return first;
     if (selectedIndex === 'LST') return '';
     return selectedIndex;
-  }, [wmsLayer, visibleWmsLayers, selectedIndex]);
-
-  const remoteSensingLayerOptions = useMemo(() => {
-    const out: Array<{ id: string; label: string }> = [];
-    const seenTitle = new Set<string>();
-    for (const layer of visibleWmsLayers) {
-      const id = String(layer.name || '').trim();
-      if (!id) continue;
-      const label = String(layer.title || id).trim() || id;
-      const dedupeKey = label.replace(/\s+/g, ' ').toLowerCase();
-      if (seenTitle.has(dedupeKey)) continue;
-      seenTitle.add(dedupeKey);
-      out.push({ id, label });
-    }
-    return out;
-  }, [visibleWmsLayers]);
-  remoteSensingLayerOptionsRef.current = remoteSensingLayerOptions;
+  }, [wmsLayer, visibleWmsLayers, selectedIndex, providerFilteredLayerOptions, wmsLayers]);
 
   /** Sentinel WMS classified-layer symbology (color ramp via evalscript stops only). */
   const [siWmsSymbologyChrome, setSiWmsSymbologyChrome] = useState<{
@@ -9699,6 +9724,71 @@ export default function SatelliteIntelligence() {
     },
     [siWmsSymbologyTargetLayerId],
   );
+
+  const satelliteProviderLabel = useMemo(
+    () => getSatelliteProvider(satelliteProviderId).name,
+    [satelliteProviderId],
+  );
+
+  const providerRendererProfile = useMemo(
+    () => buildProviderRendererProfile(satelliteProviderId),
+    [satelliteProviderId, providerCacheEpoch],
+  );
+
+  const providerSwitchActions = useMemo(
+    () =>
+      createSatelliteProviderSwitchActions({
+        pauseTimelinePlayback,
+        setWeeklyComposites,
+        setFieldTimelineSessionActive,
+        setSiWmsSymbologyByLayer,
+        setMapSpectralLegendOpen,
+        bumpProviderEpoch: () => setProviderCacheEpoch(e => e + 1),
+        setSentinelWmsRev,
+      }),
+    [pauseTimelinePlayback],
+  );
+
+  const handleSatelliteProviderChange = useCallback(
+    (nextId: SatelliteProviderId) => {
+      if (nextId === satelliteProviderId) return;
+      const provider = getSatelliteProvider(nextId);
+      const nextCollection = provider.collections?.[0]?.id ?? '';
+      setSatelliteProviderId(nextId);
+      setSatelliteCollectionId(nextCollection);
+      applySatelliteProviderSwitch({
+        nextProviderId: nextId,
+        nextCollectionId: nextCollection || undefined,
+        actions: providerSwitchActions,
+        onDates: (start, end) => {
+          setTimeSeriesStart(start);
+          setTimeSeriesEnd(end);
+        },
+        onStatus: setFieldAnalysisStatus,
+      });
+    },
+    [satelliteProviderId, providerSwitchActions],
+  );
+
+  const handleSatelliteCollectionChange = useCallback(
+    (collectionId: string) => {
+      setSatelliteCollectionId(collectionId);
+      persistSatelliteCollectionId(satelliteProviderId, collectionId);
+      providerSwitchActions.invalidateLayerCache();
+      providerSwitchActions.refreshTimeline();
+      setFieldAnalysisStatus(
+        `${getSatelliteProvider(satelliteProviderId).name} · ${collectionId} collection selected.`,
+      );
+    },
+    [satelliteProviderId, providerSwitchActions],
+  );
+
+  useEffect(() => {
+    if (!remoteSensingLayerOptions.length) return;
+    const t = wmsLayer.trim();
+    if (t && remoteSensingLayerOptions.some(o => o.id === t)) return;
+    setWmsLayer(remoteSensingLayerOptions[0]!.id);
+  }, [satelliteProviderId, remoteSensingLayerOptions]);
 
   const promptWmsLayerOpacity = useCallback(
     (layerId: string) => {
@@ -9811,13 +9901,24 @@ export default function SatelliteIntelligence() {
   const fieldSpectralSceneKey = useMemo(
     () =>
       [
+        providerCacheEpochKey(satelliteProviderId, providerCacheEpoch),
+        providerRendererProfile.cacheKeyPrefix,
         activeWmsLayer ?? '',
         String(selectedIndex ?? ''),
         wmsDate,
         timeSeriesStart ?? '',
         timeSeriesEnd ?? '',
       ].join('|'),
-    [activeWmsLayer, selectedIndex, wmsDate, timeSeriesStart, timeSeriesEnd],
+    [
+      satelliteProviderId,
+      providerCacheEpoch,
+      providerRendererProfile.cacheKeyPrefix,
+      activeWmsLayer,
+      selectedIndex,
+      wmsDate,
+      timeSeriesStart,
+      timeSeriesEnd,
+    ],
   );
 
   useEffect(() => {
@@ -9951,6 +10052,8 @@ export default function SatelliteIntelligence() {
         seriesStartIso: timeSeriesStart,
         seriesEndIso: timeSeriesEnd,
         timelinePlaying: isTimelinePlaying,
+        satelliteProviderName: satelliteProviderLabel,
+        providerResolutionLabel: getSatelliteProvider(satelliteProviderId).resolutionLabel,
         temporal,
       },
     };
@@ -9962,6 +10065,8 @@ export default function SatelliteIntelligence() {
     timeSeriesStart,
     timeSeriesEnd,
     isTimelinePlaying,
+    satelliteProviderLabel,
+    satelliteProviderId,
   ]);
 
   const wmsLegendDisplayMode = useMemo(
@@ -10655,6 +10760,41 @@ export default function SatelliteIntelligence() {
     };
   }, [weeklyComposites, staticChartComparisonLayers, staticAoiChartAoiKey, staticAoiChartFeature]);
 
+  const mapStaticChartsTimelineMode = fieldTimelineSessionActive && weeklyComposites.length > 0;
+
+  const liveAoiMapChartSnapshot = useMemo(() => {
+    if (!mapStaticChartsOpen || mapStaticChartsTimelineMode) return null;
+    const analysisIso =
+      (typeof wmsDate === 'string' && wmsDate.slice(0, 10)) ||
+      zonalStatsAnchorIso.slice(0, 10) ||
+      selectedDate.toISOString().split('T')[0]!;
+    return buildLiveAoiMapChartSnapshot({
+      feature: staticAoiChartFeature,
+      aoiKey: staticAoiChartAoiKey,
+      activeWmsLayer: activeWmsLayer || '',
+      selectedIndex: String(selectedIndex ?? 'NDVI'),
+      analysisDateIso: analysisIso,
+      aoiHeatPointGeoJson: aoiHeatPointGeoJson as GeoJSON.FeatureCollection | null | undefined,
+      savedFields: savedFields.map(f => ({ id: f.id, name: f.name, geometry: f.geometry })),
+      aoiFields: aoiFields.map(f => ({ id: f.id, name: f.name, geometry: f.geometry })),
+      drawnGeometry,
+    });
+  }, [
+    mapStaticChartsOpen,
+    mapStaticChartsTimelineMode,
+    staticAoiChartFeature,
+    staticAoiChartAoiKey,
+    activeWmsLayer,
+    selectedIndex,
+    wmsDate,
+    zonalStatsAnchorIso,
+    selectedDate,
+    aoiHeatPointGeoJson,
+    savedFields,
+    aoiFields,
+    drawnGeometry,
+  ]);
+
   const staticAoiSpectralProfile = useMemo(() => {
     const fc = aoiHeatPointGeoJson as GeoJSON.FeatureCollection | null | undefined;
     if (fc?.features?.length) {
@@ -10719,6 +10859,7 @@ export default function SatelliteIntelligence() {
       aoiKey: staticAoiChartAoiKey,
       aoiName,
       layerName: layerOpt?.label ?? primaryLayer,
+      satelliteProviderName: satelliteProviderLabel,
       weekly: weeklyComposites.map(w => ({
         weekIndex: w.weekIndex,
         startDate: w.startDate,
@@ -10737,6 +10878,7 @@ export default function SatelliteIntelligence() {
     activeMultiAoiId,
     drawnGeometry,
     selectedDate,
+    satelliteProviderLabel,
   ]);
 
   const staticAoiChartExportLngLatPerRow = useMemo(
@@ -10858,6 +11000,68 @@ export default function SatelliteIntelligence() {
     ],
   );
 
+  const geoAiSmartSuggestionsContext = useMemo((): Partial<SmartSuggestionsContext> => {
+    const layerLabel =
+      remoteSensingLayerOptions.find(o => o.id === activeWmsLayer)?.label?.trim() || activeWmsLayer || '';
+    return {
+      satelliteProviderName: satelliteProviderLabel,
+      activeLayerLabel: layerLabel,
+      activeLayerId: activeWmsLayer,
+      hasAoi: hasAnyAoiGeometryForSentinel,
+      timelineActive: weeklyComposites.length > 0,
+      selectedIndex,
+      autoScientific: activeWmsSymbologyUi.autoScientific,
+    };
+  }, [
+    satelliteProviderLabel,
+    remoteSensingLayerOptions,
+    activeWmsLayer,
+    hasAnyAoiGeometryForSentinel,
+    weeklyComposites.length,
+    selectedIndex,
+    activeWmsSymbologyUi.autoScientific,
+  ]);
+
+  const handleGeoAiSmartSuggestionAction = useCallback(
+    (actionId: string, _payload: SmartSuggestionActionPayload) => {
+      switch (actionId) {
+        case 'export-report':
+          openSiAoiVegetationReport();
+          break;
+        case 'open-timeline':
+          setIsLayerDropdownOpen(true);
+          setExpandedEnvSection('remote-sensing');
+          setRemoteSensingToolsUiTab('main');
+          break;
+        case 'toggle-scientific': {
+          const lid = activeWmsLayer;
+          if (!lid) break;
+          setSiWmsSymbologyByLayer(prev => ({
+            ...prev,
+            [lid]: { ...prev[lid], autoScientific: true, mode: 'classified' },
+          }));
+          setMapSpectralLegendOpen(true);
+          break;
+        }
+        case 'export-png':
+        case 'aoi-snapshot':
+          void captureLiveMapSnapshot({ captureMode: 'export-fast' });
+          break;
+        case 'focus-ndvi-layer': {
+          const ndvi = remoteSensingLayerOptions.find(o => /ndvi/i.test(o.label) || /ndvi/i.test(o.id));
+          if (ndvi) {
+            setWmsLayer(ndvi.id);
+            setIsWmsOverlayVisible(true);
+          }
+          break;
+        }
+        default:
+          break;
+      }
+    },
+    [openSiAoiVegetationReport, activeWmsLayer, remoteSensingLayerOptions, captureLiveMapSnapshot],
+  );
+
   const satelliteActiveChipId = useMemo(() => {
     if (!weeklyTimelineIndex) return null;
     const w =
@@ -10949,6 +11153,8 @@ export default function SatelliteIntelligence() {
     wmsBaseUrl,
     sentinelHubWmsAoiClip.geometryWkt3857,
     sentinelHubWmsAoiClip.evalscriptB64,
+    providerCacheEpoch,
+    satelliteProviderId,
   ]);
 
   /**
@@ -11094,6 +11300,8 @@ export default function SatelliteIntelligence() {
     cloudCoverage,
     wmsBaseUrl,
     symStopsForWmsLayerId,
+    providerCacheEpoch,
+    satelliteProviderId,
   ]);
 
   /**
@@ -12151,23 +12359,33 @@ export default function SatelliteIntelligence() {
             </div>
           ) : null}
 
-          <SatelliteAoiStaticChartsMapOverlay
-            open={mapStaticChartsOpen}
-            onClose={() => setMapStaticChartsOpen(false)}
-            indexLabel={selectedIndexConfig.label}
-            staticComparisonLayers={staticChartComparisonLayers}
-            onStaticComparisonLayerToggle={handleStaticComparisonLayerToggle}
-            staticMultiLineLabels={staticAoiMultiLineData.labels}
-            staticMultiLineDatasets={staticAoiMultiLineData.datasets}
-            staticMultiLineHasLst={staticAoiMultiLineData.hasLst}
-            staticChartExportLngLatPerRow={staticAoiChartExportLngLatPerRow}
-            geoAiIndexAnalyticalExportContext={geoAiIndexAnalyticalExportContext}
-            weeklyMeans={satelliteWeeklyMeans}
-            fieldComparisonBars={staticAoiFieldComparison.rows}
-            fieldComparisonSubtitle={staticAoiFieldComparison.subtitle}
-            spectralProfile={staticAoiSpectralProfile}
-            onRequestGenerateReport={openSiAoiVegetationReport}
-          />
+          {mapStaticChartsOpen && mapStaticChartsTimelineMode ? (
+            <SatelliteAoiStaticChartsMapOverlay
+              open={mapStaticChartsOpen}
+              onClose={() => setMapStaticChartsOpen(false)}
+              indexLabel={selectedIndexConfig.label}
+              staticComparisonLayers={staticChartComparisonLayers}
+              onStaticComparisonLayerToggle={handleStaticComparisonLayerToggle}
+              staticMultiLineLabels={staticAoiMultiLineData.labels}
+              staticMultiLineDatasets={staticAoiMultiLineData.datasets}
+              staticMultiLineHasLst={staticAoiMultiLineData.hasLst}
+              staticChartExportLngLatPerRow={staticAoiChartExportLngLatPerRow}
+              geoAiIndexAnalyticalExportContext={geoAiIndexAnalyticalExportContext}
+              weeklyMeans={satelliteWeeklyMeans}
+              fieldComparisonBars={staticAoiFieldComparison.rows}
+              fieldComparisonSubtitle={staticAoiFieldComparison.subtitle}
+              spectralProfile={staticAoiSpectralProfile}
+              onRequestGenerateReport={openSiAoiVegetationReport}
+            />
+          ) : null}
+          {mapStaticChartsOpen && !mapStaticChartsTimelineMode ? (
+            <SatelliteAoiLiveChartsMapOverlay
+              open={mapStaticChartsOpen}
+              onClose={() => setMapStaticChartsOpen(false)}
+              snapshot={liveAoiMapChartSnapshot}
+              indexLabel={selectedIndexConfig.label}
+            />
+          ) : null}
 
           <SatelliteGeoAiFloatingWidget
             open={geoAiFloatingOpen}
@@ -12255,6 +12473,8 @@ export default function SatelliteIntelligence() {
                               onAttachChange={onGeoExplorerAttachChange}
                               textareaAriaLabel="Geo AI Gemini message"
                               smartSuggestionsEnabled={geoAiSmartSuggestionsEnabled}
+                              smartSuggestionsContext={geoAiSmartSuggestionsContext}
+                              onSmartSuggestionAction={handleGeoAiSmartSuggestionAction}
                               availableLayers={geoAiSuggestContext.layers}
                               availableFields={geoAiSuggestContext.fields}
                               availableNumericFields={geoAiSuggestContext.numericFields}
@@ -12318,6 +12538,8 @@ export default function SatelliteIntelligence() {
                                 geoAiModelTab === 'claude' ? 'Geo AI Claude message' : 'Geo AI DeepSeek message'
                               }
                               smartSuggestionsEnabled={geoAiSmartSuggestionsEnabled}
+                              smartSuggestionsContext={geoAiSmartSuggestionsContext}
+                              onSmartSuggestionAction={handleGeoAiSmartSuggestionAction}
                               availableLayers={geoAiSuggestContext.layers}
                               availableFields={geoAiSuggestContext.fields}
                               availableNumericFields={geoAiSuggestContext.numericFields}
@@ -12527,6 +12749,7 @@ export default function SatelliteIntelligence() {
               defaultCloudCoverPct={cloudCoverage}
               classificationPalette={siAoiPaletteFromIndexRampStops(symStopsForWmsLayerId(activeWmsLayer || '') ?? undefined)}
               captureLiveMapSnapshot={captureLiveMapSnapshot}
+              satelliteProviderLabel={satelliteProviderLabel}
             />
           ) : null}
 
@@ -13475,6 +13698,31 @@ export default function SatelliteIntelligence() {
                         {remoteSensingToolsUiTab === 'main' ? (
                           <>
                         <div className="si-field-analysis-section">
+                          <SiSatelliteProviderSelect
+                            value={satelliteProviderId}
+                            onChange={handleSatelliteProviderChange}
+                          />
+                        </div>
+                        {getSatelliteProvider(satelliteProviderId).collections?.length ? (
+                          <div className="si-field-analysis-section">
+                            <label className="si-field-analysis-field si-field-analysis-field--labeled">
+                              <span className="si-field-analysis-label">Sensor / Collection</span>
+                              <select
+                                className="si-field-analysis-select"
+                                value={satelliteCollectionId}
+                                onChange={e => handleSatelliteCollectionChange(e.target.value)}
+                                aria-label="Sensor or collection"
+                              >
+                                {getSatelliteProvider(satelliteProviderId).collections!.map(c => (
+                                  <option key={c.id} value={c.id}>
+                                    {c.label}
+                                  </option>
+                                ))}
+                              </select>
+                            </label>
+                          </div>
+                        ) : null}
+                        <div className="si-field-analysis-section">
                           <div className="si-field-analysis-kicker">Imagery date</div>
                           <label className="si-field-analysis-field">
                             <input
@@ -13506,9 +13754,9 @@ export default function SatelliteIntelligence() {
                               aria-label="Layer"
                             >
                               {isLoadingLayers ? (
-                                <option value="">Loading Sentinel Hub layers…</option>
+                                <option value="">{`Loading ${satelliteProviderLabel} layers…`}</option>
                               ) : remoteSensingLayerOptions.length === 0 ? (
-                                <option value="">No Sentinel Hub WMS layers — check API tokens / instance ID.</option>
+                                <option value="">{`No layers for ${satelliteProviderLabel} — check API tokens / instance ID.`}</option>
                               ) : (
                                 remoteSensingLayerOptions.map(layer => (
                                   <option key={layer.id} value={layer.id}>
@@ -13628,7 +13876,13 @@ export default function SatelliteIntelligence() {
                               <button
                                 type="button"
                                 className={`si-map-analysis-tool${mapStaticChartsOpen ? ' si-map-analysis-tool--on' : ''}`}
-                                title={mapStaticChartsOpen ? 'Hide AOI charts on map' : 'Show AOI charts on map'}
+                                title={
+                                  mapStaticChartsOpen
+                                    ? 'Hide AOI charts on map'
+                                    : fieldTimelineSessionActive && weeklyComposites.length > 0
+                                      ? 'Show AOI timeline charts on map'
+                                      : 'Show AOI live analysis on map (current layer)'
+                                }
                                 aria-pressed={mapStaticChartsOpen}
                                 onClick={() => setMapStaticChartsOpen(o => !o)}
                               >

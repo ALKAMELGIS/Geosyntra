@@ -29,6 +29,8 @@ export type SiGeoAiIndexAnalyticalExportContext = {
   aoiName?: string | null;
   /** Active / primary layer label for Excel filename. */
   layerName?: string | null;
+  /** Satellite imagery provider for Summary sheet metadata. */
+  satelliteProviderName?: string | null;
   weekly: SiGeoAiWeeklyLite[];
   selectedDateIso: string;
   /** GeoJSON Feature with Polygon or MultiPolygon geometry */
@@ -626,6 +628,9 @@ export function buildGeoAiIndexAnalyticalWorkbook(opts: {
     ['GeoAI Index Analytical Report — AOI summary'],
     [],
     ['Report title', chartTitle],
+    ...(analytics.satelliteProviderName?.trim()
+      ? [['Satellite provider', analytics.satelliteProviderName.trim()]]
+      : []),
     ['Primary index (classification)', primaryId],
     ['Week window', wk ? `${wk.startDate} → ${wk.endDate}` : ''],
     ['AOI area (approx, m²)', Number.isFinite(aoiAreaM2) ? roundIndex2(aoiAreaM2) : ''],

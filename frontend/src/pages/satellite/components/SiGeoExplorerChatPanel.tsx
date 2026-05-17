@@ -1,5 +1,7 @@
 import type { ChangeEvent, ReactNode, RefObject } from 'react'
 import type { GeoExplorerMessage } from '../../../lib/geoExplorerGemini'
+import type { SmartSuggestionsContext } from '../utils/smartSuggestionsEngine'
+import type { SmartSuggestionActionPayload } from './smart-suggestions/smart-suggestions-panel'
 import {
   GeoExplorerGeminiMessageParts,
   type GeoExplorerGeminiMessagePartsProps,
@@ -37,6 +39,8 @@ export type SiGeoExplorerChatPanelProps = {
   availableNumericFields?: string[]
   availableGeometryOps?: string[]
   smartSuggestionsEnabled?: boolean
+  smartSuggestionsContext?: Partial<SmartSuggestionsContext>
+  onSmartSuggestionAction?: (actionId: string, payload: SmartSuggestionActionPayload) => void
 }
 
 export function SiGeoExplorerChatPanel(props: SiGeoExplorerChatPanelProps) {
@@ -69,6 +73,8 @@ export function SiGeoExplorerChatPanel(props: SiGeoExplorerChatPanelProps) {
     availableNumericFields,
     availableGeometryOps,
     smartSuggestionsEnabled,
+    smartSuggestionsContext,
+    onSmartSuggestionAction,
   } = props
 
   return (
@@ -174,6 +180,8 @@ export function SiGeoExplorerChatPanel(props: SiGeoExplorerChatPanelProps) {
         availableNumericFields={availableNumericFields}
         availableGeometryOps={availableGeometryOps}
         smartSuggestionsEnabled={smartSuggestionsEnabled}
+        smartSuggestionsContext={smartSuggestionsContext}
+        onSmartSuggestionAction={onSmartSuggestionAction}
       />
       {footnote}
     </>

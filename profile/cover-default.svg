@@ -1,0 +1,124 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Default profile cover  futuristic GIS workspace scene.
+
+  Composition (left ’ right):
+    1. Charcoal-to-ink-blue gradient ’ "deep-night" base, mirrors the app's
+       Black Glass theme so the cover never clashes with the surrounding
+       chrome.
+    2. Soft horizon glow ’ balanced lighting, stops short of pure white so
+       the avatar + headline sit on a calm field instead of a flashbulb.
+    3. Long-throw light rays from the right horizon ’ enterprise-grade
+       depth cue, evokes a sunrise over a satellite-imaged plain.
+    4. Topographic contour lines (3 pulse-tones, low opacity) ’ reads as
+       elevation data on a Geosyntra map without distracting from the
+       headline.
+    5. Equirectangular projection grid (10° meridians + parallels, ultra
+       low opacity) ’ "GIS workspace" cue, kept under 6% white so it is a
+       texture, not a chart.
+    6. Constellation of map nodes (rounded glass discs + connecting hairlines)
+       ’ "intelligence platform" beat  each node is a feature/product, the
+       hairlines show the network.
+
+  Sizing:
+    1600 × 520 viewbox matches the localStorage downscale in
+    `Profile.tsx`'s `fileToCoverDataUrl` so user covers + the default share
+    the same aspect ratio (no hero re-flow when toggling between them).
+
+  Colors:
+    All tokens stay in the cool gray / ink-blue family (no green / brand
+    cast) so the cover feels like a clean enterprise canvas  not a brand
+    splash. Lite Mode covers are derived by inverting the base in CSS.
+-->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 520" width="1600" height="520" preserveAspectRatio="xMidYMid slice" role="img" aria-label="Geosyntra GIS workspace cover">
+  <defs>
+    <linearGradient id="gs-cover-base" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#070912" />
+      <stop offset="50%" stop-color="#0c1224" />
+      <stop offset="100%" stop-color="#0a1020" />
+    </linearGradient>
+    <radialGradient id="gs-cover-horizon" cx="78%" cy="62%" r="62%">
+      <stop offset="0%" stop-color="#3a4a78" stop-opacity="0.55" />
+      <stop offset="45%" stop-color="#1f2a4d" stop-opacity="0.18" />
+      <stop offset="100%" stop-color="#0a1020" stop-opacity="0" />
+    </radialGradient>
+    <radialGradient id="gs-cover-spot" cx="14%" cy="22%" r="38%">
+      <stop offset="0%" stop-color="#5e7bb0" stop-opacity="0.18" />
+      <stop offset="100%" stop-color="#0a1020" stop-opacity="0" />
+    </radialGradient>
+    <linearGradient id="gs-cover-rays" x1="1" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#9bb0d6" stop-opacity="0.10" />
+      <stop offset="100%" stop-color="#9bb0d6" stop-opacity="0" />
+    </linearGradient>
+    <pattern id="gs-cover-grid" x="0" y="0" width="80" height="80" patternUnits="userSpaceOnUse">
+      <path d="M 80 0 L 0 0 0 80" fill="none" stroke="#aab8d4" stroke-width="0.4" stroke-opacity="0.10" />
+    </pattern>
+    <pattern id="gs-cover-grid-fine" x="0" y="0" width="20" height="20" patternUnits="userSpaceOnUse">
+      <path d="M 20 0 L 0 0 0 20" fill="none" stroke="#aab8d4" stroke-width="0.25" stroke-opacity="0.05" />
+    </pattern>
+    <filter id="gs-cover-blur" x="-10%" y="-10%" width="120%" height="120%">
+      <feGaussianBlur stdDeviation="6" />
+    </filter>
+  </defs>
+
+  <!-- Layer 1  base + grids -->
+  <rect width="1600" height="520" fill="url(#gs-cover-base)" />
+  <rect width="1600" height="520" fill="url(#gs-cover-grid-fine)" />
+  <rect width="1600" height="520" fill="url(#gs-cover-grid)" />
+
+  <!-- Layer 2  soft horizon + corner spot lights for balanced lighting -->
+  <rect width="1600" height="520" fill="url(#gs-cover-horizon)" />
+  <rect width="1600" height="520" fill="url(#gs-cover-spot)" />
+
+  <!-- Layer 3  diagonal long-throw light rays (right horizon) -->
+  <g opacity="0.55">
+    <polygon points="1600,40 1600,260 980,520 1240,520" fill="url(#gs-cover-rays)" />
+    <polygon points="1600,160 1600,360 1180,520 1380,520" fill="url(#gs-cover-rays)" />
+  </g>
+
+  <!-- Layer 4  topographic contour lines (three pulse-tones) -->
+  <g fill="none" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M -40 360 C 220 320, 420 380, 660 320 S 1080 280, 1320 340 S 1660 320, 1700 300" stroke="#7a93c4" stroke-opacity="0.22" stroke-width="1.1" />
+    <path d="M -40 400 C 240 360, 460 420, 700 360 S 1100 320, 1340 380 S 1660 360, 1700 340" stroke="#7a93c4" stroke-opacity="0.16" stroke-width="1.0" />
+    <path d="M -40 440 C 260 400, 500 460, 740 400 S 1140 360, 1360 420 S 1660 400, 1700 380" stroke="#7a93c4" stroke-opacity="0.12" stroke-width="0.9" />
+    <path d="M -40 478 C 280 440, 540 498, 780 440 S 1180 400, 1380 458 S 1660 440, 1700 420" stroke="#7a93c4" stroke-opacity="0.08" stroke-width="0.8" />
+  </g>
+
+  <!-- Layer 5  equirectangular projection meridians (vertical, soft) -->
+  <g fill="none" stroke="#aab8d4" stroke-width="0.5" stroke-opacity="0.06">
+    <path d="M 200 0 V 520" />
+    <path d="M 400 0 V 520" />
+    <path d="M 600 0 V 520" />
+    <path d="M 800 0 V 520" />
+    <path d="M 1000 0 V 520" />
+    <path d="M 1200 0 V 520" />
+    <path d="M 1400 0 V 520" />
+  </g>
+
+  <!-- Layer 6  constellation of map intelligence nodes -->
+  <g>
+    <line x1="280" y1="120" x2="500" y2="180" stroke="#9bb0d6" stroke-width="0.6" stroke-opacity="0.22" />
+    <line x1="500" y1="180" x2="760" y2="100" stroke="#9bb0d6" stroke-width="0.6" stroke-opacity="0.22" />
+    <line x1="760" y1="100" x2="1020" y2="200" stroke="#9bb0d6" stroke-width="0.6" stroke-opacity="0.22" />
+    <line x1="1020" y1="200" x2="1240" y2="140" stroke="#9bb0d6" stroke-width="0.6" stroke-opacity="0.22" />
+    <line x1="1240" y1="140" x2="1420" y2="220" stroke="#9bb0d6" stroke-width="0.6" stroke-opacity="0.22" />
+
+    <g opacity="0.85">
+      <circle cx="280" cy="120" r="10" fill="#1a2540" stroke="#aab8d4" stroke-opacity="0.5" stroke-width="0.6" />
+      <circle cx="280" cy="120" r="3" fill="#cfd9ee" fill-opacity="0.85" />
+      <circle cx="500" cy="180" r="9" fill="#1a2540" stroke="#aab8d4" stroke-opacity="0.5" stroke-width="0.6" />
+      <circle cx="500" cy="180" r="2.6" fill="#cfd9ee" fill-opacity="0.8" />
+      <circle cx="760" cy="100" r="11" fill="#1a2540" stroke="#aab8d4" stroke-opacity="0.55" stroke-width="0.7" />
+      <circle cx="760" cy="100" r="3" fill="#e5edff" fill-opacity="0.9" />
+      <circle cx="1020" cy="200" r="9" fill="#1a2540" stroke="#aab8d4" stroke-opacity="0.5" stroke-width="0.6" />
+      <circle cx="1020" cy="200" r="2.6" fill="#cfd9ee" fill-opacity="0.8" />
+      <circle cx="1240" cy="140" r="10" fill="#1a2540" stroke="#aab8d4" stroke-opacity="0.55" stroke-width="0.6" />
+      <circle cx="1240" cy="140" r="3" fill="#cfd9ee" fill-opacity="0.85" />
+      <circle cx="1420" cy="220" r="9" fill="#1a2540" stroke="#aab8d4" stroke-opacity="0.5" stroke-width="0.6" />
+      <circle cx="1420" cy="220" r="2.6" fill="#cfd9ee" fill-opacity="0.8" />
+    </g>
+  </g>
+
+  <!-- Layer 7  soft top vignette to anchor toolbar / avatar against the field -->
+  <rect x="0" y="0" width="1600" height="120" fill="url(#gs-cover-base)" opacity="0.55" filter="url(#gs-cover-blur)" />
+</svg>

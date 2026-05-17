@@ -3761,3 +3761,87 @@
   }
 }
 
+/* Phase-1 live AOI charts (no timeline) */
+.si-map-analysis-charts--live {
+  max-width: min(420px, calc(100vw - 24px));
+}
+
+.si-map-analysis-charts-subtitle--pad {
+  padding: 0.75rem 1rem 1rem;
+}
+
+.si-live-aoi-metrics {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 0.5rem;
+  padding: 0 1rem 0.75rem;
+}
+
+@media (min-width: 520px) {
+  .si-live-aoi-metrics {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+.si-live-aoi-metric-card {
+  padding: 0.65rem 0.75rem;
+  border-radius: 0.5rem;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.si-live-aoi-metric-k {
+  font-size: 0.6875rem;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: rgba(148, 163, 184, 0.9);
+  margin-bottom: 0.25rem;
+}
+
+.si-live-aoi-metric-v {
+  font-size: 0.875rem;
+  color: #f1f5f9;
+  line-height: 1.35;
+}
+
+.si-live-aoi-metric-v--index {
+  font-size: 1.25rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+.si-live-aoi-health-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  margin-top: 0.35rem;
+}
+
+.si-live-aoi-health-row {
+  display: grid;
+  grid-template-columns: auto 1fr auto auto;
+  gap: 0.35rem 0.5rem;
+  align-items: center;
+  font-size: 0.75rem;
+}
+
+.si-live-aoi-health-dot {
+  width: 0.45rem;
+  height: 0.45rem;
+  border-radius: 50%;
+}
+
+.si-live-aoi-health-lbl {
+  color: #e2e8f0;
+}
+
+.si-live-aoi-health-pct {
+  color: #94a3b8;
+  font-variant-numeric: tabular-nums;
+}
+
+.si-live-aoi-health-ha {
+  color: #64748b;
+  font-variant-numeric: tabular-nums;
+}
+

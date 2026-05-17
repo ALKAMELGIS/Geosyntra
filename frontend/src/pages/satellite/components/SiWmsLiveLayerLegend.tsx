@@ -145,6 +145,15 @@ export function SiWmsLiveLayerLegend({
             <span className="si-wms-index-class-legend__live-playing">Playing</span>
           ) : null}
         </div>
+        {context.satelliteProviderName ? (
+          <div className="si-wms-index-class-legend__live-row">
+            <span className="si-wms-index-class-legend__live-k">Provider</span>
+            <span className="si-wms-index-class-legend__live-v">
+              {context.satelliteProviderName}
+              {context.providerResolutionLabel ? ` · ${context.providerResolutionLabel}` : ''}
+            </span>
+          </div>
+        ) : null}
         {seriesLine ? (
           <div className="si-wms-index-class-legend__live-row">
             <span className="si-wms-index-class-legend__live-k">Series</span>

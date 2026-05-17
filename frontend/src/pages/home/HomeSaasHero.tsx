@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react'
+import { motion } from 'framer-motion'
 import { SaasButton } from '../../components/saas/SaasEntryShell'
 import type { HomeSaasHeroCopy } from './homeSaasContent'
 
@@ -15,7 +16,9 @@ export type HomeSaasHeroProps = {
 
 export function HomeSaasHero({ copy, preface, startAction }: HomeSaasHeroProps) {
   return (
-    <div className="home-saas-hero">
+    <div className="home-saas-hero home-saas-hero--globe">
+      <div className="home-saas-hero__scrim" aria-hidden />
+      <motion.div className="home-saas-hero__content">
       {preface ? <div className="home-saas-hero__preface">{preface}</div> : null}
 
       <h1 id="home-hero-heading" className="home-saas-hero__title home-saas-hero__anim home-saas-hero__anim--1">
@@ -61,6 +64,7 @@ export function HomeSaasHero({ copy, preface, startAction }: HomeSaasHeroProps) 
           {startAction.label}
         </SaasButton>
       </div>
+      </motion.div>
     </div>
   )
 }

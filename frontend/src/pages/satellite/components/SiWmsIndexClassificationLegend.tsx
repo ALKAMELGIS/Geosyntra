@@ -142,6 +142,8 @@ export type SiWmsSpectralLegendContext = {
   seriesStartIso?: string | null
   seriesEndIso?: string | null
   timelinePlaying?: boolean
+  satelliteProviderName?: string | null
+  providerResolutionLabel?: string | null
   /** Week overlapping imagery date (from time-series chips; same engine as timeline chart). */
   temporal?: SiWmsSpectralTemporalSnapshot | null
 }
@@ -264,6 +266,15 @@ export function SiWmsIndexClassificationLegend({
             <span className="si-wms-index-class-legend__live-playing">Playing</span>
           ) : null}
         </div>
+        {context.satelliteProviderName ? (
+          <div className="si-wms-index-class-legend__live-row">
+            <span className="si-wms-index-class-legend__live-k">Provider</span>
+            <span className="si-wms-index-class-legend__live-v">
+              {context.satelliteProviderName}
+              {context.providerResolutionLabel ? ` · ${context.providerResolutionLabel}` : ''}
+            </span>
+          </div>
+        ) : null}
         {seriesLine ? (
           <div className="si-wms-index-class-legend__live-row">
             <span className="si-wms-index-class-legend__live-k">Series</span>
