@@ -8,6 +8,7 @@ import { prefetchRoute } from '../routes/routePrefetch'
 import { normalizeAppPath } from '../services/settingsStorage'
 import { useMergedNavigation, useSystemSettings } from '../store/SystemSettingsContext'
 import { navTranslations } from './navTranslations'
+import { HomeProfileSheet } from '../pages/home/profile/HomeProfileSheet'
 
 type PrimaryNavIconsProps = {
   onLogout?: () => void
@@ -31,6 +32,7 @@ export default function PrimaryNavIcons({ onLogout }: PrimaryNavIconsProps) {
   const location = useLocation()
   const rootRef = useRef<HTMLElement | null>(null)
   const [openGroupId, setOpenGroupId] = useState<string | null>(null)
+  const [profileOpen, setProfileOpen] = useState(false)
   const { language } = useLanguage()
   const role = normalizeRole(readCurrentUser()?.role)
   const canSeeMaster = true
@@ -207,6 +209,21 @@ export default function PrimaryNavIcons({ onLogout }: PrimaryNavIconsProps) {
           <button
             type="button"
             role="menuitem"
+            title="Account profile"
+            aria-label="Account profile"
+            className="geosyntra-primary-nav__popitem geosyntra-primary-nav__popitem--btn"
+            onClick={() => {
+              closePopover()
+              setProfileOpen(true)
+            }}
+          >
+            <span className="geosyntra-primary-nav__popicon" aria-hidden>
+              <i className="fa-solid fa-user" />
+            </span>
+          </button>
+          <button
+            type="button"
+            role="menuitem"
             title={t.logout}
             aria-label={t.logout}
             className="geosyntra-primary-nav__popitem geosyntra-primary-nav__popitem--btn"
@@ -222,6 +239,7 @@ export default function PrimaryNavIcons({ onLogout }: PrimaryNavIconsProps) {
           </button>
         </div>
       </div>
+      <HomeProfileSheet open={profileOpen} onClose={() => setProfileOpen(false)} />
     </nav>
   )
 }

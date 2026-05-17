@@ -1,0 +1,291 @@
+/* Modern glass account profile — Home / SaaS entry only */
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.home-profile-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 90;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: clamp(0.75rem, 3vw, 1.5rem);
+}
+
+.home-profile-overlay__backdrop {
+  position: absolute;
+  inset: 0;
+  border: 0;
+  background: rgba(2, 6, 14, 0.78);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  cursor: pointer;
+}
+
+.home-profile-sheet {
+  position: relative;
+  z-index: 1;
+  width: min(100%, 26rem);
+  max-height: min(92dvh, 40rem);
+  overflow: auto;
+  border-radius: 1.25rem;
+  background: linear-gradient(165deg, rgba(14, 20, 36, 0.97) 0%, rgba(4, 8, 16, 0.99) 58%);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow:
+    0 0 0 1px rgba(255, 255, 255, 0.04) inset,
+    0 32px 80px rgba(0, 0, 0, 0.55),
+    0 0 100px rgba(59, 130, 246, 0.1);
+}
+
+.home-profile-sheet__glow {
+  pointer-events: none;
+  position: absolute;
+  inset: -30% -10% auto;
+  height: 50%;
+  background: radial-gradient(ellipse 80% 60% at 50% 0%, rgba(148, 163, 184, 0.12), transparent 72%);
+}
+
+.home-profile-sheet__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 1rem 1.15rem 0.5rem;
+}
+
+.home-profile-sheet__title {
+  margin: 0;
+  font-size: 0.9375rem;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  color: rgba(248, 250, 252, 0.96);
+}
+
+.home-profile-sheet__close {
+  width: 2rem;
+  height: 2rem;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 0.65rem;
+  background: rgba(255, 255, 255, 0.04);
+  color: rgba(203, 213, 225, 0.95);
+  cursor: pointer;
+  display: grid;
+  place-items: center;
+  transition:
+    background 0.15s ease,
+    border-color 0.15s ease;
+}
+
+.home-profile-sheet__close:hover {
+  background: rgba(255, 255, 255, 0.1);
+  border-color: rgba(255, 255, 255, 0.18);
+}
+
+.home-profile-avatar-card {
+  margin: 0.35rem 1.15rem 1rem;
+  padding: 1.25rem 1rem 1rem;
+  border-radius: 1rem;
+  text-align: center;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow:
+    0 18px 40px rgba(0, 0, 0, 0.28),
+    inset 0 1px 0 rgba(255, 255, 255, 0.06);
+}
+
+.home-profile-avatar-wrap {
+  position: relative;
+  width: 6.5rem;
+  height: 6.5rem;
+  margin: 0 auto 0.85rem;
+}
+
+.home-profile-avatar {
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 2px solid rgba(255, 255, 255, 0.22);
+  box-shadow:
+    0 12px 32px rgba(0, 0, 0, 0.4),
+    0 0 0 4px rgba(15, 23, 42, 0.65);
+}
+
+.home-profile-avatar--initials {
+  display: grid;
+  place-items: center;
+  font-size: 1.35rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: #e2e8f0;
+  background: linear-gradient(145deg, rgba(59, 130, 246, 0.35), rgba(15, 23, 42, 0.9));
+}
+
+.home-profile-avatar-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.45rem;
+}
+
+.home-profile-avatar-btn {
+  padding: 0.4rem 0.85rem;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.06);
+  color: rgba(248, 250, 252, 0.92);
+  cursor: pointer;
+  transition:
+    background 0.15s ease,
+    border-color 0.15s ease;
+}
+
+.home-profile-avatar-btn:hover {
+  background: rgba(255, 255, 255, 0.12);
+  border-color: rgba(255, 255, 255, 0.2);
+}
+
+.home-profile-avatar-btn--primary {
+  background: rgba(248, 250, 252, 0.95);
+  color: #0f172a;
+  border-color: transparent;
+}
+
+.home-profile-avatar-btn--primary:hover {
+  background: #fff;
+}
+
+.home-profile-avatar-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.home-profile-avatar-hint {
+  margin: 0.65rem 0 0;
+  font-size: 0.6875rem;
+  color: rgba(148, 163, 184, 0.85);
+}
+
+.home-profile-avatar-error {
+  margin: 0.5rem 0 0;
+  font-size: 0.75rem;
+  color: #fca5a5;
+}
+
+.home-profile-fields {
+  margin: 0 1.15rem 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+}
+
+.home-profile-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  padding: 0.65rem 0.75rem;
+  border-radius: 0.75rem;
+  background: rgba(255, 255, 255, 0.025);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.home-profile-field__k {
+  font-size: 0.625rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: rgba(148, 163, 184, 0.85);
+}
+
+.home-profile-field__v {
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: rgba(248, 250, 252, 0.95);
+  word-break: break-word;
+}
+
+.home-profile-field__v--muted {
+  color: rgba(203, 213, 225, 0.88);
+}
+
+.home-profile-sheet__foot {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding: 0 1.15rem 1.15rem;
+}
+
+.home-profile-logout {
+  width: 100%;
+  padding: 0.7rem 1rem;
+  border-radius: 0.75rem;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  cursor: pointer;
+  border: 1px solid rgba(248, 113, 113, 0.35);
+  background: rgba(127, 29, 29, 0.22);
+  color: #fecaca;
+  transition:
+    background 0.15s ease,
+    border-color 0.15s ease;
+}
+
+.home-profile-logout:hover {
+  background: rgba(153, 27, 27, 0.35);
+  border-color: rgba(248, 113, 113, 0.5);
+}
+
+.home-user-status__profile-trigger {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  padding: 0.2rem 0.35rem 0.2rem 0.2rem;
+  margin: 0;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  cursor: pointer;
+  text-align: right;
+  transition: background 0.15s ease;
+}
+
+.home-user-status__profile-trigger:hover {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.home-user-status__avatar-mini {
+  width: 2rem;
+  height: 2rem;
+  flex-shrink: 0;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.35);
+}
+
+.home-user-status__avatar-mini--initials {
+  display: grid;
+  place-items: center;
+  font-size: 0.6875rem;
+  font-weight: 700;
+  color: #e2e8f0;
+  background: linear-gradient(145deg, rgba(59, 130, 246, 0.4), rgba(15, 23, 42, 0.95));
+}
+
+@media (max-width: 767px) {
+  .home-user-status__profile-trigger .home-user-status__text {
+    display: none;
+  }
+}
