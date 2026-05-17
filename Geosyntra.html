@@ -2,7 +2,7 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="geosyntra-pages-build" content="25990912166-1-91d17caa9843296cc0e4474e54dd5881aacecb5c" />
+    <meta name="geosyntra-pages-build" content="25993218539-1-41f862dec953609072831eebeb135cb13ec73a5b" />
     <!-- Avoid stale GitHub Pages / SW shell (old "Opening…" bootstrap) being shown from disk cache. -->
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
     <meta http-equiv="Pragma" content="no-cache" />
@@ -13,7 +13,7 @@
       // and force a single hard reload so the freshly-deployed shell + hashed assets are fetched.
       ;(function () {
         try {
-          var KEY = 'gs_pages_sw_purge_v3'
+          var KEY = 'gs_pages_sw_purge_v4'
           var hasSW = typeof navigator !== 'undefined' && 'serviceWorker' in navigator
           var hasCaches = typeof caches !== 'undefined' && caches && typeof caches.keys === 'function'
           if (!hasSW && !hasCaches) return
@@ -77,8 +77,8 @@
       href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&family=Inter:wght@400;500;600;700;800&display=swap"
       rel="stylesheet"
     />
-    <script type="module" crossorigin src="/Geosyntra/assets/index-Dbj1cnTK.js"></script>
-    <link rel="stylesheet" crossorigin href="/Geosyntra/assets/index-Cq2qLOBl.css">
+    <script type="module" crossorigin src="/Geosyntra/assets/index-5BeavBQu.js"></script>
+    <link rel="stylesheet" crossorigin href="/Geosyntra/assets/index-Dr5bfu4t.css">
       <link rel="canonical" href="https://alkamelgis.github.io/Geosyntra/" />
       <meta property="og:type" content="website" />
     <meta property="og:title" content="Geosyntra" />
@@ -89,7 +89,30 @@
     <meta name="twitter:description" content="Geosyntra Platform — enterprise GIS, satellite intelligence, and operational geospatial workflows." />
   </head>
   <body>
-    <script data-geosyntra-gh-pages-redirect="1">;(function(){try{var h=String(location.hostname||"");if(h.indexOf("github.io")===-1)return;var p=location.pathname||"";var ws="/Geosyntra/";var ns="/Geosyntra";if(p===ns){location.replace(location.origin+ws+location.search+(location.hash&&location.hash.length>1?location.hash:"#/"));return;}if((p===ws||p===ns+"/")&&(!location.hash||location.hash==="#")){location.replace(location.origin+ws+location.search+"#/");}}catch(_){}})();</script>
+    <script data-geosyntra-gh-pages-redirect="1">;(function(){try{var h=String(location.hostname||"");if(h.indexOf("github.io")===-1)return;var p=location.pathname||"";var ws="/Geosyntra/";var ns="/Geosyntra";var g=location.hash||"";if(g.startsWith("#/")){var route=g.slice(2).split("?")[0].replace(/\/$/,"");if(route==="app/onboarding/trial-start"){location.replace(location.origin+ws+"?start=1&wizard=pricing#/");return;}if(route==="app/auth/login"){location.replace(location.origin+ws+"?start=1&wizard=auth&mode=signin#/");return;}if(route==="app/auth/register"){location.replace(location.origin+ws+"?start=1&wizard=auth&mode=signup#/");return;}if(route==="app/billing/pricing"){location.replace(location.origin+ws+"?start=1&wizard=pricing#/");return;}}if(g&&g!=="#/"&&!g.startsWith("#/")){try{sessionStorage.setItem("geosyntra-scroll-to",g.slice(1));}catch(_){}location.replace(location.origin+ws+location.search+"#/");return;}if(p===ns){location.replace(location.origin+ws+location.search+(g&&g.length>1?g:"#/"));return;}if((p===ws||p===ns+"/")&&(!g||g==="#")){location.replace(location.origin+ws+location.search+"#/");}}catch(_){}})();</script>
+    <script data-geosyntra-legacy-auth-redirect="1">
+      ;(function () {
+        try {
+          var g = location.hash || ''
+          if (!g.startsWith('#/')) return
+          var route = g.slice(2).split('?')[0].replace(/\/$/, '')
+          var base = location.pathname || '/'
+          if (!base.endsWith('/')) base += '/'
+          var origin = location.origin
+          if (route === 'app/auth/login') {
+            location.replace(origin + base + '?start=1&wizard=auth&mode=signin#/')
+            return
+          }
+          if (route === 'app/auth/register') {
+            location.replace(origin + base + '?start=1&wizard=auth&mode=signup#/')
+            return
+          }
+          if (route === 'app/onboarding/trial-start' || route === 'app/billing/pricing') {
+            location.replace(origin + base + '?start=1&wizard=pricing#/')
+          }
+        } catch (_) {}
+      })()
+    </script>
     <script>
       (function () {
         if (window.location.protocol === 'file:') {
