@@ -30,6 +30,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
       - name: Force Pages to serve files from main (not Actions artifact)
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -68,8 +69,13 @@ jobs:
             exit 0
           fi
           git commit -m "chore(pages): sync SPA build to repo root [pages-sync]"
-          git pull --rebase origin "${GITHUB_REF_NAME}"
-          git push origin "HEAD:${GITHUB_REF_NAME}"
+          for attempt in 1 2 3; do
+            git pull --rebase origin "${GITHUB_REF_NAME}" && git push origin "HEAD:${GITHUB_REF_NAME}" && exit 0
+            echo "Push attempt ${attempt} failed; retrying in 5s..."
+            sleep 5
+          done
+          echo "::error::Failed to push pages-sync commit after 3 attempts"
+          exit 1
       - name: Re-assert legacy Pages after push (GitHub may reset source)
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

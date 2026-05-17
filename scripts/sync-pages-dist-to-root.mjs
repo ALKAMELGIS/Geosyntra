@@ -62,6 +62,15 @@ console.log('sync-pages-dist-to-root: copied', entries.map((e) => e.name).join('
 function gitStageDeploy() {
   const dirs = ['assets', 'avatars']
   for (const name of dirs) {
+    const dirPath = path.join(root, name)
+    if (!fs.existsSync(dirPath)) {
+      try {
+        execSync(`git rm -rf --cached --ignore-unmatch -- "${name}"`, { cwd: root, stdio: 'pipe' })
+      } catch {
+        /* already untracked */
+      }
+      continue
+    }
     try {
       execSync(`git add -f -A -- "${name}"`, { cwd: root, stdio: 'inherit' })
     } catch {
