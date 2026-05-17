@@ -13,6 +13,11 @@ import {
   type IndexRampStop,
   siThinLegendSegments,
 } from '../../../lib/siWmsIndexClassificationRamp';
+import {
+  drawPdfCartographerMapLayout,
+  siPdfBoundsFromFeatureCollection,
+  type SiPdfLngLatBounds,
+} from './siAoiReportCartography';
 
 /** Fit PNG into a box without stretching (letterbox centering). */
 function pdfEmbedPngFit(
@@ -22,7 +27,7 @@ function pdfEmbedPngFit(
   y: number,
   maxW: number,
   maxH: number,
-): { w: number; h: number } {
+): { w: number; h: number; x: number; y: number } {
   try {
     const props = doc.getImageProperties(dataUrl);
     const ratio = props.width / Math.max(1, props.height);
@@ -34,9 +39,9 @@ function pdfEmbedPngFit(
     }
     const ox = x + (maxW - w) / 2;
     doc.addImage(dataUrl, 'PNG', ox, y, w, h, undefined, 'FAST');
-    return { w, h };
+    return { w, h, x: ox, y };
   } catch {
-    return { w: 0, h: 0 };
+    return { w: 0, h: 0, x, y };
   }
 }
 
@@ -152,6 +157,7 @@ export type SiAoiReportModel = {
   dateEnd: string;
   aoiAreaKm2: number;
   summaryLinesEn: string[];
+  satelliteProviderName?: string;
   analysisEn: string;
   stressNoteEn: string | null;
   timeSeries: SiAoiReportTimePoint[];
@@ -775,6 +781,8 @@ export function buildSiAoiVegetationReport(input: {
   aoiName: string;
   /** Optional override merged onto default class colours (from Symbology ramp). */
   classificationPalette?: Partial<SiAoiClassificationPalette>;
+  /** Satellite imagery provider shown in PDF / Excel / metadata. */
+  satelliteProviderLabel?: string;
   /** Optional RS processing narrative appended to the executive summary block. */
   processingContext?: {
     cloudCoverMaxPct: number;
@@ -792,6 +800,7 @@ export function buildSiAoiVegetationReport(input: {
     aoiFeature,
     aoiName,
     processingContext,
+    satelliteProviderLabel,
     classificationPalette: paletteIn,
     legendBandCount: legendBandCountIn,
   } = input;
@@ -867,6 +876,9 @@ export function buildSiAoiVegetationReport(input: {
 
   const meanStr = indexId === 'LST' ? mean.toFixed(1) : mean.toFixed(3);
   const summaryLinesEn = [
+    ...(satelliteProviderLabel?.trim()
+      ? [`Satellite provider: ${satelliteProviderLabel.trim()} (layer catalog and timeline scoped to this source).`]
+      : []),
     `Area of interest "${aoiName}" was analyzed using ${opt.label} between ${dateStart} and ${dateEnd}.`,
     `Period mean index ≈ ${meanStr} (client-side demo values tied to the timeline until a zonal-stats service is connected).`,
     ...(processingContext
@@ -898,6 +910,7 @@ export function buildSiAoiVegetationReport(input: {
     dateEnd,
     aoiAreaKm2,
     summaryLinesEn,
+    satelliteProviderName: satelliteProviderLabel?.trim() || undefined,
     analysisEn,
     stressNoteEn,
     timeSeries,
@@ -925,6 +938,8 @@ export type SiAoiPdfExportOptions = {
   executiveSummaryAi?: string | null;
   /** Five interpretation bullets (Gemini or client fallback) for page 3. */
   interpretationPoints?: string[] | null;
+  /** Map extent for scale bar (defaults from AOI outline). */
+  aoiMapLngLatBounds?: SiPdfLngLatBounds | null;
 };
 
 function addChangeDetectionPageGrid(
@@ -1315,6 +1330,9 @@ function drawPieSlicesPdf(
   doc.circle(cx, cy, r, 'S');
 }
 
+/** Minimum row height so index range + tier label never overlap in PDF bars/table. */
+const PDF_CLASS_ROW_MIN_PT = 24;
+
 /** Class share bars (colored per legend band) for page 1 of the scientific GIS report. */
 function drawClassComparisonBarsPdf(
   doc: jsPDF,
@@ -1324,56 +1342,68 @@ function drawClassComparisonBarsPdf(
   yTop: number,
   w: number,
   h: number,
-) {
-  const n = rows.length || 1;
-  const padT = 8;
-  const padB = 22;
-  const rowH = (h - padT - padB) / n;
-  const labelColW = Math.min(108, Math.max(72, w * 0.34));
-  const barX = x + labelColW + 6;
-  const barW = Math.max(48, w - labelColW - 52);
+): number {
+  const n = Math.max(1, rows.length);
+  const padT = 10;
+  const padB = 24;
+  const boxH = Math.max(h, padT + padB + n * PDF_CLASS_ROW_MIN_PT);
+  const rowH = (boxH - padT - padB) / n;
+  const labelColW = Math.min(118, Math.max(88, w * 0.36));
+  const statsColW = 108;
+  const barX = x + labelColW + 8;
+  const barW = Math.max(48, w - labelColW - statsColW - 14);
+  const statsX = x + w - 6;
   const maxPct = Math.max(1, ...rows.map(r => r.pct));
 
+  pdfInitBodyTypography(doc);
   doc.setDrawColor(226, 232, 240);
   doc.setLineWidth(0.35);
-  doc.roundedRect(x, yTop, w, h, 4, 4, 'S');
+  doc.roundedRect(x, yTop, w, boxH, 4, 4, 'S');
 
   for (let i = 0; i < rows.length; i++) {
     const row = rows[i]!;
-    const yy = yTop + padT + i * rowH + 2;
+    const rowTop = yTop + padT + i * rowH;
+    const rowMid = rowTop + rowH / 2;
     const tier = healthTierForBandIndex(i, rows.length);
     const [R, G, B] = hexToRgbTriplet(row.colorHex ?? '#22c55e');
+    const rangeY = rowTop + 10;
+    const tierY = rowTop + 20;
 
     doc.setFont('helvetica', 'bold');
-    doc.setFontSize(7);
+    doc.setFontSize(8);
     doc.setTextColor(71, 85, 105);
-    doc.text(`${i + 1}.`, x + 5, yy + rowH * 0.42);
+    doc.text(`${i + 1}.`, x + 6, rowMid + 2.5);
 
     doc.setFont('helvetica', 'normal');
-    doc.setFontSize(7);
+    doc.setFontSize(8);
+    doc.setTextColor(30, 41, 59);
     const lab = pdfSafeText(row.labelEn);
-    const labLines = doc.splitTextToSize(lab, labelColW - 18);
-    pdfTextBodyLines(doc, labLines.slice(0, 1), x + 14, yy + 4, 1.15);
+    const labLines = doc.splitTextToSize(lab, labelColW - 22);
+    pdfTextBodyLines(doc, labLines.slice(0, 1), x + 18, rangeY, 1.2);
 
-    doc.setFontSize(6.5);
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(7.5);
     doc.setTextColor(100, 116, 139);
-    doc.text(tier, x + 14, yy + rowH * 0.62);
+    doc.text(tier, x + 18, tierY);
 
+    const barInnerH = Math.max(8, rowH - 12);
+    const barY = rowTop + (rowH - barInnerH) / 2;
     const t = Math.max(0.04, row.pct / maxPct);
     doc.setFillColor(R, G, B);
-    doc.roundedRect(barX, yy + 2, Math.max(2, t * barW), rowH - 8, 1.5, 1.5, 'F');
+    doc.roundedRect(barX, barY, Math.max(2, t * barW), barInnerH, 1.5, 1.5, 'F');
 
     doc.setFont('helvetica', 'bold');
-    doc.setFontSize(7.5);
+    doc.setFontSize(8);
     doc.setTextColor(15, 23, 42);
-    const stat = `${row.pct.toFixed(1)}%  |  ${row.areaKm2.toFixed(2)} km2`;
-    doc.text(stat, barX + t * barW + 5, yy + rowH * 0.48);
+    const stat = pdfSafeText(`${row.pct.toFixed(1)}% | ${row.areaKm2.toFixed(2)} km2`);
+    doc.text(stat, statsX, rowMid + 2.5, { align: 'right' });
   }
 
   doc.setFont('helvetica', 'normal');
-  doc.setFontSize(6.5);
+  doc.setFontSize(7);
   doc.setTextColor(100, 116, 139);
-  doc.text(pdfSafeText(`${indexLabel} class area shares (High / Medium / Low by index range)`), x + 6, yTop + h - 8);
+  doc.text(pdfSafeText(`${indexLabel} class area shares (High / Medium / Low by index range)`), x + 8, yTop + boxH - 10);
+  return boxH;
 }
 
 function drawBarSeriesPdf(
@@ -1463,19 +1493,33 @@ function appendDataInsightsPdf(doc: jsPDF, report: SiAoiReportModel, opts: SiAoi
     styles: {
       font: 'helvetica',
       fontSize: 9,
-      cellPadding: { top: 4, right: 4, bottom: 4, left: 4 },
+      cellPadding: { top: 6, right: 6, bottom: 6, left: 6 },
+      minCellHeight: 18,
       lineColor: [226, 232, 240],
       lineWidth: 0.25,
       textColor: [30, 41, 59],
       halign: 'left',
       valign: 'middle',
+      overflow: 'linebreak',
     },
-    headStyles: { fillColor: [21, 94, 50], textColor: 255, fontStyle: 'bold', halign: 'left' },
+    headStyles: {
+      fillColor: [21, 94, 50],
+      textColor: 255,
+      fontStyle: 'bold',
+      halign: 'left',
+      fontSize: 9,
+      cellPadding: { top: 6, right: 6, bottom: 6, left: 6 },
+    },
     alternateRowStyles: { fillColor: [248, 250, 252] },
     columnStyles: {
       5: { cellWidth: 58 },
     },
     didParseCell: (data: any) => {
+      try {
+        data.cell.styles.font = 'helvetica';
+      } catch {
+        /* ignore */
+      }
       if (data.section === 'body' && data.column.index === 5) {
         const s = String(data.cell.raw ?? '');
         if (s === 'Healthy') data.cell.styles.fillColor = [220, 252, 231];
@@ -1597,6 +1641,9 @@ function buildAoiAnalysisPdfDocument(doc: jsPDF, report: SiAoiReportModel, opts:
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(9);
   const meta = [
+    ...(report.satelliteProviderName?.trim()
+      ? [`Satellite provider: ${pdfSafeText(report.satelliteProviderName.trim())}`]
+      : []),
     `Index: ${pdfSafeText(report.indexLabel)}`,
     `Period: ${report.dateStart} to ${report.dateEnd}`,
     `AOI area: ${report.aoiAreaKm2.toFixed(3)} km2`,
@@ -1628,9 +1675,9 @@ function buildAoiAnalysisPdfDocument(doc: jsPDF, report: SiAoiReportModel, opts:
   doc.setFontSize(9.5);
   doc.text('Index comparison (class bars)', margin, y);
   y += 12;
-  const barH = Math.min(118, Math.max(64, report.tableRows.length * 15 + 24));
-  drawClassComparisonBarsPdf(doc, report.tableRows, report.indexLabel, margin, y, textW, barH);
-  y += barH + 12;
+  const barH = 34 + report.tableRows.length * PDF_CLASS_ROW_MIN_PT;
+  const barDrawnH = drawClassComparisonBarsPdf(doc, report.tableRows, report.indexLabel, margin, y, textW, barH);
+  y += barDrawnH + 12;
 
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(9.5);
@@ -1655,33 +1702,43 @@ function buildAoiAnalysisPdfDocument(doc: jsPDF, report: SiAoiReportModel, opts:
     startY: y,
     margin: { left: margin, right: margin },
     tableWidth: textW,
-    head: [['Class No', 'Class name', 'Index value', 'Area', 'Share %']],
+    head: [['#', 'Tier', 'Index range', 'Area', 'Share %']],
     body: scientificTableBody(report),
     styles: {
       font: 'helvetica',
-      fontSize: 8,
-      cellPadding: { top: 3, right: 4, bottom: 3, left: 4 },
+      fontSize: 9,
+      cellPadding: { top: 6, right: 6, bottom: 6, left: 6 },
+      minCellHeight: PDF_CLASS_ROW_MIN_PT,
       lineColor: [226, 232, 240],
       lineWidth: 0.25,
       textColor: [30, 41, 59],
       overflow: 'linebreak',
-      cellWidth: 'wrap',
+      valign: 'middle',
+      halign: 'left',
     },
     headStyles: {
       fillColor: [21, 94, 50],
       textColor: 255,
       fontStyle: 'bold',
-      fontSize: 8,
+      fontSize: 9,
+      cellPadding: { top: 6, right: 6, bottom: 6, left: 6 },
+      valign: 'middle',
     },
     columnStyles: {
-      0: { cellWidth: 42, halign: 'center' },
-      1: { cellWidth: 62, halign: 'center' },
-      2: { cellWidth: 72 },
-      3: { cellWidth: 68, halign: 'right' },
-      4: { cellWidth: 48, halign: 'right' },
+      0: { cellWidth: 36, halign: 'center', fontStyle: 'bold' },
+      1: { cellWidth: 58, halign: 'center', fontStyle: 'bold' },
+      2: { cellWidth: 88, halign: 'left' },
+      3: { cellWidth: 72, halign: 'right' },
+      4: { cellWidth: 52, halign: 'right', fontStyle: 'bold' },
     },
     alternateRowStyles: { fillColor: [248, 250, 252] },
     didParseCell: (data: any) => {
+      try {
+        data.cell.styles.font = 'helvetica';
+        data.cell.styles.fontSize = data.section === 'head' ? 9 : 9;
+      } catch {
+        /* ignore */
+      }
       if (data.section !== 'body' || data.column.index !== 1) return;
       const tier = String(data.cell.raw ?? '');
       if (tier === 'High') data.cell.styles.fillColor = [220, 252, 231];
@@ -1692,28 +1749,6 @@ function buildAoiAnalysisPdfDocument(doc: jsPDF, report: SiAoiReportModel, opts:
     rowPageBreak: 'avoid',
   });
   y = (doc as any).lastAutoTable.finalY + 10;
-
-  const topRow = report.tableRows.length
-    ? [...report.tableRows].sort((a, b) => b.pct - a.pct)[0]
-    : null;
-  const stressText = report.stressNoteEn
-    ? `Stress note: ${report.stressNoteEn}`
-    : `Stress note: No strong stress pattern was flagged in this sample; continue routine monitoring aligned with the dominant class share (${topRow?.pct.toFixed(1) ?? '0'}%).`;
-
-  const stressLines = doc.splitTextToSize(pdfSafeText(stressText), textW - 16);
-  const stressLineCap = y + 56 > pageH - margin - 8 ? 2 : 4;
-  const stressUse = stressLines.slice(0, stressLineCap);
-  const boxH = Math.min(56, stressUse.length * doc.getFontSize() * bodyLh + 14);
-  if (y + boxH <= pageH - margin - 4) {
-    doc.setFillColor(254, 242, 242);
-    doc.setDrawColor(248, 113, 113);
-    doc.setLineWidth(0.4);
-    doc.roundedRect(margin, y, textW, boxH, 4, 4, 'FD');
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(8.5);
-    doc.setTextColor(153, 27, 27);
-    pdfTextBodyLines(doc, stressUse, margin + 8, y + 11, bodyLh);
-  }
 
   doc.addPage();
   y = margin;
@@ -1727,7 +1762,7 @@ function buildAoiAnalysisPdfDocument(doc: jsPDF, report: SiAoiReportModel, opts:
   doc.setTextColor(71, 85, 105);
   y = pdfDrawParagraph(
     doc,
-    'Snapshot: basemap, Sentinel Hub WMS classification (NDVI or selected index), AOI clip, north arrow, scale bar, and embedded legend strip when captured from the Map Viewer.',
+    'Cartographer layout: live basemap + index layer (Sentinel Hub WMS), vector north arrow, scale bar, and classification legend aligned to the AOI extent.',
     margin,
     y,
     textW,
@@ -1739,10 +1774,16 @@ function buildAoiAnalysisPdfDocument(doc: jsPDF, report: SiAoiReportModel, opts:
   const interpReserve = 200;
   const mapMaxH = Math.max(200, Math.min(380, pageH - y - margin - interpReserve));
   let mapDrawnH = 0;
+  const mapBounds =
+    opts.aoiMapLngLatBounds ?? siPdfBoundsFromFeatureCollection(report.aoiOutlineGeoJson);
+
   if (opts.aoiMapImageDataUrl && String(opts.aoiMapImageDataUrl).startsWith('data:image')) {
     try {
       const fitted = pdfEmbedPngFit(doc, opts.aoiMapImageDataUrl, margin, y, textW, mapMaxH);
       mapDrawnH = fitted.h;
+      if (fitted.h >= 1) {
+        drawPdfCartographerMapLayout(doc, fitted.x, fitted.y, fitted.w, fitted.h, mapBounds, report);
+      }
       if (fitted.h < 1) {
         doc.setFontSize(9);
         doc.setTextColor(148, 163, 184);
@@ -1791,9 +1832,8 @@ function buildAoiAnalysisPdfDocument(doc: jsPDF, report: SiAoiReportModel, opts:
   }
   y += mapDrawnH + 10;
 
-  const mapHasLegendStrip =
-    opts.aoiMapImageDataUrl != null && String(opts.aoiMapImageDataUrl).length > 1200;
-  if (!mapHasLegendStrip) {
+  // Legend is drawn on-map via cartographer layout; keep a compact fallback if no image.
+  if (!opts.aoiMapImageDataUrl || mapDrawnH < 1) {
     y = drawClassificationLegendPdf(doc, report, margin, y, textW);
   }
 

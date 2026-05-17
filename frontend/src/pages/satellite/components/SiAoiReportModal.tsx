@@ -38,6 +38,11 @@ import {
 } from '../utils/siAoiReportGemini';
 import type { SiLiveMapSnapshotCapture } from '../utils/siMapViewerSnapshot';
 import {
+  drawNorthArrowAndScaleOnMapCanvas,
+  siPdfBoundsFromFeatureCollection,
+  siPdfBoundsFromFitBounds,
+} from '../utils/siAoiReportCartography';
+import {
   compositeMapWithBottomLegendStrip,
   legendItemsFromTableRows,
   renderAoiHeatmapSlotPng,
@@ -73,127 +78,6 @@ function captureCanvasHiRes(source: HTMLCanvasElement, scale = 2): string {
   ctx.setTransform(scale, 0, 0, scale, 0, 0);
   ctx.drawImage(source, 0, 0);
   return c.toDataURL('image/png');
-}
-
-function fillRoundRect(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, rad: number) {
-  const r = Math.min(rad, w / 2, h / 2);
-  ctx.beginPath();
-  ctx.moveTo(x + r, y);
-  ctx.lineTo(x + w - r, y);
-  ctx.quadraticCurveTo(x + w, y, x + w, y + r);
-  ctx.lineTo(x + w, y + h - r);
-  ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
-  ctx.lineTo(x + r, y + h);
-  ctx.quadraticCurveTo(x, y + h, x, y + h - r);
-  ctx.lineTo(x, y + r);
-  ctx.quadraticCurveTo(x, y, x + r, y);
-  ctx.closePath();
-  ctx.fill();
-}
-
-type SiPdfLngLatBounds = { west: number; south: number; east: number; north: number };
-
-function siPdfBoundsFromFeatureCollection(fc: GeoJSON.FeatureCollection): SiPdfLngLatBounds | null {
-  const f = fc.features?.[0];
-  if (!f) return null;
-  const b = siAoiReportFeatureBBoxLngLat(f);
-  if (!b) return null;
-  return { west: b[0], south: b[1], east: b[2], north: b[3] };
-}
-
-function siPdfBoundsFromFitBounds(fit: [[number, number], [number, number]]): SiPdfLngLatBounds {
-  const lngs = [fit[0][0], fit[1][0]];
-  const lats = [fit[0][1], fit[1][1]];
-  return {
-    west: Math.min(...lngs),
-    east: Math.max(...lngs),
-    south: Math.min(...lats),
-    north: Math.max(...lats),
-  };
-}
-
-function approxGroundSpanMeters(b: SiPdfLngLatBounds): number {
-  const midLatRad = ((b.south + b.north) / 2) * (Math.PI / 180);
-  const mLat = 111_320 * Math.max(1e-9, b.north - b.south);
-  const mLng = 111_320 * Math.max(0.05, Math.cos(midLatRad)) * Math.max(1e-9, b.east - b.west);
-  return Math.max(mLat, mLng) * 0.92;
-}
-
-function pickScaleBarLength(visibleM: number): { meters: number; label: string } {
-  const raw = Math.max(visibleM / 4.5, 10);
-  const exp = Math.floor(Math.log10(raw));
-  const base = 10 ** exp;
-  const n = raw / base;
-  const step = n <= 1 ? 1 : n <= 2 ? 2 : n <= 5 ? 5 : 10;
-  const meters = step * base;
-  if (meters >= 1000) {
-    const km = meters / 1000;
-    const label = Number.isInteger(km) ? `${km} km` : `${km.toFixed(1)} km`;
-    return { meters, label };
-  }
-  return { meters, label: `${Math.round(meters)} m` };
-}
-
-/** North arrow + approximate ground scale (from AOI / fit bounds vs map width). */
-function drawNorthArrowAndScaleOnMapCanvas(
-  ctx: CanvasRenderingContext2D,
-  mapW: number,
-  mapH: number,
-  bounds: SiPdfLngLatBounds | null,
-) {
-  const visibleM = bounds ? approxGroundSpanMeters(bounds) : 5000;
-  const { meters, label } = pickScaleBarLength(visibleM);
-  const barPx = Math.min(mapW * 0.32, Math.max(64, (meters / visibleM) * mapW * 0.88));
-  const pad = 11;
-  const sbW = Math.min(barPx + 54, mapW - pad * 2);
-  const sbH = 36;
-  const yCard = mapH - pad - sbH;
-  ctx.save();
-  ctx.fillStyle = 'rgba(2, 6, 23, 0.58)';
-  fillRoundRect(ctx, pad, yCard, sbW, sbH, 8);
-  ctx.strokeStyle = 'rgba(248, 250, 252, 0.92)';
-  ctx.lineWidth = 2;
-  const bx0 = pad + 10;
-  const yLine = yCard + 14;
-  ctx.beginPath();
-  ctx.moveTo(bx0, yLine);
-  ctx.lineTo(bx0 + barPx, yLine);
-  ctx.stroke();
-  ctx.beginPath();
-  ctx.moveTo(bx0, yLine - 4);
-  ctx.lineTo(bx0, yLine + 4);
-  ctx.moveTo(bx0 + barPx, yLine - 4);
-  ctx.lineTo(bx0 + barPx, yLine + 4);
-  ctx.stroke();
-  ctx.fillStyle = '#f1f5f9';
-  ctx.font = '600 11px system-ui, "Segoe UI", sans-serif';
-  ctx.textBaseline = 'bottom';
-  ctx.fillText(label, bx0, yLine - 6);
-  ctx.font = '500 9px system-ui, "Segoe UI", sans-serif';
-  ctx.fillStyle = 'rgba(226, 232, 240, 0.88)';
-  ctx.fillText('Scale (approx.)', bx0, yCard + sbH - 7);
-
-  const nx = pad + 23;
-  const ny = pad + 34;
-  ctx.fillStyle = 'rgba(2, 6, 23, 0.58)';
-  fillRoundRect(ctx, pad, pad, 46, 54, 8);
-  ctx.fillStyle = '#f8fafc';
-  ctx.beginPath();
-  ctx.moveTo(nx, ny - 18);
-  ctx.lineTo(nx - 11, ny + 8);
-  ctx.lineTo(nx + 11, ny + 8);
-  ctx.closePath();
-  ctx.fill();
-  ctx.strokeStyle = 'rgba(148, 163, 184, 0.95)';
-  ctx.lineWidth = 1.25;
-  ctx.stroke();
-  ctx.font = '700 12px system-ui, "Segoe UI", sans-serif';
-  ctx.textAlign = 'center';
-  ctx.fillStyle = '#e2e8f0';
-  ctx.fillText('N', nx, pad + 16);
-  ctx.textAlign = 'left';
-  ctx.textBaseline = 'alphabetic';
-  ctx.restore();
 }
 
 function colorForReportTableRow(row: SiAoiReportModel['tableRows'][number], palette: SiAoiClassificationPalette): string {
@@ -404,6 +288,8 @@ export type SiAoiReportModalProps = {
   classificationPalette?: Partial<SiAoiClassificationPalette>;
   /** Capture the live Satellite Intelligence map canvas (WMS + symbology + AOI). */
   captureLiveMapSnapshot?: SiLiveMapSnapshotCapture;
+  /** Active satellite provider label for PDF / Excel / metadata. */
+  satelliteProviderLabel?: string;
 };
 
 export function SiAoiReportModal({
@@ -420,6 +306,7 @@ export function SiAoiReportModal({
   defaultCloudCoverPct = 25,
   classificationPalette: classificationPaletteProp,
   captureLiveMapSnapshot,
+  satelliteProviderLabel,
 }: SiAoiReportModalProps) {
   const geminiApiKey = useGeminiApiKey();
   const [geminiSummary, setGeminiSummary] = useState<string | null>(null);
@@ -580,6 +467,7 @@ export function SiAoiReportModal({
         temporalComposite,
         crsNote: 'EPSG:4326 (WGS84)',
       },
+      satelliteProviderLabel: satelliteProviderLabel?.trim() || undefined,
     };
     lastBuildInputRef.current = snap;
     const built = buildSiAoiVegetationReport({
@@ -609,6 +497,7 @@ export function SiAoiReportModal({
     temporalComposite,
     classificationPaletteProp,
     legendBandCount,
+    satelliteProviderLabel,
     prefetchAnalysisSnapshot,
   ]);
 
@@ -914,10 +803,21 @@ export function SiAoiReportModal({
       }
 
       let aoiMapImageDataUrl: string | null = null;
+      const mapLngBounds = siPdfBoundsFromFeatureCollection(report.aoiOutlineGeoJson);
       if (mode === 'AOI_ANALYSIS') {
-        if (analysisLiveSnapshot) {
+        if (format === 'pdf' && liveMapCaptureOk && captureLiveMapSnapshot) {
+          const rawPdf = await captureLiveMapSnapshot({
+            freezeViewport: true,
+            captureMode: 'export-quality',
+            maskToAoi: false,
+            ...liveSnapshotAoiOpts,
+          });
+          if (rawPdf) aoiMapImageDataUrl = rawPdf;
+        }
+        if (!aoiMapImageDataUrl && analysisLiveSnapshot) {
           aoiMapImageDataUrl = analysisLiveSnapshot;
-        } else if (liveMapCaptureOk && captureLiveMapSnapshot) {
+        }
+        if (!aoiMapImageDataUrl && liveMapCaptureOk && captureLiveMapSnapshot) {
           const raw = await captureLiveMapSnapshot({
             freezeViewport: true,
             captureMode: 'export-quality',
@@ -925,11 +825,7 @@ export function SiAoiReportModal({
             ...liveSnapshotAoiOpts,
           });
           if (raw) {
-            aoiMapImageDataUrl = await compositeAoiAnalysisMapWithLegendPng(
-              raw,
-              report,
-              siPdfBoundsFromFeatureCollection(report.aoiOutlineGeoJson),
-            );
+            aoiMapImageDataUrl = await compositeAoiAnalysisMapWithLegendPng(raw, report, mapLngBounds);
           }
         } else if (mapOk) {
           const map = mapRef.current?.getMap?.();
@@ -965,8 +861,10 @@ export function SiAoiReportModal({
               const canvas = map.getCanvas?.();
               if (canvas instanceof HTMLCanvasElement && canvas.width > 4 && canvas.height > 4 && map.isStyleLoaded?.()) {
                 const raw = captureCanvasHiRes(canvas, 2);
-                const mapLngBounds = siPdfBoundsFromFeatureCollection(report.aoiOutlineGeoJson);
-                aoiMapImageDataUrl = await compositeAoiAnalysisMapWithLegendPng(raw, report, mapLngBounds);
+                aoiMapImageDataUrl =
+                  format === 'pdf'
+                    ? raw
+                    : await compositeAoiAnalysisMapWithLegendPng(raw, report, mapLngBounds);
               }
             } catch {
               /* ignore */
@@ -1009,6 +907,7 @@ export function SiAoiReportModal({
           mode,
           chartImageDataUrl,
           aoiMapImageDataUrl,
+          aoiMapLngLatBounds: mapLngBounds,
           changeSlotMapImageDataUrls,
           executiveSummaryAi: geminiSummary?.trim() || undefined,
           interpretationPoints,
@@ -1114,6 +1013,13 @@ export function SiAoiReportModal({
                     ))}
                   </select>
                 </label>
+                {satelliteProviderLabel?.trim() ? (
+                  <label>
+                    Satellite provider
+                    <input type="text" value={satelliteProviderLabel.trim()} readOnly aria-readonly />
+                    <span className="si-aoi-report-field-hint">Included in PDF, Excel, and map snapshot metadata.</span>
+                  </label>
+                ) : null}
                 <label>
                   Max cloud (%)
                   <input

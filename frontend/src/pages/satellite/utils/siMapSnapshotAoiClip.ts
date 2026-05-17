@@ -34,9 +34,10 @@ export function snapshotImagePixelScale(
   outputImageWidth: number,
   outputImageHeight: number,
 ): { scaleX: number; scaleY: number } {
+  const canvas = map.getCanvas();
   const container = map.getContainer();
-  const cssW = container?.clientWidth || outputImageWidth || 1;
-  const cssH = container?.clientHeight || outputImageHeight || 1;
+  const cssW = container?.clientWidth || canvas?.clientWidth || outputImageWidth || 1;
+  const cssH = container?.clientHeight || canvas?.clientHeight || outputImageHeight || 1;
   return {
     scaleX: outputImageWidth / Math.max(1, cssW),
     scaleY: outputImageHeight / Math.max(1, cssH),

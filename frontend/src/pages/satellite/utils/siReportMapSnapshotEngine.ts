@@ -3,7 +3,6 @@ import type { SiAoiProjectedRing } from './siMapSnapshotAoiClip';
 import {
   clipMapSnapshotToAoiFeature,
   fitMapToLngLatBounds,
-  outlineAoiOnSnapshotPng,
   projectAoiRingsForSnapshot,
 } from './siMapSnapshotAoiClip';
 import { runLightSnapshotLock } from './siMapCaptureSession';
@@ -114,9 +113,8 @@ function finishAoiSnapshot(
   outlineColor: string,
 ): Promise<string> {
   if (!maskToAoi) {
-    return projectedRings?.length
-      ? outlineAoiOnSnapshotPng(raw, projectedRings, { outlineColor })
-      : Promise.resolve(raw);
+    // WMS + AOI outline are already on the Mapbox canvas; re-projecting rings causes visible drift in PDF.
+    return Promise.resolve(raw);
   }
   return clipMapSnapshotToAoiFeature(map, raw, aoiFeature, {
     outlineColor,
