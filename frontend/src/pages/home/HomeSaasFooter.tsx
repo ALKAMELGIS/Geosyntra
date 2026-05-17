@@ -51,6 +51,7 @@ export function HomeSaasFooter({ browseMode = false, onTrial, onSignIn }: HomeSa
 
   return (
     <footer
+      id="footer"
       className={`home-saas-footer${browseMode ? ' home-saas-footer--browse' : ''}`}
       aria-label="Site footer"
     >

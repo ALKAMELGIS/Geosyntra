@@ -260,6 +260,17 @@ function HomePageContent() {
 
         leadingSectionNav={{ id: 'start', badge: 'Start' }}
 
+        trailingSections={[
+          { id: 'pricing', badge: 'Pricing', children: <HomePricingSection /> },
+          {
+            id: 'footer',
+            badge: 'Footer',
+            children: (
+              <HomeSaasFooter browseMode={browseMode} onTrial={startBuilding} onSignIn={goSignIn} />
+            ),
+          },
+        ]}
+
         leadingGlobeClear
 
         onActiveSectionChange={index => setBrowseMode(index > 0)}
@@ -268,15 +279,7 @@ function HomePageContent() {
 
 
 
-      <HomePricingSection />
-
-
-
       {browseMode ? <HeroThemeToggle /> : null}
-
-
-
-      <HomeSaasFooter browseMode={browseMode} onTrial={startBuilding} onSignIn={goSignIn} />
 
 
 

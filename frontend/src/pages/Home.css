@@ -82,6 +82,17 @@
   background: transparent !important;
 }
 
+.home-landing .gs-scroll-globe-trailing {
+  pointer-events: auto;
+}
+
+.home-landing .gs-scroll-globe-trailing[data-scroll-globe-trailing='footer'] {
+  min-height: min(100dvh, 880px);
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+}
+
 .gs-hero-globe {
   top: 0;
   left: 0;
