@@ -1,7 +1,11 @@
-import jsPDF from 'jspdf';
 import type { SiMapPrintSettings } from './siMapPrintTypes';
 
-export function exportSiMapPrintPdf(pngDataUrl: string, settings: SiMapPrintSettings, filename = 'geosyntra-map-print.pdf') {
+export async function exportSiMapPrintPdf(
+  pngDataUrl: string,
+  settings: SiMapPrintSettings,
+  filename = 'geosyntra-map-print.pdf',
+) {
+  const { default: jsPDF } = await import('jspdf');
   const orientation = settings.orientation === 'landscape' ? 'landscape' : 'portrait';
   const format = settings.paper.toLowerCase() as 'a4' | 'a3';
   const doc = new jsPDF({ orientation, unit: 'mm', format, compress: true });

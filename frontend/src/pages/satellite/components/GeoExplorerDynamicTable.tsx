@@ -7,8 +7,6 @@ import {
   Tooltip,
   type ChartData,
 } from 'chart.js'
-import jsPDF from 'jspdf'
-import autoTable from 'jspdf-autotable'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Bar } from 'react-chartjs-2'
 import * as XLSX from 'xlsx'
@@ -285,22 +283,28 @@ export function GeoExplorerDynamicTable(props: GeoExplorerDynamicTableProps) {
   }
 
   const downloadPdf = () => {
-    const doc = new jsPDF({ orientation: 'landscape', unit: 'pt', format: 'a4' })
-    doc.setFontSize(11)
-    doc.text(table.title ?? 'Geo AI table', 40, 36)
-    doc.setFontSize(8)
-    doc.text(`${table.kind} · ${sorted.length} rows`, 40, 52)
-    const cols = showMoreFields ? table.columns : displayColumns
-    const { head, body } = exportRowsWithColumns(cols, sorted.slice(0, 500))
-    autoTable(doc, {
-      head: [head],
-      body,
-      startY: 64,
-      styles: { fontSize: 7, cellPadding: 3 },
-      headStyles: { fillColor: [71, 85, 105], textColor: 255 },
-      alternateRowStyles: { fillColor: [248, 250, 252] },
-    })
-    doc.save(`${(table.title ?? 'geo-ai-table').replace(/\s+/g, '_')}.pdf`)
+    void (async () => {
+      const [{ default: jsPDF }, { default: autoTable }] = await Promise.all([
+        import('jspdf'),
+        import('jspdf-autotable'),
+      ])
+      const doc = new jsPDF({ orientation: 'landscape', unit: 'pt', format: 'a4' })
+      doc.setFontSize(11)
+      doc.text(table.title ?? 'Geo AI table', 40, 36)
+      doc.setFontSize(8)
+      doc.text(`${table.kind} · ${sorted.length} rows`, 40, 52)
+      const cols = showMoreFields ? table.columns : displayColumns
+      const { head, body } = exportRowsWithColumns(cols, sorted.slice(0, 500))
+      autoTable(doc, {
+        head: [head],
+        body,
+        startY: 64,
+        styles: { fontSize: 7, cellPadding: 3 },
+        headStyles: { fillColor: [71, 85, 105], textColor: 255 },
+        alternateRowStyles: { fillColor: [248, 250, 252] },
+      })
+      doc.save(`${(table.title ?? 'geo-ai-table').replace(/\s+/g, '_')}.pdf`)
+    })()
   }
 
   const batchZoomSelection = () => {

@@ -102,9 +102,9 @@
   transform-style: preserve-3d;
 }
 
-/* Home Start — optical center: nudge globe left (texture/lighting reads right of 50%). */
-.home-landing .gs-scroll-globe--home-integrated .gs-hero-globe {
-  translate: -7cm 0;
+/* Home Start (page 1 only) — optical center: nudge globe left (texture/lighting reads right of 50%). */
+.home-landing .gs-scroll-globe--home-integrated[data-active-section='0'] .gs-hero-globe {
+  translate: -6cm 0;
 }
 
 .gs-hero-globe__parallax {
@@ -126,20 +126,16 @@
 /* Hero (0) + Welcome (1) — full globe clarity: no radial scrim, blur, or dimming */
 .home-landing .gs-scroll-globe--home-integrated[data-active-section='0'] .gs-hero-globe-gradient,
 .home-landing .gs-scroll-globe--home-integrated[data-active-section='1'] .gs-hero-globe-gradient,
-.home-landing .gs-scroll-globe--home-integrated[data-active-section='2'] .gs-hero-globe-gradient,
 .home-landing .gs-scroll-globe--leading-clear[data-active-section='0'] .gs-hero-globe-gradient,
-.home-landing .gs-scroll-globe--leading-clear[data-active-section='1'] .gs-hero-globe-gradient,
-.home-landing .gs-scroll-globe--leading-clear[data-active-section='2'] .gs-hero-globe-gradient {
+.home-landing .gs-scroll-globe--leading-clear[data-active-section='1'] .gs-hero-globe-gradient {
   opacity: 0 !important;
   visibility: hidden;
 }
 
 .home-landing .gs-scroll-globe--home-integrated[data-active-section='0'] .gs-hero-globe,
 .home-landing .gs-scroll-globe--home-integrated[data-active-section='1'] .gs-hero-globe,
-.home-landing .gs-scroll-globe--home-integrated[data-active-section='2'] .gs-hero-globe,
 .home-landing .gs-scroll-globe--leading-clear[data-active-section='0'] .gs-hero-globe,
-.home-landing .gs-scroll-globe--leading-clear[data-active-section='1'] .gs-hero-globe,
-.home-landing .gs-scroll-globe--leading-clear[data-active-section='2'] .gs-hero-globe {
+.home-landing .gs-scroll-globe--leading-clear[data-active-section='1'] .gs-hero-globe {
   opacity: 1 !important;
   filter: none !important;
 }
@@ -253,8 +249,7 @@
   }
 
 .home-landing .gs-scroll-globe--home-integrated[data-active-section='0'] .gs-hero-globe__scale,
-.home-landing .gs-scroll-globe--home-integrated[data-active-section='1'] .gs-hero-globe__scale,
-.home-landing .gs-scroll-globe--home-integrated[data-active-section='2'] .gs-hero-globe__scale {
+.home-landing .gs-scroll-globe--home-integrated[data-active-section='1'] .gs-hero-globe__scale {
     transform: scale(1.05);
   }
 }

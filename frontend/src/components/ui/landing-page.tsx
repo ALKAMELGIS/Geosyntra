@@ -116,7 +116,7 @@ export function ScrollGlobe({
 }: ScrollGlobeProps) {
   const hasLeading = Boolean(leadingSection)
   const trailingCount = trailingSections.length
-  const innovationSparkleIndex = hasLeading ? 1 : 0
+  const innovationSparkleIndex = hasLeading ? 2 : 1
   const sectionCount = (hasLeading ? sections.length + 1 : sections.length) + trailingCount
   const containerRef = useRef<HTMLDivElement>(null)
   const sectionRefs = useRef<(HTMLElement | null)[]>([])

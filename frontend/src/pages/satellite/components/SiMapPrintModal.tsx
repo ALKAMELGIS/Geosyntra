@@ -120,7 +120,7 @@ export function SiMapPrintModal({
   const onExportPdf = useCallback(() => {
     if (!previewUrl) return;
     const stamp = new Date().toISOString().slice(0, 10);
-    exportSiMapPrintPdf(previewUrl, settings, `geosyntra-map-${stamp}.pdf`);
+    void exportSiMapPrintPdf(previewUrl, settings, `geosyntra-map-${stamp}.pdf`);
   }, [previewUrl, settings]);
 
   const onBrowserPrint = useCallback(() => {

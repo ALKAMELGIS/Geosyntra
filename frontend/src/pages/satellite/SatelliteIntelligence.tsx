@@ -206,7 +206,9 @@ import { buildLiveAoiMapChartSnapshot } from './utils/liveAoiMapChartSnapshot';
 const SiAoiReportModal = lazy(() =>
   import('./components/SiAoiReportModal').then(m => ({ default: m.SiAoiReportModal })),
 );
-import { SiMapPrintModal } from './components/SiMapPrintModal';
+const SiMapPrintModal = lazy(() =>
+  import('./components/SiMapPrintModal').then(m => ({ default: m.SiMapPrintModal })),
+);
 import {
   SiMapSwipeComparePane,
   buildSiMapSwipeCompareTileUrl,
@@ -13254,18 +13256,20 @@ export default function SatelliteIntelligence() {
             </Suspense>
           ) : null}
 
-          <SiMapPrintModal
-            open={mapPrintModalOpen}
-            onClose={() => setMapPrintModalOpen(false)}
-            mapRef={mapRef}
-            mapLoaded={isMapLoaded}
-            aoiFitBounds={liveSnapshotFitBounds}
-            mapLngLatBounds={mapPrintLngLatBounds}
-            legendItems={mapPrintLegendItems}
-            layerLines={mapPrintLayerLines}
-            metaLine={mapPrintMetaLine}
-            defaultTitle={mapPrintDefaultTitle}
-          />
+          <Suspense fallback={null}>
+            <SiMapPrintModal
+              open={mapPrintModalOpen}
+              onClose={() => setMapPrintModalOpen(false)}
+              mapRef={mapRef}
+              mapLoaded={isMapLoaded}
+              aoiFitBounds={liveSnapshotFitBounds}
+              mapLngLatBounds={mapPrintLngLatBounds}
+              legendItems={mapPrintLegendItems}
+              layerLines={mapPrintLayerLines}
+              metaLine={mapPrintMetaLine}
+              defaultTitle={mapPrintDefaultTitle}
+            />
+          </Suspense>
 
           <SiWmsSymbologyPopup
             open={siWmsSymbologyChrome.open}

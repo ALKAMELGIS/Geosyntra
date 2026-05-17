@@ -151,8 +151,7 @@ export function useScrollGlobeMotion(
     const onWelcome = hasLeading && newActiveSection === 1
     const nearLeading = hasLeading && newActiveSection <= 1
     const heroClear = leadingGlobeClear && onLeading
-    const onFuture = hasLeading && newActiveSection === 2
-    const welcomeClear = leadingGlobeClear && ((onWelcome && leadT >= 0.85) || onFuture)
+    const welcomeClear = leadingGlobeClear && onWelcome && leadT >= 0.85
     const globeVisualClear = heroClear || welcomeClear
     setHeroStarsOpacity(nearLeading ? Math.max(0.35, 1 - leadT * 0.55) : 0)
     setHeroOverlayOpacity(globeVisualClear ? 0 : onLeading ? 1 : nearLeading ? Math.max(0, 1 - leadT) : 0)

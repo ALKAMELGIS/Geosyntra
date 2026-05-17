@@ -1,4 +1,4 @@
-import type { SiAoiClassificationPalette, SiAoiReportTableRow } from './siAoiVegetationReportModel';
+import type { SiAoiClassificationPalette, SiAoiReportTableRow } from './siAoiReportCartographyTypes';
 
 type LngLatBounds = [number, number, number, number];
 

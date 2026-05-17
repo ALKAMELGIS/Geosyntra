@@ -1,8 +1,6 @@
 import { inferWmsEvalProfile, type WmsAoiEvalProfile } from '../../../lib/sentinelHubWmsAoiClip';
 import { mergeSymbologyUi, type SiWmsSymbologyUiState } from './siWmsSymbologyModel';
 
-export { mergeSymbologyUi } from './siWmsSymbologyModel';
-
 export type SiWmsLegendDisplayMode = 'none' | 'live' | 'scientific';
 
 const CLASSIFIED_PROFILES = new Set<WmsAoiEvalProfile>([

@@ -98,12 +98,7 @@ export function resolveGlobeOpacity(opts: {
   leadingGlobeClear?: boolean
 }): number {
   if (!opts.globeArrived) return 0
-  if (
-    opts.leadingGlobeClear &&
-    opts.hasLeading &&
-    opts.activeSection >= 0 &&
-    opts.activeSection <= 2
-  ) {
+  if (opts.leadingGlobeClear && opts.hasLeading && (opts.activeSection === 0 || opts.activeSection === 1)) {
     return opts.mobileReduced ? 0.96 : 1
   }
   if (opts.reduceMotion) return opts.hasLeading && opts.activeSection === 0 ? 0.82 : 0.92
