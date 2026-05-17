@@ -4,11 +4,15 @@ import { displayFirstName, displayHeaderName } from '../../lib/onboarding/localA
 import { readWorkspaceState, trialDaysRemaining } from '../../lib/onboarding/workspaceState'
 import { SUBSCRIPTION_PLAN_LABELS } from '../../lib/geoEnterpriseUserModel'
 import { accountProfileInitials } from '../../lib/account/geosyntraAccountProfile'
-import { SaasButton } from '../../components/saas/SaasEntryShell'
 import { useHomeOnboarding } from './onboarding/HomeOnboardingContext'
 import { HomeProfileSheet } from './profile/HomeProfileSheet'
 import { useGeosyntraAccountProfile } from './profile/useGeosyntraAccountProfile'
 import './profile/home-profile.css'
+
+function trialPlanLabel(days: number | null | undefined): string {
+  if (days == null) return 'Free Trial'
+  return `Free Trial · ${days} day${days === 1 ? '' : 's'}`
+}
 
 export function HomeUserStatusBar() {
   const { user } = useAuth()
@@ -36,6 +40,7 @@ export function HomeUserStatusBar() {
   const headerName = displayHeaderName(user)
   const avatarUrl = profile.avatarDataUrl
   const initials = accountProfileInitials(headerName || first || user.email)
+  const displayName = headerName || first
 
   const openDashboard = () => {
     refreshWorkspace()
@@ -46,31 +51,40 @@ export function HomeUserStatusBar() {
     }
   }
 
-  const profileTrigger = (
+  const metaLine =
+    !ws && !workspaceReady
+      ? 'Live session · finish setup'
+      : ws?.lifecycle === 'trialing' && days != null
+        ? `Trial active · ${days} day${days === 1 ? '' : 's'} remaining`
+        : `${ws ? SUBSCRIPTION_PLAN_LABELS[ws.subscriptionPlan] : 'Pro'} · workspace ready`
+
+  const isTrial = ws?.lifecycle === 'trialing'
+  const planLabel = ws ? SUBSCRIPTION_PLAN_LABELS[ws.subscriptionPlan] : 'Pro'
+  const ready = Boolean(workspaceReady || ws?.workspaceReady)
+  const ctaLabel = ready ? 'Open workspace' : 'Finish setup'
+
+  const identity = (
     <button
       type="button"
-      className="home-user-status__profile-trigger"
+      className="home-user-status__identity"
       onClick={() => setProfileOpen(true)}
       aria-haspopup="dialog"
       aria-expanded={profileOpen}
       title="Open account profile"
     >
-      {avatarUrl ? (
-        <img className="home-user-status__avatar-mini" src={avatarUrl} alt="" />
-      ) : (
-        <span className="home-user-status__avatar-mini home-user-status__avatar-mini--initials" aria-hidden>
-          {initials}
+      <span className="home-user-status__avatar-ring" aria-hidden>
+        <span className="home-user-status__live" title="Live session" />
+        {avatarUrl ? (
+          <img className="home-user-status__avatar" src={avatarUrl} alt="" />
+        ) : (
+          <span className="home-user-status__avatar home-user-status__avatar--initials">{initials}</span>
+        )}
+      </span>
+      <span className="home-user-status__copy">
+        <span className="home-user-status__welcome">
+          Welcome, <span className="home-user-status__name">{displayName}</span>
         </span>
-      )}
-      <span className="home-user-status__text">
-        <span className="home-user-status__welcome">Welcome, {headerName || first}</span>
-        <span className="home-user-status__meta">
-          {!ws && !workspaceReady
-            ? 'Live session · finish setup'
-            : ws?.lifecycle === 'trialing' && days != null
-              ? `Trial Active · ${days} day${days === 1 ? '' : 's'} left`
-              : `${ws ? SUBSCRIPTION_PLAN_LABELS[ws.subscriptionPlan] : 'Pro'} · Workspace ready`}
-        </span>
+        <span className="home-user-status__meta">{metaLine}</span>
       </span>
     </button>
   )
@@ -78,39 +92,52 @@ export function HomeUserStatusBar() {
   if (!ws && !workspaceReady) {
     return (
       <>
-        <div className="home-user-status">
-          <span className="home-user-status__live" title="Live session" aria-hidden />
-          {profileTrigger}
-          <SaasButton
-            size="sm"
-            variant="primary"
-            className="home-user-status__enter"
-            onClick={() => openWizard({ step: 'pricing' })}
-          >
-            Continue
-          </SaasButton>
+        <div className="home-user-status" role="region" aria-label="Account status">
+          <div className="home-user-status__card home-user-status__card--setup">
+            {identity}
+            <div className="home-user-status__rail" aria-hidden />
+            <div className="home-user-status__actions">
+              <span className="home-user-status__plan home-user-status__plan--setup">Setup in progress</span>
+              <button
+                type="button"
+                className="home-user-status__cta"
+                onClick={() => openWizard({ step: 'pricing' })}
+              >
+                Continue
+                <i className="fa-solid fa-arrow-right home-user-status__cta-icon" aria-hidden />
+              </button>
+            </div>
+          </div>
         </div>
         <HomeProfileSheet open={profileOpen} onClose={() => setProfileOpen(false)} />
       </>
     )
   }
 
-  const isTrial = ws?.lifecycle === 'trialing'
-  const planLabel = ws ? SUBSCRIPTION_PLAN_LABELS[ws.subscriptionPlan] : 'Pro'
-
   return (
     <>
-      <div className="home-user-status">
-        <span className="home-user-status__live" title="Live session" aria-hidden />
-        {profileTrigger}
-        {isTrial ? (
-          <span className="home-user-status__chip">Free Trial · 14 days</span>
-        ) : (
-          <span className="home-user-status__chip home-user-status__chip--pro">{planLabel}</span>
-        )}
-        <SaasButton size="sm" variant="primary" className="home-user-status__enter" onClick={openDashboard}>
-          {workspaceReady || ws?.workspaceReady ? 'Open workspace' : 'Finish setup'}
-        </SaasButton>
+      <div className="home-user-status" role="region" aria-label="Account status">
+        <div className="home-user-status__card">
+          {identity}
+          <div className="home-user-status__rail" aria-hidden />
+          <div className="home-user-status__actions">
+            {isTrial ? (
+              <span className="home-user-status__plan home-user-status__plan--trial">
+                <i className="fa-solid fa-sparkles home-user-status__plan-icon" aria-hidden />
+                {trialPlanLabel(days)}
+              </span>
+            ) : (
+              <span className="home-user-status__plan home-user-status__plan--pro">
+                <i className="fa-solid fa-layer-group home-user-status__plan-icon" aria-hidden />
+                {planLabel}
+              </span>
+            )}
+            <button type="button" className="home-user-status__cta" onClick={openDashboard}>
+              {ctaLabel}
+              <i className="fa-solid fa-arrow-right home-user-status__cta-icon" aria-hidden />
+            </button>
+          </div>
+        </div>
       </div>
       <HomeProfileSheet open={profileOpen} onClose={() => setProfileOpen(false)} />
     </>

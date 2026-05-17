@@ -13478,15 +13478,6 @@ export default function SatelliteIntelligence() {
                   </div>
                 )}
               </div>
-              <button
-                type="button"
-                className="si-map-print-fab"
-                title="Print map — high-resolution preview & PDF"
-                aria-label="Print map"
-                onClick={() => setMapPrintModalOpen(true)}
-              >
-                <i className="fa-solid fa-print" aria-hidden />
-              </button>
               </div>
               <div className="si-map-floating-controls__right si-map-floating-controls__right--proc-stack">
             <div className="si-env-rail si-env-rail--proc-anchor">
