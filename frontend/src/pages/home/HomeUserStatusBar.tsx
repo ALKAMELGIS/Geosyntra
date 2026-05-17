@@ -1,9 +1,12 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, type ReactNode } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../../state/auth'
 import { displayFirstName, displayHeaderName } from '../../lib/onboarding/localAuth'
 import { readWorkspaceState, trialDaysRemaining } from '../../lib/onboarding/workspaceState'
 import { SUBSCRIPTION_PLAN_LABELS } from '../../lib/geoEnterpriseUserModel'
 import { accountProfileInitials } from '../../lib/account/geosyntraAccountProfile'
+import { homeWizardSearch } from '../../lib/homeWizardEntry'
+import { SAAS_ROUTES } from '../../lib/saasRoutes'
 import { useHomeOnboarding } from './onboarding/HomeOnboardingContext'
 import { HomeProfileSheet } from './profile/HomeProfileSheet'
 import { useGeosyntraAccountProfile } from './profile/useGeosyntraAccountProfile'
@@ -14,8 +17,28 @@ function trialPlanLabel(days: number | null | undefined): string {
   return `Free Trial · ${days} day${days === 1 ? '' : 's'}`
 }
 
+function GlassCardShell({
+  children,
+  variant = 'default',
+}: {
+  children: ReactNode
+  variant?: 'default' | 'setup' | 'guest'
+}) {
+  return (
+    <div className="home-user-status" role="region" aria-label="Account">
+      <div className="home-user-status__glow" aria-hidden />
+      <div
+        className={`home-user-status__card home-user-status__card--glass${variant === 'setup' ? ' home-user-status__card--setup' : ''}${variant === 'guest' ? ' home-user-status__card--guest' : ''}`}
+      >
+        {children}
+      </div>
+    </div>
+  )
+}
+
 export function HomeUserStatusBar() {
-  const { user } = useAuth()
+  const navigate = useNavigate()
+  const { user, logout } = useAuth()
   const { openWizard, enterWorkspace, workspaceReady, trialDaysLeft, refreshWorkspace } = useHomeOnboarding()
   const [tick, setTick] = useState(0)
   const [profileOpen, setProfileOpen] = useState(false)
@@ -32,7 +55,48 @@ export function HomeUserStatusBar() {
   }, [])
 
   void tick
-  if (!user) return null
+
+  const openSignIn = () => {
+    navigate({ pathname: SAAS_ROUTES.home, search: homeWizardSearch({ wizard: 'auth', authMode: 'signin' }) })
+  }
+
+  const openSignUp = () => {
+    navigate({ pathname: SAAS_ROUTES.home, search: homeWizardSearch({ wizard: 'auth', authMode: 'signup' }) })
+  }
+
+  const onSignOut = () => {
+    logout()
+    navigate({ pathname: SAAS_ROUTES.home, search: homeWizardSearch({ wizard: 'auth', authMode: 'signin' }) })
+  }
+
+  if (!user) {
+    return (
+      <GlassCardShell variant="guest">
+        <div className="home-user-status__guest-head">
+          <div className="home-user-status__avatar-ring home-user-status__avatar-ring--guest" aria-hidden>
+            <div className="home-user-status__avatar home-user-status__avatar--icon">
+              <i className="fa-solid fa-user" aria-hidden />
+            </div>
+          </div>
+          <div className="home-user-status__copy">
+            <span className="home-user-status__welcome">
+              <span className="home-user-status__name">GeoSyntra Account</span>
+            </span>
+            <span className="home-user-status__meta">Sign in to access your workspace</span>
+          </div>
+        </div>
+        <div className="home-user-status__rail" aria-hidden />
+        <div className="home-user-status__auth-actions">
+          <button type="button" className="home-user-status__auth-btn home-user-status__auth-btn--primary" onClick={openSignIn}>
+            Sign In
+          </button>
+          <button type="button" className="home-user-status__auth-btn home-user-status__auth-btn--glass" onClick={openSignUp}>
+            Create Account
+          </button>
+        </div>
+      </GlassCardShell>
+    )
+  }
 
   const ws = readWorkspaceState(user.email)
   const days = trialDaysLeft ?? trialDaysRemaining(ws)
@@ -62,6 +126,7 @@ export function HomeUserStatusBar() {
   const planLabel = ws ? SUBSCRIPTION_PLAN_LABELS[ws.subscriptionPlan] : 'Pro'
   const ready = Boolean(workspaceReady || ws?.workspaceReady)
   const ctaLabel = ready ? 'Open workspace' : 'Finish setup'
+  const variant = !ws && !workspaceReady ? 'setup' : 'default'
 
   const identity = (
     <button
@@ -89,56 +154,46 @@ export function HomeUserStatusBar() {
     </button>
   )
 
-  if (!ws && !workspaceReady) {
-    return (
-      <>
-        <div className="home-user-status" role="region" aria-label="Account status">
-          <div className="home-user-status__card home-user-status__card--setup">
-            {identity}
-            <div className="home-user-status__rail" aria-hidden />
-            <div className="home-user-status__actions">
-              <span className="home-user-status__plan home-user-status__plan--setup">Setup in progress</span>
-              <button
-                type="button"
-                className="home-user-status__cta"
-                onClick={() => openWizard({ step: 'pricing' })}
-              >
-                Continue
-                <i className="fa-solid fa-arrow-right home-user-status__cta-icon" aria-hidden />
-              </button>
-            </div>
-          </div>
-        </div>
-        <HomeProfileSheet open={profileOpen} onClose={() => setProfileOpen(false)} />
-      </>
-    )
-  }
+  const actions = !ws && !workspaceReady ? (
+    <>
+      <span className="home-user-status__plan home-user-status__plan--setup">Setup in progress</span>
+      <button type="button" className="home-user-status__cta" onClick={() => openWizard({ step: 'pricing' })}>
+        Continue
+        <i className="fa-solid fa-arrow-right home-user-status__cta-icon" aria-hidden />
+      </button>
+    </>
+  ) : (
+    <>
+      {isTrial ? (
+        <span className="home-user-status__plan home-user-status__plan--trial">
+          <i className="fa-solid fa-sparkles home-user-status__plan-icon" aria-hidden />
+          {trialPlanLabel(days)}
+        </span>
+      ) : (
+        <span className="home-user-status__plan home-user-status__plan--pro">
+          <i className="fa-solid fa-layer-group home-user-status__plan-icon" aria-hidden />
+          {planLabel}
+        </span>
+      )}
+      <button type="button" className="home-user-status__cta" onClick={openDashboard}>
+        {ctaLabel}
+        <i className="fa-solid fa-arrow-right home-user-status__cta-icon" aria-hidden />
+      </button>
+    </>
+  )
 
   return (
     <>
-      <div className="home-user-status" role="region" aria-label="Account status">
-        <div className="home-user-status__card">
-          {identity}
-          <div className="home-user-status__rail" aria-hidden />
-          <div className="home-user-status__actions">
-            {isTrial ? (
-              <span className="home-user-status__plan home-user-status__plan--trial">
-                <i className="fa-solid fa-sparkles home-user-status__plan-icon" aria-hidden />
-                {trialPlanLabel(days)}
-              </span>
-            ) : (
-              <span className="home-user-status__plan home-user-status__plan--pro">
-                <i className="fa-solid fa-layer-group home-user-status__plan-icon" aria-hidden />
-                {planLabel}
-              </span>
-            )}
-            <button type="button" className="home-user-status__cta" onClick={openDashboard}>
-              {ctaLabel}
-              <i className="fa-solid fa-arrow-right home-user-status__cta-icon" aria-hidden />
-            </button>
-          </div>
+      <GlassCardShell variant={variant}>
+        {identity}
+        <div className="home-user-status__rail" aria-hidden />
+        <div className="home-user-status__actions">{actions}</div>
+        <div className="home-user-status__footer">
+          <button type="button" className="home-user-status__signout" onClick={onSignOut}>
+            Sign Out
+          </button>
         </div>
-      </div>
+      </GlassCardShell>
       <HomeProfileSheet open={profileOpen} onClose={() => setProfileOpen(false)} />
     </>
   )

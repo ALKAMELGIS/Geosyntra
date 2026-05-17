@@ -7,6 +7,7 @@ export const SAAS_ROUTES = {
   billingPricing: '/app/billing/pricing',
   onboardingTrialStart: '/app/onboarding/trial-start',
   dashboardDefault: '/satellite/indices',
+  accountProfile: '/account/profile',
 } as const
 
 export function isSaasAuthPath(pathname: string): boolean {

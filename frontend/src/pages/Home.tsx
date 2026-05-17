@@ -226,23 +226,7 @@ function HomePageContent() {
 
         statusSlot={<HomeUserStatusBar />}
 
-        signInAction={
-
-          user
-
-            ? undefined
-
-            : {
-
-                label: homeSaasContent.signInLabel,
-
-                onClick: goSignIn,
-
-                'aria-label': 'Sign in',
-
-              }
-
-        }
+        signInAction={undefined}
 
       />
 

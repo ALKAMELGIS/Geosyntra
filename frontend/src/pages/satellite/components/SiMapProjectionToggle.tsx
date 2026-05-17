@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect } from 'react';
 import type { SiMapProjectionMode } from '../utils/siMapProjectionTerrain';
 import './SiMapProjectionToggle.css';
 
@@ -12,20 +12,24 @@ export type SiMapProjectionToggleProps = {
   toast?: string | null;
 };
 
+/**
+ * Projection switching without on-map FABs (F = 2D, G = globe).
+ * Terrain toggles remain available via persisted settings / map logic.
+ */
 export function SiMapProjectionToggle({
-  mode,
+  mode: _mode,
   onModeChange,
-  terrainEnabled,
-  onTerrainEnabledChange,
-  terrainExaggeration,
-  onTerrainExaggerationChange,
+  terrainEnabled: _terrainEnabled,
+  onTerrainEnabledChange: _onTerrainEnabledChange,
+  terrainExaggeration: _terrainExaggeration,
+  onTerrainExaggerationChange: _onTerrainExaggerationChange,
   toast,
 }: SiMapProjectionToggleProps) {
-  const [settingsOpen, setSettingsOpen] = useState(false);
-
-  useEffect(() => {
-    if (mode !== 'globe') setSettingsOpen(false);
-  }, [mode]);
+  void _mode;
+  void _terrainEnabled;
+  void _onTerrainEnabledChange;
+  void _terrainExaggeration;
+  void _onTerrainExaggerationChange;
 
   const onKey = useCallback(
     (e: KeyboardEvent) => {
@@ -41,74 +45,9 @@ export function SiMapProjectionToggle({
     return () => window.removeEventListener('keydown', onKey);
   }, [onKey]);
 
-  return (
-    <>
-      <div className="si-map-projection-float" role="group" aria-label="Map projection mode">
-        <div className="gis-map-projection-toggle gis-map-projection-toggle--vertical gis-map-projection-toggle--float si-map-projection-toggle">
-          <button
-            type="button"
-            className={mode === '2d' ? 'gis-map-tool active icon-only' : 'gis-map-tool icon-only'}
-            onClick={() => onModeChange('2d')}
-            title="2D map (F)"
-            aria-label="Switch to 2D map projection. Shortcut F"
-            aria-pressed={mode === '2d'}
-          >
-            <i className="fa-solid fa-map-location-dot" aria-hidden />
-          </button>
-          <button
-            type="button"
-            className={mode === 'globe' ? 'gis-map-tool active icon-only' : 'gis-map-tool icon-only'}
-            onClick={() => onModeChange('globe')}
-            title="3D globe with terrain (G)"
-            aria-label="Switch to 3D globe projection. Shortcut G"
-            aria-pressed={mode === 'globe'}
-          >
-            <i className="fa-solid fa-globe" aria-hidden />
-          </button>
-          {mode === 'globe' ? (
-            <button
-              type="button"
-              className={`gis-map-tool icon-only si-map-projection-settings-btn${settingsOpen ? ' active' : ''}`}
-              onClick={() => setSettingsOpen(o => !o)}
-              title="3D terrain settings"
-              aria-label="3D terrain settings"
-              aria-expanded={settingsOpen}
-            >
-              <i className="fa-solid fa-mountain-sun" aria-hidden />
-            </button>
-          ) : null}
-        </div>
-        {settingsOpen && mode === 'globe' ? (
-          <div className="si-map-projection-terrain-panel" role="region" aria-label="3D terrain settings">
-            <label className="si-map-projection-terrain-row">
-              <input
-                type="checkbox"
-                checked={terrainEnabled}
-                onChange={e => onTerrainEnabledChange(e.target.checked)}
-              />
-              <span>Terrain elevation (DEM)</span>
-            </label>
-            <label className="si-map-projection-terrain-row">
-              <span>Exaggeration</span>
-              <input
-                type="range"
-                min={0.5}
-                max={3}
-                step={0.05}
-                value={terrainExaggeration}
-                disabled={!terrainEnabled}
-                onChange={e => onTerrainExaggerationChange(Number(e.target.value))}
-              />
-              <span className="si-map-projection-terrain-val">{terrainExaggeration.toFixed(2)}×</span>
-            </label>
-          </div>
-        ) : null}
-      </div>
-      {toast ? (
-        <div className="gis-map-projection-toast si-map-projection-toast show" role="status" aria-live="polite">
-          {toast}
-        </div>
-      ) : null}
-    </>
-  );
+  return toast ? (
+    <div className="gis-map-projection-toast si-map-projection-toast show" role="status" aria-live="polite">
+      {toast}
+    </div>
+  ) : null;
 }

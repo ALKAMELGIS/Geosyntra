@@ -11772,13 +11772,39 @@ export default function SatelliteIntelligence() {
     const cs = siWmsSwipeCompareTimeExtent.start;
     const ce = siWmsSwipeCompareTimeExtent.end;
     const timeParam = `&TIME=${cs}/${ce}`;
-    return siMultiSentinelRasterRuns.map(r => ({
-      ...r,
-      timeStart: cs,
-      timeEnd: ce,
-      tileUrl: r.tileUrl.replace(/&TIME=[^&]+/, timeParam),
-    }));
+    return siMultiSentinelRasterRuns.map(r => {
+      const base = r.tileUrl ?? '';
+      const tileUrl = /&TIME=[^&]+/.test(base)
+        ? base.replace(/&TIME=[^&]+/, timeParam)
+        : `${base}${base.includes('?') ? '&' : '?'}TIME=${cs}/${ce}`;
+      return {
+        ...r,
+        timeStart: cs,
+        timeEnd: ce,
+        tileUrl,
+      };
+    });
   }, [siMultiSentinelRasterRuns, siWmsSwipeCompareTimeExtent]);
+
+  const mapSwipeCompareReady = useMemo(() => {
+    if (!drawnAoiWmsClipReady || !sentinelVisible || !activeWmsLayer) return false;
+    if (siSwipeCompareMultiRuns?.some(r => r.ready && r.tileUrl)) return true;
+    return Boolean(siSwipeCompareTileUrl);
+  }, [
+    drawnAoiWmsClipReady,
+    sentinelVisible,
+    activeWmsLayer,
+    siSwipeCompareMultiRuns,
+    siSwipeCompareTileUrl,
+  ]);
+
+  const toggleMapSwipe = useCallback(() => {
+    setMapSwipeActive(prev => {
+      if (!prev && !mapSwipeCompareReady) return false;
+      if (!prev) setMapSwipeNorm(SI_MAP_SWIPE_DEFAULT_NORM);
+      return !prev;
+    });
+  }, [mapSwipeCompareReady]);
 
   const mapSwipeLegacyOpacity = useMemo(() => {
     const sym = symOpacityForWmsLayerId(activeWmsLayer || '');
@@ -12771,7 +12797,7 @@ export default function SatelliteIntelligence() {
             {renderSiMapInterior()}
               </MapGL>
 
-          {isMapLoaded && mapSwipeActive && sentinelVisible && drawnAoiWmsClipReady ? (
+          {isMapLoaded && mapSwipeActive && mapSwipeCompareReady ? (
             <>
               <SiMapSwipeComparePane
                 viewState={mapViewState}
@@ -13281,9 +13307,9 @@ export default function SatelliteIntelligence() {
             mapSpectralLegendAvailable={wmsLegendDisplayMode !== 'none' && sentinelVisible}
             mapSpectralLegendOpen={mapSpectralLegendOpen}
             onToggleMapSpectralLegend={() => setMapSpectralLegendOpen(o => !o)}
-            mapSwipeAvailable={sentinelVisible && drawnAoiWmsClipReady}
+            mapSwipeAvailable={mapSwipeCompareReady}
             mapSwipeActive={mapSwipeActive}
-            onToggleMapSwipe={() => setMapSwipeActive(o => !o)}
+            onToggleMapSwipe={toggleMapSwipe}
           />
 
           {siAoiReportModalOpen ? (

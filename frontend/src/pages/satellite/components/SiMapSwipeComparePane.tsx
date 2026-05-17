@@ -1,6 +1,7 @@
 import { useMemo } from 'react';
 import MapGL, { Layer, Source } from 'react-map-gl/mapbox';
 import type { ViewState } from 'react-map-gl/mapbox';
+import { siMapSwipeViewState } from '../utils/siMapSwipeViewState';
 import { buildSentinelHubWmsAoiClip } from '../../../lib/sentinelHubWmsAoiClip';
 import type { SiMapProjectionMode } from '../utils/siMapProjectionTerrain';
 import type { SiSentinelHubRasterRunLite } from './SiSentinelHubRasterLayers';
@@ -43,6 +44,8 @@ export function SiMapSwipeComparePane({
 
   if (!compareTileUrl && readyMulti.length === 0) return null;
 
+  const swipeViewState = siMapSwipeViewState(viewState);
+
   return (
     <div
       className="si-map-swipe-compare-pane"
@@ -50,7 +53,7 @@ export function SiMapSwipeComparePane({
       aria-hidden
     >
       <MapGL
-        {...viewState}
+        {...swipeViewState}
         style={{ width: '100%', height: '100%' }}
         mapStyle={mapStyle}
         mapboxAccessToken={mapboxAccessToken}

@@ -7529,30 +7529,6 @@ export default function GisMap() {
               </button>
             </div>
 
-            <div className="gis-map-projection-float" role="group" aria-label="Map projection mode">
-              <div className="gis-map-projection-toggle gis-map-projection-toggle--vertical gis-map-projection-toggle--float">
-                <button
-                  className={mapProjectionMode === '2d' ? 'gis-map-tool active icon-only' : 'gis-map-tool icon-only'}
-                  type="button"
-                  onClick={() => changeProjectionMode('2d')}
-                  title="2D projection (F)"
-                  aria-label="Switch to 2D map projection. Shortcut F"
-                  aria-pressed={mapProjectionMode === '2d'}
-                >
-                  <i className="fa-solid fa-map-location-dot" aria-hidden="true" />
-                </button>
-                <button
-                  className={mapProjectionMode === 'globe' ? 'gis-map-tool active icon-only' : 'gis-map-tool icon-only'}
-                  type="button"
-                  onClick={() => changeProjectionMode('globe')}
-                  title="3D Globe projection (G)"
-                  aria-label="Switch to 3D Globe projection. Shortcut G"
-                  aria-pressed={mapProjectionMode === 'globe'}
-                >
-                  <i className="fa-solid fa-globe" aria-hidden="true" />
-                </button>
-              </div>
-            </div>
           </>
         ) : null}
 

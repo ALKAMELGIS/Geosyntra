@@ -20,6 +20,7 @@ const AdminUsersPage = lazy(() => import('../pages/admin/AdminUsersPage'))
 const StyleGuide = lazy(() => import('../pages/StyleGuide'))
 const UsabilityTest = lazy(() => import('../pages/UsabilityTest'))
 const VerifyEmailPage = lazy(() => import('../pages/app/auth/VerifyEmailPage'))
+const ProfilePage = lazy(() => import('../pages/profile/ProfilePage'))
 
 export default function AppRoutes() {
   const { settings } = useSystemSettings()
@@ -44,7 +45,7 @@ export default function AppRoutes() {
         <Route path="/master/gis-content" element={<Navigate to="/" replace />} />
         <Route path="/master/dashboard-settings" element={<Navigate to="/" replace />} />
         <Route path="/master/workflow-settings" element={<Navigate to="/" replace />} />
-        <Route path="/account/profile" element={<Navigate to="/" replace />} />
+        <Route path="/account/profile" element={<ProfilePage />} />
         <Route path="/account/profile-user-management" element={<Navigate to="/settings/admin/users" replace />} />
         <Route path="/account/settings" element={<Navigate to="/" replace />} />
         <Route path="/admin/users" element={<Navigate to="/settings/admin/users" replace />} />

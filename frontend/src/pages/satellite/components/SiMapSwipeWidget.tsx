@@ -18,9 +18,11 @@ function normFromPointer(
   clientX: number,
   clientY: number,
 ): SiMapSwipeNorm {
+  const w = container.width > 1 ? container.width : 1;
+  const h = container.height > 1 ? container.height : 1;
   return {
-    x: Math.min(1, Math.max(0, (clientX - container.left) / container.width)),
-    y: Math.min(1, Math.max(0, (clientY - container.top) / container.height)),
+    x: Math.min(1, Math.max(0, (clientX - container.left) / w)),
+    y: Math.min(1, Math.max(0, (clientY - container.top) / h)),
   };
 }
 
@@ -66,12 +68,13 @@ export function SiMapSwipeWidget({
   const onPointerDown = useCallback(
     (e: ReactPointerEvent) => {
       if (e.button !== 0) return;
+      const box = rootRef.current?.getBoundingClientRect();
+      if (!box || box.width < 2 || box.height < 2) return;
       dragRef.current = true;
       e.currentTarget.setPointerCapture(e.pointerId);
       e.preventDefault();
       e.stopPropagation();
-      const box = rootRef.current?.getBoundingClientRect();
-      if (box) scheduleNorm(normFromPointer(box, e.clientX, e.clientY));
+      scheduleNorm(normFromPointer(box, e.clientX, e.clientY));
     },
     [scheduleNorm],
   );

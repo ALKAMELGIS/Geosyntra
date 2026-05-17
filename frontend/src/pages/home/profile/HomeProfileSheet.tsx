@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useId, useRef, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '../../../state/auth'
 import { displayHeaderName } from '../../../lib/onboarding/localAuth'
 import { readWorkspaceState } from '../../../lib/onboarding/workspaceState'
 import { SUBSCRIPTION_PLAN_LABELS } from '../../../lib/geoEnterpriseUserModel'
+import { getAdminUserByEmail } from '../../../lib/admin/adminUserStore'
 import { SAAS_ROUTES } from '../../../lib/saasRoutes'
 import { homeWizardSearch } from '../../../lib/homeWizardEntry'
 import {
@@ -16,6 +17,17 @@ import './home-profile.css'
 export type HomeProfileSheetProps = {
   open: boolean
   onClose: () => void
+}
+
+function formatUpdated(iso: string | undefined): string {
+  if (!iso) return '—'
+  try {
+    return new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeStyle: 'short' }).format(
+      new Date(iso),
+    )
+  } catch {
+    return iso
+  }
 }
 
 export function HomeProfileSheet({ open, onClose }: HomeProfileSheetProps) {
@@ -36,16 +48,37 @@ export function HomeProfileSheet({ open, onClose }: HomeProfileSheetProps) {
   const shownAvatar = previewUrl ?? savedAvatar
 
   const ws = user ? readWorkspaceState(user.email) : null
-  const planLabel = ws ? SUBSCRIPTION_PLAN_LABELS[ws.subscriptionPlan] : '—'
+  const directory = user ? getAdminUserByEmail(user.email) : null
+  const emailVerified = directory?.emailVerified ?? true
+  const planLabel = ws ? SUBSCRIPTION_PLAN_LABELS[ws.subscriptionPlan] : directory?.plan ?? 'Trial'
   const workspaceLabel = ws?.workspaceReady
     ? ws.displayName?.trim() || ws.workspaceId || 'Workspace ready'
     : 'Setup in progress'
+  const roleLabel = String(user?.role ?? 'Viewer')
+  const lastUpdated = formatUpdated(profile.updatedAt ?? directory?.lastLogin)
+
+  const completeness = (() => {
+    const checks = [
+      Boolean(shownAvatar),
+      Boolean(displayName.trim()),
+      emailVerified,
+      Boolean(ws?.workspaceReady),
+    ]
+    const done = checks.filter(Boolean).length
+    return Math.round((done / checks.length) * 100)
+  })()
 
   useEffect(() => {
     if (!open) {
       setPreviewUrl(null)
       setPendingSave(false)
       setAvatarError(null)
+      return
+    }
+    const prev = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    return () => {
+      document.body.style.overflow = prev
     }
   }, [open])
 
@@ -109,28 +142,79 @@ export function HomeProfileSheet({ open, onClose }: HomeProfileSheetProps) {
 
   return (
     <div className="home-profile-overlay" role="dialog" aria-modal="true" aria-labelledby="home-profile-title">
+      <div className="home-profile-overlay__glow" aria-hidden />
       <button type="button" className="home-profile-overlay__backdrop" aria-label="Close profile" onClick={onClose} />
       <article className="home-profile-sheet">
-        <div className="home-profile-sheet__glow" aria-hidden />
         <header className="home-profile-sheet__head">
-          <h2 id="home-profile-title" className="home-profile-sheet__title">
-            Account profile
-          </h2>
+          <div>
+            <p className="home-profile-sheet__eyebrow">GeoSyntra Account</p>
+            <h2 id="home-profile-title" className="home-profile-sheet__title">
+              Profile
+            </h2>
+          </div>
           <button type="button" className="home-profile-sheet__close" onClick={onClose} aria-label="Close">
             <i className="fa-solid fa-xmark" aria-hidden />
           </button>
         </header>
 
-        <section className="home-profile-avatar-card" aria-label="Profile photo">
-          <div className="home-profile-avatar-wrap">
-            {shownAvatar ? (
-              <img className="home-profile-avatar" src={shownAvatar} alt="" />
-            ) : (
-              <div className="home-profile-avatar home-profile-avatar--initials" aria-hidden>
-                {initials}
-              </div>
-            )}
+        {!emailVerified ? (
+          <div className="home-profile-sheet__banner" role="status">
+            <i className="fa-solid fa-envelope-circle-check" aria-hidden />
+            <div>
+              <p className="home-profile-sheet__banner-title">Verify your email</p>
+              <p className="home-profile-sheet__banner-text">{user.email}</p>
+            </div>
+            <Link
+              to={{
+                pathname: SAAS_ROUTES.authVerifyEmail,
+                search: `?email=${encodeURIComponent(user.email)}`,
+              }}
+              className="home-profile-sheet__banner-cta"
+              onClick={onClose}
+            >
+              Verify
+            </Link>
           </div>
+        ) : null}
+
+        <section className="home-profile-sheet__hero" aria-label="Profile summary">
+          <button type="button" className="home-profile-sheet__avatar-btn" onClick={onPickFile} title="Change photo">
+            {shownAvatar ? (
+              <img className="home-profile-sheet__avatar" src={shownAvatar} alt="" />
+            ) : (
+              <span className="home-profile-sheet__avatar home-profile-sheet__avatar--initials" aria-hidden>
+                {initials}
+              </span>
+            )}
+            <span className="home-profile-sheet__avatar-edit" aria-hidden>
+              <i className="fa-solid fa-camera" />
+            </span>
+          </button>
+          <div className="home-profile-sheet__hero-copy">
+            <p className="home-profile-sheet__display-name">{displayName || '—'}</p>
+            <p className="home-profile-sheet__email">{user.email}</p>
+            <div className="home-profile-sheet__badges">
+              <span className="home-profile-sheet__badge">{roleLabel}</span>
+              <span className="home-profile-sheet__badge home-profile-sheet__badge--plan">{planLabel}</span>
+              {emailVerified ? (
+                <span className="home-profile-sheet__badge home-profile-sheet__badge--ok">Verified</span>
+              ) : null}
+            </div>
+          </div>
+        </section>
+
+        <div className="home-profile-sheet__progress" aria-label="Profile completeness">
+          <div className="home-profile-sheet__progress-head">
+            <span>Profile completeness</span>
+            <span>{completeness}%</span>
+          </div>
+          <div className="home-profile-sheet__progress-track">
+            <span className="home-profile-sheet__progress-fill" style={{ width: `${completeness}%` }} />
+          </div>
+          <p className="home-profile-sheet__updated">Last updated · {lastUpdated}</p>
+        </div>
+
+        <div className="home-profile-sheet__scroll">
           <input
             ref={fileRef}
             id={fileInputId}
@@ -140,52 +224,54 @@ export function HomeProfileSheet({ open, onClose }: HomeProfileSheetProps) {
             tabIndex={-1}
             onChange={onFileChange}
           />
-          <div className="home-profile-avatar-actions">
-            <button type="button" className="home-profile-avatar-btn" onClick={onPickFile}>
-              {shownAvatar ? 'Change photo' : 'Upload photo'}
-            </button>
-            {pendingSave ? (
-              <button
-                type="button"
-                className="home-profile-avatar-btn home-profile-avatar-btn--primary"
-                disabled={saving}
-                onClick={() => void onSaveAvatar()}
-              >
-                {saving ? 'Saving…' : 'Save photo'}
-              </button>
-            ) : null}
-            {savedAvatar && !pendingSave ? (
-              <button type="button" className="home-profile-avatar-btn" onClick={onRemoveAvatar}>
-                Remove
-              </button>
-            ) : null}
-          </div>
-          <p className="home-profile-avatar-hint">JPG or PNG · max 2 MB · live preview before save</p>
-          {avatarError ? <p className="home-profile-avatar-error">{avatarError}</p> : null}
-        </section>
+          {(pendingSave || savedAvatar) && (
+            <div className="home-profile-sheet__photo-actions">
+              {pendingSave ? (
+                <button
+                  type="button"
+                  className="home-profile-sheet__btn home-profile-sheet__btn--primary"
+                  disabled={saving}
+                  onClick={() => void onSaveAvatar()}
+                >
+                  {saving ? 'Saving…' : 'Save photo'}
+                </button>
+              ) : null}
+              {savedAvatar && !pendingSave ? (
+                <button type="button" className="home-profile-sheet__btn" onClick={onRemoveAvatar}>
+                  Remove photo
+                </button>
+              ) : null}
+            </div>
+          )}
+          {avatarError ? <p className="home-profile-sheet__error">{avatarError}</p> : null}
 
-        <dl className="home-profile-fields">
-          <div className="home-profile-field">
-            <dt className="home-profile-field__k">Name</dt>
-            <dd className="home-profile-field__v">{displayName || '—'}</dd>
+          <div className="home-profile-sheet__grid">
+            <div className="home-profile-sheet__cell">
+              <span className="home-profile-sheet__cell-k">Name</span>
+              <span className="home-profile-sheet__cell-v">{displayName || '—'}</span>
+            </div>
+            <div className="home-profile-sheet__cell">
+              <span className="home-profile-sheet__cell-k">Email</span>
+              <span className="home-profile-sheet__cell-v home-profile-sheet__cell-v--muted">{user.email}</span>
+            </div>
+            <div className="home-profile-sheet__cell">
+              <span className="home-profile-sheet__cell-k">Subscription</span>
+              <span className="home-profile-sheet__cell-v">{planLabel}</span>
+            </div>
+            <div className="home-profile-sheet__cell">
+              <span className="home-profile-sheet__cell-k">Workspace</span>
+              <span className="home-profile-sheet__cell-v">{workspaceLabel}</span>
+            </div>
           </div>
-          <div className="home-profile-field">
-            <dt className="home-profile-field__k">Email</dt>
-            <dd className="home-profile-field__v home-profile-field__v--muted">{user.email}</dd>
-          </div>
-          <div className="home-profile-field">
-            <dt className="home-profile-field__k">Subscription</dt>
-            <dd className="home-profile-field__v">{planLabel}</dd>
-          </div>
-          <div className="home-profile-field">
-            <dt className="home-profile-field__k">Workspace</dt>
-            <dd className="home-profile-field__v">{workspaceLabel}</dd>
-          </div>
-        </dl>
+        </div>
 
         <footer className="home-profile-sheet__foot">
-          <button type="button" className="home-profile-logout" onClick={onLogout}>
-            <i className="fa-solid fa-right-from-bracket" aria-hidden /> Sign out
+          <Link to={SAAS_ROUTES.accountProfile} className="home-profile-sheet__btn home-profile-sheet__btn--gold" onClick={onClose}>
+            Open full profile
+            <i className="fa-solid fa-arrow-up-right-from-square" aria-hidden />
+          </Link>
+          <button type="button" className="home-profile-sheet__btn home-profile-sheet__btn--danger" onClick={onLogout}>
+            <i className="fa-solid fa-right-from-bracket" aria-hidden /> Sign Out
           </button>
         </footer>
       </article>
