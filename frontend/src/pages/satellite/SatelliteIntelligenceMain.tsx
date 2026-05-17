@@ -68,7 +68,7 @@ import {
   type GeoExplorerMessage,
   type GeoExplorerPart,
 } from '../../lib/geoExplorerContracts';
-import { DEVELOP_DATA_CONTEXT_LS_KEY, GEO_AI_CHAT_SYSTEM_BASE, type GeoAiChatTurn } from '../../lib/geoAiChatClaude';
+import { DEVELOP_DATA_CONTEXT_LS_KEY, GEO_AI_CHAT_SYSTEM_BASE, type GeoAiChatTurn } from '../../lib/geoAiChatConstants';
 import { appConfirm, appPrompt, appAlert } from '../../lib/appDialog';
 import { loadGisMapSavedLayers } from '../../lib/gisMapLayerStore';
 import { computeStableGisFeatureKey } from '../../lib/gisFeatureStableKey';

@@ -182,18 +182,9 @@ export default defineConfig({
     modulePreload: {
       polyfill: false,
     },
-    rollupOptions: {
-      output: {
-        manualChunks(id) {
-          if (id.includes('node_modules')) {
-            if (id.includes('mapbox-gl')) return 'mapbox-gl'
-            if (id.includes('jspdf')) return 'jspdf'
-            if (id.includes('xlsx')) return 'xlsx'
-            if (id.includes('chart.js') || id.includes('react-chartjs')) return 'chartjs'
-          }
-        },
-      },
-    },
+    // No manualChunks: forcing jspdf/chartjs into separate chunks hoists Vite's preload helper
+    // into those vendors and makes the Satellite Intelligence lazy entry import jspdf before
+    // the route module finishes init → `Cannot access '…' before initialization` on GitHub Pages.
   },
   plugins: [
     geosyntraBaseTrailingSlashRedirect(),

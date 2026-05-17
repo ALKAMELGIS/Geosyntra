@@ -77,7 +77,7 @@ import {
   type GeoExplorerPart,
 } from '../../lib/geoExplorerGemini'
 import { appAlert, appPrompt, appConfirm } from '../../lib/appDialog'
-import { DEVELOP_DATA_CONTEXT_LS_KEY } from '../../lib/geoAiChatClaude'
+import { DEVELOP_DATA_CONTEXT_LS_KEY } from '../../lib/geoAiChatConstants'
 import {
   arcLegendLabelForFieldValue,
   buildArcFieldsByLower,

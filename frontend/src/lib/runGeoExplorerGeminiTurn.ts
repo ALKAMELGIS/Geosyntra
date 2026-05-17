@@ -16,12 +16,12 @@ import {
   GEO_EXPLORER_LAYER_RULES,
   GEO_EXPLORER_SYSTEM_PROMPT,
   GEO_AI_SPATIAL_WORKFLOW_AGENT_APPEND,
-  geminiGenerateContent,
   messagesToGeminiContents,
   parseMapQueryLngLat,
   stripMapQueryLine,
   type GeoExplorerMessage,
-} from './geoExplorerGemini'
+} from './geoExplorerContracts'
+import { geminiGenerateContent } from './geoExplorerGeminiApi'
 import {
   allowsGeocodeWhenNoStrongLayerHit,
   extractGeoExplorerLayerHint,

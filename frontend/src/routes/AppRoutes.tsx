@@ -7,7 +7,7 @@ import { HomeWizardRedirect } from '../pages/home/HomeWizardRedirect'
 import { SAAS_ROUTES } from '../lib/saasRoutes'
 import { lazyRoute } from './lazyRoute'
 const LearnMore = lazy(() => import('../pages/LearnMore'))
-const SatelliteIntelligence = lazyRoute(() => import('../pages/satellite/SatelliteIntelligence'))
+const SatelliteIntelligence = lazyRoute(() => import('../pages/satellite/SatelliteIntelligenceMain'))
 const SatelliteMultidimensional = lazyRoute(() => import('../pages/satellite/Multidimensional'))
 const GisMap = lazyRoute(() => import('../pages/satellite/GisMap'))
 const DataEntryFertigationRecords = lazy(() => import('../pages/data-entry/FertigationRecords'))

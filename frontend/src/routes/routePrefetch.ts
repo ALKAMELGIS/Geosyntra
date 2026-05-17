@@ -32,8 +32,8 @@ type RouteFactory = () => Promise<unknown>
 
 const ROUTE_FACTORIES: Record<string, RouteFactory> = {
   '/learn-more': () => import('../pages/LearnMore'),
-  '/satellite': () => import('../pages/satellite/SatelliteIntelligence'),
-  '/satellite/indices': () => import('../pages/satellite/SatelliteIntelligence'),
+  '/satellite': () => import('../pages/satellite/SatelliteIntelligenceMain'),
+  '/satellite/indices': () => import('../pages/satellite/SatelliteIntelligenceMain'),
   '/satellite/multidimensional': () => import('../pages/satellite/Multidimensional'),
   '/satellite/gis': () => import('../pages/satellite/GisMap'),
   '/data/fertigation-records': () => import('../pages/data-entry/FertigationRecords'),

@@ -7,7 +7,7 @@ import { lazyRoute } from '../../routes/lazyRoute'
  * Satellite) are lazy() so they don't bloat the entry chunk. */
 const Overview = lazy(() => import('../dashboards/Overview'))
 const GisMap = lazyRoute(() => import('../satellite/GisMap'))
-const SatelliteIntelligence = lazyRoute(() => import('../satellite/SatelliteIntelligence'))
+const SatelliteIntelligence = lazyRoute(() => import('../satellite/SatelliteIntelligenceMain'))
 
 function Placeholder({ title }: { title: string }) {
   return (
