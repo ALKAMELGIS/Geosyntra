@@ -20,7 +20,7 @@ export const homeSaasContent = {
   startLabel: 'Try for free' as ReactNode,
   navItems: [
     { id: 'platform', href: '#innovation', label: 'Platform' as ReactNode },
-    { id: 'pricing', href: `#${SAAS_ROUTES.billingPricing}`, label: 'Pricing' as ReactNode },
+    { id: 'pricing', href: '#pricing', label: 'Pricing' as ReactNode },
     { id: 'about', href: '#discovery', label: 'About' as ReactNode },
   ],
   hero: {

@@ -67,6 +67,8 @@ export type SaasNavigationProps = Pick<SaasEntryShellProps, 'brand' | 'brandHref
   className?: string
   /** When set, brand click scrolls to this in-page section instead of navigating away. */
   brandScrollTargetId?: string
+  /** Logged-in trial / plan status between nav links and sign-in CTA. */
+  statusSlot?: ReactNode
 }
 
 export function SaasNavigation({
@@ -76,6 +78,7 @@ export function SaasNavigation({
   signInAction,
   className,
   brandScrollTargetId,
+  statusSlot,
 }: SaasNavigationProps) {
   const onBrandClick = (e: MouseEvent<HTMLAnchorElement>) => {
     if (!brandScrollTargetId) return
@@ -123,6 +126,7 @@ export function SaasNavigation({
               {item.label}
             </a>
           ))}
+          {statusSlot}
           {signInAction ? (
             <SaasButton size="sm" variant="primary" onClick={signInAction.onClick} aria-label={signInAction['aria-label']}>
               {signInAction.label}
@@ -156,6 +160,7 @@ export function SaasNavigation({
                   </a>
                 ))}
               </div>
+              {statusSlot ? <div className="saas-entry__mobile-menu-status">{statusSlot}</div> : null}
               {signInAction ? (
                 <div className="saas-entry__mobile-menu-actions">
                   <SaasButton

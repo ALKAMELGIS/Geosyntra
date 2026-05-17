@@ -163,6 +163,22 @@
   gap: 0.25rem;
 }
 
+.saas-entry__mobile-menu-status {
+  padding: 0.65rem 0.25rem;
+  margin-top: 0.35rem;
+  border-top: 1px solid hsl(var(--border, 0 0% 90%));
+}
+
+.saas-entry__mobile-menu-status .home-user-status {
+  max-width: 100%;
+  justify-content: flex-start;
+}
+
+.saas-entry__mobile-menu-status .home-user-status__text {
+  display: block;
+  text-align: left;
+}
+
 .saas-entry__mobile-menu-actions {
   padding-top: 0.5rem;
   margin-top: 0.5rem;

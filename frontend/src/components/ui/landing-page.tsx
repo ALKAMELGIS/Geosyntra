@@ -1,7 +1,14 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
+import { motion } from 'framer-motion'
 import Globe from './globe'
 import { SparklesCore } from './sparkles'
 import { cn } from '@/lib/utils'
+import {
+  DEFAULT_SCROLL_GLOBE_CONFIG,
+  GLOBE_MOTION,
+  type ScrollGlobeGlobeConfig,
+} from './globe-engine'
+import { useScrollGlobeMotion } from './useScrollGlobeMotion'
 
 /**
  * ScrollGlobe — 1:1 port of the upstream landing-page bundle published at
@@ -68,6 +75,9 @@ export interface ScrollGlobePosition {
   scale: number
 }
 
+export type { ScrollGlobeGlobeConfig } from './globe-engine'
+export { DEFAULT_SCROLL_GLOBE_CONFIG } from './globe-engine'
+
 export interface ScrollGlobeLeadingNav {
   id: string
   badge: string
@@ -75,7 +85,7 @@ export interface ScrollGlobeLeadingNav {
 
 export interface ScrollGlobeProps {
   sections: ScrollGlobeSection[]
-  globeConfig?: { positions: ScrollGlobePosition[] }
+  globeConfig?: ScrollGlobeGlobeConfig
   className?: string
   /** Full-viewport SaaS / signup panel before the globe narrative sections. */
   leadingSection?: React.ReactNode
@@ -83,57 +93,9 @@ export interface ScrollGlobeProps {
   onActiveSectionChange?: (index: number) => void
 }
 
-/**
- * Globe positions per section (viewport % + scale). Hero keeps the globe
- * mid-right; Innovation pins the globe to the viewport center behind the
- * centered copy; Discovery uses a larger scale — Welcome uses a similar visual
- * weight (~1.9 vs 2) without changing its anchor coordinates.
- */
-const defaultGlobeConfig: { positions: ScrollGlobePosition[] } = {
-  positions: [
-    /** Welcome — nudged right/up (~2cm lift at 1080p) and slightly larger for title balance. */
-    { top: '43%', left: '74%', scale: 1.96 },
-    /** Innovation: globe centered on viewport so it sits behind the vertically centered copy block. */
-    { top: '50%', left: '50%', scale: 0.88 },
-    { top: '15%', left: '90%', scale: 2 },
-    { top: '50%', left: '50%', scale: 1.8 },
-  ],
-}
-
-/** CSS transform for the pinned globe from section vw/vh + scale. */
-function buildGlobeTransform(pos: { top: number; left: number; scale: number }): string {
-  return `translate3d(${pos.left}vw, ${pos.top}vh, 0) translate3d(-50%, -50%, 0) scale3d(${pos.scale}, ${pos.scale}, 1)`
-}
-
-const parsePercent = (str: string): number => parseFloat(str.replace('%', ''))
-
-/**
- * Walk up from `el` and return the first ancestor whose computed `overflow-y`
- * is `auto` or `scroll` — i.e. the element that actually receives wheel /
- * touchmove → scroll events when this region is scrolled. Falls back to
- * `window` when nothing matches (page lives in the document scroll).
- *
- * We deliberately check `overflow-y` rather than the `overflow` shorthand:
- * the Geosyntra `<main class="content">` sets `overflow-y: auto` +
- * `overflow-x: hidden`, which would not match a strict `overflow: auto` test.
- */
-function findScrollContainer(el: HTMLElement | null): HTMLElement | Window {
-  if (typeof window === 'undefined') return typeof globalThis !== 'undefined' ? (globalThis as unknown as Window) : (null as unknown as Window)
-  let node: HTMLElement | null = el?.parentElement ?? null
-  while (node && node !== document.body) {
-    const style = window.getComputedStyle(node)
-    if (style.overflowY === 'auto' || style.overflowY === 'scroll') return node
-    node = node.parentElement
-  }
-  return window
-}
-
-const isWindow = (target: HTMLElement | Window): target is Window =>
-  typeof window !== 'undefined' && target === window
-
 export function ScrollGlobe({
   sections,
-  globeConfig = defaultGlobeConfig,
+  globeConfig = DEFAULT_SCROLL_GLOBE_CONFIG,
   className,
   leadingSection,
   leadingSectionNav,
@@ -141,20 +103,26 @@ export function ScrollGlobe({
 }: ScrollGlobeProps) {
   const hasLeading = Boolean(leadingSection)
   const innovationSparkleIndex = hasLeading ? 2 : 1
-  const lastSectionIndex = hasLeading ? sections.length : sections.length - 1
-  const [activeSection, setActiveSection] = useState(0)
-  const [scrollProgress, setScrollProgress] = useState(0)
-  const [globeTransform, setGlobeTransform] = useState('')
-  /**
-   * Hero entrance flag. Initial render paints the Globe at opacity 0 +
-   * scale 0.9 so the browser has *something* on screen the very first
-   * frame, then the *next* RAF flips this to `true` and the wrapper's
-   * 280 ms transition runs the joint opacity + scale beat. No setTimeout,
-   * no perceived loading phase — the whole Hero arrives in a single
-   * sub-half-second motion (per the user's "حركة واحدة سريعة لا تتجاوز
-   * 0.5 ثانية" directive).
-   */
-  const [globeArrived, setGlobeArrived] = useState(false)
+  const sectionCount = hasLeading ? sections.length + 1 : sections.length
+  const containerRef = useRef<HTMLDivElement>(null)
+  const sectionRefs = useRef<(HTMLElement | null)[]>([])
+
+  const {
+    activeSection,
+    scrollProgress,
+    globeTransform,
+    parallaxElRef,
+    globeArrived,
+    globeOpacity,
+    heroStarsOpacity,
+    heroOverlayOpacity,
+    heroScrimBlur,
+  } = useScrollGlobeMotion(containerRef, sectionRefs, {
+    hasLeading,
+    sectionCount,
+    globeConfig,
+    onActiveSectionChange,
+  })
   /**
    * Active theme — flips between `'dark'` and `'light'` based on the
    * `<html data-theme>` attribute. Drives the `particleColor` for the
@@ -174,132 +142,6 @@ export function ScrollGlobe({
    * the bar so the whole strip reads as one coherent dark mark in
    * Light Mode. */
   const particleColor = resolvedTheme === 'light' ? '#0B1220' : '#FFFFFF'
-  const containerRef = useRef<HTMLDivElement>(null)
-  const sectionRefs = useRef<(HTMLElement | null)[]>([])
-  const animationFrameId = useRef<number | undefined>(undefined)
-  const scrollSourceRef = useRef<HTMLElement | Window | null>(null)
-  const activeSectionNotifyRef = useRef(0)
-
-  const calculatedPositions = useMemo(
-    () =>
-      globeConfig.positions.map(pos => ({
-        top: parsePercent(pos.top),
-        left: parsePercent(pos.left),
-        scale: pos.scale,
-      })),
-    [globeConfig.positions],
-  )
-
-  /**
-   * Direct scroll → globe-transform mapping (no easing on the value itself —
-   * the smoothness comes from the 1.4 s CSS transition on the wrapper).
-   *
-   * Section detection uses `getBoundingClientRect()` which is viewport-
-   * relative, so it doesn't matter whether the scroller is `window` or an
-   * inner `<main>` — the section closest to the viewport vertical centre
-   * is always the active one.
-   */
-  const updateScrollPosition = useCallback(() => {
-    const source = scrollSourceRef.current
-    let scrollTop = 0
-    let scrollHeight = 0
-    let clientHeight = window.innerHeight
-    if (source && !isWindow(source)) {
-      scrollTop = source.scrollTop
-      scrollHeight = source.scrollHeight
-      clientHeight = source.clientHeight
-    } else {
-      scrollTop = window.pageYOffset || document.documentElement.scrollTop
-      scrollHeight = document.documentElement.scrollHeight
-      clientHeight = window.innerHeight
-    }
-    const docHeight = scrollHeight - clientHeight
-    const progress = docHeight > 0 ? Math.min(Math.max(scrollTop / docHeight, 0), 1) : 0
-    setScrollProgress(progress)
-
-    const viewportCenter = window.innerHeight / 2
-    let newActiveSection = 0
-    let minDistance = Infinity
-
-    sectionRefs.current.forEach((ref, index) => {
-      if (!ref) return
-      const rect = ref.getBoundingClientRect()
-      const sectionCenter = rect.top + rect.height / 2
-      const distance = Math.abs(sectionCenter - viewportCenter)
-      if (distance < minDistance) {
-        minDistance = distance
-        newActiveSection = index
-      }
-    })
-
-    const globeIdx = hasLeading ? Math.max(0, newActiveSection - 1) : newActiveSection
-    const idx = Math.min(globeIdx, calculatedPositions.length - 1)
-    const currentPos = calculatedPositions[idx]
-    setGlobeTransform(buildGlobeTransform(currentPos))
-    setActiveSection(newActiveSection)
-    if (activeSectionNotifyRef.current !== newActiveSection) {
-      activeSectionNotifyRef.current = newActiveSection
-      onActiveSectionChange?.(newActiveSection)
-    }
-  }, [calculatedPositions, hasLeading, onActiveSectionChange])
-
-  useEffect(() => {
-    /* Find the real scroller once on mount. We do this lazily inside the
-     * effect (not at render time) so the DOM is fully wired up before we
-     * walk it. */
-    const source = findScrollContainer(containerRef.current)
-    scrollSourceRef.current = source
-
-    let ticking = false
-    const handleScroll = () => {
-      if (ticking) return
-      animationFrameId.current = window.requestAnimationFrame(() => {
-        updateScrollPosition()
-        ticking = false
-      })
-      ticking = true
-    }
-
-    source.addEventListener('scroll', handleScroll, { passive: true })
-    window.addEventListener('resize', handleScroll, { passive: true })
-    /* Two RAFs — one ticks immediately so the initial position is correct,
-     * the second covers the case where the scroller's `scrollHeight` is
-     * still settling (web fonts / images loading). */
-    updateScrollPosition()
-    const settleTimer = window.setTimeout(updateScrollPosition, 60)
-
-    return () => {
-      source.removeEventListener('scroll', handleScroll)
-      window.removeEventListener('resize', handleScroll)
-      if (animationFrameId.current) cancelAnimationFrame(animationFrameId.current)
-      window.clearTimeout(settleTimer)
-    }
-  }, [updateScrollPosition])
-
-  /* When `calculatedPositions` changes, sync the globe transform. */
-  useEffect(() => {
-    setGlobeTransform(buildGlobeTransform(calculatedPositions[0]))
-  }, [calculatedPositions])
-
-  /* Hero entrance — single instant beat. We paint frame 1 at opacity 0
-   * + scale 0.9 (just enough to give the transition something to lerp
-   * from), then on the very next animation frame flip to the final
-   * state. Total perceived delay = 1 frame (~16 ms) + the wrapper's
-   * 280 ms transition = ~300 ms. No setTimeout, no staggered choreo,
-   * nothing that reads as "loading". Reduced-motion users skip the
-   * lerp entirely and see the final state immediately. */
-  useEffect(() => {
-    if (typeof window === 'undefined') {
-      setGlobeArrived(true)
-      return
-    }
-    if (window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) {
-      setGlobeArrived(true)
-      return
-    }
-    const raf = window.requestAnimationFrame(() => setGlobeArrived(true))
-    return () => window.cancelAnimationFrame(raf)
-  }, [])
 
   /* Watch `<html data-theme>` for changes (Settings page, the floating
    * HeroThemeToggle, system-preference flips when in `'system'` mode).
@@ -427,9 +269,43 @@ export function ScrollGlobe({
       </nav>
 
       {/* ──────────────────────────────────────────────────────────────
-          Fixed layers: Innovation starfield (z-[5]) → Globe (z-10).
-          Section panels sit above at z-30; nav at z-40.
+          Fixed layers (bottom → top):
+            Hero stars (z-[4]) → Globe (z-10) → gradient (z-[12])
+          Section panels z-30; nav z-40.
           ────────────────────────────────────────────────────────────── */}
+
+      {/* SaaS hero + Welcome transition — subtle starfield behind globe */}
+      {hasLeading ? (
+        <motion.div
+          aria-hidden
+          className="gs-hero-globe-stars fixed inset-0 z-[4] pointer-events-none"
+          initial={false}
+          animate={{ opacity: heroStarsOpacity }}
+          transition={{ duration: 0.55, ease: [0.23, 1, 0.32, 1] }}
+        >
+          <SparklesCore
+            background="transparent"
+            minSize={0.35}
+            maxSize={0.9}
+            particleDensity={120}
+            className="w-full h-full"
+            particleColor={particleColor}
+            speed={0.85}
+          />
+        </motion.div>
+      ) : null}
+
+      {/* Radial scrim — keeps SaaS hero copy readable over the globe */}
+      {hasLeading ? (
+        <div
+          aria-hidden
+          className="gs-hero-globe-gradient fixed inset-0 z-[12] pointer-events-none"
+          style={{
+            opacity: heroOverlayOpacity,
+            transition: GLOBE_MOTION.opacityTransition,
+          }}
+        />
+      ) : null}
 
       {/* Innovation Sparkles — full-bleed starfield behind the Globe for
           section index 1 only. */}
@@ -458,34 +334,30 @@ export function ScrollGlobe({
         className="gs-hero-globe fixed z-10 pointer-events-none will-change-transform"
         style={{
           transform: globeTransform,
-          opacity: globeArrived && (!hasLeading || activeSection > 0)
-            ? activeSection === lastSectionIndex
-              ? 0.4
-              : 0.92
-            : 0,
-          transition:
-            'transform 550ms cubic-bezier(0.23, 1, 0.32, 1), opacity 280ms ease-out',
+          opacity: globeArrived ? globeOpacity : 0,
+          transition: `${GLOBE_MOTION.transformTransition}, ${GLOBE_MOTION.opacityTransition}`,
         }}
       >
         <div
-          className="gs-hero-globe__entrance"
+          ref={parallaxElRef}
+          className="gs-hero-globe__parallax"
           style={{
-            transform: globeArrived ? 'scale(1)' : 'scale(0.9)',
-            transition:
-              'transform 320ms cubic-bezier(0.23, 1, 0.32, 1)',
-            transformOrigin: 'center center',
+            transform: 'translate3d(0, 0, 0)',
+            transformStyle: 'preserve-3d',
+            willChange: 'transform',
           }}
         >
-          {/* Per-breakpoint scale-up of the upstream 250×250 globe so the
-              sphere reads as the dominant visual on larger screens
-              (≈ 410 px on phone, ≈ 640 px on tablet, ≈ 860 px on desktop, ≈ 1040 px on 2xl)
-              while still fitting comfortably on narrow phones. The
-              per-section `scale3d(...)` set in
-              `defaultGlobeConfig.positions[].scale` multiplies on top
-              of this base. */}
-          <div className="scale-110 sm:scale-[1.72] lg:scale-[3.45] 2xl:scale-[4.15]">
-            <Globe />
-          </div>
+          <motion.div
+            className="gs-hero-globe__entrance"
+            initial={false}
+            animate={{ scale: globeArrived ? 1 : 0.9 }}
+            transition={{ duration: 0.32, ease: [0.23, 1, 0.32, 1] }}
+            style={{ transformOrigin: 'center center' }}
+          >
+            <motion.div className="scale-110 sm:scale-[1.72] lg:scale-[3.45] 2xl:scale-[4.15]">
+              <Globe />
+            </motion.div>
+          </motion.div>
         </div>
       </div>
 
@@ -499,9 +371,14 @@ export function ScrollGlobe({
           ref={el => {
             sectionRefs.current[0] = el
           }}
-          className="home-merged-saas relative z-30 min-h-screen min-h-[100dvh] w-full max-w-full flex flex-col justify-center pointer-events-none"
+          className="home-merged-saas gs-hero-leading-panel relative z-30 min-h-screen min-h-[100dvh] w-full max-w-full flex flex-col justify-center pointer-events-none"
+          style={
+            {
+              '--gs-hero-scrim-blur': `${heroScrimBlur}px`,
+            } as React.CSSProperties
+          }
         >
-          <div className="pointer-events-auto w-full">{leadingSection}</div>
+          <motion.div className="pointer-events-auto w-full">{leadingSection}</motion.div>
         </section>
       ) : null}
       {sections.map((section, index) => {

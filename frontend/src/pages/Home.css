@@ -71,6 +71,87 @@
   background: transparent;
 }
 
+/* Integrated globe — SaaS hero (leading panel) */
+.gs-hero-globe-gradient {
+  background:
+    radial-gradient(ellipse 72% 58% at 50% 42%, transparent 0%, rgba(2, 6, 14, 0.55) 48%, rgba(2, 6, 14, 0.92) 100%),
+    linear-gradient(180deg, rgba(2, 6, 14, 0.35) 0%, rgba(2, 6, 14, 0.78) 55%, rgba(2, 6, 14, 0.95) 100%);
+}
+
+.gs-scroll-globe--with-leading .home-merged-saas,
+.gs-scroll-globe--with-leading .gs-hero-leading-panel {
+  background: transparent;
+}
+
+.home-landing .gs-scroll-globe--with-leading #start .home-saas-hero__title {
+  color: #f8fafc;
+}
+
+.home-landing .gs-scroll-globe--with-leading #start .home-saas-hero__accent,
+.home-landing .gs-scroll-globe--with-leading #start .home-saas-hero__accent-remainder {
+  color: #f8fafc;
+}
+
+.home-landing .gs-scroll-globe--with-leading #start .home-saas-hero__underline {
+  color: rgba(248, 250, 252, 0.92);
+}
+
+.home-landing .gs-scroll-globe--with-leading #start .home-saas-hero__subtitle {
+  color: rgba(203, 213, 225, 0.88);
+}
+
+.home-landing .gs-scroll-globe--with-leading #start .home-merged-saas__scroll-hint {
+  color: rgba(148, 163, 184, 0.75);
+}
+
+.home-saas-hero--globe {
+  position: relative;
+  width: 100%;
+}
+
+.home-saas-hero__scrim {
+  position: absolute;
+  inset: -2rem -1.5rem;
+  border-radius: 1.25rem;
+  pointer-events: none;
+  z-index: 0;
+  background: radial-gradient(ellipse 90% 80% at 50% 45%, rgba(2, 6, 14, 0.55) 0%, rgba(2, 6, 14, 0.2) 55%, transparent 100%);
+  backdrop-filter: blur(var(--gs-hero-scrim-blur, 12px));
+  -webkit-backdrop-filter: blur(var(--gs-hero-scrim-blur, 12px));
+  transition: backdrop-filter 550ms cubic-bezier(0.23, 1, 0.32, 1);
+}
+
+.home-saas-hero__content {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 100%;
+}
+
+@media (max-width: 767px) {
+  .gs-hero-globe {
+    opacity: var(--gs-hero-globe-opacity, 1);
+  }
+
+  .home-saas-hero__scrim {
+    inset: -1rem -0.75rem;
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .home-saas-hero__scrim {
+    transition: none;
+  }
+
+  .gs-hero-globe__parallax {
+    transform: none !important;
+  }
+}
+
 .home-saas-entry {
   width: 100%;
   max-width: 100%;
@@ -498,4 +579,357 @@ html[data-theme='light'] .home-landing .gs-hero-sparkle-line--core {
     rgba(15, 23, 42, 0.85),
     transparent
   );
+}
+
+/* ── Home SaaS footer (GeoSpatial / AI / Earth Observation) ── */
+.home-saas-footer {
+  position: relative;
+  z-index: 40;
+  width: 100%;
+  border-top: 1px solid color-mix(in srgb, hsl(var(--border, 0 0% 90%)) 70%, transparent);
+  background:
+    linear-gradient(180deg, color-mix(in srgb, hsl(var(--card, 0 0% 100%)) 55%, transparent) 0%, hsl(var(--background, 0 0% 100%)) 42%),
+    hsl(var(--background, 0 0% 100%));
+  color: hsl(var(--foreground, 0 0% 9%));
+}
+
+.home-saas-footer--browse {
+  border-top-color: rgba(148, 163, 184, 0.14);
+  background:
+    linear-gradient(165deg, rgba(15, 23, 42, 0.97) 0%, rgba(2, 6, 23, 0.99) 55%, hsl(222 47% 4%) 100%);
+  color: rgba(248, 250, 252, 0.94);
+}
+
+.home-saas-footer__glow {
+  pointer-events: none;
+  position: absolute;
+  inset: 0 0 auto;
+  height: 120px;
+  background: radial-gradient(ellipse 80% 100% at 50% 0%, rgba(56, 189, 248, 0.12), transparent 70%);
+  opacity: 0.9;
+}
+
+.home-saas-footer--browse .home-saas-footer__glow {
+  background: radial-gradient(ellipse 75% 90% at 50% 0%, rgba(99, 102, 241, 0.22), transparent 72%);
+}
+
+.home-saas-footer__inner {
+  position: relative;
+  max-width: 72rem;
+  margin: 0 auto;
+  padding: 3rem 1.25rem 2rem;
+}
+
+@media (min-width: 768px) {
+  .home-saas-footer__inner {
+    padding: 3.5rem 1.5rem 2.25rem;
+  }
+}
+
+.home-saas-footer__brand-row {
+  display: grid;
+  gap: 1.25rem;
+  margin-bottom: 2.5rem;
+}
+
+@media (min-width: 768px) {
+  .home-saas-footer__brand-row {
+    grid-template-columns: minmax(0, 1.1fr) minmax(0, 1.4fr);
+    align-items: center;
+    gap: 2rem;
+  }
+}
+
+.home-saas-footer__brand {
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+}
+
+.home-saas-footer__logo {
+  display: inline-flex;
+  width: 2.75rem;
+  height: 2.75rem;
+  flex-shrink: 0;
+}
+
+.home-saas-footer__logo svg {
+  width: 100%;
+  height: 100%;
+}
+
+.home-saas-footer--browse .home-saas-footer__logo svg path,
+.home-saas-footer--browse .home-saas-footer__logo svg ellipse {
+  stroke: rgba(226, 232, 240, 0.92);
+}
+
+.home-saas-footer__brand-text {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.home-saas-footer__brand-name {
+  font-size: 1.125rem;
+  font-weight: 750;
+  letter-spacing: -0.03em;
+}
+
+.home-saas-footer__brand-tag {
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: hsl(var(--muted-foreground, 0 0% 45%));
+}
+
+.home-saas-footer--browse .home-saas-footer__brand-tag {
+  color: rgba(148, 163, 184, 0.92);
+}
+
+.home-saas-footer__pitch {
+  margin: 0;
+  max-width: 36rem;
+  font-size: 0.92rem;
+  line-height: 1.55;
+  color: hsl(var(--muted-foreground, 0 0% 40%));
+}
+
+.home-saas-footer--browse .home-saas-footer__pitch {
+  color: rgba(203, 213, 225, 0.88);
+}
+
+.home-saas-footer__grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1.75rem 1.25rem;
+}
+
+@media (min-width: 768px) {
+  .home-saas-footer__grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 2rem 1.5rem;
+  }
+}
+
+.home-saas-footer__col-title {
+  margin: 0 0 0.85rem;
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: hsl(var(--foreground, 0 0% 9%));
+}
+
+.home-saas-footer--browse .home-saas-footer__col-title {
+  color: rgba(248, 250, 252, 0.95);
+}
+
+.home-saas-footer__col-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+}
+
+.home-saas-footer__link {
+  font-size: 0.84rem;
+  line-height: 1.35;
+  color: hsl(var(--muted-foreground, 0 0% 42%));
+  text-decoration: none;
+  transition: color 0.15s ease;
+}
+
+.home-saas-footer__link:hover {
+  color: hsl(var(--foreground, 0 0% 9%));
+}
+
+.home-saas-footer--browse .home-saas-footer__link {
+  color: rgba(148, 163, 184, 0.95);
+}
+
+.home-saas-footer--browse .home-saas-footer__link:hover {
+  color: #f8fafc;
+}
+
+.home-saas-footer__rule {
+  height: 1px;
+  margin: 2rem 0 1.5rem;
+  background: linear-gradient(90deg, transparent, hsl(var(--border, 0 0% 88%)), transparent);
+}
+
+.home-saas-footer__rule--soft {
+  margin: 1.25rem 0 1rem;
+  opacity: 0.65;
+}
+
+.home-saas-footer--browse .home-saas-footer__rule {
+  background: linear-gradient(90deg, transparent, rgba(148, 163, 184, 0.22), transparent);
+}
+
+.home-saas-footer__actions-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1.25rem;
+}
+
+.home-saas-footer__social {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.home-saas-footer__social-btn {
+  display: inline-flex;
+  width: 2.35rem;
+  height: 2.35rem;
+  align-items: center;
+  justify-content: center;
+  border-radius: 0.65rem;
+  border: 1px solid color-mix(in srgb, hsl(var(--border, 0 0% 88%)) 80%, transparent);
+  background: color-mix(in srgb, hsl(var(--card, 0 0% 100%)) 70%, transparent);
+  color: hsl(var(--muted-foreground, 0 0% 45%));
+  transition:
+    border-color 0.15s ease,
+    color 0.15s ease,
+    background 0.15s ease,
+    transform 0.12s ease;
+}
+
+.home-saas-footer__social-btn:hover {
+  color: hsl(var(--foreground, 0 0% 9%));
+  border-color: color-mix(in srgb, hsl(var(--primary, 220 90% 56%)) 35%, hsl(var(--border)));
+  transform: translateY(-1px);
+}
+
+.home-saas-footer--browse .home-saas-footer__social-btn {
+  border-color: rgba(148, 163, 184, 0.2);
+  background: rgba(15, 23, 42, 0.55);
+  color: rgba(203, 213, 225, 0.9);
+}
+
+.home-saas-footer--browse .home-saas-footer__social-btn:hover {
+  border-color: rgba(129, 140, 248, 0.45);
+  color: #f8fafc;
+  background: rgba(30, 27, 75, 0.45);
+}
+
+.home-saas-footer__store-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.65rem;
+}
+
+.home-saas-footer__store {
+  display: flex;
+  min-width: 9.5rem;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.1rem;
+  padding: 0.55rem 0.85rem;
+  border-radius: 0.75rem;
+  border: 1px solid color-mix(in srgb, hsl(var(--border, 0 0% 88%)) 85%, transparent);
+  background: color-mix(in srgb, hsl(var(--muted, 0 0% 96%)) 80%, hsl(var(--card)));
+  color: inherit;
+  cursor: pointer;
+  font-family: inherit;
+  text-align: left;
+  transition:
+    border-color 0.15s ease,
+    box-shadow 0.15s ease,
+    transform 0.12s ease;
+}
+
+.home-saas-footer__store:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 10px 28px rgba(15, 23, 42, 0.08);
+}
+
+.home-saas-footer__store--primary {
+  border-color: color-mix(in srgb, hsl(var(--primary, 220 90% 56%)) 40%, hsl(var(--border)));
+  background: linear-gradient(145deg, color-mix(in srgb, hsl(var(--primary)) 12%, white), hsl(var(--card)));
+}
+
+.home-saas-footer--browse .home-saas-footer__store {
+  border-color: rgba(148, 163, 184, 0.22);
+  background: rgba(15, 23, 42, 0.65);
+}
+
+.home-saas-footer--browse .home-saas-footer__store--primary {
+  border-color: rgba(129, 140, 248, 0.45);
+  background: linear-gradient(145deg, rgba(67, 56, 202, 0.35), rgba(15, 23, 42, 0.85));
+  box-shadow: 0 0 24px rgba(99, 102, 241, 0.15);
+}
+
+.home-saas-footer__store-kicker {
+  font-size: 0.58rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  opacity: 0.75;
+}
+
+.home-saas-footer__store-title {
+  font-size: 0.88rem;
+  font-weight: 700;
+}
+
+.home-saas-footer__store-sub {
+  font-size: 0.68rem;
+  opacity: 0.72;
+}
+
+.home-saas-footer__bottom {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+  text-align: center;
+}
+
+@media (min-width: 640px) {
+  .home-saas-footer__bottom {
+    flex-direction: row;
+    justify-content: space-between;
+    text-align: left;
+  }
+}
+
+.home-saas-footer__copy {
+  margin: 0;
+  font-size: 0.75rem;
+  color: hsl(var(--muted-foreground, 0 0% 45%));
+}
+
+.home-saas-footer--browse .home-saas-footer__copy {
+  color: rgba(148, 163, 184, 0.9);
+}
+
+.home-saas-footer__meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 0.45rem;
+  margin: 0;
+  font-size: 0.68rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: hsl(var(--muted-foreground, 0 0% 50%));
+}
+
+.home-saas-footer--browse .home-saas-footer__meta {
+  color: rgba(100, 116, 139, 0.95);
+}
+
+.home-saas-footer__dot {
+  width: 3px;
+  height: 3px;
+  border-radius: 999px;
+  background: currentColor;
+  opacity: 0.55;
 }
