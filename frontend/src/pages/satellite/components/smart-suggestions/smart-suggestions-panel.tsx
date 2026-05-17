@@ -1,4 +1,4 @@
-import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import type { GeoExplorerCssPrefix } from '../geoExplorerCssPrefix';
 import {
@@ -12,10 +12,6 @@ import {
 import { AiInsightsSection } from './ai-insights-section';
 import { QuickActionsSection } from './quick-actions-section';
 import './smart-suggestions.css';
-
-const LazyComposerSection = lazy(() =>
-  import('./quick-actions-section').then(m => ({ default: m.QuickActionsSection })),
-);
 
 function pfx(prefix: GeoExplorerCssPrefix, part: string): string {
   return `${prefix}-${part}`;
@@ -167,15 +163,13 @@ export function SmartSuggestionsPanel({
     }
     if (tab === 'composer') {
       return (
-        <Suspense fallback={<p className="si-smart-suggest-empty">Loading…</p>}>
-          <LazyComposerSection
-            title="Composer phrases"
-            items={byCategory.composer}
-            onSelect={handleSelect}
-            focusId={focusId}
-            emptyHint="Type in the message box to rank field and layer phrases."
-          />
-        </Suspense>
+        <QuickActionsSection
+          title="Composer phrases"
+          items={byCategory.composer}
+          onSelect={handleSelect}
+          focusId={focusId}
+          emptyHint="Type in the message box to rank field and layer phrases."
+        />
       );
     }
     return (

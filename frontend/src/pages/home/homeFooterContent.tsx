@@ -38,7 +38,7 @@ export const homeFooterColumns: HomeFooterColumn[] = [
       { href: '/learn-more', label: 'Documentation' },
       { href: '#pricing', label: 'Pricing' },
       { href: '#start', label: 'Getting started' },
-      { href: '#hero', label: 'Platform tour' },
+      { href: '#start', label: 'Platform tour' },
       { href: 'mailto:support@geosyntra.com', label: 'Contact support' },
     ],
   },

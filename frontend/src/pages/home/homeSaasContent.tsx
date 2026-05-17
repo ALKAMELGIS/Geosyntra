@@ -22,7 +22,7 @@ export const homeSaasContent = {
   navItems: [
     { id: 'platform', href: '#innovation', label: 'Platform' as ReactNode },
     { id: 'pricing', href: '#pricing', label: 'Pricing' as ReactNode },
-    { id: 'about', href: '#discovery', label: 'About' as ReactNode },
+    { id: 'about', href: '#future', label: 'About' as ReactNode },
   ],
   hero: {
     lineBefore: 'Geosyntra built for',

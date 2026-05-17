@@ -29,10 +29,9 @@ import { SiChatAiAgentIcon } from './components/SiChatAiAgentIcon'
 import FieldsPanel from './components/fields/FieldsPanel'
 import FieldDataContextStrip from './components/fields/FieldDataContextStrip'
 import SavedFieldsLayer from './components/fields/SavedFieldsLayer'
+import { geometryBounds, leafletLayerToPolygon } from './components/fields/fieldsStoreLeaflet'
 import {
   geodesicAreaHectares,
-  geometryBounds,
-  leafletLayerToPolygon,
   loadSavedFields,
   loadFieldGroups,
   persistFieldGroups,

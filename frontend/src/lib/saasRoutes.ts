@@ -3,13 +3,18 @@ export const SAAS_ROUTES = {
   home: '/',
   authLogin: '/app/auth/login',
   authRegister: '/app/auth/register',
+  authVerifyEmail: '/app/auth/verify-email',
   billingPricing: '/app/billing/pricing',
   onboardingTrialStart: '/app/onboarding/trial-start',
   dashboardDefault: '/satellite/indices',
 } as const
 
 export function isSaasAuthPath(pathname: string): boolean {
-  return pathname === SAAS_ROUTES.authLogin || pathname === SAAS_ROUTES.authRegister
+  return (
+    pathname === SAAS_ROUTES.authLogin ||
+    pathname === SAAS_ROUTES.authRegister ||
+    pathname === SAAS_ROUTES.authVerifyEmail
+  )
 }
 
 export function isSaasPublicPath(pathname: string): boolean {

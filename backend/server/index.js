@@ -45,6 +45,7 @@ import { errorHandler, notFoundHandler } from '../src/middleware/errorHandler.js
 import { registerApiSecretsRoutes } from './apiSecretsPersistence.js'
 import { registerUserProfilePersistence } from './userProfilePersistence.js'
 import { registerAdminDirectoryPersistence } from './adminDirectoryPersistence.js'
+import { registerAuthRoutes } from './registerAuthRoutes.js'
 
 const app = express()
 app.use(cors())
@@ -212,6 +213,7 @@ const GITHUB_CLIENT_SECRET = String(process.env.GITHUB_CLIENT_SECRET || '')
 const GITHUB_WEBHOOK_SECRET = String(process.env.GITHUB_WEBHOOK_SECRET || '')
 const GITHUB_OAUTH_REDIRECT_URL = String(process.env.GITHUB_OAUTH_REDIRECT_URL || 'http://localhost:3001/api/github/oauth/callback')
 const APP_ORIGIN = String(process.env.APP_ORIGIN || 'http://localhost:5173')
+const APP_BASE_PATH = String(process.env.APP_BASE_PATH || '/Geosyntra/')
 
 const ghSessions = new Map()
 const ghStates = new Map()
@@ -257,6 +259,16 @@ async function sendMail({ to, subject, text, html }) {
     html,
   })
 }
+
+registerAuthRoutes(app, {
+  jsonFilePath: ADMIN_DIRECTORY_FILE,
+  sqlitePath: USER_DB_FILE || undefined,
+  appOrigin: APP_ORIGIN,
+  appBasePath: APP_BASE_PATH,
+  hasSmtpConfig,
+  sendMail,
+  addAuthEvent,
+})
 
 function parseCookies(header) {
   const out = {}

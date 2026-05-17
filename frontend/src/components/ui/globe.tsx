@@ -1,29 +1,15 @@
 import React from 'react'
 
 /**
- * Geosyntra Globe — 1:1 port of the upstream `m.umairwaheedansari/landing-page`
- * bundle (https://21st.dev/r/m.umairwaheedansari/landing-page).
- *
- * Why we keep the upstream R2 URL instead of bundling locally:
- *   The previous local rewrite (`/landing/globe.jpeg` via
- *   `import.meta.env.BASE_URL`) failed on GitHub Pages — the asset path
- *   resolved through Vite's `base` indirection and rendered as a flat dark
- *   blob (no Earth texture). Pulling the texture straight from the same
- *   Cloudflare R2 bucket the upstream demo ships restores the cinematic
- *   wrap (continents lit by the cyan inset, terminator on the right edge,
- *   subtle outer glow) shown in the reference render. The bucket is the
- *   shadcn-registry origin, so it carries the same uptime + caching as the
- *   upstream component.
- *
- * The shadow stack is what creates the "planet from space" illusion:
- *   - Outer 20px white halo  → atmospheric corona
- *   - Cyan inset (-5px / -24px) on the upper-left → sun lighting
- *   - Black inset (250px) on the right → terminator (planet's dark side)
- *   - Black inset (150px) deeper inside the right hemisphere → core shadow
- * Removing or rewriting any of these breaks the sphere illusion, so the
- * stack is preserved verbatim from the upstream snippet.
+ * Geosyntra Globe — cinematic Earth texture with atmospheric lighting stack.
  */
-const Globe: React.FC = () => {
+type GlobeProps = {
+  /** Base sphere diameter in CSS pixels (scaled further by scroll motion). */
+  size?: number
+}
+
+const Globe: React.FC<GlobeProps> = ({ size = 280 }) => {
+  const px = `${size}px`
   return (
     <>
       <style>
@@ -41,10 +27,15 @@ const Globe: React.FC = () => {
           }
         `}
       </style>
-      <div className="gs-globe-shell flex items-center justify-center w-[250px] h-[250px]">
+      <div
+        className="gs-globe-shell flex items-center justify-center"
+        style={{ width: px, height: px }}
+      >
         <div
-          className="gs-globe-earth relative w-[250px] h-[250px] rounded-full overflow-hidden shadow-[0_0_20px_rgba(255,255,255,0.2),-5px_0_8px_#c3f4ff_inset,15px_2px_25px_#000_inset,-24px_-2px_34px_#c3f4ff99_inset,250px_0_44px_#00000066_inset,150px_0_38px_#000000aa_inset]"
+          className="gs-globe-earth relative rounded-full overflow-hidden shadow-[0_0_20px_rgba(255,255,255,0.2),-5px_0_8px_#c3f4ff_inset,15px_2px_25px_#000_inset,-24px_-2px_34px_#c3f4ff99_inset,250px_0_44px_#00000066_inset,150px_0_38px_#000000aa_inset]"
           style={{
+            width: px,
+            height: px,
             backgroundImage:
               "url('https://pub-940ccf6255b54fa799a9b01050e6c227.r2.dev/globe.jpeg')",
             backgroundSize: '200% 100%',

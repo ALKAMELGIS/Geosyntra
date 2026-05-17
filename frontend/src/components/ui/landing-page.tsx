@@ -116,7 +116,7 @@ export function ScrollGlobe({
 }: ScrollGlobeProps) {
   const hasLeading = Boolean(leadingSection)
   const trailingCount = trailingSections.length
-  const innovationSparkleIndex = hasLeading ? 2 : 1
+  const innovationSparkleIndex = hasLeading ? 1 : 0
   const sectionCount = (hasLeading ? sections.length + 1 : sections.length) + trailingCount
   const containerRef = useRef<HTMLDivElement>(null)
   const sectionRefs = useRef<(HTMLElement | null)[]>([])
@@ -383,8 +383,15 @@ export function ScrollGlobe({
             transition={{ duration: 0.32, ease: [0.23, 1, 0.32, 1] }}
             style={{ transformOrigin: 'center center' }}
           >
-            <motion.div className="gs-hero-globe__scale scale-110 sm:scale-[1.72] lg:scale-[3.45] 2xl:scale-[4.15]">
-              <Globe />
+            <motion.div
+              className={cn(
+                'gs-hero-globe__scale',
+                leadingGlobeClear
+                  ? 'scale-[2.15] sm:scale-[3.05] lg:scale-[5.15] 2xl:scale-[6.1]'
+                  : 'scale-110 sm:scale-[1.72] lg:scale-[3.45] 2xl:scale-[4.15]',
+              )}
+            >
+              <Globe size={leadingGlobeClear ? 300 : 280} />
             </motion.div>
           </motion.div>
         </div>
@@ -411,12 +418,11 @@ export function ScrollGlobe({
         </section>
       ) : null}
       {sections.map((section, index) => {
-        /** Welcome + Innovation share pearl title + micro-hints; sparkle bar is hero-only (Innovation uses global starfield). */
-        const welcomeVisualRhythm = index === 0 || index === 1
-        /** Innovation: fixed globe + copy share one vertical/horizontal center (globe z-10, copy z-30). */
-        const innovationGlobeStack = section.id === 'innovation'
-        /** Welcome hero — anchor copy toward the top so it scrolls out before Innovation fills the viewport (avoids hero bleed on section 2). */
-        const welcomeHeroAnchorTop = section.id === 'hero'
+        /** Innovation + Future share centered globe stack + pearl titles. */
+        const welcomeVisualRhythm = section.id === 'innovation' || section.id === 'future'
+        /** Centered copy over the fixed globe (Start uses leading panel). */
+        const centeredGlobeStack = section.id === 'innovation' || section.id === 'future'
+        const welcomeHeroAnchorTop = false
         return (
         <section
           key={section.id}
@@ -429,22 +435,20 @@ export function ScrollGlobe({
                so empty viewport area does not steal hovers; inner column re-enables. */
             'relative min-h-screen flex flex-col px-4 sm:px-6 md:px-8 lg:px-12 z-30 py-12 sm:py-16 lg:py-20',
             'w-full max-w-full overflow-hidden pointer-events-none',
-            innovationGlobeStack && 'justify-center items-center text-center min-h-[100dvh]',
-            welcomeHeroAnchorTop &&
-              'justify-start pt-[calc(clamp(2.75rem,9vh,6rem)+2cm+0.75rem+1.5rem+0.85rem+2.5cm)] sm:pt-[calc(clamp(3.25rem,11vh,7rem)+2cm+0.75rem+1.5rem+0.85rem+2.5cm)] md:pt-[calc(clamp(3.5rem,12vh,7.75rem)+2cm+0.75rem+1.5rem+0.85rem+2.5cm)] lg:pt-[calc(clamp(3.75rem,13vh,8.5rem)+2cm+0.75rem+1.75rem+0.85rem+2.5cm)]',
-            !innovationGlobeStack && !welcomeHeroAnchorTop && 'justify-center',
-            !innovationGlobeStack && section.align === 'center' && 'items-center text-center',
-            !innovationGlobeStack && section.align === 'right' && 'items-end text-right',
-            !innovationGlobeStack && section.align !== 'center' && section.align !== 'right' && 'items-start text-left',
+            centeredGlobeStack && 'justify-center items-center text-center min-h-[100dvh]',
+            !centeredGlobeStack && 'justify-center',
+            !centeredGlobeStack && section.align === 'center' && 'items-center text-center',
+            !centeredGlobeStack && section.align === 'right' && 'items-end text-right',
+            !centeredGlobeStack && section.align !== 'center' && section.align !== 'right' && 'items-start text-left',
           )}
         >
           <div
             className={cn(
               'pointer-events-auto w-full will-change-transform transition-all duration-700',
               'opacity-100 translate-y-0',
-              innovationGlobeStack &&
+              centeredGlobeStack &&
                 'max-w-xl sm:max-w-2xl md:max-w-2xl lg:max-w-3xl mx-auto relative z-10 flex flex-col items-center',
-              !innovationGlobeStack &&
+              !centeredGlobeStack &&
                 cn(
                   'max-w-sm sm:max-w-lg md:max-w-2xl lg:max-w-4xl xl:max-w-5xl',
                   section.align === 'center' && 'mx-auto',
@@ -455,7 +459,7 @@ export function ScrollGlobe({
               className={cn(
                 'font-bold leading-[1.1] tracking-tight',
                 welcomeVisualRhythm && section.id === 'hero' ? 'mb-3 sm:mb-4' : 'mb-6 sm:mb-8',
-                innovationGlobeStack && 'gs-innovation-headline',
+                centeredGlobeStack && 'gs-innovation-headline',
                 welcomeVisualRhythm
                   ? cn(
                       index === 0
@@ -529,7 +533,7 @@ export function ScrollGlobe({
             <div
               className={cn(
                 'text-muted-foreground/80 leading-relaxed mb-8 sm:mb-10 text-base sm:text-lg lg:text-xl font-light',
-                section.align === 'center' || innovationGlobeStack
+                section.align === 'center' || centeredGlobeStack
                   ? 'max-w-full mx-auto text-center'
                   : 'max-w-full text-left',
                 /* Welcome hero — tight band above lede + CTAs (sparkle strip sits just above body copy). */
@@ -541,7 +545,7 @@ export function ScrollGlobe({
                 <div
                   className={cn(
                     'flex flex-wrap items-center gap-3 sm:gap-4 text-xs sm:text-sm text-muted-foreground/60 mt-4 sm:mt-6',
-                    section.align === 'center' || innovationGlobeStack ? 'justify-center' : 'justify-start',
+                    section.align === 'center' || centeredGlobeStack ? 'justify-center' : 'justify-start',
                   )}
                 >
                   <div className="flex items-center gap-1.5 sm:gap-2">

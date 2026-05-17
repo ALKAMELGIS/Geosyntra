@@ -102,6 +102,11 @@
   transform-style: preserve-3d;
 }
 
+/* Home Start — optical center: nudge globe 3cm left (texture/lighting reads right of 50%). */
+.home-landing .gs-scroll-globe--home-integrated .gs-hero-globe {
+  translate: -3cm 0;
+}
+
 .gs-hero-globe__parallax {
   transform-style: preserve-3d;
   backface-visibility: hidden;
@@ -121,16 +126,20 @@
 /* Hero (0) + Welcome (1) — full globe clarity: no radial scrim, blur, or dimming */
 .home-landing .gs-scroll-globe--home-integrated[data-active-section='0'] .gs-hero-globe-gradient,
 .home-landing .gs-scroll-globe--home-integrated[data-active-section='1'] .gs-hero-globe-gradient,
+.home-landing .gs-scroll-globe--home-integrated[data-active-section='2'] .gs-hero-globe-gradient,
 .home-landing .gs-scroll-globe--leading-clear[data-active-section='0'] .gs-hero-globe-gradient,
-.home-landing .gs-scroll-globe--leading-clear[data-active-section='1'] .gs-hero-globe-gradient {
+.home-landing .gs-scroll-globe--leading-clear[data-active-section='1'] .gs-hero-globe-gradient,
+.home-landing .gs-scroll-globe--leading-clear[data-active-section='2'] .gs-hero-globe-gradient {
   opacity: 0 !important;
   visibility: hidden;
 }
 
 .home-landing .gs-scroll-globe--home-integrated[data-active-section='0'] .gs-hero-globe,
 .home-landing .gs-scroll-globe--home-integrated[data-active-section='1'] .gs-hero-globe,
+.home-landing .gs-scroll-globe--home-integrated[data-active-section='2'] .gs-hero-globe,
 .home-landing .gs-scroll-globe--leading-clear[data-active-section='0'] .gs-hero-globe,
-.home-landing .gs-scroll-globe--leading-clear[data-active-section='1'] .gs-hero-globe {
+.home-landing .gs-scroll-globe--leading-clear[data-active-section='1'] .gs-hero-globe,
+.home-landing .gs-scroll-globe--leading-clear[data-active-section='2'] .gs-hero-globe {
   opacity: 1 !important;
   filter: none !important;
 }
@@ -173,6 +182,49 @@
   width: 100%;
 }
 
+/* Start — globe sits in the vertical center of the headline block */
+.home-saas-hero--globe-centered {
+  max-width: 52rem;
+  margin-inline: auto;
+}
+
+.home-saas-hero--globe-centered .home-saas-hero__title {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  margin-bottom: 1.25rem;
+}
+
+.home-saas-hero__line-before {
+  display: block;
+  font-size: clamp(1.65rem, 3.8vw, 2.35rem);
+  font-weight: 600;
+  letter-spacing: -0.03em;
+  color: rgba(248, 250, 252, 0.92);
+}
+
+.home-saas-hero__globe-gutter {
+  display: block;
+  width: min(92vw, 28rem);
+  height: clamp(10rem, 34vmin, 20rem);
+  margin: 0.15rem auto 0.35rem;
+  pointer-events: none;
+}
+
+.home-saas-hero--globe-centered .home-saas-hero__accent,
+.home-saas-hero--globe-centered .home-saas-hero__accent-remainder {
+  font-size: clamp(2.35rem, 6.2vw, 4.75rem);
+  font-weight: 500;
+  line-height: 1.06;
+}
+
+.home-saas-hero--globe-centered .home-saas-hero__subtitle {
+  max-width: 40rem;
+  margin-inline: auto;
+  text-align: center;
+}
+
 .home-saas-hero__content {
   position: relative;
   z-index: 1;
@@ -200,10 +252,47 @@
     transform: scale(0.92);
   }
 
-  .home-landing .gs-scroll-globe--home-integrated[data-active-section='0'] .gs-hero-globe__scale,
-  .home-landing .gs-scroll-globe--home-integrated[data-active-section='1'] .gs-hero-globe__scale {
+.home-landing .gs-scroll-globe--home-integrated[data-active-section='0'] .gs-hero-globe__scale,
+.home-landing .gs-scroll-globe--home-integrated[data-active-section='1'] .gs-hero-globe__scale,
+.home-landing .gs-scroll-globe--home-integrated[data-active-section='2'] .gs-hero-globe__scale {
     transform: scale(1.05);
   }
+}
+
+/* Atmospheric corona behind the centered globe on Start / Innovation / Future */
+.home-landing .gs-scroll-globe--home-integrated .gs-hero-globe__parallax::before {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: min(92vw, 42rem);
+  height: min(92vw, 42rem);
+  transform: translate(-50%, -50%);
+  border-radius: 50%;
+  background: radial-gradient(
+    circle at 42% 38%,
+    rgba(56, 189, 248, 0.22) 0%,
+    rgba(34, 211, 238, 0.08) 32%,
+    transparent 68%
+  );
+  filter: blur(18px);
+  pointer-events: none;
+  z-index: -1;
+}
+
+.home-landing .gs-scroll-globe #start.gs-hero-leading-panel {
+  justify-content: center;
+  padding-top: clamp(5.5rem, 14vh, 8rem);
+  padding-bottom: clamp(2rem, 6vh, 3.5rem);
+}
+
+.home-landing .gs-scroll-globe section#future {
+  padding-top: clamp(1rem, 3.5dvh, 2.25rem);
+  padding-bottom: clamp(1rem, 3.5dvh, 2.25rem);
+}
+
+.home-landing .gs-scroll-globe section#future .gs-pearl-title {
+  transform: translateY(clamp(-10px, -0.5vw, -4px));
 }
 
 @media (prefers-reduced-motion: reduce) {

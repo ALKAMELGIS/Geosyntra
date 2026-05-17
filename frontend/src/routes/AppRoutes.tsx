@@ -5,16 +5,18 @@ import DynamicBindPage from '../pages/system/DynamicBindPage'
 import Home from '../pages/Home'
 import { HomeWizardRedirect } from '../pages/home/HomeWizardRedirect'
 import { SAAS_ROUTES } from '../lib/saasRoutes'
+import { lazyRoute } from './lazyRoute'
 const LearnMore = lazy(() => import('../pages/LearnMore'))
-const SatelliteIntelligence = lazy(() => import('../pages/satellite/SatelliteIntelligence'))
-const SatelliteMultidimensional = lazy(() => import('../pages/satellite/Multidimensional'))
-const GisMap = lazy(() => import('../pages/satellite/GisMap'))
+const SatelliteIntelligence = lazyRoute(() => import('../pages/satellite/SatelliteIntelligence'))
+const SatelliteMultidimensional = lazyRoute(() => import('../pages/satellite/Multidimensional'))
+const GisMap = lazyRoute(() => import('../pages/satellite/GisMap'))
 const DataEntryFertigationRecords = lazy(() => import('../pages/data-entry/FertigationRecords'))
 const DataEntryRecipes = lazy(() => import('../pages/data-entry/Recipes'))
 const AdminGitHub = lazy(() => import('../pages/admin/GitHubIntegration'))
 const ApiIntegrations = lazy(() => import('../pages/settings/ApiIntegrations'))
 const StyleGuide = lazy(() => import('../pages/StyleGuide'))
 const UsabilityTest = lazy(() => import('../pages/UsabilityTest'))
+const VerifyEmailPage = lazy(() => import('../pages/app/auth/VerifyEmailPage'))
 
 export default function AppRoutes() {
   const { settings } = useSystemSettings()
@@ -24,6 +26,7 @@ export default function AppRoutes() {
         <Route path="/" element={<Home />} />
         <Route path={SAAS_ROUTES.authLogin} element={<HomeWizardRedirect authMode="signin" />} />
         <Route path={SAAS_ROUTES.authRegister} element={<HomeWizardRedirect authMode="signup" />} />
+        <Route path={SAAS_ROUTES.authVerifyEmail} element={<VerifyEmailPage />} />
         <Route path={SAAS_ROUTES.billingPricing} element={<HomeWizardRedirect wizard="pricing" />} />
         <Route path={SAAS_ROUTES.onboardingTrialStart} element={<HomeWizardRedirect wizard="pricing" />} />
         <Route path="/login" element={<HomeWizardRedirect authMode="signin" />} />

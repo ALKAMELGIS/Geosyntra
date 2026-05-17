@@ -1,24 +1,14 @@
-import {
-  DEFAULT_SCROLL_GLOBE_CONFIG,
-  type ScrollGlobeGlobeConfig,
-} from '../../components/ui/globe-engine'
+import type { ScrollGlobeGlobeConfig } from '../../components/ui/globe-engine'
 
 /**
- * Home SaaS hero — nudge globe anchor left so the lit hemisphere sits behind centered copy
- * (the upstream texture + right-side terminator reads visually right of geometric center).
+ * Home scroll globe — Start · Innovation · Future.
+ * All three beats anchor the Earth at viewport center (50%/50%) with
+ * scale keyed to narrative emphasis (largest on Start, grand on Future).
  */
-const { positions: defaultPositions } = DEFAULT_SCROLL_GLOBE_CONFIG
-
 export const HOME_SCROLL_GLOBE_CONFIG: ScrollGlobeGlobeConfig = {
-  ...DEFAULT_SCROLL_GLOBE_CONFIG,
-  leading: { top: '50%', left: '46%', scale: 0.88 },
+  leading: { top: '50%', left: '50%', scale: 1.52 },
   positions: [
-    defaultPositions[0]!,
-    /** Innovation (#innovation) — nudge left + scale up so the lit hemisphere reads centered behind copy */
-    { top: '50%', left: '46%', scale: 1.05 },
-    /** Discovery (#discovery) — pull anchor left so the globe isn’t clipped off the right edge */
-    { top: '15%', left: '82%', scale: 2 },
-    /** Future (#future) — centered behind “Tomorrow” copy (terminator reads right of 50%) */
-    { top: '50%', left: '46%', scale: 1.8 },
+    { top: '50%', left: '50%', scale: 1.18 },
+    { top: '50%', left: '50%', scale: 1.88 },
   ],
 }
