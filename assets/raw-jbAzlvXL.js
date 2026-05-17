@@ -1,1 +1,0 @@
-import{B as o}from"./geotiff-BLn3Cvdv.js";import"./chartjs-BPqutloJ.js";import"./geo-explorer-table-KyXTZ4S_.js";import"./geo-explorer-gemini-BqOn3Nct.js";import"./xlsx-DrgRuPKf.js";class s extends o{decodeBlock(e){return e}}export{s as default};
