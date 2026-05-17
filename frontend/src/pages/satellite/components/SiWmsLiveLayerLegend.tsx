@@ -1,7 +1,8 @@
 import { useCallback, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react';
 import type { WmsAoiEvalProfile } from '../../../lib/sentinelHubWmsAoiClip';
 import { siStopsToVerticalCssGradient } from '../../../lib/siWmsIndexClassificationRamp';
-import { mergeSymbologyUi, siWmsLiveLegendStops, type SiWmsSymbologyUiState } from '../utils/siWmsLegendMode';
+import { mergeSymbologyUi, type SiWmsSymbologyUiState } from '../utils/siWmsSymbologyModel';
+import { siWmsLiveLegendStops } from '../utils/siWmsSpectralClassification';
 import { SI_WMS_SPECTRAL_CLASS_COUNT, siWmsLegendRowsFromStops } from '../utils/siWmsSpectralClassification';
 import type { SiWmsSpectralLegendContext } from './SiWmsIndexClassificationLegend';
 

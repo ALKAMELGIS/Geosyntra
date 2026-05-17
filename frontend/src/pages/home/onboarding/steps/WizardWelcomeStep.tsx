@@ -3,6 +3,7 @@ import { homeOAuthSignIn, homeSignIn, homeSignUp, type OAuthProvider } from '../
 import { SaasButton } from '../../../../components/saas/SaasEntryShell'
 import { useAuth } from '../../../../state/auth'
 import { useHomeOnboarding } from '../HomeOnboardingContext'
+import { WizardWelcomeBrandMark } from '../WizardWelcomeBrandMark'
 
 const OAUTH: { id: OAuthProvider; label: string; icon: string }[] = [
   { id: 'google', label: 'Google', icon: 'fa-brands fa-google' },
@@ -77,6 +78,7 @@ export function WizardWelcomeStep() {
           Create your GeoSyntra workspace in minutes. Sign in once — plans and secure checkout stay in this
           overlay on Home.
         </p>
+        <WizardWelcomeBrandMark />
       </div>
 
       <div className="home-wizard-welcome__auth">

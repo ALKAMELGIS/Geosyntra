@@ -90,7 +90,7 @@ import {
 } from '../../lib/geoAiLinkedSelection';
 import { SiWmsIndexClassificationLegend, siWmsShowsSpectralLegend } from './components/SiWmsIndexClassificationLegend';
 import { SiWmsLiveLayerLegend } from './components/SiWmsLiveLayerLegend';
-import { mergeSymbologyUi, siWmsResolveLegendDisplayMode } from './utils/siWmsLegendMode';
+import { siWmsResolveLegendDisplayMode } from './utils/siWmsLegendMode';
 import {
   SiWmsSymbologyPopup,
   SiWmsSymbologyToolbarIconButton,
@@ -101,6 +101,7 @@ import {
   siComputeSymbologyStops,
   siWmsSymbologySupportsLayer,
   type SiWmsSymbologyUiState,
+  mergeSymbologyUi,
 } from './utils/siWmsSymbologyModel';
 import { siWmsResolveCanonicalStops } from './utils/siWmsSpectralClassification';
 import {

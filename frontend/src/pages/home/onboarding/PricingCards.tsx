@@ -1,5 +1,6 @@
 import { PRICING_PLANS, type BillingPlanId } from '../../../lib/onboarding/pricingPlans'
 import { SaasButton } from '../../../components/saas/SaasEntryShell'
+import { PricingPriceSparks } from './PricingPriceSparks'
 
 export type PricingCardsProps = {
   onSelectPlan: (planId: BillingPlanId) => void
@@ -21,7 +22,10 @@ export function PricingCards({ onSelectPlan, onGetStarted, compact, selectedPlan
             <header className="home-pricing__card-head">
               <h3 className="home-pricing__plan-name">{plan.name}</h3>
               <p className="home-pricing__price">
-                <span className="home-pricing__price-value">{plan.priceLabel}</span>
+                <span className="home-pricing__price-display">
+                  <PricingPriceSparks />
+                  <span className="home-pricing__price-value">{plan.priceLabel}</span>
+                </span>
                 <span className="home-pricing__price-note">{plan.priceNote}</span>
               </p>
               <p className="home-pricing__desc">{plan.description}</p>

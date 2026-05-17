@@ -36,7 +36,9 @@
  */
 
 import L from 'leaflet'
-import { geometryAoiAreaSqMeters } from '../../utils/siAoiZonalStats'
+import { geodesicAreaHectares as computeGeodesicAreaHectares } from '../../utils/siFieldGeodesicArea'
+
+export { geodesicAreaHectares } from '../../utils/siFieldGeodesicArea'
 
 /* ────────────────────────────────────────────────────────────────────────── *
  * Constants
@@ -452,45 +454,6 @@ export function indexToVizUnit(metric: FieldSurfaceVizMetric, indices: FieldIndi
 }
 
 
-type LeafletGeometryUtil = {
-  geodesicArea: (latLngs: L.LatLng[]) => number
-}
-
-function getGeometryUtil(): LeafletGeometryUtil | null {
-  const util = (L as unknown as { GeometryUtil?: LeafletGeometryUtil }).GeometryUtil
-  return util && typeof util.geodesicArea === 'function' ? util : null
-}
-
-/** Convert one Polygon ring (`[ [lng,lat], ... ]`) to LatLngs for L.GeometryUtil. */
-function ringToLatLngs(ring: GeoJSON.Position[]): L.LatLng[] {
-  return ring.map(([lng, lat]) => L.latLng(lat, lng))
-}
-
-export function geodesicAreaHectares(geometry: SavedField['geometry']): number {
-  let m2 = 0
-  const util = getGeometryUtil()
-  if (util) {
-    try {
-      if (geometry.type === 'Polygon') {
-        const outer = geometry.coordinates[0]
-        if (outer && outer.length >= 3) m2 = util.geodesicArea(ringToLatLngs(outer))
-      } else if (geometry.type === 'MultiPolygon') {
-        for (const poly of geometry.coordinates) {
-          const outer = poly[0]
-          if (outer && outer.length >= 3) m2 += util.geodesicArea(ringToLatLngs(outer))
-        }
-      }
-    } catch {
-      m2 = 0
-    }
-  }
-  if (m2 <= 0) {
-    // Mapbox Satellite Intelligence does not load leaflet-draw GeometryUtil — pure-JS fallback.
-    m2 = geometryAoiAreaSqMeters(geometry)
-  }
-  return Math.max(0, m2 / 10_000)
-}
-
 /**
  * Convert any leaflet-draw layer (polygon / rectangle / circle) into a
  * GeoJSON polygon suitable for `SavedField.geometry`. Circles are
@@ -523,7 +486,7 @@ export function leafletLayerToPolygon(
       ring.push([(newLng * 180) / Math.PI, (newLat * 180) / Math.PI])
     }
     const geometry: GeoJSON.Polygon = { type: 'Polygon', coordinates: [ring] }
-    return { geometry, areaHectares: geodesicAreaHectares(geometry) }
+    return { geometry, areaHectares: computeGeodesicAreaHectares(geometry) }
   }
 
   /* Polygon / Rectangle export their own GeoJSON via Leaflet. We only
@@ -533,7 +496,7 @@ export function leafletLayerToPolygon(
       const fc = (layer as L.Polygon).toGeoJSON() as GeoJSON.Feature
       if (fc.geometry?.type === 'Polygon' || fc.geometry?.type === 'MultiPolygon') {
         const geom = fc.geometry as SavedField['geometry']
-        return { geometry: geom, areaHectares: geodesicAreaHectares(geom) }
+        return { geometry: geom, areaHectares: computeGeodesicAreaHectares(geom) }
       }
     } catch {
       /* fallthrough */

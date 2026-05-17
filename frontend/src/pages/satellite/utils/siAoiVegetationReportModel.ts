@@ -1,6 +1,6 @@
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
-import { geodesicAreaHectares } from '../components/fields/fieldsStore';
+import { geodesicAreaHectares } from './siFieldGeodesicArea';
 import {
   STATIC_AOI_CHART_LAYER_OPTIONS,
   staticAoiLayerMeanForWeek,
@@ -13,11 +13,7 @@ import {
   type IndexRampStop,
   siThinLegendSegments,
 } from '../../../lib/siWmsIndexClassificationRamp';
-import {
-  drawPdfCartographerMapLayout,
-  siPdfBoundsFromFeatureCollection,
-  type SiPdfLngLatBounds,
-} from './siAoiReportCartography';
+import type { SiPdfLngLatBounds } from './siAoiReportCartography';
 import {
   DEFAULT_SI_AOI_REPORT_STYLE_MODE,
   siAoiReportStyleModeInterpretationConfig,
@@ -1646,7 +1642,8 @@ function scientificTableBody(report: SiAoiReportModel): string[][] {
  * Page 1: executive summary, class bars, table, stress note.
  * Page 2: AOI map (basemap + index layer) + legend + interpretation (Gemini when provided).
  */
-function buildAoiAnalysisPdfDocument(doc: jsPDF, report: SiAoiReportModel, opts: SiAoiPdfExportOptions) {
+async function buildAoiAnalysisPdfDocument(doc: jsPDF, report: SiAoiReportModel, opts: SiAoiPdfExportOptions) {
+  const { drawPdfCartographerMapLayout, siPdfBoundsFromFeatureCollection } = await import('./siAoiReportCartography');
   const margin = 44;
   const textW = doc.internal.pageSize.getWidth() - margin * 2;
   const pageH = doc.internal.pageSize.getHeight();
@@ -1986,7 +1983,7 @@ function buildTimeSeriesChangeDetectionPdfDocument(doc: jsPDF, report: SiAoiRepo
   appendDataInsightsPdf(doc, report, opts, margin, y);
 }
 
-export function exportSiAoiVegetationReportPdf(report: SiAoiReportModel, options: SiAoiPdfExportOptions) {
+export async function exportSiAoiVegetationReportPdf(report: SiAoiReportModel, options: SiAoiPdfExportOptions) {
   const doc = new jsPDF({ unit: 'pt', format: 'a4', compress: true });
   pdfInitBodyTypography(doc);
   const stamp = new Date().toISOString().replace(/[:.]/g, '-');
@@ -1997,6 +1994,6 @@ export function exportSiAoiVegetationReportPdf(report: SiAoiReportModel, options
     return;
   }
 
-  buildAoiAnalysisPdfDocument(doc, report, options);
+  await buildAoiAnalysisPdfDocument(doc, report, options);
   doc.save(`aoi-analysis-report-${stamp}.pdf`);
 }

@@ -949,7 +949,7 @@ export function SiAoiReportModal({
       }
 
       if (format === 'pdf') {
-        exportSiAoiVegetationReportPdf(report, {
+        await exportSiAoiVegetationReportPdf(report, {
           mode,
           chartImageDataUrl,
           aoiMapImageDataUrl,

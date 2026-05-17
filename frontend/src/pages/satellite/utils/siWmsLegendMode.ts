@@ -1,7 +1,5 @@
 import { inferWmsEvalProfile, type WmsAoiEvalProfile } from '../../../lib/sentinelHubWmsAoiClip';
-import type { IndexRampStop } from '../../../lib/siWmsIndexClassificationRamp';
 import { mergeSymbologyUi, type SiWmsSymbologyUiState } from './siWmsSymbologyModel';
-import { siWmsResolveCanonicalStops } from './siWmsSpectralClassification';
 
 export { mergeSymbologyUi } from './siWmsSymbologyModel';
 
@@ -43,13 +41,4 @@ export function siWmsResolveLegendDisplayMode(opts: {
   const ui = mergeSymbologyUi(symbologyPartial);
   if (hasAoiGeometry && ui.autoScientific) return 'scientific';
   return 'live';
-}
-
-/** Canonical 10-class stops — same as map WMS evalscript. */
-export function siWmsLiveLegendStops(
-  layerId: string,
-  _ui: SiWmsSymbologyUiState,
-  symbologyPartial?: Partial<SiWmsSymbologyUiState>,
-): readonly IndexRampStop[] | null {
-  return siWmsResolveCanonicalStops(layerId, symbologyPartial);
 }

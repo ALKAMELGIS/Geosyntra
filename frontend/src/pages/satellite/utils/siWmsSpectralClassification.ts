@@ -97,3 +97,12 @@ export function siWmsLegendRowsFromStops(
   if (out[out.length - 1] !== last) out.push(last);
   return out;
 }
+
+/** Canonical 10-class stops for live layer legend — kept here so legend mode never imports this module back. */
+export function siWmsLiveLegendStops(
+  layerId: string,
+  _ui: SiWmsSymbologyUiState,
+  symbologyPartial?: Partial<SiWmsSymbologyUiState>,
+): readonly IndexRampStop[] | null {
+  return siWmsResolveCanonicalStops(layerId, symbologyPartial);
+}
