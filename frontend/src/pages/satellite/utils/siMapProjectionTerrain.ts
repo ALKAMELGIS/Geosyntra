@@ -96,6 +96,31 @@ export type SiMapCameraSnapshot = {
   pitch: number;
 };
 
+export function readSiMapboxProjectionName(map: MapboxMap): string | null {
+  try {
+    const p = map.getProjection?.()
+    if (p && typeof p === 'object' && 'name' in p) {
+      return String((p as { name: string }).name)
+    }
+  } catch {
+    /* ignore */
+  }
+  return null
+}
+
+/** Clamp react-map-gl view state so 2D mode never feeds pitch/bearing into a maxPitch=0 map. */
+export function clampSiViewStateForProjection<T extends { pitch?: number; bearing?: number }>(
+  viewState: T,
+  mode: SiMapProjectionMode,
+): T {
+  if (mode === 'globe') return viewState
+  return {
+    ...viewState,
+    pitch: 0,
+    bearing: 0,
+  }
+}
+
 export function readSiMapCamera(map: MapboxMap): SiMapCameraSnapshot {
   const c = map.getCenter();
   return {
@@ -119,9 +144,12 @@ export function applySiMapProjectionMode(
   const isGlobe = mode === 'globe';
   const targetPitch = isGlobe ? Math.max(camera.pitch, 48) : 0;
   const targetBearing = isGlobe ? camera.bearing : 0;
+  const wantProjection = isGlobe ? 'globe' : 'mercator';
 
   try {
-    map.setProjection({ name: isGlobe ? 'globe' : 'mercator' });
+    if (readSiMapboxProjectionName(map) !== wantProjection) {
+      map.setProjection({ name: wantProjection });
+    }
   } catch {
     /* ignore */
   }

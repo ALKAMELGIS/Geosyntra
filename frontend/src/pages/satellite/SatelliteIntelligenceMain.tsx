@@ -181,10 +181,12 @@ import { SiMapProjectionToggle } from './components/SiMapProjectionToggle';
 import {
   applySiMapProjectionMode,
   applySiMapTerrain,
+  clampSiViewStateForProjection,
   loadStoredSiMapProjectionMode,
   loadStoredSiTerrainEnabled,
   loadStoredSiTerrainExaggeration,
   readSiMapCamera,
+  readSiMapboxProjectionName,
   SI_MAP_PROJECTION_MODE_LS,
   SI_MAP_TERRAIN_ENABLED_LS,
   SI_MAP_TERRAIN_EXAGGERATION_LS,
@@ -2728,6 +2730,10 @@ export default function SatelliteIntelligence() {
   const mapProjectionModeRef = useRef<SiMapProjectionMode>(mapProjectionMode);
   mapProjectionModeRef.current = mapProjectionMode;
   const is3DView = mapProjectionMode === 'globe';
+  const mapViewState = useMemo(
+    () => clampSiViewStateForProjection(viewState, mapProjectionMode),
+    [viewState, mapProjectionMode],
+  );
   const [siTerrainEnabled, setSiTerrainEnabled] = useState(() => loadStoredSiTerrainEnabled());
   const [siTerrainExaggeration, setSiTerrainExaggeration] = useState(() => loadStoredSiTerrainExaggeration());
   const siTerrainEnabledRef = useRef(siTerrainEnabled);
@@ -3197,6 +3203,9 @@ export default function SatelliteIntelligence() {
   const mapRef = useRef<any | null>(null);
   /** One-shot fallback to Mercator when Globe/WebGL errors (e.g. some Edge + GPU combos). */
   const siGlobeWebglFailoverRef = useRef(false);
+  /** Blocks onMove + style sync while 2D/3D projection is switching (prevents viewState ↔ maxPitch loops). */
+  const siProjectionSwitchingRef = useRef(false);
+  const siStyleProjectionSyncBusyRef = useRef(false);
   const siTableFeatureKeyCacheRef = useRef<Map<object, string>>(new Map());
   const drawnGeometryRef = useRef<any | null>(null);
   const dragRectCircleRef = useRef<null | { kind: 'rectangle' | 'circle'; start: [number, number] }>(null);
@@ -4708,8 +4717,19 @@ export default function SatelliteIntelligence() {
   const changeSiProjectionMode = useCallback(
     (mode: SiMapProjectionMode) => {
       if (mode === mapProjectionModeRef.current) return;
-      const mapInstance = mapRef.current?.getMap?.() ?? mapRef.current;
+      siProjectionSwitchingRef.current = true;
       mapProjectionModeRef.current = mode;
+
+      setViewState(prev =>
+        clampSiViewStateForProjection(
+          {
+            ...prev,
+            pitch: mode === 'globe' ? Math.max(prev.pitch ?? 0, 48) : 0,
+            bearing: mode === 'globe' ? (prev.bearing ?? 0) : 0,
+          },
+          mode,
+        ),
+      );
       setMapProjectionMode(mode);
       try {
         window.localStorage.setItem(SI_MAP_PROJECTION_MODE_LS, mode);
@@ -4718,39 +4738,53 @@ export default function SatelliteIntelligence() {
       }
       showProjectionToast(mode === 'globe' ? '3D globe · terrain DEM enabled' : '2D map · north-up view');
 
+      const mapInstance = mapRef.current?.getMap?.() ?? mapRef.current;
       if (!mapInstance) {
-        setViewState(prev => ({
-          ...prev,
-          pitch: mode === 'globe' ? Math.max(prev.pitch ?? 0, 48) : 0,
-          bearing: mode === 'globe' ? prev.bearing ?? 0 : 0,
-        }));
+        window.setTimeout(() => {
+          siProjectionSwitchingRef.current = false;
+        }, 0);
         return;
       }
 
-      const camera = readSiMapCamera(mapInstance);
-      const next = applySiMapProjectionMode(mapInstance, mode, camera, {
-        enabled: siTerrainEnabledRef.current,
-        exaggeration: siTerrainExaggerationRef.current,
-        buildings: true,
-      });
-      setViewState(prev => ({
-        ...prev,
-        longitude: next.longitude,
-        latitude: next.latitude,
-        zoom: next.zoom,
-        pitch: next.pitch,
-        bearing: next.bearing,
-      }));
+      try {
+        const camera = readSiMapCamera(mapInstance);
+        const next = applySiMapProjectionMode(mapInstance, mode, camera, {
+          enabled: siTerrainEnabledRef.current,
+          exaggeration: siTerrainExaggerationRef.current,
+          buildings: true,
+        });
+        setViewState(prev =>
+          clampSiViewStateForProjection(
+            {
+              ...prev,
+              longitude: next.longitude,
+              latitude: next.latitude,
+              zoom: next.zoom,
+              pitch: next.pitch,
+              bearing: next.bearing,
+            },
+            mode,
+          ),
+        );
+      } finally {
+        window.setTimeout(() => {
+          siProjectionSwitchingRef.current = false;
+        }, 720);
+      }
     },
     [showProjectionToast],
   );
 
   const siSyncMapProjection = useCallback(() => {
+    if (siProjectionSwitchingRef.current || siStyleProjectionSyncBusyRef.current) return;
     const mapInstance = mapRef.current?.getMap?.() ?? mapRef.current;
     if (!mapInstance) return;
     const mode = mapProjectionModeRef.current;
+    const wantProjection = mode === 'globe' ? 'globe' : 'mercator';
     try {
-      mapInstance.setProjection({ name: mode === 'globe' ? 'globe' : 'mercator' });
+      if (readSiMapboxProjectionName(mapInstance) !== wantProjection) {
+        mapInstance.setProjection({ name: wantProjection });
+      }
     } catch {
       /* ignore */
     }
@@ -4770,6 +4804,16 @@ export default function SatelliteIntelligence() {
       }
     }
   }, []);
+
+  const handleMapStyleData = useCallback(() => {
+    if (siProjectionSwitchingRef.current) return;
+    siStyleProjectionSyncBusyRef.current = true;
+    try {
+      siSyncMapProjection();
+    } finally {
+      siStyleProjectionSyncBusyRef.current = false;
+    }
+  }, [siSyncMapProjection]);
 
   useEffect(() => {
     try {
@@ -12651,10 +12695,12 @@ export default function SatelliteIntelligence() {
           <MapGL
             key={`si-map-globe:${mapboxAccessTokenForMap ? 'token' : 'no-token'}`}
             ref={mapRef}
-            {...viewState}
+            {...mapViewState}
             onMove={evt => {
-              if (isSiViewportChangeBlocked()) return;
-              setViewState(evt.viewState);
+              if (isSiViewportChangeBlocked() || siProjectionSwitchingRef.current) return;
+              setViewState(
+                clampSiViewStateForProjection(evt.viewState, mapProjectionModeRef.current),
+              );
             }}
             onMouseDown={handleMapPointerDown}
             onMouseMove={handleMapPointerMove}
@@ -12703,18 +12749,19 @@ export default function SatelliteIntelligence() {
               const lowerMessage = String(message || '').toLowerCase();
               if (
           !siGlobeWebglFailoverRef.current &&
+          mapProjectionModeRef.current === 'globe' &&
           (siMapErrorSuggestsGlobeOrWebglFailure(String(message)) ||
             lowerMessage.includes('access token') ||
             lowerMessage.includes('mapbox'))
               ) {
           siGlobeWebglFailoverRef.current = true;
-          changeSiProjectionMode('globe');
-          setStacStatus('Map detected a rendering issue and is retrying in 3D Globe mode.');
+          changeSiProjectionMode('2d');
+          setStacStatus('3D globe unavailable on this device — switched to 2D map.');
           return;
               }
               console.warn('Map Error:', e);
             }}
-            onStyleData={() => siSyncMapProjection()}
+            onStyleData={handleMapStyleData}
             onLoad={() => {
               setIsMapLoaded(true);
               siSyncMapProjection();
@@ -12727,7 +12774,7 @@ export default function SatelliteIntelligence() {
           {isMapLoaded && mapSwipeActive && sentinelVisible && drawnAoiWmsClipReady ? (
             <>
               <SiMapSwipeComparePane
-                viewState={viewState}
+                viewState={mapViewState}
                 clipPath={mapSwipeClipPath}
                 mapStyle={effectiveMapStyle}
                 mapboxAccessToken={mapboxAccessTokenForMap}
