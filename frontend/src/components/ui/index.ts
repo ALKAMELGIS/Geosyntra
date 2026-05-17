@@ -10,6 +10,7 @@ export { ScrollGlobe, default as LandingPage } from './landing-page'
 export type {
   ScrollGlobeProps,
   ScrollGlobeSection,
+  ScrollGlobeTrailingSection,
   ScrollGlobeAction,
   ScrollGlobeFeature,
   ScrollGlobePosition,

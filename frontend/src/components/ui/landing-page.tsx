@@ -83,6 +83,13 @@ export interface ScrollGlobeLeadingNav {
   badge: string
 }
 
+/** Extra full-width blocks after globe narrative (e.g. pricing, footer) — wired to the right-rail dots. */
+export interface ScrollGlobeTrailingSection {
+  id: string
+  badge: string
+  children: React.ReactNode
+}
+
 export interface ScrollGlobeProps {
   sections: ScrollGlobeSection[]
   globeConfig?: ScrollGlobeGlobeConfig
@@ -90,6 +97,8 @@ export interface ScrollGlobeProps {
   /** Full-viewport SaaS / signup panel before the globe narrative sections. */
   leadingSection?: React.ReactNode
   leadingSectionNav?: ScrollGlobeLeadingNav
+  /** Panels after the last globe story section (pricing, site footer, …). */
+  trailingSections?: ScrollGlobeTrailingSection[]
   onActiveSectionChange?: (index: number) => void
   /** SaaS hero only — crisp centered globe without scrim/gradient/blur. */
   leadingGlobeClear?: boolean
@@ -101,12 +110,14 @@ export function ScrollGlobe({
   className,
   leadingSection,
   leadingSectionNav,
+  trailingSections = [],
   onActiveSectionChange,
   leadingGlobeClear = false,
 }: ScrollGlobeProps) {
   const hasLeading = Boolean(leadingSection)
+  const trailingCount = trailingSections.length
   const innovationSparkleIndex = hasLeading ? 2 : 1
-  const sectionCount = hasLeading ? sections.length + 1 : sections.length
+  const sectionCount = (hasLeading ? sections.length + 1 : sections.length) + trailingCount
   const containerRef = useRef<HTMLDivElement>(null)
   const sectionRefs = useRef<(HTMLElement | null)[]>([])
 
@@ -231,6 +242,11 @@ export function ScrollGlobe({
               key: section.id,
               badge: section.badge ?? `Section ${index + 1}`,
               scrollIndex: hasLeading ? index + 1 : index,
+            })),
+            ...trailingSections.map((trail, index) => ({
+              key: trail.id,
+              badge: trail.badge,
+              scrollIndex: (hasLeading ? sections.length + 1 : sections.length) + index,
             })),
           ].map(entry => (
             <div key={entry.key} className="relative group">
@@ -606,6 +622,21 @@ export function ScrollGlobe({
             )}
           </div>
         </section>
+        )
+      })}
+      {trailingSections.map((trail, index) => {
+        const scrollIndex = (hasLeading ? sections.length + 1 : sections.length) + index
+        return (
+          <div
+            key={trail.id}
+            ref={el => {
+              sectionRefs.current[scrollIndex] = el
+            }}
+            className="gs-scroll-globe-trailing relative z-30 w-full max-w-full"
+            data-scroll-globe-trailing={trail.id}
+          >
+            {trail.children}
+          </div>
         )
       })}
     </div>
