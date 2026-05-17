@@ -190,6 +190,7 @@ export function ScrollGlobe({
         leadingGlobeClear ? 'gs-scroll-globe--leading-clear' : null,
         className,
       )}
+      data-active-section={activeSection}
     >
       {/* Top progress hairline — exact upstream gradient (primary → blue-600
           → blue-900) and the matching cool drop-shadow. The landing page is
@@ -383,7 +384,7 @@ export function ScrollGlobe({
           ref={el => {
             sectionRefs.current[0] = el
           }}
-          className="home-merged-saas gs-hero-leading-panel relative z-30 min-h-screen min-h-[100dvh] w-full max-w-full flex flex-col justify-center pointer-events-none"
+          className="home-merged-saas gs-hero-leading-panel relative z-30 min-h-screen min-h-[100dvh] w-full max-w-full flex flex-col items-center justify-center pointer-events-none"
           style={
             leadingGlobeClear
               ? undefined

@@ -28,6 +28,12 @@ function metaFor(layerId: string) {
 
 const DATASET_COLORS = ['#4f46e5', '#0d9488', '#ca8a04', '#b91c1c', '#7c3aed', '#15803d', '#0369a1'];
 
+/** Stable series color for a layer id (matches AOI static multi-layer chart). */
+export function staticAoiChartColorForLayer(layerId: StaticAoiChartLayerId): string {
+  const idx = STATIC_AOI_CHART_LAYER_OPTIONS.findIndex(o => o.id === layerId);
+  return DATASET_COLORS[(idx >= 0 ? idx : 0) % DATASET_COLORS.length]!;
+}
+
 export function buildStaticAoiMultiChartDatasets(
   weekly: WeeklyCompositeLite[],
   layerIds: StaticAoiChartLayerId[],

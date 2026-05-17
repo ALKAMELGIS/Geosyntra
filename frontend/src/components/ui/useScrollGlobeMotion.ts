@@ -60,7 +60,7 @@ export function useScrollGlobeMotion(
   const [leadingScrollT, setLeadingScrollT] = useState(0)
   const [heroStarsOpacity, setHeroStarsOpacity] = useState(() => (hasLeading ? 0.85 : 0))
   const [heroOverlayOpacity, setHeroOverlayOpacity] = useState(() => (hasLeading ? 1 : 0))
-  const [globeOpacity, setGlobeOpacity] = useState(() => (hasLeading ? 0.9 : 0))
+  const [globeOpacity, setGlobeOpacity] = useState(() => (hasLeading ? 0.94 : 0))
   const [heroScrimBlur, setHeroScrimBlur] = useState(10)
   const [heroGlobeBlur, setHeroGlobeBlur] = useState(0)
 
@@ -121,7 +121,9 @@ export function useScrollGlobeMotion(
       } else if (newActiveSection === 0 && leadingEl) {
         const rect = leadingEl.getBoundingClientRect()
         const vh = window.innerHeight || 1
-        leadT = Math.min(Math.max((vh * 0.42 - rect.top) / (vh * 0.78), 0), 1)
+        const sectionCenter = rect.top + rect.height / 2
+        const centerDrift = Math.abs(sectionCenter - viewportCenter)
+        leadT = Math.min(Math.max((centerDrift - vh * 0.06) / (vh * 0.42), 0), 1)
         camera = lerpGlobePosition(resolved.leading, resolved.positions[0]!, leadT)
         scrollDriftY = -leadT * GLOBE_MOTION.scrollDriftVh
       } else if (newActiveSection === 1 && leadingEl && welcomeEl) {

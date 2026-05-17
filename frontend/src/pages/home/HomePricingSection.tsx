@@ -17,7 +17,7 @@ export function HomePricingSection() {
     }
     selectPlan(planId)
     if (!user) {
-      openWizard({ step: 'auth', planId })
+      openWizard({ step: 'welcome', planId })
       return
     }
     openWizard({ step: 'pricing', planId })

@@ -66,6 +66,10 @@ export type AoiStaticMultiLayerLineChartProps = {
   onRequestGenerateReport?: () => void;
   /** When set with polygon AOI + weekly timeline, Excel export adds Data_Raw / Data_Classified / Summary / Class stats. */
   geoAiIndexAnalyticalExportContext?: SiGeoAiIndexAnalyticalExportContext | null;
+  /** Map dock (default) vs AOI report preview — report keeps chart-type toolbar, forces dark theme. */
+  presentation?: 'dock' | 'report';
+  /** Disable Chart.js animations (PDF export host). */
+  disableAnimation?: boolean;
 };
 
 type StaticChartType = 'line' | 'bar' | 'scatter' | 'pie';
@@ -113,12 +117,15 @@ export function AoiStaticMultiLayerLineChart({
   exportLngLatPerRow,
   onRequestGenerateReport,
   geoAiIndexAnalyticalExportContext = null,
+  presentation = 'dock',
+  disableAnimation = false,
 }: AoiStaticMultiLayerLineChartProps) {
-  const [chartTheme, setChartTheme] = useState<'dark' | 'light'>('dark');
+  const isReport = presentation === 'report';
+  const [chartTheme, setChartTheme] = useState<'dark' | 'light'>(() => (isReport ? 'dark' : 'dark'));
   const [chartType, setChartType] = useState<StaticChartType>('line');
   const [colorOverrides, setColorOverrides] = useState<Record<string, string>>(loadStoredIndexColors);
   const [hiddenById, setHiddenById] = useState<Record<string, boolean>>({});
-  const isLight = chartTheme === 'light';
+  const isLight = !isReport && chartTheme === 'light';
   const titleColor = isLight ? '#0f172a' : '#e2e8f0';
   const labelColor = isLight ? '#334155' : '#cbd5e1';
   const tickColor = isLight ? '#475569' : '#94a3b8';
@@ -355,6 +362,7 @@ export function AoiStaticMultiLayerLineChart({
     const base = {
       responsive: true,
       maintainAspectRatio: false,
+      ...(disableAnimation ? { animation: false as const } : {}),
       interaction: { mode: 'index' as const, intersect: false },
       plugins: {
         title: {
@@ -421,7 +429,7 @@ export function AoiStaticMultiLayerLineChart({
       },
     };
     return base;
-  }, [title, effectiveDatasets, hasLst, titleColor, labelColor, tickColor, gridColor, isLight, zoomCfg]);
+  }, [title, effectiveDatasets, hasLst, titleColor, labelColor, tickColor, gridColor, isLight, zoomCfg, disableAnimation]);
 
   const lineOptions = useMemo(() => cartesianOptions as ChartOptions<'line'>, [cartesianOptions]);
 
@@ -483,6 +491,7 @@ export function AoiStaticMultiLayerLineChart({
       ({
         responsive: true,
         maintainAspectRatio: false,
+        ...(disableAnimation ? { animation: false as const } : {}),
         plugins: {
           title: {
             display: true,
@@ -503,7 +512,7 @@ export function AoiStaticMultiLayerLineChart({
           zoom: zoomCfg,
         },
       }) as ChartOptions<'pie'>,
-    [title, titleColor, labelColor, isLight, zoomCfg],
+    [title, titleColor, labelColor, isLight, zoomCfg, disableAnimation],
   );
 
   const exportChartToExcel = useCallback(() => {
@@ -550,7 +559,15 @@ export function AoiStaticMultiLayerLineChart({
   const chartKey = `${chartType}-${isLight ? 'light' : 'dark'}`;
 
   return (
-    <div className={`si-aoi-static-line-wrap ${isLight ? 'si-aoi-static-line-wrap--light' : 'si-aoi-static-line-wrap--dark'}`}>
+    <div
+      className={[
+        'si-aoi-static-line-wrap',
+        isLight ? 'si-aoi-static-line-wrap--light' : 'si-aoi-static-line-wrap--dark',
+        isReport ? 'si-aoi-static-line-wrap--report' : '',
+      ]
+        .filter(Boolean)
+        .join(' ')}
+    >
       <div className="si-aoi-static-line-toolbar">
         <div className="si-aoi-static-chart-type" role="group" aria-label="Chart type">
           <span className="si-aoi-static-chart-type-label">Chart type</span>
@@ -597,35 +614,37 @@ export function AoiStaticMultiLayerLineChart({
             </button>
           </div>
         </div>
-        <div className="si-aoi-static-line-actions">
-          <button
-            type="button"
-            className="si-aoi-static-line-theme-toggle"
-            aria-label={isLight ? 'Switch chart to dark theme' : 'Switch chart to light theme'}
-            title={isLight ? 'Dark chart theme' : 'Light chart theme'}
-            onClick={() => setChartTheme(prev => (prev === 'light' ? 'dark' : 'light'))}
-          >
-            <i className={`fa-solid ${isLight ? 'fa-moon' : 'fa-sun'}`} aria-hidden />
-          </button>
-          <button
-            type="button"
-            className="si-aoi-static-line-theme-toggle"
-            aria-label="Generate report"
-            title="Generate report"
-            onClick={onGenerateReport}
-          >
-            <i className="fa-solid fa-file-lines" aria-hidden />
-          </button>
-          <button
-            type="button"
-            className="si-aoi-static-line-theme-toggle"
-            aria-label="Export GeoAI Index Analytical Report to Excel"
-            title="Export GeoSyntra workbook (.xlsx — Chart_Data, Data_Raw, Data_Classified, Summary_AOI, Class_Statistics, PG)"
-            onClick={exportChartToExcel}
-          >
-            <i className="fa-regular fa-file-excel" aria-hidden />
-          </button>
-        </div>
+        {!isReport ? (
+          <div className="si-aoi-static-line-actions">
+            <button
+              type="button"
+              className="si-aoi-static-line-theme-toggle"
+              aria-label={isLight ? 'Switch chart to dark theme' : 'Switch chart to light theme'}
+              title={isLight ? 'Dark chart theme' : 'Light chart theme'}
+              onClick={() => setChartTheme(prev => (prev === 'light' ? 'dark' : 'light'))}
+            >
+              <i className={`fa-solid ${isLight ? 'fa-moon' : 'fa-sun'}`} aria-hidden />
+            </button>
+            <button
+              type="button"
+              className="si-aoi-static-line-theme-toggle"
+              aria-label="Generate report"
+              title="Generate report"
+              onClick={onGenerateReport}
+            >
+              <i className="fa-solid fa-file-lines" aria-hidden />
+            </button>
+            <button
+              type="button"
+              className="si-aoi-static-line-theme-toggle"
+              aria-label="Export GeoAI Index Analytical Report to Excel"
+              title="Export GeoSyntra workbook (.xlsx — Chart_Data, Data_Raw, Data_Classified, Summary_AOI, Class_Statistics, PG)"
+              onClick={exportChartToExcel}
+            >
+              <i className="fa-regular fa-file-excel" aria-hidden />
+            </button>
+          </div>
+        ) : null}
       </div>
       <div className="si-aoi-static-line-legend" role="list" aria-label="Indices and colors">
         {effectiveDatasets.map(ds => {

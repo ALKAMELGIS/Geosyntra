@@ -14,8 +14,8 @@ export type ScrollGlobeGlobeConfig = {
 }
 
 export const DEFAULT_SCROLL_GLOBE_CONFIG: ScrollGlobeGlobeConfig = {
-  /** Same visual mass as Welcome (#hero) — centered behind SaaS copy */
-  leading: { top: '50%', left: '50%', scale: 1.96 },
+  /** Centered behind SaaS copy — same camera as Innovation for clarity */
+  leading: { top: '50%', left: '50%', scale: 0.88 },
   positions: [
     { top: '43%', left: '74%', scale: 1.96 },
     { top: '50%', left: '50%', scale: 0.88 },
@@ -105,7 +105,7 @@ export function resolveGlobeOpacity(opts: {
 
   let opacity = 0.92
   if (opts.hasLeading && opts.activeSection === 0) {
-    opacity = opts.mobileReduced ? 0.72 : 0.9
+    opacity = opts.mobileReduced ? 0.88 : 0.94
   } else if (opts.activeSection === opts.lastSectionIndex) {
     opacity = 0.4
   }

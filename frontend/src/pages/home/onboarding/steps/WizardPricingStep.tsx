@@ -3,7 +3,7 @@ import { PricingCards } from '../PricingCards'
 import { useHomeOnboarding } from '../HomeOnboardingContext'
 
 export function WizardPricingStep() {
-  const { openPayment, runActivation, selectedPlanId, selectPlan } = useHomeOnboarding()
+  const { openPayment, runActivation, selectedPlanId, selectPlan, setStep } = useHomeOnboarding()
 
   const handleGetStarted = (planId: BillingPlanId) => {
     selectPlan(planId)
@@ -22,10 +22,10 @@ export function WizardPricingStep() {
 
   return (
     <div className="home-wizard-step home-wizard-step--pricing">
-      <p className="home-wizard-step__eyebrow">Step 3 · Pricing</p>
+      <p className="home-wizard-step__eyebrow">Step 2 · Plan selection</p>
       <h2 className="home-wizard-step__title">Choose your plan</h2>
       <p className="home-wizard-step__lede">
-        Same plans as always — pick one and continue. Payment opens right here for paid tiers.
+        Start with a 14-day trial or subscribe to Pro. Checkout opens in the next step — no page leave.
       </p>
       {selectedPlanId === 'trial' ? (
         <p className="home-wizard-trial-badge">Free Trial · 14 days active after activation</p>
@@ -36,8 +36,8 @@ export function WizardPricingStep() {
         onSelectPlan={selectPlan}
         onGetStarted={handleGetStarted}
       />
-      <button type="button" className="home-wizard-back" onClick={() => setStep('auth')}>
-        ← Back to account
+      <button type="button" className="home-wizard-back" onClick={() => setStep('welcome')}>
+        ← Back to welcome
       </button>
     </div>
   )

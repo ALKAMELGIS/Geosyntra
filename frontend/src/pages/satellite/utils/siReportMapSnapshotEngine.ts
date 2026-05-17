@@ -28,14 +28,31 @@ export type SiReportMapSnapshotRequest = {
   freezeViewport?: boolean;
   maskToAoi?: boolean;
   captureMode?: SiReportCaptureMode;
+  /** Time-series grid slot — shorter WMS wait (target ~400–500 ms / frame). */
+  batchSlot?: boolean;
+  /** Keep report modal visible (avoids 12× hide/show flicker during change-detection batch). */
+  suppressModalChrome?: boolean;
 };
 
+let reportMapCaptureSessionDepth = 0;
+
 export function setReportMapCaptureMode(active: boolean): void {
+  if (active) reportMapCaptureSessionDepth += 1;
+  else reportMapCaptureSessionDepth = Math.max(0, reportMapCaptureSessionDepth - 1);
   try {
-    document.body.classList.toggle('si-report-map-capture-active', active);
+    document.body.classList.toggle('si-report-map-capture-active', reportMapCaptureSessionDepth > 0);
   } catch {
     /* ignore */
   }
+}
+
+/** One modal hide for an entire change-detection batch (not per slot). */
+export function beginReportMapCaptureBatch(): void {
+  setReportMapCaptureMode(true);
+}
+
+export function endReportMapCaptureBatch(): void {
+  setReportMapCaptureMode(false);
 }
 
 export function isSnapshotCanvasLikelyBlank(canvas: HTMLCanvasElement): boolean | null {
@@ -128,16 +145,24 @@ async function captureExportFast(map: MapboxMap, opts: SiReportMapSnapshotReques
   const maskToAoi = opts.maskToAoi ?? false;
   const outline = opts.outlineColor ?? 'rgba(34, 197, 94, 0.95)';
   const needsDate = Boolean(opts.date && opts.applyDate);
+  const batch = opts.batchSlot === true;
+  const wmsWait = batch
+    ? { timeoutMs: 360, wmsTimeoutMs: 280 }
+    : { timeoutMs: 650, wmsTimeoutMs: 520 };
+  const idleWait = batch
+    ? { timeoutMs: 220, wmsTimeoutMs: 160 }
+    : { timeoutMs: 280, wmsTimeoutMs: 200 };
 
   return runLightSnapshotLock(async () => {
-    setReportMapCaptureMode(true);
+    const manageModal = opts.suppressModalChrome !== true;
+    if (manageModal) setReportMapCaptureMode(true);
     try {
       if (!prepareCanvasForExport(map)) return null;
 
       if (opts.fitBounds) {
         try {
           fitMapToLngLatBounds(map, opts.fitBounds, 56);
-          await waitForVisibleMapLayersReady(map, { timeoutMs: 700, wmsTimeoutMs: 550 });
+          await waitForVisibleMapLayersReady(map, wmsWait);
         } catch {
           /* ignore */
         }
@@ -145,9 +170,9 @@ async function captureExportFast(map: MapboxMap, opts: SiReportMapSnapshotReques
 
       if (needsDate && opts.date && opts.applyDate) {
         await Promise.resolve(opts.applyDate(opts.date.slice(0, 10)));
-        await waitForVisibleMapLayersReady(map, { timeoutMs: 650, wmsTimeoutMs: 520 });
+        await waitForVisibleMapLayersReady(map, wmsWait);
       } else {
-        await waitForVisibleMapLayersReady(map, { timeoutMs: 280, wmsTimeoutMs: 200 });
+        await waitForVisibleMapLayersReady(map, idleWait);
       }
 
       const captured = await captureCurrentCanvasFrame(map, scale, opts.aoiFeature, {
@@ -158,7 +183,7 @@ async function captureExportFast(map: MapboxMap, opts: SiReportMapSnapshotReques
       if (!opts.aoiFeature?.geometry) return captured.png;
       return finishAoiSnapshot(map, captured.png, opts.aoiFeature, captured.projectedRings, maskToAoi, outline);
     } finally {
-      setReportMapCaptureMode(false);
+      if (manageModal) setReportMapCaptureMode(false);
     }
   });
 }
@@ -168,8 +193,9 @@ async function captureExportQuality(map: MapboxMap, opts: SiReportMapSnapshotReq
   const maskToAoi = opts.maskToAoi ?? false;
   const outline = opts.outlineColor ?? 'rgba(34, 197, 94, 0.95)';
 
+  const manageModal = opts.suppressModalChrome !== true;
   return runLightSnapshotLock(async () => {
-    setReportMapCaptureMode(true);
+    if (manageModal) setReportMapCaptureMode(true);
     try {
       if (!prepareCanvasForExport(map)) return null;
       await waitForVisibleMapLayersReady(map, { timeoutMs: 1100, wmsTimeoutMs: 900 });
@@ -184,7 +210,7 @@ async function captureExportQuality(map: MapboxMap, opts: SiReportMapSnapshotReq
       if (!opts.aoiFeature?.geometry) return captured.png;
       return finishAoiSnapshot(map, captured.png, opts.aoiFeature, captured.projectedRings, maskToAoi, outline);
     } finally {
-      setReportMapCaptureMode(false);
+      if (manageModal) setReportMapCaptureMode(false);
     }
   });
 }

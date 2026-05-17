@@ -1178,14 +1178,15 @@ html[data-theme='light'] .api-integ-dd__option-check {
 /* API Manager — luxury SaaS full-width layout */
 
 .api-manager-shell {
-  --api-mgr-accent: #8b5cf6;
-  --api-mgr-accent-2: #06b6d4;
-  --api-mgr-text: var(--ds-color-text, #ececf2);
-  --api-mgr-muted: var(--ds-color-text-muted, rgba(232, 232, 238, 0.62));
-  --api-mgr-glass: rgba(18, 18, 26, 0.55);
-  --api-mgr-glass-border: rgba(255, 255, 255, 0.1);
-  --api-mgr-shadow: 0 24px 60px rgba(0, 0, 0, 0.35);
-  --api-mgr-radius: 18px;
+  --api-mgr-accent: #a5b4fc;
+  --api-mgr-accent-2: #38bdf8;
+  --api-mgr-text: var(--ds-color-text, #f1f5f9);
+  --api-mgr-muted: var(--ds-color-text-muted, rgba(148, 163, 184, 0.92));
+  --api-mgr-glass: rgba(2, 6, 14, 0.42);
+  --api-mgr-glass-elevated: rgba(8, 12, 22, 0.58);
+  --api-mgr-glass-border: rgba(255, 255, 255, 0.09);
+  --api-mgr-shadow: 0 20px 48px rgba(0, 0, 0, 0.42);
+  --api-mgr-radius: 14px;
   width: 100%;
   max-width: none;
   margin: 0;
@@ -1201,12 +1202,13 @@ html[data-theme='light'] .api-integ-dd__option-check {
   display: flex;
   align-items: flex-start;
   gap: 12px;
-  padding: 14px 16px;
-  border-radius: 14px;
-  border: 1px solid rgba(251, 191, 36, 0.35);
-  background: linear-gradient(135deg, rgba(251, 191, 36, 0.14), rgba(245, 158, 11, 0.06));
-  backdrop-filter: blur(12px);
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+  padding: 12px 14px;
+  border-radius: var(--api-mgr-radius);
+  border: 1px solid rgba(251, 191, 36, 0.28);
+  background: rgba(2, 6, 14, 0.55);
+  backdrop-filter: blur(16px) saturate(1.15);
+  -webkit-backdrop-filter: blur(16px) saturate(1.15);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
 }
 
 .api-manager-notice__icon {
@@ -1247,91 +1249,116 @@ html[data-theme='light'] .api-integ-dd__option-check {
   overflow: hidden;
   border: 1px solid var(--api-mgr-glass-border);
   background:
-    radial-gradient(120% 80% at 0% 0%, rgba(139, 92, 246, 0.18), transparent 55%),
-    radial-gradient(90% 70% at 100% 0%, rgba(6, 182, 212, 0.12), transparent 50%),
+    radial-gradient(90% 120% at 0% 0%, rgba(148, 163, 184, 0.08), transparent 55%),
+    radial-gradient(70% 90% at 100% 0%, rgba(56, 189, 248, 0.06), transparent 50%),
     var(--api-mgr-glass);
-  backdrop-filter: blur(20px) saturate(1.25);
-  -webkit-backdrop-filter: blur(20px) saturate(1.25);
-  box-shadow: var(--api-mgr-shadow), inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  backdrop-filter: blur(22px) saturate(1.2);
+  -webkit-backdrop-filter: blur(22px) saturate(1.2);
+  box-shadow:
+    var(--api-mgr-shadow),
+    inset 0 1px 0 rgba(255, 255, 255, 0.07);
 }
 
 .api-manager-hero__glow {
   position: absolute;
-  inset: -40% -20% auto;
-  height: 120%;
-  background: radial-gradient(ellipse at 30% 20%, rgba(139, 92, 246, 0.25), transparent 60%);
+  inset: -30% -15% auto;
+  height: 90%;
+  background: radial-gradient(ellipse at 40% 0%, rgba(248, 250, 252, 0.06), transparent 62%);
   pointer-events: none;
 }
 
+/* Compact hero bar — title + stats + CTA only */
 .api-manager-hero__inner {
   position: relative;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: clamp(16px, 3vw, 32px);
+  gap: 12px 16px;
   flex-wrap: wrap;
-  padding: clamp(22px, 3vw, 32px) clamp(20px, 3vw, 36px);
+  padding: 12px 16px;
+  min-height: 0;
 }
 
-.api-manager-hero__brand {
-  display: flex;
-  align-items: flex-start;
-  gap: 16px;
-  min-width: 0;
-  flex: 1 1 280px;
-}
-
-.api-manager-hero__icon-wrap {
-  flex-shrink: 0;
-  width: 56px;
-  height: 56px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 16px;
-  font-size: 22px;
-  color: #e9d5ff;
-  background: linear-gradient(145deg, rgba(139, 92, 246, 0.45), rgba(6, 182, 212, 0.25));
-  border: 1px solid rgba(255, 255, 255, 0.14);
-  box-shadow:
-    0 12px 28px rgba(139, 92, 246, 0.25),
-    inset 0 1px 0 rgba(255, 255, 255, 0.2);
-}
-
-.api-manager-hero__title {
-  margin: 0;
-  font-size: clamp(1.65rem, 3vw, 2.1rem);
-  font-weight: 800;
-  letter-spacing: -0.03em;
-  line-height: 1.15;
-}
-
-.api-manager-hero__subtitle {
-  margin: 8px 0 0;
-  max-width: 52ch;
-  font-size: clamp(0.9rem, 1.5vw, 1rem);
-  line-height: 1.55;
-  color: var(--api-mgr-muted);
-}
-
-.api-manager-hero__aside {
+.api-manager-hero__inner .api-manager-hero__brand {
   display: flex;
   align-items: center;
   gap: 12px;
+  min-width: 0;
+  flex: 1 1 220px;
+}
+
+.api-manager-hero__inner .api-manager-hero__icon-wrap {
+  flex-shrink: 0;
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 11px;
+  font-size: 17px;
+  color: #e2e8f0;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+
+.api-manager-hero__inner .api-manager-hero__title {
+  margin: 0;
+  font-size: 1.125rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1.2;
+}
+
+.api-manager-hero__inner .api-manager-hero__subtitle {
+  margin: 2px 0 0;
+  max-width: 48ch;
+  font-size: 0.75rem;
+  line-height: 1.4;
+  color: var(--api-mgr-muted);
+}
+
+.api-manager-hero__inner .api-manager-hero__aside {
+  display: flex;
+  align-items: center;
+  gap: 8px;
   flex-wrap: wrap;
   flex-shrink: 0;
+}
+
+.api-manager-hero__inner .api-manager-stat {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-width: 58px;
+  padding: 6px 10px;
+  border-radius: 10px;
+  border: 1px solid var(--api-mgr-glass-border);
+  background: rgba(0, 0, 0, 0.28);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}
+
+.api-manager-hero__inner .api-manager-stat__value {
+  font-size: 1.05rem;
+}
+
+.api-manager-hero__inner .api-manager-stat__label {
+  margin-top: 2px;
+  font-size: 0.62rem;
 }
 
 .api-manager-stat {
   display: flex;
   flex-direction: column;
   align-items: center;
-  min-width: 72px;
-  padding: 12px 16px;
-  border-radius: 14px;
+  min-width: 58px;
+  padding: 6px 10px;
+  border-radius: 10px;
   border: 1px solid var(--api-mgr-glass-border);
-  background: rgba(0, 0, 0, 0.22);
-  backdrop-filter: blur(8px);
+  background: rgba(0, 0, 0, 0.28);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
 }
 
 .api-manager-stat--muted {
@@ -1357,31 +1384,29 @@ html[data-theme='light'] .api-integ-dd__option-check {
 .api-manager-hero__cta {
   display: inline-flex;
   align-items: center;
-  gap: 10px;
-  padding: 12px 20px;
-  border: 1px solid rgba(255, 255, 255, 0.18);
-  border-radius: 14px;
+  gap: 8px;
+  padding: 8px 14px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 10px;
   font: inherit;
-  font-size: 0.92rem;
-  font-weight: 700;
-  color: #fff;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: #f8fafc;
   cursor: pointer;
-  background: linear-gradient(135deg, #7c3aed 0%, #4f46e5 48%, #0891b2 100%);
-  box-shadow:
-    0 12px 32px rgba(124, 58, 237, 0.35),
-    inset 0 1px 0 rgba(255, 255, 255, 0.22);
+  background: rgba(248, 250, 252, 0.1);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.1);
   transition:
-    transform 0.22s cubic-bezier(0.22, 1, 0.36, 1),
-    box-shadow 0.22s ease,
-    filter 0.22s ease;
+    transform 0.2s cubic-bezier(0.22, 1, 0.36, 1),
+    background 0.2s ease,
+    border-color 0.2s ease;
 }
 
 .api-manager-hero__cta:hover {
-  transform: translateY(-2px);
-  filter: brightness(1.06);
-  box-shadow:
-    0 16px 40px rgba(124, 58, 237, 0.42),
-    inset 0 1px 0 rgba(255, 255, 255, 0.28);
+  transform: translateY(-1px);
+  background: rgba(248, 250, 252, 0.16);
+  border-color: rgba(255, 255, 255, 0.22);
 }
 
 .api-manager-hero__cta:focus-visible {
@@ -1404,8 +1429,10 @@ html[data-theme='light'] .api-integ-dd__option-check {
   padding: 5px;
   border-radius: 999px;
   border: 1px solid var(--api-mgr-glass-border);
-  background: rgba(0, 0, 0, 0.2);
-  backdrop-filter: blur(12px);
+  background: var(--api-mgr-glass);
+  backdrop-filter: blur(16px) saturate(1.15);
+  -webkit-backdrop-filter: blur(16px) saturate(1.15);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
 }
 
 .api-manager-tabs__trigger {
@@ -1465,59 +1492,27 @@ html[data-theme='light'] .api-integ-dd__option-check {
   flex-direction: column;
   gap: 16px;
   height: 100%;
-  padding: 20px;
+  padding: 18px;
   border-radius: var(--api-mgr-radius);
   border: 1px solid var(--api-mgr-glass-border);
-  background:
-    linear-gradient(165deg, rgba(255, 255, 255, 0.06) 0%, rgba(255, 255, 255, 0.02) 40%, transparent 100%),
-    var(--api-mgr-glass);
-  backdrop-filter: blur(16px) saturate(1.15);
-  -webkit-backdrop-filter: blur(16px) saturate(1.15);
+  background: var(--api-mgr-glass-elevated);
+  backdrop-filter: blur(18px) saturate(1.18);
+  -webkit-backdrop-filter: blur(18px) saturate(1.18);
   box-shadow:
-    0 4px 24px rgba(0, 0, 0, 0.2),
-    inset 0 1px 0 rgba(255, 255, 255, 0.07);
+    0 8px 28px rgba(0, 0, 0, 0.28),
+    inset 0 1px 0 rgba(255, 255, 255, 0.06);
   transition:
-    transform 0.28s cubic-bezier(0.22, 1, 0.36, 1),
-    border-color 0.28s ease,
-    box-shadow 0.28s ease;
-}
-
-.api-manager-card::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  border-radius: inherit;
-  padding: 1px;
-  background: linear-gradient(
-    135deg,
-    rgba(139, 92, 246, 0.35),
-    rgba(255, 255, 255, 0.08) 40%,
-    rgba(6, 182, 212, 0.25)
-  );
-  -webkit-mask:
-    linear-gradient(#fff 0 0) content-box,
-    linear-gradient(#fff 0 0);
-  mask:
-    linear-gradient(#fff 0 0) content-box,
-    linear-gradient(#fff 0 0);
-  -webkit-mask-composite: xor;
-  mask-composite: exclude;
-  opacity: 0;
-  pointer-events: none;
-  transition: opacity 0.28s ease;
+    transform 0.24s cubic-bezier(0.22, 1, 0.36, 1),
+    border-color 0.24s ease,
+    box-shadow 0.24s ease;
 }
 
 .api-manager-card:hover {
-  transform: translateY(-4px);
-  border-color: rgba(255, 255, 255, 0.16);
+  transform: translateY(-3px);
+  border-color: rgba(255, 255, 255, 0.14);
   box-shadow:
-    0 20px 48px rgba(0, 0, 0, 0.32),
-    0 0 0 1px rgba(139, 92, 246, 0.12),
-    inset 0 1px 0 rgba(255, 255, 255, 0.1);
-}
-
-.api-manager-card:hover::before {
-  opacity: 1;
+    0 16px 40px rgba(0, 0, 0, 0.36),
+    inset 0 1px 0 rgba(255, 255, 255, 0.09);
 }
 
 .api-manager-card__top {
@@ -1706,7 +1701,9 @@ html[data-theme='light'] .api-integ-dd__option-check {
   padding: 8px 6px;
   border: 1px solid var(--api-mgr-glass-border);
   border-radius: 12px;
-  background: rgba(0, 0, 0, 0.18);
+  background: rgba(0, 0, 0, 0.32);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
   color: var(--api-mgr-muted);
   font: inherit;
   font-size: 0.68rem;
@@ -1751,9 +1748,10 @@ html[data-theme='light'] .api-integ-dd__option-check {
   gap: 16px;
   padding: clamp(48px, 8vw, 80px) 24px;
   border-radius: var(--api-mgr-radius);
-  border: 1px dashed rgba(255, 255, 255, 0.14);
-  background: rgba(0, 0, 0, 0.15);
-  backdrop-filter: blur(8px);
+  border: 1px dashed rgba(255, 255, 255, 0.12);
+  background: var(--api-mgr-glass);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
 }
 
 .api-manager-empty__icon {
@@ -1807,9 +1805,14 @@ html[data-theme='light'] .api-manager-shell {
 
 html[data-theme='light'] .api-manager-hero {
   background:
-    radial-gradient(120% 80% at 0% 0%, rgba(139, 92, 246, 0.08), transparent 55%),
-    radial-gradient(90% 70% at 100% 0%, rgba(6, 182, 212, 0.06), transparent 50%),
+    radial-gradient(90% 80% at 0% 0%, rgba(148, 163, 184, 0.12), transparent 55%),
     var(--api-mgr-glass);
+}
+
+html[data-theme='light'] .api-manager-hero__cta {
+  color: #0f172a;
+  background: rgba(15, 23, 42, 0.06);
+  border-color: rgba(15, 23, 42, 0.12);
 }
 
 html[data-theme='light'] .api-manager-stat {
@@ -1838,14 +1841,15 @@ html[data-theme='light'] .api-manager-notice {
   .api-manager-hero__inner {
     flex-direction: column;
     align-items: stretch;
+    padding: 12px 14px;
   }
 
-  .api-manager-hero__aside {
+  .api-manager-hero__inner .api-manager-hero__aside {
     width: 100%;
     justify-content: space-between;
   }
 
-  .api-manager-hero__cta {
+  .api-manager-hero__inner .api-manager-hero__cta {
     flex: 1;
     justify-content: center;
   }

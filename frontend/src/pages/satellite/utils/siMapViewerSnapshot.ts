@@ -294,6 +294,10 @@ export type SiLiveMapSnapshotOptions = {
   pauseTimeline?: boolean;
   /** Default true — set false between change-detection slots. */
   resumeTimeline?: boolean;
+  /** Time-series slot in a batch — faster WMS wait. */
+  batchSlot?: boolean;
+  /** Do not hide the report modal for this frame (batch handles visibility once). */
+  suppressModalChrome?: boolean;
 };
 
 export type SiLiveMapSnapshotCapture = (opts?: SiLiveMapSnapshotOptions) => Promise<string | null>;

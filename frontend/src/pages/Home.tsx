@@ -65,8 +65,8 @@ function HomePageContent() {
   const goSecondary = useCallback(() => go(HERO_SECONDARY_PATH), [go])
 
   const goSignIn = useCallback(
-    () => openWizard({ step: user ? 'identity' : 'auth', authMode: 'signin' }),
-    [openWizard, user],
+    () => openWizard({ step: 'welcome', authMode: 'signin' }),
+    [openWizard],
   )
 
   const getStarted = useCallback(() => {
@@ -75,7 +75,7 @@ function HomePageContent() {
       go(HERO_PRIMARY_PATH)
       return
     }
-    openWizard({ step: user ? 'pricing' : 'auth', authMode: 'signup' })
+    openWizard({ step: user ? 'pricing' : 'welcome', authMode: 'signup' })
   }, [openWizard, user, go])
 
 
@@ -92,7 +92,7 @@ function HomePageContent() {
 
     }
 
-    openWizard({ step: user ? 'identity' : 'auth', planId: 'trial', authMode: 'signup' })
+    openWizard({ step: user ? 'pricing' : 'welcome', planId: 'trial', authMode: 'signup' })
 
   }, [openWizard, user, go])
 
@@ -127,9 +127,9 @@ function HomePageContent() {
     const { start, wizard, mode } = readHomeWizardParams()
     if (start || wizard) {
       if (wizard === 'pricing') {
-        openWizard({ step: user ? 'pricing' : 'auth', authMode: 'signup' })
+        openWizard({ step: user ? 'pricing' : 'welcome', authMode: 'signup' })
       } else if (mode === 'signin') {
-        openWizard({ step: user ? 'identity' : 'auth', authMode: 'signin' })
+        openWizard({ step: 'welcome', authMode: 'signin' })
       } else {
         startBuilding()
       }
@@ -221,7 +221,7 @@ function HomePageContent() {
 
         brandScrollTargetId="start"
 
-        navItems={homeSaasContent.navItems}
+        navItems={[...homeSaasContent.navItems]}
 
         statusSlot={<HomeUserStatusBar />}
 

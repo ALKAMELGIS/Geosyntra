@@ -21,7 +21,6 @@ type HomeOnboardingContextValue = {
   step: WizardStep
   authMode: 'signup' | 'signin'
   selectedPlanId: BillingPlanId | null
-  paymentOpen: boolean
   workspaceReady: boolean
   trialDaysLeft: number | null
   openWizard: (opts?: WizardOpenOptions) => void
@@ -30,7 +29,6 @@ type HomeOnboardingContextValue = {
   setAuthMode: (mode: 'signup' | 'signin') => void
   selectPlan: (planId: BillingPlanId) => void
   openPayment: (planId: BillingPlanId) => void
-  closePayment: () => void
   completePayment: () => Promise<void>
   runActivation: () => Promise<void>
   enterWorkspace: () => void
@@ -41,13 +39,18 @@ const HomeOnboardingContext = createContext<HomeOnboardingContextValue | null>(n
 
 const DASHBOARD_PATH = '/satellite/indices'
 
+function normalizeStep(step?: WizardOpenOptions['step']): WizardStep {
+  if (step === 'auth') return 'welcome'
+  if (step === 'identity') return 'pricing'
+  return step ?? 'welcome'
+}
+
 export function HomeOnboardingProvider({ children }: { children: ReactNode }) {
   const navigate = useNavigate()
   const [open, setOpen] = useState(false)
-  const [step, setStep] = useState<WizardStep>('auth')
+  const [step, setStep] = useState<WizardStep>('welcome')
   const [authMode, setAuthMode] = useState<'signup' | 'signin'>('signup')
   const [selectedPlanId, setSelectedPlanId] = useState<BillingPlanId | null>('trial')
-  const [paymentOpen, setPaymentOpen] = useState(false)
   const [workspaceTick, setWorkspaceTick] = useState(0)
 
   const refreshWorkspace = useCallback(() => setWorkspaceTick(t => t + 1), [])
@@ -80,11 +83,11 @@ export function HomeOnboardingProvider({ children }: { children: ReactNode }) {
         navigate(DASHBOARD_PATH)
         return
       }
-      const initialStep: WizardStep = opts?.step ?? (u ? 'identity' : 'auth')
+      const requested = normalizeStep(opts?.step)
+      const initialStep: WizardStep = requested === 'welcome' && u ? 'pricing' : requested
       setStep(initialStep)
       if (opts?.authMode) setAuthMode(opts.authMode)
       if (opts?.planId) setSelectedPlanId(opts.planId)
-      setPaymentOpen(false)
       setOpen(true)
       document.body.style.overflow = 'hidden'
     },
@@ -93,7 +96,6 @@ export function HomeOnboardingProvider({ children }: { children: ReactNode }) {
 
   const closeWizard = useCallback(() => {
     setOpen(false)
-    setPaymentOpen(false)
     document.body.style.overflow = ''
   }, [])
 
@@ -104,10 +106,10 @@ export function HomeOnboardingProvider({ children }: { children: ReactNode }) {
 
   const openPayment = useCallback((planId: BillingPlanId) => {
     setSelectedPlanId(planId)
-    setPaymentOpen(true)
+    setStep('payment')
+    setOpen(true)
+    document.body.style.overflow = 'hidden'
   }, [])
-
-  const closePayment = useCallback(() => setPaymentOpen(false), [])
 
   const completePayment = useCallback(async () => {
     const u = readCurrentUser()
@@ -120,8 +122,7 @@ export function HomeOnboardingProvider({ children }: { children: ReactNode }) {
       }
     }
     const pay = await processMockPayment(selectedPlanId)
-    if (!pay.ok) throw new Error(pay.error)
-    setPaymentOpen(false)
+    if (!pay.ok) throw new Error('error' in pay ? pay.error : 'Payment failed.')
     setStep('activation')
     await new Promise(r => window.setTimeout(r, 1100))
     activateWorkspaceForUser(u, selectedPlanId, { paymentCompleted: true })
@@ -152,7 +153,6 @@ export function HomeOnboardingProvider({ children }: { children: ReactNode }) {
       step,
       authMode,
       selectedPlanId,
-      paymentOpen,
       workspaceReady,
       trialDaysLeft,
       openWizard,
@@ -161,7 +161,6 @@ export function HomeOnboardingProvider({ children }: { children: ReactNode }) {
       setAuthMode,
       selectPlan,
       openPayment,
-      closePayment,
       completePayment,
       runActivation,
       enterWorkspace,
@@ -172,14 +171,12 @@ export function HomeOnboardingProvider({ children }: { children: ReactNode }) {
       step,
       authMode,
       selectedPlanId,
-      paymentOpen,
       workspaceReady,
       trialDaysLeft,
       openWizard,
       closeWizard,
       selectPlan,
       openPayment,
-      closePayment,
       completePayment,
       runActivation,
       enterWorkspace,
