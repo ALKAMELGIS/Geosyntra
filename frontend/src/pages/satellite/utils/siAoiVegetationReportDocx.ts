@@ -20,6 +20,7 @@ import {
   type SiAoiPdfExportOptions,
   type SiAoiReportModel,
 } from './siAoiVegetationReportModel';
+import { siAoiReportStyleModePdfLabels } from './siAoiReportStyleMode';
 
 function dataUrlToUint8Array(dataUrl: string): Uint8Array {
   const comma = dataUrl.indexOf(',');
@@ -195,9 +196,11 @@ function appendixBlocks(report: SiAoiReportModel, opts: SiAoiPdfExportOptions): 
   const di = report.dataInsights;
   const d = di.dashboard;
   const exec = getSiAoiExportExecutiveSummaryText(report, opts.executiveSummaryAi);
+  const styleMode = opts.reportStyleMode ?? report.reportStyleMode;
+  const pdfLabels = siAoiReportStyleModePdfLabels(styleMode);
   return [
     p('Data & insights (appendix)', { bold: true, heading: HeadingLevel.HEADING_1 }),
-    p('1. Executive summary', { bold: true, heading: HeadingLevel.HEADING_2 }),
+    p(`1. ${pdfLabels.narrativeSectionTitle} (${styleMode})`, { bold: true, heading: HeadingLevel.HEADING_2 }),
     new Paragraph({ children: [new TextRun(exec)] }),
     p('2. Index data', { bold: true, heading: HeadingLevel.HEADING_2 }),
     indexInsightsTable(report),

@@ -391,6 +391,56 @@
   text-align: right;
 }
 
+.si-map-analysis-timeline-date-field {
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  min-width: 0;
+}
+
+.si-map-analysis-timeline-date-field--end {
+  align-items: flex-end;
+}
+
+.si-map-analysis-timeline-date-k {
+  font-size: 7px;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--si-tl-muted);
+  line-height: 1;
+}
+
+.si-map-analysis-timeline-date-input {
+  width: 108px;
+  max-width: 28vw;
+  height: 24px;
+  padding: 2px 6px;
+  border-radius: 8px;
+  border: none;
+  background: rgba(0, 0, 0, 0.28);
+  box-shadow: inset 0 0 0 1px var(--si-tl-edge);
+  color: var(--si-tl-text);
+  font-size: 10px;
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.2;
+  color-scheme: dark;
+  cursor: pointer;
+}
+
+.si-map-analysis-timeline-date-input:hover {
+  box-shadow: inset 0 0 0 1px var(--si-tl-edge-strong);
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.si-map-analysis-timeline-date-input:focus-visible {
+  outline: 2px solid rgba(125, 211, 252, 0.55);
+  outline-offset: 1px;
+}
+
 .si-map-analysis-timeline-progress-track {
   position: relative;
   flex: 1;
@@ -720,6 +770,41 @@
   height: 26px;
   background: rgba(148, 163, 184, 0.22);
   margin: 0 2px;
+}
+
+.si-map-analysis-tool--print {
+  border-color: rgba(251, 191, 36, 0.55);
+  background: linear-gradient(180deg, rgba(180, 83, 9, 0.88), rgba(120, 53, 15, 0.95));
+  color: #fffbeb;
+  box-shadow: 0 0 0 1px rgba(251, 191, 36, 0.2), 0 6px 18px rgba(180, 83, 9, 0.35);
+}
+
+.si-map-analysis-tool--print:hover {
+  border-color: rgba(253, 224, 71, 0.75);
+  color: #fff;
+  transform: translateY(-1px);
+}
+
+.si-map-print-fab {
+  width: 42px;
+  height: 42px;
+  margin-left: 8px;
+  border-radius: 12px;
+  border: 1px solid rgba(251, 191, 36, 0.55);
+  background: linear-gradient(180deg, rgba(180, 83, 9, 0.9), rgba(120, 53, 15, 0.95));
+  color: #fffbeb;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35), 0 0 0 1px rgba(251, 191, 36, 0.15);
+  transition: transform 0.12s ease, box-shadow 0.12s ease;
+}
+
+.si-map-print-fab:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 10px 28px rgba(180, 83, 9, 0.4);
 }
 
 /* Charts dock */
@@ -1116,6 +1201,11 @@
   position: relative;
   flex: 1;
   min-height: 0;
+}
+
+.si-aoi-static-line-wrap--report {
+  height: 100%;
+  min-height: 280px;
 }
 
 .si-aoi-static-line-wrap--dark {

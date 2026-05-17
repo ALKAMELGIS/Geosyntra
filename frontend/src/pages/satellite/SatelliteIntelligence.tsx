@@ -188,7 +188,10 @@ import { SatelliteAoiStaticChartsMapOverlay } from './components/SatelliteAoiSta
 import { SatelliteAoiLiveChartsMapOverlay } from './components/SatelliteAoiLiveChartsMapOverlay';
 import { buildLiveAoiMapChartSnapshot } from './utils/liveAoiMapChartSnapshot';
 import { SiAoiReportModal } from './components/SiAoiReportModal';
+import { SiMapPrintModal } from './components/SiMapPrintModal';
+import { siPdfBoundsFromFitBounds } from './utils/siAoiReportCartography';
 import { siAoiPaletteFromIndexRampStops, siAoiReportFeatureBBoxLngLat } from './utils/siAoiVegetationReportModel';
+import { siWmsLegendRowsFromStops } from './utils/siWmsSpectralClassification';
 import { captureSiReportMapSnapshot } from './utils/siReportMapSnapshotEngine';
 import {
   isSiTimelinePlaybackBlocked,
@@ -2925,6 +2928,7 @@ export default function SatelliteIntelligence() {
   const [multiAoiPopupIds, setMultiAoiPopupIds] = useState<string[]>([]);
   const remoteSensingLayerOptionsRef = useRef<Array<{ id: string; label: string }>>([]);
   const [siAoiReportModalOpen, setSiAoiReportModalOpen] = useState(false);
+  const [mapPrintModalOpen, setMapPrintModalOpen] = useState(false);
   const multiAoiItemsRef = useRef(multiAoiItems);
   const activeMultiAoiIdRef = useRef(activeMultiAoiId);
   const [drawTargetMode, setDrawTargetMode] = useState<'aoi' | 'field'>('aoi');
@@ -6113,6 +6117,65 @@ export default function SatelliteIntelligence() {
     setFieldTimelineSessionActive(false);
     setFieldAnalysisStatus('Timeline stopped. Adjust the date range and tap Generate timeline to start again.');
   }, [pauseTimelinePlayback]);
+
+  const timelineRangeAutoRefreshSkipRef = useRef(true);
+
+  const handleGlobalTimeSeriesStartChange = useCallback(
+    (value: string) => {
+      const iso = value.slice(0, 10);
+      if (!iso) return;
+      setTimeSeriesStart(iso);
+      setExploreDateStart(iso);
+      setTimeSeriesEnd(prev => (prev && iso > prev ? iso : prev));
+    },
+    [],
+  );
+
+  const handleGlobalTimeSeriesEndChange = useCallback(
+    (value: string) => {
+      const iso = value.slice(0, 10);
+      if (!iso) return;
+      setTimeSeriesEnd(iso);
+      setExploreDateEnd(iso);
+      setTimeSeriesStart(prev => (prev && iso < prev ? iso : prev));
+    },
+    [],
+  );
+
+  /** When the timeline bar range changes, rebuild weekly chips + chart series (geometry unchanged). */
+  useEffect(() => {
+    if (!fieldTimelineSessionActive) {
+      timelineRangeAutoRefreshSkipRef.current = true;
+      return;
+    }
+    if (timelineRangeAutoRefreshSkipRef.current) {
+      timelineRangeAutoRefreshSkipRef.current = false;
+      return;
+    }
+    if (weeklyWindows.length < 1) {
+      setFieldAnalysisStatus('Choose a valid start and end date for the time series.');
+      setWeeklyComposites([]);
+      return;
+    }
+    pauseTimelinePlayback();
+    const synthetic = synthesizeWeeklyComposites(Math.max(1, stacItems.length || weeklyWindows.length));
+    if (!synthetic.length) {
+      setWeeklyComposites([]);
+      return;
+    }
+    setWeeklyComposites(synthetic);
+    const iso = dateToTimelineIso(selectedDate);
+    let weekIdx = synthetic.findIndex(w => iso >= w.startDate && iso <= w.endDate);
+    if (weekIdx < 0) weekIdx = synthetic.length - 1;
+    const target = synthetic[weekIdx]!;
+    applySelectedDate(timelineDateFromIso(target.startDate), {
+      expandRange: false,
+      weekIdx,
+    });
+    setFieldAnalysisStatus(
+      `Timeline updated: ${synthetic.length} week(s) · ${timeSeriesStart} → ${timeSeriesEnd}.`,
+    );
+  }, [timeSeriesStart, timeSeriesEnd, fieldTimelineSessionActive, selectedIndex, selectedIndexConfig.range]);
 
   useEffect(() => {
     if (weeklyComposites.length === 0) setFieldTimelineSessionActive(false);
@@ -10026,9 +10089,6 @@ export default function SatelliteIntelligence() {
     let cancelled = false;
     const globalIso = zonalStatsAnchorIso;
     const activeLayerId = inferStaticAoiChartLayerFromWmsName(activeWmsLayer || '');
-    const dStart = exploreEffectiveDatetime.start || timeSeriesStart;
-    const dEnd = exploreEffectiveDatetime.end || timeSeriesEnd;
-
     void (async () => {
       const next: Record<string, SiAoiRasterPixelSample> = {};
       for (const row of multiAoiItems) {
@@ -10036,7 +10096,7 @@ export default function SatelliteIntelligence() {
         if (!g || (g.type !== 'Polygon' && g.type !== 'MultiPolygon')) continue;
         const rowDate = (row.sentinelTimeEnd ?? row.sentinelTimeStart ?? globalIso).slice(0, 10);
         const weekCtx = resolveAoiZonalWeekContext(weeklyComposites, globalIso, rowDate, activeLayerId);
-        const datetime = buildAoiZonalDatetimeRange(weekCtx, weeklyComposites, dStart, dEnd);
+        const datetime = buildAoiZonalDatetimeRange(weekCtx, weeklyComposites, '', '');
         try {
           const result = await mpcZonalSample(effectiveAnalysisEngineBaseUrl, {
             aoi: row.feature,
@@ -10066,10 +10126,6 @@ export default function SatelliteIntelligence() {
     popupZonalLayerIds,
     mpcZonalApiLayerIds,
     activeWmsLayer,
-    exploreEffectiveDatetime.start,
-    exploreEffectiveDatetime.end,
-    timeSeriesStart,
-    timeSeriesEnd,
     exploreUseCloudFilter,
     exploreCloudCoverMax,
   ]);
@@ -10298,6 +10354,52 @@ export default function SatelliteIntelligence() {
   const toggleWmsOverlayVisibility = () => setIsWmsOverlayVisible(v => !v);
   const toggleStacThumbVisibility = () => setIsStacThumbVisible(v => !v);
   const currentBasemapLabel = currentBasemapEntry?.label || basemapId || 'Default basemap';
+
+  const mapPrintLegendItems = useMemo(() => {
+    if (!wmsSpectralLegend) return [];
+    const stops = siWmsResolveCanonicalStops(activeWmsLayer || '', activeWmsSymbologyUi);
+    return siWmsLegendRowsFromStops(stops, 8).map(r => ({
+      label: `${r.from.toFixed(2)} – ${r.to.toFixed(2)}`,
+      color: r.color,
+    }));
+  }, [wmsSpectralLegend, activeWmsLayer, activeWmsSymbologyUi]);
+
+  const mapPrintLayerLines = useMemo(() => {
+    const lines: string[] = [];
+    if (currentBasemapLabel) lines.push(`Basemap: ${currentBasemapLabel}`);
+    if (isWmsOverlayVisible && activeWmsLayer) {
+      lines.push(
+        remoteSensingLayerOptions.find(o => o.id === activeWmsLayer)?.label?.trim() || activeWmsLayer,
+      );
+    }
+    if (drawnGeometry || multiAoiItems.length) lines.push('AOI / field boundary');
+    if (wmsDate) lines.push(`Imagery date: ${wmsDate.slice(0, 10)}`);
+    lines.push(satelliteProviderLabel);
+    return lines;
+  }, [
+    currentBasemapLabel,
+    isWmsOverlayVisible,
+    activeWmsLayer,
+    remoteSensingLayerOptions,
+    drawnGeometry,
+    multiAoiItems.length,
+    wmsDate,
+    satelliteProviderLabel,
+  ]);
+
+  const mapPrintMetaLine = useMemo(() => {
+    const layer =
+      remoteSensingLayerOptions.find(o => o.id === activeWmsLayer)?.label?.trim() || activeWmsLayer || '';
+    return [satelliteProviderLabel, layer, wmsDate?.slice(0, 10)].filter(Boolean).join(' · ');
+  }, [satelliteProviderLabel, activeWmsLayer, remoteSensingLayerOptions, wmsDate]);
+
+  const mapPrintDefaultTitle = useMemo(() => {
+    const layer =
+      remoteSensingLayerOptions.find(o => o.id === activeWmsLayer)?.label?.trim() || 'Satellite map';
+    const d = wmsDate?.slice(0, 10) ?? '';
+    return `GeoSyntra · ${layer}${d ? ` · ${d}` : ''}`;
+  }, [remoteSensingLayerOptions, activeWmsLayer, wmsDate]);
+
   const addedLayerEntries = useMemo(
     () => [
       {
@@ -11115,6 +11217,18 @@ export default function SatelliteIntelligence() {
     ];
   }, [liveSnapshotAoiFeature]);
 
+  const mapPrintLngLatBounds = useMemo(() => {
+    if (liveSnapshotFitBounds) return siPdfBoundsFromFitBounds(liveSnapshotFitBounds);
+    const map = getMapInstance();
+    if (!map) return null;
+    try {
+      const b = map.getBounds();
+      return { west: b.getWest(), south: b.getSouth(), east: b.getEast(), north: b.getNorth() };
+    } catch {
+      return null;
+    }
+  }, [liveSnapshotFitBounds, isMapLoaded, viewState.longitude, viewState.latitude, viewState.zoom]);
+
   /** PNG from the live Map Viewer canvas (WMS symbology, AOI, basemap) — not the report fallback grid. */
   const captureLiveMapSnapshot = useCallback<SiLiveMapSnapshotCapture>(
     async opts => {
@@ -11136,6 +11250,8 @@ export default function SatelliteIntelligence() {
           freezeViewport: freeze,
           captureMode: opts?.captureMode ?? (freeze ? 'export-quality' : 'export-fast'),
           maskToAoi: opts?.maskToAoi ?? false,
+          batchSlot: opts?.batchSlot,
+          suppressModalChrome: opts?.suppressModalChrome,
           date: shouldShiftDate ? targetIso : undefined,
           applyDate: shouldShiftDate
             ? iso => {
@@ -12858,6 +12974,10 @@ export default function SatelliteIntelligence() {
             onCycleTimelineSpeed={cycleTimelinePlaybackSpeed}
             timelineTransitionMode={timelineTransitionMode}
             onTimelineTransitionModeChange={onTimelineTransitionModeChange}
+            timeSeriesStart={timeSeriesStart}
+            timeSeriesEnd={timeSeriesEnd}
+            onTimeSeriesStartChange={handleGlobalTimeSeriesStartChange}
+            onTimeSeriesEndChange={handleGlobalTimeSeriesEndChange}
             mapTool={satelliteToolbarTool}
             onMapTool={t => applyMapDrawTool(t)}
             hasClearableDrawing={satelliteHasClearableDrawing}
@@ -12932,6 +13052,19 @@ export default function SatelliteIntelligence() {
               satelliteProviderLabel={satelliteProviderLabel}
             />
           ) : null}
+
+          <SiMapPrintModal
+            open={mapPrintModalOpen}
+            onClose={() => setMapPrintModalOpen(false)}
+            mapRef={mapRef}
+            mapLoaded={isMapLoaded}
+            aoiFitBounds={liveSnapshotFitBounds}
+            mapLngLatBounds={mapPrintLngLatBounds}
+            legendItems={mapPrintLegendItems}
+            layerLines={mapPrintLayerLines}
+            metaLine={mapPrintMetaLine}
+            defaultTitle={mapPrintDefaultTitle}
+          />
 
           <SiWmsSymbologyPopup
             open={siWmsSymbologyChrome.open}
@@ -13089,6 +13222,15 @@ export default function SatelliteIntelligence() {
                   </div>
                 )}
               </div>
+              <button
+                type="button"
+                className="si-map-print-fab"
+                title="Print map — high-resolution preview & PDF"
+                aria-label="Print map"
+                onClick={() => setMapPrintModalOpen(true)}
+              >
+                <i className="fa-solid fa-print" aria-hidden />
+              </button>
               </div>
               <div className="si-map-floating-controls__right si-map-floating-controls__right--proc-stack">
             <div className="si-env-rail si-env-rail--proc-anchor">
@@ -13372,8 +13514,7 @@ export default function SatelliteIntelligence() {
                                   if (exploreDateSourceMode === 'manual') {
                                     setExploreDateStart(v);
                                   } else {
-                                    setTimeSeriesStart(v);
-                                    setExploreDateStart(v);
+                                    handleGlobalTimeSeriesStartChange(v);
                                   }
                                 }}
                               />
@@ -13393,8 +13534,7 @@ export default function SatelliteIntelligence() {
                                   if (exploreDateSourceMode === 'manual') {
                                     setExploreDateEnd(v);
                                   } else {
-                                    setTimeSeriesEnd(v);
-                                    setExploreDateEnd(v);
+                                    handleGlobalTimeSeriesEndChange(v);
                                   }
                                 }}
                               />
@@ -13991,7 +14131,7 @@ export default function SatelliteIntelligence() {
                               <input
                                 type="date"
                                 value={timeSeriesStart}
-                                onChange={e => setTimeSeriesStart(e.target.value)}
+                                onChange={e => handleGlobalTimeSeriesStartChange(e.target.value)}
                                 aria-label="Time series start"
                               />
                             </label>
@@ -14000,7 +14140,7 @@ export default function SatelliteIntelligence() {
                               <input
                                 type="date"
                                 value={timeSeriesEnd}
-                                onChange={e => setTimeSeriesEnd(e.target.value)}
+                                onChange={e => handleGlobalTimeSeriesEndChange(e.target.value)}
                                 aria-label="Time series end"
                               />
                             </label>
@@ -14080,6 +14220,16 @@ export default function SatelliteIntelligence() {
                                 pressed={siWmsSymbologyChrome.open && siWmsSymbologyChrome.anchor === 'toolbar-embedded'}
                                 onClick={() => toggleWmsSymbology('toolbar-embedded')}
                               />
+                              <span className="si-map-analysis-toolbar-sep" aria-hidden role="separator" />
+                              <button
+                                type="button"
+                                className="si-map-analysis-tool si-map-analysis-tool--print"
+                                title="Print map — preview & PDF"
+                                aria-label="Print map"
+                                onClick={() => setMapPrintModalOpen(true)}
+                              >
+                                <i className="fa-solid fa-print" aria-hidden />
+                              </button>
                             </div>
                           </div>
                           <div className="si-rs-actions si-rs-actions--compact">

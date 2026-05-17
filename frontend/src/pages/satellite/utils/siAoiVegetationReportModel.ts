@@ -18,6 +18,19 @@ import {
   siPdfBoundsFromFeatureCollection,
   type SiPdfLngLatBounds,
 } from './siAoiReportCartography';
+import {
+  DEFAULT_SI_AOI_REPORT_STYLE_MODE,
+  siAoiReportStyleModeInterpretationConfig,
+  siAoiReportStyleModePdfLabels,
+  type SiAoiReportStyleMode,
+} from './siAoiReportStyleMode';
+
+export type { SiAoiReportStyleMode } from './siAoiReportStyleMode';
+export {
+  DEFAULT_SI_AOI_REPORT_STYLE_MODE,
+  SI_AOI_REPORT_STYLE_MODE_OPTIONS,
+  SI_AOI_REPORT_STYLE_MODES,
+} from './siAoiReportStyleMode';
 
 /** Fit PNG into a box without stretching (letterbox centering). */
 function pdfEmbedPngFit(
@@ -173,6 +186,14 @@ export type SiAoiReportModel = {
   classificationPalette: SiAoiClassificationPalette;
   /** Number of legend-aligned area classes (5 or 10) used for table + map overlay. */
   legendBandCount: SiAoiLegendBandCount;
+  /** Narrative tone for Gemini text and PDF section labels. */
+  reportStyleMode: SiAoiReportStyleMode;
+  /** RS processing metadata echoed in summaries and Gemini payloads. */
+  processingContext?: {
+    cloudCoverMaxPct: number;
+    temporalComposite: 'median' | 'max';
+    crsNote?: string;
+  };
 };
 
 /** Bounding box [west, south, east, north] in WGS84 for map fit / grids. */
@@ -791,6 +812,7 @@ export function buildSiAoiVegetationReport(input: {
   };
   /** Legend-aligned class count for the area table and map overlay (5 or 10). */
   legendBandCount?: SiAoiLegendBandCount;
+  reportStyleMode?: SiAoiReportStyleMode;
 }): SiAoiReportModel | null {
   const {
     weekly,
@@ -803,7 +825,9 @@ export function buildSiAoiVegetationReport(input: {
     satelliteProviderLabel,
     classificationPalette: paletteIn,
     legendBandCount: legendBandCountIn,
+    reportStyleMode: reportStyleModeIn,
   } = input;
+  const reportStyleMode = reportStyleModeIn ?? DEFAULT_SI_AOI_REPORT_STYLE_MODE;
   const legendBandCount: SiAoiLegendBandCount = legendBandCountIn === 10 ? 10 : 5;
   const g = aoiFeature.geometry as { type?: string } | undefined;
   if (!g || (g.type !== 'Polygon' && g.type !== 'MultiPolygon')) return null;
@@ -921,6 +945,8 @@ export function buildSiAoiVegetationReport(input: {
     dataInsights,
     classificationPalette: palette,
     legendBandCount,
+    reportStyleMode,
+    processingContext,
   };
 }
 
@@ -940,6 +966,8 @@ export type SiAoiPdfExportOptions = {
   interpretationPoints?: string[] | null;
   /** Map extent for scale bar (defaults from AOI outline). */
   aoiMapLngLatBounds?: SiPdfLngLatBounds | null;
+  /** Overrides `report.reportStyleMode` for PDF titles and section labels. */
+  reportStyleMode?: SiAoiReportStyleMode;
 };
 
 function addChangeDetectionPageGrid(
@@ -1628,11 +1656,13 @@ function buildAoiAnalysisPdfDocument(doc: jsPDF, report: SiAoiReportModel, opts:
   const textW = doc.internal.pageSize.getWidth() - margin * 2;
   const pageH = doc.internal.pageSize.getHeight();
   const bodyLh = 1.32;
+  const styleMode = opts.reportStyleMode ?? report.reportStyleMode ?? DEFAULT_SI_AOI_REPORT_STYLE_MODE;
+  const pdfLabels = siAoiReportStyleModePdfLabels(styleMode);
 
   drawPdfReportBanner(
     doc,
-    'Scientific GIS report (AOI)',
-    `Geosyntra Satellite Intelligence  |  ${pdfSafeText(report.aoiName)}`,
+    pdfLabels.reportTitle,
+    `Geosyntra Satellite Intelligence  |  ${pdfSafeText(report.aoiName)}  |  ${styleMode}`,
     margin,
   );
 
@@ -1648,6 +1678,7 @@ function buildAoiAnalysisPdfDocument(doc: jsPDF, report: SiAoiReportModel, opts:
     `Period: ${report.dateStart} to ${report.dateEnd}`,
     `AOI area: ${report.aoiAreaKm2.toFixed(3)} km2`,
     `Legend bands: ${report.legendBandCount}`,
+    `Style mode: ${styleMode}`,
   ];
   for (const line of meta) {
     y = pdfDrawParagraph(doc, line, margin, y, textW, 1.15, 1);
@@ -1658,7 +1689,7 @@ function buildAoiAnalysisPdfDocument(doc: jsPDF, report: SiAoiReportModel, opts:
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(10);
   doc.setTextColor(15, 23, 42);
-  doc.text('Executive summary', margin, y);
+  doc.text(pdfLabels.narrativeSectionTitle, margin, y);
   y += 14;
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(9);
@@ -1837,15 +1868,16 @@ function buildAoiAnalysisPdfDocument(doc: jsPDF, report: SiAoiReportModel, opts:
     y = drawClassificationLegendPdf(doc, report, margin, y, textW);
   }
 
+  const interpMax = siAoiReportStyleModeInterpretationConfig(styleMode).pointCount;
   const points =
-    opts.interpretationPoints?.filter(p => p?.trim()).slice(0, 5) ??
-    buildFallbackInterpretationPoints(report);
+    opts.interpretationPoints?.filter(p => p?.trim()).slice(0, interpMax) ??
+    buildFallbackInterpretationPoints(report).slice(0, interpMax);
 
   y += 4;
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(10);
   doc.setTextColor(15, 23, 42);
-  doc.text('Interpretation and recommendations', margin, y);
+  doc.text(pdfLabels.interpretationSectionTitle, margin, y);
   y += 14;
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(8.5);

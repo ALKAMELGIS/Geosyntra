@@ -302,10 +302,21 @@ body.si-report-map-capture-active .si-aoi-report-modal {
 
 .si-aoi-report-chart-wrap {
   position: relative;
-  height: 260px;
-  min-height: 220px;
+  height: auto;
+  min-height: 300px;
   max-width: 100%;
   overflow: hidden;
+}
+
+.si-aoi-report-card--timeline-chart .si-aoi-report-chart-wrap .si-aoi-static-line-wrap {
+  height: 300px;
+  min-height: 280px;
+  margin: 0;
+}
+
+.si-aoi-report-card--timeline-chart .si-aoi-report-chart-wrap .si-aoi-static-line-chart-host {
+  flex: 1;
+  min-height: 180px;
 }
 
 .si-aoi-report-map-retry {
@@ -426,6 +437,12 @@ body.si-report-map-capture-active .si-aoi-report-modal {
   object-fit: contain;
   object-position: center;
   display: block;
+}
+
+.si-aoi-report-change-progress {
+  margin: 0 0 10px;
+  font-size: 0.78rem;
+  color: #94a3b8;
 }
 
 .si-aoi-report-change-cell__map-placeholder {
@@ -670,6 +687,42 @@ body.si-report-map-capture-active .si-aoi-report-modal {
   color: #cbd5e1;
 }
 
+.si-aoi-insights__style-pill {
+  margin-left: 8px;
+  padding: 2px 7px;
+  border-radius: 6px;
+  font-size: 0.62rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  vertical-align: middle;
+  text-transform: uppercase;
+  color: #e2e8f0;
+  background: rgba(56, 189, 248, 0.18);
+  border: 1px solid rgba(56, 189, 248, 0.35);
+}
+
+.si-aoi-report-style-preview {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 10px;
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #94a3b8;
+}
+
+.si-aoi-report-style-preview select {
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(0, 0, 0, 0.35);
+  color: #f8fafc;
+  padding: 6px 8px;
+  font-size: 0.8rem;
+  text-transform: none;
+  letter-spacing: normal;
+}
+
 .si-aoi-insights__exec {
   margin: 0;
   font-size: 0.88rem;
@@ -885,10 +938,15 @@ body.si-report-map-capture-active .si-aoi-report-modal {
   left: -12000px;
   top: 0;
   width: 900px;
-  height: 340px;
+  height: 380px;
   overflow: hidden;
   pointer-events: none;
   opacity: 0.02;
+}
+
+.si-aoi-report-chart-export-host__inner .si-aoi-static-line-wrap {
+  height: 360px;
+  min-height: 340px;
 }
 
 .si-aoi-report-export-format {

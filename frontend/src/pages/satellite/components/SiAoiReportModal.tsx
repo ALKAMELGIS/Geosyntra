@@ -3,22 +3,11 @@ import MapGL, { Layer, NavigationControl, Source, type MapRef } from 'react-map-
 import type { StyleSpecification } from 'mapbox-gl';
 import { useGeminiApiKey } from '../../../hooks/useGeminiApiKey';
 import {
-  Chart as ChartJS,
-  CategoryScale,
-  LinearScale,
-  PointElement,
-  LineElement,
-  LineController,
-  Title,
-  Tooltip,
-  Legend,
-  Filler,
-} from 'chart.js';
-import { Line } from 'react-chartjs-2';
-import {
   STATIC_AOI_CHART_LAYER_OPTIONS,
+  staticAoiChartColorForLayer,
   type StaticAoiChartLayerId,
 } from '../utils/staticAoiMultiChartData';
+import { AoiStaticMultiLayerLineChart } from './AoiStaticMultiLayerLineChart';
 import {
   buildFallbackInterpretationPoints,
   buildSiAoiVegetationReport,
@@ -29,7 +18,10 @@ import {
   type SiAoiLegendBandCount,
   type SiAoiPdfExportMode,
   type SiAoiReportModel,
+  type SiAoiReportStyleMode,
   type SiAoiReportTableRow,
+  DEFAULT_SI_AOI_REPORT_STYLE_MODE,
+  SI_AOI_REPORT_STYLE_MODE_OPTIONS,
 } from '../utils/siAoiVegetationReportModel';
 import { exportSiAoiVegetationReportDocx } from '../utils/siAoiVegetationReportDocx';
 import {
@@ -50,18 +42,6 @@ import {
 import { SiAoiReportDataInsightsSection } from './SiAoiReportDataInsights';
 import { SiAoiReportPixelScatterBlock } from './SiAoiReportPixelScatterBlock';
 import './SiAoiReportModal.css';
-
-ChartJS.register(
-  CategoryScale,
-  LinearScale,
-  PointElement,
-  LineElement,
-  LineController,
-  Title,
-  Tooltip,
-  Legend,
-  Filler,
-);
 
 /** Upscale canvas for sharper PDF raster (viewer scales down; avoids soft chart export). */
 function captureCanvasHiRes(source: HTMLCanvasElement, scale = 2): string {
@@ -320,6 +300,7 @@ export function SiAoiReportModal({
   const [selectedAoiId, setSelectedAoiId] = useState('');
   const [cloudCoverMaxPct, setCloudCoverMaxPct] = useState(defaultCloudCoverPct);
   const [temporalComposite, setTemporalComposite] = useState<'median' | 'max'>('median');
+  const [reportStyleMode, setReportStyleMode] = useState<SiAoiReportStyleMode>(DEFAULT_SI_AOI_REPORT_STYLE_MODE);
   const [analysisMapReady, setAnalysisMapReady] = useState(false);
   const [legendBandCount, setLegendBandCount] = useState<SiAoiLegendBandCount>(5);
   const [scatterPanelOpen, setScatterPanelOpen] = useState(false);
@@ -339,6 +320,13 @@ export function SiAoiReportModal({
   const chartExportHostId = 'si-aoi-report-chart-host-export';
   const [changeSlotSnapshots, setChangeSlotSnapshots] = useState<(string | null)[]>([]);
   const [changeSnapshotsLoading, setChangeSnapshotsLoading] = useState(false);
+  const changeCaptureKeyRef = useRef('');
+  const changeCaptureInFlightRef = useRef(false);
+  const changeSlotSnapshotsRef = useRef<(string | null)[]>([]);
+  const prefetchChangeDetectionRef = useRef<((built: SiAoiReportModel) => Promise<void>) | null>(null);
+  useEffect(() => {
+    changeSlotSnapshotsRef.current = changeSlotSnapshots;
+  }, [changeSlotSnapshots]);
   const [analysisLiveSnapshot, setAnalysisLiveSnapshot] = useState<string | null>(null);
   const [analysisSnapshotLoading, setAnalysisSnapshotLoading] = useState(false);
   const mapOk = Boolean(mapboxToken?.trim());
@@ -360,11 +348,14 @@ export function SiAoiReportModal({
     setExportUi({ phase: 'idle' });
     setCloudCoverMaxPct(defaultCloudCoverPct);
     setTemporalComposite('median');
+    setReportStyleMode(DEFAULT_SI_AOI_REPORT_STYLE_MODE);
     setAnalysisMapReady(false);
     setLegendBandCount(5);
     setScatterPanelOpen(false);
     setChangeSlotSnapshots([]);
     setChangeSnapshotsLoading(false);
+    changeCaptureKeyRef.current = '';
+    changeCaptureInFlightRef.current = false;
     setAnalysisLiveSnapshot(null);
     setAnalysisSnapshotLoading(false);
     lastBuildInputRef.current = null;
@@ -388,6 +379,7 @@ export function SiAoiReportModal({
           apiKey: key,
           report,
           insights: report.dataInsights,
+          styleMode: report.reportStyleMode,
         });
         if (cancelled) return;
         setGeminiSummary(text);
@@ -402,7 +394,7 @@ export function SiAoiReportModal({
     return () => {
       cancelled = true;
     };
-  }, [open, report, step, geminiApiKey]);
+  }, [open, report, step, geminiApiKey, report?.reportStyleMode]);
 
   useEffect(() => {
     setScatterPanelOpen(false);
@@ -468,11 +460,13 @@ export function SiAoiReportModal({
         crsNote: 'EPSG:4326 (WGS84)',
       },
       satelliteProviderLabel: satelliteProviderLabel?.trim() || undefined,
+      reportStyleMode,
     };
     lastBuildInputRef.current = snap;
     const built = buildSiAoiVegetationReport({
       ...snap,
       legendBandCount,
+      reportStyleMode,
     });
     if (!built) {
       setErr('AOI geometry must be a Polygon or MultiPolygon.');
@@ -484,6 +478,7 @@ export function SiAoiReportModal({
     window.requestAnimationFrame(() => {
       window.requestAnimationFrame(() => {
         void prefetchAnalysisSnapshot(built);
+        void prefetchChangeDetectionRef.current?.(built);
       });
     });
   }, [
@@ -498,8 +493,20 @@ export function SiAoiReportModal({
     classificationPaletteProp,
     legendBandCount,
     satelliteProviderLabel,
+    reportStyleMode,
     prefetchAnalysisSnapshot,
   ]);
+
+  const applyReportStyleMode = useCallback(
+    (next: SiAoiReportStyleMode) => {
+      setReportStyleMode(next);
+      const snap = lastBuildInputRef.current;
+      if (!snap || !report) return;
+      const built = buildSiAoiVegetationReport({ ...snap, legendBandCount, reportStyleMode: next });
+      if (built) setReport(built);
+    },
+    [report, legendBandCount],
+  );
 
   const applyLegendBandCount = useCallback((next: SiAoiLegendBandCount) => {
     const snap = lastBuildInputRef.current;
@@ -510,7 +517,9 @@ export function SiAoiReportModal({
     const built = buildSiAoiVegetationReport({ ...snap, legendBandCount: next });
     if (built) {
       setReport(built);
+      changeCaptureKeyRef.current = '';
       void prefetchAnalysisSnapshot(built);
+      void prefetchChangeDetectionRef.current?.(built);
     }
   }, [prefetchAnalysisSnapshot]);
 
@@ -552,74 +561,148 @@ export function SiAoiReportModal({
     [reportAoiFeature],
   );
 
-  const captureAllChangeSnapshots = useCallback(async (): Promise<(string | null)[]> => {
-    if (!report || !changeFitBounds || !reportAoiBounds) return [];
-    const bounds = siPdfBoundsFromFitBounds(changeFitBounds);
-    const urls: (string | null)[] = [];
-    const slots = report.changeDetectionSlots;
-    for (let i = 0; i < slots.length; i++) {
-      const slot = slots[i]!;
-      let mapPng: string | null = null;
-      if (captureLiveMapSnapshot) {
-        mapPng = await captureLiveMapSnapshot({
-          date: slot.date,
-          captureMode: 'export-fast',
-          maskToAoi: false,
-          ...liveSnapshotAoiOpts,
-          skipTimelineRestore: i < slots.length - 1,
-          pauseTimeline: i === 0,
-          resumeTimeline: i === slots.length - 1,
-        });
-      }
-      if (!mapPng && slot.heatmapCellsGeoJson.features.length) {
-        mapPng = await renderAoiHeatmapSlotPng(
-          slot.heatmapCellsGeoJson,
-          report.aoiOutlineGeoJson,
-          reportAoiBounds,
-          report.classificationPalette.aoiOutline,
-        );
-      }
-      urls.push(
-        mapPng
-          ? await compositeChangeCellLegendPng(
-              mapPng,
-              report.tableRows,
-              report.classificationPalette,
-              report.indexId,
-              bounds,
-            )
-          : null,
+  const changeDetectionCaptureKey = useCallback((built: SiAoiReportModel) => {
+    return `${built.indexId}|${built.dateStart}|${built.dateEnd}|${built.aoiName}|${built.legendBandCount}`;
+  }, []);
+
+  const captureAllChangeSnapshots = useCallback(
+    async (built: SiAoiReportModel, opts?: { incremental?: boolean }): Promise<(string | null)[]> => {
+      const slots = built.changeDetectionSlots;
+      if (!slots.length || !changeFitBounds || !reportAoiBounds) return [];
+
+      const bounds = siPdfBoundsFromFitBounds(changeFitBounds);
+      const n = slots.length;
+      const urls: (string | null)[] = Array(n).fill(null);
+
+      const heatmapUrls = await Promise.all(
+        slots.map(async slot => {
+          if (!slot.heatmapCellsGeoJson.features.length) return null;
+          const mapPng = await renderAoiHeatmapSlotPng(
+            slot.heatmapCellsGeoJson,
+            built.aoiOutlineGeoJson,
+            reportAoiBounds,
+            built.classificationPalette.aoiOutline,
+          );
+          return mapPng
+            ? await compositeChangeCellLegendPng(
+                mapPng,
+                built.tableRows,
+                built.classificationPalette,
+                built.indexId,
+                bounds,
+              )
+            : null;
+        }),
       );
-      await new Promise<void>(r => window.setTimeout(r, 16));
-    }
-    return urls;
-  }, [
-    captureLiveMapSnapshot,
-    report,
-    changeFitBounds,
-    reportAoiBounds,
-    liveSnapshotAoiOpts,
-  ]);
+
+      for (let i = 0; i < n; i++) {
+        urls[i] = heatmapUrls[i] ?? null;
+        if (opts?.incremental) {
+          setChangeSlotSnapshots(prev => {
+            const next = prev.length === n ? [...prev] : Array(n).fill(null);
+            next[i] = urls[i]!;
+            return next;
+          });
+        }
+      }
+
+      if (!captureLiveMapSnapshot) return urls;
+
+      for (let i = 0; i < n; i++) {
+          const slot = slots[i]!;
+          let mapPng: string | null = null;
+          try {
+            mapPng = await captureLiveMapSnapshot({
+              date: slot.date,
+              captureMode: 'export-fast',
+              maskToAoi: false,
+              batchSlot: true,
+              suppressModalChrome: true,
+              ...liveSnapshotAoiOpts,
+              skipTimelineRestore: i < n - 1,
+              pauseTimeline: i === 0,
+              resumeTimeline: i === n - 1,
+            });
+          } catch {
+            mapPng = null;
+          }
+          if (!mapPng && slot.heatmapCellsGeoJson.features.length) {
+            mapPng = await renderAoiHeatmapSlotPng(
+              slot.heatmapCellsGeoJson,
+              built.aoiOutlineGeoJson,
+              reportAoiBounds,
+              built.classificationPalette.aoiOutline,
+            );
+          }
+          urls[i] =
+            mapPng != null
+              ? await compositeChangeCellLegendPng(
+                  mapPng,
+                  built.tableRows,
+                  built.classificationPalette,
+                  built.indexId,
+                  bounds,
+                )
+              : urls[i];
+          if (opts?.incremental) {
+            setChangeSlotSnapshots(prev => {
+              const next = prev.length === n ? [...prev] : Array(n).fill(null);
+              next[i] = urls[i]!;
+              return next;
+            });
+          }
+        }
+
+      return urls;
+    },
+    [captureLiveMapSnapshot, changeFitBounds, reportAoiBounds, liveSnapshotAoiOpts],
+  );
+
+  const prefetchChangeDetectionSnapshots = useCallback(
+    async (built: SiAoiReportModel) => {
+      const key = changeDetectionCaptureKey(built);
+      if (changeCaptureInFlightRef.current) return;
+      const cached = changeSlotSnapshotsRef.current;
+      if (
+        changeCaptureKeyRef.current === key &&
+        cached.length === built.changeDetectionSlots.length &&
+        cached.some(Boolean)
+      ) {
+        return;
+      }
+
+      changeCaptureInFlightRef.current = true;
+      changeCaptureKeyRef.current = key;
+      const n = built.changeDetectionSlots.length;
+      setChangeSnapshotsLoading(true);
+      setChangeSlotSnapshots(Array(n).fill(null));
+
+      try {
+        await captureAllChangeSnapshots(built, { incremental: true });
+      } finally {
+        changeCaptureInFlightRef.current = false;
+        setChangeSnapshotsLoading(false);
+      }
+    },
+    [changeDetectionCaptureKey, captureAllChangeSnapshots],
+  );
+
+  prefetchChangeDetectionRef.current = prefetchChangeDetectionSnapshots;
 
   useEffect(() => {
-    if (!open || !report || reportView !== 'change' || !changeFitBounds) {
+    if (!open || !report || reportView !== 'change') return;
+    const key = changeDetectionCaptureKey(report);
+    const cached = changeSlotSnapshotsRef.current;
+    if (
+      changeCaptureKeyRef.current === key &&
+      cached.length === report.changeDetectionSlots.length &&
+      cached.some(Boolean)
+    ) {
       return;
     }
-    let cancelled = false;
-    setChangeSnapshotsLoading(true);
-    setChangeSlotSnapshots([]);
-    void (async () => {
-      try {
-        const urls = await captureAllChangeSnapshots();
-        if (!cancelled) setChangeSlotSnapshots(urls);
-      } finally {
-        if (!cancelled) setChangeSnapshotsLoading(false);
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [open, report, reportView, changeFitBounds, captureAllChangeSnapshots]);
+    if (changeCaptureInFlightRef.current) return;
+    void prefetchChangeDetectionSnapshots(report);
+  }, [open, report, reportView, changeDetectionCaptureKey, prefetchChangeDetectionSnapshots]);
 
   const retryAnalysisMapSnapshot = useCallback(() => {
     if (!report) return;
@@ -691,59 +774,26 @@ export function SiAoiReportModal({
     return () => window.clearTimeout(t);
   }, [open, report, reportView, analysisMapReady]);
 
-  const lineData = useMemo(() => {
-    if (!report) return null;
+  const reportTimelineChart = useMemo(() => {
+    if (!report?.timeSeries.length) return null;
+    const layerId = report.indexId;
+    const color = staticAoiChartColorForLayer(layerId);
     return {
+      title: `${report.indexLabel} — ${report.dateStart} … ${report.dateEnd}`,
       labels: report.timeSeries.map(t => t.date),
       datasets: [
         {
+          id: layerId,
           label: report.indexLabel,
           data: report.timeSeries.map(t => t.value),
-          borderColor: '#34d399',
-          backgroundColor: 'rgba(52, 211, 153, 0.12)',
-          tension: 0.25,
-          fill: true,
-          pointRadius: 2,
+          borderColor: color,
+          backgroundColor: `${color}22`,
+          yAxisID: layerId === 'LST' ? 'yLST' : 'yIndex',
         },
       ],
+      hasLst: layerId === 'LST',
     };
   }, [report]);
-
-  const lineOptions = useMemo(
-    () => ({
-      responsive: true,
-      maintainAspectRatio: false,
-      layout: {
-        padding: { top: 8, right: 10, bottom: 28, left: 10 },
-      },
-      plugins: {
-        legend: { labels: { color: '#cbd5e1', boxWidth: 10, font: { size: 11 } } },
-        title: {
-          display: true,
-          text: `${report?.indexLabel ?? ''} — ${report?.dateStart ?? ''} … ${report?.dateEnd ?? ''}`,
-          color: '#e2e8f0',
-          font: { size: 12 },
-          padding: { bottom: 6 },
-        },
-      },
-      scales: {
-        x: {
-          ticks: {
-            color: '#94a3b8',
-            maxRotation: 35,
-            minRotation: 0,
-            autoSkip: true,
-            maxTicksLimit: 8,
-            font: { size: 10 },
-          },
-          grid: { color: 'rgba(148,163,184,0.12)' },
-        },
-        y: { ticks: { color: '#94a3b8' }, grid: { color: 'rgba(148,163,184,0.12)' } },
-      },
-      devicePixelRatio: Math.min(2.5, typeof window !== 'undefined' ? window.devicePixelRatio || 2 : 2),
-    }),
-    [report],
-  );
 
   const openExportPreview = useCallback(() => {
     if (!report) return;
@@ -777,14 +827,6 @@ export function SiAoiReportModal({
           const m = mapRef.current?.getMap?.();
           if (m?.isStyleLoaded?.()) break;
         }
-      } else if (mapOk && mode === 'TIME_SERIES_CHANGE_DETECTION' && !liveMapCaptureOk) {
-        setReportView('change');
-        await sleep(900);
-        await sleep(350);
-      } else if (liveMapCaptureOk) {
-        if (mode === 'AOI_ANALYSIS') setReportView('analysis');
-        else setReportView('change');
-        await sleep(120);
       }
 
       await new Promise<void>(r => requestAnimationFrame(() => r()));
@@ -875,13 +917,16 @@ export function SiAoiReportModal({
 
       let changeSlotMapImageDataUrls: (string | null)[] | null = null;
       if (mode === 'TIME_SERIES_CHANGE_DETECTION') {
-        if (
-          changeSlotSnapshots.length === report.changeDetectionSlots.length &&
-          changeSlotSnapshots.some(Boolean)
-        ) {
-          changeSlotMapImageDataUrls = changeSlotSnapshots;
+        const cached = changeSlotSnapshotsRef.current;
+        const slotsReady =
+          cached.length === report.changeDetectionSlots.length &&
+          cached.filter(Boolean).length >= Math.min(6, report.changeDetectionSlots.length);
+        if (slotsReady) {
+          changeSlotMapImageDataUrls = cached;
         } else if (liveMapCaptureOk) {
-          changeSlotMapImageDataUrls = await captureAllChangeSnapshots();
+          changeSlotMapImageDataUrls = await captureAllChangeSnapshots(report);
+        } else {
+          changeSlotMapImageDataUrls = cached.length ? cached : null;
         }
       }
 
@@ -893,6 +938,7 @@ export function SiAoiReportModal({
             apiKey: geminiKey,
             report,
             insights: report.dataInsights,
+            styleMode: report.reportStyleMode,
           });
         } catch {
           interpretationPoints = null;
@@ -911,6 +957,7 @@ export function SiAoiReportModal({
           changeSlotMapImageDataUrls,
           executiveSummaryAi: geminiSummary?.trim() || undefined,
           interpretationPoints,
+          reportStyleMode: report.reportStyleMode,
         });
       } else {
         await exportSiAoiVegetationReportDocx(report, {
@@ -919,6 +966,7 @@ export function SiAoiReportModal({
           aoiMapImageDataUrl,
           changeSlotMapImageDataUrls,
           executiveSummaryAi: geminiSummary?.trim() || undefined,
+          reportStyleMode: report.reportStyleMode,
         });
       }
     } catch (e) {
@@ -1040,6 +1088,22 @@ export function SiAoiReportModal({
                   </select>
                   <span className="si-aoi-report-field-hint">Narrative label for the report; timeline uses your field timeline until zonal stats API is wired.</span>
                 </label>
+                <label>
+                  Style mode (Gemini + PDF)
+                  <select
+                    value={reportStyleMode}
+                    onChange={e => setReportStyleMode(e.target.value as SiAoiReportStyleMode)}
+                  >
+                    {SI_AOI_REPORT_STYLE_MODE_OPTIONS.map(o => (
+                      <option key={o.id} value={o.id}>
+                        {o.label}
+                      </option>
+                    ))}
+                  </select>
+                  <span className="si-aoi-report-field-hint">
+                    {SI_AOI_REPORT_STYLE_MODE_OPTIONS.find(o => o.id === reportStyleMode)?.hint}
+                  </span>
+                </label>
               </div>
               {err ? <p className="si-aoi-report-err">{err}</p> : null}
               <div className="si-aoi-report-actions">
@@ -1076,6 +1140,21 @@ export function SiAoiReportModal({
                   Close
                 </button>
               </div>
+
+              <label className="si-aoi-report-style-preview">
+                Style mode
+                <select
+                  value={report.reportStyleMode}
+                  onChange={e => applyReportStyleMode(e.target.value as SiAoiReportStyleMode)}
+                  disabled={geminiLoading}
+                >
+                  {SI_AOI_REPORT_STYLE_MODE_OPTIONS.map(o => (
+                    <option key={o.id} value={o.id}>
+                      {o.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
 
               <SiAoiReportDataInsightsSection
                 report={report}
@@ -1120,6 +1199,11 @@ export function SiAoiReportModal({
                       Twelve tiles (3×4): each date captures the live Map Viewer (WMS symbology clipped to the AOI
                       boundary) with the classification legend printed below the map.
                     </p>
+                    {changeSnapshotsLoading ? (
+                      <p className="si-aoi-report-change-progress" role="status">
+                        Loading live map tiles… preview stays open; tiles fill in as each date is captured.
+                      </p>
+                    ) : null}
                     {!liveMapCaptureOk ? (
                       <p className="si-aoi-report-analysis">
                         Live map capture is unavailable — open the report from Satellite Intelligence with the map loaded.
@@ -1134,7 +1218,7 @@ export function SiAoiReportModal({
                             tableRows={report.tableRows}
                             classificationPalette={report.classificationPalette}
                             snapshotUrl={changeSlotSnapshots[idx] ?? null}
-                            snapshotLoading={changeSnapshotsLoading}
+                            snapshotLoading={changeSnapshotsLoading && !changeSlotSnapshots[idx]}
                           />
                         ))}
                       </div>
@@ -1190,10 +1274,18 @@ export function SiAoiReportModal({
                     )}
                   </div>
 
-                  <div className="si-aoi-report-card">
+                  <div className="si-aoi-report-card si-aoi-report-card--timeline-chart">
                     <h3>Timeline</h3>
                     <div className="si-aoi-report-chart-wrap" id={chartHostId}>
-                      {lineData ? <Line data={lineData} options={lineOptions as any} /> : null}
+                      {reportTimelineChart ? (
+                        <AoiStaticMultiLayerLineChart
+                          presentation="report"
+                          title={reportTimelineChart.title}
+                          labels={reportTimelineChart.labels}
+                          datasets={reportTimelineChart.datasets}
+                          hasLst={reportTimelineChart.hasLst}
+                        />
+                      ) : null}
                     </div>
                   </div>
 
@@ -1319,17 +1411,16 @@ export function SiAoiReportModal({
           ) : null}
         </div>
 
-        {report && step === 'preview' && lineData ? (
+        {report && step === 'preview' && reportTimelineChart ? (
           <div className="si-aoi-report-chart-export-host" aria-hidden>
             <div id={chartExportHostId} className="si-aoi-report-chart-export-host__inner">
-              <Line
-                data={lineData}
-                options={
-                  {
-                    ...(lineOptions as Record<string, unknown>),
-                    animation: false,
-                  } as any
-                }
+              <AoiStaticMultiLayerLineChart
+                presentation="report"
+                disableAnimation
+                title={reportTimelineChart.title}
+                labels={reportTimelineChart.labels}
+                datasets={reportTimelineChart.datasets}
+                hasLst={reportTimelineChart.hasLst}
               />
             </div>
           </div>

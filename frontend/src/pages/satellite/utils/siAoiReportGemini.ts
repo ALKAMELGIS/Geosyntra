@@ -1,12 +1,18 @@
 import { geminiGenerateContent, type GeminiContent } from '../../../lib/geoExplorerGemini';
 import type { SiAoiDataInsightsBundle, SiAoiReportModel } from './siAoiVegetationReportModel';
+import {
+  DEFAULT_SI_AOI_REPORT_STYLE_MODE,
+  siAoiReportStyleModeExecutiveConfig,
+  siAoiReportStyleModeInterpretationConfig,
+  type SiAoiReportStyleMode,
+} from './siAoiReportStyleMode';
 
-function parseNumberedPoints(text: string, max = 5): string[] {
+function parseNumberedPoints(text: string, max: number): string[] {
   const lines = text
     .split(/\n+/)
     .map(l => l.replace(/^\s*[\d]+[.)]\s*/, '').trim())
     .filter(Boolean);
-  if (lines.length >= 3) return lines.slice(0, max);
+  if (lines.length >= Math.min(3, max)) return lines.slice(0, max);
   const chunks = text
     .split(/(?<=[.!?])\s+/)
     .map(s => s.trim())
@@ -14,30 +20,29 @@ function parseNumberedPoints(text: string, max = 5): string[] {
   return chunks.slice(0, max);
 }
 
-/**
- * Short executive narrative for AOI remote-sensing report (English, plain text).
- * Returns null if the key is missing or the call fails.
- */
-export async function fetchSiAoiReportExecutiveSummaryFromGemini(opts: {
-  apiKey: string;
-  report: SiAoiReportModel;
-  insights: SiAoiDataInsightsBundle;
-}): Promise<string | null> {
-  const key = opts.apiKey.trim();
-  if (!key) return null;
+function buildGeminiContextPayload(report: SiAoiReportModel, insights: SiAoiDataInsightsBundle) {
+  const pc = report.processingContext;
+  const periodMean =
+    report.timeSeries.length > 0
+      ? report.timeSeries.reduce((a, t) => a + t.value, 0) / report.timeSeries.length
+      : null;
 
-  const { report, insights } = opts;
-  const payload = {
-    task: 'Write a concise executive summary for a GIS / remote sensing AOI report.',
-    rules: [
-      'Output plain English only — no markdown, no bullet characters, no JSON.',
-      'Maximum 5 sentences. Be precise and non-repetitive.',
-      'Reference only facts present in the payload; do not invent scene IDs or satellite products.',
-      'Mention vegetation / water / temperature context only when supported by the index statistics.',
-    ],
+  return {
     aoi: report.aoiName,
     period: `${report.dateStart} .. ${report.dateEnd}`,
     primaryIndex: report.indexLabel,
+    satelliteProvider: report.satelliteProviderName ?? null,
+    aoiAreaKm2: report.aoiAreaKm2,
+    legendBandCount: report.legendBandCount,
+    periodMean,
+    demoClientSide: report.summaryLinesEn.some(l => /client-side demo|zonal-stats service/i.test(l)),
+    processing: pc
+      ? {
+          cloudCoverMaxPct: pc.cloudCoverMaxPct,
+          temporalComposite: pc.temporalComposite,
+          crs: pc.crsNote ?? 'EPSG:4326 (WGS84)',
+        }
+      : null,
     indexStatistics: insights.indexRows.map(r => ({
       index: r.label,
       min: r.min,
@@ -46,22 +51,51 @@ export async function fetchSiAoiReportExecutiveSummaryFromGemini(opts: {
       std: r.std,
       status: r.status,
     })),
+    classDistribution: report.tableRows.map((r, i) => ({
+      classNo: i + 1,
+      indexRange: r.labelEn,
+      areaKm2: r.areaKm2,
+      sharePct: r.pct,
+    })),
     dashboard: insights.dashboard,
     stressFlag: report.stressNoteEn,
+    baselineSummary: report.summaryLinesEn.join(' '),
   };
+}
 
-  const systemInstruction =
-    'You are a senior remote sensing analyst preparing text for a PDF executive box. Follow the rules in the user JSON exactly.';
+/**
+ * Executive / scientific narrative for AOI remote-sensing report (English, plain text).
+ * Tone and length follow `styleMode` (SCIENTIFIC | EXECUTIVE | SUMMARY | TECHNICAL).
+ */
+export async function fetchSiAoiReportExecutiveSummaryFromGemini(opts: {
+  apiKey: string;
+  report: SiAoiReportModel;
+  insights: SiAoiDataInsightsBundle;
+  styleMode?: SiAoiReportStyleMode;
+}): Promise<string | null> {
+  const key = opts.apiKey.trim();
+  if (!key) return null;
+
+  const styleMode = opts.styleMode ?? opts.report.reportStyleMode ?? DEFAULT_SI_AOI_REPORT_STYLE_MODE;
+  const cfg = siAoiReportStyleModeExecutiveConfig(styleMode);
+  const context = buildGeminiContextPayload(opts.report, opts.insights);
+
+  const payload = {
+    styleMode,
+    task: cfg.task,
+    rules: cfg.rules,
+    ...context,
+  };
 
   const contents: GeminiContent[] = [{ role: 'user', parts: [{ text: JSON.stringify(payload) }] }];
 
   try {
     const text = await geminiGenerateContent({
       apiKey: key,
-      systemInstruction,
+      systemInstruction: cfg.systemInstruction,
       contents,
     });
-    const t = text.trim().replace(/^[\s`*#-]+/gm, '').slice(0, 2200);
+    const t = text.trim().replace(/^[\s`*#-]+/gm, '').slice(0, cfg.maxChars);
     return t || null;
   } catch {
     return null;
@@ -69,62 +103,41 @@ export async function fetchSiAoiReportExecutiveSummaryFromGemini(opts: {
 }
 
 /**
- * Five analytical interpretation bullets for the Scientific GIS report (PDF page 3).
+ * Numbered interpretation bullets for the AOI PDF (tone varies by style mode).
  */
 export async function fetchSiAoiReportInterpretationFromGemini(opts: {
   apiKey: string;
   report: SiAoiReportModel;
   insights: SiAoiDataInsightsBundle;
+  styleMode?: SiAoiReportStyleMode;
 }): Promise<string[] | null> {
   const key = opts.apiKey.trim();
   if (!key) return null;
 
-  const { report, insights } = opts;
-  const payload = {
-    task: 'Write Interpretation and Recommendations for a scientific GIS vegetation report.',
-    rules: [
-      'Output exactly 5 numbered points (1. through 5.), one sentence each, plain English only.',
-      'Each point must be analytical (cause-effect, risk, management implication) — not generic descriptions.',
-      'Use index type, class area shares, mean index, temporal change, and stress flags from the payload only.',
-      'No markdown, no JSON, no bullet symbols other than numbers.',
-    ],
-    aoi: report.aoiName,
-    period: `${report.dateStart} .. ${report.dateEnd}`,
-    primaryIndex: report.indexLabel,
-    periodMean: report.timeSeries.length
-      ? report.timeSeries.reduce((a, t) => a + t.value, 0) / report.timeSeries.length
-      : null,
-    classDistribution: report.tableRows.map((r, i) => ({
-      classNo: i + 1,
-      indexRange: r.labelEn,
-      areaKm2: r.areaKm2,
-      sharePct: r.pct,
-    })),
-    indexStatistics: insights.indexRows.map(r => ({
-      index: r.label,
-      min: r.min,
-      max: r.max,
-      mean: r.mean,
-      status: r.status,
-    })),
-    vegetationChangePct: insights.dashboard.vegChangePct,
-    heatRisk: insights.dashboard.heatRiskLabel,
-    stressFlag: report.stressNoteEn,
-  };
+  const styleMode = opts.styleMode ?? opts.report.reportStyleMode ?? DEFAULT_SI_AOI_REPORT_STYLE_MODE;
+  const cfg = siAoiReportStyleModeInterpretationConfig(styleMode);
+  const context = buildGeminiContextPayload(opts.report, opts.insights);
 
-  const systemInstruction =
-    'You are a senior agronomist and remote sensing scientist. Follow the user JSON rules exactly.';
+  const payload = {
+    styleMode,
+    task: cfg.task,
+    rules: cfg.rules,
+    ...context,
+    vegetationChangePct: opts.insights.dashboard.vegChangePct,
+    heatRisk: opts.insights.dashboard.heatRiskLabel,
+  };
 
   const contents: GeminiContent[] = [{ role: 'user', parts: [{ text: JSON.stringify(payload) }] }];
 
   try {
     const text = await geminiGenerateContent({
       apiKey: key,
-      systemInstruction,
+      systemInstruction: cfg.systemInstruction,
       contents,
     });
-    const points = parseNumberedPoints(text.trim(), 5);
-    return points.length >= 3 ? points : null;
+    const points = parseNumberedPoints(text.trim(), cfg.pointCount);
+    const minPoints = styleMode === 'SUMMARY' ? 2 : 3;
+    return points.length >= minPoints ? points.slice(0, cfg.pointCount) : null;
   } catch {
     return null;
   }
