@@ -30,6 +30,19 @@ export type SatelliteProviderLayerCatalogEntry = {
   indexHint?: string;
 };
 
+/** Unified provider record (API / UI / reports). */
+export type SatelliteProvider = {
+  id: SatelliteProviderId;
+  name: string;
+  icon: string;
+  supportedLayers: string[];
+  supportedIndices: string[];
+  resolutions: number[];
+  supportsTimeSeries: boolean;
+  supportsAnalytics: boolean;
+  colorProfile?: string;
+};
+
 export type SatelliteProviderDefinition = {
   id: SatelliteProviderId;
   name: string;
@@ -276,4 +289,24 @@ export function getSatelliteProvider(id: SatelliteProviderId): SatelliteProvider
 
 export function isSentinelHubProvider(id: SatelliteProviderId): boolean {
   return id === 'sentinel-hub';
+}
+
+export function toSatelliteProvider(def: SatelliteProviderDefinition): SatelliteProvider {
+  return {
+    id: def.id,
+    name: def.name,
+    icon: def.icon,
+    supportedLayers: def.supportedLayers.map(l => l.label),
+    supportedIndices: [...def.supportedIndices],
+    resolutions: [...def.resolutions],
+    supportsTimeSeries: def.supportsTimeSeries,
+    supportsAnalytics: def.supportsAnalytics,
+    colorProfile: def.colorProfile,
+  };
+}
+
+export function providerSupportsIndex(providerId: SatelliteProviderId, indexId: string): boolean {
+  const p = getSatelliteProvider(providerId);
+  const u = indexId.toUpperCase();
+  return p.supportedIndices.some(i => i.toUpperCase() === u || u.includes(i.toUpperCase()));
 }

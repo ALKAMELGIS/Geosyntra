@@ -43,7 +43,7 @@ export function SiSatelliteProviderSelect({ value, onChange }: SiSatelliteProvid
 
   return (
     <div ref={rootRef} className="si-sat-provider-dd">
-      <div className="si-field-analysis-kicker">Satellite provider</div>
+      <div className="si-field-analysis-kicker si-field-analysis-kicker--provider">Satellite provider</div>
       <button
         id={triggerId}
         type="button"

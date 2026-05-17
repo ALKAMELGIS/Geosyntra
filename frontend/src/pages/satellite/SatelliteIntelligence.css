@@ -12471,6 +12471,17 @@ html[data-theme='light'] .si-env-panel.si-env-panel--satellite-toolbox.si-env-pa
 }
 
 /* Satellite provider — luxury dropdown (Remote sensing panel) */
+.si-sat-provider-dd__hint {
+  margin: 0.5rem 0 0;
+  font-size: 0.6875rem;
+  line-height: 1.45;
+  color: rgba(148, 163, 184, 0.92);
+}
+
+.si-field-analysis-kicker--provider {
+  letter-spacing: 0.1em;
+}
+
 .si-sat-provider-dd {
   position: relative;
   margin-bottom: 16px;

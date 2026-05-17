@@ -9935,6 +9935,7 @@ export default function SatelliteIntelligence() {
       [
         providerCacheEpochKey(satelliteProviderId, providerCacheEpoch),
         providerRendererProfile.cacheKeyPrefix,
+        satelliteCollectionId,
         activeWmsLayer ?? '',
         String(selectedIndex ?? ''),
         wmsDate,
@@ -9943,6 +9944,7 @@ export default function SatelliteIntelligence() {
       ].join('|'),
     [
       satelliteProviderId,
+      satelliteCollectionId,
       providerCacheEpoch,
       providerRendererProfile.cacheKeyPrefix,
       activeWmsLayer,
@@ -13753,6 +13755,12 @@ export default function SatelliteIntelligence() {
                             value={satelliteProviderId}
                             onChange={handleSatelliteProviderChange}
                           />
+                          {!providerRendererProfile.supportsWmsLive ? (
+                            <p className="si-sat-provider-dd__hint" role="status">
+                              Layer catalog is scoped to {satelliteProviderLabel}. Map tiles use the nearest compatible
+                              Sentinel Hub bridge until a dedicated {satelliteProviderLabel} endpoint is configured.
+                            </p>
+                          ) : null}
                         </div>
                         {getSatelliteProvider(satelliteProviderId).collections?.length ? (
                           <div className="si-field-analysis-section">
