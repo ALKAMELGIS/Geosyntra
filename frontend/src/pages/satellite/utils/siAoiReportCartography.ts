@@ -1,9 +1,9 @@
 import type jsPDF from 'jspdf';
 import type {
   SiAoiClassificationPalette,
-  SiAoiReportModel,
+  SiAoiReportCartographyInput,
   SiAoiReportTableRow,
-} from './siAoiVegetationReportModel';
+} from './siAoiReportCartographyTypes';
 
 function pdfSafeText(raw: string): string {
   return String(raw ?? '')
@@ -275,7 +275,7 @@ function drawPdfScaleBar(
 /** Compact classification legend — bottom-right, frosted panel. */
 function drawPdfMapLegendPanel(
   doc: jsPDF,
-  report: SiAoiReportModel,
+  report: SiAoiReportCartographyInput,
   panelX: number,
   panelBottomY: number,
   panelW: number,
@@ -334,7 +334,7 @@ export function drawPdfCartographerMapLayout(
   mapW: number,
   mapH: number,
   bounds: SiPdfLngLatBounds | null,
-  report: SiAoiReportModel,
+  report: SiAoiReportCartographyInput,
 ) {
   doc.setDrawColor(51, 65, 85);
   doc.setLineWidth(0.75);

@@ -5,11 +5,11 @@ import {
   SI_WMS_SYMBOLOGY_DEFAULT_UI,
   siAutoRampPresetForLayerName,
   siComputeSymbologyStops,
+  mergeSymbologyUi,
   siWmsDefaultStopsForProfile,
   siWmsSymbologySupportsLayer,
   type SiWmsSymbologyUiState,
 } from './siWmsSymbologyModel';
-import { mergeSymbologyUi } from './siWmsLegendMode';
 
 /** Number of discrete color classes shown in Live / Scientific legend and WMS evalscript. */
 export const SI_WMS_SPECTRAL_CLASS_COUNT = 10;

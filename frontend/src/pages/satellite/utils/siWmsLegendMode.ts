@@ -1,7 +1,9 @@
 import { inferWmsEvalProfile, type WmsAoiEvalProfile } from '../../../lib/sentinelHubWmsAoiClip';
 import type { IndexRampStop } from '../../../lib/siWmsIndexClassificationRamp';
-import { SI_WMS_SYMBOLOGY_DEFAULT_UI, type SiWmsSymbologyUiState } from './siWmsSymbologyModel';
+import { mergeSymbologyUi, type SiWmsSymbologyUiState } from './siWmsSymbologyModel';
 import { siWmsResolveCanonicalStops } from './siWmsSpectralClassification';
+
+export { mergeSymbologyUi } from './siWmsSymbologyModel';
 
 export type SiWmsLegendDisplayMode = 'none' | 'live' | 'scientific';
 
@@ -22,10 +24,6 @@ export function isClassifiedWmsProfile(profile: WmsAoiEvalProfile): boolean {
 
 export function wmsProfileShowsLegend(profile: WmsAoiEvalProfile): boolean {
   return profile !== 'native';
-}
-
-export function mergeSymbologyUi(partial?: Partial<SiWmsSymbologyUiState>): SiWmsSymbologyUiState {
-  return { ...SI_WMS_SYMBOLOGY_DEFAULT_UI, ...partial };
 }
 
 /**

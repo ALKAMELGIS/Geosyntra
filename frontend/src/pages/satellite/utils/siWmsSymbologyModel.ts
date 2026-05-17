@@ -233,3 +233,8 @@ export function siSymbologyRampLabels(): { id: SiSymbologyRampPresetId; label: s
     { id: 'greys', label: 'Greyscale' },
   ];
 }
+
+/** Merge partial symbology UI — lives here to avoid circular imports with legend/spectral modules. */
+export function mergeSymbologyUi(partial?: Partial<SiWmsSymbologyUiState>): SiWmsSymbologyUiState {
+  return { ...SI_WMS_SYMBOLOGY_DEFAULT_UI, ...partial };
+}

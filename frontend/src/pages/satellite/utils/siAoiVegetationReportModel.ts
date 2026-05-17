@@ -58,19 +58,22 @@ function pdfEmbedPngFit(
   }
 }
 
+import type {
+  SiAoiClassificationPalette,
+  SiAoiReportTableRow,
+} from './siAoiReportCartographyTypes';
+
+export type {
+  SiAoiClassificationPalette,
+  SiAoiReportCartographyInput,
+  SiAoiReportTableRow,
+} from './siAoiReportCartographyTypes';
+
 export type SiAoiReportHealthKey = 'high' | 'medium' | 'low';
 
 export type SiAoiReportTimePoint = { date: string; value: number };
 
 export type SiAoiLegendBandCount = 5 | 10;
-
-export type SiAoiReportTableRow = {
-  key: string;
-  labelEn: string;
-  pct: number;
-  areaKm2: number;
-  colorHex?: string;
-};
 
 /** Aggregated stats for one change-detection tile (from pixel grid inside AOI). */
 export type SiAoiChangeSlotStats = {
@@ -127,14 +130,6 @@ export type SiAoiDataInsightsBundle = {
   dashboard: SiAoiDashboardMetrics;
   /** Reserved for client-side Gemini fill; PDF may override via export options. */
   executiveSummaryAi: string | null;
-};
-
-/** Colours for the three-class AOI heatmap / legend (aligned with Symbology ramp when provided). */
-export type SiAoiClassificationPalette = {
-  high: string;
-  medium: string;
-  low: string;
-  aoiOutline: string;
 };
 
 export const DEFAULT_SI_AOI_CLASSIFICATION_PALETTE: SiAoiClassificationPalette = {
