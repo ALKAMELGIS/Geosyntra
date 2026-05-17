@@ -1,6 +1,6 @@
-import AuthLoginPage from './AuthLoginPage'
+import { HomeWizardRedirect } from '../../home/HomeWizardRedirect'
 
-/** Register uses the same auth surface as login (signup mode via pathname). */
+/** Legacy route — registration is handled in the Home wizard. */
 export default function AuthRegisterPage() {
-  return <AuthLoginPage />
+  return <HomeWizardRedirect authMode="signup" />
 }

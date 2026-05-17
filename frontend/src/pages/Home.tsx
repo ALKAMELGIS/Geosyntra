@@ -31,6 +31,7 @@ import { HomeOnboardingProvider, useHomeOnboarding } from './home/onboarding/Hom
 import { HomeOnboardingWizard } from './home/onboarding/HomeOnboardingWizard'
 
 import { repairBrokenInPageHashOnLoad, scrollToInPageSection } from '../lib/hashRouterInPageNav'
+import { readHomeWizardParams } from '../lib/homeWizardEntry'
 import { readWorkspaceState } from '../lib/onboarding/workspaceState'
 
 import './Home.css'
@@ -123,10 +124,8 @@ function HomePageContent() {
     if (scrollTarget && scrollTarget !== 'get-started') {
       window.requestAnimationFrame(() => scrollToInPageSection(`#${scrollTarget}`))
     }
-    const qs = new URLSearchParams(window.location.search)
-    const wizard = qs.get('wizard')
-    const mode = qs.get('mode')
-    if (qs.get('start') === '1' || wizard) {
+    const { start, wizard, mode } = readHomeWizardParams()
+    if (start || wizard) {
       if (wizard === 'pricing') {
         openWizard({ step: user ? 'pricing' : 'auth', authMode: 'signup' })
       } else if (mode === 'signin') {
@@ -134,7 +133,7 @@ function HomePageContent() {
       } else {
         startBuilding()
       }
-      if (qs.has('start') || qs.has('wizard')) {
+      if (start || wizard) {
         try {
           window.history.replaceState({}, '', `${window.location.pathname}${window.location.hash}`)
         } catch {

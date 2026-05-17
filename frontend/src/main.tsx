@@ -16,6 +16,9 @@ import './styles/responsive-shell.css'
  * rules. Keeps the white-glass identity contained in one reviewable file. */
 import './styles/light-glass-theme.css'
 import { bootstrapMapboxAccessTokenPersistence } from './lib/mapboxAccessToken'
+import { redirectLegacySaasRoutes } from './lib/legacyRouteRedirect'
+
+const legacyRedirecting = typeof window !== 'undefined' && redirectLegacySaasRoutes()
 
 const safeSessionGetItem = (key: string) => {
   try {
@@ -39,18 +42,18 @@ const safeSessionRemoveItem = (key: string) => {
   }
 }
 
-if (typeof window !== 'undefined' && 'serviceWorker' in navigator) {
-  const resetKey = 'sw_reset_v2'
-  const canReload = typeof window !== 'undefined' && typeof sessionStorage !== 'undefined' && !safeSessionGetItem(resetKey)
+if (!legacyRedirecting && typeof window !== 'undefined' && 'serviceWorker' in navigator) {
+  const resetKey = 'sw_reset_v3'
+  const canReload = typeof sessionStorage !== 'undefined' && !safeSessionGetItem(resetKey)
   const hadController = Boolean(navigator.serviceWorker.controller)
 
   const unregisterPromise =
     typeof navigator.serviceWorker.getRegistrations === 'function'
       ? navigator.serviceWorker
           .getRegistrations()
-          .then((regs) => {
+          .then(regs => {
             const hasAny = regs.length > 0
-            return Promise.all(regs.map((r) => r.unregister())).then(() => hasAny)
+            return Promise.all(regs.map(r => r.unregister())).then(() => hasAny)
           })
           .catch(() => false)
       : Promise.resolve(false)
@@ -59,7 +62,7 @@ if (typeof window !== 'undefined' && 'serviceWorker' in navigator) {
     typeof window !== 'undefined' && 'caches' in window
       ? caches
           .keys()
-          .then((keys) => Promise.all(keys.map((k) => caches.delete(k))))
+          .then(keys => Promise.all(keys.map(k => caches.delete(k))))
           .then(() => true)
           .catch(() => false)
       : Promise.resolve(false)
@@ -67,23 +70,20 @@ if (typeof window !== 'undefined' && 'serviceWorker' in navigator) {
   Promise.all([unregisterPromise, clearCachePromise]).then(([hadRegs]) => {
     if (canReload && (hadRegs || hadController)) {
       safeSessionSetItem(resetKey, '1')
-      // Avoid full reload on login route — visible flash / double "rerun" on http://127.0.0.1:5173/Geosyntra/#/login
-      const hash = typeof window.location.hash === 'string' ? window.location.hash : ''
-      const onLoginRoute = /^#\/(?:app\/auth\/(?:login|register)|login)(?:\?|$|\/)/i.test(hash)
-      if (!onLoginRoute) {
-        window.location.reload()
-      }
+      if (redirectLegacySaasRoutes()) return
+      window.location.reload()
       return
     }
     if (typeof sessionStorage !== 'undefined') safeSessionRemoveItem(resetKey)
   })
 }
 
-// Ensure Mapbox token is durable across rebuild/update cycles.
-bootstrapMapboxAccessTokenPersistence()
+if (!legacyRedirecting) {
+  bootstrapMapboxAccessTokenPersistence()
 
-ReactDOM.createRoot(document.getElementById('root') as HTMLElement).render(
-  <React.StrictMode>
-    <App />
-  </React.StrictMode>
-)
+  ReactDOM.createRoot(document.getElementById('root') as HTMLElement).render(
+    <React.StrictMode>
+      <App />
+    </React.StrictMode>,
+  )
+}

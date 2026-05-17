@@ -4,6 +4,7 @@ import { AppDialogProvider } from './components/AppDialogProvider'
 import HeaderBar from './components/HeaderBar'
 import NavMenu from './components/NavMenu'
 import AppRoutes from './routes/AppRoutes'
+import { homeWizardSearch } from './lib/homeWizardEntry'
 import { isSaasAuthPath, isSaasPublicPath, SAAS_ROUTES } from './lib/saasRoutes'
 import { AuthProvider, useAuth } from './state/auth'
 import { LanguageProvider } from './lib/i18n'
@@ -165,7 +166,7 @@ function AppShell() {
   if (!user && !isPublicSurface) {
     return (
       <Navigate
-        to={{ pathname: SAAS_ROUTES.home, search: '?start=1&wizard=auth&mode=signin' }}
+        to={{ pathname: SAAS_ROUTES.home, search: homeWizardSearch({ wizard: 'auth', authMode: 'signin' }) }}
         replace
         state={{ from: location }}
       />

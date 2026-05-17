@@ -11,8 +11,9 @@
       ;(function () {
         var path = window.location.pathname || ''
         var base = path.replace(/\/oauth-return\.html$/i, '') || ''
+        var basePath = base.endsWith('/') ? base : base + '/'
         var q = window.location.search || ''
-        window.location.replace(window.location.origin + base + '/#/app/auth/login' + q)
+        window.location.replace(window.location.origin + basePath + '?start=1&wizard=auth&mode=signin' + q + '#/')
       })()
     </script>
   </body>
