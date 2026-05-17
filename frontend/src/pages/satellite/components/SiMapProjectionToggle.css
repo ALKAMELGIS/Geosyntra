@@ -1,0 +1,74 @@
+/* Bottom-left stack: above Mapbox logo + NavigationControl (bottom-left). */
+.si-map-projection-float {
+  position: absolute;
+  left: max(12px, env(safe-area-inset-left, 0px));
+  bottom: max(118px, calc(env(safe-area-inset-bottom, 0px) + 118px));
+  z-index: 720;
+  pointer-events: auto;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.si-map-projection-toggle.gis-map-projection-toggle--float {
+  box-shadow:
+    0 12px 32px rgba(2, 6, 23, 0.45),
+    0 0 0 1px rgba(255, 255, 255, 0.08),
+    inset 0 1px 0 rgba(255, 255, 255, 0.12);
+  backdrop-filter: blur(16px) saturate(140%);
+  -webkit-backdrop-filter: blur(16px) saturate(140%);
+  background: rgba(15, 23, 42, 0.72);
+  border-radius: 14px;
+  padding: 4px;
+}
+
+.si-map-projection-settings-btn {
+  border-color: rgba(56, 189, 248, 0.35) !important;
+}
+
+.si-map-projection-terrain-panel {
+  min-width: 200px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: rgba(15, 23, 42, 0.88);
+  border: 1px solid rgba(148, 163, 184, 0.28);
+  box-shadow: 0 14px 36px rgba(0, 0, 0, 0.4);
+  backdrop-filter: blur(14px);
+  font-size: 0.78rem;
+  color: #e2e8f0;
+}
+
+.si-map-projection-terrain-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.si-map-projection-terrain-row:last-child {
+  margin-bottom: 0;
+}
+
+.si-map-projection-terrain-row input[type='range'] {
+  flex: 1;
+  min-width: 80px;
+  accent-color: #34d399;
+}
+
+.si-map-projection-terrain-val {
+  font-variant-numeric: tabular-nums;
+  color: #94a3b8;
+  min-width: 3.2em;
+  text-align: right;
+}
+
+.si-map-projection-toast {
+  left: 16px;
+  transform: translate(0, -8px);
+}
+
+.si-map-projection-toast.show {
+  transform: translate(0, 0);
+}
