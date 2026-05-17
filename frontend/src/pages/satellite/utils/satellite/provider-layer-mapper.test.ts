@@ -5,16 +5,16 @@ import { getSatelliteProvider } from './provider-capabilities';
 const HIDDEN = new Set<string>();
 
 describe('buildProviderLayerOptions', () => {
-  it('filters Sentinel Hub layers to catalog entries', () => {
+  it('exposes full Sentinel Hub GetCapabilities list (Layer Live)', () => {
     const wms = [
       { name: 'NDVI', title: 'NDVI' },
-      { name: 'RANDOM_LAYER', title: 'Random' },
+      { name: 'RANDOM_LAYER', title: 'Random layer' },
     ];
     const opts = buildProviderLayerOptions('sentinel-hub', wms, HIDDEN);
-    expect(opts.length).toBeGreaterThan(0);
+    expect(opts.length).toBe(2);
     expect(opts.every(o => o.providerId === 'sentinel-hub')).toBe(true);
-    expect(opts.some(o => o.catalogId === 'ndvi')).toBe(true);
-    expect(opts.some(o => o.id === 'RANDOM_LAYER')).toBe(false);
+    expect(opts.some(o => o.id === 'NDVI')).toBe(true);
+    expect(opts.some(o => o.id === 'RANDOM_LAYER')).toBe(true);
   });
 
   it('returns Planet catalog layers when WMS bridge is missing', () => {

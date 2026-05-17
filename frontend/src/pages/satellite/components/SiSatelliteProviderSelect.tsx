@@ -42,27 +42,19 @@ export function SiSatelliteProviderSelect({ value, onChange }: SiSatelliteProvid
   );
 
   return (
-    <div ref={rootRef} className="si-sat-provider-dd">
-      <div className="si-field-analysis-kicker si-field-analysis-kicker--provider">Satellite provider</div>
+    <div ref={rootRef} className="si-field-analysis-field si-field-analysis-field--labeled si-sat-provider-dd">
+      <label className="si-field-analysis-label" htmlFor={triggerId}>
+        Satellite provider
+      </label>
       <button
         id={triggerId}
         type="button"
-        className={`si-sat-provider-dd__trigger${open ? ' si-sat-provider-dd__trigger--open' : ''}`}
+        className={`si-field-analysis-select si-sat-provider-dd__trigger${open ? ' si-sat-provider-dd__trigger--open' : ''}`}
         aria-expanded={open}
         aria-haspopup="listbox"
         onClick={() => setOpen(o => !o)}
       >
-        <span className="si-sat-provider-dd__trigger-main">
-          <span className="si-sat-provider-dd__icon" aria-hidden>
-            {selected.icon}
-          </span>
-          <span className="si-sat-provider-dd__trigger-text">
-            <span className="si-sat-provider-dd__name">{selected.name}</span>
-            <span className="si-sat-provider-dd__meta">
-              {selected.resolutionLabel} resolution · {selected.dataType}
-            </span>
-          </span>
-        </span>
+        <span className="si-sat-provider-dd__value">{selected.name}</span>
         <i className={`fa-solid fa-chevron-down si-sat-provider-dd__chev${open ? ' si-sat-provider-dd__chev--open' : ''}`} aria-hidden />
       </button>
 
@@ -79,15 +71,9 @@ export function SiSatelliteProviderSelect({ value, onChange }: SiSatelliteProvid
                 className={`si-sat-provider-dd__opt${active ? ' si-sat-provider-dd__opt--on' : ''}`}
                 onClick={() => pick(p.id)}
               >
-                <span className="si-sat-provider-dd__icon" aria-hidden>
-                  {p.icon}
-                </span>
-                <span className="si-sat-provider-dd__opt-body">
-                  <span className="si-sat-provider-dd__name">{p.name}</span>
-                  <span className="si-sat-provider-dd__meta">
-                    {p.resolutionLabel} resolution — {p.dataType}
-                  </span>
-                  <span className="si-sat-provider-dd__revisit">Revisit {p.revisitLabel}</span>
+                <span className="si-sat-provider-dd__opt-label">{p.name}</span>
+                <span className="si-sat-provider-dd__opt-meta">
+                  {p.resolutionLabel} · {p.dataType}
                 </span>
                 {active ? <i className="fa-solid fa-check si-sat-provider-dd__check" aria-hidden /> : null}
               </button>
@@ -98,3 +84,4 @@ export function SiSatelliteProviderSelect({ value, onChange }: SiSatelliteProvid
     </div>
   );
 }
+

@@ -11,6 +11,7 @@ import type { StaticAoiChartLayerId } from '../utils/staticAoiMultiChartData';
 import type { SiGeoAiIndexAnalyticalExportContext } from '../utils/siGeoAiIndexAnalyticalExport';
 import type { SmartProcessingSectionId } from './SmartProcessingWorkflowPanel';
 import { SiChatAiAgentIcon } from './SiChatAiAgentIcon';
+import { formatStatFixed } from '../utils/weeklyCompositeStats';
 
 export type SatelliteContextPanelId =
   | 'layers'
@@ -262,12 +263,13 @@ function SatelliteDockRailGlyph({ id, icon }: { id: SatelliteContextPanelId; ico
 }
 
 function defaultSparkPath(values: number[], w: number, h: number): string {
-  if (!values.length) return '';
-  const min = Math.min(...values);
-  const max = Math.max(...values);
+  const finite = values.filter((v): v is number => typeof v === 'number' && Number.isFinite(v));
+  if (!finite.length) return '';
+  const min = Math.min(...finite);
+  const max = Math.max(...finite);
   const span = max - min || 1;
-  const pts = values.map((v, i) => {
-    const x = values.length <= 1 ? w / 2 : (i / (values.length - 1)) * w;
+  const pts = finite.map((v, i) => {
+    const x = finite.length <= 1 ? w / 2 : (i / (finite.length - 1)) * w;
     const y = h - ((v - min) / span) * (h - 4) - 2;
     return `${x.toFixed(1)},${y.toFixed(1)}`;
   });
@@ -1088,7 +1090,7 @@ export function SatelliteContextualAnalysisDock(props: SatelliteContextualAnalys
                                       style={{ width: `${Math.min(100, (Math.abs(row.value) / maxBar) * 100)}%` }}
                                     />
                                   </div>
-                                  <span className="si-map-analysis-bar-val">{row.value.toFixed(2)}</span>
+                                  <span className="si-map-analysis-bar-val">{formatStatFixed(row.value, 2)}</span>
                                 </div>
                               ))}
                             </div>

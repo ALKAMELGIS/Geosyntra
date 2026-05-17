@@ -19,6 +19,8 @@ type LayerActionId =
 type Props = {
   aoiId: string
   aoiName: string
+  /** Inline inside AOI Settings — no standalone kicker/trigger. */
+  embedded?: boolean
   open: boolean
   onOpenChange: (open: boolean) => void
   layers: SiAoiWorkspaceLayerOption[]
@@ -82,6 +84,7 @@ const LAYER_ACTIONS: {
 export function SiAoiWorkspaceLayerPicker({
   aoiId,
   aoiName,
+  embedded = false,
   open,
   onOpenChange,
   layers,
@@ -158,46 +161,16 @@ export function SiAoiWorkspaceLayerPicker({
     }
   }
 
-  return (
-    <div
-      ref={rootRef}
-      className={cn('si-rs-aoi-layer-premium', open && 'si-rs-aoi-layer-premium--open')}
+  const layerListPanel = (
+    <motion.div
+      className={cn('si-rs-aoi-layer-premium__panel', embedded && 'si-rs-aoi-layer-premium__panel--embedded')}
+      role="listbox"
+      aria-label={`Sentinel Hub layers for ${aoiName}`}
+      initial={embedded ? false : { opacity: 0, y: -6, scale: 0.99 }}
+      animate={embedded ? undefined : { opacity: 1, y: 0, scale: 1 }}
+      exit={embedded ? undefined : { opacity: 0, y: -4, scale: 0.995 }}
+      transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
     >
-      <label className="si-field-analysis-kicker si-rs-aoi-stack-kicker" htmlFor={triggerId}>
-        Layer list (this AOI · Sentinel Hub)
-      </label>
-
-      <button
-        id={triggerId}
-        type="button"
-        className={cn('si-rs-aoi-layer-premium__trigger', open && 'si-rs-aoi-layer-premium__trigger--open')}
-        aria-expanded={open}
-        aria-haspopup="listbox"
-        onClick={() => onOpenChange(!open)}
-      >
-        <span className="si-rs-aoi-layer-premium__trigger-icon" aria-hidden>
-          <i className="fa-solid fa-layer-group" />
-        </span>
-        <span className="si-rs-aoi-layer-premium__trigger-text">
-          <span className="si-rs-aoi-layer-premium__trigger-title">Sentinel Hub layers</span>
-          <span className="si-rs-aoi-layer-premium__trigger-meta">
-            {layersOnCount} / {layers.length} visible
-          </span>
-        </span>
-        <i className={cn('fa-solid fa-chevron-down si-rs-aoi-layer-premium__chev', open && 'si-rs-aoi-layer-premium__chev--open')} aria-hidden />
-      </button>
-
-      <AnimatePresence>
-        {open ? (
-          <motion.div
-            className="si-rs-aoi-layer-premium__panel"
-            role="listbox"
-            aria-label={`Sentinel Hub layers for ${aoiName}`}
-            initial={{ opacity: 0, y: -6, scale: 0.99 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: -4, scale: 0.995 }}
-            transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
-          >
             <motion.div className="si-rs-aoi-layer-premium__search-wrap" layout={false}>
               <i className="fa-solid fa-magnifying-glass" aria-hidden />
               <input
@@ -348,9 +321,56 @@ export function SiAoiWorkspaceLayerPicker({
                 })
               )}
             </div>
-          </motion.div>
-        ) : null}
-      </AnimatePresence>
-    </div>
+    </motion.div>
+  )
+
+  if (embedded) {
+    return (
+      <div
+        ref={rootRef}
+        className={cn('si-rs-aoi-layer-premium', 'si-rs-aoi-layer-premium--embedded', open && 'si-rs-aoi-layer-premium--open')}
+      >
+        <div className="si-rs-aoi-settings__layers-head">
+          <span className="si-rs-aoi-settings__k">Layers</span>
+          <span className="si-rs-aoi-settings__layers-meta">
+            {layersOnCount} / {layers.length} visible
+          </span>
+        </div>
+        {open ? layerListPanel : null}
+      </div>
+    )
+  }
+
+  return (
+    <motion.div
+      ref={rootRef}
+      className={cn('si-rs-aoi-layer-premium', open && 'si-rs-aoi-layer-premium--open')}
+    >
+      <label className="si-field-analysis-kicker si-rs-aoi-stack-kicker" htmlFor={triggerId}>
+        Layer list (this AOI · Sentinel Hub)
+      </label>
+
+      <button
+        id={triggerId}
+        type="button"
+        className={cn('si-rs-aoi-layer-premium__trigger', open && 'si-rs-aoi-layer-premium__trigger--open')}
+        aria-expanded={open}
+        aria-haspopup="listbox"
+        onClick={() => onOpenChange(!open)}
+      >
+        <span className="si-rs-aoi-layer-premium__trigger-icon" aria-hidden>
+          <i className="fa-solid fa-layer-group" />
+        </span>
+        <span className="si-rs-aoi-layer-premium__trigger-text">
+          <span className="si-rs-aoi-layer-premium__trigger-title">Sentinel Hub layers</span>
+          <span className="si-rs-aoi-layer-premium__trigger-meta">
+            {layersOnCount} / {layers.length} visible
+          </span>
+        </span>
+        <i className={cn('fa-solid fa-chevron-down si-rs-aoi-layer-premium__chev', open && 'si-rs-aoi-layer-premium__chev--open')} aria-hidden />
+      </button>
+
+      <AnimatePresence>{open ? layerListPanel : null}</AnimatePresence>
+    </motion.div>
   )
 }

@@ -257,3 +257,202 @@ def process(req: MpcProcessRequest):
             "entries_preview": acs_entries[:10],
         },
     }
+
+
+# Optical indices sampled from the same Sentinel-2 stack (EPSG:4326 grid, AOI-clipped).
+_ZONAL_LAYER_ASSETS = ["B02", "B03", "B04", "B08", "B11"]
+_ZONAL_LAYER_IDS = ("NDVI", "NDWI", "NDMI", "EVI", "SAVI", "NDSI")
+
+
+class MpcZonalSampleRequest(BaseModel):
+    aoi: Dict[str, Any]
+    datetime: str
+    layer_ids: List[str] = Field(default_factory=lambda: list(_ZONAL_LAYER_IDS))
+    collections: List[str] = Field(default_factory=lambda: ["sentinel-2-l2a"])
+    max_items: int = 20
+    max_cloud_cover: Optional[float] = 20.0
+    catalog_url: Optional[str] = None
+    clip_to_aoi: bool = True
+    tile_size: int = 1024
+    resolution: int = 20
+    max_pixels: int = 9000
+
+
+def _metric_for_layer(layer_id: str, arr: xr.DataArray) -> xr.DataArray:
+    lid = layer_id.strip().upper()
+    if lid == "NDVI":
+        red = arr.sel(band="B04")
+        nir = arr.sel(band="B08")
+        return (nir - red) / (nir + red + 1e-6)
+    if lid == "NDWI":
+        green = arr.sel(band="B03")
+        nir = arr.sel(band="B08")
+        return (green - nir) / (green + nir + 1e-6)
+    if lid == "NDMI":
+        nir = arr.sel(band="B08")
+        swir = arr.sel(band="B11")
+        return (nir - swir) / (nir + swir + 1e-6)
+    if lid == "EVI":
+        blue = arr.sel(band="B02")
+        red = arr.sel(band="B04")
+        nir = arr.sel(band="B08")
+        return 2.5 * (nir - red) / (nir + 6.0 * red - 7.5 * blue + 1.0)
+    if lid == "SAVI":
+        red = arr.sel(band="B04")
+        nir = arr.sel(band="B08")
+        return 1.5 * (nir - red) / (nir + red + 0.5)
+    if lid == "NDSI":
+        green = arr.sel(band="B03")
+        swir = arr.sel(band="B11")
+        return (green - swir) / (green + swir + 1e-6)
+    raise HTTPException(status_code=400, detail=f"Unsupported layer id for zonal sampling: {layer_id}")
+
+
+def _extract_aligned_aoi_pixels(
+    metrics: Dict[str, xr.DataArray],
+    layer_ids: List[str],
+    aoi_geom: Dict[str, Any],
+    bbox: tuple[float, float, float, float],
+    max_pixels: int,
+) -> tuple[List[Dict[str, float]], Dict[str, List[float]]]:
+    """One shared lng/lat grid; per-layer values aligned by pixel index (reference = first layer)."""
+    ref_id = layer_ids[0]
+    clipped_ref = _clip_metric_to_aoi(metrics[ref_id], aoi_geom, bbox)
+    x = clipped_ref.coords["x"].values
+    y = clipped_ref.coords["y"].values
+    height = int(y.size)
+    width = int(x.size)
+    if height <= 0 or width <= 0:
+        return [], {}
+
+    ref2d = np.squeeze(clipped_ref.values)
+    if ref2d.ndim != 2:
+        return [], {}
+
+    per_layer: Dict[str, List[float]] = {lid: [] for lid in layer_ids}
+    grid_full: List[Dict[str, float]] = []
+
+    clipped_by_layer = {lid: _clip_metric_to_aoi(metrics[lid], aoi_geom, bbox) for lid in layer_ids}
+    vals2d = {lid: np.squeeze(clipped_by_layer[lid].values) for lid in layer_ids}
+
+    for j in range(height):
+        lat = float(y[j])
+        for i in range(width):
+            v_ref = float(ref2d[j, i])
+            if not np.isfinite(v_ref):
+                continue
+            grid_full.append({"lng": float(x[i]), "lat": lat})
+            for lid in layer_ids:
+                arr = vals2d[lid]
+                v = float(arr[j, i]) if arr.ndim == 2 else float("nan")
+                per_layer[lid].append(v if np.isfinite(v) else float("nan"))
+
+    cap = max(100, min(12000, int(max_pixels)))
+    if len(grid_full) <= cap:
+        return grid_full, per_layer
+
+    stride = len(grid_full) / cap
+    grid_out: List[Dict[str, float]] = []
+    layers_out: Dict[str, List[float]] = {lid: [] for lid in layer_ids}
+    for k in range(cap):
+        idx = min(len(grid_full) - 1, int(k * stride))
+        grid_out.append(grid_full[idx])
+        for lid in layer_ids:
+            layers_out[lid].append(per_layer[lid][idx])
+    return grid_out, layers_out
+
+
+@router.post("/zonal-sample")
+def zonal_sample(req: MpcZonalSampleRequest):
+    """Raster pixel sampling inside AOI polygon (stackstac + geometry mask)."""
+    layer_ids = [str(lid).strip().upper() for lid in (req.layer_ids or []) if str(lid).strip()]
+    if not layer_ids:
+        raise HTTPException(status_code=400, detail="At least one layer id is required")
+    for lid in layer_ids:
+        if lid not in _ZONAL_LAYER_IDS:
+            raise HTTPException(status_code=400, detail=f"Unsupported layer id: {lid}")
+
+    collections = req.collections or ["sentinel-2-l2a"]
+    try:
+        aoi_geom = req.aoi["geometry"] if req.aoi.get("type") == "Feature" else req.aoi
+        bbox = shape(aoi_geom).bounds
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=f"Invalid AOI geometry: {exc}") from exc
+
+    query: Dict[str, Any] = {}
+    if req.max_cloud_cover is not None:
+        query["eo:cloud_cover"] = {"lt": float(req.max_cloud_cover)}
+
+    cat = _catalog(req.catalog_url)
+    search = cat.search(
+        collections=collections,
+        intersects=aoi_geom,
+        datetime=req.datetime,
+        query=query if query else None,
+        limit=max(1, min(200, int(req.max_items))),
+    )
+    items = list(search.items())
+    if not items:
+        raise HTTPException(status_code=404, detail="No STAC items found for the requested AOI/date range")
+
+    arr = _stack(
+        items,
+        _ZONAL_LAYER_ASSETS,
+        bbox,
+        resolution=req.resolution,
+        tile_size=req.tile_size,
+    )
+    median = arr.median(dim="time", skipna=True)
+    metrics = {lid: _metric_for_layer(lid, median) for lid in layer_ids}
+    shared_grid, per_layer_values = _extract_aligned_aoi_pixels(
+        metrics,
+        layer_ids,
+        aoi_geom,
+        bbox,
+        req.max_pixels,
+    )
+
+    layers_out: Dict[str, Any] = {}
+    for lid in layer_ids:
+        raw = per_layer_values.get(lid) or []
+        values = [float(v) for v in raw if np.isfinite(v)]
+        if not values:
+            continue
+        layers_out[lid] = {
+            "statistics": {
+                "min": float(np.min(values)),
+                "max": float(np.max(values)),
+                "mean": float(np.mean(values)),
+                "std": float(np.std(values)),
+            },
+            "values": [float(v) for v in raw],
+        }
+
+    if not shared_grid or not layers_out:
+        raise HTTPException(
+            status_code=422,
+            detail="No valid raster pixels inside AOI after clipping. Expand AOI or widen the date range.",
+        )
+
+    from shapely.geometry import shape as shp_shape
+
+    centroid_lat = (bbox[1] + bbox[3]) / 2.0
+    area_m2_geom = float(shp_shape(aoi_geom).area) * (111_320.0**2) * np.cos(np.radians(centroid_lat))
+    res_m = max(5, min(120, int(req.resolution)))
+    area_m2_est = len(shared_grid) * (res_m**2)
+    area_ha = max(area_m2_geom, area_m2_est) / 10_000.0
+
+    return {
+        "ok": True,
+        "datetime": req.datetime,
+        "item_count": len(items),
+        "pixel_count": len(shared_grid),
+        "area_ha": area_ha,
+        "grid": shared_grid,
+        "layers": layers_out,
+        "processing": {
+            "clip_to_aoi": req.clip_to_aoi,
+            "resolution_m": res_m,
+            "mode": "stackstac-raster-pixel-sampling",
+        },
+    }

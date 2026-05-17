@@ -57,6 +57,56 @@ export async function mpcProcess(
   }
 }
 
+export type MpcZonalSampleLayer = {
+  statistics: { min: number; max: number; mean: number; std: number };
+  values: number[];
+};
+
+export type MpcZonalSampleResult = {
+  ok: boolean;
+  datetime: string;
+  item_count: number;
+  pixel_count: number;
+  area_ha: number;
+  grid: Array<{ lng: number; lat: number }>;
+  layers: Record<string, MpcZonalSampleLayer>;
+  processing?: {
+    clip_to_aoi?: boolean;
+    resolution_m?: number;
+    mode?: string;
+  };
+};
+
+export async function mpcZonalSample(
+  baseUrl: string,
+  body: {
+    aoi: GeoJSON.Feature;
+    datetime: string;
+    layer_ids?: string[];
+    collections?: string[];
+    max_items?: number;
+    max_cloud_cover?: number;
+    catalog_url?: string;
+    clip_to_aoi?: boolean;
+    tile_size?: number;
+    resolution?: number;
+    max_pixels?: number;
+  },
+): Promise<MpcZonalSampleResult> {
+  const r = await fetch(`${baseUrl}/mpc/zonal-sample`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  const text = await r.text();
+  if (!r.ok) throw new Error(text || `HTTP ${r.status}`);
+  try {
+    return JSON.parse(text) as MpcZonalSampleResult;
+  } catch {
+    throw new Error(text);
+  }
+}
+
 export type MpcProcessResult = {
   ok: boolean;
   template_id: string;

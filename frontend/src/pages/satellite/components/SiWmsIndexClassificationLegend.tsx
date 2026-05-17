@@ -10,6 +10,7 @@ import {
   siStopsToVerticalCssGradient,
 } from '../../../lib/siWmsIndexClassificationRamp'
 import { SI_WMS_SPECTRAL_CLASS_COUNT, siWmsLegendRowsFromStops } from '../utils/siWmsSpectralClassification'
+import { formatStatFixed } from '../utils/weeklyCompositeStats'
 
 const SI_WMS_LEGEND_OFFSET_LS = 'si-wms-spectral-legend-offset-v1'
 
@@ -291,9 +292,9 @@ export function SiWmsIndexClassificationLegend({
         ) : null}
         {context.temporal ? (
           <div className="si-wms-index-class-legend__stats">
-            <span>min {context.temporal.min.toFixed(3)}</span>
-            <span>mean {context.temporal.mean.toFixed(3)}</span>
-            <span>max {context.temporal.max.toFixed(3)}</span>
+            <span>min {formatStatFixed(context.temporal.min, 3)}</span>
+            <span>mean {formatStatFixed(context.temporal.mean, 3)}</span>
+            <span>max {formatStatFixed(context.temporal.max, 3)}</span>
           </div>
         ) : null}
       </div>

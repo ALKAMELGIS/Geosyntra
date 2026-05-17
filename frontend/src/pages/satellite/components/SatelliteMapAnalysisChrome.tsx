@@ -11,6 +11,7 @@ import type { SiGeoAiIndexAnalyticalExportContext } from '../utils/siGeoAiIndexA
 import { SatelliteContextualAnalysisDock } from './SatelliteContextualAnalysisDock';
 import type { SiAoiSpectralProfileMini } from './AoiSpectralProfileMiniChart';
 import type { SmartProcessingSectionId } from './SmartProcessingWorkflowPanel';
+import { formatStatFixed } from '../utils/weeklyCompositeStats';
 
 /** Optional metadata when opening a processing section from the map toolbox. */
 export type MapToolboxNavigateMeta = { fromDockOptions?: boolean };
@@ -272,12 +273,13 @@ export type SatelliteMapAnalysisChromeProps = {
 };
 
 function sparkPath(values: number[], w: number, h: number): string {
-  if (!values.length) return '';
-  const min = Math.min(...values);
-  const max = Math.max(...values);
+  const finite = values.filter((v): v is number => typeof v === 'number' && Number.isFinite(v));
+  if (!finite.length) return '';
+  const min = Math.min(...finite);
+  const max = Math.max(...finite);
   const span = max - min || 1;
-  const pts = values.map((v, i) => {
-    const x = values.length <= 1 ? w / 2 : (i / (values.length - 1)) * w;
+  const pts = finite.map((v, i) => {
+    const x = finite.length <= 1 ? w / 2 : (i / (finite.length - 1)) * w;
     const y = h - ((v - min) / span) * (h - 4) - 2;
     return `${x.toFixed(1)},${y.toFixed(1)}`;
   });
@@ -615,7 +617,7 @@ export function SatelliteMapAnalysisChrome(props: SatelliteMapAnalysisChromeProp
                     aria-selected={chip.id === activeChipId}
                     className={`si-map-analysis-chip ${chip.id === activeChipId ? 'si-map-analysis-chip--active' : ''}`}
                     onClick={() => onPickChip(chip.id)}
-                    title={`${chip.fullDate} · index mean ≈ ${chip.mean.toFixed(3)}`}
+                    title={`${chip.fullDate} · index mean ≈ ${formatStatFixed(chip.mean, 3)}`}
                   >
                     {chip.shortLabel}
                   </button>

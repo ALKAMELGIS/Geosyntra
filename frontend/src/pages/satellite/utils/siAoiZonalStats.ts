@@ -1,8 +1,9 @@
 /**
  * Unified AOI geometry metrics + zonal pixel statistics (popups, charts, Excel export).
- * Pixel values use the same engine as {@link staticAoiLayerMeanForWeek} / GeoAI export sheets.
+ * Popups prefer MPC raster pixel sampling (AOI-clipped); charts/export may still use synthetic weeks.
  */
 import { pointInPolygonGeometry } from '../drawingUtils';
+import type { MpcZonalSampleResult } from '../../../lib/mpcPlanetaryApi';
 import { staticAoiLayerMeanForWeek } from './staticAoiLayerSynthetic';
 import { STATIC_AOI_CHART_LAYER_OPTIONS } from './staticAoiChartTypes';
 import type { StaticAoiChartLayerId, WeeklyCompositeLite } from './staticAoiChartTypes';
@@ -26,6 +27,15 @@ export type SiAoiZonalAnalytics = {
   approxResolutionM: number | null;
   analysisDateIso: string;
   indices: Partial<Record<StaticAoiChartLayerId, SiAoiZonalIndexStats>>;
+  dataSource?: 'raster' | 'synthetic';
+};
+
+/** AOI-clipped raster pixels from analysis_engine `/mpc/zonal-sample`. */
+export type SiAoiRasterPixelSample = {
+  grid: AoiGridPoint[];
+  layers: Partial<Record<StaticAoiChartLayerId, number[]>>;
+  areaHa: number;
+  resolutionM: number | null;
 };
 
 function walkCoordsLngLat2D(coords: unknown, points: [number, number][]) {
@@ -168,7 +178,94 @@ function statsFromValues(vals: number[]): SiAoiZonalIndexStats | null {
   };
 }
 
-/** Zonal stats for one week — same pixel engine as Data_Raw / Summary_AOI in Excel export. */
+export function mpcResultToRasterPixelSample(
+  result: MpcZonalSampleResult,
+  layerIds: StaticAoiChartLayerId[],
+): SiAoiRasterPixelSample | null {
+  const grid = (result.grid ?? []).map(p => ({ lng: p.lng, lat: p.lat }));
+  if (!grid.length) return null;
+  const layers: Partial<Record<StaticAoiChartLayerId, number[]>> = {};
+  for (const id of layerIds) {
+    const entry = result.layers?.[id];
+    if (entry?.values?.length) layers[id] = entry.values;
+  }
+  if (!Object.keys(layers).length) return null;
+  const resM = result.processing?.resolution_m;
+  return {
+    grid,
+    layers,
+    areaHa: Number.isFinite(result.area_ha) ? result.area_ha : 0,
+    resolutionM: typeof resM === 'number' && Number.isFinite(resM) ? resM : null,
+  };
+}
+
+export function buildAoiZonalDatetimeRange(
+  weekCtx: SiAoiZonalWeekContext,
+  weekly: readonly WeeklyCompositeLite[],
+  fallbackStart: string,
+  fallbackEnd: string,
+): string {
+  if (weekly.length > 0 && weekCtx.weekIdx >= 0 && weekCtx.weekIdx < weekly.length) {
+    const w = weekly[weekCtx.weekIdx]!;
+    return `${w.startDate.slice(0, 10)}/${w.endDate.slice(0, 10)}`;
+  }
+  const s = fallbackStart.trim().slice(0, 10);
+  const e = fallbackEnd.trim().slice(0, 10);
+  if (s && e) return `${s}/${e}`;
+  const anchor = weekCtx.analysisDateIso.slice(0, 10);
+  const d = new Date(`${anchor}T12:00:00Z`);
+  const start = new Date(d);
+  start.setUTCDate(start.getUTCDate() - 7);
+  const end = new Date(d);
+  end.setUTCDate(end.getUTCDate() + 7);
+  return `${start.toISOString().slice(0, 10)}/${end.toISOString().slice(0, 10)}`;
+}
+
+function zonalAnalyticsFromRaster(
+  feature: GeoJSON.Feature,
+  layerIds: StaticAoiChartLayerId[],
+  raster: SiAoiRasterPixelSample,
+  analysisDateIso: string,
+): SiAoiZonalAnalytics | null {
+  const geom = feature.geometry;
+  if (!geom || (geom.type !== 'Polygon' && geom.type !== 'MultiPolygon')) return null;
+
+  const geomAreaM2 = geometryAoiAreaSqMeters(geom);
+  const areaHa = raster.areaHa > 0 ? raster.areaHa : geomAreaM2 / 10_000;
+  const areaM2 = areaHa * 10_000;
+  const pixelCount = raster.grid.length;
+
+  const indices: Partial<Record<StaticAoiChartLayerId, SiAoiZonalIndexStats>> = {};
+  let validPixelCount = 0;
+  for (const id of layerIds) {
+    const raw = raster.layers[id];
+    if (!raw?.length) continue;
+    const st = statsFromValues(raw.filter(Number.isFinite));
+    if (st) {
+      indices[id] = st;
+      validPixelCount = Math.max(validPixelCount, st.validCount);
+    }
+  }
+  if (!validPixelCount) return null;
+
+  const approxResolutionM =
+    raster.resolutionM ??
+    (pixelCount > 0 && areaM2 > 0 ? Math.sqrt(areaM2 / pixelCount) : null);
+
+  return {
+    areaHa,
+    areaM2,
+    areaKm2: areaHa / 100,
+    pixelCount,
+    validPixelCount,
+    approxResolutionM,
+    analysisDateIso: analysisDateIso.slice(0, 10),
+    indices,
+    dataSource: 'raster',
+  };
+}
+
+/** Zonal stats — raster pixels inside AOI when provided; otherwise optional synthetic grid. */
 export function computeAoiZonalAnalytics(opts: {
   feature: GeoJSON.Feature;
   aoiKey: string | null;
@@ -178,7 +275,19 @@ export function computeAoiZonalAnalytics(opts: {
   anchorWeeklyMean: number;
   analysisDateIso: string;
   grid?: AoiGridPoint[];
+  rasterSample?: SiAoiRasterPixelSample | null;
+  allowSyntheticFallback?: boolean;
 }): SiAoiZonalAnalytics | null {
+  if (opts.rasterSample) {
+    return zonalAnalyticsFromRaster(
+      opts.feature,
+      opts.layerIds,
+      opts.rasterSample,
+      opts.analysisDateIso,
+    );
+  }
+  if (opts.allowSyntheticFallback === false) return null;
+
   const geom = opts.feature.geometry;
   if (!geom || (geom.type !== 'Polygon' && geom.type !== 'MultiPolygon')) return null;
 
@@ -226,6 +335,7 @@ export function computeAoiZonalAnalytics(opts: {
     approxResolutionM,
     analysisDateIso: opts.analysisDateIso.slice(0, 10),
     indices,
+    dataSource: 'synthetic',
   };
 }
 
@@ -357,34 +467,17 @@ function percentile(sorted: number[], p: number): number {
   return sorted[lo]! * (1 - w) + sorted[hi]! * w;
 }
 
-/** AOI pixel tertiles for the active index layer (same grid engine as zonal stats / export). */
-export function computeAoiIndexHealthBreakdown(opts: {
-  feature: GeoJSON.Feature;
-  aoiKey: string | null;
-  layerId: StaticAoiChartLayerId;
-  weekCtx: SiAoiZonalWeekContext;
-  palette?: Partial<Record<SiAoiIndexHealthBand, string>>;
-}): SiAoiIndexHealthBreakdown | null {
-  const geom = opts.feature.geometry;
-  if (!geom || (geom.type !== 'Polygon' && geom.type !== 'MultiPolygon')) return null;
-
-  const grid = buildAoiInteriorGrid(opts.feature);
-  if (!grid.length) return null;
-
-  const { weekIdx, nWeeks, anchorWeeklyMean } = opts.weekCtx;
-  const vals: number[] = [];
-  for (const p of grid) {
-    const ck = cellKeyForPixel(opts.aoiKey, p.lng, p.lat);
-    const v = staticAoiLayerMeanForWeek(opts.layerId, weekIdx, nWeeks, ck, anchorWeeklyMean);
-    if (Number.isFinite(v)) vals.push(v);
-  }
+function indexHealthFromValues(
+  vals: number[],
+  areaHa: number,
+  layerId: StaticAoiChartLayerId,
+  palette?: Partial<Record<SiAoiIndexHealthBand, string>>,
+): SiAoiIndexHealthBreakdown | null {
   if (!vals.length) return null;
 
   const sorted = [...vals].sort((a, b) => a - b);
   const p33 = percentile(sorted, 1 / 3);
   const p66 = percentile(sorted, 2 / 3);
-  const areaM2 = geometryAoiAreaSqMeters(geom);
-  const areaHa = areaM2 / 10_000;
   const areaPerPx = areaHa / vals.length;
 
   const bands: SiAoiIndexHealthBand[] = ['low', 'medium', 'high'];
@@ -399,7 +492,7 @@ export function computeAoiIndexHealthBreakdown(opts: {
     sums[band] += v;
   }
 
-  const palette = { ...INDEX_HEALTH_PALETTE, ...opts.palette };
+  const colors = { ...INDEX_HEALTH_PALETTE, ...palette };
   const rows: SiAoiIndexHealthRow[] = bands.map(band => {
     const n = counts[band];
     const pct = (100 * n) / vals.length;
@@ -410,18 +503,54 @@ export function computeAoiIndexHealthBreakdown(opts: {
       areaHa: areaPerPx * n,
       areaKm2: (areaPerPx * n) / 100,
       meanIndex: n > 0 ? sums[band] / n : NaN,
-      color: palette[band],
+      color: colors[band],
       tone: band,
     };
   });
 
-  const meta = metaForLayer(opts.layerId);
+  const meta = metaForLayer(layerId);
   const primaryMean = vals.reduce((a, b) => a + b, 0) / vals.length;
 
   return {
-    layerId: opts.layerId,
+    layerId,
     layerLabel: meta.label,
     primaryMean,
     rows,
   };
+}
+
+/** AOI pixel tertiles for the active index — raster pixels when available. */
+export function computeAoiIndexHealthBreakdown(opts: {
+  feature: GeoJSON.Feature;
+  aoiKey: string | null;
+  layerId: StaticAoiChartLayerId;
+  weekCtx: SiAoiZonalWeekContext;
+  palette?: Partial<Record<SiAoiIndexHealthBand, string>>;
+  rasterSample?: SiAoiRasterPixelSample | null;
+  allowSyntheticFallback?: boolean;
+}): SiAoiIndexHealthBreakdown | null {
+  const geom = opts.feature.geometry;
+  if (!geom || (geom.type !== 'Polygon' && geom.type !== 'MultiPolygon')) return null;
+
+  const geomAreaHa = geometryAoiAreaSqMeters(geom) / 10_000;
+
+  if (opts.rasterSample) {
+    const raw = opts.rasterSample.layers[opts.layerId];
+    const vals = (raw ?? []).filter(Number.isFinite);
+    const areaHa = opts.rasterSample.areaHa > 0 ? opts.rasterSample.areaHa : geomAreaHa;
+    return indexHealthFromValues(vals, areaHa, opts.layerId, opts.palette);
+  }
+  if (opts.allowSyntheticFallback === false) return null;
+
+  const grid = buildAoiInteriorGrid(opts.feature);
+  if (!grid.length) return null;
+
+  const { weekIdx, nWeeks, anchorWeeklyMean } = opts.weekCtx;
+  const vals: number[] = [];
+  for (const p of grid) {
+    const ck = cellKeyForPixel(opts.aoiKey, p.lng, p.lat);
+    const v = staticAoiLayerMeanForWeek(opts.layerId, weekIdx, nWeeks, ck, anchorWeeklyMean);
+    if (Number.isFinite(v)) vals.push(v);
+  }
+  return indexHealthFromValues(vals, geomAreaHa, opts.layerId, opts.palette);
 }

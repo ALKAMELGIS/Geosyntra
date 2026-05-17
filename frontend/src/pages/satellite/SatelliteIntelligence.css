@@ -9154,24 +9154,21 @@ html[data-theme='light'] .si-sat-ctx-rail-btn__badge {
 .si-rs-aoi-workspace-card {
   position: relative;
   z-index: 0;
-  border-radius: 14px;
-  border: 1px solid rgba(255, 255, 255, 0.09);
-  background: linear-gradient(165deg, rgba(0, 0, 0, 0.52), rgba(0, 0, 0, 0.26));
-  backdrop-filter: blur(18px) saturate(1.35);
-  -webkit-backdrop-filter: blur(18px) saturate(1.35);
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.08),
-    0 12px 40px rgba(0, 0, 0, 0.45);
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  background: rgba(2, 6, 14, 0.38);
+  backdrop-filter: blur(16px) saturate(1.2);
+  -webkit-backdrop-filter: blur(16px) saturate(1.2);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
   overflow: visible;
 }
 
+.si-rs-aoi-workspace-card--settings-open,
 .si-rs-aoi-workspace-card--layer-menu-open {
   z-index: 50;
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.08),
-    0 12px 40px rgba(0, 0, 0, 0.45),
-    0 0 0 1px rgba(56, 189, 248, 0.22),
-    0 22px 50px rgba(0, 0, 0, 0.55);
+    0 16px 36px rgba(0, 0, 0, 0.4);
 }
 
 .si-rs-aoi-workspace-card__head {
@@ -9183,7 +9180,7 @@ html[data-theme='light'] .si-sat-ctx-rail-btn__badge {
 }
 
 .si-rs-aoi-workspace-card__body {
-  padding: 10px 12px 14px;
+  padding: 6px 10px 10px;
   border-top: none;
 }
 
@@ -12470,7 +12467,6 @@ html[data-theme='light'] .si-env-panel.si-env-panel--satellite-toolbox.si-env-pa
   margin-bottom: 6px;
 }
 
-/* Satellite provider — luxury dropdown (Remote sensing panel) */
 .si-sat-provider-dd__hint {
   margin: 0.5rem 0 0;
   font-size: 0.6875rem;
@@ -12478,81 +12474,42 @@ html[data-theme='light'] .si-env-panel.si-env-panel--satellite-toolbox.si-env-pa
   color: rgba(148, 163, 184, 0.92);
 }
 
-.si-field-analysis-kicker--provider {
-  letter-spacing: 0.1em;
-}
-
+/* Satellite provider — same field chrome as Sensor / Collection (`si-field-analysis-select`) */
 .si-sat-provider-dd {
   position: relative;
-  margin-bottom: 16px;
 }
 
 .si-sat-provider-dd__trigger {
   display: flex;
-  width: 100%;
   align-items: center;
   justify-content: space-between;
-  gap: 10px;
-  padding: 11px 12px;
-  border-radius: 12px;
-  border: 1px solid rgba(148, 163, 184, 0.28);
-  background: linear-gradient(145deg, rgba(15, 23, 42, 0.92) 0%, rgba(2, 6, 23, 0.88) 100%);
-  box-shadow:
-    0 0 0 1px rgba(255, 255, 255, 0.04) inset,
-    0 10px 28px rgba(2, 6, 23, 0.45);
-  color: #f8fafc;
+  gap: 8px;
   cursor: pointer;
+  font: inherit;
   text-align: left;
-  transition:
-    border-color 0.15s ease,
-    box-shadow 0.15s ease;
+  appearance: none;
+  -webkit-appearance: none;
 }
 
-.si-sat-provider-dd__trigger:hover,
 .si-sat-provider-dd__trigger--open {
-  border-color: rgba(34, 197, 94, 0.45);
-  box-shadow:
-    0 0 0 1px rgba(34, 197, 94, 0.12) inset,
-    0 12px 32px rgba(2, 6, 23, 0.55),
-    0 0 24px rgba(34, 197, 94, 0.08);
+  border-color: rgba(56, 189, 248, 0.55);
+  box-shadow: 0 0 0 1px rgba(56, 189, 248, 0.28);
 }
 
-.si-sat-provider-dd__trigger-main {
-  display: flex;
-  align-items: center;
-  gap: 10px;
+.si-sat-provider-dd__value {
+  flex: 1;
   min-width: 0;
-}
-
-.si-sat-provider-dd__icon {
-  flex: 0 0 auto;
-  font-size: 1.25rem;
-  line-height: 1;
-}
-
-.si-sat-provider-dd__trigger-text {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  min-width: 0;
-}
-
-.si-sat-provider-dd__name {
-  font-size: 0.9rem;
-  font-weight: 700;
-  letter-spacing: 0.01em;
-}
-
-.si-sat-provider-dd__meta,
-.si-sat-provider-dd__revisit {
-  font-size: 0.68rem;
-  color: rgba(148, 163, 184, 0.95);
-  line-height: 1.3;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 600;
 }
 
 .si-sat-provider-dd__chev {
-  font-size: 0.7rem;
-  color: rgba(148, 163, 184, 0.9);
+  flex: 0 0 auto;
+  font-size: 0.65rem;
+  color: #94a3b8;
+  pointer-events: none;
   transition: transform 0.15s ease;
 }
 
@@ -12565,29 +12522,31 @@ html[data-theme='light'] .si-env-panel.si-env-panel--satellite-toolbox.si-env-pa
   z-index: 80;
   left: 0;
   right: 0;
-  top: calc(100% + 6px);
-  max-height: min(320px, 50vh);
+  top: calc(100% + 4px);
+  max-height: min(280px, 45vh);
   overflow: auto;
-  padding: 6px;
-  border-radius: 14px;
-  border: 1px solid rgba(148, 163, 184, 0.22);
-  background: linear-gradient(165deg, rgba(15, 23, 42, 0.98) 0%, rgba(2, 6, 23, 0.97) 100%);
-  box-shadow:
-    0 0 0 1px rgba(255, 255, 255, 0.05) inset,
-    0 22px 48px rgba(2, 6, 23, 0.65);
-  backdrop-filter: blur(14px);
+  padding: 4px;
+  border-radius: 10px;
+  border: 1px solid rgba(56, 189, 248, 0.22);
+  background: linear-gradient(180deg, rgba(30, 41, 59, 0.98), rgba(15, 23, 42, 0.98));
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  box-shadow: 0 12px 32px rgba(2, 6, 23, 0.55);
 }
 
 .si-sat-provider-dd__opt {
-  display: flex;
+  display: grid;
+  grid-template-columns: 1fr auto;
+  grid-template-rows: auto auto;
+  column-gap: 8px;
+  row-gap: 2px;
   width: 100%;
-  align-items: flex-start;
-  gap: 10px;
-  padding: 10px 10px;
+  align-items: center;
+  padding: 8px 10px;
   border: none;
-  border-radius: 10px;
+  border-radius: 8px;
   background: transparent;
-  color: #e2e8f0;
+  color: #f1f5f9;
   cursor: pointer;
   text-align: left;
 }
@@ -12597,23 +12556,32 @@ html[data-theme='light'] .si-env-panel.si-env-panel--satellite-toolbox.si-env-pa
 }
 
 .si-sat-provider-dd__opt--on {
-  background: rgba(34, 197, 94, 0.12);
-  box-shadow: 0 0 0 1px rgba(34, 197, 94, 0.22) inset;
+  background: rgba(14, 165, 233, 0.2);
+  box-shadow: 0 0 0 1px rgba(56, 189, 248, 0.28) inset;
 }
 
-.si-sat-provider-dd__opt-body {
-  display: flex;
-  flex: 1;
-  flex-direction: column;
-  gap: 2px;
-  min-width: 0;
+.si-sat-provider-dd__opt-label {
+  grid-column: 1;
+  grid-row: 1;
+  font-size: 12px;
+  font-weight: 600;
+  color: #f1f5f9;
+}
+
+.si-sat-provider-dd__opt-meta {
+  grid-column: 1;
+  grid-row: 2;
+  font-size: 10px;
+  color: #94a3b8;
+  line-height: 1.3;
 }
 
 .si-sat-provider-dd__check {
-  flex: 0 0 auto;
-  margin-top: 4px;
-  color: #4ade80;
-  font-size: 0.75rem;
+  grid-column: 2;
+  grid-row: 1 / span 2;
+  align-self: center;
+  color: #38bdf8;
+  font-size: 0.7rem;
 }
 
 /* Explore STAC: tab strip as underline row (not nested pill bar) */

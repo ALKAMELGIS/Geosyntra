@@ -59,26 +59,27 @@ export function buildProviderLayerOptions(
   );
 
   if (isSentinelHubProvider(providerId)) {
+    /** Layer Live — full GetCapabilities list (not limited to the small static catalog). */
     const out: RemoteSensingLayerOption[] = [];
     const seen = new Set<string>();
     for (const layer of visible) {
       const name = String(layer.name || '').trim();
-      if (!name) continue;
+      if (!name || seen.has(name)) continue;
+      seen.add(name);
       const entry = findSentinelCatalogEntryForWmsName(providerId, name);
-      if (!entry) continue;
-      const dedupe = entry.catalogId;
-      if (seen.has(dedupe)) continue;
-      seen.add(dedupe);
-      const label = String(layer.title || entry.label).trim() || entry.label;
+      const label = String(layer.title || entry?.label || name).trim() || name;
       out.push({
         id: name,
         label,
-        catalogId: entry.catalogId,
+        catalogId: entry?.catalogId ?? name,
         providerId,
         nativeWms: true,
       });
     }
-    if (out.length) return out;
+    if (out.length) {
+      out.sort((a, b) => a.label.localeCompare(b.label, undefined, { sensitivity: 'base' }));
+      return out;
+    }
     return provider.supportedLayers.map(entry => {
       const match = findWmsLayerForCatalogEntry(entry, visible);
       return {
