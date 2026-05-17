@@ -174,6 +174,10 @@ import { SiCopyTextButton } from './components/SiCopyTextButton';
 import type { AoiStaticMultiLayerLineChartDataset } from './components/AoiStaticMultiLayerLineChart';
 import { SatelliteMapAnalysisChrome, type MapToolboxNavigateHandler } from './components/SatelliteMapAnalysisChrome';
 import { SiAoiWorkspaceLayerPicker } from './components/SiAoiWorkspaceLayerPicker';
+import {
+  SiAoiWorkspaceCardFooter,
+  type SiAoiWorkspaceSettingsDraft,
+} from './components/SiAoiWorkspaceCardFooter';
 import { SiSentinelHubRasterLayers, type SiSentinelHubRasterRunLite } from './components/SiSentinelHubRasterLayers';
 import { SiMapNavigationGate } from './components/SiMapNavigationGate';
 import { SatelliteGeoAiFloatingWidget } from './components/SatelliteGeoAiFloatingWidget';
@@ -205,7 +209,7 @@ import {
   saveTimelineTransitionMode,
   type SiTimelineTransitionMode,
 } from './utils/useSiWmsTimelineCrossfade';
-import { buildWeeklyTimelineIndex } from './utils/siTimelineWeekIndex';
+import { buildWeeklyTimelineIndex, wmsTimeExtentForWeek } from './utils/siTimelineWeekIndex';
 import { dateToTimelineIso, timelineDateFromIso } from './utils/siTimelineDate';
 import type { SmartSuggestionsContext } from './utils/smartSuggestionsEngine';
 import type { SmartSuggestionActionPayload } from './components/smart-suggestions/smart-suggestions-panel';
@@ -2733,12 +2737,10 @@ export default function SatelliteIntelligence() {
     return Math.max(280, timelinePlaybackMs + fadePad);
   }, [timelinePlaybackMs, timelineTransitionMode]);
 
-  const [zonalStatsAnchorIso, setZonalStatsAnchorIso] = useState(() =>
-    selectedDate.toISOString().split('T')[0],
-  );
+  const [zonalStatsAnchorIso, setZonalStatsAnchorIso] = useState(() => dateToTimelineIso(selectedDate));
   useEffect(() => {
     if (isTimelinePlaying) return;
-    setZonalStatsAnchorIso(selectedDate.toISOString().split('T')[0]);
+    setZonalStatsAnchorIso(dateToTimelineIso(selectedDate));
   }, [isTimelinePlaying, selectedDate]);
 
   const clearTimelinePlaybackInterval = useCallback(() => {
@@ -7278,6 +7280,33 @@ export default function SatelliteIntelligence() {
     [clearStacMapThumb, pauseTimelinePlayback],
   );
 
+  const renameMultiAoiById = useCallback((aoiId: string, name: string) => {
+    setMultiAoiItems(prev => prev.map(r => (r.id === aoiId ? { ...r, name } : r)));
+    setFieldAnalysisStatus(`Renamed AOI to ${name}.`);
+  }, []);
+
+  const saveMultiAoiSettings = useCallback((aoiId: string, draft: SiAoiWorkspaceSettingsDraft) => {
+    setMultiAoiItems(prev =>
+      prev.map(r =>
+        r.id === aoiId
+          ? {
+              ...r,
+              name: draft.name,
+              sentinelTimeStart: draft.sentinelTimeStart.trim() || undefined,
+              sentinelTimeEnd: draft.sentinelTimeEnd.trim() || undefined,
+            }
+          : r,
+      ),
+    );
+    setFieldAnalysisStatus(`Updated settings for ${draft.name}.`);
+  }, []);
+
+  const exportMultiAoiGeoJson = useCallback((aoiId: string, feature: GeoJSON.Feature, name: string) => {
+    const safe = name.replace(/[^a-zA-Z0-9_-]+/g, '_').slice(0, 48) || aoiId;
+    downloadTextFile(`${safe}.geojson`, JSON.stringify(feature, null, 2), 'application/geo+json');
+    setFieldAnalysisStatus(`Exported ${name} as GeoJSON.`);
+  }, []);
+
   const multiAoiFeatureCollection = useMemo(
     () => ({
       type: 'FeatureCollection',
@@ -9566,13 +9595,13 @@ export default function SatelliteIntelligence() {
   };
 
   useEffect(() => {
-    const iso = selectedDate.toISOString().split('T')[0];
+    const iso = dateToTimelineIso(selectedDate);
     if (timeSeriesStart && iso < timeSeriesStart) {
-      setSelectedDate(new Date(timeSeriesStart));
+      setSelectedDate(timelineDateFromIso(timeSeriesStart));
       return;
     }
     if (timeSeriesEnd && iso > timeSeriesEnd) {
-      setSelectedDate(new Date(timeSeriesEnd));
+      setSelectedDate(timelineDateFromIso(timeSeriesEnd));
     }
   }, [timeSeriesStart, timeSeriesEnd]);
 
@@ -9888,15 +9917,18 @@ export default function SatelliteIntelligence() {
    * use the configured series range (or single imagery day).
    */
   const siWmsMapTimeExtent = useMemo(() => {
+    const seriesOpts = {
+      seriesStartIso: timeSeriesStart,
+      seriesEndIso: timeSeriesEnd,
+    };
     if (weeklyTimelineIndex) {
-      const w =
-        weeklyTimelineIndex.weeks[activeWeekIdx] ?? weeklyTimelineIndex.pickWeek(wmsDate);
-      return { start: w.startDate, end: w.endDate };
+      const w = weeklyTimelineIndex.pickWeek(wmsDate);
+      return wmsTimeExtentForWeek(w, wmsDate, seriesOpts);
     }
     const start = (timeSeriesStart && timeSeriesStart.trim()) || wmsDate;
     const end = (timeSeriesEnd && timeSeriesEnd.trim()) || wmsDate;
-    return { start, end };
-  }, [weeklyTimelineIndex, activeWeekIdx, wmsDate, timeSeriesStart, timeSeriesEnd]);
+    return wmsTimeExtentForWeek({ startDate: start, endDate: end }, wmsDate, seriesOpts);
+  }, [weeklyTimelineIndex, wmsDate, timeSeriesStart, timeSeriesEnd]);
 
   const fieldSpectralSceneKey = useMemo(
     () =>
@@ -10033,7 +10065,9 @@ export default function SatelliteIntelligence() {
       remoteSensingLayerOptions.find(o => o.id === activeWmsLayer)?.label?.trim() || activeWmsLayer || p.toUpperCase();
     const week =
       weeklyComposites.length > 0
-        ? (weeklyComposites.find(w => wmsDate >= w.startDate && wmsDate <= w.endDate) ?? weeklyComposites[weeklyComposites.length - 1]!)
+        ? (weeklyTimelineIndex?.pickWeek(wmsDate) ??
+          weeklyComposites.find(w => wmsDate >= w.startDate && wmsDate <= w.endDate) ??
+          weeklyComposites[weeklyComposites.length - 1]!)
         : null;
     const temporal = week
       ? {
@@ -10674,8 +10708,11 @@ export default function SatelliteIntelligence() {
     if (!weeklyComposites.length) {
       return { rows: [] as Array<{ name: string; value: number }>, subtitle: '' };
     }
-    const iso = selectedDate.toISOString().split('T')[0];
-    let weekIdx = weeklyComposites.findIndex(w => iso >= w.startDate && iso <= w.endDate);
+    const iso = dateToTimelineIso(selectedDate);
+    let weekIdx = weeklyTimelineIndex?.pickWeekIdx(iso) ?? -1;
+    if (weekIdx < 0) {
+      weekIdx = weeklyComposites.findIndex(w => iso >= w.startDate && iso <= w.endDate);
+    }
     if (weekIdx < 0) weekIdx = weeklyComposites.length - 1;
     const w = weeklyComposites[weekIdx]!;
     const n = weeklyComposites.length;
@@ -10767,7 +10804,7 @@ export default function SatelliteIntelligence() {
     const analysisIso =
       (typeof wmsDate === 'string' && wmsDate.slice(0, 10)) ||
       zonalStatsAnchorIso.slice(0, 10) ||
-      selectedDate.toISOString().split('T')[0]!;
+      dateToTimelineIso(selectedDate)!;
     return buildLiveAoiMapChartSnapshot({
       feature: staticAoiChartFeature,
       aoiKey: staticAoiChartAoiKey,
@@ -10820,8 +10857,11 @@ export default function SatelliteIntelligence() {
       }
     }
     if (!weeklyComposites.length) return null;
-    const iso = selectedDate.toISOString().split('T')[0];
-    let weekIdx = weeklyComposites.findIndex(w => iso >= w.startDate && iso <= w.endDate);
+    const iso = dateToTimelineIso(selectedDate);
+    let weekIdx = weeklyTimelineIndex?.pickWeekIdx(iso) ?? -1;
+    if (weekIdx < 0) {
+      weekIdx = weeklyComposites.findIndex(w => iso >= w.startDate && iso <= w.endDate);
+    }
     if (weekIdx < 0) weekIdx = weeklyComposites.length - 1;
     const w = weeklyComposites[weekIdx]!;
     const n = weeklyComposites.length;
@@ -10841,7 +10881,7 @@ export default function SatelliteIntelligence() {
         ? `Six optical indices · ${formatStaticChartWeekLabel(w.startDate)} · AOI-tied mix`
         : `Draw an AOI to fingerprint indices · ${formatStaticChartWeekLabel(w.startDate)}`,
     };
-  }, [aoiHeatPointGeoJson, selectedIndex, weeklyComposites, selectedDate, staticAoiChartAoiKey]);
+  }, [aoiHeatPointGeoJson, selectedIndex, weeklyComposites, weeklyTimelineIndex, selectedDate, staticAoiChartAoiKey]);
 
   const geoAiIndexAnalyticalExportContext = useMemo((): SiGeoAiIndexAnalyticalExportContext | null => {
     if (!weeklyComposites.length) return null;
@@ -10866,7 +10906,7 @@ export default function SatelliteIntelligence() {
         endDate: w.endDate,
         mean: w.mean,
       })),
-      selectedDateIso: selectedDate.toISOString().split('T')[0],
+      selectedDateIso: dateToTimelineIso(selectedDate),
       drawnFeature: drawnGeometry,
     };
   }, [
@@ -11064,11 +11104,9 @@ export default function SatelliteIntelligence() {
 
   const satelliteActiveChipId = useMemo(() => {
     if (!weeklyTimelineIndex) return null;
-    const w =
-      weeklyTimelineIndex.weeks[activeWeekIdx] ??
-      weeklyTimelineIndex.pickWeek(dateToTimelineIso(selectedDate));
+    const w = weeklyTimelineIndex.pickWeek(dateToTimelineIso(selectedDate));
     return `w-${w.weekIndex}-${w.startDate}`;
-  }, [weeklyTimelineIndex, activeWeekIdx, selectedDate]);
+  }, [weeklyTimelineIndex, selectedDate]);
 
   const handleSatelliteTimelineStep = (dir: -1 | 1) => {
     if (!weeklyTimelineIndex) return;
@@ -11230,6 +11268,7 @@ export default function SatelliteIntelligence() {
     const out: SiSentinelRasterRunSpec[] = [];
     const globalStart = siWmsMapTimeExtent.start;
     const globalEnd = siWmsMapTimeExtent.end;
+    const timelineDrivesWms = weeklyComposites.length > 0;
 
     const pushRun = (
       aoiId: string,
@@ -11281,8 +11320,12 @@ export default function SatelliteIntelligence() {
 
       const layerIds = remoteSensingLayerOptions.map(o => o.id);
       const vis = siMergedAoiLayerVisibility(row.rasterStackVisible, layerIds, remoteSensingLayerOptions);
-      const t0 = (row.sentinelTimeStart && row.sentinelTimeStart.trim()) || globalStart;
-      const t1 = (row.sentinelTimeEnd && row.sentinelTimeEnd.trim()) || globalEnd;
+      const t0 = timelineDrivesWms
+        ? globalStart
+        : (row.sentinelTimeStart && row.sentinelTimeStart.trim()) || globalStart;
+      const t1 = timelineDrivesWms
+        ? globalEnd
+        : (row.sentinelTimeEnd && row.sentinelTimeEnd.trim()) || globalEnd;
 
       for (const wmsId of layerIds) {
         if (!vis[wmsId]) continue;
@@ -11297,6 +11340,7 @@ export default function SatelliteIntelligence() {
     remoteSensingLayerOptions,
     activeWmsLayer,
     siWmsMapTimeExtent,
+    weeklyComposites.length,
     cloudCoverage,
     wmsBaseUrl,
     symStopsForWmsLayerId,
@@ -12014,12 +12058,19 @@ export default function SatelliteIntelligence() {
                           <i className="fa-solid fa-xmark" aria-hidden />
                         </button>
                       </div>
-                      <SiAoiZonalPopupBody
-                        analytics={zonal ?? null}
-                        indexHealth={indexHealth}
-                        highlightLayers={['NDVI', 'NDWI', 'SAVI']}
-                        areaDisplay={<SiAoiAreaHaSqm ha={areaHa} />}
-                      />
+                      <div
+                        className="si-multi-aoi-popup__scroll"
+                        tabIndex={0}
+                        aria-label="AOI analysis details"
+                        onWheel={e => e.stopPropagation()}
+                      >
+                        <SiAoiZonalPopupBody
+                          analytics={zonal ?? null}
+                          indexHealth={indexHealth}
+                          highlightLayers={['NDVI', 'NDWI', 'SAVI']}
+                          areaDisplay={<SiAoiAreaHaSqm ha={areaHa} />}
+                        />
+                      </div>
                     </motion.div>
                   </Marker>
                 );
@@ -14115,6 +14166,18 @@ export default function SatelliteIntelligence() {
                                             />
                                           )}
                                         </div>
+                                        <SiAoiWorkspaceCardFooter
+                                          aoiId={row.id}
+                                          aoiName={row.name}
+                                          aoiColor={row.color}
+                                          feature={row.feature}
+                                          dateStart={dateStartVal}
+                                          dateEnd={dateEndVal}
+                                          onRename={renameMultiAoiById}
+                                          onSaveSettings={saveMultiAoiSettings}
+                                          onExport={exportMultiAoiGeoJson}
+                                          onDelete={removeMultiAoiById}
+                                        />
                                       </li>
                                     );
                                   })}

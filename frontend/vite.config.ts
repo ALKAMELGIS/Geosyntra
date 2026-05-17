@@ -133,7 +133,7 @@ function ghPagesHashAndSlashRedirect(): Plugin {
   const withSlash = base.endsWith('/') ? base : `${base}/`
   const noSlash = withSlash.replace(/\/$/, '')
   const marker = 'data-geosyntra-gh-pages-redirect'
-  const snippet = `<script ${marker}="1">;(function(){try{var h=String(location.hostname||"");if(h.indexOf("github.io")===-1)return;var p=location.pathname||"";var ws=${JSON.stringify(withSlash)};var ns=${JSON.stringify(noSlash)};if(p===ns){location.replace(location.origin+ws+location.search+(location.hash&&location.hash.length>1?location.hash:"#/"));return;}if((p===ws||p===ns+"/")&&(!location.hash||location.hash==="#")){location.replace(location.origin+ws+location.search+"#/");}}catch(_){}})();</script>`
+  const snippet = `<script ${marker}="1">;(function(){try{var h=String(location.hostname||"");if(h.indexOf("github.io")===-1)return;var p=location.pathname||"";var ws=${JSON.stringify(withSlash)};var ns=${JSON.stringify(noSlash)};var g=location.hash||"";if(g&&g!=="#/"&&!g.startsWith("#/")){try{sessionStorage.setItem("geosyntra-scroll-to",g.slice(1));}catch(_){}location.replace(location.origin+ws+location.search+"#/");return;}if(p===ns){location.replace(location.origin+ws+location.search+(g&&g.length>1?g:"#/"));return;}if((p===ws||p===ns+"/")&&(!g||g==="#")){location.replace(location.origin+ws+location.search+"#/");}}catch(_){}})();</script>`
   return {
     name: 'geosyntra-gh-pages-hash-redirect',
     apply: 'build',

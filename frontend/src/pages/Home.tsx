@@ -30,6 +30,7 @@ import { HomeOnboardingProvider, useHomeOnboarding } from './home/onboarding/Hom
 
 import { HomeOnboardingWizard } from './home/onboarding/HomeOnboardingWizard'
 
+import { repairBrokenInPageHashOnLoad, scrollToInPageSection } from '../lib/hashRouterInPageNav'
 import { readWorkspaceState } from '../lib/onboarding/workspaceState'
 
 import './Home.css'
@@ -96,13 +97,25 @@ function HomePageContent() {
 
   useEffect(() => {
     if (typeof window === 'undefined') return
-    const hash = window.location.hash
-    if (hash === '#pricing') {
-      window.requestAnimationFrame(() => {
-        document.getElementById('pricing')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
-      })
+    const repairedId = repairBrokenInPageHashOnLoad()
+    let scrollTarget: string | null = repairedId
+    try {
+      const stored = sessionStorage.getItem('geosyntra-scroll-to')
+      if (stored) {
+        scrollTarget = stored
+        sessionStorage.removeItem('geosyntra-scroll-to')
+      }
+    } catch {
+      /* ignore */
     }
-    if (hash === '#get-started' || new URLSearchParams(window.location.search).get('start') === '1') {
+    if (scrollTarget && scrollTarget !== 'get-started') {
+      window.requestAnimationFrame(() => scrollToInPageSection(`#${scrollTarget}`))
+    }
+    if (
+      repairedId === 'get-started' ||
+      window.location.hash === '#get-started' ||
+      new URLSearchParams(window.location.search).get('start') === '1'
+    ) {
       startBuilding()
     }
   }, [startBuilding])

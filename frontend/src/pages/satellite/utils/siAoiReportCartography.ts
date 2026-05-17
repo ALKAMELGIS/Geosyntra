@@ -185,24 +185,61 @@ function rowColor(row: SiAoiReportTableRow, pal: SiAoiClassificationPalette): st
   );
 }
 
-function drawPdfNorthArrow(doc: jsPDF, mapX: number, mapY: number) {
-  const cardX = mapX + 10;
-  const cardY = mapY + 10;
-  doc.setFillColor(15, 23, 42);
-  doc.roundedRect(cardX, cardY, 42, 50, 4, 4, 'F');
+/** Frosted map overlay panel (PDF vector). */
+function pdfMapGlassPanel(doc: jsPDF, x: number, y: number, w: number, h: number, opacity = 0.86) {
+  const GStateCtor = (doc as unknown as { GState?: new (opts: { opacity: number }) => unknown }).GState;
+  if (GStateCtor) {
+    doc.setGState(new GStateCtor({ opacity }) as never);
+    doc.setFillColor(255, 255, 255);
+    doc.roundedRect(x, y, w, h, 1.5, 1.5, 'F');
+    doc.setGState(new GStateCtor({ opacity: 1 }) as never);
+  } else {
+    doc.setFillColor(252, 252, 253);
+    doc.roundedRect(x, y, w, h, 1.5, 1.5, 'F');
+  }
   doc.setDrawColor(148, 163, 184);
-  doc.setLineWidth(0.5);
-  doc.roundedRect(cardX, cardY, 42, 50, 4, 4, 'S');
-  const apexX = cardX + 21;
-  const apexY = cardY + 16;
-  doc.setFillColor(248, 250, 252);
-  doc.triangle(apexX, apexY, apexX - 9, apexY + 24, apexX + 9, apexY + 24, 'F');
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(9);
-  doc.setTextColor(226, 232, 240);
-  doc.text('N', apexX, cardY + 14, { align: 'center' });
+  doc.setLineWidth(0.2);
+  doc.roundedRect(x, y, w, h, 1.5, 1.5, 'S');
 }
 
+function pdfMapHaloText(
+  doc: jsPDF,
+  text: string,
+  x: number,
+  y: number,
+  opts: { align?: 'left' | 'center' | 'right'; size: number; style?: 'normal' | 'bold'; rgb: [number, number, number] },
+) {
+  const align = opts.align ?? 'left';
+  doc.setFont('helvetica', opts.style ?? 'normal');
+  doc.setFontSize(opts.size);
+  doc.setTextColor(255, 255, 255);
+  const halo = 0.22;
+  for (const [dx, dy] of [
+    [halo, 0],
+    [-halo, 0],
+    [0, halo],
+    [0, -halo],
+  ]) {
+    doc.text(text, x + dx, y + dy, { align });
+  }
+  doc.setTextColor(opts.rgb[0], opts.rgb[1], opts.rgb[2]);
+  doc.text(text, x, y, { align });
+}
+
+/** Compact north arrow — vector only, no background card (Enterprise GIS). */
+function drawPdfNorthArrow(doc: jsPDF, mapX: number, mapY: number) {
+  const cx = mapX + 12;
+  const tipY = mapY + 11;
+  const baseY = tipY + 11;
+  const halfW = 4.2;
+  doc.setFillColor(30, 41, 59);
+  doc.setDrawColor(255, 255, 255);
+  doc.setLineWidth(0.45);
+  doc.triangle(cx, tipY, cx - halfW, baseY, cx + halfW, baseY, 'FD');
+  pdfMapHaloText(doc, 'N', cx, tipY - 2.5, { align: 'center', size: 6.5, style: 'bold', rgb: [30, 41, 59] });
+}
+
+/** Compact scale bar — bottom-left, minimal glass strip. */
 function drawPdfScaleBar(
   doc: jsPDF,
   mapX: number,
@@ -213,73 +250,77 @@ function drawPdfScaleBar(
 ) {
   const visibleM = bounds ? approxGroundSpanMeters(bounds) : Math.max(500, mapW * 3);
   const { meters, label } = pickScaleBarLength(visibleM);
-  const barPx = Math.min(mapW * 0.3, Math.max(52, (meters / visibleM) * mapW * 0.82));
-  const cardW = barPx + 26;
-  const cardH = 34;
-  const cardX = mapX + 10;
-  const cardY = mapY + mapH - cardH - 10;
-  doc.setFillColor(15, 23, 42);
-  doc.roundedRect(cardX, cardY, cardW, cardH, 4, 4, 'F');
-  doc.setDrawColor(148, 163, 184);
-  doc.setLineWidth(0.45);
-  doc.roundedRect(cardX, cardY, cardW, cardH, 4, 4, 'S');
-  const bx0 = cardX + 8;
-  const yLine = cardY + 16;
-  doc.setDrawColor(248, 250, 252);
-  doc.setLineWidth(1.6);
+  const barPx = Math.min(mapW * 0.22, Math.max(40, (meters / visibleM) * mapW * 0.72));
+  const padX = 7;
+  const padY = 6;
+  const cardW = barPx + padX * 2;
+  const cardH = 18;
+  const cardX = mapX + 7;
+  const cardY = mapY + mapH - cardH - 7;
+  pdfMapGlassPanel(doc, cardX, cardY, cardW, cardH, 0.84);
+  const bx0 = cardX + padX;
+  const yLine = cardY + 10;
+  doc.setDrawColor(51, 65, 85);
+  doc.setLineWidth(0.85);
   doc.line(bx0, yLine, bx0 + barPx, yLine);
-  doc.setLineWidth(1);
-  doc.line(bx0, yLine - 3, bx0, yLine + 3);
-  doc.line(bx0 + barPx, yLine - 3, bx0 + barPx, yLine + 3);
+  doc.setLineWidth(0.55);
+  doc.line(bx0, yLine - 2.2, bx0, yLine + 2.2);
+  doc.line(bx0 + barPx, yLine - 2.2, bx0 + barPx, yLine + 2.2);
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(8.5);
-  doc.setTextColor(241, 245, 249);
-  doc.text(pdfSafeText(label), bx0, yLine - 5);
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(7);
-  doc.setTextColor(203, 213, 225);
-  doc.text('Scale (approx.)', bx0, cardY + cardH - 6);
+  doc.setFontSize(6);
+  doc.setTextColor(30, 41, 59);
+  doc.text(pdfSafeText(label), bx0, yLine - 3.5);
 }
 
+/** Compact classification legend — bottom-right, frosted panel. */
 function drawPdfMapLegendPanel(
   doc: jsPDF,
   report: SiAoiReportModel,
   panelX: number,
-  panelY: number,
+  panelBottomY: number,
   panelW: number,
 ) {
   const pal = report.classificationPalette;
   const rows = report.tableRows.slice(0, 8);
-  const lineH = 11;
-  const panelH = 16 + rows.length * lineH + 14;
-  doc.setFillColor(15, 23, 42);
-  doc.roundedRect(panelX, panelY - panelH, panelW, panelH, 4, 4, 'F');
-  doc.setDrawColor(148, 163, 184);
-  doc.setLineWidth(0.45);
-  doc.roundedRect(panelX, panelY - panelH, panelW, panelH, 4, 4, 'S');
+  const sw = 4;
+  const lineH = 6.8;
+  const pad = 5;
+  const titleH = 8;
+  const panelH = pad + titleH + rows.length * lineH + lineH + pad;
+  const panelY = panelBottomY - panelH;
+  pdfMapGlassPanel(doc, panelX, panelY, panelW, panelH, 0.86);
+
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(7.5);
-  doc.setTextColor(248, 250, 252);
-  doc.text(pdfSafeText(`${report.indexLabel} legend`), panelX + 8, panelY - panelH + 11);
-  let ly = panelY - panelH + 20;
+  doc.setFontSize(5.5);
+  doc.setTextColor(30, 41, 59);
+  doc.text(pdfSafeText(`${report.indexLabel}`), panelX + pad, panelY + pad + 4.5);
+
+  let ly = panelY + pad + titleH + 2;
   doc.setFont('helvetica', 'normal');
-  doc.setFontSize(7);
+  doc.setFontSize(5);
   for (const row of rows) {
     const [R, G, B] = hexToRgbTriplet(rowColor(row, pal));
     doc.setFillColor(R, G, B);
-    doc.roundedRect(panelX + 8, ly - 5, 8, 8, 1, 1, 'F');
-    doc.setTextColor(226, 232, 240);
-    const txt = pdfSafeText(`${row.labelEn}  (${row.pct.toFixed(1)}%)`);
+    doc.setDrawColor(100, 116, 139);
+    doc.setLineWidth(0.15);
+    doc.roundedRect(panelX + pad, ly - sw + 0.5, sw, sw, 0.4, 0.4, 'FD');
+    doc.setTextColor(51, 65, 85);
+    const txt = pdfSafeText(`${row.labelEn} · ${row.pct.toFixed(1)}%`);
+    const maxW = panelW - pad * 2 - sw - 3;
     const clipped =
-      doc.getTextWidth(txt) > panelW - 28 ? `${txt.slice(0, Math.max(8, Math.floor((panelW - 28) / 4)))}…` : txt;
-    doc.text(clipped, panelX + 20, ly);
+      doc.getTextWidth(txt) > maxW
+        ? `${txt.slice(0, Math.max(6, Math.floor(maxW / 2.8)))}…`
+        : txt;
+    doc.text(clipped, panelX + pad + sw + 2.5, ly);
     ly += lineH;
   }
   const [rA, gA, bA] = hexToRgbTriplet(pal.aoiOutline);
   doc.setFillColor(rA, gA, bA);
-  doc.roundedRect(panelX + 8, ly - 5, 8, 8, 1, 1, 'F');
-  doc.setTextColor(226, 232, 240);
-  doc.text('AOI outline', panelX + 20, ly);
+  doc.setDrawColor(100, 116, 139);
+  doc.roundedRect(panelX + pad, ly - sw + 0.5, sw, sw, 0.4, 0.4, 'FD');
+  doc.setTextColor(71, 85, 105);
+  doc.setFontSize(4.8);
+  doc.text('AOI outline', panelX + pad + sw + 2.5, ly);
 }
 
 /**
@@ -295,21 +336,23 @@ export function drawPdfCartographerMapLayout(
   bounds: SiPdfLngLatBounds | null,
   report: SiAoiReportModel,
 ) {
-  doc.setDrawColor(15, 23, 42);
-  doc.setLineWidth(1.25);
+  doc.setDrawColor(51, 65, 85);
+  doc.setLineWidth(0.75);
   doc.rect(mapX, mapY, mapW, mapH, 'S');
-  doc.setDrawColor(148, 163, 184);
-  doc.setLineWidth(0.35);
-  doc.rect(mapX + 2.5, mapY + 2.5, mapW - 5, mapH - 5, 'S');
+  doc.setDrawColor(203, 213, 225);
+  doc.setLineWidth(0.2);
+  doc.rect(mapX + 1.5, mapY + 1.5, mapW - 3, mapH - 3, 'S');
 
   drawPdfNorthArrow(doc, mapX, mapY);
   drawPdfScaleBar(doc, mapX, mapY, mapW, mapH, bounds);
 
-  const legendW = Math.min(168, mapW * 0.42);
-  drawPdfMapLegendPanel(doc, report, mapX + mapW - legendW - 10, mapY + mapH - 10, legendW);
+  const legendW = Math.min(102, Math.max(78, mapW * 0.26));
+  drawPdfMapLegendPanel(doc, report, mapX + mapW - legendW - 7, mapY + mapH - 7, legendW);
 
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(6.5);
-  doc.setTextColor(248, 250, 252);
-  doc.text('WGS84 / Web Mercator snapshot', mapX + mapW - 8, mapY + 10, { align: 'right' });
+  pdfMapHaloText(doc, 'WGS84', mapX + mapW - 7, mapY + 7, {
+    align: 'right',
+    size: 5,
+    style: 'normal',
+    rgb: [71, 85, 105],
+  });
 }

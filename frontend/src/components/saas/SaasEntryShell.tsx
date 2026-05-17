@@ -1,4 +1,9 @@
 import { useEffect, useRef, useState, type MouseEvent, type ReactNode } from 'react'
+import {
+  isInPageFragmentHref,
+  restoreHashRouterShellHash,
+  scrollToInPageSection,
+} from '../../lib/hashRouterInPageNav'
 import { cn } from '../../lib/utils'
 import './saas-entry-shell.css'
 
@@ -80,10 +85,19 @@ export function SaasNavigation({
   brandScrollTargetId,
   statusSlot,
 }: SaasNavigationProps) {
+  const onInPageNavClick = (e: MouseEvent<HTMLAnchorElement>, href: string) => {
+    if (!isInPageFragmentHref(href)) return
+    e.preventDefault()
+    scrollToInPageSection(href)
+    restoreHashRouterShellHash()
+    setMenuOpen(false)
+  }
+
   const onBrandClick = (e: MouseEvent<HTMLAnchorElement>) => {
     if (!brandScrollTargetId) return
     e.preventDefault()
-    document.getElementById(brandScrollTargetId)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    scrollToInPageSection(`#${brandScrollTargetId}`)
+    restoreHashRouterShellHash()
   }
   const [menuOpen, setMenuOpen] = useState(false)
   const menuRef = useRef<HTMLDivElement | null>(null)
@@ -122,7 +136,12 @@ export function SaasNavigation({
 
         <div className="saas-entry__nav-links">
           {navItems.map(item => (
-            <a key={item.id} href={item.href} className="saas-entry__nav-link">
+            <a
+              key={item.id}
+              href={item.href}
+              className="saas-entry__nav-link"
+              onClick={e => onInPageNavClick(e, item.href)}
+            >
               {item.label}
             </a>
           ))}
@@ -154,7 +173,7 @@ export function SaasNavigation({
                     href={item.href}
                     className="saas-entry__nav-link block px-3 py-2 rounded-md"
                     role="menuitem"
-                    onClick={() => setMenuOpen(false)}
+                    onClick={e => onInPageNavClick(e, item.href)}
                   >
                     {item.label}
                   </a>

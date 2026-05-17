@@ -1,3 +1,5 @@
+import { dateToTimelineIso } from './siTimelineDate';
+
 /** Fast week lookup for timeline scrubbing / playback (avoids repeated findIndex scans). */
 
 export type WeeklyTimelineWeek = {
@@ -41,4 +43,35 @@ export function buildWeeklyTimelineIndex(
     pickWeek: (iso: string) => weeks[pickWeekIdx(iso)]!,
     nextWeekIdx: (currentIdx: number) => (currentIdx + 1) % weeks.length,
   };
+}
+
+/**
+ * Sentinel Hub `TIME=start/end` for a timeline week + scrubber focus.
+ * Keeps the focus day inside the window and avoids future end dates (no scenes → blank AOI).
+ */
+export type WmsTimeExtentOptions = {
+  /** Last day with scenes in the loaded series (avoids empty WMS past imagery end). */
+  seriesEndIso?: string | null;
+  seriesStartIso?: string | null;
+};
+
+export function wmsTimeExtentForWeek(
+  week: Pick<WeeklyTimelineWeek, 'startDate' | 'endDate'>,
+  focusIsoRaw: string,
+  opts?: WmsTimeExtentOptions,
+): { start: string; end: string } {
+  const focusIso = focusIsoRaw.slice(0, 10);
+  const today = dateToTimelineIso(new Date());
+  let start = week.startDate.slice(0, 10);
+  let end = week.endDate.slice(0, 10);
+  if (focusIso < start) start = focusIso;
+  if (focusIso > end) end = focusIso;
+  const seriesEnd = opts?.seriesEndIso?.trim().slice(0, 10);
+  const seriesStart = opts?.seriesStartIso?.trim().slice(0, 10);
+  if (seriesEnd && end > seriesEnd) end = seriesEnd;
+  if (seriesStart && start < seriesStart) start = seriesStart;
+  if (end > today) end = today;
+  if (start > today) start = today;
+  if (end < start) end = start;
+  return { start, end };
 }
