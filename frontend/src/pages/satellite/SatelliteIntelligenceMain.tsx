@@ -9865,6 +9865,8 @@ export default function SatelliteIntelligence() {
     return selectedIndex;
   }, [wmsLayer, visibleWmsLayers, selectedIndex, providerFilteredLayerOptions, wmsLayers]);
 
+  const sentinelVisible = isWmsOverlayVisible && !!activeWmsLayer;
+
   /** Sentinel WMS classified-layer symbology (color ramp via evalscript stops only). */
   const [siWmsSymbologyChrome, setSiWmsSymbologyChrome] = useState<{
     open: boolean;
@@ -10324,7 +10326,6 @@ export default function SatelliteIntelligence() {
     effectiveAnalysisEngineBaseUrl,
   ]);
 
-  const sentinelVisible = isWmsOverlayVisible && !!activeWmsLayer;
   const normalizedDrawnAoiGeometry = useMemo(() => getDrawnGeometry(drawnGeometry), [drawnGeometry]);
   /** True when the Remote Sensing WMS stack should paint: workspace AOIs, persisted RS fields, or a lone legacy sketch. */
   const hasAnyAoiGeometryForSentinel = useMemo(() => {
