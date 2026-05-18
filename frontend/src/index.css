@@ -4219,6 +4219,23 @@ aside {
   z-index: 3;
 }
 
+.gis-map-projection-globe-only {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.35rem 0.5rem;
+  border-radius: 0.75rem;
+  border: 1px solid rgba(99, 102, 241, 0.28);
+  background: rgba(99, 102, 241, 0.08);
+}
+
+.gis-map-projection-globe-only__label {
+  font-size: 0.8125rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: rgba(15, 23, 42, 0.88);
+}
+
 /* Globe: nudge NavigationControl (+/−/compass) slightly right to line up with
    `.gis-map-quick-tools` / toolbar inset (16px) instead of Mapbox’s ~10px default. */
 .gis-map-canvas.projection-globe .mapboxgl-ctrl-bottom-left {

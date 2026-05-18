@@ -2639,8 +2639,8 @@ export default function SatelliteIntelligence() {
     longitude: 20,
     latitude: 10,
     zoom: 1.4,
-    pitch: 0,
-    bearing: 0
+    pitch: 48,
+    bearing: 0,
   });
 
   const [sentinelWmsRev, setSentinelWmsRev] = useState(0);
@@ -3700,18 +3700,19 @@ export default function SatelliteIntelligence() {
     (
       weeks: WeeklyComposite[],
       weekIdx: number,
-      opts?: { focusIso?: string; expandRange?: boolean },
+      opts?: { focusIso?: string; expandRange?: boolean; refreshWms?: boolean },
     ) => {
       if (!weeks.length) return;
       const idx = buildWeeklyTimelineIndex(weeks);
       if (idx) weeklyTimelineIndexRef.current = idx;
       const safeIdx = Math.max(0, Math.min(weekIdx, weeks.length - 1));
       const w = weeks[safeIdx]!;
-      const iso = (opts?.focusIso ?? w.endDate).slice(0, 10);
+      const iso = (opts?.focusIso ?? w.endDate ?? w.startDate).slice(0, 10);
       timelinePlayWeekIdxRef.current = safeIdx;
       setActiveWeekIdx(safeIdx);
       setSelectedDate(timelineDateFromIso(iso));
       setZonalStatsAnchorIso(iso);
+      if (opts?.refreshWms) setSentinelWmsRev(r => r + 1);
       const expandRange = opts?.expandRange !== false;
       if (!expandRange) return;
       setTimeSeriesStart(prev => (prev && iso < prev ? iso : prev || iso));
@@ -4740,6 +4741,7 @@ export default function SatelliteIntelligence() {
 
   const changeSiProjectionMode = useCallback(
     (mode: SiMapProjectionMode) => {
+      if (mode === '2d') return;
       if (mode === mapProjectionModeRef.current) return;
       siProjectionSwitchingRef.current = true;
       mapProjectionModeRef.current = mode;
@@ -6247,12 +6249,21 @@ export default function SatelliteIntelligence() {
     pauseTimelinePlayback();
     const lastIdx = synthetic.length - 1;
     const last = synthetic[lastIdx]!;
-    const focusIso = (last.endDate || timeSeriesEnd || last.startDate).slice(0, 10);
+    const focusIso = (timeSeriesEnd || last.endDate || last.startDate).slice(0, 10);
+    const idx = buildWeeklyTimelineIndex(synthetic);
+    if (idx) weeklyTimelineIndexRef.current = idx;
     flushSync(() => {
       setWeeklyComposites(synthetic);
       setFieldTimelineSessionActive(true);
+      timelinePlayWeekIdxRef.current = lastIdx;
+      setActiveWeekIdx(lastIdx);
+      setSelectedDate(timelineDateFromIso(focusIso));
+      setZonalStatsAnchorIso(focusIso);
     });
-    syncTimelineWeekFocus(synthetic, lastIdx, { focusIso, expandRange: false });
+    setSentinelWmsRev(r => r + 1);
+    if (drawnGeometryRef.current) {
+      recomputeDrawnAoiStats(drawnGeometryRef.current, synthetic);
+    }
     setFieldAnalysisStatus(
       `Timeline ready: ${synthetic.length} week(s) for ${selectedIndexConfig.label} · showing ${focusIso}.`,
     );
@@ -6310,15 +6321,22 @@ export default function SatelliteIntelligence() {
       setWeeklyComposites([]);
       return;
     }
-    const iso = dateToTimelineIso(selectedDate);
-    let weekIdx = synthetic.findIndex(w => iso >= w.startDate && iso <= w.endDate);
-    if (weekIdx < 0) weekIdx = synthetic.length - 1;
-    const target = synthetic[weekIdx]!;
-    const focusIso = (target.endDate || timeSeriesEnd || target.startDate).slice(0, 10);
+    const lastIdx = synthetic.length - 1;
+    const last = synthetic[lastIdx]!;
+    const focusIso = (timeSeriesEnd || last.endDate || last.startDate).slice(0, 10);
+    const idx = buildWeeklyTimelineIndex(synthetic);
+    if (idx) weeklyTimelineIndexRef.current = idx;
     flushSync(() => {
       setWeeklyComposites(synthetic);
+      timelinePlayWeekIdxRef.current = lastIdx;
+      setActiveWeekIdx(lastIdx);
+      setSelectedDate(timelineDateFromIso(focusIso));
+      setZonalStatsAnchorIso(focusIso);
     });
-    syncTimelineWeekFocus(synthetic, weekIdx, { focusIso, expandRange: false });
+    setSentinelWmsRev(r => r + 1);
+    if (drawnGeometryRef.current) {
+      recomputeDrawnAoiStats(drawnGeometryRef.current, synthetic);
+    }
     setFieldAnalysisStatus(
       `Timeline updated: ${synthetic.length} week(s) · ${timeSeriesStart} → ${timeSeriesEnd} · ${focusIso}.`,
     );
@@ -6327,6 +6345,12 @@ export default function SatelliteIntelligence() {
   useEffect(() => {
     if (weeklyComposites.length === 0) setFieldTimelineSessionActive(false);
   }, [weeklyComposites.length]);
+
+  useEffect(() => {
+    if (!weeklyComposites.length) return;
+    const geom = drawnGeometryRef.current;
+    if (geom) recomputeDrawnAoiStats(geom);
+  }, [weeklyComposites, selectedIndex]);
 
   /** Same control: generate weekly strip, or stop playback and clear it for a fresh run. */
   const onFieldAnalysisTimelinePrimaryClick = () => {
@@ -7411,12 +7435,16 @@ export default function SatelliteIntelligence() {
     };
   }, [selectedIndexConfig, showFieldBoundaries, showProductivityZones]);
 
-  const recomputeDrawnAoiStats = (geometry: any | null) => {
+  const recomputeDrawnAoiStats = (geometry: any | null, compositesOverride?: WeeklyComposite[]) => {
     if (!geometry) {
       setDrawnStats(null);
       return;
     }
-    const values = weeklyComposites.length ? weeklyComposites : synthesizeWeeklyComposites(stacItems.length);
+    const values = compositesOverride?.length
+      ? compositesOverride
+      : weeklyComposites.length
+        ? weeklyComposites
+        : synthesizeWeeklyComposites(stacItems.length);
     if (!values.length) {
       setDrawnStats(null);
       return;
@@ -10544,6 +10572,10 @@ export default function SatelliteIntelligence() {
   }, [activeBasemapId, mapboxToken]);
 
   useEffect(() => {
+    if (mapProjectionModeRef.current !== 'globe') changeSiProjectionMode('globe');
+  }, [changeSiProjectionMode]);
+
+  useEffect(() => {
     if (isMapLoaded) return;
     const timeoutMs = siBrowserReportsMicrosoftEdge() ? 3500 : 6000;
     const t = window.setTimeout(() => {
@@ -11124,10 +11156,11 @@ export default function SatelliteIntelligence() {
     () =>
       weeklyComposites.map(w => {
         const stats = normalizeWeeklyCompositeStats(w, selectedIndexConfig.range ?? [-1, 1]);
+        const endIso = w.endDate.slice(0, 10);
         return {
-          id: `w-${w.weekIndex}-${w.startDate}`,
-          shortLabel: `${w.startDate.slice(5, 7)}-${w.startDate.slice(8, 10)}`,
-          fullDate: w.startDate,
+          id: `w-${w.weekIndex}-${endIso}`,
+          shortLabel: `${endIso.slice(5, 7)}-${endIso.slice(8, 10)}`,
+          fullDate: endIso,
           mean: stats.mean,
         };
       }),
@@ -11664,7 +11697,7 @@ export default function SatelliteIntelligence() {
   const satelliteActiveChipId = useMemo(() => {
     if (!weeklyTimelineIndex) return null;
     const w = weeklyTimelineIndex.pickWeek(dateToTimelineIso(selectedDate));
-    return `w-${w.weekIndex}-${w.startDate}`;
+    return `w-${w.weekIndex}-${w.endDate.slice(0, 10)}`;
   }, [weeklyTimelineIndex, selectedDate]);
 
   const handleSatelliteTimelineStep = (dir: -1 | 1) => {
@@ -11676,16 +11709,18 @@ export default function SatelliteIntelligence() {
     syncTimelineWeekFocus(weeklyComposites, next, {
       focusIso: w.endDate,
       expandRange: false,
+      refreshWms: true,
     });
   };
 
   const handleSatelliteChipPick = (id: string) => {
-    const idx = weeklyComposites.findIndex(x => `w-${x.weekIndex}-${x.startDate}` === id);
+    const idx = weeklyComposites.findIndex(x => `w-${x.weekIndex}-${x.endDate.slice(0, 10)}` === id);
     if (idx < 0) return;
     const w = weeklyComposites[idx]!;
     syncTimelineWeekFocus(weeklyComposites, idx, {
       focusIso: w.endDate,
       expandRange: false,
+      refreshWms: true,
     });
   };
 
@@ -12916,21 +12951,17 @@ export default function SatelliteIntelligence() {
             preserveDrawingBuffer
             transformRequest={sentinelHubTransformRequest}
             logoPosition="bottom-left"
-            projection={{ name: mapProjectionMode === 'globe' ? 'globe' : 'mercator' }}
+            projection={{ name: 'globe' }}
             renderWorldCopies={false}
-            dragRotate={mapProjectionMode === 'globe'}
-            pitchWithRotate={mapProjectionMode === 'globe'}
-            touchPitch={mapProjectionMode === 'globe'}
+            dragRotate
+            pitchWithRotate
+            touchPitch
             touchZoomRotate
             minPitch={0}
-            maxPitch={mapProjectionMode === 'globe' ? 78 : 0}
+            maxPitch={78}
             doubleClickZoom
             scrollZoom
-            fog={
-              mapProjectionMode === 'globe'
-                ? { range: [0.5, 10], color: '#020617', 'horizon-blend': 0.12 }
-                : undefined
-            }
+            fog={{ range: [0.5, 10], color: '#020617', 'horizon-blend': 0.12 }}
             onError={(e: any) => {
               const message = e?.error?.message || '';
               const url = e?.error?.url || '';
@@ -12948,13 +12979,11 @@ export default function SatelliteIntelligence() {
               if (
           !siGlobeWebglFailoverRef.current &&
           mapProjectionModeRef.current === 'globe' &&
-          (siMapErrorSuggestsGlobeOrWebglFailure(String(message)) ||
-            lowerMessage.includes('access token') ||
-            lowerMessage.includes('mapbox'))
+          siMapErrorSuggestsGlobeOrWebglFailure(String(message))
               ) {
           siGlobeWebglFailoverRef.current = true;
-          changeSiProjectionMode('2d');
-          setStacStatus('3D globe unavailable on this device — switched to 2D map.');
+          setStacStatus('3D globe rendering issue — check WebGL support and Mapbox access.');
+          window.setTimeout(() => siSyncMapProjection(), 400);
           return;
               }
               console.warn('Map Error:', e);

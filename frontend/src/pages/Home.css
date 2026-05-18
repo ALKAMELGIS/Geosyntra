@@ -122,9 +122,21 @@
   transform-style: preserve-3d;
 }
 
-/* Home Start (page 1) — optical center: nudge globe 3cm left */
-.home-landing .gs-scroll-globe--home-integrated[data-active-section='0'] .gs-hero-globe {
-  translate: -3cm 0;
+/* Home Start — shift globe + hero copy/CTAs together (2cm left, 3cm up) */
+.home-landing .gs-scroll-globe--home-integrated[data-active-section='0'],
+.home-landing .gs-scroll-globe--leading-clear[data-active-section='0'] {
+  --gs-hero-stack-offset-x: -2cm;
+  --gs-hero-stack-offset-y: -3cm;
+}
+
+.home-landing .gs-scroll-globe--home-integrated[data-active-section='0'] .gs-hero-globe,
+.home-landing .gs-scroll-globe--leading-clear[data-active-section='0'] .gs-hero-globe {
+  translate: var(--gs-hero-stack-offset-x) var(--gs-hero-stack-offset-y);
+}
+
+.home-landing .gs-scroll-globe--home-integrated[data-active-section='0'] #start > .pointer-events-auto,
+.home-landing .gs-scroll-globe--leading-clear[data-active-section='0'] #start > .pointer-events-auto {
+  translate: var(--gs-hero-stack-offset-x) var(--gs-hero-stack-offset-y);
 }
 
 .gs-hero-globe__parallax {
@@ -226,12 +238,27 @@
   color: rgba(248, 250, 252, 0.92);
 }
 
+/* Pull “Geosyntra built for” closer to “Spatial intelligence” (globe stays in gutter) */
+.home-saas-hero--globe-centered .home-saas-hero__line-before {
+  transform: translateY(1.35rem);
+  margin-bottom: -0.65rem;
+}
+
 .home-saas-hero__globe-gutter {
   display: block;
   width: min(92vw, 28rem);
   height: clamp(10rem, 34vmin, 20rem);
   margin: 0.15rem auto 0.35rem;
   pointer-events: none;
+}
+
+.home-saas-hero--globe-centered .home-saas-hero__globe-gutter {
+  height: clamp(7.75rem, 27vmin, 16.5rem);
+  margin: 0 auto 0.2rem;
+}
+
+.home-saas-hero--globe-centered .home-saas-hero__accent-block {
+  margin-top: -0.35rem;
 }
 
 .home-saas-hero--globe-centered .home-saas-hero__accent,

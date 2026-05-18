@@ -3,10 +3,19 @@ import {
   clampSiViewStateForProjection,
   loadStoredSiMapProjectionMode,
   loadStoredSiTerrainExaggeration,
+  migrateSiMapProjectionToGlobeOnly,
 } from './siMapProjectionTerrain';
 
 describe('siMapProjectionTerrain', () => {
   it('defaults projection to globe', () => {
+    expect(loadStoredSiMapProjectionMode()).toBe('globe');
+  });
+
+  it('migrates legacy 2d preference to globe', () => {
+    const key = 'si-map-projection-mode-v1';
+    localStorage.setItem(key, '2d');
+    migrateSiMapProjectionToGlobeOnly();
+    expect(localStorage.getItem(key)).toBe('globe');
     expect(loadStoredSiMapProjectionMode()).toBe('globe');
   });
 

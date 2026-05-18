@@ -13,11 +13,13 @@ import { hydrateAdminUsersFromServer, listAdminUsers, updateAdminUser, upsertAdm
 import type { AdminDirectoryUser, AdminUserStatus } from './adminUserModel'
 
 export const RBAC_ASSIGNABLE_ROLES = [
-  { slug: 'user', label: 'User' },
+  { slug: 'trial_user', label: 'Trial User' },
+  { slug: 'viewer', label: 'Viewer' },
   { slug: 'analyst', label: 'Analyst' },
+  { slug: 'ai_operator', label: 'AI Operator' },
   { slug: 'manager', label: 'Manager' },
   { slug: 'admin', label: 'Admin' },
-  { slug: 'super_admin', label: 'Super Admin' },
+  { slug: 'owner', label: 'Owner' },
 ] as const
 
 function mapRbacStatus(u: RbacPublicUser): AdminUserStatus {
@@ -73,19 +75,31 @@ export async function loadUserManagementDirectory(): Promise<AdminDirectoryUser[
   return [...byEmail.values()].sort((a, b) => b.id - a.id)
 }
 
+const SIGNUP_ROLE_LABELS: Record<string, string> = {
+  trial_user: 'Trial User',
+  viewer: 'Viewer',
+  analyst: 'Analyst',
+  ai_operator: 'AI Operator',
+  manager: 'Manager',
+  admin: 'Admin',
+  owner: 'Owner',
+}
+
 export function registerPendingSignupInDirectory(input: {
   name: string
   email: string
+  roleSlug?: string
 }): void {
+  const slug = String(input.roleSlug || 'trial_user').trim().toLowerCase()
   upsertAdminUser({
     email: input.email,
     name: input.name,
-    role: 'User',
+    role: SIGNUP_ROLE_LABELS[slug] ?? 'Trial User',
     status: 'Pending Verification',
-    plan: 'Free',
+    plan: slug === 'trial_user' ? 'Trial' : 'Free',
     emailVerified: false,
     createdAt: new Date().toISOString(),
-    profileExtra: { lifecycle: 'signup', source: 'register' },
+    profileExtra: { lifecycle: 'signup', source: 'register', roleSlug: slug },
   })
 }
 

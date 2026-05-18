@@ -94,12 +94,21 @@ export function registerAuthRoutes(app, deps) {
         return res.status(400).json({ ok: false, error: 'invalid_credentials' })
       }
       const { firstName, lastName } = splitName(name)
+      const requestedRole = req.body?.roleSlug ?? req.body?.role ?? null
       const result = store.registerUser({
         name,
         email,
         password,
+        requestedRole,
         profileExtra: { firstName, lastName },
       })
+      if (!result.ok && result.error === 'role_not_self_assignable') {
+        return res.status(403).json({
+          ok: false,
+          error: 'role_not_self_assignable',
+          message: 'Owner and Admin roles cannot be selected during sign up. Choose another role or contact your administrator.',
+        })
+      }
       if (!result.ok) {
         if (result.error === 'email_exists') {
           const existing = store.getUserByEmail(email)

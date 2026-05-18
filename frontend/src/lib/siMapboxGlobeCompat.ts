@@ -25,13 +25,9 @@ export function siWebglContextLikelyAvailable(): boolean {
   }
 }
 
-/**
- * Initial value for the Satellite “3D Globe” toggle: prefer flat Mercator when Edge or WebGL is missing,
- * so the map paints reliably; users can still turn Globe on from the UI.
- */
+/** Map canvas is 3D globe only (no Mercator fallback). */
 export function siDefaultSatelliteGlobeEnabled(): boolean {
-  if (siBrowserReportsMicrosoftEdge()) return false
-  return siWebglContextLikelyAvailable()
+  return true
 }
 
 /** Mapbox / browser error text — if true while in globe mode, app should fall back to Mercator once. */

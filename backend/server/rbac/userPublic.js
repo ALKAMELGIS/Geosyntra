@@ -1,9 +1,16 @@
-import { displayRoleToSlug, normalizeRbacRole, USER_STATUSES } from './roles.js'
+import {
+  displayRoleToSlug,
+  normalizeRbacRole,
+  roleRequiresApprovalAfterVerify,
+  USER_STATUSES,
+} from './roles.js'
 import { permissionsForRole } from './permissions.js'
 
 export function statusAfterEmailVerify(roleDisplay) {
   const slug = normalizeRbacRole(displayRoleToSlug(roleDisplay))
-  return slug === 'user' ? USER_STATUSES.PENDING_APPROVAL : USER_STATUSES.ACTIVE
+  return roleRequiresApprovalAfterVerify(slug)
+    ? USER_STATUSES.PENDING_APPROVAL
+    : USER_STATUSES.ACTIVE
 }
 
 export function toPublicAuthUser(user) {
@@ -25,7 +32,7 @@ export function canLoginUser(user) {
   if (!user || !user.emailVerified) return { ok: false, error: 'email_not_verified' }
   if (user.status === 'Suspended') return { ok: false, error: 'account_suspended' }
   const slug = normalizeRbacRole(displayRoleToSlug(user.role))
-  if (user.status === 'Pending Approval' && slug === 'user') {
+  if (user.status === 'Pending Approval' && roleRequiresApprovalAfterVerify(slug)) {
     return { ok: false, error: 'pending_approval', message: 'Your account is awaiting administrator approval.' }
   }
   if (user.status === 'Pending Verification') {

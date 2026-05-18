@@ -13,6 +13,12 @@ import { SaasButton } from '../../../../components/saas/SaasEntryShell'
 import { useAuth } from '../../../../state/auth'
 import { useHomeOnboarding } from '../HomeOnboardingContext'
 import { WizardWelcomeBrandMark } from '../WizardWelcomeBrandMark'
+import {
+  DEFAULT_SIGNUP_ROLE_SLUG,
+  GEOSYNTRA_ROLE_HIERARCHY,
+  signupRoleBySlug,
+  type GeosyntraRoleSlug,
+} from '../../../../lib/rbac/geosyntraRoles'
 
 const OAUTH: { id: OAuthProvider; label: string; icon: string }[] = [
   { id: 'google', label: 'Google', icon: 'fa-brands fa-google' },
@@ -30,6 +36,7 @@ export function WizardWelcomeStep() {
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
+  const [roleSlug, setRoleSlug] = useState<GeosyntraRoleSlug>(DEFAULT_SIGNUP_ROLE_SLUG)
   const [pendingEmail, setPendingEmail] = useState('')
   const [devLink, setDevLink] = useState<string | null>(null)
   const [error, setError] = useState('')
@@ -68,7 +75,12 @@ export function WizardWelcomeStep() {
     setBusy(true)
     try {
       if (mode === 'signup') {
-        const result = await homeSignUp({ name, email, password })
+        const chosen = signupRoleBySlug(roleSlug)
+        if (!chosen?.selectableOnSignup) {
+          setError('Owner and Admin roles cannot be selected during sign up. Choose another role.')
+          return
+        }
+        const result = await homeSignUp({ name, email, password, roleSlug })
         if (!result.ok) {
           if ('needsVerification' in result && result.needsVerification) {
             showCheckEmail(normalizeEmailInput(email))
@@ -278,10 +290,35 @@ export function WizardWelcomeStep() {
                 }}
               >
                 {mode === 'signup' ? (
-                  <label>
-                    Full name
-                    <input value={name} onChange={e => setName(e.target.value)} autoComplete="name" required />
-                  </label>
+                  <>
+                    <label>
+                      Full name
+                      <input value={name} onChange={e => setName(e.target.value)} autoComplete="name" required />
+                    </label>
+                    <label>
+                      Role
+                      <select
+                        value={roleSlug}
+                        onChange={e => setRoleSlug(e.target.value as GeosyntraRoleSlug)}
+                        aria-describedby="home-wizard-role-hint"
+                      >
+                        <optgroup label="Select your workspace role">
+                          {GEOSYNTRA_ROLE_HIERARCHY.map(role => (
+                            <option key={role.slug} value={role.slug} disabled={!role.selectableOnSignup}>
+                              {role.label}
+                            </option>
+                          ))}
+                        </optgroup>
+                      </select>
+                      <span id="home-wizard-role-hint" className="home-wizard-form__hint">
+                        {signupRoleBySlug(roleSlug)?.description ??
+                          'Owner and Admin are assigned by your organization.'}
+                        {signupRoleBySlug(roleSlug)?.requiresApproval
+                          ? ' Admin approval is required after email verification.'
+                          : null}
+                      </span>
+                    </label>
+                  </>
                 ) : null}
                 <label>
                   Email

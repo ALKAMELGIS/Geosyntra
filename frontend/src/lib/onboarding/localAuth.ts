@@ -98,10 +98,24 @@ function shouldUseLocalAuthFallback(apiError: string): boolean {
 }
 
 /** GitHub Pages / static hosting — no `/api` backend; persist account in localStorage. */
+function localRoleLabel(roleSlug: string): string {
+  const map: Record<string, string> = {
+    owner: 'Owner',
+    admin: 'Admin',
+    manager: 'Manager',
+    analyst: 'Analyst',
+    viewer: 'Viewer',
+    ai_operator: 'AI Operator',
+    trial_user: 'Trial User',
+  }
+  return map[roleSlug] ?? 'Trial User'
+}
+
 async function homeSignUpLocal(input: {
   name: string
   email: string
   password: string
+  roleSlug?: string
 }): Promise<HomeAuthResult> {
   const email = normalizeEmail(input.email)
   const password = input.password.trim()
@@ -119,13 +133,22 @@ async function homeSignUpLocal(input: {
   }
   const passwordHash = await sha256Hex(password)
   const parts = name.split(/\s+/)
+  const slug = String(input.roleSlug || 'trial_user').trim().toLowerCase()
+  if (slug === 'owner' || slug === 'admin') {
+    return {
+      ok: false,
+      error: 'Owner and Admin roles cannot be selected during sign up. Choose another role.',
+    }
+  }
+  const role = localRoleLabel(slug)
+  const needsApproval = slug === 'viewer' || slug === 'manager' || slug === 'ai_operator'
   const id = Date.now()
   const token = createVerificationToken()
   users.push({
     id,
     name,
     email,
-    role: 'Viewer',
+    role,
     status: 'Pending Verification',
     plan: 'Trial',
     emailVerified: false,
@@ -134,7 +157,12 @@ async function homeSignUpLocal(input: {
     createdAt: new Date().toISOString(),
     lastLogin: 'Never',
     passwordHash,
-    profileExtra: { firstName: parts[0] ?? '', lastName: parts.slice(1).join(' ') },
+    profileExtra: {
+      firstName: parts[0] ?? '',
+      lastName: parts.slice(1).join(' '),
+      roleSlug: slug,
+      needsApprovalAfterVerify: needsApproval,
+    },
   })
   writeAdminUsers(users)
   return {
@@ -185,6 +213,7 @@ export async function homeSignUp(input: {
   name: string
   email: string
   password: string
+  roleSlug?: string
 }): Promise<HomeAuthResult> {
   const email = normalizeEmail(input.email)
   const password = input.password.trim()
@@ -194,18 +223,22 @@ export async function homeSignUp(input: {
   }
   if (!name) return { ok: false, error: 'Enter your full name.' }
 
-  const result = await apiRegister({ name, email, password })
+  const roleSlug = String(input.roleSlug || 'trial_user').trim()
+  const result = await apiRegister({ name, email, password, roleSlug })
   if (!result.ok) {
     if (result.needsVerification) {
       return { ok: true, needsVerification: true, email }
     }
+    if (result.error.includes('cannot be selected')) {
+      return result
+    }
     if (shouldUseLocalAuthFallback(result.error)) {
-      return homeSignUpLocal({ name, email, password })
+      return homeSignUpLocal({ name, email, password, roleSlug })
     }
     return result
   }
 
-  registerPendingSignupInDirectory({ name, email })
+  registerPendingSignupInDirectory({ name, email, roleSlug })
   return {
     ok: true,
     needsVerification: true,

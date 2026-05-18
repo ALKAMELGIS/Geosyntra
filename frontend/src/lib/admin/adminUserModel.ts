@@ -28,14 +28,17 @@ export const ADMIN_USER_STATUSES: AdminUserStatus[] = [
   'Pending Approval',
 ]
 export const ADMIN_USER_ROLES = [
-  'Super Admin',
+  'Owner',
   'Admin',
   'Manager',
-  'Admin Manager',
   'Analyst',
+  'Viewer',
+  'AI Operator',
+  'Trial User',
+  'Super Admin',
   'User',
   'Editor',
-  'Viewer',
+  'Admin Manager',
 ] as const
 
 export function normalizeAdminUser(raw: unknown): AdminDirectoryUser | null {

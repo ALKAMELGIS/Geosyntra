@@ -61,7 +61,7 @@ export function SiMapSwipeComparePane({
         interactive={false}
         attributionControl={false}
         logoPosition="bottom-left"
-        projection={{ name: projectionMode === 'globe' ? 'globe' : 'mercator' }}
+        projection={{ name: 'globe' }}
         renderWorldCopies={false}
         dragRotate={false}
         pitchWithRotate={false}
@@ -72,12 +72,8 @@ export function SiMapSwipeComparePane({
         dragPan={false}
         doubleClickZoom={false}
         keyboard={false}
-        maxPitch={projectionMode === 'globe' ? 78 : 0}
-        fog={
-          projectionMode === 'globe'
-            ? { range: [0.5, 10], color: '#020617', 'horizon-blend': 0.12 }
-            : undefined
-        }
+        maxPitch={78}
+        fog={{ range: [0.5, 10], color: '#020617', 'horizon-blend': 0.12 }}
       >
         {readyMulti.length > 0
           ? readyMulti.map(spec => {

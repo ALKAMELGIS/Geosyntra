@@ -773,7 +773,7 @@ export default function GisMap() {
   const [isAddOpen, setIsAddOpen] = useState(false)
   const [activeMapTool, setActiveMapTool] = useState<GisMapToolPanel>(null)
   const [selectedBasemap, setSelectedBasemap] = useState<BasemapType>(readInitialGlobeBasemap)
-  const [mapProjectionMode, setMapProjectionMode] = useState<MapProjectionMode>('2d')
+  const [mapProjectionMode, setMapProjectionMode] = useState<MapProjectionMode>('globe')
   const mapProjectionModeRef = useRef<MapProjectionMode>(mapProjectionMode)
   mapProjectionModeRef.current = mapProjectionMode
   const [projectionToast, setProjectionToast] = useState('')
@@ -1615,6 +1615,7 @@ export default function GisMap() {
   }, [])
 
   const changeProjectionMode = useCallback((mode: MapProjectionMode) => {
+    if (mode === '2d') return
     if (mode === 'globe' && mapProjectionModeRef.current !== 'globe') {
       flushSync(() => setGlobeLoaded(false))
     }
@@ -1683,14 +1684,18 @@ export default function GisMap() {
         }
         return
       }
-      if (mapProjectionMode !== '2d') changeProjectionMode('2d')
-      const m = mapRef.current
-      if (m) {
-        requestAnimationFrame(() => {
-          try {
-            m.flyTo([b.lat, b.lng], Math.max(b.zoom, 2), { duration: 0.75 })
-          } catch {}
-        })
+      const applyGlobeFromBookmark = () =>
+        setGlobeViewState(prev => ({
+          ...prev,
+          latitude: b.lat,
+          longitude: b.lng,
+          zoom: Math.max(0.5, b.zoom),
+        }))
+      if (mapProjectionMode !== 'globe') {
+        changeProjectionMode('globe')
+        window.setTimeout(applyGlobeFromBookmark, 140)
+      } else {
+        applyGlobeFromBookmark()
       }
     },
     [mapProjectionMode, changeProjectionMode],
@@ -1752,11 +1757,14 @@ export default function GisMap() {
           typeof center.lng === 'number' &&
           typeof zoom === 'number'
         ) {
-          if (mapProjectionMode !== '2d') changeProjectionMode('2d')
-          requestAnimationFrame(() => {
-            mapRef.current?.flyTo([center.lat as number, center.lng as number], zoom as number, { duration: 0.85 })
-          })
-          setSelectionNotice('Opened saved map view.')
+          if (mapProjectionMode !== 'globe') changeProjectionMode('globe')
+          setGlobeViewState(prev => ({
+            ...prev,
+            latitude: center.lat as number,
+            longitude: center.lng as number,
+            zoom: Math.max(0.5, zoom as number),
+          }))
+          setSelectionNotice('Opened saved map view on 3D globe.')
           return
         }
         setSelectionNotice('Map file did not contain a recognized view.')
@@ -2109,10 +2117,6 @@ export default function GisMap() {
       if (key === 'g') {
         event.preventDefault()
         changeProjectionMode('globe')
-      }
-      if (key === 'f') {
-        event.preventDefault()
-        changeProjectionMode('2d')
       }
     }
     window.addEventListener('keydown', onKeyDown)
@@ -5887,28 +5891,12 @@ export default function GisMap() {
           </div>
         ) : activeMapTool === 'settings' ? (
           <div className="gis-tool-settings">
-            <p className="gis-tool-muted">Map projection</p>
-            <div className="gis-map-projection-toggle gis-map-projection-toggle--vertical" aria-label="Map projection mode">
-              <button
-                className={mapProjectionMode === '2d' ? 'gis-map-tool active icon-only' : 'gis-map-tool icon-only'}
-                type="button"
-                onClick={() => changeProjectionMode('2d')}
-                title="2D map (F)"
-                aria-label="Switch to 2D map projection. Shortcut F"
-                aria-pressed={mapProjectionMode === '2d'}
-              >
-                <i className="fa-solid fa-map-location-dot" aria-hidden="true" />
-              </button>
-              <button
-                className={mapProjectionMode === 'globe' ? 'gis-map-tool active icon-only' : 'gis-map-tool icon-only'}
-                type="button"
-                onClick={() => changeProjectionMode('globe')}
-                title="3D Globe (G)"
-                aria-label="Switch to 3D Globe projection. Shortcut G"
-                aria-pressed={mapProjectionMode === 'globe'}
-              >
+            <p className="gis-tool-muted">Map canvas</p>
+            <div className="gis-map-projection-globe-only" role="status">
+              <span className="gis-map-tool active icon-only" aria-label="3D Globe (default)">
                 <i className="fa-solid fa-globe" aria-hidden="true" />
-              </button>
+              </span>
+              <span className="gis-map-projection-globe-only__label">3D Globe</span>
             </div>
           </div>
         ) : activeMapTool === 'apps' ? (

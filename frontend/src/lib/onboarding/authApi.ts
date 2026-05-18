@@ -36,6 +36,7 @@ export async function apiRegister(input: {
   name: string
   email: string
   password: string
+  roleSlug?: string
 }): Promise<
   | { ok: true; needsVerification: true; email: string; devVerificationLink?: string }
   | { ok: false; error: string; needsVerification?: boolean; email?: string }
@@ -56,6 +57,14 @@ export async function apiRegister(input: {
       needsVerification: true,
       email: String(data.email || input.email),
       devVerificationLink: data.devVerificationLink,
+    }
+  }
+  if (data.error === 'role_not_self_assignable') {
+    return {
+      ok: false,
+      error:
+        data.message ||
+        'Owner and Admin roles cannot be selected during sign up. Choose another role or contact your administrator.',
     }
   }
   if (data.error === 'email_exists_unverified') {

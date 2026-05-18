@@ -153,13 +153,27 @@ export function HomeUserStatusBar() {
         {menuOpen ? (
           <div className="home-user-toolbar__dropdown">
             <AccountPanel variant="guest">
-              <div className="home-user-status__auth-actions">
-                <button type="button" className="home-user-status__auth-btn home-user-status__auth-btn--primary" onClick={openSignIn}>
-                  Sign In
-                </button>
-                <button type="button" className="home-user-status__auth-btn home-user-status__auth-btn--glass" onClick={openSignUp}>
-                  Create Account
-                </button>
+              <div className="home-user-status__auth-panel">
+                <p className="home-user-status__auth-eyebrow">Workspace access</p>
+                <p className="home-user-status__auth-lede">Sign in or create an account to unlock spatial intelligence tools.</p>
+                <div className="home-user-status__auth-actions">
+                  <button
+                    type="button"
+                    className="home-user-status__auth-btn home-user-status__auth-btn--sign-in"
+                    onClick={openSignIn}
+                  >
+                    <i className="fa-regular fa-right-to-bracket home-user-status__auth-btn-icon" aria-hidden />
+                    <span className="home-user-status__auth-btn-label">Sign in</span>
+                  </button>
+                  <button
+                    type="button"
+                    className="home-user-status__auth-btn home-user-status__auth-btn--register"
+                    onClick={openSignUp}
+                  >
+                    <i className="fa-regular fa-user-plus home-user-status__auth-btn-icon" aria-hidden />
+                    <span className="home-user-status__auth-btn-label">Create account</span>
+                  </button>
+                </div>
               </div>
             </AccountPanel>
           </div>

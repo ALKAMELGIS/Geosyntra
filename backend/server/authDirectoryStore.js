@@ -12,7 +12,7 @@ import {
   verificationExpiresAt,
 } from './authVerification.js'
 import { attachRbacToStore } from './rbac/attachRbacToStore.js'
-import { PUBLIC_SIGNUP_ROLE, USER_STATUSES } from './rbac/roles.js'
+import { PUBLIC_SIGNUP_ROLE, resolveSignupRole, USER_STATUSES } from './rbac/roles.js'
 import { canLoginUser, statusAfterEmailVerify, toPublicAuthUser } from './rbac/userPublic.js'
 
 function appendAuditEntry(auditLog, entry) {
@@ -183,9 +183,11 @@ export function createAuthDirectoryStore(opts) {
         if (!t) return null
         return rowToUser(selByToken.get(t))
       },
-      registerUser({ name, email, password, profileExtra }) {
+      registerUser({ name, email, password, profileExtra, requestedRole }) {
         const em = normalizeEmail(email)
         if (selByEmail.get(em)) return { ok: false, error: 'email_exists' }
+        const roleResolved = resolveSignupRole(requestedRole)
+        if (!roleResolved.ok) return { ok: false, error: roleResolved.error }
         const id = Number(maxId.get()?.m || 0) + 1
         const ts = new Date().toISOString()
         const token = generateVerificationToken()
@@ -194,7 +196,7 @@ export function createAuthDirectoryStore(opts) {
           id,
           email: em,
           name: String(name || em).trim(),
-          role: PUBLIC_SIGNUP_ROLE,
+          role: roleResolved.display,
           status: USER_STATUSES.PENDING_VERIFICATION,
           lastLogin: 'Never',
           passwordHash: hashPassword(password),
@@ -202,14 +204,14 @@ export function createAuthDirectoryStore(opts) {
           verificationToken: token,
           verificationTokenExpires: expires,
           createdAt: ts,
-          profileExtra: profileExtra || {},
+          profileExtra: { ...(profileExtra || {}), roleSlug: roleResolved.slug },
         }
         const dir = sqlite.readDirectory()
         const auditLog = appendAuditEntry(dir.auditLog, {
           actor: em,
           action: 'user_registered',
           target: em,
-          details: { status: 'Pending Verification' },
+          details: { status: 'Pending Verification', role: roleResolved.display, roleSlug: roleResolved.slug },
         })
         sqlite.writeDirectory({ users: [...dir.users, user], auditLog })
         return { ok: true, user, verificationToken: token, verificationTokenExpires: expires }
@@ -354,17 +356,19 @@ export function createAuthDirectoryStore(opts) {
       const t = String(token || '').trim()
       return data.users.find(u => String(u.verificationToken || '') === t) || null
     },
-    registerUser({ name, email, password, profileExtra }) {
+    registerUser({ name, email, password, profileExtra, requestedRole }) {
       const { data } = readJsonStore(jsonFilePath)
       const em = normalizeEmail(email)
       if (data.users.some(u => normalizeEmail(u.email) === em)) return { ok: false, error: 'email_exists' }
+      const roleResolved = resolveSignupRole(requestedRole)
+      if (!roleResolved.ok) return { ok: false, error: roleResolved.error }
       const token = generateVerificationToken()
       const expires = verificationExpiresAt()
       const user = {
         id: nextUserId(data.users),
         email: em,
         name: String(name || em).trim(),
-        role: PUBLIC_SIGNUP_ROLE,
+        role: roleResolved.display,
         status: USER_STATUSES.PENDING_VERIFICATION,
         lastLogin: 'Never',
         passwordHash: hashPassword(password),
@@ -372,13 +376,17 @@ export function createAuthDirectoryStore(opts) {
         verificationToken: token,
         verificationTokenExpires: expires,
         createdAt: new Date().toISOString(),
-        profileExtra: profileExtra || {},
+        profileExtra: { ...(profileExtra || {}), roleSlug: roleResolved.slug },
       }
       const auditLog = appendAuditEntry(data.auditLog, {
         actor: em,
         action: 'user_registered',
         target: em,
-        details: { status: USER_STATUSES.PENDING_VERIFICATION },
+        details: {
+          status: USER_STATUSES.PENDING_VERIFICATION,
+          role: roleResolved.display,
+          roleSlug: roleResolved.slug,
+        },
       })
       writeJsonStore(jsonFilePath, { ...data, users: [...data.users, user], auditLog })
       return { ok: true, user, verificationToken: token, verificationTokenExpires: expires }

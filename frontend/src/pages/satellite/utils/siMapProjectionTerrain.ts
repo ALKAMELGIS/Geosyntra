@@ -178,14 +178,19 @@ export function applySiMapProjectionMode(
   };
 }
 
-export function loadStoredSiMapProjectionMode(): SiMapProjectionMode {
-  if (typeof window === 'undefined') return 'globe';
+/** Map canvas is 3D globe only — migrate any legacy 2D preference. */
+export function migrateSiMapProjectionToGlobeOnly(): void {
+  if (typeof window === 'undefined') return;
   try {
-    const v = window.localStorage.getItem(SI_MAP_PROJECTION_MODE_LS);
-    return v === '2d' ? '2d' : 'globe';
+    window.localStorage.setItem(SI_MAP_PROJECTION_MODE_LS, 'globe');
   } catch {
-    return 'globe';
+    /* ignore */
   }
+}
+
+export function loadStoredSiMapProjectionMode(): SiMapProjectionMode {
+  migrateSiMapProjectionToGlobeOnly();
+  return 'globe';
 }
 
 export function loadStoredSiTerrainEnabled(): boolean {
