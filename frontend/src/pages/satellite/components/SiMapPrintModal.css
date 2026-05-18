@@ -84,6 +84,13 @@
   color: #94a3b8;
 }
 
+.si-map-print-hint {
+  margin: 0 0 10px;
+  font-size: 0.74rem;
+  line-height: 1.45;
+  color: #64748b;
+}
+
 .si-map-print-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -224,9 +231,9 @@
 .si-map-print-preview__sheet {
   width: 100%;
   max-width: 100%;
-  background: #f8fafc;
+  background: #ffffff;
   box-shadow: 0 12px 40px rgba(0, 0, 0, 0.45);
-  border-radius: 4px;
+  border-radius: 2px;
   overflow: hidden;
 }
 

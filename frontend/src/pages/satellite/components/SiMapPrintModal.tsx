@@ -154,7 +154,8 @@ export function SiMapPrintModal({
                 Map print preview
               </h2>
               <p className="si-map-print-modal__sub">
-                High-resolution snapshot with cartography. Adjust options and refresh — no page navigation.
+                Cartographic layout: map-first, breathing room, compact legend under the title, subtle north and scale on
+                the map. Refresh after changing options.
               </p>
             </div>
             <button type="button" className="si-map-print-modal__close" onClick={onClose} aria-label="Close">
@@ -215,16 +216,19 @@ export function SiMapPrintModal({
 
             <section className="si-map-print-section" aria-labelledby="si-map-print-map-el">
               <h3 id="si-map-print-map-el" className="si-map-print-section__kicker">
-                Map elements
+                Map surrounds (minimal)
               </h3>
+              <p className="si-map-print-hint">
+                If it does not help read the map, leave it off. Layer credits appear in the footer when enabled.
+              </p>
               <div className="si-map-print-toggles">
                 {(
                   [
-                    ['includeLegend', 'Legend / index ramp'],
-                    ['includeScale', 'Scale bar'],
-                    ['includeNorthArrow', 'North arrow'],
-                    ['includeLayerList', 'Active layers list'],
-                    ['includeWatermark', 'GeoSyntra watermark'],
+                    ['includeLegend', 'Index legend (compact)'],
+                    ['includeScale', 'Scale bar (simple)'],
+                    ['includeNorthArrow', 'North arrow (subtle)'],
+                    ['includeLayerList', 'Layer credits in footer'],
+                    ['includeWatermark', 'Draft watermark'],
                   ] as const
                 ).map(([key, label]) => (
                   <label key={key} className="si-map-print-toggle">
