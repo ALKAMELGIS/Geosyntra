@@ -1,9 +1,7 @@
 /**
- * Phase-1 "Live Analysis" snapshot for map AOI charts (no timeline / no date range).
+ * Live AOI dashboard snapshot — values from AOI-clipped raster pixels when available.
  */
 import type { SiAoiSpectralProfileMini } from '../components/AoiSpectralProfileMiniChart';
-import { staticAoiLayerMeanForWeek } from './staticAoiLayerSynthetic';
-import { STATIC_AOI_CHART_LAYER_OPTIONS, type StaticAoiChartLayerId } from './staticAoiChartTypes';
 import {
   computeAoiIndexHealthBreakdown,
   computeAoiZonalAnalytics,
@@ -11,8 +9,11 @@ import {
   resolveAoiZonalWeekContext,
   roundIndexDisplay,
   type SiAoiIndexHealthBreakdown,
+  type SiAoiRasterPixelSample,
   type SiAoiZonalAnalytics,
 } from './siAoiZonalStats';
+import { finitePixelValues, opticalLayerIdsForSpectralProfile } from './liveAoiSpectralStats';
+import { STATIC_AOI_CHART_LAYER_OPTIONS, type StaticAoiChartLayerId } from './staticAoiChartTypes';
 
 export type LiveAoiMapChartSnapshot = {
   analysisDateIso: string;
@@ -25,6 +26,9 @@ export type LiveAoiMapChartSnapshot = {
   spectralProfile: SiAoiSpectralProfileMini | null;
   fieldBars: Array<{ name: string; value: number }>;
   fieldBarsSubtitle: string;
+  dataSource?: 'raster' | 'synthetic';
+  pixelCount?: number;
+  confidencePct?: number;
 };
 
 function formatLiveDateLabel(iso: string): string {
@@ -38,74 +42,53 @@ function formatLiveDateLabel(iso: string): string {
   }
 }
 
-function buildLiveSpectralProfile(
-  feature: GeoJSON.Feature,
-  aoiKey: string | null,
-  weekCtx: ReturnType<typeof resolveAoiZonalWeekContext>,
-  aoiHeatPointGeoJson: GeoJSON.FeatureCollection | null | undefined,
+function buildSpectralProfileFromRaster(
+  raster: SiAoiRasterPixelSample,
   activeLayerId: StaticAoiChartLayerId,
 ): SiAoiSpectralProfileMini | null {
-  const fc = aoiHeatPointGeoJson;
-  if (fc?.features?.length) {
-    const vals = fc.features
-      .map(f => (f.properties as { value?: number } | null | undefined)?.value)
-      .filter((v): v is number => typeof v === 'number' && Number.isFinite(v));
-    if (vals.length >= 6) {
-      vals.sort((a, b) => a - b);
-      const target = 72;
-      const step = Math.max(1, Math.ceil(vals.length / target));
-      const sampled: number[] = [];
-      for (let i = 0; i < vals.length; i += step) sampled.push(vals[i]!);
-      const yMin = Math.min(...sampled);
-      const yMax = Math.max(...sampled);
-      return {
-        mode: 'pixels',
-        values: sampled,
-        labels: [],
-        yMin,
-        yMax,
-        subtitle: `${activeLayerId} · ${vals.length} live AOI samples`,
-      };
-    }
+  const ids = opticalLayerIdsForSpectralProfile(activeLayerId);
+  const labels = ids.map(id => STATIC_AOI_CHART_LAYER_OPTIONS.find(o => o.id === id)?.label ?? id);
+  const values = ids.map(id => {
+    const finite = finitePixelValues(raster.layers[id]);
+    if (!finite.length) return NaN;
+    return finite.reduce((a, b) => a + b, 0) / finite.length;
+  });
+  const finiteMeans = values.filter(Number.isFinite);
+  if (finiteMeans.length >= 2) {
+    return {
+      mode: 'indices',
+      values: values as number[],
+      labels,
+      yMin: Math.min(...finiteMeans),
+      yMax: Math.max(...finiteMeans),
+      subtitle: 'Optical indices · AOI-clipped raster pixels',
+    };
   }
-
-  const opticalDefs = STATIC_AOI_CHART_LAYER_OPTIONS.filter(o => o.id !== 'LST');
-  const labels = opticalDefs.map(o => o.label);
-  const values = opticalDefs.map(o =>
-    staticAoiLayerMeanForWeek(o.id, weekCtx.weekIdx, weekCtx.nWeeks, aoiKey, weekCtx.anchorWeeklyMean),
-  );
-  const yMin = Math.min(...values);
-  const yMax = Math.max(...values);
-  return {
-    mode: 'indices',
-    values,
-    labels,
-    yMin,
-    yMax,
-    subtitle: aoiKey
-      ? `Six optical indices · live layer snapshot`
-      : `Draw an AOI for index fingerprint · live snapshot`,
-  };
+  const activeVals = finitePixelValues(raster.layers[activeLayerId]);
+  if (activeVals.length >= 6) {
+    const sorted = [...activeVals].sort((a, b) => a - b);
+    const step = Math.max(1, Math.ceil(sorted.length / 72));
+    const sampled: number[] = [];
+    for (let i = 0; i < sorted.length; i += step) sampled.push(sorted[i]!);
+    return {
+      mode: 'pixels',
+      values: sampled,
+      labels: [],
+      yMin: Math.min(...sampled),
+      yMax: Math.max(...sampled),
+      subtitle: `${activeLayerId} · ${activeVals.length} raster pixels`,
+    };
+  }
+  return null;
 }
 
-function zonalMeanForFeature(
-  feature: GeoJSON.Feature,
-  aoiKey: string | null,
+function zonalMeanFromRaster(
+  raster: SiAoiRasterPixelSample,
   layerId: StaticAoiChartLayerId,
-  weekCtx: ReturnType<typeof resolveAoiZonalWeekContext>,
-): number {
-  const z = computeAoiZonalAnalytics({
-    feature,
-    aoiKey,
-    layerIds: [layerId],
-    weekIdx: weekCtx.weekIdx,
-    nWeeks: weekCtx.nWeeks,
-    anchorWeeklyMean: weekCtx.anchorWeeklyMean,
-    analysisDateIso: weekCtx.analysisDateIso,
-  });
-  const m = z?.indices[layerId]?.mean;
-  if (typeof m === 'number' && Number.isFinite(m)) return m;
-  return staticAoiLayerMeanForWeek(layerId, weekCtx.weekIdx, weekCtx.nWeeks, aoiKey, weekCtx.anchorWeeklyMean);
+): number | null {
+  const finite = finitePixelValues(raster.layers[layerId]);
+  if (!finite.length) return null;
+  return finite.reduce((a, b) => a + b, 0) / finite.length;
 }
 
 export function buildLiveAoiMapChartSnapshot(opts: {
@@ -118,6 +101,8 @@ export function buildLiveAoiMapChartSnapshot(opts: {
   savedFields?: Array<{ id: string; name?: string; geometry: GeoJSON.Geometry }>;
   aoiFields?: Array<{ id: string; name: string; geometry: GeoJSON.Geometry }>;
   drawnGeometry?: GeoJSON.Feature | null;
+  rasterSample?: SiAoiRasterPixelSample | null;
+  allowSyntheticFallback?: boolean;
 }): LiveAoiMapChartSnapshot | null {
   const activeLayerId = inferStaticAoiChartLayerFromWmsName(
     opts.activeWmsLayer || opts.selectedIndex || 'NDVI',
@@ -125,9 +110,11 @@ export function buildLiveAoiMapChartSnapshot(opts: {
   const layerMeta = STATIC_AOI_CHART_LAYER_OPTIONS.find(o => o.id === activeLayerId);
   const analysisDateIso = opts.analysisDateIso.slice(0, 10);
   const weekCtx = resolveAoiZonalWeekContext([], analysisDateIso, analysisDateIso, activeLayerId);
-
-  const popupLayers: StaticAoiChartLayerId[] = ['NDVI', 'NDWI', 'SAVI', activeLayerId];
-  const layerIds = [...new Set(popupLayers)] as StaticAoiChartLayerId[];
+  const popupLayers: StaticAoiChartLayerId[] = [
+    ...new Set<StaticAoiChartLayerId>(['NDVI', 'NDWI', 'SAVI', activeLayerId]),
+  ];
+  const raster = opts.rasterSample ?? null;
+  const useRaster = Boolean(raster?.grid?.length);
 
   let zonal: SiAoiZonalAnalytics | null = null;
   let health: SiAoiIndexHealthBreakdown | null = null;
@@ -140,58 +127,50 @@ export function buildLiveAoiMapChartSnapshot(opts: {
       zonal = computeAoiZonalAnalytics({
         feature: primaryFeature,
         aoiKey: opts.aoiKey,
-        layerIds,
+        layerIds: popupLayers,
         weekIdx: weekCtx.weekIdx,
         nWeeks: weekCtx.nWeeks,
         anchorWeeklyMean: weekCtx.anchorWeeklyMean,
         analysisDateIso: weekCtx.analysisDateIso,
+        rasterSample: raster,
+        allowSyntheticFallback: opts.allowSyntheticFallback !== false && !useRaster,
       });
       health = computeAoiIndexHealthBreakdown({
         feature: primaryFeature,
         aoiKey: opts.aoiKey,
         layerId: activeLayerId,
         weekCtx,
+        rasterSample: raster,
+        allowSyntheticFallback: opts.allowSyntheticFallback !== false && !useRaster,
       });
     }
   }
 
-  const sketchGeomType = opts.drawnGeometry?.geometry?.type;
-  if (
-    opts.aoiKey &&
-    opts.drawnGeometry &&
-    (sketchGeomType === 'Polygon' || sketchGeomType === 'MultiPolygon')
-  ) {
-    fieldBars.push({
-      name: 'Drawn AOI',
-      value: zonalMeanForFeature(opts.drawnGeometry, opts.aoiKey, activeLayerId, weekCtx),
-    });
-  }
-
-  for (const f of opts.savedFields ?? []) {
-    const gt = f.geometry?.type;
-    if (gt !== 'Polygon' && gt !== 'MultiPolygon') continue;
-    const feat: GeoJSON.Feature = { type: 'Feature', geometry: f.geometry, properties: {} };
-    fieldBars.push({
-      name: (f.name && f.name.trim()) || f.id,
-      value: zonalMeanForFeature(feat, `sat-field:${f.id}`, activeLayerId, weekCtx),
-    });
-  }
-
-  for (const af of opts.aoiFields ?? []) {
-    const gt = af.geometry?.type;
-    if (gt !== 'Polygon' && gt !== 'MultiPolygon') continue;
-    const feat: GeoJSON.Feature = { type: 'Feature', geometry: af.geometry, properties: {} };
-    fieldBars.push({ name: af.name, value: zonalMeanForFeature(feat, `sat-aoif:${af.id}`, activeLayerId, weekCtx) });
+  if (useRaster && raster) {
+    const sketchGeomType = opts.drawnGeometry?.geometry?.type;
+    if (
+      opts.drawnGeometry &&
+      (sketchGeomType === 'Polygon' || sketchGeomType === 'MultiPolygon')
+    ) {
+      const v = zonalMeanFromRaster(raster, activeLayerId);
+      if (v != null) fieldBars.push({ name: 'Drawn AOI', value: v });
+    }
   }
 
   const primaryIndexValue = zonal?.indices[activeLayerId]?.mean ?? null;
 
   const spectralProfile =
-    primaryFeature && (primaryFeature.geometry?.type === 'Polygon' || primaryFeature.geometry?.type === 'MultiPolygon')
-      ? buildLiveSpectralProfile(primaryFeature, opts.aoiKey, weekCtx, opts.aoiHeatPointGeoJson, activeLayerId)
+    useRaster && raster
+      ? buildSpectralProfileFromRaster(raster, activeLayerId)
       : null;
 
-  if (!primaryFeature && fieldBars.length === 0) return null;
+  if (!primaryFeature && fieldBars.length === 0 && !zonal) return null;
+
+  const activeVals = useRaster && raster ? finitePixelValues(raster.layers[activeLayerId]) : [];
+  const confidencePct =
+    useRaster && raster?.grid?.length
+      ? Math.round((activeVals.length / Math.max(1, raster.grid.length)) * 100)
+      : undefined;
 
   return {
     analysisDateIso,
@@ -203,7 +182,12 @@ export function buildLiveAoiMapChartSnapshot(opts: {
     primaryIndexValue,
     spectralProfile,
     fieldBars: fieldBars.slice(0, 14),
-    fieldBarsSubtitle: `${activeLayerId} · live layer · ${formatLiveDateLabel(analysisDateIso)}`,
+    fieldBarsSubtitle: useRaster
+      ? `${activeLayerId} · raster pixels · ${formatLiveDateLabel(analysisDateIso)}`
+      : `${activeLayerId} · ${formatLiveDateLabel(analysisDateIso)}`,
+    dataSource: useRaster ? 'raster' : zonal?.dataSource,
+    pixelCount: useRaster ? raster?.grid.length : zonal?.pixelCount,
+    confidencePct,
   };
 }
 

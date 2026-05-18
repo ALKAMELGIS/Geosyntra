@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { AoiSpectralProfileMiniChart } from './AoiSpectralProfileMiniChart';
+import type { LiveAoiAnalysisStatus } from '../hooks/useLiveAoiSpectralAnalysis';
 import {
   formatLivePrimaryIndex,
   type LiveAoiMapChartSnapshot,
@@ -47,6 +48,10 @@ export type SatelliteAoiLiveChartsMapOverlayProps = {
   onClose: () => void;
   snapshot: LiveAoiMapChartSnapshot | null;
   indexLabel: string;
+  status?: LiveAoiAnalysisStatus;
+  error?: string | null;
+  pixelCount?: number;
+  confidencePct?: number | null;
 };
 
 /** Phase-1 AOI charts: live layer only — no timeline controls. */
@@ -55,6 +60,10 @@ export function SatelliteAoiLiveChartsMapOverlay({
   onClose,
   snapshot,
   indexLabel,
+  status = 'idle',
+  error = null,
+  pixelCount = 0,
+  confidencePct = null,
 }: SatelliteAoiLiveChartsMapOverlayProps) {
   const panelRef = useRef<HTMLDivElement | null>(null);
   const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
@@ -156,7 +165,11 @@ export function SatelliteAoiLiveChartsMapOverlay({
         <div className="si-map-analysis-charts-head-text">
           <div className="si-map-analysis-charts-title">AOI live analysis</div>
           <div className="si-map-analysis-charts-subtitle">
-            {indexLabel} · current layer snapshot — no timeline. Use <strong>Generate timeline</strong> for weekly charts.
+            {indexLabel} ·{' '}
+            {snapshot?.dataSource === 'raster'
+              ? 'AOI-clipped raster pixels (Sentinel-2 STAC)'
+              : 'raster analysis'}
+            {status === 'loading' ? ' · computing…' : null}
           </div>
         </div>
         <button type="button" className="si-map-analysis-charts-close" aria-label="Close" title="Close" onClick={onClose}>
@@ -164,12 +177,29 @@ export function SatelliteAoiLiveChartsMapOverlay({
         </button>
       </div>
 
-      {!snapshot ? (
+      {status === 'loading' ? (
+        <p className="si-map-analysis-charts-subtitle si-map-analysis-charts-subtitle--pad">
+          <i className="fa-solid fa-spinner fa-spin" aria-hidden /> Sampling Sentinel-2 pixels inside AOI…
+        </p>
+      ) : null}
+      {status === 'error' || status === 'unavailable' ? (
+        <p className="si-map-analysis-charts-subtitle si-map-analysis-charts-subtitle--pad si-live-aoi-error">
+          {error || 'Analysis engine unavailable.'}
+        </p>
+      ) : null}
+      {!snapshot && status !== 'loading' ? (
         <p className="si-map-analysis-charts-subtitle si-map-analysis-charts-subtitle--pad">
           Draw a polygon AOI on the map to analyze the live layer.
         </p>
-      ) : (
+      ) : null}
+      {snapshot ? (
         <>
+          {snapshot.dataSource === 'raster' && pixelCount > 0 ? (
+            <p className="si-map-analysis-charts-subtitle si-map-analysis-charts-subtitle--tight">
+              {pixelCount.toLocaleString()} pixels sampled
+              {confidencePct != null ? ` · ${confidencePct}% valid` : null}
+            </p>
+          ) : null}
           <div className="si-live-aoi-metrics">
             <div className="si-live-aoi-metric-card">
               <div className="si-live-aoi-metric-k">Date</div>
@@ -256,7 +286,7 @@ export function SatelliteAoiLiveChartsMapOverlay({
             </div>
           </div>
         </>
-      )}
+      ) : null}
     </div>
   );
 }

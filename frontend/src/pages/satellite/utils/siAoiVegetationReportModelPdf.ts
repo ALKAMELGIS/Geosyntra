@@ -26,6 +26,11 @@ import type {
 } from './siAoiReportCartographyTypes'
 import type { SiAoiPdfExportOptions, SiAoiReportModel } from './siAoiVegetationReportModel'
 import { buildFallbackInterpretationPoints } from './siAoiReportInterpretation'
+import {
+  formatReportIndexValue,
+  type SiAoiReportLiveAnalysisSnapshot,
+} from './siAoiReportLiveAnalysisSnapshot'
+import { STATIC_AOI_CHART_LAYER_OPTIONS } from './staticAoiChartTypes'
 
 function pdfEmbedPngFit(
   doc: jsPDF,
@@ -705,10 +710,143 @@ function scientificTableBody(report: SiAoiReportModel): string[][] {
   ]);
 }
 
+function appendLiveLayerAnalysisPdf(
+  doc: jsPDF,
+  live: SiAoiReportLiveAnalysisSnapshot,
+  margin: number,
+): number {
+  const textW = doc.internal.pageSize.getWidth() - margin * 2;
+  const bodyLh = 1.32;
+  let y = margin;
+
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(12);
+  doc.setTextColor(15, 23, 42);
+  doc.text('Live layer analysis', margin, y);
+  y += 14;
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(8);
+  doc.setTextColor(71, 85, 105);
+  y =
+    pdfDrawParagraph(
+      doc,
+      pdfSafeText(
+        'Spectral statistics from AOI-clipped Sentinel-2 STAC pixels. Values are not derived from map symbology or WMS preview colors.',
+      ),
+      margin,
+      y,
+      textW,
+      bodyLh,
+      2,
+    ) + 10;
+
+  const meta = [
+    `Analysis date: ${live.analysisDateIso}`,
+    `AOI area: ${live.areaHa.toFixed(2)} ha (${Math.round(live.areaM2).toLocaleString('en-US')} m²)`,
+    `Pixels: ${live.pixelCount.toLocaleString('en-US')} (${live.validPixelCount.toLocaleString('en-US')} valid, ${live.confidencePct}% confidence)`,
+    live.approxResolutionM != null && live.approxResolutionM > 0
+      ? `Resolution (approx.): ${live.approxResolutionM.toFixed(1)} m`
+      : null,
+  ].filter(Boolean) as string[];
+  doc.setFontSize(9);
+  doc.setTextColor(51, 65, 85);
+  for (const line of meta) {
+    y = pdfDrawParagraph(doc, line, margin, y, textW, bodyLh, 1) + 4;
+  }
+  y += 6;
+
+  if (live.healthRows.length) {
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(9.5);
+    doc.setTextColor(15, 23, 42);
+    doc.text(
+      pdfSafeText(`${live.healthLayerLabel} distribution (tertiles)`),
+      margin,
+      y,
+    );
+    y += 12;
+    autoTable(doc, {
+      startY: y,
+      margin: { left: margin, right: margin },
+      tableWidth: textW,
+      head: [['Tier', 'Share %', 'Area (ha)', 'Mean index']],
+      body: [...live.healthRows].reverse().map(r => [
+        r.label.toUpperCase(),
+        `${r.pct.toFixed(1)}%`,
+        r.areaHa.toFixed(2),
+        formatReportIndexValue(r.meanIndex, live.activeLayerId),
+      ]),
+      styles: { font: 'helvetica', fontSize: 8.5, cellPadding: 5 },
+      headStyles: { fillColor: [21, 94, 50], textColor: 255, fontStyle: 'bold' },
+      alternateRowStyles: { fillColor: [248, 250, 252] },
+    });
+    y = (doc as any).lastAutoTable.finalY + 12;
+  }
+
+  if (live.landCover) {
+    y = pdfEnsureSpace(doc, y, margin, 48);
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(9.5);
+    doc.text('Land cover (pixel classes)', margin, y);
+    y += 12;
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(9);
+    y = pdfDrawParagraph(
+      doc,
+      pdfSafeText(
+        `Vegetation ${live.landCover.vegetationPct.toFixed(1)}% · Water ${live.landCover.waterPct.toFixed(1)}% · Urban ${live.landCover.urbanPct.toFixed(1)}% · Soil ${live.landCover.soilPct.toFixed(1)}%`,
+      ),
+      margin,
+      y,
+      textW,
+      bodyLh,
+      1,
+    );
+    y += 10;
+  }
+
+  const layerIds = Object.keys(live.indices) as StaticAoiChartLayerId[];
+  if (layerIds.length) {
+    y = pdfEnsureSpace(doc, y, margin, 80);
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(9.5);
+    doc.text('Spectral indices (AOI mean)', margin, y);
+    y += 12;
+    const fmt = (id: StaticAoiChartLayerId, v: number) => formatReportIndexValue(v, id);
+    autoTable(doc, {
+      startY: y,
+      margin: { left: margin, right: margin },
+      tableWidth: textW,
+      head: [['Index', 'Mean', 'Median', 'Min', 'Max', 'Std dev']],
+      body: layerIds
+        .map(id => {
+          const st = live.indices[id];
+          const label = STATIC_AOI_CHART_LAYER_OPTIONS.find(o => o.id === id)?.label ?? id;
+          if (!st) return null;
+          return [
+            label,
+            fmt(id, st.mean),
+            st.median != null ? fmt(id, st.median) : '—',
+            fmt(id, st.min),
+            fmt(id, st.max),
+            st.std != null ? fmt(id, st.std) : '—',
+          ];
+        })
+        .filter(Boolean) as string[][],
+      styles: { font: 'helvetica', fontSize: 8, cellPadding: 4 },
+      headStyles: { fillColor: [30, 64, 175], textColor: 255, fontStyle: 'bold' },
+    });
+    y = (doc as any).lastAutoTable.finalY + 10;
+  }
+
+  return y;
+}
+
 /**
- * Scientific GIS report — exactly 2 A4 pages:
- * Page 1: executive summary, class bars, table, stress note.
- * Page 2: AOI map (basemap + index layer) + legend + interpretation (Gemini when provided).
+ * Scientific GIS report:
+ * Page 1: executive summary, class bars, table.
+ * Page 2 (when available): Live layer analysis from raster pixels.
+ * Next page: AOI map (basemap + index layer) + interpretation.
  */
 async function buildAoiAnalysisPdfDocument(doc: jsPDF, report: SiAoiReportModel, opts: SiAoiPdfExportOptions) {
   const { drawPdfCartographerMapLayout, siPdfBoundsFromFeatureCollection } = await import('./siAoiReportCartography');
@@ -841,12 +979,18 @@ async function buildAoiAnalysisPdfDocument(doc: jsPDF, report: SiAoiReportModel,
   });
   y = (doc as any).lastAutoTable.finalY + 10;
 
+  const live = report.liveLayerAnalysis;
+  if (live?.dataSource === 'raster') {
+    doc.addPage();
+    appendLiveLayerAnalysisPdf(doc, live, margin);
+  }
+
   doc.addPage();
   y = margin;
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(11);
   doc.setTextColor(15, 23, 42);
-  doc.text('AOI map — index layer on live imagery', margin, y);
+  doc.text('AOI map — live Map Viewer snapshot', margin, y);
   y += 12;
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(8);

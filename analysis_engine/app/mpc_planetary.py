@@ -261,7 +261,7 @@ def process(req: MpcProcessRequest):
 
 # Optical indices sampled from the same Sentinel-2 stack (EPSG:4326 grid, AOI-clipped).
 _ZONAL_LAYER_ASSETS = ["B02", "B03", "B04", "B08", "B11"]
-_ZONAL_LAYER_IDS = ("NDVI", "NDWI", "NDMI", "EVI", "SAVI", "NDSI")
+_ZONAL_LAYER_IDS = ("NDVI", "NDWI", "NDMI", "EVI", "SAVI", "NDSI", "NDBI", "GNDVI")
 
 
 class MpcZonalSampleRequest(BaseModel):
@@ -305,7 +305,38 @@ def _metric_for_layer(layer_id: str, arr: xr.DataArray) -> xr.DataArray:
         green = arr.sel(band="B03")
         swir = arr.sel(band="B11")
         return (green - swir) / (green + swir + 1e-6)
+    if lid == "NDBI":
+        swir = arr.sel(band="B11")
+        nir = arr.sel(band="B08")
+        return (swir - nir) / (swir + nir + 1e-6)
+    if lid == "GNDVI":
+        nir = arr.sel(band="B08")
+        green = arr.sel(band="B03")
+        return (nir - green) / (nir + green + 1e-6)
     raise HTTPException(status_code=400, detail=f"Unsupported layer id for zonal sampling: {layer_id}")
+
+
+def _layer_statistics(values: List[float], histogram_bins: int = 24) -> Dict[str, Any]:
+    arr = np.array([float(v) for v in values if np.isfinite(v)], dtype=np.float64)
+    if arr.size == 0:
+        return {}
+    hist_counts, bin_edges = np.histogram(arr, bins=max(8, min(48, int(histogram_bins))))
+    histogram = [
+        {
+            "binStart": float(bin_edges[i]),
+            "binEnd": float(bin_edges[i + 1]),
+            "count": int(hist_counts[i]),
+        }
+        for i in range(len(hist_counts))
+    ]
+    return {
+        "min": float(np.min(arr)),
+        "max": float(np.max(arr)),
+        "mean": float(np.mean(arr)),
+        "median": float(np.median(arr)),
+        "std": float(np.std(arr)),
+        "histogram": histogram,
+    }
 
 
 def _extract_aligned_aoi_pixels(
@@ -360,6 +391,12 @@ def _extract_aligned_aoi_pixels(
         for lid in layer_ids:
             layers_out[lid].append(per_layer[lid][idx])
     return grid_out, layers_out
+
+
+@router.post("/live/analyze")
+def live_analyze(req: MpcZonalSampleRequest):
+    """Alias for AOI live spectral analysis — real pixels from STAC stack inside AOI."""
+    return zonal_sample(req)
 
 
 @router.post("/zonal-sample")
@@ -418,13 +455,9 @@ def zonal_sample(req: MpcZonalSampleRequest):
         values = [float(v) for v in raw if np.isfinite(v)]
         if not values:
             continue
+        stats = _layer_statistics(values)
         layers_out[lid] = {
-            "statistics": {
-                "min": float(np.min(values)),
-                "max": float(np.max(values)),
-                "mean": float(np.mean(values)),
-                "std": float(np.std(values)),
-            },
+            "statistics": stats,
             "values": [float(v) for v in raw],
         }
 

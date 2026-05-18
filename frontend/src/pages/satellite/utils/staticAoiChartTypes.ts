@@ -12,6 +12,8 @@ export type StaticAoiChartLayerId =
   | 'EVI'
   | 'SAVI'
   | 'NDSI'
+  | 'NDBI'
+  | 'GNDVI'
   | 'LST';
 
 export const STATIC_AOI_CHART_LAYER_OPTIONS: Array<{
@@ -26,6 +28,8 @@ export const STATIC_AOI_CHART_LAYER_OPTIONS: Array<{
   { id: 'SAVI', label: 'SAVI', subtitle: 'Soil-adjusted vegetation', range: [-1, 1] },
   { id: 'EVI', label: 'EVI', subtitle: 'Enhanced vegetation', range: [-1, 1] },
   { id: 'NDSI', label: 'NDSI', subtitle: 'Snow / bright surfaces', range: [-1, 1] },
+  { id: 'NDBI', label: 'NDBI', subtitle: 'Built-up / bare soil (SWIR–NIR)', range: [-1, 1] },
+  { id: 'GNDVI', label: 'GNDVI', subtitle: 'Green NDVI (NIR–green)', range: [-1, 1] },
   { id: 'LST', label: 'LST', subtitle: 'Land surface temperature (°C)', range: [15, 45] },
 ];
 

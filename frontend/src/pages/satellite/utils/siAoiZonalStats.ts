@@ -4,6 +4,7 @@
  */
 import { pointInPolygonGeometry } from '../drawingUtils';
 import type { MpcZonalSampleResult } from '../../../lib/mpcPlanetaryApi';
+import { computeLivePixelStatistics } from './liveAoiSpectralStats';
 import { staticAoiLayerMeanForWeek } from './staticAoiLayerSynthetic';
 import { STATIC_AOI_CHART_LAYER_OPTIONS } from './staticAoiChartTypes';
 import type { StaticAoiChartLayerId, WeeklyCompositeLite } from './staticAoiChartTypes';
@@ -13,8 +14,10 @@ const R_EARTH_M = 6371000;
 
 export type SiAoiZonalIndexStats = {
   mean: number;
+  median?: number;
   min: number;
   max: number;
+  std?: number;
   validCount: number;
 };
 
@@ -31,9 +34,12 @@ export type SiAoiZonalAnalytics = {
 };
 
 /** AOI-clipped raster pixels from analysis_engine `/mpc/zonal-sample`. */
+export type SiAoiRasterHistogramBin = { binStart: number; binEnd: number; count: number };
+
 export type SiAoiRasterPixelSample = {
   grid: AoiGridPoint[];
   layers: Partial<Record<StaticAoiChartLayerId, number[]>>;
+  histograms?: Partial<Record<StaticAoiChartLayerId, SiAoiRasterHistogramBin[]>>;
   areaHa: number;
   resolutionM: number | null;
 };
@@ -167,14 +173,15 @@ function cellKeyForPixel(aoiKey: string | null, lng: number, lat: number): strin
 }
 
 function statsFromValues(vals: number[]): SiAoiZonalIndexStats | null {
-  const finite = vals.filter(Number.isFinite);
-  if (!finite.length) return null;
-  const mean = finite.reduce((a, b) => a + b, 0) / finite.length;
+  const live = computeLivePixelStatistics(vals);
+  if (!live) return null;
   return {
-    mean,
-    min: Math.min(...finite),
-    max: Math.max(...finite),
-    validCount: finite.length,
+    mean: live.mean,
+    median: live.median,
+    min: live.min,
+    max: live.max,
+    std: live.std,
+    validCount: live.validCount,
   };
 }
 
@@ -185,15 +192,20 @@ export function mpcResultToRasterPixelSample(
   const grid = (result.grid ?? []).map(p => ({ lng: p.lng, lat: p.lat }));
   if (!grid.length) return null;
   const layers: Partial<Record<StaticAoiChartLayerId, number[]>> = {};
+  const histograms: Partial<Record<StaticAoiChartLayerId, SiAoiRasterHistogramBin[]>> = {};
   for (const id of layerIds) {
     const entry = result.layers?.[id];
     if (entry?.values?.length) layers[id] = entry.values;
+    if (entry?.statistics?.histogram?.length) {
+      histograms[id] = entry.statistics.histogram;
+    }
   }
   if (!Object.keys(layers).length) return null;
   const resM = result.processing?.resolution_m;
   return {
     grid,
     layers,
+    histograms,
     areaHa: Number.isFinite(result.area_ha) ? result.area_ha : 0,
     resolutionM: typeof resM === 'number' && Number.isFinite(resM) ? resM : null,
   };
@@ -412,8 +424,10 @@ export function inferStaticAoiChartLayerFromWmsName(layerName: string): StaticAo
   if (u.includes('NDMI') || u.includes('MOISTURE')) return 'NDMI';
   if (u.includes('EVI') && !u.includes('NEVI')) return 'EVI';
   if (u.includes('SAVI')) return 'SAVI';
+  if (u.includes('NDBI') || u.includes('URBAN')) return 'NDBI';
+  if (u.includes('GNDVI')) return 'GNDVI';
   if (u.includes('NDSI') || u.includes('SNOW')) return 'NDSI';
-  if (u.includes('NDVI') || u.includes('GNDVI') || u.includes('NDRE') || u.includes('NBR')) return 'NDVI';
+  if (u.includes('NDVI') || u.includes('NDRE') || u.includes('NBR')) return 'NDVI';
   return 'NDVI';
 }
 

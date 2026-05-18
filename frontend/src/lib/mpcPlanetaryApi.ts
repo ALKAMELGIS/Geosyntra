@@ -58,7 +58,14 @@ export async function mpcProcess(
 }
 
 export type MpcZonalSampleLayer = {
-  statistics: { min: number; max: number; mean: number; std: number };
+  statistics: {
+    min: number;
+    max: number;
+    mean: number;
+    median?: number;
+    std: number;
+    histogram?: Array<{ binStart: number; binEnd: number; count: number }>;
+  };
   values: number[];
 };
 

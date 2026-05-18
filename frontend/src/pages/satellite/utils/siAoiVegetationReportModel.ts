@@ -12,6 +12,7 @@ import {
   siThinLegendSegments,
 } from '../../../lib/siWmsIndexClassificationRamp';
 import type { SiPdfLngLatBounds } from './siAoiReportGeo';
+import type { SiAoiReportLiveAnalysisSnapshot } from './siAoiReportLiveAnalysisSnapshot';
 import {
   DEFAULT_SI_AOI_REPORT_STYLE_MODE,
   siAoiReportStyleModeInterpretationConfig,
@@ -144,6 +145,8 @@ export type SiAoiReportModel = {
     temporalComposite: 'median' | 'max';
     crsNote?: string;
   };
+  /** Frozen AOI-clipped raster analysis — sole source for Live Layer Analysis in preview/PDF. */
+  liveLayerAnalysis?: SiAoiReportLiveAnalysisSnapshot | null;
 };
 
 function pointInRing(lng: number, lat: number, ring: number[][]): boolean {

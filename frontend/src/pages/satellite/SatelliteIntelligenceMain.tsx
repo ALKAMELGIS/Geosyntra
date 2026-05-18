@@ -177,7 +177,6 @@ import {
 } from './components/SiAoiWorkspaceCardFooter';
 import { SiSentinelHubRasterLayers, type SiSentinelHubRasterRunLite } from './components/SiSentinelHubRasterLayers';
 import { SiMapNavigationGate } from './components/SiMapNavigationGate';
-import { SiMapProjectionToggle } from './components/SiMapProjectionToggle';
 import {
   applySiMapProjectionMode,
   applySiMapTerrain,
@@ -199,7 +198,7 @@ const SiGeoExplorerChatPanel = lazy(() =>
 import { SiGeoAiModelSettings } from './components/SiGeoAiModelSettings';
 import { SatelliteAoiStaticChartsMapOverlay } from './components/SatelliteAoiStaticChartsMapOverlay';
 import { SatelliteAoiLiveChartsMapOverlay } from './components/SatelliteAoiLiveChartsMapOverlay';
-import { buildLiveAoiMapChartSnapshot } from './utils/liveAoiMapChartSnapshot';
+import { useLiveAoiSpectralAnalysis } from './hooks/useLiveAoiSpectralAnalysis';
 const SiAoiReportModal = lazy(() =>
   import('./components/SiAoiReportModal').then(m => ({ default: m.SiAoiReportModal })),
 );
@@ -269,7 +268,14 @@ import {
   loadStoredSatelliteProviderId,
   persistSatelliteCollectionId,
 } from './utils/satellite/satellite-provider-manager';
-import { SiAoiZonalPopupBody } from './components/SiAoiZonalPopupBody';
+import { SiAoiLiveAnalysisPopup } from './components/SiAoiLiveAnalysisPopup';
+import type { LiveAoiAnalysisStatus } from './hooks/useLiveAoiSpectralAnalysis';
+import { setSiAoiReportAnalysisEntry } from './store/siAoiReportAnalysisStore';
+import {
+  buildSiAoiReportLiveAnalysisSnapshot,
+  siAoiReportLiveAnalysisFingerprint,
+} from './utils/siAoiReportLiveAnalysisSnapshot';
+import { ensureSiAoiReportLiveAnalysis } from './utils/ensureSiAoiReportLiveAnalysis';
 import { cn } from '../../lib/utils';
 import { SatelliteMapProcessingOptionsPortal } from './components/SatelliteMapProcessingOptionsPortal';
 import { SiGeoAiInspectPopupBody } from './components/SiGeoAiInspectPopupBody';
@@ -2734,14 +2740,8 @@ export default function SatelliteIntelligence() {
     () => clampSiViewStateForProjection(viewState, mapProjectionMode),
     [viewState, mapProjectionMode],
   );
-  const [siTerrainEnabled, setSiTerrainEnabled] = useState(() => loadStoredSiTerrainEnabled());
-  const [siTerrainExaggeration, setSiTerrainExaggeration] = useState(() => loadStoredSiTerrainExaggeration());
-  const siTerrainEnabledRef = useRef(siTerrainEnabled);
-  const siTerrainExaggerationRef = useRef(siTerrainExaggeration);
-  siTerrainEnabledRef.current = siTerrainEnabled;
-  siTerrainExaggerationRef.current = siTerrainExaggeration;
-  const [projectionToast, setProjectionToast] = useState('');
-  const projectionToastTimerRef = useRef<number | null>(null);
+  const siTerrainEnabledRef = useRef(loadStoredSiTerrainEnabled());
+  const siTerrainExaggerationRef = useRef(loadStoredSiTerrainExaggeration());
   const [cloudCoverage, setCloudCoverage] = useState(20);
   const [isTimelinePlaying, setIsTimelinePlaying] = useState(false);
   /** Set only when the user presses Play on the map timeline — blocks accidental auto-advance. */
@@ -2833,6 +2833,9 @@ export default function SatelliteIntelligence() {
   const [selectedMpcTemplateId, setSelectedMpcTemplateId] = useState<MpcTemplateId>('ndvi_s2');
   const [mpcProcessResult, setMpcProcessResult] = useState<MpcProcessResult | null>(null);
   const [mpcZonalRasterByAoiId, setMpcZonalRasterByAoiId] = useState<Record<string, SiAoiRasterPixelSample>>({});
+  const [mpcZonalFetchStatusByAoiId, setMpcZonalFetchStatusByAoiId] = useState<
+    Record<string, LiveAoiAnalysisStatus>
+  >({});
   const [mpcClipToAoi, setMpcClipToAoi] = useState(true);
   const [mpcTileSize, setMpcTileSize] = useState(1024);
   const [autoRunNdviOnScenePick, setAutoRunNdviOnScenePick] = useState(true);
@@ -4705,15 +4708,6 @@ export default function SatelliteIntelligence() {
     void importAoiDataSourceFile(siUploadStagedFile);
   };
 
-  const showProjectionToast = useCallback((message: string) => {
-    if (projectionToastTimerRef.current) window.clearTimeout(projectionToastTimerRef.current);
-    setProjectionToast(message);
-    projectionToastTimerRef.current = window.setTimeout(() => {
-      setProjectionToast('');
-      projectionToastTimerRef.current = null;
-    }, 2200);
-  }, []);
-
   const changeSiProjectionMode = useCallback(
     (mode: SiMapProjectionMode) => {
       if (mode === mapProjectionModeRef.current) return;
@@ -4736,8 +4730,6 @@ export default function SatelliteIntelligence() {
       } catch {
         /* ignore */
       }
-      showProjectionToast(mode === 'globe' ? '3D globe · terrain DEM enabled' : '2D map · north-up view');
-
       const mapInstance = mapRef.current?.getMap?.() ?? mapRef.current;
       if (!mapInstance) {
         window.setTimeout(() => {
@@ -4772,7 +4764,7 @@ export default function SatelliteIntelligence() {
         }, 720);
       }
     },
-    [showProjectionToast],
+    [],
   );
 
   const siSyncMapProjection = useCallback(() => {
@@ -4816,28 +4808,15 @@ export default function SatelliteIntelligence() {
   }, [siSyncMapProjection]);
 
   useEffect(() => {
-    try {
-      window.localStorage.setItem(SI_MAP_TERRAIN_ENABLED_LS, siTerrainEnabled ? '1' : '0');
-    } catch {
-      /* ignore */
-    }
     const map = mapRef.current?.getMap?.();
     if (map && mapProjectionModeRef.current === 'globe') {
       applySiMapTerrain(map, {
-        enabled: siTerrainEnabled,
-        exaggeration: siTerrainExaggeration,
+        enabled: siTerrainEnabledRef.current,
+        exaggeration: siTerrainExaggerationRef.current,
         buildings: true,
       });
     }
-  }, [siTerrainEnabled, siTerrainExaggeration, isMapLoaded]);
-
-  useEffect(() => {
-    try {
-      window.localStorage.setItem(SI_MAP_TERRAIN_EXAGGERATION_LS, String(siTerrainExaggeration));
-    } catch {
-      /* ignore */
-    }
-  }, [siTerrainExaggeration]);
+  }, [isMapLoaded]);
 
   const handleSelectWmsLayer = (layerName: string) => {
     setWmsLayer(current => (current === layerName ? '' : layerName));
@@ -10237,19 +10216,49 @@ export default function SatelliteIntelligence() {
     [popupZonalLayerIds],
   );
 
+  /** AOIs that receive MPC zonal sampling (workspace rows or lone drawn polygon). */
+  const mpcZonalSampleTargets = useMemo((): SiMultiAoiWorkspaceRow[] => {
+    if (multiAoiItems.length) return multiAoiItems;
+    const g = drawnGeometry?.geometry;
+    if (g && (g.type === 'Polygon' || g.type === 'MultiPolygon')) {
+      const iso = zonalStatsAnchorIso.slice(0, 10);
+      return [
+        {
+          id: '__drawn',
+          name: 'Current drawn AOI',
+          feature: drawnGeometry as GeoJSON.Feature,
+          source: 'drawn',
+          color: '#38bdf8',
+          sentinelTimeStart: iso,
+          sentinelTimeEnd: iso,
+        },
+      ];
+    }
+    return [];
+  }, [multiAoiItems, drawnGeometry, zonalStatsAnchorIso]);
+
   /** Raster pixel sampling (AOI-clipped) for popup metrics via analysis_engine. */
   useEffect(() => {
-    if (!effectiveAnalysisEngineBaseUrl || multiAoiItems.length === 0 || !mpcZonalApiLayerIds.length) {
+    if (!effectiveAnalysisEngineBaseUrl || mpcZonalSampleTargets.length === 0 || !mpcZonalApiLayerIds.length) {
       setMpcZonalRasterByAoiId({});
+      setMpcZonalFetchStatusByAoiId({});
       return;
     }
 
     let cancelled = false;
     const globalIso = zonalStatsAnchorIso;
     const activeLayerId = inferStaticAoiChartLayerFromWmsName(activeWmsLayer || '');
+    const loadingMap: Record<string, LiveAoiAnalysisStatus> = {};
+    for (const row of mpcZonalSampleTargets) {
+      const g = row.feature?.geometry;
+      if (g && (g.type === 'Polygon' || g.type === 'MultiPolygon')) loadingMap[row.id] = 'loading';
+    }
+    setMpcZonalFetchStatusByAoiId(loadingMap);
+
     void (async () => {
       const next: Record<string, SiAoiRasterPixelSample> = {};
-      for (const row of multiAoiItems) {
+      const statusNext: Record<string, LiveAoiAnalysisStatus> = { ...loadingMap };
+      for (const row of mpcZonalSampleTargets) {
         const g = row.feature?.geometry;
         if (!g || (g.type !== 'Polygon' && g.type !== 'MultiPolygon')) continue;
         const rowDate = (row.sentinelTimeEnd ?? row.sentinelTimeStart ?? globalIso).slice(0, 10);
@@ -10263,14 +10272,24 @@ export default function SatelliteIntelligence() {
             catalog_url: DEFAULT_MPC_CATALOG_URL,
             clip_to_aoi: true,
             max_cloud_cover: exploreUseCloudFilter ? exploreCloudCoverMax : undefined,
+            max_pixels: 9000,
+            resolution: 20,
           });
           const sample = mpcResultToRasterPixelSample(result, popupZonalLayerIds);
-          if (sample) next[row.id] = sample;
+          if (sample) {
+            next[row.id] = sample;
+            statusNext[row.id] = 'ready';
+          } else {
+            statusNext[row.id] = 'error';
+          }
         } catch {
-          /* keep prior sample or empty until next fetch */
+          statusNext[row.id] = 'error';
         }
       }
-      if (!cancelled) setMpcZonalRasterByAoiId(next);
+      if (!cancelled) {
+        setMpcZonalRasterByAoiId(next);
+        setMpcZonalFetchStatusByAoiId(statusNext);
+      }
     })();
 
     return () => {
@@ -10278,7 +10297,7 @@ export default function SatelliteIntelligence() {
     };
   }, [
     effectiveAnalysisEngineBaseUrl,
-    multiAoiItems,
+    mpcZonalSampleTargets,
     zonalStatsAnchorIso,
     weeklyComposites,
     popupZonalLayerIds,
@@ -10286,6 +10305,7 @@ export default function SatelliteIntelligence() {
     activeWmsLayer,
     exploreUseCloudFilter,
     exploreCloudCoverMax,
+    wmsDate,
   ]);
 
   /** Zonal pixel stats for workspace AOI popups (raster inside AOI when backend available). */
@@ -10317,7 +10337,9 @@ export default function SatelliteIntelligence() {
         rasterSample,
         allowSyntheticFallback: !effectiveAnalysisEngineBaseUrl,
       });
-      if (analytics) m.set(row.id, analytics);
+      if (analytics && (!effectiveAnalysisEngineBaseUrl || analytics.dataSource === 'raster')) {
+        m.set(row.id, analytics);
+      }
     }
     return m;
   }, [
@@ -10357,7 +10379,9 @@ export default function SatelliteIntelligence() {
         rasterSample,
         allowSyntheticFallback: !effectiveAnalysisEngineBaseUrl,
       });
-      if (health) m.set(row.id, health);
+      if (health && (!effectiveAnalysisEngineBaseUrl || rasterSample)) {
+        m.set(row.id, health);
+      }
     }
     return m;
   }, [
@@ -11186,38 +11210,139 @@ export default function SatelliteIntelligence() {
 
   const mapStaticChartsTimelineMode = fieldTimelineSessionActive && weeklyComposites.length > 0;
 
-  const liveAoiMapChartSnapshot = useMemo(() => {
-    if (!mapStaticChartsOpen || mapStaticChartsTimelineMode) return null;
-    const analysisIso =
+  const liveAoiAnalysisDateIso = useMemo(
+    () =>
       (typeof wmsDate === 'string' && wmsDate.slice(0, 10)) ||
       zonalStatsAnchorIso.slice(0, 10) ||
-      dateToTimelineIso(selectedDate)!;
-    return buildLiveAoiMapChartSnapshot({
-      feature: staticAoiChartFeature,
-      aoiKey: staticAoiChartAoiKey,
-      activeWmsLayer: activeWmsLayer || '',
-      selectedIndex: String(selectedIndex ?? 'NDVI'),
-      analysisDateIso: analysisIso,
-      aoiHeatPointGeoJson: aoiHeatPointGeoJson as GeoJSON.FeatureCollection | null | undefined,
-      savedFields: savedFields.map(f => ({ id: f.id, name: f.name, geometry: f.geometry })),
-      aoiFields: aoiFields.map(f => ({ id: f.id, name: f.name, geometry: f.geometry })),
-      drawnGeometry,
-    });
-  }, [
-    mapStaticChartsOpen,
-    mapStaticChartsTimelineMode,
-    staticAoiChartFeature,
-    staticAoiChartAoiKey,
-    activeWmsLayer,
-    selectedIndex,
-    wmsDate,
-    zonalStatsAnchorIso,
-    selectedDate,
-    aoiHeatPointGeoJson,
-    savedFields,
-    aoiFields,
+      dateToTimelineIso(selectedDate)!,
+    [wmsDate, zonalStatsAnchorIso, selectedDate],
+  );
+
+  const liveAoiSpectral = useLiveAoiSpectralAnalysis({
+    enabled: mapStaticChartsOpen && !mapStaticChartsTimelineMode && !!staticAoiChartFeature,
+    analysisEngineBaseUrl: effectiveAnalysisEngineBaseUrl,
+    feature: staticAoiChartFeature,
+    aoiKey: staticAoiChartAoiKey,
+    activeWmsLayer: activeWmsLayer || '',
+    selectedIndex: String(selectedIndex ?? 'NDVI'),
+    analysisDateIso: liveAoiAnalysisDateIso,
+    weeklyComposites,
+    layerIds: popupZonalLayerIds,
+    catalogUrl: DEFAULT_MPC_CATALOG_URL,
+    maxCloudCover: exploreUseCloudFilter ? exploreCloudCoverMax : undefined,
+    savedFields: savedFields.map(f => ({ id: f.id, name: f.name, geometry: f.geometry })),
+    aoiFields: aoiFields.map(f => ({ id: f.id, name: f.name, geometry: f.geometry })),
     drawnGeometry,
+  });
+
+  const liveAoiMapChartSnapshot = liveAoiSpectral.snapshot;
+
+  /** Mirror MPC raster results into the persistent report analysis store. */
+  useEffect(() => {
+    const activeLayerId = inferStaticAoiChartLayerFromWmsName(activeWmsLayer || '');
+    if (!effectiveAnalysisEngineBaseUrl) {
+      for (const row of mpcZonalSampleTargets) {
+        setSiAoiReportAnalysisEntry(row.id, {
+          aoiName: row.name,
+          status: 'unavailable',
+          snapshot: null,
+          errorMessage: 'Set VITE_ANALYSIS_ENGINE_URL for live raster analysis.',
+          fingerprint: '',
+        });
+      }
+      return;
+    }
+    for (const row of mpcZonalSampleTargets) {
+      const g = row.feature?.geometry;
+      if (!g || (g.type !== 'Polygon' && g.type !== 'MultiPolygon')) continue;
+      const fingerprint = siAoiReportLiveAnalysisFingerprint({
+        feature: row.feature,
+        analysisDateIso: liveAoiAnalysisDateIso,
+        layerIds: popupZonalLayerIds,
+      });
+      const status = mpcZonalFetchStatusByAoiId[row.id] ?? 'idle';
+      const raster = mpcZonalRasterByAoiId[row.id];
+      if (status === 'loading') {
+        setSiAoiReportAnalysisEntry(row.id, {
+          aoiName: row.name,
+          status: 'loading',
+          snapshot: null,
+          errorMessage: null,
+          fingerprint,
+        });
+        continue;
+      }
+      if (raster) {
+        const snap = buildSiAoiReportLiveAnalysisSnapshot({
+          aoiId: row.id,
+          aoiName: row.name,
+          feature: row.feature,
+          rasterSample: raster,
+          activeLayerId,
+          analysisDateIso: liveAoiAnalysisDateIso,
+          layerIds: popupZonalLayerIds,
+        });
+        setSiAoiReportAnalysisEntry(row.id, {
+          aoiName: row.name,
+          status: snap ? 'ready' : 'error',
+          snapshot: snap,
+          errorMessage: snap ? null : 'Could not build live analysis from raster pixels.',
+          fingerprint,
+        });
+        continue;
+      }
+      if (status === 'error') {
+        setSiAoiReportAnalysisEntry(row.id, {
+          aoiName: row.name,
+          status: 'error',
+          snapshot: null,
+          errorMessage: 'Raster sampling failed for this AOI.',
+          fingerprint,
+        });
+      }
+    }
+  }, [
+    effectiveAnalysisEngineBaseUrl,
+    mpcZonalSampleTargets,
+    mpcZonalRasterByAoiId,
+    mpcZonalFetchStatusByAoiId,
+    liveAoiAnalysisDateIso,
+    popupZonalLayerIds,
+    activeWmsLayer,
   ]);
+
+  const ensureLiveLayerAnalysisForReport = useCallback(
+    async (opts: {
+      aoiId: string;
+      aoiName: string;
+      feature: GeoJSON.Feature;
+      indexId: StaticAoiChartLayerId;
+    }) =>
+      ensureSiAoiReportLiveAnalysis({
+        aoiId: opts.aoiId,
+        aoiName: opts.aoiName,
+        feature: opts.feature,
+        indexId: opts.indexId,
+        activeWmsLayer: activeWmsLayer || '',
+        analysisDateIso: liveAoiAnalysisDateIso,
+        analysisEngineBaseUrl: effectiveAnalysisEngineBaseUrl,
+        layerIds: popupZonalLayerIds,
+        weeklyComposites,
+        catalogUrl: DEFAULT_MPC_CATALOG_URL,
+        maxCloudCover: exploreUseCloudFilter ? exploreCloudCoverMax : undefined,
+        allowFetch: true,
+        waitTimeoutMs: 120_000,
+      }),
+    [
+      activeWmsLayer,
+      liveAoiAnalysisDateIso,
+      effectiveAnalysisEngineBaseUrl,
+      popupZonalLayerIds,
+      weeklyComposites,
+      exploreUseCloudFilter,
+      exploreCloudCoverMax,
+    ],
+  );
 
   const staticAoiSpectralProfile = useMemo(() => {
     const fc = aoiHeatPointGeoJson as GeoJSON.FeatureCollection | null | undefined;
@@ -12510,11 +12635,17 @@ export default function SatelliteIntelligence() {
                 const g = row.feature?.geometry as SavedField['geometry'] | undefined;
                 const zonal = multiAoiZonalById.get(row.id);
                 const indexHealth = multiAoiIndexHealthById.get(row.id) ?? null;
-                const areaHa = zonal?.areaHa ?? (g ? geodesicAreaHectares(g) : 0);
+                const rasterSample = mpcZonalRasterByAoiId[row.id] ?? null;
+                const fetchStatus =
+                  mpcZonalFetchStatusByAoiId[row.id] ??
+                  (effectiveAnalysisEngineBaseUrl ? 'loading' : 'unavailable');
+                const activeLayerId = inferStaticAoiChartLayerFromWmsName(activeWmsLayer || '');
+                const areaHa =
+                  zonal?.areaHa ?? rasterSample?.areaHa ?? (g ? geodesicAreaHectares(g) : 0);
                 return (
                   <Marker key={`si-multi-aoi-popup-${pid}`} longitude={c[0]} latitude={c[1]} anchor="bottom">
                     <motion.div
-                      className="si-multi-aoi-popup"
+                      className="si-multi-aoi-popup si-multi-aoi-popup--live"
                       onClick={e => e.stopPropagation()}
                       onPointerDown={e => e.stopPropagation()}
                       initial={{ opacity: 0, y: 8, scale: 0.98 }}
@@ -12538,10 +12669,21 @@ export default function SatelliteIntelligence() {
                         aria-label="AOI analysis details"
                         onWheel={e => e.stopPropagation()}
                       >
-                        <SiAoiZonalPopupBody
+                        <SiAoiLiveAnalysisPopup
                           analytics={zonal ?? null}
                           indexHealth={indexHealth}
-                          highlightLayers={['NDVI', 'NDWI', 'SAVI']}
+                          rasterSample={rasterSample}
+                          feature={row.feature}
+                          activeLayerId={activeLayerId}
+                          status={fetchStatus}
+                          error={
+                            fetchStatus === 'error'
+                              ? 'Could not sample pixels for this AOI and date.'
+                              : fetchStatus === 'unavailable'
+                                ? 'Set VITE_ANALYSIS_ENGINE_URL for real pixel analysis.'
+                                : null
+                          }
+                          highlightLayerIds={popupZonalLayerIds}
                           areaDisplay={<SiAoiAreaHaSqm ha={areaHa} />}
                         />
                       </div>
@@ -12647,15 +12789,6 @@ export default function SatelliteIntelligence() {
               </Marker>
             ))}
 
-            <SiMapProjectionToggle
-              mode={mapProjectionMode}
-              onModeChange={changeSiProjectionMode}
-              terrainEnabled={siTerrainEnabled}
-              onTerrainEnabledChange={setSiTerrainEnabled}
-              terrainExaggeration={siTerrainExaggeration}
-              onTerrainExaggerationChange={setSiTerrainExaggeration}
-              toast={projectionToast || null}
-            />
             <SiMapNavigationGate isMapLoaded={isMapLoaded} />
     </>
   );
@@ -12951,6 +13084,10 @@ export default function SatelliteIntelligence() {
               onClose={() => setMapStaticChartsOpen(false)}
               snapshot={liveAoiMapChartSnapshot}
               indexLabel={selectedIndexConfig.label}
+              status={liveAoiSpectral.status}
+              error={liveAoiSpectral.error}
+              pixelCount={liveAoiSpectral.pixelCount}
+              confidencePct={liveAoiSpectral.confidencePct}
             />
           ) : null}
 
@@ -13329,6 +13466,7 @@ export default function SatelliteIntelligence() {
                 classificationPalette={siAoiPaletteFromIndexRampStops(symStopsForWmsLayerId(activeWmsLayer || '') ?? undefined)}
                 captureLiveMapSnapshot={captureLiveMapSnapshot}
                 satelliteProviderLabel={satelliteProviderLabel}
+                ensureLiveLayerAnalysis={ensureLiveLayerAnalysisForReport}
               />
             </Suspense>
           ) : null}

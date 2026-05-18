@@ -41,6 +41,9 @@ import {
 } from '../utils/siAoiReportSlotMapRender';
 import { SiAoiReportDataInsightsSection } from './SiAoiReportDataInsights';
 import { SiAoiReportPixelScatterBlock } from './SiAoiReportPixelScatterBlock';
+import { SiAoiReportLiveLayerAnalysisSection } from './SiAoiReportLiveLayerAnalysisSection';
+import type { SiAoiReportLiveAnalysisSnapshot } from '../utils/siAoiReportLiveAnalysisSnapshot';
+import { getSiAoiReportAnalysisEntry } from '../store/siAoiReportAnalysisStore';
 import './SiAoiReportModal.css';
 
 /** Upscale canvas for sharper PDF raster (viewer scales down; avoids soft chart export). */
@@ -270,6 +273,13 @@ export type SiAoiReportModalProps = {
   captureLiveMapSnapshot?: SiLiveMapSnapshotCapture;
   /** Active satellite provider label for PDF / Excel / metadata. */
   satelliteProviderLabel?: string;
+  /** Persisted raster analysis for report preview + PDF (central store / MPC). */
+  ensureLiveLayerAnalysis?: (opts: {
+    aoiId: string;
+    aoiName: string;
+    feature: GeoJSON.Feature;
+    indexId: StaticAoiChartLayerId;
+  }) => Promise<SiAoiReportLiveAnalysisSnapshot | null>;
 };
 
 export function SiAoiReportModal({
@@ -287,6 +297,7 @@ export function SiAoiReportModal({
   classificationPalette: classificationPaletteProp,
   captureLiveMapSnapshot,
   satelliteProviderLabel,
+  ensureLiveLayerAnalysis,
 }: SiAoiReportModalProps) {
   const geminiApiKey = useGeminiApiKey();
   const [geminiSummary, setGeminiSummary] = useState<string | null>(null);
@@ -329,6 +340,8 @@ export function SiAoiReportModal({
   }, [changeSlotSnapshots]);
   const [analysisLiveSnapshot, setAnalysisLiveSnapshot] = useState<string | null>(null);
   const [analysisSnapshotLoading, setAnalysisSnapshotLoading] = useState(false);
+  const [liveLayerAnalysisLoading, setLiveLayerAnalysisLoading] = useState(false);
+  const [liveLayerAnalysisError, setLiveLayerAnalysisError] = useState<string | null>(null);
   const mapOk = Boolean(mapboxToken?.trim());
   const liveMapCaptureOk = Boolean(captureLiveMapSnapshot);
 
@@ -358,6 +371,8 @@ export function SiAoiReportModal({
     changeCaptureInFlightRef.current = false;
     setAnalysisLiveSnapshot(null);
     setAnalysisSnapshotLoading(false);
+    setLiveLayerAnalysisLoading(false);
+    setLiveLayerAnalysisError(null);
     lastBuildInputRef.current = null;
   }, [open, timeSeriesStart, timeSeriesEnd, defaultIndexId, preferredAoiId, aoiOptions, defaultCloudCoverPct]);
 
@@ -463,24 +478,54 @@ export function SiAoiReportModal({
       reportStyleMode,
     };
     lastBuildInputRef.current = snap;
-    const built = buildSiAoiVegetationReport({
-      ...snap,
-      legendBandCount,
-      reportStyleMode,
-    });
-    if (!built) {
-      setErr('AOI geometry must be a Polygon or MultiPolygon.');
-      return;
-    }
-    setReport(built);
-    setReportView('analysis');
-    setStep('preview');
-    window.requestAnimationFrame(() => {
-      window.requestAnimationFrame(() => {
-        void prefetchAnalysisSnapshot(built);
-        void prefetchChangeDetectionRef.current?.(built);
+    setLiveLayerAnalysisLoading(true);
+    setLiveLayerAnalysisError(null);
+    void (async () => {
+      let liveLayerAnalysis: SiAoiReportLiveAnalysisSnapshot | null = null;
+      if (ensureLiveLayerAnalysis) {
+        try {
+          liveLayerAnalysis = await ensureLiveLayerAnalysis({
+            aoiId: selectedAoiId,
+            aoiName: selectedName || 'AOI',
+            feature: aoiFeature,
+            indexId,
+          });
+          if (!liveLayerAnalysis) {
+            const entry = getSiAoiReportAnalysisEntry(selectedAoiId);
+            setLiveLayerAnalysisError(
+              entry?.errorMessage ||
+                'Live raster analysis is not ready. Wait for pixel sampling on the map, then try again.',
+            );
+          }
+        } catch (e) {
+          setLiveLayerAnalysisError((e as Error)?.message ?? 'Live layer analysis failed.');
+        }
+      } else {
+        setLiveLayerAnalysisError('Live analysis pipeline is not connected to this view.');
+      }
+
+      const built = buildSiAoiVegetationReport({
+        ...snap,
+        legendBandCount,
+        reportStyleMode,
       });
-    });
+      if (!built) {
+        setErr('AOI geometry must be a Polygon or MultiPolygon.');
+        setLiveLayerAnalysisLoading(false);
+        return;
+      }
+      built.liveLayerAnalysis = liveLayerAnalysis;
+      setReport(built);
+      setReportView('analysis');
+      setStep('preview');
+      setLiveLayerAnalysisLoading(false);
+      window.requestAnimationFrame(() => {
+        window.requestAnimationFrame(() => {
+          void prefetchAnalysisSnapshot(built);
+          void prefetchChangeDetectionRef.current?.(built);
+        });
+      });
+    })();
   }, [
     weeklyComposites,
     indexId,
@@ -488,6 +533,7 @@ export function SiAoiReportModal({
     dateEnd,
     selectedFeature,
     selectedName,
+    selectedAoiId,
     cloudCoverMaxPct,
     temporalComposite,
     classificationPaletteProp,
@@ -495,6 +541,7 @@ export function SiAoiReportModal({
     satelliteProviderLabel,
     reportStyleMode,
     prefetchAnalysisSnapshot,
+    ensureLiveLayerAnalysis,
   ]);
 
   const applyReportStyleMode = useCallback(
@@ -818,7 +865,19 @@ export function SiAoiReportModal({
     await new Promise<void>(r => requestAnimationFrame(() => r()));
     await sleep(80);
 
+    let reportForExport = report;
+
     try {
+      if (mode === 'AOI_ANALYSIS' && ensureLiveLayerAnalysis && selectedFeature) {
+        const live = await ensureLiveLayerAnalysis({
+          aoiId: selectedAoiId,
+          aoiName: selectedName || report.aoiName,
+          feature: selectedFeature,
+          indexId: report.indexId,
+        });
+        reportForExport = { ...report, liveLayerAnalysis: live ?? report.liveLayerAnalysis ?? null };
+        if (live) setReport(reportForExport);
+      }
       if (mapOk && mode === 'AOI_ANALYSIS' && !liveMapCaptureOk) {
         setReportView('analysis');
         await sleep(550);
@@ -949,7 +1008,7 @@ export function SiAoiReportModal({
       }
 
       if (format === 'pdf') {
-        await exportSiAoiVegetationReportPdf(report, {
+        await exportSiAoiVegetationReportPdf(reportForExport, {
           mode,
           chartImageDataUrl,
           aoiMapImageDataUrl,
@@ -957,16 +1016,16 @@ export function SiAoiReportModal({
           changeSlotMapImageDataUrls,
           executiveSummaryAi: geminiSummary?.trim() || undefined,
           interpretationPoints,
-          reportStyleMode: report.reportStyleMode,
+          reportStyleMode: reportForExport.reportStyleMode,
         });
       } else {
-        await exportSiAoiVegetationReportDocx(report, {
+        await exportSiAoiVegetationReportDocx(reportForExport, {
           mode,
           chartImageDataUrl,
           aoiMapImageDataUrl,
           changeSlotMapImageDataUrls,
           executiveSummaryAi: geminiSummary?.trim() || undefined,
-          reportStyleMode: report.reportStyleMode,
+          reportStyleMode: reportForExport.reportStyleMode,
         });
       }
     } catch (e) {
@@ -993,6 +1052,10 @@ export function SiAoiReportModal({
     captureLiveMapSnapshot,
     captureAllChangeSnapshots,
     liveSnapshotAoiOpts,
+    ensureLiveLayerAnalysis,
+    selectedFeature,
+    selectedAoiId,
+    selectedName,
   ]);
 
   if (!open) return null;
@@ -1107,7 +1170,12 @@ export function SiAoiReportModal({
               </div>
               {err ? <p className="si-aoi-report-err">{err}</p> : null}
               <div className="si-aoi-report-actions">
-                <button type="button" className="si-aoi-report-btn" onClick={onGenerate} disabled={!aoiOptions.length}>
+                <button
+                  type="button"
+                  className="si-aoi-report-btn"
+                  onClick={onGenerate}
+                  disabled={!aoiOptions.length || liveLayerAnalysisLoading}
+                >
                   Generate report
                 </button>
                 <button type="button" className="si-aoi-report-btn si-aoi-report-btn--ghost" onClick={onClose}>
@@ -1227,6 +1295,12 @@ export function SiAoiReportModal({
                 </>
               ) : (
                 <>
+                  <SiAoiReportLiveLayerAnalysisSection
+                    snapshot={report.liveLayerAnalysis ?? null}
+                    loading={liveLayerAnalysisLoading}
+                    error={liveLayerAnalysisError}
+                  />
+
                   <div className="si-aoi-report-card">
                     <h3>Scientific analysis</h3>
                     <p className="si-aoi-report-analysis">{report.analysisEn}</p>
@@ -1482,6 +1556,10 @@ export function SiAoiReportModal({
                     <li>Health classification table with crisp borders</li>
                     <li>Index timeline chart (raster) and AOI map snapshot when captured</li>
                     <li>
+                      <strong>Live layer analysis</strong> page from AOI-clipped Sentinel-2 pixels (mean, tertiles, land
+                      cover, spectral indices)
+                    </li>
+                    <li>
                       AOI basemap + classification snapshot; export briefly opens the <strong>AOI analysis</strong> tab so
                       the map canvas is ready
                     </li>
@@ -1524,7 +1602,9 @@ export function SiAoiReportModal({
                 Preparing {(exportUi.format ?? 'pdf') === 'docx' ? 'Word document' : 'PDF'}
               </p>
               <p className="si-aoi-report-export-busy__sub">
-                Composing {exportUi.mode === 'AOI_ANALYSIS' ? 'AOI analysis' : 'time series change detection'} layout…
+                {exportUi.mode === 'AOI_ANALYSIS'
+                  ? 'Awaiting live raster analysis and composing AOI layout…'
+                  : 'Composing time series change detection layout…'}
               </p>
             </div>
           </div>
