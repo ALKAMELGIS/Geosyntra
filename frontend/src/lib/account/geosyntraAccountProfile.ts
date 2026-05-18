@@ -8,6 +8,10 @@ export const GEOSYNTRA_ACCOUNT_PROFILE_V2_KEY = 'geosyntra_account_profile_v2'
 
 export type GeosyntraAccountProfileV2 = {
   avatarDataUrl?: string
+  /** Cover banner (data URL), stored per account. */
+  coverDataUrl?: string
+  /** Vertical focal point for cover crop (0 = top, 100 = bottom). */
+  coverPositionY?: number
   updatedAt?: string
 }
 
@@ -91,4 +95,30 @@ export async function imageFileToAvatarDataUrl(file: File): Promise<string> {
   ctx.drawImage(bitmap, 0, 0, w, h)
   bitmap.close?.()
   return canvas.toDataURL('image/jpeg', 0.88)
+}
+
+const MAX_COVER_BYTES = 3 * 1024 * 1024
+const COVER_MAX_WIDTH = 1600
+const COVER_MAX_HEIGHT = 480
+
+/** Resize and encode cover banner for local profile storage. */
+export async function imageFileToCoverDataUrl(file: File): Promise<string> {
+  if (!file.type.startsWith('image/')) {
+    throw new Error('Please choose an image file (PNG, JPG, or WebP).')
+  }
+  if (file.size > MAX_COVER_BYTES) {
+    throw new Error('Cover image must be under 3 MB.')
+  }
+  const bitmap = await createImageBitmap(file)
+  const ratio = Math.min(1, COVER_MAX_WIDTH / bitmap.width, COVER_MAX_HEIGHT / bitmap.height)
+  const w = Math.max(1, Math.round(bitmap.width * ratio))
+  const h = Math.max(1, Math.round(bitmap.height * ratio))
+  const canvas = document.createElement('canvas')
+  canvas.width = w
+  canvas.height = h
+  const ctx = canvas.getContext('2d')
+  if (!ctx) throw new Error('Could not process image.')
+  ctx.drawImage(bitmap, 0, 0, w, h)
+  bitmap.close?.()
+  return canvas.toDataURL('image/jpeg', 0.86)
 }

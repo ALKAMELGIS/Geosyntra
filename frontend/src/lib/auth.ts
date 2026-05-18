@@ -1,4 +1,5 @@
 import { ALL_GEO_PERMISSIONS, hasGeoCapability, type GeoPermission } from './geoEnterpriseUserModel'
+import { rbacHasPermission } from './rbacPermissions'
 import type { CurrentUser, Role } from './authTypes'
 import { normalizeEmail, normalizeRole } from './authTypes'
 
@@ -10,9 +11,26 @@ const SESSION_TTL_MS = 1000 * 60 * 60 * 24 * 30
 
 type StoredSessionEnvelope = {
   token: string
+  accessToken?: string
   issuedAt: string
   expiresAt?: string
   user: CurrentUser
+}
+
+function readEnvelope(): StoredSessionEnvelope | null {
+  try {
+    const raw = readRawSessionOrLocal()
+    if (!raw) return null
+    return JSON.parse(raw) as StoredSessionEnvelope
+  } catch {
+    return null
+  }
+}
+
+export const readAccessToken = (): string | null => {
+  const env = readEnvelope()
+  const t = env?.accessToken
+  return typeof t === 'string' && t.trim() ? t.trim() : null
 }
 
 function readRawSessionOrLocal(): string | null {
@@ -52,6 +70,9 @@ function parseCurrentUser(raw: string | null): CurrentUser | null {
       name: String(obj.name ?? email),
       email,
       role: typeof obj.role === 'string' ? obj.role : normalizeRole(obj.role),
+      roleSlug: typeof obj.roleSlug === 'string' ? obj.roleSlug : undefined,
+      status: typeof obj.status === 'string' ? obj.status : undefined,
+      permissions: Array.isArray(obj.permissions) ? (obj.permissions as string[]) : undefined,
       scope: typeof obj.scope === 'string' && obj.scope.trim() ? obj.scope.trim() : undefined,
       managedById: typeof obj.managedById === 'number' ? obj.managedById : undefined,
     }
@@ -67,6 +88,8 @@ export type StartSessionOptions = {
   persist?: boolean
   /** Optional persistent session duration in milliseconds. */
   persistTtlMs?: number
+  /** JWT from API login (sent as Authorization: Bearer). */
+  accessToken?: string
 }
 
 export const startSession = (user: Partial<CurrentUser> | null, options?: StartSessionOptions): void => {
@@ -81,7 +104,10 @@ export const startSession = (user: Partial<CurrentUser> | null, options?: StartS
         id: typeof user.id === 'number' ? user.id : existing?.id ?? Date.now(),
         name: typeof user.name === 'string' && user.name.trim() ? user.name.trim() : existing?.name ?? 'User',
         email: typeof user.email === 'string' ? user.email.trim() : existing?.email ?? '',
-        role: typeof user.role === 'string' ? user.role : existing?.role ?? 'Viewer',
+        role: typeof user.role === 'string' ? user.role : existing?.role ?? 'User',
+        roleSlug: typeof user.roleSlug === 'string' ? user.roleSlug : existing?.roleSlug,
+        status: typeof user.status === 'string' ? user.status : existing?.status,
+        permissions: Array.isArray(user.permissions) ? user.permissions : existing?.permissions,
         scope: typeof user.scope === 'string' && user.scope.trim() ? user.scope.trim() : existing?.scope,
         managedById: typeof user.managedById === 'number' ? user.managedById : existing?.managedById,
       }
@@ -93,10 +119,12 @@ export const startSession = (user: Partial<CurrentUser> | null, options?: StartS
       const ttl = Math.max(1000 * 60, Number(options?.persistTtlMs || SESSION_TTL_MS))
       const envelope: StoredSessionEnvelope = {
         token: sessionToken,
+        accessToken: options?.accessToken ?? readAccessToken() ?? undefined,
         issuedAt: new Date(now).toISOString(),
         expiresAt: persist ? new Date(now + ttl).toISOString() : undefined,
         user: merged,
       }
+      if (options?.accessToken) envelope.accessToken = options.accessToken
       const json = JSON.stringify(envelope)
       if (persist) {
         localStorage.setItem(CURRENT_USER_KEY, json)
@@ -114,25 +142,37 @@ export const startSession = (user: Partial<CurrentUser> | null, options?: StartS
 
 const GEO_PERMISSION_SET = new Set<string>(ALL_GEO_PERMISSIONS)
 
-const roleAllows = (role: Role, permission: string): boolean => {
-  if (role === 'Admin') return true
+const legacyRoleAllows = (role: Role, permission: string): boolean => {
+  if (role === 'Super Admin' || role === 'Admin') return true
   if (permission === 'dataSource.update') return role === 'Manager'
   if (permission === 'admin.users.manage') {
+    return role === 'Manager' || role === 'Admin Manager' || role === 'Analyst'
+  }
+  if (permission === 'admin.panel') {
     return role === 'Manager' || role === 'Admin Manager' || role === 'Analyst'
   }
   return false
 }
 
-export const hasPermission = (permission: string, roleValue: unknown): boolean => {
+export const hasPermission = (permission: string, roleValue: unknown, serverPermissions?: string[]): boolean => {
   if (GEO_PERMISSION_SET.has(permission)) {
     return hasGeoCapability(permission as GeoPermission, roleValue)
   }
+  if (permission.startsWith('admin.')) {
+    return rbacHasPermission(permission, roleValue, serverPermissions)
+  }
   const role = normalizeRole(roleValue)
-  return roleAllows(role, permission)
+  return legacyRoleAllows(role, permission) || rbacHasPermission(permission, roleValue, serverPermissions)
+}
+
+export const currentUserHasPermission = (permission: string): boolean => {
+  const user = readCurrentUser()
+  if (!user) return false
+  return hasPermission(permission, user.role, user.permissions)
 }
 
 export const canManageDataSourceSettings = (): boolean => {
   const user = readCurrentUser()
   const role = normalizeRole(user?.role)
-  return role === 'Admin' || role === 'Manager'
+  return role === 'Super Admin' || role === 'Admin' || role === 'Manager'
 }

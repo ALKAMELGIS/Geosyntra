@@ -10,6 +10,12 @@ export function formatProfileDate(iso: string | undefined): string {
   }
 }
 
+export function profileUsernameFromEmail(email: string): string {
+  const local = (email.split('@')[0] ?? 'user').trim().toLowerCase()
+  const safe = local.replace(/[^a-z0-9._-]/g, '')
+  return safe || 'user'
+}
+
 export function formatRelative(iso: string): string {
   try {
     const diff = Date.now() - new Date(iso).getTime()

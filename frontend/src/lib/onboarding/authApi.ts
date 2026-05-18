@@ -3,7 +3,10 @@ export type PublicAuthUser = {
   name: string
   email: string
   role: string
+  roleSlug?: string
+  status?: string
   emailVerified: boolean
+  permissions?: string[]
 }
 
 function authApiBase(): string {
@@ -85,16 +88,27 @@ export async function apiRegister(input: {
 export async function apiLogin(input: {
   email: string
   password: string
-}): Promise<{ ok: true; user: PublicAuthUser } | { ok: false; error: string; needsVerification?: boolean }> {
+}): Promise<
+  | { ok: true; user: PublicAuthUser; accessToken?: string }
+  | { ok: false; error: string; needsVerification?: boolean; pendingApproval?: boolean }
+> {
   const { ok, status, data } = await authFetch<{
     ok?: boolean
     user?: PublicAuthUser
+    accessToken?: string
     error?: string
     message?: string
   }>('/api/auth/login', { method: 'POST', body: JSON.stringify(input) })
 
   if (ok && data.ok && data.user) {
-    return { ok: true, user: data.user }
+    return { ok: true, user: data.user, accessToken: data.accessToken }
+  }
+  if (status === 403 && data.error === 'pending_approval') {
+    return {
+      ok: false,
+      pendingApproval: true,
+      error: data.message || 'Your account is awaiting administrator approval.',
+    }
   }
   if (status === 403 || data.error === 'email_not_verified') {
     return {
@@ -142,16 +156,24 @@ export async function apiResendVerification(email: string): Promise<
 }
 
 export async function apiVerifyEmail(token: string): Promise<
-  { ok: true; user: PublicAuthUser } | { ok: false; error: string; expired?: boolean }
+  | { ok: true; user: PublicAuthUser; accessToken?: string; pendingApproval?: boolean }
+  | { ok: false; error: string; expired?: boolean }
 > {
   const { ok, data } = await authFetch<{
     ok?: boolean
     user?: PublicAuthUser
+    accessToken?: string
+    pendingApproval?: boolean
     error?: string
     message?: string
   }>(`/api/auth/verify-email?token=${encodeURIComponent(token)}`, { method: 'GET' })
   if (ok && data.ok && data.user) {
-    return { ok: true, user: data.user }
+    return {
+      ok: true,
+      user: data.user,
+      accessToken: data.accessToken,
+      pendingApproval: data.pendingApproval,
+    }
   }
   if (data.error === 'token_expired') {
     return {

@@ -29,7 +29,15 @@ export const homeSaasContent = {
     accentHighlight: 'Spatial',
     accentRemainder: ' intelligence',
     lineAfter: 'without limits',
-    subtitle:
-      'Geosyntra redefines satellite intelligence — transforming raw imagery into high-fidelity, actionable spatial insights through advanced analytics, precision change detection, and publication-ready scientific reporting, all without operational complexity.',
+    subtitle: (
+      <span className="home-saas-hero__subtitle-copy">
+        <span className="home-saas-hero__subtitle-line home-saas-hero__subtitle-line--lead">
+          Geosyntra redefines satellite intelligence — transforming raw imagery into high-fidelity, actionable spatial insights through advanced analytics, precision change detection, and publication-ready scientific reporting,
+        </span>
+        <span className="home-saas-hero__subtitle-line home-saas-hero__subtitle-line--close">
+          all without operational complexity.
+        </span>
+      </span>
+    ),
   } satisfies HomeSaasHeroCopy,
 } as const

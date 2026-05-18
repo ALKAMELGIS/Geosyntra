@@ -1,10 +1,21 @@
-export type Role = 'Admin' | 'Manager' | 'Admin Manager' | 'Analyst' | 'Editor' | 'Viewer' | 'User'
+export type Role =
+  | 'Super Admin'
+  | 'Admin'
+  | 'Manager'
+  | 'Admin Manager'
+  | 'Analyst'
+  | 'Editor'
+  | 'Viewer'
+  | 'User'
 
 export type CurrentUser = {
   id: number
   name: string
   email: string
   role: Role | string
+  roleSlug?: string
+  status?: string
+  permissions?: string[]
   scope?: string
   managedById?: number
 }
@@ -21,14 +32,15 @@ export const normalizeEmail = (value: unknown): string => {
 
 export const normalizeRole = (value: unknown): Role => {
   const raw = String(value ?? '').trim().toLowerCase()
-  if (!raw) return 'Viewer'
+  if (!raw) return 'User'
+  if (raw === 'super_admin' || raw === 'super admin' || raw === 'superadmin') return 'Super Admin'
   if (raw === 'admin') return 'Admin'
   if (raw === 'manager') return 'Manager'
   if (raw === 'admin manager' || raw === 'admin_manager' || raw === 'admin-manager') return 'Admin Manager'
   if (raw === 'editor') return 'Editor'
-  if (raw === 'viewer') return 'Viewer'
+  if (raw === 'viewer') return 'User'
   if (raw === 'analyst') return 'Analyst'
   if (raw === 'user') return 'User'
   if (raw.includes('admin') && raw.includes('manager')) return 'Admin Manager'
-  return 'Viewer'
+  return 'User'
 }

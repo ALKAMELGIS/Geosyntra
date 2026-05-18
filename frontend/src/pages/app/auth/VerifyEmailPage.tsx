@@ -41,7 +41,9 @@ export default function VerifyEmailPage() {
         setMessage(result.error)
         return
       }
-      const session = await completeVerifiedSignIn(result.user)
+      const accessToken = 'accessToken' in result ? result.accessToken : undefined
+      const pendingApproval = 'pendingApproval' in result && result.pendingApproval
+      const session = await completeVerifiedSignIn(result.user, accessToken)
       if (!session.ok) {
         setStatus('error')
         setMessage('error' in session ? session.error : 'Could not start session.')
@@ -49,10 +51,16 @@ export default function VerifyEmailPage() {
       }
       login(session.user)
       setStatus('success')
-      setMessage('Your email is verified. Opening your workspace…')
-      window.setTimeout(() => {
-        redirectToHomeWizard({ wizard: 'pricing' })
-      }, 1200)
+      setMessage(
+        pendingApproval
+          ? 'Email verified. An administrator must approve your account before you can sign in.'
+          : 'Your email is verified. Opening your workspace…',
+      )
+      if (!pendingApproval) {
+        window.setTimeout(() => {
+          redirectToHomeWizard({ wizard: 'pricing' })
+        }, 1200)
+      }
     })()
     return () => {
       cancelled = true

@@ -42,6 +42,10 @@
   gap: 2rem;
 }
 
+.saas-entry__nav-links .home-user-toolbar--nav-auth {
+  align-self: center;
+}
+
 .saas-entry__nav-mobile {
   position: relative;
 }
@@ -169,9 +173,20 @@
   border-top: 1px solid hsl(var(--border, 0 0% 90%));
 }
 
-.saas-entry__mobile-menu-status .home-user-status {
-  max-width: 100%;
+.saas-entry__mobile-menu-status .home-user-toolbar {
+  width: 100%;
   justify-content: flex-start;
+}
+
+.saas-entry__mobile-menu-status .home-user-toolbar__rail {
+  width: 100%;
+  justify-content: space-between;
+}
+
+.saas-entry__mobile-menu-status .home-user-toolbar__dropdown {
+  position: static;
+  margin-top: 0.65rem;
+  min-width: 100%;
 }
 
 .saas-entry__mobile-menu-status .home-user-status__copy {

@@ -1,4 +1,4 @@
-import { NavLink, useLocation } from 'react-router-dom'
+import { NavLink, useLocation, useNavigate } from 'react-router-dom'
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
 import './primary-nav-icons.css'
 import { hasPermission, normalizeRole, readCurrentUser } from '../lib/auth'
@@ -8,7 +8,7 @@ import { prefetchRoute } from '../routes/routePrefetch'
 import { normalizeAppPath } from '../services/settingsStorage'
 import { useMergedNavigation, useSystemSettings } from '../store/SystemSettingsContext'
 import { navTranslations } from './navTranslations'
-import { HomeProfileSheet } from '../pages/home/profile/HomeProfileSheet'
+import { SAAS_ROUTES } from '../lib/saasRoutes'
 
 type PrimaryNavIconsProps = {
   onLogout?: () => void
@@ -30,9 +30,9 @@ function useIsMobileNavViewport() {
 export default function PrimaryNavIcons({ onLogout }: PrimaryNavIconsProps) {
   const isMobile = useIsMobileNavViewport()
   const location = useLocation()
+  const navigate = useNavigate()
   const rootRef = useRef<HTMLElement | null>(null)
   const [openGroupId, setOpenGroupId] = useState<string | null>(null)
-  const [profileOpen, setProfileOpen] = useState(false)
   const { language } = useLanguage()
   const role = normalizeRole(readCurrentUser()?.role)
   const canSeeMaster = true
@@ -214,7 +214,7 @@ export default function PrimaryNavIcons({ onLogout }: PrimaryNavIconsProps) {
             className="geosyntra-primary-nav__popitem geosyntra-primary-nav__popitem--btn"
             onClick={() => {
               closePopover()
-              setProfileOpen(true)
+              navigate(SAAS_ROUTES.accountProfile)
             }}
           >
             <span className="geosyntra-primary-nav__popicon" aria-hidden>
@@ -239,7 +239,6 @@ export default function PrimaryNavIcons({ onLogout }: PrimaryNavIconsProps) {
           </button>
         </div>
       </div>
-      <HomeProfileSheet open={profileOpen} onClose={() => setProfileOpen(false)} />
     </nav>
   )
 }

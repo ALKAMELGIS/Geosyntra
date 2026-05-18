@@ -45,7 +45,10 @@ import { errorHandler, notFoundHandler } from '../src/middleware/errorHandler.js
 import { registerApiSecretsRoutes } from './apiSecretsPersistence.js'
 import { registerUserProfilePersistence } from './userProfilePersistence.js'
 import { registerAdminDirectoryPersistence } from './adminDirectoryPersistence.js'
+import { createAuthDirectoryStore } from './authDirectoryStore.js'
 import { registerAuthRoutes } from './registerAuthRoutes.js'
+import { registerRbacRoutes } from './registerRbacRoutes.js'
+import { bootstrapRbacSuperAdmin } from './rbac/bootstrap.js'
 
 const app = express()
 app.use(cors())
@@ -260,13 +263,33 @@ async function sendMail({ to, subject, text, html }) {
   })
 }
 
+const authDirectoryStore = createAuthDirectoryStore({
+  jsonFilePath: ADMIN_DIRECTORY_FILE,
+  sqlitePath: USER_DB_FILE || undefined,
+})
+
 registerAuthRoutes(app, {
+  store: authDirectoryStore,
   jsonFilePath: ADMIN_DIRECTORY_FILE,
   sqlitePath: USER_DB_FILE || undefined,
   appOrigin: APP_ORIGIN,
   appBasePath: APP_BASE_PATH,
   addAuthEvent,
 })
+
+registerRbacRoutes(app, {
+  store: authDirectoryStore,
+  sqlitePath: USER_DB_FILE || undefined,
+  appOrigin: APP_ORIGIN,
+  appBasePath: APP_BASE_PATH,
+  addAuthEvent,
+})
+
+try {
+  bootstrapRbacSuperAdmin(authDirectoryStore)
+} catch (e) {
+  console.error('[rbac] bootstrap error', e)
+}
 
 function parseCookies(header) {
   const out = {}

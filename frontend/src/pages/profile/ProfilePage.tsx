@@ -24,7 +24,7 @@ import { SAAS_ROUTES } from '../../lib/saasRoutes'
 import { homeWizardSearch } from '../../lib/homeWizardEntry'
 import { applyThemeToDocument, useSystemSettings } from '../../store/SystemSettingsContext'
 import type { SystemSettingsPersistedV1 } from '../../types/systemSettings'
-import { ProfileHeader } from './components/ProfileHeader'
+import { ProfileHeader } from './components/premium/ProfileHeader'
 import { ProfileInfoCard } from './components/ProfileInfoCard'
 import { ProfileSkeleton } from './components/ProfileSkeleton'
 import { formatProfileDate, formatRelative } from './profileUtils'
@@ -52,6 +52,9 @@ export default function ProfilePage() {
     savePersonal,
     uploadAvatar,
     removeAvatar,
+    uploadCover,
+    removeCover,
+    updateCoverPosition,
     revokeOtherSessions,
   } = useProfilePageData()
 
@@ -158,7 +161,10 @@ export default function ProfilePage() {
           syncPersonalDraft()
         }}
         onAvatarPick={file => void uploadAvatar(file)}
-        onAvatarRemove={removeAvatar}
+        onCoverPick={file => void uploadCover(file)}
+        onCoverRemove={removeCover}
+        onCoverPositionChange={updateCoverPosition}
+        onOpenSettings={() => setTab('settings')}
       />
 
       <div className="mt-8 flex flex-col gap-6 lg:flex-row lg:gap-8">
@@ -540,32 +546,28 @@ export default function ProfilePage() {
 
 function ProfileShell({ children }: { children: React.ReactNode }) {
   return (
-    <div className="relative min-h-screen overflow-hidden bg-background text-foreground">
+    <div className="relative min-h-screen overflow-x-hidden bg-[#07080c] text-zinc-100">
       <div
-        className="pointer-events-none absolute -left-32 top-0 h-96 w-96 rounded-full bg-indigo-500/20 blur-3xl"
+        className="pointer-events-none absolute -left-40 top-0 h-[28rem] w-[28rem] rounded-full bg-indigo-600/15 blur-[100px]"
         aria-hidden
       />
       <div
-        className="pointer-events-none absolute -right-24 top-1/4 h-80 w-80 rounded-full bg-sky-400/15 blur-3xl"
+        className="pointer-events-none absolute -right-32 top-1/3 h-80 w-80 rounded-full bg-cyan-500/10 blur-[90px]"
         aria-hidden
       />
-      <div
-        className="pointer-events-none absolute bottom-0 left-1/3 h-72 w-72 rounded-full bg-amber-400/10 blur-3xl"
-        aria-hidden
-      />
-      <div className="relative border-b border-white/10 bg-card/15 backdrop-blur-2xl">
+      <div className="relative border-b border-white/[0.08] bg-[#07080c]/90 backdrop-blur-2xl">
         <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-4 py-4 sm:px-6">
           <Link
             to={SAAS_ROUTES.dashboardDefault}
-            className="inline-flex items-center gap-2 text-sm font-medium text-muted-foreground transition hover:text-foreground"
+            className="inline-flex items-center gap-2 text-sm font-medium text-zinc-400 transition hover:text-white"
           >
             <ArrowLeft className="h-4 w-4" aria-hidden />
             Back to workspace
           </Link>
-          <span className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">Profile</span>
+          <span className="text-xs font-semibold uppercase tracking-[0.14em] text-zinc-500">Account profile</span>
         </div>
       </div>
-      <main className="relative mx-auto max-w-6xl px-4 py-8 sm:px-6 sm:py-10">{children}</main>
+      <main className="relative mx-auto max-w-6xl px-4 py-6 sm:px-6 sm:py-8">{children}</main>
     </div>
   )
 }

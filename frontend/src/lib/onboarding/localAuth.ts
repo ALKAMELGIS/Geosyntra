@@ -66,6 +66,9 @@ function toCurrentUser(user: PublicAuthUser): CurrentUser {
     name: user.name,
     email: normalizeEmail(user.email),
     role: normalizeRole(user.role),
+    roleSlug: user.roleSlug,
+    status: user.status,
+    permissions: user.permissions,
   }
 }
 
@@ -224,14 +227,17 @@ export async function homeSignIn(input: {
 
   syncPublicUserToAdminDirectory(result.user)
   const user = toCurrentUser(result.user)
-  startSession(user, { persist: true })
+  startSession(user, { persist: true, accessToken: result.accessToken })
   return { ok: true, user }
 }
 
-export async function completeVerifiedSignIn(user: PublicAuthUser): Promise<HomeAuthResult> {
+export async function completeVerifiedSignIn(
+  user: PublicAuthUser,
+  accessToken?: string,
+): Promise<HomeAuthResult> {
   syncPublicUserToAdminDirectory(user)
   const current = toCurrentUser(user)
-  startSession(current, { persist: true })
+  startSession(current, { persist: true, accessToken })
   return { ok: true, user: current }
 }
 

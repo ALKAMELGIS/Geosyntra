@@ -1,25 +1,25 @@
 import { NavLink, Outlet } from 'react-router-dom'
-import { readCurrentUser, hasPermission } from '../../lib/auth'
+import { currentUserHasPermission } from '../../lib/auth'
+import { RBAC_PERMISSIONS } from '../../lib/rbacPermissions'
 import './admin.css'
 
 const NAV = [
   { to: '/settings/admin', end: true, label: 'Dashboard', icon: 'fa-chart-line' },
   { to: '/settings/admin/users', end: false, label: 'Users', icon: 'fa-users' },
+  { to: '/settings/admin/team', end: false, label: 'Team & invites', icon: 'fa-user-plus' },
+  { to: '/settings/admin/roles', end: false, label: 'Roles & Permissions', icon: 'fa-shield-halved' },
+  { to: '/settings/admin/audit', end: false, label: 'Audit Logs', icon: 'fa-list-check' },
   { to: '', end: false, label: 'Subscriptions', icon: 'fa-credit-card', soon: true },
-  { to: '', end: false, label: 'Roles & Permissions', icon: 'fa-shield-halved', soon: true },
-  { to: '', end: false, label: 'Audit Logs', icon: 'fa-list-check', soon: true },
 ] as const
 
 export default function AdminLayout() {
-  const user = readCurrentUser()
-  const allowed =
-    hasPermission('admin.users.manage', user?.role) || String(user?.role ?? '') === 'Admin'
+  const allowed = currentUserHasPermission(RBAC_PERMISSIONS.ADMIN_PANEL)
 
   if (!allowed) {
     return (
       <div className="admin-forbidden">
         <h1>Admin access required</h1>
-        <p>Sign in with an Admin or Manager account to open the control panel.</p>
+        <p>Sign in with a Manager, Analyst, or Admin account — or accept a team invitation.</p>
       </div>
     )
   }

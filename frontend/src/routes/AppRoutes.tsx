@@ -17,6 +17,10 @@ const ApiIntegrations = lazy(() => import('../pages/settings/ApiIntegrations'))
 const AdminLayout = lazy(() => import('../pages/admin/AdminLayout'))
 const AdminDashboardPage = lazy(() => import('../pages/admin/AdminDashboardPage'))
 const AdminUsersPage = lazy(() => import('../pages/admin/AdminUsersPage'))
+const AdminTeamPage = lazy(() => import('../pages/admin/AdminTeamPage'))
+const AdminRolesPage = lazy(() => import('../pages/admin/AdminRolesPage'))
+const AdminAuditPage = lazy(() => import('../pages/admin/AdminAuditPage'))
+const JoinTeamPage = lazy(() => import('../pages/auth/JoinTeamPage'))
 const StyleGuide = lazy(() => import('../pages/StyleGuide'))
 const UsabilityTest = lazy(() => import('../pages/UsabilityTest'))
 const VerifyEmailPage = lazy(() => import('../pages/app/auth/VerifyEmailPage'))
@@ -34,6 +38,7 @@ export default function AppRoutes() {
         <Route path={SAAS_ROUTES.billingPricing} element={<HomeWizardRedirect wizard="pricing" />} />
         <Route path={SAAS_ROUTES.onboardingTrialStart} element={<HomeWizardRedirect wizard="pricing" />} />
         <Route path="/login" element={<HomeWizardRedirect authMode="signin" />} />
+        <Route path="/join-team" element={<JoinTeamPage />} />
         <Route path="/learn-more" element={<LearnMore />} />
         <Route path="/satellite" element={<Navigate to="/satellite/indices" replace />} />
         <Route path="/data/fertigation" element={<Navigate to="/data/fertigation-records" replace />} />
@@ -55,6 +60,9 @@ export default function AppRoutes() {
         <Route path="/settings/admin" element={<AdminLayout />}>
           <Route index element={<AdminDashboardPage />} />
           <Route path="users" element={<AdminUsersPage />} />
+          <Route path="team" element={<AdminTeamPage />} />
+          <Route path="roles" element={<AdminRolesPage />} />
+          <Route path="audit" element={<AdminAuditPage />} />
         </Route>
         <Route path="/style-guide" element={<StyleGuide />} />
         <Route path="/usability-test" element={<UsabilityTest />} />

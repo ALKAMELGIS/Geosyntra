@@ -1,6 +1,6 @@
 import type { CurrentUser } from '../../lib/auth'
 import { normalizeEmail } from '../../lib/auth'
-import { readGeosyntraAccountProfile } from '../../lib/account/geosyntraAccountProfile'
+import { readGeosyntraAccountProfile, type GeosyntraAccountProfileV2 } from '../../lib/account/geosyntraAccountProfile'
 import {
   ensureUserProfileDefaults,
   readUserProfileExtended,
@@ -10,6 +10,7 @@ import { getAdminUserByEmail } from '../../lib/admin/adminUserStore'
 import { SUBSCRIPTION_PLAN_LABELS } from '../../lib/geoEnterpriseUserModel'
 import { readWorkspaceState } from '../../lib/onboarding/workspaceState'
 import type { ProfileRoleLabel, ProfileViewModel } from './types'
+import { profileUsernameFromEmail } from './profileUtils'
 
 function mapRole(role: string): ProfileRoleLabel {
   const r = role.trim()
@@ -38,11 +39,15 @@ function computeCompleteness(input: {
   return { percent: Math.round((done / checks.length) * 100), missing }
 }
 
-export function buildProfileViewModel(user: CurrentUser, extended?: UserProfileExtended): ProfileViewModel {
+export function buildProfileViewModel(
+  user: CurrentUser,
+  extended?: UserProfileExtended,
+  accountVisual?: GeosyntraAccountProfileV2,
+): ProfileViewModel {
   const email = normalizeEmail(user.email)
   const directory = getAdminUserByEmail(email)
   const ws = readWorkspaceState(email)
-  const avatarProfile = readGeosyntraAccountProfile(email)
+  const avatarProfile = accountVisual ?? readGeosyntraAccountProfile(email)
   const ext = extended ?? ensureUserProfileDefaults(email, user.name)
 
   const emailVerified = directory?.emailVerified ?? true
@@ -71,7 +76,13 @@ export function buildProfileViewModel(user: CurrentUser, extended?: UserProfileE
   return {
     userId: user.id,
     fullName: user.name,
+    username: profileUsernameFromEmail(email),
     email,
+    coverUrl: avatarProfile.coverDataUrl,
+    coverPositionY:
+      typeof avatarProfile.coverPositionY === 'number'
+        ? Math.max(0, Math.min(100, avatarProfile.coverPositionY))
+        : 50,
     role: mapRole(String(user.role)),
     rawRole: String(user.role),
     status,

@@ -17,29 +17,49 @@
 
 .home-merged__nav {
   z-index: 55;
-}
-
-.home-merged--browse .home-merged__nav {
   border-bottom-color: rgba(255, 255, 255, 0.08);
-  background: color-mix(in srgb, hsl(222 47% 6%) 72%, transparent);
+  background: color-mix(in srgb, var(--ds-color-bg, #07080c) 78%, transparent);
+  backdrop-filter: blur(18px) saturate(1.15);
+  -webkit-backdrop-filter: blur(18px) saturate(1.15);
 }
 
-.home-merged--browse .home-merged__nav .saas-entry__brand,
-.home-merged--browse .home-merged__nav .saas-entry__nav-link {
-  color: rgba(248, 250, 252, 0.92);
+.home-merged .home-merged__nav .saas-entry__brand {
+  color: rgba(248, 250, 252, 0.95);
 }
 
-.home-merged--browse .home-merged__nav .saas-entry__nav-link {
+.home-merged .home-merged__nav .saas-entry__nav-link {
   color: rgba(148, 163, 184, 0.95);
 }
 
-.home-merged--browse .home-merged__nav .saas-entry__nav-link:hover {
+.home-merged .home-merged__nav .saas-entry__nav-link:hover {
   color: rgba(248, 250, 252, 1);
 }
 
-.home-merged--browse .home-merged__nav .saas-entry__btn--primary {
-  background: rgba(248, 250, 252, 0.95);
-  color: hsl(222 47% 8%);
+.home-merged .home-merged__nav .saas-entry__nav-links .home-user-toolbar--nav-auth {
+  align-self: center;
+}
+
+.home-merged .home-merged__nav .home-nav-auth__trigger {
+  color: rgba(148, 163, 184, 0.95);
+}
+
+.home-merged .home-merged__nav .home-nav-auth__trigger:hover,
+.home-merged .home-merged__nav .home-nav-auth__trigger--open {
+  color: rgba(248, 250, 252, 1);
+}
+
+.home-merged .home-merged__nav .saas-entry__btn--primary {
+  background: rgba(236, 236, 242, 0.95);
+  color: #07080c;
+}
+
+.home-merged .home-merged__nav .saas-entry__btn--ghost {
+  color: rgba(236, 236, 242, 0.9);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+.home-merged--browse .home-merged__nav {
+  background: color-mix(in srgb, var(--ds-color-bg, #07080c) 72%, transparent);
 }
 
 .home-merged-saas {
@@ -102,15 +122,21 @@
   transform-style: preserve-3d;
 }
 
-/* Home Start (page 1 only) — optical center: nudge globe left (texture/lighting reads right of 50%). */
+/* Home Start (page 1) — slight left nudge so globe + right-side halo read centered in the hero gutter */
 .home-landing .gs-scroll-globe--home-integrated[data-active-section='0'] .gs-hero-globe {
-  translate: -6cm 0;
+  translate: -3.5cm 0;
 }
 
 .gs-hero-globe__parallax {
+  position: relative;
+  overflow: visible;
   transform-style: preserve-3d;
   backface-visibility: hidden;
   will-change: transform;
+}
+
+.home-landing .gs-hero-globe {
+  overflow: visible;
 }
 
 .gs-hero-globe__scale {
@@ -216,9 +242,38 @@
 }
 
 .home-saas-hero--globe-centered .home-saas-hero__subtitle {
-  max-width: 40rem;
+  max-width: min(52rem, 92vw);
   margin-inline: auto;
   text-align: center;
+}
+
+@media (min-width: 1024px) {
+  .home-saas-hero--globe-centered .home-saas-hero__subtitle {
+    max-width: min(58rem, 88vw);
+    font-size: clamp(1.0625rem, 1.15vw, 1.1875rem);
+    line-height: 1.62;
+  }
+}
+
+/* Hero lede — two-line rhythm: long lead, shorter closing phrase */
+.home-saas-hero__subtitle-copy {
+  display: block;
+}
+
+.home-saas-hero__subtitle-line {
+  display: block;
+  text-wrap: pretty;
+}
+
+.home-saas-hero__subtitle-line--lead {
+  margin-bottom: 0.42em;
+  letter-spacing: 0.01em;
+}
+
+.home-saas-hero__subtitle-line--close {
+  font-size: 0.94em;
+  letter-spacing: 0.02em;
+  color: rgba(203, 213, 225, 0.78);
 }
 
 .home-saas-hero__content {
@@ -254,25 +309,52 @@
   }
 }
 
-/* Atmospheric corona behind the centered globe on Start / Innovation / Future */
-.home-landing .gs-scroll-globe--home-integrated .gs-hero-globe__parallax::before {
+/* Cyan atmospheric halo — pinned to globe parallax, hotspot on the right rim */
+.home-landing .gs-scroll-globe--home-integrated .gs-hero-globe__parallax::before,
+.home-landing .gs-scroll-globe--leading-clear .gs-hero-globe__parallax::before {
   content: '';
   position: absolute;
-  left: 50%;
+  left: 56%;
   top: 50%;
-  width: min(92vw, 42rem);
-  height: min(92vw, 42rem);
-  transform: translate(-50%, -50%);
+  width: min(108vmin, 48rem);
+  height: min(108vmin, 48rem);
+  transform: translate(-46%, -50%);
   border-radius: 50%;
-  background: radial-gradient(
-    circle at 42% 38%,
-    rgba(56, 189, 248, 0.22) 0%,
-    rgba(34, 211, 238, 0.08) 32%,
-    transparent 68%
-  );
-  filter: blur(18px);
+  background:
+    radial-gradient(
+      circle at 68% 44%,
+      rgba(125, 211, 252, 0.42) 0%,
+      rgba(56, 189, 248, 0.22) 18%,
+      rgba(34, 211, 238, 0.09) 36%,
+      transparent 62%
+    ),
+    radial-gradient(
+      circle at 50% 50%,
+      rgba(14, 165, 233, 0.06) 0%,
+      transparent 58%
+    );
+  filter: blur(20px);
   pointer-events: none;
   z-index: -1;
+}
+
+/* Soft outer ring — reads as light wrapping the sphere */
+.home-landing .gs-scroll-globe--home-integrated .gs-hero-globe__parallax::after,
+.home-landing .gs-scroll-globe--leading-clear .gs-hero-globe__parallax::after {
+  content: '';
+  position: absolute;
+  left: 58%;
+  top: 50%;
+  width: min(92vmin, 40rem);
+  height: min(92vmin, 40rem);
+  transform: translate(-48%, -50%);
+  border-radius: 50%;
+  box-shadow:
+    0 0 72px 28px rgba(56, 189, 248, 0.16),
+    0 0 120px 44px rgba(14, 165, 233, 0.09),
+    inset -18px 0 42px rgba(56, 189, 248, 0.08);
+  pointer-events: none;
+  z-index: -2;
 }
 
 .home-landing .gs-scroll-globe #start.gs-hero-leading-panel {
@@ -372,8 +454,13 @@
   max-width: 36rem;
   margin: 0 0 2.25rem;
   font-size: clamp(1rem, 2vw, 1.125rem);
-  line-height: 1.55;
+  line-height: 1.58;
+  font-weight: 400;
   color: hsl(var(--muted-foreground, 0 0% 45%));
+}
+
+.home-landing .gs-scroll-globe--with-leading #start .home-saas-hero__subtitle-line--close {
+  color: rgba(186, 198, 214, 0.82);
 }
 
 .home-saas-hero__cta {

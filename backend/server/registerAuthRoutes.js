@@ -1,4 +1,5 @@
 import { createAuthDirectoryStore } from './authDirectoryStore.js'
+import { issueAuthResponse } from './rbac/authTokens.js'
 import { sendAuthEmail, hasEmailConfig } from './authEmail.js'
 import {
   generateVerificationToken,
@@ -21,13 +22,16 @@ function splitName(fullName) {
  *   appOrigin: string
  *   appBasePath: string
  *   addAuthEvent: (action: string, payload?: object) => void
+ *   store?: ReturnType<typeof createAuthDirectoryStore>
  * }} deps
  */
 export function registerAuthRoutes(app, deps) {
-  const store = createAuthDirectoryStore({
-    jsonFilePath: deps.jsonFilePath,
-    sqlitePath: deps.sqlitePath,
-  })
+  const store =
+    deps.store ??
+    createAuthDirectoryStore({
+      jsonFilePath: deps.jsonFilePath,
+      sqlitePath: deps.sqlitePath,
+    })
 
   function verificationLink(token) {
     const origin = String(deps.appOrigin || '').replace(/\/+$/, '')
@@ -214,7 +218,13 @@ export function registerAuthRoutes(app, deps) {
         })
       }
       deps.addAuthEvent('email_verified', { email: result.publicUser.email })
-      return res.json({ ok: true, user: result.publicUser })
+      const { publicUser, accessToken } = issueAuthResponse(result.user)
+      return res.json({
+        ok: true,
+        user: publicUser,
+        accessToken,
+        pendingApproval: publicUser.status === 'Pending Approval',
+      })
     } catch (e) {
       console.error('[auth] verify-email failed', e)
       return res.status(500).json({ ok: false, error: 'verify_failed' })
@@ -237,10 +247,21 @@ export function registerAuthRoutes(app, deps) {
             message: 'Please verify your email before accessing GeoSyntra.',
           })
         }
+        if (result.error === 'pending_approval') {
+          return res.status(403).json({
+            ok: false,
+            error: 'pending_approval',
+            message: result.message || 'Your account is awaiting administrator approval.',
+          })
+        }
+        if (result.error === 'account_suspended') {
+          return res.status(403).json({ ok: false, error: 'account_suspended' })
+        }
         return res.status(401).json({ ok: false, error: 'invalid_credentials' })
       }
-      deps.addAuthEvent('login_success', { email: result.publicUser.email })
-      return res.json({ ok: true, user: result.publicUser })
+      const { publicUser, accessToken } = issueAuthResponse(result.user)
+      deps.addAuthEvent('login_success', { email: publicUser.email })
+      return res.json({ ok: true, user: publicUser, accessToken })
     } catch (e) {
       console.error('[auth] login failed', e)
       return res.status(500).json({ ok: false, error: 'login_failed' })
@@ -257,12 +278,29 @@ export function registerAuthRoutes(app, deps) {
         return res.status(400).json({ ok: false, error: 'invalid_oauth_payload' })
       }
       const result = store.upsertOAuthUser({ email, name, provider, sub: sub || undefined })
-      if (!result.ok) return res.status(400).json({ ok: false, error: result.error })
-      deps.addAuthEvent('oauth_login', { email: result.publicUser.email, provider })
-      return res.json({ ok: true, user: result.publicUser })
+      if (!result.ok) {
+        if (result.error === 'pending_approval') {
+          return res.status(403).json({
+            ok: false,
+            error: 'pending_approval',
+            message: result.message,
+          })
+        }
+        return res.status(400).json({ ok: false, error: result.error })
+      }
+      const { publicUser, accessToken } = issueAuthResponse(result.user)
+      deps.addAuthEvent('oauth_login', { email: publicUser.email, provider })
+      return res.json({
+        ok: true,
+        user: publicUser,
+        accessToken,
+        pendingApproval: Boolean(result.pendingApproval),
+      })
     } catch (e) {
       console.error('[auth] oauth-upsert failed', e)
       return res.status(500).json({ ok: false, error: 'oauth_failed' })
     }
   })
+
+  return { store }
 }

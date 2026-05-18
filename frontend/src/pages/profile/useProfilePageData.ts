@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useAuth } from '../../state/auth'
 import {
   readUserProfileExtended,
@@ -8,6 +8,7 @@ import {
 } from '../../lib/account/userProfileStore'
 import {
   imageFileToAvatarDataUrl,
+  imageFileToCoverDataUrl,
   writeGeosyntraAccountProfile,
 } from '../../lib/account/geosyntraAccountProfile'
 import { useGeosyntraAccountProfile } from '../home/profile/useGeosyntraAccountProfile'
@@ -50,9 +51,10 @@ export function useProfilePageData() {
     }
   }, [user?.email])
 
-  const viewModel: ProfileViewModel | null = user
-    ? buildProfileViewModel(user, extended)
-    : null
+  const viewModel: ProfileViewModel | null = useMemo(
+    () => (user ? buildProfileViewModel(user, extended, avatarProfile) : null),
+    [user, extended, avatarProfile],
+  )
 
   const patchExtended = useCallback(
     (patch: Partial<UserProfileExtended>) => {
@@ -108,6 +110,45 @@ export function useProfilePageData() {
     updateAvatar({ avatarDataUrl: undefined })
   }, [updateAvatar, user?.email])
 
+  const uploadCover = useCallback(
+    async (file: File) => {
+      if (!user?.email) return
+      setSaving(true)
+      try {
+        const dataUrl = await imageFileToCoverDataUrl(file)
+        updateAvatar({ coverDataUrl: dataUrl, coverPositionY: 50 })
+        patchExtended({
+          activity: [
+            {
+              id: `act-${Date.now()}`,
+              type: 'upload',
+              title: 'Cover photo updated',
+              detail: 'New profile banner saved',
+              at: new Date().toISOString(),
+            },
+            ...(extended.activity ?? []).slice(0, 12),
+          ],
+        })
+      } finally {
+        setSaving(false)
+      }
+    },
+    [extended.activity, patchExtended, updateAvatar, user?.email],
+  )
+
+  const removeCover = useCallback(() => {
+    if (!user?.email) return
+    updateAvatar({ coverDataUrl: undefined, coverPositionY: 50 })
+  }, [updateAvatar, user?.email])
+
+  const updateCoverPosition = useCallback(
+    (coverPositionY: number) => {
+      if (!user?.email) return
+      updateAvatar({ coverPositionY: Math.max(0, Math.min(100, coverPositionY)) })
+    },
+    [updateAvatar, user?.email],
+  )
+
   const revokeOtherSessions = useCallback(() => {
     if (!user?.email) return
     const current = extended.sessions?.find(s => s.current) ?? extended.sessions?.[0]
@@ -137,6 +178,9 @@ export function useProfilePageData() {
     savePersonal,
     uploadAvatar,
     removeAvatar,
+    uploadCover,
+    removeCover,
+    updateCoverPosition,
     revokeOtherSessions,
   }
 }

@@ -9,7 +9,10 @@ export type ProfileRoleLabel = 'Admin' | 'Manager' | 'Participant' | 'Analyst' |
 export type ProfileViewModel = {
   userId: number
   fullName: string
+  username: string
   email: string
+  coverUrl?: string
+  coverPositionY: number
   role: ProfileRoleLabel
   rawRole: string
   status: ProfileAccountStatus

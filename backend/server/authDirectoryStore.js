@@ -11,6 +11,9 @@ import {
   isVerificationExpired,
   verificationExpiresAt,
 } from './authVerification.js'
+import { attachRbacToStore } from './rbac/attachRbacToStore.js'
+import { PUBLIC_SIGNUP_ROLE, USER_STATUSES } from './rbac/roles.js'
+import { canLoginUser, statusAfterEmailVerify, toPublicAuthUser } from './rbac/userPublic.js'
 
 function appendAuditEntry(auditLog, entry) {
   const row = {
@@ -162,18 +165,16 @@ export function createAuthDirectoryStore(opts) {
       }
     }
 
-    function publicUser(u) {
-      return {
-        id: u.id,
-        name: u.name,
-        email: u.email,
-        role: u.role,
-        emailVerified: Boolean(u.emailVerified),
-      }
+    function mutateUsers(fn) {
+      const dir = sqlite.readDirectory()
+      const out = fn(dir.users, dir.auditLog || [])
+      sqlite.writeDirectory({ users: out.users, auditLog: out.auditLog })
+      return out
     }
 
-    return {
+    const sqliteBase = {
       storage: 'sqlite',
+      hashPassword,
       getUserByEmail(email) {
         return rowToUser(selByEmail.get(normalizeEmail(email)))
       },
@@ -193,8 +194,8 @@ export function createAuthDirectoryStore(opts) {
           id,
           email: em,
           name: String(name || em).trim(),
-          role: 'Viewer',
-          status: 'Pending Verification',
+          role: PUBLIC_SIGNUP_ROLE,
+          status: USER_STATUSES.PENDING_VERIFICATION,
           lastLogin: 'Never',
           passwordHash: hashPassword(password),
           emailVerified: false,
@@ -220,12 +221,13 @@ export function createAuthDirectoryStore(opts) {
           return { ok: false, error: 'token_expired' }
         }
         const dir = sqlite.readDirectory()
+        const nextStatus = statusAfterEmailVerify(u.role)
         const users = dir.users.map(row => {
           if (row.id !== u.id) return row
           return {
             ...row,
             emailVerified: true,
-            status: 'Active',
+            status: nextStatus,
             verificationToken: null,
             verificationTokenExpires: null,
             updatedAt: new Date().toISOString(),
@@ -235,10 +237,11 @@ export function createAuthDirectoryStore(opts) {
           actor: u.email,
           action: 'email_verified',
           target: u.email,
+          details: { status: nextStatus },
         })
         sqlite.writeDirectory({ users, auditLog })
-        const verified = { ...u, emailVerified: true, verificationToken: undefined }
-        return { ok: true, user: verified, publicUser: publicUser(verified) }
+        const verified = { ...u, emailVerified: true, status: nextStatus, verificationToken: undefined }
+        return { ok: true, user: verified, publicUser: toPublicAuthUser(verified) }
       },
       setVerificationToken(email, token, expiresAt) {
         const em = normalizeEmail(email)
@@ -264,14 +267,16 @@ export function createAuthDirectoryStore(opts) {
         const u = rowToUser(selByEmail.get(normalizeEmail(email)))
         if (!u) return { ok: false, error: 'invalid_credentials' }
         if (!checkPassword(u.passwordHash, password)) return { ok: false, error: 'invalid_credentials' }
-        if (!u.emailVerified) return { ok: false, error: 'email_not_verified' }
+        const gate = canLoginUser(u)
+        if (!gate.ok) return { ok: false, error: gate.error, message: gate.message }
         const ts = new Date().toISOString()
         const dir = sqlite.readDirectory()
         const users = dir.users.map(row =>
           row.id === u.id ? { ...row, lastLogin: ts } : row,
         )
         sqlite.writeDirectory({ users, auditLog: dir.auditLog })
-        return { ok: true, user: u, publicUser: publicUser(u) }
+        const fresh = { ...u, lastLogin: ts }
+        return { ok: true, user: fresh, publicUser: toPublicAuthUser(fresh) }
       },
       upsertOAuthUser({ email, name, provider, sub }) {
         const em = normalizeEmail(email)
@@ -291,15 +296,17 @@ export function createAuthDirectoryStore(opts) {
           }
           const users = dir.users.map(u => (u.id === existing.id ? existing : u))
           sqlite.writeDirectory({ users, auditLog: dir.auditLog })
-          return { ok: true, user: existing, publicUser: publicUser(existing) }
+          const gate = canLoginUser(existing)
+          if (!gate.ok) return { ok: false, error: gate.error, message: gate.message }
+          return { ok: true, user: existing, publicUser: toPublicAuthUser(existing) }
         }
         const id = Number(maxId.get()?.m || 0) + 1
         const user = {
           id,
           email: em,
           name: String(name || em).trim(),
-          role: 'Viewer',
-          status: 'Active',
+          role: PUBLIC_SIGNUP_ROLE,
+          status: USER_STATUSES.PENDING_APPROVAL,
           lastLogin: ts,
           passwordHash: null,
           emailVerified: true,
@@ -310,14 +317,33 @@ export function createAuthDirectoryStore(opts) {
           ...(provider === 'apple' ? { oauthAppleSub: sub } : {}),
         }
         sqlite.writeDirectory({ users: [...dir.users, user], auditLog: dir.auditLog })
-        return { ok: true, user, publicUser: publicUser(user) }
+        return {
+          ok: true,
+          user,
+          publicUser: toPublicAuthUser(user),
+          pendingApproval: true,
+        }
       },
     }
+    return attachRbacToStore(sqliteBase, {
+      getUsers: () => sqlite.readDirectory().users,
+      getAudit: () => sqlite.readDirectory().auditLog || [],
+      appendAudit: (log, entry) => appendAuditEntry(log, entry),
+      mutateUsers: fn => mutateUsers(fn),
+    })
   }
 
   /* JSON file fallback */
-  return {
+  function jsonMutateUsers(fn) {
+    const { data } = readJsonStore(jsonFilePath)
+    const out = fn(data.users, data.auditLog || [])
+    writeJsonStore(jsonFilePath, { ...data, users: out.users, auditLog: out.auditLog })
+    return out
+  }
+
+  const jsonBase = {
     storage: 'json',
+    hashPassword,
     getUserByEmail(email) {
       const { data } = readJsonStore(jsonFilePath)
       const em = normalizeEmail(email)
@@ -338,8 +364,8 @@ export function createAuthDirectoryStore(opts) {
         id: nextUserId(data.users),
         email: em,
         name: String(name || em).trim(),
-        role: 'Viewer',
-        status: 'Pending Verification',
+        role: PUBLIC_SIGNUP_ROLE,
+        status: USER_STATUSES.PENDING_VERIFICATION,
         lastLogin: 'Never',
         passwordHash: hashPassword(password),
         emailVerified: false,
@@ -352,7 +378,7 @@ export function createAuthDirectoryStore(opts) {
         actor: em,
         action: 'user_registered',
         target: em,
-        details: { status: 'Pending Verification' },
+        details: { status: USER_STATUSES.PENDING_VERIFICATION },
       })
       writeJsonStore(jsonFilePath, { ...data, users: [...data.users, user], auditLog })
       return { ok: true, user, verificationToken: token, verificationTokenExpires: expires }
@@ -366,10 +392,11 @@ export function createAuthDirectoryStore(opts) {
       if (isVerificationExpired(prev.verificationTokenExpires)) {
         return { ok: false, error: 'token_expired' }
       }
+      const nextStatus = statusAfterEmailVerify(prev.role)
       const u = {
         ...prev,
         emailVerified: true,
-        status: 'Active',
+        status: nextStatus,
         verificationToken: null,
         verificationTokenExpires: null,
       }
@@ -379,13 +406,10 @@ export function createAuthDirectoryStore(opts) {
         actor: u.email,
         action: 'email_verified',
         target: u.email,
+        details: { status: nextStatus },
       })
       writeJsonStore(jsonFilePath, { ...data, users, auditLog })
-      return {
-        ok: true,
-        user: u,
-        publicUser: { id: u.id, name: u.name, email: u.email, role: u.role, emailVerified: true },
-      }
+      return { ok: true, user: u, publicUser: toPublicAuthUser(u) }
     },
     setVerificationToken(email, token, expiresAt) {
       const { data } = readJsonStore(jsonFilePath)
@@ -409,18 +433,15 @@ export function createAuthDirectoryStore(opts) {
       const u = data.users.find(x => normalizeEmail(x.email) === normalizeEmail(email))
       if (!u) return { ok: false, error: 'invalid_credentials' }
       if (!checkPassword(u.passwordHash, password)) return { ok: false, error: 'invalid_credentials' }
-      if (!u.emailVerified) return { ok: false, error: 'email_not_verified' }
+      const gate = canLoginUser(u)
+      if (!gate.ok) return { ok: false, error: gate.error, message: gate.message }
+      const ts = new Date().toISOString()
       const users = data.users.map(row =>
-        normalizeEmail(row.email) === normalizeEmail(email)
-          ? { ...row, lastLogin: new Date().toISOString() }
-          : row,
+        normalizeEmail(row.email) === normalizeEmail(email) ? { ...row, lastLogin: ts } : row,
       )
       writeJsonStore(jsonFilePath, { ...data, users })
-      return {
-        ok: true,
-        user: u,
-        publicUser: { id: u.id, name: u.name, email: u.email, role: u.role, emailVerified: true },
-      }
+      const fresh = { ...u, lastLogin: ts }
+      return { ok: true, user: fresh, publicUser: toPublicAuthUser(fresh) }
     },
     upsertOAuthUser({ email, name, provider, sub }) {
       const { data } = readJsonStore(jsonFilePath)
@@ -442,18 +463,16 @@ export function createAuthDirectoryStore(opts) {
         const users = [...data.users]
         users[idx] = u
         writeJsonStore(jsonFilePath, { ...data, users })
-        return {
-          ok: true,
-          user: u,
-          publicUser: { id: u.id, name: u.name, email: u.email, role: u.role, emailVerified: true },
-        }
+        const gate = canLoginUser(u)
+        if (!gate.ok) return { ok: false, error: gate.error, message: gate.message }
+        return { ok: true, user: u, publicUser: toPublicAuthUser(u) }
       }
       const user = {
         id: nextUserId(data.users),
         email: em,
         name: String(name || em).trim(),
-        role: 'Viewer',
-        status: 'Active',
+        role: PUBLIC_SIGNUP_ROLE,
+        status: USER_STATUSES.PENDING_APPROVAL,
         lastLogin: ts,
         passwordHash: null,
         emailVerified: true,
@@ -467,8 +486,15 @@ export function createAuthDirectoryStore(opts) {
       return {
         ok: true,
         user,
-        publicUser: { id: user.id, name: user.name, email: user.email, role: user.role, emailVerified: true },
+        publicUser: toPublicAuthUser(user),
+        pendingApproval: true,
       }
     },
   }
+  return attachRbacToStore(jsonBase, {
+    getUsers: () => readJsonStore(jsonFilePath).data.users,
+    getAudit: () => readJsonStore(jsonFilePath).data.auditLog || [],
+    appendAudit: (log, entry) => appendAuditEntry(log, entry),
+    mutateUsers: fn => jsonMutateUsers(fn),
+  })
 }
