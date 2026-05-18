@@ -1,4 +1,5 @@
 import { normalizeEmail, normalizeRole, startSession, type CurrentUser } from '../auth'
+import { registerPendingSignupInDirectory } from '../admin/adminUserManagement'
 import { scheduleAdminDirectorySync } from '../adminDirectoryPersistence'
 import {
   apiLogin,
@@ -46,7 +47,14 @@ function syncPublicUserToAdminDirectory(user: PublicAuthUser, passwordHash?: str
     name: user.name,
     email,
     role: user.role || 'Viewer',
-    status: user.emailVerified ? 'Active' : 'Pending Verification',
+    status:
+      user.status === 'Suspended'
+        ? 'Suspended'
+        : user.status === 'Pending Approval'
+          ? 'Pending Approval'
+          : user.emailVerified
+            ? 'Active'
+            : 'Pending Verification',
     plan: 'Trial',
     emailVerified: user.emailVerified,
     lastLogin: new Date().toISOString(),
@@ -197,6 +205,7 @@ export async function homeSignUp(input: {
     return result
   }
 
+  registerPendingSignupInDirectory({ name, email })
   return {
     ok: true,
     needsVerification: true,

@@ -91,6 +91,19 @@ export async function apiSuspendUser(id: number): Promise<boolean> {
   return ok
 }
 
+export async function apiReactivateUser(id: number): Promise<boolean> {
+  const { ok } = await rbacFetch(`/api/rbac/users/${id}/reactivate`, { method: 'POST', body: '{}' })
+  return ok
+}
+
+export async function apiAssignUserRole(id: number, roleSlug: string): Promise<boolean> {
+  const { ok } = await rbacFetch(`/api/rbac/users/${id}`, {
+    method: 'PATCH',
+    body: JSON.stringify({ roleSlug }),
+  })
+  return ok
+}
+
 export async function apiRbacUsers(): Promise<RbacPublicUser[]> {
   const { ok, data } = await rbacFetch<{ ok?: boolean; users?: RbacPublicUser[] }>('/api/rbac/users')
   if (ok && data.ok && Array.isArray(data.users)) return data.users

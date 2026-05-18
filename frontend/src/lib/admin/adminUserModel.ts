@@ -1,6 +1,6 @@
 /** Admin directory user row — mirrors backend `users` table shape for SaaS admin UI. */
 
-export type AdminUserStatus = 'Active' | 'Suspended' | 'Pending Verification'
+export type AdminUserStatus = 'Active' | 'Suspended' | 'Pending Verification' | 'Pending Approval'
 export type AdminUserPlan = 'Free' | 'Trial' | 'Pro' | 'Enterprise'
 
 export type AdminDirectoryUser = {
@@ -21,8 +21,22 @@ export type AdminDirectoryUser = {
 }
 
 export const ADMIN_USER_PLANS: AdminUserPlan[] = ['Free', 'Trial', 'Pro', 'Enterprise']
-export const ADMIN_USER_STATUSES: AdminUserStatus[] = ['Active', 'Suspended', 'Pending Verification']
-export const ADMIN_USER_ROLES = ['Admin', 'Manager', 'Admin Manager', 'Analyst', 'Editor', 'Viewer'] as const
+export const ADMIN_USER_STATUSES: AdminUserStatus[] = [
+  'Active',
+  'Suspended',
+  'Pending Verification',
+  'Pending Approval',
+]
+export const ADMIN_USER_ROLES = [
+  'Super Admin',
+  'Admin',
+  'Manager',
+  'Admin Manager',
+  'Analyst',
+  'User',
+  'Editor',
+  'Viewer',
+] as const
 
 export function normalizeAdminUser(raw: unknown): AdminDirectoryUser | null {
   if (!raw || typeof raw !== 'object') return null
@@ -35,7 +49,9 @@ export function normalizeAdminUser(raw: unknown): AdminDirectoryUser | null {
     ? (statusRaw as AdminUserStatus)
     : r.emailVerified === false
       ? 'Pending Verification'
-      : 'Active'
+      : statusRaw.toLowerCase().includes('pending') && statusRaw.toLowerCase().includes('approval')
+        ? 'Pending Approval'
+        : 'Active'
   const planRaw = String(r.plan ?? 'Free')
   const plan = ADMIN_USER_PLANS.includes(planRaw as AdminUserPlan) ? (planRaw as AdminUserPlan) : 'Free'
   return {

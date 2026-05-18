@@ -1,7 +1,8 @@
 import { NavLink, useLocation } from 'react-router-dom'
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from 'react'
 import './navmenu.css'
-import { hasPermission, normalizeRole, readCurrentUser } from '../lib/auth'
+import { currentUserHasPermission, hasPermission, normalizeRole, readCurrentUser } from '../lib/auth'
+import { RBAC_PERMISSIONS } from '../lib/rbacPermissions'
 import { useLanguage } from '../lib/i18n'
 import type { MergedGroup } from '../nav/navManifest'
 import { prefetchRoute } from '../routes/routePrefetch'
@@ -38,10 +39,15 @@ export default function NavMenu({ onLogout }: NavMenuProps) {
 
   const { language } = useLanguage()
 
-  const role = normalizeRole(readCurrentUser()?.role)
+  const currentUser = readCurrentUser()
+  const role = normalizeRole(currentUser?.role)
 
   const canSeeMaster = true
-  const canSeeAdmin = hasPermission('admin.users.manage', role)
+  const canSeeAdmin = hasPermission('admin.users.manage', role, currentUser?.permissions)
+  const canSeeUserManagement =
+    currentUserHasPermission(RBAC_PERMISSIONS.USERS_READ) ||
+    currentUserHasPermission(RBAC_PERMISSIONS.ADMIN_PANEL) ||
+    canSeeAdmin
 
   const t = navTranslations[language]
 
@@ -53,7 +59,17 @@ export default function NavMenu({ onLogout }: NavMenuProps) {
     return leaf.labelEn || t[leaf.i18nKey]
   }
 
-  const renderMergedGroup = (group: MergedGroup) => (
+  const renderMergedGroup = (group: MergedGroup) => {
+    const children =
+      group.id === 'settings'
+        ? group.children.filter(leaf => {
+            if (leaf.path.startsWith('/settings/admin')) return canSeeUserManagement
+            return true
+          })
+        : group.children
+    if (group.id === 'settings' && children.length === 0) return null
+
+    return (
     <li
       key={group.id}
       className={openGroup === group.id ? 'group open' : 'group'}
@@ -93,7 +109,7 @@ export default function NavMenu({ onLogout }: NavMenuProps) {
         id={`nav-group-${group.id}`}
         className={openGroup === group.id ? 'sublist open' : 'sublist'}
       >
-        {group.children.map((leaf, ix) => (
+        {children.map((leaf, ix) => (
           <NavLink
             key={leaf.id}
             to={leaf.path}
@@ -119,7 +135,8 @@ export default function NavMenu({ onLogout }: NavMenuProps) {
         ))}
       </div>
     </li>
-  )
+    )
+  }
 
   const closeAllGroups = () => setOpenGroup(null)
   const closeAll = () => {

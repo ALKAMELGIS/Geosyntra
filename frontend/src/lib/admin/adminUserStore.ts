@@ -13,6 +13,7 @@ import {
 } from '../adminDirectoryPersistence'
 import {
   ADMIN_USER_PLANS,
+  ADMIN_USER_STATUSES,
   normalizeAdminUser,
   type AdminDirectoryUser,
   type AdminUserPlan,
@@ -155,7 +156,7 @@ export function isValidAdminPlan(plan: string): plan is AdminUserPlan {
 }
 
 export function isValidAdminStatus(status: string): status is AdminUserStatus {
-  return status === 'Active' || status === 'Suspended' || status === 'Pending Verification'
+  return ADMIN_USER_STATUSES.includes(status as AdminUserStatus)
 }
 
 /** Admin action: resend verification (API email when configured, else local dev link). */

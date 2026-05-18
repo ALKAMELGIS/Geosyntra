@@ -204,6 +204,8 @@ export type SatelliteMapAnalysisChromeProps = {
   /** `step` = instant WMS swap; `smooth` = crossfade between dates. */
   timelineTransitionMode?: SiTimelineTransitionMode;
   onTimelineTransitionModeChange?: (mode: SiTimelineTransitionMode) => void;
+  /** Active imagery / analysis date (YYYY-MM-DD) — drives the “Selected” readout. */
+  selectedImageryDateIso?: string;
   mapTool: 'rectangle' | 'polygon' | 'circle' | 'select' | string;
   onMapTool: (tool: 'rectangle' | 'polygon' | 'circle' | 'select') => void;
   hasClearableDrawing?: boolean;
@@ -309,6 +311,7 @@ export function SatelliteMapAnalysisChrome(props: SatelliteMapAnalysisChromeProp
     onCycleTimelineSpeed,
     timelineTransitionMode = 'smooth',
     onTimelineTransitionModeChange,
+    selectedImageryDateIso = '',
     mapTool,
     onMapTool,
     hasClearableDrawing = false,
@@ -357,8 +360,9 @@ export function SatelliteMapAnalysisChrome(props: SatelliteMapAnalysisChromeProp
   } = props;
 
   const activeFull =
-    weeklyChips.find(c => c.id === activeChipId)?.fullDate ??
-    weeklyChips[0]?.fullDate ??
+    selectedImageryDateIso?.slice(0, 10) ||
+    weeklyChips.find(c => c.id === activeChipId)?.fullDate ||
+    weeklyChips[0]?.fullDate ||
     '';
 
   const activeIndex = useMemo(() => {

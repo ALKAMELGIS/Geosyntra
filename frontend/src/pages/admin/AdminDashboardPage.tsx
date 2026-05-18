@@ -24,7 +24,7 @@ export default function AdminDashboardPage() {
         </div>
         <div className="admin-topbar__actions">
           <Link to="/settings/admin/users" className="admin-btn admin-btn--primary">
-            Manage users
+            User management
           </Link>
         </div>
       </header>

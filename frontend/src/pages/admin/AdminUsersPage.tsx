@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { Link } from 'react-router-dom'
 import {
   ADMIN_USER_PLANS,
   ADMIN_USER_ROLES,
@@ -6,18 +7,26 @@ import {
   type AdminDirectoryUser,
 } from '../../lib/admin/adminUserModel'
 import {
+  applyUserManagementAction,
+  isUserManagementApiLive,
+  loadUserManagementDirectory,
+} from '../../lib/admin/adminUserManagement'
+import {
   adminResendVerificationLink,
   adminUserStats,
   exportAdminUsersCsv,
-  hydrateAdminUsersFromServer,
-  listAdminUsers,
   updateAdminUser,
 } from '../../lib/admin/adminUserStore'
+import { currentUserHasPermission } from '../../lib/auth'
+import { RBAC_PERMISSIONS } from '../../lib/rbacPermissions'
 import { UserDetailDrawer } from './components/UserDetailDrawer'
 
 function statusBadge(status: string, verified: boolean) {
+  if (status === 'Pending Approval') {
+    return <span className="admin-badge admin-badge--pending">Awaiting approval</span>
+  }
   if (!verified || status === 'Pending Verification') {
-    return <span className="admin-badge admin-badge--pending">Pending</span>
+    return <span className="admin-badge admin-badge--pending">Pending verify</span>
   }
   if (status === 'Suspended') {
     return <span className="admin-badge admin-badge--suspended">Suspended</span>
@@ -32,7 +41,7 @@ function initials(name: string): string {
 }
 
 export default function AdminUsersPage() {
-  const [users, setUsers] = useState<AdminDirectoryUser[]>(() => listAdminUsers())
+  const [users, setUsers] = useState<AdminDirectoryUser[]>([])
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState('all')
   const [planFilter, setPlanFilter] = useState('all')
@@ -40,11 +49,18 @@ export default function AdminUsersPage() {
   const [verifiedFilter, setVerifiedFilter] = useState('all')
   const [selected, setSelected] = useState<AdminDirectoryUser | null>(null)
   const [verifyLink, setVerifyLink] = useState<string | null>(null)
+  const [flash, setFlash] = useState('')
 
-  const refresh = useCallback(() => setUsers(listAdminUsers()), [])
+  const canApprove = currentUserHasPermission(RBAC_PERMISSIONS.USERS_APPROVE)
+  const canSuspend = currentUserHasPermission(RBAC_PERMISSIONS.USERS_SUSPEND)
+  const canAssignRole = currentUserHasPermission(RBAC_PERMISSIONS.ROLES_ASSIGN)
+
+  const refresh = useCallback(() => {
+    void loadUserManagementDirectory().then(setUsers)
+  }, [])
 
   useEffect(() => {
-    void hydrateAdminUsersFromServer().then(refresh)
+    refresh()
   }, [refresh])
 
   const filtered = useMemo(() => {
@@ -68,6 +84,15 @@ export default function AdminUsersPage() {
     if (selected?.id === id && next) setSelected(next)
   }
 
+  const runAction = async (user: AdminDirectoryUser, action: Parameters<typeof applyUserManagementAction>[1], roleSlug?: string) => {
+    const result = await applyUserManagementAction(user, action, roleSlug)
+    setFlash(result.message)
+    refresh()
+  }
+
+  const pendingApproval = users.filter(u => u.status === 'Pending Approval')
+  const pendingVerify = users.filter(u => u.status === 'Pending Verification' || !u.emailVerified)
+
   const exportCsv = () => {
     const blob = new Blob([exportAdminUsersCsv(filtered)], { type: 'text/csv;charset=utf-8' })
     const url = URL.createObjectURL(blob)
@@ -82,9 +107,11 @@ export default function AdminUsersPage() {
     <>
       <header className="admin-topbar">
         <div>
-          <h1>Users</h1>
+          <h1>User management</h1>
           <p className="admin-topbar__sub">
-            {stats.total} accounts · {stats.pending} pending verification
+            {stats.total} accounts · {pendingApproval.length} awaiting approval · {pendingVerify.length} pending
+            verification
+            {isUserManagementApiLive() ? ' · server RBAC' : ''}
           </p>
         </div>
         <div className="admin-topbar__actions">
@@ -95,11 +122,32 @@ export default function AdminUsersPage() {
             onChange={e => setSearch(e.target.value)}
             aria-label="Search users"
           />
+          <Link to="/settings/admin/team" className="admin-btn">
+            Invites
+          </Link>
           <button type="button" className="admin-btn" onClick={exportCsv}>
             Export CSV
           </button>
         </div>
       </header>
+
+      <section className="admin-lifecycle" aria-label="Account lifecycle">
+        <span className="admin-lifecycle__step">1. Sign up</span>
+        <span className="admin-lifecycle__arrow" aria-hidden>
+          →
+        </span>
+        <span className="admin-lifecycle__step">2. Verify email</span>
+        <span className="admin-lifecycle__arrow" aria-hidden>
+          →
+        </span>
+        <span className="admin-lifecycle__step">3. Admin approval</span>
+        <span className="admin-lifecycle__arrow" aria-hidden>
+          →
+        </span>
+        <span className="admin-lifecycle__step">4. Active workspace</span>
+      </section>
+
+      {flash ? <p className="admin-hint">{flash}</p> : null}
 
       {verifyLink ? (
         <p style={{ fontSize: '0.82rem', color: '#86efac', marginBottom: '0.75rem', wordBreak: 'break-all' }}>
@@ -188,18 +236,34 @@ export default function AdminUsersPage() {
                         Resend verify
                       </button>
                     ) : null}
-                    {u.status === 'Active' ? (
-                      <button type="button" onClick={() => patchUser(u.id, { status: 'Suspended' })}>
+                    {canApprove && u.status === 'Pending Approval' ? (
+                      <button type="button" onClick={() => void runAction(u, 'approve')}>
+                        Approve
+                      </button>
+                    ) : null}
+                    {canSuspend && u.status === 'Active' ? (
+                      <button type="button" onClick={() => void runAction(u, 'suspend')}>
                         Suspend
                       </button>
-                    ) : (
+                    ) : null}
+                    {canSuspend && u.status === 'Suspended' ? (
+                      <button type="button" onClick={() => void runAction(u, 'reactivate')}>
+                        Reactivate
+                      </button>
+                    ) : null}
+                    {canApprove && u.status === 'Pending Verification' && u.emailVerified ? (
+                      <button type="button" onClick={() => void runAction(u, 'approve')}>
+                        Activate
+                      </button>
+                    ) : null}
+                    {!canSuspend && !canApprove && u.status !== 'Active' ? (
                       <button
                         type="button"
                         onClick={() => patchUser(u.id, { status: 'Active', emailVerified: true })}
                       >
                         Activate
                       </button>
-                    )}
+                    ) : null}
                   </div>
                 </td>
               </tr>

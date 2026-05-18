@@ -58,7 +58,8 @@ export default function AppRoutes() {
         <Route path="/admin/github" element={<AdminGitHub />} />
         <Route path="/settings/api-integrations" element={<ApiIntegrations />} />
         <Route path="/settings/admin" element={<AdminLayout />}>
-          <Route index element={<AdminDashboardPage />} />
+          <Route index element={<Navigate to="users" replace />} />
+          <Route path="overview" element={<AdminDashboardPage />} />
           <Route path="users" element={<AdminUsersPage />} />
           <Route path="team" element={<AdminTeamPage />} />
           <Route path="roles" element={<AdminRolesPage />} />

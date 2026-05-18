@@ -11,6 +11,7 @@ import React, {
   useDeferredValue,
   startTransition,
 } from 'react';
+import { flushSync } from 'react-dom';
 import { motion } from 'framer-motion';
 import MapGL, { Source, Layer, Marker } from 'react-map-gl/mapbox';
 import 'mapbox-gl/dist/mapbox-gl.css';
@@ -3694,28 +3695,57 @@ export default function SatelliteIntelligence() {
     };
   }, [customLayers]);
 
+  /** Keep timeline index ref, playback cursor, map date, and zonal stats in one commit. */
+  const syncTimelineWeekFocus = useCallback(
+    (
+      weeks: WeeklyComposite[],
+      weekIdx: number,
+      opts?: { focusIso?: string; expandRange?: boolean },
+    ) => {
+      if (!weeks.length) return;
+      const idx = buildWeeklyTimelineIndex(weeks);
+      if (idx) weeklyTimelineIndexRef.current = idx;
+      const safeIdx = Math.max(0, Math.min(weekIdx, weeks.length - 1));
+      const w = weeks[safeIdx]!;
+      const iso = (opts?.focusIso ?? w.endDate).slice(0, 10);
+      timelinePlayWeekIdxRef.current = safeIdx;
+      setActiveWeekIdx(safeIdx);
+      setSelectedDate(timelineDateFromIso(iso));
+      setZonalStatsAnchorIso(iso);
+      const expandRange = opts?.expandRange !== false;
+      if (!expandRange) return;
+      setTimeSeriesStart(prev => (prev && iso < prev ? iso : prev || iso));
+      setTimeSeriesEnd(prev => (prev && iso > prev ? iso : prev || iso));
+    },
+    [],
+  );
+
   const applySelectedDate = useCallback(
     (date: Date, opts?: { expandRange?: boolean; weekIdx?: number }) => {
       if (isSiViewportChangeBlocked()) return;
       const iso = dateToTimelineIso(date);
       const expandRange = opts?.expandRange !== false;
       const idx = weeklyTimelineIndexRef.current;
-      if (idx?.weeks.length) {
+      if (idx?.weeks.length && weeklyComposites.length) {
         const wIdx =
           typeof opts?.weekIdx === 'number' &&
           opts.weekIdx >= 0 &&
           opts.weekIdx < idx.weeks.length
             ? opts.weekIdx
             : idx.pickWeekIdx(iso);
-        timelinePlayWeekIdxRef.current = wIdx;
-        setActiveWeekIdx(wIdx);
+        syncTimelineWeekFocus(weeklyComposites, wIdx, {
+          focusIso: iso,
+          expandRange,
+        });
+        return;
       }
       setSelectedDate(date);
+      setZonalStatsAnchorIso(iso);
       if (!expandRange) return;
       setTimeSeriesStart(prev => (prev && iso < prev ? iso : prev || iso));
       setTimeSeriesEnd(prev => (prev && iso > prev ? iso : prev || iso));
     },
-    [],
+    [weeklyComposites, syncTimelineWeekFocus],
   );
 
   const advanceTimelinePlaybackStep = useCallback(() => {
@@ -6215,14 +6245,17 @@ export default function SatelliteIntelligence() {
       return;
     }
     pauseTimelinePlayback();
-    setWeeklyComposites(synthetic);
-    setFieldTimelineSessionActive(true);
-    const last = synthetic[synthetic.length - 1]!;
-    applySelectedDate(timelineDateFromIso(last.startDate), {
-      expandRange: false,
-      weekIdx: synthetic.length - 1,
+    const lastIdx = synthetic.length - 1;
+    const last = synthetic[lastIdx]!;
+    const focusIso = (last.endDate || timeSeriesEnd || last.startDate).slice(0, 10);
+    flushSync(() => {
+      setWeeklyComposites(synthetic);
+      setFieldTimelineSessionActive(true);
     });
-    setFieldAnalysisStatus(`Timeline ready: ${synthetic.length} week(s) for ${selectedIndexConfig.label}. Tap Play on the map timeline to animate.`);
+    syncTimelineWeekFocus(synthetic, lastIdx, { focusIso, expandRange: false });
+    setFieldAnalysisStatus(
+      `Timeline ready: ${synthetic.length} week(s) for ${selectedIndexConfig.label} · showing ${focusIso}.`,
+    );
   };
 
   const stopFieldAnalysisTimeline = useCallback(() => {
@@ -6277,17 +6310,17 @@ export default function SatelliteIntelligence() {
       setWeeklyComposites([]);
       return;
     }
-    setWeeklyComposites(synthetic);
     const iso = dateToTimelineIso(selectedDate);
     let weekIdx = synthetic.findIndex(w => iso >= w.startDate && iso <= w.endDate);
     if (weekIdx < 0) weekIdx = synthetic.length - 1;
     const target = synthetic[weekIdx]!;
-    applySelectedDate(timelineDateFromIso(target.startDate), {
-      expandRange: false,
-      weekIdx,
+    const focusIso = (target.endDate || timeSeriesEnd || target.startDate).slice(0, 10);
+    flushSync(() => {
+      setWeeklyComposites(synthetic);
     });
+    syncTimelineWeekFocus(synthetic, weekIdx, { focusIso, expandRange: false });
     setFieldAnalysisStatus(
-      `Timeline updated: ${synthetic.length} week(s) · ${timeSeriesStart} → ${timeSeriesEnd}.`,
+      `Timeline updated: ${synthetic.length} week(s) · ${timeSeriesStart} → ${timeSeriesEnd} · ${focusIso}.`,
     );
   }, [timeSeriesStart, timeSeriesEnd, fieldTimelineSessionActive, selectedIndex, selectedIndexConfig.range]);
 
@@ -11635,19 +11668,25 @@ export default function SatelliteIntelligence() {
   }, [weeklyTimelineIndex, selectedDate]);
 
   const handleSatelliteTimelineStep = (dir: -1 | 1) => {
-    if (!weeklyTimelineIndex) return;
+    if (!weeklyTimelineIndex || !weeklyComposites.length) return;
     const i = weeklyTimelineIndex.pickWeekIdx(dateToTimelineIso(selectedDate));
     const next =
       (i + dir + weeklyTimelineIndex.weeks.length) % weeklyTimelineIndex.weeks.length;
-    const w = weeklyTimelineIndex.weeks[next]!;
-    applySelectedDate(timelineDateFromIso(w.startDate), { expandRange: false, weekIdx: next });
+    const w = weeklyComposites[next]!;
+    syncTimelineWeekFocus(weeklyComposites, next, {
+      focusIso: w.endDate,
+      expandRange: false,
+    });
   };
 
   const handleSatelliteChipPick = (id: string) => {
     const idx = weeklyComposites.findIndex(x => `w-${x.weekIndex}-${x.startDate}` === id);
     if (idx < 0) return;
     const w = weeklyComposites[idx]!;
-    applySelectedDate(timelineDateFromIso(w.startDate), { expandRange: false, weekIdx: idx });
+    syncTimelineWeekFocus(weeklyComposites, idx, {
+      focusIso: w.endDate,
+      expandRange: false,
+    });
   };
 
   const satelliteToolbarTool: 'rectangle' | 'polygon' | 'circle' | 'select' = fieldsPanelDrawArmed
@@ -13386,6 +13425,7 @@ export default function SatelliteIntelligence() {
             onCycleTimelineSpeed={cycleTimelinePlaybackSpeed}
             timelineTransitionMode={timelineTransitionMode}
             onTimelineTransitionModeChange={onTimelineTransitionModeChange}
+            selectedImageryDateIso={wmsDate}
             timeSeriesStart={timeSeriesStart}
             timeSeriesEnd={timeSeriesEnd}
             onTimeSeriesStartChange={handleGlobalTimeSeriesStartChange}
