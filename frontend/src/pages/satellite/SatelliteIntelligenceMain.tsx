@@ -1894,6 +1894,7 @@ function siIdentifyTitleForLayerId(layerId: string, customLayers: CustomLayer[])
   if (layerId.startsWith('si-multi-aoi')) return 'Workspace AOI';
   if (layerId.startsWith('si-stac-footprints')) return 'STAC footprint';
   if (layerId.startsWith('drawn-index-geometry')) return 'Drawn AOI';
+  if (layerId.includes('si-terrain-contours')) return 'Contours';
   return layerId.replace(/-(fill|line|circle)$/, '') || 'Feature';
 }
 
@@ -3808,7 +3809,7 @@ export default function SatelliteIntelligence() {
     ): GeoAiInspectPopupState => ({
       ...card,
       id: typeof crypto !== 'undefined' && 'randomUUID' in crypto ? crypto.randomUUID() : `p-${Date.now()}`,
-      pinned: false,
+      pinned: true,
       collapsed: false,
       featureLinkKey,
       identifyCandidates: extras?.candidates,
@@ -3932,20 +3933,6 @@ export default function SatelliteIntelligence() {
     });
   }, []);
 
-  const mapIdentifyCopyFlashIdRef = useRef<string | null>(null);
-  const [mapIdentifyCopyTick, setMapIdentifyCopyTick] = useState(0);
-
-  const flashMapIdentifyCopy = useCallback((popupId: string) => {
-    mapIdentifyCopyFlashIdRef.current = popupId;
-    setMapIdentifyCopyTick(t => t + 1);
-    window.setTimeout(() => {
-      if (mapIdentifyCopyFlashIdRef.current === popupId) {
-        mapIdentifyCopyFlashIdRef.current = null;
-        setMapIdentifyCopyTick(t => t + 1);
-      }
-    }, 1600);
-  }, []);
-
   const zoomMapIdentifyPopup = useCallback(
     (pop: GeoAiInspectPopupState) => {
       const map = getMapInstance() as {
@@ -4020,11 +4007,10 @@ export default function SatelliteIntelligence() {
   }, []);
 
   const renderMapIdentifyToolbar = useCallback(
-    (pop: GeoAiInspectPopupState) => {
+    (pop: GeoAiInspectPopupState, compact = false) => {
       const candidates =
         pop.identifyCandidates?.map(c => ({ id: c.id, title: c.title })) ?? [{ id: pop.id, title: pop.title }];
       const activeId = pop.activeCandidateId ?? candidates[0]?.id ?? pop.id;
-      const copyLabel = mapIdentifyCopyFlashIdRef.current === pop.id ? 'Copied' : 'Copy';
       return (
         <SiMapFeatureInspectToolbar
           candidates={candidates}
@@ -4032,14 +4018,9 @@ export default function SatelliteIntelligence() {
           onSelectCandidate={id => applyMapIdentifyCandidate(pop.id, id)}
           onZoomTo={() => zoomMapIdentifyPopup(pop)}
           onHighlight={() => highlightMapIdentifyPopup(pop)}
-          onCopyCoordinates={() => {
-            const text = `${pop.lng.toFixed(6)}, ${pop.lat.toFixed(6)}`;
-            void navigator.clipboard?.writeText(text);
-            flashMapIdentifyCopy(pop.id);
-          }}
           onOpenDetails={() => openMapIdentifyDetails(pop)}
           highlightActive={!!pop.featureLinkKey && geoAiTableMapFocusKey === pop.featureLinkKey}
-          copyLabel={copyLabel}
+          compact={compact}
         />
       );
     },
@@ -4048,9 +4029,7 @@ export default function SatelliteIntelligence() {
       zoomMapIdentifyPopup,
       highlightMapIdentifyPopup,
       openMapIdentifyDetails,
-      flashMapIdentifyCopy,
       geoAiTableMapFocusKey,
-      mapIdentifyCopyTick,
     ],
   );
 
@@ -12864,7 +12843,6 @@ export default function SatelliteIntelligence() {
         }
         setSelectedDrawTarget(null);
       }
-      setGeoAiInspectPopups(prev => prev.filter(p => p.pinned));
       if (interactionModeRef.current === 'view') return;
     }
     if (interactionModeRef.current !== 'draw') return;
@@ -13534,7 +13512,7 @@ export default function SatelliteIntelligence() {
 
   const wmsDate = dateToTimelineIso(selectedDate);
 
-  /** Canonical series bounds for timeline UI, live AOI, and legends (always in sync with chips). */
+  /** Canonical series bounds for timeline UI, live AOI, and legends. */
   const timelineExtentsForUi = useMemo(
     () => resolveTimelineSeriesExtents(weeklyComposites, timeSeriesStart, timeSeriesEnd),
     [weeklyComposites, timeSeriesStart, timeSeriesEnd],
@@ -13557,7 +13535,7 @@ export default function SatelliteIntelligence() {
   );
   timelineStopsRef.current = timelineStops;
 
-  /** Keep AOI rows' TIME= bounds aligned with weekly chips — only when extents actually change. */
+  /** Keep AOI rows' TIME= bounds aligned with timeline series — only when extents actually change. */
   const timelineAoiTimeSyncRef = useRef({ start: '', end: '' });
   useEffect(() => {
     if (!weeklyComposites.length) return;
@@ -14804,21 +14782,6 @@ export default function SatelliteIntelligence() {
     };
   }, []);
 
-  const satelliteTimelineChips = useMemo(
-    () =>
-      weeklyComposites.map(w => {
-        const stats = normalizeWeeklyCompositeStats(w, selectedIndexConfig.range ?? [-1, 1]);
-        const endIso = w.endDate.slice(0, 10);
-        return {
-          id: `w-${w.weekIndex}-${endIso}`,
-          shortLabel: `${endIso.slice(5, 7)}-${endIso.slice(8, 10)}`,
-          fullDate: endIso,
-          mean: stats.mean,
-        };
-      }),
-    [weeklyComposites, selectedIndexConfig.range],
-  );
-
   const satellitePivotBars = useMemo(
     () => pivotChartRows.map(r => ({ name: r.name, value: r.value })),
     [pivotChartRows],
@@ -15437,12 +15400,6 @@ export default function SatelliteIntelligence() {
     activeWmsSymbologyUi.autoScientific,
   ]);
 
-  const satelliteActiveChipId = useMemo(() => {
-    if (!weeklyTimelineIndex) return null;
-    const w = weeklyTimelineIndex.pickWeek(dateToTimelineIso(selectedDate));
-    return `w-${w.weekIndex}-${w.endDate.slice(0, 10)}`;
-  }, [weeklyTimelineIndex, selectedDate]);
-
   const handleSatelliteTimelineStep = (dir: -1 | 1) => {
     const stops = timelineStopsRef.current;
     if (!stops.length) return;
@@ -15483,18 +15440,6 @@ export default function SatelliteIntelligence() {
     },
     [weeklyTimelineIndex, weeklyComposites, syncTimelineWeekFocus, applySelectedDate],
   );
-
-  const handleSatelliteChipPick = (id: string) => {
-    const idx = weeklyComposites.findIndex(x => `w-${x.weekIndex}-${x.endDate.slice(0, 10)}` === id);
-    if (idx < 0) return;
-    const w = weeklyComposites[idx]!;
-    saveTimelineSavedPosition(w.endDate);
-    syncTimelineWeekFocus(weeklyComposites, idx, {
-      focusIso: w.endDate,
-      expandRange: false,
-      refreshWms: true,
-    });
-  };
 
   const timelineOptionsForUi = useMemo(
     () =>
@@ -16997,23 +16942,15 @@ export default function SatelliteIntelligence() {
                       </button>
                     </span>
                   </div>
-                  {renderMapIdentifyToolbar(pop)}
+                  {renderMapIdentifyToolbar(pop, true)}
                   <div className="si-geo-ai-inspect-card__body">
                     <div className="si-geo-ai-inspect-card__meta">
                       <div className="si-geo-ai-inspect-card__meta-row">
-                        <span className="si-geo-ai-inspect-card__meta-k">Coordinates</span>
                         <span className="si-geo-ai-inspect-card__meta-v" dir="ltr">
                           {pop.lng.toFixed(5)}°, {pop.lat.toFixed(5)}°
-                        </span>
-                      </div>
-                      <div className="si-geo-ai-inspect-card__meta-row">
-                        <span className="si-geo-ai-inspect-card__meta-k">Area</span>
-                        <span className="si-geo-ai-inspect-card__meta-v">{pop.areaName?.trim() || '—'}</span>
-                      </div>
-                      <div className="si-geo-ai-inspect-card__meta-row">
-                        <span className="si-geo-ai-inspect-card__meta-k">Country</span>
-                        <span className="si-geo-ai-inspect-card__meta-v">
-                          {pop.country && !/^\d+$/.test(String(pop.country).trim()) ? pop.country : '—'}
+                          {pop.areaName?.trim()
+                            ? ` · ${pop.areaName.trim()}${pop.country && !/^\d+$/.test(String(pop.country).trim()) ? `, ${pop.country}` : ''}`
+                            : ''}
                         </span>
                       </div>
                     </div>
@@ -17023,6 +16960,7 @@ export default function SatelliteIntelligence() {
                           rows={pop.rows}
                           inspect={pop.inspect}
                           layout={pop.inspect?.viewMode}
+                          variant="map"
                         />
                       </div>
                     ) : null}
@@ -17897,9 +17835,6 @@ export default function SatelliteIntelligence() {
           </SatelliteGeoAiFloatingWidget>
 
           <SatelliteMapAnalysisChrome
-            weeklyChips={satelliteTimelineChips}
-            activeChipId={satelliteActiveChipId}
-            onPickChip={handleSatelliteChipPick}
             timelinePlaying={isTimelinePlaying}
             onTogglePlay={toggleTimelinePlayback}
             onStep={handleSatelliteTimelineStep}

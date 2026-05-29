@@ -25,11 +25,8 @@ import {
   DEFAULT_SI_MAP_WEATHER,
   SI_MAP_WEATHER_PRESETS,
   clampPct,
-  type SiMapWeatherPanelTab,
   type SiMapWeatherSettings,
 } from '../utils/siMapWeatherTypes';
-import { SiMapDaylightPanel } from './SiMapDaylightPanel';
-import './SiMapDaylightArcSlider.css';
 import './SiMapWeatherToolPanel.css';
 
 const SI_WEATHER_PANEL_POS_LS = 'si-weather-panel-pos-v1';
@@ -168,7 +165,7 @@ export function SiMapWeatherToolPanel({
     if (!open) return;
     const size = measure();
     setPos(prev => clampPos(prev.left, prev.top, size.width, size.height));
-  }, [open, minimized, measure, settings.panelTab]);
+  }, [open, minimized, measure]);
 
   const persistPos = useCallback((p: PanelPos) => {
     try {
@@ -246,8 +243,6 @@ export function SiMapWeatherToolPanel({
     },
     [],
   );
-
-  const setTab = (tab: SiMapWeatherPanelTab) => patch({ panelTab: tab });
 
   const saveCurrentScene = () => {
     const camera = readCamera();
@@ -340,37 +335,11 @@ export function SiMapWeatherToolPanel({
                 </button>
               </div>
             </div>
-            {!minimized ? (
-              <div className="si-weather-panel__tabs" role="tablist">
-                <button
-                  type="button"
-                  role="tab"
-                  className={`si-weather-panel__tab${settings.panelTab === 'daylight' ? ' is-active' : ''}`}
-                  aria-selected={settings.panelTab === 'daylight'}
-                  onClick={() => setTab('daylight')}
-                >
-                  Daylight
-                </button>
-                <button
-                  type="button"
-                  role="tab"
-                  className={`si-weather-panel__tab${settings.panelTab === 'weather' ? ' is-active' : ''}`}
-                  aria-selected={settings.panelTab === 'weather'}
-                  onClick={() => setTab('weather')}
-                >
-                  Weather
-                </button>
-              </div>
-            ) : null}
           </header>
 
           {!minimized ? (
             <div className="si-weather-panel__body">
-              {settings.panelTab === 'daylight' ? (
-                <SiMapDaylightPanel settings={settings} onPatch={patch} isLightTheme={isLightPanel} />
-              ) : (
-                <>
-                  <div className="si-weather-panel__presets" role="group" aria-label="Weather preset">
+              <div className="si-weather-panel__presets" role="group" aria-label="Weather preset">
                     {SI_MAP_WEATHER_PRESETS.map(p => (
                       <button
                         key={p.id}
@@ -424,10 +393,6 @@ export function SiMapWeatherToolPanel({
                     </label>
                   ) : null}
 
-                </>
-              )}
-
-              {settings.panelTab === 'weather' ? (
               <div className="si-weather-panel__slides">
                 <div className="si-weather-panel__slides-head">
                   <span>Scene slides</span>
@@ -469,9 +434,7 @@ export function SiMapWeatherToolPanel({
                   </ul>
                 )}
               </div>
-              ) : null}
 
-              {settings.panelTab === 'weather' ? (
               <button
                 type="button"
                 className="si-weather-panel__reset"
@@ -479,7 +442,6 @@ export function SiMapWeatherToolPanel({
                   onSettingsChange({
                     ...DEFAULT_SI_MAP_WEATHER,
                     panelTheme: settings.panelTheme,
-                    panelTab: settings.panelTab,
                     daylightMinutes: settings.daylightMinutes,
                     daylightDate: settings.daylightDate,
                     sunPositionByDateTime: settings.sunPositionByDateTime,
@@ -493,7 +455,6 @@ export function SiMapWeatherToolPanel({
               >
                 Reset weather
               </button>
-              ) : null}
             </div>
           ) : null}
         </motion.div>

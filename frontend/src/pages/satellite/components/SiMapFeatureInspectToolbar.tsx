@@ -11,10 +11,10 @@ export type SiMapFeatureInspectToolbarProps = {
   onSelectCandidate: (id: string) => void;
   onZoomTo: () => void;
   onHighlight: () => void;
-  onCopyCoordinates: () => void;
   onOpenDetails: () => void;
   highlightActive?: boolean;
-  copyLabel?: string;
+  /** Compact icon rail for map-anchored luxury popup. */
+  compact?: boolean;
 };
 
 export function SiMapFeatureInspectToolbar({
@@ -23,15 +23,17 @@ export function SiMapFeatureInspectToolbar({
   onSelectCandidate,
   onZoomTo,
   onHighlight,
-  onCopyCoordinates,
   onOpenDetails,
   highlightActive = false,
-  copyLabel = 'Copied',
+  compact = false,
 }: SiMapFeatureInspectToolbarProps) {
   const showLayerPicker = candidates.length > 1;
+  const rootClass = compact
+    ? 'si-map-identify-toolbar si-map-identify-toolbar--compact'
+    : 'si-map-identify-toolbar';
 
   return (
-    <div className="si-map-identify-toolbar" role="toolbar" aria-label="Feature popup actions">
+    <div className={rootClass} role="toolbar" aria-label="Feature popup actions">
       {showLayerPicker ? (
         <label className="si-map-identify-toolbar__layer-pick">
           <span className="si-map-identify-toolbar__layer-label">Layer</span>
@@ -50,26 +52,35 @@ export function SiMapFeatureInspectToolbar({
         </label>
       ) : null}
       <div className="si-map-identify-toolbar__actions">
-        <button type="button" className="si-map-identify-toolbar__btn" title="Zoom to feature" onClick={onZoomTo}>
+        <button
+          type="button"
+          className="si-map-identify-toolbar__btn"
+          title="Zoom to feature"
+          aria-label="Zoom to feature"
+          onClick={onZoomTo}
+        >
           <i className="fa-solid fa-magnifying-glass-plus" aria-hidden />
-          <span>Zoom</span>
+          {compact ? null : <span>Zoom</span>}
         </button>
         <button
           type="button"
           className={`si-map-identify-toolbar__btn${highlightActive ? ' si-map-identify-toolbar__btn--on' : ''}`}
           title="Highlight on map"
+          aria-label="Highlight on map"
           onClick={onHighlight}
         >
           <i className="fa-solid fa-highlighter" aria-hidden />
-          <span>Highlight</span>
+          {compact ? null : <span>Highlight</span>}
         </button>
-        <button type="button" className="si-map-identify-toolbar__btn" title="Copy coordinates" onClick={onCopyCoordinates}>
-          <i className="fa-solid fa-copy" aria-hidden />
-          <span>{copyLabel}</span>
-        </button>
-        <button type="button" className="si-map-identify-toolbar__btn" title="Open attribute table" onClick={onOpenDetails}>
+        <button
+          type="button"
+          className="si-map-identify-toolbar__btn"
+          title="Open attribute table"
+          aria-label="Open attribute table"
+          onClick={onOpenDetails}
+        >
           <i className="fa-solid fa-table" aria-hidden />
-          <span>Details</span>
+          {compact ? null : <span>Details</span>}
         </button>
       </div>
     </div>

@@ -14,8 +14,6 @@ import { SatelliteContextualAnalysisDock } from './SatelliteContextualAnalysisDo
 import type { AoiGeometryEditSubTool, MapDrawTool, SiAoiDrawnStats, SiAoiWorkspaceRow } from './aoi/siAoiModuleTypes';
 import type { SiAoiSpectralProfileMini } from './AoiSpectralProfileMiniChart';
 import type { SmartProcessingSectionId } from './SmartProcessingWorkflowPanel';
-import { formatStatFixed } from '../utils/weeklyCompositeStats';
-
 /** Optional metadata when opening a processing section from the map toolbox. */
 export type MapToolboxNavigateMeta = { fromDockOptions?: boolean };
 export type MapToolboxNavigateHandler = (
@@ -139,13 +137,6 @@ const TIMELINE_INTERVAL_UNITS: { value: SiTimelineIntervalUnit; label: string }[
   { value: 'year', label: 'Year' },
 ];
 
-export type TimelineChip = {
-  id: string;
-  shortLabel: string;
-  fullDate: string;
-  mean: number;
-};
-
 export type SatelliteMapAnalysisToolbarProps = {
   mapTool: 'rectangle' | 'polygon' | 'circle' | 'select' | string;
   onMapTool: (tool: 'rectangle' | 'polygon' | 'circle' | 'select') => void;
@@ -246,9 +237,6 @@ export function SatelliteMapAnalysisToolbar({
 export type SiTimelineTransitionMode = 'step' | 'smooth';
 
 export type SatelliteMapAnalysisChromeProps = {
-  weeklyChips: TimelineChip[];
-  activeChipId: string | null;
-  onPickChip: (id: string) => void;
   timelinePlaying: boolean;
   onTogglePlay: () => void;
   onStep: (dir: -1 | 1) => void;
@@ -393,7 +381,6 @@ function sparkPath(values: number[], w: number, h: number): string {
 }
 
 export function SatelliteMapAnalysisChrome(props: SatelliteMapAnalysisChromeProps) {
-  const chipStripRef = useRef<HTMLDivElement | null>(null);
   const timelineRailRef = useRef<HTMLDivElement | null>(null);
   const timelineShellRef = useRef<HTMLDivElement | null>(null);
   const timelinePosRef = useRef<TimelineViewportPos>(readStoredTimelinePos);
@@ -403,9 +390,6 @@ export function SatelliteMapAnalysisChrome(props: SatelliteMapAnalysisChromeProp
 
   timelinePosRef.current = timelinePos;
   const {
-    weeklyChips,
-    activeChipId,
-    onPickChip,
     timelinePlaying,
     onTogglePlay,
     onStep,
@@ -502,33 +486,24 @@ export function SatelliteMapAnalysisChrome(props: SatelliteMapAnalysisChromeProp
     onToggleMapWeatherIntel,
   } = props;
 
-  const activeFull =
-    selectedImageryDateIso?.slice(0, 10) ||
-    weeklyChips.find(c => c.id === activeChipId)?.fullDate ||
-    weeklyChips[0]?.fullDate ||
-    '';
+  const railStops = useMemo(
+    () => timelineStops.map(s => s.slice(0, 10)).filter(Boolean),
+    [timelineStops],
+  );
 
-  const activeIndex = useMemo(() => {
-    if (!weeklyChips.length) return 0;
-    const i = weeklyChips.findIndex(c => c.id === activeChipId);
-    return i < 0 ? 0 : i;
-  }, [weeklyChips, activeChipId]);
+  const activeFull = selectedImageryDateIso?.slice(0, 10) || railStops[0] || '';
 
-  const lastChipEnd = weeklyChips[weeklyChips.length - 1]?.fullDate?.slice(0, 10) ?? '';
-  const seriesStartIso = (timelineSeriesStartIso || weeklyChips[0]?.fullDate || '').slice(0, 10);
-  const seriesEndIso = [timelineSeriesEndIso, lastChipEnd]
+  const seriesStartIso = (timelineSeriesStartIso || railStops[0] || '').slice(0, 10);
+  const lastStopIso = railStops[railStops.length - 1] ?? '';
+  const seriesEndIso = [timelineSeriesEndIso, lastStopIso]
     .map(s => (s || '').slice(0, 10))
     .filter(Boolean)
     .sort()
     .pop() ?? '';
-  const rangeStartLabel = formatTimelineScrubDate(seriesStartIso || weeklyChips[0]?.fullDate || '');
-  const rangeEndLabel = formatTimelineScrubDate(seriesEndIso || weeklyChips[weeklyChips.length - 1]?.fullDate || '');
-  const rangeStartTitle = seriesStartIso || weeklyChips[0]?.fullDate || '';
-  const rangeEndTitle = seriesEndIso || weeklyChips[weeklyChips.length - 1]?.fullDate || '';
-
-  const railStops = timelineStops.length
-    ? timelineStops
-    : weeklyChips.map(c => c.fullDate.slice(0, 10)).filter(Boolean);
+  const rangeStartLabel = formatTimelineScrubDate(seriesStartIso || railStops[0] || '');
+  const rangeEndLabel = formatTimelineScrubDate(seriesEndIso || lastStopIso || '');
+  const rangeStartTitle = seriesStartIso || railStops[0] || '';
+  const rangeEndTitle = seriesEndIso || lastStopIso || '';
 
   const thumbIso = activeFull.slice(0, 10);
   const thumbPct = useMemo(
@@ -649,7 +624,7 @@ export function SatelliteMapAnalysisChrome(props: SatelliteMapAnalysisChromeProp
   }, [measureTimelineSize]);
 
   useLayoutEffect(() => {
-    if (!timelineVisible || weeklyChips.length === 0) return;
+    if (!timelineVisible || railStops.length === 0) return;
     const size = measureTimelineSize();
     setTimelinePos(prev => {
       const next = clampTimelinePos(prev.left, prev.top, size);
@@ -657,7 +632,7 @@ export function SatelliteMapAnalysisChrome(props: SatelliteMapAnalysisChromeProp
       persistTimelinePos(next);
       return next;
     });
-  }, [timelineVisible, weeklyChips.length, measureTimelineSize, persistTimelinePos]);
+  }, [timelineVisible, railStops.length, measureTimelineSize, persistTimelinePos]);
 
   const onTimelineDragHandlePointerDown = useCallback(
     (e: React.PointerEvent<HTMLDivElement>) => {
@@ -715,36 +690,6 @@ export function SatelliteMapAnalysisChrome(props: SatelliteMapAnalysisChromeProp
     setTimelinePos(c);
     persistTimelinePos(c);
   }, [measureTimelineSize, persistTimelinePos]);
-
-  useLayoutEffect(() => {
-    if (!activeChipId || !chipStripRef.current) return;
-    const strip = chipStripRef.current;
-    const esc =
-      typeof CSS !== 'undefined' && typeof CSS.escape === 'function'
-        ? CSS.escape(activeChipId)
-        : activeChipId.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
-    const chip = strip.querySelector<HTMLElement>(`[data-timeline-chip="${esc}"]`);
-    if (!chip) return;
-    const reduceMotion =
-      typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
-
-    /**
-     * Avoid `scrollIntoView({ inline: 'center' })` on chips: during playback it can
-     * scroll the *document* horizontally and expose a black gutter beside the map toolbox.
-     * Only adjust the chip strip's scrollLeft.
-     */
-    const stripRect = strip.getBoundingClientRect();
-    const chipRect = chip.getBoundingClientRect();
-    const targetCenter = chipRect.left + chipRect.width / 2;
-    const stripCenter = stripRect.left + stripRect.width / 2;
-    const delta = targetCenter - stripCenter;
-    const maxScroll = Math.max(0, strip.scrollWidth - strip.clientWidth);
-    const nextLeft = Math.max(0, Math.min(strip.scrollLeft + delta, maxScroll));
-    strip.scrollTo({
-      left: nextLeft,
-      behavior: reduceMotion ? 'auto' : 'smooth',
-    });
-  }, [activeChipId, weeklyChips.length]);
 
   const contextualDock = showMapToolbox ? (
     <SatelliteContextualAnalysisDock
@@ -827,7 +772,7 @@ export function SatelliteMapAnalysisChrome(props: SatelliteMapAnalysisChromeProp
 
   return (
     <>
-      {timelineVisible && weeklyChips.length > 0 ? (
+      {timelineVisible && railStops.length > 0 ? (
         <div
           ref={timelineShellRef}
           className={['si-map-analysis-timeline si-timeline', timelineDragging ? 'si-map-analysis-timeline--dragging' : '']
@@ -896,32 +841,6 @@ export function SatelliteMapAnalysisChrome(props: SatelliteMapAnalysisChromeProp
             </div>
 
             <div className="si-map-analysis-timeline-track-wrap">
-              <div
-                ref={chipStripRef}
-                className={[
-                  'si-map-analysis-timeline-chips',
-                  weeklyChips.length > 22 ? 'si-map-analysis-timeline-chips--dense' : '',
-                ]
-                  .filter(Boolean)
-                  .join(' ')}
-                role="tablist"
-              >
-                {weeklyChips.map(chip => (
-                  <button
-                    key={chip.id}
-                    type="button"
-                    role="tab"
-                    data-timeline-chip={chip.id}
-                    aria-selected={chip.id === activeChipId}
-                    className={`si-map-analysis-chip ${chip.id === activeChipId ? 'si-map-analysis-chip--active' : ''}`}
-                    onClick={() => onPickChip(chip.id)}
-                    title={`${chip.fullDate} · index mean ≈ ${formatStatFixed(chip.mean, 3)}`}
-                  >
-                    {chip.shortLabel}
-                  </button>
-                ))}
-              </div>
-
               {timelineOptions && onTimelineOptionsApply ? (
                 <div className="si-map-analysis-timeline-mode-row" role="group" aria-label="Time slider mode and interval">
                   <label className="si-map-analysis-timeline-inline-field">

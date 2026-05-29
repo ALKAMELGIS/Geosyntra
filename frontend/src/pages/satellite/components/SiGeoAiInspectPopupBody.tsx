@@ -2,11 +2,15 @@ import { useEffect, useMemo, useState } from 'react';
 import type { SiPopupInspectPayload } from '../../../lib/siLayerPopupInspect';
 import './SiGeoAiInspectPopupBody.css';
 
+export type SiGeoAiInspectPopupBodyVariant = 'explore' | 'map';
+
 export type SiGeoAiInspectPopupBodyProps = {
   rows: { label: string; value: string }[];
   inspect?: SiPopupInspectPayload | null;
   /** Layout density from layer config (table / card / compact). */
   layout?: 'table' | 'card' | 'compact';
+  /** Map-anchored identify: compact list, selectable text, no search/copy chrome. */
+  variant?: SiGeoAiInspectPopupBodyVariant;
 };
 
 type TabKey = 'attributes' | 'relations' | 'media';
@@ -17,26 +21,12 @@ function filterRows<T extends { label: string; value: string }>(rows: T[], q: st
   return rows.filter(r => r.label.toLowerCase().includes(s) || r.value.toLowerCase().includes(s))
 }
 
-async function copyText(text: string) {
-  try {
-    await navigator.clipboard.writeText(text)
-  } catch {
-    try {
-      const ta = document.createElement('textarea')
-      ta.value = text
-      ta.style.position = 'fixed'
-      ta.style.left = '-9999px'
-      document.body.appendChild(ta)
-      ta.select()
-      document.execCommand('copy')
-      document.body.removeChild(ta)
-    } catch {
-      /* ignore */
-    }
-  }
-}
-
-export function SiGeoAiInspectPopupBody({ rows, inspect, layout = 'table' }: SiGeoAiInspectPopupBodyProps) {
+export function SiGeoAiInspectPopupBody({
+  rows,
+  inspect,
+  layout = 'table',
+  variant = 'explore',
+}: SiGeoAiInspectPopupBodyProps) {
   const [q, setQ] = useState('')
   const [tab, setTab] = useState<TabKey>('attributes')
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({})
@@ -95,17 +85,39 @@ export function SiGeoAiInspectPopupBody({ rows, inspect, layout = 'table' }: SiG
       <div className="si-geo-ai-inspect-explore-v" title={r.value}>
         {r.value}
       </div>
-      <button
-        type="button"
-        className="si-geo-ai-inspect-explore-copy"
-        title="Copy value"
-        aria-label={`Copy ${r.label}`}
-        onClick={() => void copyText(r.value)}
-      >
-        <i className="fa-regular fa-copy" aria-hidden />
-      </button>
+      {variant === 'explore' ? (
+        <button
+          type="button"
+          className="si-geo-ai-inspect-explore-copy"
+          title="Copy value"
+          aria-label={`Copy ${r.label}`}
+          onClick={() => void navigator.clipboard?.writeText(r.value)}
+        >
+          <i className="fa-regular fa-copy" aria-hidden />
+        </button>
+      ) : null}
     </div>
   )
+
+  if (variant === 'map') {
+    const mapRows = filterRows(displayRows, q);
+    return (
+      <div className="si-geo-ai-inspect-explore si-geo-ai-inspect-explore--map-lux">
+        {mapRows.length === 0 ? (
+          <p className="si-geo-ai-inspect-explore-empty">No attributes at this location.</p>
+        ) : (
+          <dl className="si-geo-ai-inspect-map-attrs">
+            {mapRows.map((r, i) => (
+              <div key={`${r.key ?? r.label}-${i}`} className="si-geo-ai-inspect-map-attr">
+                <dt>{r.label}</dt>
+                <dd>{r.value}</dd>
+              </div>
+            ))}
+          </dl>
+        )}
+      </div>
+    );
+  }
 
   const renderAttrBody = () => (
     <div className="si-geo-ai-inspect-explore-scroll">

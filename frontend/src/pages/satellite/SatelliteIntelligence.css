@@ -6988,6 +6988,8 @@ input:checked + .slider:before {
 .si-geo-ai-inspect-marker {
   z-index: 120;
   pointer-events: auto;
+  transform: translateZ(0);
+  will-change: transform;
 }
 
 .si-geo-ai-inspect-card {
@@ -7010,6 +7012,26 @@ input:checked + .slider:before {
   -webkit-backdrop-filter: blur(18px) saturate(1.2);
 }
 
+/* Map-anchored identify — compact black luxury glass */
+.si-geo-ai-inspect-card--map-anchor {
+  width: min(248px, calc(100vw - 48px));
+  max-height: min(42vh, 280px);
+  border-radius: 12px;
+  font-size: 10px;
+  background:
+    linear-gradient(145deg, rgba(255, 255, 255, 0.07) 0%, transparent 42%),
+    linear-gradient(180deg, rgba(14, 14, 17, 0.94) 0%, rgba(0, 0, 0, 0.97) 100%);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  box-shadow:
+    0 22px 56px rgba(0, 0, 0, 0.58),
+    0 0 0 1px rgba(255, 255, 255, 0.06),
+    inset 0 1px 0 rgba(255, 255, 255, 0.1);
+  backdrop-filter: blur(28px) saturate(1.45);
+  -webkit-backdrop-filter: blur(28px) saturate(1.45);
+  transform: translateY(-4px) translateZ(0);
+  backface-visibility: hidden;
+}
+
 .si-geo-ai-inspect-card__body {
   display: flex;
   flex-direction: column;
@@ -7025,8 +7047,59 @@ input:checked + .slider:before {
   display: none;
 }
 
-.si-geo-ai-inspect-card--map-anchor {
-  transform: translateY(-4px);
+.si-geo-ai-inspect-card--map-anchor .si-geo-ai-inspect-card__head {
+  padding: 7px 9px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.05) 0%, transparent 100%);
+  border-bottom-color: rgba(255, 255, 255, 0.08);
+}
+
+.si-geo-ai-inspect-card--map-anchor .si-geo-ai-inspect-card__title {
+  font-size: 11px;
+  font-weight: 650;
+  letter-spacing: -0.01em;
+  color: #f6f7fc;
+}
+
+.si-geo-ai-inspect-card--map-anchor .si-geo-ai-inspect-card__close,
+.si-geo-ai-inspect-card--map-anchor .si-geo-ai-inspect-card__pin,
+.si-geo-ai-inspect-card--map-anchor .si-geo-ai-inspect-card__collapse {
+  width: 22px;
+  height: 22px;
+  border-radius: 6px;
+  font-size: 14px;
+  border-color: rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.si-geo-ai-inspect-card--map-anchor .si-geo-ai-inspect-card__meta {
+  padding: 5px 9px 4px;
+  gap: 3px;
+  font-size: 9px;
+  border-bottom-color: rgba(255, 255, 255, 0.06);
+  background: rgba(0, 0, 0, 0.2);
+}
+
+.si-geo-ai-inspect-card--map-anchor .si-geo-ai-inspect-card__meta-row {
+  grid-template-columns: minmax(0, 1fr);
+  gap: 1px;
+}
+
+.si-geo-ai-inspect-card--map-anchor .si-geo-ai-inspect-card__meta-k {
+  display: none;
+}
+
+.si-geo-ai-inspect-card--map-anchor .si-geo-ai-inspect-card__meta-v {
+  color: rgba(214, 216, 224, 0.78);
+  font-size: 9px;
+  user-select: text;
+  -webkit-user-select: text;
+  cursor: text;
+}
+
+.si-geo-ai-inspect-card--map-anchor .si-geo-ai-inspect-card__explore-wrap {
+  min-height: 0;
+  max-height: min(200px, 36vh);
+  padding: 0 7px 6px;
 }
 
 .si-geo-ai-inspect-card__head {

@@ -79,3 +79,35 @@
   font-size: 11px;
   opacity: 0.92;
 }
+
+.si-map-identify-toolbar--compact {
+  gap: 6px;
+  padding: 5px 8px 4px;
+  border-bottom-color: rgba(255, 255, 255, 0.08);
+}
+
+.si-map-identify-toolbar--compact .si-map-identify-toolbar__layer-label {
+  font-size: 8px;
+}
+
+.si-map-identify-toolbar--compact .si-map-identify-toolbar__layer-select {
+  min-height: 24px;
+  font-size: 10px;
+  border-radius: 6px;
+}
+
+.si-map-identify-toolbar--compact .si-map-identify-toolbar__actions {
+  gap: 4px;
+}
+
+.si-map-identify-toolbar--compact .si-map-identify-toolbar__btn {
+  min-height: 24px;
+  width: 24px;
+  padding: 0;
+  justify-content: center;
+  border-radius: 7px;
+}
+
+.si-map-identify-toolbar--compact .si-map-identify-toolbar__btn i {
+  font-size: 10px;
+}

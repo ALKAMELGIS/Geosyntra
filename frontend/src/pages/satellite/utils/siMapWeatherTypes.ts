@@ -19,7 +19,8 @@ function sanitizeDaylightDateIso(raw: unknown, fallback?: string): string {
 
 export type SiMapWeatherPreset = 'sunny' | 'cloudy' | 'rain' | 'snow' | 'fog';
 
-export type SiMapWeatherPanelTab = 'daylight' | 'weather';
+/** @deprecated Daylight tab removed — always weather. Kept for persisted slide/settings compatibility. */
+export type SiMapWeatherPanelTab = 'weather';
 
 export type SiMapWeatherPanelTheme = 'dark' | 'light';
 
@@ -33,7 +34,7 @@ export type SiMapWeatherSettings = {
   snowCover: boolean;
   /** 0–100 — atmospheric fog thickness. */
   fogDensity: number;
-  /** Daylight tab: minutes since midnight 0–1439 (ArcGIS Scene slider). */
+  /** Minutes since midnight 0–1439 (map sun when sunPositionByDateTime is on). */
   daylightMinutes: number;
   /** ISO date (YYYY-MM-DD) for seasonal sun angle. */
   daylightDate: string;
@@ -136,7 +137,7 @@ export function sanitizeSiMapWeatherSettings(raw: unknown): SiMapWeatherSettings
   const preset = SI_MAP_WEATHER_PRESETS.some(p => p.id === rawPreset)
     ? (rawPreset as SiMapWeatherPreset)
     : d.preset;
-  const panelTab = o.panelTab === 'daylight' ? 'daylight' : 'weather';
+  const panelTab: SiMapWeatherPanelTab = 'weather';
   const panelTheme = o.panelTheme === 'light' ? 'light' : 'dark';
   const rainFlowIntensity =
     o.rainFlowIntensity === 'low' || o.rainFlowIntensity === 'high' ? o.rainFlowIntensity : 'medium';
