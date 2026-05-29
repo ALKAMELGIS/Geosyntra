@@ -12,6 +12,11 @@ import {
   findFirstSiBasemapLayerId,
   mapHasSiRasterBasemapStack,
 } from './siMapBasemapRuntime';
+import {
+  findMapboxInsertBeforeIdAboveWmsStack,
+  raiseSiMapTerrainContourLayersAboveWms,
+  topmostSiMapWmsRasterLayerIndex,
+} from './siMapWmsRasterLayerStack';
 
 export type SiMapProjectionMode = '2d' | 'globe';
 
@@ -339,6 +344,14 @@ function findLabelLayerId(map: MapboxMap): string | undefined {
   return undefined;
 }
 
+/** Insert contours above live WMS when present; otherwise below first operational layer. */
+function findSiContourLayerInsertBeforeId(map: MapboxMap): string | undefined {
+  if (topmostSiMapWmsRasterLayerIndex(map) >= 0) {
+    return findMapboxInsertBeforeIdAboveWmsStack(map);
+  }
+  return findFirstNonBasemapLayerId(map) ?? findLabelLayerId(map);
+}
+
 function buildContourLineColor(
   mode: SiContourClassificationMode,
   classificationEnabled: boolean,
@@ -486,10 +499,11 @@ function syncSiContourLayer(map: MapboxMap, settings: SiMapTerrainSettings, enab
     map.setPaintProperty(CONTOUR_LAYER_ID, 'line-width', lineWidth);
     map.setPaintProperty(CONTOUR_LAYER_ID, 'line-emissive-strength', 0.35);
     map.setFilter(CONTOUR_LAYER_ID, contourFilter);
+    raiseSiMapTerrainContourLayersAboveWms(map);
     return;
   }
 
-  const beforeId = findFirstNonBasemapLayerId(map) ?? findLabelLayerId(map);
+  const beforeId = findSiContourLayerInsertBeforeId(map);
   map.addLayer(
     {
       id: CONTOUR_LAYER_ID,
@@ -503,6 +517,7 @@ function syncSiContourLayer(map: MapboxMap, settings: SiMapTerrainSettings, enab
     },
     beforeId,
   );
+  raiseSiMapTerrainContourLayersAboveWms(map);
 }
 
 /** ArcGIS Scene Viewer–style elevation text along index contours. */
@@ -570,11 +585,12 @@ function syncSiContourLabelLayer(map: MapboxMap, settings: SiMapTerrainSettings)
   if (map.getLayer(CONTOUR_LABEL_LAYER_ID)) {
     map.setFilter(CONTOUR_LABEL_LAYER_ID, labelFilter);
     applySiMap3DSymbolLayerStyle(map, CONTOUR_LABEL_LAYER_ID, labelLayout, labelPaint);
+    raiseSiMapTerrainContourLayersAboveWms(map);
     map.triggerRepaint?.();
     return;
   }
 
-  const beforeId = findFirstNonBasemapLayerId(map) ?? findLabelLayerId(map);
+  const beforeId = findSiContourLayerInsertBeforeId(map);
   map.addLayer(
     {
       id: CONTOUR_LABEL_LAYER_ID,
@@ -589,6 +605,7 @@ function syncSiContourLabelLayer(map: MapboxMap, settings: SiMapTerrainSettings)
     },
     beforeId,
   );
+  raiseSiMapTerrainContourLayersAboveWms(map);
   map.triggerRepaint?.();
 }
 
