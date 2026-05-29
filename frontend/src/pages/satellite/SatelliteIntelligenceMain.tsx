@@ -395,6 +395,14 @@ import {
 } from './utils/siMapProjectionTerrain';
 import { isMapboxStyleReady, resizeMapboxMapSoon, whenMapboxStyleReady } from './utils/mapboxStyleReady';
 import {
+  SI_MAP_BASEMAP_SHELL_STYLE,
+  SI_QUICK_BASEMAP_PRESETS,
+  applySiMapBasemap,
+  entrySupportsInPlaceBasemapSwap,
+  prefetchBasemapTiles,
+  prefetchSiQuickBasemaps,
+} from './utils/siMapBasemapRuntime';
+import {
   SI_3D_LABEL_MAX_ZOOM,
   SI_3D_LABEL_MIN_ZOOM,
   SI_MAPBOX_LINE_LABEL_FILTER,
@@ -2879,7 +2887,7 @@ export default function SatelliteIntelligence() {
   const basemapCatalog = useMemo(
     () =>
       buildBasemapCatalog(platformMapboxToken || '', {
-        includeMapboxVectorBasemaps: true,
+        includeMapboxVectorBasemaps: false,
       }),
     [platformMapboxToken],
   );
@@ -14231,15 +14239,18 @@ export default function SatelliteIntelligence() {
       )!
     );
   }, [basemapCatalog, activeBasemapId, hasMapboxBasemap]);
-  /** Memoize: raster fallback from mapboxGlStyleForEntry is a new object each call → MapGL style reload loop. */
+  const useInPlaceBasemapShell = entrySupportsInPlaceBasemapSwap(currentBasemapEntry);
+  /** Stable shell + in-place tile swap — avoids setStyle flicker and keeps layers/camera (2D/3D). */
   const effectiveMapStyle = useMemo(
-    () =>
-      currentBasemapEntry
+    () => {
+      if (useInPlaceBasemapShell) return SI_MAP_BASEMAP_SHELL_STYLE;
+      return currentBasemapEntry
         ? mapboxGlStyleForEntry(currentBasemapEntry, platformMapboxToken || '', {
             backendProxyConfigured: mapboxConfigured,
           })
-        : EMPTY_MAP_STYLE,
-    [currentBasemapEntry, platformMapboxToken, mapboxConfigured],
+        : EMPTY_MAP_STYLE;
+    },
+    [useInPlaceBasemapShell, currentBasemapEntry, platformMapboxToken, mapboxConfigured],
   );
   const mapboxAccessTokenForMap = useMemo(() => {
     const platform = platformMapboxToken?.trim();
@@ -14268,27 +14279,49 @@ export default function SatelliteIntelligence() {
     resizeMapboxMapSoon(map);
   }, [mapboxAccessTokenForMap, activeBasemapId]);
 
-  /** Avoid Mapbox "Style is not done loading" by pausing layer children until the new style is ready (dock stays mounted). */
+  const prevBasemapEntryRef = useRef<typeof currentBasemapEntry | null>(null);
   const basemapStyleGateRef = useRef(false);
+
+  useEffect(() => {
+    prefetchSiQuickBasemaps(basemapCatalog, resolveBasemapId);
+  }, [basemapCatalog]);
+
+  /** Basemap swap: in-place raster tiles (no layer gate) or full style reload for vector-only entries. */
   useLayoutEffect(() => {
     if (!basemapStyleGateRef.current) {
       basemapStyleGateRef.current = true;
+      prevBasemapEntryRef.current = currentBasemapEntry;
       return;
     }
-    lastTerrainSyncSigRef.current = '';
-    setMapStyleLayersReady(prev => {
-      if (!prev) return prev;
-      return false;
-    });
     const map = mapRef.current?.getMap?.() ?? mapRef.current;
-    if (!map) return;
+    if (!map || !isMapLoaded) return;
+
+    if (entrySupportsInPlaceBasemapSwap(currentBasemapEntry)) {
+      try {
+        applySiMapBasemap(map, currentBasemapEntry!, {
+          prevEntry: prevBasemapEntryRef.current ?? undefined,
+          fadeMs: 280,
+        });
+        prevBasemapEntryRef.current = currentBasemapEntry;
+        lastTerrainSyncSigRef.current = '';
+        lastWeatherSyncSigRef.current = '';
+        syncSiMapWeatherRef.current();
+      } catch (err) {
+        console.warn('[SI] In-place basemap swap failed', err);
+      }
+      return;
+    }
+
+    prevBasemapEntryRef.current = currentBasemapEntry;
+    lastTerrainSyncSigRef.current = '';
+    setMapStyleLayersReady(prev => (prev ? false : prev));
     return whenMapboxStyleReady(map, () => {
       if (mapStyleLayersReadyRef.current) return;
       setMapStyleLayersReady(true);
       lastWeatherSyncSigRef.current = '';
       syncSiMapWeatherRef.current();
     });
-  }, [activeBasemapId, mapboxToken]);
+  }, [activeBasemapId, isMapLoaded, currentBasemapEntry, mapboxToken]);
 
   /** Re-apply forced hollow style after basemap swap (ArcGIS portal layers keep service symbology). */
   useEffect(() => {
@@ -17171,6 +17204,10 @@ export default function SatelliteIntelligence() {
               });
               const finishMainMapReady = () => {
                 resizeMapboxMapSoon(mapInstance);
+                if (currentBasemapEntry && entrySupportsInPlaceBasemapSwap(currentBasemapEntry)) {
+                  applySiMapBasemap(mapInstance, currentBasemapEntry, { fadeMs: 0 });
+                  prevBasemapEntryRef.current = currentBasemapEntry;
+                }
                 logBasemapLoaded({
                   basemapId: activeBasemapId,
                   styleLoaded: isMapboxStyleReady(mapInstance),
@@ -18148,6 +18185,34 @@ export default function SatelliteIntelligence() {
                       role="listbox"
                       aria-label="Basemap gallery"
                     >
+                      <div className="si-basemap-quick" role="group" aria-label="Quick basemaps">
+                        {SI_QUICK_BASEMAP_PRESETS.map(preset => {
+                          const entry =
+                            catalogEntryById(basemapCatalog, resolveBasemapId(preset.catalogId)) ??
+                            catalogEntryById(basemapCatalog, preset.catalogId);
+                          const active =
+                            activeBasemapId === preset.catalogId ||
+                            activeBasemapId === resolveBasemapId(preset.catalogId);
+                          return (
+                            <button
+                              key={preset.key}
+                              type="button"
+                              className={`si-basemap-quick-btn ${active ? 'active' : ''}`}
+                              title={preset.label}
+                              aria-pressed={active}
+                              onMouseEnter={() => entry && prefetchBasemapTiles(entry)}
+                              onFocus={() => entry && prefetchBasemapTiles(entry)}
+                              onClick={e => {
+                                e.stopPropagation();
+                                setBasemapId(preset.catalogId);
+                                setIsBasemapOpen(false);
+                              }}
+                            >
+                              {preset.label}
+                            </button>
+                          );
+                        })}
+                      </div>
                       {basemapCatalog.map(entry => {
                         const thumb = getBasemapThumbnail(entry, platformMapboxToken || '');
                         const isHybrid =
@@ -18159,6 +18224,8 @@ export default function SatelliteIntelligence() {
                             className={`si-basemap-card ${activeBasemapId === entry.id ? 'active' : ''}`}
                             role="option"
                             aria-selected={activeBasemapId === entry.id}
+                            onMouseEnter={() => prefetchBasemapTiles(entry)}
+                            onFocus={() => prefetchBasemapTiles(entry)}
                             onClick={e => {
                               e.stopPropagation();
                               setBasemapId(entry.id);

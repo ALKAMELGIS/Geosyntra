@@ -458,6 +458,10 @@ export function resolveBasemapId(id: string): string {
     'mapbox-alkamelgis': 'satellite',
     hybrid: 'esri-imagery-hybrid',
     street: 'osm',
+    streets: 'esri-streets',
+    dark: 'esri-dark-gray',
+    topographic: 'esri-topo',
+    topo: 'esri-topo',
     terrain: 'terrain-opentopo',
     'google-earth': 'esri',
     google: 'esri',
@@ -472,8 +476,8 @@ export function catalogEntryById(catalog: BasemapCatalogEntry[], id: string): Ba
   return catalog.find(e => e.id === id)
 }
 
-/** Startup default when Mapbox token or backend proxy is available. */
-export const DEFAULT_BASEMAP_ID = 'mapbox-standard-satellite'
+/** Startup default — Esri satellite raster (fast first paint; Mapbox token still used for GL engine). */
+export const DEFAULT_BASEMAP_ID = 'satellite'
 
 /** Startup fallback before Mapbox is ready — Esri world imagery (still satellite). */
 export const DEFAULT_BASEMAP_ID_NO_MAPBOX = 'satellite'
@@ -500,15 +504,12 @@ export function resolveStartupBasemapId(
 }
 
 function shouldUpgradeStartupBasemap(
-  currentId: string,
-  hasMapboxBasemap: boolean,
-  catalog: BasemapCatalogEntry[],
+  _currentId: string,
+  _hasMapboxBasemap: boolean,
+  _catalog: BasemapCatalogEntry[],
 ): boolean {
-  if (!hasMapboxBasemap) return false
-  const resolved = resolveBasemapId(currentId)
-  if (resolved === DEFAULT_BASEMAP_ID) return false
-  if (!STARTUP_BASEMAP_FALLBACK_IDS.has(resolved)) return false
-  return Boolean(catalogEntryById(catalog, DEFAULT_BASEMAP_ID))
+  /** Keep lightweight Esri startup basemap — do not auto-switch to Mapbox Standard (heavy vector). */
+  return false
 }
 
 /** Keep basemap state valid and promote startup fallbacks when Mapbox becomes ready (state layer). */

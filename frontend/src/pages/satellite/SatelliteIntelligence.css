@@ -2855,6 +2855,48 @@ main.content > .si-page {
   max-width: 288px;
 }
 
+.si-basemap-quick {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 6px;
+  padding-bottom: 6px;
+  margin-bottom: 2px;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.2);
+}
+
+.si-basemap-quick-btn {
+  border: none;
+  border-radius: 8px;
+  padding: 6px 4px;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1.2;
+  letter-spacing: 0.02em;
+  color: rgba(226, 232, 240, 0.88);
+  background: rgba(15, 23, 42, 0.65);
+  box-shadow: inset 0 0 0 1px rgba(148, 163, 184, 0.28);
+  cursor: pointer;
+  transition:
+    background 0.16s ease,
+    color 0.16s ease,
+    box-shadow 0.16s ease;
+}
+
+.si-basemap-quick-btn:hover,
+.si-basemap-quick-btn:focus-visible {
+  color: #f8fafc;
+  background: rgba(30, 41, 59, 0.9);
+  box-shadow: inset 0 0 0 1px rgba(125, 211, 252, 0.45);
+  outline: none;
+}
+
+.si-basemap-quick-btn.active {
+  color: #f0fdf4;
+  background: linear-gradient(165deg, rgba(22, 163, 74, 0.45), rgba(15, 23, 42, 0.85));
+  box-shadow: inset 0 0 0 1px rgba(52, 211, 153, 0.55);
+}
+
 .si-basemap-card {
   display: flex;
   flex-direction: column;
