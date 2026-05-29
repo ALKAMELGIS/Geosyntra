@@ -1,0 +1,9 @@
+/**
+ * Field Data scene controls — flat stack (no summary card wrapper).
+ * Visual tokens come from `SatelliteIntelligence.css` (`.si-field-analysis-*`).
+ */
+.gs-field-data-spectral-root {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}

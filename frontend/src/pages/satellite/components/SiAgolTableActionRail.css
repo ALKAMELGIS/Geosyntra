@@ -1,0 +1,121 @@
+/* ArcGIS Online attribute table — left action rail (inherits .si-agol-table glass tokens) */
+
+.si-agol-table-rail {
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  width: 44px;
+  border-right: 1px solid var(--si-tbl-border, rgba(255, 255, 255, 0.12));
+  background: var(--si-tbl-glass-rail, rgba(0, 0, 0, 0.44));
+  backdrop-filter: var(--si-tbl-blur, blur(24px) saturate(1.16));
+  -webkit-backdrop-filter: var(--si-tbl-blur, blur(24px) saturate(1.16));
+  color: var(--si-tbl-text, rgba(255, 255, 255, 0.96));
+}
+
+.si-agol-table-rail--expanded {
+  width: 132px;
+}
+
+.si-agol-table-rail__tools {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+  padding: 6px 4px;
+  gap: 2px;
+  overflow-y: auto;
+}
+
+.si-agol-table-rail__btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  min-height: 32px;
+  padding: 4px 8px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--si-tbl-text);
+  font-size: 12px;
+  font-weight: 500;
+  text-align: left;
+  cursor: pointer;
+  transition:
+    background 0.15s ease,
+    color 0.15s ease;
+}
+
+.si-agol-table-rail__btn i {
+  flex: 0 0 18px;
+  width: 18px;
+  font-size: 14px;
+  text-align: center;
+  color: var(--si-tbl-text-muted);
+}
+
+.si-agol-table-rail__label {
+  flex: 1 1 auto;
+  min-width: 0;
+  line-height: 1.25;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--si-tbl-text);
+}
+
+.si-agol-table-rail__btn:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--si-tbl-text) 10%, transparent);
+  color: var(--si-tbl-text);
+}
+
+.si-agol-table-rail__btn:hover:not(:disabled) i {
+  color: var(--si-tbl-text);
+}
+
+.si-agol-table-rail__btn--active {
+  background: var(--si-tbl-select, rgba(56, 189, 248, 0.24));
+  color: var(--si-tbl-text);
+}
+
+.si-agol-table-rail__btn--active i {
+  color: var(--si-tbl-text);
+}
+
+.si-agol-table-rail__btn:disabled {
+  opacity: 0.38;
+  cursor: not-allowed;
+}
+
+.si-agol-table-rail__sep {
+  height: 1px;
+  margin: 6px 8px;
+  background: var(--si-tbl-border-subtle, rgba(255, 255, 255, 0.08));
+}
+
+.si-agol-table-rail__collapse {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  width: 100%;
+  min-height: 34px;
+  padding: 6px 8px;
+  border: 0;
+  border-top: 1px solid var(--si-tbl-border-subtle, rgba(255, 255, 255, 0.08));
+  background: var(--si-tbl-glass-soft, rgba(0, 0, 0, 0.38));
+  color: var(--si-tbl-text-muted);
+  font-size: 11px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.si-agol-table-rail__collapse:hover {
+  background: color-mix(in srgb, var(--si-tbl-text) 8%, transparent);
+  color: var(--si-tbl-text);
+}
+
+.si-agol-table-rail:not(.si-agol-table-rail--expanded) .si-agol-table-rail__collapse {
+  padding: 8px 4px;
+}

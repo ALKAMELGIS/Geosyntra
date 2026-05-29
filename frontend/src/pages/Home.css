@@ -1,0 +1,2111 @@
+/**
+ * Home → AI 3D ScrollGlobe shell.
+ *
+ * The landing page is mounted inside `<main class="content content--landing-fullbleed">`,
+ * which already pins to the full viewport (see `index.css`). This file just
+ * makes the inner wrapper transparent and unconstrained so the `min-h-screen`
+ * sections inside `<LandingPage />` measure against the full window — the
+ * same way the upstream 21st.dev bundle behaves at the document root.
+ */
+/* ── Merged Home: SaaS panel + ScrollGlobe browse panels ── */
+.home-merged {
+  width: 100%;
+  max-width: 100%;
+  min-height: 100vh;
+  min-height: 100dvh;
+}
+
+.home-merged__nav {
+  z-index: 120;
+  overflow: visible;
+  border-bottom-color: rgba(255, 255, 255, 0.08);
+  background: color-mix(in srgb, var(--ds-color-bg, #07080c) 78%, transparent);
+  backdrop-filter: blur(18px) saturate(1.15);
+  -webkit-backdrop-filter: blur(18px) saturate(1.15);
+}
+
+/* Sparks behind nav shell; nav-inner (z-index 2) stays in front of ::after (1) */
+.home-landing .home-merged__nav-sparks {
+  position: fixed;
+  inset: 0 0 auto;
+  z-index: 54;
+  height: clamp(6.5rem, 16vh, 9.5rem);
+  pointer-events: none;
+  overflow: hidden;
+  opacity: 0.92;
+}
+
+.home-landing .home-merged__nav {
+  isolation: isolate;
+  border-bottom: none;
+  padding-bottom: 1.35rem;
+  /* Background + fade live on ::before so account dropdown is not mask-clipped */
+  background: transparent;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
+.home-landing .home-merged__nav::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background: linear-gradient(
+    180deg,
+    rgba(2, 6, 14, 0.38) 0%,
+    rgba(2, 6, 14, 0.14) 42%,
+    rgba(2, 6, 14, 0.04) 68%,
+    transparent 100%
+  );
+  backdrop-filter: blur(10px) saturate(1.08);
+  -webkit-backdrop-filter: blur(10px) saturate(1.08);
+  -webkit-mask-image: linear-gradient(
+    180deg,
+    #000 0%,
+    #000 38%,
+    rgba(0, 0, 0, 0.72) 62%,
+    transparent 100%
+  );
+  mask-image: linear-gradient(
+    180deg,
+    #000 0%,
+    #000 38%,
+    rgba(0, 0, 0, 0.72) 62%,
+    transparent 100%
+  );
+}
+
+.home-landing .home-merged__nav > .saas-entry__nav-inner {
+  position: relative;
+  z-index: 2;
+}
+
+.home-landing .home-merged__nav::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 100%;
+  height: 2.75rem;
+  z-index: 1;
+  pointer-events: none;
+  background: linear-gradient(180deg, rgba(2, 6, 14, 0.06) 0%, transparent 100%);
+}
+
+.home-landing .home-merged__nav .saas-entry__nav-inner {
+  position: relative;
+  z-index: 2;
+  align-items: flex-start;
+  box-sizing: border-box;
+  min-height: 4rem;
+  height: auto;
+  padding-top: clamp(10px, 1.2vw, 18px);
+}
+
+.home-landing .home-merged__nav-chrome {
+  align-items: center;
+  align-self: center;
+  gap: 0;
+  padding-top: 0;
+}
+
+.home-merged .home-merged__nav .saas-entry__brand {
+  color: rgba(248, 250, 252, 0.95);
+}
+
+.home-landing .home-merged__nav .saas-entry__brand {
+  align-self: flex-start;
+  margin-top: 0.12rem;
+}
+
+.home-merged .home-merged__nav .saas-entry__brand-mark {
+  background: transparent;
+  border-radius: 0;
+}
+
+.home-merged .home-merged__nav .saas-entry__nav-link {
+  color: rgba(148, 163, 184, 0.95);
+}
+
+.home-merged .home-merged__nav .saas-entry__nav-link:hover {
+  color: rgba(248, 250, 252, 1);
+}
+
+.home-landing .home-merged__nav .saas-entry__nav-links .home-user-toolbar--nav-auth {
+  align-self: center;
+}
+
+.home-merged__nav-chrome {
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: flex-start;
+  gap: 0.65rem;
+  flex-shrink: 0;
+  position: relative;
+  z-index: 130;
+  overflow: visible;
+}
+
+.home-landing .home-merged__nav .saas-entry__nav-inner,
+.home-landing .home-merged__nav .saas-entry__nav-links {
+  overflow: visible;
+}
+
+.home-landing .home-merged__nav .saas-entry__nav-links {
+  align-items: center;
+}
+
+.home-landing .home-merged__nav .home-user-toolbar--nav-auth {
+  z-index: 140;
+  margin-inline-start: 1rem;
+  margin-top: 0;
+}
+
+/* Account dropdown must sit above header fade + sparks */
+.home-landing .home-user-toolbar--nav-auth .home-user-toolbar__dropdown {
+  z-index: 360;
+}
+
+.home-landing .home-merged__nav-chrome .lux-theme-light--home-nav {
+  position: relative;
+  z-index: 2;
+  flex-shrink: 0;
+  align-self: center;
+  margin-inline-start: 2.5cm;
+  margin-top: 0;
+}
+
+.home-landing .home-merged__nav .saas-entry__nav-links .home-user-toolbar--nav-auth-guest {
+  position: relative;
+  z-index: 140;
+  align-self: center;
+  margin-inline-start: 1rem;
+  margin-top: 0;
+}
+
+.home-merged .home-merged__nav .home-nav-auth__trigger {
+  color: rgba(148, 163, 184, 0.95);
+}
+
+.home-merged .home-merged__nav .home-nav-auth__trigger:hover,
+.home-merged .home-merged__nav .home-nav-auth__trigger--open {
+  color: rgba(248, 250, 252, 1);
+}
+
+.home-merged .home-merged__nav .saas-entry__btn--primary {
+  background: rgba(236, 236, 242, 0.95);
+  color: #07080c;
+}
+
+.home-merged .home-merged__nav .saas-entry__btn--ghost {
+  color: rgba(236, 236, 242, 0.9);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+.home-landing.home-merged--browse .home-merged__nav {
+  background: linear-gradient(
+    180deg,
+    rgba(2, 6, 14, 0.48) 0%,
+    rgba(2, 6, 14, 0.2) 45%,
+    rgba(2, 6, 14, 0.06) 72%,
+    transparent 100%
+  );
+}
+
+.home-merged--browse:not(.home-landing) .home-merged__nav {
+  background: color-mix(in srgb, var(--ds-color-bg, #07080c) 72%, transparent);
+}
+
+.home-merged-saas {
+  padding-top: 5.5rem;
+  padding-bottom: 3rem;
+  background: hsl(var(--background, 0 0% 100%));
+}
+
+.home-landing .home-merged-saas,
+.home-landing .gs-hero-leading-panel .pointer-events-auto {
+  background: transparent;
+}
+
+.home-merged-saas__inner {
+  max-width: 56rem;
+  margin: 0 auto;
+  padding: 0 1rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+}
+
+.home-merged-saas__scroll-hint {
+  margin: 2.5rem 0 0;
+  font-size: 0.8125rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: hsl(var(--muted-foreground, 0 0% 45%));
+  opacity: 0.85;
+}
+
+.home-merged--browse .home-merged-saas {
+  background: transparent;
+}
+
+/* Integrated globe — SaaS hero (leading panel) */
+.home-landing .gs-scroll-globe--home-integrated,
+.home-landing .gs-scroll-globe.gs-scroll-globe--with-leading {
+  background: transparent !important;
+}
+
+.home-landing .gs-scroll-globe-trailing {
+  pointer-events: auto;
+}
+
+.home-landing .gs-scroll-globe-trailing[data-scroll-globe-trailing='footer'] {
+  min-height: min(100dvh, 880px);
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+}
+
+.gs-hero-globe {
+  top: 0;
+  left: 0;
+  width: 0;
+  height: 0;
+  contain: layout style;
+  transform-style: preserve-3d;
+}
+
+/* Smooth scroll path — transform driven by JS; no section snap nudge */
+.home-landing .gs-scroll-globe--smooth-globe .gs-hero-globe {
+  translate: none;
+}
+
+/* Home Start — keep globe anchor on viewport center when not on smooth path */
+.home-landing .gs-scroll-globe--home-integrated:not(.gs-scroll-globe--smooth-globe)[data-active-section='0'] .gs-hero-globe,
+.home-landing .gs-scroll-globe--leading-clear:not(.gs-scroll-globe--smooth-globe)[data-active-section='0'] .gs-hero-globe {
+  translate: 0 0.45rem;
+}
+
+/* Smooth path — softer corona transitions between narrative stops */
+.home-landing .gs-scroll-globe--smooth-globe .gs-hero-globe__parallax::before,
+.home-landing .gs-scroll-globe--smooth-globe .gs-hero-globe__parallax::after {
+  transition: opacity 0.55s cubic-bezier(0.23, 1, 0.32, 1), filter 0.55s cubic-bezier(0.23, 1, 0.32, 1);
+}
+
+.home-landing .gs-scroll-globe--home-integrated[data-active-section='0'] #start > .pointer-events-auto,
+.home-landing .gs-scroll-globe--leading-clear[data-active-section='0'] #start > .pointer-events-auto {
+  translate: 0 0;
+}
+
+.gs-hero-globe__parallax {
+  /* Anchor `.gs-hero-globe` is 0×0 — center the real globe mesh on the vw/vh point */
+  position: absolute;
+  left: 0;
+  top: 0;
+  overflow: visible;
+  transform: translate(-50%, -50%);
+  transform-style: preserve-3d;
+  backface-visibility: hidden;
+  will-change: transform;
+}
+
+.home-landing .gs-hero-globe {
+  overflow: visible;
+}
+
+.gs-hero-globe__scale {
+  will-change: transform;
+}
+
+.gs-hero-globe-gradient {
+  background:
+    radial-gradient(ellipse 68% 52% at 50% 44%, transparent 0%, rgba(2, 6, 14, 0.42) 42%, rgba(2, 6, 14, 0.88) 100%),
+    linear-gradient(180deg, rgba(2, 6, 14, 0.28) 0%, rgba(2, 6, 14, 0.72) 55%, rgba(2, 6, 14, 0.94) 100%);
+}
+
+/* Start → Footer — full globe clarity: no radial scrim, blur, or dimming */
+.home-landing .gs-scroll-globe--home-integrated[data-active-section='0'] .gs-hero-globe-gradient,
+.home-landing .gs-scroll-globe--home-integrated[data-active-section='1'] .gs-hero-globe-gradient,
+.home-landing .gs-scroll-globe--home-integrated[data-active-section='2'] .gs-hero-globe-gradient,
+.home-landing .gs-scroll-globe--home-integrated[data-active-section='3'] .gs-hero-globe-gradient,
+.home-landing .gs-scroll-globe--home-integrated[data-active-section='4'] .gs-hero-globe-gradient,
+.home-landing .gs-scroll-globe--leading-clear[data-active-section='0'] .gs-hero-globe-gradient,
+.home-landing .gs-scroll-globe--leading-clear[data-active-section='1'] .gs-hero-globe-gradient,
+.home-landing .gs-scroll-globe--leading-clear[data-active-section='2'] .gs-hero-globe-gradient,
+.home-landing .gs-scroll-globe--leading-clear[data-active-section='3'] .gs-hero-globe-gradient,
+.home-landing .gs-scroll-globe--leading-clear[data-active-section='4'] .gs-hero-globe-gradient {
+  opacity: 0 !important;
+  visibility: hidden;
+}
+
+.home-landing .gs-scroll-globe--home-integrated[data-active-section='0'] .gs-hero-globe,
+.home-landing .gs-scroll-globe--home-integrated[data-active-section='1'] .gs-hero-globe,
+.home-landing .gs-scroll-globe--home-integrated[data-active-section='2'] .gs-hero-globe,
+.home-landing .gs-scroll-globe--home-integrated[data-active-section='3'] .gs-hero-globe,
+.home-landing .gs-scroll-globe--home-integrated[data-active-section='4'] .gs-hero-globe,
+.home-landing .gs-scroll-globe--leading-clear[data-active-section='0'] .gs-hero-globe,
+.home-landing .gs-scroll-globe--leading-clear[data-active-section='1'] .gs-hero-globe,
+.home-landing .gs-scroll-globe--leading-clear[data-active-section='2'] .gs-hero-globe,
+.home-landing .gs-scroll-globe--leading-clear[data-active-section='3'] .gs-hero-globe,
+.home-landing .gs-scroll-globe--leading-clear[data-active-section='4'] .gs-hero-globe {
+  opacity: 1 !important;
+  filter: none !important;
+}
+
+.home-landing .gs-scroll-globe--home-integrated[data-active-section='0'] #start .home-saas-hero__title,
+.home-landing .gs-scroll-globe--home-integrated[data-active-section='0'] #start .home-saas-hero__accent,
+.home-landing .gs-scroll-globe--home-integrated[data-active-section='0'] #start .home-saas-hero__accent-remainder,
+.home-landing .gs-scroll-globe--home-integrated[data-active-section='0'] #start .home-saas-hero__subtitle {
+  text-shadow: 0 2px 28px rgba(2, 6, 14, 0.82);
+}
+
+.gs-scroll-globe--with-leading .home-merged-saas,
+.gs-scroll-globe--with-leading .gs-hero-leading-panel {
+  background: transparent;
+}
+
+.home-landing .gs-scroll-globe--with-leading #start .home-saas-hero__title {
+  color: #f8fafc;
+}
+
+.home-landing .gs-scroll-globe--with-leading #start .home-saas-hero__accent,
+.home-landing .gs-scroll-globe--with-leading #start .home-saas-hero__accent-remainder {
+  color: #f8fafc;
+}
+
+.home-landing .gs-scroll-globe--with-leading #start .home-saas-hero__underline {
+  color: rgba(248, 250, 252, 0.92);
+}
+
+.home-landing .gs-scroll-globe--with-leading #start .home-saas-hero__subtitle {
+  color: rgba(203, 213, 225, 0.88);
+}
+
+.home-landing .gs-scroll-globe--with-leading #start .home-merged-saas__scroll-hint {
+  color: rgba(148, 163, 184, 0.75);
+}
+
+.home-saas-hero--globe {
+  position: relative;
+  width: 100%;
+}
+
+/* Start — headline + globe gutter centered in the viewport */
+.home-landing .gs-scroll-globe--home-integrated #start .home-merged-saas__inner {
+  position: relative;
+  width: 100%;
+  max-width: min(72rem, 94vw);
+  min-height: min(88dvh, 860px);
+  margin-inline: auto;
+  text-align: center;
+}
+
+.home-saas-hero--globe-centered {
+  --gs-brand-nudge-x: 1.15rem;
+  --gs-foot-below-globe: clamp(6.25rem, 21vmin, 10.75rem);
+  --gs-foot-rise: 3cm;
+  --gs-foot-drop: 1cm;
+  position: relative;
+  width: 100%;
+  max-width: 100%;
+  min-height: min(88dvh, 860px);
+  margin-inline: auto;
+}
+
+.home-saas-hero--globe-centered .home-saas-hero__title {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  margin-top: -1.35rem;
+  margin-bottom: 1.25rem;
+}
+
+/* Headline lines stacked — “built for” sits directly above “Spatial intelligence…” */
+.home-saas-hero--globe-centered .home-saas-hero__headline-stack {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.2rem;
+  width: 100%;
+  text-align: center;
+}
+
+.home-saas-hero__line-before {
+  display: block;
+  font-size: clamp(1.65rem, 3.8vw, 2.35rem);
+  font-weight: 600;
+  letter-spacing: -0.03em;
+  color: rgba(248, 250, 252, 0.92);
+}
+
+.home-saas-hero--globe-centered .home-saas-hero__line-before {
+  margin-bottom: 0.15rem;
+  white-space: nowrap;
+}
+
+.home-saas-hero__headline-brand {
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  color: #f8fafc;
+}
+
+@media (max-width: 900px) {
+  .home-saas-hero--globe-centered .home-saas-hero__line-before {
+    white-space: normal;
+  }
+}
+
+/* Globe reserve — absolute so it does not split the headline lines */
+.home-saas-hero__globe-gutter {
+  display: block;
+  width: min(92vw, 28rem);
+  height: clamp(10rem, 34vmin, 20rem);
+  margin: 0.15rem auto 0.35rem;
+  pointer-events: none;
+}
+
+.home-saas-hero--globe-centered .home-saas-hero__globe-gutter {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: min(78vw, 24rem);
+  height: clamp(8.25rem, 28vmin, 14.75rem);
+  margin: 0;
+  transform: translate(-50%, -50%);
+  z-index: 1;
+}
+
+.home-saas-hero--globe-centered .home-saas-hero__accent-orbit {
+  display: inline-block;
+  width: auto;
+  max-width: 100%;
+  margin-inline: auto;
+}
+
+.home-saas-hero--globe-centered .home-saas-hero__accent-block {
+  position: relative;
+  z-index: 2;
+  display: inline;
+  width: auto;
+  margin-top: 0;
+  text-align: center;
+}
+
+.home-saas-hero--globe-centered .home-saas-hero__accent,
+.home-saas-hero--globe-centered .home-saas-hero__accent-remainder {
+  font-size: clamp(2.35rem, 6.2vw, 4.75rem);
+  font-weight: 500;
+  line-height: 1.06;
+}
+
+/* Subtitle + CTAs — centered under globe on Start (raised 3cm, aligned with wordmark) */
+.home-saas-hero--globe-centered .home-saas-hero__globe-foot {
+  position: fixed;
+  inset-inline: 0;
+  top: calc(50vh + var(--gs-foot-below-globe) - var(--gs-foot-rise) + var(--gs-foot-drop));
+  z-index: 12;
+  width: min(72rem, 94vw);
+  margin-inline: auto;
+  transform: translateX(var(--gs-brand-nudge-x));
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+  padding: 0 clamp(1rem, 3vw, 1.5rem);
+  gap: 1.15rem;
+  pointer-events: none;
+  text-align: center;
+}
+
+@media (min-width: 640px) {
+  .home-saas-hero--globe-centered {
+    --gs-foot-below-globe: clamp(7rem, 22vmin, 11.5rem);
+  }
+}
+
+@media (min-width: 1024px) {
+  .home-saas-hero--globe-centered {
+    --gs-foot-below-globe: clamp(7.75rem, 23vmin, 12.25rem);
+  }
+}
+
+@media (min-width: 1536px) {
+  .home-saas-hero--globe-centered {
+    --gs-foot-below-globe: clamp(8.5rem, 24vmin, 13rem);
+  }
+}
+
+/* Hide hero copy when leaving Start — stays on first page only */
+.gs-scroll-globe:not([data-active-section='0']) .home-saas-hero__globe-foot {
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+}
+
+.home-saas-hero--globe-centered .home-saas-hero__globe-foot .home-saas-hero__subtitle,
+.home-saas-hero--globe-centered .home-saas-hero__globe-foot .home-saas-hero__cta {
+  pointer-events: auto;
+}
+
+.home-saas-hero--globe-centered .home-saas-hero__globe-foot .home-saas-hero__scroll-hint {
+  margin: calc(0.65rem - 1.15rem) 0 0;
+  pointer-events: none;
+}
+
+.home-saas-hero__scroll-cue {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0;
+  font-size: inherit;
+  letter-spacing: normal;
+  text-transform: none;
+  opacity: 1;
+}
+
+.home-saas-hero__scroll-arrow {
+  display: block;
+  width: 1.35rem;
+  height: 1.35rem;
+  color: rgba(148, 163, 184, 0.78);
+  animation: home-scroll-cue-drift 1.85s cubic-bezier(0.45, 0, 0.55, 1) infinite;
+  will-change: transform, opacity;
+}
+
+@keyframes home-scroll-cue-drift {
+  0% {
+    transform: translateY(-0.35rem);
+    opacity: 0.35;
+  }
+  55% {
+    transform: translateY(0.5rem);
+    opacity: 0.95;
+  }
+  100% {
+    transform: translateY(0.7rem);
+    opacity: 0.3;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .home-saas-hero__scroll-arrow {
+    animation: none;
+    transform: translateY(0.2rem);
+    opacity: 0.7;
+  }
+}
+
+.home-saas-hero--globe-centered .home-saas-hero__globe-foot .home-saas-hero__subtitle {
+  width: 100%;
+  max-width: min(68rem, 100%);
+  margin: 0;
+  text-align: center;
+}
+
+.home-saas-hero--globe-centered .home-saas-hero__globe-foot .home-saas-hero__subtitle-copy,
+.home-saas-hero--globe-centered .home-saas-hero__globe-foot .home-saas-hero__subtitle-line {
+  text-align: center;
+  margin-inline: auto;
+}
+
+.home-saas-hero--globe-centered .home-saas-hero__globe-foot .home-saas-hero__subtitle-line--lead {
+  white-space: normal;
+}
+
+@media (min-width: 1024px) {
+  .home-saas-hero--globe-centered .home-saas-hero__globe-foot .home-saas-hero__subtitle {
+    font-size: clamp(0.9rem, 0.92vw, 1rem);
+    line-height: 1.5;
+  }
+}
+
+/* Hero lede — two display lines */
+.home-saas-hero__subtitle-copy {
+  display: block;
+}
+
+.home-saas-hero__subtitle-line {
+  display: block;
+}
+
+.home-saas-hero__subtitle-line + .home-saas-hero__subtitle-line {
+  margin-top: 0.32em;
+}
+
+.home-saas-hero__subtitle-line--lead {
+  white-space: normal;
+}
+
+.home-saas-hero__subtitle-line--secondary {
+  color: rgba(203, 213, 225, 0.9);
+}
+
+.home-saas-hero__content {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 100%;
+}
+
+@media (max-width: 767px) {
+  .gs-scroll-globe--with-leading:not(.gs-scroll-globe--home-integrated) .gs-hero-globe {
+    --gs-hero-globe-opacity: 0.72;
+  }
+
+  .gs-scroll-globe--with-leading .gs-hero-globe {
+    opacity: var(--gs-hero-globe-opacity, 1);
+  }
+
+  .home-landing .gs-scroll-globe--home-integrated[data-active-section='0'] .gs-hero-globe,
+  .home-landing .gs-scroll-globe--home-integrated[data-active-section='1'] .gs-hero-globe,
+  .home-landing .gs-scroll-globe--home-integrated[data-active-section='2'] .gs-hero-globe,
+  .home-landing .gs-scroll-globe--home-integrated[data-active-section='3'] .gs-hero-globe,
+  .home-landing .gs-scroll-globe--home-integrated[data-active-section='4'] .gs-hero-globe {
+    --gs-hero-globe-opacity: 1;
+  }
+
+  .gs-hero-globe__scale {
+    transform: scale(0.92);
+  }
+
+  .home-landing .gs-scroll-globe--home-integrated[data-active-section='0'] .gs-hero-globe__scale,
+  .home-landing .gs-scroll-globe--home-integrated[data-active-section='1'] .gs-hero-globe__scale,
+  .home-landing .gs-scroll-globe--home-integrated[data-active-section='2'] .gs-hero-globe__scale,
+  .home-landing .gs-scroll-globe--home-integrated[data-active-section='3'] .gs-hero-globe__scale,
+  .home-landing .gs-scroll-globe--home-integrated[data-active-section='4'] .gs-hero-globe__scale {
+    transform: scale(1.1);
+  }
+}
+
+/* Home — uniform centered globe scale (Start → Footer) */
+.home-landing .gs-scroll-globe--home-integrated[data-active-section='0'] .gs-hero-globe__scale,
+.home-landing .gs-scroll-globe--home-integrated[data-active-section='1'] .gs-hero-globe__scale,
+.home-landing .gs-scroll-globe--home-integrated[data-active-section='2'] .gs-hero-globe__scale,
+.home-landing .gs-scroll-globe--home-integrated[data-active-section='3'] .gs-hero-globe__scale,
+.home-landing .gs-scroll-globe--home-integrated[data-active-section='4'] .gs-hero-globe__scale {
+  transform: scale(0.88);
+}
+
+@media (min-width: 640px) {
+  .home-landing .gs-scroll-globe--home-integrated[data-active-section='0'] .gs-hero-globe__scale,
+  .home-landing .gs-scroll-globe--home-integrated[data-active-section='1'] .gs-hero-globe__scale,
+  .home-landing .gs-scroll-globe--home-integrated[data-active-section='2'] .gs-hero-globe__scale,
+  .home-landing .gs-scroll-globe--home-integrated[data-active-section='3'] .gs-hero-globe__scale,
+  .home-landing .gs-scroll-globe--home-integrated[data-active-section='4'] .gs-hero-globe__scale {
+    transform: scale(1.06);
+  }
+}
+
+@media (min-width: 1024px) {
+  .home-landing .gs-scroll-globe--home-integrated[data-active-section='0'] .gs-hero-globe__scale,
+  .home-landing .gs-scroll-globe--home-integrated[data-active-section='1'] .gs-hero-globe__scale,
+  .home-landing .gs-scroll-globe--home-integrated[data-active-section='2'] .gs-hero-globe__scale,
+  .home-landing .gs-scroll-globe--home-integrated[data-active-section='3'] .gs-hero-globe__scale,
+  .home-landing .gs-scroll-globe--home-integrated[data-active-section='4'] .gs-hero-globe__scale {
+    transform: scale(1.28);
+  }
+}
+
+@media (min-width: 1536px) {
+  .home-landing .gs-scroll-globe--home-integrated[data-active-section='0'] .gs-hero-globe__scale,
+  .home-landing .gs-scroll-globe--home-integrated[data-active-section='1'] .gs-hero-globe__scale,
+  .home-landing .gs-scroll-globe--home-integrated[data-active-section='2'] .gs-hero-globe__scale,
+  .home-landing .gs-scroll-globe--home-integrated[data-active-section='3'] .gs-hero-globe__scale,
+  .home-landing .gs-scroll-globe--home-integrated[data-active-section='4'] .gs-hero-globe__scale {
+    transform: scale(1.42);
+  }
+}
+
+/* Atmospheric corona — cyan halo hugging the globe (not a wide screen wash) */
+.home-landing .gs-scroll-globe--home-integrated .gs-hero-globe__parallax::before {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: min(60vw, 24rem);
+  height: min(60vw, 24rem);
+  transform: translate(-50%, -50%);
+  border-radius: 50%;
+  background: radial-gradient(
+    circle at 50% 50%,
+    rgba(56, 189, 248, 0.38) 0%,
+    rgba(34, 211, 238, 0.2) 30%,
+    rgba(56, 189, 248, 0.08) 46%,
+    transparent 62%
+  );
+  filter: blur(12px);
+  pointer-events: none;
+  z-index: -1;
+}
+
+/* Start → Footer — corona sized to the scaled globe behind centered copy */
+.home-landing .gs-scroll-globe--home-integrated[data-active-section='0'] .gs-hero-globe__parallax::before,
+.home-landing .gs-scroll-globe--home-integrated[data-active-section='1'] .gs-hero-globe__parallax::before,
+.home-landing .gs-scroll-globe--home-integrated[data-active-section='2'] .gs-hero-globe__parallax::before,
+.home-landing .gs-scroll-globe--home-integrated[data-active-section='3'] .gs-hero-globe__parallax::before,
+.home-landing .gs-scroll-globe--home-integrated[data-active-section='4'] .gs-hero-globe__parallax::before,
+.home-landing .gs-scroll-globe--leading-clear[data-active-section='0'] .gs-hero-globe__parallax::before,
+.home-landing .gs-scroll-globe--leading-clear[data-active-section='1'] .gs-hero-globe__parallax::before,
+.home-landing .gs-scroll-globe--leading-clear[data-active-section='2'] .gs-hero-globe__parallax::before,
+.home-landing .gs-scroll-globe--leading-clear[data-active-section='3'] .gs-hero-globe__parallax::before,
+.home-landing .gs-scroll-globe--leading-clear[data-active-section='4'] .gs-hero-globe__parallax::before {
+  width: min(54vw, 21.5rem);
+  height: min(54vw, 21.5rem);
+  background: radial-gradient(
+    circle at 50% 50%,
+    rgba(125, 211, 252, 0.42) 0%,
+    rgba(56, 189, 248, 0.28) 28%,
+    rgba(34, 211, 238, 0.14) 42%,
+    transparent 58%
+  );
+  filter: blur(10px);
+}
+
+/* Outer cyan bloom — reads as transparent blue rim around the sphere */
+.home-landing .gs-scroll-globe--home-integrated[data-active-section='0'] .gs-hero-globe__parallax::after,
+.home-landing .gs-scroll-globe--home-integrated[data-active-section='1'] .gs-hero-globe__parallax::after,
+.home-landing .gs-scroll-globe--home-integrated[data-active-section='2'] .gs-hero-globe__parallax::after,
+.home-landing .gs-scroll-globe--home-integrated[data-active-section='3'] .gs-hero-globe__parallax::after,
+.home-landing .gs-scroll-globe--home-integrated[data-active-section='4'] .gs-hero-globe__parallax::after,
+.home-landing .gs-scroll-globe--leading-clear[data-active-section='0'] .gs-hero-globe__parallax::after,
+.home-landing .gs-scroll-globe--leading-clear[data-active-section='1'] .gs-hero-globe__parallax::after,
+.home-landing .gs-scroll-globe--leading-clear[data-active-section='2'] .gs-hero-globe__parallax::after,
+.home-landing .gs-scroll-globe--leading-clear[data-active-section='3'] .gs-hero-globe__parallax::after,
+.home-landing .gs-scroll-globe--leading-clear[data-active-section='4'] .gs-hero-globe__parallax::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: min(58vw, 23.5rem);
+  height: min(58vw, 23.5rem);
+  transform: translate(-50%, -50%);
+  border-radius: 50%;
+  background: radial-gradient(
+    circle at 50% 50%,
+    transparent 44%,
+    rgba(56, 189, 248, 0.22) 52%,
+    rgba(34, 211, 238, 0.34) 58%,
+    rgba(56, 189, 248, 0.12) 66%,
+    transparent 74%
+  );
+  filter: blur(5px);
+  pointer-events: none;
+  z-index: -2;
+}
+
+.home-landing .gs-scroll-globe--home-integrated[data-active-section='0'] .gs-globe-earth,
+.home-landing .gs-scroll-globe--home-integrated[data-active-section='1'] .gs-globe-earth,
+.home-landing .gs-scroll-globe--home-integrated[data-active-section='2'] .gs-globe-earth,
+.home-landing .gs-scroll-globe--home-integrated[data-active-section='3'] .gs-globe-earth,
+.home-landing .gs-scroll-globe--home-integrated[data-active-section='4'] .gs-globe-earth,
+.home-landing .gs-scroll-globe--leading-clear[data-active-section='0'] .gs-globe-earth,
+.home-landing .gs-scroll-globe--leading-clear[data-active-section='1'] .gs-globe-earth,
+.home-landing .gs-scroll-globe--leading-clear[data-active-section='2'] .gs-globe-earth,
+.home-landing .gs-scroll-globe--leading-clear[data-active-section='3'] .gs-globe-earth,
+.home-landing .gs-scroll-globe--leading-clear[data-active-section='4'] .gs-globe-earth {
+  box-shadow:
+    0 0 28px rgba(56, 189, 248, 0.55),
+    0 0 52px rgba(34, 211, 238, 0.32),
+    0 0 84px rgba(56, 189, 248, 0.16),
+    -5px 0 8px #c3f4ff inset,
+    15px 2px 25px #000 inset,
+    -24px -2px 34px #c3f4ff99 inset,
+    250px 0 44px #00000066 inset,
+    150px 0 38px #000000aa inset;
+}
+
+.home-landing .gs-scroll-globe #start.gs-hero-leading-panel {
+  justify-content: center;
+  align-items: center;
+  padding-top: clamp(5.5rem, 12vh, 7.5rem);
+  padding-bottom: clamp(2rem, 5vh, 3rem);
+}
+
+.home-landing .gs-scroll-globe--home-integrated #start > .pointer-events-auto {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 100%;
+  max-width: min(72rem, 94vw);
+  margin-inline: auto;
+}
+
+/* Future — same centered globe + lower-third copy as Innovation */
+.home-landing .gs-scroll-globe section#future {
+  padding-top: clamp(1rem, 3.5dvh, 2.25rem);
+  padding-bottom: clamp(1rem, 3.5dvh, 2.25rem);
+}
+
+.home-landing .gs-scroll-globe section#future > .pointer-events-auto {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+  min-height: min(92dvh, 920px);
+  padding-top: calc(clamp(11.5rem, 28dvh, 17rem) + 1cm);
+  padding-bottom: clamp(1.5rem, 5dvh, 3rem);
+}
+
+.home-landing .gs-scroll-globe section#future .gs-pearl-title {
+  margin-top: 0;
+  margin-bottom: 0.25rem;
+  transform: none;
+}
+
+@media (min-width: 640px) {
+  .home-landing .gs-scroll-globe section#future {
+    padding-top: clamp(1.125rem, 3.5dvh, 2.5rem);
+    padding-bottom: clamp(1.125rem, 3.5dvh, 2.5rem);
+  }
+
+  .home-landing .gs-scroll-globe section#future .gs-pearl-title {
+    margin-top: clamp(-2.75rem, -6dvh, -0.75rem);
+  }
+}
+
+@media (min-width: 1024px) {
+  .home-landing .gs-scroll-globe section#future {
+    padding-top: clamp(1.25rem, 4dvh, 2.75rem);
+    padding-bottom: clamp(1.25rem, 4dvh, 2.75rem);
+  }
+}
+
+/* Pricing (trailing) — globe visible through transparent stack */
+.home-landing .gs-scroll-globe-trailing[data-scroll-globe-trailing='pricing'] {
+  min-height: min(100dvh, 920px);
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  padding-top: calc(clamp(10rem, 24dvh, 15rem) + 1cm);
+  padding-bottom: clamp(1.5rem, 5dvh, 3rem);
+}
+
+.home-landing .gs-scroll-globe-trailing[data-scroll-globe-trailing='pricing'] .home-pricing-section {
+  min-height: 0;
+  padding: 0 1rem 0;
+  background: transparent;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .gs-hero-globe__parallax {
+    transform: translate(-50%, -50%) !important;
+  }
+}
+
+.home-saas-entry {
+  width: 100%;
+  max-width: 100%;
+}
+
+.home-saas-entry .saas-entry__hero-inner {
+  max-width: 56rem;
+}
+
+/* Hero — SaaS template (headline, underline, subtitle, single CTA) */
+.home-saas-hero {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 100%;
+}
+
+.home-saas-hero__preface {
+  margin-bottom: 1.25rem;
+}
+
+.home-saas-hero__title {
+  margin: 0 0 1.5rem;
+  font-size: clamp(2rem, 5vw, 3.75rem);
+  font-weight: 700;
+  letter-spacing: -0.04em;
+  line-height: 1.08;
+  color: hsl(var(--foreground, 0 0% 9%));
+}
+
+/* Orbiting satellite — only around “Spatial Intelligence” accent line */
+.home-saas-hero__accent-orbit {
+  position: relative;
+  display: inline-block;
+  vertical-align: baseline;
+  isolation: isolate;
+}
+
+.home-saas-hero__orbit-ring {
+  position: absolute;
+  inset: -0.55em -1.15em -0.45em -1.15em;
+  pointer-events: none;
+  z-index: 0;
+}
+
+.home-saas-hero__satellite {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 1.15em;
+  height: 1.15em;
+  margin: -0.575em 0 0 -0.575em;
+  display: grid;
+  place-items: center;
+  color: rgba(186, 230, 253, 0.95);
+  filter: drop-shadow(0 0 6px rgba(56, 189, 248, 0.55));
+  font-size: clamp(0.95rem, 2.2vw, 1.35rem);
+  offset-path: ellipse(52% 44% at 50% 50%);
+  offset-distance: 0%;
+  offset-rotate: auto;
+  animation: home-saas-satellite-orbit 16s linear infinite;
+}
+
+.home-saas-hero__satellite i {
+  display: block;
+  transform: rotate(-18deg);
+  animation: home-saas-satellite-tumble 16s linear infinite;
+}
+
+@keyframes home-saas-satellite-orbit {
+  to {
+    offset-distance: 100%;
+  }
+}
+
+@keyframes home-saas-satellite-tumble {
+  to {
+    transform: rotate(342deg);
+  }
+}
+
+@keyframes home-saas-satellite-orbit-fallback {
+  from {
+    transform: rotate(0deg) translateX(clamp(6.5rem, 34vw, 11rem)) rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg) translateX(clamp(6.5rem, 34vw, 11rem)) rotate(-360deg);
+  }
+}
+
+@supports not (offset-path: ellipse(1px 1px at 50% 50%)) {
+  .home-saas-hero__satellite {
+    offset-path: none;
+    top: 50%;
+    left: 50%;
+    margin: -0.575em 0 0 -0.575em;
+    animation: home-saas-satellite-orbit-fallback 16s linear infinite;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .home-saas-hero__satellite,
+  .home-saas-hero__satellite i {
+    animation: none;
+    offset-path: none;
+    top: 8%;
+    right: -0.35em;
+    left: auto;
+    margin: 0;
+  }
+}
+
+.home-saas-hero__accent-block {
+  position: relative;
+  z-index: 1;
+  display: inline;
+  white-space: normal;
+}
+
+.home-saas-hero__accent-marked {
+  position: relative;
+  display: inline-block;
+}
+
+.home-saas-hero__accent,
+.home-saas-hero__accent-remainder {
+  display: inline;
+  font-size: clamp(2.25rem, 5.5vw, 4.25rem);
+  font-weight: 400;
+  letter-spacing: -0.03em;
+}
+
+.home-saas-hero__underline {
+  position: absolute;
+  left: 0;
+  width: 100%;
+  top: 100%;
+  margin-top: -3px;
+  height: 0.55em;
+  pointer-events: none;
+  color: hsl(var(--foreground, 0 0% 9%));
+  overflow: visible;
+}
+
+.home-saas-hero__underline-path {
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+  animation: home-saas-underline-draw 0.95s cubic-bezier(0.33, 1, 0.68, 1) 0.4s both;
+}
+
+@keyframes home-saas-underline-draw {
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+.home-saas-hero__subtitle {
+  max-width: min(68rem, 94vw);
+  margin: 0 0 2.25rem;
+  font-size: clamp(0.875rem, 1.75vw, 1rem);
+  line-height: 1.5;
+  font-weight: 400;
+  color: hsl(var(--muted-foreground, 0 0% 45%));
+}
+
+.home-landing .gs-scroll-globe--with-leading #start .home-saas-hero__subtitle-line--secondary {
+  color: rgba(186, 198, 214, 0.88);
+}
+
+@keyframes home-saas-fade-in-up {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.home-saas-hero__anim {
+  animation: home-saas-fade-in-up 0.6s ease-out both;
+}
+
+.home-saas-hero__anim--2 {
+  animation-delay: 0.15s;
+}
+
+.home-saas-hero__anim--3 {
+  animation-delay: 0.25s;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .home-saas-hero--globe-centered .home-saas-hero__globe-foot {
+    position: relative;
+    left: auto;
+    top: auto;
+    transform: none;
+    width: 100%;
+    margin: 0.75rem 0 0;
+  }
+
+  .home-saas-hero--globe-centered .home-saas-hero__globe-foot .home-saas-hero__subtitle {
+    margin-top: 0;
+  }
+
+  .home-saas-hero__anim {
+    animation: none;
+  }
+
+  .home-saas-hero__underline-path {
+    animation: none;
+    stroke-dashoffset: 0;
+  }
+}
+
+.home-landing {
+  position: relative;
+  width: 100%;
+  max-width: 100%;
+  min-height: 100vh;
+  min-height: 100dvh;
+  background: transparent;
+}
+
+.home-landing .gs-scroll-globe {
+  width: 100%;
+  max-width: 100%;
+  min-height: 100vh;
+  min-height: 100dvh;
+  /* Never scroll here — any overflow-x other than visible forces overflow-y: auto. */
+  overflow: visible;
+  scrollbar-width: none;
+}
+
+.home-landing .gs-scroll-globe::-webkit-scrollbar {
+  display: none;
+  width: 0;
+  height: 0;
+}
+
+/* Single scrollbar: the landing `<main.content--landing-fullbleed>` shell only. */
+html:has(.layout--landing-fullbleed),
+html:has(.layout--landing-fullbleed) body {
+  overflow-y: hidden;
+}
+
+/*
+ * Locked-in responsive padding for every scroll panel inside the landing
+ * page. Mirrors the Tailwind utilities applied in `landing-page.tsx` so
+ * the spec survives even if a downstream consumer of `<LandingPage />`
+ * passes a `className` that strips the utility classes:
+ *
+ *   - Mobile  (default):  px-4 = 16px / py-12 = 48px
+ *   - sm      (≥ 640px):  px-6 = 24px / py-16 = 64px
+ *   - md      (≥ 768px):  px-8 = 32px
+ *   - lg      (≥1024px):  px-12 = 48px / py-20 = 80px
+ *
+ * `min-height: 100vh` ensures every section is at least one full viewport
+ * tall (so `justify-center` actually centres against the screen, not
+ * against a collapsed flex column).
+ */
+.home-landing .gs-scroll-globe section {
+  min-height: 100vh;
+  min-height: 100dvh;
+  padding-left: 16px;
+  padding-right: 16px;
+  padding-top: 48px;
+  padding-bottom: 48px;
+}
+
+@media (min-width: 640px) {
+  .home-landing .gs-scroll-globe section {
+    padding-left: 24px;
+    padding-right: 24px;
+    padding-top: 64px;
+    padding-bottom: 64px;
+  }
+}
+
+@media (min-width: 768px) {
+  .home-landing .gs-scroll-globe section {
+    padding-left: 32px;
+    padding-right: 32px;
+  }
+}
+
+@media (min-width: 1024px) {
+  .home-landing .gs-scroll-globe section {
+    padding-left: 48px;
+    padding-right: 48px;
+    padding-top: 80px;
+    padding-bottom: 80px;
+  }
+}
+
+/* Welcome hero — keep copy band clear of the globe after its right/up nudge. */
+@media (min-width: 1024px) {
+  .home-landing .gs-scroll-globe section#hero > .pointer-events-auto {
+    max-width: 38rem;
+  }
+
+  .home-landing .gs-scroll-globe section#hero .text-muted-foreground\/80 {
+    max-width: 34rem;
+  }
+}
+
+/* Welcome (first) panel — nudge the whole hero block slightly down from the top edge. */
+.home-landing .gs-scroll-globe section:first-of-type {
+  padding-top: calc(48px + 2rem + 0.65rem);
+}
+@media (min-width: 640px) {
+  .home-landing .gs-scroll-globe section:first-of-type {
+    padding-top: calc(64px + 2.25rem + 0.65rem);
+  }
+}
+@media (min-width: 1024px) {
+  .home-landing .gs-scroll-globe section:first-of-type {
+    padding-top: calc(80px + 2.75rem + 0.65rem);
+  }
+}
+
+/* Innovation — globe centered (50%/50%); copy sits in lower third beneath the hero globe. */
+.home-landing .gs-scroll-globe section#innovation {
+  padding-top: clamp(1rem, 3.5dvh, 2.25rem);
+  padding-bottom: clamp(1rem, 3.5dvh, 2.25rem);
+}
+
+.home-landing .gs-scroll-globe section#innovation > .pointer-events-auto {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+  min-height: min(92dvh, 920px);
+  padding-top: calc(clamp(11.5rem, 28dvh, 17rem) + 1cm);
+  padding-bottom: clamp(1.5rem, 5dvh, 3rem);
+}
+
+@media (min-width: 640px) {
+  .home-landing .gs-scroll-globe section#innovation {
+    padding-top: clamp(1.125rem, 3.5dvh, 2.5rem);
+    padding-bottom: clamp(1.125rem, 3.5dvh, 2.5rem);
+  }
+}
+
+@media (min-width: 1024px) {
+  .home-landing .gs-scroll-globe section#innovation {
+    padding-top: clamp(1.25rem, 4dvh, 2.75rem);
+    padding-bottom: clamp(1.25rem, 4dvh, 2.75rem);
+  }
+}
+
+.home-landing .gs-innovation-headline {
+  margin-top: 0;
+  margin-bottom: 0.25rem;
+}
+
+/* Innovation → Footer — same centered globe scale as Start (section 0–4 rules above) */
+
+@media (min-width: 640px) {
+  .home-landing .gs-innovation-headline {
+    margin-top: clamp(-2.75rem, -6dvh, -0.75rem);
+  }
+}
+
+/* The global aurora in `index.css` paints the body; keep individual sections
+   transparent so the globe + ambient layer stay visible underneath. */
+.home-landing .gs-scroll-globe section {
+  background: transparent;
+}
+
+/*
+ * Hero brand mark — pearl-white glossy treatment.
+ *
+ * The base gradient (white → slate-200 → slate-400) is set inline via
+ * Tailwind on the wrapper. This block adds:
+ *   1. A second highlight band at 35–55% via `background-image` overlay,
+ *      simulating a soft sweep of cool light across the top of the
+ *      letters (the "wet pearl" reflection).
+ *   2. A faint outer glow via `drop-shadow` so the mark stays luminous
+ *      against the dark globe backdrop without becoming a glow blob.
+ *   3. A keyframed `gs-pearl-shimmer` that slowly drifts the highlight
+ *      band so the wordmark feels alive — disabled under
+ *      `prefers-reduced-motion`.
+ */
+.home-landing .gs-pearl-title {
+  background-image:
+    linear-gradient(135deg,
+      rgba(255, 255, 255, 0.95) 0%,
+      rgba(241, 245, 249, 1) 28%,
+      rgba(255, 255, 255, 0.98) 48%,
+      rgba(203, 213, 225, 0.95) 68%,
+      rgba(148, 163, 184, 0.85) 100%);
+  background-size: 200% 200%;
+  background-position: 50% 50%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  filter:
+    drop-shadow(0 0 18px rgba(255, 255, 255, 0.18))
+    drop-shadow(0 2px 14px rgba(148, 163, 184, 0.22));
+  animation: gs-pearl-shimmer 7s ease-in-out infinite;
+  /* Visual lift on the Y axis so descenders stay clear of the Sparkles
+   * strip. `padding-bottom: 0.1em` keeps `-webkit-background-clip: text`
+   * from trimming tails at the largest breakpoints. `display: inline-block`
+   * is required so transform applies cleanly to the gradient-clipped
+   * wordmark; the Hero h1 uses `text-center` so the mark centres over the
+   * body copy below. */
+  display: inline-block;
+  padding-bottom: 0.1em;
+  /* Vertical lift only — horizontal nudge removed so `text-center` on
+   * the Hero h1 aligns the wordmark with the lede + Sparkles strip
+   * (user asked to shift right to sit centred over the body copy). */
+  transform: translateY(clamp(-14px, -0.7vw, -6px));
+}
+
+/* Hero only — pearl sits a touch lower so the glow + sparkle read with the lede below */
+.home-landing .gs-scroll-globe section#hero .gs-pearl-title {
+  transform: translateY(clamp(2px, 0.35vw, 10px));
+}
+
+@keyframes gs-pearl-shimmer {
+  0%, 100% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .home-landing .gs-pearl-title {
+    animation: none;
+  }
+}
+
+/* Lite Mode — pearl flips to lacquered black with a subtle silver
+ * sheen mid-stroke so the wordmark reads as a polished obsidian
+ * mark on the frosted-white background (the user's "أسود فاخر
+ * بارز ذو تباين عالٍ ولمسة لامعة خفيفة" brief).
+ *
+ * Stack:
+ *   1. Gradient is true near-black at both ends (#050810 / #0a0f1c)
+ *      with a slate-500 silver crease in the middle (~50%) — this
+ *      is the "polished metal" specular sweep that gives the
+ *      glossy hint without dropping contrast against the white
+ *      background.
+ *   2. Drop-shadow stack:
+ *        a. 0 1px 0 white         → bottom highlight (the "wet"
+ *                                    edge below each letter that
+ *                                    sells the lacquer look).
+ *        b. 0 0 1px deep navy     → ultra-tight rim that crisps the
+ *                                    text edges so they never look
+ *                                    fuzzy against the radial bloom
+ *                                    behind the Hero.
+ *        c. 0 8px 28px slate-900  → soft halo grounding the mark
+ *                                    on the page (depth, not glow).
+ *   3. The shimmer keyframe still drifts the gradient horizontally,
+ *      so the silver crease slowly sweeps across the wordmark for a
+ *      living "polished glass" feel.
+ */
+html[data-theme='light'] .home-landing .gs-pearl-title {
+  background-image:
+    linear-gradient(135deg,
+      rgba(5, 8, 16, 1) 0%,
+      rgba(15, 23, 42, 1) 22%,
+      rgba(51, 65, 85, 1) 50%,
+      rgba(15, 23, 42, 1) 78%,
+      rgba(5, 8, 16, 1) 100%);
+  filter:
+    drop-shadow(0 1px 0 rgba(255, 255, 255, 0.85))
+    drop-shadow(0 0 1px rgba(15, 23, 42, 0.65))
+    drop-shadow(0 8px 28px rgba(15, 23, 42, 0.22));
+}
+
+/* ============================================================
+ * Light Mode — bring the body copy, eyebrow labels and feature
+ * descriptions inside the landing back to high-contrast obsidian
+ * black. Tailwind classes like `text-muted-foreground/80` resolve
+ * to a faded slate token in Light Mode that reads as low-contrast
+ * grey on the frosted-white background — the user explicitly
+ * asked for "ألوان سوداء فاخرة وبارزة ذات تباين عالٍ".
+ *
+ * We override per-class via the escaped-slash selector so we don't
+ * have to thread a new className through every child element.
+ * Specificity 0,2,2 (html attr + .home-landing + .text-... +
+ * type) easily beats Tailwind's 0,1,0 utility selector, no
+ * !important needed.
+ * ============================================================ */
+html[data-theme='light'] .home-landing .text-muted-foreground\/90,
+html[data-theme='light'] .home-landing .text-muted-foreground\/80 {
+  color: rgba(15, 23, 42, 0.92); /* slate-900 ≈ "rich black" */
+}
+
+html[data-theme='light'] .home-landing .text-muted-foreground\/60 {
+  color: rgba(30, 41, 59, 0.85); /* slate-800 — eyebrow labels */
+}
+
+/* Tighten any remaining muted-foreground spans (no opacity suffix). */
+html[data-theme='light'] .home-landing .text-muted-foreground {
+  color: rgba(15, 23, 42, 0.92);
+}
+
+/* ============================================================
+ * Light Mode — Sparkles divider strip.
+ *
+ * The four absolutely-positioned `<div>`s above the SparklesCore
+ * paint a narrow, fading hairline that simulates the soft cool
+ * light bar from which the particles fall. The gradients are
+ * white-on-transparent (designed for dark backgrounds) and
+ * disappear completely on white. We invert them to dark slate so
+ * the bar still reads as a polished glass strip in Light Mode.
+ *
+ * Each line carries a stable `gs-hero-sparkle-line--*` class set
+ * from `landing-page.tsx`, so the overrides target them directly
+ * without relying on Tailwind utility names that may change.
+ * ============================================================ */
+html[data-theme='light'] .home-landing .gs-hero-sparkle-line--soft {
+  background-image: linear-gradient(
+    to right,
+    transparent,
+    rgba(15, 23, 42, 0.55),
+    transparent
+  );
+}
+html[data-theme='light'] .home-landing .gs-hero-sparkle-line--hairline {
+  background-image: linear-gradient(
+    to right,
+    transparent,
+    rgba(15, 23, 42, 0.7),
+    transparent
+  );
+}
+html[data-theme='light'] .home-landing .gs-hero-sparkle-line--core-soft {
+  background-image: linear-gradient(
+    to right,
+    transparent,
+    rgba(15, 23, 42, 0.45),
+    transparent
+  );
+}
+html[data-theme='light'] .home-landing .gs-hero-sparkle-line--core {
+  background-image: linear-gradient(
+    to right,
+    transparent,
+    rgba(15, 23, 42, 0.85),
+    transparent
+  );
+}
+
+/* ── Home SaaS footer (GeoSpatial / AI / Earth Observation) ── */
+.home-saas-footer {
+  position: relative;
+  z-index: 40;
+  width: 100%;
+  border-top: 1px solid color-mix(in srgb, hsl(var(--border, 0 0% 90%)) 70%, transparent);
+  background:
+    linear-gradient(180deg, color-mix(in srgb, hsl(var(--card, 0 0% 100%)) 55%, transparent) 0%, hsl(var(--background, 0 0% 100%)) 42%),
+    hsl(var(--background, 0 0% 100%));
+  color: hsl(var(--foreground, 0 0% 9%));
+}
+
+/* Landing browse — airy frosted glass (globe + sparks show through) */
+.home-saas-footer--browse,
+.home-landing .gs-scroll-globe-trailing[data-scroll-globe-trailing='footer'] .home-saas-footer {
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+  background:
+    linear-gradient(
+      180deg,
+      rgba(8, 10, 18, 0.14) 0%,
+      rgba(4, 6, 14, 0.22) 42%,
+      rgba(2, 4, 10, 0.32) 100%
+    );
+  backdrop-filter: blur(28px) saturate(1.25);
+  -webkit-backdrop-filter: blur(28px) saturate(1.25);
+  box-shadow:
+    0 -1px 0 rgba(255, 255, 255, 0.04) inset,
+    0 -12px 40px rgba(0, 0, 0, 0.14);
+  color: rgba(248, 250, 252, 0.94);
+}
+
+.home-saas-footer--browse::before,
+.home-landing .gs-scroll-globe-trailing[data-scroll-globe-trailing='footer'] .home-saas-footer::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(
+    165deg,
+    rgba(255, 255, 255, 0.05) 0%,
+    transparent 48%,
+    rgba(0, 0, 0, 0.05) 100%
+  );
+}
+
+.home-saas-footer__glow {
+  pointer-events: none;
+  position: absolute;
+  inset: 0 0 auto;
+  height: 120px;
+  background: radial-gradient(ellipse 80% 100% at 50% 0%, rgba(56, 189, 248, 0.12), transparent 70%);
+  opacity: 0.9;
+}
+
+.home-saas-footer--browse .home-saas-footer__glow,
+.home-landing .gs-scroll-globe-trailing[data-scroll-globe-trailing='footer'] .home-saas-footer__glow {
+  height: 120px;
+  background: radial-gradient(
+    ellipse 90% 100% at 50% 0%,
+    rgba(56, 189, 248, 0.08) 0%,
+    rgba(148, 163, 184, 0.03) 40%,
+    transparent 70%
+  );
+  opacity: 0.65;
+}
+
+.home-saas-footer__inner {
+  position: relative;
+  max-width: 72rem;
+  margin: 0 auto;
+  padding: 3rem 1.25rem 2rem;
+}
+
+@media (min-width: 768px) {
+  .home-saas-footer__inner {
+    padding: 3.5rem 1.5rem 2.25rem;
+  }
+}
+
+.home-saas-footer__brand-row {
+  display: grid;
+  gap: 1.25rem;
+  margin-bottom: 2.5rem;
+}
+
+@media (min-width: 768px) {
+  .home-saas-footer__brand-row {
+    grid-template-columns: minmax(0, 1.1fr) minmax(0, 1.4fr);
+    align-items: center;
+    gap: 2rem;
+  }
+}
+
+.home-saas-footer__brand {
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+}
+
+.home-saas-footer__logo {
+  display: inline-flex;
+  width: 2.75rem;
+  height: 2.75rem;
+  flex-shrink: 0;
+}
+
+.home-saas-footer__logo svg {
+  width: 100%;
+  height: 100%;
+}
+
+.home-saas-footer--browse .home-saas-footer__logo svg path,
+.home-saas-footer--browse .home-saas-footer__logo svg ellipse {
+  stroke: rgba(226, 232, 240, 0.92);
+}
+
+.home-saas-footer__brand-text {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.home-saas-footer__brand-name {
+  font-size: 1.125rem;
+  font-weight: 750;
+  letter-spacing: -0.03em;
+}
+
+.home-saas-footer__brand-tag {
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: hsl(var(--muted-foreground, 0 0% 45%));
+}
+
+.home-saas-footer--browse .home-saas-footer__brand-tag {
+  color: rgba(148, 163, 184, 0.92);
+}
+
+.home-saas-footer__pitch {
+  margin: 0;
+  max-width: 36rem;
+  font-size: 0.92rem;
+  line-height: 1.55;
+  color: hsl(var(--muted-foreground, 0 0% 40%));
+}
+
+.home-saas-footer--browse .home-saas-footer__pitch {
+  color: rgba(203, 213, 225, 0.88);
+}
+
+.home-saas-footer__grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1.75rem 1.25rem;
+}
+
+@media (min-width: 768px) {
+  .home-saas-footer__grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 2rem 1.5rem;
+  }
+}
+
+.home-saas-footer__col-title {
+  margin: 0 0 0.85rem;
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: hsl(var(--foreground, 0 0% 9%));
+}
+
+.home-saas-footer--browse .home-saas-footer__col-title {
+  color: rgba(248, 250, 252, 0.95);
+}
+
+.home-saas-footer__col-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+}
+
+.home-saas-footer__link {
+  font-size: 0.84rem;
+  line-height: 1.35;
+  color: hsl(var(--muted-foreground, 0 0% 42%));
+  text-decoration: none;
+  transition: color 0.15s ease;
+}
+
+.home-saas-footer__link:hover {
+  color: hsl(var(--foreground, 0 0% 9%));
+}
+
+.home-saas-footer--browse .home-saas-footer__link {
+  color: rgba(148, 163, 184, 0.95);
+}
+
+.home-saas-footer--browse .home-saas-footer__link:hover {
+  color: #f8fafc;
+}
+
+.home-saas-footer__rule {
+  height: 1px;
+  margin: 2rem 0 1.5rem;
+  background: linear-gradient(90deg, transparent, hsl(var(--border, 0 0% 88%)), transparent);
+}
+
+.home-saas-footer__rule--soft {
+  margin: 1.25rem 0 1rem;
+  opacity: 0.65;
+}
+
+.home-saas-footer--browse .home-saas-footer__rule {
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.12), transparent);
+}
+
+.home-saas-footer__actions-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1.25rem;
+}
+
+.home-saas-footer__social {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.home-saas-footer__social-btn {
+  display: inline-flex;
+  width: 2.35rem;
+  height: 2.35rem;
+  align-items: center;
+  justify-content: center;
+  border-radius: 0.65rem;
+  border: 1px solid color-mix(in srgb, hsl(var(--border, 0 0% 88%)) 80%, transparent);
+  background: color-mix(in srgb, hsl(var(--card, 0 0% 100%)) 70%, transparent);
+  color: hsl(var(--muted-foreground, 0 0% 45%));
+  transition:
+    border-color 0.15s ease,
+    color 0.15s ease,
+    background 0.15s ease,
+    transform 0.12s ease;
+}
+
+.home-saas-footer__social-btn:hover {
+  color: hsl(var(--foreground, 0 0% 9%));
+  border-color: color-mix(in srgb, hsl(var(--primary, 220 90% 56%)) 35%, hsl(var(--border)));
+  transform: translateY(-1px);
+}
+
+.home-saas-footer--browse .home-saas-footer__social-btn,
+.home-landing .gs-scroll-globe-trailing[data-scroll-globe-trailing='footer'] .home-saas-footer__social-btn {
+  border-color: rgba(255, 255, 255, 0.09);
+  background: rgba(6, 8, 14, 0.28);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.03) inset;
+  color: rgba(203, 213, 225, 0.9);
+}
+
+.home-saas-footer--browse .home-saas-footer__social-btn:hover,
+.home-landing .gs-scroll-globe-trailing[data-scroll-globe-trailing='footer'] .home-saas-footer__social-btn:hover {
+  border-color: rgba(255, 255, 255, 0.16);
+  color: #f8fafc;
+  background: rgba(14, 16, 24, 0.42);
+  box-shadow:
+    0 0 0 1px rgba(255, 255, 255, 0.05) inset,
+    0 8px 20px rgba(0, 0, 0, 0.18);
+}
+
+.home-saas-footer__store-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.65rem;
+}
+
+.home-saas-footer__store {
+  display: flex;
+  min-width: 9.5rem;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.1rem;
+  padding: 0.55rem 0.85rem;
+  border-radius: 0.75rem;
+  border: 1px solid color-mix(in srgb, hsl(var(--border, 0 0% 88%)) 85%, transparent);
+  background: color-mix(in srgb, hsl(var(--muted, 0 0% 96%)) 80%, hsl(var(--card)));
+  color: inherit;
+  cursor: pointer;
+  font-family: inherit;
+  text-align: left;
+  transition:
+    border-color 0.15s ease,
+    box-shadow 0.15s ease,
+    transform 0.12s ease;
+}
+
+.home-saas-footer__store:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 10px 28px rgba(15, 23, 42, 0.08);
+}
+
+.home-saas-footer__store--primary {
+  border-color: color-mix(in srgb, hsl(var(--primary, 220 90% 56%)) 40%, hsl(var(--border)));
+  background: linear-gradient(145deg, color-mix(in srgb, hsl(var(--primary)) 12%, white), hsl(var(--card)));
+}
+
+.home-saas-footer--browse .home-saas-footer__store,
+.home-landing .gs-scroll-globe-trailing[data-scroll-globe-trailing='footer'] .home-saas-footer__store {
+  border-color: rgba(255, 255, 255, 0.09);
+  background: rgba(6, 8, 14, 0.3);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.03) inset;
+}
+
+.home-saas-footer--browse .home-saas-footer__store:hover,
+.home-landing .gs-scroll-globe-trailing[data-scroll-globe-trailing='footer'] .home-saas-footer__store:hover {
+  border-color: rgba(255, 255, 255, 0.14);
+  background: rgba(12, 14, 22, 0.44);
+  box-shadow:
+    0 0 0 1px rgba(255, 255, 255, 0.05) inset,
+    0 10px 24px rgba(0, 0, 0, 0.2);
+}
+
+.home-saas-footer--browse .home-saas-footer__store--primary,
+.home-landing .gs-scroll-globe-trailing[data-scroll-globe-trailing='footer'] .home-saas-footer__store--primary {
+  border-color: rgba(255, 255, 255, 0.12);
+  background: linear-gradient(
+    145deg,
+    rgba(22, 24, 32, 0.45) 0%,
+    rgba(4, 6, 12, 0.55) 100%
+  );
+  box-shadow:
+    0 0 0 1px rgba(255, 255, 255, 0.06) inset,
+    0 8px 28px rgba(0, 0, 0, 0.22),
+    0 0 32px rgba(255, 255, 255, 0.02);
+}
+
+.home-saas-footer__store-kicker {
+  font-size: 0.58rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  opacity: 0.75;
+}
+
+.home-saas-footer__store-title {
+  font-size: 0.88rem;
+  font-weight: 700;
+}
+
+.home-saas-footer__store-sub {
+  font-size: 0.68rem;
+  opacity: 0.72;
+}
+
+.home-saas-footer__bottom {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+  text-align: center;
+}
+
+@media (min-width: 640px) {
+  .home-saas-footer__bottom {
+    flex-direction: row;
+    justify-content: space-between;
+    text-align: left;
+  }
+}
+
+.home-saas-footer__copy {
+  margin: 0;
+  font-size: 0.75rem;
+  color: hsl(var(--muted-foreground, 0 0% 45%));
+}
+
+.home-saas-footer--browse .home-saas-footer__copy {
+  color: rgba(148, 163, 184, 0.9);
+}
+
+.home-saas-footer__meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 0.45rem;
+  margin: 0;
+  font-size: 0.68rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: hsl(var(--muted-foreground, 0 0% 50%));
+}
+
+.home-saas-footer--browse .home-saas-footer__meta {
+  color: rgba(100, 116, 139, 0.95);
+}
+
+.home-saas-footer__dot {
+  width: 3px;
+  height: 3px;
+  border-radius: 999px;
+  background: currentColor;
+  opacity: 0.55;
+}
+
+/* ============================================================
+ * Luxury Light — Home landing (frosted Enterprise UI)
+ *
+ * The globe hero inherits dark-mode whites (#f8fafc) for contrast on
+ * the night sky. When `html[data-theme="light"]` is active we flip to
+ * charcoal typography, frosted nav glass, and soft elevated CTAs.
+ * ============================================================ */
+
+html[data-theme='light'] .home-landing .home-merged__nav-sparks {
+  opacity: 0.28;
+}
+
+html[data-theme='light'] .home-landing .home-merged__nav::before {
+  background: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0.72) 0%,
+    rgba(255, 255, 255, 0.42) 42%,
+    rgba(255, 255, 255, 0.12) 68%,
+    transparent 100%
+  );
+  backdrop-filter: blur(18px) saturate(1.1);
+  -webkit-backdrop-filter: blur(18px) saturate(1.1);
+  box-shadow: 0 10px 32px rgba(15, 23, 42, 0.05);
+}
+
+html[data-theme='light'] .home-landing .home-merged__nav::after {
+  background: linear-gradient(180deg, rgba(15, 23, 42, 0.04) 0%, transparent 100%);
+}
+
+html[data-theme='light'] .home-merged .home-merged__nav .saas-entry__brand {
+  color: var(--gs-lt-text, #1a1d2b);
+  letter-spacing: var(--ds-tracking-tight, -0.03em);
+}
+
+html[data-theme='light'] .home-merged .home-merged__nav .saas-entry__nav-link {
+  color: rgba(26, 29, 43, 0.62);
+  font-weight: 500;
+  letter-spacing: 0.02em;
+}
+
+html[data-theme='light'] .home-merged .home-merged__nav .saas-entry__nav-link:hover {
+  color: var(--gs-lt-text, #1a1d2b);
+}
+
+html[data-theme='light'] .home-merged .home-merged__nav .home-nav-auth__trigger {
+  color: rgba(26, 29, 43, 0.62);
+}
+
+html[data-theme='light'] .home-merged .home-merged__nav .home-nav-auth__trigger:hover,
+html[data-theme='light'] .home-merged .home-merged__nav .home-nav-auth__trigger--open {
+  color: var(--gs-lt-text, #1a1d2b);
+}
+
+html[data-theme='light'] .home-landing .home-user-toolbar--nav-auth-guest .home-nav-auth__trigger--guest {
+  background: linear-gradient(168deg, rgba(255, 255, 255, 0.92) 0%, rgba(246, 248, 252, 0.82) 100%);
+  border-color: rgba(15, 23, 42, 0.1);
+  box-shadow: var(--ds-shadow-sm);
+}
+
+html[data-theme='light'] .home-merged .home-merged__nav .saas-entry__btn--primary {
+  border: 1px solid rgba(15, 23, 42, 0.18);
+  background: linear-gradient(168deg, #2a3142 0%, #1a1d2b 52%, #12141f 100%);
+  color: rgba(248, 250, 252, 0.96);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.1),
+    var(--ds-shadow-sm);
+}
+
+html[data-theme='light'] .home-merged .home-merged__nav .saas-entry__btn--primary:hover {
+  border-color: rgba(15, 23, 42, 0.28);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.14),
+    var(--ds-shadow-md);
+}
+
+html[data-theme='light'] .home-merged .home-merged__nav .saas-entry__btn--ghost {
+  color: var(--gs-lt-text, #1a1d2b);
+  border: 1px solid var(--gs-lt-border, rgba(15, 23, 42, 0.09));
+  background: linear-gradient(
+    168deg,
+    rgba(255, 255, 255, 0.92) 0%,
+    rgba(246, 248, 252, 0.78) 100%
+  );
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.9),
+    var(--ds-shadow-sm);
+  backdrop-filter: blur(12px) saturate(1.06);
+  -webkit-backdrop-filter: blur(12px) saturate(1.06);
+}
+
+html[data-theme='light'] .home-merged .home-merged__nav .saas-entry__btn--ghost:hover {
+  border-color: var(--gs-lt-border-2, rgba(15, 23, 42, 0.14));
+  background: rgba(255, 255, 255, 0.98);
+}
+
+html[data-theme='light'] .home-merged .saas-entry__brand-mark {
+  background: transparent;
+}
+
+html[data-theme='light'] .home-merged .saas-entry__brand-mark-icon svg stop {
+  stop-color: #0f172a;
+  stop-opacity: 0.92;
+}
+
+html[data-theme='light'] .home-merged .saas-entry__brand-mark-orbit {
+  border-color: rgba(15, 23, 42, 0.12);
+  box-shadow: 0 0 12px rgba(15, 23, 42, 0.06);
+}
+
+/* Hero — charcoal type (override globe dark whites) */
+html[data-theme='light'] .home-landing .home-saas-hero__line-before,
+html[data-theme='light'] .home-landing .home-saas-hero__headline-brand,
+html[data-theme='light'] .home-landing .home-saas-hero__title,
+html[data-theme='light'] .home-landing .gs-scroll-globe--with-leading #start .home-saas-hero__title,
+html[data-theme='light'] .home-landing .gs-scroll-globe--with-leading #start .home-saas-hero__accent,
+html[data-theme='light'] .home-landing .gs-scroll-globe--with-leading #start .home-saas-hero__accent-remainder,
+html[data-theme='light'] .home-landing .home-saas-hero__accent,
+html[data-theme='light'] .home-landing .home-saas-hero__accent-remainder {
+  color: var(--gs-lt-text, #1a1d2b);
+  text-shadow: none;
+}
+
+html[data-theme='light'] .home-landing .gs-scroll-globe--with-leading #start .home-saas-hero__underline {
+  color: rgba(26, 29, 43, 0.78);
+}
+
+html[data-theme='light'] .home-landing .home-saas-hero__subtitle,
+html[data-theme='light'] .home-landing .gs-scroll-globe--with-leading #start .home-saas-hero__subtitle,
+html[data-theme='light'] .home-landing .home-saas-hero__subtitle-line--lead,
+html[data-theme='light'] .home-landing .home-saas-hero__subtitle-line--secondary,
+html[data-theme='light'] .home-landing .gs-scroll-globe--with-leading #start .home-saas-hero__subtitle-line--secondary {
+  color: rgba(26, 29, 43, 0.72);
+  font-weight: 400;
+  letter-spacing: 0.015em;
+  line-height: 1.62;
+}
+
+html[data-theme='light'] .home-landing .gs-scroll-globe--home-integrated[data-active-section='0'] #start .home-saas-hero__title,
+html[data-theme='light'] .home-landing .gs-scroll-globe--home-integrated[data-active-section='0'] #start .home-saas-hero__accent,
+html[data-theme='light'] .home-landing .gs-scroll-globe--home-integrated[data-active-section='0'] #start .home-saas-hero__accent-remainder,
+html[data-theme='light'] .home-landing .gs-scroll-globe--home-integrated[data-active-section='0'] #start .home-saas-hero__subtitle {
+  text-shadow: none;
+}
+
+html[data-theme='light'] .home-landing .home-saas-hero__satellite {
+  color: rgba(71, 85, 105, 0.82);
+  filter: drop-shadow(0 2px 8px rgba(15, 23, 42, 0.08));
+}
+
+html[data-theme='light'] .home-landing .home-saas-hero--globe-centered .home-saas-hero__globe-foot {
+  gap: 1.4rem;
+}
+
+html[data-theme='light'] .home-landing .gs-scroll-globe--with-leading #start .home-merged-saas__scroll-hint,
+html[data-theme='light'] .home-landing .home-saas-hero__scroll-cue {
+  color: rgba(71, 85, 105, 0.55);
+}
+
+/* Footer — airy frosted light glass on browse landing */
+html[data-theme='light'] .home-landing .home-saas-footer--browse,
+html[data-theme='light'] .home-landing .gs-scroll-globe-trailing[data-scroll-globe-trailing='footer'] .home-saas-footer {
+  border-top: 1px solid rgba(15, 23, 42, 0.08);
+  background: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0.42) 0%,
+    rgba(248, 250, 252, 0.58) 48%,
+    rgba(241, 245, 249, 0.68) 100%
+  );
+  backdrop-filter: blur(26px) saturate(1.12);
+  -webkit-backdrop-filter: blur(26px) saturate(1.12);
+  box-shadow:
+    0 -1px 0 rgba(255, 255, 255, 0.55) inset,
+    0 -10px 36px rgba(15, 23, 42, 0.04);
+  color: var(--gs-lt-text);
+}
+
+html[data-theme='light'] .home-landing .home-saas-footer--browse::before,
+html[data-theme='light'] .home-landing .gs-scroll-globe-trailing[data-scroll-globe-trailing='footer'] .home-saas-footer::before {
+  background: linear-gradient(
+    165deg,
+    rgba(255, 255, 255, 0.28) 0%,
+    transparent 50%,
+    rgba(226, 232, 240, 0.1) 100%
+  );
+}
+
+html[data-theme='light'] .home-landing .home-saas-footer--browse .home-saas-footer__glow,
+html[data-theme='light'] .home-landing .gs-scroll-globe-trailing[data-scroll-globe-trailing='footer'] .home-saas-footer__glow {
+  background: radial-gradient(
+    ellipse 90% 100% at 50% 0%,
+    rgba(226, 232, 240, 0.22) 0%,
+    transparent 70%
+  );
+  opacity: 0.55;
+}
+
+html[data-theme='light'] .home-landing .home-saas-footer--browse .home-saas-footer__brand-tag,
+html[data-theme='light'] .home-landing .home-saas-footer--browse .home-saas-footer__pitch,
+html[data-theme='light'] .home-landing .home-saas-footer--browse .home-saas-footer__link,
+html[data-theme='light'] .home-landing .home-saas-footer--browse .home-saas-footer__copy,
+html[data-theme='light'] .home-landing .home-saas-footer--browse .home-saas-footer__meta {
+  color: var(--gs-lt-text-muted);
+}
+
+html[data-theme='light'] .home-landing .home-saas-footer--browse .home-saas-footer__col-title {
+  color: var(--gs-lt-text);
+}
+
+html[data-theme='light'] .home-landing .home-saas-footer--browse .home-saas-footer__link:hover {
+  color: var(--gs-lt-text);
+}
+
+html[data-theme='light'] .home-landing .home-saas-footer--browse .home-saas-footer__rule {
+  background: linear-gradient(90deg, transparent, var(--gs-lt-border), transparent);
+}
+
+html[data-theme='light'] .home-landing .home-saas-footer--browse .home-saas-footer__social-btn,
+html[data-theme='light'] .home-landing .home-saas-footer--browse .home-saas-footer__store {
+  border-color: var(--gs-lt-border);
+  background: var(--gs-lt-bg-elev-1);
+  color: var(--gs-lt-text-muted);
+  box-shadow: var(--gs-lt-shadow-sm), inset 0 1px 0 rgba(255, 255, 255, 0.75);
+  backdrop-filter: var(--gs-lt-glass-blur);
+  -webkit-backdrop-filter: var(--gs-lt-glass-blur);
+}
+
+html[data-theme='light'] .home-landing .home-saas-footer--browse .home-saas-footer__social-btn:hover,
+html[data-theme='light'] .home-landing .home-saas-footer--browse .home-saas-footer__store:hover {
+  border-color: var(--gs-lt-border-2);
+  color: var(--gs-lt-text);
+  background: var(--gs-lt-bg-elev-2);
+}
+
+html[data-theme='light'] .home-landing .home-saas-footer--browse .home-saas-footer__store--primary {
+  border-color: var(--gs-lt-border-2);
+  background: linear-gradient(168deg, rgba(255, 255, 255, 0.96), rgba(238, 242, 248, 0.92));
+  box-shadow: var(--gs-lt-shadow-md), inset 0 1px 0 rgba(255, 255, 255, 0.9);
+}
+
+html[data-theme='light'] .home-landing .home-saas-footer--browse .home-saas-footer__logo svg path,
+html[data-theme='light'] .home-landing .home-saas-footer--browse .home-saas-footer__logo svg ellipse {
+  stroke: rgba(26, 29, 43, 0.75);
+}

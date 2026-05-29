@@ -1,0 +1,301 @@
+.si-map-wx-history {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid rgba(148, 163, 184, 0.22);
+}
+
+.si-map-wx-history__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.si-map-wx-history__title {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #bae6fd;
+}
+
+.si-map-wx-history__sub {
+  margin: 2px 0 0;
+  font-size: 10px;
+  color: rgba(148, 163, 184, 0.92);
+}
+
+.si-map-wx-history__range {
+  color: #7dd3fc;
+}
+
+.si-map-wx-history__head-actions {
+  display: flex;
+  gap: 4px;
+}
+
+.si-map-wx-history__icon-btn {
+  width: 28px;
+  height: 28px;
+  border: 1px solid rgba(148, 163, 184, 0.28);
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.25);
+  color: #e2e8f0;
+  cursor: pointer;
+}
+
+.si-map-wx-history__icon-btn:hover {
+  border-color: rgba(56, 189, 248, 0.45);
+  color: #7dd3fc;
+}
+
+.si-map-wx-history__toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+
+.si-map-wx-history__ranges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.si-map-wx-history__chip {
+  border: 1px solid rgba(148, 163, 184, 0.28);
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.2);
+  color: #cbd5e1;
+  font-size: 10px;
+  font-weight: 600;
+  padding: 4px 10px;
+  cursor: pointer;
+}
+
+.si-map-wx-history__chip.is-active {
+  border-color: rgba(56, 189, 248, 0.55);
+  background: rgba(56, 189, 248, 0.18);
+  color: #e0f2fe;
+}
+
+.si-map-wx-history__aoi-btn {
+  border: none;
+  background: transparent;
+  color: #7dd3fc;
+  font-size: 10px;
+  font-weight: 600;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.si-map-wx-history__vars {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-bottom: 8px;
+}
+
+.si-map-wx-history__var {
+  border: 1px solid rgba(148, 163, 184, 0.22);
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.18);
+  color: #cbd5e1;
+  font-size: 10px;
+  font-weight: 600;
+  padding: 5px 8px;
+  cursor: pointer;
+}
+
+.si-map-wx-history__var.is-active {
+  border-color: var(--wx-var-color, #38bdf8);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--wx-var-color, #38bdf8) 40%, transparent);
+  color: #f8fafc;
+}
+
+.si-map-wx-history__stats {
+  list-style: none;
+  margin: 0 0 8px;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 4px;
+}
+
+.si-map-wx-history__stats li {
+  padding: 5px 6px;
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.22);
+  font-size: 9px;
+  color: #94a3b8;
+}
+
+.si-map-wx-history__stats strong {
+  display: block;
+  margin-top: 2px;
+  font-size: 11px;
+  color: #f1f5f9;
+}
+
+.si-map-wx-history__chart-wrap {
+  position: relative;
+  height: 200px;
+  border-radius: 10px;
+  background: linear-gradient(180deg, rgba(15, 23, 42, 0.35) 0%, rgba(2, 6, 23, 0.5) 100%);
+  border: 1px solid rgba(148, 163, 184, 0.18);
+  padding: 8px 6px 4px;
+}
+
+.si-map-wx-history__chart-wrap.is-loading canvas {
+  opacity: 0.55;
+}
+
+.si-map-wx-history__chart-busy {
+  position: absolute;
+  right: 8px;
+  top: 8px;
+  margin: 0;
+  padding: 4px 8px;
+  border-radius: 6px;
+  font-size: 9px;
+  font-weight: 600;
+  color: #e0f2fe;
+  background: rgba(2, 132, 199, 0.85);
+}
+
+.si-map-wx-history__loading,
+.si-map-wx-history__error {
+  margin: 0;
+  padding: 12px 8px;
+  font-size: 11px;
+}
+
+.si-map-wx-history__error {
+  color: #fca5a5;
+}
+
+.si-map-wx-history__foot {
+  margin: 8px 0 0;
+}
+
+.si-map-wx-history__foot-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 6px;
+}
+
+.si-map-wx-history__date-input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.si-map-wx-history__foot-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  min-width: 32px;
+  height: 30px;
+  padding: 0 8px;
+  border: 1px solid rgba(148, 163, 184, 0.28);
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.25);
+  color: #e2e8f0;
+  font-size: 10px;
+  font-weight: 600;
+  cursor: pointer;
+  transition:
+    border-color 0.15s ease,
+    color 0.15s ease,
+    background 0.15s ease;
+}
+
+.si-map-wx-history__foot-btn:hover:not(:disabled) {
+  border-color: rgba(56, 189, 248, 0.5);
+  color: #7dd3fc;
+}
+
+.si-map-wx-history__foot-btn.is-custom {
+  border-color: rgba(56, 189, 248, 0.45);
+  background: rgba(56, 189, 248, 0.12);
+  color: #bae6fd;
+}
+
+.si-map-wx-history__foot-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.si-map-wx-history__foot-btn-label {
+  font-size: 9px;
+  letter-spacing: 0.02em;
+}
+
+.si-map-wx-history__foot-btn--excel {
+  margin-left: auto;
+  min-width: 34px;
+  padding: 0;
+  color: #4ade80;
+}
+
+.si-map-wx-history__foot-btn--excel:hover:not(:disabled) {
+  border-color: rgba(74, 222, 128, 0.45);
+  color: #86efac;
+}
+
+.si-map-wx-history__foot-note {
+  margin: 0;
+  font-size: 9px;
+  line-height: 1.35;
+  color: rgba(148, 163, 184, 0.85);
+}
+
+.si-map-wx-intel--history-open {
+  width: min(380px, 92vw);
+}
+
+.si-map-wx-intel--history-open .si-map-wx-history__chart-wrap {
+  height: 220px;
+}
+
+.si-map-wx-history--light .si-map-wx-history__title {
+  color: #0369a1;
+}
+
+.si-map-wx-history--light .si-map-wx-history__chart-wrap {
+  background: rgba(241, 245, 249, 0.9);
+  border-color: rgba(148, 163, 184, 0.35);
+}
+
+.si-map-wx-history--light .si-map-wx-history__chip,
+.si-map-wx-history--light .si-map-wx-history__var,
+.si-map-wx-history--light .si-map-wx-history__icon-btn,
+.si-map-wx-history--light .si-map-wx-history__foot-btn {
+  background: #fff;
+  color: #475569;
+}
+
+.si-map-wx-history--light .si-map-wx-history__foot-btn--excel {
+  color: #15803d;
+}
+
+.si-map-wx-history--light .si-map-wx-history__stats li {
+  background: rgba(241, 245, 249, 0.95);
+}
+
+.si-map-wx-history--light .si-map-wx-history__stats strong {
+  color: #0f172a;
+}

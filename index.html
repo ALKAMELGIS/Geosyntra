@@ -1,0 +1,181 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="geosyntra-pages-build" content="26655373090-1-1fb9f8c7cf32143d2435b7442dd0f02bbd6d005b" />
+    <script data-geosyntra-https-redirect="1">
+      ;(function () {
+        try {
+          if (location.protocol !== 'http:') return
+          var h = (location.hostname || '').toLowerCase()
+          if (h !== 'geosyntra.org' && h !== 'www.geosyntra.org') return
+          location.replace(
+            'https://' + location.host + location.pathname + location.search + location.hash,
+          )
+        } catch (_) {}
+      })()
+    </script>
+    <!-- Plain HTTP: provide crypto.subtle.digest before the SPA module (legacy bundles too). -->
+    <script src="geosyntra-crypto-shim.js"></script>
+    <!-- Avoid stale GitHub Pages / SW shell (old "Opening…" bootstrap) being shown from disk cache. -->
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+    <meta http-equiv="Pragma" content="no-cache" />
+    <meta http-equiv="Expires" content="0" />
+    <script>
+      // Defensive bootstrap: any legacy ServiceWorker (or HTTP-cached old shell) is the #1 cause of
+      // "I deployed but my changes don't show" on GitHub Pages. Unregister all SWs, drop CacheStorage,
+      // and force a single hard reload so the freshly-deployed shell + hashed assets are fetched.
+      ;(function () {
+        try {
+          var host = (location.hostname || '').toLowerCase()
+          if (host === 'localhost' || host === '127.0.0.1') return
+          var KEY = 'gs_pages_sw_purge_v5'
+          var hasSW = typeof navigator !== 'undefined' && 'serviceWorker' in navigator
+          var hasCaches = typeof caches !== 'undefined' && caches && typeof caches.keys === 'function'
+          if (!hasSW && !hasCaches) return
+          var alreadyPurged = false
+          try { alreadyPurged = sessionStorage.getItem(KEY) === '1' } catch (_) {}
+          var hadController = hasSW && Boolean(navigator.serviceWorker.controller)
+          var regsP = hasSW
+            ? navigator.serviceWorker.getRegistrations().catch(function () { return [] })
+            : Promise.resolve([])
+          regsP.then(function (regs) {
+            var hasAny = (regs && regs.length > 0) || hadController
+            if (!hasAny) return
+            var unregisters = (regs || []).map(function (r) {
+              try { return r.unregister() } catch (_) { return Promise.resolve(false) }
+            })
+            var cacheCleanup = hasCaches
+              ? caches.keys().then(function (keys) {
+                  return Promise.all((keys || []).map(function (k) {
+                    try { return caches.delete(k) } catch (_) { return Promise.resolve(false) }
+                  }))
+                }).catch(function () { return [] })
+              : Promise.resolve([])
+            Promise.all([Promise.all(unregisters), cacheCleanup]).then(function () {
+              if (alreadyPurged) return
+              try { sessionStorage.setItem(KEY, '1') } catch (_) {}
+              try {
+                var url = location.pathname + location.search + (location.hash || '')
+                window.location.replace(url)
+              } catch (_) {
+                try { window.location.reload() } catch (__) {}
+              }
+            })
+          })
+        } catch (_) {}
+      })()
+    </script>
+    <!-- initial-scale=1 + viewport-fit for notched devices; interactive-widget so mobile keyboards resize layout (GIS panels reflow); no maximum-scale so users can pinch-zoom for accessibility -->
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content"
+    />
+    <meta name="color-scheme" content="dark light" />
+    <meta name="theme-color" media="(prefers-color-scheme: light)" content="#22d3ee" />
+    <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#05060d" />
+    <meta name="description" content="Geosyntra — Geospatial AI platform for satellite intelligence, GIS, and operational workflows." />
+    <meta name="application-name" content="Geosyntra" />
+    <meta name="apple-mobile-web-app-title" content="Geosyntra" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <!-- Modern browsers: prefer the adaptive SVG mark (black on light tabs, white on dark). -->
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="apple-touch-icon" href="/favicon.svg" />
+    <link rel="shortcut icon" href="/favicon.svg" />
+    <title>Geosyntra</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link rel="preconnect" href="https://api.mapbox.com" crossorigin />
+    <link rel="preconnect" href="https://tiles.mapbox.com" crossorigin />
+    <link rel="preconnect" href="https://api.geosyntra.org" crossorigin />
+    <!-- Mapbox GL + GeoSyntra API — avoids blank map canvas from overly strict default CSP on some hosts -->
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' blob: https://cdnjs.cloudflare.com https://unpkg.com; style-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com https://fonts.googleapis.com; font-src 'self' data: https://fonts.gstatic.com https://cdnjs.cloudflare.com; img-src 'self' data: blob: https:; connect-src 'self' https: wss: blob:; worker-src blob: 'self'; child-src blob:; media-src 'self' blob: data: https:;"
+    />
+    <link
+      href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&family=Inter:wght@400;500;600;700;800&display=swap"
+      rel="stylesheet"
+    />
+    <script type="module" crossorigin src="/assets/index-ME3SqPKi.js"></script>
+    <link rel="stylesheet" crossorigin href="/assets/index-B2_qt7CY.css">
+      <link rel="canonical" href="https://www.geosyntra.org/" />
+      <meta property="og:type" content="website" />
+    <meta property="og:title" content="GeoSyntra" />
+    <meta property="og:description" content="Geosyntra Platform — enterprise GIS, satellite intelligence, and operational geospatial workflows." />
+    <meta property="og:url" content="https://www.geosyntra.org/" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="GeoSyntra" />
+    <meta name="twitter:description" content="Geosyntra Platform — enterprise GIS, satellite intelligence, and operational geospatial workflows." />
+  </head>
+  <body>
+    <script data-geosyntra-gh-pages-redirect="1">;(function(){try{var h=String(location.hostname||"").toLowerCase();var custom=["geosyntra.org","www.geosyntra.org"];var onGh=h.indexOf("github.io")!==-1;var onCustom=custom.indexOf(h)!==-1;if(!onGh&&!onCustom)return;var p=location.pathname||"";var ws="/";var ns="/";var g=location.hash||"";if(g.startsWith("#/")){var route=g.slice(2).split("?")[0].replace(/\/$/,"");if(route==="app/onboarding/trial-start"){location.replace(location.origin+ws+"?start=1&wizard=pricing#/");return;}if(route==="app/auth/login"){location.replace(location.origin+ws+"?start=1&wizard=auth&mode=signin#/");return;}if(route==="app/auth/register"){location.replace(location.origin+ws+"?start=1&wizard=auth&mode=signup#/");return;}if(route==="app/billing/pricing"){location.replace(location.origin+ws+"?start=1&wizard=pricing#/");return;}}if(g&&g!=="#/"&&!g.startsWith("#/")){try{sessionStorage.setItem("geosyntra-scroll-to",g.slice(1));}catch(_){}location.replace(location.origin+ws+location.search+"#/");return;}if(p===ns){location.replace(location.origin+ws+location.search+(g&&g.length>1?g:"#/"));return;}if((p===ws||p===ns+"/")&&(!g||g==="#")){location.replace(location.origin+ws+location.search+"#/");}}catch(_){}})();</script>
+    <script data-geosyntra-custom-domain-entry="1">
+      ;(function () {
+        try {
+          var h = (location.hostname || '').toLowerCase()
+          if (h !== 'geosyntra.org' && h !== 'www.geosyntra.org') return
+          var g = location.hash || ''
+          var p = location.pathname || '/'
+          if (p === '/Geosyntra' || p.indexOf('/Geosyntra/') === 0) {
+            if (!g || g === '#') {
+              location.replace(location.origin + '/Geosyntra/' + location.search + '#/')
+            }
+            return
+          }
+          if (!g || g === '#') {
+            location.replace(location.origin + '/' + location.search + '#/')
+          }
+        } catch (_) {}
+      })()
+    </script>
+    <script data-geosyntra-legacy-auth-redirect="1">
+      ;(function () {
+        try {
+          var g = location.hash || ''
+          if (!g.startsWith('#/')) return
+          var route = g.slice(2).split('?')[0].replace(/\/$/, '')
+          var base = location.pathname || '/'
+          if (!base.endsWith('/')) base += '/'
+          var origin = location.origin
+          if (route === 'app/auth/login') {
+            location.replace(origin + base + '?start=1&wizard=auth&mode=signin#/')
+            return
+          }
+          if (route === 'app/auth/register') {
+            location.replace(origin + base + '?start=1&wizard=auth&mode=signup#/')
+            return
+          }
+          if (route === 'app/onboarding/trial-start' || route === 'app/billing/pricing') {
+            location.replace(origin + base + '?start=1&wizard=pricing#/')
+          }
+        } catch (_) {}
+      })()
+    </script>
+    <script>
+      (function () {
+        if (window.location.protocol === 'file:') {
+          window.location.replace('http://localhost:5173/Geosyntra/');
+        }
+      })();
+    </script>
+    <script data-geosyntra-local-hash-bootstrap="1">
+      ;(function () {
+        try {
+          var host = (location.hostname || '').toLowerCase()
+          if (host !== 'localhost' && host !== '127.0.0.1') return
+          var path = location.pathname || ''
+          if (path !== '/Geosyntra' && path.indexOf('/Geosyntra/') !== 0) return
+          var hash = location.hash || ''
+          if (hash && hash !== '#') return
+          var base = path.endsWith('/') ? path : path + '/'
+          location.replace(location.origin + base + location.search + '#/')
+        } catch (_) {}
+      })()
+    </script>
+    <div id="root"></div>
+  </body>
+  </html>

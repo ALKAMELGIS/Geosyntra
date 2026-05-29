@@ -1,0 +1,391 @@
+/* Geosyntra globe — orbital satellites + shell layout */
+
+.gs-globe-shell {
+  position: relative;
+  transform-style: preserve-3d;
+  perspective: 820px;
+  isolation: isolate;
+}
+
+.gs-globe-orbit-field {
+  position: absolute;
+  inset: -22%;
+  transform-style: preserve-3d;
+  pointer-events: none;
+  z-index: 1;
+}
+
+.gs-globe-orbit-plane {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transform-style: preserve-3d;
+}
+
+.gs-globe-orbit-track {
+  position: relative;
+  flex-shrink: 0;
+  transform-style: preserve-3d;
+  animation: gsGlobeOrbitSpin var(--gs-orbit-duration, 26s) linear infinite;
+  animation-delay: var(--gs-orbit-delay, 0s);
+}
+
+.gs-globe-orbit-track--reverse {
+  animation-direction: reverse;
+}
+
+.gs-globe-orbit-track::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  border: 1px solid rgba(195, 244, 255, 0.1);
+  box-shadow: 0 0 12px rgba(56, 189, 248, 0.06);
+}
+
+.gs-globe-satellite {
+  position: absolute;
+  top: 0;
+  left: 50%;
+  width: 7px;
+  height: 7px;
+  transform: translate(-50%, -50%);
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 35%, #f0f9ff 0%, #7dd3fc 42%, #0ea5e9 100%);
+  box-shadow:
+    0 0 6px rgba(195, 244, 255, 0.95),
+    0 0 14px rgba(56, 189, 248, 0.55),
+    0 0 22px rgba(14, 165, 233, 0.25);
+}
+
+.gs-globe-satellite::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 100%;
+  width: 10px;
+  height: 2px;
+  margin-top: -1px;
+  border-radius: 1px;
+  background: linear-gradient(90deg, rgba(195, 244, 255, 0.5), transparent);
+  opacity: 0.7;
+}
+
+.gs-globe-earth {
+  position: relative;
+  z-index: 2;
+}
+
+/* ── Innovation / RS live feed ── */
+.gs-globe-orbit-field--rs {
+  inset: -32%;
+  z-index: 3;
+}
+
+.gs-globe-orbit-field--rs .gs-globe-orbit-track::before {
+  border: 1px solid rgba(125, 211, 252, 0.32);
+  box-shadow:
+    0 0 14px rgba(56, 189, 248, 0.18),
+    inset 0 0 8px rgba(14, 165, 233, 0.08);
+}
+
+.gs-globe-orbit-field--rs .gs-globe-satellite {
+  width: 9px;
+  height: 9px;
+  z-index: 4;
+  box-shadow:
+    0 0 8px rgba(195, 244, 255, 1),
+    0 0 18px rgba(56, 189, 248, 0.75),
+    0 0 28px rgba(14, 165, 233, 0.4);
+}
+
+.gs-globe-earth--rs-live {
+  z-index: 2;
+}
+
+.gs-rs-beam {
+  position: absolute;
+  top: 0;
+  left: 50%;
+  width: 16px;
+  height: 50%;
+  transform: translateX(-50%);
+  transform-origin: top center;
+  pointer-events: none;
+  z-index: 1;
+}
+
+.gs-rs-beam::before {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 0;
+  width: 2px;
+  height: 100%;
+  transform: translateX(-50%);
+  background: linear-gradient(
+    180deg,
+    rgba(186, 230, 253, 0.95) 0%,
+    rgba(56, 189, 248, 0.55) 38%,
+    rgba(14, 165, 233, 0.2) 72%,
+    transparent 100%
+  );
+  box-shadow: 0 0 10px rgba(56, 189, 248, 0.45);
+  animation: gsRsBeamTravel var(--gs-orbit-duration, 26s) linear infinite;
+  animation-delay: var(--gs-orbit-delay, 0s);
+}
+
+.gs-rs-beam::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 6%;
+  width: 12px;
+  height: 46%;
+  transform: translateX(-50%);
+  background: linear-gradient(
+    180deg,
+    rgba(248, 113, 113, 0.42) 0%,
+    rgba(251, 191, 36, 0.38) 22%,
+    rgba(74, 222, 128, 0.34) 44%,
+    rgba(56, 189, 248, 0.48) 68%,
+    rgba(167, 139, 250, 0.32) 86%,
+    transparent 100%
+  );
+  filter: blur(3px);
+  opacity: 0;
+  animation: gsRsSpectralPulse var(--gs-orbit-duration, 26s) linear infinite;
+  animation-delay: var(--gs-orbit-delay, 0s);
+}
+
+.gs-globe-earth--rs-live::before {
+  content: '';
+  position: absolute;
+  inset: -2%;
+  border-radius: 50%;
+  background: conic-gradient(
+    from 0deg,
+    transparent 0deg,
+    rgba(56, 189, 248, 0.22) 40deg,
+    transparent 80deg,
+    rgba(14, 165, 233, 0.16) 140deg,
+    transparent 200deg
+  );
+  animation: gsRsGlobeScan 7s linear infinite;
+  opacity: 0.65;
+  pointer-events: none;
+  z-index: 3;
+}
+
+.gs-globe-earth--rs-live::after {
+  content: '';
+  position: absolute;
+  inset: -6%;
+  border-radius: 50%;
+  background: radial-gradient(circle at 50% 50%, rgba(56, 189, 248, 0.28), transparent 58%);
+  animation: gsRsGlobeReceive 2.6s ease-in-out infinite;
+  pointer-events: none;
+  z-index: 3;
+}
+
+@keyframes gsRsBeamTravel {
+  0%,
+  14% {
+    opacity: 0;
+    transform: translateX(-50%) scaleY(0.12);
+  }
+  24%,
+  46% {
+    opacity: 1;
+    transform: translateX(-50%) scaleY(1);
+  }
+  56%,
+  100% {
+    opacity: 0;
+    transform: translateX(-50%) scaleY(0.18);
+  }
+}
+
+@keyframes gsRsSpectralPulse {
+  0%,
+  18% {
+    opacity: 0;
+  }
+  28%,
+  44% {
+    opacity: 0.85;
+  }
+  54%,
+  100% {
+    opacity: 0;
+  }
+}
+
+@keyframes gsRsGlobeScan {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes gsRsGlobeReceive {
+  0%,
+  100% {
+    opacity: 0.35;
+    transform: scale(0.96);
+  }
+  50% {
+    opacity: 0.9;
+    transform: scale(1.04);
+  }
+}
+
+@keyframes gsGlobeOrbitSpin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .gs-rs-beam::before,
+  .gs-rs-beam::after,
+  .gs-globe-earth--rs-live::before,
+  .gs-globe-earth--rs-live::after {
+    animation: none !important;
+    opacity: 0.45;
+  }
+
+  .gs-globe-orbit-track {
+    animation: none !important;
+  }
+
+  .gs-globe-orbit-track::before {
+    opacity: 0.35;
+  }
+
+  .gs-globe-satellite {
+    top: 12%;
+    left: 88%;
+    transform: translate(-50%, -50%);
+  }
+
+  .gs-globe-orbit-plane:nth-child(2) .gs-globe-satellite {
+    top: 78%;
+    left: 18%;
+  }
+
+  .gs-globe-orbit-plane:nth-child(3) .gs-globe-satellite {
+    top: 22%;
+    left: 14%;
+  }
+
+  .gs-globe-orbit-plane:nth-child(4) .gs-globe-satellite {
+    top: 84%;
+    left: 72%;
+  }
+
+  .gs-globe-orbit-plane:nth-child(5) .gs-globe-satellite {
+    top: 48%;
+    left: 6%;
+  }
+
+  .gs-globe-orbit-plane:nth-child(6) .gs-globe-satellite {
+    top: 8%;
+    left: 52%;
+  }
+}
+
+@keyframes gsGlobeEarthRotate {
+  0% {
+    background-position: 0 0;
+  }
+  100% {
+    background-position: 400px 0;
+  }
+}
+
+@keyframes gsGlobeTwinkle {
+  0%,
+  100% {
+    opacity: 0.1;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+@keyframes gsGlobeTwinkleSlow {
+  0%,
+  100% {
+    opacity: 0.1;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+@keyframes gsGlobeTwinkleLong {
+  0%,
+  100% {
+    opacity: 0.1;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+@keyframes gsGlobeTwinkleFast {
+  0%,
+  100% {
+    opacity: 0.1;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+.gs-globe-earth {
+  animation: gsGlobeEarthRotate 30s linear infinite;
+}
+
+.gs-globe-star--a {
+  animation: gsGlobeTwinkle 3s infinite;
+}
+
+.gs-globe-star--b {
+  animation: gsGlobeTwinkleSlow 2s infinite;
+}
+
+.gs-globe-star--c {
+  animation: gsGlobeTwinkleLong 4s infinite;
+}
+
+.gs-globe-star--d {
+  animation: gsGlobeTwinkle 3s infinite;
+}
+
+.gs-globe-star--e {
+  animation: gsGlobeTwinkleFast 1.5s infinite;
+}
+
+.gs-globe-star--f {
+  animation: gsGlobeTwinkleLong 4s infinite;
+}
+
+.gs-globe-star--g {
+  animation: gsGlobeTwinkleSlow 2s infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .gs-globe-earth,
+  .gs-globe-star {
+    animation: none !important;
+  }
+}

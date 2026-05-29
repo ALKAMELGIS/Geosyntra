@@ -1,0 +1,68 @@
+# GeoSyntra AI Detection stack — use with base docker-compose.yml
+#   docker compose -f docker-compose.yml -f docker-compose.ai.yml up -d
+
+services:
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_ai_data:/data
+
+  minio:
+    image: minio/minio:latest
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: geosyntra
+      MINIO_ROOT_PASSWORD: geosyntra-secret
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - minio_ai_data:/data
+
+  ai-api:
+    build:
+      context: ./services/ai-detection
+    ports:
+      - "8095:8095"
+    environment:
+      REDIS_URL: redis://redis:6379/0
+      CELERY_BROKER_URL: redis://redis:6379/0
+      CELERY_RESULT_BACKEND: redis://redis:6379/1
+      DATABASE_URL: postgres://user:password@db:5432/agri_cloud
+      STORAGE_DIR: /data/ai-detection
+      ENABLE_GPU: "true"
+    volumes:
+      - ai_detection_data:/data/ai-detection
+    depends_on:
+      - redis
+      - db
+
+  ai-worker:
+    build:
+      context: ./services/ai-detection
+    command: celery -A app.workers.celery_app.celery_app worker --loglevel=info -Q celery
+    environment:
+      REDIS_URL: redis://redis:6379/0
+      CELERY_BROKER_URL: redis://redis:6379/0
+      CELERY_RESULT_BACKEND: redis://redis:6379/1
+      STORAGE_DIR: /data/ai-detection
+      ENABLE_GPU: "true"
+    volumes:
+      - ai_detection_data:/data/ai-detection
+    depends_on:
+      - redis
+      - ai-api
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+
+volumes:
+  redis_ai_data:
+  minio_ai_data:
+  ai_detection_data:

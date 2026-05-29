@@ -1,0 +1,325 @@
+/* ==========================================================================
+ * si-sat-ctx-dock — Luxury glass (panel + map toolbox)
+ * BEM: si-sat-ctx-dock | --dark | --open | --map-toolbox | --rail-labeled
+ * Visual-only; no markup or behavior changes.
+ * ========================================================================== */
+
+.si-sat-ctx-dock--dark {
+  /* Unified luxury *black* glass — neutral tint, near-opaque (only slightly
+     see-through) so the surface stays a deep glossy black instead of letting
+     the globe's purple space bleed through. No violet/blue cast anywhere. */
+  --si-ctx-bg: rgba(12, 12, 14, 0.9);
+  --si-ctx-bg2: rgba(255, 255, 255, 0.06);
+  --si-ctx-border: rgba(255, 255, 255, 0.12);
+  --si-ctx-text: #f2f3f8;
+  --si-ctx-muted: rgba(214, 216, 224, 0.72);
+  --si-ctx-accent: #eef0f8;
+  --si-ctx-glow: rgba(255, 255, 255, 0.16);
+  --si-glass-blur: 30px;
+  --si-glass-saturate: 150%;
+  --si-glass-rim: rgba(255, 255, 255, 0.16);
+  --si-glass-rim-soft: rgba(255, 255, 255, 0.06);
+  --si-glass-highlight: rgba(255, 255, 255, 0.1);
+  --si-glass-shadow:
+    0 28px 72px rgba(0, 0, 0, 0.62),
+    0 8px 24px rgba(0, 0, 0, 0.46),
+    0 0 0 1px var(--si-glass-rim-soft),
+    inset 0 1px 0 var(--si-glass-highlight),
+    inset 0 0 48px rgba(255, 255, 255, 0.02);
+}
+
+/* Map toolbox — unified frosted slab (rail + panel) */
+.si-sat-ctx-dock--dark.si-sat-ctx-dock--map-toolbox.si-sat-ctx-dock--map {
+  filter: drop-shadow(0 0 1px rgba(255, 255, 255, 0.28)) drop-shadow(0 22px 56px rgba(0, 0, 0, 0.52));
+}
+
+.si-sat-ctx-dock--dark.si-sat-ctx-dock--map-toolbox .si-sat-ctx-rail,
+.si-sat-ctx-dock--dark.si-sat-ctx-dock--map-toolbox .si-sat-ctx-panel {
+  background:
+    linear-gradient(145deg, rgba(255, 255, 255, 0.07) 0%, transparent 40%),
+    linear-gradient(180deg, rgba(16, 16, 19, 0.9) 0%, rgba(0, 0, 0, 0.95) 100%);
+  border-color: var(--si-ctx-border);
+  backdrop-filter: blur(var(--si-glass-blur)) saturate(var(--si-glass-saturate));
+  -webkit-backdrop-filter: blur(var(--si-glass-blur)) saturate(var(--si-glass-saturate));
+  box-shadow: var(--si-glass-shadow);
+}
+
+.si-sat-ctx-dock--dark.si-sat-ctx-dock--map-toolbox .si-sat-ctx-panel {
+  border-inline-start: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow:
+    var(--si-glass-shadow),
+    inset 1px 0 0 rgba(255, 255, 255, 0.04);
+}
+
+.si-sat-ctx-dock--dark.si-sat-ctx-dock--map-toolbox.si-sat-ctx-dock--open .si-sat-ctx-panel {
+  box-shadow:
+    0 32px 80px rgba(0, 0, 0, 0.66),
+    0 0 0 1px rgba(255, 255, 255, 0.16),
+    0 0 40px rgba(255, 255, 255, 0.05),
+    inset 0 1px 0 rgba(255, 255, 255, 0.12),
+    inset 1px 0 0 rgba(255, 255, 255, 0.06);
+}
+
+.si-sat-ctx-dock--dark.si-sat-ctx-dock--map-toolbox .si-sat-ctx-panel-header {
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.05) 0%, transparent 100%);
+  border-bottom-color: rgba(255, 255, 255, 0.1);
+}
+
+.si-sat-ctx-dock--dark.si-sat-ctx-dock--map-toolbox .si-sat-ctx-panel-title {
+  color: #f6f7fc;
+  letter-spacing: -0.02em;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.45);
+}
+
+.si-sat-ctx-dock--dark.si-sat-ctx-dock--map-toolbox .si-sat-ctx-panel-kicker {
+  color: rgba(200, 206, 224, 0.62);
+}
+
+/* Rail-labeled — sidebar tool titles */
+.si-sat-ctx-dock--dark.si-sat-ctx-dock--rail-labeled .si-sat-ctx-rail-label {
+  color: rgba(228, 230, 240, 0.88);
+  font-weight: 650;
+  letter-spacing: 0.01em;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.55);
+}
+
+.si-sat-ctx-dock--dark.si-sat-ctx-dock--map-toolbox .si-sat-ctx-rail-btn,
+.si-sat-ctx-dock--dark.si-sat-ctx-dock--map-toolbox .si-sat-ctx-rail-btn--row {
+  border: 1px solid transparent;
+  background: rgba(255, 255, 255, 0.02);
+  transition:
+    background 0.22s cubic-bezier(0.22, 1, 0.36, 1),
+    border-color 0.22s ease,
+    box-shadow 0.22s ease,
+    transform 0.18s ease;
+}
+
+.si-sat-ctx-dock--dark.si-sat-ctx-dock--map-toolbox .si-sat-ctx-rail-btn:hover {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.14);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.08),
+    0 8px 20px rgba(0, 0, 0, 0.38);
+  transform: translateY(-1px);
+}
+
+.si-sat-ctx-dock--dark.si-sat-ctx-dock--map-toolbox .si-sat-ctx-rail-btn--active {
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.16) 0%, rgba(255, 255, 255, 0.06) 100%);
+  border-color: rgba(255, 255, 255, 0.28);
+  color: #ffffff;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.14),
+    0 0 0 1px rgba(255, 255, 255, 0.1),
+    0 0 24px var(--si-ctx-glow),
+    0 8px 22px rgba(0, 0, 0, 0.48);
+}
+
+.si-sat-ctx-dock--dark.si-sat-ctx-dock--map-toolbox .si-sat-ctx-rail-btn--active i {
+  color: #ffffff;
+  text-shadow: 0 0 12px rgba(255, 255, 255, 0.5);
+}
+
+.si-sat-ctx-dock--dark.si-sat-ctx-dock--map-toolbox .si-sat-ctx-rail-brand__mark {
+  background: linear-gradient(160deg, rgba(255, 255, 255, 0.14), rgba(255, 255, 255, 0.04));
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.12),
+    0 6px 18px rgba(0, 0, 0, 0.42);
+}
+
+.si-sat-ctx-dock--dark.si-sat-ctx-dock--map-toolbox .si-sat-ctx-tab--on {
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.14), rgba(255, 255, 255, 0.05));
+  border-color: rgba(255, 255, 255, 0.26);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.1),
+    0 0 20px rgba(255, 255, 255, 0.12);
+}
+
+.si-sat-ctx-dock--dark.si-sat-ctx-dock--map-toolbox .si-sat-ctx-icon-btn {
+  background: rgba(255, 255, 255, 0.05);
+  border-color: rgba(255, 255, 255, 0.14);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+
+.si-sat-ctx-dock--dark.si-sat-ctx-dock--map-toolbox .si-sat-ctx-icon-btn:hover {
+  background: rgba(255, 255, 255, 0.11);
+  border-color: rgba(255, 255, 255, 0.28);
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.35);
+}
+
+/* Toolbox body — inner frosted layer (Remote sensing portal) */
+.si-sat-ctx-dock--dark.si-sat-ctx-dock--map-toolbox .si-sat-ctx-map-toolbox-host {
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.04) 0%, transparent 48px);
+}
+
+.si-sat-ctx-dock--dark.si-sat-ctx-dock--map-toolbox .si-sat-ctx-map-toolbox-host .si-field-analysis {
+  gap: 12px;
+}
+
+.si-sat-ctx-dock--dark.si-sat-ctx-dock--map-toolbox .si-sat-ctx-map-toolbox-host .gis-fields-dock__tabs {
+  padding: 5px;
+  border-radius: 0;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
+}
+
+.si-sat-ctx-dock--dark.si-sat-ctx-dock--map-toolbox .si-sat-ctx-map-toolbox-host .gis-fields-dock__tab--on {
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.14), rgba(255, 255, 255, 0.06));
+  color: #ffffff;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.12),
+    0 0 0 1px rgba(255, 255, 255, 0.14),
+    0 4px 14px rgba(0, 0, 0, 0.32);
+}
+
+.si-sat-ctx-dock--dark.si-sat-ctx-dock--map-toolbox .si-sat-ctx-map-toolbox-host .si-env-section-tabs button {
+  background: rgba(255, 255, 255, 0.04);
+  border-color: rgba(255, 255, 255, 0.12);
+  color: rgba(218, 222, 234, 0.88);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}
+
+.si-sat-ctx-dock--dark.si-sat-ctx-dock--map-toolbox .si-sat-ctx-map-toolbox-host .si-env-section-tabs button:hover {
+  border-color: rgba(255, 255, 255, 0.28);
+  background: rgba(255, 255, 255, 0.08);
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.32);
+}
+
+.si-sat-ctx-dock--dark.si-sat-ctx-dock--map-toolbox .si-sat-ctx-map-toolbox-host .si-env-section-tabs button.active {
+  color: #ffffff;
+  border-color: rgba(255, 255, 255, 0.32);
+  background: linear-gradient(145deg, rgba(255, 255, 255, 0.16), rgba(255, 255, 255, 0.06));
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.12),
+    0 0 18px rgba(255, 255, 255, 0.14),
+    0 8px 20px rgba(0, 0, 0, 0.38);
+}
+
+.si-sat-ctx-dock--dark.si-sat-ctx-dock--map-toolbox .si-sat-ctx-map-toolbox-host .si-field-analysis-field input[type='date'],
+.si-sat-ctx-dock--dark.si-sat-ctx-dock--map-toolbox .si-sat-ctx-map-toolbox-host .si-field-analysis-select,
+.si-sat-ctx-dock--dark.si-sat-ctx-dock--map-toolbox .si-sat-ctx-map-toolbox-host .si-sat-provider-dd__trigger {
+  border-color: rgba(255, 255, 255, 0.14);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0.03));
+  backdrop-filter: blur(16px) saturate(140%);
+  -webkit-backdrop-filter: blur(16px) saturate(140%);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  accent-color: rgba(255, 255, 255, 0.85);
+}
+
+.si-sat-ctx-dock--dark.si-sat-ctx-dock--map-toolbox .si-sat-ctx-map-toolbox-host .si-field-analysis-field input[type='date']:focus,
+.si-sat-ctx-dock--dark.si-sat-ctx-dock--map-toolbox .si-sat-ctx-map-toolbox-host .si-field-analysis-select:focus,
+.si-sat-ctx-dock--dark.si-sat-ctx-dock--map-toolbox .si-sat-ctx-map-toolbox-host .si-sat-provider-dd__trigger:focus {
+  border-color: rgba(255, 255, 255, 0.38);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.08),
+    0 0 0 1px rgba(255, 255, 255, 0.22);
+}
+
+.si-sat-ctx-dock--dark.si-sat-ctx-dock--map-toolbox .si-sat-ctx-map-toolbox-host .si-field-analysis-timeline-btn,
+.si-sat-ctx-dock--dark.si-sat-ctx-dock--map-toolbox .si-sat-ctx-map-toolbox-host .si-field-analysis-aoi-upload-btn {
+  border-color: rgba(255, 255, 255, 0.18);
+  background: linear-gradient(145deg, rgba(255, 255, 255, 0.12), rgba(255, 255, 255, 0.04));
+  color: #f4f6fc;
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.1),
+    0 8px 22px rgba(0, 0, 0, 0.35);
+}
+
+.si-sat-ctx-dock--dark.si-sat-ctx-dock--map-toolbox .si-sat-ctx-map-toolbox-host .si-field-analysis-timeline-btn:hover,
+.si-sat-ctx-dock--dark.si-sat-ctx-dock--map-toolbox .si-sat-ctx-map-toolbox-host .si-field-analysis-aoi-upload-btn:hover {
+  border-color: rgba(255, 255, 255, 0.32);
+  background: linear-gradient(145deg, rgba(255, 255, 255, 0.18), rgba(255, 255, 255, 0.07));
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.14),
+    0 0 20px rgba(255, 255, 255, 0.12),
+    0 10px 26px rgba(0, 0, 0, 0.4);
+}
+
+.si-sat-ctx-dock--dark.si-sat-ctx-dock--map-toolbox .si-sat-ctx-map-toolbox-host .si-field-analysis-layer-visibility {
+  border-color: rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.03);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+
+.si-sat-ctx-dock--dark.si-sat-ctx-dock--map-toolbox .si-sat-ctx-map-toolbox-host .si-field-analysis-switch input:checked + .slider {
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.28), rgba(255, 255, 255, 0.18));
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.2),
+    0 0 14px rgba(255, 255, 255, 0.22);
+}
+
+.si-sat-ctx-dock--dark.si-sat-ctx-dock--map-toolbox .si-sat-ctx-map-toolbox-host .si-map-analysis-toolbar--embedded {
+  background: rgba(255, 255, 255, 0.04);
+  border-color: rgba(255, 255, 255, 0.12);
+  backdrop-filter: blur(18px) saturate(150%);
+  -webkit-backdrop-filter: blur(18px) saturate(150%);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.08),
+    0 10px 28px rgba(0, 0, 0, 0.38);
+}
+
+.si-sat-ctx-dock--dark.si-sat-ctx-dock--map-toolbox .si-sat-ctx-map-toolbox-host .si-map-analysis-toolbar--embedded .si-map-analysis-tool {
+  background: rgba(255, 255, 255, 0.05);
+  border-color: rgba(255, 255, 255, 0.14);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}
+
+.si-sat-ctx-dock--dark.si-sat-ctx-dock--map-toolbox .si-sat-ctx-map-toolbox-host .si-map-analysis-toolbar--embedded .si-map-analysis-tool:hover {
+  border-color: rgba(255, 255, 255, 0.3);
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.si-sat-ctx-dock--dark.si-sat-ctx-dock--map-toolbox .si-sat-ctx-map-toolbox-host .si-map-analysis-toolbar--embedded .si-map-analysis-tool--on {
+  border-color: rgba(255, 255, 255, 0.34);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.16), rgba(255, 255, 255, 0.06));
+  color: #ffffff;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.12),
+    0 0 16px rgba(255, 255, 255, 0.16);
+}
+
+.si-sat-ctx-dock--dark.si-sat-ctx-dock--map-toolbox .si-sat-ctx-map-toolbox-host .si-env-toolbox-nav {
+  border-bottom-color: rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.03);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+
+.si-sat-ctx-dock--dark.si-sat-ctx-dock--map-toolbox .si-sat-ctx-map-toolbox-host .si-env-toolbox-back {
+  border-color: rgba(255, 255, 255, 0.14);
+  background: rgba(255, 255, 255, 0.05);
+  color: #eef0f8;
+}
+
+.si-sat-ctx-dock--dark.si-sat-ctx-dock--map-toolbox .si-sat-ctx-panel-body {
+  background: linear-gradient(180deg, transparent 0%, rgba(0, 0, 0, 0.08) 100%);
+}
+
+.si-sat-ctx-dock--dark.si-sat-ctx-dock--map-toolbox .si-sat-ctx-panel-resize:hover {
+  background: linear-gradient(270deg, rgba(255, 255, 255, 0.18), transparent);
+}
+
+.si-sat-ctx-dock--dark.si-sat-ctx-dock--map-toolbox[dir='rtl'] .si-sat-ctx-panel-resize:hover {
+  background: linear-gradient(90deg, rgba(255, 255, 255, 0.18), transparent);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .si-sat-ctx-dock--dark.si-sat-ctx-dock--map-toolbox .si-sat-ctx-rail-btn:hover {
+    transform: none;
+  }
+}
+
+@media (max-width: 900px) {
+  .si-sat-ctx-dock--dark.si-sat-ctx-dock--map-toolbox.si-sat-ctx-dock--map {
+    filter: drop-shadow(0 16px 40px rgba(0, 0, 0, 0.48));
+  }
+}

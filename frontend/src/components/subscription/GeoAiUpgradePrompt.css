@@ -1,0 +1,76 @@
+.geo-ai-upgrade-prompt {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px 16px;
+  border-radius: 14px;
+  background: linear-gradient(145deg, rgba(8, 12, 20, 0.92), rgba(15, 23, 42, 0.78));
+  border: 1px solid rgba(125, 211, 252, 0.28);
+  box-shadow:
+    0 12px 32px rgba(2, 6, 23, 0.45),
+    0 0 24px rgba(56, 189, 248, 0.08);
+  backdrop-filter: blur(16px) saturate(150%);
+  -webkit-backdrop-filter: blur(16px) saturate(150%);
+}
+
+.geo-ai-upgrade-prompt--compact {
+  padding: 10px 12px;
+  gap: 8px;
+}
+
+.geo-ai-upgrade-prompt__badge {
+  align-self: flex-start;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 0.62rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #bae6fd;
+  background: rgba(56, 189, 248, 0.12);
+  border: 1px solid rgba(125, 211, 252, 0.35);
+}
+
+.geo-ai-upgrade-prompt__text {
+  margin: 0;
+  font-size: 0.88rem;
+  line-height: 1.5;
+  color: #e2e8f0;
+}
+
+.geo-ai-upgrade-prompt__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.geo-ai-upgrade-prompt__cta {
+  padding: 8px 16px;
+  border-radius: 999px;
+  border: none;
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: #0f172a;
+  background: linear-gradient(180deg, #f8fafc, #e2e8f0);
+  cursor: pointer;
+  transition: transform 0.15s ease, box-shadow 0.2s ease;
+}
+
+.geo-ai-upgrade-prompt__cta:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 8px 20px rgba(248, 250, 252, 0.2);
+}
+
+.geo-ai-upgrade-prompt__dismiss {
+  padding: 6px 10px;
+  border: none;
+  background: transparent;
+  color: #94a3b8;
+  font-size: 0.75rem;
+  cursor: pointer;
+}
+
+.geo-ai-upgrade-prompt__dismiss:hover {
+  color: #cbd5e1;
+}

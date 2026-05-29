@@ -1,0 +1,181 @@
+.si-agol-dock-chrome {
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+  touch-action: none;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(0, 0, 0, 0.22);
+}
+
+.si-agol-dock-chrome--resizing {
+  user-select: none;
+}
+
+/* Full-width rail — reliable pointer target for vertical resize */
+.si-agol-dock-chrome__resize-rail {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  min-height: 22px;
+  padding: 6px 12px 4px;
+  cursor: ns-resize;
+  touch-action: none;
+  border-radius: 12px 12px 0 0;
+  position: relative;
+  z-index: 4;
+  transition: background 0.14s ease;
+}
+
+.si-agol-dock-chrome__resize-rail::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: -10px;
+  height: 18px;
+  cursor: ns-resize;
+}
+
+.si-agol-dock-chrome__resize-rail:hover,
+.si-agol-dock-chrome__resize-rail:active,
+.si-agol-dock-chrome--resizing .si-agol-dock-chrome__resize-rail {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.si-agol-dock-chrome__grip-bars {
+  display: block;
+  width: 44px;
+  height: 4px;
+  border-radius: 999px;
+  background: rgba(248, 250, 252, 0.42);
+  box-shadow:
+    0 -6px 0 rgba(248, 250, 252, 0.22),
+    0 6px 0 rgba(248, 250, 252, 0.22);
+  pointer-events: none;
+}
+
+.si-agol-dock-chrome__grip-label {
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: rgba(148, 163, 184, 0.88);
+  user-select: none;
+  pointer-events: none;
+}
+
+.si-agol-dock-chrome__row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 32px;
+  padding: 4px 8px 6px;
+}
+
+.si-agol-dock-chrome__tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: min(240px, 34vw);
+  min-width: 0;
+  padding: 4px 10px;
+  border-radius: 6px 6px 0 0;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-bottom: none;
+  background: rgba(255, 255, 255, 0.07);
+  font-size: 11px;
+  font-weight: 650;
+  color: rgba(248, 250, 252, 0.96);
+  flex-shrink: 0;
+}
+
+.si-agol-dock-chrome__tab > i {
+  font-size: 11px;
+  color: rgba(125, 211, 252, 0.9);
+  flex-shrink: 0;
+}
+
+.si-agol-dock-chrome__tab > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.si-agol-dock-chrome__win {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+  margin-inline-start: auto;
+}
+
+.si-agol-dock-chrome__win-btn {
+  min-width: 26px;
+  height: 26px;
+  padding: 0 6px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.04);
+  color: rgba(248, 250, 252, 0.92);
+  font-size: 10px;
+  font-weight: 800;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition:
+    background 0.14s ease,
+    border-color 0.14s ease;
+}
+
+.si-agol-dock-chrome__win-btn:hover {
+  background: rgba(255, 255, 255, 0.12);
+  border-color: rgba(255, 255, 255, 0.24);
+}
+
+.si-agol-dock-chrome__win-btn--close {
+  min-width: 26px;
+}
+
+.si-agol-dock-chrome--collapsed .si-agol-dock-chrome__grip-label {
+  display: none;
+}
+
+html[data-theme='light'] .si-agol-dock-chrome {
+  background: rgba(255, 255, 255, 0.58);
+  border-bottom-color: rgba(15, 23, 42, 0.12);
+}
+
+html[data-theme='light'] .si-agol-dock-chrome__grip-bars {
+  background: rgba(15, 23, 42, 0.35);
+  box-shadow:
+    0 -6px 0 rgba(15, 23, 42, 0.2),
+    0 6px 0 rgba(15, 23, 42, 0.2);
+}
+
+html[data-theme='light'] .si-agol-dock-chrome__resize-rail:hover,
+html[data-theme='light'] .si-agol-dock-chrome--resizing .si-agol-dock-chrome__resize-rail {
+  background: rgba(15, 23, 42, 0.06);
+}
+
+html[data-theme='light'] .si-agol-dock-chrome__grip-label {
+  color: #64748b;
+}
+
+html[data-theme='light'] .si-agol-dock-chrome__tab {
+  color: #0f172a;
+  border-color: rgba(15, 23, 42, 0.14);
+  background: rgba(255, 255, 255, 0.65);
+}
+
+html[data-theme='light'] .si-agol-dock-chrome__tab > i {
+  color: #0369a1;
+}
+
+html[data-theme='light'] .si-agol-dock-chrome__win-btn {
+  color: #0f172a;
+  border-color: rgba(15, 23, 42, 0.14);
+  background: rgba(255, 255, 255, 0.5);
+}

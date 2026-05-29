@@ -1,0 +1,280 @@
+.si-map-wx-intel {
+  width: min(320px, calc(100vw - 32px));
+  max-height: min(72vh, 520px);
+  overflow: auto;
+  border-radius: 14px;
+  border: 1px solid rgba(56, 189, 248, 0.35);
+  box-shadow:
+    0 18px 48px rgba(2, 6, 23, 0.55),
+    0 0 0 1px rgba(15, 23, 42, 0.4);
+  font-size: 12px;
+  line-height: 1.4;
+  pointer-events: auto;
+}
+
+.si-map-wx-intel--dark {
+  background: linear-gradient(165deg, rgba(15, 23, 42, 0.97) 0%, rgba(30, 41, 59, 0.96) 100%);
+  color: #e2e8f0;
+}
+
+.si-map-wx-intel--light {
+  background: linear-gradient(165deg, rgba(248, 250, 252, 0.98) 0%, rgba(241, 245, 249, 0.97) 100%);
+  color: #0f172a;
+  border-color: rgba(148, 163, 184, 0.45);
+  box-shadow: 0 16px 40px rgba(15, 23, 42, 0.18);
+}
+
+.si-map-wx-intel__head {
+  display: flex;
+  gap: 8px;
+  padding: 12px 12px 8px;
+  align-items: flex-start;
+}
+
+.si-map-wx-intel__eyebrow {
+  display: block;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  opacity: 0.65;
+}
+
+.si-map-wx-intel__title {
+  margin: 2px 0 0;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.si-map-wx-intel__coords {
+  margin: 4px 0 0;
+  font-size: 10px;
+  opacity: 0.7;
+}
+
+.si-map-wx-intel__head-actions {
+  display: flex;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.si-map-wx-intel__icon-btn {
+  width: 28px;
+  height: 28px;
+  border: none;
+  border-radius: 8px;
+  background: rgba(56, 189, 248, 0.12);
+  color: inherit;
+  cursor: pointer;
+}
+
+.si-map-wx-intel--light .si-map-wx-intel__icon-btn {
+  background: rgba(14, 165, 233, 0.1);
+}
+
+.si-map-wx-intel__icon-btn:hover {
+  background: rgba(56, 189, 248, 0.22);
+}
+
+.si-map-wx-intel__icon-btn--chart.is-active {
+  background: rgba(139, 92, 246, 0.28);
+  color: #e9d5ff;
+  box-shadow: 0 0 12px rgba(139, 92, 246, 0.35);
+}
+
+.si-map-wx-intel__search {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0 12px 10px;
+  padding: 6px 8px;
+  border-radius: 10px;
+  background: rgba(2, 6, 23, 0.35);
+}
+
+.si-map-wx-intel--light .si-map-wx-intel__search {
+  background: rgba(226, 232, 240, 0.85);
+}
+
+.si-map-wx-intel__search input {
+  flex: 1;
+  min-width: 0;
+  border: none;
+  background: transparent;
+  color: inherit;
+  font-size: 12px;
+  outline: none;
+}
+
+.si-map-wx-intel__search button {
+  border: none;
+  border-radius: 6px;
+  padding: 4px 10px;
+  font-size: 11px;
+  font-weight: 600;
+  background: #0ea5e9;
+  color: #f8fafc;
+  cursor: pointer;
+}
+
+.si-map-wx-intel__search button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.si-map-wx-intel__error {
+  margin: 0 12px 10px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: rgba(239, 68, 68, 0.15);
+  color: #fecaca;
+  font-size: 11px;
+}
+
+.si-map-wx-intel--light .si-map-wx-intel__error {
+  color: #b91c1c;
+  background: rgba(254, 226, 226, 0.9);
+}
+
+.si-map-wx-intel__loading {
+  margin: 8px 12px 16px;
+  opacity: 0.75;
+}
+
+.si-map-wx-intel__current {
+  padding: 0 12px 12px;
+}
+
+.si-map-wx-intel__current-main {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.si-map-wx-intel__wx-icon {
+  font-size: 28px;
+  color: #38bdf8;
+}
+
+.si-map-wx-intel__temp {
+  font-size: 32px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+.si-map-wx-intel__condition {
+  margin: 4px 0 10px;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.si-map-wx-intel__stats {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 6px;
+}
+
+.si-map-wx-intel__stats li {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 6px 8px;
+  border-radius: 8px;
+  background: rgba(2, 6, 23, 0.28);
+}
+
+.si-map-wx-intel--light .si-map-wx-intel__stats li {
+  background: rgba(241, 245, 249, 0.95);
+}
+
+.si-map-wx-intel__stats span {
+  opacity: 0.72;
+}
+
+.si-map-wx-intel__section {
+  padding: 0 12px 12px;
+}
+
+.si-map-wx-intel__section h4 {
+  margin: 0 0 8px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  opacity: 0.65;
+}
+
+.si-map-wx-intel__hourly {
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  padding-bottom: 4px;
+}
+
+.si-map-wx-intel__hour {
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 8px;
+  border-radius: 8px;
+  background: rgba(2, 6, 23, 0.25);
+  font-size: 10px;
+}
+
+.si-map-wx-intel--light .si-map-wx-intel__hour {
+  background: rgba(226, 232, 240, 0.7);
+}
+
+.si-map-wx-intel__daily {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.si-map-wx-intel__daily li {
+  display: grid;
+  grid-template-columns: 1fr auto auto auto;
+  gap: 8px;
+  align-items: center;
+  padding: 5px 6px;
+  border-radius: 6px;
+  background: rgba(2, 6, 23, 0.2);
+}
+
+.si-map-wx-intel--light .si-map-wx-intel__daily li {
+  background: rgba(241, 245, 249, 0.8);
+}
+
+.si-map-wx-intel__day-lo {
+  margin-left: 4px;
+  opacity: 0.65;
+  font-size: 10px;
+}
+
+.si-map-wx-intel__day-rain {
+  font-size: 10px;
+  opacity: 0.8;
+  text-align: right;
+}
+
+.si-map-wx-intel__foot {
+  padding: 8px 12px 10px;
+  border-top: 1px solid rgba(148, 163, 184, 0.2);
+  font-size: 10px;
+  opacity: 0.65;
+}
+
+.si-map-wx-intel__foot a {
+  color: inherit;
+}
+
+.si-map-wx-intel__foot a:hover {
+  color: #38bdf8;
+}

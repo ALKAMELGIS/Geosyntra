@@ -1,0 +1,222 @@
+/* Wireframe tech globe + glass rings — GeoTechOrbitScene */
+
+.gs-tech-scene {
+  position: relative;
+  transform-style: preserve-3d;
+  perspective: 920px;
+  isolation: isolate;
+}
+
+.gs-tech-scene__center {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+}
+
+.gs-tech-mesh-wrap {
+  position: relative;
+  z-index: 2;
+  width: 100%;
+  height: 100%;
+  transform-style: preserve-3d;
+  animation: gsTechMeshSpin 56s linear infinite;
+}
+
+.gs-tech-mesh-wrap--live {
+  animation-duration: 42s;
+}
+
+.gs-tech-mesh-core {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: radial-gradient(
+    circle at 34% 28%,
+    rgba(56, 189, 248, 0.22) 0%,
+    rgba(8, 12, 22, 0.75) 42%,
+    rgba(0, 0, 0, 0.92) 100%
+  );
+  box-shadow:
+    inset 0 0 48px rgba(56, 189, 248, 0.14),
+    inset 0 -12px 32px rgba(99, 102, 241, 0.12),
+    0 0 48px rgba(56, 189, 248, 0.16),
+    0 0 100px rgba(14, 165, 233, 0.08);
+}
+
+.gs-tech-mesh-wire {
+  position: absolute;
+  inset: 0;
+  transform-style: preserve-3d;
+}
+
+.gs-tech-ring-line {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 100%;
+  height: 100%;
+  margin: -50% 0 0 -50%;
+  border-radius: 50%;
+  border: 1px solid rgba(125, 211, 252, 0.14);
+  box-shadow: 0 0 10px rgba(56, 189, 248, 0.06);
+}
+
+.gs-tech-ring-line--lat-1 {
+  transform: rotateX(72deg);
+}
+.gs-tech-ring-line--lat-2 {
+  transform: rotateX(54deg) scale(0.92);
+}
+.gs-tech-ring-line--lat-3 {
+  transform: rotateX(36deg) scale(0.84);
+}
+.gs-tech-ring-line--lat-4 {
+  transform: rotateX(18deg) scale(0.76);
+}
+.gs-tech-ring-line--lat-5 {
+  transform: rotateX(0deg) scale(0.68);
+}
+.gs-tech-ring-line--lat-6 {
+  transform: rotateX(-18deg) scale(0.76);
+}
+.gs-tech-ring-line--lat-7 {
+  transform: rotateX(-36deg) scale(0.84);
+}
+.gs-tech-ring-line--lat-8 {
+  transform: rotateX(-54deg) scale(0.92);
+}
+
+.gs-tech-meridian {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 100%;
+  height: 100%;
+  margin: -50% 0 0 -50%;
+  border-radius: 50%;
+  border: 1px solid rgba(125, 211, 252, 0.1);
+  transform-style: preserve-3d;
+}
+
+.gs-tech-meridian--1 {
+  transform: rotateY(0deg);
+}
+.gs-tech-meridian--2 {
+  transform: rotateY(30deg);
+}
+.gs-tech-meridian--3 {
+  transform: rotateY(60deg);
+}
+.gs-tech-meridian--4 {
+  transform: rotateY(90deg);
+}
+.gs-tech-meridian--5 {
+  transform: rotateY(120deg);
+}
+.gs-tech-meridian--6 {
+  transform: rotateY(150deg);
+}
+
+.gs-tech-node-field {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.gs-tech-node {
+  position: absolute;
+  width: 3px;
+  height: 3px;
+  border-radius: 50%;
+  background: #e0f2fe;
+  box-shadow: 0 0 6px rgba(125, 211, 252, 0.9), 0 0 12px rgba(56, 189, 248, 0.5);
+  animation: gsTechNodePulse 3.2s ease-in-out infinite;
+}
+
+.gs-tech-glass-ring {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  border-radius: 50%;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+}
+
+.gs-tech-glass-ring--1 {
+  width: 118%;
+  height: 118%;
+  animation: gsTechGlassRing 7s ease-in-out infinite;
+}
+
+.gs-tech-glass-ring--2 {
+  width: 138%;
+  height: 138%;
+  border-color: rgba(56, 189, 248, 0.1);
+  animation: gsTechGlassRing 9s ease-in-out infinite reverse;
+}
+
+.gs-tech-orbit-field--tech .gs-globe-orbit-track::before {
+  border-color: rgba(125, 211, 252, 0.22);
+  box-shadow:
+    0 0 16px rgba(56, 189, 248, 0.12),
+    inset 0 0 12px rgba(14, 165, 233, 0.06);
+}
+
+.gs-tech-orbit-field--tech.gs-globe-orbit-field--rs .gs-globe-satellite {
+  width: 8px;
+  height: 8px;
+}
+
+@keyframes gsTechMeshSpin {
+  from {
+    transform: rotateY(0deg) rotateX(12deg);
+  }
+  to {
+    transform: rotateY(360deg) rotateX(12deg);
+  }
+}
+
+@keyframes gsTechNodePulse {
+  0%,
+  100% {
+    opacity: 0.35;
+    transform: scale(0.85);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.15);
+  }
+}
+
+@keyframes gsTechGlassRing {
+  0%,
+  100% {
+    opacity: 0.35;
+  }
+  50% {
+    opacity: 0.75;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .gs-tech-mesh-wrap {
+    animation: none;
+  }
+
+  .gs-tech-node {
+    animation: none;
+    opacity: 0.65;
+  }
+
+  .gs-tech-glass-ring {
+    animation: none;
+    opacity: 0.45;
+  }
+}

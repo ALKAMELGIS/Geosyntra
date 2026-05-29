@@ -1,0 +1,60 @@
+.si-aoi-spectral-mini {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.si-aoi-spectral-mini__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.si-aoi-spectral-mini__title {
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: rgba(226, 232, 240, 0.88);
+}
+
+.si-aoi-spectral-mini__badge {
+  font-size: 8px;
+  font-weight: 700;
+  padding: 3px 8px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.06);
+  color: rgba(203, 213, 225, 0.95);
+}
+
+.si-aoi-spectral-mini__sub {
+  margin: 0;
+  font-size: 9px;
+  line-height: 1.35;
+  color: rgba(148, 163, 184, 0.92);
+}
+
+.si-aoi-spectral-mini__svg {
+  width: 100%;
+  height: auto;
+  min-height: 100px;
+  max-height: 140px;
+  display: block;
+}
+
+.si-aoi-spectral-mini__lbl {
+  font-size: 7px;
+  font-weight: 700;
+  fill: rgba(226, 232, 240, 0.82);
+}
+
+.si-aoi-spectral-mini__axis {
+  display: flex;
+  justify-content: space-between;
+  font-size: 8px;
+  font-variant-numeric: tabular-nums;
+  color: rgba(148, 163, 184, 0.85);
+  margin-top: -2px;
+}

@@ -1,0 +1,49 @@
+.si-map-mapbox-status {
+  position: absolute;
+  top: 12px;
+  left: 50%;
+  z-index: 12;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  max-width: min(560px, calc(100% - 24px));
+  padding: 10px 14px;
+  transform: translateX(-50%);
+  border-radius: 12px;
+  border: 1px solid rgba(251, 191, 36, 0.35);
+  background: rgba(15, 23, 42, 0.82);
+  backdrop-filter: blur(12px);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.28);
+  color: #fef3c7;
+  pointer-events: auto;
+}
+
+.si-map-mapbox-status__icon {
+  flex: 0 0 auto;
+  color: #fbbf24;
+  font-size: 14px;
+}
+
+.si-map-mapbox-status__text {
+  margin: 0;
+  flex: 1 1 auto;
+  font-size: 12px;
+  line-height: 1.45;
+  color: rgba(254, 243, 199, 0.95);
+}
+
+.si-map-mapbox-status__retry {
+  flex: 0 0 auto;
+  border: 1px solid rgba(251, 191, 36, 0.45);
+  border-radius: 8px;
+  padding: 4px 10px;
+  background: rgba(251, 191, 36, 0.12);
+  color: #fde68a;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.si-map-mapbox-status__retry:hover {
+  background: rgba(251, 191, 36, 0.22);
+}

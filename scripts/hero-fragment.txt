@@ -1,0 +1,20 @@
+          <div className="home-profile-hero__row">
+            <div className="home-profile-avatar-wrap home-profile-avatar-wrap--hero">
+              {shownAvatar ? (
+                <img className="home-profile-avatar" src={shownAvatar} alt="" />
+              ) : (
+                <div className="home-profile-avatar home-profile-avatar--initials" aria-hidden>
+                  {initials}
+                </div>
+              )}
+            </div>
+            <div className="home-profile-hero__text">
+              <h2 id="home-profile-title" className="home-profile-hero__name">
+                {displayName || 'Your account'}
+              </h2>
+              <p className="home-profile-hero__email">{user.email}</p>
+              <span className={isTrial ? 'home-profile-plan-pill home-profile-plan-pill--trial' : 'home-profile-plan-pill'}>
+                {isTrial ? 'Free trial' : planLabel}
+              </span>
+            </div>
+          </div>

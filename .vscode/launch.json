@@ -1,0 +1,39 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "GeoSyntra: Full stack",
+      "type": "node-terminal",
+      "request": "launch",
+      "command": "npm run dev",
+      "cwd": "${workspaceFolder}"
+    },
+    {
+      "name": "GeoSyntra: Frontend (Vite)",
+      "type": "node-terminal",
+      "request": "launch",
+      "command": "npm run dev:client",
+      "cwd": "${workspaceFolder}"
+    },
+    {
+      "name": "GeoSyntra: Backend (API)",
+      "type": "node-terminal",
+      "request": "launch",
+      "command": "npm run dev:server",
+      "cwd": "${workspaceFolder}"
+    },
+    {
+      "name": "GeoSyntra: Validate startup",
+      "type": "node-terminal",
+      "request": "launch",
+      "command": "npm run validate",
+      "cwd": "${workspaceFolder}"
+    }
+  ],
+  "compounds": [
+    {
+      "name": "GeoSyntra: Dev (frontend + backend)",
+      "configurations": ["GeoSyntra: Frontend (Vite)", "GeoSyntra: Backend (API)"]
+    }
+  ]
+}

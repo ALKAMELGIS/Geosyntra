@@ -1,0 +1,462 @@
+/**
+ * LinkedIn-inspired profile hero — cover + overlapping avatar in one glass card.
+ */
+
+.profile-hero {
+  position: relative;
+  margin-bottom: 2rem;
+}
+
+.profile-hero__frame {
+  position: relative;
+}
+
+.profile-hero__card {
+  position: relative;
+  overflow: hidden;
+  border-radius: 1.25rem;
+  border: 1px solid rgba(148, 163, 184, 0.14);
+  background: rgba(7, 8, 12, 0.65);
+  box-shadow:
+    0 28px 64px rgba(0, 0, 0, 0.48),
+    inset 0 1px 0 rgba(255, 255, 255, 0.07);
+}
+
+@media (min-width: 640px) {
+  .profile-hero__card {
+    border-radius: 1.5rem;
+  }
+}
+
+/* Cover strip — flush with card top */
+.profile-hero__cover.profile-cover--embedded {
+  border: none;
+  border-radius: 0;
+  box-shadow: none;
+  min-height: 200px;
+  max-height: 340px;
+}
+
+.profile-hero__cover.profile-cover--embedded::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  background: linear-gradient(
+    180deg,
+    rgba(7, 8, 12, 0.08) 0%,
+    rgba(7, 8, 12, 0.2) 42%,
+    rgba(7, 8, 12, 0.72) 78%,
+    rgba(7, 8, 12, 0.94) 100%
+  );
+}
+
+/* Glass sheet under cover — avatar sits on the seam */
+.profile-hero__body {
+  position: relative;
+  z-index: 2;
+  padding: 0 1.15rem 1.35rem;
+  background: linear-gradient(
+    165deg,
+    rgba(18, 24, 38, 0.88) 0%,
+    rgba(10, 12, 20, 0.96) 55%,
+    rgba(7, 8, 12, 0.98) 100%
+  );
+  backdrop-filter: blur(22px) saturate(140%);
+  -webkit-backdrop-filter: blur(22px) saturate(140%);
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+@media (min-width: 640px) {
+  .profile-hero__body {
+    padding: 0 1.5rem 1.65rem;
+  }
+}
+
+.profile-hero__avatar-anchor {
+  position: absolute;
+  left: 1.15rem;
+  top: 0;
+  z-index: 4;
+  transform: translateY(-50%);
+}
+
+@media (min-width: 640px) {
+  .profile-hero__avatar-anchor {
+    left: 1.5rem;
+  }
+}
+
+.profile-hero__meta {
+  position: relative;
+  z-index: 3;
+  padding-top: 5.75rem;
+}
+
+@media (min-width: 768px) {
+  .profile-hero__meta {
+    padding-top: 1.35rem;
+    padding-left: calc(9.25rem + 1.75rem);
+    padding-right: 0.25rem;
+  }
+}
+
+.profile-hero__meta-grid {
+  display: grid;
+  gap: 1.15rem;
+  align-items: start;
+}
+
+@media (min-width: 768px) {
+  .profile-hero__meta-grid {
+    grid-template-columns: minmax(0, 1fr) minmax(240px, 300px);
+    gap: 1.5rem 2rem;
+  }
+}
+
+.profile-hero__identity {
+  min-width: 0;
+  text-align: center;
+}
+
+@media (min-width: 768px) {
+  .profile-hero__identity {
+    text-align: left;
+  }
+}
+
+.profile-hero__badges {
+  margin-bottom: 0.75rem;
+  justify-content: center;
+}
+
+@media (min-width: 768px) {
+  .profile-hero__badges {
+    justify-content: flex-start;
+  }
+}
+
+.profile-hero__name {
+  margin: 0;
+  font-size: 1.5rem;
+  font-weight: 650;
+  letter-spacing: -0.02em;
+  line-height: 1.2;
+  color: #f8fafc;
+}
+
+@media (min-width: 640px) {
+  .profile-hero__name {
+    font-size: 1.875rem;
+  }
+}
+
+.profile-hero__handle {
+  margin: 0.25rem 0 0;
+  font-size: 0.875rem;
+  color: #a1a1aa;
+}
+
+.profile-hero__contact {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem 1rem;
+  margin-top: 0.65rem;
+  font-size: 0.75rem;
+  color: #a1a1aa;
+}
+
+@media (min-width: 768px) {
+  .profile-hero__contact {
+    justify-content: flex-start;
+  }
+}
+
+.profile-hero__contact-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.profile-hero__contact-icon {
+  height: 0.875rem;
+  width: 0.875rem;
+  flex-shrink: 0;
+  color: #71717a;
+}
+
+.profile-hero__contact-email {
+  color: #71717a;
+  word-break: break-all;
+}
+
+.profile-hero__aside {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  min-width: 0;
+}
+
+@media (min-width: 768px) {
+  .profile-hero__aside {
+    align-self: stretch;
+    justify-content: flex-start;
+  }
+}
+
+.profile-hero__progress {
+  padding: 0.85rem 1rem;
+  border-radius: 1rem;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.04);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+}
+
+.profile-hero__progress-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 0.5rem;
+  font-size: 0.75rem;
+}
+
+.profile-hero__progress-head span {
+  font-weight: 500;
+  color: #a1a1aa;
+}
+
+.profile-hero__progress-head strong {
+  font-weight: 650;
+  color: #f8fafc;
+}
+
+.profile-hero__progress-track {
+  height: 0.375rem;
+  overflow: hidden;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.profile-hero__progress-fill {
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, rgba(34, 211, 238, 0.85) 0%, #f8fafc 48%, rgba(125, 211, 252, 0.9) 100%);
+}
+
+.profile-hero__progress-hint {
+  margin: 0.5rem 0 0;
+  font-size: 0.6875rem;
+  line-height: 1.35;
+  color: #71717a;
+}
+
+.profile-hero__progress-hint--ok {
+  color: rgba(52, 211, 153, 0.9);
+}
+
+.profile-hero__actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.5rem;
+}
+
+@media (min-width: 768px) and (max-width: 1023px) {
+  .profile-hero__actions {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (min-width: 1024px) {
+  .profile-hero__meta-grid {
+    grid-template-columns: minmax(0, 1fr) minmax(260px, 340px);
+  }
+
+  .profile-hero__actions {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+.profile-hero__actions .profile-hero__action-link,
+.profile-hero__actions button {
+  width: 100%;
+  justify-content: center;
+}
+
+/* Avatar — LinkedIn-style rings + glass pedestal */
+.profile-avatar--hero .profile-avatar__halo {
+  position: absolute;
+  inset: -6px;
+  border-radius: 50%;
+  background: radial-gradient(
+    circle at 50% 35%,
+    rgba(125, 211, 252, 0.45) 0%,
+    rgba(56, 189, 248, 0.22) 42%,
+    transparent 68%
+  );
+  filter: blur(8px);
+  opacity: 0.85;
+  animation: profile-avatar-halo 4.2s ease-in-out infinite;
+}
+
+@keyframes profile-avatar-halo {
+  0%,
+  100% {
+    opacity: 0.65;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.95;
+    transform: scale(1.04);
+  }
+}
+
+.profile-avatar--hero .profile-avatar__ring {
+  position: relative;
+  border-radius: 50%;
+  padding: 4px;
+  background: linear-gradient(
+    145deg,
+    rgba(255, 255, 255, 0.55) 0%,
+    rgba(186, 230, 253, 0.35) 28%,
+    rgba(56, 189, 248, 0.28) 52%,
+    rgba(99, 102, 241, 0.22) 100%
+  );
+  box-shadow:
+    0 0 0 1px rgba(255, 255, 255, 0.12),
+    0 18px 42px rgba(0, 0, 0, 0.55),
+    0 0 28px rgba(56, 189, 248, 0.18);
+}
+
+.profile-avatar--hero .profile-avatar__inner {
+  border-radius: 50%;
+  padding: 3px;
+  background: #07080c;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08);
+}
+
+.profile-avatar--hero .profile-avatar__media {
+  display: block;
+  height: 7.25rem;
+  width: 7.25rem;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 2px solid rgba(15, 23, 42, 0.9);
+}
+
+@media (min-width: 640px) {
+  .profile-avatar--hero .profile-avatar__media {
+    height: 9rem;
+    width: 9rem;
+  }
+}
+
+.profile-avatar--hero .profile-avatar__initials {
+  display: flex;
+  height: 7.25rem;
+  width: 7.25rem;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  border: 2px solid rgba(30, 41, 59, 0.9);
+  background: linear-gradient(145deg, #1e293b 0%, #0f172a 48%, #020617 100%);
+  font-size: 1.65rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  color: #f8fafc;
+}
+
+@media (min-width: 640px) {
+  .profile-avatar--hero .profile-avatar__initials {
+    height: 9rem;
+    width: 9rem;
+    font-size: 2rem;
+  }
+}
+
+.profile-avatar--hero .profile-avatar__status {
+  position: absolute;
+  bottom: 0.55rem;
+  right: 0.55rem;
+  z-index: 2;
+  height: 0.95rem;
+  width: 0.95rem;
+  border-radius: 50%;
+  border: 2.5px solid #07080c;
+  background: #34d399;
+  box-shadow: 0 0 10px rgba(52, 211, 153, 0.55);
+}
+
+.profile-avatar--hero .profile-avatar__camera {
+  position: absolute;
+  bottom: 0.2rem;
+  right: 0.15rem;
+  z-index: 5;
+  display: flex;
+  height: 2.35rem;
+  width: 2.35rem;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  background: linear-gradient(165deg, rgba(30, 41, 59, 0.92) 0%, rgba(15, 23, 42, 0.96) 100%);
+  color: #f8fafc;
+  box-shadow:
+    0 8px 20px rgba(0, 0, 0, 0.45),
+    inset 0 1px 0 rgba(255, 255, 255, 0.12);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  transition:
+    transform 0.22s ease,
+    border-color 0.22s ease,
+    box-shadow 0.22s ease;
+}
+
+.profile-avatar--hero .profile-avatar__camera:hover:not(:disabled) {
+  transform: scale(1.06);
+  border-color: rgba(125, 211, 252, 0.55);
+  box-shadow:
+    0 10px 24px rgba(0, 0, 0, 0.5),
+    0 0 16px rgba(56, 189, 248, 0.25);
+}
+
+/* Skeleton */
+.profile-hero-skeleton__card {
+  overflow: hidden;
+  border-radius: 1.25rem;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.profile-hero-skeleton__cover {
+  height: min(38vw, 280px);
+  min-height: 200px;
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.profile-hero-skeleton__body {
+  position: relative;
+  padding: 5.5rem 1.25rem 1.25rem;
+}
+
+.profile-hero-skeleton__avatar {
+  position: absolute;
+  left: 1.25rem;
+  top: 0;
+  height: 7rem;
+  width: 7rem;
+  transform: translateY(-50%);
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.1);
+  box-shadow: 0 0 0 4px rgba(7, 8, 12, 0.92);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .profile-avatar--hero .profile-avatar__halo {
+    animation: none;
+  }
+}

@@ -1,0 +1,83 @@
+.si-route-turns {
+  margin: 10px 0;
+  max-height: 200px;
+  display: flex;
+  flex-direction: column;
+}
+
+.si-route-turns__head {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #94a3b8;
+  margin-bottom: 6px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.si-route-turns__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  overflow-y: auto;
+  flex: 1;
+}
+
+.si-route-turns__item {
+  width: 100%;
+  display: flex;
+  gap: 8px;
+  text-align: left;
+  padding: 8px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: #e2e8f0;
+  cursor: pointer;
+}
+
+.si-route-turns__item:hover,
+.si-route-turns__item.is-active {
+  background: rgba(59, 130, 246, 0.18);
+}
+
+.si-route-turns__idx {
+  flex-shrink: 0;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: rgba(51, 65, 85, 0.8);
+  font-size: 11px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.si-route-turns__item.is-active .si-route-turns__idx {
+  background: #2563eb;
+}
+
+.si-route-turns__text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.si-route-turns__instr {
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+.si-route-turns__street {
+  font-size: 10px;
+  color: #94a3b8;
+}
+
+.si-route-turns__meta {
+  font-size: 10px;
+  color: #64748b;
+}

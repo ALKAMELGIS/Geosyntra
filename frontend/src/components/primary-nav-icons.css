@@ -1,0 +1,316 @@
+/* Primary navigation icons — flat luxury glass (non-embossed) */
+
+.geosyntra-primary-nav {
+  --pn-glass-bg: rgba(0, 0, 0, 0.38);
+  --pn-glass-bg-hover: rgba(0, 0, 0, 0.48);
+  --pn-glass-border: rgba(255, 255, 255, 0.1);
+  --pn-glass-border-hover: rgba(255, 255, 255, 0.16);
+  --pn-glass-text: rgba(255, 255, 255, 0.94);
+  --pn-glass-active-ring: rgba(56, 189, 248, 0.42);
+  --pn-glass-active-bg: rgba(56, 189, 248, 0.1);
+  --pn-glass-open-ring: rgba(167, 139, 250, 0.38);
+
+  display: flex;
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  min-width: 0;
+  position: relative;
+  z-index: 2;
+  overflow: visible;
+}
+
+html[data-theme='light'] .geosyntra-primary-nav {
+  --pn-glass-bg: rgba(255, 255, 255, 0.52);
+  --pn-glass-bg-hover: rgba(255, 255, 255, 0.62);
+  --pn-glass-border: rgba(15, 23, 42, 0.1);
+  --pn-glass-border-hover: rgba(15, 23, 42, 0.16);
+  --pn-glass-text: #0f172a;
+  --pn-glass-active-ring: rgba(14, 116, 144, 0.45);
+  --pn-glass-active-bg: rgba(14, 116, 144, 0.08);
+  --pn-glass-open-ring: rgba(109, 40, 217, 0.35);
+}
+
+.geosyntra-primary-nav__link {
+  display: flex;
+  text-decoration: none;
+  color: inherit;
+  border-radius: 10px;
+  padding: 0;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+}
+
+.geosyntra-primary-nav__trigger--link {
+  text-decoration: none;
+  color: inherit;
+  border: none;
+  background: transparent;
+  padding: 0;
+  cursor: pointer;
+}
+
+.geosyntra-primary-nav__trigger {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  margin: 0;
+  border: none;
+  border-radius: 10px;
+  background: transparent;
+  cursor: pointer;
+  color: inherit;
+}
+
+.geosyntra-primary-nav__glass {
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 15px;
+  color: var(--pn-glass-text);
+  background: var(--pn-glass-bg);
+  border: 1px solid var(--pn-glass-border);
+  box-shadow: none;
+  backdrop-filter: blur(18px) saturate(1.12);
+  -webkit-backdrop-filter: blur(18px) saturate(1.12);
+  transition:
+    background 0.18s ease,
+    border-color 0.18s ease,
+    color 0.18s ease;
+}
+
+.geosyntra-primary-nav__glass i {
+  filter: none;
+  opacity: 0.92;
+  transition: opacity 0.18s ease;
+}
+
+.geosyntra-primary-nav__link:hover .geosyntra-primary-nav__glass,
+.geosyntra-primary-nav__trigger:hover .geosyntra-primary-nav__glass {
+  background: var(--pn-glass-bg-hover);
+  border-color: var(--pn-glass-border-hover);
+}
+
+.geosyntra-primary-nav__link:hover .geosyntra-primary-nav__glass i,
+.geosyntra-primary-nav__trigger:hover .geosyntra-primary-nav__glass i {
+  opacity: 1;
+}
+
+.geosyntra-primary-nav__link--active .geosyntra-primary-nav__glass,
+.geosyntra-primary-nav__trigger--active .geosyntra-primary-nav__glass {
+  background: var(--pn-glass-active-bg);
+  border-color: var(--pn-glass-active-ring);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--pn-glass-active-ring) 35%, transparent);
+}
+
+.geosyntra-primary-nav__trigger--open .geosyntra-primary-nav__glass {
+  background: var(--pn-glass-bg-hover);
+  border-color: var(--pn-glass-open-ring);
+}
+
+.geosyntra-primary-nav__slot {
+  position: relative;
+  display: flex;
+  flex: 0 0 auto;
+  overflow: visible;
+  z-index: 1;
+}
+
+.geosyntra-primary-nav__slot:has(.geosyntra-primary-nav__popover--open) {
+  z-index: 30;
+}
+
+.geosyntra-primary-nav__slot--account {
+  margin-inline-start: 4px;
+  padding-inline-start: 8px;
+  border-inline-start: 1px solid var(--pn-glass-border);
+}
+
+.geosyntra-header--bottom-cloud .geosyntra-primary-nav__popover {
+  top: auto;
+  bottom: calc(100% + 10px);
+  transform: translateY(4px);
+}
+
+.geosyntra-header--bottom-cloud .geosyntra-primary-nav__popover--open {
+  transform: translateY(0);
+}
+
+.geosyntra-primary-nav__popover {
+  position: absolute;
+  top: calc(100% + 8px);
+  inset-inline-end: 0;
+  min-width: 52px;
+  max-width: min(92vw, 280px);
+  padding: 6px;
+  border-radius: 12px;
+  background: rgba(6, 8, 14, 0.72);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.35);
+  backdrop-filter: blur(22px) saturate(1.1);
+  -webkit-backdrop-filter: blur(22px) saturate(1.1);
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transform: translateY(-4px);
+  transition:
+    opacity 0.18s ease,
+    transform 0.18s ease,
+    visibility 0s linear 0.18s;
+  z-index: 11600;
+}
+
+.geosyntra-primary-nav__popover--open {
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
+  transform: translateY(0);
+  transition:
+    opacity 0.2s ease,
+    transform 0.2s ease,
+    visibility 0s linear 0s;
+}
+
+.geosyntra-primary-nav__popitem {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0;
+  padding: 6px 8px;
+  border-radius: 8px;
+  text-decoration: none;
+  color: rgba(248, 250, 252, 0.94);
+  font-size: 13px;
+  font-weight: 600;
+  border: 1px solid transparent;
+  transition:
+    background 0.15s ease,
+    border-color 0.15s ease;
+}
+
+.geosyntra-primary-nav__popitem:hover {
+  background: rgba(255, 255, 255, 0.06);
+  border-color: rgba(255, 255, 255, 0.08);
+}
+
+.geosyntra-primary-nav__popitem--active {
+  background: rgba(34, 197, 94, 0.1);
+  border-color: rgba(52, 211, 153, 0.28);
+  color: #ecfdf5;
+}
+
+.geosyntra-primary-nav__popitem--btn {
+  width: 100%;
+  text-align: center;
+  background: transparent;
+  cursor: pointer;
+  font: inherit;
+}
+
+.geosyntra-primary-nav__popicon {
+  width: 34px;
+  height: 34px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  color: rgba(248, 250, 252, 0.92);
+}
+
+html[data-theme='light'] .geosyntra-primary-nav__popover {
+  background: rgba(255, 255, 255, 0.72);
+  border-color: rgba(15, 23, 42, 0.1);
+  box-shadow: 0 16px 40px rgba(15, 23, 42, 0.1);
+}
+
+html[data-theme='light'] .geosyntra-primary-nav__popitem {
+  color: #0f172a;
+}
+
+html[data-theme='light'] .geosyntra-primary-nav__popitem:hover {
+  background: rgba(15, 23, 42, 0.05);
+  border-color: rgba(15, 23, 42, 0.08);
+}
+
+html[data-theme='light'] .geosyntra-primary-nav__popicon {
+  background: rgba(255, 255, 255, 0.45);
+  border-color: rgba(15, 23, 42, 0.08);
+  color: #0f172a;
+}
+
+.geosyntra-header--bottom-cloud .geosyntra-primary-nav {
+  gap: 6px;
+  padding: 6px 8px;
+  border-radius: 14px;
+  background: rgba(0, 0, 0, 0.28);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  backdrop-filter: blur(16px) saturate(1.1);
+  -webkit-backdrop-filter: blur(16px) saturate(1.1);
+}
+
+html[data-theme='light'] .geosyntra-header--bottom-cloud .geosyntra-primary-nav {
+  background: rgba(255, 255, 255, 0.45);
+  border-color: rgba(15, 23, 42, 0.1);
+}
+
+@media (max-width: 900px) {
+  .geosyntra-primary-nav__glass {
+    width: 38px;
+    height: 38px;
+    font-size: 14px;
+  }
+}
+
+/* Phone — icon rail inside header (replaces sidebar navmenu-list) */
+@media (max-width: 767px) {
+  .geosyntra-primary-nav {
+    flex-wrap: nowrap;
+    gap: 4px;
+    justify-content: flex-end;
+    max-width: 100%;
+    overflow-x: auto;
+    overflow-y: visible;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .geosyntra-primary-nav::-webkit-scrollbar {
+    display: none;
+  }
+
+  .geosyntra-primary-nav__glass {
+    width: 32px;
+    height: 32px;
+    font-size: 12px;
+    border-radius: 8px;
+  }
+
+  .geosyntra-primary-nav__slot--account {
+    margin-inline-start: 2px;
+    padding-inline-start: 4px;
+    border-inline-start-width: 0;
+  }
+
+  .geosyntra-primary-nav__popover {
+    top: calc(100% + 6px);
+    min-width: 48px;
+    padding: 4px;
+  }
+
+  .geosyntra-primary-nav__popicon {
+    width: 28px;
+    height: 28px;
+    font-size: 12px;
+    border-radius: 7px;
+  }
+}

@@ -1,0 +1,355 @@
+/* ==============================================================
+ * Geosyntra · Field Drawing Module
+ *
+ * Glass One-UI horizontal toolbar that sits inside `FieldsPanel`
+ * directly above the "Add Draw New Field" CTA. Styles are scoped
+ * to `.gs-field-draw-module`-prefixed classes so they never bleed
+ * into (or inherit from) the Remote Sensing toolbar selectors
+ * (`.si-map-analysis-toolbar*`) — keeping the two systems
+ * independent at the visual layer too.
+ *
+ * Layout
+ *   [ shape group (3 buttons) ] | [ action group (3 buttons) ]
+ *
+ *   • Shape group  — radio-style: only one shape can be active.
+ *   • Action group — momentary: Edit / Delete / Save fire once.
+ *   • Vertical hairline separator splits the two groups.
+ *
+ * The container uses CSS-grid logic (flex w/ gap) so it never wraps
+ * on narrow rails (down to ~280px) thanks to the icon-only buttons.
+ * ============================================================== */
+
+.gs-field-draw-module {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 6px;
+  margin: 0 0 10px;
+  border-radius: 14px;
+  /* Layered glass surface — slightly lighter than the field cards
+   * underneath so the toolbar floats above them. */
+  background:
+    linear-gradient(
+      180deg,
+      rgba(255, 255, 255, 0.06) 0%,
+      rgba(255, 255, 255, 0.02) 100%
+    ),
+    radial-gradient(
+      ellipse 100% 60% at 50% 0%,
+      rgba(125, 211, 252, 0.05) 0%,
+      transparent 70%
+    );
+  border: 1px solid rgba(255, 255, 255, 0.10);
+  box-shadow:
+    0 6px 16px rgba(2, 6, 12, 0.32),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.22);
+  backdrop-filter: blur(14px) saturate(140%);
+  -webkit-backdrop-filter: blur(14px) saturate(140%);
+}
+
+.gs-field-draw-module__group {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.gs-field-draw-module__group--shapes {
+  flex: 0 0 auto;
+}
+
+.gs-field-draw-module__group--actions {
+  flex: 0 0 auto;
+}
+
+.gs-field-draw-module__group--charts {
+  flex: 0 0 auto;
+}
+
+.gs-field-draw-tool--charts {
+  border-color: rgba(99, 102, 241, 0.35);
+  background: rgba(79, 70, 229, 0.12);
+}
+
+.gs-field-draw-tool--charts:hover {
+  border-color: rgba(165, 180, 252, 0.55);
+  box-shadow: 0 0 0 1px rgba(129, 140, 248, 0.25);
+}
+
+/* Vertical hairline that visually segments the row. Pure CSS — no
+ * extra DOM weight, sized to match the button height. */
+.gs-field-draw-module__sep {
+  flex: 0 0 1px;
+  width: 1px;
+  height: 22px;
+  background: linear-gradient(
+    to bottom,
+    transparent,
+    rgba(255, 255, 255, 0.18),
+    transparent
+  );
+  margin: 0 2px;
+}
+
+/* ==============================================================
+ * Tool buttons — square Glass pills with hover / active / armed
+ * states. The hit-area is 36px to match the platform's compact
+ * tool-rail spacing.
+ * ============================================================== */
+.gs-field-draw-tool {
+  --gs-tool-size: 36px;
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--gs-tool-size);
+  height: var(--gs-tool-size);
+  padding: 0;
+  border-radius: 10px;
+  background: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0.04) 0%,
+    rgba(255, 255, 255, 0.01) 100%
+  );
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  color: rgba(226, 232, 240, 0.85);
+  cursor: pointer;
+  transition:
+    background 180ms ease,
+    border-color 180ms ease,
+    color 180ms ease,
+    box-shadow 180ms ease,
+    transform 120ms ease;
+}
+
+.gs-field-draw-tool:hover:not(:disabled) {
+  background: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0.10) 0%,
+    rgba(255, 255, 255, 0.04) 100%
+  );
+  border-color: rgba(255, 255, 255, 0.18);
+  color: rgba(248, 250, 252, 0.96);
+  box-shadow:
+    0 4px 10px rgba(2, 6, 12, 0.32),
+    inset 0 1px 0 rgba(255, 255, 255, 0.10);
+  transform: translateY(-1px);
+}
+
+.gs-field-draw-tool:active:not(:disabled) {
+  transform: translateY(0);
+  box-shadow:
+    inset 0 2px 4px rgba(0, 0, 0, 0.22),
+    inset 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+
+.gs-field-draw-tool:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.30);
+}
+
+.gs-field-draw-tool:disabled {
+  opacity: 0.38;
+  cursor: not-allowed;
+  filter: saturate(0.6);
+}
+
+/* Active shape — cyan accent surface with a subtle inner glow so
+ * the user always knows "this is the shape my next field will
+ * use". Distinct from the armed pulse below. */
+.gs-field-draw-tool--shape.is-active {
+  background: linear-gradient(
+    180deg,
+    rgba(125, 211, 252, 0.26) 0%,
+    rgba(56, 189, 248, 0.16) 100%
+  );
+  border-color: rgba(125, 211, 252, 0.42);
+  color: #e0f2fe;
+  box-shadow:
+    0 4px 12px rgba(56, 189, 248, 0.28),
+    inset 0 1px 0 rgba(255, 255, 255, 0.18),
+    inset 0 0 0 1px rgba(125, 211, 252, 0.20);
+}
+
+/* Armed pulse — fires while the host has the underlying draw
+ * tool live on the map. Keyframes intentionally subtle so it
+ * reads as "alive" without being distracting. */
+@keyframes gs-field-draw-armed-pulse {
+  0%, 100% {
+    box-shadow:
+      0 4px 12px rgba(56, 189, 248, 0.28),
+      0 0 0 0 rgba(125, 211, 252, 0.30),
+      inset 0 1px 0 rgba(255, 255, 255, 0.18);
+  }
+  50% {
+    box-shadow:
+      0 4px 12px rgba(56, 189, 248, 0.34),
+      0 0 0 6px rgba(125, 211, 252, 0.0),
+      inset 0 1px 0 rgba(255, 255, 255, 0.22);
+  }
+}
+
+.gs-field-draw-tool--shape.is-armed {
+  animation: gs-field-draw-armed-pulse 1.6s ease-in-out infinite;
+}
+
+/* Action variants ------------------------------------------------ */
+
+/* Primary action (Save) — cyan glass pill matching the Geosyntra
+ * accent. Distinct enough from the active-shape state because it
+ * never carries the inner hairline ring. */
+.gs-field-draw-tool--primary:not(:disabled) {
+  color: #bae6fd;
+}
+
+.gs-field-draw-tool--primary:not(:disabled):hover {
+  background: linear-gradient(
+    180deg,
+    rgba(125, 211, 252, 0.22) 0%,
+    rgba(56, 189, 248, 0.12) 100%
+  );
+  border-color: rgba(125, 211, 252, 0.36);
+  color: #e0f2fe;
+  box-shadow:
+    0 6px 14px rgba(2, 6, 12, 0.36),
+    inset 0 1px 0 rgba(255, 255, 255, 0.14);
+}
+
+/* Danger action (Delete) — red glass on hover, neutral at rest so
+ * the button doesn't shout when nothing is selected. */
+.gs-field-draw-tool--danger:not(:disabled) {
+  color: rgba(252, 165, 165, 0.85);
+}
+
+.gs-field-draw-tool--danger:not(:disabled):hover {
+  background: linear-gradient(
+    180deg,
+    rgba(248, 113, 113, 0.22) 0%,
+    rgba(244, 63, 94, 0.12) 100%
+  );
+  border-color: rgba(248, 113, 113, 0.42);
+  color: #fff5f5;
+  box-shadow:
+    0 6px 14px rgba(244, 63, 94, 0.22),
+    inset 0 1px 0 rgba(255, 255, 255, 0.14);
+}
+
+/* ==============================================================
+ * Light Mode mirror — dark glyphs on a frosted white toolbar.
+ * Uses the same semantic palette as the rest of the platform's
+ * Light Mode (slate-900 ink, cyan-500 accent, rose-500 danger).
+ * ============================================================== */
+html[data-theme='light'] .gs-field-draw-module {
+  background: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0.92) 0%,
+    rgba(248, 250, 252, 0.86) 100%
+  );
+  border-color: rgba(15, 23, 42, 0.10);
+  box-shadow:
+    0 6px 16px rgba(15, 23, 42, 0.10),
+    inset 0 1px 0 rgba(255, 255, 255, 1),
+    inset 0 -1px 0 rgba(15, 23, 42, 0.04);
+}
+
+html[data-theme='light'] .gs-field-draw-module__sep {
+  background: linear-gradient(
+    to bottom,
+    transparent,
+    rgba(15, 23, 42, 0.16),
+    transparent
+  );
+}
+
+html[data-theme='light'] .gs-field-draw-tool {
+  background: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0.98) 0%,
+    rgba(248, 250, 252, 0.92) 100%
+  );
+  border-color: rgba(15, 23, 42, 0.12);
+  color: rgba(30, 41, 59, 0.78);
+}
+
+html[data-theme='light'] .gs-field-draw-tool:hover:not(:disabled) {
+  background: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 1) 0%,
+    rgba(248, 250, 252, 1) 100%
+  );
+  border-color: rgba(15, 23, 42, 0.22);
+  color: rgba(15, 23, 42, 0.96);
+  box-shadow:
+    0 4px 10px rgba(15, 23, 42, 0.12),
+    inset 0 1px 0 rgba(255, 255, 255, 1);
+}
+
+html[data-theme='light'] .gs-field-draw-tool--shape.is-active {
+  background: linear-gradient(180deg, #38bdf8 0%, #0ea5e9 100%);
+  border-color: rgba(14, 165, 233, 0.55);
+  color: #ffffff;
+  box-shadow:
+    0 4px 12px rgba(14, 165, 233, 0.30),
+    inset 0 1px 0 rgba(255, 255, 255, 0.30);
+}
+
+html[data-theme='light'] .gs-field-draw-tool--primary:not(:disabled) {
+  color: #0284c7;
+}
+
+html[data-theme='light'] .gs-field-draw-tool--primary:not(:disabled):hover {
+  background: linear-gradient(180deg, #38bdf8 0%, #0ea5e9 100%);
+  border-color: rgba(14, 165, 233, 0.55);
+  color: #ffffff;
+  box-shadow:
+    0 6px 14px rgba(14, 165, 233, 0.30),
+    inset 0 1px 0 rgba(255, 255, 255, 0.30);
+}
+
+html[data-theme='light'] .gs-field-draw-tool--danger:not(:disabled) {
+  color: #b91c1c;
+}
+
+html[data-theme='light'] .gs-field-draw-tool--danger:not(:disabled):hover {
+  background: linear-gradient(180deg, #f87171 0%, #ef4444 100%);
+  border-color: rgba(220, 38, 38, 0.55);
+  color: #ffffff;
+  box-shadow:
+    0 6px 14px rgba(239, 68, 68, 0.30),
+    inset 0 1px 0 rgba(255, 255, 255, 0.26);
+}
+
+/* Light-mode armed pulse — keep the cyan halo identifiable on a
+ * white surface. */
+html[data-theme='light'] .gs-field-draw-tool--shape.is-armed {
+  animation-name: gs-field-draw-armed-pulse-lite;
+}
+
+@keyframes gs-field-draw-armed-pulse-lite {
+  0%, 100% {
+    box-shadow:
+      0 4px 12px rgba(14, 165, 233, 0.28),
+      0 0 0 0 rgba(14, 165, 233, 0.40),
+      inset 0 1px 0 rgba(255, 255, 255, 0.30);
+  }
+  50% {
+    box-shadow:
+      0 4px 14px rgba(14, 165, 233, 0.34),
+      0 0 0 6px rgba(14, 165, 233, 0.0),
+      inset 0 1px 0 rgba(255, 255, 255, 0.36);
+  }
+}
+
+/* ==============================================================
+ * Reduced motion — kill the armed pulse so it doesn't tug at the
+ * eye for users who opt out of motion.
+ * ============================================================== */
+@media (prefers-reduced-motion: reduce) {
+  .gs-field-draw-tool--shape.is-armed {
+    animation: none !important;
+  }
+  .gs-field-draw-tool {
+    transition: none !important;
+  }
+}

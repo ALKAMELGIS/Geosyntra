@@ -1,0 +1,80 @@
+/* Profile-only: mesh globe + satellites behind account UI */
+
+.profile-tech-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.profile-tech-backdrop__glow {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(90px);
+  opacity: 0.55;
+}
+
+.profile-tech-backdrop__glow--cyan {
+  right: -8%;
+  top: 18%;
+  width: min(52vw, 520px);
+  height: min(52vw, 520px);
+  background: radial-gradient(circle, rgba(34, 211, 238, 0.14) 0%, transparent 70%);
+}
+
+.profile-tech-backdrop__glow--violet {
+  left: -12%;
+  top: -6%;
+  width: min(40vw, 380px);
+  height: min(40vw, 380px);
+  background: radial-gradient(circle, rgba(99, 102, 241, 0.12) 0%, transparent 72%);
+}
+
+.profile-tech-backdrop__scene {
+  position: absolute;
+  opacity: 0.92;
+}
+
+.profile-tech-backdrop__scene--primary {
+  right: -6%;
+  top: 50%;
+  transform: translateY(-48%);
+  opacity: 0.88;
+}
+
+.profile-tech-backdrop__scene--secondary {
+  left: -4%;
+  top: 6%;
+  opacity: 0.42;
+  transform: scale(0.92);
+}
+
+.profile-tech-backdrop__vignette {
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(ellipse 80% 60% at 50% 40%, transparent 0%, rgba(7, 8, 12, 0.35) 55%, rgba(7, 8, 12, 0.92) 100%),
+    linear-gradient(180deg, rgba(7, 8, 12, 0.55) 0%, transparent 18%, transparent 72%, rgba(7, 8, 12, 0.75) 100%);
+}
+
+@media (max-width: 900px) {
+  .profile-tech-backdrop__scene--primary {
+    right: -22%;
+    opacity: 0.55;
+    transform: translateY(-42%) scale(0.78);
+  }
+
+  .profile-tech-backdrop__scene--secondary {
+    left: -18%;
+    top: 2%;
+    opacity: 0.28;
+    transform: scale(0.65);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .profile-tech-backdrop__scene {
+    opacity: 0.5;
+  }
+}

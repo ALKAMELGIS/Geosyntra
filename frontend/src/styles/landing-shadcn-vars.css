@@ -1,0 +1,75 @@
+/**
+ * Semantic HSL tokens consumed by Tailwind `theme.extend.colors`
+ * (background, foreground, card, primary, accent, muted, border, …).
+ *
+ * Two distinct palettes:
+ *   - default (`:root`) + `[data-theme='dark']` → Geosyntra Black Glass:
+ *     neutral charcoal surfaces, white-glass borders, white/silver primary,
+ *     no color cast. The product is dark-glass first.
+ *   - `[data-theme='light']` → Geosyntra White Glass: soft off-white surfaces,
+ *     rich slate text, soft cool-gray borders, dark slate primary so CTAs stay
+ *     readable against frosted-white panels. Modeled after Apple frosted UI /
+ *     Samsung One UI Light / ArcGIS Modern Light / Windows Fluent White Glass.
+ *
+ * Channel triplets are required for Tailwind's `hsl(var(--token) / <alpha-value>)`.
+ */
+
+:root {
+  --background: 230 20% 5%;            /* #07080c */
+  --foreground: 240 10% 94%;           /* #ececf2 */
+  --card: 230 14% 11%;                 /* #181820 */
+  --card-foreground: 240 10% 94%;
+  --muted: 230 10% 18%;                /* #2a2a30 */
+  --muted-foreground: 240 8% 70%;
+  --accent: 240 4% 65%;                /* neutral silver-gray */
+  --accent-foreground: 230 20% 5%;
+  --primary: 240 6% 88%;               /* white-ish silver */
+  --primary-foreground: 230 20% 5%;
+  --border: 230 10% 22%;
+  --input: 230 10% 22%;
+  --ring: 240 6% 88%;
+}
+
+html[data-theme='dark'] {
+  --background: 230 20% 5%;
+  --foreground: 240 10% 94%;
+  --card: 230 14% 11%;
+  --card-foreground: 240 10% 94%;
+  --muted: 230 10% 18%;
+  --muted-foreground: 240 8% 70%;
+  --accent: 240 4% 65%;
+  --accent-foreground: 230 20% 5%;
+  --primary: 240 6% 88%;
+  --primary-foreground: 230 20% 5%;
+  --border: 230 10% 22%;
+  --input: 230 10% 22%;
+  --ring: 240 6% 88%;
+}
+
+/*
+ * White Glass (Lite Mode) — frosted off-white surfaces with rich slate text.
+ *
+ * Hue 220 is chosen for the cool-gray family so the soft tints stay neutral
+ * (no warm brown / yellow drift) and read as "premium frosted glass" rather
+ * than "milky cream". Foreground sits at L=18% rather than pure black so the
+ * type stays readable but never feels harsh against the bright panels.
+ *
+ * The accent / primary stay deep slate because the rest of the app uses
+ * `hsl(var(--primary))` for CTAs and chrome rims — a near-white primary in
+ * Lite Mode would erase those buttons against the white surfaces.
+ */
+html[data-theme='light'] {
+  --background: 220 25% 98%;           /* #f8fafd */
+  --foreground: 230 18% 14%;           /* #1d2030 */
+  --card: 220 30% 100%;                /* pure white card surface */
+  --card-foreground: 230 18% 14%;
+  --muted: 220 20% 94%;                /* #ecf0f5 */
+  --muted-foreground: 230 14% 38%;     /* #515669 */
+  --accent: 230 16% 30%;               /* mid slate accent */
+  --accent-foreground: 220 25% 98%;
+  --primary: 230 22% 16%;              /* deep slate, high-contrast on white */
+  --primary-foreground: 220 25% 98%;
+  --border: 220 20% 88%;               /* soft cool-gray hairline */
+  --input: 220 20% 88%;
+  --ring: 230 22% 32%;
+}
