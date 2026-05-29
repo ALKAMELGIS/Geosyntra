@@ -59,6 +59,33 @@ function isSiBasemapLayerId(id: string): boolean {
   return id.startsWith(SI_BASEMAP_LAYER_PREFIX);
 }
 
+/** True when in-place Esri/Mapbox raster basemap tiles are on the map. */
+export function mapHasSiRasterBasemapStack(map: MapboxMap): boolean {
+  try {
+    const layers = map.getStyle()?.layers ?? [];
+    return layers.some(L => {
+      const id = (L as { id?: string }).id;
+      return Boolean(id && isSiBasemapLayerId(id));
+    });
+  } catch {
+    return false;
+  }
+}
+
+/** Insert terrain relief below satellite tiles (keeps basemap vivid). */
+export function findFirstSiBasemapLayerId(map: MapboxMap): string | undefined {
+  try {
+    const layers = map.getStyle()?.layers ?? [];
+    for (const L of layers) {
+      const id = (L as { id?: string }).id;
+      if (id && isSiBasemapLayerId(id)) return id;
+    }
+  } catch {
+    /* ignore */
+  }
+  return undefined;
+}
+
 /** First non-basemap layer — insert new basemap raster below operational layers. */
 export function findFirstNonBasemapLayerId(map: MapboxMap): string | undefined {
   try {

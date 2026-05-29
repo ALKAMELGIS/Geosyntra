@@ -4,6 +4,7 @@ import {
   SI_QUICK_BASEMAP_PRESETS,
   entrySupportsInPlaceBasemapSwap,
   findFirstNonBasemapLayerId,
+  mapHasSiRasterBasemapStack,
 } from './siMapBasemapRuntime';
 
 describe('siMapBasemapRuntime', () => {
@@ -28,5 +29,16 @@ describe('siMapBasemapRuntime', () => {
       }),
     } as unknown as import('mapbox-gl').Map;
     expect(findFirstNonBasemapLayerId(map)).toBe('aoi-fill');
+  });
+
+  it('mapHasSiRasterBasemapStack detects in-place basemap layers', () => {
+    const withBasemap = {
+      getStyle: () => ({ layers: [{ id: 'si-basemap-layer-0' }, { id: 'wms-layer' }] }),
+    } as unknown as import('mapbox-gl').Map;
+    const empty = {
+      getStyle: () => ({ layers: [{ id: 'wms-layer' }] }),
+    } as unknown as import('mapbox-gl').Map;
+    expect(mapHasSiRasterBasemapStack(withBasemap)).toBe(true);
+    expect(mapHasSiRasterBasemapStack(empty)).toBe(false);
   });
 });

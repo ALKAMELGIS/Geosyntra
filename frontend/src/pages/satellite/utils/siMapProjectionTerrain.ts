@@ -7,6 +7,10 @@ import {
   siMap3DLabelPaint,
   siMap3DLineLabelLayout,
 } from './siMap3DLabels';
+import {
+  findFirstSiBasemapLayerId,
+  mapHasSiRasterBasemapStack,
+} from './siMapBasemapRuntime';
 
 export type SiMapProjectionMode = '2d' | 'globe';
 
@@ -91,8 +95,8 @@ export type SiMapTerrainSettings = {
 };
 
 export const SI_DEFAULT_TERRAIN_SETTINGS: SiMapTerrainSettings = {
-  exaggeration: 1.35,
-  hillshadeIntensity: 0.48,
+  exaggeration: 1.2,
+  hillshadeIntensity: 0.28,
   contourEnabled: true,
   contourIntervalM: 50,
   contourIntensity: 0.62,
@@ -410,8 +414,23 @@ function syncSiContourLabelLayer(
   map.triggerRepaint?.();
 }
 
-function syncSiHillshadeLayer(map: MapboxMap, hillshadeIntensity: number, enabled: boolean): void {
+/**
+ * 2D hillshade washes out in-place satellite basemaps when stacked above raster tiles.
+ * 3D terrain mesh + directional lights still provide relief in elevation view.
+ */
+function syncSiHillshadeLayer(
+  map: MapboxMap,
+  hillshadeIntensity: number,
+  enabled: boolean,
+  opts?: { allowOverRasterBasemap?: boolean },
+): void {
   if (!enabled) {
+    if (map.getLayer(HILLSHADE_LAYER_ID)) map.removeLayer(HILLSHADE_LAYER_ID);
+    return;
+  }
+
+  const rasterBasemap = mapHasSiRasterBasemapStack(map);
+  if (rasterBasemap && opts?.allowOverRasterBasemap !== true) {
     if (map.getLayer(HILLSHADE_LAYER_ID)) map.removeLayer(HILLSHADE_LAYER_ID);
     return;
   }
@@ -425,25 +444,30 @@ function syncSiHillshadeLayer(map: MapboxMap, hillshadeIntensity: number, enable
     });
   }
 
+  const exaggeration = hillshadeIntensity * (rasterBasemap ? 0.45 : 0.65);
+  const shadowColor = rasterBasemap ? '#0f172a' : '#020617';
+  const highlightColor = rasterBasemap ? '#f8fafc' : '#e2e8f0';
+
   if (map.getLayer(HILLSHADE_LAYER_ID)) {
-    map.setPaintProperty(HILLSHADE_LAYER_ID, 'hillshade-exaggeration', hillshadeIntensity * 0.85);
-    map.setPaintProperty(HILLSHADE_LAYER_ID, 'hillshade-shadow-color', '#020617');
-    map.setPaintProperty(HILLSHADE_LAYER_ID, 'hillshade-highlight-color', '#e2e8f0');
-    map.setPaintProperty(HILLSHADE_LAYER_ID, 'hillshade-accent-color', '#38bdf8');
+    map.setPaintProperty(HILLSHADE_LAYER_ID, 'hillshade-exaggeration', exaggeration);
+    map.setPaintProperty(HILLSHADE_LAYER_ID, 'hillshade-shadow-color', shadowColor);
+    map.setPaintProperty(HILLSHADE_LAYER_ID, 'hillshade-highlight-color', highlightColor);
+    map.setPaintProperty(HILLSHADE_LAYER_ID, 'hillshade-accent-color', '#64748b');
     return;
   }
 
-  const beforeId = findLabelLayerId(map) ?? CONTOUR_LAYER_ID;
+  const beforeId =
+    findFirstSiBasemapLayerId(map) ?? findLabelLayerId(map) ?? CONTOUR_LAYER_ID;
   map.addLayer(
     {
       id: HILLSHADE_LAYER_ID,
       type: 'hillshade',
       source: DEM_SOURCE_ID,
       paint: {
-        'hillshade-exaggeration': hillshadeIntensity * 0.85,
-        'hillshade-shadow-color': '#020617',
-        'hillshade-highlight-color': '#e2e8f0',
-        'hillshade-accent-color': '#38bdf8',
+        'hillshade-exaggeration': exaggeration,
+        'hillshade-shadow-color': shadowColor,
+        'hillshade-highlight-color': highlightColor,
+        'hillshade-accent-color': '#64748b',
       },
     },
     beforeId,

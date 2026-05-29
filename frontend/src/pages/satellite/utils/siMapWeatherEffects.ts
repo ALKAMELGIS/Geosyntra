@@ -23,20 +23,46 @@ const DEFAULT_FOG: FogSpec = {
   'star-intensity': 0.35,
 };
 
+/** MapGL `fog` prop — minimal ground tint while 3D terrain is active. */
+export const SI_MAP_GL_FOG_DEFAULT = {
+  range: [0.5, 10] as [number, number],
+  color: '#020617',
+  'horizon-blend': 0.12,
+};
+
+export const SI_MAP_GL_FOG_ELEVATION = {
+  range: [1.8, 16] as [number, number],
+  color: '#0f172a',
+  'horizon-blend': 0.02,
+  'high-color': '#1e293b',
+  'star-intensity': 0.08,
+};
+
+function softenFogForElevationView(spec: FogSpec): FogSpec {
+  return {
+    ...spec,
+    range: [Math.max(spec.range[0], 1.4), Math.max(spec.range[1], 14)],
+    'horizon-blend': Math.min(spec['horizon-blend'] ?? 0.1, 0.03),
+    'star-intensity': Math.min(spec['star-intensity'] ?? 0.2, 0.1),
+  };
+}
+
 function pct01(n: number): number {
   return Math.max(0, Math.min(1, n / 100));
 }
 
-function fogForSettings(s: SiMapWeatherSettings): FogSpec {
+function fogForSettings(s: SiMapWeatherSettings, elevationView = false): FogSpec {
   const cloud = pct01(s.cloudCover);
   const fogAmt = pct01(s.fogDensity);
   const baseBlend = 0.08 + cloud * 0.35 + fogAmt * 0.42;
+
+  let spec: FogSpec = DEFAULT_FOG;
 
   switch (s.preset) {
     case 'sunny': {
       if (s.sunPositionByDateTime) {
         const tint = siMapDaylightFogTint(s.daylightMinutes);
-        return {
+        spec = {
           range: [0.6, 12],
           color: tint.color,
           'horizon-blend': tint.horizonBlend + cloud * 0.1,
@@ -44,9 +70,10 @@ function fogForSettings(s: SiMapWeatherSettings): FogSpec {
           'space-color': '#020617',
           'star-intensity': tint.starIntensity,
         };
+        break;
       }
       const warm = true;
-      return {
+      spec = {
         range: [0.6, 12],
         color: warm ? '#cbd5e1' : '#0f172a',
         'horizon-blend': 0.06 + cloud * 0.12,
@@ -54,9 +81,10 @@ function fogForSettings(s: SiMapWeatherSettings): FogSpec {
         'space-color': '#020617',
         'star-intensity': 0.05,
       };
+      break;
     }
     case 'cloudy':
-      return {
+      spec = {
         range: [0.4, 8],
         color: '#94a3b8',
         'horizon-blend': baseBlend + 0.18,
@@ -64,8 +92,9 @@ function fogForSettings(s: SiMapWeatherSettings): FogSpec {
         'space-color': '#334155',
         'star-intensity': 0.08,
       };
+      break;
     case 'rain':
-      return {
+      spec = {
         range: [0.25, 6],
         color: '#64748b',
         'horizon-blend': baseBlend + 0.28,
@@ -73,8 +102,9 @@ function fogForSettings(s: SiMapWeatherSettings): FogSpec {
         'space-color': '#1e293b',
         'star-intensity': 0.02,
       };
+      break;
     case 'snow':
-      return {
+      spec = {
         range: [0.35, 9],
         color: '#e2e8f0',
         'horizon-blend': baseBlend + 0.22,
@@ -82,8 +112,9 @@ function fogForSettings(s: SiMapWeatherSettings): FogSpec {
         'space-color': '#cbd5e1',
         'star-intensity': 0.04,
       };
+      break;
     case 'fog':
-      return {
+      spec = {
         range: [0.15, 4 - fogAmt * 2.2],
         color: '#e2e8f0',
         'horizon-blend': 0.45 + fogAmt * 0.45,
@@ -91,9 +122,12 @@ function fogForSettings(s: SiMapWeatherSettings): FogSpec {
         'space-color': '#cbd5e1',
         'star-intensity': 0,
       };
+      break;
     default:
-      return DEFAULT_FOG;
+      spec = DEFAULT_FOG;
   }
+
+  return elevationView ? softenFogForElevationView(spec) : spec;
 }
 
 function tryMapboxPrecipitation(map: MapboxMap, s: SiMapWeatherSettings): void {
@@ -195,7 +229,7 @@ export function applySiMapWeatherEffects(
   },
 ): void {
   try {
-    map.setFog(fogForSettings(settings));
+    map.setFog(fogForSettings(settings, Boolean(opts?.terrainElevated)));
   } catch {
     /* ignore */
   }

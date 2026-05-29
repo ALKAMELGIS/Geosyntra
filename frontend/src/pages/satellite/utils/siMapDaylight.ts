@@ -422,9 +422,14 @@ function applySiMapStandardStyleLighting(
   }
 }
 
-function applySiMap3DLights(map: MapboxLightingMap, spec: SiMapDaylightLightSpec): boolean {
+function applySiMap3DLights(
+  map: MapboxLightingMap,
+  spec: SiMapDaylightLightSpec,
+  opts?: { softenAmbient?: boolean },
+): boolean {
   if (typeof map.setLights !== 'function') return false;
 
+  const ambientScale = opts?.softenAmbient ? 0.5 : 1;
   const shadowBeforeLayer = map.getLayer(HILLSHADE_LAYER_ID) ? HILLSHADE_LAYER_ID : undefined;
   const directionalProps: Record<string, unknown> = {
     color: spec.color,
@@ -444,7 +449,7 @@ function applySiMap3DLights(map: MapboxLightingMap, spec: SiMapDaylightLightSpec
       id: SI_AMBIENT_LIGHT_ID,
       properties: {
         color: spec.ambientColor,
-        intensity: spec.ambientIntensity,
+        intensity: spec.ambientIntensity * ambientScale,
         ...lightTransitionProps(),
       },
     },
@@ -508,7 +513,9 @@ export function applySiMapDaylightLight(
 
     ensureSiMapDaylightTerrainSupport(map, { buildings: spec.castShadows });
 
-    const used3d = applySiMap3DLights(mapAny, spec);
+    const used3d = applySiMap3DLights(mapAny, spec, {
+      softenAmbient: Boolean(opts?.terrainElevated),
+    });
     if (!used3d) applySiMapFlatLight(mapAny, spec);
 
     syncSiMapDaylightTerrainLayers(map, spec);

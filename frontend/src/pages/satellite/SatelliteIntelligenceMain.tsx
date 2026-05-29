@@ -358,7 +358,11 @@ import {
   rasterHasCropHealthLayers,
 } from './utils/siCropHealthMpc';
 import { LuxThemeLightToggle } from '../../components/LuxThemeLightToggle';
-import { applySiMapWeatherEffects } from './utils/siMapWeatherEffects';
+import {
+  applySiMapWeatherEffects,
+  SI_MAP_GL_FOG_DEFAULT,
+  SI_MAP_GL_FOG_ELEVATION,
+} from './utils/siMapWeatherEffects';
 import {
   loadStoredSiMapWeatherSettings,
   persistSiMapWeatherSettings,
@@ -3079,6 +3083,10 @@ export default function SatelliteIntelligence() {
   );
   /** Pitched terrain camera (elevation FAB) — not the same as globe projection alone. */
   const is3DView = mapElevationViewActive;
+  const mapGlFog = useMemo(
+    () => (mapElevationViewActive ? SI_MAP_GL_FOG_ELEVATION : SI_MAP_GL_FOG_DEFAULT),
+    [mapElevationViewActive],
+  );
   const mapViewState = useMemo(
     () => clampSiViewStateForProjection(viewState, mapProjectionMode),
     [viewState, mapProjectionMode],
@@ -17161,7 +17169,7 @@ export default function SatelliteIntelligence() {
             maxPitch={78}
             doubleClickZoom
             scrollZoom={{ smooth: true }}
-            fog={{ range: [0.5, 10], color: '#020617', 'horizon-blend': 0.12 }}
+            fog={mapGlFog}
             onError={(e: any) => {
               const message = e?.error?.message || '';
               const url = e?.error?.url || '';
