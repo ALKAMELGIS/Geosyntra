@@ -7,11 +7,24 @@ function configuredApiBase(): string {
   return String(import.meta.env.VITE_API_BASE_URL ?? '').trim().replace(/\/+$/, '')
 }
 
+function readHtmlApiBaseMeta(): string {
+  if (typeof document === 'undefined') return ''
+  const raw = document.querySelector('meta[name="geosyntra-api-base"]')?.getAttribute('content')?.trim()
+  return raw ? raw.replace(/\/+$/, '') : ''
+}
+
 function productionApiBaseFallback(): string {
   if (typeof window === 'undefined') return ''
   const host = window.location.hostname.toLowerCase()
-  if (host === 'geosyntra.org' || host === 'www.geosyntra.org') return PRODUCTION_API_BASE_URL
-  return ''
+  if (
+    host === 'geosyntra.org' ||
+    host === 'www.geosyntra.org' ||
+    host.endsWith('.geosyntra.org')
+  ) {
+    return PRODUCTION_API_BASE_URL
+  }
+  if (host.endsWith('github.io') || host.endsWith('github.dev')) return PRODUCTION_API_BASE_URL
+  return readHtmlApiBaseMeta()
 }
 
 function isLocalHostname(hostname: string): boolean {

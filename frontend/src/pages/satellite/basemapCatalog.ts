@@ -4,6 +4,7 @@
  * Mapbox raster tiles use {z}/{x}/{y}.
  */
 import { isMapboxGlInitPlaceholder } from '../../lib/mapboxAccessToken'
+import { resolveMapboxProxyUrl } from '../../lib/mapboxProxyUrl'
 
 const ESRI = 'https://server.arcgisonline.com/ArcGIS/rest/services'
 const ATTR_ESRI = 'Tiles © Esri'
@@ -84,27 +85,49 @@ const ESRI_IMAGERY_STYLE = rasterStyleFromTiles([{ url: ESRI_IMAGERY, attributio
 
 export type BuildBasemapCatalogOptions = {
   /**
-   * When false, omit Mapbox vector styles (`mapbox://…`) and Mapbox-only basemap entries.
-   * Satellite Intelligence uses this so the map relies on Esri/OSM/Carto rasters only (Mapbox token still used for geocoding / GL map engine if present).
+   * When false, omit Mapbox vector-only entries (`mb-streets`, `mb-outdoors`, …).
+   * Raster-capable entries (`mapbox-standard-satellite`, `mapbox-hybrid`) stay visible.
    */
   includeMapboxVectorBasemaps?: boolean
+  /** Route Mapbox raster tiles through `/api/mapbox-proxy` (production Hostinger — no pk in tile URLs). */
+  useMapboxTileProxy?: boolean
 }
 
+/** Heavy Mapbox GL vector styles — not the raster satellite/hybrid entries. */
 function entryUsesMapboxVectorBasemap(e: BasemapCatalogEntry): boolean {
-  if (e.requiresMapboxToken) return true
-  const st = e.mapboxStyle
-  return typeof st === 'string' && st.startsWith('mapbox://')
+  return e.id.startsWith('mb-')
+}
+
+function effectiveMapboxCatalogToken(raw: string): string {
+  const t = raw.trim()
+  if (!t || isMapboxGlInitPlaceholder(t)) return ''
+  return t
+}
+
+function mbRasterUrl(path: string, token: string, useProxy: boolean): string {
+  const upstream = `https://api.mapbox.com/styles/v1/mapbox/${path}/tiles/256/{z}/{x}/{y}`
+  if (token) return `${upstream}?access_token=${encodeURIComponent(token)}`
+  if (useProxy && typeof window !== 'undefined') {
+    try {
+      return resolveMapboxProxyUrl(upstream)
+    } catch {
+      return ''
+    }
+  }
+  return ''
 }
 
 /** Build catalog with Mapbox token-dependent URLs filled in for thumbnails / raster. */
 export function buildBasemapCatalog(mapboxToken: string, options?: BuildBasemapCatalogOptions): BasemapCatalogEntry[] {
   const includeMapboxVector = options?.includeMapboxVectorBasemaps !== false
-  const t = mapboxToken.trim()
-  const mbSatStd = mbRaster('standard-satellite', t)
-  const mbSatV9 = mbRaster('satellite-v9', t)
+  const useProxy = Boolean(options?.useMapboxTileProxy)
+  const t = effectiveMapboxCatalogToken(mapboxToken)
+  const mbSatStd = mbRasterUrl('standard-satellite', t, useProxy) || mbRaster('standard-satellite', t)
+  const mbSatV9 = mbRasterUrl('satellite-v9', t, useProxy) || mbRaster('satellite-v9', t)
   /** Leaflet TileLayer uses styles/v1 raster tiles: classic `satellite-v9` is reliable; `standard-satellite` often returns blank/black (GL-first style). */
   const mbUnderlay = mbSatV9 || mbSatStd
-  const mbHyb = mbRaster('satellite-streets-v12', t)
+  const mbHyb =
+    mbRasterUrl('satellite-streets-v12', t, useProxy) || mbRaster('satellite-streets-v12', t)
 
   const leafletMbSat: LeafletTileSpec[] = mbUnderlay
     ? [{ url: mbUnderlay, attribution: '© Mapbox © OpenStreetMap', opacity: 1 }]
@@ -304,7 +327,7 @@ export function buildBasemapCatalog(mapboxToken: string, options?: BuildBasemapC
           requiresMapboxToken: true,
           leafletLayers: [
             {
-              url: mbRaster('streets-v12', t) || esriTile('World_Street_Map'),
+              url: mbRasterUrl('streets-v12', t, useProxy) || mbRaster('streets-v12', t) || esriTile('World_Street_Map'),
               attribution: t ? '© Mapbox © OpenStreetMap' : ATTR_ESRI,
             },
           ],
@@ -316,7 +339,7 @@ export function buildBasemapCatalog(mapboxToken: string, options?: BuildBasemapC
           requiresMapboxToken: true,
           leafletLayers: [
             {
-              url: mbRaster('outdoors-v12', t) || esriTile('World_Topo_Map'),
+              url: mbRasterUrl('outdoors-v12', t, useProxy) || mbRaster('outdoors-v12', t) || esriTile('World_Topo_Map'),
               attribution: t ? '© Mapbox © OpenStreetMap' : ATTR_ESRI,
             },
           ],
@@ -328,7 +351,7 @@ export function buildBasemapCatalog(mapboxToken: string, options?: BuildBasemapC
           requiresMapboxToken: true,
           leafletLayers: [
             {
-              url: mbRaster('light-v11', t) || esriTile('Canvas/World_Light_Gray_Base'),
+              url: mbRasterUrl('light-v11', t, useProxy) || mbRaster('light-v11', t) || esriTile('Canvas/World_Light_Gray_Base'),
               attribution: t ? '© Mapbox © OpenStreetMap' : ATTR_ESRI,
             },
           ],
@@ -340,7 +363,7 @@ export function buildBasemapCatalog(mapboxToken: string, options?: BuildBasemapC
           requiresMapboxToken: true,
           leafletLayers: [
             {
-              url: mbRaster('dark-v11', t) || esriTile('Canvas/World_Dark_Gray_Base'),
+              url: mbRasterUrl('dark-v11', t, useProxy) || mbRaster('dark-v11', t) || esriTile('Canvas/World_Dark_Gray_Base'),
               attribution: t ? '© Mapbox © OpenStreetMap' : ATTR_ESRI,
             },
           ],
@@ -352,7 +375,10 @@ export function buildBasemapCatalog(mapboxToken: string, options?: BuildBasemapC
           requiresMapboxToken: true,
           leafletLayers: [
             {
-              url: mbRaster('navigation-day-v1', t) || esriTile('World_Street_Map'),
+              url:
+                mbRasterUrl('navigation-day-v1', t, useProxy) ||
+                mbRaster('navigation-day-v1', t) ||
+                esriTile('World_Street_Map'),
               attribution: t ? '© Mapbox © OpenStreetMap' : ATTR_ESRI,
             },
           ],
@@ -364,7 +390,10 @@ export function buildBasemapCatalog(mapboxToken: string, options?: BuildBasemapC
           requiresMapboxToken: true,
           leafletLayers: [
             {
-              url: mbRaster('navigation-night-v1', t) || esriTile('World_Street_Map'),
+              url:
+                mbRasterUrl('navigation-night-v1', t, useProxy) ||
+                mbRaster('navigation-night-v1', t) ||
+                esriTile('World_Street_Map'),
               attribution: t ? '© Mapbox © OpenStreetMap' : ATTR_ESRI,
             },
           ],
@@ -535,7 +564,7 @@ export function reconcileBasemapId(
 /** Default Mapbox vector style when MAPBOX env is configured. */
 export const MAPBOX_STREETS_STYLE_URL = 'mapbox://styles/mapbox/streets-v12'
 
-/** Satellite page: no Mapbox-hosted basemap styles — Esri / OSM / Carto rasters only. */
+/** Satellite page: Esri/OSM/Carto + Mapbox raster satellite/hybrid; omit heavy Mapbox vector styles. */
 export const BASEMAP_CATALOG_OPTS_SATELLITE_NO_MAPBOX_VECTOR: BuildBasemapCatalogOptions = {
   includeMapboxVectorBasemaps: false,
 }

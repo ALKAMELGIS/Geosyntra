@@ -2884,13 +2884,14 @@ export default function SatelliteIntelligence() {
     mapboxSession.hasPublicToken ||
     mapboxSession.proxyMode ||
     Boolean(platformMapboxToken?.trim());
-  const basemapCatalog = useMemo(
-    () =>
-      buildBasemapCatalog(platformMapboxToken || '', {
-        includeMapboxVectorBasemaps: false,
-      }),
-    [platformMapboxToken],
-  );
+  const basemapCatalog = useMemo(() => {
+    const catalogToken = platformMapboxToken?.trim() || getMapboxAccessToken()
+    return buildBasemapCatalog(catalogToken, {
+      includeMapboxVectorBasemaps: mapboxConfigured,
+      useMapboxTileProxy:
+        mapboxConfigured && mapboxSession.proxyMode && !platformMapboxToken?.trim(),
+    })
+  }, [platformMapboxToken, mapboxConfigured, mapboxSession.proxyMode]);
 
   const geoSubscription = useSubscription();
   const geoSubPlanRef = useRef(geoSubscription.plan);
@@ -14270,9 +14271,8 @@ export default function SatelliteIntelligence() {
    * Only a token-class change (which needs a fresh engine) forces a remount.
    */
   const mapGlMountKey = useMemo(
-    () =>
-      `si-map:${platformMapboxToken?.trim() ? 'pk' : isMapboxGlInitPlaceholder(mapboxToken) ? 'placeholder' : 'raster'}`,
-    [platformMapboxToken, mapboxToken],
+    () => `si-map:${mapboxConfigured ? 'mapbox-on' : 'mapbox-off'}`,
+    [mapboxConfigured],
   );
 
   useEffect(() => {
