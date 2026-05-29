@@ -5,9 +5,10 @@ import {
   SI_TERRAIN_CONTOUR_LABEL_LAYER_ID,
   applySiMap3DSymbolLayerStyle,
   siMap3DLabelPaint,
-  siMap3DLineLabelLayout,
+  siMap3DLabelTextSize,
 } from './siMap3DLabels';
 import {
+  findFirstNonBasemapLayerId,
   findFirstSiBasemapLayerId,
   mapHasSiRasterBasemapStack,
 } from './siMapBasemapRuntime';
@@ -64,8 +65,49 @@ export const SI_ELEVATION_PITCH_MAX = 78;
 export const SI_CONTOUR_MAIN_LINE_EVERY_MIN = 2;
 export const SI_CONTOUR_MAIN_LINE_EVERY_MAX = 10;
 export const SI_CONTOUR_MAIN_LINE_EVERY_DEFAULT = 5;
+export const SI_CONTOUR_LINE_WIDTH_MIN = 0.35;
+export const SI_CONTOUR_LINE_WIDTH_MAX = 4;
+export const SI_MAP_TERRAIN_CONTOUR_THEME_LS = 'si-map-terrain-contour-theme-v1';
+export const SI_MAP_TERRAIN_CONTOUR_INTERVAL_COLOR_LS = 'si-map-terrain-contour-interval-color-v1';
+export const SI_MAP_TERRAIN_CONTOUR_MAIN_COLOR_LS = 'si-map-terrain-contour-main-color-v1';
+export const SI_MAP_TERRAIN_CONTOUR_INTERVAL_WIDTH_LS = 'si-map-terrain-contour-interval-width-v1';
+export const SI_MAP_TERRAIN_CONTOUR_MAIN_WIDTH_LS = 'si-map-terrain-contour-main-width-v1';
+export const SI_MAP_TERRAIN_CONTOUR_MAIN_OPACITY_LS = 'si-map-terrain-contour-main-opacity-v1';
 
 export type SiContourClassificationMode = 'elevation' | 'density' | 'gradient';
+export type SiContourColorTheme = 'dark' | 'light';
+
+export const SI_CONTOUR_THEME_PRESETS: Record<
+  SiContourColorTheme,
+  {
+    intervalColor: string;
+    mainColor: string;
+    labelColor: string;
+    intervalOpacity: number;
+    mainOpacity: number;
+    intervalWidth: number;
+    mainWidth: number;
+  }
+> = {
+  dark: {
+    intervalColor: '#38bdf8',
+    mainColor: '#f8fafc',
+    labelColor: '#e0f2fe',
+    intervalOpacity: 0.46,
+    mainOpacity: 0.96,
+    intervalWidth: 0.75,
+    mainWidth: 1.85,
+  },
+  light: {
+    intervalColor: '#0369a1',
+    mainColor: '#0f172a',
+    labelColor: '#0c4a6e',
+    intervalOpacity: 0.55,
+    mainOpacity: 0.92,
+    intervalWidth: 0.8,
+    mainWidth: 2,
+  },
+};
 
 export type SiMapTerrainSettings = {
   /** Vertical scaling (Mapbox terrain exaggeration). */
@@ -75,8 +117,15 @@ export type SiMapTerrainSettings = {
   contourEnabled: boolean;
   /** Contour spacing in meters. */
   contourIntervalM: number;
-  /** Contour line opacity. */
+  /** Interval contour line opacity (0–1). */
   contourIntensity: number;
+  /** Index (main) contour opacity when main lines are enabled. */
+  contourMainLineOpacity: number;
+  contourColorTheme: SiContourColorTheme;
+  contourIntervalLineColor: string;
+  contourMainLineColor: string;
+  contourIntervalLineWidth: number;
+  contourMainLineWidth: number;
   /** Elevation labels along contour lines. */
   contourLabelsEnabled: boolean;
   /** Contour label text size (px). */
@@ -99,11 +148,17 @@ export const SI_DEFAULT_TERRAIN_SETTINGS: SiMapTerrainSettings = {
   hillshadeIntensity: 0.28,
   contourEnabled: true,
   contourIntervalM: 50,
-  contourIntensity: 0.62,
+  contourIntensity: SI_CONTOUR_THEME_PRESETS.dark.intervalOpacity,
+  contourMainLineOpacity: SI_CONTOUR_THEME_PRESETS.dark.mainOpacity,
+  contourColorTheme: 'dark',
+  contourIntervalLineColor: SI_CONTOUR_THEME_PRESETS.dark.intervalColor,
+  contourMainLineColor: SI_CONTOUR_THEME_PRESETS.dark.mainColor,
+  contourIntervalLineWidth: SI_CONTOUR_THEME_PRESETS.dark.intervalWidth,
+  contourMainLineWidth: SI_CONTOUR_THEME_PRESETS.dark.mainWidth,
   contourLabelsEnabled: false,
-  contourLabelSize: 10,
-  contourLabelColor: SI_DEFAULT_CONTOUR_LABEL_COLOR,
-  contourClassificationEnabled: true,
+  contourLabelSize: 11,
+  contourLabelColor: SI_CONTOUR_THEME_PRESETS.dark.labelColor,
+  contourClassificationEnabled: false,
   contourClassificationMode: 'elevation',
   contourMainLinesEnabled: true,
   contourMainLineEvery: SI_CONTOUR_MAIN_LINE_EVERY_DEFAULT,
@@ -125,6 +180,40 @@ function clampContourIntervalM(n: number): number {
 
 export function clampContourLabelSize(n: number): number {
   return Math.min(SI_CONTOUR_LABEL_SIZE_MAX, Math.max(SI_CONTOUR_LABEL_SIZE_MIN, Math.round(n)));
+}
+
+export function normalizeContourLineColor(raw: string | undefined, fallback: string): string {
+  const h = (raw || '').trim();
+  if (/^#[0-9A-Fa-f]{6}$/.test(h)) return h;
+  if (/^#[0-9A-Fa-f]{3}$/.test(h)) {
+    const r = h[1]!;
+    const g = h[2]!;
+    const b = h[3]!;
+    return `#${r}${r}${g}${g}${b}${b}`;
+  }
+  return fallback;
+}
+
+export function normalizeContourColorTheme(raw: string | undefined): SiContourColorTheme {
+  return raw === 'light' ? 'light' : 'dark';
+}
+
+export function clampContourLineWidth(n: number): number {
+  return Math.min(SI_CONTOUR_LINE_WIDTH_MAX, Math.max(SI_CONTOUR_LINE_WIDTH_MIN, n));
+}
+
+export function siContourThemePatch(theme: SiContourColorTheme): Partial<SiMapTerrainSettings> {
+  const p = SI_CONTOUR_THEME_PRESETS[theme];
+  return {
+    contourColorTheme: theme,
+    contourIntervalLineColor: p.intervalColor,
+    contourMainLineColor: p.mainColor,
+    contourLabelColor: p.labelColor,
+    contourIntensity: p.intervalOpacity,
+    contourMainLineOpacity: p.mainOpacity,
+    contourIntervalLineWidth: p.intervalWidth,
+    contourMainLineWidth: p.mainWidth,
+  };
 }
 
 export function normalizeContourLabelColor(raw: string | undefined): string {
@@ -164,6 +253,12 @@ function terrainOptsFromPartial(opts: SiMapTerrainOptions): Required<
     | 'contourEnabled'
     | 'contourIntervalM'
     | 'contourIntensity'
+    | 'contourMainLineOpacity'
+    | 'contourColorTheme'
+    | 'contourIntervalLineColor'
+    | 'contourMainLineColor'
+    | 'contourIntervalLineWidth'
+    | 'contourMainLineWidth'
     | 'contourLabelsEnabled'
     | 'contourLabelSize'
     | 'contourLabelColor'
@@ -181,6 +276,26 @@ function terrainOptsFromPartial(opts: SiMapTerrainOptions): Required<
       opts.contourIntervalM ?? SI_DEFAULT_TERRAIN_SETTINGS.contourIntervalM,
     ),
     contourIntensity: clamp01(opts.contourIntensity ?? SI_DEFAULT_TERRAIN_SETTINGS.contourIntensity),
+    contourMainLineOpacity: clamp01(
+      opts.contourMainLineOpacity ?? SI_DEFAULT_TERRAIN_SETTINGS.contourMainLineOpacity,
+    ),
+    contourColorTheme: normalizeContourColorTheme(
+      opts.contourColorTheme ?? SI_DEFAULT_TERRAIN_SETTINGS.contourColorTheme,
+    ),
+    contourIntervalLineColor: normalizeContourLineColor(
+      opts.contourIntervalLineColor ?? SI_DEFAULT_TERRAIN_SETTINGS.contourIntervalLineColor,
+      SI_DEFAULT_TERRAIN_SETTINGS.contourIntervalLineColor,
+    ),
+    contourMainLineColor: normalizeContourLineColor(
+      opts.contourMainLineColor ?? SI_DEFAULT_TERRAIN_SETTINGS.contourMainLineColor,
+      SI_DEFAULT_TERRAIN_SETTINGS.contourMainLineColor,
+    ),
+    contourIntervalLineWidth: clampContourLineWidth(
+      opts.contourIntervalLineWidth ?? SI_DEFAULT_TERRAIN_SETTINGS.contourIntervalLineWidth,
+    ),
+    contourMainLineWidth: clampContourLineWidth(
+      opts.contourMainLineWidth ?? SI_DEFAULT_TERRAIN_SETTINGS.contourMainLineWidth,
+    ),
     contourLabelsEnabled:
       opts.contourLabelsEnabled ?? SI_DEFAULT_TERRAIN_SETTINGS.contourLabelsEnabled,
     contourLabelSize: clampContourLabelSize(
@@ -291,19 +406,50 @@ function buildContourLineColor(
   return classified;
 }
 
-function syncSiContourLayer(
-  map: MapboxMap,
-  intervalM: number,
-  contourIntensity: number,
-  enabled: boolean,
-  contourOpts: Pick<
-    SiMapTerrainSettings,
-    | 'contourClassificationEnabled'
-    | 'contourClassificationMode'
-    | 'contourMainLinesEnabled'
-    | 'contourMainLineEvery'
-  >,
-): void {
+function buildSiContourLinePaint(settings: SiMapTerrainSettings): {
+  lineColor: unknown;
+  lineWidth: unknown;
+  lineOpacity: unknown;
+  isMajor: unknown[];
+} {
+  const intervalM = settings.contourIntervalM;
+  const ele = ['round', ['get', 'ele']];
+  const majorEvery = intervalM * settings.contourMainLineEvery;
+  const isMajor: unknown[] = ['==', ['%', ele, majorEvery], 0];
+
+  const intervalColor = settings.contourIntervalLineColor;
+  const mainColor = settings.contourMainLineColor;
+  const classified = buildContourLineColor(
+    settings.contourClassificationMode,
+    settings.contourClassificationEnabled,
+    false,
+    isMajor,
+  );
+
+  const lineColor = settings.contourClassificationEnabled
+    ? settings.contourMainLinesEnabled
+      ? (['case', isMajor, mainColor, classified] as unknown)
+      : classified
+    : settings.contourMainLinesEnabled
+      ? (['case', isMajor, mainColor, intervalColor] as unknown)
+      : intervalColor;
+
+  const intervalW = settings.contourIntervalLineWidth;
+  const mainW = settings.contourMainLineWidth;
+  const lineWidth = settings.contourMainLinesEnabled
+    ? (['case', isMajor, mainW, intervalW] as unknown)
+    : intervalW;
+
+  const intervalOp = settings.contourIntensity;
+  const mainOp = settings.contourMainLineOpacity;
+  const lineOpacity = settings.contourMainLinesEnabled
+    ? (['case', isMajor, mainOp, intervalOp] as unknown)
+    : intervalOp;
+
+  return { lineColor, lineWidth, lineOpacity, isMajor };
+}
+
+function syncSiContourLayer(map: MapboxMap, settings: SiMapTerrainSettings, enabled: boolean): void {
   if (!enabled) {
     if (map.getLayer(CONTOUR_LAYER_ID)) map.removeLayer(CONTOUR_LAYER_ID);
     return;
@@ -316,37 +462,34 @@ function syncSiContourLayer(
     });
   }
 
+  const intervalM = settings.contourIntervalM;
   const ele = ['round', ['get', 'ele']];
-  const majorEvery = intervalM * contourOpts.contourMainLineEvery;
-  const isMajor: unknown[] = ['==', ['%', ele, majorEvery], 0];
-  const lineColor = buildContourLineColor(
-    contourOpts.contourClassificationMode,
-    contourOpts.contourClassificationEnabled,
-    contourOpts.contourMainLinesEnabled,
-    isMajor,
-  );
-  const lineWidth = contourOpts.contourMainLinesEnabled
-    ? (['case', isMajor, 2.35, 0.85] as unknown)
-    : 1;
+  const { lineColor, lineWidth, lineOpacity } = buildSiContourLinePaint(settings);
 
   const contourPaint = {
     'line-color': lineColor,
-    'line-opacity': contourIntensity,
+    'line-opacity': lineOpacity,
     'line-width': lineWidth,
+    'line-emissive-strength': 0.35,
   };
 
-  const contourLayout = { 'line-join': 'round' as const, 'line-cap': 'round' as const };
+  const contourLayout = {
+    'line-join': 'round' as const,
+    'line-cap': 'round' as const,
+    'line-miter-limit': 2,
+  };
   const contourFilter: unknown[] = ['==', ['%', ele, intervalM], 0];
 
   if (map.getLayer(CONTOUR_LAYER_ID)) {
-    map.setPaintProperty(CONTOUR_LAYER_ID, 'line-opacity', contourIntensity);
+    map.setPaintProperty(CONTOUR_LAYER_ID, 'line-opacity', lineOpacity);
     map.setPaintProperty(CONTOUR_LAYER_ID, 'line-color', lineColor);
     map.setPaintProperty(CONTOUR_LAYER_ID, 'line-width', lineWidth);
+    map.setPaintProperty(CONTOUR_LAYER_ID, 'line-emissive-strength', 0.35);
     map.setFilter(CONTOUR_LAYER_ID, contourFilter);
     return;
   }
 
-  const beforeId = findLabelLayerId(map);
+  const beforeId = findFirstNonBasemapLayerId(map) ?? findLabelLayerId(map);
   map.addLayer(
     {
       id: CONTOUR_LAYER_ID,
@@ -362,15 +505,42 @@ function syncSiContourLayer(
   );
 }
 
-function syncSiContourLabelLayer(
-  map: MapboxMap,
-  intervalM: number,
-  contourEnabled: boolean,
-  labelsEnabled: boolean,
-  labelSize: number,
-  labelColor: string,
-): void {
-  if (!contourEnabled || !labelsEnabled) {
+/** ArcGIS Scene Viewer–style elevation text along index contours. */
+export function siMapContourElevationLabelField(): unknown {
+  return [
+    'concat',
+    [
+      'number-format',
+      ['round', ['get', 'ele']],
+      { 'min-fraction-digits': 0, 'max-fraction-digits': 0 },
+    ],
+    ' m',
+  ];
+}
+
+function siMapContourLineLabelLayout(baseSizePx: number) {
+  return {
+    'symbol-placement': 'line' as const,
+    'symbol-spacing': 380,
+    'symbol-z-order': 'viewport-y' as const,
+    'text-field': siMapContourElevationLabelField(),
+    'text-font': ['DIN Pro Medium', 'Arial Unicode MS Regular'],
+    'text-size': siMap3DLabelTextSize(baseSizePx),
+    'text-size-scale-range': [0.8, 1.65] as [number, number],
+    'text-padding': 4,
+    'text-max-angle': 22,
+    'text-keep-upright': true,
+    'text-pitch-alignment': 'terrain' as const,
+    'text-rotation-alignment': 'map' as const,
+    'text-anchor': 'center' as const,
+    'text-allow-overlap': false,
+    'text-ignore-placement': false,
+    'text-optional': true,
+  };
+}
+
+function syncSiContourLabelLayer(map: MapboxMap, settings: SiMapTerrainSettings): void {
+  if (!settings.contourEnabled || !settings.contourLabelsEnabled) {
     if (map.getLayer(CONTOUR_LABEL_LAYER_ID)) map.removeLayer(CONTOUR_LABEL_LAYER_ID);
     return;
   }
@@ -382,28 +552,36 @@ function syncSiContourLabelLayer(
     });
   }
 
-  const size = clampContourLabelSize(labelSize);
-  const color = normalizeContourLabelColor(labelColor);
-  const contourFilter: unknown[] = ['==', ['%', ['round', ['get', 'ele']], intervalM], 0];
-  const textField = ['concat', ['to-string', ['round', ['get', 'ele']]], ' m'];
-  const labelLayout = siMap3DLineLabelLayout({ textField, baseSizePx: size, spacing: 260 });
-  const labelPaint = siMap3DLabelPaint(color);
+  const intervalM = settings.contourIntervalM;
+  const ele = ['round', ['get', 'ele']];
+  const majorEvery = intervalM * settings.contourMainLineEvery;
+  const labelFilter: unknown[] = settings.contourMainLinesEnabled
+    ? (['==', ['%', ele, majorEvery], 0] as unknown[])
+    : (['==', ['%', ele, intervalM], 0] as unknown[]);
+
+  const size = clampContourLabelSize(settings.contourLabelSize);
+  const color = normalizeContourLabelColor(settings.contourLabelColor);
+  const labelLayout = siMapContourLineLabelLayout(size);
+  const labelPaint = siMap3DLabelPaint(color, {
+    haloColor: settings.contourColorTheme === 'light' ? 'rgba(255,255,255,0.92)' : 'rgba(2, 6, 23, 0.9)',
+    opacity: 0.98,
+  });
 
   if (map.getLayer(CONTOUR_LABEL_LAYER_ID)) {
-    map.setFilter(CONTOUR_LABEL_LAYER_ID, contourFilter);
+    map.setFilter(CONTOUR_LABEL_LAYER_ID, labelFilter);
     applySiMap3DSymbolLayerStyle(map, CONTOUR_LABEL_LAYER_ID, labelLayout, labelPaint);
     map.triggerRepaint?.();
     return;
   }
 
-  const beforeId = findLabelLayerId(map);
+  const beforeId = findFirstNonBasemapLayerId(map) ?? findLabelLayerId(map);
   map.addLayer(
     {
       id: CONTOUR_LABEL_LAYER_ID,
       type: 'symbol',
       source: TERRAIN_VECTOR_SOURCE_ID,
       'source-layer': 'contour',
-      filter: contourFilter,
+      filter: labelFilter,
       layout: labelLayout,
       paint: labelPaint,
       minzoom: SI_3D_LABEL_MIN_ZOOM,
@@ -542,20 +720,8 @@ export function applySiMapTerrain(map: MapboxMap, opts: SiMapTerrainOptions): vo
     map.setTerrain({ source: DEM_SOURCE_ID, exaggeration: t.exaggeration });
 
     syncSiHillshadeLayer(map, t.hillshadeIntensity, true);
-    syncSiContourLayer(map, t.contourIntervalM, t.contourIntensity, t.contourEnabled, {
-      contourClassificationEnabled: t.contourClassificationEnabled,
-      contourClassificationMode: t.contourClassificationMode,
-      contourMainLinesEnabled: t.contourMainLinesEnabled,
-      contourMainLineEvery: t.contourMainLineEvery,
-    });
-    syncSiContourLabelLayer(
-      map,
-      t.contourIntervalM,
-      t.contourEnabled,
-      t.contourLabelsEnabled,
-      t.contourLabelSize,
-      t.contourLabelColor,
-    );
+    syncSiContourLayer(map, t, t.contourEnabled);
+    syncSiContourLabelLayer(map, t);
 
     if (opts.buildings !== false && !map.getLayer(BUILDINGS_LAYER_ID)) {
       const style = map.getStyle();
@@ -597,6 +763,12 @@ export function siMapTerrainSettingsSignature(opts: SiMapTerrainOptions): string
     t.contourEnabled ? '1' : '0',
     String(t.contourIntervalM),
     t.contourIntensity.toFixed(2),
+    t.contourMainLineOpacity.toFixed(2),
+    t.contourColorTheme,
+    t.contourIntervalLineColor,
+    t.contourMainLineColor,
+    t.contourIntervalLineWidth.toFixed(2),
+    t.contourMainLineWidth.toFixed(2),
     t.contourLabelsEnabled ? '1' : '0',
     String(t.contourLabelSize),
     t.contourLabelColor,
@@ -936,6 +1108,12 @@ export function loadStoredSiTerrainSettings(): SiMapTerrainSettings {
     const hillshadeIntensity = Number(window.localStorage.getItem(SI_MAP_TERRAIN_HILLSHADE_INTENSITY_LS));
     const contourIntervalM = Number(window.localStorage.getItem(SI_MAP_TERRAIN_CONTOUR_INTERVAL_LS));
     const contourIntensity = Number(window.localStorage.getItem(SI_MAP_TERRAIN_CONTOUR_INTENSITY_LS));
+    const contourMainOpacity = Number(window.localStorage.getItem(SI_MAP_TERRAIN_CONTOUR_MAIN_OPACITY_LS));
+    const contourIntervalWidth = Number(window.localStorage.getItem(SI_MAP_TERRAIN_CONTOUR_INTERVAL_WIDTH_LS));
+    const contourMainWidth = Number(window.localStorage.getItem(SI_MAP_TERRAIN_CONTOUR_MAIN_WIDTH_LS));
+    const contourTheme = window.localStorage.getItem(SI_MAP_TERRAIN_CONTOUR_THEME_LS);
+    const contourIntervalColor = window.localStorage.getItem(SI_MAP_TERRAIN_CONTOUR_INTERVAL_COLOR_LS);
+    const contourMainColor = window.localStorage.getItem(SI_MAP_TERRAIN_CONTOUR_MAIN_COLOR_LS);
     const elevationPitch = Number(window.localStorage.getItem(SI_MAP_ELEVATION_PITCH_LS));
     const contourRaw = window.localStorage.getItem(SI_MAP_TERRAIN_CONTOUR_ENABLED_LS);
     const contourLabelsRaw = window.localStorage.getItem(SI_MAP_TERRAIN_CONTOUR_LABELS_LS);
@@ -960,6 +1138,24 @@ export function loadStoredSiTerrainSettings(): SiMapTerrainSettings {
       contourIntensity: Number.isFinite(contourIntensity)
         ? clamp01(contourIntensity)
         : SI_DEFAULT_TERRAIN_SETTINGS.contourIntensity,
+      contourMainLineOpacity: Number.isFinite(contourMainOpacity)
+        ? clamp01(contourMainOpacity)
+        : SI_DEFAULT_TERRAIN_SETTINGS.contourMainLineOpacity,
+      contourColorTheme: normalizeContourColorTheme(contourTheme ?? undefined),
+      contourIntervalLineColor: normalizeContourLineColor(
+        contourIntervalColor ?? undefined,
+        SI_DEFAULT_TERRAIN_SETTINGS.contourIntervalLineColor,
+      ),
+      contourMainLineColor: normalizeContourLineColor(
+        contourMainColor ?? undefined,
+        SI_DEFAULT_TERRAIN_SETTINGS.contourMainLineColor,
+      ),
+      contourIntervalLineWidth: Number.isFinite(contourIntervalWidth)
+        ? clampContourLineWidth(contourIntervalWidth)
+        : SI_DEFAULT_TERRAIN_SETTINGS.contourIntervalLineWidth,
+      contourMainLineWidth: Number.isFinite(contourMainWidth)
+        ? clampContourLineWidth(contourMainWidth)
+        : SI_DEFAULT_TERRAIN_SETTINGS.contourMainLineWidth,
       contourLabelsEnabled:
         contourLabelsRaw === '1' || contourLabelsRaw === 'true'
           ? true
@@ -1018,6 +1214,24 @@ export function persistSiTerrainSettings(settings: SiMapTerrainSettings): void {
     window.localStorage.setItem(
       SI_MAP_TERRAIN_CONTOUR_INTENSITY_LS,
       String(clamp01(settings.contourIntensity)),
+    );
+    window.localStorage.setItem(
+      SI_MAP_TERRAIN_CONTOUR_MAIN_OPACITY_LS,
+      String(clamp01(settings.contourMainLineOpacity)),
+    );
+    window.localStorage.setItem(SI_MAP_TERRAIN_CONTOUR_THEME_LS, settings.contourColorTheme);
+    window.localStorage.setItem(
+      SI_MAP_TERRAIN_CONTOUR_INTERVAL_COLOR_LS,
+      settings.contourIntervalLineColor,
+    );
+    window.localStorage.setItem(SI_MAP_TERRAIN_CONTOUR_MAIN_COLOR_LS, settings.contourMainLineColor);
+    window.localStorage.setItem(
+      SI_MAP_TERRAIN_CONTOUR_INTERVAL_WIDTH_LS,
+      String(clampContourLineWidth(settings.contourIntervalLineWidth)),
+    );
+    window.localStorage.setItem(
+      SI_MAP_TERRAIN_CONTOUR_MAIN_WIDTH_LS,
+      String(clampContourLineWidth(settings.contourMainLineWidth)),
     );
     window.localStorage.setItem(
       SI_MAP_TERRAIN_CONTOUR_LABELS_LS,

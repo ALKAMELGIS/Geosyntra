@@ -10,20 +10,27 @@ import {
   type ReactNode,
 } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import type { SiContourClassificationMode, SiMapTerrainSettings } from '../utils/siMapProjectionTerrain';
+import type {
+  SiContourClassificationMode,
+  SiContourColorTheme,
+  SiMapTerrainSettings,
+} from '../utils/siMapProjectionTerrain';
 import {
   SI_CONTOUR_INTERVAL_MAX,
   SI_CONTOUR_INTERVAL_MIN,
   SI_CONTOUR_LABEL_SIZE_MAX,
   SI_CONTOUR_LABEL_SIZE_MIN,
+  SI_CONTOUR_LINE_WIDTH_MAX,
+  SI_CONTOUR_LINE_WIDTH_MIN,
   SI_CONTOUR_MAIN_LINE_EVERY_MAX,
   SI_CONTOUR_MAIN_LINE_EVERY_MIN,
-  SI_ELEVATION_PITCH_MAX,
-  SI_ELEVATION_PITCH_MIN,
   SI_TERRAIN_EXAGGERATION_MAX,
   SI_TERRAIN_EXAGGERATION_MIN,
   clampContourLabelSize,
+  clampContourLineWidth,
   normalizeContourLabelColor,
+  normalizeContourLineColor,
+  siContourThemePatch,
 } from '../utils/siMapProjectionTerrain';
 import {
   clampFixedPanelPosition,
@@ -288,6 +295,136 @@ function TerrainContourLabelStudio({
           onChange={e => onColorChange(normalizeContourLabelColor(e.target.value))}
         />
       </div>
+    </>
+  );
+}
+
+function TerrainContourLineStudio({
+  settings,
+  disabled,
+  onSettingsChange,
+}: {
+  settings: SiMapTerrainSettings;
+  disabled?: boolean;
+  onSettingsChange: (patch: Partial<SiMapTerrainSettings>) => void;
+}) {
+  const intervalHex = toColorInputHex(
+    settings.contourIntervalLineColor,
+    settings.contourColorTheme === 'light' ? '#0369a1' : '#38bdf8',
+  );
+  const mainHex = toColorInputHex(
+    settings.contourMainLineColor,
+    settings.contourColorTheme === 'light' ? '#0f172a' : '#f8fafc',
+  );
+
+  return (
+    <>
+      <div className="si-elev-divider" />
+      <div className="si-elev-kicker">Line style</div>
+      <div className="si-elev-segment" role="radiogroup" aria-label="Contour color theme">
+        {(['dark', 'light'] as SiContourColorTheme[]).map(theme => {
+          const active = settings.contourColorTheme === theme;
+          return (
+            <button
+              key={theme}
+              type="button"
+              className={'si-elev-segment__btn' + (active ? ' si-elev-segment__btn--on' : '')}
+              disabled={disabled}
+              role="radio"
+              aria-checked={active}
+              onClick={() => onSettingsChange(siContourThemePatch(theme))}
+            >
+              {theme === 'dark' ? 'Dark' : 'Light'}
+            </button>
+          );
+        })}
+      </div>
+
+      <div className="si-elev-label-row">
+        <span className="si-map-elevation-dock__label">Interval</span>
+        <input
+          type="color"
+          className="si-map-elevation-dock__color-input"
+          value={intervalHex}
+          disabled={disabled}
+          aria-label="Interval line color"
+          onChange={e =>
+            onSettingsChange({
+              contourIntervalLineColor: normalizeContourLineColor(e.target.value, intervalHex),
+            })
+          }
+        />
+      </div>
+
+      {settings.contourMainLinesEnabled ? (
+        <div className="si-elev-label-row">
+          <span className="si-map-elevation-dock__label">Main</span>
+          <input
+            type="color"
+            className="si-map-elevation-dock__color-input"
+            value={mainHex}
+            disabled={disabled}
+            aria-label="Main line color"
+            onChange={e =>
+              onSettingsChange({
+                contourMainLineColor: normalizeContourLineColor(e.target.value, mainHex),
+              })
+            }
+          />
+        </div>
+      ) : null}
+
+      <TerrainRangeSlider
+        id="si-terrain-contour-interval-width"
+        label="Interval width"
+        valueLabel={`${settings.contourIntervalLineWidth.toFixed(2)}px`}
+        min={SI_CONTOUR_LINE_WIDTH_MIN}
+        max={SI_CONTOUR_LINE_WIDTH_MAX}
+        step={0.05}
+        value={settings.contourIntervalLineWidth}
+        disabled={disabled}
+        onChange={v => onSettingsChange({ contourIntervalLineWidth: clampContourLineWidth(v) })}
+      />
+
+      {settings.contourMainLinesEnabled ? (
+        <TerrainRangeSlider
+          id="si-terrain-contour-main-width"
+          label="Main width"
+          valueLabel={`${settings.contourMainLineWidth.toFixed(2)}px`}
+          min={SI_CONTOUR_LINE_WIDTH_MIN}
+          max={SI_CONTOUR_LINE_WIDTH_MAX}
+          step={0.05}
+          value={settings.contourMainLineWidth}
+          disabled={disabled}
+          onChange={v => onSettingsChange({ contourMainLineWidth: clampContourLineWidth(v) })}
+        />
+      ) : null}
+
+      <TerrainRangeSlider
+        id="si-terrain-contour-intensity"
+        label="Interval opacity"
+        valueLabel={`${pct(0, 1, settings.contourIntensity)}%`}
+        min={0}
+        max={1}
+        step={0.02}
+        value={settings.contourIntensity}
+        disabled={disabled}
+        onChange={contourIntensity => onSettingsChange({ contourIntensity })}
+      />
+
+      {settings.contourMainLinesEnabled ? (
+        <TerrainRangeSlider
+          id="si-terrain-contour-main-opacity"
+          label="Main opacity"
+          valueLabel={`${pct(0, 1, settings.contourMainLineOpacity)}%`}
+          min={0}
+          max={1}
+          step={0.02}
+          value={settings.contourMainLineOpacity}
+          disabled={disabled}
+          onChange={contourMainLineOpacity => onSettingsChange({ contourMainLineOpacity })}
+        />
+      ) : null}
     </>
   );
 }
@@ -698,17 +835,6 @@ export function SiMapElevationDock({
                     disabled={disabled}
                     onChange={hillshadeIntensity => onSettingsChange({ hillshadeIntensity })}
                   />
-                  <TerrainRangeSlider
-                    id="si-terrain-pitch"
-                    label="View angle"
-                    valueLabel={`${Math.round(settings.elevationPitch)}°`}
-                    min={SI_ELEVATION_PITCH_MIN}
-                    max={SI_ELEVATION_PITCH_MAX}
-                    step={1}
-                    value={settings.elevationPitch}
-                    disabled={disabled}
-                    onChange={elevationPitch => onSettingsChange({ elevationPitch })}
-                  />
                 </ElevGroup>
 
                 <ElevGroup
@@ -734,7 +860,7 @@ export function SiMapElevationDock({
                         checked={settings.contourLabelsEnabled}
                         disabled={disabled}
                         label="Labels"
-                        title="Elevation along contour lines"
+                        title="ArcGIS-style elevation on index contours"
                         onChange={v => onSettingsChange({ contourLabelsEnabled: v })}
                       />
                     ) : null}
@@ -747,16 +873,10 @@ export function SiMapElevationDock({
                         disabled={disabled}
                         onChange={contourIntervalM => onSettingsChange({ contourIntervalM })}
                       />
-                      <TerrainRangeSlider
-                        id="si-terrain-contour-intensity"
-                        label="Strength"
-                        valueLabel={`${pct(0, 1, settings.contourIntensity)}%`}
-                        min={0}
-                        max={1}
-                        step={0.02}
-                        value={settings.contourIntensity}
+                      <TerrainContourLineStudio
+                        settings={settings}
                         disabled={disabled}
-                        onChange={contourIntensity => onSettingsChange({ contourIntensity })}
+                        onSettingsChange={onSettingsChange}
                       />
                       <TerrainContourClassificationStudio
                         settings={settings}

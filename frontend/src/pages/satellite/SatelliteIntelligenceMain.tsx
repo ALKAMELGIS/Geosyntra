@@ -372,7 +372,6 @@ import {
   type SiMapWeatherSettings,
 } from './utils/siMapWeatherTypes';
 import {
-  applySiElevationPitch,
   applySiElevationView,
   applySiGlobeHomeView,
   configureSiMapScrollZoomForElevation,
@@ -5918,18 +5917,6 @@ export default function SatelliteIntelligence() {
           buildings: true,
           ...merged,
         });
-        if (patch.elevationPitch != null) {
-          const camera = readSiMapCamera(mapInstance);
-          applySiElevationPitch(mapInstance, camera, merged.elevationPitch);
-          setViewState(prev => {
-            const pitch = Math.max(prev.pitch ?? 0, merged.elevationPitch);
-            const nextVs = clampSiViewStateForProjection(
-              { ...prev, pitch },
-              mapProjectionModeRef.current,
-            );
-            return siViewStatesNear(prev, nextVs) ? prev : nextVs;
-          });
-        }
       } finally {
         window.setTimeout(() => {
           siProjectionSwitchingRef.current = false;
