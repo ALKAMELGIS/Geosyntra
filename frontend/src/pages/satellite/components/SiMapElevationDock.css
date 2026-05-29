@@ -113,10 +113,11 @@
 
   position: fixed;
   z-index: 680;
-  width: min(248px, calc(100vw - 24px));
-  max-height: min(78vh, 420px);
+  width: min(256px, calc(100vw - 24px));
+  max-height: min(86vh, 520px);
   display: flex;
   flex-direction: column;
+  min-height: 0;
   border-radius: 14px;
   border: 1px solid var(--si-glass-border);
   background: var(--si-glass-bg);
@@ -141,6 +142,7 @@
 }
 
 .si-map-elevation-dock__panel-head {
+  flex-shrink: 0;
   position: relative;
   display: flex;
   align-items: center;
@@ -221,10 +223,13 @@
 .si-map-elevation-dock__panel-body {
   position: relative;
   z-index: 1;
-  padding: 6px 8px 8px;
+  flex: 1 1 auto;
+  min-height: 0;
+  padding: 6px 8px 10px;
+  overflow-x: hidden;
   overflow-y: auto;
-  max-height: min(64vh, 360px);
   overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
   scrollbar-width: thin;
   scrollbar-color: rgba(255, 255, 255, 0.15) transparent;
   display: flex;
@@ -233,16 +238,22 @@
   background: linear-gradient(180deg, transparent 0%, rgba(0, 0, 0, 0.08) 100%);
 }
 
+.si-map-elevation-dock__panel--floating .si-map-elevation-dock__panel-body {
+  /* Scroll inside flex panel — keeps label controls reachable */
+  max-height: none;
+}
+
 /* ── Collapsible sections ── */
 .si-elev-group {
   position: relative;
+  flex-shrink: 0;
   border-radius: 10px;
   border: 1px solid var(--si-elev-rim);
   background: var(--si-elev-surface);
   backdrop-filter: blur(14px);
   -webkit-backdrop-filter: blur(14px);
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
-  overflow: hidden;
+  overflow: visible;
 }
 
 .si-elev-group__head {
@@ -280,6 +291,17 @@
 
 .si-elev-group__body {
   padding: 5px 7px 7px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  overflow: visible;
+}
+
+.si-elev-label-block {
+  padding: 5px 6px 6px;
+  border-radius: 8px;
+  border: 1px solid rgba(125, 211, 252, 0.22);
+  background: rgba(14, 116, 144, 0.12);
   display: flex;
   flex-direction: column;
   gap: 4px;

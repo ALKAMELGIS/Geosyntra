@@ -54,7 +54,10 @@ export function raiseSiMapTerrainContourLayersAboveWms(map: MapboxMap): void {
   const labelId = SI_TERRAIN_CONTOUR_LABEL_LAYER_ID;
   try {
     if (map.getLayer(lineId)) map.moveLayer(lineId, beforeId);
-    if (map.getLayer(labelId)) map.moveLayer(labelId, beforeId);
+    if (map.getLayer(labelId)) {
+      map.moveLayer(labelId, beforeId);
+      if (map.getLayer(lineId)) map.moveLayer(labelId);
+    }
   } catch {
     /* layer removed mid-style rebuild */
   }

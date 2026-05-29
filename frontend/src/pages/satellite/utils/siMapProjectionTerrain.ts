@@ -522,21 +522,13 @@ function syncSiContourLayer(map: MapboxMap, settings: SiMapTerrainSettings, enab
 
 /** ArcGIS Scene Viewer–style elevation text along index contours. */
 export function siMapContourElevationLabelField(): unknown {
-  return [
-    'concat',
-    [
-      'number-format',
-      ['round', ['get', 'ele']],
-      { 'min-fraction-digits': 0, 'max-fraction-digits': 0 },
-    ],
-    ' m',
-  ];
+  return ['concat', ['to-string', ['round', ['get', 'ele']]], ' m'];
 }
 
 function siMapContourLineLabelLayout(baseSizePx: number) {
   return {
     'symbol-placement': 'line' as const,
-    'symbol-spacing': 380,
+    'symbol-spacing': 260,
     'symbol-z-order': 'viewport-y' as const,
     'text-field': siMapContourElevationLabelField(),
     'text-font': ['DIN Pro Medium', 'Arial Unicode MS Regular'],
@@ -548,9 +540,9 @@ function siMapContourLineLabelLayout(baseSizePx: number) {
     'text-pitch-alignment': 'terrain' as const,
     'text-rotation-alignment': 'map' as const,
     'text-anchor': 'center' as const,
-    'text-allow-overlap': false,
-    'text-ignore-placement': false,
-    'text-optional': true,
+    'text-allow-overlap': true,
+    'text-ignore-placement': true,
+    'text-optional': false,
   };
 }
 

@@ -265,9 +265,8 @@ function TerrainContourLabelStudio({
 }) {
   const colorHex = toColorInputHex(color, '#bae6fd');
   return (
-    <>
-      <div className="si-elev-divider" />
-      <div className="si-elev-kicker">Labels</div>
+    <div className="si-elev-label-block" aria-label="Contour label style">
+      <div className="si-elev-kicker">Labels on map</div>
       <div className="si-map-elevation-dock__row">
         <div className="si-map-elevation-dock__label">
           Size
@@ -295,7 +294,8 @@ function TerrainContourLabelStudio({
           onChange={e => onColorChange(normalizeContourLabelColor(e.target.value))}
         />
       </div>
-    </>
+      <p className="si-elev-hint">Elevation text along index contours (ArcGIS-style).</p>
+    </div>
   );
 }
 
@@ -868,6 +868,15 @@ export function SiMapElevationDock({
 
                   {settings.contourEnabled ? (
                     <>
+                      {settings.contourLabelsEnabled ? (
+                        <TerrainContourLabelStudio
+                          size={settings.contourLabelSize}
+                          color={settings.contourLabelColor}
+                          disabled={disabled}
+                          onSizeChange={contourLabelSize => onSettingsChange({ contourLabelSize })}
+                          onColorChange={contourLabelColor => onSettingsChange({ contourLabelColor })}
+                        />
+                      ) : null}
                       <TerrainContourIntervalControl
                         value={settings.contourIntervalM}
                         disabled={disabled}
@@ -883,15 +892,6 @@ export function SiMapElevationDock({
                         disabled={disabled}
                         onSettingsChange={onSettingsChange}
                       />
-                      {settings.contourLabelsEnabled ? (
-                        <TerrainContourLabelStudio
-                          size={settings.contourLabelSize}
-                          color={settings.contourLabelColor}
-                          disabled={disabled}
-                          onSizeChange={contourLabelSize => onSettingsChange({ contourLabelSize })}
-                          onColorChange={contourLabelColor => onSettingsChange({ contourLabelColor })}
-                        />
-                      ) : null}
                     </>
                   ) : null}
                 </ElevGroup>

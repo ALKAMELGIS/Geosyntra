@@ -56,6 +56,7 @@ describe('raiseSiMapTerrainContourLayersAboveWms', () => {
     raiseSiMapTerrainContourLayersAboveWms(map as never);
     expect(moveLayer).toHaveBeenCalledWith('si-terrain-contours', undefined);
     expect(moveLayer).toHaveBeenCalledWith('si-terrain-contour-labels', undefined);
+    expect(moveLayer).toHaveBeenCalledWith('si-terrain-contour-labels');
   });
 });
 
