@@ -1,5 +1,9 @@
 import type { Map as MapboxMap } from 'mapbox-gl';
-import { BUILDINGS_LAYER_ID, HILLSHADE_LAYER_ID } from './siMapProjectionTerrain';
+import {
+  BUILDINGS_LAYER_ID,
+  HILLSHADE_LAYER_ID,
+  ensureSiMapDaylightTerrainSupport,
+} from './siMapProjectionTerrain';
 import type { SiMapWeatherSettings } from './siMapWeatherTypes';
 
 /** ArcGIS Scene daylight slider: 0 = 12:00 AM … 1439 = 11:59 PM. */
@@ -502,6 +506,8 @@ export function applySiMapDaylightLight(
       return;
     }
 
+    ensureSiMapDaylightTerrainSupport(map, { buildings: spec.castShadows });
+
     const used3d = applySiMap3DLights(mapAny, spec);
     if (!used3d) applySiMapFlatLight(mapAny, spec);
 
@@ -525,12 +531,18 @@ export function siMapDaylightAddDays(isoDate: string, days: number): string {
   return `${yy}-${mm}-${dd}`;
 }
 
+/** Matches ArcGIS `Daylight({ playSpeedMultiplier: 2 })`. */
+export const SI_DAYLIGHT_PLAY_SPEED_MULTIPLIER = 2;
+
 /**
  * Playback speed for the daylight time animation (ArcGIS Daylight "over a day").
- * 120 sim-minutes / wall-second → a full 0…1439 sweep plays in ~12s, smooth and
- * clearly visible (the previous value of 4 advanced <0.3%/s, looking frozen).
+ * 120 sim-minutes / wall-second at multiplier 1 → ~12s for a full day.
  */
-export const SI_DAYLIGHT_PLAYBACK_MINUTES_PER_SEC = 120;
+export const SI_DAYLIGHT_PLAYBACK_MINUTES_PER_SEC =
+  120 * SI_DAYLIGHT_PLAY_SPEED_MULTIPLIER;
+
+/** Calendar animation: simulated days advanced per wall second (season / sun arc). */
+export const SI_DAYLIGHT_DATE_DAYS_PER_SEC = 0.4 * SI_DAYLIGHT_PLAY_SPEED_MULTIPLIER;
 
 /**
  * When the time animation reaches the end of the day it stops at max by default.

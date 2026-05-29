@@ -4,6 +4,7 @@ import {
   formatDaylightDateDisplay,
   matchSiDaylightPreset,
   SI_DAYLIGHT_MINUTES_MAX,
+  SI_DAYLIGHT_DATE_DAYS_PER_SEC,
   SI_DAYLIGHT_PLAYBACK_LOOP,
   SI_DAYLIGHT_PLAYBACK_MINUTES_PER_SEC,
   SI_DAYLIGHT_TIME_PRESETS,
@@ -13,8 +14,6 @@ import {
 import type { SiMapWeatherSettings } from '../utils/siMapWeatherTypes';
 import { SiMapDaylightArcSlider } from './SiMapDaylightArcSlider';
 import './SiMapDaylightArcSlider.css';
-
-const DATE_PLAY_MS = 280;
 
 export type SiMapDaylightPanelProps = {
   settings: SiMapWeatherSettings;
@@ -26,7 +25,9 @@ export function SiMapDaylightPanel({ settings, onPatch, isLightTheme = false }: 
   const rafRef = useRef<number | null>(null);
   const lastTsRef = useRef<number | null>(null);
   const minutesRef = useRef(settings.daylightMinutes);
-  const datePlayRef = useRef<number | null>(null);
+  const datePlayRafRef = useRef<number | null>(null);
+  const datePlayLastTsRef = useRef<number | null>(null);
+  const datePlayAccumRef = useRef(0);
   const dateRef = useRef(settings.daylightDate);
   const dateInputRef = useRef<HTMLInputElement>(null);
   const onPatchRef = useRef(onPatch);
@@ -80,20 +81,37 @@ export function SiMapDaylightPanel({ settings, onPatch, isLightTheme = false }: 
   }, [settings.daylightTimePlaying, settings.sunPositionByDateTime]);
 
   useEffect(() => {
-    if (!settings.daylightDatePlaying) {
-      if (datePlayRef.current != null) {
-        window.clearInterval(datePlayRef.current);
-        datePlayRef.current = null;
+    if (!settings.daylightDatePlaying || !settings.sunPositionByDateTime) {
+      if (datePlayRafRef.current != null) {
+        cancelAnimationFrame(datePlayRafRef.current);
+        datePlayRafRef.current = null;
       }
+      datePlayLastTsRef.current = null;
+      datePlayAccumRef.current = 0;
       return;
     }
-    datePlayRef.current = window.setInterval(() => {
-      onPatchRef.current({ daylightDate: siMapDaylightAddDays(dateRef.current, 1) });
-    }, DATE_PLAY_MS);
-    return () => {
-      if (datePlayRef.current != null) window.clearInterval(datePlayRef.current);
+
+    const tick = (ts: number) => {
+      const last = datePlayLastTsRef.current ?? ts;
+      datePlayLastTsRef.current = ts;
+      const dt = Math.min(0.12, (ts - last) / 1000);
+      datePlayAccumRef.current += dt * SI_DAYLIGHT_DATE_DAYS_PER_SEC;
+      while (datePlayAccumRef.current >= 1) {
+        datePlayAccumRef.current -= 1;
+        const next = siMapDaylightAddDays(dateRef.current, 1);
+        dateRef.current = next;
+        onPatchRef.current({ daylightDate: next });
+      }
+      datePlayRafRef.current = requestAnimationFrame(tick);
     };
-  }, [settings.daylightDatePlaying]);
+
+    datePlayRafRef.current = requestAnimationFrame(tick);
+    return () => {
+      if (datePlayRafRef.current != null) cancelAnimationFrame(datePlayRafRef.current);
+      datePlayRafRef.current = null;
+      datePlayLastTsRef.current = null;
+    };
+  }, [settings.daylightDatePlaying, settings.sunPositionByDateTime]);
 
   useEffect(() => {
     if (settings.sunPositionByDateTime) return;

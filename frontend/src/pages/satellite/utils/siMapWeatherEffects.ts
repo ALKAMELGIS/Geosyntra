@@ -203,7 +203,7 @@ export function applySiMapWeatherEffects(
   applySiMapDaylightLight(map, settings, {
     mapCenter: opts?.mapCenter,
     basemapId: opts?.basemapId,
-    terrainElevated: opts?.terrainElevated,
+    terrainElevated: Boolean(opts?.terrainElevated) || settings.sunPositionByDateTime,
   });
 
   tryMapboxPrecipitation(map, settings);

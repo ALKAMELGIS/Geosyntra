@@ -5766,7 +5766,9 @@ export default function SatelliteIntelligence() {
     const mapInstance = mapRef.current?.getMap?.() ?? mapRef.current;
     if (!mapInstance || !isMapLoaded) return;
     const sig = siMapWeatherSettingsSignature(mapWeatherSettingsRef.current);
-    const playing = mapWeatherSettingsRef.current.daylightTimePlaying;
+    const playing =
+      mapWeatherSettingsRef.current.daylightTimePlaying ||
+      mapWeatherSettingsRef.current.daylightDatePlaying;
     if (sig === lastWeatherSyncSigRef.current && !playing) return;
     lastWeatherSyncSigRef.current = sig;
     let mapCenter: { lng: number; lat: number } | null = null;

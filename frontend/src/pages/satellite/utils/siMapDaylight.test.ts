@@ -7,6 +7,9 @@ import {
   matchSiDaylightPreset,
   percentToDaylightMinutes,
   SI_DAYLIGHT_MINUTES_MAX,
+  SI_DAYLIGHT_PLAY_SPEED_MULTIPLIER,
+  SI_DAYLIGHT_PLAYBACK_MINUTES_PER_SEC,
+  SI_DAYLIGHT_DATE_DAYS_PER_SEC,
   SI_DAYLIGHT_TIME_PRESETS,
   siMapStandardLightPreset,
 } from './siMapDaylight';
@@ -46,6 +49,12 @@ describe('siMapDaylight', () => {
     expect(siMapStandardLightPreset(720)).toBe('day');
     expect(siMapStandardLightPreset(1080)).toBe('dusk');
     expect(siMapStandardLightPreset(1320)).toBe('night');
+  });
+
+  it('uses ArcGIS playSpeedMultiplier 2 for time and date playback', () => {
+    expect(SI_DAYLIGHT_PLAY_SPEED_MULTIPLIER).toBe(2);
+    expect(SI_DAYLIGHT_PLAYBACK_MINUTES_PER_SEC).toBe(240);
+    expect(SI_DAYLIGHT_DATE_DAYS_PER_SEC).toBe(0.8);
   });
 
   it('defaults daylightShadows to true when missing from storage', async () => {

@@ -450,6 +450,49 @@ function syncSiHillshadeLayer(map: MapboxMap, hillshadeIntensity: number, enable
   );
 }
 
+/**
+ * Minimal terrain stack for ArcGIS Daylight (hillshade + DEM mesh for directional lights).
+ * Works without opening the elevation dock — safe to call on every daylight sync.
+ */
+export function ensureSiMapDaylightTerrainSupport(
+  map: MapboxMap,
+  opts?: { buildings?: boolean },
+): void {
+  try {
+    syncSiHillshadeLayer(map, 0.42, true);
+    if (!map.getTerrain()) {
+      map.setTerrain({ source: DEM_SOURCE_ID, exaggeration: 1.15 });
+    }
+
+    if (opts?.buildings === false) return;
+    const style = map.getStyle();
+    const hasComposite = Boolean(style?.sources?.composite);
+    if (!hasComposite || map.getLayer(BUILDINGS_LAYER_ID)) return;
+
+    const beforeId = findLabelLayerId(map);
+    map.addLayer(
+      {
+        id: BUILDINGS_LAYER_ID,
+        source: 'composite',
+        'source-layer': 'building',
+        filter: ['==', ['get', 'extrude'], 'true'],
+        type: 'fill-extrusion',
+        minzoom: 13,
+        paint: {
+          'fill-extrusion-color': '#94a3b8',
+          'fill-extrusion-height': ['coalesce', ['get', 'height'], 12],
+          'fill-extrusion-base': ['coalesce', ['get', 'min_height'], 0],
+          'fill-extrusion-opacity': 0.72,
+          'fill-extrusion-cast-shadows': true,
+        },
+      },
+      beforeId,
+    );
+  } catch (e) {
+    console.warn('[siMapProjectionTerrain] daylight terrain setup failed', e);
+  }
+}
+
 /** Enable Mapbox terrain DEM, hillshade, contours, buildings, and globe fog for 3D mode. */
 export function applySiMapTerrain(map: MapboxMap, opts: SiMapTerrainOptions): void {
   const t = terrainOptsFromPartial(opts);
