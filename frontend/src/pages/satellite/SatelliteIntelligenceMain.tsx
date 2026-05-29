@@ -195,7 +195,7 @@ import {
 } from '../../lib/siMapboxGlobeCompat';
 import { useOpenWeatherMapApiKey } from '../../hooks/useOpenWeatherMapApiKey';
 import {
-  buildBasemapCatalog,
+  buildRuntimeBasemapCatalog,
   catalogEntryById,
   getBasemapThumbnail,
   mapboxGlStyleForEntry,
@@ -2884,14 +2884,16 @@ export default function SatelliteIntelligence() {
     mapboxSession.hasPublicToken ||
     mapboxSession.proxyMode ||
     Boolean(platformMapboxToken?.trim());
-  const basemapCatalog = useMemo(() => {
-    const catalogToken = platformMapboxToken?.trim() || getMapboxAccessToken()
-    return buildBasemapCatalog(catalogToken, {
-      includeMapboxVectorBasemaps: mapboxConfigured,
-      useMapboxTileProxy:
-        mapboxConfigured && mapboxSession.proxyMode && !platformMapboxToken?.trim(),
-    })
-  }, [platformMapboxToken, mapboxConfigured, mapboxSession.proxyMode]);
+  const basemapCatalog = useMemo(
+    () =>
+      buildRuntimeBasemapCatalog({
+        platformToken: platformMapboxToken,
+        mapboxConfigured,
+        mapboxProxyMode: mapboxSession.proxyMode,
+        includeMapboxVectorBasemaps: mapboxConfigured,
+      }),
+    [platformMapboxToken, mapboxConfigured, mapboxSession.proxyMode],
+  );
 
   const geoSubscription = useSubscription();
   const geoSubPlanRef = useRef(geoSubscription.plan);

@@ -3,7 +3,7 @@
  * Esri tiles use server.arcgisonline.com …/tile/{z}/{y}/{x} (same scheme as existing World Imagery).
  * Mapbox raster tiles use {z}/{x}/{y}.
  */
-import { isMapboxGlInitPlaceholder } from '../../lib/mapboxAccessToken'
+import { getMapboxAccessToken, isMapboxGlInitPlaceholder } from '../../lib/mapboxAccessToken'
 import { resolveMapboxProxyUrl } from '../../lib/mapboxProxyUrl'
 
 const ESRI = 'https://server.arcgisonline.com/ArcGIS/rest/services'
@@ -567,4 +567,25 @@ export const MAPBOX_STREETS_STYLE_URL = 'mapbox://styles/mapbox/streets-v12'
 /** Satellite page: Esri/OSM/Carto + Mapbox raster satellite/hybrid; omit heavy Mapbox vector styles. */
 export const BASEMAP_CATALOG_OPTS_SATELLITE_NO_MAPBOX_VECTOR: BuildBasemapCatalogOptions = {
   includeMapboxVectorBasemaps: false,
+}
+
+/** Shared catalog builder for Satellite + GIS map (Hostinger proxy + pk session). */
+export function buildRuntimeBasemapCatalog(options: {
+  platformToken?: string
+  mapboxConfigured?: boolean
+  mapboxProxyMode?: boolean
+  includeMapboxVectorBasemaps?: boolean
+}): BasemapCatalogEntry[] {
+  const platform = (options.platformToken ?? '').trim()
+  const catalogToken = platform || getMapboxAccessToken()
+  const configured = Boolean(options.mapboxConfigured)
+  const includeVector =
+    options.includeMapboxVectorBasemaps !== undefined
+      ? options.includeMapboxVectorBasemaps
+      : configured
+  return buildBasemapCatalog(catalogToken, {
+    includeMapboxVectorBasemaps: includeVector,
+    useMapboxTileProxy:
+      configured && Boolean(options.mapboxProxyMode) && !platform,
+  })
 }

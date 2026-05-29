@@ -1,8 +1,8 @@
 import React, { useMemo } from 'react'
 import { TileLayer } from 'react-leaflet'
-import { getPlatformMapboxAccessToken } from '../../../lib/mapboxAccessToken'
+import { useMapboxSessionState, usePlatformMapboxAccessToken } from '../../../hooks/useMapboxAccessToken'
 import {
-  buildBasemapCatalog,
+  buildRuntimeBasemapCatalog,
   catalogEntryById,
   getBasemapThumbnail,
   resolveBasemapId,
@@ -17,10 +17,17 @@ interface BasemapGalleryProps {
 }
 
 export const BasemapGallery: React.FC<BasemapGalleryProps> = ({ selectedBasemap, onSelectBasemap }) => {
-  const mapboxToken = getPlatformMapboxAccessToken()
+  const mapboxToken = usePlatformMapboxAccessToken()
+  const mapboxSession = useMapboxSessionState()
   const catalog = useMemo(
-    () => buildBasemapCatalog(mapboxToken, { includeMapboxVectorBasemaps: true }),
-    [mapboxToken],
+    () =>
+      buildRuntimeBasemapCatalog({
+        platformToken: mapboxToken,
+        mapboxConfigured: mapboxSession.configured,
+        mapboxProxyMode: mapboxSession.proxyMode,
+        includeMapboxVectorBasemaps: mapboxSession.configured,
+      }),
+    [mapboxToken, mapboxSession.configured, mapboxSession.proxyMode],
   )
   const activeBasemapId = resolveBasemapId(selectedBasemap)
 
@@ -129,10 +136,17 @@ export const BasemapGallery: React.FC<BasemapGalleryProps> = ({ selectedBasemap,
 }
 
 export const BasemapLayer: React.FC<{ selectedBasemap: BasemapType }> = ({ selectedBasemap }) => {
-  const mapboxToken = getPlatformMapboxAccessToken()
+  const mapboxToken = usePlatformMapboxAccessToken()
+  const mapboxSession = useMapboxSessionState()
   const catalog = useMemo(
-    () => buildBasemapCatalog(mapboxToken, { includeMapboxVectorBasemaps: true }),
-    [mapboxToken],
+    () =>
+      buildRuntimeBasemapCatalog({
+        platformToken: mapboxToken,
+        mapboxConfigured: mapboxSession.configured,
+        mapboxProxyMode: mapboxSession.proxyMode,
+        includeMapboxVectorBasemaps: mapboxSession.configured,
+      }),
+    [mapboxToken, mapboxSession.configured, mapboxSession.proxyMode],
   )
   const resolvedId = resolveBasemapId(selectedBasemap)
   const entry =

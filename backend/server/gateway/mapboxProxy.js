@@ -1,6 +1,7 @@
 /**
  * Mapbox API proxy — injects server-side token; browser never sees sk.* or raw keys in URLs.
  */
+import { resolveCorsOrigins } from '../corsOrigins.js'
 
 /** Mapbox GL may request api, tiles, events, and other *.mapbox.com hosts. */
 export function isAllowedMapboxUrl(rawUrl) {
@@ -49,8 +50,14 @@ export async function proxyMapboxRequest(req, res, accessToken) {
     res.status(upstream.status)
     res.setHeader('Content-Type', contentType)
     res.setHeader('Cache-Control', 'private, max-age=60')
-    res.setHeader('Access-Control-Allow-Origin', req.headers.origin || '*')
-    res.setHeader('Vary', 'Origin')
+    const origin = String(req.headers.origin || '').trim()
+    const allowed = resolveCorsOrigins()
+    if (origin && allowed.includes(origin)) {
+      res.setHeader('Access-Control-Allow-Origin', origin)
+      res.setHeader('Vary', 'Origin')
+    } else if (!origin) {
+      res.setHeader('Access-Control-Allow-Origin', '*')
+    }
 
     if (req.method === 'HEAD') return res.end()
 
