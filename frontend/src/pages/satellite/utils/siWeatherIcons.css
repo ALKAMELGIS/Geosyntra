@@ -1,0 +1,235 @@
+/* Colored weather SVG + legacy FA tones — dark glass & light theme */
+
+.si-wx-colored {
+  display: inline-block;
+  vertical-align: middle;
+  flex-shrink: 0;
+}
+
+.si-wx-colored--sun .si-wx-colored__sun {
+  color: #fbbf24;
+}
+
+.si-wx-colored--partly .si-wx-colored__sun {
+  color: #fbbf24;
+}
+
+.si-wx-colored--partly .si-wx-colored__cloud {
+  color: #94a3b8;
+}
+
+.si-wx-colored--cloud .si-wx-colored__cloud,
+.si-wx-colored--unknown .si-wx-colored__cloud {
+  color: #94a3b8;
+}
+
+.si-wx-colored--fog .si-wx-colored__cloud-mist,
+.si-wx-colored--fog .si-wx-colored__fog {
+  color: #cbd5e1;
+}
+
+.si-wx-colored--rain .si-wx-colored__cloud,
+.si-wx-colored--precip .si-wx-colored__cloud {
+  color: #94a3b8;
+}
+
+.si-wx-colored--rain .si-wx-colored__rain,
+.si-wx-colored--precip .si-wx-colored__rain,
+.si-wx-colored--heavy-rain .si-wx-colored__rain {
+  color: #38bdf8;
+}
+
+.si-wx-colored--heavy-rain .si-wx-colored__cloud-deep {
+  color: #64748b;
+}
+
+.si-wx-colored--snow .si-wx-colored__cloud {
+  color: #94a3b8;
+}
+
+.si-wx-colored--snow .si-wx-colored__snow {
+  color: #e0f2fe;
+}
+
+.si-wx-colored--storm .si-wx-colored__storm-cloud {
+  color: #64748b;
+}
+
+.si-wx-colored--storm .si-wx-colored__bolt {
+  color: #c4b5fd;
+}
+
+.si-wx-colored--wind .si-wx-colored__wind {
+  color: #38bdf8;
+}
+
+.si-wx-colored--humidity .si-wx-colored__humidity {
+  color: #22d3ee;
+}
+
+.si-wx-colored--temp .si-wx-colored__temp,
+.si-wx-colored--temp .si-wx-colored__temp-fill {
+  color: #fb923c;
+}
+
+.si-wx-colored--temp .si-wx-colored__temp-glass {
+  color: #fdba74;
+}
+
+.si-wx-colored--uv .si-wx-colored__sun {
+  color: #fbbf24;
+}
+
+.si-wx-colored--uv .si-wx-colored__uv {
+  color: #fb923c;
+}
+
+.si-wx-colored--visibility .si-wx-colored__visibility {
+  color: #7dd3fc;
+}
+
+.si-wx-colored--visibility .si-wx-colored__visibility-pupil {
+  color: #38bdf8;
+}
+
+.si-wx-colored--pressure .si-wx-colored__pressure {
+  color: #1d4ed8;
+}
+
+/* Light theme */
+.si-map-wx-intel--light .si-wx-colored--sun .si-wx-colored__sun,
+.si-map-wx-history--light .si-wx-colored--sun .si-wx-colored__sun {
+  color: #d97706;
+}
+
+.si-map-wx-intel--light .si-wx-colored--partly .si-wx-colored__sun {
+  color: #ca8a04;
+}
+
+.si-map-wx-intel--light .si-wx-colored--storm .si-wx-colored__bolt {
+  color: #7c3aed;
+}
+
+.si-map-wx-intel--light .si-wx-colored--snow .si-wx-colored__snow {
+  color: #0284c7;
+}
+
+.si-live-aoi-stats--light .si-wx-colored--temp .si-wx-colored__temp,
+.si-live-aoi-stats--light .si-wx-colored--temp .si-wx-colored__temp-fill {
+  color: #ea580c;
+}
+
+/* Popup layout sizes */
+.si-map-wx-intel__wx-icon.si-wx-colored {
+  width: 28px;
+  height: 28px;
+}
+
+.si-map-wx-intel__hour-icon.si-wx-colored,
+.si-map-wx-intel__day-icon.si-wx-colored {
+  width: 16px;
+  height: 16px;
+}
+
+.si-map-wx-intel__stat-card > .si-wx-colored {
+  width: 18px;
+  height: 18px;
+}
+
+.si-map-wx-intel__stat-card--period > .si-wx-colored {
+  width: 20px;
+  height: 20px;
+}
+
+.si-map-wx-intel__stat-row-icon.si-wx-colored {
+  width: 11px;
+  height: 11px;
+}
+
+.si-map-wx-history__var .si-wx-colored {
+  width: 14px;
+  height: 14px;
+  margin-right: 4px;
+}
+
+.si-live-aoi-stats__weather-head .si-wx-colored {
+  width: 20px;
+  height: 20px;
+}
+
+.si-live-aoi-stats__wx-chip .si-wx-colored {
+  width: 16px;
+  height: 16px;
+}
+
+/* Legacy Font Awesome fallback */
+.si-wx-icon {
+  flex-shrink: 0;
+  line-height: 1;
+}
+
+.si-map-wx-intel .si-wx-icon.si-wx-icon--sun {
+  color: #fbbf24 !important;
+  -webkit-text-fill-color: #fbbf24 !important;
+}
+
+.si-map-wx-intel .si-wx-icon.si-wx-icon--partly {
+  color: #fcd34d !important;
+  -webkit-text-fill-color: #fcd34d !important;
+}
+
+.si-map-wx-intel .si-wx-icon.si-wx-icon--cloud {
+  color: #94a3b8 !important;
+  -webkit-text-fill-color: #94a3b8 !important;
+}
+
+.si-map-wx-intel .si-wx-icon.si-wx-icon--rain,
+.si-map-wx-intel .si-wx-icon.si-wx-icon--precip {
+  color: #38bdf8 !important;
+  -webkit-text-fill-color: #38bdf8 !important;
+}
+
+.si-map-wx-intel .si-wx-icon.si-wx-icon--heavy-rain {
+  color: #0ea5e9 !important;
+  -webkit-text-fill-color: #0ea5e9 !important;
+}
+
+.si-map-wx-intel .si-wx-icon.si-wx-icon--snow {
+  color: #e0f2fe !important;
+  -webkit-text-fill-color: #e0f2fe !important;
+}
+
+.si-map-wx-intel .si-wx-icon.si-wx-icon--storm {
+  color: #c4b5fd !important;
+  -webkit-text-fill-color: #c4b5fd !important;
+}
+
+.si-map-wx-intel .si-wx-icon.si-wx-icon--wind {
+  color: #38bdf8 !important;
+  -webkit-text-fill-color: #38bdf8 !important;
+}
+
+.si-map-wx-intel .si-wx-icon.si-wx-icon--humidity {
+  color: #22d3ee !important;
+  -webkit-text-fill-color: #22d3ee !important;
+}
+
+.si-map-wx-intel .si-wx-icon.si-wx-icon--temp {
+  color: #fb923c !important;
+  -webkit-text-fill-color: #fb923c !important;
+}
+
+.si-map-wx-intel .si-wx-icon.si-wx-icon--pressure {
+  color: #3b82f6 !important;
+  -webkit-text-fill-color: #3b82f6 !important;
+}
+
+.si-map-wx-intel .si-wx-icon.si-wx-icon--visibility {
+  color: #7dd3fc !important;
+  -webkit-text-fill-color: #7dd3fc !important;
+}
+
+.si-map-wx-intel--light .si-wx-icon.si-wx-icon--sun {
+  color: #d97706 !important;
+  -webkit-text-fill-color: #d97706 !important;
+}

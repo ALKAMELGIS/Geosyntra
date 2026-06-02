@@ -1,0 +1,316 @@
+/**
+ * Geosyntra · Unified lux glass panels
+ * Dark theme: black glass + light type. Light theme: white glass + dark type.
+ * Loaded after light-glass-theme.css — token flips live in theme-tokens.css.
+ */
+
+/* ── Shared panel surface mixin (via custom properties on roots) ── */
+.si-page,
+html[data-theme='dark'] {
+  --gs-panel-surface-bg: var(--gs-panel-glass-bg);
+  --gs-panel-surface-border: var(--gs-panel-glass-border);
+  --gs-panel-surface-text: var(--gs-panel-glass-text);
+  --gs-panel-surface-muted: var(--gs-panel-glass-muted);
+  --gs-panel-surface-shadow: var(--gs-panel-glass-shadow);
+  --gs-panel-surface-blur: var(--gs-panel-glass-blur);
+}
+
+/* ── Map tool panels (index.css defaults to white) ── */
+.si-page .gis-map-tool-panel,
+html[data-theme='dark'] .gis-map-tool-panel {
+  border: 1px solid var(--gs-panel-glass-border);
+  border-radius: 20px;
+  background: var(--gs-panel-glass-bg);
+  color: var(--gs-panel-glass-text);
+  box-shadow: var(--gs-panel-glass-shadow);
+  backdrop-filter: var(--gs-panel-glass-blur);
+  -webkit-backdrop-filter: var(--gs-panel-glass-blur);
+}
+
+/* ── Environment / toolbox panels ── */
+.si-page .si-env-panel {
+  border: 1px solid var(--gs-panel-glass-border);
+  background: var(--gs-panel-glass-bg);
+  color: var(--gs-panel-glass-text);
+  box-shadow: var(--gs-panel-glass-shadow);
+  backdrop-filter: var(--gs-panel-glass-blur);
+  -webkit-backdrop-filter: var(--gs-panel-glass-blur);
+}
+
+.si-page .si-env-panel-header {
+  background: var(--gs-panel-glass-header);
+  border-bottom: 1px solid var(--gs-panel-glass-border);
+}
+
+/* ── Contextual analysis dock (rail + panel) ── */
+.si-page .si-sat-ctx-dock,
+.si-page .si-sat-ctx-dock--light {
+  --si-ctx-bg: rgba(0, 0, 0, 0.72);
+  --si-ctx-bg2: rgba(255, 255, 255, 0.05);
+  --si-ctx-border: var(--gs-panel-glass-border);
+  --si-ctx-text: var(--gs-panel-glass-text);
+  --si-ctx-muted: var(--gs-panel-glass-muted);
+  --si-ctx-accent: rgba(255, 255, 255, 0.92);
+  --si-ctx-glow: rgba(255, 255, 255, 0.22);
+}
+
+.si-page .si-sat-ctx-dock--map .si-sat-ctx-rail,
+.si-page .si-sat-ctx-dock--dark .si-sat-ctx-rail,
+.si-page .si-sat-ctx-dock--light .si-sat-ctx-rail,
+.si-page .si-sat-ctx-rail {
+  background: var(--gs-panel-glass-bg);
+  border-color: var(--gs-panel-glass-border);
+  backdrop-filter: var(--gs-panel-glass-blur);
+  -webkit-backdrop-filter: var(--gs-panel-glass-blur);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.06),
+    inset -1px 0 0 rgba(255, 255, 255, 0.03);
+}
+
+.si-page .si-sat-ctx-dock--map .si-sat-ctx-panel,
+.si-page .si-sat-ctx-dock--dark .si-sat-ctx-panel,
+.si-page .si-sat-ctx-dock--light .si-sat-ctx-panel,
+.si-page .si-sat-ctx-panel {
+  background: var(--gs-panel-glass-bg);
+  border-color: var(--gs-panel-glass-border);
+  backdrop-filter: var(--gs-panel-glass-blur);
+  -webkit-backdrop-filter: var(--gs-panel-glass-blur);
+  color: var(--gs-panel-glass-text);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.06),
+    inset 1px 0 0 rgba(255, 255, 255, 0.03);
+}
+
+.si-page .si-sat-ctx-dock--light .si-map-analysis-layer-chip,
+.si-page .si-sat-ctx-dock--light .si-map-analysis-chart-card {
+  background: var(--gs-panel-glass-bg-elevated);
+  border: 1px solid var(--gs-panel-glass-border);
+  color: var(--gs-panel-glass-text);
+}
+
+/* ── Floating tool panels ── */
+.si-page .si-weather-panel,
+.si-page .si-route-map-panel,
+.si-page .si-geo-ai-route-panel,
+.si-page .si-sym-float-panel {
+  border-color: var(--gs-panel-glass-border);
+  background: var(--gs-panel-glass-bg);
+  color: var(--gs-panel-glass-text);
+  box-shadow: var(--gs-panel-glass-shadow);
+  backdrop-filter: var(--gs-panel-glass-blur);
+  -webkit-backdrop-filter: var(--gs-panel-glass-blur);
+}
+
+.si-page .si-weather-panel:hover,
+.si-page .si-route-map-panel:hover,
+.si-page .si-sym-float-panel:hover {
+  border-color: var(--gs-panel-glass-border-strong);
+  box-shadow: var(--gs-panel-glass-shadow);
+}
+
+/* ── Basemap gallery widget ── */
+.si-page .si-basemap-widget--esri {
+  --si-bm-bg: rgba(0, 0, 0, 0.78);
+  --si-bm-border: var(--gs-panel-glass-border);
+  --si-bm-divider: rgba(255, 255, 255, 0.08);
+  --si-bm-text: var(--gs-panel-glass-text);
+  --si-bm-text-muted: var(--gs-panel-glass-muted);
+  --si-bm-hover: rgba(255, 255, 255, 0.06);
+  --si-bm-selected-bg: rgba(255, 255, 255, 0.1);
+  --si-bm-selected-border: rgba(255, 255, 255, 0.28);
+  --si-bm-badge-bg: rgba(255, 255, 255, 0.06);
+  --si-bm-badge-text: var(--gs-panel-glass-muted);
+  --si-bm-shadow: var(--gs-panel-glass-shadow);
+
+  backdrop-filter: var(--gs-panel-glass-blur);
+  -webkit-backdrop-filter: var(--gs-panel-glass-blur);
+  border-radius: 12px;
+}
+
+.si-page .si-basemap-quick,
+.si-page .si-basemap-section__summary,
+.si-page .si-basemap-section__label {
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.si-page .si-basemap-quick-btn {
+  background: rgba(255, 255, 255, 0.04);
+  border-color: var(--gs-panel-glass-border);
+  color: var(--gs-panel-glass-muted);
+}
+
+.si-page .si-basemap-quick-btn--active {
+  color: var(--gs-panel-glass-text);
+  background: var(--gs-panel-glass-selected);
+  border-color: var(--gs-panel-glass-border-strong);
+}
+
+.si-page .si-basemap-row__thumb {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.si-page .si-basemap-row--active .si-basemap-row__label {
+  color: var(--gs-panel-glass-text);
+}
+
+.si-page .si-basemap-row--active .si-basemap-row__badge {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: var(--gs-panel-glass-border);
+  color: var(--gs-panel-glass-text);
+}
+
+/* ── Modals inside satellite page ── */
+.si-page .gis-modal.gis-modal-styles,
+.si-page .si-layer-action-modal--symbology-studio:not(.si-sym-float-panel--dock-left),
+.si-page .si-layer-action-modal--labels-studio:not(.si-sym-float-panel--dock-left),
+.si-page .si-layer-action-modal:not(.si-layer-action-modal--agol-table):not(.si-sym-float-panel--dock-left) {
+  border: 1px solid var(--gs-panel-glass-border) !important;
+  background: var(--gs-panel-glass-bg) !important;
+  color: var(--gs-panel-glass-text) !important;
+  box-shadow: var(--gs-panel-glass-shadow) !important;
+  backdrop-filter: var(--gs-panel-glass-blur) !important;
+  -webkit-backdrop-filter: var(--gs-panel-glass-blur) !important;
+}
+
+.si-page .gis-modal.gis-modal-styles .gis-modal-header,
+.si-page .si-layer-action-modal--symbology-studio .gis-modal-header {
+  background: var(--gs-panel-glass-header) !important;
+  border-bottom-color: var(--gs-panel-glass-border) !important;
+}
+
+/* ── Dark theme: global GIS modals / panels outside .si-page ── */
+html[data-theme='dark'] .gis-modal.gis-modal-styles,
+html[data-theme='dark'] .si-layer-action-modal--symbology-studio:not(.si-sym-float-panel--dock-left),
+html[data-theme='dark'] .si-layer-action-modal--labels-studio:not(.si-sym-float-panel--dock-left) {
+  border-color: var(--gs-panel-glass-border) !important;
+  background: var(--gs-panel-glass-bg) !important;
+  color: var(--gs-panel-glass-text) !important;
+}
+
+html[data-theme='dark'] .gis-modal.gis-modal-compact:not(.gis-modal-docs) {
+  border-color: var(--gs-panel-glass-border);
+  background: var(--gs-panel-glass-bg-solid);
+  color: var(--gs-panel-glass-text);
+  box-shadow: var(--gs-panel-glass-shadow);
+  backdrop-filter: var(--gs-panel-glass-blur);
+  -webkit-backdrop-filter: var(--gs-panel-glass-blur);
+}
+
+html[data-theme='dark'] .gis-modal.gis-modal-compact:not(.gis-modal-docs) .gis-modal-header {
+  border-bottom-color: var(--gs-panel-glass-border);
+  background: var(--gs-panel-glass-header);
+  color: var(--gs-panel-glass-text);
+}
+
+html[data-theme='dark'] .gis-modal.gis-modal-compact:not(.gis-modal-docs) .gis-modal-title {
+  color: var(--gs-panel-glass-text);
+}
+
+/* ── Symbol / draw floating panels ── */
+.si-page .si-symbol-style-floating-panel,
+html[data-theme='dark'] .si-symbol-style-floating-panel {
+  background: var(--gs-panel-glass-bg-solid);
+  border-color: var(--gs-panel-glass-border);
+  color: var(--gs-panel-glass-text);
+  box-shadow: var(--gs-panel-glass-shadow);
+  backdrop-filter: var(--gs-panel-glass-blur);
+  -webkit-backdrop-filter: var(--gs-panel-glass-blur);
+}
+
+/* ── Location dropdown & timeline chips on map ── */
+.si-page .timeline-location {
+  background: var(--gs-panel-glass-bg-solid);
+  border-color: var(--gs-panel-glass-border);
+  color: var(--gs-panel-glass-text);
+}
+
+.si-page .timeline-location:hover,
+.si-page .timeline-location.active {
+  background: rgba(0, 0, 0, 0.88);
+  border-color: var(--gs-panel-glass-accent);
+  box-shadow: 0 0 0 1px rgba(34, 197, 94, 0.35), 0 10px 30px rgba(0, 0, 0, 0.55);
+}
+
+.si-page .location-dropdown {
+  background: var(--gs-panel-glass-bg-solid);
+  border-color: var(--gs-panel-glass-border);
+  color: var(--gs-panel-glass-text);
+  backdrop-filter: var(--gs-panel-glass-blur);
+  -webkit-backdrop-filter: var(--gs-panel-glass-blur);
+}
+
+/* ── Lite Mode: white glass + high-contrast slate type on satellite surfaces ── */
+html[data-theme='light'] .si-page {
+  color: var(--gs-panel-glass-text);
+}
+
+html[data-theme='light'] .si-page .si-sat-ctx-dock,
+html[data-theme='light'] .si-page .si-sat-ctx-dock--light,
+html[data-theme='light'] .si-page .si-sat-ctx-dock--dark {
+  --si-ctx-bg: rgba(255, 255, 255, 0.82);
+  --si-ctx-bg2: rgba(15, 23, 42, 0.04);
+  --si-ctx-border: var(--gs-panel-glass-border);
+  --si-ctx-text: var(--gs-panel-glass-text);
+  --si-ctx-muted: var(--gs-panel-glass-muted);
+  --si-ctx-accent: #1a1d2b;
+  --si-ctx-glow: rgba(15, 23, 42, 0.12);
+}
+
+html[data-theme='light'] .si-page .si-sat-ctx-dock--map .si-sat-ctx-rail,
+html[data-theme='light'] .si-page .si-sat-ctx-dock--dark .si-sat-ctx-rail,
+html[data-theme='light'] .si-page .si-sat-ctx-dock--light .si-sat-ctx-rail,
+html[data-theme='light'] .si-page .si-sat-ctx-rail {
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.95),
+    inset -1px 0 0 rgba(15, 23, 42, 0.05);
+}
+
+html[data-theme='light'] .si-page .si-sat-ctx-dock--map .si-sat-ctx-panel,
+html[data-theme='light'] .si-page .si-sat-ctx-dock--dark .si-sat-ctx-panel,
+html[data-theme='light'] .si-page .si-sat-ctx-dock--light .si-sat-ctx-panel,
+html[data-theme='light'] .si-page .si-sat-ctx-panel {
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.95),
+    inset 1px 0 0 rgba(15, 23, 42, 0.05);
+}
+
+html[data-theme='light'] .si-page .si-basemap-widget--esri {
+  --si-bm-bg: rgba(255, 255, 255, 0.94);
+  --si-bm-border: var(--gs-panel-glass-border);
+  --si-bm-divider: rgba(15, 23, 42, 0.08);
+  --si-bm-text: var(--gs-panel-glass-text);
+  --si-bm-text-muted: var(--gs-panel-glass-muted);
+  --si-bm-hover: rgba(15, 23, 42, 0.05);
+  --si-bm-selected-bg: rgba(15, 23, 42, 0.08);
+  --si-bm-selected-border: rgba(15, 23, 42, 0.22);
+  --si-bm-badge-bg: rgba(15, 23, 42, 0.06);
+  --si-bm-badge-text: var(--gs-panel-glass-muted);
+}
+
+html[data-theme='light'] .si-page .si-basemap-quick,
+html[data-theme='light'] .si-page .si-basemap-section__summary,
+html[data-theme='light'] .si-page .si-basemap-section__label {
+  background: rgba(15, 23, 42, 0.04);
+}
+
+html[data-theme='light'] .si-page .si-basemap-quick-btn {
+  background: rgba(255, 255, 255, 0.88);
+  color: var(--gs-panel-glass-muted);
+}
+
+html[data-theme='light'] .si-page .si-basemap-row__thumb {
+  background: rgba(15, 23, 42, 0.06);
+}
+
+html[data-theme='light'] .si-page .timeline-location:hover,
+html[data-theme='light'] .si-page .timeline-location.active {
+  background: rgba(255, 255, 255, 0.98);
+  border-color: var(--gs-panel-glass-accent);
+  box-shadow: 0 0 0 1px rgba(15, 23, 42, 0.12), 0 8px 22px rgba(15, 23, 42, 0.1);
+}
+
+html[data-theme='light'] .si-page i[class*='fa-'],
+html[data-theme='light'] .si-page .si-sat-ctx-rail-btn i,
+html[data-theme='light'] .si-page .gis-sidebar-rail-btn i {
+  color: inherit;
+}

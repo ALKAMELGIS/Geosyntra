@@ -1,0 +1,67 @@
+import { describe, expect, it } from 'vitest';
+import { buildLiveAoiStatsViewModel, liveAoiStatsStatusHint } from './liveAoiStatsView';
+
+describe('buildLiveAoiStatsViewModel', () => {
+  it('computes stats from masked raster pixels only', () => {
+    const vm = buildLiveAoiStatsViewModel({
+      aoiKey: 'a1',
+      aoiName: 'Field A',
+      layerId: 'NDVI',
+      layerName: 'NDVI',
+      areaHa: 12.5,
+      rasterSample: {
+        areaHa: 12.5,
+        grid: [
+          { lng: 1, lat: 2 },
+          { lng: 1.1, lat: 2.1 },
+          { lng: 1.2, lat: 2.2 },
+        ],
+        layers: { NDVI: [0.2, 0.5, 0.8] },
+      } as any,
+      zonal: null,
+      status: 'ready',
+    });
+    expect(vm?.mean).toBeCloseTo(0.5, 2);
+    expect(vm?.min).toBeCloseTo(0.2, 2);
+    expect(vm?.max).toBeCloseTo(0.8, 2);
+    expect(vm?.pixelCount).toBe(3);
+  });
+
+  it('does not use global timeline stats when raster is missing', () => {
+    const vm = buildLiveAoiStatsViewModel({
+      aoiKey: 'a1',
+      aoiName: 'Field A',
+      layerId: 'NDVI',
+      layerName: 'NDVI',
+      areaHa: 12.5,
+      rasterSample: null,
+      zonal: null,
+      status: 'ready',
+    });
+    expect(vm?.mean).toBeNull();
+    expect(vm?.min).toBeNull();
+    expect(vm?.max).toBeNull();
+    expect(vm?.status).toBe('error');
+  });
+
+  it('maps status to user hints', () => {
+    expect(liveAoiStatsStatusHint('loading', true)).toBeNull();
+    expect(liveAoiStatsStatusHint('unavailable', false)).toMatch(/analysis engine/i);
+    expect(liveAoiStatsStatusHint('error', false)).toMatch(/Sampling failed/i);
+  });
+
+  it('returns null when area is invalid', () => {
+    expect(
+      buildLiveAoiStatsViewModel({
+        aoiKey: 'a1',
+        aoiName: 'Field A',
+        layerId: 'NDVI',
+        layerName: 'NDVI',
+        areaHa: 0,
+        rasterSample: null,
+        zonal: null,
+        status: 'idle',
+      }),
+    ).toBeNull();
+  });
+});

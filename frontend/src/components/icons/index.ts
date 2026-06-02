@@ -1,0 +1,2 @@
+export { GeosyntraAppIcon } from './GeosyntraAppIcon'
+

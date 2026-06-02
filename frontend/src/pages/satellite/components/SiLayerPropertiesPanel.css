@@ -1,0 +1,208 @@
+.si-layer-props {
+  display: flex;
+  flex-direction: column;
+  width: min(360px, calc(100vw - 32px));
+  max-height: min(72vh, 520px);
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: linear-gradient(165deg, rgba(12, 14, 20, 0.96), rgba(6, 8, 14, 0.94));
+  box-shadow:
+    0 0 0 1px rgba(255, 255, 255, 0.05) inset,
+    0 18px 48px rgba(0, 0, 0, 0.55);
+  color: rgba(248, 250, 252, 0.96);
+  overflow: hidden;
+}
+
+.si-layer-props__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 12px 14px 8px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.si-layer-props__brand {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  min-width: 0;
+}
+
+.si-layer-props__brand > i {
+  margin-top: 2px;
+  font-size: 11px;
+  color: rgba(248, 250, 252, 0.72);
+}
+
+.si-layer-props__title {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 650;
+  line-height: 1.2;
+}
+
+.si-layer-props__subtitle {
+  margin: 3px 0 0;
+  font-size: 11px;
+  line-height: 1.25;
+  color: rgba(248, 250, 252, 0.62);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 240px;
+}
+
+.si-layer-props__close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border: none;
+  border-radius: 5px;
+  background: transparent;
+  color: rgba(248, 250, 252, 0.62);
+  cursor: pointer;
+}
+
+.si-layer-props__close:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: rgba(248, 250, 252, 0.96);
+}
+
+.si-layer-props__close i {
+  font-size: 11px;
+}
+
+.si-layer-props__purpose {
+  margin: 0;
+  padding: 8px 14px 0;
+  font-size: 10px;
+  line-height: 1.45;
+  color: rgba(248, 250, 252, 0.55);
+}
+
+.si-layer-props__body {
+  flex: 1;
+  overflow: auto;
+  padding: 10px 14px 12px;
+  scrollbar-width: thin;
+}
+
+.si-layer-props__section + .si-layer-props__section {
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.si-layer-props__section-title {
+  margin: 0 0 6px;
+  font-size: 10px;
+  font-weight: 650;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: rgba(248, 250, 252, 0.48);
+}
+
+.si-layer-props__grid {
+  margin: 0;
+}
+
+.si-layer-props__row {
+  display: grid;
+  grid-template-columns: 92px minmax(0, 1fr);
+  gap: 8px;
+  padding: 4px 0;
+  font-size: 11px;
+  line-height: 1.35;
+}
+
+.si-layer-props__row dt {
+  margin: 0;
+  color: rgba(248, 250, 252, 0.52);
+}
+
+.si-layer-props__row dd {
+  margin: 0;
+  color: rgba(248, 250, 252, 0.94);
+  word-break: break-word;
+}
+
+.si-layer-props__value--mono {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 10px;
+}
+
+.si-layer-props__foot {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 10px 14px 12px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.si-layer-props__btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 10px;
+  border-radius: 5px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.04);
+  color: rgba(248, 250, 252, 0.88);
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.si-layer-props__btn i {
+  font-size: 10px;
+}
+
+.si-layer-props__btn:hover {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.si-layer-props__btn--primary {
+  border-color: rgba(255, 255, 255, 0.2);
+  background: rgba(255, 255, 255, 0.1);
+}
+
+html[data-theme='light'] .si-layer-props {
+  border-color: rgba(15, 23, 42, 0.12);
+  background: #fff;
+  color: #1e293b;
+  box-shadow: 0 8px 28px rgba(15, 23, 42, 0.14);
+}
+
+html[data-theme='light'] .si-layer-props__head,
+html[data-theme='light'] .si-layer-props__foot {
+  border-color: rgba(15, 23, 42, 0.08);
+}
+
+html[data-theme='light'] .si-layer-props__subtitle,
+html[data-theme='light'] .si-layer-props__purpose,
+html[data-theme='light'] .si-layer-props__section-title,
+html[data-theme='light'] .si-layer-props__row dt {
+  color: #64748b;
+}
+
+html[data-theme='light'] .si-layer-props__row dd {
+  color: #0f172a;
+}
+
+html[data-theme='light'] .si-layer-props__btn {
+  border-color: rgba(15, 23, 42, 0.12);
+  background: #f8fafc;
+  color: #0f172a;
+}
+
+.si-layer-props-shell {
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  max-width: none;
+  background: transparent;
+  border: none;
+  box-shadow: none;
+}

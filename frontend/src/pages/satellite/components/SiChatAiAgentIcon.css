@@ -1,0 +1,103 @@
+/* Agent Chat icon — premium speech bubble + conversation lines */
+
+.si-chat-ai-agent-icon-wrap {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 1.12em;
+  height: 1.12em;
+  vertical-align: -0.12em;
+}
+
+.si-chat-ai-agent-icon-wrap--rail {
+  width: 18px;
+  height: 18px;
+}
+
+.si-chat-ai-agent-icon-wrap--chip {
+  width: 16px;
+  height: 16px;
+}
+
+.si-chat-ai-agent-icon-wrap--fab {
+  width: 26px;
+  height: 26px;
+}
+
+.si-chat-ai-agent-icon__svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+  filter: drop-shadow(0 1px 2px rgba(15, 23, 42, 0.4)) drop-shadow(0 0 10px rgba(99, 102, 241, 0.32));
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .si-chat-ai-agent-icon__dot {
+    animation: si-chat-ai-agent-dot-pulse 2.8s ease-in-out infinite;
+  }
+
+  .si-chat-ai-agent-icon__lines path:nth-child(2) {
+    animation: si-chat-ai-agent-line-fade 2.4s ease-in-out infinite;
+  }
+}
+
+@keyframes si-chat-ai-agent-dot-pulse {
+  0%,
+  100% {
+    opacity: 0.88;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.08);
+  }
+}
+
+@keyframes si-chat-ai-agent-line-fade {
+  0%,
+  100% {
+    opacity: 0.72;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+.si-sat-ctx-rail-btn:hover .si-chat-ai-agent-icon__svg,
+.si-sat-ctx-rail-btn--active .si-chat-ai-agent-icon__svg {
+  filter: drop-shadow(0 0 10px rgba(129, 140, 248, 0.55)) drop-shadow(0 0 16px rgba(34, 211, 238, 0.32))
+    drop-shadow(0 1px 2px rgba(15, 23, 42, 0.35));
+}
+
+.si-sat-ctx-dock--light .si-chat-ai-agent-icon__svg {
+  filter: drop-shadow(0 0 5px rgba(99, 102, 241, 0.28)) drop-shadow(0 1px 1px rgba(15, 23, 42, 0.1));
+}
+
+.si-geo-ai-float-fab:hover .si-chat-ai-agent-icon__svg,
+.si-geo-ai-float-fab:focus-visible .si-chat-ai-agent-icon__svg {
+  filter: drop-shadow(0 0 12px rgba(129, 140, 248, 0.65)) drop-shadow(0 0 18px rgba(34, 211, 238, 0.38))
+    drop-shadow(0 2px 4px rgba(15, 23, 42, 0.45));
+}
+
+.si-sat-ctx-analysis-launcher-btn .si-chat-ai-agent-icon-wrap {
+  width: 18px;
+  height: 18px;
+}
+
+.si-smart-proc__chip .si-chat-ai-agent-icon-wrap {
+  width: 16px;
+  height: 16px;
+}
+
+.si-sat-smart-proc__btn .si-chat-ai-agent-icon-wrap {
+  width: 18px;
+  height: 18px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .si-chat-ai-agent-icon__dot,
+  .si-chat-ai-agent-icon__lines path {
+    animation: none !important;
+  }
+}

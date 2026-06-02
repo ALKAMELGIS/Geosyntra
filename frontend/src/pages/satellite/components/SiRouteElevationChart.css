@@ -1,0 +1,27 @@
+.si-route-elev {
+  margin: 10px 0;
+  padding: 8px 10px;
+  border-radius: 10px;
+  background: rgba(30, 41, 59, 0.55);
+  border: 1px solid rgba(148, 163, 184, 0.15);
+}
+
+.si-route-elev__head {
+  display: flex;
+  justify-content: space-between;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #94a3b8;
+  margin-bottom: 6px;
+}
+
+.si-route-elev__range {
+  font-variant-numeric: tabular-nums;
+}
+
+.si-route-elev__chart {
+  width: 100%;
+  height: 72px;
+  color: #60a5fa;
+}

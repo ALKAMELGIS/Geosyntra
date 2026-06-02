@@ -1,0 +1,241 @@
+/* ArcGIS Scene Viewer — daylight time slider (no overlapping layers) */
+.si-esri-slider {
+  width: 100%;
+  --si-daylight-play-size: 28px;
+  --si-daylight-play-bg: linear-gradient(168deg, #3d4558 0%, #1a1d2b 52%, #12141f 100%);
+  --si-daylight-play-bg-hover: linear-gradient(168deg, #4a5266 0%, #222636 52%, #161a28 100%);
+  --si-daylight-play-border: rgba(255, 255, 255, 0.14);
+  --si-daylight-play-icon: rgba(248, 250, 252, 0.96);
+  --si-daylight-play-shadow: 0 2px 10px rgba(0, 0, 0, 0.34);
+  --si-daylight-track-fill: #4a5062;
+  --si-daylight-thumb-ring: rgba(255, 255, 255, 0.22);
+}
+
+.si-esri-slider__clock {
+  margin: 0 0 10px;
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  line-height: 1.2;
+}
+
+.si-esri-slider__clock-time {
+  font-size: 14px;
+  font-weight: 600;
+  color: #f8fafc;
+  letter-spacing: 0.01em;
+}
+
+.si-esri-slider__clock-tz {
+  font-size: 12px;
+  font-weight: 600;
+  color: rgba(148, 163, 184, 0.92);
+}
+
+.si-esri-slider__row {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.si-esri-slider__widget {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding-right: 2px;
+}
+
+.si-esri-slider__track-wrap {
+  position: relative;
+  height: 22px;
+  display: flex;
+  align-items: center;
+}
+
+.si-esri-slider__track {
+  position: relative;
+  width: 100%;
+  height: 4px;
+  border-radius: 999px;
+  background: rgba(100, 116, 139, 0.45);
+  cursor: pointer;
+  touch-action: none;
+}
+
+.si-esri-slider--disabled .si-esri-slider__track {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.si-esri-slider__segment {
+  position: absolute;
+  top: 0;
+  height: 100%;
+  border-radius: 999px;
+  pointer-events: none;
+}
+
+.si-esri-slider__segment--fill {
+  left: 0;
+  background: var(--si-daylight-track-fill, #4a5062);
+  z-index: 1;
+}
+
+.si-esri-slider__segment--rest {
+  background: rgba(71, 85, 105, 0.55);
+  z-index: 0;
+}
+
+.si-esri-slider__tick-marks {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 50%;
+  height: 0;
+  pointer-events: none;
+  z-index: 2;
+}
+
+.si-esri-slider__tick {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  display: block;
+  width: 1px;
+  background: rgba(148, 163, 184, 0.55);
+}
+
+.si-esri-slider__tick--primary {
+  height: 8px;
+  background: rgba(203, 213, 225, 0.8);
+}
+
+.si-esri-slider__tick--secondary {
+  height: 5px;
+}
+
+.si-esri-slider__tick-labels {
+  position: relative;
+  height: 16px;
+  width: 100%;
+}
+
+.si-esri-slider__tick-label {
+  position: absolute;
+  transform: translateX(-50%);
+  font-size: 10px;
+  font-weight: 500;
+  color: rgba(203, 213, 225, 0.88);
+  white-space: nowrap;
+  line-height: 1;
+  pointer-events: none;
+}
+
+.si-esri-slider__anchor {
+  position: absolute;
+  top: 50%;
+  z-index: 4;
+  transform: translate(-50%, -50%);
+  touch-action: none;
+}
+
+.si-esri-slider__thumb {
+  display: block;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: #fff;
+  border: 2px solid var(--si-daylight-track-fill, #4a5062);
+  box-shadow: 0 1px 6px rgba(0, 0, 0, 0.35);
+  cursor: grab;
+}
+
+.si-esri-slider.is-dragging .si-esri-slider__thumb {
+  cursor: grabbing;
+  box-shadow: 0 0 0 4px var(--si-daylight-thumb-ring, rgba(255, 255, 255, 0.22));
+}
+
+/* Play daylight / date animation — shared chip (time slider + date row) */
+.si-esri-slider__play {
+  flex-shrink: 0;
+  position: relative;
+  z-index: 6;
+  width: var(--si-daylight-play-size, 28px);
+  height: var(--si-daylight-play-size, 28px);
+  /* Vertically center on the 22px track rail (not the tick-label row below). */
+  margin-top: calc((22px - var(--si-daylight-play-size, 28px)) / 2);
+  border: 1px solid var(--si-daylight-play-border, rgba(255, 255, 255, 0.14));
+  border-radius: 50%;
+  background: var(--si-daylight-play-bg);
+  color: var(--si-daylight-play-icon, rgba(248, 250, 252, 0.96));
+  cursor: pointer;
+  display: grid;
+  place-items: center;
+  font-size: 10px;
+  line-height: 1;
+  padding: 0;
+  padding-left: 1px;
+  box-shadow: var(--si-daylight-play-shadow);
+  backdrop-filter: blur(8px) saturate(1.1);
+  -webkit-backdrop-filter: blur(8px) saturate(1.1);
+  transition:
+    background 0.18s ease,
+    border-color 0.18s ease,
+    box-shadow 0.18s ease,
+    transform 0.14s ease;
+}
+
+.si-esri-slider__play:hover:not(:disabled) {
+  background: var(--si-daylight-play-bg-hover);
+  border-color: rgba(255, 255, 255, 0.22);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.38);
+}
+
+.si-esri-slider__play.is-playing {
+  padding-left: 0;
+}
+
+.si-esri-slider__play:disabled {
+  opacity: 0.42;
+  cursor: not-allowed;
+  transform: none;
+}
+
+/* Date row — grid centers play with the date field (no track offset). */
+.si-daylight-panel__date-block .si-esri-slider__play {
+  margin-top: 0;
+  align-self: center;
+}
+
+.si-weather-panel--light .si-esri-slider,
+.si-daylight-panel--light .si-esri-slider {
+  --si-daylight-play-bg: linear-gradient(168deg, #2a3142 0%, #1a1d2b 55%, #12141f 100%);
+  --si-daylight-play-bg-hover: linear-gradient(168deg, #3d4558 0%, #222636 55%, #181c2a 100%);
+  --si-daylight-play-border: rgba(15, 23, 42, 0.14);
+  --si-daylight-play-icon: rgba(248, 250, 252, 0.96);
+  --si-daylight-play-shadow: 0 2px 10px rgba(15, 23, 42, 0.14);
+  --si-daylight-track-fill: #4a5062;
+  --si-daylight-thumb-ring: rgba(26, 29, 43, 0.12);
+}
+
+.si-weather-panel--light .si-esri-slider__clock-time,
+.si-daylight-panel--light .si-esri-slider__clock-time {
+  color: #0f172a;
+}
+
+.si-weather-panel--light .si-esri-slider__clock-tz,
+.si-daylight-panel--light .si-esri-slider__clock-tz {
+  color: #4a5062;
+}
+
+.si-weather-panel--light .si-esri-slider__track,
+.si-daylight-panel--light .si-esri-slider__track {
+  background: rgba(148, 163, 184, 0.35);
+}
+
+.si-weather-panel--light .si-esri-slider__tick-label,
+.si-daylight-panel--light .si-esri-slider__tick-label {
+  color: #475569;
+}

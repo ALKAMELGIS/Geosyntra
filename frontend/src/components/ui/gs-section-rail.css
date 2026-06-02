@@ -1,0 +1,131 @@
+/**
+ * ScrollGlobe — right-rail section navigator (compact glass + cyan pearl dots).
+ */
+
+.gs-section-rail {
+  position: fixed;
+  right: clamp(10px, 1.4vw, 18px);
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 40;
+  display: none;
+  pointer-events: none;
+}
+
+@media (min-width: 640px) {
+  .gs-section-rail {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+    pointer-events: auto;
+  }
+}
+
+.gs-section-rail__node {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: transform 0.32s cubic-bezier(0.23, 1, 0.32, 1);
+}
+
+.gs-section-rail__dot {
+  position: relative;
+  width: 16px;
+  height: 16px;
+  padding: 0;
+  margin: 0;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  outline: none;
+}
+
+.gs-section-rail__dot::before {
+  content: '';
+  display: block;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  box-sizing: border-box;
+  border: 1px solid rgba(148, 163, 184, 0.42);
+  background: rgba(15, 23, 42, 0.55);
+  transition:
+    transform 0.28s cubic-bezier(0.23, 1, 0.32, 1),
+    background 0.28s ease,
+    border-color 0.28s ease,
+    box-shadow 0.28s ease,
+    width 0.28s ease,
+    height 0.28s ease;
+}
+
+.gs-section-rail__dot:hover::before,
+.gs-section-rail__dot:focus-visible::before {
+  border-color: rgba(125, 211, 252, 0.65);
+  background: rgba(56, 189, 248, 0.18);
+  transform: scale(1.15);
+}
+
+.gs-section-rail__dot:focus-visible {
+  box-shadow: 0 0 0 2px rgba(56, 189, 248, 0.35);
+  border-radius: 50%;
+}
+
+.gs-section-rail__dot--active::before {
+  width: 6px;
+  height: 6px;
+  border-color: rgba(224, 242, 254, 0.95);
+  background: radial-gradient(circle at 32% 28%, #f8fafc 0%, #bae6fd 38%, #38bdf8 72%, #0ea5e9 100%);
+  box-shadow:
+    0 0 0 2px rgba(56, 189, 248, 0.14),
+    0 0 12px rgba(56, 189, 248, 0.42),
+    0 0 22px rgba(34, 211, 238, 0.18);
+  transform: scale(1);
+}
+
+.gs-section-rail__dot--passed::before {
+  border-color: rgba(56, 189, 248, 0.38);
+  background: rgba(56, 189, 248, 0.22);
+}
+
+/* Section names stay on aria-label only — dots without visible pills */
+.gs-section-rail__label {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+:root[dir='rtl'] .gs-section-rail {
+  right: auto;
+  left: clamp(10px, 1.4vw, 18px);
+}
+
+html[data-theme='light'] .gs-section-rail__dot::before {
+  border-color: rgba(71, 85, 105, 0.35);
+  background: rgba(255, 255, 255, 0.65);
+}
+
+html[data-theme='light'] .gs-section-rail__dot--active::before {
+  border-color: #0ea5e9;
+  background: radial-gradient(circle at 32% 28%, #ffffff 0%, #7dd3fc 45%, #0284c7 100%);
+  box-shadow:
+    0 0 0 2px rgba(14, 165, 233, 0.12),
+    0 0 10px rgba(14, 165, 233, 0.28);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .gs-section-rail__dot::before {
+    transition: none;
+  }
+}

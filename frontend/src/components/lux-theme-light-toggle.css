@@ -1,0 +1,139 @@
+/* Theme toggle — flat icon only (no outer glass ring or aura). */
+
+.lux-theme-light {
+  --lux-size: 44px;
+  --lux-glyph: 24px;
+  position: relative;
+  flex-shrink: 0;
+  display: grid;
+  place-items: center;
+  width: var(--lux-size);
+  height: var(--lux-size);
+  padding: 0;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  color: rgba(226, 232, 240, 0.95);
+  transition: transform 220ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.lux-theme-light--sm {
+  --lux-size: 40px;
+  --lux-glyph: 22px;
+}
+
+.lux-theme-light:focus-visible {
+  outline: 2px solid rgba(125, 211, 252, 0.55);
+  outline-offset: 3px;
+}
+
+.lux-theme-light:hover {
+  transform: translateY(-1px);
+}
+
+.lux-theme-light:active {
+  transform: translateY(0) scale(0.94);
+}
+
+.lux-theme-light__glyph-wrap {
+  position: relative;
+  width: var(--lux-glyph);
+  height: var(--lux-glyph);
+}
+
+.lux-theme-light__pic,
+.lux-theme-light__glyph {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+  transition:
+    opacity 340ms ease,
+    transform 420ms cubic-bezier(0.22, 1, 0.36, 1),
+    filter 340ms ease;
+}
+
+.lux-theme-light__pic {
+  color: rgba(226, 232, 240, 0.95);
+}
+
+.lux-theme-light__pic--day {
+  opacity: 0;
+  transform: scale(0.78) rotate(-12deg);
+  filter: drop-shadow(0 0 0 transparent);
+}
+
+.lux-theme-light__glyph--night {
+  opacity: 1;
+  transform: scale(1) rotate(0deg);
+  filter: drop-shadow(0 0 5px rgba(196, 181, 253, 0.35));
+}
+
+.lux-theme-light[data-state='light'] {
+  color: rgba(51, 65, 85, 0.92);
+}
+
+.lux-theme-light[data-state='light'] .lux-theme-light__pic--day {
+  opacity: 1;
+  transform: scale(1) rotate(0deg);
+  filter: drop-shadow(0 1px 2px rgba(15, 23, 42, 0.12));
+}
+
+.lux-theme-light[data-state='light'] .lux-theme-light__glyph--night {
+  opacity: 0;
+  transform: scale(0.78) rotate(12deg);
+  filter: drop-shadow(0 0 0 transparent);
+}
+
+.lux-theme-light__moon {
+  fill: rgba(196, 181, 253, 0.12);
+}
+
+.lux-theme-light__star {
+  animation: lux-theme-star-twinkle 2.8s ease-in-out infinite;
+}
+
+.lux-theme-light__star:nth-child(4) {
+  animation-delay: 0.4s;
+}
+
+.lux-theme-light__star:nth-child(5) {
+  animation-delay: 0.9s;
+}
+
+@keyframes lux-theme-star-twinkle {
+  0%,
+  100% {
+    opacity: 0.45;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.15);
+  }
+}
+
+.geosyntra-header .lux-theme-light--header {
+  --lux-size: 32px;
+  --lux-glyph: 17px;
+  margin-inline-start: 0.35rem;
+  z-index: 4;
+}
+
+html[data-theme='light'] .geosyntra-header .lux-theme-light--header,
+html[data-theme='light'] .geosyntra-header .lux-theme-light--header[data-state='light'] {
+  color: #1a1d2b;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lux-theme-light,
+  .lux-theme-light__pic,
+  .lux-theme-light__glyph,
+  .lux-theme-light__star {
+    animation: none !important;
+    transition-duration: 0.01ms !important;
+  }
+}

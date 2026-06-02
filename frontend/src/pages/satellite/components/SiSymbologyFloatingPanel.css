@@ -1,0 +1,111 @@
+/* Symbology studio — compact lux black glass (Weather-tools footprint). */
+
+.si-sym-float-host {
+  position: fixed;
+  inset: 0;
+  z-index: 12550;
+  pointer-events: none;
+}
+
+:root[dir='rtl'] .si-sym-float-host {
+  justify-content: flex-end;
+  padding-left: var(--si-map-trailing-dock, 0px);
+  padding-right: var(--si-map-leading-edge, max(16px, env(safe-area-inset-right, 0px)));
+}
+
+.si-sym-float-panel {
+  pointer-events: auto;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  width: min(272px, calc(100vw - var(--si-map-leading-edge, 16px) - var(--si-map-trailing-dock, 0px) - 20px));
+  max-width: min(272px, calc(100vw - var(--si-map-leading-edge, 16px) - var(--si-map-trailing-dock, 0px) - 20px));
+  max-height: min(78vh, 440px);
+  border-radius: 16px;
+  border: 1px solid var(--gs-panel-glass-border, rgba(255, 255, 255, 0.1));
+  background: var(
+    --gs-panel-glass-bg,
+    linear-gradient(168deg, rgba(0, 0, 0, 0.56) 0%, rgba(0, 0, 0, 0.72) 48%, rgba(0, 0, 0, 0.64) 100%)
+  );
+  box-shadow: var(--gs-panel-glass-shadow, 0 24px 64px rgba(0, 0, 0, 0.58), inset 0 1px 0 rgba(255, 255, 255, 0.06));
+  backdrop-filter: var(--gs-panel-glass-blur, blur(24px) saturate(1.32));
+  -webkit-backdrop-filter: var(--gs-panel-glass-blur, blur(24px) saturate(1.32));
+  color: var(--gs-panel-glass-text, rgba(248, 250, 252, 0.96));
+  overflow: hidden;
+  font-size: 11px;
+  line-height: 1.35;
+  contain: layout style;
+  transition:
+    box-shadow 0.28s ease,
+    border-color 0.28s ease;
+}
+
+.si-sym-float-panel:hover {
+  border-color: var(--gs-panel-glass-border-strong, rgba(255, 255, 255, 0.16));
+}
+
+.si-sym-float-panel--dock-left {
+  width: min(272px, calc(100vw - var(--si-map-leading-edge, 16px) - var(--si-map-trailing-dock, 0px) - 20px)) !important;
+  max-width: min(272px, calc(100vw - var(--si-map-leading-edge, 16px) - var(--si-map-trailing-dock, 0px) - 20px)) !important;
+  height: auto !important;
+  max-height: min(78vh, 440px) !important;
+  margin: max(12px, env(safe-area-inset-top, 0px)) 0 max(12px, env(safe-area-inset-bottom, 0px)) !important;
+  padding: 0 !important;
+  border-radius: 16px !important;
+  animation: si-sym-dock-in 0.32s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.si-sym-float-panel--dock-left > .si-sym-side-panel,
+.si-sym-float-panel--dock-left > .si-lbl-side-panel {
+  flex: 1 1 auto;
+  min-height: 0;
+  max-height: inherit;
+  width: 100%;
+  border: none;
+  border-radius: inherit;
+  box-shadow: none;
+  background: transparent;
+  animation: none;
+}
+
+.si-sym-float-panel--dock-left.si-sym-float-panel--with-aside {
+  width: min(320px, calc(100vw - var(--si-map-leading-edge, 16px) - var(--si-map-trailing-dock, 0px) - 20px)) !important;
+  max-width: min(320px, calc(100vw - var(--si-map-leading-edge, 16px) - var(--si-map-trailing-dock, 0px) - 20px)) !important;
+  max-height: min(86vh, 640px) !important;
+}
+
+@keyframes si-sym-dock-in {
+  from {
+    opacity: 0;
+    transform: translateX(-12px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0) scale(1);
+  }
+}
+
+:root[dir='rtl'] .si-sym-float-panel--dock-left {
+  animation-name: si-sym-dock-in-rtl;
+}
+
+@keyframes si-sym-dock-in-rtl {
+  from {
+    opacity: 0;
+    transform: translateX(12px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0) scale(1);
+  }
+}
+
+.si-sym-float-panel .si-cat-symbol-panel {
+  width: 100%;
+  max-height: none;
+  border: none;
+  box-shadow: none;
+  background: transparent;
+  padding: 4px 2px;
+  font-size: 11px;
+}

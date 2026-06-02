@@ -1,0 +1,540 @@
+.si-env-added-layers__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.si-env-group-create-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: rgba(255, 255, 255, 0.06);
+  color: rgba(241, 245, 249, 0.92);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  cursor: pointer;
+  transition:
+    background 0.18s ease,
+    border-color 0.18s ease;
+}
+
+.si-env-group-create-btn:hover {
+  background: rgba(255, 255, 255, 0.12);
+  border-color: rgba(125, 211, 252, 0.45);
+}
+
+.si-env-layer-group {
+  margin-bottom: 8px;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  background: rgba(0, 0, 0, 0.18);
+  overflow: hidden;
+}
+
+.si-env-layer-group--empty {
+  border-style: dashed;
+  border-color: rgba(255, 255, 255, 0.1);
+}
+
+.si-env-layer-group--system {
+  margin-top: 10px;
+  border-color: rgba(255, 255, 255, 0.05);
+  background: rgba(0, 0, 0, 0.12);
+}
+
+.si-env-layer-group__head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 8px 10px;
+  border: none;
+  background: linear-gradient(90deg, rgba(255, 255, 255, 0.05), transparent);
+  color: rgba(241, 245, 249, 0.94);
+  font-size: 10px;
+  font-weight: 750;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  cursor: pointer;
+  text-align: left;
+}
+
+.si-env-layer-group__head--static {
+  cursor: default;
+}
+
+.si-env-layer-group__head i:first-child {
+  width: 12px;
+  font-size: 9px;
+  opacity: 0.7;
+}
+
+.si-env-layer-group__icon {
+  color: rgba(125, 211, 252, 0.85);
+  font-size: 11px;
+}
+
+.si-env-layer-group__name {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.si-env-layer-group__count {
+  font-size: 9px;
+  font-weight: 800;
+  color: rgba(148, 163, 184, 0.9);
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.si-env-layer-group__hint {
+  margin: 0;
+  padding: 6px 12px 10px;
+  font-size: 10px;
+  color: rgba(148, 163, 184, 0.85);
+}
+
+.si-env-layer-group__list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 6px 6px 8px;
+}
+
+.si-env-layer-group__list .si-env-layer-item {
+  margin: 0;
+}
+
+.si-env-layer-reorder {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  flex: 0 0 auto;
+  margin-right: 4px;
+}
+
+.si-env-layer-reorder__btn {
+  width: 22px;
+  height: 18px;
+  padding: 0;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 6px;
+  background: rgba(0, 0, 0, 0.35);
+  color: rgba(226, 232, 240, 0.9);
+  font-size: 9px;
+  cursor: pointer;
+  transition:
+    background 0.15s ease,
+    border-color 0.15s ease;
+}
+
+.si-env-layer-reorder__btn:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.1);
+  border-color: rgba(125, 211, 252, 0.45);
+}
+
+.si-env-layer-reorder__btn:disabled {
+  opacity: 0.28;
+  cursor: not-allowed;
+}
+
+.si-env-layer-reorder__grip {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 20px;
+  margin-top: 2px;
+  border-radius: 6px;
+  color: rgba(148, 163, 184, 0.85);
+  cursor: grab;
+  touch-action: none;
+}
+
+.si-env-layer-reorder__grip:active {
+  cursor: grabbing;
+}
+
+.si-env-layer-item--drag-over {
+  outline: 1px dashed rgba(125, 211, 252, 0.65);
+  outline-offset: 2px;
+  background: rgba(56, 189, 248, 0.08) !important;
+}
+
+.si-env-layer-item--actionable .si-env-layer-top {
+  align-items: flex-start;
+}
+
+/* ArcGIS Online–style compact layer tree (glass / dark GIS) */
+.si-env-added-layers--tree {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  flex: 1 1 auto;
+}
+
+.si-env-added-layers--tree .si-layer-tree {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  min-height: 0;
+  max-height: min(52vh, 420px);
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 2px 4px 4px 0;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(148, 163, 184, 0.35) transparent;
+}
+
+.si-layer-tree--drag-active {
+  user-select: none;
+}
+
+.si-layer-tree__branch {
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.si-layer-tree__branch--system {
+  margin-top: 2px;
+  opacity: 0.92;
+}
+
+.si-layer-tree__children {
+  padding-left: 2px;
+  margin-left: 10px;
+  border-left: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+/* Root-level layers (no "Ungrouped" pseudo-folder header). */
+.si-layer-tree__ungrouped-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  margin-bottom: 4px;
+}
+
+.si-layer-tree__ungrouped-stack--drop-inside {
+  border-radius: 8px;
+  background: rgba(56, 189, 248, 0.08);
+  box-shadow: inset 0 0 0 1px rgba(125, 211, 252, 0.28);
+}
+
+.si-layer-tree__layer-slot,
+.si-layer-tree__group-slot {
+  position: relative;
+}
+
+.si-layer-tree__drop-line {
+  height: 2px;
+  margin: 1px 6px 1px 22px;
+  border-radius: 999px;
+  background: linear-gradient(90deg, rgba(56, 189, 248, 0.15), rgba(125, 211, 252, 0.95), rgba(56, 189, 248, 0.15));
+  box-shadow: 0 0 8px rgba(56, 189, 248, 0.45);
+  pointer-events: none;
+  animation: si-layer-drop-line-in 0.12s ease-out;
+}
+
+@keyframes si-layer-drop-line-in {
+  from {
+    opacity: 0;
+    transform: scaleX(0.6);
+  }
+  to {
+    opacity: 1;
+    transform: scaleX(1);
+  }
+}
+
+.si-layer-tree__row {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  min-height: 26px;
+  padding: 1px 5px 1px 2px;
+  color: rgba(241, 245, 249, 0.94);
+  font-size: 11.5px;
+  line-height: 1.25;
+  border-radius: 6px;
+  transition:
+    background 0.14s ease,
+    box-shadow 0.14s ease,
+    opacity 0.14s ease;
+}
+
+.si-layer-tree__row:hover {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.si-layer-tree__row--group {
+  font-weight: 650;
+  font-size: 10.5px;
+  letter-spacing: 0.03em;
+  min-height: 28px;
+  background: rgba(255, 255, 255, 0.025);
+}
+
+.si-layer-tree__row--group.si-layer-tree__row--static {
+  cursor: default;
+}
+
+.si-layer-tree__row--layer {
+  padding-left: 2px;
+  font-weight: 500;
+  font-size: 11px;
+}
+
+.si-layer-tree__row--create {
+  background: rgba(56, 189, 248, 0.08);
+  border: 1px dashed rgba(125, 211, 252, 0.35);
+  margin-bottom: 4px;
+}
+
+.si-layer-tree__row--drop-inside {
+  background: rgba(56, 189, 248, 0.12);
+  box-shadow: inset 0 0 0 1px rgba(125, 211, 252, 0.35);
+}
+
+.si-layer-tree__row--dragging {
+  opacity: 0.38;
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.si-layer-tree__row--visible .si-layer-tree__label {
+  opacity: 1;
+}
+
+.si-layer-tree__row:not(.si-layer-tree__row--visible):not(.si-layer-tree__row--static) .si-layer-tree__label {
+  opacity: 0.5;
+}
+
+.si-layer-tree__chevron {
+  flex: 0 0 18px;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: rgba(148, 163, 184, 0.9);
+  font-size: 8px;
+  cursor: pointer;
+  border-radius: 4px;
+}
+
+.si-layer-tree__chevron:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: rgba(241, 245, 249, 0.95);
+}
+
+.si-layer-tree__chevron--spacer {
+  display: inline-block;
+  width: 18px;
+  flex: 0 0 18px;
+}
+
+.si-layer-tree__grip {
+  flex: 0 0 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: rgba(148, 163, 184, 0.65);
+  cursor: grab;
+  touch-action: none;
+  opacity: 0.55;
+  transition: opacity 0.14s ease, color 0.14s ease;
+}
+
+.si-layer-tree__row:hover .si-layer-tree__grip,
+.si-layer-tree__row--dragging .si-layer-tree__grip {
+  opacity: 1;
+  color: rgba(203, 213, 225, 0.95);
+}
+
+.si-layer-tree__grip:active {
+  cursor: grabbing;
+}
+
+.si-layer-tree__grip--spacer {
+  visibility: hidden;
+  pointer-events: none;
+}
+
+.si-layer-tree__grip-dots {
+  display: grid;
+  grid-template-columns: repeat(2, 3px);
+  gap: 2px 3px;
+  width: 9px;
+  height: 13px;
+}
+
+.si-layer-tree__grip-dots span {
+  width: 3px;
+  height: 3px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.si-layer-tree__label {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.si-layer-tree__meta {
+  flex: 0 1 34%;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 9.5px;
+  color: rgba(148, 163, 184, 0.78);
+}
+
+.si-layer-tree__count,
+.si-layer-tree__badge {
+  flex: 0 0 auto;
+  font-size: 9px;
+  font-weight: 700;
+  color: rgba(148, 163, 184, 0.9);
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.si-layer-tree__badge {
+  text-transform: lowercase;
+  font-style: italic;
+}
+
+.si-layer-tree__static-badge {
+  flex: 0 0 auto;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: rgba(148, 163, 184, 0.75);
+}
+
+.si-layer-tree__icon-btn {
+  flex: 0 0 22px;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: none;
+  border-radius: 5px;
+  background: transparent;
+  color: rgba(203, 213, 225, 0.82);
+  font-size: 10px;
+  cursor: pointer;
+  opacity: 0.72;
+  transition:
+    background 0.14s ease,
+    color 0.14s ease,
+    opacity 0.14s ease;
+}
+
+.si-layer-tree__row:hover .si-layer-tree__icon-btn,
+.si-layer-tree__icon-btn--active,
+.si-layer-tree__icon-btn:focus-visible {
+  opacity: 1;
+}
+
+.si-layer-tree__icon-btn:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: rgba(241, 245, 249, 0.98);
+}
+
+.si-layer-tree__icon-btn--menu {
+  font-size: 11px;
+  letter-spacing: 0.12em;
+}
+
+.si-layer-tree__icon-btn--active {
+  background: rgba(56, 189, 248, 0.2);
+  color: rgba(125, 211, 252, 0.98);
+  opacity: 1;
+}
+
+.si-layer-tree__icon-btn--danger:hover {
+  background: rgba(239, 68, 68, 0.15);
+  color: rgba(252, 165, 165, 0.98);
+}
+
+.si-layer-tree__inline-input {
+  flex: 1 1 auto;
+  min-width: 0;
+  height: 24px;
+  padding: 2px 8px;
+  border-radius: 4px;
+  border: 1px solid rgba(125, 211, 252, 0.5);
+  background: rgba(0, 0, 0, 0.35);
+  color: rgba(241, 245, 249, 0.98);
+  font-size: 12px;
+  outline: none;
+}
+
+.si-layer-tree__inline-input:focus {
+  border-color: rgba(56, 189, 248, 0.85);
+  box-shadow: 0 0 0 2px rgba(56, 189, 248, 0.2);
+}
+
+.si-layer-tree__row-icon {
+  flex: 0 0 14px;
+  font-size: 11px;
+  color: rgba(125, 211, 252, 0.85);
+}
+
+.si-layer-tree__drop-hint {
+  margin: 0;
+  padding: 3px 8px 6px 14px;
+  font-size: 9.5px;
+  color: rgba(148, 163, 184, 0.72);
+  font-style: italic;
+  transition: color 0.14s ease;
+}
+
+.si-layer-tree__drop-hint--active {
+  color: rgba(125, 211, 252, 0.95);
+}
+
+.si-sat-ctx-panel-body .si-map-toolbox-layers-card.si-env-section-card {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  flex: 1 1 auto;
+}
+
+.si-sat-ctx-panel-body .si-map-toolbox-layers-card .si-env-added-layers--tree {
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.si-sat-ctx-panel-body .si-map-toolbox-layers-card .si-env-added-layers--tree .si-layer-tree {
+  max-height: none;
+  flex: 1 1 auto;
+}
+
+html[data-theme='light'] .si-layer-tree__row--group {
+  background: rgba(15, 23, 42, 0.04);
+}
+
+html[data-theme='light'] .si-layer-tree__branch {
+  border-bottom-color: rgba(15, 23, 42, 0.08);
+}
+
+html[data-theme='light'] .si-layer-tree__inline-input {
+  background: #fff;
+  color: #0f172a;
+}

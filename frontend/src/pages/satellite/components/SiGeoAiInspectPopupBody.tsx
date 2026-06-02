@@ -1,0 +1,267 @@
+import { useEffect, useMemo, useState } from 'react';
+import type { SiPopupInspectPayload } from '../../../lib/siLayerPopupInspect';
+import './SiGeoAiInspectPopupBody.css';
+
+export type SiGeoAiInspectPopupBodyVariant = 'explore' | 'map';
+
+export type SiGeoAiInspectPopupBodyProps = {
+  rows: { label: string; value: string }[];
+  inspect?: SiPopupInspectPayload | null;
+  /** Layout density from layer config (table / card / compact). */
+  layout?: 'table' | 'card' | 'compact';
+  /** Map-anchored identify: compact list, selectable text, no search/copy chrome. */
+  variant?: SiGeoAiInspectPopupBodyVariant;
+  editMode?: boolean;
+  onEditSave?: (updates: Record<string, string>) => void;
+  onEditCancel?: () => void;
+};
+
+type TabKey = 'attributes' | 'relations' | 'media';
+
+function filterRows<T extends { label: string; value: string }>(rows: T[], q: string): T[] {
+  const s = q.trim().toLowerCase();
+  if (!s) return rows;
+  return rows.filter(r => r.label.toLowerCase().includes(s) || r.value.toLowerCase().includes(s))
+}
+
+export function SiGeoAiInspectPopupBody({
+  rows,
+  inspect,
+  layout = 'table',
+  variant = 'explore',
+  editMode = false,
+  onEditSave,
+  onEditCancel,
+}: SiGeoAiInspectPopupBodyProps) {
+  const [q, setQ] = useState('')
+  const [tab, setTab] = useState<TabKey>('attributes')
+  const [collapsed, setCollapsed] = useState<Record<string, boolean>>({})
+  const [editForm, setEditForm] = useState<Record<string, string>>({})
+
+  const presentation = inspect?.presentation ?? 'compact'
+  const view = inspect?.viewMode ?? layout
+  const relCount = inspect?.relationRows?.length ?? 0
+  const medCount = inspect?.mediaRows?.length ?? 0
+  const showTabs = presentation === 'tabbed' || presentation === 'relationship' || relCount + medCount > 1
+
+  useEffect(() => {
+    if (presentation === 'relationship' && relCount > 0) setTab('relations')
+    else setTab('attributes')
+  }, [presentation, relCount])
+
+  const displayRows = useMemo(() => {
+    if (inspect?.flatRows?.length) {
+      return inspect.flatRows.map(r => ({ key: r.label, label: r.label, value: r.value }));
+    }
+    return rows.map(r => ({ key: r.label, label: r.label, value: r.value }));
+  }, [inspect?.flatRows, rows]);
+
+  useEffect(() => {
+    if (!editMode) return;
+    const initial: Record<string, string> = {};
+    displayRows.forEach(r => {
+      initial[r.label] = r.value;
+    });
+    setEditForm(initial);
+  }, [editMode, displayRows]);
+
+  const totalAttrCount = useMemo(() => displayRows.length, [displayRows]);
+
+  const legacySections = useMemo(
+    () => [{ id: 'all', title: 'Attributes', rows: displayRows }],
+    [displayRows],
+  );
+  const sections =
+    inspect?.sections?.length && inspect.sections.some(s => s.rows.length > 0)
+      ? inspect.sections
+      : legacySections;
+
+  const filteredSections = useMemo(() => {
+    return sections.map(sec => ({
+      ...sec,
+      rows: filterRows(sec.rows, q),
+    }))
+  }, [sections, q])
+
+  const rel = useMemo(() => filterRows(inspect?.relationRows ?? [], q), [inspect?.relationRows, q])
+  const med = useMemo(() => filterRows(inspect?.mediaRows ?? [], q), [inspect?.mediaRows, q])
+
+  const rootClass = [
+    'si-geo-ai-inspect-explore',
+    view === 'card' ? 'si-geo-ai-inspect-explore--card' : '',
+    view === 'compact' ? 'si-geo-ai-inspect-explore--compact' : '',
+    presentation === 'compact' ? 'si-geo-ai-inspect-explore--dense' : '',
+  ]
+    .filter(Boolean)
+    .join(' ')
+
+  const renderRow = (r: { key?: string; label: string; value: string }, rk: string) => (
+    <div key={rk} className="si-geo-ai-inspect-explore-row">
+      <div className="si-geo-ai-inspect-explore-k">{r.label}</div>
+      <div className="si-geo-ai-inspect-explore-v" title={r.value}>
+        {r.value}
+      </div>
+      {variant === 'explore' ? (
+        <button
+          type="button"
+          className="si-geo-ai-inspect-explore-copy"
+          title="Copy value"
+          aria-label={`Copy ${r.label}`}
+          onClick={() => void navigator.clipboard?.writeText(r.value)}
+        >
+          <i className="fa-regular fa-copy" aria-hidden />
+        </button>
+      ) : null}
+    </div>
+  )
+
+  if (editMode) {
+    const editRows = filterRows(displayRows, q);
+    return (
+      <div className="si-geo-ai-inspect-explore si-geo-ai-inspect-explore--map-agol">
+        <div className="gis-map-popup-form si-geo-ai-inspect-map-edit" aria-label="Edit attributes">
+          {editRows.map((r, i) => (
+            <div key={`${r.key ?? r.label}-${i}`} className="gis-map-popup-field">
+              <div className="gis-map-popup-fieldlabel">
+                <span>{r.label}</span>
+              </div>
+              <input
+                className="gis-map-popup-input"
+                type="text"
+                value={editForm[r.label] ?? ''}
+                onChange={e => setEditForm(prev => ({ ...prev, [r.label]: e.target.value }))}
+              />
+            </div>
+          ))}
+          <div className="gis-map-popup-form-actions">
+            <button className="gis-btn gis-btn-primary" type="button" onClick={() => onEditSave?.(editForm)}>
+              Save
+            </button>
+            <button className="gis-btn" type="button" onClick={() => onEditCancel?.()}>
+              Cancel
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (variant === 'map') {
+    const mapRows = filterRows(displayRows, q);
+    return (
+      <div className="si-geo-ai-inspect-explore si-geo-ai-inspect-explore--map-agol">
+        {mapRows.length === 0 ? (
+          <p className="si-geo-ai-inspect-explore-empty">No attributes at this location.</p>
+        ) : (
+          <table className="si-geo-ai-inspect-map-table">
+            <tbody>
+              {mapRows.map((r, i) => (
+                <tr
+                  key={`${r.key ?? r.label}-${i}`}
+                  className={
+                    i % 2 === 0
+                      ? 'si-geo-ai-inspect-map-table__row--even'
+                      : 'si-geo-ai-inspect-map-table__row--odd'
+                  }
+                >
+                  <th scope="row">{r.label}</th>
+                  <td>{r.value}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </div>
+    );
+  }
+
+  const renderAttrBody = () => (
+    <div className="si-geo-ai-inspect-explore-scroll">
+      {filteredSections.every(sec => sec.rows.length === 0) ? (
+        <p className="si-geo-ai-inspect-explore-empty">No attribute fields at this location.</p>
+      ) : null}
+      {filteredSections.map(sec => {
+        const isCollapsed = collapsed[sec.id]
+        return (
+          <section key={sec.id} className="si-geo-ai-inspect-explore-section">
+            <button
+              type="button"
+              className="si-geo-ai-inspect-explore-section-head"
+              onClick={() => setCollapsed(c => ({ ...c, [sec.id]: !c[sec.id] }))}
+              aria-expanded={!isCollapsed}
+            >
+              <span>{sec.title}</span>
+              <span className="si-geo-ai-inspect-explore-section-meta">{sec.rows.length}</span>
+              <i className={`fa-solid ${isCollapsed ? 'fa-chevron-down' : 'fa-chevron-up'}`} aria-hidden />
+            </button>
+            {!isCollapsed ? (
+              <div className="si-geo-ai-inspect-explore-section-body">{sec.rows.map((r, i) => renderRow(r, `${sec.id}-${r.key}-${i}`))}</div>
+            ) : null}
+          </section>
+        )
+      })}
+    </div>
+  )
+
+  return (
+    <div className={rootClass}>
+      <div className="si-geo-ai-inspect-explore-toolbar">
+        <span className="si-geo-ai-inspect-explore-count" aria-live="polite">
+          {totalAttrCount} field{totalAttrCount === 1 ? '' : 's'}
+        </span>
+        <input
+          type="search"
+          className="si-geo-ai-inspect-explore-search"
+          placeholder="Search attributes…"
+          value={q}
+          onChange={e => setQ(e.target.value)}
+          aria-label="Search attributes"
+        />
+      </div>
+      {showTabs ? (
+        <div className="si-geo-ai-inspect-explore-tabs" role="tablist">
+          <button
+            type="button"
+            role="tab"
+            aria-selected={tab === 'attributes'}
+            className={tab === 'attributes' ? 'si-geo-ai-inspect-explore-tab si-geo-ai-inspect-explore-tab--on' : 'si-geo-ai-inspect-explore-tab'}
+            onClick={() => setTab('attributes')}
+          >
+            Attributes
+          </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={tab === 'relations'}
+            className={tab === 'relations' ? 'si-geo-ai-inspect-explore-tab si-geo-ai-inspect-explore-tab--on' : 'si-geo-ai-inspect-explore-tab'}
+            onClick={() => setTab('relations')}
+          >
+            Relations
+            {relCount > 0 ? <span className="si-geo-ai-inspect-explore-badge">{relCount}</span> : null}
+          </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={tab === 'media'}
+            className={tab === 'media' ? 'si-geo-ai-inspect-explore-tab si-geo-ai-inspect-explore-tab--on' : 'si-geo-ai-inspect-explore-tab'}
+            onClick={() => setTab('media')}
+          >
+            Media
+            {medCount > 0 ? <span className="si-geo-ai-inspect-explore-badge">{medCount}</span> : null}
+          </button>
+        </div>
+      ) : null}
+      {!showTabs || tab === 'attributes' ? renderAttrBody() : null}
+      {showTabs && tab === 'relations' ? (
+        <div className="si-geo-ai-inspect-explore-scroll">
+          {rel.length ? rel.map((r, i) => renderRow(r, `rel-${r.key}-${i}`)) : <p className="si-geo-ai-inspect-explore-empty">No relation fields detected.</p>}
+        </div>
+      ) : null}
+      {showTabs && tab === 'media' ? (
+        <div className="si-geo-ai-inspect-explore-scroll">
+          {med.length ? med.map((r, i) => renderRow(r, `med-${r.key}-${i}`)) : <p className="si-geo-ai-inspect-explore-empty">No media / URL fields detected.</p>}
+        </div>
+      ) : null}
+    </div>
+  )
+}

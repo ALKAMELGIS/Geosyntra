@@ -1,0 +1,91 @@
+.si-symbol-float {
+  pointer-events: auto;
+  max-width: calc(100vw - 24px);
+}
+
+.si-symbol-float__chrome {
+  display: flex;
+  flex-direction: column;
+  border-radius: 14px;
+  border: 1px solid var(--si-chrome-floating-border);
+  background: var(--si-chrome-floating-bg);
+  box-shadow: var(--ds-shadow-lg), var(--lux-popup-inset);
+  overflow: hidden;
+}
+
+.si-symbol-float__drag-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  cursor: grab;
+  user-select: none;
+  border-bottom: 1px solid var(--border-color);
+  color: var(--si-chrome-floating-text);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.si-symbol-float__drag-bar:active {
+  cursor: grabbing;
+}
+
+.si-symbol-float__drag-hint {
+  margin-left: auto;
+  font-size: 10px;
+  font-weight: 500;
+  opacity: 0.55;
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+.si-symbol-float__body {
+  max-height: min(72vh, 560px);
+  overflow: auto;
+}
+
+.si-symbol-float__body .si-cat-symbol-panel {
+  width: 340px;
+  max-height: none;
+  border: none;
+  border-radius: 0;
+  box-shadow: none;
+}
+
+.si-symbol-float__body .si-cat-symbol-panel__header {
+  display: none;
+}
+
+.si-symbol-float__foot {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 10px 12px 12px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.si-symbol-float__btn {
+  padding: 8px 14px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: rgba(255, 255, 255, 0.06);
+  color: rgba(248, 250, 252, 0.92);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.si-symbol-float__btn:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.si-symbol-float__btn--primary {
+  border-color: rgba(56, 189, 248, 0.45);
+  background: linear-gradient(180deg, rgba(14, 165, 233, 0.35), rgba(2, 132, 199, 0.28));
+}
+
+.si-symbol-float__btn--primary:hover {
+  background: linear-gradient(180deg, rgba(14, 165, 233, 0.48), rgba(2, 132, 199, 0.38));
+}

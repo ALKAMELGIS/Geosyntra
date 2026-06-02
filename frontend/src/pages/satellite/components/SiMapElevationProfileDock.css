@@ -1,0 +1,548 @@
+/* Elevation profile — bottom-center docked glass analysis panel (ArcGIS Pro style) */
+
+.si-elev-profile-dock-host {
+  position: absolute;
+  inset: 0;
+  z-index: 93;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  padding:
+    max(8px, env(safe-area-inset-top, 0px))
+    max(10px, env(safe-area-inset-right, 0px))
+    max(14px, env(safe-area-inset-bottom, 0px))
+    max(10px, env(safe-area-inset-left, 0px));
+  pointer-events: none;
+  overflow: hidden;
+  contain: layout style;
+}
+
+/* —— Theme tokens —— */
+.si-elev-profile-dock,
+.si-elev-profile-dock__pill {
+  --si-elev-accent: #7dd3fc;
+  --si-elev-accent-dim: rgba(125, 211, 252, 0.32);
+  --si-elev-glass: rgba(0, 0, 0, 0.82);
+  --si-elev-glass-highlight: rgba(10, 12, 18, 0.78);
+  --si-elev-border: rgba(255, 255, 255, 0.08);
+  --si-elev-text: #f1f5f9;
+  --si-elev-muted: rgba(148, 163, 184, 0.85);
+  --si-elev-btn-bg: rgba(255, 255, 255, 0.05);
+  --si-elev-btn-border: rgba(148, 163, 184, 0.18);
+  --si-elev-select-bg: rgba(0, 0, 0, 0.6);
+  --si-elev-primary-from: #1d4ed8;
+  --si-elev-primary-to: #2563eb;
+  --si-elev-shadow: 0 18px 48px rgba(0, 0, 0, 0.7), 0 0 28px rgba(14, 165, 233, 0.05);
+  --si-elev-chart-grid: rgba(148, 163, 184, 0.18);
+  --si-elev-chart-axis: rgba(203, 213, 225, 0.85);
+  --si-elev-chart-stats-bg: rgba(0, 0, 0, 0.5);
+  --si-elev-chart-stats-text: #cbd5e1;
+}
+
+.si-elev-profile-dock--light,
+.si-elev-profile-dock__pill.si-elev-profile-dock--light {
+  --si-elev-accent: #2563eb;
+  --si-elev-accent-dim: rgba(37, 99, 235, 0.25);
+  --si-elev-glass: rgba(255, 255, 255, 0.78);
+  --si-elev-glass-highlight: rgba(248, 250, 252, 0.9);
+  --si-elev-border: rgba(15, 23, 42, 0.1);
+  --si-elev-text: #0f172a;
+  --si-elev-muted: #64748b;
+  --si-elev-btn-bg: rgba(255, 255, 255, 0.85);
+  --si-elev-btn-border: rgba(203, 213, 225, 0.95);
+  --si-elev-select-bg: rgba(248, 250, 252, 0.95);
+  --si-elev-primary-from: #1d4ed8;
+  --si-elev-primary-to: #3b82f6;
+  --si-elev-shadow: 0 20px 48px rgba(15, 23, 42, 0.18), 0 8px 24px rgba(15, 23, 42, 0.1);
+  --si-elev-chart-grid: rgba(100, 116, 139, 0.2);
+  --si-elev-chart-axis: rgba(71, 85, 105, 0.95);
+  --si-elev-chart-stats-bg: rgba(241, 245, 249, 0.95);
+  --si-elev-chart-stats-text: #334155;
+}
+
+/* —— Expanded panel —— */
+.si-elev-profile-dock {
+  pointer-events: auto;
+  display: flex;
+  flex-direction: column;
+  width: min(38vw, 560px);
+  height: min(30vh, 320px);
+  max-width: calc(100% - 20px);
+  max-height: calc(100% - 20px);
+  min-width: 260px;
+  min-height: 180px;
+  border-radius: 14px;
+  border: 1px solid var(--si-elev-border);
+  background: linear-gradient(
+    180deg,
+    var(--si-elev-glass-highlight) 0%,
+    var(--si-elev-glass) 55%,
+    rgba(0, 0, 0, 0.9) 100%
+  );
+  box-shadow:
+    0 0 0 1px rgba(255, 255, 255, 0.04) inset,
+    var(--si-elev-shadow);
+  backdrop-filter: blur(26px) saturate(1.4);
+  -webkit-backdrop-filter: blur(26px) saturate(1.4);
+  color: var(--si-elev-text);
+  overflow: hidden;
+  font-family: inherit;
+  /* `paint` containment guarantees descendants (SVG axis text) are clipped to the
+     rounded card box, even during framer-motion transforms / drag-resize. Without it,
+     overflow:hidden + border-radius + backdrop-filter can let text paint onto the map. */
+  contain: layout style paint;
+  isolation: isolate;
+}
+
+.si-elev-profile-dock--light {
+  background: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0.92) 0%,
+    var(--si-elev-glass) 50%,
+    rgba(241, 245, 249, 0.88) 100%
+  );
+}
+
+.si-elev-profile-dock__head {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 8px 12px 7px;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.12);
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+}
+
+.si-elev-profile-dock__head:active {
+  cursor: grabbing;
+}
+
+/* keep interactive controls on the default pointer */
+.si-elev-profile-dock__head button,
+.si-elev-profile-dock__head select {
+  cursor: pointer;
+}
+
+.si-elev-profile-dock__brand {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+}
+
+.si-elev-profile-dock__brand > i {
+  flex-shrink: 0;
+  font-size: 12px;
+  color: var(--si-elev-accent);
+}
+
+.si-elev-profile-dock__title {
+  margin: 0;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--si-elev-text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.si-elev-profile-dock__status {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin-left: 4px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  border: 1px solid rgba(148, 163, 184, 0.16);
+  background: rgba(255, 255, 255, 0.04);
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: var(--si-elev-muted);
+  white-space: nowrap;
+}
+
+.si-elev-profile-dock__status-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+  flex-shrink: 0;
+}
+
+.si-elev-profile-dock__status--idle {
+  color: var(--si-elev-muted);
+}
+
+.si-elev-profile-dock__status--active {
+  color: #fbbf24;
+  border-color: rgba(251, 191, 36, 0.3);
+  background: rgba(251, 191, 36, 0.1);
+}
+
+.si-elev-profile-dock__status--busy {
+  color: #7dd3fc;
+  border-color: rgba(125, 211, 252, 0.32);
+  background: rgba(125, 211, 252, 0.1);
+}
+
+.si-elev-profile-dock__status--busy .si-elev-profile-dock__status-dot {
+  animation: si-elev-status-pulse 1s ease-in-out infinite;
+}
+
+.si-elev-profile-dock__status--ready {
+  color: #4ade80;
+  border-color: rgba(74, 222, 128, 0.3);
+  background: rgba(74, 222, 128, 0.1);
+}
+
+@keyframes si-elev-status-pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.35; transform: scale(0.7); }
+}
+
+.si-elev-profile-dock__actions {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  flex-shrink: 0;
+}
+
+.si-elev-profile-dock__actions-divider {
+  width: 1px;
+  height: 16px;
+  margin: 0 2px;
+  background: rgba(148, 163, 184, 0.2);
+}
+
+.si-elev-profile-dock__theme-toggle {
+  width: 26px;
+  height: 26px;
+  border: 1px solid var(--si-elev-btn-border);
+  border-radius: 8px;
+  background: var(--si-elev-btn-bg);
+  color: var(--si-elev-accent);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  transition:
+    background 0.2s ease,
+    border-color 0.2s ease,
+    color 0.2s ease,
+    transform 0.15s ease;
+}
+
+.si-elev-profile-dock__theme-toggle:hover {
+  background: var(--si-elev-accent-dim);
+  border-color: rgba(125, 211, 252, 0.35);
+}
+
+.si-elev-profile-dock__theme-toggle:active {
+  transform: scale(0.96);
+}
+
+.si-elev-profile-dock__theme-toggle:focus-visible {
+  outline: 2px solid var(--si-elev-accent);
+  outline-offset: 2px;
+}
+
+.si-elev-profile-dock__unit select {
+  border: 1px solid var(--si-elev-btn-border);
+  border-radius: 7px;
+  padding: 4px 6px;
+  font-size: 10px;
+  font-weight: 600;
+  background: var(--si-elev-select-bg);
+  color: var(--si-elev-text);
+  cursor: pointer;
+}
+
+.si-elev-profile-dock__icon-btn {
+  width: 26px;
+  height: 26px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--si-elev-muted);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  transition:
+    background 0.2s ease,
+    color 0.2s ease;
+}
+
+.si-elev-profile-dock__icon-btn:hover:not(:disabled) {
+  background: var(--si-elev-btn-bg);
+  color: var(--si-elev-text);
+}
+
+.si-elev-profile-dock__icon-btn:disabled {
+  opacity: 0.38;
+  cursor: not-allowed;
+}
+
+.si-elev-profile-dock__body {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.si-elev-profile-dock__toolbar {
+  flex-shrink: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 8px;
+  padding: 6px 12px;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.08);
+}
+
+.si-elev-profile-dock__hint {
+  flex: 1 1 160px;
+  font-size: 10px;
+  line-height: 1.35;
+  color: var(--si-elev-muted);
+}
+
+.si-elev-profile-dock__toolbar-btns {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin-left: auto;
+}
+
+.si-elev-profile-dock__btn {
+  border: 1px solid var(--si-elev-btn-border);
+  border-radius: 8px;
+  padding: 5px 10px;
+  font-size: 11px;
+  font-weight: 600;
+  background: var(--si-elev-btn-bg);
+  color: var(--si-elev-text);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  transition:
+    background 0.2s ease,
+    border-color 0.2s ease;
+}
+
+.si-elev-profile-dock__btn:hover:not(:disabled) {
+  border-color: rgba(125, 211, 252, 0.35);
+  background: var(--si-elev-accent-dim);
+}
+
+.si-elev-profile-dock__btn:disabled {
+  opacity: 0.42;
+  cursor: not-allowed;
+}
+
+.si-elev-profile-dock__btn--primary {
+  background: linear-gradient(135deg, var(--si-elev-primary-from), var(--si-elev-primary-to));
+  border-color: transparent;
+  color: #f8fafc;
+}
+
+.si-elev-profile-dock__btn--primary:hover:not(:disabled) {
+  background: linear-gradient(135deg, #1e40af, #1d4ed8);
+  border-color: transparent;
+}
+
+.si-elev-profile-dock__content {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  overscroll-behavior: contain;
+  contain: layout paint;
+}
+
+.si-elev-profile-dock__empty {
+  margin: 0;
+  padding: 16px 14px 18px;
+  font-size: 10.5px;
+  line-height: 1.45;
+  color: var(--si-elev-muted);
+  text-align: center;
+}
+
+/* —— Resize grip (bottom-right) —— */
+.si-elev-profile-dock__resize {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  width: 22px;
+  height: 22px;
+  display: flex;
+  align-items: flex-end;
+  justify-content: flex-end;
+  padding: 3px;
+  color: var(--si-elev-muted);
+  font-size: 8px;
+  cursor: nwse-resize;
+  touch-action: none;
+  opacity: 0.55;
+  transition: opacity 0.18s ease, color 0.18s ease;
+  z-index: 2;
+}
+
+.si-elev-profile-dock__resize:hover {
+  opacity: 1;
+  color: var(--si-elev-accent);
+}
+
+.si-elev-profile-dock__resize::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-bottom-right-radius: 14px;
+  background:
+    linear-gradient(135deg, transparent 52%, var(--si-elev-border) 52%, var(--si-elev-border) 60%, transparent 60%),
+    linear-gradient(135deg, transparent 72%, var(--si-elev-border) 72%, var(--si-elev-border) 80%, transparent 80%);
+  pointer-events: none;
+}
+
+.si-elev-profile-dock .si-elev-profile-chart {
+  padding: 6px 10px 10px;
+  min-height: 0;
+}
+
+/* —— Minimized pill (map stays interactive) —— */
+.si-elev-profile-dock-host:has(.si-elev-profile-dock__pill) {
+  align-items: flex-end;
+  justify-content: center;
+  padding-bottom: max(14px, env(safe-area-inset-bottom, 0px));
+}
+
+.si-elev-profile-dock__pill {
+  pointer-events: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 13px;
+  border-radius: 999px;
+  border: 1px solid var(--si-elev-border);
+  background: linear-gradient(180deg, var(--si-elev-glass-highlight), var(--si-elev-glass));
+  backdrop-filter: blur(22px) saturate(1.4);
+  -webkit-backdrop-filter: blur(22px) saturate(1.4);
+  box-shadow: var(--si-elev-shadow);
+  color: var(--si-elev-text);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  cursor: pointer;
+  font-family: inherit;
+  transition:
+    border-color 0.2s ease,
+    box-shadow 0.2s ease;
+}
+
+.si-elev-profile-dock__pill:hover {
+  border-color: rgba(125, 211, 252, 0.3);
+  box-shadow:
+    0 0 0 1px rgba(255, 255, 255, 0.05) inset,
+    0 14px 34px rgba(0, 0, 0, 0.6);
+}
+
+.si-elev-profile-dock__pill > i:first-child {
+  color: var(--si-elev-accent);
+  font-size: 12px;
+}
+
+.si-elev-profile-dock__pill-expand {
+  font-size: 9.5px;
+  opacity: 0.7;
+  margin-left: 1px;
+}
+
+.si-elev-profile-dock__pill-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 17px;
+  height: 17px;
+  padding: 0 5px;
+  border-radius: 999px;
+  background: var(--si-elev-accent-dim);
+  color: var(--si-elev-accent);
+  font-size: 9px;
+  font-weight: 700;
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  border: 0;
+}
+
+/* Tablet */
+@media (max-width: 1023px) {
+  .si-elev-profile-dock {
+    width: min(60vw, 520px);
+    height: min(32vh, 320px);
+  }
+}
+
+/* Mobile */
+@media (max-width: 640px) {
+  .si-elev-profile-dock {
+    width: min(94vw, 100%);
+    height: min(38vh, 320px);
+    min-height: 180px;
+    border-radius: 14px;
+  }
+
+  .si-elev-profile-dock__head {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .si-elev-profile-dock__status {
+    display: none;
+  }
+
+  .si-elev-profile-dock__actions {
+    width: 100%;
+    justify-content: flex-end;
+  }
+
+  .si-elev-profile-dock__toolbar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .si-elev-profile-dock__toolbar-btns {
+    margin-left: 0;
+    justify-content: flex-start;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .si-elev-profile-dock,
+  .si-elev-profile-dock__pill {
+    transition: none;
+  }
+
+  .si-elev-profile-dock__status--busy .si-elev-profile-dock__status-dot {
+    animation: none;
+  }
+}

@@ -1,0 +1,86 @@
+/**
+ * Geosyntra · Lux popup system
+ * Transparent glass for GIS / satellite modals — colors from theme-tokens.css.
+ */
+
+.gis-modal-overlay,
+.si-layer-action-modal-overlay {
+  background: var(--lux-popup-overlay) !important;
+  backdrop-filter: blur(18px) saturate(1.15) !important;
+  -webkit-backdrop-filter: blur(18px) saturate(1.15) !important;
+}
+
+.si-layer-action-modal-overlay--lux,
+.si-layer-action-modal-overlay--symbology-studio {
+  background: var(--lux-popup-overlay-deep) !important;
+  backdrop-filter: blur(20px) saturate(1.2) !important;
+  -webkit-backdrop-filter: blur(20px) saturate(1.2) !important;
+}
+
+.gis-modal.gis-modal-styles,
+.si-layer-action-modal--symbology-studio {
+  border: 1px solid var(--lux-popup-border) !important;
+  background: var(--lux-popup-surface) !important;
+  backdrop-filter: blur(24px) saturate(1.15) !important;
+  -webkit-backdrop-filter: blur(24px) saturate(1.15) !important;
+  color: var(--lux-popup-text) !important;
+  box-shadow: var(--lux-popup-shadow), var(--lux-popup-inset) !important;
+}
+
+.gis-modal.gis-modal-styles .gis-modal-header,
+.si-layer-action-modal--symbology-studio .gis-modal-header {
+  border-bottom: 1px solid var(--lux-popup-border-soft) !important;
+  background: var(--lux-popup-surface-header) !important;
+}
+
+.gis-modal.gis-modal-styles .gis-modal-title,
+.si-layer-action-modal--symbology-studio .gis-modal-title {
+  color: var(--lux-popup-title) !important;
+}
+
+.gis-modal.gis-modal-styles .gis-sidebar-close,
+.si-layer-action-modal--symbology-studio .gis-sidebar-close {
+  border: 1px solid var(--lux-popup-control-border) !important;
+  background: var(--lux-popup-btn-bg) !important;
+  color: var(--lux-popup-control-text) !important;
+}
+
+.gis-modal.gis-modal-styles .gis-style-card,
+.si-layer-action-modal--symbology-studio .gis-style-card {
+  border: 1px solid var(--lux-popup-border) !important;
+  background: var(--lux-popup-card-bg) !important;
+}
+
+.gis-modal.gis-modal-styles .gis-style-label,
+.si-layer-action-modal--symbology-studio .gis-style-label {
+  color: var(--lux-popup-muted) !important;
+}
+
+.gis-modal.gis-modal-styles .gis-style-select,
+.gis-modal.gis-modal-styles .gis-style-input,
+.si-layer-action-modal--symbology-studio .gis-style-select,
+.si-layer-action-modal--symbology-studio .gis-style-input {
+  border-color: var(--lux-popup-control-border) !important;
+  background: var(--lux-popup-control-bg) !important;
+  color: var(--lux-popup-control-text) !important;
+}
+
+.gis-modal.gis-modal-styles .gis-btn,
+.si-layer-action-modal--symbology-studio .gis-btn {
+  border: 1px solid var(--lux-popup-control-border) !important;
+  background: var(--lux-popup-btn-bg) !important;
+  color: var(--lux-popup-btn-text) !important;
+}
+
+.gis-modal.gis-modal-styles .gis-btn-primary,
+.si-layer-action-modal--symbology-studio .gis-btn-primary {
+  border-color: rgba(34, 211, 153, 0.45) !important;
+  background: linear-gradient(145deg, rgba(22, 101, 52, 0.55), rgba(6, 78, 59, 0.55)) !important;
+}
+
+html[data-theme='light'] .gis-modal.gis-modal-styles .gis-btn-primary,
+html[data-theme='light'] .si-layer-action-modal--symbology-studio .gis-btn-primary {
+  border-color: var(--ds-color-border-strong) !important;
+  background: var(--ds-color-primary-soft) !important;
+  color: var(--ds-color-text) !important;
+}

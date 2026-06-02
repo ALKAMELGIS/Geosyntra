@@ -1,0 +1,131 @@
+name: Deploy to GitHub Pages (production UI)
+
+# PRODUCTION STATIC UI ONLY — runs on `main`. Does not touch user databases or API vault files.
+# User data lives on the production API host (AGRI_DATA_DIR volume). See docs/PLATFORM_DEPLOYMENT.md.
+# Staging builds use deploy-staging.yml on the `dev` branch.
+#
+# CI builds the SPA with empty public env vars, copies frontend/dist to repo root on main,
+# then pushes [pages-sync]. GitHub Pages: Deploy from a branch → main → /(root).
+#
+# Root SPA files are gitignored — never commit them from a local machine (local .env would embed secrets).
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pages: write
+
+concurrency:
+  group: pages
+  # New push supersedes an in-flight deploy so the latest code reaches Pages sooner (safe: each run is a full build + one commit).
+  cancel-in-progress: true
+
+jobs:
+  publish-to-main-root:
+    # Skip only the automated root sync commit from this workflow (avoids infinite loop). Do not skip user commits that merely mention [pages-sync] in the message body.
+    # NOTE: must be wrapped in YAML double quotes — the literal "): " inside the message prefix breaks unquoted YAML scalar parsing.
+    if: "${{ github.event_name == 'workflow_dispatch' || !startsWith(github.event.head_commit.message, 'chore(pages): sync SPA build to repo root') }}"
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    permissions:
+      contents: write
+      pages: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: true
+      - name: Force Pages to serve files from main (not Actions artifact)
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PAGES_ADMIN_TOKEN: ${{ secrets.PAGES_ADMIN_TOKEN }}
+        run: node scripts/ensure-pages-legacy-main.mjs
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: package-lock.json
+      - run: npm ci --no-audit --no-fund
+      - name: Build SPA for GitHub Pages (no local .env — safe for push protection)
+        env:
+          # Large map chunks (mapbox-gl + SatelliteIntelligenceMain) can exhaust the
+          # default V8 heap during minification on the runner — raise the limit.
+          NODE_OPTIONS: --max-old-space-size=6144
+          GITHUB_SHA: ${{ github.sha }}
+          GITHUB_RUN_ID: ${{ github.run_id }}
+          GITHUB_RUN_ATTEMPT: ${{ github.run_attempt }}
+          VITE_BASE_PATH: /
+          VITE_PRODUCTION_PUBLIC_URL: https://www.geosyntra.org/
+          PAGES_CNAME: www.geosyntra.org
+          VITE_MAPBOX_TOKEN: ''
+          # Mapbox pk.* is loaded at runtime from GET https://api.geosyntra.org/api/config/mapbox (Hostinger MAPBOX_TOKEN).
+          VITE_GOOGLE_MAPS_API_KEY: ''
+          VITE_ARCGIS_PORTAL_TOKEN: ''
+          VITE_SENTINEL_HUB_WMS_INSTANCE_ID: ''
+          VITE_SENTINEL_HUB_ACCESS_TOKEN: ''
+          VITE_GEMINI_API_KEY: ''
+          VITE_CLAUDE_API_KEY: ''
+          VITE_DEEPSEEK_API_KEY: ''
+          VITE_RBAC_SYSTEM_OWNER_EMAILS: admin@Geosyntra.com
+          VITE_STATIC_OWNER_EMAIL: admin@Geosyntra.com
+          VITE_STATIC_OWNER_BOOTSTRAP_PASSWORD: ${{ secrets.GEOSYNTRA_STATIC_OWNER_PASSWORD }}
+          VITE_API_BASE_URL: ${{ secrets.VITE_API_BASE_URL || 'https://api.geosyntra.org' }}
+        run: npm run build
+      - name: Prepare Pages dist + sanity-check
+        run: |
+          node scripts/pages-dist-check.mjs
+          node scripts/verify-pages-bundle-no-secrets.mjs
+      - name: Sync dist to repository root and push main
+        env:
+          BRANCH: ${{ github.ref_name }}
+        run: |
+          set -euxo pipefail
+          node scripts/sync-pages-dist-to-root.mjs --git-add
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          if git diff --cached --quiet; then
+            echo "No SPA changes to commit at repo root."
+            exit 0
+          fi
+          git commit -m "chore(pages): sync SPA build to repo root [pages-sync]"
+          git config pull.rebase false
+          for attempt in 1 2 3; do
+            if git pull origin "${BRANCH}" --no-edit && git push origin "HEAD:${BRANCH}"; then
+              echo "pages-sync pushed on attempt ${attempt}"
+              exit 0
+            fi
+            echo "::warning::Push attempt ${attempt} failed"
+            git status
+            sleep 8
+          done
+          echo "::error::Failed to push pages-sync commit. Check branch protection allows github-actions[bot] to push to main."
+          exit 1
+      - name: Re-assert legacy Pages after push (GitHub may reset source)
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PAGES_ADMIN_TOKEN: ${{ secrets.PAGES_ADMIN_TOKEN }}
+        run: node scripts/ensure-pages-legacy-main.mjs
+      - name: Drop legacy gh-pages branch (optional)
+        continue-on-error: true
+        run: git push origin --delete gh-pages
+      - name: Summary
+        run: |
+          {
+            echo "## GitHub Pages (main / root)"
+            echo "Build output was synced to the \`main\` branch root (no secrets from a local \`.env\`). Pages: **Deploy from a branch** → **main** → **/(root)**."
+            echo ""
+            echo "| App |"
+            echo "| --- |"
+            echo "| [https://www.geosyntra.org/#/](https://www.geosyntra.org/#/) (custom domain) |"
+            echo "| [https://alkamelgis.github.io/Geosyntra/#/](https://alkamelgis.github.io/Geosyntra/#/) (legacy project URL — may 404 until a /Geosyntra/ build is published) |"
+            echo ""
+            echo "**Custom domain:** \`CNAME\` file at repo root → \`www.geosyntra.org\`. In GitHub **Settings → Pages**, set custom domain to \`www.geosyntra.org\` and enable **Enforce HTTPS** after DNS propagates."
+            echo ""
+            echo "**Hostinger DNS:** \`www\` CNAME → \`alkamelgis.github.io\`; apex \`@\` A → 185.199.108.153, 185.199.109.153, 185.199.110.153, 185.199.111.153. Disable Hostinger \"parked\" / website builder for this domain."
+            echo ""
+            echo "**If GitHub shows \"There isn't a GitHub Pages site here\":** In **Settings → Pages**, choose **Deploy from a branch** → **main** → **/(root)** (not **GitHub Actions**-only artifact mode). The \`ensure-pages-legacy-main.mjs\` script attempts to enforce this when the token allows."
+            echo ""
+            echo "**Cache:** Hard refresh (Ctrl+F5) if the site looks stale. Each deploy writes a new \`geosyntra-pages-build\` meta tag (run id + SHA) so \`index.html\` changes."
+          } >> "$GITHUB_STEP_SUMMARY"

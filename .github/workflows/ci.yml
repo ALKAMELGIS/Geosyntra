@@ -1,0 +1,46 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [main, dev]
+  push:
+    branches: [main, dev]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: package-lock.json
+      - run: npm ci --no-audit --no-fund
+      - name: Typecheck frontend
+        run: npm run typecheck
+      - name: Build frontend (staging env)
+        env:
+          VITE_GEOSYNTRA_ENV: staging
+          VITE_MAPBOX_TOKEN: ''
+          VITE_GEMINI_API_KEY: ''
+        run: npm run build
+      - name: Verify no secrets in bundle
+        run: node scripts/verify-pages-bundle-no-secrets.mjs
+      - name: Frontend unit tests (symbology)
+        run: npm test -- --run siLayerSymbologyEngine
+      - name: Push summary
+        if: github.event_name == 'push'
+        run: |
+          {
+            echo "## CI completed on \`${{ github.ref_name }}\`"
+            echo "- Commit: \`${{ github.sha }}\`"
+            echo "- Actor: @${{ github.actor }}"
+            echo ""
+            echo "Production UI deploy runs separately via **Deploy to GitHub Pages** on \`main\`."
+          } >> "$GITHUB_STEP_SUMMARY"

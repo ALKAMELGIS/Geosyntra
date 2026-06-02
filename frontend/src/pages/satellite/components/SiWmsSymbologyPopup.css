@@ -1,0 +1,371 @@
+/* Left-docked symbology — compact panel; map stays visible and clickable outside. */
+.si-wms-sym-host {
+  position: fixed;
+  inset: 0;
+  z-index: 240;
+  display: flex;
+  justify-content: flex-start;
+  align-items: center;
+  padding-left: var(--si-map-leading-edge, max(16px, env(safe-area-inset-left, 0px)));
+  padding-right: var(--si-map-trailing-dock, 0px);
+  pointer-events: none;
+}
+
+:root[dir='rtl'] .si-wms-sym-host {
+  justify-content: flex-end;
+  padding-left: var(--si-map-trailing-dock, 0px);
+  padding-right: var(--si-map-leading-edge, max(16px, env(safe-area-inset-right, 0px)));
+}
+
+.si-wms-sym-pop {
+  pointer-events: auto;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: linear-gradient(
+    168deg,
+    rgba(6, 8, 14, 0.94) 0%,
+    rgba(12, 14, 22, 0.9) 45%,
+    rgba(4, 6, 12, 0.96) 100%
+  );
+  backdrop-filter: blur(22px) saturate(1.2);
+  -webkit-backdrop-filter: blur(22px) saturate(1.2);
+  box-shadow:
+    0 0 0 1px rgba(255, 255, 255, 0.05) inset,
+    12px 0 48px rgba(0, 0, 0, 0.42);
+  color: #f1f5f9;
+  overflow: hidden;
+}
+
+:root[dir='rtl'] .si-wms-sym-pop {
+  box-shadow:
+    0 0 0 1px rgba(255, 255, 255, 0.05) inset,
+    -12px 0 48px rgba(0, 0, 0, 0.42);
+}
+
+.si-wms-sym-pop--dock-left {
+  width: min(360px, calc(100vw - var(--si-map-leading-edge, 16px) - var(--si-map-trailing-dock, 0px) - 28px));
+  max-width: min(400px, calc(100vw - var(--si-map-leading-edge, 16px) - var(--si-map-trailing-dock, 0px) - 28px));
+  height: auto;
+  max-height: min(78vh, 560px);
+  margin: max(12px, env(safe-area-inset-top, 0px)) 0 max(12px, env(safe-area-inset-bottom, 0px));
+  border-radius: 0 16px 16px 0;
+  border-left: none;
+  animation: si-wms-sym-dock-left-in 0.34s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+:root[dir='rtl'] .si-wms-sym-pop--dock-left {
+  border-radius: 16px 0 0 16px;
+  border-left: 1px solid rgba(255, 255, 255, 0.12);
+  border-right: none;
+}
+
+@keyframes si-wms-sym-dock-left-in {
+  from {
+    opacity: 0;
+    transform: translateX(-100%);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+:root[dir='rtl'] .si-wms-sym-pop--dock-left {
+  animation-name: si-wms-sym-dock-right-in;
+}
+
+@keyframes si-wms-sym-dock-right-in {
+  from {
+    opacity: 0;
+    transform: translateX(100%);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+.si-wms-sym-pop__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 14px 16px 10px;
+  border-bottom: 1px solid rgba(51, 65, 85, 0.55);
+}
+
+.si-wms-sym-pop__titles h2 {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+}
+
+.si-wms-sym-pop__titles p {
+  margin: 4px 0 0;
+  font-size: 11px;
+  line-height: 1.35;
+  color: #94a3b8;
+}
+
+.si-wms-sym-pop__close {
+  flex-shrink: 0;
+  width: 32px;
+  height: 32px;
+  border-radius: 10px;
+  border: 1px solid rgba(148, 163, 184, 0.25);
+  background: rgba(15, 23, 42, 0.6);
+  color: #e2e8f0;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.si-wms-sym-pop__close:hover {
+  border-color: rgba(34, 211, 153, 0.45);
+  color: #bbf7d0;
+}
+
+.si-wms-sym-pop__body {
+  flex: 1 1 auto;
+  min-height: 0;
+  padding: 12px 16px 14px;
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  scrollbar-gutter: stable;
+}
+
+.si-wms-sym-field label {
+  display: block;
+  font-size: 10px;
+  font-weight: 650;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #94a3b8;
+  margin-bottom: 5px;
+}
+
+.si-wms-sym-field select,
+.si-wms-sym-field input[type='range'] {
+  width: 100%;
+  box-sizing: border-box;
+  border-radius: 10px;
+  border: 1px solid rgba(51, 65, 85, 0.75);
+  background: rgba(2, 6, 23, 0.55);
+  color: #f1f5f9;
+  padding: 8px 10px;
+  font-size: 13px;
+}
+
+.si-wms-sym-field select:focus {
+  outline: none;
+  border-color: rgba(34, 211, 153, 0.45);
+  box-shadow: 0 0 0 2px rgba(34, 197, 94, 0.12);
+}
+
+.si-wms-sym-seg {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.si-wms-sym-seg button {
+  flex: 1 1 auto;
+  min-width: 0;
+  border-radius: 10px;
+  border: 1px solid rgba(51, 65, 85, 0.75);
+  background: rgba(15, 23, 42, 0.55);
+  color: #cbd5e1;
+  font-size: 11px;
+  font-weight: 650;
+  padding: 7px 8px;
+  cursor: pointer;
+}
+
+.si-wms-sym-seg button.si-wms-sym-seg--on {
+  border-color: rgba(34, 211, 153, 0.55);
+  background: rgba(22, 101, 52, 0.28);
+  color: #ecfdf5;
+}
+
+.si-wms-sym-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  font-size: 12px;
+  color: #cbd5e1;
+}
+
+.si-wms-sym-row input[type='checkbox'] {
+  width: 16px;
+  height: 16px;
+}
+
+.si-wms-sym-preview {
+  border-radius: 12px;
+  border: 1px solid rgba(51, 65, 85, 0.65);
+  padding: 10px;
+  background: rgba(2, 6, 23, 0.45);
+}
+
+.si-wms-sym-preview__k {
+  font-size: 10px;
+  font-weight: 650;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #94a3b8;
+  margin-bottom: 8px;
+}
+
+.si-wms-sym-preview__bar {
+  height: 120px;
+  width: 100%;
+  border-radius: 10px;
+  border: 1px solid rgba(15, 23, 42, 0.85);
+  background: #0f172a;
+}
+
+.si-wms-sym-preview__empty {
+  height: 120px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  color: #64748b;
+  border-radius: 10px;
+  border: 1px dashed rgba(71, 85, 105, 0.65);
+}
+
+.si-wms-sym-field-hint {
+  margin: -2px 0 8px;
+  font-size: 10px;
+  line-height: 1.35;
+  color: #94a3b8;
+}
+
+.si-wms-sym-ramp-swatches {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.si-wms-sym-ramp-swatch {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 5px;
+  padding: 6px 6px 7px;
+  border-radius: 10px;
+  border: 1px solid rgba(51, 65, 85, 0.75);
+  background: rgba(2, 6, 23, 0.45);
+  color: #cbd5e1;
+  cursor: pointer;
+  text-align: left;
+  transition:
+    border-color 0.15s ease,
+    background 0.15s ease,
+    box-shadow 0.15s ease;
+}
+
+.si-wms-sym-ramp-swatch:hover:not(:disabled) {
+  border-color: rgba(34, 211, 153, 0.45);
+  background: rgba(15, 23, 42, 0.65);
+}
+
+.si-wms-sym-ramp-swatch:disabled {
+  opacity: 0.42;
+  cursor: not-allowed;
+}
+
+.si-wms-sym-ramp-swatch--active {
+  border-color: rgba(167, 139, 250, 0.75);
+  background: rgba(88, 28, 135, 0.22);
+  box-shadow: 0 0 0 1px rgba(167, 139, 250, 0.18);
+}
+
+.si-wms-sym-ramp-swatch__bar {
+  height: 40px;
+  width: 100%;
+  border-radius: 7px;
+  border: 1px solid rgba(15, 23, 42, 0.9);
+  background-color: #0f172a;
+  background-size: 100% 100%;
+  background-repeat: no-repeat;
+}
+
+.si-wms-sym-ramp-swatch__cap {
+  font-size: 9px;
+  font-weight: 650;
+  line-height: 1.25;
+  color: #e2e8f0;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  word-break: break-word;
+}
+
+.si-wms-sym-foot {
+  display: flex;
+  gap: 8px;
+  padding: 10px 16px 14px;
+  border-top: 1px solid rgba(51, 65, 85, 0.55);
+  background: rgba(2, 6, 23, 0.35);
+  flex-shrink: 0;
+}
+
+.si-wms-sym-btn {
+  flex: 1;
+  border-radius: 10px;
+  border: 1px solid rgba(51, 65, 85, 0.75);
+  background: rgba(15, 23, 42, 0.65);
+  color: #e2e8f0;
+  font-size: 12px;
+  font-weight: 650;
+  padding: 9px 10px;
+  cursor: pointer;
+}
+
+.si-wms-sym-btn--ghost:hover {
+  border-color: rgba(148, 163, 184, 0.45);
+}
+
+.si-wms-sym-btn--primary {
+  border-color: rgba(34, 211, 153, 0.45);
+  background: linear-gradient(145deg, rgba(22, 101, 52, 0.55), rgba(6, 78, 59, 0.55));
+}
+
+.si-wms-sym-btn--primary:hover {
+  border-color: rgba(52, 211, 153, 0.75);
+}
+
+.si-wms-sym-toolbar-btn {
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  border: 1px solid rgba(51, 65, 85, 0.55);
+  background: rgba(15, 23, 42, 0.55);
+  color: #e2e8f0;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+}
+
+.si-wms-sym-toolbar-btn:hover {
+  border-color: rgba(34, 211, 153, 0.45);
+  color: #bbf7d0;
+}
+
+.si-wms-sym-toolbar-btn--on {
+  border-color: rgba(34, 211, 153, 0.55);
+  background: rgba(22, 101, 52, 0.32);
+  color: #ecfdf5;
+}
