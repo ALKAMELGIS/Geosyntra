@@ -1,4 +1,5 @@
 import { siAoiReportFeatureBBoxLngLat } from './siAoiReportGeo';
+import { hitTestLiveAoiAtClick, type LiveAoiFieldRowRef, type LiveAoiPopupHit } from './liveAoiPopupHit';
 
 export type LiveAoiPopupAnchorSource = 'click' | 'centroid';
 
@@ -21,6 +22,22 @@ export type LiveAoiPopupRowRef = {
   name?: string;
   feature?: GeoJSON.Feature | null;
 };
+
+export type LiveAoiPopupHitContext = {
+  multiRows: readonly LiveAoiPopupRowRef[];
+  drawnFeature: GeoJSON.Feature | null | undefined;
+  fieldRows: readonly LiveAoiFieldRowRef[];
+  selectedFieldId?: string | null;
+};
+
+/** Re-run AOI hit-test for the stored map click (popup + stats view). */
+export function resolveLiveAoiHitAtStoredClick(
+  click: LiveAoiPopupClickRecord | null | undefined,
+  ctx: LiveAoiPopupHitContext,
+): LiveAoiPopupHit | null {
+  if (!click || !Number.isFinite(click.lng) || !Number.isFinite(click.lat)) return null;
+  return hitTestLiveAoiAtClick(click.lng, click.lat, ctx);
+}
 
 /** Resolve which AOI row was clicked (multi-AOI or single drawn polygon). */
 export function resolveLiveAoiRowFromClick(
@@ -65,10 +82,10 @@ export function resolveLiveAoiPopupAnchor(
   aoiKey: string | null | undefined,
   lastClick: LiveAoiPopupClickRecord | null | undefined,
 ): LiveAoiPopupAnchor | null {
-  if (!feature?.geometry || !aoiKey) return null;
-  if (lastClick && lastClick.aoiKey === aoiKey) {
+  if (lastClick && Number.isFinite(lastClick.lng) && Number.isFinite(lastClick.lat)) {
     return { lng: lastClick.lng, lat: lastClick.lat, source: 'click' };
   }
+  if (!feature?.geometry || !aoiKey) return null;
   const centroid = featureCentroidLngLat(feature);
   if (!centroid) return null;
   return { lng: centroid[0], lat: centroid[1], source: 'centroid' };

@@ -9,7 +9,7 @@ import {
   fetchLiveAoiWeatherSnapshot,
   type LiveAoiWeatherSnapshot,
 } from '../utils/liveAoiPopupWeather';
-import { SI_NDVI_DENSITY_CLASS_BANDS } from '../utils/liveAoiIndexAnalysis';
+import type { SiIndexClassRow } from '../utils/siIndexClassAnalytics';
 import type { LiveAoiConditionTone, LiveAoiIndexAnalysisSummary } from '../utils/liveAoiIndexAnalysis';
 import { roundIndexDisplay } from '../utils/siAoiZonalStats';
 import { readMapCanvasLayout } from '../utils/siMapFloatingPanelLayout';
@@ -187,20 +187,23 @@ function ConditionBadge({
   );
 }
 
-function NdviClassLegend() {
+function WmsRampClassLegend({ classes }: { classes: SiIndexClassRow[] }) {
+  const rows = [...classes].reverse();
   return (
-    <div className="si-live-aoi-stats__ndvi-legend" aria-label="NDVI classification legend">
-      <span className="si-live-aoi-stats__section-k">NDVI classes</span>
+    <div className="si-live-aoi-stats__ndvi-legend" aria-label="Index classification legend">
+      <span className="si-live-aoi-stats__section-k">Spectral classes</span>
       <ul className="si-live-aoi-stats__ndvi-legend-list">
-        {SI_NDVI_DENSITY_CLASS_BANDS.map(band => (
-          <li key={band.id}>
+        {rows.map(c => (
+          <li key={c.classId}>
             <span
-              className={`si-live-aoi-stats__ndvi-swatch si-live-aoi-stats__ndvi-swatch--${band.id.replace(/\s+/g, '-').toLowerCase()}`}
+              className="si-live-aoi-stats__ndvi-swatch"
+              style={{ background: c.colorHex }}
+              title={c.colorHex}
               aria-hidden
             />
-            <span className="si-live-aoi-stats__ndvi-band-label">{band.id}</span>
+            <span className="si-live-aoi-stats__ndvi-band-label">{c.condition}</span>
             <span className="si-live-aoi-stats__ndvi-band-range" dir="ltr">
-              {band.rangeLabel}
+              {c.label}
             </span>
           </li>
         ))}
@@ -261,7 +264,9 @@ function IndexAnalysisBody({
 
           <p className="si-live-aoi-stats__interpretation">{analysis.interpretation}</p>
 
-          <NdviClassLegend />
+          {model.classAnalytics?.classes?.length ? (
+            <WmsRampClassLegend classes={model.classAnalytics.classes} />
+          ) : null}
         </>
       ) : null}
     </>

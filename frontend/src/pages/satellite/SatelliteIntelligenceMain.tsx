@@ -722,6 +722,7 @@ import {
   setLiveAoiCache,
 } from './utils/liveAoiAnalysisCache';
 import { hitTestLiveAoiAtClick } from './utils/liveAoiPopupHit';
+import { resolveLiveAoiHitAtStoredClick } from './utils/liveAoiPopupAnchor';
 import { buildLiveAoiStatsViewModel, buildLoadingLiveAoiStatsViewModel } from './utils/liveAoiStatsView';
 import {
   resolveLiveAoiPopupAnchor,
@@ -16157,10 +16158,13 @@ export default function SatelliteIntelligence() {
     staticAoiChartAoiKeyRef.current = staticAoiChartAoiKey;
   }, [staticAoiChartAoiKey]);
 
+  /** Close popup only when AOI geometry is cleared — not when selection key changes after an in-AOI click. */
   useEffect(() => {
-    liveAoiPopupClickRef.current = null;
-    setLiveAoiStatsPopupOpen(false);
-  }, [staticAoiChartAoiKey]);
+    if (!staticAoiChartFeature) {
+      liveAoiPopupClickRef.current = null;
+      setLiveAoiStatsPopupOpen(false);
+    }
+  }, [staticAoiChartFeature]);
 
   /** AOI spectral analysis + report: active WMS/chart layer only (no multi-index mixing). */
   const popupZonalLayerIds = useMemo(
@@ -16192,8 +16196,29 @@ export default function SatelliteIntelligence() {
         },
       ];
     }
+    if (aoiFields.length) {
+      const iso = deferredZonalStatsAnchorIso.slice(0, 10);
+      return aoiFields
+        .filter(f => {
+          const gt = f.geometry?.type;
+          return gt === 'Polygon' || gt === 'MultiPolygon';
+        })
+        .map(f => ({
+          id: f.id,
+          name: f.name,
+          feature: {
+            type: 'Feature',
+            properties: { label: f.name },
+            geometry: f.geometry,
+          } as GeoJSON.Feature,
+          source: 'layer' as const,
+          color: '#38bdf8',
+          sentinelTimeStart: iso,
+          sentinelTimeEnd: iso,
+        }));
+    }
     return [];
-  }, [multiAoiItems, debouncedDrawnGeometryForZonal, deferredZonalStatsAnchorIso]);
+  }, [multiAoiItems, debouncedDrawnGeometryForZonal, deferredZonalStatsAnchorIso, aoiFields]);
 
   const mpcZonalSampleTargetsRef = useRef(mpcZonalSampleTargets);
   useEffect(() => {
@@ -17727,10 +17752,25 @@ export default function SatelliteIntelligence() {
     return multiAoiIndexHealthById.get(liveAoiActiveRowId) ?? null;
   }, [liveAoiActiveRowId, multiAoiIndexHealthById, mpcZonalRasterByAoiId]);
 
+  const liveAoiPopupHitCtx = useMemo(
+    () => ({
+      multiRows: mpcZonalSampleTargets,
+      drawnFeature: drawnGeometry as GeoJSON.Feature | null | undefined,
+      fieldRows: aoiFields.map(f => ({ id: f.id, name: f.name, geometry: f.geometry })),
+      selectedFieldId,
+    }),
+    [mpcZonalSampleTargets, drawnGeometry, aoiFields, selectedFieldId],
+  );
+
+  const liveAoiPopupSpectralFeature = useMemo(() => {
+    const hit = resolveLiveAoiHitAtStoredClick(liveAoiPopupClickRef.current, liveAoiPopupHitCtx);
+    return hit?.feature ?? staticAoiChartFeature;
+  }, [staticAoiChartFeature, liveAoiPopupHitCtx, liveAoiPopupClickRev]);
+
   const liveAoiPopupSpectral = useLiveAoiSpectralAnalysis({
-    enabled: liveAoiStatsPopupOpen && !!staticAoiChartFeature,
+    enabled: liveAoiStatsPopupOpen && !!liveAoiPopupSpectralFeature,
     analysisEngineBaseUrl: effectiveAnalysisEngineBaseUrl,
-    feature: staticAoiChartFeature,
+    feature: liveAoiPopupSpectralFeature,
     aoiKey: staticAoiChartAoiKey,
     activeWmsLayer: activeWmsLayer || '',
     selectedIndex: String(selectedIndex ?? 'NDVI'),
@@ -17749,18 +17789,19 @@ export default function SatelliteIntelligence() {
   });
 
   const liveAoiStatsView = useMemo(() => {
-    const feature = staticAoiChartFeature;
+    const click = liveAoiPopupClickRef.current;
+    const hit = resolveLiveAoiHitAtStoredClick(click, liveAoiPopupHitCtx);
+    const feature = hit?.feature ?? staticAoiChartFeature;
     const g = feature?.geometry;
     if (!g || (g.type !== 'Polygon' && g.type !== 'MultiPolygon')) return null;
 
-    const click = liveAoiPopupClickRef.current;
     const row =
       resolveLiveAoiRowFromClick(click, mpcZonalSampleTargets, liveAoiActiveRowId) ??
       mpcZonalSampleTargets[0];
-    const rowId = row?.id ?? liveAoiActiveRowId;
-    const aoiName = row?.name ?? 'Drawn AOI';
-    const aoiKey = staticAoiChartAoiKey ?? row?.id ?? 'aoi';
-    const maskFeature = row?.feature ?? feature;
+    const rowId = hit?.rowId ?? row?.id ?? liveAoiActiveRowId;
+    const aoiName = hit?.label ?? row?.name ?? 'Drawn AOI';
+    const aoiKey = hit?.aoiKey ?? staticAoiChartAoiKey ?? row?.id ?? 'aoi';
+    const maskFeature = row?.feature ?? hit?.feature ?? feature;
     const raster =
       (rowId ? mpcZonalRasterByAoiId[rowId] : null) ??
       liveAoiPreloadedRaster ??
@@ -17777,6 +17818,7 @@ export default function SatelliteIntelligence() {
       status = 'loading';
     }
 
+    const wmsLayerForStops = activeWmsLayer || activeAoiChartLayer.layerId;
     return buildLiveAoiStatsViewModel({
       aoiKey,
       aoiName,
@@ -17790,6 +17832,7 @@ export default function SatelliteIntelligence() {
       status,
       clickLng: click?.lng ?? null,
       clickLat: click?.lat ?? null,
+      classifiedStops: symStopsForWmsLayerId(wmsLayerForStops),
     });
   }, [
     staticAoiChartFeature,
@@ -17809,21 +17852,16 @@ export default function SatelliteIntelligence() {
     effectiveAnalysisEngineBaseUrl,
     liveAoiAnalysisDateIso,
     liveAoiPopupClickRev,
+    activeWmsLayer,
+    symStopsForWmsLayerId,
+    liveAoiPopupHitCtx,
   ]);
 
   const liveAoiPopupDisplayModel = useMemo(() => {
     if (liveAoiStatsView) return liveAoiStatsView;
     if (!liveAoiStatsPopupOpen) return null;
     const click = liveAoiPopupClickRef.current;
-    const hit =
-      click != null
-        ? hitTestLiveAoiAtClick(click.lng, click.lat, {
-            multiRows: mpcZonalSampleTargets,
-            drawnFeature: drawnGeometry as GeoJSON.Feature | null | undefined,
-            fieldRows: aoiFields.map(f => ({ id: f.id, name: f.name, geometry: f.geometry })),
-            selectedFieldId,
-          })
-        : null;
+    const hit = resolveLiveAoiHitAtStoredClick(click, liveAoiPopupHitCtx);
     const feature = hit?.feature ?? staticAoiChartFeature;
     const g = feature?.geometry;
     if (!g || (g.type !== 'Polygon' && g.type !== 'MultiPolygon')) return null;
@@ -17856,6 +17894,7 @@ export default function SatelliteIntelligence() {
     liveAoiAnalysisDateIso,
     liveAoiPopupSpectral.status,
     liveAoiPopupClickRev,
+    liveAoiPopupHitCtx,
   ]);
 
   const liveAoiPopupAnchor = useMemo(() => {
@@ -17988,6 +18027,7 @@ export default function SatelliteIntelligence() {
           activeLayerId,
           analysisDateIso: liveAoiAnalysisDateIso,
           layerIds: popupZonalLayerIds,
+          classifiedStops: symStopsForWmsLayerId(activeWmsLayer || activeLayerId),
         });
         setSiAoiReportAnalysisEntry(row.id, {
           aoiName: row.name,
@@ -18017,6 +18057,7 @@ export default function SatelliteIntelligence() {
     popupZonalLayerIds,
     activeWmsLayer,
     activeAoiChartLayer.layerId,
+    symStopsForWmsLayerId,
   ]);
 
   const ensureLiveLayerAnalysisForReport = useCallback(
@@ -18040,6 +18081,7 @@ export default function SatelliteIntelligence() {
         maxCloudCover: exploreUseCloudFilter ? exploreCloudCoverMax : undefined,
         allowFetch: true,
         waitTimeoutMs: 120_000,
+        classifiedStops: symStopsForWmsLayerId(activeWmsLayer || opts.indexId),
       }),
     [
       activeWmsLayer,
@@ -18049,6 +18091,7 @@ export default function SatelliteIntelligence() {
       weeklyComposites,
       exploreUseCloudFilter,
       exploreCloudCoverMax,
+      symStopsForWmsLayerId,
     ],
   );
 

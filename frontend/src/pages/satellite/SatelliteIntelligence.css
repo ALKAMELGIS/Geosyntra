@@ -1185,8 +1185,11 @@ body:has(main.content > .si-page) select option:disabled {
 
 .si-wms-index-class-legend__hint--live {
   margin-bottom: 8px;
-  font-size: 10px;
-  line-height: 1.4;
+  font-size: 8px;
+  line-height: 1.2;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .si-wms-index-class-legend__body--live {
@@ -1329,10 +1332,13 @@ body:has(main.content > .si-page) select option:disabled {
 }
 
 .si-wms-index-class-legend__hint {
-  margin: 0 0 10px;
-  font-size: 10px;
-  line-height: 1.4;
+  margin: 0 0 8px;
+  font-size: 8px;
+  line-height: 1.2;
   color: #94a3b8;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .si-wms-index-class-legend__body {
@@ -1358,7 +1364,7 @@ body:has(main.content > .si-page) select option:disabled {
   display: flex;
   /* Match gradient bar: low index at bottom, high at top (`siStopsToVerticalCssGradient`). */
   flex-direction: column-reverse;
-  gap: 2px;
+  gap: 3px;
   max-height: none;
   overflow: visible;
   padding-right: 0;
@@ -1368,11 +1374,11 @@ body:has(main.content > .si-page) select option:disabled {
   display: grid;
   grid-template-columns: 10px minmax(0, 1fr) auto;
   align-items: center;
-  gap: 5px 6px;
-  font-size: 7.5px;
-  line-height: 1.2;
-  color: #cbd5e1;
-  padding: 2px 0;
+  gap: 5px 8px;
+  font-size: 9px;
+  line-height: 1.3;
+  color: #f8fafc;
+  padding: 3px 0;
 }
 
 .si-wms-index-class-legend__swatch {
@@ -1393,10 +1399,10 @@ body:has(main.content > .si-page) select option:disabled {
 
 .si-wms-index-class-legend__class-name {
   display: block;
-  font-size: 7.5px;
+  font-size: 9px;
   font-weight: 650;
-  line-height: 1.2;
-  color: #e2e8f0;
+  line-height: 1.25;
+  color: #ffffff;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1404,10 +1410,10 @@ body:has(main.content > .si-page) select option:disabled {
 
 .si-wms-index-class-legend__class-range {
   display: block;
-  font-size: 6.5px;
+  font-size: 8px;
   font-weight: 500;
-  line-height: 1.15;
-  color: rgba(148, 163, 184, 0.9);
+  line-height: 1.2;
+  color: rgba(248, 250, 252, 0.88);
   font-variant-numeric: tabular-nums;
 }
 
@@ -1415,31 +1421,33 @@ body:has(main.content > .si-page) select option:disabled {
   display: flex;
   flex-direction: column;
   align-items: flex-end;
-  gap: 1px;
+  gap: 2px;
   flex-shrink: 0;
 }
 
 .si-wms-index-class-legend__area-cell {
   display: inline-flex;
   align-items: baseline;
-  gap: 3px;
+  gap: 4px;
   font-variant-numeric: tabular-nums;
+  white-space: nowrap;
 }
 
 .si-wms-index-class-legend__area-k {
-  font-size: 5.5px;
+  font-size: 8px;
   font-weight: 700;
-  letter-spacing: 0.06em;
+  letter-spacing: 0.05em;
   text-transform: uppercase;
-  color: rgba(100, 116, 139, 0.95);
+  color: #ffffff;
 }
 
 .si-wms-index-class-legend__area-v {
-  font-size: 6.5px;
-  font-weight: 600;
-  color: rgba(203, 213, 225, 0.92);
-  min-width: 2.4em;
+  font-size: 9px;
+  font-weight: 650;
+  color: #ffffff;
+  min-width: 3.2em;
   text-align: right;
+  text-shadow: 0 0 1px rgba(0, 0, 0, 0.35);
 }
 
 /* Legacy stacked label (composite / fallback) */

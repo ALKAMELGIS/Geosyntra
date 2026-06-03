@@ -2,15 +2,16 @@
  * Pixel-based spectral index classification inside an AOI — one active layer only.
  * Area shares are proportional to valid masked pixel counts (m², ha, km²).
  */
+import { inferWmsEvalProfile } from '../../../lib/sentinelHubWmsAoiClip';
 import {
   SI_NDMI_CLASSIFICATION_STOPS,
   SI_NDVI_CLASSIFICATION_STOPS,
   SI_NDWI_CLASSIFICATION_STOPS,
   SI_NDWI_CLASS_LABELS,
-  siRampLegendSegments,
-  siThinLegendSegments,
   type IndexRampStop,
 } from '../../../lib/siWmsIndexClassificationRamp';
+import { siWmsIndexLegendClassLabels } from './siWmsLiveIndexLegendConfig';
+import { siWmsRampClassIntervals } from './siWmsSpectralClassification';
 import { classifyValue, legendClassesForIndex, type LegendClass } from './siGeoAiIndexAnalyticalExport';
 import {
   extractMaskedPixelValues,
@@ -98,21 +99,25 @@ function segmentLabelsForLayer(layerId: StaticAoiChartLayerId, segmentCount: num
   return null;
 }
 
-/** Legend-aligned segments for map/report (5 or 10 bands). */
-export function buildIndexClassSegments(
+/** Legend-aligned segments from the same ramp intervals as WMS + map legend. */
+export function buildIndexClassSegmentsFromRampStops(
   layerId: StaticAoiChartLayerId,
+  stops: readonly IndexRampStop[],
   bandCount: SiAoiLegendBandCount,
 ): SiIndexClassSegment[] {
-  const stops = stopsForLayer(layerId);
-  const thin = siThinLegendSegments(stops, bandCount);
-  const full = siRampLegendSegments(stops);
-  const labels = segmentLabelsForLayer(layerId, full.length);
+  const intervals = siWmsRampClassIntervals(stops, bandCount);
+  if (!intervals.length) return [];
+
+  const profile = inferWmsEvalProfile(layerId);
+  const wmsLabels = siWmsIndexLegendClassLabels(profile, intervals.length);
+  const ndwiLabels = segmentLabelsForLayer(layerId, intervals.length);
   const legend = legendClassesForIndex(layerId);
 
-  return thin.map((seg, i) => {
+  return intervals.map((seg, i) => {
     const mid = (seg.from + seg.to) / 2;
     const cls = classifyValue(mid, legend);
-    const rampLabel = labels?.[Math.min(i, (labels?.length ?? 1) - 1)] ?? cls.name;
+    const rampLabel =
+      wmsLabels?.[i] ?? ndwiLabels?.[Math.min(i, (ndwiLabels?.length ?? 1) - 1)] ?? cls.name;
     return {
       classId: i + 1,
       label: `${seg.from.toFixed(3)} – ${seg.to.toFixed(3)}`,
@@ -122,6 +127,14 @@ export function buildIndexClassSegments(
       condition: rampLabel,
     };
   });
+}
+
+/** Legend-aligned segments for map/report (5 or 10 bands). */
+export function buildIndexClassSegments(
+  layerId: StaticAoiChartLayerId,
+  bandCount: SiAoiLegendBandCount,
+): SiIndexClassSegment[] {
+  return buildIndexClassSegmentsFromRampStops(layerId, stopsForLayer(layerId), bandCount);
 }
 
 function valueInSegment(value: number, seg: SiIndexClassSegment, isLast: boolean): boolean {
@@ -204,12 +217,17 @@ export function computeIndexClassAnalytics(opts: {
   totalAreaM2: number;
   analysisDateIso: string;
   legendBandCount?: SiAoiLegendBandCount;
+  /** Same stops as WMS evalscript / map legend — keeps swatches identical everywhere. */
+  classifiedStops?: readonly IndexRampStop[] | null;
 }): SiIndexClassAnalytics | null {
   const values = opts.values.filter(Number.isFinite);
   if (!values.length || !Number.isFinite(opts.totalAreaM2) || opts.totalAreaM2 <= 0) return null;
 
   const bandCount: SiAoiLegendBandCount = opts.legendBandCount === 10 ? 10 : 5;
-  const segments = buildIndexClassSegments(opts.layerId, bandCount);
+  const segments =
+    opts.classifiedStops && opts.classifiedStops.length >= 2
+      ? buildIndexClassSegmentsFromRampStops(opts.layerId, opts.classifiedStops, bandCount)
+      : buildIndexClassSegments(opts.layerId, bandCount);
   const m2PerPixel = opts.totalAreaM2 / values.length;
   const layerMeta = STATIC_AOI_CHART_LAYER_OPTIONS.find(o => o.id === opts.layerId);
 
@@ -285,6 +303,7 @@ export function computeIndexClassAnalyticsFromRaster(opts: {
   feature?: GeoJSON.Feature | null;
   analysisDateIso: string;
   legendBandCount?: SiAoiLegendBandCount;
+  classifiedStops?: readonly IndexRampStop[] | null;
 }): SiIndexClassAnalytics | null {
   const values = extractMaskedPixelValues(opts.raster, opts.layerId, opts.feature);
   const areaM2 =
@@ -300,6 +319,7 @@ export function computeIndexClassAnalyticsFromRaster(opts: {
     totalAreaM2: areaM2,
     analysisDateIso: opts.analysisDateIso,
     legendBandCount: opts.legendBandCount,
+    classifiedStops: opts.classifiedStops,
   });
 }
 

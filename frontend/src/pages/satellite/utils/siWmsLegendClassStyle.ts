@@ -1,4 +1,3 @@
-import type { WmsAoiEvalProfile } from '../../../lib/sentinelHubWmsAoiClip';
 import type { SiIndexClassAnalytics, SiIndexClassRow } from './siIndexClassAnalytics';
 
 export type SiWmsLegendClassAreaDisplay = {
@@ -8,55 +7,6 @@ export type SiWmsLegendClassAreaDisplay = {
 
 function normLabel(label: string): string {
   return label.toLowerCase().replace(/\s+/g, ' ').trim();
-}
-
-function labelMatches(label: string, needles: string[]): boolean {
-  const n = normLabel(label);
-  return needles.some(k => n.includes(k));
-}
-
-/** Display swatch color — semantic AgroCloud palette (does not change map tiles). */
-export function siWmsLegendSwatchColor(
-  profile: WmsAoiEvalProfile,
-  classLabel: string | null | undefined,
-  fallbackHex: string,
-): string {
-  if (!classLabel) return fallbackHex;
-  const label = classLabel;
-
-  const isWaterLabel =
-    profile === 'ndwi' &&
-    labelMatches(label, ['water', 'aqua', 'cyan', 'teal', 'glint', 'shallow', 'turbid', 'bright water']) &&
-    !labelMatches(label, ['dry', 'bare soil', 'sparse cover', 'low moisture', 'stressed canopy']);
-
-  if (isWaterLabel || (profile !== 'ndvi' && labelMatches(label, ['open water', 'shallow water']))) {
-    if (labelMatches(label, ['cyan', 'teal', 'clear', 'shallow'])) return '#06b6d4';
-    if (labelMatches(label, ['turbid', 'bright', 'glint', 'white', 'high water'])) return '#38bdf8';
-    return '#2563eb';
-  }
-
-  if (profile === 'ndvi' || profile === 'gndvi' || profile === 'evi' || profile === 'savi') {
-    if (labelMatches(label, ['no vegetation', 'bare'])) return '#9a3412';
-    if (labelMatches(label, ['very sparse'])) return '#c2410c';
-    if (labelMatches(label, ['sparse', 'stressed'])) return '#ea580c';
-    if (labelMatches(label, ['low vigor', 'low biomass'])) return '#eab308';
-    if (labelMatches(label, ['moderate-low', 'moderate low'])) return '#facc15';
-    if (labelMatches(label, ['moderate']) && !labelMatches(label, ['moderate-low'])) return '#86efac';
-    if (labelMatches(label, ['healthy'])) return '#22c55e';
-    if (labelMatches(label, ['dense', 'very dense', 'peak', 'maximum'])) return '#15803d';
-  }
-
-  if (profile === 'ndmi') {
-    if (labelMatches(label, ['dry', 'very dry'])) return '#c2410c';
-    if (labelMatches(label, ['moist', 'wet', 'saturated', 'maximum moisture'])) return '#22c55e';
-  }
-
-  if (profile === 'lst') {
-    if (labelMatches(label, ['cool', 'very cool'])) return '#38bdf8';
-    if (labelMatches(label, ['hot', 'very hot', 'extreme', 'maximum heat'])) return '#dc2626';
-  }
-
-  return fallbackHex;
 }
 
 export function formatLegendAreaHa(ha: number | null | undefined): string {

@@ -1,6 +1,6 @@
 import { inferWmsEvalProfile, type WmsAoiEvalProfile } from '../../../lib/sentinelHubWmsAoiClip';
 import type { IndexRampStop } from '../../../lib/siWmsIndexClassificationRamp';
-import { siRampLegendSegments } from '../../../lib/siWmsIndexClassificationRamp';
+import { siRampLegendSegments, siThinLegendSegments } from '../../../lib/siWmsIndexClassificationRamp';
 import {
   SI_WMS_SYMBOLOGY_DEFAULT_UI,
   siAutoRampPresetForLayerName,
@@ -83,19 +83,26 @@ export function siWmsAutoSpectralStops(layerId: string): readonly IndexRampStop[
   return siComputeSymbologyStops(layerId, ui);
 }
 
-/** Legend rows — exact class intervals from canonical stops (no thinning). */
-export function siWmsLegendRowsFromStops(
+/**
+ * Class intervals + hex colors from the same ramp the WMS evalscript uses.
+ * Shared by map legend, print export, AOI analytics, and reports.
+ */
+export function siWmsRampClassIntervals(
   stops: readonly IndexRampStop[] | null | undefined,
   maxRows = SI_WMS_SPECTRAL_CLASS_COUNT,
 ): Array<{ from: number; to: number; color: string }> {
   if (!stops || stops.length < 2) return [];
   const all = siRampLegendSegments(stops);
   if (all.length <= maxRows) return all;
-  const step = Math.ceil(all.length / maxRows);
-  const out = all.filter((_, i) => i % step === 0);
-  const last = all[all.length - 1]!;
-  if (out[out.length - 1] !== last) out.push(last);
-  return out;
+  return siThinLegendSegments(stops, maxRows);
+}
+
+/** Legend rows — colors are taken directly from `stops` (no semantic overrides). */
+export function siWmsLegendRowsFromStops(
+  stops: readonly IndexRampStop[] | null | undefined,
+  maxRows = SI_WMS_SPECTRAL_CLASS_COUNT,
+): Array<{ from: number; to: number; color: string }> {
+  return siWmsRampClassIntervals(stops, maxRows);
 }
 
 /** Canonical 10-class stops for live layer legend — kept here so legend mode never imports this module back. */

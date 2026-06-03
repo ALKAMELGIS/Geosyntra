@@ -3,6 +3,7 @@ import {
   buildLiveAoiIndexAnalysisSummary,
   type LiveAoiIndexAnalysisSummary,
 } from './liveAoiIndexAnalysis';
+import type { IndexRampStop } from '../../../lib/siWmsIndexClassificationRamp';
 import { SI_WMS_SPECTRAL_CLASS_COUNT } from './siWmsSpectralClassification';
 import {
   classAtRasterClick,
@@ -103,6 +104,8 @@ export function buildLiveAoiStatsViewModel(args: {
   status: LiveAoiAnalysisStatus;
   clickLng?: number | null;
   clickLat?: number | null;
+  /** Canonical WMS ramp — popup/legend/report colors match map tiles. */
+  classifiedStops?: readonly IndexRampStop[] | null;
 }): LiveAoiStatsViewModel | null {
   const {
     aoiKey,
@@ -172,6 +175,7 @@ export function buildLiveAoiStatsViewModel(args: {
           feature,
           analysisDateIso,
           legendBandCount: SI_WMS_SPECTRAL_CLASS_COUNT,
+          classifiedStops: args.classifiedStops,
         })
       : null;
 

@@ -15,6 +15,7 @@ import {
   mpcResultToRasterPixelSample,
   resolveAoiZonalWeekContext,
 } from './siAoiZonalStats';
+import type { IndexRampStop } from '../../../lib/siWmsIndexClassificationRamp';
 import type { StaticAoiChartLayerId, WeeklyCompositeLite } from './staticAoiChartTypes';
 
 function sanitizeLiveAnalysisErrorMessage(raw: unknown): string {
@@ -42,6 +43,8 @@ export type EnsureSiAoiReportLiveAnalysisOpts = {
   /** If false, only wait on store — do not trigger a new MPC fetch */
   allowFetch?: boolean;
   waitTimeoutMs?: number;
+  /** Same ramp as map legend / WMS evalscript (custom symbology when set). */
+  classifiedStops?: readonly IndexRampStop[] | null;
 };
 
 /**
@@ -142,6 +145,7 @@ export async function ensureSiAoiReportLiveAnalysis(
       activeLayerId,
       analysisDateIso: opts.analysisDateIso,
       layerIds: mpcLayerIds,
+      classifiedStops: opts.classifiedStops,
     });
     if (!snap) {
       setSiAoiReportAnalysisEntry(opts.aoiId, {

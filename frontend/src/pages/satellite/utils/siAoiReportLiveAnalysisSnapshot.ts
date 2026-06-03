@@ -18,6 +18,7 @@ import {
   type SiAoiZonalAnalytics,
   type SiAoiZonalIndexStats,
 } from './siAoiZonalStats';
+import type { IndexRampStop } from '../../../lib/siWmsIndexClassificationRamp';
 import { STATIC_AOI_CHART_LAYER_OPTIONS, type StaticAoiChartLayerId } from './staticAoiChartTypes';
 
 export type SiAoiLegendBandCount = 5 | 10;
@@ -80,6 +81,7 @@ export function buildSiAoiReportLiveAnalysisSnapshot(opts: {
   analysisDateIso: string;
   layerIds: StaticAoiChartLayerId[];
   legendBandCount?: SiAoiLegendBandCount;
+  classifiedStops?: readonly IndexRampStop[] | null;
 }): SiAoiReportLiveAnalysisSnapshot | null {
   const g = opts.feature.geometry;
   if (!g || (g.type !== 'Polygon' && g.type !== 'MultiPolygon')) return null;
@@ -105,6 +107,7 @@ export function buildSiAoiReportLiveAnalysisSnapshot(opts: {
     feature: opts.feature,
     analysisDateIso: opts.analysisDateIso,
     legendBandCount: opts.legendBandCount,
+    classifiedStops: opts.classifiedStops,
   });
 
   const health = computeAoiIndexHealthBreakdown({

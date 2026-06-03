@@ -10,12 +10,7 @@ import {
   siWmsIndexLegendScaleFromStops,
 } from '../utils/siWmsLiveIndexLegendConfig';
 import type { SiIndexClassAnalytics } from '../utils/siIndexClassAnalytics';
-import {
-  formatLegendAreaHa,
-  formatLegendAreaM2,
-  siWmsLegendAreasForRows,
-  siWmsLegendSwatchColor,
-} from '../utils/siWmsLegendClassStyle';
+import { formatLegendAreaHa, formatLegendAreaM2, siWmsLegendAreasForRows } from '../utils/siWmsLegendClassStyle';
 import { formatStatFixed } from '../utils/weeklyCompositeStats';
 import type { SiWmsSpectralLegendContext } from './SiWmsIndexClassificationLegend';
 
@@ -343,7 +338,6 @@ export function SiWmsUnifiedIndexLegend({
               <div className="si-wms-index-class-legend__rows" role="list">
                 {rows.map((row, i) => {
                   const label = classLabels?.[i] ?? null;
-                  const swatch = siWmsLegendSwatchColor(profile, label, row.color);
                   const areas = rowAreas[i];
                   return (
                     <div
@@ -353,7 +347,8 @@ export function SiWmsUnifiedIndexLegend({
                     >
                       <span
                         className="si-wms-index-class-legend__swatch"
-                        style={{ background: swatch }}
+                        style={{ background: row.color }}
+                        title={row.color}
                         aria-hidden
                       />
                       <div className="si-wms-index-class-legend__row-main">
