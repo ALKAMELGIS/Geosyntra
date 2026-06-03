@@ -34,9 +34,9 @@ describe('siIndexClassAnalytics', () => {
     expect(sumPct).toBeCloseTo(100, 5);
   });
 
-  it('NDVI vegetated threshold uses >= 0.1', () => {
-    expect(isPositiveCoverPixel('NDVI', 0.09)).toBe(false);
-    expect(isPositiveCoverPixel('NDVI', 0.1)).toBe(true);
+  it('NDVI cultivated threshold uses > 0.20', () => {
+    expect(isPositiveCoverPixel('NDVI', 0.2)).toBe(false);
+    expect(isPositiveCoverPixel('NDVI', 0.2001)).toBe(true);
     const labels = coverLabelsForLayer('NDVI');
     expect(labels.positive).toBe('Vegetated');
   });

@@ -9,6 +9,7 @@ describe('buildLiveAoiStatsViewModel', () => {
       layerId: 'NDVI',
       layerName: 'NDVI',
       areaHa: 12.5,
+      analysisDateIso: '2026-06-02',
       rasterSample: {
         areaHa: 12.5,
         grid: [
@@ -25,6 +26,8 @@ describe('buildLiveAoiStatsViewModel', () => {
     expect(vm?.min).toBeCloseTo(0.2, 2);
     expect(vm?.max).toBeCloseTo(0.8, 2);
     expect(vm?.pixelCount).toBe(3);
+    expect(vm?.indexAnalysis?.cultivatedAreaHa).toBeGreaterThan(0);
+    expect(vm?.indexAnalysis?.condition).toBe('Good');
   });
 
   it('does not use global timeline stats when raster is missing', () => {
@@ -34,6 +37,7 @@ describe('buildLiveAoiStatsViewModel', () => {
       layerId: 'NDVI',
       layerName: 'NDVI',
       areaHa: 12.5,
+      analysisDateIso: '2026-06-02',
       rasterSample: null,
       zonal: null,
       status: 'ready',
@@ -58,6 +62,7 @@ describe('buildLiveAoiStatsViewModel', () => {
         layerId: 'NDVI',
         layerName: 'NDVI',
         areaHa: 0,
+        analysisDateIso: '2026-06-02',
         rasterSample: null,
         zonal: null,
         status: 'idle',

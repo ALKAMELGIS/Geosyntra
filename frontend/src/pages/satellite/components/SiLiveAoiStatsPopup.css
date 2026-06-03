@@ -1,7 +1,7 @@
 .si-live-aoi-stats {
   position: absolute;
   z-index: 14;
-  width: min(312px, calc(100vw - 28px));
+  width: min(328px, calc(100vw - 28px));
   max-height: min(78vh, 520px);
   overflow-y: auto;
   border-radius: 16px;
@@ -748,4 +748,193 @@
 .si-live-aoi-stats__class-item-meta {
   color: rgba(148, 163, 184, 0.9);
   font-variant-numeric: tabular-nums;
+}
+
+.si-live-aoi-stats__aoi-sub {
+  display: block;
+  margin-top: 2px;
+  font-size: 9px;
+  font-weight: 600;
+  color: rgba(148, 163, 184, 0.92);
+  line-height: 1.25;
+}
+
+.si-live-aoi-stats__imagery-banner {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin-bottom: 8px;
+  padding: 8px 9px;
+  border-radius: 10px;
+  border: 1px solid rgba(52, 211, 153, 0.22);
+  background: linear-gradient(135deg, rgba(16, 185, 129, 0.12), rgba(16, 185, 129, 0.04));
+}
+
+.si-live-aoi-stats__imagery-banner > i {
+  margin-top: 2px;
+  color: #6ee7b7;
+  font-size: 11px;
+}
+
+.si-live-aoi-stats__imagery-k {
+  display: block;
+  font-size: 7px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: rgba(167, 243, 208, 0.85);
+}
+
+.si-live-aoi-stats__imagery-v {
+  display: block;
+  margin-top: 2px;
+  font-size: 0.92rem;
+  font-weight: 800;
+  color: #ecfdf5;
+  font-variant-numeric: tabular-nums;
+}
+
+.si-live-aoi-stats__condition {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  grid-template-rows: auto auto;
+  column-gap: 8px;
+  row-gap: 1px;
+  align-items: center;
+  margin-bottom: 8px;
+  padding: 8px 9px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.si-live-aoi-stats__condition-dot {
+  grid-row: 1 / span 2;
+  width: 10px;
+  height: 10px;
+  border-radius: 999px;
+  background: #34d399;
+  box-shadow: 0 0 12px rgba(52, 211, 153, 0.65);
+}
+
+.si-live-aoi-stats__condition--poor .si-live-aoi-stats__condition-dot {
+  background: #f87171;
+  box-shadow: 0 0 10px rgba(248, 113, 113, 0.5);
+}
+
+.si-live-aoi-stats__condition--moderate .si-live-aoi-stats__condition-dot {
+  background: #fbbf24;
+  box-shadow: 0 0 10px rgba(251, 191, 36, 0.45);
+}
+
+.si-live-aoi-stats__condition--good .si-live-aoi-stats__condition-dot {
+  background: #4ade80;
+  box-shadow: 0 0 12px rgba(74, 222, 128, 0.55);
+}
+
+.si-live-aoi-stats__condition--excellent .si-live-aoi-stats__condition-dot {
+  background: #22c55e;
+  box-shadow: 0 0 14px rgba(34, 197, 94, 0.7);
+}
+
+.si-live-aoi-stats__condition-k {
+  font-size: 7px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: rgba(148, 163, 184, 0.9);
+}
+
+.si-live-aoi-stats__condition-v {
+  font-size: 1rem;
+  font-weight: 800;
+  color: #f8fafc;
+}
+
+.si-live-aoi-stats__condition--excellent .si-live-aoi-stats__condition-v,
+.si-live-aoi-stats__condition--good .si-live-aoi-stats__condition-v {
+  color: #bbf7d0;
+}
+
+.si-live-aoi-stats__hero--ndvi .si-live-aoi-stats__hero-v {
+  color: #bbf7d0;
+}
+
+.si-live-aoi-stats__interpretation {
+  margin: 0 0 8px;
+  padding: 8px 9px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(0, 0, 0, 0.22);
+  font-size: 9px;
+  line-height: 1.5;
+  color: rgba(226, 232, 240, 0.94);
+}
+
+.si-live-aoi-stats__ndvi-legend {
+  margin-bottom: 8px;
+}
+
+.si-live-aoi-stats__section-k {
+  display: block;
+  margin-bottom: 5px;
+  font-size: 7px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: rgba(148, 163, 184, 0.88);
+}
+
+.si-live-aoi-stats__ndvi-legend-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 4px;
+}
+
+.si-live-aoi-stats__ndvi-legend-list li {
+  display: grid;
+  grid-template-columns: 10px 1fr auto;
+  gap: 6px;
+  align-items: center;
+  font-size: 8px;
+}
+
+.si-live-aoi-stats__ndvi-swatch {
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+}
+
+.si-live-aoi-stats__ndvi-swatch--non-vegetation {
+  background: #78716c;
+}
+
+.si-live-aoi-stats__ndvi-swatch--sparse-vegetation {
+  background: #eab308;
+}
+
+.si-live-aoi-stats__ndvi-swatch--moderate-vegetation {
+  background: #84cc16;
+}
+
+.si-live-aoi-stats__ndvi-swatch--healthy-vegetation {
+  background: #16a34a;
+}
+
+.si-live-aoi-stats__ndvi-band-label {
+  color: #e2e8f0;
+  font-weight: 600;
+}
+
+.si-live-aoi-stats__ndvi-band-range {
+  color: rgba(148, 163, 184, 0.9);
+  font-variant-numeric: tabular-nums;
+}
+
+.si-live-aoi-stats__weather--compact {
+  margin-top: 4px;
+  opacity: 0.92;
 }

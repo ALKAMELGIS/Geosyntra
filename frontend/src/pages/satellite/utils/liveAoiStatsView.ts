@@ -1,5 +1,9 @@
 import type { LiveAoiAnalysisStatus } from '../hooks/useLiveAoiSpectralAnalysis';
 import {
+  buildLiveAoiIndexAnalysisSummary,
+  type LiveAoiIndexAnalysisSummary,
+} from './liveAoiIndexAnalysis';
+import {
   classAtRasterClick,
   computeIndexClassAnalyticsFromRaster,
   formatAreaTriple,
@@ -36,6 +40,8 @@ export type LiveAoiStatsViewModel = {
   classAnalytics: SiIndexClassAnalytics | null;
   cover: SiIndexCoverPair | null;
   clickedClass: LiveAoiClickedClassInfo | null;
+  /** NDVI / vegetation-index popup summary (extensible to NDMI, LST, etc.). */
+  indexAnalysis: LiveAoiIndexAnalysisSummary | null;
 };
 
 function resolveMaskedStatsStatus(
@@ -150,7 +156,7 @@ export function buildLiveAoiStatsViewModel(args: {
     });
   }
 
-  return {
+  const base: LiveAoiStatsViewModel = {
     aoiKey,
     aoiName,
     layerName,
@@ -170,7 +176,11 @@ export function buildLiveAoiStatsViewModel(args: {
     classAnalytics,
     cover: classAnalytics?.cover ?? null,
     clickedClass,
+    indexAnalysis: null,
   };
+
+  base.indexAnalysis = buildLiveAoiIndexAnalysisSummary(base);
+  return base;
 }
 
 /** User-facing hint when raster stats are missing or sampling failed. */

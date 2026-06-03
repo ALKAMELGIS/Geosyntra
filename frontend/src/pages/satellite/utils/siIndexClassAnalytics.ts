@@ -20,6 +20,9 @@ import type { SiAoiReportTableRow } from './siAoiReportCartographyTypes';
 
 export type SiAoiLegendBandCount = 5 | 10;
 import type { StaticAoiChartLayerId } from './staticAoiChartTypes';
+
+/** Cultivated / active vegetation threshold for NDVI-family indices (strictly greater). */
+export const SI_NDVI_CULTIVATED_MIN = 0.2;
 import { STATIC_AOI_CHART_LAYER_OPTIONS } from './staticAoiChartTypes';
 
 export type SiIndexClassSegment = {
@@ -145,7 +148,7 @@ export function isPositiveCoverPixel(layerId: StaticAoiChartLayerId, value: numb
     case 'SAVI':
     case 'EVI':
     case 'GNDVI':
-      return value >= 0.1;
+      return value > SI_NDVI_CULTIVATED_MIN;
     case 'NDWI':
       return value >= 0.15;
     case 'NDMI':

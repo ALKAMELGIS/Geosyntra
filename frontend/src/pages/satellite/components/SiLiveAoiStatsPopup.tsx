@@ -9,12 +9,14 @@ import {
   fetchLiveAoiWeatherSnapshot,
   type LiveAoiWeatherSnapshot,
 } from '../utils/liveAoiPopupWeather';
+import { SI_NDVI_DENSITY_CLASS_BANDS } from '../utils/liveAoiIndexAnalysis';
+import type { LiveAoiConditionTone, LiveAoiIndexAnalysisSummary } from '../utils/liveAoiIndexAnalysis';
 import { roundIndexDisplay } from '../utils/siAoiZonalStats';
 import { readMapCanvasLayout } from '../utils/siMapFloatingPanelLayout';
 import './SiLiveAoiStatsPopup.css';
 
-const PANEL_W = 312;
-const PANEL_EST_H = 420;
+const PANEL_W = 328;
+const PANEL_EST_H = 480;
 
 function clampPanelTranslate(el: HTMLDivElement, x: number, y: number): { x: number; y: number } {
   const margin = 10;
@@ -166,6 +168,103 @@ function CoverBar({
         {formatHa(areaHa)} ha
       </span>
     </div>
+  );
+}
+
+function ConditionBadge({
+  condition,
+  tone,
+}: {
+  condition: string;
+  tone: LiveAoiConditionTone;
+}) {
+  return (
+    <div className={`si-live-aoi-stats__condition si-live-aoi-stats__condition--${tone}`}>
+      <span className="si-live-aoi-stats__condition-dot" aria-hidden />
+      <span className="si-live-aoi-stats__condition-k">Vegetation condition</span>
+      <strong className="si-live-aoi-stats__condition-v">{condition}</strong>
+    </div>
+  );
+}
+
+function NdviClassLegend() {
+  return (
+    <div className="si-live-aoi-stats__ndvi-legend" aria-label="NDVI classification legend">
+      <span className="si-live-aoi-stats__section-k">NDVI classes</span>
+      <ul className="si-live-aoi-stats__ndvi-legend-list">
+        {SI_NDVI_DENSITY_CLASS_BANDS.map(band => (
+          <li key={band.id}>
+            <span
+              className={`si-live-aoi-stats__ndvi-swatch si-live-aoi-stats__ndvi-swatch--${band.id.replace(/\s+/g, '-').toLowerCase()}`}
+              aria-hidden
+            />
+            <span className="si-live-aoi-stats__ndvi-band-label">{band.id}</span>
+            <span className="si-live-aoi-stats__ndvi-band-range" dir="ltr">
+              {band.rangeLabel}
+            </span>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+function IndexAnalysisBody({
+  model,
+  analysis,
+  loading,
+  stat,
+}: {
+  model: LiveAoiStatsViewModel;
+  analysis: LiveAoiIndexAnalysisSummary;
+  loading: boolean;
+  stat: (v: number | null) => string;
+}) {
+  return (
+    <>
+      <div className="si-live-aoi-stats__imagery-banner" dir="ltr">
+        <i className="fa-solid fa-calendar-day" aria-hidden />
+        <div>
+          <span className="si-live-aoi-stats__imagery-k">Imagery date (latest composite)</span>
+          <strong className="si-live-aoi-stats__imagery-v">{analysis.imageryDateIso || '—'}</strong>
+        </div>
+      </div>
+
+      {!loading && analysis.averageIndex != null ? (
+        <>
+          <ConditionBadge condition={analysis.condition} tone={analysis.conditionTone} />
+
+          <div className="si-live-aoi-stats__hero si-live-aoi-stats__hero--ndvi" dir="ltr">
+            <span className="si-live-aoi-stats__hero-k">Average NDVI</span>
+            <strong className="si-live-aoi-stats__hero-v">{stat(analysis.averageIndex)}</strong>
+            <span className="si-live-aoi-stats__hero-range">
+              Range {stat(model.min)} – {stat(model.max)}
+            </span>
+          </div>
+
+          <div className="si-live-aoi-stats__metrics si-live-aoi-stats__metrics--ndvi" aria-label="NDVI area metrics">
+            <AreaMetricCard title="Total AOI area" ha={analysis.totalAreaHa} m2={analysis.totalAreaM2} tone="total" />
+            <AreaMetricCard
+              title="Cultivated area (NDVI > 0.20)"
+              ha={analysis.cultivatedAreaHa}
+              m2={analysis.cultivatedAreaM2}
+              pct={analysis.cultivatedPct}
+              tone="cult"
+            />
+            <AreaMetricCard
+              title="Non-cultivated area"
+              ha={analysis.nonCultivatedAreaHa}
+              m2={analysis.nonCultivatedAreaM2}
+              tone="non"
+            />
+          </div>
+
+          <p className="si-live-aoi-stats__interpretation">{analysis.interpretation}</p>
+
+          <NdviClassLegend />
+        </>
+      ) : null}
+    </>
   );
 }
 
@@ -390,9 +489,11 @@ export function SiLiveAoiStatsPopup({
   const loading = model.status === 'loading' && model.mean == null;
   const click = model.clickedClass;
   const cover = model.cover;
+  const indexAnalysis = model.indexAnalysis;
   const coverLabels = coverDisplayLabelsForLayer(model.layerId);
   const indexIcon = indexIconForLayer(model.layerId);
   const statusHint = liveAoiStatsStatusHint(model.status, loading);
+  const panelTitle = indexAnalysis?.indicatorLabel ?? 'AOI live analysis';
   const stat = (v: number | null) =>
     v != null && Number.isFinite(v) ? roundIndexDisplay(v, model.layerId) : '—';
 
@@ -422,7 +523,7 @@ export function SiLiveAoiStatsPopup({
           className={`si-live-aoi-stats${isDragging ? ' si-live-aoi-stats--dragging' : ''}`}
           role="dialog"
           aria-modal="false"
-          aria-label="AOI live layer analysis popup"
+          aria-label={panelTitle}
           initial={{ opacity: 0, y: 10, scale: 0.96 }}
           animate={{ opacity: 1, y: 0, scale: 1 }}
           exit={{ opacity: 0, y: 8, scale: 0.97 }}
@@ -435,9 +536,10 @@ export function SiLiveAoiStatsPopup({
             <div className="si-live-aoi-stats__head-text">
               <span className="si-live-aoi-stats__live">
                 <span className="si-live-aoi-stats__live-dot" aria-hidden />
-                Live AOI
+                {indexAnalysis ? 'AgroCloud' : 'Live AOI'}
               </span>
-              <strong className="si-live-aoi-stats__aoi-name">{model.aoiName}</strong>
+              <strong className="si-live-aoi-stats__aoi-name">{panelTitle}</strong>
+              <span className="si-live-aoi-stats__aoi-sub">{model.aoiName}</span>
             </div>
             <span className="si-live-aoi-stats__index-badge" title={model.layerName}>
               <i className={`fa-solid ${indexIcon}`} aria-hidden />
@@ -456,57 +558,65 @@ export function SiLiveAoiStatsPopup({
             ) : null}
           </div>
 
-          <p className="si-live-aoi-stats__live-note">
-            LIVE · {model.layerName} · Imagery {model.analysisDateIso || '—'} · classified pixels inside AOI
-          </p>
+          {indexAnalysis ? (
+            <IndexAnalysisBody
+              model={model}
+              analysis={indexAnalysis}
+              loading={loading}
+              stat={stat}
+            />
+          ) : (
+            <>
+              <p className="si-live-aoi-stats__live-note">
+                LIVE · {model.layerName} · Imagery {model.analysisDateIso || '—'}
+              </p>
 
-          {!loading && model.mean != null ? (
-            <div className="si-live-aoi-stats__hero" dir="ltr">
-              <span className="si-live-aoi-stats__hero-k">
-                Average {model.layerId}
-                {model.layerId === 'NDVI' ? ' (vegetation index)' : ''}
-              </span>
-              <strong className="si-live-aoi-stats__hero-v">{stat(model.mean)}</strong>
-              <span className="si-live-aoi-stats__hero-range">
-                {stat(model.min)} – {stat(model.max)}
-              </span>
-            </div>
-          ) : null}
+              {!loading && model.mean != null ? (
+                <div className="si-live-aoi-stats__hero" dir="ltr">
+                  <span className="si-live-aoi-stats__hero-k">Average {model.layerId}</span>
+                  <strong className="si-live-aoi-stats__hero-v">{stat(model.mean)}</strong>
+                  <span className="si-live-aoi-stats__hero-range">
+                    {stat(model.min)} – {stat(model.max)}
+                  </span>
+                </div>
+              ) : null}
 
-          <div className="si-live-aoi-stats__metrics" aria-label="AOI area breakdown">
-            <AreaMetricCard title="Total area (AOI)" ha={model.areaHa} m2={model.areaM2} tone="total" />
-            {cover && !loading && posPct != null && negPct != null ? (
-              <>
-                <AreaMetricCard
-                  title={`Cultivated (${coverLabels.shortPositive})`}
-                  ha={posHa}
-                  m2={cover.positiveAreaM2}
-                  pct={posPct}
-                  tone="cult"
-                />
-                <AreaMetricCard
-                  title={`Non-cultivated (${coverLabels.shortNegative})`}
-                  ha={negHa}
-                  m2={cover.negativeAreaM2}
-                  pct={negPct}
-                  tone="non"
-                />
-              </>
-            ) : null}
-          </div>
+              <div className="si-live-aoi-stats__metrics" aria-label="AOI area breakdown">
+                <AreaMetricCard title="Total area (AOI)" ha={model.areaHa} m2={model.areaM2} tone="total" />
+                {cover && !loading && posPct != null && negPct != null ? (
+                  <>
+                    <AreaMetricCard
+                      title={coverLabels.shortPositive}
+                      ha={posHa}
+                      m2={cover.positiveAreaM2}
+                      pct={posPct}
+                      tone="cult"
+                    />
+                    <AreaMetricCard
+                      title={coverLabels.shortNegative}
+                      ha={negHa}
+                      m2={cover.negativeAreaM2}
+                      pct={negPct}
+                      tone="non"
+                    />
+                  </>
+                ) : null}
+              </div>
 
-          {cover && !loading && posPct != null && negPct != null ? (
-            <div className="si-live-aoi-stats__cover-block" aria-label="Index cover split">
-              <CoverBar label={coverLabels.shortPositive} pct={posPct} areaHa={posHa} tone="pos" />
-              <CoverBar label={coverLabels.shortNegative} pct={negPct} areaHa={negHa} tone="neg" />
-            </div>
-          ) : null}
+              {cover && !loading && posPct != null && negPct != null ? (
+                <div className="si-live-aoi-stats__cover-block" aria-label="Index cover split">
+                  <CoverBar label={coverLabels.shortPositive} pct={posPct} areaHa={posHa} tone="pos" />
+                  <CoverBar label={coverLabels.shortNegative} pct={negPct} areaHa={negHa} tone="neg" />
+                </div>
+              ) : null}
 
-          <div className="si-live-aoi-stats__grid">
-            <StatCell kind="min" label="Min" value={stat(model.min)} />
-            <StatCell kind="mean" label="Mean" value={stat(model.mean)} />
-            <StatCell kind="max" label="Max" value={stat(model.max)} />
-          </div>
+              <div className="si-live-aoi-stats__grid">
+                <StatCell kind="min" label="Min" value={stat(model.min)} />
+                <StatCell kind="mean" label="Mean" value={stat(model.mean)} />
+                <StatCell kind="max" label="Max" value={stat(model.max)} />
+              </div>
+            </>
+          )}
 
           <div className="si-live-aoi-stats__meta-grid">
             <div className="si-live-aoi-stats__meta-item">
@@ -552,7 +662,7 @@ export function SiLiveAoiStatsPopup({
             ) : null}
           </div>
 
-          <div className="si-live-aoi-stats__weather" aria-label="Field weather">
+          <div className="si-live-aoi-stats__weather si-live-aoi-stats__weather--compact" aria-label="Field weather">
             <div className="si-live-aoi-stats__weather-head">
               <SiWeatherColoredIcon icon={weather?.conditionIcon ?? 'fa-cloud-sun'} size="md" />
               <span className="si-live-aoi-stats__weather-title">
