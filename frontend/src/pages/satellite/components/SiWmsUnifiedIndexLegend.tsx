@@ -9,6 +9,13 @@ import {
   siWmsIndexLegendInterpretation,
   siWmsIndexLegendScaleFromStops,
 } from '../utils/siWmsLiveIndexLegendConfig';
+import type { SiIndexClassAnalytics } from '../utils/siIndexClassAnalytics';
+import {
+  formatLegendAreaHa,
+  formatLegendAreaM2,
+  siWmsLegendAreasForRows,
+  siWmsLegendSwatchColor,
+} from '../utils/siWmsLegendClassStyle';
 import { formatStatFixed } from '../utils/weeklyCompositeStats';
 import type { SiWmsSpectralLegendContext } from './SiWmsIndexClassificationLegend';
 
@@ -68,6 +75,8 @@ export type SiWmsUnifiedIndexLegendProps = {
   customSymbology?: boolean;
   offsetStorageKey: string;
   ariaLabel?: string;
+  /** AOI pixel-class areas aligned to legend rows (optional). */
+  classAnalytics?: SiIndexClassAnalytics | null;
 };
 
 export function SiWmsUnifiedIndexLegend({
@@ -80,6 +89,7 @@ export function SiWmsUnifiedIndexLegend({
   customSymbology = false,
   offsetStorageKey,
   ariaLabel = 'Spectral layer legend',
+  classAnalytics = null,
 }: SiWmsUnifiedIndexLegendProps) {
   const dockRef = useRef<HTMLDivElement | null>(null);
   const offsetRef = useRef({ x: 0, y: 0 });
@@ -198,6 +208,10 @@ export function SiWmsUnifiedIndexLegend({
   const scale = useMemo(
     () => (classifiedStops ? siWmsIndexLegendScaleFromStops(classifiedStops) : null),
     [classifiedStops],
+  );
+  const rowAreas = useMemo(
+    () => siWmsLegendAreasForRows(rows, classLabels, classAnalytics),
+    [rows, classLabels, classAnalytics],
   );
 
   const seriesStart = (context.seriesStartIso ?? '').trim().slice(0, 10);
@@ -326,18 +340,47 @@ export function SiWmsUnifiedIndexLegend({
             ) : null}
             <div className="si-wms-index-class-legend__body">
               <div className="si-wms-index-class-legend__bar" style={{ backgroundImage: gradient }} aria-hidden />
-              <div className="si-wms-index-class-legend__rows">
-                {rows.map((row, i) => (
-                  <div key={`${row.from}-${row.to}-${i}`} className="si-wms-index-class-legend__row">
-                    <span className="si-wms-index-class-legend__swatch" style={{ background: row.color }} />
-                    <span className="si-wms-index-class-legend__range">
-                      {formatRange(row.from, row.to)}
-                      {classLabels?.[i] ? (
-                        <span className="si-wms-index-class-legend__class-label">{classLabels[i]}</span>
-                      ) : null}
-                    </span>
-                  </div>
-                ))}
+              <div className="si-wms-index-class-legend__rows" role="list">
+                {rows.map((row, i) => {
+                  const label = classLabels?.[i] ?? null;
+                  const swatch = siWmsLegendSwatchColor(profile, label, row.color);
+                  const areas = rowAreas[i];
+                  return (
+                    <div
+                      key={`${row.from}-${row.to}-${i}`}
+                      className="si-wms-index-class-legend__row"
+                      role="listitem"
+                    >
+                      <span
+                        className="si-wms-index-class-legend__swatch"
+                        style={{ background: swatch }}
+                        aria-hidden
+                      />
+                      <div className="si-wms-index-class-legend__row-main">
+                        <span className="si-wms-index-class-legend__class-name">
+                          {label ?? formatRange(row.from, row.to)}
+                        </span>
+                        <span className="si-wms-index-class-legend__class-range" dir="ltr">
+                          {formatRange(row.from, row.to)}
+                        </span>
+                      </div>
+                      <div className="si-wms-index-class-legend__row-areas" dir="ltr">
+                        <span className="si-wms-index-class-legend__area-cell">
+                          <span className="si-wms-index-class-legend__area-k">ha</span>
+                          <span className="si-wms-index-class-legend__area-v">
+                            {formatLegendAreaHa(areas?.areaHa)}
+                          </span>
+                        </span>
+                        <span className="si-wms-index-class-legend__area-cell">
+                          <span className="si-wms-index-class-legend__area-k">m²</span>
+                          <span className="si-wms-index-class-legend__area-v">
+                            {formatLegendAreaM2(areas?.areaM2)}
+                          </span>
+                        </span>
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
             </div>
           </>

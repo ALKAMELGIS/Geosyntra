@@ -721,7 +721,8 @@ import {
   getLiveAoiCache,
   setLiveAoiCache,
 } from './utils/liveAoiAnalysisCache';
-import { buildLiveAoiStatsViewModel } from './utils/liveAoiStatsView';
+import { hitTestLiveAoiAtClick } from './utils/liveAoiPopupHit';
+import { buildLiveAoiStatsViewModel, buildLoadingLiveAoiStatsViewModel } from './utils/liveAoiStatsView';
 import {
   resolveLiveAoiPopupAnchor,
   resolveLiveAoiRowFromClick,
@@ -15197,15 +15198,6 @@ export default function SatelliteIntelligence() {
       return;
     }
 
-    const toolSnap = readSiMapInteractiveToolSnapshot();
-    if (siMapInteractiveToolPanelOpen(toolSnap)) {
-      mapIdentifyHandledRef.current = true;
-      mapIdentifyPointerRef.current = null;
-      clickEv?.preventDefault?.();
-      clickEv?.stopPropagation?.();
-      return;
-    }
-
     const inActiveDraw = isSiActiveDrawSketchSession({
       mapDrawTool,
       polygonRingLength: polygonRing.length,
@@ -15216,76 +15208,49 @@ export default function SatelliteIntelligence() {
       polygonVertexSketchDrag: polygonRingSketchDragRef.current != null,
     });
 
-    if (interactionModeRef.current === 'move') return;
-
-    const canReportLiveAoiInline =
-      !shouldSuppressGeoAiMapIdentifyPopup() &&
+    const canOpenLiveAoiStatsPopup =
       interactionModeRef.current === 'view' &&
-      mapDrawToolRef.current === 'select';
+      (mapDrawToolRef.current === 'select' || mapDrawToolRef.current === 'move');
 
     if (!inActiveDraw) {
       mapIdentifyPointerRef.current = null;
-      if (canReportLiveAoiInline) {
-        let openedLiveAoiPopup = false;
-        const multiRows = multiAoiItemsRef.current;
-        const openLiveAoiStatsPopupAtClick = (
-          row: { id: string; name: string; feature: GeoJSON.Feature } | null,
-        ) => {
-          let aoiKey = staticAoiChartAoiKeyRef.current;
-          if (row?.feature) {
-            try {
-              aoiKey = JSON.stringify(row.feature);
-            } catch {
-              aoiKey = row.id;
-            }
-          }
-          if (!aoiKey) return false;
+      if (canOpenLiveAoiStatsPopup) {
+        const hit = hitTestLiveAoiAtClick(lng, lat, {
+          multiRows: multiAoiItemsRef.current,
+          drawnFeature: drawnGeometryRef.current as GeoJSON.Feature | null | undefined,
+          fieldRows: aoiFieldsRef.current.map(f => ({
+            id: f.id,
+            name: f.name,
+            geometry: f.geometry,
+          })),
+          selectedFieldId: selectedFieldIdRef.current,
+        });
+        if (hit) {
           liveAoiPopupClickRef.current = {
             lng,
             lat,
-            aoiKey,
-            rowId: row?.id,
+            aoiKey: hit.aoiKey,
+            rowId: hit.rowId,
           };
           setLiveAoiPopupClickRev(v => v + 1);
           setLiveAoiStatsPopupOpen(true);
-          if (row) setActiveMultiAoiId(row.id);
+          if (hit.rowId && hit.rowId !== '__drawn' && multiAoiItemsRef.current.some(r => r.id === hit.rowId)) {
+            setActiveMultiAoiId(hit.rowId);
+          }
+          if (hit.rowId && hit.rowId !== '__drawn' && aoiFieldsRef.current.some(f => f.id === hit.rowId)) {
+            setSelectedFieldId(hit.rowId);
+          }
           const layer = activeAoiChartLayerRef.current;
-          const status = `Live AOI · ${row?.name ?? 'Drawn AOI'} · ${layer.layerId}`;
+          const status = `Live AOI · ${hit.label} · ${layer.layerId}`;
           setMapIdentifyStatus(status);
           setFieldAnalysisStatus(status);
-          return true;
-        };
-        if (multiRows.length) {
-          for (const row of multiRows) {
-            const g = row.feature?.geometry;
-            if (
-              g &&
-              (g.type === 'Polygon' || g.type === 'MultiPolygon') &&
-              pointInAoiGeometry(lng, lat, g)
-            ) {
-              openedLiveAoiPopup = openLiveAoiStatsPopupAtClick(row);
-              break;
-            }
-          }
-        } else {
-          const feat = staticAoiChartFeatureRef.current;
-          const g = feat?.geometry;
-          if (
-            g &&
-            (g.type === 'Polygon' || g.type === 'MultiPolygon') &&
-            pointInAoiGeometry(lng, lat, g)
-          ) {
-            openedLiveAoiPopup = openLiveAoiStatsPopupAtClick(null);
-          }
-        }
-        if (openedLiveAoiPopup) {
           mapIdentifyHandledRef.current = true;
           clickEv?.preventDefault?.();
           clickEv?.stopPropagation?.();
           return;
         }
       }
-      if (!mapIdentifyHandledRef.current) {
+      if (!mapIdentifyHandledRef.current && !shouldSuppressGeoAiMapIdentifyPopup()) {
         const handled = performSatelliteMapIdentify(lng, lat);
         mapIdentifyHandledRef.current = handled;
         if (handled) return;
@@ -15320,6 +15285,17 @@ export default function SatelliteIntelligence() {
       }
       if (interactionModeRef.current === 'view') return;
     }
+
+    const toolSnap = readSiMapInteractiveToolSnapshot();
+    if (siMapInteractiveToolPanelOpen(toolSnap)) {
+      mapIdentifyHandledRef.current = true;
+      mapIdentifyPointerRef.current = null;
+      clickEv?.preventDefault?.();
+      clickEv?.stopPropagation?.();
+      return;
+    }
+
+    if (interactionModeRef.current === 'move') return;
     if (interactionModeRef.current !== 'draw') return;
     if (mapDrawTool === 'freehand' || mapDrawTool === 'text' || mapDrawTool === 'lasso') return;
     if (mapDrawTool === 'rectangle' || mapDrawTool === 'circle') return;
@@ -16148,8 +16124,19 @@ export default function SatelliteIntelligence() {
       const row = multiAoiItems.find(r => r.id === activeMultiAoiId) ?? multiAoiItems[0];
       return row?.feature ?? drawnGeometry;
     }
-    return drawnGeometry;
-  }, [multiAoiItems, activeMultiAoiId, drawnGeometry]);
+    if (drawnGeometry) return drawnGeometry;
+    if (selectedFieldId) {
+      const row = aoiFields.find(f => f.id === selectedFieldId);
+      if (row?.geometry) {
+        return { type: 'Feature', properties: { label: row.name }, geometry: row.geometry } as GeoJSON.Feature;
+      }
+    }
+    if (aoiFields.length === 1 && aoiFields[0]?.geometry) {
+      const row = aoiFields[0]!;
+      return { type: 'Feature', properties: { label: row.name }, geometry: row.geometry } as GeoJSON.Feature;
+    }
+    return null;
+  }, [multiAoiItems, activeMultiAoiId, drawnGeometry, aoiFields, selectedFieldId]);
 
   const staticAoiChartAoiKey = useMemo(() => {
     if (staticAoiChartFeature) {
@@ -17821,6 +17808,53 @@ export default function SatelliteIntelligence() {
     mpcZonalFetchStatusByAoiId,
     effectiveAnalysisEngineBaseUrl,
     liveAoiAnalysisDateIso,
+    liveAoiPopupClickRev,
+  ]);
+
+  const liveAoiPopupDisplayModel = useMemo(() => {
+    if (liveAoiStatsView) return liveAoiStatsView;
+    if (!liveAoiStatsPopupOpen) return null;
+    const click = liveAoiPopupClickRef.current;
+    const hit =
+      click != null
+        ? hitTestLiveAoiAtClick(click.lng, click.lat, {
+            multiRows: mpcZonalSampleTargets,
+            drawnFeature: drawnGeometry as GeoJSON.Feature | null | undefined,
+            fieldRows: aoiFields.map(f => ({ id: f.id, name: f.name, geometry: f.geometry })),
+            selectedFieldId,
+          })
+        : null;
+    const feature = hit?.feature ?? staticAoiChartFeature;
+    const g = feature?.geometry;
+    if (!g || (g.type !== 'Polygon' && g.type !== 'MultiPolygon')) return null;
+    const row =
+      resolveLiveAoiRowFromClick(click, mpcZonalSampleTargets, liveAoiActiveRowId) ??
+      mpcZonalSampleTargets[0];
+    const areaHa = geodesicAreaHectares(g);
+    if (!Number.isFinite(areaHa) || areaHa <= 0) return null;
+    return buildLoadingLiveAoiStatsViewModel({
+      aoiKey: hit?.aoiKey ?? staticAoiChartAoiKey ?? row?.id ?? 'aoi',
+      aoiName: hit?.label ?? row?.name ?? 'AOI',
+      layerId: activeAoiChartLayer.layerId,
+      layerName: activeAoiChartLayer.label,
+      areaHa,
+      analysisDateIso: liveAoiAnalysisDateIso,
+      status: liveAoiPopupSpectral.status === 'unavailable' ? 'unavailable' : 'loading',
+    });
+  }, [
+    liveAoiStatsView,
+    liveAoiStatsPopupOpen,
+    staticAoiChartFeature,
+    staticAoiChartAoiKey,
+    drawnGeometry,
+    aoiFields,
+    selectedFieldId,
+    mpcZonalSampleTargets,
+    liveAoiActiveRowId,
+    activeAoiChartLayer.layerId,
+    activeAoiChartLayer.label,
+    liveAoiAnalysisDateIso,
+    liveAoiPopupSpectral.status,
     liveAoiPopupClickRev,
   ]);
 
@@ -21004,6 +21038,9 @@ export default function SatelliteIntelligence() {
               layerLabel={wmsSpectralLegend.label}
               context={wmsSpectralLegend.context}
               classifiedStopsOverride={symStopsForWmsLayerId(activeWmsLayer || '')}
+              classAnalytics={
+                liveAoiPopupDisplayModel?.classAnalytics ?? liveAoiStatsView?.classAnalytics ?? null
+              }
             />
           ) : null}
           {isMapLoaded &&
@@ -21017,6 +21054,9 @@ export default function SatelliteIntelligence() {
               context={wmsSpectralLegend.context}
               symbologyUi={activeWmsSymbologyUi}
               symbologyPartial={activeWmsLayer ? siWmsSymbologyByLayer[activeWmsLayer] : undefined}
+              classAnalytics={
+                liveAoiPopupDisplayModel?.classAnalytics ?? liveAoiStatsView?.classAnalytics ?? null
+              }
             />
           ) : null}
 
@@ -21147,10 +21187,10 @@ export default function SatelliteIntelligence() {
             />
           ) : null}
 
-          {mapStyleLayersMounted && liveAoiStatsView ? (
+          {mapStyleLayersMounted && liveAoiPopupDisplayModel ? (
             <SiLiveAoiStatsPopup
               open={liveAoiStatsPopupOpen}
-              model={liveAoiStatsView}
+              model={liveAoiPopupDisplayModel}
               anchor={liveAoiPopupAnchor}
               map={(getMapInstance() as MapboxMap | null) ?? null}
               coordinates={

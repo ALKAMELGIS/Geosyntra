@@ -8,6 +8,7 @@ import {
   SI_NDWI_CLASSIFICATION_STOPS,
   type IndexRampStop,
 } from '../../../lib/siWmsIndexClassificationRamp';
+import type { SiIndexClassAnalytics } from '../utils/siIndexClassAnalytics';
 import { SiWmsUnifiedIndexLegend } from './SiWmsUnifiedIndexLegend';
 
 export const SI_WMS_SPECTRAL_LEGEND_OFFSET_LS = 'si-wms-spectral-legend-offset-v4';
@@ -95,6 +96,7 @@ export type SiWmsIndexClassificationLegendProps = {
   context: SiWmsSpectralLegendContext;
   maxRows?: number;
   classifiedStopsOverride?: readonly IndexRampStop[] | null;
+  classAnalytics?: SiIndexClassAnalytics | null;
 };
 
 export function SiWmsIndexClassificationLegend({
@@ -103,6 +105,7 @@ export function SiWmsIndexClassificationLegend({
   context,
   maxRows,
   classifiedStopsOverride = null,
+  classAnalytics = null,
 }: SiWmsIndexClassificationLegendProps) {
   const classifiedStops = useMemo(() => {
     if (isClassifiedProfile(profile)) {
@@ -128,6 +131,7 @@ export function SiWmsIndexClassificationLegend({
       customSymbology={customSymbology}
       offsetStorageKey={SI_WMS_SPECTRAL_LEGEND_OFFSET_LS}
       ariaLabel="Spectral layer legend"
+      classAnalytics={classAnalytics}
     />
   );
 }

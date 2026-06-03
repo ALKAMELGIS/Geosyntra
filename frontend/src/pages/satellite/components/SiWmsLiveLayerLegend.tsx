@@ -1,6 +1,7 @@
 import { useMemo } from 'react';
 import type { WmsAoiEvalProfile } from '../../../lib/sentinelHubWmsAoiClip';
 import { mergeSymbologyUi, type SiWmsSymbologyUiState } from '../utils/siWmsSymbologyModel';
+import type { SiIndexClassAnalytics } from '../utils/siIndexClassAnalytics';
 import { siWmsResolveCanonicalStops } from '../utils/siWmsSpectralClassification';
 import {
   clearSpectralLegendDockOffset,
@@ -29,6 +30,7 @@ export type SiWmsLiveLayerLegendProps = {
   context: SiWmsSpectralLegendContext;
   symbologyUi: SiWmsSymbologyUiState;
   symbologyPartial?: Partial<SiWmsSymbologyUiState>;
+  classAnalytics?: SiIndexClassAnalytics | null;
 };
 
 export function SiWmsLiveLayerLegend({
@@ -38,6 +40,7 @@ export function SiWmsLiveLayerLegend({
   context,
   symbologyUi,
   symbologyPartial,
+  classAnalytics = null,
 }: SiWmsLiveLayerLegendProps) {
   const ui = useMemo(() => mergeSymbologyUi(symbologyUi), [symbologyUi]);
   const stops = useMemo(
@@ -65,6 +68,7 @@ export function SiWmsLiveLayerLegend({
       customSymbology={customSymbology}
       offsetStorageKey={SI_WMS_LIVE_LEGEND_OFFSET_LS}
       ariaLabel="Live index layer legend"
+      classAnalytics={classAnalytics}
     />
   );
 }

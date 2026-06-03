@@ -3,6 +3,7 @@ import {
   buildLiveAoiIndexAnalysisSummary,
   type LiveAoiIndexAnalysisSummary,
 } from './liveAoiIndexAnalysis';
+import { SI_WMS_SPECTRAL_CLASS_COUNT } from './siWmsSpectralClassification';
 import {
   classAtRasterClick,
   computeIndexClassAnalyticsFromRaster,
@@ -52,6 +53,41 @@ function resolveMaskedStatsStatus(
   if (hasStats) return status === 'error' ? 'ready' : status;
   if (status === 'ready') return 'error';
   return status;
+}
+
+/** Minimal model so the popup can mount immediately while raster stats load. */
+export function buildLoadingLiveAoiStatsViewModel(args: {
+  aoiKey: string;
+  aoiName: string;
+  layerId: StaticAoiChartLayerId;
+  layerName: string;
+  areaHa: number;
+  analysisDateIso: string;
+  status?: LiveAoiAnalysisStatus;
+}): LiveAoiStatsViewModel {
+  const areaHa = Math.max(0, args.areaHa);
+  return {
+    aoiKey: args.aoiKey,
+    aoiName: args.aoiName,
+    layerName: args.layerName,
+    layerId: args.layerId,
+    analysisDateIso: args.analysisDateIso.slice(0, 10),
+    pixelCount: null,
+    totalPixelCount: null,
+    validPixelCount: null,
+    approxResolutionM: null,
+    min: null,
+    max: null,
+    mean: null,
+    areaHa,
+    areaM2: areaHa * 10000,
+    areaKm2: areaHa / 100,
+    status: args.status ?? 'loading',
+    classAnalytics: null,
+    cover: null,
+    clickedClass: null,
+    indexAnalysis: null,
+  };
 }
 
 export function buildLiveAoiStatsViewModel(args: {
@@ -135,6 +171,7 @@ export function buildLiveAoiStatsViewModel(args: {
           layerId,
           feature,
           analysisDateIso,
+          legendBandCount: SI_WMS_SPECTRAL_CLASS_COUNT,
         })
       : null;
 
