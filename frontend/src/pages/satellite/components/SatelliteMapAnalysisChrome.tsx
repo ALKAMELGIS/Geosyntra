@@ -309,8 +309,8 @@ export type SatelliteMapAnalysisChromeProps = {
   onToggleStaticCharts: () => void;
   /** @deprecated Map uses contextual dock; flag ignored. */
   showFloatingToolbar?: boolean;
-  /** Sparkline means (0–1 normalized optional) */
-  weeklyMeans: number[];
+  /** Sparkline means from AOI zonal raster (null gaps when no data). */
+  weeklyMeans: (number | null)[];
   pivotBars: Array<{ name: string; value: number }>;
   fieldComparisonBars?: Array<{ name: string; value: number }>;
   fieldComparisonSubtitle?: string;
@@ -330,6 +330,8 @@ export type SatelliteMapAnalysisChromeProps = {
   scatterWeekly?: WeeklyCompositeLite[];
   scatterWeekIndex?: number;
   scatterRasterSample?: SiAoiRasterPixelSample | null;
+  rasterDataLoading?: boolean;
+  hasRealRasterData?: boolean;
   /** With `mapLoaded`, portals the contextual dock into `mapboxgl-canvas-container` for a true in-map overlay. */
   mapRef?: RefObject<any>;
   mapLoaded?: boolean;
@@ -341,7 +343,6 @@ export type SatelliteMapAnalysisChromeProps = {
   processingEmbedSection?:
     | 'source'
     | 'layers'
-    | 'explore-stac'
     | 'remote-sensing'
     | 'table-geo-ai'
     | null;
@@ -379,11 +380,15 @@ export type SatelliteMapAnalysisChromeProps = {
   onToggleElevProfile?: () => void;
   mapWeatherIntelActive?: boolean;
   onToggleMapWeatherIntel?: () => void;
+  quickDashboardOpen?: boolean;
+  onToggleQuickDashboard?: () => void;
+  mapLayerControlOpen?: boolean;
+  onToggleMapLayerControl?: () => void;
   /** When true, map analysis tools cannot open until feature pop-ups are closed. */
   mapAnalysisToolsLockedByPopups?: boolean;
 };
 
-function sparkPath(values: number[], w: number, h: number): string {
+function sparkPath(values: readonly (number | null)[], w: number, h: number): string {
   const finite = values.filter((v): v is number => typeof v === 'number' && Number.isFinite(v));
   if (!finite.length) return '';
   const min = Math.min(...finite);
@@ -476,6 +481,8 @@ export function SatelliteMapAnalysisChrome(props: SatelliteMapAnalysisChromeProp
     scatterWeekly = [],
     scatterWeekIndex = 0,
     scatterRasterSample = null,
+    rasterDataLoading = false,
+    hasRealRasterData = true,
     mapRef,
     mapLoaded = false,
     showMapToolbox = true,
@@ -506,6 +513,10 @@ export function SatelliteMapAnalysisChrome(props: SatelliteMapAnalysisChromeProp
     onToggleElevProfile,
     mapWeatherIntelActive = false,
     onToggleMapWeatherIntel,
+    quickDashboardOpen = false,
+    onToggleQuickDashboard,
+    mapLayerControlOpen = false,
+    onToggleMapLayerControl,
     mapAnalysisToolsLockedByPopups = false,
   } = props;
 
@@ -769,6 +780,8 @@ export function SatelliteMapAnalysisChrome(props: SatelliteMapAnalysisChromeProp
       scatterWeekly={scatterWeekly}
       scatterWeekIndex={scatterWeekIndex}
       scatterRasterSample={scatterRasterSample}
+      rasterDataLoading={rasterDataLoading}
+      hasRealRasterData={hasRealRasterData}
       weeklyMeans={weeklyMeans}
       pivotBars={pivotBars}
       fieldComparisonBars={fieldComparisonBars}
@@ -802,6 +815,10 @@ export function SatelliteMapAnalysisChrome(props: SatelliteMapAnalysisChromeProp
       onToggleElevProfile={onToggleElevProfile}
       mapWeatherIntelActive={mapWeatherIntelActive}
       onToggleMapWeatherIntel={onToggleMapWeatherIntel}
+      quickDashboardOpen={quickDashboardOpen}
+      onToggleQuickDashboard={onToggleQuickDashboard}
+      mapLayerControlOpen={mapLayerControlOpen}
+      onToggleMapLayerControl={onToggleMapLayerControl}
       mapAnalysisToolsLockedByPopups={mapAnalysisToolsLockedByPopups}
       drawAssistHint={drawAssistHint}
       hasEditableAoiGeometry={hasEditableAoiGeometry}

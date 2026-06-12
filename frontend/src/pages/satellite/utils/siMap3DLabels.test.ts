@@ -36,18 +36,23 @@ describe('ensureSiMapboxStyleGlyphs', () => {
 });
 
 describe('buildSiContourLabelFilter', () => {
-  it('labels every contour interval even when main lines are enabled', () => {
+  it('labels every contour interval by default', () => {
     const filter = buildSiContourLabelFilter({
       ...SI_DEFAULT_TERRAIN_SETTINGS,
       contourIntervalM: 20,
-      contourMainLinesEnabled: true,
+      contourMainLabelsOnly: false,
+    });
+    expect(filter).toEqual(['==', ['%', ['round', ['/', ['to-number', ['get', 'ele']], 20]], 1], 0]);
+  });
+
+  it('labels index contours only when main labels only is enabled', () => {
+    const filter = buildSiContourLabelFilter({
+      ...SI_DEFAULT_TERRAIN_SETTINGS,
+      contourIntervalM: 20,
+      contourMainLabelsOnly: true,
       contourMainLineEvery: 5,
     });
-    expect(filter).toEqual([
-      '==',
-      ['%', ['round', ['/', ['to-number', ['get', 'ele']], 20]], 1],
-      0,
-    ]);
+    expect(filter).toEqual(['==', ['%', ['round', ['/', ['to-number', ['get', 'ele']], 100]], 1], 0]);
   });
 });
 

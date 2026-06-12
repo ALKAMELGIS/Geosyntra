@@ -566,3 +566,88 @@ describe('style engine Apply — unique vs graduated isolation', () => {
     expect(revUnique).not.toBe(revGrad);
   });
 });
+
+describe('attribute transparency / rotation draft persistence', () => {
+  const polygonLayer = {
+    id: 'poly-1',
+    geojson: {
+      features: [
+        { properties: { zone: 'A', pop: 10 }, geometry: { type: 'Polygon', coordinates: [] } },
+        { properties: { zone: 'B', pop: 30 }, geometry: { type: 'Polygon', coordinates: [] } },
+      ],
+    },
+    source: 'upload',
+    color: '#2563eb',
+    fillColor: '#93c5fd',
+    weight: 2,
+    polygonFillAlpha: 0.5,
+    pointRadius: 6,
+  };
+
+  it('finalizeSymbologyDraftForCommit keeps attribute-drive settings', () => {
+    const draft = {
+      useArcGisOnline: false,
+      style: 'color' as const,
+      field: 'pop',
+      classes: 5,
+      method: 'equal-interval' as const,
+      colorRamp: 'viridis' as const,
+      threshold: Number.NaN,
+      arcgisMaxCategories: 8,
+      attributeTransparency: {
+        enabled: true,
+        field: 'pop',
+        dividedByField: '',
+        valueMin: 10,
+        valueMax: 30,
+        highTransparency: 0,
+        lowTransparency: 70,
+        includeInLegend: false,
+      },
+      attributeRotation: {
+        enabled: true,
+        field: 'pop',
+        mode: 'geographic' as const,
+      },
+    };
+    const finalized = finalizeSymbologyDraftForCommit(polygonLayer, draft);
+    expect(finalized.attributeTransparency?.enabled).toBe(true);
+    expect(finalized.attributeRotation?.enabled).toBe(true);
+  });
+
+  it('live preview style pack applies attribute transparency from draft', () => {
+    const appearance = {
+      color: '#2563eb',
+      fillColor: '#93c5fd',
+      weight: 2,
+      opacity: 1,
+      polygonFillAlpha: 0.5,
+      pointRadius: 6,
+      strokeStyle: 'solid' as const,
+      fillStyle: 'solid' as const,
+      blendMode: 'normal' as const,
+      previewCornerRadius: 8,
+    };
+    const draft = {
+      useArcGisOnline: false,
+      style: 'color' as const,
+      field: 'pop',
+      classes: 5,
+      method: 'equal-interval' as const,
+      colorRamp: 'viridis' as const,
+      threshold: Number.NaN,
+      attributeTransparency: {
+        enabled: true,
+        field: 'pop',
+        dividedByField: '',
+        valueMin: 10,
+        valueMax: 30,
+        highTransparency: 0,
+        lowTransparency: 70,
+        includeInLegend: false,
+      },
+    };
+    const pack = resolveSiLayerMapboxStylePackWithPreview({ layer: polygonLayer, draft, appearance });
+    expect(Array.isArray(pack.fillPaint['fill-opacity'])).toBe(true);
+  });
+});

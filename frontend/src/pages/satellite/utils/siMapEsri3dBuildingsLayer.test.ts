@@ -33,4 +33,11 @@ describe('syncSiMapEsri3dBuildingsLayer', () => {
     syncSiMapEsri3dBuildingsLayer(map as never, osm3dEntry);
     expect(map.addControl).toHaveBeenCalledTimes(1);
   });
+
+  it('does not rebuild the tileset on every move frame', () => {
+    const map = mockMap(true);
+    syncSiMapEsri3dBuildingsLayer(map as never, osm3dEntry);
+    const moveBindings = map.on.mock.calls.filter(([event]) => event === 'move');
+    expect(moveBindings).toHaveLength(0);
+  });
 });

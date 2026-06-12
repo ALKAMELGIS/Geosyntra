@@ -55,14 +55,14 @@ export type SiMapWeatherSettings = {
 
 export const DEFAULT_SI_MAP_WEATHER: SiMapWeatherSettings = {
   preset: 'sunny',
-  activePresets: ['sunny'],
+  activePresets: [],
   cloudCover: 35,
   precipitation: 55,
   snowCover: false,
   fogDensity: 40,
   daylightMinutes: 720,
   daylightDate: siMapDaylightTodayIso(),
-  sunPositionByDateTime: true,
+  sunPositionByDateTime: false,
   daylightShadows: true,
   daylightTimePlaying: false,
   daylightDatePlaying: false,
@@ -98,8 +98,8 @@ export function isSiMapSunSkyWeatherPreset(preset: SiMapWeatherPreset): boolean 
 
 /** True when the user selected the Weather panel “Fog” tool (not camera-tilt auto fog). */
 export function isSiMapFogToolActive(s: SiMapWeatherSettings): boolean {
-  const active = Array.isArray(s.activePresets) ? s.activePresets : [s.preset];
-  return active.includes('fog') || s.fogDensity > 8;
+  const active = Array.isArray(s.activePresets) ? s.activePresets : [];
+  return active.includes('fog');
 }
 
 export function clampPct(n: unknown, fallback = 0): number {
@@ -123,12 +123,14 @@ export function sanitizeSiMapWeatherSettings(raw: unknown): SiMapWeatherSettings
         .filter((v): v is SiMapWeatherPreset =>
           SI_MAP_WEATHER_PRESETS.some(p => p.id === v),
         )
-    : [preset];
+    : [];
   const panelTab: SiMapWeatherPanelTab = 'weather';
   const panelTheme = o.panelTheme === 'light' ? 'light' : 'dark';
+  const dedupedActive = [...new Set(activePresets)];
+  const sunSkyActive = dedupedActive.includes('sunSky');
   return {
     preset,
-    activePresets: activePresets.length > 0 ? [...new Set(activePresets)] : [preset],
+    activePresets: dedupedActive,
     cloudCover: clampPct(o.cloudCover, d.cloudCover),
     precipitation: clampPct(o.precipitation, d.precipitation),
     snowCover: Boolean(o.snowCover),
@@ -144,7 +146,7 @@ export function sanitizeSiMapWeatherSettings(raw: unknown): SiMapWeatherSettings
       return d.daylightMinutes;
     })(),
     daylightDate: sanitizeDaylightDateIso(o.daylightDate, d.daylightDate),
-    sunPositionByDateTime: o.sunPositionByDateTime !== false,
+    sunPositionByDateTime: sunSkyActive ? o.sunPositionByDateTime !== false : false,
     daylightShadows: o.daylightShadows != null ? Boolean(o.daylightShadows) : d.daylightShadows,
     daylightTimePlaying: Boolean(o.daylightTimePlaying),
     daylightDatePlaying: Boolean(o.daylightDatePlaying),

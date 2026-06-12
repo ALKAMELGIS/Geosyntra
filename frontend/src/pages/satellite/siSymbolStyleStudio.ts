@@ -6,11 +6,18 @@ import { propertyGetExpression } from '../../lib/arcgisDrawingInfoMapbox';
 import type { SymbologyCategoryStyle, SymbologyConfig, SymbologyStyle } from './components/LayerManager';
 import { syncCategoryColorsFromStyles } from './siCategorySymbolStyle';
 import {
+  applyAttributeDriveToVectorStylePack,
+} from './utils/siSymbologyAttributeDrive';
+import {
   buildSymbologyContext,
   darkenColor,
   getLayerGeometryKind,
   normalizeSymbologyForLayer,
 } from './symbologyHelpers';
+import {
+  siMapOutlineWidthExprForZoom,
+  siMapOutlineWidthForZoom,
+} from './utils/siMapOutlineWidthZoom';
 
 export const SI_MAPBOX_STYLE_CLIPBOARD_LS = 'agri-si-style-clipboard-v1';
 export const SI_MAPBOX_STYLE_STUDIO_PREFS_LS = 'agri-si-style-studio-prefs-v1';
@@ -119,6 +126,8 @@ export { siLayerPrefersCustomSymbology } from './siLayerSymbologyEngine';
 export type SiSymbologyDraftLike = Required<SymbologyConfig> & {
   categoryColors?: Record<string, string>;
   categoryStyles?: Record<string, SymbologyCategoryStyle>;
+  attributeTransparency?: import('../../lib/gisLayerTypes').SiSymbologyAttributeTransparency;
+  attributeRotation?: import('../../lib/gisLayerTypes').SiSymbologyAttributeRotation;
 };
 
 /** Mapbox layer remount key from symbology + appearance (live studio preview). */
@@ -145,6 +154,14 @@ export function siSymbologyStyleKeyFromConfig(
     String(sym?.method ?? ''),
     String(sym?.threshold ?? ''),
     String(sym?.useArcGisOnline ?? ''),
+    sym?.attributeTransparency?.enabled ? 't1' : 't0',
+    sym?.attributeTransparency?.field ?? '',
+    String(sym?.attributeTransparency?.valueMin ?? ''),
+    String(sym?.attributeTransparency?.valueMax ?? ''),
+    String(sym?.attributeTransparency?.lowTransparency ?? ''),
+    sym?.attributeRotation?.enabled ? 'r1' : 'r0',
+    sym?.attributeRotation?.field ?? '',
+    sym?.attributeRotation?.mode ?? '',
     catKey,
     appearance.color ?? '',
     appearance.fillColor ?? '',
@@ -189,6 +206,8 @@ export function buildSiMapStylePackFromSymbologyDraft(
     threshold: normalized.threshold,
     categoryColors: draft.categoryColors ?? syncCategoryColorsFromStyles(draft.categoryStyles),
     categoryStyles: draft.categoryStyles,
+    attributeTransparency: draft.attributeTransparency,
+    attributeRotation: draft.attributeRotation,
   };
   const ap = persistedSiAppearance(appearance);
   return buildSiCustomVectorStylePack({
@@ -360,6 +379,13 @@ export type SiVectorStylePack = {
   circlePaint: Record<string, unknown>;
 };
 
+function finalizeSiVectorStylePack(
+  pack: SiVectorStylePack,
+  symbology?: SymbologyConfig,
+): SiVectorStylePack {
+  return applyAttributeDriveToVectorStylePack(pack, symbology);
+}
+
 /**
  * Mapbox paints for custom (non–ArcGIS drawingInfo) vector layers, including
  * data-driven symbology from `symbology` + base appearance from layer fields.
@@ -406,9 +432,12 @@ export function buildSiCustomVectorStylePack(opts: {
   const geometryKind = getLayerGeometryKind(opts.geojson)
   const field = cfg.field || ''
 
+  const pointOutlineStroke = (w: number) =>
+    siMapOutlineWidthForZoom(Math.max(1, Math.min(4, w * 0.65)))
+
   const baseLinePaint: Record<string, unknown> = {
     'line-color': baseLine,
-    'line-width': weight,
+    'line-width': siMapOutlineWidthForZoom(weight),
     ...(lineDash ? { 'line-dasharray': lineDash } : {}),
   }
 
@@ -420,7 +449,7 @@ export function buildSiCustomVectorStylePack(opts: {
   const baseCirclePaint: Record<string, unknown> = {
     'circle-radius': radius,
     'circle-color': baseFill,
-    'circle-stroke-width': Math.max(1, Math.min(4, weight * 0.65)),
+    'circle-stroke-width': pointOutlineStroke(weight),
     'circle-stroke-color': baseLine,
   }
 
@@ -436,11 +465,11 @@ export function buildSiCustomVectorStylePack(opts: {
   })
 
   if (style === 'single' || !opts.symbology) {
-    return numericFallbackPaint()
+    return finalizeSiVectorStylePack(numericFallbackPaint(), opts.symbology)
   }
 
   if (!field) {
-    return numericFallbackPaint()
+    return finalizeSiVectorStylePack(numericFallbackPaint(), opts.symbology)
   }
 
   if (style === 'unique' && field) {
@@ -473,21 +502,21 @@ export function buildSiCustomVectorStylePack(opts: {
           ? { 'line-dasharray': lineDash }
           : {}
     if (geometryKind === 'line') {
-      return {
+      return finalizeSiVectorStylePack({
         fillFilter: SI_MAPBOX_POLY_FILTER,
         lineFilter: SI_MAPBOX_LINE_ONLY_FILTER,
         pointFilter: SI_MAPBOX_POINT_FILTER,
         fillPaint: { 'fill-color': 'rgba(0,0,0,0)', 'fill-opacity': 0 },
         linePaint: {
           'line-color': fillExpr,
-          'line-width': hasPerCatLineW ? lineWidthExpr : weight,
+          'line-width': siMapOutlineWidthExprForZoom(hasPerCatLineW ? lineWidthExpr : weight),
           'line-opacity': hasPerCatOutlineOp ? outlineOpExpr : 1,
           ...lineDashPaint,
         },
         circlePaint: baseCirclePaint,
-      }
+      }, opts.symbology)
     }
-    return {
+    return finalizeSiVectorStylePack({
       fillFilter: SI_MAPBOX_POLY_FILTER,
       lineFilter: SI_MAPBOX_LINE_POLY_FILTER,
       pointFilter: SI_MAPBOX_POINT_FILTER,
@@ -497,7 +526,7 @@ export function buildSiCustomVectorStylePack(opts: {
       },
       linePaint: {
         'line-color': strokeExpr,
-        'line-width': hasPerCatLineW ? lineWidthExpr : weight,
+        'line-width': siMapOutlineWidthExprForZoom(hasPerCatLineW ? lineWidthExpr : weight),
         'line-opacity': hasPerCatOutlineOp ? outlineOpExpr : 1,
         ...lineDashPaint,
       },
@@ -505,11 +534,13 @@ export function buildSiCustomVectorStylePack(opts: {
         'circle-radius': hasPerCatMarker ? markerRadiusExpr : radius,
         'circle-color': fillExpr,
         'circle-opacity': hasPerCatFillOp ? fillOpExpr : fillOpBase,
-        'circle-stroke-width': hasPerCatLineW ? lineWidthExpr : Math.max(1, Math.min(4, weight * 0.65)),
+        'circle-stroke-width': siMapOutlineWidthExprForZoom(
+          hasPerCatLineW ? lineWidthExpr : Math.max(1, Math.min(4, weight * 0.65)),
+        ),
         'circle-stroke-color': strokeExpr,
         'circle-stroke-opacity': hasPerCatOutlineOp ? outlineOpExpr : 1,
       },
-    }
+    }, opts.symbology)
   }
 
   if (
@@ -572,7 +603,7 @@ export function buildSiCustomVectorStylePack(opts: {
     const circleRad =
       style === 'size' || style === 'color_size' || style === 'dot_density' ? radiusStep : radius
 
-    return {
+    return finalizeSiVectorStylePack({
       fillFilter: SI_MAPBOX_POLY_FILTER,
       lineFilter: SI_MAPBOX_LINE_POLY_FILTER,
       pointFilter: SI_MAPBOX_POINT_FILTER,
@@ -582,19 +613,19 @@ export function buildSiCustomVectorStylePack(opts: {
       },
       linePaint: {
         'line-color': lineC,
-        'line-width': lineW,
+        'line-width': siMapOutlineWidthExprForZoom(lineW),
         ...(dotDash ? { 'line-dasharray': dotDash } : {}),
       },
       circlePaint: {
         'circle-radius': circleRad,
         'circle-color': fillC,
-        'circle-stroke-width': Math.max(1, Math.min(4, weight * 0.65)),
+        'circle-stroke-width': pointOutlineStroke(weight),
         'circle-stroke-color': lineC,
       },
-    }
+    }, opts.symbology)
   }
 
-  return numericFallbackPaint()
+  return finalizeSiVectorStylePack(numericFallbackPaint(), opts.symbology)
 }
 
 function stringToDashLiteral(s: string): number[] {

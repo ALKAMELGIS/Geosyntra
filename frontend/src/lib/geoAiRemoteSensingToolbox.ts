@@ -214,15 +214,6 @@ export function tryGeoAiRemoteSensingToolboxAction(ctx: {
     notes.push('Opened the Remote sensing toolbox section.')
   }
 
-  /* Explore STAC — require an explicit open/show cue (avoid matching casual mentions). */
-  if (
-    /\b(open|show|focus|go to)\s+(.{0,24})?\bexplore\s+stac\b/i.test(query) ||
-    /\bافتح\s+استكشاف\s+stac/i.test(query)
-  ) {
-    pushUnique({ kind: 'openExploreStacFromRemoteSensing' })
-    notes.push('Opened Explore STAC with the current date context.')
-  }
-
   /* AOI upload wizard */
   if (
     /\b(add\s+data\s+source|upload\s+aoi|import\s+aoi|vector\s+upload|shapefile|geojson\s+upload)\b/i.test(query) ||

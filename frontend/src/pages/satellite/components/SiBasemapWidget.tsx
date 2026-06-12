@@ -10,6 +10,7 @@ import './SiBasemapWidget.css'
 export type SiBasemapWidgetProps = {
   basemapCatalog: BasemapCatalogEntry[]
   basemapRasterEntries: BasemapCatalogEntry[]
+  basemap3dEntries: BasemapCatalogEntry[]
   activeBasemapId: string
   mapboxToken: string
   onSelectBasemap: (id: string) => void
@@ -66,6 +67,7 @@ function SiBasemapRow({ entry, active, mapboxToken, onSelect }: BasemapRowProps)
 export function SiBasemapWidget({
   basemapCatalog,
   basemapRasterEntries,
+  basemap3dEntries,
   activeBasemapId,
   mapboxToken,
   onSelectBasemap,
@@ -134,6 +136,23 @@ export function SiBasemapWidget({
             ))}
           </div>
         </div>
+
+        {basemap3dEntries.length ? (
+          <div className="si-basemap-section si-basemap-section--flat">
+            <div className="si-basemap-section__label">3D basemaps</div>
+            <div className="si-basemap-section__list">
+              {basemap3dEntries.map(entry => (
+                <SiBasemapRow
+                  key={entry.id}
+                  entry={entry}
+                  active={activeBasemapId === entry.id}
+                  mapboxToken={mapboxToken}
+                  onSelect={() => onSelectBasemap(entry.id)}
+                />
+              ))}
+            </div>
+          </div>
+        ) : null}
       </div>
     </div>
   )

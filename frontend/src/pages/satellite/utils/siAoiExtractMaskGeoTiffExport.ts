@@ -6,7 +6,13 @@ import {
   captureSiReportMapSnapshot,
   waitForWmsRasterSourcesReady,
 } from './siReportMapSnapshotEngine';
-import { encodeRgbGeoTiff4326, rgbaToRgbInterleaved, type GeoTiff4326BBox } from './writeRgbGeoTiff4326';
+import { fetchWmsClippedIndexRaster } from '../../../lib/wmsAoiLiveIndexSample';
+import {
+  encodeFloat32GeoTiff4326,
+  encodeRgbGeoTiff4326,
+  rgbaToRgbInterleaved,
+  type GeoTiff4326BBox,
+} from './writeRgbGeoTiff4326';
 
 export type RasterMapCoordinates = [[number, number], [number, number], [number, number], [number, number]];
 
@@ -74,7 +80,68 @@ export type RunExtractMaskGeoTiffWorkflowOpts = {
   prepareMap: () => void | Promise<void>;
   onStatus?: (message: string) => void;
   stageSourceLayer?: (input: StageExtractSourceLayerInput) => Promise<boolean>;
+  /** When set, prefer WMS clip export with raw index pixel values inside AOI. */
+  wmsExport?: {
+    wmsBaseUrl: string;
+    wmsAccessToken?: string | null;
+    wmsTileLayerName: string;
+    timeStart: string;
+    timeEnd: string;
+    cloudCover: number;
+  };
 };
+
+function floatGridToPreviewDataUrl(values: Float32Array, width: number, height: number): string {
+  let min = Infinity;
+  let max = -Infinity;
+  for (const v of values) {
+    if (!Number.isFinite(v)) continue;
+    if (v < min) min = v;
+    if (v > max) max = v;
+  }
+  const canvas = document.createElement('canvas');
+  canvas.width = width;
+  canvas.height = height;
+  const ctx = canvas.getContext('2d');
+  if (!ctx || !Number.isFinite(min)) return '';
+  const rgba = new Uint8ClampedArray(width * height * 4);
+  const span = Math.max(1e-9, max - min);
+  for (let i = 0; i < values.length; i++) {
+    const v = values[i]!;
+    const o = i * 4;
+    if (!Number.isFinite(v)) {
+      rgba[o + 3] = 0;
+      continue;
+    }
+    const g = Math.max(0, Math.min(255, Math.round(((v - min) / span) * 255)));
+    rgba[o] = g;
+    rgba[o + 1] = g;
+    rgba[o + 2] = g;
+    rgba[o + 3] = 255;
+  }
+  ctx.putImageData(new ImageData(rgba, width, height), 0, 0);
+  return canvas.toDataURL('image/png');
+}
+
+async function buildClipRasterPayloadFromWms(
+  raster: Awaited<ReturnType<typeof fetchWmsClippedIndexRaster>>,
+): Promise<ExtractMaskGeoTiffLayerPayload | null> {
+  if (!raster) return null;
+  const bbox = fitBoundsToGeoTiff4326BBox(raster.fitBounds);
+  const geotiffBuffer = encodeFloat32GeoTiff4326(raster.width, raster.height, raster.values, bbox);
+  const geoTiffBlob = new Blob([geotiffBuffer], { type: 'image/tiff' });
+  const previewDataUrl = floatGridToPreviewDataUrl(raster.values, raster.width, raster.height);
+  if (!previewDataUrl) return null;
+  const previewUrl = URL.createObjectURL(dataUrlToBlob(previewDataUrl));
+  return {
+    previewUrl,
+    geoTiffBlob,
+    coordinates: fitBoundsToRasterCoordinates(raster.fitBounds),
+    boundsLngLat: raster.boundsLngLat,
+    width: raster.width,
+    height: raster.height,
+  };
+}
 
 function loadImageElement(src: string): Promise<HTMLImageElement> {
   return new Promise((resolve, reject) => {
@@ -335,6 +402,7 @@ export async function runExtractMaskGeoTiffWorkflow(
     prepareMap,
     onStatus,
     stageSourceLayer,
+    wmsExport,
   } = opts;
 
   if (!indexLayerId?.trim()) {
@@ -345,10 +413,30 @@ export async function runExtractMaskGeoTiffWorkflow(
     });
   }
 
+  if (wmsExport?.wmsBaseUrl?.trim() && wmsExport.wmsTileLayerName?.trim()) {
+    onStatus?.('Clipping raster to AOI (preserving index pixel values)…');
+    const clipped = await fetchWmsClippedIndexRaster({
+      wmsBaseUrl: wmsExport.wmsBaseUrl,
+      wmsAccessToken: wmsExport.wmsAccessToken,
+      logicalLayerId: indexLayerId,
+      tileLayerName: wmsExport.wmsTileLayerName,
+      timeStart: wmsExport.timeStart,
+      timeEnd: wmsExport.timeEnd,
+      cloudCover: wmsExport.cloudCover,
+      feature: aoiFeature,
+    });
+    const wmsPayload = await buildClipRasterPayloadFromWms(clipped);
+    if (wmsPayload) {
+      const layerName = nextExportAoiGeoTiffLayerName(existingLayerNames);
+      return { payload: wmsPayload, layerName };
+    }
+    onStatus?.('WMS clip unavailable — falling back to map capture…');
+  }
+
   onStatus?.('Preparing raster source on the map…');
   await ensureRasterSourceReady(map, prepareMap);
 
-  onStatus?.('Extract by Mask: clipping raster to AOI and building GeoTIFF…');
+  onStatus?.('Clipping raster to AOI and building GeoTIFF…');
   let maskedPng = await captureExtractMaskAoiSnapshot({
     map,
     aoiFeature,

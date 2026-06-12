@@ -40,6 +40,10 @@ body {
   .app-layout > .content {
     animation: app-shell-content-enter 0.24s cubic-bezier(0.22, 1, 0.36, 1) both;
   }
+
+  .app-layout > .content:has(> .si-page.si-page--map-canvas) {
+    animation: none;
+  }
 }
 
 @keyframes app-shell-content-enter {

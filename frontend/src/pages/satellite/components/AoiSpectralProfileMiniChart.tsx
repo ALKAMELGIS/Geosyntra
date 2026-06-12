@@ -1,4 +1,3 @@
-import { useId } from 'react';
 import './AoiSpectralProfileMiniChart.css';
 
 export type SiAoiSpectralProfileMini = {
@@ -10,7 +9,23 @@ export type SiAoiSpectralProfileMini = {
   subtitle: string;
 };
 
-/** Compact AOI spectral / index profile for map overlay and contextual dock. */
+const CHART_LINE = '#0d9488';
+const CHART_BAR = '#64748b';
+const CHART_BAR_ACCENT = '#0d9488';
+const GRID_STROKE = 'rgba(148, 163, 184, 0.18)';
+const AXIS_FILL = 'rgba(148, 163, 184, 0.72)';
+
+function formatAxisValue(v: number, indices: boolean): string {
+  if (!Number.isFinite(v)) return '—';
+  return v.toFixed(indices ? 2 : 2);
+}
+
+function formatPointValue(v: number): string {
+  if (!Number.isFinite(v)) return '';
+  return v.toFixed(2);
+}
+
+/** Compact AOI spectral profile — cartographic styling, no decorative gradients. */
 export function AoiSpectralProfileMiniChart({
   profile,
   className = '',
@@ -18,36 +33,37 @@ export function AoiSpectralProfileMiniChart({
   profile: SiAoiSpectralProfileMini;
   className?: string;
 }) {
-  const uid = useId().replace(/:/g, '');
   const w = 360;
-  const h = 112;
-  const padL = 4;
-  const padR = 10;
-  const padT = 10;
-  const padB = 22;
+  const h = 118;
+  const padL = 34;
+  const padR = 8;
+  const padT = 8;
+  const padB = 24;
   const innerW = w - padL - padR;
   const innerH = h - padT - padB;
   const { values, labels, yMin, yMax, mode } = profile;
   if (!values.length) return null;
 
-  const span = Math.max(1e-6, yMax - yMin);
-  const nx = (i: number) => {
-    if (values.length <= 1) return padL + innerW / 2;
-    return padL + (i / (values.length - 1)) * innerW;
-  };
-  const ny = (v: number) => padT + innerH - ((v - yMin) / span) * innerH;
+  const yLo = Math.min(yMin, ...values.filter(Number.isFinite));
+  const yHi = Math.max(yMax, ...values.filter(Number.isFinite));
+  const span = Math.max(1e-6, yHi - yLo);
+  const zeroY =
+    yLo <= 0 && yHi >= 0 ? padT + innerH - ((0 - yLo) / span) * innerH : null;
 
-  const pts = values.map((v, i) => `${nx(i).toFixed(1)},${ny(v).toFixed(1)}`);
-  const lineD = `M ${pts.join(' L ')}`;
-  const areaD = `${lineD} L ${nx(values.length - 1).toFixed(1)},${(padT + innerH).toFixed(1)} L ${nx(0).toFixed(1)},${(padT + innerH).toFixed(1)} Z`;
+  const ny = (v: number) => padT + innerH - ((v - yLo) / span) * innerH;
+  const gridTicks = 4;
+  const gridLines = Array.from({ length: gridTicks + 1 }, (_, i) => {
+    const t = yLo + (span * i) / gridTicks;
+    return { t, y: ny(t) };
+  });
+
+  const badgeLabel = mode === 'pixels' ? 'Pixel sample' : 'Zonal mean';
 
   return (
     <div className={['si-aoi-spectral-mini', className].filter(Boolean).join(' ')}>
       <div className="si-aoi-spectral-mini__head">
         <span className="si-aoi-spectral-mini__title">Spectral profile</span>
-        <span className="si-aoi-spectral-mini__badge">
-          {mode === 'pixels' ? 'Pixel spread' : 'Index mix'}
-        </span>
+        <span className="si-aoi-spectral-mini__badge">{badgeLabel}</span>
       </div>
       <p className="si-aoi-spectral-mini__sub">{profile.subtitle}</p>
       <svg
@@ -57,56 +73,91 @@ export function AoiSpectralProfileMiniChart({
         role="img"
         aria-label="Spectral profile chart"
       >
-        <defs>
-          <linearGradient id={`si-aoi-spectral-stroke-${uid}`} x1="0%" y1="0%" x2="100%" y2="0%">
-            <stop offset="0%" stopColor="#22d3ee" />
-            <stop offset="45%" stopColor="#a78bfa" />
-            <stop offset="100%" stopColor="#fb7185" />
-          </linearGradient>
-          <linearGradient id={`si-aoi-spectral-fill-${uid}`} x1="0%" y1="0%" x2="0%" y2="100%">
-            <stop offset="0%" stopColor="rgba(34, 211, 238, 0.35)" />
-            <stop offset="100%" stopColor="rgba(15, 15, 18, 0.02)" />
-          </linearGradient>
-        </defs>
-        <path d={areaD} fill={`url(#si-aoi-spectral-fill-${uid})`} />
-        <path
-          d={lineD}
-          fill="none"
-          stroke={`url(#si-aoi-spectral-stroke-${uid})`}
-          strokeWidth={mode === 'indices' ? 2.4 : 2}
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          vectorEffect="non-scaling-stroke"
-        />
-        {mode === 'indices' &&
-          values.map((v, i) => (
-            <circle
-              key={`${labels[i] ?? i}-${i}`}
-              cx={nx(i)}
-              cy={ny(v)}
-              r={5}
-              fill={['#22d3ee', '#2dd4bf', '#818cf8', '#c084fc', '#f472b6', '#fb923c'][i % 6]}
-              stroke="rgba(255,255,255,0.35)"
-              strokeWidth={1}
-            />
-          ))}
-        {mode === 'indices' &&
-          labels.map((lbl, i) => (
-            <text
-              key={`lbl-${lbl}-${i}`}
-              x={nx(i)}
-              y={h - 4}
-              textAnchor="middle"
-              className="si-aoi-spectral-mini__lbl"
-            >
-              {lbl}
+        {gridLines.map(({ t, y }) => (
+          <g key={`grid-${t}`}>
+            <line x1={padL} y1={y} x2={w - padR} y2={y} stroke={GRID_STROKE} strokeWidth={1} />
+            <text x={padL - 5} y={y + 3} textAnchor="end" className="si-aoi-spectral-mini__tick">
+              {formatAxisValue(t, mode === 'indices')}
             </text>
-          ))}
+          </g>
+        ))}
+
+        {zeroY != null ? (
+          <line
+            x1={padL}
+            y1={zeroY}
+            x2={w - padR}
+            y2={zeroY}
+            stroke="rgba(148, 163, 184, 0.35)"
+            strokeWidth={1}
+            strokeDasharray="3 3"
+          />
+        ) : null}
+
+        {mode === 'indices' ? (
+          <>
+            {values.map((v, i) => {
+              if (!Number.isFinite(v)) return null;
+              const n = values.length;
+              const slotW = innerW / Math.max(1, n);
+              const barW = Math.min(18, slotW * 0.55);
+              const cx = padL + slotW * i + slotW / 2;
+              const baseY = zeroY ?? padT + innerH;
+              const topY = ny(v);
+              const y = Math.min(baseY, topY);
+              const barH = Math.abs(topY - baseY);
+              const lbl = labels[i] ?? `#${i + 1}`;
+              return (
+                <g key={`bar-${lbl}-${i}`}>
+                  <rect
+                    x={cx - barW / 2}
+                    y={y}
+                    width={barW}
+                    height={Math.max(1, barH)}
+                    rx={1}
+                    fill={v >= 0 ? CHART_BAR_ACCENT : CHART_BAR}
+                    opacity={0.88}
+                  />
+                  <text x={cx} y={Math.min(y, topY) - 4} textAnchor="middle" className="si-aoi-spectral-mini__val">
+                    {formatPointValue(v)}
+                  </text>
+                  <text x={cx} y={h - 4} textAnchor="middle" className="si-aoi-spectral-mini__lbl">
+                    {lbl}
+                  </text>
+                </g>
+              );
+            })}
+          </>
+        ) : (
+          <>
+            {(() => {
+              const pts = values.map((v, i) => {
+                const x =
+                  values.length <= 1
+                    ? padL + innerW / 2
+                    : padL + (i / (values.length - 1)) * innerW;
+                return `${x.toFixed(1)},${ny(v).toFixed(1)}`;
+              });
+              const lineD = `M ${pts.join(' L ')}`;
+              const areaD = `${lineD} L ${padL + innerW},${padT + innerH} L ${padL},${padT + innerH} Z`;
+              return (
+                <>
+                  <path d={areaD} fill="rgba(13, 148, 136, 0.08)" />
+                  <path
+                    d={lineD}
+                    fill="none"
+                    stroke={CHART_LINE}
+                    strokeWidth={1.75}
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    vectorEffect="non-scaling-stroke"
+                  />
+                </>
+              );
+            })()}
+          </>
+        )}
       </svg>
-      <div className="si-aoi-spectral-mini__axis" aria-hidden>
-        <span>{yMin.toFixed(mode === 'indices' ? 3 : 2)}</span>
-        <span>{yMax.toFixed(mode === 'indices' ? 3 : 2)}</span>
-      </div>
     </div>
   );
 }

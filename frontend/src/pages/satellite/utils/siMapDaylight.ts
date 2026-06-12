@@ -551,6 +551,7 @@ export function applySiMapDaylightLight(
       pitch,
       bearing,
       cloudCoverPct: settings.cloudCover,
+      elevation3d: Boolean(opts?.terrainElevated),
     });
 
     const used3d = applySiMap3DLights(mapAny, spec, {

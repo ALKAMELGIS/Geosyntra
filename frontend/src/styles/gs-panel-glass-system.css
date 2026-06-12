@@ -88,8 +88,7 @@ html[data-theme='dark'] .gis-map-tool-panel {
   color: var(--gs-panel-glass-text);
 }
 
-/* ── Floating tool panels ── */
-.si-page .si-weather-panel,
+/* ── Floating tool panels (weather panel uses its own panel-local theme) ── */
 .si-page .si-route-map-panel,
 .si-page .si-geo-ai-route-panel,
 .si-page .si-sym-float-panel {
@@ -101,7 +100,6 @@ html[data-theme='dark'] .gis-map-tool-panel {
   -webkit-backdrop-filter: var(--gs-panel-glass-blur);
 }
 
-.si-page .si-weather-panel:hover,
 .si-page .si-route-map-panel:hover,
 .si-page .si-sym-float-panel:hover {
   border-color: var(--gs-panel-glass-border-strong);

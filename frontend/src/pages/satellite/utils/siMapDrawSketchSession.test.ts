@@ -44,7 +44,7 @@ describe('isSiActiveDrawSketchSession', () => {
 });
 
 describe('siMapDrawAssistHintForShape', () => {
-  it('mentions 3d rotate for polygon', () => {
-    expect(siMapDrawAssistHintForShape('polygon', { elevation3d: true })).toMatch(/rotate/i);
+  it('mentions orbit controls for polygon', () => {
+    expect(siMapDrawAssistHintForShape('polygon', { elevation3d: true })).toMatch(/orbit/i);
   });
 });

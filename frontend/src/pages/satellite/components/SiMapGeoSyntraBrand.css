@@ -1,0 +1,75 @@
+.si-map-container .mapboxgl-ctrl-bottom-left .si-map-geosyntra-brand-host {
+  display: block;
+  margin: 0;
+  padding: 0 0 2px;
+  line-height: normal;
+  min-height: auto;
+  overflow: visible;
+}
+
+.si-map-bottom-left-stack {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  max-width: min(92vw, 420px);
+}
+
+.si-map-geosyntra-brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  min-height: auto;
+  padding: 2px 0;
+  overflow: visible;
+  pointer-events: none;
+  user-select: none;
+  text-shadow:
+    0 0 3px rgba(0, 0, 0, 0.92),
+    0 1px 2px rgba(0, 0, 0, 0.85);
+}
+
+.si-map-geosyntra-brand__icon {
+  width: 12px;
+  height: 12px;
+  flex-shrink: 0;
+  display: grid;
+  place-items: center;
+  filter: drop-shadow(0 1px 2px rgba(2, 6, 23, 0.55));
+}
+
+.si-map-geosyntra-brand__icon svg {
+  width: 12px;
+  height: 12px;
+  display: block;
+}
+
+.si-map-geosyntra-brand__name {
+  font-family: system-ui, 'Segoe UI', Roboto, sans-serif;
+  font-size: 8px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  line-height: 1.45;
+  color: rgba(248, 250, 252, 0.96);
+  white-space: nowrap;
+  display: inline-block;
+  overflow: visible;
+  padding: 1px 0;
+}
+
+.si-map-wgs84-status-slot {
+  display: block;
+  width: 100%;
+  padding-left: 15px;
+  line-height: 1.15;
+}
+
+html[data-theme='light'] .si-map-geosyntra-brand {
+  text-shadow:
+    0 0 2px rgba(255, 255, 255, 0.95),
+    0 1px 1px rgba(255, 255, 255, 0.85);
+}
+
+html[data-theme='light'] .si-map-geosyntra-brand__name {
+  color: rgba(15, 23, 42, 0.9);
+}

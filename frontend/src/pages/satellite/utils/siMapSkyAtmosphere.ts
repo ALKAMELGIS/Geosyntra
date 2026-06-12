@@ -12,6 +12,8 @@ export type SiMapSkyCameraView = {
   bearing?: number;
   /** 0–100 cloud cover from weather panel (soft cloud halo, not Fog tool). */
   cloudCoverPct?: number;
+  /** 3D elevation dock / terrain view — stronger space backdrop. */
+  elevation3d?: boolean;
 };
 
 function clamp01(n: number): number {
@@ -30,31 +32,39 @@ function skySunPaint(sun: SiMapSunDirection): {
   return { sun: [az, polar], intensity };
 }
 
-/** 0..1 how much the camera looks toward the sky (pitch toward horizon). */
+/** 0..1 how much the camera looks toward the sky (pitch toward horizon / sky dome). */
 export function siMapSkyViewExposure(pitchDeg: number): number {
   const pitch = Math.max(0, Math.min(85, pitchDeg));
-  if (pitch < 10) return 0;
-  return clamp01((pitch - 10) / 55);
+  if (pitch < 1) return 0;
+  return clamp01((pitch - 1) / 70);
+}
+
+/**
+ * Space backdrop exposure — keeps stars/nebula visible in globe orbit and 3D elevation,
+ * ramping up smoothly as the camera pitches toward the horizon.
+ */
+export function siMapSpaceViewExposure(
+  pitchDeg: number,
+  opts?: { elevation3d?: boolean },
+): number {
+  const fromPitch = siMapSkyViewExposure(pitchDeg);
+  const floor = opts?.elevation3d ? 0.58 : 0.38;
+  return Math.max(fromPitch, floor);
 }
 
 function skyCloudHaloPaint(
-  sun: SiMapSunDirection,
-  camera: SiMapSkyCameraView | undefined,
+  _sun: SiMapSunDirection,
+  _camera: SiMapSkyCameraView | undefined,
 ): { haloColor: string; haloBlend: number } {
-  const skyT = siMapSkyViewExposure(camera?.pitch ?? 0);
-  const cloud = clamp01((camera?.cloudCoverPct ?? 0) / 100);
-  const day = sun.elevationDeg > 5;
-  const haloBlend = 0.02 + skyT * (0.1 + cloud * 0.08);
-  const haloColor = day
-    ? `rgba(${220 - cloud * 40}, ${235 - cloud * 30}, ${255}, ${0.35 + skyT * 0.45})`
-    : `rgba(${180 + skyT * 40}, ${190 + skyT * 30}, ${220}, ${0.25 + skyT * 0.35})`;
-  return { haloColor, haloBlend };
+  /** No limb halo — bright horizon rings flash as a thin white line during orbit. */
+  return { haloColor: 'rgba(0, 0, 0, 0)', haloBlend: 0 };
 }
 
-/** Celestial dome fog — stars / space only; not the Weather “Fog” tool haze. */
-export function siMapCelestialSkyFogSpec(
+/** Deep-space fog for globe orbit and 3D elevation — Google Earth–style stars + limb glow. */
+export function siMapGlobeOrbitSpaceFogSpec(
   pitchDeg: number,
   sunElevationDeg: number,
+  opts?: { elevation3d?: boolean },
 ): {
   range: [number, number];
   color: string;
@@ -63,18 +73,27 @@ export function siMapCelestialSkyFogSpec(
   'space-color': string;
   'star-intensity': number;
 } {
-  const skyT = siMapSkyViewExposure(pitchDeg);
-  const night = sunElevationDeg < -2;
-  const twilight = sunElevationDeg >= -2 && sunElevationDeg < 8;
-  const starBase = night ? 0.22 : twilight ? 0.08 : 0.02;
+  const skyT = siMapSpaceViewExposure(pitchDeg, opts);
+  const night = sunElevationDeg < 5;
+  const twilight = sunElevationDeg >= 5 && sunElevationDeg < 14;
+  const starBase = night ? 0.36 : twilight ? 0.2 : 0.12;
   return {
-    range: [0.8, 12 + skyT * 10],
-    color: `rgba(186, 210, 235, ${0.08 + skyT * 0.06})`,
-    'horizon-blend': 0.03 + skyT * 0.06,
-    'high-color': night ? '#243352' : '#7eb8e8',
-    'space-color': night || twilight ? '#030712' : '#1e4d6b',
-    'star-intensity': Math.min(0.9, starBase + skyT * (night ? 0.55 : twilight ? 0.28 : 0.06)),
+    range: [0.8, 14 + skyT * 14],
+    color: `rgba(118, 156, 210, ${0.05 + skyT * 0.11})`,
+    'horizon-blend': 0,
+    'high-color': '#010409',
+    'space-color': '#010409',
+    'star-intensity': Math.min(0.95, starBase + skyT * (night ? 0.5 : twilight ? 0.3 : 0.18)),
   };
+}
+
+/** Celestial dome fog — stars / space only; not the Weather “Fog” tool haze. */
+export function siMapCelestialSkyFogSpec(
+  pitchDeg: number,
+  sunElevationDeg: number,
+  opts?: { elevation3d?: boolean },
+): ReturnType<typeof siMapGlobeOrbitSpaceFogSpec> {
+  return siMapGlobeOrbitSpaceFogSpec(pitchDeg, sunElevationDeg, opts);
 }
 
 /** Insert or update the atmosphere sky layer (no-op if style rejects sky layers). */
@@ -89,7 +108,7 @@ export function syncSiMapSkyAtmosphereLayer(
   }
   const { sun: sunPos, intensity } = skySunPaint(sun);
   const { haloColor, haloBlend } = skyCloudHaloPaint(sun, camera);
-  const skyT = siMapSkyViewExposure(camera?.pitch ?? 0);
+  const skyT = siMapSpaceViewExposure(camera?.pitch ?? 0, { elevation3d: camera?.elevation3d });
   try {
     const paint: Record<string, unknown> = {
       'sky-type': 'atmosphere',

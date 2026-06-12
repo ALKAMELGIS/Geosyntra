@@ -1,11 +1,40 @@
 import { describe, expect, it, vi } from 'vitest';
-import { isMapboxStyleReady, whenMapboxStyleReady } from './mapboxStyleReady';
+import { ensureSiMapTerrainDemSource } from './siMapTerrainDemRuntime';
+import { isMapboxStyleReady, siMapboxSourcesAccessible, whenMapboxStyleReady } from './mapboxStyleReady';
 
 describe('mapboxStyleReady', () => {
   it('isMapboxStyleReady reflects map.isStyleLoaded()', () => {
     expect(isMapboxStyleReady(null)).toBe(false);
     expect(isMapboxStyleReady({ isStyleLoaded: () => false } as any)).toBe(false);
     expect(isMapboxStyleReady({ isStyleLoaded: () => true } as any)).toBe(true);
+  });
+
+  it('siMapboxSourcesAccessible requires style loaded and getStyle()', () => {
+    expect(siMapboxSourcesAccessible(null)).toBe(false);
+    expect(
+      siMapboxSourcesAccessible({ isStyleLoaded: () => false, getStyle: () => ({}) } as any),
+    ).toBe(false);
+    expect(
+      siMapboxSourcesAccessible({
+        isStyleLoaded: () => true,
+        getStyle: () => {
+          throw new Error('style reload');
+        },
+      } as any),
+    ).toBe(false);
+    expect(
+      siMapboxSourcesAccessible({ isStyleLoaded: () => true, getStyle: () => ({}) } as any),
+    ).toBe(true);
+  });
+
+  it('ensureSiMapTerrainDemSource no-ops when style is not accessible', () => {
+    const map = {
+      isStyleLoaded: () => false,
+      getSource: vi.fn(),
+      addSource: vi.fn(),
+    } as any;
+    expect(ensureSiMapTerrainDemSource(map)).toBe(false);
+    expect(map.getSource).not.toHaveBeenCalled();
   });
 
   it('whenMapboxStyleReady calls onReady when already loaded', async () => {

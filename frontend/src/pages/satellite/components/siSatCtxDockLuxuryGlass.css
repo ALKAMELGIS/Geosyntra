@@ -24,9 +24,9 @@
     inset 0 1px 0 var(--si-glass-highlight);
 }
 
-/* Map toolbox — unified frosted slab (rail + panel) */
+/* Map toolbox — no outer drop-shadow (reads as a gap under the app header). */
 .si-sat-ctx-dock--dark.si-sat-ctx-dock--map-toolbox.si-sat-ctx-dock--map {
-  filter: drop-shadow(0 0 1px rgba(255, 255, 255, 0.28)) drop-shadow(0 22px 56px rgba(0, 0, 0, 0.52));
+  filter: none;
 }
 
 .si-sat-ctx-dock--dark.si-sat-ctx-dock--map-toolbox .si-sat-ctx-rail,
@@ -37,6 +37,14 @@
   backdrop-filter: blur(var(--si-glass-blur)) saturate(var(--si-glass-saturate));
   -webkit-backdrop-filter: blur(var(--si-glass-blur)) saturate(var(--si-glass-saturate));
   box-shadow: var(--si-glass-shadow);
+}
+
+/* Portaled map canvas: rail glass is painted by map-toolbox-rail-spine.css host ::before */
+html[data-si-map-toolbox-page] .si-map-tools-dock-host .si-sat-ctx-dock--dark.si-sat-ctx-dock--map-toolbox .si-sat-ctx-rail {
+  background: transparent !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  box-shadow: none;
 }
 
 .si-sat-ctx-dock--dark.si-sat-ctx-dock--map-toolbox .si-sat-ctx-panel {
@@ -329,7 +337,7 @@
 
 @media (max-width: 900px) {
   .si-sat-ctx-dock--dark.si-sat-ctx-dock--map-toolbox.si-sat-ctx-dock--map {
-    filter: drop-shadow(0 16px 40px rgba(0, 0, 0, 0.48));
+    filter: none;
   }
 }
 
@@ -338,6 +346,10 @@
   box-shadow:
     var(--si-glass-shadow),
     inset -1px 0 0 rgba(255, 255, 255, 0.04);
+}
+
+html[data-si-map-toolbox-page] .si-map-tools-dock-host .si-sat-ctx-dock--dark.si-sat-ctx-dock--map-toolbox.si-sat-ctx-dock--map .si-sat-ctx-rail {
+  box-shadow: none;
 }
 
 .si-sat-ctx-dock--dark.si-sat-ctx-dock--map-toolbox .si-sat-ctx-rail-brand {
@@ -423,7 +435,7 @@ html[data-theme='light'] .si-sat-ctx-dock--dark {
 }
 
 html[data-theme='light'] .si-sat-ctx-dock--dark.si-sat-ctx-dock--map-toolbox.si-sat-ctx-dock--map {
-  filter: drop-shadow(0 8px 24px rgba(15, 23, 42, 0.12));
+  filter: none;
 }
 
 html[data-theme='light'] .si-sat-ctx-dock--dark.si-sat-ctx-dock--map-toolbox .si-sat-ctx-rail,
@@ -432,6 +444,11 @@ html[data-theme='light'] .si-sat-ctx-dock--dark.si-sat-ctx-dock--map-toolbox .si
     linear-gradient(168deg, rgba(255, 255, 255, 0.96) 0%, rgba(248, 250, 253, 0.92) 52%, rgba(255, 255, 255, 0.94) 100%);
   border-color: var(--si-ctx-border);
   box-shadow: var(--si-glass-shadow);
+}
+
+html[data-theme='light'][data-si-map-toolbox-page] .si-map-tools-dock-host .si-sat-ctx-dock--dark.si-sat-ctx-dock--map-toolbox .si-sat-ctx-rail {
+  background: transparent !important;
+  box-shadow: none;
 }
 
 html[data-theme='light'] .si-sat-ctx-dock--dark.si-sat-ctx-dock--map-toolbox .si-sat-ctx-panel {

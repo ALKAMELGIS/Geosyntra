@@ -1,6 +1,7 @@
 /**
  * Mapbox GL `transformRequest` — routes vendor URLs through public server proxy (no session).
  */
+import { resolveAbsoluteUrl } from '../../../lib/apiClient'
 import { shouldProxyMapboxRequests } from '../../../lib/mapboxAccessToken'
 import { isMapboxVendorUrl, resolveMapboxProxyUrl } from '../../../lib/mapboxProxyUrl'
 
@@ -13,7 +14,7 @@ function rewriteForMapboxDevProxy(url: string): string | null {
   try {
     const u = new URL(url)
     if (u.hostname.toLowerCase() !== 'api.mapbox.com') return null
-    return `/__mapbox${u.pathname}${u.search}`
+    return resolveAbsoluteUrl(`/__mapbox${u.pathname}${u.search}`)
   } catch {
     return null
   }

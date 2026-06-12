@@ -4,14 +4,24 @@ import {
   type SiMapWeatherSettings,
 } from './siMapWeatherTypes';
 
-const LS_KEY = 'si-map-weather-settings-v1';
+const LS_KEY = 'si-map-weather-settings-v3';
+const LS_KEY_LEGACY = 'si-map-weather-settings-v2';
+const LS_KEY_LEGACY_V1 = 'si-map-weather-settings-v1';
 
 export function loadStoredSiMapWeatherSettings(): SiMapWeatherSettings {
   if (typeof window === 'undefined') return { ...DEFAULT_SI_MAP_WEATHER };
   try {
-    const raw = localStorage.getItem(LS_KEY);
+    const raw =
+      localStorage.getItem(LS_KEY) ??
+      localStorage.getItem(LS_KEY_LEGACY) ??
+      localStorage.getItem(LS_KEY_LEGACY_V1);
     if (!raw) return { ...DEFAULT_SI_MAP_WEATHER };
-    return sanitizeSiMapWeatherSettings(JSON.parse(raw));
+    const parsed = JSON.parse(raw) as Record<string, unknown>;
+    const migrated = {
+      ...parsed,
+      activePresets: Array.isArray(parsed.activePresets) ? parsed.activePresets : [],
+    };
+    return sanitizeSiMapWeatherSettings(migrated);
   } catch {
     return { ...DEFAULT_SI_MAP_WEATHER };
   }

@@ -48,6 +48,7 @@ function parseArgs(argv) {
     password: '',
     name: '',
     generatePassword: false,
+    resetPassword: false,
     allowMultiple: false,
   }
   for (let i = 2; i < argv.length; i++) {
@@ -56,6 +57,7 @@ function parseArgs(argv) {
     else if (a === '--password' || a === '-p') out.password = String(argv[++i] || '')
     else if (a === '--name' || a === '-n') out.name = String(argv[++i] || '').trim()
     else if (a === '--generate-password') out.generatePassword = true
+    else if (a === '--reset-password') out.resetPassword = true
     else if (a === '--allow-multiple-owners') out.allowMultiple = true
     else if (a === '--help' || a === '-h') out.help = true
   }
@@ -147,9 +149,29 @@ try {
 const storePath =
   sqlitePath && fs.existsSync(sqlitePath) ? sqlitePath : jsonFilePath
 
-if (result.unchanged) {
-  console.log(`No change — ${args.email} is already Owner.`)
-} else if (result.promoted) {
+  if (result.unchanged || result.promoted || result.created) {
+    if (args.resetPassword && password.length >= 12 && store.ensureOwnerProvisionedSignIn) {
+      const repaired = store.ensureOwnerProvisionedSignIn({
+        email: args.email,
+        password,
+        status: 'Active',
+        emailVerified: true,
+        provisionedBy: 'create-owner',
+      })
+      if (repaired?.ok) {
+        console.log(`Password updated for ${args.email}.`)
+      } else if (args.resetPassword) {
+        console.error('Password reset failed:', repaired?.error || 'unknown')
+        process.exit(1)
+      }
+    }
+  }
+
+  if (result.unchanged) {
+    if (!args.resetPassword) {
+      console.log(`No change — ${args.email} is already Owner.`)
+    }
+  } else if (result.promoted) {
   console.log(`Promoted ${args.email} → Owner (user id ${result.userId}).`)
 } else if (result.created) {
   console.log(`Created Owner account: ${args.email} (user id ${result.userId}).`)

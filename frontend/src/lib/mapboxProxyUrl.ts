@@ -1,5 +1,5 @@
 /** Public Mapbox tile/style proxy — token injected server-side from MAPBOX_TOKEN env. */
-import { resolveApiUrl } from './apiClient'
+import { resolveAbsoluteUrl, resolveApiUrl } from './apiClient'
 
 export const MAPBOX_PUBLIC_PROXY_PATH = '/api/mapbox-proxy'
 export const MAPBOX_PUBLIC_GEOCODING_PATH = '/api/gateway/mapbox/geocoding'
@@ -14,7 +14,8 @@ export function isMapboxVendorUrl(url: string): boolean {
 }
 
 export function resolveMapboxProxyUrl(upstreamUrl: string): string {
-  return `${resolveApiUrl(MAPBOX_PUBLIC_PROXY_PATH)}?url=${encodeURIComponent(upstreamUrl)}`
+  const proxied = `${resolveApiUrl(MAPBOX_PUBLIC_PROXY_PATH)}?url=${encodeURIComponent(upstreamUrl)}`
+  return resolveAbsoluteUrl(proxied)
 }
 
 /** Browser UI language (e.g. `ar`, `en`) — Mapbox returns localized place names. */

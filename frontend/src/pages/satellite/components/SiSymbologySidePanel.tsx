@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { SymbologyCategoryStyle } from '../layerTypes';
 import type {
   SymbologyClassMethod,
@@ -9,7 +9,6 @@ import type {
 import type { SymbologyContext } from '../symbologyHelpers';
 import {
   clampInt,
-  describeArcGisRendererVisualization,
   getGeoJsonFields,
   getLayerGeometryKind,
   getNumericFields,
@@ -20,19 +19,30 @@ import {
 import type { ArcgisLayerDefLite } from '../../../lib/arcgisAttributeDisplay';
 import {
   SI_SYMBOLOGY_RAMP_OPTIONS,
-  SI_SYMBOLOGY_STYLE_OPTIONS,
-  SI_STYLE_PRESET_CHIPS,
 } from './siSymbologyStudioConstants';
 import {
+  SI_SYM_RAMP_CATEGORY_OPTIONS,
+  SiSymbologyLightSelect,
+  type SiSymRampCategory,
+} from './SiSymbologyLightSelect';
+import {
+  fieldKindIcon,
   fieldKindLabel,
-  filterStyleOptionsForSmartMapping,
+  getSymbologyStyleCardsForLayer,
   getFieldKindMap,
   inferFieldKind,
-  orderStyleOptionsForSuggestions,
+  orderStyleCatalogForSuggestions,
   smartMappingHintForField,
   suggestSymbologyStyleForField,
   type SiFieldKind,
 } from '../utils/siSymbologySmartMapping';
+import {
+  resolveSymbologyEngineStyle,
+  symbologyStyleAppearancePatch,
+  symbologyStyleOptionsSectionTitle,
+} from '../utils/siSymbologyStyleResolve';
+import { SiSymbologyStyleThumb, SiSymbologyRampStrip } from './SiSymbologyStyleThumb';
+import { SiSymbologyInfoIcon } from './SiSymbologyInfoIcon';
 import {
   buildGraduatedClassColorMap,
   isGraduatedSymbologyStyle,
@@ -46,7 +56,19 @@ import {
 import type { SiSymbologyAppearance } from '../siSymbolStyleStudio';
 import type { SiMapTerrainSettings } from '../utils/siMapProjectionTerrain';
 import { SiContourClassificationStudio } from './SiContourClassificationStudio';
+import { SiCategorySymbolStylePanel } from './SiCategorySymbolStylePanel';
+import {
+  defaultCategorySymbolStyle,
+  resolveCategoryStyleForKey,
+} from '../siCategorySymbolStyle';
+import { siMapOutlineWidthPreviewPx } from '../utils/siMapOutlineWidthZoom';
 import './SiSymbologySidePanel.css';
+import {
+  SiSymbologyAttributePanels,
+  DEFAULT_SI_SYMBOLOGY_ATTRIBUTE_ROTATION,
+  DEFAULT_SI_SYMBOLOGY_ATTRIBUTE_TRANSPARENCY,
+} from './SiSymbologyAttributePanels';
+import './SiSymbologyAttributePanels.css';
 
 export type SiSymbologyDraft = Required<SymbologyConfig> & {
   arcgisMaxCategories: number;
@@ -59,37 +81,11 @@ export type SiSymbologyPanelStep =
   | 'pick-style'
   | 'style-options'
   | 'symbol-edit'
-  | 'contour-classification';
-
-const STYLE_THUMB: Record<SymbologyStyle, string> = {
-  single: 'single',
-  unique: 'unique',
-  color: 'color',
-  size: 'size',
-  color_size: 'color_size',
-  dot_density: 'dot_density',
-  threshold_markers: 'threshold',
-};
+  | 'contour-classification'
+  | 'ramp-picker';
 
 function styleOptionsSectionTitle(style: SymbologyStyle): string {
-  switch (style) {
-    case 'unique':
-      return 'Types (Unique symbols)';
-    case 'color':
-      return 'Counts and amounts (Graduated colors)';
-    case 'size':
-      return 'Counts and amounts (Graduated symbols)';
-    case 'color_size':
-      return 'Counts and amounts (Color & size)';
-    case 'single':
-      return 'Location (Single symbol)';
-    case 'dot_density':
-      return 'Dot density';
-    case 'threshold_markers':
-      return 'Classified markers';
-    default:
-      return 'Style options';
-  }
+  return symbologyStyleOptionsSectionTitle(style);
 }
 
 export type SiSymbologySidePanelProps = {
@@ -114,11 +110,14 @@ export type SiSymbologySidePanelProps = {
   onReset: () => void;
   onClose: () => void;
   onApply: () => void;
-  onDone: () => void;
+  onDone?: () => void;
   /** Terrain contour classification (global map overlays). */
   contourSettings?: SiMapTerrainSettings;
   onContourSettingsChange?: (patch: Partial<SiMapTerrainSettings>) => void;
   onHeaderPointerDown?: (e: React.PointerEvent<HTMLElement>) => void;
+  onLayerBarPointerDown?: (e: React.PointerEvent<HTMLElement>) => void;
+  /** Current map zoom — legend swatches and symbol editor previews match on-map outline width. */
+  mapZoom?: number;
 };
 
 function rampCss(ramp: SymbologyColorRamp): string {
@@ -177,6 +176,30 @@ function buildUniqueCategoryColorsFromRamp(
   return out;
 }
 
+const SI_SYM_RAMP_CATEGORY_MAP: Record<string, SymbologyColorRamp[]> = {
+  all: SI_SYMBOLOGY_RAMP_OPTIONS.map(r => r.value),
+  light: ['viridis', 'blues', 'greens', 'cividis', 'gray'],
+  dark: ['plasma', 'magma', 'inferno', 'turbo'],
+  reds: ['inferno', 'plasma', 'spectral'],
+  greens: ['greens', 'viridis', 'earth'],
+  blues: ['blues', 'cividis'],
+  grays: ['gray'],
+  bright: ['turbo', 'spectral', 'plasma'],
+  subdued: ['earth', 'gray', 'cividis'],
+  colorblind: ['viridis', 'cividis', 'blues'],
+};
+
+function flipCategoryColorMap(colors: Record<string, string>): Record<string, string> {
+  const keys = Object.keys(colors).filter(k => k !== SI_SYMBOLOGY_OTHER_VALUE_KEY);
+  if (keys.length < 2) return { ...colors };
+  const reversed = keys.map(k => colors[k]!).reverse();
+  const out = { ...colors };
+  keys.forEach((k, i) => {
+    out[k] = reversed[i]!;
+  });
+  return out;
+}
+
 export function SiSymbologySidePanel({
   layerName,
   layerColor,
@@ -198,16 +221,25 @@ export function SiSymbologySidePanel({
   onReset,
   onClose,
   onApply,
-  onDone,
   contourSettings,
   onContourSettingsChange,
   onHeaderPointerDown,
+  onLayerBarPointerDown,
+  mapZoom,
 }: SiSymbologySidePanelProps) {
   const [step, setStep] = useState<SiSymbologyPanelStep>('attributes');
+  const [fieldPickerOpen, setFieldPickerOpen] = useState(false);
+  const [displayByValueOrder, setDisplayByValueOrder] = useState(false);
+  const [typesSectionOpen, setTypesSectionOpen] = useState(true);
+  const [rampCategory, setRampCategory] = useState<SiSymRampCategory>('all');
+  const [symbolEditDraft, setSymbolEditDraft] = useState<SymbologyCategoryStyle | null>(null);
+  const symbolEditKeyRef = useRef<string | null>(null);
   const [openAcc, setOpenAcc] = useState({
     appearance: false,
     advanced: false,
     tools: false,
+    transparency: false,
+    rotation: false,
   });
 
   useEffect(() => {
@@ -244,13 +276,28 @@ export function SiSymbologySidePanel({
     [geojson],
   );
 
-  const isUnique = draft.style === 'unique';
-  const isSingle = draft.style === 'single';
+  const engineStyle = resolveSymbologyEngineStyle(draft.style);
+  const isUnique =
+    engineStyle === 'unique' ||
+    draft.style === 'predominance' ||
+    draft.style === 'pie_chart' ||
+    draft.style === 'donut_chart';
+  const isSingle =
+    engineStyle === 'single' ||
+    draft.style === 'location_only' ||
+    draft.style === 'single_fill' ||
+    draft.style === 'single_line';
   const classes = clampInt(draft.classes, 2, 12);
-  const showColor = draft.style === 'color' || draft.style === 'color_size' || (isUnique && geometryKind !== 'line');
-  const showSize = draft.style === 'size' || draft.style === 'color_size';
+  const showColor =
+    engineStyle === 'color' ||
+    engineStyle === 'color_size' ||
+    (isUnique && geometryKind !== 'line');
+  const showSize = engineStyle === 'size' || engineStyle === 'color_size' || draft.style === 'width_by_attribute';
   const showMethod =
-    draft.style !== 'unique' && draft.style !== 'threshold_markers' && draft.style !== 'single';
+    isGraduatedSymbologyStyle(draft.style) &&
+    draft.style !== 'threshold_markers' &&
+    !isSingle &&
+    !isUnique;
   const showClasses = !isSingle;
 
   const uniqueValueCount = useMemo(() => {
@@ -269,13 +316,10 @@ export function SiSymbologySidePanel({
   );
 
   const styleCards = useMemo(() => {
-    const filtered = filterStyleOptionsForSmartMapping(
-      SI_SYMBOLOGY_STYLE_OPTIONS,
-      activeFieldKind,
-      geometryKind,
-    );
-    return draft.field
-      ? orderStyleOptionsForSuggestions(filtered, suggestedStyle)
+    const hasField = Boolean(draft.field?.trim());
+    const filtered = getSymbologyStyleCardsForLayer(activeFieldKind, geometryKind, hasField);
+    return hasField
+      ? orderStyleCatalogForSuggestions(filtered, suggestedStyle)
       : filtered;
   }, [geometryKind, draft.field, activeFieldKind, suggestedStyle]);
 
@@ -361,7 +405,12 @@ export function SiSymbologySidePanel({
   const pickStyle = useCallback(
     (style: SymbologyStyle) => {
       const patch: Partial<SiSymbologyDraft> = { style, useArcGisOnline: false };
-      if (style === 'unique') {
+      const appearancePatch = symbologyStyleAppearancePatch(style);
+      if (appearancePatch) {
+        onAppearanceChange(appearancePatch);
+      }
+      const engine = resolveSymbologyEngineStyle(style);
+      if (engine === 'unique') {
         const cats = (symbologyCtx?.categories ?? [])
           .filter(c => c !== SI_SYMBOLOGY_OTHER_VALUE_KEY)
           .slice(0, classes);
@@ -391,7 +440,7 @@ export function SiSymbologySidePanel({
   );
 
   useEffect(() => {
-    if (draft.useArcGisOnline || draft.style !== 'unique' || !symbologyCtx?.categories.length) return;
+    if (draft.useArcGisOnline || resolveSymbologyEngineStyle(draft.style) !== 'unique' || !symbologyCtx?.categories.length) return;
     if (draft.categoryColors && Object.keys(draft.categoryColors).length > 0) return;
     const seeded: Record<string, string> = {};
     for (const v of symbologyCtx.categories) {
@@ -423,18 +472,132 @@ export function SiSymbologySidePanel({
     [isSingle, onAppearanceChange, onDraftChange, draft.categoryColors, appearance.color],
   );
 
-  const applyLegendOutlineColor = useCallback(
-    (hex: string) => {
-      const stroke = hex.trim();
-      if (!stroke) return;
-      onAppearanceChange({ color: stroke });
+  const filteredRampOptions = useMemo(() => {
+    const allowed = SI_SYM_RAMP_CATEGORY_MAP[rampCategory] ?? SI_SYM_RAMP_CATEGORY_MAP.all!;
+    const set = new Set(allowed);
+    return SI_SYMBOLOGY_RAMP_OPTIONS.filter(r => set.has(r.value));
+  }, [rampCategory]);
+
+  const editingSymbolStyle = useMemo((): SymbologyCategoryStyle | null => {
+    if (!categorySymbolEdit) return null;
+    if (categorySymbolEdit.valueKey === '__si_single_fill') {
+      return defaultCategorySymbolStyle(appearance.fillColor || appearance.color || layerColor, {
+        outline: appearance.color || layerColor,
+        fillOpacity: appearance.polygonFillAlpha,
+        outlineWidth: appearance.weight,
+      });
+    }
+    const rampFill =
+      symbologyCtx?.categoryColors[categorySymbolEdit.valueKey] ??
+      draft.categoryColors?.[categorySymbolEdit.valueKey] ??
+      appearance.fillColor ??
+      layerColor ??
+      '#38bdf8';
+    return resolveCategoryStyleForKey(categorySymbolEdit.valueKey, rampFill, draft, {
+      fillOpacity: appearance.polygonFillAlpha,
+      outlineWidth: appearance.weight,
+    });
+  }, [
+    categorySymbolEdit,
+    appearance,
+    layerColor,
+    symbologyCtx,
+    draft,
+  ]);
+
+  const handleEditingSymbolStyleChange = useCallback(
+    (next: SymbologyCategoryStyle) => {
+      if (!categorySymbolEdit) return;
+      if (categorySymbolEdit.valueKey === '__si_single_fill') {
+        onAppearanceChange({
+          fillColor: next.fill,
+          color: next.outline,
+          polygonFillAlpha: next.fillOpacity,
+          weight: next.outlineWidth,
+        });
+        return;
+      }
+      onCategoryStyleChange(categorySymbolEdit.valueKey, next);
     },
-    [onAppearanceChange],
+    [categorySymbolEdit, onAppearanceChange, onCategoryStyleChange],
+  );
+
+  useEffect(() => {
+    if (!categorySymbolEdit || !editingSymbolStyle) {
+      symbolEditKeyRef.current = null;
+      setSymbolEditDraft(null);
+      return;
+    }
+    const key = categorySymbolEdit.valueKey;
+    if (symbolEditKeyRef.current !== key) {
+      symbolEditKeyRef.current = key;
+      setSymbolEditDraft(editingSymbolStyle);
+    }
+  }, [categorySymbolEdit, editingSymbolStyle]);
+
+  const handleSymbolEditDraftChange = useCallback(
+    (next: SymbologyCategoryStyle) => {
+      setSymbolEditDraft(next);
+      handleEditingSymbolStyleChange(next);
+    },
+    [handleEditingSymbolStyleChange],
+  );
+
+  const finishSymbolEdit = useCallback(() => {
+    if (!categorySymbolEdit || !symbolEditDraft) return;
+    handleEditingSymbolStyleChange(symbolEditDraft);
+    onApply?.();
+    symbolEditKeyRef.current = null;
+    setSymbolEditDraft(null);
+    onCategorySymbolEdit(null);
+    setStep('style-options');
+  }, [
+    categorySymbolEdit,
+    symbolEditDraft,
+    handleEditingSymbolStyleChange,
+    onApply,
+    onCategorySymbolEdit,
+  ]);
+
+  const cancelSymbolEdit = useCallback(() => {
+    symbolEditKeyRef.current = null;
+    setSymbolEditDraft(null);
+    onCategorySymbolEdit(null);
+    setStep('style-options');
+  }, [onCategorySymbolEdit]);
+
+  const flipRampColors = useCallback(() => {
+    const current = draft.categoryColors ?? {};
+    if (Object.keys(current).length) {
+      onDraftChange({ categoryColors: flipCategoryColorMap(current) });
+      return;
+    }
+    const cats = (symbologyCtx?.categories ?? [])
+      .filter(c => c !== SI_SYMBOLOGY_OTHER_VALUE_KEY)
+      .slice(0, classes);
+    onDraftChange({
+      categoryColors: isUnique
+        ? flipCategoryColorMap(buildUniqueCategoryColorsFromRamp(draft.colorRamp, cats, draft.categoryColors))
+        : flipCategoryColorMap(buildClassColorsFromRamp(draft.colorRamp, classes)),
+    });
+  }, [
+    draft.categoryColors,
+    draft.colorRamp,
+    symbologyCtx,
+    classes,
+    isUnique,
+    onDraftChange,
+  ]);
+
+  const openSymbolEdit = useCallback(
+    (valueKey: string, label: string) => {
+      onCategorySymbolEdit({ valueKey, label });
+    },
+    [onCategorySymbolEdit],
   );
 
   const renderLegendColorRow = (it: SiSymbologyLegendItem, idx: number, opts?: { showCount?: boolean }) => {
     const fillHex = toColorInputHex(it.fill || it.color, '#38bdf8');
-    const outlineHex = toColorInputHex(it.color, '#0f172a');
     const count =
       it.valueKey && opts?.showCount
         ? it.valueKey === SI_SYMBOLOGY_OTHER_VALUE_KEY
@@ -442,26 +605,65 @@ export function SiSymbologySidePanel({
           : (valueCounts.get(it.valueKey) ?? 0)
         : null;
     const active = it.valueKey && categorySymbolEdit?.valueKey === it.valueKey;
+    const isOther = it.valueKey === SI_SYMBOLOGY_OTHER_VALUE_KEY;
+    const swatchRound = geometryKind === 'point' || isOther;
+
     return (
       <div
         key={it.valueKey ?? `${it.label}-${idx}`}
         className={`si-sym-side-value-row${active ? ' si-sym-side-value-row--active' : ''}`}
       >
-        <span
-          className="si-sym-side-value-row__swatch"
+        {!isOther ? (
+          <span className="si-sym-side-value-row__grip" aria-hidden>
+            <i className="fa-solid fa-grip-vertical" />
+          </span>
+        ) : (
+          <span aria-hidden />
+        )}
+        {!isOther ? (
+          <input
+            type="checkbox"
+            className="si-sym-side-value-row__check"
+            defaultChecked
+            aria-label={`Include ${it.label}`}
+          />
+        ) : (
+          <input
+            type="checkbox"
+            className="si-sym-side-value-row__check"
+            aria-label="Show other values"
+          />
+        )}
+        <button
+          type="button"
+          className={
+            'si-sym-side-value-row__swatch' +
+            (swatchRound ? '' : ' si-sym-side-value-row__swatch--square') +
+            (geometryKind === 'line' ? ' si-sym-side-value-row__swatch--line' : '')
+          }
           style={
             {
               '--si-sym-fill': it.fill || it.color,
               '--si-sym-outline': it.color,
+              '--si-sym-outline-w': `${siMapOutlineWidthPreviewPx((it.width ?? appearance.weight) * 0.85, mapZoom)}px`,
+              background: geometryKind === 'line' ? '#f3f3f3' : it.fill || it.color,
             } as React.CSSProperties
           }
-          aria-hidden
+          title={`Symbol — ${it.label}`}
+          aria-label={`Edit symbol for ${it.label}`}
+          onClick={() => {
+            if (it.valueKey && !isOther) {
+              openSymbolEdit(it.valueKey, it.label);
+            } else {
+              applyLegendFillColor(it, fillHex);
+            }
+          }}
         />
         <span className="si-sym-side-value-row__label" title={it.label}>
           {it.label}
         </span>
+        {count !== null ? <span className="si-sym-side-value-row__count">{count}</span> : null}
         <label className="si-sym-side-value-row__color-field" title="Fill color">
-          <span className="si-sym-side-value-row__color-kicker">Fill</span>
           <input
             type="color"
             className="si-sym-side-value-row__color-input"
@@ -470,28 +672,6 @@ export function SiSymbologySidePanel({
             aria-label={`Fill color for ${it.label}`}
           />
         </label>
-        {isSingle ? (
-          <label className="si-sym-side-value-row__color-field" title="Outline color">
-            <span className="si-sym-side-value-row__color-kicker">Line</span>
-            <input
-              type="color"
-              className="si-sym-side-value-row__color-input"
-              value={outlineHex}
-              onChange={e => applyLegendOutlineColor(e.target.value)}
-              aria-label="Outline color"
-            />
-          </label>
-        ) : isUnique && it.valueKey ? (
-          <button
-            type="button"
-            className="si-sym-side-value-row__edit-btn"
-            title={`Advanced symbol — ${it.label}`}
-            onClick={() => onCategorySymbolEdit({ valueKey: it.valueKey!, label: it.label })}
-          >
-            <i className="fa-solid fa-palette" aria-hidden />
-          </button>
-        ) : null}
-        {count !== null ? <span className="si-sym-side-value-row__count">{count}</span> : null}
       </div>
     );
   };
@@ -503,19 +683,27 @@ export function SiSymbologySidePanel({
         ? 'Symbol style'
         : step === 'style-options'
           ? 'Style options'
-          : 'Smart Mapping';
+          : step === 'ramp-picker'
+            ? 'Ramp'
+            : 'Styles';
 
   const showBack =
-    step === 'style-options' || step === 'symbol-edit' || step === 'contour-classification';
+    step === 'style-options' ||
+    step === 'symbol-edit' ||
+    step === 'contour-classification' ||
+    step === 'ramp-picker';
 
   const goBack = () => {
     if (step === 'contour-classification') {
       setStep('attributes');
       return;
     }
-    if (step === 'symbol-edit') {
-      onCategorySymbolEdit(null);
+    if (step === 'ramp-picker') {
       setStep('style-options');
+      return;
+    }
+    if (step === 'symbol-edit') {
+      cancelSymbolEdit();
       return;
     }
     if (step === 'style-options') {
@@ -523,9 +711,15 @@ export function SiSymbologySidePanel({
     }
   };
 
+  const commitAndClose = () => {
+    onApply();
+    onClose();
+  };
+
   const openStyleOptions = () => setStep('style-options');
 
-  const canOpenStyleOptions = Boolean(draft.field?.trim()) && !draft.useArcGisOnline;
+  const canOpenStyleOptions =
+    !draft.useArcGisOnline && (Boolean(draft.field?.trim()) || isSingle);
 
   if (isRaster) {
     return (
@@ -549,7 +743,7 @@ export function SiSymbologySidePanel({
             Raster layers use the map <strong>Symbology</strong> tool (palette icon) for classified color ramps and opacity.
           </p>
         </div>
-        <footer className="si-sym-side-panel__foot">
+        <footer className="si-sym-side-panel__foot si-sym-side-panel__foot--agol si-sym-side-panel__foot--agol-custom">
           <button type="button" className="si-sym-side-btn" onClick={onClose}>
             Close
           </button>
@@ -575,66 +769,134 @@ export function SiSymbologySidePanel({
           </button>
         </div>
       </div>
-    ) : step === 'symbol-edit' && categorySymbolEdit ? (
-      <div className="si-sym-side-panel__step">
-        <p className="si-sym-side-banner">
-          Symbol edits stay in this panel until you click <strong>Apply</strong> on Smart Mapping.
-        </p>
-        <button type="button" className="si-sym-side-outline-btn" onClick={goBack}>
-          Back to Style options
+    ) : step === 'symbol-edit' && categorySymbolEdit && symbolEditDraft ? (
+      <div className="si-sym-side-panel__step si-sym-side-step si-sym-side-step--symbol-edit">
+        <SiCategorySymbolStylePanel
+          embedded
+          categoryLabel={categorySymbolEdit.label}
+          style={symbolEditDraft}
+          geometryKind={
+            geometryKind === 'point' || geometryKind === 'line' ? geometryKind : 'polygon'
+          }
+          previewCornerRadius={appearance.previewCornerRadius}
+          mapZoom={mapZoom}
+          onChange={handleSymbolEditDraftChange}
+          onClose={cancelSymbolEdit}
+        />
+        <div className="si-sym-style-options-foot si-sym-style-options-foot--symbol-edit">
+          <button type="button" className="si-sym-style-options-done" onClick={finishSymbolEdit}>
+            Done
+          </button>
+        </div>
+      </div>
+    ) : step === 'ramp-picker' ? (
+      <div className="si-sym-side-panel__step si-sym-side-step si-sym-side-step--options">
+        <SiSymbologyLightSelect
+          id="si-sym-ramp-category"
+          label="Category"
+          value={rampCategory}
+          options={[...SI_SYM_RAMP_CATEGORY_OPTIONS]}
+          onChange={v => setRampCategory(v || 'all')}
+          className="si-sym-ramp-picker__category"
+        />
+        <button type="button" className="si-sym-ramp-picker__flip" onClick={flipRampColors}>
+          <i className="fa-solid fa-arrows-up-down" aria-hidden /> Flip ramp colors
         </button>
+        <div className="si-sym-ramp-grid">
+          {filteredRampOptions.map(r => (
+            <button
+              key={r.value}
+              type="button"
+              className={`si-sym-ramp-grid__cell${draft.colorRamp === r.value ? ' si-sym-ramp-grid__cell--on' : ''}`}
+              title={r.label}
+              onClick={() => {
+                const cats = (symbologyCtx?.categories ?? [])
+                  .filter(c => c !== SI_SYMBOLOGY_OTHER_VALUE_KEY)
+                  .slice(0, classes);
+                onDraftChange({
+                  colorRamp: r.value,
+                  categoryColors: isUnique
+                    ? buildUniqueCategoryColorsFromRamp(r.value, cats, draft.categoryColors)
+                    : buildClassColorsFromRamp(r.value, classes),
+                });
+              }}
+            >
+              <span
+                className="si-sym-ramp-grid__cell-inner"
+                style={{ backgroundImage: rampCss(r.value) }}
+                aria-hidden
+              />
+            </button>
+          ))}
+        </div>
+        <div className="si-sym-style-options-foot">
+          <button type="button" className="si-sym-style-options-done" onClick={() => setStep('style-options')}>
+            Done
+          </button>
+        </div>
       </div>
     ) : step === 'style-options' && canOpenStyleOptions ? (
       <div className="si-sym-side-panel__step si-sym-side-step si-sym-side-step--options">
-        <p className="si-sym-side-deferred-hint">
-          <i className="fa-solid fa-sliders" aria-hidden /> The map and legend update as you change options. Click{' '}
-          <strong>Apply</strong> to save this style to the layer.
-        </p>
-
         <div className="si-sym-side-style-section">
-          <h3 className="si-sym-side-style-section__title">{styleOptionsSectionTitle(draft.style)}</h3>
+          <button
+            type="button"
+            className="si-sym-side-style-section__title"
+            onClick={() => setTypesSectionOpen(open => !open)}
+          >
+            {styleOptionsSectionTitle(draft.style)}
+            <i className={`fa-solid fa-chevron-${typesSectionOpen ? 'up' : 'down'}`} aria-hidden />
+          </button>
 
-          {showColor ? (
-            <div className="si-sym-side-symbol-strip">
-              <span
-                className="si-sym-side-symbol-strip__ramp"
-                style={{ backgroundImage: rampCss(draft.colorRamp) }}
-                aria-hidden
-              />
-              <span className="si-sym-side-symbol-strip__label">Symbol style</span>
-              <button
-                type="button"
-                className="si-sym-side-symbol-strip__edit"
-                title="Edit color scheme"
-                onClick={() => {
-                  const el = document.getElementById('si-sym-color-scheme');
-                  el?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-                }}
-              >
-                <i className="fa-solid fa-pen" aria-hidden />
-              </button>
-            </div>
-          ) : isSingle ? (
-            <div className="si-sym-side-symbol-strip">
-              <span
-                className="si-sym-side-symbol-strip__swatch"
-                style={{ background: appearance.fillColor || appearance.color }}
-                aria-hidden
-              />
-              <span className="si-sym-side-symbol-strip__label">Symbol style</span>
-            </div>
-          ) : isUnique ? (
-            <div className="si-sym-side-symbol-strip">
-              <span className="si-sym-side-symbol-strip__ramp si-sym-style-card__thumb--unique" aria-hidden />
-              <span className="si-sym-side-symbol-strip__label">Symbol style</span>
-            </div>
-          ) : null}
+          {typesSectionOpen ? (
+            <>
+              {showColor ? (
+                <div className="si-sym-side-symbol-strip">
+                  <span className="si-sym-side-symbol-strip__label">Symbol style</span>
+                  <SiSymbologyRampStrip rampCss={rampCss(draft.colorRamp)} />
+                  <button
+                    type="button"
+                    className="si-sym-side-symbol-strip__edit"
+                    title="Edit color scheme"
+                    onClick={() => setStep('ramp-picker')}
+                  >
+                    <i className="fa-solid fa-pen" aria-hidden />
+                  </button>
+                </div>
+              ) : isSingle ? (
+                <div className="si-sym-side-symbol-strip">
+                  <span className="si-sym-side-symbol-strip__label">Symbol style</span>
+                  <span
+                    className="si-sym-side-symbol-strip__swatch"
+                    style={{ background: appearance.fillColor || appearance.color }}
+                    aria-hidden
+                  />
+                  <button
+                    type="button"
+                    className="si-sym-side-symbol-strip__edit"
+                    title="Edit symbol style"
+                    aria-label="Edit symbol style"
+                    onClick={() => openSymbolEdit('__si_single_fill', layerName)}
+                  >
+                    <i className="fa-solid fa-pen" aria-hidden />
+                  </button>
+                </div>
+              ) : isUnique ? (
+                <div className="si-sym-side-symbol-strip">
+                  <span className="si-sym-side-symbol-strip__label">Symbol style</span>
+                  <span className="si-sym-side-symbol-strip__ramp si-sym-style-card__thumb--unique" aria-hidden />
+                </div>
+              ) : null}
 
-          <div className="si-sym-side-actions-row">
-            <button type="button" className="si-sym-side-outline-btn" onClick={onReset}>
-              Reset style
-            </button>
-          </div>
+              {isUnique ? (
+                <label className="si-sym-agol-toggle-row">
+                  <span>Display features by value order</span>
+                  <input
+                    type="checkbox"
+                    checked={displayByValueOrder}
+                    onChange={e => setDisplayByValueOrder(e.target.checked)}
+                  />
+                </label>
+              ) : null}
 
           {showColor && !isUnique ? (
             <div className="si-sym-side-field" id="si-sym-color-scheme">
@@ -745,98 +1007,50 @@ export function SiSymbologySidePanel({
 
           {isUnique ? (
             <div className="si-sym-side-field">
-              <span className="si-sym-side-label">Types — pick a color per value</span>
               <div className="si-sym-side-value-list">
                 <div className="si-sym-side-value-list__head">
-                  <span>{draft.field}</span>
-                  <span style={{ marginLeft: 'auto' }}>{layerFeatures.length}</span>
+                  <span className="si-sym-side-value-list__head-grip" aria-hidden>
+                    <i className="fa-solid fa-grip-vertical" />
+                  </span>
+                  <span>{draft.field?.toUpperCase() ?? 'VALUE'}</span>
+                  <span>{uniqueValueCount}</span>
+                  <button type="button" className="si-sym-side-value-list__menu" aria-label="More options">
+                    <i className="fa-solid fa-ellipsis-vertical" aria-hidden />
+                  </button>
                 </div>
                 {legendItems.map((it, idx) => renderLegendColorRow(it, idx, { showCount: true }))}
               </div>
             </div>
           ) : (
             <div className="si-sym-side-field">
-              <span className="si-sym-side-label">Legend preview — pick colors</span>
-              <p className="si-sym-side-hint">Each color updates the panel preview until you Apply.</p>
               <div className="si-sym-side-value-list">
                 {legendItems.map((it, idx) => renderLegendColorRow(it, idx))}
               </div>
             </div>
           )}
 
-          <div className="si-sym-side-acc">
-            <button
-              type="button"
-              className="si-sym-side-acc__trigger"
-              onClick={() => setOpenAcc(a => ({ ...a, appearance: !a.appearance }))}
-            >
-              <i className={`fa-solid fa-chevron-${openAcc.appearance ? 'down' : 'right'}`} aria-hidden />
-              Symbol appearance
-            </button>
-            {openAcc.appearance ? (
-              <div className="si-sym-side-acc__body">
-                <div className="si-sym-side-field">
-                  <label className="si-sym-side-label">Outline / fill</label>
-                  <div style={{ display: 'flex', gap: 8 }}>
-                    <input
-                      type="color"
-                      value={appearance.color.startsWith('#') ? appearance.color : '#94a3b8'}
-                      onChange={e => onAppearanceChange({ color: e.target.value })}
-                      aria-label="Outline"
-                    />
-                    <input
-                      type="color"
-                      value={appearance.fillColor.startsWith('#') ? appearance.fillColor : '#38bdf8'}
-                      onChange={e => onAppearanceChange({ fillColor: e.target.value })}
-                      aria-label="Fill"
-                    />
-                  </div>
-                </div>
-                <div className="si-sym-side-slider">
-                  <div className="si-sym-side-slider__row">
-                    <span>Layer opacity</span>
-                    <span>{Math.round(appearance.opacity * 100)}%</span>
-                  </div>
-                  <input
-                    type="range"
-                    min={5}
-                    max={100}
-                    value={Math.round(appearance.opacity * 100)}
-                    onChange={e => onAppearanceChange({ opacity: Number(e.target.value) / 100 })}
-                  />
-                </div>
-                <div className="si-sym-side-slider">
-                  <div className="si-sym-side-slider__row">
-                    <span>Outline width</span>
-                    <span>{appearance.weight.toFixed(1)} px</span>
-                  </div>
-                  <input
-                    type="range"
-                    min={5}
-                    max={160}
-                    value={Math.round(appearance.weight * 10)}
-                    onChange={e => onAppearanceChange({ weight: Number(e.target.value) / 10 })}
-                  />
-                </div>
-                <div className="si-sym-side-actions-row">
-                  {SI_STYLE_PRESET_CHIPS.slice(0, 4).map(p => (
-                    <button
-                      key={p.id}
-                      type="button"
-                      className="si-sym-side-outline-btn"
-                      onClick={() => onAppearanceChange({ ...p.patch })}
-                    >
-                      {p.label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            ) : null}
-          </div>
+          <SiSymbologyAttributePanels
+            geojson={geojson}
+            allFields={allFields}
+            numericFields={numericFields}
+            defaultField={draft.field}
+            transparency={draft.attributeTransparency ?? DEFAULT_SI_SYMBOLOGY_ATTRIBUTE_TRANSPARENCY}
+            rotation={draft.attributeRotation ?? DEFAULT_SI_SYMBOLOGY_ATTRIBUTE_ROTATION}
+            transparencyOpen={openAcc.transparency}
+            rotationOpen={openAcc.rotation}
+            onTransparencyOpenChange={open =>
+              setOpenAcc(a => ({ ...a, transparency: open }))
+            }
+            onRotationOpenChange={open => setOpenAcc(a => ({ ...a, rotation: open }))}
+            onTransparencyChange={attributeTransparency => onDraftChange({ attributeTransparency })}
+            onRotationChange={attributeRotation => onDraftChange({ attributeRotation })}
+          />
+            </>
+          ) : null}
         </div>
 
         <div className="si-sym-style-options-foot">
-          <button type="button" className="si-sym-style-options-done" onClick={() => setStep('attributes')}>
+          <button type="button" className="si-sym-style-options-done" onClick={commitAndClose}>
             Done
           </button>
           <button type="button" className="si-sym-style-options-cancel" onClick={() => setStep('attributes')}>
@@ -845,51 +1059,7 @@ export function SiSymbologySidePanel({
         </div>
       </div>
     ) : (
-      <div className="si-sym-side-panel__step si-sym-side-step si-sym-side-step--smart">
-        <p className="si-sym-side-deferred-hint">
-          <i className="fa-solid fa-sliders" aria-hidden /> The map and legend update as you change options. Click{' '}
-          <strong>Apply</strong> to save this style to the layer.
-        </p>
-
-        {contourSettings && onContourSettingsChange ? (
-          <button
-            type="button"
-            className="si-sym-contour-cls-entry"
-            title="Classify terrain contour lines by elevation, slope, and more"
-            onClick={() => setStep('contour-classification')}
-          >
-            <span className="si-sym-contour-cls-entry__icon" aria-hidden>
-              <i className="fa-solid fa-chart-area" />
-            </span>
-            <span className="si-sym-contour-cls-entry__text">
-              <strong>Contour classification</strong>
-              <span>Classes, ramps, line width, labels</span>
-            </span>
-            <i className="fa-solid fa-chevron-right si-sym-contour-cls-entry__chev" aria-hidden />
-          </button>
-        ) : null}
-
-        {allFields.length > 0 ? (
-          <div className="si-sym-side-field">
-            <label className="si-sym-side-label" htmlFor="si-sym-field-pick">
-              Field
-            </label>
-            <select
-              id="si-sym-field-pick"
-              className="si-sym-side-select"
-              value={draft.field}
-              onChange={e => selectField(e.target.value)}
-            >
-              <option value="">Select a field…</option>
-              {allFields.map(f => (
-                <option key={f} value={f}>
-                  {f} ({fieldKindLabel(fieldKinds[f] ?? 'text')})
-                </option>
-              ))}
-            </select>
-          </div>
-        ) : null}
-
+      <div className="si-sym-side-panel__step si-sym-side-step si-sym-side-step--styles">
         {canUseArcGisOnline ? (
           <label className="si-sym-side-toggle si-sym-side-toggle--agol">
             <span>Use ArcGIS Online symbology</span>
@@ -901,83 +1071,144 @@ export function SiSymbologySidePanel({
           </label>
         ) : null}
 
-        {draft.useArcGisOnline ? (
-          <div className="si-sym-side-banner si-sym-side-banner--agol">
-            <strong>ArcGIS renderer selected</strong> — service symbology will apply after you click Apply.
-            {(() => {
-              const renderer =
-                (arcgisDrawingInfo as { renderer?: unknown })?.renderer ??
-                (arcgisLayerDefinition as { drawingInfo?: { renderer?: unknown } })?.drawingInfo?.renderer;
-              return renderer ? (
-                <div style={{ marginTop: 8 }}>{describeArcGisRendererVisualization(renderer)}</div>
-              ) : null;
-            })()}
-            <p className="si-sym-side-hint">Uncheck above to switch to custom Smart Mapping styles.</p>
-          </div>
-        ) : null}
-
-        {draft.field ? (
+        {!draft.useArcGisOnline ? (
           <>
             <div className="si-sym-side-step__head">
-              <span className="si-sym-side-step__badge">2</span>
-              <div>
-                <h3>Pick a style</h3>
-                <p>{smartMappingHintForField(activeFieldKind)}</p>
+              <span className="si-sym-side-step__badge">1</span>
+              <h3>
+                Choose attributes
+                <SiSymbologyInfoIcon
+                  className="si-sym-side-step__info"
+                  title="Pick a field to drive color, size, or category symbols."
+                />
+              </h3>
+            </div>
+
+            {draft.field ? (
+              <div className="si-sym-side-field-chip">
+                <span className="si-sym-side-field-chip__icon" aria-hidden>
+                  {fieldKindIcon(activeFieldKind)}
+                </span>
+                <span className="si-sym-side-field-chip__name">{draft.field}</span>
+                <button
+                  type="button"
+                  className="si-sym-side-field-chip__remove"
+                  onClick={() => selectField('')}
+                  aria-label={`Remove field ${draft.field}`}
+                >
+                  <i className="fa-solid fa-xmark" aria-hidden />
+                </button>
               </div>
-            </div>
-            <div className="si-sym-style-cards">
-              {styleCards.map(opt => {
-                const selected = draft.style === opt.value;
-                const suggested = opt.value === suggestedStyle;
-                return (
-                  <button
-                    key={opt.value}
-                    type="button"
-                    className={`si-sym-style-card${selected ? ' si-sym-style-card--on' : ''}${suggested ? ' si-sym-style-card--suggested' : ''}`}
-                    onClick={() => pickStyle(opt.value)}
-                    disabled={draft.useArcGisOnline}
-                  >
-                    <div className={`si-sym-style-card__thumb si-sym-style-card__thumb--${STYLE_THUMB[opt.value]}`} />
-                    {suggested && !selected ? (
-                      <span className="si-sym-style-card__suggest">Suggested</span>
-                    ) : null}
-                    {selected ? (
-                      <span className="si-sym-style-card__check">
-                        <i className="fa-solid fa-circle-check" aria-hidden />
-                      </span>
-                    ) : null}
-                    <div className="si-sym-style-card__meta">
-                      <div className="si-sym-style-card__title">
-                        {opt.label}
-                        <i className="fa-regular fa-circle-question" title={opt.hint} aria-hidden />
-                      </div>
-                      <div className="si-sym-style-card__hint">{opt.hint}</div>
-                    </div>
-                  </button>
-                );
-              })}
-            </div>
-            {canOpenStyleOptions ? (
-              <button type="button" className="si-sym-style-options-btn" onClick={openStyleOptions}>
-                Style options
+            ) : null}
+
+            <div className="si-sym-side-field-actions">
+              <button
+                type="button"
+                className="si-sym-side-field-actions__btn"
+                onClick={() => setFieldPickerOpen(open => !open)}
+              >
+                <i className="fa-solid fa-plus" aria-hidden /> Field
               </button>
+              <button type="button" className="si-sym-side-field-actions__btn" disabled title="Coming soon">
+                <i className="fa-solid fa-plus" aria-hidden /> Expression
+              </button>
+            </div>
+
+            {fieldPickerOpen && allFields.length > 0 ? (
+              <div className="si-sym-side-field si-sym-side-field-picker">
+                <button
+                  type="button"
+                  className="si-sym-side-field-picker__trigger"
+                  aria-expanded
+                  aria-controls="si-sym-field-pick-list"
+                  onClick={() => setFieldPickerOpen(false)}
+                >
+                  <span>
+                    {draft.field
+                      ? `${draft.field} (${fieldKindLabel(fieldKinds[draft.field] ?? activeFieldKind)})`
+                      : 'Select a field…'}
+                  </span>
+                  <i className="fa-solid fa-chevron-up" aria-hidden />
+                </button>
+                <ul id="si-sym-field-pick-list" className="si-sym-side-field-picker__list" role="listbox">
+                  {allFields.map(f => {
+                    const on = draft.field === f;
+                    return (
+                      <li key={f} role="option" aria-selected={on}>
+                        <button
+                          type="button"
+                          className={
+                            'si-sym-side-field-picker__item' + (on ? ' si-sym-side-field-picker__item--on' : '')
+                          }
+                          onClick={() => {
+                            selectField(f);
+                            setFieldPickerOpen(false);
+                          }}
+                        >
+                          {f} ({fieldKindLabel(fieldKinds[f] ?? 'text')})
+                        </button>
+                      </li>
+                    );
+                  })}
+                </ul>
+              </div>
+            ) : null}
+
+            {styleCards.length > 0 ? (
+              <>
+                <div className="si-sym-side-step__head si-sym-side-step__head--2">
+                  <span className="si-sym-side-step__badge">2</span>
+                  <h3>Pick a style</h3>
+                  <p>{smartMappingHintForField(activeFieldKind, geometryKind)}</p>
+                </div>
+                <div className="si-sym-style-cards si-sym-style-cards--agol">
+                  {styleCards.map(opt => {
+                    const selected = draft.style === opt.value;
+                    const suggested = opt.value === suggestedStyle;
+                    return (
+                      <div
+                        key={opt.value}
+                        className={`si-sym-style-card-wrap${selected ? ' si-sym-style-card-wrap--on' : ''}`}
+                      >
+                        <button
+                          type="button"
+                          className={`si-sym-style-card si-sym-style-card--agol${selected ? ' si-sym-style-card--on' : ''}${suggested ? ' si-sym-style-card--suggested' : ''}`}
+                          onClick={() => pickStyle(opt.value)}
+                        >
+                          <div className="si-sym-style-card__preview">
+                            <SiSymbologyStyleThumb thumb={opt.thumb} />
+                            <span
+                              className={`si-sym-style-card__check${selected ? ' si-sym-style-card__check--on' : ''}`}
+                              aria-hidden
+                            >
+                              {selected ? <i className="fa-solid fa-check" /> : null}
+                            </span>
+                          </div>
+                          <div className="si-sym-style-card__meta">
+                            <div className="si-sym-style-card__title">
+                              {opt.label}
+                              <SiSymbologyInfoIcon title={opt.hint} />
+                            </div>
+                          </div>
+                        </button>
+                        {selected && canOpenStyleOptions ? (
+                          <button type="button" className="si-sym-style-options-btn" onClick={openStyleOptions}>
+                            Style options
+                          </button>
+                        ) : null}
+                      </div>
+                    );
+                  })}
+                </div>
+              </>
             ) : null}
           </>
         ) : null}
       </div>
     );
 
-  const footActions =
-    step !== 'symbol-edit' && step !== 'contour-classification' ? (
-      <>
-        <button type="button" className="si-sym-side-btn" onClick={onReset}>
-          Reset to Default
-        </button>
-        <button type="button" className="si-sym-side-btn si-sym-side-btn--primary" onClick={onApply}>
-          Apply
-        </button>
-      </>
-    ) : null;
+  const isSubStep = step === 'style-options' || step === 'ramp-picker' || step === 'symbol-edit';
+  const showMainFoot = !isSubStep && step !== 'contour-classification';
 
   return (
     <div
@@ -986,6 +1217,17 @@ export function SiSymbologySidePanel({
       role="dialog"
       aria-modal="false"
     >
+      <div
+        className={
+          'si-sym-side-panel__layer-bar' +
+          (onLayerBarPointerDown ? ' si-sym-side-panel__layer-bar--drag' : '')
+        }
+        title={onLayerBarPointerDown ? layerName : undefined}
+        onPointerDown={onLayerBarPointerDown}
+      >
+        <span className="si-sym-side-panel__layer-name">{layerName}</span>
+        <i className="fa-solid fa-chevron-down si-sym-side-panel__layer-chev" aria-hidden />
+      </div>
       <header
         className={'si-sym-side-panel__head' + (onHeaderPointerDown ? ' si-sym-side-panel__head--drag' : '')}
         onPointerDown={onHeaderPointerDown}
@@ -997,12 +1239,8 @@ export function SiSymbologySidePanel({
           </button>
         ) : null}
         <div className="si-sym-side-panel__brand">
-          <i className="fa-solid fa-palette" aria-hidden />
           <div className="si-sym-side-panel__brand-text">
             <h2 className="si-sym-side-panel__title">{headerTitle}</h2>
-            <p className="si-sym-side-panel__subtitle" title={layerName}>
-              {layerName}
-            </p>
           </div>
         </div>
         <button type="button" className="si-sym-side-panel__close" onClick={onClose} aria-label="Cancel and discard changes">
@@ -1010,15 +1248,42 @@ export function SiSymbologySidePanel({
         </button>
       </header>
       <div className="si-sym-side-panel__body">{body}</div>
-      {categorySymbolEdit && step !== 'symbol-edit' ? (
-        <div className="si-sym-side-symbol-dock" aria-hidden />
+      {showMainFoot ? (
+        <footer
+          className={
+            'si-sym-side-panel__foot si-sym-side-panel__foot--agol' +
+            (draft.useArcGisOnline ? '' : ' si-sym-side-panel__foot--agol-custom')
+          }
+        >
+          {draft.useArcGisOnline ? (
+            <>
+              <div className="si-sym-agol-foot-row">
+                <button type="button" className="si-sym-side-btn si-sym-side-btn--done" onClick={commitAndClose}>
+                  Done
+                </button>
+                <button type="button" className="si-sym-side-btn si-sym-side-btn--cancel" onClick={onClose}>
+                  Cancel
+                </button>
+                <button type="button" className="si-sym-side-btn si-sym-side-btn--reset" onClick={onReset}>
+                  Reset to Default
+                </button>
+              </div>
+              <button type="button" className="si-sym-agol-apply" onClick={onApply}>
+                Apply
+              </button>
+            </>
+          ) : (
+            <>
+              <button type="button" className="si-sym-side-btn si-sym-side-btn--done" onClick={commitAndClose}>
+                Done
+              </button>
+              <button type="button" className="si-sym-side-btn si-sym-side-btn--cancel" onClick={onClose}>
+                Cancel
+              </button>
+            </>
+          )}
+        </footer>
       ) : null}
-      <footer className="si-sym-side-panel__foot">
-        <button type="button" className="si-sym-side-btn" onClick={onClose}>
-          Cancel
-        </button>
-        {footActions}
-      </footer>
     </div>
   );
 }

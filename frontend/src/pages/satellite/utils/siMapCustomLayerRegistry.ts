@@ -34,13 +34,18 @@ import { delayMs, waitForMapboxRasterSettle, waitForReactPaint } from './siMapRe
 import { syncSiMapOverlayLayerStack } from './siMapCustomVectorLayerStack';
 import { isSiBimRenderLayer } from './siIfcBimTypes';
 import { removeAllMapboxMountsForAppLayerId } from './siMapLayerMapboxMountCleanup';
+import { withSiMapLayerMountElevation3d, resolveSiMapLayerMountElevation3d } from './siMapLayerElevation3dState';
 
-export type SiCustomLayerLoadStatus = 'idle' | 'loading' | 'loaded' | 'empty' | 'failed';
+export type SiCustomLayerLoadStatus = 'idle' | 'loading' | 'refreshing' | 'loaded' | 'empty' | 'failed';
 
 export type SiCustomLayerMapMeta = {
   loadStatus?: SiCustomLayerLoadStatus;
   extentBounds?: [number, number, number, number] | null;
   mapRenderRevision?: number;
+  /** GeoJSON snapshot kept on the map while a refresh completes in the background. */
+  mapCommittedGeojson?: unknown;
+  /** Stable Mapbox style slug for the committed snapshot (prevents mount churn). */
+  mapCommittedStyleKey?: string;
   symbologyUseFallback?: boolean;
   lastMapSyncAt?: number;
   lastMapSyncError?: string | null;
@@ -80,6 +85,10 @@ export function countGeoJsonFeatures(geojson: unknown): number {
   return Array.isArray(feats) ? feats.length : 0;
 }
 
+export function isSiCustomLayerMapRefreshInFlight(layer: SiCustomLayerRegistryFields): boolean {
+  return layer.loadStatus === 'refreshing' || layer.loadStatus === 'loading';
+}
+
 export const SI_CUSTOM_LAYER_HEIGHT_FIELDS = ['height_fin', 'height', 'HEIGHT', 'Height'] as const;
 
 /** Detect a numeric height attribute suitable for fill-extrusion (matches map canvas render). */
@@ -94,9 +103,52 @@ export function shouldSiCustomLayerUseHeightExtrusion(
   layer: SiCustomLayerRegistryFields,
   elevation3d: boolean,
 ): boolean {
-  if (!elevation3d) return false;
-  if (isSiBimRenderLayer(layer)) return true;
-  return detectSiCustomLayerHeightExtrusionField(layer, { elevation3d: true }) != null;
+  return resolveSiCustomLayerMapExtrusion3d(layer, elevation3d).active;
+}
+
+export type SiCustomLayerMapExtrusionSpec = {
+  active: boolean;
+  heightField: string | null;
+  heightExpression: unknown;
+};
+
+/** Shared 2D/3D extrusion decision for React + imperative Mapbox mounts. */
+export function resolveSiCustomLayerMapExtrusion3d(
+  layer: Pick<SiCustomLayerRegistryFields, 'geojson' | 'renderMode' | 'bimModelId'>,
+  elevation3d: boolean,
+): SiCustomLayerMapExtrusionSpec {
+  if (!elevation3d) {
+    return { active: false, heightField: null, heightExpression: 3 };
+  }
+  if (isSiBimRenderLayer(layer)) {
+    return {
+      active: true,
+      heightField: 'height',
+      heightExpression: ['coalesce', ['get', 'height'], ['get', 'height_fin'], 3],
+    };
+  }
+  const heightField = detectSiCustomLayerHeightExtrusionField(layer, { elevation3d: true });
+  if (heightField) {
+    return {
+      active: true,
+      heightField,
+      heightExpression: ['coalesce', ['to-number', ['get', heightField]], 3],
+    };
+  }
+  if (siLayerQualifiesFor3dBuildingDefaultStyle(layer) || forcedStyleVariantForLayer(layer) === '3d-building') {
+    return {
+      active: true,
+      heightField: 'height_fin',
+      heightExpression: [
+        'coalesce',
+        ['to-number', ['get', 'height_fin']],
+        ['to-number', ['get', 'height']],
+        ['to-number', ['get', 'HEIGHT']],
+        3,
+      ],
+    };
+  }
+  return { active: false, heightField: null, heightExpression: 3 };
 }
 
 /** Uploaded / vector building layers with a numeric height attribute (not IFC BIM). */
@@ -111,6 +163,8 @@ export type SiCustomLayerMapMountOptions = {
   elevation3d?: boolean;
   /** Apply the global forced visible style pack (ignores invisible ArcGIS / empty paints). */
   forceVisiblePaints?: boolean;
+  /** Keep extrusion Mapbox layer mounted — hide via opacity during 2D↔3D crossfade. */
+  keepExtrusionMount?: boolean;
 };
 
 export function resolveSiCustomLayerMountOpts(
@@ -173,7 +227,7 @@ export function isSiCustomLayerPaintedOnMap(
     const instanceId =
       findMapboxInstanceIdForAppLayer(map, layer.id, customLayerMapboxSourceId(layer)) ??
       customLayerMapboxSourceId(layer);
-    const elevation3d = opts?.elevation3d ?? false;
+    const elevation3d = resolveSiMapLayerMountElevation3d(opts);
     if (shouldSiCustomLayerUseHeightExtrusion(layer, elevation3d)) {
       return Boolean(siSafeMapGetLayer(map, `${instanceId}-extrusion`));
     }
@@ -285,8 +339,8 @@ export function prepareCustomLayerForMap<T extends SiCustomLayerRegistryFields>(
   const fc = countGeoJsonFeatures(styled.geojson);
   const extentBounds = computeCustomLayerExtentBounds(styled);
   const loadStatus: SiCustomLayerLoadStatus =
-    styled.loadStatus === 'loading'
-      ? 'loading'
+    styled.loadStatus === 'loading' || styled.loadStatus === 'refreshing'
+      ? styled.loadStatus
       : fc > 0
         ? 'loaded'
         : styled.source === 'arcgis'
@@ -387,6 +441,32 @@ export function buildSiHeightExtrusionPaint(
 /** Hide the flat fill under 3D walls so semi-transparent 2D fill does not show through extrusion. */
 export function siFillPaintHiddenUnderExtrusion(fillPaint: Record<string, unknown>): Record<string, unknown> {
   return { ...fillPaint, 'fill-opacity': 0 };
+}
+
+function siLerpOpacity(base: unknown, factor: number): unknown {
+  const f = Math.min(1, Math.max(0, factor));
+  if (f >= 0.999) return base;
+  if (f <= 0.001) return 0;
+  if (typeof base === 'number' && Number.isFinite(base)) {
+    return Math.min(1, Math.max(0, base * f));
+  }
+  if (Array.isArray(base) && base.length > 0) {
+    return ['*', base, f];
+  }
+  return base;
+}
+
+function scaleMapboxPaintOpacityByFactor(
+  paint: Record<string, unknown>,
+  factor: number,
+): Record<string, unknown> {
+  if (factor >= 0.999) return paint;
+  const out: Record<string, unknown> = { ...paint };
+  for (const [k, v] of Object.entries(out)) {
+    if (!k.includes('opacity')) continue;
+    out[k] = siLerpOpacity(v, factor);
+  }
+  return out;
 }
 
 /** Solid BIM / service extrusion opacity — no arbitrary 0.82–0.88 cap at full layer opacity. */
@@ -572,6 +652,12 @@ export function buildCustomLayerMapboxStyleKey(
     const op = opts?.mapOpacity ?? layer.mapOpacity ?? 1;
     return `sp-stable|${layer.id}|o${String(op)}|${labelRev}`;
   }
+  if (
+    layer.mapCommittedStyleKey &&
+    (layer.loadStatus === 'refreshing' || layer.loadStatus === 'loading')
+  ) {
+    return layer.mapCommittedStyleKey;
+  }
   const op = opts?.mapOpacity ?? layer.mapOpacity ?? 1;
   const rev = computeSiLayerStyleRevision(
     layer,
@@ -620,36 +706,39 @@ export function patchCustomLayerSymbologyPaintsOnMap(
   const fc = countGeoJsonFeatures(layer.geojson);
   if (fc === 0 && layer.renderMode !== 'raster' && layer.renderMode !== 'bim') return false;
 
-  const mountOpts = resolveSiCustomLayerMountOpts(layer, opts);
+  const mountOpts = resolveSiCustomLayerMountOpts(layer, withSiMapLayerMountElevation3d(opts));
   const preferredId = customLayerMapboxSourceId(layer);
   const instanceId = findMapboxInstanceIdForAppLayer(map, layer.id, preferredId);
   if (!instanceId) {
     return ensureSiCustomLayerMapboxMount(map, layer, mountOpts);
   }
 
-  const elevation3d = mountOpts.elevation3d ?? false;
+  const elevation3d = resolveSiMapLayerMountElevation3d(mountOpts);
+  const extrusionSpec = resolveSiCustomLayerMapExtrusion3d(layer, elevation3d);
   const st = stylePackOverride ?? resolveSiLayerMapboxStylePackForMount(layer, mountOpts);
   const op = Math.max(0.05, Math.min(1, layer.mapOpacity ?? 1));
   const fillPaint = scaleMapboxPaintOpacity(st.fillPaint as Record<string, unknown>, op);
   const linePaint = scaleMapboxPaintOpacity(st.linePaint as Record<string, unknown>, op);
   const circlePaint = scaleMapboxPaintOpacity(st.circlePaint as Record<string, unknown>, op);
-  const extrusionPaint = buildSiHeightExtrusionPaint(st, layer, op);
+  const extrusionPaint = buildSiHeightExtrusionPaint(st, layer, op) as Record<string, unknown>;
   const fillPaintUnderExtrusion = siFillPaintHiddenUnderExtrusion(fillPaint);
-  const heightField = detectSiCustomLayerHeightExtrusionField(layer, { elevation3d });
-  const useHeightExtrusion = !isSiBimRenderLayer(layer) && elevation3d && Boolean(heightField);
+  const bimMode = isSiBimRenderLayer(layer);
+  const useHeightExtrusion = !bimMode && extrusionSpec.active;
+  const useBimExtrusion = bimMode && elevation3d;
   const fillId = `${instanceId}-fill`;
   const lineId = `${instanceId}-line`;
   const circleId = `${instanceId}-circle`;
   const extrusionId = `${instanceId}-extrusion`;
 
   try {
-    if (useHeightExtrusion) {
+    if (useHeightExtrusion || useBimExtrusion) {
       if (!siSafeMapGetLayer(map, extrusionId)) {
         return ensureSiCustomLayerMapboxMount(map, layer, mountOpts);
       }
       applyMapboxLayerPaints(map, extrusionId, {
         ...extrusionPaint,
-        'fill-extrusion-height': ['coalesce', ['to-number', ['get', heightField!]], 3],
+        'fill-extrusion-height': extrusionSpec.heightExpression,
+        'fill-extrusion-cast-shadows': false,
       });
       applyMapboxLayerFilters(map, fillId, st.fillFilter);
       applyMapboxLayerFilters(map, lineId, st.lineFilter);
@@ -658,6 +747,13 @@ export function patchCustomLayerSymbologyPaintsOnMap(
       applyMapboxLayerPaints(map, lineId, linePaint);
       applyMapboxLayerPaints(map, circleId, circlePaint);
     } else {
+      if (!opts?.keepExtrusionMount && siSafeMapGetLayer(map, extrusionId)) {
+        try {
+          map.removeLayer(extrusionId);
+        } catch {
+          /* ignore */
+        }
+      }
       if (!siSafeMapGetLayer(map, fillId) && !siSafeMapGetLayer(map, lineId) && !siSafeMapGetLayer(map, circleId)) {
         return ensureSiCustomLayerMapboxMount(map, layer, mountOpts);
       }
@@ -672,6 +768,110 @@ export function patchCustomLayerSymbologyPaintsOnMap(
     return true;
   } catch {
     return ensureSiCustomLayerMapboxMount(map, layer, mountOpts);
+  }
+}
+
+/**
+ * Crossfade 2D flat symbology ↔ 3D extrusion in-place — same GeoJSON source, no remount/reconcile.
+ * `blendToward3d`: 0 = full 2D, 1 = full 3D.
+ */
+export function patchCustomLayerElevationBlendOnMap(
+  map: MapboxMap,
+  layer: SiCustomLayerRegistryFields,
+  blendToward3d: number,
+  opts?: SiCustomLayerMapMountOptions,
+): boolean {
+  if (layer.visible === false || !siMapStyleReady(map)) return false;
+  const fc = countGeoJsonFeatures(layer.geojson);
+  if (fc === 0 && layer.renderMode !== 'raster' && layer.renderMode !== 'bim') return false;
+
+  const t = Math.min(1, Math.max(0, blendToward3d));
+  const extrusionCapable = resolveSiCustomLayerMapExtrusion3d(layer, true).active;
+  const bimMode = isSiBimRenderLayer(layer);
+
+  if (!extrusionCapable && !bimMode) {
+    return patchCustomLayerSymbologyPaintsOnMap(map, layer, {
+      ...opts,
+      elevation3d: t >= 0.5,
+    });
+  }
+
+  const mountOpts = resolveSiCustomLayerMountOpts(layer, {
+    ...withSiMapLayerMountElevation3d(opts),
+    elevation3d: t >= 0.5,
+    keepExtrusionMount: t > 0.001 && t < 0.999,
+  });
+
+  if (t > 0.001) {
+    ensureSiCustomLayerMapboxMount(map, layer, {
+      ...mountOpts,
+      elevation3d: true,
+      keepExtrusionMount: t < 0.999,
+    });
+  } else if (!layerMapboxLayersPresent(map, layer)) {
+    return ensureSiCustomLayerMapboxMount(map, layer, { ...mountOpts, elevation3d: false });
+  }
+
+  const preferredId = customLayerMapboxSourceId(layer);
+  const instanceId = findMapboxInstanceIdForAppLayer(map, layer.id, preferredId);
+  if (!instanceId) {
+    return ensureSiCustomLayerMapboxMount(map, layer, mountOpts);
+  }
+
+  const st = resolveSiLayerMapboxStylePackForMount(layer, mountOpts);
+  const op = Math.max(0.05, Math.min(1, layer.mapOpacity ?? 1));
+  const fillPaint = scaleMapboxPaintOpacity(st.fillPaint as Record<string, unknown>, op);
+  const linePaint = scaleMapboxPaintOpacity(st.linePaint as Record<string, unknown>, op);
+  const circlePaint = scaleMapboxPaintOpacity(st.circlePaint as Record<string, unknown>, op);
+  const extrusionPaint = buildSiHeightExtrusionPaint(st, layer, op) as Record<string, unknown>;
+  const fillId = `${instanceId}-fill`;
+  const lineId = `${instanceId}-line`;
+  const circleId = `${instanceId}-circle`;
+  const extrusionId = `${instanceId}-extrusion`;
+  const fill2d = scaleMapboxPaintOpacityByFactor(fillPaint, 1 - t);
+  const line2d = scaleMapboxPaintOpacityByFactor(linePaint, 1 - t);
+  const circle2d = scaleMapboxPaintOpacityByFactor(circlePaint, 1 - t);
+  const extrusion3d = scaleMapboxPaintOpacityByFactor(extrusionPaint as Record<string, unknown>, t);
+
+  try {
+    if (bimMode) {
+      const bimColor =
+        (typeof (layer as { fillColor?: string }).fillColor === 'string' &&
+          (layer as { fillColor?: string }).fillColor) ||
+        '#64748b';
+      if (siSafeMapGetLayer(map, extrusionId)) {
+        applyMapboxLayerPaints(map, extrusionId, {
+          'fill-extrusion-color': bimColor,
+          'fill-extrusion-opacity': siLerpOpacity(siBimExtrusionOpacity(op), t) as number,
+        });
+      }
+      applyMapboxLayerPaints(map, fillId, {
+        'fill-color': bimColor,
+        'fill-opacity': siLerpOpacity(Math.max(0.35, op * 0.72), 1 - t) as number,
+      });
+      applyMapboxLayerPaints(map, lineId, {
+        'line-color': bimColor,
+        'line-width': t >= 0.5 ? 0.6 : 1.2,
+        'line-opacity': siLerpOpacity(t >= 0.5 ? op * 0.65 : op, 1) as number,
+      });
+    } else {
+      const extrusionSpec = resolveSiCustomLayerMapExtrusion3d(layer, true);
+      if (siSafeMapGetLayer(map, extrusionId)) {
+        applyMapboxLayerPaints(map, extrusionId, {
+          ...extrusion3d,
+          'fill-extrusion-height': extrusionSpec.heightExpression,
+        });
+      }
+      applyMapboxLayerPaints(map, fillId, fill2d);
+      applyMapboxLayerPaints(map, lineId, line2d);
+      if (siSafeMapGetLayer(map, circleId)) {
+        applyMapboxLayerPaints(map, circleId, circle2d);
+      }
+    }
+    syncSiMapOverlayLayerStack(map);
+    return true;
+  } catch {
+    return patchCustomLayerSymbologyPaintsOnMap(map, layer, mountOpts);
   }
 }
 
@@ -802,9 +1002,10 @@ export function flushSiCustomLayerOnMapCanvas(
   opts?: SiCustomLayerMapMountOptions,
 ): void {
   if (!map?.getStyle?.() || layer.visible === false) return;
+  if (isSiCustomLayerMapRefreshInFlight(layer) && layer.mapCommittedGeojson) return;
   const fc = countGeoJsonFeatures(layer.geojson);
   if (fc === 0 && layer.renderMode !== 'raster' && layer.renderMode !== 'bim') return;
-  const mountOpts = resolveSiCustomLayerMountOpts(layer, opts);
+  const mountOpts = resolveSiCustomLayerMountOpts(layer, withSiMapLayerMountElevation3d(opts));
   try {
     ensureSiCustomLayerMapboxMount(map, layer, mountOpts);
     syncSiMapOverlayLayerStack(map);
@@ -878,12 +1079,14 @@ export function ensureSiCustomLayerMapboxMount(
   opts?: SiCustomLayerMapMountOptions,
 ): boolean {
   if (layer.visible === false) return false;
+  if (isSiCustomLayerMapRefreshInFlight(layer) && layer.mapCommittedGeojson) return true;
   const fc = countGeoJsonFeatures(layer.geojson);
   if (fc === 0 && layer.renderMode !== 'raster' && layer.renderMode !== 'bim') return false;
   if (!siMapStyleReady(map)) return false;
 
-  const mountOpts = resolveSiCustomLayerMountOpts(layer, opts);
-  const elevation3d = mountOpts.elevation3d ?? false;
+  const mountOpts = resolveSiCustomLayerMountOpts(layer, withSiMapLayerMountElevation3d(opts));
+  const elevation3d = resolveSiMapLayerMountElevation3d(mountOpts);
+  const extrusionSpec = resolveSiCustomLayerMapExtrusion3d(layer, elevation3d);
   const styleKey = buildCustomLayerMapboxStyleKey(layer);
   const instanceId = siMapboxSymbologyInstanceId(layer.id, styleKey);
   const st = resolveSiLayerMapboxStylePackForMount(layer, mountOpts);
@@ -891,7 +1094,7 @@ export function ensureSiCustomLayerMapboxMount(
   const fillPaint = scaleMapboxPaintOpacity(st.fillPaint as Record<string, unknown>, op);
   const linePaint = scaleMapboxPaintOpacity(st.linePaint as Record<string, unknown>, op);
   const circlePaint = scaleMapboxPaintOpacity(st.circlePaint as Record<string, unknown>, op);
-  const extrusionPaint = buildSiHeightExtrusionPaint(st, layer, op);
+  const extrusionPaint = buildSiHeightExtrusionPaint(st, layer, op) as Record<string, unknown>;
   const fillPaintUnderExtrusion = siFillPaintHiddenUnderExtrusion(fillPaint);
   const data = layer.geojson as GeoJSON.FeatureCollection;
   const fillId = `${instanceId}-fill`;
@@ -899,9 +1102,9 @@ export function ensureSiCustomLayerMapboxMount(
   const circleId = `${instanceId}-circle`;
   const extrusionId = `${instanceId}-extrusion`;
   const bimMode = isSiBimRenderLayer(layer);
-  const heightField = detectSiCustomLayerHeightExtrusionField(layer, { elevation3d });
-  const useHeightExtrusion = !bimMode && elevation3d && Boolean(heightField);
+  const useHeightExtrusion = !bimMode && extrusionSpec.active;
   const useBimExtrusion = bimMode && elevation3d;
+  const heightExpression = extrusionSpec.heightExpression;
   const fillPaintForMount = useHeightExtrusion ? fillPaintUnderExtrusion : fillPaint;
   const bimColor =
     (typeof (layer as { fillColor?: string }).fillColor === 'string' && (layer as { fillColor?: string }).fillColor) ||
@@ -924,7 +1127,7 @@ export function ensureSiCustomLayerMapboxMount(
           'fill-extrusion-height': ['coalesce', ['get', 'height'], ['get', 'height_fin'], 3],
           'fill-extrusion-base': ['coalesce', ['get', 'min_height'], 0],
           'fill-extrusion-opacity': siBimExtrusionOpacity(op),
-          'fill-extrusion-cast-shadows': true,
+          'fill-extrusion-cast-shadows': false,
         },
       });
     }
@@ -949,7 +1152,7 @@ export function ensureSiCustomLayerMapboxMount(
   };
 
   const mountBimFlatLayers = (): void => {
-    if (map.getLayer(extrusionId)) {
+    if (!mountOpts.keepExtrusionMount && map.getLayer(extrusionId)) {
       try {
         map.removeLayer(extrusionId);
       } catch {
@@ -985,7 +1188,7 @@ export function ensureSiCustomLayerMapboxMount(
         filter: ['in', ['geometry-type'], ['literal', ['Polygon', 'MultiPolygon']]],
         paint: {
           ...extrusionPaint,
-          'fill-extrusion-height': ['coalesce', ['to-number', ['get', heightField!]], 3],
+          'fill-extrusion-height': heightExpression,
         },
       });
     }
@@ -1051,7 +1254,7 @@ export function ensureSiCustomLayerMapboxMount(
   if (layerMapboxLayersPresent(map, layer)) {
     try {
       updateExistingSource();
-      if (!useHeightExtrusion && !useBimExtrusion && map.getLayer(extrusionId)) {
+      if (!mountOpts.keepExtrusionMount && !useHeightExtrusion && !useBimExtrusion && map.getLayer(extrusionId)) {
         try {
           map.removeLayer(extrusionId);
         } catch {
@@ -1087,7 +1290,7 @@ export function ensureSiCustomLayerMapboxMount(
         if (!map.getLayer(extrusionId)) mountHeightExtrusionLayers();
         applyMapboxLayerPaints(map, extrusionId, {
           ...extrusionPaint,
-          'fill-extrusion-height': ['coalesce', ['to-number', ['get', heightField!]], 3],
+          'fill-extrusion-height': heightExpression,
         });
         applyMapboxLayerFilters(map, fillId, st.fillFilter);
         applyMapboxLayerFilters(map, lineId, st.lineFilter);
@@ -1292,12 +1495,10 @@ export async function runSiCustomLayerRenderPipeline(
       };
     }
 
-    working = materializeCustomLayerRendererForDisplay(
-      bumpCustomLayerMapRenderRevision({
-        ...working,
-        lastMapSyncError: view.error ?? 'layer-view-not-ready',
-      }),
-    );
+    working = {
+      ...working,
+      lastMapSyncError: view.error ?? 'layer-view-not-ready',
+    };
     await delayMs(attempt < 2 ? 60 : 120);
   }
 

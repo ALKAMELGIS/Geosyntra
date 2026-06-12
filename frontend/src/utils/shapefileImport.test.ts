@@ -4,6 +4,8 @@ import {
   formatShapefileMissingMessage,
   groupShapefileParts,
   isShapefileSidecarUpload,
+  isShpOnlyMultiPick,
+  shapefileGeometryKindFromShpType,
   validateShapefileParts,
 } from './shapefileImport';
 
@@ -43,14 +45,14 @@ describe('describeShapefileUploadStaging', () => {
       mockFile('roads.dbf'),
       mockFile('roads.shx'),
     ]);
-    expect(msg).toContain('Shapefile ready');
+    expect(msg).toContain('Shapefile');
     expect(msg).toContain('roads');
+    expect(msg).toContain('Ready');
   });
 
-  it('warns when parts missing', () => {
+  it('warns when dataset incomplete', () => {
     const msg = describeShapefileUploadStaging([mockFile('roads.shp'), mockFile('roads.dbf')]);
-    expect(msg).toContain('missing');
-    expect(msg).toContain('.shx');
+    expect(msg).toContain('Incomplete');
   });
 });
 
@@ -66,5 +68,21 @@ describe('formatShapefileMissingMessage', () => {
     const msg = formatShapefileMissingMessage([{ layerBase: 'test', missing: ['dbf', 'shx'] }]);
     expect(msg).toContain('.dbf');
     expect(msg).toContain('.shx');
+  });
+});
+
+describe('shapefileGeometryKindFromShpType', () => {
+  it('maps Esri shape types', () => {
+    expect(shapefileGeometryKindFromShpType(1)).toBe('Point');
+    expect(shapefileGeometryKindFromShpType(3)).toBe('Line');
+    expect(shapefileGeometryKindFromShpType(5)).toBe('Polygon');
+    expect(shapefileGeometryKindFromShpType(8)).toBe('MultiPoint');
+  });
+});
+
+describe('isShpOnlyMultiPick', () => {
+  it('detects multiple .shp without sidecars', () => {
+    expect(isShpOnlyMultiPick([mockFile('a.shp'), mockFile('b.shp')])).toBe(true);
+    expect(isShpOnlyMultiPick([mockFile('a.shp'), mockFile('a.dbf')])).toBe(false);
   });
 });

@@ -71,36 +71,17 @@ export function SiAoiDrawingToolbar({
       aria-label="AOI drawing tools"
     >
       {!embedded ? <p className="si-aoi-draw-toolbar__label">Drawing tools</p> : null}
-      <div className="si-aoi-draw-toolbar__tools" role="toolbar" aria-label="Map interaction mode">
-        {MODES.map(m => (
-          <button
-            key={m.id}
-            type="button"
-            className={`si-aoi-draw-tool${interactionMode === m.id ? ' si-aoi-draw-tool--on' : ''}`}
-            title={
-              m.id === 'move' && !hasMoveSelection
-                ? 'Select a shape in View mode first, then enable Move'
-                : m.title
-            }
-            aria-label={m.title}
-            aria-pressed={interactionMode === m.id}
-            disabled={m.id === 'move' && !hasMoveSelection}
-            onClick={() => onInteractionMode(m.id)}
-          >
-            <i className={m.icon} aria-hidden />
-          </button>
-        ))}
-      </div>
-      {interactionMode === 'draw' ? (
+      <div className="si-aoi-draw-toolbar__rows">
         <div className="si-aoi-draw-toolbar__tools" role="toolbar" aria-label="Draw shape">
           {SHAPES.map(t => (
             <button
               key={t.id}
               type="button"
-              className={`si-aoi-draw-tool${drawShape === t.id ? ' si-aoi-draw-tool--on' : ''}`}
+              className={`si-aoi-draw-tool${interactionMode === 'draw' && drawShape === t.id ? ' si-aoi-draw-tool--on' : ''}`}
               title={t.title}
               aria-label={t.title}
-              aria-pressed={drawShape === t.id}
+              aria-pressed={interactionMode === 'draw' && drawShape === t.id}
+              disabled={interactionMode !== 'draw'}
               onClick={() => onDrawShape(t.id)}
             >
               <i className={t.icon} aria-hidden />
@@ -117,7 +98,27 @@ export function SiAoiDrawingToolbar({
             <i className="fa-solid fa-eraser" aria-hidden />
           </button>
         </div>
-      ) : null}
+        <div className="si-aoi-draw-toolbar__tools" role="toolbar" aria-label="Map interaction mode">
+          {MODES.map(m => (
+            <button
+              key={m.id}
+              type="button"
+              className={`si-aoi-draw-tool${interactionMode === m.id ? ' si-aoi-draw-tool--on' : ''}`}
+              title={
+                m.id === 'move' && !hasMoveSelection
+                  ? 'Select a shape in View mode first, then enable Move'
+                  : m.title
+              }
+              aria-label={m.title}
+              aria-pressed={interactionMode === m.id}
+              disabled={m.id === 'move' && !hasMoveSelection}
+              onClick={() => onInteractionMode(m.id)}
+            >
+              <i className={m.icon} aria-hidden />
+            </button>
+          ))}
+        </div>
+      </div>
       {showEditControls && interactionMode === 'view' ? (
         <SiAoiGeometryEditControls
           compact={embedded}

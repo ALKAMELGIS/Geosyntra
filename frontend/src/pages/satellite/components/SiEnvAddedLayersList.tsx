@@ -512,11 +512,20 @@ export function SiEnvAddedLayersList({
           ) : null}
 
           {systemRows.length ? (
-            <div className="si-layer-tree__branch si-layer-tree__branch--system" role="group" aria-label="Map services">
+            <div
+              className="si-layer-tree__branch si-layer-tree__branch--system"
+              role="group"
+              aria-label={systemRows.some(r => r.devOnly) ? '3D infrastructure (developer)' : 'Map services'}
+            >
               <div className="si-layer-tree__row si-layer-tree__row--group si-layer-tree__row--static">
                 <span className="si-layer-tree__chevron si-layer-tree__chevron--spacer" aria-hidden />
-                <i className="fa-solid fa-globe si-layer-tree__row-icon" aria-hidden />
-                <span className="si-layer-tree__label">Map services</span>
+                <i
+                  className={`fa-solid ${systemRows.some(r => r.devOnly) ? 'fa-cube' : 'fa-globe'} si-layer-tree__row-icon`}
+                  aria-hidden
+                />
+                <span className="si-layer-tree__label">
+                  {systemRows.some(r => r.devOnly) ? '3D infrastructure (dev)' : 'Map services'}
+                </span>
                 <span className="si-layer-tree__count">{systemRows.length}</span>
               </div>
               <div className="si-layer-tree__children">

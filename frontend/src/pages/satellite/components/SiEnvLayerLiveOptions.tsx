@@ -1,3 +1,5 @@
+import type { LayerLiveIndexSelectGroup } from '../../../lib/siLayerLiveCompositeCatalog';
+import { SiLayerLiveIndexSelect } from './SiLayerLiveIndexSelect';
 import './SiEnvLayerLiveOptions.css';
 
 export type SiEnvLayerLiveRow = {
@@ -13,6 +15,7 @@ export type SiEnvLayerLiveOptionsProps = {
   rows: SiEnvLayerLiveRow[];
   indexLayerId?: string;
   indexLayerOptions?: Array<{ id: string; label: string }>;
+  indexLayerGroups?: LayerLiveIndexSelectGroup[];
   onIndexLayerChange?: (id: string) => void;
   indexLayerSelectDisabled?: boolean;
   basemapId?: string;
@@ -24,6 +27,7 @@ export function SiEnvLayerLiveOptions({
   rows,
   indexLayerId = '',
   indexLayerOptions = [],
+  indexLayerGroups = [],
   onIndexLayerChange,
   indexLayerSelectDisabled = false,
   basemapId = '',
@@ -86,21 +90,34 @@ export function SiEnvLayerLiveOptions({
       ) : null}
 
       {showIndexPicker ? (
-        <label className="si-env-layer-live-options__field">
-          <span>Active index layer</span>
-          <select
-            value={indexLayerId}
-            disabled={indexLayerSelectDisabled}
-            onChange={e => onIndexLayerChange(e.target.value)}
-            aria-label="Active remote sensing index layer"
-          >
-            {indexLayerOptions.map(o => (
-              <option key={o.id} value={o.id}>
-                {o.label}
-              </option>
-            ))}
-          </select>
-        </label>
+        <div className="si-env-layer-live-options__field">
+          {indexLayerGroups.length > 0 ? (
+            <SiLayerLiveIndexSelect
+              label="Active index layer"
+              value={indexLayerId}
+              groups={indexLayerGroups}
+              disabled={indexLayerSelectDisabled}
+              onChange={onIndexLayerChange}
+              placeholder="Choose index layer…"
+            />
+          ) : (
+            <>
+              <span>Active index layer</span>
+              <select
+                value={indexLayerId}
+                disabled={indexLayerSelectDisabled}
+                onChange={e => onIndexLayerChange(e.target.value)}
+                aria-label="Active remote sensing index layer"
+              >
+                {indexLayerOptions.map(o => (
+                  <option key={o.id} value={o.id}>
+                    {o.label}
+                  </option>
+                ))}
+              </select>
+            </>
+          )}
+        </div>
       ) : null}
     </div>
   );

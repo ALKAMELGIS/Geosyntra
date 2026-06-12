@@ -2,6 +2,26 @@ import { describe, expect, it } from 'vitest';
 import { buildLiveAoiStatsViewModel, liveAoiStatsStatusHint } from './liveAoiStatsView';
 
 describe('buildLiveAoiStatsViewModel', () => {
+  it('marks ready when raster stats exist even if upstream status is loading', () => {
+    const vm = buildLiveAoiStatsViewModel({
+      aoiKey: 'a1',
+      aoiName: 'Field A',
+      layerId: 'NDVI',
+      layerName: 'NDVI',
+      areaHa: 10,
+      analysisDateIso: '2026-06-02',
+      rasterSample: {
+        areaHa: 10,
+        grid: [{ lng: 1, lat: 2 }],
+        layers: { NDVI: [0.42] },
+      } as any,
+      zonal: null,
+      status: 'loading',
+    });
+    expect(vm?.mean).toBeCloseTo(0.42, 2);
+    expect(vm?.status).toBe('ready');
+  });
+
   it('computes stats from masked raster pixels only', () => {
     const vm = buildLiveAoiStatsViewModel({
       aoiKey: 'a1',
@@ -50,7 +70,7 @@ describe('buildLiveAoiStatsViewModel', () => {
 
   it('maps status to user hints', () => {
     expect(liveAoiStatsStatusHint('loading', true)).toBeNull();
-    expect(liveAoiStatsStatusHint('unavailable', false)).toMatch(/analysis engine/i);
+    expect(liveAoiStatsStatusHint('unavailable', false)).toMatch(/WMS|Sentinel/i);
     expect(liveAoiStatsStatusHint('error', false)).toMatch(/Sampling failed/i);
   });
 

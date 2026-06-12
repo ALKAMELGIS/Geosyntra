@@ -17,6 +17,7 @@ import {
   type LayerQueryMatch,
 } from './geoExplorerLayerContext'
 import { listSiBimModels, summarizeSiBimModelForGeoAi } from '../pages/satellite/utils/siIfcBimModelStore'
+import { runGeoAiNlGisCommand, type GeoAiNlGisContext } from './geoAiNaturalLanguageGis'
 import { runGeoAiStatsCommand, type GeoAiStatsResult } from './geoAiStatsEngine'
 import { computeStableGisFeatureKey } from './gisFeatureStableKey'
 
@@ -451,12 +452,16 @@ export function tryGeoAiLayerIntelCommand(
   return null
 }
 
-/** Local layer pipeline: browse → intel → stats (no LLM). */
+/** Local layer pipeline: NL GIS → browse → intel → stats (no LLM). */
 export function runGeoAiLayerCommandPipeline(
   query: string,
   registry: GeoAiLayerRegistryEntry[],
   gisSavedLayers: GeoAiMapLayer[] = [],
+  ctx: GeoAiNlGisContext = { pinLngLat: null },
 ): GeoAiStatsResult | null {
+  const nl = runGeoAiNlGisCommand(query, registry, gisSavedLayers, ctx)
+  if (nl?.handled) return nl
+
   const browse = tryGeoAiLayerBrowseCommand(query, registry)
   if (browse?.handled) return browse
   const intel = tryGeoAiLayerIntelCommand(query, registry)

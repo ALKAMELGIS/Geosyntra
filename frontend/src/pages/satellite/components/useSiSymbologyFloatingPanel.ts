@@ -5,38 +5,113 @@ import {
 } from '../utils/siMapFloatingPanelLayout';
 import './SiSymbologyFloatingPanel.css';
 
-const PANEL_W = 272;
-const PANEL_H = 380;
+const PANEL_W_DEFAULT = 380;
+const PANEL_H_DEFAULT = 720;
+const PANEL_W_MIN = 300;
+const PANEL_W_MAX = 520;
+const PANEL_H_MIN = 360;
+const STORAGE_KEY = 'si-sym-float-panel-geom';
 
-/** Floating symbology / labels studio — docked by default, draggable by header. */
+type PanelGeom = { left: number; top: number; width: number; height: number };
+
+function readStoredGeom(): Partial<PanelGeom> | null {
+  if (typeof window === 'undefined') return null;
+  try {
+    const raw = sessionStorage.getItem(STORAGE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as Partial<PanelGeom>;
+    return parsed && typeof parsed === 'object' ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+
+function storeGeom(geom: PanelGeom) {
+  if (typeof window === 'undefined') return;
+  try {
+    sessionStorage.setItem(STORAGE_KEY, JSON.stringify(geom));
+  } catch {
+    /* ignore quota */
+  }
+}
+
+function maxPanelHeight(): number {
+  const layout = readMapCanvasLayout();
+  const pad = 16;
+  const viewportCap =
+    typeof window !== 'undefined' ? Math.floor(window.innerHeight * 0.94) - pad * 2 : 900;
+  if (!layout) return Math.min(PANEL_H_DEFAULT, viewportCap);
+  return Math.min(Math.floor(layout.mapR.height - pad * 2), viewportCap, 960);
+}
+
+function maxPanelWidth(): number {
+  const layout = readMapCanvasLayout();
+  const pad = 16;
+  if (!layout) return PANEL_W_MAX;
+  const rtl = typeof document !== 'undefined' && document.documentElement.dir === 'rtl';
+  const avail = layout.mapR.width - layout.dockW - pad * 2 - (rtl ? 0 : 0);
+  return Math.min(PANEL_W_MAX, Math.max(PANEL_W_MIN, Math.floor(avail)));
+}
+
+function clampPanelSize(width: number, height: number): { width: number; height: number } {
+  return {
+    width: Math.max(PANEL_W_MIN, Math.min(maxPanelWidth(), Math.round(width))),
+    height: Math.max(PANEL_H_MIN, Math.min(maxPanelHeight(), Math.round(height))),
+  };
+}
+
+function defaultPanelGeom(): PanelGeom {
+  const layout = readMapCanvasLayout();
+  const pad = 16;
+  const stored = readStoredGeom();
+  const width = clampPanelSize(stored?.width ?? PANEL_W_DEFAULT, PANEL_H_DEFAULT).width;
+  const height = clampPanelSize(width, stored?.height ?? maxPanelHeight()).height;
+
+  if (!layout) {
+    return {
+      left: stored?.left ?? pad,
+      top: stored?.top ?? 72,
+      width,
+      height,
+    };
+  }
+
+  const rtl = typeof document !== 'undefined' && document.documentElement.dir === 'rtl';
+  const top = stored?.top ?? layout.mapR.top + pad;
+  let left = stored?.left;
+  if (left == null) {
+    if (rtl) {
+      left = layout.mapR.right - layout.dockW - pad - width;
+    } else {
+      left = layout.mapR.left + pad;
+    }
+  }
+
+  const clamped = clampFixedPanelPosition(left, top, width, height);
+  return { ...clamped, width, height };
+}
+
+/** Floating symbology / labels studio — draggable (header + layer bar), resizable. */
 export function useSiSymbologyFloatingPanel(enabled: boolean) {
   const panelRef = useRef<HTMLDivElement | null>(null);
-  const posRef = useRef({ left: 0, top: 0 });
+  const geomRef = useRef<PanelGeom>(defaultPanelGeom());
   const dragRafRef = useRef<number | null>(null);
   const dragPendingRef = useRef<{ left: number; top: number } | null>(null);
 
-  const applyPanelPos = useCallback((left: number, top: number) => {
+  const applyPanelGeom = useCallback((geom: PanelGeom) => {
     const el = panelRef.current;
     if (!el) return;
     el.style.position = 'fixed';
-    el.style.left = `${left}px`;
-    el.style.top = `${top}px`;
+    el.style.left = `${geom.left}px`;
+    el.style.top = `${geom.top}px`;
     el.style.right = 'auto';
     el.style.bottom = 'auto';
     el.style.margin = '0';
-  }, []);
-
-  const defaultPanelPos = useCallback(() => {
-    const layout = readMapCanvasLayout();
-    const pad = 16;
-    if (!layout) return { left: pad, top: 72 };
-    const rtl = typeof document !== 'undefined' && document.documentElement.dir === 'rtl';
-    const top = layout.mapR.top + pad;
-    if (rtl) {
-      const left = layout.mapR.right - layout.dockW - pad - PANEL_W;
-      return { left: Math.max(layout.mapR.left + pad, left), top };
-    }
-    return { left: layout.mapR.left + pad, top };
+    el.style.width = `${geom.width}px`;
+    el.style.height = `${geom.height}px`;
+    el.style.setProperty('--si-sym-panel-w', `${geom.width}px`);
+    el.style.setProperty('--si-sym-panel-h', `${geom.height}px`);
+    el.classList.add('si-sym-float-panel--sized');
   }, []);
 
   const syncHostInset = useCallback(() => {
@@ -52,13 +127,17 @@ export function useSiSymbologyFloatingPanel(enabled: boolean) {
     );
   }, []);
 
+  const syncAndApply = useCallback(() => {
+    syncHostInset();
+    const next = defaultPanelGeom();
+    geomRef.current = next;
+    applyPanelGeom(next);
+  }, [syncHostInset, applyPanelGeom]);
+
   useLayoutEffect(() => {
     if (!enabled) return;
-    syncHostInset();
-    const next = defaultPanelPos();
-    posRef.current = next;
-    applyPanelPos(next.left, next.top);
-  }, [enabled, syncHostInset, defaultPanelPos, applyPanelPos]);
+    syncAndApply();
+  }, [enabled, syncAndApply]);
 
   useEffect(() => {
     if (!enabled) return;
@@ -66,10 +145,13 @@ export function useSiSymbologyFloatingPanel(enabled: boolean) {
       syncHostInset();
       const el = panelRef.current;
       if (!el || el.style.position !== 'fixed') return;
-      const r = el.getBoundingClientRect();
-      const clamped = clampFixedPanelPosition(posRef.current.left, posRef.current.top, r.width, r.height);
-      posRef.current = clamped;
-      applyPanelPos(clamped.left, clamped.top);
+      const { width, height, left, top } = geomRef.current;
+      const size = clampPanelSize(width, height);
+      const clamped = clampFixedPanelPosition(left, top, size.width, size.height);
+      const next = { ...size, ...clamped };
+      geomRef.current = next;
+      applyPanelGeom(next);
+      storeGeom(next);
     };
     window.addEventListener('resize', onResize);
     const mapEl = document.querySelector('.si-map-container');
@@ -84,20 +166,27 @@ export function useSiSymbologyFloatingPanel(enabled: boolean) {
       window.removeEventListener('resize', onResize);
       ro?.disconnect();
     };
-  }, [enabled, syncHostInset, applyPanelPos]);
+  }, [enabled, syncHostInset, applyPanelGeom]);
 
-  const onHeaderPointerDown = useCallback(
+  const onDragPointerDown = useCallback(
     (e: ReactPointerEvent<HTMLElement>) => {
       if (e.pointerType === 'mouse' && e.button !== 0) return;
       if ((e.target as HTMLElement).closest('button, input, label, a, select')) return;
       const el = panelRef.current;
       if (!el) return;
       const rect = el.getBoundingClientRect();
-      posRef.current = { left: rect.left, top: rect.top };
-      applyPanelPos(rect.left, rect.top);
+      const geom = {
+        ...geomRef.current,
+        left: rect.left,
+        top: rect.top,
+        width: rect.width,
+        height: rect.height,
+      };
+      geomRef.current = geom;
+      applyPanelGeom(geom);
       const startX = e.clientX;
       const startY = e.clientY;
-      const origin = { ...posRef.current };
+      const origin = { left: geom.left, top: geom.top };
       const handle = e.currentTarget;
       try {
         handle.setPointerCapture(e.pointerId);
@@ -110,16 +199,19 @@ export function useSiSymbologyFloatingPanel(enabled: boolean) {
         dragRafRef.current = null;
         const p = dragPendingRef.current;
         if (!p) return;
-        applyPanelPos(p.left, p.top);
+        applyPanelGeom({ ...geomRef.current, ...p });
       };
 
       const onMove = (ev: PointerEvent) => {
         const dx = ev.clientX - startX;
         const dy = ev.clientY - startY;
-        const w = el.offsetWidth || PANEL_W;
-        const h = el.offsetHeight || PANEL_H;
-        const next = clampFixedPanelPosition(origin.left + dx, origin.top + dy, w, h);
-        posRef.current = next;
+        const next = clampFixedPanelPosition(
+          origin.left + dx,
+          origin.top + dy,
+          geomRef.current.width,
+          geomRef.current.height,
+        );
+        geomRef.current = { ...geomRef.current, ...next };
         dragPendingRef.current = next;
         if (dragRafRef.current == null) {
           dragRafRef.current = requestAnimationFrame(flushDrag);
@@ -133,6 +225,7 @@ export function useSiSymbologyFloatingPanel(enabled: boolean) {
         window.removeEventListener('pointermove', onMove);
         window.removeEventListener('pointerup', onUp);
         window.removeEventListener('pointercancel', onUp);
+        storeGeom(geomRef.current);
         try {
           handle.releasePointerCapture(e.pointerId);
         } catch {
@@ -144,8 +237,59 @@ export function useSiSymbologyFloatingPanel(enabled: boolean) {
       window.addEventListener('pointerup', onUp);
       window.addEventListener('pointercancel', onUp);
     },
-    [applyPanelPos],
+    [applyPanelGeom],
   );
 
-  return { panelRef, onHeaderPointerDown };
+  const onResizePointerDown = useCallback(
+    (e: ReactPointerEvent<HTMLElement>) => {
+      if (e.pointerType === 'mouse' && e.button !== 0) return;
+      const el = panelRef.current;
+      if (!el) return;
+      e.preventDefault();
+      e.stopPropagation();
+      const startX = e.clientX;
+      const startY = e.clientY;
+      const origin = { ...geomRef.current };
+      const handle = e.currentTarget;
+      try {
+        handle.setPointerCapture(e.pointerId);
+      } catch {
+        /* ignore */
+      }
+
+      const onMove = (ev: PointerEvent) => {
+        const dx = ev.clientX - startX;
+        const dy = ev.clientY - startY;
+        const size = clampPanelSize(origin.width + dx, origin.height + dy);
+        const clamped = clampFixedPanelPosition(origin.left, origin.top, size.width, size.height);
+        const next = { ...origin, ...size, ...clamped };
+        geomRef.current = next;
+        applyPanelGeom(next);
+      };
+
+      const onUp = () => {
+        window.removeEventListener('pointermove', onMove);
+        window.removeEventListener('pointerup', onUp);
+        window.removeEventListener('pointercancel', onUp);
+        storeGeom(geomRef.current);
+        try {
+          handle.releasePointerCapture(e.pointerId);
+        } catch {
+          /* ignore */
+        }
+      };
+
+      window.addEventListener('pointermove', onMove);
+      window.addEventListener('pointerup', onUp);
+      window.addEventListener('pointercancel', onUp);
+    },
+    [applyPanelGeom],
+  );
+
+  return {
+    panelRef,
+    onHeaderPointerDown: onDragPointerDown,
+    onLayerBarPointerDown: onDragPointerDown,
+    onResizePointerDown,
+  };
 }

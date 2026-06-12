@@ -3,8 +3,9 @@
   flex-direction: column;
   gap: 8px;
   padding: 8px 10px 6px;
-  border-bottom: 1px solid var(--si-map-popup-border-soft, rgba(255, 255, 255, 0.07));
-  background: rgba(0, 0, 0, 0.18);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.04), rgba(0, 0, 0, 0.22));
+  backdrop-filter: blur(10px);
 }
 
 .si-map-identify-toolbar__layer-pick {
@@ -114,4 +115,120 @@
 
 .si-map-identify-toolbar--compact .si-map-identify-toolbar__btn i {
   font-size: 12px;
+}
+
+.si-map-identify-toolbar__nav {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0;
+  padding: 3px;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(0, 0, 0, 0.35);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  width: fit-content;
+  margin: 0 auto;
+}
+
+.si-map-identify-toolbar__nav-btn {
+  width: 28px;
+  height: 28px;
+  border-radius: 9px;
+  border: none;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.62);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.si-map-identify-toolbar__nav-btn:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: #fff;
+}
+
+.si-map-identify-toolbar__nav-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 52px;
+  padding: 0 8px;
+  font-size: 11px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.04em;
+  color: rgba(255, 255, 255, 0.92);
+  text-align: center;
+  border-inline: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+/* ArcGIS-style toolbar row */
+.si-map-identify-toolbar--arcgis {
+  padding: 0;
+  gap: 0;
+  border-bottom: none;
+  background: transparent;
+  backdrop-filter: none;
+}
+
+.si-map-identify-toolbar--arcgis .si-map-identify-toolbar__actions {
+  flex-wrap: nowrap;
+  gap: 20px;
+  padding: 0;
+}
+
+/* ArcGIS-style footer navigation */
+.si-map-identify-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 10px 8px;
+  border-top: 1px solid #d4d4d4;
+  background: #ffffff;
+  flex-shrink: 0;
+}
+
+.si-map-identify-footer__nav {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.si-map-identify-footer__nav-btn {
+  width: 26px;
+  height: 26px;
+  border: none;
+  border-radius: 2px;
+  background: transparent;
+  color: #6e6e6e;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  transition: background 0.12s ease, color 0.12s ease;
+}
+
+.si-map-identify-footer__nav-btn:hover {
+  background: #f0f0f0;
+  color: #323232;
+}
+
+.si-map-identify-footer__count {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 400;
+  color: #6e6e6e;
+  font-variant-numeric: tabular-nums;
+}
+
+.si-map-identify-footer__count i {
+  font-size: 11px;
+  opacity: 0.7;
 }

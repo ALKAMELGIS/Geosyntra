@@ -7,6 +7,7 @@ import {
   siMapDisplayProjectionLabel,
   type SiMapProjectionMode,
 } from '../utils/siMapProjectionTerrain';
+import { SI_MAP_WGS84_STATUS_SLOT_ID } from './SiMapGeoSyntraBrand';
 import './SiMapWgs84CoordinateStatus.css';
 
 export type SiMapWgs84CoordinateStatusProps = {
@@ -16,71 +17,30 @@ export type SiMapWgs84CoordinateStatusProps = {
   identifyMessage?: string | null;
 };
 
-const HOST_ID = 'si-map-wgs84-status-host';
-
-function resolveMapboxBottomLeftAnchor(): HTMLElement | null {
+function resolveStatusSlot(): HTMLElement | null {
   if (typeof document === 'undefined') return null;
-  return document.querySelector('.si-map-container .mapboxgl-ctrl-bottom-left') as HTMLElement | null;
+  return document.getElementById(SI_MAP_WGS84_STATUS_SLOT_ID);
 }
 
-function findMapboxLogoAnchor(bottomLeft: HTMLElement): HTMLElement | null {
-  const direct =
-    bottomLeft.querySelector(':scope > .mapboxgl-ctrl-logo') ??
-    bottomLeft.querySelector(':scope > a.mapboxgl-ctrl-logo');
-  if (direct) return direct;
-  return bottomLeft.querySelector('.mapboxgl-ctrl-logo');
-}
-
-function mountStatusHost(bottomLeft: HTMLElement, host: HTMLElement): void {
-  const logo = findMapboxLogoAnchor(bottomLeft);
-  if (logo?.parentElement === bottomLeft) {
-    bottomLeft.insertBefore(host, logo);
-    return;
-  }
-  if (logo?.parentElement) {
-    logo.parentElement.insertBefore(host, logo);
-    return;
-  }
-  bottomLeft.prepend(host);
-}
-
-function ensureStatusHost(bottomLeft: HTMLElement): HTMLElement | null {
-  try {
-    const existing = bottomLeft.querySelector(`#${HOST_ID}`) as HTMLElement | null;
-    if (existing?.isConnected && bottomLeft.contains(existing)) return existing;
-
-    document.getElementById(HOST_ID)?.remove();
-
-    const host = document.createElement('div');
-    host.id = HOST_ID;
-    host.className = 'si-map-wgs84-status-host';
-    mountStatusHost(bottomLeft, host);
-    return host;
-  } catch {
-    return null;
-  }
-}
-
-/** ArcGIS-style map status: WGS 84 CRS + live pointer coordinates. */
+/** ArcGIS-style map status: WGS 84 CRS + live pointer coordinates (below GeoSyntra). */
 export function SiMapWgs84CoordinateStatus({
   pointer,
   projectionMode,
   identifyMessage,
 }: SiMapWgs84CoordinateStatusProps) {
-  const [host, setHost] = useState<HTMLElement | null>(null);
+  const [slot, setSlot] = useState<HTMLElement | null>(null);
 
   useLayoutEffect(() => {
     let cancelled = false;
-    let hostEl: HTMLElement | null = null;
+    let slotEl: HTMLElement | null = null;
     let rafId = 0;
 
     const sync = () => {
       if (cancelled) return;
-      const bottomLeft = resolveMapboxBottomLeftAnchor();
-      const next = bottomLeft ? ensureStatusHost(bottomLeft) : null;
-      if (next === hostEl) return;
-      hostEl = next;
-      setHost(next);
+      const next = resolveStatusSlot();
+      if (next === slotEl) return;
+      slotEl = next;
+      setSlot(next);
     };
 
     const scheduleSync = () => {
@@ -105,7 +65,7 @@ export function SiMapWgs84CoordinateStatus({
   const coords = pointer ? formatSiMapWgs84Coordinate(pointer.lng, pointer.lat) : '—';
   const displayProjection = siMapDisplayProjectionLabel(projectionMode);
 
-  if (!host) return null;
+  if (!slot) return null;
 
   const identify = identifyMessage?.trim() ?? '';
 
@@ -141,6 +101,6 @@ export function SiMapWgs84CoordinateStatus({
         </p>
       ) : null}
     </div>,
-    host,
+    slot,
   );
 }

@@ -32,6 +32,7 @@ import { SiMapWeatherTemporalComparison } from './SiMapWeatherTemporalComparison
 import type { SiMapWeatherPanelTheme } from '../utils/siMapWeatherTypes';
 import {
   clampWeatherIntelPanelPosition,
+  clampWeatherIntelPanelSize,
   SI_WX_INTEL_PANEL_W,
   SI_WX_INTEL_PANEL_W_HISTORY,
   weatherIntelDefaultPanelPosition,
@@ -58,9 +59,6 @@ const SI_WX_INTEL_SIZE_SS = 'si-map-wx-intel-panel-size-v1';
 
 type WxIntelPanelSize = { width: number; height: number };
 
-const WX_INTEL_W_MIN = 220;
-const WX_INTEL_H_MIN = 160;
-
 function readStoredPanelSize(): WxIntelPanelSize | null {
   if (typeof window === 'undefined') return null;
   try {
@@ -78,28 +76,11 @@ function readStoredPanelSize(): WxIntelPanelSize | null {
   return null;
 }
 
-function clampWxIntelPanelSize(
-  width: number,
-  height: number,
-  layout: SiMapWeatherIntelLayout,
-  historyOpen: boolean,
-): WxIntelPanelSize {
-  const preferredW = historyOpen ? SI_WX_INTEL_PANEL_W_HISTORY : SI_WX_INTEL_PANEL_W;
-  const maxW = Math.max(WX_INTEL_W_MIN, Math.min(360, layout.shellW - layout.insetInlineStart - layout.trailingReserve - 16));
-  const maxH = Math.max(WX_INTEL_H_MIN, Math.min(520, layout.maxHeight));
-  return {
-    width: Math.min(maxW, Math.max(WX_INTEL_W_MIN, width || preferredW)),
-    height: Math.min(maxH, Math.max(WX_INTEL_H_MIN, height || layout.maxHeight)),
-  };
-}
-
 function defaultWxIntelPanelSize(layout: SiMapWeatherIntelLayout, historyOpen: boolean): WxIntelPanelSize {
-  return clampWxIntelPanelSize(
-    historyOpen ? SI_WX_INTEL_PANEL_W_HISTORY : layout.width,
-    layout.maxHeight,
-    layout,
-    historyOpen,
-  );
+  return {
+    width: historyOpen ? SI_WX_INTEL_PANEL_W_HISTORY : layout.width,
+    height: layout.maxHeight,
+  };
 }
 
 type SiMapWeatherIntelPopupProps = {
@@ -265,7 +246,7 @@ function SiMapWeatherIntelPopupPanel({
     if (!layout) return;
     setPanelSize(prev => {
       if (!prev) return prev;
-      const clamped = clampWxIntelPanelSize(prev.width, prev.height, layout, historyOpen);
+      const clamped = clampWeatherIntelPanelSize(prev.width, prev.height, layout);
       if (clamped.width === prev.width && clamped.height === prev.height) return prev;
       return clamped;
     });
@@ -324,6 +305,29 @@ function SiMapWeatherIntelPopupPanel({
     applyAnchoredOrDefault();
   }, [applyAnchoredOrDefault, layout]);
 
+  const applyResizeSize = useCallback(
+    (width: number, height: number) => {
+      if (!layout) return;
+      const next = clampWeatherIntelPanelSize(width, height, layout);
+      setPanelSize(next);
+      const el = shellRef.current;
+      if (el) {
+        el.style.width = `${next.width}px`;
+        el.style.height = `${next.height}px`;
+        el.style.maxHeight = `${next.height}px`;
+      }
+      const posNext = clampWeatherIntelPanelPosition(
+        posRef.current.left,
+        posRef.current.top,
+        next.width,
+        next.height,
+        layout,
+      );
+      applyPanelPos(posNext);
+    },
+    [applyPanelPos, layout],
+  );
+
   const onResizeCardPointerDown = useCallback(
     (e: ReactPointerEvent<HTMLDivElement>) => {
       if (!layout) return;
@@ -331,32 +335,40 @@ function SiMapWeatherIntelPopupPanel({
       e.preventDefault();
       e.stopPropagation();
 
+      const handle = e.currentTarget;
+      try {
+        handle.setPointerCapture(e.pointerId);
+      } catch {
+        /* ignore */
+      }
+
       const size0 = measurePanel();
       const start = { w: size0.width, h: size0.height, cx: e.clientX, cy: e.clientY };
       setResizing(true);
       document.body.classList.add('si-map-wx-intel-resize-active');
 
       const onMove = (ev: PointerEvent) => {
+        if (ev.pointerId !== e.pointerId) return;
         ev.preventDefault();
-        const next = clampWxIntelPanelSize(
-          start.w + (ev.clientX - start.cx),
-          start.h + (ev.clientY - start.cy),
-          layout,
-          historyOpen,
-        );
-        setPanelSize(next);
+        applyResizeSize(start.w + (ev.clientX - start.cx), start.h + (ev.clientY - start.cy));
       };
 
-      const finish = () => {
+      const finish = (ev: PointerEvent) => {
+        if (ev.pointerId !== e.pointerId) return;
         window.removeEventListener('pointermove', onMove);
         window.removeEventListener('pointerup', finish);
         window.removeEventListener('pointercancel', finish);
         setResizing(false);
         document.body.classList.remove('si-map-wx-intel-resize-active');
+        try {
+          handle.releasePointerCapture(ev.pointerId);
+        } catch {
+          /* ignore */
+        }
         const el = shellRef.current;
         if (el && layout) {
           const r = el.getBoundingClientRect();
-          const settled = clampWxIntelPanelSize(r.width, r.height, layout, historyOpen);
+          const settled = clampWeatherIntelPanelSize(r.width, r.height, layout);
           setPanelSize(settled);
           persistSize(settled);
           const posNext = clampWeatherIntelPanelPosition(
@@ -375,7 +387,7 @@ function SiMapWeatherIntelPopupPanel({
       window.addEventListener('pointerup', finish);
       window.addEventListener('pointercancel', finish);
     },
-    [applyPanelPos, historyOpen, layout, measurePanel, persistSize],
+    [applyPanelPos, applyResizeSize, layout, measurePanel, persistSize],
   );
 
   const onCornerResizePointerDown = useCallback(
@@ -385,39 +397,59 @@ function SiMapWeatherIntelPopupPanel({
       e.preventDefault();
       e.stopPropagation();
 
+      const handle = e.currentTarget;
+      try {
+        handle.setPointerCapture(e.pointerId);
+      } catch {
+        /* ignore */
+      }
+
       const size0 = measurePanel();
       const start = { w: size0.width, h: size0.height, cx: e.clientX, cy: e.clientY };
       setResizing(true);
+      document.body.classList.add('si-map-wx-intel-resize-active');
 
       const onMove = (ev: PointerEvent) => {
-        const next = clampWxIntelPanelSize(
-          start.w + (ev.clientX - start.cx),
-          start.h + (ev.clientY - start.cy),
-          layout,
-          historyOpen,
-        );
-        setPanelSize(next);
+        if (ev.pointerId !== e.pointerId) return;
+        ev.preventDefault();
+        applyResizeSize(start.w + (ev.clientX - start.cx), start.h + (ev.clientY - start.cy));
       };
 
-      const finish = () => {
+      const finish = (ev: PointerEvent) => {
+        if (ev.pointerId !== e.pointerId) return;
         window.removeEventListener('pointermove', onMove);
         window.removeEventListener('pointerup', finish);
         window.removeEventListener('pointercancel', finish);
         setResizing(false);
+        document.body.classList.remove('si-map-wx-intel-resize-active');
+        try {
+          handle.releasePointerCapture(ev.pointerId);
+        } catch {
+          /* ignore */
+        }
         const el = shellRef.current;
         if (el && layout) {
           const r = el.getBoundingClientRect();
-          const settled = clampWxIntelPanelSize(r.width, r.height, layout, historyOpen);
+          const settled = clampWeatherIntelPanelSize(r.width, r.height, layout);
           setPanelSize(settled);
           persistSize(settled);
+          const posNext = clampWeatherIntelPanelPosition(
+            posRef.current.left,
+            posRef.current.top,
+            settled.width,
+            settled.height,
+            layout,
+          );
+          setPos(posNext);
+          applyPanelPos(posNext);
         }
       };
 
-      window.addEventListener('pointermove', onMove);
+      window.addEventListener('pointermove', onMove, { passive: false });
       window.addEventListener('pointerup', finish);
       window.addEventListener('pointercancel', finish);
     },
-    [historyOpen, layout, measurePanel, persistSize],
+    [applyPanelPos, applyResizeSize, layout, measurePanel, persistSize],
   );
 
   const onDragHandlePointerDown = useCallback(
@@ -691,34 +723,39 @@ function SiMapWeatherIntelPopupPanel({
       </div>
 
       <div className="si-map-wx-intel__scroll">
-        <form
-          className="si-map-wx-intel__search"
-          onSubmit={e => {
-            e.preventDefault();
-            void runSearch();
-          }}
-        >
-          <i className="fa-solid fa-magnifying-glass" aria-hidden />
-          <input
-            type="search"
-            value={searchDraft}
-            onChange={e => setSearchDraft(e.target.value)}
-            placeholder="Search place or lat,lng"
-            aria-label="Search location for weather"
-          />
-          <button type="submit" disabled={loading || !searchDraft.trim()}>
-            Go
-          </button>
-        </form>
+        <div className="si-map-wx-intel__toolbar">
+          <form
+            className="si-map-wx-intel__search si-map-wx-intel__search--toolbar"
+            onSubmit={e => {
+              e.preventDefault();
+              void runSearch();
+            }}
+          >
+            <i className="fa-solid fa-magnifying-glass" aria-hidden />
+            <input
+              type="search"
+              value={searchDraft}
+              onChange={e => setSearchDraft(e.target.value)}
+              placeholder="Place or lat,lng"
+              aria-label="Search location for weather"
+            />
+            <button type="submit" disabled={loading || !searchDraft.trim()}>
+              Go
+            </button>
+          </form>
 
-        <SiMapWeatherHistoricalSection
-          selectedDate={selectedDate}
-          maxDate={maxHistoricalDate}
-          minDate={OPEN_METEO_HISTORICAL_MIN_DATE}
-          isToday={viewingToday}
-          onDateChange={setSelectedDate}
-          onJumpToday={() => setSelectedDate(wxHistoryOpenMeteoLatestEndDate())}
-        />
+          <span className="si-map-wx-intel__toolbar-divider" aria-hidden />
+
+          <SiMapWeatherHistoricalSection
+            inline
+            selectedDate={selectedDate}
+            maxDate={maxHistoricalDate}
+            minDate={OPEN_METEO_HISTORICAL_MIN_DATE}
+            isToday={viewingToday}
+            onDateChange={setSelectedDate}
+            onJumpToday={() => setSelectedDate(wxHistoryOpenMeteoLatestEndDate())}
+          />
+        </div>
 
         {error ? <p className="si-map-wx-intel__error">{error}</p> : null}
 

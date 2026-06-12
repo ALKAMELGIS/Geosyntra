@@ -48,8 +48,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       user,
       sessionReady,
       login: next => {
-        startSession(next)
-        setUser(readCurrentUser())
+        // Session envelope is written by homeSignIn / OAuth with the user's persist choice.
+        setUser(readCurrentUser() ?? (next as CurrentUser))
         void syncUserApiTokensForSession({ force: true })
       },
       logout: () => {

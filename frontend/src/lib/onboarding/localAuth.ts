@@ -1,4 +1,5 @@
 import { normalizeEmail, normalizeRole, startSession, type CurrentUser } from '../auth'
+import { readKeepSignedInPreference, writeKeepSignedInPreference } from '../authKeepSignedIn'
 import { registerPendingSignupInDirectory } from '../admin/adminUserManagement'
 import { adminPlanLabelForBillingId, normalizeSignupPlanId } from './signupPlans'
 import type { BillingPlanId } from './pricingPlans'
@@ -133,10 +134,22 @@ function preferBrowserOnlyAuth(): boolean {
   return isStaticLocalAuthMode() || (isGeosyntraPublicSite() && !isSubtleCryptoAvailable())
 }
 
+function isLocalDevHost(): boolean {
+  if (typeof window === 'undefined') return false
+  const h = window.location.hostname.toLowerCase()
+  return h === 'localhost' || h === '127.0.0.1' || h === '[::1]'
+}
+
 function shouldUseLocalAuthFallback(apiError: string): boolean {
   if (apiError.includes('Incorrect email or password')) return false
   if (apiError.includes('Incorrect password')) return false
   if (apiError.includes('already exists')) return false
+  if (isLocalDevHost()) {
+    if (apiError.includes('Cannot reach the auth server')) return true
+    if (apiError.includes('No sign-in account on the server')) return true
+    if (apiError === 'Registration failed.' || apiError === 'Sign in failed.') return true
+    if (apiError.includes('network_error')) return true
+  }
   if (!isStaticLocalAuthMode() && !isGeosyntraPublicSite()) return false
   if (apiError.includes('Cannot reach the auth server')) return true
   if (apiError === 'Registration failed.' || apiError === 'Sign in failed.') return true
@@ -278,6 +291,7 @@ async function homeSignInLocal(input: {
       }
   match.lastLogin = new Date().toISOString()
   writeAdminUsers(users)
+  writeKeepSignedInPreference(input.keepSignedIn === true)
   startSession(user, { persist: input.keepSignedIn === true })
   return { ok: true, user }
 }
@@ -372,6 +386,7 @@ export async function homeSignIn(input: {
 
   syncPublicUserToAdminDirectory(result.user)
   const user = toCurrentUser(result.user)
+  writeKeepSignedInPreference(input.keepSignedIn === true)
   startSession(user, { persist: input.keepSignedIn === true, accessToken: result.accessToken })
   return { ok: true, user }
 }
@@ -382,7 +397,8 @@ export async function completeVerifiedSignIn(
 ): Promise<HomeAuthResult> {
   syncPublicUserToAdminDirectory(user)
   const current = toCurrentUser(user)
-  startSession(current, { persist: true, accessToken })
+  const persist = readKeepSignedInPreference()
+  startSession(current, { persist, accessToken })
   return { ok: true, user: current }
 }
 
@@ -431,7 +447,8 @@ async function finishOAuthUpsert(input: {
   }
   syncPublicUserToAdminDirectory(result.user)
   const user = toCurrentUser(result.user)
-  startSession(user, { persist: true, accessToken: result.accessToken })
+  const persist = readKeepSignedInPreference()
+  startSession(user, { persist, accessToken: result.accessToken })
   return { ok: true, user }
 }
 
@@ -650,6 +667,7 @@ async function homeOAuthDemoSignIn(provider: OAuthProvider): Promise<HomeAuthRes
     email,
     role: normalizeRole(match.role),
   }
-  startSession(user, { persist: true })
+  const persist = readKeepSignedInPreference()
+  startSession(user, { persist })
   return { ok: true, user }
 }

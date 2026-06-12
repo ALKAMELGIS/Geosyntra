@@ -4,7 +4,6 @@ import { SiChatAiAgentIcon } from './SiChatAiAgentIcon';
 /** Sections that map to the existing environment / Processing Options stack in Satellite Intelligence. */
 export type SmartProcessingSectionId =
   | 'layers'
-  | 'explore-stac'
   | 'remote-sensing'
   | 'table-geo-ai';
 
@@ -24,7 +23,6 @@ type CatKey = 'quick' | 'selection' | 'spatial' | 'ai' | 'geom' | 'edit';
 
 const QUICK_LINKS: Array<{ id: SmartProcessingSectionId; icon: string; label: string }> = [
   { id: 'layers', icon: 'fa-solid fa-layer-group', label: 'Layers' },
-  { id: 'explore-stac', icon: 'fa-solid fa-magnifying-glass-chart', label: 'Explore STAC' },
   { id: 'remote-sensing', icon: 'fa-solid fa-satellite-dish', label: 'Remote sensing' },
   { id: 'table-geo-ai', icon: 'fa-solid fa-comments', label: 'Agent Chat' },
 ];
@@ -196,7 +194,11 @@ export function SmartProcessingWorkflowPanel(props: SmartProcessingWorkflowPanel
                 title={l.label}
                 onClick={() => onNavigateSection(l.id)}
               >
-                {l.id === 'table-geo-ai' ? <SiChatAiAgentIcon size="chip" /> : <i className={l.icon} aria-hidden />}
+                {l.id === 'table-geo-ai' ? (
+                  <SiChatAiAgentIcon size="chip" />
+                ) : (
+                  <i className={l.icon} aria-hidden />
+                )}
                 <span>{l.label}</span>
               </button>
             ))}

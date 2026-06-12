@@ -136,6 +136,9 @@ function parseSelectByLocationQuery(
   )
   if (q1?.[1]?.trim()) return { relation: relFromQuery(), maskName: q1[1].trim() }
 
+  const q1b = q.match(/\bwithin\s+layer\s+["']([^"'\n]+)["']/i)
+  if (q1b?.[1]?.trim()) return { relation: relFromQuery(), maskName: q1b[1].trim() }
+
   const q2 = q.match(
     /\b(?:within|inside|intersect(?:s|ing)?|overlap)\s+(?:with\s+)?(?:the\s+)?(?:layer\s+)([\w][\w\s-]{1,80})/i,
   )

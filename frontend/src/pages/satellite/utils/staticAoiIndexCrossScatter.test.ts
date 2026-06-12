@@ -37,6 +37,7 @@ describe('buildStaticAoiIndexCrossScatterModel', () => {
       weekIdx: 0,
       weekly: WEEKLY,
       maxCells: 800,
+      allowSyntheticFallback: true,
     });
     expect(model).not.toBeNull();
     expect(model!.n).toBeGreaterThanOrEqual(8);
@@ -54,6 +55,7 @@ describe('buildStaticAoiIndexCrossScatterModel', () => {
       weekIdx: 0,
       weekly: WEEKLY,
       maxCells: 1200,
+      allowSyntheticFallback: true,
     })!;
     expect(model.points.length).toBeGreaterThan(50);
 
@@ -89,6 +91,20 @@ describe('buildStaticAoiIndexCrossScatterModel', () => {
       }),
     ).toBeNull();
   });
+
+  it('returns null without raster when synthetic fallback is disabled', () => {
+    expect(
+      buildStaticAoiIndexCrossScatterModel({
+        xLayerId: 'NDVI',
+        yLayerId: 'NDWI',
+        feature: POLY,
+        aoiKey: 'aoi',
+        weekIdx: 0,
+        weekly: WEEKLY,
+        allowSyntheticFallback: false,
+      }),
+    ).toBeNull();
+  });
 });
 
 describe('regressionLineEndpoints', () => {
@@ -100,10 +116,25 @@ describe('regressionLineEndpoints', () => {
       aoiKey: 'k',
       weekIdx: 0,
       weekly: WEEKLY,
+      allowSyntheticFallback: true,
     });
     expect(model).not.toBeNull();
     const line = regressionLineEndpoints(model!);
     expect(line).toHaveLength(2);
     expect(Number.isFinite(line![0]!.y)).toBe(true);
+  });
+
+  it('does not stack-overflow on large raster point counts', () => {
+    const huge: { x: number; y: number }[] = [];
+    for (let i = 0; i < 120_000; i++) {
+      huge.push({ x: i * 0.0001, y: i * 0.00008 + 0.1 });
+    }
+    const line = regressionLineEndpoints({
+      points: huge,
+      slope: 0.8,
+      intercept: 0.1,
+    });
+    expect(line).toHaveLength(2);
+    expect(Number.isFinite(line![1]!.y)).toBe(true);
   });
 });

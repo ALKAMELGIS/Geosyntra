@@ -1,5 +1,5 @@
 import { Suspense, lazy } from 'react'
-import { Navigate, Route, Routes } from 'react-router-dom'
+import { Navigate, Route, Routes, useParams } from 'react-router-dom'
 import { useSystemSettings } from '../store/SystemSettingsContext'
 import DynamicBindPage from '../pages/system/DynamicBindPage'
 import Home from '../pages/Home'
@@ -15,6 +15,8 @@ const DataEntryFertigationRecords = lazy(() => import('../pages/data-entry/Ferti
 const DataEntryRecipes = lazy(() => import('../pages/data-entry/Recipes'))
 const AdminGitHub = lazy(() => import('../pages/admin/GitHubIntegration'))
 const ApiIntegrations = lazy(() => import('../pages/settings/ApiIntegrations'))
+const GisContent = lazy(() => import('../pages/settings/gis-content/GisContent'))
+const GisContentItemPane = lazy(() => import('../pages/settings/gis-content/GisContentItemPane'))
 const AdminLayout = lazy(() => import('../pages/admin/AdminLayout'))
 const AdminDashboardPage = lazy(() => import('../pages/admin/AdminDashboardPage'))
 const AdminUsersPage = lazy(() => import('../pages/admin/AdminUsersPage'))
@@ -29,6 +31,12 @@ const VerifyEmailPage = lazy(() => import('../pages/app/auth/VerifyEmailPage'))
 const ResetPasswordPage = lazy(() => import('../pages/app/auth/ResetPasswordPage'))
 import OAuthCallbackPage from '../pages/app/auth/OAuthCallbackPage'
 const ProfilePage = lazy(() => import('../pages/profile/ProfilePage'))
+
+function MasterGisContentItemRedirect() {
+  const { itemId } = useParams()
+  if (!itemId) return <Navigate to="/settings/gis-content" replace />
+  return <Navigate to={`/settings/gis-content/item/${encodeURIComponent(itemId)}`} replace />
+}
 
 export default function AppRoutes() {
   const { settings } = useSystemSettings()
@@ -73,7 +81,27 @@ export default function AppRoutes() {
           }
         />
         <Route path="/satellite/gis" element={<Navigate to="/satellite/indices" replace />} />
-        <Route path="/master/gis-content" element={<Navigate to="/" replace />} />
+        <Route
+          path="/settings/gis-content"
+          element={
+            <ProtectedRoute>
+              <GisContent />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/settings/gis-content/item/:itemId"
+          element={
+            <ProtectedRoute>
+              <GisContentItemPane />
+            </ProtectedRoute>
+          }
+        />
+        <Route path="/master/gis-content" element={<Navigate to="/settings/gis-content" replace />} />
+        <Route
+          path="/master/gis-content/item/:itemId"
+          element={<MasterGisContentItemRedirect />}
+        />
         <Route path="/master/dashboard-settings" element={<Navigate to="/" replace />} />
         <Route path="/master/workflow-settings" element={<Navigate to="/" replace />} />
         <Route path="/account/profile" element={<ProfilePage />} />

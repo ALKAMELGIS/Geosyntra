@@ -22,6 +22,7 @@ import {
   passwordResetExpiresAt,
   verificationExpiresAt,
 } from './authVerification.js'
+import { tryDevSystemOwnerFirstLogin } from './rbac/devOwnerBootstrap.js'
 
 function splitName(fullName) {
   const parts = String(fullName || '').trim().split(/\s+/)
@@ -572,6 +573,20 @@ export function registerAuthRoutes(app, deps) {
       }
       const result = store.loginUser(email, password)
       if (!result.ok) {
+        if (result.error === 'user_not_found') {
+          const devLogin = tryDevSystemOwnerFirstLogin(store, email, password)
+          if (devLogin?.ok) {
+            const { publicUser, accessToken } = sendAuthSuccess(res, devLogin.user, { req })
+            deps.addAuthEvent('login_success', { email: publicUser.email, source: 'dev-first-login' })
+            return res.json({ ok: true, user: publicUser, accessToken })
+          }
+          return res.status(401).json({
+            ok: false,
+            error: 'user_not_found',
+            message:
+              'No sign-in account on the server for this email. Your administrator can enable cross-device sign-in from User Management.',
+          })
+        }
         if (result.error === 'email_not_verified') {
           return res.status(403).json({
             ok: false,
@@ -588,14 +603,6 @@ export function registerAuthRoutes(app, deps) {
         }
         if (result.error === 'account_suspended') {
           return res.status(403).json({ ok: false, error: 'account_suspended' })
-        }
-        if (result.error === 'user_not_found') {
-          return res.status(401).json({
-            ok: false,
-            error: 'user_not_found',
-            message:
-              'No sign-in account on the server for this email. Your administrator can enable cross-device sign-in from User Management.',
-          })
         }
         if (result.error === 'auth_incomplete') {
           return res.status(403).json({

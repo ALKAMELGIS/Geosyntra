@@ -1,5 +1,7 @@
+import { getDrawnGeometry } from '../../../lib/sentinelHubWmsAoiClip';
 import { buildAoiInteriorGrid, type SiAoiRasterPixelSample } from './siAoiZonalStats';
 import { linearRegressionWithR2 } from './siAoiReportPixelScatter';
+import { minMaxFinite, subsampleEvenly } from './siChartStatFormat';
 import { staticAoiLayerMeanForWeek } from './staticAoiLayerSynthetic';
 import type { StaticAoiChartLayerId, WeeklyCompositeLite } from './staticAoiChartTypes';
 import { STATIC_AOI_CHART_LAYER_OPTIONS } from './staticAoiChartTypes';
@@ -151,7 +153,7 @@ function pointsFromSyntheticGrid(
 
 /**
  * AOI pixel scatter for two index layers (X vs Y) with OLS + R².
- * Prefers MPC raster samples when both layers are present; otherwise synthetic per-cell grid.
+ * Uses MPC raster samples only — pixels masked to the AOI polygon.
  */
 export function buildStaticAoiIndexCrossScatterModel(opts: {
   xLayerId: StaticAoiChartLayerId;
@@ -164,6 +166,8 @@ export function buildStaticAoiIndexCrossScatterModel(opts: {
   weekly: WeeklyCompositeLite[];
   raster?: SiAoiRasterPixelSample | null;
   maxCells?: number;
+  /** When false, never fall back to synthetic per-cell grids (charts require real raster). */
+  allowSyntheticFallback?: boolean;
 }): StaticAoiIndexCrossScatterModel | null {
   const xId = opts.xLayerId;
   const yId = opts.yLayerId;
@@ -183,11 +187,15 @@ export function buildStaticAoiIndexCrossScatterModel(opts: {
     }
   }
 
-  if (points.length < 8 && opts.feature?.geometry) {
-    const geom = opts.feature.geometry;
-    if (geom.type === 'Polygon' || geom.type === 'MultiPolygon') {
+  if (
+    points.length < 8 &&
+    opts.allowSyntheticFallback !== false &&
+    opts.feature
+  ) {
+    const normalized = getDrawnGeometry(opts.feature);
+    if (normalized && (normalized.type === 'Polygon' || normalized.type === 'MultiPolygon')) {
       points = pointsFromSyntheticGrid(
-        opts.feature,
+        { ...opts.feature, geometry: normalized },
         opts.aoiKey,
         xId,
         yId,
@@ -200,6 +208,11 @@ export function buildStaticAoiIndexCrossScatterModel(opts: {
   }
 
   if (points.length < 8) return null;
+
+  const maxCells = Math.max(8, opts.maxCells ?? 2500);
+  if (points.length > maxCells) {
+    points = subsampleEvenly(points, maxCells);
+  }
 
   const xs = points.map(p => p.x);
   const ys = points.map(p => p.y);
@@ -236,9 +249,10 @@ export function regressionLineEndpoints(
   if (!Number.isFinite(model.slope) || !Number.isFinite(model.intercept) || !model.points.length) {
     return null;
   }
-  const xs = model.points.map(p => p.x);
-  const mn = Math.min(...xs);
-  const mx = Math.max(...xs);
+  const bounds = minMaxFinite(model.points.map(p => p.x));
+  if (!bounds) return null;
+  const mn = bounds.min;
+  const mx = bounds.max;
   const pad = (mx - mn) * 0.02 || 0.01;
   const x0 = mn - pad;
   const x1 = mx + pad;

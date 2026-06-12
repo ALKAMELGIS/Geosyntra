@@ -64,7 +64,7 @@ export type AoiStaticExportLngLat = { lng: number; lat: number };
 export type AoiStaticMultiLayerLineChartDataset = {
   id: string;
   label: string;
-  data: number[];
+  data: (number | null)[];
   borderColor: string;
   backgroundColor: string;
   yAxisID: string;
@@ -93,6 +93,10 @@ export type AoiStaticMultiLayerLineChartProps = {
   scatterWeekIndex?: number;
   /** MPC raster samples for active AOI — used when both layers are present. */
   scatterRasterSample?: SiAoiRasterPixelSample | null;
+  /** True while weekly MPC raster samples are loading for the timeline chart. */
+  rasterDataLoading?: boolean;
+  /** At least one finite zonal mean exists in the timeline datasets. */
+  hasRealRasterData?: boolean;
 };
 
 type StaticChartType = 'line' | 'bar' | 'scatter' | 'pie';
@@ -126,8 +130,8 @@ function toColorInputValue(cssHex: string): string {
   return '#64748b';
 }
 
-function meanFinite(values: number[]): number {
-  const xs = values.filter(v => typeof v === 'number' && Number.isFinite(v));
+function meanFinite(values: readonly (number | null)[]): number {
+  const xs = values.filter((v): v is number => typeof v === 'number' && Number.isFinite(v));
   if (!xs.length) return NaN;
   return xs.reduce((a, b) => a + b, 0) / xs.length;
 }
@@ -217,6 +221,8 @@ export function AoiStaticMultiLayerLineChart({
   scatterWeekly = [],
   scatterWeekIndex = 0,
   scatterRasterSample = null,
+  rasterDataLoading = false,
+  hasRealRasterData = true,
 }: AoiStaticMultiLayerLineChartProps) {
   const isReport = presentation === 'report';
   const [chartTheme, setChartTheme] = useState<'dark' | 'light'>(() => (isReport ? 'dark' : 'dark'));
@@ -360,6 +366,7 @@ export function AoiStaticMultiLayerLineChart({
       })),
       raster: scatterRasterSample,
       maxCells: 2800,
+      allowSyntheticFallback: false,
     });
 
     if (!model) return { model: null, data: null, options: null, da, db };
@@ -676,6 +683,21 @@ export function AoiStaticMultiLayerLineChart({
     );
   }
 
+  if (!hasRealRasterData) {
+    return (
+      <div className="si-aoi-static-line-empty">
+        <p className="si-aoi-static-line-empty-title">
+          {rasterDataLoading ? 'Loading AOI raster samples…' : 'No raster data in AOI'}
+        </p>
+        <p className="si-aoi-static-line-empty-hint">
+          {rasterDataLoading
+            ? 'Sampling masked pixels inside your AOI for each timeline week via the analysis engine.'
+            : 'Draw a polygon or circle AOI and use Generate timeline. Each index series uses live WMS / MPC pixel means per week — not shared preview curves.'}
+        </p>
+      </div>
+    );
+  }
+
   const chartKey = `${chartType}-${isLight ? 'light' : 'dark'}`;
 
   return (
@@ -814,6 +836,15 @@ export function AoiStaticMultiLayerLineChart({
         ) : chartType === 'scatter' ? (
           scatterIndexCross?.data && scatterIndexCross.options ? (
             <Scatter key={chartKey} data={scatterIndexCross.data} options={scatterIndexCross.options} />
+          ) : rasterDataLoading ? (
+            <div className="si-aoi-static-scatter-empty">
+              <p className="si-aoi-static-scatter-empty-title">
+                <i className="fa-solid fa-circle-notch fa-spin" aria-hidden /> Sampling index pixels…
+              </p>
+              <p className="si-aoi-static-scatter-empty-hint">
+                Loading live WMS pixels for the active timeline week inside your AOI.
+              </p>
+            </div>
           ) : (
             <div className="si-aoi-static-scatter-empty">
               <p className="si-aoi-static-scatter-empty-title">Index scatter unavailable</p>

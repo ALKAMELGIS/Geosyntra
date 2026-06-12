@@ -37,6 +37,7 @@ const ROUTE_FACTORIES: Record<string, RouteFactory> = {
   '/data/fertigation-records': () => import('../pages/data-entry/FertigationRecords'),
   '/data/recipes': () => import('../pages/data-entry/Recipes'),
   '/admin/github': () => import('../pages/admin/GitHubIntegration'),
+  '/settings/gis-content': () => import('../pages/settings/gis-content/GisContent'),
   '/settings/api-integrations': () => import('../pages/settings/ApiIntegrations'),
   '/style-guide': () => import('../pages/StyleGuide'),
   '/usability-test': () => import('../pages/UsabilityTest'),

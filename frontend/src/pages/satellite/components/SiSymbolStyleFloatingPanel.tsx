@@ -10,6 +10,7 @@ export type SiSymbolStyleFloatingPanelProps = {
   style: SymbologyCategoryStyle
   geometryKind: 'polygon' | 'line' | 'point'
   previewCornerRadius?: number
+  mapZoom?: number
   onChange: (next: SymbologyCategoryStyle) => void
   onApply: () => void
   onClose: () => void
@@ -20,6 +21,7 @@ export function SiSymbolStyleFloatingPanel({
   style,
   geometryKind,
   previewCornerRadius,
+  mapZoom,
   onChange,
   onApply,
   onClose,
@@ -55,6 +57,7 @@ export function SiSymbolStyleFloatingPanel({
             style={style}
             geometryKind={geometryKind}
             previewCornerRadius={previewCornerRadius}
+            mapZoom={mapZoom}
             onChange={onChange}
             onClose={onClose}
             embedded

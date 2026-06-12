@@ -1,6 +1,13 @@
 import type { SymbologyStyle } from '../layerTypes';
 import type { SiSymbologyStyleOption } from '../components/siSymbologyStudioConstants';
-import { SI_SYMBOLOGY_STYLE_OPTIONS } from '../components/siSymbologyStudioConstants';
+import {
+  filterSymbologyCatalogForField,
+  getSymbologyCatalogForGeometry,
+  defaultSymbologyStyleForGeometry,
+  symbologyPickStyleHint,
+  type SiSymbologyStyleCatalogEntry,
+} from './siSymbologyStyleCatalog';
+import { symbologyStyleIsNumericOnly } from './siSymbologyStyleResolve';
 
 export type SiFieldKind = 'numeric' | 'text' | 'date';
 
@@ -76,10 +83,20 @@ export function suggestSymbologyStyleForField(
   uniqueCount?: number,
 ): SymbologyStyle {
   if (kind === 'text' || kind === 'date') return 'unique';
-  if (geometryKind === 'line') return 'color';
+  if (geometryKind === 'line') return 'class_breaks';
   if (typeof uniqueCount === 'number' && uniqueCount <= 12) return 'unique';
   if (geometryKind === 'point') return 'color_size';
-  return 'color';
+  if (geometryKind === 'polygon') return 'choropleth';
+  return defaultSymbologyStyleForGeometry(geometryKind, kind);
+}
+
+export function getSymbologyStyleCardsForLayer(
+  kind: SiFieldKind,
+  geometryKind: 'point' | 'line' | 'polygon' | 'other',
+  hasField: boolean,
+): SiSymbologyStyleCatalogEntry[] {
+  const catalog = getSymbologyCatalogForGeometry(geometryKind);
+  return filterSymbologyCatalogForField(catalog, kind, hasField);
 }
 
 export function filterStyleOptionsForSmartMapping(
@@ -87,19 +104,12 @@ export function filterStyleOptionsForSmartMapping(
   kind: SiFieldKind,
   geometryKind: 'point' | 'line' | 'polygon' | 'other',
 ): SiSymbologyStyleOption[] {
-  const numericOnly = new Set<SymbologyStyle>([
-    'color',
-    'size',
-    'color_size',
-    'dot_density',
-    'threshold_markers',
-  ]);
   return options.filter(opt => {
     if (geometryKind === 'line' && (opt.value === 'color_size' || opt.value === 'dot_density')) {
       return false;
     }
     if (kind === 'numeric') return true;
-    if (numericOnly.has(opt.value)) return false;
+    if (symbologyStyleIsNumericOnly(opt.value)) return false;
     return true;
   });
 }
@@ -108,6 +118,13 @@ export function orderStyleOptionsForSuggestions(
   options: SiSymbologyStyleOption[],
   suggested: SymbologyStyle,
 ): SiSymbologyStyleOption[] {
+  return orderStyleCatalogForSuggestions(options, suggested);
+}
+
+export function orderStyleCatalogForSuggestions<T extends { value: SymbologyStyle }>(
+  options: T[],
+  suggested: SymbologyStyle,
+): T[] {
   const copy = [...options];
   copy.sort((a, b) => {
     if (a.value === suggested) return -1;
@@ -117,15 +134,6 @@ export function orderStyleOptionsForSuggestions(
   return copy;
 }
 
-export function smartMappingHintForField(kind: SiFieldKind): string {
-  switch (kind) {
-    case 'numeric':
-      return 'Counts and amounts, color ramps, and graduated symbols work well for this field.';
-    case 'date':
-      return 'Treat dates as categories (unique values) or map them as ordered numeric epochs.';
-    default:
-      return 'Types (unique values) is the best match for text categories.';
-  }
+export function smartMappingHintForField(kind: SiFieldKind, geometryKind: 'point' | 'line' | 'polygon' | 'other' = 'point'): string {
+  return symbologyPickStyleHint(kind, geometryKind);
 }
-
-export { SI_SYMBOLOGY_STYLE_OPTIONS };

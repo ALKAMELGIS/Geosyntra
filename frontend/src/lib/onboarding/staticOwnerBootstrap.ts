@@ -5,7 +5,10 @@ import { sha256Hex } from '../sha256Hex'
 import { isGeosyntraPublicSite, isStaticLocalAuthMode } from './localAuthVerification'
 
 function allowStaticOwnerBootstrap(): boolean {
-  return isStaticLocalAuthMode() || isGeosyntraPublicSite()
+  if (typeof window === 'undefined') return false
+  const h = window.location.hostname.toLowerCase()
+  const localDev = h === 'localhost' || h === '127.0.0.1' || h === '[::1]'
+  return isStaticLocalAuthMode() || isGeosyntraPublicSite() || localDev
 }
 
 /** sha256('GeoSyntra-Admin-2026!') — static Pages default Owner password. */

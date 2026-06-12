@@ -110,6 +110,33 @@ export function computeSiMapWeatherIntelLayout(
   };
 }
 
+export function weatherIntelPanelResizeBounds(layout: SiMapWeatherIntelLayout): {
+  minWidth: number;
+  minHeight: number;
+  maxWidth: number;
+  maxHeight: number;
+} {
+  const pad = 8;
+  const minWidth = 220;
+  const minHeight = 160;
+  const maxWidth = Math.max(minWidth, layout.shellW - layout.insetInlineStart - layout.trailingReserve - pad);
+  const maxHeight = Math.max(minHeight, layout.shellH - pad * 2);
+  return { minWidth, minHeight, maxWidth, maxHeight };
+}
+
+/** Clamp user-resized weather panel dimensions to the available map shell. */
+export function clampWeatherIntelPanelSize(
+  width: number,
+  height: number,
+  layout: SiMapWeatherIntelLayout,
+): { width: number; height: number } {
+  const bounds = weatherIntelPanelResizeBounds(layout);
+  return {
+    width: Math.min(bounds.maxWidth, Math.max(bounds.minWidth, width)),
+    height: Math.min(bounds.maxHeight, Math.max(bounds.minHeight, height)),
+  };
+}
+
 export function weatherIntelLayoutToStyleVars(layout: SiMapWeatherIntelLayout): Record<string, string> {
   return {
     '--si-wx-intel-inset-inline-start': `${layout.insetInlineStart}px`,

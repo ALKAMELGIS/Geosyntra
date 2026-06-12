@@ -16,10 +16,10 @@ describe('siMapWeatherTypes', () => {
     expect(s.cloudCover).toBe(100);
   });
 
-  it('sanitizes sunSky preset', () => {
+  it('sanitizes sunSky preset without auto-enabling', () => {
     const s = sanitizeSiMapWeatherSettings({ preset: 'sunSky' });
     expect(s.preset).toBe('sunSky');
-    expect(s.activePresets).toEqual(['sunSky']);
+    expect(s.activePresets).toEqual([]);
   });
 
   it('sanitizes concurrent active presets', () => {

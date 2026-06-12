@@ -1,4 +1,4 @@
-/* Symbology studio — compact lux black glass (Weather-tools footprint). */
+/* Symbology — ArcGIS Online Map Viewer "Styles" panel shell */
 
 .si-sym-float-host {
   position: fixed;
@@ -18,41 +18,40 @@
   display: flex;
   flex-direction: column;
   min-height: 0;
-  width: min(272px, calc(100vw - var(--si-map-leading-edge, 16px) - var(--si-map-trailing-dock, 0px) - 20px));
-  max-width: min(272px, calc(100vw - var(--si-map-leading-edge, 16px) - var(--si-map-trailing-dock, 0px) - 20px));
-  max-height: min(78vh, 440px);
-  border-radius: 16px;
-  border: 1px solid var(--gs-panel-glass-border, rgba(255, 255, 255, 0.1));
-  background: var(
-    --gs-panel-glass-bg,
-    linear-gradient(168deg, rgba(0, 0, 0, 0.56) 0%, rgba(0, 0, 0, 0.72) 48%, rgba(0, 0, 0, 0.64) 100%)
-  );
-  box-shadow: var(--gs-panel-glass-shadow, 0 24px 64px rgba(0, 0, 0, 0.58), inset 0 1px 0 rgba(255, 255, 255, 0.06));
-  backdrop-filter: var(--gs-panel-glass-blur, blur(24px) saturate(1.32));
-  -webkit-backdrop-filter: var(--gs-panel-glass-blur, blur(24px) saturate(1.32));
-  color: var(--gs-panel-glass-text, rgba(248, 250, 252, 0.96));
+  width: min(380px, calc(100vw - var(--si-map-leading-edge, 16px) - var(--si-map-trailing-dock, 0px) - 24px));
+  max-width: min(380px, calc(100vw - var(--si-map-leading-edge, 16px) - var(--si-map-trailing-dock, 0px) - 24px));
+  max-height: min(88vh, 780px);
+  border-radius: 18px;
+  border: 1px solid rgba(255, 255, 255, 0.92);
+  background:
+    linear-gradient(168deg, rgba(255, 255, 255, 0.98) 0%, rgba(248, 250, 252, 0.96) 52%, rgba(255, 255, 255, 0.97) 100%);
+  backdrop-filter: blur(22px) saturate(1.12);
+  -webkit-backdrop-filter: blur(22px) saturate(1.12);
+  box-shadow:
+    0 22px 56px rgba(15, 23, 42, 0.14),
+    0 2px 8px rgba(15, 23, 42, 0.06),
+    0 0 0 1px rgba(15, 23, 42, 0.04) inset,
+    0 1px 0 rgba(255, 255, 255, 0.95) inset;
+  color: #1e293b;
+  color-scheme: light;
   overflow: hidden;
-  font-size: 11px;
-  line-height: 1.35;
+  font-size: 13px;
+  line-height: 1.4;
   contain: layout style;
-  transition:
-    box-shadow 0.28s ease,
-    border-color 0.28s ease;
-}
-
-.si-sym-float-panel:hover {
-  border-color: var(--gs-panel-glass-border-strong, rgba(255, 255, 255, 0.16));
 }
 
 .si-sym-float-panel--dock-left {
-  width: min(272px, calc(100vw - var(--si-map-leading-edge, 16px) - var(--si-map-trailing-dock, 0px) - 20px)) !important;
-  max-width: min(272px, calc(100vw - var(--si-map-leading-edge, 16px) - var(--si-map-trailing-dock, 0px) - 20px)) !important;
-  height: auto !important;
-  max-height: min(78vh, 440px) !important;
-  margin: max(12px, env(safe-area-inset-top, 0px)) 0 max(12px, env(safe-area-inset-bottom, 0px)) !important;
+  width: min(380px, calc(100vw - var(--si-map-leading-edge, 16px) - var(--si-map-trailing-dock, 0px) - 24px)) !important;
+  max-width: min(380px, calc(100vw - var(--si-map-leading-edge, 16px) - var(--si-map-trailing-dock, 0px) - 24px)) !important;
+  margin: 0 !important;
   padding: 0 !important;
-  border-radius: 16px !important;
-  animation: si-sym-dock-in 0.32s cubic-bezier(0.22, 1, 0.36, 1);
+  border-radius: 18px !important;
+  animation: si-sym-dock-in 0.24s cubic-bezier(0.22, 1, 0.36, 1);
+  position: relative;
+}
+
+.si-sym-float-panel--sized {
+  min-height: 360px;
 }
 
 .si-sym-float-panel--dock-left > .si-sym-side-panel,
@@ -69,19 +68,19 @@
 }
 
 .si-sym-float-panel--dock-left.si-sym-float-panel--with-aside {
-  width: min(320px, calc(100vw - var(--si-map-leading-edge, 16px) - var(--si-map-trailing-dock, 0px) - 20px)) !important;
-  max-width: min(320px, calc(100vw - var(--si-map-leading-edge, 16px) - var(--si-map-trailing-dock, 0px) - 20px)) !important;
-  max-height: min(86vh, 640px) !important;
+  width: min(420px, calc(100vw - var(--si-map-leading-edge, 16px) - var(--si-map-trailing-dock, 0px) - 24px)) !important;
+  max-width: min(420px, calc(100vw - var(--si-map-leading-edge, 16px) - var(--si-map-trailing-dock, 0px) - 24px)) !important;
+  max-height: min(90vh, 820px) !important;
 }
 
 @keyframes si-sym-dock-in {
   from {
     opacity: 0;
-    transform: translateX(-12px) scale(0.98);
+    transform: translateX(-10px);
   }
   to {
     opacity: 1;
-    transform: translateX(0) scale(1);
+    transform: translateX(0);
   }
 }
 
@@ -92,12 +91,27 @@
 @keyframes si-sym-dock-in-rtl {
   from {
     opacity: 0;
-    transform: translateX(12px) scale(0.98);
+    transform: translateX(10px);
   }
   to {
     opacity: 1;
-    transform: translateX(0) scale(1);
+    transform: translateX(0);
   }
+}
+
+.si-sym-float-panel.si-layer-action-modal--symbology-studio {
+  border: 1px solid rgba(255, 255, 255, 0.92) !important;
+  background:
+    linear-gradient(168deg, rgba(255, 255, 255, 0.98) 0%, rgba(248, 250, 252, 0.96) 52%, rgba(255, 255, 255, 0.97) 100%) !important;
+  backdrop-filter: blur(22px) saturate(1.12) !important;
+  -webkit-backdrop-filter: blur(22px) saturate(1.12) !important;
+  color: #1e293b !important;
+  color-scheme: light !important;
+  box-shadow:
+    0 22px 56px rgba(15, 23, 42, 0.14),
+    0 2px 8px rgba(15, 23, 42, 0.06),
+    0 0 0 1px rgba(15, 23, 42, 0.04) inset,
+    0 1px 0 rgba(255, 255, 255, 0.95) inset !important;
 }
 
 .si-sym-float-panel .si-cat-symbol-panel {
@@ -107,5 +121,50 @@
   box-shadow: none;
   background: transparent;
   padding: 4px 2px;
-  font-size: 11px;
+  font-size: 13px;
+}
+
+/* Bottom-right resize grip (ArcGIS-style) */
+.si-sym-float-panel__resize {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  z-index: 4;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  border: none;
+  background: transparent;
+  cursor: nwse-resize;
+  touch-action: none;
+}
+
+.si-sym-float-panel__resize::before {
+  content: '';
+  position: absolute;
+  right: 3px;
+  bottom: 3px;
+  width: 10px;
+  height: 10px;
+  border-right: 2px solid rgba(110, 110, 110, 0.75);
+  border-bottom: 2px solid rgba(110, 110, 110, 0.75);
+  pointer-events: none;
+}
+
+.si-sym-float-panel__resize:hover::before,
+.si-sym-float-panel__resize:active::before {
+  border-color: #0079c1;
+}
+
+:root[dir='rtl'] .si-sym-float-panel__resize {
+  right: auto;
+  left: 0;
+  cursor: nesw-resize;
+}
+
+:root[dir='rtl'] .si-sym-float-panel__resize::before {
+  right: auto;
+  left: 3px;
+  border-right: none;
+  border-left: 2px solid rgba(110, 110, 110, 0.75);
 }

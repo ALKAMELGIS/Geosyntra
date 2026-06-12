@@ -35,7 +35,7 @@ describe('siMapBasemapRuntime', () => {
   });
 
   it('isSiMapBasemapEntryMounted tracks active entry', () => {
-    const entry = catalog.find(e => e.id === 'google-earth')!;
+    const entry = catalog.find(e => e.id === 'esri-imagery-hybrid')!;
     const map = {
       isStyleLoaded: () => true,
       getStyle: () => ({ layers: [{ id: 'aoi-fill' }] }),
@@ -54,8 +54,8 @@ describe('siMapBasemapRuntime', () => {
   });
 
   it('applySiMapBasemap unloads previous entry when switching (lazy loading)', () => {
-    const google = catalog.find(e => e.id === 'google-earth')!;
-    const esri = catalog.find(e => e.id === 'satellite')!;
+    const hybrid = catalog.find(e => e.id === 'esri-imagery-hybrid')!;
+    const esri = catalog.find(e => e.id === 'esri')!;
     const removedSources: string[] = [];
     const addedLayers: string[] = [];
     const layerIds = new Set<string>();
@@ -86,14 +86,14 @@ describe('siMapBasemapRuntime', () => {
       setPaintProperty: () => {},
       moveLayer: () => {},
     } as unknown as import('mapbox-gl').Map;
-    expect(applySiMapBasemap(map, google)).toBe(true);
+    expect(applySiMapBasemap(map, hybrid)).toBe(true);
     expect(applySiMapBasemap(map, esri)).toBe(true);
-    expect(removedSources.some(id => id.includes('google-earth'))).toBe(true);
-    expect(addedLayers.some(id => id.includes('satellite'))).toBe(true);
+    expect(removedSources.some(id => id.includes('esri-imagery-hybrid'))).toBe(true);
+    expect(addedLayers.some(id => id.includes('esri'))).toBe(true);
   });
 
   it('applySiMapBasemap mounts persistent entry-scoped layer ids', () => {
-    const entry = catalog.find(e => e.id === 'google-earth')!;
+    const entry = catalog.find(e => e.id === 'esri-topo')!;
     const addedLayers: string[] = [];
     const map = {
       isStyleLoaded: () => true,
@@ -108,13 +108,13 @@ describe('siMapBasemapRuntime', () => {
       setPaintProperty: () => {},
     } as unknown as import('mapbox-gl').Map;
     expect(applySiMapBasemap(map, entry)).toBe(true);
-    expect(addedLayers.some(id => id.includes('google-earth'))).toBe(true);
+    expect(addedLayers.some(id => id.includes('esri-topo'))).toBe(true);
   });
 
   it('buildSiBasemapMapStyleForEntry uses entry-scoped si-basemap layer ids', () => {
-    const entry = catalog.find(e => e.id === 'google-earth')!;
+    const entry = catalog.find(e => e.id === 'esri-topo')!;
     const style = buildSiBasemapMapStyleForEntry(entry) as { layers?: Array<{ id?: string }>; glyphs?: string };
-    expect(style.layers?.[0]?.id).toBe('si-basemap-google-earth-layer-0');
+    expect(style.layers?.[0]?.id).toBe('si-basemap-esri-topo-layer-0');
     expect(style.glyphs).toContain('mapbox://fonts/mapbox/');
   });
 

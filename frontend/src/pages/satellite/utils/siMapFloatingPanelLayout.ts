@@ -6,7 +6,8 @@ export type SiMapLeftPopoutSlot =
   | 'spectral-legend'
   | 'weather'
   | 'crop-health'
-  | 'layer-swipe';
+  | 'layer-swipe'
+  | 'quick-dashboard';
 
 export type MapCanvasLayout = {
   mapR: DOMRect;
@@ -28,6 +29,7 @@ const SLOT_TOP_BIAS: Record<SiMapLeftPopoutSlot, number> = {
   'weather': 0.16,
   'crop-health': 0.24,
   'layer-swipe': 0.28,
+  'quick-dashboard': 0.12,
   'aoi-timeline': 0.34,
   'spectral-legend': 0.58,
 };
@@ -51,6 +53,42 @@ export function siMapLeftPopoutFixedPosition(
     return { left: Math.max(mapR.left + pad, left), top };
   }
   return { left: mapR.left + pad, top };
+}
+
+/** Bottom-left — 3D terrain panel stacks above the elevation dock chrome. */
+export function siMapTerrainDockPopoutFixedPosition(
+  panelWidth = 248,
+  panelHeight = 400,
+): { left: number; top: number } {
+  const gap = 8;
+  const pad = 24;
+  const layout = readMapCanvasLayout();
+  const rtl = typeof document !== 'undefined' && document.documentElement.dir === 'rtl';
+  const minTop = layout ? layout.mapR.top + 12 : 12;
+
+  const dockHost = document.querySelector('.si-map-elevation-dock-host');
+  if (dockHost instanceof HTMLElement) {
+    const dockR = dockHost.getBoundingClientRect();
+    if (dockR.width > 0 && dockR.height > 0) {
+      return {
+        left: dockR.left,
+        top: Math.max(minTop, dockR.top - panelHeight - gap),
+      };
+    }
+  }
+
+  const bottomStack = 228;
+  if (!layout) {
+    if (typeof window === 'undefined') return { left: pad, top: 120 };
+    return {
+      left: pad,
+      top: Math.max(minTop, window.innerHeight - panelHeight - bottomStack),
+    };
+  }
+  const { mapR, dockW } = layout;
+  const left = rtl ? Math.max(mapR.left + pad, mapR.right - dockW - pad - panelWidth) : mapR.left + pad;
+  const top = mapR.bottom - bottomStack - panelHeight;
+  return { left, top: Math.max(minTop, top) };
 }
 
 /** North (top) edge of map canvas — default for 3D terrain popout. */

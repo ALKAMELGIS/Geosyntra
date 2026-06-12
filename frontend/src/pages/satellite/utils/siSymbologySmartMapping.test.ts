@@ -31,6 +31,10 @@ describe('siSymbologySmartMapping', () => {
     expect(suggestSymbologyStyleForField('text', 'polygon')).toBe('unique');
   });
 
+  it('suggests class_breaks for numeric lines', () => {
+    expect(suggestSymbologyStyleForField('numeric', 'line')).toBe('class_breaks');
+  });
+
   it('filters numeric-only styles for text fields', () => {
     const filtered = filterStyleOptionsForSmartMapping(SI_SYMBOLOGY_STYLE_OPTIONS, 'text', 'polygon');
     expect(filtered.some(o => o.value === 'color')).toBe(false);

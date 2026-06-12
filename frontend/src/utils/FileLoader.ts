@@ -446,11 +446,11 @@ export const parseFile = async (file: File, opts?: ParseOptions): Promise<Parsed
     throw new Error('Excel upload is not supported here. Please convert to CSV.');
   } else if (extension === 'shp') {
     throw new Error(
-      'Shapefile .shp alone is not enough. Upload a .zip containing .shp/.dbf/.shx, or select .shp + .dbf + .shx together ( .prj optional).',
+      'Shapefile dataset incomplete. Upload a .zip archive or browse the folder containing the .shp dataset.',
     );
   } else if (extension === 'dbf' || extension === 'shx' || extension === 'prj') {
     throw new Error(
-      `Upload all shapefile parts together (.shp, .dbf, .shx${extension === 'prj' ? '' : '; .prj optional'}) or use a single .zip archive.`,
+      'Use a single .zip shapefile or browse the dataset folder — companion files are resolved at import.',
     );
   } else if (extension === 'tif' || extension === 'tiff') {
     return parseGeoTiffToRaster(file, opts);

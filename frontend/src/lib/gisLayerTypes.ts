@@ -5,11 +5,29 @@
 
 export type SymbologyStyle =
   | 'single'
+  | 'location_only'
+  | 'single_fill'
+  | 'single_line'
   | 'unique'
   | 'color'
+  | 'class_breaks'
+  | 'choropleth'
   | 'size'
+  | 'width_by_attribute'
   | 'color_size'
   | 'dot_density'
+  | 'heatmap'
+  | 'heat_surface'
+  | 'predominance'
+  | 'pie_chart'
+  | 'donut_chart'
+  | 'extrusion_3d'
+  | 'line_3d'
+  | 'flow_lines'
+  | 'traffic_style'
+  | 'gradient_line'
+  | 'direction_arrows'
+  | 'dashed_lines'
   | 'threshold_markers'
 
 export type SymbologyClassMethod =
@@ -76,6 +94,31 @@ export interface SymbologyConfig {
   /** @deprecated Prefer `categoryStyles` — legacy fill-only overrides. */
   categoryColors?: Record<string, string>
   categoryStyles?: Record<string, SymbologyCategoryStyle>
+  /** Vary fill/line/point opacity by numeric attribute (Mapbox data-driven). */
+  attributeTransparency?: SiSymbologyAttributeTransparency
+  /** Rotate point symbols by numeric attribute (Mapbox circle-rotate). */
+  attributeRotation?: SiSymbologyAttributeRotation
+}
+
+export type SiSymbologyAttributeRotationMode = 'geographic' | 'arithmetic'
+
+export interface SiSymbologyAttributeTransparency {
+  enabled: boolean
+  field: string
+  dividedByField: string
+  valueMin: number
+  valueMax: number
+  /** Transparency % at high attribute values (0 = opaque). */
+  highTransparency: number
+  /** Transparency % at low attribute values (100 = fully transparent). */
+  lowTransparency: number
+  includeInLegend: boolean
+}
+
+export interface SiSymbologyAttributeRotation {
+  enabled: boolean
+  field: string
+  mode: SiSymbologyAttributeRotationMode
 }
 
 export interface LayerData {

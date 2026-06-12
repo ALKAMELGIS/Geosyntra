@@ -15,10 +15,16 @@ main.content:has(> .si-page) {
   flex-direction: column;
   padding: 0;
   overflow: hidden;
-  min-height: 100vh;
-  min-height: 100dvh;
-  height: 100vh;
-  height: 100dvh;
+  min-height: 0;
+  height: 100%;
+  max-height: 100%;
+}
+
+/* Map canvas fills the layout cell below the app header — not an extra 100dvh stack. */
+main.content:has(> .si-page.si-page--map-canvas) {
+  min-height: 0;
+  height: 100%;
+  max-height: 100%;
 }
 
 main.content > .si-page {
@@ -874,6 +880,28 @@ body:has(main.content > .si-page) select option:disabled {
   height: 100%;
   min-height: 0;
   overflow: hidden;
+  background: #010409;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.si-map-gl-host .mapboxgl-canvas-container {
+  background: #010409;
+}
+
+.si-map-gl-host .mapboxgl-canvas {
+  display: block;
+  outline: none !important;
+  border: none;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.si-map-gl-host .mapboxgl-canvas:focus,
+.si-map-gl-host .mapboxgl-canvas:focus-visible {
+  outline: none !important;
 }
 
 .si-map-gl-host > .mapboxgl-map,
@@ -902,9 +930,7 @@ body:has(main.content > .si-page) select option:disabled {
   will-change: opacity;
 }
 
-.si-map-gl-host--elev-crossfade .mapboxgl-canvas {
-  will-change: transform;
-}
+/* Avoid will-change: transform — sub-pixel canvas gaps read as a flashing white hairline. */
 
 .si-map-container {
   flex: 1 1 auto;
@@ -913,7 +939,7 @@ body:has(main.content > .si-page) select option:disabled {
   height: 100%;
   min-height: 100%;
   width: 100%;
-  background: #020617;
+  background: #010409;
   overflow: hidden;
   isolation: isolate;
   --si-map-bottom-safe: max(12px, env(safe-area-inset-bottom, 0px));
@@ -925,6 +951,7 @@ body:has(main.content > .si-page) select option:disabled {
 .si-map-container .mapboxgl-map {
   position: absolute !important;
   inset: 0;
+  z-index: 1;
   width: 100% !important;
   height: 100% !important;
 }
@@ -948,48 +975,61 @@ body:has(main.content > .si-page) select option:disabled {
   right: auto !important;
 }
 
-/* Logo + attribution + WGS84 status: bottom-left (zoom/3D are on SiMapElevationDock). */
+/* Bottom-left chrome: compact zoom dock | GeoSyntra + WGS 84 stack. */
 .si-map-container .mapboxgl-ctrl-bottom-left {
   left: max(24px, env(safe-area-inset-left, 0px)) !important;
   right: auto !important;
   top: auto !important;
   bottom: max(8px, env(safe-area-inset-bottom, 0px)) !important;
-  display: flex !important;
-  flex-direction: column-reverse;
-  align-items: flex-start;
-  gap: 4px;
+  display: grid !important;
+  grid-template-columns: auto auto;
+  grid-template-rows: auto;
+  align-items: end;
+  column-gap: 6px;
+  row-gap: 0;
+}
+
+.si-map-container .mapboxgl-ctrl-bottom-left .si-map-elevation-dock-host {
+  grid-column: 1;
+  grid-row: 1;
+  align-self: end;
+}
+
+.si-map-container .mapboxgl-ctrl-bottom-left .si-map-geosyntra-brand-host {
+  grid-column: 2;
+  grid-row: 1;
+  align-self: end;
+  min-height: auto;
+  overflow: visible;
 }
 
 .si-map-container .mapboxgl-ctrl.mapboxgl-ctrl-group {
   display: none !important;
 }
 
-.si-map-container .mapboxgl-ctrl-bottom-left > .mapboxgl-ctrl.mapboxgl-ctrl-attrib,
-.si-map-container .mapboxgl-ctrl-bottom-left > .mapboxgl-ctrl-attrib {
-  margin: 0;
+.si-map-container .mapboxgl-ctrl-attrib,
+.si-map-container .mapboxgl-ctrl.mapboxgl-ctrl-attrib {
+  display: none !important;
+  visibility: hidden !important;
+  width: 0 !important;
+  height: 0 !important;
+  overflow: hidden !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  pointer-events: none !important;
 }
 
 .si-map-container .mapboxgl-ctrl-bottom-left > a.mapboxgl-ctrl-logo,
 .si-map-container .mapboxgl-ctrl-bottom-left > .mapboxgl-ctrl-logo,
 .si-map-container .mapboxgl-ctrl-bottom-left a.mapboxgl-ctrl-logo {
-  position: static !important;
-  margin: 0;
-  float: none !important;
-  filter: drop-shadow(0 1px 2px rgba(2, 6, 23, 0.55));
-}
-
-.si-map-container .mapboxgl-ctrl-bottom-left .mapboxgl-ctrl-attrib.mapboxgl-compact {
-  font-size: 11px;
-  line-height: 1.25;
-  border-radius: 8px;
-  background: rgba(2, 6, 23, 0.42);
-  color: #f8fafc;
-  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.06) inset;
-}
-
-.si-map-container .mapboxgl-ctrl-bottom-left .mapboxgl-ctrl-attrib.mapboxgl-compact .mapboxgl-ctrl-attrib-inner,
-.si-map-container .mapboxgl-ctrl-bottom-left .mapboxgl-ctrl-attrib.mapboxgl-compact a {
-  color: inherit;
+  display: none !important;
+  visibility: hidden !important;
+  width: 0 !important;
+  height: 0 !important;
+  overflow: hidden !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  pointer-events: none !important;
 }
 
 .si-aoi-class-legend {
@@ -1804,7 +1844,7 @@ body:has(main.content > .si-page) select option:disabled {
 
 .si-add-source-option {
   display: grid;
-  grid-template-columns: 22px 48px minmax(0, 1fr);
+  grid-template-columns: 48px minmax(0, 1fr) auto;
   align-items: center;
   gap: 14px;
   width: 100%;
@@ -1890,17 +1930,75 @@ body:has(main.content > .si-page) select option:disabled {
 
 .si-add-source-option:hover .si-add-source-option-icon {
   transform: scale(1.04);
-  border-color: rgba(74, 222, 128, 0.4);
-  color: #86efac;
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.08),
-    0 8px 22px rgba(74, 222, 128, 0.12);
+    0 8px 22px rgba(0, 0, 0, 0.18);
+}
+
+.si-add-source-option:hover .si-add-source-option-chevron {
+  opacity: 1;
 }
 
 .si-add-source-option-main {
-  display: grid;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: flex-start;
   gap: 4px;
   min-width: 0;
+  align-self: center;
+}
+
+.si-add-source-option-chevron {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  align-self: center;
+  color: #94a3b8;
+  font-size: 11px;
+  opacity: 0.65;
+}
+
+.si-add-source-option-icon--violet {
+  background: linear-gradient(155deg, rgba(99, 102, 241, 0.28) 0%, rgba(15, 23, 42, 0.75) 100%);
+  border-color: rgba(99, 102, 241, 0.4);
+  color: #a5b4fc;
+}
+
+.si-add-source-option-icon--blue {
+  background: linear-gradient(155deg, rgba(59, 130, 246, 0.28) 0%, rgba(15, 23, 42, 0.75) 100%);
+  border-color: rgba(59, 130, 246, 0.4);
+  color: #93c5fd;
+}
+
+.si-add-source-option-icon--emerald {
+  background: linear-gradient(155deg, rgba(16, 185, 129, 0.28) 0%, rgba(15, 23, 42, 0.75) 100%);
+  border-color: rgba(16, 185, 129, 0.4);
+  color: #6ee7b7;
+}
+
+.si-add-source-option-icon--amber {
+  background: linear-gradient(155deg, rgba(245, 158, 11, 0.3) 0%, rgba(15, 23, 42, 0.75) 100%);
+  border-color: rgba(245, 158, 11, 0.42);
+  color: #fcd34d;
+}
+
+.si-add-source-option-icon--cyan {
+  background: linear-gradient(155deg, rgba(6, 182, 212, 0.28) 0%, rgba(15, 23, 42, 0.75) 100%);
+  border-color: rgba(6, 182, 212, 0.4);
+  color: #67e8f9;
+}
+
+.si-add-source-option-icon--rose {
+  background: linear-gradient(155deg, rgba(244, 63, 94, 0.28) 0%, rgba(15, 23, 42, 0.75) 100%);
+  border-color: rgba(244, 63, 94, 0.4);
+  color: #fda4af;
+}
+
+.si-add-source-option-icon--purple {
+  background: linear-gradient(155deg, rgba(139, 92, 246, 0.28) 0%, rgba(15, 23, 42, 0.75) 100%);
+  border-color: rgba(139, 92, 246, 0.4);
+  color: #c4b5fd;
 }
 
 .si-add-source-option-main strong {
@@ -5429,12 +5527,19 @@ body.si-table-dock-resize-active * {
   overflow: hidden;
 }
 
-/* Vector symbology / labels — compact lux glass (SiSymbologyFloatingPanel.css owns footprint) */
-.si-sym-float-panel.si-sym-float-panel--dock-left.si-layer-action-modal--symbology-studio,
+/* Vector symbology — ArcGIS Styles panel (SiSymbologyFloatingPanel.css owns footprint) */
+.si-sym-float-panel.si-sym-float-panel--dock-left.si-layer-action-modal--symbology-studio {
+  width: min(var(--si-sym-panel-w, 380px), calc(100vw - var(--si-map-leading-edge, 16px) - var(--si-map-trailing-dock, 0px) - 24px)) !important;
+  max-width: min(var(--si-sym-panel-w, 380px), calc(100vw - var(--si-map-leading-edge, 16px) - var(--si-map-trailing-dock, 0px) - 24px)) !important;
+  height: var(--si-sym-panel-h, min(92vh, 900px)) !important;
+  max-height: min(var(--si-sym-panel-h, 92vh), calc(100dvh - 16px)) !important;
+  min-height: 360px !important;
+}
+
 .si-sym-float-panel.si-sym-float-panel--dock-left.si-layer-action-modal--labels-studio {
-  width: min(272px, calc(100vw - var(--si-map-leading-edge, 16px) - var(--si-map-trailing-dock, 0px) - 20px)) !important;
-  max-width: min(272px, calc(100vw - var(--si-map-leading-edge, 16px) - var(--si-map-trailing-dock, 0px) - 20px)) !important;
-  max-height: min(78vh, 440px) !important;
+  width: min(320px, calc(100vw - var(--si-map-leading-edge, 16px) - var(--si-map-trailing-dock, 0px) - 24px)) !important;
+  max-width: min(320px, calc(100vw - var(--si-map-leading-edge, 16px) - var(--si-map-trailing-dock, 0px) - 24px)) !important;
+  max-height: min(78vh, 520px) !important;
 }
 
 .si-layer-action-modal--labels-studio.si-sym-float-panel--dock-left {
@@ -14794,16 +14899,30 @@ html[data-theme='light'] .si-env-panel--satellite-toolbox.si-env-panel--single-s
 }
 
 .si-add-layer-gis-overlay .gis-btn-primary-full {
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(218, 218, 225, 0.88)) !important;
-  border: 1px solid rgba(0, 0, 0, 0.45) !important;
-  color: #0a0a10 !important;
+  background:
+    linear-gradient(
+      168deg,
+      rgba(6, 6, 8, 0.94) 0%,
+      rgba(0, 0, 0, 0.97) 46%,
+      rgba(10, 10, 12, 0.95) 100%
+    ) !important;
+  border: 1px solid rgba(255, 255, 255, 0.16) !important;
+  color: rgba(248, 250, 252, 0.98) !important;
+  backdrop-filter: blur(22px) saturate(155%);
+  -webkit-backdrop-filter: blur(22px) saturate(155%);
   box-shadow:
-    0 10px 28px rgba(0, 0, 0, 0.55),
-    inset 0 1px 0 rgba(255, 255, 255, 0.85) !important;
+    0 14px 36px rgba(0, 0, 0, 0.48),
+    0 0 0 1px rgba(255, 255, 255, 0.08),
+    inset 0 1px 0 rgba(255, 255, 255, 0.16) !important;
 }
 
 .si-add-layer-gis-overlay .gis-btn-primary-full:hover:not(:disabled) {
-  filter: brightness(1.06);
+  filter: none;
+  border-color: rgba(255, 255, 255, 0.28) !important;
+  box-shadow:
+    0 16px 40px rgba(0, 0, 0, 0.52),
+    0 0 0 1px rgba(255, 255, 255, 0.1),
+    inset 0 1px 0 rgba(255, 255, 255, 0.2) !important;
 }
 
 .si-add-layer-gis-overlay .gis-modal-compact .gis-discovered-add {

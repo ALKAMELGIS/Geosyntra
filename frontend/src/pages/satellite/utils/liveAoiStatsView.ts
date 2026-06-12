@@ -50,8 +50,8 @@ function resolveMaskedStatsStatus(
   status: LiveAoiAnalysisStatus,
   hasStats: boolean,
 ): LiveAoiAnalysisStatus {
+  if (hasStats) return 'ready';
   if (status === 'loading' || status === 'idle') return status;
-  if (hasStats) return status === 'error' ? 'ready' : status;
   if (status === 'ready') return 'error';
   return status;
 }
@@ -106,6 +106,8 @@ export function buildLiveAoiStatsViewModel(args: {
   clickLat?: number | null;
   /** Canonical WMS ramp — popup/legend/report colors match map tiles. */
   classifiedStops?: readonly IndexRampStop[] | null;
+  /** Instant min/mean/max while full raster class analytics compute. */
+  indexStatsFallback?: { mean: number; min: number; max: number; validCount?: number } | null;
 }): LiveAoiStatsViewModel | null {
   const {
     aoiKey,
@@ -130,18 +132,28 @@ export function buildLiveAoiStatsViewModel(args: {
 
   const mean =
     fromRaster?.mean ??
+    (args.indexStatsFallback && Number.isFinite(args.indexStatsFallback.mean)
+      ? args.indexStatsFallback.mean
+      : null) ??
     (indexZonal && Number.isFinite(indexZonal.mean) ? indexZonal.mean : null);
 
   const min =
     fromRaster?.min ??
+    (args.indexStatsFallback && Number.isFinite(args.indexStatsFallback.min)
+      ? args.indexStatsFallback.min
+      : null) ??
     (indexZonal && Number.isFinite(indexZonal.min) ? indexZonal.min : null);
 
   const max =
     fromRaster?.max ??
+    (args.indexStatsFallback && Number.isFinite(args.indexStatsFallback.max)
+      ? args.indexStatsFallback.max
+      : null) ??
     (indexZonal && Number.isFinite(indexZonal.max) ? indexZonal.max : null);
 
   const pixelCount =
     fromRaster?.validCount ??
+    args.indexStatsFallback?.validCount ??
     (zonal?.validPixelCount && zonal.validPixelCount > 0 ? zonal.validPixelCount : null);
 
   const totalPixelCount =
@@ -176,6 +188,7 @@ export function buildLiveAoiStatsViewModel(args: {
           analysisDateIso,
           legendBandCount: SI_WMS_SPECTRAL_CLASS_COUNT,
           classifiedStops: args.classifiedStops,
+          totalAreaM2Override: areaHa > 0 ? areaHa * 10000 : null,
         })
       : null;
 
@@ -232,7 +245,7 @@ export function liveAoiStatsStatusHint(
   if (loading) return null;
   switch (status) {
     case 'unavailable':
-      return 'Start the analysis engine for live AOI sampling';
+      return 'Live layer sampling unavailable — check Sentinel Hub WMS configuration';
     case 'error':
       return 'Sampling failed — try another date, spectral index, or AOI';
     case 'idle':

@@ -1,11 +1,19 @@
 import { inferWmsEvalProfile, type WmsAoiEvalProfile } from '../../../lib/sentinelHubWmsAoiClip';
+import { SI_AGRO_DELTA_STOPS } from '../../../lib/siLayerLiveCompositeEvalscript';
+import { getLayerLiveCompositeDef } from '../../../lib/siLayerLiveCompositeCatalog';
+import { getSentinel1InsarLayerDef } from '../../../lib/siSentinel1InsarLayerCatalog';
+import { stopsForSentinel1SarFormula } from '../../../lib/siSentinel1SarEvalscript';
 import type { IndexRampStop } from '../../../lib/siWmsIndexClassificationRamp';
 import {
   SI_EVI_CLASSIFICATION_STOPS,
   SI_GNDVI_CLASSIFICATION_STOPS,
+  SI_LST_CLASSIFICATION_STOPS,
+  SI_NDBI_CLASSIFICATION_STOPS,
   SI_NDMI_CLASSIFICATION_STOPS,
   SI_NDVI_CLASSIFICATION_STOPS,
   SI_NDWI_CLASSIFICATION_STOPS,
+  SI_SAVI_CLASSIFICATION_STOPS,
+  siWmsResampleRampToClassCount,
 } from '../../../lib/siWmsIndexClassificationRamp';
 
 export type SiSymbologyClassificationMode = 'quantitative' | 'qualitative';
@@ -94,7 +102,10 @@ export function siWmsSymbologySupportsLayer(layerName: string): boolean {
     p === 'evi' ||
     p === 'savi' ||
     p === 'ndbi' ||
-    p === 'lst'
+    p === 'lst' ||
+    p === 'agro_composite' ||
+    p === 'agro_delta' ||
+    p === 'sar_insar'
   );
 }
 
@@ -111,17 +122,41 @@ export function siWmsDefaultStopsForProfile(profile: WmsAoiEvalProfile): readonl
     case 'evi':
       return SI_EVI_CLASSIFICATION_STOPS;
     case 'savi':
-      return SI_NDVI_CLASSIFICATION_STOPS;
+      return SI_SAVI_CLASSIFICATION_STOPS;
     case 'ndbi':
-      return SI_NDWI_CLASSIFICATION_STOPS;
+      return SI_NDBI_CLASSIFICATION_STOPS;
     case 'lst':
-      return SI_NDMI_CLASSIFICATION_STOPS;
+      return SI_LST_CLASSIFICATION_STOPS;
+    case 'agro_composite':
+      return SI_NDVI_CLASSIFICATION_STOPS;
+    case 'agro_delta':
+      return SI_AGRO_DELTA_STOPS;
+    case 'sar_insar':
+      return null;
     default:
       return null;
   }
 }
 
 export function siAutoRampPresetForLayerName(layerName: string): SiSymbologyRampPresetId {
+  const s1 = getSentinel1InsarLayerDef(layerName);
+  if (s1) {
+    if (s1.temporal) return 'spectral';
+    if (s1.groupKey === 'flood_idx' || s1.groupKey === 'flood_radar' || s1.groupKey === 'flood_insar') {
+      return 'blues';
+    }
+    if (s1.groupKey === 'deform' || s1.groupKey === 'change' || s1.groupKey === 'hybrid') return 'thermal';
+    if (s1.groupKey === 'coh' || s1.groupKey === 'phase') return 'greys';
+    if (s1.groupKey === 'bs' || s1.groupKey === 'rough') return 'greys';
+    return 'soil';
+  }
+  const composite = getLayerLiveCompositeDef(layerName);
+  if (composite) {
+    if (composite.isDelta) return 'spectral';
+    if (composite.groupKey.includes('water') || composite.groupKey.includes('irrig')) return 'water';
+    if (composite.groupKey.includes('risk')) return 'thermal';
+    return 'vegetation';
+  }
   const u = String(layerName || '').toUpperCase();
   if (u.includes('NDWI') || u.includes('MNDWI') || u.includes('WATER')) return 'water';
   if (u.includes('LST') || u.includes('TEMP') || u.includes('THERMAL')) return 'thermal';
@@ -206,31 +241,32 @@ function buildQuantitativeStops(domain: readonly IndexRampStop[], preset: readon
   return out;
 }
 
+export function siWmsDefaultStopsForLayer(layerName: string): readonly IndexRampStop[] | null {
+  const s1 = getSentinel1InsarLayerDef(layerName);
+  if (s1) return stopsForSentinel1SarFormula(s1.formula);
+  return siWmsDefaultStopsForProfile(inferWmsEvalProfile(layerName));
+}
+
 export function siComputeSymbologyStops(layerName: string, ui: SiWmsSymbologyUiState): readonly IndexRampStop[] | null {
   if (!siWmsSymbologySupportsLayer(layerName)) return null;
-  const profile = inferWmsEvalProfile(layerName);
-  const base = siWmsDefaultStopsForProfile(profile);
+  const base = siWmsDefaultStopsForLayer(layerName);
   if (!base?.length) return null;
   const classCount = Number.isFinite(ui.numClasses) ? ui.numClasses : SI_WMS_SYMBOLOGY_DEFAULT_UI.numClasses;
   const k = Math.max(3, Math.min(16, Math.round(classCount)));
+  const stopCount = k + 1;
 
-  /** NDWI always uses the water ramp (never generic purple qualitative). */
-  if (profile === 'ndwi') {
-    if (k + 1 === base.length) return base;
-    return buildQuantitativeStops(base, SI_SYM_PRESET_STOPS.water, k + 1);
+  /** Live auto mode: 10 classes from the scientific ramp for this index type. */
+  if (ui.autoScientific) {
+    return siWmsResampleRampToClassCount(base, stopCount);
   }
 
   const tMin = base[0]![0];
   const tMax = base[base.length - 1]![0];
-  const effectivePreset: SiSymbologyRampPresetId = ui.autoScientific
-    ? siAutoRampPresetForLayerName(layerName)
-    : ui.rampPreset;
-  const ramp = SI_SYM_PRESET_STOPS[effectivePreset];
+  const ramp = SI_SYM_PRESET_STOPS[ui.rampPreset];
   if (ui.classificationType === 'qualitative') {
     return buildQualitativeStops(tMin, tMax, k);
   }
-  /** N classes ⇒ N+1 thresholds so legend shows N intervals matching map ramp. */
-  return buildQuantitativeStops(base, ramp, k + 1);
+  return buildQuantitativeStops(base, ramp, stopCount);
 }
 
 export function siSymbologyRampLabels(): { id: SiSymbologyRampPresetId; label: string }[] {

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo } from 'react';
 import { SiMapDaylightPanel } from './SiMapDaylightPanel';
 import './SiMapDaylightArcSlider.css';
 import type { SiMapWeatherSettings } from '../utils/siMapWeatherTypes';
+import { isSiMapWeatherPresetActive } from '../utils/siMapWeatherActive';
 import {
   analyzeSunLineOfSight,
   assessRooftopSolarPotential,
@@ -20,7 +21,11 @@ const TABS: { id: SiMapSunSkyAnalysisTab; label: string; icon: string }[] = [
 
 export type SiMapSunSkyWeatherBodyProps = {
   weather: SiMapWeatherSettings;
-  onWeatherPatch: (partial: Partial<SiMapWeatherSettings>) => void;
+  onWeatherPatch: (
+    partial:
+      | Partial<SiMapWeatherSettings>
+      | ((prev: SiMapWeatherSettings) => Partial<SiMapWeatherSettings> | SiMapWeatherSettings),
+  ) => void;
   sunSkySettings: SiMapSunSkySettings;
   onSunSkySettingsChange: (next: SiMapSunSkySettings) => void;
   mapCenter: { lng: number; lat: number };
@@ -48,11 +53,13 @@ export function SiMapSunSkyWeatherBody({
   );
 
   useEffect(() => {
-    onWeatherPatch({
+    if (!isSiMapWeatherPresetActive(weather, 'sunSky')) return;
+    onWeatherPatch(prev => ({
+      ...prev,
       sunPositionByDateTime: true,
       daylightShadows: sunSkySettings.buildingShadows,
-    });
-  }, [onWeatherPatch, sunSkySettings.buildingShadows]);
+    }));
+  }, [onWeatherPatch, sunSkySettings.buildingShadows, weather.activePresets]);
 
   const snapshot = useMemo(
     () =>

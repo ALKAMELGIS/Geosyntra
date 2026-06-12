@@ -40,6 +40,8 @@ const INTERP_BY_PROFILE: Partial<Record<WmsAoiEvalProfile, SiWmsIndexLegendInter
   savi: { low: 'Sparse cover', medium: 'Moderate cover', high: 'Dense cover' },
   ndbi: { low: 'Low built-up', medium: 'Mixed surface', high: 'Urban / built-up' },
   lst: { low: 'Cool surface', medium: 'Moderate temperature', high: 'Hot surface' },
+  agro_composite: { low: 'Low score / high risk', medium: 'Moderate condition', high: 'High score / healthy' },
+  agro_delta: { low: 'Degradation (Δ < 0)', medium: 'Stable (Δ ≈ 0)', high: 'Improvement (Δ > 0)' },
 };
 
 export function siWmsIndexLegendInterpretation(
@@ -74,9 +76,9 @@ export function siWmsIndexLegendHint(args: {
 
   switch (profile) {
     case 'ndwi':
-      return `Water index — ${n} classes: dry land → open water (blue · cyan · green · white).`;
+      return `Water index — ${n} classes: dry land (green) → neutral (white) → open water (blue).`;
     case 'ndmi':
-      return `Moisture index (NDMI) — ${n} classes: dry canopy → high plant water content.`;
+      return `NDMI — ${n} classes: dry canopy → high plant water content.`;
     case 'lst':
       return `Land surface temperature — ${n} classes: cool (blue) → warm (yellow) → hot (red).`;
     case 'ndvi':
@@ -91,6 +93,10 @@ export function siWmsIndexLegendHint(args: {
       return `Soil-adjusted vegetation — ${n} classes; reduced soil brightness bias.`;
     case 'ndbi':
       return `Built-up index — ${n} classes: natural → urbanized surfaces.`;
+    case 'agro_composite':
+      return `Agro composite index — ${n} classes: low score / stress → healthy / high vigor.`;
+    case 'agro_delta':
+      return `Change detection (Δ) — ${n} classes: degradation (red) → stable (yellow) → improvement (green).`;
     default:
       return live
         ? `Live layer — ${n}-class spectral ramp by index type; matches map tiles inside AOI.`

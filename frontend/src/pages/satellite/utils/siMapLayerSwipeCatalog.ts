@@ -9,6 +9,13 @@ import { isSiMapBasemapMapboxLayerId } from './siMapCustomVectorLayerStack';
 import { isSiMapWmsRasterLayerId } from './siMapWmsRasterLayerStack';
 import { BUILDINGS_LAYER_ID, HILLSHADE_LAYER_ID } from './siMapProjectionTerrain';
 
+function isSiMapEarthHybridUnderlayLayerId(layerId: string): boolean {
+  return (
+    layerId === 'si-earth-terrain-underlay-layer' ||
+    layerId === 'si-esri-elevation-hillshade-underlay-layer'
+  );
+}
+
 export type SiMapSwipeLayerKind = 'basemap' | 'wms' | 'custom';
 
 export type SiMapSwipeLayerEntry = {
@@ -26,6 +33,7 @@ export const SI_MAP_SWIPE_LAYER_LIVE_KEY = 'layer-live';
 export function isSiMapSwipeContextMapboxLayerId(layerId: string): boolean {
   return (
     isSiMapBasemapMapboxLayerId(layerId) ||
+    isSiMapEarthHybridUnderlayLayerId(layerId) ||
     layerId === BUILDINGS_LAYER_ID ||
     layerId === HILLSHADE_LAYER_ID ||
     layerId.startsWith('si-terrain-')

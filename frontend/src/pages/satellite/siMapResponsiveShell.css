@@ -6,8 +6,9 @@
 /* ── Shell tokens ── */
 .si-page.si-page--map-canvas {
   --si-shell-w: 100vw;
-  --si-shell-h: 100dvh;
-  --si-shell-h-fallback: 100vh;
+  --si-shell-h: 100%;
+  --si-shell-h-fallback: 100%;
+  --si-map-toolbox-top: var(--header-stack-height);
   --si-chrome-gap: 8px;
   --si-chrome-inset-x: max(12px, env(safe-area-inset-left, 0px));
   --si-chrome-inset-y: max(10px, env(safe-area-inset-top, 0px));
@@ -38,11 +39,11 @@ main.content:has(> .si-page.si-page--map-canvas) {
   max-width: 100%;
   min-width: 0;
   min-height: 0;
-  height: var(--si-shell-h);
-  height: var(--si-shell-h-fallback);
-  max-height: var(--si-shell-h);
+  height: 100%;
+  max-height: 100%;
   overflow: clip;
   padding: 0;
+  animation: none;
 }
 
 .si-page.si-page--map-canvas {
@@ -54,7 +55,7 @@ main.content:has(> .si-page.si-page--map-canvas) {
   min-width: 0;
   min-height: 0;
   height: 100%;
-  max-height: var(--si-shell-h);
+  max-height: 100%;
   overflow: clip;
   contain: layout style;
 }
@@ -153,6 +154,11 @@ main.content:has(> .si-page.si-page--map-canvas) {
   overflow: hidden;
 }
 
+.si-page.si-page--map-canvas .si-sat-ctx-dock--map-toolbox.si-sat-ctx-dock--map-tall .si-sat-ctx-rail {
+  overflow: visible;
+  border-end-end-radius: 0 !important;
+}
+
 .si-page.si-page--map-canvas .si-sat-ctx-dock--map-tall .si-sat-ctx-rail--labeled {
   width: var(--si-rail-max-w);
   max-width: var(--si-rail-max-w);
@@ -205,21 +211,14 @@ main.content:has(> .si-page.si-page--map-canvas) {
   max-height: 100%;
 }
 
-/* Bottom-left elevation dock — stay inside viewport, always visible on map canvas */
+/* Map toolbox trailing glass spine → map-toolbox-rail-spine.css (single source of truth) */
+
+/* Bottom-left elevation dock — lives in Mapbox bottom-left beside WGS 84 status */
 .si-page.si-page--map-canvas .si-map-elevation-dock {
-  max-height: calc(100% - var(--si-map-bottom-reserve, 0px) - 16px);
   overflow: visible;
   opacity: 1;
   visibility: visible;
   pointer-events: none;
-}
-
-.si-page.si-page--map-canvas .si-map-elevation-dock__panel--floating {
-  max-height: min(78dvh, 78vh, calc(100dvh - 48px));
-}
-
-.si-page.si-page--map-canvas .si-map-elevation-dock__panel-body {
-  max-height: min(64dvh, 64vh, calc(100dvh - 120px));
 }
 
 /* Timeline — full width on narrow screens, no horizontal document spill */
@@ -260,12 +259,9 @@ main.content:has(> .si-page.si-page--map-canvas) {
   max-width: min(52px, 14vw);
 }
 
-.si-page.si-page--map-canvas[data-si-fit-mode='compact'] .si-map-elevation-dock {
-  left: max(8px, env(safe-area-inset-left, 0px));
-  --si-elevation-dock-lift: 2cm;
-  bottom: calc(
-    6px + var(--si-map-bottom-safe, 12px) + var(--si-map-bottom-reserve, 0px) + var(--si-elevation-dock-lift, 0px)
-  );
+.si-page.si-page--map-canvas[data-si-fit-mode='compact'] .si-map-container .mapboxgl-ctrl-bottom-left {
+  left: max(8px, env(safe-area-inset-left, 0px)) !important;
+  column-gap: 4px;
 }
 
 /* ── Fit Mode: cozy (tablet / small laptop) ── */
@@ -313,3 +309,5 @@ main.content:has(> .si-page.si-page--map-canvas) {
     scroll-behavior: auto;
   }
 }
+
+/* Map toolbox header seam + spine → map-toolbox-rail-spine.css */

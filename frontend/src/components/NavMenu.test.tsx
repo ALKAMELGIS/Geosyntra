@@ -118,6 +118,20 @@ describe('NavMenu vertical responsive', () => {
     expect(nav).toHaveClass('geosyntra-primary-nav--mobile')
   })
 
+  it('shows Content route from Settings for signed-in users', () => {
+    setViewport(1280)
+    render(
+      <MemoryRouter future={routerFuture}>
+        <SystemSettingsProvider>
+          <PrimaryNavIcons />
+        </SystemSettingsProvider>
+      </MemoryRouter>,
+    )
+    const settings = screen.getByTitle(/^Settings$/i)
+    expect(settings.tagName).toBe('A')
+    expect(settings).toHaveAttribute('href', '/settings/gis-content')
+  })
+
   it('shows satellite imagery as a single mobile header nav item (no submenu)', () => {
     setViewport(390)
     render(

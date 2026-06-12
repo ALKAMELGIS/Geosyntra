@@ -37,6 +37,9 @@ interface ImportMetaEnv {
   /** GraphHopper — Route Map tool & street routing (graphhopper.com). */
   readonly VITE_GRAPHHOPPER_API_KEY?: string
   readonly VITE_GRAPHOPPER_API_KEY?: string
+  /** Google Maps — Photorealistic 3D basemap local dev (Map Tiles API). Production uses backend GOOGLE_MAPS_SERVER_API_KEY. */
+  readonly VITE_GOOGLE_MAPS_API_KEY?: string
+  readonly VITE_GOOGLE_MAPS_SERVER_API_KEY?: string
 }
 
 declare global {

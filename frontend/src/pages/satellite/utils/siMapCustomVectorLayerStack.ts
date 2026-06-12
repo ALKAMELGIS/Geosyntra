@@ -1,6 +1,11 @@
 import type { Map as MapboxMap } from 'mapbox-gl';
-import { isSiMapWmsRasterLayerId } from './siMapWmsRasterLayerStack';
-
+import { SI_TERRAIN_CONTOUR_LABEL_LAYER_ID } from './siMap3DLabels';
+import {
+  isSiMapWmsRasterLayerId,
+  raiseSiMapTerrainContourLayersAboveWms,
+  SI_MAP_TERRAIN_CONTOUR_LAYER_ID,
+  siMapTerrainContourLayersMounted,
+} from './siMapWmsRasterLayerStack';
 /** Mapbox layer ids for user-added GeoJSON vector layers ({layerId}--{styleKey}-fill|line|circle|extrusion|label-*). */
 export function isSiMapCustomVectorMapboxLayerId(layerId: string): boolean {
   return /--.+-(fill|line|circle|extrusion|cluster-count|cluster|label-point|label-line|label-poly)$/.test(layerId);
@@ -25,6 +30,10 @@ export function isSiMapBasemapMapboxLayerId(layerId: string): boolean {
 }
 
 /** Any operational layer that must always paint above the basemap. */
+export function isSiMapTerrainContourMapboxLayerId(layerId: string): boolean {
+  return layerId === SI_MAP_TERRAIN_CONTOUR_LAYER_ID || layerId === SI_TERRAIN_CONTOUR_LABEL_LAYER_ID;
+}
+
 export function isSiMapOperationalMapboxLayerId(layerId: string): boolean {
   return (
     isSiMapWmsRasterLayerId(layerId) ||
@@ -48,7 +57,9 @@ export function lowerSiMapBasemapLayersToBottom(map: MapboxMap): void {
 
   for (const basemapId of basemapIds) {
     const layerIds = (map.getStyle()?.layers ?? []).map(l => l.id);
-    const anchorId = layerIds.find(isSiMapOperationalMapboxLayerId);
+    const anchorId =
+      layerIds.find(isSiMapOperationalMapboxLayerId) ??
+      layerIds.find(isSiMapTerrainContourMapboxLayerId);
     if (!anchorId) return;
     try {
       if (!map.getLayer(basemapId) || !map.getLayer(anchorId)) continue;
@@ -123,7 +134,7 @@ export function raiseSiMapUiOverlayLayersToTop(map: MapboxMap): void {
 }
 
 /**
- * Z-order: basemap → WMS rasters → custom feature vectors → draw/AOI UI overlays.
+ * Z-order: basemap → WMS rasters → custom feature vectors → draw/AOI UI overlays → terrain contours (top).
  * Mapbox equivalent of awaiting layerView then applying effects without hiding vectors.
  */
 export function syncSiMapOverlayLayerStack(map: MapboxMap): void {
@@ -146,4 +157,7 @@ export function syncSiMapOverlayLayerStack(map: MapboxMap): void {
 
   raiseSiMapCustomVectorLayersToTop(map);
   raiseSiMapUiOverlayLayersToTop(map);
+  if (siMapTerrainContourLayersMounted(map)) {
+    raiseSiMapTerrainContourLayersAboveWms(map);
+  }
 }

@@ -35,8 +35,8 @@
   display: none !important;
 }
 
-/* ── Map-anchored identify card ── */
-.si-geo-ai-inspect-card--map-anchor {
+/* ── Map-anchored identify card (legacy dark — skipped when glass popup present) ── */
+.si-geo-ai-inspect-card--map-anchor:not(.si-map-feature-popup--glass) {
   width: min(300px, calc(100vw - 48px));
   max-height: min(48vh, 380px);
   border-radius: var(--si-map-popup-radius);

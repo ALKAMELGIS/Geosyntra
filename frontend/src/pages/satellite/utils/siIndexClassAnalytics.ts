@@ -3,13 +3,8 @@
  * Area shares are proportional to valid masked pixel counts (m², ha, km²).
  */
 import { inferWmsEvalProfile } from '../../../lib/sentinelHubWmsAoiClip';
-import {
-  SI_NDMI_CLASSIFICATION_STOPS,
-  SI_NDVI_CLASSIFICATION_STOPS,
-  SI_NDWI_CLASSIFICATION_STOPS,
-  SI_NDWI_CLASS_LABELS,
-  type IndexRampStop,
-} from '../../../lib/siWmsIndexClassificationRamp';
+import { SI_NDWI_CLASS_LABELS, type IndexRampStop } from '../../../lib/siWmsIndexClassificationRamp';
+import { siWmsDefaultStopsForProfile } from './siWmsSymbologyModel';
 import { siWmsIndexLegendClassLabels } from './siWmsLiveIndexLegendConfig';
 import { siWmsRampClassIntervals } from './siWmsSpectralClassification';
 import { classifyValue, legendClassesForIndex, type LegendClass } from './siGeoAiIndexAnalyticalExport';
@@ -17,6 +12,7 @@ import {
   extractMaskedPixelValues,
   type SiAoiRasterPixelSample,
 } from './siAoiZonalStats';
+import { minMaxFinite } from './siChartStatFormat';
 import type { SiAoiReportTableRow } from './siAoiReportCartographyTypes';
 
 export type SiAoiLegendBandCount = 5 | 10;
@@ -75,21 +71,8 @@ export type SiIndexClassAnalytics = {
 };
 
 function stopsForLayer(layerId: StaticAoiChartLayerId): readonly IndexRampStop[] {
-  switch (layerId) {
-    case 'NDWI':
-      return SI_NDWI_CLASSIFICATION_STOPS;
-    case 'NDMI':
-      return SI_NDMI_CLASSIFICATION_STOPS;
-    case 'NDVI':
-    case 'SAVI':
-    case 'EVI':
-    case 'GNDVI':
-    case 'NDSI':
-    case 'NDBI':
-      return SI_NDVI_CLASSIFICATION_STOPS;
-    default:
-      return SI_NDVI_CLASSIFICATION_STOPS;
-  }
+  const profile = inferWmsEvalProfile(layerId);
+  return siWmsDefaultStopsForProfile(profile) ?? siWmsDefaultStopsForProfile('ndvi')!;
 }
 
 function segmentLabelsForLayer(layerId: StaticAoiChartLayerId, segmentCount: number): string[] | null {
@@ -204,10 +187,12 @@ function statsFromValues(values: number[]): {
 } | null {
   const finite = values.filter(Number.isFinite);
   if (!finite.length) return null;
+  const bounds = minMaxFinite(finite);
+  if (!bounds) return null;
   return {
     mean: finite.reduce((a, b) => a + b, 0) / finite.length,
-    min: Math.min(...finite),
-    max: Math.max(...finite),
+    min: bounds.min,
+    max: bounds.max,
   };
 }
 
@@ -231,16 +216,26 @@ export function computeIndexClassAnalytics(opts: {
   const m2PerPixel = opts.totalAreaM2 / values.length;
   const layerMeta = STATIC_AOI_CHART_LAYER_OPTIONS.find(o => o.id === opts.layerId);
 
-  const classBuckets = new Map<number, { seg: SiIndexClassSegment; values: number[] }>();
+  const classBuckets = new Map<number, { seg: SiIndexClassSegment; count: number; sum: number }>();
   for (const seg of segments) {
-    classBuckets.set(seg.classId, { seg, values: [] });
+    classBuckets.set(seg.classId, { seg, count: 0, sum: 0 });
   }
 
   let posCount = 0;
+  let sumAll = 0;
+  let minAll = Infinity;
+  let maxAll = -Infinity;
   for (const v of values) {
+    sumAll += v;
+    if (v < minAll) minAll = v;
+    if (v > maxAll) maxAll = v;
     const seg = classifyToSegment(v, segments);
     if (seg) {
-      classBuckets.get(seg.classId)?.values.push(v);
+      const b = classBuckets.get(seg.classId);
+      if (b) {
+        b.count++;
+        b.sum += v;
+      }
     }
     if (isPositiveCoverPixel(opts.layerId, v)) posCount++;
   }
@@ -248,10 +243,10 @@ export function computeIndexClassAnalytics(opts: {
   const total = values.length;
   const classes: SiIndexClassRow[] = segments.map(seg => {
     const bucket = classBuckets.get(seg.classId);
-    const n = bucket?.values.length ?? 0;
+    const n = bucket?.count ?? 0;
     const pct = (100 * n) / total;
     const areaM2 = n * m2PerPixel;
-    const st = bucket?.values.length ? statsFromValues(bucket.values) : null;
+    const meanIndex = n > 0 && bucket ? bucket.sum / n : null;
     return {
       ...seg,
       pixelCount: n,
@@ -259,11 +254,14 @@ export function computeIndexClassAnalytics(opts: {
       areaM2,
       areaHa: areaM2 / 10000,
       areaKm2: areaM2 / 1_000_000,
-      meanIndex: st?.mean ?? null,
+      meanIndex,
     };
   });
 
-  const global = statsFromValues(values);
+  const global =
+    total > 0 && Number.isFinite(minAll) && Number.isFinite(maxAll)
+      ? { mean: sumAll / total, min: minAll, max: maxAll }
+      : null;
   const labels = coverLabelsForLayer(opts.layerId);
   const negCount = total - posCount;
   const cover: SiIndexCoverPair = {
@@ -304,14 +302,20 @@ export function computeIndexClassAnalyticsFromRaster(opts: {
   analysisDateIso: string;
   legendBandCount?: SiAoiLegendBandCount;
   classifiedStops?: readonly IndexRampStop[] | null;
+  /** Geodesic AOI area (m²) — distributes class shares across masked pixels when raster.areaHa is unset. */
+  totalAreaM2Override?: number | null;
 }): SiIndexClassAnalytics | null {
   const values = extractMaskedPixelValues(opts.raster, opts.layerId, opts.feature);
   const areaM2 =
-    Number.isFinite(opts.raster.areaHa) && opts.raster.areaHa > 0
-      ? opts.raster.areaHa * 10000
-      : values.length > 0 && opts.raster.resolutionM
-        ? values.length * opts.raster.resolutionM * opts.raster.resolutionM
-        : 0;
+    opts.totalAreaM2Override != null &&
+    Number.isFinite(opts.totalAreaM2Override) &&
+    opts.totalAreaM2Override > 0
+      ? opts.totalAreaM2Override
+      : Number.isFinite(opts.raster.areaHa) && opts.raster.areaHa > 0
+        ? opts.raster.areaHa * 10000
+        : values.length > 0 && opts.raster.resolutionM
+          ? values.length * opts.raster.resolutionM * opts.raster.resolutionM
+          : 0;
   if (!values.length || areaM2 <= 0) return null;
   return computeIndexClassAnalytics({
     layerId: opts.layerId,

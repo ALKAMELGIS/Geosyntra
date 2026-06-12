@@ -31,7 +31,21 @@ function parseWmsLayersFromCapabilitiesXml(text: string): SentinelHubWmsLayerInf
 
     const titleNode = node.getElementsByTagName('Title')[0]
     let title = (titleNode?.textContent || name).trim()
-    if (name === 'NDWI' && /Moisture Index \(NDWI\)/i.test(title)) title = 'NDWI'
+    const nu = name.toUpperCase()
+    const isNdwiMoisture =
+      nu === 'NDWI' ||
+      nu.includes('NDWI') ||
+      nu.includes('MNDWI') ||
+      /Moisture\s+Index\s*\(NDWI\)/i.test(title) ||
+      (/NDWI/i.test(title) && /Moisture/i.test(title))
+    if (isNdwiMoisture) title = 'NDWI'
+    else if (/^Moisture\s+Index(\s*\(NDMI\))?$/i.test(title)) title = 'NDMI'
+    else if (
+      (name === 'NDMI' || /NDMI/i.test(name) || /^MOISTURE/i.test(name)) &&
+      /^Moisture\s+index$/i.test(title)
+    ) {
+      title = 'NDMI'
+    }
     const titleKey = normalizeWmsLayerTitleKey(title)
     if (titleKey && seenTitleKeys.has(titleKey)) return
     seenNames.add(name)

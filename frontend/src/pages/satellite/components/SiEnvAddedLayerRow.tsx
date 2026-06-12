@@ -122,6 +122,7 @@ export function SiEnvAddedLayerRow({
           )}
           {layer.meta && !isEditing ? (
             <span className="si-layer-tree__meta" title={layer.meta}>
+              {layer.busy ? <i className="fa-solid fa-spinner fa-spin si-layer-tree__meta-spin" aria-hidden /> : null}
               {layer.meta}
             </span>
           ) : null}
@@ -237,7 +238,12 @@ export function SiEnvAddedLayerRow({
         {reorder}
         <div className="si-env-layer-info">
           <span className="si-env-layer-name">{layer.label}</span>
-          {layer.meta ? <span className="si-env-layer-submeta">{layer.meta}</span> : null}
+          {layer.meta ? (
+            <span className="si-env-layer-submeta">
+              {layer.busy ? <i className="fa-solid fa-spinner fa-spin si-layer-tree__meta-spin" aria-hidden /> : null}
+              {layer.meta}
+            </span>
+          ) : null}
         </div>
         <div className="si-env-layer-top-side">
           {layer.toggleable ? (

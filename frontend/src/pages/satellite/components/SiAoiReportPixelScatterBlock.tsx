@@ -18,6 +18,7 @@ import { buildSiAoiPixelScatterModel } from '../utils/siAoiReportPixelScatter';
 import {
   chartStatTickLabel,
   formatOlsRegressionLegend,
+  minMaxFinite,
   scatterAxisBounds,
   scatterPixelColors,
   scatterPointRadiusForCount,
@@ -72,15 +73,12 @@ export function SiAoiReportPixelScatterBlock({ report, weeklyMeans }: SiAoiRepor
     if (!model) {
       return { datasets: [] };
     }
-    const xs = model.points.map(p => p.x);
-    const ys = model.points.map(p => p.y);
-    const mn = Math.min(...xs);
-    const mx = Math.max(...xs);
+    const xBounds = minMaxFinite(model.points.map(p => p.x));
     const linePts =
-      Number.isFinite(model.slope) && Number.isFinite(model.intercept)
+      xBounds && Number.isFinite(model.slope) && Number.isFinite(model.intercept)
         ? [
-            { x: mn, y: model.slope * mn + model.intercept },
-            { x: mx, y: model.slope * mx + model.intercept },
+            { x: xBounds.min, y: model.slope * xBounds.min + model.intercept },
+            { x: xBounds.max, y: model.slope * xBounds.max + model.intercept },
           ]
         : null;
     const { radius, hover, borderWidth } = scatterPointRadiusForCount(model.points.length);

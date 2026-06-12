@@ -1,4 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { getDrawnGeometry } from '../../../lib/sentinelHubWmsAoiClip';
+import {
+  buildWmsAoiRasterCacheKey,
+  getOrFetchWmsAoiLiveIndexSample,
+} from '../../../lib/wmsAoiLiveRasterCache';
 import { mpcZonalSample, type MpcZonalSampleResult } from '../../../lib/mpcPlanetaryApi';
 import type { SiAoiSpectralProfileMini } from '../components/AoiSpectralProfileMiniChart';
 import {
@@ -58,6 +63,13 @@ export type UseLiveAoiSpectralAnalysisOpts = {
     max: number;
     std?: number;
   } | null;
+  /** Live Sentinel Hub WMS — primary pixel source for min/mean/max (matches map layer). */
+  wmsBaseUrl?: string;
+  wmsAccessToken?: string | null;
+  wmsTimeStart?: string;
+  wmsTimeEnd?: string;
+  wmsCloudCover?: number;
+  wmsGeometryWkt3857?: string | null;
 };
 
 function buildSpectralProfileFromRaster(
@@ -123,9 +135,16 @@ export function useLiveAoiSpectralAnalysis(opts: UseLiveAoiSpectralAnalysisOpts)
     return mpcZonalApiLayerIdsFromPopup(ids.filter(id => id !== 'LST'));
   }, [opts.layerIds, activeLayerId]);
 
-  const debouncedAoiKey = useDebouncedValue(opts.aoiKey, 420);
-  const debouncedDate = useDebouncedValue(opts.analysisDateIso.slice(0, 10), 420);
-  const debouncedLayerSig = useDebouncedValue(`${opts.activeWmsLayer}|${opts.selectedIndex}`, 280);
+  const debouncedAoiKey = useDebouncedValue(opts.aoiKey, 120);
+  const debouncedDate = useDebouncedValue(opts.analysisDateIso.slice(0, 10), 120);
+  const debouncedLayerSig = useDebouncedValue(`${opts.activeWmsLayer}|${opts.selectedIndex}`, 120);
+
+  const maskFeature = useMemo((): GeoJSON.Feature | null => {
+    if (!opts.feature) return null;
+    const g = getDrawnGeometry(opts.feature);
+    if (!g) return null;
+    return { ...opts.feature, geometry: g };
+  }, [opts.feature]);
 
   useEffect(() => {
     if (!opts.enabled) {
@@ -135,113 +154,199 @@ export function useLiveAoiSpectralAnalysis(opts: UseLiveAoiSpectralAnalysisOpts)
       setUpdatedAtIso(null);
       return;
     }
-    const geom = opts.feature?.geometry;
-    if (!geom || (geom.type !== 'Polygon' && geom.type !== 'MultiPolygon')) {
+    if (!maskFeature?.geometry) {
       setStatus('idle');
       setRasterSample(null);
       setError(null);
       setUpdatedAtIso(null);
       return;
     }
-    if (!opts.analysisEngineBaseUrl?.trim()) {
+
+    const wmsReady =
+      !!opts.wmsBaseUrl?.trim() &&
+      !!opts.activeWmsLayer?.trim() &&
+      !!opts.wmsTimeStart &&
+      !!opts.wmsTimeEnd;
+
+    if (!wmsReady && !opts.analysisEngineBaseUrl?.trim()) {
       setRasterSample(null);
       setStatus('unavailable');
-      setError(
-        'Analysis engine offline. Start analysis_engine (port 8000) or set VITE_ANALYSIS_ENGINE_URL.',
-      );
-      return;
-    }
-    if (!mpcLayerIds.length) {
-      setStatus('error');
-      setError('No spectral layers selected for sampling.');
+      setError('Configure Sentinel Hub WMS or start the analysis engine for AOI sampling.');
       return;
     }
 
-    const weekCtx = resolveAoiZonalWeekContext(
-      opts.weeklyComposites,
-      debouncedDate,
-      debouncedDate,
-      activeLayerId,
-    );
-    const datetime = buildAoiZonalDatetimeRange(
-      weekCtx,
-      opts.weeklyComposites,
-      opts.timelineStart ?? '',
-      opts.timelineEnd ?? '',
-    );
+    const preloaded = opts.preloadedRasterSample;
+    const preloadedLayer = preloaded?.layers?.[activeLayerId];
+    const preloadedValid =
+      Boolean(preloaded?.grid?.length) &&
+      (Boolean(preloadedLayer?.length) ||
+        Boolean(preloaded?.mpcLayerStats?.[activeLayerId]?.mean != null));
+    const canShowPreloaded = preloadedValid || Boolean(preloaded?.grid?.length);
 
-    const cacheKey = debouncedAoiKey
-      ? buildLiveAoiCacheKey({
-          aoiKey: debouncedAoiKey,
-          datetime,
-          layerIds: mpcLayerIds,
-          catalogUrl: opts.catalogUrl,
-          maxCloudCover: opts.maxCloudCover,
-          resolution: 20,
-          wmsLayer: opts.activeWmsLayer,
-          anchorIso: debouncedDate,
-        })
-      : '';
-
-    const cached = cacheKey ? getLiveAoiCache(cacheKey) : null;
-    if (cached?.raster?.grid?.length) {
-      setRasterSample(cached.raster);
-      setPixelCount(cached.result.pixel_count ?? cached.raster.grid.length);
+    if (preloadedValid && preloaded) {
+      setRasterSample(preloaded);
+      setPixelCount(preloaded.grid.length);
       setStatus('ready');
-      setError(null);
-      setUpdatedAtIso(new Date(cached.fetchedAt).toISOString());
-      return;
+      setUpdatedAtIso(new Date().toISOString());
+    } else if (!canShowPreloaded) {
+      setStatus('loading');
     }
-
-    const seq = ++requestSeq.current;
-    setStatus('loading');
     setError(null);
 
+    const seq = ++requestSeq.current;
+
     void (async () => {
-      try {
-        const result: MpcZonalSampleResult = await mpcZonalSample(opts.analysisEngineBaseUrl, {
-          aoi: opts.feature!,
-          datetime,
-          layer_ids: mpcLayerIds,
-          catalog_url: opts.catalogUrl,
-          clip_to_aoi: true,
-          max_cloud_cover: opts.maxCloudCover,
-          max_pixels: 9000,
-          resolution: 20,
-        });
+      let sample: SiAoiRasterPixelSample | null = null;
+      let count = 0;
+
+      if (preloadedValid && preloaded) {
+        sample = preloaded;
+        count = preloaded.grid.length;
+      }
+
+      if (wmsReady) {
+        try {
+          const cacheKey = buildWmsAoiRasterCacheKey({
+            wmsBaseUrl: opts.wmsBaseUrl!,
+            layerName: opts.activeWmsLayer,
+            timeStart: opts.wmsTimeStart!,
+            timeEnd: opts.wmsTimeEnd!,
+            cloudCover: opts.wmsCloudCover ?? 20,
+            aoiKey: debouncedAoiKey ?? JSON.stringify(maskFeature.geometry),
+          });
+          const wmsSample = await getOrFetchWmsAoiLiveIndexSample(cacheKey, {
+            wmsBaseUrl: opts.wmsBaseUrl!,
+            wmsAccessToken: opts.wmsAccessToken,
+            layerName: opts.activeWmsLayer,
+            timeStart: opts.wmsTimeStart!,
+            timeEnd: opts.wmsTimeEnd!,
+            cloudCover: opts.wmsCloudCover ?? 20,
+            feature: maskFeature,
+            geometryWkt3857: opts.wmsGeometryWkt3857,
+            maxDim: 384,
+          });
+          if (seq !== requestSeq.current) return;
+          if (wmsSample?.grid?.length) {
+            sample = wmsSample;
+            count = wmsSample.layers[activeLayerId]?.length ?? wmsSample.grid.length;
+          }
+        } catch (e) {
+          if (seq !== requestSeq.current) return;
+          if (!sample && !opts.analysisEngineBaseUrl?.trim()) {
+            setRasterSample(null);
+            setStatus('error');
+            setError(e instanceof Error ? e.message : 'Live layer sampling failed.');
+            return;
+          }
+        }
+      }
+
+      if (sample?.grid?.length) {
         if (seq !== requestSeq.current) return;
-        const sample = mpcResultToRasterPixelSample(result, mpcLayerIds);
-        if (!sample) {
-          setStatus('error');
-          setRasterSample(null);
-          setError('No valid pixels inside AOI for this date range.');
-          return;
-        }
-        if (cacheKey) {
-          setLiveAoiCache(cacheKey, { result, raster: sample, fetchedAt: Date.now() });
-        }
         setRasterSample(sample);
-        setPixelCount(result.pixel_count ?? sample.grid.length);
+        setPixelCount(count || sample.grid.length);
         setStatus('ready');
         setUpdatedAtIso(new Date().toISOString());
-      } catch (e) {
-        if (seq !== requestSeq.current) return;
+        return;
+      }
+
+      if (!sample && opts.analysisEngineBaseUrl?.trim() && mpcLayerIds.length) {
+        const weekCtx = resolveAoiZonalWeekContext(
+          opts.weeklyComposites,
+          debouncedDate,
+          debouncedDate,
+          activeLayerId,
+        );
+        const datetime = buildAoiZonalDatetimeRange(
+          weekCtx,
+          opts.weeklyComposites,
+          opts.timelineStart ?? '',
+          opts.timelineEnd ?? '',
+        );
+
+        const cacheKey = debouncedAoiKey
+          ? buildLiveAoiCacheKey({
+              aoiKey: debouncedAoiKey,
+              datetime,
+              layerIds: mpcLayerIds,
+              catalogUrl: opts.catalogUrl,
+              maxCloudCover: opts.maxCloudCover,
+              resolution: 20,
+              wmsLayer: opts.activeWmsLayer,
+              anchorIso: debouncedDate,
+            })
+          : '';
+
+        const cached = cacheKey ? getLiveAoiCache(cacheKey) : null;
+        if (cached?.raster?.grid?.length) {
+          sample = cached.raster;
+          count = cached.result.pixel_count ?? cached.raster.grid.length;
+        } else {
+          try {
+            const result: MpcZonalSampleResult = await mpcZonalSample(opts.analysisEngineBaseUrl, {
+              aoi: maskFeature,
+              datetime,
+              layer_ids: mpcLayerIds,
+              catalog_url: opts.catalogUrl,
+              clip_to_aoi: true,
+              max_cloud_cover: opts.maxCloudCover,
+              max_pixels: 9000,
+              resolution: 20,
+            });
+            if (seq !== requestSeq.current) return;
+            const mpcSample = mpcResultToRasterPixelSample(result, mpcLayerIds);
+            if (mpcSample) {
+              if (cacheKey) {
+                setLiveAoiCache(cacheKey, { result, raster: mpcSample, fetchedAt: Date.now() });
+              }
+              sample = mpcSample;
+              count = result.pixel_count ?? mpcSample.grid.length;
+            }
+          } catch (e) {
+            if (seq !== requestSeq.current) return;
+            setRasterSample(null);
+            setStatus('error');
+            setError(e instanceof Error ? e.message : 'Raster sampling failed.');
+            return;
+          }
+        }
+      }
+
+      if (seq !== requestSeq.current) return;
+      if (!sample?.grid?.length) {
+        if (preloadedValid && preloaded) {
+          setRasterSample(preloaded);
+          setPixelCount(preloaded.grid.length);
+          setStatus('ready');
+          return;
+        }
         setRasterSample(null);
         setStatus('error');
-        setError(e instanceof Error ? e.message : 'Raster sampling failed.');
+        setError('No valid pixels inside AOI for this date and layer.');
+        return;
       }
+      setRasterSample(sample);
+      setPixelCount(count || sample.grid.length);
+      setStatus('ready');
+      setUpdatedAtIso(new Date().toISOString());
     })();
   }, [
     opts.enabled,
-    opts.feature,
+    debouncedAoiKey,
     opts.analysisEngineBaseUrl,
+    opts.wmsBaseUrl,
+    opts.wmsAccessToken,
+    opts.wmsTimeStart,
+    opts.wmsTimeEnd,
+    opts.wmsCloudCover,
+    opts.wmsGeometryWkt3857,
+    opts.activeWmsLayer,
     opts.preloadedRasterSample,
     opts.timelineStart,
     opts.timelineEnd,
     opts.catalogUrl,
     opts.maxCloudCover,
     opts.weeklyComposites,
-    debouncedAoiKey,
     debouncedDate,
     debouncedLayerSig,
     mpcLayerIds,

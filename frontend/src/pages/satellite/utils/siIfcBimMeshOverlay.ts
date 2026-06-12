@@ -5,6 +5,8 @@ import { SimpleMeshLayer } from '@deck.gl/mesh-layers';
 import { SI_BIM_CATEGORY_COLORS, type SiBimCategory } from './siIfcBimCategories';
 import { getSiBimModel } from './siIfcBimModelStore';
 
+const SI_IFC_BIM_MESH_OPACITY = 215;
+
 type BimMeshRuntime = { overlay: MapboxOverlay; modelId: string };
 const runtimeByMap = new WeakMap<MapboxMap, BimMeshRuntime>();
 
@@ -28,6 +30,7 @@ function buildMeshLayers(modelId: string, visibleCategories?: Set<SiBimCategory>
     if (!mesh) continue;
     if (visibleCategories && !visibleCategories.has(cat)) continue;
     const color = hexToRgb(SI_BIM_CATEGORY_COLORS[cat] ?? '#64748b');
+    const alpha = SI_IFC_BIM_MESH_OPACITY;
     layers.push(
       new SimpleMeshLayer({
         id: `si-ifc-mesh-${modelId}-${cat}`,
@@ -39,7 +42,7 @@ function buildMeshLayers(modelId: string, visibleCategories?: Set<SiBimCategory>
         },
         data: [1],
         getPosition: () => [0, 0, 0],
-        getColor: [...color, 220],
+        getColor: [...color, alpha],
         coordinateSystem: COORDINATE_SYSTEM.METER_OFFSETS,
         coordinateOrigin: [originLng, originLat, originZ],
         pickable: true,

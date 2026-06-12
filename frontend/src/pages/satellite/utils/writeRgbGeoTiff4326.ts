@@ -127,3 +127,100 @@ export function encodeRgbGeoTiff4326(
 
   return buf;
 }
+
+/**
+ * Encode a north-up single-band Float32 raster with geographic bounds in WGS84.
+ * No-data pixels should be NaN.
+ */
+export function encodeFloat32GeoTiff4326(
+  width: number,
+  height: number,
+  values: Float32Array,
+  bbox: GeoTiff4326BBox,
+): ArrayBuffer {
+  if (width < 1 || height < 1) throw new Error('GeoTIFF export requires a positive width and height.');
+  if (values.length !== width * height) throw new Error('Value buffer size does not match image dimensions.');
+  const { west, south, east, north } = bbox;
+  if (![west, south, east, north].every(Number.isFinite)) throw new Error('Invalid geographic bounds.');
+  if (east <= west || north <= south) throw new Error('Invalid geographic extent.');
+
+  const pixelScaleX = (east - west) / width;
+  const pixelScaleY = (south - north) / height;
+
+  const bitsPerSample = new Uint16Array([32]);
+  const sampleFormat = new Uint16Array([3]);
+  const modelPixelScale = new Float64Array([pixelScaleX, pixelScaleY, 0]);
+  const modelTiepoint = new Float64Array([0, 0, 0, west, north, 0]);
+  const geoKeys = new Uint16Array([
+    1, 1, 0, 4,
+    1024, 0, 1, 2,
+    1025, 0, 1, 1,
+    2048, 0, 1, 4326,
+    2054, 0, 1, 9102,
+  ]);
+
+  const stripBytes = width * height * 4;
+  const ifdEntryCount = 13;
+  const headerSize = 8;
+  const ifdOffset = headerSize;
+  const ifdSize = 2 + ifdEntryCount * 12 + 4;
+  let cursor = align4(ifdOffset + ifdSize);
+
+  const bitsOffset = cursor;
+  cursor = align4(cursor + bitsPerSample.byteLength);
+  const formatOffset = cursor;
+  cursor = align4(cursor + sampleFormat.byteLength);
+  const scaleOffset = cursor;
+  cursor = align4(cursor + modelPixelScale.byteLength);
+  const tieOffset = cursor;
+  cursor = align4(cursor + modelTiepoint.byteLength);
+  const geoOffset = cursor;
+  cursor = align4(cursor + geoKeys.byteLength);
+  const stripOffset = cursor;
+  cursor += stripBytes;
+
+  const buf = new ArrayBuffer(cursor);
+  const view = new DataView(buf);
+  const bytes = new Uint8Array(buf);
+
+  bytes[0] = 0x49;
+  bytes[1] = 0x49;
+  writeU16(view, 2, 42);
+  writeU32(view, 4, ifdOffset);
+
+  writeU16(view, ifdOffset, ifdEntryCount);
+  let entry = ifdOffset + 2;
+
+  const tag = (code: number, type: number, count: number, valueOrOffset: number) => {
+    writeU16(view, entry, code);
+    writeU16(view, entry + 2, type);
+    writeU32(view, entry + 4, count);
+    writeU32(view, entry + 8, valueOrOffset);
+    entry += 12;
+  };
+
+  tag(256, 4, 1, width);
+  tag(257, 4, 1, height);
+  tag(258, 3, 1, bitsOffset);
+  tag(259, 3, 1, 1);
+  tag(262, 3, 1, 1);
+  tag(273, 4, 1, stripOffset);
+  tag(277, 3, 1, 1);
+  tag(278, 4, 1, height);
+  tag(279, 4, 1, stripBytes);
+  tag(339, 3, 1, formatOffset);
+  tag(33550, 12, 3, scaleOffset);
+  tag(33922, 12, 6, tieOffset);
+  tag(34735, 3, geoKeys.length, geoOffset);
+
+  writeU32(view, entry, 0);
+
+  new Uint8Array(buf, bitsOffset, bitsPerSample.byteLength).set(new Uint8Array(bitsPerSample.buffer));
+  new Uint8Array(buf, formatOffset, sampleFormat.byteLength).set(new Uint8Array(sampleFormat.buffer));
+  new Uint8Array(buf, scaleOffset, modelPixelScale.byteLength).set(new Uint8Array(modelPixelScale.buffer));
+  new Uint8Array(buf, tieOffset, modelTiepoint.byteLength).set(new Uint8Array(modelTiepoint.buffer));
+  new Uint8Array(buf, geoOffset, geoKeys.byteLength).set(new Uint8Array(geoKeys.buffer));
+  new Float32Array(buf, stripOffset, values.length).set(values);
+
+  return buf;
+}

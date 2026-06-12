@@ -11,23 +11,32 @@ const ESRI = 'https://server.arcgisonline.com/ArcGIS/rest/services'
 const ATTR_ESRI = 'Tiles © Esri'
 const ATTR_OSM = '© OpenStreetMap contributors'
 const ATTR_CARTO = '© OpenStreetMap © CARTO'
-const ATTR_GOOGLE = '© Google'
 
 /**
- * Google Maps raster tiles (mt1.google.com). No {s} subdomain token — Mapbox GL replaces {s}
- * with 'a' (→ "mta.google.com", which does not resolve), so a fixed host is required.
- *   lyrs=y → satellite imagery + roads/labels (Google Earth look)
- *   lyrs=s → satellite imagery only
- *   lyrs=m → street/road map
+ * Unofficial Google vt tiles embed a grey "Map data not yet available" watermark above ~z19
+ * (worse in 3D globe / terrain). Cap raster source maxzoom so Mapbox overzooms crisp lower tiles.
  */
-const googleTile = (lyrs: string) => `https://mt1.google.com/vt/lyrs=${lyrs}&x={x}&y={y}&z={z}`
+export const GOOGLE_RASTER_MAX_ZOOM = 19;
 
-/**
- * Unofficial Google vt tiles embed a grey "Map data not yet available" watermark above ~z20.
- * Cap raster source maxzoom so Mapbox overzooms crisp lower tiles instead of fetching blanks.
- */
+/** Esri World_Terrain_Base MapServer — cached through level 13. */
+export const ESRI_WORLD_TERRAIN_MAX_ZOOM = 13;
+
+export function isGoogleRasterTileUrl(url: string): boolean {
+  return /google\.com\/vt\//i.test(url);
+}
+
+export function isEsriWorldTerrainTileUrl(url: string): boolean {
+  return /World_Terrain_Base/i.test(url);
+}
+
+export function isGoogleBasemapId(id: string): boolean {
+  const raw = id.trim().toLowerCase();
+  return raw === 'google' || raw.startsWith('google-') || raw.includes('photorealistic');
+}
+
 export function rasterMaxZoomForTileUrl(url: string): number | undefined {
-  if (/google\.com\/vt\//i.test(url)) return 20;
+  if (isGoogleRasterTileUrl(url)) return GOOGLE_RASTER_MAX_ZOOM;
+  if (isEsriWorldTerrainTileUrl(url)) return ESRI_WORLD_TERRAIN_MAX_ZOOM;
   return undefined;
 }
 
@@ -45,8 +54,14 @@ export type BasemapCatalogEntry = {
   esri3dBuildings?: boolean
   /** Which I3S SceneServer to load when {@link esri3dBuildings} is true. Defaults to Esri global buildings. */
   esri3dBuildingsScene?: Esri3dBuildingsSceneVariant
+  /** Google Map Tiles API — Photorealistic 3D mesh (3D Tiles via backend proxy). */
+  googlePhotorealistic3d?: boolean
   /** Gallery chips — e.g. 3D, beta (ArcGIS-style basemap picker). */
   badges?: string[]
+  /** Optional gallery thumbnail (ArcGIS vector basemaps). */
+  thumbnailUrl?: string
+  /** Esri Living Atlas World Elevation Terrain vector basemap. */
+  esriWorldElevationTerrain?: boolean
 }
 
 function esriTile(servicePath: string): string {
@@ -105,6 +120,19 @@ const OPENTOPO_RASTER: Record<string, unknown> = rasterStyleFromTiles([
 const ESRI_IMAGERY = esriTile('World_Imagery')
 const ESRI_IMAGERY_STYLE = rasterStyleFromTiles([{ url: ESRI_IMAGERY, attribution: ATTR_ESRI }])
 
+/** Google Earth satellite imagery (2D raster — not Photorealistic 3D mesh). */
+const GOOGLE_EARTH_SATELLITE = 'https://mt1.google.com/vt/lyrs=s&x={x}&y={y}&z={z}'
+const ATTR_GOOGLE = '© Google'
+const GOOGLE_EARTH_STYLE = rasterStyleFromTiles([
+  { url: GOOGLE_EARTH_SATELLITE, attribution: ATTR_GOOGLE },
+])
+
+/** Esri Living Atlas World Terrain Base (shaded relief + bathymetry). */
+export const ESRI_WORLD_TERRAIN_BASE_URL = esriTile('World_Terrain_Base')
+const ESRI_WORLD_TERRAIN_STYLE = rasterStyleFromTiles([
+  { url: ESRI_WORLD_TERRAIN_BASE_URL, attribution: ATTR_ESRI },
+])
+
 /** @deprecated Mapbox-hosted basemaps removed — option kept for call-site compatibility. */
 export type BuildBasemapCatalogOptions = {
   includeMapboxVectorBasemaps?: boolean
@@ -115,26 +143,8 @@ export type BuildBasemapCatalogOptions = {
 export function buildBasemapCatalog(_mapboxToken = '', _options?: BuildBasemapCatalogOptions): BasemapCatalogEntry[] {
   const entries: BasemapCatalogEntry[] = [
     {
-      id: 'google-earth',
-      label: 'Google Earth',
-      mapboxStyle: rasterStyleFromTiles([{ url: googleTile('y'), attribution: ATTR_GOOGLE }]),
-      leafletLayers: [{ url: googleTile('y'), attribution: ATTR_GOOGLE }],
-    },
-    {
-      id: 'google-satellite',
-      label: 'Google Satellite',
-      mapboxStyle: rasterStyleFromTiles([{ url: googleTile('s'), attribution: ATTR_GOOGLE }]),
-      leafletLayers: [{ url: googleTile('s'), attribution: ATTR_GOOGLE }],
-    },
-    {
-      id: 'google-streets',
-      label: 'Google Street',
-      mapboxStyle: rasterStyleFromTiles([{ url: googleTile('m'), attribution: ATTR_GOOGLE }]),
-      leafletLayers: [{ url: googleTile('m'), attribution: ATTR_GOOGLE }],
-    },
-    {
-      id: 'satellite',
-      label: 'Satellite (Esri)',
+      id: 'esri',
+      label: 'Esri World Imagery',
       mapboxStyle: ESRI_IMAGERY_STYLE,
       leafletLayers: [{ url: ESRI_IMAGERY, attribution: ATTR_ESRI }],
     },
@@ -157,10 +167,11 @@ export function buildBasemapCatalog(_mapboxToken = '', _options?: BuildBasemapCa
       leafletLayers: [{ url: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', attribution: ATTR_OSM }],
     },
     {
-      id: 'esri',
-      label: 'Esri World Imagery',
-      mapboxStyle: ESRI_IMAGERY_STYLE,
-      leafletLayers: [{ url: ESRI_IMAGERY, attribution: ATTR_ESRI }],
+      id: 'esri-world-terrain',
+      label: 'World Terrain (Esri)',
+      mapboxStyle: ESRI_WORLD_TERRAIN_STYLE,
+      leafletLayers: [{ url: ESRI_WORLD_TERRAIN_BASE_URL, attribution: ATTR_ESRI }],
+      badges: ['3D'],
     },
     {
       id: 'esri-imagery-hybrid',
@@ -185,6 +196,12 @@ export function buildBasemapCatalog(_mapboxToken = '', _options?: BuildBasemapCa
       leafletLayers: [{ url: esriTile('World_Street_Map'), attribution: ATTR_ESRI }],
     },
     {
+      id: 'google-earth',
+      label: 'Google Earth',
+      mapboxStyle: GOOGLE_EARTH_STYLE,
+      leafletLayers: [{ url: GOOGLE_EARTH_SATELLITE, attribution: ATTR_GOOGLE }],
+    },
+    {
       id: 'esri-topo',
       label: 'Topographic / Outdoor',
       mapboxStyle: rasterStyleFromTiles([{ url: esriTile('World_Topo_Map'), attribution: ATTR_ESRI }]),
@@ -204,11 +221,11 @@ export function buildBasemapCatalog(_mapboxToken = '', _options?: BuildBasemapCa
       id: 'esri-terrain-labels',
       label: 'Terrain with labels (Esri)',
       mapboxStyle: rasterStyleFromTiles([
-        { url: esriTile('World_Terrain_Base'), attribution: ATTR_ESRI },
+        { url: ESRI_WORLD_TERRAIN_BASE_URL, attribution: ATTR_ESRI },
         { url: esriTile(ESRI_REF_WORLD_OVERLAY), attribution: ATTR_ESRI, opacity: 1 },
       ]),
       leafletLayers: [
-        { url: esriTile('World_Terrain_Base'), attribution: ATTR_ESRI },
+        { url: ESRI_WORLD_TERRAIN_BASE_URL, attribution: ATTR_ESRI },
         { url: esriTile(ESRI_REF_WORLD_OVERLAY), attribution: ATTR_ESRI },
       ],
     },
@@ -301,6 +318,9 @@ export function mapboxGlStyleForEntry(
   if (rasterLayers.length) {
     return rasterStyleFromTiles(rasterLayers)
   }
+  if (typeof entry.mapboxStyle === 'string' && entry.mapboxStyle.trim()) {
+    return entry.mapboxStyle.trim()
+  }
   if (typeof entry.mapboxStyle === 'object' && entry.mapboxStyle !== null) {
     return entry.mapboxStyle
   }
@@ -322,6 +342,10 @@ export function getBasemapThumbnail(entry: BasemapCatalogEntry, _mapboxToken = '
 }
 
 function resolveBasemapThumbnailUrl(entry: BasemapCatalogEntry): string {
+  if (entry.thumbnailUrl?.trim()) return entry.thumbnailUrl.trim()
+  if (isGooglePhotorealistic3dBasemapEntry(entry)) {
+    return ESRI_IMAGERY.replace('{z}', '2').replace('{y}', '1').replace('{x}', '2')
+  }
   const first = entry.leafletLayers?.[0]?.url
   if (first) {
     const direct = rasterPreviewFromTemplate(first)
@@ -333,28 +357,37 @@ function resolveBasemapThumbnailUrl(entry: BasemapCatalogEntry): string {
 /** Map saved UI / config ids to current catalog ids after deduplication or renames. */
 export function resolveBasemapId(id: string): string {
   const legacy: Record<string, string> = {
-    'mapbox-alkamelgis': 'satellite',
+    satellite: 'esri',
+    'mapbox-alkamelgis': 'esri',
     hybrid: 'esri-imagery-hybrid',
     street: 'osm',
     streets: 'esri-streets',
     dark: 'esri-dark-gray',
     topographic: 'esri-topo',
     topo: 'esri-topo',
-    terrain: 'terrain-opentopo',
-    google: 'google-satellite',
+    terrain: 'esri-world-terrain',
+    'world-terrain': 'esri-world-terrain',
+    'esri-world-terrain-base': 'esri-world-terrain',
+    EsriWorldElevationTerrain: 'esri',
+    'esri-world-elevation': 'esri',
+    'esri-world-elevation-terrain': 'esri',
+    'world-elevation-terrain': 'esri',
+    google: 'google-earth',
+    'google-satellite': 'google-earth',
+    'google-streets': 'esri-streets',
     'google-photorealistic': 'google-earth',
     'google-photorealistic-hybrid': 'google-earth',
-    'google-photorealistic-3d': 'google-earth',
-    'google-photorealistic-hybrid-3d': 'google-earth',
+    'google-photorealistic-3d': 'esri',
+    'google-photorealistic-hybrid-3d': 'esri',
     'esri-navigation': 'esri-streets',
     'esri-outdoor': 'esri-topo',
     'esri-charted-territory': 'esri-shaded-relief',
-    '3d-ed-building': 'satellite',
-    '3D_ED_BUILDING': 'satellite',
-    'openstreetmap-3d-buildings': 'satellite',
-    'esri-3d-buildings': 'satellite',
-    'osm-3d-buildings': 'satellite',
-    'mapbox-standard-satellite': 'satellite',
+    '3d-ed-building': 'esri',
+    '3D_ED_BUILDING': 'esri',
+    'openstreetmap-3d-buildings': 'esri',
+    'esri-3d-buildings': 'esri',
+    'osm-3d-buildings': 'esri',
+    'mapbox-standard-satellite': 'esri',
     'mapbox-hybrid': 'esri-imagery-hybrid',
     'mb-streets': 'esri-streets',
     'mb-outdoors': 'esri-topo',
@@ -376,6 +409,50 @@ export function isEsri3dBuildingsBasemapEntry(
   return Boolean(entry?.esri3dBuildings)
 }
 
+export function isGooglePhotorealistic3dBasemapEntry(
+  entry: BasemapCatalogEntry | null | undefined,
+): boolean {
+  return Boolean(entry?.googlePhotorealistic3d)
+}
+
+/** True when the entry already uses Esri World_Terrain_Base as a primary raster. */
+export function basemapUsesEsriWorldTerrainBase(entry: BasemapCatalogEntry | null | undefined): boolean {
+  return (
+    entry?.leafletLayers?.some(L => /World_Terrain_Base/i.test(L.url)) ??
+    false
+  )
+}
+
+const IMAGERY_FORWARD_BASEMAP_RE =
+  /World_Imagery|World_Street|World_Topo|NatGeo|cartocdn|openstreetmap|World_Physical|World_Shaded_Relief/i
+
+/**
+ * Satellite / hybrid basemaps that benefit from Esri World Terrain underlay in 3D Earth mode.
+ * Skips pure terrain basemaps and Google Photorealistic 3D mesh.
+ */
+export function isImageryForwardBasemapEntry(entry: BasemapCatalogEntry | null | undefined): boolean {
+  if (!entry?.leafletLayers?.length) return false
+  if (isGooglePhotorealistic3dBasemapEntry(entry)) return false
+  if (basemapUsesEsriWorldTerrainBase(entry)) return false
+  if (entry.id === 'terrain-opentopo') return false
+  return entry.leafletLayers.some(L => IMAGERY_FORWARD_BASEMAP_RE.test(L.url))
+}
+
+/**
+ * All raster basemaps except Google 3D mesh and entries that already use World_Terrain_Base
+ * as the primary surface (avoids duplicate relief tiles).
+ */
+export function basemapSupportsEarthHybridUnderlay(entry: BasemapCatalogEntry | null | undefined): boolean {
+  if (!entry?.leafletLayers?.length) return false
+  if (isGooglePhotorealistic3dBasemapEntry(entry)) return false
+  if (basemapUsesEsriWorldTerrainBase(entry)) return false
+  return true
+}
+
+export function is3dMeshBasemapEntry(entry: BasemapCatalogEntry | null | undefined): boolean {
+  return isEsri3dBuildingsBasemapEntry(entry) || isGooglePhotorealistic3dBasemapEntry(entry)
+}
+
 export function resolveEsri3dBuildingsSceneVariant(
   entry: BasemapCatalogEntry | null | undefined,
 ): Esri3dBuildingsSceneVariant {
@@ -391,18 +468,19 @@ export function partitionBasemapCatalog(catalog: BasemapCatalogEntry[]): {
   return { basemap3dEntries, basemapRasterEntries }
 }
 
-/** Startup default — Esri World Imagery; no Mapbox token needed for first paint. */
-export const DEFAULT_BASEMAP_ID = 'satellite'
+/** Startup default — Esri World Imagery satellite raster. */
+export const DEFAULT_BASEMAP_ID = 'esri'
 
 /** Startup fallback — same as {@link DEFAULT_BASEMAP_ID}. */
-export const DEFAULT_BASEMAP_ID_NO_MAPBOX = 'satellite'
+export const DEFAULT_BASEMAP_ID_NO_MAPBOX = 'esri'
 
 /** Ids used only while Mapbox is loading; upgrade to {@link DEFAULT_BASEMAP_ID} once available. */
 export const STARTUP_BASEMAP_FALLBACK_IDS = new Set<string>([
   DEFAULT_BASEMAP_ID_NO_MAPBOX,
+  'google-earth',
+  'esri',
   'satellite',
   'osm',
-  'esri',
 ])
 
 /** Resolve the basemap id for Map Canvas first paint (config layer). */
@@ -423,7 +501,9 @@ export function reconcileBasemapId(
   _options?: { promoteStartupFallbacks?: boolean },
 ): string {
   const resolved = resolveBasemapId(currentId)
-  if (catalogEntryById(catalog, resolved)) return currentId
+  if (catalogEntryById(catalog, resolved)) {
+    return catalogEntryById(catalog, currentId) ? currentId : resolved
+  }
   const alias = resolveBasemapId(resolved)
   if (catalogEntryById(catalog, alias)) return alias
   return resolveStartupBasemapId(false, catalog)

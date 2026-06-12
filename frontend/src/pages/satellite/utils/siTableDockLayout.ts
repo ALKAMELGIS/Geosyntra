@@ -17,12 +17,6 @@ export function siTableDockHeightMaxPx(): number {
   return Math.max(220, Math.round(window.innerHeight * 0.62));
 }
 
-/** Default open size — ~22% viewport (quarter screen feel, not full width). */
-export function siTableDockHeightDefaultPx(): number {
-  if (typeof window === 'undefined') return 240;
-  return Math.max(168, Math.round(window.innerHeight * 0.22));
-}
-
 export function siTableDockHeightQuarterPx(): number {
   if (typeof window === 'undefined') return 220;
   return Math.max(160, Math.round(window.innerHeight * 0.22));
@@ -36,6 +30,11 @@ export function siTableDockHeightCompactPx(): number {
 export function siTableDockHeightHalfPx(): number {
   if (typeof window === 'undefined') return 360;
   return Math.max(200, Math.round(window.innerHeight * 0.48));
+}
+
+/** Default Attribute table open size — ½ screen preset. */
+export function siTableDockHeightDefaultPx(): number {
+  return siTableDockHeightHalfPx();
 }
 
 export function clampSiTableDockHeightPx(h: number): number {

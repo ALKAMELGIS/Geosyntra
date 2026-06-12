@@ -1177,7 +1177,8 @@ export function isGisDataScopedQuestion(userText: string, layers: GeoAiMapLayer[
 
   const KW =
     /\b(layers?|layer|field|fields|attribute|attributes|properties|features?|feature|polygon|polygons|parcel|parcels|plot|plots|geojson|shapefile|kml|kmz|how\s+many|count\b|counts|average|mean|median|min|max|sum|total|distribution|statistics|stats|percentage|proportion|tabular|records?|rows?)\b/i
-  const AR = /طبقة|طبقات|حقول|حقل|سمات|خصائص|مضلع|عناصر|عدد|إحصاء|تحليل|إحصائي|البيانات\s+في|على\s+الخريطة|في\s+الخريطة/i
+  const AR =
+    /طبقة|طبقات|حقول|حقل|سمات|خصائص|مضلع|عناصر|عدد|إحصاء|تحليل|إحصائي|البيانات\s+في|على\s+الخريطة|في\s+الخريطة|آبار|بئر|أراضي|اراض|مشروع|مساحة|هكتار|أقرب|اقرب|داخل|ضمن|مجموع|إجمالي|زراع/i
   if (KW.test(t) || AR.test(t)) return true
   const hint = extractGeoExplorerLayerHint(t, layers)
   if (!hint) return false

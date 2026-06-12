@@ -20,13 +20,9 @@ type AppErrorState = {
   details?: string
 } | null
 
-/** Mapbox GL can throw async tile errors after leaving Satellite Intelligence; do not block other routes. */
-function isIgnorableOffSatelliteMapboxError(err: unknown): boolean {
-  const msg = err instanceof Error ? err.message : String(err ?? '')
-  if (!msg.includes('errorCb is not a function')) return false
-  if (typeof window === 'undefined') return false
-  const route = `${window.location.pathname}${window.location.hash}`
-  return !route.includes('/satellite')
+/** Mapbox GL can throw async tile errors after style/terrain churn; never tear down the SPA. */
+function isIgnorableMapboxAsyncError(err: unknown): boolean {
+  return isRecoverableMapboxMapError(err)
 }
 
 function errorMessageText(err: unknown): string {
@@ -75,9 +71,10 @@ class AppErrorBoundary extends Component<{ children: JSX.Element }, { err: AppEr
         }
         return
       }
-      if (isIgnorableOffSatelliteMapboxError(reason)) {
+      if (isIgnorableMapboxAsyncError(reason)) {
         try {
-          console.warn('[mapbox] Ignored async error off satellite route:', reason)
+          e.preventDefault?.()
+          console.warn('[mapbox] Ignored recoverable async map error:', errorMessageText(reason))
         } catch {
         }
         return
@@ -102,9 +99,10 @@ class AppErrorBoundary extends Component<{ children: JSX.Element }, { err: AppEr
         }
         return
       }
-      if (isIgnorableOffSatelliteMapboxError(err ?? e?.message)) {
+      if (isIgnorableMapboxAsyncError(err ?? e?.message)) {
         try {
-          console.warn('[mapbox] Ignored window error off satellite route:', err ?? e?.message)
+          e.preventDefault?.()
+          console.warn('[mapbox] Ignored recoverable window map error:', errorMessageText(err ?? e?.message))
         } catch {
         }
         return

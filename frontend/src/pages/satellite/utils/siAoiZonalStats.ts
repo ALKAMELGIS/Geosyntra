@@ -44,6 +44,8 @@ export type SiAoiRasterPixelSample = {
   mpcLayerStats?: Partial<Record<StaticAoiChartLayerId, SiAoiZonalIndexStats>>;
   areaHa: number;
   resolutionM: number | null;
+  /** Pixels already clipped to AOI (WMS stats / MPC clip) — skip per-pixel polygon tests. */
+  aoiClipped?: boolean;
 };
 
 function walkCoordsLngLat2D(coords: unknown, points: [number, number][]) {
@@ -267,6 +269,7 @@ export function mpcResultToRasterPixelSample(
     mpcLayerStats,
     areaHa: Number.isFinite(result.area_ha) ? result.area_ha : 0,
     resolutionM: typeof resM === 'number' && Number.isFinite(resM) ? resM : null,
+    aoiClipped: result.processing?.clip_to_aoi !== false,
   };
 }
 
@@ -418,25 +421,25 @@ export function computeAoiZonalAnalytics(opts: {
   };
 }
 
-/** Per-week zonal mean for charts (one grid build, many weeks). */
+/** Per-week zonal mean for charts — raster pixels inside AOI only (no synthetic grid). */
 export function computeAoiZonalWeeklyMeans(
   feature: GeoJSON.Feature,
-  aoiKey: string | null,
+  _aoiKey: string | null,
   layerId: StaticAoiChartLayerId,
   weekly: WeeklyCompositeLite[],
-): number[] {
+  rastersByWeekIdx?: readonly (SiAoiRasterPixelSample | null | undefined)[],
+): (number | null)[] {
   if (!weekly.length) return [];
-  const grid = buildAoiInteriorGrid(feature);
-  const n = weekly.length;
-  return weekly.map((w, weekIdx) => {
-    const vals: number[] = [];
-    for (const p of grid) {
-      const ck = cellKeyForPixel(aoiKey, p.lng, p.lat);
-      const v = staticAoiLayerMeanForWeek(layerId, weekIdx, n, ck, w.mean);
-      if (Number.isFinite(v)) vals.push(v);
-    }
-    const st = statsFromValues(vals);
-    return st?.mean ?? NaN;
+  if (!rastersByWeekIdx?.length) return weekly.map(() => null);
+  return weekly.map((_, weekIdx) => {
+    const raster = rastersByWeekIdx[weekIdx];
+    if (!raster) return null;
+    const masked = extractMaskedPixelValues(raster, layerId, feature);
+    const st = statsFromValues(masked);
+    if (st && Number.isFinite(st.mean)) return st.mean;
+    const mpc = raster.mpcLayerStats?.[layerId];
+    if (mpc && Number.isFinite(mpc.mean)) return mpc.mean;
+    return null;
   });
 }
 
@@ -449,7 +452,8 @@ export function extractMaskedPixelValues(
   const raw = raster.layers[layerId];
   if (!raw?.length) return [];
   const grid = raster.grid;
-  const geom = feature?.geometry;
+  const skipGeom = raster.aoiClipped === true;
+  const geom = skipGeom ? null : feature?.geometry;
   const n = Math.min(raw.length, grid.length);
   const out: number[] = [];
   for (let i = 0; i < n; i++) {

@@ -15,13 +15,36 @@ function readStoredPos(key: string): DraggablePanelPosition | null {
   return null
 }
 
-function defaultPanelPosition(panelW = 340, panelH = 520): DraggablePanelPosition {
+function readMapLeadingInset(): number {
+  if (typeof window === 'undefined') return 16
+  try {
+    const raw = getComputedStyle(document.documentElement).getPropertyValue('--si-map-leading-edge').trim()
+    const n = parseFloat(raw)
+    if (Number.isFinite(n) && n >= 0) return n
+  } catch {
+    /* ignore */
+  }
+  return 16
+}
+
+function defaultPanelPosition(
+  panelW = 340,
+  panelH = 520,
+  opts?: { anchor?: 'left' | 'right'; verticalBias?: number },
+): DraggablePanelPosition {
   const pad = 16
   const w = typeof window !== 'undefined' ? window.innerWidth : 1280
   const h = typeof window !== 'undefined' ? window.innerHeight : 800
+  const leading = readMapLeadingInset()
+  const x =
+    opts?.anchor === 'left'
+      ? Math.max(pad, Math.round(leading + pad))
+      : Math.max(pad, w - panelW - pad)
+  const centerY = (h - panelH) / 2
+  const bias = opts?.verticalBias ?? 0
   return {
-    x: Math.max(pad, w - panelW - pad),
-    y: Math.max(pad, Math.round((h - panelH) / 2)),
+    x,
+    y: Math.max(pad, Math.round(centerY + bias)),
   }
 }
 
@@ -29,17 +52,26 @@ export function useDraggablePanel(opts?: {
   storageKey?: string
   panelWidth?: number
   panelHeight?: number
+  /** Initial placement when nothing is stored yet. */
+  defaultAnchor?: 'left' | 'right'
+  /** Nudge default Y (negative = slightly above vertical center). */
+  defaultVerticalBias?: number
 }) {
   const storageKey = opts?.storageKey
   const panelW = opts?.panelWidth ?? 340
   const panelH = opts?.panelHeight ?? 520
+  const defaultAnchor = opts?.defaultAnchor ?? 'right'
+  const defaultVerticalBias = opts?.defaultVerticalBias ?? 0
 
   const [pos, setPos] = useState<DraggablePanelPosition>(() => {
     if (storageKey) {
       const stored = readStoredPos(storageKey)
       if (stored) return stored
     }
-    return defaultPanelPosition(panelW, panelH)
+    return defaultPanelPosition(panelW, panelH, {
+      anchor: defaultAnchor,
+      verticalBias: defaultVerticalBias,
+    })
   })
 
   const dragRef = useRef<{ startX: number; startY: number; origX: number; origY: number } | null>(null)

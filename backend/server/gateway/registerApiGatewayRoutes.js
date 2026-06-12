@@ -10,7 +10,6 @@ import { claudeMessagesServer } from './claudeProxy.js'
 import { createGatewayRateLimitMiddleware } from './gatewayRateLimit.js'
 import { proxyGoogle3dTilesRequest, serveGoogle3dRootTileset } from './google3dTilesProxy.js'
 import { proxyMapboxRequest, proxyOpenWeatherRequest } from './mapboxProxy.js'
-
 function isPublicMapboxToken(token) {
   const t = String(token || '').trim()
   return t.startsWith('pk.')

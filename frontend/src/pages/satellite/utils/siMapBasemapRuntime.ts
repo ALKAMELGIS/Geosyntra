@@ -1,6 +1,8 @@
 import type { Map as MapboxMap } from 'mapbox-gl';
 import type { BasemapCatalogEntry, LeafletTileSpec } from '../basemapCatalog';
 import {
+  isGooglePhotorealistic3dBasemapEntry,
+  isImageryForwardBasemapEntry,
   rasterMaxZoomForTileUrl,
   rasterStyleFromTiles,
   tileUrlForMapboxGl,
@@ -9,6 +11,10 @@ import { devMapboxProxyRewrite } from '../../../lib/mapboxProxyUrl';
 import { isMapboxStyleReady } from './mapboxStyleReady';
 import { siMapboxStyleWithGlyphs } from './siMap3DLabels';
 import { syncSiMapOverlayLayerStack } from './siMapCustomVectorLayerStack';
+import {
+  raiseSiMapTerrainContourLayersAboveWms,
+  siMapTerrainContourLayersMounted,
+} from './siMapWmsRasterLayerStack';
 
 /** Stable empty shell — MapGL `mapStyle` stays constant; basemap tiles swap in place. */
 export const SI_MAP_BASEMAP_SHELL_STYLE: Record<string, unknown> = siMapboxStyleWithGlyphs({
@@ -48,11 +54,10 @@ function legacyLayerId(index: number): string {
   return `${SI_BASEMAP_LAYER_PREFIX}-${index}`;
 }
 
-/** Quick chips — Esri Satellite default, then Google / Carto rasters. */
+/** Quick chips — Esri World Imagery default, then hybrid / streets / dark / topo. */
 export const SI_QUICK_BASEMAP_PRESETS = [
-  { key: 'satellite', label: 'Satellite (Esri)', catalogId: 'satellite', icon: 'fa-solid fa-globe' },
-  { key: 'google-satellite', label: 'Google Satellite', catalogId: 'google-satellite', icon: 'fa-solid fa-satellite' },
-  { key: 'google-earth', label: 'Google Earth', catalogId: 'google-earth', icon: 'fa-solid fa-earth-americas' },
+  { key: 'esri', label: 'Esri World Imagery', catalogId: 'esri', icon: 'fa-solid fa-globe' },
+  { key: 'esri-imagery-hybrid', label: 'Imagery Hybrid', catalogId: 'esri-imagery-hybrid', icon: 'fa-solid fa-layer-group' },
   { key: 'streets', label: 'Streets', catalogId: 'esri-streets', icon: 'fa-regular fa-map' },
   { key: 'dark', label: 'Dark', catalogId: 'esri-dark-gray', icon: 'fa-regular fa-moon' },
   { key: 'topographic', label: 'Topographic', catalogId: 'esri-topo', icon: 'fa-solid fa-mountain-sun' },
@@ -61,6 +66,7 @@ export const SI_QUICK_BASEMAP_PRESETS = [
 const styleObjectCache = new Map<string, Record<string, unknown>>();
 
 export function entrySupportsInPlaceBasemapSwap(entry: BasemapCatalogEntry | null | undefined): boolean {
+  if (isGooglePhotorealistic3dBasemapEntry(entry)) return true;
   if (!entry) return false;
   const layers = entry.leafletLayers?.filter(L => L.url?.trim()) ?? [];
   return layers.length > 0;
@@ -129,6 +135,37 @@ export function findFirstSiBasemapLayerId(map: MapboxMap): string | undefined {
   return undefined;
 }
 
+/** Topmost in-place basemap raster layer in the Mapbox stack. */
+export function findTopSiBasemapLayerId(map: MapboxMap): string | undefined {
+  try {
+    const layers = map.getStyle()?.layers ?? [];
+    let topId: string | undefined;
+    for (const L of layers) {
+      const id = (L as { id?: string }).id;
+      if (id && isSiBasemapLayerId(id)) topId = id;
+    }
+    return topId;
+  } catch {
+    return undefined;
+  }
+}
+
+/** First style layer directly above the basemap raster stack (contour insert anchor). */
+export function findFirstLayerAboveSiBasemapStack(map: MapboxMap): string | undefined {
+  try {
+    const layers = map.getStyle()?.layers ?? [];
+    let lastBasemapIdx = -1;
+    for (let i = 0; i < layers.length; i++) {
+      const id = (layers[i] as { id?: string }).id;
+      if (id && isSiBasemapLayerId(id)) lastBasemapIdx = i;
+    }
+    if (lastBasemapIdx < 0) return undefined;
+    return (layers[lastBasemapIdx + 1] as { id?: string } | undefined)?.id;
+  } catch {
+    return undefined;
+  }
+}
+
 /** First non-basemap layer — insert new basemap raster below operational layers. */
 export function findFirstNonBasemapLayerId(map: MapboxMap): string | undefined {
   try {
@@ -138,6 +175,44 @@ export function findFirstNonBasemapLayerId(map: MapboxMap): string | undefined {
     for (const L of layers) {
       const id = (L as { id?: string }).id;
       if (id && !isSiBasemapLayerId(id)) return id;
+    }
+  } catch {
+    /* ignore */
+  }
+  return undefined;
+}
+
+function topmostSiBasemapLayerIndex(map: MapboxMap): number {
+  try {
+    const layers = map.getStyle()?.layers ?? [];
+    let top = -1;
+    for (let i = 0; i < layers.length; i++) {
+      const id = (layers[i] as { id?: string }).id;
+      if (id && isSiBasemapLayerId(id)) top = i;
+    }
+    return top;
+  } catch {
+    return -1;
+  }
+}
+
+/**
+ * Mapbox `addLayer` / `moveLayer` `beforeId`: insert immediately above the basemap raster stack.
+ * Skips optional layer ids (e.g. contour lines being re-stacked). Returns `undefined` to append on top.
+ */
+export function findMapboxInsertBeforeIdAboveBasemapStack(
+  map: MapboxMap,
+  opts?: { skipLayerIds?: string[] },
+): string | undefined {
+  try {
+    const layers = map.getStyle()?.layers ?? [];
+    const skip = new Set(opts?.skipLayerIds ?? []);
+    const basemapTop = topmostSiBasemapLayerIndex(map);
+    const start = basemapTop >= 0 ? basemapTop + 1 : 0;
+    for (let i = start; i < layers.length; i++) {
+      const id = (layers[i] as { id?: string }).id;
+      if (!id || skip.has(id)) continue;
+      return id;
     }
   } catch {
     /* ignore */
@@ -347,6 +422,9 @@ export function applySiMapBasemap(
   if (isSiMapBasemapEntryMounted(entry.id) && mapHasInitialBasemapStyleForEntry(map, entry)) {
     try {
       syncSiMapOverlayLayerStack(map);
+      if (siMapTerrainContourLayersMounted(map)) {
+        raiseSiMapTerrainContourLayersAboveWms(map, { force: true });
+      }
     } catch {
       /* ignore */
     }
@@ -357,7 +435,7 @@ export function applySiMapBasemap(
   const layers = basemapTileLayersForEntry(entry);
   if (!layers.length) {
     unloadInactiveBasemapEntries(map, '__none__');
-    lastVisibleBasemapEntryId = null;
+    lastVisibleBasemapEntryId = isGooglePhotorealistic3dBasemapEntry(entry) ? entry.id : null;
     removeLegacyIndexBasemapStack(map);
     return true;
   }
@@ -375,6 +453,9 @@ export function applySiMapBasemap(
     lastVisibleBasemapEntryId = entry.id;
     try {
       syncSiMapOverlayLayerStack(map);
+      if (siMapTerrainContourLayersMounted(map)) {
+        raiseSiMapTerrainContourLayersAboveWms(map, { force: true });
+      }
     } catch {
       /* ignore */
     }
@@ -382,6 +463,18 @@ export function applySiMapBasemap(
     return true;
   } catch {
     return false;
+  }
+}
+
+/** Re-mount basemap rasters + fix layer stack after operational layers churn (timeline / WMS). */
+export function ensureSiMapBasemapVisible(map: MapboxMap, entry: BasemapCatalogEntry | null | undefined): void {
+  if (!entry || !isMapboxStyleReady(map)) return;
+  try {
+    syncSiMapBasemapOnStyleReady(map, entry);
+    syncSiMapOverlayLayerStack(map);
+    map.triggerRepaint?.();
+  } catch {
+    /* style mid-reload */
   }
 }
 

@@ -34,6 +34,17 @@ export function isBenignMapboxSerializeError(err: unknown): boolean {
 }
 
 /**
+ * Mapbox GL can throw when an in-flight tile/image request is aborted (style swap,
+ * terrain bootstrap, fast pan) and the internal error callback was already cleared.
+ * Harmless — the tile is re-fetched for the new viewport.
+ */
+export function isBenignMapboxErrorCbError(err: unknown): boolean {
+  const msg = messageOf(err)
+  if (!msg) return false
+  return msg.includes('errorCb is not a function')
+}
+
+/**
  * True for transient Mapbox style-lifecycle errors that resolve on their own.
  *
  * "Style is not done loading" is thrown synchronously by Mapbox GL when a
@@ -54,9 +65,24 @@ export function isTransientMapboxStyleError(err: unknown): boolean {
   )
 }
 
+/**
+ * Mapbox MVT parser throws when a tile response is HTML/JSON (Vite 404 SPA shell)
+ * or non-MVT bytes — e.g. `Unimplemented type: 4` from the Pbf reader.
+ */
+export function isBenignMapboxVectorTileParseError(err: unknown): boolean {
+  const msg = messageOf(err)
+  if (!msg) return false
+  return msg.includes('Unimplemented type:') || msg.includes('unknown command 0')
+}
+
 /** Errors the map can silently recover from (no global crash screen). */
 export function isRecoverableMapboxMapError(err: unknown): boolean {
-  return isBenignMapboxSerializeError(err) || isTransientMapboxStyleError(err)
+  return (
+    isBenignMapboxSerializeError(err) ||
+    isBenignMapboxErrorCbError(err) ||
+    isBenignMapboxVectorTileParseError(err) ||
+    isTransientMapboxStyleError(err)
+  )
 }
 
 let installed = false

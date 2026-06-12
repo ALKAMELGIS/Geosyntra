@@ -13,7 +13,6 @@ import {
   resolveProductionPublicUrl,
   resolveViteBasePath,
 } from './config/viteAppConfig'
-
 const gzipAsync = promisify(gzip)
 const brotliAsync = promisify(brotliCompress)
 

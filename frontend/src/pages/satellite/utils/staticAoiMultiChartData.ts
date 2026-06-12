@@ -1,10 +1,8 @@
 /**
- * AOI static multi-layer chart: builds per-week synthetic means per analysis layer
- * for temporal comparison (same timeline as {@link WeeklyComposite} strip).
- * With a polygon feature, values are zonal pixel means (aligned with Excel export / popups).
+ * AOI multi-layer chart datasets from real raster zonal means (MPC pixel sampling inside AOI).
+ * Timeline labels align with {@link WeeklyComposite} weeks; gaps stay null when no raster exists.
  */
-import { computeAoiZonalWeeklyMeans } from './siAoiZonalStats';
-import { formatStaticChartWeekLabel, staticAoiLayerMeanForWeek } from './staticAoiLayerSynthetic';
+import { formatStaticChartWeekLabel } from './staticAoiLayerSynthetic';
 
 export type {
   StaticAoiChartLayerId,
@@ -37,43 +35,36 @@ export function staticAoiChartColorForLayer(layerId: StaticAoiChartLayerId): str
 export function buildStaticAoiMultiChartDatasets(
   weekly: WeeklyCompositeLite[],
   layerIds: StaticAoiChartLayerId[],
-  aoiKey: string | null,
-  /** When set, weekly means are zonal pixel averages (matches Excel / popups). */
-  aoiFeature?: GeoJSON.Feature | null,
+  /** AOI-masked weekly means from MPC raster sampling — null gaps when a week has no data. */
+  realWeeklyMeansByLayer: Partial<Record<StaticAoiChartLayerId, (number | null)[]>> = {},
 ): {
   labels: string[];
   datasets: Array<{
     id: string;
     label: string;
-    data: number[];
+    data: (number | null)[];
     borderColor: string;
     backgroundColor: string;
     yAxisID: string;
   }>;
+  hasRealData: boolean;
 } {
   if (!weekly.length || !layerIds.length) {
-    return { labels: [], datasets: [] };
+    return { labels: [], datasets: [], hasRealData: false };
   }
-  const n = weekly.length;
   const labels = weekly.map(w => formatStaticChartWeekLabel(w.startDate));
-  const useZonal =
-    aoiFeature?.geometry &&
-    (aoiFeature.geometry.type === 'Polygon' || aoiFeature.geometry.type === 'MultiPolygon');
-  let zonalByLayer: Partial<Record<StaticAoiChartLayerId, number[]>> | null = null;
-  if (useZonal && aoiFeature) {
-    zonalByLayer = {};
-    for (const id of layerIds) {
-      zonalByLayer[id] = computeAoiZonalWeeklyMeans(aoiFeature, aoiKey, id, weekly);
-    }
-  }
+  let hasRealData = false;
   const datasets = layerIds.map((id, di) => {
     const opt = metaFor(id);
     const color = DATASET_COLORS[di % DATASET_COLORS.length]!;
-    const zonalSeries = zonalByLayer?.[id];
-    const data = weekly.map((w, i) => {
-      const z = zonalSeries?.[i];
-      if (typeof z === 'number' && Number.isFinite(z)) return z;
-      return staticAoiLayerMeanForWeek(id, i, n, aoiKey, w.mean);
+    const series = realWeeklyMeansByLayer[id];
+    const data = weekly.map((_, i) => {
+      const v = series?.[i];
+      if (typeof v === 'number' && Number.isFinite(v)) {
+        hasRealData = true;
+        return v;
+      }
+      return null;
     });
     return {
       id,
@@ -84,5 +75,5 @@ export function buildStaticAoiMultiChartDatasets(
       yAxisID: id === 'LST' ? 'yLST' : 'yIndex',
     };
   });
-  return { labels, datasets };
+  return { labels, datasets, hasRealData };
 }

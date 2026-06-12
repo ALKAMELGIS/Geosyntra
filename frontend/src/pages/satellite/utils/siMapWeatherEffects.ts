@@ -1,6 +1,7 @@
 import type { Map as MapboxMap } from 'mapbox-gl';
 import {
   applySiMapDaylightLight,
+  computeSiMapSunDirection,
   normalizeDaylightMinutes,
   siMapDaylightFogTint,
   siMapDaylightLightSpec,
@@ -8,7 +9,9 @@ import {
 import {
   siMapCelestialSkyFogSpec,
   siMapFogSpecForPitchedView,
+  siMapGlobeOrbitSpaceFogSpec,
   siMapSkyViewExposure,
+  siMapSpaceViewExposure,
   syncSiMapSkyAtmosphereLayer,
 } from './siMapSkyAtmosphere';
 import {
@@ -16,6 +19,8 @@ import {
   isSiMapWeatherPrecipActive,
   isSiMapWeatherRainPrecipActive,
   isSiMapWeatherSnowPrecipActive,
+  siMapWeatherHasAtmosphericEffects,
+  isSiMapWeatherSunSkyLightingActive,
 } from './siMapWeatherActive';
 import {
   DEFAULT_SI_MAP_WEATHER,
@@ -37,14 +42,14 @@ type FogSpec = {
   'star-intensity'?: number;
 };
 
-/** Globe backdrop without bright limb halo (sharp horizon, transparent high atmosphere). */
+/** Globe backdrop — deep space with subtle stars (no bright limb wash). */
 export const SI_MAP_GLOBE_FOG_NO_HALO: FogSpec = {
-  range: [0.5, 10],
-  color: '#020617',
+  range: [0.8, 14],
+  color: 'rgba(118, 156, 210, 0.06)',
   'horizon-blend': 0,
-  'high-color': 'rgba(2, 6, 23, 0)',
-  'space-color': '#020617',
-  'star-intensity': 0.12,
+  'high-color': '#010409',
+  'space-color': '#010409',
+  'star-intensity': 0.34,
 };
 
 const DEFAULT_FOG: FogSpec = SI_MAP_GLOBE_FOG_NO_HALO;
@@ -59,20 +64,14 @@ export const SI_MAP_GL_FOG_DEFAULT = {
   'star-intensity': SI_MAP_GLOBE_FOG_NO_HALO['star-intensity'],
 };
 
-export const SI_MAP_GL_FOG_ELEVATION = {
-  range: [1.8, 16] as [number, number],
-  color: '#0f172a',
-  'horizon-blend': 0.02,
-  'high-color': '#1e293b',
-  'star-intensity': 0.08,
-};
+export const SI_MAP_GL_FOG_ELEVATION = siMapGlobeOrbitSpaceFogSpec(0, -8, { elevation3d: true });
 
 function softenFogForElevationView(spec: FogSpec): FogSpec {
   return {
     ...spec,
-    range: [Math.max(spec.range[0], 1.4), Math.max(spec.range[1], 14)],
-    'horizon-blend': Math.min(spec['horizon-blend'] ?? 0.1, 0.03),
-    'star-intensity': Math.min(spec['star-intensity'] ?? 0.2, 0.1),
+    range: [Math.max(spec.range[0], 0.8), Math.max(spec.range[1], 14)],
+    'horizon-blend': Math.min(spec['horizon-blend'] ?? 0.1, 0.14),
+    'star-intensity': Math.max(spec['star-intensity'] ?? 0.3, 0.28),
   };
 }
 
@@ -82,6 +81,7 @@ function pct01(n: number): number {
 
 const lastFogSigByMap = new WeakMap<MapboxMap, string>();
 const lastLightingSigByMap = new WeakMap<MapboxMap, string>();
+const lastElevationFreeSkySigByMap = new WeakMap<MapboxMap, string>();
 
 /** Signature for sun/sky lighting + atmosphere only (excludes precipitation, UI chrome). */
 export function siMapWeatherLightingSignature(
@@ -334,6 +334,78 @@ function syncSnowGroundTint(map: MapboxMap, enabled: boolean): void {
 /**
  * Sky-only update while tilting (stars + cloud halo). Does not enable Weather Fog tool.
  */
+/**
+ * Sky dome + horizon fog while freely orbiting in 3D elevation mode (no Sun & Sky panel required).
+ */
+export function syncSiMapElevationFreeCameraSky(
+  map: MapboxMap,
+  opts?: {
+    mapCenter?: { lng: number; lat: number } | null;
+    cloudCoverPct?: number;
+    /** Use target pitch during 2D→3D entry (avoids black no-halo fog while camera is still nadir). */
+    pitchOverride?: number;
+    /** Force elevation horizon sky even when pitch is still near 0 (3D dock entry). */
+    elevationEntry?: boolean;
+  },
+): void {
+  let pitch = 0;
+  let bearing = 0;
+  let lat = opts?.mapCenter?.lat;
+  try {
+    pitch =
+      typeof opts?.pitchOverride === 'number' && Number.isFinite(opts.pitchOverride)
+        ? opts.pitchOverride
+        : map.getPitch();
+    bearing = map.getBearing();
+    if (!Number.isFinite(lat)) {
+      const c = map.getCenter?.();
+      lat = c?.lat;
+    }
+  } catch {
+    return;
+  }
+  if (!Number.isFinite(lat)) lat = 25;
+
+  const elevation3d = Boolean(opts?.elevationEntry);
+  const skyT = siMapSpaceViewExposure(pitch, { elevation3d });
+  const sig = [
+    Math.round(pitch * 2) / 2,
+    Math.round(bearing * 2) / 2,
+    Math.round(lat * 5) / 5,
+    skyT.toFixed(2),
+    opts?.elevationEntry ? '1' : '0',
+  ].join(':');
+  if (lastElevationFreeSkySigByMap.get(map) === sig) return;
+  lastElevationFreeSkySigByMap.set(map, sig);
+
+  const date = new Date().toISOString().slice(0, 10);
+  const direction = computeSiMapSunDirection(720, date, lat);
+  const space3d = elevation3d || skyT >= 0.55;
+
+  if (skyT <= 0.05 && !opts?.elevationEntry) {
+    try {
+      map.setFog(siMapGlobeOrbitSpaceFogSpec(pitch, direction.elevationDeg));
+    } catch {
+      applySiGlobeFogNoHalo(map);
+    }
+    return;
+  }
+
+  syncSiMapSkyAtmosphereLayer(map, direction, {
+    pitch,
+    bearing,
+    cloudCoverPct: opts?.cloudCoverPct ?? 0,
+    elevation3d: space3d,
+  });
+  try {
+    map.setFog(
+      siMapCelestialSkyFogSpec(pitch, direction.elevationDeg, { elevation3d: space3d }),
+    );
+  } catch {
+    /* ignore */
+  }
+}
+
 export function syncSiMapSkyCelestialForCamera(
   map: MapboxMap,
   settings: SiMapWeatherSettings,
@@ -356,10 +428,15 @@ export function syncSiMapSkyCelestialForCamera(
     pitch,
     bearing,
     cloudCoverPct: settings.cloudCover,
+    elevation3d: siMapSpaceViewExposure(pitch) >= 0.55,
   });
   if (!isSiMapFogToolActive(settings) && siMapSkyViewExposure(pitch) > 0) {
     try {
-      map.setFog(siMapCelestialSkyFogSpec(pitch, lightSpec.direction.elevationDeg));
+      map.setFog(
+        siMapCelestialSkyFogSpec(pitch, lightSpec.direction.elevationDeg, {
+          elevation3d: siMapSpaceViewExposure(pitch) >= 0.55,
+        }),
+      );
     } catch {
       /* ignore */
     }
@@ -369,6 +446,15 @@ export function syncSiMapSkyCelestialForCamera(
 export function applySiGlobeFogNoHalo(map: MapboxMap): void {
   try {
     map.setFog(SI_MAP_GLOBE_FOG_NO_HALO);
+  } catch {
+    /* ignore */
+  }
+}
+
+/** Horizon atmosphere during 3D elevation — deep space with stars and limb glow. */
+export function applySiMapElevationViewFog(map: MapboxMap): void {
+  try {
+    map.setFog(SI_MAP_GL_FOG_ELEVATION);
   } catch {
     /* ignore */
   }
@@ -384,20 +470,25 @@ export function applySiMapWeatherLightingEffects(
     basemapId?: string;
   },
 ): void {
+  if (siMapWeatherActivePresets(settings).length === 0) {
+    clearSiMapWeatherEffects(map);
+    return;
+  }
   const sig = siMapWeatherLightingSignature(settings, opts);
   if (lastLightingSigByMap.get(map) === sig) return;
   lastLightingSigByMap.set(map, sig);
 
   let fogSpec = fogForSettings(settings, Boolean(opts?.terrainElevated));
   const fogToolOn = isSiMapFogToolActive(settings);
-  if (settings.sunPositionByDateTime) {
+  const atmospheric = siMapWeatherHasAtmosphericEffects(settings);
+  if (isSiMapWeatherSunSkyLightingActive(settings)) {
     try {
       const pitch = typeof map.getPitch === 'function' ? map.getPitch() : 0;
       const lightSpec = siMapDaylightLightSpec(settings, opts?.mapCenter);
       if (lightSpec) {
         if (fogToolOn && pitch > 6) {
           fogSpec = siMapFogSpecForPitchedView(fogSpec, pitch, lightSpec.direction.elevationDeg);
-        } else if (!fogToolOn && siMapSkyViewExposure(pitch) > 0) {
+        } else if (!fogToolOn && !atmospheric && siMapSkyViewExposure(pitch) > 0) {
           fogSpec = siMapCelestialSkyFogSpec(pitch, lightSpec.direction.elevationDeg);
         }
       }
@@ -418,7 +509,8 @@ export function applySiMapWeatherLightingEffects(
   applySiMapDaylightLight(map, settings, {
     mapCenter: opts?.mapCenter,
     basemapId: opts?.basemapId,
-    terrainElevated: Boolean(opts?.terrainElevated) || settings.sunPositionByDateTime,
+    terrainElevated:
+      Boolean(opts?.terrainElevated) || isSiMapWeatherSunSkyLightingActive(settings),
   });
 }
 
@@ -432,6 +524,10 @@ export function applySiMapWeatherEffects(
     basemapId?: string;
   },
 ): void {
+  if (siMapWeatherActivePresets(settings).length === 0) {
+    clearSiMapWeatherEffects(map);
+    return;
+  }
   applySiMapWeatherLightingEffects(map, settings, opts);
 
   const precipSig = siMapWeatherPrecipitationSignature(settings);
@@ -497,7 +593,7 @@ export function clearSiMapWeatherEffects(map: MapboxMap): void {
     fogDensity: 0,
     daylightMinutes: 720,
     daylightDate: '2026-03-15',
-    sunPositionByDateTime: true,
+    sunPositionByDateTime: false,
     daylightShadows: false,
     daylightTimePlaying: false,
     daylightDatePlaying: false,

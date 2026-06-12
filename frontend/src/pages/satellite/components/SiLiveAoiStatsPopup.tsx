@@ -2,9 +2,11 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import type { Map as MapboxMap } from 'mapbox-gl';
 import { liveAoiStatsStatusHint, type LiveAoiStatsViewModel } from '../utils/liveAoiStatsView';
+import { SiStatDashboardIcon } from './SiStatDashboardIcon';
 import { SiWeatherColoredIcon, SiWeatherColoredIconFromMetric } from './SiWeatherColoredIcon';
 import { clampPopupWithinRect, type LiveAoiPopupAnchor } from '../utils/liveAoiPopupAnchor';
 import { coverDisplayLabelsForLayer, indexIconForLayer } from '../utils/liveAoiPopupLabels';
+import { formatLegendAreaHa, formatLegendAreaM2 } from '../utils/siWmsLegendClassStyle';
 import {
   fetchLiveAoiWeatherSnapshot,
   type LiveAoiWeatherSnapshot,
@@ -87,6 +89,7 @@ export type SiLiveAoiStatsPopupProps = {
   coordinates?: { lng: number; lat: number } | null;
   cloudCoverMaxPct?: number;
   openWeatherApiKey?: string;
+  analysisError?: string | null;
   onClose?: () => void;
 };
 
@@ -205,6 +208,9 @@ function WmsRampClassLegend({ classes }: { classes: SiIndexClassRow[] }) {
             <span className="si-live-aoi-stats__ndvi-band-range" dir="ltr">
               {c.label}
             </span>
+            <span className="si-live-aoi-stats__ndvi-band-area" dir="ltr">
+              {formatLegendAreaHa(c.areaHa)} ha · {formatLegendAreaM2(c.areaM2)} m²
+            </span>
           </li>
         ))}
       </ul>
@@ -308,6 +314,7 @@ export function SiLiveAoiStatsPopup({
   coordinates,
   cloudCoverMaxPct,
   openWeatherApiKey = '',
+  analysisError = null,
   onClose,
 }: SiLiveAoiStatsPopupProps) {
   const panelRef = useRef<HTMLDivElement | null>(null);
@@ -491,13 +498,15 @@ export function SiLiveAoiStatsPopup({
     [removeWindowDragListeners],
   );
 
-  const loading = model.status === 'loading' && model.mean == null;
+  const loading = model.status === 'loading' && model.mean == null && model.cover == null;
   const click = model.clickedClass;
   const cover = model.cover;
   const indexAnalysis = model.indexAnalysis;
   const coverLabels = coverDisplayLabelsForLayer(model.layerId);
   const indexIcon = indexIconForLayer(model.layerId);
-  const statusHint = liveAoiStatsStatusHint(model.status, loading);
+  const statusHint =
+    liveAoiStatsStatusHint(model.status, loading) ??
+    (model.status === 'error' && analysisError?.trim() ? analysisError.trim() : null);
   const panelTitle = indexAnalysis?.indicatorLabel ?? 'AOI live analysis';
   const stat = (v: number | null) =>
     v != null && Number.isFinite(v) ? roundIndexDisplay(v, model.layerId) : '—';
@@ -541,7 +550,7 @@ export function SiLiveAoiStatsPopup({
             <div className="si-live-aoi-stats__head-text">
               <span className="si-live-aoi-stats__live">
                 <span className="si-live-aoi-stats__live-dot" aria-hidden />
-                {indexAnalysis ? 'AgroCloud' : 'Live AOI'}
+                {indexAnalysis ? 'GeoSyntra' : 'Live AOI'}
               </span>
               <strong className="si-live-aoi-stats__aoi-name">{panelTitle}</strong>
               <span className="si-live-aoi-stats__aoi-sub">{model.aoiName}</span>
@@ -625,7 +634,7 @@ export function SiLiveAoiStatsPopup({
 
           <div className="si-live-aoi-stats__meta-grid">
             <div className="si-live-aoi-stats__meta-item">
-              <i className="fa-solid fa-border-all" aria-hidden />
+              <SiStatDashboardIcon size={14} title="Raster pixel statistics" />
               <span className="si-live-aoi-stats__meta-k">Pixels</span>
               <span className="si-live-aoi-stats__meta-v" dir="ltr">
                 {totalPixels ? `${validPixels} / ${totalPixels}` : validPixels}

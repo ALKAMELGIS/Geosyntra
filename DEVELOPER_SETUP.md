@@ -109,7 +109,13 @@ Git remotes, Hostinger deploy, and GitHub Pages workflows are unchanged.
 
 ## OAuth & APIs (local)
 
-Default local URLs:
+Default local URLs (Geosyntra only — **do not share ports with AgroCloud**):
+
+| | Geosyntra (this repo) | AgroCloud (`AgroCloud-main`, separate repo) |
+|---|---|---|
+| App | `http://localhost:5173/Geosyntra/` | `http://localhost:5174/AgroCloud/` |
+| API | `http://localhost:3001` | `http://localhost:3011` |
+| WebSocket | `http://localhost:3002` | `http://localhost:3012` |
 
 - App: `http://localhost:5173/Geosyntra/`
 - API: `http://localhost:3001`
@@ -124,7 +130,7 @@ Configure Google / GitHub / LinkedIn consoles to match `backend/.env` and `front
 | `npm run dev` fails validate | `npm run setup` then `npm install` |
 | Map blank / no basemap | Set `VITE_MAPBOX_TOKEN` in `frontend/.env` |
 | OAuth redirect mismatch | Align redirect URIs in provider console + both `.env` files |
-| Port in use | Scripts free 5173 / 3001 via `dev:client:clean` / `dev:clean` |
+| Port in use | Geosyntra uses 5173/3001/3002 only; AgroCloud uses 5174/3011/3012 in its own repo — run `dev:client:clean` / `dev:clean` to free ports |
 | SQLite errors | Delete `backend/server/data/*.db` and restart API (dev only) |
 
 ## More documentation

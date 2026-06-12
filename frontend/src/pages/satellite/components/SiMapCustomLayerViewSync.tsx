@@ -6,9 +6,13 @@ import {
   customLayerMapboxSourceId,
   customLayerMapboxStyleKey,
   flushSiCustomLayerOnMapCanvas,
+  isSiCustomLayerMapRefreshInFlight,
   resolveSiCustomLayerMountOpts,
   type SiCustomLayerRegistryFields,
 } from '../utils/siMapCustomLayerRegistry';
+import { isSiMapCameraInteracting } from '../utils/siMapLayerCameraSyncGuard';
+import { siMapLayerSyncElevation3dActive } from '../utils/siMapLayerElevation3dState';
+import { resolveSiCustomLayerMapDisplayLayer } from '../utils/siMapLayerRefreshBuffer';
 
 type Props = {
   layer: SiCustomLayerRegistryFields;
@@ -19,47 +23,37 @@ type Props = {
 };
 
 /**
- * Runs after each custom GeoJSON source mounts — pins the layer above basemap/WMS and
- * signals when the Mapbox layer view is ready (ArcGIS `whenLayerView` equivalent).
+ * Pins custom GeoJSON above basemap/WMS once per stable render signature.
+ * Does NOT listen to map idle/move/zoom — camera interaction must not refresh layers.
  */
 export function SiMapCustomLayerViewSync({ layer, elevation3d = false, onViewReady }: Props) {
   const { current: mapRef } = useMap();
   const notifiedRef = useRef<string | null>(null);
+  const layerRef = useRef(layer);
+  layerRef.current = layer;
 
-  const renderSig = `${layer.id}:${customLayerMapboxStyleKey(layer)}:${layer.visible !== false ? '1' : '0'}:${elevation3d ? '3d' : '2d'}:${countSig(layer)}`;
-  const mountOpts = resolveSiCustomLayerMountOpts(layer, { elevation3d });
+  const displayLayer = resolveSiCustomLayerMapDisplayLayer(layer);
+  const renderSig = `${displayLayer.id}:${customLayerMapboxStyleKey(displayLayer)}:${displayLayer.visible !== false ? '1' : '0'}:${elevation3d ? '3d' : '2d'}`;
 
   useLayoutEffect(() => {
-    if (layer.visible === false) return;
+    if (displayLayer.visible === false) return;
     const map = (mapRef?.getMap?.() ?? mapRef) as MapboxMap | undefined;
     if (!map) return;
-    const sourceId = customLayerMapboxSourceId(layer);
-    const flush = () => flushSiCustomLayerOnMapCanvas(map, layer, mountOpts);
 
-    flush();
-
-    const onSourceData = (e: { sourceId?: string; isSourceLoaded?: boolean }) => {
-      if (e?.sourceId !== sourceId) return;
-      if (e.isSourceLoaded !== false) flush();
+    const flushOnce = () => {
+      const current = layerRef.current;
+      if (isSiCustomLayerMapRefreshInFlight(current) && current.mapCommittedGeojson) return;
+      if (isSiMapCameraInteracting() && !siMapLayerSyncElevation3dActive()) return;
+      const display = resolveSiCustomLayerMapDisplayLayer(current);
+      const mountOpts = resolveSiCustomLayerMountOpts(display, { elevation3d });
+      flushSiCustomLayerOnMapCanvas(map, display, mountOpts);
     };
-    const onIdle = () => flush();
 
-    map.on('sourcedata', onSourceData);
-    map.on('idle', onIdle);
-    try {
-      map.triggerRepaint();
-    } catch {
-      /* ignore */
-    }
-
-    return () => {
-      map.off('sourcedata', onSourceData);
-      map.off('idle', onIdle);
-    };
-  }, [layer, mapRef, renderSig, elevation3d]);
+    flushOnce();
+  }, [mapRef, renderSig, elevation3d, displayLayer.visible]);
 
   useEffect(() => {
-    if (layer.visible === false || !onViewReady) return;
+    if (displayLayer.visible === false || !onViewReady) return;
     const map = (mapRef?.getMap?.() ?? mapRef) as MapboxMap | undefined;
     if (!map) return;
 
@@ -67,22 +61,20 @@ export function SiMapCustomLayerViewSync({ layer, elevation3d = false, onViewRea
     let cancelled = false;
 
     void (async () => {
-      const result = await awaitSiCustomLayerMapViewReady(map, layer, mountOpts);
+      if (isSiMapCameraInteracting() && !siMapLayerSyncElevation3dActive()) return;
+      const display = resolveSiCustomLayerMapDisplayLayer(layerRef.current);
+      const mountOpts = resolveSiCustomLayerMountOpts(display, { elevation3d });
+      const result = await awaitSiCustomLayerMapViewReady(map, display, mountOpts);
       if (cancelled) return;
       if (notifiedRef.current === renderSig) return;
       notifiedRef.current = renderSig;
-      onViewReady(layer.id, result.ok);
+      onViewReady(layerRef.current.id, result.ok);
     })();
 
     return () => {
       cancelled = true;
     };
-  }, [layer, mapRef, onViewReady, renderSig, elevation3d]);
+  }, [mapRef, onViewReady, renderSig, elevation3d, displayLayer.visible]);
 
   return null;
-}
-
-function countSig(layer: SiCustomLayerRegistryFields): number {
-  const feats = (layer.geojson as { features?: unknown[] } | undefined)?.features;
-  return Array.isArray(feats) ? feats.length : 0;
 }

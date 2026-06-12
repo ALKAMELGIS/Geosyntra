@@ -164,8 +164,8 @@ html[data-theme="light"] {
   --ds-color-bg-dashboard: #eef1f7;
   --ds-color-surface: rgba(255, 255, 255, 0.82);
   --ds-color-surface-2: rgba(255, 255, 255, 0.62);
-  --ds-color-text: #1a1d2b;
-  --ds-color-text-muted: rgba(26, 29, 43, 0.58);
+  --ds-color-text: #0a0c12;
+  --ds-color-text-muted: #0a0c12;
   --ds-color-border: rgba(15, 23, 42, 0.07);
   --ds-color-border-strong: rgba(15, 23, 42, 0.14);
 

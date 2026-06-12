@@ -25,6 +25,7 @@ import {
   DEFAULT_SI_MAP_WEATHER,
   SI_MAP_WEATHER_PRESETS,
   clampPct,
+  sanitizeSiMapWeatherSettings,
   type SiMapWeatherPreset,
   type SiMapWeatherSettings,
 } from '../utils/siMapWeatherTypes';
@@ -32,6 +33,10 @@ import {
   isSiMapWeatherPresetActive,
   siMapWeatherActivePresets,
 } from '../utils/siMapWeatherActive';
+import {
+  applySiMapWeatherPresetClick,
+  siMapWeatherPanelControlFlags,
+} from '../utils/siMapWeatherPresetActions';
 import type { SiMapSunSkySettings } from '../utils/siMapSunSkyTypes';
 import { SiMapSunSkyWeatherBody } from './SiMapSunSkyWeatherBody';
 import './SiMapWeatherToolPanel.css';
@@ -167,8 +172,19 @@ export function SiMapWeatherToolPanel({
   }, [pos]);
 
   const patch = useCallback(
-    (partial: Partial<SiMapWeatherSettings>) => {
-      onSettingsChange(prev => ({ ...prev, ...partial }));
+    (
+      partial:
+        | Partial<SiMapWeatherSettings>
+        | ((prev: SiMapWeatherSettings) => Partial<SiMapWeatherSettings> | SiMapWeatherSettings),
+    ) => {
+      onSettingsChange(prev => {
+        const delta = typeof partial === 'function' ? partial(prev) : partial;
+        const merged = { ...prev, ...delta };
+        if (Array.isArray(prev.activePresets) && !('activePresets' in (delta ?? {}))) {
+          merged.activePresets = prev.activePresets;
+        }
+        return sanitizeSiMapWeatherSettings(merged);
+      });
     },
     [onSettingsChange],
   );
@@ -293,52 +309,62 @@ export function SiMapWeatherToolPanel({
   };
 
   const panelPreset = settings.preset;
+  const activePresets = siMapWeatherActivePresets(settings);
+  const { showPrecip, showFog, showSnowCover } = siMapWeatherPanelControlFlags(settings);
   const isSunSkyPanel = panelPreset === 'sunSky';
-  const showPrecip = !isSunSkyPanel && (panelPreset === 'rain' || panelPreset === 'snow');
-  const showFog =
-    !isSunSkyPanel &&
-    (panelPreset === 'fog' || panelPreset === 'cloudy' || panelPreset === 'rain');
-  const showSnowCover = !isSunSkyPanel && (panelPreset === 'snow' || panelPreset === 'cloudy');
+  const sunSkyRunning = isSiMapWeatherPresetActive(settings, 'sunSky');
+  const weatherLayersRunning = activePresets.some(p => p !== 'sunSky');
+  const weatherSlidersVisible = showPrecip || showFog || showSnowCover || weatherLayersRunning;
+
+  const weatherSliderBlock = weatherSlidersVisible ? (
+    <>
+      <WeatherPctSlider
+        id="si-weather-cloud"
+        label="Cloud cover"
+        value={settings.cloudCover}
+        onChange={cloudCover => patch({ cloudCover })}
+      />
+
+      {showPrecip ? (
+        <WeatherPctSlider
+          id="si-weather-precip"
+          label="Precipitation"
+          value={settings.precipitation}
+          onChange={precipitation => patch({ precipitation })}
+        />
+      ) : null}
+
+      {showFog ? (
+        <WeatherPctSlider
+          id="si-weather-fog"
+          label="Fog density"
+          value={settings.fogDensity}
+          onChange={fogDensity => patch({ fogDensity })}
+        />
+      ) : null}
+
+      {showSnowCover ? (
+        <label className="si-weather-panel__check">
+          <input
+            type="checkbox"
+            checked={settings.snowCover}
+            onChange={e => patch({ snowCover: e.target.checked })}
+          />
+          <span>Snow cover on 3D surfaces</span>
+        </label>
+      ) : null}
+    </>
+  ) : null;
 
   const handlePresetClick = (id: SiMapWeatherPreset) => {
-    const active = siMapWeatherActivePresets(settings);
-    const enabled = active.includes(id);
-    const isPanel = panelPreset === id;
-
-    if (!enabled) {
-      const next: Partial<SiMapWeatherSettings> = {
-        preset: id,
-        activePresets: [...active, id],
-      };
-      if (id === 'snow' && !settings.snowCover) next.snowCover = true;
-      if (id === 'sunSky') {
-        next.sunPositionByDateTime = true;
-        next.daylightShadows = sunSkySettings.buildingShadows;
-      }
-      onSettingsChange({ ...settings, ...next });
-      if (id === 'sunSky') onSunSkyLosSketchModeChange(null);
-      return;
-    }
-
-    if (isPanel) {
-      const remaining = active.filter(p => p !== id);
-      const nextActive: SiMapWeatherPreset[] =
-        remaining.length > 0 ? remaining : ['sunny'];
-      const nextPanel = nextActive[nextActive.length - 1]!;
-      const next: Partial<SiMapWeatherSettings> = {
-        preset: nextPanel,
-        activePresets: nextActive,
-      };
-      if (id === 'sunSky') {
-        next.daylightTimePlaying = false;
-        next.daylightDatePlaying = false;
-      }
-      onSettingsChange({ ...settings, ...next });
-      if (id === 'sunSky') onSunSkyLosSketchModeChange(null);
-      return;
-    }
-
-    onSettingsChange({ ...settings, preset: id });
+    onSettingsChange(prev =>
+      sanitizeSiMapWeatherSettings(
+        applySiMapWeatherPresetClick(prev, id, {
+          sunSkyBuildingShadows: sunSkySettings.buildingShadows,
+        }),
+      ),
+    );
+    if (id === 'sunSky') onSunSkyLosSketchModeChange(null);
   };
   const isLightPanel = settings.panelTheme === 'light';
 
@@ -404,29 +430,23 @@ export function SiMapWeatherToolPanel({
           {!minimized ? (
             <div className="si-weather-panel__body">
               <p className="si-weather-panel__section-label">Weather preset</p>
-              <p className="si-weather-panel__hint si-weather-panel__hint--presets">
-                Select an icon to edit controls. Click the focused icon again to turn that effect off.
-                Other running effects stay active in the background.
-              </p>
               <div className="si-weather-panel__presets" role="group" aria-label="Weather preset">
                 {SI_MAP_WEATHER_PRESETS.map(p => {
                   const running = isSiMapWeatherPresetActive(settings, p.id);
-                  const isPanel = panelPreset === p.id;
+                  const isFocused = panelPreset === p.id && running;
                   return (
                     <button
                       key={p.id}
                       type="button"
                       className={
                         'si-weather-panel__preset' +
-                        (isPanel ? ' is-active' : '') +
-                        (running ? ' is-running' : '')
+                        (running ? ' is-running' : '') +
+                        (isFocused ? ' is-active' : '')
                       }
                       title={
                         running
-                          ? isPanel
-                            ? `${p.label} — running (click to stop)`
-                            : `${p.label} — running (click to edit)`
-                          : `${p.label} — click to enable`
+                          ? `${p.label} — running (tap to turn off)`
+                          : `${p.label} — tap to turn on`
                       }
                       aria-pressed={running}
                       onClick={() => handlePresetClick(p.id)}
@@ -437,7 +457,16 @@ export function SiMapWeatherToolPanel({
                 })}
               </div>
 
-              {isSunSkyPanel ? (
+              {activePresets.length > 1 ? (
+                <p className="si-weather-panel__running" aria-live="polite">
+                  Running:{' '}
+                  {activePresets
+                    .map(id => SI_MAP_WEATHER_PRESETS.find(p => p.id === id)?.label ?? id)
+                    .join(' · ')}
+                </p>
+              ) : null}
+
+              {sunSkyRunning && isSunSkyPanel ? (
                 <SiMapSunSkyWeatherBody
                   weather={settings}
                   onWeatherPatch={patch}
@@ -449,45 +478,9 @@ export function SiMapWeatherToolPanel({
                   onLosSketchModeChange={onSunSkyLosSketchModeChange}
                   onClearLos={onClearSunSkyLos}
                 />
-              ) : (
-                <>
-                  <WeatherPctSlider
-                    id="si-weather-cloud"
-                    label="Cloud cover"
-                    value={settings.cloudCover}
-                    onChange={cloudCover => patch({ cloudCover })}
-                  />
+              ) : null}
 
-                  {showPrecip ? (
-                    <WeatherPctSlider
-                      id="si-weather-precip"
-                      label="Precipitation"
-                      value={settings.precipitation}
-                      onChange={precipitation => patch({ precipitation })}
-                    />
-                  ) : null}
-
-                  {showFog ? (
-                    <WeatherPctSlider
-                      id="si-weather-fog"
-                      label="Fog density"
-                      value={settings.fogDensity}
-                      onChange={fogDensity => patch({ fogDensity })}
-                    />
-                  ) : null}
-
-                  {showSnowCover ? (
-                    <label className="si-weather-panel__check">
-                      <input
-                        type="checkbox"
-                        checked={settings.snowCover}
-                        onChange={e => patch({ snowCover: e.target.checked })}
-                      />
-                      <span>Snow cover on 3D surfaces</span>
-                    </label>
-                  ) : null}
-                </>
-              )}
+              {weatherSliderBlock}
 
               <div className="si-weather-panel__slides">
                 <div className="si-weather-panel__slides-head">
@@ -540,14 +533,7 @@ export function SiMapWeatherToolPanel({
                   onSunSkyLosSketchModeChange(null);
                   onSettingsChange({
                     ...DEFAULT_SI_MAP_WEATHER,
-                    activePresets: [...DEFAULT_SI_MAP_WEATHER.activePresets],
                     panelTheme: settings.panelTheme,
-                    daylightMinutes: settings.daylightMinutes,
-                    daylightDate: settings.daylightDate,
-                    sunPositionByDateTime: settings.sunPositionByDateTime,
-                    daylightShadows: settings.daylightShadows,
-                    daylightTimePlaying: false,
-                    daylightDatePlaying: false,
                   });
                 }}
               >

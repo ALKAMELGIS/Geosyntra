@@ -39,7 +39,7 @@ import { configureSiMapCameraControlsForView } from './siMapProjectionTerrain';
 export function syncSiMapSketchNavigationLock(
   map: MapboxMap | null | undefined,
   locked: boolean,
-  opts?: { elevation3d?: boolean },
+  opts?: { view3dOrbit?: boolean; elevation3d?: boolean },
 ): void {
   if (!map) return;
   try {
@@ -47,7 +47,10 @@ export function syncSiMapSketchNavigationLock(
       map.dragPan?.disable?.();
       map.dragRotate?.disable?.();
     } else {
-      configureSiMapCameraControlsForView(map, opts?.elevation3d ?? false);
+      configureSiMapCameraControlsForView(
+        map,
+        opts?.view3dOrbit ?? opts?.elevation3d ?? false,
+      );
     }
   } catch {
     /* ignore */
@@ -56,11 +59,12 @@ export function syncSiMapSketchNavigationLock(
 
 export function siMapDrawAssistHintForShape(
   shape: 'rectangle' | 'polygon' | 'circle' | 'freehand',
-  opts?: { elevation3d?: boolean },
+  opts?: { view3dOrbit?: boolean; elevation3d?: boolean },
 ): string {
-  const rotateHint = opts?.elevation3d
-    ? 'Left-drag pan · right-drag rotate.'
-    : 'Left-drag pan · Ctrl+left-drag tilt toward the horizon.';
+  const view3d = opts?.view3dOrbit ?? opts?.elevation3d ?? false;
+  const rotateHint = view3d
+    ? 'LMB pan/select · RMB orbit/tilt · wheel zoom.'
+    : 'LMB pan/select · RMB rotate · wheel zoom.';
   switch (shape) {
     case 'rectangle':
       return `Draw: drag for a box. ${rotateHint} Esc cancels.`;

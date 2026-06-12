@@ -30,4 +30,6 @@ export type SiAddedLayerRowModel = {
   stackIndex?: number;
   canMoveUp?: boolean;
   canMoveDown?: boolean;
+  /** Small inline busy indicator (map refresh / sync) — does not affect map canvas. */
+  busy?: boolean;
 };

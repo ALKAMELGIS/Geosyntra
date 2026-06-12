@@ -1,4 +1,4 @@
-import { normalizeEmail, normalizeRole, readAccessToken, readCurrentUser, startSession, type CurrentUser } from './auth'
+import { normalizeEmail, normalizeRole, readAccessToken, readCurrentUser, isSessionPersisted, startSession, type CurrentUser } from './auth'
 import { isWorkspaceApiConfigured, workspaceFetch } from './apiClient'
 import type { PublicAuthUser } from './onboarding/authApi'
 import { clearBuiltinTokenBrowserOverrides } from './clearBuiltinTokenOverrides'
@@ -72,7 +72,7 @@ export async function validateServerSession(): Promise<CurrentUser | null> {
   }
 
   const merged = publicUserToCurrent(data.user)
-  startSession(merged, { persist: true, accessToken: token })
+  startSession(merged, { persist: isSessionPersisted(), accessToken: token })
   return merged
 }
 
@@ -84,7 +84,7 @@ async function tryRefreshSession(): Promise<CurrentUser | null> {
   }>('/api/auth/refresh', { method: 'POST' })
   if (!ok || !data.ok || !data.user) return null
   const merged = publicUserToCurrent(data.user)
-  startSession(merged, { persist: true, accessToken: data.accessToken })
+  startSession(merged, { persist: isSessionPersisted(), accessToken: data.accessToken })
   return merged
 }
 

@@ -1,6 +1,7 @@
 import JSZip from 'jszip';
 import shp from 'shpjs';
 import { mergeShpLikeToFeatureCollection } from './shpGeoJsonMerge';
+import { buildUploadStagingDatasets, describeUploadStagingDatasets } from './uploadStagingModel';
 
 export const SHAPEFILE_REQUIRED_EXT = ['shp', 'dbf', 'shx'] as const;
 export const SHAPEFILE_OPTIONAL_EXT = ['prj', 'cpg'] as const;
@@ -19,6 +20,39 @@ export type ShapefileValidationIssue = {
   layerBase: string;
   missing: string[];
 };
+
+/** Esri shape type from .shp main file header (bytes 32–35). */
+export type ShapefileGeometryKind = 'Point' | 'MultiPoint' | 'Line' | 'Polygon' | 'Unknown';
+
+const SHP_TYPE_POINT = 1;
+const SHP_TYPE_POLYLINE = 3;
+const SHP_TYPE_POLYGON = 5;
+const SHP_TYPE_MULTIPOINT = 8;
+
+export function shapefileGeometryKindFromShpType(shapeType: number): ShapefileGeometryKind {
+  if (shapeType === SHP_TYPE_POINT) return 'Point';
+  if (shapeType === SHP_TYPE_MULTIPOINT || shapeType === 18 || shapeType === 28) return 'MultiPoint';
+  if (shapeType === SHP_TYPE_POLYLINE || shapeType === 13 || shapeType === 23) return 'Line';
+  if (shapeType === SHP_TYPE_POLYGON || shapeType === 15 || shapeType === 25) return 'Polygon';
+  return 'Unknown';
+}
+
+/** Read geometry kind from .shp header without parsing full dataset. */
+export async function readShapefileGeometryKind(shpFile: File): Promise<ShapefileGeometryKind> {
+  try {
+    const buf = await shpFile.slice(0, 40).arrayBuffer();
+    if (buf.byteLength < 36) return 'Unknown';
+    const shapeType = new DataView(buf).getInt32(32, true);
+    return shapefileGeometryKindFromShpType(shapeType);
+  } catch {
+    return 'Unknown';
+  }
+}
+
+export function isShpOnlyMultiPick(files: File[]): boolean {
+  if (files.length < 2) return false;
+  return files.every(f => f.name.toLowerCase().endsWith('.shp'));
+}
 
 function basenameNoExt(name: string): string {
   const leaf = name.replace(/\\/g, '/').split('/').pop() ?? name;
@@ -66,35 +100,7 @@ export function formatShapefileMissingMessage(issues: ShapefileValidationIssue[]
 }
 
 export function describeShapefileUploadStaging(files: File[]): string {
-  if (!files.length) return 'Choose a file or shapefile parts, then click Import to map.';
-  if (files.length === 1) {
-    const f = files[0]!;
-    const mb = f.size / (1024 * 1024);
-    const ext = f.name.split('.').pop()?.toLowerCase() ?? '';
-    if (ext === 'zip') {
-      return `Ready: ${f.name} (${mb >= 0.01 ? mb.toFixed(2) : '<0.01'} MB ZIP). Will extract .shp/.dbf/.shx and create a Feature Layer.`;
-    }
-    return `Ready: ${f.name} (${mb >= 0.01 ? mb.toFixed(2) : '<0.01'} MB). Click “Import to map”.`;
-  }
-
-  const groups = groupShapefileParts(files);
-  if (!groups.size) {
-    return 'Selected files are not recognized shapefile parts (.shp, .dbf, .shx, .prj).';
-  }
-
-  const issues: ShapefileValidationIssue[] = [];
-  for (const [base, parts] of groups) {
-    const issue = validateShapefileParts(parts, base);
-    if (issue) issues.push(issue);
-  }
-
-  if (issues.length) {
-    return formatShapefileMissingMessage(issues);
-  }
-
-  const names = [...groups.keys()];
-  const prj = names.some(n => Boolean(groups.get(n)?.prj));
-  return `Shapefile ready (${names.join(', ')}): ${files.length} file(s)${prj ? ' · .prj detected' : ''}. Click “Import to map”.`;
+  return describeUploadStagingDatasets(buildUploadStagingDatasets(files));
 }
 
 async function readFileArrayBuffer(file: File): Promise<ArrayBuffer> {

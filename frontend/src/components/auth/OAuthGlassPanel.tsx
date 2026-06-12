@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
-import { motion } from 'framer-motion'
 import type { CurrentUser } from '../../lib/auth'
+import { writeKeepSignedInPreference } from '../../lib/authKeepSignedIn'
 import { homeOAuthSignIn, type OAuthProvider } from '../../lib/onboarding/localAuth'
 import {
   invalidateOAuthPublicConfig,
@@ -28,13 +28,12 @@ const PROVIDERS: ProviderDef[] = [
 ]
 
 type OAuthGlassPanelProps = {
-  busy?: boolean
   rememberLogin?: boolean
   onNotify?: (message: string, tone: 'error' | 'success') => void
   onSuccess?: (user: CurrentUser) => void
 }
 
-export function OAuthGlassPanel({ busy, rememberLogin = true, onNotify, onSuccess }: OAuthGlassPanelProps) {
+export function OAuthGlassPanel({ rememberLogin = false, onNotify, onSuccess }: OAuthGlassPanelProps) {
   const [loadingId, setLoadingId] = useState<OAuthGlassProvider | null>(null)
 
   // Prefetch the server OAuth config so the first click resolves instantly.
@@ -45,7 +44,7 @@ export function OAuthGlassPanel({ busy, rememberLogin = true, onNotify, onSucces
   const start = async (provider: OAuthGlassProvider) => {
     setLoadingId(provider)
     try {
-      void rememberLogin
+      writeKeepSignedInPreference(rememberLogin)
       // Refresh server config in case keys were added/rotated since page load.
       invalidateOAuthPublicConfig()
       await loadOAuthPublicConfig()
@@ -76,21 +75,17 @@ export function OAuthGlassPanel({ busy, rememberLogin = true, onNotify, onSucces
 
   return (
     <div className="oauth-glass-panel oauth-glass-panel--icons" role="group" aria-label="Social sign-in">
-      {PROVIDERS.map((p, index) => {
-        const loading = busy || loadingId === p.id
+      {PROVIDERS.map(p => {
+        const loading = loadingId === p.id
         return (
-          <motion.button
+          <button
             key={p.id}
             type="button"
-            className={`oauth-glass-icon oauth-glass-icon--${p.modifier}`}
+            className={`oauth-glass-icon oauth-glass-icon--${p.modifier}${loading ? ' oauth-glass-icon--loading' : ''}`}
             disabled={loading || p.disabled}
             aria-label={p.label}
+            aria-busy={loading}
             title={p.hint || p.label}
-            initial={{ opacity: 0, y: 6 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: index * 0.05, duration: 0.28 }}
-            whileHover={loading ? undefined : { y: -2, scale: 1.04 }}
-            whileTap={loading ? undefined : { scale: 0.96 }}
             onClick={() => void start(p.id)}
           >
             {loading ? (
@@ -98,7 +93,7 @@ export function OAuthGlassPanel({ busy, rememberLogin = true, onNotify, onSucces
             ) : (
               <i className={p.icon} aria-hidden />
             )}
-          </motion.button>
+          </button>
         )
       })}
     </div>

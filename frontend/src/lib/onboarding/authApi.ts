@@ -180,6 +180,9 @@ export async function apiLogin(input: {
   if (status === 401 || data.error === 'invalid_credentials') {
     return { ok: false, error: data.message || 'Incorrect email or password.' }
   }
+  if (status === 0 || data.error === 'network_error') {
+    return { ok: false, error: 'Cannot reach the auth server. Start the backend (port 3001) and try again.' }
+  }
   return { ok: false, error: data.message || data.error || 'Sign in failed.' }
 }
 

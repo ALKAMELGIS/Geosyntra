@@ -1,4 +1,4 @@
-import { Fragment, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useLanguage } from '@/lib/i18n';
 import { useSystemSettings } from '@/store/SystemSettingsContext';
 import type { AoiStaticExportLngLat, AoiStaticMultiLayerLineChartDataset } from './AoiStaticMultiLayerLineChart';
@@ -13,13 +13,14 @@ import type { SiAoiRasterPixelSample } from '../utils/siAoiZonalStats';
 import type { SiGeoAiIndexAnalyticalExportContext } from '../utils/siGeoAiIndexAnalyticalExport';
 import type { SmartProcessingSectionId } from './SmartProcessingWorkflowPanel';
 import { SiChatAiAgentIcon } from './SiChatAiAgentIcon';
+import { SiStatDashboardIcon } from './SiStatDashboardIcon';
+import { SiMapLayerControlIcon } from './SiMapLayerControlIcon';
 import { formatStatFixed } from '../utils/weeklyCompositeStats';
 import { SiAoiObjectsPanel } from './aoi/SiAoiObjectsPanel';
 import type { AoiGeometryEditSubTool, MapDrawTool, SiAoiDrawnStats, SiAoiWorkspaceRow } from './aoi/siAoiModuleTypes';
 
 export type SatelliteContextPanelId =
   | 'layers'
-  | 'explore-stac'
   | 'remote-sensing'
   | 'table-geo-ai'
   | 'fields'
@@ -81,16 +82,18 @@ export type SatelliteContextualAnalysisDockProps = {
   scatterWeekly?: WeeklyCompositeLite[];
   scatterWeekIndex?: number;
   scatterRasterSample?: SiAoiRasterPixelSample | null;
+  rasterDataLoading?: boolean;
+  hasRealRasterData?: boolean;
   staticComparisonLayers?: StaticAoiChartLayerId[];
   onStaticComparisonLayerToggle?: (id: StaticAoiChartLayerId) => void;
-  weeklyMeans?: number[];
+  weeklyMeans?: (number | null)[];
   /** @deprecated No longer used for Stats bars — pass [] or omit. */
   pivotBars?: Array<{ name: string; value: number }>;
   /** When set (e.g. saved fields + AOI sketch fields), Stats bar chart compares fields for primary layer + selected week. */
   fieldComparisonBars?: Array<{ name: string; value: number }>;
   fieldComparisonSubtitle?: string;
   spectralProfile?: SiAoiSpectralProfileMini | null;
-  sparkPathBuilder?: (values: number[], w: number, h: number) => string;
+  sparkPathBuilder?: (values: readonly (number | null)[], w: number, h: number) => string;
   /** Map toolbox: opens the same processing stack as Satellite Intelligence (no reload). */
   onProcessingWorkflowNavigate?: (sectionId: SmartProcessingSectionId, meta?: { fromDockOptions?: boolean }) => void;
   /** When true, the dock panel body hosts the floating Processing Options UI (portal target). */
@@ -102,7 +105,6 @@ export type SatelliteContextualAnalysisDockProps = {
   processingEmbedSection?:
     | 'source'
     | 'layers'
-    | 'explore-stac'
     | 'remote-sensing'
     | 'table-geo-ai'
     | null;
@@ -167,6 +169,12 @@ export type SatelliteContextualAnalysisDockProps = {
   onToggleMapWeatherIntel?: () => void;
   /** Feature identify pop-ups are open — block starting other map tools. */
   mapAnalysisToolsLockedByPopups?: boolean;
+  /** Quick Dashboard — instant layer analytics panel. */
+  quickDashboardOpen?: boolean;
+  onToggleQuickDashboard?: () => void;
+  /** MapLibre Layer Control — visibility, opacity & style for map layers. */
+  mapLayerControlOpen?: boolean;
+  onToggleMapLayerControl?: () => void;
 };
 
 const RAIL: Array<{ id: SatelliteContextPanelId; icon: string; label: string; title: string; hint: string }> = [
@@ -176,13 +184,6 @@ const RAIL: Array<{ id: SatelliteContextPanelId; icon: string; label: string; ti
     label: 'Layers',
     title: 'Layer settings',
     hint: 'Opacity, ordering, and imagery context while mapping.',
-  },
-  {
-    id: 'explore-stac',
-    icon: 'fa-solid fa-magnifying-glass-chart',
-    label: 'Explore STAC',
-    title: 'Explore STAC',
-    hint: 'Catalog search, collections, and items on the map.',
   },
   {
     id: 'remote-sensing',
@@ -269,20 +270,16 @@ const RAIL_GROUPS: SatelliteContextPanelId[][] = [
 /** In-map toolbox: Main (layers + STAC + RS) and Options (Geo AI). */
 const RAIL_MAP_TOOLBOX_IDS = new Set<SatelliteContextPanelId>([
   'layers',
-  'explore-stac',
   'remote-sensing',
   'table-geo-ai',
 ]);
 
 /** Rail tools that open the floating processing stack instead of the docked panel. */
-const MAP_RAIL_FLOAT_IDS = new Set<SatelliteContextPanelId>([
-  'explore-stac',
-  'remote-sensing',
-]);
+const MAP_RAIL_FLOAT_IDS = new Set<SatelliteContextPanelId>(['remote-sensing']);
 
 const RAIL_GROUPS_MAP: SatelliteContextPanelId[][] = [
-  ['layers', 'explore-stac'],
-  ['remote-sensing', 'table-geo-ai'],
+  ['layers', 'remote-sensing'],
+  ['table-geo-ai'],
 ];
 
 const RAIL_BY_ID = RAIL.reduce(
@@ -300,7 +297,7 @@ function SatelliteDockRailGlyph({ id, icon }: { id: SatelliteContextPanelId; ico
   return <i className={icon} aria-hidden />;
 }
 
-function defaultSparkPath(values: number[], w: number, h: number): string {
+function defaultSparkPath(values: readonly (number | null)[], w: number, h: number): string {
   const finite = values.filter((v): v is number => typeof v === 'number' && Number.isFinite(v));
   if (!finite.length) return '';
   const min = Math.min(...finite);
@@ -358,6 +355,8 @@ export function SatelliteContextualAnalysisDock(props: SatelliteContextualAnalys
     scatterWeekly = [],
     scatterWeekIndex = 0,
     scatterRasterSample = null,
+    rasterDataLoading = false,
+    hasRealRasterData = true,
     staticComparisonLayers = [],
     onStaticComparisonLayerToggle,
     weeklyMeans = [],
@@ -395,6 +394,10 @@ export function SatelliteContextualAnalysisDock(props: SatelliteContextualAnalys
     mapWeatherIntelActive = false,
     onToggleMapWeatherIntel,
     mapAnalysisToolsLockedByPopups = false,
+    quickDashboardOpen = false,
+    onToggleQuickDashboard,
+    mapLayerControlOpen = false,
+    onToggleMapLayerControl,
   } = props;
 
   const popupsToolLockTitle =
@@ -509,7 +512,7 @@ export function SatelliteContextualAnalysisDock(props: SatelliteContextualAnalys
   }, [processingDropdownOpen, activeId, isMapVariant]);
 
   /** Keep the dock panel + embed host mounted whenever the processing stack is open (e.g. Geo AI “open timeline”). */
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (!isMapVariant || !processingDropdownOpen || !processingEmbedSection) return;
     const sid = processingEmbedSection as SatelliteContextPanelId;
     if (!RAIL_MAP_TOOLBOX_IDS.has(sid)) return;
@@ -822,6 +825,47 @@ export function SatelliteContextualAnalysisDock(props: SatelliteContextualAnalys
             ) : null}
           </button>
         ) : null}
+        {isMap && onToggleMapLayerControl ? (
+          <button
+            type="button"
+            className={
+              'si-sat-ctx-rail-btn si-sat-ctx-rail-btn--map si-sat-ctx-rail-btn--layer-control-tool' +
+              (railWide ? ' si-sat-ctx-rail-btn--row si-sat-ctx-rail-btn--map-expanded' : '') +
+              (isMap && !railWide ? ' si-sat-ctx-rail-btn--map-collapsed' : '') +
+              (mapLayerControlOpen ? ' si-sat-ctx-rail-btn--active' : '') +
+              (mapAnalysisToolsLockedByPopups && !mapLayerControlOpen ? ' si-sat-ctx-rail-btn--locked' : '')
+            }
+            title={
+              mapAnalysisToolsLockedByPopups && !mapLayerControlOpen
+                ? popupsToolLockTitle
+                : language === 'ar'
+                  ? mapLayerControlOpen
+                    ? 'إغلاق تحكم الطبقات'
+                    : 'تحكم الطبقات — الظهور والشفافية والأنماط'
+                  : mapLayerControlOpen
+                    ? 'Close layer control'
+                    : 'Layer control — visibility, opacity & styles'
+            }
+            aria-label={language === 'ar' ? 'تحكم الطبقات' : 'Layer control'}
+            aria-pressed={mapLayerControlOpen}
+            disabled={mapAnalysisToolsLockedByPopups && !mapLayerControlOpen}
+            onClick={() => onToggleMapLayerControl()}
+          >
+            <span className="si-sat-ctx-rail-layer-control-glyph" aria-hidden>
+              <SiMapLayerControlIcon size={15} />
+            </span>
+            {isMap ? (
+              <span className="si-sat-ctx-rail-label" aria-hidden={!railWide}>
+                <span className="si-sat-ctx-rail-label-title">
+                  {language === 'ar' ? 'طبقات' : 'Layers ctrl'}
+                </span>
+                <span className="si-sat-ctx-rail-label-desc">
+                  {language === 'ar' ? 'ظهور وأنماط' : 'Stack & styles'}
+                </span>
+              </span>
+            ) : null}
+          </button>
+        ) : null}
         {isMap && onToggleRouteMap ? (
           <button
             type="button"
@@ -934,6 +978,41 @@ export function SatelliteContextualAnalysisDock(props: SatelliteContextualAnalys
                 <span className="si-sat-ctx-rail-label-title">{language === 'ar' ? 'طقس' : 'Weather'}</span>
                 <span className="si-sat-ctx-rail-label-desc">
                   {language === 'ar' ? 'Open-Meteo' : 'Open-Meteo intel'}
+                </span>
+              </span>
+            ) : null}
+          </button>
+        ) : null}
+        {isMap && onToggleQuickDashboard ? (
+          <button
+            type="button"
+            className={
+              'si-sat-ctx-rail-btn si-sat-ctx-rail-btn--map si-sat-ctx-rail-btn--qdash-tool' +
+              (railWide ? ' si-sat-ctx-rail-btn--row si-sat-ctx-rail-btn--map-expanded' : '') +
+              (isMap && !railWide ? ' si-sat-ctx-rail-btn--map-collapsed' : '') +
+              (quickDashboardOpen ? ' si-sat-ctx-rail-btn--active' : '')
+            }
+            title={
+              language === 'ar'
+                ? quickDashboardOpen
+                  ? 'إغلاق Quick Dashboard'
+                  : 'Quick Dashboard — تحليلات فورية للطبقة'
+                : quickDashboardOpen
+                  ? 'Close Quick Dashboard'
+                  : 'Quick Dashboard — instant layer analytics'
+            }
+            aria-label={language === 'ar' ? 'Quick Dashboard' : 'Quick Dashboard'}
+            aria-pressed={quickDashboardOpen}
+            onClick={() => onToggleQuickDashboard()}
+          >
+            <span className="si-sat-ctx-rail-qdash-glyph" aria-hidden>
+              <SiStatDashboardIcon size={14} />
+            </span>
+            {isMap ? (
+              <span className="si-sat-ctx-rail-label" aria-hidden={!railWide}>
+                <span className="si-sat-ctx-rail-label-title">Quick Dashboard</span>
+                <span className="si-sat-ctx-rail-label-desc">
+                  {language === 'ar' ? 'لوحة فورية' : 'Layer KPIs & charts'}
                 </span>
               </span>
             ) : null}
@@ -1237,6 +1316,8 @@ export function SatelliteContextualAnalysisDock(props: SatelliteContextualAnalys
                             scatterWeekly={scatterWeekly}
                             scatterWeekIndex={scatterWeekIndex}
                             scatterRasterSample={scatterRasterSample}
+                            rasterDataLoading={rasterDataLoading}
+                            hasRealRasterData={hasRealRasterData}
                           />
                         </div>
                       ))}
@@ -1365,7 +1446,7 @@ export function SatelliteContextualAnalysisDock(props: SatelliteContextualAnalys
                         </div>
                         <div className="si-sat-ctx-toolbox-opt-actions" role="group" aria-label="Open processing sections">
                           {(
-                            ['explore-stac', 'remote-sensing', 'table-geo-ai'] as SmartProcessingSectionId[]
+                            ['remote-sensing', 'table-geo-ai'] as SmartProcessingSectionId[]
                           ).map(sid => (
                             <button
                               key={sid}

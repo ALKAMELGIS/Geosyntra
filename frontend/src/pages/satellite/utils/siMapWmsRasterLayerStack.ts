@@ -4,6 +4,14 @@ import { SI_TERRAIN_CONTOUR_LABEL_LAYER_ID } from './siMap3DLabels';
 
 export const SI_MAP_TERRAIN_CONTOUR_LAYER_ID = 'si-terrain-contours';
 
+export function siMapTerrainContourLayersMounted(map: MapboxMap): boolean {
+  try {
+    return Boolean(map.getLayer(SI_MAP_TERRAIN_CONTOUR_LAYER_ID));
+  } catch {
+    return false;
+  }
+}
+
 /** Mapbox layer ids for Sentinel Hub WMS rasters (always above AOI vectors). */
 export function isSiMapWmsRasterLayerId(layerId: string): boolean {
   return layerId === 'sentinel-layer' || layerId.startsWith('si-sentinel-layer-');

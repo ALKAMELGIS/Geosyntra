@@ -1,121 +1,61 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useLanguage } from '@/lib/i18n';
 import type { SiMapProjectionMode } from '../utils/siMapProjectionTerrain';
 import './SiMapProjectionToggle.css';
 
 export type SiMapProjectionToggleProps = {
   mode: SiMapProjectionMode;
-  onModeChange: (mode: SiMapProjectionMode) => void;
-  terrainEnabled: boolean;
-  onTerrainEnabledChange: (v: boolean) => void;
-  terrainExaggeration: number;
-  onTerrainExaggerationChange: (v: number) => void;
-  toast?: string | null;
+  disabled?: boolean;
+  onToggle: () => void;
 };
 
-/** On-map Map projection control (same pattern as GIS Map settings). */
+/**
+ * Globe ↔ Mercator projection switcher — pairs with {@link setGeoSyntraMapProjection}.
+ */
 export function SiMapProjectionToggle({
   mode,
-  onModeChange,
-  terrainEnabled,
-  onTerrainEnabledChange,
-  terrainExaggeration,
-  onTerrainExaggerationChange,
-  toast,
+  disabled = false,
+  onToggle,
 }: SiMapProjectionToggleProps) {
-  const [settingsOpen, setSettingsOpen] = useState(false);
+  const { language } = useLanguage();
+  const isGlobe = mode === 'globe';
 
-  useEffect(() => {
-    if (mode !== 'globe') setSettingsOpen(false);
-  }, [mode]);
-
-  const onKey = useCallback(
-    (e: KeyboardEvent) => {
-      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
-      if (e.key === 'f' || e.key === 'F') onModeChange('2d');
-      if (e.key === 'g' || e.key === 'G') onModeChange('globe');
-    },
-    [onModeChange],
-  );
-
-  useEffect(() => {
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [onKey]);
+  const title = isGlobe
+    ? language === 'ar'
+      ? 'التبديل إلى خريطة Mercator ثنائية الأبعاد'
+      : 'Switch to 2D Mercator map'
+    : language === 'ar'
+      ? 'التبديل إلى كرة أرضية ثلاثية الأبعاد'
+      : 'Switch to 3D Globe view';
 
   return (
-    <>
-      <div className="si-map-projection-float" role="group" aria-labelledby="si-map-projection-label">
-        <p id="si-map-projection-label" className="gis-tool-muted si-map-projection-label">
-          Map projection
-        </p>
-        <p className="si-map-projection-crs" title="All layers and coordinates use geographic WGS 84">
-          WGS 84 · EPSG:4326
-        </p>
-        <div className="gis-map-projection-toggle gis-map-projection-toggle--vertical gis-map-projection-toggle--float si-map-projection-toggle">
-          <button
-            type="button"
-            className={mode === '2d' ? 'gis-map-tool active icon-only' : 'gis-map-tool icon-only'}
-            onClick={() => onModeChange('2d')}
-            title="2D map (F)"
-            aria-label="Switch to 2D map projection. Shortcut F"
-            aria-pressed={mode === '2d'}
-          >
-            <i className="fa-solid fa-map-location-dot" aria-hidden />
-          </button>
-          <button
-            type="button"
-            className={mode === 'globe' ? 'gis-map-tool active icon-only' : 'gis-map-tool icon-only'}
-            onClick={() => onModeChange('globe')}
-            title="3D Globe (G)"
-            aria-label="Switch to 3D Globe projection. Shortcut G"
-            aria-pressed={mode === 'globe'}
-          >
-            <i className="fa-solid fa-globe" aria-hidden />
-          </button>
-          {mode === 'globe' ? (
-            <button
-              type="button"
-              className={`gis-map-tool icon-only si-map-projection-settings-btn${settingsOpen ? ' active' : ''}`}
-              onClick={() => setSettingsOpen(o => !o)}
-              title="3D terrain settings"
-              aria-label="3D terrain settings"
-              aria-expanded={settingsOpen}
-            >
-              <i className="fa-solid fa-mountain-sun" aria-hidden />
-            </button>
-          ) : null}
-        </div>
-        {settingsOpen && mode === 'globe' ? (
-          <div className="si-map-projection-terrain-panel" role="region" aria-label="3D terrain settings">
-            <label className="si-map-projection-terrain-row">
-              <input
-                type="checkbox"
-                checked={terrainEnabled}
-                onChange={e => onTerrainEnabledChange(e.target.checked)}
-              />
-              <span>Terrain elevation (DEM)</span>
-            </label>
-            <label className="si-map-projection-terrain-row">
-              <span>Exaggeration</span>
-              <input
-                type="range"
-                min={0.5}
-                max={3}
-                step={0.05}
-                value={terrainExaggeration}
-                disabled={!terrainEnabled}
-                onChange={e => onTerrainExaggerationChange(Number(e.target.value))}
-              />
-              <span className="si-map-projection-terrain-val">{terrainExaggeration.toFixed(2)}×</span>
-            </label>
-          </div>
-        ) : null}
-      </div>
-      {toast ? (
-        <div className="gis-map-projection-toast si-map-projection-toast show" role="status" aria-live="polite">
-          {toast}
-        </div>
-      ) : null}
-    </>
+    <button
+      type="button"
+      className={
+        'si-basemap-button si-map-projection-toggle' +
+        (isGlobe ? ' si-map-projection-toggle--globe active' : ' si-map-projection-toggle--mercator')
+      }
+      onClick={onToggle}
+      disabled={disabled}
+      title={title}
+      aria-label={title}
+      aria-pressed={isGlobe}
+    >
+      <span className="si-map-projection-toggle__glyph" aria-hidden>
+        {isGlobe ? (
+          <svg viewBox="0 0 16 16" width="14" height="14" focusable="false">
+            <circle cx="8" cy="8" r="5.6" fill="none" stroke="currentColor" strokeWidth="1.2" />
+            <ellipse cx="8" cy="8" rx="2.2" ry="5.6" fill="none" stroke="currentColor" strokeWidth="0.9" />
+            <path d="M2.4 8h11.2" stroke="currentColor" strokeWidth="0.9" />
+          </svg>
+        ) : (
+          <svg viewBox="0 0 16 16" width="14" height="14" focusable="false">
+            <rect x="2.5" y="3.5" width="11" height="9" rx="1.2" fill="none" stroke="currentColor" strokeWidth="1.2" />
+            <path d="M2.5 6.5h11" stroke="currentColor" strokeWidth="0.8" opacity="0.7" />
+            <path d="M5.5 3.5v9" stroke="currentColor" strokeWidth="0.8" opacity="0.5" />
+            <path d="M10.5 3.5v9" stroke="currentColor" strokeWidth="0.8" opacity="0.5" />
+          </svg>
+        )}
+      </span>
+    </button>
   );
 }

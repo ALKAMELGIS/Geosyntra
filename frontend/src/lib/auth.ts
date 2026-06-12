@@ -1,4 +1,5 @@
 import { ALL_GEO_PERMISSIONS, hasGeoCapability, type GeoPermission } from './geoEnterpriseUserModel'
+import { readKeepSignedInPreference } from './authKeepSignedIn'
 import { isSystemOwnerEmail, rbacHasPermission } from './rbacPermissions'
 import type { CurrentUser, Role } from './authTypes'
 import { normalizeEmail, normalizeRole } from './authTypes'
@@ -83,8 +84,17 @@ function parseCurrentUser(raw: string | null): CurrentUser | null {
 
 export const readCurrentUser = (): CurrentUser | null => parseCurrentUser(readRawSessionOrLocal())
 
+/** True when the active session envelope lives in localStorage (persistent login). */
+export function isSessionPersisted(): boolean {
+  try {
+    return !!localStorage.getItem(CURRENT_USER_KEY)
+  } catch {
+    return false
+  }
+}
+
 export type StartSessionOptions = {
-  /** When true, session is kept in localStorage. Default true for cross-tab/browser-window continuity. */
+  /** When true, session is kept in localStorage until expiry. When false, sessionStorage only (tab session). */
   persist?: boolean
   /** Optional persistent session duration in milliseconds. */
   persistTtlMs?: number
@@ -98,7 +108,8 @@ export const startSession = (user: Partial<CurrentUser> | null, options?: StartS
       sessionStorage.removeItem(CURRENT_USER_KEY)
       localStorage.removeItem(CURRENT_USER_KEY)
     } else {
-      const persist = options?.persist !== false
+      const persist =
+        options?.persist !== undefined ? options.persist === true : readKeepSignedInPreference()
       const existing = parseCurrentUser(readRawSessionOrLocal())
       const merged: CurrentUser = {
         id: typeof user.id === 'number' ? user.id : existing?.id ?? Date.now(),

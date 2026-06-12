@@ -127,14 +127,13 @@ export default function PrimaryNavIcons({ onLogout }: PrimaryNavIconsProps) {
         if (group.id === 'admin' && !canSeeAdmin) return null
         const visibleGroupLeaves =
           group.id === 'settings'
-            ? group.children.filter(
-                leaf =>
-                  isOwner &&
-                  (leaf.id === 'api-integrations' ||
-                    leaf.id === 'admin-console' ||
-                    leaf.path.startsWith('/settings/admin') ||
-                    leaf.path === '/settings/api-integrations'),
-              )
+            ? group.children.filter(leaf => {
+                if (leaf.id === 'api-integrations' || leaf.id === 'admin-console') return isOwner
+                if (leaf.path.startsWith('/settings/admin') || leaf.path === '/settings/api-integrations') {
+                  return isOwner
+                }
+                return true
+              })
             : group.children
         if (group.id === 'settings' && visibleGroupLeaves.length === 0) return null
         const unifiedPath = singleVisibleNavPath(visibleGroupLeaves)

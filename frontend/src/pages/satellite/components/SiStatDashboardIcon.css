@@ -1,0 +1,56 @@
+.si-stat-dashboard-icon {
+  display: block;
+  flex-shrink: 0;
+  color: rgba(148, 163, 184, 0.92);
+}
+
+.si-stat-dashboard-icon__frame {
+  fill: rgba(255, 255, 255, 0.03);
+  stroke: currentColor;
+  stroke-width: 1.05;
+}
+
+.si-stat-dashboard-icon__kpi {
+  fill: currentColor;
+  opacity: 0.48;
+}
+
+.si-stat-dashboard-icon__rule {
+  stroke: currentColor;
+  stroke-width: 0.75;
+  opacity: 0.38;
+}
+
+.si-stat-dashboard-icon__bar {
+  fill: currentColor;
+  opacity: 0.72;
+}
+
+.si-stat-dashboard-icon__bar--accent {
+  opacity: 0.92;
+}
+
+.si-stat-dashboard-icon__spark {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.05;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  opacity: 0.88;
+}
+
+.si-stat-dashboard-icon--toolbar {
+  color: rgba(226, 232, 240, 0.92);
+}
+
+.si-stat-dashboard-icon--toolbar .si-stat-dashboard-icon__frame {
+  fill: rgba(255, 255, 255, 0.04);
+}
+
+.si-map-analysis-tool--on .si-stat-dashboard-icon--toolbar {
+  color: #ecfdf5;
+}
+
+.si-map-analysis-tool--on .si-stat-dashboard-icon--toolbar .si-stat-dashboard-icon__bar--accent {
+  opacity: 1;
+}

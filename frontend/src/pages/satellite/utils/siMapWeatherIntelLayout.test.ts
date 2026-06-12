@@ -1,11 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import {
   clampWeatherIntelPanelPosition,
+  clampWeatherIntelPanelSize,
   computeSiMapWeatherIntelLayout,
   SI_WX_INTEL_PANEL_W,
   SI_WX_INTEL_PANEL_W_HISTORY,
   weatherIntelDefaultPanelPosition,
   weatherIntelPanelPositionAtPin,
+  weatherIntelPanelResizeBounds,
 } from './siMapWeatherIntelLayout';
 
 describe('computeSiMapWeatherIntelLayout', () => {
@@ -61,5 +63,15 @@ describe('computeSiMapWeatherIntelLayout', () => {
     expect(pos.left).toBeGreaterThan(300);
     expect(pos.top).toBeGreaterThanOrEqual(8);
     expect(pos.top).toBeLessThan(400);
+  });
+
+  it('allows free resize up to the map shell bounds', () => {
+    const layout = computeSiMapWeatherIntelLayout(1280, 900, {});
+    const bounds = weatherIntelPanelResizeBounds(layout);
+    expect(bounds.maxWidth).toBeGreaterThan(500);
+    expect(bounds.maxHeight).toBeGreaterThan(700);
+    const clamped = clampWeatherIntelPanelSize(bounds.maxWidth + 120, bounds.maxHeight + 80, layout);
+    expect(clamped.width).toBe(bounds.maxWidth);
+    expect(clamped.height).toBe(bounds.maxHeight);
   });
 });

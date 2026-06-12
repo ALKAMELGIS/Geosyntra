@@ -72,12 +72,15 @@ export function siMapInteractiveToolSuppressesIdentifyPopups(s: SiMapInteractive
 
 export const SI_MAP_FLOATING_IDENTIFY_LS_KEY = 'si-map-floating-identify-v1';
 
-/** Opt-in map-anchored identify cards (default off — status bar only). */
+/** Map-anchored luxury attribute cards (default on). Set localStorage to `0` to disable. */
 export function readSiMapFloatingIdentifyEnabled(): boolean {
   try {
-    return localStorage.getItem(SI_MAP_FLOATING_IDENTIFY_LS_KEY) === '1';
+    const v = localStorage.getItem(SI_MAP_FLOATING_IDENTIFY_LS_KEY);
+    if (v === '0') return false;
+    if (v === '1') return true;
+    return true;
   } catch {
-    return false;
+    return true;
   }
 }
 

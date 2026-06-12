@@ -1420,16 +1420,16 @@ html[data-theme='light'] .home-landing .gs-pearl-title {
  * ============================================================ */
 html[data-theme='light'] .home-landing .text-muted-foreground\/90,
 html[data-theme='light'] .home-landing .text-muted-foreground\/80 {
-  color: rgba(15, 23, 42, 0.92); /* slate-900 ≈ "rich black" */
+  color: #0a0c12;
 }
 
 html[data-theme='light'] .home-landing .text-muted-foreground\/60 {
-  color: rgba(30, 41, 59, 0.85); /* slate-800 — eyebrow labels */
+  color: #0a0c12;
 }
 
 /* Tighten any remaining muted-foreground spans (no opacity suffix). */
 html[data-theme='light'] .home-landing .text-muted-foreground {
-  color: rgba(15, 23, 42, 0.92);
+  color: #0a0c12;
 }
 
 /* ============================================================
@@ -1930,22 +1930,22 @@ html[data-theme='light'] .home-merged .home-merged__nav .saas-entry__brand {
 }
 
 html[data-theme='light'] .home-merged .home-merged__nav .saas-entry__nav-link {
-  color: rgba(26, 29, 43, 0.62);
+  color: var(--gs-lt-text, #0a0c12);
   font-weight: 500;
   letter-spacing: 0.02em;
 }
 
 html[data-theme='light'] .home-merged .home-merged__nav .saas-entry__nav-link:hover {
-  color: var(--gs-lt-text, #1a1d2b);
+  color: var(--gs-lt-text, #0a0c12);
 }
 
 html[data-theme='light'] .home-merged .home-merged__nav .home-nav-auth__trigger {
-  color: rgba(26, 29, 43, 0.62);
+  color: var(--gs-lt-text, #0a0c12);
 }
 
 html[data-theme='light'] .home-merged .home-merged__nav .home-nav-auth__trigger:hover,
 html[data-theme='light'] .home-merged .home-merged__nav .home-nav-auth__trigger--open {
-  color: var(--gs-lt-text, #1a1d2b);
+  color: var(--gs-lt-text, #0a0c12);
 }
 
 html[data-theme='light'] .home-landing .home-user-toolbar--nav-auth-guest .home-nav-auth__trigger--guest {
@@ -2019,7 +2019,7 @@ html[data-theme='light'] .home-landing .home-saas-hero__accent-remainder {
 }
 
 html[data-theme='light'] .home-landing .gs-scroll-globe--with-leading #start .home-saas-hero__underline {
-  color: rgba(26, 29, 43, 0.78);
+  color: #0a0c12;
 }
 
 html[data-theme='light'] .home-landing .home-saas-hero__subtitle,
@@ -2027,7 +2027,7 @@ html[data-theme='light'] .home-landing .gs-scroll-globe--with-leading #start .ho
 html[data-theme='light'] .home-landing .home-saas-hero__subtitle-line--lead,
 html[data-theme='light'] .home-landing .home-saas-hero__subtitle-line--secondary,
 html[data-theme='light'] .home-landing .gs-scroll-globe--with-leading #start .home-saas-hero__subtitle-line--secondary {
-  color: rgba(26, 29, 43, 0.72);
+  color: #0a0c12;
   font-weight: 400;
   letter-spacing: 0.015em;
   line-height: 1.62;
@@ -2051,7 +2051,7 @@ html[data-theme='light'] .home-landing .home-saas-hero--globe-centered .home-saa
 
 html[data-theme='light'] .home-landing .gs-scroll-globe--with-leading #start .home-merged-saas__scroll-hint,
 html[data-theme='light'] .home-landing .home-saas-hero__scroll-cue {
-  color: rgba(71, 85, 105, 0.55);
+  color: #0a0c12;
 }
 
 /* Footer — airy frosted light glass on browse landing */

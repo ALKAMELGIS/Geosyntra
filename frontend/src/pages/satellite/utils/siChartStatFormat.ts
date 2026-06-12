@@ -1,6 +1,31 @@
 /** Fixed decimal formatting for statistical charts (axes, R², tooltips, OLS legend). */
 import type { Plugin } from 'chart.js';
 
+/** Safe min/max — avoids `Math.min(...arr)` stack overflow on large AOI raster samples. */
+export function minMaxFinite(values: Iterable<number>): { min: number; max: number } | null {
+  let min = Infinity;
+  let max = -Infinity;
+  let seen = false;
+  for (const raw of values) {
+    if (!Number.isFinite(raw)) continue;
+    seen = true;
+    if (raw < min) min = raw;
+    if (raw > max) max = raw;
+  }
+  return seen ? { min, max } : null;
+}
+
+/** Even stride subsample — keeps scatter/regression bounded for map-scale rasters. */
+export function subsampleEvenly<T>(items: readonly T[], maxCount: number): T[] {
+  if (items.length <= maxCount || maxCount < 1) return [...items];
+  const out: T[] = [];
+  const step = items.length / maxCount;
+  for (let i = 0; i < maxCount; i++) {
+    out.push(items[Math.min(items.length - 1, Math.floor(i * step))]!);
+  }
+  return out;
+}
+
 export function formatStatDecimal(value: number, fractionDigits = 2): string {
   if (!Number.isFinite(value)) return '—';
   return value.toFixed(fractionDigits);
@@ -62,8 +87,12 @@ export function scatterAxisBounds(
   if (!finite.length) {
     return mode === 'lst' ? { min: 14, max: 30 } : { min: -1, max: 1 };
   }
-  let min = Math.min(...finite);
-  let max = Math.max(...finite);
+  const bounds = minMaxFinite(finite);
+  if (!bounds) {
+    return mode === 'lst' ? { min: 14, max: 30 } : { min: -1, max: 1 };
+  }
+  let min = bounds.min;
+  let max = bounds.max;
   if (min === max) {
     const bump = mode === 'lst' ? 1.5 : 0.06;
     min -= bump;

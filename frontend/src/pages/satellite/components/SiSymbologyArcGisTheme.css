@@ -1,0 +1,86 @@
+/* ArcGIS Online style preview thumbnails — used by SiSymbologyStyleThumb */
+
+.si-sym-agol-thumb {
+  width: 100%;
+  height: 100%;
+  background-color: var(--si-sym-agol-preview-bg, #e8e8e8);
+  background-repeat: no-repeat;
+  background-position: center;
+  background-size: cover;
+}
+
+.si-sym-agol-thumb--pie_chart {
+  background-image: url('./assets/pie-chart-thumb.svg');
+}
+
+.si-sym-agol-thumb--extrusion_3d {
+  background-image: url('./assets/extrusion-3d-thumb.svg');
+}
+
+.si-sym-agol-ramp-strip {
+  display: block;
+  flex: 1;
+  height: 20px;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+}
+
+/* Fallback CSS previews when SVG asset is not defined in siSymbologyAgolThumbAssets */
+
+.si-sym-agol-thumb--single_line {
+  background-image:
+    linear-gradient(#e8e8e8, #e8e8e8),
+    linear-gradient(25deg, transparent 46%, #2563eb 46%, #2563eb 48%, transparent 48%),
+    linear-gradient(-15deg, transparent 52%, #2563eb 52%, #2563eb 54%, transparent 54%);
+}
+
+.si-sym-agol-thumb--line_3d {
+  background-image:
+    linear-gradient(160deg, #94a3b8 0%, #64748b 100%),
+    linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%);
+  background-size: 100% 40%, 28px 48px;
+  background-position: bottom, 68% 35%;
+  background-repeat: no-repeat;
+}
+
+.si-sym-agol-thumb--flow_lines,
+.si-sym-agol-thumb--traffic_style,
+.si-sym-agol-thumb--gradient_line {
+  background-image:
+    linear-gradient(#e8e8e8, #e8e8e8),
+    linear-gradient(90deg, #22c55e, #eab308, #ef4444);
+  background-size: 100% 100%, 80% 4px;
+  background-position: center, center;
+  background-repeat: no-repeat;
+}
+
+.si-sym-agol-thumb--direction_arrows {
+  background-image:
+    linear-gradient(#e8e8e8, #e8e8e8),
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='40' viewBox='0 0 120 40'%3E%3Cpath d='M10 25 L90 25' stroke='%232563eb' stroke-width='3' fill='none'/%3E%3Cpath d='M82 18 L95 25 L82 32' fill='%232563eb'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: center;
+}
+
+.si-sym-agol-thumb--dashed_lines {
+  background-image:
+    linear-gradient(#e8e8e8, #e8e8e8),
+    repeating-linear-gradient(90deg, #2563eb 0 12px, transparent 12px 20px);
+  background-size: 100% 100%, 80% 3px;
+  background-position: center, center;
+  background-repeat: no-repeat;
+}
+
+.si-sym-agol-thumb--heat_surface {
+  background-image: url('./assets/heat-surface-thumb.svg');
+}
+
+.si-sym-agol-thumb--dot_density {
+  background-image: url('./assets/dot-density-thumb.svg');
+}
+
+.si-sym-style-card__thumb--unique {
+  background-image:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 400 150'%3E%3Crect width='400' height='150' fill='%23e8e8e8'/%3E%3Cpath fill='%23b5d334' d='M0 0 L98 0 L88 58 L0 68 Z'/%3E%3Cpath fill='%23e8788a' d='M98 0 L215 0 L205 60 L88 58 Z'/%3E%3Cpath fill='%236eb5e8' d='M215 0 L345 0 L355 52 L205 60 Z'/%3E%3Cpath fill='%23a78bc4' d='M345 0 L400 0 L400 54 L355 52 Z'/%3E%3Cpath fill='%236eb5e8' d='M0 68 L88 58 L205 60 L195 112 L78 122 L0 150 Z'/%3E%3Cpath fill='%23e8788a' d='M205 60 L355 52 L400 54 L400 108 L258 118 L195 112 Z'/%3E%3Cpath fill='%23b5d334' d='M0 150 L78 122 L195 112 L248 150 Z'/%3E%3Cpath fill='%23a78bc4' d='M195 112 L258 118 L400 108 L400 150 L248 150 Z'/%3E%3C/svg%3E");
+  background-size: cover;
+  background-position: center;
+}

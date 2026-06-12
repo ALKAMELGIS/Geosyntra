@@ -21,6 +21,10 @@ import { scheduleAdminDirectorySync } from '../../../../lib/adminDirectoryPersis
 import { SaasButton } from '../../../../components/saas/SaasEntryShell'
 import { isPlatformOwnerUser } from '../../../../lib/auth'
 import {
+  readKeepSignedInPreference,
+  writeKeepSignedInPreference,
+} from '../../../../lib/authKeepSignedIn'
+import {
   activatePreAuthorizedWorkspace,
   ensurePlatformOwnerWorkspace,
 } from '../../../../lib/onboarding/activateWorkspace'
@@ -68,7 +72,7 @@ export function WizardWelcomeStep() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
-  const [keepSignedIn, setKeepSignedIn] = useState(false)
+  const [keepSignedIn, setKeepSignedIn] = useState(() => readKeepSignedInPreference())
   const [planId, setPlanId] = useState<BillingPlanId>(DEFAULT_SIGNUP_PLAN_ID)
   const [pendingEmail, setPendingEmail] = useState('')
   const [devLink, setDevLink] = useState<string | null>(null)
@@ -79,7 +83,6 @@ export function WizardWelcomeStep() {
 
   useEffect(() => {
     setMode(authMode)
-    if (authMode === 'signin') setKeepSignedIn(false)
   }, [authMode])
 
   const afterAuth = (user: Parameters<typeof login>[0]) => {
@@ -314,6 +317,7 @@ export function WizardWelcomeStep() {
 
   const onKeepSignedInChange = (next: boolean) => {
     setKeepSignedIn(next)
+    writeKeepSignedInPreference(next)
   }
 
   const onRecoveryKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
@@ -630,7 +634,6 @@ export function WizardWelcomeStep() {
                   <span>{mode === 'signup' ? 'or sign up with' : 'or continue with'}</span>
                 </div>
                 <OAuthGlassPanel
-                  busy={busy}
                   rememberLogin={keepSignedIn}
                   onNotify={(message, tone) => {
                     if (tone === 'error') {

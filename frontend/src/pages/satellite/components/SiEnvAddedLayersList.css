@@ -402,6 +402,13 @@
   color: rgba(148, 163, 184, 0.78);
 }
 
+.si-layer-tree__meta-spin {
+  margin-inline-end: 4px;
+  font-size: 8px;
+  opacity: 0.85;
+  vertical-align: middle;
+}
+
 .si-layer-tree__count,
 .si-layer-tree__badge {
   flex: 0 0 auto;

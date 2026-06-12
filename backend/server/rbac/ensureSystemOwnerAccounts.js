@@ -1,14 +1,14 @@
 import { createOrPromoteOwner } from './createOwnerAccount.js'
 import { listSystemOwnerEmails } from './systemOwnerEmails.js'
+import { resolveDevBootstrapOwnerPassword } from './devOwnerBootstrap.js'
 
 /**
  * Create or repair system-owner accounts on server start when bootstrap password is set.
  * Uses RBAC_BOOTSTRAP_PASSWORD or GEOSYNTRA_OWNER_PASSWORD (min 12 chars).
+ * In development, falls back to DEV_DEFAULT_OWNER_PASSWORD when env is unset.
  */
 export function ensureSystemOwnerAccounts(store) {
-  const password = String(
-    process.env.RBAC_BOOTSTRAP_PASSWORD || process.env.GEOSYNTRA_OWNER_PASSWORD || '',
-  ).trim()
+  const password = resolveDevBootstrapOwnerPassword()
   if (password.length < 12) {
     return { skipped: true, reason: 'password_not_set' }
   }

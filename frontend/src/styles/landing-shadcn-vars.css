@@ -60,11 +60,11 @@ html[data-theme='dark'] {
  */
 html[data-theme='light'] {
   --background: 220 25% 98%;           /* #f8fafd */
-  --foreground: 230 18% 14%;           /* #1d2030 */
+  --foreground: 230 22% 6%;            /* #0a0c12 — clear black */
   --card: 220 30% 100%;                /* pure white card surface */
-  --card-foreground: 230 18% 14%;
+  --card-foreground: 230 22% 6%;
   --muted: 220 20% 94%;                /* #ecf0f5 */
-  --muted-foreground: 230 14% 38%;     /* #515669 */
+  --muted-foreground: 230 22% 6%;      /* clear black — no grey body copy */
   --accent: 230 16% 30%;               /* mid slate accent */
   --accent-foreground: 220 25% 98%;
   --primary: 230 22% 16%;              /* deep slate, high-contrast on white */

@@ -28,8 +28,8 @@ const TEMPLATES = [
   },
   { 
     id: 'NDMI' as IndexType, 
-    name: 'Moisture Index', 
-    subtitle: 'NDMI',
+    name: 'NDMI',
+    subtitle: 'Normalized Difference Moisture Index',
     description: 'Normalized Difference Moisture Index. Detects moisture levels in crop canopy.', 
     icon: 'fa-droplet', 
     color: '#00bcd4',

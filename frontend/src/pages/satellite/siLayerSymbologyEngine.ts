@@ -36,6 +36,15 @@ import {
   sampleRamp,
 } from './symbologyHelpers';
 import { siClassColorKey } from './utils/siSymbologyLegendItems';
+import {
+  sanitizeSiSymbologyAttributeRotation,
+  sanitizeSiSymbologyAttributeTransparency,
+} from './utils/siSymbologyAttributeDrive';
+import { isGraduatedSymbologyStyleResolved } from './utils/siSymbologyStyleResolve';
+import {
+  siMapOutlineWidthExprForZoom,
+  siMapOutlineWidthForZoom,
+} from './utils/siMapOutlineWidthZoom';
 import type { SymbologyStyle } from './components/LayerManager';
 
 const SI_MAPBOX_POLY_FILTER: any = ['in', ['geometry-type'], ['literal', ['Polygon', 'MultiPolygon']]];
@@ -71,10 +80,10 @@ function withVisibleArcgisOutline(
   const width = base['line-width'];
   const flooredWidth =
     typeof width === 'number'
-      ? Math.max(SI_ARCGIS_MIN_OUTLINE_WIDTH, width)
+      ? siMapOutlineWidthForZoom(Math.max(SI_ARCGIS_MIN_OUTLINE_WIDTH, width))
       : width == null
-        ? 1.75
-        : (['max', width as unknown, SI_ARCGIS_MIN_OUTLINE_WIDTH] as unknown as number);
+        ? siMapOutlineWidthForZoom(1.75)
+        : (['max', siMapOutlineWidthExprForZoom(width), siMapOutlineWidthForZoom(SI_ARCGIS_MIN_OUTLINE_WIDTH)] as unknown);
   return {
     ...base,
     'line-color': base['line-color'] ?? neutralColor,
@@ -227,11 +236,11 @@ export function arcgisLayerFallbackStylePack(layer: SiCustomLayerSymbologyFields
     lineFilter: SI_MAPBOX_LINE_POLY_FILTER,
     pointFilter: SI_MAPBOX_POINT_FILTER,
     fillPaint: { 'fill-color': fill, 'fill-opacity': fillOp },
-    linePaint: { 'line-color': stroke, 'line-width': w, 'line-opacity': 0.9 },
+    linePaint: { 'line-color': stroke, 'line-width': siMapOutlineWidthForZoom(w), 'line-opacity': 0.9 },
     circlePaint: {
       'circle-radius': typeof layer.pointRadius === 'number' ? layer.pointRadius : 4,
       'circle-color': fill,
-      'circle-stroke-width': 1,
+      'circle-stroke-width': siMapOutlineWidthForZoom(1),
       'circle-stroke-color': stroke,
     },
   };
@@ -400,16 +409,8 @@ export function computeSiLayerStyleRevision(
   return `ps|${siSymbologyStyleKeyFromConfig(layer.symbology, ap, op)}|${ap.strokeStyle}|${String(ap.pointRadius)}|${ap.fillStyle}|${ap.blendMode}|${String(op)}`;
 }
 
-const GRADUATED_SYMBOLOGY_STYLES = new Set<SymbologyStyle>([
-  'color',
-  'size',
-  'color_size',
-  'dot_density',
-  'threshold_markers',
-]);
-
 export function isGraduatedSymbologyStyle(style: SymbologyStyle): boolean {
-  return GRADUATED_SYMBOLOGY_STYLES.has(style);
+  return isGraduatedSymbologyStyleResolved(style);
 }
 
 /** Class-break color keys (`__si_class_N`) for graduated Mapbox paints. */
@@ -427,6 +428,23 @@ export function buildGraduatedClassColorMap(
 }
 
 /**
+ * NormalizeSymbologyForLayer drops attribute-drive fields — reattach from draft.
+ */
+function withSymbologyDraftAttributeDrive<T extends SiSymbologyDraftLike & { arcgisMaxCategories?: number }>(
+  normalized: Required<SymbologyConfig>,
+  draft: T,
+  extra: Partial<Pick<T, 'categoryColors' | 'categoryStyles'>>,
+): T {
+  return {
+    ...normalized,
+    arcgisMaxCategories: draft.arcgisMaxCategories,
+    attributeTransparency: draft.attributeTransparency,
+    attributeRotation: draft.attributeRotation,
+    ...extra,
+  } as T;
+}
+
+/**
  * Normalize + isolate category maps before Apply — prevents Unique Values keys
  * from leaking into Graduated renders (and vice versa).
  */
@@ -438,12 +456,10 @@ export function finalizeSymbologyDraftForCommit(
   const normalized = normalizeSymbologyForLayer(layer.geojson, layer.source, draft, canUse);
 
   if (normalized.useArcGisOnline) {
-    return {
-      ...normalized,
-      arcgisMaxCategories: draft.arcgisMaxCategories,
+    return withSymbologyDraftAttributeDrive(normalized, draft, {
       categoryColors: undefined,
       categoryStyles: undefined,
-    };
+    });
   }
 
   if (isGraduatedSymbologyStyle(normalized.style)) {
@@ -454,12 +470,10 @@ export function finalizeSymbologyDraftForCommit(
         classColors[key] = hex.trim();
       }
     }
-    return {
-      ...normalized,
-      arcgisMaxCategories: draft.arcgisMaxCategories,
+    return withSymbologyDraftAttributeDrive(normalized, draft, {
       categoryColors: classColors,
       categoryStyles: undefined,
-    };
+    });
   }
 
   if (normalized.style === 'unique') {
@@ -472,20 +486,16 @@ export function finalizeSymbologyDraftForCommit(
       draft.categoryStyles,
       null,
     );
-    return {
-      ...normalized,
-      arcgisMaxCategories: draft.arcgisMaxCategories,
+    return withSymbologyDraftAttributeDrive(normalized, draft, {
       categoryColors: pruned.categoryColors ?? syncCategoryColorsFromStyles(pruned.categoryStyles),
       categoryStyles: pruned.categoryStyles,
-    };
+    });
   }
 
-  return {
-    ...normalized,
-    arcgisMaxCategories: draft.arcgisMaxCategories,
+  return withSymbologyDraftAttributeDrive(normalized, draft, {
     categoryColors: undefined,
     categoryStyles: undefined,
-  };
+  });
 }
 
 export function symbologyConfigFromDraft(
@@ -529,6 +539,8 @@ export function symbologyConfigFromDraft(
     threshold: normalized.threshold,
     categoryColors,
     categoryStyles,
+    attributeTransparency: draft.attributeTransparency,
+    attributeRotation: draft.attributeRotation,
   };
 }
 
@@ -797,6 +809,8 @@ export function symbologyDraftFromLayer(
     arcgisMaxCategories: opts?.preserveArcgisMaxCategories ?? arcgisMaxCategoriesFromDrawingInfo(di),
     categoryColors: draftColors ?? syncCategoryColorsFromStyles(draftStyles),
     categoryStyles: draftStyles,
+    attributeTransparency: sanitizeSiSymbologyAttributeTransparency(savedSym?.attributeTransparency),
+    attributeRotation: sanitizeSiSymbologyAttributeRotation(savedSym?.attributeRotation),
   };
   return { draft, appearance: appearanceFromSiCustomLayerFields(layer) };
 }

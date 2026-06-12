@@ -9,6 +9,7 @@ import {
   customLayerMapboxStyleKey,
   detectSiCustomLayerHeightExtrusionField,
   prepareCustomLayerForMap,
+  resolveSiCustomLayerMapExtrusion3d,
   resolveSiLayerMapboxStylePackForMap,
   resolveVisibleSiLayerMapboxStylePackForMap,
   siCustomLayerQualifiesForHeightExtrusionDefaultStyle,
@@ -220,6 +221,27 @@ describe('siMapCustomLayerRegistry', () => {
         false,
       ),
     ).toBe(false);
+  });
+
+  it('resolveSiCustomLayerMapExtrusion3d activates for height_fin layers in 3D only', () => {
+    const gj = {
+      type: 'FeatureCollection',
+      features: [
+        {
+          type: 'Feature',
+          properties: { height_fin: 18 },
+          geometry: {
+            type: 'Polygon',
+            coordinates: [[[0, 0], [1, 0], [1, 1], [0, 0]]],
+          },
+        },
+      ],
+    };
+    const layer = { id: 'builds', name: 'builds', geojson: gj, visible: true };
+    expect(resolveSiCustomLayerMapExtrusion3d(layer, false).active).toBe(false);
+    const spec = resolveSiCustomLayerMapExtrusion3d(layer, true);
+    expect(spec.active).toBe(true);
+    expect(spec.heightField).toBe('height_fin');
   });
 
   it('materializes standard visible style for height extrusion layers on add', () => {

@@ -71,6 +71,19 @@ export function resolveApiUrl(path: string): string {
   return base ? `${base}${p}` : p
 }
 
+/**
+ * Mapbox GL fetches tiles inside Web Workers where relative URLs are invalid for `Request`.
+ * Always resolve same-origin `/api/*` paths to an absolute href in the browser.
+ */
+export function resolveAbsoluteUrl(urlOrPath: string): string {
+  if (typeof window === 'undefined') return urlOrPath
+  try {
+    return new URL(urlOrPath).href
+  } catch {
+    return new URL(urlOrPath, window.location.origin).href
+  }
+}
+
 /** User-facing message when fetch() fails before an HTTP response (backend down, CORS, offline). */
 export function describeWorkspaceFetchError(error: unknown): string {
   const raw = error instanceof Error ? error.message : String(error ?? '')
@@ -95,19 +108,50 @@ export function authHeaders(extra?: HeadersInit): HeadersInit {
 }
 
 /** Authenticated fetch — Bearer JWT + HttpOnly cookie (credentials). */
+const workspaceInflight = new Map<string, Promise<{ ok: boolean; status: number; data: unknown }>>();
+
+function workspaceFetchKey(path: string, init?: RequestInit): string {
+  const method = (init?.method ?? 'GET').toUpperCase();
+  const body =
+    typeof init?.body === 'string'
+      ? init.body
+      : init?.body instanceof URLSearchParams
+        ? init.body.toString()
+        : '';
+  return `${method}|${path}|${body}`;
+}
+
 export async function workspaceFetch<T>(
   path: string,
   init?: RequestInit,
 ): Promise<{ ok: boolean; status: number; data: T }> {
-  try {
-    const res = await fetch(resolveApiUrl(path), {
-      ...init,
-      credentials: 'include',
-      headers: authHeaders(init?.headers),
-    })
-    const data = (await res.json().catch(() => ({}))) as T
-    return { ok: res.ok, status: res.status, data }
-  } catch {
-    return { ok: false, status: 0, data: { error: 'network_error' } as T }
+  const method = (init?.method ?? 'GET').toUpperCase();
+  const dedupe = method === 'GET' || method === 'HEAD';
+  const key = workspaceFetchKey(path, init);
+
+  if (dedupe) {
+    const pending = workspaceInflight.get(key);
+    if (pending) return pending as Promise<{ ok: boolean; status: number; data: T }>;
   }
+
+  const task = (async () => {
+    try {
+      const res = await fetch(resolveApiUrl(path), {
+        ...init,
+        credentials: 'include',
+        headers: authHeaders(init?.headers),
+      });
+      const data = (await res.json().catch(() => ({}))) as T;
+      return { ok: res.ok, status: res.status, data };
+    } catch {
+      return { ok: false, status: 0, data: { error: 'network_error' } as T };
+    }
+  })();
+
+  if (dedupe) {
+    workspaceInflight.set(key, task as Promise<{ ok: boolean; status: number; data: unknown }>);
+    task.finally(() => workspaceInflight.delete(key));
+  }
+
+  return task;
 }

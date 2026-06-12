@@ -296,12 +296,15 @@
   align-items: center;
 }
 
-.si-live-aoi-stats__meta-item > i {
+.si-live-aoi-stats__meta-item > i,
+.si-live-aoi-stats__meta-item > .si-stat-dashboard-icon {
   grid-row: 1 / span 2;
   font-size: 10px;
   color: rgba(148, 163, 184, 0.85);
   width: 14px;
   text-align: center;
+  align-self: center;
+  justify-self: center;
 }
 
 .si-live-aoi-stats__meta-k {

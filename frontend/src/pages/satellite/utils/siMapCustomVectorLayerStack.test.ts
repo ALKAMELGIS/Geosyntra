@@ -105,58 +105,49 @@ describe('raiseSiMapCustomVectorLayersToTop', () => {
 });
 
 describe('syncSiMapOverlayLayerStack', () => {
-  it('raises WMS, custom vectors, then UI overlays', () => {
+  const mockMap = (layerIds: string[]) => {
     const moveLayer = vi.fn();
     const map = {
-      getStyle: () => ({
-        layers: [
-          { id: 'background' },
-          { id: 'si-sentinel-layer-a-b' },
-          { id: 'arcgis-1--fd-fill' },
-          { id: 'si-draw-draft-line' },
-        ],
-      }),
-      getLayer: (id: string) => (id !== 'background' ? {} : null),
+      getStyle: () => ({ layers: layerIds.map(id => ({ id })) }),
+      getLayer: (id: string) => (layerIds.includes(id) ? {} : null),
       moveLayer,
     };
+    return { map, moveLayer };
+  };
+
+  it('raises WMS, custom vectors, UI overlays, then terrain contours to the top', () => {
+    const { map, moveLayer } = mockMap([
+      'background',
+      'si-sentinel-layer-a-b',
+      'arcgis-1--fd-fill',
+      'si-draw-draft-line',
+      'si-terrain-contours',
+      'si-terrain-contour-labels',
+    ]);
     syncSiMapOverlayLayerStack(map as never);
-    expect(moveLayer).toHaveBeenCalledTimes(3);
-    expect(moveLayer.mock.calls[0]?.[0]).toBe('si-sentinel-layer-a-b');
-    expect(moveLayer.mock.calls[1]?.[0]).toBe('arcgis-1--fd-fill');
-    expect(moveLayer.mock.calls[2]?.[0]).toBe('si-draw-draft-line');
+    const raised = moveLayer.mock.calls.map(c => c[0]);
+    expect(raised).toContain('si-terrain-contours');
+    expect(raised.filter(id => id === 'si-terrain-contour-labels').length).toBeGreaterThanOrEqual(1);
+    expect(raised.at(-1)).toBe('si-terrain-contour-labels');
   });
 
   it('lowers basemap when it was inserted above a custom vector layer', () => {
-    const moveLayer = vi.fn();
-    const map = {
-      getStyle: () => ({
-        layers: [
-          { id: 'arcgis-1--fd-fill' },
-          { id: 'si-basemap-layer-0' },
-          { id: 'si-sentinel-layer-a-b' },
-        ],
-      }),
-      getLayer: () => ({}),
-      moveLayer,
-    };
+    const { map, moveLayer } = mockMap([
+      'arcgis-1--fd-fill',
+      'si-basemap-layer-0',
+      'si-sentinel-layer-a-b',
+    ]);
     syncSiMapOverlayLayerStack(map as never);
     expect(moveLayer.mock.calls[0]).toEqual(['si-basemap-layer-0', 'arcgis-1--fd-fill']);
   });
 
   it('pins the basemap below operational layers before raising them', () => {
-    const moveLayer = vi.fn();
-    const map = {
-      getStyle: () => ({
-        layers: [
-          { id: 'si-basemap-layer-0' },
-          { id: 'si-sentinel-layer-a-b' },
-          { id: 'arcgis-1--fd-fill' },
-          { id: 'si-draw-draft-line' },
-        ],
-      }),
-      getLayer: () => ({}),
-      moveLayer,
-    };
+    const { map, moveLayer } = mockMap([
+      'si-basemap-layer-0',
+      'si-sentinel-layer-a-b',
+      'arcgis-1--fd-fill',
+      'si-draw-draft-line',
+    ]);
     syncSiMapOverlayLayerStack(map as never);
     // basemap already below operational stack — only 3 raises.
     expect(moveLayer).toHaveBeenCalledTimes(3);

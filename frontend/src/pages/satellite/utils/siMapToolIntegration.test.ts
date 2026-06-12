@@ -55,11 +55,12 @@ describe('siMapToolIntegration', () => {
     );
   });
 
-  it('allows floating identify only when opted in and in browse+select mode', () => {
+  it('allows floating identify by default and respects opt-out', () => {
     persistSiMapFloatingIdentifyEnabled(false);
     expect(readSiMapFloatingIdentifyEnabled()).toBe(false);
     expect(siMapFloatingFeaturePopupsAllowed({ interactionMode: 'view', mapDrawTool: 'select' })).toBe(false);
     persistSiMapFloatingIdentifyEnabled(true);
+    expect(readSiMapFloatingIdentifyEnabled()).toBe(true);
     expect(siMapFloatingFeaturePopupsAllowed({ interactionMode: 'view', mapDrawTool: 'select' })).toBe(true);
     expect(
       siMapFloatingFeaturePopupsAllowed({ interactionMode: 'view', mapDrawTool: 'polygon', drawSketchActive: true }),

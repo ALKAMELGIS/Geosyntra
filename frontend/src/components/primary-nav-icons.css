@@ -23,14 +23,14 @@
 }
 
 html[data-theme='light'] .geosyntra-header .geosyntra-primary-nav {
-  --pn-glass-bg: rgba(0, 0, 0, 0.38);
-  --pn-glass-bg-hover: rgba(0, 0, 0, 0.48);
-  --pn-glass-border: rgba(255, 255, 255, 0.1);
-  --pn-glass-border-hover: rgba(255, 255, 255, 0.16);
-  --pn-glass-text: rgba(255, 255, 255, 0.94);
-  --pn-glass-active-ring: rgba(56, 189, 248, 0.42);
-  --pn-glass-active-bg: rgba(56, 189, 248, 0.1);
-  --pn-glass-open-ring: rgba(167, 139, 250, 0.38);
+  --pn-glass-bg: rgba(255, 255, 255, 0.88);
+  --pn-glass-bg-hover: rgba(255, 255, 255, 0.96);
+  --pn-glass-border: rgba(15, 23, 42, 0.09);
+  --pn-glass-border-hover: rgba(15, 23, 42, 0.14);
+  --pn-glass-text: #0a0c12;
+  --pn-glass-active-ring: rgba(15, 23, 42, 0.22);
+  --pn-glass-active-bg: rgba(255, 255, 255, 0.98);
+  --pn-glass-open-ring: rgba(15, 23, 42, 0.18);
 }
 
 .geosyntra-primary-nav__link {

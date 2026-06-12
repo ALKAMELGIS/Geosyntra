@@ -69,6 +69,13 @@ export const NAV_DEFAULT_GROUPS: NavGroupDef[] = [
     headerClass: 'nav-header-settings',
     children: [
       {
+        id: 'gis-content',
+        path: '/settings/gis-content',
+        i18nKey: 'gisContent',
+        defaultIcon: 'fa-solid fa-layer-group',
+        subitemClass: 'nav-item-gis-content',
+      },
+      {
         id: 'api-integrations',
         path: '/settings/api-integrations',
         i18nKey: 'apiIntegrations',
@@ -107,7 +114,7 @@ export const NAV_GROUP_IDS = NAV_DEFAULT_GROUPS.map(g => g.id)
 /** Default sublist row class per group — mirrors first leaf style so custom pages match the group visually */
 export function defaultSubitemClassForNavGroup(groupId: string): string {
   const map: Record<string, string> = {
-    settings: 'nav-item-api-integrations',
+    settings: 'nav-item-gis-content',
     satellite: 'nav-item-indices',
   }
   return map[groupId] ?? 'nav-item-indices'

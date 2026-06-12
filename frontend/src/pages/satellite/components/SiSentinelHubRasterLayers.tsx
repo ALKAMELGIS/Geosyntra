@@ -1,4 +1,4 @@
-import { useLayoutEffect, useMemo } from 'react';
+import { useLayoutEffect, useMemo, useRef } from 'react';
 import { Layer, Source, useMap } from 'react-map-gl/mapbox';
 import {
   raiseSiMapWmsRasterLayersToTop,
@@ -8,6 +8,8 @@ import {
 } from '../utils/siMapWmsRasterLayerStack';
 import { syncSiMapOverlayLayerStack } from '../utils/siMapCustomVectorLayerStack';
 import { buildSentinelHubWmsAoiClip } from '../../../lib/sentinelHubWmsAoiClip';
+import { sentinelHubWmsUsesMaxCloudCover } from '../../../lib/siSentinel1InsarLayerCatalog';
+import { SI_SENTINEL_HUB_WMS_MAP_MIN_ZOOM } from '../../../lib/siSentinelHubWmsMapZoom';
 import type { IndexRampStop } from '../../../lib/siWmsIndexClassificationRamp';
 import { isSiTimelinePlaybackBlocked } from '../utils/siMapCaptureSession';
 import { SI_WMS_CROSSFADE_MS, type SiTimelineTransitionMode } from '../utils/useSiWmsTimelineCrossfade';
@@ -37,6 +39,8 @@ type SiSentinelHubRasterLayersProps = {
   sentinelVisible: boolean;
   drawnGeometry: unknown;
   activeWmsLayer: string;
+  /** WMS `LAYERS=` param — may differ from `activeWmsLayer` for eval-only indices (e.g. SAVI). */
+  wmsTileLayerName?: string;
   siMultiSentinelRasterRuns: SiSentinelHubRasterRunLite[] | null;
   drawnAoiWmsClipReady: boolean;
   wmsRasterAoiBoundsLngLat: [number, number, number, number] | null;
@@ -58,21 +62,25 @@ type SiSentinelHubRasterLayersProps = {
 };
 
 function buildLegacyWmsTileUrl(
-  layerId: string,
+  logicalLayerId: string,
+  tileLayerName: string,
   clip: ReturnType<typeof buildSentinelHubWmsAoiClip>,
   wmsBaseUrl: string,
   timeExtent: { start: string; end: string },
   cloudCoverage: number,
 ): string {
-  const safeLayer = encodeURIComponent(layerId);
+  const safeLayer = encodeURIComponent(tileLayerName);
   const start = timeExtent.start;
   const end = timeExtent.end;
+  const maxcc = sentinelHubWmsUsesMaxCloudCover(logicalLayerId, tileLayerName)
+    ? `&MAXCC=${cloudCoverage}`
+    : '';
   let url =
     `${wmsBaseUrl}?SERVICE=WMS&REQUEST=GetMap&VERSION=1.3.0` +
     `&LAYERS=${safeLayer}` +
     `&BBOX={bbox-epsg-3857}&CRS=EPSG:3857` +
     `&FORMAT=image/png&TRANSPARENT=true&WIDTH=512&HEIGHT=512` +
-    `&TIME=${start}/${end}&MAXCC=${cloudCoverage}&SHOWLOGO=false&WARNINGS=true`;
+    `&TIME=${start}/${end}${maxcc}&SHOWLOGO=false&WARNINGS=false`;
   if (clip.geometryWkt3857) {
     url += `&GEOMETRY=${encodeURIComponent(clip.geometryWkt3857)}`;
   }
@@ -106,6 +114,7 @@ export function SiSentinelHubRasterLayers(props: SiSentinelHubRasterLayersProps)
     sentinelVisible,
     drawnGeometry,
     activeWmsLayer,
+    wmsTileLayerName,
     siMultiSentinelRasterRuns,
     drawnAoiWmsClipReady,
     wmsRasterAoiBoundsLngLat,
@@ -118,6 +127,7 @@ export function SiSentinelHubRasterLayers(props: SiSentinelHubRasterLayersProps)
     cloudCoverage,
     wmsBaseUrl,
     evalscriptKeyPart,
+    wmsTimelineFocusRev = 0,
     onRasterStackSettled,
   } = props;
 
@@ -135,13 +145,22 @@ export function SiSentinelHubRasterLayers(props: SiSentinelHubRasterLayersProps)
 
   const legacyStackKey = useMemo(
     () =>
-      `${effectiveLegacyWms}-${wmsRasterAoiBoundsLngLat?.join(',') ?? 'world'}-${legacyClip.geometryWkt3857 ? 'g1' : 'g0'}-${evalscriptKeyPart(legacyClip.evalscriptB64)}`,
-    [effectiveLegacyWms, wmsRasterAoiBoundsLngLat, legacyClip, evalscriptKeyPart],
+      `${effectiveLegacyWms}-${siWmsMapTimeExtent.start}-${siWmsMapTimeExtent.end}-${wmsRasterAoiBoundsLngLat?.join(',') ?? 'world'}-${legacyClip.geometryWkt3857 ? 'g1' : 'g0'}-${evalscriptKeyPart(legacyClip.evalscriptB64)}`,
+    [effectiveLegacyWms, siWmsMapTimeExtent.start, siWmsMapTimeExtent.end, wmsRasterAoiBoundsLngLat, legacyClip, evalscriptKeyPart],
   );
 
+  const legacyTileLayerName = wmsTileLayerName?.trim() || effectiveLegacyWms;
   const legacyTileUrl = useMemo(
-    () => buildLegacyWmsTileUrl(effectiveLegacyWms, legacyClip, wmsBaseUrl, siWmsMapTimeExtent, cloudCoverage),
-    [effectiveLegacyWms, legacyClip, wmsBaseUrl, siWmsMapTimeExtent, cloudCoverage],
+    () =>
+      buildLegacyWmsTileUrl(
+        effectiveLegacyWms,
+        legacyTileLayerName,
+        legacyClip,
+        wmsBaseUrl,
+        siWmsMapTimeExtent,
+        cloudCoverage,
+      ),
+    [legacyTileLayerName, legacyClip, wmsBaseUrl, siWmsMapTimeExtent, cloudCoverage],
   );
 
   const legacySymOpacity = symOpacityForWmsLayerId(effectiveLegacyWms || '');
@@ -159,13 +178,28 @@ export function SiSentinelHubRasterLayers(props: SiSentinelHubRasterLayersProps)
     captureFrozen || !isTimelinePlaying || !smooth ? 0 : Math.min(420, SI_WMS_CROSSFADE_MS);
 
   const { current: map } = useMap();
-  /** Legacy single-stack WMS — viewport-wide when no AOI; AOI clip/bounds optional. */
-  const legacyWmsMounted =
-    siMultiSentinelRasterRuns === null && Boolean(activeWmsLayer?.trim());
+  const stackSyncFrameRef = useRef<number | null>(null);
+
+  const scheduleOverlayStackSync = () => {
+    if (stackSyncFrameRef.current != null) {
+      window.cancelAnimationFrame(stackSyncFrameRef.current);
+    }
+    stackSyncFrameRef.current = window.requestAnimationFrame(() => {
+      stackSyncFrameRef.current = null;
+      const m = resolveSiMapboxMap(map);
+      if (!m) return;
+      raiseSiMapWmsRasterLayersToTop(m);
+      syncSiMapOverlayLayerStack(m);
+      refreshSiMapWmsRasterPaint(m);
+    });
+  };
   const readyRuns = useMemo(
     () => (siMultiSentinelRasterRuns ?? []).filter(s => s.ready && s.tileUrl),
     [siMultiSentinelRasterRuns],
   );
+  /** Legacy single-stack WMS — fallback when multi-AOI stack is empty or has no ready runs. */
+  const useMultiWmsStack = readyRuns.length > 0;
+  const legacyWmsMounted = Boolean(activeWmsLayer?.trim()) && !useMultiWmsStack;
   const rasterStackKey = useMemo(
     () =>
       siMultiSentinelRasterRuns === null
@@ -178,17 +212,19 @@ export function SiSentinelHubRasterLayers(props: SiSentinelHubRasterLayersProps)
     if (!isMapLoaded || !sentinelVisible || !map) return;
     syncSiMapWmsRasterSourceTiles(
       resolveSiMapboxMap(map)!,
-      legacyWmsMounted ? null : readyRuns,
+      useMultiWmsStack ? readyRuns : null,
       legacyWmsMounted ? legacyTileUrl : null,
+      { forceImmediate: true },
     );
     refreshSiMapWmsRasterPaint(resolveSiMapboxMap(map));
-  }, [isMapLoaded, sentinelVisible, map, legacyWmsMounted, legacyTileUrl, readyRuns]);
+  }, [isMapLoaded, sentinelVisible, map, useMultiWmsStack, legacyWmsMounted, legacyTileUrl, readyRuns, wmsTimelineFocusRev]);
 
   useLayoutEffect(() => {
     if (!isMapLoaded || !sentinelVisible || !map) return;
     let cancelled = false;
     const runSync = () => {
-      if (siMultiSentinelRasterRuns != null) {
+      if (cancelled) return;
+      if (useMultiWmsStack) {
         syncSiMapWmsRasterSourceBounds(map, readyRuns);
       } else if (legacyWmsMounted) {
         try {
@@ -202,25 +238,21 @@ export function SiSentinelHubRasterLayers(props: SiSentinelHubRasterLayersProps)
           /* ignore */
         }
       }
-      raiseSiMapWmsRasterLayersToTop(map);
-      syncSiMapOverlayLayerStack(map);
-      refreshSiMapWmsRasterPaint(map);
+      scheduleOverlayStackSync();
     };
     const settle = () => {
       if (cancelled) return;
       runSync();
-      const sourceIds =
-        siMultiSentinelRasterRuns != null
-          ? readyRuns.map(s => siMapWmsRasterSourceIdForRun(s))
-          : legacyWmsMounted
-            ? ['sentinel-source']
-            : [];
-      const layerIds =
-        siMultiSentinelRasterRuns != null
-          ? readyRuns.map(s => siMapWmsRasterLayerIdForRun(s))
-          : legacyWmsMounted
-            ? ['sentinel-layer']
-            : [];
+      const sourceIds = useMultiWmsStack
+        ? readyRuns.map(s => siMapWmsRasterSourceIdForRun(s))
+        : legacyWmsMounted
+          ? ['sentinel-source']
+          : [];
+      const layerIds = useMultiWmsStack
+        ? readyRuns.map(s => siMapWmsRasterLayerIdForRun(s))
+        : legacyWmsMounted
+          ? ['sentinel-layer']
+          : [];
       if (!sourceIds.length) return;
       void waitForSiMapWmsRunsSettled(resolveSiMapboxMap(map), sourceIds, layerIds, {
         rasterFadeMs: 0,
@@ -238,13 +270,17 @@ export function SiSentinelHubRasterLayers(props: SiSentinelHubRasterLayersProps)
     return () => {
       cancelled = true;
       window.clearTimeout(t);
+      if (stackSyncFrameRef.current != null) {
+        window.cancelAnimationFrame(stackSyncFrameRef.current);
+        stackSyncFrameRef.current = null;
+      }
     };
   }, [
     isMapLoaded,
     sentinelVisible,
     map,
     rasterStackKey,
-    siMultiSentinelRasterRuns,
+    useMultiWmsStack,
     readyRuns,
     legacyWmsMounted,
     drawnAoiWmsClipReady,
@@ -257,8 +293,8 @@ export function SiSentinelHubRasterLayers(props: SiSentinelHubRasterLayersProps)
     <>
       {isMapLoaded &&
         sentinelVisible &&
-        siMultiSentinelRasterRuns != null &&
-        siMultiSentinelRasterRuns.filter(s => s.ready).map(spec => {
+        useMultiWmsStack &&
+        readyRuns.map(spec => {
           const stackKey = `${spec.aoiId}-${spec.stackKey}-${spec.wmsLayerId}-${spec.bounds?.join(',') ?? 'nb'}-${spec.clip.geometryWkt3857 ? 'g1' : 'g0'}-${evalscriptKeyPart(spec.clip.evalscriptB64)}`;
           const opacity =
             (spec.clip.evalscriptB64 ? 1 : 0.85) * (spec.bounds ? drawVisualOpacity : 1) * symOpacityForWmsLayerId(spec.wmsLayerId);
@@ -270,11 +306,13 @@ export function SiSentinelHubRasterLayers(props: SiSentinelHubRasterLayersProps)
               type="raster"
               tiles={[spec.tileUrl]}
               tileSize={512}
+              minzoom={SI_SENTINEL_HUB_WMS_MAP_MIN_ZOOM}
               bounds={spec.bounds ?? undefined}
             >
               <Layer
                 id={`si-sentinel-layer-${spec.aoiId}-${spec.stackKey}`}
                 type="raster"
+                minzoom={SI_SENTINEL_HUB_WMS_MAP_MIN_ZOOM}
                 paint={{
                   'raster-opacity': opacity,
                   'raster-fade-duration': rasterFadeMs,
@@ -286,16 +324,18 @@ export function SiSentinelHubRasterLayers(props: SiSentinelHubRasterLayersProps)
 
       {isMapLoaded && sentinelVisible && legacyWmsMounted ? (
         <Source
-          key={`sentinel-${legacyStackKey}`}
+          key={`sentinel-legacy-${effectiveLegacyWms}`}
           id="sentinel-source"
           type="raster"
           tiles={[legacyTileUrl]}
           tileSize={512}
+          minzoom={SI_SENTINEL_HUB_WMS_MAP_MIN_ZOOM}
           bounds={wmsRasterAoiBoundsLngLat ?? undefined}
         >
           <Layer
             id="sentinel-layer"
             type="raster"
+            minzoom={SI_SENTINEL_HUB_WMS_MAP_MIN_ZOOM}
             paint={{
               'raster-opacity': legacyOpacity,
               'raster-fade-duration': rasterFadeMs,

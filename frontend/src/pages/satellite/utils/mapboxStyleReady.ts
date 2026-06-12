@@ -10,6 +10,17 @@ export function isMapboxStyleReady(map: MapboxMap | null | undefined): boolean {
   }
 }
 
+/** True when `getSource` / `addSource` are safe (style loaded and not mid-reload). */
+export function siMapboxSourcesAccessible(map: MapboxMap | null | undefined): boolean {
+  if (!isMapboxStyleReady(map)) return false;
+  try {
+    map!.getStyle();
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 export type WhenMapboxStyleReadyOptions = {
   /** When false, run after `style.load` only (faster basemap first paint). Default true. */
   waitForIdle?: boolean;

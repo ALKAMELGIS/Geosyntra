@@ -67,6 +67,22 @@ export function resolveLiveAoiRowFromClick(
   return rows[0] ?? null;
 }
 
+/** Build a popup click record at the AOI centroid (used after draw completes). */
+export function buildLiveAoiPopupClickAtCentroid(
+  feature: GeoJSON.Feature,
+  rowId: string,
+): LiveAoiPopupClickRecord | null {
+  const centroid = featureCentroidLngLat(feature);
+  if (!centroid) return null;
+  let aoiKey: string;
+  try {
+    aoiKey = JSON.stringify(feature);
+  } catch {
+    aoiKey = rowId;
+  }
+  return { lng: centroid[0], lat: centroid[1], aoiKey, rowId };
+}
+
 /** Bbox-center centroid — matches Satellite map AOI popup behaviour. */
 export function featureCentroidLngLat(feature: GeoJSON.Feature): [number, number] | null {
   const bounds = siAoiReportFeatureBBoxLngLat(feature);

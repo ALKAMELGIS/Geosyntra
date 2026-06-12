@@ -14,6 +14,9 @@ import {
   removeAllMapboxMountsForAppLayerId,
   removeStaleMapboxMountsForInstance,
 } from './siMapLayerMapboxMountCleanup';
+import { isSiCustomLayerMapRefreshInFlight } from './siMapCustomLayerRegistry';
+import { withSiMapLayerMountElevation3d } from './siMapLayerElevation3dState';
+import { isSiMapElevationTransitionActive } from './siMapLayerTransitionGuard';
 
 export {
   collectMapboxCustomLayerAppIds,
@@ -48,6 +51,7 @@ export function reconcileLayerManagerWithMapCanvas(
     hiddenPurged: [],
   };
   if (!map?.getStyle?.()) return report;
+  if (isSiMapElevationTransitionActive()) return report;
 
   const activeById = new Map(appLayers.map(l => [l.id, l]));
   const mapAppIds = collectMapboxCustomLayerAppIds(map);
@@ -60,7 +64,8 @@ export function reconcileLayerManagerWithMapCanvas(
   }
 
   for (const layer of appLayers) {
-    if (layer.symbologyPreview !== true) {
+    const refreshInFlight = isSiCustomLayerMapRefreshInFlight(layer);
+    if (layer.symbologyPreview !== true && !refreshInFlight) {
       report.staleRevisionMountsRemoved += removeStaleMapboxMountsForInstance(
         map,
         layer.id,
@@ -79,11 +84,11 @@ export function reconcileLayerManagerWithMapCanvas(
     const fc = countGeoJsonFeatures(layer.geojson);
     if (fc === 0 && layer.renderMode !== 'raster' && layer.renderMode !== 'bim') continue;
 
-    const resolvedOpts = {
+    const resolvedOpts = withSiMapLayerMountElevation3d({
       ...mountOpts,
       forceVisiblePaints:
         mountOpts?.forceVisiblePaints ?? layer.symbology?.userConfigured !== true,
-    };
+    });
 
     if (layerMapboxLayersPresent(map, layer)) {
       const painted = isSiCustomLayerPaintedOnMap(map, layer, resolvedOpts);

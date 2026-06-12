@@ -3,13 +3,14 @@ import {
   isSiMapSunSkyWeatherActive,
   isSiMapWeatherPresetActive,
   siMapWeatherActivePresets,
+  siMapWeatherImperativeMapEffectsActive,
 } from './siMapWeatherActive';
 import { DEFAULT_SI_MAP_WEATHER, sanitizeSiMapWeatherSettings } from './siMapWeatherTypes';
 
 describe('siMapWeatherActive', () => {
-  it('migrates legacy settings without activePresets', () => {
+  it('legacy settings without activePresets stay off until user toggles', () => {
     const s = sanitizeSiMapWeatherSettings({ preset: 'rain', precipitation: 40 });
-    expect(siMapWeatherActivePresets(s)).toEqual(['rain']);
+    expect(siMapWeatherActivePresets(s)).toEqual([]);
   });
 
   it('tracks multiple concurrent presets', () => {
@@ -23,7 +24,15 @@ describe('siMapWeatherActive', () => {
     expect(s.daylightTimePlaying).toBe(true);
   });
 
-  it('defaults active presets from panel preset', () => {
-    expect(siMapWeatherActivePresets(DEFAULT_SI_MAP_WEATHER)).toEqual(['sunny']);
+  it('starts with no presets until user toggles', () => {
+    expect(siMapWeatherActivePresets(DEFAULT_SI_MAP_WEATHER)).toEqual([]);
+  });
+
+  it('imperative map effects active when any preset runs', () => {
+    expect(siMapWeatherImperativeMapEffectsActive(DEFAULT_SI_MAP_WEATHER)).toBe(false);
+    const rainy = sanitizeSiMapWeatherSettings({ preset: 'rain', activePresets: ['rain'] });
+    expect(siMapWeatherImperativeMapEffectsActive(rainy)).toBe(true);
+    const off = sanitizeSiMapWeatherSettings({ preset: 'rain', activePresets: [] });
+    expect(siMapWeatherImperativeMapEffectsActive(off)).toBe(false);
   });
 });

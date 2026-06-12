@@ -15,13 +15,14 @@ import type { SiGeoAiIndexAnalyticalExportContext } from '../utils/siGeoAiIndexA
 import { clampMapCanvasPanelTranslate, siMapLeftPopoutFixedPosition } from '../utils/siMapFloatingPanelLayout';
 import './satelliteMapAnalysisChrome.css';
 
-function sparkPathForOverlay(values: number[], w: number, h: number): string {
-  if (!values.length) return '';
-  const min = Math.min(...values);
-  const max = Math.max(...values);
+function sparkPathForOverlay(values: readonly (number | null)[], w: number, h: number): string {
+  const finite = values.filter((v): v is number => typeof v === 'number' && Number.isFinite(v));
+  if (!finite.length) return '';
+  const min = Math.min(...finite);
+  const max = Math.max(...finite);
   const span = max - min || 1;
-  const pts = values.map((v, i) => {
-    const x = values.length <= 1 ? w / 2 : (i / (values.length - 1)) * w;
+  const pts = finite.map((v, i) => {
+    const x = finite.length <= 1 ? w / 2 : (i / (finite.length - 1)) * w;
     const y = h - ((v - min) / span) * (h - 4) - 2;
     return `${x.toFixed(1)},${y.toFixed(1)}`;
   });
@@ -44,7 +45,11 @@ export type SatelliteAoiStaticChartsMapOverlayProps = {
   scatterWeekly?: WeeklyCompositeLite[];
   scatterWeekIndex?: number;
   scatterRasterSample?: SiAoiRasterPixelSample | null;
-  weeklyMeans: number[];
+  rasterDataLoading?: boolean;
+  hasRealRasterData?: boolean;
+  /** Timeline weekly means shown while MPC raster sampling is pending or offline. */
+  timelineUsesPreviewMeans?: boolean;
+  weeklyMeans: (number | null)[];
   /** Drawn AOI + sketch fields + saved polygons — primary bar source (no pivot fallback). */
   fieldComparisonBars?: Array<{ name: string; value: number }>;
   fieldComparisonSubtitle?: string;
@@ -70,6 +75,9 @@ export function SatelliteAoiStaticChartsMapOverlay({
   scatterWeekly = [],
   scatterWeekIndex = 0,
   scatterRasterSample = null,
+  rasterDataLoading = false,
+  hasRealRasterData = true,
+  timelineUsesPreviewMeans = false,
   weeklyMeans,
   fieldComparisonBars,
   fieldComparisonSubtitle = '',
@@ -223,7 +231,12 @@ export function SatelliteAoiStaticChartsMapOverlay({
           <div className="si-map-analysis-charts-title">AOI timeline analysis</div>
           <div className="si-map-analysis-charts-subtitle">
             {indexLabel}
-            {weeklyMeans.length ? ` · ${weeklyMeans.length} week(s)` : ''} · after Generate timeline (not live layer)
+            {weeklyMeans.length ? ` · ${weeklyMeans.length} week(s)` : ''} · after Generate timeline
+            {rasterDataLoading
+              ? ' · sampling weekly pixels…'
+              : !hasRealRasterData
+                ? ' · awaiting live raster samples'
+                : ' · live pixel means per index'}
           </div>
         </div>
         <button
@@ -255,6 +268,8 @@ export function SatelliteAoiStaticChartsMapOverlay({
           scatterWeekly={scatterWeekly}
           scatterWeekIndex={scatterWeekIndex}
           scatterRasterSample={scatterRasterSample}
+          rasterDataLoading={rasterDataLoading}
+          hasRealRasterData={hasRealRasterData}
         />
       </div>
 

@@ -5,11 +5,21 @@
  */
 
 import {
+  buildAgroCompositeEvalscript,
+  buildAgroCompositeStatsEvalscript,
+} from './siLayerLiveCompositeEvalscript';
+import { getLayerLiveCompositeDef } from './siLayerLiveCompositeCatalog';
+import { isSentinel1InsarLayerId } from './siSentinel1InsarLayerCatalog';
+import { buildSentinel1SarEvalscript } from './siSentinel1SarEvalscript';
+import {
   SI_EVI_CLASSIFICATION_STOPS,
   SI_GNDVI_CLASSIFICATION_STOPS,
+  SI_LST_CLASSIFICATION_STOPS,
+  SI_NDBI_CLASSIFICATION_STOPS,
   SI_NDMI_CLASSIFICATION_STOPS,
   SI_NDVI_CLASSIFICATION_STOPS,
   SI_NDWI_CLASSIFICATION_STOPS,
+  SI_SAVI_CLASSIFICATION_STOPS,
   type IndexRampStop,
   siRampStopsToEvalScriptArrayLiteral,
 } from './siWmsIndexClassificationRamp';
@@ -27,6 +37,9 @@ export type WmsAoiEvalProfile =
   | 'savi'
   | 'ndbi'
   | 'lst'
+  | 'agro_composite'
+  | 'agro_delta'
+  | 'sar_insar'
   | 'generic_rgb';
 
 export type BuildSentinelHubWmsAoiClipOptions = {
@@ -137,6 +150,9 @@ function multiPolygon3857Wkt(rings: [number, number][][]): string {
 }
 
 export function inferWmsEvalProfile(layerName: string): WmsAoiEvalProfile {
+  const composite = getLayerLiveCompositeDef(layerName);
+  if (composite) return composite.isDelta ? 'agro_delta' : 'agro_composite';
+  if (isSentinel1InsarLayerId(layerName)) return 'sar_insar';
   const u = String(layerName || '').toUpperCase();
   if (u.includes('GNDVI')) return 'gndvi';
   if (u.includes('NDRE')) return 'native';
@@ -191,6 +207,7 @@ function classifiedStopsLiteral(
 
 function buildEvalscriptV3(
   profile: WmsAoiEvalProfile,
+  layerName: string,
   indexVisibilityMin: number | null,
   classifiedStopsOverride: readonly IndexRampStop[] | null,
 ): string {
@@ -205,6 +222,11 @@ function buildEvalscriptV3(
       : `var __a = s.dataMask * ((${indexVar}) >= ${thr} ? 1 : 0);`;
 
   switch (profile) {
+    case 'agro_composite':
+    case 'agro_delta':
+      return buildAgroCompositeEvalscript(layerName, indexVisibilityMin, classifiedStopsOverride);
+    case 'sar_insar':
+      return buildSentinel1SarEvalscript(layerName, indexVisibilityMin, classifiedStopsOverride);
     case 'native':
       return '';
     case 'true_color':
@@ -353,7 +375,7 @@ function evaluatePixel(s) {
 }`;
     }
     case 'savi': {
-      const stops = classifiedStopsLiteral(classifiedStopsOverride, SI_NDVI_CLASSIFICATION_STOPS);
+      const stops = classifiedStopsLiteral(classifiedStopsOverride, SI_SAVI_CLASSIFICATION_STOPS);
       return `//VERSION=3
 function setup() {
   return {
@@ -372,7 +394,7 @@ function evaluatePixel(s) {
 }`;
     }
     case 'ndbi': {
-      const stops = classifiedStopsLiteral(classifiedStopsOverride, SI_NDWI_CLASSIFICATION_STOPS);
+      const stops = classifiedStopsLiteral(classifiedStopsOverride, SI_NDBI_CLASSIFICATION_STOPS);
       return `//VERSION=3
 function setup() {
   return {
@@ -391,7 +413,7 @@ function evaluatePixel(s) {
 }`;
     }
     case 'lst': {
-      const stops = classifiedStopsLiteral(classifiedStopsOverride, SI_NDMI_CLASSIFICATION_STOPS);
+      const stops = classifiedStopsLiteral(classifiedStopsOverride, SI_LST_CLASSIFICATION_STOPS);
       return `//VERSION=3
 function setup() {
   return {
@@ -411,8 +433,126 @@ function evaluatePixel(s) {
 }`;
     }
     default:
-      return buildEvalscriptV3('generic_rgb', indexVisibilityMin, null);
+      return buildEvalscriptV3('generic_rgb', layerName, indexVisibilityMin, null);
   }
+}
+
+export type WmsIndexStatsDecodeRange = { min: number; max: number };
+
+/** Decode range for raw index values encoded in WMS stats GetMap (R channel). */
+export function wmsIndexStatsDecodeRange(profile: WmsAoiEvalProfile): WmsIndexStatsDecodeRange | null {
+  switch (profile) {
+    case 'ndvi':
+    case 'gndvi':
+    case 'ndmi':
+    case 'ndwi':
+    case 'evi':
+    case 'savi':
+    case 'ndbi':
+    case 'lst':
+    case 'agro_composite':
+    case 'agro_delta':
+      return { min: -1, max: 1 };
+    default:
+      return null;
+  }
+}
+
+/** Evalscript that encodes the live spectral index in R (0–1) and dataMask in alpha — for AOI zonal stats. */
+export function buildWmsIndexStatsEvalscript(profile: WmsAoiEvalProfile, layerName = ''): string {
+  if (profile === 'agro_composite' || profile === 'agro_delta') {
+    return buildAgroCompositeStatsEvalscript(layerName);
+  }
+  const range = wmsIndexStatsDecodeRange(profile);
+  if (!range) return '';
+  const { min, max } = range;
+  const encode = `var t = (idx - ${min}) / (${max - min} + 1e-12); if (t < 0) t = 0; if (t > 1) t = 1; return [t, 0, 0, s.dataMask];`;
+
+  switch (profile) {
+    case 'ndvi':
+      return `//VERSION=3
+function setup() { return { input: ["B04", "B08", "dataMask"], output: { bands: 4, sampleType: "AUTO" } }; }
+function evaluatePixel(s) {
+  var d = s.B08 + s.B04;
+  if (d <= 1e-6) return [0, 0, 0, 0];
+  var idx = (s.B08 - s.B04) / d;
+  ${encode}
+}`;
+    case 'gndvi':
+      return `//VERSION=3
+function setup() { return { input: ["B03", "B08", "dataMask"], output: { bands: 4, sampleType: "AUTO" } }; }
+function evaluatePixel(s) {
+  var d = s.B08 + s.B03;
+  if (d <= 1e-6) return [0, 0, 0, 0];
+  var idx = (s.B08 - s.B03) / d;
+  ${encode}
+}`;
+    case 'ndmi':
+      return `//VERSION=3
+function setup() { return { input: ["B04", "B08", "B11", "dataMask"], output: { bands: 4, sampleType: "AUTO" } }; }
+function evaluatePixel(s) {
+  var d = s.B08 + s.B11;
+  if (d <= 1e-6) return [0, 0, 0, 0];
+  var idx = (s.B08 - s.B11) / d;
+  ${encode}
+}`;
+    case 'ndwi':
+      return `//VERSION=3
+function setup() { return { input: ["B03", "B08", "dataMask"], output: { bands: 4, sampleType: "AUTO" } }; }
+function evaluatePixel(s) {
+  var d = s.B08 + s.B03;
+  if (d <= 1e-6) return [0, 0, 0, 0];
+  var idx = (s.B03 - s.B08) / d;
+  ${encode}
+}`;
+    case 'evi':
+      return `//VERSION=3
+function setup() { return { input: ["B02", "B04", "B08", "dataMask"], output: { bands: 4, sampleType: "AUTO" } }; }
+function evaluatePixel(s) {
+  var den = s.B08 + 6 * s.B04 - 7.5 * s.B02 + 1;
+  if (den <= 1e-6) return [0, 0, 0, 0];
+  var raw = 2.5 * ((s.B08 - s.B04) / den);
+  var idx = raw < -1 ? -1 : (raw > 1 ? 1 : raw);
+  ${encode}
+}`;
+    case 'savi':
+      return `//VERSION=3
+function setup() { return { input: ["B04", "B08", "dataMask"], output: { bands: 4, sampleType: "AUTO" } }; }
+function evaluatePixel(s) {
+  var d = s.B08 + s.B04 + 0.5;
+  if (d <= 1e-6) return [0, 0, 0, 0];
+  var idx = 1.5 * (s.B08 - s.B04) / d;
+  ${encode}
+}`;
+    case 'ndbi':
+      return `//VERSION=3
+function setup() { return { input: ["B08", "B11", "dataMask"], output: { bands: 4, sampleType: "AUTO" } }; }
+function evaluatePixel(s) {
+  var d = s.B11 + s.B08;
+  if (d <= 1e-6) return [0, 0, 0, 0];
+  var idx = (s.B11 - s.B08) / d;
+  ${encode}
+}`;
+    case 'lst':
+      return `//VERSION=3
+function setup() { return { input: ["B11", "B12", "dataMask"], output: { bands: 4, sampleType: "AUTO" } }; }
+function evaluatePixel(s) {
+  var idx = (s.B11 - 0.15) * 3.5;
+  if (idx < -1) idx = -1;
+  if (idx > 1) idx = 1;
+  ${encode}
+}`;
+    default:
+      return '';
+  }
+}
+
+/** WGS84 lon/lat → Web Mercator (EPSG:3857), meters. */
+export function webMercatorToLngLat(x: number, y: number): [number, number] {
+  const lng = (x / 20037508.34) * 180;
+  const latRad = Math.atan(Math.sinh((y * Math.PI) / 20037508.34));
+  const lat = (latRad * 180) / Math.PI;
+  return [lng, lat];
 }
 
 export function evalscriptToBase64Param(script: string): string {
@@ -449,15 +589,15 @@ export function buildSentinelHubWmsAoiClip(
   options?: BuildSentinelHubWmsAoiClipOptions,
 ): { geometryWkt3857: string | null; evalscriptB64: string | null } {
   const geom = getDrawnGeometry(drawn);
-  if (!geom) {
-    return { geometryWkt3857: null, evalscriptB64: null };
-  }
-
   const profile = inferWmsEvalProfile(layerName);
   const indexMin = options?.indexVisibilityMin ?? null;
   const classifiedStopsOverride = options?.classifiedStopsOverride ?? null;
-  const evalPlain = buildEvalscriptV3(profile, indexMin, classifiedStopsOverride);
+  const evalPlain = buildEvalscriptV3(profile, layerName, indexMin, classifiedStopsOverride);
   let evalscriptB64: string | null = evalPlain ? evalscriptToBase64Param(evalPlain) : null;
+
+  if (!geom) {
+    return { geometryWkt3857: null, evalscriptB64 };
+  }
 
   const outerRings: [number, number][][] = [];
   if (geom.type === 'Polygon') {
