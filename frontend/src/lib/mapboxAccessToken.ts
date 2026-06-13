@@ -28,6 +28,8 @@ function isLocalDevHost(): boolean {
 }
 
 function readViteMapboxEnvToken(): string {
+  // Vite inlines import.meta.env at build time — never bake dev pk.* into production bundles.
+  if (import.meta.env.PROD) return ''
   const a = import.meta.env.VITE_MAPBOX_TOKEN
   const fromA = typeof a === 'string' ? a.trim() : ''
   if (fromA) return fromA

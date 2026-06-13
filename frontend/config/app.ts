@@ -8,12 +8,14 @@ function normalizeBasePath(raw: string): string {
 
 function readBuildEnv(key: 'VITE_BASE_PATH' | 'VITE_PRODUCTION_PUBLIC_URL'): string {
   try {
-    const viteEnv = import.meta.env as Record<string, string | undefined> | undefined
-    const fromVite = viteEnv?.[key]
-    if (typeof fromVite === 'string' && fromVite.trim()) return fromVite.trim()
     if (key === 'VITE_BASE_PATH') {
-      const baseUrl = viteEnv?.BASE_URL
+      const fromVite = import.meta.env.VITE_BASE_PATH
+      if (typeof fromVite === 'string' && fromVite.trim()) return fromVite.trim()
+      const baseUrl = import.meta.env.BASE_URL
       if (typeof baseUrl === 'string' && baseUrl.trim()) return baseUrl.trim()
+    } else {
+      const fromVite = import.meta.env.VITE_PRODUCTION_PUBLIC_URL
+      if (typeof fromVite === 'string' && fromVite.trim()) return fromVite.trim()
     }
   } catch {
     /* Node loads vite.config before import.meta.env exists */

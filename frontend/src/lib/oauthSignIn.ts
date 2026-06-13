@@ -21,15 +21,14 @@ export function getGoogleOAuthRedirectUri(): string {
 }
 
 export function resolveOAuthPopupRedirectUri(provider: 'google' | 'linkedin' | 'github' | 'apple'): string {
-  const envKey =
+  const fromEnv =
     provider === 'google'
-      ? 'VITE_AUTH_GOOGLE_REDIRECT_URI'
+      ? String(import.meta.env.VITE_AUTH_GOOGLE_REDIRECT_URI ?? '').trim()
       : provider === 'linkedin'
-        ? 'VITE_AUTH_LINKEDIN_REDIRECT_URI'
+        ? String(import.meta.env.VITE_AUTH_LINKEDIN_REDIRECT_URI ?? '').trim()
         : provider === 'github'
-          ? 'VITE_AUTH_GITHUB_REDIRECT_URI'
-          : 'VITE_AUTH_APPLE_REDIRECT_URI'
-  const fromEnv = String(import.meta.env[envKey] ?? '').trim()
+          ? String(import.meta.env.VITE_AUTH_GITHUB_REDIRECT_URI ?? '').trim()
+          : String(import.meta.env.VITE_AUTH_APPLE_REDIRECT_URI ?? '').trim()
   if (fromEnv) return fromEnv
   if (isLocalDevHost()) return getGoogleOAuthRedirectUri()
   const fromApi = String(cachedOAuthPublicConfig?.redirectUri ?? '').trim()
