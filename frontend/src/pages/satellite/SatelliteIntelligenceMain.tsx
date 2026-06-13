@@ -22353,10 +22353,6 @@ export default function SatelliteIntelligence() {
               onZoomOut={() => mapZoomBy(-1)}
               settings={siTerrainSettings}
               onSettingsChange={patchSiTerrainSettings}
-              globeView3dActive={mapElevationViewActive}
-              globeAuto2D3D={globeAuto2D3D}
-              onGlobe2D3DToggle={toggleGlobe2D3DView}
-              onGlobe2D3DEnableAuto={enableGlobeAuto2D3D}
             />
           ) : null}
 
