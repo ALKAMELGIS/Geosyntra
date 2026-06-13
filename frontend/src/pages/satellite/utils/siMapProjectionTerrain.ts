@@ -77,6 +77,8 @@ export const SI_MAP_TERRAIN_HILLSHADE_INTENSITY_LS = 'si-map-terrain-hillshade-i
 export const SI_MAP_ELEVATION_PITCH_LS = 'si-map-elevation-pitch-v1';
 
 export const SI_MAPBOX_TERRAIN_DEM_SOURCE_ID = 'si-mapbox-terrain-dem';
+/** Canonical raster-dem source for `setTerrain` (Terrarium / Esri / Mapbox DEM runtime). */
+export const SI_TERRAIN_DEM_SOURCE_ID = 'si-global-terrain-dem';
 const DEM_SOURCE_ID = SI_MAPBOX_TERRAIN_DEM_SOURCE_ID;
 const TERRAIN_VECTOR_SOURCE_ID = 'si-mapbox-terrain-v2';
 /**

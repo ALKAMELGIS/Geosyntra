@@ -26,6 +26,7 @@ export type SiElevationTransitionHandle = {
 };
 
 const siElevationSceneWarmed = new WeakMap<MapboxMap, boolean>();
+const siElevationSceneDeepWarmed = new WeakMap<MapboxMap, boolean>();
 const siActiveElevationTransition = new WeakMap<MapboxMap, () => void>();
 
 function clampTerrainExaggeration(n: number): number {
@@ -115,6 +116,66 @@ export function warmSiMapElevationScene(map: MapboxMap): void {
 
 export function resetSiMapElevationSceneWarm(map: MapboxMap): void {
   siElevationSceneWarmed.delete(map);
+  siElevationSceneDeepWarmed.delete(map);
+}
+
+export function isSiMapElevationSceneDeepWarmed(map: MapboxMap): boolean {
+  return Boolean(siElevationSceneDeepWarmed.get(map));
+}
+
+/** Preload DEM sources + contour/building overlays without pitching the camera. */
+export function warmSiMapElevationSceneDeep(
+  map: MapboxMap,
+  terrain: SiMapTerrainSettings & { buildings?: boolean },
+): void {
+  warmSiMapElevationScene(map);
+  try {
+    applySiMapTerrain(map, {
+      enabled: true,
+      buildings: terrain.buildings !== false,
+      ...terrain,
+    });
+    siElevationSceneDeepWarmed.set(map, true);
+  } catch {
+    /* style not ready */
+  }
+}
+
+/** First-frame terrain bootstrap when globe pitch crosses the live-mesh threshold. */
+export function bootstrapSiMapElevationTerrainImmediate(
+  map: MapboxMap,
+  terrain: SiMapTerrainSettings & { buildings?: boolean },
+): void {
+  warmSiMapElevationSceneDeep(map, terrain);
+}
+
+/** Keep elevation-dock terrain mesh + overlays aligned after camera motion ends. */
+export function maintainSiMapElevationDockTerrain(
+  map: MapboxMap,
+  terrain: SiMapTerrainSettings & { buildings?: boolean },
+): void {
+  try {
+    warmSiMapElevationScene(map);
+    applySiMapTerrain(map, {
+      enabled: true,
+      buildings: terrain.buildings !== false,
+      ...terrain,
+    });
+    const exag = clampTerrainExaggeration(terrain.exaggeration);
+    if (map.getSource(SI_MAPBOX_TERRAIN_DEM_SOURCE_ID)) {
+      map.setTerrain({ source: SI_MAPBOX_TERRAIN_DEM_SOURCE_ID, exaggeration: exag });
+    }
+  } catch {
+    /* ignore */
+  }
+}
+
+/** Lightweight terrain refresh while the map is moving under the elevation dock. */
+export function tickSiMapElevationDockTerrainDuringMotion(
+  map: MapboxMap,
+  terrain: SiMapTerrainSettings & { buildings?: boolean },
+): void {
+  maintainSiMapElevationDockTerrain(map, terrain);
 }
 
 /** Target camera after transition completes (center/zoom/bearing preserved). */

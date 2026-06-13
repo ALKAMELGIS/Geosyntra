@@ -17,10 +17,18 @@ import {
   SI_TERRAIN_EXAGGERATION_MAX,
   SI_TERRAIN_EXAGGERATION_MIN,
   clampElevationPitch,
-  clampSiMapFreeCameraPitch,
+  configureSiMapCameraControlsForView,
   siElevationPitchScreenOffset,
   type SiMapTerrainSettings,
 } from './siMapProjectionTerrain';
+import {
+  SI_MAP_FREE_CAMERA_PITCH_MAX,
+  SI_MAP_FREE_CAMERA_PITCH_MIN,
+} from './MapMouseBehavior';
+
+function clampSiMapFreeCameraPitch(n: number): number {
+  return Math.min(SI_MAP_FREE_CAMERA_PITCH_MAX, Math.max(SI_MAP_FREE_CAMERA_PITCH_MIN, n));
+}
 
 function clampTerrainExag(n: number): number {
   return Math.min(SI_TERRAIN_EXAGGERATION_MAX, Math.max(SI_TERRAIN_EXAGGERATION_MIN, n));
@@ -154,7 +162,7 @@ export function maybeBootstrapSiMapTerrainFromGlobePitch(
 }
 
 export {
-  configureSiMapGlobeFreeCameraNavigation,
+  configureSiMapCameraControlsForView as configureSiMapGlobeFreeCameraNavigation,
   SI_MAP_FREE_CAMERA_PITCH_MAX,
   SI_MAP_FREE_CAMERA_PITCH_MIN,
-} from './siMapProjectionTerrain';
+};
