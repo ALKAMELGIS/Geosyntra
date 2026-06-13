@@ -201,7 +201,7 @@ In **Hostinger → DNS** for `geosyntra.org`, add a **TXT** record:
 
 ## 3. Quick checklist
 
-- [ ] Node API running on Hostinger with persistent `AGRI_DATA_DIR` / `AGRI_USER_DB_PATH`
+- [ ] Node API running on Hostinger with persistent `GEOSYNTRA_DATA_DIR` / `GEOSYNTRA_USER_DB_PATH`
 - [ ] `VITE_API_BASE_URL` secret set for GitHub Pages build
 - [ ] `APP_ORIGIN=https://www.geosyntra.org`, `APP_BASE_PATH=/`
 - [ ] Hostinger SMTP env vars on API

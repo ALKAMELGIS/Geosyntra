@@ -6,7 +6,7 @@ import { registryEntry, TOKEN_REGISTRY } from './tokenRegistry.js'
 /**
  * @param {ReturnType<import('./systemTokenStore.js').createSystemTokenStore>} systemStore
  */
-export function buildPlatformSessionSecrets(systemStore) {
+export async function buildPlatformSessionSecrets(systemStore) {
   const builtin = {}
   const customSlots = {}
   if (!systemStore?.ready) {
@@ -15,7 +15,7 @@ export function buildPlatformSessionSecrets(systemStore) {
 
   for (const meta of TOKEN_REGISTRY) {
     if (!meta.legacyBuiltin) continue
-    const platform = systemStore.getDecrypted(meta.name)
+    const platform = await Promise.resolve(systemStore.getDecrypted(meta.name))
     if (platform) builtin[meta.legacyBuiltin] = platform
   }
 
@@ -27,8 +27,8 @@ export function buildPlatformSessionSecrets(systemStore) {
  * @param {ReturnType<import('./userApiTokenStore.js').createUserApiTokenStore>} userStore
  * @param {ReturnType<import('./systemTokenStore.js').createSystemTokenStore>} systemStore
  */
-export function buildSessionSecretsPayload(userStore, systemStore, { userId, isOwner = false }) {
-  const base = buildPlatformSessionSecrets(systemStore)
+export async function buildSessionSecretsPayload(userStore, systemStore, { userId, isOwner = false }) {
+  const base = await buildPlatformSessionSecrets(systemStore)
   if (!isOwner || !userStore?.ready) return base
 
   const uid = Number(userId)
@@ -37,7 +37,8 @@ export function buildSessionSecretsPayload(userStore, systemStore, { userId, isO
   const builtin = { ...base.builtin }
   const customSlots = { ...base.customSlots }
 
-  for (const row of userStore.listDecryptedForUser(uid)) {
+  const rows = await Promise.resolve(userStore.listDecryptedForUser(uid))
+  for (const row of rows) {
     const meta = registryEntry(row.provider)
     if (meta?.legacyBuiltin) {
       builtin[meta.legacyBuiltin] = row.value

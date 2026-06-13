@@ -6,6 +6,7 @@ import path from 'path'
 import { createHash } from 'crypto'
 import bcrypt from 'bcryptjs'
 import { createSqliteAdminDirectoryStore } from './sqliteAdminDirectoryStore.js'
+import { createAdminDirectoryStore } from './adminDirectoryStore.js'
 import {
   generateVerificationToken,
   isPasswordResetExpired,
@@ -165,100 +166,41 @@ function oauthUpsertFromDirectory(dir, payload, nextId) {
 }
 
 /**
- * @param {{ sqlitePath?: string, jsonFilePath: string }} opts
+ * @param {{ platformDb?: import('./platformDatabase.js').resolvePlatformStoreDb extends Function ? Parameters<typeof import('./platformDatabase.js').resolvePlatformStoreDb>[0] : any, sqlitePath?: string, jsonFilePath: string }} opts
  */
-export function createAuthDirectoryStore(opts) {
+export async function createAuthDirectoryStore(opts) {
   const jsonFilePath = opts.jsonFilePath
-  const sqlitePath = String(opts.sqlitePath || '').trim()
-  let sqlite = null
-  if (sqlitePath) {
-    try {
-      const parent = path.dirname(sqlitePath)
-      fs.mkdirSync(parent, { recursive: true })
-      sqlite = createSqliteAdminDirectoryStore(sqlitePath)
-    } catch (e) {
-      console.error('[auth-directory] SQLite init failed; using JSON fallback', e)
-      sqlite = null
-    }
-  }
+  const platformDb = opts.platformDb ?? opts.sqlitePath ?? null
+  const adminStore = await createAdminDirectoryStore(platformDb)
 
-  if (sqlite) {
-    const db = sqlite.db
-    const selByEmail = db.prepare(
-      `SELECT id, email, name, role, status, scope, managed_by_id AS managedById, last_login AS lastLogin,
-              password_hash AS passwordHash, email_verified AS emailVerified, verification_token AS verificationToken,
-              verification_token_expires AS verificationTokenExpires,
-              oauth_google_sub AS oauthGoogleSub, oauth_apple_sub AS oauthAppleSub,
-              created_at AS createdAt, updated_at AS updatedAt, profile_extra AS profileExtraRaw
-       FROM admin_users WHERE email = ? COLLATE NOCASE LIMIT 1`,
-    )
-    const selByToken = db.prepare(
-      `SELECT id, email, name, role, status, scope, managed_by_id AS managedById, last_login AS lastLogin,
-              password_hash AS passwordHash, email_verified AS emailVerified, verification_token AS verificationToken,
-              verification_token_expires AS verificationTokenExpires,
-              oauth_google_sub AS oauthGoogleSub, oauth_apple_sub AS oauthAppleSub,
-              created_at AS createdAt, updated_at AS updatedAt, profile_extra AS profileExtraRaw
-       FROM admin_users WHERE verification_token = ? LIMIT 1`,
-    )
-    const maxId = db.prepare(`SELECT MAX(id) AS m FROM admin_users`)
-
-    function rowToUser(r) {
-      if (!r) return null
-      let profileExtra
-      if (r.profileExtraRaw) {
-        try {
-          profileExtra = JSON.parse(String(r.profileExtraRaw))
-        } catch {
-          profileExtra = undefined
-        }
-      }
-      return {
-        id: r.id,
-        email: r.email,
-        name: r.name,
-        role: r.role,
-        status: r.status,
-        lastLogin: r.lastLogin || 'Never',
-        passwordHash: r.passwordHash || undefined,
-        emailVerified: Boolean(r.emailVerified),
-        verificationToken: r.verificationToken || undefined,
-        verificationTokenExpires: r.verificationTokenExpires || undefined,
-        oauthGoogleSub: r.oauthGoogleSub || undefined,
-        oauthAppleSub: r.oauthAppleSub || undefined,
-        createdAt: r.createdAt,
-        profileExtra,
-      }
-    }
-
-    function mutateUsers(fn) {
-      const dir = sqlite.readDirectory()
+  if (adminStore) {
+    async function mutateUsers(fn) {
+      const dir = await adminStore.readDirectory()
       const out = fn(dir.users, dir.auditLog || [])
       const payload = { users: out.users, auditLog: out.auditLog }
       if (Array.isArray(out.deletedEmails) && out.deletedEmails.length) {
         payload.deletedEmails = out.deletedEmails
       }
-      sqlite.writeDirectory(payload)
+      await adminStore.writeDirectory(payload)
       return out
     }
 
-    const sqliteBase = {
-      storage: 'sqlite',
+    const dbBase = {
+      storage: adminStore.dialect === 'postgres' ? 'postgres' : 'sqlite',
       hashPassword,
-      getUserByEmail(email) {
-        return rowToUser(selByEmail.get(normalizeEmail(email)))
+      async getUserByEmail(email) {
+        return adminStore.getUserRowByEmail(normalizeEmail(email))
       },
-      getUserByVerificationToken(token) {
-        const t = String(token || '').trim()
-        if (!t) return null
-        return rowToUser(selByToken.get(t))
+      async getUserByVerificationToken(token) {
+        return adminStore.getUserRowByVerificationToken(token)
       },
-      registerUser({ name, email, password, profileExtra, requestedRole, requestedPlan }) {
+      async registerUser({ name, email, password, profileExtra, requestedRole, requestedPlan }) {
         const em = normalizeEmail(email)
-        if (selByEmail.get(em)) return { ok: false, error: 'email_exists' }
+        if (await adminStore.getUserRowByEmail(em)) return { ok: false, error: 'email_exists' }
         const planResolved = resolveSignupPlan(requestedPlan ?? profileExtra?.billingPlanId ?? profileExtra?.signupPlan)
         const roleResolved = resolveSignupRole(PUBLIC_SIGNUP_ROLE)
         if (!roleResolved.ok) return { ok: false, error: roleResolved.error }
-        const id = Number(maxId.get()?.m || 0) + 1
+        const id = (await adminStore.getMaxUserId()) + 1
         const ts = new Date().toISOString()
         const token = generateVerificationToken()
         const expires = verificationExpiresAt()
@@ -283,7 +225,7 @@ export function createAuthDirectoryStore(opts) {
             signupPlan: planResolved.planId,
           },
         }
-        const dir = sqlite.readDirectory()
+        const dir = await adminStore.readDirectory()
         const auditLog = appendAuditEntry(dir.auditLog, {
           actor: em,
           action: 'user_registered',
@@ -296,16 +238,16 @@ export function createAuthDirectoryStore(opts) {
             billingPlanId: planResolved.planId,
           },
         })
-        sqlite.writeDirectory({ users: [...dir.users, user], auditLog })
+        await adminStore.writeDirectory({ users: [...dir.users, user], auditLog })
         return { ok: true, user, verificationToken: token, verificationTokenExpires: expires }
       },
-      verifyEmailByToken(token) {
-        const u = rowToUser(selByToken.get(String(token || '').trim()))
+      async verifyEmailByToken(token) {
+        const u = await adminStore.getUserRowByVerificationToken(String(token || '').trim())
         if (!u || !u.verificationToken) return { ok: false, error: 'invalid_token' }
         if (isVerificationExpired(u.verificationTokenExpires)) {
           return { ok: false, error: 'token_expired' }
         }
-        const dir = sqlite.readDirectory()
+        const dir = await adminStore.readDirectory()
         const nextStatus = statusAfterEmailVerify(u.role)
         const users = dir.users.map(row => {
           if (row.id !== u.id) return row
@@ -324,99 +266,12 @@ export function createAuthDirectoryStore(opts) {
           target: u.email,
           details: { status: nextStatus },
         })
-        sqlite.writeDirectory({ users, auditLog })
+        await adminStore.writeDirectory({ users, auditLog })
         const verified = { ...u, emailVerified: true, status: nextStatus, verificationToken: undefined }
         return { ok: true, user: verified, publicUser: toPublicAuthUser(verified) }
       },
-      setVerificationToken(email, token, expiresAt) {
-        const em = normalizeEmail(email)
-        const dir = sqlite.readDirectory()
-        let found = false
-        const expires = expiresAt || verificationExpiresAt()
-        const users = dir.users.map(row => {
-          if (normalizeEmail(row.email) !== em) return row
-          found = true
-          return {
-            ...row,
-            verificationToken: token,
-            verificationTokenExpires: expires,
-            emailVerified: false,
-            status: 'Pending Verification',
-          }
-        })
-        if (!found) return { ok: false, error: 'not_found' }
-        sqlite.writeDirectory({ users, auditLog: dir.auditLog })
-        return { ok: true }
-      },
-      provisionUserByOwner({
-        name,
-        email,
-        password,
-        role,
-        status,
-        emailVerified,
-        profileExtra,
-        provisionedBy,
-      }) {
-        const em = normalizeEmail(email)
-        if (!em || !String(em).includes('@')) return { ok: false, error: 'email_required' }
-        if (selByEmail.get(em)) return { ok: false, error: 'email_exists' }
-        const pwd = String(password || '')
-        if (pwd.length < 8) return { ok: false, error: 'password_too_short' }
-        const id = Number(maxId.get()?.m || 0) + 1
-        const ts = new Date().toISOString()
-        let user = {
-          id,
-          email: em,
-          name: String(name || em).trim(),
-          role: String(role || 'Viewer').trim() || 'Viewer',
-          status: String(status || USER_STATUSES.ACTIVE),
-          lastLogin: 'Never',
-          passwordHash: hashPassword(pwd),
-          emailVerified: emailVerified !== false,
-          verificationToken: null,
-          verificationTokenExpires: null,
-          createdAt: ts,
-          profileExtra: profileExtra && typeof profileExtra === 'object' ? profileExtra : undefined,
-        }
-        user = applySystemOwnerToDirectoryUser(user)
-        const dir = sqlite.readDirectory()
-        const auditLog = appendAuditEntry(dir.auditLog, {
-          actor: provisionedBy ?? null,
-          action: 'owner_provision',
-          target: em,
-          details: { role: user.role, status: user.status, emailVerified: user.emailVerified },
-        })
-        sqlite.writeDirectory({ users: [...dir.users, user], auditLog })
-        return { ok: true, user, publicUser: toPublicAuthUser(user) }
-      },
-      ensureOwnerProvisionedSignIn({ email, password, status, emailVerified, provisionedBy }) {
-        const em = normalizeEmail(email)
-        const pwd = String(password || '')
-        if (!em || pwd.length < 8) return { ok: false, error: 'invalid_input' }
-        const dir = sqlite.readDirectory()
-        const idx = dir.users.findIndex(u => normalizeEmail(u.email) === em)
-        if (idx < 0) return { ok: false, error: 'not_found' }
-        const prev = dir.users[idx]
-        const users = [...dir.users]
-        users[idx] = {
-          ...prev,
-          passwordHash: hashPassword(pwd),
-          emailVerified: emailVerified !== false ? true : prev.emailVerified,
-          status: status ? String(status) : prev.status,
-          updatedAt: new Date().toISOString(),
-        }
-        const auditLog = appendAuditEntry(dir.auditLog, {
-          actor: provisionedBy ?? null,
-          action: 'owner_provision_signin_repair',
-          target: em,
-        })
-        sqlite.writeDirectory({ users, auditLog })
-        const user = users[idx]
-        return { ok: true, user, publicUser: toPublicAuthUser(user), repaired: true }
-      },
-      loginUser(email, password) {
-        const u = rowToUser(selByEmail.get(normalizeEmail(email)))
+      async loginUser(email, password) {
+        const u = await adminStore.getUserRowByEmail(normalizeEmail(email))
         if (!u) return { ok: false, error: 'user_not_found' }
         if (!String(u.passwordHash || '').trim()) {
           return {
@@ -429,80 +284,22 @@ export function createAuthDirectoryStore(opts) {
         const gate = canLoginUser(u)
         if (!gate.ok) return { ok: false, error: gate.error, message: gate.message }
         const ts = new Date().toISOString()
-        const dir = sqlite.readDirectory()
-        const users = dir.users.map(row =>
-          row.id === u.id ? { ...row, lastLogin: ts } : row,
-        )
-        sqlite.writeDirectory({ users, auditLog: dir.auditLog })
+        const dir = await adminStore.readDirectory()
+        const users = dir.users.map(row => (row.id === u.id ? { ...row, lastLogin: ts } : row))
+        await adminStore.writeDirectory({ users, auditLog: dir.auditLog })
         const fresh = { ...u, lastLogin: ts }
         return { ok: true, user: fresh, publicUser: toPublicAuthUser(fresh) }
       },
-      lookupUsernameHint(email) {
-        return usernameHintFromUser(rowToUser(selByEmail.get(normalizeEmail(email))))
+      async lookupUsernameHint(email) {
+        return usernameHintFromUser(await adminStore.getUserRowByEmail(normalizeEmail(email)))
       },
-      setPasswordResetToken(email, token, expiresAt) {
-        const em = normalizeEmail(email)
-        const dir = sqlite.readDirectory()
-        let found = false
-        const users = dir.users.map(row => {
-          if (normalizeEmail(row.email) !== em) return row
-          found = true
-          return userWithPasswordReset(row, token, expiresAt || passwordResetExpiresAt())
-        })
-        if (!found) return { ok: false, error: 'not_found' }
-        sqlite.writeDirectory({ users, auditLog: dir.auditLog })
-        return { ok: true }
-      },
-      resetPasswordByToken(token, newPassword) {
-        const pwd = String(newPassword || '')
-        if (pwd.length < 8) return { ok: false, error: 'password_too_short' }
-        const dir = sqlite.readDirectory()
-        const prev = findUserByPasswordResetToken(dir.users, token)
-        if (!prev) return { ok: false, error: 'invalid_token' }
-        const extra = parseProfileExtra(prev)
-        if (isPasswordResetExpired(extra.passwordResetExpires)) {
-          return { ok: false, error: 'token_expired' }
-        }
-        const users = dir.users.map(row =>
-          row.id === prev.id
-            ? userWithPasswordReset(
-                {
-                  ...row,
-                  passwordHash: hashPassword(pwd),
-                  emailVerified: row.emailVerified !== false ? true : row.emailVerified,
-                },
-                null,
-                null,
-              )
-            : row,
-        )
-        const auditLog = appendAuditEntry(dir.auditLog, {
-          actor: prev.email,
-          action: 'password_reset',
-          target: prev.email,
-        })
-        sqlite.writeDirectory({ users, auditLog })
-        return { ok: true, email: normalizeEmail(prev.email) }
-      },
-      upsertOAuthUser(payload) {
-        const dir = sqlite.readDirectory()
-        const out = oauthUpsertFromDirectory(dir, payload, () => Number(maxId.get()?.m || 0) + 1)
-        if (!out.ok) return out
-        sqlite.writeDirectory({ users: out.users, auditLog: dir.auditLog })
-        const gate = canLoginUser(out.user)
-        if (!gate.ok) return { ok: false, error: gate.error, message: gate.message }
-        return {
-          ok: true,
-          user: out.user,
-          publicUser: toPublicAuthUser(out.user),
-          pendingApproval: Boolean(out.pendingApproval),
-        }
-      },
-      sqliteDb: sqlite.db,
+      sqliteDb: adminStore.db || null,
+      adminStore,
     }
-    return attachRbacToStore(sqliteBase, {
-      getUsers: () => sqlite.readDirectory().users,
-      getAudit: () => sqlite.readDirectory().auditLog || [],
+
+    return attachRbacToStore(dbBase, {
+      getUsers: async () => (await adminStore.readDirectory()).users,
+      getAudit: async () => (await adminStore.readDirectory()).auditLog || [],
       appendAudit: (log, entry) => appendAuditEntry(log, entry),
       mutateUsers: fn => mutateUsers(fn),
     })

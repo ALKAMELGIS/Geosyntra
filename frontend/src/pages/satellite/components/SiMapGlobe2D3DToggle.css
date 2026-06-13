@@ -1,0 +1,80 @@
+/* Google Earth–style 2D / 3D globe toggle — left dock, above zoom +/- */
+.si-map-globe-2d3d-toggle {
+  width: 29px;
+  height: 29px;
+  padding: 0;
+  margin: 0;
+  border: none;
+  border-radius: 50%;
+  background: #fff;
+  color: #202124;
+  font-family: Roboto, 'Segoe UI', system-ui, sans-serif;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  line-height: 1;
+  cursor: pointer;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  box-shadow:
+    0 0 0 1px rgba(0, 0, 0, 0.16),
+    0 1px 4px rgba(0, 0, 0, 0.24);
+  transition:
+    transform 120ms ease,
+    box-shadow 120ms ease,
+    background 120ms ease;
+}
+
+.si-map-globe-2d3d-toggle--in-dock {
+  position: relative;
+  flex-shrink: 0;
+  pointer-events: auto;
+  align-self: center;
+}
+
+.si-map-globe-2d3d-toggle:hover:not(:disabled) {
+  transform: scale(1.06);
+  box-shadow:
+    0 0 0 1px rgba(0, 0, 0, 0.18),
+    0 2px 8px rgba(0, 0, 0, 0.3);
+}
+
+.si-map-globe-2d3d-toggle:active:not(:disabled) {
+  transform: scale(0.96);
+}
+
+.si-map-globe-2d3d-toggle:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+/* Flat view — white circle with “3D” (Google Earth default). */
+.si-map-globe-2d3d-toggle--is2d {
+  background: #fff;
+  color: #202124;
+}
+
+/* Pitched 3D — light gray circle with “2D”. */
+.si-map-globe-2d3d-toggle--is3d {
+  background: #e8eaed;
+  color: #3c4043;
+}
+
+.si-map-globe-2d3d-toggle--auto {
+  background: #fff;
+  color: #1a73e8;
+  box-shadow:
+    0 0 0 1px rgba(26, 115, 232, 0.35),
+    0 1px 4px rgba(0, 0, 0, 0.24);
+}
+
+.si-map-globe-2d3d-toggle--auto .si-map-globe-2d3d-toggle__label {
+  font-size: 9px;
+  font-weight: 800;
+}
+
+.si-map-globe-2d3d-toggle__label {
+  display: block;
+  pointer-events: none;
+}

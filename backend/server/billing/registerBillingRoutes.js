@@ -108,7 +108,7 @@ function serializeSubscription(sub, usage, userId) {
  * }} deps
  */
 export function registerBillingRoutes(app, deps) {
-  const subscriptionStore = createSubscriptionStore(deps.sqlitePath)
+  const subscriptionStore = createSubscriptionStore(deps.platformDb ?? deps.sqlitePath)
   const requireAuth = createAuthMiddleware(() => deps.store)
   const loadSub = attachSubscription(() => subscriptionStore)
 
@@ -346,17 +346,19 @@ export function registerBillingRoutes(app, deps) {
       const email = session?.customer_details?.email || session?.customer_email
       const subId = session?.subscription
       if (email && deps.store?.getUserByEmail) {
-        const user = deps.store.getUserByEmail(email)
+        const user = await Promise.resolve(deps.store.getUserByEmail(email))
         if (user) {
           const periodEnd = session?.expires_at
             ? new Date(session.expires_at * 1000).toISOString()
             : null
-          subscriptionStore.activatePaidPlan(user.id, {
-            plan: 'pro',
-            provider: 'stripe',
-            periodEnd,
-            externalId: subId || session?.id,
-          })
+          await Promise.resolve(
+            subscriptionStore.activatePaidPlan(user.id, {
+              plan: 'pro',
+              provider: 'stripe',
+              periodEnd,
+              externalId: subId || session?.id,
+            }),
+          )
         }
       }
     }

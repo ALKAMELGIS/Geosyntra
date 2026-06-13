@@ -4,6 +4,8 @@ import { createSystemTokenStore } from './systemTokenStore.js'
 import { createTokenManagerService } from './tokens.service.js'
 import { registryEntry } from './tokenRegistry.js'
 import { bumpTokenRevision, getTokenRevision } from './tokenRevision.js'
+import { storeAwait } from '../storeAwait.js'
+import { platformEnvVar } from '../platformDataPaths.js'
 
 function requireOwner(req, res, next) {
   return requirePlatformOwner(req, res, next)
@@ -20,28 +22,28 @@ function requireOwner(req, res, next) {
  * }} deps
  */
 export function registerSystemTokenRoutes(app, deps) {
-  const tokenStore = createSystemTokenStore(deps.sqlitePath)
+  const tokenStore = createSystemTokenStore(deps.platformDb ?? deps.sqlitePath)
   const tokenManager = createTokenManagerService(tokenStore, { secretsFilePath: deps.secretsFilePath })
   const requireAuth = createAuthMiddleware(() => deps.store)
 
-  app.get('/api/system/tokens/status', requireAuth, (_req, res) => {
+  app.get('/api/system/tokens/status', requireAuth, async (_req, res) => {
     return res.json({
       ok: true,
-      tokens: tokenManager.listRegistryStatus(),
+      tokens: await tokenManager.listRegistryStatus(),
       storeReady: tokenStore.ready,
-      encrypted: Boolean(process.env.AGRI_API_VAULT_MASTER_KEY?.trim()),
+      encrypted: Boolean(platformEnvVar('API_VAULT_MASTER_KEY')),
     })
   })
 
-  app.get('/api/system/tokens', requireAuth, requireOwner, (_req, res) => {
+  app.get('/api/system/tokens', requireAuth, requireOwner, async (_req, res) => {
     return res.json({
       ok: true,
-      tokens: tokenManager.listMaskedForAdmin(),
+      tokens: await tokenManager.listMaskedForAdmin(),
       storeReady: tokenStore.ready,
     })
   })
 
-  app.put('/api/system/tokens/:name', requireAuth, requireOwner, (req, res) => {
+  app.put('/api/system/tokens/:name', requireAuth, requireOwner, async (req, res) => {
     const name = String(req.params.name || '').trim().toLowerCase()
     const meta = registryEntry(name)
     if (!meta) return res.status(404).json({ ok: false, error: 'unknown_token' })
@@ -57,7 +59,7 @@ export function registerSystemTokenRoutes(app, deps) {
         ok: false,
         error: 'token_store_unavailable',
         message:
-          'SQLite token store is not ready. Set AGRI_DATA_DIR to a writable path on Hostinger and restart the Node app.',
+          'SQLite token store is not ready. Set GEOSYNTRA_DATA_DIR to a writable path on Hostinger and restart the Node app.',
       })
     }
 
@@ -67,15 +69,17 @@ export function registerSystemTokenRoutes(app, deps) {
 
     const actor = req.authPublic?.email || req.authUser?.email || null
     try {
-      const result = tokenStore.upsert({
-        name,
-        label: body.label || meta.label,
-        category: body.category || meta.category,
-        value,
-        active: body.active !== false,
-        expiresAt: body.expiresAt || null,
-        updatedBy: actor,
-      })
+      const result = await storeAwait(
+        tokenStore.upsert({
+          name,
+          label: body.label || meta.label,
+          category: body.category || meta.category,
+          value,
+          active: body.active !== false,
+          expiresAt: body.expiresAt || null,
+          updatedBy: actor,
+        }),
+      )
       tokenStore.appendAudit({
         tokenName: name,
         action: 'upsert',
@@ -94,7 +98,7 @@ export function registerSystemTokenRoutes(app, deps) {
     }
   })
 
-  app.patch('/api/system/tokens/:name', requireAuth, requireOwner, (req, res) => {
+  app.patch('/api/system/tokens/:name', requireAuth, requireOwner, async (req, res) => {
     const name = String(req.params.name || '').trim().toLowerCase()
     const meta = registryEntry(name)
     if (!meta) return res.status(404).json({ ok: false, error: 'unknown_token' })
@@ -111,7 +115,7 @@ export function registerSystemTokenRoutes(app, deps) {
     const actor = req.authPublic?.email || req.authUser?.email || null
 
     if (typeof body.active === 'boolean') {
-      tokenStore.setActive(name, body.active, actor)
+      await storeAwait(tokenStore.setActive(name, body.active, actor))
       tokenStore.appendAudit({
         tokenName: name,
         action: body.active ? 'enable' : 'disable',
@@ -121,19 +125,22 @@ export function registerSystemTokenRoutes(app, deps) {
 
     if (typeof body.value === 'string' && body.value.trim()) {
       const meta = registryEntry(name)
-      tokenStore.upsert({
-        name,
-        label: meta.label,
-        category: meta.category,
-        value: body.value.trim(),
-        active: body.active !== false,
-        updatedBy: actor,
-      })
+      await storeAwait(
+        tokenStore.upsert({
+          name,
+          label: meta.label,
+          category: meta.category,
+          value: body.value.trim(),
+          active: body.active !== false,
+          updatedBy: actor,
+        }),
+      )
       tokenStore.appendAudit({ tokenName: name, action: 'rotate', actorEmail: actor })
       bumpTokenRevision('system_token_rotate')
     }
 
-    const row = tokenStore.listMasked().find(t => t.name === name)
+    const masked = await storeAwait(tokenStore.listMasked())
+    const row = masked.find(t => t.name === name)
     return res.json({ ok: true, token: row ?? null, revision: getTokenRevision() })
   })
 

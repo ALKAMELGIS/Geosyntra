@@ -7,6 +7,7 @@ import {
 } from './roles.js'
 import { isSystemOwnerEmail } from './systemOwnerEmails.js'
 import { toPublicAuthUser } from './userPublic.js'
+import { storeAwait } from '../storeAwait.js'
 
 function normalizeEmail(email) {
   return String(email || '').trim().toLowerCase()
@@ -22,8 +23,8 @@ function countOwners(users) {
 }
 
 /**
- * @param {object} base - sqlite/json store methods
- * @param {{ mutateUsers: (fn: (users: object[], auditLog: object[]) => { users: object[], auditLog: object[], result?: unknown }) => unknown, getUsers: () => object[], getAudit: () => object[] }} io
+ * @param {object} base - sqlite/json/postgres store methods
+ * @param {{ mutateUsers: (fn: (users: object[], auditLog: object[]) => { users: object[], auditLog: object[], result?: unknown }) => unknown, getUsers: () => object[] | Promise<object[]>, getAudit: () => object[] | Promise<object[]>, appendAudit: (log: object[], entry: object) => object[] }} io
  */
 export function attachRbacToStore(base, io) {
   function findUserById(users, id) {
@@ -31,20 +32,32 @@ export function attachRbacToStore(base, io) {
     return users.find(u => Number(u.id) === n) ?? null
   }
 
+  async function loadUsers() {
+    return storeAwait(io.getUsers())
+  }
+
+  async function loadAudit() {
+    return storeAwait(io.getAudit())
+  }
+
+  async function runMutate(fn) {
+    return storeAwait(io.mutateUsers(fn))
+  }
+
   return {
     ...base,
-    getUserById(id) {
-      return findUserById(io.getUsers(), id)
+    async getUserById(id) {
+      return findUserById(await loadUsers(), id)
     },
-    listUsers() {
-      return io.getUsers()
+    async listUsers() {
+      return loadUsers()
     },
-    getAuditLog(limit = 200) {
-      const log = io.getAudit()
+    async getAuditLog(limit = 200) {
+      const log = await loadAudit()
       return log.slice(-limit).reverse()
     },
-    approveUser(targetId, actor) {
-      return io.mutateUsers((users, auditLog) => {
+    async approveUser(targetId, actor) {
+      const out = await runMutate((users, auditLog) => {
         const u = findUserById(users, targetId)
         if (!u) return { users, auditLog, result: { ok: false, error: 'not_found' } }
         const next = users.map(row =>
@@ -63,10 +76,11 @@ export function attachRbacToStore(base, io) {
           auditLog: auditLog2,
           result: { ok: true, user: { ...u, status: USER_STATUSES.ACTIVE } },
         }
-      }).result
+      })
+      return out.result
     },
-    suspendUser(targetId, actor) {
-      return io.mutateUsers((users, auditLog) => {
+    async suspendUser(targetId, actor) {
+      const out = await runMutate((users, auditLog) => {
         const u = findUserById(users, targetId)
         if (!u) return { users, auditLog, result: { ok: false, error: 'not_found' } }
         const next = users.map(row =>
@@ -78,10 +92,11 @@ export function attachRbacToStore(base, io) {
           target: u.email,
         })
         return { users: next, auditLog: auditLog2, result: { ok: true } }
-      }).result
+      })
+      return out.result
     },
-    reactivateUser(targetId, actor) {
-      return io.mutateUsers((users, auditLog) => {
+    async reactivateUser(targetId, actor) {
+      const out = await runMutate((users, auditLog) => {
         const u = findUserById(users, targetId)
         if (!u) return { users, auditLog, result: { ok: false, error: 'not_found' } }
         const next = users.map(row =>
@@ -93,15 +108,16 @@ export function attachRbacToStore(base, io) {
           target: u.email,
         })
         return { users: next, auditLog: auditLog2, result: { ok: true } }
-      }).result
+      })
+      return out.result
     },
-    setUserRole(targetId, roleSlug, actor) {
+    async setUserRole(targetId, roleSlug, actor) {
       const actorSlug = normalizeRbacRole(actor?.roleSlug || displayRoleToSlug(actor?.role))
       const targetSlug = normalizeRbacRole(roleSlug)
       if (!canAssignRole(actorSlug, targetSlug)) {
         return { ok: false, error: 'forbidden_role_assignment' }
       }
-      return io.mutateUsers((users, auditLog) => {
+      const out = await runMutate((users, auditLog) => {
         const u = findUserById(users, targetId)
         if (!u) return { users, auditLog, result: { ok: false, error: 'not_found' } }
         const display = rbacRoleToDisplay(targetSlug)
@@ -120,10 +136,11 @@ export function attachRbacToStore(base, io) {
           details: { from: u.role, to: display },
         })
         return { users: next, auditLog: auditLog2, result: { ok: true, user: { ...u, role: display } } }
-      }).result
+      })
+      return out.result
     },
-    deleteUser(targetId, actor) {
-      return io.mutateUsers((users, auditLog) => {
+    async deleteUser(targetId, actor) {
+      const out = await runMutate((users, auditLog) => {
         const u = findUserById(users, targetId)
         if (!u) return { users, auditLog, result: { ok: false, error: 'not_found' } }
         if (Number(actor?.id) === Number(u.id)) {
@@ -150,12 +167,13 @@ export function attachRbacToStore(base, io) {
           deletedEmails: [em],
           result: { ok: true, email: em },
         }
-      }).result
+      })
+      return out.result
     },
-    createInvitedUser({ email, name, password, roleDisplay, invitedByEmail }) {
+    async createInvitedUser({ email, name, password, roleDisplay, invitedByEmail }) {
       const em = String(email || '').trim().toLowerCase()
-      if (base.getUserByEmail(em)) return { ok: false, error: 'email_exists' }
-      return io.mutateUsers((users, auditLog) => {
+      if (await storeAwait(base.getUserByEmail(em))) return { ok: false, error: 'email_exists' }
+      const out = await runMutate((users, auditLog) => {
         let max = 0
         for (const u of users) {
           const id = Number(u.id)
@@ -188,7 +206,8 @@ export function attachRbacToStore(base, io) {
           auditLog: auditLog2,
           result: { ok: true, user },
         }
-      }).result
+      })
+      return out.result
     },
     toPublicAuthUser,
   }

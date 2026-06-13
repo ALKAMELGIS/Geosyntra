@@ -42,12 +42,12 @@ describe('devOwnerBootstrap', () => {
     }
   })
 
-  it('tryDevSystemOwnerFirstLogin provisions admin on first sign-in', () => {
-    const store = tempAuthStore()
-    const login = tryDevSystemOwnerFirstLogin(store, 'admin@Geosyntra.com', 'P@ssw0rd_gis')
+  it('tryDevSystemOwnerFirstLogin provisions admin on first sign-in', async () => {
+    const store = await tempAuthStore()
+    const login = await tryDevSystemOwnerFirstLogin(store, 'admin@Geosyntra.com', 'P@ssw0rd_gis')
     assert.equal(login?.ok, true)
     assert.equal(login?.publicUser?.email, 'admin@geosyntra.com')
-    const retry = store.loginUser('admin@Geosyntra.com', 'P@ssw0rd_gis')
+    const retry = await Promise.resolve(store.loginUser('admin@Geosyntra.com', 'P@ssw0rd_gis'))
     assert.equal(retry.ok, true)
   })
 })

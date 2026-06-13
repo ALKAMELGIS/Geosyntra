@@ -20,22 +20,22 @@ export const MAP_MOUSE_BEHAVIOR_SPEC = {
     pitchSensitivity: 0.38,
     pitchClamp: { min: 0, max: 78 },
   },
-  zoom: { wheel: true, doubleClick: true, touchPinch: true },
+  zoom: { wheel: true, doubleClick: 'flyTo' as const, touchPinch: true },
   select: { gesture: 'نقرة واحدة (زر أيسر)', gestureEn: 'Single left click' },
   popup: { gesture: 'نقرة على المعلم أو الحقل', gestureEn: 'Click on feature or field' },
   draw: { gesture: 'حسب الأداة النشطة', gestureEn: 'Depends on active tool' },
 } as const;
 
 /**
- * react-map-gl props — Mapbox dragRotate handles 2D bearing only when custom 3D orbit is off.
- * Wheel zoom stays enabled in 2D and 3D.
+ * react-map-gl props — native dragRotate off; 3D orbit uses custom RMB handler only.
+ * Double-click focus fly-to is handled by siMapGisCameraController (not Mapbox dblclick zoom).
  */
 export const MAPBOX_NAVIGATION_PROPS = {
-  dragRotate: true,
+  dragRotate: false,
   pitchWithRotate: MAP_MOUSE_BEHAVIOR_SPEC.rotate2d.pitchWithRotate,
   touchPitch: true,
   touchZoomRotate: true,
-  doubleClickZoom: true,
+  doubleClickZoom: false,
   scrollZoom: true,
   cooperativeGestures: false,
   minPitch: MAP_MOUSE_BEHAVIOR_SPEC.orbit3d.pitchClamp.min,
@@ -93,9 +93,9 @@ export const SI_MAP_MOUSE_CONTROL_ROWS: SiMapMouseControlRow[] = [
   },
   {
     id: 'zoom-dbl',
-    actionAr: 'تكبير سريع',
-    actionEn: 'Quick zoom',
-    gestureAr: 'Double Click',
+    actionAr: 'تركيز + طيران',
+    actionEn: 'Focus + fly-to',
+    gestureAr: 'نقرة مزدوجة',
     gestureEn: 'Double click',
     icon: 'fa-solid fa-bolt',
     tone: 'amber',

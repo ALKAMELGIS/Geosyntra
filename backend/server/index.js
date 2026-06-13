@@ -37,8 +37,12 @@ import { registerAnalysisEngineProxy } from './registerAnalysisEngineProxy.js'
 import { registerGeoGroundingRoutes } from './registerGeoGroundingRoutes.js'
 import { registerBillingRoutes } from './billing/registerBillingRoutes.js'
 import { optionalAuthOrFree, checkPlanForGroundingTool } from './billing/checkPlan.js'
-import { ensurePlatformDataLayout, resolvePlatformPaths } from './platformDataPaths.js'
-import { runSqliteMigrations } from './runSqliteMigrations.js'
+import { ensurePlatformDataLayout, platformEnvVar, resolvePlatformPaths } from './platformDataPaths.js'
+import {
+  openPlatformDatabase,
+  resolvePlatformDatabaseConfig,
+} from './platformDatabase.js'
+import { runPlatformMigrations } from './runPlatformMigrations.js'
 import { registerPlatformRoutes } from './registerPlatformRoutes.js'
 import { registerSystemTokenRoutes } from './tokenManager/registerSystemTokenRoutes.js'
 import { registerUserApiTokenRoutes } from './tokenManager/registerUserApiTokenRoutes.js'
@@ -51,7 +55,7 @@ import { startEnvConfigReload } from './envConfigReload.js'
 import { startEnvironmentRecoveryMonitor } from './envRecoveryMonitor.js'
 import { syncEnvironmentTokensToDatabase } from './tokenManager/syncEnvTokensToDatabase.js'
 
-/** `backend/server` — application code only; user data lives under AGRI_DATA_DIR (see platformDataPaths.js). */
+/** `backend/server` — application code only; user data lives under GEOSYNTRA_DATA_DIR (see platformDataPaths.js). */
 const SERVER_DIR = path.dirname(fileURLToPath(import.meta.url))
 /** Repository root (parent of `frontend/` and `backend/`). */
 const REPO_ROOT = path.join(SERVER_DIR, '..', '..')
@@ -66,12 +70,15 @@ const USER_PROFILES_FILE = PLATFORM_PATHS.userProfilesFile
 const ADMIN_DIRECTORY_FILE = PLATFORM_PATHS.adminDirectoryFile
 const USER_DB_FILE = PLATFORM_PATHS.userDb
 
-const migrationResult = runSqliteMigrations(USER_DB_FILE)
+const DB_CONFIG = resolvePlatformDatabaseConfig(PLATFORM_PATHS)
+const platformDb = await openPlatformDatabase(DB_CONFIG)
+const migrationResult = await runPlatformMigrations(platformDb)
 if (migrationResult.applied?.length) {
-  console.log('[platform] SQLite migrations applied:', migrationResult.applied.join(', '))
+  console.log(`[platform] ${platformDb.dialect} migrations applied:`, migrationResult.applied.join(', '))
 }
-/** Vite production output (`npm run build` in `frontend/`). Override with AGRI_FRONTEND_DIST. */
-const FRONTEND_DIST = process.env.AGRI_FRONTEND_DIST || path.join(REPO_ROOT, 'frontend', 'dist')
+console.log(`[platform] database: ${platformDb.dialect} (${PLATFORM_LAYOUT.storage})`)
+/** Vite production output (`npm run build` in `frontend/`). Override with GEOSYNTRA_FRONTEND_DIST. */
+const FRONTEND_DIST = platformEnvVar('FRONTEND_DIST') || path.join(REPO_ROOT, 'frontend', 'dist')
 
 const app = express()
 app.set('trust proxy', Number(process.env.TRUST_PROXY_HOPS || 1))
@@ -104,15 +111,16 @@ registerPlatformRoutes(app, PLATFORM_PATHS, PLATFORM_LAYOUT)
 
 registerUserProfilePersistence(app, {
   filePath: USER_PROFILES_FILE,
-  accessToken: process.env.AGRI_USER_PROFILE_TOKEN,
+  accessToken: platformEnvVar('USER_PROFILE_TOKEN'),
 })
 
 registerAnalysisEngineProxy(app)
 
 registerAdminDirectoryPersistence(app, {
   filePath: ADMIN_DIRECTORY_FILE,
-  accessToken: process.env.AGRI_ADMIN_DIRECTORY_TOKEN,
-  sqlitePath: USER_DB_FILE || undefined,
+  accessToken: platformEnvVar('ADMIN_DIRECTORY_TOKEN'),
+  sqlitePath: platformDb.dialect === 'sqlite' ? USER_DB_FILE || undefined : undefined,
+  platformDb,
 })
 
 /** Google OAuth — SPA exchanges `code` after `oauth-return.html` redirect. */
@@ -238,7 +246,7 @@ const SMTP_HOST = String(process.env.SMTP_HOST || '').trim()
 const SMTP_PORT = Number(process.env.SMTP_PORT || 587)
 const SMTP_USER = String(process.env.SMTP_USER || '').trim()
 const SMTP_PASS = String(process.env.SMTP_PASS || '').trim()
-const SMTP_FROM = String(process.env.SMTP_FROM || SMTP_USER || 'noreply@agri-cloud.local').trim()
+const SMTP_FROM = String(process.env.SMTP_FROM || SMTP_USER || 'noreply@geosyntra.local').trim()
 const SMTP_SECURE = String(process.env.SMTP_SECURE || '').trim().toLowerCase() === 'true'
 
 function addAuthEvent(action, payload = {}) {
@@ -274,15 +282,15 @@ async function sendMail({ to, subject, text, html }) {
   })
 }
 
-const authDirectoryStore = createAuthDirectoryStore({
+const authDirectoryStore = await createAuthDirectoryStore({
+  platformDb,
   jsonFilePath: ADMIN_DIRECTORY_FILE,
-  sqlitePath: USER_DB_FILE || undefined,
 })
 
 registerApiSecretsRoutes(app, {
   secretsFilePath: API_SECRETS_FILE,
-  accessToken: process.env.AGRI_API_SECRETS_TOKEN,
-  blockClientSecretReads: process.env.AGRI_BLOCK_CLIENT_SECRET_READS !== 'false',
+  accessToken: platformEnvVar('API_SECRETS_TOKEN'),
+  blockClientSecretReads: platformEnvVar('BLOCK_CLIENT_SECRET_READS') !== 'false',
   getStore: () => authDirectoryStore,
 })
 
@@ -291,7 +299,8 @@ registerOAuthPublicRoutes(app)
 registerAuthRoutes(app, {
   store: authDirectoryStore,
   jsonFilePath: ADMIN_DIRECTORY_FILE,
-  sqlitePath: USER_DB_FILE || undefined,
+  platformDb,
+  sqlitePath: platformDb.dialect === 'sqlite' ? USER_DB_FILE || undefined : undefined,
   sqliteDb: authDirectoryStore.sqliteDb || null,
   appOrigin: APP_ORIGIN,
   appBasePath: APP_BASE_PATH,
@@ -300,13 +309,15 @@ registerAuthRoutes(app, {
 
 registerPassportOAuthRoutes(app, {
   store: authDirectoryStore,
+  platformDb,
   sqliteDb: authDirectoryStore.sqliteDb || null,
   addAuthEvent,
 })
 
 registerRbacRoutes(app, {
   store: authDirectoryStore,
-  sqlitePath: USER_DB_FILE || undefined,
+  platformDb,
+  sqlitePath: platformDb.dialect === 'sqlite' ? USER_DB_FILE || undefined : undefined,
   appOrigin: APP_ORIGIN,
   appBasePath: APP_BASE_PATH,
   addAuthEvent,
@@ -314,13 +325,15 @@ registerRbacRoutes(app, {
 
 const platformTokenApi = registerSystemTokenRoutes(app, {
   store: authDirectoryStore,
-  sqlitePath: USER_DB_FILE || undefined,
+  platformDb,
+  sqlitePath: platformDb.dialect === 'sqlite' ? USER_DB_FILE || undefined : undefined,
   secretsFilePath: API_SECRETS_FILE,
 })
 
 registerUserApiTokenRoutes(app, {
   store: authDirectoryStore,
-  sqlitePath: USER_DB_FILE || undefined,
+  platformDb,
+  sqlitePath: platformDb.dialect === 'sqlite' ? USER_DB_FILE || undefined : undefined,
   systemTokenStore: platformTokenApi.tokenStore,
 })
 
@@ -343,12 +356,12 @@ registerPlatformEnvRoutes(app, {
 })
 
 try {
-  const envSync = syncEnvironmentTokensToDatabase(platformTokenApi.tokenStore, {
+  const envSync = await syncEnvironmentTokensToDatabase(platformTokenApi.tokenStore, {
     forceFromEnv: isProductionDeployment(),
   })
   if (envSync.synced > 0) {
     bumpTokenRevision('env_tokens_seeded')
-    console.log(`[platform] Seeded ${envSync.synced} API token(s) from environment into SQLite`)
+    console.log(`[platform] Seeded ${envSync.synced} API token(s) from environment into ${platformDb.dialect}`)
   }
 } catch (e) {
   console.error('[platform] env token seed error', e)
@@ -359,16 +372,16 @@ void platformTokenApi.tokenManager
   .then(vaultMigrate => {
     if (vaultMigrate.ok && vaultMigrate.migrated > 0) {
       bumpTokenRevision('vault_migrate_boot')
-      console.log(`[platform] Migrated ${vaultMigrate.migrated} token(s) from legacy vault to SQLite`)
+      console.log(`[platform] Migrated ${vaultMigrate.migrated} token(s) from legacy vault to ${platformDb.dialect}`)
     }
   })
   .catch(e => {
     console.error('[platform] legacy vault migrate error', e)
   })
 
-if (process.env.AGRI_ENV_AUTO_RELOAD !== 'false') {
+if (platformEnvVar('ENV_AUTO_RELOAD') !== 'false') {
   startEnvConfigReload(REPO_ROOT, {
-    intervalMs: Number(process.env.AGRI_ENV_RELOAD_MS) || 60_000,
+    intervalMs: Number(platformEnvVar('ENV_RELOAD_MS')) || 60_000,
   })
 } else if (process.env.NODE_ENV === 'production' || process.env.GEOSYNTRA_ENV === 'production') {
   console.log('[env-reload] Disabled — Hostinger hPanel environment variables are authoritative')
@@ -376,13 +389,14 @@ if (process.env.AGRI_ENV_AUTO_RELOAD !== 'false') {
 
 startEnvironmentRecoveryMonitor({
   getSystemToken: name => platformTokenApi.tokenManager.getSystemToken(name),
-  intervalMs: Number(process.env.AGRI_ENV_RECOVERY_MS) || 120_000,
+  intervalMs: Number(platformEnvVar('ENV_RECOVERY_MS')) || 120_000,
   isProduction: isProductionDeployment(),
 })
 
 const billingApi = registerBillingRoutes(app, {
   store: authDirectoryStore,
-  sqlitePath: USER_DB_FILE || undefined,
+  platformDb,
+  sqlitePath: platformDb.dialect === 'sqlite' ? USER_DB_FILE || undefined : undefined,
   appOrigin: APP_ORIGIN,
   appBasePath: APP_BASE_PATH,
 })
@@ -401,19 +415,19 @@ registerGeoGroundingRoutes(app, {
 })
 
 try {
-  bootstrapRbacSuperAdmin(authDirectoryStore)
+  await bootstrapRbacSuperAdmin(authDirectoryStore)
 } catch (e) {
   console.error('[rbac] bootstrap error', e)
 }
 
 try {
-  bootstrapSystemOwners(authDirectoryStore)
+  await bootstrapSystemOwners(authDirectoryStore)
 } catch (e) {
   console.error('[rbac] system owner bootstrap error', e)
 }
 
 try {
-  ensureSystemOwnerAccounts(authDirectoryStore)
+  await ensureSystemOwnerAccounts(authDirectoryStore)
 } catch (e) {
   console.error('[rbac] ensure system owner accounts error', e)
 }
@@ -421,7 +435,7 @@ try {
 const promoteOwnerEmail = String(process.env.RBAC_PROMOTE_OWNER_EMAIL || '').trim().toLowerCase()
 if (promoteOwnerEmail) {
   try {
-    const promoted = promoteWorkspaceRole(authDirectoryStore, promoteOwnerEmail, 'owner')
+    const promoted = await promoteWorkspaceRole(authDirectoryStore, promoteOwnerEmail, 'owner')
     if (promoted.ok && !promoted.unchanged) {
       console.info('[rbac] Promoted workspace role to Owner:', promoteOwnerEmail)
     } else if (promoted.error === 'user_not_found') {
@@ -477,7 +491,7 @@ async function githubApiFetch(token, url, init) {
     headers: {
       Accept: 'application/vnd.github+json',
       'X-GitHub-Api-Version': '2022-11-28',
-      'User-Agent': 'agri-cloud',
+      'User-Agent': 'geosyntra',
       Authorization: `Bearer ${token}`,
       ...(init?.headers || {}),
     },
@@ -549,7 +563,7 @@ app.get('/api/github/oauth/callback', async (req, res) => {
   try {
     const tokenRes = await fetch('https://github.com/login/oauth/access_token', {
       method: 'POST',
-      headers: { Accept: 'application/json', 'Content-Type': 'application/json', 'User-Agent': 'agri-cloud' },
+      headers: { Accept: 'application/json', 'Content-Type': 'application/json', 'User-Agent': 'geosyntra' },
       body: JSON.stringify({
         client_id: GITHUB_CLIENT_ID,
         client_secret: GITHUB_CLIENT_SECRET,

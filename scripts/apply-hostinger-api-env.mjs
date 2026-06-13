@@ -61,11 +61,14 @@ const SERVER_KEYS = [
   'SMTP_FROM',
   'GEOSYNTRA_ENV',
   'NODE_ENV',
+  'GEOSYNTRA_DATA_DIR',
+  'GEOSYNTRA_USER_DB_PATH',
+  'GEOSYNTRA_API_VAULT_MASTER_KEY',
   'AGRI_DATA_DIR',
   'AGRI_USER_DB_PATH',
+  'AGRI_API_VAULT_MASTER_KEY',
   'CORS_ORIGINS',
   'RESEND_API_KEY',
-  'AGRI_API_VAULT_MASTER_KEY',
   'MAPBOX',
   'MAPBOX_TOKEN',
   'MAPBOX_PUBLIC_TOKEN',
@@ -133,8 +136,10 @@ function buildBackendEnv(vars) {
     lines.push(`${key}=${value}`)
     written.add(key)
   }
-  if (!vars.AGRI_USER_DB_PATH && vars.AGRI_DATA_DIR) {
-    lines.push(`AGRI_USER_DB_PATH=${path.posix.join(vars.AGRI_DATA_DIR, 'geosyntra_platform.db')}`)
+  const dataDir = vars.GEOSYNTRA_DATA_DIR || vars.AGRI_DATA_DIR
+  const userDb = vars.GEOSYNTRA_USER_DB_PATH || vars.AGRI_USER_DB_PATH
+  if (!userDb && dataDir) {
+    lines.push(`GEOSYNTRA_USER_DB_PATH=${path.posix.join(dataDir, 'geosyntra_platform.db')}`)
   }
   return `${lines.join('\n')}\n`
 }

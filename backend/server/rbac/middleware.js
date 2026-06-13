@@ -5,7 +5,7 @@ import { displayRoleToSlug, normalizeRbacRole } from './roles.js'
 import { toPublicAuthUser } from './userPublic.js'
 
 export function createAuthMiddleware(getStore) {
-  return function requireAuth(req, res, next) {
+  return async function requireAuth(req, res, next) {
     const token = readBearerOrCookieToken(req)
     if (!token) {
       return res.status(401).json({ ok: false, error: 'unauthorized' })
@@ -18,7 +18,7 @@ export function createAuthMiddleware(getStore) {
     if (!Number.isFinite(userId)) {
       return res.status(401).json({ ok: false, error: 'invalid_subject' })
     }
-    const user = getStore().getUserById?.(userId)
+    const user = await Promise.resolve(getStore().getUserById?.(userId))
     if (!user) {
       return res.status(401).json({ ok: false, error: 'user_not_found' })
     }

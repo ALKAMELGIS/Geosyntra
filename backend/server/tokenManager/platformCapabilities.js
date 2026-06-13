@@ -7,10 +7,9 @@ import { TOKEN_REGISTRY } from './tokenRegistry.js'
 /**
  * @param {ReturnType<import('./systemTokenStore.js').createSystemTokenStore>} systemStore
  */
-export function buildPlatformCapabilities(systemStore) {
-  const byName = new Map(
-    systemStore?.ready ? systemStore.listMasked().map(r => [r.name, r]) : [],
-  )
+export async function buildPlatformCapabilities(systemStore) {
+  const masked = systemStore?.ready ? await Promise.resolve(systemStore.listMasked()) : []
+  const byName = new Map(masked.map(r => [r.name, r]))
 
   const providers = {}
   for (const meta of TOKEN_REGISTRY) {

@@ -78,7 +78,7 @@ npm run dev:server
 
 ## Production vs development data
 
-User accounts, API keys, and settings must **not** live inside this git repository in production. See **[docs/PLATFORM_DEPLOYMENT.md](docs/PLATFORM_DEPLOYMENT.md)** for staging/production split, `AGRI_DATA_DIR`, migrations, and CI workflows.
+User accounts, API keys, and settings must **not** live inside this git repository in production. See **[docs/PLATFORM_DEPLOYMENT.md](docs/PLATFORM_DEPLOYMENT.md)** for staging/production split, `GEOSYNTRA_DATA_DIR`, migrations, and CI workflows.
 
 - `main` → GitHub Pages (static UI for users)
 - `dev` → staging builds only (does not overwrite Pages)

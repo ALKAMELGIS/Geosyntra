@@ -9,7 +9,7 @@
  *   node scripts/set-workspace-role.mjs admin@Geosyntra.com super_admin
  *
  * Env (optional, same as backend/server):
- *   AGRI_USER_DB_PATH, AGRI_ADMIN_DIRECTORY_FILE
+ *   GEOSYNTRA_USER_DB_PATH, GEOSYNTRA_ADMIN_DIRECTORY_FILE
  * Loads `.env` from repo root when present.
  */
 import fs from 'fs'
@@ -43,15 +43,19 @@ function loadDotEnv() {
   }
 }
 
+function platformEnv(key) {
+  return String(process.env[`GEOSYNTRA_${key}`] || process.env[`AGRI_${key}`] || '').trim()
+}
+
 function resolveStorePaths() {
-  const envAdminDirPath = process.env.AGRI_ADMIN_DIRECTORY_FILE?.trim()
+  const envAdminDirPath = platformEnv('ADMIN_DIRECTORY_FILE')
   const jsonFilePath = envAdminDirPath
     ? path.isAbsolute(envAdminDirPath)
       ? envAdminDirPath
       : path.join(SERVER_DIR, envAdminDirPath)
-    : path.join(SERVER_DIR, 'agri_admin_directory.json')
+    : path.join(SERVER_DIR, 'geosyntra_admin_directory.json')
 
-  const envUserDbPath = process.env.AGRI_USER_DB_PATH?.trim()
+  const envUserDbPath = platformEnv('USER_DB_PATH')
   const sqlitePath = envUserDbPath
     ? path.isAbsolute(envUserDbPath)
       ? envUserDbPath
@@ -76,7 +80,7 @@ const storePath = sqlitePath && fs.existsSync(sqlitePath) ? sqlitePath : jsonFil
 
 if (!fs.existsSync(storePath)) {
   console.error(`User store not found: ${storePath}`)
-  console.error('Sign up once via the app, or point AGRI_USER_DB_PATH / AGRI_ADMIN_DIRECTORY_FILE at your production data.')
+  console.error('Sign up once via the app, or point GEOSYNTRA_USER_DB_PATH / GEOSYNTRA_ADMIN_DIRECTORY_FILE at your production data.')
   process.exit(1)
 }
 

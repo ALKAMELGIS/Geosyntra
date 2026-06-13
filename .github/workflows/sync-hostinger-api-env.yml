@@ -21,7 +21,7 @@ jobs:
           GOOGLE_OAUTH_CLIENT_ID: ${{ secrets.GOOGLE_OAUTH_CLIENT_ID }}
           GOOGLE_OAUTH_CLIENT_SECRET: ${{ secrets.GOOGLE_OAUTH_CLIENT_SECRET }}
           JWT_SECRET: ${{ secrets.JWT_SECRET }}
-          AGRI_API_VAULT_MASTER_KEY: ${{ secrets.AGRI_API_VAULT_MASTER_KEY }}
+          GEOSYNTRA_API_VAULT_MASTER_KEY: ${{ secrets.GEOSYNTRA_API_VAULT_MASTER_KEY || secrets.AGRI_API_VAULT_MASTER_KEY }}
         run: |
           set -euo pipefail
           cp hostinger.secrets.env.example hostinger.secrets.env
@@ -31,7 +31,7 @@ jobs:
           append GOOGLE_OAUTH_CLIENT_ID "$GOOGLE_OAUTH_CLIENT_ID"
           append GOOGLE_OAUTH_CLIENT_SECRET "$GOOGLE_OAUTH_CLIENT_SECRET"
           append JWT_SECRET "$JWT_SECRET"
-          append AGRI_API_VAULT_MASTER_KEY "$AGRI_API_VAULT_MASTER_KEY"
+          append GEOSYNTRA_API_VAULT_MASTER_KEY "$GEOSYNTRA_API_VAULT_MASTER_KEY"
       - name: Install ssh2 for password SSH upload
         run: npm i -D ssh2 --no-save
       - name: Apply API env and restart PM2

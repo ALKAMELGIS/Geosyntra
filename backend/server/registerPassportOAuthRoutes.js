@@ -14,6 +14,7 @@ import {
   setRefreshTokenCookie,
 } from './rbac/authCookies.js'
 import { createRefreshTokenStore } from './rbac/refreshTokens.js'
+import { storeAwait } from './storeAwait.js'
 
 /**
  * @param {import('express').Express} app
@@ -24,11 +25,11 @@ import { createRefreshTokenStore } from './rbac/refreshTokens.js'
  * }} deps
  */
 export function registerPassportOAuthRoutes(app, deps) {
-  const refreshStore = createRefreshTokenStore(deps.sqliteDb || null)
+  const refreshStore = createRefreshTokenStore(deps.platformDb ?? deps.sqliteDb ?? null)
 
   configurePassport({
     async onOAuthProfile(profile) {
-      const result = deps.store.upsertOAuthUser(profile)
+      const result = await storeAwait(deps.store.upsertOAuthUser(profile))
       if (!result.ok) return result
       return { ok: true, user: result.user }
     },
@@ -51,14 +52,14 @@ export function registerPassportOAuthRoutes(app, deps) {
   app.use(passport.initialize())
   app.use(passport.session())
 
-  function finishOAuth(req, res, user, remember) {
+  async function finishOAuth(req, res, user, remember) {
     if (!user?.id) {
       return res.redirect(oauthErrorRedirect('oauth_user_missing'))
     }
     const { publicUser, accessToken, refreshToken } = issueAuthResponse(user)
     setAccessTokenCookie(res, accessToken)
     if (remember !== false) setRefreshTokenCookie(res, refreshToken)
-    refreshStore.persist(user.id, refreshToken, req.headers['user-agent'])
+    await storeAwait(refreshStore.persist(user.id, refreshToken, req.headers['user-agent']))
     deps.addAuthEvent('oauth_login', { email: publicUser.email, provider: 'passport' })
     void remember
     return res.redirect(oauthSuccessRedirect())
@@ -97,7 +98,10 @@ export function registerPassportOAuthRoutes(app, deps) {
         }
         const remember = req.session?.oauthRemember !== false
         delete req.session.oauthRemember
-        return finishOAuth(req, res, user, remember)
+        return finishOAuth(req, res, user, remember).catch(err => {
+          console.error(`[auth] ${provider} finish oauth error`, err)
+          return res.redirect(oauthErrorRedirect('provider_api_failure'))
+        })
       })(req, res, next)
     })
   }

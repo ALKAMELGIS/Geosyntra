@@ -5,9 +5,14 @@ interface ImportMetaEnv {
   readonly VITE_MAPBOX_TOKEN?: string
   readonly VITE_MAPBOX_ACCESS_TOKEN?: string
   /** Absolute URL for GET/PUT api-secrets when the UI is not served from the Node host (e.g. GitHub Pages). */
+  readonly VITE_GEOSYNTRA_API_SECRETS_URL?: string
+  readonly VITE_GEOSYNTRA_API_SECRETS_TOKEN?: string
+  /** @deprecated Use VITE_GEOSYNTRA_* — kept for backward compatibility */
   readonly VITE_AGRI_API_SECRETS_URL?: string
   readonly VITE_AGRI_API_SECRETS_TOKEN?: string
   /** Optional GET/PUT base for cross-device profile sync (default `/api/v1/account/profile-extra`). */
+  readonly VITE_GEOSYNTRA_USER_PROFILE_URL?: string
+  readonly VITE_GEOSYNTRA_USER_PROFILE_TOKEN?: string
   readonly VITE_AGRI_USER_PROFILE_URL?: string
   readonly VITE_AGRI_USER_PROFILE_TOKEN?: string
   /** Optional OAuth redirect URLs (IdP / backend handles token exchange). */

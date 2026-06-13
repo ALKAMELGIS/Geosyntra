@@ -1,5 +1,5 @@
 /**
- * Sync API token overrides with the Node backend (`backend/server/agri_api_secrets.json`)
+ * Sync API token overrides with the Node backend (`geosyntra_api_secrets.json`)
  * so secrets survive frontend rebuilds and full app updates when the server data directory persists.
  */
 
@@ -27,6 +27,7 @@ import {
 } from './openRouteServiceApiKey'
 import { resolveApiUrl, authHeaders as workspaceAuthHeaders } from './apiClient'
 import { mustUseApiGateway } from './platformTokenRuntime'
+import { vitePlatformEnv } from './platformViteEnv'
 
 export type BuiltinSecretKey =
   | 'arcgisPortalToken'
@@ -75,8 +76,7 @@ const BUILTIN_BROWSER_GET: Record<BuiltinSecretKey, () => string> = {
 }
 
 function vaultRequestHeaders(): HeadersInit {
-  const raw = import.meta.env.VITE_AGRI_API_SECRETS_TOKEN
-  const legacy = typeof raw === 'string' ? raw.trim() : ''
+  const legacy = vitePlatformEnv('API_SECRETS_TOKEN')
   const h: Record<string, string> = { ...(workspaceAuthHeaders() as Record<string, string>) }
   if (legacy) h['X-Agri-Api-Secrets-Token'] = legacy
   return h
@@ -84,8 +84,7 @@ function vaultRequestHeaders(): HeadersInit {
 
 /** Remote API base for vault routes (GitHub Pages → api.geosyntra.org). */
 export function getApiSecretsEndpoint(): string {
-  const raw = import.meta.env.VITE_AGRI_API_SECRETS_URL
-  const u = typeof raw === 'string' ? raw.trim().replace(/\/$/, '') : ''
+  const u = vitePlatformEnv('API_SECRETS_URL').replace(/\/$/, '')
   if (u) return u
   return resolveApiUrl('/api/system/api-secrets')
 }
@@ -99,7 +98,7 @@ export function applyPersistedApiSecretsToBrowser(secrets: ServerApiSecretsV3): 
     const nextValue = typeof v === 'string' ? v : ''
     /**
      * Never wipe an existing browser token with an empty/missing server value.
-     * Applies after deploys when `agri_api_secrets.json` is missing, reset, or not yet synced,
+     * Applies after deploys when `geosyntra_api_secrets.json` is missing, reset, or not yet synced,
      * and for static/GitHub Pages builds without a reachable secrets API.
      */
     const getBrowser = BUILTIN_BROWSER_GET[key]
@@ -172,7 +171,7 @@ export async function persistApiSecretsPatchToServer(patch: ApiSecretsClientPatc
         ok: false,
         error:
           data?.error ||
-          'API secrets endpoint returned no persisted snapshot (run the Node backend, enable the /api proxy, or set VITE_AGRI_API_SECRETS_URL).',
+          'API secrets endpoint returned no persisted snapshot (run the Node backend, enable the /api proxy, or set VITE_GEOSYNTRA_API_SECRETS_URL).',
       }
     }
     if (!data.secrets && !gatewayMode) {
@@ -180,11 +179,11 @@ export async function persistApiSecretsPatchToServer(patch: ApiSecretsClientPatc
         ok: false,
         error:
           data?.error ||
-          'API secrets endpoint returned no persisted snapshot (run the Node backend, enable the /api proxy, or set VITE_AGRI_API_SECRETS_URL).',
+          'API secrets endpoint returned no persisted snapshot (run the Node backend, enable the /api proxy, or set VITE_GEOSYNTRA_API_SECRETS_URL).',
       }
     }
     /**
-     * Authoritative copy lives on disk (`agri_api_secrets.json` or `AGRI_API_SECRETS_FILE`);
+     * Authoritative copy lives on disk (`geosyntra_api_secrets.json` or `GEOSYNTRA_API_SECRETS_FILE`);
      * merge the returned snapshot into this browser so tokens match the server for any device/browser.
      */
     if (data.secrets) {

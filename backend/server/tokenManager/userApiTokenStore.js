@@ -1,18 +1,28 @@
 /**
- * Per-user encrypted API token persistence (SQLite).
+ * Per-user encrypted API token persistence — SQLite or PostgreSQL.
  */
 import { createRequire } from 'module'
 import { encryptJsonEnvelope, decryptJsonEnvelope } from '../apiVaultCrypto.js'
 import { maskValue } from './systemTokenStore.js'
+import { resolvePlatformStoreDb } from '../platformDatabase.js'
+import { createSqlRunner } from '../sqlRunner.js'
+import { platformEnvVar } from '../platformDataPaths.js'
 
 const require = createRequire(import.meta.url)
 
+function emptyUserApiTokenStore() {
+  return {
+    ready: false,
+    listMaskedForUser: () => [],
+    listDecryptedForUser: () => [],
+    listMaskedAll: () => [],
+    upsert: async () => ({ ok: false, error: 'no_db' }),
+    remove: async () => ({ ok: false, error: 'no_db' }),
+  }
+}
+
 function resolveMasterKey() {
-  return (
-    process.env.AGRI_API_VAULT_MASTER_KEY?.trim() ||
-    process.env.AGRI_BACKUP_MASTER_KEY?.trim() ||
-    ''
-  )
+  return platformEnvVar('API_VAULT_MASTER_KEY') || platformEnvVar('BACKUP_MASTER_KEY')
 }
 
 function encryptValue(plaintext) {
@@ -20,7 +30,7 @@ function encryptValue(plaintext) {
   const value = String(plaintext || '').trim()
   if (!value) return JSON.stringify({ v: 1, empty: true })
   if (!masterKey) {
-    console.warn('[user-api-tokens] AGRI_API_VAULT_MASTER_KEY unset — storing envelope without AES (dev only).')
+    console.warn('[user-api-tokens] GEOSYNTRA_API_VAULT_MASTER_KEY unset — storing envelope without AES (dev only).')
     return JSON.stringify({ v: 1, plain: value })
   }
   return JSON.stringify({ v: 1, enc: encryptJsonEnvelope({ value }, masterKey) })
@@ -47,35 +57,38 @@ function decryptValue(envelopeJson) {
   }
 }
 
-export function createUserApiTokenStore(sqlitePath) {
-  if (!sqlitePath) {
-    return {
-      ready: false,
-      listMaskedForUser: () => [],
-      listDecryptedForUser: () => [],
-      listMaskedAll: () => [],
-      upsert: async () => ({ ok: false, error: 'no_db' }),
-      remove: async () => ({ ok: false, error: 'no_db' }),
-    }
+function rowToMasked(row) {
+  const value = decryptValue(row.value_envelope)
+  return {
+    userId: row.user_id,
+    userEmail: row.user_email || '',
+    provider: row.provider,
+    active: Boolean(row.is_active ?? row.active),
+    configured: Boolean(value),
+    masked: maskValue(value),
+    updatedAt: row.updated_at,
+    encrypted: Boolean(resolveMasterKey()),
   }
+}
 
+/**
+ * @param {string | import('../platformDatabase.js').resolvePlatformStoreDb extends Function ? ReturnType<typeof import('../platformDatabase.js').resolvePlatformStoreDb> : any} platformDb
+ */
+export function createUserApiTokenStore(platformDb) {
+  const resolved = resolvePlatformStoreDb(platformDb)
+  if (resolved.dialect === 'postgres' && resolved.pool) {
+    return createUserApiTokenStoreSql(createSqlRunner(resolved))
+  }
+  const sqlitePath =
+    resolved.dialect === 'sqlite' ? resolved.sqlitePath : typeof platformDb === 'string' ? platformDb : null
+  if (!sqlitePath) return emptyUserApiTokenStore()
+  return createUserApiTokenStoreSqlite(sqlitePath)
+}
+
+function createUserApiTokenStoreSqlite(sqlitePath) {
   const Database = require('better-sqlite3')
   const db = new Database(sqlitePath)
   db.pragma('journal_mode = WAL')
-
-  function rowToMasked(row) {
-    const value = decryptValue(row.value_envelope)
-    return {
-      userId: row.user_id,
-      userEmail: row.user_email || '',
-      provider: row.provider,
-      active: Boolean(row.active),
-      configured: Boolean(value),
-      masked: maskValue(value),
-      updatedAt: row.updated_at,
-      encrypted: Boolean(resolveMasterKey()),
-    }
-  }
 
   return {
     ready: true,
@@ -138,6 +151,80 @@ export function createUserApiTokenStore(sqlitePath) {
         uid,
         p,
       )
+      return { ok: true }
+    },
+  }
+}
+
+function createUserApiTokenStoreSql(sql) {
+  return {
+    ready: true,
+    db: null,
+
+    async listMaskedForUser(userId) {
+      const rows = await sql.query(
+        'SELECT * FROM user_api_tokens WHERE user_id = ? AND is_active = TRUE ORDER BY provider ASC',
+        [Number(userId)],
+      )
+      return rows.map(rowToMasked)
+    },
+
+    async listDecryptedForUser(userId) {
+      const rows = await sql.query(
+        'SELECT * FROM user_api_tokens WHERE user_id = ? AND is_active = TRUE ORDER BY provider ASC',
+        [Number(userId)],
+      )
+      return rows
+        .map(row => ({
+          provider: row.provider,
+          value: decryptValue(row.value_envelope),
+        }))
+        .filter(r => r.value)
+    },
+
+    async listMaskedAll() {
+      const rows = await sql.query(
+        'SELECT * FROM user_api_tokens WHERE is_active = TRUE ORDER BY user_email ASC, provider ASC',
+      )
+      return rows.map(rowToMasked)
+    },
+
+    async upsert({ userId, userEmail, provider, value }) {
+      const uid = Number(userId)
+      const p = String(provider || '').trim().toLowerCase()
+      if (!Number.isFinite(uid) || uid <= 0) return { ok: false, error: 'user_required' }
+      if (!p) return { ok: false, error: 'provider_required' }
+      const now = new Date().toISOString()
+      const envelope = encryptValue(value)
+      const existing = await sql.queryOne('SELECT id FROM user_api_tokens WHERE user_id = ? AND provider = ?', [
+        uid,
+        p,
+      ])
+      if (existing) {
+        await sql.run(
+          `UPDATE user_api_tokens SET user_email = ?, value_envelope = ?, is_active = TRUE, updated_at = ? WHERE user_id = ? AND provider = ?`,
+          [String(userEmail || '').trim().toLowerCase(), envelope, now, uid, p],
+        )
+      } else {
+        await sql.run(
+          `INSERT INTO user_api_tokens (user_id, user_email, provider, value_envelope, is_active, created_at, updated_at)
+           VALUES (?, ?, ?, ?, TRUE, ?, ?)`,
+          [uid, String(userEmail || '').trim().toLowerCase(), p, envelope, now, now],
+        )
+      }
+      const row = await sql.queryOne('SELECT * FROM user_api_tokens WHERE user_id = ? AND provider = ?', [uid, p])
+      return { ok: true, row: rowToMasked(row) }
+    },
+
+    async remove(userId, provider) {
+      const uid = Number(userId)
+      const p = String(provider || '').trim().toLowerCase()
+      const now = new Date().toISOString()
+      await sql.run('UPDATE user_api_tokens SET is_active = FALSE, updated_at = ? WHERE user_id = ? AND provider = ?', [
+        now,
+        uid,
+        p,
+      ])
       return { ok: true }
     },
   }

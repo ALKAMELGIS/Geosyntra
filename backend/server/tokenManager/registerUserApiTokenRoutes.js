@@ -5,6 +5,8 @@ import { buildPlatformSessionSecrets, buildSessionSecretsPayload } from './userT
 import { buildPlatformCapabilities } from './platformCapabilities.js'
 import { registryEntry } from './tokenRegistry.js'
 import { bumpTokenRevision, getTokenRevision } from './tokenRevision.js'
+import { storeAwait } from '../storeAwait.js'
+import { platformEnvVar } from '../platformDataPaths.js'
 
 function isOwnerRole(req) {
   return isPlatformOwnerUserRecord(req.authUser)
@@ -18,35 +20,35 @@ function requireOwner(req, res, next) {
  * Per-user token store (Owner writes) + session hydration (all authenticated users, platform keys only).
  */
 export function registerUserApiTokenRoutes(app, deps) {
-  const userTokenStore = createUserApiTokenStore(deps.sqlitePath)
+  const userTokenStore = createUserApiTokenStore(deps.platformDb ?? deps.sqlitePath)
   const systemTokenStore = deps.systemTokenStore ?? null
   const requireAuth = createAuthMiddleware(() => deps.store)
 
-  app.get('/api/user/api-tokens', requireAuth, requireOwner, (req, res) => {
+  app.get('/api/user/api-tokens', requireAuth, requireOwner, async (req, res) => {
     if (!userTokenStore.ready) {
       return res.status(503).json({ ok: false, error: 'token_store_unavailable' })
     }
     const userId = Number(req.authUser?.id)
     return res.json({
       ok: true,
-      tokens: userTokenStore.listMaskedForUser(userId),
+      tokens: await storeAwait(userTokenStore.listMaskedForUser(userId)),
       storeReady: true,
-      encrypted: Boolean(process.env.AGRI_API_VAULT_MASTER_KEY?.trim()),
+      encrypted: Boolean(platformEnvVar('API_VAULT_MASTER_KEY')),
     })
   })
 
   /**
    * Session runtime — capabilities + revision for all users.
-   * Plaintext secrets are opt-in legacy only (AGRI_ALLOW_CLIENT_SECRET_HYDRATION=true).
+   * Plaintext secrets are opt-in legacy only (GEOSYNTRA_ALLOW_CLIENT_SECRET_HYDRATION=true).
    */
-  app.get('/api/user/api-tokens/session', requireAuth, (req, res) => {
+  app.get('/api/user/api-tokens/session', requireAuth, async (req, res) => {
     const owner = isOwnerRole(req)
     const userId = Number(req.authUser?.id)
-    const allowClientHydration = process.env.AGRI_ALLOW_CLIENT_SECRET_HYDRATION === 'true'
+    const allowClientHydration = platformEnvVar('ALLOW_CLIENT_SECRET_HYDRATION') === 'true'
     const secrets = userTokenStore.ready
-      ? buildSessionSecretsPayload(userTokenStore, systemTokenStore, { userId, isOwner: owner })
-      : buildPlatformSessionSecrets(systemTokenStore)
-    const capabilities = buildPlatformCapabilities(systemTokenStore)
+      ? await buildSessionSecretsPayload(userTokenStore, systemTokenStore, { userId, isOwner: owner })
+      : await buildPlatformSessionSecrets(systemTokenStore)
+    const capabilities = await buildPlatformCapabilities(systemTokenStore)
     const hasAny =
       Object.keys(secrets.builtin || {}).length > 0 || Object.keys(secrets.customSlots || {}).length > 0
     const payload = {
@@ -54,7 +56,7 @@ export function registerUserApiTokenRoutes(app, deps) {
       revision: getTokenRevision(),
       persisted: hasAny,
       capabilities,
-      encrypted: Boolean(process.env.AGRI_API_VAULT_MASTER_KEY?.trim()),
+      encrypted: Boolean(platformEnvVar('API_VAULT_MASTER_KEY')),
       readOnly: !owner,
       gatewayMode: !allowClientHydration,
     }
@@ -64,7 +66,7 @@ export function registerUserApiTokenRoutes(app, deps) {
     return res.json(payload)
   })
 
-  app.put('/api/user/api-tokens/:provider', requireAuth, requireOwner, (req, res) => {
+  app.put('/api/user/api-tokens/:provider', requireAuth, requireOwner, async (req, res) => {
     const provider = String(req.params.provider || '').trim().toLowerCase()
     if (!provider) return res.status(400).json({ ok: false, error: 'provider_required' })
     const meta = registryEntry(provider)
@@ -80,7 +82,7 @@ export function registerUserApiTokenRoutes(app, deps) {
         ok: false,
         error: 'token_store_unavailable',
         message:
-          'SQLite token store is not ready. Set AGRI_DATA_DIR to a writable path on Hostinger and restart the Node app.',
+          'SQLite token store is not ready. Set GEOSYNTRA_DATA_DIR to a writable path on Hostinger and restart the Node app.',
       })
     }
 
@@ -91,19 +93,21 @@ export function registerUserApiTokenRoutes(app, deps) {
     const userId = Number(req.authUser?.id)
     const email = req.authPublic?.email || req.authUser?.email || ''
     try {
-      const result = userTokenStore.upsert({ userId, userEmail: email, provider, value })
+      const result = await storeAwait(userTokenStore.upsert({ userId, userEmail: email, provider, value }))
       if (!result.ok) return res.status(400).json(result)
 
       if (systemTokenStore?.ready && registryEntry(provider)) {
         const meta = registryEntry(provider)
-        systemTokenStore.upsert({
-          name: provider,
-          label: meta.label,
-          category: meta.category,
-          value,
-          active: true,
-          updatedBy: email,
-        })
+        await storeAwait(
+          systemTokenStore.upsert({
+            name: provider,
+            label: meta.label,
+            category: meta.category,
+            value,
+            active: true,
+            updatedBy: email,
+          }),
+        )
         bumpTokenRevision('user_api_token_upsert')
       }
 
@@ -118,23 +122,23 @@ export function registerUserApiTokenRoutes(app, deps) {
     }
   })
 
-  app.delete('/api/user/api-tokens/:provider', requireAuth, requireOwner, (req, res) => {
+  app.delete('/api/user/api-tokens/:provider', requireAuth, requireOwner, async (req, res) => {
     const provider = String(req.params.provider || '').trim().toLowerCase()
     if (!userTokenStore.ready) return res.status(503).json({ ok: false, error: 'token_store_unavailable' })
     const userId = Number(req.authUser?.id)
-    userTokenStore.remove(userId, provider)
+    await storeAwait(userTokenStore.remove(userId, provider))
     if (systemTokenStore?.ready && registryEntry(provider)) {
-      systemTokenStore.setActive(provider, false, req.authPublic?.email || null)
+      await storeAwait(systemTokenStore.setActive(provider, false, req.authPublic?.email || null))
       bumpTokenRevision('user_api_token_delete')
     }
     return res.json({ ok: true, revision: getTokenRevision() })
   })
 
-  app.get('/api/system/user-api-tokens/overview', requireAuth, requireOwner, (req, res) => {
+  app.get('/api/system/user-api-tokens/overview', requireAuth, requireOwner, async (req, res) => {
     if (!userTokenStore.ready) {
       return res.status(503).json({ ok: false, error: 'token_store_unavailable' })
     }
-    return res.json({ ok: true, tokens: userTokenStore.listMaskedAll() })
+    return res.json({ ok: true, tokens: await storeAwait(userTokenStore.listMaskedAll()) })
   })
 
   return { userTokenStore }

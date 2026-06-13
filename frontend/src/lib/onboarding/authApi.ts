@@ -1,5 +1,6 @@
 import { readAccessToken } from '../auth'
 import { isWorkspaceApiConfigured, resolveApiUrl } from '../apiClient'
+import { vitePlatformEnv } from '../platformViteEnv'
 
 export type PublicAuthUser = {
   id: number
@@ -34,8 +35,7 @@ function ownerProvisionAuthHeaders(): HeadersInit {
     headers.Authorization = `Bearer ${jwt}`
     return headers
   }
-  const raw = import.meta.env.VITE_AGRI_ADMIN_DIRECTORY_TOKEN
-  const t = typeof raw === 'string' ? raw.trim() : ''
+  const t = vitePlatformEnv('ADMIN_DIRECTORY_TOKEN')
   if (t) {
     headers['X-Agri-Admin-Directory-Token'] = t
     headers.Authorization = `Bearer ${t}`
@@ -271,7 +271,7 @@ export async function apiProvisionUser(
         ok: false,
         error:
           data.message ||
-          'Not authorized to provision accounts. Sign in as Owner or configure VITE_AGRI_ADMIN_DIRECTORY_TOKEN.',
+          'Not authorized to provision accounts. Sign in as Owner or configure VITE_GEOSYNTRA_ADMIN_DIRECTORY_TOKEN.',
       }
     }
     if (res.status === 0) {

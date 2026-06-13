@@ -15,11 +15,12 @@ describe('MapMouseBehavior', () => {
     expect(SI_MAP_FREE_CAMERA_PITCH_MAX).toBe(MAP_MOUSE_BEHAVIOR_SPEC.orbit3d.pitchClamp.max);
   });
 
-  it('keeps LMB pan and wheel zoom; 2D RMB bearing-only via Mapbox', () => {
-    expect(MAPBOX_NAVIGATION_PROPS.dragRotate).toBe(true);
+  it('keeps LMB pan and wheel zoom; disables native RMB rotate and dblclick zoom', () => {
+    expect(MAPBOX_NAVIGATION_PROPS.dragRotate).toBe(false);
     expect(MAPBOX_NAVIGATION_PROPS.pitchWithRotate).toBe(false);
     expect(MAPBOX_NAVIGATION_PROPS.scrollZoom).toBe(true);
-    expect(MAPBOX_NAVIGATION_PROPS.doubleClickZoom).toBe(MAP_MOUSE_BEHAVIOR_SPEC.zoom.doubleClick);
+    expect(MAPBOX_NAVIGATION_PROPS.doubleClickZoom).toBe(false);
+    expect(MAP_MOUSE_BEHAVIOR_SPEC.zoom.doubleClick).toBe('flyTo');
   });
 
   it('documents GIS mouse rows for 2D and 3D help panel', () => {

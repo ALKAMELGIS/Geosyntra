@@ -143,7 +143,7 @@ const dataDir = path.join(root, 'backend', 'server', 'data')
 fs.mkdirSync(dataDir, { recursive: true })
 ok(`Data directory: ${path.relative(root, dataDir)}`)
 
-const dbRel = be.AGRI_USER_DB_PATH || 'geosyntra_platform.db'
+const dbRel = be.GEOSYNTRA_USER_DB_PATH || be.AGRI_USER_DB_PATH || 'geosyntra_platform.db'
 const dbPath = path.isAbsolute(dbRel) ? dbRel : path.join(dataDir, dbRel)
 if (!quick) {
   try {

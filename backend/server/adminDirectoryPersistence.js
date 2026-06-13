@@ -2,23 +2,24 @@
  * Admin directory: users + audit log with durable storage.
  *
  * Modes:
- *   AGRI_USER_DB_PATH — SQLite (recommended for production volumes). Survives deploys/restarts.
- *   Otherwise — JSON file via AGRI_ADMIN_DIRECTORY_FILE (legacy).
+ *   GEOSYNTRA_USER_DB_PATH — SQLite (recommended for production volumes). Survives deploys/restarts.
+ *   Otherwise — JSON file via GEOSYNTRA_ADMIN_DIRECTORY_FILE (legacy).
  *
  * PUT merge policy (users): union by stable numeric `id` so rows missing from the client
  * snapshot are not removed (no silent data loss on partial sync).
  *
- * Env:
- *   AGRI_ADMIN_DIRECTORY_FILE — JSON path when SQLite is not used
- *   AGRI_ADMIN_DIRECTORY_TOKEN — optional guard (X-Agri-Admin-Directory-Token / Bearer)
- *   AGRI_USER_DB_PATH — SQLite database file path
- *   AGRI_BACKUP_MASTER_KEY — hex 64 chars or passphrase; enables AES-256-GCM backup/restore + optional auto-backup on PUT
- *   AGRI_ADMIN_BACKUP_DIR — optional directory for automatic pre-PUT backup files (SQLite mode)
+ * Env (GEOSYNTRA_* preferred; AGRI_* legacy):
+ *   GEOSYNTRA_ADMIN_DIRECTORY_FILE — JSON path when SQLite is not used
+ *   GEOSYNTRA_ADMIN_DIRECTORY_TOKEN — optional guard (X-Agri-Admin-Directory-Token / Bearer)
+ *   GEOSYNTRA_USER_DB_PATH — SQLite database file path
+ *   GEOSYNTRA_BACKUP_MASTER_KEY — hex 64 chars or passphrase; enables AES-256-GCM backup/restore + optional auto-backup on PUT
+ *   GEOSYNTRA_ADMIN_BACKUP_DIR — optional directory for automatic pre-PUT backup files (SQLite mode)
  */
 import fs from 'fs'
 import path from 'path'
 import { createCipheriv, createDecipheriv, randomBytes, scryptSync } from 'crypto'
 import { createSqliteAdminDirectoryStore } from './sqliteAdminDirectoryStore.js'
+import { platformEnvVar } from './platformDataPaths.js'
 
 const MAX_USERS = 20000
 const MAX_AUDIT = 8000
@@ -187,8 +188,8 @@ export function registerAdminDirectoryPersistence(app, opts) {
   const filePath = opts.filePath
   const sqlitePath = String(opts.sqlitePath || '').trim()
   const token = String(opts.accessToken || '').trim()
-  const backupMaster = process.env.AGRI_BACKUP_MASTER_KEY?.trim()
-  const backupDir = process.env.AGRI_ADMIN_BACKUP_DIR?.trim()
+  const backupMaster = platformEnvVar('BACKUP_MASTER_KEY')
+  const backupDir = platformEnvVar('ADMIN_BACKUP_DIR')
 
   let sqlite = null
   if (sqlitePath) {

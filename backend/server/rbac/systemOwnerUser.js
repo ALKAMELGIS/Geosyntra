@@ -21,11 +21,11 @@ export function applySystemOwnerToDirectoryUser(user) {
 }
 
 /** On server start — promote configured emails to Owner in the directory store. */
-export function bootstrapSystemOwners(store) {
+export async function bootstrapSystemOwners(store) {
   const results = []
   for (const email of listSystemOwnerEmails()) {
     try {
-      const r = promoteWorkspaceRole(store, email, 'super_admin')
+      const r = await promoteWorkspaceRole(store, email, 'super_admin')
       results.push({ email, ...r })
       if (r.ok && !r.unchanged) {
         console.info('[rbac] System owner promoted:', email)

@@ -415,7 +415,7 @@ export default function AdminSystemTokensPage() {
 
       <footer className="admin-tokens__foot">
         <p>
-          Set <code>AGRI_API_VAULT_MASTER_KEY</code> on the API host for AES-256-GCM at rest. Use server env vars as
+          Set <code>GEOSYNTRA_API_VAULT_MASTER_KEY</code> on the API host for AES-256-GCM at rest. Use server env vars as
           fallback only (never <code>VITE_*</code> secrets in production builds).
         </p>
         <Link to="/settings/api-integrations" className="admin-tokens__link">

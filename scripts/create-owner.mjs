@@ -6,7 +6,7 @@
  *   node scripts/create-owner.mjs --email you@company.com --password "min-12-chars"
  *   node scripts/create-owner.mjs --email you@company.com --generate-password
  *
- * Env (optional, same as backend): AGRI_USER_DB_PATH, AGRI_ADMIN_DIRECTORY_FILE, .env in repo root
+ * Env (optional, same as backend): GEOSYNTRA_USER_DB_PATH, GEOSYNTRA_ADMIN_DIRECTORY_FILE, .env in repo root
  *   RBAC_BOOTSTRAP_EMAIL, RBAC_BOOTSTRAP_PASSWORD, RBAC_BOOTSTRAP_NAME
  */
 import crypto from 'crypto'
@@ -67,15 +67,19 @@ function parseArgs(argv) {
   return out
 }
 
+function platformEnv(key) {
+  return String(process.env[`GEOSYNTRA_${key}`] || process.env[`AGRI_${key}`] || '').trim()
+}
+
 function resolveStorePaths() {
-  const envAdminDirPath = process.env.AGRI_ADMIN_DIRECTORY_FILE?.trim()
+  const envAdminDirPath = platformEnv('ADMIN_DIRECTORY_FILE')
   const jsonFilePath = envAdminDirPath
     ? path.isAbsolute(envAdminDirPath)
       ? envAdminDirPath
       : path.join(SERVER_DIR, envAdminDirPath)
-    : path.join(SERVER_DIR, 'agri_admin_directory.json')
+    : path.join(SERVER_DIR, 'geosyntra_admin_directory.json')
 
-  const envUserDbPath = process.env.AGRI_USER_DB_PATH?.trim()
+  const envUserDbPath = platformEnv('USER_DB_PATH')
   const sqlitePath = envUserDbPath
     ? path.isAbsolute(envUserDbPath)
       ? envUserDbPath

@@ -67,10 +67,10 @@ function buildServerEnv() {
     `# ${new Date().toISOString()}`,
     'GEOSYNTRA_ENV=production',
     'NODE_ENV=production',
-    `AGRI_DATA_DIR=${DATA_DIR}`,
-    `AGRI_USER_DB_PATH=${DATA_DIR}/geosyntra_platform.db`,
+    `GEOSYNTRA_DATA_DIR=${DATA_DIR}`,
+    `GEOSYNTRA_USER_DB_PATH=${DATA_DIR}/geosyntra_platform.db`,
   ];
-  const seen = new Set(['GEOSYNTRA_ENV', 'NODE_ENV', 'AGRI_DATA_DIR', 'AGRI_USER_DB_PATH']);
+  const seen = new Set(['GEOSYNTRA_ENV', 'NODE_ENV', 'GEOSYNTRA_DATA_DIR', 'GEOSYNTRA_USER_DB_PATH']);
   for (const [k, v] of Object.entries(secrets)) {
     if (INFRA_KEYS.has(k) || seen.has(k) || !v) continue;
     lines.push(`${k}=${v}`);

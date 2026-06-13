@@ -4,6 +4,7 @@
  */
 import { normalizeEmail } from './auth'
 import { scheduleAdminDirectorySync } from './adminDirectoryPersistence'
+import { vitePlatformEnv } from './platformViteEnv'
 
 export const USER_PROFILES_STORAGE_KEY = 'user_profiles_v1'
 
@@ -119,14 +120,12 @@ function syncProfileExtraToAdminDirectory(normalizedEmailKey: string, profile: P
 const DEFAULT_PROFILE_API = '/api/v1/account/profile-extra'
 
 function profileApiBase(): string {
-  const raw = import.meta.env.VITE_AGRI_USER_PROFILE_URL
-  const u = typeof raw === 'string' ? raw.trim().replace(/\/$/, '') : ''
+  const u = vitePlatformEnv('USER_PROFILE_URL').replace(/\/$/, '')
   return u || DEFAULT_PROFILE_API
 }
 
 function profileAuthHeaders(): HeadersInit {
-  const raw = import.meta.env.VITE_AGRI_USER_PROFILE_TOKEN
-  const t = typeof raw === 'string' ? raw.trim() : ''
+  const t = vitePlatformEnv('USER_PROFILE_TOKEN')
   if (!t) return {}
   return { 'X-Agri-User-Profile-Token': t, Authorization: `Bearer ${t}` }
 }

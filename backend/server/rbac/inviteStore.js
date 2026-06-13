@@ -3,6 +3,8 @@ import path from 'path'
 import { createRequire } from 'module'
 import crypto from 'crypto'
 import { normalizeRbacRole, rbacRoleToDisplay } from './roles.js'
+import { resolvePlatformStoreDb } from '../platformDatabase.js'
+import { createSqlRunner } from '../sqlRunner.js'
 
 const require = createRequire(import.meta.url)
 
@@ -14,7 +16,15 @@ function generateInviteToken() {
   return crypto.randomBytes(32).toString('hex')
 }
 
-export function createInviteStore(sqlitePath) {
+/**
+ * @param {string | import('../platformDatabase.js').resolvePlatformStoreDb extends Function ? ReturnType<typeof import('../platformDatabase.js').resolvePlatformStoreDb> : any} platformDb
+ */
+export function createInviteStore(platformDb) {
+  const resolved = resolvePlatformStoreDb(platformDb)
+  if (resolved.dialect === 'postgres' && resolved.pool) {
+    return createInviteStoreSql(createSqlRunner(resolved))
+  }
+  const sqlitePath = resolved.dialect === 'sqlite' ? resolved.sqlitePath : typeof platformDb === 'string' ? platformDb : null
   if (!sqlitePath) {
     return createMemoryInviteStore()
   }
@@ -94,6 +104,73 @@ export function createInviteStore(sqlitePath) {
     list(limit = 100) {
       return listRecent.all(limit).map(mapRow)
     },
+  }
+}
+
+function createInviteStoreSql(sql) {
+  return {
+    async createInvite({ email, role, invitedById, invitedByEmail, ttlHours = 72 }) {
+      const em = String(email || '').trim().toLowerCase()
+      const slug = normalizeRbacRole(role)
+      const token = generateInviteToken()
+      const createdAt = nowIso()
+      const expiresAt = new Date(Date.now() + ttlHours * 60 * 60 * 1000).toISOString()
+      await sql.run(
+        `UPDATE role_invites SET status = 'revoked' WHERE LOWER(email) = LOWER(?) AND status = 'pending'`,
+        [em],
+      )
+      await sql.run(
+        `INSERT INTO role_invites (token, email, role, invited_by, invited_by_email, status, expires_at, created_at)
+         VALUES (?, ?, ?, ?, ?, 'pending', ?, ?)`,
+        [token, em, rbacRoleToDisplay(slug), invitedById ?? null, invitedByEmail ?? null, expiresAt, createdAt],
+      )
+      return { ok: true, token, email: em, role: slug, displayRole: rbacRoleToDisplay(slug), expiresAt }
+    },
+    async getByToken(token) {
+      const row = await sql.queryOne(`SELECT * FROM role_invites WHERE token = ? LIMIT 1`, [
+        String(token || '').trim(),
+      ])
+      return row ? mapPgRow(row) : null
+    },
+    async getPendingByEmail(email) {
+      const row = await sql.queryOne(
+        `SELECT * FROM role_invites WHERE LOWER(email) = LOWER(?) AND status = 'pending' ORDER BY id DESC LIMIT 1`,
+        [String(email || '').trim().toLowerCase()],
+      )
+      return row ? mapPgRow(row) : null
+    },
+    async acceptInvite(token) {
+      const row = await sql.queryOne(`SELECT * FROM role_invites WHERE token = ? LIMIT 1`, [
+        String(token || '').trim(),
+      ])
+      if (!row || row.status !== 'pending') return { ok: false, error: 'invalid_invite' }
+      if (new Date(row.expires_at).getTime() < Date.now()) return { ok: false, error: 'invite_expired' }
+      await sql.run(`UPDATE role_invites SET status = 'accepted', accepted_at = ? WHERE id = ?`, [
+        nowIso(),
+        row.id,
+      ])
+      return { ok: true, invite: mapPgRow(row) }
+    },
+    async list(limit = 100) {
+      const rows = await sql.query(`SELECT * FROM role_invites ORDER BY id DESC LIMIT ?`, [limit])
+      return rows.map(mapPgRow)
+    },
+  }
+}
+
+function mapPgRow(row) {
+  return {
+    id: row.id,
+    token: row.token,
+    email: row.email,
+    role: row.role,
+    roleSlug: normalizeRbacRole(row.role),
+    invitedById: row.invited_by ?? undefined,
+    invitedByEmail: row.invited_by_email ?? undefined,
+    status: row.status,
+    expiresAt: row.expires_at,
+    acceptedAt: row.accepted_at ?? undefined,
+    createdAt: row.created_at,
   }
 }
 

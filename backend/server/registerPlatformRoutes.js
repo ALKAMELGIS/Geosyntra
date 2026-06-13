@@ -16,7 +16,7 @@ export function registerPlatformRoutes(app, paths, layout) {
         userProfiles: paths.userProfilesFile,
       },
       warnings: layout.dataInRepo
-        ? ['AGRI_DATA_DIR is inside the repository — configure an external volume for production.']
+        ? ['GEOSYNTRA_DATA_DIR is inside the repository — configure an external volume for production.']
         : [],
     })
   })

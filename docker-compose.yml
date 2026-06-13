@@ -9,11 +9,11 @@ services:
     environment:
       - NODE_ENV=development
       - GEOSYNTRA_ENV=development
-      - DATABASE_URL=postgres://user:password@db:5432/agri_cloud
-      - AGRI_DATA_DIR=/data
-      - AGRI_USER_DB_PATH=/data/geosyntra_platform.db
-      - AGRI_API_SECRETS_FILE=/data/agri_api_secrets.json
-      - AGRI_API_VAULT_BACKUP_DIR=/data/api-vault-backups
+      - DB_DIALECT=postgres
+      - DATABASE_URL=postgres://geosyntra:password@db:5432/geosyntra
+      - GEOSYNTRA_DATA_DIR=/data
+      - GEOSYNTRA_API_SECRETS_FILE=/data/geosyntra_api_secrets.json
+      - GEOSYNTRA_API_VAULT_BACKUP_DIR=/data/api-vault-backups
     depends_on:
       - db
     volumes:
@@ -26,9 +26,9 @@ services:
     ports:
       - "5432:5432"
     environment:
-      - POSTGRES_USER=user
+      - POSTGRES_USER=geosyntra
       - POSTGRES_PASSWORD=password
-      - POSTGRES_DB=agri_cloud
+      - POSTGRES_DB=geosyntra
     volumes:
       - postgres_data:/var/lib/postgresql/data
 

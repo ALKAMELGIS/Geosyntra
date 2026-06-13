@@ -1,16 +1,16 @@
 /**
- * Persistent API vault — survives frontend rebuilds when `AGRI_API_SECRETS_FILE` is on a volume.
+ * Persistent API vault — survives frontend rebuilds when `GEOSYNTRA_API_SECRETS_FILE` is on a volume.
  *
  * v4 store:
  *   • catalog.integrations + catalog.meta (no secret values — safe in JSON)
  *   • secrets (builtin + customSlots) — plaintext or AES-256-GCM envelope
  *   • auditLog for owner API management
  *
- * Env:
- *   AGRI_API_SECRETS_FILE — path (default backend/server/agri_api_secrets.json)
- *   AGRI_API_SECRETS_TOKEN — optional guard header
- *   AGRI_API_VAULT_MASTER_KEY — encrypt secrets at rest (hex 64 or passphrase)
- *   AGRI_API_VAULT_BACKUP_DIR — auto-backup directory on each PUT
+ * Env (GEOSYNTRA_* preferred; AGRI_* legacy):
+ *   GEOSYNTRA_API_SECRETS_FILE — path (default geosyntra_api_secrets.json)
+ *   GEOSYNTRA_API_SECRETS_TOKEN — optional guard header
+ *   GEOSYNTRA_API_VAULT_MASTER_KEY — encrypt secrets at rest (hex 64 or passphrase)
+ *   GEOSYNTRA_API_VAULT_BACKUP_DIR — auto-backup directory on each PUT
  */
 
 import fs from 'fs'
@@ -18,6 +18,7 @@ import path from 'path'
 import { verifyAccessToken } from './rbac/jwt.js'
 import { isPlatformOwnerUserRecord } from './rbac/platformOwner.js'
 import { decryptJsonEnvelope, encryptJsonEnvelope } from './apiVaultCrypto.js'
+import { platformEnvVar } from './platformDataPaths.js'
 
 const BUILTIN_KEYS = [
   'arcgisPortalToken',
@@ -49,11 +50,7 @@ function emptyVault() {
 }
 
 function resolveMasterKey() {
-  return (
-    process.env.AGRI_API_VAULT_MASTER_KEY?.trim() ||
-    process.env.AGRI_BACKUP_MASTER_KEY?.trim() ||
-    ''
-  )
+  return platformEnvVar('API_VAULT_MASTER_KEY') || platformEnvVar('BACKUP_MASTER_KEY')
 }
 
 function migrateLegacySecrets(raw) {
@@ -188,7 +185,7 @@ function appendAudit(vault, entry) {
 
 export function mergeAndWriteApiSecrets(filePath, patch, opts = {}) {
   const masterKey = resolveMasterKey()
-  const backupDir = process.env.AGRI_API_VAULT_BACKUP_DIR?.trim()
+  const backupDir = platformEnvVar('API_VAULT_BACKUP_DIR')
   const prevState = readVaultFile(filePath)
   const vault = prevState.vault ? { ...prevState.vault } : emptyVault()
   const prev = readSecretsFromVault(vault, masterKey)
@@ -226,7 +223,7 @@ export function mergeAndWriteApiSecrets(filePath, patch, opts = {}) {
 
 export function mergeAndWriteApiVaultCatalog(filePath, catalogPatch, opts = {}) {
   const masterKey = resolveMasterKey()
-  const backupDir = process.env.AGRI_API_VAULT_BACKUP_DIR?.trim()
+  const backupDir = platformEnvVar('API_VAULT_BACKUP_DIR')
   const prevState = readVaultFile(filePath)
   const vault = prevState.vault ? JSON.parse(JSON.stringify(prevState.vault)) : emptyVault()
 
@@ -268,7 +265,7 @@ export function registerApiSecretsRoutes(app, opts) {
   const token = String(accessToken || '').trim()
   const masterKey = resolveMasterKey()
 
-  function ownerJwtAllowed(req) {
+  async function ownerJwtAllowed(req) {
     const getStore = opts.getStore
     if (typeof getStore !== 'function') return false
     const store = getStore()
@@ -279,12 +276,12 @@ export function registerApiSecretsRoutes(app, opts) {
     if (!auth) return false
     const verified = verifyAccessToken(auth)
     if (!verified.ok) return false
-    const user = store.getUserById(Number(verified.payload.sub))
+    const user = await Promise.resolve(store.getUserById(Number(verified.payload.sub)))
     return isPlatformOwnerUserRecord(user)
   }
 
-  function guard(req, res, next) {
-    if (ownerJwtAllowed(req)) {
+  async function guard(req, res, next) {
+    if (await ownerJwtAllowed(req)) {
       req._apiSecretsLegacyBypass = true
       return next()
     }
@@ -394,7 +391,7 @@ export function registerApiSecretsRoutes(app, opts) {
 
   app.get('/api/system/api-vault/backup', guard, (_req, res) => {
     if (!masterKey) {
-      return res.status(400).json({ error: 'Set AGRI_API_VAULT_MASTER_KEY to enable encrypted backup export.' })
+      return res.status(400).json({ error: 'Set GEOSYNTRA_API_VAULT_MASTER_KEY to enable encrypted backup export.' })
     }
     const { persisted, vault, secrets } = readVaultFile(secretsFilePath)
     if (!persisted || !vault) {

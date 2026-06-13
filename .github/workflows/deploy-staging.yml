@@ -26,7 +26,7 @@ jobs:
           VITE_GEOSYNTRA_ENV: staging
           VITE_MAPBOX_TOKEN: ''
           VITE_GEMINI_API_KEY: ''
-          VITE_AGRI_API_SECRETS_URL: ${{ vars.STAGING_API_SECRETS_URL || '' }}
+          VITE_GEOSYNTRA_API_SECRETS_URL: ${{ vars.STAGING_API_SECRETS_URL || '' }}
         run: npm run build
       - uses: actions/upload-artifact@v4
         with:
@@ -37,5 +37,5 @@ jobs:
         run: |
           {
             echo "## Staging build"
-            echo "This workflow does **not** update GitHub Pages on \`main\`. Deploy the artifact to your staging host + API with \`GEOSYNTRA_ENV=staging\` and a separate \`AGRI_DATA_DIR\` volume."
+            echo "This workflow does **not** update GitHub Pages on \`main\`. Deploy the artifact to your staging host + API with \`GEOSYNTRA_ENV=staging\` and a separate \`GEOSYNTRA_DATA_DIR\` volume."
           } >> "$GITHUB_STEP_SUMMARY"

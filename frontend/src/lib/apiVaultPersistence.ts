@@ -10,6 +10,7 @@ import {
 } from './apiSecretsServerPersistence'
 import { authHeaders as workspaceAuthHeaders } from './apiClient'
 import { readCurrentUser } from './auth'
+import { vitePlatformEnv } from './platformViteEnv'
 
 const INTEGRATIONS_KEY = 'geosyntra_api_integrations_v1'
 const META_KEY = 'geosyntra_api_integrations_meta_v2'
@@ -27,8 +28,7 @@ export type ApiVaultSnapshot = {
 }
 
 function vaultRequestHeaders(): HeadersInit {
-  const raw = import.meta.env.VITE_AGRI_API_SECRETS_TOKEN
-  const legacy = typeof raw === 'string' ? raw.trim() : ''
+  const legacy = vitePlatformEnv('API_SECRETS_TOKEN')
   const h: Record<string, string> = { ...(workspaceAuthHeaders() as Record<string, string>) }
   if (legacy) h['X-Agri-Api-Secrets-Token'] = legacy
   const me = readCurrentUser()

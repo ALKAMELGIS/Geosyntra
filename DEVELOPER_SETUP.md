@@ -65,9 +65,9 @@ No machine-specific paths are required in workspace settings.
 **Never commit:**
 
 - `frontend/.env`, `backend/.env`, `hostinger.secrets.env`
-- `backend/server/data/`, `*.db`, `agri_api_secrets.json`
+- `backend/server/data/`, `*.db`, `geosyntra_api_secrets.json` (legacy: `agri_api_secrets.json`)
 
-**Never use** `C:\Users\...` or other absolute paths in `.env` — use URLs and relative data paths (`AGRI_DATA_DIR=data`).
+**Never use** `C:\Users\...` or other absolute paths in `.env` — use URLs and relative data paths (`GEOSYNTRA_DATA_DIR=data`).
 
 ## Architecture
 
@@ -82,7 +82,7 @@ GeoSyntra/
 ```
 
 - **Data** lives under `backend/server/data/` by default (gitignored, portable relative path).
-- **Production** mounts `AGRI_DATA_DIR` on a volume **outside** the git clone ([docs/PLATFORM_DEPLOYMENT.md](docs/PLATFORM_DEPLOYMENT.md)).
+- **Production** mounts `GEOSYNTRA_DATA_DIR` on a volume **outside** the git clone ([docs/PLATFORM_DEPLOYMENT.md](docs/PLATFORM_DEPLOYMENT.md)).
 
 ## npm scripts (root)
 

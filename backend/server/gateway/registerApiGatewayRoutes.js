@@ -10,6 +10,7 @@ import { claudeMessagesServer } from './claudeProxy.js'
 import { createGatewayRateLimitMiddleware } from './gatewayRateLimit.js'
 import { proxyGoogle3dTilesRequest, serveGoogle3dRootTileset } from './google3dTilesProxy.js'
 import { proxyMapboxRequest, proxyOpenWeatherRequest } from './mapboxProxy.js'
+import { platformEnvVar } from '../platformDataPaths.js'
 function isPublicMapboxToken(token) {
   const t = String(token || '').trim()
   return t.startsWith('pk.')
@@ -48,7 +49,7 @@ export function registerApiGatewayRoutes(app, deps) {
         graphhopper: capabilities.graphhopper,
         openweathermap: capabilities.openweathermap,
       },
-      encrypted: Boolean(process.env.AGRI_API_VAULT_MASTER_KEY?.trim()),
+      encrypted: Boolean(platformEnvVar('API_VAULT_MASTER_KEY')),
     })
   })
 

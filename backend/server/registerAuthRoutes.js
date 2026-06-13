@@ -23,6 +23,8 @@ import {
   verificationExpiresAt,
 } from './authVerification.js'
 import { tryDevSystemOwnerFirstLogin } from './rbac/devOwnerBootstrap.js'
+import { platformEnvVar } from './platformDataPaths.js'
+import { storeAwait } from './storeAwait.js'
 
 function splitName(fullName) {
   const parts = String(fullName || '').trim().split(/\s+/)
@@ -47,7 +49,7 @@ function requireOwner(req, res, next) {
 }
 
 function matchesAdminDirectoryToken(req) {
-  const token = String(process.env.AGRI_ADMIN_DIRECTORY_TOKEN || '').trim()
+  const token = platformEnvVar('ADMIN_DIRECTORY_TOKEN')
   if (!token) return false
   const hdr = String(req.headers['x-agri-admin-directory-token'] || '').trim()
   const auth = String(req.headers.authorization || '')
@@ -72,20 +74,20 @@ export function registerAuthRoutes(app, deps) {
     deps.store ??
     createAuthDirectoryStore({
       jsonFilePath: deps.jsonFilePath,
-      sqlitePath: deps.sqlitePath,
+      platformDb: deps.platformDb ?? deps.sqlitePath,
     })
 
   const requireAuth = createAuthMiddleware(() => store)
-  const refreshStore = createRefreshTokenStore(deps.sqliteDb || store.sqliteDb || null)
+  const refreshStore = createRefreshTokenStore(deps.platformDb ?? deps.sqliteDb ?? store.sqliteDb ?? null)
 
   app.use('/api/auth', authRateLimiter)
 
-  function sendAuthSuccess(res, user, { remember = true, req } = {}) {
+  async function sendAuthSuccess(res, user, { remember = true, req } = {}) {
     const { publicUser, accessToken, refreshToken } = issueAuthResponse(user)
     setAccessTokenCookie(res, accessToken)
     if (remember) {
       setRefreshTokenCookie(res, refreshToken)
-      refreshStore.persist(user.id, refreshToken, req?.headers?.['user-agent'])
+      await storeAwait(refreshStore.persist(user.id, refreshToken, req?.headers?.['user-agent']))
     }
     return { publicUser, accessToken, refreshToken }
   }
@@ -94,23 +96,23 @@ export function registerAuthRoutes(app, deps) {
     return res.json({ ok: true, user: req.authPublic })
   })
 
-  app.post('/api/auth/refresh', (req, res) => {
+  app.post('/api/auth/refresh', async (req, res) => {
     try {
       const token = readRefreshTokenFromRequest(req)
       if (!token) return res.status(401).json({ ok: false, error: 'refresh_missing' })
-      if (refreshStore.isRevoked(token)) {
+      if (await storeAwait(refreshStore.isRevoked(token))) {
         return res.status(401).json({ ok: false, error: 'refresh_revoked' })
       }
       const verified = verifyRefreshToken(token)
       if (!verified.ok) return res.status(401).json({ ok: false, error: verified.error || 'invalid_refresh' })
       const userId = Number(verified.payload.sub)
-      const user = store.getUserById?.(userId) || null
+      const user = (await storeAwait(store.getUserById?.(userId))) || null
       if (!user) return res.status(401).json({ ok: false, error: 'user_not_found' })
       const { publicUser, accessToken, refreshToken } = issueAuthResponse(user)
       setAccessTokenCookie(res, accessToken)
       setRefreshTokenCookie(res, refreshToken)
-      refreshStore.revoke(token)
-      refreshStore.persist(user.id, refreshToken, req.headers['user-agent'])
+      await storeAwait(refreshStore.revoke(token))
+      await storeAwait(refreshStore.persist(user.id, refreshToken, req.headers['user-agent']))
       return res.json({ ok: true, user: publicUser, accessToken })
     } catch (e) {
       console.error('[auth] refresh failed', e)
@@ -118,9 +120,9 @@ export function registerAuthRoutes(app, deps) {
     }
   })
 
-  app.post('/api/auth/logout', (req, res) => {
+  app.post('/api/auth/logout', async (req, res) => {
     const token = readRefreshTokenFromRequest(req)
-    if (token) refreshStore.revoke(token)
+    if (token) await storeAwait(refreshStore.revoke(token))
     clearAuthCookies(res)
     return res.json({ ok: true })
   })
@@ -199,13 +201,15 @@ export function registerAuthRoutes(app, deps) {
       }
       const { firstName, lastName } = splitName(name)
       const requestedPlan = req.body?.planId ?? req.body?.plan ?? req.body?.subscriptionPlan ?? 'trial'
-      const result = store.registerUser({
-        name,
-        email,
-        password,
-        requestedPlan,
-        profileExtra: { firstName, lastName },
-      })
+      const result = await storeAwait(
+        store.registerUser({
+          name,
+          email,
+          password,
+          requestedPlan,
+          profileExtra: { firstName, lastName },
+        }),
+      )
       if (!result.ok && result.error === 'role_not_self_assignable') {
         return res.status(403).json({
           ok: false,
@@ -215,7 +219,7 @@ export function registerAuthRoutes(app, deps) {
       }
       if (!result.ok) {
         if (result.error === 'email_exists') {
-          const existing = store.getUserByEmail(email)
+          const existing = await storeAwait(store.getUserByEmail(email))
           if (existing && !existing.emailVerified) {
             return res.status(409).json({
               ok: false,
@@ -280,7 +284,7 @@ export function registerAuthRoutes(app, deps) {
         })
       }
 
-      const user = store.getUserByEmail(email)
+      const user = await storeAwait(store.getUserByEmail(email))
       if (!user) {
         return res.json({ ok: true, message: 'If an account exists, a verification email was sent.' })
       }
@@ -290,7 +294,7 @@ export function registerAuthRoutes(app, deps) {
 
       const token = generateVerificationToken()
       const expires = verificationExpiresAt()
-      const set = store.setVerificationToken(email, token, expires)
+      const set = await storeAwait(store.setVerificationToken(email, token, expires))
       if (!set.ok) return res.status(404).json({ ok: false, error: 'not_found' })
 
       if (!hasEmailConfig()) {
@@ -341,13 +345,13 @@ export function registerAuthRoutes(app, deps) {
     return link
   }
 
-  app.post('/api/auth/forgot-username', (req, res) => {
+  app.post('/api/auth/forgot-username', async (req, res) => {
     try {
       const email = String(req.body?.email || '').trim()
       if (!email || !email.includes('@')) {
         return res.status(400).json({ ok: false, error: 'email_required', message: 'Enter a valid email address.' })
       }
-      const hint = store.lookupUsernameHint(email)
+      const hint = await storeAwait(store.lookupUsernameHint(email))
       if (!hint?.ok) {
         return res.json({
           ok: true,
@@ -398,7 +402,7 @@ export function registerAuthRoutes(app, deps) {
         })
       }
 
-      const user = store.getUserByEmail(email)
+      const user = await storeAwait(store.getUserByEmail(email))
       const generic = {
         ok: true,
         message: 'If an account exists for this email, password reset instructions were sent.',
@@ -415,7 +419,7 @@ export function registerAuthRoutes(app, deps) {
 
       const token = generateVerificationToken()
       const expires = passwordResetExpiresAt()
-      const set = store.setPasswordResetToken(email, token, expires)
+      const set = await storeAwait(store.setPasswordResetToken(email, token, expires))
       if (!set.ok) return res.json(generic)
 
       if (!hasEmailConfig()) {
@@ -445,7 +449,7 @@ export function registerAuthRoutes(app, deps) {
     }
   })
 
-  app.post('/api/auth/reset-password', (req, res) => {
+  app.post('/api/auth/reset-password', async (req, res) => {
     try {
       const token = String(req.body?.token || '').trim()
       const password = String(req.body?.password || '')
@@ -457,7 +461,7 @@ export function registerAuthRoutes(app, deps) {
           message: 'Password must be at least 8 characters.',
         })
       }
-      const result = store.resetPasswordByToken(token, password)
+      const result = await storeAwait(store.resetPasswordByToken(token, password))
       if (!result.ok) {
         const code = result.error === 'token_expired' ? 'token_expired' : 'invalid_token'
         return res.status(400).json({
@@ -477,11 +481,11 @@ export function registerAuthRoutes(app, deps) {
     }
   })
 
-  app.get('/api/auth/verify-email', (req, res) => {
+  app.get('/api/auth/verify-email', async (req, res) => {
     try {
       const token = String(req.query?.token || '').trim()
       if (!token) return res.status(400).json({ ok: false, error: 'token_required' })
-      const result = store.verifyEmailByToken(token)
+      const result = await storeAwait(store.verifyEmailByToken(token))
       if (!result.ok) {
         const code = result.error === 'token_expired' ? 'token_expired' : 'invalid_token'
         return res.status(400).json({
@@ -494,7 +498,7 @@ export function registerAuthRoutes(app, deps) {
         })
       }
       deps.addAuthEvent('email_verified', { email: result.publicUser.email })
-      const { publicUser, accessToken } = sendAuthSuccess(res, result.user, { req })
+      const { publicUser, accessToken } = await sendAuthSuccess(res, result.user, { req })
       return res.json({
         ok: true,
         user: publicUser,
@@ -507,7 +511,7 @@ export function registerAuthRoutes(app, deps) {
     }
   })
 
-  app.post('/api/auth/admin/provision-user', requireOwnerOrDirectoryToken, (req, res) => {
+  app.post('/api/auth/admin/provision-user', requireOwnerOrDirectoryToken, async (req, res) => {
     try {
       const name = String(req.body?.name || '').trim()
       const email = String(req.body?.email || '').trim()
@@ -521,25 +525,29 @@ export function registerAuthRoutes(app, deps) {
         return res.status(400).json({ ok: false, error: 'invalid_input', message: 'Email and password (min 8 characters) are required.' })
       }
       const provisionedBy = req.authUser?.email ?? req.body?.provisionedBy ?? null
-      const result = store.provisionUserByOwner({
-        name,
-        email,
-        password,
-        role,
-        status,
-        emailVerified,
-        profileExtra,
-        provisionedBy,
-      })
+      const result = await storeAwait(
+        store.provisionUserByOwner({
+          name,
+          email,
+          password,
+          role,
+          status,
+          emailVerified,
+          profileExtra,
+          provisionedBy,
+        }),
+      )
       if (!result.ok) {
         if (result.error === 'email_exists' && req.body?.ensureSignIn === true) {
-          const repaired = store.ensureOwnerProvisionedSignIn({
-            email,
-            password,
-            status,
-            emailVerified,
-            provisionedBy,
-          })
+          const repaired = await storeAwait(
+            store.ensureOwnerProvisionedSignIn({
+              email,
+              password,
+              status,
+              emailVerified,
+              provisionedBy,
+            }),
+          )
           if (repaired.ok) {
             deps.addAuthEvent('owner_provision_repair', { email: repaired.user.email })
             return res.json({ ok: true, user: repaired.publicUser, repaired: true })
@@ -564,19 +572,19 @@ export function registerAuthRoutes(app, deps) {
     }
   })
 
-  app.post('/api/auth/login', (req, res) => {
+  app.post('/api/auth/login', async (req, res) => {
     try {
       const email = String(req.body?.email || '').trim()
       const password = String(req.body?.password || '')
       if (!email || !password) {
         return res.status(400).json({ ok: false, error: 'invalid_credentials' })
       }
-      const result = store.loginUser(email, password)
+      let result = await storeAwait(store.loginUser(email, password))
       if (!result.ok) {
         if (result.error === 'user_not_found') {
-          const devLogin = tryDevSystemOwnerFirstLogin(store, email, password)
+          const devLogin = await tryDevSystemOwnerFirstLogin(store, email, password)
           if (devLogin?.ok) {
-            const { publicUser, accessToken } = sendAuthSuccess(res, devLogin.user, { req })
+            const { publicUser, accessToken } = await sendAuthSuccess(res, devLogin.user, { req })
             deps.addAuthEvent('login_success', { email: publicUser.email, source: 'dev-first-login' })
             return res.json({ ok: true, user: publicUser, accessToken })
           }
@@ -620,7 +628,7 @@ export function registerAuthRoutes(app, deps) {
         }
         return res.status(401).json({ ok: false, error: 'invalid_credentials', message: 'Incorrect email or password.' })
       }
-      const { publicUser, accessToken } = sendAuthSuccess(res, result.user, { req })
+      const { publicUser, accessToken } = await sendAuthSuccess(res, result.user, { req })
       deps.addAuthEvent('login_success', { email: publicUser.email })
       return res.json({ ok: true, user: publicUser, accessToken })
     } catch (e) {
@@ -629,7 +637,7 @@ export function registerAuthRoutes(app, deps) {
     }
   })
 
-  app.post('/api/auth/oauth-upsert', (req, res) => {
+  app.post('/api/auth/oauth-upsert', async (req, res) => {
     try {
       const email = String(req.body?.email || '').trim()
       const name = String(req.body?.name || '').trim()
@@ -644,14 +652,16 @@ export function registerAuthRoutes(app, deps) {
       ) {
         return res.status(400).json({ ok: false, error: 'invalid_oauth_payload' })
       }
-      const result = store.upsertOAuthUser({
-        email,
-        name,
-        provider,
-        sub: sub || undefined,
-        username: username || undefined,
-        profileImage: profileImage || undefined,
-      })
+      const result = await storeAwait(
+        store.upsertOAuthUser({
+          email,
+          name,
+          provider,
+          sub: sub || undefined,
+          username: username || undefined,
+          profileImage: profileImage || undefined,
+        }),
+      )
       if (!result.ok) {
         if (result.error === 'pending_approval') {
           return res.status(403).json({
@@ -669,7 +679,7 @@ export function registerAuthRoutes(app, deps) {
           message: result.message,
         })
       }
-      const { publicUser, accessToken } = sendAuthSuccess(res, result.user, { remember, req })
+      const { publicUser, accessToken } = await sendAuthSuccess(res, result.user, { remember, req })
       deps.addAuthEvent('oauth_login', { email: publicUser.email, provider })
       return res.json({
         ok: true,

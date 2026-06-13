@@ -1,6 +1,6 @@
 /**
  * Persistent SQLite backing store for admin user directory + audit trail.
- * Survives deploys/restarts when AGRI_USER_DB_PATH points to a mounted volume.
+ * Survives deploys/restarts when GEOSYNTRA_USER_DB_PATH points to a mounted volume.
  *
  * Merge policy on PUT: union by stable `id` — rows present in DB but missing from
  * the incoming snapshot are retained (no silent deletion during sync).
@@ -558,6 +558,24 @@ export function createSqliteAdminDirectoryStore(dbPath) {
     }
   }
 
+  const maxIdStmt = db.prepare(`SELECT MAX(id) AS m FROM admin_users`)
+  const selByEmailStmt = db.prepare(
+    `SELECT id, email, name, role, status, scope, managed_by_id AS managedById, last_login AS lastLogin,
+            password_hash AS passwordHash, email_verified AS emailVerified, verification_token AS verificationToken,
+            verification_token_expires AS verificationTokenExpires,
+            oauth_google_sub AS oauthGoogleSub, oauth_apple_sub AS oauthAppleSub,
+            created_at AS createdAt, updated_at AS updatedAt, profile_extra AS profileExtraRaw
+     FROM admin_users WHERE email = ? COLLATE NOCASE LIMIT 1`,
+  )
+  const selByTokenStmt = db.prepare(
+    `SELECT id, email, name, role, status, scope, managed_by_id AS managedById, last_login AS lastLogin,
+            password_hash AS passwordHash, email_verified AS emailVerified, verification_token AS verificationToken,
+            verification_token_expires AS verificationTokenExpires,
+            oauth_google_sub AS oauthGoogleSub, oauth_apple_sub AS oauthAppleSub,
+            created_at AS createdAt, updated_at AS updatedAt, profile_extra AS profileExtraRaw
+     FROM admin_users WHERE verification_token = ? LIMIT 1`,
+  )
+
   return {
     db,
     readDirectory,
@@ -570,5 +588,16 @@ export function createSqliteAdminDirectoryStore(dbPath) {
     createEncryptedBackup,
     restoreFromEncryptedBackup,
     importFromJsonFileIfEmpty,
+    getUserRowByEmail(email) {
+      return rowToUser(selByEmailStmt.get(normalizeEmail(email)))
+    },
+    getUserRowByVerificationToken(token) {
+      const t = String(token || '').trim()
+      if (!t) return null
+      return rowToUser(selByTokenStmt.get(t))
+    },
+    getMaxUserId() {
+      return Number(maxIdStmt.get()?.m || 0)
+    },
   }
 }

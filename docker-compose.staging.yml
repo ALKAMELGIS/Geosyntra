@@ -11,9 +11,9 @@ services:
     environment:
       NODE_ENV: staging
       GEOSYNTRA_ENV: staging
-      AGRI_DATA_DIR: /data
-      AGRI_USER_DB_PATH: /data/geosyntra_staging.db
-      AGRI_API_SECRETS_FILE: /data/agri_api_secrets_staging.json
+      GEOSYNTRA_DATA_DIR: /data
+      GEOSYNTRA_USER_DB_PATH: /data/geosyntra_staging.db
+      GEOSYNTRA_API_SECRETS_FILE: /data/geosyntra_api_secrets_staging.json
     volumes:
       - geosyntra_staging_data:/data
       - .:/app

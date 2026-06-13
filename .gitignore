@@ -11,6 +11,9 @@ hostinger.secrets.env
 backend/.env
 
 # Server-side API token store (Mapbox, Gemini, …) — never commit.
+backend/server/geosyntra_api_secrets.json
+backend/server/geosyntra_user_profiles.json
+backend/server/geosyntra_admin_directory.json
 backend/server/agri_api_secrets.json
 backend/server/agri_user_profiles.json
 backend/server/agri_admin_directory.json

@@ -553,6 +553,7 @@ import {
   type SiMapProjectionMode,
   type SiMapTerrainSettings,
 } from './utils/siMapProjectionTerrain';
+import { SI_MAP_GIS_MORPH_DURATION_MS } from './utils/siMapGisCameraController';
 import {
   runSiMapElevationViewTransition,
   warmSiMapElevationScene,
@@ -8007,8 +8008,8 @@ export default function SatelliteIntelligence() {
         : next
           ? sceneReadyForInstant3d || camera.pitch >= SI_GLOBE_FREE_CAMERA_TERRAIN_PITCH
             ? 0
-            : SI_ELEVATION_VIEW_TRANSITION_MS
-          : SI_ELEVATION_VIEW_TRANSITION_MS;
+            : SI_MAP_GIS_MORPH_DURATION_MS
+          : SI_MAP_GIS_MORPH_DURATION_MS;
 
       const finishElevationTransition = () => {
         siElevationRafTransitionCancelRef.current = null;

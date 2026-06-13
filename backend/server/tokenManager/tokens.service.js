@@ -4,6 +4,7 @@
 import { resolveTokenEnvValue } from '../env.js'
 import { readVaultFile } from '../apiSecretsPersistence.js'
 import { registryEntry, TOKEN_REGISTRY, legacyBuiltinToTokenName } from './tokenRegistry.js'
+import { platformEnvVar } from '../platformDataPaths.js'
 
 /**
  * @param {ReturnType<import('./systemTokenStore.js').createSystemTokenStore>} store
@@ -23,7 +24,7 @@ export function createTokenManagerService(store, { secretsFilePath } = {}) {
     if (fromEnv) return fromEnv
 
     if (store?.ready) {
-      const fromDb = store.getDecrypted(entry.name)
+      const fromDb = await Promise.resolve(store.getDecrypted(entry.name))
       if (fromDb) return fromDb
     }
 
@@ -40,11 +41,10 @@ export function createTokenManagerService(store, { secretsFilePath } = {}) {
     return null
   }
 
-  function listRegistryStatus() {
+  async function listRegistryStatus() {
+    const masked = store?.ready ? await Promise.resolve(store.listMasked()) : []
     return TOKEN_REGISTRY.map(meta => {
-      const dbRow = store?.ready
-        ? store.listMasked().find(r => r.name === meta.name)
-        : null
+      const dbRow = masked.find(r => r.name === meta.name)
       const envConfigured = Boolean(resolveTokenEnvValue(meta.name))
       const dbConfigured = Boolean(dbRow?.configured)
       return {
@@ -58,8 +58,10 @@ export function createTokenManagerService(store, { secretsFilePath } = {}) {
     })
   }
 
-  function listMaskedForAdmin() {
-    const byName = new Map((store?.ready ? store.listMasked() : []).map(r => [r.name, r]))
+  async function listMaskedForAdmin() {
+    const byName = new Map(
+      (store?.ready ? await Promise.resolve(store.listMasked()) : []).map(r => [r.name, r]),
+    )
     return TOKEN_REGISTRY.map(meta => {
       const row = byName.get(meta.name)
       const envConfigured = Boolean(resolveTokenEnvValue(meta.name))
@@ -77,7 +79,7 @@ export function createTokenManagerService(store, { secretsFilePath } = {}) {
         lastTestMessage: row?.lastTestMessage ?? null,
         updatedAt: row?.updatedAt ?? null,
         updatedBy: row?.updatedBy ?? null,
-        encrypted: row?.encrypted ?? Boolean(process.env.AGRI_API_VAULT_MASTER_KEY?.trim()),
+        encrypted: row?.encrypted ?? Boolean(platformEnvVar('API_VAULT_MASTER_KEY')),
       }
     })
   }
@@ -92,14 +94,16 @@ export function createTokenManagerService(store, { secretsFilePath } = {}) {
       const tokenName = legacyBuiltinToTokenName(builtinKey)
       if (!tokenName) continue
       const meta = registryEntry(tokenName)
-      store.upsert({
-        name: tokenName,
-        label: meta?.label || tokenName,
-        category: meta?.category || 'integration',
-        value: value.trim(),
-        active: true,
-        updatedBy: actorEmail,
-      })
+      await Promise.resolve(
+        store.upsert({
+          name: tokenName,
+          label: meta?.label || tokenName,
+          category: meta?.category || 'integration',
+          value: value.trim(),
+          active: true,
+          updatedBy: actorEmail,
+        }),
+      )
       store.appendAudit({
         tokenName,
         action: 'migrate_from_vault',

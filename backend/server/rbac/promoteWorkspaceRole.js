@@ -4,6 +4,7 @@ import {
   normalizeRbacRole,
   rbacRoleToDisplay,
 } from './roles.js'
+import { storeAwait } from '../storeAwait.js'
 
 const SYSTEM_ACTOR = Object.freeze({ email: 'system@rbac', roleSlug: 'owner' })
 
@@ -11,11 +12,11 @@ const SYSTEM_ACTOR = Object.freeze({ email: 'system@rbac', roleSlug: 'owner' })
  * Set workspace RBAC role for an existing user (CLI / env bootstrap).
  * Uses owner-level actor so assignments are not blocked by canAssignRole.
  */
-export function promoteWorkspaceRole(store, email, roleSlug = 'owner') {
+export async function promoteWorkspaceRole(store, email, roleSlug = 'owner') {
   const em = String(email || '').trim().toLowerCase()
   if (!em) return { ok: false, error: 'email_required' }
 
-  const user = store.getUserByEmail?.(em)
+  const user = await storeAwait(store.getUserByEmail?.(em))
   if (!user) return { ok: false, error: 'user_not_found', email: em }
 
   const targetSlug = normalizeRbacRole(roleSlug)
@@ -26,14 +27,14 @@ export function promoteWorkspaceRole(store, email, roleSlug = 'owner') {
     return { ok: true, unchanged: true, email: em, role: display, roleSlug: targetSlug }
   }
 
-  const roleResult = store.setUserRole?.(user.id, targetSlug, SYSTEM_ACTOR)
+  const roleResult = await storeAwait(store.setUserRole?.(user.id, targetSlug, SYSTEM_ACTOR))
   if (roleResult && roleResult.ok === false) return { ...roleResult, email: em }
 
   if (user.status === USER_STATUSES.PENDING_APPROVAL && typeof store.approveUser === 'function') {
-    store.approveUser(user.id, SYSTEM_ACTOR)
+    await storeAwait(store.approveUser(user.id, SYSTEM_ACTOR))
   }
   if (user.status === USER_STATUSES.SUSPENDED && typeof store.reactivateUser === 'function') {
-    store.reactivateUser(user.id, SYSTEM_ACTOR)
+    await storeAwait(store.reactivateUser(user.id, SYSTEM_ACTOR))
   }
 
   return {

@@ -4,8 +4,10 @@ import { applyAgroCloudMapboxBranding } from '../utils/agroCloudMapboxMouseBrand
 import { attachSiMapGlobeElevationZoomWheel } from '../utils/siMapGlobeZoom';
 import { SI_MAP_RIGHT_DRAG_ELEVATION_COMMIT_PITCH } from '../utils/siMapRightDragElevation';
 import type { SiMapTerrainSettings } from '../utils/siMapProjectionTerrain';
+import { siMapView3dOrbitModeActive, SI_GLOBE_FREE_CAMERA_TERRAIN_PITCH } from '../utils/siMapGlobeFreeCamera';
+import { attachSiMapGisCameraController } from '../utils/siMapGisCameraController';
+import { shouldBlockSiMapContextMenuToggle3D } from '../utils/siMapContextMenu3DToggle';
 
-const SI_GLOBE_FREE_CAMERA_TERRAIN_PITCH = 25;
 const SI_MAP_RIGHT_DRAG_ELEVATION_EXIT_PITCH = 8;
 
 type SiRightDragElevationReleaseAction =
@@ -42,20 +44,6 @@ function siMapFinalizeRightDragTerrainExaggeration(
   /* GitHub terrain stack handles exaggeration via applySiMapTerrain */
 }
 
-function siMapView3dOrbitModeActive(
-  elevationDock3d: boolean,
-  pitchDeg: number,
-): boolean {
-  return elevationDock3d || pitchDeg >= SI_GLOBE_FREE_CAMERA_TERRAIN_PITCH;
-}
-
-function shouldBlockSiMapContextMenuToggle3D(opts: {
-  elevationDock3d: boolean;
-  mapDrawTool: string;
-}): boolean {
-  if (opts.elevationDock3d) return false;
-  return opts.mapDrawTool !== 'move';
-}
 import { MAPBOX_NAVIGATION_PROPS, MAP_MOUSE_BEHAVIOR_SPEC } from '../utils/MapMouseBehavior';
 import {
   clampSiViewStateForProjection,
@@ -260,24 +248,12 @@ export function useAgroCloudMapboxMouseHost(options: AgroCloudMapboxMouseHostOpt
     (orig: MouseEvent | undefined, map: MapboxMap): boolean => {
       if (!orig || !('button' in orig)) return false;
       const guards = getDrawToolGuards();
-      let pitch = 0;
-      try {
-        pitch = map.getPitch();
-      } catch {
-        /* ignore */
-      }
-      const globeProjection = mapProjectionModeRef.current === 'globe';
-      const view3d = siMapView3dOrbitModeActive(elevationViewActiveRef.current, pitch, {
-        globeProjection,
-      });
-
       if (
         orig.button === 2 &&
         siMapShouldStartCameraOrbitDragRight3d({
           button: orig.button,
           shiftKey: orig.shiftKey,
-          view3dActive: view3d,
-          globeProjection,
+          elevation3d: elevationViewActiveRef.current,
           ...guards,
         })
       ) {
@@ -526,6 +502,21 @@ export function useAgroCloudMapboxMouseHost(options: AgroCloudMapboxMouseHostOpt
       detachWheel?.();
     };
   }, [getDrawToolGuards, getMapInstance, isMapLoaded, releaseRightDragPointerCapture]);
+
+  useEffect(() => {
+    if (!isMapLoaded) return;
+    const mapInstance = getMapInstance();
+    if (!mapInstance) return;
+    const gisCamera = attachSiMapGisCameraController(mapInstance, {
+      getIs3d: () => elevationViewActiveRef.current,
+      isTransitioning: () => mapElevationTransitioningRef.current,
+      isInteractionBlocked: () => {
+        const tool = getDrawToolGuards().mapDrawTool;
+        return tool !== 'select' && tool !== 'move';
+      },
+    });
+    return () => gisCamera.dispose();
+  }, [elevationViewActiveRef, getDrawToolGuards, getMapInstance, isMapLoaded, mapElevationTransitioningRef]);
 
   useEffect(() => {
     if (!isMapLoaded) return;

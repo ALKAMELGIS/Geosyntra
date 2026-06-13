@@ -1,25 +1,24 @@
 /**
  * Syncs User Management (adminUsers) + audit log to the Node backend file store
- * so changes survive deploys/restarts when AGRI_ADMIN_DIRECTORY_FILE is on a persistent volume.
+ * so changes survive deploys/restarts when GEOSYNTRA_ADMIN_DIRECTORY_FILE is on a persistent volume.
  *
  * @see backend/server/adminDirectoryPersistence.js
  */
 import { isAdminUserEmailTombstoned, readTombstoneEmailsList } from './admin/adminUserTombstones'
 import { normalizeEmail } from './auth'
 import { AUDIT_LOG_STORAGE_KEY } from './auditConstants'
+import { vitePlatformEnv } from './platformViteEnv'
 
 const ADMIN_USERS_KEY = 'adminUsers'
 const DEFAULT_DIRECTORY_API = '/api/v1/admin/directory'
 
 function adminDirectoryApiBase(): string {
-  const raw = import.meta.env.VITE_AGRI_ADMIN_DIRECTORY_URL
-  const u = typeof raw === 'string' ? raw.trim().replace(/\/$/, '') : ''
+  const u = vitePlatformEnv('ADMIN_DIRECTORY_URL').replace(/\/$/, '')
   return u || DEFAULT_DIRECTORY_API
 }
 
 function adminDirectoryAuthHeaders(): HeadersInit {
-  const raw = import.meta.env.VITE_AGRI_ADMIN_DIRECTORY_TOKEN
-  const t = typeof raw === 'string' ? raw.trim() : ''
+  const t = vitePlatformEnv('ADMIN_DIRECTORY_TOKEN')
   if (!t) return {}
   return { 'X-Agri-Admin-Directory-Token': t, Authorization: `Bearer ${t}` }
 }

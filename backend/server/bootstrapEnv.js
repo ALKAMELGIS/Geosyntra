@@ -3,6 +3,7 @@
  * Local development: load backend/.env + repo root .env (never frontend/.env with VITE_* keys).
  */
 import path from 'path'
+import { platformEnvVar } from './platformDataPaths.js'
 import { loadEnvFile } from './loadEnvFile.js'
 import {
   auditRequiredProductionEnv,
@@ -58,9 +59,9 @@ export function bootstrapServerEnvironment({ repoRoot }) {
   logEnvironmentBindings()
   validateMapboxEnvStartup()
 
-  if (!process.env.AGRI_API_VAULT_MASTER_KEY?.trim()) {
+  if (!platformEnvVar('API_VAULT_MASTER_KEY')) {
     console.warn(
-      '[env] WARN: AGRI_API_VAULT_MASTER_KEY is unset — tokens may be stored in plaintext envelopes (dev only).',
+      '[env] WARN: GEOSYNTRA_API_VAULT_MASTER_KEY is unset — tokens may be stored in plaintext envelopes (dev only).',
     )
   }
 
